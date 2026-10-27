@@ -873,6 +873,136 @@ public class TransportServiceTests
         (await db.IdempotencyRecords.CountAsync()).Should().Be(0);
     }
 
+
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    [InlineData(true, true)]
+    public async Task Stop_correction_uses_peak_occupancy_not_total_active_reservation_count(
+        bool upcoming, bool inclusiveOverlap)
+    {
+        await using var db = CreateContext(CreateOptions(), 101);
+        var rider = await SeedAssignmentAsync(db, 101, true, [1, 2, 3, 4, 5, 6, 7, 8]);
+        var today = DateOnly.FromDateTime(TimeProvider.System.GetLocalNow().DateTime);
+        var route = await db.Routes.SingleAsync();
+        var vehicle = await db.Vehicles.SingleAsync();
+        var campus = await db.Campuses.SingleAsync();
+        vehicle.Capacity = 1;
+        rider.MonthlyFare = 0m;
+        rider.StartDate = upcoming ? today.AddDays(5) : today.AddDays(-5);
+        rider.EndDate = upcoming ? today.AddDays(9) : today.AddDays(4);
+        var pickup = new RouteStop
+        {
+            TenantId = 101, RouteId = route.Id, Name = "North", SequenceNo = 1, IsActive = true
+        };
+        var drop = new RouteStop
+        {
+            TenantId = 101, RouteId = route.Id, Name = "South", SequenceNo = 2, IsActive = true
+        };
+        db.RouteStops.AddRange(pickup, drop);
+        db.RouteVehicleAssignments.Add(new RouteVehicleAssignment
+        {
+            TenantId = 101, RouteId = route.Id, VehicleId = vehicle.Id,
+            EffectiveFrom = today.AddDays(-20), EffectiveTo = today.AddDays(40), IsCurrent = true
+        });
+        await db.SaveChangesAsync();
+
+        // Separate students/enrollments with non-overlapping service periods:
+        // total active reservations exceed capacity, but peak occupancy does not.
+        var periods = upcoming
+            ? new[] { (Start: today, End: today.AddDays(4)),
+                (Start: inclusiveOverlap ? today.AddDays(9) : today.AddDays(10), End: today.AddDays(14)) }
+            : new[] { (Start: inclusiveOverlap ? today.AddDays(4) : today.AddDays(5), End: today.AddDays(9)),
+                (Start: today.AddDays(10), End: today.AddDays(14)) };
+        for (var index = 0; index < periods.Length; index++)
+        {
+            var student = new Student
+            {
+                TenantId = 101, PublicId = Guid.NewGuid(), PersonId = 10 + index,
+                StudentCode = "STOP-PEAK-" + Guid.NewGuid().ToString("N"),
+                FullName = "Other rider", StatusCode = "Active", AdmissionDate = today
+            };
+            db.Students.Add(student);
+            await db.SaveChangesAsync();
+            var enrollment = new StudentEnrollment
+            {
+                TenantId = 101, PublicId = Guid.NewGuid(), ClientRequestId = Guid.NewGuid(),
+                StudentId = student.Id, CampusId = campus.Id, AcademicYearId = 1,
+                AcademicProgramId = 1, AcademicLevelId = 1, AcademicBatchId = 1,
+                AcademicCurriculumId = 1, RollNo = (20 + index).ToString(),
+                IsCurrent = true, State = EnrollmentState.Active, EnrollmentDate = today
+            };
+            db.StudentEnrollments.Add(enrollment);
+            await db.SaveChangesAsync();
+            db.StudentTransports.Add(new StudentTransport
+            {
+                TenantId = 101, PublicId = Guid.NewGuid(), ClientRequestId = Guid.NewGuid(),
+                StudentId = student.Id, StudentEnrollmentId = enrollment.Id,
+                RouteId = route.Id, VehicleId = vehicle.Id, StartDate = periods[index].Start,
+                EndDate = periods[index].End, State = TransportAssignmentState.Active,
+                MonthlyFare = 0m
+            });
+        }
+        await db.SaveChangesAsync();
+        var before = rider.UpdatedAt;
+        var request = new CorrectUpcomingTransportStopsRequestDto
+        {
+            PickupStopId = pickup.Id, DropStopId = drop.Id,
+            RowVersion = Convert.ToBase64String(rider.RowVersion)
+        };
+        var service = CreateService(db, 101);
+        var result = upcoming
+            ? await service.CorrectUpcomingStopsAsync(rider.PublicId, request)
+            : await service.CorrectActiveStopsAsync(rider.PublicId, request);
+
+        result.Success.Should().Be(!inclusiveOverlap, result.Message);
+        if (inclusiveOverlap)
+        {
+            result.StatusCode.Should().Be(409);
+            rider.PickupStopId.Should().BeNull();
+            rider.DropStopId.Should().BeNull();
+            rider.UpdatedAt.Should().Be(before);
+        }
+        else
+        {
+            rider.PickupStopId.Should().Be(pickup.Id);
+            rider.DropStopId.Should().Be(drop.Id);
+            var after = rider.UpdatedAt;
+            var retry = upcoming
+                ? await service.CorrectUpcomingStopsAsync(rider.PublicId, request)
+                : await service.CorrectActiveStopsAsync(rider.PublicId, request);
+            retry.Success.Should().BeTrue(retry.Message);
+            rider.UpdatedAt.Should().Be(after);
+        }
+    }
+
+    [Fact]
+    public void Stop_correction_services_keep_serializable_campus_and_finance_guards()
+    {
+        foreach (var file in new[] {
+            "TransportService.ActiveStopCorrection.cs", "TransportService.UpcomingStopCorrection.cs" })
+        {
+            var directory = new DirectoryInfo(AppContext.BaseDirectory);
+            string? source = null;
+            while (directory != null)
+            {
+                var path = Path.Combine(directory.FullName, "EduOS.Service", "Services", "Transport", file);
+                if (File.Exists(path)) { source = File.ReadAllText(path); break; }
+                directory = directory.Parent;
+            }
+            Assert.NotNull(source);
+            Assert.Contains("CanManageCampusAsync", source);
+            Assert.Contains("HasPostedActivityAsync", source);
+            Assert.Contains("HasChargeableTerms", source);
+            Assert.Contains("IsolationLevel.Serializable", source);
+            Assert.Contains("PeakReservedSeats(", source);
+            Assert.Contains("Take(10001)", source);
+            Assert.Contains("HasSqlSerializationConflict(ex)", source);
+            Assert.DoesNotContain("CountAsync(x =>\n                    x.TenantId == tenant && !x.IsDeleted && x.VehicleId == vehicle.Id", source);
+        }
+    }
+
     private static TransportService CreateService(EduOSDbContext context, long tenant, bool canManage = true, string? role = null) => new(
         new GenericRepository<TransportRoute>(context),
         new GenericRepository<RouteStop>(context),

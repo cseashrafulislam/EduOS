@@ -69,11 +69,21 @@ public sealed partial class TransportService
                     stopIds.Contains(x.Id), ct);
                 if (validStops != stopIds.Length)
                     return Error("Pickup/drop stops must be active stops on the assigned route.", 409);
-                var assignedSeats = await _assignments.GetQueryable().AsNoTracking().CountAsync(x =>
-                    x.TenantId == tenant && !x.IsDeleted && x.VehicleId == vehicle.Id &&
-                    x.State == TransportAssignmentState.Active, ct);
-                if (assignedSeats > vehicle.Capacity)
-                    return Error("Vehicle capacity is exceeded; resolve assignments before changes.", 409);
+                // Check inclusive peak occupancy during this rider's remaining service window.
+                // Historical and disjoint future bookings must not consume today's seat.
+                var capacityFrom = assignment.StartDate > today ? assignment.StartDate : today;
+                var capacityTo = assignment.EndDate ?? DateOnly.MaxValue;
+                var reservations = await _assignments.GetQueryable().AsNoTracking()
+                    .Where(x => x.TenantId == tenant && !x.IsDeleted && x.VehicleId == vehicle.Id &&
+                        x.State == TransportAssignmentState.Active && x.StartDate <= capacityTo &&
+                        (!x.EndDate.HasValue || x.EndDate.Value >= capacityFrom))
+                    .Select(x => new { x.StartDate, x.EndDate })
+                    .Take(10001).ToListAsync(ct);
+                if (reservations.Count > 10000)
+                    return Error("Too many overlapping reservations to validate vehicle capacity.", 413);
+                if (PeakReservedSeats(reservations.Select(x => (x.StartDate, x.EndDate)),
+                    capacityFrom, capacityTo).Peak > vehicle.Capacity)
+                    return Error("Vehicle peak occupancy exceeds capacity during this reservation.", 409);
                 assignment.PickupStopId = request.PickupStopId;
                 assignment.DropStopId = request.DropStopId;
                 assignment.UpdatedAt = _clock.GetUtcNow().UtcDateTime;
@@ -88,6 +98,21 @@ public sealed partial class TransportService
         catch (DbUpdateException ex)
         {
             _logger.LogWarning(ex, "Transport stop correction conflict for tenant {TenantId}", tenant);
+            return Error("Stop correction conflicts with another change.", 409);
+        }
+        catch (System.Transactions.TransactionAbortedException ex)
+        {
+            _logger.LogWarning(ex, "Transport stop correction transaction aborted for tenant {TenantId}", tenant);
+            return Error("Stop correction conflicts with another change.", 409);
+        }
+        catch (Microsoft.Data.SqlClient.SqlException ex) when (ex.Number is 1205 or 1222 or 3960 or 2601 or 2627)
+        {
+            _logger.LogWarning(ex, "Transport stop correction SQL conflict for tenant {TenantId}", tenant);
+            return Error("Stop correction conflicts with another change.", 409);
+        }
+        catch (InvalidOperationException ex) when (HasSqlSerializationConflict(ex))
+        {
+            _logger.LogWarning(ex, "Transport stop correction serialization conflict for tenant {TenantId}", tenant);
             return Error("Stop correction conflicts with another change.", 409);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
