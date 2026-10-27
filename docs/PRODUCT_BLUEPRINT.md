@@ -38,28 +38,29 @@ Cross-cutting capabilities: privacy and tenant isolation; bilingual `bn-BD`/`en-
 
 Visibility in a menu is **not** authorization. Tenant + campus + membership + feature entitlement + role + ownership/sensitivity must be checked for API, pages, exports, files, background work and reports.
 
-## 4. Delivery sequence and scope safety
+## 4. Version 1 / Version 2 release ownership
 
-### Release A — institution-agnostic operational core
+**Authoritative release scope:** [EduOS Version 1.0 and Version 2.0 Release Contract](RELEASE_V1_V2.md). This contract supersedes the earlier school/college-only first-release scope; the older school pilot staging checklist remains a historical **limited staging plan**, not the product scope.
 
-The initial real-user pilot may focus on school/college workflows for delivery speed, **but canonical models remain generic**. Complete the minimum usable end-to-end slices for:
+### Version 1.0 — complete education ERP through HR & Payroll
 
-1. Secure signup/onboarding, tenant/campus/user/role/entitlement management.
-2. Admission, student/guardian profiles, enrolment and academic structure/routines.
-3. Attendance, exam marks, result verification/approval/publication and readback.
-4. Fees/invoice/collection/due, balanced accounting and management reports. Do **not** enable real financial posting before reconciliation and approval tests pass.
-5. Practical LMS lessons, assignments/quizzes, submissions and learner progress.
-6. Essential dashboards, notices, responsive bilingual UI, permitted per-user customization and safe PWA behavior.
+Launch target: **16 institutes of 7 categories** (2 primary-through-college, 3 madrasa, 2 training, 1 coaching, 3 online LMS, 3 university, 2 private teachers), approximately **40,000 initial student records** and some learners attending 2–3 institutes.
 
-Complete each slice from entity/data integrity through API, service, authorization, UI, reporting and regression tests. Do not attempt 60 half-finished feature areas to claim progress.
+V1 includes **complete, production-accepted modules** for SaaS/onboarding, identity/security, institution settings, academic structures/curriculum/course registration, admission/student lifecycle, routine, attendance, full examination/assessment/result/credential management, full LMS, fees/collections, full accounting/finance, full employee HR and payroll, relevant self-service/communication, reports/exports, bilingual professional UI, saved permitted personalization and safe PWA. The first public release must also include guarded, reconciled bulk student import and privacy-safe cross-institute Person/Student linking. Complete all applicable workflows across seven institution categories.
 
-### Release B — optional operational modules
+**No Basic-now/Advanced-later module split.** If Results is in V1, grade/GPA/CGPA, retake/reassessment, validation/moderation, publication/correction, transcript/certificate and all agreed report requirements belong in V1. If HR/Payroll is in V1, staffing, leave/attendance, effective salary rules, payroll runs/approvals, payslip/bank output, accounting posting/reversal and required reporting belong in V1. Similarly all agreed LMS, finance, academic and admission behavior is part of the V1 acceptance contract.
 
-Finish Library, Hostel, Transport, HR/Payroll, Inventory/Procurement and Asset/Facility workflows based on real institution demand and dependencies. **Preserve existing models, code, tables, migrations, historical records and working workflows.** An incomplete module stays marked *Under Construction* or securely feature-gated; it is not deleted or advertised as ready. Modules already operational in the repository must continue to pass regression tests even when hidden from a pilot cohort.
+A module is marked *complete* only after its agreed end-to-end rules, correct persistence, permission/tenant boundaries, all required forms/pages, reports/print/exports, concurrency/idempotency, multilingual/mobile UX, historical compatibility, automated regression, deployment and real-user acceptance pass. Unfinished V1 work is a **release blocker**, not an Under Construction feature visible in V1.
 
-### Release C — measured advanced capabilities
+### Version 2.0 — complete additional modules only
 
-Enterprise reporting/analytics, external integrations, alumni/career/research, advanced workflow configuration and additional scale infrastructure only when requirements and measured load justify them.
+V2 is for **new self-contained modules** such as full Library, full Hostel (room/bed/allocation/billing/incident/reporting), full Transport, full Inventory and Procurement, full Assets/Facilities, relevant visitor/campus services, standalone enterprise BI and separately approved integrations/Alumni/Career/Research/Accreditation. Each selected V2 module is finished end to end before being enabled. Existing module code/data remain preserved and securely gated until acceptance.
+
+V2 **must not schedule an 'advanced' edition of any completed V1 module**. Necessary bug/security fixes, statutory changes, API compatibility work and additive data migrations are normal lifetime maintenance, not deferred business-feature development.
+
+### Scope and quality discipline
+
+No 60-screen showcase or stub-only delivery. Do not declare a feature complete from a model, controller, blank view, mock dashboard, or green build alone. A Version's agreed module list is frozen and tested against representative real institution journeys. Global models and APIs remain institution-agnostic; no renaming the domain to match the first customers. All earlier work/data/migrations are preserved; scheduled development automations stay paused until independently approved.
 
 ## 5. Status honesty and source of truth
 
