@@ -1,6 +1,7 @@
 using EduOS.Core.Common;
 using EduOS.Core.DTOs.Assessment;
 using EduOS.Core.Entities.Academic;
+using EduOS.Core.Entities.Auth;
 using EduOS.Core.Entities.Assessment;
 using EduOS.Core.Entities.HR;
 using EduOS.Core.Entities.SaaS;
@@ -35,6 +36,7 @@ public sealed partial class AssessmentAdministrationService : IAssessmentAdminis
     private readonly IGenericRepository<AcademicYear> _years;
     private readonly IGenericRepository<AcademicTerm> _terms;
     private readonly IGenericRepository<Campus> _campuses;
+    private readonly IGenericRepository<UserCampusAccess> _campusAccesses;
     private readonly IGenericRepository<Room> _rooms;
     private readonly IGenericRepository<Student> _students;
     private readonly IGenericRepository<Employee> _employees;
@@ -59,6 +61,7 @@ public sealed partial class AssessmentAdministrationService : IAssessmentAdminis
         IGenericRepository<SubjectOffering> offerings, IGenericRepository<CurriculumSubject> curriculumSubjects,
         IGenericRepository<AcademicBatch> batches, IGenericRepository<AcademicYear> years,
         IGenericRepository<AcademicTerm> terms, IGenericRepository<Campus> campuses,
+        IGenericRepository<UserCampusAccess> campusAccesses,
         IGenericRepository<Room> rooms, IGenericRepository<Student> students,
         IGenericRepository<Employee> employees, IGenericRepository<InstructorAssignment> instructors,
         IGenericRepository<AssessmentComponent> components,
@@ -73,17 +76,35 @@ public sealed partial class AssessmentAdministrationService : IAssessmentAdminis
         _gradeSchemes = gradeSchemes; _grades = grades; _enrollments = enrollments;
         _subjectNames = subjectNames; _registrations = registrations; _offerings = offerings;
         _curriculumSubjects = curriculumSubjects; _batches = batches; _years = years;
-        _terms = terms; _campuses = campuses; _rooms = rooms; _students = students;
+        _terms = terms; _campuses = campuses; _campusAccesses = campusAccesses; _rooms = rooms; _students = students;
         _employees = employees; _instructors = instructors; _components = components;
         _componentMarks = componentMarks; _templates = templates;
         _certificates = certificates; _transcripts = transcripts; _auditLogs = auditLogs;
         _uow = uow; _user = user; _clock = clock; _logger = logger;
     }
 
+    // Legacy bounded selector remains available to existing clients.
     public async Task<ApiResponse<IReadOnlyList<AssessmentScopeOptionDto>>> GetAvailableScopesAsync(
         CancellationToken ct = default)
     {
-        if (!CanRead()) return Error<IReadOnlyList<AssessmentScopeOptionDto>>("Assessment permission required.", 403);
+        var result = await GetScopePageAsync(null, 1, 500, ct);
+        return !result.Success || result.Data == null
+            ? Error<IReadOnlyList<AssessmentScopeOptionDto>>(result.Message, result.StatusCode)
+            : ApiResponse<IReadOnlyList<AssessmentScopeOptionDto>>.SuccessResponse(result.Data.Items);
+    }
+
+    public Task<ApiResponse<PagedResult<AssessmentScopeOptionDto>>> SearchAvailableScopesAsync(
+        string? search, int page, int pageSize, CancellationToken ct = default)
+    {
+        if (page < 1 || pageSize is < 1 or > 100 || search?.Length > 100)
+            return Task.FromResult(Error<PagedResult<AssessmentScopeOptionDto>>("Invalid assessment search or page."));
+        return GetScopePageAsync(search, page, pageSize, ct);
+    }
+
+    private async Task<ApiResponse<PagedResult<AssessmentScopeOptionDto>>> GetScopePageAsync(
+        string? search, int page, int pageSize, CancellationToken ct)
+    {
+        if (!CanRead()) return Error<PagedResult<AssessmentScopeOptionDto>>("Assessment permission required.", 403);
         var tenant = _user.TenantId;
         var q = from exam in _assessments.GetQueryable().AsNoTracking()
             join sub in _subjects.GetQueryable().AsNoTracking() on exam.Id equals sub.AssessmentId
@@ -95,21 +116,34 @@ public sealed partial class AssessmentAdministrationService : IAssessmentAdminis
                 batch.TenantId == tenant && item.TenantId == tenant && subject.TenantId == tenant &&
                 exam.CampusId == batch.CampusId && exam.AcademicYearId == batch.AcademicYearId &&
                 exam.State != AssessmentState.Cancelled && batch.IsActive && offering.IsActive &&
-                !exam.IsDeleted && !sub.IsDeleted
+                !exam.IsDeleted && !sub.IsDeleted && !offering.IsDeleted && !batch.IsDeleted &&
+                !item.IsDeleted && !subject.IsDeleted
             select new { exam, sub, offering, batch, subject };
+        if (IsRestrictedCampusManager())
+            q = q.Where(x => AllowedCampusIds(tenant).Contains(x.exam.CampusId));
         if (!CanPublish())
         {
             var employeeId = await OwnTeacherIdAsync(ct);
             if (employeeId == 0)
-                return ApiResponse<IReadOnlyList<AssessmentScopeOptionDto>>.SuccessResponse([]);
+                return ApiResponse<PagedResult<AssessmentScopeOptionDto>>.SuccessResponse(
+                    new PagedResult<AssessmentScopeOptionDto>
+                    { Items = [], TotalCount = 0, Page = page, PageSize = pageSize });
             var allowed = _instructors.GetQueryable().AsNoTracking().Where(x =>
-                x.TenantId == tenant && x.EmployeeId == employeeId && x.IsActive)
+                x.TenantId == tenant && x.EmployeeId == employeeId && x.IsActive && !x.IsDeleted)
                 .Select(x => x.SubjectOfferingId);
             q = q.Where(x => allowed.Contains(x.offering.Id));
         }
-        IReadOnlyList<AssessmentScopeOptionDto> rows = await q.OrderByDescending(x => x.exam.StartDate)
+        var term = search?.Trim();
+        if (!string.IsNullOrWhiteSpace(term))
+            q = q.Where(x => x.exam.Name.StartsWith(term) ||
+                x.batch.Name.StartsWith(term) || x.subject.Name.StartsWith(term));
+        var total = await q.CountAsync(ct);
+        var skip = ((long)page - 1) * pageSize;
+        if (skip > int.MaxValue)
+            return Error<PagedResult<AssessmentScopeOptionDto>>("Assessment page exceeds supported range.");
+        var rows = await q.OrderByDescending(x => x.exam.StartDate)
             .ThenBy(x => x.exam.Id).ThenBy(x => x.batch.Id).ThenBy(x => x.sub.Id)
-            .Take(500).Select(x => new AssessmentScopeOptionDto
+            .Skip((int)skip).Take(pageSize).Select(x => new AssessmentScopeOptionDto
             {
                 AssessmentId = x.exam.Id, AssessmentReference = x.exam.PublicId,
                 AssessmentName = x.exam.Name,
@@ -117,7 +151,9 @@ public sealed partial class AssessmentAdministrationService : IAssessmentAdminis
                 AcademicBatchName = x.batch.Name, AssessmentSubjectId = x.sub.Id,
                 SubjectName = x.subject.Name, State = x.exam.State
             }).ToListAsync(ct);
-        return ApiResponse<IReadOnlyList<AssessmentScopeOptionDto>>.SuccessResponse(rows);
+        return ApiResponse<PagedResult<AssessmentScopeOptionDto>>.SuccessResponse(
+            new PagedResult<AssessmentScopeOptionDto>
+            { Items = rows, TotalCount = total, Page = page, PageSize = pageSize });
     }
 
     public async Task<ApiResponse<AssessmentMarkRosterDto>> GetMarkRosterAsync(
@@ -197,6 +233,8 @@ public sealed partial class AssessmentAdministrationService : IAssessmentAdminis
                 if (sub == null) return Error<bool>("Assessment subject not found.", 404);
                 var exam = await _assessments.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
                     x.TenantId == tenant && x.Id == sub.AssessmentId && !x.IsDeleted, token);
+                if (exam != null && !await CanAccessCampusAsync(exam.CampusId, token))
+                    return Error<bool>("Campus access denied.", 403);
                 if (exam == null || exam.State is not (AssessmentState.MarksEntry or AssessmentState.InProgress))
                     return Error<bool>("Assessment is not open for marks entry.", 409);
                 if (!await CanEditOfferingAsync(sub.SubjectOfferingId, token))
@@ -497,7 +535,7 @@ public sealed partial class AssessmentAdministrationService : IAssessmentAdminis
         if (request == null || request.AssessmentId <= 0 || request.AcademicBatchId <= 0) return null;
         var exam = await _assessments.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
             x.TenantId == _user.TenantId && x.Id == request.AssessmentId && !x.IsDeleted, ct);
-        if (exam == null) return null;
+        if (exam == null || !await CanAccessCampusAsync(exam.CampusId, ct)) return null;
         var batch = await _batches.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
             x.TenantId == _user.TenantId && x.Id == request.AcademicBatchId &&
             x.CampusId == exam.CampusId && x.AcademicYearId == exam.AcademicYearId &&
@@ -527,7 +565,7 @@ public sealed partial class AssessmentAdministrationService : IAssessmentAdminis
 
     private async Task<bool> CanEditOfferingAsync(long offeringId, CancellationToken ct)
     {
-        if (CanPublish()) return true;
+        if (CanPublish()) return await CanAccessOfferingAsync(offeringId, ct);
         var employeeId = await OwnTeacherIdAsync(ct);
         return employeeId > 0 && await _instructors.GetQueryable().AsNoTracking().AnyAsync(x =>
             x.TenantId == _user.TenantId && x.SubjectOfferingId == offeringId &&
@@ -570,6 +608,58 @@ public sealed partial class AssessmentAdministrationService : IAssessmentAdminis
             _logger.LogWarning(ex, "Assessment write conflict on {Action} tenant {TenantId}", name, _user.TenantId);
             return Error<T>("Assessment conflicts with an existing update.", 409);
         }
+    }
+
+
+    // Tenant-wide assessment roles retain their existing policy. Principal/VicePrincipal
+    // must have an explicit active grant for every campus-scoped read or mutation.
+    private bool IsRestrictedCampusManager() => !_user.IsTenantAdmin &&
+        (_user.IsInRole("Principal") || _user.IsInRole("VicePrincipal"));
+
+    private IQueryable<long> AllowedCampusIds(long tenant) =>
+        from access in _campusAccesses.GetQueryable().AsNoTracking()
+        join campus in _campuses.GetQueryable().AsNoTracking() on access.CampusId equals campus.Id
+        where access.TenantId == tenant && campus.TenantId == tenant &&
+            access.UserId == _user.UserId && access.IsActive && !access.IsDeleted &&
+            campus.IsActive && !campus.IsDeleted
+        select campus.Id;
+
+    private Task<bool> CanAccessCampusAsync(long campusId, CancellationToken ct) =>
+        !IsRestrictedCampusManager() ? Task.FromResult(true) :
+        AllowedCampusIds(_user.TenantId).AnyAsync(id => id == campusId, ct);
+
+    private Task<bool> CanAccessOfferingAsync(long offeringId, CancellationToken ct)
+    {
+        if (!IsRestrictedCampusManager()) return Task.FromResult(true);
+        var tenant = _user.TenantId;
+        return (from offering in _offerings.GetQueryable().AsNoTracking()
+                join batch in _batches.GetQueryable().AsNoTracking()
+                    on offering.AcademicBatchId equals batch.Id
+                where offering.TenantId == tenant && batch.TenantId == tenant &&
+                    offering.Id == offeringId && !offering.IsDeleted && !batch.IsDeleted &&
+                    AllowedCampusIds(tenant).Contains(batch.CampusId)
+                select offering.Id).AnyAsync(ct);
+    }
+
+    private Task<bool> CanAccessEnrollmentAsync(long enrollmentId, CancellationToken ct)
+    {
+        if (!IsRestrictedCampusManager()) return Task.FromResult(true);
+        var tenant = _user.TenantId;
+        return _enrollments.GetQueryable().AsNoTracking().AnyAsync(x =>
+            x.TenantId == tenant && x.Id == enrollmentId && !x.IsDeleted &&
+            AllowedCampusIds(tenant).Contains(x.CampusId), ct);
+    }
+
+    // A transcript covers a student's complete academic history. Do not expose
+    // mixed-campus history to a manager with access to only one of those campuses.
+    private async Task<bool> CanAccessStudentHistoryAsync(long studentId, CancellationToken ct)
+    {
+        if (!IsRestrictedCampusManager()) return true;
+        var tenant = _user.TenantId;
+        var rows = _enrollments.GetQueryable().AsNoTracking().Where(x =>
+            x.TenantId == tenant && x.StudentId == studentId && !x.IsDeleted);
+        return await rows.AnyAsync(x => AllowedCampusIds(tenant).Contains(x.CampusId), ct) &&
+            !await rows.AnyAsync(x => !AllowedCampusIds(tenant).Contains(x.CampusId), ct);
     }
 
     private bool CanRead() => _user.IsAuthenticated && _user.TenantId > 0 &&

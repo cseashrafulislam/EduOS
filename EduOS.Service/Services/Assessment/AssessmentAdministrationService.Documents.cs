@@ -30,6 +30,8 @@ public sealed partial class AssessmentAdministrationService
             var exam = subject == null ? null : await _assessments.GetQueryable().AsNoTracking()
                 .FirstOrDefaultAsync(x => x.TenantId == tenant && x.Id == subject.AssessmentId &&
                     !x.IsDeleted, token);
+            if (exam != null && !await CanAccessCampusAsync(exam.CampusId, token))
+                return Error<AssessmentComponentDto>("Campus access denied.", 403);
             if (exam == null || exam.State != AssessmentState.Draft)
                 return Error<AssessmentComponentDto>("Components can only be edited in Draft state.", 409);
             var offering = await _offerings.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
@@ -100,6 +102,8 @@ public sealed partial class AssessmentAdministrationService
             var exam = subject == null ? null : await _assessments.GetQueryable().AsNoTracking()
                 .FirstOrDefaultAsync(x => x.TenantId == tenant && x.Id == subject.AssessmentId &&
                     !x.IsDeleted, token);
+            if (exam != null && !await CanAccessCampusAsync(exam.CampusId, token))
+                return Error<StudentAssessmentComponentMarkDto>("Campus access denied.", 403);
             if (exam == null || exam.State != AssessmentState.MarksEntry)
                 return Error<StudentAssessmentComponentMarkDto>("Assessment is not open for marks entry.", 409);
             var offering = await _offerings.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
@@ -187,6 +191,8 @@ public sealed partial class AssessmentAdministrationService
                 x.TenantId == tenant && x.Id == row.AcademicBatchId && !x.IsDeleted, token);
             if (exam == null || batch == null)
                 return Error<ResultPublicationDto>("Publication scope is no longer valid.", 409);
+            if (!await CanAccessCampusAsync(exam.CampusId, token) || batch.CampusId != exam.CampusId)
+                return Error<ResultPublicationDto>("Campus access denied.", 403);
             // A completed subject may have unlocked dependent registrations.
             var completed = await (from sub in _subjects.GetQueryable().AsNoTracking()
                 join registration in _registrations.GetQueryable().AsNoTracking()
@@ -216,7 +222,8 @@ public sealed partial class AssessmentAdministrationService
     public Task<ApiResponse<CertificateTemplateDto>> SaveCertificateTemplateAsync(long? templateId,
         SaveCertificateTemplateRequestDto request, CancellationToken ct = default)
     {
-        if (!CanPublish()) return Task.FromResult(Error<CertificateTemplateDto>("Certificate management denied.", 403));
+        if (!CanPublish() || IsRestrictedCampusManager())
+            return Task.FromResult(Error<CertificateTemplateDto>("Tenant-wide certificate template management denied.", 403));
         if (templateId is <= 0 || request == null || string.IsNullOrWhiteSpace(request.Name) ||
             request.Name.Trim().Length > 150 || string.IsNullOrWhiteSpace(request.Code) ||
             request.Code.Trim().Length > 50 || string.IsNullOrWhiteSpace(request.HtmlTemplate) ||
@@ -287,6 +294,8 @@ public sealed partial class AssessmentAdministrationService
                 x.TenantId == tenant && x.PublicId == request.ClientRequestId && !x.IsDeleted, token);
             if (replay != null)
             {
+                if (!await CanAccessEnrollmentAsync(replay.StudentEnrollmentId, token))
+                    return Error<CertificateIssueDto>("Campus access denied.", 403);
                 var studentRef = await _students.GetQueryable().AsNoTracking()
                     .Where(x => x.TenantId == tenant && x.Id == replay.StudentId)
                     .Select(x => x.PublicId).FirstOrDefaultAsync(token);
@@ -312,6 +321,8 @@ public sealed partial class AssessmentAdministrationService
                     !x.IsDeleted, token);
             if (template == null || enrollment == null)
                 return Error<CertificateIssueDto>("Certificate template or student enrollment not found.", 404);
+            if (!await CanAccessEnrollmentAsync(enrollment.Id, token))
+                return Error<CertificateIssueDto>("Campus access denied.", 403);
             if (request.IssueDate < enrollment.EnrollmentDate ||
                 request.IssueDate > DateOnly.FromDateTime(_clock.GetUtcNow().UtcDateTime))
                 return Error<CertificateIssueDto>("Certificate date must follow enrollment and cannot be in the future.", 409);
@@ -347,6 +358,8 @@ public sealed partial class AssessmentAdministrationService
             var row = await _certificates.GetQueryable().FirstOrDefaultAsync(x =>
                 x.TenantId == _user.TenantId && x.Id == certificateId && !x.IsDeleted, token);
             if (row == null) return Error<CertificateIssueDto>("Certificate not found.", 404);
+            if (!await CanAccessEnrollmentAsync(row.StudentEnrollmentId, token))
+                return Error<CertificateIssueDto>("Campus access denied.", 403);
             if (!Matches(row.RowVersion, request!.RowVersion))
                 return Error<CertificateIssueDto>("Certificate changed; reload.", 409);
             if (row.IsRevoked) return Error<CertificateIssueDto>("Certificate already revoked.", 409);
@@ -375,6 +388,8 @@ public sealed partial class AssessmentAdministrationService
                 x.TenantId == tenant && x.PublicId == request.ClientRequestId && !x.IsDeleted, token);
             if (replay != null)
             {
+                if (!await CanAccessStudentHistoryAsync(replay.StudentId, token))
+                    return Error<TranscriptIssueDto>("Campus access denied.", 403);
                 var studentRef = await _students.GetQueryable().AsNoTracking()
                     .Where(x => x.TenantId == tenant && x.Id == replay.StudentId)
                     .Select(x => x.PublicId).FirstOrDefaultAsync(token);
@@ -386,6 +401,8 @@ public sealed partial class AssessmentAdministrationService
             var student = await _students.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
                 x.TenantId == tenant && x.PublicId == request.StudentReference && !x.IsDeleted, token);
             if (student == null) return Error<TranscriptIssueDto>("Student not found.", 404);
+            if (!await CanAccessStudentHistoryAsync(student.Id, token))
+                return Error<TranscriptIssueDto>("Campus access denied.", 403);
             if (!await EligibleTranscriptStudentIds(tenant).AnyAsync(id => id == student.Id, token))
                 return Error<TranscriptIssueDto>("No published, released result exists for the student.", 409);
             var now = _clock.GetUtcNow().UtcDateTime;
@@ -418,6 +435,8 @@ public sealed partial class AssessmentAdministrationService
                 x.TenantId == _user.TenantId && x.PublicId == transcriptReference &&
                 !x.IsDeleted, token);
             if (row == null) return Error<TranscriptIssueDto>("Transcript not found.", 404);
+            if (!await CanAccessStudentHistoryAsync(row.StudentId, token))
+                return Error<TranscriptIssueDto>("Campus access denied.", 403);
             if (!Matches(row.RowVersion, request!.RowVersion))
                 return Error<TranscriptIssueDto>("Transcript changed; reload.", 409);
             if (row.IsRevoked) return Error<TranscriptIssueDto>("Transcript already revoked.", 409);

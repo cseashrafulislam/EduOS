@@ -38,6 +38,8 @@ public sealed partial class AssessmentAdministrationService
                 !curriculum.IsDeleted && !name.IsDeleted &&
                 exam.CampusId == batch.CampusId && exam.AcademicYearId == batch.AcademicYearId
             select new { component, subject, exam, batch, name };
+        if (IsRestrictedCampusManager())
+            query = query.Where(x => AllowedCampusIds(tenant).Contains(x.exam.CampusId));
         if (request.AssessmentSubjectId.HasValue)
             query = query.Where(x => x.subject.Id == request.AssessmentSubjectId.Value);
         var search = request.Search?.Trim();

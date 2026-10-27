@@ -12,17 +12,20 @@ public sealed partial class AssessmentAdministrationService
         if (!CanPublish()) return Error<IReadOnlyList<SubjectCompletionBatchDto>>("Completion permission required.", 403);
         var tenant = _user.TenantId;
         var today = DateOnly.FromDateTime(_clock.GetUtcNow().UtcDateTime);
-        var batches = await (from batch in _batches.GetQueryable().AsNoTracking()
+        var query = from batch in _batches.GetQueryable().AsNoTracking()
             join year in _years.GetQueryable().AsNoTracking() on batch.AcademicYearId equals year.Id
             where batch.TenantId == tenant && year.TenantId == tenant &&
                 !batch.IsDeleted && !year.IsDeleted && year.EndDate < today &&
                 (!year.CampusId.HasValue || year.CampusId == batch.CampusId)
-            orderby year.EndDate descending, batch.Name
             select new SubjectCompletionBatchDto
             {
                 Id = batch.Id, Name = batch.Name, AcademicYearName = year.Name,
                 CampusId = batch.CampusId, AcademicYearEnd = year.EndDate
-            }).Take(500).ToListAsync(ct);
+            };
+        if (IsRestrictedCampusManager())
+            query = query.Where(x => AllowedCampusIds(tenant).Contains(x.CampusId));
+        var batches = await query.OrderByDescending(x => x.AcademicYearEnd)
+            .ThenBy(x => x.Name).Take(500).ToListAsync(ct);
         return ApiResponse<IReadOnlyList<SubjectCompletionBatchDto>>.SuccessResponse(batches);
     }
 
@@ -37,6 +40,8 @@ public sealed partial class AssessmentAdministrationService
         var batch = await _batches.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
             x.TenantId == tenant && x.Id == request.AcademicBatchId && !x.IsDeleted, ct);
         if (batch == null) return Error<SubjectCompletionPageDto>("Batch not found.", 404);
+        if (!await CanAccessCampusAsync(batch.CampusId, ct))
+            return Error<SubjectCompletionPageDto>("Campus access denied.", 403);
         var year = await _years.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
             x.TenantId == tenant && x.Id == batch.AcademicYearId && !x.IsDeleted, ct);
         if (year == null || year.CampusId.HasValue && year.CampusId != batch.CampusId)
@@ -131,6 +136,8 @@ public sealed partial class AssessmentAdministrationService
                 item.AcademicLevelId != enrollment.AcademicLevelId ||
                 year.CampusId.HasValue && year.CampusId != batch.CampusId)
                 return Error<SubjectCompletionRowDto>("Registration curriculum, campus or year mismatch.", 409);
+            if (!await CanAccessCampusAsync(batch.CampusId, token))
+                return Error<SubjectCompletionRowDto>("Campus access denied.", 403);
             SubjectCompletionRowDto Map() => new()
             {
                 RegistrationId = row.Id, AcademicBatchId = batch.Id,

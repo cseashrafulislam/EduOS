@@ -22,6 +22,8 @@ public sealed partial class AssessmentAdministrationService
         return await WriteAsync("save assessment", async token =>
         {
             var tenant = _user.TenantId;
+            if (!await CanAccessCampusAsync(request.CampusId, token))
+                return Error<AssessmentDto>("Campus access denied.", 403);
             var campus = await _campuses.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
                 x.TenantId == tenant && x.Id == request.CampusId && x.IsActive && !x.IsDeleted, token);
             var year = await _years.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
@@ -44,6 +46,8 @@ public sealed partial class AssessmentAdministrationService
             var row = reference.HasValue ? await _assessments.GetQueryable().FirstOrDefaultAsync(x =>
                 x.TenantId == tenant && x.PublicId == reference && !x.IsDeleted, token) : null;
             if (reference.HasValue && row == null) return Error<AssessmentDto>("Assessment not found.", 404);
+            if (row != null && !await CanAccessCampusAsync(row.CampusId, token))
+                return Error<AssessmentDto>("Campus access denied.", 403);
             if (row != null && !Matches(row.RowVersion, request.RowVersion))
                 return Error<AssessmentDto>("Assessment was changed; reload and retry.", 409);
             if (row != null && row.State != AssessmentState.Draft)
@@ -95,6 +99,8 @@ public sealed partial class AssessmentAdministrationService
         var row = await _assessments.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
             x.TenantId == _user.TenantId && x.PublicId == reference && !x.IsDeleted, ct);
         if (row == null) return Error<AssessmentDto>("Assessment not found.", 404);
+        if (!await CanAccessCampusAsync(row.CampusId, ct))
+            return Error<AssessmentDto>("Campus access denied.", 403);
         if (!CanPublish())
         {
             var teacherId = await OwnTeacherIdAsync(ct);
@@ -122,6 +128,8 @@ public sealed partial class AssessmentAdministrationService
             var row = await _assessments.GetQueryable().FirstOrDefaultAsync(x =>
                 x.TenantId == _user.TenantId && x.PublicId == reference && !x.IsDeleted, token);
             if (row == null) return Error<AssessmentDto>("Assessment not found.", 404);
+            if (!await CanAccessCampusAsync(row.CampusId, token))
+                return Error<AssessmentDto>("Campus access denied.", 403);
             if (!Matches(row.RowVersion, expected)) return Error<AssessmentDto>("Assessment changed; reload.", 409);
             if (row.State == request.State)
                 return ApiResponse<AssessmentDto>.SuccessResponse(await MapAssessmentAsync(row, token),
@@ -166,6 +174,8 @@ public sealed partial class AssessmentAdministrationService
             var tenant = _user.TenantId;
             var exam = await _assessments.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
                 x.TenantId == tenant && x.PublicId == request.AssessmentReference && !x.IsDeleted, token);
+            if (exam != null && !await CanAccessCampusAsync(exam.CampusId, token))
+                return Error<AssessmentSubjectDto>("Campus access denied.", 403);
             if (exam == null || exam.State != AssessmentState.Draft)
                 return Error<AssessmentSubjectDto>("Assessment must exist in Draft state.", 409);
             var offering = await _offerings.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
@@ -225,6 +235,8 @@ public sealed partial class AssessmentAdministrationService
                 x.TenantId == tenant && x.Id == request.AssessmentSubjectId && !x.IsDeleted, token);
             var exam = sub == null ? null : await _assessments.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
                 x.TenantId == tenant && x.Id == sub.AssessmentId && !x.IsDeleted, token);
+            if (exam != null && !await CanAccessCampusAsync(exam.CampusId, token))
+                return Error<AssessmentScheduleDto>("Campus access denied.", 403);
             if (exam == null || exam.State is not (AssessmentState.Draft or AssessmentState.Scheduled))
                 return Error<AssessmentScheduleDto>("Assessment cannot be scheduled now.", 409);
             if (request.AssessmentDate < exam.StartDate || request.AssessmentDate > exam.EndDate)
@@ -303,7 +315,8 @@ public sealed partial class AssessmentAdministrationService
     public Task<ApiResponse<GradeSchemeDto>> SaveGradeSchemeAsync(long? gradeSchemeId,
         SaveGradeSchemeRequestDto request, CancellationToken ct = default)
     {
-        if (!CanPublish()) return Task.FromResult(Error<GradeSchemeDto>("Assessment management permission required.", 403));
+        if (!CanPublish() || IsRestrictedCampusManager())
+            return Task.FromResult(Error<GradeSchemeDto>("Tenant-wide grade scheme management permission required.", 403));
         if (request == null || gradeSchemeId is <= 0 || string.IsNullOrWhiteSpace(request.Name) ||
             request.Name.Trim().Length > 150 || string.IsNullOrWhiteSpace(request.Code) ||
             request.Code.Trim().Length > 50 || request.Rules == null ||

@@ -44,9 +44,19 @@ public sealed partial class AssessmentAdministrationService
             return Error<IReadOnlyList<TranscriptCandidateDto>>("Enter 2 to 100 characters of a student name or code.");
         var tenant = _user.TenantId;
         var eligible = EligibleTranscriptStudentIds(tenant);
-        IReadOnlyList<TranscriptCandidateDto> items = await _students.GetQueryable().AsNoTracking()
+        var allowedStudentIds = _enrollments.GetQueryable().AsNoTracking().Where(x =>
+            x.TenantId == tenant && !x.IsDeleted && AllowedCampusIds(tenant).Contains(x.CampusId))
+            .Select(x => x.StudentId);
+        var forbiddenStudentIds = _enrollments.GetQueryable().AsNoTracking().Where(x =>
+            x.TenantId == tenant && !x.IsDeleted && !AllowedCampusIds(tenant).Contains(x.CampusId))
+            .Select(x => x.StudentId);
+        var students = _students.GetQueryable().AsNoTracking()
             .Where(x => x.TenantId == tenant && !x.IsDeleted && eligible.Contains(x.Id) &&
-                (x.StudentCode.Contains(term) || x.FullName.Contains(term)))
+                (x.StudentCode.Contains(term) || x.FullName.Contains(term)));
+        if (IsRestrictedCampusManager())
+            students = students.Where(x => allowedStudentIds.Contains(x.Id) &&
+                !forbiddenStudentIds.Contains(x.Id));
+        IReadOnlyList<TranscriptCandidateDto> items = await students
             .OrderBy(x => x.StudentCode).ThenBy(x => x.Id).Take(30)
             .Select(x => new TranscriptCandidateDto
             {
@@ -71,6 +81,17 @@ public sealed partial class AssessmentAdministrationService
                 equals new { student.TenantId, student.Id }
             where issue.TenantId == tenant && !issue.IsDeleted && !student.IsDeleted
             select new { issue, student };
+        if (IsRestrictedCampusManager())
+        {
+            var allowedStudents = _enrollments.GetQueryable().AsNoTracking().Where(x =>
+                x.TenantId == tenant && !x.IsDeleted && AllowedCampusIds(tenant).Contains(x.CampusId))
+                .Select(x => x.StudentId);
+            var forbiddenStudents = _enrollments.GetQueryable().AsNoTracking().Where(x =>
+                x.TenantId == tenant && !x.IsDeleted && !AllowedCampusIds(tenant).Contains(x.CampusId))
+                .Select(x => x.StudentId);
+            query = query.Where(x => allowedStudents.Contains(x.student.Id) &&
+                !forbiddenStudents.Contains(x.student.Id));
+        }
         if (!string.IsNullOrWhiteSpace(term))
             query = query.Where(x => x.issue.TranscriptNumber.Contains(term) ||
                 x.student.StudentCode.Contains(term) || x.student.FullName.Contains(term));

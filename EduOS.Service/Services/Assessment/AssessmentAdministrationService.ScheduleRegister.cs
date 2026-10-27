@@ -34,6 +34,8 @@ public sealed partial class AssessmentAdministrationService
                 !exam.IsDeleted && !offering.IsDeleted && !batch.IsDeleted &&
                 exam.CampusId == batch.CampusId && exam.AcademicYearId == batch.AcademicYearId
             select new { schedule, subject, exam, batch };
+        if (IsRestrictedCampusManager())
+            query = query.Where(x => AllowedCampusIds(tenant).Contains(x.exam.CampusId));
         if (request.AssessmentId.HasValue)
             query = query.Where(x => x.exam.Id == request.AssessmentId.Value);
         if (request.AssessmentSubjectId.HasValue)
@@ -92,6 +94,8 @@ public sealed partial class AssessmentAdministrationService
             select new { exam.CampusId }).FirstOrDefaultAsync(ct);
         if (scope == null)
             return Error<IReadOnlyList<AssessmentScheduleRoomDto>>("Assessment subject not found.", 404);
+        if (!await CanAccessCampusAsync(scope.CampusId, ct))
+            return Error<IReadOnlyList<AssessmentScheduleRoomDto>>("Campus access denied.", 403);
         IReadOnlyList<AssessmentScheduleRoomDto> rooms = await _rooms.GetQueryable().AsNoTracking()
             .Where(x => x.TenantId == tenant && x.CampusId == scope.CampusId &&
                 x.IsActive && !x.IsDeleted)

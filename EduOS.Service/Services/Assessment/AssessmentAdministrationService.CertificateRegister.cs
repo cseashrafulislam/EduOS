@@ -58,6 +58,13 @@ public sealed partial class AssessmentAdministrationService
             return Error<IReadOnlyList<CertificateCandidateDto>>("Enter 2 to 100 characters of a student name or code.");
         var tenant = _user.TenantId;
         var eligible = EligibleCertificateEnrollmentIds(tenant);
+        if (IsRestrictedCampusManager())
+        {
+            var authorizedEnrollmentIds = _enrollments.GetQueryable().AsNoTracking().Where(x =>
+                x.TenantId == tenant && !x.IsDeleted && AllowedCampusIds(tenant).Contains(x.CampusId))
+                .Select(x => x.Id);
+            eligible = eligible.Where(id => authorizedEnrollmentIds.Contains(id));
+        }
         IReadOnlyList<CertificateCandidateDto> rows = await (
             from enrollment in _enrollments.GetQueryable().AsNoTracking()
             join student in _students.GetQueryable().AsNoTracking()
@@ -113,6 +120,8 @@ public sealed partial class AssessmentAdministrationService
                 !enrollment.IsDeleted && !template.IsDeleted && !batch.IsDeleted && !campus.IsDeleted &&
                 enrollment.StudentId == student.Id && enrollment.CampusId == batch.CampusId
             select new { issue, student, enrollment, template, batch, campus };
+        if (IsRestrictedCampusManager())
+            query = query.Where(x => AllowedCampusIds(tenant).Contains(x.enrollment.CampusId));
         if (!string.IsNullOrWhiteSpace(term))
             query = query.Where(x => x.issue.CertificateNumber.Contains(term) ||
                 x.student.StudentCode.Contains(term) || x.student.FullName.Contains(term));

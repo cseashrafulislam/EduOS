@@ -6,6 +6,14 @@
     @Html.AntiForgeryToken()
     <header class="mb-3"><h2 class="h4 mb-1">Exam Marks & Results</h2><p class="text-muted mb-0">Enter subject marks, preview draft results and publish an immutable result snapshot.</p></header>
     <div id="examAlert" class="d-none" tabindex="-1" role="alert" aria-live="polite"></div>
+    <form id="examScopeSearch" class="card card-body mb-2" role="search">
+        <div class="row g-2 align-items-end">
+            <div class="col-md-6"><label for="examScopeTerm" class="form-label">Find assessment, batch or subject</label><input id="examScopeTerm" class="form-control" type="search" maxlength="100" placeholder="Search authorized assessment scopes" /></div>
+            <div class="col-md-auto"><button id="examScopeApply" class="btn btn-outline-primary" type="submit">Search</button></div>
+            <div class="col-md-auto d-flex gap-2 align-items-center"><button id="examScopePrev" class="btn btn-outline-secondary" type="button" disabled>Previous</button><button id="examScopeNext" class="btn btn-outline-secondary" type="button" disabled>Next</button></div>
+            <div class="col-md-auto"><span id="examScopePageInfo" class="small text-muted" role="status" aria-live="polite">Loading scopes…</span></div>
+        </div>
+    </form>
     <form id="examFilters" class="card card-body mb-3">
         <div class="row g-3 align-items-end">
             <div class="col-lg-4"><label for="examExam" class="form-label">Assessment</label><select id="examExam" class="form-select" required><option value="">Loading assessments…</option></select></div>
@@ -43,7 +51,7 @@
 </section>
 <style>
 @@media print {
-    #examFilters, #examAlert, #examSaveMarks, #examPublish, #examGenerate,
+    #examScopeSearch, #examFilters, #examAlert, #examSaveMarks, #examPublish, #examGenerate,
     #examLoadResults, #examMarksCsv, #examResultsCsv, #examPrint { display:none!important; }
 }
 </style>

@@ -5,7 +5,8 @@
     const el = id => document.getElementById(id);
     const canPublish = root.dataset.canPublish === 'true';
     const token = root.querySelector('input[name="__RequestVerificationToken"]')?.value || '';
-    const state = { scopes: [], roster: null, sheet: null, sheetMode: null, busy: false, publishKey: null };
+    const state = { scopes: [], scopePage: 1, scopeSize: 30, scopeTotal: 0, scopeSearch: '',
+        scopeBusy: false, roster: null, sheet: null, sheetMode: null, busy: false, publishKey: null };
     const option = (value, label) => new Option(label, String(value));
     const cell = value => { const td = document.createElement('td'); td.textContent = value == null ? '' : String(value); return td; };
     const validDecimal = n => Number.isFinite(n) && Math.abs(Math.round(n * 100) - n * 100) < 1e-7;
@@ -77,14 +78,40 @@
         select('examSubject', rows, 'assessmentSubjectId', 'subjectName', 'Select subject');
         resetRoster(); resetResults();
     }
-    async function init() {
+    async function loadScopes(page) {
+        if (state.scopeBusy || page < 1) return;
+        state.scopeBusy = true;
+        el('examScopeApply').disabled = true;
+        el('examScopePrev').disabled = true;
+        el('examScopeNext').disabled = true;
         try {
-            state.scopes = await api('/api/assessment-administration/scopes') || [];
+            const params = new URLSearchParams({
+                page: String(page), pageSize: String(state.scopeSize), search: state.scopeSearch
+            });
+            const data = await api('/api/assessment-administration/scopes/page?' + params);
+            state.scopes = data.items || [];
+            state.scopePage = data.page;
+            state.scopeTotal = data.totalCount;
             select('examExam', state.scopes, 'assessmentId', 'assessmentName', 'Select assessment');
             examChanged();
-            if (!state.scopes.length) message('warning', 'No authorized assessment subjects found. Configure assessments and subject offerings first.');
-        } catch (error) { message('danger', error.message); }
+            const first = state.scopeTotal ? (state.scopePage - 1) * state.scopeSize + 1 : 0;
+            const last = Math.min(state.scopePage * state.scopeSize, state.scopeTotal);
+            el('examScopePageInfo').textContent = first + '–' + last + ' of ' + state.scopeTotal + ' scopes';
+            if (!state.scopeTotal) message('warning', 'No authorized assessment subjects match the search.');
+        } catch (error) {
+            state.scopes = [];
+            select('examExam', [], 'assessmentId', 'assessmentName', 'Select assessment');
+            examChanged();
+            el('examScopePageInfo').textContent = 'Unable to load assessment scopes';
+            message('danger', error.message);
+        } finally {
+            state.scopeBusy = false;
+            el('examScopeApply').disabled = false;
+            el('examScopePrev').disabled = state.scopePage <= 1;
+            el('examScopeNext').disabled = state.scopePage * state.scopeSize >= state.scopeTotal;
+        }
     }
+    async function init() { await loadScopes(1); }
     function renderRoster(data) {
         state.roster = data;
         const editable = !data.isResultPublished && marksOpen(selected());
@@ -270,6 +297,13 @@
         document.body.append(anchor); anchor.click(); anchor.remove();
         setTimeout(() => URL.revokeObjectURL(url), 1000);
     }
+    el('examScopeSearch').addEventListener('submit', event => {
+        event.preventDefault();
+        state.scopeSearch = el('examScopeTerm').value.trim();
+        loadScopes(1);
+    });
+    el('examScopePrev').addEventListener('click', () => loadScopes(state.scopePage - 1));
+    el('examScopeNext').addEventListener('click', () => loadScopes(state.scopePage + 1));
     el('examFilters').addEventListener('submit', loadRoster);
     el('examExam').addEventListener('change', examChanged);
     el('examBatch').addEventListener('change', batchChanged);

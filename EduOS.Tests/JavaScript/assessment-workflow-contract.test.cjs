@@ -57,3 +57,19 @@ test('reports include withheld status and guard CSV spreadsheet injection', () =
     assert.match(js, /const safe = value => \/\^\[=\+@/);
     assert.match(js, /'assessment-' \+ kind/);
 });
+
+test('assessment selector is server-paged, searchable and campus-filtered before counting', () => {
+    assert.match(view, /id="examScopeSearch"/);
+    assert.match(view, /id="examScopeTerm"/);
+    assert.match(view, /id="examScopePrev"/);
+    assert.match(view, /id="examScopeNext"/);
+    assert.match(view, /id="examScopePageInfo"/);
+    assert.match(js, /scopes\/page\?' \+ params/);
+    assert.match(js, /state\.scopes = data\.items \|\| \[\]/);
+    assert.match(js, /state\.scopeTotal = data\.totalCount/);
+    assert.match(js, /pageSize: String\(state\.scopeSize\)/);
+    assert.match(js, /state\.scopePage \* state\.scopeSize >= state\.scopeTotal/);
+    assert.match(service, /AllowedCampusIds\(tenant\)\.Contains\(x\.exam\.CampusId\)/);
+    assert.match(service, /var total = await q\.CountAsync\(ct\)/);
+    assert.match(service, /Skip\(\(int\)skip\)\.Take\(pageSize\)/);
+});
