@@ -1,0 +1,110 @@
+using EduOS.Core.Common;
+using EduOS.Core.DTOs.Assessment;
+using EduOS.Core.Enums.Domain;
+using Microsoft.EntityFrameworkCore;
+
+namespace EduOS.Service.Services.AssessmentAdministration;
+
+public sealed partial class AssessmentAdministrationService
+{
+    public async Task<ApiResponse<AssessmentReadinessPageDto>> GetResultReadinessAsync(
+        AssessmentReadinessQueryDto request, CancellationToken ct = default)
+    {
+        if (!CanPublish()) return Error<AssessmentReadinessPageDto>("Result readiness permission required.", 403);
+        if (request == null || request.Page is < 1 or > 100000 ||
+            request.PageSize is < 1 or > 50)
+            return Error<AssessmentReadinessPageDto>("Invalid readiness page.");
+        var scope = await ScopeAsync(request, ct);
+        if (scope == null) return Error<AssessmentReadinessPageDto>("Assessment or batch not found.", 404);
+        var tenant = _user.TenantId;
+        var batch = scope.Value.Batch;
+        var roster = from enrollment in _enrollments.GetQueryable().AsNoTracking()
+            join student in _students.GetQueryable().AsNoTracking()
+                on enrollment.StudentId equals student.Id
+            where enrollment.TenantId == tenant && student.TenantId == tenant &&
+                enrollment.AcademicBatchId == batch.Id && enrollment.CampusId == batch.CampusId &&
+                enrollment.AcademicYearId == batch.AcademicYearId &&
+                enrollment.State == EnrollmentState.Active && enrollment.IsCurrent &&
+                student.StatusCode == "Active" && !enrollment.IsDeleted && !student.IsDeleted
+            select new { enrollment, student };
+        var total = await roster.CountAsync(ct);
+        var students = await roster.OrderBy(x => x.enrollment.RollNo).ThenBy(x => x.enrollment.Id)
+            .Skip((request.Page - 1) * request.PageSize).Take(request.PageSize).ToListAsync(ct);
+        var subjects = await (from sub in _subjects.GetQueryable().AsNoTracking()
+            join offering in _offerings.GetQueryable().AsNoTracking()
+                on sub.SubjectOfferingId equals offering.Id
+            join item in _curriculumSubjects.GetQueryable().AsNoTracking()
+                on offering.CurriculumSubjectId equals item.Id
+            join name in _subjectNames.GetQueryable().AsNoTracking() on item.SubjectId equals name.Id
+            where sub.TenantId == tenant && offering.TenantId == tenant &&
+                item.TenantId == tenant && name.TenantId == tenant &&
+                sub.AssessmentId == scope.Value.Exam.Id && offering.AcademicBatchId == batch.Id &&
+                offering.AcademicYearId == batch.AcademicYearId &&
+                !sub.IsDeleted && !offering.IsDeleted && !item.IsDeleted && !name.IsDeleted
+            orderby sub.Id
+            select new { AssessmentSubjectId = sub.Id, sub.FullMarks,
+                OfferingId = offering.Id, item.AcademicCurriculumId, item.AcademicLevelId,
+                item.IsOptional, SubjectName = name.Name }).Take(201).ToListAsync(ct);
+        if (subjects.Count > 200)
+            return Error<AssessmentReadinessPageDto>("More than 200 assessment subjects require an asynchronous review.", 409);
+        var enrollmentIds = students.Select(x => x.enrollment.Id).ToArray();
+        var offeringIds = subjects.Select(x => x.OfferingId).ToArray();
+        var registrations = await _registrations.GetQueryable().AsNoTracking().Where(x =>
+            x.TenantId == tenant && enrollmentIds.Contains(x.StudentEnrollmentId) &&
+            offeringIds.Contains(x.SubjectOfferingId) &&
+            x.State == SubjectRegistrationState.Approved && !x.IsDeleted).ToListAsync(ct);
+        var registrationIds = registrations.Select(x => x.Id).ToArray();
+        var subjectIds = subjects.Select(x => x.AssessmentSubjectId).ToArray();
+        var marks = await _marks.GetQueryable().AsNoTracking().Where(x =>
+            x.TenantId == tenant && subjectIds.Contains(x.AssessmentSubjectId) &&
+            registrationIds.Contains(x.StudentSubjectRegistrationId) && !x.IsDeleted).ToListAsync(ct);
+        var registrationLookup = registrations.GroupBy(x => (x.StudentEnrollmentId, x.SubjectOfferingId))
+            .ToDictionary(x => x.Key, x => x.ToArray());
+        var markLookup = marks.GroupBy(x => (x.AssessmentSubjectId, x.StudentSubjectRegistrationId))
+            .ToDictionary(x => x.Key, x => x.ToArray());
+        var output = new List<AssessmentReadinessStudentDto>(students.Count);
+        foreach (var person in students)
+        {
+            var issues = new List<AssessmentReadinessIssueDto>();
+            var applicable = 0; var entered = 0; var absent = 0;
+            foreach (var subject in subjects)
+            {
+                if (!AssessmentSubjectEligibility.AppliesToEnrollment(subject.AcademicCurriculumId,
+                    subject.AcademicLevelId, person.enrollment.AcademicCurriculumId,
+                    person.enrollment.AcademicLevelId))
+                    continue;
+                registrationLookup.TryGetValue((person.enrollment.Id, subject.OfferingId), out var regs);
+                if (!AssessmentSubjectEligibility.RequiresMark(subject.IsOptional, regs is { Length: > 0 }))
+                    continue;
+                applicable++;
+                void Issue(string code) => issues.Add(new AssessmentReadinessIssueDto
+                { SubjectName = subject.SubjectName, Code = code });
+                if (regs == null || regs.Length == 0) { Issue("MissingRegistration"); continue; }
+                if (regs.Length != 1) { Issue("DuplicateRegistration"); continue; }
+                markLookup.TryGetValue((subject.AssessmentSubjectId, regs[0].Id), out var entries);
+                if (entries == null || entries.Length == 0) { Issue("MissingMark"); continue; }
+                if (entries.Length != 1) { Issue("DuplicateMark"); continue; }
+                var mark = entries[0]; entered++;
+                if (mark.IsWithheld) Issue("Withheld");
+                if (mark.IsAbsent) absent++;
+                if (mark.ObtainedMarks < 0 || mark.ObtainedMarks > subject.FullMarks ||
+                    mark.IsAbsent && mark.ObtainedMarks != 0)
+                    Issue("InvalidMark");
+            }
+            if (applicable == 0)
+                issues.Add(new AssessmentReadinessIssueDto { Code = "NoApplicableSubjects" });
+            output.Add(new AssessmentReadinessStudentDto
+            {
+                StudentReference = person.student.PublicId, StudentCode = person.student.StudentCode,
+                StudentName = person.student.FullName, RollNo = person.enrollment.RollNo,
+                ApplicableSubjects = applicable, RecordedMarks = entered, AbsentMarks = absent,
+                IsReady = issues.Count == 0, Issues = issues
+            });
+        }
+        return ApiResponse<AssessmentReadinessPageDto>.SuccessResponse(new AssessmentReadinessPageDto
+        {
+            AssessmentId = scope.Value.Exam.Id, AcademicBatchId = batch.Id,
+            Page = request.Page, PageSize = request.PageSize, TotalCount = total, Students = output
+        });
+    }
+}

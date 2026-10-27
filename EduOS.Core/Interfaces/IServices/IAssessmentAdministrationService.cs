@@ -8,6 +8,7 @@ public interface IAssessmentAdministrationService
     Task<ApiResponse<IReadOnlyList<AssessmentScopeOptionDto>>> GetAvailableScopesAsync(CancellationToken cancellationToken = default);
     Task<ApiResponse<PagedResult<AssessmentScopeOptionDto>>> SearchAvailableScopesAsync(string? search, int page, int pageSize, CancellationToken cancellationToken = default);
     Task<ApiResponse<AssessmentMarkRosterDto>> GetMarkRosterAsync(AssessmentMarkRosterQueryDto request, CancellationToken cancellationToken = default);
+    Task<ApiResponse<AssessmentReadinessPageDto>> GetResultReadinessAsync(AssessmentReadinessQueryDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<AssessmentResultSheetDto>> PreviewResultsAsync(AssessmentScopeDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<AssessmentResultSheetDto>> GetResultsAsync(AssessmentScopeDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<AssessmentDto>> SaveAssessmentAsync(Guid? reference, SaveAssessmentRequestDto request, CancellationToken cancellationToken = default);

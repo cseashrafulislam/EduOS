@@ -81,3 +81,36 @@ public sealed class AssessmentScopeOptionDto
     public string SubjectName { get; set; } = string.Empty;
     public AssessmentState State { get; set; }
 }
+
+/// <summary>A bounded, campus-scoped page of publication evidence, not a global readiness certificate.</summary>
+public sealed class AssessmentReadinessQueryDto : AssessmentScopeDto
+{
+    [Range(1, 100000)] public int Page { get; set; } = 1;
+    [Range(1, 50)] public int PageSize { get; set; } = 20;
+}
+public sealed class AssessmentReadinessIssueDto
+{
+    public string SubjectName { get; set; } = string.Empty;
+    public string Code { get; set; } = string.Empty;
+}
+public sealed class AssessmentReadinessStudentDto
+{
+    public Guid StudentReference { get; set; }
+    public string RollNo { get; set; } = string.Empty;
+    public string StudentCode { get; set; } = string.Empty;
+    public string StudentName { get; set; } = string.Empty;
+    public int ApplicableSubjects { get; set; }
+    public int RecordedMarks { get; set; }
+    public int AbsentMarks { get; set; }
+    public bool IsReady { get; set; }
+    public IReadOnlyList<AssessmentReadinessIssueDto> Issues { get; set; } = Array.Empty<AssessmentReadinessIssueDto>();
+}
+public sealed class AssessmentReadinessPageDto
+{
+    public long AssessmentId { get; set; }
+    public long AcademicBatchId { get; set; }
+    public int Page { get; set; }
+    public int PageSize { get; set; }
+    public int TotalCount { get; set; }
+    public IReadOnlyList<AssessmentReadinessStudentDto> Students { get; set; } = Array.Empty<AssessmentReadinessStudentDto>();
+}

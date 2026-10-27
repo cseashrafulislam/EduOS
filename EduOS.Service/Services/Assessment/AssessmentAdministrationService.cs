@@ -460,11 +460,19 @@ public sealed partial class AssessmentAdministrationService : IAssessmentAdminis
             select new { sub, offering }).ToListAsync(ct);
         if (subjectData.Count == 0 || subjectData.Any(x => x.sub.FullMarks <= 0 || x.sub.Weightage <= 0))
             return (null, "Assessment subjects have invalid marks or are missing.");
+        var curriculumIds = subjectData.Select(x => x.offering.CurriculumSubjectId).Distinct().ToArray();
+        var curriculumItems = await _curriculumSubjects.GetQueryable().AsNoTracking()
+            .Where(x => x.TenantId == tenant && curriculumIds.Contains(x.Id) && !x.IsDeleted)
+            .ToDictionaryAsync(x => x.Id, ct);
+        if (subjectData.Any(x => !curriculumItems.ContainsKey(x.offering.CurriculumSubjectId)))
+            return (null, "Assessment has a missing curriculum subject.");
         var enrollments = await (from enrollment in _enrollments.GetQueryable().AsNoTracking()
             join student in _students.GetQueryable().AsNoTracking() on enrollment.StudentId equals student.Id
             where enrollment.TenantId == tenant && student.TenantId == tenant &&
-                enrollment.AcademicBatchId == batch.Id && enrollment.State == EnrollmentState.Active &&
-                enrollment.IsCurrent && student.StatusCode == "Active" && !enrollment.IsDeleted
+                enrollment.AcademicBatchId == batch.Id && enrollment.CampusId == batch.CampusId &&
+                enrollment.AcademicYearId == batch.AcademicYearId &&
+                enrollment.State == EnrollmentState.Active && enrollment.IsCurrent &&
+                student.StatusCode == "Active" && !enrollment.IsDeleted && !student.IsDeleted
             select new { enrollment, student }).OrderBy(x => x.enrollment.RollNo).Take(5001).ToListAsync(ct);
         if (enrollments.Count is 0 or > 5000) return (null, "Active roster is empty or too large.");
         var enrollmentIds = enrollments.Select(x => x.enrollment.Id).ToArray();
@@ -473,12 +481,16 @@ public sealed partial class AssessmentAdministrationService : IAssessmentAdminis
             x.TenantId == tenant && enrollmentIds.Contains(x.StudentEnrollmentId) &&
             offerings.Contains(x.SubjectOfferingId) && x.State == SubjectRegistrationState.Approved &&
             !x.IsDeleted).ToListAsync(ct);
+        if (registrations.GroupBy(x => (x.StudentEnrollmentId, x.SubjectOfferingId)).Any(g => g.Count() != 1))
+            return (null, "Duplicate approved subject registrations require review.");
         var regByPair = registrations.ToDictionary(x => (x.StudentEnrollmentId, x.SubjectOfferingId));
         var regIds = registrations.Select(x => x.Id).ToArray();
         var subjectIds = subjectData.Select(x => x.sub.Id).ToArray();
         var marks = await _marks.GetQueryable().AsNoTracking().Where(x =>
             x.TenantId == tenant && subjectIds.Contains(x.AssessmentSubjectId) &&
             regIds.Contains(x.StudentSubjectRegistrationId) && !x.IsDeleted).ToListAsync(ct);
+        if (marks.GroupBy(x => (x.AssessmentSubjectId, x.StudentSubjectRegistrationId)).Any(g => g.Count() != 1))
+            return (null, "Duplicate subject marks require review.");
         var marksByPair = marks.ToDictionary(x => (x.AssessmentSubjectId, x.StudentSubjectRegistrationId));
         var scheme = await _gradeSchemes.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
             x.TenantId == tenant && x.Id == exam.GradeSchemeId && x.IsActive && !x.IsDeleted, ct);
@@ -494,9 +506,20 @@ public sealed partial class AssessmentAdministrationService : IAssessmentAdminis
             var withheld = false; var passed = true;
             foreach (var subject in subjectData)
             {
-                if (!regByPair.TryGetValue((person.enrollment.Id, subject.offering.Id), out var registration) ||
-                    !marksByPair.TryGetValue((subject.sub.Id, registration.Id), out var mark))
-                    return (null, "Assessment has unregistered students or missing marks.");
+                var item = curriculumItems[subject.offering.CurriculumSubjectId];
+                if (!AssessmentSubjectEligibility.AppliesToEnrollment(item.AcademicCurriculumId,
+                    item.AcademicLevelId, person.enrollment.AcademicCurriculumId,
+                    person.enrollment.AcademicLevelId))
+                    continue;
+                var registered = regByPair.TryGetValue(
+                    (person.enrollment.Id, subject.offering.Id), out var registration);
+                if (!AssessmentSubjectEligibility.RequiresMark(item.IsOptional, registered))
+                    continue;
+                if (!registered || !marksByPair.TryGetValue((subject.sub.Id, registration!.Id), out var mark))
+                    return (null, "Mandatory registration or approved subject mark is missing.");
+                if (mark.ObtainedMarks < 0 || mark.ObtainedMarks > subject.sub.FullMarks ||
+                    mark.IsAbsent && mark.ObtainedMarks != 0)
+                    return (null, "Invalid subject mark requires review.");
                 full += subject.sub.FullMarks; total += mark.ObtainedMarks;
                 weighted += mark.ObtainedMarks / subject.sub.FullMarks * subject.sub.Weightage;
                 weightSum += subject.sub.Weightage;
@@ -504,7 +527,9 @@ public sealed partial class AssessmentAdministrationService : IAssessmentAdminis
                 passed &= !mark.IsAbsent && !mark.IsWithheld &&
                     mark.ObtainedMarks >= subject.sub.PassMarks;
             }
-            var percent = weightSum > 0 ? decimal.Round(100m * weighted / weightSum, 4) : 0m;
+            if (weightSum <= 0)
+                return (null, "Student has no applicable registered assessment subjects.");
+            var percent = decimal.Round(100m * weighted / weightSum, 4);
             var grade = grades.FirstOrDefault(x => percent >= x.MinMarks && percent <= x.MaxMarks);
             if (grade == null) return (null, "No grade rule matches the result percentage.");
             results.Add(new AssessmentResultItemDto
