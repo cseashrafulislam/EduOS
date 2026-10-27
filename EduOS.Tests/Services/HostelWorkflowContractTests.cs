@@ -20,12 +20,14 @@ public class HostelWorkflowContractTests
     public void Allocation_keeps_capacity_and_duplicate_checks_serialized_and_tenant_scoped()
     {
         var source = File.ReadAllText(FindRepositoryFile("EduOS.Service", "Services", "Hostel", "HostelService.cs"));
-        source.Should().Contain("IsolationLevel = IsolationLevel.Serializable");
-        source.Should().Contain("TransactionScopeAsyncFlowOption.Enabled");
+        source.Should().Contain("return await _unitOfWork.ExecuteInTransactionAsync(async ct =>");
+        source.Should().Contain("}, System.Data.IsolationLevel.Serializable, cancellationToken);");
+        source.Should().NotContain("new TransactionScope");
         source.Should().Contain("x.TenantId == tenant &&");
         source.Should().Contain("Hostel room would exceed capacity during the requested stay.");
         source.Should().Contain("selection.Room.Capacity <= 0");
-        source.Should().Contain("scope.Complete();");
+        source.Should().NotContain("scope.Complete();");
+        source.Should().Contain("HasHostelSqlSerializationConflict(ex)");
         source.Should().Contain("x.StudentId == student.Id && x.State != HostelAllocationState.Cancelled");
         source.Should().Contain("PeakConcurrentStays(start, request.EndDate,");
         source.Should().Contain("Client request ID was reused for different allocation data.");
