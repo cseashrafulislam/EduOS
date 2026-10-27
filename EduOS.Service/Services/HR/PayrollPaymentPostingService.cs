@@ -102,6 +102,20 @@ public sealed class PayrollPaymentPostingService : IPayrollPaymentPostingService
             .Take(3001).ToListAsync(ct);
         if (relatedLines.Count > 3000)
             return Error<PayrollPaymentPostingRegisterDto>("Payroll journal history exceeds the safe reconciliation limit.", 409);
+        var accrualIds = records.Where(x => x.Run.JournalId.HasValue)
+            .Select(x => x.Run.JournalId!.Value).Distinct().ToArray();
+        var accrualTotals = await db.JournalLines.AsNoTracking()
+            .Where(x => x.TenantId == tenant && accrualIds.Contains(x.JournalId) && !x.IsDeleted)
+            .GroupBy(x => x.JournalId)
+            .Select(g => new { JournalId = g.Key, Debit = g.Sum(l => l.DebitAmount),
+                Credit = g.Sum(l => l.CreditAmount) })
+            .ToDictionaryAsync(x => x.JournalId, ct);
+        var runIds = records.Select(x => x.Run.Id).Distinct().ToArray();
+        var netByRun = await db.PayrollEmployees.AsNoTracking()
+            .Where(x => x.TenantId == tenant && runIds.Contains(x.PayrollRunId) && !x.IsDeleted)
+            .GroupBy(x => x.PayrollRunId)
+            .Select(g => new { RunId = g.Key, Net = g.Sum(e => e.NetAmount) })
+            .ToDictionaryAsync(x => x.RunId, x => x.Net, ct);
         var reversalIds = await db.Journals.IgnoreQueryFilters().AsNoTracking()
             .Where(x => x.TenantId == tenant && x.ReversalOfJournalId.HasValue &&
                 relatedJournalIds.Contains(x.ReversalOfJournalId.Value) &&
@@ -139,6 +153,7 @@ public sealed class PayrollPaymentPostingService : IPayrollPaymentPostingService
                     linesByJournal[accrual.Id].Where(l => !l.IsDeleted &&
                         l.Description == "Payroll net payable" &&
                         l.CreditAmount > 0m && l.DebitAmount == 0m).ToArray();
+                var accrualBalance = accrual == null ? null : accrualTotals.GetValueOrDefault(accrual.Id);
                 if (!Money(x.Employee.NetAmount) || x.Employee.NetAmount <= 0m)
                     issue = "Employee net salary snapshot is invalid.";
                 else if (accrual == null || accrual.IsDeleted ||
@@ -146,7 +161,11 @@ public sealed class PayrollPaymentPostingService : IPayrollPaymentPostingService
                     accrual.State != JournalState.Posted || accrual.ReversalOfJournalId.HasValue ||
                     accrual.CampusId != x.Run.CampusId || accrual.CurrencyCode != "BDT" ||
                     reversed.Contains(accrual.Id) ||
-                    linesByJournal[accrual.Id].Any(l => l.IsDeleted) || payableLines.Length != 1)
+                    linesByJournal[accrual.Id].Any(l => l.IsDeleted) || payableLines.Length != 1 ||
+                    accrualBalance == null || accrualBalance.Debit <= 0m ||
+                    accrualBalance.Debit != accrualBalance.Credit ||
+                    !netByRun.ContainsKey(x.Run.Id) ||
+                    payableLines[0].CreditAmount != netByRun[x.Run.Id])
                     issue = "Payroll accrual or salary payable provenance needs reconciliation.";
                 else if (history.Any(p => p.IsDeleted || !Money(p.Amount) || p.Amount <= 0m))
                     issue = "Deleted or invalid successful payment history requires reconciliation.";
