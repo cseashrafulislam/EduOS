@@ -196,7 +196,9 @@ public sealed class PayrollPostingHistoricalIntegrityTests
                 Description = "Salary payable settlement", IsDeleted = deletedSettlementLine },
             new JournalLine { Id = 3, TenantId = 41, JournalId = 2, LineNo = 2,
                 AccountId = 2, EmployeeId = 10, CreditAmount = amount,
-                Description = "Cash/bank payroll disbursement" });
+                Description = "Cash/bank payroll disbursement" },
+            new JournalLine { Id = 4, TenantId = 41, JournalId = 1, LineNo = 2,
+                AccountId = 3, DebitAmount = 100m, Description = "Component 1 earning" });
     }
 
     private static EduOSDbContext Database(long contextTenant = 41)
