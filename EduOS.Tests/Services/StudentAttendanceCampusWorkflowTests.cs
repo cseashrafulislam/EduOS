@@ -120,6 +120,103 @@ public sealed class StudentAttendanceCampusWorkflowTests
         Assert.Equal(404, (await principal.FinalizeSessionAsync(42, version)).StatusCode);
     }
 
+
+    [Fact]
+    public async Task Subject_picker_is_campus_scoped_and_revocation_safe()
+    {
+        await using var db = Context();
+        await SeedBatches(db);
+        await SeedOfferings(db);
+        var principal = Service(db, new Actor("Principal"));
+        Assert.Equal(404, (await principal.GetSubjectChoicesAsync(10, AttendanceDate, null)).StatusCode);
+        db.UserCampusAccesses.Add(new UserCampusAccess
+        {
+            Id = 90, TenantId = 71, UserId = 7, CampusId = 8, IsActive = true
+        });
+        await db.SaveChangesAsync();
+        var result = await principal.GetSubjectChoicesAsync(10, AttendanceDate, "Mat", pageSize: 1);
+        Assert.True(result.Success, result.Message);
+        Assert.Equal(1, result.Data!.TotalCount);
+        Assert.Equal(70, Assert.Single(result.Data.Items).Id);
+        Assert.Equal(404, (await principal.GetSubjectChoicesAsync(11, AttendanceDate, null)).StatusCode);
+        Assert.Equal(400, (await principal.GetSubjectChoicesAsync(10, AttendanceDate, null, pageSize: 101)).StatusCode);
+        (await db.UserCampusAccesses.FindAsync(90L))!.IsActive = false;
+        await db.SaveChangesAsync();
+        Assert.Equal(404, (await principal.GetSubjectChoicesAsync(10, AttendanceDate, null)).StatusCode);
+    }
+
+    [Fact]
+    public async Task Teacher_subject_picker_and_registered_roster_enforce_assignment()
+    {
+        await using var db = Context();
+        await SeedBatches(db);
+        await SeedOfferings(db);
+        db.Employees.Add(new Employee
+        {
+            Id = 80, TenantId = 71, UserId = 7, EmployeeCode = "T7",
+            FullName = "Instructor", State = EmployeeState.Active
+        });
+        db.InstructorAssignments.Add(new InstructorAssignment
+        {
+            Id = 81, TenantId = 71, EmployeeId = 80, SubjectOfferingId = 70,
+            EffectiveFrom = new DateOnly(2026, 1, 1), IsActive = true
+        });
+        db.Students.AddRange(
+            new Student { Id = 100, TenantId = 71, StudentCode = "S100",
+                FullName = "Registered", StatusCode = "Active" },
+            new Student { Id = 101, TenantId = 71, StudentCode = "S101",
+                FullName = "Unregistered", StatusCode = "Active" });
+        db.StudentEnrollments.AddRange(
+            new StudentEnrollment { Id = 110, TenantId = 71, StudentId = 100,
+                AcademicBatchId = 10, CampusId = 8, AcademicYearId = 3,
+                RollNo = "01", IsCurrent = true, State = EnrollmentState.Active },
+            new StudentEnrollment { Id = 111, TenantId = 71, StudentId = 101,
+                AcademicBatchId = 10, CampusId = 8, AcademicYearId = 3,
+                RollNo = "02", IsCurrent = true, State = EnrollmentState.Active });
+        db.StudentSubjectRegistrations.Add(new StudentSubjectRegistration
+        {
+            Id = 120, TenantId = 71, StudentEnrollmentId = 110,
+            SubjectOfferingId = 70, State = SubjectRegistrationState.Approved
+        });
+        await db.SaveChangesAsync();
+        var teacher = Service(db, new Actor("Teacher"));
+        var choices = await teacher.GetSubjectChoicesAsync(10, AttendanceDate, null);
+        Assert.True(choices.Success, choices.Message);
+        Assert.Equal(70, Assert.Single(choices.Data!.Items).Id);
+        Assert.Equal(404, (await teacher.GetSubjectChoicesAsync(11, AttendanceDate, null)).StatusCode);
+        var roster = await teacher.GetRosterAsync(new StudentAttendanceRosterQueryDto
+        {
+            AcademicBatchId = 10, AttendanceDate = AttendanceDate, SubjectOfferingId = 70
+        });
+        Assert.True(roster.Success, roster.Message);
+        Assert.Equal("S100", Assert.Single(roster.Data!.Students).StudentCode);
+        Assert.Equal(409, (await teacher.GetRosterAsync(new StudentAttendanceRosterQueryDto
+        {
+            AcademicBatchId = 10, AttendanceDate = AttendanceDate, SubjectOfferingId = 71
+        })).StatusCode);
+        (await db.InstructorAssignments.FindAsync(81L))!.IsActive = false;
+        await db.SaveChangesAsync();
+        Assert.Equal(404, (await teacher.GetSubjectChoicesAsync(10, AttendanceDate, null)).StatusCode);
+    }
+
+    private static async Task SeedOfferings(EduOSDbContext db)
+    {
+        db.Subjects.AddRange(
+            new Subject { Id = 50, TenantId = 71, Code = "MATH", Name = "Mathematics" },
+            new Subject { Id = 51, TenantId = 71, Code = "ENG", Name = "English" });
+        db.CurriculumSubjects.AddRange(
+            new CurriculumSubject { Id = 60, TenantId = 71, SubjectId = 50, AcademicLevelId = 4 },
+            new CurriculumSubject { Id = 61, TenantId = 71, SubjectId = 51, AcademicLevelId = 4 });
+        db.SubjectOfferings.AddRange(
+            new SubjectOffering { Id = 70, TenantId = 71, AcademicBatchId = 10,
+                CurriculumSubjectId = 60, AcademicYearId = 3, Code = "N-MATH", IsActive = true },
+            new SubjectOffering { Id = 71, TenantId = 71, AcademicBatchId = 10,
+                CurriculumSubjectId = 61, AcademicYearId = 3, Code = "N-ENG", IsActive = true },
+            new SubjectOffering { Id = 72, TenantId = 71, AcademicBatchId = 11,
+                CurriculumSubjectId = 61, AcademicYearId = 3, Code = "S-ENG", IsActive = true });
+        await db.SaveChangesAsync();
+    }
+
     private static async Task SeedBatches(EduOSDbContext db)
     {
         db.Campuses.AddRange(

@@ -152,6 +152,63 @@ public sealed class StudentAttendanceService : IStudentAttendanceService
             });
     }
 
+
+    /// <summary>SQL-paged active offerings with live campus and instructor assignment scope.</summary>
+    public async Task<ApiResponse<PagedResult<StudentAttendanceReportSubjectDto>>> GetSubjectChoicesAsync(
+        long academicBatchId, DateOnly attendanceDate, string? search,
+        int page = 1, int pageSize = 25, CancellationToken ct = default)
+    {
+        if (!CanWrite())
+            return Error<PagedResult<StudentAttendanceReportSubjectDto>>("Attendance permission is required.", 403);
+        if (academicBatchId <= 0 || attendanceDate == default || page < 1 ||
+            pageSize is < 1 or > 100 || (long)(page - 1) * pageSize > int.MaxValue ||
+            search?.Length > 100)
+            return Error<PagedResult<StudentAttendanceReportSubjectDto>>("Invalid attendance subject search.");
+        if (await ValidateScopeAsync(academicBatchId, attendanceDate, null, ct) != null)
+            return Error<PagedResult<StudentAttendanceReportSubjectDto>>("Academic batch is unavailable.", 404);
+        var tenant = _user.TenantId;
+        var query = from offering in _offerings.GetQueryable().AsNoTracking()
+            join mapping in _db.CurriculumSubjects.AsNoTracking()
+                on offering.CurriculumSubjectId equals mapping.Id
+            join subject in _db.Subjects.AsNoTracking() on mapping.SubjectId equals subject.Id
+            where offering.TenantId == tenant && mapping.TenantId == tenant &&
+                subject.TenantId == tenant && offering.AcademicBatchId == academicBatchId &&
+                offering.IsActive && !offering.IsDeleted && mapping.IsActive &&
+                !mapping.IsDeleted && subject.IsActive && !subject.IsDeleted
+            select new StudentAttendanceReportSubjectDto
+            {
+                Id = offering.Id, Code = offering.Code,
+                SubjectCode = subject.Code, SubjectName = subject.Name
+            };
+        if (!_user.IsTenantAdmin && !_user.IsInRole("Principal") && !_user.IsInRole("VicePrincipal"))
+        {
+            var assignedIds = from assignment in _instructors.GetQueryable().AsNoTracking()
+                join employee in _employees.GetQueryable().AsNoTracking()
+                    on assignment.EmployeeId equals employee.Id
+                where assignment.TenantId == tenant && employee.TenantId == tenant &&
+                    !assignment.IsDeleted && !employee.IsDeleted && assignment.IsActive &&
+                    employee.State == EmployeeState.Active && employee.UserId == _user.UserId &&
+                    assignment.EffectiveFrom <= attendanceDate &&
+                    (!assignment.EffectiveTo.HasValue || assignment.EffectiveTo.Value >= attendanceDate)
+                select assignment.SubjectOfferingId;
+            query = query.Where(x => assignedIds.Contains(x.Id));
+        }
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var term = search.Trim();
+            query = query.Where(x => x.Code.StartsWith(term) ||
+                x.SubjectCode.StartsWith(term) || x.SubjectName.StartsWith(term));
+        }
+        var count = await query.CountAsync(ct);
+        var items = await query.OrderBy(x => x.SubjectName).ThenBy(x => x.Code)
+            .ThenBy(x => x.Id).Skip((page - 1) * pageSize).Take(pageSize).ToListAsync(ct);
+        return ApiResponse<PagedResult<StudentAttendanceReportSubjectDto>>.SuccessResponse(
+            new PagedResult<StudentAttendanceReportSubjectDto>
+            {
+                Items = items, TotalCount = count, Page = page, PageSize = pageSize
+            });
+    }
+
     private IQueryable<long> AccessibleManagerCampusIds() =>
         from access in _db.UserCampusAccesses.AsNoTracking()
         join campus in _db.Campuses.AsNoTracking() on access.CampusId equals campus.Id
@@ -626,7 +683,7 @@ public sealed class StudentAttendanceService : IStudentAttendanceService
             (batch.EndDate.HasValue && date > batch.EndDate))
             return "Attendance date falls outside the academic session.";
         if (offeringId.HasValue && !await _offerings.GetQueryable().AsNoTracking().AnyAsync(x =>
-            x.TenantId == tenant && x.Id == offeringId && x.AcademicBatchId == batchId && x.IsActive, ct))
+            x.TenantId == tenant && x.Id == offeringId && x.AcademicBatchId == batchId && x.IsActive && !x.IsDeleted, ct))
             return "Subject offering does not belong to this academic batch.";
         if (!_user.IsTenantAdmin && !_user.IsInRole("Principal") && !_user.IsInRole("VicePrincipal"))
         {
@@ -636,6 +693,7 @@ public sealed class StudentAttendanceService : IStudentAttendanceService
                 join offering in _offerings.GetQueryable().AsNoTracking() on assigned.SubjectOfferingId equals offering.Id
                 where employee.TenantId == tenant && assigned.TenantId == tenant && offering.TenantId == tenant &&
                     employee.UserId == _user.UserId && employee.State == EmployeeState.Active &&
+                    !employee.IsDeleted && !assigned.IsDeleted && !offering.IsDeleted &&
                     assigned.IsActive && offering.IsActive && offering.AcademicBatchId == batchId &&
                     (!offeringId.HasValue || offering.Id == offeringId.Value) &&
                     assigned.EffectiveFrom <= date && (!assigned.EffectiveTo.HasValue || assigned.EffectiveTo >= date)

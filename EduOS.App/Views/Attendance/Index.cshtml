@@ -8,7 +8,6 @@
         <div>
             <p class="dashboard-eyebrow">Academic Operations</p>
             <h2 id="attendanceTitle">Student Attendance</h2>
-            <p>Load an active batch roster, mark attendance and save with session and row-version checks.</p>
         </div>
     </header>
 
@@ -28,6 +27,22 @@
                     <span id="attendanceBatchPage" class="small text-muted" aria-live="polite"></span>
                     <button id="attendanceBatchNext" class="btn btn-sm btn-outline-secondary" type="button" disabled>Next</button>
                 </div></div>
+
+            <div class="col-md-4">
+                <label class="form-label" for="attendanceSubjectSearch">Subject offering</label>
+                <div class="input-group">
+                    <input id="attendanceSubjectSearch" class="form-control" maxlength="100" placeholder="Subject name or code" />
+                    <button id="attendanceSubjectFind" class="btn btn-outline-secondary" type="button">Search</button>
+                </div>
+                <select id="attendanceSubject" class="form-select mt-2" disabled>
+                    <option value="">All subjects (batch register)</option>
+                </select>
+                <div class="d-flex justify-content-between align-items-center mt-1">
+                    <button id="attendanceSubjectPrevious" class="btn btn-sm btn-outline-secondary" type="button" disabled>Previous</button>
+                    <span id="attendanceSubjectPage" class="small text-muted" aria-live="polite"></span>
+                    <button id="attendanceSubjectNext" class="btn btn-sm btn-outline-secondary" type="button" disabled>Next</button>
+                </div>
+            </div>
             <div class="col-12 d-flex gap-2 flex-wrap">
                 <button class="btn btn-primary" type="submit">Load roster</button>
                 <button id="markAllPresent" class="btn btn-outline-success" type="button" disabled>Mark all present</button>
@@ -48,7 +63,7 @@
         <div class="table-responsive">
             <table class="table table-hover align-middle mb-0">
                 <thead><tr><th>Roll</th><th>Student</th><th>Status</th><th>Check-in</th><th>Remarks</th></tr></thead>
-                <tbody id="attendanceRows"><tr><td colspan="5" class="text-center text-muted py-4">Select a date, academic year, class and section to load the roster.</td></tr></tbody>
+                <tbody id="attendanceRows"><tr><td colspan="5" class="text-center text-muted py-4">Select a date, batch and optional subject to load the roster.</td></tr></tbody>
             </table>
         </div>
     </section>

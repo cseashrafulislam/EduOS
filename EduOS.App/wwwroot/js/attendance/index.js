@@ -8,6 +8,7 @@
     if (!form || !rows || !date) return;
     let loaded = false, roster = null;
     let batchPage = 1, batchPages = 0, batchRequest = 0;
+    let subjectPage = 1, subjectPages = 0, subjectRequest = 0;
     const local = new Date();
     date.value = [local.getFullYear(), String(local.getMonth() + 1).padStart(2, '0'), String(local.getDate()).padStart(2, '0')].join('-');
     function status(type, message) {
@@ -40,6 +41,9 @@
     async function loadBatches() {
         const request = ++batchRequest;
         invalidate();
+        ++subjectRequest;
+        subjectPage = 1;
+        resetSubjects('Select an academic batch');
         selectOptions('sectionId', [], 'Loading authorized batches…');
         el('attendanceBatchPrevious').disabled = true;
         el('attendanceBatchNext').disabled = true;
@@ -71,13 +75,67 @@
             }
         }
     }
+
+    function resetSubjects(label = 'All subjects (batch register)') {
+        const select = el('attendanceSubject');
+        select.replaceChildren();
+        const option = document.createElement('option');
+        option.value = ''; option.textContent = label; select.append(option);
+        select.disabled = true;
+        subjectPages = 0;
+        el('attendanceSubjectPrevious').disabled = true;
+        el('attendanceSubjectNext').disabled = true;
+        el('attendanceSubjectPage').textContent = '';
+    }
+    async function loadSubjects() {
+        const request = ++subjectRequest;
+        invalidate();
+        const batchId = Number(el('sectionId').value);
+        resetSubjects(batchId ? 'Loading subjects…' : 'Select an academic batch');
+        if (!batchId || !date.value) return;
+        try {
+            const params = new URLSearchParams({
+                academicBatchId: String(batchId), attendanceDate: date.value,
+                search: el('attendanceSubjectSearch').value.trim(),
+                page: String(subjectPage), pageSize: '25'
+            });
+            const result = await api('/api/student-attendance/subjects?' + params);
+            if (request !== subjectRequest || batchId !== Number(el('sectionId').value)) return;
+            const data = result.data || {};
+            const select = el('attendanceSubject');
+            select.replaceChildren();
+            const all = document.createElement('option');
+            all.value = ''; all.textContent = 'All subjects (batch register)';
+            select.append(all);
+            for (const subject of data.items || []) {
+                const option = document.createElement('option');
+                option.value = String(subject.id);
+                option.textContent = [subject.subjectName, subject.subjectCode, subject.code]
+                    .filter(Boolean).join(' / ');
+                select.append(option);
+            }
+            select.disabled = false;
+            subjectPages = data.totalPages || 0;
+            el('attendanceSubjectPage').textContent = 'Page ' + subjectPage + ' of ' +
+                subjectPages + ' · ' + (data.totalCount || 0) + ' subjects';
+            el('attendanceSubjectPrevious').disabled = subjectPage <= 1;
+            el('attendanceSubjectNext').disabled = subjectPage >= subjectPages;
+        } catch (error) {
+            if (request === subjectRequest) {
+                resetSubjects('Unable to load subjects');
+                status('danger', error.message);
+            }
+        }
+    }
     function invalidate() {
         loaded = false; roster = null; saveButton.disabled = true; markAllButton.disabled = true;
         if (finalizeButton) finalizeButton.disabled = true;
         render([]); clearStatus();
     }
     function requestScope() {
-        return { academicBatchId: Number(el('sectionId').value), attendanceDate: date.value };
+        const selected = el('attendanceSubject').value;
+        return { academicBatchId: Number(el('sectionId').value),
+            attendanceDate: date.value, subjectOfferingId: selected ? Number(selected) : null };
     }
     function makeCell(value) { const cell = document.createElement('td'); cell.textContent = value === null || value === undefined ? '' : String(value); return cell; }
     function inputCell(type, key, value) {
@@ -143,7 +201,12 @@
         if (!form.reportValidity()) return;
         invalidate();
         try {
-            const result = await api('/api/student-attendance/roster?' + new URLSearchParams(requestScope()));
+            const scope = requestScope();
+            const params = new URLSearchParams({
+                academicBatchId: String(scope.academicBatchId), attendanceDate: scope.attendanceDate
+            });
+            if (scope.subjectOfferingId) params.set('subjectOfferingId', String(scope.subjectOfferingId));
+            const result = await api('/api/student-attendance/roster?' + params);
             roster = result.data;
             render(roster?.students || []);
             loaded = true;
@@ -239,7 +302,18 @@
             ' · Absent ' + count('2') + ' · Late ' + count('3') + ' · Leave ' + count('4') +
             ' · Excused ' + count('5') + ' · Unmarked ' + count('') : '';
     }
-    el('sectionId').addEventListener('change', invalidate);
+    el('sectionId').addEventListener('change', () => { subjectPage = 1; loadSubjects(); });
+    el('attendanceSubject').addEventListener('change', invalidate);
+    el('attendanceSubjectFind').addEventListener('click', () => { subjectPage = 1; loadSubjects(); });
+    el('attendanceSubjectSearch').addEventListener('keydown', event => {
+        if (event.key === 'Enter') { event.preventDefault(); subjectPage = 1; loadSubjects(); }
+    });
+    el('attendanceSubjectPrevious').addEventListener('click', () => {
+        if (subjectPage > 1) { subjectPage--; loadSubjects(); }
+    });
+    el('attendanceSubjectNext').addEventListener('click', () => {
+        if (subjectPage < subjectPages) { subjectPage++; loadSubjects(); }
+    });
     date.addEventListener('change', () => { batchPage = 1; loadBatches(); });
     el('attendanceBatchFind').addEventListener('click', () => { batchPage = 1; loadBatches(); });
     el('attendanceBatchSearch').addEventListener('keydown', event => {
