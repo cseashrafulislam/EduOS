@@ -22,8 +22,9 @@
     const committedRows = document.getElementById('studentImportCommittedRows');
     const reload = document.getElementById('studentImportReload');
     const more = document.getElementById('studentImportMore');
-     let validated = null;
-     let importReference = null;
+    let validated = null;
+    let lastMapping = null;
+    let importReference = null;
     let reconciliationPage = 1;
     const fields = Array.from(mapping.querySelectorAll('[data-import-field]'));
     const required = new Set(['SourceKey', 'StudentCode', 'FullName', 'CampusId', 'AcademicBatchId', 'RollNo']);
@@ -40,7 +41,7 @@
         errors = [];
         validated = null;
         lastMapping = null;
-         commit.classList.add('d-none');
+        commit.classList.add('d-none');
         committed.classList.add('d-none');
         alert.classList.add('d-none');
     }
@@ -177,6 +178,9 @@
     }
     async function runImport(continuing) {
         if (busy || !jobTools) return;
+        busy = true;
+        commit.disabled = true;
+        resume.disabled = true;
         let state;
         try {
             const file = selectedFile();
@@ -194,7 +198,6 @@
             }
             if (!confirm('Commit or resume ' + state.totalRows + ' source rows, in 100-row atomic transactions?'))
                 return;
-            busy = true; commit.disabled = true; resume.disabled = true;
             localStorage.setItem(checkpointKey, JSON.stringify(state));
             while (state.offset < state.totalRows) {
                 const offset = state.offset;

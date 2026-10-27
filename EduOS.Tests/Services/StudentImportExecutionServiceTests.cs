@@ -148,7 +148,7 @@ public sealed class StudentImportExecutionServiceTests
         var service = Service(db, new User(101, true));
         var request = Guid.NewGuid();
         var rows = Header + string.Concat(Enumerable.Range(1, 101)
-            .Select(i => $"SRC-{i},STU-{i},Learner {i},10,20,{i},,\\n"));
+            .Select(i => $"SRC-{i},STU-{i},Learner {i},10,20,{i},,\n"));
         using (var file = Csv(rows))
         {
             var committed = await service.ExecuteSliceAsync(file, ".csv", Mapping, request, 100);
