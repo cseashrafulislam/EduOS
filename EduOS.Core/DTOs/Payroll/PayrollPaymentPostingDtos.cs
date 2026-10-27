@@ -11,6 +11,11 @@ public sealed class PayrollPaymentPostingRowDto
     public PaymentMethodType PaymentMethod { get; set; }
     public PaymentState State { get; set; }
     public decimal Amount { get; set; }
+    public decimal NetSalaryAmount { get; set; }
+    public decimal SettledAmount { get; set; }
+    public decimal RemainingAmount { get; set; }
+    public string ReconciliationStatus { get; set; } = string.Empty;
+    public string? ReconciliationIssue { get; set; }
     public long? BankAccountId { get; set; }
     public long? BankLedgerId { get; set; }
     public string RowVersion { get; set; } = string.Empty;
