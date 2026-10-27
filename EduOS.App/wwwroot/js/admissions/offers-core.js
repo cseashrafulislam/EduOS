@@ -50,8 +50,8 @@ export async function refresh() {
     if (ctx.decision?.offeredAcademicBatchId) el('offerBatch').value = String(ctx.decision.offeredAcademicBatchId);
     const docs = await api('/api/admission-intake/applications/' + encodeURIComponent(reference) + '/documents');
     if (ctx.reference !== reference) return;
-    const verified = (Array.isArray(docs) ? docs : []).filter(x =>
-        x.documentTypeCode === 'OFFER_ACCEPTANCE' && x.isVerified && x.verifiedAt);
+    const verified = window.EduOSAdmissionOffers?.eligibleEvidence(
+        docs, ctx.decision?.offeredAt) || [];
     const selected = val('offerEvidence');
     fill('offerEvidence', verified.map(x => ({ id: x.id, name: 'Verified document #' + x.id + ' (v' + x.versionNo + ')' })),
         'Select verified signed evidence');

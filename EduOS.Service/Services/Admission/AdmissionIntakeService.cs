@@ -386,7 +386,7 @@ public sealed class AdmissionIntakeService : IAdmissionIntakeService
     internal static AdmissionApplicantDocumentDto MapDocument(AdmissionApplicantDocument doc, FileAsset? asset) => new()
     {
         Id = doc.Id, FileAssetId = doc.FileAssetId, DocumentTypeCode = doc.DocumentTypeCode,
-        VersionNo = doc.VersionNo, IsVerified = doc.IsVerified,
+        VersionNo = doc.VersionNo, CreatedAt = doc.CreatedAt, IsVerified = doc.IsVerified,
         VerificationStatus = doc.VerificationStatus, VerifiedByUserId = doc.VerifiedByUserId,
         VerifiedAt = doc.VerifiedAt, VerificationNote = doc.VerificationNote,
         OriginalFileName = asset?.OriginalFileName, FileSizeBytes = asset?.SizeBytes,

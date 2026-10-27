@@ -166,6 +166,7 @@ public class AdmissionApplicantDocumentDto
     public long FileAssetId { get; set; }
     public string DocumentTypeCode { get; set; } = string.Empty;
     public int VersionNo { get; set; }
+    public DateTime CreatedAt { get; set; }
     public bool IsVerified { get; set; }
     public EduOS.Core.Enums.AdmissionDocumentVerificationStatus VerificationStatus { get; set; }
     public long? VerifiedByUserId { get; set; }

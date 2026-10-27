@@ -4,22 +4,24 @@ async function issue() {
     const batch = num(val('offerBatch')), expiry = new Date(val('offerExpiry'));
     if (!batch || !Number.isFinite(expiry.getTime()) || expiry.getTime() <= Date.now())
         return notice('Select a valid batch and future expiry.', true);
-    const key = batch + '|' + expiry.toISOString();
-    if (key !== ctx.fingerprint) {
-        ctx.fingerprint = key;
-        ctx.requestId = crypto.randomUUID();
-    }
+    if (issuingOffer) return;
+    issuingOffer = true;
     el('offerIssueButton').disabled = true;
     try {
+        const expiresAt = expiry.toISOString();
+        const key = 'offer:' + ctx.reference;
+        const requestId = await offerRetry.forPayload(key,
+            window.EduOSAdmissionOffers.offerFingerprint(ctx.reference, batch, expiresAt));
         await api(base() + '/offer', 'POST', {
-            clientRequestId: ctx.requestId, admissionApplicantReference: ctx.reference,
-            state: 2, offeredAcademicBatchId: batch, expiresAt: expiry.toISOString(),
+            clientRequestId: requestId, admissionApplicantReference: ctx.reference,
+            state: 2, offeredAcademicBatchId: batch, expiresAt,
             applicantRowVersion: ctx.applicant.rowVersion
         });
+        offerRetry.clear(key);
         await refresh();
         notice('Offer issued. Verify signed evidence before acceptance.');
     } catch (error) { notice(error.message || 'Offer failed.', true); }
-    finally { render(); }
+    finally { issuingOffer = false; render(); }
 }
 async function accept() {
     if (!el('offerIdentityChecked').checked || !num(val('offerEvidence'))) return;

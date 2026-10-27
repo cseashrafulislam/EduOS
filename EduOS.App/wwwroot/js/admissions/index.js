@@ -917,28 +917,37 @@
             } catch (error) { refreshAcceptanceButton(); showAlert('danger', error.message || 'Acceptance could not be recorded.'); }
         });
         button.addEventListener('click', async () => {
+            if (issuingOffer) return;
             const reference = valueOf('enrollmentReference');
             const batch = positiveInteger(valueOf('enrollmentSectionId'));
             const date = new Date(expiry.value);
             if (!reference || !batch || !Number.isFinite(date.getTime()) || date.getTime() <= Date.now()) {
                 showAlert('danger', 'Choose an eligible batch and future expiry.'); return;
             }
+            issuingOffer = true;
             button.disabled = true;
             try {
+                const expiresAt = date.toISOString();
+                const key = 'offer:' + reference;
+                const requestId = await offerRetry.forPayload(key,
+                    window.EduOSAdmissionOffers.offerFingerprint(reference, batch, expiresAt));
                 const response = await fetch(`/api/admission-applications/${encodeURIComponent(reference)}/offer`,
                     apiOptions('POST', {
                         clientRequestId: requestId, admissionApplicantReference: reference,
-                        state: 2, offeredAcademicBatchId: batch, expiresAt: date.toISOString(),
+                        state: 2, offeredAcademicBatchId: batch, expiresAt,
                         applicantRowVersion: valueOf('enrollmentRowVersion')
                     }));
                 const payload = await response.json().catch(() => null);
                 if (!response.ok || !payload?.success) throw Error(payload?.message || 'Offer could not be issued.');
+                offerRetry.clear(key);
                 status.textContent = 'Offer issued. Verified applicant/guardian acceptance is required before enrollment.';
                 showAlert('success', payload.message || 'Offer issued.');
                 await loadApplications();
             } catch (error) {
                 button.disabled = false;
                 showAlert('danger', error.message || 'Offer could not be issued.');
+            } finally {
+                issuingOffer = false;
             }
         });
     }
