@@ -278,12 +278,13 @@ public class SelfServicePortalServiceTests
     public async Task Portal_enrollment_history_preserves_original_roll_and_excludes_other_students()
     {
         await using var context = CreateContext(out var accessor);
-        SetTenant(accessor, 10);
         var own = Student(10, 99, "OWN");
         var other = Student(10, 100, "OTHER");
         var foreign = Student(20, 99, "FOREIGN");
+        // Seed the cross-tenant fixture before activating tenant-boundary write enforcement.
         context.Set<Student>().AddRange(own, other, foreign);
         await context.SaveChangesAsync();
+        SetTenant(accessor, 10);
         var today = DateOnly.FromDateTime(DateTime.UtcNow);
         context.Set<StudentEnrollment>().AddRange(
             new StudentEnrollment { TenantId = 10, StudentId = own.Id, ClientRequestId = Guid.NewGuid(),
