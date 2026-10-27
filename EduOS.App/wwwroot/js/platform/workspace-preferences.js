@@ -5,8 +5,57 @@
     const fields = ['theme', 'palette', 'navigation', 'density', 'fontScale'];
     const panelIds = ['capacity', 'quick-actions', 'setup-checklist'];
     const panelList = document.getElementById('workspaceDashboardPanels');
+    const tableDefinitions = {
+        'institution-users': { ids: ['user', 'membership', 'roles', 'action'], required: ['user', 'action'] },
+        'institution-invitations': { ids: ['email', 'role', 'campus', 'expires', 'status', 'action'], required: ['email', 'status', 'action'] }
+    };
+    const tableLists = [...document.querySelectorAll('[data-table-row]')];
+    const defaultTables = () => Object.entries(tableDefinitions).map(([id, definition]) => ({
+        id, columns: definition.ids.map(column => ({ id: column, visible: true }))
+    }));
+    function validTables(tables) {
+        return Array.isArray(tables) && tables.length === 2
+            && new Set(tables.map(t => t?.id)).size === 2
+            && tables.every(table => {
+                const def = tableDefinitions[table?.id];
+                return def && Array.isArray(table.columns) && table.columns.length === def.ids.length
+                    && new Set(table.columns.map(c => c?.id)).size === def.ids.length
+                    && table.columns.every(c => c && def.ids.includes(c.id) && typeof c.visible === 'boolean')
+                    && def.required.every(id => table.columns.find(c => c.id === id).visible);
+            });
+    }
+    function tableColumnRows(list) { return [...list.querySelectorAll('[data-column-row]')]; }
+    function readTables() {
+        if (!tableLists.length) return validTables(persisted.tablePreferences)
+            ? persisted.tablePreferences : defaultTables();
+        return tableLists.map(list => ({
+            id: list.dataset.tableRow,
+            columns: tableColumnRows(list).map(row => ({
+                id: row.dataset.columnRow, visible: row.querySelector('input[type="checkbox"]').checked
+            }))
+        }));
+    }
+    function updateTableButtons() {
+        tableLists.forEach(list => tableColumnRows(list).forEach((row, index, rows) => {
+            row.querySelector('[data-column-move="up"]').disabled = busy || index === 0;
+            row.querySelector('[data-column-move="down"]').disabled = busy || index === rows.length - 1;
+        }));
+    }
+    function fillTables(tables) {
+        const safe = validTables(tables) ? tables : defaultTables();
+        tableLists.forEach(list => {
+            const table = safe.find(x => x.id === list.dataset.tableRow);
+            const rows = new Map(tableColumnRows(list).map(row => [row.dataset.columnRow, row]));
+            table.columns.forEach(column => {
+                const row = rows.get(column.id);
+                row.querySelector('input[type="checkbox"]').checked = column.visible;
+                list.querySelector('[data-table-columns]').appendChild(row);
+            });
+        });
+        updateTableButtons();
+    }
     const defaultPanels = () => panelIds.map(id => ({ id, visible: true }));
-    const defaults = { theme: 'system', palette: 'blue', navigation: 'left', density: 'comfortable', fontScale: 'normal', dashboardPanels: defaultPanels() };
+    const defaults = { theme: 'system', palette: 'blue', navigation: 'left', density: 'comfortable', fontScale: 'normal', dashboardPanels: defaultPanels(), tablePreferences: defaultTables() };
     function validPanels(panels) {
         return Array.isArray(panels) && panels.length === panelIds.length
             && panels.every(p => p && panelIds.includes(p.id) && typeof p.visible === 'boolean')
@@ -51,9 +100,10 @@
             select.value = [...select.options].some(option => option.value === candidate) ? candidate : defaults[name];
         });
         fillPanels(preferences?.dashboardPanels);
+        fillTables(preferences?.tablePreferences);
     }
     function values() {
-        return { ...Object.fromEntries(fields.map(name => [name, form.elements.namedItem(name).value])), dashboardPanels: readPanels() };
+        return { ...Object.fromEntries(fields.map(name => [name, form.elements.namedItem(name).value])), dashboardPanels: readPanels(), tablePreferences: readTables() };
     }
     function preview() {
         window.EduOSApplyWorkspacePreferences?.(values());
@@ -64,7 +114,11 @@
         reset.disabled = value;
         fields.forEach(name => { form.elements.namedItem(name).disabled = value; });
         panelRows().forEach(row => { row.querySelector('input[type="checkbox"]').disabled = value; });
+        tableLists.forEach(list => tableColumnRows(list).forEach(row => {
+            row.querySelector('input[type="checkbox"]').disabled = value || row.dataset.columnRequired === 'true';
+        }));
         updateMoveButtons();
+        updateTableButtons();
     }
     async function request(url, method, payload) {
         const response = await fetch(url, {
@@ -128,6 +182,20 @@
         updateMoveButtons();
         button.focus();
     });
+    tableLists.forEach(list => list.addEventListener('click', event => {
+        const button = event.target.closest('[data-column-move]');
+        if (!button || busy) return;
+        const row = button.closest('[data-column-row]');
+        const rows = tableColumnRows(list);
+        const index = rows.indexOf(row);
+        const columns = list.querySelector('[data-table-columns]');
+        if (button.dataset.columnMove === 'up' && index > 0)
+            columns.insertBefore(row, rows[index - 1]);
+        else if (button.dataset.columnMove === 'down' && index < rows.length - 1)
+            columns.insertBefore(rows[index + 1], row);
+        updateTableButtons();
+        button.focus();
+    }));
     form.addEventListener('submit', event => {
         event.preventDefault();
         commit('/api/workspace-preferences', { schemaVersion: 1, ...values(), rowVersion });

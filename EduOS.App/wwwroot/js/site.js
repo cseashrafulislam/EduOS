@@ -134,6 +134,27 @@
             return dashboardPanelIds.map(id => ({ id, visible: true }));
         return panels.map(p => ({ id: p.id, visible: p.visible }));
     }
+    const tableDefinitions = {
+        'institution-users': { ids: ['user', 'membership', 'roles', 'action'], required: ['user', 'action'] },
+        'institution-invitations': { ids: ['email', 'role', 'campus', 'expires', 'status', 'action'], required: ['email', 'status', 'action'] }
+    };
+    function safeTablePreferences(tables) {
+        const defaults = () => Object.entries(tableDefinitions).map(([id, definition]) => ({
+            id, columns: definition.ids.map(column => ({ id: column, visible: true }))
+        }));
+        if (!Array.isArray(tables) || tables.length !== 2 ||
+            new Set(tables.map(table => table?.id)).size !== 2 ||
+            !tables.every(table => {
+                const def = tableDefinitions[table?.id];
+                return def && Array.isArray(table.columns) && table.columns.length === def.ids.length &&
+                    new Set(table.columns.map(column => column?.id)).size === def.ids.length &&
+                    table.columns.every(column => column && def.ids.includes(column.id) && typeof column.visible === 'boolean') &&
+                    def.required.every(id => table.columns.find(column => column.id === id).visible);
+            })) return defaults();
+        return tables.map(table => ({
+            id: table.id, columns: table.columns.map(column => ({ id: column.id, visible: column.visible }))
+        }));
+    }
     window.EduOSApplyWorkspacePreferences = preferences => {
         const html = document.documentElement;
         for (const [name, allowed] of Object.entries(workspaceChoices)) {
@@ -143,7 +164,10 @@
             html.dataset[attr] = safe;
         }
         // Ephemeral page-only state: never persist or share across institution sessions.
-        const detail = { dashboardPanels: safeDashboardPanels(preferences?.dashboardPanels) };
+        const detail = {
+            dashboardPanels: safeDashboardPanels(preferences?.dashboardPanels),
+            tablePreferences: safeTablePreferences(preferences?.tablePreferences)
+        };
         window.EduOSWorkspacePreferences = detail;
         window.dispatchEvent(new CustomEvent('eduos:workspace-preferences', { detail }));
     };

@@ -10,6 +10,7 @@ public sealed class WorkspacePreferencesDto
     public string Density { get; set; } = "comfortable";
     public string FontScale { get; set; } = "normal";
     public List<DashboardPanelPreferenceDto> DashboardPanels { get; set; } = DashboardPanelPreferenceDto.Defaults();
+    public List<TablePreferenceDto> TablePreferences { get; set; } = TablePreferenceDto.Defaults();
     public string RowVersion { get; set; } = string.Empty;
 }
 
@@ -22,6 +23,7 @@ public sealed class SaveWorkspacePreferencesRequestDto
     public string Density { get; set; } = "comfortable";
     public string FontScale { get; set; } = "normal";
     public List<DashboardPanelPreferenceDto> DashboardPanels { get; set; } = DashboardPanelPreferenceDto.Defaults();
+    public List<TablePreferenceDto> TablePreferences { get; set; } = TablePreferenceDto.Defaults();
     public string? RowVersion { get; set; }
 }
 
@@ -36,6 +38,34 @@ public sealed class DashboardPanelPreferenceDto
         new() { Id = "quick-actions" },
         new() { Id = "setup-checklist" }
     ];
+}
+
+/// <summary>Presentation-only choices for allowlisted institution administration tables.</summary>
+public sealed class TablePreferenceDto
+{
+    public string Id { get; set; } = string.Empty;
+    public List<TableColumnPreferenceDto> Columns { get; set; } = [];
+
+    public static List<TablePreferenceDto> Defaults() =>
+    [
+        new() { Id = "institution-users", Columns =
+        [
+            new() { Id = "user" }, new() { Id = "membership" },
+            new() { Id = "roles" }, new() { Id = "action" }
+        ] },
+        new() { Id = "institution-invitations", Columns =
+        [
+            new() { Id = "email" }, new() { Id = "role" },
+            new() { Id = "campus" }, new() { Id = "expires" },
+            new() { Id = "status" }, new() { Id = "action" }
+        ] }
+    ];
+}
+
+public sealed class TableColumnPreferenceDto
+{
+    public string Id { get; set; } = string.Empty;
+    public bool Visible { get; set; } = true;
 }
 
 public sealed class ResetWorkspacePreferencesRequestDto

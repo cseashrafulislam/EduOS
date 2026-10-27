@@ -53,8 +53,8 @@
                     </div>
                 </form>
                 <div class="table-responsive">
-                    <table class="table table-hover align-middle">
-                        <thead><tr><th>User</th><th>Membership</th><th>Roles</th><th>Action</th></tr></thead>
+                    <table class="table table-hover align-middle" data-workspace-table="institution-users">
+                        <thead><tr><th scope="col" data-table-column="user">User</th><th scope="col" data-table-column="membership">Membership</th><th scope="col" data-table-column="roles">Roles</th><th scope="col" data-table-column="action">Action</th></tr></thead>
                         <tbody id="tenantUsersBody"><tr><td colspan="4">Loading...</td></tr></tbody>
                     </table>
                 </div>
@@ -161,4 +161,5 @@
 </div>
 @section Scripts {
     <script src="~/js/tenant-users/index.js" asp-append-version="true"></script>
+    <script src="~/js/platform/table-column-preferences.js" asp-append-version="true"></script>
 }

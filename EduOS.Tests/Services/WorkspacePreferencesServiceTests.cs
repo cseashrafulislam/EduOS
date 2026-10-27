@@ -38,6 +38,9 @@ public sealed class WorkspacePreferencesServiceTests
         Assert.Equal(new[] { "quick-actions", "setup-checklist", "capacity" },
             (await owner.GetAsync()).Data!.DashboardPanels.Select(x => x.Id));
         Assert.False((await owner.GetAsync()).Data!.DashboardPanels[0].Visible);
+        Assert.Equal(2, (await owner.GetAsync()).Data!.TablePreferences.Count);
+        Assert.All((await Service(test.Db, 202, 71).GetAsync()).Data!.TablePreferences,
+            table => Assert.All(table.Columns, column => Assert.True(column.Visible)));
         Assert.True((await Service(test.Db, 101, 72).GetAsync()).Data!.DashboardPanels.All(x => x.Visible));
         Assert.Equal("system", (await Service(test.Db, 101, 72).GetAsync()).Data!.Theme);
         Assert.Equal("system", (await Service(test.Db, 202, 71).GetAsync()).Data!.Theme);
@@ -115,6 +118,8 @@ public sealed class WorkspacePreferencesServiceTests
         Assert.Equal(new[] { "capacity", "quick-actions", "setup-checklist" }, reset.Data.DashboardPanels.Select(x => x.Id));
         Assert.All(reset.Data.DashboardPanels, x => Assert.True(x.Visible));
         Assert.Single(await test.Db.TenantSettings.ToListAsync());
+        Assert.All(reset.Data.TablePreferences, table =>
+            Assert.All(table.Columns, column => Assert.True(column.Visible)));
     }
 
     [Fact]
@@ -164,6 +169,103 @@ public sealed class WorkspacePreferencesServiceTests
         Assert.Equal(new[] { "capacity", "quick-actions", "setup-checklist" },
             response.Data.DashboardPanels.Select(x => x.Id));
         Assert.All(response.Data.DashboardPanels, x => Assert.True(x.Visible));
+    }
+
+    [Fact]
+    public async Task Table_columns_persist_per_user_and_tenant_without_changing_mandatory_actions()
+    {
+        await using var test = Create();
+        var owner = Service(test.Db, 101, 71);
+        var tables = TablePreferenceDto.Defaults();
+        tables[0].Columns =
+        [
+            new() { Id = "roles", Visible = false },
+            new() { Id = "action" },
+            new() { Id = "user" },
+            new() { Id = "membership", Visible = false }
+        ];
+        tables[1].Columns =
+        [
+            new() { Id = "email" }, new() { Id = "status" },
+            new() { Id = "action" }, new() { Id = "expires", Visible = false },
+            new() { Id = "role" }, new() { Id = "campus", Visible = false }
+        ];
+        var saved = await owner.SaveAsync(new SaveWorkspacePreferencesRequestDto { TablePreferences = tables });
+        Assert.True(saved.Success, saved.Message);
+        var current = (await owner.GetAsync()).Data!;
+        Assert.Equal(new[] { "roles", "action", "user", "membership" },
+            current.TablePreferences[0].Columns.Select(column => column.Id));
+        Assert.False(current.TablePreferences[0].Columns[0].Visible);
+        Assert.True(current.TablePreferences[0].Columns[1].Visible);
+        Assert.Equal(new[] { "email", "status", "action", "expires", "role", "campus" },
+            current.TablePreferences[1].Columns.Select(column => column.Id));
+        Assert.All((await Service(test.Db, 101, 72).GetAsync()).Data!.TablePreferences,
+            table => Assert.All(table.Columns, column => Assert.True(column.Visible)));
+        Assert.All((await Service(test.Db, 202, 71).GetAsync()).Data!.TablePreferences,
+            table => Assert.All(table.Columns, column => Assert.True(column.Visible)));
+    }
+
+    [Fact]
+    public async Task Invalid_unknown_duplicate_partial_or_hidden_required_table_columns_are_rejected()
+    {
+        await using var test = Create();
+        var service = Service(test.Db, 101, 71);
+        var badTables = new List<List<TablePreferenceDto>?>
+        {
+            null, [],
+            [new() { Id = "institution-users", Columns = TablePreferenceDto.Defaults()[0].Columns }],
+            [TablePreferenceDto.Defaults()[0], TablePreferenceDto.Defaults()[0]]
+        };
+        foreach (var invalid in badTables)
+            Assert.Equal(400, (await service.SaveAsync(new SaveWorkspacePreferencesRequestDto
+            {
+                TablePreferences = invalid!
+            })).StatusCode);
+
+        foreach (var badId in new[] { "unknown", "user" })
+        {
+            var tables = TablePreferenceDto.Defaults();
+            tables[0].Columns[1].Id = badId;
+            Assert.Equal(400, (await service.SaveAsync(new SaveWorkspacePreferencesRequestDto
+            {
+                TablePreferences = tables
+            })).StatusCode);
+        }
+        foreach (var (tableIndex, requiredId) in new[]
+        {
+            (0, "user"), (0, "action"), (1, "email"), (1, "status"), (1, "action")
+        })
+        {
+            var tables = TablePreferenceDto.Defaults();
+            tables[tableIndex].Columns.Single(column => column.Id == requiredId).Visible = false;
+            Assert.Equal(400, (await service.SaveAsync(new SaveWorkspacePreferencesRequestDto
+            {
+                TablePreferences = tables
+            })).StatusCode);
+        }
+        Assert.Empty(await test.Db.TenantSettings.ToListAsync());
+    }
+
+    [Fact]
+    public async Task Corrupt_saved_table_layout_falls_back_to_defaults_and_stale_version_is_rejected()
+    {
+        await using var test = Create();
+        var service = Service(test.Db, 101, 71);
+        Assert.True((await service.SaveAsync(new SaveWorkspacePreferencesRequestDto())).Success);
+        var row = await test.Db.TenantSettings.SingleAsync();
+        row.Value = """{"SchemaVersion":1,"TablePreferences":[{"Id":"institution-users","Columns":[{"Id":"action","Visible":false}]}]}""";
+        row.RowVersion = [1, 2, 3, 4, 5, 6, 7, 8];
+        await test.Db.SaveChangesAsync();
+        var read = (await service.GetAsync()).Data!;
+        Assert.Equal(2, read.TablePreferences.Count);
+        Assert.All(read.TablePreferences, table =>
+            Assert.All(table.Columns, column => Assert.True(column.Visible)));
+        var stale = await service.SaveAsync(new SaveWorkspacePreferencesRequestDto
+        {
+            TablePreferences = TablePreferenceDto.Defaults(),
+            RowVersion = Convert.ToBase64String(new byte[] { 1, 2, 3 })
+        });
+        Assert.Equal(409, stale.StatusCode);
     }
 
     private static TestSetup Create()

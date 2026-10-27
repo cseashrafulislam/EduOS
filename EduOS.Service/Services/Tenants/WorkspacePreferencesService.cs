@@ -84,6 +84,14 @@ public sealed class WorkspacePreferencesService : IWorkspacePreferencesService
                 DashboardPanels = request.DashboardPanels.Select(x => new DashboardPanelPreferenceDto
                 {
                     Id = x.Id, Visible = x.Visible
+                }).ToList(),
+                TablePreferences = request.TablePreferences.Select(table => new TablePreferenceDto
+                {
+                    Id = table.Id,
+                    Columns = table.Columns.Select(column => new TableColumnPreferenceDto
+                    {
+                        Id = column.Id, Visible = column.Visible
+                    }).ToList()
                 }).ToList()
             };
             if (row == null)
@@ -146,12 +154,39 @@ public sealed class WorkspacePreferencesService : IWorkspacePreferencesService
         IsOneOf(request.Navigation, "left", "right", "top") &&
         IsOneOf(request.Density, "comfortable", "compact") &&
         IsOneOf(request.FontScale, "normal", "large") &&
-        (request.RowVersion?.Length ?? 0) <= 100 && ValidPanels(request.DashboardPanels);
+        (request.RowVersion?.Length ?? 0) <= 100 && ValidPanels(request.DashboardPanels) &&
+        ValidTables(request.TablePreferences);
 
     private static bool ValidPanels(List<DashboardPanelPreferenceDto>? panels) =>
         panels is { Count: 3 } &&
         panels.All(x => x != null && x.Id is "capacity" or "quick-actions" or "setup-checklist") &&
         panels.Select(x => x.Id).Distinct(StringComparer.Ordinal).Count() == 3;
+
+    private static bool ValidTables(List<TablePreferenceDto>? tables)
+    {
+        var defaults = TablePreferenceDto.Defaults();
+        if (tables is not { Count: 2 } ||
+            tables.Select(x => x?.Id).Distinct(StringComparer.Ordinal).Count() != 2)
+            return false;
+
+        foreach (var table in tables)
+        {
+            var definition = defaults.FirstOrDefault(x => x.Id == table?.Id);
+            if (definition == null || table!.Columns == null ||
+                table.Columns.Count != definition.Columns.Count ||
+                table.Columns.Any(x => x == null ||
+                    !definition.Columns.Any(allowed => allowed.Id == x.Id)) ||
+                table.Columns.Select(x => x.Id).Distinct(StringComparer.Ordinal).Count() != definition.Columns.Count)
+                return false;
+
+            var required = table.Id == "institution-users"
+                ? new[] { "user", "action" }
+                : new[] { "email", "status", "action" };
+            if (required.Any(id => !table.Columns.Single(x => x.Id == id).Visible))
+                return false;
+        }
+        return true;
+    }
 
     private static bool IsOneOf(string? value, params string[] allowed) =>
         value != null && allowed.Contains(value, StringComparer.Ordinal);
@@ -183,6 +218,15 @@ public sealed class WorkspacePreferencesService : IWorkspacePreferencesService
                 {
                     Id = x.Id, Visible = x.Visible
                 }).ToList();
+            if (ValidTables(stored.TablePreferences))
+                result.TablePreferences = stored.TablePreferences!.Select(table => new TablePreferenceDto
+                {
+                    Id = table.Id,
+                    Columns = table.Columns.Select(column => new TableColumnPreferenceDto
+                    {
+                        Id = column.Id, Visible = column.Visible
+                    }).ToList()
+                }).ToList();
         }
         catch (JsonException) { /* Retired or corrupt preferences fall back to safe defaults. */ }
         return result;
@@ -197,5 +241,6 @@ public sealed class WorkspacePreferencesService : IWorkspacePreferencesService
         public string? Density { get; set; }
         public string? FontScale { get; set; }
         public List<DashboardPanelPreferenceDto>? DashboardPanels { get; set; }
+        public List<TablePreferenceDto>? TablePreferences { get; set; }
     }
 }

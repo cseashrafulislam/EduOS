@@ -6,7 +6,6 @@
 <section class="container-fluid py-3" id="workspacePreferencesPage" aria-labelledby="workspaceTitle">
     <div class="mb-3">
         <h2 id="workspaceTitle">@(bn ? "আপনার ওয়ার্কস্পেস" : "Your Workspace")</h2>
-        <p class="text-muted">@(bn ? "প্রতিটি প্রতিষ্ঠানের জন্য আলাদা ডিজাইন সংরক্ষণ করুন। অনুমতি ও মেনু অ্যাক্সেস অপরিবর্তিত থাকবে।" : "Save a different design for each institution. Roles and menu permissions never change.")</p>
     </div>
     <div class="card shadow-sm">
         <div class="card-body">
@@ -63,6 +62,50 @@
                         }
                     </div>
                 </fieldset>
+                @if (User.IsInRole("TenantAdmin"))
+                {
+                    <fieldset class="mt-4" aria-labelledby="workspaceTablesTitle">
+                        <legend class="fs-6 fw-bold mb-2" id="workspaceTablesTitle">@(bn ? "তালিকার কলাম" : "Table columns")</legend>
+                        @foreach (var table in new[] {
+                            (Id: "institution-users", En: "Institution users", Bn: "প্রতিষ্ঠানের ব্যবহারকারী",
+                                Columns: new[] {
+                                    (Id: "user", En: "User", Bn: "ব্যবহারকারী", Required: true),
+                                    (Id: "membership", En: "Membership", Bn: "সদস্যপদ", Required: false),
+                                    (Id: "roles", En: "Roles", Bn: "ভূমিকা", Required: false),
+                                    (Id: "action", En: "Action", Bn: "কার্যক্রম", Required: true)
+                                }),
+                            (Id: "institution-invitations", En: "Invitation history", Bn: "আমন্ত্রণের ইতিহাস",
+                                Columns: new[] {
+                                    (Id: "email", En: "Email", Bn: "ইমেইল", Required: true),
+                                    (Id: "role", En: "Initial role", Bn: "প্রাথমিক ভূমিকা", Required: false),
+                                    (Id: "campus", En: "Campus", Bn: "ক্যাম্পাস", Required: false),
+                                    (Id: "expires", En: "Expires", Bn: "মেয়াদ", Required: false),
+                                    (Id: "status", En: "Status", Bn: "অবস্থা", Required: true),
+                                    (Id: "action", En: "Action", Bn: "কার্যক্রম", Required: true)
+                                })
+                        })
+                        {
+                            <div class="mb-3" data-table-row="@table.Id">
+                                <h3 class="h6 mb-2">@(bn ? table.Bn : table.En)</h3>
+                                <div class="list-group" data-table-columns>
+                                    @foreach (var column in table.Columns)
+                                    {
+                                        <div class="list-group-item d-flex flex-wrap align-items-center gap-2" data-column-row="@column.Id" data-column-required="@(column.Required ? "true" : "false")">
+                                            <label class="form-check flex-grow-1 mb-0">
+                                                <input type="checkbox" class="form-check-input me-2" checked disabled="@(column.Required ? "disabled" : null)" />
+                                                <span class="form-check-label">@(bn ? column.Bn : column.En)</span>
+                                            </label>
+                                            <div class="btn-group btn-group-sm" role="group" aria-label="@(bn ? column.Bn : column.En)">
+                                                <button type="button" class="btn btn-outline-secondary" data-column-move="up" aria-label="@(bn ? column.Bn + " উপরে" : "Move " + column.En + " up")">↑</button>
+                                                <button type="button" class="btn btn-outline-secondary" data-column-move="down" aria-label="@(bn ? column.Bn + " নিচে" : "Move " + column.En + " down")">↓</button>
+                                            </div>
+                                        </div>
+                                    }
+                                </div>
+                            </div>
+                        }
+                    </fieldset>
+                }
                 <div class="d-flex flex-wrap gap-2 mt-3">
                     <button class="btn btn-primary" type="submit" id="workspaceSave">@(bn ? "ডিজাইন সংরক্ষণ" : "Save appearance")</button>
                     <button class="btn btn-outline-secondary" type="button" id="workspaceReset">@(bn ? "ডিফল্টে ফিরুন" : "Reset to defaults")</button>

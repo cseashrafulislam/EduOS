@@ -60,3 +60,24 @@ test('dashboard panel arrangement stays private, allowlisted and never hides man
     assert.match(shell, /EduOSWorkspacePreferences/);
     assert.doesNotMatch(script, /localStorage|sessionStorage|innerHTML/);
 });
+
+test('institution administration table columns use private versioned allowlists and live safe DOM updates', () => {
+    const dto = read('EduOS.Core/DTOs/SaaS/WorkspacePreferencesDtos.cs');
+    const service = read('EduOS.Service/Services/Tenants/WorkspacePreferencesService.cs');
+    const view = read('EduOS.App/Views/WorkspacePreferences/Index.cshtml');
+    const shell = read('EduOS.App/wwwroot/js/site.js');
+    const adapter = read('EduOS.App/wwwroot/js/platform/table-column-preferences.js');
+    const users = read('EduOS.App/Views/TenantUsers/Index.cshtml');
+    const invitations = read('EduOS.App/Views/TenantUsers/Invitations.cshtml');
+    assert.match(dto, /TablePreferenceDto/);
+    assert.match(service, /ValidTables\(request\.TablePreferences\)/);
+    assert.match(service, /TablePreferences = request\.TablePreferences/);
+    assert.match(view, /User\.IsInRole\("TenantAdmin"\)/);
+    assert.match(view, /data-table-columns/);
+    assert.match(shell, /safeTablePreferences/);
+    assert.match(adapter, /MutationObserver/);
+    assert.match(adapter, /eduos:workspace-preferences/);
+    assert.doesNotMatch(adapter, /innerHTML|localStorage|sessionStorage/);
+    assert.match(users, /data-workspace-table="institution-users"/);
+    assert.match(invitations, /data-workspace-table="institution-invitations"/);
+});
