@@ -114,7 +114,9 @@ public sealed class FinanceAdjustmentServiceTests
         var accessor = new HttpContextAccessor { HttpContext = new DefaultHttpContext() };
         accessor.HttpContext.Items["TenantId"] = 11L;
         await using var db = new EduOSDbContext(new DbContextOptionsBuilder<EduOSDbContext>()
-            .UseInMemoryDatabase("finance-historical-invoice-" + Guid.NewGuid().ToString("N")).Options, accessor);
+            .UseInMemoryDatabase("finance-historical-invoice-" + Guid.NewGuid().ToString("N"))
+            .ConfigureWarnings(w => w.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.InMemoryEventId.TransactionIgnoredWarning))
+            .Options, accessor);
         var enrollment = new EduOS.Core.Entities.Academic.StudentEnrollment
         {
             TenantId = 11, StudentId = 5, CampusId = 7, RollNo = "T-5"
