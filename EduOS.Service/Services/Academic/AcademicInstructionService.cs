@@ -176,18 +176,23 @@ public sealed class AcademicInstructionService : IAcademicInstructionService
         var names = await _employees.GetQueryable().AsNoTracking().Where(x =>
             x.TenantId == tenant && ids2.Contains(x.Id))
             .ToDictionaryAsync(x => x.Id, x => x.FullName, ct);
-        IReadOnlyList<SubstitutionDto> result = rows.Where(x => context.ContainsKey(x.RoutineEntryId))
-            .Select(x =>
+        // Never silently drop historical rows after Count/Skip/Take: a missing routine, slot,
+        // offering or subject would otherwise produce short pages and incorrect totals.
+        // Preserve the database's newest-first page order for stable navigation and exports.
+        IReadOnlyList<SubstitutionDto> result = rows.Select(x =>
+        {
+            var dto = MapSubstitution(x, names.GetValueOrDefault(x.SubstituteEmployeeId));
+            if (!context.TryGetValue(x.RoutineEntryId, out var info))
             {
-                var dto = MapSubstitution(x, names.GetValueOrDefault(x.SubstituteEmployeeId));
-                var info = context[x.RoutineEntryId];
-                dto.BatchName = info.BatchName;
-                dto.SubjectName = info.SubjectName;
-                dto.TimeSlotName = info.SlotName;
-                dto.OriginalTeacherName = info.OriginalEmployeeName;
+                dto.ContextUnavailable = true;
                 return dto;
-            })
-            .OrderBy(x => x.Date).ThenBy(x => x.Id).ToList();
+            }
+            dto.BatchName = info.BatchName;
+            dto.SubjectName = info.SubjectName;
+            dto.TimeSlotName = info.SlotName;
+            dto.OriginalTeacherName = info.OriginalEmployeeName;
+            return dto;
+        }).ToList();
         return ApiResponse<PagedResult<SubstitutionDto>>.SuccessResponse(new PagedResult<SubstitutionDto>
         {
             Items = result.ToList(), TotalCount = total, Page = page, PageSize = pageSize

@@ -175,8 +175,10 @@
         }
         for (const row of rows) {
             const tr = document.createElement('tr');
-            tr.append(cell(dateOnly(row.date)), cell([row.batchName, row.subjectName].filter(Boolean).join(' / ')),
-                cell(row.timeSlotName), cell(row.originalTeacherName),
+            tr.append(cell(dateOnly(row.date)), cell(row.contextUnavailable ? 'Archived routine context' :
+                [row.batchName, row.subjectName].filter(Boolean).join(' / ')),
+                cell(row.contextUnavailable ? 'Unavailable' : row.timeSlotName),
+                cell(row.contextUnavailable ? 'Unavailable' : row.originalTeacherName),
                 cell(row.substituteEmployeeName), cell(row.reason || '—'),
                 cell(row.isCancelled ? 'Cancelled' : 'Active'));
             if (manager) {
@@ -292,10 +294,11 @@
         } catch (e) { status('danger', e.message); }
     }
     function exportSubstitutions() {
-        const headers = ['Date', 'Batch', 'Subject', 'Time slot', 'Original teacher', 'Substitute', 'Reason', 'Status'];
+        const headers = ['Date', 'Batch', 'Subject', 'Time slot', 'Original teacher', 'Substitute', 'Reason', 'Status', 'Routine context'];
         const rows = state.substitutions.map(x => [dateOnly(x.date), x.batchName, x.subjectName,
             x.timeSlotName, x.originalTeacherName, x.substituteEmployeeName,
-            x.reason, x.isCancelled ? 'Cancelled' : 'Active']);
+            x.reason, x.isCancelled ? 'Cancelled' : 'Active',
+            x.contextUnavailable ? 'Archived / unavailable' : 'Available']);
         const safe = value => {
             let s = String(value ?? '');
             if (/^[=+@\-\t\r]/.test(s)) s = "'" + s;

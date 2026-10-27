@@ -92,6 +92,9 @@ public sealed class AcademicInstructionUiContractTests
         view.Should().Contain("id=\"substitutionNext\"");
         js.Should().Contain("/api/academic-instruction/substitutions/page?");
         js.Should().Contain("subPage.items");
+        js.Should().Contain("row.contextUnavailable");
+        js.Should().Contain("x.contextUnavailable ? 'Archived / unavailable'");
+        typeof(SubstitutionDto).GetProperty(nameof(SubstitutionDto.ContextUnavailable)).Should().NotBeNull();
         js.Should().Contain("state.substitutionPage");
         typeof(IAcademicInstructionService).GetMethod(nameof(IAcademicInstructionService.GetSubstitutionsPageAsync))
             .Should().NotBeNull();

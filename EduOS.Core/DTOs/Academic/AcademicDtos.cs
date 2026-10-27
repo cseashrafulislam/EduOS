@@ -643,6 +643,8 @@ public class SubstitutionDto
     public string SubjectName { get; set; } = string.Empty;
     public string TimeSlotName { get; set; } = string.Empty;
     public string OriginalTeacherName { get; set; } = string.Empty;
+    // Preserve circulation of historical substitutions even when related routine metadata is unavailable.
+    public bool ContextUnavailable { get; set; }
     public string? Reason { get; set; }
     public bool IsCancelled { get; set; }
     public string RowVersion { get; set; } = string.Empty;

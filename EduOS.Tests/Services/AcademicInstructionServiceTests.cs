@@ -392,6 +392,63 @@ public sealed class AcademicInstructionServiceTests
         }
     }
 
+    [Fact]
+    public async Task Substitution_register_keeps_historical_rows_with_missing_routine_context_and_stable_page_counts()
+    {
+        var options = Options();
+        var seed = await SeedAsync(options);
+        await using (var db = Context(options, 101, 7, "TenantAdmin"))
+        {
+            var substituteId = (await db.Employees.SingleAsync(x => x.UserId == 71)).Id;
+            db.Substitutions.Add(new Substitution
+            {
+                TenantId = 101, ClientRequestId = Guid.NewGuid(),
+                RoutineEntryId = seed.RoutineEntryId, Date = LessonDate,
+                SubstituteEmployeeId = substituteId, Reason = "Existing routine"
+            });
+            db.Substitutions.Add(new Substitution
+            {
+                TenantId = 101, ClientRequestId = Guid.NewGuid(),
+                RoutineEntryId = long.MaxValue, Date = LessonDate,
+                SubstituteEmployeeId = substituteId, Reason = "Historical missing routine"
+            });
+            await db.SaveChangesAsync();
+        }
+        await using (var db = Context(options, 101, 7, "TenantAdmin"))
+        {
+            var manager = Service(db, 101, 7, "TenantAdmin");
+            var all = await manager.GetSubstitutionsPageAsync(LessonDate, LessonDate, null, 1, 20);
+            all.Success.Should().BeTrue();
+            all.Data!.TotalCount.Should().Be(2);
+            all.Data.Items.Should().HaveCount(2);
+            all.Data.Items[0].ContextUnavailable.Should().BeTrue();
+            all.Data.Items[0].Reason.Should().Be("Historical missing routine");
+            all.Data.Items[1].ContextUnavailable.Should().BeFalse();
+            all.Data.Items[1].BatchName.Should().Be("Batch A");
+            all.Data.Items[0].Id.Should().BeGreaterThan(all.Data.Items[1].Id);
+            var first = await manager.GetSubstitutionsPageAsync(LessonDate, LessonDate, null, 1, 1);
+            var second = await manager.GetSubstitutionsPageAsync(LessonDate, LessonDate, null, 2, 1);
+            first.Data!.TotalCount.Should().Be(2);
+            first.Data.Items.Should().ContainSingle();
+            second.Data!.Items.Should().ContainSingle();
+            first.Data.Items[0].Id.Should().NotBe(second.Data.Items[0].Id);
+        }
+        await using (var db = Context(options, 101, 71, "Teacher"))
+        {
+            var teacher = await Service(db, 101, 71, "Teacher")
+                .GetSubstitutionsPageAsync(LessonDate, LessonDate, null, 1, 20);
+            teacher.Data!.TotalCount.Should().Be(2);
+            teacher.Data.Items.Should().HaveCount(2);
+        }
+        await using (var db = Context(options, 202, 8, "TenantAdmin"))
+        {
+            var other = await Service(db, 202, 8, "TenantAdmin")
+                .GetSubstitutionsPageAsync(LessonDate, LessonDate, null, 1, 20);
+            other.Data!.TotalCount.Should().Be(0);
+            other.Data.Items.Should().BeEmpty();
+        }
+    }
+
     private static AcademicInstructionService Service(EduOSDbContext db, long tenant, long user, string role, TimeProvider? clock = null) => new(
         new GenericRepository<Substitution>(db),
         new GenericRepository<LessonPlan>(db),
