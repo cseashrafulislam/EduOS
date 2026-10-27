@@ -6,7 +6,7 @@
     const manager = root.dataset.canManage === 'true';
     const teacher = root.dataset.canTeach === 'true';
     const statuses = {1:'Draft',2:'Submitted',3:'Approved',4:'Rejected',5:'In progress',6:'Completed'};
-    const state = { batches: [], offerings: [], instructors: [], routines: [], lessons: [], substitutions: [], editingId: null, lessonPage: 1, lessonPages: 1, lessonCount: 0, requestSeq: 0, draftRequestId: null, substitutionRequestId: null };
+    const state = { batches: [], offerings: [], instructors: [], routines: [], lessons: [], substitutions: [], editingId: null, lessonPage: 1, lessonPages: 1, lessonCount: 0, substitutionPage: 1, substitutionPages: 1, substitutionCount: 0, requestSeq: 0, draftRequestId: null, substitutionRequestId: null };
     const dateOnly = value => value ? String(value).slice(0,10) : '';
     const dateForApi = value => value; // ASP.NET DateOnly accepts yyyy-MM-dd, not a timestamp.
     const option = (value, text) => { const e=document.createElement('option');e.value=String(value);e.textContent=text;return e; };
@@ -46,7 +46,7 @@
         resetEditor();
         const id=Number(get('instructionBatch').value);
         get('lessonNew').disabled=!id;
-        state.lessonPage=1;state.offerings=[];state.instructors=[];state.routines=[];state.lessons=[];state.substitutions=[];renderLessons([]);renderSubstitutions([]);updateLessonPager();
+        state.lessonPage=1;state.substitutionPage=1;state.offerings=[];state.instructors=[];state.routines=[];state.lessons=[];state.substitutions=[];renderLessons([]);renderSubstitutions([]);updateLessonPager();updateSubstitutionPager();
         if(id)load();
     }
     async function init() {
@@ -88,6 +88,13 @@
         get('lessonNext').disabled = state.lessonPage >= state.lessonPages;
         get('lessonCsv').disabled = !state.lessons.length;
     }
+    function updateSubstitutionPager() {
+        get('substitutionPage').textContent = 'Page ' + state.substitutionPage + ' / ' + state.substitutionPages +
+            ' (' + state.substitutionCount + ' substitutions)';
+        get('substitutionPrevious').disabled = state.substitutionPage <= 1;
+        get('substitutionNext').disabled = state.substitutionPage >= state.substitutionPages;
+        get('substitutionCsv').disabled = !state.substitutions.length;
+    }
     async function load() {
         let scope; try { scope = dateScope(); } catch (e) { status('danger', e.message); return; }
         const seq = ++state.requestSeq;
@@ -96,10 +103,12 @@
             fromDate: dateForApi(scope.from), toDate: dateForApi(scope.to) });
         const lessonQuery = new URLSearchParams(q);
         lessonQuery.set('page', String(state.lessonPage)); lessonQuery.set('pageSize', '20');
+        const substitutionQuery = new URLSearchParams(q);
+        substitutionQuery.set('page', String(state.substitutionPage)); substitutionQuery.set('pageSize', '20');
         try {
             const [lessonResult, subResult, offeringResult, routineResult] = await Promise.allSettled([
                 api('/api/academic-instruction/lesson-plans?' + lessonQuery),
-                api('/api/academic-instruction/substitutions?' + q),
+                api('/api/academic-instruction/substitutions/page?' + substitutionQuery),
                 loadOfferings(scope.batchId),
                 api('/api/academic-routines/batches/' + scope.batchId)
             ]);
@@ -111,11 +120,15 @@
             state.lessons = page.items;
             state.lessonCount = Number(page.totalCount || 0);
             state.lessonPages = Math.max(1, Number(page.totalPages || 1));
-            state.substitutions = subResult.value || [];
+            const subPage = subResult.value;
+            if (!subPage || !Array.isArray(subPage.items)) throw new Error('Invalid substitution register response.');
+            state.substitutions = subPage.items;
+            state.substitutionCount = Number(subPage.totalCount || 0);
+            state.substitutionPages = Math.max(1, Number(subPage.totalPages || 1));
             state.offerings = offeringResult.status === 'fulfilled' ? offeringResult.value : [];
             state.routines = routineResult.status === 'fulfilled' ? (routineResult.value || []) : [];
             renderLessons(state.lessons); renderSubstitutions(state.substitutions);
-            setAssignments(); updateLessonPager();
+            setAssignments(); updateLessonPager(); updateSubstitutionPager();
             if (manager) {
                 try { await findInstructors(); }
                 catch (e) { if (seq === state.requestSeq) status('warning', 'Instructor search: ' + e.message); }
@@ -125,7 +138,8 @@
         } catch (e) {
             if (seq === state.requestSeq) {
                 state.lessons = []; state.substitutions = []; state.lessonPages = 1; state.lessonCount = 0;
-                renderLessons([]); renderSubstitutions([]); updateLessonPager(); status('danger', e.message);
+                state.substitutionPages = 1; state.substitutionCount = 0;
+                renderLessons([]); renderSubstitutions([]); updateLessonPager(); updateSubstitutionPager(); status('danger', e.message);
             }
         } finally { if (seq === state.requestSeq) btn.disabled = false; }
     }
@@ -291,7 +305,7 @@
             .map(x => x.map(safe).join(',')).join('\r\n');
         const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
         const a = document.createElement('a'); a.href = url;
-        a.download = 'academic-substitutions.csv'; a.click();
+        a.download = 'academic-substitutions-page-' + state.substitutionPage + '.csv'; a.click();
         setTimeout(() => URL.revokeObjectURL(url), 1000);
     }
     function exportLessons() {
@@ -310,7 +324,7 @@
         a.download = 'academic-lesson-plans-page-' + state.lessonPage + '.csv'; a.click();
         setTimeout(() => URL.revokeObjectURL(url), 1000);
     }
-    get('instructionFilters').addEventListener('submit',e=>{e.preventDefault();state.lessonPage=1;load();});
+    get('instructionFilters').addEventListener('submit',e=>{e.preventDefault();state.lessonPage=1;state.substitutionPage=1;load();});
     get('instructionBatch').addEventListener('change',selectBatch);
     get('lessonNew').addEventListener('click',()=>openEditor(null));
     get('lessonCancel').addEventListener('click',resetEditor);
@@ -321,6 +335,8 @@
     get('substitutionTeacherFind')?.addEventListener('click',()=>findInstructors().catch(e=>status('danger',e.message)));
     get('lessonPrevious').addEventListener('click',()=>{if(state.lessonPage>1){state.lessonPage--;load();}});
     get('lessonNext').addEventListener('click',()=>{if(state.lessonPage<state.lessonPages){state.lessonPage++;load();}});
+    get('substitutionPrevious').addEventListener('click',()=>{if(state.substitutionPage>1){state.substitutionPage--;load();}});
+    get('substitutionNext').addEventListener('click',()=>{if(state.substitutionPage<state.substitutionPages){state.substitutionPage++;load();}});
     get('lessonCsv').addEventListener('click',exportLessons);
     get('substitutionCsv').addEventListener('click',exportSubstitutions);
     get('lessonPrint').addEventListener('click',()=>window.print());

@@ -344,6 +344,54 @@ public sealed class AcademicInstructionServiceTests
         Content = "Examples with one variable", Resources = "Mathematics textbook"
     };
 
+    [Fact]
+    public async Task Substitution_register_paging_is_stable_tenant_scoped_and_bounded()
+    {
+        var options = Options();
+        var seed = await SeedAsync(options);
+        await using (var db = Context(options, 101, 7, "TenantAdmin"))
+        {
+            var substituteId = (await db.Employees.SingleAsync(x => x.UserId == 71)).Id;
+            for (var i = 0; i < 5; i++)
+                db.Substitutions.Add(new Substitution
+                {
+                    TenantId = 101, ClientRequestId = Guid.NewGuid(),
+                    RoutineEntryId = seed.RoutineEntryId, Date = LessonDate,
+                    SubstituteEmployeeId = substituteId, Reason = "Cover " + i
+                });
+            await db.SaveChangesAsync();
+        }
+        await using (var db = Context(options, 101, 7, "TenantAdmin"))
+        {
+            var manager = Service(db, 101, 7, "TenantAdmin");
+            var first = await manager.GetSubstitutionsPageAsync(LessonDate, LessonDate, seed.BatchId, 1, 2);
+            var second = await manager.GetSubstitutionsPageAsync(LessonDate, LessonDate, seed.BatchId, 2, 2);
+            var third = await manager.GetSubstitutionsPageAsync(LessonDate, LessonDate, seed.BatchId, 3, 2);
+            first.Success.Should().BeTrue();
+            first.Data!.TotalCount.Should().Be(5);
+            first.Data.Items.Should().HaveCount(2);
+            second.Data!.Items.Should().HaveCount(2);
+            third.Data!.Items.Should().ContainSingle();
+            first.Data.Items.Select(x => x.Id).Intersect(second.Data.Items.Select(x => x.Id)).Should().BeEmpty();
+            (await manager.GetSubstitutionsPageAsync(LessonDate, LessonDate, seed.BatchId, 1, 501))
+                .StatusCode.Should().Be(400);
+            (await manager.GetSubstitutionsPageAsync(LessonDate, LessonDate, seed.BatchId, 0, 20))
+                .StatusCode.Should().Be(400);
+        }
+        await using (var db = Context(options, 101, 70, "Teacher"))
+        {
+            (await Service(db, 101, 70, "Teacher")
+                .GetSubstitutionsPageAsync(LessonDate, LessonDate, seed.BatchId, 1, 20))
+                .Data!.TotalCount.Should().Be(5);
+        }
+        await using (var db = Context(options, 202, 8, "TenantAdmin"))
+        {
+            (await Service(db, 202, 8, "TenantAdmin")
+                .GetSubstitutionsPageAsync(LessonDate, LessonDate, null, 1, 20))
+                .Data!.Items.Should().BeEmpty();
+        }
+    }
+
     private static AcademicInstructionService Service(EduOSDbContext db, long tenant, long user, string role, TimeProvider? clock = null) => new(
         new GenericRepository<Substitution>(db),
         new GenericRepository<LessonPlan>(db),

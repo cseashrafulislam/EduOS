@@ -8,6 +8,7 @@ public interface IAcademicInstructionService
 {
     Task<ApiResponse<PagedResult<LessonOfferingOptionDto>>> GetLessonOfferingChoicesAsync(long academicBatchId, string? search, int page, int pageSize, CancellationToken cancellationToken = default);
     Task<ApiResponse<IReadOnlyList<SubstitutionDto>>> GetSubstitutionsAsync(DateOnly fromDate, DateOnly toDate, long? academicBatchId, CancellationToken cancellationToken = default);
+    Task<ApiResponse<PagedResult<SubstitutionDto>>> GetSubstitutionsPageAsync(DateOnly fromDate, DateOnly toDate, long? academicBatchId, int page, int pageSize, CancellationToken cancellationToken = default);
     Task<ApiResponse<SubstitutionDto>> CreateSubstitutionAsync(CreateSubstitutionRequestDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<SubstitutionDto>> CancelSubstitutionAsync(long id, CancelSubstitutionRequestDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<PagedResult<LessonPlanDto>>> GetLessonPlansAsync(long? academicBatchId, DateOnly? fromDate, DateOnly? toDate, int page, int pageSize, CancellationToken cancellationToken = default);

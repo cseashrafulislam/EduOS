@@ -88,6 +88,15 @@ public sealed class AcademicInstructionUiContractTests
         js.Should().Contain("function exportSubstitutions()");
         js.Should().Contain("row.originalTeacherName");
         view.Should().Contain("id=\"substitutionTeacherFind\"");
+        view.Should().Contain("id=\"substitutionPrevious\"");
+        view.Should().Contain("id=\"substitutionNext\"");
+        js.Should().Contain("/api/academic-instruction/substitutions/page?");
+        js.Should().Contain("subPage.items");
+        js.Should().Contain("state.substitutionPage");
+        typeof(IAcademicInstructionService).GetMethod(nameof(IAcademicInstructionService.GetSubstitutionsPageAsync))
+            .Should().NotBeNull();
+        typeof(AcademicInstructionController).GetMethod(nameof(AcademicInstructionController.SubstitutionPage))
+            .Should().NotBeNull();
     }
 
     private static string FindFile(params string[] segments)

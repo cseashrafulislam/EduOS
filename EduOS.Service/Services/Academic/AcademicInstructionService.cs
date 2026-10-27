@@ -119,13 +119,25 @@ public sealed class AcademicInstructionService : IAcademicInstructionService
             { Items = rows, TotalCount = total, Page = page, PageSize = pageSize });
     }
 
+    // Legacy bounded-list API remains compatible; the workspace uses the paged register.
     public async Task<ApiResponse<IReadOnlyList<SubstitutionDto>>> GetSubstitutionsAsync(
         DateOnly fromDate, DateOnly toDate, long? academicBatchId, CancellationToken ct = default)
     {
-        if (!CanRead()) return Denied<IReadOnlyList<SubstitutionDto>>();
+        var result = await GetSubstitutionsPageAsync(fromDate, toDate, academicBatchId, 1, 500, ct);
+        return result.Success
+            ? ApiResponse<IReadOnlyList<SubstitutionDto>>.SuccessResponse(result.Data!.Items)
+            : Error<IReadOnlyList<SubstitutionDto>>(result.Message, result.StatusCode);
+    }
+
+    public async Task<ApiResponse<PagedResult<SubstitutionDto>>> GetSubstitutionsPageAsync(
+        DateOnly fromDate, DateOnly toDate, long? academicBatchId, int page, int pageSize,
+        CancellationToken ct = default)
+    {
+        if (!CanRead()) return Denied<PagedResult<SubstitutionDto>>();
         if (fromDate == default || toDate == default || toDate < fromDate ||
-            toDate.DayNumber - fromDate.DayNumber > 92 || academicBatchId is <= 0)
-            return Error<IReadOnlyList<SubstitutionDto>>("Invalid substitution date range or academic batch.");
+            toDate.DayNumber - fromDate.DayNumber > 92 || academicBatchId is <= 0 ||
+            page < 1 || pageSize is < 1 or > 500)
+            return Error<PagedResult<SubstitutionDto>>("Invalid substitution date range, academic batch or page.");
         var tenant = _currentUser.TenantId;
         var q = _substitutions.GetQueryable().AsNoTracking().Where(x =>
             x.TenantId == tenant && x.Date >= fromDate && x.Date <= toDate && !x.IsDeleted);
@@ -140,7 +152,7 @@ public sealed class AcademicInstructionService : IAcademicInstructionService
             q = q.Where(x => ids.Contains(x.RoutineEntryId));
         }
         var teacherId = !IsManager() ? await GetLinkedTeacherIdAsync(ct) : null;
-        if (!IsManager() && !teacherId.HasValue) return Denied<IReadOnlyList<SubstitutionDto>>();
+        if (!IsManager() && !teacherId.HasValue) return Denied<PagedResult<SubstitutionDto>>();
         if (!IsManager())
         {
             var assignedRoutineIds = from routine in _routineEntries.GetQueryable().AsNoTracking()
@@ -152,9 +164,13 @@ public sealed class AcademicInstructionService : IAcademicInstructionService
             q = q.Where(x => x.SubstituteEmployeeId == teacherId!.Value ||
                 assignedRoutineIds.Contains(x.RoutineEntryId));
         }
-        // Apply the tenant and teacher access filters BEFORE bounding the query.
+        // Scope both the total count and the page before materialization.
+        var total = await q.CountAsync(ct);
+        var offset = ((long)page - 1) * pageSize;
+        if (offset > int.MaxValue)
+            return Error<PagedResult<SubstitutionDto>>("Page exceeds supported range.");
         var rows = await q.OrderByDescending(x => x.Date).ThenByDescending(x => x.Id)
-            .Take(500).ToListAsync(ct);
+            .Skip((int)offset).Take(pageSize).ToListAsync(ct);
         var context = await LoadRoutineContextAsync(rows.Select(x => x.RoutineEntryId), ct);
         var ids2 = rows.Select(x => x.SubstituteEmployeeId).Distinct().ToArray();
         var names = await _employees.GetQueryable().AsNoTracking().Where(x =>
@@ -172,7 +188,10 @@ public sealed class AcademicInstructionService : IAcademicInstructionService
                 return dto;
             })
             .OrderBy(x => x.Date).ThenBy(x => x.Id).ToList();
-        return ApiResponse<IReadOnlyList<SubstitutionDto>>.SuccessResponse(result);
+        return ApiResponse<PagedResult<SubstitutionDto>>.SuccessResponse(new PagedResult<SubstitutionDto>
+        {
+            Items = result.ToList(), TotalCount = total, Page = page, PageSize = pageSize
+        });
     }
 
     public Task<ApiResponse<SubstitutionDto>> CreateSubstitutionAsync(

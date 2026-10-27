@@ -30,6 +30,12 @@ public sealed class AcademicInstructionController : ControllerBase
     public async Task<IActionResult> Substitutions([FromQuery] DateOnly fromDate, [FromQuery] DateOnly toDate, [FromQuery] long? academicBatchId, CancellationToken cancellationToken) =>
         ToAction(await _service.GetSubstitutionsAsync(fromDate, toDate, academicBatchId, cancellationToken));
 
+    [HttpGet("substitutions/page")]
+    public async Task<IActionResult> SubstitutionPage([FromQuery] DateOnly fromDate, [FromQuery] DateOnly toDate,
+        [FromQuery] long? academicBatchId, [FromQuery] int page = 1, [FromQuery] int pageSize = 20,
+        CancellationToken cancellationToken = default) =>
+        ToAction(await _service.GetSubstitutionsPageAsync(fromDate, toDate, academicBatchId, page, pageSize, cancellationToken));
+
     [HttpPost("substitutions")]
     [Authorize(Roles = "TenantAdmin,Principal,VicePrincipal")]
     public async Task<IActionResult> CreateSubstitution([FromBody] CreateSubstitutionRequestDto request, CancellationToken cancellationToken) =>
