@@ -108,6 +108,52 @@ public sealed class FinanceAdjustmentServiceTests
         db.Journals.Should().BeEmpty();
         db.RefundAllocations.Should().BeEmpty();
     }
+    [Fact]
+    public async Task Legacy_soft_deleted_posted_invoice_blocks_retroactive_discount_and_fine()
+    {
+        var accessor = new HttpContextAccessor { HttpContext = new DefaultHttpContext() };
+        accessor.HttpContext.Items["TenantId"] = 11L;
+        await using var db = new EduOSDbContext(new DbContextOptionsBuilder<EduOSDbContext>()
+            .UseInMemoryDatabase("finance-historical-invoice-" + Guid.NewGuid().ToString("N")).Options, accessor);
+        var enrollment = new EduOS.Core.Entities.Academic.StudentEnrollment
+        {
+            TenantId = 11, StudentId = 5, CampusId = 7, RollNo = "T-5"
+        };
+        var discount = new DiscountRule { TenantId = 11, Name = "Historical discount", Value = 10m, IsPercentage = true };
+        var fine = new FineRule { TenantId = 11, Name = "Historical fine", Amount = 10m };
+        db.StudentEnrollments.Add(enrollment);
+        db.DiscountRules.Add(discount);
+        db.FineRules.Add(fine);
+        await TestTenantSeeder.SaveAsync(db);
+        db.StudentInvoices.Add(new StudentInvoice
+        {
+            TenantId = 11, StudentEnrollmentId = enrollment.Id,
+            InvoiceNumber = "HIST-POSTED-1", InvoiceDate = new DateOnly(2026, 10, 20),
+            DueDate = new DateOnly(2026, 10, 31),
+            State = EduOS.Core.Enums.Domain.InvoiceState.Cancelled,
+            JournalId = 123, IsDeleted = true
+        });
+        await TestTenantSeeder.SaveAsync(db);
+
+        var service = new FinanceAdjustmentService(db, new TestUser(11, true), TimeProvider.System);
+        var discountResult = await service.AssignDiscountAsync(new AssignStudentDiscountRequestDto
+        {
+            ClientRequestId = Guid.NewGuid(), StudentEnrollmentReference = enrollment.PublicId,
+            DiscountRuleId = discount.Id, EffectiveFrom = new DateOnly(2026, 10, 1),
+            Reason = "Historical posting must remain immutable"
+        });
+        var fineResult = await service.ApplyFineAsync(new ApplyStudentFineRequestDto
+        {
+            ClientRequestId = Guid.NewGuid(), StudentEnrollmentReference = enrollment.PublicId,
+            FineRuleId = fine.Id, FineDate = new DateOnly(2026, 10, 1),
+            Reason = "Historical posting must remain immutable"
+        });
+        discountResult.StatusCode.Should().Be(409);
+        fineResult.StatusCode.Should().Be(409);
+        db.StudentDiscounts.Should().BeEmpty();
+        db.StudentFines.Should().BeEmpty();
+    }
+
     private sealed class TestUser(long tenant,bool admin):ICurrentUserService
     {
         public bool IsAuthenticated=>true;

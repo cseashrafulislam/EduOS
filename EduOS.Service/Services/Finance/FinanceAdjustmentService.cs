@@ -46,9 +46,16 @@ public sealed partial class FinanceAdjustmentService : IFinanceAdjustmentService
         await Heads.AnyAsync(x => x.Id == id && x.IsActive, ct);
     private Task<StudentEnrollment?> FindEnrollment(Guid reference, CancellationToken ct) =>
         Enrollments.FirstOrDefaultAsync(x => x.PublicId == reference, ct);
+    // Posted/paid invoices remain financial history even when a legacy import
+    // subsequently soft-deleted or cancelled the visible invoice record.
     private async Task<bool> HasIssuedInvoice(long enrollmentId, DateOnly from, CancellationToken ct) =>
-        await db.StudentInvoices.AnyAsync(x => x.TenantId == user.TenantId && !x.IsDeleted &&
-            x.StudentEnrollmentId == enrollmentId && x.InvoiceDate >= from && x.State != InvoiceState.Cancelled, ct);
+        await db.StudentInvoices.IgnoreQueryFilters().AsNoTracking().AnyAsync(x =>
+            x.TenantId == user.TenantId && x.StudentEnrollmentId == enrollmentId &&
+            x.InvoiceDate >= from &&
+            ((!x.IsDeleted && x.State != InvoiceState.Cancelled) ||
+             x.JournalId.HasValue || x.PaidAmount > 0m ||
+             x.State == InvoiceState.PartiallyPaid || x.State == InvoiceState.Paid ||
+             x.State == InvoiceState.Refunded), ct);
 
     public async Task<ApiResponse<IReadOnlyList<DiscountRuleDto>>> GetDiscountRulesAsync(CancellationToken ct = default)
     {
