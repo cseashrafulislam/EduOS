@@ -1,5 +1,7 @@
 @inject Microsoft.AspNetCore.Antiforgery.IAntiforgery Antiforgery
+@inject Microsoft.Extensions.Configuration.IConfiguration PilotConfiguration
 @{
+    var pilotCoreOnly = string.Equals(PilotConfiguration["PilotRelease:Enabled"], "true", StringComparison.OrdinalIgnoreCase);
     var titleKey = ViewData["Title"]?.ToString() ?? "Dashboard";
     var localizedTitle = T[titleKey];
     var pageTitle = localizedTitle.ResourceNotFound ? titleKey : localizedTitle.Value;
@@ -383,9 +385,9 @@
                         <span>General Ledger &amp; Trial Balance</span>
                     </a>
                 }
-                @if (User?.IsInRole("TenantAdmin") == true || User?.IsInRole("Principal") == true ||
+                @if (!pilotCoreOnly && (User?.IsInRole("TenantAdmin") == true || User?.IsInRole("Principal") == true ||
                      User?.IsInRole("InventoryManager") == true || User?.IsInRole("StoreKeeper") == true ||
-                     User?.IsInRole("Accountant") == true)
+                     User?.IsInRole("Accountant") == true))
                 {
                     <a class="nav-link @ActiveFor("/InventoryCatalog")" href="/InventoryCatalog/Index">
                         <svg class="edu-icon"><use href="/images/eduos-icons.svg#reports" /></svg>
@@ -400,6 +402,8 @@
                         <span>Fixed Assets &amp; Maintenance</span>
                     </a>
                 }
+                @if (!pilotCoreOnly)
+                {
                 <a class="nav-link @ActiveFor("/HostelOperations")" href="/HostelOperations/Index">
                     <svg class="edu-icon"><use href="/images/eduos-icons.svg#campus" /></svg>
                     <span>Hostel</span>
@@ -408,12 +412,16 @@
                     <svg class="edu-icon"><use href="/images/eduos-icons.svg#campus" /></svg>
                     <span>Transport</span>
                 </a>
+                }
                 @if (User?.IsInRole("TenantAdmin") == true || User?.IsInRole("Principal") == true)
                 {
+                    @if (!pilotCoreOnly)
+                    {
                     <a class="nav-link @ActiveFor("/OperationsInsights")" href="/OperationsInsights/Index">
                         <svg class="edu-icon"><use href="/images/eduos-icons.svg#reports" /></svg>
                         <span>Operations Insights</span>
                     </a>
+                    }
                     <a class="nav-link @ActiveFor("/AuditLogs")" href="/AuditLogs/Index">
                         <svg class="edu-icon"><use href="/images/eduos-icons.svg#shield" /></svg>
                         <span>Audit Logs</span>
