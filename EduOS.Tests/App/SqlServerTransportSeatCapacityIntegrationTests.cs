@@ -434,6 +434,112 @@ public sealed class SqlServerTransportSeatCapacityIntegrationTests
         }
     }
 
+
+    [Fact]
+    public async Task Competing_upcoming_driver_changes_cannot_double_book_a_replacement_driver()
+    {
+        var connection = Environment.GetEnvironmentVariable("EDUOS_SQL_AUTH_TEST_CONNECTION");
+        if (string.IsNullOrWhiteSpace(connection)) return;
+        var fixture = await SeedAsync(connection);
+        long firstLinkId, secondLinkId, replacementDriverId;
+        ChangeUpcomingVehicleDriverRequestDto first, second;
+
+        await using (var setup = ScopedContext(fixture.Options, fixture.TenantId, fixture.UserId))
+        {
+            var originalVehicle = await setup.Vehicles.AsNoTracking()
+                .SingleAsync(x => x.Id == fixture.VehicleId);
+            var suffix = Guid.NewGuid().ToString("N")[..12];
+            var secondVehicle = new Vehicle
+            {
+                TenantId = fixture.TenantId, CampusId = originalVehicle.CampusId,
+                VehicleNumber = "CAP-DRIVER-RACE-" + suffix, Capacity = 2, IsActive = true
+            };
+            var originalDriver1 = new TransportDriver
+            {
+                TenantId = fixture.TenantId, FullName = "Driver source one",
+                LicenseNumber = "DR-RACE-A-" + suffix,
+                LicenseExpiresOn = fixture.Start.AddDays(30), IsActive = true
+            };
+            var originalDriver2 = new TransportDriver
+            {
+                TenantId = fixture.TenantId, FullName = "Driver source two",
+                LicenseNumber = "DR-RACE-B-" + suffix,
+                LicenseExpiresOn = fixture.Start.AddDays(30), IsActive = true
+            };
+            var replacement = new TransportDriver
+            {
+                TenantId = fixture.TenantId, FullName = "Driver shared replacement",
+                LicenseNumber = "DR-RACE-C-" + suffix,
+                LicenseExpiresOn = fixture.Start.AddDays(30), IsActive = true
+            };
+            setup.AddRange(secondVehicle, originalDriver1, originalDriver2, replacement);
+            await setup.SaveChangesAsync();
+            replacementDriverId = replacement.Id;
+            var firstLink = new VehicleDriverAssignment
+            {
+                TenantId = fixture.TenantId, VehicleId = fixture.VehicleId,
+                TransportDriverId = originalDriver1.Id, EffectiveFrom = fixture.Start.AddDays(1),
+                EffectiveTo = fixture.Start.AddDays(8), IsCurrent = true
+            };
+            var secondLink = new VehicleDriverAssignment
+            {
+                TenantId = fixture.TenantId, VehicleId = secondVehicle.Id,
+                TransportDriverId = originalDriver2.Id, EffectiveFrom = fixture.Start.AddDays(1),
+                EffectiveTo = fixture.Start.AddDays(8), IsCurrent = true
+            };
+            setup.AddRange(firstLink, secondLink);
+            await setup.SaveChangesAsync();
+            firstLinkId = firstLink.Id;
+            secondLinkId = secondLink.Id;
+            first = new ChangeUpcomingVehicleDriverRequestDto
+            {
+                ClientRequestId = Guid.NewGuid(), NewDriverId = replacement.Id,
+                AssignmentRowVersion = Convert.ToBase64String(firstLink.RowVersion),
+                DriverRowVersion = Convert.ToBase64String(replacement.RowVersion)
+            };
+            second = new ChangeUpcomingVehicleDriverRequestDto
+            {
+                ClientRequestId = Guid.NewGuid(), NewDriverId = replacement.Id,
+                AssignmentRowVersion = Convert.ToBase64String(secondLink.RowVersion),
+                DriverRowVersion = Convert.ToBase64String(replacement.RowVersion)
+            };
+        }
+
+        async Task<ApiResponse<VehicleDriverAssignmentDto>> ChangeAsync(
+            long assignmentId, ChangeUpcomingVehicleDriverRequestDto request)
+        {
+            await using var db = ScopedContext(fixture.Options, fixture.TenantId, fixture.UserId);
+            return await DriverService(db, fixture.TenantId, fixture.UserId)
+                .ChangeUpcomingDriverAsync(assignmentId, request);
+        }
+
+        // Distinct SQL connections compete for one canonical current driver assignment.
+        var responses = await Task.WhenAll(
+            ChangeAsync(firstLinkId, first), ChangeAsync(secondLinkId, second));
+        Assert.Equal(1, responses.Count(x => x.Success));
+        Assert.Equal(1, responses.Count(x => !x.Success && x.StatusCode == 409));
+
+        await using (var verify = ScopedContext(fixture.Options, fixture.TenantId, fixture.UserId))
+        {
+            var links = await verify.Set<VehicleDriverAssignment>().AsNoTracking()
+                .Where(x => x.TenantId == fixture.TenantId && !x.IsDeleted &&
+                    x.IsCurrent && x.TransportDriverId == replacementDriverId).ToListAsync();
+            var persisted = Assert.Single(links);
+            Assert.Equal(responses[0].Success ? firstLinkId : secondLinkId, persisted.Id);
+            Assert.Equal(2, await verify.Set<VehicleDriverAssignment>().CountAsync(x =>
+                x.TenantId == fixture.TenantId && !x.IsDeleted && x.IsCurrent &&
+                (x.Id == firstLinkId || x.Id == secondLinkId)));
+        }
+
+        var winnerId = responses[0].Success ? firstLinkId : secondLinkId;
+        var winnerRequest = responses[0].Success ? first : second;
+        var winner = responses[0].Success ? responses[0] : responses[1];
+        var replay = await ChangeAsync(winnerId, winnerRequest);
+        Assert.True(replay.Success, replay.Message);
+        Assert.Equal(winner.Data!.Id, replay.Data!.Id);
+        Assert.Equal(winner.Data.RowVersion, replay.Data.RowVersion);
+    }
+
     private static AssignStudentTransportRequestDto Request(
         Fixture fixture, int student, DateOnly from, DateOnly to) => new()
     {
@@ -460,6 +566,26 @@ public sealed class SqlServerTransportSeatCapacityIntegrationTests
         return await Service(db, fixture.TenantId, fixture.UserId)
             .UpdateVehicleSetupAsync(fixture.VehicleReference, request);
     }
+
+
+    private static TransportService DriverService(EduOSDbContext db, long tenant, long user) => new(
+        new GenericRepository<TransportRoute>(db),
+        new GenericRepository<RouteStop>(db),
+        new GenericRepository<Vehicle>(db),
+        new GenericRepository<RouteVehicleAssignment>(db),
+        new GenericRepository<StudentTransport>(db),
+        new GenericRepository<StudentEnrollment>(db),
+        new GenericRepository<Student>(db),
+        new GenericRepository<UserCampusAccess>(db),
+        new GenericRepository<Campus>(db),
+        db,
+        new TenantAdmin(tenant, user),
+        TimeProvider.System,
+        new CaptureLogger(),
+        new GenericRepository<TransportDriver>(db),
+        new GenericRepository<VehicleDriverAssignment>(db),
+        new ReservationFinancePolicy(db),
+        new ReservationCommandReceiptStore(db, TimeProvider.System));
 
     private static TransportService Service(EduOSDbContext db, long tenant, long user) => new(
         new GenericRepository<TransportRoute>(db),
