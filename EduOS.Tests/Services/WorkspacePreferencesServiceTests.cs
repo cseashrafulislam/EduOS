@@ -203,6 +203,19 @@ public sealed class WorkspacePreferencesServiceTests
             table => Assert.All(table.Columns, column => Assert.True(column.Visible)));
         Assert.All((await Service(test.Db, 202, 71).GetAsync()).Data!.TablePreferences,
             table => Assert.All(table.Columns, column => Assert.True(column.Visible)));
+
+        // An older browser bundle sends no tablePreferences property. It must not erase
+        // the newer column layout while saving a theme or other existing setting.
+        var row = await test.Db.TenantSettings.SingleAsync();
+        row.RowVersion = [1, 2, 3, 4, 5, 6, 7, 8];
+        await test.Db.SaveChangesAsync();
+        var legacySave = await owner.SaveAsync(new SaveWorkspacePreferencesRequestDto
+        {
+            Theme = "dark", RowVersion = Convert.ToBase64String(row.RowVersion)
+        });
+        Assert.True(legacySave.Success, legacySave.Message);
+        Assert.Equal(new[] { "roles", "action", "user", "membership" },
+            (await owner.GetAsync()).Data!.TablePreferences[0].Columns.Select(column => column.Id));
     }
 
     [Fact]
@@ -212,7 +225,7 @@ public sealed class WorkspacePreferencesServiceTests
         var service = Service(test.Db, 101, 71);
         var badTables = new List<List<TablePreferenceDto>?>
         {
-            null, [],
+            [],
             [new() { Id = "institution-users", Columns = TablePreferenceDto.Defaults()[0].Columns }],
             [TablePreferenceDto.Defaults()[0], TablePreferenceDto.Defaults()[0]]
         };

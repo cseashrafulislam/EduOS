@@ -23,7 +23,8 @@ public sealed class SaveWorkspacePreferencesRequestDto
     public string Density { get; set; } = "comfortable";
     public string FontScale { get; set; } = "normal";
     public List<DashboardPanelPreferenceDto> DashboardPanels { get; set; } = DashboardPanelPreferenceDto.Defaults();
-    public List<TablePreferenceDto> TablePreferences { get; set; } = TablePreferenceDto.Defaults();
+    // Null means a pre-upgrade client did not send this field; preserve its saved layout.
+    public List<TablePreferenceDto>? TablePreferences { get; set; }
     public string? RowVersion { get; set; }
 }
 

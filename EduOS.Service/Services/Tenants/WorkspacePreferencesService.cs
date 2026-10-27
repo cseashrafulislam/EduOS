@@ -73,6 +73,8 @@ public sealed class WorkspacePreferencesService : IWorkspacePreferencesService
             if (row != null && (row.Category != Category || row.IsSensitive))
                 return ApiResponse<WorkspacePreferencesDto>.ErrorResponse("Reserved workspace key conflict.", 409);
 
+            // Older cached clients do not send tablePreferences; never erase newer layout choices.
+            var tables = request.TablePreferences ?? ToDto(row).TablePreferences;
             var stored = new StoredPreferences
             {
                 SchemaVersion = 1,
@@ -85,7 +87,7 @@ public sealed class WorkspacePreferencesService : IWorkspacePreferencesService
                 {
                     Id = x.Id, Visible = x.Visible
                 }).ToList(),
-                TablePreferences = request.TablePreferences.Select(table => new TablePreferenceDto
+                TablePreferences = tables.Select(table => new TablePreferenceDto
                 {
                     Id = table.Id,
                     Columns = table.Columns.Select(column => new TableColumnPreferenceDto
@@ -134,7 +136,11 @@ public sealed class WorkspacePreferencesService : IWorkspacePreferencesService
 
     public Task<ApiResponse<WorkspacePreferencesDto>> ResetAsync(ResetWorkspacePreferencesRequestDto request,
         CancellationToken cancellationToken = default) =>
-        SaveAsync(new SaveWorkspacePreferencesRequestDto { RowVersion = request?.RowVersion }, cancellationToken);
+        SaveAsync(new SaveWorkspacePreferencesRequestDto
+        {
+            RowVersion = request?.RowVersion,
+            TablePreferences = TablePreferenceDto.Defaults()
+        }, cancellationToken);
 
     private bool HasTenantMembership() => _user.IsAuthenticated && _user.TenantId > 0 && _user.UserId > 0;
 
@@ -155,7 +161,7 @@ public sealed class WorkspacePreferencesService : IWorkspacePreferencesService
         IsOneOf(request.Density, "comfortable", "compact") &&
         IsOneOf(request.FontScale, "normal", "large") &&
         (request.RowVersion?.Length ?? 0) <= 100 && ValidPanels(request.DashboardPanels) &&
-        ValidTables(request.TablePreferences);
+        (request.TablePreferences == null || ValidTables(request.TablePreferences));
 
     private static bool ValidPanels(List<DashboardPanelPreferenceDto>? panels) =>
         panels is { Count: 3 } &&
