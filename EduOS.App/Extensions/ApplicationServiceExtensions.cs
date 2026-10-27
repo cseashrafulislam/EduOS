@@ -83,6 +83,7 @@ namespace EduOS.App.Extensions
             s.AddScoped<IAdmissionEnrollmentService, AdmissionEnrollmentService>();
             s.AddScoped<IAdmissionAssessmentService, AdmissionAssessmentService>();
             s.AddScoped<IStudentDirectoryService, StudentDirectoryService>();
+            s.AddScoped<IStudentImportPreviewService, StudentImportPreviewService>();
             s.AddScoped<IStudentContactProfileService, StudentContactProfileService>();
             s.AddScoped<IStudentStatusTransitionService, StudentStatusTransitionService>();
             s.AddScoped<IGuardianContactProfileService, GuardianContactProfileService>();
