@@ -38,29 +38,16 @@ Cross-cutting capabilities: privacy and tenant isolation; bilingual `bn-BD`/`en-
 
 Visibility in a menu is **not** authorization. Tenant + campus + membership + feature entitlement + role + ownership/sensitivity must be checked for API, pages, exports, files, background work and reports.
 
-## 4. Version 1 / Version 2 release ownership
+## 4. Version 1 / Version 2 / Version 3 release ownership
 
-**Authoritative release scope:** [EduOS Version 1.0 and Version 2.0 Release Contract](RELEASE_V1_V2.md). This contract supersedes the earlier school/college-only first-release scope; the older school pilot staging checklist remains a historical **limited staging plan**, not the product scope.
+**Authoritative scope:** [V1/V2/V3 complete-module contract](RELEASE_V1_V2_V3.md) and root [AGENTS.md](../AGENTS.md). The older two-version specification is historical and superseded.
 
-### Version 1.0 — complete education ERP through HR & Payroll
-
-Launch target: **16 institutes of 7 categories** (2 primary-through-college, 3 madrasa, 2 training, 1 coaching, 3 online LMS, 3 university, 2 private teachers), approximately **40,000 initial student records** and some learners attending 2–3 institutes.
-
-V1 includes **complete, production-accepted modules** for SaaS/onboarding, identity/security, institution settings, academic structures/curriculum/course registration, admission/student lifecycle, routine, attendance, full examination/assessment/result/credential management, full LMS, fees/collections, full accounting/finance, full employee HR and payroll, relevant self-service/communication, reports/exports, bilingual professional UI, saved permitted personalization and safe PWA. The first public release must also include guarded, reconciled bulk student import and privacy-safe cross-institute Person/Student linking. Complete all applicable workflows across seven institution categories.
-
-**No Basic-now/Advanced-later module split.** If Results is in V1, grade/GPA/CGPA, retake/reassessment, validation/moderation, publication/correction, transcript/certificate and all agreed report requirements belong in V1. If HR/Payroll is in V1, staffing, leave/attendance, effective salary rules, payroll runs/approvals, payslip/bank output, accounting posting/reversal and required reporting belong in V1. Similarly all agreed LMS, finance, academic and admission behavior is part of the V1 acceptance contract.
-
-A module is marked *complete* only after its agreed end-to-end rules, correct persistence, permission/tenant boundaries, all required forms/pages, reports/print/exports, concurrency/idempotency, multilingual/mobile UX, historical compatibility, automated regression, deployment and real-user acceptance pass. Unfinished V1 work is a **release blocker**, not an Under Construction feature visible in V1.
-
-### Version 2.0 — complete additional modules only
-
-V2 is for **new self-contained modules** such as full Library, full Hostel (room/bed/allocation/billing/incident/reporting), full Transport, full Inventory and Procurement, full Assets/Facilities, relevant visitor/campus services, standalone enterprise BI and separately approved integrations/Alumni/Career/Research/Accreditation. Each selected V2 module is finished end to end before being enabled. Existing module code/data remain preserved and securely gated until acceptance.
-
-V2 **must not schedule an 'advanced' edition of any completed V1 module**. Necessary bug/security fixes, statutory changes, API compatibility work and additive data migrations are normal lifetime maintenance, not deferred business-feature development.
-
-### Scope and quality discipline
-
-No 60-screen showcase or stub-only delivery. Do not declare a feature complete from a model, controller, blank view, mock dashboard, or green build alone. A Version's agreed module list is frozen and tested against representative real institution journeys. Global models and APIs remain institution-agnostic; no renaming the domain to match the first customers. All earlier work/data/migrations are preserved; scheduled development automations stay paused until independently approved.
+- **V1: complete Education & Finance.** SaaS/security/multi-institute identity and configuration; admission, student and guardian lifecycle/import; academic/routine/attendance; **entire** examination/results/credentials lifecycle; fees, collections and **entire** accounts/finance lifecycle; required portals, reports, clean bilingual customizable responsive UI/PWA.
+- **V2: complete LMS, HR & Payroll, Library, Hostel and Transport.** Each is fully accepted before being turned on. Earlier implementations stay preserved but gated; no V1 “advanced Results/Finance” deferral.
+- **V3: complete Inventory/Procurement, Assets/Facilities, Visitor/Campus and separately approved enterprise/analytics/integration modules.**
+- Across **16 intended institutions in seven categories and ~40,000 student records**, some persons have several institution memberships with separate private records. Full online-only LMS operation cannot be certified until V2. No new institution-specific model names.
+- **Module complete** means setup, workflow, permissions, transaction integrity, correction/reversal, history, reports/exports, UI/PWA, tests, load/migration evidence and relevant institute UAT are complete in its owning version. Security and bug-fix maintenance may continue after release; deliberate incomplete advanced tiers may not.
+- Existing work is not deleted because its version changed; incomplete menus/actions are gated as Under Construction. These docs do not certify current production readiness or change background-task schedules.
 
 ## 5. Status honesty and source of truth
 
@@ -92,5 +79,5 @@ Use these statuses **per end-to-end workflow**, not per folder or model:
 - **No database/schema or feature-code rewrite authorized by this documentation update.** Existing source names remain domain-based rather than being renamed for the first pilot market.
 - Keep a simple modular monolith. Do not introduce speculative microservices, distributed queues/caches or extra layers because of a hypothetical user count.
 - UX customization is a constrained, secure and fast product capability; it cannot bypass permissions, validations or tenant branding boundaries.
-- Automation tasks remain paused until the owner approves a new, prioritized execution plan. This document is a specification, not a background-work authorization.
+- The five owner-approved V1 scheduled tasks remain governed by their current schedules and the anti-loop policy in AGENTS.md; this document itself does not alter schedules.
 
