@@ -6,7 +6,8 @@
     const canPublish = root.dataset.canPublish === 'true';
     const token = root.querySelector('input[name="__RequestVerificationToken"]')?.value || '';
     const state = { scopes: [], scopePage: 1, scopeSize: 30, scopeTotal: 0, scopeSearch: '',
-        scopeBusy: false, roster: null, sheet: null, sheetMode: null, busy: false, publishKey: null };
+        scopeBusy: false, roster: null, sheet: null, sheetMode: null, busy: false, publishKey: null,
+        readiness: null, readinessPage: 1, readinessBusy: false, readinessSize: 20 };
     const option = (value, label) => new Option(label, String(value));
     const cell = value => { const td = document.createElement('td'); td.textContent = value == null ? '' : String(value); return td; };
     const validDecimal = n => Number.isFinite(n) && Math.abs(Math.round(n * 100) - n * 100) < 1e-7;
@@ -59,7 +60,13 @@
     }
     function resetResults() {
         state.sheet = null; state.sheetMode = null; state.publishKey = null;
+        state.readiness = null;
         if (!canPublish) return;
+        el('examReadinessCsv').disabled = true;
+        el('examReadinessInfo').textContent = '';
+        el('examReadinessRows').replaceChildren();
+        el('examReadinessPrev').disabled = true;
+        el('examReadinessNext').disabled = true;
         el('examGenerate').disabled = !selected();
         el('examLoadResults').disabled = !selected();
         el('examPublish').disabled = true;
@@ -240,6 +247,44 @@
             el('examLoadResults').disabled = !selected();
         }
     }
+    async function loadReadiness(page) {
+        if (!canPublish || state.readinessBusy || page < 1) return;
+        let s;
+        try { s = scope(); } catch (error) { message('warning', error.message); return; }
+        state.readinessBusy = true;
+        for (const id of ['examReadinessLoad', 'examReadinessPrev', 'examReadinessNext']) el(id).disabled = true;
+        try {
+            const params = new URLSearchParams({ assessmentId: String(s.assessmentId),
+                academicBatchId: String(s.academicBatchId), page: String(page),
+                pageSize: String(state.readinessSize) });
+            const data = await api('/api/assessment-administration/results/readiness?' + params);
+            state.readiness = data; state.readinessPage = data.page;
+            const tbody = el('examReadinessRows'); tbody.replaceChildren();
+            for (const student of data.students || []) {
+                const tr = document.createElement('tr');
+                const issues = (student.issues || []).map(x => x.subjectName + ': ' + x.code).join('; ');
+                tr.append(cell(student.rollNo), cell(student.studentCode), cell(student.studentName),
+                    cell(student.applicableSubjects), cell(student.recordedMarks), cell(student.absentMarks),
+                    cell(student.isReady ? 'Ready' : issues));
+                tbody.append(tr);
+            }
+            if (!data.students?.length) {
+                const tr = document.createElement('tr'), td = cell('No active students on this page.');
+                td.colSpan = 7; tr.append(td); tbody.append(tr);
+            }
+            const first = data.totalCount ? (data.page - 1) * data.pageSize + 1 : 0;
+            const last = Math.min(data.page * data.pageSize, data.totalCount);
+            el('examReadinessInfo').textContent = first + '–' + last + ' of ' + data.totalCount +
+                ' students · page-level evidence only';
+            el('examReadinessCsv').disabled = !data.students?.length;
+            el('examReadinessPrev').disabled = data.page <= 1;
+            el('examReadinessNext').disabled = data.page * data.pageSize >= data.totalCount;
+        } catch (error) {
+            state.readiness = null; el('examReadinessCsv').disabled = true;
+            el('examReadinessInfo').textContent = 'Readiness check failed';
+            message('danger', error.message);
+        } finally { state.readinessBusy = false; el('examReadinessLoad').disabled = false; }
+    }
     async function publish() {
         if (!canPublish || state.busy || state.sheetMode !== 'preview' ||
             !state.sheet?.results?.length || !locked(selected())) return;
@@ -278,11 +323,16 @@
         }
     }
     function csv(kind) {
-        const roster = kind === 'marks' ? state.roster : state.sheet;
+        const roster = kind === 'marks' ? state.roster : kind === 'readiness' ? state.readiness : state.sheet;
         if (!roster) { message('warning', 'Load the register or result sheet before exporting.'); return; }
         const safe = value => /^[=+@\-\t\r]/.test(String(value ?? '')) ? "'" + String(value) : value;
         const quote = value => '"' + String(safe(value) ?? '').replace(/"/g, '""') + '"';
-        const rows = kind === 'marks'
+        const rows = kind === 'readiness'
+            ? [['Roll', 'Code', 'Student', 'Subjects', 'Marks', 'Absent', 'Ready', 'Issues'],
+                ...(roster.students || []).map(x => [x.rollNo, x.studentCode, x.studentName,
+                    x.applicableSubjects, x.recordedMarks, x.absentMarks, x.isReady,
+                    (x.issues || []).map(i => i.subjectName + ': ' + i.code).join('; ')])]
+            : kind === 'marks'
             ? [['Roll', 'Student code', 'Student', 'Mark', 'Absent', 'Withheld', 'Grade'],
                 ...(roster.students || []).map(x => [x.rollNo, x.studentCode, x.studentName,
                     x.obtainedMarks, x.isAbsent, x.isWithheld, x.gradeLetter])]
@@ -316,6 +366,10 @@
         mark.disabled = absent.checked || withheld.checked || !marksOpen(selected()) || !!state.roster?.isResultPublished;
     });
     el('examSaveMarks').addEventListener('click', saveMarks);
+    el('examReadinessLoad')?.addEventListener('click', () => loadReadiness(1));
+    el('examReadinessPrev')?.addEventListener('click', () => loadReadiness(state.readinessPage - 1));
+    el('examReadinessNext')?.addEventListener('click', () => loadReadiness(state.readinessPage + 1));
+    el('examReadinessCsv')?.addEventListener('click', () => csv('readiness'));
     el('examLoadResults')?.addEventListener('click', () => resultAction('published'));
     el('examGenerate')?.addEventListener('click', () => resultAction('preview'));
     el('examPublish')?.addEventListener('click', publish);

@@ -39,6 +39,17 @@
     </section>
     @if (canPublish)
     {
+        <section class="card mb-3" aria-labelledby="examReadinessHeading">
+            <div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-2">
+                <h3 id="examReadinessHeading" class="h6 m-0">Pre-publication evidence review</h3>
+                <div class="d-flex gap-2"><button id="examReadinessLoad" class="btn btn-sm btn-outline-primary" type="button">Check batch</button><button id="examReadinessCsv" class="btn btn-sm btn-outline-secondary" type="button" disabled>Page CSV</button></div>
+            </div>
+            <div class="card-body">
+                <p class="small text-muted">Review missing mandatory registrations, marks and withheld evidence. Unregistered electives are excluded. This page is not a global publication approval; draft preview validates the full batch.</p>
+                <div class="table-responsive"><table class="table table-sm table-hover"><thead><tr><th>Roll</th><th>Code</th><th>Student</th><th>Subjects</th><th>Marks</th><th>Absent</th><th>Issues</th></tr></thead><tbody id="examReadinessRows"><tr><td colspan="7" class="text-center text-muted">Select a batch and check evidence.</td></tr></tbody></table></div>
+                <div class="d-flex flex-wrap justify-content-between gap-2"><span id="examReadinessInfo" role="status" aria-live="polite" class="small text-muted"></span><div class="d-flex gap-2"><button id="examReadinessPrev" class="btn btn-sm btn-outline-secondary" type="button" disabled>Previous</button><button id="examReadinessNext" class="btn btn-sm btn-outline-secondary" type="button" disabled>Next</button></div></div>
+            </div>
+        </section>
         <section class="card mb-3" aria-labelledby="examResultsHeading">
             <div class="card-header d-flex justify-content-between flex-wrap align-items-center gap-2"><h3 class="h6 m-0" id="examResultsHeading">Result sheet</h3><div class="d-flex flex-wrap gap-2"><button id="examGenerate" type="button" class="btn btn-outline-primary" disabled>Preview draft</button><button id="examResultsCsv" type="button" class="btn btn-outline-secondary">Results CSV</button><button id="examPublish" type="button" class="btn btn-danger" disabled>Publish results</button></div></div>
             <div class="card-body"><p id="examResultSummary" class="small text-muted mb-2">Choose a batch to preview draft results or view a published snapshot.</p>
@@ -52,7 +63,8 @@
 <style>
 @@media print {
     #examScopeSearch, #examFilters, #examAlert, #examSaveMarks, #examPublish, #examGenerate,
-    #examLoadResults, #examMarksCsv, #examResultsCsv, #examPrint { display:none!important; }
+    #examLoadResults, #examMarksCsv, #examResultsCsv, #examPrint, #examReadinessLoad,
+    #examReadinessCsv, #examReadinessPrev, #examReadinessNext { display:none!important; }
 }
 </style>
 @section Scripts { <script src="~/js/assessment/workflow.js" asp-append-version="true"></script> }

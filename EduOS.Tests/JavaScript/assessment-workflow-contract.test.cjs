@@ -73,3 +73,15 @@ test('assessment selector is server-paged, searchable and campus-filtered before
     assert.match(service, /var total = await q\.CountAsync\(ct\)/);
     assert.match(service, /Skip\(\(int\)skip\)\.Take\(pageSize\)/);
 });
+
+test('readiness review is paged, scoped and has safe page-only CSV export', () => {
+    assert.match(view, /id="examReadinessRows"/);
+    assert.match(view, /id="examReadinessCsv"/);
+    assert.match(view, /page is not a global publication approval/);
+    assert.match(js, /results\/readiness\?' \+ params/);
+    assert.match(js, /pageSize: String\(state\.readinessSize\)/);
+    assert.match(js, /state\.readiness = data/);
+    assert.match(js, /kind === 'readiness'/);
+    assert.match(js, /examReadinessPrev/);
+    assert.match(js, /examReadinessNext/);
+});
