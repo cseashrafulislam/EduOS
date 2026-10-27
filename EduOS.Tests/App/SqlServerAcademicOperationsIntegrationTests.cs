@@ -317,6 +317,120 @@ public sealed class SqlServerAcademicOperationsIntegrationTests
         Assert.Equal(404, (await new StudentAttendanceReportService(
             db, new Actor(tenantId + 999, managerId, "TenantAdmin"),
             NullLogger<StudentAttendanceReportService>.Instance).GetAsync(reportQuery)).StatusCode);
+
+        // Two independent SQL Server contexts compete to correct the SAME finalized
+        // mark. Exactly one may commit, and the loser must leave no audit event.
+        db.ChangeTracker.Clear();
+        var parallelMark = await db.StudentAttendances.AsNoTracking().SingleAsync();
+        var parallelVersion = Convert.ToBase64String(parallelMark.RowVersion);
+        await using (var firstDb = TenantDb(options, tenantId))
+        await using (var secondDb = TenantDb(options, tenantId))
+        {
+            var firstWriter = AttendanceService(firstDb, new Actor(tenantId, managerId, "TenantAdmin"));
+            var secondWriter = AttendanceService(secondDb, new Actor(tenantId, managerId, "TenantAdmin"));
+            var attempts = await Task.WhenAll(
+                firstWriter.CorrectAttendanceAsync(parallelMark.Id, new AttendanceCorrectionRequestDto
+                {
+                    NewState = AttendanceState.Present,
+                    Reason = "Concurrent audit correction A",
+                    RowVersion = parallelVersion
+                }),
+                secondWriter.CorrectAttendanceAsync(parallelMark.Id, new AttendanceCorrectionRequestDto
+                {
+                    NewState = AttendanceState.Late,
+                    Reason = "Concurrent audit correction B",
+                    RowVersion = parallelVersion
+                }));
+            Assert.Single(attempts.Where(x => x.Success));
+            Assert.Single(attempts.Where(x => x.StatusCode == 409));
+        }
+        db.ChangeTracker.Clear();
+        Assert.Equal(2, await db.StudentAttendanceAdjustments.AsNoTracking().CountAsync());
+        var corrected = await db.StudentAttendances.AsNoTracking().SingleAsync();
+        Assert.Contains(corrected.State, new[] { AttendanceState.Present, AttendanceState.Late });
+
+        // A multi-row stale submission must be rejected BEFORE mutating any tracked
+        // attendance entity, not merely before the final SaveChanges call.
+        var extraPerson = new Person { FullName = "Second synthetic academic CI learner" };
+        db.Add(extraPerson);
+        await db.SaveChangesAsync();
+        var extraStudent = new Student
+        {
+            TenantId = tenantId, PersonId = extraPerson.Id, FullName = "Second synthetic learner",
+            StudentCode = "LEAVE-SECOND-" + suffix, StatusCode = "Active",
+            AdmissionDate = new DateOnly(2026, 1, 1)
+        };
+        db.Students.Add(extraStudent);
+        await db.SaveChangesAsync();
+        var originalEnrollment = await db.StudentEnrollments.AsNoTracking().SingleAsync();
+        var extraEnrollment = new StudentEnrollment
+        {
+            TenantId = tenantId, StudentId = extraStudent.Id,
+            CampusId = originalEnrollment.CampusId,
+            AcademicYearId = originalEnrollment.AcademicYearId,
+            AcademicProgramId = originalEnrollment.AcademicProgramId,
+            AcademicLevelId = originalEnrollment.AcademicLevelId,
+            AcademicCurriculumId = originalEnrollment.AcademicCurriculumId,
+            AcademicBatchId = originalEnrollment.AcademicBatchId,
+            RollNo = "02", EnrollmentDate = new DateOnly(2026, 10, 13),
+            IsCurrent = true, State = EnrollmentState.Active,
+            ClientRequestId = Guid.NewGuid()
+        };
+        db.StudentEnrollments.Add(extraEnrollment);
+        await db.SaveChangesAsync();
+        var newSession = await attendance.EnsureSessionAsync(new EnsureStudentAttendanceSessionDto
+        {
+            AcademicBatchId = batchId, AttendanceDate = new DateOnly(2026, 10, 13)
+        });
+        Assert.True(newSession.Success, newSession.Message);
+        var initialTwo = await attendance.SaveAsync(new SaveAttendanceRegisterRequestDto
+        {
+            AttendanceSessionId = newSession.Data!.AttendanceSessionId,
+            SessionRowVersion = newSession.Data.SessionRowVersion,
+            Students =
+            [
+                new SaveStudentAttendanceRequestDto
+                {
+                    StudentEnrollmentReference = enrollmentReference, State = AttendanceState.Present
+                },
+                new SaveStudentAttendanceRequestDto
+                {
+                    StudentEnrollmentReference = extraEnrollment.PublicId, State = AttendanceState.Present
+                }
+            ]
+        });
+        Assert.True(initialTwo.Success, initialTwo.Message);
+        db.ChangeTracker.Clear();
+        var savedMarks = await db.StudentAttendances.AsNoTracking()
+            .Where(x => x.AttendanceSessionId == newSession.Data.AttendanceSessionId)
+            .OrderBy(x => x.StudentEnrollmentId).ToListAsync();
+        Assert.Equal(2, savedMarks.Count);
+        var firstMark = savedMarks.Single(x => x.StudentEnrollmentId == originalEnrollment.Id);
+        var failedBatch = await attendance.SaveAsync(new SaveAttendanceRegisterRequestDto
+        {
+            AttendanceSessionId = newSession.Data.AttendanceSessionId,
+            SessionRowVersion = initialTwo.Data!.SessionRowVersion,
+            Students =
+            [
+                new SaveStudentAttendanceRequestDto
+                {
+                    StudentEnrollmentReference = enrollmentReference, State = AttendanceState.Absent,
+                    RowVersion = Convert.ToBase64String(firstMark.RowVersion)
+                },
+                new SaveStudentAttendanceRequestDto
+                {
+                    StudentEnrollmentReference = extraEnrollment.PublicId, State = AttendanceState.Late,
+                    RowVersion = Convert.ToBase64String(new byte[8])
+                }
+            ]
+        });
+        Assert.Equal(409, failedBatch.StatusCode);
+        Assert.DoesNotContain(db.ChangeTracker.Entries<StudentAttendance>(),
+            entry => entry.State is EntityState.Modified or EntityState.Added);
+        db.ChangeTracker.Clear();
+        Assert.All(await db.StudentAttendances.AsNoTracking()
+            .Where(x => x.AttendanceSessionId == newSession.Data.AttendanceSessionId).ToListAsync(),
+            row => Assert.Equal(AttendanceState.Present, row.State));
     }
 
     private static EduOSDbContext TenantDb(DbContextOptions<EduOSDbContext> options, long tenantId)

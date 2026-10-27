@@ -345,6 +345,8 @@ public sealed class StudentAttendanceService : IStudentAttendanceService
                 if (enrollments.Count != requested.Length)
                     return Error<StudentAttendanceRosterDto>("One or more enrollments are not active in this batch.", 409);
                 var enrollmentIds = enrollments.Select(x => x.Id).ToArray();
+                if (enrollments.Select(x => x.PublicId).Distinct().Count() != requested.Length)
+                    return Error<StudentAttendanceRosterDto>("Ambiguous enrollment references. Resolve before saving.", 409);
                 if (session.SubjectOfferingId.HasValue)
                 {
                     var permitted = await _registrations.GetQueryable().AsNoTracking().Where(x =>
@@ -358,14 +360,27 @@ public sealed class StudentAttendanceService : IStudentAttendanceService
                     x.TenantId == _user.TenantId && x.AttendanceSessionId == session.Id &&
                     enrollmentIds.Contains(x.StudentEnrollmentId) && !x.IsDeleted)
                     .ToDictionaryAsync(x => x.StudentEnrollmentId, token);
-                var now = _clock.GetUtcNow().UtcDateTime;
+                // Validate the entire page before tracking ANY changes. A stale row at the
+                // end of a batch must not leave earlier rows modified in this DbContext.
+                // The session rowversion remains the cross-page optimistic concurrency gate.
+                var enrollmentByReference = enrollments.ToDictionary(x => x.PublicId, x => x.Id);
                 foreach (var item in request.Students)
                 {
-                    var id = enrollments.First(x => x.PublicId == item.StudentEnrollmentReference).Id;
+                    var id = enrollmentByReference[item.StudentEnrollmentReference];
                     if (existing.TryGetValue(id, out var row))
                     {
                         if (!TryVersion(item.RowVersion, out var version) || !Matches(row.RowVersion, version))
                             return Error<StudentAttendanceRosterDto>("Student attendance changed. Reload and retry.", 409);
+                    }
+                    else if (!string.IsNullOrWhiteSpace(item.RowVersion))
+                        return Error<StudentAttendanceRosterDto>("An attendance row was removed. Reload and retry.", 409);
+                }
+                var now = _clock.GetUtcNow().UtcDateTime;
+                foreach (var item in request.Students)
+                {
+                    var id = enrollmentByReference[item.StudentEnrollmentReference];
+                    if (existing.TryGetValue(id, out var row))
+                    {
                         if (row.State == item.State && row.CheckInTime == item.CheckInTime &&
                             row.Remarks == Normalize(item.Remarks))
                             continue;
@@ -380,8 +395,6 @@ public sealed class StudentAttendanceService : IStudentAttendanceService
                     }
                     else
                     {
-                        if (!string.IsNullOrWhiteSpace(item.RowVersion))
-                            return Error<StudentAttendanceRosterDto>("An attendance row was removed. Reload and retry.", 409);
                         await _attendances.AddAsync(new StudentAttendance
                         {
                             TenantId = _user.TenantId, AttendanceSessionId = session.Id, StudentEnrollmentId = id,
