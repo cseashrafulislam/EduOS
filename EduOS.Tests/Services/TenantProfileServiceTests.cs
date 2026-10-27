@@ -182,7 +182,7 @@ public sealed class TenantProfileServiceTests
         second.Items.Should().ContainSingle();
         first.Items.Concat(second.Items).Select(x => x.Action).Should().BeEquivalentTo(
             new[] { "TenantProfileUpdated", "TenantRegionalSettingsUpdated", "TenantSubdomainUpdated" });
-        setup.Db.AuditLogs.Where(x => x.TenantId == 812)
+        setup.Db.AuditLogs.IgnoreQueryFilters().Where(x => x.TenantId == 812)
             .Should().OnlyContain(x => x.UserId == 71 && x.EntityId == 812 &&
                 !string.IsNullOrWhiteSpace(x.RequestId) && x.NewValue != null &&
                 !x.NewValue.Contains("admin@example.test"));
