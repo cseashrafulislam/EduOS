@@ -1,5 +1,16 @@
-﻿@*
-    For more information on enabling MVC for empty projects, visit https://go.microsoft.com/fwlink/?LinkID=397860
-*@
 @{
+    ViewData["Title"] = "Email Verification Failed";
+    Layout = "_PublicLayout";
+}
+
+<section class="status-card" aria-labelledby="verifyFailedTitle">
+    <div class="status-mark" aria-hidden="true">!</div>
+    <h1 id="verifyFailedTitle">Verification link unavailable</h1>
+    <p>The link may be expired, already used, or invalid. If your registration is still awaiting verification, request a new email below.</p>
+    <a href="/Account/Login" class="btn btn-outline-secondary mt-3">Back to sign in</a>
+    @await Html.PartialAsync("_VerificationRecovery")
+</section>
+
+@section Scripts {
+    <script src="~/js/account/resend-verification.js" asp-append-version="true"></script>
 }

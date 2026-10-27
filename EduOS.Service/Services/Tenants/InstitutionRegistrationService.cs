@@ -20,7 +20,7 @@ namespace EduOS.Service.Services.Tenants;
 /// Canonical public institution registration. Profile, campus, academic and onboarding
 /// stage mutations have separate service owners and are not duplicated here.
 /// </summary>
-public sealed class InstitutionRegistrationService : IInstitutionRegistrationService
+public sealed partial class InstitutionRegistrationService : IInstitutionRegistrationService
 {
     private readonly UserManager<ApplicationUser> _users;
     private readonly IGenericRepository<Tenant> _tenants;
@@ -30,6 +30,7 @@ public sealed class InstitutionRegistrationService : IInstitutionRegistrationSer
     private readonly IGenericRepository<TenantModule> _modules;
     private readonly IGenericRepository<LegalDocument> _documents;
     private readonly IGenericRepository<UserLegalAcceptance> _acceptances;
+    private readonly IGenericRepository<EduOS.Core.Entities.System.AuditLog> _auditLogs;
     private readonly IUnitOfWork _uow;
     private readonly IBackgroundJobClient _jobs;
     private readonly ILogger<InstitutionRegistrationService> _logger;
@@ -42,11 +43,13 @@ public sealed class InstitutionRegistrationService : IInstitutionRegistrationSer
         IGenericRepository<InstitutionTypeModule> presets, IGenericRepository<TenantModule> modules,
         IGenericRepository<LegalDocument> documents,
         IGenericRepository<UserLegalAcceptance> acceptances,
+        IGenericRepository<EduOS.Core.Entities.System.AuditLog> auditLogs,
         IUnitOfWork uow, IBackgroundJobClient jobs, IOptions<TenantPortalSettings> portalSettings,
         TimeProvider clock, ILogger<InstitutionRegistrationService> logger)
     {
         _users = users; _tenants = tenants; _memberships = memberships; _types = types;
         _presets = presets; _modules = modules; _documents = documents; _acceptances = acceptances;
+        _auditLogs = auditLogs;
         _uow = uow; _jobs = jobs; _portalDomain = portalSettings.Value.BaseDomain;
         _clock = clock; _logger = logger;
     }

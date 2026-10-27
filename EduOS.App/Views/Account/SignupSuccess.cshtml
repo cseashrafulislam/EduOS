@@ -9,3 +9,9 @@
     <p>@T["SignupSuccessMessage"]</p>
     <a href="/Account/Login" class="btn btn-primary auth-primary-action mt-4 px-4">@T["GoToLogin"]</a>
 </section>
+
+@await Html.PartialAsync("_VerificationRecovery")
+
+@section Scripts {
+    <script src="~/js/account/resend-verification.js" asp-append-version="true"></script>
+}

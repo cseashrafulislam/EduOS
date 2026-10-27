@@ -12,4 +12,5 @@ public interface IInstitutionRegistrationService
 {
     Task<ApiResponse<InstitutionSignupResponseDto>> RegisterInstitutionAsync(InstitutionSignupRequestDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<bool>> VerifyEmailAsync(string email, string token, CancellationToken cancellationToken = default);
+    Task<ApiResponse<bool>> ResendVerificationEmailAsync(string? email, CancellationToken cancellationToken = default);
 }

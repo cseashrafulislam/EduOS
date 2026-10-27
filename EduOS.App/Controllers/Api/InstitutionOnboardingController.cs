@@ -35,6 +35,12 @@ public sealed class InstitutionOnboardingController : ControllerBase
         Result(await _registration.RegisterInstitutionAsync(request, ct));
 
     [AllowAnonymous]
+    [EnableRateLimiting("SignupPolicy")]
+    [HttpPost("resend-verification")]
+    public async Task<IActionResult> ResendVerification([FromBody] ResendInstitutionVerificationRequestDto request,
+        CancellationToken ct) => Result(await _registration.ResendVerificationEmailAsync(request?.Email, ct));
+
+    [AllowAnonymous]
     [HttpGet("verify-email")]
     public async Task<IActionResult> VerifyEmail([FromQuery] string email, [FromQuery] string token,
         CancellationToken ct)

@@ -1,0 +1,12 @@
+<section class="mt-4" aria-labelledby="resendVerificationTitle">
+    <h2 id="resendVerificationTitle" class="h5">Need another verification email?</h2>
+    <p class="auth-meta">Enter the institution owner's registration email. For privacy, we cannot confirm whether an account exists.</p>
+    <form data-verification-recovery novalidate>
+        @Html.AntiForgeryToken()
+        <label class="form-label" for="recoveryEmail">Registration email</label>
+        <input id="recoveryEmail" name="email" type="email" class="form-control"
+               autocomplete="email" maxlength="200" required />
+        <button type="submit" class="btn btn-outline-primary mt-3">Resend verification email</button>
+        <p data-recovery-status role="status" aria-live="polite" class="auth-meta mt-3"></p>
+    </form>
+</section>
