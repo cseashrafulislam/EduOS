@@ -14,6 +14,7 @@
             <li class="nav-item"><button type="button" class="nav-link" data-bs-toggle="tab" data-bs-target="#incomePanel">Income Statement</button></li>
             <li class="nav-item"><button type="button" class="nav-link" data-bs-toggle="tab" data-bs-target="#balancePanel">Balance Sheet</button></li>
             <li class="nav-item"><button type="button" class="nav-link" data-bs-toggle="tab" data-bs-target="#bankBookPanel">Bank Book</button></li>
+            <li class="nav-item"><button type="button" class="nav-link" data-bs-toggle="tab" data-bs-target="#bankStatementPanel">Bank Statement Comparison</button></li>
             <li class="nav-item"><button type="button" class="nav-link" data-bs-toggle="tab" data-bs-target="#bankLiquidityPanel">Bank Liquidity</button></li>
         }
     </ul>
@@ -97,6 +98,28 @@
                 </table></div>
             </div>
 
+
+            <div class="tab-pane fade" id="bankStatementPanel">
+                <p class="text-muted">Read-only BDT comparison against posted bank-book movements. Exact, unique date/reference/direction/amount matches only. This does not clear or post transactions.</p>
+                <form id="bankStatementForm" class="row g-2 mb-3">
+                    @Html.AntiForgeryToken()
+                    <div class="col-md-4"><label for="statementBank" class="form-label">Bank</label><select id="statementBank" class="form-select" required><option value="">Loading...</option></select></div>
+                    <div class="col-md-2"><label for="statementFrom" class="form-label">From</label><input id="statementFrom" type="date" class="form-control" required /></div>
+                    <div class="col-md-2"><label for="statementTo" class="form-label">To</label><input id="statementTo" type="date" class="form-control" required /></div>
+                    <div class="col-md-2"><label for="statementOpening" class="form-label">Statement opening BDT</label><input id="statementOpening" class="form-control" inputmode="decimal" value="0.00" required /></div>
+                    <div class="col-md-2"><label for="statementClosing" class="form-label">Statement closing BDT</label><input id="statementClosing" class="form-control" inputmode="decimal" required /></div>
+                    <div class="col-12"><label for="statementCsv" class="form-label">CSV: date,reference,deposit,withdrawal (1–500 rows)</label><textarea id="statementCsv" rows="5" maxlength="80000" class="form-control font-monospace" placeholder="date,reference,deposit,withdrawal&#10;2026-10-15,DEP-1,100.00,0.00" required></textarea></div>
+                    <div class="col-md-6"><label for="statementFile" class="form-label">Load local CSV (not stored)</label><input id="statementFile" type="file" accept=".csv,text/csv" class="form-control" /></div>
+                    <div class="col-md-3 align-self-end"><button id="statementRun" type="submit" class="btn btn-primary w-100">Compare Statement</button></div>
+                    <div class="col-md-3 align-self-end"><button id="statementExport" type="button" class="btn btn-outline-secondary w-100" disabled>Export Exceptions CSV</button></div>
+                </form>
+                <div id="statementNotice" class="alert d-none" role="status" aria-live="polite"></div>
+                <p id="statementSummary" class="fw-semibold"></p>
+                <div class="table-responsive"><table class="table table-sm table-striped">
+                    <thead><tr><th>Source</th><th>Date</th><th>Journal</th><th>Reference</th><th class="text-end">Deposit</th><th class="text-end">Withdrawal</th><th>Reason</th></tr></thead>
+                    <tbody id="statementExceptions"></tbody>
+                </table></div>
+            </div>
             <div class="tab-pane fade" id="bankBookPanel">
                 <p class="text-muted">BDT bank-ledger movements from posted institutional journals, including reversal entries. Bank accounts must have a unique asset-ledger mapping; this is not a classified cash-flow statement.</p>
                 <form id="bankBookForm" class="row g-2 align-items-end mb-3">
@@ -121,4 +144,5 @@
         }
     </div>
 </section>
-@section Scripts { <script type="module" src="~/js/finance/accounting-reports.js" asp-append-version="true"></script> }
+@section Scripts { <script type="module" src="~/js/finance/accounting-reports.js" asp-append-version="true"></script>
+<script type="module" src="~/js/finance/bank-statement-preview.js" asp-append-version="true"></script> }

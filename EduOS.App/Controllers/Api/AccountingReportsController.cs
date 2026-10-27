@@ -36,6 +36,10 @@ public sealed class AccountingReportsController : ControllerBase
     public async Task<IActionResult> BankBook(long bankAccountId, [FromQuery] DateOnly fromDate,
         [FromQuery] DateOnly toDate, CancellationToken ct)
         => Reply(await service.GetBankBookAsync(bankAccountId, fromDate, toDate, ct));
+    [HttpPost("bank-statement-preview"), Authorize(Roles = "TenantAdmin"), ValidateAntiForgeryToken]
+    public async Task<IActionResult> BankStatementPreview(
+        [FromBody] EduOS.Core.DTOs.Accounting.BankStatementPreviewRequestDto request, CancellationToken ct)
+        => Reply(await service.PreviewBankStatementAsync(request, ct));
     [HttpGet("trial-balance")]
     public async Task<IActionResult> TrialBalance([FromQuery] DateOnly asOfDate, CancellationToken ct)
         => Reply(await service.GetTrialBalanceAsync(asOfDate, ct));

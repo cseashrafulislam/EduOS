@@ -1,0 +1,18 @@
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
+const root = path.resolve(__dirname, '../..');
+const script = fs.readFileSync(path.join(root, 'EduOS.App/wwwroot/js/finance/bank-statement-preview.js'), 'utf8');
+const api = fs.readFileSync(path.join(root, 'EduOS.App/Controllers/Api/AccountingReportsController.cs'), 'utf8');
+const service = fs.readFileSync(path.join(root, 'EduOS.Service/Services/Accounting/AccountingReportingBankStatementPreview.cs'), 'utf8');
+test('statement preview is authorized, anti-forgery protected and read-only', () => {
+  assert.match(api, /HttpPost\("bank-statement-preview"\).*Authorize\(Roles = "TenantAdmin"\).*ValidateAntiForgeryToken/s);
+  assert.match(service, /GetBankBookAsync\(/);
+  assert.match(service, /Duplicate key: ambiguous/);
+  assert.doesNotMatch(service, /SaveChanges|ExecuteSql|AddAsync/);
+  assert.match(script, /RequestVerificationToken/);
+  assert.match(script, /statementExport/);
+  assert.match(script, /parseRows/);
+  assert.match(script, /CSV header must be/);
+});
