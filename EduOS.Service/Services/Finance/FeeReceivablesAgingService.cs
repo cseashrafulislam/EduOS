@@ -12,7 +12,7 @@ namespace EduOS.Service.Services.Finance;
 /// Live operational receivables aging. Never mixes platform subscription invoices or implies
 /// historical GL balances. All joins explicitly enforce tenant and campus visibility.
 /// </summary>
-public sealed class FeeReceivablesAgingService : IFeeReceivablesAgingService
+public sealed partial class FeeReceivablesAgingService : IFeeReceivablesAgingService
 {
     private readonly EduOSDbContext _db;
     private readonly ICurrentUserService _user;
@@ -22,7 +22,7 @@ public sealed class FeeReceivablesAgingService : IFeeReceivablesAgingService
         _user = user;
     }
 
-    private bool Allowed => _user.IsAuthenticated && _user.TenantId > 0 &&
+    private bool Allowed => _user.IsAuthenticated && _user.TenantId > 0 && _db.CurrentTenantId == _user.TenantId &&
         (_user.IsTenantAdmin || _user.IsInRole("Principal") || _user.IsInRole("Accountant"));
 
     public async Task<ApiResponse<FeeReceivablesAgingReportDto>> GetReportAsync(

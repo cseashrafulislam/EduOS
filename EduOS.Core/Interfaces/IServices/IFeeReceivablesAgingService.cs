@@ -5,6 +5,8 @@ namespace EduOS.Core.Interfaces.IServices;
 
 public interface IFeeReceivablesAgingService
 {
+    Task<ApiResponse<FeeReconciliationRegisterDto>> GetReconciliationAsync(
+        long? campusId, string? search, int page, int pageSize, CancellationToken cancellationToken = default);
     Task<ApiResponse<FeeReceivablesAgingReportDto>> GetReportAsync(
         FeeReceivablesAgingQueryDto request, CancellationToken cancellationToken = default);
 }

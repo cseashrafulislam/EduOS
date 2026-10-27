@@ -49,5 +49,24 @@
             <button type="button" id="agingNext" class="btn btn-outline-secondary btn-sm" disabled>Next</button>
         </div>
     </section>
+    <section class="card mt-3" id="feeReconciliation">
+        <div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-2">
+            <div><strong>Invoice / receipt reconciliation</strong>
+                <div class="small text-muted">Current balances, successful receipt allocations, paid refunds and linked GL provenance. Page-scoped review, not a historical as-of statement.</div></div>
+            <button type="button" class="btn btn-outline-primary btn-sm" id="reconcileRun">Check current filters</button>
+        </div>
+        <div class="card-body">
+            <div id="reconcileNotice" class="small text-muted mb-2" aria-live="polite">Run reconciliation to inspect invoices.</div>
+            <div class="table-responsive"><table class="table table-striped table-sm align-middle">
+                <thead><tr><th>Invoice</th><th>Student</th><th>Campus</th><th>Total</th><th>Paid</th><th>Net allocated</th><th>Due</th><th>Status</th><th>Exception</th></tr></thead>
+                <tbody id="reconcileRows"></tbody>
+            </table></div>
+            <div class="d-flex align-items-center gap-2">
+                <button type="button" class="btn btn-outline-secondary btn-sm" id="reconcilePrev">Previous</button>
+                <span class="small" id="reconcilePage">—</span>
+                <button type="button" class="btn btn-outline-secondary btn-sm" id="reconcileNext">Next</button>
+            </div>
+        </div>
+    </section>
 </section>
-@section Scripts { <script src="~/js/finance/fee-receivables-aging.js" asp-append-version="true"></script> }
+@section Scripts { <script src="~/js/finance/fee-receivables-aging.js" asp-append-version="true"></script> <script src="~/js/finance/fee-reconciliation.js" asp-append-version="true"></script> }
