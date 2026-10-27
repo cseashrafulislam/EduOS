@@ -310,6 +310,27 @@ public sealed class InstitutionFoundationService : IInstitutionFoundationService
                 x.TenantId == tenant && x.Code == code &&
                 !x.IsDeleted && (!id.HasValue || x.Id != id.Value), token))
                 return Error<AcademicYearDto>("Academic year code already in use.", 409);
+            // Moving a year between campuses after academic/operational records exist
+            // silently reassigns their campus provenance. Require an explicit
+            // domain-owned migration instead of rewriting the parent.
+            if (row != null && row.CampusId != request.CampusId &&
+                (await _terms.GetQueryable().AsNoTracking().AnyAsync(x =>
+                    x.TenantId == tenant && x.AcademicYearId == row.Id && !x.IsDeleted, token) ||
+                 await _batches.GetQueryable().AsNoTracking().AnyAsync(x =>
+                    x.TenantId == tenant && x.AcademicYearId == row.Id && !x.IsDeleted, token) ||
+                 await _admissions.GetQueryable().AsNoTracking().AnyAsync(x =>
+                    x.TenantId == tenant && x.AcademicYearId == row.Id && !x.IsDeleted, token) ||
+                 await HasAcademicYearOperationalReferencesAsync(tenant, row.Id, token)))
+                return Error<AcademicYearDto>("Academic year has linked records; campus cannot be changed.", 409);
+            if (row != null && await _db.AcademicCalendarEvents.AsNoTracking().AnyAsync(x =>
+                x.TenantId == tenant && x.AcademicYearId == row.Id && !x.IsDeleted &&
+                (x.StartDate < request.StartDate || x.EndDate > request.EndDate), token))
+                return Error<AcademicYearDto>("Academic year cannot exclude existing calendar events.", 409);
+            if (row != null && await _db.StudentEnrollments.AsNoTracking().AnyAsync(x =>
+                x.TenantId == tenant && x.AcademicYearId == row.Id && !x.IsDeleted &&
+                (x.EnrollmentDate < request.StartDate ||
+                 (x.EndDate.HasValue && x.EndDate.Value > request.EndDate)), token))
+                return Error<AcademicYearDto>("Academic year cannot exclude existing enrollment dates.", 409);
             if (row != null &&
                 await _terms.GetQueryable().AsNoTracking().AnyAsync(x =>
                     x.TenantId == tenant && x.AcademicYearId == row.Id && !x.IsDeleted &&
@@ -367,13 +388,14 @@ public sealed class InstitutionFoundationService : IInstitutionFoundationService
                 await _batches.GetQueryable().AsNoTracking().AnyAsync(x =>
                 x.TenantId == tenant && x.AcademicYearId == id && !x.IsDeleted, token) ||
                 await _admissions.GetQueryable().AsNoTracking().AnyAsync(x =>
-                x.TenantId == tenant && x.AcademicYearId == id && !x.IsDeleted, token))
+                x.TenantId == tenant && x.AcademicYearId == id && !x.IsDeleted, token) ||
+                await HasAcademicYearOperationalReferencesAsync(tenant, id, token))
                 return Error<bool>("Academic year has dependent records.", 409);
             row.IsActive = false; row.IsDeleted = true;
             row.UpdatedAt = _clock.GetUtcNow().UtcDateTime; row.UpdatedBy = _user.UserId;
             _years.Update(row); await _uow.SaveChangesAsync(token);
             return ApiResponse<bool>.SuccessResponse(true, "Academic year archived.");
-        }, ct);
+        }, ct, IsolationLevel.Serializable);
     }
 
     public async Task<ApiResponse<IReadOnlyList<AcademicTermDto>>> GetAcademicTermsAsync(
@@ -438,6 +460,13 @@ public sealed class InstitutionFoundationService : IInstitutionFoundationService
                 await _admissions.GetQueryable().AsNoTracking().AnyAsync(x =>
                     x.TenantId == tenant && x.AcademicTermId == row.Id && !x.IsDeleted, token))
                 return Error<AcademicTermDto>("Term with admission records cannot move to another year.", 409);
+            if (row != null && row.AcademicYearId != year.Id &&
+                await HasAcademicTermOperationalReferencesAsync(tenant, row.Id, token))
+                return Error<AcademicTermDto>("Term has linked records; academic year cannot be changed.", 409);
+            if (row != null && await _db.AcademicCalendarEvents.AsNoTracking().AnyAsync(x =>
+                x.TenantId == tenant && x.AcademicTermId == row.Id && !x.IsDeleted &&
+                (x.StartDate < request.StartDate || x.EndDate > request.EndDate), token))
+                return Error<AcademicTermDto>("Term cannot exclude existing calendar events.", 409);
             if (await _terms.GetQueryable().AsNoTracking().AnyAsync(x =>
                 x.TenantId == tenant && x.AcademicYearId == year.Id &&
                 x.Name == request.Name.Trim() && !x.IsDeleted &&
@@ -488,14 +517,33 @@ public sealed class InstitutionFoundationService : IInstitutionFoundationService
             if (await _batches.GetQueryable().AsNoTracking().AnyAsync(x =>
                 x.TenantId == tenant && x.AcademicTermId == id && !x.IsDeleted, token) ||
                 await _admissions.GetQueryable().AsNoTracking().AnyAsync(x =>
-                x.TenantId == tenant && x.AcademicTermId == id && !x.IsDeleted, token))
+                x.TenantId == tenant && x.AcademicTermId == id && !x.IsDeleted, token) ||
+                await HasAcademicTermOperationalReferencesAsync(tenant, id, token))
                 return Error<bool>("Academic term has dependent records.", 409);
             row.IsActive = false; row.IsDeleted = true;
             row.UpdatedAt = _clock.GetUtcNow().UtcDateTime; row.UpdatedBy = _user.UserId;
             _terms.Update(row); await _uow.SaveChangesAsync(token);
             return ApiResponse<bool>.SuccessResponse(true, "Academic term archived.");
-        }, ct);
+        }, ct, IsolationLevel.Serializable);
     }
+
+    // These direct links remain live even when the year/term has no batches,
+    // intakes or terms. Do not orphan student history, offerings or calendars.
+    private async Task<bool> HasAcademicYearOperationalReferencesAsync(long tenant, long yearId, CancellationToken ct) =>
+        await _db.StudentEnrollments.AsNoTracking().AnyAsync(x =>
+            x.TenantId == tenant && x.AcademicYearId == yearId && !x.IsDeleted, ct) ||
+        await _db.SubjectOfferings.AsNoTracking().AnyAsync(x =>
+            x.TenantId == tenant && x.AcademicYearId == yearId && !x.IsDeleted, ct) ||
+        await _db.AcademicCalendarEvents.AsNoTracking().AnyAsync(x =>
+            x.TenantId == tenant && x.AcademicYearId == yearId && !x.IsDeleted, ct);
+
+    private async Task<bool> HasAcademicTermOperationalReferencesAsync(long tenant, long termId, CancellationToken ct) =>
+        await _db.StudentEnrollments.AsNoTracking().AnyAsync(x =>
+            x.TenantId == tenant && x.AcademicTermId == termId && !x.IsDeleted, ct) ||
+        await _db.SubjectOfferings.AsNoTracking().AnyAsync(x =>
+            x.TenantId == tenant && x.AcademicTermId == termId && !x.IsDeleted, ct) ||
+        await _db.AcademicCalendarEvents.AsNoTracking().AnyAsync(x =>
+            x.TenantId == tenant && x.AcademicTermId == termId && !x.IsDeleted, ct);
 
     private static CampusDto Map(Campus row, string? headName = null) => new()
     {
