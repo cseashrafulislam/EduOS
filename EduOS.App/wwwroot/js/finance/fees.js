@@ -165,14 +165,17 @@ async function invoices(){
  state.invoicePages=Math.max(1,Math.ceil(r.totalCount/25));pager('invoice');e('feeInvoices').replaceChildren();
  for(const x of r.items||[]){const tr=document.createElement('tr'),action=document.createElement('td');
  if(Number(x.dueAmount)>0&&(x.state===2||x.state===3)){const b=document.createElement('button');b.type='button';b.className='btn btn-sm btn-outline-primary';b.textContent='Collect cash';b.onclick=()=>{state.invoice=x;clear('payment');e('feePaymentPanel').classList.remove('d-none');e('feePaymentInvoice').value=x.invoiceNumber;e('feePaymentAmount').value=amount(x.dueAmount);e('feePaymentAmount').max=x.dueAmount;};action.append(b);}
+ const view=document.createElement('a');view.className='btn btn-sm btn-outline-secondary ms-1';view.textContent='View / Print';view.href='/FeeDocuments/Invoice?studentReference='+encodeURIComponent(state.student)+'&documentReference='+encodeURIComponent(x.reference);action.append(view);
  tr.append(cell(x.invoiceNumber),cell(dt(x.invoiceDate)),cell(dt(x.dueDate)),cell(amount(x.totalAmount)),cell(amount(x.paidAmount)),cell(amount(x.dueAmount)),action);e('feeInvoices').append(tr);}
  if(!e('feeInvoices').children.length)empty('feeInvoices',7,'No invoices.');
 }
 async function receipts(){
  const r=await api('/students/'+encodeURIComponent(state.student)+'/payments?page='+state.receiptPage+'&pageSize=25');
  state.receiptPages=Math.max(1,Math.ceil(r.totalCount/25));pager('receipt');e('feeReceipts').replaceChildren();
- for(const x of r.items||[]){const tr=document.createElement('tr');tr.append(cell(x.receiptNumber),cell(dt(x.paymentDate)),cell(amount(x.amount)),cell(x.paymentMethod===1?'Cash':x.paymentMethod),cell((x.allocations||[]).map(a=>a.invoiceNumber+' ('+amount(a.amount)+')').join(', ')));e('feeReceipts').append(tr);}
- if(!e('feeReceipts').children.length)empty('feeReceipts',5,'No receipts.');
+ for(const x of r.items||[]){const tr=document.createElement('tr'),action=document.createElement('td'),view=document.createElement('a');
+ view.className='btn btn-sm btn-outline-secondary';view.textContent='View / Print';view.href='/FeeDocuments/Receipt?studentReference='+encodeURIComponent(state.student)+'&documentReference='+encodeURIComponent(x.reference);action.append(view);
+ tr.append(cell(x.receiptNumber),cell(dt(x.paymentDate)),cell(amount(x.amount)),cell(x.paymentMethod===1?'Cash':x.paymentMethod),cell((x.allocations||[]).map(a=>a.invoiceNumber+' ('+amount(a.amount)+')').join(', ')),action);e('feeReceipts').append(tr);}
+ if(!e('feeReceipts').children.length)empty('feeReceipts',6,'No receipts.');
 }
 async function ledger(){
  const ref=e('feeStudent').value;if(!ref)return alert('warning','Select a student.');

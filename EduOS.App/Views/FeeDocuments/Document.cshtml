@@ -1,0 +1,42 @@
+@{
+    ViewData["Title"] = "Student Finance Document";
+}
+<section class="container py-3" id="feeDocument" data-kind="@ViewData["DocumentKind"]" aria-live="polite">
+    <div class="d-flex justify-content-between align-items-center mb-3 no-print">
+        <a class="btn btn-outline-secondary btn-sm" href="/FeeOperations/Index">Back to student fees</a>
+        <button id="docPrint" type="button" class="btn btn-primary" disabled>Print / Save PDF</button>
+    </div>
+    <div id="docNotice" class="alert alert-info no-print" role="status">Loading authorized finance document…</div>
+    <article id="docContent" class="d-none">
+        <header class="border-bottom pb-2 mb-3">
+            <h1 class="h4" id="docTitle"></h1>
+            <p class="mb-0 text-muted">EduOS · Institutional finance record · BDT</p>
+        </header>
+        <dl class="row mb-3">
+            <dt class="col-sm-3">Student</dt><dd class="col-sm-9" id="docStudent"></dd>
+            <dt class="col-sm-3">Document number</dt><dd class="col-sm-9" id="docNumber"></dd>
+            <dt class="col-sm-3">Date</dt><dd class="col-sm-9" id="docDate"></dd>
+            <dt class="col-sm-3">Status</dt><dd class="col-sm-9" id="docState"></dd>
+            <dt class="col-sm-3" id="docExtraLabel"></dt><dd class="col-sm-9" id="docExtra"></dd>
+        </dl>
+        <div class="table-responsive">
+            <table class="table table-bordered table-sm">
+                <thead><tr id="docColumns"></tr></thead>
+                <tbody id="docRows"></tbody>
+            </table>
+        </div>
+        <div class="text-end fw-bold" id="docTotal"></div>
+        <p class="small text-muted mt-3" id="docNote"></p>
+    </article>
+</section>
+<style>
+    @media print {
+        body * { visibility: hidden !important; }
+        #feeDocument, #feeDocument * { visibility: visible !important; }
+        #feeDocument { position: absolute; inset: 0 auto auto 0; width: 100%; }
+        #feeDocument .no-print { display: none !important; }
+    }
+</style>
+@section Scripts {
+    <script src="~/js/finance/fee-documents.js" asp-append-version="true"></script>
+}

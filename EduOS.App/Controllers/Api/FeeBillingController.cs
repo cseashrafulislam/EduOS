@@ -79,6 +79,16 @@ public sealed class FeeBillingController : ControllerBase
         CancellationToken ct) =>
         Result(await _service.CollectPaymentAsync(request, ct));
 
+    [HttpGet("students/{reference:guid}/invoices/{documentReference:guid}")]
+    [Authorize(Roles = "TenantAdmin,Principal,Accountant")]
+    public async Task<IActionResult> InvoiceDocument(Guid reference, Guid documentReference, CancellationToken ct) =>
+        Result(await _service.GetStudentInvoiceDocumentAsync(reference, documentReference, ct));
+
+    [HttpGet("students/{reference:guid}/payments/{documentReference:guid}")]
+    [Authorize(Roles = "TenantAdmin,Principal,Accountant")]
+    public async Task<IActionResult> PaymentDocument(Guid reference, Guid documentReference, CancellationToken ct) =>
+        Result(await _service.GetStudentPaymentDocumentAsync(reference, documentReference, ct));
+
     [HttpGet("students/{reference:guid}/ledger")]
     [Authorize(Roles = "TenantAdmin,Principal,Accountant")]
     public async Task<IActionResult> Ledger(Guid reference, CancellationToken ct) =>
