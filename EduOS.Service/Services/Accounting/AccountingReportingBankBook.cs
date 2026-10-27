@@ -31,6 +31,9 @@ public sealed partial class AccountingReportingService
             account.IsGroup || !account.AllowsPosting || account.CurrencyCode != "BDT")
             return ApiResponse<BankBookDto>.ErrorResponse("Bank mapping does not reference a valid BDT posting asset account.", 409);
 
+        var historyError = await HistoricalPostingErrorAsync(null, toDate, new[] { bank.AccountId }, ct);
+        if (historyError != null)
+            return ApiResponse<BankBookDto>.ErrorResponse(historyError, 409);
         var affected = Posted.Where(j => j.JournalDate <= toDate &&
             Lines.Any(l => l.JournalId == j.Id && l.AccountId == bank.AccountId));
         if (await affected.AnyAsync(j => j.CurrencyCode != "BDT", ct))

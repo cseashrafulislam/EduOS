@@ -29,6 +29,9 @@ public sealed partial class AccountingReportingService : IAccountingReportingSer
         var account = await db.Accounts.AsNoTracking().FirstOrDefaultAsync(x => x.TenantId == user.TenantId &&
             !x.IsDeleted && x.Id == accountId, ct);
         if (account == null) return ApiResponse<LedgerStatementDto>.ErrorResponse("Account not found.", 404);
+        var historyError = await HistoricalPostingErrorAsync(null, toDate, new[] { accountId }, ct);
+        if (historyError != null)
+            return ApiResponse<LedgerStatementDto>.ErrorResponse(historyError, 409);
         var query = from l in Lines
             join j in Posted on l.JournalId equals j.Id
             where l.AccountId == accountId
@@ -65,17 +68,9 @@ public sealed partial class AccountingReportingService : IAccountingReportingSer
         // Validate the posted source records before presenting or exporting a trial balance.
         // Keep all checks tenant-scoped and server-side; do not materialize the journal ledger.
         var journals = Posted.Where(j => j.JournalDate <= asOfDate);
-        // Historical soft-deletes must never silently remove posted GL evidence.
-        if (await db.Journals.IgnoreQueryFilters().AsNoTracking().AnyAsync(j =>
-            j.TenantId == user.TenantId && j.IsDeleted && j.JournalDate <= asOfDate &&
-            (j.State == JournalState.Posted || j.State == JournalState.Reversed), ct))
-            return ApiResponse<IReadOnlyList<TrialBalanceRowDto>>.ErrorResponse(
-                "Soft-deleted posted journals require historical ledger reconciliation.", 409);
-        if (await db.JournalLines.IgnoreQueryFilters().AsNoTracking().AnyAsync(l =>
-            l.TenantId == user.TenantId && l.IsDeleted &&
-            journals.Any(j => j.Id == l.JournalId), ct))
-            return ApiResponse<IReadOnlyList<TrialBalanceRowDto>>.ErrorResponse(
-                "Soft-deleted posted journal lines require historical ledger reconciliation.", 409);
+        var historyError = await HistoricalPostingErrorAsync(null, asOfDate, null, ct);
+        if (historyError != null)
+            return ApiResponse<IReadOnlyList<TrialBalanceRowDto>>.ErrorResponse(historyError, 409);
         if (await journals.AnyAsync(j => j.CurrencyCode != "BDT", ct))
             return ApiResponse<IReadOnlyList<TrialBalanceRowDto>>.ErrorResponse("Mixed-currency journals require an approved FX policy.", 409);
         if (await journals.AnyAsync(j => !Lines.Any(l => l.JournalId == j.Id), ct))
@@ -132,6 +127,9 @@ public sealed partial class AccountingReportingService : IAccountingReportingSer
             return ApiResponse<IncomeStatementDto>.ErrorResponse("Tenant administrator access required for the institution-wide income statement.", 403);
         if (!Dates(fromDate, toDate))
             return ApiResponse<IncomeStatementDto>.ErrorResponse("Valid date range (up to ten years) required.", 400);
+        var historyError = await HistoricalPostingErrorAsync(fromDate, toDate, null, ct);
+        if (historyError != null)
+            return ApiResponse<IncomeStatementDto>.ErrorResponse(historyError, 409);
         var journals = Posted.Where(j => j.JournalDate >= fromDate && j.JournalDate <= toDate);
         if (await journals.AnyAsync(j => j.CurrencyCode != "BDT", ct))
             return ApiResponse<IncomeStatementDto>.ErrorResponse("Mixed-currency journals cannot be combined without an approved FX policy.", 409);
@@ -193,6 +191,9 @@ public sealed partial class AccountingReportingService : IAccountingReportingSer
             return ApiResponse<BalanceSheetDto>.ErrorResponse("Tenant administrator access required for the institution-wide balance sheet.", 403);
         if (asOfDate == default)
             return ApiResponse<BalanceSheetDto>.ErrorResponse("Valid as-of date required.", 400);
+        var historyError = await HistoricalPostingErrorAsync(null, asOfDate, null, ct);
+        if (historyError != null)
+            return ApiResponse<BalanceSheetDto>.ErrorResponse(historyError, 409);
         var journals = Posted.Where(j => j.JournalDate <= asOfDate);
         if (await journals.AnyAsync(j => j.CurrencyCode != "BDT", ct))
             return ApiResponse<BalanceSheetDto>.ErrorResponse("Mixed-currency journals require an approved FX policy.", 409);

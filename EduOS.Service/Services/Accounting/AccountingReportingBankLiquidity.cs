@@ -42,6 +42,9 @@ public sealed partial class AccountingReportingService
             LedgerCode = ledgerById[b.AccountId].Code, LedgerName = ledgerById[b.AccountId].Name
         }).ToDictionary(x => bankByLedger.Single(b => b.Value.Id == x.BankAccountId).Key);
 
+        var historyError = await HistoricalPostingErrorAsync(null, toDate, bankLedgerIds, ct);
+        if (historyError != null)
+            return ApiResponse<BankLiquidityDto>.ErrorResponse(historyError, 409);
         var affected = Posted.Where(j => j.JournalDate <= toDate &&
             Lines.Any(l => l.JournalId == j.Id && bankLedgerIds.Contains(l.AccountId)));
         if (await affected.CountAsync(ct) > 10000)
