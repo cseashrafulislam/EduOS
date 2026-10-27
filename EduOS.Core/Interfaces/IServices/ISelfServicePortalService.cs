@@ -7,6 +7,8 @@ namespace EduOS.Core.Interfaces.IServices;
 public interface ISelfServicePortalService
 {
     Task<ApiResponse<IReadOnlyList<PortalStudentDto>>> GetLinkedStudentsAsync(CancellationToken cancellationToken = default);
+    Task<ApiResponse<PagedResult<PortalEnrollmentHistoryDto>>> GetEnrollmentHistoryAsync(Guid studentReference, int page, int pageSize, CancellationToken cancellationToken = default);
+    Task<ApiResponse<PagedResult<PortalSubjectHistoryDto>>> GetSubjectHistoryAsync(Guid studentReference, int page, int pageSize, CancellationToken cancellationToken = default);
     Task<ApiResponse<IReadOnlyList<PortalTimetableEntryDto>>> GetTimetableAsync(Guid studentReference, CancellationToken cancellationToken = default);
     Task<ApiResponse<PagedResult<PortalAttendanceDto>>> GetAttendanceAsync(Guid studentReference, DateOnly fromDate, DateOnly toDate, int page, int pageSize, CancellationToken cancellationToken = default);
     Task<ApiResponse<PagedResult<PortalResultDto>>> GetResultsAsync(Guid studentReference, int page, int pageSize, CancellationToken cancellationToken = default);

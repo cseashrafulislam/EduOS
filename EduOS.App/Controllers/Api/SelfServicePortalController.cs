@@ -28,6 +28,18 @@ public sealed class SelfServicePortalController : ControllerBase
     public async Task<IActionResult> Students(CancellationToken ct) =>
         Result(await _service.GetLinkedStudentsAsync(ct));
 
+    [HttpGet("students/{reference:guid}/enrollments")]
+    [RequireModule("ACADEMIC")]
+    public async Task<IActionResult> EnrollmentHistory(Guid reference, [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 25, CancellationToken ct = default) =>
+        Result(await _service.GetEnrollmentHistoryAsync(reference, page, pageSize, ct));
+
+    [HttpGet("students/{reference:guid}/subjects")]
+    [RequireModule("ACADEMIC")]
+    public async Task<IActionResult> SubjectHistory(Guid reference, [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 25, CancellationToken ct = default) =>
+        Result(await _service.GetSubjectHistoryAsync(reference, page, pageSize, ct));
+
     [HttpGet("students/{reference:guid}/timetable")]
     [RequireModule("ACADEMIC")]
     public async Task<IActionResult> Timetable(Guid reference, CancellationToken ct) =>

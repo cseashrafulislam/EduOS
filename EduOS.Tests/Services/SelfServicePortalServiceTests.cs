@@ -274,6 +274,91 @@ public class SelfServicePortalServiceTests
         result.Data.Items.Should().BeEmpty();
     }
 
+    [Fact]
+    public async Task Portal_enrollment_history_preserves_original_roll_and_excludes_other_students()
+    {
+        await using var context = CreateContext(out var accessor);
+        SetTenant(accessor, 10);
+        var own = Student(10, 99, "OWN");
+        var other = Student(10, 100, "OTHER");
+        var foreign = Student(20, 99, "FOREIGN");
+        context.Set<Student>().AddRange(own, other, foreign);
+        await context.SaveChangesAsync();
+        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        context.Set<StudentEnrollment>().AddRange(
+            new StudentEnrollment { TenantId = 10, StudentId = own.Id, ClientRequestId = Guid.NewGuid(),
+                CampusId = 1, AcademicYearId = 1, AcademicProgramId = 1, AcademicLevelId = 1,
+                AcademicBatchId = 1, AcademicCurriculumId = 1, RollNo = "OLD-9",
+                EnrollmentDate = today.AddYears(-1), EndDate = today.AddMonths(-6),
+                IsCurrent = false, State = EnrollmentState.Completed },
+            new StudentEnrollment { TenantId = 10, StudentId = own.Id, ClientRequestId = Guid.NewGuid(),
+                CampusId = 2, AcademicYearId = 2, AcademicProgramId = 1, AcademicLevelId = 2,
+                AcademicBatchId = 2, AcademicCurriculumId = 1, RollNo = "NEW-3",
+                EnrollmentDate = today, IsCurrent = true, State = EnrollmentState.Active },
+            new StudentEnrollment { TenantId = 10, StudentId = other.Id, ClientRequestId = Guid.NewGuid(),
+                CampusId = 2, AcademicYearId = 2, AcademicProgramId = 1, AcademicLevelId = 2,
+                AcademicBatchId = 2, AcademicCurriculumId = 1, RollNo = "PRIVATE",
+                EnrollmentDate = today, IsCurrent = true, State = EnrollmentState.Active });
+        await context.SaveChangesAsync();
+        var service = CreateService(context, new TestCurrentUser(10, 99, "Student"));
+        var first = await service.GetEnrollmentHistoryAsync(own.PublicId, 1, 1);
+        first.Success.Should().BeTrue();
+        first.Data!.TotalCount.Should().Be(2);
+        first.Data.Items.Should().ContainSingle().Which.RollNo.Should().Be("NEW-3");
+        var second = await service.GetEnrollmentHistoryAsync(own.PublicId, 2, 1);
+        second.Data!.Items.Should().ContainSingle().Which.RollNo.Should().Be("OLD-9");
+        second.Data.Items[0].IsCurrentEnrollment.Should().BeFalse();
+        (await service.GetEnrollmentHistoryAsync(other.PublicId, 1, 25)).StatusCode.Should().Be(403);
+        (await service.GetEnrollmentHistoryAsync(foreign.PublicId, 1, 25)).StatusCode.Should().Be(403);
+        (await service.GetEnrollmentHistoryAsync(own.PublicId, 0, 25)).StatusCode.Should().Be(400);
+        (await service.GetEnrollmentHistoryAsync(own.PublicId, 1, 101)).StatusCode.Should().Be(400);
+    }
+
+    [Fact]
+    public async Task Portal_subject_history_keeps_historical_credits_and_rejects_unlinked_student()
+    {
+        await using var context = CreateContext(out var accessor);
+        SetTenant(accessor, 10);
+        var own = Student(10, 99, "OWN");
+        var other = Student(10, 100, "OTHER");
+        var subject = new Subject { TenantId = 10, Code = "PHY", Name = "Physics" };
+        context.Set<Student>().AddRange(own, other);
+        context.Set<Subject>().Add(subject);
+        await context.SaveChangesAsync();
+        var curriculum = new CurriculumSubject { TenantId = 10, AcademicCurriculumId = 1,
+            AcademicLevelId = 1, SubjectId = subject.Id };
+        context.Set<CurriculumSubject>().Add(curriculum);
+        var enrollment = new StudentEnrollment { TenantId = 10, StudentId = own.Id,
+            ClientRequestId = Guid.NewGuid(), CampusId = 1, AcademicYearId = 1,
+            AcademicProgramId = 1, AcademicLevelId = 1, AcademicBatchId = 1,
+            AcademicCurriculumId = 1, RollNo = "OLD-7",
+            EnrollmentDate = DateOnly.FromDateTime(DateTime.UtcNow.AddYears(-1)),
+            IsCurrent = false, State = EnrollmentState.Completed };
+        context.Set<StudentEnrollment>().Add(enrollment);
+        await context.SaveChangesAsync();
+        var offering = new SubjectOffering { TenantId = 10, AcademicYearId = 1,
+            AcademicBatchId = 1, CurriculumSubjectId = curriculum.Id, Code = "PHY-1" };
+        context.Set<SubjectOffering>().Add(offering);
+        await context.SaveChangesAsync();
+        context.Set<StudentSubjectRegistration>().Add(new StudentSubjectRegistration
+        {
+            TenantId = 10, ClientRequestId = Guid.NewGuid(), StudentEnrollmentId = enrollment.Id,
+            SubjectOfferingId = offering.Id, CreditHoursSnapshot = 3.5m,
+            State = SubjectRegistrationState.Approved
+        });
+        await context.SaveChangesAsync();
+        var service = CreateService(context, new TestCurrentUser(10, 99, "Student"));
+        var result = await service.GetSubjectHistoryAsync(own.PublicId, 1, 25);
+        result.Success.Should().BeTrue();
+        result.Data!.TotalCount.Should().Be(1);
+        result.Data.Items.Should().ContainSingle();
+        result.Data.Items[0].RollNo.Should().Be("OLD-7");
+        result.Data.Items[0].CreditHoursSnapshot.Should().Be(3.5m);
+        result.Data.Items[0].SubjectName.Should().Be("Physics");
+        (await service.GetSubjectHistoryAsync(other.PublicId, 1, 25)).StatusCode.Should().Be(403);
+        (await service.GetSubjectHistoryAsync(own.PublicId, 1, 101)).StatusCode.Should().Be(400);
+    }
+
     private static EduOSDbContext CreateContext(out HttpContextAccessor accessor)
     {
         accessor = new HttpContextAccessor { HttpContext = new DefaultHttpContext() };

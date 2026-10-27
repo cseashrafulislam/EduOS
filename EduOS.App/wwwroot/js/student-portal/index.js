@@ -4,8 +4,10 @@
     if (!el('studentPortalTitle')) return;
     const select = el('studentPortalStudent'), tabs = el('studentPortalTabs');
     let section = 'timetable', latestRequest = 0, page = 1, paymentPage = 1;
-    const pageSize = 25, paged = new Set(['attendance','results','transport','homework','assignments']);
+    const pageSize = 25, paged = new Set(['attendance','results','transport','homework','assignments','enrollments','subjects']);
     const columns = {
+        enrollments: [['rollNo','Original roll'],['registrationNo','Registration'],['campusId','Campus ID'],['academicYearId','Year ID'],['academicLevelId','Level ID'],['academicBatchId','Batch ID'],['enrollmentDate','Enrolled'],['endDate','Ended'],['state','State'],['isCurrentEnrollment','Current']],
+        subjects: [['rollNo','Original roll'],['campusId','Campus ID'],['subjectCode','Subject code'],['subjectName','Current subject label'],['creditHoursSnapshot','Registered credits'],['registrationState','Status'],['registeredAt','Registered'],['approvedAt','Approved']],
         timetable: [['dayOfWeek','Day'],['startTime','Start'],['endTime','End'],['subjectName','Subject'],['teacherName','Teacher'],['roomNo','Room']],
         attendance: [['attendanceDate','Date'],['state','Status'],['checkInTime','In'],['checkOutTime','Out'],['remarks','Remarks']],
         results: [['assessmentName','Assessment'],['obtainedMarks','Marks'],['totalMarks','Full marks'],['percentage','Percent'],['gradeLetter','Grade'],['meritPosition','Position'],['publishedAt','Published']],
@@ -35,7 +37,7 @@
     }
     function display(value, key) {
         if (value === null || value === undefined) return '—';
-        if (['attendanceDate','invoiceDate','paymentDate','startDate','endDate','opensAt','dueAt','publishedAt','expiresAt'].includes(key)) return String(value).slice(0,10);
+        if (['attendanceDate','invoiceDate','paymentDate','startDate','endDate','enrollmentDate','registeredAt','approvedAt','opensAt','dueAt','publishedAt','expiresAt'].includes(key)) return String(value).slice(0,10);
         if (['startTime','endTime','checkInTime','checkOutTime'].includes(key)) return String(value).slice(0,5);
         return value;
     }
@@ -173,6 +175,10 @@
                 render(data.items || [], columns[activeSection]);
                 showPaging(true);
                 pageInfo(data, page, 'studentPortal');
+                if (activeSection === 'subjects')
+                    el('studentPortalSummary').textContent = 'Original roll and credit snapshots; subject labels reflect the current catalog.';
+                if (activeSection === 'enrollments')
+                    el('studentPortalSummary').textContent = 'Original enrollment identity and dates, including previous placements.';
             } else render(Array.isArray(data) ? data : [], columns[activeSection]);
         } catch (error) {
             if (token !== latestRequest) return;

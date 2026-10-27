@@ -11,6 +11,36 @@ public sealed class PortalStudentDto
     public long AcademicBatchId { get; set; }
 }
 
+/// <summary>Original enrollment identity; historical values are never replaced by current placement.</summary>
+public sealed class PortalEnrollmentHistoryDto
+{
+    public Guid Reference { get; set; }
+    public long CampusId { get; set; }
+    public long AcademicYearId { get; set; }
+    public long AcademicLevelId { get; set; }
+    public long AcademicBatchId { get; set; }
+    public string RollNo { get; set; } = string.Empty;
+    public string? RegistrationNo { get; set; }
+    public DateOnly EnrollmentDate { get; set; }
+    public DateOnly? EndDate { get; set; }
+    public string State { get; set; } = string.Empty;
+    public bool IsCurrentEnrollment { get; set; }
+}
+
+/// <summary>Original enrollment/credit snapshot with optional current catalog display labels.</summary>
+public sealed class PortalSubjectHistoryDto
+{
+    public Guid EnrollmentReference { get; set; }
+    public long CampusId { get; set; }
+    public string RollNo { get; set; } = string.Empty;
+    public string SubjectCode { get; set; } = string.Empty;
+    public string SubjectName { get; set; } = string.Empty;
+    public decimal? CreditHoursSnapshot { get; set; }
+    public string RegistrationState { get; set; } = string.Empty;
+    public DateTime RegisteredAt { get; set; }
+    public DateTime? ApprovedAt { get; set; }
+}
+
 public sealed class PortalTimetableEntryDto
 {
     public long RoutineId { get; set; }

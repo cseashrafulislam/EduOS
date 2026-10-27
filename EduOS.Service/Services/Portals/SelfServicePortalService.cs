@@ -107,6 +107,92 @@ public sealed class SelfServicePortalService : ISelfServicePortalService
         return ApiResponse<IReadOnlyList<PortalStudentDto>>.SuccessResponse(list);
     }
 
+    /// <summary>Student/guardian historical enrollment readback; uses the same linked-student access gate as the portal.</summary>
+    public async Task<ApiResponse<PagedResult<PortalEnrollmentHistoryDto>>> GetEnrollmentHistoryAsync(
+        Guid studentReference, int page, int pageSize, CancellationToken ct = default)
+    {
+        var student = await AuthorizedStudentAsync(studentReference, ct);
+        if (student == null) return Denied<PagedResult<PortalEnrollmentHistoryDto>>();
+        if (!ValidPage(page, pageSize)) return Error<PagedResult<PortalEnrollmentHistoryDto>>("Invalid page.");
+        var skip = Skip(page, pageSize);
+        if (skip < 0) return Error<PagedResult<PortalEnrollmentHistoryDto>>("Page outside supported range.");
+        var tenant = _user.TenantId;
+        var query = _academicEnrollments.GetQueryable().AsNoTracking().Where(x =>
+            x.TenantId == tenant && x.StudentId == student.Id && !x.IsDeleted);
+        var total = await query.CountAsync(ct);
+        var data = await query.OrderByDescending(x => x.EnrollmentDate).ThenByDescending(x => x.Id)
+            .Skip(skip).Take(pageSize)
+            .Select(x => new
+            {
+                x.PublicId, x.CampusId, x.AcademicYearId, x.AcademicLevelId,
+                x.AcademicBatchId, x.RollNo, x.RegistrationNo, x.EnrollmentDate,
+                x.EndDate, x.State, x.IsCurrent
+            }).ToListAsync(ct);
+        var rows = data.Select(x => new PortalEnrollmentHistoryDto
+        {
+            Reference = x.PublicId, CampusId = x.CampusId, AcademicYearId = x.AcademicYearId,
+            AcademicLevelId = x.AcademicLevelId, AcademicBatchId = x.AcademicBatchId,
+            RollNo = x.RollNo, RegistrationNo = x.RegistrationNo,
+            EnrollmentDate = x.EnrollmentDate, EndDate = x.EndDate,
+            State = x.State.ToString(), IsCurrentEnrollment = x.IsCurrent
+        }).ToList();
+        return ApiResponse<PagedResult<PortalEnrollmentHistoryDto>>.SuccessResponse(Page(rows, total, page, pageSize));
+    }
+
+    /// <summary>Historical subject registrations tied to the original enrollment, including removed catalog offerings.</summary>
+    public async Task<ApiResponse<PagedResult<PortalSubjectHistoryDto>>> GetSubjectHistoryAsync(
+        Guid studentReference, int page, int pageSize, CancellationToken ct = default)
+    {
+        var student = await AuthorizedStudentAsync(studentReference, ct);
+        if (student == null) return Denied<PagedResult<PortalSubjectHistoryDto>>();
+        if (!ValidPage(page, pageSize)) return Error<PagedResult<PortalSubjectHistoryDto>>("Invalid page.");
+        var skip = Skip(page, pageSize);
+        if (skip < 0) return Error<PagedResult<PortalSubjectHistoryDto>>("Page outside supported range.");
+        var tenant = _user.TenantId;
+        var query = from registration in _registrations.GetQueryable().AsNoTracking()
+                    join enrollment in _academicEnrollments.GetQueryable().AsNoTracking()
+                        on registration.StudentEnrollmentId equals enrollment.Id
+                    where registration.TenantId == tenant && enrollment.TenantId == tenant &&
+                        enrollment.StudentId == student.Id && !registration.IsDeleted && !enrollment.IsDeleted
+                    select new { registration, enrollment };
+        var total = await query.CountAsync(ct);
+        var data = await query.OrderByDescending(x => x.registration.RegisteredAt)
+            .ThenByDescending(x => x.registration.Id).Skip(skip).Take(pageSize)
+            .Select(x => new
+            {
+                EnrollmentReference = x.enrollment.PublicId, x.enrollment.CampusId, x.enrollment.RollNo,
+                x.registration.SubjectOfferingId, x.registration.CreditHoursSnapshot,
+                x.registration.State, x.registration.RegisteredAt, x.registration.ApprovedAt
+            }).ToListAsync(ct);
+        var offeringIds = data.Select(x => x.SubjectOfferingId).Distinct().ToArray();
+        // Current catalog labels are optional; historical enrollment and credit data must survive catalog removal.
+        var labels = await (from offering in _offerings.GetQueryable().AsNoTracking()
+                            join curriculum in _curriculumSubjects.GetQueryable().AsNoTracking()
+                                on offering.CurriculumSubjectId equals curriculum.Id
+                            join subject in _subjects.GetQueryable().AsNoTracking()
+                                on curriculum.SubjectId equals subject.Id
+                            where offeringIds.Contains(offering.Id) &&
+                                offering.TenantId == tenant && curriculum.TenantId == tenant &&
+                                subject.TenantId == tenant && !offering.IsDeleted &&
+                                !curriculum.IsDeleted && !subject.IsDeleted
+                            select new { offering.Id, subject.Code, subject.Name }).ToListAsync(ct);
+        var byOffering = labels.ToDictionary(x => x.Id);
+        var rows = data.Select(x =>
+        {
+            byOffering.TryGetValue(x.SubjectOfferingId, out var label);
+            return new PortalSubjectHistoryDto
+            {
+                EnrollmentReference = x.EnrollmentReference, CampusId = x.CampusId,
+                RollNo = x.RollNo, SubjectCode = label?.Code ?? string.Empty,
+                SubjectName = label?.Name ?? string.Empty,
+                CreditHoursSnapshot = x.CreditHoursSnapshot,
+                RegistrationState = x.State.ToString(),
+                RegisteredAt = x.RegisteredAt, ApprovedAt = x.ApprovedAt
+            };
+        }).ToList();
+        return ApiResponse<PagedResult<PortalSubjectHistoryDto>>.SuccessResponse(Page(rows, total, page, pageSize));
+    }
+
     public async Task<ApiResponse<IReadOnlyList<PortalTimetableEntryDto>>> GetTimetableAsync(
         Guid studentReference, CancellationToken ct = default)
     {
