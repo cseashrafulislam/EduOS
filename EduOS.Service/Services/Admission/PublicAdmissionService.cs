@@ -156,21 +156,24 @@ public sealed class PublicAdmissionService : IPublicAdmissionService
             request.GuardianRelation?.Length > 50 || request.PermanentAddress?.Length > 1000 ||
             request.PresentAddress?.Length > 1000)
             return Error<AdmissionApplicationCreatedDto>("An application field exceeds the allowed length.");
-        var form = await FindOpenFormAsync(tenant.Id, request.AdmissionFormReference.Value, ct);
-        if (form == null) return Error<AdmissionApplicationCreatedDto>("Admission form is unavailable.", 404);
-        if (form.CampusId != request.CampusId || form.AcademicYearId != request.AcademicYearId ||
-            form.AcademicTermId != request.AcademicTermId || form.AcademicLevelId != request.AcademicLevelId)
-            return Error<AdmissionApplicationCreatedDto>("Academic choices do not match the intake form.", 409);
-        var fields = await FieldsAsync(tenant.Id, new[] { form.Id }, ct);
-        var rules = fields.Select(MapField).ToList();
-        var error = AdmissionIntakeRules.ValidateResponses(rules, request.CustomResponses, out _);
-        if (error != null) return Error<AdmissionApplicationCreatedDto>(error);
         try
         {
             using var tx = new TransactionScope(TransactionScopeOption.Required,
                 new TransactionOptions { IsolationLevel = IsolationLevel.Serializable }, TransactionScopeAsyncFlowOption.Enabled);
+            // Check the replay under the same transaction as the intake state.
+            // A previously committed request may be acknowledged after intake closure;
+            // a new request must still pass the live published/open-window check.
             var replay = await _applicants.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
                 x.TenantId == tenant.Id && x.ClientRequestId == request.ClientRequestId, ct);
+            var form = replay == null
+                ? await FindOpenFormAsync(tenant.Id, request.AdmissionFormReference.Value, ct)
+                : await _forms.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
+                    x.TenantId == tenant.Id && x.PublicId == request.AdmissionFormReference.Value, ct);
+            if (form == null) return Error<AdmissionApplicationCreatedDto>("Admission form is unavailable.", 404);
+            if (form.CampusId != request.CampusId || form.AcademicYearId != request.AcademicYearId ||
+                form.AcademicTermId != request.AcademicTermId || form.AcademicLevelId != request.AcademicLevelId)
+                return Error<AdmissionApplicationCreatedDto>("Academic choices do not match the intake form.", 409);
+            var fields = await FieldsAsync(tenant.Id, new[] { form.Id }, ct);
             if (replay != null)
             {
                 if (replay.AdmissionIntakeFormId != form.Id || replay.FullName != request.ApplicantName.Trim() ||
@@ -209,6 +212,9 @@ public sealed class PublicAdmissionService : IPublicAdmissionService
                 return ApiResponse<AdmissionApplicationCreatedDto>.SuccessResponse(MapCreated(replay),
                     "Application already received.");
             }
+            var rules = fields.Select(MapField).ToList();
+            var error = AdmissionIntakeRules.ValidateResponses(rules, request.CustomResponses, out _);
+            if (error != null) return Error<AdmissionApplicationCreatedDto>(error);
             Person person = new()
             {
                 FullName = request.ApplicantName.Trim(), FullNameBangla = Trim(request.ApplicantNameBangla),

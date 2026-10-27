@@ -33,8 +33,19 @@
     const setMessage = (element, text, success = false) => { element.className = `message ${success ? 'ok' : 'error'}`; element.textContent = text; };
     const clearMessage = element => { element.className = 'message'; element.textContent = ''; };
     const createRequestId = () => crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-0000-4000-8000-${Math.random().toString(16).slice(2).padEnd(12, '0').slice(0, 12)}`;
-    const retry = window.EduOSAdmissionRetry.createTracker(createRequestId);
+    const retry = window.EduOSAdmissionRetry.createPersistentTracker(
+        createRequestId,
+        () => window.sessionStorage,
+        async raw => {
+            // Never persist a raw form or a reversible/non-cryptographic fingerprint.
+            const bytes = new TextEncoder().encode(raw);
+            const hash = await crypto.subtle.digest('SHA-256', bytes);
+            return Array.from(new Uint8Array(hash), x => x.toString(16).padStart(2, '0')).join('');
+        },
+        tenant
+    );
     let applicationSubmitted = false;
+    let submissionInFlight = false;
 
     async function readResponse(response) {
         const body = await response.json().catch(() => ({}));
@@ -129,7 +140,7 @@
         refreshTerms();
         termSelect.value = selected.academicTermId ? String(selected.academicTermId) : '';
         campusSelect.value = String(selected.campusId);
-        unitSelect.value = String(selected.academicUnitId);
+        unitSelect.value = String(selected.academicLevelId);
         renderCustomFields(selected.fields || []);
         renderDocumentFields(selected.documentRequirements || []);
         documentPanel.hidden = !activeSubmission || !(selected.documentRequirements || []).length;
@@ -157,7 +168,7 @@
             openForms = data.openForms || [];
             bindOptions(yearSelect, data.academicYears || [], 'Select academic year');
             bindOptions(campusSelect, data.campuses || [], 'Select campus');
-            bindOptions(unitSelect, data.academicUnits || [], 'Select class / level');
+            bindOptions(unitSelect, data.academicLevels || [], 'Select class / level');
             intakeFormSelect.innerHTML = openForms.length
                 ? '<option value="">Select admission form</option>' + openForms.map(x => `<option value="${x.reference}">${escapeHtml(x.title)}${x.applicationFee ? ` — ${escapeHtml(x.currency)} ${x.applicationFee}` : ''}</option>`).join('')
                 : '<option value="">General application</option>';
@@ -179,7 +190,8 @@
 
     form.addEventListener('submit', async event => {
         event.preventDefault();
-        if (applicationSubmitted || !openForms.length) return;
+        if (applicationSubmitted || submissionInFlight || !openForms.length) return;
+        submissionInFlight = true;
         clearMessage(formMessage);
         receipt.classList.remove('show');
         submitButton.disabled = true;
@@ -190,7 +202,7 @@
             academicYearId: Number(value('academicYearId')),
             academicTermId: value('academicTermId') ? Number(value('academicTermId')) : null,
             campusId: Number(value('campusId')),
-            academicUnitId: Number(value('academicUnitId')),
+            academicLevelId: Number(value('academicUnitId')),
             applicantName: value('applicantName'),
             applicantNameBangla: optional('applicantNameBangla'),
             dateOfBirth: value('dateOfBirth'),
@@ -206,7 +218,7 @@
             preferredLanguage: value('preferredLanguage') || 'bn-BD'
         };
         // Reuse the same key after a timeout; changed form data gets a fresh key.
-        request.clientRequestId = retry.forPayload('application', request);
+        request.clientRequestId = await retry.forPayload('application', request);
 
         try {
             const response = await fetch(`${apiBase}/applications`, {
@@ -232,6 +244,7 @@
         } catch (error) {
             setMessage(formMessage, error.message);
         } finally {
+            submissionInFlight = false;
             submitButton.disabled = applicationSubmitted || !openForms.length;
         }
     });

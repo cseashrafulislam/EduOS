@@ -176,6 +176,31 @@ public sealed class PublicAdmissionServiceTests
             It.IsAny<IFormFile>(), It.IsAny<string>(), fixture.Tenant.Id), Times.Once);
     }
 
+    [Fact]
+    public async Task Closed_intake_accepts_exact_committed_replay_but_rejects_new_or_changed_request()
+    {
+        await using var fixture = await Fixture.CreateAsync("closed-intake-replay");
+        var request = fixture.CreateApplicationRequest();
+        var created = await fixture.Service.CreateAsync(fixture.Tenant.Code, request);
+        created.StatusCode.Should().Be(201);
+
+        fixture.Form.ClosesAt = Now.UtcDateTime.AddMinutes(-1);
+        await fixture.Db.SaveChangesAsync();
+
+        var replay = await fixture.Service.CreateAsync(fixture.Tenant.Code, request);
+        replay.Success.Should().BeTrue();
+        replay.Data!.Reference.Should().Be(created.Data!.Reference);
+
+        var changed = fixture.CreateApplicationRequest();
+        changed.ClientRequestId = request.ClientRequestId;
+        changed.ApplicantName = "Different applicant";
+        (await fixture.Service.CreateAsync(fixture.Tenant.Code, changed)).StatusCode.Should().Be(409);
+
+        var newRequest = fixture.CreateApplicationRequest();
+        (await fixture.Service.CreateAsync(fixture.Tenant.Code, newRequest)).StatusCode.Should().Be(404);
+        (await fixture.Db.AdmissionApplicants.CountAsync()).Should().Be(1);
+    }
+
     private sealed class Fixture : IAsyncDisposable
     {
         public EduOSDbContext Db { get; }
