@@ -56,17 +56,20 @@ function render(data) {
         const tr = document.createElement('tr');
         const method = Number(row.paymentMethod) === 2 || row.paymentMethod === 'BankTransfer' ? 'Bank transfer' : 'Cash';
         for (const value of [row.runNumber, row.employeeName, row.campusId ?? 'Institution-wide',
-            row.paymentDate, method, money(row.amount),
-            row.journalReference ? 'Posted · ' + row.journalReference : 'Awaiting verification']) tr.append(cell(value));
+            row.paymentDate, method, money(row.amount), money(row.netSalaryAmount),
+            money(row.settledAmount), money(row.remainingAmount),
+            row.journalReference ? 'Posted · ' + row.journalReference : 'Awaiting verification',
+            row.reconciliationIssue || row.reconciliationStatus || 'Not checked']) tr.append(cell(value));
         const action = document.createElement('td'), button = document.createElement('button');
         button.type = 'button'; button.className = 'btn btn-sm btn-primary';
         button.textContent = 'Verify & post';
         const pending = Number(row.state) === 2 || row.state === 'AwaitingVerification';
-        button.disabled = !canPost || !pending || !!row.journalReference;
+        button.disabled = !canPost || !pending || !!row.journalReference ||
+            row.reconciliationStatus !== 'Pending';
         button.addEventListener('click', () => choose(row)); action.append(button); tr.append(action);
         tbody.append(tr);
     }
-    if (!data.payments?.length) { const tr = document.createElement('tr'), td = cell('No payroll payment requests found.'); td.colSpan = 8; tr.append(td); tbody.append(tr); }
+    if (!data.payments?.length) { const tr = document.createElement('tr'), td = cell('No payroll payment requests found.'); td.colSpan = 12; tr.append(td); tbody.append(tr); }
     totalPages = Math.max(1, Math.ceil((data.totalCount || 0) / (data.pageSize || 10)));
     el('payrollPaymentPage').textContent = 'Page ' + page + ' / ' + totalPages + ' · ' + (data.totalCount || 0) + ' requests';
     el('payrollPaymentPrev').disabled = page <= 1;
