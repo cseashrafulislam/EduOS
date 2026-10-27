@@ -1,6 +1,6 @@
 # EduOS — Version 1.0 and Version 2.0 Release Contract
 
-**Decision baseline:** 2026-10-27 | **Owner-provided launch cohort:** 16 institutions, seven institution categories, approximately 40,000 initial student records. **Status: requirements / release gate, not a claim of current implementation or deployment approval.**
+**Decision baseline:** 2026-10-28 | **Owner-provided launch cohort:** 16 institutions, seven institution categories, approximately 40,000 initial student records. **Status: requirements / release gate, not a claim of current implementation or deployment approval.**
 
 ## 1. Confirmed launch cohort
 
@@ -23,22 +23,30 @@ The 40,000 figure is an **initial student-record estimate across the cohort**, n
 
 The word **100%** means **all agreed V1 acceptance cases pass and no known release-blocking defect remains**, not that there can never be future fixes, security updates or compatibility changes. Features not explicitly in the frozen V1 scope remain unavailable/gated with existing code and data preserved.
 
+### Module-complete release rule: no Basic V1 / Advanced V2 split
+
+1. Each business module is owned by **exactly one version for its complete agreed functional scope**. Plan, implement and test its setup, transactions, lifecycle, approvals, corrections, reports, print/export, UI, mobile, security, concurrency and historical behavior **together**.
+2. **Results example:** if V1 includes Results, exam configuration, mark rules, grade/GPA/CGPA, practical/MCQ, moderation, reassessment, approval/publication, transcripts, certificates, corrections and relevant reports are V1 obligations. Nothing may be labelled 'Advanced Results — V2'.
+3. **HR example:** if V1 includes HR, employee lifecycle, recruitment if offered, attendance/shifts/leave, salary configuration, payroll approval, bank/payslip output, finance posting, correction and reports all belong in V1. Nothing may be labelled 'Advanced HR/Payroll — V2'.
+4. **Hostel example:** Hostel is a V2 module. Before V2 enables it, the agreed full hostel scope—buildings/rooms/beds, allocations/transfers, reservation and eligibility, billing/refund/finance control, occupancy, permissions, exceptions, audit and reports—must be finished. 'Basic Hostel now; Advanced Hostel later' is equally prohibited.
+5. The completion gate applies to **all applicable institute presets**, not only one demonstration tenant. Any missing agreed module workflow is a release blocker, even if the rest of the UI or codebase builds.
+6. Future security fixes, operational defects, new legal rules and backward-compatible version upgrades remain legitimate **maintenance**, not a plan to defer known functional requirements.
 ### Mandatory V1 business areas
 
 | Area | Acceptance scope; no model/API-only completion |
 | --- | --- |
 | SaaS/platform | Tenant signup/onboarding, institute preset/configuration, subscription/feature entitlement, campus/operating unit, user invitation, account recovery and self-service administration |
 | Security and identity | Auth/MFA, tenant + campus + role/resource/ownership permissions, account/membership lifecycle, audit, privacy-safe learner linking and multi-institute support |
-| Institution and academic setup | Academic years/terms, programme/level/department, group/track, class/batch/cohort, curriculum/courses/subjects/credits, room where relevant, instructor assignments, routine and calendar |
-| Admission/student lifecycle | Configurable admission/enrolment, applicant verification/selection, student/guardian documents and profiles, course/subject registration, promotion, repeat, transfers/completion and lifecycle reports |
+| Institution and academic setup | Full academic programme/class/semester/cohort configuration, curriculum and effective versions, subjects/course selection, credits/prerequisites/electives as applicable, staffing, calendar, timetable conflicts, instruction progress, room/online schedule and all agreed academic reports |
+| Admission/student lifecycle | Full configured online/counter application, verification, tests/merit, offer/acceptance/fee where applicable, enrolment, guardian, records/documents, subject registration, promotion/repeat, transfer/readmission/completion, credential history and reports; bulk import is a release gate |
 | Attendance | Student and applicable staff/instructor attendance, absence/leave approval where relevant, ownership validation and reporting |
-| Exam/assessment/result | Exam/test setup, teacher-owned marks, completeness, moderation/verification, approval, locked publication, grading/GPA/CGPA where applicable, mark sheets, tabulations, transcript/certificate output |
-| **Advanced LMS** | Course creation/enrolment, lesson/content resources, scheduled access, question bank/quiz attempts and evaluation, assignments/submissions/feedback, learning progress, instructor/student views and LMS-specific reports |
-| Fees and collections | Fee policy, demand/invoice, instalment, discount/waiver/scholarship, due, collection, receipt, refund/correction, payment reconciliation, audit and reports |
-| **Advanced accounts** | Chart of accounts, balanced vouchers, cash/bank, ledger, student receivable control, financial statements, authorized posting/reversal, period/approval control and reconciliation; any online gateway used for real money must be verified/certified |
-| **Advanced HR & Payroll** | Employee/teacher contracts and history, employment assignment, attendance/shifts/leave, pay structure and effective dates, benefits/deductions/loan rules where offered, payroll period calculation, validation, multi-level approval, pay slips, bank/export reconciliation, accounting posting, cancellation/reversal and audit; statutory deductions need current verified rules |
-| Portals and communication | Appropriate admin/principal/teacher/instructor/accountant/HR/student/guardian self-service, notices and essential verified notifications |
-| UI/PWA and reports | Clean professional bilingual pages, non-intrusive header guide, responsive dialog/form/list/report, safe PWA, saved permitted per-user appearance, PDF/Excel/print, scoped efficient queries and error states |
+| **Full exam/assessment/result** | Complete exam/test and question/assessment setup, written/MCQ/practical components, mark entry, review/moderation, grading and credit/GPA/CGPA, reassessment/retake/improvement where policy applies, authorized approvals, immutable publication, controlled correction, mark sheet/tabulation/transcript/certificate/verification and **every agreed result report**. No later 'advanced results' backlog |
+| **Full LMS** | Complete course authoring/enrolment, lesson/content/versioning, scheduled access, online/live-class integrations in the agreed provider scope, question banks/quizzes/attempt policies, assignments/submissions/rubrics/feedback, progress/grades, learning certificate, student/instructor portal and complete LMS reports. No later 'advanced LMS' backlog |
+| Fees and collections | Full fee policy, structures/instalments, invoice/demand, discount/waiver/scholarship/penalty rules, collection, due, verified gateway where enabled, receipt, refund/correction, reconciled posting, audit and required reports; no later deferred fee-feature tranche |
+| **Full accounts and finance** | Complete chart of accounts, balanced vouchers, cost/department/project allocation where configured, cash/bank, receivables/payables, budgets where offered, statements, reconciliation, authorized posting/reversal, closed period, approval/audit and all agreed financial reports. No later 'advanced accounts' tranche |
+| **Full employee HR and payroll** | Complete recruitment/onboarding, employee/teacher contracts/history, position/assignment, shifts/attendance/leave, approved performance/appraisal rules if offered, effective salary/benefit/deduction/loan rules, configurable verified statutory policy, payroll calculation/period lock, maker-checker approvals, payslips, bank/export/payment reconciliation, journal posting, controlled reversal/correction, audit and all HR/payroll reports. No later 'advanced HR/payroll' tranche |
+| Portals and communication | Complete approved admin/principal/teacher/instructor/accountant/HR/student/guardian self-service, notices, delivery/acknowledgement and all in-scope notification channels with auditable status and preferences. If a provider is not ready, it must not be marketed as included |
+| **Complete UI/PWA/reports** | Every V1 page, form, dialog, table, help guide, PDF/Excel/print and error state polished; consistent bilingual content, PWA, saved tenant-scoped theme/sidebar/font/allowed workspace customization, accessibility, permission-aware reports and efficient data access. No later 'advanced design polish' for V1 pages |
 
 **Institute adaptation must be configuration-driven.** The system must not require a campus building/room for purely online providers or force semester/credit rules on primary classes and private tutors. Models remain generic; institutional labels and approved policy rules vary by preset.
 
@@ -88,10 +96,20 @@ No claims of 100%-ready from code presence or green CI alone. Final real-world p
 
 V2 continues from the exact V1 architecture, source, migrations and production data. The original V1 business flows remain regression-protected and usable; new module contracts are integrated without introducing duplicate data stores or breaking historical documents.
 
-Candidate V2 areas, after separate scope approval: Library, Hostel, Transport, Inventory/Procurement, Fixed Assets, Facilities, visitor/security, advanced administrative workflows, deeper reporting/analytics, career/alumni/research/accreditation, optional additional integrations and expanded visual workspace composition. Existing implementations and historical data in these modules are **preserved**, securely gated until accepted, then completed rather than rewritten.
+V2 contains **only new, separately complete modules**: Library; Hostel; Transport; Inventory and Procurement; Assets and Facilities; visitor/campus operations; independently scoped business intelligence (not missing V1 reports); and separately approved Alumni, Career, Research, Accreditation or external-provider integrations not already promised in V1. **Do not put Advanced Result, Advanced LMS, Advanced HR/Payroll, Advanced Accounts, Advanced Academic, Advanced Admission or unfinished V1 UX in V2.** Existing implementations/data remain preserved and gated until the entire new module has passed acceptance.
 
 **No rework promise is interpreted as stable ownership/contracts and zero planned V1 redesign**, not a ban on bug fixes, evolving statutory rules, security patches, additive migrations, reporting corrections or measured performance improvements. Version upgrades are rehearsed on restored data and preserve signed historical results, vouchers, payroll and transcript output.
 
+### Whole-module acceptance for V2
+
+| New V2 module | Must be complete before being enabled |
+| --- | --- |
+| Library | Catalogue/copies, issue/return/renewal/reservation/fine, lost/damaged control, permissions, audit, inventory link where needed, all library reports |
+| Hostel | Accommodation/rooms/beds, eligibility/capacity, reservation/allocation/transfer, occupied-change guard, fees/finance adjustment, departures, incidents, audit, occupancy/financial reports |
+| Transport | Vehicles/drivers/routes/stops, schedule, student assignment/capacity, reservation/transfer constraints, fees/finance adjustment, maintenance, audit, operational/financial reports |
+| Inventory & Procurement | Catalogue/unit conversion, requisition/approval, supplier/PO/receive, store issue/return/adjustment, stock movement history, double-issue protection, reconciliation, all related reports |
+| Assets & Facilities | Acquisition, location/custodian assignment, maintenance/lifecycle/depreciation where applicable, approvals, write-off/reversal and reports |
+| Other approved V2 module | Freeze its exact complete workflow and reports before development; do not ship a partial slice as a full module |
 ## 7. Deployment topology and release ownership
 
 - **One codebase / one default SQL database.** No multi-database/sharding implementation now.
