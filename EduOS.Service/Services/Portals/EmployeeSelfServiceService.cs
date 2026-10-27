@@ -147,6 +147,13 @@ public sealed class EmployeeSelfServiceService : IEmployeeSelfServiceService
             var tenantId = _currentUser.TenantId;
             var from = new DateOnly(targetYear, 1, 1);
             var until = from.AddYears(1);
+            if (await _leaveApplications.GetQueryable().AsNoTracking().AnyAsync(x =>
+                x.TenantId == tenantId && x.EmployeeId == employee.Id &&
+                (x.State == LeaveState.Approved || x.State == LeaveState.Submitted) &&
+                ((x.FromDate < from && x.ToDate >= from) ||
+                 (x.FromDate < until && x.ToDate >= until)), cancellationToken))
+                return ApiResponse<IReadOnlyList<EmployeePortalLeaveBalanceDto>>.ErrorResponse(
+                    "Cross-year leave requires HR reconciliation before annual balances can be reported.", 409);
             var types = await _leaveTypes.GetQueryable().AsNoTracking().Where(x => x.TenantId == tenantId && x.IsActive)
                 .OrderBy(x => x.Name).Select(x => new { x.Id, x.Name, x.MaxDaysPerYear }).ToListAsync(cancellationToken);
             var entitlements = await _entitlements.GetQueryable().AsNoTracking().Where(x => x.TenantId == tenantId &&
@@ -182,9 +189,12 @@ public sealed class EmployeeSelfServiceService : IEmployeeSelfServiceService
                     LeaveTypeId = type.Id, LeaveTypeName = type.Name,
                     AnnualEntitlement = maximum,
                     UsedDays = used, PendingDays = pending,
-                    RemainingDays = Math.Max(0m, maximum - used - pending)
+                    RemainingDays = maximum - used - pending
                 };
             }).ToList();
+            if (rows.Any(x => x.RemainingDays < 0m))
+                return ApiResponse<IReadOnlyList<EmployeePortalLeaveBalanceDto>>.ErrorResponse(
+                    "Historical leave exceeds annual entitlement; contact HR for reconciliation.", 409);
             return ApiResponse<IReadOnlyList<EmployeePortalLeaveBalanceDto>>.SuccessResponse(rows);
         }
         catch (Exception ex)
@@ -242,19 +252,27 @@ public sealed class EmployeeSelfServiceService : IEmployeeSelfServiceService
 
             var entitlement = await _entitlements.GetQueryable().AsNoTracking().Where(x => x.TenantId == tenantId &&
                 x.EmployeeId == employee.Id && x.LeaveTypeId == type.Id && x.Year == from.Year)
-                .Select(x => (decimal?)(x.EntitledDays + x.CarriedForwardDays)).SumAsync(cancellationToken);
+                .Select(x => (decimal?)(x.EntitledDays + x.CarriedForwardDays)).FirstOrDefaultAsync(cancellationToken);
             var adjustment = await _adjustments.GetQueryable().AsNoTracking().Where(x => x.TenantId == tenantId &&
                 x.EmployeeId == employee.Id && x.LeaveTypeId == type.Id && x.Year == from.Year)
                 .SumAsync(x => (decimal?)x.Days, cancellationToken) ?? 0m;
             var available = (entitlement ?? type.MaxDaysPerYear) + adjustment;
             var yearStart = new DateOnly(from.Year, 1, 1);
             var yearEnd = yearStart.AddYears(1);
+            if (await _leaveApplications.GetQueryable().AsNoTracking().AnyAsync(x =>
+                x.TenantId == tenantId && x.EmployeeId == employee.Id &&
+                x.LeaveTypeId == type.Id &&
+                (x.State == LeaveState.Approved || x.State == LeaveState.Submitted) &&
+                ((x.FromDate < yearStart && x.ToDate >= yearStart) ||
+                 (x.FromDate < yearEnd && x.ToDate >= yearEnd)), cancellationToken))
+                return ApiResponse<EmployeePortalLeaveDto>.ErrorResponse(
+                    "Cross-year leave requires HR reconciliation before further applications.", 409);
             var used = await _leaveApplications.GetQueryable().AsNoTracking().Where(x => x.TenantId == tenantId &&
                 x.EmployeeId == employee.Id && x.LeaveTypeId == type.Id &&
                 x.FromDate >= yearStart && x.FromDate < yearEnd &&
                 (x.State == LeaveState.Submitted || x.State == LeaveState.Approved))
                 .SumAsync(x => (decimal?)x.TotalDays, cancellationToken) ?? 0m;
-            if (type.MaxDaysPerYear > 0 && used + requestedDays > available)
+            if (used + requestedDays > available)
                 return ApiResponse<EmployeePortalLeaveDto>.ErrorResponse("Leave exceeds remaining entitlement.");
             var entity = new EmployeeLeaveApplication
             {

@@ -126,6 +126,70 @@ public class EmployeeSelfServiceServiceTests
         context.Set<EmployeeLeaveApplication>().Count(x => x.TenantId == 10 && x.EmployeeId == employee.Id).Should().Be(1);
     }
 
+
+    [Theory]
+    [InlineData(0, false)]
+    [InlineData(2, true)]
+    public async Task Zero_default_leave_allowance_requires_explicit_entitlement(int allowance, bool accepted)
+    {
+        await using var context = CreateContext(out var accessor);
+        var employee = Employee(10, 99, "OWN");
+        var type = new LeaveType { TenantId = 10, Code = "ZERO",
+            Name = "Zero default", MaxDaysPerYear = 0, IsActive = true };
+        context.Set<Employee>().Add(employee); context.Set<LeaveType>().Add(type);
+        await context.SaveChangesAsync();
+        if (allowance > 0)
+        {
+            context.Set<EmployeeLeaveEntitlement>().Add(new EmployeeLeaveEntitlement
+            {
+                TenantId = 10, EmployeeId = employee.Id, LeaveTypeId = type.Id,
+                Year = DateTime.UtcNow.Year, EntitledDays = allowance
+            });
+            await context.SaveChangesAsync();
+        }
+        SetTenant(accessor, 10);
+        var year = DateTime.UtcNow.Year;
+        var result = await CreateService(context, new TestCurrentUser(10, 99))
+            .ApplyLeaveAsync(new EmployeePortalLeaveApplyDto
+            {
+                ClientRequestId = Guid.NewGuid(), LeaveTypeId = type.Id,
+                FromDate = new DateOnly(year, 2, 10), ToDate = new DateOnly(year, 2, 10),
+                Reason = "Annual entitlement check"
+            });
+        result.Success.Should().Be(accepted);
+        context.Set<EmployeeLeaveApplication>().Count().Should().Be(accepted ? 1 : 0);
+    }
+
+    [Fact]
+    public async Task Legacy_cross_year_leave_blocks_portal_balance_and_new_submission()
+    {
+        await using var context = CreateContext(out var accessor);
+        var employee = Employee(10, 99, "OWN");
+        var type = new LeaveType { TenantId = 10, Code = "ANN",
+            Name = "Annual", MaxDaysPerYear = 20, IsActive = true };
+        context.Set<Employee>().Add(employee); context.Set<LeaveType>().Add(type);
+        await context.SaveChangesAsync();
+        var year = DateTime.UtcNow.Year;
+        context.Set<EmployeeLeaveApplication>().Add(new EmployeeLeaveApplication
+        {
+            TenantId = 10, EmployeeId = employee.Id, LeaveTypeId = type.Id,
+            FromDate = new DateOnly(year - 1, 12, 31), ToDate = new DateOnly(year, 1, 2),
+            TotalDays = 3m, State = LeaveState.Submitted,
+            Reason = "Legacy cross-year", ClientRequestId = Guid.NewGuid()
+        });
+        await context.SaveChangesAsync(); SetTenant(accessor, 10);
+        var service = CreateService(context, new TestCurrentUser(10, 99));
+        (await service.GetLeaveBalancesAsync(year)).StatusCode.Should().Be(409);
+        var submission = await service.ApplyLeaveAsync(new EmployeePortalLeaveApplyDto
+        {
+            ClientRequestId = Guid.NewGuid(), LeaveTypeId = type.Id,
+            FromDate = new DateOnly(year, 2, 10), ToDate = new DateOnly(year, 2, 10),
+            Reason = "Separate annual request"
+        });
+        submission.StatusCode.Should().Be(409);
+        context.Set<EmployeeLeaveApplication>().Count().Should().Be(1);
+    }
+
     private static EmployeeAttendance Attendance(long tenant, long employeeId, DateOnly date, AttendanceState state) => new()
     {
         TenantId = tenant, EmployeeId = employeeId, AttendanceDate = date, State = state

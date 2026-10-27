@@ -20,13 +20,25 @@ public sealed class LeaveEntitlementService : ILeaveEntitlementService
     private readonly TimeProvider clock;
     public LeaveEntitlementService(EduOSDbContext db, ICurrentUserService user, TimeProvider clock)
     { this.db = db; this.user = user; this.clock = clock; }
-    private bool Authorized => user.IsAuthenticated && user.TenantId > 0 && user.IsTenantAdmin;
+    private bool Authorized => user.IsAuthenticated && user.TenantId > 0 && user.IsTenantAdmin && db.CurrentTenantId == user.TenantId;
     private static ApiResponse<T> Error<T>(string message, int code = 400) => ApiResponse<T>.ErrorResponse(message, code);
     private IQueryable<LeaveType> Types => db.LeaveTypes.Where(x => x.TenantId == user.TenantId && !x.IsDeleted);
     private IQueryable<Employee> Employees => db.Employees.Where(x => x.TenantId == user.TenantId && !x.IsDeleted);
     private IQueryable<EmployeeLeaveEntitlement> Entitlements => db.EmployeeLeaveEntitlements.Where(x => x.TenantId == user.TenantId && !x.IsDeleted);
     private IQueryable<EmployeeLeaveAdjustment> Adjustments => db.EmployeeLeaveAdjustments.Where(x => x.TenantId == user.TenantId && !x.IsDeleted);
     private IQueryable<EmployeeLeaveApplication> Applications => db.EmployeeLeaveApplications.Where(x => x.TenantId == user.TenantId && !x.IsDeleted);
+    // Legacy cross-calendar-year leave has no persisted allocation by year.
+    // Do not guess how its TotalDays should be split or silently undercount it.
+    private Task<bool> HasCrossYearCommitment(long employeeId, long? leaveTypeId, int year, CancellationToken ct)
+    {
+        var first = new DateOnly(year, 1, 1);
+        var next = first.AddYears(1);
+        return Applications.AsNoTracking().AnyAsync(x =>
+            x.EmployeeId == employeeId && (!leaveTypeId.HasValue || x.LeaveTypeId == leaveTypeId.Value) &&
+            (x.State == LeaveState.Approved || x.State == LeaveState.Submitted) &&
+            ((x.FromDate < first && x.ToDate >= first) ||
+             (x.FromDate < next && x.ToDate >= next)), ct);
+    }
     private static string Version(byte[] bytes) => Convert.ToBase64String(bytes);
     private static bool Matches(byte[] actual, string? value)
     {
@@ -134,6 +146,9 @@ public sealed class LeaveEntitlementService : ILeaveEntitlementService
                 if (employee == null) return Error<EmployeeLeaveEntitlementDto>("Employee not found.", 404);
                 var type = await Types.FirstOrDefaultAsync(x => x.Id == request.LeaveTypeId && x.IsActive, token);
                 if (type == null) return Error<EmployeeLeaveEntitlementDto>("Active leave type not found.", 404);
+                if (await HasCrossYearCommitment(employee.Id, type.Id, request.Year, token))
+                    return Error<EmployeeLeaveEntitlementDto>(
+                        "Cross-year leave requires reconciliation before annual entitlement changes.", 409);
                 var row = await Entitlements.FirstOrDefaultAsync(x => x.EmployeeId == employee.Id &&
                     x.LeaveTypeId == type.Id && x.Year == request.Year, token);
                 if (row != null && !Matches(row.RowVersion, request.RowVersion))
@@ -177,6 +192,9 @@ public sealed class LeaveEntitlementService : ILeaveEntitlementService
                 if (employee == null) return Error<EmployeeLeaveAdjustmentDto>("Employee not found.", 404);
                 var type = await Types.FirstOrDefaultAsync(x => x.Id == request.LeaveTypeId && x.IsActive, token);
                 if (type == null) return Error<EmployeeLeaveAdjustmentDto>("Active leave type not found.", 404);
+                if (await HasCrossYearCommitment(employee.Id, type.Id, request.Year, token))
+                    return Error<EmployeeLeaveAdjustmentDto>(
+                        "Cross-year leave requires reconciliation before annual adjustments.", 409);
                 var reason = request.Reason.Trim();
                 // Existing DTO has no client-request ID; prevent exact duplicate adjustment replay.
                 var replay = await Adjustments.AsNoTracking().FirstOrDefaultAsync(x => x.EmployeeId == employee.Id &&
@@ -206,6 +224,9 @@ public sealed class LeaveEntitlementService : ILeaveEntitlementService
         if (employeeReference == Guid.Empty || !ValidYear(year)) return Error<IReadOnlyList<LeaveBalanceDto>>("Invalid employee or year.");
         var employee = await FindEmployee(employeeReference, ct);
         if (employee == null) return Error<IReadOnlyList<LeaveBalanceDto>>("Employee not found.", 404);
+        if (await HasCrossYearCommitment(employee.Id, null, year, ct))
+            return Error<IReadOnlyList<LeaveBalanceDto>>(
+                "Cross-year leave requires reconciliation before annual balances can be reported.", 409);
         var types = await Types.AsNoTracking().OrderBy(x => x.Name).ToListAsync(ct);
         var entitlements = await Entitlements.AsNoTracking().Where(x => x.EmployeeId == employee.Id && x.Year == year)
             .ToDictionaryAsync(x => x.LeaveTypeId, ct);
@@ -236,6 +257,9 @@ public sealed class LeaveEntitlementService : ILeaveEntitlementService
                 RemainingDays = allowed - (used?.Used ?? 0m) - (used?.Pending ?? 0m)
             };
         }).ToArray();
+        if (result.Any(x => x.RemainingDays < 0m))
+            return Error<IReadOnlyList<LeaveBalanceDto>>(
+                "Historical leave exceeds annual entitlement; reconcile before reporting balances.", 409);
         return ApiResponse<IReadOnlyList<LeaveBalanceDto>>.SuccessResponse(result);
     }
 }

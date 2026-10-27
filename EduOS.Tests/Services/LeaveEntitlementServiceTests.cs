@@ -1,3 +1,4 @@
+using EduOS.Core.DTOs.Attendance;
 using EduOS.Core.Entities.Attendance;
 using EduOS.Core.Entities.HR;
 using EduOS.Core.Enums.Domain;
@@ -59,6 +60,78 @@ public sealed class LeaveEntitlementServiceTests
             .GetLeaveTypesAsync();
         result.Success.Should().BeFalse();
         result.StatusCode.Should().Be(403);
+    }
+
+
+    [Fact]
+    public async Task Mismatched_database_tenant_denies_entitlement_access()
+    {
+        var accessor = new HttpContextAccessor { HttpContext = new DefaultHttpContext() };
+        accessor.HttpContext.Items["TenantId"] = 11L;
+        await using var db = new EduOSDbContext(new DbContextOptionsBuilder<EduOSDbContext>()
+            .UseInMemoryDatabase("leave-tenant-" + Guid.NewGuid().ToString("N")).Options, accessor);
+        var result = await new LeaveEntitlementService(db, new TestUser(10, true), TimeProvider.System)
+            .GetLeaveTypesAsync();
+        result.StatusCode.Should().Be(403);
+    }
+
+    [Fact]
+    public async Task Legacy_cross_year_commitment_blocks_balance_entitlement_and_adjustment()
+    {
+        var accessor = new HttpContextAccessor { HttpContext = new DefaultHttpContext() };
+        accessor.HttpContext.Items["TenantId"] = 10L;
+        await using var db = new EduOSDbContext(new DbContextOptionsBuilder<EduOSDbContext>()
+            .UseInMemoryDatabase("leave-cross-year-" + Guid.NewGuid().ToString("N")).Options, accessor);
+        var employee = new Employee { TenantId = 10, PublicId = Guid.NewGuid(),
+            EmployeeCode = "OWN", FullName = "Own", PersonId = 1, DesignationId = 1,
+            JoiningDate = new DateOnly(2025, 1, 1) };
+        var type = new LeaveType { TenantId = 10, Name = "Annual", Code = "ANN",
+            MaxDaysPerYear = 20, IsActive = true };
+        db.Employees.Add(employee); db.LeaveTypes.Add(type);
+        await TestTenantSeeder.SaveAsync(db);
+        db.EmployeeLeaveApplications.Add(new EmployeeLeaveApplication
+        {
+            TenantId = 10, EmployeeId = employee.Id, LeaveTypeId = type.Id,
+            FromDate = new DateOnly(2025, 12, 31), ToDate = new DateOnly(2026, 1, 2),
+            TotalDays = 3m, State = LeaveState.Approved, Reason = "Legacy cross-year",
+            ClientRequestId = Guid.NewGuid()
+        });
+        await TestTenantSeeder.SaveAsync(db);
+        var service = new LeaveEntitlementService(db, new TestUser(10, true), TimeProvider.System);
+        (await service.GetBalancesAsync(employee.PublicId, 2026)).StatusCode.Should().Be(409);
+        (await service.SaveEntitlementAsync(new SaveEmployeeLeaveEntitlementRequestDto
+        {
+            EmployeeReference = employee.PublicId, LeaveTypeId = type.Id, Year = 2026,
+            EntitledDays = 20m
+        })).StatusCode.Should().Be(409);
+        (await service.AddAdjustmentAsync(new CreateEmployeeLeaveAdjustmentRequestDto
+        {
+            EmployeeReference = employee.PublicId, LeaveTypeId = type.Id, Year = 2026,
+            Days = -1m, Reason = "Correction"
+        })).StatusCode.Should().Be(409);
+        db.EmployeeLeaveEntitlements.Should().BeEmpty();
+        db.EmployeeLeaveAdjustments.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Historical_overdraw_is_not_reported_as_a_valid_balance()
+    {
+        var accessor = new HttpContextAccessor { HttpContext = new DefaultHttpContext() };
+        accessor.HttpContext.Items["TenantId"] = 10L;
+        await using var db = new EduOSDbContext(new DbContextOptionsBuilder<EduOSDbContext>()
+            .UseInMemoryDatabase("leave-overdraw-" + Guid.NewGuid().ToString("N")).Options, accessor);
+        var employee = new Employee { TenantId = 10, PublicId = Guid.NewGuid(),
+            EmployeeCode = "OWN", FullName = "Own", PersonId = 1, DesignationId = 1,
+            JoiningDate = new DateOnly(2025, 1, 1) };
+        var type = new LeaveType { TenantId = 10, Name = "Annual", Code = "ANN",
+            MaxDaysPerYear = 2, IsActive = true };
+        db.Employees.Add(employee); db.LeaveTypes.Add(type);
+        await TestTenantSeeder.SaveAsync(db);
+        db.EmployeeLeaveApplications.Add(Leave(10, employee.Id, type.Id, 2026, 3, LeaveState.Approved));
+        await TestTenantSeeder.SaveAsync(db);
+        var result = await new LeaveEntitlementService(db, new TestUser(10, true), TimeProvider.System)
+            .GetBalancesAsync(employee.PublicId, 2026);
+        result.StatusCode.Should().Be(409);
     }
 
     private static EmployeeLeaveApplication Leave(long tenant, long employeeId, long typeId, int year, int days, LeaveState state) => new()
