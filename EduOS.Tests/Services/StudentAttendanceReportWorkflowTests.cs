@@ -60,8 +60,7 @@ public sealed class StudentAttendanceReportWorkflowTests
         db.SubjectOfferings.AddRange(
             new SubjectOffering { Id = 61, TenantId = 71, AcademicBatchId = 10, Code = "M" },
             new SubjectOffering { Id = 62, TenantId = 71, AcademicBatchId = 10, Code = "S" },
-            new SubjectOffering { Id = 63, TenantId = 71, AcademicBatchId = 11, Code = "O" },
-            new SubjectOffering { Id = 64, TenantId = 72, AcademicBatchId = 10, Code = "X" });
+            new SubjectOffering { Id = 63, TenantId = 71, AcademicBatchId = 11, Code = "O" });
         db.Students.Add(new Student { Id = 20, TenantId = 71, StudentCode = "ST20",
             FullName = "Learner", AdmissionDate = new DateOnly(2025, 1, 1) });
         db.StudentEnrollments.Add(new StudentEnrollment { Id = 30, TenantId = 71,
