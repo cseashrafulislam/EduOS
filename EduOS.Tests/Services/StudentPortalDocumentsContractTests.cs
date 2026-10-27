@@ -54,7 +54,9 @@ public sealed class StudentPortalDocumentsContractTests
         var view = Read("EduOS.App", "Views", "StudentPortal", "Index.cshtml");
         view.Should().Contain("data-portal-tab=\"documents\"");
         var js = Read("EduOS.App", "wwwroot", "js", "student-portal", "index.js");
-        js.Should().Contain("renderDocuments(data || [], student)");
+        // The portal now handles the API's array response explicitly before rendering.
+        js.Should().Contain("const rows = Array.isArray(data) ? data : [];");
+        js.Should().Contain("renderDocuments(rows, student)");
         js.Should().Contain("credentials: 'same-origin'");
         js.Should().Contain("textContent = 'Download'");
         js.Should().NotContain("innerHTML");
