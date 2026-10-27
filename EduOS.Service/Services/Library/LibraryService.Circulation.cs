@@ -41,9 +41,9 @@ public sealed partial class LibraryService
                 x.Student.StudentCode.Contains(term) || x.Book.Title.Contains(term) ||
                 x.Copy.AccessionNumber.Contains(term));
         }
-        if (IsCampusScopedLibrarian)
+        if (IsCampusScopedStaff)
         {
-            var staffCampuses = StaffCampusIds(tenant, today);
+            var staffCampuses = AllowedStaffCampusIds(tenant, today);
             if (staffCampuses == null || _branches == null)
                 return Denied<PagedResult<LibraryCirculationRowDto>>();
             var permittedBranches = _branches.GetQueryable().AsNoTracking()
@@ -104,7 +104,7 @@ public sealed partial class LibraryService
         var tenant = _user.TenantId;
         var query = _branches.GetQueryable().AsNoTracking().Where(x =>
             x.TenantId == tenant && x.IsActive && !x.IsDeleted);
-        if (IsCampusScopedLibrarian)
+        if (IsCampusScopedStaff)
         {
             var campuses = StaffCampusIds(tenant, DateOnly.FromDateTime(_clock.GetUtcNow().UtcDateTime));
             if (campuses == null) return Denied<PagedResult<LibraryBranchDto>>();
@@ -130,8 +130,25 @@ public sealed partial class LibraryService
             new PagedResult<LibraryBranchDto> { Items = rows, TotalCount = total, Page = page, PageSize = pageSize });
     }
 
-    private bool IsCampusScopedLibrarian =>
-        !_user.IsTenantAdmin && !_user.IsInRole("Principal") && _user.IsInRole("Librarian");
+    private bool IsCampusScopedStaff =>
+        !_user.IsTenantAdmin && (_user.IsInRole("Principal") || _user.IsInRole("Librarian"));
+
+    // Principal uses active campus grants; Librarian uses active employee-campus assignments.
+    private IQueryable<long>? AllowedStaffCampusIds(long tenant, DateOnly today)
+    {
+        if (_user.IsInRole("Principal"))
+        {
+            if (_campusAccesses == null || _campuses == null) return null;
+            var active = _campuses.GetQueryable().AsNoTracking()
+                .Where(x => x.TenantId == tenant && x.IsActive && !x.IsDeleted)
+                .Select(x => x.Id);
+            return _campusAccesses.GetQueryable().AsNoTracking()
+                .Where(x => x.TenantId == tenant && x.UserId == _user.UserId &&
+                    x.IsActive && !x.IsDeleted && active.Contains(x.CampusId))
+                .Select(x => x.CampusId);
+        }
+        return StaffCampusIds(tenant, today);
+    }
 
     private IQueryable<long>? StaffCampusIds(long tenant, DateOnly today)
     {
@@ -149,11 +166,11 @@ public sealed partial class LibraryService
 
     private async Task<bool> StaffCanManageBranchAsync(long? branchId, CancellationToken ct)
     {
-        if (!IsCampusScopedLibrarian) return true;
+        if (!IsCampusScopedStaff) return true;
         if (!branchId.HasValue || _branches == null) return false;
         var tenant = _user.TenantId;
         var today = DateOnly.FromDateTime(_clock.GetUtcNow().UtcDateTime);
-        var campuses = StaffCampusIds(tenant, today);
+        var campuses = AllowedStaffCampusIds(tenant, today);
         return campuses != null && await _branches.GetQueryable().AsNoTracking().AnyAsync(x =>
             x.TenantId == tenant && x.Id == branchId.Value && !x.IsDeleted &&
             campuses.Contains(x.CampusId), ct);

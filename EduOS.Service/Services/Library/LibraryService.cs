@@ -4,6 +4,8 @@ using EduOS.Core.Entities.Library;
 using EduOS.Core.Entities.Academic;
 using EduOS.Core.Entities.Students;
 using EduOS.Core.Entities.HR;
+using EduOS.Core.Entities.Auth;
+using EduOS.Core.Entities.SaaS;
 using EduOS.Core.Enums.Domain;
 using EduOS.Core.Interfaces;
 using EduOS.Core.Interfaces.IRepositories;
@@ -23,6 +25,8 @@ public sealed partial class LibraryService : ILibraryService
     private readonly IGenericRepository<LibraryBranch>? _branches;
     private readonly IGenericRepository<Employee>? _staffEmployees;
     private readonly IGenericRepository<EmployeeCampusAssignment>? _staffCampusAssignments;
+    private readonly IGenericRepository<UserCampusAccess>? _campusAccesses;
+    private readonly IGenericRepository<Campus>? _campuses;
     private readonly IGenericRepository<Student> _students;
     private readonly IGenericRepository<StudentEnrollment> _enrollments;
     private readonly IUnitOfWork _uow;
@@ -36,11 +40,14 @@ public sealed partial class LibraryService : ILibraryService
         ICurrentUserService currentUser, TimeProvider clock, ILogger<LibraryService> logger,
         IGenericRepository<LibraryBranch>? branches = null,
         IGenericRepository<Employee>? staffEmployees = null,
-        IGenericRepository<EmployeeCampusAssignment>? staffCampusAssignments = null)
+        IGenericRepository<EmployeeCampusAssignment>? staffCampusAssignments = null,
+        IGenericRepository<UserCampusAccess>? campusAccesses = null,
+        IGenericRepository<Campus>? campuses = null)
     {
         _books = books; _copies = copies; _issues = issues; _categories = categories;
         _students = students; _enrollments = enrollments; _uow = unitOfWork; _user = currentUser; _clock = clock; _logger = logger;
         _branches = branches; _staffEmployees = staffEmployees; _staffCampusAssignments = staffCampusAssignments;
+        _campusAccesses = campusAccesses; _campuses = campuses;
     }
 
 
@@ -131,9 +138,9 @@ public sealed partial class LibraryService : ILibraryService
         var ids = books.Select(x => x.Id).ToArray();
         var copiesQuery = _copies.GetQueryable().AsNoTracking().Where(x =>
             x.TenantId == tenant && !x.IsDeleted && ids.Contains(x.BookId));
-        if (IsCampusScopedLibrarian)
+        if (IsCampusScopedStaff)
         {
-            var campuses = StaffCampusIds(tenant, DateOnly.FromDateTime(_clock.GetUtcNow().UtcDateTime));
+            var campuses = AllowedStaffCampusIds(tenant, DateOnly.FromDateTime(_clock.GetUtcNow().UtcDateTime));
             if (campuses == null || _branches == null) return Denied<PagedResult<BookDto>>();
             var allowedBranches = _branches.GetQueryable().AsNoTracking().Where(x =>
                 x.TenantId == tenant && x.IsActive && !x.IsDeleted && campuses.Contains(x.CampusId))
@@ -171,9 +178,9 @@ public sealed partial class LibraryService : ILibraryService
         if (book == null) return ApiResponse<PagedResult<BookCopyDto>>.ErrorResponse("Book not found.", 404);
         var query = _copies.GetQueryable().AsNoTracking().Where(x =>
             x.TenantId == tenant && x.BookId == book.Id && !x.IsDeleted);
-        if (IsCampusScopedLibrarian)
+        if (IsCampusScopedStaff)
         {
-            var campuses = StaffCampusIds(tenant, DateOnly.FromDateTime(_clock.GetUtcNow().UtcDateTime));
+            var campuses = AllowedStaffCampusIds(tenant, DateOnly.FromDateTime(_clock.GetUtcNow().UtcDateTime));
             if (campuses == null || _branches == null) return Denied<PagedResult<BookCopyDto>>();
             var allowedBranches = _branches.GetQueryable().AsNoTracking().Where(x =>
                 x.TenantId == tenant && x.IsActive && !x.IsDeleted && campuses.Contains(x.CampusId))
@@ -237,6 +244,8 @@ public sealed partial class LibraryService : ILibraryService
                     (row == null || x.Id != row.Id), token);
                 if (duplicate != null)
                 {
+                    if (!await StaffCanManageBranchAsync(duplicate.LibraryBranchId, token))
+                        return ApiResponse<BookCopyDto>.ErrorResponse("Accession belongs to another campus.", 403);
                     if (row == null && duplicate.BookId == book.Id && duplicate.LibraryBranchId == request.LibraryBranchId &&
                         duplicate.Barcode == barcode && duplicate.ShelfNumber == shelf)
                         return ApiResponse<BookCopyDto>.SuccessResponse(MapCopy(duplicate, book), "Copy already registered.");
@@ -406,6 +415,15 @@ public sealed partial class LibraryService : ILibraryService
                 if (studentId == 0 || replay.BookCopyId != request.BookCopyId || replay.StudentId != studentId ||
                     replay.DueDate != request.DueDate || (request.IssueDate != default && replay.IssueDate != request.IssueDate))
                     return Error("Client request ID was reused with different issue details.", 409);
+                // Retry must respect current campus grants, even when the original issue succeeded.
+                if (IsCampusScopedStaff)
+                {
+                    var replayBranchId = await _copies.GetQueryable().AsNoTracking()
+                        .Where(x => x.TenantId == tenant && x.Id == replay.BookCopyId && !x.IsDeleted)
+                        .Select(x => x.LibraryBranchId).FirstOrDefaultAsync(ct);
+                    if (!await StaffCanManageBranchAsync(replayBranchId, ct))
+                        return Error("Copy is outside your assigned campus.", 403);
+                }
                 var prior = await MapIssueAsync(replay, ct);
                 tx.Complete();
                 return ApiResponse<BookIssueDto>.SuccessResponse(prior, "Book issue already processed.");
@@ -493,7 +511,7 @@ public sealed partial class LibraryService : ILibraryService
             var issue = await _issues.GetQueryable().FirstOrDefaultAsync(x => x.TenantId == tenant &&
                 x.PublicId == reference, ct);
             if (issue == null) return Error("Issue not found.", 404);
-            if (IsCampusScopedLibrarian)
+            if (IsCampusScopedStaff)
             {
                 var branchId = await _copies.GetQueryable().AsNoTracking()
                     .Where(x => x.TenantId == tenant && x.Id == issue.BookCopyId && !x.IsDeleted)
