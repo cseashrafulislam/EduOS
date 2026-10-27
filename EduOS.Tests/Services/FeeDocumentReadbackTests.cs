@@ -19,8 +19,9 @@ public sealed class FeeDocumentReadbackTests
     [Fact]
     public async Task Invoice_document_is_scoped_to_student_and_preserves_line_snapshots()
     {
-        await using var db = Database();
-        var data = Seed(db);
+        var store = Guid.NewGuid().ToString("N");
+        await using var db = Database(41, store);
+        var data = Seed(db, store);
         var service = Service(db, new User("Accountant"));
         var result = await service.GetStudentInvoiceDocumentAsync(data.student, data.invoice);
         result.StatusCode.Should().Be(200);
@@ -34,8 +35,9 @@ public sealed class FeeDocumentReadbackTests
     [Fact]
     public async Task Receipt_document_is_scoped_to_student_and_preserves_allocations()
     {
-        await using var db = Database();
-        var data = Seed(db);
+        var store = Guid.NewGuid().ToString("N");
+        await using var db = Database(41, store);
+        var data = Seed(db, store);
         var service = Service(db, new User("TenantAdmin"));
         var result = await service.GetStudentPaymentDocumentAsync(data.student, data.payment);
         result.StatusCode.Should().Be(200);
@@ -51,48 +53,59 @@ public sealed class FeeDocumentReadbackTests
     [Fact]
     public async Task Cashier_and_mismatched_tenant_context_cannot_read_finance_documents()
     {
-        await using var db = Database();
-        var data = Seed(db);
+        var store = Guid.NewGuid().ToString("N");
+        await using var db = Database(41, store);
+        var data = Seed(db, store);
         var cashier = Service(db, new User("Cashier"));
         (await cashier.GetStudentInvoiceDocumentAsync(data.student, data.invoice)).StatusCode.Should().Be(403);
         (await cashier.GetStudentPaymentDocumentAsync(data.student, data.payment)).StatusCode.Should().Be(403);
-        await using var wrongContext = Database(42);
+        await using var wrongContext = Database(42, store);
         var wrongService = Service(wrongContext, new User("Accountant"));
         (await wrongService.GetStudentInvoiceDocumentAsync(data.student, data.invoice)).StatusCode.Should().Be(404);
     }
 
     private static (Guid student, Guid otherStudent, Guid invoice, Guid payment,
-        Guid foreignInvoice, Guid foreignPayment) Seed(EduOSDbContext db)
+        Guid foreignInvoice, Guid foreignPayment) Seed(EduOSDbContext db, string store)
     {
         var student = Guid.NewGuid(); var other = Guid.NewGuid();
         var invoice = Guid.NewGuid(); var payment = Guid.NewGuid();
         var foreignInvoice = Guid.NewGuid(); var foreignPayment = Guid.NewGuid();
         db.Students.AddRange(
             new Student { Id = 1, TenantId = 41, PublicId = student, StudentCode = "S-41", FullName = "Learner" },
-            new Student { Id = 2, TenantId = 41, PublicId = other, StudentCode = "S-42", FullName = "Other" },
-            new Student { Id = 3, TenantId = 42, StudentCode = "FOREIGN", FullName = "Foreign" });
+            new Student { Id = 2, TenantId = 41, PublicId = other, StudentCode = "S-42", FullName = "Other" });
         db.StudentEnrollments.AddRange(
             new StudentEnrollment { Id = 10, TenantId = 41, StudentId = 1, CampusId = 5, RollNo = "1" },
-            new StudentEnrollment { Id = 11, TenantId = 41, StudentId = 2, CampusId = 5, RollNo = "2" },
-            new StudentEnrollment { Id = 12, TenantId = 42, StudentId = 3, CampusId = 5, RollNo = "3" });
+            new StudentEnrollment { Id = 11, TenantId = 41, StudentId = 2, CampusId = 5, RollNo = "2" });
         db.StudentInvoices.AddRange(
             new StudentInvoice { Id = 20, TenantId = 41, PublicId = invoice, StudentEnrollmentId = 10,
                 InvoiceNumber = "INV-41", InvoiceDate = new DateOnly(2026, 10, 1),
                 DueDate = new DateOnly(2026, 10, 31), TotalAmount = 100m, Subtotal = 100m,
-                PaidAmount = 50m, DueAmount = 50m },
-            new StudentInvoice { Id = 21, TenantId = 42, PublicId = foreignInvoice, StudentEnrollmentId = 12,
-                InvoiceNumber = "INV-FOREIGN", TotalAmount = 10m });
+                PaidAmount = 50m, DueAmount = 50m });
         db.StudentInvoiceLines.Add(new StudentInvoiceLine { Id = 30, TenantId = 41,
             StudentInvoiceId = 20, FeeHeadId = 4, FeeHeadNameSnapshot = "Tuition snapshot",
             Description = "October", Amount = 100m, NetAmount = 100m });
         db.StudentPayments.AddRange(
             new StudentPayment { Id = 40, TenantId = 41, PublicId = payment, StudentId = 1,
-                ReceiptNumber = "RCP-41", Amount = 50m, PaymentDate = new DateOnly(2026, 10, 2) },
-            new StudentPayment { Id = 41, TenantId = 42, PublicId = foreignPayment, StudentId = 3,
-                ReceiptNumber = "RCP-FOREIGN", Amount = 10m });
+                ReceiptNumber = "RCP-41", Amount = 50m, PaymentDate = new DateOnly(2026, 10, 2) });
         db.PaymentAllocations.Add(new PaymentAllocation { Id = 50, TenantId = 41,
             StudentPaymentId = 40, StudentInvoiceId = 20, Amount = 50m });
         db.SaveChanges();
+        // Cross-tenant fixtures must be inserted through their own authenticated tenant
+        // context. The production SaveChanges tenant guard must never be bypassed.
+        using (var foreign = Database(42, store))
+        {
+            foreign.Students.Add(new Student { Id = 3, TenantId = 42,
+                StudentCode = "FOREIGN", FullName = "Foreign" });
+            foreign.StudentEnrollments.Add(new StudentEnrollment { Id = 12, TenantId = 42,
+                StudentId = 3, CampusId = 5, RollNo = "3" });
+            foreign.StudentInvoices.Add(new StudentInvoice { Id = 21, TenantId = 42,
+                PublicId = foreignInvoice, StudentEnrollmentId = 12,
+                InvoiceNumber = "INV-FOREIGN", TotalAmount = 10m });
+            foreign.StudentPayments.Add(new StudentPayment { Id = 41, TenantId = 42,
+                PublicId = foreignPayment, StudentId = 3,
+                ReceiptNumber = "RCP-FOREIGN", Amount = 10m });
+            foreign.SaveChanges();
+        }
         return (student, other, invoice, payment, foreignInvoice, foreignPayment);
     }
 
@@ -107,12 +120,12 @@ public sealed class FeeDocumentReadbackTests
         new GenericRepository<Campus>(db), new GenericRepository<Tenant>(db),
         db, user, TimeProvider.System, NullLogger<FeeBillingService>.Instance);
 
-    private static EduOSDbContext Database(long tenant = 41)
+    private static EduOSDbContext Database(long tenant = 41, string? store = null)
     {
         var accessor = new HttpContextAccessor { HttpContext = new DefaultHttpContext() };
         accessor.HttpContext.Items["TenantId"] = tenant;
         return new EduOSDbContext(new DbContextOptionsBuilder<EduOSDbContext>()
-            .UseInMemoryDatabase("fee-documents-" + Guid.NewGuid().ToString("N")).Options, accessor);
+            .UseInMemoryDatabase("fee-documents-" + (store ?? Guid.NewGuid().ToString("N"))).Options, accessor);
     }
 
     private sealed class User(string role) : ICurrentUserService
