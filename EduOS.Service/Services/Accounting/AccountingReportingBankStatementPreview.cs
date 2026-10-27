@@ -47,6 +47,14 @@ public sealed partial class AccountingReportingService
             .Where(x => !string.IsNullOrWhiteSpace(x.Reference))
             .GroupBy(x => Key(x.Date, x.Deposit, x.Withdrawal, x.Reference).Reference)
             .ToDictionary(x => x.Key, x => x.ToArray());
+        // A reference reused on different dates or amounts is not an unambiguous bank identifier.
+        // Check frequency across the WHOLE period, not only within an exact-match key.
+        var reusedReferences = ledgerByReference.Keys.Concat(statementByReference.Keys)
+            .Distinct(StringComparer.Ordinal)
+            .Where(reference =>
+                (ledgerByReference.TryGetValue(reference, out var ledgerOccurrences) && ledgerOccurrences.Length > 1) ||
+                (statementByReference.TryGetValue(reference, out var statementOccurrences) && statementOccurrences.Length > 1))
+            .ToHashSet(StringComparer.Ordinal);
         var exceptions = new List<BankStatementExceptionDto>();
         int matched = 0, missingLedger = 0, missingStatement = 0;
         var matches = new List<BankStatementMatchDto>();
@@ -56,7 +64,7 @@ public sealed partial class AccountingReportingService
             statement.TryGetValue(key, out var b);
             a ??= Array.Empty<BankBookLineDto>();
             b ??= Array.Empty<BankStatementMovementDto>();
-            if (key.Reference.Length > 0 && a.Length == 1 && b.Length == 1)
+            if (key.Reference.Length > 0 && !reusedReferences.Contains(key.Reference) && a.Length == 1 && b.Length == 1)
             {
                 matched++;
                 matches.Add(new BankStatementMatchDto
@@ -72,6 +80,8 @@ public sealed partial class AccountingReportingService
                 reason = "Missing reference: manual review";
             else if (a.Length > 1 || b.Length > 1)
                 reason = "Duplicate key: ambiguous";
+            else if (reusedReferences.Contains(key.Reference))
+                reason = "Reference reused: ambiguous";
             else if (ledgerByReference.TryGetValue(key.Reference, out var ledgerCandidates) &&
                 statementByReference.TryGetValue(key.Reference, out var statementCandidates))
             {
@@ -114,7 +124,7 @@ public sealed partial class AccountingReportingService
             StatementOpeningBalance = request.OpeningBalance, StatementClosingBalance = request.ClosingBalance,
             ClosingVariance = closingVariance, OpeningVariance = openingVariance,
             MovementVariance = movementVariance, IsExactMatch = isExactMatch,
-            MatchedCount = matched, Matches = matches, UnmatchedLedgerCount = missingLedger,
+            MatchedCount = matched, ReferenceCollisionCount = reusedReferences.Count, Matches = matches, UnmatchedLedgerCount = missingLedger,
             UnmatchedStatementCount = missingStatement, Exceptions = exceptions
         });
     }

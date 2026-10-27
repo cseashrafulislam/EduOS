@@ -69,7 +69,23 @@ if (panel) {
         if (!response.ok || !payload.success) throw new Error(payload.message || 'Comparison failed.');
         return payload.data;
     }
-    let report = null;
+    let report = null, comparisonFrom = '', revision = 0;
+    // Any changed input invalidates the exported evidence, including edits during a request.
+    const invalidate = () => {
+        revision++;
+        report = null;
+        el('statementExport').disabled = true;
+        el('statementSummary').textContent = '';
+        el('statementMatchCount').textContent = '0';
+        el('statementMatches').replaceChildren();
+        el('statementExceptions').replaceChildren();
+        el('statementNotice').className = 'alert d-none';
+    };
+    ['statementBank','statementFrom','statementTo','statementOpening','statementClosing','statementCsv']
+        .forEach(id => {
+            el(id).addEventListener('input', invalidate);
+            el(id).addEventListener('change', invalidate);
+        });
     const today = new Date().toLocaleDateString('en-CA');
     el('statementFrom').value = today.slice(0, 4) + '-01-01';
     el('statementTo').value = today;
@@ -84,14 +100,13 @@ if (panel) {
             if (!file) return;
             if (file.size > 80000) throw new Error('CSV must be 80 KB or smaller.');
             el('statementCsv').value = await file.text();
+            invalidate();
         } catch (e) { show(e.message, true); }
     });
     el('bankStatementForm').addEventListener('submit', async event => {
-        event.preventDefault(); report = null; el('statementExport').disabled = true;
-        el('statementSummary').textContent = '';
-        el('statementMatchCount').textContent = '0';
-        el('statementMatches').replaceChildren();
-        el('statementExceptions').replaceChildren();
+        event.preventDefault();
+        invalidate();
+        const submittedRevision = revision;
         const bank = el('statementBank').value, from = el('statementFrom').value, to = el('statementTo').value;
         if (!/^\d+$/.test(bank) || BigInt(bank) <= 0n || !Number.isSafeInteger(Number(bank)) || !from || !to || from > to)
             return show('Choose a bank and valid date range.', true);
@@ -106,7 +121,9 @@ if (panel) {
                 body:JSON.stringify({bankAccountId:Number(bank),fromDate:from,toDate:to,
                     openingBalance:opening,closingBalance:closing,movements})
             });
+            if (submittedRevision !== revision) return; // Inputs changed while comparing.
             report = result;
+            comparisonFrom = from;
             el('statementMatchCount').textContent = String((result.matches || []).length);
             el('statementMatches').innerHTML = (result.matches || []).map(x =>
                 '<tr><td>' + escapeHtml(x.date) + '</td><td>' + escapeHtml(x.journalNumber) +
@@ -115,7 +132,8 @@ if (panel) {
                 '</td></tr>').join('') ||
                 '<tr><td colspan="5">No unique exact matches.</td></tr>';
             el('statementSummary').textContent = result.bankName + ': ' + result.matchedCount +
-                ' matched; ' + result.unmatchedLedgerCount + ' unmatched ledger; ' +
+                ' matched; ' + result.referenceCollisionCount + ' reused references; ' +
+                result.unmatchedLedgerCount + ' unmatched ledger; ' +
                 result.unmatchedStatementCount + ' unmatched statement. Opening variance BDT ' +
                 money(result.openingVariance) + '; movement variance BDT ' +
                 money(result.movementVariance) + '; closing variance BDT ' +
@@ -136,7 +154,8 @@ if (panel) {
     el('statementExport').addEventListener('click', () => {
         if (!report) return;
         const rows = [['Status','Source','Date','Journal','Reference','Deposit','Withdrawal','Reason'],
-            ['Summary','Bank',el('statementFrom').value,'',report.bankName,'','','Comparison only; not approved or cleared'],
+            ['Summary','Bank',comparisonFrom,'',report.bankName,'','','Comparison only; not approved or cleared'],
+            ['Summary','Reused references','','','','','',String(report.referenceCollisionCount)],
             ['Summary','Opening variance','','','','', '',money(report.openingVariance)],
             ['Summary','Movement variance','','','','', '',money(report.movementVariance)],
             ['Summary','Closing variance','','','','', '',money(report.closingVariance)],
@@ -148,7 +167,7 @@ if (panel) {
         const csv = '\uFEFF' + rows.map(x => x.map(cell).join(',')).join('\r\n') + '\r\n';
         const url = URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));
         const a = document.createElement('a'); a.href = url;
-        a.download = 'bank-statement-comparison-' + el('statementFrom').value + '.csv';
+        a.download = 'bank-statement-comparison-' + comparisonFrom + '.csv';
         document.body.appendChild(a); a.click(); a.remove();
         setTimeout(() => URL.revokeObjectURL(url), 1000);
     });

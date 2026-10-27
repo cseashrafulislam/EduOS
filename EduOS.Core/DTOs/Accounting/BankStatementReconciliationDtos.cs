@@ -50,6 +50,8 @@ public sealed class BankStatementPreviewDto
     // Read-only evidence only; never signifies approval, clearance or posting.
     public bool IsExactMatch { get; set; }
     public int MatchedCount { get; set; }
+    // Distinct normalized references repeated within either source; never auto-cleared.
+    public int ReferenceCollisionCount { get; set; }
     public IReadOnlyList<BankStatementMatchDto> Matches { get; set; } = Array.Empty<BankStatementMatchDto>();
     public int UnmatchedLedgerCount { get; set; }
     public int UnmatchedStatementCount { get; set; }

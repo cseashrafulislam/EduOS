@@ -16,6 +16,7 @@ public sealed class BankStatementReconciliationPreviewTests
     private static readonly DateOnly Day = new(2026, 10, 15);
     [Theory]
     [InlineData("DEP-1", 1, 0)]
+    [InlineData(" dep-1 ", 1, 0)]
     [InlineData("OTHER", 0, 2)]
     [InlineData("", 0, 2)]
     public async Task Exact_unique_reference_only_is_matched(string reference, int matched, int exceptions)
@@ -136,6 +137,67 @@ public sealed class BankStatementReconciliationPreviewTests
         response.Data.Exceptions.Should().HaveCount(2);
         response.Data.Exceptions.Should().OnlyContain(x => x.Reason == "Date differs: manual review");
         (await db.Journals.SingleAsync()).State.Should().Be(JournalState.Posted);
+    }
+
+    [Fact]
+    public async Task Reused_reference_on_different_days_cannot_produce_false_exact_match()
+    {
+        await using var db = Database();
+        Seed(db);
+        SeedSecondJournal(db, "DEP-1", Day.AddDays(1), 50m);
+        var request = Request("DEP-1");
+        request.ToDate = Day.AddDays(1);
+        request.ClosingBalance = 150m;
+        request.Movements = new[]
+        {
+            new BankStatementMovementDto { Date = Day, Reference = "DEP-1", Deposit = 100m },
+            new BankStatementMovementDto { Date = Day.AddDays(1), Reference = "DEP-1", Deposit = 50m }
+        };
+        var result = await new AccountingReportingService(db, new User()).PreviewBankStatementAsync(request);
+        result.StatusCode.Should().Be(200);
+        result.Data!.ReferenceCollisionCount.Should().Be(1);
+        result.Data.MatchedCount.Should().Be(0);
+        result.Data.IsExactMatch.Should().BeFalse();
+        result.Data.UnmatchedLedgerCount.Should().Be(2);
+        result.Data.UnmatchedStatementCount.Should().Be(2);
+        result.Data.Exceptions.Should().HaveCount(4);
+        result.Data.Exceptions.Should().OnlyContain(x => x.Reason == "Reference reused: ambiguous");
+    }
+
+    [Fact]
+    public async Task Reused_reference_in_statement_only_blocks_otherwise_exact_ledger_match()
+    {
+        await using var db = Database();
+        Seed(db);
+        var request = Request("DEP-1");
+        request.ToDate = Day.AddDays(1);
+        request.ClosingBalance = 150m;
+        request.Movements = new[]
+        {
+            new BankStatementMovementDto { Date = Day, Reference = "DEP-1", Deposit = 100m },
+            new BankStatementMovementDto { Date = Day.AddDays(1), Reference = "dep-1", Deposit = 50m }
+        };
+        var result = await new AccountingReportingService(db, new User()).PreviewBankStatementAsync(request);
+        result.StatusCode.Should().Be(200);
+        result.Data!.ReferenceCollisionCount.Should().Be(1);
+        result.Data.MatchedCount.Should().Be(0);
+        result.Data.UnmatchedLedgerCount.Should().Be(1);
+        result.Data.UnmatchedStatementCount.Should().Be(2);
+        result.Data.Exceptions.Should().HaveCount(3);
+        result.Data.Exceptions.Should().OnlyContain(x => x.Reason == "Reference reused: ambiguous");
+    }
+
+    private static void SeedSecondJournal(EduOSDbContext db, string reference, DateOnly date, decimal amount)
+    {
+        db.Journals.Add(new Journal { Id = 2, TenantId = 41, JournalNumber = "J-2",
+            JournalDate = date, AccountingPeriodId = 1, State = JournalState.Posted,
+            ReferenceNumber = reference });
+        db.JournalLines.AddRange(
+            new JournalLine { Id = 3, TenantId = 41, JournalId = 2, AccountId = 1,
+                LineNo = 1, DebitAmount = amount },
+            new JournalLine { Id = 4, TenantId = 41, JournalId = 2, AccountId = 2,
+                LineNo = 2, CreditAmount = amount });
+        db.SaveChanges();
     }
 
     private static BankStatementPreviewRequestDto Request(string reference) => new()

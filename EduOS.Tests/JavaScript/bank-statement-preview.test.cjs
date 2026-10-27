@@ -23,6 +23,12 @@ test('statement preview is authorized, anti-forgery protected and read-only', ()
   assert.match(script, /movementVariance/);
   assert.match(script, /isExactMatch/);
   assert.match(service, /Reference reused: ambiguous/);
+  assert.match(service, /reusedReferences.Contains\(key.Reference\)/);
+  assert.match(service, /ReferenceCollisionCount = reusedReferences.Count/);
+  assert.match(script, /referenceCollisionCount/);
+  assert.match(script, /submittedRevision !== revision/);
+  assert.match(script, /addEventListener\('input', invalidate\)/);
+  assert.match(script, /comparisonFrom/);
   assert.match(service, /Date and amount\/direction differ/);
   assert.match(service, /missingLedger == 0 && missingStatement == 0/);
 });
