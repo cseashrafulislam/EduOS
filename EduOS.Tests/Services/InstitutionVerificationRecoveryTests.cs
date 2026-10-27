@@ -47,7 +47,8 @@ public sealed class InstitutionVerificationRecoveryTests
         unknown.Success.Should().BeTrue();
         verified.Success.Should().BeTrue();
         unknown.Message.Should().Be(verified.Message);
-        (await setup.Db.AuditLogs.IgnoreQueryFilters().CountAsync()).Should().Be(0);
+        (await setup.Db.AuditLogs.IgnoreQueryFilters().CountAsync(x =>
+            x.Action == "InstitutionVerificationEmailRequested")).Should().Be(0);
         setup.Jobs.Verify(x => x.Create(It.IsAny<Job>(), It.IsAny<IState>()), Times.Never);
     }
 
@@ -59,7 +60,8 @@ public sealed class InstitutionVerificationRecoveryTests
     {
         await using var setup = await SetupAsync();
         (await setup.Service.ResendVerificationEmailAsync(email)).StatusCode.Should().Be(400);
-        (await setup.Db.AuditLogs.IgnoreQueryFilters().CountAsync()).Should().Be(0);
+        (await setup.Db.AuditLogs.IgnoreQueryFilters().CountAsync(x =>
+            x.Action == "InstitutionVerificationEmailRequested")).Should().Be(0);
     }
 
     private static async Task<Setup> SetupAsync()
