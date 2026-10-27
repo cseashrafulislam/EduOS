@@ -201,11 +201,11 @@ async function openAudit(invoiceReference){
 }
 function exportAudit(){
  const r=state.auditData;if(!r)return;
- const safe=v=>{let t=String(v??'');if(/^[\\s\\u0000-\\u001f]*[=+\\-@]/.test(t))t="'"+t;return '"'+t.replace(/"/g,'""')+'"';};
+ const safe=v=>{let t=String(v??'');if(/^[\s\u0000-\u001f]*[=+\-@]/.test(t))t="'"+t;return '"'+t.replace(/"/g,'""')+'"';};
  const rows=[['Invoice','Receipt','Date','Allocation BDT','Payment state','GL journal'],
   ...(r.items||[]).map(x=>[r.invoiceNumber,x.receiptNumber,dt(x.paymentDate),
    amount(x.allocationAmount),String(x.paymentState),x.journalId??'Not posted'])];
- const csv='\\uFEFF'+rows.map(row=>row.map(safe).join(',')).join('\\r\\n')+'\\r\\n';
+ const csv='\uFEFF'+rows.map(row=>row.map(safe).join(',')).join('\r\n')+'\r\n';
  const url=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));
  const a=document.createElement('a');a.href=url;a.download='invoice-receipt-audit-page-'+r.page+'.csv';
  document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);
