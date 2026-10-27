@@ -45,6 +45,7 @@
                     <button id="periodReset" class="btn btn-link" type="button">New period</button>
                 </form>
             }
+            <p class="small text-muted">Period closure reconciles posted journals and refuses to ignore legacy soft-deleted journal history. Resolve historical discrepancies before closing.</p>
             @if (canWrite) { <div id="periodCloseReadiness" class="alert alert-info d-none" role="status" aria-live="polite"></div> }
             <div class="table-responsive"><table class="table table-sm"><thead><tr><th>Period</th><th>Start</th><th>End</th><th>Status</th>@if(canWrite){<th>Action</th>}</tr></thead><tbody id="periodRows"></tbody></table></div>
         </div>

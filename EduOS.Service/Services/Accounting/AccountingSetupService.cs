@@ -178,7 +178,10 @@ public sealed partial class AccountingSetupService : IAccountingSetupService
             if (periodId.HasValue && row == null) return ApiResponse<AccountingPeriodDto>.ErrorResponse("Period not found.", 404);
             if (row != null && (!Version(row.RowVersion, request.RowVersion) || row.IsClosed))
                 return ApiResponse<AccountingPeriodDto>.ErrorResponse("Period closed or changed; reload.", 409);
-            if (row != null && await db.Journals.AnyAsync(x => x.TenantId == user.TenantId && x.AccountingPeriodId == row.Id && !x.IsDeleted, ct))
+            // Historical soft-deleted journals still bind an accounting period: changing its dates
+            // or name would sever the immutable audit/reporting context of those postings.
+            if (row != null && await db.Journals.IgnoreQueryFilters().AsNoTracking().AnyAsync(x =>
+                x.TenantId == user.TenantId && x.AccountingPeriodId == row.Id, ct))
                 return ApiResponse<AccountingPeriodDto>.ErrorResponse("Period with journals cannot be edited.", 409);
             if (await Periods.AnyAsync(x => (!periodId.HasValue || x.Id != periodId.Value) &&
                 x.StartDate <= request.EndDate && x.EndDate >= request.StartDate, ct))

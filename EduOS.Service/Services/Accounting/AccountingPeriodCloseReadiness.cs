@@ -19,6 +19,11 @@ public sealed partial class AccountingSetupService
         if (period == null)
             return ApiResponse<AccountingPeriodCloseReadinessDto>.ErrorResponse("Period not found.", 404);
 
+        // Legacy soft deletion must not erase posting history from the close decision.
+        // Fail closed and require reconciliation rather than counting hidden journals as zero.
+        var historicalDeletedCount = await db.Journals.IgnoreQueryFilters().AsNoTracking()
+            .CountAsync(x => x.TenantId == user.TenantId && x.AccountingPeriodId == periodId && x.IsDeleted, ct);
+
         var journals = await db.Journals.AsNoTracking()
             .Where(x => x.TenantId == user.TenantId && !x.IsDeleted && x.AccountingPeriodId == periodId)
             .Select(x => new { x.Id, x.JournalDate, x.State, x.CurrencyCode, x.CampusId })
@@ -35,10 +40,13 @@ public sealed partial class AccountingSetupService
             SubmittedCount = journals.Count(x => x.State == JournalState.Submitted),
             ApprovedCount = journals.Count(x => x.State == JournalState.Approved),
             PostedCount = journals.Count(x => x.State == JournalState.Posted),
-            ReversedCount = journals.Count(x => x.State == JournalState.Reversed)
+            ReversedCount = journals.Count(x => x.State == JournalState.Reversed),
+            HistoricalDeletedJournalCount = historicalDeletedCount
         };
         var blockers = new List<string>();
         if (period.IsClosed) blockers.Add("This accounting period is already closed.");
+        if (historicalDeletedCount > 0)
+            blockers.Add("Legacy soft-deleted journals exist in this period; reconcile immutable journal history before closure.");
         if (result.DraftCount + result.SubmittedCount + result.ApprovedCount > 0)
             blockers.Add("Draft, submitted or approved journals must be resolved before closure.");
 

@@ -15,6 +15,7 @@ public sealed class AccountingPeriodCloseReadinessDto
     public int ApprovedCount { get; set; }
     public int PostedCount { get; set; }
     public int ReversedCount { get; set; }
+    public int HistoricalDeletedJournalCount { get; set; }
     public int InvalidJournalCount { get; set; }
     public int InvalidLineCount { get; set; }
     public int UnbalancedJournalCount { get; set; }

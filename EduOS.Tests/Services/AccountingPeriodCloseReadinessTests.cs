@@ -1,3 +1,4 @@
+using EduOS.Core.DTOs.Accounting;
 using EduOS.Core.Entities.Accounting;
 using EduOS.Core.Enums.Domain;
 using EduOS.Core.Interfaces;
@@ -87,6 +88,46 @@ public sealed class AccountingPeriodCloseReadinessTests
         data.InvalidJournalCount.Should().Be(1);
     }
 
+    [Theory]
+    [InlineData(JournalState.Posted)]
+    [InlineData(JournalState.Draft)]
+    public async Task Legacy_soft_deleted_journal_blocks_period_close_preview(JournalState state)
+    {
+        await using var db = Database();
+        var period = await AddPeriod(db);
+        db.Journals.Add(new Journal { TenantId = 41, AccountingPeriodId = period.Id,
+            JournalDate = new DateOnly(2026, 2, 1), JournalNumber = "JV-HISTORICAL",
+            State = state, IsDeleted = true });
+        await db.SaveChangesAsync();
+
+        var result = await Service(db).GetPeriodCloseReadinessAsync(period.Id);
+        result.Success.Should().BeTrue();
+        result.Data!.CanClose.Should().BeFalse();
+        result.Data.HistoricalDeletedJournalCount.Should().Be(1);
+        result.Data.Blockers.Should().Contain(x => x.Contains("soft-deleted"));
+    }
+
+    [Fact]
+    public async Task Legacy_soft_deleted_journal_prevents_editing_accounting_period()
+    {
+        await using var db = Database();
+        var period = await AddPeriod(db);
+        period.RowVersion = new byte[] { 1, 2, 3 };
+        db.Journals.Add(new Journal { TenantId = 41, AccountingPeriodId = period.Id,
+            JournalDate = new DateOnly(2026, 2, 1), JournalNumber = "JV-HISTORICAL",
+            State = JournalState.Posted, IsDeleted = true });
+        await db.SaveChangesAsync();
+
+        var result = await Service(db).SavePeriodAsync(period.Id, new SaveAccountingPeriodRequestDto
+        {
+            Name = "Renamed period", StartDate = period.StartDate, EndDate = period.EndDate,
+            RowVersion = Convert.ToBase64String(period.RowVersion)
+        });
+        result.StatusCode.Should().Be(409);
+        result.Message.Should().Contain("with journals");
+        period.Name.Should().Be("FY 2026");
+    }
+
     private static async Task<AccountingPeriod> AddPeriod(EduOSDbContext db)
     {
         var period = new AccountingPeriod { TenantId = 41, Name = "FY 2026",
@@ -124,7 +165,9 @@ public sealed class AccountingPeriodCloseReadinessTests
         var accessor = new HttpContextAccessor { HttpContext = new DefaultHttpContext() };
         accessor.HttpContext.Items["TenantId"] = tenant;
         return new EduOSDbContext(new DbContextOptionsBuilder<EduOSDbContext>()
-            .UseInMemoryDatabase(name ?? "period-close-" + Guid.NewGuid().ToString("N")).Options, accessor);
+            .UseInMemoryDatabase(name ?? "period-close-" + Guid.NewGuid().ToString("N"))
+            .ConfigureWarnings(w => w.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.InMemoryEventId.TransactionIgnoredWarning))
+            .Options, accessor);
     }
 
     private sealed class User(string role) : ICurrentUserService
