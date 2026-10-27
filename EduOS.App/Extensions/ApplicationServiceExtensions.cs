@@ -142,6 +142,7 @@ namespace EduOS.App.Extensions
             s.AddScoped<IStudentGuardianWorkspaceService, StudentGuardianWorkspaceService>();
             s.AddScoped<IStudentInvoicePostingService, StudentInvoicePostingService>();
             s.AddScoped<IStudentOptionalSubjectQueryService, StudentOptionalSubjectQueryService>();
+            s.AddScoped<IStudentSubjectHistoryQueryService, StudentSubjectHistoryQueryService>();
             s.AddScoped<IStudentPaymentPostingService, StudentPaymentPostingService>();
             s.AddScoped<IStudentTransferRequestService, StudentTransferRequestService>();
             s.AddScoped<ISubjectPrerequisiteService, SubjectPrerequisiteService>();

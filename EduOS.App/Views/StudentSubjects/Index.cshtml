@@ -69,7 +69,32 @@
             </div></div>
         </section>
     </div>
+    @if (canManageSubjects)
+    {
+        <section id="subjectsHistory" class="card shadow-sm border-0 mt-3" aria-label="Historical subject registrations">
+            <div class="card-body">
+                <h2 class="h5">4. Historical subject registrations</h2>
+                <p class="small text-muted">Original enrollment roll, campus, batch and credit snapshot. Subject names are current catalog labels, not historical name snapshots.</p>
+                <p id="subjectsHistoryStatus" class="small text-muted mb-2" role="status" aria-live="polite">Choose a student to view historical registrations.</p>
+                <div class="table-responsive">
+                    <table class="table table-sm align-middle">
+                        <thead><tr><th>Roll</th><th>Campus ID</th><th>Batch ID</th><th>Enrollment state</th><th>Subject</th><th>Credit snapshot</th><th>Registration state</th><th>Registered UTC</th><th>Approved UTC</th></tr></thead>
+                        <tbody id="subjectsHistoryRows"></tbody>
+                    </table>
+                </div>
+                <div class="d-flex gap-2 align-items-center">
+                    <button id="subjectsHistoryPrev" type="button" class="btn btn-outline-secondary btn-sm" disabled>Previous</button>
+                    <span id="subjectsHistoryPage" class="small text-muted">Select a student</span>
+                    <button id="subjectsHistoryNext" type="button" class="btn btn-outline-secondary btn-sm" disabled>Next</button>
+                </div>
+            </div>
+        </section>
+    }
 </div>
 @section Scripts {
     <script src="~/js/students/optional-subjects.js" asp-append-version="true"></script>
+    @if (canManageSubjects)
+    {
+        <script src="~/js/students/subject-history.js" asp-append-version="true"></script>
+    }
 }

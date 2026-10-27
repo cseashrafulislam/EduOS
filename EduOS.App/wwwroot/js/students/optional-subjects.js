@@ -50,9 +50,11 @@ async function load(ref){
  }
  if(!table.children.length)table.textContent='No registrations.';
  refresh();
+ root.dispatchEvent(new CustomEvent('student-subjects:selected',{detail:{reference:ref}}));
 }
 async function choose(item){
  student=item;workspace=null;requestId=null;
+ root.dispatchEvent(new CustomEvent('student-subjects:selected',{detail:{reference:null}}));
  el('subjectsStudent').classList.add('d-none');
  el('subjectsOffering').replaceChildren(new Option('Loading electives…',''));
  el('subjectsRegistrations').textContent='Loading registrations…';
@@ -104,7 +106,7 @@ async function decide(item,decision){
 if(canManage)el('subjectsSearchForm').addEventListener('submit',search);
 else el('subjectsLinkedStudents').addEventListener('change',e=>{
  const ref=e.target.value;if(ref)choose({reference:ref});
- else {student=null;workspace=null;el('subjectsStudent').classList.add('d-none');refresh();}
+ else {student=null;workspace=null;el('subjectsStudent').classList.add('d-none');root.dispatchEvent(new CustomEvent('student-subjects:selected',{detail:{reference:null}}));refresh();}
 });
 el('subjectsRequestForm').addEventListener('submit',submit);
 el('subjectsOffering').addEventListener('change',()=>{requestId=null;refresh();});
