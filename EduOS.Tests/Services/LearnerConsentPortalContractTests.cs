@@ -55,6 +55,26 @@ public sealed class LearnerConsentPortalContractTests
     }
 
     [Fact]
+    public void Consent_history_has_bounded_authorized_readback_and_safe_portal_paging()
+    {
+        var view = Read("EduOS.App", "Views", "StudentPortal", "Index.cshtml");
+        var js = Read("EduOS.App", "wwwroot", "js", "student-portal", "consents.js");
+        var api = Read("EduOS.App", "Controllers", "Api", "LearnerConsentsController.cs");
+        var service = Read("EduOS.Service", "Services", "Learners", "LearnerConsentService.cs");
+        var repo = Read("EduOS.Persistence", "Repositories", "LearnerConsentRepository.cs");
+        view.Should().Contain("learnerConsentHistory");
+        view.Should().Contain("learnerConsentHistoryPrevious");
+        js.Should().Contain("/api/learner-consents/history?page=");
+        js.Should().Contain("historyPage");
+        js.Should().NotContain("innerHTML");
+        api.Should().Contain("[HttpGet(\"history\")]");
+        service.Should().Contain("page is < 1 or > 500");
+        repo.Should().Contain("GetControlledPersonIdsAsync(userId");
+        repo.Should().Contain(".Skip((page - 1) * pageSize).Take(pageSize)");
+        repo.Should().Contain(".ThenByDescending(x => x.Id)");
+    }
+
+    [Fact]
     public void Guardian_role_requires_both_api_authorization_and_linked_person_ownership()
     {
         var api = Read("EduOS.App", "Controllers", "Api", "LearnerConsentsController.cs");

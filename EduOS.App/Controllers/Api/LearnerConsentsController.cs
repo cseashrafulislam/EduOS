@@ -35,6 +35,15 @@ public sealed class LearnerConsentsController : ControllerBase
         return StatusCode(result.StatusCode, result);
     }
 
+    [HttpGet("history")]
+    public async Task<IActionResult> GetHistory(
+        [FromQuery] int page = 1, [FromQuery] int pageSize = 20,
+        CancellationToken cancellationToken = default)
+    {
+        var result = await _service.GetHistoryAsync(page, pageSize, cancellationToken);
+        return StatusCode(result.StatusCode, result);
+    }
+
     [HttpPost("{requestReference:guid}/decision")]
     public async Task<IActionResult> Resolve(
         Guid requestReference,

@@ -65,6 +65,18 @@ public class LearnerIdentityConsentSummaryDto
     public DateTime ExpiresAt { get; set; }
 }
 
+public sealed class LearnerIdentityConsentHistoryDto
+{
+    public Guid Reference { get; set; }
+    public string RequestingInstitution { get; set; } = string.Empty;
+    public LearnerIdentityPurpose Purpose { get; set; }
+    public LearnerDataScope RequestedScopes { get; set; }
+    public ConsentState State { get; set; }
+    public DateTime RequestedAt { get; set; }
+    public DateTime? ResolvedAt { get; set; }
+    public DateTime? ExpiresAt { get; set; }
+}
+
 public class LearnerIdentityGrantSummaryDto
 {
     public Guid Reference { get; set; }

@@ -92,6 +92,45 @@ public sealed class LearnerConsentService : ILearnerConsentService
         }
     }
 
+    public async Task<ApiResponse<PagedResult<LearnerIdentityConsentHistoryDto>>> GetHistoryAsync(
+        int page = 1, int pageSize = 20, CancellationToken cancellationToken = default)
+    {
+        if (!CanReview()) return Denied<PagedResult<LearnerIdentityConsentHistoryDto>>();
+        if (page is < 1 or > 500 || pageSize is < 1 or > 100)
+            return ApiResponse<PagedResult<LearnerIdentityConsentHistoryDto>>.ErrorResponse(
+                "Page must be 1–500 and page size must be 1–100.");
+
+        try
+        {
+            var result = await _repository.GetHistoryForUserAsync(
+                _currentUser.UserId, page, pageSize, cancellationToken);
+            return ApiResponse<PagedResult<LearnerIdentityConsentHistoryDto>>.SuccessResponse(
+                new PagedResult<LearnerIdentityConsentHistoryDto>
+                {
+                    Items = result.Items.Select(x => new LearnerIdentityConsentHistoryDto
+                    {
+                        Reference = x.Reference,
+                        RequestingInstitution = x.RequestingInstitution,
+                        Purpose = x.Purpose,
+                        RequestedScopes = x.RequestedScopes,
+                        State = x.State,
+                        RequestedAt = x.RequestedAt,
+                        ResolvedAt = x.ResolvedAt,
+                        ExpiresAt = x.ExpiresAt
+                    }).ToList(),
+                    TotalCount = result.TotalCount,
+                    Page = page,
+                    PageSize = pageSize
+                });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to load consent history for user {UserId}", _currentUser.UserId);
+            return ApiResponse<PagedResult<LearnerIdentityConsentHistoryDto>>.ErrorResponse(
+                "Consent history could not be loaded.", 500);
+        }
+    }
+
     public async Task<ApiResponse<LearnerConsentResolutionDto>> ResolveAsync(
         Guid requestReference,
         ResolveLearnerIdentityConsentRequestDto request,

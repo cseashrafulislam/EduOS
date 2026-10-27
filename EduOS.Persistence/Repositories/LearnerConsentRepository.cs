@@ -92,6 +92,42 @@ public sealed class LearnerConsentRepository : ILearnerConsentRepository
         }).ToList();
     }
 
+    public async Task<LearnerConsentHistoryPageRecord> GetHistoryForUserAsync(
+        long userId, int page, int pageSize, CancellationToken cancellationToken = default)
+    {
+        // Cross-institution history is visible only to the learner or an actively
+        // linked guardian. Never expose unlinked persons, identifiers or student PII.
+        var personIds = await GetControlledPersonIdsAsync(userId, cancellationToken);
+        if (personIds.Length == 0)
+            return new LearnerConsentHistoryPageRecord(Array.Empty<LearnerConsentHistoryRecord>(), 0);
+
+        var query = _context.LearnerConsentRequests.IgnoreQueryFilters().AsNoTracking()
+            .Where(x => !x.IsDeleted && personIds.Contains(x.PersonId));
+        var total = await query.CountAsync(cancellationToken);
+        var records = await query
+            .OrderByDescending(x => x.RequestedAt).ThenByDescending(x => x.Id)
+            .Skip((page - 1) * pageSize).Take(pageSize)
+            .Select(x => new
+            {
+                x.PublicId, x.TenantId, x.Purpose, x.RequestedScopes,
+                x.State, x.RequestedAt, x.ResolvedAt, x.ExpiresAt
+            })
+            .ToListAsync(cancellationToken);
+
+        var tenantIds = records.Select(x => x.TenantId).Distinct().ToArray();
+        var tenants = await _context.Tenants.IgnoreQueryFilters().AsNoTracking()
+            .Where(x => tenantIds.Contains(x.Id))
+            .ToDictionaryAsync(x => x.Id, x => x.Name, cancellationToken);
+
+        return new LearnerConsentHistoryPageRecord(records.Select(x =>
+            new LearnerConsentHistoryRecord(
+                x.PublicId,
+                tenants.TryGetValue(x.TenantId, out var name) ? name : "Institution",
+                ParsePurpose(x.Purpose),
+                ParseScopes(x.RequestedScopes),
+                x.State, x.RequestedAt, x.ResolvedAt, x.ExpiresAt)).ToList(), total);
+    }
+
     public async Task<LearnerConsentMutationResult> ResolveAsync(
         Guid requestReference,
         long userId,

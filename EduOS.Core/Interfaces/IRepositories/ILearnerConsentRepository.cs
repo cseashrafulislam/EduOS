@@ -14,6 +14,9 @@ public interface ILearnerConsentRepository
         DateTime utcNow,
         CancellationToken cancellationToken = default);
 
+    Task<LearnerConsentHistoryPageRecord> GetHistoryForUserAsync(
+        long userId, int page, int pageSize, CancellationToken cancellationToken = default);
+
     Task<LearnerConsentMutationResult> ResolveAsync(
         Guid requestReference,
         long userId,
@@ -47,6 +50,19 @@ public sealed record LearnerDataGrantRecord(
     LearnerDataScope GrantedScopes,
     DateTime StartsAt,
     DateTime ExpiresAt);
+
+public sealed record LearnerConsentHistoryRecord(
+    Guid Reference,
+    string RequestingInstitution,
+    LearnerIdentityPurpose Purpose,
+    LearnerDataScope RequestedScopes,
+    ConsentState State,
+    DateTime RequestedAt,
+    DateTime? ResolvedAt,
+    DateTime? ExpiresAt);
+
+public sealed record LearnerConsentHistoryPageRecord(
+    IReadOnlyList<LearnerConsentHistoryRecord> Items, int TotalCount);
 
 public sealed record LearnerConsentMutationResult(
     LearnerConsentMutationState State,

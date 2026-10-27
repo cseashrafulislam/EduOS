@@ -26,6 +26,14 @@
                 <div id="learnerConsentPending" aria-live="polite"><p class="text-muted">Loading pending requests…</p></div>
                 <h4 class="h6 mt-3">Active data grants</h4>
                 <div id="learnerConsentGrants" aria-live="polite"><p class="text-muted">Loading active grants…</p></div>
+                <h4 class="h6 mt-3">Consent decision history</h4>
+                <p class="small text-muted">Includes expired, denied and revoked requests. Only linked learners' consent records are shown.</p>
+                <div id="learnerConsentHistory" aria-live="polite"><p class="text-muted">Loading history…</p></div>
+                <div class="d-flex align-items-center gap-2 mt-2">
+                    <button id="learnerConsentHistoryPrevious" class="btn btn-outline-secondary btn-sm" type="button" disabled>Previous</button>
+                    <span id="learnerConsentHistoryPage" class="small text-muted" aria-live="polite"></span>
+                    <button id="learnerConsentHistoryNext" class="btn btn-outline-secondary btn-sm" type="button" disabled>Next</button>
+                </div>
             </div>
         </section>
     }

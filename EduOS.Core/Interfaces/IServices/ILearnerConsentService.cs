@@ -11,6 +11,9 @@ public interface ILearnerConsentService
     Task<ApiResponse<IReadOnlyList<LearnerIdentityGrantSummaryDto>>> GetActiveGrantsAsync(
         CancellationToken cancellationToken = default);
 
+    Task<ApiResponse<PagedResult<LearnerIdentityConsentHistoryDto>>> GetHistoryAsync(
+        int page = 1, int pageSize = 20, CancellationToken cancellationToken = default);
+
     Task<ApiResponse<LearnerConsentResolutionDto>> ResolveAsync(
         Guid requestReference,
         ResolveLearnerIdentityConsentRequestDto request,

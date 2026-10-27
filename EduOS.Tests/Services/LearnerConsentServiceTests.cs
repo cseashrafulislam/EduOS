@@ -228,6 +228,84 @@ public class LearnerConsentServiceTests
             .WithMessage("*Tenant boundary violation*");
     }
 
+    [Fact]
+    public async Task Consent_history_tracks_revocation_without_exposing_personal_identifiers()
+    {
+        var options = CreateOptions();
+        var scenario = await SeedScenarioAsync(options);
+        await using var context = CreateContext(options, 101, 77, "Parent");
+        var service = CreateService(context, new TestCurrentUser(101, 77, "Parent"));
+
+        var approved = await service.ResolveAsync(scenario.RequestReference,
+            new ResolveLearnerIdentityConsentRequestDto { Decision = LearnerConsentDecision.Approve });
+        (await service.RevokeAsync(approved.Data!.GrantReference!.Value)).Success.Should().BeTrue();
+
+        var history = await service.GetHistoryAsync(1, 20);
+        history.Success.Should().BeTrue();
+        history.Data!.TotalCount.Should().Be(1);
+        history.Data.Items.Should().ContainSingle(x =>
+            x.Reference == scenario.RequestReference &&
+            x.RequestingInstitution == "Destination School" &&
+            x.State == ConsentState.Revoked);
+        history.Data.Items[0].ResolvedAt.Should().NotBeNull();
+    }
+
+    [Fact]
+    public async Task Consent_history_denies_unlinked_guardians_and_unrelated_roles()
+    {
+        var options = CreateOptions();
+        await SeedScenarioAsync(options);
+        await using var guardianContext = CreateContext(options, 101, 88, "Guardian");
+        var guardian = CreateService(guardianContext, new TestCurrentUser(101, 88, "Guardian"));
+        var empty = await guardian.GetHistoryAsync();
+        empty.Success.Should().BeTrue();
+        empty.Data!.Items.Should().BeEmpty();
+
+        await using var teacherContext = CreateContext(options, 101, 77, "Teacher");
+        var teacher = CreateService(teacherContext, new TestCurrentUser(101, 77, "Teacher"));
+        (await teacher.GetHistoryAsync()).StatusCode.Should().Be(403);
+        (await guardian.GetHistoryAsync(0, 20)).StatusCode.Should().Be(400);
+        (await guardian.GetHistoryAsync(1, 101)).StatusCode.Should().Be(400);
+        (await guardian.GetHistoryAsync(501, 20)).StatusCode.Should().Be(400);
+    }
+
+    [Fact]
+    public async Task Consent_history_paging_uses_deterministic_order_and_no_cross_person_leak()
+    {
+        var options = CreateOptions();
+        var scenario = await SeedScenarioAsync(options);
+        await using (var destination = CreateContext(options, 202, 2, "AdmissionOfficer"))
+        {
+            destination.LearnerConsentRequests.Add(new LearnerConsentRequest
+            {
+                TenantId = 202, PersonId = scenario.PersonId,
+                RequestedStudentId = scenario.TargetStudentId,
+                RequestedByUserId = 2, Purpose = LearnerIdentityPurpose.Transfer.ToString(),
+                RequestedScopes = ((long)LearnerDataScope.BasicIdentity).ToString(),
+                State = ConsentState.Rejected, RequestedAt = DateTime.UtcNow.AddDays(1),
+                ExpiresAt = DateTime.UtcNow.AddDays(2)
+            });
+            destination.LearnerConsentRequests.Add(new LearnerConsentRequest
+            {
+                TenantId = 202, PersonId = 999999,
+                RequestedStudentId = scenario.TargetStudentId,
+                RequestedByUserId = 2, Purpose = LearnerIdentityPurpose.Admission.ToString(),
+                RequestedScopes = "1", State = ConsentState.Rejected
+            });
+            await destination.SaveChangesAsync();
+        }
+        await using var context = CreateContext(options, 101, 77, "Parent");
+        var service = CreateService(context, new TestCurrentUser(101, 77, "Parent"));
+        var first = await service.GetHistoryAsync(1, 1);
+        var second = await service.GetHistoryAsync(2, 1);
+        first.Data!.TotalCount.Should().Be(2);
+        first.Data.Items.Should().ContainSingle();
+        first.Data.HasNextPage.Should().BeTrue();
+        second.Data!.Items.Should().ContainSingle();
+        second.Data.HasNextPage.Should().BeFalse();
+        first.Data.Items[0].Reference.Should().NotBe(second.Data.Items[0].Reference);
+    }
+
     private static LearnerConsentService CreateService(
         EduOSDbContext context,
         ICurrentUserService currentUser) => new(

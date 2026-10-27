@@ -5,6 +5,12 @@
 
     const pending = document.getElementById('learnerConsentPending');
     const grants = document.getElementById('learnerConsentGrants');
+    const history = document.getElementById('learnerConsentHistory');
+    const historyPrevious = document.getElementById('learnerConsentHistoryPrevious');
+    const historyNext = document.getElementById('learnerConsentHistoryNext');
+    const historyPageLabel = document.getElementById('learnerConsentHistoryPage');
+    const consentStates = { 1: 'Pending', 2: 'Approved', 3: 'Denied', 4: 'Revoked', 5: 'Expired' };
+    let historyPage = 1, historyHasNext = false;
     const alertBox = document.getElementById('learnerConsentAlert');
     const refresh = document.getElementById('learnerConsentRefresh');
     const antiforgery = root.querySelector('input[name="__RequestVerificationToken"]');
@@ -23,6 +29,8 @@
     function setBusy(value) {
         busy = value;
         refresh.disabled = value;
+        historyPrevious.disabled = value || historyPage <= 1;
+        historyNext.disabled = value || !historyHasNext;
         root.querySelectorAll('button[data-consent-action]').forEach(button => { button.disabled = value; });
     }
     async function api(url, options = {}) {
@@ -133,23 +141,50 @@
                 return row;
             }, 'No active data-sharing grants.');
     }
+    function renderHistory(result) {
+        const records = Array.isArray(result?.items) ? result.items : [];
+        table(history, records,
+            ['Institution', 'Purpose', 'Data requested', 'State', 'Requested', 'Resolved'],
+            record => {
+                const row = document.createElement('tr');
+                cell(row, record.requestingInstitution);
+                cell(row, purposeNames[record.purpose] || record.purpose);
+                cell(row, scopeNames(record.requestedScopes));
+                cell(row, consentStates[record.state] || 'Unknown');
+                cell(row, date(record.requestedAt));
+                cell(row, date(record.resolvedAt));
+                return row;
+            }, 'No consent decisions or requests to display.');
+        historyPage = result?.page || 1;
+        historyHasNext = !!result?.hasNextPage;
+        historyPrevious.disabled = busy || historyPage <= 1;
+        historyNext.disabled = busy || !historyHasNext;
+        historyPageLabel.textContent = 'Page ' + historyPage + ' of ' + (result?.totalPages || 1)
+            + ' · ' + (result?.totalCount || 0) + ' request(s)';
+    }
     async function load(clear = true) {
         if (busy) return;
         const current = ++generation;
         if (clear) clearMessage();
         refresh.disabled = true;
         try {
-            const [requests, active] = await Promise.all([
+            const [requests, active, past] = await Promise.all([
                 api('/api/learner-consents/pending'),
-                api('/api/learner-consents/grants')
+                api('/api/learner-consents/grants'),
+                api('/api/learner-consents/history?page=' + historyPage + '&pageSize=20')
             ]);
             if (current !== generation) return;
             renderPending(requests.data || []);
             renderGrants(active.data || []);
+            renderHistory(past.data);
         } catch (error) {
             if (current !== generation) return;
             pending.replaceChildren();
             grants.replaceChildren();
+            history.replaceChildren();
+            historyPrevious.disabled = true;
+            historyNext.disabled = true;
+            historyPageLabel.textContent = '';
             message(error.message);
         } finally {
             if (current === generation && !busy) refresh.disabled = false;
@@ -189,6 +224,16 @@
             await load(false);
         }
     }
+    historyPrevious.addEventListener('click', () => {
+        if (busy || historyPage <= 1) return;
+        historyPage--;
+        load(false);
+    });
+    historyNext.addEventListener('click', () => {
+        if (busy || !historyHasNext || historyPage >= 500) return;
+        historyPage++;
+        load(false);
+    });
     refresh.addEventListener('click', () => load());
     load();
 })();
