@@ -130,9 +130,16 @@
     }
 
     async function archiveCampus(campus, button) {
-        if (!confirm('Archive ' + campus.name + '? Campus data or assigned users may prevent archiving.')) return;
         button.disabled = true;
         try {
+            const preview = await api('/api/institution-onboarding/campus/' +
+                encodeURIComponent(campus.id) + '/archive-impact');
+            if (!preview.canArchive) {
+                const blockers = Array.isArray(preview.blockers) ? preview.blockers : [];
+                notify('Campus cannot be archived: ' + blockers.join(' '), true);
+                return;
+            }
+            if (!confirm('Archive ' + campus.name + '? This action preserves history but removes the campus from active use.')) return;
             await api('/api/institution-onboarding/campus/' + encodeURIComponent(campus.id) +
                 '?rowVersion=' + encodeURIComponent(campus.rowVersion), { method: 'DELETE' });
             if (state.editing?.id === campus.id) resetCampusEditor();

@@ -158,6 +158,7 @@ public sealed class InstitutionRegistrationServiceTests
         var service = Foundation(own, new TestUser(101));
         (await service.GetCampusesAsync()).Data.Should().BeEmpty();
         (await service.GetCampusAsync(1)).StatusCode.Should().Be(404);
+        (await service.GetCampusArchiveImpactAsync(1)).StatusCode.Should().Be(404);
     }
 
     [Theory]
@@ -265,6 +266,41 @@ public sealed class InstitutionRegistrationServiceTests
     }
 
     [Fact]
+    public async Task Campus_archive_preflight_reports_user_and_transport_dependencies_without_mutation()
+    {
+        var options = Options();
+        await SeedTenant(options, 101);
+        await using var db = Context(options, 101);
+        db.Campuses.AddRange(
+            new Campus { Id = 1001, TenantId = 101, Code = "A", Name = "Main",
+                IsActive = true, IsHeadOffice = true, RowVersion = [1, 2, 3] },
+            new Campus { Id = 1002, TenantId = 101, Code = "B", Name = "Other",
+                IsActive = true, RowVersion = [4, 5, 6] });
+        db.TenantMemberships.Add(new EduOS.Core.Entities.Auth.TenantMembership
+        {
+            TenantId = 101, UserId = 999, DefaultCampusId = 1001,
+            Status = EduOS.Core.Enums.Domain.MembershipStatus.Active
+        });
+        db.Routes.Add(new EduOS.Core.Entities.Transport.Route
+        {
+            TenantId = 101, CampusId = 1001, Code = "R1", Name = "Route"
+        });
+        await db.SaveChangesAsync();
+        var service = Foundation(db, new TestUser(101));
+        var preview = await service.GetCampusArchiveImpactAsync(1001);
+        preview.Success.Should().BeTrue();
+        preview.Data!.CanArchive.Should().BeFalse();
+        preview.Data.Blockers.Should().Contain(x => x.Contains("users"));
+        preview.Data.Blockers.Should().Contain(x => x.Contains("operational records"));
+        (await service.ArchiveCampusAsync(1001, Convert.ToBase64String(new byte[] { 1, 2, 3 })))
+            .StatusCode.Should().Be(409);
+        (await db.Campuses.SingleAsync(x => x.Id == 1001)).IsDeleted.Should().BeFalse();
+        var empty = await service.GetCampusArchiveImpactAsync(1002);
+        empty.Success.Should().BeTrue();
+        empty.Data!.CanArchive.Should().BeTrue();
+    }
+
+    [Fact]
     public void Canonical_institution_registration_and_foundation_contracts_are_registered()
     {
         typeof(IInstitutionRegistrationService).IsAssignableFrom(typeof(InstitutionRegistrationService))
@@ -273,7 +309,7 @@ public sealed class InstitutionRegistrationServiceTests
             .Should().BeTrue();
         typeof(ITenantOnboardingProfileService).IsAssignableFrom(typeof(TenantOnboardingProfileService))
             .Should().BeTrue();
-        typeof(IInstitutionFoundationService).GetMethods().Should().HaveCount(12);
+        typeof(IInstitutionFoundationService).GetMethods().Should().HaveCount(13);
     }
 
     private static InstitutionFoundationService Foundation(EduOSDbContext db, ICurrentUserService user) => new(

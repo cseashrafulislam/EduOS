@@ -9,6 +9,7 @@ public interface IInstitutionFoundationService
 {
     Task<ApiResponse<IReadOnlyList<CampusDto>>> GetCampusesAsync(CancellationToken ct = default);
     Task<ApiResponse<CampusDto>> GetCampusAsync(long id, CancellationToken ct = default);
+    Task<ApiResponse<CampusArchiveImpactDto>> GetCampusArchiveImpactAsync(long id, CancellationToken ct = default);
     Task<ApiResponse<CampusDto>> SaveCampusAsync(long? id, SaveCampusRequestDto request, CancellationToken ct = default);
     Task<ApiResponse<bool>> ArchiveCampusAsync(long id, string rowVersion, CancellationToken ct = default);
     Task<ApiResponse<IReadOnlyList<AcademicYearDto>>> GetAcademicYearsAsync(CancellationToken ct = default);

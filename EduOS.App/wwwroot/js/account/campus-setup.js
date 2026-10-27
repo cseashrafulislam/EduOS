@@ -224,6 +224,26 @@
     }
 
     async function deleteCampus(id, name, rowVersion) {
+        // Preview is advisory; the archive command repeats the checks transactionally.
+        try {
+            const preview = await fetch(`/api/institution-onboarding/campus/${encodeURIComponent(id)}/archive-impact`, {
+                cache: 'no-store', credentials: 'same-origin',
+                headers: { 'Accept': 'application/json' }
+            });
+            const result = await preview.json().catch(() => null);
+            if (!preview.ok || !result?.success || !result.data) {
+                showAlert('danger', apiErrorMessage(preview, result, i18n.deleteFailed));
+                return;
+            }
+            if (!result.data.canArchive) {
+                const blockers = Array.isArray(result.data.blockers) ? result.data.blockers : [];
+                showAlert('danger', [i18n.archiveBlocked, ...blockers].filter(Boolean).join(' '));
+                return;
+            }
+        } catch {
+            showAlert('danger', i18n.networkError);
+            return;
+        }
         const question = String(i18n.deleteConfirm || '').replace('{name}', name);
         if (!window.confirm(question)) return;
         try {
@@ -235,7 +255,7 @@
             });
             const payload = await response.json().catch(() => null);
             if (!response.ok || !payload?.success) {
-                showAlert('danger', i18n.deleteFailed);
+                showAlert('danger', apiErrorMessage(response, payload, i18n.deleteFailed));
                 return;
             }
             await loadCampuses();

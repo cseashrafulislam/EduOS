@@ -30,3 +30,18 @@ test('academic term editor supports editing and rowversion replay protection', (
     assert.match(js, /editedTermRowVersion = term\.rowVersion/);
     assert.match(js, /editedTermRowVersion = '';/);
 });
+
+test('campus archive preview is used by both institution editors', () => {
+    const api = read('EduOS.App/Controllers/Api/InstitutionOnboardingController.cs');
+    const service = read('EduOS.Service/Services/Tenants/InstitutionFoundationService.cs');
+    const onboarding = read('EduOS.App/wwwroot/js/account/campus-setup.js');
+    const administration = read('EduOS.App/wwwroot/js/institution-management/index.js');
+    assert.match(api, /Authorize\(Roles = "TenantAdmin"\)/);
+    assert.match(api, /AutoValidateAntiforgeryToken/);
+    assert.match(api, /HttpGet\("campus\/\{id:long\}\/archive-impact"\)/);
+    assert.match(service, /GetCampusArchiveBlockersAsync\(tenant, id, token\)/);
+    assert.match(onboarding, /archive-impact/);
+    assert.match(administration, /archive-impact/);
+    assert.match(onboarding, /result\.data\.canArchive/);
+    assert.match(administration, /preview\.canArchive/);
+});

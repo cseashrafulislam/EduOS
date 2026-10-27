@@ -82,6 +82,10 @@ public sealed class InstitutionOnboardingController : ControllerBase
         }, ct));
     }
 
+    [HttpGet("campus/{id:long}/archive-impact")]
+    public async Task<IActionResult> CampusArchiveImpact(long id, CancellationToken ct) =>
+        Result(await _foundation.GetCampusArchiveImpactAsync(id, ct));
+
     [HttpDelete("campus/{id:long}")]
     public async Task<IActionResult> ArchiveCampus(long id, [FromQuery] string rowVersion,
         CancellationToken ct) =>

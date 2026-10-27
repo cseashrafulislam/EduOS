@@ -172,6 +172,21 @@ public sealed class InstitutionFoundationService : IInstitutionFoundationService
         }, ct, IsolationLevel.Serializable);
     }
 
+    public async Task<ApiResponse<CampusArchiveImpactDto>> GetCampusArchiveImpactAsync(
+        long id, CancellationToken ct = default)
+    {
+        if (!CanManage()) return Error<CampusArchiveImpactDto>("Tenant administrator required.", 403);
+        var tenant = _user.TenantId;
+        var exists = id > 0 && await _campuses.GetQueryable().AsNoTracking().AnyAsync(x =>
+            x.TenantId == tenant && x.Id == id && !x.IsDeleted, ct);
+        if (!exists) return Error<CampusArchiveImpactDto>("Campus not found.", 404);
+        var blockers = await GetCampusArchiveBlockersAsync(tenant, id, ct);
+        return ApiResponse<CampusArchiveImpactDto>.SuccessResponse(new CampusArchiveImpactDto
+        {
+            CampusId = id, CanArchive = blockers.Count == 0, Blockers = blockers
+        });
+    }
+
     public Task<ApiResponse<bool>> ArchiveCampusAsync(long id, string version, CancellationToken ct = default)
     {
         if (!CanManage()) return Task.FromResult(Error<bool>("Tenant administrator required.", 403));
@@ -183,28 +198,10 @@ public sealed class InstitutionFoundationService : IInstitutionFoundationService
                 x.TenantId == tenant && x.Id == id && !x.IsDeleted, token);
             if (row == null) return Error<bool>("Campus not found.", 404);
             if (!Match(row.RowVersion, version)) return Error<bool>("Campus changed. Reload and retry.", 409);
-            // Soft-delete is still a destructive change for references: block archiving
-            // the last usable campus, user assignments and membership defaults.
-            if (!await _campuses.GetQueryable().AsNoTracking().AnyAsync(x =>
-                x.TenantId == tenant && x.Id != id && x.IsActive && !x.IsDeleted, token))
-                return Error<bool>("An institution must retain at least one active campus.", 409);
-            if (await _memberships.GetQueryable().AsNoTracking().AnyAsync(x =>
-                x.TenantId == tenant && !x.IsDeleted &&
-                (x.DefaultCampusId == id || x.LastSelectedCampusId == id), token) ||
-                await _campusAccess.GetQueryable().AsNoTracking().AnyAsync(x =>
-                x.TenantId == tenant && x.CampusId == id && x.IsActive && !x.IsDeleted, token))
-                return Error<bool>("Campus is assigned to users. Reassign their campus access and defaults first.", 409);
-            if (await _years.GetQueryable().AsNoTracking().AnyAsync(x =>
-                x.TenantId == tenant && x.CampusId == id && !x.IsDeleted, token) ||
-                await _batches.GetQueryable().AsNoTracking().AnyAsync(x =>
-                x.TenantId == tenant && x.CampusId == id && !x.IsDeleted, token) ||
-                await _admissions.GetQueryable().AsNoTracking().AnyAsync(x =>
-                x.TenantId == tenant && x.CampusId == id && !x.IsDeleted, token))
-                return Error<bool>("Campus has academic or admission records.", 409);
-            // Campus references outside foundation setup must be reconciled by their owning
-            // workflows. Never orphan transport, hostel, learner, HR, inventory or finance data.
-            if (await HasOperationalCampusReferencesAsync(tenant, id, token))
-                return Error<bool>("Campus has linked operational records. Reassign or retire those records in their owning modules first.", 409);
+            // A preview is advisory. Re-evaluate every dependency inside this
+            // serializable archive transaction before changing the campus.
+            var blockers = await GetCampusArchiveBlockersAsync(tenant, id, token);
+            if (blockers.Count != 0) return Error<bool>(blockers[0], 409);
             var replacement = row.IsHeadOffice ? await _campuses.GetQueryable()
                 .Where(x => x.TenantId == tenant && x.Id != id && x.IsActive && !x.IsDeleted)
                 .OrderBy(x => x.Id).FirstOrDefaultAsync(token) : null;
@@ -222,6 +219,31 @@ public sealed class InstitutionFoundationService : IInstitutionFoundationService
             await _uow.SaveChangesAsync(token);
             return ApiResponse<bool>.SuccessResponse(true, "Campus archived.");
         }, ct, IsolationLevel.Serializable);
+    }
+
+    private async Task<IReadOnlyList<string>> GetCampusArchiveBlockersAsync(
+        long tenant, long campus, CancellationToken ct)
+    {
+        var blockers = new List<string>();
+        if (!await _campuses.GetQueryable().AsNoTracking().AnyAsync(x =>
+            x.TenantId == tenant && x.Id != campus && x.IsActive && !x.IsDeleted, ct))
+            blockers.Add("An institution must retain at least one active campus.");
+        if (await _memberships.GetQueryable().AsNoTracking().AnyAsync(x =>
+            x.TenantId == tenant && !x.IsDeleted &&
+            (x.DefaultCampusId == campus || x.LastSelectedCampusId == campus), ct) ||
+            await _campusAccess.GetQueryable().AsNoTracking().AnyAsync(x =>
+            x.TenantId == tenant && x.CampusId == campus && x.IsActive && !x.IsDeleted, ct))
+            blockers.Add("Campus is assigned to users. Reassign their campus access and defaults first.");
+        if (await _years.GetQueryable().AsNoTracking().AnyAsync(x =>
+            x.TenantId == tenant && x.CampusId == campus && !x.IsDeleted, ct) ||
+            await _batches.GetQueryable().AsNoTracking().AnyAsync(x =>
+            x.TenantId == tenant && x.CampusId == campus && !x.IsDeleted, ct) ||
+            await _admissions.GetQueryable().AsNoTracking().AnyAsync(x =>
+            x.TenantId == tenant && x.CampusId == campus && !x.IsDeleted, ct))
+            blockers.Add("Campus has academic or admission records.");
+        if (await HasOperationalCampusReferencesAsync(tenant, campus, ct))
+            blockers.Add("Campus has linked operational records. Reassign or retire those records in their owning modules first.");
+        return blockers;
     }
 
     // Explicit tenant predicates protect this administrative operation even when the
