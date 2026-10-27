@@ -5,6 +5,7 @@ using EduOS.Core.Enums.Domain;
 using EduOS.Core.Interfaces.Jobs;
 using Hangfire;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using System.Data;
 using System.Net.Mail;
 
@@ -73,7 +74,7 @@ public sealed partial class InstitutionRegistrationService
                 // multiple messages for the same institution.
                 if (await _auditLogs.GetQueryable().IgnoreQueryFilters().AsNoTracking()
                     .AnyAsync(x => x.TenantId == tenantId && x.EntityId == tenantId &&
-                        x.Action == VerificationRecoveryAction && !x.IsDeleted &&
+                        x.Action == VerificationRecoveryAction && x.EntityName == nameof(Tenant) && !x.IsDeleted &&
                         x.OccurredAt >= now.AddMinutes(-15), token))
                     return false;
 
