@@ -106,7 +106,7 @@ public sealed partial class LibraryService
             x.TenantId == tenant && x.IsActive && !x.IsDeleted);
         if (IsCampusScopedStaff)
         {
-            var campuses = StaffCampusIds(tenant, DateOnly.FromDateTime(_clock.GetUtcNow().UtcDateTime));
+            var campuses = AllowedStaffCampusIds(tenant, DateOnly.FromDateTime(_clock.GetUtcNow().UtcDateTime));
             if (campuses == null) return Denied<PagedResult<LibraryBranchDto>>();
             query = query.Where(x => campuses.Contains(x.CampusId));
         }
