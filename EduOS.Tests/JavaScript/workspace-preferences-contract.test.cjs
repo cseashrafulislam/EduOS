@@ -72,7 +72,8 @@ test('institution administration table columns use private versioned allowlists 
     assert.match(dto, /TablePreferenceDto/);
     assert.match(service, /ValidTables\(request\.TablePreferences\)/);
     assert.match(service, /TablePreferences = tables\.Select/);
-    assert.match(service, /request\.TablePreferences \?\? ToDto\(row\)\.TablePreferences/);
+    assert.match(service, /request\.TablePreferences == null \? currentTables/);
+    assert.match(service, /MergeTables\(currentTables, request\.TablePreferences\)/);
     assert.match(view, /User\.IsInRole\("TenantAdmin"\)/);
     assert.match(view, /data-table-columns/);
     assert.match(shell, /safeTablePreferences/);
