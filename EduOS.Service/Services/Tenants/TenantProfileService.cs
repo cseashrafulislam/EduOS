@@ -330,13 +330,14 @@ public sealed class TenantProfileService : ITenantProfileService
     private Task RecordChangeAsync(Tenant tenant, string action, IReadOnlyCollection<string> fields)
     {
         var now = DateTime.UtcNow;
+        var actor = _user.FullName;
+        var ip = _user.IpAddress;
         return _auditLogs.AddAsync(new AuditLog
         {
             TenantId = tenant.Id, EntityName = nameof(Tenant), EntityId = tenant.Id,
             Action = action, NewValue = string.Join(", ", fields),
-            UserId = _user.UserId, UserName = _user.FullName?.Length > 200
-                ? _user.FullName[..200] : _user.FullName,
-            IpAddress = _user.IpAddress?.Length > 100 ? _user.IpAddress[..100] : _user.IpAddress,
+            UserId = _user.UserId, UserName = actor is { Length: > 200 } ? actor[..200] : actor,
+            IpAddress = ip is { Length: > 100 } ? ip[..100] : ip,
             Endpoint = "/api/tenant-profile", RequestId = Guid.NewGuid().ToString("D"),
             OccurredAt = now, CreatedAt = now, CreatedBy = _user.UserId
         });
