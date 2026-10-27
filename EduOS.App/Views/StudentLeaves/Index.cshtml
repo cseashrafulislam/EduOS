@@ -35,7 +35,40 @@
             </div></div>
         </section>
     </div>
+    <section id="studentLeavePeriodReport" class="card mt-4" aria-labelledby="leaveReportTitle">
+        <div class="card-body">
+            <h2 id="leaveReportTitle" class="h5">Student leave period report</h2>
+            <p class="small text-muted">Historical enrollment and roll, approved or pending requests, and calendar days within the selected period.</p>
+            <form id="leaveReportFilters" class="row g-3 align-items-end">
+                <div class="col-md-4"><label for="leaveReportBatch" class="form-label">Academic batch</label>
+                    <select id="leaveReportBatch" class="form-select" required><option value="">Loading batches…</option></select></div>
+                <div class="col-md-2"><label for="leaveReportFrom" class="form-label">From</label>
+                    <input id="leaveReportFrom" class="form-control" type="date" required /></div>
+                <div class="col-md-2"><label for="leaveReportTo" class="form-label">To</label>
+                    <input id="leaveReportTo" class="form-control" type="date" required /></div>
+                <div class="col-md-2"><label for="leaveReportState" class="form-label">Status</label>
+                    <select id="leaveReportState" class="form-select">
+                        <option value="">All</option><option value="2">Submitted</option>
+                        <option value="3">Approved</option><option value="4">Rejected</option>
+                        <option value="5">Cancelled</option>
+                    </select></div>
+                <div class="col-md-2"><button type="submit" class="btn btn-primary w-100">Load report</button></div>
+            </form>
+            <p id="leaveReportStatus" class="small text-muted mt-3" role="status" aria-live="polite">Select filters to load the report.</p>
+            <div class="table-responsive"><table class="table table-sm table-striped align-middle">
+                <thead><tr><th>Roll</th><th>Student code</th><th>Student</th><th>Leave dates</th>
+                    <th>Days in period</th><th>Status</th><th>Reviewed</th></tr></thead>
+                <tbody id="leaveReportRows"></tbody>
+            </table></div>
+            <div class="d-flex justify-content-between align-items-center">
+                <button id="leaveReportPrevious" type="button" class="btn btn-sm btn-outline-secondary" disabled>Previous</button>
+                <span id="leaveReportPage" class="small"></span>
+                <button id="leaveReportNext" type="button" class="btn btn-sm btn-outline-secondary" disabled>Next</button>
+            </div>
+        </div>
+    </section>
 </div>
 @section Scripts {
     <script src="~/js/attendance/student-leaves.js" asp-append-version="true"></script>
+    <script src="~/js/attendance/leave-period-report.js" asp-append-version="true"></script>
 }

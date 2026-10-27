@@ -113,6 +113,28 @@ public sealed class SqlServerAcademicOperationsIntegrationTests
             ReviewNote = "Approved" });
         Assert.True(approved.Success, approved.Message);
         db.ChangeTracker.Clear();
+        // Real SQL Server: a historical enrollment's approved leave remains visible
+        // in a bounded report, with dates clipped without altering attendance.
+        var leaveReport = new StudentLeavePeriodReportService(
+            db, new Actor(tenantId, managerId, "TenantAdmin"),
+            NullLogger<StudentLeavePeriodReportService>.Instance);
+        var period = await leaveReport.GetAsync(new StudentLeavePeriodReportQueryDto {
+            AcademicBatchId = batchId, FromDate = new DateOnly(2026, 10, 10),
+            ToDate = new DateOnly(2026, 10, 10), State = LeaveState.Approved
+        });
+        Assert.True(period.Success, period.Message);
+        var periodRow = Assert.Single(period.Data!.Items);
+        Assert.Equal(enrollmentReference, periodRow.StudentEnrollmentReference);
+        Assert.Equal("01", periodRow.RollNo);
+        Assert.Equal(1, periodRow.PeriodDays);
+        Assert.Equal(1, period.Data.TotalCount);
+        Assert.Equal(404, (await new StudentLeavePeriodReportService(
+            db, new Actor(tenantId + 1, managerId, "TenantAdmin"),
+            NullLogger<StudentLeavePeriodReportService>.Instance)
+            .GetAsync(new StudentLeavePeriodReportQueryDto {
+                AcademicBatchId = batchId, FromDate = new DateOnly(2026, 10, 10),
+                ToDate = new DateOnly(2026, 10, 10)
+            })).StatusCode);
         var after = await attendance.GetRosterAsync(new StudentAttendanceRosterQueryDto {
             AcademicBatchId = batchId, AttendanceDate = new DateOnly(2026, 10, 10) });
         Assert.True(after.Success, after.Message);
