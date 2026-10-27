@@ -474,6 +474,14 @@ public sealed class StudentAttendanceService : IStudentAttendanceService
             _logger.LogWarning(ex, "Attendance finalization conflict for tenant {TenantId}", tenant);
             return Error<StudentAttendanceRosterDto>("Attendance finalization conflicts with another update.", 409);
         }
+        catch (InvalidOperationException ex) when (IsSqlDeadlock(ex))
+        {
+            // SQL Server may wrap error 1205 in EF's transient-failure exception
+            // when two serializable finalizers attempt a lock conversion.
+            // The transaction is rolled back; clients must reload before retrying.
+            _logger.LogWarning(ex, "Concurrent attendance finalization deadlock for tenant {TenantId}", tenant);
+            return Error<StudentAttendanceRosterDto>("Attendance finalization conflicted with another writer. Reload and retry.", 409);
+        }
     }
 
     public async Task<ApiResponse<StudentAttendanceDto>> CorrectAttendanceAsync(long attendanceId,
@@ -841,6 +849,14 @@ public sealed class StudentAttendanceService : IStudentAttendanceService
             if (!allowed) return "Teacher is not assigned to the requested academic batch and subject.";
         }
         return null;
+    }
+
+    private static bool IsSqlDeadlock(Exception exception)
+    {
+        for (Exception? current = exception; current != null; current = current.InnerException)
+            if (current is Microsoft.Data.SqlClient.SqlException sql && sql.Number == 1205)
+                return true;
+        return false;
     }
 
     private static string? Normalize(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
