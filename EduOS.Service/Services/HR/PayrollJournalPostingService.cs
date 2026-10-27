@@ -20,9 +20,9 @@ public sealed partial class PayrollJournalPostingService : IPayrollJournalPostin
     private readonly TimeProvider clock;
     public PayrollJournalPostingService(EduOSDbContext db, ICurrentUserService user, TimeProvider clock)
     { this.db = db; this.user = user; this.clock = clock; }
-    private bool CanRead => user.IsAuthenticated && user.TenantId > 0 &&
+    private bool CanRead => user.IsAuthenticated && user.TenantId > 0 && db.CurrentTenantId == user.TenantId &&
         (user.IsTenantAdmin || user.IsInRole("Principal") || user.IsInRole("Accountant"));
-    private bool CanPost => user.IsAuthenticated && user.TenantId > 0 && user.IsTenantAdmin;
+    private bool CanPost => user.IsAuthenticated && user.TenantId > 0 && db.CurrentTenantId == user.TenantId && user.IsTenantAdmin;
     private static ApiResponse<T> Error<T>(string message, int code = 400) => ApiResponse<T>.ErrorResponse(message, code);
     private static bool Money(decimal amount) => amount >= 0m && amount <= 9999999999999999.99m &&
         decimal.Round(amount, 2) == amount;
@@ -130,11 +130,20 @@ public sealed partial class PayrollJournalPostingService : IPayrollJournalPostin
                     x.TenantId == tenant && x.Id == run.JournalId.Value && !x.IsDeleted, ct);
                 if (prior == null || prior.SourceType != "PayrollRun" || prior.SourceId != run.Id ||
                     prior.State != JournalState.Posted || prior.AccountingPeriodId != request.AccountingPeriodId ||
-                    prior.CampusId != run.CampusId || run.State != PayrollRunState.Posted)
+                    prior.CampusId != run.CampusId || prior.CurrencyCode != "BDT" ||
+                    prior.ReversalOfJournalId.HasValue || run.State != PayrollRunState.Posted ||
+                    await PayrollPostingHistoryIntegrity.HasPostedReversalAsync(db, tenant, prior.Id, ct) ||
+                    await PayrollPostingHistoryIntegrity.HasDeletedLinesAsync(db, tenant, prior.Id, ct))
                     return Error<PostPayrollJournalResultDto>("Linked payroll journal requires reconciliation.", 409);
                 var existingLines = await db.JournalLines.AsNoTracking().Where(x => x.TenantId == tenant &&
                     x.JournalId == prior.Id && !x.IsDeleted).ToListAsync(ct);
-                if (!existingLines.Any(x => x.Description == "Payroll net payable" &&
+                if (existingLines.Count < 2 ||
+                    existingLines.Sum(x => x.DebitAmount) <= 0m ||
+                    existingLines.Sum(x => x.DebitAmount) != existingLines.Sum(x => x.CreditAmount) ||
+                    existingLines.Any(x => x.DebitAmount < 0m || x.CreditAmount < 0m ||
+                        (x.DebitAmount > 0m && x.CreditAmount > 0m) ||
+                        (x.DebitAmount == 0m && x.CreditAmount == 0m)) ||
+                    !existingLines.Any(x => x.Description == "Payroll net payable" &&
                     x.AccountId == request.SalaryPayableAccountId) ||
                     request.Mappings.Any(m => existingLines.Any(x => x.Description != null &&
                         x.Description.StartsWith("Component " + m.SalaryComponentId + " ")) &&
@@ -312,7 +321,7 @@ public sealed partial class PayrollJournalPostingService : IPayrollJournalPostin
             var credit = entriesToPost.Sum(x => x.CreditAmount);
             if (entriesToPost.Count is < 2 or > 100 || debit <= 0m || debit != credit || !Money(debit))
                 return Error<PostPayrollJournalResultDto>("Payroll accrual journal is not balanced or exceeds line limits.", 409);
-            if (await db.Journals.AsNoTracking().AnyAsync(x => x.TenantId == tenant && !x.IsDeleted &&
+            if (await db.Journals.IgnoreQueryFilters().AsNoTracking().AnyAsync(x => x.TenantId == tenant &&
                 ((x.SourceType == "PayrollRun" && x.SourceId == run.Id) ||
                  x.IdempotencyKey == PostingKey(tenant, run.PublicId)), ct))
                 return Error<PostPayrollJournalResultDto>("Unlinked payroll journal exists; reconcile before retry.", 409);

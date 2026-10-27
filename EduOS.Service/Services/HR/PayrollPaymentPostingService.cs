@@ -20,9 +20,9 @@ public sealed class PayrollPaymentPostingService : IPayrollPaymentPostingService
     public PayrollPaymentPostingService(EduOSDbContext db, ICurrentUserService user, TimeProvider clock)
     { this.db = db; this.user = user; this.clock = clock; }
 
-    private bool CanRead => user.IsAuthenticated && user.TenantId > 0 &&
+    private bool CanRead => user.IsAuthenticated && user.TenantId > 0 && db.CurrentTenantId == user.TenantId &&
         (user.IsTenantAdmin || user.IsInRole("Principal") || user.IsInRole("Accountant"));
-    private bool CanPost => user.IsAuthenticated && user.TenantId > 0 && user.IsTenantAdmin;
+    private bool CanPost => user.IsAuthenticated && user.TenantId > 0 && db.CurrentTenantId == user.TenantId && user.IsTenantAdmin;
     private static ApiResponse<T> Error<T>(string message, int code = 400) =>
         ApiResponse<T>.ErrorResponse(message, code);
     private static bool Money(decimal amount) => amount >= 0m && amount <= 9999999999999999.99m &&
@@ -130,13 +130,18 @@ public sealed class PayrollPaymentPostingService : IPayrollPaymentPostingService
                 if (payment.State != PaymentState.Successful || existing == null ||
                     existing.SourceType != "PayrollPayment" || existing.SourceId != payment.Id ||
                     existing.State != JournalState.Posted || existing.ReversalOfJournalId.HasValue ||
-                    existing.AccountingPeriodId != request.AccountingPeriodId)
+                    existing.AccountingPeriodId != request.AccountingPeriodId ||
+                    existing.CurrencyCode != "BDT" ||
+                    await PayrollPostingHistoryIntegrity.HasPostedReversalAsync(db, tenant, existing.Id, ct) ||
+                    await PayrollPostingHistoryIntegrity.HasDeletedLinesAsync(db, tenant, existing.Id, ct))
                     return Error<PostPayrollPaymentJournalResultDto>("Linked payroll payment journal requires reconciliation.", 409);
                 var lines = await db.JournalLines.AsNoTracking().Where(x => x.TenantId == tenant &&
                     x.JournalId == existing.Id && !x.IsDeleted).ToListAsync(ct);
                 if (lines.Count != 2 || lines.Count(x => x.CreditAmount == payment.Amount &&
                     x.DebitAmount == 0m && x.AccountId == request.SettlementAccountId) != 1 ||
-                    lines.Count(x => x.DebitAmount == payment.Amount && x.CreditAmount == 0m) != 1)
+                    lines.Count(x => x.DebitAmount == payment.Amount && x.CreditAmount == 0m) != 1 ||
+                    lines.Any(x => x.DebitAmount < 0m || x.CreditAmount < 0m ||
+                        (x.DebitAmount > 0m && x.CreditAmount > 0m)))
                     return Error<PostPayrollPaymentJournalResultDto>("Retry uses different settlement account or journal is unbalanced.", 409);
                 return ApiResponse<PostPayrollPaymentJournalResultDto>.SuccessResponse(new PostPayrollPaymentJournalResultDto
                 { PaymentReference = payment.PublicId, JournalReference = existing.PublicId,
@@ -174,8 +179,8 @@ public sealed class PayrollPaymentPostingService : IPayrollPaymentPostingService
             if (accrual == null || accrual.SourceType != "PayrollRun" || accrual.SourceId != run.Id ||
                 accrual.State != JournalState.Posted || accrual.ReversalOfJournalId.HasValue ||
                 accrual.CampusId != run.CampusId || accrual.CurrencyCode != "BDT" ||
-                await db.Journals.AsNoTracking().AnyAsync(x => x.TenantId == tenant && !x.IsDeleted &&
-                    x.ReversalOfJournalId == accrual.Id && x.State == JournalState.Posted, ct))
+                await PayrollPostingHistoryIntegrity.HasPostedReversalAsync(db, tenant, accrual.Id, ct) ||
+                await PayrollPostingHistoryIntegrity.HasDeletedLinesAsync(db, tenant, accrual.Id, ct))
                 return Error<PostPayrollPaymentJournalResultDto>("Payroll accrual is missing or reversed.", 409);
             var accrualLines = await db.JournalLines.AsNoTracking().Where(x => x.TenantId == tenant &&
                 x.JournalId == accrual.Id && !x.IsDeleted).ToListAsync(ct);
@@ -220,11 +225,11 @@ public sealed class PayrollPaymentPostingService : IPayrollPaymentPostingService
                     return Error<PostPayrollPaymentJournalResultDto>("Bank transfer account provenance is invalid.", 409);
             }
             var posted = await db.PayrollPayments.AsNoTracking().Where(x => x.TenantId == tenant &&
-                x.PayrollEmployeeId == employee.Id && x.Id != payment.Id && !x.IsDeleted &&
-                x.State == PaymentState.Successful).ToListAsync(ct);
-            if (posted.Any(x => !x.JournalId.HasValue) || posted.Sum(x => x.Amount) + payment.Amount > employee.NetAmount)
+                x.PayrollEmployeeId == employee.Id && x.Id != payment.Id &&
+                x.State == PaymentState.Successful).IgnoreQueryFilters().ToListAsync(ct);
+            if (posted.Any(x => x.IsDeleted || !x.JournalId.HasValue) || posted.Sum(x => x.Amount) + payment.Amount > employee.NetAmount)
                 return Error<PostPayrollPaymentJournalResultDto>("Settlement exceeds remaining net salary or prior payment needs reconciliation.", 409);
-            if (await db.Journals.AsNoTracking().AnyAsync(x => x.TenantId == tenant && !x.IsDeleted &&
+            if (await db.Journals.IgnoreQueryFilters().AsNoTracking().AnyAsync(x => x.TenantId == tenant &&
                 ((x.SourceType == "PayrollPayment" && x.SourceId == payment.Id) ||
                 x.IdempotencyKey == PostingKey(tenant, payment.PublicId)), ct))
                 return Error<PostPayrollPaymentJournalResultDto>("Unlinked payroll payment journal exists; reconcile first.", 409);
