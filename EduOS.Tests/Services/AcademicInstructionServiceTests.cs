@@ -157,18 +157,41 @@ public sealed class AcademicInstructionServiceTests
     {
         var options = Options();
         var seed = await SeedAsync(options);
-        await using var db = Context(options, 101, 70, "Teacher");
-        var teacher = Service(db, 101, 70, "Teacher");
-        var request = Lesson(seed.OfferingReference);
-        request.LessonDate = new DateOnly(2026, 12, 1);
-        var created = await teacher.CreateLessonPlanAsync(request);
-        created.Success.Should().BeTrue();
-        var id = created.Data!.Id;
-        var version = await VersionAsync(options, id, [1, 2, 3, 4, 5, 6, 7, 8]);
-        (await teacher.StartLessonPlanAsync(id,
-            new AdvanceLessonPlanRequestDto { RowVersion = version })).StatusCode.Should().Be(409);
-        (await teacher.CompleteLessonPlanAsync(id,
-            new AdvanceLessonPlanRequestDto { RowVersion = version })).StatusCode.Should().Be(409);
+        long id;
+        await using (var db = Context(options, 101, 70, "Teacher"))
+        {
+            var teacher = Service(db, 101, 70, "Teacher");
+            var request = Lesson(seed.OfferingReference);
+            request.LessonDate = new DateOnly(2026, 12, 1);
+            var created = await teacher.CreateLessonPlanAsync(request);
+            created.Success.Should().BeTrue();
+            id = created.Data!.Id;
+        }
+        var draftVersion = await VersionAsync(options, id, [1, 2, 3, 4, 5, 6, 7, 8]);
+        await using (var db = Context(options, 101, 70, "Teacher"))
+        {
+            var teacher = Service(db, 101, 70, "Teacher");
+            (await teacher.StartLessonPlanAsync(id,
+                new AdvanceLessonPlanRequestDto { RowVersion = draftVersion })).StatusCode.Should().Be(409);
+            (await teacher.SubmitLessonPlanAsync(id, draftVersion)).Success.Should().BeTrue();
+        }
+        var submittedVersion = await VersionAsync(options, id, [2, 3, 4, 5, 6, 7, 8, 9]);
+        await using (var db = Context(options, 101, 7, "TenantAdmin"))
+        {
+            (await Service(db, 101, 7, "TenantAdmin").ReviewLessonPlanAsync(id,
+                new ReviewLessonPlanRequestDto { Approve = true, RowVersion = submittedVersion }))
+                .Success.Should().BeTrue();
+        }
+        var approvedVersion = await VersionAsync(options, id, [3, 4, 5, 6, 7, 8, 9, 10]);
+        await using (var db = Context(options, 101, 70, "Teacher"))
+        {
+            var teacher = Service(db, 101, 70, "Teacher",
+                new FixedTimeProvider(new DateTimeOffset(2026, 10, 27, 0, 0, 0, TimeSpan.Zero)));
+            (await teacher.StartLessonPlanAsync(id,
+                new AdvanceLessonPlanRequestDto { RowVersion = approvedVersion })).StatusCode.Should().Be(409);
+            (await teacher.CompleteLessonPlanAsync(id,
+                new AdvanceLessonPlanRequestDto { RowVersion = approvedVersion })).StatusCode.Should().Be(409);
+        }
     }
 
     [Fact]
@@ -320,7 +343,7 @@ public sealed class AcademicInstructionServiceTests
         Content = "Examples with one variable", Resources = "Mathematics textbook"
     };
 
-    private static AcademicInstructionService Service(EduOSDbContext db, long tenant, long user, string role) => new(
+    private static AcademicInstructionService Service(EduOSDbContext db, long tenant, long user, string role, TimeProvider? clock = null) => new(
         new GenericRepository<Substitution>(db),
         new GenericRepository<LessonPlan>(db),
         new GenericRepository<RoutineEntry>(db),
@@ -333,7 +356,7 @@ public sealed class AcademicInstructionServiceTests
         new GenericRepository<Employee>(db),
         new GenericRepository<AcademicYear>(db),
         new GenericRepository<AcademicTerm>(db),
-        db, new TestUser(tenant, user, role), TimeProvider.System,
+        db, new TestUser(tenant, user, role), clock ?? TimeProvider.System,
         NullLogger<AcademicInstructionService>.Instance);
 
     private static async Task<Seed> SeedAsync(DbContextOptions<EduOSDbContext> options)
@@ -450,6 +473,11 @@ public sealed class AcademicInstructionServiceTests
     }
 
     private sealed record Seed(Guid OfferingReference, long BatchId, long RoutineEntryId, Guid SubstituteReference);
+
+    private sealed class FixedTimeProvider(DateTimeOffset utcNow) : TimeProvider
+    {
+        public override DateTimeOffset GetUtcNow() => utcNow;
+    }
 
     private sealed class TestUser(long tenant, long user, string role) : ICurrentUserService
     {
