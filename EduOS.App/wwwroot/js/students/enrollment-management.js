@@ -78,6 +78,7 @@
     }
     async function selectStudent(student) {
         state.student = student; state.hasCurrent = true; state.requestId = null;
+        window.dispatchEvent(new CustomEvent("eduos:enrollment-student-selected", { detail: { reference: student.reference } }));
         el('enrollmentStudentName').textContent = student.fullName;
         el('enrollmentStudentCode').textContent = student.studentCode;
         el('enrollmentCurrent').textContent = 'Checking current enrollment...';
