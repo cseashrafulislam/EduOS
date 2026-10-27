@@ -42,7 +42,8 @@ public sealed class TranscriptRegisterWorkflowContractTests
         source.Should().Contain("Take(request.PageSize)");
         source.Should().Contain("RowVersion = Version(x.issue.RowVersion)");
         source.Should().Contain("eligible.Contains(x.Id)");
-        source.Should().Contain("Take(30)");
+        source.Should().Contain("SearchTranscriptCandidatesAsync(search, 1, 30, ct)");
+        source.Should().Contain(".Skip((page - 1) * pageSize).Take(pageSize)");
     }
 
     [Fact]

@@ -40,7 +40,8 @@ public sealed class CertificateIssueRegisterWorkflowContractTests
         register.Should().Contain("issue.TenantId == tenant && !issue.IsDeleted");
         register.Should().Contain("Take(request.PageSize)");
         register.Should().Contain("RowVersion = Version(x.issue.RowVersion)");
-        register.Should().Contain("Take(30)");
+        register.Should().Contain("SearchCertificateCandidatesAsync(search, 1, 30, ct)");
+        register.Should().Contain(".Skip((page - 1) * pageSize).Take(pageSize)");
     }
 
     [Fact]
