@@ -130,16 +130,18 @@ public sealed class SqlServerTransportSeatCapacityIntegrationTests
             HostelRequest(fixture, 0, bedId, fixture.Start, fixture.Start.AddDays(6)));
         var deactivateTask = HostelSetBedStateAsync(fixture, bedId, version);
         await Task.WhenAll(bookingTask, deactivateTask);
-        Assert.NotEqual(bookingTask.Result.Success, deactivateTask.Result.Success);
-        Assert.Contains(bookingTask.Result.Success ? deactivateTask.Result.StatusCode :
-            bookingTask.Result.StatusCode, new[] { 404, 409 });
+        var booking = await bookingTask;
+        var deactivation = await deactivateTask;
+        Assert.NotEqual(booking.Success, deactivation.Success);
+        Assert.Contains(booking.Success ? deactivation.StatusCode :
+            booking.StatusCode, new[] { 404, 409 });
         await using var verify = ScopedContext(fixture.Options, fixture.TenantId, fixture.UserId);
         var bed = await verify.Set<HostelBed>().AsNoTracking().SingleAsync(x => x.Id == bedId);
         var booked = await verify.Set<StudentHostelAllocation>().AsNoTracking().AnyAsync(x =>
             x.TenantId == fixture.TenantId && x.HostelBedId == bedId &&
             !x.IsDeleted && x.State == HostelAllocationState.Active);
         Assert.False(!bed.IsActive && booked);
-        Assert.Equal(bookingTask.Result.Success, booked);
+        Assert.Equal(booking.Success, booked);
     }
 
     [Fact]
@@ -162,16 +164,18 @@ public sealed class SqlServerTransportSeatCapacityIntegrationTests
             HostelRequest(fixture, 0, bedId, fixture.Start, fixture.Start.AddDays(6)));
         var deactivateTask = HostelSetRoomStateAsync(fixture, roomId, version);
         await Task.WhenAll(bookingTask, deactivateTask);
-        Assert.NotEqual(bookingTask.Result.Success, deactivateTask.Result.Success);
-        Assert.Contains(bookingTask.Result.Success ? deactivateTask.Result.StatusCode :
-            bookingTask.Result.StatusCode, new[] { 404, 409 });
+        var booking = await bookingTask;
+        var deactivation = await deactivateTask;
+        Assert.NotEqual(booking.Success, deactivation.Success);
+        Assert.Contains(booking.Success ? deactivation.StatusCode :
+            booking.StatusCode, new[] { 404, 409 });
         await using var verify = ScopedContext(fixture.Options, fixture.TenantId, fixture.UserId);
         var roomState = await verify.Set<HostelRoom>().AsNoTracking().SingleAsync(x => x.Id == roomId);
         var booked = await verify.Set<StudentHostelAllocation>().AsNoTracking().AnyAsync(x =>
             x.TenantId == fixture.TenantId && x.HostelBedId == bedId &&
             !x.IsDeleted && x.State == HostelAllocationState.Active);
         Assert.False(!roomState.IsActive && booked);
-        Assert.Equal(bookingTask.Result.Success, booked);
+        Assert.Equal(booking.Success, booked);
     }
 
     [Fact]
@@ -230,16 +234,18 @@ public sealed class SqlServerTransportSeatCapacityIntegrationTests
         var provisionTask = HostelCreateBedAsync(fixture, roomId, version);
         var reduceTask = HostelSetRoomCapacityAsync(fixture, roomId, version, 1);
         await Task.WhenAll(provisionTask, reduceTask);
-        Assert.NotEqual(provisionTask.Result.Success, reduceTask.Result.Success);
-        Assert.Equal(409, provisionTask.Result.Success ? reduceTask.Result.StatusCode :
-            provisionTask.Result.StatusCode);
+        var provision = await provisionTask;
+        var reduction = await reduceTask;
+        Assert.NotEqual(provision.Success, reduction.Success);
+        Assert.Equal(409, provision.Success ? reduction.StatusCode :
+            provision.StatusCode);
         await using var verify = ScopedContext(fixture.Options, fixture.TenantId, fixture.UserId);
         var persisted = await verify.Set<HostelRoom>().AsNoTracking().SingleAsync(x => x.Id == roomId);
         var physical = await verify.Set<HostelBed>().CountAsync(x =>
             x.TenantId == fixture.TenantId && !x.IsDeleted && x.HostelRoomId == roomId);
         Assert.True(physical <= persisted.Capacity);
-        Assert.Equal(provisionTask.Result.Success ? 2 : 1, physical);
-        Assert.Equal(reduceTask.Result.Success ? 1 : 2, persisted.Capacity);
+        Assert.Equal(provision.Success ? 2 : 1, physical);
+        Assert.Equal(reduction.Success ? 1 : 2, persisted.Capacity);
     }
 
     [Fact]
