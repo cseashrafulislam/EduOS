@@ -223,12 +223,12 @@ public sealed class WorkspacePreferencesServiceTests
     {
         await using var test = Create();
         var service = Service(test.Db, 101, 71);
-        var badTables = new List<List<TablePreferenceDto>?>
-        {
+        List<List<TablePreferenceDto>?> badTables =
+        [
             [],
             [new() { Id = "institution-users", Columns = TablePreferenceDto.Defaults()[0].Columns }],
             [TablePreferenceDto.Defaults()[0], TablePreferenceDto.Defaults()[0]]
-        };
+        ];
         foreach (var invalid in badTables)
             Assert.Equal(400, (await service.SaveAsync(new SaveWorkspacePreferencesRequestDto
             {
