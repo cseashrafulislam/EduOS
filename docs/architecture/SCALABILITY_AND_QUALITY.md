@@ -12,7 +12,7 @@
 
 ## 2. What 'millions of learners' actually means
 
-**Actual first-release intake:** 16 institutes across seven education categories and approximately 40,000 student records, including legitimate multi-institute learners. See [Version 1 / Version 2 Release Contract](../RELEASE_V1_V2.md). Validate duplicate prevention, tenant isolation and bounded/reconciled import before live use. Do not infer concurrent-user capacity from this record count.
+**Actual first-release intake:** 16 institutes across seven education categories and approximately 40,000 student records, including legitimate multi-institute learners. See [V1 / V2 / V3 Release Contract](../RELEASE_V1_V2_V3.md). Validate duplicate prevention, tenant isolation and bounded/reconciled import before live use. Do not infer concurrent-user capacity from this record count.
 
 Scale is a **target and design constraint**, not a current performance claim. The important dimensions are distinct: total accounts, active institutes, students per institute, concurrent logged-in users, peak requests/sec, rows per tenant/year, file volume and report/export concurrency. Do not equate one million registered students with one million simultaneous requests.
 
@@ -50,7 +50,7 @@ For any new feature, bug fix or cleanup:
 7. **Safe evolution:** no deletion of existing working modules/data simply because they are not in the current pilot. Under Construction must be role/entitlement gated; database changes require data/backfill/index/mixed-version/rollback review.
 8. **Small coherent change sets:** complete all active consumers and tests of a change; avoid renaming layers repeatedly or creating adapters that cause permanent compatibility loops.
 9. **Peer-review and evidence:** Release build, EF snapshot/migration consistency, unit/integration/authorization regressions and critical browser workflows must pass on exact commit. Document what was tested vs not tested.
-10. **Complete-module release only:** no Version 1 'basic' Result/LMS/Finance/HR/Payroll followed by a Version 2 'advanced' version. Freeze each business module's entire accepted functional scope, including configuration, transaction, correction, permission, report/export, UX and real-institute sign-off. Version 2 adds only new complete modules; fixes/security evolution of V1 remain normal maintenance.
+10. **Complete-module release only:** no version may carry only a 'basic' slice of a module and shift its agreed 'advanced' work to the next version. Freeze each business module's entire accepted scope, including configuration, transaction, correction, permission, reporting, UX and institute sign-off. V1 owns Education/Results/Finance, V2 owns LMS/HR/Library/Hostel/Transport, and V3 owns Inventory/Assets/approved enterprise modules. Security/bug-fix evolution remains normal maintenance.
 
 ## 5. Release and operations quality gates
 
@@ -69,7 +69,7 @@ Pilot is **not** a production certification. See `docs/deployment/SCHOOL_PILOT_S
 
 ## 6. Change approval and documentation discipline
 
-- Maintain `README.md` as navigation/product catalogue, `docs/PRODUCT_BLUEPRINT.md` as product identity, `docs/RELEASE_V1_V2.md` as the binding **module-complete version/release contract**, `docs/UI_PERSONALIZATION.md` as UX contract, this file as architecture/quality contract, and existing module-specific documents as detailed implementation evidence.
+- Maintain `README.md` as navigation/product catalogue, `docs/PRODUCT_BLUEPRINT.md` as product identity, `docs/RELEASE_V1_V2_V3.md` as the binding **module-complete version/release contract**, `docs/UI_PERSONALIZATION.md` as UX contract, this file as architecture/quality contract, and existing module-specific documents as detailed implementation evidence.
 - Document each future architecture reversal as a short decision: observed problem, alternatives, impact on tenants/history/APIs, migration, testing and rollback. Never silently overwrite a prior decision's rationale.
 - Don't schedule development tasks, modify source, migrate databases or activate features because these specifications exist. Implementation requires a prioritized approved task and exact branch scope.
 
