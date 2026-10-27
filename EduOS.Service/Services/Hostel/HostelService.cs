@@ -492,11 +492,10 @@ public sealed partial class HostelService : IHostelService
         var tenant = _currentUser.TenantId;
         try
         {
-            using var scope = new TransactionScope(TransactionScopeOption.Required,
-                new TransactionOptions { IsolationLevel = IsolationLevel.Serializable },
-                TransactionScopeAsyncFlowOption.Enabled);
+            return await _unitOfWork.ExecuteInTransactionAsync(async ct =>
+            {
             var existing = await _allocations.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x => x.TenantId == tenant &&
-                x.ClientRequestId == request.ClientRequestId, cancellationToken);
+                x.ClientRequestId == request.ClientRequestId, ct);
             if (existing != null)
             {
                 if (!_currentUser.IsTenantAdmin)
@@ -504,46 +503,45 @@ public sealed partial class HostelService : IHostelService
                     var enrollmentCampus = await _enrollments.GetQueryable().AsNoTracking()
                         .Where(x => x.TenantId == tenant && x.Id == existing.StudentEnrollmentId &&
                             x.StudentId == existing.StudentId).Select(x => (long?)x.CampusId)
-                        .FirstOrDefaultAsync(cancellationToken);
+                        .FirstOrDefaultAsync(ct);
                     var bedCampus = await (from bed in _beds.GetQueryable().AsNoTracking()
                         join room in _rooms.GetQueryable().AsNoTracking() on bed.HostelRoomId equals room.Id
                         join hostel in _hostels.GetQueryable().AsNoTracking() on room.HostelId equals hostel.Id
                         where bed.TenantId == tenant && room.TenantId == tenant && hostel.TenantId == tenant &&
                             bed.Id == existing.HostelBedId
-                        select (long?)hostel.CampusId).FirstOrDefaultAsync(cancellationToken);
+                        select (long?)hostel.CampusId).FirstOrDefaultAsync(ct);
                     if (!enrollmentCampus.HasValue || enrollmentCampus != bedCampus ||
-                        !await CanManageCampusAsync(enrollmentCampus.Value, tenant, cancellationToken))
+                        !await CanManageCampusAsync(enrollmentCampus.Value, tenant, ct))
                         return Denied<StudentHostelAllocationDto>();
                 }
                 var enrollmentReference = await _enrollments.GetQueryable().AsNoTracking().Where(x => x.TenantId == tenant &&
-                    x.Id == existing.StudentEnrollmentId).Select(x => x.PublicId).FirstOrDefaultAsync(cancellationToken);
+                    x.Id == existing.StudentEnrollmentId).Select(x => x.PublicId).FirstOrDefaultAsync(ct);
                 if (enrollmentReference != request.StudentEnrollmentReference || existing.HostelBedId != request.HostelBedId ||
                     (request.StartDate != default && existing.StartDate != request.StartDate) ||
                     existing.EndDate != request.EndDate ||
                     (request.MonthlyRent.HasValue && existing.MonthlyRent != request.MonthlyRent.Value))
                     return Error("Client request ID was reused for different allocation data.", 409);
-                var replay = await MapAsync(existing, cancellationToken);
-                scope.Complete();
+                var replay = await MapAsync(existing, ct);
                 return ApiResponse<StudentHostelAllocationDto>.SuccessResponse(replay, "Hostel allocation already processed.");
             }
             var enrollment = await _enrollments.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x => x.TenantId == tenant &&
                 x.PublicId == request.StudentEnrollmentReference && x.IsCurrent &&
-                x.State == EnrollmentState.Active, cancellationToken);
+                x.State == EnrollmentState.Active, ct);
             if (enrollment == null) return Error("Active student enrollment not found.", 404);
             if (!await _campuses.GetQueryable().AsNoTracking().AnyAsync(x => x.TenantId == tenant &&
-                x.Id == enrollment.CampusId && x.IsActive, cancellationToken))
+                x.Id == enrollment.CampusId && x.IsActive, ct))
                 return Error("Enrollment campus is inactive.", 409);
-            if (!await CanManageCampusAsync(enrollment.CampusId, tenant, cancellationToken))
+            if (!await CanManageCampusAsync(enrollment.CampusId, tenant, ct))
                 return Denied<StudentHostelAllocationDto>();
             var student = await _students.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x => x.TenantId == tenant &&
-                x.Id == enrollment.StudentId && x.StatusCode == "Active", cancellationToken);
+                x.Id == enrollment.StudentId && x.StatusCode == "Active", ct);
             if (student == null) return Error("Active student not found.", 404);
             var selection = await (from bed in _beds.GetQueryable().AsNoTracking()
                 join room in _rooms.GetQueryable().AsNoTracking() on bed.HostelRoomId equals room.Id
                 join hostel in _hostels.GetQueryable().AsNoTracking() on room.HostelId equals hostel.Id
                 where bed.TenantId == tenant && room.TenantId == tenant && hostel.TenantId == tenant &&
                     bed.Id == request.HostelBedId && bed.IsActive && room.IsActive && hostel.IsActive
-                select new { Bed = bed, Room = room, Hostel = hostel }).FirstOrDefaultAsync(cancellationToken);
+                select new { Bed = bed, Room = room, Hostel = hostel }).FirstOrDefaultAsync(ct);
             if (selection == null) return Error("Hostel bed is unavailable.", 404);
             if (selection.Hostel.CampusId != enrollment.CampusId)
                 return Error("Hostel does not belong to the enrollment campus.", 409);
@@ -554,11 +552,11 @@ public sealed partial class HostelService : IHostelService
             var end = request.EndDate ?? DateOnly.MaxValue;
             if (await _allocations.GetQueryable().AsNoTracking().AnyAsync(x => x.TenantId == tenant &&
                 !x.IsDeleted && x.StudentId == student.Id && x.State != HostelAllocationState.Cancelled &&
-                x.StartDate <= end && (!x.EndDate.HasValue || x.EndDate.Value >= start), cancellationToken))
+                x.StartDate <= end && (!x.EndDate.HasValue || x.EndDate.Value >= start), ct))
                 return Error("Student has an overlapping hostel reservation.", 409);
             if (await _allocations.GetQueryable().AsNoTracking().AnyAsync(x => x.TenantId == tenant &&
                 !x.IsDeleted && x.HostelBedId == selection.Bed.Id && x.State != HostelAllocationState.Cancelled &&
-                x.StartDate <= end && (!x.EndDate.HasValue || x.EndDate.Value >= start), cancellationToken))
+                x.StartDate <= end && (!x.EndDate.HasValue || x.EndDate.Value >= start), ct))
                 return Error("Selected bed is reserved during the requested period.", 409);
             var roomStays = await (from stay in _allocations.GetQueryable().AsNoTracking()
                 join bed in _beds.GetQueryable().AsNoTracking() on stay.HostelBedId equals bed.Id
@@ -566,7 +564,7 @@ public sealed partial class HostelService : IHostelService
                     !stay.IsDeleted && !bed.IsDeleted && stay.State != HostelAllocationState.Cancelled &&
                     bed.HostelRoomId == selection.Room.Id && stay.StartDate <= end &&
                     (!stay.EndDate.HasValue || stay.EndDate.Value >= start)
-                select new { stay.StartDate, stay.EndDate }).Take(5001).ToListAsync(cancellationToken);
+                select new { stay.StartDate, stay.EndDate }).Take(5001).ToListAsync(ct);
             if (roomStays.Count > 5000) return Error("Too many overlapping reservations to validate safely.", 413);
             if (PeakConcurrentStays(start, request.EndDate,
                 roomStays.Select(x => (x.StartDate, x.EndDate))) > selection.Room.Capacity)
@@ -582,13 +580,13 @@ public sealed partial class HostelService : IHostelService
                 CreatedAt = now, CreatedBy = _currentUser.UserId
             };
             await _allocations.AddAsync(allocation);
-            await _unitOfWork.SaveChangesAsync(cancellationToken);
-            var dto = await MapAsync(allocation, cancellationToken);
-            scope.Complete();
+            await _unitOfWork.SaveChangesAsync(ct);
+            var dto = await MapAsync(allocation, ct);
             return new ApiResponse<StudentHostelAllocationDto>
             {
                 Success = true, StatusCode = 201, Message = "Hostel allocated.", Data = dto
             };
+            }, System.Data.IsolationLevel.Serializable, cancellationToken);
         }
         catch (DbUpdateException ex)
         {
@@ -600,7 +598,12 @@ public sealed partial class HostelService : IHostelService
             _logger.LogWarning(ex, "Serialized hostel transaction aborted for tenant {TenantId}", tenant);
             return Error("Hostel allocation conflicts with another request.", 409);
         }
-        catch (Exception ex)
+        catch (Exception ex) when (HasHostelSqlSerializationConflict(ex))
+        {
+            _logger.LogWarning(ex, "SQL Server hostel allocation serialization conflict for tenant {TenantId}", tenant);
+            return Error("Hostel allocation conflicts with another request.", 409);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
         {
             _logger.LogError(ex, "Hostel allocation failed for tenant {TenantId}", tenant);
             return Error("Hostel allocation could not be created.", 500);
@@ -642,6 +645,15 @@ public sealed partial class HostelService : IHostelService
 
     private Task<bool> CanManageCampusAsync(long campusId, long tenant, CancellationToken ct) =>
         _currentUser.IsTenantAdmin ? Task.FromResult(true) : AllowedCampusIds(tenant).AnyAsync(x => x == campusId, ct);
+
+    private static bool HasHostelSqlSerializationConflict(Exception exception)
+    {
+        for (Exception? current = exception; current != null; current = current.InnerException)
+            if (current is Microsoft.Data.SqlClient.SqlException sql &&
+                sql.Number is 1205 or 1222 or 3960 or 2601 or 2627)
+                return true;
+        return false;
+    }
 
     private bool CanRead() => _currentUser.IsAuthenticated && _currentUser.TenantId > 0;
     private bool CanManage() => CanRead() && (_currentUser.IsTenantAdmin ||

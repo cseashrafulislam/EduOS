@@ -1,5 +1,8 @@
 using EduOS.Core.Common;
 using EduOS.Core.DTOs.Transport;
+using EduOS.Core.DTOs.Hostel;
+using EduOS.Core.Entities.Hostel;
+using EduOS.Service.Services.Hostel;
 using EduOS.Core.Entities.Academic;
 using EduOS.Core.Entities.Auth;
 using EduOS.Core.Entities.Learners;
@@ -33,6 +36,84 @@ namespace EduOS.Tests.App;
 public sealed class SqlServerTransportSeatCapacityIntegrationTests
 {
     private static readonly ConcurrentQueue<string> Diagnostics = new();
+
+    [Fact]
+    public async Task Concurrent_hostel_bookings_for_one_bed_preserve_capacity_and_request_replay()
+    {
+        var connection = Environment.GetEnvironmentVariable("EDUOS_SQL_AUTH_TEST_CONNECTION");
+        if (string.IsNullOrWhiteSpace(connection)) return;
+        var fixture = await SeedAsync(connection);
+        var bedId = (await SeedHostelBedsAsync(fixture, 1, 1))[0];
+        var first = HostelRequest(fixture, 0, bedId, fixture.Start, fixture.Start.AddDays(6));
+        var second = HostelRequest(fixture, 1, bedId, fixture.Start, fixture.Start.AddDays(6));
+
+        var responses = await Task.WhenAll(HostelBookAsync(fixture, first), HostelBookAsync(fixture, second));
+        var accepted = Assert.Single(responses.Where(x => x.Success));
+        Assert.Single(responses.Where(x => !x.Success && x.StatusCode == 409));
+        await using (var verify = ScopedContext(fixture.Options, fixture.TenantId, fixture.UserId))
+        {
+            var persisted = await verify.StudentHostelAllocations.AsNoTracking().Where(x =>
+                x.TenantId == fixture.TenantId && x.HostelBedId == bedId &&
+                !x.IsDeleted && x.State == HostelAllocationState.Active).ToListAsync();
+            Assert.Single(persisted);
+            Assert.Equal(accepted.Data!.Id, persisted[0].Id);
+        }
+
+        var winner = responses[0].Success ? first : second;
+        var replay = await HostelBookAsync(fixture, winner);
+        Assert.True(replay.Success, replay.Message);
+        Assert.Equal(accepted.Data!.Id, replay.Data!.Id);
+        Assert.Equal(accepted.Data.RowVersion, replay.Data.RowVersion);
+        var mismatch = await HostelBookAsync(fixture, new AllocateStudentHostelRequestDto
+        {
+            ClientRequestId = winner.ClientRequestId,
+            StudentEnrollmentReference = winner.StudentEnrollmentReference,
+            HostelBedId = bedId, StartDate = winner.StartDate, EndDate = winner.EndDate,
+            MonthlyRent = 1m
+        });
+        Assert.False(mismatch.Success);
+        Assert.Equal(409, mismatch.StatusCode);
+    }
+
+    [Fact]
+    public async Task Disjoint_hostel_reservations_can_reuse_one_bed()
+    {
+        var connection = Environment.GetEnvironmentVariable("EDUOS_SQL_AUTH_TEST_CONNECTION");
+        if (string.IsNullOrWhiteSpace(connection)) return;
+        var fixture = await SeedAsync(connection);
+        var bedId = (await SeedHostelBedsAsync(fixture, 1, 1))[0];
+        var first = await HostelBookAsync(fixture, HostelRequest(
+            fixture, 0, bedId, fixture.Start, fixture.Start.AddDays(4)));
+        var second = await HostelBookAsync(fixture, HostelRequest(
+            fixture, 1, bedId, fixture.Start.AddDays(5), fixture.Start.AddDays(9)));
+        Assert.True(first.Success, first.Message);
+        Assert.True(second.Success, second.Message);
+        await using var verify = ScopedContext(fixture.Options, fixture.TenantId, fixture.UserId);
+        Assert.Equal(2, await verify.StudentHostelAllocations.CountAsync(x =>
+            x.TenantId == fixture.TenantId && x.HostelBedId == bedId &&
+            !x.IsDeleted && x.State == HostelAllocationState.Active));
+    }
+
+    [Fact]
+    public async Task Concurrent_hostel_bookings_for_one_student_cannot_claim_two_beds()
+    {
+        var connection = Environment.GetEnvironmentVariable("EDUOS_SQL_AUTH_TEST_CONNECTION");
+        if (string.IsNullOrWhiteSpace(connection)) return;
+        var fixture = await SeedAsync(connection);
+        var beds = await SeedHostelBedsAsync(fixture, 2, 2);
+        var first = HostelRequest(fixture, 0, beds[0], fixture.Start, fixture.Start.AddDays(6));
+        var second = HostelRequest(fixture, 0, beds[1], fixture.Start, fixture.Start.AddDays(6));
+        var responses = await Task.WhenAll(HostelBookAsync(fixture, first), HostelBookAsync(fixture, second));
+        Assert.Single(responses.Where(x => x.Success));
+        Assert.Single(responses.Where(x => !x.Success && x.StatusCode == 409));
+        await using var verify = ScopedContext(fixture.Options, fixture.TenantId, fixture.UserId);
+        Assert.Equal(1, await verify.StudentHostelAllocations.CountAsync(x =>
+            x.TenantId == fixture.TenantId && !x.IsDeleted &&
+            x.State == HostelAllocationState.Active &&
+            x.StartDate <= fixture.Start.AddDays(6) &&
+            (!x.EndDate.HasValue || x.EndDate.Value >= fixture.Start)));
+    }
+
     [Fact]
     public async Task Two_concurrent_future_riders_cannot_reserve_the_same_last_seat()
     {
@@ -1000,6 +1081,69 @@ public sealed class SqlServerTransportSeatCapacityIntegrationTests
         Assert.Equal(1, await verify.StudentTransports.CountAsync(x =>
             x.TenantId == fixture.TenantId && !x.IsDeleted &&
             x.State == TransportAssignmentState.Active && x.VehicleId == fixture.VehicleId));
+    }
+
+
+    private static AllocateStudentHostelRequestDto HostelRequest(
+        Fixture fixture, int student, long bedId, DateOnly from, DateOnly to) => new()
+    {
+        ClientRequestId = Guid.NewGuid(),
+        StudentEnrollmentReference = fixture.Enrollments[student],
+        HostelBedId = bedId, StartDate = from, EndDate = to, MonthlyRent = 0m
+    };
+
+    private static async Task<ApiResponse<StudentHostelAllocationDto>> HostelBookAsync(
+        Fixture fixture, AllocateStudentHostelRequestDto request)
+    {
+        await using var db = ScopedContext(fixture.Options, fixture.TenantId, fixture.UserId);
+        var service = new HostelService(
+            new GenericRepository<EduOS.Core.Entities.Hostel.Hostel>(db),
+            new GenericRepository<HostelRoom>(db),
+            new GenericRepository<HostelBed>(db),
+            new GenericRepository<StudentHostelAllocation>(db),
+            new GenericRepository<StudentEnrollment>(db),
+            new GenericRepository<Student>(db),
+            new GenericRepository<UserCampusAccess>(db),
+            new GenericRepository<Campus>(db),
+            db, new TenantAdmin(fixture.TenantId, fixture.UserId),
+            TimeProvider.System,
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<HostelService>.Instance,
+            new ReservationFinancePolicy(db),
+            new ReservationCommandReceiptStore(db, TimeProvider.System));
+        return await service.AllocateAsync(request);
+    }
+
+    private static async Task<long[]> SeedHostelBedsAsync(Fixture fixture, int capacity, int count)
+    {
+        await using var db = ScopedContext(fixture.Options, fixture.TenantId, fixture.UserId);
+        var campusId = await db.StudentEnrollments.AsNoTracking().Where(x =>
+            x.TenantId == fixture.TenantId && x.PublicId == fixture.Enrollments[0])
+            .Select(x => x.CampusId).SingleAsync();
+        var suffix = Guid.NewGuid().ToString("N")[..12];
+        var hostel = new EduOS.Core.Entities.Hostel.Hostel
+        {
+            TenantId = fixture.TenantId, CampusId = campusId,
+            Name = "Hostel booking concurrency CI", Code = "HB-" + suffix,
+            IsActive = true
+        };
+        db.Add(hostel);
+        await db.SaveChangesAsync();
+        var room = new HostelRoom
+        {
+            TenantId = fixture.TenantId, HostelId = hostel.Id,
+            RoomNumber = "R-" + suffix, Capacity = capacity,
+            RentPerBed = 0m, IsActive = true
+        };
+        db.Add(room);
+        await db.SaveChangesAsync();
+        var beds = Enumerable.Range(0, count).Select(i => new HostelBed
+        {
+            TenantId = fixture.TenantId, HostelRoomId = room.Id,
+            BedNumber = "B-" + i, IsActive = true
+        }).ToArray();
+        db.AddRange(beds);
+        await db.SaveChangesAsync();
+        return beds.Select(x => x.Id).ToArray();
     }
 
     private static AssignStudentTransportRequestDto Request(
