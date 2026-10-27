@@ -37,7 +37,7 @@
     <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" asp-append-version="true" />
     <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
 </head>
-<body>
+<body data-workspace-preferences="@(User?.Identity?.IsAuthenticated == true && User?.IsInRole("SuperAdmin") != true ? "enabled" : "disabled")">
     <a class="skip-link" href="#main-content">@T["SkipToContent"]</a>
 
     <div class="app-shell">
@@ -527,6 +527,10 @@
 
                             <ul class="dropdown-menu dropdown-menu-end shadow border-0 rounded-4 p-2">
                                 <li><a class="dropdown-item rounded-3" href="/Account/Profile">@T["Profile"]</a></li>
+                                @if (User?.IsInRole("SuperAdmin") != true)
+                                {
+                                    <li><a class="dropdown-item rounded-3" href="/workspace">@(currentCulture == "bn-BD" ? "ওয়ার্কস্পেস ডিজাইন" : "Workspace Appearance")</a></li>
+                                }
                                 <li><a class="dropdown-item rounded-3" href="/LoginActivity/Index">Sign-in activity</a></li>
                                 <li><a class="dropdown-item rounded-3" href="/LegalDocuments/My">My Legal Agreements</a></li>
                                 <li><a class="dropdown-item rounded-3" href="/Account/Profile#passwordForm">@T["ChangePassword"]</a></li>

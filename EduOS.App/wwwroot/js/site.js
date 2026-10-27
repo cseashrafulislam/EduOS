@@ -99,4 +99,31 @@
                 .catch(error => console.warn('EduOS service worker registration failed.', error));
         });
     }
+    // Preferences are fetched only for the server-resolved active institution.
+    // No localStorage/cross-tenant cache is used as a source of authorization or appearance.
+    const workspaceChoices = {
+        theme: new Set(['system', 'light', 'dark']),
+        palette: new Set(['blue', 'teal', 'violet']),
+        navigation: new Set(['left', 'right', 'top']),
+        density: new Set(['comfortable', 'compact']),
+        fontScale: new Set(['normal', 'large'])
+    };
+    window.EduOSApplyWorkspacePreferences = preferences => {
+        const html = document.documentElement;
+        for (const [name, allowed] of Object.entries(workspaceChoices)) {
+            const value = preferences?.[name];
+            const safe = allowed.has(value) ? value : [...allowed][0];
+            const attr = name === 'fontScale' ? 'workspaceFontScale' : 'workspace' + name[0].toUpperCase() + name.slice(1);
+            html.dataset[attr] = safe;
+        }
+    };
+    if (document.body.dataset.workspacePreferences === 'enabled') {
+        fetch('/api/workspace-preferences', { credentials: 'same-origin', cache: 'no-store' })
+            .then(response => response.ok ? response.json() : null)
+            .then(result => {
+                if (result?.success && result.data)
+                    window.EduOSApplyWorkspacePreferences(result.data);
+            })
+            .catch(() => { /* Server defaults remain usable when offline. */ });
+    }
 })();

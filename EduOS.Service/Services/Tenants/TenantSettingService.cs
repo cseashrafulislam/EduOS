@@ -35,7 +35,8 @@ public sealed class TenantSettingService : ITenantSettingService
         page = Math.Max(1, page); pageSize = Math.Clamp(pageSize, 1, 100);
         try
         {
-            var query = _settings.GetQueryable().AsNoTracking().Where(x => x.TenantId == _user.TenantId);
+            var query = _settings.GetQueryable().AsNoTracking().Where(x => x.TenantId == _user.TenantId &&
+                !x.Key.StartsWith(WorkspacePreferencesService.KeyPrefix));
             if (!string.IsNullOrWhiteSpace(category)) query = query.Where(x => x.Category == category.Trim());
             var count = await query.CountAsync(cancellationToken);
             var offset = ((long)page - 1) * pageSize;
@@ -59,6 +60,8 @@ public sealed class TenantSettingService : ITenantSettingService
     {
         if (!CanRead()) return ApiResponse<TenantSettingDto>.ErrorResponse("Tenant access is required.", 403);
         if (string.IsNullOrWhiteSpace(key)) return ApiResponse<TenantSettingDto>.ErrorResponse("Setting key is required.");
+        if (key.Trim().StartsWith(WorkspacePreferencesService.KeyPrefix, StringComparison.OrdinalIgnoreCase))
+            return ApiResponse<TenantSettingDto>.ErrorResponse("Setting not found.", 404);
         var row = await _settings.GetQueryable().AsNoTracking()
             .FirstOrDefaultAsync(x => x.TenantId == _user.TenantId && x.Key == key.Trim(), cancellationToken);
         return row == null ? ApiResponse<TenantSettingDto>.ErrorResponse("Setting not found.", 404) :
@@ -73,6 +76,8 @@ public sealed class TenantSettingService : ITenantSettingService
             request.Category?.Length > 100)
             return ApiResponse<TenantSettingDto>.ErrorResponse("Setting key or category is invalid.");
         var key = request.Key.Trim();
+        if (key.StartsWith(WorkspacePreferencesService.KeyPrefix, StringComparison.OrdinalIgnoreCase))
+            return ApiResponse<TenantSettingDto>.ErrorResponse("Reserved workspace key.", 403);
         if ((key.Equals("Branding.PrimaryColor", StringComparison.OrdinalIgnoreCase) ||
              key.Equals("Branding.SecondaryColor", StringComparison.OrdinalIgnoreCase) ||
              key.Equals("Branding.AccentColor", StringComparison.OrdinalIgnoreCase)) &&

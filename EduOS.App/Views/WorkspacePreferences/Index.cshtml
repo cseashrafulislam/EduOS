@@ -1,0 +1,56 @@
+@using System.Globalization
+@{
+    ViewData["Title"] = CultureInfo.CurrentUICulture.Name == "bn-BD" ? "ওয়ার্কস্পেস ডিজাইন" : "Workspace Appearance";
+    var bn = CultureInfo.CurrentUICulture.Name == "bn-BD";
+}
+<section class="container-fluid py-3" id="workspacePreferencesPage" aria-labelledby="workspaceTitle">
+    <div class="mb-3">
+        <h2 id="workspaceTitle">@(bn ? "আপনার ওয়ার্কস্পেস" : "Your Workspace")</h2>
+        <p class="text-muted">@(bn ? "প্রতিটি প্রতিষ্ঠানের জন্য আলাদা ডিজাইন সংরক্ষণ করুন। অনুমতি ও মেনু অ্যাক্সেস অপরিবর্তিত থাকবে।" : "Save a different design for each institution. Roles and menu permissions never change.")</p>
+    </div>
+    <div class="card shadow-sm">
+        <div class="card-body">
+            <form id="workspacePreferencesForm" autocomplete="off">
+                <div class="row g-3">
+                    <div class="col-md-6"><label class="form-label" for="workspaceTheme">@(bn ? "থিম" : "Theme")</label>
+                        <select class="form-select" id="workspaceTheme" name="theme">
+                            <option value="system">@(bn ? "ডিভাইস অনুযায়ী" : "System")</option>
+                            <option value="light">@(bn ? "লাইট" : "Light")</option>
+                            <option value="dark">@(bn ? "ডার্ক" : "Dark")</option>
+                        </select></div>
+                    <div class="col-md-6"><label class="form-label" for="workspacePalette">@(bn ? "রঙের প্যালেট" : "Color palette")</label>
+                        <select class="form-select" id="workspacePalette" name="palette">
+                            <option value="blue">@(bn ? "নীল" : "Blue")</option>
+                            <option value="teal">@(bn ? "সবুজাভ" : "Teal")</option>
+                            <option value="violet">@(bn ? "বেগুনি" : "Violet")</option>
+                        </select></div>
+                    <div class="col-md-6"><label class="form-label" for="workspaceNavigation">@(bn ? "নেভিগেশন অবস্থান" : "Navigation position")</label>
+                        <select class="form-select" id="workspaceNavigation" name="navigation">
+                            <option value="left">@(bn ? "বামে" : "Left")</option>
+                            <option value="right">@(bn ? "ডানে" : "Right")</option>
+                            <option value="top">@(bn ? "উপরে" : "Top")</option>
+                        </select></div>
+                    <div class="col-md-6"><label class="form-label" for="workspaceDensity">@(bn ? "স্পেসিং" : "Spacing")</label>
+                        <select class="form-select" id="workspaceDensity" name="density">
+                            <option value="comfortable">@(bn ? "স্বাভাবিক" : "Comfortable")</option>
+                            <option value="compact">@(bn ? "কমপ্যাক্ট" : "Compact")</option>
+                        </select></div>
+                    <div class="col-md-6"><label class="form-label" for="workspaceFontScale">@(bn ? "লেখার আকার" : "Text size")</label>
+                        <select class="form-select" id="workspaceFontScale" name="fontScale">
+                            <option value="normal">@(bn ? "স্বাভাবিক" : "Normal")</option>
+                            <option value="large">@(bn ? "বড়" : "Large")</option>
+                        </select></div>
+                </div>
+                <p class="small text-muted mt-3">@(bn ? "পরিবর্তন করলে আগে প্রিভিউ দেখাবে; সংরক্ষণ করলে অন্য ডিভাইসেও কার্যকর হবে।" : "Changes preview immediately. Save to use the same design on another device.")</p>
+                <div class="d-flex flex-wrap gap-2 mt-3">
+                    <button class="btn btn-primary" type="submit" id="workspaceSave">@(bn ? "ডিজাইন সংরক্ষণ" : "Save appearance")</button>
+                    <button class="btn btn-outline-secondary" type="button" id="workspaceReset">@(bn ? "ডিফল্টে ফিরুন" : "Reset to defaults")</button>
+                </div>
+                <p class="mt-3 mb-0" id="workspaceStatus" role="status" aria-live="polite"></p>
+            </form>
+        </div>
+    </div>
+</section>
+@section Scripts {
+    <script src="~/js/platform/workspace-preferences.js" asp-append-version="true"></script>
+}

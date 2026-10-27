@@ -3234,3 +3234,63 @@ select,
         grid-column: auto !important;
     }
 }
+
+/* Safe per-user, per-institution appearance tokens; no user-supplied CSS. */
+:root[data-workspace-palette="teal"] {
+    --edu-primary: #0f766e; --edu-primary-dark: #115e59; --edu-accent: #0d9488;
+}
+:root[data-workspace-palette="violet"] {
+    --edu-primary: #6d28d9; --edu-primary-dark: #5b21b6; --edu-accent: #8b5cf6;
+}
+:root[data-workspace-font-scale="large"] { font-size: 17px; }
+:root[data-workspace-density="compact"] .page-body { padding: .75rem; }
+:root[data-workspace-density="compact"] .sidebar .nav-link { min-height: 2.15rem; padding: .4rem .65rem; }
+:root[data-workspace-density="compact"] .card-body { padding: .85rem; }
+:root[data-workspace-theme="dark"] { color-scheme: dark; --edu-text: #e2e8f0; --edu-muted: #94a3b8; --edu-border: #334155; }
+:root[data-workspace-theme="dark"] body,
+:root[data-workspace-theme="dark"] .page-body { background: #0b1220; color: #e2e8f0; }
+:root[data-workspace-theme="dark"] .topbar,
+:root[data-workspace-theme="dark"] .footer-bar,
+:root[data-workspace-theme="dark"] .edu-card,
+:root[data-workspace-theme="dark"] .card,
+:root[data-workspace-theme="dark"] .dropdown-menu,
+:root[data-workspace-theme="dark"] .user-box,
+:root[data-workspace-theme="dark"] .language-form { background: #172235; color: #e2e8f0; border-color: #334155; }
+:root[data-workspace-theme="dark"] .form-control,
+:root[data-workspace-theme="dark"] .form-select,
+:root[data-workspace-theme="dark"] .language-form select { background: #101b2d; color: #e2e8f0; border-color: #475569; }
+:root[data-workspace-theme="dark"] .table { --bs-table-bg: #172235; --bs-table-color: #e2e8f0; --bs-table-border-color: #334155; }
+:root[data-workspace-theme="dark"] .dropdown-item { color: #e2e8f0; }
+@media (prefers-color-scheme: dark) {
+    :root[data-workspace-theme="system"] { color-scheme: dark; --edu-text: #e2e8f0; --edu-muted: #94a3b8; --edu-border: #334155; }
+    :root[data-workspace-theme="system"] body,
+    :root[data-workspace-theme="system"] .page-body { background: #0b1220; color: #e2e8f0; }
+    :root[data-workspace-theme="system"] .topbar,
+    :root[data-workspace-theme="system"] .footer-bar,
+    :root[data-workspace-theme="system"] .edu-card,
+    :root[data-workspace-theme="system"] .card,
+    :root[data-workspace-theme="system"] .dropdown-menu,
+    :root[data-workspace-theme="system"] .user-box,
+    :root[data-workspace-theme="system"] .language-form { background: #172235; color: #e2e8f0; border-color: #334155; }
+    :root[data-workspace-theme="system"] .form-control,
+    :root[data-workspace-theme="system"] .form-select,
+    :root[data-workspace-theme="system"] .language-form select { background: #101b2d; color: #e2e8f0; border-color: #475569; }
+}
+@media (min-width: 992px) {
+    :root[data-workspace-navigation="right"] .sidebar { left: auto; right: 0; }
+    :root[data-workspace-navigation="right"] .main-area { margin-left: 0; margin-right: var(--edu-sidebar-width); }
+    :root[data-workspace-navigation="top"] .app-shell { display: block; }
+    :root[data-workspace-navigation="top"] .sidebar {
+        position: relative; inset: auto; display: flex; align-items: center; width: 100%;
+        height: auto; min-height: 0; max-height: 9rem; gap: .75rem;
+        padding: .6rem 1rem; overflow-x: auto; overflow-y: hidden;
+    }
+    :root[data-workspace-navigation="top"] .sidebar .brand-box { flex: 0 0 auto; margin: 0; }
+    :root[data-workspace-navigation="top"] .sidebar .menu-title,
+    :root[data-workspace-navigation="top"] .sidebar .sidebar-divider { display: none; }
+    :root[data-workspace-navigation="top"] .sidebar nav {
+        display: flex; flex: 0 0 auto; flex-direction: row !important; flex-wrap: nowrap;
+    }
+    :root[data-workspace-navigation="top"] .sidebar .nav-link { white-space: nowrap; }
+    :root[data-workspace-navigation="top"] .main-area { width: 100%; margin: 0; }
+}

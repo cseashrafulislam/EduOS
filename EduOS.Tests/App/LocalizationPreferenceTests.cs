@@ -109,6 +109,7 @@ public sealed class LocalizationPreferenceTests
             context.User = new ClaimsPrincipal(new ClaimsIdentity(
                 new[] { new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()) }, "Test"));
             manager.Setup(x => x.FindByIdAsync(user.Id.ToString())).ReturnsAsync(user);
+            manager.Setup(x => x.GetUserAsync(It.IsAny<ClaimsPrincipal>())).ReturnsAsync(user);
         }
 
         var urls = new Mock<IUrlHelper>();
