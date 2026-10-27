@@ -106,14 +106,15 @@ public sealed class AcademicInstructionServiceTests
             var teacher = Service(db, 101, 70, "Teacher");
             (await teacher.SubmitLessonPlanAsync(id, beforeReview)).Success.Should().BeTrue();
         }
+        var reviewVersion = await VersionAsync(options, id, [2, 3, 4, 5, 6, 7, 8, 9]);
         await using (var db = Context(options, 101, 7, "TenantAdmin"))
         {
             var manager = Service(db, 101, 7, "TenantAdmin");
-            var reviewVersion = await VersionAsync(options, id, [2, 3, 4, 5, 6, 7, 8, 9]);
-            (await manager.ReviewLessonPlanAsync(id, new ReviewLessonPlanRequestDto
+            var reviewed = await manager.ReviewLessonPlanAsync(id, new ReviewLessonPlanRequestDto
             {
                 Approve = true, RowVersion = reviewVersion
-            })).Success.Should().BeTrue();
+            });
+            reviewed.Success.Should().BeTrue(reviewed.Message);
             (await manager.StartLessonPlanAsync(id, new AdvanceLessonPlanRequestDto
             {
                 RowVersion = reviewVersion
