@@ -498,6 +498,13 @@
                 </div>
 
                 <div class="topbar-right">
+                    <details class="page-context-help" id="pageContextHelp">
+                        <summary class="icon-button" aria-label="@(currentCulture == "bn-BD" ? "এই পৃষ্ঠার সাহায্য" : "Help for this page")" title="@(currentCulture == "bn-BD" ? "সাহায্য" : "Help")">ⓘ</summary>
+                        <div class="page-context-help-popover" role="note" lang="@currentCulture">
+                            <strong>@(currentCulture == "bn-BD" ? "এই পৃষ্ঠা" : "This page")</strong>
+                            <p class="mb-0" data-page-context-help-text></p>
+                        </div>
+                    </details>
                     <button class="install-button" type="button" data-install-app hidden>
                         <svg class="edu-icon"><use href="/images/eduos-icons.svg#download" /></svg>
                         <span>@T["InstallApp"]</span>
@@ -572,6 +579,7 @@
     <script src="~/lib/jquery/dist/jquery.min.js" asp-append-version="true"></script>
     <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js" asp-append-version="true"></script>
     <script src="~/js/site.js" asp-append-version="true"></script>
+    <script src="~/js/platform/page-context-help.js" asp-append-version="true"></script>
     @await RenderSectionAsync("Scripts", required: false)
 </body>
 </html>
