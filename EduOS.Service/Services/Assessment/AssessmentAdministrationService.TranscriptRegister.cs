@@ -37,11 +37,22 @@ public sealed partial class AssessmentAdministrationService
     public async Task<ApiResponse<IReadOnlyList<TranscriptCandidateDto>>> GetTranscriptCandidatesAsync(
         string? search, CancellationToken ct = default)
     {
+        var page = await SearchTranscriptCandidatesAsync(search, 1, 30, ct);
+        return page.Success
+            ? ApiResponse<IReadOnlyList<TranscriptCandidateDto>>.SuccessResponse(page.Data!.Items)
+            : Error<IReadOnlyList<TranscriptCandidateDto>>(page.Message, page.StatusCode);
+    }
+
+    public async Task<ApiResponse<PagedResult<TranscriptCandidateDto>>> SearchTranscriptCandidatesAsync(
+        string? search, int page, int pageSize, CancellationToken ct = default)
+    {
         if (!CanPublish())
-            return Error<IReadOnlyList<TranscriptCandidateDto>>("Transcript administration permission required.", 403);
+            return Error<PagedResult<TranscriptCandidateDto>>("Transcript administration permission required.", 403);
         var term = search?.Trim() ?? string.Empty;
         if (term.Length is < 2 or > 100)
-            return Error<IReadOnlyList<TranscriptCandidateDto>>("Enter 2 to 100 characters of a student name or code.");
+            return Error<PagedResult<TranscriptCandidateDto>>("Enter 2 to 100 characters of a student name or code.");
+        if (page is < 1 or > 100000 || pageSize is < 1 or > 100)
+            return Error<PagedResult<TranscriptCandidateDto>>("Invalid candidate pagination.");
         var tenant = _user.TenantId;
         var eligible = EligibleTranscriptStudentIds(tenant);
         var allowedStudentIds = _enrollments.GetQueryable().AsNoTracking().Where(x =>
@@ -56,13 +67,17 @@ public sealed partial class AssessmentAdministrationService
         if (IsRestrictedCampusManager())
             students = students.Where(x => allowedStudentIds.Contains(x.Id) &&
                 !forbiddenStudentIds.Contains(x.Id));
-        IReadOnlyList<TranscriptCandidateDto> items = await students
-            .OrderBy(x => x.StudentCode).ThenBy(x => x.Id).Take(30)
+        var query = students
+            .OrderBy(x => x.StudentCode).ThenBy(x => x.Id)
             .Select(x => new TranscriptCandidateDto
             {
                 StudentReference = x.PublicId, StudentCode = x.StudentCode, StudentName = x.FullName
-            }).ToListAsync(ct);
-        return ApiResponse<IReadOnlyList<TranscriptCandidateDto>>.SuccessResponse(items);
+            });
+        var total = await query.CountAsync(ct);
+        var items = await query.Skip((page - 1) * pageSize).Take(pageSize).ToListAsync(ct);
+        return ApiResponse<PagedResult<TranscriptCandidateDto>>.SuccessResponse(
+            new PagedResult<TranscriptCandidateDto>
+            { Items = items, TotalCount = total, Page = page, PageSize = pageSize });
     }
 
     public async Task<ApiResponse<TranscriptRegisterPageDto>> SearchTranscriptRegisterAsync(

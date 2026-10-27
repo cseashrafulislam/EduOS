@@ -25,6 +25,11 @@
             <div class="col-12"><button type="submit" id="certificateIssueSubmit" class="btn btn-primary">Issue certificate record</button>
                 <span class="small text-muted ms-2">Stable request ID prevents duplicate issuance on retries. No document file is generated.</span></div>
         </form>
+        <div class="d-flex align-items-center gap-2 mt-2">
+            <button type="button" class="btn btn-sm btn-outline-secondary" id="certificateCandidatePrev">Previous matches</button>
+            <span class="small text-muted" id="certificateCandidateCount" aria-live="polite"></span>
+            <button type="button" class="btn btn-sm btn-outline-secondary" id="certificateCandidateNext">Next matches</button>
+        </div>
     </div></div>
     <div class="card"><div class="card-body">
         <div class="row g-2 align-items-end mb-3">

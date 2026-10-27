@@ -4,7 +4,7 @@
     if (!root) return;
     const el = id => document.getElementById(id);
     const token = root.querySelector('input[name="__RequestVerificationToken"]')?.value || '';
-    const state = { rows: [], page: 1, size: 20, total: 0, busy: false };
+    const state = { rows: [], page: 1, size: 20, total: 0, busy: false, batchPage: 1, batchTotal: 0, batchRequest: 0 };
     const cell = value => { const td = document.createElement('td'); td.textContent = value == null ? '' : String(value); return td; };
     function notice(message, error = false) {
         const box = el('completionNotice'); box.className = 'alert ' + (error ? 'alert-danger' : 'alert-success');
@@ -20,12 +20,24 @@
         return result.data;
     }
     const completed = x => x === 5 || x === 'Completed';
-    async function init() {
-        const batches = await api('/api/assessment-administration/subject-completions/batches') || [];
-        const select = el('completionBatch'); select.replaceChildren(new Option('Select academic batch', ''));
-        for (const batch of batches)
-            select.add(new Option(batch.name + ' / ' + batch.academicYearName + ' / Campus ' + batch.campusId, String(batch.id)));
-        if (!batches.length) notice('No ended academic-year batches available for reconciliation.', true);
+    async function loadBatches() {
+        const request = ++state.batchRequest;
+        const query = new URLSearchParams({ page: String(state.batchPage), pageSize: '20',
+            search: el('completionBatchSearch').value.trim() });
+        const select = el('completionBatch');
+        try {
+            const data = await api('/api/assessment-administration/subject-completions/batches/page?' + query);
+            if (request !== state.batchRequest) return;
+            select.replaceChildren(new Option('Select academic batch', ''));
+            for (const batch of data.items || [])
+                select.add(new Option(batch.name + ' / ' + batch.academicYearName + ' / Campus ' + batch.campusId, String(batch.id)));
+            state.batchTotal = data.totalCount || 0;
+            el('completionBatchCount').textContent = state.batchTotal + ' batches · Page ' + state.batchPage;
+            el('completionBatchPrev').disabled = state.batchPage <= 1;
+            el('completionBatchNext').disabled = state.batchPage * 20 >= state.batchTotal;
+            state.rows = []; state.total = 0; state.page = 1; render();
+            if (!state.batchTotal) notice('No matching ended academic-year batches.', true);
+        } catch (error) { if (request === state.batchRequest) notice(error.message, true); }
     }
     function render() {
         const body = el('completionRows'); body.replaceChildren();
@@ -74,7 +86,8 @@
     function csv() {
         const data = [['Roll','Student','Subject','State','Evidence'],
             ...state.rows.map(x => [x.rollNo,x.studentName,x.subjectName,completed(x.state)?'Completed':'Approved',x.statusMessage])];
-        const text = data.map(row => row.map(x => '"' + String(x ?? '').replace(/"/g, '""') + '"').join(',')).join('\r\n');
+        const safe = x => /^[=+@\\-\\t\\r]/.test(String(x ?? '')) ? "'" + String(x) : x;
+        const text = data.map(row => row.map(x => '"' + String(safe(x) ?? '').replace(/"/g, '""') + '"').join(',')).join('\\r\\n');
         const url = URL.createObjectURL(new Blob(['\uFEFF', text], { type: 'text/csv;charset=utf-8' }));
         const a = document.createElement('a'); a.href = url; a.download = 'subject-completions.csv'; a.click();
         setTimeout(() => URL.revokeObjectURL(url), 1000);
@@ -84,5 +97,9 @@
     el('completionNext').addEventListener('click', () => { if (state.page * state.size < state.total) { state.page++; load(); } });
     el('completionCsv').addEventListener('click', csv);
     el('completionPrint').addEventListener('click', () => window.print());
-    init().catch(error => notice(error.message, true));
+    el('completionBatchSearch').addEventListener('change', () => { state.batchPage = 1; loadBatches(); });
+    el('completionBatchPrev').addEventListener('click', () => { if (state.batchPage > 1) { state.batchPage--; loadBatches(); } });
+    el('completionBatchNext').addEventListener('click', () => { if (state.batchPage * 20 < state.batchTotal) { state.batchPage++; loadBatches(); } });
+    el('completionBatch').addEventListener('change', () => { state.page = 1; load(); });
+    loadBatches();
 })();

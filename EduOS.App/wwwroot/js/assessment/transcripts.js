@@ -4,7 +4,7 @@
     if (!root) return;
     const el = id => document.getElementById(id);
     const token = root.querySelector('input[name="__RequestVerificationToken"]')?.value || '';
-    const state = { page: 1, pageSize: 20, total: 0, rows: [], busy: false, requestId: null };
+    const state = { page: 1, pageSize: 20, total: 0, rows: [], busy: false, requestId: null, candidatePage: 1, candidateTotal: 0, candidateRequest: 0 };
     const message = (value, error = false) => {
         const box = el('transcriptNotice');
         box.className = 'alert ' + (error ? 'alert-danger' : 'alert-success');
@@ -55,16 +55,25 @@
             state.rows = data.items || []; state.total = data.totalCount || 0; render();
         } catch (e) { message(e.message, true); }
     }
-    async function candidates() {
+    async function candidates(page = 1) {
         const term = el('transcriptStudentSearch').value.trim();
         if (term.length < 2 || term.length > 100) { message('Enter 2 to 100 characters.', true); return; }
+        const request = ++state.candidateRequest;
         const select = el('transcriptStudent'); select.replaceChildren(new Option('Loading…', ''));
         try {
-            const rows = await api('/api/assessment-administration/transcripts/candidates?search=' + encodeURIComponent(term));
+            const query = new URLSearchParams({ search: term, page: String(page), pageSize: '20' });
+            const data = await api('/api/assessment-administration/transcripts/candidates/page?' + query);
+            if (request !== state.candidateRequest || el('transcriptStudentSearch').value.trim() !== term) return;
             select.replaceChildren(new Option('Select student', ''));
-            rows.forEach(row => select.add(new Option(row.studentCode + ' — ' + row.studentName, row.studentReference)));
-            if (!rows.length) message('No students with released published results matched.', true);
-        } catch (e) { select.replaceChildren(new Option('Search again', '')); message(e.message, true); }
+            (data.items || []).forEach(row => select.add(new Option(row.studentCode + ' — ' + row.studentName, row.studentReference)));
+            state.candidatePage = page; state.candidateTotal = data.totalCount || 0; resetRequest();
+            el('transcriptCandidateCount').textContent = state.candidateTotal + ' matches · Page ' + page;
+            el('transcriptCandidatePrev').disabled = page <= 1;
+            el('transcriptCandidateNext').disabled = page * 20 >= state.candidateTotal;
+            if (!data.items?.length) message('No students with released published results matched.', true);
+        } catch (e) { if (request === state.candidateRequest) {
+            select.replaceChildren(new Option('Search again', '')); message(e.message, true);
+        } }
     }
     function resetRequest() { state.requestId = null; }
     async function issue(event) {
@@ -110,8 +119,16 @@
         document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 1000);
     }
     el('transcriptIssueForm').addEventListener('submit', issue);
-    el('transcriptFindStudent').addEventListener('click', candidates);
-    el('transcriptStudentSearch').addEventListener('change', () => { resetRequest(); el('transcriptStudent').replaceChildren(new Option('Search first', '')); });
+    el('transcriptFindStudent').addEventListener('click', () => candidates(1));
+    el('transcriptStudentSearch').addEventListener('input', () => {
+        ++state.candidateRequest; resetRequest(); state.candidateTotal = 0;
+        el('transcriptStudent').replaceChildren(new Option('Search first', ''));
+        el('transcriptCandidateCount').textContent = '';
+        el('transcriptCandidatePrev').disabled = true; el('transcriptCandidateNext').disabled = true;
+    });
+    el('transcriptCandidatePrev').addEventListener('click', () => { if (state.candidatePage > 1) candidates(state.candidatePage - 1); });
+    el('transcriptCandidateNext').addEventListener('click', () => { if (state.candidatePage * 20 < state.candidateTotal) candidates(state.candidatePage + 1); });
+    el('transcriptCandidatePrev').disabled = true; el('transcriptCandidateNext').disabled = true;
     el('transcriptStudent').addEventListener('change', resetRequest);
     el('transcriptDate').addEventListener('change', resetRequest);
     el('transcriptRefresh').addEventListener('click', () => { state.page = 1; load(); });

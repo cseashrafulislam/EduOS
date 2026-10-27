@@ -16,9 +16,11 @@ public interface IAssessmentAdministrationService
     Task<ApiResponse<bool>> SaveMarksRegisterAsync(SaveMarksRegisterRequestDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<ResultPublicationDto>> PublishResultAsync(PublishResultRequestDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<IReadOnlyList<SubjectCompletionBatchDto>>> GetSubjectCompletionBatchesAsync(CancellationToken cancellationToken = default);
+    Task<ApiResponse<PagedResult<SubjectCompletionBatchDto>>> SearchSubjectCompletionBatchesAsync(string? search, int page, int pageSize, CancellationToken cancellationToken = default);
     Task<ApiResponse<SubjectCompletionPageDto>> SearchSubjectCompletionsAsync(SubjectCompletionQueryDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<SubjectCompletionRowDto>> CompleteSubjectAsync(long id, CompleteSubjectRequestDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<IReadOnlyList<CertificateCandidateDto>>> GetCertificateCandidatesAsync(string? search, CancellationToken cancellationToken = default);
+    Task<ApiResponse<PagedResult<CertificateCandidateDto>>> SearchCertificateCandidatesAsync(string? search, int page, int pageSize, CancellationToken cancellationToken = default);
     Task<ApiResponse<CertificateIssueRegisterPageDto>> SearchCertificateIssueRegisterAsync(CertificateIssueRegisterQueryDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<CertificateIssueDto>> IssueCertificateAsync(IssueCertificateRequestDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<CertificateIssueDto>> RevokeCertificateAsync(long certificateId, RevokeCertificateRequestDto request, CancellationToken cancellationToken = default);
@@ -38,6 +40,7 @@ public interface IAssessmentAdministrationService
     Task<ApiResponse<CertificateTemplateDto>> GetCertificateTemplateAsync(long templateId, CancellationToken cancellationToken = default);
     Task<ApiResponse<CertificateTemplateDto>> SaveCertificateTemplateAsync(long? templateId, SaveCertificateTemplateRequestDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<IReadOnlyList<TranscriptCandidateDto>>> GetTranscriptCandidatesAsync(string? search, CancellationToken cancellationToken = default);
+    Task<ApiResponse<PagedResult<TranscriptCandidateDto>>> SearchTranscriptCandidatesAsync(string? search, int page, int pageSize, CancellationToken cancellationToken = default);
     Task<ApiResponse<TranscriptRegisterPageDto>> SearchTranscriptRegisterAsync(TranscriptRegisterQueryDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<TranscriptIssueDto>> IssueTranscriptAsync(IssueTranscriptRequestDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<TranscriptIssueDto>> RevokeTranscriptAsync(Guid transcriptReference, RevokeTranscriptRequestDto request, CancellationToken cancellationToken = default);

@@ -50,6 +50,13 @@ public sealed class AssessmentAdministrationApiController : ControllerBase
     public async Task<IActionResult> Publish([FromBody] PublishResultRequestDto request,
         CancellationToken ct) => Result(await _service.PublishResultAsync(request, ct));
 
+    [HttpGet("subject-completions/batches/page")]
+    [Authorize(Roles = "TenantAdmin,Principal,VicePrincipal,ExamController")]
+    public async Task<IActionResult> SearchSubjectCompletionBatches(
+        [FromQuery] string? search = null, [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 20, CancellationToken ct = default) =>
+        Result(await _service.SearchSubjectCompletionBatchesAsync(search, page, pageSize, ct));
+
     [HttpGet("subject-completions/batches")]
     [Authorize(Roles = "TenantAdmin,Principal,VicePrincipal,ExamController")]
     public async Task<IActionResult> SubjectCompletionBatches(CancellationToken ct) =>
@@ -169,6 +176,13 @@ public sealed class AssessmentAdministrationApiController : ControllerBase
         [FromBody] SaveCertificateTemplateRequestDto request, CancellationToken ct) =>
         Result(await _service.SaveCertificateTemplateAsync(id, request, ct));
 
+    [HttpGet("certificates/candidates/page")]
+    [Authorize(Roles = "TenantAdmin,Principal,VicePrincipal,ExamController")]
+    public async Task<IActionResult> SearchCertificateCandidates(
+        [FromQuery] string? search = null, [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 20, CancellationToken ct = default) =>
+        Result(await _service.SearchCertificateCandidatesAsync(search, page, pageSize, ct));
+
     [HttpGet("certificates/candidates")]
     [Authorize(Roles = "TenantAdmin,Principal,VicePrincipal,ExamController")]
     public async Task<IActionResult> CertificateCandidates([FromQuery] string? search, CancellationToken ct) =>
@@ -189,6 +203,13 @@ public sealed class AssessmentAdministrationApiController : ControllerBase
     public async Task<IActionResult> RevokeCertificate(long id,
         [FromBody] RevokeCertificateRequestDto request, CancellationToken ct) =>
         Result(await _service.RevokeCertificateAsync(id, request, ct));
+
+    [HttpGet("transcripts/candidates/page")]
+    [Authorize(Roles = "TenantAdmin,Principal,VicePrincipal,ExamController")]
+    public async Task<IActionResult> SearchTranscriptCandidates(
+        [FromQuery] string? search = null, [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 20, CancellationToken ct = default) =>
+        Result(await _service.SearchTranscriptCandidatesAsync(search, page, pageSize, ct));
 
     [HttpGet("transcripts/candidates")]
     [Authorize(Roles = "TenantAdmin,Principal,VicePrincipal,ExamController")]

@@ -4,7 +4,7 @@
     if (!root) return;
     const el = id => document.getElementById(id);
     const token = root.querySelector('input[name="__RequestVerificationToken"]')?.value || '';
-    const state = { page: 1, pageSize: 20, total: 0, rows: [], busy: false, requestId: null, candidates: [] };
+    const state = { page: 1, pageSize: 20, total: 0, rows: [], busy: false, requestId: null, candidates: [], candidatePage: 1, candidateTotal: 0, candidateRequest: 0 };
     function notice(value, error = false) {
         const box = el('certificateRegisterNotice');
         box.className = 'alert ' + (error ? 'alert-danger' : 'alert-success');
@@ -63,19 +63,27 @@
             if (data.totalCount > 100) notice('Only the first 100 templates are shown. Refine templates before issuing.', true);
         } catch (e) { el('certificateTemplate').replaceChildren(new Option('Templates unavailable', '')); notice(e.message, true); }
     }
-    async function candidates() {
+    async function candidates(page = 1) {
         const term = el('certificateCandidateSearch').value.trim();
         if (term.length < 2 || term.length > 100) { notice('Enter 2 to 100 characters.', true); return; }
+        const request = ++state.candidateRequest;
         const select = el('certificateCandidate'); select.replaceChildren(new Option('Loading…', ''));
         try {
-            const rows = await api('/api/assessment-administration/certificates/candidates?search=' + encodeURIComponent(term));
-            if (el('certificateCandidateSearch').value.trim() !== term) return;
-            state.candidates = rows;
+            const query = new URLSearchParams({ search: term, page: String(page), pageSize: '20' });
+            const data = await api('/api/assessment-administration/certificates/candidates/page?' + query);
+            if (request !== state.candidateRequest || el('certificateCandidateSearch').value.trim() !== term) return;
+            state.candidates = data.items || []; state.candidatePage = page;
+            state.candidateTotal = data.totalCount || 0; resetRequest();
             select.replaceChildren(new Option('Select eligible enrollment', ''));
-            rows.forEach((row, i) => select.add(new Option(row.studentCode + ' — ' + row.studentName +
-                ' (' + row.campusName + ' / ' + row.batchName + ')', String(i))));
-            if (!rows.length) notice('No passed, released published result matched.', true);
-        } catch (e) { state.candidates = []; select.replaceChildren(new Option('Search again', '')); notice(e.message, true); }
+            state.candidates.forEach((row, index) => select.add(new Option(row.studentCode + ' — ' + row.studentName +
+                ' (' + row.campusName + ' / ' + row.batchName + ')', String(index))));
+            el('certificateCandidateCount').textContent = state.candidateTotal + ' matches · Page ' + page;
+            el('certificateCandidatePrev').disabled = page <= 1;
+            el('certificateCandidateNext').disabled = page * 20 >= state.candidateTotal;
+            if (!state.candidates.length) notice('No passed, released published result matched.', true);
+        } catch (e) { if (request === state.candidateRequest) {
+            state.candidates = []; select.replaceChildren(new Option('Search again', '')); notice(e.message, true);
+        } }
     }
     function resetRequest() { state.requestId = null; }
     async function issue(event) {
@@ -125,10 +133,16 @@
         document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 1000);
     }
     el('certificateIssueForm').addEventListener('submit', issue);
-    el('certificateFindCandidate').addEventListener('click', candidates);
+    el('certificateFindCandidate').addEventListener('click', () => candidates(1));
     el('certificateCandidateSearch').addEventListener('input', () => {
-        resetRequest(); state.candidates = []; el('certificateCandidate').replaceChildren(new Option('Search first', ''));
+        ++state.candidateRequest; resetRequest(); state.candidates = []; state.candidateTotal = 0;
+        el('certificateCandidate').replaceChildren(new Option('Search first', ''));
+        el('certificateCandidateCount').textContent = '';
+        el('certificateCandidatePrev').disabled = true; el('certificateCandidateNext').disabled = true;
     });
+    el('certificateCandidatePrev').addEventListener('click', () => { if (state.candidatePage > 1) candidates(state.candidatePage - 1); });
+    el('certificateCandidateNext').addEventListener('click', () => { if (state.candidatePage * 20 < state.candidateTotal) candidates(state.candidatePage + 1); });
+    el('certificateCandidatePrev').disabled = true; el('certificateCandidateNext').disabled = true;
     el('certificateCandidate').addEventListener('change', resetRequest);
     el('certificateTemplate').addEventListener('change', resetRequest);
     el('certificateIssueDate').addEventListener('change', resetRequest);

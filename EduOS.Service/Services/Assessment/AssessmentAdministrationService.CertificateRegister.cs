@@ -51,11 +51,22 @@ public sealed partial class AssessmentAdministrationService
     public async Task<ApiResponse<IReadOnlyList<CertificateCandidateDto>>> GetCertificateCandidatesAsync(
         string? search, CancellationToken ct = default)
     {
+        var page = await SearchCertificateCandidatesAsync(search, 1, 30, ct);
+        return page.Success
+            ? ApiResponse<IReadOnlyList<CertificateCandidateDto>>.SuccessResponse(page.Data!.Items)
+            : Error<IReadOnlyList<CertificateCandidateDto>>(page.Message, page.StatusCode);
+    }
+
+    public async Task<ApiResponse<PagedResult<CertificateCandidateDto>>> SearchCertificateCandidatesAsync(
+        string? search, int page, int pageSize, CancellationToken ct = default)
+    {
         if (!CanPublish())
-            return Error<IReadOnlyList<CertificateCandidateDto>>("Certificate administration permission required.", 403);
+            return Error<PagedResult<CertificateCandidateDto>>("Certificate administration permission required.", 403);
         var term = search?.Trim() ?? string.Empty;
         if (term.Length is < 2 or > 100)
-            return Error<IReadOnlyList<CertificateCandidateDto>>("Enter 2 to 100 characters of a student name or code.");
+            return Error<PagedResult<CertificateCandidateDto>>("Enter 2 to 100 characters of a student name or code.");
+        if (page is < 1 or > 100000 || pageSize is < 1 or > 100)
+            return Error<PagedResult<CertificateCandidateDto>>("Invalid candidate pagination.");
         var tenant = _user.TenantId;
         var eligible = EligibleCertificateEnrollmentIds(tenant);
         if (IsRestrictedCampusManager())
@@ -65,7 +76,7 @@ public sealed partial class AssessmentAdministrationService
                 .Select(x => x.Id);
             eligible = eligible.Where(id => authorizedEnrollmentIds.Contains(id));
         }
-        IReadOnlyList<CertificateCandidateDto> rows = await (
+        var query = (
             from enrollment in _enrollments.GetQueryable().AsNoTracking()
             join student in _students.GetQueryable().AsNoTracking()
                 on new { enrollment.TenantId, Id = enrollment.StudentId }
@@ -86,8 +97,12 @@ public sealed partial class AssessmentAdministrationService
                 StudentEnrollmentReference = enrollment.PublicId,
                 StudentCode = student.StudentCode, StudentName = student.FullName,
                 BatchName = batch.Name, CampusName = campus.Name
-            }).Take(30).ToListAsync(ct);
-        return ApiResponse<IReadOnlyList<CertificateCandidateDto>>.SuccessResponse(rows);
+            } );
+        var total = await query.CountAsync(ct);
+        var rows = await query.Skip((page - 1) * pageSize).Take(pageSize).ToListAsync(ct);
+        return ApiResponse<PagedResult<CertificateCandidateDto>>.SuccessResponse(
+            new PagedResult<CertificateCandidateDto>
+            { Items = rows, TotalCount = total, Page = page, PageSize = pageSize });
     }
 
     public async Task<ApiResponse<CertificateIssueRegisterPageDto>> SearchCertificateIssueRegisterAsync(

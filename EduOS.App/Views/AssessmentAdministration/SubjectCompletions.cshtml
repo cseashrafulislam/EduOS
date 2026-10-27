@@ -8,8 +8,15 @@
     <p class="text-muted">Complete approved subjects after the academic year ends and all applicable published assessments are passed. This audited action unlocks subject prerequisites; one published exam alone is insufficient.</p>
     <div id="completionNotice" class="alert d-none" role="alert" aria-live="polite"></div>
     <form id="completionFilter" class="card card-body row g-2 mb-3">
+        <div class="col-md-4"><label class="form-label" for="completionBatchSearch">Find batch / academic year</label>
+            <input class="form-control" id="completionBatchSearch" maxlength="100" placeholder="Search across all ended batches" /></div>
         <div class="col-md-5"><label class="form-label" for="completionBatch">Academic batch</label>
             <select class="form-select" id="completionBatch" required><option value="">Loading batches…</option></select></div>
+        <div class="col-12 d-flex gap-2 align-items-center">
+            <button type="button" class="btn btn-sm btn-outline-secondary" id="completionBatchPrev">Previous batches</button>
+            <span class="small text-muted" id="completionBatchCount" aria-live="polite"></span>
+            <button type="button" class="btn btn-sm btn-outline-secondary" id="completionBatchNext">Next batches</button>
+        </div>
         <div class="col-md-4"><label class="form-label" for="completionSearch">Student / roll / subject</label>
             <input class="form-control" id="completionSearch" maxlength="100" /></div>
         <div class="col-auto"><button type="submit" class="btn btn-primary">Search</button></div>

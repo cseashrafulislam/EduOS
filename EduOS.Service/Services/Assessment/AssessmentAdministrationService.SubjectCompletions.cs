@@ -9,7 +9,18 @@ public sealed partial class AssessmentAdministrationService
     public async Task<ApiResponse<IReadOnlyList<SubjectCompletionBatchDto>>> GetSubjectCompletionBatchesAsync(
         CancellationToken ct = default)
     {
-        if (!CanPublish()) return Error<IReadOnlyList<SubjectCompletionBatchDto>>("Completion permission required.", 403);
+        var page = await SearchSubjectCompletionBatchesAsync(null, 1, 500, ct);
+        return page.Success
+            ? ApiResponse<IReadOnlyList<SubjectCompletionBatchDto>>.SuccessResponse(page.Data!.Items)
+            : Error<IReadOnlyList<SubjectCompletionBatchDto>>(page.Message, page.StatusCode);
+    }
+
+    public async Task<ApiResponse<PagedResult<SubjectCompletionBatchDto>>> SearchSubjectCompletionBatchesAsync(
+        string? search, int page, int pageSize, CancellationToken ct = default)
+    {
+        if (!CanPublish()) return Error<PagedResult<SubjectCompletionBatchDto>>("Completion permission required.", 403);
+        if (page is < 1 or > 100000 || pageSize is < 1 or > 500 || search?.Length > 100)
+            return Error<PagedResult<SubjectCompletionBatchDto>>("Invalid batch search or pagination.");
         var tenant = _user.TenantId;
         var today = DateOnly.FromDateTime(_clock.GetUtcNow().UtcDateTime);
         var query = from batch in _batches.GetQueryable().AsNoTracking()
@@ -24,9 +35,16 @@ public sealed partial class AssessmentAdministrationService
             };
         if (IsRestrictedCampusManager())
             query = query.Where(x => AllowedCampusIds(tenant).Contains(x.CampusId));
+        var term = search?.Trim();
+        if (!string.IsNullOrWhiteSpace(term))
+            query = query.Where(x => x.Name.Contains(term) || x.AcademicYearName.Contains(term));
+        var total = await query.CountAsync(ct);
         var batches = await query.OrderByDescending(x => x.AcademicYearEnd)
-            .ThenBy(x => x.Name).Take(500).ToListAsync(ct);
-        return ApiResponse<IReadOnlyList<SubjectCompletionBatchDto>>.SuccessResponse(batches);
+            .ThenBy(x => x.Name).ThenBy(x => x.Id)
+            .Skip((page - 1) * pageSize).Take(pageSize).ToListAsync(ct);
+        return ApiResponse<PagedResult<SubjectCompletionBatchDto>>.SuccessResponse(
+            new PagedResult<SubjectCompletionBatchDto>
+            { Items = batches, TotalCount = total, Page = page, PageSize = pageSize });
     }
 
     public async Task<ApiResponse<SubjectCompletionPageDto>> SearchSubjectCompletionsAsync(
