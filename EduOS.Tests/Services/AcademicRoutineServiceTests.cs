@@ -144,9 +144,9 @@ public sealed class AcademicRoutineServiceTests
         var adminTimetable = await admin.GetTeacherTimetableAsync(teacherId, scope.YearId, null);
         adminTimetable.Data.Should().ContainSingle(x => x.Id == otherEntry.Data.Id);
 
-        (await principal.GetAssignmentsAsync(scope.CampusId == otherBatch.CampusId ? otherBatch.Id :
-            await db.AcademicBatches.Where(x => x.CampusId == scope.CampusId).Select(x => x.Id).SingleAsync(), null))
-            .Success.Should().BeTrue();
+        var ownBatchId = await db.AcademicBatches.Where(x => x.CampusId == scope.CampusId)
+            .Select(x => x.Id).SingleAsync();
+        (await principal.GetAssignmentsAsync(ownBatchId, null)).Success.Should().BeTrue();
         (await db.RoutineEntries.SingleAsync()).IsActive.Should().BeTrue();
     }
 
@@ -162,11 +162,16 @@ public sealed class AcademicRoutineServiceTests
             TenantId = 101, UserId = 7, CampusId = scope.CampusId, IsActive = false
         };
         db.UserCampusAccesses.Add(inactive);
-        db.UserCampusAccesses.Add(new UserCampusAccess
-        {
-            TenantId = 202, UserId = 7, CampusId = scope.CampusId, IsActive = true
-        });
         await db.SaveChangesAsync();
+        // Seed the other tenant through its own authorized tenant context.
+        await using (var foreignDb = Context(options, 202))
+        {
+            foreignDb.UserCampusAccesses.Add(new UserCampusAccess
+            {
+                TenantId = 202, UserId = 7, CampusId = scope.CampusId, IsActive = true
+            });
+            await foreignDb.SaveChangesAsync();
+        }
         var principal = Service(db, new TestUser(101, "VicePrincipal"));
         (await principal.GetBatchTimetableAsync(batchId, null)).StatusCode.Should().Be(404);
 
