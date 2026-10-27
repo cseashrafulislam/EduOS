@@ -325,11 +325,29 @@ public sealed partial class AssessmentAdministrationService : IAssessmentAdminis
         if (publishedOnly)
         {
             if (publication == null) return Error<AssessmentResultSheetDto>("Results have not been published.", 404);
+            // Reconcile the entire immutable version before returning any student data.
+            var allSummaries = _summaries.GetQueryable().AsNoTracking().Where(x =>
+                x.TenantId == tenant && x.ResultPublicationId == publication.Id && !x.IsDeleted);
+            var snapshotCount = await allSummaries.CountAsync(ct);
+            if (snapshotCount == 0 || snapshotCount > 5000 ||
+                await allSummaries.GroupBy(x => x.StudentEnrollmentId)
+                    .AnyAsync(group => group.Count() > 1, ct))
+                return Error<AssessmentResultSheetDto>("Published result snapshot requires reconciliation.", 409);
             var snapshot = await (from row in _summaries.GetQueryable().AsNoTracking()
                 join enrollment in _enrollments.GetQueryable().AsNoTracking() on row.StudentEnrollmentId equals enrollment.Id
                 join student in _students.GetQueryable().AsNoTracking() on enrollment.StudentId equals student.Id
                 where row.TenantId == tenant && enrollment.TenantId == tenant && student.TenantId == tenant &&
-                    row.ResultPublicationId == publication.Id
+                    row.ResultPublicationId == publication.Id &&
+                    !row.IsDeleted && !enrollment.IsDeleted && !student.IsDeleted &&
+                    row.AssessmentId == publication.AssessmentId &&
+                    row.PublicationVersionNo == publication.VersionNo &&
+                    enrollment.AcademicBatchId == publication.AcademicBatchId &&
+                    enrollment.CampusId == scope.Value.Exam.CampusId &&
+                    enrollment.AcademicYearId == scope.Value.Exam.AcademicYearId &&
+                    row.TotalMarks > 0m && row.ObtainedMarks >= 0m &&
+                    row.ObtainedMarks <= row.TotalMarks &&
+                    (!row.Percentage.HasValue ||
+                        (row.Percentage >= 0m && row.Percentage <= 100m))
                 orderby row.MeritPosition, enrollment.RollNo
                 select new AssessmentResultItemDto
                 {
@@ -340,8 +358,9 @@ public sealed partial class AssessmentAdministrationService : IAssessmentAdminis
                     GradeLetter = row.GradeLetter, MeritPosition = row.MeritPosition,
                     IsPassed = row.IsPassed, IsWithheld = row.IsWithheld
                 }).Take(5001).ToListAsync(ct);
-            if (snapshot.Count > 5000)
-                return Error<AssessmentResultSheetDto>("Published result exceeds synchronous report limit.", 409);
+            if (snapshot.Count != snapshotCount)
+                return Error<AssessmentResultSheetDto>(
+                    "Published result snapshot has invalid tenant, campus, version or numeric evidence.", 409);
             var subjects = await _subjects.GetQueryable().AsNoTracking().Join(
                 _offerings.GetQueryable().AsNoTracking(), x => x.SubjectOfferingId, y => y.Id,
                 (x, y) => new { x, y }).CountAsync(x =>
