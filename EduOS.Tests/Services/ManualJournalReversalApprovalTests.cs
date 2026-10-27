@@ -7,6 +7,7 @@ using EduOS.Service.Services.Accounting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
+using System.Security.Claims;
 using Xunit;
 
 namespace EduOS.Tests.Services;
@@ -149,8 +150,12 @@ public sealed class ManualJournalReversalApprovalTests
 
     private static EduOSDbContext Database()
     {
-        var accessor = new HttpContextAccessor { HttpContext = new DefaultHttpContext() };
-        accessor.HttpContext.Items["TenantId"] = 41L;
+        var context = new DefaultHttpContext();
+        context.Items["TenantId"] = 41L;
+        // Match the authenticated request identity used by DbContext audit attribution.
+        context.User = new ClaimsPrincipal(new ClaimsIdentity(
+            [new Claim(ClaimTypes.NameIdentifier, "9")], "TestAuthentication"));
+        var accessor = new HttpContextAccessor { HttpContext = context };
         return new EduOSDbContext(new DbContextOptionsBuilder<EduOSDbContext>()
             .UseInMemoryDatabase("manual-reversal-" + Guid.NewGuid().ToString("N"))
             .ConfigureWarnings(w => w.Ignore(InMemoryEventId.TransactionIgnoredWarning))

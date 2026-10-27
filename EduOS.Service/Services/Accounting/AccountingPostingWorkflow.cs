@@ -50,6 +50,8 @@ public sealed partial class AccountingPostingService
                 return ApiResponse<JournalDto>.ErrorResponse("Only submitted manual journals or their reversals may be reviewed.", 409);
             if (!Version(j.RowVersion, request.RowVersion))
                 return ApiResponse<JournalDto>.ErrorResponse("Journal changed; reload.", 409);
+            if (isReversal && j.CreatedBy is null or <= 0)
+                return ApiResponse<JournalDto>.ErrorResponse("Reversal maker audit attribution is missing.", 409);
             if (j.CreatedBy == user.UserId)
                 return ApiResponse<JournalDto>.ErrorResponse("Maker and approver must be different users.", 403);
             if (request.Approve && await OpenPeriodAsync(j.AccountingPeriodId, j.JournalDate, ct) == null)
