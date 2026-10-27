@@ -37,7 +37,7 @@ public class AssetDepreciationRun : BaseTenantEntity
     public long? ApprovedByUserId { get; set; }
     public DateTime? ApprovedAt { get; set; }
     public DateTime? PostedAt { get; set; }
-    [MaxLength(1000)] public string? Remarks { get; set; };
+    [MaxLength(1000)] public string? Remarks { get; set; }
 }
 
 public class AssetDepreciationLine : BaseTenantEntity
@@ -63,7 +63,7 @@ public class AssetImpairment : BaseTenantEntity
     public long? ReversalJournalId { get; set; }
     public long? ApprovedByUserId { get; set; }
     public DateTime? ApprovedAt { get; set; }
-    [MaxLength(1000)] public string? Reason { get; set; };
+    [MaxLength(1000)] public string? Reason { get; set; }
 }
 
 public class AssetDisposal : BaseTenantEntity

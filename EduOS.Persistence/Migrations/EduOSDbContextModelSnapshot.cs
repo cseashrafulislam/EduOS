@@ -9732,7 +9732,7 @@ namespace EduOS.Persistence.Migrations
                     b.Property<DateTime?>("PostedAt")
                         .HasColumnType("datetime2");
 
-                    b.Property<string?>("Remarks")
+                    b.Property<string>("Remarks")
                         .HasMaxLength(1000)
                         .HasColumnType("nvarchar(1000)");
 
@@ -9912,7 +9912,7 @@ namespace EduOS.Persistence.Migrations
                     b.Property<long?>("JournalId")
                         .HasColumnType("bigint");
 
-                    b.Property<string?>("Reason")
+                    b.Property<string>("Reason")
                         .HasMaxLength(1000)
                         .HasColumnType("nvarchar(1000)");
 
