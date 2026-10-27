@@ -367,7 +367,11 @@ public sealed class StudentImportExecutionService : IStudentImportExecutionServi
             Cell(x, "GuardianName"), Cell(x, "GuardianPhone"))).ToList();
     }
 
-    private static string SafeCell(IXLCell cell) => cell.HasFormula\n        ? throw new FormatException("Spreadsheet formulas are not accepted.")\n        : cell.GetFormattedString().Trim();\n\n    private sealed record ImportRow(int RowNumber, string SourceKey, string StudentCode,
+    private static string SafeCell(IXLCell cell) => cell.HasFormula
+        ? throw new FormatException("Spreadsheet formulas are not accepted.")
+        : cell.GetFormattedString().Trim();
+
+    private sealed record ImportRow(int RowNumber, string SourceKey, string StudentCode,
         string FullName, long BatchId, string RollNo, string DateOfBirth,
         string GuardianName, string GuardianPhone);
     private sealed class ImportConflictException(string message) : Exception(message);
