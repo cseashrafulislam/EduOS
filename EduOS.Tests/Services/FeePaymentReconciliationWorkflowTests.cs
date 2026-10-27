@@ -181,11 +181,11 @@ public sealed class FeePaymentReconciliationWorkflowTests
     }
 
     [Fact]
-    public async Task Missing_paid_refund_journal_is_reported_in_both_workspaces()
+    public async Task Soft_deleted_paid_refund_journal_is_reported_in_both_workspaces()
     {
         await using var db = Database();
         SeedPaidRefund(db, false, false, false);
-        db.Journals.Remove(db.Journals.Single(x => x.Id == 70));
+        db.Journals.Single(x => x.Id == 70).IsDeleted = true;
         await db.SaveChangesAsync();
         var service = new FeeReceivablesAgingService(db, new TestUser());
         (await service.GetPaymentReconciliationAsync(null, null, 1, 25))
