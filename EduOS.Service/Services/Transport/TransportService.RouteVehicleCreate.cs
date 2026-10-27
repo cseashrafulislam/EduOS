@@ -136,6 +136,16 @@ public sealed partial class TransportService
             _logger.LogWarning(ex, "Route/vehicle transaction aborted for tenant {TenantId}", tenant);
             return ApiResponse<RouteVehicleAssignmentDto>.ErrorResponse("Assignment conflicts with another update.", 409);
         }
+        catch (Microsoft.Data.SqlClient.SqlException ex) when (ex.Number is 1205 or 1222 or 3960 or 2601 or 2627)
+        {
+            _logger.LogWarning(ex, "Route/vehicle SQL concurrency conflict for tenant {TenantId}", tenant);
+            return ApiResponse<RouteVehicleAssignmentDto>.ErrorResponse("Assignment conflicts with another update.", 409);
+        }
+        catch (InvalidOperationException ex) when (HasSqlSerializationConflict(ex))
+        {
+            _logger.LogWarning(ex, "Route/vehicle serialization conflict for tenant {TenantId}", tenant);
+            return ApiResponse<RouteVehicleAssignmentDto>.ErrorResponse("Assignment conflicts with another update.", 409);
+        }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
             _logger.LogError(ex, "Route/vehicle assignment failed for tenant {TenantId}", tenant);
