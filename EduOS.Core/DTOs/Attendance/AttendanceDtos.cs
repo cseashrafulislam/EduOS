@@ -187,6 +187,31 @@ public sealed class AttendanceCorrectionRequestDto
     [Required] public string RowVersion { get; set; } = string.Empty;
 }
 
+/// <summary>Immutable correction events for one historical batch and attendance-date range.</summary>
+public sealed class StudentAttendanceCorrectionReportQueryDto
+{
+    [Range(1, long.MaxValue)] public long AcademicBatchId { get; set; }
+    public DateOnly FromDate { get; set; }
+    public DateOnly ToDate { get; set; }
+    public long? SubjectOfferingId { get; set; }
+}
+
+public sealed class StudentAttendanceCorrectionReportRowDto
+{
+    public long AdjustmentId { get; set; }
+    public long StudentAttendanceId { get; set; }
+    public DateOnly AttendanceDate { get; set; }
+    public string RollNo { get; set; } = string.Empty;
+    public string StudentCode { get; set; } = string.Empty;
+    public string StudentName { get; set; } = string.Empty;
+    public long? SubjectOfferingId { get; set; }
+    public AttendanceState PreviousState { get; set; }
+    public AttendanceState NewState { get; set; }
+    public string Reason { get; set; } = string.Empty;
+    public long ChangedByUserId { get; set; }
+    public DateTime ChangedAt { get; set; }
+}
+
 public sealed class StudentAttendanceAdjustmentDto
 {
     public long Id { get; set; }

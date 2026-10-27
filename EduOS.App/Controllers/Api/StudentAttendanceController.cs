@@ -95,6 +95,19 @@ public sealed class StudentAttendanceController : ControllerBase
         var result = await _service.CorrectAttendanceAsync(attendanceId, request, cancellationToken);
         return StatusCode(result.StatusCode, result);
     }
+    // Batch-wide historical correction audit, filtered and paged in SQL.
+    [HttpGet("corrections/report")]
+    [Authorize(Roles = "TenantAdmin,Principal,VicePrincipal")]
+    public async Task<IActionResult> GetCorrectionReport(
+        [FromQuery] StudentAttendanceCorrectionReportQueryDto query,
+        [FromQuery] int page = 1, [FromQuery] int pageSize = 20,
+        CancellationToken cancellationToken = default)
+    {
+        if (!ModelState.IsValid) return ValidationProblem(ModelState);
+        var result = await _service.GetCorrectionReportAsync(query, page, pageSize, cancellationToken);
+        return StatusCode(result.StatusCode, result);
+    }
+
     // Correction history is manager-only and deliberately separate from the teacher roster.
     [HttpGet("{attendanceId:long}/corrections")]
     [Authorize(Roles = "TenantAdmin,Principal,VicePrincipal")]

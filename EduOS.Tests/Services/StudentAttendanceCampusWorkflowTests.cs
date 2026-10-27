@@ -199,6 +199,134 @@ public sealed class StudentAttendanceCampusWorkflowTests
         Assert.Equal(404, (await teacher.GetSubjectChoicesAsync(10, AttendanceDate, null)).StatusCode);
     }
 
+
+    [Fact]
+    public async Task Correction_report_is_historical_campus_scoped_and_revocation_safe()
+    {
+        await using var db = Context();
+        await SeedBatches(db);
+        db.Students.AddRange(
+            new Student { Id = 201, TenantId = 71, StudentCode = "N201", FullName = "North learner",
+                StatusCode = "Active", AdmissionDate = new DateOnly(2026, 1, 1) },
+            new Student { Id = 202, TenantId = 71, StudentCode = "S202", FullName = "South learner",
+                StatusCode = "Active", AdmissionDate = new DateOnly(2026, 1, 1) });
+        db.StudentEnrollments.AddRange(
+            new StudentEnrollment { Id = 211, TenantId = 71, StudentId = 201,
+                AcademicBatchId = 10, CampusId = 8, AcademicYearId = 3, AcademicLevelId = 4,
+                RollNo = "N1", State = EnrollmentState.Completed, IsCurrent = false },
+            new StudentEnrollment { Id = 212, TenantId = 71, StudentId = 202,
+                AcademicBatchId = 11, CampusId = 9, AcademicYearId = 3, AcademicLevelId = 4,
+                RollNo = "S1", State = EnrollmentState.Active, IsCurrent = true });
+        db.AttendanceSessions.AddRange(
+            new AttendanceSession { Id = 221, TenantId = 71, AcademicBatchId = 10,
+                AttendanceDate = AttendanceDate, IsFinalized = true },
+            new AttendanceSession { Id = 222, TenantId = 71, AcademicBatchId = 11,
+                AttendanceDate = AttendanceDate, IsFinalized = true });
+        db.StudentAttendances.AddRange(
+            new StudentAttendance { Id = 231, TenantId = 71, AttendanceSessionId = 221,
+                StudentEnrollmentId = 211, State = AttendanceState.Present },
+            new StudentAttendance { Id = 232, TenantId = 71, AttendanceSessionId = 222,
+                StudentEnrollmentId = 212, State = AttendanceState.Present });
+        db.StudentAttendanceAdjustments.AddRange(
+            new StudentAttendanceAdjustment { Id = 241, TenantId = 71,
+                StudentAttendanceId = 231, PreviousState = AttendanceState.Absent,
+                NewState = AttendanceState.Present, Reason = "North audit",
+                ChangedByUserId = 7, ChangedAt = new DateTime(2026, 10, 10, 12, 0, 0, DateTimeKind.Utc) },
+            new StudentAttendanceAdjustment { Id = 242, TenantId = 71,
+                StudentAttendanceId = 232, PreviousState = AttendanceState.Absent,
+                NewState = AttendanceState.Present, Reason = "South audit",
+                ChangedByUserId = 7, ChangedAt = new DateTime(2026, 10, 10, 13, 0, 0, DateTimeKind.Utc) });
+        await db.SaveChangesAsync();
+
+        var principal = Service(db, new Actor("Principal"));
+        var query = new StudentAttendanceCorrectionReportQueryDto
+        {
+            AcademicBatchId = 10, FromDate = AttendanceDate, ToDate = AttendanceDate
+        };
+        Assert.Equal(404, (await principal.GetCorrectionReportAsync(query)).StatusCode);
+        var grant = new UserCampusAccess { Id = 251, TenantId = 71, UserId = 7,
+            CampusId = 8, IsActive = true };
+        db.UserCampusAccesses.Add(grant);
+        await db.SaveChangesAsync();
+        var allowed = await principal.GetCorrectionReportAsync(query);
+        Assert.True(allowed.Success, allowed.Message);
+        Assert.Equal(1, allowed.Data!.TotalCount);
+        Assert.Equal("N201", Assert.Single(allowed.Data.Items).StudentCode);
+        Assert.Equal("N1", Assert.Single(allowed.Data.Items).RollNo);
+        Assert.Equal(404, (await principal.GetCorrectionReportAsync(new StudentAttendanceCorrectionReportQueryDto
+        {
+            AcademicBatchId = 11, FromDate = AttendanceDate, ToDate = AttendanceDate
+        })).StatusCode);
+        Assert.Equal(400, (await principal.GetCorrectionReportAsync(query, pageSize: 101)).StatusCode);
+        Assert.Equal(400, (await principal.GetCorrectionReportAsync(query, page: 0)).StatusCode);
+        grant.IsActive = false;
+        await db.SaveChangesAsync();
+        Assert.Equal(404, (await principal.GetCorrectionReportAsync(query)).StatusCode);
+        var admin = Service(db, new Actor("TenantAdmin"));
+        Assert.Equal("S202", Assert.Single((await admin.GetCorrectionReportAsync(
+            new StudentAttendanceCorrectionReportQueryDto
+            {
+                AcademicBatchId = 11, FromDate = AttendanceDate, ToDate = AttendanceDate
+            })).Data!.Items).StudentCode);
+    }
+
+    [Fact]
+    public async Task Correction_report_filters_subject_and_pages_without_cross_batch_offerings()
+    {
+        await using var db = Context();
+        await SeedBatches(db);
+        await SeedOfferings(db);
+        db.Students.Add(new Student { Id = 301, TenantId = 71, StudentCode = "A301",
+            FullName = "Learner", StatusCode = "Active", AdmissionDate = new DateOnly(2026, 1, 1) });
+        db.StudentEnrollments.Add(new StudentEnrollment { Id = 311, TenantId = 71,
+            StudentId = 301, AcademicBatchId = 10, CampusId = 8, AcademicYearId = 3,
+            AcademicLevelId = 4, RollNo = "5", State = EnrollmentState.Active, IsCurrent = true });
+        db.AttendanceSessions.AddRange(
+            new AttendanceSession { Id = 321, TenantId = 71, AcademicBatchId = 10,
+                AttendanceDate = AttendanceDate, SubjectOfferingId = 70, IsFinalized = true },
+            new AttendanceSession { Id = 322, TenantId = 71, AcademicBatchId = 10,
+                AttendanceDate = AttendanceDate, SubjectOfferingId = 71, IsFinalized = true });
+        db.StudentAttendances.AddRange(
+            new StudentAttendance { Id = 331, TenantId = 71, AttendanceSessionId = 321,
+                StudentEnrollmentId = 311, State = AttendanceState.Present },
+            new StudentAttendance { Id = 332, TenantId = 71, AttendanceSessionId = 322,
+                StudentEnrollmentId = 311, State = AttendanceState.Present });
+        for (var i = 0; i < 3; i++)
+            db.StudentAttendanceAdjustments.Add(new StudentAttendanceAdjustment
+            {
+                Id = 340 + i, TenantId = 71, StudentAttendanceId = 331,
+                PreviousState = AttendanceState.Absent, NewState = AttendanceState.Present,
+                Reason = "Audit " + i, ChangedByUserId = 7,
+                ChangedAt = new DateTime(2026, 10, 10, 12, 0, 0, DateTimeKind.Utc).AddMinutes(i)
+            });
+        db.StudentAttendanceAdjustments.Add(new StudentAttendanceAdjustment
+        {
+            Id = 350, TenantId = 71, StudentAttendanceId = 332,
+            PreviousState = AttendanceState.Absent, NewState = AttendanceState.Present,
+            Reason = "Other subject", ChangedByUserId = 7
+        });
+        await db.SaveChangesAsync();
+        var service = Service(db, new Actor("TenantAdmin"));
+        var query = new StudentAttendanceCorrectionReportQueryDto
+        {
+            AcademicBatchId = 10, FromDate = AttendanceDate, ToDate = AttendanceDate,
+            SubjectOfferingId = 70
+        };
+        var first = await service.GetCorrectionReportAsync(query, pageSize: 2);
+        Assert.True(first.Success, first.Message);
+        Assert.Equal(3, first.Data!.TotalCount);
+        Assert.Equal(2, first.Data.Items.Count);
+        Assert.Equal(342, first.Data.Items[0].AdjustmentId);
+        Assert.Equal(1, (await service.GetCorrectionReportAsync(query, page: 2, pageSize: 2))
+            .Data!.Items.Count);
+        query.SubjectOfferingId = 72;
+        Assert.Equal(404, (await service.GetCorrectionReportAsync(query)).StatusCode);
+        query.SubjectOfferingId = null;
+        Assert.Equal(4, (await service.GetCorrectionReportAsync(query)).Data!.TotalCount);
+        query.ToDate = query.FromDate.AddDays(31);
+        Assert.Equal(400, (await service.GetCorrectionReportAsync(query)).StatusCode);
+    }
+
     private static async Task SeedOfferings(EduOSDbContext db)
     {
         db.Subjects.AddRange(

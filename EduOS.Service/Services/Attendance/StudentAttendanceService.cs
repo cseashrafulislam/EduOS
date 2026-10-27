@@ -589,6 +589,105 @@ public sealed class StudentAttendanceService : IStudentAttendanceService
         }
     }
 
+
+    /// <summary>
+    /// Manager-only, SQL-paged audit across finalized sessions in a historical batch.
+    /// Retains the original enrollment and student identity, even after promotion.
+    /// The campus grant is part of the SQL query, not merely a UI filter.
+    /// </summary>
+    public async Task<ApiResponse<PagedResult<StudentAttendanceCorrectionReportRowDto>>> GetCorrectionReportAsync(
+        StudentAttendanceCorrectionReportQueryDto query, int page = 1, int pageSize = 20,
+        CancellationToken ct = default)
+    {
+        if (!CanCorrect())
+            return Error<PagedResult<StudentAttendanceCorrectionReportRowDto>>("Attendance audit permission denied.", 403);
+        if (query == null || query.AcademicBatchId <= 0 ||
+            query.FromDate < new DateOnly(2000, 1, 1) ||
+            query.ToDate < query.FromDate ||
+            query.ToDate > DateOnly.FromDateTime(_clock.GetUtcNow().UtcDateTime.AddDays(1)) ||
+            query.ToDate.DayNumber - query.FromDate.DayNumber > 30 ||
+            query.SubjectOfferingId is <= 0 || page < 1 || pageSize is < 1 or > 100 ||
+            (long)(page - 1) * pageSize > int.MaxValue)
+            return Error<PagedResult<StudentAttendanceCorrectionReportRowDto>>(
+                "Valid batch, attendance dates (up to 31 days), subject and page are required.");
+
+        var tenant = _user.TenantId;
+        var isAdmin = _user.IsTenantAdmin;
+        var campuses = AccessibleManagerCampusIds();
+        try
+        {
+            var batchExists = await _batches.GetQueryable().AsNoTracking().AnyAsync(x =>
+                x.TenantId == tenant && x.Id == query.AcademicBatchId && !x.IsDeleted &&
+                (isAdmin || campuses.Contains(x.CampusId)), ct);
+            if (!batchExists)
+                return Error<PagedResult<StudentAttendanceCorrectionReportRowDto>>(
+                    "Academic batch not found.", 404);
+
+            if (query.SubjectOfferingId.HasValue)
+            {
+                var offeringExists = await _offerings.GetQueryable().AsNoTracking().AnyAsync(x =>
+                    x.TenantId == tenant && x.Id == query.SubjectOfferingId.Value &&
+                    x.AcademicBatchId == query.AcademicBatchId && !x.IsDeleted, ct);
+                if (!offeringExists)
+                    return Error<PagedResult<StudentAttendanceCorrectionReportRowDto>>(
+                        "Subject offering not found in academic batch.", 404);
+            }
+
+            var rows = from adjustment in _adjustments.GetQueryable().AsNoTracking()
+                join attendance in _attendances.GetQueryable().AsNoTracking()
+                    on adjustment.StudentAttendanceId equals attendance.Id
+                join session in _sessions.GetQueryable().AsNoTracking()
+                    on attendance.AttendanceSessionId equals session.Id
+                join enrollment in _enrollments.GetQueryable().AsNoTracking()
+                    on attendance.StudentEnrollmentId equals enrollment.Id
+                join student in _students.GetQueryable().AsNoTracking()
+                    on enrollment.StudentId equals student.Id
+                join batch in _batches.GetQueryable().AsNoTracking()
+                    on session.AcademicBatchId equals batch.Id
+                where adjustment.TenantId == tenant && attendance.TenantId == tenant &&
+                    session.TenantId == tenant && enrollment.TenantId == tenant &&
+                    student.TenantId == tenant && batch.TenantId == tenant &&
+                    !adjustment.IsDeleted && !attendance.IsDeleted && !session.IsDeleted &&
+                    !enrollment.IsDeleted && !student.IsDeleted && !batch.IsDeleted &&
+                    session.IsFinalized && session.AcademicBatchId == query.AcademicBatchId &&
+                    session.AttendanceDate >= query.FromDate && session.AttendanceDate <= query.ToDate &&
+                    enrollment.AcademicBatchId == session.AcademicBatchId &&
+                    enrollment.CampusId == batch.CampusId &&
+                    (isAdmin || campuses.Contains(batch.CampusId))
+                select new StudentAttendanceCorrectionReportRowDto
+                {
+                    AdjustmentId = adjustment.Id, StudentAttendanceId = attendance.Id,
+                    AttendanceDate = session.AttendanceDate, RollNo = enrollment.RollNo,
+                    StudentCode = student.StudentCode, StudentName = student.FullName,
+                    SubjectOfferingId = session.SubjectOfferingId,
+                    PreviousState = adjustment.PreviousState, NewState = adjustment.NewState,
+                    Reason = adjustment.Reason, ChangedByUserId = adjustment.ChangedByUserId,
+                    ChangedAt = adjustment.ChangedAt
+                };
+            if (query.SubjectOfferingId.HasValue)
+            {
+                var offeringId = query.SubjectOfferingId.Value;
+                rows = rows.Where(x => x.SubjectOfferingId == offeringId);
+            }
+            var total = await rows.CountAsync(ct);
+            var items = await rows.OrderByDescending(x => x.ChangedAt)
+                .ThenByDescending(x => x.AdjustmentId)
+                .Skip((page - 1) * pageSize).Take(pageSize).ToListAsync(ct);
+            return ApiResponse<PagedResult<StudentAttendanceCorrectionReportRowDto>>.SuccessResponse(
+                new PagedResult<StudentAttendanceCorrectionReportRowDto>
+                {
+                    Items = items, TotalCount = total, Page = page, PageSize = pageSize
+                });
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Attendance correction report failed for tenant {TenantId}", tenant);
+            return Error<PagedResult<StudentAttendanceCorrectionReportRowDto>>(
+                "Attendance correction report could not be loaded.", 500);
+        }
+    }
+
     private async Task<StudentAttendanceRosterDto> ReadRosterAsync(
         long batchId, DateOnly date, long? offeringId, CancellationToken ct,
         int page = 1, int pageSize = 2000)

@@ -18,6 +18,9 @@ public interface IStudentAttendanceService
     Task<ApiResponse<StudentAttendanceRosterDto>> SaveAsync(SaveAttendanceRegisterRequestDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<StudentAttendanceRosterDto>> FinalizeSessionAsync(long sessionId, string rowVersion, CancellationToken cancellationToken = default);
     Task<ApiResponse<StudentAttendanceDto>> CorrectAttendanceAsync(long attendanceId, AttendanceCorrectionRequestDto request, CancellationToken cancellationToken = default);
+    Task<ApiResponse<PagedResult<StudentAttendanceCorrectionReportRowDto>>> GetCorrectionReportAsync(
+        StudentAttendanceCorrectionReportQueryDto query, int page = 1, int pageSize = 20,
+        CancellationToken cancellationToken = default);
     Task<ApiResponse<PagedResult<StudentAttendanceAdjustmentDto>>> GetCorrectionsAsync(long attendanceId,
         int page = 1, int pageSize = 20, CancellationToken cancellationToken = default);
 }
