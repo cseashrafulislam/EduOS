@@ -391,6 +391,11 @@ public class EduOSDbContext :
     public DbSet<QuizQuestion> QuizQuestions => Set<QuizQuestion>();
 
     // Inventory / Assets
+    public DbSet<AssetBook> AssetBooks => Set<AssetBook>();
+    public DbSet<AssetDepreciationRun> AssetDepreciationRuns => Set<AssetDepreciationRun>();
+    public DbSet<AssetDepreciationLine> AssetDepreciationLines => Set<AssetDepreciationLine>();
+    public DbSet<AssetImpairment> AssetImpairments => Set<AssetImpairment>();
+    public DbSet<AssetDisposal> AssetDisposals => Set<AssetDisposal>();
     public DbSet<Asset> Assets => Set<Asset>();
     public DbSet<AssetAssignment> AssetAssignments => Set<AssetAssignment>();
     public DbSet<AssetCategory> AssetCategories => Set<AssetCategory>();
@@ -1009,6 +1014,30 @@ public class EduOSDbContext :
         TenantReference<InventoryMovement, InventoryMovement>(modelBuilder, nameof(InventoryMovement.ReversalOfMovementId));
         TenantReference<InventoryMovementLine, InventoryMovement>(modelBuilder, nameof(InventoryMovementLine.InventoryMovementId));
         TenantReference<InventoryMovementLine, InventoryItem>(modelBuilder, nameof(InventoryMovementLine.InventoryItemId));
+        TenantReference<AssetBook, Asset>(modelBuilder, nameof(AssetBook.AssetId));
+        TenantReference<AssetBook, Campus>(modelBuilder, nameof(AssetBook.CampusId));
+        TenantReference<AssetBook, Account>(modelBuilder, nameof(AssetBook.CostAccountId));
+        TenantReference<AssetBook, Account>(modelBuilder, nameof(AssetBook.AccumulatedDepreciationAccountId));
+        TenantReference<AssetBook, Account>(modelBuilder, nameof(AssetBook.DepreciationExpenseAccountId));
+        TenantReference<AssetBook, Account>(modelBuilder, nameof(AssetBook.ImpairmentExpenseAccountId));
+        TenantReference<AssetBook, Account>(modelBuilder, nameof(AssetBook.DisposalGainAccountId));
+        TenantReference<AssetBook, Account>(modelBuilder, nameof(AssetBook.DisposalLossAccountId));
+        TenantReference<AssetDepreciationRun, Campus>(modelBuilder, nameof(AssetDepreciationRun.CampusId));
+        TenantReference<AssetDepreciationRun, AccountingPeriod>(modelBuilder, nameof(AssetDepreciationRun.AccountingPeriodId));
+        TenantReference<AssetDepreciationRun, Journal>(modelBuilder, nameof(AssetDepreciationRun.JournalId));
+        TenantReference<AssetDepreciationRun, Journal>(modelBuilder, nameof(AssetDepreciationRun.ReversalJournalId));
+        Reference<AssetDepreciationRun, ApplicationUser>(modelBuilder, nameof(AssetDepreciationRun.ApprovedByUserId));
+        TenantReference<AssetDepreciationLine, AssetDepreciationRun>(modelBuilder, nameof(AssetDepreciationLine.AssetDepreciationRunId));
+        TenantReference<AssetDepreciationLine, AssetBook>(modelBuilder, nameof(AssetDepreciationLine.AssetBookId));
+        TenantReference<AssetDepreciationLine, JournalLine>(modelBuilder, nameof(AssetDepreciationLine.JournalLineId));
+        TenantReference<AssetImpairment, AssetBook>(modelBuilder, nameof(AssetImpairment.AssetBookId));
+        TenantReference<AssetImpairment, Journal>(modelBuilder, nameof(AssetImpairment.JournalId));
+        TenantReference<AssetImpairment, Journal>(modelBuilder, nameof(AssetImpairment.ReversalJournalId));
+        Reference<AssetImpairment, ApplicationUser>(modelBuilder, nameof(AssetImpairment.ApprovedByUserId));
+        TenantReference<AssetDisposal, AssetBook>(modelBuilder, nameof(AssetDisposal.AssetBookId));
+        TenantReference<AssetDisposal, Journal>(modelBuilder, nameof(AssetDisposal.JournalId));
+        TenantReference<AssetDisposal, Journal>(modelBuilder, nameof(AssetDisposal.ReversalJournalId));
+        Reference<AssetDisposal, ApplicationUser>(modelBuilder, nameof(AssetDisposal.ApprovedByUserId));
         TenantReference<Asset, AssetCategory>(modelBuilder, nameof(Asset.AssetCategoryId));
         TenantReference<Asset, InventoryItem>(modelBuilder, nameof(Asset.InventoryItemId));
         TenantReference<Asset, Campus>(modelBuilder, nameof(Asset.CampusId));
@@ -1439,6 +1468,16 @@ public class EduOSDbContext :
         UniqueTenant<InventoryMovement>(modelBuilder, nameof(InventoryMovement.MovementNumber));
         UniqueTenant<InventoryMovement>(modelBuilder, nameof(InventoryMovement.ClientRequestId));
         UniqueTenant<InventoryMovementLine>(modelBuilder, nameof(InventoryMovementLine.InventoryMovementId), nameof(InventoryMovementLine.LineNo));
+        modelBuilder.Entity<AssetBook>().HasIndex(x => new { x.TenantId, x.AssetId }).IsUnique().HasFilter("[IsDeleted] = 0");
+        modelBuilder.Entity<AssetBook>().HasIndex(x => new { x.TenantId, x.CampusId, x.IsActive });
+        modelBuilder.Entity<AssetDepreciationRun>().HasIndex(x => new { x.TenantId, x.ClientRequestId }).IsUnique().HasFilter("[IsDeleted] = 0");
+        modelBuilder.Entity<AssetDepreciationRun>().HasIndex(x => new { x.TenantId, x.AccountingPeriodId, x.StateCode });
+        modelBuilder.Entity<AssetDepreciationLine>().HasIndex(x => new { x.TenantId, x.AssetDepreciationRunId, x.AssetBookId }).IsUnique().HasFilter("[IsDeleted] = 0");
+        modelBuilder.Entity<AssetDepreciationLine>().HasIndex(x => new { x.TenantId, x.AssetBookId, x.PeriodEnd }).IsUnique().HasFilter("[IsDeleted] = 0");
+        modelBuilder.Entity<AssetImpairment>().HasIndex(x => new { x.TenantId, x.ClientRequestId }).IsUnique().HasFilter("[IsDeleted] = 0");
+        modelBuilder.Entity<AssetImpairment>().HasIndex(x => new { x.TenantId, x.AssetBookId, x.EffectiveDate });
+        modelBuilder.Entity<AssetDisposal>().HasIndex(x => new { x.TenantId, x.ClientRequestId }).IsUnique().HasFilter("[IsDeleted] = 0");
+        modelBuilder.Entity<AssetDisposal>().HasIndex(x => new { x.TenantId, x.AssetBookId }).IsUnique().HasFilter("[IsDeleted] = 0");
         UniqueTenant<AssetCategory>(modelBuilder, nameof(AssetCategory.Code));
         UniqueTenant<Asset>(modelBuilder, nameof(Asset.AssetTag));
         UniqueTenant<AssetAssignment>(modelBuilder, nameof(AssetAssignment.ClientRequestId));
@@ -1579,6 +1618,16 @@ public class EduOSDbContext :
             t.HasCheckConstraint("CK_LoanAdvanceRecovery_Amount", "[Amount] > 0"));
         modelBuilder.Entity<InventoryMovementLine>().ToTable(t =>
             t.HasCheckConstraint("CK_InventoryMovementLine_QuantityCost", "[Quantity] > 0 AND [UnitCost] >= 0"));
+        modelBuilder.Entity<AssetBook>().ToTable(t =>
+            t.HasCheckConstraint("CK_AssetBook_Policy", "[UsefulLifeMonths] > 0 AND [PolicyVersion] >= 1 AND [CostBasis] >= 0 AND [SalvageValue] >= 0 AND [SalvageValue] <= [CostBasis]"));
+        modelBuilder.Entity<AssetDepreciationRun>().ToTable(t =>
+            t.HasCheckConstraint("CK_AssetDepreciationRun_Amount", "[TotalAmount] >= 0"));
+        modelBuilder.Entity<AssetDepreciationLine>().ToTable(t =>
+            t.HasCheckConstraint("CK_AssetDepreciationLine_Amounts", "[Amount] >= 0 AND [OpeningAccumulated] >= 0 AND [ClosingAccumulated] >= [OpeningAccumulated] AND [ClosingCarryingValue] >= 0"));
+        modelBuilder.Entity<AssetImpairment>().ToTable(t =>
+            t.HasCheckConstraint("CK_AssetImpairment_Amount", "[Amount] > 0"));
+        modelBuilder.Entity<AssetDisposal>().ToTable(t =>
+            t.HasCheckConstraint("CK_AssetDisposal_Amounts", "[Proceeds] >= 0 AND [AccumulatedDepreciation] >= 0 AND [CarryingValue] >= 0"));
         modelBuilder.Entity<Asset>().ToTable(t =>
             t.HasCheckConstraint("CK_Asset_PurchaseCost", "[PurchaseCost] IS NULL OR [PurchaseCost] >= 0"));
         modelBuilder.Entity<AssetMaintenance>().ToTable(t =>
