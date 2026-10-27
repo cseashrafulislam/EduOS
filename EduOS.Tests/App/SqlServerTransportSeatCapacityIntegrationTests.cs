@@ -182,6 +182,85 @@ public sealed class SqlServerTransportSeatCapacityIntegrationTests
         Assert.Equal(2, vehicleAfter.Capacity);
     }
 
+
+    [Fact]
+    public async Task Route_vehicle_create_request_key_replays_original_result_after_rowversion_change()
+    {
+        var connection = Environment.GetEnvironmentVariable("EDUOS_SQL_AUTH_TEST_CONNECTION");
+        if (string.IsNullOrWhiteSpace(connection)) return;
+        var fixture = await SeedAsync(connection);
+        CreateTransportRouteVehicleLinkRequestDto request;
+        long replacementVehicleId;
+
+        await using (var setup = ScopedContext(fixture.Options, fixture.TenantId, fixture.UserId))
+        {
+            var route = await setup.Set<TransportRoute>().AsNoTracking()
+                .SingleAsync(x => x.PublicId == fixture.RouteReference);
+            var vehicle = new Vehicle
+            {
+                TenantId = fixture.TenantId, CampusId = route.CampusId,
+                VehicleNumber = "CAP-REPLAY-" + Guid.NewGuid().ToString("N")[..12],
+                Capacity = 2, IsActive = true
+            };
+            setup.Vehicles.Add(vehicle);
+            await setup.SaveChangesAsync();
+            replacementVehicleId = vehicle.Id;
+            request = new CreateTransportRouteVehicleLinkRequestDto
+            {
+                ClientRequestId = Guid.NewGuid(),
+                RouteId = route.Id, VehicleId = vehicle.Id,
+                RouteRowVersion = Convert.ToBase64String(route.RowVersion),
+                VehicleRowVersion = Convert.ToBase64String(vehicle.RowVersion),
+                EffectiveFrom = fixture.Start.AddDays(1),
+                EffectiveTo = fixture.Start.AddDays(6)
+            };
+        }
+
+        async Task<ApiResponse<RouteVehicleAssignmentDto>> ExecuteAsync(
+            CreateTransportRouteVehicleLinkRequestDto command)
+        {
+            await using var db = ScopedContext(fixture.Options, fixture.TenantId, fixture.UserId);
+            return await Service(db, fixture.TenantId, fixture.UserId).AssignRouteVehicleAsync(command);
+        }
+
+        var created = await ExecuteAsync(request);
+        Assert.True(created.Success, created.Message);
+        Assert.Equal(201, created.StatusCode);
+        var createdId = created.Data!.Id;
+
+        // Replay must not consume another assignment or require the stale version.
+        await using (var edit = ScopedContext(fixture.Options, fixture.TenantId, fixture.UserId))
+        {
+            var vehicle = await edit.Vehicles.SingleAsync(x => x.Id == replacementVehicleId);
+            vehicle.VehicleType = "Updated after reservation";
+            await edit.SaveChangesAsync();
+        }
+
+        var replay = await ExecuteAsync(request);
+        Assert.True(replay.Success, replay.Message);
+        Assert.Equal(created.StatusCode, replay.StatusCode);
+        Assert.Equal(createdId, replay.Data!.Id);
+        Assert.Equal(created.Data.RowVersion, replay.Data.RowVersion);
+
+        var mismatched = new CreateTransportRouteVehicleLinkRequestDto
+        {
+            ClientRequestId = request.ClientRequestId,
+            RouteId = request.RouteId, VehicleId = request.VehicleId,
+            RouteRowVersion = request.RouteRowVersion,
+            VehicleRowVersion = request.VehicleRowVersion,
+            EffectiveFrom = request.EffectiveFrom,
+            EffectiveTo = request.EffectiveTo!.Value.AddDays(1)
+        };
+        var conflict = await ExecuteAsync(mismatched);
+        Assert.False(conflict.Success);
+        Assert.Equal(409, conflict.StatusCode);
+
+        await using var verify = ScopedContext(fixture.Options, fixture.TenantId, fixture.UserId);
+        Assert.Equal(1, await verify.RouteVehicleAssignments.CountAsync(x =>
+            x.TenantId == fixture.TenantId && x.VehicleId == replacementVehicleId &&
+            !x.IsDeleted && x.IsCurrent));
+    }
+
     private static AssignStudentTransportRequestDto Request(
         Fixture fixture, int student, DateOnly from, DateOnly to) => new()
     {

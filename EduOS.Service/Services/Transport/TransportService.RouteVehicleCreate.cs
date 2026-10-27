@@ -24,14 +24,19 @@ public sealed partial class TransportService
             return ApiResponse<RouteVehicleAssignmentDto>.ErrorResponse(
                 "Route, vehicle, request ID, row versions and valid dates are required.");
         var tenant = _currentUser.TenantId;
+        const string operation = "transport.route-vehicle-assign";
+        var requestHash = CommandFingerprint(operation, request.RouteId,
+            request.VehicleId, request.EffectiveFrom.ToString("yyyy-MM-dd"),
+            request.EffectiveTo?.ToString("yyyy-MM-dd"),
+            Convert.ToBase64String(routeVersion), Convert.ToBase64String(vehicleVersion));
         try
         {
             return await _unitOfWork.ExecuteInTransactionAsync(async token =>
             {
                 var route = await _routes.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
-                    x.TenantId == tenant && x.Id == request.RouteId && !x.IsDeleted && x.IsActive, token);
+                    x.TenantId == tenant && x.Id == request.RouteId && !x.IsDeleted, token);
                 var vehicle = await _vehicles.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
-                    x.TenantId == tenant && x.Id == request.VehicleId && !x.IsDeleted && x.IsActive, token);
+                    x.TenantId == tenant && x.Id == request.VehicleId && !x.IsDeleted, token);
                 if (route == null || vehicle == null || vehicle.Capacity <= 0)
                     return ApiResponse<RouteVehicleAssignmentDto>.ErrorResponse("Active route or vehicle not found.", 404);
                 if (!route.CampusId.HasValue || !vehicle.CampusId.HasValue ||
@@ -44,6 +49,16 @@ public sealed partial class TransportService
                     return ApiResponse<RouteVehicleAssignmentDto>.ErrorResponse("Campus is unavailable.", 409);
                 if (!await CanManageCampusAsync(campusId, tenant, token))
                     return Denied<RouteVehicleAssignmentDto>();
+                // Authorize the canonical campus before durable request-key replay.
+                var replay = await _commandReceipts.ReplayAsync<RouteVehicleAssignmentDto>(tenant,
+                    _currentUser.UserId, operation, request.ClientRequestId, route.Id, requestHash, token);
+                if (replay.Conflict)
+                    return ApiResponse<RouteVehicleAssignmentDto>.ErrorResponse(
+                        "Request key was already used with different command details.", 409);
+                if (replay.Found) return replay.Response!;
+                if (!route.IsActive || !vehicle.IsActive)
+                    return ApiResponse<RouteVehicleAssignmentDto>.ErrorResponse(
+                        "Active route or vehicle not found.", 404);
                 if (!route.RowVersion.AsSpan().SequenceEqual(routeVersion) ||
                     !vehicle.RowVersion.AsSpan().SequenceEqual(vehicleVersion))
                     return ApiResponse<RouteVehicleAssignmentDto>.ErrorResponse(
@@ -59,8 +74,14 @@ public sealed partial class TransportService
                     if (overlapping.Count == 1 && overlapping[0].RouteId == route.Id &&
                         overlapping[0].EffectiveFrom == request.EffectiveFrom &&
                         overlapping[0].EffectiveTo == request.EffectiveTo && overlapping[0].IsCurrent)
-                        return ApiResponse<RouteVehicleAssignmentDto>.SuccessResponse(
+                    {
+                        var same = ApiResponse<RouteVehicleAssignmentDto>.SuccessResponse(
                             MapRouteVehicleLink(overlapping[0]), "Route/vehicle assignment already exists.");
+                        await _commandReceipts.RecordAsync(tenant, _currentUser.UserId, operation,
+                            request.ClientRequestId, route.Id, requestHash, same, token);
+                        await _unitOfWork.SaveChangesAsync(token);
+                        return same;
+                    }
                     return ApiResponse<RouteVehicleAssignmentDto>.ErrorResponse(
                         "Vehicle has an overlapping route assignment.", 409);
                 }
@@ -89,12 +110,21 @@ public sealed partial class TransportService
                 };
                 await _vehicleRoutes.AddAsync(entity);
                 await _unitOfWork.SaveChangesAsync(token);
-                return new ApiResponse<RouteVehicleAssignmentDto>
+                var success = new ApiResponse<RouteVehicleAssignmentDto>
                 {
                     Success = true, StatusCode = 201, Message = "Route/vehicle assignment created.",
                     Data = MapRouteVehicleLink(entity)
                 };
+                await _commandReceipts.RecordAsync(tenant, _currentUser.UserId, operation,
+                    request.ClientRequestId, route.Id, requestHash, success, token);
+                await _unitOfWork.SaveChangesAsync(token);
+                return success;
             }, System.Data.IsolationLevel.Serializable, ct);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            return ApiResponse<RouteVehicleAssignmentDto>.ErrorResponse(
+                "Route or vehicle changed. Reload and retry.", 409);
         }
         catch (DbUpdateException ex)
         {
