@@ -176,16 +176,57 @@ public sealed class AdmissionApplicationService : IAdmissionApplicationService
         {
             using var tx = new TransactionScope(TransactionScopeOption.Required,
                 new TransactionOptions { IsolationLevel = IsolationLevel.Serializable }, TransactionScopeAsyncFlowOption.Enabled);
+            // Check committed retries under the same serializable transaction as intake status.
+            var existing = await _applications.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
+                x.TenantId == tenant && x.ClientRequestId == request.ClientRequestId, ct);
             var form = await _forms.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
-                x.TenantId == tenant && x.PublicId == request.AdmissionFormReference &&
-                x.State == AdmissionFormState.Published, ct);
-            if (form == null) return ApiResponse<AdmissionApplicationCreatedDto>.ErrorResponse("Published intake form not found.", 404);
+                x.TenantId == tenant && x.PublicId == request.AdmissionFormReference, ct);
+            if (form == null || (existing == null && form.State != AdmissionFormState.Published))
+                return ApiResponse<AdmissionApplicationCreatedDto>.ErrorResponse("Published intake form not found.", 404);
             var now = _clock.GetUtcNow().UtcDateTime;
-            if (form.OpensAt > now || form.ClosesAt < now)
+            if (existing == null && (form.OpensAt > now || form.ClosesAt < now))
                 return ApiResponse<AdmissionApplicationCreatedDto>.ErrorResponse("Intake form is not open.", 409);
             if (form.AcademicYearId != request.AcademicYearId || form.CampusId != request.CampusId ||
                 form.AcademicLevelId != request.AcademicLevelId || form.AcademicTermId != request.AcademicTermId)
                 return ApiResponse<AdmissionApplicationCreatedDto>.ErrorResponse("Academic choices do not match the intake form.", 409);
+            if (existing != null)
+            {
+                if (existing.AdmissionIntakeFormId != form.Id ||
+                    existing.FullName != request.ApplicantName.Trim() ||
+                    existing.FullNameBangla != Trim(request.ApplicantNameBangla) ||
+                    existing.DateOfBirth != DateOnly.FromDateTime(request.DateOfBirth.Date) ||
+                    existing.Gender != request.Gender.ToString() ||
+                    existing.Phone != request.PrimaryMobile.Trim() ||
+                    existing.Email != Trim(request.Email) ||
+                    existing.Address != (Trim(request.PermanentAddress) ?? Trim(request.PresentAddress)))
+                    return ApiResponse<AdmissionApplicationCreatedDto>.ErrorResponse(
+                        "Request ID was previously used for different applicant data.", 409);
+                // Historical values may belong to fields that are no longer active.
+                var savedFields = await (from value in _values.GetQueryable().AsNoTracking()
+                    join field in _fields.GetQueryable().AsNoTracking()
+                        on value.AdmissionFormFieldId equals field.Id
+                    where value.TenantId == tenant && field.TenantId == tenant &&
+                        value.AdmissionApplicantId == existing.Id
+                    select new { field.FieldKey, value.Value }).ToListAsync(ct);
+                var expectedFields = (request.CustomResponses ?? new Dictionary<string, string?>())
+                    .Where(x => Trim(x.Value) != null)
+                    .ToDictionary(x => x.Key, x => Trim(x.Value), StringComparer.Ordinal);
+                if (savedFields.Count != expectedFields.Count ||
+                    savedFields.Any(x => !expectedFields.TryGetValue(x.FieldKey, out var value) || value != x.Value))
+                    return ApiResponse<AdmissionApplicationCreatedDto>.ErrorResponse(
+                        "Request ID was previously used for different custom responses.", 409);
+                var guardian = await _guardians.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
+                    x.TenantId == tenant && x.AdmissionApplicantId == existing.Id && x.IsPrimary, ct);
+                if (guardian == null && Trim(request.GuardianName) != null ||
+                    guardian != null && (guardian.FullName != Trim(request.GuardianName) ||
+                        guardian.RelationCode != (Trim(request.GuardianRelation) ?? "Guardian") ||
+                        guardian.Phone != Trim(request.GuardianMobile)))
+                    return ApiResponse<AdmissionApplicationCreatedDto>.ErrorResponse(
+                        "Request ID was previously used for different guardian details.", 409);
+                tx.Complete();
+                return ApiResponse<AdmissionApplicationCreatedDto>.SuccessResponse(
+                    MapCreated(existing), "Application already submitted.");
+            }
             var fields = await _fields.GetQueryable().AsNoTracking().Where(x => x.TenantId == tenant &&
                 x.AdmissionIntakeFormId == form.Id && x.IsActive).OrderBy(x => x.DisplayOrder)
                 .Select(x => new AdmissionFormFieldDto
@@ -194,17 +235,6 @@ public sealed class AdmissionApplicationService : IAdmissionApplicationService
                     IsActive = x.IsActive }).ToListAsync(ct);
             var validation = AdmissionIntakeRules.ValidateResponses(fields, request.CustomResponses, out _);
             if (validation != null) return ApiResponse<AdmissionApplicationCreatedDto>.ErrorResponse(validation);
-            var existing = await _applications.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
-                x.TenantId == tenant && x.ClientRequestId == request.ClientRequestId, ct);
-            if (existing != null)
-            {
-                if (existing.AdmissionIntakeFormId != form.Id ||
-                    !string.Equals(existing.FullName, request.ApplicantName.Trim(), StringComparison.Ordinal) ||
-                    existing.Phone != request.PrimaryMobile.Trim())
-                    return ApiResponse<AdmissionApplicationCreatedDto>.ErrorResponse("Request ID was previously used for another application.", 409);
-                tx.Complete();
-                return ApiResponse<AdmissionApplicationCreatedDto>.SuccessResponse(MapCreated(existing), "Application already submitted.");
-            }
             var isMinor = request.DateOfBirth.Date > now.Date.AddYears(-18);
             if (isMinor && (string.IsNullOrWhiteSpace(request.GuardianName) ||
                 string.IsNullOrWhiteSpace(request.GuardianRelation) || string.IsNullOrWhiteSpace(request.GuardianMobile)))

@@ -58,6 +58,58 @@ public sealed class AdmissionApplicationServiceTests
     }
 
     [Fact]
+    public async Task Closed_intake_acknowledges_committed_replay_but_rejects_new_application()
+    {
+        await using var db = Context(Options(), 101);
+        var scope = await SeedAsync(db, 101);
+        var service = Service(db, new User(101));
+        var request = Request(scope);
+        var first = await service.CreateAsync(request);
+        first.StatusCode.Should().Be(201);
+        var form = await db.AdmissionIntakeForms.SingleAsync();
+        form.ClosesAt = Now.UtcDateTime.AddMinutes(-1);
+        await db.SaveChangesAsync();
+        var replay = await service.CreateAsync(request);
+        replay.Success.Should().BeTrue(replay.Message);
+        replay.Data!.Reference.Should().Be(first.Data!.Reference);
+        (await service.CreateAsync(Request(scope))).Success.Should().BeFalse();
+        (await db.AdmissionApplicants.CountAsync()).Should().Be(1);
+    }
+
+    [Fact]
+    public async Task Replay_rejects_changed_guardian_identity_address_and_custom_response()
+    {
+        await using var db = Context(Options(), 101);
+        var scope = await SeedAsync(db, 101);
+        var form = await db.AdmissionIntakeForms.SingleAsync();
+        db.AdmissionFormFields.Add(new AdmissionFormField
+        {
+            TenantId = 101, AdmissionIntakeFormId = form.Id,
+            FieldKey = "previousInstitution", Label = "Previous institution",
+            DataType = CustomFieldDataType.Text, IsActive = true
+        });
+        await db.SaveChangesAsync();
+        var service = Service(db, new User(101));
+        var request = Request(scope);
+        request.PresentAddress = "Main Road";
+        request.CustomResponses = new Dictionary<string, string?> { ["previousInstitution"] = "Old School" };
+        (await service.CreateAsync(request)).StatusCode.Should().Be(201);
+        (await service.CreateAsync(request)).Success.Should().BeTrue();
+        request.CustomResponses["previousInstitution"] = "Another School";
+        (await service.CreateAsync(request)).StatusCode.Should().Be(409);
+        request.CustomResponses["previousInstitution"] = "Old School";
+        request.GuardianMobile = "01999999999";
+        (await service.CreateAsync(request)).StatusCode.Should().Be(409);
+        request.GuardianMobile = "01700000000";
+        request.PresentAddress = "Changed Road";
+        (await service.CreateAsync(request)).StatusCode.Should().Be(409);
+        request.PresentAddress = "Main Road";
+        request.ApplicantNameBangla = "পরিবর্তিত নাম";
+        (await service.CreateAsync(request)).StatusCode.Should().Be(409);
+        (await db.AdmissionApplicants.CountAsync()).Should().Be(1);
+    }
+
+    [Fact]
     public async Task Minor_without_guardian_contact_cannot_be_submitted()
     {
         await using var db = Context(Options(), 101);

@@ -2,7 +2,7 @@
     'use strict';
 
     const i18n = JSON.parse(document.getElementById('admissionStrings')?.textContent || '{}');
-    const state = { page: 1, pageSize: 20, totalPages: 1, options: null, intakeForms: [], currentApplication: null, pendingRequestId: createRequestId() };
+    const state = { page: 1, pageSize: 20, totalPages: 1, options: null, intakeForms: [], currentApplication: null, pendingRequestId: createRequestId(), pendingFingerprint: null, submitting: false };
     // Canonical AdmissionApplicantState (FinalDomainEnums), not the retired 1-7 UI status map.
     const statuses = {
         1: 'Draft / খসড়া',
@@ -23,7 +23,6 @@
         document.getElementById('admissionFilters')?.addEventListener('submit', applyFilters);
         document.getElementById('academicYearId')?.addEventListener('change', refreshTerms);
         document.getElementById('admissionFormReference')?.addEventListener('change', selectAdmissionForm);
-        document.getElementById('sameAddress')?.addEventListener('change', copyAddress);
         document.getElementById('applicationList')?.addEventListener('click', openReview);
         document.getElementById('intakeFormList')?.addEventListener('click', handleIntakeFormAction);
         document.getElementById('newIntakeFormButton')?.addEventListener('click', openNewIntakeForm);
@@ -461,16 +460,9 @@
     async function submitApplication(event) {
         event.preventDefault();
         const form = event.currentTarget;
-        if (!form.reportValidity()) return;
+        if (state.submitting || !form.reportValidity()) return;
         const selectedForm = state.options?.openForms?.find(x => x.reference === valueOf('admissionFormReference'));
         if (!selectedForm) { showAlert('danger', 'Select an open admission intake before submitting.'); return; }
-        if (valueOf('previousInstitution')) {
-            showAlert('danger', 'Previous institution is not supported by the current admission record.'); return;
-        }
-        if (valueOf('presentAddress') && valueOf('permanentAddress') &&
-            valueOf('presentAddress') !== valueOf('permanentAddress')) {
-            showAlert('danger', 'Different addresses require the separate address workflow.'); return;
-        }
         const dateOfBirth = valueOf('dateOfBirth');
         if (isMinor(dateOfBirth) && (!valueOf('guardianName') || !valueOf('guardianRelation') || !valueOf('guardianMobile'))) {
             showAlert('danger', i18n.minorGuardianRequired);
@@ -496,10 +488,16 @@
             guardianRelation: valueOf('guardianRelation') || null,
             guardianMobile: normalizeBanglaDigits(valueOf('guardianMobile')) || null,
             presentAddress: valueOf('presentAddress') || null,
-            permanentAddress: valueOf('permanentAddress') || null,
-            previousInstitution: valueOf('previousInstitution') || null,
+            permanentAddress: null,
+            previousInstitution: null,
             preferredLanguage: valueOf('preferredLanguage') || 'bn-BD'
         };
+        const fingerprint = JSON.stringify({ ...request, clientRequestId: null });
+        if (state.pendingFingerprint !== null && state.pendingFingerprint !== fingerprint)
+            state.pendingRequestId = createRequestId();
+        state.pendingFingerprint = fingerprint;
+        request.clientRequestId = state.pendingRequestId;
+        state.submitting = true;
         const button = document.getElementById('submitApplicationButton');
         setLoading(button, true);
         try {
@@ -511,6 +509,7 @@
             }
             form.reset();
             state.pendingRequestId = createRequestId();
+            state.pendingFingerprint = null;
             fillSelect('academicYearId', state.options?.academicYears, true);
             fillSelect('campusId', state.options?.campuses, true);
             fillSelect('academicUnitId', state.options?.academicLevels, true);
@@ -525,6 +524,7 @@
         } catch {
             showAlert('danger', i18n.networkError);
         } finally {
+            state.submitting = false;
             setLoading(button, false);
         }
     }
@@ -992,13 +992,6 @@
         if (next) next.disabled = state.page >= state.totalPages;
         const label = document.getElementById('pageStatus');
         if (label) label.textContent = `${i18n.pageLabel || ''} ${state.page} / ${state.totalPages}`;
-    }
-
-    function copyAddress(event) {
-        const permanent = document.getElementById('permanentAddress');
-        if (!permanent) return;
-        permanent.disabled = event.currentTarget.checked;
-        if (event.currentTarget.checked) permanent.value = valueOf('presentAddress');
     }
 
     function apiOptions(method = 'GET', body = null) {
