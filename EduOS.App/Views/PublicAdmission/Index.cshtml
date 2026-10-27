@@ -37,9 +37,7 @@
                 <div class="field"><label for="guardianName">Guardian Name / অভিভাবক</label><input id="guardianName" maxlength="200" /></div>
                 <div class="field"><label for="guardianRelation">Relation / সম্পর্ক</label><input id="guardianRelation" maxlength="50" /></div>
                 <div class="field"><label for="guardianMobile">Guardian Mobile</label><input id="guardianMobile" inputmode="tel" maxlength="30" /></div>
-                <div class="field"><label for="previousInstitution">Previous Institution</label><input id="previousInstitution" maxlength="200" /></div>
-                <div class="field full"><label for="presentAddress">Present Address / বর্তমান ঠিকানা</label><textarea id="presentAddress" maxlength="1000"></textarea></div>
-                <div class="field full"><label for="permanentAddress">Permanent Address / স্থায়ী ঠিকানা</label><textarea id="permanentAddress" maxlength="1000"></textarea></div>
+                <div class="field full"><label for="presentAddress">Contact Address / যোগাযোগের ঠিকানা</label><textarea id="presentAddress" maxlength="1000"></textarea><span class="muted">Previous institution or separate addresses can be collected through institution-configured intake fields.</span></div>
                 <div class="field"><label for="preferredLanguage">Preferred Language</label><select id="preferredLanguage"><option value="bn-BD">বাংলা</option><option value="en-BD">English</option></select></div>
                 <div id="customFields" class="grid"></div>
             </div>
@@ -75,6 +73,7 @@
     </section>
 </main>
 <script src="~/js/public-admission/retry-keys.js" asp-append-version="true"></script>
+<script src="~/js/public-admission/fields.js" asp-append-version="true"></script>
 <script src="~/js/public-admission/index.js" asp-append-version="true"></script>
 </body>
 </html>

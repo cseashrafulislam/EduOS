@@ -13,6 +13,7 @@
     const receipt = document.getElementById('receipt');
     const intakeFormSelect = document.getElementById('intakeFormReference');
     const customFields = document.getElementById('customFields');
+    const fieldContract = window.EduOSAdmissionFields;
     const yearSelect = document.getElementById('academicYearId');
     const termSelect = document.getElementById('academicTermId');
     const campusSelect = document.getElementById('campusId');
@@ -26,6 +27,7 @@
     let terms = [];
     let openForms = [];
     let activeSubmission = null;
+    const uploadedDocumentTypes = new Set();
 
     const statusNames = { 1: 'Draft', 2: 'Submitted', 3: 'Under Review', 4: 'Documents Pending', 5: 'Assessment Pending', 6: 'Qualified', 7: 'Rejected', 8: 'Admitted', 9: 'Withdrawn' };
     const value = id => document.getElementById(id).value.trim();
@@ -69,35 +71,43 @@
 
     function renderCustomFields(fields) {
         customFields.replaceChildren();
-        for (const field of [...fields].sort((a, b) => (a.displayOrder - b.displayOrder) || a.key.localeCompare(b.key))) {
+        const definitions = (fields || []).map(fieldContract.normalizeField).filter(Boolean)
+            .sort((a, b) => a.order - b.order || a.key.localeCompare(b.key));
+        for (const field of definitions) {
             const wrapper = document.createElement('div');
-            wrapper.className = `field ${field.type === 2 ? 'full' : ''}`;
+            wrapper.className = field.type === 8 || field.type === 9 ? 'field full' : 'field';
             const label = document.createElement('label');
             label.htmlFor = `custom_${field.key}`;
-            label.textContent = `${field.label}${field.labelBangla ? ` / ${field.labelBangla}` : ''}`;
+            label.textContent = `${field.label}${field.required ? ' *' : ''}`;
             let control;
-            if (field.type === 2) control = document.createElement('textarea');
-            else if (field.type === 5) {
+            if ([6, 7, 8].includes(field.type)) {
                 control = document.createElement('select');
-                const placeholder = document.createElement('option');
-                placeholder.value = '';
-                placeholder.textContent = 'Select';
-                control.append(placeholder);
-                for (const optionValue of field.options || []) {
+                if (field.type === 8) control.multiple = true;
+                if (field.type !== 8) {
+                    const placeholder = document.createElement('option');
+                    placeholder.value = '';
+                    placeholder.textContent = 'Select';
+                    control.append(placeholder);
+                }
+                for (const choice of (field.type === 6 ? ['true', 'false'] : field.options)) {
                     const option = document.createElement('option');
-                    option.value = optionValue;
-                    option.textContent = optionValue;
+                    option.value = choice;
+                    option.textContent = choice;
                     control.append(option);
                 }
+            } else if (field.type === 9) {
+                control = document.createElement('textarea');
             } else {
                 control = document.createElement('input');
-                control.type = field.type === 3 ? 'number' : field.type === 4 ? 'date' : field.type === 6 ? 'checkbox' : 'text';
+                control.type = ({ 2: 'number', 3: 'number', 4: 'date', 5: 'datetime-local' })[field.type] || 'text';
+                if (field.type === 2) control.step = '1';
+                if (field.type === 3) control.step = 'any';
             }
             control.id = `custom_${field.key}`;
             control.dataset.customKey = field.key;
             control.dataset.fieldType = String(field.type);
-            control.required = Boolean(field.isRequired);
-            if (field.maxLength && field.type !== 3 && field.type !== 4 && field.type !== 6) control.maxLength = field.maxLength;
+            control.required = field.required;
+            if (control.tagName !== 'SELECT') control.maxLength = 4000;
             wrapper.append(label, control);
             customFields.append(wrapper);
         }
@@ -149,8 +159,8 @@
     function readCustomResponses() {
         const responses = {};
         for (const control of customFields.querySelectorAll('[data-custom-key]')) {
-            const raw = control.dataset.fieldType === '6' ? String(control.checked) : control.value.trim();
-            if (raw || control.required || control.dataset.fieldType === '6') responses[control.dataset.customKey] = raw || null;
+            const raw = fieldContract.readValue(control);
+            if (raw !== null || control.required) responses[control.dataset.customKey] = raw;
         }
         return responses;
     }
@@ -213,8 +223,8 @@
             guardianRelation: optional('guardianRelation'),
             guardianMobile: optional('guardianMobile'),
             presentAddress: optional('presentAddress'),
-            permanentAddress: optional('permanentAddress'),
-            previousInstitution: optional('previousInstitution'),
+            permanentAddress: null,
+            previousInstitution: null,
             preferredLanguage: value('preferredLanguage') || 'bn-BD'
         };
         // Reuse the same key after a timeout; changed form data gets a fresh key.
@@ -234,6 +244,7 @@
             document.getElementById('statusMobile').value = request.primaryMobile;
             receipt.classList.add('show');
             activeSubmission = { reference: data.reference, mobile: request.primaryMobile };
+            uploadedDocumentTypes.clear();
             applySelectedForm();
             applicationSubmitted = true;
             newApplicationButton.hidden = false;
@@ -253,6 +264,7 @@
         retry.clearAll();
         applicationSubmitted = false;
         activeSubmission = null;
+        uploadedDocumentTypes.clear();
         form.reset();
         receipt.classList.remove('show');
         documentPanel.hidden = true;
@@ -270,7 +282,8 @@
         clearMessage(documentMessage);
         if (!activeSubmission) { setMessage(documentMessage, 'Submit the application before uploading documents.'); return; }
         const inputs = [...documentFields.querySelectorAll('input[type="file"]')];
-        const missing = inputs.find(x => x.dataset.requiredDocument === 'true' && !x.files?.length);
+        const missing = inputs.find(x => x.dataset.requiredDocument === 'true' &&
+            !uploadedDocumentTypes.has(x.dataset.documentType) && !x.files?.length);
         if (missing) { setMessage(documentMessage, 'Select every required document.'); missing.focus(); return; }
         const selected = inputs.filter(x => x.files?.length);
         if (!selected.length) { setMessage(documentMessage, 'Select at least one document.'); return; }
@@ -286,6 +299,7 @@
                 data.append('file', input.files[0]);
                 await readResponse(await fetch(`${apiBase}/applications/${encodeURIComponent(activeSubmission.reference)}/documents`, { method: 'POST', body: data, headers: { Accept: 'application/json' } }));
                 retry.clear(key);
+                uploadedDocumentTypes.add(input.dataset.documentType);
                 input.value = ''; // Completed files are not uploaded again if a later file fails.
             }
             setMessage(documentMessage, 'Documents uploaded and awaiting verification.', true);
