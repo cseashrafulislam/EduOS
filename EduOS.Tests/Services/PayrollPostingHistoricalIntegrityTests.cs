@@ -111,6 +111,94 @@ public sealed class PayrollPostingHistoricalIntegrityTests
             .StatusCode.Should().Be(403);
     }
 
+
+    [Fact]
+    public async Task Settlement_register_reconciles_posted_payment_and_remaining_salary()
+    {
+        await using var db = Database();
+        SeedSettlement(db, 40m);
+        await db.SaveChangesAsync();
+
+        var result = await new PayrollPaymentPostingService(db, new User(), TimeProvider.System)
+            .GetRegisterAsync(false, 1, 10);
+        result.StatusCode.Should().Be(200);
+        var row = result.Data!.Payments.Single();
+        row.ReconciliationStatus.Should().Be("Reconciled");
+        row.NetSalaryAmount.Should().Be(100m);
+        row.SettledAmount.Should().Be(40m);
+        row.RemainingAmount.Should().Be(60m);
+    }
+
+    [Fact]
+    public async Task Settlement_register_flags_deleted_journal_line_instead_of_reporting_reconciled()
+    {
+        await using var db = Database();
+        SeedSettlement(db, 40m, deletedSettlementLine: true);
+        await db.SaveChangesAsync();
+
+        var result = await new PayrollPaymentPostingService(db, new User(), TimeProvider.System)
+            .GetRegisterAsync(false, 1, 10);
+        result.StatusCode.Should().Be(200);
+        result.Data!.Payments.Single().ReconciliationStatus.Should().Be("RequiresReview");
+    }
+
+    [Fact]
+    public async Task Settlement_register_flags_successful_overpayment_across_requests()
+    {
+        await using var db = Database();
+        SeedSettlement(db, 70m);
+        db.PayrollPayments.Add(new PayrollPayment
+        {
+            Id = 2, TenantId = 41, PayrollEmployeeId = 1, PublicId = Guid.NewGuid(),
+            ClientRequestId = Guid.NewGuid(), Amount = 50m, CurrencyCode = "BDT",
+            State = PaymentState.Successful, JournalId = 3, PaymentDate = new DateOnly(2026, 10, 16)
+        });
+        await db.SaveChangesAsync();
+
+        var result = await new PayrollPaymentPostingService(db, new User(), TimeProvider.System)
+            .GetRegisterAsync(false, 1, 10);
+        result.StatusCode.Should().Be(200);
+        result.Data!.Payments.Should().OnlyContain(x => x.ReconciliationStatus == "RequiresReview");
+        result.Data.Payments.Should().OnlyContain(x => x.RemainingAmount == -20m);
+    }
+
+    private static void SeedSettlement(EduOSDbContext db, decimal amount, bool deletedSettlementLine = false)
+    {
+        var date = new DateOnly(2026, 10, 16);
+        db.PayrollRuns.Add(new PayrollRun
+        {
+            Id = 1, TenantId = 41, PublicId = Guid.NewGuid(), RunNumber = "PR-2026-10",
+            State = PayrollRunState.Posted, JournalId = 1
+        });
+        db.PayrollEmployees.Add(new PayrollEmployee
+        {
+            Id = 1, TenantId = 41, PayrollRunId = 1, EmployeeId = 10,
+            EmployeeNameSnapshot = "Test Employee", NetAmount = 100m
+        });
+        db.PayrollPayments.Add(new PayrollPayment
+        {
+            Id = 1, TenantId = 41, PayrollEmployeeId = 1, PublicId = Guid.NewGuid(),
+            ClientRequestId = Guid.NewGuid(), Amount = amount, CurrencyCode = "BDT",
+            State = PaymentState.Successful, JournalId = 2, PaymentDate = date
+        });
+        db.Journals.AddRange(
+            new Journal { Id = 1, TenantId = 41, JournalNumber = "ACC-1",
+                AccountingPeriodId = 1, SourceType = "PayrollRun", SourceId = 1,
+                State = JournalState.Posted, CurrencyCode = "BDT" },
+            new Journal { Id = 2, TenantId = 41, JournalNumber = "PAY-1",
+                AccountingPeriodId = 1, SourceType = "PayrollPayment", SourceId = 1,
+                State = JournalState.Posted, CurrencyCode = "BDT", JournalDate = date });
+        db.JournalLines.AddRange(
+            new JournalLine { Id = 1, TenantId = 41, JournalId = 1, LineNo = 1,
+                AccountId = 1, CreditAmount = 100m, Description = "Payroll net payable" },
+            new JournalLine { Id = 2, TenantId = 41, JournalId = 2, LineNo = 1,
+                AccountId = 1, EmployeeId = 10, DebitAmount = amount,
+                Description = "Salary payable settlement", IsDeleted = deletedSettlementLine },
+            new JournalLine { Id = 3, TenantId = 41, JournalId = 2, LineNo = 2,
+                AccountId = 2, EmployeeId = 10, CreditAmount = amount,
+                Description = "Cash/bank payroll disbursement" });
+    }
+
     private static EduOSDbContext Database(long contextTenant = 41)
     {
         var accessor = new HttpContextAccessor { HttpContext = new DefaultHttpContext() };
