@@ -227,6 +227,51 @@ public sealed class StudentImportExecutionServiceTests
         Assert.Empty(isolated.Data!.Batches);
     }
 
+    [Fact]
+    public async Task Explicit_guardian_source_key_reuses_tenant_guardian_across_import_batches()
+    {
+        var options = Options(); await SeedAsync(options);
+        await using var db = Context(options, 101);
+        var service = Service(db, new User(101, true));
+        var mapped = new Dictionary<string, string>(Mapping) { ["GuardianSourceKey"] = "GuardianSourceKey" };
+        const string header = "SourceKey,StudentCode,FullName,CampusId,AcademicBatchId,RollNo,GuardianName,GuardianPhone,GuardianSourceKey\n";
+        using (var first = Csv(header +
+            "SRC-G1,STU-G1,Learner One,10,20,11,Guardian One,01700000000,FAMILY-1\n" +
+            "SRC-G2,STU-G2,Learner Two,10,20,12,Guardian One,01700000000,FAMILY-1\n"))
+            Assert.True((await service.ExecuteAsync(first, ".csv", mapped, Guid.NewGuid())).Success);
+        Assert.Equal(2, await db.StudentGuardians.CountAsync());
+        Assert.Single(await db.Guardians.ToListAsync());
+        Assert.Equal(3, await db.Persons.CountAsync());
+
+        using (var second = Csv(header +
+            "SRC-G3,STU-G3,Learner Three,10,20,13,Guardian One,01700000000,FAMILY-1\n"))
+            Assert.True((await service.ExecuteAsync(second, ".csv", mapped, Guid.NewGuid())).Success);
+        Assert.Equal(3, await db.StudentGuardians.CountAsync());
+        Assert.Single(await db.Guardians.ToListAsync());
+        Assert.Equal(4, await db.Persons.CountAsync());
+
+        using (var conflict = Csv(header +
+            "SRC-G4,STU-G4,Learner Four,10,20,14,Guardian Different,01700000000,FAMILY-1\n"))
+            Assert.Equal(409, (await service.ExecuteAsync(conflict, ".csv", mapped, Guid.NewGuid())).StatusCode);
+        Assert.Equal(3, await db.Students.CountAsync());
+        Assert.Equal(2, await db.ImportLogs.CountAsync());
+        Assert.Single(await db.IdempotencyRecords.Where(x =>
+            x.Scope == "StudentImportGuardianSource").ToListAsync());
+    }
+
+    [Fact]
+    public async Task Guardian_without_explicit_source_key_is_never_automatically_reused()
+    {
+        var options = Options(); await SeedAsync(options);
+        await using var db = Context(options, 101);
+        var service = Service(db, new User(101, true));
+        using var file = Csv(Header +
+            "SRC-N1,STU-N1,Learner One,10,20,11,Same Guardian,01700000000\n" +
+            "SRC-N2,STU-N2,Learner Two,10,20,12,Same Guardian,01700000000\n");
+        Assert.True((await service.ExecuteAsync(file, ".csv", Mapping, Guid.NewGuid())).Success);
+        Assert.Equal(2, await db.Guardians.CountAsync());
+    }
+
     private sealed class InMemoryUow(EduOSDbContext db) : IUnitOfWork
     {
         public Task<int> SaveChangesAsync(CancellationToken token = default) => db.SaveChangesAsync(token);

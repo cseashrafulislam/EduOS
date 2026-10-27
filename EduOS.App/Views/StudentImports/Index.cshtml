@@ -21,7 +21,7 @@
             <button id="studentImportInspect" class="btn btn-outline-primary" type="button">Inspect columns</button>
             <div id="studentImportMapping" class="row g-3 mt-2 d-none" aria-label="Map source columns">
                 <div class="col-12"></div>
-                @foreach (var field in new[] { "SourceKey", "StudentCode", "FullName", "CampusId", "AcademicBatchId", "RollNo", "DateOfBirth", "GuardianName", "GuardianPhone" })
+                @foreach (var field in new[] { "SourceKey", "StudentCode", "FullName", "CampusId", "AcademicBatchId", "RollNo", "DateOfBirth", "GuardianName", "GuardianPhone", "GuardianSourceKey" })
                 {
                     <div class="col-md-4">
                         <label class="form-label" for="map-@field">@field @(new[] { "SourceKey", "StudentCode", "FullName", "CampusId", "AcademicBatchId", "RollNo" }.Contains(field) ? "*" : "(optional)")</label>

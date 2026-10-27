@@ -48,7 +48,7 @@ public sealed class StudentImportsController : ControllerBase
             mapping = JsonSerializer.Deserialize<Dictionary<string, string>>(mappingJson ?? "");
         }
         catch (JsonException) { return BadRequest("Invalid column mapping."); }
-        if (mapping == null || mapping.Count is < 6 or > 9)
+        if (mapping == null || mapping.Count is < 6 or > 10)
             return BadRequest("Required import column mapping is missing.");
         await using var stream = new MemoryStream();
         await file!.CopyToAsync(stream, cancellationToken);
@@ -66,7 +66,7 @@ public sealed class StudentImportsController : ControllerBase
         Dictionary<string, string>? mapping;
         try { mapping = JsonSerializer.Deserialize<Dictionary<string, string>>(mappingJson ?? ""); }
         catch (JsonException) { return BadRequest("Invalid column mapping."); }
-        if (mapping == null || mapping.Count is < 6 or > 9)
+        if (mapping == null || mapping.Count is < 6 or > 10)
             return BadRequest("Required import column mapping is missing.");
         await using var stream = new MemoryStream();
         await file!.CopyToAsync(stream, cancellationToken);
@@ -104,7 +104,7 @@ public sealed class StudentImportsController : ControllerBase
         Dictionary<string, string>? mapping;
         try { mapping = JsonSerializer.Deserialize<Dictionary<string, string>>(mappingJson ?? ""); }
         catch (JsonException) { return BadRequest("Invalid column mapping."); }
-        if (mapping == null || mapping.Count is < 6 or > 9 || clientRequestId == Guid.Empty)
+        if (mapping == null || mapping.Count is < 6 or > 10 || clientRequestId == Guid.Empty)
             return BadRequest("Valid column mapping and import request ID are required.");
         await using var stream = new MemoryStream();
         await file!.CopyToAsync(stream, cancellationToken);

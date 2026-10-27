@@ -173,6 +173,26 @@ public sealed class StudentImportPreviewServiceTests
         Assert.NotNull(controller.GetMethod("Headers"));
     }
 
+    [Fact]
+    public async Task Guardian_source_mapping_rejects_conflicting_profiles_and_missing_name()
+    {
+        var options = Options(); await SeedAsync(options);
+        await using var db = Context(options, 101);
+        var mapped = new Dictionary<string, string>(Mapping) { ["GuardianSourceKey"] = "GuardianSourceKey" };
+        const string header = "SourceKey,StudentCode,FullName,CampusId,AcademicBatchId,RollNo,GuardianName,GuardianPhone,GuardianSourceKey\n";
+        using var file = Csv(header +
+            "SRC-P1,STU-P1,Learner One,10,20,11,Guardian One,01700000000,FAMILY-1\n" +
+            "SRC-P2,STU-P2,Learner Two,10,20,12,Guardian Two,01700000000,FAMILY-1\n" +
+            "SRC-P3,STU-P3,Learner Three,10,20,13,,01700000000,FAMILY-2\n");
+        var result = await Service(db, new User(101, true)).PreviewAsync(file, ".csv", mapped);
+        Assert.True(result.Success);
+        Assert.Equal(1, result.Data!.ValidRows);
+        Assert.Equal(2, result.Data.InvalidRows);
+        Assert.Contains(result.Data.Errors[0].Issues, x => x.Contains("conflicting profiles"));
+        Assert.Contains(result.Data.Errors[1].Issues, x => x.Contains("Guardian name"));
+        Assert.Empty(await db.ImportLogs.ToListAsync());
+    }
+
     private static MemoryStream Csv(string value) => new(Encoding.UTF8.GetBytes(value));
 
     private static DbContextOptions<EduOSDbContext> Options() =>

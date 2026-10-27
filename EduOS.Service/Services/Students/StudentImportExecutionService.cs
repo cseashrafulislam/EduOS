@@ -30,6 +30,7 @@ public sealed partial class StudentImportExecutionService : IStudentImportExecut
     private const int MaxBatchRows = 100;
     private const string BatchScope = "StudentImportBatch";
     private const string SourceScope = "StudentImportSource";
+    private const string GuardianSourceScope = "StudentImportGuardianSource";
     private readonly IStudentImportPreviewService _preview;
     private readonly IGenericRepository<Student> _students;
     private readonly IGenericRepository<StudentEnrollment> _enrollments;
@@ -111,7 +112,7 @@ public sealed partial class StudentImportExecutionService : IStudentImportExecut
 
     private static readonly string[] CanonicalFields =
         ["SourceKey", "StudentCode", "FullName", "CampusId", "AcademicBatchId", "RollNo",
-         "DateOfBirth", "GuardianName", "GuardianPhone"];
+         "DateOfBirth", "GuardianName", "GuardianPhone", "GuardianSourceKey"];
     private static readonly IReadOnlyDictionary<string, string> CanonicalMapping =
         CanonicalFields.ToDictionary(x => x, x => x, StringComparer.OrdinalIgnoreCase);
 
@@ -124,7 +125,7 @@ public sealed partial class StudentImportExecutionService : IStudentImportExecut
             {
                 row.SourceKey, row.StudentCode, row.FullName, row.CampusId,
                 row.BatchId.ToString(CultureInfo.InvariantCulture), row.RollNo,
-                row.DateOfBirth, row.GuardianName, row.GuardianPhone
+                row.DateOfBirth, row.GuardianName, row.GuardianPhone, row.GuardianSourceKey
             };
             builder.AppendJoin(",", cells.Select(value => "\"" + value.Replace("\"", "\"\"") + "\""))
                 .Append('\n');
@@ -235,6 +236,35 @@ public sealed partial class StudentImportExecutionService : IStudentImportExecut
                         throw new ImportConflictException("A source key has already been imported.");
                 }
 
+                // Guardian source keys are explicit, tenant-owned references. A name or phone
+                // match alone must never link or merge people, including across institutes.
+                var guardianRows = rows.Where(x => !string.IsNullOrWhiteSpace(x.GuardianSourceKey)).ToArray();
+                var guardianSourceIds = guardianRows.Select(x => GuardianSourceId(x.GuardianSourceKey))
+                    .Distinct().ToArray();
+                var priorGuardianKeys = await _keys.GetQueryable().AsNoTracking()
+                    .Where(x => x.TenantId == tenant && x.Scope == GuardianSourceScope &&
+                        !x.IsDeleted && guardianSourceIds.Contains(x.RequestId))
+                    .Select(x => new { x.RequestId, x.RequestHash, x.TargetId }).ToListAsync(token);
+                var priorGuardianIds = priorGuardianKeys.Where(x => x.TargetId.HasValue)
+                    .Select(x => x.TargetId!.Value).Distinct().ToArray();
+                var priorGuardians = await _guardians.GetQueryable().AsNoTracking()
+                    .Where(x => x.TenantId == tenant && !x.IsDeleted && x.IsActive &&
+                        priorGuardianIds.Contains(x.Id))
+                    .Select(x => new { x.Id, x.FullName, x.Phone }).ToDictionaryAsync(x => x.Id, token);
+                var guardianBySource = priorGuardianKeys.ToDictionary(x => x.RequestId);
+                var guardianCache = new Dictionary<Guid, long>();
+                foreach (var row in guardianRows)
+                {
+                    var key = GuardianSourceId(row.GuardianSourceKey);
+                    if (!guardianBySource.TryGetValue(key, out var prior)) continue;
+                    if (prior.RequestHash != GuardianProfileHash(row) || !prior.TargetId.HasValue ||
+                        !priorGuardians.TryGetValue(prior.TargetId.Value, out var guardian) ||
+                        !string.Equals(guardian.FullName.Trim(), row.GuardianName.Trim(), StringComparison.OrdinalIgnoreCase) ||
+                        !string.Equals((guardian.Phone ?? "").Trim(), row.GuardianPhone.Trim(), StringComparison.Ordinal))
+                        throw new ImportConflictException("Guardian source key conflicts with an existing guardian profile. Resolve the source identity before importing.");
+                    guardianCache[key] = guardian.Id;
+                }
+
                 var log = new ImportLog
                 {
                     TenantId = tenant, ImportType = "Student", TotalRows = rows.Count,
@@ -285,24 +315,47 @@ public sealed partial class StudentImportExecutionService : IStudentImportExecut
                     });
                     if (!string.IsNullOrWhiteSpace(row.GuardianName))
                     {
-                        var guardianPerson = new Person
+                        var guardianKey = string.IsNullOrWhiteSpace(row.GuardianSourceKey)
+                            ? (Guid?)null : GuardianSourceId(row.GuardianSourceKey);
+                        long guardianId;
+                        if (guardianKey.HasValue && guardianCache.TryGetValue(guardianKey.Value, out var reusedId))
+                            guardianId = reusedId;
+                        else
                         {
-                            FullName = row.GuardianName, Phone = EmptyToNull(row.GuardianPhone),
-                            CreatedAt = now, CreatedBy = _user.UserId
-                        };
-                        await _persons.AddAsync(guardianPerson);
-                        await _uow.SaveChangesAsync(token);
-                        var guardian = new Guardian
-                        {
-                            TenantId = tenant, PersonId = guardianPerson.Id,
-                            FullName = row.GuardianName, Phone = EmptyToNull(row.GuardianPhone),
-                            CreatedAt = now, CreatedBy = _user.UserId
-                        };
-                        await _guardians.AddAsync(guardian);
-                        await _uow.SaveChangesAsync(token);
+                            // Never infer identity from name/phone. Only an explicitly mapped,
+                            // immutable tenant source key permits guardian reuse.
+                            var guardianPerson = new Person
+                            {
+                                FullName = row.GuardianName, Phone = EmptyToNull(row.GuardianPhone),
+                                CreatedAt = now, CreatedBy = _user.UserId
+                            };
+                            await _persons.AddAsync(guardianPerson);
+                            await _uow.SaveChangesAsync(token);
+                            var guardian = new Guardian
+                            {
+                                TenantId = tenant, PersonId = guardianPerson.Id,
+                                FullName = row.GuardianName, Phone = EmptyToNull(row.GuardianPhone),
+                                CreatedAt = now, CreatedBy = _user.UserId
+                            };
+                            await _guardians.AddAsync(guardian);
+                            await _uow.SaveChangesAsync(token);
+                            guardianId = guardian.Id;
+                            if (guardianKey.HasValue)
+                            {
+                                await _keys.AddAsync(new IdempotencyRecord
+                                {
+                                    TenantId = tenant, Scope = GuardianSourceScope,
+                                    RequestId = guardianKey.Value, RequestHash = GuardianProfileHash(row),
+                                    TargetId = guardianId, CompletedByUserId = _user.UserId,
+                                    CompletedAt = now, ExpiresAt = now.AddYears(50),
+                                    CreatedAt = now, CreatedBy = _user.UserId
+                                });
+                                guardianCache[guardianKey.Value] = guardianId;
+                            }
+                        }
                         await _studentGuardians.AddAsync(new StudentGuardian
                         {
-                            TenantId = tenant, StudentId = student.Id, GuardianId = guardian.Id,
+                            TenantId = tenant, StudentId = student.Id, GuardianId = guardianId,
                             RelationCode = "Guardian", IsPrimary = true,
                             CreatedAt = now, CreatedBy = _user.UserId
                         });
@@ -388,6 +441,10 @@ public sealed partial class StudentImportExecutionService : IStudentImportExecut
 
     private bool CanManage() => _user.IsAuthenticated && _user.TenantId > 0 && _user.IsTenantAdmin;
     private static string? EmptyToNull(string value) => string.IsNullOrWhiteSpace(value) ? null : value;
+    private static Guid GuardianSourceId(string key) => SourceId("GUARDIAN:" + key);
+    private static string GuardianProfileHash(ImportRow row) => Convert.ToHexString(SHA256.HashData(
+        Encoding.UTF8.GetBytes(row.GuardianName.Trim().ToUpperInvariant() + "\u001F" + row.GuardianPhone.Trim())));
+
     private static Guid SourceId(string sourceKey)
     {
         var digest = SHA256.HashData(Encoding.UTF8.GetBytes(sourceKey.Trim().ToUpperInvariant()));
@@ -429,7 +486,7 @@ public sealed partial class StudentImportExecutionService : IStudentImportExecut
         if (headers.Length is < 1 or > 32 || headers.Any(string.IsNullOrWhiteSpace) ||
             headers.Distinct(StringComparer.OrdinalIgnoreCase).Count() != headers.Length)
             throw new FormatException("Headers must be unique, non-empty and at most 32 columns.");
-        if (mapping.Count is < 6 or > 9 ||
+        if (mapping.Count is < 6 or > 10 ||
             CanonicalFields.Take(6).Any(required => !mapping.ContainsKey(required)) ||
             mapping.Keys.Any(key => !CanonicalFields.Contains(key, StringComparer.OrdinalIgnoreCase)))
             throw new FormatException("Required mapped fields are missing or unsupported.");
@@ -448,7 +505,7 @@ public sealed partial class StudentImportExecutionService : IStudentImportExecut
             Cell(x, "StudentCode"), Cell(x, "FullName"), Cell(x, "CampusId"),
             long.TryParse(Cell(x, "AcademicBatchId"), out var batchId) ? batchId : 0,
             Cell(x, "RollNo"), Cell(x, "DateOfBirth"),
-            Cell(x, "GuardianName"), Cell(x, "GuardianPhone"))).ToList();
+            Cell(x, "GuardianName"), Cell(x, "GuardianPhone"), Cell(x, "GuardianSourceKey"))).ToList();
     }
 
     private static string SafeCell(IXLCell cell) => cell.HasFormula
@@ -457,6 +514,6 @@ public sealed partial class StudentImportExecutionService : IStudentImportExecut
 
     private sealed record ImportRow(int RowNumber, string SourceKey, string StudentCode,
         string FullName, string CampusId, long BatchId, string RollNo, string DateOfBirth,
-        string GuardianName, string GuardianPhone);
+        string GuardianName, string GuardianPhone, string GuardianSourceKey);
     private sealed class ImportConflictException(string message) : Exception(message);
 }

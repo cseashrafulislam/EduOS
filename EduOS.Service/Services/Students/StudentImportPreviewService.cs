@@ -28,7 +28,7 @@ public sealed class StudentImportPreviewService : IStudentImportPreviewService
     private static readonly string[] RequiredFields =
         ["SourceKey", "StudentCode", "FullName", "CampusId", "AcademicBatchId", "RollNo"];
     private static readonly string[] OptionalFields =
-        ["DateOfBirth", "GuardianName", "GuardianPhone"];
+        ["DateOfBirth", "GuardianName", "GuardianPhone", "GuardianSourceKey"];
     private readonly IGenericRepository<Student> _students;
     private readonly IGenericRepository<StudentEnrollment> _enrollments;
     private readonly IGenericRepository<AcademicBatch> _batches;
@@ -119,7 +119,7 @@ public sealed class StudentImportPreviewService : IStudentImportPreviewService
                 index + 2, Cell(cells, "SourceKey"), Cell(cells, "StudentCode"),
                 Cell(cells, "FullName"), Cell(cells, "CampusId"), Cell(cells, "AcademicBatchId"),
                 Cell(cells, "RollNo"), Cell(cells, "DateOfBirth"),
-                Cell(cells, "GuardianName"), Cell(cells, "GuardianPhone"))).ToList();
+                Cell(cells, "GuardianName"), Cell(cells, "GuardianPhone"), Cell(cells, "GuardianSourceKey"))).ToList();
             var tenant = _user.TenantId;
             var batchIds = parsed.Select(x => ParseId(x.BatchId)).Where(x => x > 0).Distinct().ToArray();
             var campusIds = parsed.Select(x => ParseId(x.CampusId)).Where(x => x > 0).Distinct().ToArray();
@@ -184,6 +184,7 @@ public sealed class StudentImportPreviewService : IStudentImportPreviewService
             var seenCodes = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             var seenRolls = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             var planned = new Dictionary<long, int>();
+            var guardianProfiles = new Dictionary<string, (string Name, string Phone)>(StringComparer.OrdinalIgnoreCase);
             var result = new StudentImportPreviewDto { TotalRows = parsed.Count };
             foreach (var row in parsed)
             {
@@ -197,6 +198,18 @@ public sealed class StudentImportPreviewService : IStudentImportPreviewService
                     issues.Add("Guardian name/phone exceeds supported length.");
                 if (row.GuardianPhone.Length > 0 && row.GuardianName.Length == 0)
                     issues.Add("Guardian name is required when a guardian phone is supplied.");
+                if (row.GuardianSourceKey.Length > 100)
+                    issues.Add("Guardian source key must be at most 100 characters.");
+                if (row.GuardianSourceKey.Length > 0)
+                {
+                    if (row.GuardianName.Length == 0)
+                        issues.Add("Guardian name is required when a guardian source key is supplied.");
+                    else if (guardianProfiles.TryGetValue(row.GuardianSourceKey, out var previous) &&
+                        (!string.Equals(previous.Name, row.GuardianName, StringComparison.OrdinalIgnoreCase) ||
+                         !string.Equals(previous.Phone, row.GuardianPhone, StringComparison.Ordinal)))
+                        issues.Add("Guardian source key has conflicting profiles in this file.");
+                    else guardianProfiles.TryAdd(row.GuardianSourceKey, (row.GuardianName, row.GuardianPhone));
+                }
                 if (row.DateOfBirth.Length > 0 &&
                     (!DateOnly.TryParseExact(row.DateOfBirth, "yyyy-MM-dd",
                         CultureInfo.InvariantCulture, DateTimeStyles.None, out var birth) ||
@@ -333,5 +346,5 @@ public sealed class StudentImportPreviewService : IStudentImportPreviewService
     private sealed record Sheet(List<string> Headers, List<string[]> Rows);
     private sealed record Candidate(int RowNumber, string SourceKey, string StudentCode, string FullName,
         string CampusId, string BatchId, string RollNo, string DateOfBirth,
-        string GuardianName, string GuardianPhone);
+        string GuardianName, string GuardianPhone, string GuardianSourceKey);
 }
