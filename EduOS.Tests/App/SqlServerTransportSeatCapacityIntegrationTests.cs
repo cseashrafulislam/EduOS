@@ -114,6 +114,102 @@ public sealed class SqlServerTransportSeatCapacityIntegrationTests
             (!x.EndDate.HasValue || x.EndDate.Value >= fixture.Start)));
     }
 
+
+    [Fact]
+    public async Task Concurrent_hostel_bed_deactivation_and_booking_cannot_both_commit()
+    {
+        var connection = Environment.GetEnvironmentVariable("EDUOS_SQL_AUTH_TEST_CONNECTION");
+        if (string.IsNullOrWhiteSpace(connection)) return;
+        var fixture = await SeedAsync(connection);
+        var bedId = (await SeedHostelBedsAsync(fixture, 1, 1))[0];
+        string version;
+        await using (var db = ScopedContext(fixture.Options, fixture.TenantId, fixture.UserId))
+            version = Convert.ToBase64String((await db.Set<HostelBed>().AsNoTracking()
+                .SingleAsync(x => x.TenantId == fixture.TenantId && x.Id == bedId)).RowVersion);
+        var bookingTask = HostelBookAsync(fixture,
+            HostelRequest(fixture, 0, bedId, fixture.Start, fixture.Start.AddDays(6)));
+        var deactivateTask = HostelSetBedStateAsync(fixture, bedId, version);
+        await Task.WhenAll(bookingTask, deactivateTask);
+        Assert.NotEqual(bookingTask.Result.Success, deactivateTask.Result.Success);
+        Assert.Contains(bookingTask.Result.Success ? deactivateTask.Result.StatusCode :
+            bookingTask.Result.StatusCode, new[] { 404, 409 });
+        await using var verify = ScopedContext(fixture.Options, fixture.TenantId, fixture.UserId);
+        var bed = await verify.Set<HostelBed>().AsNoTracking().SingleAsync(x => x.Id == bedId);
+        var booked = await verify.Set<StudentHostelAllocation>().AsNoTracking().AnyAsync(x =>
+            x.TenantId == fixture.TenantId && x.HostelBedId == bedId &&
+            !x.IsDeleted && x.State == HostelAllocationState.Active);
+        Assert.False(!bed.IsActive && booked);
+        Assert.Equal(bookingTask.Result.Success, booked);
+    }
+
+    [Fact]
+    public async Task Concurrent_hostel_room_deactivation_and_booking_cannot_both_commit()
+    {
+        var connection = Environment.GetEnvironmentVariable("EDUOS_SQL_AUTH_TEST_CONNECTION");
+        if (string.IsNullOrWhiteSpace(connection)) return;
+        var fixture = await SeedAsync(connection);
+        var bedId = (await SeedHostelBedsAsync(fixture, 1, 1))[0];
+        long roomId;
+        string version;
+        await using (var db = ScopedContext(fixture.Options, fixture.TenantId, fixture.UserId))
+        {
+            var bed = await db.Set<HostelBed>().AsNoTracking().SingleAsync(x => x.Id == bedId);
+            var room = await db.Set<HostelRoom>().AsNoTracking().SingleAsync(x => x.Id == bed.HostelRoomId);
+            roomId = room.Id;
+            version = Convert.ToBase64String(room.RowVersion);
+        }
+        var bookingTask = HostelBookAsync(fixture,
+            HostelRequest(fixture, 0, bedId, fixture.Start, fixture.Start.AddDays(6)));
+        var deactivateTask = HostelSetRoomStateAsync(fixture, roomId, version);
+        await Task.WhenAll(bookingTask, deactivateTask);
+        Assert.NotEqual(bookingTask.Result.Success, deactivateTask.Result.Success);
+        Assert.Contains(bookingTask.Result.Success ? deactivateTask.Result.StatusCode :
+            bookingTask.Result.StatusCode, new[] { 404, 409 });
+        await using var verify = ScopedContext(fixture.Options, fixture.TenantId, fixture.UserId);
+        var roomState = await verify.Set<HostelRoom>().AsNoTracking().SingleAsync(x => x.Id == roomId);
+        var booked = await verify.Set<StudentHostelAllocation>().AsNoTracking().AnyAsync(x =>
+            x.TenantId == fixture.TenantId && x.HostelBedId == bedId &&
+            !x.IsDeleted && x.State == HostelAllocationState.Active);
+        Assert.False(!roomState.IsActive && booked);
+        Assert.Equal(bookingTask.Result.Success, booked);
+    }
+
+    [Fact]
+    public async Task Future_hostel_reservation_blocks_bed_and_room_deactivation_without_rewriting_history()
+    {
+        var connection = Environment.GetEnvironmentVariable("EDUOS_SQL_AUTH_TEST_CONNECTION");
+        if (string.IsNullOrWhiteSpace(connection)) return;
+        var fixture = await SeedAsync(connection);
+        var bedId = (await SeedHostelBedsAsync(fixture, 1, 1))[0];
+        var booked = await HostelBookAsync(fixture,
+            HostelRequest(fixture, 0, bedId, fixture.Start, fixture.Start.AddDays(6)));
+        Assert.True(booked.Success, booked.Message);
+        long roomId;
+        string bedVersion, roomVersion;
+        await using (var db = ScopedContext(fixture.Options, fixture.TenantId, fixture.UserId))
+        {
+            var bed = await db.Set<HostelBed>().AsNoTracking().SingleAsync(x => x.Id == bedId);
+            var room = await db.Set<HostelRoom>().AsNoTracking().SingleAsync(x => x.Id == bed.HostelRoomId);
+            roomId = room.Id;
+            bedVersion = Convert.ToBase64String(bed.RowVersion);
+            roomVersion = Convert.ToBase64String(room.RowVersion);
+        }
+        var bedResult = await HostelSetBedStateAsync(fixture, bedId, bedVersion);
+        var roomResult = await HostelSetRoomStateAsync(fixture, roomId, roomVersion);
+        Assert.False(bedResult.Success);
+        Assert.False(roomResult.Success);
+        Assert.Equal(409, bedResult.StatusCode);
+        Assert.Equal(409, roomResult.StatusCode);
+        await using var verify = ScopedContext(fixture.Options, fixture.TenantId, fixture.UserId);
+        Assert.Equal(bedVersion, Convert.ToBase64String((await verify.Set<HostelBed>()
+            .AsNoTracking().SingleAsync(x => x.Id == bedId)).RowVersion));
+        Assert.Equal(roomVersion, Convert.ToBase64String((await verify.Set<HostelRoom>()
+            .AsNoTracking().SingleAsync(x => x.Id == roomId)).RowVersion));
+        Assert.Equal(1, await verify.Set<StudentHostelAllocation>().CountAsync(x =>
+            x.TenantId == fixture.TenantId && x.HostelBedId == bedId &&
+            !x.IsDeleted && x.State == HostelAllocationState.Active));
+    }
+
     [Fact]
     public async Task Two_concurrent_future_riders_cannot_reserve_the_same_last_seat()
     {
@@ -1096,7 +1192,26 @@ public sealed class SqlServerTransportSeatCapacityIntegrationTests
         Fixture fixture, AllocateStudentHostelRequestDto request)
     {
         await using var db = ScopedContext(fixture.Options, fixture.TenantId, fixture.UserId);
-        var service = new HostelService(
+        return await HostelServiceFor(db, fixture).AllocateAsync(request);
+    }
+
+    private static async Task<ApiResponse<HostelBedInventoryDto>> HostelSetBedStateAsync(
+        Fixture fixture, long bedId, string version)
+    {
+        await using var db = ScopedContext(fixture.Options, fixture.TenantId, fixture.UserId);
+        return await HostelServiceFor(db, fixture).SetBedStateAsync(bedId,
+            new SetHostelBedStateRequestDto { IsActive = false, RowVersion = version });
+    }
+
+    private static async Task<ApiResponse<HostelRoomInventoryDto>> HostelSetRoomStateAsync(
+        Fixture fixture, long roomId, string version)
+    {
+        await using var db = ScopedContext(fixture.Options, fixture.TenantId, fixture.UserId);
+        return await HostelServiceFor(db, fixture).SetRoomStateAsync(roomId,
+            new SetHostelRoomStateRequestDto { IsActive = false, RowVersion = version });
+    }
+
+    private static HostelService HostelServiceFor(EduOSDbContext db, Fixture fixture) => new(
             new GenericRepository<EduOS.Core.Entities.Hostel.Hostel>(db),
             new GenericRepository<HostelRoom>(db),
             new GenericRepository<HostelBed>(db),
@@ -1110,8 +1225,6 @@ public sealed class SqlServerTransportSeatCapacityIntegrationTests
             Microsoft.Extensions.Logging.Abstractions.NullLogger<HostelService>.Instance,
             new ReservationFinancePolicy(db),
             new ReservationCommandReceiptStore(db, TimeProvider.System));
-        return await service.AllocateAsync(request);
-    }
 
     private static async Task<long[]> SeedHostelBedsAsync(Fixture fixture, int capacity, int count)
     {

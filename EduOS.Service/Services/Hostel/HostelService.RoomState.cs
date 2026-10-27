@@ -137,6 +137,11 @@ public sealed partial class HostelService
             _logger.LogWarning(ex, "Hostel room state conflict for tenant {TenantId}", tenant);
             return ApiResponse<HostelRoomInventoryDto>.ErrorResponse("Room state conflicts with another change.", 409);
         }
+        catch (Exception ex) when (ex is System.Transactions.TransactionAbortedException || HasHostelSqlSerializationConflict(ex))
+        {
+            _logger.LogWarning(ex, "Hostel room state SQL concurrency conflict for tenant {TenantId}", tenant);
+            return ApiResponse<HostelRoomInventoryDto>.ErrorResponse("Concurrent hostel room state change. Reload and retry.", 409);
+        }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Hostel room state update failed for tenant {TenantId}", tenant);
