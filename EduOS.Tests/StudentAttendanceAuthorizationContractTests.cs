@@ -47,6 +47,21 @@ public sealed class StudentAttendanceAuthorizationContractTests
     }
 
     [Fact]
+    public void Paged_roster_keeps_canonical_service_authorization_and_tenant_isolation()
+    {
+        var method = typeof(StudentAttendanceController).GetMethod(nameof(StudentAttendanceController.GetRosterPage))!;
+        var route = Assert.Single(method.GetCustomAttributes(typeof(HttpGetAttribute), true).Cast<HttpGetAttribute>());
+        Assert.Equal("roster-page", route.Template);
+        Assert.Empty(method.GetCustomAttributes(typeof(AllowAnonymousAttribute), true));
+        Assert.NotNull(typeof(EduOS.Core.Interfaces.IServices.IStudentAttendanceService)
+            .GetMethod("GetRosterPageAsync"));
+        Assert.Null(typeof(EduOS.Core.DTOs.Attendance.StudentAttendanceRosterQueryDto).GetProperty("TenantId"));
+        var roster = new EduOS.Core.DTOs.Attendance.StudentAttendanceRosterDto();
+        Assert.Equal(1, roster.Page);
+        Assert.Equal(2000, roster.PageSize);
+    }
+
+    [Fact]
     public void Attendance_roster_is_get_only_and_not_anonymous()
     {
         var method = typeof(StudentAttendanceController).GetMethods().Single(x => x.Name == nameof(StudentAttendanceController.GetRoster));

@@ -106,6 +106,23 @@ public sealed class SqlServerAcademicOperationsIntegrationTests
             AcademicBatchId = batchId, AttendanceDate = new DateOnly(2026, 10, 10) });
         Assert.True(before.Success, before.Message);
         Assert.False(Assert.Single(before.Data!.Students).HasApprovedLeave);
+        var pageOne = await attendance.GetRosterPageAsync(new StudentAttendanceRosterQueryDto {
+            AcademicBatchId = batchId, AttendanceDate = new DateOnly(2026, 10, 10)
+        }, page: 1, pageSize: 1);
+        Assert.True(pageOne.Success, pageOne.Message);
+        Assert.Equal(1, pageOne.Data!.TotalPages);
+        Assert.Equal(1, pageOne.Data.Summary.TotalStudents);
+        Assert.Single(pageOne.Data.Students);
+        var pageTwo = await attendance.GetRosterPageAsync(new StudentAttendanceRosterQueryDto {
+            AcademicBatchId = batchId, AttendanceDate = new DateOnly(2026, 10, 10)
+        }, page: 2, pageSize: 1);
+        Assert.True(pageTwo.Success, pageTwo.Message);
+        Assert.Empty(pageTwo.Data!.Students);
+        Assert.Equal(1, pageTwo.Data.Summary.TotalStudents);
+        var invalidPage = await attendance.GetRosterPageAsync(new StudentAttendanceRosterQueryDto {
+            AcademicBatchId = batchId, AttendanceDate = new DateOnly(2026, 10, 10)
+        }, page: 1, pageSize: 101);
+        Assert.Equal(400, invalidPage.StatusCode);
         var stale = await reviewer.ReviewAsync(submitted.Data.Id, new ReviewStudentLeaveRequestDto {
             State = LeaveState.Approved, RowVersion = Convert.ToBase64String(new byte[8]) });
         Assert.Equal(409, stale.StatusCode);

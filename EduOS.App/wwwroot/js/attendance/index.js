@@ -6,7 +6,8 @@
     const saveButton = el('saveAttendance'), markAllButton = el('markAllPresent');
     const finalizeButton = el('finalizeAttendance'), summary = el('attendanceSummary');
     if (!form || !rows || !date) return;
-    let loaded = false, roster = null;
+    let loaded = false, roster = null, dirty = false;
+    let rosterPage = 1, rosterPages = 0, rosterRequest = 0;
     let batchPage = 1, batchPages = 0, batchRequest = 0;
     let subjectPage = 1, subjectPages = 0, subjectRequest = 0;
     const local = new Date();
@@ -39,6 +40,7 @@
         select.disabled = !items.length;
     }
     async function loadBatches() {
+        rosterPage = 1;
         const request = ++batchRequest;
         invalidate();
         ++subjectRequest;
@@ -88,6 +90,7 @@
         el('attendanceSubjectPage').textContent = '';
     }
     async function loadSubjects() {
+        rosterPage = 1;
         const request = ++subjectRequest;
         invalidate();
         const batchId = Number(el('sectionId').value);
@@ -128,9 +131,13 @@
         }
     }
     function invalidate() {
-        loaded = false; roster = null; saveButton.disabled = true; markAllButton.disabled = true;
+        ++rosterRequest; dirty = false; loaded = false; roster = null; saveButton.disabled = true; markAllButton.disabled = true;
         if (finalizeButton) finalizeButton.disabled = true;
         render([]); clearStatus();
+        rosterPages = 0;
+        el('attendanceRosterPrevious').disabled = true;
+        el('attendanceRosterNext').disabled = true;
+        el('attendanceRosterPage').textContent = '';
     }
     function requestScope() {
         const selected = el('attendanceSubject').value;
@@ -199,22 +206,34 @@
     async function loadRoster(event) {
         if (event) event.preventDefault();
         if (!form.reportValidity()) return;
+        if (dirty && !confirm('Discard unsaved changes on this roster page?')) return;
         invalidate();
+        const request = rosterRequest;
         try {
             const scope = requestScope();
             const params = new URLSearchParams({
-                academicBatchId: String(scope.academicBatchId), attendanceDate: scope.attendanceDate
+                academicBatchId: String(scope.academicBatchId), attendanceDate: scope.attendanceDate,
+                page: String(rosterPage), pageSize: '50'
             });
             if (scope.subjectOfferingId) params.set('subjectOfferingId', String(scope.subjectOfferingId));
-            const result = await api('/api/student-attendance/roster?' + params);
+            const result = await api('/api/student-attendance/roster-page?' + params);
+            if (request !== rosterRequest) return;
             roster = result.data;
+            rosterPages = roster?.totalPages || 0;
             render(roster?.students || []);
             loaded = true;
             saveButton.disabled = !(roster?.students?.length > 0) || roster.isFinalized;
             markAllButton.disabled = saveButton.disabled;
             if (finalizeButton) finalizeButton.disabled = !roster.attendanceSessionId ||
-                roster.isFinalized || roster.summary?.unmarked !== 0 || !roster.students?.length;
-        } catch (error) { status('danger', error.message); }
+                roster.isFinalized || roster.summary?.unmarked !== 0 ||
+                !(roster.summary?.totalStudents > 0);
+            el('attendanceRosterPrevious').disabled = rosterPage <= 1;
+            el('attendanceRosterNext').disabled = rosterPage >= rosterPages;
+            el('attendanceRosterPage').textContent = 'Page ' + rosterPage + ' of ' +
+                rosterPages + ' · ' + (roster.summary?.totalStudents || 0) + ' eligible students';
+        } catch (error) {
+            if (request === rosterRequest) status('danger', error.message);
+        }
     }
     function readRow(tr) {
         const stateValue = tr.querySelector('[data-state]')?.value || '';
@@ -238,7 +257,7 @@
                 const created = await api('/api/student-attendance/sessions', 'POST', requestScope());
                 if (!created.data?.attendanceSessionId || !created.data?.sessionRowVersion)
                     throw new Error('Attendance session could not be opened. Reload and retry.');
-                if (created.data.students?.some(x => x.id > 0)) {
+                if (created.data.summary?.marked > 0) {
                     status('warning', 'Attendance was recorded by another user. Reload the roster before saving.');
                     await loadRoster(); return;
                 }
@@ -248,13 +267,11 @@
                 attendanceSessionId: roster.attendanceSessionId,
                 sessionRowVersion: roster.sessionRowVersion, students
             });
-            roster = result.data;
-            render(roster?.students || []);
-            if (finalizeButton) finalizeButton.disabled = roster.isFinalized ||
-                roster.summary?.unmarked !== 0 || !roster.students?.length;
+            dirty = false;
+            await loadRoster();
             status('success', result.message || 'Attendance saved.');
         } catch (error) { status('danger', error.message); }
-        finally { saveButton.disabled = false; }
+        finally { saveButton.disabled = !loaded || roster?.isFinalized || !(roster?.students?.length > 0); }
     }
     async function correctAttendance(tr, button) {
         if (!roster?.isFinalized || !canCorrect) return;
@@ -270,6 +287,7 @@
             await api('/api/student-attendance/' + tr.dataset.attendanceId + '/correct', 'POST', {
                 newState, reason: reason.trim(), rowVersion: tr.dataset.rowVersion
             });
+            dirty = false;
             await loadRoster();
             status('success', 'Attendance corrected with an audit record.');
         } catch (error) { status('danger', error.message); }
@@ -286,8 +304,8 @@
             const result = await api('/api/student-attendance/sessions/' +
                 roster.attendanceSessionId + '/finalize?rowVersion=' +
                 encodeURIComponent(roster.sessionRowVersion), 'POST');
-            roster = result.data;
-            render(roster?.students || []);
+            dirty = false;
+            await loadRoster();
             saveButton.disabled = true; markAllButton.disabled = true;
             status('success', result.message || 'Attendance finalized.');
         } catch (error) {
@@ -296,14 +314,16 @@
         }
     }
     function updateSummary() {
-        const values = [...rows.querySelectorAll('[data-state]')].map(x => x.value);
-        const count = value => values.filter(x => x === value).length;
-        summary.textContent = values.length ? 'Total ' + values.length + ' · Present ' + count('1') +
-            ' · Absent ' + count('2') + ' · Late ' + count('3') + ' · Leave ' + count('4') +
-            ' · Excused ' + count('5') + ' · Unmarked ' + count('') : '';
+        const total = roster?.summary;
+        if (!total) { summary.textContent = ''; return; }
+        summary.textContent = 'Eligible ' + total.totalStudents + ' · Saved ' + total.marked +
+            ' · Present ' + total.present + ' · Absent ' + total.absent +
+            ' · Late ' + total.late + ' · Leave ' + total.leave +
+            ' · Excused ' + total.excused + ' · Unmarked ' + total.unmarked +
+            (dirty ? ' · Unsaved edits on this page' : '');
     }
     el('sectionId').addEventListener('change', () => { subjectPage = 1; loadSubjects(); });
-    el('attendanceSubject').addEventListener('change', invalidate);
+    el('attendanceSubject').addEventListener('change', () => { rosterPage = 1; invalidate(); });
     el('attendanceSubjectFind').addEventListener('click', () => { subjectPage = 1; loadSubjects(); });
     el('attendanceSubjectSearch').addEventListener('keydown', event => {
         if (event.key === 'Enter') { event.preventDefault(); subjectPage = 1; loadSubjects(); }
@@ -325,8 +345,19 @@
     el('attendanceBatchNext').addEventListener('click', () => {
         if (batchPage < batchPages) { batchPage++; loadBatches(); }
     });
-    form.addEventListener('submit', loadRoster);
-    rows.addEventListener('change', updateSummary);
+    form.addEventListener('submit', event => { rosterPage = 1; loadRoster(event); });
+    rows.addEventListener('change', () => { dirty = true; updateSummary(); });
+    rows.addEventListener('input', () => { dirty = true; updateSummary(); });
+    el('attendanceRosterPrevious').addEventListener('click', async () => {
+        if (rosterPage <= 1) return;
+        if (dirty && !confirm('Discard unsaved changes on this roster page?')) return;
+        dirty = false; rosterPage--; await loadRoster();
+    });
+    el('attendanceRosterNext').addEventListener('click', async () => {
+        if (rosterPage >= rosterPages) return;
+        if (dirty && !confirm('Discard unsaved changes on this roster page?')) return;
+        dirty = false; rosterPage++; await loadRoster();
+    });
     saveButton.addEventListener('click', saveAttendance);
     finalizeButton?.addEventListener('click', finalizeAttendance);
     markAllButton.addEventListener('click', () => {
@@ -336,7 +367,7 @@
             const select = tr.querySelector('[data-state]');
             if (select && !select.value && tr.dataset.approvedLeave !== 'true') select.value = '1';
         });
-        updateSummary();
+        dirty = true; updateSummary();
     });
     loadBatches();
 })();

@@ -9,6 +9,13 @@
             <p class="dashboard-eyebrow">Academic Operations</p>
             <h2 id="attendanceTitle">Student Attendance</h2>
         </div>
+        <details class="ms-auto">
+            <summary class="btn btn-sm btn-outline-secondary" aria-label="Attendance help" title="Attendance help">ⓘ</summary>
+            <div class="small border rounded bg-body p-2">
+                Save each roster page before continuing. Finalize only after all eligible learners are marked.
+                Later corrections require a reason and are audited.
+            </div>
+        </details>
     </header>
 
     <div id="attendanceAlert" class="d-none" role="alert" tabindex="-1"></div>
@@ -66,6 +73,11 @@
                 <tbody id="attendanceRows"><tr><td colspan="5" class="text-center text-muted py-4">Select a date, batch and optional subject to load the roster.</td></tr></tbody>
             </table>
         </div>
+        <nav class="d-flex justify-content-between align-items-center mt-2" aria-label="Attendance roster pages">
+            <button id="attendanceRosterPrevious" type="button" class="btn btn-sm btn-outline-secondary" disabled>Previous</button>
+            <span id="attendanceRosterPage" class="small text-muted" aria-live="polite"></span>
+            <button id="attendanceRosterNext" type="button" class="btn btn-sm btn-outline-secondary" disabled>Next</button>
+        </nav>
     </section>
 </section>
 
