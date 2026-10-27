@@ -66,5 +66,39 @@ public sealed class HostelOccupiedTransferLineageContractTests
             .SingleAsync();
         Assert.Equal(1, fkCount);
         Assert.Equal(1, indexCount);
+
+        // A matching FK name alone is insufficient: verify both tenant-bound columns,
+        // trusted enforcement, and the noncomputed filter on the deployed database.
+        var tenantBoundColumns = await db.Database.SqlQueryRaw<int>(@"
+SELECT COUNT(*) AS [Value]
+FROM sys.foreign_keys AS fk
+JOIN sys.foreign_key_columns AS fkc ON fkc.constraint_object_id = fk.object_id
+JOIN sys.columns AS dependent
+  ON dependent.object_id = fkc.parent_object_id AND dependent.column_id = fkc.parent_column_id
+JOIN sys.columns AS principal
+  ON principal.object_id = fkc.referenced_object_id AND principal.column_id = fkc.referenced_column_id
+WHERE fk.name = N'FK_StudentHostelAllocations_StudentHostelAllocations_TenantId_PreviousAllocationId'
+  AND fk.parent_object_id = OBJECT_ID(N'dbo.StudentHostelAllocations')
+  AND fk.referenced_object_id = OBJECT_ID(N'dbo.StudentHostelAllocations')
+  AND fk.is_disabled = 0 AND fk.is_not_trusted = 0
+  AND ((fkc.constraint_column_id = 1 AND dependent.name = N'TenantId' AND principal.name = N'TenantId')
+    OR (fkc.constraint_column_id = 2 AND dependent.name = N'PreviousAllocationId' AND principal.name = N'Id'))")
+            .SingleAsync();
+        Assert.Equal(2, tenantBoundColumns);
+
+        var legalFilterCount = await db.Database.SqlQueryRaw<int>(@"
+SELECT COUNT(*) AS [Value]
+FROM sys.indexes AS i
+WHERE i.object_id = OBJECT_ID(N'dbo.StudentHostelAllocations')
+  AND i.name = N'IX_StudentHostelAllocations_TenantId_PreviousAllocationId'
+  AND i.is_unique = 1 AND i.has_filter = 1
+  AND CHARINDEX(N'[PreviousAllocationId]', i.filter_definition) > 0
+  AND CHARINDEX(N'IS NOT NULL', i.filter_definition) > 0
+  AND NOT EXISTS (
+    SELECT 1 FROM sys.computed_columns AS c
+    WHERE c.object_id = i.object_id
+      AND CHARINDEX(N'[' + c.name + N']', i.filter_definition) > 0
+  )").SingleAsync();
+        Assert.Equal(1, legalFilterCount);
     }
 }
