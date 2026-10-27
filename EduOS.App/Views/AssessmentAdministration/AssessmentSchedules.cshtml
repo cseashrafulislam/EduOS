@@ -7,7 +7,7 @@
     <header class="d-flex justify-content-between flex-wrap gap-2 mb-3">
         <div><h1 class="h4 mb-1">Assessment schedules</h1>
             <p class="text-muted mb-0">Manage exam dates and room bookings. Published or closed assessments cannot be rescheduled.</p></div>
-        <a asp-controller="AssessmentAdministration" asp-action="Index" class="btn btn-outline-secondary">Marks &amp; results</a>
+        <div class="d-flex gap-2"><a asp-controller="AssessmentAdministration" asp-action="AdmitCards" class="btn btn-outline-primary">Admit cards</a><a asp-controller="AssessmentAdministration" asp-action="Index" class="btn btn-outline-secondary">Marks &amp; results</a></div>
     </header>
     <div id="scheduleNotice" class="alert d-none" role="alert" aria-live="polite"></div>
     <div class="card mb-3"><div class="card-body">

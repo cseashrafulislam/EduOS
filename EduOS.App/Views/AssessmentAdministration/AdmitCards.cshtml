@@ -1,0 +1,47 @@
+@{
+    ViewData["Title"] = "Exam Admit Cards";
+}
+<section class="container-fluid py-3" id="examAdmitCards">
+    @Html.AntiForgeryToken()
+    <header class="d-flex flex-wrap align-items-center gap-2 mb-3 admit-controls">
+        <h1 class="h4 mb-0">Exam admit cards</h1>
+        <details class="ms-auto small">
+            <summary class="btn btn-sm btn-outline-secondary" aria-label="Admit card help">ⓘ</summary>
+            <div class="border rounded p-2 mt-1" style="max-width:22rem" role="note">
+                Select an authorized scheduled assessment and batch. Only enrolled candidates with approved subjects and complete exam schedules can be printed.
+            </div>
+        </details>
+    </header>
+    <div id="admitAlert" class="alert d-none admit-controls" role="alert" aria-live="polite"></div>
+    <form id="admitFilters" class="card card-body mb-3 admit-controls">
+        <div class="row g-2 align-items-end">
+            <div class="col-lg-4"><label class="form-label" for="admitScopeSearch">Assessment or batch search</label><input id="admitScopeSearch" type="search" maxlength="100" class="form-control" /></div>
+            <div class="col-lg-4"><label class="form-label" for="admitScope">Assessment / batch</label><select id="admitScope" class="form-select" required></select></div>
+            <div class="col-lg-4"><label class="form-label" for="admitStudentSearch">Candidate search</label><input id="admitStudentSearch" type="search" maxlength="100" class="form-control" /></div>
+            <div class="col-12 d-flex flex-wrap align-items-center gap-2">
+                <button id="admitLoad" class="btn btn-primary" type="submit">Load candidates</button>
+                <button id="admitScopePrev" class="btn btn-outline-secondary" type="button">Previous scopes</button>
+                <button id="admitScopeNext" class="btn btn-outline-secondary" type="button">Next scopes</button>
+                <button id="admitCsv" class="btn btn-outline-secondary" type="button" disabled>Page CSV</button>
+                <button id="admitPrint" class="btn btn-outline-primary" type="button" disabled>Print page / Save PDF</button>
+            </div>
+        </div>
+    </form>
+    <div id="admitPageTitle" class="fw-semibold mb-2"></div>
+    <div id="admitCards" aria-live="polite"></div>
+    <nav class="d-flex align-items-center justify-content-between gap-2 mt-2 admit-controls" aria-label="Admit card pages">
+        <span id="admitCount" role="status" class="small text-muted"></span>
+        <div class="d-flex gap-2"><button id="admitPrev" class="btn btn-sm btn-outline-secondary" type="button" disabled>Previous</button><button id="admitNext" class="btn btn-sm btn-outline-secondary" type="button" disabled>Next</button></div>
+    </nav>
+</section>
+<style>
+.admit-card { border:1px solid var(--bs-border-color); border-radius:.5rem; padding:1rem; margin-bottom:1rem; break-inside:avoid; }
+@@media print {
+    body * { visibility:hidden !important; }
+    #examAdmitCards, #examAdmitCards .admit-card, #examAdmitCards .admit-card * , #admitPageTitle { visibility:visible !important; }
+    #examAdmitCards { position:absolute; left:0; top:0; width:100%; padding:0 !important; }
+    .admit-controls { display:none !important; }
+    .admit-card { page-break-after:always; border:1px solid #555; }
+}
+</style>
+@section Scripts { <script src="~/js/assessment/admit-cards.js" asp-append-version="true"></script> }

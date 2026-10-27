@@ -28,6 +28,11 @@ public sealed class AssessmentAdministrationApiController : ControllerBase
         [FromQuery] int page = 1, [FromQuery] int pageSize = 30, CancellationToken ct = default) =>
         Result(await _service.SearchAvailableScopesAsync(search, page, pageSize, ct));
 
+    [HttpGet("admit-cards")]
+    [Authorize(Roles = "TenantAdmin,Principal,VicePrincipal,ExamController")]
+    public async Task<IActionResult> AdmitCards([FromQuery] AssessmentAdmitCardQueryDto query,
+        CancellationToken ct) => Result(await _service.SearchAdmitCardsAsync(query, ct));
+
     [HttpGet("mark-roster")]
     public async Task<IActionResult> MarkRoster([FromQuery] AssessmentMarkRosterQueryDto query,
         CancellationToken ct) => Result(await _service.GetMarkRosterAsync(query, ct));
