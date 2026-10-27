@@ -21,7 +21,7 @@ test('public application retries reuse one ID until payload changes or a new app
     assert.equal(tracker.forPayload('application', payload), 'id-3');
     assert.match(js, /retry\.forPayload\('application', request\)/);
     assert.match(js, /applicationSubmitted = true/);
-    assert.match(js, /if \(applicationSubmitted \|\| !openForms\.length\) return/);
+    assert.match(js, /if \(applicationSubmitted \|\| submissionInFlight \|\| !openForms\.length\) return/);
     assert.match(js, /newApplicationButton\.addEventListener\('click'/);
     assert.ok(view.includes('id="newApplicationButton"'));
     assert.ok(view.indexOf('/retry-keys.js') < view.indexOf('/index.js'));
