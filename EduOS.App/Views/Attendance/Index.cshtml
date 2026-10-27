@@ -70,6 +70,20 @@
                     <span id="attendanceReportBatchPage" class="small text-muted" aria-live="polite"></span>
                     <button id="attendanceReportBatchNext" class="btn btn-sm btn-outline-secondary" type="button" disabled>Next</button>
                 </div></div>
+            <div class="col-md-4"><label for="attendanceReportSubjectSearch" class="form-label">Subject offering</label>
+                <div class="input-group">
+                    <input id="attendanceReportSubjectSearch" class="form-control" maxlength="100" placeholder="Subject name or code" />
+                    <button id="attendanceReportSubjectFind" class="btn btn-outline-secondary" type="button">Search</button>
+                </div>
+                <select id="attendanceReportSubject" class="form-select mt-2" disabled>
+                    <option value="">All subjects</option>
+                </select>
+                <div class="d-flex justify-content-between align-items-center mt-1">
+                    <button id="attendanceReportSubjectPrevious" class="btn btn-sm btn-outline-secondary" type="button" disabled>Previous</button>
+                    <span id="attendanceReportSubjectPage" class="small text-muted" aria-live="polite"></span>
+                    <button id="attendanceReportSubjectNext" class="btn btn-sm btn-outline-secondary" type="button" disabled>Next</button>
+                </div>
+            </div>
             <div class="col-md-3"><label for="attendanceReportFrom" class="form-label">From</label>
                 <input id="attendanceReportFrom" class="form-control" type="date" required /></div>
             <div class="col-md-3"><label for="attendanceReportTo" class="form-label">To</label>

@@ -7,6 +7,7 @@
     const previous = el('attendanceReportPrevious'), next = el('attendanceReportNext');
     let page = 1, totalPages = 0, pending = 0;
     let batchPage = 1, batchPages = 0, batchPending = 0;
+    let subjectPage = 1, subjectPages = 0, subjectPending = 0;
     let visibleItems = [];
     const csvButton = el('attendanceReportCsv');
     const today = new Date();
@@ -33,6 +34,7 @@
         link.download = 'attendance-' + String(el('attendanceReportBatch').value).replace(/[^0-9]/g, '') +
             '-' + String(el('attendanceReportFrom').value).replace(/[^0-9-]/g, '') +
             '-' + String(el('attendanceReportTo').value).replace(/[^0-9-]/g, '') +
+            '-subject-' + (el('attendanceReportSubject').value || 'all') +
             '-page-' + page + '.csv';
         document.body.append(link);
         link.click();
@@ -52,9 +54,52 @@
         if (!response.ok || !data?.success) throw new Error(data?.message || 'Report unavailable.');
         return data.data;
     }
+    function resetReport() {
+        pending++; page = 1; totalPages = 0;
+        previous.disabled = next.disabled = true;
+        visibleItems = []; csvButton.disabled = true; body.replaceChildren();
+        pageLabel.textContent = '';
+    }
+    function resetSubject() {
+        ++subjectPending;
+        const select = el('attendanceReportSubject');
+        select.replaceChildren(new Option('All subjects', ''));
+        select.disabled = true;
+        el('attendanceReportSubjectPage').textContent = '';
+        el('attendanceReportSubjectPrevious').disabled = true;
+        el('attendanceReportSubjectNext').disabled = true;
+    }
+    async function loadSubjects() {
+        const request = ++subjectPending;
+        resetReport();
+        const select = el('attendanceReportSubject');
+        select.replaceChildren(new Option('All subjects', ''));
+        select.disabled = true;
+        const batch = el('attendanceReportBatch').value;
+        if (!batch) return;
+        try {
+            const params = new URLSearchParams({
+                academicBatchId: batch, search: el('attendanceReportSubjectSearch').value.trim(),
+                page: String(subjectPage), pageSize: '25'
+            });
+            const data = await fetchJson('/api/student-attendance/report/subjects?' + params);
+            if (request !== subjectPending) return;
+            for (const item of data.items || [])
+                select.add(new Option(item.subjectName + ' (' + item.subjectCode + ' / ' + item.code + ')', String(item.id)));
+            select.disabled = false;
+            subjectPages = data.totalPages || 0;
+            el('attendanceReportSubjectPage').textContent = 'Page ' + subjectPage +
+                ' of ' + subjectPages + ' · ' + (data.totalCount || 0) + ' offerings';
+            el('attendanceReportSubjectPrevious').disabled = subjectPage <= 1;
+            el('attendanceReportSubjectNext').disabled = subjectPage >= subjectPages;
+        } catch (error) {
+            if (request === subjectPending) message(error.message);
+        }
+    }
     async function loadBatches() {
         const request = ++batchPending;
         const select = el('attendanceReportBatch');
+        resetSubject();
         select.replaceChildren(new Option('Loading authorized batches…', ''));
         select.disabled = true;
         el('attendanceReportBatchPrevious').disabled = true;
@@ -105,7 +150,8 @@
         try {
             const params = new URLSearchParams({
                 academicBatchId: el('attendanceReportBatch').value,
-                fromDate: from, toDate: to, page: String(page), pageSize: '20'
+                fromDate: from, toDate: to, page: String(page), pageSize: '20',
+                ...(el('attendanceReportSubject').value ? { subjectOfferingId: el('attendanceReportSubject').value } : {})
             });
             const data = await fetchJson('/api/student-attendance/report?' + params);
             if (requestId !== pending) return;
@@ -136,6 +182,24 @@
     form.addEventListener('submit', event => { event.preventDefault(); page = 1; load(); });
     previous.addEventListener('click', () => { if (page > 1) { page--; load(); } });
     next.addEventListener('click', () => { if (page < totalPages) { page++; load(); } });
+    el('attendanceReportBatch').addEventListener('change', () => {
+        subjectPage = 1; resetSubject(); loadSubjects();
+    });
+    el('attendanceReportSubject').addEventListener('change', () => {
+        resetReport(); message('Load report for the selected subject.');
+    });
+    el('attendanceReportSubjectFind').addEventListener('click', () => {
+        subjectPage = 1; loadSubjects();
+    });
+    el('attendanceReportSubjectSearch').addEventListener('keydown', event => {
+        if (event.key === 'Enter') { event.preventDefault(); subjectPage = 1; loadSubjects(); }
+    });
+    el('attendanceReportSubjectPrevious').addEventListener('click', () => {
+        if (subjectPage > 1) { subjectPage--; loadSubjects(); }
+    });
+    el('attendanceReportSubjectNext').addEventListener('click', () => {
+        if (subjectPage < subjectPages) { subjectPage++; loadSubjects(); }
+    });
     for (const id of ['attendanceReportBatch', 'attendanceReportFrom', 'attendanceReportTo'])
         el(id).addEventListener('change', () => { pending++; page = 1; totalPages = 0;
             previous.disabled = next.disabled = true;

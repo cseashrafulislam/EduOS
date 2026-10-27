@@ -52,6 +52,81 @@ public sealed class StudentAttendanceReportWorkflowTests
     }
 
     [Fact]
+    public async Task Subject_scoped_report_counts_only_its_finalized_marks_and_rejects_foreign_offering_ids()
+    {
+        await using var db = Context(71);
+        db.AcademicBatches.Add(new AcademicBatch { Id = 10, TenantId = 71, CampusId = 8,
+            Name = "Cohort", Code = "C" });
+        db.SubjectOfferings.AddRange(
+            new SubjectOffering { Id = 61, TenantId = 71, AcademicBatchId = 10, Code = "M" },
+            new SubjectOffering { Id = 62, TenantId = 71, AcademicBatchId = 10, Code = "S" },
+            new SubjectOffering { Id = 63, TenantId = 71, AcademicBatchId = 11, Code = "O" },
+            new SubjectOffering { Id = 64, TenantId = 72, AcademicBatchId = 10, Code = "X" });
+        db.Students.Add(new Student { Id = 20, TenantId = 71, StudentCode = "ST20",
+            FullName = "Learner", AdmissionDate = new DateOnly(2025, 1, 1) });
+        db.StudentEnrollments.Add(new StudentEnrollment { Id = 30, TenantId = 71,
+            StudentId = 20, AcademicBatchId = 10, CampusId = 8, RollNo = "R1" });
+        db.AttendanceSessions.AddRange(
+            new AttendanceSession { Id = 40, TenantId = 71, AcademicBatchId = 10,
+                SubjectOfferingId = 61, AttendanceDate = new DateOnly(2026, 10, 5), IsFinalized = true },
+            new AttendanceSession { Id = 41, TenantId = 71, AcademicBatchId = 10,
+                SubjectOfferingId = 62, AttendanceDate = new DateOnly(2026, 10, 5), IsFinalized = true },
+            new AttendanceSession { Id = 42, TenantId = 71, AcademicBatchId = 10,
+                AttendanceDate = new DateOnly(2026, 10, 5), IsFinalized = true });
+        db.StudentAttendances.AddRange(
+            new StudentAttendance { Id = 50, TenantId = 71, AttendanceSessionId = 40,
+                StudentEnrollmentId = 30, State = AttendanceState.Present },
+            new StudentAttendance { Id = 51, TenantId = 71, AttendanceSessionId = 41,
+                StudentEnrollmentId = 30, State = AttendanceState.Absent },
+            new StudentAttendance { Id = 52, TenantId = 71, AttendanceSessionId = 42,
+                StudentEnrollmentId = 30, State = AttendanceState.Late });
+        await db.SaveChangesAsync();
+        var service = Service(db, 71);
+        var query = Query();
+        query.SubjectOfferingId = 61;
+        var response = await service.GetAsync(query);
+        Assert.True(response.Success, response.Message);
+        var row = Assert.Single(response.Data!.Items);
+        Assert.Equal(1, row.MarkedSessions);
+        Assert.Equal(1, row.Present);
+        Assert.Equal(100m, row.AttendancePercent);
+        query.SubjectOfferingId = 63;
+        Assert.Equal(404, (await service.GetAsync(query)).StatusCode);
+        query.SubjectOfferingId = 64;
+        Assert.Equal(404, (await service.GetAsync(query)).StatusCode);
+        query.SubjectOfferingId = null;
+        Assert.Equal(3, Assert.Single((await service.GetAsync(query)).Data!.Items).MarkedSessions);
+    }
+
+    [Fact]
+    public async Task Historical_subject_picker_is_paged_and_respects_live_campus_grants()
+    {
+        await using var db = Context(71);
+        db.AcademicBatches.Add(new AcademicBatch { Id = 10, TenantId = 71, CampusId = 8,
+            Name = "Cohort", Code = "C" });
+        db.Campuses.Add(new Campus { Id = 8, TenantId = 71, Name = "North", Code = "N", IsActive = true });
+        db.UserCampusAccesses.Add(new UserCampusAccess { Id = 101, TenantId = 71,
+            UserId = 7, CampusId = 8, IsActive = true });
+        db.Subjects.Add(new Subject { Id = 70, TenantId = 71, Name = "Mathematics", Code = "MATH" });
+        db.CurriculumSubjects.Add(new CurriculumSubject { Id = 71, TenantId = 71, SubjectId = 70 });
+        db.SubjectOfferings.AddRange(
+            new SubjectOffering { Id = 61, TenantId = 71, AcademicBatchId = 10,
+                CurriculumSubjectId = 71, Code = "M1", IsActive = false },
+            new SubjectOffering { Id = 62, TenantId = 71, AcademicBatchId = 10,
+                CurriculumSubjectId = 71, Code = "M2" });
+        await db.SaveChangesAsync();
+        var principal = Service(db, 71, manager: false, principal: true);
+        var page = await principal.GetSubjectChoicesAsync(10, "Math", 1, 1);
+        Assert.True(page.Success, page.Message);
+        Assert.Equal(2, page.Data!.TotalCount);
+        Assert.Single(page.Data.Items);
+        var grant = await db.UserCampusAccesses.SingleAsync();
+        grant.IsActive = false;
+        await db.SaveChangesAsync();
+        Assert.Equal(404, (await principal.GetSubjectChoicesAsync(10, null)).StatusCode);
+    }
+
+    [Fact]
     public async Task Invalid_range_and_unprivileged_access_are_rejected()
     {
         await using var db = Context(71);

@@ -16,6 +16,15 @@ namespace EduOS.App.Controllers.Api;
 [Route("api/student-attendance/report")]
 public sealed class StudentAttendanceReportsController(IStudentAttendanceReportService service) : ControllerBase
 {
+    [HttpGet("subjects")]
+    public async Task<IActionResult> Subjects([FromQuery] long academicBatchId,
+        [FromQuery] string? search, [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 25, CancellationToken ct = default)
+    {
+        var result = await service.GetSubjectChoicesAsync(academicBatchId, search, page, pageSize, ct);
+        return StatusCode(result.StatusCode, result);
+    }
+
     [HttpGet]
     public async Task<IActionResult> Get([FromQuery] StudentAttendanceReportQueryDto query, CancellationToken ct)
     {

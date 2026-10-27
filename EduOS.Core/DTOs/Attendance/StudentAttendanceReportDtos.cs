@@ -6,6 +6,7 @@ namespace EduOS.Core.DTOs.Attendance;
 public sealed class StudentAttendanceReportQueryDto
 {
     [Range(1, long.MaxValue)] public long AcademicBatchId { get; set; }
+    [Range(1, long.MaxValue)] public long? SubjectOfferingId { get; set; }
     public DateOnly FromDate { get; set; }
     public DateOnly ToDate { get; set; }
     [Range(1, int.MaxValue)] public int Page { get; set; } = 1;
@@ -26,4 +27,13 @@ public sealed class StudentAttendanceReportRowDto
     public int Excused { get; set; }
     public decimal AttendancePercent => MarkedSessions == 0 ? 0 :
         Math.Round(100m * (Present + Late) / MarkedSessions, 2);
+}
+
+/// <summary>Historical subject-offering picker for an authorized batch.</summary>
+public sealed class StudentAttendanceReportSubjectDto
+{
+    public long Id { get; set; }
+    public string Code { get; set; } = string.Empty;
+    public string SubjectCode { get; set; } = string.Empty;
+    public string SubjectName { get; set; } = string.Empty;
 }

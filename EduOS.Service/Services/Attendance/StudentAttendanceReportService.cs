@@ -17,6 +17,66 @@ public sealed class StudentAttendanceReportService(
     EduOSDbContext db, ICurrentUserService user, ILogger<StudentAttendanceReportService> logger)
     : IStudentAttendanceReportService
 {
+
+    /// <summary>
+    /// Historical (including inactive) offerings, SQL-paged and campus-authorized.
+    /// No student names or marks are returned by the picker.
+    /// </summary>
+    public async Task<ApiResponse<PagedResult<StudentAttendanceReportSubjectDto>>> GetSubjectChoicesAsync(
+        long academicBatchId, string? search, int page = 1, int pageSize = 25,
+        CancellationToken cancellationToken = default)
+    {
+        if (!user.IsAuthenticated || user.TenantId <= 0 ||
+            !(user.IsTenantAdmin || user.IsInRole("Principal") || user.IsInRole("VicePrincipal")))
+            return ApiResponse<PagedResult<StudentAttendanceReportSubjectDto>>.ErrorResponse(
+                "Attendance report permission is required.", 403);
+        if (academicBatchId <= 0 || page < 1 || pageSize is < 1 or > 100 ||
+            (long)(page - 1) * pageSize > int.MaxValue || search?.Length > 100)
+            return ApiResponse<PagedResult<StudentAttendanceReportSubjectDto>>.ErrorResponse(
+                "Invalid batch, search or page.");
+        var tenant = user.TenantId;
+        var batch = await db.AcademicBatches.AsNoTracking()
+            .Where(x => x.TenantId == tenant && x.Id == academicBatchId && !x.IsDeleted)
+            .Select(x => new { x.CampusId }).SingleOrDefaultAsync(cancellationToken);
+        if (batch == null)
+            return ApiResponse<PagedResult<StudentAttendanceReportSubjectDto>>.ErrorResponse(
+                "Academic batch not found.", 404);
+        if (!user.IsTenantAdmin && !await (from access in db.UserCampusAccesses.AsNoTracking()
+            join campus in db.Campuses.AsNoTracking() on access.CampusId equals campus.Id
+            where access.TenantId == tenant && campus.TenantId == tenant &&
+                access.UserId == user.UserId && access.CampusId == batch.CampusId &&
+                access.IsActive && !access.IsDeleted && campus.IsActive && !campus.IsDeleted
+            select access.Id).AnyAsync(cancellationToken))
+            return ApiResponse<PagedResult<StudentAttendanceReportSubjectDto>>.ErrorResponse(
+                "Academic batch not found.", 404);
+
+        var query = from offering in db.SubjectOfferings.AsNoTracking()
+            join mapping in db.CurriculumSubjects.AsNoTracking()
+                on offering.CurriculumSubjectId equals mapping.Id
+            join subject in db.Subjects.AsNoTracking() on mapping.SubjectId equals subject.Id
+            where offering.TenantId == tenant && mapping.TenantId == tenant &&
+                subject.TenantId == tenant && offering.AcademicBatchId == academicBatchId &&
+                !offering.IsDeleted && !mapping.IsDeleted && !subject.IsDeleted
+            select new StudentAttendanceReportSubjectDto {
+                Id = offering.Id, Code = offering.Code,
+                SubjectCode = subject.Code, SubjectName = subject.Name
+            };
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var term = search.Trim();
+            query = query.Where(x => x.Code.StartsWith(term) ||
+                x.SubjectCode.StartsWith(term) || x.SubjectName.StartsWith(term));
+        }
+        var count = await query.CountAsync(cancellationToken);
+        var rows = await query.OrderBy(x => x.SubjectName).ThenBy(x => x.Code)
+            .ThenBy(x => x.Id).Skip((page - 1) * pageSize).Take(pageSize)
+            .ToListAsync(cancellationToken);
+        return ApiResponse<PagedResult<StudentAttendanceReportSubjectDto>>.SuccessResponse(
+            new PagedResult<StudentAttendanceReportSubjectDto> {
+                Items = rows, TotalCount = count, Page = page, PageSize = pageSize
+            });
+    }
+
     public async Task<ApiResponse<PagedResult<StudentAttendanceReportRowDto>>> GetAsync(
         StudentAttendanceReportQueryDto query, CancellationToken cancellationToken = default)
     {
@@ -58,6 +118,13 @@ public sealed class StudentAttendanceReportService(
                         "Academic batch not found.", 404);
             }
 
+            if (query.SubjectOfferingId.HasValue &&
+                !await db.SubjectOfferings.AsNoTracking().AnyAsync(x =>
+                    x.TenantId == tenant && x.Id == query.SubjectOfferingId.Value &&
+                    x.AcademicBatchId == batch.Id, cancellationToken))
+                return ApiResponse<PagedResult<StudentAttendanceReportRowDto>>.ErrorResponse(
+                    "Subject offering not found for this batch.", 404);
+
             // Do not use Student.IsCurrent or current roll: old posted marks retain
             // the enrollment and roll that existed when attendance was recorded.
             var grouped =
@@ -73,6 +140,8 @@ public sealed class StudentAttendanceReportService(
                       !mark.IsDeleted && !session.IsDeleted && !enrollment.IsDeleted &&
                       !student.IsDeleted && session.IsFinalized &&
                       session.AcademicBatchId == batch.Id &&
+                      (!query.SubjectOfferingId.HasValue ||
+                       session.SubjectOfferingId == query.SubjectOfferingId.Value) &&
                       enrollment.AcademicBatchId == batch.Id &&
                       enrollment.CampusId == batch.CampusId &&
                       session.AttendanceDate >= query.FromDate &&
