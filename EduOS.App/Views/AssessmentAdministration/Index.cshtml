@@ -57,6 +57,42 @@
                 <div class="table-responsive"><table class="table table-sm table-hover"><thead><tr><th>Position</th><th>Roll</th><th>Student</th><th>Marks</th><th>Percentage</th><th>GPA</th><th>Grade</th><th>Status</th></tr></thead><tbody id="examResults"></tbody></table></div>
             </div>
         </section>
+        <section class="card mb-3" id="examPublicationRegister" aria-labelledby="examPublicationHeading">
+            <div class="card-header d-flex flex-wrap justify-content-between gap-2 align-items-center">
+                <h3 class="h6 m-0" id="examPublicationHeading">Publication history &amp; tabulation</h3>
+                <span class="small text-muted">Authorized examination administration only</span>
+            </div>
+            <div class="card-body">
+                <form id="examHistoryFilters" class="row g-2 align-items-end mb-3">
+                    <div class="col-auto"><button id="examHistoryLoad" class="btn btn-outline-primary" type="submit">Load publication versions</button></div>
+                    <div class="col-md-4"><label for="examHistoryVersion" class="form-label">Published / withdrawn version</label>
+                        <select id="examHistoryVersion" class="form-select" disabled><option value="">Load versions first</option></select></div>
+                    <div class="col-auto"><button id="examHistoryWithdraw" class="btn btn-outline-danger" type="button" disabled>Withdraw version</button></div>
+                    <div class="col-auto"><button id="examHistoryPrev" class="btn btn-outline-secondary" type="button" disabled>Previous versions</button></div>
+                    <div class="col-auto"><button id="examHistoryNext" class="btn btn-outline-secondary" type="button" disabled>Next versions</button></div>
+                </form>
+                <div id="examHistoryInfo" class="small text-muted mb-2" role="status" aria-live="polite">Choose an assessment and batch, then load versions.</div>
+                <div id="examHistoryDetails" class="small mb-3"></div>
+                <form id="examTabulationFilters" class="row g-2 align-items-end mb-2">
+                    <div class="col-md-5"><label for="examTabulationSearch" class="form-label">Find roll, student code or name</label>
+                        <input id="examTabulationSearch" class="form-control" type="search" maxlength="100" autocomplete="off" /></div>
+                    <div class="col-auto"><button id="examTabulationLoad" class="btn btn-primary" type="submit" disabled>View saved tabulation</button></div>
+                    <div class="col-auto"><button id="examTabulationCsv" class="btn btn-outline-secondary" type="button" disabled>Page CSV</button></div>
+                    <div class="col-auto"><button id="examTabulationPrint" class="btn btn-outline-secondary" type="button" disabled>Print</button></div>
+                </form>
+                <div class="table-responsive">
+                    <table class="table table-sm table-hover align-middle">
+                        <thead><tr><th>Position</th><th>Roll</th><th>Student code</th><th>Student</th><th>Obtained</th><th>Maximum</th><th>Percentage</th><th>GPA</th><th>CGPA</th><th>Grade</th><th>Status</th></tr></thead>
+                        <tbody id="examTabulationRows"><tr><td colspan="11" class="text-muted text-center p-3">Select a saved publication version.</td></tr></tbody>
+                    </table>
+                </div>
+                <div class="d-flex flex-wrap justify-content-between gap-2">
+                    <span id="examTabulationInfo" class="small text-muted" role="status" aria-live="polite">Saved marks/grades are historical snapshots; student display names come from the current authorized directory.</span>
+                    <div class="d-flex gap-2"><button id="examTabulationPrev" class="btn btn-sm btn-outline-secondary" type="button" disabled>Previous page</button>
+                        <button id="examTabulationNext" class="btn btn-sm btn-outline-secondary" type="button" disabled>Next page</button></div>
+                </div>
+            </div>
+        </section>
     }
     <div class="d-flex justify-content-end mb-3"><button id="examPrint" type="button" class="btn btn-outline-secondary">Print current register</button></div>
 </section>
@@ -64,7 +100,12 @@
 @@media print {
     #examScopeSearch, #examFilters, #examAlert, #examSaveMarks, #examPublish, #examGenerate,
     #examLoadResults, #examMarksCsv, #examResultsCsv, #examPrint, #examReadinessLoad,
-    #examReadinessCsv, #examReadinessPrev, #examReadinessNext { display:none!important; }
+    #examReadinessCsv, #examReadinessPrev, #examReadinessNext,
+    #examHistoryFilters, #examTabulationFilters, #examHistoryInfo, #examHistoryDetails,
+    #examTabulationPrev, #examTabulationNext { display:none!important; }
 }
 </style>
-@section Scripts { <script src="~/js/assessment/workflow.js" asp-append-version="true"></script> }
+@section Scripts {
+    <script src="~/js/assessment/workflow.js" asp-append-version="true"></script>
+    <script src="~/js/assessment/publication-register.js" asp-append-version="true"></script>
+}

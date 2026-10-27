@@ -50,6 +50,18 @@ public sealed class AssessmentAdministrationApiController : ControllerBase
     public async Task<IActionResult> Results([FromQuery] AssessmentScopeDto query,
         CancellationToken ct) => Result(await _service.GetResultsAsync(query, ct));
 
+    [HttpGet("results/publications")]
+    [Authorize(Roles = "TenantAdmin,Principal,VicePrincipal,ExamController")]
+    public async Task<IActionResult> PublicationHistory(
+        [FromQuery] AssessmentPublicationHistoryQueryDto query, CancellationToken ct) =>
+        Result(await _service.SearchPublicationHistoryAsync(query, ct));
+
+    [HttpGet("results/tabulation")]
+    [Authorize(Roles = "TenantAdmin,Principal,VicePrincipal,ExamController")]
+    public async Task<IActionResult> PublishedTabulation(
+        [FromQuery] PublishedTabulationQueryDto query, CancellationToken ct) =>
+        Result(await _service.SearchPublishedTabulationAsync(query, ct));
+
     [HttpPost("results/publish")]
     [Authorize(Roles = "TenantAdmin,Principal,VicePrincipal,ExamController")]
     public async Task<IActionResult> Publish([FromBody] PublishResultRequestDto request,

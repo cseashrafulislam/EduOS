@@ -211,7 +211,8 @@ public sealed partial class AssessmentAdministrationService
             row.State = ResultPublicationState.Withdrawn;
             row.VisibleToStudent = false; row.VisibleToGuardian = false;
             row.UpdatedAt = now; row.UpdatedBy = _user.UserId;
-            _publications.Update(row);
+            // This entity is already tracked. Do not mark every property modified:
+            // persistence allows only the controlled Published -> Withdrawn transition.
             await RecordAuditAsync("Withdraw", "ResultPublication", row.Id, request.Reason, now);
             await _uow.SaveChangesAsync(token);
             return ApiResponse<ResultPublicationDto>.SuccessResponse(

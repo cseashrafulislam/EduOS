@@ -2055,8 +2055,26 @@ public class EduOSDbContext :
             if (entry.Entity is PayrollRun && OriginalStateEquals(entry, nameof(PayrollRun.State), "Posted"))
                 throw new InvalidOperationException("A posted payroll run is immutable. Correct it through controlled reversal/amendment.");
 
-            if (entry.Entity is ResultPublication && OriginalStateEquals(entry, nameof(ResultPublication.State), "Published"))
-                throw new InvalidOperationException("A published result version is immutable. Publish a controlled new version.");
+            if (entry.Entity is ResultPublication publication &&
+                OriginalStateEquals(entry, nameof(ResultPublication.State), "Published"))
+            {
+                // The only permitted published-version mutation is an audited, one-way
+                // withdrawal that hides the version without altering its result snapshots.
+                // The assessment service records the withdrawal reason in the append-only audit log.
+                if (entry.State != EntityState.Modified ||
+                    publication.State != ResultPublicationState.Withdrawn ||
+                    publication.VisibleToStudent || publication.VisibleToGuardian ||
+                    publication.UpdatedAt == null || publication.UpdatedBy == null ||
+                    !entry.Property(nameof(ResultPublication.State)).IsModified ||
+                    !HasOnlyModifiedProperties(entry,
+                        nameof(ResultPublication.State),
+                        nameof(ResultPublication.VisibleToStudent),
+                        nameof(ResultPublication.VisibleToGuardian),
+                        nameof(ResultPublication.UpdatedAt),
+                        nameof(ResultPublication.UpdatedBy)))
+                    throw new InvalidOperationException(
+                        "Published result history is immutable except for controlled audited withdrawal.");
+            }
 
             if (entry.Entity is InventoryMovement
                 && string.Equals(

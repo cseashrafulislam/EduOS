@@ -11,6 +11,8 @@ public interface IAssessmentAdministrationService
     Task<ApiResponse<AssessmentReadinessPageDto>> GetResultReadinessAsync(AssessmentReadinessQueryDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<AssessmentResultSheetDto>> PreviewResultsAsync(AssessmentScopeDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<AssessmentResultSheetDto>> GetResultsAsync(AssessmentScopeDto request, CancellationToken cancellationToken = default);
+    Task<ApiResponse<AssessmentPublicationHistoryPageDto>> SearchPublicationHistoryAsync(AssessmentPublicationHistoryQueryDto request, CancellationToken cancellationToken = default);
+    Task<ApiResponse<PublishedTabulationPageDto>> SearchPublishedTabulationAsync(PublishedTabulationQueryDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<AssessmentDto>> SaveAssessmentAsync(Guid? reference, SaveAssessmentRequestDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<AssessmentDto>> GetAssessmentAsync(Guid reference, CancellationToken cancellationToken = default);
     Task<ApiResponse<AssessmentDto>> ChangeAssessmentStateAsync(Guid reference, ChangeAssessmentStateRequestDto request, CancellationToken cancellationToken = default);

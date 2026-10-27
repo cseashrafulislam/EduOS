@@ -376,5 +376,10 @@
     el('examMarksCsv').addEventListener('click', () => csv('marks'));
     el('examResultsCsv')?.addEventListener('click', () => csv('results'));
     el('examPrint').addEventListener('click', () => window.print());
+    window.addEventListener('assessment-publication-withdrawn', () => {
+        resetResults();
+        resetRoster();
+        el('examResultSummary').textContent = 'Publication withdrawn. Reload versions or preview after reconciliation.';
+    });
     init();
 })();
