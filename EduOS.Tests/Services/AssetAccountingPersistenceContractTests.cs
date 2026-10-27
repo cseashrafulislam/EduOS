@@ -1,3 +1,7 @@
+using EduOS.Core.Entities.SaaS;
+using EduOS.Core.Enums.Domain;
+using Microsoft.AspNetCore.Http;
+using Microsoft.Data.SqlClient;
 using EduOS.Core.Entities.Inventory;
 using EduOS.Persistence.Context;
 using Microsoft.EntityFrameworkCore;
@@ -67,4 +71,99 @@ WHERE i.is_unique = 1 AND i.has_filter = 1 AND i.filter_definition LIKE N'%IsDel
     OR (i.object_id = OBJECT_ID(N'dbo.AssetDisposals') AND i.name = N'IX_AssetDisposals_TenantId_AssetBookId'))").SingleAsync();
         Assert.Equal(5, uniqueCount);
     }
+    [Fact]
+    public async Task Sql_server_prevents_parallel_books_for_one_asset_and_stale_policy_updates()
+    {
+        var connection = Environment.GetEnvironmentVariable("EDUOS_SQL_AUTH_TEST_CONNECTION");
+        if (string.IsNullOrWhiteSpace(connection)) return;
+        var options = new DbContextOptionsBuilder<EduOSDbContext>().UseSqlServer(connection).Options;
+        var suffix = Guid.NewGuid().ToString("N")[..12];
+        long tenantId, campusId, assetId;
+
+        await using (var setup = new EduOSDbContext(options))
+        {
+            var tenant = new Tenant
+            {
+                Code = "CI-BOOK-" + suffix, Name = "Asset accounting concurrency CI",
+                Email = "asset-" + suffix + "@example.test", State = TenantState.Active
+            };
+            setup.Tenants.Add(tenant);
+            await setup.SaveChangesAsync();
+            tenantId = tenant.Id;
+            using (setup.BeginSystemTenantScope(tenantId))
+            {
+                var campus = new Campus
+                {
+                    TenantId = tenantId, Code = "BOOK-" + suffix,
+                    Name = "Asset book campus", IsActive = true
+                };
+                var category = new AssetCategory
+                {
+                    TenantId = tenantId, Code = "CAT-" + suffix,
+                    Name = "Asset accounting CI", IsActive = true
+                };
+                setup.AddRange(campus, category);
+                await setup.SaveChangesAsync();
+                campusId = campus.Id;
+                var asset = new Asset
+                {
+                    TenantId = tenantId, CampusId = campusId, AssetCategoryId = category.Id,
+                    AssetTag = "BOOK-" + suffix, Name = "Asset book concurrency",
+                    PurchaseCost = 1000m, IsActive = true
+                };
+                setup.Assets.Add(asset);
+                await setup.SaveChangesAsync();
+                assetId = asset.Id;
+            }
+        }
+
+        EduOSDbContext Scoped()
+        {
+            var http = new DefaultHttpContext();
+            http.Items["TenantId"] = tenantId;
+            return new EduOSDbContext(options, new HttpContextAccessor { HttpContext = http });
+        }
+
+        async Task<bool> TryCreateAsync()
+        {
+            await using var db = Scoped();
+            db.AssetBooks.Add(new AssetBook
+            {
+                TenantId = tenantId, CampusId = campusId, AssetId = assetId,
+                InServiceDate = new DateOnly(2026, 1, 1), MethodCode = "StraightLine",
+                UsefulLifeMonths = 24, CostBasis = 1000m, SalvageValue = 100m,
+                PolicyVersion = 1, IsActive = true
+            });
+            await Task.Yield();
+            try
+            {
+                await db.SaveChangesAsync();
+                return true;
+            }
+            catch (DbUpdateException ex) when (ex.InnerException is SqlException { Number: 2601 or 2627 })
+            {
+                return false;
+            }
+        }
+
+        var results = await Task.WhenAll(TryCreateAsync(), TryCreateAsync());
+        Assert.Equal(1, results.Count(x => x));
+
+        await using var first = Scoped();
+        await using var second = Scoped();
+        var firstBook = await first.AssetBooks.SingleAsync(x => x.AssetId == assetId);
+        var secondBook = await second.AssetBooks.SingleAsync(x => x.AssetId == assetId);
+        Assert.Equal(8, firstBook.RowVersion.Length);
+        Assert.Equal(firstBook.RowVersion, secondBook.RowVersion);
+        firstBook.UsefulLifeMonths = 36;
+        await first.SaveChangesAsync();
+        secondBook.PolicyVersion = 2;
+        await Assert.ThrowsAsync<DbUpdateConcurrencyException>(() => second.SaveChangesAsync());
+
+        await using var verify = Scoped();
+        var persisted = await verify.AssetBooks.AsNoTracking().SingleAsync(x => x.AssetId == assetId);
+        Assert.Equal(36, persisted.UsefulLifeMonths);
+        Assert.Equal(1, persisted.PolicyVersion);
+    }
+
 }
