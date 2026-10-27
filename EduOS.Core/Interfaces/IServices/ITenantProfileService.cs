@@ -8,6 +8,7 @@ namespace EduOS.Core.Interfaces.IServices;
 public interface ITenantProfileService
 {
     Task<ApiResponse<TenantDto>> GetProfileAsync(CancellationToken cancellationToken = default);
+    Task<ApiResponse<PagedResult<TenantProfileChangeHistoryDto>>> GetChangeHistoryAsync(int page = 1, int pageSize = 20, CancellationToken cancellationToken = default);
     Task<ApiResponse<TenantDto>> UpdateProfileAsync(UpdateTenantProfileRequestDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<TenantDto>> UpdateRegionalSettingsAsync(UpdateTenantRegionalSettingsRequestDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<string>> UploadLogoAsync(PrivateFileUploadDto file, CancellationToken cancellationToken = default);

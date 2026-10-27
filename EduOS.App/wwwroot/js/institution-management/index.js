@@ -3,7 +3,7 @@
     const root = document.getElementById('institutionManagementApp');
     if (!root) return;
     const el = id => document.getElementById(id);
-    const state = { profile: null, campuses: [], editing: null };
+    const state = { profile: null, campuses: [], editing: null, historyPage: 1 };
     const token = () => root.querySelector('input[name="__RequestVerificationToken"]')?.value || '';
 
     function notify(message, failed = false) {
@@ -73,6 +73,34 @@
     async function loadProfile() {
         const profile = await api('/api/tenant-profile');
         setProfile(profile);
+    }
+
+
+    async function loadHistory(page = 1) {
+        const history = await api('/api/tenant-profile/history?page=' +
+            encodeURIComponent(page) + '&pageSize=10');
+        state.historyPage = history.page;
+        const body = el('institutionHistoryBody');
+        body.replaceChildren();
+        if (!history.items?.length) {
+            const row = make('tr', '');
+            const cell = make('td', 'No recorded changes on this page.');
+            cell.colSpan = 4; row.append(cell); body.append(row);
+        }
+        for (const entry of history.items || []) {
+            const row = make('tr', '');
+            const date = new Date(entry.occurredAt);
+            row.append(make('td', Number.isNaN(date.getTime()) ? '—' : date.toLocaleString()),
+                make('td', entry.action),
+                make('td', entry.changedFields || '—'),
+                make('td', entry.actorName || ('User #' + (entry.actorId || 'unknown'))));
+            body.append(row);
+        }
+        el('institutionHistoryPrevious').disabled = !history.hasPreviousPage;
+        el('institutionHistoryNext').disabled = !history.hasNextPage;
+        el('institutionHistoryPage').textContent =
+            'Page ' + history.page + ' of ' + Math.max(1, history.totalPages) +
+            ' · ' + history.totalCount + ' changes';
     }
 
     async function loadCampuses() {
@@ -172,6 +200,7 @@
                 })
             });
             setProfile(result);
+            await loadHistory(1);
             notify('Institution profile updated.');
         });
     }
@@ -190,6 +219,7 @@
                 })
             });
             setProfile(result);
+            await loadHistory(1);
             notify('Regional settings saved.');
         });
     }
@@ -209,6 +239,7 @@
                 method: 'PUT', body: JSON.stringify({ subdomain, rowVersion: state.profile.rowVersion })
             });
             setProfile(result);
+            await loadHistory(1);
             notify('Subdomain updated.');
         });
     }
@@ -251,7 +282,7 @@
             data.append('file', file);
             await api('/api/tenant-profile/' + type, { method: 'POST', body: data });
             field.value = '';
-            await loadProfile();
+            await Promise.all([loadProfile(), loadHistory(1)]);
             notify('Institution ' + type + ' uploaded.');
         });
     }
@@ -262,7 +293,7 @@
         await submit(button, async () => {
             await api('/api/tenant-profile/' + type + '?rowVersion=' +
                 encodeURIComponent(state.profile.rowVersion), { method: 'DELETE' });
-            await loadProfile();
+            await Promise.all([loadProfile(), loadHistory(1)]);
             notify('Institution ' + type + ' removed.');
         });
     }
@@ -286,13 +317,25 @@
     el('removeInstitutionLogo').addEventListener('click', e => removeBranding('logo', e.currentTarget));
     el('uploadInstitutionFavicon').addEventListener('click', e => uploadBranding('favicon', e.currentTarget));
     el('removeInstitutionFavicon').addEventListener('click', e => removeBranding('favicon', e.currentTarget));
+
+    el('refreshInstitutionHistory').addEventListener('click', async () => {
+        try { await loadHistory(1); } catch (error) { notify(error.message, true); }
+    });
+    el('institutionHistoryPrevious').addEventListener('click', async () => {
+        try { await loadHistory(Math.max(1, state.historyPage - 1)); }
+        catch (error) { notify(error.message, true); }
+    });
+    el('institutionHistoryNext').addEventListener('click', async () => {
+        try { await loadHistory(state.historyPage + 1); }
+        catch (error) { notify(error.message, true); }
+    });
     el('reloadInstitution').addEventListener('click', async () => {
-        try { await Promise.all([loadProfile(), loadCampuses()]); notify('Institution data refreshed.'); }
+        try { await Promise.all([loadProfile(), loadCampuses(), loadHistory(1)]); notify('Institution data refreshed.'); }
         catch (error) { notify(error.message, true); }
     });
 
     (async () => {
-        try { await Promise.all([loadProfile(), loadCampuses()]); }
+        try { await Promise.all([loadProfile(), loadCampuses(), loadHistory(1)]); }
         catch (error) { notify(error.message, true); }
     })();
 })();

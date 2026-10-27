@@ -1,6 +1,7 @@
 using EduOS.Core.DTOs.Files;
 using EduOS.Core.DTOs.SaaS;
 using EduOS.Core.Entities.SaaS;
+using EduOS.Core.Entities.System;
 using EduOS.Core.Interfaces;
 using EduOS.Core.Settings;
 using EduOS.Persistence.Context;
@@ -147,6 +148,76 @@ public sealed class TenantProfileServiceTests
             It.IsAny<string>()), Times.Never);
     }
 
+
+    [Fact]
+    public async Task Configuration_mutations_write_private_value_free_tenant_audit_and_paged_readback()
+    {
+        await using var setup = await CreateSetupAsync();
+        var version = Convert.ToBase64String(setup.Tenant.RowVersion);
+        (await setup.Service.UpdateProfileAsync(new UpdateTenantProfileRequestDto
+        {
+            Name = "Updated institution", Email = setup.Tenant.Email,
+            CountryCode = "BD", RowVersion = version
+        })).Success.Should().BeTrue();
+        (await setup.Service.UpdateRegionalSettingsAsync(new UpdateTenantRegionalSettingsRequestDto
+        {
+            CurrencyCode = "USD", TimeZoneId = "Asia/Dhaka",
+            DefaultLanguage = "en", DateFormat = "yyyy-MM-dd", RowVersion = version
+        })).Success.Should().BeTrue();
+        (await setup.Service.UpdateSubdomainAsync(new UpdateTenantSubdomainRequestDto
+        {
+            Subdomain = "green-school-new", RowVersion = version
+        })).Success.Should().BeTrue();
+        setup.Db.AuditLogs.Add(new AuditLog
+        {
+            TenantId = 999, EntityName = nameof(Tenant), EntityId = 999,
+            Action = "TenantProfileUpdated", NewValue = "Other institution",
+            OccurredAt = DateTime.UtcNow.AddMinutes(1)
+        });
+        await setup.Db.SaveChangesAsync();
+        var first = (await setup.Service.GetChangeHistoryAsync(1, 2)).Data!;
+        var second = (await setup.Service.GetChangeHistoryAsync(2, 2)).Data!;
+        first.TotalCount.Should().Be(3);
+        first.Items.Should().HaveCount(2);
+        second.Items.Should().ContainSingle();
+        first.Items.Concat(second.Items).Select(x => x.Action).Should().BeEquivalentTo(
+            "TenantProfileUpdated", "TenantRegionalSettingsUpdated", "TenantSubdomainUpdated");
+        setup.Db.AuditLogs.Where(x => x.TenantId == 812)
+            .Should().OnlyContain(x => x.UserId == 71 && x.EntityId == 812 &&
+                !string.IsNullOrWhiteSpace(x.RequestId) && x.NewValue != null &&
+                !x.NewValue.Contains("admin@example.test"));
+    }
+
+    [Fact]
+    public async Task Branding_removal_is_audited_without_exposing_private_file_url()
+    {
+        await using var setup = await CreateSetupAsync();
+        setup.Tenant.LogoUrl = "/private/old-logo.png";
+        await setup.Db.SaveChangesAsync();
+        setup.Storage.Setup(x => x.DeleteAsync("/private/old-logo.png")).ReturnsAsync(true);
+        (await setup.Service.RemoveLogoAsync(Convert.ToBase64String(setup.Tenant.RowVersion)))
+            .Success.Should().BeTrue();
+        var history = (await setup.Service.GetChangeHistoryAsync()).Data!;
+        history.Items.Should().ContainSingle(x =>
+            x.Action == "TenantLogoRemoved" && x.ChangedFields == "Logo");
+        history.Items[0].ChangedFields.Should().NotContain("/private/");
+    }
+
+    [Fact]
+    public void Institution_history_ui_has_authorized_api_and_safe_dom_rendering()
+    {
+        var view = File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "TestAssets", "InstitutionManagement.cshtml"));
+        var js = File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "TestAssets", "institution-management.js"));
+        var api = File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "TestAssets", "TenantProfileController.cs"));
+        view.Should().Contain("id=\"institutionHistoryBody\"");
+        view.Should().Contain("id=\"institutionHistoryPrevious\"");
+        js.Should().Contain("'/api/tenant-profile/history?page='");
+        js.Should().Contain("body.replaceChildren()");
+        js.Should().Contain("make('td', entry.changedFields");
+        api.Should().Contain("[HttpGet(\"history\")]");
+        api.Should().Contain("[Authorize(Roles = \"TenantAdmin\")]");
+    }
+
     private static async Task<TestSetup> CreateSetupAsync()
     {
         var db = new EduOSDbContext(new DbContextOptionsBuilder<EduOSDbContext>()
@@ -158,7 +229,8 @@ public sealed class TenantProfileServiceTests
         var storage = new Mock<IFileUploadService>();
         var service = new TenantProfileService(
             new GenericRepository<Tenant>(db), new GenericRepository<TenantDomain>(db),
-            new GenericRepository<InstitutionTypeDefinition>(db), new TestUser(812),
+            new GenericRepository<InstitutionTypeDefinition>(db), new GenericRepository<AuditLog>(db),
+            new TestUser(812),
             storage.Object, db, Options.Create(new FileUploadSettings()),
             NullLogger<TenantProfileService>.Instance);
         return new TestSetup(db, tenant, service, storage);

@@ -59,6 +59,8 @@
     <None Include="..\EduOS.App\Controllers\Api\OnboardingController.cs" Link="TestAssets\OnboardingController.cs" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\EduOS.App\Controllers\Api\TenantModuleController.cs" Link="TestAssets\TenantModuleController.cs" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\EduOS.App\Controllers\Api\TenantProfileController.cs" Link="TestAssets\TenantProfileController.cs" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\EduOS.App\Views\InstitutionManagement\Index.cshtml" Link="TestAssets\InstitutionManagement.cshtml" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\EduOS.App\wwwroot\js\institution-management\index.js" Link="TestAssets\institution-management.js" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\EduOS.App\Controllers\Api\TenantSettingController.cs" Link="TestAssets\TenantSettingController.cs" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\EduOS.App\Controllers\Api\SubscriptionController.cs" Link="TestAssets\SubscriptionController.cs" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\EduOS.App\Controllers\Api\SubscriptionPaymentController.cs" Link="TestAssets\SubscriptionPaymentController.cs" CopyToOutputDirectory="PreserveNewest" />

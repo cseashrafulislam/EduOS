@@ -128,6 +128,29 @@
                 </form>
             </div>
         </div>
+
+        <section class="card border-0 shadow-sm mt-3" aria-labelledby="institutionHistoryTitle">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center gap-2 mb-3">
+                    <div>
+                        <h2 class="h5 mb-1" id="institutionHistoryTitle">Institution change history</h2>
+                        <p class="text-muted small mb-0">Profile, regional settings, subdomain and branding changes. Private values are not stored in this history.</p>
+                    </div>
+                    <button type="button" class="btn btn-outline-secondary btn-sm" id="refreshInstitutionHistory">Refresh history</button>
+                </div>
+                <div class="table-responsive">
+                    <table class="table table-sm table-striped align-middle">
+                        <thead><tr><th scope="col">When</th><th scope="col">Action</th><th scope="col">Changed fields</th><th scope="col">Actor</th></tr></thead>
+                        <tbody id="institutionHistoryBody"><tr><td colspan="4">Loading history...</td></tr></tbody>
+                    </table>
+                </div>
+                <div class="d-flex align-items-center gap-2">
+                    <button type="button" class="btn btn-outline-secondary btn-sm" id="institutionHistoryPrevious" disabled>Previous</button>
+                    <span id="institutionHistoryPage" role="status" class="small text-muted"></span>
+                    <button type="button" class="btn btn-outline-secondary btn-sm" id="institutionHistoryNext" disabled>Next</button>
+                </div>
+            </div>
+        </section>
     </section>
     <section id="institutionCampusSection" class="d-none">
         <div class="card border-0 shadow-sm mb-3">

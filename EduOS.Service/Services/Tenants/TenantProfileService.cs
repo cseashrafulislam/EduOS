@@ -2,6 +2,7 @@ using EduOS.Core.Common;
 using EduOS.Core.DTOs.Files;
 using EduOS.Core.DTOs.SaaS;
 using EduOS.Core.Entities.SaaS;
+using EduOS.Core.Entities.System;
 using EduOS.Core.Interfaces;
 using EduOS.Core.Interfaces.IRepositories;
 using EduOS.Core.Interfaces.IServices;
@@ -37,6 +38,7 @@ public sealed class TenantProfileService : ITenantProfileService
     private readonly IGenericRepository<Tenant> _tenants;
     private readonly IGenericRepository<TenantDomain> _domains;
     private readonly IGenericRepository<InstitutionTypeDefinition> _institutionTypes;
+    private readonly IGenericRepository<AuditLog> _auditLogs;
     private readonly ICurrentUserService _user;
     private readonly IFileUploadService _storage;
     private readonly IUnitOfWork _unitOfWork;
@@ -44,11 +46,12 @@ public sealed class TenantProfileService : ITenantProfileService
     private readonly ILogger<TenantProfileService> _logger;
 
     public TenantProfileService(IGenericRepository<Tenant> tenants, IGenericRepository<TenantDomain> domains,
-        IGenericRepository<InstitutionTypeDefinition> institutionTypes, ICurrentUserService user,
+        IGenericRepository<InstitutionTypeDefinition> institutionTypes, IGenericRepository<AuditLog> auditLogs,
+        ICurrentUserService user,
         IFileUploadService storage, IUnitOfWork unitOfWork, IOptions<FileUploadSettings> options,
         ILogger<TenantProfileService> logger)
     {
-        _tenants = tenants; _domains = domains; _institutionTypes = institutionTypes;
+        _tenants = tenants; _domains = domains; _institutionTypes = institutionTypes; _auditLogs = auditLogs;
         _user = user; _storage = storage; _unitOfWork = unitOfWork; _settings = options.Value; _logger = logger;
     }
 
@@ -65,7 +68,7 @@ public sealed class TenantProfileService : ITenantProfileService
         if (!CanManage()) return ApiResponse<TenantDto>.ErrorResponse("Tenant administrator access is required.", 403);
         if (request == null || string.IsNullOrWhiteSpace(request.Name) || request.Name.Trim().Length > 200 ||
             request.LegalName?.Length > 250 || request.RegistrationNumber?.Length > 100 ||
-            string.IsNullOrWhiteSpace(request.Email) || request.CountryCode.Length is < 2 or > 10)
+            string.IsNullOrWhiteSpace(request.Email) || request.CountryCode == null || request.CountryCode.Length is < 2 or > 10)
             return ApiResponse<TenantDto>.ErrorResponse("Profile data is invalid.");
         try
         {
@@ -77,13 +80,23 @@ public sealed class TenantProfileService : ITenantProfileService
                 return ApiResponse<TenantDto>.ErrorResponse("Institution email changes require a verified email-change workflow.", 409);
             if (tenant.InstitutionTypeDefinitionId != request.InstitutionTypeDefinitionId)
                 return ApiResponse<TenantDto>.ErrorResponse("Changing institution type requires a controlled onboarding workflow.", 409);
-            tenant.Name = request.Name.Trim();
+            var name = request.Name.Trim();
+            var country = request.CountryCode.Trim().ToUpperInvariant();
+            var phone = Trim(request.Phone);
+            var address = Trim(request.Address);
+            var changed = new List<string>();
+            if (tenant.Name != name) changed.Add("Institution name");
+            if (request.LegalName != null && tenant.LegalName != Trim(request.LegalName)) changed.Add("Legal name");
+            if (request.RegistrationNumber != null && tenant.RegistrationNumber != Trim(request.RegistrationNumber)) changed.Add("Registration number");
+            if (tenant.Phone != phone) changed.Add("Phone");
+            if (tenant.Address != address) changed.Add("Address");
+            if (tenant.CountryCode != country) changed.Add("Country");
+            tenant.Name = name;
             if (request.LegalName != null) tenant.LegalName = Trim(request.LegalName);
             if (request.RegistrationNumber != null) tenant.RegistrationNumber = Trim(request.RegistrationNumber);
-            tenant.Phone = Trim(request.Phone);
-            tenant.Address = Trim(request.Address);
-            tenant.CountryCode = request.CountryCode.Trim().ToUpperInvariant();
+            tenant.Phone = phone; tenant.Address = address; tenant.CountryCode = country;
             tenant.UpdatedAt = DateTime.UtcNow; tenant.UpdatedBy = _user.UserId;
+            if (changed.Count > 0) await RecordChangeAsync(tenant, "TenantProfileUpdated", changed);
             await _unitOfWork.SaveChangesAsync(cancellationToken);
             return ApiResponse<TenantDto>.SuccessResponse(await MapAsync(tenant, cancellationToken));
         }
@@ -114,11 +127,17 @@ public sealed class TenantProfileService : ITenantProfileService
             try { TimeZoneInfo.FindSystemTimeZoneById(request.TimeZoneId); }
             catch (TimeZoneNotFoundException) { return ApiResponse<TenantDto>.ErrorResponse("Time zone is not recognized."); }
             catch (InvalidTimeZoneException) { return ApiResponse<TenantDto>.ErrorResponse("Time zone is invalid."); }
+            var zone = request.TimeZoneId!.Trim();
+            var language = request.DefaultLanguage!.Trim();
+            var changed = new List<string>();
+            if (tenant.CurrencyCode != request.CurrencyCode) changed.Add("Currency");
+            if (tenant.TimeZoneId != zone) changed.Add("Time zone");
+            if (tenant.DefaultLanguage != language) changed.Add("Language");
+            if (tenant.DateFormat != request.DateFormat) changed.Add("Date format");
             tenant.CurrencyCode = request.CurrencyCode!;
-            tenant.TimeZoneId = request.TimeZoneId!.Trim();
-            tenant.DefaultLanguage = request.DefaultLanguage!.Trim();
-            tenant.DateFormat = request.DateFormat!;
+            tenant.TimeZoneId = zone; tenant.DefaultLanguage = language; tenant.DateFormat = request.DateFormat!;
             tenant.UpdatedAt = DateTime.UtcNow; tenant.UpdatedBy = _user.UserId;
+            if (changed.Count > 0) await RecordChangeAsync(tenant, "TenantRegionalSettingsUpdated", changed);
             await _unitOfWork.SaveChangesAsync(cancellationToken);
             return ApiResponse<TenantDto>.SuccessResponse(await MapAsync(tenant, cancellationToken));
         }
@@ -180,8 +199,10 @@ public sealed class TenantProfileService : ITenantProfileService
             if (tenant == null) return ApiResponse<TenantDto>.ErrorResponse("Institution not found.", 404);
             if (!MatchesVersion(tenant.RowVersion, request.RowVersion))
                 return ApiResponse<TenantDto>.ErrorResponse("Profile changed. Reload and retry.", 409);
+            var changed = !string.Equals(tenant.Subdomain, availability.Data.Subdomain, StringComparison.Ordinal);
             tenant.Subdomain = availability.Data.Subdomain;
             tenant.UpdatedAt = DateTime.UtcNow; tenant.UpdatedBy = _user.UserId;
+            if (changed) await RecordChangeAsync(tenant, "TenantSubdomainUpdated", ["Subdomain"]);
             await _unitOfWork.SaveChangesAsync(cancellationToken);
             return ApiResponse<TenantDto>.SuccessResponse(await MapAsync(tenant, cancellationToken));
         }
@@ -224,6 +245,8 @@ public sealed class TenantProfileService : ITenantProfileService
             if (favicon) tenant.FaviconUrl = uploaded;
             else tenant.LogoUrl = uploaded;
             tenant.UpdatedAt = DateTime.UtcNow; tenant.UpdatedBy = _user.UserId;
+            await RecordChangeAsync(tenant, favicon ? "TenantFaviconUploaded" : "TenantLogoUploaded",
+                [favicon ? "Favicon" : "Logo"]);
             await _unitOfWork.SaveChangesAsync(ct);
             if (!string.IsNullOrEmpty(previous) && previous != uploaded &&
                 !await _storage.DeleteAsync(previous))
@@ -257,6 +280,8 @@ public sealed class TenantProfileService : ITenantProfileService
             if (favicon) tenant.FaviconUrl = null;
             else tenant.LogoUrl = null;
             tenant.UpdatedAt = DateTime.UtcNow; tenant.UpdatedBy = _user.UserId;
+            await RecordChangeAsync(tenant, favicon ? "TenantFaviconRemoved" : "TenantLogoRemoved",
+                [favicon ? "Favicon" : "Logo"]);
             await _unitOfWork.SaveChangesAsync(ct);
             if (!await _storage.DeleteAsync(previous))
                 _logger.LogWarning("Previous branding file could not be deleted for {TenantId}", tenant.Id);
@@ -268,6 +293,53 @@ public sealed class TenantProfileService : ITenantProfileService
             _logger.LogError(ex, "Branding removal failed for {TenantId}", _user.TenantId);
             return ApiResponse<bool>.ErrorResponse("Branding could not be updated.", 500);
         }
+    }
+
+
+    /// <summary>Tenant-scoped, privacy-safe history of configuration changes.</summary>
+    public async Task<ApiResponse<PagedResult<TenantProfileChangeHistoryDto>>> GetChangeHistoryAsync(
+        int page = 1, int pageSize = 20, CancellationToken cancellationToken = default)
+    {
+        if (!CanManage())
+            return ApiResponse<PagedResult<TenantProfileChangeHistoryDto>>.ErrorResponse(
+                "Tenant administrator access is required.", 403);
+        page = Math.Clamp(page, 1, 10000);
+        pageSize = Math.Clamp(pageSize, 1, 100);
+        var tenantId = _user.TenantId;
+        var query = _auditLogs.GetQueryable().AsNoTracking().Where(x =>
+            !x.IsDeleted && x.TenantId == tenantId && x.EntityName == nameof(Tenant) &&
+            x.EntityId == tenantId &&
+            (x.Action == "TenantProfileUpdated" || x.Action == "TenantRegionalSettingsUpdated" ||
+             x.Action == "TenantSubdomainUpdated" || x.Action == "TenantLogoUploaded" ||
+             x.Action == "TenantLogoRemoved" || x.Action == "TenantFaviconUploaded" ||
+             x.Action == "TenantFaviconRemoved"));
+        var count = await query.CountAsync(cancellationToken);
+        var rows = await query.OrderByDescending(x => x.OccurredAt).ThenByDescending(x => x.Id)
+            .Skip((page - 1) * pageSize).Take(pageSize)
+            .Select(x => new TenantProfileChangeHistoryDto
+            {
+                Id = x.Id, Action = x.Action, ChangedFields = x.NewValue ?? "",
+                ActorId = x.UserId, ActorName = x.UserName, OccurredAt = x.OccurredAt
+            }).ToListAsync(cancellationToken);
+        return ApiResponse<PagedResult<TenantProfileChangeHistoryDto>>.SuccessResponse(new()
+        {
+            Items = rows, TotalCount = count, Page = page, PageSize = pageSize
+        });
+    }
+
+    private Task RecordChangeAsync(Tenant tenant, string action, IReadOnlyCollection<string> fields)
+    {
+        var now = DateTime.UtcNow;
+        return _auditLogs.AddAsync(new AuditLog
+        {
+            TenantId = tenant.Id, EntityName = nameof(Tenant), EntityId = tenant.Id,
+            Action = action, NewValue = string.Join(", ", fields),
+            UserId = _user.UserId, UserName = _user.FullName?.Length > 200
+                ? _user.FullName[..200] : _user.FullName,
+            IpAddress = _user.IpAddress?.Length > 100 ? _user.IpAddress[..100] : _user.IpAddress,
+            Endpoint = "/api/tenant-profile", RequestId = Guid.NewGuid().ToString("D"),
+            OccurredAt = now, CreatedAt = now, CreatedBy = _user.UserId
+        });
     }
 
     private Task<Tenant?> GetTenantAsync(CancellationToken ct) =>

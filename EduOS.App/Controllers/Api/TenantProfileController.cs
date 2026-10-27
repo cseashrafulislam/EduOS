@@ -25,6 +25,15 @@ public sealed class TenantProfileController : ControllerBase
         return StatusCode(result.StatusCode, result);
     }
 
+    [HttpGet("history")]
+    [Authorize(Roles = "TenantAdmin")]
+    public async Task<IActionResult> History([FromQuery] int page = 1, [FromQuery] int pageSize = 20,
+        CancellationToken cancellationToken = default)
+    {
+        var result = await _service.GetChangeHistoryAsync(page, pageSize, cancellationToken);
+        return StatusCode(result.StatusCode, result);
+    }
+
     [HttpPut]
     [Authorize(Roles = "TenantAdmin")]
     public async Task<IActionResult> Update([FromBody] UpdateTenantProfileRequestDto request, CancellationToken cancellationToken)
