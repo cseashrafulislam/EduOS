@@ -11,7 +11,18 @@
         <a class="btn btn-outline-secondary" asp-controller="Admissions" asp-action="Index">Applications / আবেদন</a>
     </header>
     @Html.AntiForgeryToken()
-    <div id="offerNotice" class="alert alert-info" role="status" aria-live="polite">Enter an applicant reference to begin.</div>
+    <div id="offerNotice" class="alert alert-info" role="status" aria-live="polite">Search for an applicant or enter an exact reference.</div>
+    <form id="offerSearchForm" class="row g-2 mb-3" role="search">
+        <div class="col-md-9"><label class="form-label" for="offerSearchTerm">Find applicant by name or application number</label>
+            <input id="offerSearchTerm" class="form-control" type="search" minlength="2" maxlength="100" autocomplete="off" required /></div>
+        <div class="col-md-3 d-flex align-items-end"><button class="btn btn-outline-primary w-100" type="submit">Search applicants</button></div>
+    </form>
+    <div id="offerSearchResults" aria-live="polite"></div>
+    <nav class="d-flex align-items-center gap-2 mb-3 mt-2" aria-label="Applicant search pages">
+        <button id="offerSearchPrevious" class="btn btn-sm btn-outline-secondary" type="button" disabled>Previous</button>
+        <span id="offerSearchPage" class="small text-muted" aria-live="polite"></span>
+        <button id="offerSearchNext" class="btn btn-sm btn-outline-secondary" type="button" disabled>Next</button>
+    </nav>
     <form id="offerLookupForm" class="row g-2 mb-3">
         <div class="col-md-9">
             <label class="form-label" for="offerApplicantReference">Applicant reference / আবেদন নম্বর (GUID)</label>

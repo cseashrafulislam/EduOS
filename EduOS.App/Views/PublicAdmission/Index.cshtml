@@ -43,7 +43,7 @@
                 <div class="field"><label for="preferredLanguage">Preferred Language</label><select id="preferredLanguage"><option value="bn-BD">বাংলা</option><option value="en-BD">English</option></select></div>
                 <div id="customFields" class="grid"></div>
             </div>
-            <div class="actions"><button class="btn btn-primary" id="submitButton" type="submit">Submit Application</button><span class="muted">একবার submit করার পর reference সংরক্ষণ করুন।</span></div>
+            <div class="actions"><button class="btn btn-primary" id="submitButton" type="submit">Submit Application</button><button class="btn btn-soft" id="newApplicationButton" type="button" hidden>Start another application</button><span class="muted">একবার submit করার পর reference সংরক্ষণ করুন।</span></div>
             <div id="formMessage" class="message"></div>
             <div id="receipt" class="receipt"><span>Application Number</span><strong id="applicationNumber"></strong><span class="muted">Reference: <span id="applicationReference"></span></span></div>
         </form>
@@ -74,6 +74,7 @@
         <div id="offerAcceptanceMessage" class="message"></div>
     </section>
 </main>
+<script src="~/js/public-admission/retry-keys.js" asp-append-version="true"></script>
 <script src="~/js/public-admission/index.js" asp-append-version="true"></script>
 </body>
 </html>

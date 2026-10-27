@@ -2,6 +2,7 @@ export const el = id => document.getElementById(id);
 export const val = id => el(id).value.trim();
 export const num = x => Number.isSafeInteger(+x) && +x > 0 ? +x : null;
 export const ctx = { reference: '', applicant: null, decision: null, requestId: '', fingerprint: '' };
+let loadSequence = 0;
 export const base = () => '/api/admission-applications/' + encodeURIComponent(ctx.reference);
 export function notice(text, error = false) {
     el('offerNotice').className = 'alert ' + (error ? 'alert-danger' : 'alert-info');
@@ -40,11 +41,15 @@ export function render() {
 export async function refresh() {
     if (!ctx.reference) return;
     el('offerAcceptButton').disabled = el('offerEnrollButton').disabled = true;
-    [ctx.applicant, ctx.decision] = await Promise.all([api(base()), api(base() + '/offer')]);
+    const reference = ctx.reference;
+    const [applicant, decision] = await Promise.all([api(base()), api(base() + '/offer')]);
+    if (ctx.reference !== reference) return;
+    ctx.applicant = applicant; ctx.decision = decision;
     if (!ctx.applicant?.rowVersion) throw Error('Current applicant version unavailable.');
-    el('offerApplicantName').textContent = ctx.applicant.fullName || ctx.applicant.applicationNumber || ctx.reference;
+    el('offerApplicantName').textContent = ctx.applicant.applicantName || ctx.applicant.applicationNumber || ctx.reference;
     if (ctx.decision?.offeredAcademicBatchId) el('offerBatch').value = String(ctx.decision.offeredAcademicBatchId);
-    const docs = await api('/api/admission-intake/applications/' + encodeURIComponent(ctx.reference) + '/documents');
+    const docs = await api('/api/admission-intake/applications/' + encodeURIComponent(reference) + '/documents');
+    if (ctx.reference !== reference) return;
     const verified = (Array.isArray(docs) ? docs : []).filter(x =>
         x.documentTypeCode === 'OFFER_ACCEPTANCE' && x.isVerified && x.verifiedAt);
     const selected = val('offerEvidence');
@@ -56,18 +61,22 @@ export async function refresh() {
 }
 export async function load(event) {
     event.preventDefault();
+    const sequence = ++loadSequence;
     const id = val('offerApplicantReference');
     if (!/^[\da-f]{8}(-[\da-f]{4}){3}-[\da-f]{12}$/i.test(id)) return notice('Invalid applicant reference.', true);
     ctx.reference = id; ctx.applicant = ctx.decision = null; ctx.requestId = ctx.fingerprint = '';
     el('offerWorkspace').hidden = true;
     try {
         const data = await api(base() + '/enrollment-options');
+        if (sequence !== loadSequence) return;
         fill('offerBatch', data.academicBatches || [], 'Select batch');
         fill('offerTrack', data.academicTracks || [], 'No additional track');
         const future = new Date(Date.now() + 7 * 86400000);
         el('offerExpiry').value = new Date(future - future.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
         el('offerIdentityChecked').checked = false;
-        await refresh(); el('offerWorkspace').hidden = false;
+        await refresh();
+        if (sequence !== loadSequence) return;
+        el('offerWorkspace').hidden = false;
         notice('Applicant, offer and verified documents loaded.');
-    } catch (error) { notice(error.message, true); }
+    } catch (error) { if (sequence === loadSequence) notice(error.message, true); }
 }

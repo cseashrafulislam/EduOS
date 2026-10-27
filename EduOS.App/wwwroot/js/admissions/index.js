@@ -588,6 +588,13 @@
             button.dataset.reference = item.reference;
             button.textContent = i18n.review || '';
             card.append(heading, number, unit, contact, submitted, button);
+            if (Number(item.state) === 6 && list.dataset.canOffer === 'true') {
+                const link = document.createElement('a');
+                link.className = 'btn btn-sm btn-outline-success';
+                link.textContent = 'Offer & enroll';
+                link.href = '/Admissions/Offers?reference=' + encodeURIComponent(item.reference);
+                card.append(link);
+            }
             return card;
         }));
     }

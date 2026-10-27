@@ -212,7 +212,7 @@
                 </select>
                 <button class="btn btn-outline-primary" type="submit">@T["Search"]</button>
             </form>
-            <div id="applicationList" class="admission-list" aria-live="polite" aria-busy="true"></div>
+            <div id="applicationList" class="admission-list" aria-live="polite" aria-busy="true" data-can-offer="@(User.IsInRole("TenantAdmin") ? "true" : "false")"></div>
             <nav class="admission-pagination" aria-label="@T["ApplicationPagination"]">
                 <button id="previousPage" class="btn btn-sm btn-outline-secondary" type="button">@T["Previous"]</button>
                 <span id="pageStatus"></span>

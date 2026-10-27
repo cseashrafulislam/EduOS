@@ -9,6 +9,7 @@
     const form = document.getElementById('admissionForm');
     const formMessage = document.getElementById('formMessage');
     const submitButton = document.getElementById('submitButton');
+    const newApplicationButton = document.getElementById('newApplicationButton');
     const receipt = document.getElementById('receipt');
     const intakeFormSelect = document.getElementById('intakeFormReference');
     const customFields = document.getElementById('customFields');
@@ -32,6 +33,8 @@
     const setMessage = (element, text, success = false) => { element.className = `message ${success ? 'ok' : 'error'}`; element.textContent = text; };
     const clearMessage = element => { element.className = 'message'; element.textContent = ''; };
     const createRequestId = () => crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-0000-4000-8000-${Math.random().toString(16).slice(2).padEnd(12, '0').slice(0, 12)}`;
+    const retry = window.EduOSAdmissionRetry.createTracker(createRequestId);
+    let applicationSubmitted = false;
 
     async function readResponse(response) {
         const body = await response.json().catch(() => ({}));
@@ -163,6 +166,8 @@
             if (openForms.length === 1) intakeFormSelect.value = openForms[0].reference;
             refreshTerms();
             applySelectedForm();
+            submitButton.disabled = !openForms.length || applicationSubmitted;
+            if (!openForms.length) setMessage(formMessage, 'No admission intake is open. Please return when applications are available.');
         } catch (error) {
             setMessage(formMessage, error.message);
             submitButton.disabled = true;
@@ -174,12 +179,12 @@
 
     form.addEventListener('submit', async event => {
         event.preventDefault();
+        if (applicationSubmitted || !openForms.length) return;
         clearMessage(formMessage);
         receipt.classList.remove('show');
         submitButton.disabled = true;
 
         const request = {
-            clientRequestId: createRequestId(),
             admissionFormReference: intakeFormSelect.value || null,
             customResponses: readCustomResponses(),
             academicYearId: Number(value('academicYearId')),
@@ -200,6 +205,8 @@
             previousInstitution: optional('previousInstitution'),
             preferredLanguage: value('preferredLanguage') || 'bn-BD'
         };
+        // Reuse the same key after a timeout; changed form data gets a fresh key.
+        request.clientRequestId = retry.forPayload('application', request);
 
         try {
             const response = await fetch(`${apiBase}/applications`, {
@@ -216,13 +223,34 @@
             receipt.classList.add('show');
             activeSubmission = { reference: data.reference, mobile: request.primaryMobile };
             applySelectedForm();
+            applicationSubmitted = true;
+            newApplicationButton.hidden = false;
             setMessage(formMessage, 'Application submitted successfully. Reference টি সংরক্ষণ করুন।', true);
-            localStorage.setItem(`eduos:admission:${tenant}`, JSON.stringify({ reference: data.reference, mobile: request.primaryMobile, applicationNumber: data.applicationNumber }));
+            try {
+                localStorage.setItem(`eduos:admission:${tenant}`, JSON.stringify({ reference: data.reference, mobile: request.primaryMobile, applicationNumber: data.applicationNumber }));
+            } catch { /* Browser storage is optional; a successful server write remains successful. */ }
         } catch (error) {
             setMessage(formMessage, error.message);
         } finally {
-            submitButton.disabled = false;
+            submitButton.disabled = applicationSubmitted || !openForms.length;
         }
+    });
+
+    newApplicationButton.addEventListener('click', () => {
+        retry.clearAll();
+        applicationSubmitted = false;
+        activeSubmission = null;
+        form.reset();
+        receipt.classList.remove('show');
+        documentPanel.hidden = true;
+        document.getElementById('offerAcceptancePanel').hidden = true;
+        resubmissionPanel.hidden = true;
+        clearMessage(formMessage);
+        clearMessage(documentMessage);
+        newApplicationButton.hidden = true;
+        applySelectedForm();
+        submitButton.disabled = !openForms.length;
+        form.querySelector('select, input')?.focus();
     });
 
     uploadDocumentsButton.addEventListener('click', async () => {
@@ -237,11 +265,15 @@
         try {
             for (const input of selected) {
                 const data = new FormData();
-                data.append('clientRequestId', createRequestId());
+                const file = input.files[0];
+                const key = `document:${activeSubmission.reference}:${input.dataset.documentType}`;
+                data.append('clientRequestId', retry.forFile(key, file));
                 data.append('mobile', activeSubmission.mobile);
                 data.append('documentType', input.dataset.documentType);
                 data.append('file', input.files[0]);
                 await readResponse(await fetch(`${apiBase}/applications/${encodeURIComponent(activeSubmission.reference)}/documents`, { method: 'POST', body: data, headers: { Accept: 'application/json' } }));
+                retry.clear(key);
+                input.value = ''; // Completed files are not uploaded again if a later file fails.
             }
             setMessage(documentMessage, 'Documents uploaded and awaiting verification.', true);
         } catch (error) {
@@ -286,19 +318,22 @@
             button.disabled = true;
             input.addEventListener('change', () => {
                 button.disabled = !input.files?.length;
-                button.dataset.requestId = createRequestId();
+                // The selected File object itself is the retry identity until upload succeeds.
             });
             button.addEventListener('click', async () => {
                 if (!input.files?.length) return;
                 button.disabled = true;
                 try {
                     const payload = new FormData();
-                    payload.append('clientRequestId', button.dataset.requestId);
+                    const key = `replacement:${reference}:${doc.documentTypeCode}`;
+                    payload.append('clientRequestId', retry.forFile(key, input.files[0]));
                     payload.append('mobile', mobile);
                     payload.append('documentType', doc.documentTypeCode);
                     payload.append('file', input.files[0]);
                     await readResponse(await fetch(`${apiBase}/applications/${encodeURIComponent(reference)}/documents`,
                         { method: 'POST', body: payload, headers: { Accept: 'application/json' } }));
+                    retry.clear(key);
+                    input.value = '';
                     setMessage(statusMessage, 'Replacement uploaded for verification.', true);
                     resubmissionPanel.hidden = true;
                 } catch (error) {
@@ -349,13 +384,16 @@
         const reference = value('statusReference'), mobile = value('statusMobile');
         clearMessage(message);
         if (!file || !reference || !mobile) { setMessage(message, 'Check status and select a signed acceptance document.'); return; }
+        const key = `offer:${reference}:${mobile}`;
         const body = new FormData();
-        body.append('clientRequestId', createRequestId()); body.append('mobile', mobile);
+        body.append('clientRequestId', retry.forFile(key, file)); body.append('mobile', mobile);
         body.append('documentType', 'OFFER_ACCEPTANCE'); body.append('file', file);
         button.disabled = true;
         try {
             await readResponse(await fetch(`${apiBase}/applications/${encodeURIComponent(reference)}/documents`,
                 { method: 'POST', body, headers: { Accept: 'application/json' } }));
+            retry.clear(key);
+            document.getElementById('offerAcceptanceFile').value = '';
             setMessage(message, 'Signed acceptance submitted. The admission office must verify identity and signature before enrollment.', true);
             document.getElementById('offerAcceptancePanel').hidden = true;
         } catch (error) { setMessage(message, error.message); }

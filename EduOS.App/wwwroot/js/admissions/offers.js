@@ -1,4 +1,5 @@
 import { el, val, num, ctx, base, notice, api, render, refresh, load } from './offers-core.js';
+import { initializeOfferSearch } from './offers-search.js';
 async function issue() {
     const batch = num(val('offerBatch')), expiry = new Date(val('offerExpiry'));
     if (!batch || !Number.isFinite(expiry.getTime()) || expiry.getTime() <= Date.now())
@@ -51,6 +52,7 @@ async function enroll() {
 document.addEventListener('DOMContentLoaded', () => {
     if (!el('offerLookupForm')) return;
     el('offerLookupForm').addEventListener('submit', load);
+    initializeOfferSearch();
     [['offerIssueButton', issue], ['offerAcceptButton', accept], ['offerEnrollButton', enroll]].forEach(
         ([id, handler]) => el(id).addEventListener('click', handler));
     el('offerRefreshButton').addEventListener('click', async () => {
