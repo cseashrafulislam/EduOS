@@ -101,6 +101,22 @@
         } catch { /* Contact form already reports its own save status. */ }
     });
 
+    document.addEventListener('student:status-updated', async event => {
+        const reference = event.detail?.reference;
+        if (!reference || state.currentReference !== reference) return;
+        try {
+            const response = await fetch('/api/students/' + encodeURIComponent(reference), apiOptions());
+            const payload = await response.json().catch(() => null);
+            if (response.ok && payload?.success && payload.data && state.currentReference === reference) {
+                renderDetails(payload.data);
+                document.dispatchEvent(new CustomEvent('student:opened', {
+                    detail: { reference, rowVersion: payload.data.rowVersion, photoUrl: payload.data.photoUrl }
+                }));
+                await loadStudents();
+            }
+        } catch { /* The status form reports success; the list can be refreshed manually. */ }
+    });
+
     function renderDetails(item) {
         const rows = [
             [i18n.studentCode, item.studentCode], [i18n.roll, item.rollNo], [i18n.dateOfBirth, formatDate(item.dateOfBirth)],

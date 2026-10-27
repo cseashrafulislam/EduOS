@@ -134,6 +134,31 @@
                         </form>
                     </section>
                 }
+                @if (User.IsInRole("TenantAdmin"))
+                {
+                    <section class="border rounded p-3 mb-3" aria-labelledby="studentOperationalTitle">
+                        <h3 id="studentOperationalTitle" class="h6">Student operational status</h3>
+                        <p class="small text-muted">Suspend or reactivate an active enrollment's student. Exit, readmission, seat allocation and historic records are managed separately.</p>
+                        <form id="studentOperationalStatusForm" autocomplete="off">
+                            @Html.AntiForgeryToken()
+                            <div class="row g-2">
+                                <div class="col-md-4">
+                                    <label class="form-label" for="studentOperationalTarget">New status</label>
+                                    <select id="studentOperationalTarget" class="form-select" required>
+                                        <option value="Suspended">Suspended</option>
+                                        <option value="Active">Active</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-8">
+                                    <label class="form-label" for="studentOperationalReason">Reason</label>
+                                    <input id="studentOperationalReason" class="form-control" required minlength="10" maxlength="500" placeholder="Record the authorized reason" />
+                                </div>
+                            </div>
+                            <button id="studentOperationalSave" type="submit" class="btn btn-outline-warning btn-sm mt-2" disabled>Update status</button>
+                            <div id="studentOperationalMessage" role="status" aria-live="polite" class="small mt-2"></div>
+                        </form>
+                    </section>
+                }
                 <section aria-labelledby="guardianTitle"><h3 class="h6" id="guardianTitle">@T["GuardianInformation"]</h3><div id="studentGuardians" class="admission-list"></div></section>
                 <section class="mt-4" aria-labelledby="enrollmentTitle"><h3 class="h6" id="enrollmentTitle">@T["EnrollmentHistory"]</h3><div id="studentEnrollments" class="admission-list"></div></section>
                 @if (User.IsInRole("TenantAdmin"))
@@ -159,5 +184,6 @@
         <script src="~/js/students/lifecycle-timeline.js" asp-append-version="true"></script>
         <script src="~/js/students/photo.js" asp-append-version="true"></script>
         <script src="~/js/students/contact-profile.js" asp-append-version="true"></script>
+        <script src="~/js/students/operational-status.js" asp-append-version="true"></script>
     }
 }
