@@ -35,11 +35,13 @@ async function attendance(browser) {
     const page = await browser.newPage();
     const requests = [];
     const finalized = [], corrections = [];
-    let isFinalized = false, correctedState = null;
+    let isFinalized = false, saved = false, correctedState = null;
     page.on('dialog', dialog => dialog.type() === 'prompt'
         ? dialog.accept('Reviewed correction reason') : dialog.accept());
     const roster = {
         attendanceSessionId: 0, sessionRowVersion: '', academicBatchId: 10, attendanceDate: '2026-10-10',
+        page: 1, pageSize: 50, totalPages: 1,
+        summary: { totalStudents: 2, marked: 0, unmarked: 2 },
         students: [
             { id: 0, rowVersion: '', studentEnrollmentReference: '11ebaaaa-1111-4111-8111-111111111111',
                 studentCode: 'S-1', studentName: 'Present Student', rollNo: '1', state: 0, hasApprovedLeave: false },
@@ -60,16 +62,19 @@ async function attendance(browser) {
                     name: 'Section A', code: '9-A'
                 }] });
         }
-        if (url.pathname === '/api/student-attendance/roster')
-            return response(route, 200, !isFinalized ? roster : {
-                ...roster, isFinalized: true, attendanceSessionId: 99,
-                sessionRowVersion: 'AgIDBAUGBwg=',
+        if (url.pathname === '/api/student-attendance/roster-page') {
+            assert.equal(url.searchParams.get('page'), '1');
+            assert.equal(url.searchParams.get('pageSize'), '50');
+            return response(route, 200, !saved ? roster : {
+                ...roster, isFinalized, attendanceSessionId: 99,
+                sessionRowVersion: isFinalized ? 'AgIDBAUGBwg=' : 'AQIDBAUGBwg=',
                 summary: { totalStudents: 2, marked: 2, unmarked: 0 },
                 students: roster.students.map((x, i) => ({
                     ...x, id: 901 + i, rowVersion: 'AQIDBAUGBwg=',
                     state: i === 0 ? correctedState || 1 : 4
                 }))
             });
+        }
         if (url.pathname === '/api/student-attendance/sessions') {
             tokenOk(request);
             return response(route, 200, { ...roster, attendanceSessionId: 99,
@@ -78,6 +83,7 @@ async function attendance(browser) {
         if (url.pathname === '/api/student-attendance' && request.method() === 'POST') {
             tokenOk(request);
             requests.push(request.postDataJSON());
+            saved = true;
             return response(route, 200, { ...roster, attendanceSessionId: 99,
                 sessionRowVersion: 'AQIDBAUGBwg=',
                 summary: { totalStudents: 2, marked: 2, unmarked: 0 },
@@ -118,6 +124,7 @@ async function attendance(browser) {
     await page.locator('#attendanceFilters button[type="submit"]').click();
     await page.locator('tr[data-enrollment-reference]').first().waitFor();
     assert.match(await page.locator('#attendanceRows').innerText(), /Approved leave on this date/);
+    assert.match(await page.locator('#attendanceRosterPage').innerText(), /Page 1 of 1/);
     await page.locator('#markAllPresent').click();
     assert.equal(await page.locator('tr[data-enrollment-reference] [data-state]').first().inputValue(), '1');
     assert.equal(await page.locator('tr[data-enrollment-reference] [data-state]').last().inputValue(), '');
