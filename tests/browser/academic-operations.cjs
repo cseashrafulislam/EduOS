@@ -155,6 +155,11 @@ async function routine(browser) {
         if (url.pathname === '/api/academic-routines/time-slots')
             return response(route, 200, [{ id: 5, name: 'Morning', isBreak: false,
                 startTime: '09:00:00', endTime: '09:45:00' }]);
+        if (url.pathname === '/api/academic-instruction/batches/10/lesson-offerings')
+            return response(route, 200, { page: 1, pageSize: 50, totalCount: 1, items: [{
+                id: 99, reference: '11111111-2222-4333-8444-555555555555',
+                subjectName: 'Math', subjectCode: 'MATH', code: 'MATH-A', isActive: true
+            }] });
         if (url.pathname === '/api/academic-routines/instructors') return response(route, 200, []);
         if (url.pathname.endsWith('/assignments')) return response(route, 200, []);
         if (url.pathname === '/api/academic-routines/batches/10')
@@ -175,6 +180,7 @@ async function routine(browser) {
     await page.locator('#routineBatch option[value="10"]').waitFor({ state: 'attached' });
     await page.locator('#routineBatch').selectOption('10');
     await page.locator('#routineEntries button[data-deactivate-id="70"]').waitFor();
+    await page.locator('#routineSubject option[value="11111111-2222-4333-8444-555555555555"]').waitFor({ state: 'attached' });
     await page.locator('#routineEntries button[data-deactivate-id="70"]').click();
     await page.waitForFunction(() => document.querySelector('#routineAlert')?.textContent.includes('Routine entry deactivated.'));
     assert.equal(posted.length, 1);

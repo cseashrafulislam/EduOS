@@ -85,7 +85,6 @@
             for(const id of ['routineAssignTo','routineEntryTo'])el(id).value=batch.endDate||'';
         }
         try{
-            if(manager)await loadOfferings(1);
             const results=await Promise.all([api('/api/academic-routines/batches/'+batch.id+'/assignments'),api('/api/academic-routines/batches/'+batch.id)]);
             state.assignments=results[0]||[];state.entries=results[1]||[];
             state.teacherEntries=[];
@@ -96,6 +95,10 @@
                 tr.append(cell(days[Number(x.dayOfWeek)]||String(x.dayOfWeek)),cell(x.timeSlotName),cell(x.subjectName),cell(x.roomName||'—'),cell(dateOnly(x.effectiveFrom)+(x.effectiveTo?' – '+dateOnly(x.effectiveTo):'')));
                 if(manager){const td=document.createElement('td');const button=document.createElement('button');button.type='button';button.className='btn btn-sm btn-outline-danger';button.textContent='Deactivate';button.dataset.deactivateId=x.id;td.append(button);tr.append(td);}
             },manager?6:5);
+            if(manager){
+                try{await loadOfferings(1);}
+                catch(error){status('warning','Offered-subject selector unavailable: '+error.message);}
+            }
             select('routineAssignment',state.assignments.filter(x=>x.isActive).map(x=>({id:x.id,name:x.employeeName+' / Subject offering '+x.subjectOfferingId})),'Select instructor assignment');
             const tm=new Map();state.assignments.forEach(x=>tm.set(Number(x.employeeId),x.employeeName||x.employeeCode));
             select('routineTeacherTimetable',[...tm].map(([id,name])=>({id,name})),'Select teacher');
