@@ -39,6 +39,30 @@ public sealed class LmsHistoricalCourseAccessTests
     }
 
     [Fact]
+    public async Task Course_content_pages_preserve_published_visibility_and_counts()
+    {
+        await using var db = Db();
+        var (course, _, _) = await Seed(db);
+        var service = Service(db);
+        var first = await service.GetCourseContentPageAsync(course.PublicId, 1, 1, 1);
+        Assert.True(first.Success, first.Message);
+        Assert.Equal(1, first.Data!.Lessons.TotalCount);
+        Assert.Equal(1, first.Data.Assignments.TotalCount);
+        Assert.Single(first.Data.Lessons.Items);
+        Assert.Single(first.Data.Assignments.Items);
+        Assert.True(first.Data.Lessons.Items[0].IsPublished);
+        Assert.True(first.Data.Assignments.Items[0].IsPublished);
+        var second = await service.GetCourseContentPageAsync(course.PublicId, 2, 2, 1);
+        Assert.True(second.Success, second.Message);
+        Assert.Empty(second.Data!.Lessons.Items);
+        Assert.Empty(second.Data.Assignments.Items);
+        Assert.Equal(1, second.Data.Lessons.TotalCount);
+        Assert.Equal(400, (await service.GetCourseContentPageAsync(course.PublicId, 0, 1, 20)).StatusCode);
+        Assert.Equal(400, (await service.GetCourseContentPageAsync(course.PublicId, 1, 1, 101)).StatusCode);
+        Assert.Equal(404, (await service.GetCourseContentPageAsync(Guid.NewGuid(), 1, 1, 20)).StatusCode);
+    }
+
+    [Fact]
     public async Task Archived_course_requires_original_campus_and_curriculum_date()
     {
         await using var db = Db();
