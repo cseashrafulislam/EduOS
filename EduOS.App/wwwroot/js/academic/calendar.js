@@ -4,11 +4,11 @@
     if (!root) return;
     const el = id => document.getElementById(id);
     const canManage = root.dataset.canManage === 'true';
+    const isTenantAdmin = root.dataset.tenantAdmin === 'true';
     const weekday = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
     const types = { 1: 'Academic', 2: 'Holiday', 3: 'Examination', 4: 'Admission', 5: 'Sports', 6: 'Cultural', 7: 'Meeting', 8: 'Other', 99: 'Other' };
-    const state = { years: [], campuses: [], events: [], policy: null, editId: null, busy: false };
+    const state = { years: [], campuses: [], events: [], working: [], policy: null, editId: null, busy: false };
     const asDate = value => value ? String(value).slice(0, 10) : '';
-    const iso = value => value + 'T00:00:00';
     const toNum = value => value ? Number(value) : null;
     const option = (value, label) => { const x = document.createElement('option'); x.value = value; x.textContent = label; return x; };
     function alertMessage(kind, text) {
@@ -18,8 +18,10 @@
     }
     function clearAlert() { el('calendarAlert').className = 'd-none'; el('calendarAlert').textContent = ''; }
     async function api(url, method = 'GET', body) {
+        const csrf = document.querySelector('input[name="__RequestVerificationToken"]')?.value;
+        if (method !== 'GET' && !csrf) throw new Error('Security token missing. Reload the page.');
         const response = await fetch(url, { method, credentials: 'same-origin', cache: 'no-store',
-            headers: { Accept: 'application/json', ...(body === undefined ? {} : { 'Content-Type': 'application/json' }) },
+            headers: { Accept: 'application/json', ...(method === 'GET' ? {} : { RequestVerificationToken: csrf }), ...(body === undefined ? {} : { 'Content-Type': 'application/json' }) },
             ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
         const payload = await response.json().catch(() => null);
         if (!response.ok || !payload?.success) throw new Error(payload?.message || 'Unable to complete request.');
@@ -43,7 +45,12 @@
         else if (state.years.length) el('calendarYear').value = String(state.years.find(x => x.isCurrent)?.id || state.years[0].id);
         if (state.campuses.some(x => String(x.id) === prevCampus)) el('calendarCampus').value = prevCampus;
         setYearDates();
-        if (el('calendarNewEvent')) el('calendarNewEvent').disabled = !el('calendarYear').value;
+        updateManageScope();
+    }
+    function updateManageScope() {
+        const canWrite = canManage && (isTenantAdmin || !!el('calendarCampus').value);
+        if (el('calendarNewEvent')) el('calendarNewEvent').disabled = !canWrite || !el('calendarYear').value;
+        if (el('calendarSavePolicy')) el('calendarSavePolicy').disabled = !canWrite;
     }
     async function initScopes() {
         try {
@@ -90,7 +97,7 @@
         return { academicYearId, campusId, fromDate, toDate };
     }
     function params(s) {
-        const q = new URLSearchParams({ academicYearId: String(s.academicYearId), fromDate: iso(s.fromDate), toDate: iso(s.toDate) });
+        const q = new URLSearchParams({ academicYearId: String(s.academicYearId), fromDate: s.fromDate, toDate: s.toDate });
         if (s.campusId) q.set('campusId', String(s.campusId));
         return q;
     }
@@ -98,20 +105,27 @@
     function renderEvents(items) {
         const target = el('calendarEvents'); target.replaceChildren();
         el('calendarCount').textContent = items.length + ' event(s)';
+        el('calendarExportEvents').disabled = items.length === 0;
         if (!items.length) { const tr = document.createElement('tr'), td = cell('No events in this period.'); td.colSpan = canManage ? 6 : 5; td.className = 'text-center text-muted p-4'; tr.append(td); target.append(tr); return; }
         for (const ev of items) {
             const tr = document.createElement('tr');
             tr.append(cell(asDate(ev.startDate) + (asDate(ev.endDate) !== asDate(ev.startDate) ? ' – ' + asDate(ev.endDate) : '')),
                 cell(ev.title), cell(types[ev.eventType] || 'Other'), cell(ev.isHoliday ? 'Yes' : 'No'), cell(ev.campusName || 'Institution-wide'));
             if (canManage) {
-                const td = document.createElement('td'), button = document.createElement('button');
-                button.type = 'button'; button.className = 'btn btn-sm btn-outline-primary'; button.textContent = 'Edit'; button.dataset.editId = ev.id;
-                td.append(button); tr.append(td);
+                const td = document.createElement('td');
+                if (isTenantAdmin || ev.campusId) {
+                    const button = document.createElement('button');
+                    button.type = 'button'; button.className = 'btn btn-sm btn-outline-primary'; button.textContent = 'Edit'; button.dataset.editId = ev.id;
+                    td.append(button);
+                }
+                tr.append(td);
             }
             target.append(tr);
         }
     }
     function renderWorking(items) {
+        state.working = items;
+        el('calendarExportWorking').disabled = items.length === 0;
         const tbody = el('calendarWorkingDays'); tbody.replaceChildren();
         const working = items.filter(x => x.isWorkingDay).length;
         el('calendarWorkingSummary').textContent = working + ' working / ' + (items.length - working) + ' non-working days';
@@ -132,8 +146,14 @@
         clearAlert(); const b = el('calendarLoad'); b.disabled = true;
         try {
             const q = params(s);
-            const [events, working] = await Promise.all([api('/api/academic-calendars/events?' + q), api('/api/academic-calendars/working-days?' + q)]);
-            state.events = events || []; renderEvents(state.events); renderWorking(working || []);
+            const [eventResult, workingResult] = await Promise.allSettled([
+                api('/api/academic-calendars/events?' + q), api('/api/academic-calendars/working-days?' + q)
+            ]);
+            state.events = eventResult.status === 'fulfilled' ? (eventResult.value || []) : [];
+            renderEvents(state.events);
+            renderWorking(workingResult.status === 'fulfilled' ? (workingResult.value || []) : []);
+            if (eventResult.status === 'rejected') alertMessage('warning', 'Events: ' + eventResult.reason.message);
+            if (workingResult.status === 'rejected') alertMessage('warning', 'Working days: ' + workingResult.reason.message);
             const pq = new URLSearchParams({ academicYearId: String(s.academicYearId) });
             if (s.campusId) pq.set('campusId', String(s.campusId));
             try { showPolicy(await api('/api/academic-calendars/policy?' + pq)); }
@@ -142,12 +162,12 @@
         finally { b.disabled = false; }
     }
     function openEditor(ev) {
-        if (!canManage) return;
+        if (!canManage || (!isTenantAdmin && !(ev?.campusId || toNum(el('calendarCampus').value)))) return;
         state.editId = ev?.id || null;
         el('calendarEditorTitle').textContent = ev ? 'Edit calendar event' : 'New calendar event';
         el('calendarEventTitle').value = ev?.title || '';
         const eventType = Number(ev?.eventType || 1);
-        el('calendarEventType').value = eventType === 8 ? '99' : String(eventType);
+        el('calendarEventType').value = String(eventType);
         el('calendarEventStart').value = asDate(ev?.startDate) || el('calendarFrom').value;
         el('calendarEventEnd').value = asDate(ev?.endDate) || el('calendarFrom').value;
         el('calendarEventDescription').value = ev?.description || '';
@@ -161,15 +181,20 @@
         e.preventDefault(); if (!e.currentTarget.reportValidity()) return;
         const selected = state.events.find(x => Number(x.id) === Number(state.editId));
         const s = scope(), startDate = el('calendarEventStart').value, endDate = el('calendarEventEnd').value;
-        if (startDate > endDate || startDate < s.fromDate || endDate > s.toDate) {
-            alertMessage('danger', 'Event dates must lie within the selected reporting period.'); return;
+        const year = state.years.find(x => Number(x.id) === s.academicYearId);
+        if (startDate > endDate || (year?.startDate && startDate < asDate(year.startDate)) ||
+            (year?.endDate && endDate > asDate(year.endDate))) {
+            alertMessage('danger', 'Event dates must lie within the academic year.'); return;
         }
-        const body = { title: el('calendarEventTitle').value.trim(), eventType: Number(el('calendarEventType').value),
+        if (state.editId && !selected) { alertMessage('danger', 'Reload the event before editing.'); return; }
+        const body = { academicYearId: selected?.academicYearId || s.academicYearId,
+            academicTermId: selected?.academicTermId ?? null,
+            campusId: selected ? selected.campusId : s.campusId,
+            title: el('calendarEventTitle').value.trim(), eventType: Number(el('calendarEventType').value),
             description: el('calendarEventDescription').value.trim() || null,
-            startDate: iso(startDate), endDate: iso(endDate), isHoliday: el('calendarEventHoliday').checked, isPublicVisible: el('calendarEventVisible').checked };
+            startDate, endDate, isHoliday: el('calendarEventHoliday').checked, isPublicVisible: el('calendarEventVisible').checked };
         if (!body.title) { alertMessage('danger', 'Event title is required.'); return; }
-        if (state.editId) { body.isActive = true; body.rowVersion = selected?.rowVersion; if (!body.rowVersion) { alertMessage('danger', 'Reload this event before editing.'); return; } }
-        else { body.clientRequestId = crypto.randomUUID(); body.academicYearId = s.academicYearId; body.campusId = s.campusId; body.academicTermId = null; }
+        if (state.editId) { body.rowVersion = selected?.rowVersion; if (!body.rowVersion) { alertMessage('danger', 'Reload this event before editing.'); return; } }
         const button = el('calendarSaveEvent'); button.disabled = true;
         try {
             await api(state.editId ? '/api/academic-calendars/events/' + state.editId : '/api/academic-calendars/events', 'POST', body);
@@ -180,23 +205,44 @@
     async function savePolicy(event) {
         event.preventDefault();
         let s; try { s = scope(); } catch (error) { alertMessage('danger', error.message); return; }
+        if (!isTenantAdmin && !s.campusId) { alertMessage('danger', 'Choose an authorized campus to change its weekend policy.'); return; }
         const days = [...document.querySelectorAll('input[name="weekendDay"]:checked')].map(x => Number(x.value));
         if (days.length < 1 || days.length > 2) { alertMessage('danger', 'Select one or two weekend days.'); return; }
         const button = el('calendarSavePolicy'); button.disabled = true;
         try {
-            const saved = await api('/api/academic-calendars/policy', 'POST', { clientRequestId: crypto.randomUUID(),
-                academicYearId: s.academicYearId, campusId: s.campusId, weekendDays: days, rowVersion: state.policy?.rowVersion || null });
+            const saved = await api('/api/academic-calendars/policy', 'POST', {
+                campusId: s.campusId, weekendDay1: days[0], weekendDay2: days[1] ?? null,
+                isActive: true, rowVersion: state.policy?.campusId === s.campusId ? state.policy.rowVersion : null });
             showPolicy(saved); await load(); alertMessage('success', 'Weekend policy saved.');
         } catch (error) { alertMessage('danger', error.message); }
         finally { button.disabled = false; }
     }
     el('calendarFilters').addEventListener('submit', e => { e.preventDefault(); load(); });
     el('calendarYear').addEventListener('change', () => { closeEditor(); el('calendarFrom').value = ''; el('calendarTo').value = ''; setYearDates(); });
-    el('calendarCampus').addEventListener('change', closeEditor);
+    el('calendarCampus').addEventListener('change', () => { closeEditor(); updateManageScope(); showPolicy(null); });
     el('calendarEvents').addEventListener('click', e => { const button = e.target.closest('[data-edit-id]'); if (button) openEditor(state.events.find(x => String(x.id) === button.dataset.editId)); });
     el('calendarNewEvent')?.addEventListener('click', () => openEditor(null));
     el('calendarCancelEvent')?.addEventListener('click', closeEditor);
     el('calendarEventForm')?.addEventListener('submit', saveEvent);
     el('calendarPolicyForm')?.addEventListener('submit', savePolicy);
+    function exportCsv(filename, headers, rows) {
+        const safe = value => {
+            const raw = String(value ?? '');
+            const escaped = /^[=+@-]/.test(raw.trimStart()) ? "'" + raw : raw;
+            return '"' + escaped.replace(/"/g, '""') + '"';
+        };
+        const csv = [headers, ...rows].map(row => row.map(safe).join(',')).join('\r\n');
+        const url = URL.createObjectURL(new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8' }));
+        const anchor = document.createElement('a'); anchor.href = url; anchor.download = filename;
+        document.body.append(anchor); anchor.click(); anchor.remove(); URL.revokeObjectURL(url);
+    }
+    el('calendarExportEvents').addEventListener('click', () => exportCsv('academic-calendar-events.csv',
+        ['Start', 'End', 'Event', 'Type', 'Holiday', 'Campus', 'Visible'],
+        state.events.map(x => [asDate(x.startDate), asDate(x.endDate), x.title, types[x.eventType] || 'Other',
+            x.isHoliday ? 'Yes' : 'No', x.campusName || 'Institution-wide', x.isPublicVisible ? 'Yes' : 'No'])));
+    el('calendarExportWorking').addEventListener('click', () => exportCsv('academic-working-days.csv',
+        ['Date', 'Day', 'Working', 'Weekend', 'Holiday names'],
+        state.working.map(x => [asDate(x.date), weekday[new Date(asDate(x.date) + 'T12:00:00').getDay()],
+            x.isWorkingDay ? 'Yes' : 'No', x.isWeekend ? 'Yes' : 'No', (x.holidayNames || []).join('; ')])));
     initScopes();
 })();

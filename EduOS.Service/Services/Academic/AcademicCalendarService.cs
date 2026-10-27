@@ -1,6 +1,7 @@
 using EduOS.Core.Common;
 using EduOS.Core.DTOs.Academic;
 using EduOS.Core.Entities.Academic;
+using EduOS.Core.Entities.Auth;
 using EduOS.Core.Entities.SaaS;
 using EduOS.Core.Interfaces;
 using EduOS.Core.Interfaces.IRepositories;
@@ -18,6 +19,7 @@ public sealed class AcademicCalendarService : IAcademicCalendarService
     private readonly IGenericRepository<AcademicYear> _years;
     private readonly IGenericRepository<AcademicTerm> _terms;
     private readonly IGenericRepository<Campus> _campuses;
+    private readonly IGenericRepository<UserCampusAccess> _campusAccesses;
     private readonly IUnitOfWork _unitOfWork;
     private readonly ICurrentUserService _currentUser;
     private readonly TimeProvider _clock;
@@ -29,6 +31,7 @@ public sealed class AcademicCalendarService : IAcademicCalendarService
         IGenericRepository<AcademicYear> years,
         IGenericRepository<AcademicTerm> terms,
         IGenericRepository<Campus> campuses,
+        IGenericRepository<UserCampusAccess> campusAccesses,
         IUnitOfWork unitOfWork,
         ICurrentUserService currentUser,
         TimeProvider clock,
@@ -39,6 +42,7 @@ public sealed class AcademicCalendarService : IAcademicCalendarService
         _years = years;
         _terms = terms;
         _campuses = campuses;
+        _campusAccesses = campusAccesses;
         _unitOfWork = unitOfWork;
         _currentUser = currentUser;
         _clock = clock;
@@ -48,6 +52,8 @@ public sealed class AcademicCalendarService : IAcademicCalendarService
     public async Task<ApiResponse<AcademicCalendarPolicyDto>> GetPolicyAsync(long? campusId, CancellationToken cancellationToken = default)
     {
         if (!CanRead()) return Denied<AcademicCalendarPolicyDto>();
+        if (IsRestrictedManager() && campusId.HasValue && !await CanManageCampusAsync(campusId, cancellationToken))
+            return Denied<AcademicCalendarPolicyDto>();
         var campusError = await ValidateCampusAsync(campusId, cancellationToken);
         if (campusError != null) return Error<AcademicCalendarPolicyDto>(campusError, 404);
 
@@ -69,6 +75,9 @@ public sealed class AcademicCalendarService : IAcademicCalendarService
 
         return ExecuteWriteAsync("save academic calendar policy", async () =>
         {
+            // Institution-wide weekend policy is owned by TenantAdmin only.
+            if (!await CanManageCampusAsync(request.CampusId, cancellationToken))
+                return Denied<AcademicCalendarPolicyDto>();
             var campusError = await ValidateCampusAsync(request.CampusId, cancellationToken);
             if (campusError != null) return Error<AcademicCalendarPolicyDto>(campusError, 404);
 
@@ -128,6 +137,8 @@ public sealed class AcademicCalendarService : IAcademicCalendarService
                         x.EndDate >= range.From &&
                         (!x.CampusId.HasValue || x.CampusId == campusId));
         if (!CanManage()) query = query.Where(x => x.IsPublicVisible);
+        else if (IsRestrictedManager())
+            query = query.Where(x => x.CampusId.HasValue || x.IsPublicVisible);
 
         var rows = await query.OrderBy(x => x.StartDate).ThenBy(x => x.Title).Take(1001).ToListAsync(cancellationToken);
         if (rows.Count > 1000)
@@ -150,6 +161,8 @@ public sealed class AcademicCalendarService : IAcademicCalendarService
 
         return ExecuteWriteAsync("create academic calendar event", async () =>
         {
+            if (!await CanManageCampusAsync(request.CampusId, cancellationToken))
+                return Denied<AcademicCalendarEventDto>();
             var scope = await ResolveScopeAsync(request.AcademicYearId, request.AcademicTermId, request.CampusId, cancellationToken);
             if (!scope.Success) return Error<AcademicCalendarEventDto>(scope.Error!, scope.StatusCode);
 
@@ -210,7 +223,7 @@ public sealed class AcademicCalendarService : IAcademicCalendarService
         if (!CanManage()) return Task.FromResult(Denied<AcademicCalendarEventDto>());
         if (id <= 0 || request == null || !TryDecodeRowVersion(request.RowVersion, out var rowVersion))
             return Task.FromResult(Error<AcademicCalendarEventDto>("A valid event and row version are required."));
-                if (!Enum.IsDefined(request.EventType))
+        if (!Enum.IsDefined(request.EventType))
             return Task.FromResult(Error<AcademicCalendarEventDto>("Calendar event type is invalid."));
         var eventType = request.EventType;
         var inputError = ValidateEvent(request.Title, request.StartDate, request.EndDate);
@@ -221,6 +234,10 @@ public sealed class AcademicCalendarService : IAcademicCalendarService
             var row = await _events.GetQueryable()
                 .FirstOrDefaultAsync(x => x.TenantId == _currentUser.TenantId && x.Id == id, cancellationToken);
             if (row == null) return Error<AcademicCalendarEventDto>("Academic calendar event not found.", 404);
+            // Both the original and requested campus must be within the manager's grants.
+            if (!await CanManageCampusAsync(row.CampusId, cancellationToken) ||
+                !await CanManageCampusAsync(request.CampusId, cancellationToken))
+                return Denied<AcademicCalendarEventDto>();
             if (!VersionsMatch(row.RowVersion, rowVersion))
                 return Error<AcademicCalendarEventDto>("Academic calendar event changed. Reload and try again.", 409);
 
@@ -286,7 +303,7 @@ public sealed class AcademicCalendarService : IAcademicCalendarService
                         x.StartDate <= range.To &&
                         x.EndDate >= range.From &&
                         (!x.CampusId.HasValue || x.CampusId == campusId))
-            .Select(x => new { x.Title, x.StartDate, x.EndDate, x.IsPublicVisible })
+            .Select(x => new { x.Title, x.StartDate, x.EndDate, x.IsPublicVisible, x.CampusId })
             .Take(1001).ToListAsync(cancellationToken);
         if (holidays.Count > 1000)
             return Error<IReadOnlyList<AcademicWorkingDayDto>>("Too many holidays in the selected range. Narrow the date range to avoid an incomplete working-day calculation.", 409);
@@ -298,7 +315,9 @@ public sealed class AcademicCalendarService : IAcademicCalendarService
             var weekend = date.DayOfWeek == policy.WeekendDay1 || (policy.WeekendDay2.HasValue && date.DayOfWeek == policy.WeekendDay2.Value);
             IReadOnlyList<string> names = holidays
                 .Where(x => x.StartDate <= date && x.EndDate >= date)
-                .Select(x => canManage || x.IsPublicVisible ? x.Title : "Holiday")
+                .Select(x => x.IsPublicVisible || (canManage &&
+                    (_currentUser.IsTenantAdmin || (campusId.HasValue && x.CampusId == campusId)))
+                    ? x.Title : "Holiday")
                 .Distinct().OrderBy(x => x).ToList();
             rows.Add(new AcademicWorkingDayDto
             {
@@ -310,6 +329,25 @@ public sealed class AcademicCalendarService : IAcademicCalendarService
         }
 
         return ApiResponse<IReadOnlyList<AcademicWorkingDayDto>>.SuccessResponse(rows);
+    }
+
+    // Principal/VicePrincipal require an explicit active campus grant. Null scope is
+    // readable (public institution-wide calendar) but never writable by them.
+    private bool IsRestrictedManager() => CanManage() && !_currentUser.IsTenantAdmin;
+
+    private IQueryable<long> AllowedManagerCampusIds(long tenantId) =>
+        from access in _campusAccesses.GetQueryable().AsNoTracking()
+        join campus in _campuses.GetQueryable().AsNoTracking() on access.CampusId equals campus.Id
+        where access.TenantId == tenantId && campus.TenantId == tenantId &&
+              access.UserId == _currentUser.UserId && access.IsActive && !access.IsDeleted &&
+              campus.IsActive && !campus.IsDeleted
+        select campus.Id;
+
+    private Task<bool> CanManageCampusAsync(long? campusId, CancellationToken ct)
+    {
+        if (!IsRestrictedManager()) return Task.FromResult(true);
+        if (!campusId.HasValue || campusId.Value <= 0) return Task.FromResult(false);
+        return AllowedManagerCampusIds(_currentUser.TenantId).AnyAsync(x => x == campusId.Value, ct);
     }
 
     private async Task<string?> ValidateCampusAsync(long? campusId, CancellationToken ct)
@@ -329,6 +367,8 @@ public sealed class AcademicCalendarService : IAcademicCalendarService
 
     private async Task<CalendarScope> ResolveScopeAsync(long academicYearId, long? academicTermId, long? campusId, CancellationToken cancellationToken)
     {
+        if (IsRestrictedManager() && campusId.HasValue && !await CanManageCampusAsync(campusId, cancellationToken))
+            return CalendarScope.Fail("Academic calendar campus access is required.", 403);
         var tenantId = _currentUser.TenantId;
         var year = await _years.GetQueryable().AsNoTracking()
             .FirstOrDefaultAsync(x => x.TenantId == tenantId && x.Id == academicYearId && x.IsActive, cancellationToken);

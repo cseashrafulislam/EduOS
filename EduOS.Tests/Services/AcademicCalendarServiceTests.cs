@@ -1,6 +1,7 @@
 using EduOS.Core.DTOs.Academic;
 using EduOS.Core.Enums.Domain;
 using EduOS.Core.Entities.Academic;
+using EduOS.Core.Entities.Auth;
 using EduOS.Core.Entities.SaaS;
 using EduOS.Core.Interfaces;
 using EduOS.Persistence.Context;
@@ -164,6 +165,71 @@ public class AcademicCalendarServiceTests
         days.StatusCode.Should().Be(409);
     }
 
+    [Fact]
+    public async Task Campus_manager_can_edit_only_granted_campus_and_cannot_mutate_institution_wide_calendar()
+    {
+        var options = CreateOptions();
+        var seed = await SeedAsync(options, 101);
+        await using var db = CreateContext(options, 101, 7, "TenantAdmin");
+        var admin = CreateService(db, new TestCurrentUser(101, 7, "TenantAdmin"));
+        var privateGlobal = Event(seed, "Private institution meeting", false);
+        privateGlobal.CampusId = null;
+        (await admin.CreateEventAsync(privateGlobal)).Success.Should().BeTrue();
+        (await admin.CreateEventAsync(Event(seed, "Campus private planning", false))).Success.Should().BeTrue();
+        (await admin.SavePolicyAsync(new SaveAcademicCalendarPolicyRequestDto
+        {
+            CampusId = null, WeekendDay1 = DayOfWeek.Friday
+        })).Success.Should().BeTrue();
+        db.UserCampusAccesses.Add(new UserCampusAccess
+        {
+            TenantId = 101, UserId = 9, CampusId = seed.CampusId, IsActive = true
+        });
+        await db.SaveChangesAsync();
+        var principal = CreateService(db, new TestCurrentUser(101, 9, "Principal"));
+        var rangeStart = new DateOnly(2026, 9, 1);
+        var rangeEnd = new DateOnly(2026, 9, 30);
+        var campusEvents = await principal.GetEventsAsync(seed.YearId, seed.CampusId, rangeStart, rangeEnd);
+        campusEvents.Success.Should().BeTrue();
+        campusEvents.Data.Should().ContainSingle().Which.Title.Should().Be("Campus private planning");
+        var globalEvents = await principal.GetEventsAsync(seed.YearId, null, rangeStart, rangeEnd);
+        globalEvents.Success.Should().BeTrue();
+        globalEvents.Data.Should().BeEmpty();
+        (await principal.GetPolicyAsync(null)).Success.Should().BeTrue();
+        (await principal.SavePolicyAsync(new SaveAcademicCalendarPolicyRequestDto
+        {
+            CampusId = null, WeekendDay1 = DayOfWeek.Saturday
+        })).StatusCode.Should().Be(403);
+        (await principal.CreateEventAsync(privateGlobal)).StatusCode.Should().Be(403);
+        (await principal.SavePolicyAsync(new SaveAcademicCalendarPolicyRequestDto
+        {
+            CampusId = seed.CampusId, WeekendDay1 = DayOfWeek.Saturday
+        })).Success.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task Unassigned_or_inactive_campus_grants_block_principal_calendar_access()
+    {
+        var options = CreateOptions();
+        var seed = await SeedAsync(options, 101);
+        await using var db = CreateContext(options, 101, 10, "VicePrincipal");
+        db.UserCampusAccesses.Add(new UserCampusAccess
+        {
+            TenantId = 101, UserId = 10, CampusId = seed.CampusId, IsActive = false
+        });
+        await db.SaveChangesAsync();
+        var vicePrincipal = CreateService(db, new TestCurrentUser(101, 10, "VicePrincipal"));
+        (await vicePrincipal.GetPolicyAsync(seed.CampusId)).StatusCode.Should().Be(403);
+        (await vicePrincipal.GetEventsAsync(seed.YearId, seed.CampusId,
+            new DateOnly(2026, 9, 1), new DateOnly(2026, 9, 30))).StatusCode.Should().Be(403);
+        (await vicePrincipal.GetWorkingDaysAsync(seed.YearId, seed.CampusId,
+            new DateOnly(2026, 9, 1), new DateOnly(2026, 9, 30))).StatusCode.Should().Be(403);
+        (await vicePrincipal.SavePolicyAsync(new SaveAcademicCalendarPolicyRequestDto
+        {
+            CampusId = seed.CampusId, WeekendDay1 = DayOfWeek.Friday
+        })).StatusCode.Should().Be(403);
+        (await vicePrincipal.CreateEventAsync(Event(seed, "Denied event", true))).StatusCode.Should().Be(403);
+    }
+
     private static SaveAcademicCalendarEventRequestDto Event(CalendarSeed seed, string title, bool visible) => new()
     {
         CampusId = seed.CampusId,
@@ -195,6 +261,7 @@ public class AcademicCalendarServiceTests
         new GenericRepository<AcademicYear>(context),
         new GenericRepository<AcademicTerm>(context),
         new GenericRepository<Campus>(context),
+        new GenericRepository<UserCampusAccess>(context),
         context,
         currentUser,
         TimeProvider.System,

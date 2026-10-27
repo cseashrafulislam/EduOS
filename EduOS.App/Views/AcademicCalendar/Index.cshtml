@@ -1,8 +1,10 @@
 @{
     ViewData["Title"] = "Academic Calendar";
-    var canManage = User.IsInRole("TenantAdmin") || User.IsInRole("Principal") || User.IsInRole("VicePrincipal");
+    var isTenantAdmin = User.IsInRole("TenantAdmin");
+    var canManage = isTenantAdmin || User.IsInRole("Principal") || User.IsInRole("VicePrincipal");
 }
-<section id="academicCalendarApp" data-can-manage="@canManage.ToString().ToLowerInvariant()" class="container-fluid py-3">
+@Html.AntiForgeryToken()
+<section id="academicCalendarApp" data-can-manage="@canManage.ToString().ToLowerInvariant()" data-tenant-admin="@isTenantAdmin.ToString().ToLowerInvariant()" class="container-fluid py-3">
     <header class="d-flex flex-wrap justify-content-between align-items-center mb-3 gap-2">
         <div><h2 class="h4 mb-1">Academic Calendar</h2><p class="text-muted mb-0">Manage holidays and events, weekend policy, and working-day reports.</p></div>
         @if (canManage) { <button id="calendarNewEvent" type="button" class="btn btn-primary" disabled>New event</button> }
@@ -20,7 +22,7 @@
     <div class="row g-3">
         <div class="col-xl-8">
             <section class="card mb-3">
-                <div class="card-header d-flex justify-content-between align-items-center"><h3 class="h6 m-0">Calendar events</h3><span id="calendarCount" class="text-muted small"></span></div>
+                <div class="card-header d-flex justify-content-between align-items-center"><h3 class="h6 m-0">Calendar events</h3><div class="d-flex align-items-center gap-2"><span id="calendarCount" class="text-muted small"></span><button id="calendarExportEvents" type="button" class="btn btn-sm btn-outline-secondary" disabled>Export CSV</button></div></div>
                 <div class="table-responsive"><table class="table table-hover align-middle mb-0">
                     <thead><tr><th scope="col">Date(s)</th><th scope="col">Event</th><th scope="col">Type</th><th scope="col">Holiday</th><th scope="col">Campus</th>@if(canManage){<th scope="col">Action</th>}</tr></thead>
                     <tbody id="calendarEvents"><tr><td colspan="6" class="text-center text-muted p-4">Choose an academic year to load events.</td></tr></tbody>
@@ -70,7 +72,7 @@
                 </div>
             </section>
             <section class="card mb-3">
-                <div class="card-header"><h3 class="h6 m-0">Working day report</h3></div>
+                <div class="card-header d-flex align-items-center justify-content-between"><h3 class="h6 m-0">Working day report</h3><button id="calendarExportWorking" type="button" class="btn btn-sm btn-outline-secondary" disabled>Export CSV</button></div>
                 <div class="card-body">
                     <p id="calendarWorkingSummary" class="fw-semibold">Not loaded.</p>
                     <div class="table-responsive" style="max-height:350px;overflow:auto"><table class="table table-sm"><thead><tr><th>Date</th><th>Day</th><th>Status</th></tr></thead><tbody id="calendarWorkingDays"></tbody></table></div>
