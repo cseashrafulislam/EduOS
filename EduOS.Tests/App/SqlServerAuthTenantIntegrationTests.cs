@@ -187,6 +187,21 @@ public sealed class SqlServerAuthTenantIntegrationTests
         var grant = await db.UserCampusAccesses.SingleAsync(x => x.CampusId == campusId && x.UserId == userId);
         grant.IsActive = false;
         await db.SaveChangesAsync();
+        // A campus may not be archived while another aggregate still references it.
+        // This uses migrated SQL Server tables, not EF InMemory relationship behavior.
+        var route = new EduOS.Core.Entities.Transport.Route
+        {
+            TenantId = tenantId, CampusId = campusId,
+            Name = "Campus archive regression", Code = "ARC-" + suffix, IsActive = true
+        };
+        db.Routes.Add(route);
+        await db.SaveChangesAsync();
+        var linked = await service.ArchiveCampusAsync(campusId, Convert.ToBase64String(version));
+        Assert.Equal(409, linked.StatusCode);
+        Assert.Contains("operational records", linked.Message ?? "", StringComparison.OrdinalIgnoreCase);
+        Assert.False((await db.Campuses.AsNoTracking().SingleAsync(x => x.Id == campusId)).IsDeleted);
+        route.IsDeleted = true;
+        await db.SaveChangesAsync();
         var archived = await service.ArchiveCampusAsync(campusId, Convert.ToBase64String(version));
         Assert.True(archived.Success, archived.Message);
         Assert.True(await db.Campuses.IgnoreQueryFilters().AnyAsync(x => x.Id == campusId && x.IsDeleted));
