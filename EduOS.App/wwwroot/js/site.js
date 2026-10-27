@@ -142,8 +142,8 @@
         const defaults = () => Object.entries(tableDefinitions).map(([id, definition]) => ({
             id, columns: definition.ids.map(column => ({ id: column, visible: true }))
         }));
-        if (!Array.isArray(tables) || tables.length !== 2 ||
-            new Set(tables.map(table => table?.id)).size !== 2 ||
+        if (!Array.isArray(tables) || tables.length !== Object.keys(tableDefinitions).length ||
+            new Set(tables.map(table => table?.id)).size !== Object.keys(tableDefinitions).length ||
             !tables.every(table => {
                 const def = tableDefinitions[table?.id];
                 return def && Array.isArray(table.columns) && table.columns.length === def.ids.length &&

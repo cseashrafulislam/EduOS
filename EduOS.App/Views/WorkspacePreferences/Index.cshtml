@@ -10,6 +10,7 @@
     <div class="card shadow-sm">
         <div class="card-body">
             <form id="workspacePreferencesForm" autocomplete="off">
+                @Html.AntiForgeryToken()
                 <div class="row g-3">
                     <div class="col-md-6"><label class="form-label" for="workspaceTheme">@(bn ? "থিম" : "Theme")</label>
                         <select class="form-select" id="workspaceTheme" name="theme">
@@ -82,6 +83,25 @@
                                     (Id: "expires", En: "Expires", Bn: "মেয়াদ", Required: false),
                                     (Id: "status", En: "Status", Bn: "অবস্থা", Required: true),
                                     (Id: "action", En: "Action", Bn: "কার্যক্রম", Required: true)
+                                }),
+                            (Id: "institution-feature-audit", En: "Feature entitlement audit", Bn: "ফিচার অনুমতির নিরীক্ষা",
+                                Columns: new[] {
+                                    (Id: "feature", En: "Feature", Bn: "ফিচার", Required: true),
+                                    (Id: "code", En: "Code", Bn: "কোড", Required: true),
+                                    (Id: "plan", En: "Included in plan", Bn: "প্ল্যানে অন্তর্ভুক্ত", Required: false),
+                                    (Id: "override", En: "Override", Bn: "ব্যতিক্রম", Required: false),
+                                    (Id: "restriction", En: "Restriction", Bn: "সীমাবদ্ধতা", Required: true),
+                                    (Id: "reason", En: "Reason", Bn: "কারণ", Required: false)
+                                }),
+                            (Id: "institution-activity-audit", En: "Activity audit log", Bn: "কার্যক্রম নিরীক্ষা",
+                                Columns: new[] {
+                                    (Id: "time", En: "UTC time", Bn: "ইউটিসি সময়", Required: true),
+                                    (Id: "user", En: "User", Bn: "ব্যবহারকারী", Required: true),
+                                    (Id: "action", En: "Action", Bn: "কার্যক্রম", Required: true),
+                                    (Id: "entity", En: "Entity", Bn: "সত্তা", Required: false),
+                                    (Id: "record", En: "Record", Bn: "রেকর্ড", Required: false),
+                                    (Id: "ip", En: "IP address", Bn: "আইপি ঠিকানা", Required: false),
+                                    (Id: "outcome", En: "Outcome", Bn: "ফলাফল", Required: true)
                                 })
                         })
                         {

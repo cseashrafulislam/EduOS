@@ -59,6 +59,14 @@ public sealed class TablePreferenceDto
             new() { Id = "email" }, new() { Id = "role" },
             new() { Id = "campus" }, new() { Id = "expires" },
             new() { Id = "status" }, new() { Id = "action" }
+        ] },
+        new() { Id = "institution-feature-audit", Columns =
+        [
+            new() { Id = "feature" }, new() { Id = "code" }, new() { Id = "plan" }, new() { Id = "override" }, new() { Id = "restriction" }, new() { Id = "reason" }
+        ] },
+        new() { Id = "institution-activity-audit", Columns =
+        [
+            new() { Id = "time" }, new() { Id = "user" }, new() { Id = "action" }, new() { Id = "entity" }, new() { Id = "record" }, new() { Id = "ip" }, new() { Id = "outcome" }
         ] }
     ];
 }

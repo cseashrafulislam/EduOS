@@ -74,7 +74,13 @@ public sealed class WorkspacePreferencesService : IWorkspacePreferencesService
                 return ApiResponse<WorkspacePreferencesDto>.ErrorResponse("Reserved workspace key conflict.", 409);
 
             // Older cached clients do not send tablePreferences; never erase newer layout choices.
-            var tables = request.TablePreferences ?? ToDto(row).TablePreferences;
+            // Cached two-table clients may still save appearance: merge only their known
+            // tables and retain the newer audit layouts from the same versioned row.
+            var currentTables = ToDto(row).TablePreferences;
+            var tables = request.TablePreferences == null ? currentTables :
+                request.TablePreferences.Count == 2
+                    ? MergeTables(currentTables, request.TablePreferences)
+                    : request.TablePreferences;
             var stored = new StoredPreferences
             {
                 SchemaVersion = 1,
@@ -171,28 +177,40 @@ public sealed class WorkspacePreferencesService : IWorkspacePreferencesService
     private static bool ValidTables(List<TablePreferenceDto>? tables)
     {
         var defaults = TablePreferenceDto.Defaults();
-        if (tables is not { Count: 2 } ||
-            tables.Select(x => x?.Id).Distinct(StringComparer.Ordinal).Count() != 2)
+        // The first two tables are the exact legacy client contract. A partial
+        // new-client layout is invalid; it must not silently hide required columns.
+        if (tables is not { Count: 2 or 4 } ||
+            tables.Select(x => x?.Id).Distinct(StringComparer.Ordinal).Count() != tables.Count)
             return false;
-
+        var definitions = tables.Count == 2 ? defaults.Take(2).ToList() : defaults;
         foreach (var table in tables)
         {
-            var definition = defaults.FirstOrDefault(x => x.Id == table?.Id);
+            var definition = definitions.FirstOrDefault(x => x.Id == table?.Id);
             if (definition == null || table!.Columns == null ||
                 table.Columns.Count != definition.Columns.Count ||
                 table.Columns.Any(x => x == null ||
                     !definition.Columns.Any(allowed => allowed.Id == x.Id)) ||
                 table.Columns.Select(x => x.Id).Distinct(StringComparer.Ordinal).Count() != definition.Columns.Count)
                 return false;
-
-            var required = table.Id == "institution-users"
-                ? new[] { "user", "action" }
-                : new[] { "email", "status", "action" };
+            var required = table.Id switch
+            {
+                "institution-users" => new[] { "user", "action" },
+                "institution-invitations" => new[] { "email", "status", "action" },
+                "institution-feature-audit" => new[] { "feature", "code", "restriction" },
+                "institution-activity-audit" => new[] { "time", "user", "action", "outcome" },
+                _ => Array.Empty<string>()
+            };
             if (required.Any(id => !table.Columns.Single(x => x.Id == id).Visible))
                 return false;
         }
         return true;
     }
+
+    private static List<TablePreferenceDto> MergeTables(
+        List<TablePreferenceDto> current, List<TablePreferenceDto> incoming) =>
+        TablePreferenceDto.Defaults().Select(definition =>
+            incoming.FirstOrDefault(x => x.Id == definition.Id) ??
+            current.FirstOrDefault(x => x.Id == definition.Id) ?? definition).ToList();
 
     private static bool IsOneOf(string? value, params string[] allowed) =>
         value != null && allowed.Contains(value, StringComparer.Ordinal);
@@ -225,7 +243,8 @@ public sealed class WorkspacePreferencesService : IWorkspacePreferencesService
                     Id = x.Id, Visible = x.Visible
                 }).ToList();
             if (ValidTables(stored.TablePreferences))
-                result.TablePreferences = stored.TablePreferences!.Select(table => new TablePreferenceDto
+                result.TablePreferences = MergeTables(TablePreferenceDto.Defaults(),
+                    stored.TablePreferences!).Select(table => new TablePreferenceDto
                 {
                     Id = table.Id,
                     Columns = table.Columns.Select(column => new TableColumnPreferenceDto

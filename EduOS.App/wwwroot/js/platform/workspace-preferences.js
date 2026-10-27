@@ -14,8 +14,8 @@
         id, columns: definition.ids.map(column => ({ id: column, visible: true }))
     }));
     function validTables(tables) {
-        return Array.isArray(tables) && tables.length === 2
-            && new Set(tables.map(t => t?.id)).size === 2
+        return Array.isArray(tables) && tables.length === Object.keys(tableDefinitions).length
+            && new Set(tables.map(t => t?.id)).size === Object.keys(tableDefinitions).length
             && tables.every(table => {
                 const def = tableDefinitions[table?.id];
                 return def && Array.isArray(table.columns) && table.columns.length === def.ids.length
@@ -123,7 +123,8 @@
     async function request(url, method, payload) {
         const response = await fetch(url, {
             method, credentials: 'same-origin', cache: 'no-store',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json',
+                'RequestVerificationToken': form.querySelector('input[name="__RequestVerificationToken"]')?.value || '' },
             body: JSON.stringify(payload)
         });
         const body = await response.json().catch(() => null);

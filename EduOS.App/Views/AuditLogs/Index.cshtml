@@ -56,8 +56,8 @@
                 <span id="auditCount" class="text-muted small" aria-live="polite"></span>
             </div>
             <div class="table-responsive">
-                <table class="table table-hover align-middle">
-                    <thead><tr><th>UTC time</th><th>User</th><th>Action</th><th>Entity</th><th>Record</th><th>IP</th><th>Outcome</th></tr></thead>
+                <table class="table table-hover align-middle" data-workspace-table="institution-activity-audit">
+                    <thead><tr><th scope="col" data-table-column="time">UTC time</th><th scope="col" data-table-column="user">User</th><th scope="col" data-table-column="action">Action</th><th scope="col" data-table-column="entity">Entity</th><th scope="col" data-table-column="record">Record</th><th scope="col" data-table-column="ip">IP</th><th scope="col" data-table-column="outcome">Outcome</th></tr></thead>
                     <tbody id="auditRows"><tr><td colspan="7" class="text-center text-muted">Loading…</td></tr></tbody>
                 </table>
             </div>
@@ -72,4 +72,5 @@
 @section Scripts {
     <script src="~/js/audit-logs/index.js" asp-append-version="true"></script>
     <script src="~/js/audit-logs/statistics.js" asp-append-version="true"></script>
+    <script src="~/js/platform/table-column-preferences.js" asp-append-version="true"></script>
 }

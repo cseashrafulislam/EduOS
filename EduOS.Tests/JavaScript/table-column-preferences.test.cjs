@@ -97,3 +97,32 @@ test('unknown, duplicate and hidden mandatory columns fail closed to default lay
     h.appendRow();
     assert.equal(h.body.rows[1].cells[0].colSpan, 6);
 });
+
+test('feature audit columns apply to dynamically rendered pages and preserve restrictions', () => {
+    const ids = ['feature', 'code', 'plan', 'override', 'restriction', 'reason'];
+    const h = harness('institution-feature-audit', ids, {
+        tablePreferences: [{ id: 'institution-feature-audit', columns: [
+            { id: 'reason', visible: false }, { id: 'restriction', visible: true },
+            { id: 'feature', visible: true }, { id: 'code', visible: true },
+            { id: 'override', visible: false }, { id: 'plan', visible: false }
+        ] }]
+    });
+    assert.deepEqual(h.header(), ['reason', 'restriction', 'feature', 'code', 'override', 'plan']);
+    assert.equal(h.hidden('reason'), true);
+    assert.equal(h.hidden('restriction'), false);
+    const added = h.appendRow();
+    assert.deepEqual(added.cells.map(cell => cell.name), h.header());
+});
+
+test('activity audit never hides actor, action, outcome or timestamp', () => {
+    const ids = ['time', 'user', 'action', 'entity', 'record', 'ip', 'outcome'];
+    const h = harness('institution-activity-audit', ids, {});
+    const layout = ids.map(id => ({ id, visible: id !== 'ip' }));
+    h.emit([{ id: 'institution-activity-audit', columns: layout }]);
+    assert.equal(h.hidden('ip'), true);
+    h.emit([{ id: 'institution-activity-audit', columns: layout.map(x =>
+        x.id === 'user' ? { ...x, visible: false } : x) }]);
+    assert.deepEqual(h.columns(), ids);
+    assert.equal(h.hidden('user'), false);
+    assert.equal(h.hidden('outcome'), false);
+});

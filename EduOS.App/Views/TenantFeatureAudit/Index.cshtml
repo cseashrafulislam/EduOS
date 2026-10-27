@@ -13,8 +13,8 @@
     </form>
     <div id="featureAuditNotice" class="alert d-none" role="alert"></div>
     <div class="table-responsive">
-        <table class="table table-sm table-striped">
-            <thead><tr><th>Feature</th><th>Code</th><th>Included in active plan</th><th>Override recorded</th><th>Current restriction record</th><th>Reason</th></tr></thead>
+        <table class="table table-sm table-striped" data-workspace-table="institution-feature-audit">
+            <thead><tr><th scope="col" data-table-column="feature">Feature</th><th scope="col" data-table-column="code">Code</th><th scope="col" data-table-column="plan">Included in active plan</th><th scope="col" data-table-column="override">Override recorded</th><th scope="col" data-table-column="restriction">Current restriction record</th><th scope="col" data-table-column="reason">Reason</th></tr></thead>
             <tbody id="featureAuditRows"></tbody>
         </table>
     </div>
@@ -24,4 +24,4 @@
         <button id="featureAuditNext" class="btn btn-outline-secondary btn-sm" type="button">Next</button>
     </div>
 </div>
-@section Scripts { <script src="~/js/platform/tenant-feature-audit.js" asp-append-version="true"></script> }
+@section Scripts { <script src="~/js/platform/tenant-feature-audit.js" asp-append-version="true"></script><script src="~/js/platform/table-column-preferences.js" asp-append-version="true"></script> }

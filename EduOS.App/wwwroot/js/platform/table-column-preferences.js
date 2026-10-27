@@ -1,6 +1,6 @@
 (() => {
     'use strict';
-    // Only two known institution-admin tables opt in. Column settings never alter API queries or permissions.
+    // Only allowlisted institution-admin and audit tables opt in. Preferences never alter API/export permissions.
     const definitions = {
         'institution-users': { ids: ['user', 'membership', 'roles', 'action'], required: ['user', 'action'] },
         'institution-invitations': { ids: ['email', 'role', 'campus', 'expires', 'status', 'action'], required: ['email', 'status', 'action'] }
