@@ -115,15 +115,15 @@ async function findIssueBooks(page=1){
  }catch(e){if(seq===direct.bookSeq){issueStatus('Book search failed.');message(e.message);}}
 }
 async function findIssueCopies(page=1){
- const book=el('directIssueBook').value;
- if(!book){clearIssueCopies();return;}
+ const book=el('directIssueBook').value,student=el('directIssueStudent').value;
+ if(!book||!student){clearIssueCopies();issueStatus('Choose an eligible student and book to see campus-available copies.');return;}
  if(page===1){clearIssueCopies();direct.bookReference=book;}
  const seq=++direct.copySeq;
  el('directIssueCopyMore').hidden=true;
  try{
-  const data=await api('/api/library/books/'+encodeURIComponent(book)+'/copies?'+
-   new URLSearchParams({page:String(page),pageSize:'50'}));
-  if(seq!==direct.copySeq||el('directIssueBook').value!==book)return;
+  const data=await api('/api/library/books/'+encodeURIComponent(book)+'/available-copies?'+
+   new URLSearchParams({studentReference:student,page:String(page),pageSize:'50'}));
+  if(seq!==direct.copySeq||el('directIssueBook').value!==book||el('directIssueStudent').value!==student)return;
   let added=0;
   for(const copy of data?.items||[]){
    if(Number(copy.state)!==1)continue;
@@ -144,14 +144,14 @@ el('directIssueCopyMore').addEventListener('click',()=>findIssueCopies(direct.co
 el('directIssueStudentQuery').addEventListener('input',()=>{
  ++direct.studentSeq;direct.studentPage=0;newIssueKey();
  el('directIssueStudent').replaceChildren(new Option('Select an eligible student',''));
- el('directIssueStudentMore').hidden=true;
+ el('directIssueStudentMore').hidden=true;clearIssueCopies();
 });
 el('directIssueBookQuery').addEventListener('input',()=>{
  ++direct.bookSeq;direct.bookPage=0;newIssueKey();
  el('directIssueBook').replaceChildren(new Option('Select a book',''));
  el('directIssueBookMore').hidden=true;clearIssueCopies();
 });
-el('directIssueStudent').addEventListener('change',newIssueKey);
+el('directIssueStudent').addEventListener('change',()=>{newIssueKey();findIssueCopies(1);});
 el('directIssueBook').addEventListener('change',()=>{newIssueKey();findIssueCopies(1);});
 el('directIssueCopy').addEventListener('change',newIssueKey);
 el('directIssueDueDate').addEventListener('change',newIssueKey);

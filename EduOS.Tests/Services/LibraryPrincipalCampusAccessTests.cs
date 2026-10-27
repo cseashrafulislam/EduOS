@@ -78,6 +78,26 @@ public sealed class LibraryPrincipalCampusAccessTests
             .Data!.TotalCount.Should().Be(0);
     }
 
+
+    [Fact]
+    public async Task Principal_available_copy_picker_excludes_ungranted_campus_and_student()
+    {
+        await using var db = Context();
+        var data = await SeedAsync(db);
+        db.BookCopies.Add(new BookCopy { TenantId = 101, BookId = data.Book.Id,
+            LibraryBranchId = data.BranchA.Id, AccessionNumber = "A-2",
+            State = BookCopyState.Available });
+        await db.SaveChangesAsync();
+        var principal = Service(db, "Principal");
+        var allowed = await principal.GetAvailableCopiesForStudentAsync(
+            data.Book.PublicId, data.StudentA.PublicId, 1, 20);
+        allowed.Success.Should().BeTrue(allowed.Message);
+        allowed.Data!.TotalCount.Should().Be(1);
+        allowed.Data.Items.Single().AccessionNumber.Should().Be("A-2");
+        (await principal.GetAvailableCopiesForStudentAsync(
+            data.Book.PublicId, data.StudentB.PublicId, 1, 20)).StatusCode.Should().Be(403);
+    }
+
     private static async Task<(Campus CampusA, Campus CampusB, LibraryBranch BranchA,
         LibraryBranch BranchB, Book Book, Student StudentA, Student StudentB,
         BookCopy CopyA, BookCopy CopyB, BookCopy AvailableB, BookIssue IssueA,

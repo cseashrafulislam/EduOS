@@ -578,6 +578,45 @@ public sealed class LibraryServiceTests
         (await db.BookIssues.CountAsync()).Should().Be(1);
     }
 
+
+    [Fact]
+    public async Task Available_copy_picker_is_server_paged_and_filters_stock_by_student_campus()
+    {
+        await using var db = Context(Options(), 101);
+        var (student, copy) = await SeedBorrower(db, 101, true);
+        var enrollment = await db.StudentEnrollments.SingleAsync();
+        enrollment.CampusId = 11;
+        var north = new LibraryBranch { TenantId = 101, CampusId = 11,
+            Code = "N", Name = "North", IsActive = true };
+        var south = new LibraryBranch { TenantId = 101, CampusId = 22,
+            Code = "S", Name = "South", IsActive = true };
+        db.AddRange(north, south);
+        await db.SaveChangesAsync();
+        copy.LibraryBranchId = north.Id;
+        db.BookCopies.AddRange(
+            new BookCopy { TenantId = 101, BookId = copy.BookId, LibraryBranchId = north.Id,
+                AccessionNumber = "N-2", State = BookCopyState.Available },
+            new BookCopy { TenantId = 101, BookId = copy.BookId, LibraryBranchId = north.Id,
+                AccessionNumber = "N-3", State = BookCopyState.Issued },
+            new BookCopy { TenantId = 101, BookId = copy.BookId, LibraryBranchId = south.Id,
+                AccessionNumber = "S-1", State = BookCopyState.Available },
+            new BookCopy { TenantId = 101, BookId = copy.BookId, LibraryBranchId = north.Id,
+                AccessionNumber = "N-4", State = BookCopyState.Available, IsDeleted = true });
+        await db.SaveChangesAsync();
+        var book = await db.Books.SingleAsync();
+        var service = Service(db, 101);
+        var first = await service.GetAvailableCopiesForStudentAsync(book.PublicId, student.PublicId, 1, 1);
+        var second = await service.GetAvailableCopiesForStudentAsync(book.PublicId, student.PublicId, 2, 1);
+        first.Success.Should().BeTrue(first.Message);
+        first.Data!.TotalCount.Should().Be(2);
+        first.Data.Items.Should().ContainSingle().Which.AccessionNumber.Should().Be(copy.AccessionNumber);
+        second.Data!.Items.Should().ContainSingle().Which.AccessionNumber.Should().Be("N-2");
+        (await service.GetAvailableCopiesForStudentAsync(book.PublicId, Guid.NewGuid(), 1, 20))
+            .StatusCode.Should().Be(404);
+        (await service.GetAvailableCopiesForStudentAsync(book.PublicId, student.PublicId, 0, 20))
+            .StatusCode.Should().Be(400);
+    }
+
     private static IssueBookRequestDto Request(Student student, BookCopy copy, Guid key) => new()
     {
         ClientRequestId = key, BookCopyId = copy.Id, StudentReference = student.PublicId,

@@ -92,6 +92,61 @@ public sealed partial class LibraryService
     }
 
 
+    /// <summary>Server-paged available stock for the selected student's current campus.</summary>
+    public async Task<ApiResponse<PagedResult<BookCopyDto>>> GetAvailableCopiesForStudentAsync(
+        Guid bookReference, Guid studentReference, int page, int pageSize, CancellationToken ct = default)
+    {
+        if (!CanManage()) return Denied<PagedResult<BookCopyDto>>();
+        if (bookReference == Guid.Empty || studentReference == Guid.Empty ||
+            page < 1 || pageSize is < 1 or > 100)
+            return ApiResponse<PagedResult<BookCopyDto>>.ErrorResponse("Invalid book, student or pagination.");
+        if (_branches == null)
+            return ApiResponse<PagedResult<BookCopyDto>>.ErrorResponse("Library branch lookup is unavailable.", 503);
+        var offset = ((long)page - 1) * pageSize;
+        if (offset > int.MaxValue)
+            return ApiResponse<PagedResult<BookCopyDto>>.ErrorResponse("Page exceeds supported range.");
+        var tenant = _user.TenantId;
+        var studentId = await _students.GetQueryable().AsNoTracking()
+            .Where(x => x.TenantId == tenant && x.PublicId == studentReference &&
+                x.StatusCode == "Active" && !x.IsDeleted)
+            .Select(x => x.Id).FirstOrDefaultAsync(ct);
+        if (studentId == 0)
+            return ApiResponse<PagedResult<BookCopyDto>>.ErrorResponse("Active student not found.", 404);
+        var campusId = await _enrollments.GetQueryable().AsNoTracking()
+            .Where(x => x.TenantId == tenant && x.StudentId == studentId &&
+                x.IsCurrent && x.State == EnrollmentState.Active && !x.IsDeleted)
+            .Select(x => (long?)x.CampusId).FirstOrDefaultAsync(ct);
+        if (!campusId.HasValue)
+            return ApiResponse<PagedResult<BookCopyDto>>.ErrorResponse("Current active enrollment required.", 409);
+        if (IsCampusScopedStaff)
+        {
+            var allowed = AllowedStaffCampusIds(tenant, DateOnly.FromDateTime(_clock.GetUtcNow().UtcDateTime));
+            if (allowed == null || !await allowed.ContainsAsync(campusId.Value, ct))
+                return Denied<PagedResult<BookCopyDto>>();
+        }
+        var book = await _books.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
+            x.TenantId == tenant && x.PublicId == bookReference && x.IsActive && !x.IsDeleted, ct);
+        if (book == null)
+            return ApiResponse<PagedResult<BookCopyDto>>.ErrorResponse("Active book not found.", 404);
+        var eligibleBranches = _branches.GetQueryable().AsNoTracking()
+            .Where(x => x.TenantId == tenant && x.CampusId == campusId.Value &&
+                x.IsActive && !x.IsDeleted).Select(x => x.Id);
+        var query = _copies.GetQueryable().AsNoTracking().Where(x =>
+            x.TenantId == tenant && x.BookId == book.Id && !x.IsDeleted &&
+            x.State == BookCopyState.Available &&
+            (x.LibraryBranchId.HasValue && eligibleBranches.Contains(x.LibraryBranchId.Value) ||
+                _user.IsTenantAdmin && !x.LibraryBranchId.HasValue) &&
+            !_issues.GetQueryable().Any(i => i.TenantId == tenant && !i.IsDeleted &&
+                i.BookCopyId == x.Id && i.State == BookIssueState.Issued));
+        var total = await query.CountAsync(ct);
+        var copies = await query.OrderBy(x => x.AccessionNumber).ThenBy(x => x.Id)
+            .Skip((int)offset).Take(pageSize).ToListAsync(ct);
+        return ApiResponse<PagedResult<BookCopyDto>>.SuccessResponse(
+            new PagedResult<BookCopyDto>
+            { Items = copies.Select(x => MapCopy(x, book)).ToList(),
+                TotalCount = total, Page = page, PageSize = pageSize });
+    }
+
     /// <summary>Active branches available to the caller for physical copy registration.</summary>
     public async Task<ApiResponse<PagedResult<LibraryBranchDto>>> GetAssignableBranchesAsync(
         string? search, int page, int pageSize, CancellationToken ct = default)

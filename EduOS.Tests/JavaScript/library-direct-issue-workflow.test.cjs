@@ -15,7 +15,8 @@ test('staff direct issue workspace selects eligible students, books and paged co
     }
     assert.match(script, /\/api\/library\/reservations\/eligible-students\?/);
     assert.match(script, /\/api\/library\/catalog\?/);
-    assert.match(script, /\/copies\?/);
+    assert.match(script, /\/available-copies\?/);
+    assert.match(script, /studentReference:student/);
     assert.match(script, /hasNextPage/);
     assert.match(script, /Number\(copy\.state\)!==1/);
 });

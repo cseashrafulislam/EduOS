@@ -47,6 +47,12 @@ public sealed class LibraryController : ControllerBase
         [FromQuery] int pageSize = 20, CancellationToken ct = default) =>
         ToAction(await _service.GetBookCopiesAsync(reference, page, pageSize, ct));
 
+    [HttpGet("books/{reference:guid}/available-copies")]
+    [Authorize(Roles = "TenantAdmin,Principal,Librarian")]
+    public async Task<IActionResult> AvailableCopies(Guid reference, [FromQuery] Guid studentReference,
+        [FromQuery] int page = 1, [FromQuery] int pageSize = 50, CancellationToken ct = default) =>
+        ToAction(await _service.GetAvailableCopiesForStudentAsync(reference, studentReference, page, pageSize, ct));
+
     [HttpPost("copies")]
     [Authorize(Roles = "TenantAdmin,Principal,Librarian")]
     public async Task<IActionResult> CreateCopy([FromBody] SaveBookCopyRequestDto request, CancellationToken ct)

@@ -11,6 +11,7 @@ public interface ILibraryService
     Task<ApiResponse<PagedResult<BookDto>>> GetCatalogAsync(string? search, int page, int pageSize, CancellationToken cancellationToken = default);
     Task<ApiResponse<PagedResult<LibraryBranchDto>>> GetAssignableBranchesAsync(string? search, int page, int pageSize, CancellationToken cancellationToken = default);
     Task<ApiResponse<PagedResult<BookCopyDto>>> GetBookCopiesAsync(Guid bookReference, int page, int pageSize, CancellationToken cancellationToken = default);
+    Task<ApiResponse<PagedResult<BookCopyDto>>> GetAvailableCopiesForStudentAsync(Guid bookReference, Guid studentReference, int page, int pageSize, CancellationToken cancellationToken = default);
     Task<ApiResponse<BookCopyDto>> SaveBookCopyAsync(long? copyId, SaveBookCopyRequestDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<BookDto>> SaveBookAsync(SaveBookRequestDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<bool>> ArchiveBookAsync(Guid reference, string rowVersion, CancellationToken cancellationToken = default);
