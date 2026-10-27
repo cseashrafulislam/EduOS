@@ -91,6 +91,45 @@ public sealed partial class LibraryService
             { Items = rows, TotalCount = total, Page = page, PageSize = pageSize });
     }
 
+
+    /// <summary>Active branches available to the caller for physical copy registration.</summary>
+    public async Task<ApiResponse<PagedResult<LibraryBranchDto>>> GetAssignableBranchesAsync(
+        string? search, int page, int pageSize, CancellationToken ct = default)
+    {
+        if (!CanManage()) return Denied<PagedResult<LibraryBranchDto>>();
+        if (_branches == null)
+            return ApiResponse<PagedResult<LibraryBranchDto>>.ErrorResponse("Library branch lookup is unavailable.", 503);
+        if (page < 1 || pageSize is < 1 or > 100 || search?.Length > 100)
+            return ApiResponse<PagedResult<LibraryBranchDto>>.ErrorResponse("Invalid branch search or pagination.");
+        var tenant = _user.TenantId;
+        var query = _branches.GetQueryable().AsNoTracking().Where(x =>
+            x.TenantId == tenant && x.IsActive && !x.IsDeleted);
+        if (IsCampusScopedLibrarian)
+        {
+            var campuses = StaffCampusIds(tenant, DateOnly.FromDateTime(_clock.GetUtcNow().UtcDateTime));
+            if (campuses == null) return Denied<PagedResult<LibraryBranchDto>>();
+            query = query.Where(x => campuses.Contains(x.CampusId));
+        }
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var term = search.Trim();
+            query = query.Where(x => x.Name.Contains(term) || x.Code.Contains(term));
+        }
+        var offset = ((long)page - 1) * pageSize;
+        if (offset > int.MaxValue)
+            return ApiResponse<PagedResult<LibraryBranchDto>>.ErrorResponse("Page exceeds the supported range.");
+        var total = await query.CountAsync(ct);
+        var rows = await query.OrderBy(x => x.CampusId).ThenBy(x => x.Name).ThenBy(x => x.Id)
+            .Skip((int)offset).Take(pageSize).Select(x => new LibraryBranchDto
+            {
+                Id = x.Id, CampusId = x.CampusId, Name = x.Name, Code = x.Code,
+                Location = x.Location, IsActive = x.IsActive,
+                RowVersion = Convert.ToBase64String(x.RowVersion)
+            }).ToListAsync(ct);
+        return ApiResponse<PagedResult<LibraryBranchDto>>.SuccessResponse(
+            new PagedResult<LibraryBranchDto> { Items = rows, TotalCount = total, Page = page, PageSize = pageSize });
+    }
+
     private bool IsCampusScopedLibrarian =>
         !_user.IsTenantAdmin && !_user.IsInRole("Principal") && _user.IsInRole("Librarian");
 

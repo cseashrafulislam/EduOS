@@ -117,7 +117,7 @@ public sealed partial class LibraryService : ILibraryService
         page = Math.Max(1, page); pageSize = Math.Clamp(pageSize, 1, 100);
         if (search?.Length > 200) return ApiResponse<PagedResult<BookDto>>.ErrorResponse("Search is too long.");
         var tenant = _user.TenantId;
-        var query = _books.GetQueryable().AsNoTracking().Where(x => x.TenantId == tenant && x.IsActive);
+        var query = _books.GetQueryable().AsNoTracking().Where(x => x.TenantId == tenant && x.IsActive && !x.IsDeleted);
         if (!string.IsNullOrWhiteSpace(search))
         {
             var term = search.Trim();
@@ -129,8 +129,20 @@ public sealed partial class LibraryService : ILibraryService
         var books = offset > int.MaxValue ? new List<Book>() : await query.OrderBy(x => x.Title).ThenBy(x => x.Id)
             .Skip((int)offset).Take(pageSize).ToListAsync(ct);
         var ids = books.Select(x => x.Id).ToArray();
-        var counts = await _copies.GetQueryable().AsNoTracking().Where(x => x.TenantId == tenant && ids.Contains(x.BookId))
-            .GroupBy(x => x.BookId).Select(g => new { BookId = g.Key, Total = g.Count(),
+        var copiesQuery = _copies.GetQueryable().AsNoTracking().Where(x =>
+            x.TenantId == tenant && !x.IsDeleted && ids.Contains(x.BookId));
+        if (IsCampusScopedLibrarian)
+        {
+            var campuses = StaffCampusIds(tenant, DateOnly.FromDateTime(_clock.GetUtcNow().UtcDateTime));
+            if (campuses == null || _branches == null) return Denied<PagedResult<BookDto>>();
+            var allowedBranches = _branches.GetQueryable().AsNoTracking().Where(x =>
+                x.TenantId == tenant && x.IsActive && !x.IsDeleted && campuses.Contains(x.CampusId))
+                .Select(x => x.Id);
+            copiesQuery = copiesQuery.Where(x => x.LibraryBranchId.HasValue &&
+                allowedBranches.Contains(x.LibraryBranchId.Value));
+        }
+        var counts = await copiesQuery.GroupBy(x => x.BookId)
+            .Select(g => new { BookId = g.Key, Total = g.Count(),
                 Available = g.Count(x => x.State == BookCopyState.Available) }).ToDictionaryAsync(x => x.BookId, ct);
         var categoryIds = books.Where(x => x.BookCategoryId.HasValue).Select(x => x.BookCategoryId!.Value).Distinct().ToArray();
         var categories = await _categories.GetQueryable().AsNoTracking().Where(x => x.TenantId == tenant &&
@@ -159,6 +171,16 @@ public sealed partial class LibraryService : ILibraryService
         if (book == null) return ApiResponse<PagedResult<BookCopyDto>>.ErrorResponse("Book not found.", 404);
         var query = _copies.GetQueryable().AsNoTracking().Where(x =>
             x.TenantId == tenant && x.BookId == book.Id && !x.IsDeleted);
+        if (IsCampusScopedLibrarian)
+        {
+            var campuses = StaffCampusIds(tenant, DateOnly.FromDateTime(_clock.GetUtcNow().UtcDateTime));
+            if (campuses == null || _branches == null) return Denied<PagedResult<BookCopyDto>>();
+            var allowedBranches = _branches.GetQueryable().AsNoTracking().Where(x =>
+                x.TenantId == tenant && x.IsActive && !x.IsDeleted && campuses.Contains(x.CampusId))
+                .Select(x => x.Id);
+            query = query.Where(x => x.LibraryBranchId.HasValue &&
+                allowedBranches.Contains(x.LibraryBranchId.Value));
+        }
         var total = await query.CountAsync(ct);
         var offset = ((long)page - 1) * pageSize;
         var copies = offset > int.MaxValue ? new List<BookCopy>() : await query
@@ -188,6 +210,8 @@ public sealed partial class LibraryService : ILibraryService
                 var book = await _books.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
                     x.TenantId == tenant && x.PublicId == request.BookReference && x.IsActive && !x.IsDeleted, token);
                 if (book == null) return ApiResponse<BookCopyDto>.ErrorResponse("Active book not found.", 404);
+                if (!await StaffCanManageBranchAsync(request.LibraryBranchId, token))
+                    return ApiResponse<BookCopyDto>.ErrorResponse("Copy branch is outside your assigned campus.", 403);
                 if (request.LibraryBranchId.HasValue)
                 {
                     if (_branches == null || !await _branches.GetQueryable().AsNoTracking().AnyAsync(x =>
@@ -197,6 +221,8 @@ public sealed partial class LibraryService : ILibraryService
                 BookCopy? row = copyId.HasValue ? await _copies.GetQueryable().FirstOrDefaultAsync(x =>
                     x.TenantId == tenant && x.Id == copyId.Value && !x.IsDeleted, token) : null;
                 if (copyId.HasValue && row == null) return ApiResponse<BookCopyDto>.ErrorResponse("Copy not found.", 404);
+                if (row != null && !await StaffCanManageBranchAsync(row.LibraryBranchId, token))
+                    return ApiResponse<BookCopyDto>.ErrorResponse("Existing copy is outside your assigned campus.", 403);
                 if (row != null)
                 {
                     if (row.BookId != book.Id) return ApiResponse<BookCopyDto>.ErrorResponse("Moving copies between books is not allowed.", 409);
@@ -289,7 +315,7 @@ public sealed partial class LibraryService : ILibraryService
             book.ReplacementPrice = request.ReplacementPrice;
             book.CoverImageUrl = Trim(request.CoverImageUrl); book.IsActive = request.IsActive;
             await _uow.SaveChangesAsync(ct);
-            var totals = await _copies.GetQueryable().AsNoTracking().Where(x => x.TenantId == tenant && x.BookId == book.Id)
+            var totals = await _copies.GetQueryable().AsNoTracking().Where(x => x.TenantId == tenant && x.BookId == book.Id && !x.IsDeleted)
                 .GroupBy(x => x.BookId).Select(g => new { Total = g.Count(),
                     Available = g.Count(x => x.State == BookCopyState.Available) }).FirstOrDefaultAsync(ct);
             var categoryName = book.BookCategoryId.HasValue ?
@@ -389,18 +415,18 @@ public sealed partial class LibraryService : ILibraryService
             if (issueDate > DateOnly.FromDateTime(_clock.GetUtcNow().UtcDateTime))
                 return Error("Issue date cannot be in the future.", 409);
             var student = await _students.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x => x.TenantId == tenant &&
-                x.PublicId == request.StudentReference && x.StatusCode == "Active", ct);
+                x.PublicId == request.StudentReference && x.StatusCode == "Active" && !x.IsDeleted, ct);
             if (student == null) return Error("Active student not found.", 404);
             if (!await _enrollments.GetQueryable().AsNoTracking().AnyAsync(x => x.TenantId == tenant &&
-                x.StudentId == student.Id && x.IsCurrent && x.State == EnrollmentState.Active, ct))
+                x.StudentId == student.Id && x.IsCurrent && x.State == EnrollmentState.Active && !x.IsDeleted, ct))
                 return Error("Student has no current active enrollment.", 409);
             var copy = await _copies.GetQueryable().FirstOrDefaultAsync(x => x.TenantId == tenant &&
-                x.Id == request.BookCopyId, ct);
+                x.Id == request.BookCopyId && !x.IsDeleted, ct);
             if (copy == null || copy.State != BookCopyState.Available)
                 return Error("The selected copy is not available.", 409);
             if (!await StaffCanManageBranchAsync(copy.LibraryBranchId, ct))
                 return Error("Copy is outside your assigned campus.", 403);
-            if (!await _books.GetQueryable().AsNoTracking().AnyAsync(x => x.TenantId == tenant && x.Id == copy.BookId && x.IsActive, ct))
+            if (!await _books.GetQueryable().AsNoTracking().AnyAsync(x => x.TenantId == tenant && x.Id == copy.BookId && x.IsActive && !x.IsDeleted, ct))
                 return Error("Book is archived or unavailable.", 409);
             if (copy.LibraryBranchId.HasValue)
             {

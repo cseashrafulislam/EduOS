@@ -5,6 +5,8 @@
     if (!catalogRows || !issueRows || !query) return;
     const canManage = !!el('libraryBookForm');
     let books = [], categories = [], selectedCopyBook = null, copyPage = 1, copyRequest = 0;
+    let branchPage = 1, branchRequest = 0;
+    const branchLabels = new Map();
     const paging = { catalog: 1, issues: 1, pageSize: 20 };
     const catalogColumns = canManage ? 6 : 5;
     function message(text, success = false) {
@@ -136,12 +138,43 @@
 
     function resetCopyForm() {
         el('libraryCopyForm').reset(); el('copyId').value = ''; el('copyRowVersion').value = '';
+        el('copyBranch').value = '';
         el('copySave').textContent = 'Save copy';
+    }
+    function chooseCopyBranch(id) {
+        const select = el('copyBranch'), value = id == null ? '' : String(id);
+        if (value && ![...select.options].some(option => option.value === value)) {
+            select.add(new Option(branchLabels.get(value) || ('Branch #' + value + ' (current)'), value));
+        }
+        select.value = value;
+    }
+    async function loadCopyBranches() {
+        const sequence = ++branchRequest;
+        try {
+            const data = await api('/api/library/copy-branches?' + new URLSearchParams({
+                search: el('copyBranchSearch').value.trim(), page: branchPage, pageSize: 20
+            }));
+            if (sequence !== branchRequest) return;
+            const select = el('copyBranch'), selected = select.value;
+            select.replaceChildren(new Option('Select a branch', ''));
+            for (const branch of (data?.items || [])) {
+                const name = branch.name + ' (' + branch.code + ', campus ' + branch.campusId + ')';
+                branchLabels.set(String(branch.id), name);
+                select.add(new Option(name, String(branch.id)));
+            }
+            chooseCopyBranch(selected);
+            el('copyBranchPrevious').disabled = !data?.hasPreviousPage;
+            el('copyBranchNext').disabled = !data?.hasNextPage;
+            el('copyBranchPage').textContent = 'Page ' + branchPage + ' of ' + Math.max(1, data?.totalPages ?? 1);
+        } catch (error) {
+            if (sequence === branchRequest) message(error.message);
+        }
     }
     function editCopy(copy) {
         el('copyId').value = copy.id; el('copyRowVersion').value = copy.rowVersion || '';
         el('copyAccession').value = copy.accessionNumber; el('copyBarcode').value = copy.barcode || '';
         el('copyShelf').value = copy.shelfNumber || '';
+        chooseCopyBranch(copy.libraryBranchId);
         el('copySave').textContent = 'Update copy'; el('copyAccession').focus();
     }
     function selectCopyBook(book) {
@@ -151,6 +184,7 @@
         el('libraryCopiesPanel').classList.remove('d-none');
         el('libraryCopiesPanel').scrollIntoView({ behavior: 'smooth', block: 'start' });
         loadCopies();
+        loadCopyBranches();
     }
     async function loadCopies() {
         if (!canManage || !selectedCopyBook) return;
@@ -163,7 +197,9 @@
             const copies = Array.isArray(data?.items) ? data.items : [];
             copies.forEach(copy => {
                 const tr = document.createElement('tr');
-                [copy.accessionNumber, copy.barcode, copy.shelfNumber, copy.state].forEach(v => tr.append(cell(v)));
+                [copy.accessionNumber, copy.barcode, copy.shelfNumber,
+                    copy.libraryBranchId ? (branchLabels.get(String(copy.libraryBranchId)) || 'Branch #' + copy.libraryBranchId) : 'Unassigned',
+                    copy.state].forEach(v => tr.append(cell(v)));
                 const td = document.createElement('td');
                 if (copy.state === 1 || copy.state === 'Available') {
                     const edit = document.createElement('button');
@@ -172,7 +208,7 @@
                 }
                 tr.append(td); rows.append(tr);
             });
-            if (!copies.length) renderEmpty(rows, 5, 'No registered copies.');
+            if (!copies.length) renderEmpty(rows, 6, 'No registered copies.');
             el('copyPrevious').disabled = !data?.hasPreviousPage;
             el('copyNext').disabled = !data?.hasNextPage;
             el('copyPage').textContent = 'Page ' + copyPage + ' of ' + Math.max(1, data?.totalPages ?? 1);
@@ -184,7 +220,10 @@
         const button = el('copySave'); button.disabled = true;
         try {
             const id = el('copyId').value;
-            const payload = { bookReference: selectedCopyBook.reference,
+            const branchId = Number(el('copyBranch').value);
+            if (!Number.isSafeInteger(branchId) || branchId <= 0)
+                throw new Error('Select an active library branch before saving.');
+            const payload = { bookReference: selectedCopyBook.reference, libraryBranchId: branchId,
                 accessionNumber: el('copyAccession').value.trim(),
                 barcode: el('copyBarcode').value.trim() || null,
                 shelfNumber: el('copyShelf').value.trim() || null,
@@ -262,6 +301,12 @@
     if (canManage) {
         el('libraryCopyForm').addEventListener('submit', saveCopy);
         el('copyReset').addEventListener('click', resetCopyForm);
+        el('copyBranchFind').addEventListener('click', () => { branchPage = 1; loadCopyBranches(); });
+        el('copyBranchSearch').addEventListener('keydown', event => {
+            if (event.key === 'Enter') { event.preventDefault(); branchPage = 1; loadCopyBranches(); }
+        });
+        el('copyBranchPrevious').addEventListener('click', () => { if (branchPage > 1) { branchPage--; loadCopyBranches(); } });
+        el('copyBranchNext').addEventListener('click', () => { branchPage++; loadCopyBranches(); });
         el('copyPrevious').addEventListener('click', () => { if (copyPage > 1) { copyPage--; loadCopies(); } });
         el('copyNext').addEventListener('click', () => { copyPage++; loadCopies(); });
     }

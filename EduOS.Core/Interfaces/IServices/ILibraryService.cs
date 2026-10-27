@@ -9,6 +9,7 @@ public interface ILibraryService
     Task<ApiResponse<IReadOnlyList<BookCategoryDto>>> GetCategoriesAsync(CancellationToken cancellationToken = default);
     Task<ApiResponse<BookCategoryDto>> SaveCategoryAsync(long? categoryId, SaveBookCategoryRequestDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<PagedResult<BookDto>>> GetCatalogAsync(string? search, int page, int pageSize, CancellationToken cancellationToken = default);
+    Task<ApiResponse<PagedResult<LibraryBranchDto>>> GetAssignableBranchesAsync(string? search, int page, int pageSize, CancellationToken cancellationToken = default);
     Task<ApiResponse<PagedResult<BookCopyDto>>> GetBookCopiesAsync(Guid bookReference, int page, int pageSize, CancellationToken cancellationToken = default);
     Task<ApiResponse<BookCopyDto>> SaveBookCopyAsync(long? copyId, SaveBookCopyRequestDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<BookDto>> SaveBookAsync(SaveBookRequestDto request, CancellationToken cancellationToken = default);

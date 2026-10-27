@@ -416,6 +416,89 @@ public sealed class LibraryServiceTests
         (await db.BookCopies.SingleAsync()).State.Should().Be(BookCopyState.Issued);
     }
 
+
+    [Fact]
+    public async Task Copy_branch_search_and_administration_are_campus_scoped_for_librarians()
+    {
+        var options = Options();
+        await using var db = Context(options, 101, "Librarian");
+        var book = new Book { TenantId = 101, Title = "Shared Catalog" };
+        var north = new LibraryBranch { TenantId = 101, CampusId = 44, Name = "North", Code = "N" };
+        var south = new LibraryBranch { TenantId = 101, CampusId = 55, Name = "South", Code = "S" };
+        var staff = new Employee { TenantId = 101, UserId = 7, PersonId = 3,
+            DesignationId = 1, FullName = "Librarian", EmployeeCode = "LIB-2", State = EmployeeState.Active };
+        db.AddRange(book, north, south, staff);
+        await db.SaveChangesAsync();
+        db.Add(new EmployeeCampusAssignment { TenantId = 101, EmployeeId = staff.Id, CampusId = 44,
+            IsCurrent = true, EffectiveFrom = new DateOnly(2025, 1, 1) });
+        db.BookCopies.Add(new BookCopy { TenantId = 101, BookId = book.Id, LibraryBranchId = south.Id,
+            AccessionNumber = "S-001" });
+        await db.SaveChangesAsync();
+        var service = Service(db, 101, "Librarian");
+
+        var branches = await service.GetAssignableBranchesAsync(null, 1, 20);
+        branches.Success.Should().BeTrue();
+        branches.Data!.TotalCount.Should().Be(1);
+        branches.Data.Items.Single().Id.Should().Be(north.Id);
+        (await service.GetAssignableBranchesAsync("South", 1, 20)).Data!.Items.Should().BeEmpty();
+        (await service.GetBookCopiesAsync(book.PublicId, 1, 20)).Data!.TotalCount.Should().Be(0);
+        (await service.SaveBookCopyAsync(null, new SaveBookCopyRequestDto
+        { BookReference = book.PublicId, AccessionNumber = "S-002", LibraryBranchId = south.Id }))
+            .StatusCode.Should().Be(403);
+        (await service.SaveBookCopyAsync(null, new SaveBookCopyRequestDto
+        { BookReference = book.PublicId, AccessionNumber = "UNASSIGNED" }))
+            .StatusCode.Should().Be(403);
+
+        var saved = await service.SaveBookCopyAsync(null, new SaveBookCopyRequestDto
+        { BookReference = book.PublicId, AccessionNumber = "N-001", LibraryBranchId = north.Id });
+        saved.Success.Should().BeTrue(saved.Message);
+        (await service.GetBookCopiesAsync(book.PublicId, 1, 20)).Data!.Items
+            .Should().ContainSingle().Which.AccessionNumber.Should().Be("N-001");
+        var foreignCopy = await db.BookCopies.SingleAsync(x => x.AccessionNumber == "S-001");
+        (await service.SaveBookCopyAsync(foreignCopy.Id, new SaveBookCopyRequestDto
+        { BookReference = book.PublicId, AccessionNumber = "S-001", LibraryBranchId = north.Id,
+            RowVersion = Convert.ToBase64String(foreignCopy.RowVersion) })).StatusCode.Should().Be(403);
+        var stock = await service.GetCatalogAsync(null, 1, 20);
+        stock.Data!.Items.Single().TotalCopies.Should().Be(1);
+        stock.Data.Items.Single().AvailableCopies.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task Catalog_excludes_deleted_books_and_deleted_copies_from_stock()
+    {
+        var options = Options();
+        await using var db = Context(options, 101);
+        var active = new Book { TenantId = 101, Title = "Active" };
+        var deleted = new Book { TenantId = 101, Title = "Deleted", IsDeleted = true };
+        db.Books.AddRange(active, deleted);
+        await db.SaveChangesAsync();
+        db.BookCopies.AddRange(
+            new BookCopy { TenantId = 101, BookId = active.Id, AccessionNumber = "ACTIVE" },
+            new BookCopy { TenantId = 101, BookId = active.Id, AccessionNumber = "DELETED", IsDeleted = true });
+        await db.SaveChangesAsync();
+        var result = await Service(db, 101).GetCatalogAsync(null, 1, 20);
+        result.Data!.TotalCount.Should().Be(1);
+        result.Data.Items.Single().TotalCopies.Should().Be(1);
+        result.Data.Items.Single().AvailableCopies.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task Deleted_student_or_copy_cannot_start_new_circulation()
+    {
+        var options = Options();
+        await using var db = Context(options, 101);
+        var (student, copy) = await SeedBorrower(db, 101, true);
+        var service = Service(db, 101);
+        copy.IsDeleted = true;
+        await db.SaveChangesAsync();
+        (await service.IssueAsync(Request(student, copy, Guid.NewGuid()))).StatusCode.Should().Be(409);
+        copy.IsDeleted = false;
+        student.IsDeleted = true;
+        await db.SaveChangesAsync();
+        (await service.IssueAsync(Request(student, copy, Guid.NewGuid()))).StatusCode.Should().Be(404);
+        (await db.BookIssues.CountAsync()).Should().Be(0);
+    }
+
     private static IssueBookRequestDto Request(Student student, BookCopy copy, Guid key) => new()
     {
         ClientRequestId = key, BookCopyId = copy.Id, StudentReference = student.PublicId,

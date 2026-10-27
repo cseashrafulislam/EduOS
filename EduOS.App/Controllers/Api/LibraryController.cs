@@ -35,6 +35,12 @@ public sealed class LibraryController : ControllerBase
     [HttpGet("catalog")]
     public async Task<IActionResult> Catalog([FromQuery]string? search,[FromQuery]int page=1,[FromQuery]int pageSize=20,CancellationToken ct=default)=>ToAction(await _service.GetCatalogAsync(search,page,pageSize,ct));
 
+    [HttpGet("copy-branches")]
+    [Authorize(Roles = "TenantAdmin,Principal,Librarian")]
+    public async Task<IActionResult> CopyBranches([FromQuery] string? search = null,
+        [FromQuery] int page = 1, [FromQuery] int pageSize = 20, CancellationToken ct = default) =>
+        ToAction(await _service.GetAssignableBranchesAsync(search, page, pageSize, ct));
+
     [HttpGet("books/{reference:guid}/copies")]
     [Authorize(Roles = "TenantAdmin,Principal,Librarian")]
     public async Task<IActionResult> Copies(Guid reference, [FromQuery] int page = 1,
