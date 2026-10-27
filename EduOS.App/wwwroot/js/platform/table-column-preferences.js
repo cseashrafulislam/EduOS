@@ -3,7 +3,9 @@
     // Only allowlisted institution-admin and audit tables opt in. Preferences never alter API/export permissions.
     const definitions = {
         'institution-users': { ids: ['user', 'membership', 'roles', 'action'], required: ['user', 'action'] },
-        'institution-invitations': { ids: ['email', 'role', 'campus', 'expires', 'status', 'action'], required: ['email', 'status', 'action'] }
+        'institution-invitations': { ids: ['email', 'role', 'campus', 'expires', 'status', 'action'], required: ['email', 'status', 'action'] },
+        'institution-feature-audit': { ids: ['feature', 'code', 'plan', 'override', 'restriction', 'reason'], required: ['feature', 'code', 'restriction'] },
+        'institution-activity-audit': { ids: ['time', 'user', 'action', 'entity', 'record', 'ip', 'outcome'], required: ['time', 'user', 'action', 'outcome'] }
     };
     const tables = [...document.querySelectorAll('table[data-workspace-table]')];
 

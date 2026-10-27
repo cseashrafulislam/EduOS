@@ -136,7 +136,9 @@
     }
     const tableDefinitions = {
         'institution-users': { ids: ['user', 'membership', 'roles', 'action'], required: ['user', 'action'] },
-        'institution-invitations': { ids: ['email', 'role', 'campus', 'expires', 'status', 'action'], required: ['email', 'status', 'action'] }
+        'institution-invitations': { ids: ['email', 'role', 'campus', 'expires', 'status', 'action'], required: ['email', 'status', 'action'] },
+        'institution-feature-audit': { ids: ['feature', 'code', 'plan', 'override', 'restriction', 'reason'], required: ['feature', 'code', 'restriction'] },
+        'institution-activity-audit': { ids: ['time', 'user', 'action', 'entity', 'record', 'ip', 'outcome'], required: ['time', 'user', 'action', 'outcome'] }
     };
     function safeTablePreferences(tables) {
         const defaults = () => Object.entries(tableDefinitions).map(([id, definition]) => ({
