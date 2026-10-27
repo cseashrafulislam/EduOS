@@ -29,8 +29,8 @@ public sealed partial class FinanceAdjustmentService
     public async Task<ApiResponse<ReservationFinanceWorklistDto>> GetReservationFinanceWorklistAsync(
         ReservationFinanceWorklistQueryDto request, CancellationToken ct = default)
     {
-        if (!Authorized)
-            return Error<ReservationFinanceWorklistDto>("Institution administrator permission required.", 403);
+        if (!Authorized || db.CurrentTenantId != user.TenantId)
+            return Error<ReservationFinanceWorklistDto>("Institution administrator and matching tenant context required.", 403);
         if (request == null || string.IsNullOrWhiteSpace(request.Kind) ||
             request.CampusId is <= 0 || request.Page is < 1 or > 10000 ||
             request.PageSize is < 1 or > 100 ||

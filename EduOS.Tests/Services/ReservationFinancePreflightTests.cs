@@ -282,6 +282,16 @@ public sealed class ReservationFinancePreflightTests
         result.Data.FinancialMutationApproved.Should().BeFalse();
     }
 
+
+    [Fact]
+    public async Task Finance_preflight_fails_closed_when_authenticated_tenant_differs_from_db_context()
+    {
+        await using var db = Database(42);
+        var response = await new FinanceAdjustmentService(db, new TestUser(true), TimeProvider.System)
+            .GetReservationFinancePreflightAsync("hostel", 1);
+        response.StatusCode.Should().Be(403);
+    }
+
     private static async Task<StudentHostelAllocation> SeedHostel(EduOSDbContext db, long tenant, long hostelCampus)
     {
         var enrollment = new StudentEnrollment { TenantId = tenant, StudentId = 10, CampusId = 7, RollNo = "H-10" };

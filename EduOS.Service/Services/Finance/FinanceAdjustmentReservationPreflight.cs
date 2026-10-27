@@ -16,8 +16,8 @@ public sealed partial class FinanceAdjustmentService
     public async Task<ApiResponse<ReservationFinancePreflightDto>> GetReservationFinancePreflightAsync(
         string kind, long id, CancellationToken ct = default)
     {
-        if (!Authorized)
-            return Error<ReservationFinancePreflightDto>("Institution administrator permission required.", 403);
+        if (!Authorized || db.CurrentTenantId != user.TenantId)
+            return Error<ReservationFinancePreflightDto>("Institution administrator and matching tenant context required.", 403);
         if (id <= 0 || string.IsNullOrWhiteSpace(kind))
             return Error<ReservationFinancePreflightDto>("Reservation type and ID are required.");
         var type = kind.Trim().ToLowerInvariant();

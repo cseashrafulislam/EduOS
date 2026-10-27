@@ -24,7 +24,8 @@ public sealed class ReservationFinancePolicy : IReservationFinancePolicy
     public async Task<bool> HasPostedActivityAsync(long tenantId, long studentId,
         long studentEnrollmentId, CancellationToken cancellationToken = default)
     {
-        if (tenantId <= 0 || studentId <= 0 || studentEnrollmentId <= 0)
+        if (tenantId <= 0 || studentId <= 0 || studentEnrollmentId <= 0 ||
+            _db.CurrentTenantId != tenantId)
             return true;
 
         if (await _db.StudentInvoices.IgnoreQueryFilters().AsNoTracking().AnyAsync(x =>

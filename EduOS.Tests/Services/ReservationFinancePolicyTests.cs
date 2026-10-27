@@ -107,6 +107,7 @@ public sealed class ReservationFinancePolicyTests
         }
         await using var db = Context(101, options);
         Assert.True(await new ReservationFinancePolicy(db).HasPostedActivityAsync(0, 10, 11));
+        Assert.True(await new ReservationFinancePolicy(db).HasPostedActivityAsync(202, 10, 11));
         Assert.False(await new ReservationFinancePolicy(db).HasPostedActivityAsync(101, 10, 11));
     }
 

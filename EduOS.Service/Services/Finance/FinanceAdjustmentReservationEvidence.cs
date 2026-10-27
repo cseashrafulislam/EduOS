@@ -15,8 +15,8 @@ public sealed partial class FinanceAdjustmentService
     public async Task<ApiResponse<ReservationFinanceEvidenceDto>> GetReservationFinanceEvidenceAsync(
         ReservationFinanceEvidenceQueryDto request, CancellationToken ct = default)
     {
-        if (!Authorized)
-            return Error<ReservationFinanceEvidenceDto>("Institution administrator permission required.", 403);
+        if (!Authorized || db.CurrentTenantId != user.TenantId)
+            return Error<ReservationFinanceEvidenceDto>("Institution administrator and matching tenant context required.", 403);
         if (request == null || request.ReservationId <= 0 ||
             string.IsNullOrWhiteSpace(request.Kind) || string.IsNullOrWhiteSpace(request.Source) ||
             request.Page is < 1 or > 10000 || request.PageSize is < 1 or > 100)
