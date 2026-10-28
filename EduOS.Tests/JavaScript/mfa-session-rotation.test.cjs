@@ -12,7 +12,10 @@ test('MFA setup and enable refresh the cookie-bound CSRF token and adopt only th
     const layout = read('EduOS.App/Views/Shared/_Layout.cshtml');
     assert.match(mfa, /fetch\('\/api\/auth\/antiforgery'/);
     assert.match(mfa, /await refreshRotatedSession\(\)/);
-    assert.match(mfa, /EduOSAdoptRotatedSession\?\.\(data\.sessionReference, data\.tenantId\)/);
+    assert.match(mfa, /typeof window\.EduOSAdoptRotatedSession === 'function'/);
+    assert.match(mfa, /sameTenant && \/\^\[0-9A-F\]\{64\}\$\//);
+    const publicLayout = read('EduOS.App/Views/Shared/_PublicLayout.cshtml');
+    assert.match(publicLayout, /data-auth-tenant-id=/);
     assert.match(mfa, /meta\.content = data\.requestToken/);
     assert.match(mfa, /EduOSNotifySessionChanged\?\.\(\)/);
     const wrapper = site.slice(site.indexOf('window.fetch ='), site.indexOf('// Clear only public'));

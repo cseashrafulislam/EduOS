@@ -137,9 +137,16 @@
                 const payload = await response.json().catch(() => null);
                 const data = payload?.data;
                 const meta = document.querySelector('meta[name="request-verification-token"]');
+                // MFA setup uses the public layout, which intentionally has no
+                // private-shell session guard. Verify the original institution
+                // there; on private pages adopt through the shared guard.
+                const tenant = data?.tenantId == null ? '' : String(data.tenantId);
+                const sameTenant = tenant === (document.body.dataset.authTenantId ?? '');
+                const adopted = typeof window.EduOSAdoptRotatedSession === 'function'
+                    ? window.EduOSAdoptRotatedSession(data?.sessionReference, data?.tenantId)
+                    : sameTenant && /^[0-9A-F]{64}$/.test(data?.sessionReference || '');
                 if (!response.ok || payload?.success !== true || !meta ||
-                    typeof data?.requestToken !== 'string' || !data.requestToken ||
-                    !window.EduOSAdoptRotatedSession?.(data.sessionReference, data.tenantId))
+                    typeof data?.requestToken !== 'string' || !data.requestToken || !adopted)
                     return false;
                 meta.content = data.requestToken;
                 document.querySelectorAll('input[name="__RequestVerificationToken"]')

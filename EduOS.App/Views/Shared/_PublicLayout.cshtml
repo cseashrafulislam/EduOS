@@ -27,7 +27,7 @@
     <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" asp-append-version="true" />
     <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
 </head>
-<body class="public-page">
+<body class="public-page" data-auth-tenant-id="@(User?.FindFirst("TenantId")?.Value ?? "")">
     <a class="skip-link" href="#main-content">@T["SkipToContent"]</a>
 
     <div class="public-shell">
