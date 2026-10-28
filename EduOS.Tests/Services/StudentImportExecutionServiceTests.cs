@@ -550,7 +550,7 @@ public sealed class StudentImportExecutionServiceTests
             new EduOS.Core.DTOs.Students.StudentImportCohortUploadDto
             {
                 Extension = ".csv", Content = Encoding.UTF8.GetBytes(
-                    Header + "SOURCE-NEW,code-old,Second,10,20,3,,\n")
+                    Header + "SOURCE-NEW,CODE-OLD,Second,10,20,3,,\n")
             }
         };
         var report = await service.PreflightCohortAsync(files, Mapping);
