@@ -224,9 +224,10 @@ public sealed class SqlServerAssessmentMarkReviewLifecycleIntegrationTests
         {
             var subject = await db.AssessmentSubjects.AsNoTracking()
                 .SingleAsync(x => x.Id == seeded.AssessmentSubjectId);
-            var enrollment = await db.StudentEnrollments.SingleAsync(x =>
-                x.Id == (db.StudentSubjectRegistrations.AsNoTracking()
-                    .Single(r => r.Id == seeded.RegistrationId).StudentEnrollmentId));
+            var enrollmentId = await db.StudentSubjectRegistrations.AsNoTracking()
+                .Where(x => x.Id == seeded.RegistrationId)
+                .Select(x => x.StudentEnrollmentId).SingleAsync();
+            var enrollment = await db.StudentEnrollments.SingleAsync(x => x.Id == enrollmentId);
             var student = await db.Students.SingleAsync(x => x.Id == enrollment.StudentId);
             student.UserId = seeded.UnassignedId;
             studentReference = student.PublicId;
