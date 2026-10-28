@@ -108,7 +108,7 @@ public class PayrollEmployeeDto
     public DateOnly PeriodStart { get; set; }
     public DateOnly PeriodEnd { get; set; }
     public long? CampusId { get; set; }
-    public PayrollRunState RunState { get; set; }
+    public PayrollRunState RunState { get; set; } = PayrollRunState.Draft;
     public Guid EmployeeReference { get; set; }
     public string EmployeeCode { get; set; } = string.Empty;
     public string EmployeeName { get; set; } = string.Empty;
