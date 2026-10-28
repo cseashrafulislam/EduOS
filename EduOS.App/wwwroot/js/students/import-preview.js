@@ -435,6 +435,74 @@
         } catch (error) { message(error.message, true); }
     });
 
+    const cohortSources = document.getElementById('studentImportCohortSources');
+    const cohortPreflight = document.getElementById('studentImportCohortPreflight');
+    const cohortPreflightSummary = document.getElementById('studentImportCohortPreflightSummary');
+    const cohortConflicts = document.getElementById('studentImportCohortConflicts');
+    const cohortConflictsExport = document.getElementById('studentImportCohortConflictsExport');
+    function cohortUpload() {
+        const files = Array.from(cohortSources.files || []);
+        if (files.length < 2 || files.length > 8)
+            throw new Error('Choose two to eight CSV/XLSX files for cross-file validation.');
+        if (files.some(file => file.size < 1 || file.size > 6 * 1024 * 1024 ||
+            !/\.(csv|xlsx)$/i.test(file.name)) ||
+            files.reduce((sum, file) => sum + file.size, 0) > 48 * 1024 * 1024)
+            throw new Error('Each source must be CSV/XLSX, at most 6 MB; combined maximum 48 MB.');
+        const data = new FormData();
+        for (const file of files) data.append('files', file);
+        data.append('mappingJson', chosenMapping());
+        return data;
+    }
+    cohortSources.addEventListener('change', () => {
+        cohortPreflightSummary.textContent = '';
+        cohortConflicts.replaceChildren();
+        cohortConflictsExport.classList.add('d-none');
+    });
+    cohortPreflight.addEventListener('click', async () => {
+        if (busy) return;
+        busy = true; cohortPreflight.disabled = true;
+        try {
+            const report = await send('/api/student-imports/cohort-preflight', cohortUpload());
+            cohortPreflightSummary.textContent = report.fileCount + ' files, ' +
+                report.totalRows + ' rows, ' + report.totalIssues + ' cross-file issues.';
+            cohortConflicts.replaceChildren();
+            for (const issue of report.issues || []) {
+                const tr = document.createElement('tr');
+                for (const value of [issue.fileNumber, issue.rowNumber, issue.field, issue.message]) {
+                    const td = document.createElement('td');
+                    td.textContent = String(value ?? '');
+                    tr.appendChild(td);
+                }
+                cohortConflicts.appendChild(tr);
+            }
+            cohortConflictsExport.classList.toggle('d-none', report.totalIssues === 0);
+            message(report.totalIssues ? 'Resolve cross-file conflicts before importing.' :
+                'No cross-file conflicts found. Run each file preview before committing.', report.totalIssues > 0);
+        } catch (error) { message(error.message, true); }
+        finally { busy = false; cohortPreflight.disabled = false; }
+    });
+    cohortConflictsExport.addEventListener('click', async () => {
+        if (busy) return;
+        busy = true; cohortConflictsExport.disabled = true;
+        try {
+            const token = form.querySelector('input[name="__RequestVerificationToken"]')?.value;
+            if (!token) throw new Error('Session verification token is missing. Refresh the page.');
+            const response = await fetch('/api/student-imports/cohort-preflight?export=true', {
+                method: 'POST', body: cohortUpload(), credentials: 'same-origin', cache: 'no-store',
+                headers: { 'RequestVerificationToken': token }
+            });
+            if (!response.ok) {
+                const body = await response.json().catch(() => null);
+                throw new Error(body?.message || 'Unable to export cross-file conflicts.');
+            }
+            const url = URL.createObjectURL(await response.blob());
+            const a = document.createElement('a');
+            a.href = url; a.download = 'student-import-cohort-conflicts.csv'; a.click();
+            URL.revokeObjectURL(url);
+        } catch (error) { message(error.message, true); }
+        finally { busy = false; cohortConflictsExport.disabled = false; }
+    });
+
     download.addEventListener('click', async () => {
         if (busy) return;
         busy = true; download.disabled = true;

@@ -159,6 +159,57 @@ public sealed class StudentImportsController : ControllerBase
         return StatusCode(result.StatusCode, result);
     }
 
+    /// <summary>Read-only, bounded cross-file duplicate and guardian-profile preflight.</summary>
+    [HttpPost("cohort-preflight")]
+    [RequestSizeLimit(52 * 1024 * 1024)]
+    public async Task<IActionResult> CohortPreflight(
+        [FromForm] List<IFormFile>? files, [FromForm] string? mappingJson,
+        [FromQuery] bool export = false, CancellationToken cancellationToken = default)
+    {
+        if (files == null || files.Count is < 2 or > 8 ||
+            files.Any(file => ValidateFile(file) != null) ||
+            files.Sum(file => file.Length) > 8L * MaxFileSize)
+            return BadRequest("Select two to eight CSV/XLSX files, each at most 6 MB (48 MB total).");
+        Dictionary<string, string>? mapping;
+        try { mapping = JsonSerializer.Deserialize<Dictionary<string, string>>(mappingJson ?? ""); }
+        catch (JsonException) { return BadRequest("Invalid column mapping."); }
+        if (mapping == null || mapping.Count is < 6 or > 10)
+            return BadRequest("Required column mapping is missing.");
+
+        var sources = new List<StudentImportCohortUploadDto>(files.Count);
+        foreach (var file in files)
+        {
+            await using var buffer = new MemoryStream();
+            await file.CopyToAsync(buffer, cancellationToken);
+            sources.Add(new StudentImportCohortUploadDto
+            {
+                Content = buffer.ToArray(), Extension = Path.GetExtension(file.FileName)
+            });
+        }
+        var result = await _execution.PreflightCohortAsync(sources, mapping, cancellationToken);
+        if (!result.Success || result.Data == null)
+            return StatusCode(result.StatusCode, result);
+        if (export)
+        {
+            var csv = new StringBuilder("FileNumber,RowNumber,Field,Issue\r\n");
+            foreach (var issue in result.Data.Issues)
+                csv.Append(issue.FileNumber).Append(',').Append(issue.RowNumber).Append(',')
+                    .Append(SafeCsvCell(issue.Field)).Append(',')
+                    .Append(SafeCsvCell(issue.Message)).Append("\r\n");
+            var bytes = Encoding.UTF8.GetPreamble().Concat(Encoding.UTF8.GetBytes(csv.ToString())).ToArray();
+            if (bytes.Length > 16 * 1024 * 1024)
+                return StatusCode(413, "Conflict export exceeds 16 MB.");
+            return File(bytes, "text/csv; charset=utf-8", "student-import-cohort-conflicts.csv");
+        }
+        var report = result.Data;
+        return Ok(EduOS.Core.Common.ApiResponse<StudentImportCohortPreflightDto>.SuccessResponse(
+            new StudentImportCohortPreflightDto
+            {
+                FileCount = report.FileCount, TotalRows = report.TotalRows,
+                TotalIssues = report.TotalIssues, Issues = report.Issues.Take(100).ToList()
+            }));
+    }
+
     [HttpGet("{reference:guid}")]
     public async Task<IActionResult> Reconciliation(Guid reference, [FromQuery] int page = 1,
         [FromQuery] int pageSize = 50, CancellationToken cancellationToken = default)

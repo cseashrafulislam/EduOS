@@ -1,6 +1,30 @@
 namespace EduOS.Core.DTOs.Students;
 
 /// <summary>One committed, bounded tenant-owned student import batch.</summary>
+/// <summary>Bounded, ephemeral source content; never persisted as a job attachment.</summary>
+public sealed class StudentImportCohortUploadDto
+{
+    public byte[] Content { get; set; } = Array.Empty<byte>();
+    public string Extension { get; set; } = string.Empty;
+}
+
+public sealed class StudentImportCohortConflictDto
+{
+    public int FileNumber { get; set; }
+    public int RowNumber { get; set; }
+    public string Field { get; set; } = string.Empty;
+    public string Message { get; set; } = string.Empty;
+}
+
+public sealed class StudentImportCohortPreflightDto
+{
+    public int FileCount { get; set; }
+    public int TotalRows { get; set; }
+    public int TotalIssues { get; set; }
+    public bool HasMoreIssues => TotalIssues > Issues.Count;
+    public List<StudentImportCohortConflictDto> Issues { get; set; } = new();
+}
+
 public sealed class StudentImportExecutionDto
 {
     public Guid ImportReference { get; set; }

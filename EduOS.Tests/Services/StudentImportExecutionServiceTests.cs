@@ -397,6 +397,74 @@ public sealed class StudentImportExecutionServiceTests
         Assert.Empty(await db.Students.ToListAsync());
     }
 
+    [Fact]
+    public async Task Cohort_preflight_detects_cross_file_student_and_guardian_collisions_without_writes()
+    {
+        var options = Options(); await SeedAsync(options);
+        await using var db = Context(options, 101);
+        var service = Service(db, new User(101, true));
+        var mapping = new Dictionary<string, string>(Mapping) { ["GuardianSourceKey"] = "GuardianSourceKey" };
+        const string header = "SourceKey,StudentCode,FullName,CampusId,AcademicBatchId,RollNo,GuardianName,GuardianPhone,GuardianSourceKey\n";
+        var files = new[]
+        {
+            new EduOS.Core.DTOs.Students.StudentImportCohortUploadDto
+            {
+                Extension = ".csv", Content = Encoding.UTF8.GetBytes(header +
+                    "SRC-1,STU-1,Learner One,10,20,11,Guardian One,01700000000,FAMILY-1\n")
+            },
+            new EduOS.Core.DTOs.Students.StudentImportCohortUploadDto
+            {
+                Extension = ".csv", Content = Encoding.UTF8.GetBytes(header +
+                    "src-1,stu-1,Learner Two,10,20,11,Guardian Different,01700000000,family-1\n")
+            }
+        };
+        var report = await service.PreflightCohortAsync(files, mapping);
+        Assert.True(report.Success, report.Message);
+        Assert.Equal(2, report.Data!.TotalRows);
+        Assert.Equal(4, report.Data.TotalIssues);
+        Assert.All(report.Data.Issues, issue => Assert.Equal(2, issue.FileNumber));
+        Assert.Contains(report.Data.Issues, x => x.Field == "GuardianSourceKey");
+        Assert.Empty(await db.Students.ToListAsync());
+        Assert.Empty(await db.Guardians.ToListAsync());
+        Assert.Empty(await db.ImportLogs.ToListAsync());
+    }
+
+    [Fact]
+    public async Task Cohort_preflight_allows_consistent_guardian_reuse_but_denies_other_roles_and_invalid_files()
+    {
+        var options = Options(); await SeedAsync(options);
+        await using var db = Context(options, 101);
+        var service = Service(db, new User(101, true));
+        var mapping = new Dictionary<string, string>(Mapping) { ["GuardianSourceKey"] = "GuardianSourceKey" };
+        const string header = "SourceKey,StudentCode,FullName,CampusId,AcademicBatchId,RollNo,GuardianName,GuardianPhone,GuardianSourceKey\n";
+        var files = new[]
+        {
+            new EduOS.Core.DTOs.Students.StudentImportCohortUploadDto
+            {
+                Extension = ".csv", Content = Encoding.UTF8.GetBytes(header +
+                    "SRC-1,STU-1,Learner One,10,20,11,Guardian One,01700000000,FAMILY-1\n")
+            },
+            new EduOS.Core.DTOs.Students.StudentImportCohortUploadDto
+            {
+                Extension = ".csv", Content = Encoding.UTF8.GetBytes(header +
+                    "SRC-2,STU-2,Learner Two,10,20,12,guardian one,01700000000,family-1\n")
+            }
+        };
+        var report = await service.PreflightCohortAsync(files, mapping);
+        Assert.True(report.Success, report.Message);
+        Assert.Equal(0, report.Data!.TotalIssues);
+        Assert.Equal(403, (await Service(db, new User(101, false))
+            .PreflightCohortAsync(files, mapping)).StatusCode);
+        Assert.Equal(400, (await service.PreflightCohortAsync([files[0]], mapping)).StatusCode);
+        Assert.Equal(400, (await service.PreflightCohortAsync(
+            Enumerable.Repeat(files[0], 9).ToArray(), mapping)).StatusCode);
+        Assert.Equal(400, (await service.PreflightCohortAsync([
+            files[0], new EduOS.Core.DTOs.Students.StudentImportCohortUploadDto
+                { Extension = ".txt", Content = files[1].Content }
+        ], mapping)).StatusCode);
+        Assert.Empty(await db.Students.ToListAsync());
+    }
+
     private sealed class InMemoryUow(EduOSDbContext db) : IUnitOfWork
     {
         public Task<int> SaveChangesAsync(CancellationToken token = default) => db.SaveChangesAsync(token);
