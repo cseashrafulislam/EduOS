@@ -75,6 +75,21 @@ async function attendance(browser) {
                 }))
             });
         }
+        if (url.pathname === '/api/student-attendance/report/sessions/summary') {
+            return response(route, 200, { totalSessions: 2, draftSessions: 0,
+                finalizedSessions: 2, emptyDraftSessions: 0, emptyFinalizedSessions: 0 });
+        }
+        if (url.pathname === '/api/student-attendance/report/sessions') {
+            return response(route, 200, { page: 1, pageSize: 20, totalPages: 1,
+                totalCount: 2, items: [
+                    { sessionId: 99, attendanceDate: '2026-10-10',
+                        subjectOfferingId: null, subjectOfferingCode: 'General',
+                        isFinalized: true, marked: 2, present: 1, absent: 1, late: 0, leave: 0, excused: 0 },
+                    { sessionId: 98, attendanceDate: '2026-10-10',
+                        subjectOfferingId: null, subjectOfferingCode: 'General',
+                        isFinalized: true, marked: 2, present: 1, absent: 1, late: 0, leave: 0, excused: 0 }
+                ] });
+        }
         if (url.pathname === '/api/student-attendance/sessions') {
             tokenOk(request);
             return response(route, 200, { ...roster, attendanceSessionId: 99,
@@ -144,6 +159,23 @@ async function attendance(browser) {
     assert.equal(corrections.length, 1);
     assert.equal(corrections[0].newState, 2);
     assert.match(corrections[0].reason, /reason|Reviewed|Approved|Correction/i);
+    await page.addScriptTag({ path: path.join(root, 'EduOS.App/wwwroot/js/attendance/session-register.js') });
+    await page.locator('#attendanceReportBatch').evaluate(select => {
+        const option = document.createElement('option');
+        option.value = '10'; option.textContent = '2026 / Grade 9 / Section A';
+        select.append(option); select.disabled = false; select.value = '10';
+    });
+    await page.locator('#attendanceReportFrom').fill('2026-10-10');
+    await page.locator('#attendanceReportTo').fill('2026-10-10');
+    await page.locator('#attendanceSessionsLoad').click();
+    await page.locator('#attendanceSessionsRows button').first().waitFor();
+    await page.locator('#attendanceSessionsRows button').first().click();
+    await page.waitForFunction(() => document.querySelector('#attendanceRosterPage')?.textContent.includes('Page 1 of 1'));
+    assert.equal(await page.locator('#sectionId').inputValue(), '10');
+    assert.equal(await page.locator('#attendanceDate').inputValue(), '2026-10-10');
+    await page.locator('#attendanceSessionsRows button').last().click();
+    await page.waitForFunction(() => document.querySelector('#attendanceAlert')?.textContent.includes('selected attendance session changed'));
+    assert.equal(await page.locator('#saveAttendance').isDisabled(), true);
     await page.close();
     console.log('Attendance browser: PASS — approved leave, mass marking, CSRF, save and finalization.');
 }

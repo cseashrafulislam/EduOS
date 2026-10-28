@@ -55,7 +55,7 @@
             if (token === summaryVersion) overview.textContent = 'Session overview unavailable.';
         }
     }
-    async function load() {
+    async function load(refreshSummary = false) {
         if (!form.reportValidity()) return;
         const from = el('attendanceReportFrom').value, to = el('attendanceReportTo').value;
         const days = (Date.parse(to) - Date.parse(from)) / 86400000;
@@ -76,7 +76,7 @@
         });
         const key = [params.get('academicBatchId'), from, to,
             params.get('subjectOfferingId') || ''].join('|');
-        if (key !== summaryKey) {
+        if (refreshSummary || key !== summaryKey) {
             summaryKey = key;
             overview.textContent = 'Loading session overview…';
             void loadSummary(++summaryVersion, params);
@@ -97,12 +97,29 @@
                     item.isFinalized ? 'Finalized' : 'Not finalized',
                     item.marked, item.present, item.absent, item.late, item.leave, item.excused
                 ]) tr.append(cell(value));
+                const action = document.createElement('td');
+                const open = document.createElement('button');
+                open.type = 'button';
+                open.className = 'btn btn-sm btn-outline-primary';
+                open.textContent = 'Open roster';
+                open.setAttribute('aria-label', 'Open attendance roster for ' + item.attendanceDate);
+                open.addEventListener('click', () => document.dispatchEvent(
+                    new CustomEvent('attendance:session-open', { detail: {
+                        sessionId: item.sessionId,
+                        academicBatchId: params.get('academicBatchId'),
+                        attendanceDate: item.attendanceDate,
+                        subjectOfferingId: item.subjectOfferingId,
+                        subjectOfferingCode: item.subjectOfferingCode,
+                        batchLabel: el('attendanceReportBatch').selectedOptions[0]?.textContent
+                    } })));
+                action.append(open);
+                tr.append(action);
                 body.append(tr);
             }
             if (!visible.length) {
                 const tr = document.createElement('tr');
                 const td = cell('No sessions match these filters.');
-                td.colSpan = 9; td.className = 'text-center text-muted';
+                td.colSpan = 10; td.className = 'text-center text-muted';
                 tr.append(td); body.append(tr);
             }
             pages = json.data?.totalPages || 0;
@@ -134,9 +151,9 @@
             '-page-' + page + '.csv';
         document.body.append(link); link.click(); link.remove(); URL.revokeObjectURL(url);
     }
-    form.addEventListener('submit', () => { page = 1; load(); });
+    form.addEventListener('submit', () => { page = 1; load(true); });
     filter.addEventListener('change', () => { reset(); load(); });
-    el('attendanceSessionsLoad').addEventListener('click', () => { page = 1; load(); });
+    el('attendanceSessionsLoad').addEventListener('click', () => { page = 1; load(true); });
     previous.addEventListener('click', () => { if (page > 1) { page--; load(); } });
     next.addEventListener('click', () => { if (page < pages) { page++; load(); } });
     csvButton.addEventListener('click', exportPage);

@@ -203,7 +203,7 @@
         }
         updateSummary();
     }
-    async function loadRoster(event) {
+    async function loadRoster(event, expectedSessionId = null) {
         if (event) event.preventDefault();
         if (!form.reportValidity()) return;
         if (dirty && !confirm('Discard unsaved changes on this roster page?')) return;
@@ -218,6 +218,10 @@
             if (scope.subjectOfferingId) params.set('subjectOfferingId', String(scope.subjectOfferingId));
             const result = await api('/api/student-attendance/roster-page?' + params);
             if (request !== rosterRequest) return;
+            if (expectedSessionId !== null && Number(result.data?.attendanceSessionId) !== expectedSessionId) {
+                status('warning', 'The selected attendance session changed. Reload the session register.');
+                return;
+            }
             roster = result.data;
             rosterPages = roster?.totalPages || 0;
             render(roster?.students || []);
@@ -346,6 +350,38 @@
         if (batchPage < batchPages) { batchPage++; loadBatches(); }
     });
     form.addEventListener('submit', event => { rosterPage = 1; loadRoster(event); });
+    // Report navigation does not grant access: the roster API checks every scope again.
+    document.addEventListener('attendance:session-open', async event => {
+        const detail = event.detail || {};
+        const sessionId = Number(detail.sessionId);
+        const batchId = Number(detail.academicBatchId);
+        const offeringId = detail.subjectOfferingId == null ? null : Number(detail.subjectOfferingId);
+        const selectedDate = String(detail.attendanceDate || '');
+        if (!Number.isSafeInteger(sessionId) || sessionId <= 0 ||
+            !Number.isSafeInteger(batchId) || batchId <= 0 ||
+            (offeringId !== null && (!Number.isSafeInteger(offeringId) || offeringId <= 0)) ||
+            !/^\d{4}-\d{2}-\d{2}$/.test(selectedDate)) return;
+        if (dirty && !confirm('Discard unsaved changes before opening this session?')) return;
+        ++batchRequest; ++subjectRequest;
+        date.value = selectedDate;
+        selectOptions('sectionId', [{ id: batchId,
+            name: String(detail.batchLabel || 'Selected academic batch') }], 'Select authorized academic batch');
+        el('sectionId').value = String(batchId);
+        resetSubjects();
+        const subject = el('attendanceSubject');
+        if (offeringId !== null) {
+            const option = document.createElement('option');
+            option.value = String(offeringId);
+            option.textContent = String(detail.subjectOfferingCode || 'Selected subject offering');
+            subject.append(option);
+            subject.value = String(offeringId);
+        }
+        subject.disabled = false;
+        rosterPage = 1;
+        await loadRoster(null, sessionId);
+        if (roster?.attendanceSessionId === sessionId)
+            el('attendanceRosterTitle')?.scrollIntoView({ block: 'start', behavior: 'auto' });
+    });
     rows.addEventListener('change', () => { dirty = true; updateSummary(); });
     rows.addEventListener('input', () => { dirty = true; updateSummary(); });
     el('attendanceRosterPrevious').addEventListener('click', async () => {

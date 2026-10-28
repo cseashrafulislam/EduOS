@@ -32,6 +32,15 @@ test('session register is manager-authorized, bounded and includes unfinalized s
     assert.match(js, /token !== summaryVersion/);
     assert.match(js, /loadSummary\(\+\+summaryVersion, params\)/);
     assert.match(js, /sessions\/summary/);
+    const roster = read('EduOS.App/wwwroot/js/attendance/index.js');
+    assert.ok(js.includes('attendance:session-open'));
+    assert.ok(js.includes('sessionId: item.sessionId'));
+    assert.ok(js.includes('load(true)'));
+    assert.ok(roster.includes('attendance:session-open'));
+    assert.ok(roster.includes('expectedSessionId !== null'));
+    assert.ok(roster.includes('Number(result.data?.attendanceSessionId) !== expectedSessionId'));
+    assert.ok(roster.includes('Number.isSafeInteger(batchId)'));
+    assert.ok(view.includes('<th>Action</th>'));
     assert.match(js, /visible\.map\(x =>/);
     assert.match(js, /row\.map\(csvCell\)/);
     assert.doesNotThrow(() => new Function(js));
