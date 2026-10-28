@@ -105,9 +105,15 @@ public sealed partial class AssessmentAdministrationService
             .Where(x => x.TenantId == tenant && x.ResultPublicationId == publicationId &&
                 x.StudentEnrollmentId == enrollmentId && x.IsTerminal &&
                 !x.IsDeleted && refs.Contains(x.CaseReference))
-            .Select(x => new { x.CaseReference, x.Action, x.ActorUserId, x.OccurredAt, x.Reason })
+            .Select(x => new { x.CaseReference, x.ResultPublicationId, x.StudentEnrollmentId,
+                x.PublicationVersionNo, x.Action, x.ActorUserId, x.OccurredAt, x.Reason })
             .ToListAsync(ct);
-        if (decisions.GroupBy(x => x.CaseReference).Any(x => x.Count() != 1))
+        if (rows.Any(x => x.PublicationVersionNo != scope.Publication.VersionNo) ||
+            decisions.GroupBy(x => x.CaseReference).Any(x => x.Count() != 1) ||
+            decisions.Any(d => d.ResultPublicationId != publicationId ||
+                d.StudentEnrollmentId != enrollmentId ||
+                d.PublicationVersionNo != scope.Publication.VersionNo ||
+                d.Action is not (ResultRescrutinyAction.Rejected or ResultRescrutinyAction.AcceptedForCorrection)))
             return Error<ResultRescrutinyPageDto>("Case decision evidence requires reconciliation.", 409);
         var byCase = decisions.ToDictionary(x => x.CaseReference);
         return ApiResponse<ResultRescrutinyPageDto>.SuccessResponse(new()

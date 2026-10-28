@@ -165,6 +165,17 @@ public sealed class SqlServerAssessmentMarkReviewLifecycleIntegrationTests
             Assert.True(approved.Success, approved.Message);
             var replay = await service.DecideResultRescrutinyAsync(caseReference, decision);
             Assert.True(replay.Success, replay.Message);
+            var applicant = Service(db, new Actor(seeded.TenantId, seeded.ReviewerId, "TenantAdmin"));
+            var intakeReplayAfterDecision = await applicant.RequestResultRescrutinyAsync(new()
+            {
+                ClientRequestId = requestKey, PublicationId = publicationId,
+                StudentReference = studentReference, Reason = "Please verify the published mark."
+            });
+            Assert.True(intakeReplayAfterDecision.Success, intakeReplayAfterDecision.Message);
+            Assert.Equal(caseReference, intakeReplayAfterDecision.Data!.CaseReference);
+            Assert.Equal(ResultRescrutinyAction.AcceptedForCorrection, intakeReplayAfterDecision.Data.Status);
+            Assert.Equal(decision.Reason, intakeReplayAfterDecision.Data.DecisionReason);
+            Assert.Equal(seeded.TeacherId, intakeReplayAfterDecision.Data.DecidedByUserId);
             Assert.Equal(409, (await service.DecideResultRescrutinyAsync(caseReference, new()
             {
                 ClientRequestId = Guid.NewGuid(), RequestRowVersion = version,

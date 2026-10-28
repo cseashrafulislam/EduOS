@@ -84,7 +84,7 @@ public sealed partial class AssessmentAdministrationService
             .Select(x => new
             {
                 x.evt.Id, x.evt.CaseReference, x.evt.ResultPublicationId,
-                x.evt.PublicationVersionNo, x.evt.ActorUserId, x.evt.OccurredAt,
+                x.evt.StudentEnrollmentId, x.evt.PublicationVersionNo, x.evt.ActorUserId, x.evt.OccurredAt,
                 x.evt.Reason, x.evt.RowVersion, x.student.PublicId,
                 x.student.StudentCode, x.enrollment.RollNo
             }).ToListAsync(ct);
@@ -94,8 +94,20 @@ public sealed partial class AssessmentAdministrationService
         var decisions = await _rescrutinyEvents.GetQueryable().AsNoTracking()
             .Where(x => x.TenantId == tenant && x.ResultPublicationId == scope.Publication.Id &&
                 x.IsTerminal && !x.IsDeleted && caseReferences.Contains(x.CaseReference))
-            .Select(x => new { x.CaseReference, x.Action, x.ActorUserId, x.OccurredAt, x.Reason })
+            .Select(x => new { x.CaseReference, x.ResultPublicationId, x.StudentEnrollmentId,
+                x.PublicationVersionNo, x.Action, x.ActorUserId, x.OccurredAt, x.Reason })
             .ToListAsync(ct);
+        // A corrupt or mismatched terminal event must not become a valid-looking
+        // case status (nor throw a 500 through ToDictionary on duplicate evidence).
+        if (rows.GroupBy(x => x.CaseReference).Any(g => g.Count() != 1) ||
+            rows.Any(x => x.PublicationVersionNo != scope.Publication.VersionNo) ||
+            decisions.GroupBy(x => x.CaseReference).Any(g => g.Count() != 1) ||
+            decisions.Any(d => d.ResultPublicationId != scope.Publication.Id ||
+                d.PublicationVersionNo != scope.Publication.VersionNo ||
+                d.Action is not (ResultRescrutinyAction.Rejected or ResultRescrutinyAction.AcceptedForCorrection) ||
+                !rows.Any(x => x.CaseReference == d.CaseReference &&
+                    x.StudentEnrollmentId == d.StudentEnrollmentId)))
+            return Error<ResultRescrutinyPageDto>("Rescrutiny case evidence requires reconciliation.", 409);
         var byCase = decisions.ToDictionary(x => x.CaseReference);
         return ApiResponse<ResultRescrutinyPageDto>.SuccessResponse(new()
         {
@@ -173,18 +185,38 @@ public sealed partial class AssessmentAdministrationService
             if (replay != null)
             {
                 if (replay.IsTerminal || replay.ResultPublicationId != scope.Publication.Id ||
-                    replay.StudentEnrollmentId != student.Id || replay.ActorUserId != _user.UserId ||
-                    replay.Reason != normalized)
+                    replay.StudentEnrollmentId != student.Id ||
+                    replay.PublicationVersionNo != scope.Publication.VersionNo ||
+                    replay.ActorUserId != _user.UserId || replay.Reason != normalized)
                     return Error<ResultRescrutinyItemDto>("Request key belongs to another application.", 409);
+                // The same request key may be retried after an independent decision.
+                // Return its current verified state, not a misleading Pending response.
+                var terminal = await _rescrutinyEvents.GetQueryable().AsNoTracking()
+                    .Where(x => x.TenantId == tenant && x.CaseReference == replay.CaseReference &&
+                        x.IsTerminal && !x.IsDeleted)
+                    .Select(x => new { x.ResultPublicationId, x.StudentEnrollmentId,
+                        x.PublicationVersionNo, x.Action, x.ActorUserId, x.OccurredAt, x.Reason })
+                    .Take(2).ToListAsync(token);
+                if (terminal.Count > 1 || terminal.Any(x =>
+                    x.ResultPublicationId != replay.ResultPublicationId ||
+                    x.StudentEnrollmentId != replay.StudentEnrollmentId ||
+                    x.PublicationVersionNo != replay.PublicationVersionNo ||
+                    x.Action is not (ResultRescrutinyAction.Rejected or ResultRescrutinyAction.AcceptedForCorrection)))
+                    return Error<ResultRescrutinyItemDto>("Rescrutiny decision evidence requires reconciliation.", 409);
+                var decision = terminal.SingleOrDefault();
                 return ApiResponse<ResultRescrutinyItemDto>.SuccessResponse(new()
                 {
                     RequestEventId = replay.Id, CaseReference = replay.CaseReference,
                     PublicationId = replay.ResultPublicationId,
                     PublicationVersionNo = replay.PublicationVersionNo,
                     StudentReference = student.PublicId, StudentCode = student.StudentCode,
-                    RollNo = student.RollNo, Status = ResultRescrutinyAction.Requested,
+                    RollNo = student.RollNo,
+                    Status = decision?.Action ?? ResultRescrutinyAction.Requested,
                     RequestedByUserId = replay.ActorUserId, RequestedAt = replay.OccurredAt,
-                    RequestReason = replay.Reason, RequestRowVersion = Version(replay.RowVersion)
+                    RequestReason = replay.Reason,
+                    RequestRowVersion = CanPublish() ? Version(replay.RowVersion) : string.Empty,
+                    DecidedByUserId = CanPublish() ? decision?.ActorUserId : null,
+                    DecidedAt = decision?.OccurredAt, DecisionReason = decision?.Reason
                 }, "Application already recorded.");
             }
             if (await _rescrutinyEvents.GetQueryable().AsNoTracking().AnyAsync(x =>
