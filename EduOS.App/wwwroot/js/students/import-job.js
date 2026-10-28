@@ -60,7 +60,29 @@
         }
         return '\uFEFF' + lines.join('\r\n');
     }
-    const api = { fingerprint, requestId, resumeRowCount, validateCohort, cohortSummaryCsv };
+    function integrityCsv(report) {
+        if (!report || !Number.isSafeInteger(report.expectedRows) ||
+            report.expectedRows < 1 || report.expectedRows > 100 ||
+            !Number.isSafeInteger(report.checkedRows) || report.checkedRows < 0 ||
+            report.checkedRows > 100 || !Array.isArray(report.issues) ||
+            report.issues.length > 301)
+            throw new Error('Invalid import integrity report.');
+        const cell = value => {
+            let s = String(value ?? '');
+            if (/^[\s\x00-\x1f]*[=+\-@]/.test(s)) s = "'" + s;
+            return '"' + s.replaceAll('"', '""') + '"';
+        };
+        const lines = ['RowNumber,IssueCode,Details'];
+        for (const issue of report.issues) {
+            if (!Number.isSafeInteger(issue.rowNumber) || issue.rowNumber < 0 ||
+                typeof issue.code !== 'string' || issue.code.length > 80 ||
+                typeof issue.message !== 'string' || issue.message.length > 250)
+                throw new Error('Invalid integrity issue.');
+            lines.push([issue.rowNumber, issue.code, issue.message].map(cell).join(','));
+        }
+        return '\uFEFF' + lines.join('\r\n');
+    }
+    const api = { fingerprint, requestId, resumeRowCount, validateCohort, cohortSummaryCsv, integrityCsv };
     if (typeof module !== 'undefined' && module.exports) module.exports = api;
     else root.EduOSStudentImportJob = api;
 })(typeof window !== 'undefined' ? window : globalThis);

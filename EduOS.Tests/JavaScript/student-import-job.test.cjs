@@ -56,3 +56,16 @@ test('cohort summary export includes only bounded hashes and counts', () => {
             totalRows: 1, committedRows: 1, missingWindows: 0 }
     ] }), /Invalid/);
 });
+
+test('integrity export is bounded, PII-free and formula-neutralized', () => {
+    const { integrityCsv } = require('../../EduOS.App/wwwroot/js/students/import-job.js');
+    const csv = integrityCsv({ expectedRows: 100, checkedRows: 100, issues: [
+        { rowNumber: 2, code: 'MissingEnrollment', message: '=private formula' }
+    ] });
+    assert.match(csv, /MissingEnrollment/);
+    assert.match(csv, /'=private formula/);
+    assert.doesNotMatch(csv, /student name/i);
+    assert.throws(() => integrityCsv({ expectedRows: 101, checkedRows: 101, issues: [] }), /Invalid/);
+    assert.throws(() => integrityCsv({ expectedRows: 1, checkedRows: 1,
+        issues: [{ rowNumber: -1, code: 'bad', message: 'x' }] }), /Invalid/);
+});

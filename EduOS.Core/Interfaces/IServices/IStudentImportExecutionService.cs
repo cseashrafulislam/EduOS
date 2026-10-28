@@ -22,6 +22,8 @@ public interface IStudentImportExecutionService
     Task<ApiResponse<StudentImportCohortStatusDto>> GetCohortStatusAsync(
         IReadOnlyList<StudentImportCohortFileRequestDto>? files,
         CancellationToken cancellationToken = default);
+    Task<ApiResponse<StudentImportIntegrityReportDto>> GetIntegrityAsync(
+        Guid importReference, CancellationToken cancellationToken = default);
     Task<ApiResponse<StudentImportReconciliationDto>> GetAsync(Guid importReference, int page, int pageSize,
         CancellationToken cancellationToken = default);
 }

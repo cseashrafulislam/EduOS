@@ -182,11 +182,21 @@ public sealed class SqlServerStudentImportConcurrencyIntegrationTests
             Assert.Equal(1, await verify.IdempotencyRecords.CountAsync(x =>
                 x.TenantId == tenantId && x.Scope == "StudentImportSource"));
         }
+        await using (var integrityDb = TenantDb(options, tenantId))
+        {
+            var audit = await Service(integrityDb, tenantId, adminId)
+                .GetIntegrityAsync(results[winner].Data!.ImportReference);
+            Assert.True(audit.Success, audit.Message);
+            Assert.True(audit.Data!.IsHealthy);
+            Assert.Equal(1, audit.Data.HealthyRows);
+        }
         await using (var foreign = TenantDb(options, tenantId + 1000000))
         {
             var denied = await Service(foreign, tenantId + 1000000, adminId)
                 .GetAsync(results[winner].Data!.ImportReference, 1, 20);
             Assert.Equal(404, denied.StatusCode);
+            Assert.Equal(404, (await Service(foreign, tenantId + 1000000, adminId)
+                .GetIntegrityAsync(results[winner].Data!.ImportReference)).StatusCode);
         }
     }
 

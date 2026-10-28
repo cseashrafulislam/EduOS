@@ -23,6 +23,11 @@
     const committed = document.getElementById('studentImportCommitted');
     const committedSummary = document.getElementById('studentImportCommittedSummary');
     const committedRows = document.getElementById('studentImportCommittedRows');
+    const integrityButton = document.getElementById('studentImportVerifyIntegrity');
+    const integrityExport = document.getElementById('studentImportIntegrityExport');
+    const integritySummary = document.getElementById('studentImportIntegritySummary');
+    const integrityRows = document.getElementById('studentImportIntegrityRows');
+    let integrityReport = null;
     const reload = document.getElementById('studentImportReload');
     const more = document.getElementById('studentImportMore');
     const cohortAdd = document.getElementById('studentImportCohortAdd');
@@ -63,6 +68,10 @@
         lastMapping = null;
         commit.classList.add('d-none');
         committed.classList.add('d-none');
+        integrityReport = null;
+        integritySummary.textContent = '';
+        integrityRows.replaceChildren();
+        integrityExport.classList.add('d-none');
         alert.classList.add('d-none');
     }
     fileInput.addEventListener('change', reset);
@@ -295,6 +304,45 @@
         reconciliationPage++;
         try { await loadReconciliation(true); }
         catch (error) { reconciliationPage--; message(error.message, true); }
+    });
+
+    integrityButton.addEventListener('click', async () => {
+        if (busy || !importReference) return;
+        busy = true; integrityButton.disabled = true;
+        try {
+            const response = await fetch('/api/student-imports/' +
+                encodeURIComponent(importReference) + '/integrity',
+                { credentials: 'same-origin', cache: 'no-store', headers: { Accept: 'application/json' } });
+            const body = await response.json().catch(() => null);
+            if (!response.ok || !body?.success)
+                throw new Error(body?.message || 'Committed link verification failed.');
+            integrityReport = body.data;
+            integrityRows.replaceChildren();
+            for (const issue of integrityReport.issues || []) {
+                const tr = document.createElement('tr');
+                for (const value of [issue.rowNumber || '—', issue.code, issue.message]) {
+                    const td = document.createElement('td');
+                    td.textContent = String(value ?? '');
+                    tr.appendChild(td);
+                }
+                integrityRows.appendChild(tr);
+            }
+            integritySummary.textContent = 'Physical record audit: ' +
+                integrityReport.healthyRows + ' / ' + integrityReport.expectedRows +
+                ' rows verified; ' + (integrityReport.issues || []).length + ' issues.';
+            integrityExport.classList.remove('d-none');
+        } catch (error) { message(error.message, true); }
+        finally { busy = false; integrityButton.disabled = false; }
+    });
+    integrityExport.addEventListener('click', () => {
+        try {
+            if (!integrityReport) throw new Error('Verify committed links first.');
+            const csv = jobTools.integrityCsv(integrityReport);
+            const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+            const link = document.createElement('a');
+            link.href = url; link.download = 'student-import-integrity.csv'; link.click();
+            URL.revokeObjectURL(url);
+        } catch (error) { message(error.message, true); }
     });
 
     jobExport.addEventListener('click', async () => {

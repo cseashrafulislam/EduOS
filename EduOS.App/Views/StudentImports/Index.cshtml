@@ -92,7 +92,16 @@
         <div class="card-body">
             <h3 id="studentImportCommittedTitle" class="h5">Committed batch reconciliation</h3>
             <p id="studentImportCommittedSummary"></p>
-            <button id="studentImportReload" type="button" class="btn btn-outline-primary btn-sm">Refresh reconciliation</button>
+            <div class="d-flex flex-wrap gap-2">
+                <button id="studentImportReload" type="button" class="btn btn-outline-primary btn-sm">Refresh reconciliation</button>
+                <button id="studentImportVerifyIntegrity" type="button" class="btn btn-outline-primary btn-sm">Verify committed links</button>
+                <button id="studentImportIntegrityExport" type="button" class="btn btn-outline-secondary btn-sm d-none">Export integrity CSV</button>
+            </div>
+            <p id="studentImportIntegritySummary" class="mt-2 mb-1" role="status" aria-live="polite"></p>
+            <div class="table-responsive">
+                <table class="table table-sm"><thead><tr><th>Row</th><th>Issue</th><th>Details</th></tr></thead>
+                    <tbody id="studentImportIntegrityRows"></tbody></table>
+            </div>
             <div class="table-responsive mt-2">
                 <table class="table table-sm"><thead><tr><th>Row</th><th>Source key</th><th>Status</th></tr></thead>
                     <tbody id="studentImportCommittedRows"></tbody></table>

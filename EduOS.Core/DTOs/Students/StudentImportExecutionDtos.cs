@@ -98,3 +98,21 @@ public sealed class StudentImportCohortStatusDto
     public bool IsComplete => ExpectedRows > 0 && PendingRows == 0;
     public List<StudentImportCohortFileStatusDto> Files { get; set; } = new();
 }
+
+public sealed class StudentImportIntegrityIssueDto
+{
+    public int RowNumber { get; set; }
+    public string Code { get; set; } = string.Empty;
+    public string Message { get; set; } = string.Empty;
+}
+
+public sealed class StudentImportIntegrityReportDto
+{
+    public Guid ImportReference { get; set; }
+    public int ExpectedRows { get; set; }
+    public int CheckedRows { get; set; }
+    public int HealthyRows { get; set; }
+    public bool IsHealthy => CheckedRows == ExpectedRows && HealthyRows == ExpectedRows &&
+        Issues.Count == 0;
+    public List<StudentImportIntegrityIssueDto> Issues { get; set; } = new();
+}

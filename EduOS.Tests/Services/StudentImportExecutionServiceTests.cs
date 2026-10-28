@@ -788,6 +788,41 @@ public sealed class StudentImportExecutionServiceTests
             x => x.Field == "SourceKey" || x.Field == "StudentCode");
     }
 
+    [Fact]
+    public async Task Committed_import_integrity_audit_detects_link_drift_without_disclosing_source_or_foreign_tenant()
+    {
+        var options = Options(); await SeedAsync(options);
+        await using var db = Context(options, 101);
+        var service = Service(db, new User(101, true));
+        using var csv = Csv(Header + "AUDIT-SOURCE,AUDIT-STU,Private Learner,10,20,7,,\n");
+        var imported = await service.ExecuteAsync(csv, ".csv", Mapping, Guid.NewGuid());
+        Assert.True(imported.Success, imported.Message);
+        var reference = imported.Data!.ImportReference;
+        var healthy = await service.GetIntegrityAsync(reference);
+        Assert.True(healthy.Success, healthy.Message);
+        Assert.True(healthy.Data!.IsHealthy);
+        Assert.Equal(1, healthy.Data.HealthyRows);
+        Assert.Empty(healthy.Data.Issues);
+
+        var link = await db.StudentPersonLinks.SingleAsync();
+        link.IsDeleted = true;
+        await db.SaveChangesAsync();
+        var drift = await service.GetIntegrityAsync(reference);
+        Assert.True(drift.Success);
+        Assert.False(drift.Data!.IsHealthy);
+        Assert.Contains(drift.Data.Issues, x => x.Code == "PersonLinkMismatch" && x.RowNumber == 2);
+        Assert.DoesNotContain("AUDIT-SOURCE", string.Join(" ", drift.Data.Issues.Select(x => x.Message)));
+        Assert.DoesNotContain("Private Learner", string.Join(" ", drift.Data.Issues.Select(x => x.Message)));
+        Assert.Single(await db.Students.ToListAsync());
+
+        await using var foreign = Context(options, 202);
+        Assert.Equal(404, (await Service(foreign, new User(202, true))
+            .GetIntegrityAsync(reference)).StatusCode);
+        Assert.Equal(403, (await Service(db, new User(101, false))
+            .GetIntegrityAsync(reference)).StatusCode);
+        Assert.Equal(400, (await service.GetIntegrityAsync(Guid.Empty)).StatusCode);
+    }
+
     private sealed class CountingUow(EduOSDbContext db) : IUnitOfWork
     {
         public int SaveCount { get; private set; }

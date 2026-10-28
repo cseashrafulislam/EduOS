@@ -210,6 +210,14 @@ public sealed class StudentImportsController : ControllerBase
             }));
     }
 
+    /// <summary>Read-only tenant-owned import integrity audit, without learner PII.</summary>
+    [HttpGet("{reference:guid}/integrity")]
+    public async Task<IActionResult> Integrity(Guid reference, CancellationToken cancellationToken)
+    {
+        var result = await _execution.GetIntegrityAsync(reference, cancellationToken);
+        return StatusCode(result.StatusCode, result);
+    }
+
     [HttpGet("{reference:guid}")]
     public async Task<IActionResult> Reconciliation(Guid reference, [FromQuery] int page = 1,
         [FromQuery] int pageSize = 50, CancellationToken cancellationToken = default)
