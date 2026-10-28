@@ -5,6 +5,7 @@ using EduOS.Core.DTOs.SaaS;
 using EduOS.Core.Entities.Auth;
 using EduOS.Core.Entities.SaaS;
 using EduOS.Core.Enums.Domain;
+using EduOS.Core.Interfaces;
 using EduOS.Core.Interfaces.IServices;
 using EduOS.Persistence.Context;
 using EduOS.Persistence.Repositories;
