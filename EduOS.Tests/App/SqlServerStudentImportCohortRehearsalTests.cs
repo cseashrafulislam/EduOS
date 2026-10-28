@@ -105,6 +105,7 @@ public sealed class SqlServerStudentImportCohortRehearsalTests
                     Request: RequestId(manifest[file].FileHash, mappingHash, window * 100))))
             .ToArray();
         var durations = new List<double>(jobs.Length);
+        var retryableConflicts = 0;
         Guid firstReference = Guid.Empty;
         var beforeSql = await SqlCountersAsync(connection);
         var clock = Stopwatch.StartNew();
@@ -115,13 +116,25 @@ public sealed class SqlServerStudentImportCohortRehearsalTests
         {
             foreach (var job in jobs.Where(x => (x.Offset / 100) % 2 == phase))
             {
-                await using var db = TenantDb(options, tenant);
-                var service = Service(db, tenant, admin);
-                using var source = new MemoryStream(sourceFiles[job.File], writable: false);
                 var start = Stopwatch.GetTimestamp();
-                var result = await service.ExecuteSliceAsync(source, ".csv", Mapping,
-                    job.Request, job.Offset);
+                EduOS.Core.Common.ApiResponse<StudentImportExecutionDto>? result = null;
+                // Separate institutes can still contend on shared SQL allocation
+                // pages. A deadlock is surfaced as HTTP 409, not a partial commit.
+                // Re-open a fresh DbContext on each bounded retry; never mask a
+                // persistent business conflict or retry an unrecognized failure.
+                for (var attempt = 0; attempt < 3; attempt++)
+                {
+                    await using var db = TenantDb(options, tenant);
+                    using var source = new MemoryStream(sourceFiles[job.File], writable: false);
+                    result = await Service(db, tenant, admin).ExecuteSliceAsync(
+                        source, ".csv", Mapping, job.Request, job.Offset);
+                    if (result.Success || result.StatusCode != 409) break;
+                    retryableConflicts++;
+                    if (attempt < 2)
+                        await Task.Delay(TimeSpan.FromMilliseconds(100 * (attempt + 1)));
+                }
                 durations.Add(Stopwatch.GetElapsedTime(start).TotalMilliseconds);
+                Assert.NotNull(result);
                 Assert.True(result.Success,
                     $"Synthetic file {job.File + 1}, window {job.Offset}: {result.StatusCode} {result.Message}");
                 Assert.Equal(100, result.Data!.ImportedRows);
@@ -223,7 +236,7 @@ public sealed class SqlServerStudentImportCohortRehearsalTests
             WindowLatencyMsP95 = Math.Round(Percentile(durations, .95), 2),
             WindowLatencyMsP99 = Math.Round(Percentile(durations, .99), 2),
             Committed = total, ReplayedWindows = 2, CrossTenantReadback = "Denied",
-            FailedWindows = 0,
+            FailedWindows = 0, RetryableConflicts = retryableConflicts,
             SqlCpuMs = Math.Round(Delta(0) / 1000d, 2),
             SqlLogicalReads = Delta(1), SqlPhysicalReads = Delta(2),
             SqlLogicalWrites = Delta(3),
