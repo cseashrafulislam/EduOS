@@ -17,6 +17,12 @@ public sealed class PublishedGradeDistributionComparisonRowDto
     public int BaselineCount { get; set; }
     public int TargetCount { get; set; }
     public int CountChange { get; set; }
+    public decimal BaselineTotalObtainedMarks { get; set; }
+    public decimal TargetTotalObtainedMarks { get; set; }
+    public decimal ObtainedMarksChange { get; set; }
+    public decimal? BaselineAveragePercentage { get; set; }
+    public decimal? TargetAveragePercentage { get; set; }
+    public decimal? AveragePercentageChange { get; set; }
     public decimal? BaselineAverageGpa { get; set; }
     public decimal? TargetAverageGpa { get; set; }
 }

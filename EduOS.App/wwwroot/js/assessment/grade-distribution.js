@@ -131,13 +131,14 @@
                     const tr = document.createElement('tr');
                     tr.append(cell(row.gradeLetter), cell(row.isWithheld ? 'Withheld' : row.isPassed ? 'Passed' : 'Failed'),
                         cell(row.baselineCount, true), cell(row.targetCount, true),
-                        cell(row.countChange, true), cell(row.baselineAverageGpa, true),
-                        cell(row.targetAverageGpa, true));
+                        cell(row.countChange, true), cell(row.obtainedMarksChange, true),
+                        cell(row.averagePercentageChange, true),
+                        cell(row.baselineAverageGpa, true), cell(row.targetAverageGpa, true));
                     tbody.append(tr);
                 }
                 if (!tbody.children.length) {
                     const tr = document.createElement('tr'), td = cell('No saved result rows.');
-                    td.colSpan = 7; tr.append(td); tbody.append(tr);
+                    td.colSpan = 9; tr.append(td); tbody.append(tr);
                 }
             } else {
                 state.report = data;
@@ -167,10 +168,11 @@
         const report = state.report;
         const comparison = state.comparison;
         if (!report && !comparison) return;
-        const rows = comparison ? [['Grade', 'Outcome', 'Earlier', 'Later', 'Change', 'Earlier GPA', 'Later GPA'],
+        const rows = comparison ? [['Grade', 'Outcome', 'Earlier', 'Later', 'Change', 'Obtained marks change', 'Average percentage change', 'Earlier GPA', 'Later GPA'],
             ...(comparison.grades || []).map(x => [x.gradeLetter,
                 x.isWithheld ? 'Withheld' : x.isPassed ? 'Passed' : 'Failed',
-                x.baselineCount, x.targetCount, x.countChange, x.baselineAverageGpa, x.targetAverageGpa])]
+                x.baselineCount, x.targetCount, x.countChange, x.obtainedMarksChange,
+                x.averagePercentageChange, x.baselineAverageGpa, x.targetAverageGpa])]
             : [['Grade', 'Outcome', 'Students', 'Total obtained marks', 'Average %', 'Average GPA'],
             ...(report.grades || []).map(x => [x.gradeLetter,
                 x.isWithheld ? 'Withheld' : x.isPassed ? 'Passed' : 'Failed',

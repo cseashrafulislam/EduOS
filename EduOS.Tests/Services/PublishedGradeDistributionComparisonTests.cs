@@ -38,6 +38,7 @@ public sealed class PublishedGradeDistributionComparisonTests
         result.Grades.Single(x => x.GradeLetter == "F").CountChange.Should().Be(-1);
         result.Grades.Single(x => x.GradeLetter == "W").CountChange.Should().Be(1);
         result.Grades.Single(x => x.GradeLetter == "A").TargetAverageGpa.Should().Be(4.5m);
+        result.Grades.Single(x => x.GradeLetter == "F").ObtainedMarksChange.Should().Be(0m);
     }
 
     [Fact]
@@ -55,6 +56,40 @@ public sealed class PublishedGradeDistributionComparisonTests
         result.Grades.Should().HaveCount(2);
         result.Grades.Single(x => x.IsPassed).CountChange.Should().Be(-4);
         result.Grades.Single(x => !x.IsPassed).CountChange.Should().Be(4);
+    }
+
+    [Fact]
+    public void Comparison_reports_exact_historical_marks_and_percentage_deltas_without_inventing_missing_averages()
+    {
+        var baseline = new PublishedGradeDistributionDto
+        {
+            Grades = [
+                new() { GradeLetter = "A", IsPassed = true, StudentCount = 2,
+                    TotalObtainedMarks = 170m, AveragePercentage = 85.1250m },
+                new() { GradeLetter = "F", StudentCount = 1, TotalObtainedMarks = 20m }
+            ]
+        };
+        var target = new PublishedGradeDistributionDto
+        {
+            Grades = [
+                new() { GradeLetter = "A", IsPassed = true, StudentCount = 2,
+                    TotalObtainedMarks = 180m, AveragePercentage = 90.3333m },
+                new() { GradeLetter = "W", IsWithheld = true, StudentCount = 1,
+                    TotalObtainedMarks = 0m }
+            ]
+        };
+        var rows = PublishedGradeDistributionComparisonCalculator.Compare(baseline, target).Grades;
+        var a = rows.Single(x => x.GradeLetter == "A");
+        a.BaselineTotalObtainedMarks.Should().Be(170m);
+        a.TargetTotalObtainedMarks.Should().Be(180m);
+        a.ObtainedMarksChange.Should().Be(10m);
+        a.AveragePercentageChange.Should().Be(5.2083m);
+        var removed = rows.Single(x => x.GradeLetter == "F");
+        removed.ObtainedMarksChange.Should().Be(-20m);
+        removed.AveragePercentageChange.Should().BeNull();
+        var added = rows.Single(x => x.GradeLetter == "W");
+        added.ObtainedMarksChange.Should().Be(0m);
+        added.AveragePercentageChange.Should().BeNull();
     }
 
     [Fact]

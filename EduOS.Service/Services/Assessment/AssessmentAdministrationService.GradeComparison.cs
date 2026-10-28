@@ -93,6 +93,15 @@ public static class PublishedGradeDistributionComparisonCalculator
                     BaselineCount = left?.StudentCount ?? 0,
                     TargetCount = right?.StudentCount ?? 0,
                     CountChange = (right?.StudentCount ?? 0) - (left?.StudentCount ?? 0),
+                    BaselineTotalObtainedMarks = left?.TotalObtainedMarks ?? 0m,
+                    TargetTotalObtainedMarks = right?.TotalObtainedMarks ?? 0m,
+                    ObtainedMarksChange = (right?.TotalObtainedMarks ?? 0m) -
+                        (left?.TotalObtainedMarks ?? 0m),
+                    BaselineAveragePercentage = left?.AveragePercentage,
+                    TargetAveragePercentage = right?.AveragePercentage,
+                    AveragePercentageChange = left?.AveragePercentage is decimal oldPercentage &&
+                        right?.AveragePercentage is decimal newPercentage
+                        ? Math.Round(newPercentage - oldPercentage, 4) : null,
                     BaselineAverageGpa = left?.AverageGpa,
                     TargetAverageGpa = right?.AverageGpa
                 };

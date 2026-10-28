@@ -34,5 +34,11 @@ test('historical comparison is explicitly version-ordered and aggregate-only', (
     assert.match(js, /before\.versionNo >= after\.versionNo/);
     assert.match(js, /state\.comparison = data/);
     assert.match(js, /comparison\.grades \|\| \[\]/);
+    assert.match(js, /row\.obtainedMarksChange/);
+    assert.match(js, /row\.averagePercentageChange/);
+    assert.match(js, /x\.obtainedMarksChange/);
+    assert.match(js, /x\.averagePercentageChange/);
+    assert.match(view, /Marks Δ/);
+    assert.match(view, /Avg % Δ/);
     assert.doesNotMatch(js, /innerHTML\s*=/);
 });

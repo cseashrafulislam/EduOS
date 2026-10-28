@@ -55,7 +55,7 @@ public sealed partial class AssessmentAdministrationService
             .Where(x => x.TenantId == tenant && x.ResultPublicationId == publication.Id &&
                 x.AssessmentId == publication.AssessmentId &&
                 x.PublicationVersionNo == publication.VersionNo && !x.IsDeleted)
-            .GroupBy(x => new { x.GradeLetter, x.IsPassed, x.IsWithheld })
+            .GroupBy(x => new { GradeLetter = x.GradeLetter ?? "Unassigned", x.IsPassed, x.IsWithheld })
             .Select(g => new
             {
                 g.Key.GradeLetter, g.Key.IsPassed, g.Key.IsWithheld,

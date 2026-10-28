@@ -39,7 +39,7 @@ public sealed class AssessmentGradeDistributionContractTests
         source.Should().Contain("GetPublicationEvidenceAsync([publication.Id]");
         source.Should().Contain("!proof.IsReconciled");
         source.Should().Contain("x.PublicationVersionNo == publication.VersionNo");
-        source.Should().Contain(".GroupBy(x => new { x.GradeLetter, x.IsPassed, x.IsWithheld })");
+        source.Should().Contain(".GroupBy(x => new { GradeLetter = x.GradeLetter ?? \"Unassigned\", x.IsPassed, x.IsWithheld })");
         source.Should().Contain(".Take(101).ToListAsync(ct)");
         source.Should().Contain("grouped.Sum(x => x.Count) != proof.ActiveCount");
         source.Should().NotContain("IgnoreQueryFilters()");
