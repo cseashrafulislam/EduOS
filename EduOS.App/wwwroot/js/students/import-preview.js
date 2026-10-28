@@ -220,6 +220,12 @@
     });
     async function loadReconciliation(append = false) {
         if (!importReference) return;
+        if (!append) {
+            integrityReport = null;
+            integritySummary.textContent = '';
+            integrityRows.replaceChildren();
+            integrityExport.classList.add('d-none');
+        }
         const response = await fetch('/api/student-imports/' + encodeURIComponent(importReference) +
             '?page=' + reconciliationPage + '&pageSize=50', { credentials: 'same-origin', cache: 'no-store' });
         const body = await response.json().catch(() => null);
