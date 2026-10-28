@@ -21,7 +21,8 @@
             <div class="col-md-3"><label for="statementMonth" class="form-label">Month</label><select id="statementMonth" class="form-select" required>
                 @for (var i = 1; i <= 12; i++) { <option value="@i">@System.Globalization.CultureInfo.InvariantCulture.DateTimeFormat.GetMonthName(i)</option> }
             </select></div>
-            <div class="col-md-6 d-flex gap-2">
+            <div class="col-md-3"><label for="statementCampus" class="form-label">Campus</label><select id="statementCampus" class="form-select"><option value="">All campuses</option></select></div>
+            <div class="col-md-3 d-flex gap-2 flex-wrap">
                 <button type="submit" class="btn btn-primary">Load statement</button>
                 <button id="statementCsv" type="button" class="btn btn-outline-primary">CSV export</button>
                 <button id="statementPrint" type="button" class="btn btn-outline-secondary">Print page</button>
@@ -30,10 +31,10 @@
     </form>
     <div class="card card-body">
         <div class="table-responsive"><table class="table table-sm table-hover align-middle">
-            <thead><tr><th>Run</th><th>Employee</th><th>Period</th><th>Status</th>
+            <thead><tr><th>Run</th><th>Employee</th><th>Period</th><th>Campus</th><th>Status</th>
             <th class="text-end">Gross</th><th class="text-end">Deductions</th><th class="text-end">Net (BDT)</th></tr></thead>
-            <tbody id="statementRows"><tr><td colspan="7">Loading…</td></tr></tbody>
-            <tfoot><tr><th colspan="4">Current page totals</th><th id="statementGross" class="text-end">—</th><th id="statementDeduction" class="text-end">—</th><th id="statementNet" class="text-end">—</th></tr></tfoot>
+            <tbody id="statementRows"><tr><td colspan="8">Loading…</td></tr></tbody>
+            <tfoot><tr><th colspan="5">Current page totals</th><th id="statementGross" class="text-end">—</th><th id="statementDeduction" class="text-end">—</th><th id="statementNet" class="text-end">—</th></tr></tfoot>
         </table></div>
         <div class="d-flex justify-content-between align-items-center">
             <button type="button" id="statementPrev" class="btn btn-sm btn-outline-secondary">Previous</button>

@@ -17,13 +17,13 @@ public sealed class PayrollSalaryStatementService : IPayrollSalaryStatementServi
     { _db = db; _user = user; }
 
     public async Task<ApiResponse<PagedResult<PayrollSalaryStatementRowDto>>> GetAsync(
-        int? year, int? month, int page, int pageSize, CancellationToken ct = default)
+        int? year, int? month, long? campusId, int page, int pageSize, CancellationToken ct = default)
     {
         if (!_user.IsAuthenticated || !_user.IsTenantAdmin || _user.TenantId <= 0 ||
             _db.CurrentTenantId != _user.TenantId)
             return ApiResponse<PagedResult<PayrollSalaryStatementRowDto>>
                 .ErrorResponse("Tenant administrator payroll-report permission required.", 403);
-        if (year is < 2000 or > 2200 || month is < 1 or > 12 ||
+        if (year is < 2000 or > 2200 || month is < 1 or > 12 || campusId is <= 0 ||
             page < 1 || pageSize is < 1 or > 1000 ||
             (pageSize > 50 && (!year.HasValue || !month.HasValue)) ||
             (long)(page - 1) * pageSize > int.MaxValue)
@@ -40,6 +40,7 @@ public sealed class PayrollSalaryStatementService : IPayrollSalaryStatementServi
                     select new { person, run };
         if (year.HasValue) query = query.Where(x => x.run.Year == year.Value);
         if (month.HasValue) query = query.Where(x => x.run.Month == month.Value);
+        if (campusId.HasValue) query = query.Where(x => x.run.CampusId == campusId.Value);
         var count = await query.CountAsync(ct);
         // CSV remains bounded and explicit. Large exports require a separate authorized batch workflow.
         if (pageSize > 50 && count > 1000)
@@ -52,7 +53,7 @@ public sealed class PayrollSalaryStatementService : IPayrollSalaryStatementServi
             {
                 RunReference = x.run.PublicId, RunNumber = x.run.RunNumber,
                 PeriodStart = x.run.PeriodStart, PeriodEnd = x.run.PeriodEnd,
-                State = x.run.State,
+                State = x.run.State, CampusId = x.run.CampusId,
                 EmployeeCode = x.person.EmployeeCodeSnapshot ?? string.Empty,
                 EmployeeName = x.person.EmployeeNameSnapshot ?? string.Empty,
                 GrossAmount = x.person.GrossAmount, DeductionAmount = x.person.DeductionAmount,

@@ -21,29 +21,30 @@ public sealed class PayrollSalaryStatementController : ControllerBase
 
     [HttpGet]
     public async Task<IActionResult> List([FromQuery] int? year, [FromQuery] int? month,
-        [FromQuery] int page = 1, [FromQuery] int pageSize = 25, CancellationToken ct = default)
+        [FromQuery] long? campusId, [FromQuery] int page = 1, [FromQuery] int pageSize = 25, CancellationToken ct = default)
     {
         if (pageSize > 50) return BadRequest("Maximum interactive page size is 50.");
-        var result = await _service.GetAsync(year, month, page, pageSize, ct);
+        var result = await _service.GetAsync(year, month, campusId, page, pageSize, ct);
         return StatusCode(result.StatusCode, result);
     }
 
     [HttpGet("csv")]
     public async Task<IActionResult> Export([FromQuery] int year, [FromQuery] int month,
-        CancellationToken ct = default)
+        [FromQuery] long? campusId, CancellationToken ct = default)
     {
         if (year is < 2000 or > 2200 || month is < 1 or > 12)
             return BadRequest("Valid year and month are required for an export.");
-        var result = await _service.GetAsync(year, month, 1, 1000, ct);
+        var result = await _service.GetAsync(year, month, campusId, 1, 1000, ct);
         if (!result.Success || result.Data == null)
             return StatusCode(result.StatusCode, result);
         var sb = new StringBuilder("\uFEFF");
-        sb.AppendLine("Run,Period Start,Period End,Status,Employee Code,Employee Name,Gross BDT,Deductions BDT,Net BDT");
+        sb.AppendLine("Run,Period Start,Period End,Campus,Status,Employee Code,Employee Name,Gross BDT,Deductions BDT,Net BDT");
         foreach (var row in result.Data.Items)
         {
             var cols = new[] {
                 row.RunNumber, row.PeriodStart.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
                 row.PeriodEnd.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
+                row.CampusId?.ToString(CultureInfo.InvariantCulture) ?? "Institution-wide",
                 row.State.ToString(), row.EmployeeCode, row.EmployeeName,
                 row.GrossAmount.ToString("0.00", CultureInfo.InvariantCulture),
                 row.DeductionAmount.ToString("0.00", CultureInfo.InvariantCulture),

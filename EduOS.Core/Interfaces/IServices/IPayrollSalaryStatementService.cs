@@ -6,5 +6,5 @@ namespace EduOS.Core.Interfaces.IServices;
 public interface IPayrollSalaryStatementService
 {
     Task<ApiResponse<PagedResult<PayrollSalaryStatementRowDto>>> GetAsync(
-        int? year, int? month, int page, int pageSize, CancellationToken ct = default);
+        int? year, int? month, long? campusId, int page, int pageSize, CancellationToken ct = default);
 }

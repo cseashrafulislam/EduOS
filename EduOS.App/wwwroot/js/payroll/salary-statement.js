@@ -17,7 +17,8 @@
     const period=()=>{const year=Number(el('statementYear').value),month=Number(el('statementMonth').value);
         if(!Number.isInteger(year)||year<2000||year>2200||!Number.isInteger(month)||month<1||month>12)
             throw Error('Choose a valid year and month.');
-        return {year,month};
+        const campus=el('statementCampus').value;
+        return {year,month,...(campus?{campusId:campus}:{})};
     };
     const td=(value,right=false)=>{const x=document.createElement('td');x.textContent=String(value??'');if(right)x.className='text-end';return x;};
     async function load() {
@@ -31,11 +32,12 @@
                 const row=document.createElement('tr');
                 [item.runNumber,item.employeeCode+' · '+item.employeeName,
                     String(item.periodStart).slice(0,10)+' – '+String(item.periodEnd).slice(0,10),
+                    item.campusId?el('statementCampus').querySelector('option[value="'+item.campusId+'"]')?.textContent||('Campus #'+item.campusId):'Institution-wide',
                     status[item.state]||item.state].forEach(x=>row.append(td(x)));
                 [item.grossAmount,item.deductionAmount,item.netAmount].forEach(x=>row.append(td(money(x),true)));
                 body.append(row);
             }
-            if(!data.items?.length) {const row=document.createElement('tr'),cell=td('No salary rows.');cell.colSpan=7;row.append(cell);body.append(row);}
+            if(!data.items?.length) {const row=document.createElement('tr'),cell=td('No salary rows.');cell.colSpan=8;row.append(cell);body.append(row);}
             el('statementGross').textContent=money(gross);el('statementDeduction').textContent=money(deductions);
             el('statementNet').textContent=money(net);
             pages=Math.max(1,Math.ceil((data.totalCount||0)/25));page=Number(data.page)||page;
@@ -52,5 +54,10 @@
         catch(e){error(e.message);}
     });
     el('statementPrint').addEventListener('click',()=>window.print());
+    get('/api/institution-onboarding/campus-list').then(campuses=>{
+        const select=el('statementCampus');
+        for(const campus of campuses||[])if(campus.isActive)
+            select.add(new Option(campus.name,campus.id));
+    }).catch(e=>error('Campus selector: '+e.message));
     load();
 })();

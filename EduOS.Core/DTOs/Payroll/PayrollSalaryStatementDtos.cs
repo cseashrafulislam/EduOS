@@ -7,6 +7,7 @@ public sealed class PayrollSalaryStatementRowDto
     public DateOnly PeriodStart { get; set; }
     public DateOnly PeriodEnd { get; set; }
     public PayrollRunState State { get; set; }
+    public long? CampusId { get; set; }
     public string EmployeeCode { get; set; } = string.Empty;
     public string EmployeeName { get; set; } = string.Empty;
     public decimal GrossAmount { get; set; }
