@@ -142,7 +142,12 @@ public sealed class SqlServerStudentImportConcurrencyIntegrationTests
             Assert.Equal(1, await verify.Students.CountAsync());
             Assert.Equal("SQL-STU-" + (winner == 0 ? "A" : "B") + "-" + suffix,
                 await verify.Students.Select(x => x.StudentCode).SingleAsync());
-            Assert.Equal(1, await verify.Persons.CountAsync());
+            // Person is platform-global: unrelated SQL tests also create Persons.
+            // Count only this synthetic import's identities, including any
+            // mistakenly orphaned Person from the rolled-back losing request.
+            Assert.Equal(1, await verify.Persons.CountAsync(x =>
+                x.CreatedBy == adminId &&
+                (x.FullName == "First Learner" || x.FullName == "Second Learner")));
             Assert.Equal(0, await verify.IdempotencyRecords.CountAsync(x =>
                 x.TenantId == tenantId && x.Scope == "StudentImportBatch" && x.RequestId == ids[loser]));
             Assert.Equal(1, await verify.IdempotencyRecords.CountAsync(x =>
