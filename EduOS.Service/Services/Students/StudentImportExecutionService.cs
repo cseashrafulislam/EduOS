@@ -228,13 +228,14 @@ public sealed partial class StudentImportExecutionService : IStudentImportExecut
 
                 // Existing unique tenant+scope+request indexes enforce source-key
                 // reconciliation even when separate batches target different campuses.
-                foreach (var row in rows)
-                {
-                    var sourceId = SourceId(row.SourceKey);
-                    if (await _keys.GetQueryable().AsNoTracking().AnyAsync(x =>
-                        x.TenantId == tenant && x.Scope == SourceScope && x.RequestId == sourceId && !x.IsDeleted, token))
-                        throw new ImportConflictException("A source key has already been imported.");
-                }
+                // Check the entire bounded 100-row source window in one tenant-scoped
+                // SQL query instead of one database round-trip per learner. The
+                // tenant/scope/request unique index still arbitrates competing writers.
+                var sourceIds = rows.Select(row => SourceId(row.SourceKey)).Distinct().ToArray();
+                if (await _keys.GetQueryable().AsNoTracking().AnyAsync(x =>
+                    x.TenantId == tenant && x.Scope == SourceScope && !x.IsDeleted &&
+                    sourceIds.Contains(x.RequestId), token))
+                    throw new ImportConflictException("A source key has already been imported.");
 
                 // Guardian source keys are explicit, tenant-owned references. A name or phone
                 // match alone must never link or merge people, including across institutes.
