@@ -1079,7 +1079,12 @@ public sealed class StudentImportExecutionServiceTests
         var user = new User(101, true);
         var realPreview = new StudentImportPreviewService(
             new GenericRepository<Student>(db), new GenericRepository<StudentEnrollment>(db),
-            new GenericRepository<AcademicBatch>(db), new GenericRepository<Campus>(db),
+            new GenericRepository<AcademicBatch>(db),
+            new GenericRepository<AcademicCurriculum>(db),
+            new GenericRepository<CurriculumSubject>(db),
+            new GenericRepository<SubjectOffering>(db),
+            new GenericRepository<StudentSubjectRegistration>(db),
+            new GenericRepository<Campus>(db),
             new GenericRepository<ImportLog>(db), new GenericRepository<ImportLogItem>(db),
             user, NullLogger<StudentImportPreviewService>.Instance);
         var failingPreview = new FailOnFirstTransactionalPreview(realPreview);
@@ -1108,7 +1113,12 @@ public sealed class StudentImportExecutionServiceTests
         var counting = new CountingUow(db);
         var realPreview = new StudentImportPreviewService(
             new GenericRepository<Student>(db), new GenericRepository<StudentEnrollment>(db),
-            new GenericRepository<AcademicBatch>(db), new GenericRepository<Campus>(db),
+            new GenericRepository<AcademicBatch>(db),
+            new GenericRepository<AcademicCurriculum>(db),
+            new GenericRepository<CurriculumSubject>(db),
+            new GenericRepository<SubjectOffering>(db),
+            new GenericRepository<StudentSubjectRegistration>(db),
+            new GenericRepository<Campus>(db),
             new GenericRepository<ImportLog>(db), new GenericRepository<ImportLogItem>(db),
             user, NullLogger<StudentImportPreviewService>.Instance);
         var preview = new LockOrderPreview(realPreview, () => counting.SaveCount);
