@@ -302,8 +302,10 @@
             el('attendanceRosterPage').textContent = 'Page ' + rosterPage + ' of ' +
                 rosterPages + ' · ' + (roster.summary?.totalStudents || 0) +
                 (roster.isHistoricalReadOnly ? ' historical marks (read-only)' : ' eligible students');
+            return true;
         } catch (error) {
             if (request === rosterRequest) status('danger', error.message);
+            return false;
         }
     }
     function readRow(tr) {
@@ -386,8 +388,8 @@
                 Number(roster?.attendanceSessionId) !== target.sessionId) return;
             bootstrap.Modal.getOrCreateInstance(correctionModal).hide();
             dirty = false;
-            await loadRoster();
-            status('success', 'Attendance corrected with an audit record.');
+            if (await loadRoster())
+                status('success', 'Attendance corrected with an audit record.');
         } catch (error) {
             correctionError.textContent = error.message || 'Correction failed. Reload and retry.';
         } finally {

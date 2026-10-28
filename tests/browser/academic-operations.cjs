@@ -35,7 +35,7 @@ async function attendance(browser) {
     const page = await browser.newPage();
     const requests = [];
     const finalized = [], corrections = [];
-    let historicalCsvRequests = 0;
+    let historicalCsvRequests = 0, failHistoricalRefresh = false;
     let isFinalized = false, saved = false, correctedState = null;
     page.on('dialog', dialog => dialog.type() === 'prompt'
         ? dialog.accept('Reviewed correction reason') : dialog.accept());
@@ -84,6 +84,10 @@ async function attendance(browser) {
         }
         if (url.pathname === '/api/student-attendance/report/sessions/99/roster' ||
             url.pathname === '/api/student-attendance/report/sessions/98/roster') {
+            if (failHistoricalRefresh) {
+                failHistoricalRefresh = false;
+                return response(route, 500, null, 'Roster refresh unavailable.');
+            }
             assert.equal(url.searchParams.get('page'), '1');
             assert.equal(url.searchParams.get('pageSize'), '50');
             return response(route, 200, {
@@ -230,6 +234,19 @@ async function attendance(browser) {
     });
     await page.locator('#attendanceRows button').nth(1).click();
     assert.equal(await page.evaluate(() => window.lastHistoryAttendanceId), 901);
+    // A committed correction followed by a failed readback must NOT show success.
+    await page.locator('#attendanceRows button').first().click();
+    await page.locator('#attendanceCorrectionModal').waitFor({ state: 'visible' });
+    await page.locator('#attendanceCorrectionState').selectOption('4');
+    await page.locator('#attendanceCorrectionReason').fill('Reconcile archived leave');
+    failHistoricalRefresh = true;
+    await page.locator('#attendanceCorrectionConfirm').click();
+    await page.waitForFunction(() => document.querySelector('#attendanceAlert')?.textContent.includes('Roster refresh unavailable.'));
+    assert.match(await page.locator('#attendanceAlert').getAttribute('class'), /alert-danger/);
+    assert.equal(corrections.length, 3);
+    await page.locator('#attendanceSessionsRows button').first().click();
+    await page.waitForFunction(() => document.querySelector('#attendanceRosterPage')?.textContent.includes('Page 1 of 1'));
+    assert.equal(await page.locator('#attendanceRows [data-state]').first().inputValue(), '4');
     assert.equal(await page.locator('#attendanceHistoricalCsv').isDisabled(), false);
     assert.equal(await page.locator('#attendanceHistoricalPrint').isDisabled(), false);
     const csvDownload = page.waitForEvent('download');
