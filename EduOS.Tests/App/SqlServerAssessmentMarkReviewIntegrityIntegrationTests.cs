@@ -234,6 +234,90 @@ public sealed class SqlServerAssessmentMarkReviewIntegrityIntegrationTests
             .AnyAsync(x => x.ClientRequestId == losingKey));
     }
 
+    [Fact]
+    public async Task Finalized_publications_are_tenant_scoped_and_withdrawn_evidence_is_immutable()
+    {
+        var connection = Environment.GetEnvironmentVariable("EDUOS_SQL_AUTH_TEST_CONNECTION");
+        if (string.IsNullOrWhiteSpace(connection)) return;
+        var options = new DbContextOptionsBuilder<EduOSDbContext>()
+            .UseSqlServer(connection).Options;
+        var suffix = Guid.NewGuid().ToString("N")[..12];
+        long tenantA, tenantB, subjectId;
+        await using (var setup = new EduOSDbContext(options))
+        {
+            var a = new Tenant { Code = "CI-FRA-" + suffix, Name = "Finalized result A",
+                Email = "finala-" + suffix + "@example.test", State = TenantState.Active };
+            var b = new Tenant { Code = "CI-FRB-" + suffix, Name = "Finalized result B",
+                Email = "finalb-" + suffix + "@example.test", State = TenantState.Active };
+            setup.AddRange(a, b);
+            await setup.SaveChangesAsync();
+            tenantA = a.Id; tenantB = b.Id;
+            setup.ChangeTracker.Clear();
+            using (setup.BeginSystemTenantScope(tenantA))
+                subjectId = await SeedSubjectAsync(setup, tenantA, suffix);
+        }
+        long assessmentId, batchId;
+        await using (var db = TenantDb(options, tenantA))
+        {
+            var subject = await db.AssessmentSubjects.AsNoTracking()
+                .SingleAsync(x => x.Id == subjectId);
+            assessmentId = subject.AssessmentId;
+            batchId = await db.SubjectOfferings.AsNoTracking()
+                .Where(x => x.Id == subject.SubjectOfferingId)
+                .Select(x => x.AcademicBatchId).SingleAsync();
+            db.ResultPublications.AddRange(
+                new ResultPublication {
+                    TenantId = tenantA, AssessmentId = assessmentId, AcademicBatchId = batchId,
+                    VersionNo = 1, State = ResultPublicationState.Published
+                },
+                new ResultPublication {
+                    TenantId = tenantA, AssessmentId = assessmentId, AcademicBatchId = batchId,
+                    VersionNo = 2, State = ResultPublicationState.Withdrawn,
+                    VisibleToStudent = false, VisibleToGuardian = false
+                });
+            await db.SaveChangesAsync();
+        }
+        await using (var db = TenantDb(options, tenantA))
+        {
+            var finalized = await db.ResultPublications.AsNoTracking().Where(x =>
+                x.TenantId == tenantA && x.AssessmentId == assessmentId &&
+                x.AcademicBatchId == batchId && !x.IsDeleted &&
+                (x.State == ResultPublicationState.Published ||
+                 x.State == ResultPublicationState.Withdrawn)).CountAsync();
+            Assert.Equal(2, finalized);
+            var withdrawn = await db.ResultPublications.SingleAsync(x =>
+                x.AssessmentId == assessmentId && x.VersionNo == 2);
+            withdrawn.PublishNote = "Unapproved historical rewrite";
+            db.Entry(withdrawn).Property(x => x.PublishNote).IsModified = true;
+            var historicalError = await Assert.ThrowsAsync<InvalidOperationException>(
+                () => db.SaveChangesAsync());
+            Assert.Contains("immutable", historicalError.Message.ToLowerInvariant());
+            db.ChangeTracker.Clear();
+
+            // A forged direct-ID update must not bypass snapshot immutability.
+            var snapshot = new StudentResultSummary {
+                Id = long.MaxValue, TenantId = tenantA, ResultPublicationId = withdrawn.Id,
+                AssessmentId = assessmentId, StudentEnrollmentId = long.MaxValue,
+                PublicationVersionNo = 2, ObtainedMarks = 75m, TotalMarks = 100m,
+                RowVersion = new byte[8]
+            };
+            db.Attach(snapshot);
+            snapshot.ObtainedMarks = 90m;
+            db.Entry(snapshot).Property(x => x.ObtainedMarks).IsModified = true;
+            var snapshotError = await Assert.ThrowsAsync<InvalidOperationException>(
+                () => db.SaveChangesAsync());
+            Assert.Contains("immutable", snapshotError.Message.ToLowerInvariant());
+        }
+        await using (var other = TenantDb(options, tenantB))
+        {
+            Assert.False(await other.ResultPublications.AsNoTracking().AnyAsync(x =>
+                x.TenantId == tenantB && x.AssessmentId == assessmentId &&
+                x.AcademicBatchId == batchId &&
+                (x.State == ResultPublicationState.Published ||
+                 x.State == ResultPublicationState.Withdrawn)));
+        }
+    }
+
     private static EduOSDbContext TenantDb(DbContextOptions<EduOSDbContext> options, long tenant)
     {
         var accessor = new HttpContextAccessor { HttpContext = new DefaultHttpContext() };

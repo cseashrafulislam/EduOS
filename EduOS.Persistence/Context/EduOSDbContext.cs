@@ -2140,6 +2140,17 @@ public class EduOSDbContext :
             if (entry.Entity is PayrollRun && OriginalStateEquals(entry, nameof(PayrollRun.State), "Posted"))
                 throw new InvalidOperationException("A posted payroll run is immutable. Correct it through controlled reversal/amendment.");
 
+            // Result snapshots cannot be edited, soft-deleted or overwritten after publication.
+            if (entry.Entity is StudentResultSummary)
+                throw new InvalidOperationException(
+                    "Published result snapshots are immutable. Use an audited amendment.");
+
+            // Withdrawal is a terminal historical state, not permission to rewrite evidence.
+            if (entry.Entity is ResultPublication &&
+                OriginalStateEquals(entry, nameof(ResultPublication.State), "Withdrawn"))
+                throw new InvalidOperationException(
+                    "Withdrawn result history is immutable. Use an audited amendment.");
+
             if (entry.Entity is ResultPublication publication &&
                 OriginalStateEquals(entry, nameof(ResultPublication.State), "Published"))
             {

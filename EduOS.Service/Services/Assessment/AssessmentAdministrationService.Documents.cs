@@ -40,6 +40,9 @@ public sealed partial class AssessmentAdministrationService
                 x.TenantId == tenant && x.Id == offering.AcademicBatchId && x.IsActive && !x.IsDeleted, token);
             if (batch == null || batch.CampusId != exam.CampusId || batch.AcademicYearId != exam.AcademicYearId)
                 return Error<AssessmentComponentDto>("Subject offering is outside assessment campus/year.", 409);
+            if (await HasFinalizedPublicationAsync(exam.Id, batch.Id, token))
+                return Error<AssessmentComponentDto>(
+                    "Finalized result history prevents marking scheme changes.", 409);
             var old = componentId.HasValue ? await _components.GetQueryable().FirstOrDefaultAsync(x =>
                 x.TenantId == tenant && x.Id == componentId.Value &&
                 x.AssessmentSubjectId == subject!.Id && !x.IsDeleted, token) : null;
@@ -123,11 +126,9 @@ public sealed partial class AssessmentAdministrationService
             var eligible = await EligibleAsync(offering.Id, batch.Id, token);
             if (!eligible.Any(x => x.RegistrationId == master.StudentSubjectRegistrationId))
                 return Error<StudentAssessmentComponentMarkDto>("Student is not eligible for this subject.", 409);
-            if (await _publications.GetQueryable().AsNoTracking().AnyAsync(x =>
-                x.TenantId == tenant && x.AssessmentId == exam.Id &&
-                x.AcademicBatchId == batch.Id && x.State == ResultPublicationState.Published &&
-                !x.IsDeleted, token))
-                return Error<StudentAssessmentComponentMarkDto>("Published component marks cannot be edited.", 409);
+            if (await HasFinalizedPublicationAsync(exam.Id, batch.Id, token))
+                return Error<StudentAssessmentComponentMarkDto>(
+                    "Published or withdrawn component marks require an approved, audited amendment.", 409);
             if (!CanPublish() && !await CanEditOfferingAsync(subject!.SubjectOfferingId, token))
                 return Error<StudentAssessmentComponentMarkDto>("Not assigned to this subject.", 403);
             if (request.ObtainedMarks > component.FullMarks)

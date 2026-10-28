@@ -30,7 +30,7 @@ public sealed partial class AssessmentAdministrationService
         var canSubmit = await CanSubmitReviewAsync(subject.SubjectOfferingId, ct);
         if (!canSubmit && !CanPublish()) return Error<AssessmentMarkReviewDto>("Instructor assignment required.", 403);
         return ApiResponse<AssessmentMarkReviewDto>.SuccessResponse(
-            await MapMarkReviewAsync(subject, exam, canSubmit, ct));
+            await MapMarkReviewAsync(subject, exam, canSubmit, batch.Id, ct));
     }
 
     public async Task<ApiResponse<AssessmentMarkReviewHistoryPageDto>> SearchMarkReviewHistoryAsync(
@@ -97,6 +97,9 @@ public sealed partial class AssessmentAdministrationService
                 x.TenantId == tenant && x.Id == offering.AcademicBatchId && x.IsActive && !x.IsDeleted, token);
             if (batch == null || batch.CampusId != exam.CampusId || batch.AcademicYearId != exam.AcademicYearId)
                 return Error<AssessmentMarkReviewDto>("Assessment subject scope is inconsistent.", 409);
+            if (await HasFinalizedPublicationAsync(exam.Id, batch.Id, token))
+                return Error<AssessmentMarkReviewDto>(
+                    "Finalized results require an approved, audited amendment before further mark review.", 409);
             var canSubmit = await CanSubmitReviewAsync(subject.SubjectOfferingId, token);
             if (request.Decision == AssessmentMarkReviewDecision.Submitted ? !canSubmit : !CanPublish())
                 return Error<AssessmentMarkReviewDto>("Mark review permission denied.", 403);
@@ -118,7 +121,7 @@ public sealed partial class AssessmentAdministrationService
                 if (latestId != previousRequest.Id)
                     return Error<AssessmentMarkReviewDto>("Review has advanced since this request; refresh.", 409);
                 return ApiResponse<AssessmentMarkReviewDto>.SuccessResponse(
-                    await MapMarkReviewAsync(subject, exam, canSubmit, token), "Decision already recorded.");
+                    await MapMarkReviewAsync(subject, exam, canSubmit, batch.Id, token), "Decision already recorded.");
             }
             if (exam.State != AssessmentState.MarksEntry)
                 return Error<AssessmentMarkReviewDto>("Assessment is not open for mark review.", 409);
@@ -256,7 +259,7 @@ public sealed partial class AssessmentAdministrationService
             _assessments.Update(exam);
             await _uow.SaveChangesAsync(token);
             return ApiResponse<AssessmentMarkReviewDto>.SuccessResponse(
-                await MapMarkReviewAsync(subject, exam, canSubmit, token), "Review decision recorded.");
+                await MapMarkReviewAsync(subject, exam, canSubmit, batch.Id, token), "Review decision recorded.");
         }, ct);
     }
 
@@ -271,8 +274,9 @@ public sealed partial class AssessmentAdministrationService
     }
 
     private async Task<AssessmentMarkReviewDto> MapMarkReviewAsync(AssessmentSubject subject,
-        Assessment exam, bool canSubmit, CancellationToken ct)
+        Assessment exam, bool canSubmit, long batchId, CancellationToken ct)
     {
+        var finalized = await HasFinalizedPublicationAsync(exam.Id, batchId, ct);
         var query = _markReviews.GetQueryable().AsNoTracking().Where(x =>
             x.TenantId == _user.TenantId && x.AssessmentSubjectId == subject.Id && !x.IsDeleted);
         var total = await query.CountAsync(ct);
@@ -290,9 +294,10 @@ public sealed partial class AssessmentAdministrationService
         {
             AssessmentSubjectId = subject.Id, AssessmentRowVersion = Version(exam.RowVersion),
             CurrentDecision = latest?.Decision, HistoryTotal = total, RecentHistory = events,
-            CanSubmit = canSubmit && exam.State == AssessmentState.MarksEntry &&
+            IsFinalized = finalized,
+            CanSubmit = !finalized && canSubmit && exam.State == AssessmentState.MarksEntry &&
                 (latest == null || latest.Decision == AssessmentMarkReviewDecision.Rejected),
-            CanReview = CanPublish() && exam.State == AssessmentState.MarksEntry &&
+            CanReview = !finalized && CanPublish() && exam.State == AssessmentState.MarksEntry &&
                 latest?.Decision == AssessmentMarkReviewDecision.Submitted &&
                 latest.ActorUserId != _user.UserId &&
                 latest.MarkRowVersion == Version(subject.RowVersion)

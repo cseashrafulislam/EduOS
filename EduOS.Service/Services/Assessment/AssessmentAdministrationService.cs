@@ -250,11 +250,9 @@ public sealed partial class AssessmentAdministrationService : IAssessmentAdminis
                 var offering = await _offerings.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
                     x.TenantId == tenant && x.Id == sub.SubjectOfferingId && x.IsActive, token);
                 if (offering == null) return Error<bool>("Subject offering inactive.", 409);
-                if (await _publications.GetQueryable().AsNoTracking().AnyAsync(x =>
-                    x.TenantId == tenant && x.AssessmentId == exam.Id &&
-                    x.AcademicBatchId == offering.AcademicBatchId &&
-                    x.State == ResultPublicationState.Published, token))
-                    return Error<bool>("Published marks cannot be edited.", 409);
+                if (await HasFinalizedPublicationAsync(exam.Id, offering.AcademicBatchId, token))
+                    return Error<bool>(
+                        "Published or withdrawn results require an approved, audited amendment.", 409);
                 // Validate only submitted registrations in SQL, not the legacy 2,001-row roster.
                 var ids = request.Marks.Select(x => x.StudentSubjectRegistrationId).ToArray();
                 var eligibleIds = await (from registration in _registrations.GetQueryable().AsNoTracking()

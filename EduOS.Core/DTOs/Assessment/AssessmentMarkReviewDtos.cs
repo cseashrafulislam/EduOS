@@ -25,6 +25,7 @@ public sealed class AssessmentMarkReviewDto
     public long AssessmentSubjectId { get; set; }
     public string AssessmentRowVersion { get; set; } = "";
     public AssessmentMarkReviewDecision? CurrentDecision { get; set; }
+    public bool IsFinalized { get; set; }
     public bool CanSubmit { get; set; }
     public bool CanReview { get; set; }
     public int HistoryTotal { get; set; }

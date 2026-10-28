@@ -32,3 +32,10 @@ test('history is keyset-paged, filtered and exports only the authorized page', (
     assert.match(script, /history\.sequence/);
     assert.match(view, /CSV \(current page\)/);
 });
+
+test('finalized publications disable ordinary review actions without hiding history', () => {
+    assert.match(script, /review\.isFinalized/);
+    assert.match(script, /approved amendment required/);
+    assert.match(script, /review\?\.canSubmit/);
+    assert.match(script, /review\?\.canReview/);
+});

@@ -43,7 +43,8 @@
     function render() {
         const review = state.review;
         el('markReviewStatus').textContent = review
-            ? (labels[review.currentDecision] || 'Not submitted') : 'Select a subject';
+            ? (review.isFinalized ? 'Finalized result · approved amendment required' :
+                (labels[review.currentDecision] || 'Not submitted')) : 'Select a subject';
         const tbody = el('markReviewRows'); tbody.replaceChildren();
         for (const event of (review ? history.items : [])) {
             const tr = document.createElement('tr');

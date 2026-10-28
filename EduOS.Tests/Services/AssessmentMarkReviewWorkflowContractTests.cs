@@ -61,6 +61,27 @@ public sealed class AssessmentMarkReviewWorkflowContractTests
     }
 
     [Fact]
+    public void Finalized_result_history_freezes_mark_component_review_and_scheme_writes()
+    {
+        var freeze = Read("EduOS.Service/Services/Assessment/AssessmentAdministrationService.PublicationFreeze.cs");
+        var marks = Read("EduOS.Service/Services/Assessment/AssessmentAdministrationService.cs");
+        var parts = Read("EduOS.Service/Services/Assessment/AssessmentAdministrationService.Documents.cs");
+        var setup = Read("EduOS.Service/Services/Assessment/AssessmentAdministrationService.Setup.cs");
+        var reviews = Read("EduOS.Service/Services/Assessment/AssessmentAdministrationService.MarkReviews.cs");
+        var context = Read("EduOS.Persistence/Context/EduOSDbContext.cs");
+        freeze.Should().Contain("x.TenantId == _user.TenantId");
+        freeze.Should().Contain("ResultPublicationState.Published");
+        freeze.Should().Contain("ResultPublicationState.Withdrawn");
+        marks.Should().Contain("HasFinalizedPublicationAsync(exam.Id, offering.AcademicBatchId");
+        parts.Should().Contain("HasFinalizedPublicationAsync(exam.Id, batch.Id");
+        setup.Should().Contain("HasFinalizedPublicationAsync(exam.Id, batch.Id");
+        reviews.Should().Contain("HasFinalizedPublicationAsync(exam.Id, batch.Id");
+        reviews.Should().Contain("CanReview = !finalized");
+        context.Should().Contain("if (entry.Entity is StudentResultSummary)");
+        context.Should().Contain("OriginalStateEquals(entry, nameof(ResultPublication.State), \"Withdrawn\")");
+    }
+
+    [Fact]
     public void Review_history_is_append_only_and_has_tenant_scoped_database_keys()
     {
         var context = Read("EduOS.Persistence/Context/EduOSDbContext.cs");

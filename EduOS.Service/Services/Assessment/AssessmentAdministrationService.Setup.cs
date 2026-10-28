@@ -226,6 +226,9 @@ public sealed partial class AssessmentAdministrationService
                 x.TenantId == tenant && x.Id == offering.AcademicBatchId &&
                 x.CampusId == exam.CampusId && x.AcademicYearId == exam.AcademicYearId && x.IsActive, token);
             if (batch == null) return Error<AssessmentSubjectDto>("Offering is outside assessment scope.", 409);
+            if (await HasFinalizedPublicationAsync(exam.Id, batch.Id, token))
+                return Error<AssessmentSubjectDto>(
+                    "Finalized result history prevents subject scheme changes.", 409);
             if (await _registrations.GetQueryable().AsNoTracking().AnyAsync(x =>
                 x.TenantId == tenant && x.SubjectOfferingId == offering.Id &&
                 x.State == SubjectRegistrationState.Completed && !x.IsDeleted, token))
