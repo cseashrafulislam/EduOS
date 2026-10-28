@@ -44,10 +44,35 @@
         <section id="payrollDetails" class="card mb-3 d-none">
             <div class="card-header"><h3 class="h6 m-0">Calculated employee payroll snapshots</h3></div>
             <div class="table-responsive"><table class="table table-sm table-striped mb-0">
-                <thead><tr><th>Employee code</th><th>Name</th><th>Gross</th><th>Deductions</th><th>Net</th><th>Component breakdown</th></tr></thead>
+                <thead><tr><th>Employee code</th><th>Name</th><th>Gross</th><th>Deductions</th><th>Net</th><th>Component breakdown</th><th>Payment request</th></tr></thead>
                 <tbody id="payrollEmployeeRows"></tbody>
             </table></div>
             <div class="card-footer d-flex align-items-center gap-2"><button id="payrollDetailPrev" type="button" class="btn btn-sm btn-outline-secondary">Previous</button><span id="payrollDetailPageLabel" aria-live="polite"></span><button id="payrollDetailNext" type="button" class="btn btn-sm btn-outline-secondary">Next</button></div>
+        </section>
+        <section id="payrollPaymentRequestPanel" class="card card-body mb-3 d-none" aria-labelledby="payrollPaymentRequestTitle">
+            <div class="d-flex align-items-center gap-2 mb-2">
+                <h3 id="payrollPaymentRequestTitle" class="h6 m-0">Record payroll payment request</h3>
+                <details><summary class="btn btn-sm btn-outline-secondary" aria-label="Payroll request help" title="Payroll request help">ⓘ</summary>
+                    <div class="small">Only posted employee payroll is eligible. Cash requests need no bank details. Bank transfers require the institute source bank, employee destination and an external reference. Another administrator must verify settlement in Finance; recording this request does not transfer money.</div>
+                </details>
+            </div>
+            <p id="payrollPaymentEmployee" class="fw-semibold mb-2"></p>
+            <form id="payrollPaymentRequestForm">
+                <div class="row g-2 align-items-end">
+                    <div class="col-md-3"><label class="form-label" for="payrollPaymentDate">Payment date</label><input id="payrollPaymentDate" class="form-control" type="date" required /></div>
+                    <div class="col-md-3"><label class="form-label" for="payrollPaymentAmount">Amount (BDT)</label><input id="payrollPaymentAmount" class="form-control" type="number" min="0.01" step="0.01" required /></div>
+                    <div class="col-md-3"><label class="form-label" for="payrollPaymentMethod">Method</label><select id="payrollPaymentMethod" class="form-select"><option value="1">Cash</option><option value="2">Bank transfer</option></select></div>
+                </div>
+                <div id="payrollPaymentBankFields" class="row g-2 mt-1 d-none">
+                    <div class="col-md-4"><label class="form-label" for="payrollPaymentSourceBank">Institute bank</label><select id="payrollPaymentSourceBank" class="form-select"></select></div>
+                    <div class="col-md-4"><label class="form-label" for="payrollPaymentDestinationBank">Employee bank</label><select id="payrollPaymentDestinationBank" class="form-select"></select></div>
+                    <div class="col-md-4"><label class="form-label" for="payrollPaymentExternalRef">External bank reference</label><input id="payrollPaymentExternalRef" class="form-control" maxlength="150" /></div>
+                </div>
+                <div class="d-flex gap-2 mt-3">
+                    <button id="payrollPaymentRequestSubmit" type="submit" class="btn btn-primary">Record pending request</button>
+                    <button id="payrollPaymentRequestCancel" type="button" class="btn btn-outline-secondary">Cancel</button>
+                </div>
+            </form>
         </section>
     }
     <section class="card">

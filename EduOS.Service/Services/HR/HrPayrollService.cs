@@ -892,11 +892,17 @@ public sealed class HrPayrollService : IPayrollAdministrationService
     {
         if (!Manager()) return Denied<PayrollPaymentDto>();
         if (request == null || request.ClientRequestId == Guid.Empty || request.PayrollEmployeeId <= 0 ||
-            request.PaymentDate == default || !Enum.IsDefined(request.PaymentMethod) ||
+            request.PaymentDate == default ||
+            request.PaymentMethod is not (PaymentMethodType.Cash or PaymentMethodType.BankTransfer) ||
             request.Amount <= 0 || request.Amount > 999999999999m ||
             !TryVersion(request.PayrollEmployeeRowVersion, out var expected) ||
             request.BankAccountId is <= 0 || request.EmployeeBankAccountId is <= 0 ||
-            request.ExternalReference?.Length > 150)
+            request.ExternalReference?.Length > 150 ||
+            (request.PaymentMethod == PaymentMethodType.Cash &&
+                (request.BankAccountId.HasValue || request.EmployeeBankAccountId.HasValue)) ||
+            (request.PaymentMethod == PaymentMethodType.BankTransfer &&
+                (!request.BankAccountId.HasValue || !request.EmployeeBankAccountId.HasValue ||
+                    string.IsNullOrWhiteSpace(request.ExternalReference))))
             return Error<PayrollPaymentDto>("Invalid payroll payment request or row version.");
         try
         {
@@ -927,16 +933,21 @@ public sealed class HrPayrollService : IPayrollAdministrationService
                     x.TenantId == tenant && x.Id == employee.PayrollRunId && !x.IsDeleted, token);
                 if (run == null || run.State != PayrollRunState.Posted || run.JournalId == null)
                     return Error<PayrollPaymentDto>("Payroll must be journal-posted before payment.", 409);
-                if (request.PaymentDate < run.PeriodStart)
-                    return Error<PayrollPaymentDto>("Payment date predates the payroll period.", 409);
-                if (request.BankAccountId.HasValue && !await _bankAccounts.GetQueryable().AsNoTracking()
-                    .AnyAsync(x => x.TenantId == tenant && x.Id == request.BankAccountId.Value &&
-                        x.IsActive && !x.IsDeleted, token))
-                    return Error<PayrollPaymentDto>("Bank account is not available.", 404);
-                if (request.EmployeeBankAccountId.HasValue && !await _employeeBankAccounts.GetQueryable().AsNoTracking()
-                    .AnyAsync(x => x.TenantId == tenant && x.Id == request.EmployeeBankAccountId.Value &&
-                        x.EmployeeId == employee.EmployeeId && x.IsActive && !x.IsDeleted, token))
-                    return Error<PayrollPaymentDto>("Employee bank account does not belong to this employee.", 404);
+                if (request.PaymentDate < run.PeriodEnd)
+                    return Error<PayrollPaymentDto>("Salary settlement date must follow payroll period end.", 409);
+                if (request.PaymentMethod == PaymentMethodType.BankTransfer)
+                {
+                    if (!await _bankAccounts.GetQueryable().AsNoTracking().AnyAsync(x =>
+                        x.TenantId == tenant && x.Id == request.BankAccountId &&
+                        x.IsActive && !x.IsDeleted && x.CurrencyCode == "BDT" &&
+                        (!x.CampusId.HasValue || x.CampusId == run.CampusId), token))
+                        return Error<PayrollPaymentDto>("Active BDT source bank account is unavailable for this campus.", 409);
+                    if (!await _employeeBankAccounts.GetQueryable().AsNoTracking().AnyAsync(x =>
+                        x.TenantId == tenant && x.Id == request.EmployeeBankAccountId &&
+                        x.EmployeeId == employee.EmployeeId && x.IsActive && !x.IsDeleted &&
+                        x.CurrencyCode == "BDT", token))
+                        return Error<PayrollPaymentDto>("Active BDT employee bank destination is unavailable.", 409);
+                }
                 var pending = await _payments.GetQueryable().AsNoTracking().Where(x =>
                     x.TenantId == tenant && x.PayrollEmployeeId == employee.Id &&
                     !x.IsDeleted && x.State != PaymentState.Failed &&
@@ -1021,7 +1032,8 @@ public sealed class HrPayrollService : IPayrollAdministrationService
         var byEmployee = lines.ToLookup(x => x.PayrollEmployeeId);
         return rows.Select(row => new PayrollEmployeeDto
         {
-            Id = row.Id, EmployeeReference = details.GetValueOrDefault(row.EmployeeId)?.PublicId ?? Guid.Empty,
+            Id = row.Id, RowVersion = Version(row.RowVersion),
+            EmployeeReference = details.GetValueOrDefault(row.EmployeeId)?.PublicId ?? Guid.Empty,
             RunReference = runs.GetValueOrDefault(row.PayrollRunId)?.PublicId ?? Guid.Empty,
             RunNumber = runs.GetValueOrDefault(row.PayrollRunId)?.RunNumber ?? string.Empty,
             PeriodStart = runs.GetValueOrDefault(row.PayrollRunId)?.PeriodStart ?? default,

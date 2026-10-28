@@ -103,6 +103,7 @@ public class CreatePayrollRunRequestDto
 public class PayrollEmployeeDto
 {
     public long Id { get; set; }
+    public string RowVersion { get; set; } = string.Empty;
     public Guid RunReference { get; set; }
     public string RunNumber { get; set; } = string.Empty;
     public DateOnly PeriodStart { get; set; }

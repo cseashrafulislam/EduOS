@@ -5,7 +5,8 @@ const admin = root.dataset.manager === 'true';
 const token = root.querySelector('input[name="__RequestVerificationToken"]')?.value;
 const el = id => document.getElementById(id);
 const state = {runPage:1, runPages:1, detailPage:1, detailPages:1, slipPage:1, slipPages:1,
-    selected:null, requestId:null, requestPeriod:null, busy:false};
+    selected:null, requestId:null, requestPeriod:null, busy:false,
+    paymentEmployee:null, paymentRequestId:null, paymentBusy:false, bankLoadToken:0};
 const cell = value => {const td=document.createElement('td');td.textContent=value==null?'':String(value);return td;};
 const money = value => Number(value||0).toLocaleString('en-BD',{minimumFractionDigits:2,maximumFractionDigits:2});
 const status = value => ({1:'Draft',2:'Calculated',3:'Approved',4:'Posted',5:'Cancelled'}[value] ||
@@ -44,6 +45,96 @@ function action(text,handler,css='btn-outline-primary') {
     const button=document.createElement('button');button.type='button';
     button.className='btn btn-sm '+css;button.textContent=text;
     button.addEventListener('click',handler);return button;
+}
+function paymentBankFields() {
+    const isBank = el('payrollPaymentMethod').value === '2';
+    el('payrollPaymentBankFields').classList.toggle('d-none', !isBank);
+    if (isBank) loadPaymentBanks();
+}
+async function loadPaymentBanks() {
+    const employee = state.paymentEmployee;
+    if (!employee || el('payrollPaymentMethod').value !== '2') return;
+    const loadToken = ++state.bankLoadToken;
+    const source = el('payrollPaymentSourceBank'), destination = el('payrollPaymentDestinationBank');
+    source.replaceChildren(new Option('Select institute bank', ''));
+    destination.replaceChildren(new Option('Select employee bank', ''));
+    try {
+        const [banks, employeeBanks] = await Promise.all([
+            api('/api/finance/accounting/setup/banks'),
+            api('/api/hr/employees/'+encodeURIComponent(employee.employeeReference)+'/bank-accounts')
+        ]);
+        if (loadToken !== state.bankLoadToken || state.paymentEmployee !== employee ||
+            el('payrollPaymentMethod').value !== '2') return;
+        for (const bank of banks || []) if (bank.isActive && bank.currencyCode === 'BDT')
+            source.add(new Option(bank.bankName+' · '+bank.accountName, String(bank.id)));
+        for (const bank of employeeBanks || []) if (bank.isActive && bank.currencyCode === 'BDT')
+            destination.add(new Option(bank.bankName+' · '+bank.accountName+' ···'+
+                (bank.accountNumberLast4 || ''), String(bank.id)));
+        if (source.options.length === 1 || destination.options.length === 1)
+            notice('An active BDT institute bank and employee bank are required for transfers.', true);
+    } catch (e) { if (loadToken === state.bankLoadToken) notice(e.message, true); }
+}
+function openPayment(employee) {
+    if (status(employee.runState) !== 'Posted' || !employee.rowVersion || !employee.employeeReference)
+        return notice('Only a posted employee payroll snapshot can receive payment requests.', true);
+    state.paymentEmployee = employee; state.paymentRequestId = null;
+    ++state.bankLoadToken;
+    const date = el('payrollPaymentDate');
+    date.min = String(employee.periodEnd).slice(0,10);
+    const now = new Date();
+    date.value = [now.getFullYear(), String(now.getMonth()+1).padStart(2,'0'),
+        String(now.getDate()).padStart(2,'0')].join('-');
+    if (date.value < date.min) date.value = date.min;
+    el('payrollPaymentAmount').value = String(employee.netAmount);
+    el('payrollPaymentMethod').value = '1';
+    for (const id of ['payrollPaymentSourceBank','payrollPaymentDestinationBank','payrollPaymentExternalRef'])
+        el(id).value = '';
+    el('payrollPaymentBankFields').classList.add('d-none');
+    el('payrollPaymentEmployee').textContent = employee.employeeCode+' · '+employee.employeeName+
+        ' · '+employee.runNumber+' · net '+money(employee.netAmount)+' BDT';
+    el('payrollPaymentRequestPanel').classList.remove('d-none');
+    el('payrollPaymentAmount').focus();
+}
+function closePayment() {
+    ++state.bankLoadToken; state.paymentEmployee = null; state.paymentRequestId = null;
+    el('payrollPaymentRequestPanel').classList.add('d-none');
+}
+async function recordPayment(e) {
+    e.preventDefault();
+    const employee = state.paymentEmployee;
+    if (!employee || state.paymentBusy) return;
+    const date = el('payrollPaymentDate').value;
+    const amount = Number(el('payrollPaymentAmount').value);
+    const method = Number(el('payrollPaymentMethod').value);
+    const bankTransfer = method === 2;
+    const source = bankTransfer ? Number(el('payrollPaymentSourceBank').value) : null;
+    const destination = bankTransfer ? Number(el('payrollPaymentDestinationBank').value) : null;
+    const reference = bankTransfer ? el('payrollPaymentExternalRef').value.trim() : null;
+    if (!Number.isSafeInteger(employee.id) || employee.id <= 0 ||
+        !date || date < String(employee.periodEnd).slice(0,10) ||
+        !Number.isFinite(amount) || amount <= 0 || amount > Number(employee.netAmount) ||
+        Math.abs(amount * 100 - Math.round(amount * 100)) > 0.000001 ||
+        (method !== 1 && method !== 2) ||
+        (bankTransfer && (!Number.isSafeInteger(source) || source <= 0 ||
+            !Number.isSafeInteger(destination) || destination <= 0 || !reference || reference.length > 150)))
+        return notice('Check payment date, amount, bank accounts and reference.', true);
+    if (!confirm('Record a pending payroll request? No funds are moved. A different administrator must verify the payment and GL settlement.')) return;
+    if (!state.paymentRequestId) state.paymentRequestId = crypto.randomUUID();
+    const requestId = state.paymentRequestId;
+    state.paymentBusy = true; el('payrollPaymentRequestSubmit').disabled = true;
+    try {
+        await api('/api/hr-payroll/payments','POST',{
+            clientRequestId:requestId, payrollEmployeeId:employee.id,
+            payrollEmployeeRowVersion:employee.rowVersion, paymentDate:date,
+            paymentMethod:method, amount, bankAccountId:source,
+            employeeBankAccountId:destination, externalReference:reference
+        });
+        closePayment();
+        notice('Payment request recorded as pending. Another administrator must verify and post it in Finance.');
+        await loadEmployees(employee.runReference, state.detailPage);
+    } catch (err) {
+        notice(err.message+' The same request key is retained for a safe retry.', true);
+    } finally { state.paymentBusy = false; el('payrollPaymentRequestSubmit').disabled = false; }
 }
 async function loadRuns() {
     if(!admin)return;
@@ -120,9 +211,13 @@ async function loadEmployees(reference,page=1) {
             const breakdown=(row.lines||[]).map(x=>x.salaryComponentName+': '+money(x.amount)).join('; ');
             tr.append(cell(row.employeeCode),cell(row.employeeName),cell(money(row.grossAmount)),
                 cell(money(row.deductionAmount)),cell(money(row.netAmount)),cell(breakdown));
+            const control = document.createElement('td');
+            if(status(row.runState)==='Posted')
+                control.append(action('Record request',()=>openPayment(row)));
+            tr.append(control);
             body.append(tr);
         }
-        if(!data.items?.length)empty(body,6,'No employees in this payroll run.');
+        if(!data.items?.length)empty(body,7,'No employees in this payroll run.');
         state.detailPages=Math.max(1,Math.ceil((data.totalCount||0)/10));
         pageInfo('payrollDetail',page,state.detailPages,data.totalCount||0);
         el('payrollDetails').classList.remove('d-none');
@@ -174,6 +269,12 @@ async function loadSlips() {
     }catch(e){notice(e.message,true);}
 }
 if(admin) {
+    el('payrollPaymentMethod').addEventListener('change', paymentBankFields);
+    for (const id of ['payrollPaymentDate','payrollPaymentAmount','payrollPaymentMethod',
+        'payrollPaymentSourceBank','payrollPaymentDestinationBank','payrollPaymentExternalRef'])
+        el(id).addEventListener('input',()=>{state.paymentRequestId=null;});
+    el('payrollPaymentRequestForm').addEventListener('submit',recordPayment);
+    el('payrollPaymentRequestCancel').addEventListener('click',closePayment);
     const now=new Date();el('payrollYear').value=String(now.getFullYear());
     el('payrollMonth').value=String(now.getMonth()+1);
     el('payrollLoad').addEventListener('click',()=>{state.runPage=1;loadRuns();});
