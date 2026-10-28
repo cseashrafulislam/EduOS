@@ -104,6 +104,14 @@ public sealed class SqlServerAssessmentMarkReviewLifecycleIntegrationTests
             Assert.True(history.Success, history.Message);
             Assert.Equal(studentReference, history.Data!.StudentReference);
             Assert.Equal(ResultRescrutinyAction.Requested, Assert.Single(history.Data.Events).Action);
+            var review = await service.GetResultRescrutinyReviewAsync(caseReference);
+            Assert.True(review.Success, review.Message);
+            Assert.Equal(studentReference, review.Data!.StudentReference);
+            Assert.Equal(70m, review.Data.ObtainedMarks);
+            Assert.Equal(100m, review.Data.TotalMarks);
+            Assert.Equal(3m, review.Data.GPA);
+            Assert.Equal(ResultRescrutinyAction.Requested, review.Data.Status);
+            Assert.Equal(version, review.Data.RequestRowVersion);
             var pending = await service.SearchResultRescrutinyAsync(new()
             {
                 PublicationId = publicationId, Status = ResultRescrutinyAction.Requested
@@ -125,6 +133,7 @@ public sealed class SqlServerAssessmentMarkReviewLifecycleIntegrationTests
                 PublicationId = publicationId
             })).StatusCode);
             Assert.Equal(404, (await foreign.GetResultRescrutinyHistoryAsync(caseReference)).StatusCode);
+            Assert.Equal(404, (await foreign.GetResultRescrutinyReviewAsync(caseReference)).StatusCode);
             Assert.Equal(404, (await foreign.DecideResultRescrutinyAsync(caseReference, new()
             {
                 ClientRequestId = Guid.NewGuid(), RequestRowVersion = version,
@@ -172,6 +181,10 @@ public sealed class SqlServerAssessmentMarkReviewLifecycleIntegrationTests
             Assert.True(history.Success, history.Message);
             Assert.Equal(2, history.Data!.Events.Count);
             Assert.Equal(ResultRescrutinyAction.AcceptedForCorrection, history.Data.Events[1].Action);
+            var reviewed = await service.GetResultRescrutinyReviewAsync(caseReference);
+            Assert.True(reviewed.Success, reviewed.Message);
+            Assert.Equal(ResultRescrutinyAction.AcceptedForCorrection, reviewed.Data!.Status);
+            Assert.Equal(70m, reviewed.Data.ObtainedMarks);
             var accepted = await service.SearchResultRescrutinyAsync(new()
             {
                 PublicationId = publicationId, Status = ResultRescrutinyAction.AcceptedForCorrection

@@ -70,6 +70,13 @@ public sealed class ResultRescrutinyWorkflowContractTests
         api.Should().Contain("[HttpPost(\"results/rescrutiny\")]");
         api.Should().Contain("[HttpPost(\"results/rescrutiny/{caseReference:guid}/decision\")]");
         api.Should().Contain("DecideResultRescrutinyAsync");
+        api.Should().Contain("results/rescrutiny/{caseReference:guid}/review");
+        var review = Read("EduOS.Service/Services/Assessment/AssessmentAdministrationService.RescrutinyReview.cs");
+        review.Should().Contain("GetResultRescrutinyHistoryAsync");
+        review.Should().Contain("StudentEnrollmentId == original.StudentEnrollmentId");
+        review.Should().Contain("Take(2)");
+        review.Should().NotContain("IgnoreQueryFilters()");
+        review.Should().NotContain("_summaries.Update(");
         mvc.Should().Contain("IActionResult ResultRescrutiny()");
         view.Should().Contain("CultureInfo.CurrentUICulture");
         view.Should().Contain("rescrutinyDecisionForm");

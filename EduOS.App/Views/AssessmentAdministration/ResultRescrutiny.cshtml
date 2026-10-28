@@ -95,6 +95,16 @@
         </div>
         <form id="rescrutinyDecisionForm" class="card-body border-top d-none">
             <h3 class="h6" id="rescrutinyDecisionTitle">@(bn ? "আবেদন পর্যালোচনা" : "Review application")</h3>
+            <div id="rescrutinyReviewEvidence" class="border rounded p-2 mb-3 d-none" aria-live="polite">
+                <dl class="row small mb-0">
+                    <dt class="col-6 col-md-3">@(bn ? "প্রকাশিত নম্বর" : "Published marks")</dt><dd class="col-6 col-md-3" id="rescrutinyReviewMarks"></dd>
+                    <dt class="col-6 col-md-3">@(bn ? "শতকরা" : "Percentage")</dt><dd class="col-6 col-md-3" id="rescrutinyReviewPercentage"></dd>
+                    <dt class="col-6 col-md-3">GPA / CGPA</dt><dd class="col-6 col-md-3" id="rescrutinyReviewGpa"></dd>
+                    <dt class="col-6 col-md-3">@(bn ? "গ্রেড" : "Grade")</dt><dd class="col-6 col-md-3" id="rescrutinyReviewGrade"></dd>
+                    <dt class="col-6 col-md-3">@(bn ? "ফলাফলের অবস্থা" : "Result status")</dt><dd class="col-6 col-md-3" id="rescrutinyReviewOutcome"></dd>
+                    <dt class="col-6 col-md-3">@(bn ? "প্রকাশিত সংস্করণ" : "Published version")</dt><dd class="col-6 col-md-3" id="rescrutinyReviewVersion"></dd>
+                </dl>
+            </div>
             <label class="form-label" for="rescrutinyDecision">@(bn ? "সিদ্ধান্ত" : "Decision")</label>
             <select id="rescrutinyDecision" class="form-select mb-2" required>
                 <option value="3">@(bn ? "সংশোধন পর্যালোচনার জন্য গ্রহণ" : "Accept for audited correction review")</option>

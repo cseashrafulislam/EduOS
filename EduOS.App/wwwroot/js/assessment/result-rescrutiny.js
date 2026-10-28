@@ -7,7 +7,7 @@
     const tr = (en, bangla) => bn ? bangla : en;
     const state = { scopePage: 1, scopeTotal: 0, scopeSeq: 0, listSeq: 0,
         publication: 0, before: null, previous: [], hasMore: false, items: [],
-        selected: null, busy: false, requestKey: null, decisionKey: null, historySeq: 0 };
+        selected: null, busy: false, requestKey: null, decisionKey: null, historySeq: 0, reviewSeq: 0 };
     const endpoint = '/api/assessment-administration/';
     const token = document.querySelector('#resultRescrutinyWorkspace input[name="__RequestVerificationToken"]')?.value;
     function notice(message, error = false) {
@@ -43,7 +43,8 @@
         $('rescrutinyStudent').disabled = true; $('rescrutinySubmit').disabled = true;
         $('rescrutinyDecisionForm').classList.add('d-none');
         $('rescrutinyHistory').classList.add('d-none');
-        state.historySeq++;
+        state.historySeq++; state.reviewSeq++;
+        $('rescrutinyReviewEvidence').classList.add('d-none');
         $('rescrutinyCsv').disabled = true; $('rescrutinyPrev').disabled = true;
         $('rescrutinyNext').disabled = true;
         placeholder('rescrutinyRows', tr('Select a published version.', 'প্রকাশিত সংস্করণ নির্বাচন করুন।'), 5);
@@ -148,14 +149,7 @@
                     const button = document.createElement('button');
                     button.type = 'button'; button.className = 'btn btn-sm btn-outline-primary';
                     button.textContent = tr('Review', 'পর্যালোচনা');
-                    button.addEventListener('click', () => {
-                        state.selected = item; state.decisionKey = null;
-                        $('rescrutinyDecisionTitle').textContent =
-                            tr('Review case ', 'আবেদন পর্যালোচনা ') + item.studentCode;
-                        $('rescrutinyDecisionReason').value = '';
-                        $('rescrutinyDecisionForm').classList.remove('d-none');
-                        $('rescrutinyDecisionReason').focus();
-                    });
+                    button.addEventListener('click', () => loadReview(item));
                     button.classList.add('ms-1');
                     actions.append(button);
                 } else {
@@ -172,6 +166,37 @@
             $('rescrutinyCsv').disabled = !state.items.length;
             $('rescrutinyPage').textContent = tr('Page ', 'পৃষ্ঠা ') + (state.previous.length + 1);
         } catch (e) { if (seq === state.listSeq) notice(e.message, true); }
+    }
+    async function loadReview(item) {
+        const seq = ++state.reviewSeq;
+        state.selected = null; state.decisionKey = null;
+        $('rescrutinyDecisionForm').classList.add('d-none');
+        $('rescrutinyReviewEvidence').classList.add('d-none');
+        try {
+            const data = await api('results/rescrutiny/' +
+                encodeURIComponent(item.caseReference) + '/review');
+            if (seq !== state.reviewSeq || state.publication !== item.publicationId) return;
+            if (data.status !== 1 && data.status !== 'Requested') {
+                notice(tr('Case already decided. Refresh the list.',
+                    'আবেদনের সিদ্ধান্ত হয়েছে। তালিকা রিফ্রেশ করুন।'), true);
+                await loadCases(); return;
+            }
+            state.selected = { ...item, requestRowVersion: data.requestRowVersion };
+            const show = (id, value) => { $(id).textContent = value == null ? '—' : String(value); };
+            show('rescrutinyReviewMarks', data.obtainedMarks + ' / ' + data.totalMarks);
+            show('rescrutinyReviewPercentage', data.percentage == null ? null : data.percentage + '%');
+            show('rescrutinyReviewGpa', (data.gpa ?? '—') + ' / ' + (data.cgpa ?? '—'));
+            show('rescrutinyReviewGrade', data.gradeLetter);
+            show('rescrutinyReviewOutcome', data.isWithheld ?
+                tr('Withheld', 'স্থগিত') : data.isPassed ? tr('Passed', 'উত্তীর্ণ') : tr('Failed', 'অনুত্তীর্ণ'));
+            show('rescrutinyReviewVersion', data.publicationVersionNo);
+            $('rescrutinyDecisionTitle').textContent =
+                tr('Review case ', 'আবেদন পর্যালোচনা ') + data.studentCode;
+            $('rescrutinyDecisionReason').value = '';
+            $('rescrutinyReviewEvidence').classList.remove('d-none');
+            $('rescrutinyDecisionForm').classList.remove('d-none');
+            $('rescrutinyDecisionReason').focus();
+        } catch (e) { if (seq === state.reviewSeq) notice(e.message, true); }
     }
     async function loadHistory(item) {
         const seq = ++state.historySeq;
@@ -231,7 +256,8 @@
                 decision: Number($('rescrutinyDecision').value),
                 reason: $('rescrutinyDecisionReason').value.trim()
             });
-            state.decisionKey = null; state.selected = null;
+            state.decisionKey = null; state.selected = null; state.reviewSeq++;
+            $('rescrutinyReviewEvidence').classList.add('d-none');
             $('rescrutinyDecisionForm').classList.add('d-none');
             notice(tr('Decision recorded. Published marks are unchanged.',
                 'সিদ্ধান্ত সংরক্ষিত হয়েছে। প্রকাশিত নম্বর অপরিবর্তিত।'));
@@ -272,7 +298,8 @@
     $('rescrutinyRequestForm').addEventListener('submit', submitRequest);
     $('rescrutinyDecisionForm').addEventListener('submit', decide);
     $('rescrutinyCancel').addEventListener('click', () => {
-        state.selected = null; state.decisionKey = null;
+        state.selected = null; state.decisionKey = null; state.reviewSeq++;
+        $('rescrutinyReviewEvidence').classList.add('d-none');
         $('rescrutinyDecisionForm').classList.add('d-none');
     });
     $('rescrutinyPrev').addEventListener('click', () => {
@@ -284,7 +311,10 @@
         state.previous.push(state.before); state.before = state.nextBeforeId; loadCases();
     });
     $('rescrutinyStatusFilter').addEventListener('change', () => {
-        state.before = null; state.previous = []; state.historySeq++;
+        state.before = null; state.previous = []; state.historySeq++; state.reviewSeq++;
+        state.selected = null; state.decisionKey = null;
+        $('rescrutinyDecisionForm').classList.add('d-none');
+        $('rescrutinyReviewEvidence').classList.add('d-none');
         $('rescrutinyHistory').classList.add('d-none');
         loadCases();
     });

@@ -69,3 +69,29 @@ public sealed class ResultRescrutinyHistoryDto
     public Guid StudentReference { get; set; }
     public IReadOnlyList<ResultRescrutinyHistoryEventDto> Events { get; set; } = [];
 }
+
+public sealed class ResultRescrutinyReviewDto
+{
+    public Guid CaseReference { get; set; }
+    public long PublicationId { get; set; }
+    public int PublicationVersionNo { get; set; }
+    public Guid StudentReference { get; set; }
+    public string StudentCode { get; set; } = string.Empty;
+    public string RollNo { get; set; } = string.Empty;
+    public string RequestReason { get; set; } = string.Empty;
+    public DateTime RequestedAt { get; set; }
+    public long RequestedByUserId { get; set; }
+    public string RequestRowVersion { get; set; } = string.Empty;
+    public ResultRescrutinyAction Status { get; set; }
+    public DateTime? DecidedAt { get; set; }
+    public long? DecidedByUserId { get; set; }
+    public string? DecisionReason { get; set; }
+    public decimal ObtainedMarks { get; set; }
+    public decimal TotalMarks { get; set; }
+    public decimal? Percentage { get; set; }
+    public decimal? GPA { get; set; }
+    public decimal? CGPA { get; set; }
+    public string? GradeLetter { get; set; }
+    public bool IsPassed { get; set; }
+    public bool IsWithheld { get; set; }
+}
