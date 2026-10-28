@@ -350,6 +350,11 @@ public sealed partial class AssessmentAdministrationService : IAssessmentAdminis
             }, ct);
         }
         catch (DbUpdateConcurrencyException) { return Error<bool>("Marks changed concurrently.", 409); }
+        catch (Microsoft.Data.SqlClient.SqlException ex) when (ex.Number == 1205)
+        {
+            _logger.LogWarning(ex, "Concurrent marks transaction deadlock tenant {TenantId}", _user.TenantId);
+            return Error<bool>("Marks transaction conflicted; reload and retry.", 409);
+        }
         catch (DbUpdateException ex)
         {
             _logger.LogWarning(ex, "Mark entry conflict for tenant {TenantId}", _user.TenantId);
@@ -729,6 +734,11 @@ public sealed partial class AssessmentAdministrationService : IAssessmentAdminis
     {
         try { return await _uow.ExecuteInTransactionAsync(action, ct); }
         catch (DbUpdateConcurrencyException) { return Error<T>("Assessment changed concurrently.", 409); }
+        catch (Microsoft.Data.SqlClient.SqlException ex) when (ex.Number == 1205)
+        {
+            _logger.LogWarning(ex, "Assessment transaction deadlock on {Action} tenant {TenantId}", name, _user.TenantId);
+            return Error<T>("Assessment transaction conflicted; reload and retry.", 409);
+        }
         catch (DbUpdateException ex)
         {
             _logger.LogWarning(ex, "Assessment write conflict on {Action} tenant {TenantId}", name, _user.TenantId);

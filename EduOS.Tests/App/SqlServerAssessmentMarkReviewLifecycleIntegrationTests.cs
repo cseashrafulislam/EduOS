@@ -404,6 +404,118 @@ public sealed class SqlServerAssessmentMarkReviewLifecycleIntegrationTests
         }
     }
 
+
+    [Fact]
+    public async Task Competing_review_approvals_commit_once_and_lock_requires_the_winning_review()
+    {
+        var connection = Environment.GetEnvironmentVariable("EDUOS_SQL_AUTH_TEST_CONNECTION");
+        if (string.IsNullOrWhiteSpace(connection)) return;
+        var options = new DbContextOptionsBuilder<EduOSDbContext>().UseSqlServer(connection).Options;
+        var seeded = await SeedAsync(options);
+        var teacher = new Actor(seeded.TenantId, seeded.TeacherId, "Teacher");
+        var reviewer = new Actor(seeded.TenantId, seeded.ReviewerId, "TenantAdmin");
+        Guid examReference;
+
+        // The lock calculation uses the canonical grade scheme, not a test-only bypass.
+        await using (var db = TenantDb(options, seeded.TenantId))
+        {
+            var subject = await db.AssessmentSubjects.SingleAsync(x => x.Id == seeded.AssessmentSubjectId);
+            var exam = await db.Assessments.SingleAsync(x => x.Id == subject.AssessmentId);
+            examReference = exam.PublicId;
+            var scheme = new GradeScheme
+            {
+                TenantId = seeded.TenantId, Name = "Concurrent review grading",
+                Code = "REVIEW-" + Guid.NewGuid().ToString("N")[..12]
+            };
+            db.GradeSchemes.Add(scheme);
+            await db.SaveChangesAsync();
+            db.GradeRules.Add(new GradeRule
+            {
+                TenantId = seeded.TenantId, GradeSchemeId = scheme.Id,
+                MinMarks = 0m, MaxMarks = 100m, GradeLetter = "A",
+                GradePoint = 4m, DisplayOrder = 1
+            });
+            exam.GradeSchemeId = scheme.Id;
+            await db.SaveChangesAsync();
+        }
+
+        await using (var db = TenantDb(options, seeded.TenantId))
+        {
+            var service = Service(db, teacher);
+            var review = await service.GetMarkReviewAsync(seeded.AssessmentSubjectId);
+            Assert.True(review.Success, review.Message);
+            var submitted = await service.DecideMarkReviewAsync(seeded.AssessmentSubjectId,
+                Decision(Guid.NewGuid(), review.Data!.AssessmentRowVersion,
+                    AssessmentMarkReviewDecision.Submitted));
+            Assert.True(submitted.Success, submitted.Message);
+        }
+
+        await using (var db = TenantDb(options, seeded.TenantId))
+        {
+            var service = Service(db, reviewer);
+            var exam = await service.GetAssessmentAsync(examReference);
+            Assert.True(exam.Success, exam.Message);
+            var prematureLock = await service.ChangeAssessmentStateAsync(examReference,
+                new ChangeAssessmentStateRequestDto
+                {
+                    State = AssessmentState.Locked, RowVersion = exam.Data!.RowVersion
+                });
+            Assert.Equal(409, prematureLock.StatusCode);
+        }
+
+        await using (var firstDb = TenantDb(options, seeded.TenantId))
+        await using (var secondDb = TenantDb(options, seeded.TenantId))
+        {
+            var first = Service(firstDb, reviewer);
+            var second = Service(secondDb, reviewer);
+            var firstView = await first.GetMarkReviewAsync(seeded.AssessmentSubjectId);
+            var secondView = await second.GetMarkReviewAsync(seeded.AssessmentSubjectId);
+            Assert.True(firstView.Data!.CanReview);
+            Assert.True(secondView.Data!.CanReview);
+
+            var outcomes = await Task.WhenAll(
+                first.DecideMarkReviewAsync(seeded.AssessmentSubjectId,
+                    Decision(Guid.NewGuid(), firstView.Data.AssessmentRowVersion,
+                        AssessmentMarkReviewDecision.Approved)),
+                second.DecideMarkReviewAsync(seeded.AssessmentSubjectId,
+                    Decision(Guid.NewGuid(), secondView.Data.AssessmentRowVersion,
+                        AssessmentMarkReviewDecision.Approved)));
+            Assert.Single(outcomes.Where(x => x.Success));
+            Assert.Single(outcomes.Where(x => x.StatusCode == 409));
+        }
+
+        await using (var db = TenantDb(options, seeded.TenantId))
+        {
+            Assert.Equal(2, await db.AssessmentMarkReviewEvents.AsNoTracking()
+                .CountAsync(x => x.AssessmentSubjectId == seeded.AssessmentSubjectId));
+            Assert.Equal(1, await db.AssessmentMarkReviewEvents.AsNoTracking()
+                .CountAsync(x => x.AssessmentSubjectId == seeded.AssessmentSubjectId &&
+                    x.Decision == AssessmentMarkReviewDecision.Approved));
+            var service = Service(db, reviewer);
+            var exam = await service.GetAssessmentAsync(examReference);
+            Assert.True(exam.Success, exam.Message);
+            var locked = await service.ChangeAssessmentStateAsync(examReference,
+                new ChangeAssessmentStateRequestDto
+                {
+                    State = AssessmentState.Locked, RowVersion = exam.Data!.RowVersion
+                });
+            Assert.True(locked.Success, locked.Message);
+            Assert.Equal(AssessmentState.Locked, locked.Data!.State);
+        }
+
+        await using (var db = TenantDb(options, seeded.TenantId))
+        {
+            var service = Service(db, teacher);
+            var mark = await db.StudentAssessmentMarks.AsNoTracking()
+                .SingleAsync(x => x.AssessmentSubjectId == seeded.AssessmentSubjectId);
+            var edit = await service.SaveMarksRegisterAsync(
+                MarkChange(seeded.AssessmentSubjectId, seeded.RegistrationId, mark, 85m));
+            Assert.Equal(409, edit.StatusCode);
+            Assert.Equal(75m, (await db.StudentAssessmentMarks.AsNoTracking()
+                .SingleAsync(x => x.Id == mark.Id)).ObtainedMarks);
+        }
+    }
+
     private static AssessmentMarkReviewRequestDto Decision(Guid key, string version,
         AssessmentMarkReviewDecision decision, string? reason = null) => new()
     {
