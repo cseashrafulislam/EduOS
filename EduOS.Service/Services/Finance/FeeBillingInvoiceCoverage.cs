@@ -10,7 +10,7 @@ public sealed partial class FeeBillingService
 {
     /// <summary>
     /// Cohort-wide invoice completeness audit. Unlike the 250-row generation preflight,
-    /// this uses SQL aggregation and server paging for a full current academic batch.
+    /// this uses tenant-indexed SQL counts and server paging for a full current academic batch.
     /// It never generates obligations or changes accounting records.
     /// </summary>
     public async Task<ApiResponse<FeeInvoiceCoverageReportDto>> GetInvoiceCoverageAsync(

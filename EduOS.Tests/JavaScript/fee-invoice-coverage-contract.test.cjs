@@ -13,7 +13,7 @@ test('invoice coverage is bounded, tenant and campus scoped, and read only', () 
     assert.match(service, /CanAccessBillingCampusAsync/);
     assert.match(service, /e\.TenantId == tenant && !e\.IsDeleted && !s\.IsDeleted/);
     assert.match(service, /i\.TenantId == tenant && !i\.IsDeleted/);
-    assert.match(service, /GroupBy\(i => i\.StudentEnrollmentId\)/);
+    assert.match(service, /monthlyInvoices\.Count\(i => i\.StudentEnrollmentId == e\.EnrollmentId\)/);
     assert.match(service, /Skip\(\(int\)skip\)\.Take\(request\.PageSize\)/);
     assert.doesNotMatch(service, /SaveChangesAsync|IgnoreQueryFilters|ExecuteUpdate|ExecuteDelete/);
 });
