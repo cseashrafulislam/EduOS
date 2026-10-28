@@ -1,0 +1,29 @@
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
+const root = path.resolve(__dirname, '../..');
+const read = file => fs.readFileSync(path.join(root, file), 'utf8');
+
+test('session register is manager-authorized, bounded and includes unfinalized sessions', () => {
+    const dto = read('EduOS.Core/DTOs/Attendance/StudentAttendanceReportDtos.cs');
+    const service = read('EduOS.Service/Services/Attendance/StudentAttendanceReportService.cs');
+    const api = read('EduOS.App/Controllers/Api/StudentAttendanceReportsController.cs');
+    const view = read('EduOS.App/Views/Attendance/Index.cshtml');
+    const js = read('EduOS.App/wwwroot/js/attendance/session-register.js');
+    assert.match(dto, /class StudentAttendanceSessionRegisterDto/);
+    assert.match(service, /GetSessionRegisterAsync/);
+    assert.match(service, /GetAuthorizedCampusIdAsync/);
+    assert.match(service, /session\.AcademicBatchId == query\.AcademicBatchId/);
+    assert.match(service, /from totals in marks\.DefaultIfEmpty\(\)/);
+    assert.match(service, /\.Skip\(\(query\.Page - 1\) \* query\.PageSize\)/);
+    assert.match(api, /HttpGet\("sessions"\)/);
+    assert.match(api, /Authorize\(Roles = "TenantAdmin,Principal,VicePrincipal"\)/);
+    for (const id of ['attendanceSessionsRows', 'attendanceSessionsStatusFilter',
+        'attendanceSessionsCsv', 'attendanceSessionsPrevious', 'attendanceSessionsNext'])
+        assert.ok(view.includes('id="' + id + '"'));
+    assert.match(js, /token !== request/);
+    assert.match(js, /visible\.map\(x =>/);
+    assert.match(js, /row\.map\(csvCell\)/);
+    assert.doesNotThrow(() => new Function(js));
+});

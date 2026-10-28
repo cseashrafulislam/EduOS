@@ -43,6 +43,15 @@ public sealed class StudentAttendanceReportsController(IStudentAttendanceReportS
         return StatusCode(result.StatusCode, result);
     }
 
+    [HttpGet("sessions")]
+    public async Task<IActionResult> Sessions([FromQuery] StudentAttendanceReportQueryDto query,
+        [FromQuery] string? status, CancellationToken ct)
+    {
+        if (!ModelState.IsValid) return ValidationProblem(ModelState);
+        var result = await service.GetSessionRegisterAsync(query, status, ct);
+        return StatusCode(result.StatusCode, result);
+    }
+
     [HttpGet("daily")]
     public async Task<IActionResult> Daily([FromQuery] StudentAttendanceReportQueryDto query, CancellationToken ct)
     {

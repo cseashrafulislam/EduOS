@@ -183,6 +183,37 @@
                 <button id="attendanceCoverageNext" type="button" class="btn btn-sm btn-outline-secondary" disabled>Next</button>
             </div>
         </section>
+        <section class="mt-3 pt-3 border-top" aria-labelledby="attendanceSessionsTitle">
+            <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
+                <h4 id="attendanceSessionsTitle" class="h6 mb-0">Attendance session register</h4>
+                <button id="attendanceSessionsCsv" type="button" class="btn btn-sm btn-outline-secondary" disabled>Export visible page CSV</button>
+            </div>
+            <div class="row g-2 align-items-end mb-2">
+                <div class="col-md-3">
+                    <label for="attendanceSessionsStatusFilter" class="form-label">Session status</label>
+                    <select id="attendanceSessionsStatusFilter" class="form-select">
+                        <option value="draft">Not finalized</option>
+                        <option value="all">All sessions</option>
+                        <option value="finalized">Finalized</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <button id="attendanceSessionsLoad" type="button" class="btn btn-outline-primary">Load sessions</button>
+                </div>
+            </div>
+            <div id="attendanceSessionsStatus" class="small text-muted mb-2" role="status" aria-live="polite"></div>
+            <div class="table-responsive">
+                <table class="table table-sm table-striped align-middle">
+                    <thead><tr><th>Date</th><th>Offering</th><th>Status</th><th>Marked</th><th>Present</th><th>Absent</th><th>Late</th><th>Leave</th><th>Excused</th></tr></thead>
+                    <tbody id="attendanceSessionsRows"></tbody>
+                </table>
+            </div>
+            <nav class="d-flex justify-content-between align-items-center" aria-label="Attendance session pages">
+                <button id="attendanceSessionsPrevious" type="button" class="btn btn-sm btn-outline-secondary" disabled>Previous</button>
+                <span id="attendanceSessionsPage" class="small" aria-live="polite"></span>
+                <button id="attendanceSessionsNext" type="button" class="btn btn-sm btn-outline-secondary" disabled>Next</button>
+            </nav>
+        </section>
         <div class="mt-3 pt-3 border-top">
             <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
                 <h4 class="h6 mb-0">Daily finalized attendance</h4>
@@ -259,6 +290,7 @@
     {
         <script src="~/js/attendance/correction-history.js" asp-append-version="true"></script>
         <script src="~/js/attendance/report.js" asp-append-version="true"></script>
+        <script src="~/js/attendance/session-register.js" asp-append-version="true"></script>
         <script src="~/js/attendance/correction-report.js" asp-append-version="true"></script>
     }
 }

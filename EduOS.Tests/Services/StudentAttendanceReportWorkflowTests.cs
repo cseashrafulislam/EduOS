@@ -497,6 +497,76 @@ public sealed class StudentAttendanceReportWorkflowTests
         Assert.Equal(404, (await principal.GetSubjectSummaryAsync(query, null, "subject")).StatusCode);
     }
 
+    [Fact]
+    public async Task Session_register_includes_unmarked_drafts_and_preserves_finalized_history()
+    {
+        await using var db = Context(71);
+        db.AcademicBatches.Add(new AcademicBatch { Id = 10, TenantId = 71, CampusId = 8,
+            Name = "Cohort", Code = "C" });
+        db.Students.Add(new Student { Id = 20, TenantId = 71, StudentCode = "ST20",
+            FullName = "Learner", AdmissionDate = new DateOnly(2025, 1, 1) });
+        db.StudentEnrollments.Add(new StudentEnrollment { Id = 30, TenantId = 71,
+            StudentId = 20, AcademicBatchId = 10, CampusId = 8, RollNo = "OLD", IsCurrent = false });
+        db.AttendanceSessions.AddRange(
+            new AttendanceSession { Id = 40, TenantId = 71, AcademicBatchId = 10,
+                AttendanceDate = new DateOnly(2026, 10, 5), IsFinalized = true },
+            new AttendanceSession { Id = 41, TenantId = 71, AcademicBatchId = 10,
+                AttendanceDate = new DateOnly(2026, 10, 6), IsFinalized = false },
+            new AttendanceSession { Id = 42, TenantId = 71, AcademicBatchId = 11,
+                AttendanceDate = new DateOnly(2026, 10, 6), IsFinalized = false });
+        db.StudentAttendances.Add(new StudentAttendance { Id = 50, TenantId = 71,
+            AttendanceSessionId = 40, StudentEnrollmentId = 30, State = AttendanceState.Present });
+        await db.SaveChangesAsync();
+
+        var service = Service(db, 71);
+        var draft = await service.GetSessionRegisterAsync(Query(), "draft");
+        Assert.True(draft.Success, draft.Message);
+        Assert.Equal(1, draft.Data!.TotalCount);
+        var unmarked = Assert.Single(draft.Data.Items);
+        Assert.Equal(41, unmarked.SessionId);
+        Assert.Equal(0, unmarked.Marked);
+        Assert.False(unmarked.IsFinalized);
+
+        var finalized = await service.GetSessionRegisterAsync(Query(), "finalized");
+        Assert.True(finalized.Success, finalized.Message);
+        Assert.Equal(40, Assert.Single(finalized.Data!.Items).SessionId);
+        Assert.Equal(1, finalized.Data.Items[0].Present);
+        var paged = Query();
+        paged.PageSize = 1;
+        Assert.Equal(2, (await service.GetSessionRegisterAsync(paged, "all")).Data!.TotalCount);
+        Assert.Equal(41, Assert.Single((await service.GetSessionRegisterAsync(paged, "all")).Data!.Items).SessionId);
+        paged.Page = 2;
+        Assert.Equal(40, Assert.Single((await service.GetSessionRegisterAsync(paged, "all")).Data!.Items).SessionId);
+    }
+
+    [Fact]
+    public async Task Session_register_rejects_invalid_filters_and_live_campus_revocation()
+    {
+        await using var db = Context(71);
+        db.AcademicBatches.Add(new AcademicBatch { Id = 10, TenantId = 71, CampusId = 8,
+            Name = "Cohort", Code = "C" });
+        db.Campuses.Add(new Campus { Id = 8, TenantId = 71,
+            Name = "North", Code = "N", IsActive = true });
+        db.UserCampusAccesses.Add(new UserCampusAccess { Id = 101, TenantId = 71,
+            UserId = 7, CampusId = 8, IsActive = true });
+        db.SubjectOfferings.Add(new SubjectOffering { Id = 61, TenantId = 71,
+            AcademicBatchId = 11, Code = "OTHER" });
+        await db.SaveChangesAsync();
+        var principal = Service(db, 71, manager: false, principal: true);
+        Assert.True((await principal.GetSessionRegisterAsync(Query(), "draft")).Success);
+        Assert.Equal(400, (await principal.GetSessionRegisterAsync(Query(), "wrong")).StatusCode);
+        var invalid = Query(); invalid.PageSize = 101;
+        Assert.Equal(400, (await principal.GetSessionRegisterAsync(invalid, "all")).StatusCode);
+        invalid = Query(); invalid.SubjectOfferingId = 61;
+        Assert.Equal(404, (await principal.GetSessionRegisterAsync(invalid, "all")).StatusCode);
+        Assert.Equal(404, (await Service(db, 72).GetSessionRegisterAsync(Query(), "all")).StatusCode);
+        Assert.Equal(403, (await Service(db, 71, manager: false)
+            .GetSessionRegisterAsync(Query(), "all")).StatusCode);
+        db.UserCampusAccesses.Single().IsActive = false;
+        await db.SaveChangesAsync();
+        Assert.Equal(404, (await principal.GetSessionRegisterAsync(Query(), "draft")).StatusCode);
+    }
+
     private static StudentAttendanceReportQueryDto Query() => new() {
         AcademicBatchId = 10, FromDate = new DateOnly(2026, 10, 1),
         ToDate = new DateOnly(2026, 10, 10)

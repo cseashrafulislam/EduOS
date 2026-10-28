@@ -73,6 +73,23 @@ public sealed class StudentAttendanceDailySummaryDto
         Math.Round(100m * (Present + Late) / Marked, 2);
 }
 
+/// <summary>One historical attendance session, including unfinalized or empty registers.</summary>
+public sealed class StudentAttendanceSessionRegisterDto
+{
+    public long SessionId { get; set; }
+    public DateOnly AttendanceDate { get; set; }
+    public long? SubjectOfferingId { get; set; }
+    public string SubjectOfferingCode { get; set; } = string.Empty;
+    public bool IsFinalized { get; set; }
+    public DateTime? FinalizedAt { get; set; }
+    public int Marked { get; set; }
+    public int Present { get; set; }
+    public int Absent { get; set; }
+    public int Late { get; set; }
+    public int Leave { get; set; }
+    public int Excused { get; set; }
+}
+
 /// <summary>Historical subject-offering picker for an authorized batch.</summary>
 public sealed class StudentAttendanceReportSubjectDto
 {
