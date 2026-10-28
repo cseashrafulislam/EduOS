@@ -63,12 +63,23 @@ public sealed partial class AssessmentAdministrationService
             var canSubmit = await CanSubmitReviewAsync(subject.SubjectOfferingId, token);
             if (request.Decision == AssessmentMarkReviewDecision.Submitted ? !canSubmit : !CanPublish())
                 return Error<AssessmentMarkReviewDto>("Mark review permission denied.", 403);
+            // Idempotency belongs to the original actor, exact normalized decision payload
+            // and current review head. A reused key must not impersonate another reviewer
+            // or silently acknowledge an obsolete decision after a later transition.
             var previousRequest = await _markReviews.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
                 x.TenantId == tenant && x.ClientRequestId == request.ClientRequestId && !x.IsDeleted, token);
             if (previousRequest != null)
             {
-                if (previousRequest.AssessmentSubjectId != subjectId || previousRequest.Decision != request.Decision)
-                    return Error<AssessmentMarkReviewDto>("Request key already used for another decision.", 409);
+                if (previousRequest.AssessmentSubjectId != subjectId ||
+                    previousRequest.Decision != request.Decision ||
+                    previousRequest.ActorUserId != _user.UserId ||
+                    !string.Equals(previousRequest.Reason, Trim(request.Reason), StringComparison.Ordinal))
+                    return Error<AssessmentMarkReviewDto>("Request key already belongs to a different review decision.", 409);
+                var latestId = await _markReviews.GetQueryable().AsNoTracking().Where(x =>
+                    x.TenantId == tenant && x.AssessmentSubjectId == subjectId && !x.IsDeleted)
+                    .MaxAsync(x => x.Id, token);
+                if (latestId != previousRequest.Id)
+                    return Error<AssessmentMarkReviewDto>("Review has advanced since this request; refresh.", 409);
                 return ApiResponse<AssessmentMarkReviewDto>.SuccessResponse(
                     await MapMarkReviewAsync(subject, exam, canSubmit, token), "Decision already recorded.");
             }

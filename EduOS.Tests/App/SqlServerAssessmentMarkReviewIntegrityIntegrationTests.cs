@@ -1,0 +1,176 @@
+using EduOS.Core.Entities.Academic;
+using EduOS.Core.Entities.Assessment;
+using EduOS.Core.Entities.Auth;
+using EduOS.Core.Entities.SaaS;
+using EduOS.Core.Enums.Domain;
+using EduOS.Persistence.Context;
+using Microsoft.AspNetCore.Http;
+using Microsoft.EntityFrameworkCore;
+using Xunit;
+
+namespace EduOS.Tests.App;
+
+/// <summary>Real SQL Server assertions for durable examination review evidence.
+/// Uses isolated synthetic tenants and never changes customer records.</summary>
+[Collection("SqlServerIntegration")]
+public sealed class SqlServerAssessmentMarkReviewIntegrityIntegrationTests
+{
+    [Fact]
+    public async Task Review_events_are_tenant_isolated_unique_append_only_and_fk_scoped()
+    {
+        var connection = Environment.GetEnvironmentVariable("EDUOS_SQL_AUTH_TEST_CONNECTION");
+        if (string.IsNullOrWhiteSpace(connection)) return;
+        var options = new DbContextOptionsBuilder<EduOSDbContext>()
+            .UseSqlServer(connection).Options;
+        var suffix = Guid.NewGuid().ToString("N")[..12];
+        long tenantA, tenantB, subjectA, subjectB, actorId;
+        var key = Guid.NewGuid();
+
+        await using (var setup = new EduOSDbContext(options))
+        {
+            var a = new Tenant { Code = "CI-EXA-" + suffix, Name = "Exam review A",
+                Email = "exama-" + suffix + "@example.test", State = TenantState.Active };
+            var b = new Tenant { Code = "CI-EXB-" + suffix, Name = "Exam review B",
+                Email = "examb-" + suffix + "@example.test", State = TenantState.Active };
+            var name = "exam-review-" + suffix + "@example.test";
+            var actor = new ApplicationUser { UserName = name,
+                NormalizedUserName = name.ToUpperInvariant(), Email = name,
+                NormalizedEmail = name.ToUpperInvariant(), FullName = "Synthetic reviewer",
+                IsActive = true, EmailConfirmed = true,
+                SecurityStamp = Guid.NewGuid().ToString(),
+                ConcurrencyStamp = Guid.NewGuid().ToString() };
+            setup.AddRange(a, b, actor);
+            await setup.SaveChangesAsync();
+            tenantA = a.Id; tenantB = b.Id; actorId = actor.Id;
+            setup.ChangeTracker.Clear();
+            using (setup.BeginSystemTenantScope(tenantA))
+                subjectA = await SeedSubjectAsync(setup, tenantA, suffix + "A");
+            setup.ChangeTracker.Clear();
+            using (setup.BeginSystemTenantScope(tenantB))
+                subjectB = await SeedSubjectAsync(setup, tenantB, suffix + "B");
+        }
+
+        var first = new AssessmentMarkReviewEvent {
+            TenantId = tenantA, AssessmentSubjectId = subjectA, ActorUserId = actorId,
+            ClientRequestId = key, Decision = AssessmentMarkReviewDecision.Submitted,
+            MarkRowVersion = Convert.ToBase64String(new byte[] { 1, 2, 3, 4, 5, 6, 7, 8 }),
+            OccurredAt = DateTime.UtcNow, CreatedAt = DateTime.UtcNow
+        };
+        await using (var db = TenantDb(options, tenantA))
+        {
+            db.AssessmentMarkReviewEvents.Add(first);
+            await db.SaveChangesAsync();
+            Assert.NotEmpty(first.RowVersion);
+            Assert.Equal(1, await db.AssessmentMarkReviewEvents.AsNoTracking()
+                .CountAsync(x => x.TenantId == tenantA && x.AssessmentSubjectId == subjectA));
+            Assert.False(await db.AssessmentMarkReviewEvents.AsNoTracking()
+                .AnyAsync(x => x.AssessmentSubjectId == subjectB));
+        }
+        // The same idempotency key may be used independently in another institute.
+        await using (var db = TenantDb(options, tenantB))
+        {
+            db.AssessmentMarkReviewEvents.Add(new AssessmentMarkReviewEvent {
+                TenantId = tenantB, AssessmentSubjectId = subjectB, ActorUserId = actorId,
+                ClientRequestId = key, Decision = AssessmentMarkReviewDecision.Submitted,
+                MarkRowVersion = first.MarkRowVersion,
+                OccurredAt = DateTime.UtcNow, CreatedAt = DateTime.UtcNow
+            });
+            await db.SaveChangesAsync();
+            Assert.Equal(1, await db.AssessmentMarkReviewEvents.AsNoTracking().CountAsync());
+            Assert.False(await db.AssessmentMarkReviewEvents.AsNoTracking()
+                .AnyAsync(x => x.Id == first.Id));
+        }
+        // The database, not only the service, must reject duplicate request keys.
+        await using (var db = TenantDb(options, tenantA))
+        {
+            db.AssessmentMarkReviewEvents.Add(new AssessmentMarkReviewEvent {
+                TenantId = tenantA, AssessmentSubjectId = subjectA, ActorUserId = actorId,
+                ClientRequestId = key, Decision = AssessmentMarkReviewDecision.Approved,
+                MarkRowVersion = first.MarkRowVersion,
+                OccurredAt = DateTime.UtcNow, CreatedAt = DateTime.UtcNow
+            });
+            await Assert.ThrowsAsync<DbUpdateException>(() => db.SaveChangesAsync());
+        }
+        // Tenant-composite FK must reject a forged subject ID from another institute.
+        await using (var db = TenantDb(options, tenantA))
+        {
+            db.AssessmentMarkReviewEvents.Add(new AssessmentMarkReviewEvent {
+                TenantId = tenantA, AssessmentSubjectId = subjectB, ActorUserId = actorId,
+                ClientRequestId = Guid.NewGuid(), Decision = AssessmentMarkReviewDecision.Approved,
+                MarkRowVersion = first.MarkRowVersion,
+                OccurredAt = DateTime.UtcNow, CreatedAt = DateTime.UtcNow
+            });
+            await Assert.ThrowsAsync<DbUpdateException>(() => db.SaveChangesAsync());
+        }
+        // History is immutable through EF, including soft delete.
+        await using (var db = TenantDb(options, tenantA))
+        {
+            var eventRow = await db.AssessmentMarkReviewEvents
+                .SingleAsync(x => x.Id == first.Id);
+            eventRow.Reason = "Tamper attempt";
+            await Assert.ThrowsAsync<InvalidOperationException>(() => db.SaveChangesAsync());
+        }
+        await using (var db = TenantDb(options, tenantA))
+        {
+            var eventRow = await db.AssessmentMarkReviewEvents
+                .SingleAsync(x => x.Id == first.Id);
+            eventRow.IsDeleted = true;
+            await Assert.ThrowsAsync<InvalidOperationException>(() => db.SaveChangesAsync());
+        }
+        await using (var db = TenantDb(options, tenantA))
+        {
+            var rows = await db.AssessmentMarkReviewEvents.AsNoTracking().ToListAsync();
+            Assert.Single(rows);
+            Assert.Equal(AssessmentMarkReviewDecision.Submitted, rows[0].Decision);
+            Assert.Null(rows[0].Reason);
+            Assert.False(rows[0].IsDeleted);
+        }
+    }
+
+    private static EduOSDbContext TenantDb(DbContextOptions<EduOSDbContext> options, long tenant)
+    {
+        var accessor = new HttpContextAccessor { HttpContext = new DefaultHttpContext() };
+        accessor.HttpContext.Items["TenantId"] = tenant;
+        return new EduOSDbContext(options, accessor);
+    }
+
+    private static async Task<long> SeedSubjectAsync(EduOSDbContext db, long tenant, string suffix)
+    {
+        var campus = new Campus { TenantId = tenant, Name = "Main", Code = "MAIN" };
+        var year = new AcademicYear { TenantId = tenant, Name = "2026", Code = "2026",
+            StartDate = new DateOnly(2026, 1, 1), EndDate = new DateOnly(2026, 12, 31) };
+        var program = new AcademicProgram { TenantId = tenant, Name = "Synthetic", Code = "SYN" };
+        var subject = new Subject { TenantId = tenant, Name = "Synthetic subject", Code = "SUB" };
+        db.AddRange(campus, year, program, subject);
+        await db.SaveChangesAsync();
+        var level = new AcademicLevel { TenantId = tenant, AcademicProgramId = program.Id,
+            Name = "One", Code = "ONE", LevelNo = 1 };
+        var curriculum = new AcademicCurriculum { TenantId = tenant, AcademicProgramId = program.Id,
+            Name = "Synthetic curriculum", Code = "CUR",
+            EffectiveFrom = new DateOnly(2026, 1, 1), IsCurrent = true };
+        db.AddRange(level, curriculum);
+        await db.SaveChangesAsync();
+        var batch = new AcademicBatch { TenantId = tenant, CampusId = campus.Id,
+            AcademicYearId = year.Id, AcademicProgramId = program.Id,
+            AcademicLevelId = level.Id, Name = "Synthetic batch", Code = "BATCH" };
+        var curriculumSubject = new CurriculumSubject { TenantId = tenant,
+            AcademicCurriculumId = curriculum.Id, AcademicLevelId = level.Id,
+            SubjectId = subject.Id };
+        db.AddRange(batch, curriculumSubject);
+        await db.SaveChangesAsync();
+        var offering = new SubjectOffering { TenantId = tenant,
+            AcademicBatchId = batch.Id, AcademicYearId = year.Id,
+            CurriculumSubjectId = curriculumSubject.Id, Code = "OFFER" };
+        var exam = new Assessment { TenantId = tenant, CampusId = campus.Id,
+            AcademicYearId = year.Id, Name = "Synthetic exam", Code = "EXAM",
+            StartDate = new DateOnly(2026, 10, 1), EndDate = new DateOnly(2026, 10, 2),
+            State = AssessmentState.MarksEntry };
+        db.AddRange(offering, exam);
+        await db.SaveChangesAsync();
+        var examSubject = new AssessmentSubject { TenantId = tenant,
+            AssessmentId = exam.Id, SubjectOfferingId = offering.Id };
+        db.AssessmentSubjects.Add(examSubject);
+        await db.SaveChangesAsync();
+        return examSubject.Id;
+    }
+}
