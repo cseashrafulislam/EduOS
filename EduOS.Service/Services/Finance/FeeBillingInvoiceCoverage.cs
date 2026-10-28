@@ -71,8 +71,8 @@ public sealed partial class FeeBillingService
             .Select(g => new
             {
                 EnrollmentId = g.Key,
-                InvoiceCount = g.Count(),
-                IntegrityIssueCount = g.Count(i => i.TotalAmount < 0m || i.PaidAmount < 0m ||
+                InvoiceCount = (int?)g.Count(),
+                IntegrityIssueCount = (int?)g.Count(i => i.TotalAmount < 0m || i.PaidAmount < 0m ||
                     i.DueAmount < 0m || i.TotalAmount != i.PaidAmount + i.DueAmount ||
                     i.CurrencyCode == null || i.CurrencyCode == "")
             });
@@ -83,8 +83,8 @@ public sealed partial class FeeBillingService
             select new
             {
                 e.PublicId, e.StudentCode, e.FullName,
-                InvoiceCount = a == null ? 0 : a.InvoiceCount,
-                IntegrityIssueCount = a == null ? 0 : a.IntegrityIssueCount
+                InvoiceCount = a == null ? 0 : (a.InvoiceCount ?? 0),
+                IntegrityIssueCount = a == null ? 0 : (a.IntegrityIssueCount ?? 0)
             };
         // Aggregate the entire authorized cohort, not just the current page or search.
         var summary = await coverage.GroupBy(x => 1).Select(g => new
