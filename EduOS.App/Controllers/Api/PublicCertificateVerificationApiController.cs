@@ -17,6 +17,13 @@ public sealed class PublicCertificateVerificationApiController : ControllerBase
     public PublicCertificateVerificationApiController(IPublicCertificateVerificationService service)
         => _service = service;
 
+    [HttpGet("transcripts/{reference:guid}")]
+    public async Task<IActionResult> VerifyTranscript(Guid reference, CancellationToken ct)
+    {
+        var response = await _service.VerifyTranscriptAsync(reference, ct);
+        return StatusCode(response.StatusCode, response);
+    }
+
     [HttpGet("certificates/{reference:guid}")]
     public async Task<IActionResult> Verify(Guid reference, CancellationToken ct)
     {

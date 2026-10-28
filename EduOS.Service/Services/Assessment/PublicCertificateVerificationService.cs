@@ -129,4 +129,95 @@ public sealed class PublicCertificateVerificationService : IPublicCertificateVer
                 Status = status
             });
     }
+
+    /// <summary>Anonymous status-only lookup. Never disclose student or enrollment information.</summary>
+    public async Task<ApiResponse<PublicTranscriptVerificationDto>> VerifyTranscriptAsync(
+        Guid reference, CancellationToken cancellationToken = default)
+    {
+        if (reference == Guid.Empty)
+            return ApiResponse<PublicTranscriptVerificationDto>.ErrorResponse("Credential not found.", 404);
+        var matches = await _db.TranscriptIssues.IgnoreQueryFilters().AsNoTracking()
+            .Where(x => x.PublicId == reference && !x.IsDeleted)
+            .Select(x => new { x.TenantId, x.StudentId, x.TranscriptNumber, x.IssueDate, x.IsRevoked })
+            .Take(2).ToListAsync(cancellationToken);
+        if (matches.Count != 1)
+            return ApiResponse<PublicTranscriptVerificationDto>.ErrorResponse("Credential not found.", 404);
+        var transcript = matches[0];
+        var tenant = await _db.Tenants.AsNoTracking().Where(x =>
+            x.Id == transcript.TenantId && !x.IsDeleted && x.State == TenantState.Active &&
+            x.OnboardingStage == OnboardingStage.Completed && x.OnboardingCompletedAt != null)
+            .Select(x => new { x.Id, x.Name }).SingleOrDefaultAsync(cancellationToken);
+        if (tenant == null)
+            return ApiResponse<PublicTranscriptVerificationDto>.ErrorResponse("Credential not found.", 404);
+        var now = _clock.GetUtcNow().UtcDateTime;
+        var subscribed = await _db.TenantSubscriptions.IgnoreQueryFilters().AsNoTracking()
+            .AnyAsync(x => x.TenantId == tenant.Id && !x.IsDeleted &&
+                x.StartsAt <= now && x.EndsAt > now &&
+                (x.State == SubscriptionState.Active || x.State == SubscriptionState.Trial ||
+                 x.State == SubscriptionState.Grace), cancellationToken);
+        var enabled = await (
+            from selection in _db.TenantModules.IgnoreQueryFilters().AsNoTracking()
+            join module in _db.ProductModules.AsNoTracking()
+                on selection.ProductModuleId equals module.Id
+            where selection.TenantId == tenant.Id && !selection.IsDeleted &&
+                selection.IsEnabled && module.IsActive && !module.IsDeleted &&
+                module.Code == "EXAM"
+            select selection.Id).AnyAsync(cancellationToken);
+        if (!subscribed || !enabled)
+            return ApiResponse<PublicTranscriptVerificationDto>.ErrorResponse(
+                "Credential verification unavailable.", 404);
+        var issuedBefore = transcript.IssueDate.ToDateTime(TimeOnly.MaxValue);
+        // Require tenant-composite provenance, currently released evidence and no newer
+        // finalized version (published or withdrawn) superseding the cited result.
+        var evidence = await (
+            from student in _db.Students.IgnoreQueryFilters().AsNoTracking()
+            join enrollment in _db.StudentEnrollments.IgnoreQueryFilters().AsNoTracking()
+                on new { student.TenantId, Id = student.Id }
+                equals new { enrollment.TenantId, Id = enrollment.StudentId }
+            join batch in _db.AcademicBatches.IgnoreQueryFilters().AsNoTracking()
+                on new { enrollment.TenantId, Id = enrollment.AcademicBatchId }
+                equals new { batch.TenantId, batch.Id }
+            join summary in _db.StudentResultSummaries.IgnoreQueryFilters().AsNoTracking()
+                on new { enrollment.TenantId, Id = enrollment.Id }
+                equals new { summary.TenantId, Id = summary.StudentEnrollmentId }
+            join publication in _db.ResultPublications.IgnoreQueryFilters().AsNoTracking()
+                on new { summary.TenantId, Id = summary.ResultPublicationId }
+                equals new { publication.TenantId, publication.Id }
+            join assessment in _db.Assessments.IgnoreQueryFilters().AsNoTracking()
+                on new { publication.TenantId, Id = publication.AssessmentId }
+                equals new { assessment.TenantId, assessment.Id }
+            where student.TenantId == tenant.Id && student.Id == transcript.StudentId &&
+                !student.IsDeleted && !enrollment.IsDeleted && !batch.IsDeleted &&
+                !summary.IsDeleted && !publication.IsDeleted && !assessment.IsDeleted &&
+                assessment.State != AssessmentState.Cancelled &&
+                enrollment.CampusId == batch.CampusId &&
+                enrollment.AcademicYearId == batch.AcademicYearId &&
+                assessment.CampusId == batch.CampusId &&
+                assessment.AcademicYearId == batch.AcademicYearId &&
+                publication.AcademicBatchId == batch.Id &&
+                summary.AssessmentId == assessment.Id &&
+                summary.PublicationVersionNo == publication.VersionNo &&
+                !summary.IsWithheld &&
+                publication.State == ResultPublicationState.Published &&
+                publication.VisibleToStudent && publication.PublishedAt != null &&
+                publication.PublishedAt <= issuedBefore &&
+                !_db.ResultPublications.IgnoreQueryFilters().AsNoTracking().Any(newer =>
+                    newer.TenantId == tenant.Id && !newer.IsDeleted &&
+                    newer.AssessmentId == publication.AssessmentId &&
+                    newer.AcademicBatchId == publication.AcademicBatchId &&
+                    newer.VersionNo > publication.VersionNo &&
+                    (newer.State == ResultPublicationState.Published ||
+                     newer.State == ResultPublicationState.Withdrawn))
+            select summary.Id).AnyAsync(cancellationToken);
+        var status = transcript.IsRevoked ? "Revoked" :
+            evidence && transcript.IssueDate <= DateOnly.FromDateTime(now)
+                ? "Valid" : "ReviewRequired";
+        _logger.LogInformation("Public transcript verification: tenant {TenantId}, status {Status}",
+            tenant.Id, status);
+        return ApiResponse<PublicTranscriptVerificationDto>.SuccessResponse(new()
+        {
+            IssuerName = tenant.Name, TranscriptNumber = transcript.TranscriptNumber,
+            IssueDate = transcript.IssueDate, Status = status
+        });
+    }
 }

@@ -30,6 +30,13 @@
             tr.append(cell(row.transcriptNumber), cell(row.studentCode), cell(row.studentName),
                 cell(row.issueDate), cell(row.isRevoked ? 'Revoked' : 'Issued'));
             const action = document.createElement('td'); action.className = 'transcript-action';
+            if (row.reference) {
+                const link = document.createElement('a');
+                link.href = '/verify/transcript/' + encodeURIComponent(row.reference);
+                link.target = '_blank'; link.rel = 'noopener noreferrer';
+                link.className = 'btn btn-sm btn-outline-secondary me-1';
+                link.textContent = 'Verify'; action.append(link);
+            }
             if (!row.isRevoked && row.rowVersion) {
                 const button = document.createElement('button');
                 button.type = 'button'; button.className = 'btn btn-sm btn-outline-danger';

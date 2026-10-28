@@ -7,4 +7,6 @@ public interface IPublicCertificateVerificationService
 {
     Task<ApiResponse<PublicCertificateVerificationDto>> VerifyAsync(
         Guid reference, CancellationToken cancellationToken = default);
+    Task<ApiResponse<PublicTranscriptVerificationDto>> VerifyTranscriptAsync(
+        Guid reference, CancellationToken cancellationToken = default);
 }
