@@ -264,14 +264,13 @@
     function exportIntegrity() {
         const data = state.integrity;
         if (!data?.items?.length) return;
-        const safe = value => /^[=+@\\-\\t\\r]/.test(String(value ?? ''))
-            ? "'" + String(value) : value;
+        const safe = value => /^[=+@\-\t\r]/.test(String(value ?? '')) ? "'" + String(value) : value;
         const quote = value => '"' + String(safe(value) ?? '').replace(/"/g, '""') + '"';
         const rows = [['Publication', 'Version', 'Snapshot ID', 'Enrollment ID', 'Issue'],
             ...data.items.map(row => [data.publicationId, data.versionNo,
                 row.summaryId, row.studentEnrollmentId, row.issueCode])];
-        const csv = rows.map(row => row.map(quote).join(',')).join('\\r\\n');
-        const url = URL.createObjectURL(new Blob(['\\uFEFF' + csv],
+        const csv = rows.map(row => row.map(quote).join(',')).join('\r\n');
+        const url = URL.createObjectURL(new Blob(['\uFEFF' + csv],
             { type: 'text/csv;charset=utf-8' }));
         const link = document.createElement('a');
         link.href = url;
