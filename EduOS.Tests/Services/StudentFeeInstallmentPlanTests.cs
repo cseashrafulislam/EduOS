@@ -139,7 +139,7 @@ public sealed class StudentFeeInstallmentPlanTests
         Seed(db);
         var created = await Service(db).CreateInstallmentPlanAsync(Request(db));
         created.StatusCode.Should().Be(200);
-        var line = await db.StudentFeeInstallmentPlanLines.SingleAsync();
+        var line = await db.StudentFeeInstallmentPlanLines.OrderBy(x => x.Id).FirstAsync();
         line.GrossAmount = 1m;
         await FluentActions.Awaiting(() => db.SaveChangesAsync())
             .Should().ThrowAsync<InvalidOperationException>();
