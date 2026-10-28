@@ -34,6 +34,15 @@ public sealed class StudentAttendanceReportsController(IStudentAttendanceReportS
         return StatusCode(result.StatusCode, result);
     }
 
+    [HttpGet("subject-summary")]
+    public async Task<IActionResult> SubjectSummary([FromQuery] StudentAttendanceReportQueryDto query,
+        [FromQuery] string? subjectSearch, [FromQuery] string? subjectSort, CancellationToken ct)
+    {
+        if (!ModelState.IsValid) return ValidationProblem(ModelState);
+        var result = await service.GetSubjectSummaryAsync(query, subjectSearch, subjectSort, ct);
+        return StatusCode(result.StatusCode, result);
+    }
+
     [HttpGet("daily")]
     public async Task<IActionResult> Daily([FromQuery] StudentAttendanceReportQueryDto query, CancellationToken ct)
     {

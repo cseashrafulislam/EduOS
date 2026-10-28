@@ -77,6 +77,117 @@ public sealed class StudentAttendanceReportService(
             });
     }
 
+    /// <summary>SQL-grouped finalized subject coverage, bounded to 31 days and 100 offerings/page.</summary>
+    public async Task<ApiResponse<PagedResult<StudentAttendanceSubjectSummaryDto>>> GetSubjectSummaryAsync(
+        StudentAttendanceReportQueryDto query, string? search, string? sort,
+        CancellationToken cancellationToken = default)
+    {
+        if (!user.IsAuthenticated || user.TenantId <= 0 ||
+            !(user.IsTenantAdmin || user.IsInRole("Principal") || user.IsInRole("VicePrincipal")))
+            return ApiResponse<PagedResult<StudentAttendanceSubjectSummaryDto>>.ErrorResponse(
+                "Attendance report permission is required.", 403);
+        var ordering = (sort ?? "subject").Trim().ToLowerInvariant();
+        if (query == null || query.AcademicBatchId <= 0 || query.FromDate == default ||
+            query.ToDate == default || query.ToDate < query.FromDate ||
+            query.ToDate.DayNumber - query.FromDate.DayNumber > 30 ||
+            query.SubjectOfferingId is <= 0 || query.Page < 1 || query.PageSize is < 1 or > 100 ||
+            query.Page > int.MaxValue / query.PageSize || search?.Length > 100 ||
+            ordering is not ("subject" or "lowest" or "absent"))
+            return ApiResponse<PagedResult<StudentAttendanceSubjectSummaryDto>>.ErrorResponse(
+                "Select a valid batch, search, sort and date range of at most 31 days.");
+        try
+        {
+            var tenant = user.TenantId;
+            var campusId = await GetAuthorizedCampusIdAsync(tenant, query.AcademicBatchId, cancellationToken);
+            if (!campusId.HasValue)
+                return ApiResponse<PagedResult<StudentAttendanceSubjectSummaryDto>>.ErrorResponse(
+                    "Academic batch not found.", 404);
+            if (query.SubjectOfferingId.HasValue &&
+                !await db.SubjectOfferings.AsNoTracking().AnyAsync(x =>
+                    x.TenantId == tenant && x.Id == query.SubjectOfferingId.Value &&
+                    x.AcademicBatchId == query.AcademicBatchId && !x.IsDeleted, cancellationToken))
+                return ApiResponse<PagedResult<StudentAttendanceSubjectSummaryDto>>.ErrorResponse(
+                    "Subject offering not found for this batch.", 404);
+
+            var source =
+                from mark in db.StudentAttendances.AsNoTracking()
+                join session in db.AttendanceSessions.AsNoTracking()
+                    on mark.AttendanceSessionId equals session.Id
+                join enrollment in db.StudentEnrollments.AsNoTracking()
+                    on mark.StudentEnrollmentId equals enrollment.Id
+                join student in db.Students.AsNoTracking()
+                    on enrollment.StudentId equals student.Id
+                join offering in db.SubjectOfferings.AsNoTracking()
+                    on session.SubjectOfferingId equals (long?)offering.Id
+                join mapping in db.CurriculumSubjects.AsNoTracking()
+                    on offering.CurriculumSubjectId equals mapping.Id
+                join subject in db.Subjects.AsNoTracking()
+                    on mapping.SubjectId equals subject.Id
+                where mark.TenantId == tenant && session.TenantId == tenant &&
+                    enrollment.TenantId == tenant && student.TenantId == tenant &&
+                    offering.TenantId == tenant && mapping.TenantId == tenant &&
+                    subject.TenantId == tenant &&
+                    !mark.IsDeleted && !session.IsDeleted && !enrollment.IsDeleted &&
+                    !student.IsDeleted && !offering.IsDeleted && !mapping.IsDeleted &&
+                    !subject.IsDeleted && session.IsFinalized &&
+                    session.AcademicBatchId == query.AcademicBatchId &&
+                    offering.AcademicBatchId == query.AcademicBatchId &&
+                    enrollment.AcademicBatchId == query.AcademicBatchId &&
+                    enrollment.CampusId == campusId.Value &&
+                    session.AttendanceDate >= query.FromDate &&
+                    session.AttendanceDate <= query.ToDate &&
+                    (!query.SubjectOfferingId.HasValue ||
+                     offering.Id == query.SubjectOfferingId.Value)
+                select new
+                {
+                    OfferingId = offering.Id, OfferingCode = offering.Code,
+                    SubjectCode = subject.Code, SubjectName = subject.Name, mark.State
+                };
+            if (!string.IsNullOrWhiteSpace(search))
+            {
+                var term = search.Trim();
+                source = source.Where(x => x.OfferingCode.StartsWith(term) ||
+                    x.SubjectCode.StartsWith(term) || x.SubjectName.StartsWith(term));
+            }
+            var grouped = source.GroupBy(x => new {
+                x.OfferingId, x.OfferingCode, x.SubjectCode, x.SubjectName
+            }).Select(g => new StudentAttendanceSubjectSummaryDto {
+                SubjectOfferingId = g.Key.OfferingId,
+                OfferingCode = g.Key.OfferingCode,
+                SubjectCode = g.Key.SubjectCode,
+                SubjectName = g.Key.SubjectName,
+                Marked = g.Count(),
+                Present = g.Count(x => x.State == AttendanceState.Present),
+                Absent = g.Count(x => x.State == AttendanceState.Absent),
+                Late = g.Count(x => x.State == AttendanceState.Late),
+                Leave = g.Count(x => x.State == AttendanceState.Leave),
+                Excused = g.Count(x => x.State == AttendanceState.Excused)
+            });
+            var total = await grouped.CountAsync(cancellationToken);
+            var ordered = ordering switch
+            {
+                "lowest" => grouped.OrderBy(x => 100m * (x.Present + x.Late) / x.Marked)
+                    .ThenBy(x => x.SubjectName).ThenBy(x => x.SubjectOfferingId),
+                "absent" => grouped.OrderByDescending(x => x.Absent)
+                    .ThenBy(x => x.SubjectName).ThenBy(x => x.SubjectOfferingId),
+                _ => grouped.OrderBy(x => x.SubjectName).ThenBy(x => x.OfferingCode)
+                    .ThenBy(x => x.SubjectOfferingId)
+            };
+            var items = await ordered.Skip((query.Page - 1) * query.PageSize)
+                .Take(query.PageSize).ToListAsync(cancellationToken);
+            return ApiResponse<PagedResult<StudentAttendanceSubjectSummaryDto>>.SuccessResponse(
+                new PagedResult<StudentAttendanceSubjectSummaryDto> {
+                    Items = items, TotalCount = total, Page = query.Page, PageSize = query.PageSize
+                });
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            logger.LogError(ex, "Attendance subject coverage failed for tenant {TenantId}", user.TenantId);
+            return ApiResponse<PagedResult<StudentAttendanceSubjectSummaryDto>>.ErrorResponse(
+                "Attendance subject coverage could not be loaded.", 500);
+        }
+    }
+
     /// <summary>SQL-bounded daily finalized mark summary, scoped to historical enrollment and live campus grants.</summary>
     public async Task<ApiResponse<IReadOnlyList<StudentAttendanceDailySummaryDto>>> GetDailySummaryAsync(
         StudentAttendanceReportQueryDto query, CancellationToken cancellationToken = default)

@@ -420,6 +420,83 @@ public sealed class StudentAttendanceReportWorkflowTests
         Assert.Equal(404, (await principal.GetRiskSummaryAsync(Query())).StatusCode);
     }
 
+    [Fact]
+    public async Task Subject_coverage_is_grouped_paged_and_scoped_to_finalized_historical_marks()
+    {
+        await using var db = Context(71);
+        db.AcademicBatches.Add(new AcademicBatch { Id = 10, TenantId = 71, CampusId = 8,
+            Name = "Cohort", Code = "C" });
+        db.Campuses.Add(new Campus { Id = 8, TenantId = 71, Name = "North", Code = "N", IsActive = true });
+        db.UserCampusAccesses.Add(new UserCampusAccess { Id = 101, TenantId = 71,
+            UserId = 7, CampusId = 8, IsActive = true });
+        db.Subjects.AddRange(
+            new Subject { Id = 70, TenantId = 71, Code = "MATH", Name = "Mathematics" },
+            new Subject { Id = 71, TenantId = 71, Code = "ENG", Name = "English" });
+        db.CurriculumSubjects.AddRange(
+            new CurriculumSubject { Id = 80, TenantId = 71, SubjectId = 70 },
+            new CurriculumSubject { Id = 81, TenantId = 71, SubjectId = 71 });
+        db.SubjectOfferings.AddRange(
+            new SubjectOffering { Id = 61, TenantId = 71, AcademicBatchId = 10,
+                CurriculumSubjectId = 80, Code = "M1" },
+            new SubjectOffering { Id = 62, TenantId = 71, AcademicBatchId = 10,
+                CurriculumSubjectId = 81, Code = "E1" },
+            new SubjectOffering { Id = 63, TenantId = 71, AcademicBatchId = 11,
+                CurriculumSubjectId = 80, Code = "FOREIGN" });
+        db.Students.Add(new Student { Id = 20, TenantId = 71, StudentCode = "ST20",
+            FullName = "Learner", AdmissionDate = new DateOnly(2025, 1, 1) });
+        db.StudentEnrollments.Add(new StudentEnrollment { Id = 30, TenantId = 71,
+            StudentId = 20, AcademicBatchId = 10, CampusId = 8, RollNo = "OLD",
+            IsCurrent = false });
+        db.AttendanceSessions.AddRange(
+            new AttendanceSession { Id = 40, TenantId = 71, AcademicBatchId = 10,
+                SubjectOfferingId = 61, AttendanceDate = new DateOnly(2026, 10, 5), IsFinalized = true },
+            new AttendanceSession { Id = 41, TenantId = 71, AcademicBatchId = 10,
+                SubjectOfferingId = 62, AttendanceDate = new DateOnly(2026, 10, 5), IsFinalized = true },
+            new AttendanceSession { Id = 42, TenantId = 71, AcademicBatchId = 10,
+                SubjectOfferingId = 61, AttendanceDate = new DateOnly(2026, 10, 6), IsFinalized = false },
+            new AttendanceSession { Id = 43, TenantId = 71, AcademicBatchId = 10,
+                AttendanceDate = new DateOnly(2026, 10, 6), IsFinalized = true });
+        db.StudentAttendances.AddRange(
+            new StudentAttendance { Id = 50, TenantId = 71, AttendanceSessionId = 40,
+                StudentEnrollmentId = 30, State = AttendanceState.Present },
+            new StudentAttendance { Id = 51, TenantId = 71, AttendanceSessionId = 41,
+                StudentEnrollmentId = 30, State = AttendanceState.Absent },
+            new StudentAttendance { Id = 52, TenantId = 71, AttendanceSessionId = 42,
+                StudentEnrollmentId = 30, State = AttendanceState.Absent },
+            new StudentAttendance { Id = 53, TenantId = 71, AttendanceSessionId = 43,
+                StudentEnrollmentId = 30, State = AttendanceState.Present });
+        await db.SaveChangesAsync();
+        var principal = Service(db, 71, manager: false, principal: true);
+        var query = Query();
+        query.PageSize = 1;
+        var first = await principal.GetSubjectSummaryAsync(query, null, "lowest");
+        Assert.True(first.Success, first.Message);
+        Assert.Equal(2, first.Data!.TotalCount);
+        var english = Assert.Single(first.Data.Items);
+        Assert.Equal("English", english.SubjectName);
+        Assert.Equal(1, english.Absent);
+        Assert.Equal(0m, english.AttendancePercent);
+        query.Page = 2;
+        var second = await principal.GetSubjectSummaryAsync(query, null, "lowest");
+        Assert.Equal("Mathematics", Assert.Single(second.Data!.Items).SubjectName);
+        query.Page = 1;
+        var searched = await principal.GetSubjectSummaryAsync(query, "Math", "subject");
+        Assert.Equal(1, searched.Data!.TotalCount);
+        Assert.Equal(100m, Assert.Single(searched.Data.Items).AttendancePercent);
+        query.SubjectOfferingId = 63;
+        Assert.Equal(404, (await principal.GetSubjectSummaryAsync(query, null, "subject")).StatusCode);
+        query.SubjectOfferingId = null;
+        Assert.Equal(403, (await Service(db, 71, manager: false)
+            .GetSubjectSummaryAsync(query, null, "subject")).StatusCode);
+        Assert.Equal(404, (await Service(db, 72)
+            .GetSubjectSummaryAsync(query, null, "subject")).StatusCode);
+        Assert.Equal(400, (await principal.GetSubjectSummaryAsync(query, null, "unknown")).StatusCode);
+        Assert.Equal(400, (await principal.GetSubjectSummaryAsync(query, new string('x', 101), "subject")).StatusCode);
+        db.UserCampusAccesses.Single().IsActive = false;
+        await db.SaveChangesAsync();
+        Assert.Equal(404, (await principal.GetSubjectSummaryAsync(query, null, "subject")).StatusCode);
+    }
+
     private static StudentAttendanceReportQueryDto Query() => new() {
         AcademicBatchId = 10, FromDate = new DateOnly(2026, 10, 1),
         ToDate = new DateOnly(2026, 10, 10)

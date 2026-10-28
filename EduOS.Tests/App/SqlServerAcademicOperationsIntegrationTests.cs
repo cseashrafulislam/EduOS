@@ -264,6 +264,43 @@ public sealed class SqlServerAcademicOperationsIntegrationTests
             db, new Actor(tenantId + 999, managerId, "TenantAdmin"),
             NullLogger<StudentAttendanceReportService>.Instance)
             .GetAsync(riskQuery)).StatusCode);
+        // Real SQL Server: nullable offering joins, grouped counts, paging and tenant isolation.
+        var sqlBatch = await db.AcademicBatches.AsNoTracking().SingleAsync(x => x.Id == batchId);
+        var sqlCurriculum = await db.AcademicCurricula.AsNoTracking().SingleAsync();
+        var sqlSubject = new Subject { TenantId = tenantId, Code = "ATT-" + suffix,
+            Name = "SQL Attendance Subject" };
+        db.Subjects.Add(sqlSubject);
+        await db.SaveChangesAsync();
+        var sqlMapping = new CurriculumSubject { TenantId = tenantId,
+            AcademicCurriculumId = sqlCurriculum.Id, AcademicLevelId = sqlBatch.AcademicLevelId,
+            SubjectId = sqlSubject.Id };
+        db.CurriculumSubjects.Add(sqlMapping);
+        await db.SaveChangesAsync();
+        var sqlOffering = new SubjectOffering { TenantId = tenantId,
+            AcademicBatchId = batchId, AcademicYearId = sqlBatch.AcademicYearId,
+            CurriculumSubjectId = sqlMapping.Id, Code = "ATT-" + suffix };
+        db.SubjectOfferings.Add(sqlOffering);
+        await db.SaveChangesAsync();
+        var sqlSession = new AttendanceSession { TenantId = tenantId,
+            ClientRequestId = Guid.NewGuid(), AcademicBatchId = batchId,
+            SubjectOfferingId = sqlOffering.Id, AttendanceDate = new DateOnly(2026, 10, 10),
+            IsFinalized = true };
+        db.AttendanceSessions.Add(sqlSession);
+        await db.SaveChangesAsync();
+        var sqlEnrollment = await db.StudentEnrollments.AsNoTracking().SingleAsync();
+        db.StudentAttendances.Add(new StudentAttendance { TenantId = tenantId,
+            AttendanceSessionId = sqlSession.Id, StudentEnrollmentId = sqlEnrollment.Id,
+            State = AttendanceState.Absent });
+        await db.SaveChangesAsync();
+        var subjectCoverage = await riskReport.GetSubjectSummaryAsync(riskQuery, "SQL Attendance", "lowest");
+        Assert.True(subjectCoverage.Success, subjectCoverage.Message);
+        Assert.Equal(1, subjectCoverage.Data!.TotalCount);
+        Assert.Equal(sqlOffering.Id, Assert.Single(subjectCoverage.Data.Items).SubjectOfferingId);
+        Assert.Equal(1, subjectCoverage.Data.Items[0].Absent);
+        Assert.Equal(404, (await new StudentAttendanceReportService(
+            db, new Actor(tenantId + 999, managerId, "TenantAdmin"),
+            NullLogger<StudentAttendanceReportService>.Instance)
+            .GetSubjectSummaryAsync(riskQuery, null, "subject")).StatusCode);
         var adjustment = await db.StudentAttendanceAdjustments.AsNoTracking().SingleAsync();
         Assert.Equal(AttendanceState.Leave, adjustment.PreviousState);
         Assert.Equal(AttendanceState.Absent, adjustment.NewState);

@@ -9,6 +9,10 @@
     let batchPage = 1, batchPages = 0, batchPending = 0;
     let subjectPage = 1, subjectPages = 0, subjectPending = 0;
     let visibleItems = [], dailyItems = [], dailyPending = 0, riskPending = 0;
+    let coverageItems = [], coveragePage = 1, coveragePages = 0, coveragePending = 0;
+    const coverageBody = el('attendanceCoverageRows'), coverageStatus = el('attendanceCoverageStatus');
+    const coverageCsv = el('attendanceCoverageCsv');
+    const coveragePrevious = el('attendanceCoveragePrevious'), coverageNext = el('attendanceCoverageNext');
     const dailyBody = el('attendanceDailyRows'), dailyStatus = el('attendanceDailyStatus');
     const dailyCsvButton = el('attendanceDailyCsv');
     const csvButton = el('attendanceReportCsv');
@@ -57,6 +61,7 @@
         return data.data;
     }
     function resetRiskSummary() {
+        resetCoverage();
         riskPending++;
         el('attendanceRiskSummary').textContent = '';
     }
@@ -82,6 +87,76 @@
         } catch (error) {
             if (request === riskPending) summary.textContent = error.message;
         }
+    }
+    function resetCoverage() {
+        coveragePending++;
+        coverageItems = []; coveragePage = 1; coveragePages = 0;
+        coverageCsv.disabled = true;
+        coveragePrevious.disabled = coverageNext.disabled = true;
+        coverageBody.replaceChildren();
+        coverageStatus.textContent = '';
+        el('attendanceCoveragePage').textContent = '';
+    }
+    async function loadCoverage() {
+        if (!form.reportValidity()) return;
+        const from = el('attendanceReportFrom').value, to = el('attendanceReportTo').value;
+        const days = (Date.parse(to) - Date.parse(from)) / 86400000;
+        if (!Number.isFinite(days) || days < 0 || days > 30) return;
+        const request = ++coveragePending;
+        coverageItems = [];
+        coverageCsv.disabled = true;
+        coveragePrevious.disabled = coverageNext.disabled = true;
+        coverageBody.replaceChildren();
+        coverageStatus.textContent = 'Loading subject coverage…';
+        const params = new URLSearchParams({
+            academicBatchId: el('attendanceReportBatch').value, fromDate: from, toDate: to,
+            page: String(coveragePage), pageSize: '20',
+            subjectSearch: el('attendanceCoverageSearch').value.trim(),
+            subjectSort: el('attendanceCoverageSort').value,
+            ...(el('attendanceReportSubject').value ? { subjectOfferingId: el('attendanceReportSubject').value } : {})
+        });
+        try {
+            const data = await fetchJson('/api/student-attendance/report/subject-summary?' + params);
+            if (request !== coveragePending) return;
+            coverageItems = data.items || [];
+            for (const item of coverageItems) {
+                const tr = document.createElement('tr');
+                for (const value of [item.subjectName, item.subjectCode, item.offeringCode,
+                    item.marked, item.present, item.absent, item.late, item.leave, item.excused,
+                    item.attendancePercent + '%']) tr.append(cell(value));
+                coverageBody.append(tr);
+            }
+            if (!coverageItems.length) {
+                const tr = document.createElement('tr'), td = cell('No finalized subject marks in this period.');
+                td.colSpan = 10; td.className = 'text-center text-muted';
+                tr.append(td); coverageBody.append(tr);
+            }
+            coveragePages = data.totalPages || 0;
+            el('attendanceCoveragePage').textContent = 'Page ' + coveragePage + ' of ' +
+                coveragePages + ' · ' + (data.totalCount || 0) + ' offering(s)';
+            coveragePrevious.disabled = coveragePage <= 1;
+            coverageNext.disabled = coveragePage >= coveragePages;
+            coverageCsv.disabled = coverageItems.length === 0;
+            coverageStatus.textContent = (data.totalCount || 0) + ' subject offering(s) with finalized marks.';
+        } catch (error) {
+            if (request === coveragePending) {
+                coverageBody.replaceChildren();
+                coverageStatus.textContent = error.message;
+            }
+        }
+    }
+    function exportCoverage() {
+        if (!coverageItems.length) return;
+        const headings = ['Subject','Subject code','Offering','Marked','Present','Absent','Late','Leave','Excused','Attendance %'];
+        const rows = coverageItems.map(x => [x.subjectName, x.subjectCode, x.offeringCode,
+            x.marked, x.present, x.absent, x.late, x.leave, x.excused, x.attendancePercent]);
+        const csv = [headings, ...rows].map(row => row.map(csvCell).join(',')).join('\r\n');
+        const url = URL.createObjectURL(new Blob(['\uFEFF', csv], { type: 'text/csv;charset=utf-8' }));
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = 'attendance-subjects-' + String(el('attendanceReportBatch').value).replace(/[^0-9]/g, '') +
+            '-page-' + coveragePage + '.csv';
+        document.body.append(link); link.click(); link.remove(); URL.revokeObjectURL(url);
     }
     function resetDaily() {
         dailyPending++;
@@ -279,7 +354,18 @@
     }
     csvButton.addEventListener('click', exportVisiblePage);
     dailyCsvButton.addEventListener('click', exportDaily);
-    form.addEventListener('submit', event => { event.preventDefault(); page = 1; load(); loadDaily(); loadRiskSummary(); });
+    coverageCsv.addEventListener('click', exportCoverage);
+    el('attendanceCoverageFind').addEventListener('click', () => { coveragePage = 1; loadCoverage(); });
+    el('attendanceCoverageSearch').addEventListener('keydown', event => {
+        if (event.key === 'Enter') { event.preventDefault(); coveragePage = 1; loadCoverage(); }
+    });
+    el('attendanceCoverageSort').addEventListener('change', () => { coveragePage = 1; loadCoverage(); });
+    coveragePrevious.addEventListener('click', () => { if (coveragePage > 1) { coveragePage--; loadCoverage(); } });
+    coverageNext.addEventListener('click', () => { if (coveragePage < coveragePages) { coveragePage++; loadCoverage(); } });
+    form.addEventListener('submit', event => {
+        event.preventDefault(); page = 1; coveragePage = 1;
+        load(); loadDaily(); loadRiskSummary(); loadCoverage();
+    });
     previous.addEventListener('click', () => { if (page > 1) { page--; load(); } });
     next.addEventListener('click', () => { if (page < totalPages) { page++; load(); } });
     el('attendanceReportBatch').addEventListener('change', () => {

@@ -42,6 +42,23 @@ public sealed class StudentAttendanceRiskSummaryDto
     public int Below100 { get; set; }
 }
 
+/// <summary>Finalized attendance grouped by subject offering, excluding general sessions.</summary>
+public sealed class StudentAttendanceSubjectSummaryDto
+{
+    public long SubjectOfferingId { get; set; }
+    public string OfferingCode { get; set; } = string.Empty;
+    public string SubjectCode { get; set; } = string.Empty;
+    public string SubjectName { get; set; } = string.Empty;
+    public int Marked { get; set; }
+    public int Present { get; set; }
+    public int Absent { get; set; }
+    public int Late { get; set; }
+    public int Leave { get; set; }
+    public int Excused { get; set; }
+    public decimal AttendancePercent => Marked == 0 ? 0 :
+        Math.Round(100m * (Present + Late) / Marked, 2);
+}
+
 /// <summary>Finalized attendance mark totals for a day; dates with no finalized marks are omitted.</summary>
 public sealed class StudentAttendanceDailySummaryDto
 {
