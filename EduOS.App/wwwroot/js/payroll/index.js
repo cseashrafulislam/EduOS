@@ -57,7 +57,8 @@ async function loadRuns() {
             const tr=document.createElement('tr');
             tr.append(cell(row.runNumber),cell(row.month+'/'+row.year),cell(row.campusId??'Institution-wide'),
                 cell(row.employeeCount),cell(money(row.grossAmount)),cell(money(row.deductionAmount)),
-                cell(money(row.netAmount)),cell(status(row.state)));
+                cell(money(row.netAmount)),cell(status(row.state)),
+                cell(row.prorationModeCode||'FullMonthOnly'));
             const controls=document.createElement('td');
             controls.append(action('Employees',()=>loadEmployees(row.reference,1)));
             if(status(row.state)==='Calculated')
@@ -68,7 +69,7 @@ async function loadRuns() {
                 controls.append(' ',action('Payments',()=>{window.location.assign('/PayrollPaymentPosting/Index');},'btn-outline-success'));
             tr.append(controls);body.append(tr);
         }
-        if(!data.items?.length)empty(body,9,'No payroll runs for this period.');
+        if(!data.items?.length)empty(body,10,'No payroll runs for this period.');
         pageInfo('payrollRun',state.runPage,state.runPages,data.totalCount||0);
     } catch(e){notice(e.message,true);}
 }
@@ -77,9 +78,11 @@ async function generate() {
     let selected;try{selected=period();}catch(e){return notice(e.message,true);}
     const campus=el('payrollCampus').value;
     selected.campusId=campus?Number(campus):null;
+    selected.prorationModeCode=el('payrollProration').value;
     if(!confirm('Calculate '+(campus?'campus '+el('payrollCampus').selectedOptions[0].text:'institution-wide')+
-        ' payroll for '+selected.month+'/'+selected.year+'? Full-month primary campus assignments and salary structures are required.'))return;
-    const key=selected.year+'-'+selected.month+'-'+(campus||'all');
+        ' payroll for '+selected.month+'/'+selected.year+' with '+selected.prorationModeCode+
+        ' policy? The configured fixed components will follow this calendar-day rule.'))return;
+    const key=selected.year+'-'+selected.month+'-'+(campus||'all')+'-'+selected.prorationModeCode;
     if(state.requestPeriod!==key){state.requestPeriod=key;state.requestId=crypto.randomUUID();}
     state.busy=true;el('payrollGenerate').disabled=true;
     try {
@@ -180,7 +183,7 @@ if(admin) {
         for(const campus of campuses||[])
             if(campus.isActive)select.add(new Option(campus.name,campus.id));
     }).catch(e=>notice('Campus selector: '+e.message,true));
-    for(const id of ['payrollYear','payrollMonth','payrollCampus'])
+    for(const id of ['payrollYear','payrollMonth','payrollCampus','payrollProration'])
         el(id).addEventListener('change',()=>{state.requestId=null;state.requestPeriod=null;state.runPage=1;});
     el('payrollRunPrev').addEventListener('click',()=>{if(state.runPage>1){state.runPage--;loadRuns();}});
     el('payrollRunNext').addEventListener('click',()=>{if(state.runPage<state.runPages){state.runPage++;loadRuns();}});

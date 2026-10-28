@@ -39,6 +39,7 @@ public class PayrollRun : BaseTenantEntity
     public int Month { get; set; }
     public DateOnly PeriodStart { get; set; }
     public DateOnly PeriodEnd { get; set; }
+    [Required, MaxLength(30)] public string ProrationModeCode { get; set; } = "FullMonthOnly";
     public PayrollRunState State { get; set; } = PayrollRunState.Draft;
     public DateTime? CalculatedAt { get; set; }
     public DateTime? ApprovedAt { get; set; }

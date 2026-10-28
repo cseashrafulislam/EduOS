@@ -1350,6 +1350,11 @@ public class EduOSDbContext :
         // Payroll
         UniqueTenant<SalaryComponent>(modelBuilder, nameof(SalaryComponent.Code));
         UniqueTenant<SalaryStructureLine>(modelBuilder, nameof(SalaryStructureLine.SalaryStructureId), nameof(SalaryStructureLine.SalaryComponentId));
+        modelBuilder.Entity<PayrollRun>().Property(x => x.ProrationModeCode)
+            .HasMaxLength(30).HasDefaultValue("FullMonthOnly");
+        modelBuilder.Entity<PayrollRun>().ToTable(t =>
+            t.HasCheckConstraint("CK_PayrollRuns_ProrationModeCode",
+                "[ProrationModeCode] IN ('FullMonthOnly', 'CalendarDays')"));
         modelBuilder.Entity<PayrollRun>().HasIndex(x => x.PublicId).IsUnique();
         UniqueTenant<PayrollRun>(modelBuilder, nameof(PayrollRun.RunNumber));
         UniqueTenant<PayrollRun>(modelBuilder, nameof(PayrollRun.ClientRequestId));

@@ -73,6 +73,7 @@ public class PayrollRunDto
     public long? CampusId { get; set; }
     public DateOnly PeriodStart { get; set; }
     public DateOnly PeriodEnd { get; set; }
+    public string ProrationModeCode { get; set; } = "FullMonthOnly";
     public Guid Reference { get; set; }
     public int Year { get; set; }
     public int Month { get; set; }
@@ -93,6 +94,8 @@ public class CreatePayrollRunRequestDto
 {
     public Guid ClientRequestId { get; set; }
     [Range(1, long.MaxValue)] public long? CampusId { get; set; }
+    [Required, RegularExpression("^(FullMonthOnly|CalendarDays)$")]
+    public string ProrationModeCode { get; set; } = "FullMonthOnly";
     [Range(2000, 2200)] public int Year { get; set; }
     [Range(1, 12)] public int Month { get; set; }
 }

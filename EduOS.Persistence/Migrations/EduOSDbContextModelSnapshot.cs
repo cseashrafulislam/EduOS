@@ -13448,6 +13448,12 @@ namespace EduOS.Persistence.Migrations
                     b.Property<DateTime?>("PostedAt")
                         .HasColumnType("datetime2");
 
+                    b.Property<string>("ProrationModeCode")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)")
+                        .HasDefaultValue("FullMonthOnly");
+
                     b.Property<Guid>("PublicId")
                         .HasColumnType("uniqueidentifier");
 
@@ -13502,7 +13508,11 @@ namespace EduOS.Persistence.Migrations
                         .IsUnique()
                         .HasFilter("[CampusId] IS NOT NULL AND [State] <> 5 AND [IsDeleted] = 0");
 
-                    b.ToTable("PayrollRuns");
+                    b.ToTable("PayrollRuns", t =>
+                        {
+                            t.HasCheckConstraint("CK_PayrollRuns_ProrationModeCode",
+                                "[ProrationModeCode] IN ('FullMonthOnly', 'CalendarDays')");
+                        });
                 });
 
             modelBuilder.Entity("EduOS.Core.Entities.Payroll.SalaryComponent", b =>
