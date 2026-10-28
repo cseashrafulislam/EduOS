@@ -14,6 +14,7 @@ using EduOS.Persistence.Repositories;
 using EduOS.Service.Services.Students;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 
@@ -104,16 +105,18 @@ public sealed class SqlServerStudentImportConcurrencyIntegrationTests
             header + $"SQL-SRC-A-{suffix},SQL-STU-A-{suffix},First Learner,{await CampusIdAsync(options, tenantId, batchId)},{batchId},01\n",
             header + $"SQL-SRC-B-{suffix},SQL-STU-B-{suffix},Second Learner,{await CampusIdAsync(options, tenantId, batchId)},{batchId},02\n"
         };
+        var diagnostic = new System.Collections.Concurrent.ConcurrentBag<string>();
         var results = await Task.WhenAll(Enumerable.Range(0, 2).Select(async i =>
         {
             await using var db = TenantDb(options, tenantId);
             using var source = new MemoryStream(Encoding.UTF8.GetBytes(sources[i]));
-            return await Service(db, tenantId, adminId).ExecuteAsync(source, ".csv", Mapping, ids[i]);
+            return await Service(db, tenantId, adminId, new ExceptionTypeLogger(diagnostic)).ExecuteAsync(source, ".csv", Mapping, ids[i]);
         }));
 
         Assert.Single(results, x => x.Success);
         Assert.True(results.Count(x => x.StatusCode == 409) == 1,
-            string.Join("; ", results.Select(x => $"{x.StatusCode}: {x.Message}")));
+            string.Join("; ", results.Select(x => $"{x.StatusCode}: {x.Message}")) +
+            " | exception types: " + string.Join(" | ", diagnostic));
         var winner = Array.FindIndex(results, x => x.Success);
         await using (var retryDb = TenantDb(options, tenantId))
         {
@@ -157,7 +160,8 @@ public sealed class SqlServerStudentImportConcurrencyIntegrationTests
         return new EduOSDbContext(options, accessor);
     }
 
-    private static StudentImportExecutionService Service(EduOSDbContext db, long tenant, long userId)
+    private static StudentImportExecutionService Service(EduOSDbContext db, long tenant, long userId,
+        ILogger<StudentImportExecutionService>? logger = null)
     {
         var students = new GenericRepository<Student>(db);
         var enrollments = new GenericRepository<StudentEnrollment>(db);
@@ -174,7 +178,25 @@ public sealed class SqlServerStudentImportConcurrencyIntegrationTests
             new GenericRepository<StudentGuardian>(db), batches,
             new GenericRepository<AcademicCurriculum>(db), logs, items,
             new GenericRepository<IdempotencyRecord>(db), db, admin,
-            NullLogger<StudentImportExecutionService>.Instance);
+            logger ?? NullLogger<StudentImportExecutionService>.Instance);
+    }
+
+    // Synthetic SQL integration only: emit exception types and SQL numbers, never learner data.
+    private sealed class ExceptionTypeLogger(System.Collections.Concurrent.ConcurrentBag<string> output)
+        : ILogger<StudentImportExecutionService>
+    {
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+        public bool IsEnabled(LogLevel logLevel) => true;
+        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state,
+            Exception? exception, Func<TState, Exception?, string> formatter) where TState : notnull
+        {
+            if (exception == null) return;
+            var chain = new List<string>();
+            for (var current = exception; current != null; current = current.InnerException)
+                chain.Add(current.GetType().Name +
+                    (current is Microsoft.Data.SqlClient.SqlException sql ? "#" + sql.Number : ""));
+            output.Add(string.Join(" -> ", chain));
+        }
     }
 
     private sealed class TestAdmin(long tenant, long userId) : ICurrentUserService
