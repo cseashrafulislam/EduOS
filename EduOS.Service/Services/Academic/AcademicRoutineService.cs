@@ -8,6 +8,7 @@ using EduOS.Core.Interfaces;
 using EduOS.Core.Interfaces.IRepositories;
 using EduOS.Core.Interfaces.IServices;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Logging;
 using System.Data;
 using System.Security.Cryptography;
@@ -593,11 +594,30 @@ public sealed class AcademicRoutineService : IAcademicRoutineService
                 return Created((await MapEntriesAsync([row], token))[0], "Routine entry created.");
             }, IsolationLevel.Serializable, ct);
         }
-        catch (DbUpdateException ex)
+        catch (DbUpdateException)
         {
-            _logger.LogWarning(ex, "Routine entry conflict for tenant {TenantId}", tenant);
+            // Do not include student, instructor or SQL parameter data in routine conflict logs.
+            _logger.LogWarning("Routine entry write conflict for tenant {TenantId}", tenant);
             return Error<RoutineEntryDto>("Routine entry conflicts with another update.", 409);
         }
+        catch (Exception ex) when (IsSqlSchedulingConflict(ex))
+        {
+            // SQL Server can wrap deadlock (1205), snapshot conflict (3960) and
+            // lock timeout (1222) in EF execution-strategy InvalidOperationException.
+            // The unit-of-work rolls back the transaction before this response.
+            _logger.LogWarning("Concurrent routine scheduling conflict for tenant {TenantId}", tenant);
+            return Error<RoutineEntryDto>("Routine entry conflicts with another update. Reload and retry.", 409);
+        }
+    }
+
+    private static bool IsSqlSchedulingConflict(Exception exception)
+    {
+        for (Exception? current = exception; current != null; current = current.InnerException)
+        {
+            if (current is SqlException sql && sql.Number is 1205 or 3960 or 1222)
+                return true;
+        }
+        return false;
     }
 
     public async Task<ApiResponse<RoutineEntryDto>> DeactivateEntryAsync(long id, string rowVersion,

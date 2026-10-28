@@ -26,7 +26,7 @@ public sealed class SqlServerAcademicRoutineCollisionIntegrationTests
         if (string.IsNullOrWhiteSpace(connection)) return;
         var options = new DbContextOptionsBuilder<EduOSDbContext>().UseSqlServer(connection).Options;
         var suffix = Guid.NewGuid().ToString("N")[..10];
-        long tenantId, userId, roomId;
+        long tenantId, userId, roomId, batchAId, batchBId;
         Guid offeringA, offeringB;
 
         await using (var seed = new EduOSDbContext(options))
@@ -102,6 +102,8 @@ public sealed class SqlServerAcademicRoutineCollisionIntegrationTests
                 };
                 seed.AddRange(item, batchA, batchB);
                 await seed.SaveChangesAsync();
+                batchAId = batchA.Id;
+                batchBId = batchB.Id;
 
                 var first = new SubjectOffering
                 {
@@ -123,22 +125,7 @@ public sealed class SqlServerAcademicRoutineCollisionIntegrationTests
         var accessor = new HttpContextAccessor { HttpContext = new DefaultHttpContext() };
         accessor.HttpContext.Items["TenantId"] = tenantId;
         await using var db = new EduOSDbContext(options, accessor);
-        var service = new AcademicRoutineService(
-            new GenericRepository<RoutineTimeSlot>(db),
-            new GenericRepository<InstructorAssignment>(db),
-            new GenericRepository<RoutineEntry>(db),
-            new GenericRepository<AcademicBatch>(db),
-            new GenericRepository<AcademicYear>(db),
-            new GenericRepository<AcademicTerm>(db),
-            new GenericRepository<SubjectOffering>(db),
-            new GenericRepository<CurriculumSubject>(db),
-            new GenericRepository<Subject>(db),
-            new GenericRepository<Employee>(db),
-            new GenericRepository<Room>(db),
-            new GenericRepository<UserCampusAccess>(db),
-            new GenericRepository<Campus>(db),
-            db, new Admin(tenantId, userId), TimeProvider.System,
-            NullLogger<AcademicRoutineService>.Instance);
+        var service = BuildService(db, tenantId, userId);
 
         var morning = await service.CreateTimeSlotAsync(new SaveRoutineTimeSlotRequestDto
         { Name = "Morning", StartTime = new TimeOnly(9, 0), EndTime = new TimeOnly(9, 45) });
@@ -165,7 +152,59 @@ public sealed class SqlServerAcademicRoutineCollisionIntegrationTests
         var valid = await service.CreateEntryAsync(Entry(offeringB, afternoon.Data!.Id));
         Assert.True(valid.Success, valid.Message);
         Assert.Equal(2, await db.RoutineEntries.CountAsync(x => x.TenantId == tenantId));
+
+        // Execute the new batch timetable paging query against SQL Server, not EF InMemory.
+        var pageA = await service.GetBatchTimetablePageAsync(batchAId, null, 1, 1);
+        var pageB = await service.GetBatchTimetablePageAsync(batchBId, null, 1, 1);
+        Assert.True(pageA.Success, pageA.Message);
+        Assert.True(pageB.Success, pageB.Message);
+        Assert.Equal(1, pageA.Data!.TotalCount);
+        Assert.Equal(1, pageB.Data!.TotalCount);
+        Assert.Single(pageA.Data.Items);
+        Assert.Single(pageB.Data.Items);
+        Assert.Equal(400, (await service.GetBatchTimetablePageAsync(batchAId, null, 1, 101)).StatusCode);
+        Assert.Equal(404, (await BuildService(db, tenantId + 1, userId)
+            .GetBatchTimetablePageAsync(batchAId, null, 1, 50)).StatusCode);
+
+        // Independent contexts simulate competing authenticated requests for one room.
+        // Both bookings are individually valid; exactly one may commit.
+        await using var competingDbA = new EduOSDbContext(options, accessor);
+        await using var competingDbB = new EduOSDbContext(options, accessor);
+        var requestA = Entry(offeringA, morning.Data!.Id);
+        var requestB = Entry(offeringB, morning.Data.Id);
+        requestA.DayOfWeek = DayOfWeek.Tuesday;
+        requestB.DayOfWeek = DayOfWeek.Tuesday;
+        var attempts = await Task.WhenAll(
+            BuildService(competingDbA, tenantId, userId).CreateEntryAsync(requestA),
+            BuildService(competingDbB, tenantId, userId).CreateEntryAsync(requestB));
+        Assert.Single(attempts.Where(x => x.Success));
+        Assert.Single(attempts.Where(x => x.StatusCode == 409));
+        Assert.Equal(3, await db.RoutineEntries.CountAsync(x => x.TenantId == tenantId));
+
+        // Replaying the winner is idempotent; retrying the loser cannot double-book.
+        var winner = attempts[0].Success ? requestA : requestB;
+        var loser = attempts[0].Success ? requestB : requestA;
+        Assert.True((await service.CreateEntryAsync(winner)).Success);
+        Assert.Equal(409, (await service.CreateEntryAsync(loser)).StatusCode);
+        Assert.Equal(3, await db.RoutineEntries.CountAsync(x => x.TenantId == tenantId));
     }
+
+    private static AcademicRoutineService BuildService(EduOSDbContext db, long tenantId, long userId) => new(
+        new GenericRepository<RoutineTimeSlot>(db),
+        new GenericRepository<InstructorAssignment>(db),
+        new GenericRepository<RoutineEntry>(db),
+        new GenericRepository<AcademicBatch>(db),
+        new GenericRepository<AcademicYear>(db),
+        new GenericRepository<AcademicTerm>(db),
+        new GenericRepository<SubjectOffering>(db),
+        new GenericRepository<CurriculumSubject>(db),
+        new GenericRepository<Subject>(db),
+        new GenericRepository<Employee>(db),
+        new GenericRepository<Room>(db),
+        new GenericRepository<UserCampusAccess>(db),
+        new GenericRepository<Campus>(db),
+        db, new Admin(tenantId, userId), TimeProvider.System,
+        NullLogger<AcademicRoutineService>.Instance);
 
     private sealed class Admin(long tenant, long userId) : ICurrentUserService
     {
