@@ -49,7 +49,7 @@ public sealed class PublicCertificateVerificationIntegrationTests
         await using var db = Context();
         var reference = Guid.NewGuid();
         await SeedAsync(db, reference, false, true, false);
-        db.TenantModules.Single().IsEnabled = false;
+        db.TenantModules.IgnoreQueryFilters().Single().IsEnabled = false;
         await db.SaveChangesAsync();
         var response = await Service(db).VerifyAsync(reference);
         response.Success.Should().BeFalse();
