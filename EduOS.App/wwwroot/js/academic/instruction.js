@@ -6,7 +6,7 @@
     const manager = root.dataset.canManage === 'true';
     const teacher = root.dataset.canTeach === 'true';
     const statuses = {1:'Draft',2:'Submitted',3:'Approved',4:'Rejected',5:'In progress',6:'Completed'};
-    const state = { batches: [], offerings: [], instructors: [], routines: [], lessons: [], substitutions: [], editingId: null, lessonPage: 1, lessonPages: 1, lessonCount: 0, substitutionPage: 1, substitutionPages: 1, substitutionCount: 0, requestSeq: 0, draftRequestId: null, substitutionRequestId: null, offeringPage: 1, offeringPages: 1, offeringCount: 0, offeringRequestSeq: 0 };
+    const state = { batches: [], offerings: [], instructors: [], routines: [], lessons: [], substitutions: [], editingId: null, lessonPage: 1, lessonPages: 1, lessonCount: 0, substitutionPage: 1, substitutionPages: 1, substitutionCount: 0, requestSeq: 0, draftRequestId: null, substitutionRequestId: null, routinePage: 1, routinePages: 1, routineCount: 0, routineRequestSeq: 0, offeringPage: 1, offeringPages: 1, offeringCount: 0, offeringRequestSeq: 0 };
     const dateOnly = value => value ? String(value).slice(0,10) : '';
     const dateForApi = value => value; // ASP.NET DateOnly accepts yyyy-MM-dd, not a timestamp.
     const option = (value, text) => { const e=document.createElement('option');e.value=String(value);e.textContent=text;return e; };
@@ -46,8 +46,10 @@
         resetEditor();
         const id=Number(get('instructionBatch').value);
         get('lessonNew').disabled=!id;
-        state.lessonPage=1;state.substitutionPage=1;state.offeringPage=1;state.offeringPages=1;state.offeringCount=0;state.offeringRequestSeq++;
-        get('lessonOfferingSearch').value='';state.offerings=[];state.instructors=[];state.routines=[];state.lessons=[];state.substitutions=[];renderLessons([]);renderSubstitutions([]);updateLessonPager();updateSubstitutionPager();updateOfferingPager();
+        state.lessonPage=1;state.substitutionPage=1;state.offeringPage=1;state.offeringPages=1;state.offeringCount=0;state.offeringRequestSeq++;state.routineRequestSeq++;
+        state.routinePage=1;state.routinePages=1;state.routineCount=0;
+        if(manager){get('substitutionRoutineSearch').value='';if(!get('substitutionDate').value)get('substitutionDate').value=get('instructionTo').value;}
+        get('lessonOfferingSearch').value='';state.offerings=[];state.instructors=[];state.routines=[];state.lessons=[];state.substitutions=[];renderLessons([]);renderSubstitutions([]);updateLessonPager();updateSubstitutionPager();updateOfferingPager();if(manager)updateRoutinePager();
         if(id)load();
     }
     async function init() {
@@ -55,6 +57,7 @@
         const iso=d=>[d.getFullYear(),String(d.getMonth()+1).padStart(2,'0'),String(d.getDate()).padStart(2,'0')].join('-');
         const from=new Date(local);from.setDate(from.getDate()-30);
         get('instructionFrom').value=iso(from);get('instructionTo').value=iso(local);
+        if(manager)get('substitutionDate').value=iso(local);
         try {
             const catalog=await api('/api/academic-setup/catalog');
             state.batches=(catalog?.batches||[]).filter(x=>x.isActive).sort((a,b)=>(a.name||'').localeCompare(b.name||''));
@@ -105,6 +108,50 @@
             id: x.employeeReference, name: [x.employeeCode, x.name].filter(Boolean).join(' / ')
         })), 'Select substitute instructor');
     }
+
+    async function fetchRoutinePage(batchId, date, page, search) {
+        if(!manager)return { items: [], page: 1, totalPages: 1, totalCount: 0 };
+        if(!date)throw new Error('Select a substitution date.');
+        if(!Number.isSafeInteger(page)||page<1||search.length>100)throw new Error('Invalid routine page or search.');
+        const query=new URLSearchParams({date,page:String(page),pageSize:'50'});
+        if(search)query.set('search',search);
+        const result=await api('/api/academic-instruction/batches/'+batchId+'/substitution-routines?'+query);
+        if(!result||!Array.isArray(result.items))throw new Error('Invalid routine choices response.');
+        return result;
+    }
+    function updateRoutinePager() {
+        if(!manager)return;
+        get('substitutionRoutinePage').textContent='Page '+state.routinePage+' / '+
+            state.routinePages+' ('+state.routineCount+' routines)';
+        get('substitutionRoutinePrevious').disabled=state.routinePage<=1;
+        get('substitutionRoutineNext').disabled=state.routinePage>=state.routinePages;
+    }
+    function setRoutineOptions() {
+        if(!manager)return;
+        const selected=get('substitutionRoutine').value;
+        setOptions('substitutionRoutine',state.routines.map(x=>({
+            id:x.id,name:[x.subjectName,x.timeSlotName,x.originalTeacherName].filter(Boolean).join(' / ')
+        })),'Select scheduled routine');
+        if(state.routines.some(x=>String(x.id)===selected))get('substitutionRoutine').value=selected;
+    }
+    function applyRoutinePage(result,requestedPage) {
+        state.routines=result.items;
+        state.routinePage=Number(result.page||requestedPage);
+        state.routinePages=Math.max(1,Number(result.totalPages||1));
+        state.routineCount=Number(result.totalCount||0);
+        setRoutineOptions();updateRoutinePager();
+    }
+    async function findRoutines(page=1) {
+        if(!manager)return;
+        const batchId=Number(get('instructionBatch').value);
+        if(!batchId)throw new Error('Select an academic batch first.');
+        const date=get('substitutionDate').value,search=get('substitutionRoutineSearch').value.trim();
+        const seq=++state.routineRequestSeq;
+        const result=await fetchRoutinePage(batchId,date,page,search);
+        if(seq!==state.routineRequestSeq||Number(get('instructionBatch').value)!==batchId||
+           get('substitutionDate').value!==date)return;
+        applyRoutinePage(result,page);
+    }
     function updateLessonPager() {
         get('lessonPage').textContent = 'Page ' + state.lessonPage + ' / ' + state.lessonPages +
             ' (' + state.lessonCount + ' plans)';
@@ -123,6 +170,7 @@
         let scope; try { scope = dateScope(); } catch (e) { status('danger', e.message); return; }
         const seq = ++state.requestSeq;
         const offeringSeq = ++state.offeringRequestSeq;
+        const routineSeq = ++state.routineRequestSeq;
         const btn = get('instructionLoad'); btn.disabled = true; clearStatus();
         const q = new URLSearchParams({ academicBatchId: String(scope.batchId),
             fromDate: dateForApi(scope.from), toDate: dateForApi(scope.to) });
@@ -135,7 +183,8 @@
                 api('/api/academic-instruction/lesson-plans?' + lessonQuery),
                 api('/api/academic-instruction/substitutions/page?' + substitutionQuery),
                 fetchOfferingPage(scope.batchId, state.offeringPage, get('lessonOfferingSearch').value.trim()),
-                api('/api/academic-routines/batches/' + scope.batchId)
+                fetchRoutinePage(scope.batchId, manager ? get('substitutionDate').value : scope.to,
+                    state.routinePage, manager ? get('substitutionRoutineSearch').value.trim() : '')
             ]);
             if (seq !== state.requestSeq) return;
             if (lessonResult.status === 'rejected') throw lessonResult.reason;
@@ -157,14 +206,18 @@
                     state.offeringCount = 0; updateOfferingPager();
                 }
             }
-            state.routines = routineResult.status === 'fulfilled' ? (routineResult.value || []) : [];
+            if(manager&&routineSeq===state.routineRequestSeq){
+                if(routineResult.status==='fulfilled')applyRoutinePage(routineResult.value,state.routinePage);
+                else{state.routines=[];state.routinePage=1;state.routinePages=1;state.routineCount=0;
+                    setRoutineOptions();updateRoutinePager();}
+            }
             renderLessons(state.lessons); renderSubstitutions(state.substitutions);
             setAssignments(); updateLessonPager(); updateSubstitutionPager();
             if (manager) {
                 try { await findInstructors(); }
                 catch (e) { if (seq === state.requestSeq) status('warning', 'Instructor search: ' + e.message); }
             }
-            if (offeringResult.status === 'rejected' || routineResult.status === 'rejected')
+            if (offeringResult.status === 'rejected' || (manager && routineResult.status === 'rejected'))
                 status('warning', 'Some active offerings or timetable entries are unavailable. Existing lesson plans remain readable.');
         } catch (e) {
             if (seq === state.requestSeq) {
@@ -191,9 +244,7 @@
             setOptions('lessonAssignment', choices, 'Select subject offering');
             if (choices.some(x => String(x.id) === selected)) get('lessonAssignment').value = selected;
         }
-        setOptions('substitutionRoutine', state.routines.filter(x => x.isActive).map(x => ({
-            id: x.id, name: [x.subjectName, x.timeSlotName, x.dayOfWeek].filter(x => x !== null && x !== undefined).join(' / ')
-        })), 'Select routine entry');
+        setRoutineOptions();
     }
     function renderLessons(rows) {
         const body=get('lessonRows');body.replaceChildren();
@@ -324,7 +375,8 @@
                 reason: get('substitutionReason').value.trim() || null
             });
             state.substitutionRequestId = null; form.reset();
-            await load(); status('success', 'Substitution scheduled.');
+            get('substitutionDate').value=get('instructionTo').value;
+            state.routinePage=1;await load(); status('success', 'Substitution scheduled.');
         } catch (e) { status('danger', e.message); }
         finally { btn.disabled = false; }
     }
@@ -380,6 +432,18 @@
     get('substitutionRows').addEventListener('click',e=>{const button=e.target.closest('button[data-action]');if(button&&button.dataset.action==='cancelSub')substitutionAction(Number(button.dataset.id));});
     get('substitutionForm')?.addEventListener('submit',saveSub);
     get('substitutionTeacherFind')?.addEventListener('click',()=>findInstructors().catch(e=>status('danger',e.message)));
+    get('substitutionRoutineFind')?.addEventListener('click',()=>findRoutines(1).catch(e=>status('danger',e.message)));
+    get('substitutionDate')?.addEventListener('change',()=>{state.routinePage=1;findRoutines(1).catch(e=>status('danger',e.message));});
+    get('substitutionRoutineSearch')?.addEventListener('keydown',e=>{
+        if(e.key!=='Enter')return;e.preventDefault();
+        findRoutines(1).catch(error=>status('danger',error.message));
+    });
+    get('substitutionRoutinePrevious')?.addEventListener('click',()=>{
+        if(state.routinePage>1)findRoutines(state.routinePage-1).catch(e=>status('danger',e.message));
+    });
+    get('substitutionRoutineNext')?.addEventListener('click',()=>{
+        if(state.routinePage<state.routinePages)findRoutines(state.routinePage+1).catch(e=>status('danger',e.message));
+    });
     get('lessonFindOfferings').addEventListener('click', () =>
         findOfferings(1).catch(e => status('danger', e.message)));
     get('lessonOfferingSearch').addEventListener('keydown', e => {
