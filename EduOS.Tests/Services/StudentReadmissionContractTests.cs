@@ -34,6 +34,7 @@ public sealed class StudentReadmissionContractTests
         source.Should().Contain("student.StatusCode=\"Active\"");
         source.Should().Contain("catch(DbUpdateConcurrencyException ex)");
         source.Should().Contain("catch(DbUpdateException ex)");
+        source.Should().Contain("catch(Microsoft.Data.SqlClient.SqlException ex) when(ex.Number is 1205 or 3960 or 1222)");
     }
     [Fact]
     public void Api_and_view_require_tenant_admin_module_and_antiforgery()

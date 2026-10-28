@@ -267,6 +267,13 @@ public sealed class StudentReadmissionService : IStudentReadmissionService
             _logger.LogWarning(ex,"Readmission transaction aborted for tenant {TenantId}",tenant);
             return Fail<StudentReadmissionResultDto>("Concurrent readmission conflict.",409);
         }
+        catch(Microsoft.Data.SqlClient.SqlException ex) when(ex.Number is 1205 or 3960 or 1222)
+        {
+            // Deadlock victim, snapshot update conflict or lock timeout: the
+            // transaction has rolled back. Do not return an opaque HTTP 500.
+            _logger.LogWarning(ex,"Readmission SQL contention for tenant {TenantId}",tenant);
+            return Fail<StudentReadmissionResultDto>("Concurrent readmission conflict. Reload and retry.",409);
+        }
         catch(Exception ex)
         {
             _logger.LogError(ex,"Readmission failed for tenant {TenantId}",tenant);

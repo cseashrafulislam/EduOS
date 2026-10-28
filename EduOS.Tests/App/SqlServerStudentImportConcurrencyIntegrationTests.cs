@@ -389,6 +389,221 @@ public sealed class SqlServerStudentImportConcurrencyIntegrationTests
         }
     }
 
+    [Fact]
+    public async Task Concurrent_import_and_real_readmission_cannot_overfill_last_seat()
+    {
+        var connection = Environment.GetEnvironmentVariable("EDUOS_SQL_AUTH_TEST_CONNECTION");
+        if (string.IsNullOrWhiteSpace(connection)) return;
+        var options = new DbContextOptionsBuilder<EduOSDbContext>().UseSqlServer(connection).Options;
+        var suffix = Guid.NewGuid().ToString("N")[..12];
+        var currentYear = DateTime.UtcNow.Year;
+        long tenantId, adminId, campusId, targetBatchId;
+        Guid studentReference;
+
+        await using (var setup = new EduOSDbContext(options))
+        {
+            var tenant = new Tenant
+            {
+                Code = "CI-READMIT-" + suffix, Name = "Student Readmission Race CI",
+                Email = "readmit-" + suffix + "@example.test", State = TenantState.Active
+            };
+            var username = "readmit-admin-" + suffix + "@example.test";
+            var admin = new ApplicationUser
+            {
+                UserName = username, NormalizedUserName = username.ToUpperInvariant(),
+                Email = username, NormalizedEmail = username.ToUpperInvariant(),
+                FullName = "Readmission SQL Admin", EmailConfirmed = true, IsActive = true,
+                SecurityStamp = Guid.NewGuid().ToString(), ConcurrencyStamp = Guid.NewGuid().ToString()
+            };
+            setup.AddRange(tenant, admin);
+            await setup.SaveChangesAsync();
+            tenantId = tenant.Id; adminId = admin.Id;
+            setup.ChangeTracker.Clear();
+            using (setup.BeginSystemTenantScope(tenantId))
+            {
+                var campus = new Campus { TenantId = tenantId, Name = "Main", Code = "MAIN" };
+                var oldYear = new AcademicYear
+                {
+                    TenantId = tenantId, Name = (currentYear - 1).ToString(),
+                    Code = (currentYear - 1).ToString(),
+                    StartDate = new DateOnly(currentYear - 1, 1, 1),
+                    EndDate = new DateOnly(currentYear - 1, 12, 31)
+                };
+                var newYear = new AcademicYear
+                {
+                    TenantId = tenantId, Name = currentYear.ToString(), Code = currentYear.ToString(),
+                    StartDate = new DateOnly(currentYear, 1, 1),
+                    EndDate = new DateOnly(currentYear, 12, 31)
+                };
+                var program = new AcademicProgram { TenantId = tenantId, Name = "Training", Code = "TRAIN" };
+                setup.AddRange(campus, oldYear, newYear, program);
+                await setup.SaveChangesAsync();
+                campusId = campus.Id;
+                var level = new AcademicLevel
+                {
+                    TenantId = tenantId, AcademicProgramId = program.Id,
+                    Name = "Level One", Code = "L1", LevelNo = 1
+                };
+                var curriculum = new AcademicCurriculum
+                {
+                    TenantId = tenantId, AcademicProgramId = program.Id,
+                    Name = "Current Curriculum", Code = "CUR",
+                    EffectiveFrom = new DateOnly(currentYear - 1, 1, 1),
+                    IsCurrent = true, IsActive = true
+                };
+                setup.AddRange(level, curriculum);
+                await setup.SaveChangesAsync();
+                var oldBatch = new AcademicBatch
+                {
+                    TenantId = tenantId, CampusId = campus.Id, AcademicYearId = oldYear.Id,
+                    AcademicProgramId = program.Id, AcademicLevelId = level.Id,
+                    Name = "Previous Year", Code = "OLD", Capacity = 2
+                };
+                var targetBatch = new AcademicBatch
+                {
+                    TenantId = tenantId, CampusId = campus.Id, AcademicYearId = newYear.Id,
+                    AcademicProgramId = program.Id, AcademicLevelId = level.Id,
+                    Name = "Last Seat", Code = "TARGET", Capacity = 1
+                };
+                setup.AddRange(oldBatch, targetBatch);
+                await setup.SaveChangesAsync();
+                targetBatchId = targetBatch.Id;
+                var person = new Person { FullName = "Exited Learner " + suffix };
+                setup.Add(person);
+                await setup.SaveChangesAsync();
+                var student = new Student
+                {
+                    TenantId = tenantId, PersonId = person.Id, FullName = person.FullName,
+                    StudentCode = "READMIT-OLD-" + suffix, StatusCode = "Dropout",
+                    AdmissionDate = new DateOnly(currentYear - 1, 1, 10)
+                };
+                setup.Add(student);
+                await setup.SaveChangesAsync();
+                studentReference = student.PublicId;
+                var previous = new StudentEnrollment
+                {
+                    TenantId = tenantId, StudentId = student.Id, ClientRequestId = Guid.NewGuid(),
+                    CampusId = campus.Id, AcademicYearId = oldYear.Id,
+                    AcademicProgramId = program.Id, AcademicLevelId = level.Id,
+                    AcademicBatchId = oldBatch.Id, AcademicCurriculumId = curriculum.Id,
+                    RollNo = "01", EnrollmentDate = new DateOnly(currentYear - 1, 1, 10),
+                    EndDate = new DateOnly(currentYear - 1, 12, 1),
+                    State = EnrollmentState.Dropped, IsCurrent = false
+                };
+                setup.Add(previous);
+                setup.Add(new StudentPersonLink
+                {
+                    TenantId = tenantId, StudentId = student.Id, PersonId = person.Id,
+                    IsPrimary = true, LinkedAt = DateTime.UtcNow, LinkedByUserId = adminId
+                });
+                await setup.SaveChangesAsync();
+                setup.Add(new StudentExitRecord
+                {
+                    TenantId = tenantId, StudentId = student.Id, StudentEnrollmentId = previous.Id,
+                    ClientRequestId = Guid.NewGuid(), ExitType = StudentExitType.Dropout,
+                    DueAtExit = 0, FeesCleared = true, Reason = "Synthetic final dropout",
+                    ProcessedAt = DateTime.UtcNow, ProcessedByUserId = adminId
+                });
+                await setup.SaveChangesAsync();
+            }
+        }
+
+        StudentReadmissionOptionsDto readmissionOptions;
+        await using (var db = TenantDb(options, tenantId))
+        {
+            var response = await Readmission(db, tenantId, adminId).GetOptionsAsync(studentReference);
+            Assert.True(response.Success, response.Message);
+            readmissionOptions = response.Data!;
+            Assert.Contains(readmissionOptions.Targets, x => x.AcademicBatchId == targetBatchId);
+        }
+        var request = new ProcessStudentReadmissionDto
+        {
+            ClientRequestId = Guid.NewGuid(),
+            PreviousEnrollmentId = readmissionOptions.PreviousEnrollmentId,
+            TargetAcademicBatchId = targetBatchId, TargetRoll = "02",
+            Reason = "Approved synthetic return after dropout",
+            StudentRowVersion = readmissionOptions.StudentRowVersion,
+            PreviousEnrollmentRowVersion = readmissionOptions.PreviousEnrollmentRowVersion
+        };
+        var csv = "SourceKey,StudentCode,FullName,CampusId,AcademicBatchId,RollNo,GuardianName,GuardianPhone,GuardianSourceKey\n" +
+            "READMIT-SRC-" + suffix + ",READMIT-NEW-" + suffix + ",Imported Learner " + suffix +
+            "," + campusId + "," + targetBatchId + ",03,,,\n";
+        var importId = Guid.NewGuid();
+        var start = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var readmissionTask = Task.Run(async () =>
+        {
+            await using var db = TenantDb(options, tenantId);
+            await start.Task;
+            return await Readmission(db, tenantId, adminId).ProcessAsync(studentReference, request);
+        });
+        var importTask = Task.Run(async () =>
+        {
+            await using var db = TenantDb(options, tenantId);
+            using var stream = new MemoryStream(Encoding.UTF8.GetBytes(csv));
+            await start.Task;
+            return await Service(db, tenantId, adminId).ExecuteAsync(stream, ".csv", Mapping, importId);
+        });
+        start.SetResult(true);
+        await Task.WhenAll(readmissionTask, importTask);
+        var readmission = await readmissionTask;
+        var imported = await importTask;
+        Assert.True(readmission.Success != imported.Success,
+            "Exactly one last-seat allocation must commit. Readmission: " +
+            readmission.StatusCode + " / import: " + imported.StatusCode);
+        Assert.Equal(409, readmission.Success ? imported.StatusCode : readmission.StatusCode);
+
+        await using (var verify = TenantDb(options, tenantId))
+        {
+            Assert.Equal(1, await verify.StudentEnrollments.CountAsync(x =>
+                x.AcademicBatchId == targetBatchId && x.IsCurrent && x.State == EnrollmentState.Active));
+            Assert.Equal(1, await verify.StudentExitRecords.CountAsync());
+            Assert.Equal(1, await verify.StudentEnrollments.CountAsync(x => !x.IsCurrent));
+            Assert.Equal(readmission.Success ? 1 : 0,
+                await verify.StudentStatusHistories.CountAsync(x => x.ToStatusCode == "Active"));
+            Assert.Equal(imported.Success ? 1 : 0, await verify.ImportLogs.CountAsync());
+            Assert.Equal(imported.Success ? 1 : 0,
+                await verify.Persons.CountAsync(x => x.FullName == "Imported Learner " + suffix));
+            Assert.Equal(imported.Success ? 2 : 1, await verify.Students.CountAsync());
+            Assert.Equal(imported.Success ? 1 : 0, await verify.IdempotencyRecords.CountAsync(x =>
+                x.TenantId == tenantId && x.Scope == "StudentImportBatch" && x.RequestId == importId));
+            Assert.Equal(readmission.Success ? "Active" : "Dropout",
+                await verify.Students.Where(x => x.PublicId == studentReference)
+                    .Select(x => x.StatusCode).SingleAsync());
+        }
+        if (readmission.Success)
+        {
+            await using var db = TenantDb(options, tenantId);
+            var replay = await Readmission(db, tenantId, adminId).ProcessAsync(studentReference, request);
+            Assert.True(replay.Success, replay.Message);
+            Assert.True(replay.Data!.AlreadyProcessed);
+        }
+        else
+        {
+            await using var db = TenantDb(options, tenantId);
+            using var stream = new MemoryStream(Encoding.UTF8.GetBytes(csv));
+            var replay = await Service(db, tenantId, adminId).ExecuteAsync(stream, ".csv", Mapping, importId);
+            Assert.True(replay.Success, replay.Message);
+            Assert.True(replay.Data!.Replayed);
+        }
+        await using var foreign = TenantDb(options, tenantId + 1000000);
+        Assert.Equal(404, (await Readmission(foreign, tenantId + 1000000, adminId)
+            .GetOptionsAsync(studentReference)).StatusCode);
+    }
+
+    private static StudentReadmissionService Readmission(EduOSDbContext db, long tenant, long userId)
+        => new(new GenericRepository<Student>(db),
+            new GenericRepository<StudentEnrollment>(db),
+            new GenericRepository<StudentExitRecord>(db),
+            new GenericRepository<StudentStatusHistory>(db),
+            new GenericRepository<TransferRequest>(db),
+            new GenericRepository<AcademicYear>(db),
+            new GenericRepository<AcademicLevel>(db),
+            new GenericRepository<AcademicBatch>(db),
+            new GenericRepository<AcademicTerm>(db),
+            new GenericRepository<AcademicCurriculum>(db),
+            db, new TestAdmin(tenant, userId), TimeProvider.System,
+            NullLogger<StudentReadmissionService>.Instance);
+
     private static StudentPromotionService Promotion(EduOSDbContext db, long tenant, long userId)
         => new(new GenericRepository<Student>(db),
             new GenericRepository<StudentEnrollment>(db),
