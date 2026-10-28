@@ -176,7 +176,7 @@ public sealed partial class AssessmentAdministrationService
             await _auditLogs.AddAsync(new AuditLog
             {
                 TenantId = tenant, UserId = _user.UserId,
-                EntityName = "AssessmentMarkChange", EntityId = subject.Id,
+                EntityName = "AssessmentMarkChange", EntityId = subject!.Id,
                 Action = created ? "ComponentCreated" : "ComponentUpdated",
                 OldValue = before,
                 NewValue = JsonSerializer.Serialize(new
