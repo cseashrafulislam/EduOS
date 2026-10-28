@@ -17,6 +17,12 @@ public sealed class AccountingReportsController : ControllerBase
     private readonly IAccountingReportingService service;
     public AccountingReportsController(IAccountingReportingService implementation) => service = implementation;
     private IActionResult Reply<T>(ApiResponse<T> result) => StatusCode(result.StatusCode, result);
+    [HttpGet("ledger/{accountId:long}/activity"), Authorize(Roles = "TenantAdmin")]
+    public async Task<IActionResult> LedgerActivity(long accountId, [FromQuery] DateOnly fromDate,
+        [FromQuery] DateOnly toDate, [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 25, CancellationToken ct = default)
+        => Reply(await service.GetLedgerActivityAsync(accountId, fromDate, toDate, page, pageSize, ct));
+
     [HttpGet("ledger/{accountId:long}")]
     public async Task<IActionResult> Ledger(long accountId, [FromQuery] DateOnly fromDate,
         [FromQuery] DateOnly toDate, CancellationToken ct)

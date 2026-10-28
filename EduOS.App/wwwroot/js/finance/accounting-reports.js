@@ -9,7 +9,7 @@ if (root) {
     const notice = (message, error = false) => { const el = $('reportNotice'); el.textContent = message;
         el.className = 'alert ' + (error ? 'alert-danger' : 'alert-success'); };
     const run = async work => { try { await work(); } catch (error) { notice(error.message || 'Report failed.', true); } };
-    const decimalKeys = /("(?:debitAmount|creditAmount|runningBalance|openingBalance|closingBalance|debitBalance|creditBalance|amount|totalIncome|totalExpenses|netSurplus|totalAssets|totalLiabilities|totalEquity|unclosedNetSurplus|totalLiabilitiesAndEquity|totalInflows|totalOutflows|externalInflows|externalOutflows|transferIn|transferOut)"\s*:\s*)(-?\d+(?:\.\d+)?)/g;
+    const decimalKeys = /("(?:debitAmount|creditAmount|runningBalance|openingBalance|closingBalance|debitBalance|creditBalance|amount|totalIncome|totalExpenses|netSurplus|totalAssets|totalLiabilities|totalEquity|unclosedNetSurplus|totalLiabilitiesAndEquity|totalInflows|totalOutflows|totalDebit|totalCredit|externalInflows|externalOutflows|transferIn|transferOut)"\s*:\s*)(-?\d+(?:\.\d+)?)/g;
     async function get(url) {
         const response = await fetch(url, { credentials:'same-origin', headers:{Accept:'application/json'} });
         const raw = await response.text();
@@ -302,6 +302,87 @@ if (root) {
             rows.push(['INSTITUTION TOTAL','','',...fields.map(k => money(bankLiquidity[k]))]);
             downloadCsv('institution-bank-liquidity-' + $('bankLiquidityFrom').value + '-' +
                 $('bankLiquidityTo').value + '.csv', rows);
+        }));
+    }
+    const auditPanel = $('ledgerAuditPanel');
+    if (auditPanel) {
+        let audit = null, auditPage = 1, auditKey = '', auditRevision = 0;
+        const resetAudit = () => {
+            auditRevision++;
+            audit = null;
+            $('ledgerAuditCsv').disabled = true;
+            $('ledgerAuditPrevious').disabled = true;
+            $('ledgerAuditNext').disabled = true;
+            $('ledgerAuditRows').replaceChildren();
+            $('ledgerAuditSummary').textContent = '';
+            $('ledgerAuditPage').textContent = '';
+        };
+        ['ledgerAccount','ledgerFrom','ledgerTo'].forEach(id => {
+            $(id).addEventListener('change', resetAudit);
+            $(id).addEventListener('input', resetAudit);
+        });
+        const fetchAudit = async page => {
+            const account = $('ledgerAccount').value;
+            const from = $('ledgerFrom').value, to = $('ledgerTo').value;
+            if (!/^\\d+$/.test(account) || BigInt(account) <= 0n || !from || !to || from > to)
+                throw new Error('Select a valid account and date range.');
+            const key = [account, from, to].join('|');
+            const revision = ++auditRevision;
+            $('ledgerAuditRun').disabled = true;
+            $('ledgerAuditCsv').disabled = true;
+            audit = null;
+            try {
+                const result = await get('/api/finance/accounting/reports/ledger/' +
+                    encodeURIComponent(account) + '/activity?' +
+                    new URLSearchParams({fromDate:from,toDate:to,page:String(page),pageSize:'25'}));
+                if (revision !== auditRevision || key !==
+                    [$('ledgerAccount').value,$('ledgerFrom').value,$('ledgerTo').value].join('|')) return;
+                if (cents(result.openingBalance) + cents(result.totalDebit) -
+                    cents(result.totalCredit) !== cents(result.closingBalance))
+                    throw new Error('Posted journal activity totals do not reconcile.');
+                audit = result; auditPage = page; auditKey = key;
+                $('ledgerAuditRows').innerHTML = (result.entries.items || []).map(x =>
+                    '<tr><td>' + esc(x.date) + '</td><td>' + esc(x.journalNumber) +
+                    '</td><td>' + esc(x.lineNo) + '</td><td>' + esc(x.campusId) +
+                    '</td><td>' + esc(x.sourceType) + '</td><td>' + esc(x.referenceNumber) +
+                    '</td><td>' + esc(x.description) + '</td><td>' +
+                    (x.isReversal ? 'Reversal' : x.isReversedOriginal ? 'Reversed original' : 'Posted') +
+                    '</td><td class="text-end">' + money(x.debitAmount) +
+                    '</td><td class="text-end">' + money(x.creditAmount) + '</td></tr>').join('') ||
+                    '<tr><td colspan="10">No posted movements in this period.</td></tr>';
+                const total = result.entries.totalCount;
+                $('ledgerAuditSummary').textContent = result.accountCode + ' — ' + result.accountName +
+                    ': ' + total + ' posted lines; opening BDT ' + money(result.openingBalance) +
+                    ', debit ' + money(result.totalDebit) + ', credit ' + money(result.totalCredit) +
+                    ', closing ' + money(result.closingBalance) + '.';
+                $('ledgerAuditPage').textContent = 'Page ' + page + ' / ' +
+                    Math.max(1,Math.ceil(total / result.entries.pageSize));
+                $('ledgerAuditPrevious').disabled = page <= 1;
+                $('ledgerAuditNext').disabled = page * result.entries.pageSize >= total;
+                $('ledgerAuditCsv').disabled = false;
+            } finally { $('ledgerAuditRun').disabled = false; }
+        };
+        $('ledgerAuditRun').addEventListener('click', () => run(async () => {
+            resetAudit(); await fetchAudit(1);
+        }));
+        $('ledgerAuditPrevious').addEventListener('click', () => run(async () => {
+            if (audit && auditPage > 1) await fetchAudit(auditPage - 1);
+        }));
+        $('ledgerAuditNext').addEventListener('click', () => run(async () => {
+            if (audit && auditPage * audit.entries.pageSize < audit.entries.totalCount)
+                await fetchAudit(auditPage + 1);
+        }));
+        $('ledgerAuditCsv').addEventListener('click', () => run(async () => {
+            if (!audit || auditKey !==
+                [$('ledgerAccount').value,$('ledgerFrom').value,$('ledgerTo').value].join('|')) return;
+            const rows = [['Date','Journal','Line','Campus ID','Source','Reference','Description','Status','Debit','Credit']];
+            for (const x of audit.entries.items || [])
+                rows.push([x.date,x.journalNumber,x.lineNo,x.campusId,x.sourceType,x.referenceNumber,
+                    x.description,x.isReversal ? 'Reversal' : x.isReversedOriginal ? 'Reversed original' : 'Posted',
+                    money(x.debitAmount),money(x.creditAmount)]);
+            rows.push(['PAGE TOTAL','','','','','','','','','']);
+            downloadCsv('institution-journal-activity-page-' + auditPage + '-' + audit.fromDate +
+                '-' + audit.toDate + '.csv', rows);
         }));
     }
     run(loadAccounts);

@@ -2,7 +2,14 @@
     ViewData["Title"] = "Institutional Ledger & Trial Balance";
 }
 <section class="container-fluid py-3" id="institutionAccountingReports">
-    <h2>Institutional Accounting Reports</h2>
+    <h2>Institutional Accounting Reports
+        <details class="d-inline-block align-middle ms-1 position-relative">
+            <summary class="btn btn-sm btn-link p-0" aria-label="Accounting report help" title="Accounting report help"><span aria-hidden="true">ⓘ</span></summary>
+            <div class="small border rounded bg-body p-2 position-absolute shadow-sm" style="z-index:3;width:260px">
+                Select an account and dates. Journal activity shows posted entries only; exports include the visible page, not hidden rows.
+            </div>
+        </details>
+    </h2>
     <a class="btn btn-outline-primary btn-sm mb-2" href="/AccountingJournals/Index">Open Journal Posting &amp; Reversal</a>
     <p class="text-muted">Posted institutional journals only. SaaS subscription billing is excluded.</p>
     <div id="reportNotice" class="alert d-none" role="alert" aria-live="polite"></div>
@@ -33,6 +40,28 @@
                 <thead><tr><th>Date</th><th>Journal</th><th>Description</th><th class="text-end">Debit</th><th class="text-end">Credit</th><th class="text-end">Running balance (Dr - Cr)</th></tr></thead>
                 <tbody id="ledgerRows"></tbody><tfoot><tr><th colspan="5">Opening balance</th><th id="ledgerOpening" class="text-end"></th></tr>
                     <tr><th colspan="5">Closing balance</th><th id="ledgerClosing" class="text-end"></th></tr></tfoot></table></div>
+            @if (User.IsInRole("TenantAdmin"))
+            {
+                <section class="mt-3 border-top pt-3" id="ledgerAuditPanel" aria-label="Posted journal activity audit">
+                    <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2">
+                        <h3 class="h6 mb-0">Posted Journal Activity Audit</h3>
+                        <div class="d-flex gap-2">
+                            <button id="ledgerAuditRun" type="button" class="btn btn-outline-primary btn-sm">Load Activity</button>
+                            <button id="ledgerAuditCsv" type="button" class="btn btn-outline-secondary btn-sm" disabled>Export Page CSV</button>
+                        </div>
+                    </div>
+                    <div id="ledgerAuditSummary" class="small fw-semibold mb-2" aria-live="polite"></div>
+                    <div class="table-responsive"><table class="table table-sm table-striped">
+                        <thead><tr><th>Date</th><th>Journal</th><th>Line</th><th>Campus ID</th><th>Source</th><th>Reference</th><th>Description</th><th>Status</th><th class="text-end">Debit</th><th class="text-end">Credit</th></tr></thead>
+                        <tbody id="ledgerAuditRows"></tbody>
+                    </table></div>
+                    <div class="d-flex align-items-center justify-content-end gap-2">
+                        <button id="ledgerAuditPrevious" type="button" class="btn btn-outline-secondary btn-sm" disabled>Previous</button>
+                        <span id="ledgerAuditPage" class="small" aria-live="polite"></span>
+                        <button id="ledgerAuditNext" type="button" class="btn btn-outline-secondary btn-sm" disabled>Next</button>
+                    </div>
+                </section>
+            }
         </div>
         <div class="tab-pane fade" id="trialPanel">
             <form id="trialForm" class="row g-2 align-items-end mb-3">
