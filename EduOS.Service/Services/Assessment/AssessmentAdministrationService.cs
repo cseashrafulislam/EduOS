@@ -380,6 +380,14 @@ public sealed partial class AssessmentAdministrationService : IAssessmentAdminis
         if (publishedOnly)
         {
             if (publication == null) return Error<AssessmentResultSheetDto>("Results have not been published.", 404);
+            // Include soft-deleted evidence in the whole-version integrity gate;
+            // otherwise a partially removed snapshot could appear valid on readback.
+            var publicationEvidence = await GetPublicationEvidenceAsync([publication.Id],
+                scope.Value.Exam.CampusId, scope.Value.Exam.AcademicYearId, ct);
+            if (!publicationEvidence.TryGetValue(publication.Id, out var snapshotProof) ||
+                !snapshotProof.IsReconciled)
+                return Error<AssessmentResultSheetDto>(
+                    "Published result snapshot requires reconciliation.", 409);
             // Reconcile the entire immutable version before returning any student data.
             var allSummaries = _summaries.GetQueryable().AsNoTracking().Where(x =>
                 x.TenantId == tenant && x.ResultPublicationId == publication.Id && !x.IsDeleted);
