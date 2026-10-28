@@ -25,7 +25,8 @@ test('substitution mutations retain CSRF, idempotency and concurrency-safe cance
     const js = read('EduOS.App/wwwroot/js/academic/instruction.js');
     const controller = read('EduOS.App/Controllers/Api/AcademicInstructionController.cs');
     assert.match(js, /headers\.RequestVerificationToken = token/);
-    assert.match(js, /clientRequestId: state\.substitutionRequestId/);
+    assert.match(js, /const clientRequestId = substitutionRequestIdFor\(payload\)/);
+    assert.match(js, /clientRequestId, \.\.\.payload/);
     assert.match(js, /rowVersion: row\.rowVersion/);
     assert.match(controller, /Authorize\(Roles = "TenantAdmin,Principal,VicePrincipal"\)/);
     assert.match(controller, /GetSubstitutionRoutineChoicesAsync/);
@@ -47,4 +48,27 @@ test('substitution teacher selection uses batch-authorized SQL pagination with s
     assert.match(service, /EmployeeCampusAssignment/);
     assert.match(service, /campusAssignment\.EffectiveFrom <= request\.Date/);
     assert.match(service, /AllowedManagerBatchIds\(tenant\)\.Contains\(batch\.Id\)/);
+});
+
+// Exercise the real payload-key helper, not a duplicate implementation.
+test('substitution idempotency key is stable for identical retry and rotates on any changed payload', () => {
+    const vm = require('node:vm');
+    const source = read('EduOS.App/wwwroot/js/academic/instruction.js');
+    const match = source.match(/    function substitutionRequestIdFor\(payload\) \{[\s\S]*?\n    \}/);
+    assert.ok(match, 'production helper must be present');
+    const state = { substitutionRequestId: null, substitutionRequestPayload: null };
+    let next = 0;
+    const keyFor = vm.runInNewContext('(' + match[0].trim() + ')', {
+        state, JSON, crypto: { randomUUID: () => 'request-' + (++next) }
+    });
+    const payload = { routineEntryId: 9, substituteEmployeeReference: 'teacher-a',
+        date: '2026-10-25', reason: 'Coverage' };
+    const first = keyFor(payload);
+    assert.equal(keyFor({ ...payload }), first);
+    assert.notEqual(keyFor({ ...payload, reason: 'Reassigned' }), first);
+    const changed = state.substitutionRequestId;
+    assert.equal(keyFor({ ...payload, reason: 'Reassigned' }), changed);
+    assert.notEqual(keyFor({ ...payload, date: '2026-11-01' }), changed);
+    assert.equal(next, 3);
+    assert.match(source, /get\('substitutionRoutineSearch'\)\.value\.trim\(\)!==search/);
 });

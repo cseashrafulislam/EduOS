@@ -51,6 +51,56 @@ public sealed class AcademicInstructionServiceTests
     }
 
     [Fact]
+    public async Task Assigned_teacher_beyond_first_hundred_instructors_can_create_own_lesson_without_leakage()
+    {
+        var options = Options();
+        var seed = await SeedAsync(options);
+        await using (var db = Context(options, 101, 7, "TenantAdmin"))
+        {
+            var offeringId = await db.SubjectOfferings
+                .Where(x => x.PublicId == seed.OfferingReference).Select(x => x.Id).SingleAsync();
+            var additionalTeachers = Enumerable.Range(0, 110)
+                .Select(i => Teacher(1000 + i, "T-EXTRA-" + i, "Extra teacher " + i)).ToList();
+            db.Employees.AddRange(additionalTeachers);
+            await db.SaveChangesAsync();
+            db.InstructorAssignments.AddRange(additionalTeachers.Select(x => new InstructorAssignment
+            {
+                TenantId = 101, SubjectOfferingId = offeringId, EmployeeId = x.Id,
+                EffectiveFrom = LessonDate.AddDays(-1), IsActive = true, IsPrimary = false
+            }));
+            var lastTeacherId = await db.Employees.Where(x => x.UserId == 71).Select(x => x.Id).SingleAsync();
+            db.InstructorAssignments.Add(new InstructorAssignment
+            {
+                TenantId = 101, SubjectOfferingId = offeringId, EmployeeId = lastTeacherId,
+                EffectiveFrom = LessonDate.AddDays(-1), IsActive = true, IsPrimary = false
+            });
+            await db.SaveChangesAsync();
+        }
+
+        await using (var db = Context(options, 101, 71, "Teacher"))
+        {
+            var created = await Service(db, 101, 71, "Teacher")
+                .CreateLessonPlanAsync(Lesson(seed.OfferingReference));
+            created.StatusCode.Should().Be(201);
+            created.Data!.EmployeeName.Should().Be("Substitute teacher");
+            (await db.LessonPlans.CountAsync()).Should().Be(1);
+        }
+        await using (var db = Context(options, 101, 7, "TenantAdmin"))
+        {
+            var created = await Service(db, 101, 7, "TenantAdmin")
+                .CreateLessonPlanAsync(Lesson(seed.OfferingReference));
+            created.StatusCode.Should().Be(201);
+            created.Data!.EmployeeName.Should().Be("Original teacher");
+            (await db.LessonPlans.CountAsync()).Should().Be(2);
+        }
+        await using (var db = Context(options, 202, 71, "Teacher"))
+        {
+            (await Service(db, 202, 71, "Teacher")
+                .CreateLessonPlanAsync(Lesson(seed.OfferingReference))).StatusCode.Should().Be(403);
+        }
+    }
+
+    [Fact]
     public async Task Assigned_teacher_submits_and_manager_reviews_canonical_lesson_plan()
     {
         var options = Options();

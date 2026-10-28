@@ -513,14 +513,21 @@ public sealed class AcademicInstructionService : IAcademicInstructionService
             var dateError = await ValidateAcademicDateAsync(offering.AcademicYearId, offering.AcademicTermId,
                 request.LessonDate, request.LessonDate, ct);
             if (dateError != null) return Error<LessonPlanDto>(dateError, 409);
-            var assignments = await _instructorAssignments.GetQueryable().AsNoTracking()
-                .Where(x => x.TenantId == tenant && x.SubjectOfferingId == offering.Id && x.IsActive &&
+            // Resolve the actor's eligible assignment in SQL. A pre-filter Take(100)
+            // excluded valid co-instructors on offerings with large teaching teams.
+            var isManager = IsManager();
+            var teacherId = isManager ? null : await GetLinkedTeacherIdAsync(ct);
+            if (!isManager && !teacherId.HasValue) return Denied<LessonPlanDto>();
+            var assignments = _instructorAssignments.GetQueryable().AsNoTracking()
+                .Where(x => x.TenantId == tenant && x.SubjectOfferingId == offering.Id &&
+                    x.IsActive && !x.IsDeleted &&
                     x.EffectiveFrom <= request.LessonDate &&
-                    (!x.EffectiveTo.HasValue || x.EffectiveTo >= request.LessonDate))
-                .OrderByDescending(x => x.IsPrimary).Take(100).ToListAsync(ct);
-            var teacherId = await GetLinkedTeacherIdAsync(ct);
-            var assignment = IsManager() ? assignments.FirstOrDefault(x => x.IsPrimary) :
-                assignments.FirstOrDefault(x => x.EmployeeId == teacherId);
+                    (!x.EffectiveTo.HasValue || x.EffectiveTo >= request.LessonDate));
+            assignments = isManager
+                ? assignments.Where(x => x.IsPrimary)
+                : assignments.Where(x => x.EmployeeId == teacherId!.Value);
+            var assignment = await assignments.OrderByDescending(x => x.IsPrimary)
+                .ThenBy(x => x.Id).FirstOrDefaultAsync(ct);
             if (assignment == null)
                 return Error<LessonPlanDto>("No eligible instructor assigned for this date.", 409);
             var existing = await _lessonPlans.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>

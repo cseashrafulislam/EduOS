@@ -11,6 +11,8 @@ on:
       - 'EduOS.App/Views/MyStudentLeaves/**'
       - 'EduOS.App/wwwroot/js/student-portal/leaves.js'
       - 'EduOS.App/Views/AcademicRoutines/**'
+      - 'EduOS.App/Views/AcademicInstruction/**'
+      - 'EduOS.App/wwwroot/js/academic/instruction.js'
       - 'EduOS.App/wwwroot/js/attendance/**'
       - 'EduOS.App/wwwroot/js/academic/routines.js'
       - 'tests/browser/**'
@@ -43,6 +45,8 @@ jobs:
         run: node tests/browser/student-lifecycle.cjs
       - name: Exercise attendance, timetable and leave browser workflows
         run: node tests/browser/academic-operations.cjs
+      - name: Exercise substitution scheduling, retry, cancellation and export browser workflow
+        run: node tests/browser/academic-instruction.cjs
       - name: Exercise student and guardian leave self-service
         run: node tests/browser/my-student-leaves.cjs
       - name: Verify LMS authoring and quiz contracts

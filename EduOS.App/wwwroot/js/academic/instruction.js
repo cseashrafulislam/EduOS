@@ -6,7 +6,7 @@
     const manager = root.dataset.canManage === 'true';
     const teacher = root.dataset.canTeach === 'true';
     const statuses = {1:'Draft',2:'Submitted',3:'Approved',4:'Rejected',5:'In progress',6:'Completed'};
-    const state = { batches: [], offerings: [], instructors: [], routines: [], lessons: [], substitutions: [], editingId: null, lessonPage: 1, lessonPages: 1, lessonCount: 0, substitutionPage: 1, substitutionPages: 1, substitutionCount: 0, requestSeq: 0, draftRequestId: null, substitutionRequestId: null, routinePage: 1, routinePages: 1, routineCount: 0, routineRequestSeq: 0, offeringPage: 1, offeringPages: 1, offeringCount: 0, offeringRequestSeq: 0, teacherPage: 1, teacherPages: 1, teacherCount: 0, teacherRequestSeq: 0 };
+    const state = { batches: [], offerings: [], instructors: [], routines: [], lessons: [], substitutions: [], editingId: null, lessonPage: 1, lessonPages: 1, lessonCount: 0, substitutionPage: 1, substitutionPages: 1, substitutionCount: 0, requestSeq: 0, draftRequestId: null, substitutionRequestId: null, substitutionRequestPayload: null, routinePage: 1, routinePages: 1, routineCount: 0, routineRequestSeq: 0, offeringPage: 1, offeringPages: 1, offeringCount: 0, offeringRequestSeq: 0, teacherPage: 1, teacherPages: 1, teacherCount: 0, teacherRequestSeq: 0 };
     const dateOnly = value => value ? String(value).slice(0,10) : '';
     const dateForApi = value => value; // ASP.NET DateOnly accepts yyyy-MM-dd, not a timestamp.
     const option = (value, text) => { const e=document.createElement('option');e.value=String(value);e.textContent=text;return e; };
@@ -44,6 +44,7 @@
     }
     function selectBatch() {
         resetEditor();
+        state.substitutionRequestId = null; state.substitutionRequestPayload = null;
         const id=Number(get('instructionBatch').value);
         get('lessonNew').disabled=!id;
         state.lessonPage=1;state.substitutionPage=1;state.offeringPage=1;state.offeringPages=1;state.offeringCount=0;state.offeringRequestSeq++;state.routineRequestSeq++;state.teacherRequestSeq++;
@@ -95,7 +96,8 @@
         const sequence = ++state.offeringRequestSeq;
         const result = await fetchOfferingPage(batchId, page, search);
         if (sequence !== state.offeringRequestSeq ||
-            Number(get('instructionBatch').value) !== batchId) return;
+            Number(get('instructionBatch').value) !== batchId ||
+            get('lessonOfferingSearch').value.trim() !== search) return;
         applyOfferingPage(result, page);
     }
     function updateTeacherPager() {
@@ -172,7 +174,8 @@
         const seq=++state.routineRequestSeq;
         const result=await fetchRoutinePage(batchId,date,page,search);
         if(seq!==state.routineRequestSeq||Number(get('instructionBatch').value)!==batchId||
-           get('substitutionDate').value!==date)return;
+           get('substitutionDate').value!==date||
+           get('substitutionRoutineSearch').value.trim()!==search)return;
         applyRoutinePage(result,page);
     }
     function updateLessonPager() {
@@ -374,6 +377,16 @@
             await load(); status('success', 'Lesson plan updated.');
         } catch (e) { status('danger', e.message); }
     }
+    function substitutionRequestIdFor(payload) {
+        // Reuse the key only for an identical retry after an uncertain response.
+        // A changed date, routine, teacher or reason is a new business request.
+        const fingerprint = JSON.stringify(payload);
+        if (state.substitutionRequestPayload !== fingerprint || !state.substitutionRequestId) {
+            state.substitutionRequestId = crypto.randomUUID();
+            state.substitutionRequestPayload = fingerprint;
+        }
+        return state.substitutionRequestId;
+    }
     async function saveSub(e) {
         e.preventDefault();
         const form = e.currentTarget;
@@ -389,15 +402,15 @@
         if (day !== Number(selected.dayOfWeek)) {
             status('danger', 'Substitution date must match the routine day of week.'); return;
         }
+        const payload = { routineEntryId, substituteEmployeeReference, date: dateForApi(date),
+            reason: get('substitutionReason').value.trim() || null };
+        const clientRequestId = substitutionRequestIdFor(payload);
         const btn = get('substitutionSave'); btn.disabled = true;
-        state.substitutionRequestId ||= crypto.randomUUID();
         try {
             await api('/api/academic-instruction/substitutions', 'POST', {
-                clientRequestId: state.substitutionRequestId, routineEntryId,
-                substituteEmployeeReference, date: dateForApi(date),
-                reason: get('substitutionReason').value.trim() || null
+                clientRequestId, ...payload
             });
-            state.substitutionRequestId = null; form.reset();
+            state.substitutionRequestId = null; state.substitutionRequestPayload = null; form.reset();
             get('substitutionDate').value=get('instructionTo').value;
             state.routinePage=1;await load(); status('success', 'Substitution scheduled.');
         } catch (e) { status('danger', e.message); }
@@ -466,7 +479,19 @@
         if(state.teacherPage<state.teacherPages)findInstructors(state.teacherPage+1).catch(e=>status('danger',e.message));
     });
     get('substitutionRoutineFind')?.addEventListener('click',()=>findRoutines(1).catch(e=>status('danger',e.message)));
-    get('substitutionDate')?.addEventListener('change',()=>{state.routinePage=1;findRoutines(1).catch(e=>status('danger',e.message));});
+    get('substitutionDate')?.addEventListener('change',()=>{
+        state.routineRequestSeq++; state.routinePage=1; state.routines=[];
+        setRoutineOptions(); updateRoutinePager();
+        findRoutines(1).catch(e=>status('danger',e.message));
+    });
+    get('substitutionRoutineSearch')?.addEventListener('input',()=>{
+        state.routineRequestSeq++; state.routines=[]; state.routinePage=1;
+        setRoutineOptions(); updateRoutinePager();
+    });
+    get('substitutionTeacherSearch')?.addEventListener('input',()=>{
+        state.teacherRequestSeq++; state.instructors=[]; state.teacherPage=1;
+        setOptions('substitutionTeacher',[],'Search teachers'); updateTeacherPager();
+    });
     get('substitutionRoutineSearch')?.addEventListener('keydown',e=>{
         if(e.key!=='Enter')return;e.preventDefault();
         findRoutines(1).catch(error=>status('danger',error.message));
