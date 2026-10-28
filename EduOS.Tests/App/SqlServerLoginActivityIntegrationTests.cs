@@ -143,10 +143,28 @@ public sealed class SqlServerLoginActivityIntegrationTests
             }));
             await bulk.SaveChangesAsync();
         }
-        current.SetupGet(x => x.IsAuthenticated).Returns(true);
-        Assert.Equal(413, (await service.ExportMyHistoryCsvAsync(null,
+        // Inspect the committed SQL rows independently of the original read context.
+        // A fresh request-scoped DbContext also models a real post-import export request.
+        await using (var probe = new EduOSDbContext(options))
+        {
+            var persisted = await probe.LoginHistories.IgnoreQueryFilters().AsNoTracking()
+                .CountAsync(x => x.UserId == sharedId && x.TenantId == tenantAId &&
+                    x.OccurredAt >= noon.Date && x.OccurredAt < noon.Date.AddDays(1));
+            Assert.Equal(1003, persisted);
+        }
+        var freshAccessor = new HttpContextAccessor { HttpContext = new DefaultHttpContext() };
+        freshAccessor.HttpContext.Items["TenantId"] = tenantAId;
+        await using var fresh = new EduOSDbContext(options, freshAccessor);
+        var freshUser = new Mock<ICurrentUserService>();
+        freshUser.SetupGet(x => x.IsAuthenticated).Returns(true);
+        freshUser.SetupGet(x => x.UserId).Returns(sharedId);
+        freshUser.SetupGet(x => x.TenantId).Returns(tenantAId);
+        var freshService = new LoginActivityService(new LoginHistoryRepository(fresh), freshUser.Object);
+        Assert.Equal(1003, (await freshService.GetMyHistoryAsync(1, 20, null,
+            from: today, to: today)).Data!.TotalCount);
+        Assert.Equal(413, (await freshService.ExportMyHistoryCsvAsync(null,
             from: today, to: today)).StatusCode);
-        Assert.Equal(1, (await service.GetMyHistoryAsync(1, 20, false,
+        Assert.Equal(1, (await freshService.GetMyHistoryAsync(1, 20, false,
             from: today.AddDays(-40), to: today)).Data!.TotalCount);
     }
 }
