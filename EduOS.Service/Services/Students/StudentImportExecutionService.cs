@@ -168,8 +168,34 @@ public sealed partial class StudentImportExecutionService : IStudentImportExecut
                         return ApiResponse<StudentImportExecutionDto>.ErrorResponse("Import request ID was already used with different content.", 409);
                     var priorLog = await _logs.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
                         x.TenantId == tenant && x.Id == previous.TargetId && x.ImportType == "Student" && !x.IsDeleted, token);
-                    if (priorLog == null || !priorLog.CompletedAt.HasValue)
+                    if (priorLog == null || !priorLog.CompletedAt.HasValue ||
+                        priorLog.TotalRows != rows.Count || priorLog.SuccessRows != rows.Count ||
+                        priorLog.FailedRows != 0)
                         return ApiResponse<StudentImportExecutionDto>.ErrorResponse("Previous import batch is not reconciled.", 409);
+
+                    // An idempotency receipt is not proof of a healthy import by
+                    // itself. Reconcile its bounded physical source rows before
+                    // reporting replay success; never silently accept a damaged log.
+                    var committedItems = await _items.GetQueryable().AsNoTracking()
+                        .Where(x => x.TenantId == tenant && x.ImportLogId == priorLog.Id && !x.IsDeleted)
+                        .OrderBy(x => x.RowNumber).Take(MaxBatchRows + 1)
+                        .Select(x => new { x.RowNumber, x.BusinessKey, x.IsSuccess })
+                        .ToListAsync(token);
+                    if (committedItems.Count != rows.Count ||
+                        rows.Where((row, index) =>
+                            !committedItems[index].IsSuccess ||
+                            committedItems[index].RowNumber != row.RowNumber + sourceRowOffset ||
+                            !string.Equals(committedItems[index].BusinessKey, row.SourceKey, StringComparison.Ordinal))
+                            .Any())
+                        return ApiResponse<StudentImportExecutionDto>.ErrorResponse("Previous import source receipts are incomplete. Verify committed links.", 409);
+                    var sourceIds = rows.Select(x => SourceId(x.SourceKey)).Distinct().ToArray();
+                    var sourceReceipts = await _keys.GetQueryable().AsNoTracking().CountAsync(x =>
+                        x.TenantId == tenant && x.Scope == SourceScope && !x.IsDeleted &&
+                        x.CompletedAt.HasValue && x.TargetId.HasValue &&
+                        sourceIds.Contains(x.RequestId), token);
+                    if (sourceReceipts != rows.Count)
+                        return ApiResponse<StudentImportExecutionDto>.ErrorResponse("Previous import source identities are incomplete. Verify committed links.", 409);
+
                     return ApiResponse<StudentImportExecutionDto>.SuccessResponse(new StudentImportExecutionDto
                     {
                         ImportReference = priorLog.PublicId, TotalRows = priorLog.TotalRows,

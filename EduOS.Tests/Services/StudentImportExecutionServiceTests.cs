@@ -109,6 +109,36 @@ public sealed class StudentImportExecutionServiceTests
     }
 
     [Fact]
+    public async Task Replay_rejects_incomplete_committed_receipts_without_creating_more_learners()
+    {
+        var options = Options(); await SeedAsync(options);
+        await using var db = Context(options, 101);
+        var service = Service(db, new User(101, true));
+        var requestId = Guid.NewGuid();
+        const string row = Header + "REPLAY-SRC,REPLAY-STU,Private Learner,10,20,11,,\n";
+        using (var file = Csv(row))
+            Assert.True((await service.ExecuteAsync(file, ".csv", Mapping, requestId)).Success);
+
+        var log = await db.ImportLogs.SingleAsync();
+        log.SuccessRows = 0;
+        await db.SaveChangesAsync();
+        using (var file = Csv(row))
+            Assert.Equal(409, (await service.ExecuteAsync(file, ".csv", Mapping, requestId)).StatusCode);
+
+        log.SuccessRows = 1;
+        await db.SaveChangesAsync();
+        var item = await db.ImportLogItems.SingleAsync();
+        item.IsSuccess = false;
+        await db.SaveChangesAsync();
+        using (var file = Csv(row))
+            Assert.Equal(409, (await service.ExecuteAsync(file, ".csv", Mapping, requestId)).StatusCode);
+
+        Assert.Single(await db.Students.ToListAsync());
+        Assert.Single(await db.StudentEnrollments.ToListAsync());
+        Assert.Single(await db.ImportLogs.ToListAsync());
+    }
+
+    [Fact]
     public async Task Rejects_changed_request_and_duplicate_source_without_partial_writes()
     {
         var options = Options(); await SeedAsync(options);
