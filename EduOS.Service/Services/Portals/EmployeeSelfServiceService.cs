@@ -1,6 +1,7 @@
 using EduOS.Core.Common;
 using EduOS.Core.DTOs.Portals;
 using EduOS.Core.Entities.Attendance;
+using EduOS.Core.Entities.Auth;
 using EduOS.Core.Entities.HR;
 using EduOS.Core.Entities.Payroll;
 using EduOS.Core.Enums.Domain;
@@ -16,6 +17,7 @@ namespace EduOS.Service.Services.Portals;
 public sealed class EmployeeSelfServiceService : IEmployeeSelfServiceService
 {
     private readonly IGenericRepository<Employee> _employees;
+    private readonly IGenericRepository<ApplicationUser> _identityUsers;
     private readonly IGenericRepository<EmployeeAttendance> _attendance;
     private readonly IGenericRepository<EmployeeLeaveApplication> _leaveApplications;
     private readonly IGenericRepository<LeaveType> _leaveTypes;
@@ -27,7 +29,8 @@ public sealed class EmployeeSelfServiceService : IEmployeeSelfServiceService
     private readonly ICurrentUserService _currentUser;
     private readonly ILogger<EmployeeSelfServiceService> _logger;
 
-    public EmployeeSelfServiceService(IGenericRepository<Employee> employees, IGenericRepository<EmployeeAttendance> attendance,
+    public EmployeeSelfServiceService(IGenericRepository<Employee> employees,
+        IGenericRepository<ApplicationUser> identityUsers, IGenericRepository<EmployeeAttendance> attendance,
         IGenericRepository<EmployeeLeaveApplication> leaveApplications, IGenericRepository<LeaveType> leaveTypes,
         IGenericRepository<EmployeeLeaveEntitlement> entitlements, IGenericRepository<EmployeeLeaveAdjustment> adjustments,
         IGenericRepository<SalaryStructure> structures, IGenericRepository<SalaryStructureLine> structureLines,
@@ -35,6 +38,7 @@ public sealed class EmployeeSelfServiceService : IEmployeeSelfServiceService
         ILogger<EmployeeSelfServiceService> logger)
     {
         _employees = employees;
+        _identityUsers = identityUsers;
         _attendance = attendance;
         _leaveApplications = leaveApplications;
         _leaveTypes = leaveTypes;
@@ -303,8 +307,15 @@ public sealed class EmployeeSelfServiceService : IEmployeeSelfServiceService
         }
     }
 
-    private IQueryable<Employee> CurrentEmployeeQuery() => _employees.GetQueryable().AsNoTracking().Where(x =>
-        x.TenantId == _currentUser.TenantId && x.UserId == _currentUser.UserId && x.State == EmployeeState.Active);
+    private IQueryable<Employee> CurrentEmployeeQuery()
+    {
+        var persons = _identityUsers.GetQueryable().AsNoTracking().Where(x =>
+            x.Id == _currentUser.UserId && x.IsActive && !x.IsDeleted && x.PersonId.HasValue)
+            .Select(x => x.PersonId!.Value);
+        return _employees.GetQueryable().AsNoTracking().Where(x =>
+            x.TenantId == _currentUser.TenantId && x.UserId == _currentUser.UserId &&
+            persons.Contains(x.PersonId) && x.State == EmployeeState.Active && !x.IsDeleted);
+    }
     private static EmployeePortalLeaveDto ToLeaveDto(EmployeeLeaveApplication leave, string leaveType) => new()
     {
         Id = leave.Id, LeaveTypeName = leaveType,

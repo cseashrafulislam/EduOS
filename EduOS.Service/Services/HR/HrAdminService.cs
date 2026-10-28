@@ -33,6 +33,7 @@ public sealed class HrAdminService : IHrAdminService
     private readonly IGenericRepository<Campus> _campuses;
     private readonly IGenericRepository<Person> _persons;
     private readonly IGenericRepository<TenantMembership> _memberships;
+    private readonly IGenericRepository<ApplicationUser> _identityUsers;
     private readonly IGenericRepository<Student> _students;
     private readonly IGenericRepository<Guardian> _guardians;
     private readonly IUnitOfWork _uow;
@@ -50,7 +51,7 @@ public sealed class HrAdminService : IHrAdminService
         IGenericRepository<EmployeeAssignmentHistory> history,
         IGenericRepository<EmployeeBankAccount> bankAccounts, IGenericRepository<Campus> campuses,
         IGenericRepository<Person> persons, IGenericRepository<TenantMembership> memberships,
-        IGenericRepository<Student> students, IGenericRepository<Guardian> guardians,
+        IGenericRepository<ApplicationUser> identityUsers, IGenericRepository<Student> students, IGenericRepository<Guardian> guardians,
         IUnitOfWork uow, ICurrentUserService user, TimeProvider clock,
         IDataProtectionProvider dataProtection, ILogger<HrAdminService> logger)
     {
@@ -59,7 +60,8 @@ public sealed class HrAdminService : IHrAdminService
         _shiftAssignments = shiftAssignments; _campusAssignments = campusAssignments;
         _campusAccess = campusAccess;
         _history = history; _bankAccounts = bankAccounts; _campuses = campuses; _persons = persons;
-        _memberships = memberships; _students = students; _guardians = guardians;
+        _memberships = memberships; _identityUsers = identityUsers;
+        _students = students; _guardians = guardians;
         _uow = uow; _user = user; _clock = clock; _dataProtection = dataProtection; _logger = logger;
     }
 
@@ -799,6 +801,14 @@ public sealed class HrAdminService : IHrAdminService
             x.TenantId == tenant && x.UserId == userId.Value &&
             x.Status == MembershipStatus.Active && !x.IsDeleted, ct))
             return "User is not an active member of this tenant.";
+        // The login must identify the same verified global Person, not merely share
+        // an active membership. Otherwise staff self-service can expose another salary.
+        if (userId.HasValue && !personId.HasValue)
+            return "Select the verified Person before linking a user account.";
+        if (userId.HasValue && !await _identityUsers.GetQueryable().AsNoTracking().AnyAsync(x =>
+            x.Id == userId.Value && x.IsActive && !x.IsDeleted &&
+            x.PersonId.HasValue && x.PersonId.Value == personId.Value, ct))
+            return "User account and verified Person identity do not match.";
         if (personId.HasValue)
         {
             if (!await _persons.GetQueryable().AsNoTracking().AnyAsync(x =>
@@ -810,7 +820,8 @@ public sealed class HrAdminService : IHrAdminService
                     x.TenantId == tenant && x.PersonId == personId.Value && !x.IsDeleted, ct) ||
                 await _employees.GetQueryable().AsNoTracking().AnyAsync(x =>
                     x.TenantId == tenant && x.PersonId == personId.Value && !x.IsDeleted, ct);
-            if (!linked) return "Person is not associated with the current tenant.";
+            if (!linked && !userId.HasValue)
+                return "Person is not associated with the current tenant.";
         }
         return null;
     }

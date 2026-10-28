@@ -1,6 +1,7 @@
 using EduOS.Core.Common;
 using EduOS.Core.DTOs.Payroll;
 using EduOS.Core.Entities.Accounting;
+using EduOS.Core.Entities.Auth;
 using EduOS.Core.Entities.HR;
 using EduOS.Core.Entities.Payroll;
 using EduOS.Core.Entities.SaaS;
@@ -17,6 +18,7 @@ namespace EduOS.Service.Services.HR;
 public sealed class HrPayrollService : IPayrollAdministrationService
 {
     private readonly IGenericRepository<Employee> _employees;
+    private readonly IGenericRepository<ApplicationUser> _identityUsers;
     private readonly IGenericRepository<Campus> _campuses;
     private readonly IGenericRepository<EmployeeCampusAssignment> _campusAssignments;
     private readonly IGenericRepository<SalaryComponent> _components;
@@ -38,6 +40,7 @@ public sealed class HrPayrollService : IPayrollAdministrationService
     private readonly ILogger<HrPayrollService> _logger;
 
     public HrPayrollService(IGenericRepository<Employee> employees,
+        IGenericRepository<ApplicationUser> identityUsers,
         IGenericRepository<Campus> campuses, IGenericRepository<EmployeeCampusAssignment> campusAssignments,
         IGenericRepository<SalaryComponent> components, IGenericRepository<SalaryStructure> structures,
         IGenericRepository<SalaryStructureLine> structureLines, IGenericRepository<PayrollRun> runs,
@@ -49,7 +52,8 @@ public sealed class HrPayrollService : IPayrollAdministrationService
         IGenericRepository<EmployeeBankAccount> employeeBankAccounts,
         IUnitOfWork uow, ICurrentUserService user, TimeProvider clock, ILogger<HrPayrollService> logger)
     {
-        _employees = employees; _campuses = campuses; _campusAssignments = campusAssignments;
+        _employees = employees; _identityUsers = identityUsers;
+        _campuses = campuses; _campusAssignments = campusAssignments;
         _components = components; _structures = structures;
         _structureLines = structureLines; _runs = runs; _payrollEmployees = payrollEmployees;
         _payrollLines = payrollLines; _payments = payments; _bonuses = bonuses; _loans = loans;
@@ -821,8 +825,12 @@ public sealed class HrPayrollService : IPayrollAdministrationService
             return Denied<PagedResult<PayrollEmployeeDto>>();
         if (year is < 2000 or > 2200 || page < 1 || pageSize is < 1 or > 100)
             return Error<PagedResult<PayrollEmployeeDto>>("Invalid year or pagination.");
+        var linkedPersons = _identityUsers.GetQueryable().AsNoTracking().Where(x =>
+            x.Id == _user.UserId && x.IsActive && !x.IsDeleted && x.PersonId.HasValue)
+            .Select(x => x.PersonId!.Value);
         var employeeId = await _employees.GetQueryable().AsNoTracking().Where(x =>
-            x.TenantId == _user.TenantId && x.UserId == _user.UserId && !x.IsDeleted)
+            x.TenantId == _user.TenantId && x.UserId == _user.UserId &&
+            linkedPersons.Contains(x.PersonId) && !x.IsDeleted)
             .Select(x => x.Id).FirstOrDefaultAsync(ct);
         if (employeeId == 0) return Error<PagedResult<PayrollEmployeeDto>>("Employee not linked to this user.", 404);
         var runIds = _runs.GetQueryable().AsNoTracking().Where(x =>

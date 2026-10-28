@@ -77,8 +77,20 @@ public class EmployeeLeaveBalanceTests
 
     private static void SetTenant(HttpContextAccessor accessor, long tenantId) => accessor.HttpContext!.Items["TenantId"] = tenantId;
 
-    private static EmployeeSelfServiceService CreateService(EduOSDbContext context, ICurrentUserService user) => new(
+    private static EmployeeSelfServiceService CreateService(EduOSDbContext context, ICurrentUserService user)
+    {
+        if (!context.Users.Any(x => x.Id == user.UserId))
+        {
+            context.Users.Add(new EduOS.Core.Entities.Auth.ApplicationUser
+            {
+                Id = user.UserId, UserName = "employee-" + user.UserId,
+                PersonId = 1, FullName = "Test employee", IsActive = true
+            });
+            context.SaveChanges();
+        }
+        return new(
         new GenericRepository<Employee>(context),
+        new GenericRepository<EduOS.Core.Entities.Auth.ApplicationUser>(context),
         new GenericRepository<EmployeeAttendance>(context),
         new GenericRepository<EmployeeLeaveApplication>(context),
         new GenericRepository<LeaveType>(context),
@@ -88,6 +100,7 @@ public class EmployeeLeaveBalanceTests
         new GenericRepository<SalaryStructureLine>(context),
         new GenericRepository<SalaryComponent>(context),
         user, NullLogger<EmployeeSelfServiceService>.Instance);
+    }
 
     private static Employee Employee(long tenant, long userId, string code = "EMP") => new()
     {

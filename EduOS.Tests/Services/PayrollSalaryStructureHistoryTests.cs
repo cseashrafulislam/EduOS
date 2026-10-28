@@ -98,6 +98,7 @@ public sealed class PayrollSalaryStructureHistoryTests
         lines.Setup(x=>x.GetQueryable()).Returns(db.SalaryStructureLines);
         return new HrPayrollService(
             employees.Object,
+            Mock.Of<IGenericRepository<EduOS.Core.Entities.Auth.ApplicationUser>>(),
             Mock.Of<IGenericRepository<EduOS.Core.Entities.SaaS.Campus>>(),
             Mock.Of<IGenericRepository<EduOS.Core.Entities.HR.EmployeeCampusAssignment>>(),
             components.Object,structures.Object,lines.Object,
