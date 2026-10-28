@@ -106,6 +106,9 @@ public sealed class BankReconciliationDraftSnapshots : Migration
 
     protected override void Down(MigrationBuilder migrationBuilder)
     {
+        // Never discard real statement evidence on an accidental rollback.
+        migrationBuilder.Sql(@"IF EXISTS (SELECT 1 FROM [dbo].[BankReconciliationBatches])
+            THROW 51000, 'Bank reconciliation drafts exist; export and approve a retention plan before rollback.', 1;");
         migrationBuilder.DropTable("BankReconciliationStatementLines");
         migrationBuilder.DropTable("BankReconciliationBatches");
     }

@@ -103,7 +103,7 @@ public sealed class BankReconciliationIntakeTests
     }
 
     [Fact]
-    public async Task Register_is_bounded_and_snapshot_readback_detects_missing_rows()
+    public async Task Register_is_bounded_and_snapshot_rows_cannot_be_deleted()
     {
         await using var db = Database();
         Seed(db);
@@ -111,9 +111,13 @@ public sealed class BankReconciliationIntakeTests
         var result = await service.SaveBankReconciliationDraftAsync(Request());
         (await service.GetBankReconciliationDraftsAsync(1, 1, 101)).StatusCode.Should().Be(400);
         (await service.GetBankReconciliationDraftsAsync(1)).Data!.Items.Should().ContainSingle();
-        db.BankReconciliationStatementLines.RemoveRange(db.BankReconciliationStatementLines);
-        await db.SaveChangesAsync();
-        (await service.GetBankReconciliationDraftAsync(result.Data!.Id)).StatusCode.Should().Be(409);
+        var line = await db.BankReconciliationStatementLines.SingleAsync();
+        db.BankReconciliationStatementLines.Remove(line);
+        Func<Task> remove = async () => await db.SaveChangesAsync();
+        await remove.Should().ThrowAsync<InvalidOperationException>()
+            .WithMessage("*append-only*");
+        db.Entry(line).State = EntityState.Unchanged;
+        (await service.GetBankReconciliationDraftAsync(result.Data!.Id)).StatusCode.Should().Be(200);
     }
 
     [Fact]
