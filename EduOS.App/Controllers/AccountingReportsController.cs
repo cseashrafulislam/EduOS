@@ -4,7 +4,7 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace EduOS.App.Controllers;
 
-[Authorize(Roles = "TenantAdmin,Principal,Accountant"), RequireModule("FINANCE")]
+[Authorize(Roles = "TenantAdmin"), RequireModule("FINANCE")]
 public sealed class AccountingReportsController : Controller
 {
     [HttpGet, ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
