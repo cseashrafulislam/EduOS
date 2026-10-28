@@ -259,6 +259,7 @@ public sealed class AcademicInstructionService : IAcademicInstructionService
                 Error<PagedResult<SubstitutionDto>>("Invalid substitution date range, academic batch or page.");
         var q = isCancelled.HasValue
             ? scoped.Where(x => x.IsCancelled == isCancelled.Value) : scoped;
+        var tenant = _currentUser.TenantId;
         // Scope both the total count and the page before materialization.
         var total = await q.CountAsync(ct);
         var offset = ((long)page - 1) * pageSize;
