@@ -114,6 +114,13 @@ public sealed class HrPayrollService : IPayrollAdministrationService
             {
                 var tenant = _user.TenantId;
                 var code = request.Code.Trim().ToUpperInvariant();
+                // Tenant-managed statutory withholding is deliberately a FIXED monthly amount,
+                // not an invented national tax-bracket calculator. A configured STAT_ code
+                // is mandatory on every eligible employee's effective-dated structure.
+                if (code.StartsWith("STAT_", StringComparison.Ordinal) &&
+                    (request.Type != SalaryComponentType.Deduction || request.IsTaxable))
+                    return Error<SalaryComponentDto>(
+                        "STAT_ withholding components must be non-taxable deductions.");
                 var row = componentId.HasValue ? await _components.GetQueryable().FirstOrDefaultAsync(x =>
                     x.TenantId == tenant && x.Id == componentId.Value && !x.IsDeleted, token) : null;
                 if (componentId.HasValue && row == null) return Error<SalaryComponentDto>("Component not found.", 404);
@@ -125,6 +132,10 @@ public sealed class HrPayrollService : IPayrollAdministrationService
                 if (row != null && row.Type != request.Type && await _structureLines.GetQueryable().AsNoTracking()
                     .AnyAsync(x => x.TenantId == tenant && x.SalaryComponentId == row.Id && !x.IsDeleted, token))
                     return Error<SalaryComponentDto>("Component type cannot change after salary structure usage.", 409);
+                if (row != null && row.Code.StartsWith("STAT_", StringComparison.Ordinal) &&
+                    row.Code != code && await _structureLines.GetQueryable().AsNoTracking().AnyAsync(x =>
+                        x.TenantId == tenant && x.SalaryComponentId == row.Id && !x.IsDeleted, token))
+                    return Error<SalaryComponentDto>("Used statutory withholding codes cannot be renamed.", 409);
                 var now = _clock.GetUtcNow().UtcDateTime;
                 if (row == null)
                 {
@@ -193,6 +204,15 @@ public sealed class HrPayrollService : IPayrollAdministrationService
         if (components.Any(x => x.Code == "BONUS" || x.Code == "LOAN_RECOVERY"))
             return Error<SalaryStructureDto>(
                 "BONUS and LOAN_RECOVERY are transaction-derived components; do not add them as fixed salary.", 409);
+        var statutory = await _components.GetQueryable().AsNoTracking().Where(x =>
+            x.TenantId == _user.TenantId && x.IsActive && !x.IsDeleted &&
+            x.Code.StartsWith("STAT_")).OrderBy(x => x.Id).Take(51).ToListAsync(ct);
+        if (statutory.Count > 50 || statutory.Any(x => x.Type != SalaryComponentType.Deduction || x.IsTaxable))
+            return Error<SalaryStructureDto>("Statutory withholding component configuration requires reconciliation.", 409);
+        if (!PayrollStatutoryCoverage.IncludesEach(statutory.Select(x => x.Id),
+            request.Lines.Select(x => x.SalaryComponentId)))
+            return Error<SalaryStructureDto>(
+                "Every active STAT_ deduction requires a salary line, including a zero amount for reviewed exemptions.", 409);
         if (request.Lines.Any(x => decimal.Round(x.Amount, 2) != x.Amount))
             return Error<SalaryStructureDto>("Salary component amounts must have at most two decimal places.", 409);
         var componentTypeById = components.ToDictionary(x => x.Id, x => x.Type);
@@ -457,6 +477,19 @@ public sealed class HrPayrollService : IPayrollAdministrationService
                         (component.Code == "BONUS" || component.Code == "LOAN_RECOVERY")))
                     return Error<PayrollRunDto>(
                         "Invalid or transaction-derived fixed salary component; reconcile the salary structure.", 409);
+                var statutoryComponents = await _components.GetQueryable().AsNoTracking().Where(x =>
+                    x.TenantId == tenant && x.IsActive && !x.IsDeleted &&
+                    x.Code.StartsWith("STAT_")).OrderBy(x => x.Id).Take(51).ToListAsync(token);
+                if (statutoryComponents.Count > 50 || statutoryComponents.Any(x =>
+                    x.Type != SalaryComponentType.Deduction || x.IsTaxable))
+                    return Error<PayrollRunDto>("Statutory withholding configuration requires reconciliation.", 409);
+                var statutoryIds = statutoryComponents.Select(x => x.Id).ToArray();
+                var statutoryLines = salaryLines.ToLookup(x => x.SalaryStructureId);
+                if (statutoryIds.Length > 0 && structures.Any(s =>
+                    !PayrollStatutoryCoverage.IncludesEach(statutoryIds,
+                        statutoryLines[s.Id].Select(line => line.SalaryComponentId))))
+                    return Error<PayrollRunDto>(
+                        "All eligible employees need effective-dated STAT_ withholding lines (zero for reviewed exemptions). No payroll was generated.", 409);
                 var bonuses = await _bonuses.GetQueryable().AsNoTracking().Where(x =>
                     x.TenantId == tenant && ids.Contains(x.EmployeeId) &&
                     x.BonusDate >= firstDay && x.BonusDate <= lastDay && !x.IsDeleted)

@@ -11,7 +11,7 @@ using System.Data;
 namespace EduOS.Service.Services.HR;
 
 /// <summary>Internal employment terms. HR approval is not a signed legal-document assertion.</summary>
-public sealed class EmployeeContractService : IEmployeeContractService
+public sealed partial class EmployeeContractService : IEmployeeContractService
 {
     private readonly EduOSDbContext db;
     private readonly ICurrentUserService user;
@@ -53,8 +53,26 @@ public sealed class EmployeeContractService : IEmployeeContractService
         var total = await query.CountAsync(ct);
         var items = await query.OrderByDescending(x => x.EffectiveFrom).ThenByDescending(x => x.Id)
             .Skip((page - 1) * pageSize).Take(pageSize).ToListAsync(ct);
+        var contractIds = items.Select(x => x.Id).ToArray();
+        var documents = await (from d in db.Documents.AsNoTracking()
+            join f in db.FileAssets.AsNoTracking() on new { d.TenantId, Id = d.FileAssetId }
+                equals new { f.TenantId, f.Id }
+            where d.TenantId == user.TenantId && d.EntityType == "EmployeeContract" &&
+                d.EntityId.HasValue && contractIds.Contains(d.EntityId.Value) &&
+                d.DocumentTypeCode == SignedPdfTypeCode && !d.IsDeleted && !f.IsDeleted
+            select new { Document = d, File = f }).ToListAsync(ct);
+        var signedByContract = documents.GroupBy(x => x.Document.EntityId!.Value)
+            .ToDictionary(g => g.Key, g => g.OrderByDescending(x => x.Document.CreatedAt)
+                .ThenByDescending(x => x.Document.Id).First());
+        var resultItems = items.Select(x =>
+        {
+            var mapped = Map(x, e);
+            if (signedByContract.TryGetValue(x.Id, out var signed))
+                mapped.SignedPdf = MapSignedPdf(signed.Document, signed.File);
+            return mapped;
+        }).ToList();
         return ApiResponse<PagedResult<EmployeeContractDto>>.SuccessResponse(new PagedResult<EmployeeContractDto>
-        { Items = items.Select(x => Map(x, e)).ToList(), TotalCount = total, Page = page, PageSize = pageSize });
+        { Items = resultItems, TotalCount = total, Page = page, PageSize = pageSize });
     }
 
     public async Task<ApiResponse<EmployeeContractDto>> CreateAsync(

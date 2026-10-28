@@ -29,6 +29,26 @@ function cell(value) {
     const td = document.createElement('td'); td.textContent = value == null ? '' : String(value); return td;
 }
 function money(amount) { return Number(amount).toLocaleString('en-BD', {minimumFractionDigits:2, maximumFractionDigits:2}) + ' BDT'; }
+async function bankReview(runReference, button) {
+    if (!runReference || !confirm('Download a sensitive REVIEW_ONLY bank transfer worksheet for the entire payroll run? This does not send money.')) return;
+    button.disabled = true;
+    try {
+        const response = await fetch(endpoint + '/bank-review.csv?' + new URLSearchParams({runReference}),
+            {credentials:'same-origin', cache:'no-store', headers:{Accept:'text/csv'}});
+        if (!response.ok) {
+            const payload = await response.json().catch(() => null);
+            throw new Error(payload?.message || 'Bank review export failed.');
+        }
+        if (!response.headers.get('content-type')?.includes('text/csv')) throw new Error('Unexpected bank export format.');
+        const content = await response.blob();
+        const url = URL.createObjectURL(content), link = document.createElement('a');
+        link.href = url; link.download = 'payroll-bank-review-' + runReference.replace(/[^a-f0-9-]/gi, '') + '.csv';
+        document.body.append(link); link.click(); link.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+        notice('Sensitive bank review worksheet downloaded. No payment status was changed.');
+    } catch (error) { notice(error.message, true); }
+    finally { button.disabled = false; }
+}
 function choose(row) {
     selected = row;
     el('payrollPaymentConfirmPanel').classList.remove('d-none');
@@ -66,7 +86,15 @@ function render(data) {
         const pending = Number(row.state) === 2 || row.state === 'AwaitingVerification';
         button.disabled = !canPost || !pending || !!row.journalReference ||
             row.reconciliationStatus !== 'Pending';
-        button.addEventListener('click', () => choose(row)); action.append(button); tr.append(action);
+        button.addEventListener('click', () => choose(row)); action.append(button);
+        if (canPost && method === 'Bank transfer' && pending && row.runReference) {
+            const exportButton = document.createElement('button'); exportButton.type = 'button';
+            exportButton.className = 'btn btn-sm btn-outline-secondary ms-1';
+            exportButton.textContent = 'Bank review CSV';
+            exportButton.addEventListener('click', () => bankReview(row.runReference, exportButton));
+            action.append(exportButton);
+        }
+        tr.append(action);
         tbody.append(tr);
     }
     if (!data.payments?.length) { const tr = document.createElement('tr'), td = cell('No payroll payment requests found.'); td.colSpan = 12; tr.append(td); tbody.append(tr); }

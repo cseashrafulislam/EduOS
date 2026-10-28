@@ -2,7 +2,7 @@
 'use strict';
 const root=document.getElementById('employeeContracts');if(!root)return;
 const el=id=>document.getElementById(id),token=root.querySelector('input[name="__RequestVerificationToken"]')?.value;
-const state={employee:null,page:1,pages:1,key:crypto.randomUUID(),selected:null,busy:false};
+const state={employee:null,page:1,pages:1,key:crypto.randomUUID(),selected:null,evidence:null,busy:false};
 const types={1:'Draft',2:'Approved',3:'Rejected'};
 function notice(msg,bad=false){const x=el('contractAlert');x.className='alert '+(bad?'alert-danger':'alert-success');x.textContent=msg;x.focus();}
 async function api(url,method='GET',body) {
@@ -17,6 +17,27 @@ async function api(url,method='GET',body) {
 }
 function cell(v){const t=document.createElement('td');t.textContent=v??'';return t;}
 function closeReview(){state.selected=null;el('contractReview').classList.add('d-none');}
+function closeEvidence(){state.evidence=null;el('contractEvidence').classList.add('d-none');}
+function openEvidence(contract) {
+    closeReview();state.evidence=contract;
+    const d=contract.signedPdf, panel=el('contractEvidence');panel.classList.remove('d-none');
+    el('contractEvidenceTitle').textContent='Signed PDF · '+contract.contractCode;
+    el('contractEvidenceStatus').textContent=d ?
+        'Status: '+d.status+' · File: '+d.fileName+' · SHA-256: '+d.sha256 :
+        'No signed PDF attached. Contract terms approval alone does not verify signatures.';
+    const attachAllowed=!d||d.status==='Rejected';
+    el('contractEvidenceUpload').classList.toggle('d-none',!attachAllowed);
+    el('contractEvidenceReview').classList.toggle('d-none',!d?.canVerify);
+    el('contractPdf').value='';el('contractPdfNote').value='';
+    if(d&&d.status==='Approved'||d&&d.canVerify) {
+        const link=document.createElement('a');link.className='btn btn-sm btn-outline-primary mt-2';
+        link.textContent=d.canVerify?'Open independent reviewer PDF preview':'Download approved signed PDF';
+        link.href='/api/hr/employee-contracts/'+encodeURIComponent(contract.reference)+'/signed-pdf/download'+
+            (d.canVerify?'?reviewPreview=true':'');
+        const old=el('contractEvidenceDownload');if(old)old.remove();
+        link.id='contractEvidenceDownload';panel.append(link);
+    }else{el('contractEvidenceDownload')?.remove();}
+}
 async function find() {
     try {
         const q=new URLSearchParams({page:'1',pageSize:'50',search:el('contractSearch').value.trim()});
@@ -27,7 +48,7 @@ async function find() {
     }catch(e){notice(e.message,true);}
 }
 async function load() {
-    closeReview();if(!state.employee)return;
+    closeReview();closeEvidence();if(!state.employee)return;
     try {
         const q=new URLSearchParams({employeeReference:state.employee,page:String(state.page),pageSize:'15'});
         const d=await api('/api/hr/employee-contracts?'+q);
@@ -43,6 +64,12 @@ async function load() {
                     el('contractReviewTitle').textContent='Review '+c.contractCode;
                     el('contractReview').classList.remove('d-none');});
                 actions.append(btn);
+            }
+            if(Number(c.state)===2||c.state==='Approved') {
+                const evidence=document.createElement('button');evidence.type='button';
+                evidence.className='btn btn-sm btn-outline-secondary ms-1';
+                evidence.textContent=c.signedPdf?'Signed PDF · '+c.signedPdf.status:'Attach signed PDF';
+                evidence.addEventListener('click',()=>openEvidence(c));actions.append(evidence);
             }
             tr.append(actions);body.append(tr);
         }
@@ -78,12 +105,49 @@ async function review(approve) {
     }catch(e){notice(e.message,true);}
     finally{state.busy=false;el('contractApprove').disabled=false;el('contractReject').disabled=false;}
 }
+async function attachPdf(event) {
+    event.preventDefault();if(state.busy||!state.evidence)return;
+    const file=el('contractPdf').files?.[0];
+    if(!file||file.size<1||file.size>5242880||!file.name.toLowerCase().endsWith('.pdf')||
+        file.type!=='application/pdf')return notice('Choose a PDF file no larger than 5 MB.',true);
+    if(!confirm('Upload signed PDF for independent verification?'))return;
+    state.busy=true;el('contractPdfAttach').disabled=true;
+    try {
+        if(!token)throw Error('Security token missing. Reload.');
+        const body=new FormData();body.append('file',file);body.append('requestId',crypto.randomUUID());
+        const result=await fetch('/api/document-admin/files',{method:'POST',credentials:'same-origin',cache:'no-store',
+            headers:{RequestVerificationToken:token},body});
+        const uploaded=await result.json().catch(()=>null);
+        if(!result.ok||!uploaded?.success)throw Error(uploaded?.message||'Private PDF upload failed.');
+        await api('/api/hr/employee-contracts/'+encodeURIComponent(state.evidence.reference)+'/signed-pdf',
+            'POST',{fileReference:uploaded.data.reference});
+        notice('Signed PDF attached. A different administrator must verify it.');await load();
+    }catch(error){notice(error.message+' Any staged unattached file can be inspected in Document Administration.',true);}
+    finally{state.busy=false;el('contractPdfAttach').disabled=false;}
+}
+async function verifyPdf(approve) {
+    if(state.busy||!state.evidence?.signedPdf?.canVerify)return;
+    const c=state.evidence,note=el('contractPdfNote').value.trim();
+    if(!approve&&!note)return notice('Enter the reason for rejecting the signed PDF.',true);
+    if(!confirm((approve?'Verify':'Reject')+' the scanned PDF for '+c.contractCode+'?'))return;
+    state.busy=true;el('contractPdfApprove').disabled=true;el('contractPdfReject').disabled=true;
+    try {
+        await api('/api/hr/employee-contracts/'+encodeURIComponent(c.reference)+'/signed-pdf/'+(approve?'approve':'reject'),
+            'POST',{rowVersion:c.signedPdf.rowVersion,note:note||null});
+        notice('Signed PDF review recorded in audit history.');await load();
+    }catch(error){notice(error.message,true);}
+    finally{state.busy=false;el('contractPdfApprove').disabled=false;el('contractPdfReject').disabled=false;}
+}
 el('contractFind').addEventListener('submit',e=>{e.preventDefault();find();});
 el('contractEmployee').addEventListener('change',()=>{state.employee=el('contractEmployee').value||null;state.page=1;state.key=crypto.randomUUID();load();});
 el('contractForm').addEventListener('submit',create);
 el('contractApprove').addEventListener('click',()=>review(true));
 el('contractReject').addEventListener('click',()=>review(false));
 el('contractCancel').addEventListener('click',closeReview);
+el('contractEvidenceClose').addEventListener('click',closeEvidence);
+el('contractEvidenceUpload').addEventListener('submit',attachPdf);
+el('contractPdfApprove').addEventListener('click',()=>verifyPdf(true));
+el('contractPdfReject').addEventListener('click',()=>verifyPdf(false));
 el('contractPrev').addEventListener('click',()=>{state.page=Math.max(1,state.page-1);load();});
 el('contractNext').addEventListener('click',()=>{state.page=Math.min(state.pages,state.page+1);load();});
 find();

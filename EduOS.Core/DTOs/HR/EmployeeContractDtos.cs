@@ -29,4 +29,30 @@ public sealed class EmployeeContractDto
     public DateTime? ReviewedAt { get; set; }
     public string? ReviewReason { get; set; }
     public string RowVersion { get; set; } = string.Empty;
+    public SignedEmployeeContractPdfDto? SignedPdf { get; set; }
+}
+
+/// <summary>Review evidence for a manually signed PDF; not a digital-signature certificate.</summary>
+public sealed class SignedEmployeeContractPdfDto
+{
+    public Guid Reference { get; set; }
+    public Guid FileReference { get; set; }
+    public string FileName { get; set; } = string.Empty;
+    public string Sha256 { get; set; } = string.Empty;
+    public string Status { get; set; } = string.Empty;
+    public DateTime? VerifiedAt { get; set; }
+    public string? VerificationNote { get; set; }
+    public string RowVersion { get; set; } = string.Empty;
+    public bool CanVerify { get; set; }
+}
+
+public sealed class AttachSignedEmployeeContractPdfRequestDto
+{
+    public Guid FileReference { get; set; }
+}
+
+public sealed class VerifySignedEmployeeContractPdfRequestDto
+{
+    [Required] public string RowVersion { get; set; } = string.Empty;
+    [MaxLength(500)] public string? Note { get; set; }
 }
