@@ -585,6 +585,27 @@ public sealed class SqlServerAcademicOperationsIntegrationTests
         Assert.Equal(1, subjectCoverage.Data!.TotalCount);
         Assert.Equal(sqlOffering.Id, Assert.Single(subjectCoverage.Data.Items).SubjectOfferingId);
         Assert.Equal(1, subjectCoverage.Data.Items[0].Absent);
+        // SQL translation and historical integrity: posted marks survive an inactive
+        // offering and a promoted learner; neither current roster nor live registration
+        // is consulted by the manager-only finalized-session readback.
+        await db.StudentEnrollments.Where(x => x.Id == originalEnrollment.Id)
+            .ExecuteUpdateAsync(x => x.SetProperty(e => e.IsCurrent, false));
+        await db.SubjectOfferings.Where(x => x.Id == sqlOffering.Id)
+            .ExecuteUpdateAsync(x => x.SetProperty(e => e.IsActive, false));
+        db.ChangeTracker.Clear();
+        var historicalRoster = await riskReport.GetFinalizedSessionRosterAsync(
+            sqlSession.Id, page: 1, pageSize: 1);
+        Assert.True(historicalRoster.Success, historicalRoster.Message);
+        Assert.True(historicalRoster.Data!.IsHistoricalReadOnly);
+        Assert.Equal(1, historicalRoster.Data.Summary.Marked);
+        Assert.Equal(originalEnrollment.PublicId,
+            Assert.Single(historicalRoster.Data.Students).StudentEnrollmentReference);
+        Assert.Equal(404, (await new StudentAttendanceReportService(
+            db, new Actor(tenantId + 999, managerId, "TenantAdmin"),
+            NullLogger<StudentAttendanceReportService>.Instance)
+            .GetFinalizedSessionRosterAsync(sqlSession.Id)).StatusCode);
+        Assert.Equal(404, (await riskReport.GetFinalizedSessionRosterAsync(
+            draftSession.Id + 999999)).StatusCode);
         Assert.Equal(404, (await new StudentAttendanceReportService(
             db, new Actor(tenantId + 999, managerId, "TenantAdmin"),
             NullLogger<StudentAttendanceReportService>.Instance)
