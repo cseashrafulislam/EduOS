@@ -29,7 +29,15 @@ test('student import execution is an authorized atomic bounded workflow', () => 
     assert.match(service, /IsolationLevel\.Serializable/);
     assert.match(service, /MaxBatchRows = 100/);
     assert.match(service, /SourceScope = "StudentImportSource"/);
-    assert.match(service, /_preview\.PreviewAsync/);
+    // Execution preflight must not turn a deadlock/EF failure into a normal
+    // response that causes the surrounding transaction to attempt CommitAsync.
+    assert.match(service, /_preview\\.PreviewForExecutionAsync/);
+    assert.match(service, /check\\.StatusCode >= 500/);
+    const preview = read('EduOS.Service/Services/Students/StudentImportPreviewService.cs');
+    const previewContract = read('EduOS.Core/Interfaces/IServices/IStudentImportPreviewService.cs');
+    assert.match(previewContract, /PreviewForExecutionAsync/);
+    assert.match(preview, /propagateInfrastructureErrors: true/);
+    assert.match(preview, /catch \\(Exception\\) when \\(propagateInfrastructureErrors\\)/);
     assert.match(service, /new StudentPersonLink/);
     assert.match(service, /new StudentEnrollment/);
     assert.match(service, /new ImportLogItem/);
