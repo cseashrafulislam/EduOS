@@ -256,14 +256,21 @@ public sealed class AcademicInstructionService : IAcademicInstructionService
         if (!IsManager() && !teacherId.HasValue) return Denied<PagedResult<SubstitutionDto>>();
         if (!IsManager())
         {
-            var assignedRoutineIds = from routine in _routineEntries.GetQueryable().AsNoTracking()
-                join assignment in _instructorAssignments.GetQueryable().AsNoTracking()
-                    on routine.InstructorAssignmentId equals (long?)assignment.Id
-                where routine.TenantId == tenant && assignment.TenantId == tenant &&
-                    assignment.EmployeeId == teacherId!.Value
-                select routine.Id;
-            q = q.Where(x => x.SubstituteEmployeeId == teacherId!.Value ||
-                assignedRoutineIds.Contains(x.RoutineEntryId));
+            // A historical assignment ID alone is not current authorization. The original
+            // instructor may read only cover records from an active assignment effective
+            // on the substitution date; substitute readback remains independently scoped.
+            q = q.Where(sub => sub.SubstituteEmployeeId == teacherId!.Value ||
+                (from routine in _routineEntries.GetQueryable().AsNoTracking()
+                 join assignment in _instructorAssignments.GetQueryable().AsNoTracking()
+                     on routine.InstructorAssignmentId equals (long?)assignment.Id
+                 where routine.TenantId == tenant && !routine.IsDeleted &&
+                       routine.Id == sub.RoutineEntryId &&
+                       assignment.TenantId == tenant && !assignment.IsDeleted &&
+                       assignment.IsActive && assignment.EmployeeId == teacherId.Value &&
+                       assignment.SubjectOfferingId == routine.SubjectOfferingId &&
+                       assignment.EffectiveFrom <= sub.Date &&
+                       (assignment.EffectiveTo == null || assignment.EffectiveTo >= sub.Date)
+                 select routine.Id).Any());
         }
         // Scope both the total count and the page before materialization.
         var total = await q.CountAsync(ct);
