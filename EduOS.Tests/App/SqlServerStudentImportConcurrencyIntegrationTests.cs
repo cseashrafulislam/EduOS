@@ -1,8 +1,10 @@
 using System.Text;
 using EduOS.Core.Common;
 using EduOS.Core.DTOs.Academic;
+using EduOS.Core.DTOs.Admission;
 using EduOS.Core.DTOs.Students;
 using EduOS.Core.Entities.Academic;
+using EduOS.Core.Entities.Admission;
 using EduOS.Core.Entities.Auth;
 using EduOS.Core.Entities.Learners;
 using EduOS.Core.Entities.SaaS;
@@ -14,6 +16,7 @@ using EduOS.Persistence.Context;
 using EduOS.Persistence.Repositories;
 using EduOS.Service.Services.Students;
 using EduOS.Service.Services.Academic;
+using EduOS.Service.Services.Admission;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -775,6 +778,184 @@ public sealed class SqlServerStudentImportConcurrencyIntegrationTests
             new GenericRepository<RoutineEntry>(db), new GenericRepository<RoutineTimeSlot>(db),
             new GenericRepository<Room>(db), db, new TestAdmin(tenant, userId),
             TimeProvider.System, NullLogger<AcademicEnrollmentService>.Instance);
+
+
+    [Fact]
+    public async Task Concurrent_import_and_real_admission_conversion_cannot_overfill_last_seat()
+    {
+        var connection = Environment.GetEnvironmentVariable("EDUOS_SQL_AUTH_TEST_CONNECTION");
+        if (string.IsNullOrWhiteSpace(connection)) return;
+        var options = new DbContextOptionsBuilder<EduOSDbContext>().UseSqlServer(connection).Options;
+        var suffix = Guid.NewGuid().ToString("N")[..12];
+        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        long tenantId, adminId, campusId, batchId;
+        Guid applicationReference;
+        string applicationVersion;
+
+        await using (var setup = new EduOSDbContext(options))
+        {
+            var tenant = new Tenant
+            {
+                Code = "CI-ADMIT-" + suffix, Name = "Admission Import Race CI",
+                Email = "admit-" + suffix + "@example.test", State = TenantState.Active
+            };
+            var username = "admit-admin-" + suffix + "@example.test";
+            var admin = new ApplicationUser
+            {
+                UserName = username, NormalizedUserName = username.ToUpperInvariant(),
+                Email = username, NormalizedEmail = username.ToUpperInvariant(),
+                FullName = "Admission SQL Admin", EmailConfirmed = true, IsActive = true,
+                SecurityStamp = Guid.NewGuid().ToString(), ConcurrencyStamp = Guid.NewGuid().ToString()
+            };
+            setup.AddRange(tenant, admin);
+            await setup.SaveChangesAsync();
+            tenantId = tenant.Id;
+            adminId = admin.Id;
+            setup.ChangeTracker.Clear();
+            using (setup.BeginSystemTenantScope(tenantId))
+            {
+                var campus = new Campus { TenantId = tenantId, Name = "Main", Code = "MAIN" };
+                var year = new AcademicYear
+                {
+                    TenantId = tenantId, Name = today.Year.ToString(), Code = today.Year.ToString(),
+                    StartDate = new DateOnly(today.Year, 1, 1),
+                    EndDate = new DateOnly(today.Year, 12, 31), IsCurrent = true
+                };
+                var program = new AcademicProgram
+                {
+                    TenantId = tenantId, Name = "Training", Code = "TRAIN"
+                };
+                setup.AddRange(campus, year, program);
+                await setup.SaveChangesAsync();
+                campusId = campus.Id;
+                var level = new AcademicLevel
+                {
+                    TenantId = tenantId, AcademicProgramId = program.Id,
+                    Name = "Level One", Code = "L1", LevelNo = 1
+                };
+                var curriculum = new AcademicCurriculum
+                {
+                    TenantId = tenantId, AcademicProgramId = program.Id,
+                    Name = "Current Curriculum", Code = "CUR",
+                    EffectiveFrom = new DateOnly(today.Year, 1, 1),
+                    IsCurrent = true, IsActive = true
+                };
+                setup.AddRange(level, curriculum);
+                await setup.SaveChangesAsync();
+                var batch = new AcademicBatch
+                {
+                    TenantId = tenantId, CampusId = campus.Id, AcademicYearId = year.Id,
+                    AcademicProgramId = program.Id, AcademicLevelId = level.Id,
+                    Name = "Last Seat", Code = "TARGET", Capacity = 1
+                };
+                var form = new AdmissionIntakeForm
+                {
+                    TenantId = tenantId, CampusId = campus.Id, AcademicYearId = year.Id,
+                    AcademicProgramId = program.Id, AcademicLevelId = level.Id,
+                    Title = "Admissions", Code = "INTAKE", State = AdmissionFormState.Published
+                };
+                setup.AddRange(batch, form);
+                await setup.SaveChangesAsync();
+                batchId = batch.Id;
+                var application = new AdmissionApplicant
+                {
+                    TenantId = tenantId, AdmissionIntakeFormId = form.Id,
+                    ClientRequestId = Guid.NewGuid(), ApplicationNumber = "APP-" + suffix,
+                    FullName = "Accepted Applicant " + suffix, State = AdmissionApplicantState.Qualified
+                };
+                setup.Add(application);
+                await setup.SaveChangesAsync();
+                applicationReference = application.PublicId;
+                applicationVersion = Convert.ToBase64String(application.RowVersion);
+                setup.Add(new AdmissionDecision
+                {
+                    TenantId = tenantId, AdmissionApplicantId = application.Id,
+                    ClientRequestId = Guid.NewGuid(), OfferedAcademicBatchId = batch.Id,
+                    State = AdmissionDecisionState.Accepted, AcceptedAt = DateTime.UtcNow
+                });
+                await setup.SaveChangesAsync();
+            }
+        }
+
+        var admitRequest = new AdmitAdmissionApplicationDto
+        {
+            AcademicBatchId = batchId, Roll = "01", RowVersion = applicationVersion
+        };
+        var importId = Guid.NewGuid();
+        var csv = "SourceKey,StudentCode,FullName,CampusId,AcademicBatchId,RollNo,GuardianName,GuardianPhone,GuardianSourceKey\n" +
+            "ADMIT-SRC-" + suffix + ",ADMIT-NEW-" + suffix + ",Imported Learner " + suffix +
+            "," + campusId + "," + batchId + ",02,,,\n";
+        var start = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var admitTask = Task.Run(async () =>
+        {
+            await using var db = TenantDb(options, tenantId);
+            await start.Task;
+            return await Admission(db, tenantId, adminId).AdmitAsync(applicationReference, admitRequest);
+        });
+        var importTask = Task.Run(async () =>
+        {
+            await using var db = TenantDb(options, tenantId);
+            using var stream = new MemoryStream(Encoding.UTF8.GetBytes(csv));
+            await start.Task;
+            return await Service(db, tenantId, adminId).ExecuteAsync(stream, ".csv", Mapping, importId);
+        });
+        start.SetResult(true);
+        await Task.WhenAll(admitTask, importTask);
+        var admitted = await admitTask;
+        var imported = await importTask;
+        Assert.True(admitted.Success != imported.Success,
+            "Exactly one last-seat allocation must commit. Admission: " +
+            admitted.StatusCode + " / import: " + imported.StatusCode);
+        Assert.Equal(409, admitted.Success ? imported.StatusCode : admitted.StatusCode);
+
+        await using (var verify = TenantDb(options, tenantId))
+        {
+            Assert.Equal(1, await verify.StudentEnrollments.CountAsync(x =>
+                x.AcademicBatchId == batchId && x.IsCurrent && x.State == EnrollmentState.Active));
+            Assert.Equal(1, await verify.Students.CountAsync());
+            Assert.Equal(1, await verify.StudentPersonLinks.CountAsync());
+            Assert.Equal(imported.Success ? 1 : 0, await verify.ImportLogs.CountAsync());
+            Assert.Equal(imported.Success ? 1 : 0, await verify.IdempotencyRecords.CountAsync(x =>
+                x.TenantId == tenantId && x.Scope == "StudentImportBatch" && x.RequestId == importId));
+            var application = await verify.AdmissionApplicants.SingleAsync(x => x.PublicId == applicationReference);
+            Assert.Equal(admitted.Success ? AdmissionApplicantState.Admitted : AdmissionApplicantState.Qualified,
+                application.State);
+            Assert.Equal(admitted.Success, application.ConvertedStudentId.HasValue);
+            Assert.Equal(admitted.Success, application.ConvertedEnrollmentId.HasValue);
+        }
+        if (imported.Success)
+        {
+            await using var db = TenantDb(options, tenantId);
+            using var stream = new MemoryStream(Encoding.UTF8.GetBytes(csv));
+            var replay = await Service(db, tenantId, adminId).ExecuteAsync(stream, ".csv", Mapping, importId);
+            Assert.True(replay.Success, replay.Message);
+            Assert.True(replay.Data!.Replayed);
+        }
+        else
+        {
+            await using var db = TenantDb(options, tenantId);
+            var replay = await Admission(db, tenantId, adminId).AdmitAsync(applicationReference, admitRequest);
+            Assert.True(replay.Success, replay.Message);
+        }
+        await using var foreign = TenantDb(options, tenantId + 1000000);
+        Assert.Equal(404, (await Admission(foreign, tenantId + 1000000, adminId)
+            .GetOptionsAsync(applicationReference)).StatusCode);
+    }
+
+    private static AdmissionEnrollmentService Admission(
+        EduOSDbContext db, long tenant, long userId) => new(
+            new GenericRepository<AdmissionApplicant>(db),
+            new GenericRepository<AdmissionIntakeForm>(db),
+            new GenericRepository<AdmissionDecision>(db),
+            new GenericRepository<AdmissionApplicantDocument>(db),
+            new GenericRepository<AdmissionApplicantGuardian>(db),
+            new GenericRepository<Student>(db), new GenericRepository<StudentEnrollment>(db),
+            new GenericRepository<Guardian>(db), new GenericRepository<StudentGuardian>(db),
+            new GenericRepository<Person>(db), new GenericRepository<StudentPersonLink>(db),
+            new GenericRepository<AcademicBatch>(db), new GenericRepository<AcademicTrack>(db),
+            new GenericRepository<AcademicCurriculum>(db), new GenericRepository<AcademicYear>(db),
+            db, new TestAdmin(tenant, userId), TimeProvider.System,
+            NullLogger<AdmissionEnrollmentService>.Instance);
 
     private static StudentReadmissionService Readmission(EduOSDbContext db, long tenant, long userId)
         => new(new GenericRepository<Student>(db),
