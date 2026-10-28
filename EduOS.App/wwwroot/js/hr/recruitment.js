@@ -116,6 +116,8 @@ async function transition(event){
     if(next===3&&!text('recruitInterviewOn'))return notice('Interview date required.',true);
     if(next===6&&(!el('recruitEmployee').value||!el('recruitIdentityVerified').checked))
         return notice('Verified existing employee is required to confirm hiring.',true);
+    if(next===6&&text('recruitReason').length<5)
+        return notice('Record the completed identity verification in the decision note.',true);
     if(!confirm('Record '+stages[next]+' decision for '+current.fullName+'?'))return;
     busy=true;el('recruitTransitionSave').disabled=true;
     try{

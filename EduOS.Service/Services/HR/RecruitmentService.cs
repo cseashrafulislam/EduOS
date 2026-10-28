@@ -160,9 +160,9 @@ public sealed class RecruitmentService : IRecruitmentService
             if (!Next(row.Stage, request.NextStage))
                 return Error<RecruitmentCandidateDto>("Invalid recruitment stage transition.", 409);
             if (request.NextStage == RecruitmentStage.Offered &&
-                (row.CreatedBy == user.UserId || row.UpdatedBy == user.UserId))
+                row.UpdatedBy == user.UserId)
                 return Error<RecruitmentCandidateDto>(
-                    "A separate administrator must approve the offer.", 403);
+                    "Interview recorder cannot approve the same offer.", 403);
             if (request.NextStage == RecruitmentStage.Interviewed &&
                 (!request.InterviewOn.HasValue || request.InterviewOn.Value < row.AppliedOn))
                 return Error<RecruitmentCandidateDto>("Interview date must be supplied and follow application.", 409);
@@ -183,6 +183,25 @@ public sealed class RecruitmentService : IRecruitmentService
                     x.State == EmployeeState.Active && !x.IsDeleted, ct);
                 if (employee == null || employee.JoiningDate < row.AppliedOn)
                     return Error<RecruitmentCandidateDto>("Verified active employee not found.", 404);
+                if (reason == null || reason.Length < 5)
+                    return Error<RecruitmentCandidateDto>(
+                        "Document the completed identity check when linking a hired employee.", 409);
+                var campusMatches = await db.EmployeeCampusAssignments.AsNoTracking().AnyAsync(x =>
+                    x.TenantId == user.TenantId && x.EmployeeId == employee.Id &&
+                    x.CampusId == row.CampusId && x.IsPrimary && !x.IsDeleted &&
+                    x.EffectiveFrom <= employee.JoiningDate &&
+                    (!x.EffectiveTo.HasValue || x.EffectiveTo.Value >= employee.JoiningDate), ct);
+                if (!campusMatches)
+                    return Error<RecruitmentCandidateDto>(
+                        "Employee's primary campus at joining does not match this application.", 409);
+                if (employee.DesignationId != row.DesignationId &&
+                    !await db.EmployeeAssignmentHistories.AsNoTracking().AnyAsync(x =>
+                        x.TenantId == user.TenantId && x.EmployeeId == employee.Id &&
+                        x.DesignationId == row.DesignationId && !x.IsDeleted &&
+                        x.EffectiveFrom <= employee.JoiningDate &&
+                        (!x.EffectiveTo.HasValue || x.EffectiveTo.Value >= employee.JoiningDate), ct))
+                    return Error<RecruitmentCandidateDto>(
+                        "Employee's designation at joining does not match the offered position.", 409);
                 if (await db.RecruitmentCandidates.AsNoTracking().AnyAsync(x =>
                     x.TenantId == user.TenantId && x.Id != row.Id &&
                     x.LinkedEmployeeId == employee.Id && !x.IsDeleted, ct))
