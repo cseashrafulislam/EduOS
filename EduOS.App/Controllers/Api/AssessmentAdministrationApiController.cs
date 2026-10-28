@@ -54,6 +54,11 @@ public sealed class AssessmentAdministrationApiController : ControllerBase
     public async Task<IActionResult> MarkReview(long subjectId, CancellationToken ct) =>
         Result(await _service.GetMarkReviewAsync(subjectId, ct));
 
+    [HttpGet("marks/reviews/{subjectId:long}/history")]
+    public async Task<IActionResult> MarkReviewHistory(long subjectId,
+        [FromQuery] AssessmentMarkReviewHistoryQueryDto query, CancellationToken ct) =>
+        Result(await _service.SearchMarkReviewHistoryAsync(subjectId, query, ct));
+
     [HttpPost("marks/reviews/{subjectId:long}/decision")]
     public async Task<IActionResult> DecideMarkReview(long subjectId,
         [FromBody] AssessmentMarkReviewRequestDto request, CancellationToken ct) =>

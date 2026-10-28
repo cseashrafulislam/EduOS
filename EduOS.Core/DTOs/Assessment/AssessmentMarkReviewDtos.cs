@@ -30,3 +30,19 @@ public sealed class AssessmentMarkReviewDto
     public int HistoryTotal { get; set; }
     public IReadOnlyList<AssessmentMarkReviewEventDto> RecentHistory { get; set; } = [];
 }
+
+// Immutable review decisions are paged by event ID so concurrent submissions cannot
+// shift older pages or silently omit audit history.
+public sealed class AssessmentMarkReviewHistoryQueryDto
+{
+    [Range(1, long.MaxValue)] public long? BeforeId { get; set; }
+    [Range(1, 50)] public int PageSize { get; set; } = 25;
+    public AssessmentMarkReviewDecision? Decision { get; set; }
+}
+
+public sealed class AssessmentMarkReviewHistoryPageDto
+{
+    public IReadOnlyList<AssessmentMarkReviewEventDto> Items { get; set; } = [];
+    public bool HasMore { get; set; }
+    public long? NextBeforeId { get; set; }
+}

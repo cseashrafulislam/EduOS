@@ -17,5 +17,18 @@ test('review screen has contextual help and safe history rendering', () => {
     assert.match(view, /aria-label="Marks review help"/);
     assert.match(script, /td\.textContent =/);
     assert.match(script, /replaceChildren\(\)/);
-    assert.match(script, /recentHistory/);
+    assert.match(script, /history\.items/);
+    assert.match(script, /\/history\?/);
+    assert.match(view, /markReviewHistoryPrev/);
+    assert.match(view, /markReviewHistoryNext/);
+});
+
+
+test('history is keyset-paged, filtered and exports only the authorized page', () => {
+    assert.match(script, /history\.cursors\[history\.page\]/);
+    assert.match(script, /params\.set\('beforeId'/);
+    assert.match(script, /params\.set\('decision'/);
+    assert.match(script, /history\.items\.map\(/);
+    assert.match(script, /history\.sequence/);
+    assert.match(view, /CSV \(current page\)/);
 });

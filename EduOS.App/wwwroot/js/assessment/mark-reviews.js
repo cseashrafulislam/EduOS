@@ -7,6 +7,12 @@
     const canReview = root.dataset.canReview === 'true';
     const state = { page: 1, pageSize: 30, total: 0, review: null, busy: false, requestId: null };
     const labels = { 1: 'Submitted', 2: 'Rejected', 3: 'Approved' };
+    const history = { cursors: [null], page: 0, items: [], hasMore: false, next: null, sequence: 0 };
+    function resetHistory() {
+        history.sequence++;
+        history.cursors = [null]; history.page = 0;
+        history.items = []; history.hasMore = false; history.next = null;
+    }
     const cell = value => { const td = document.createElement('td'); td.textContent = value == null ? '' : String(value); return td; };
     const notice = (text, error = false) => {
         const box = el('markReviewNotice');
@@ -32,14 +38,14 @@
             el('markReviewApprove').disabled = state.busy || !review?.canReview;
             el('markReviewReject').disabled = state.busy || !review?.canReview;
         }
-        el('markReviewCsv').disabled = !review?.recentHistory?.length;
+        el('markReviewCsv').disabled = !review || !history.items.length;
     }
     function render() {
         const review = state.review;
         el('markReviewStatus').textContent = review
             ? (labels[review.currentDecision] || 'Not submitted') : 'Select a subject';
         const tbody = el('markReviewRows'); tbody.replaceChildren();
-        for (const event of review?.recentHistory || []) {
+        for (const event of (review ? history.items : [])) {
             const tr = document.createElement('tr');
             tr.append(cell(event.occurredAt), cell(labels[event.decision] || 'Unknown'),
                 cell(event.actorUserId), cell(event.reason));
@@ -50,8 +56,10 @@
             td.colSpan = 4; tr.append(td); tbody.append(tr);
         }
         el('markReviewCount').textContent = review
-            ? 'Showing latest ' + (review.recentHistory?.length || 0) + ' of ' + review.historyTotal + ' decisions.'
+            ? 'Page ' + (history.page + 1) + ' · ' + history.items.length + ' decisions'
             : '';
+        el('markReviewHistoryPrev').disabled = !review || history.page === 0;
+        el('markReviewHistoryNext').disabled = !review || !history.hasMore;
         controls();
     }
     async function loadScopes() {
@@ -71,13 +79,39 @@
             el('markReviewNext').disabled = state.page * state.pageSize >= state.total;
         } catch (error) { notice(error.message, true); }
     }
+    async function loadHistory(reset = false) {
+        if (reset) resetHistory();
+        const id = el('markReviewSubject').value;
+        if (!id || !state.review) { render(); return; }
+        const sequence = ++history.sequence;
+        const params = new URLSearchParams({ pageSize: '25' });
+        const beforeId = history.cursors[history.page];
+        if (beforeId != null) params.set('beforeId', String(beforeId));
+        const decision = el('markReviewHistoryDecision').value;
+        if (decision) params.set('decision', decision);
+        try {
+            const page = await api('/api/assessment-administration/marks/reviews/' +
+                encodeURIComponent(id) + '/history?' + params);
+            if (sequence !== history.sequence || el('markReviewSubject').value !== id) return;
+            history.items = page.items || [];
+            history.hasMore = !!page.hasMore;
+            history.next = page.nextBeforeId;
+            render();
+        } catch (error) {
+            if (sequence === history.sequence) notice(error.message, true);
+        }
+    }
     async function loadReview() {
+        resetHistory();
         state.review = null; render();
         const id = el('markReviewSubject').value;
         if (!id) return;
         try {
-            state.review = await api('/api/assessment-administration/marks/reviews/' + encodeURIComponent(id));
+            const review = await api('/api/assessment-administration/marks/reviews/' + encodeURIComponent(id));
+            if (el('markReviewSubject').value !== id) return;
+            state.review = review;
             render();
+            await loadHistory();
         } catch (error) { notice(error.message, true); }
     }
     async function decide(decision) {
@@ -100,7 +134,8 @@
                     clientRequestId: state.requestId, assessmentRowVersion: review.assessmentRowVersion,
                     decision, reason: reason || null
                 });
-            state.requestId = null; notice('Review decision recorded.'); render(); if (canReview) loadQueue();
+            state.requestId = null; notice('Review decision recorded.'); render();
+            await loadHistory(true); if (canReview) loadQueue();
         } catch (error) {
             notice(error.message + ' Refresh before retrying a conflicting decision.', true);
             await loadReview();
@@ -111,7 +146,7 @@
         const review = state.review;
         if (!review) return;
         const rows = [['UTC time','Decision','Actor ID','Reason'],
-            ...(review.recentHistory || []).map(x => [x.occurredAt, labels[x.decision], x.actorUserId, x.reason])];
+            ...history.items.map(x => [x.occurredAt, labels[x.decision], x.actorUserId, x.reason])];
         const safe = value => /^[=+@\-\t\r]/.test(String(value ?? '')) ? "'" + value : value;
         const content = rows.map(row => row.map(value =>
             '"' + String(safe(value) ?? '').replace(/"/g, '""') + '"').join(',')).join('\r\n');
@@ -203,6 +238,16 @@
         el('markReviewApprove').addEventListener('click', () => decide(3));
         el('markReviewReject').addEventListener('click', () => decide(2));
     }
+    el('markReviewHistoryDecision').addEventListener('change', () => loadHistory(true));
+    el('markReviewHistoryPrev').addEventListener('click', () => {
+        if (history.page > 0) { history.page--; loadHistory(); }
+    });
+    el('markReviewHistoryNext').addEventListener('click', () => {
+        if (history.hasMore && history.next != null) {
+            history.cursors[history.page + 1] = history.next;
+            history.page++; loadHistory();
+        }
+    });
     el('markReviewCsv').addEventListener('click', csv);
     el('markReviewPrint').addEventListener('click', () => window.print());
     loadScopes();

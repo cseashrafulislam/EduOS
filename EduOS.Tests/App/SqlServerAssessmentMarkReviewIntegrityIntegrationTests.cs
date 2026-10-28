@@ -125,6 +125,39 @@ public sealed class SqlServerAssessmentMarkReviewIntegrityIntegrationTests
             Assert.Null(rows[0].Reason);
             Assert.False(rows[0].IsDeleted);
         }
+        // A long-lived approval register must expose older immutable events without
+        // offset-shifting or cross-tenant rows. Exercise the same SQL keyset ordering
+        // used by the authorized service history endpoint.
+        await using (var db = TenantDb(options, tenantA))
+        {
+            var now = DateTime.UtcNow;
+            db.AssessmentMarkReviewEvents.AddRange(Enumerable.Range(0, 60).Select(i =>
+                new AssessmentMarkReviewEvent {
+                    TenantId = tenantA, AssessmentSubjectId = subjectA, ActorUserId = actorId,
+                    ClientRequestId = Guid.NewGuid(),
+                    Decision = i % 2 == 0 ? AssessmentMarkReviewDecision.Submitted :
+                        AssessmentMarkReviewDecision.Rejected,
+                    MarkRowVersion = first.MarkRowVersion,
+                    OccurredAt = now.AddSeconds(i), CreatedAt = now.AddSeconds(i)
+                }));
+            await db.SaveChangesAsync();
+        }
+        await using (var db = TenantDb(options, tenantA))
+        {
+            var firstPage = await db.AssessmentMarkReviewEvents.AsNoTracking()
+                .Where(x => x.TenantId == tenantA && x.AssessmentSubjectId == subjectA)
+                .OrderByDescending(x => x.Id).Take(25).Select(x => x.Id).ToArrayAsync();
+            var secondPage = await db.AssessmentMarkReviewEvents.AsNoTracking()
+                .Where(x => x.TenantId == tenantA && x.AssessmentSubjectId == subjectA &&
+                    x.Id < firstPage[^1])
+                .OrderByDescending(x => x.Id).Take(25).Select(x => x.Id).ToArrayAsync();
+            Assert.Equal(25, firstPage.Length);
+            Assert.Equal(25, secondPage.Length);
+            Assert.Empty(firstPage.Intersect(secondPage));
+            Assert.True(firstPage[^1] > secondPage[0]);
+            Assert.False(await db.AssessmentMarkReviewEvents.AsNoTracking()
+                .AnyAsync(x => x.AssessmentSubjectId == subjectB));
+        }
     }
 
     [Fact]

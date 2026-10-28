@@ -33,6 +33,43 @@ public sealed partial class AssessmentAdministrationService
             await MapMarkReviewAsync(subject, exam, canSubmit, ct));
     }
 
+    public async Task<ApiResponse<AssessmentMarkReviewHistoryPageDto>> SearchMarkReviewHistoryAsync(
+        long subjectId, AssessmentMarkReviewHistoryQueryDto request, CancellationToken ct = default)
+    {
+        if (request == null || subjectId <= 0 || request.PageSize is < 1 or > 50 ||
+            request.BeforeId is <= 0 ||
+            request.Decision.HasValue && !Enum.IsDefined(request.Decision.Value))
+            return Error<AssessmentMarkReviewHistoryPageDto>("Invalid review history page or filter.");
+
+        // Reuse the authoritative subject/campus/instructor authorization; direct IDs
+        // never grant access merely because an audit event exists.
+        var access = await GetMarkReviewAsync(subjectId, ct);
+        if (!access.Success)
+            return Error<AssessmentMarkReviewHistoryPageDto>(access.Message, access.StatusCode);
+
+        var tenant = _user.TenantId;
+        var query = _markReviews.GetQueryable().AsNoTracking().Where(x =>
+            x.TenantId == tenant && x.AssessmentSubjectId == subjectId && !x.IsDeleted);
+        if (request.BeforeId.HasValue)
+            query = query.Where(x => x.Id < request.BeforeId.Value);
+        if (request.Decision.HasValue)
+            query = query.Where(x => x.Decision == request.Decision.Value);
+
+        var rows = await query.OrderByDescending(x => x.Id).Take(request.PageSize + 1)
+            .Select(x => new AssessmentMarkReviewEventDto
+            {
+                Id = x.Id, Decision = x.Decision, OccurredAt = x.OccurredAt,
+                ActorUserId = x.ActorUserId, Reason = x.Reason
+            }).ToListAsync(ct);
+        var hasMore = rows.Count > request.PageSize;
+        if (hasMore) rows.RemoveAt(rows.Count - 1);
+        return ApiResponse<AssessmentMarkReviewHistoryPageDto>.SuccessResponse(new()
+        {
+            Items = rows, HasMore = hasMore,
+            NextBeforeId = hasMore && rows.Count > 0 ? rows[^1].Id : null
+        });
+    }
+
     public Task<ApiResponse<AssessmentMarkReviewDto>> DecideMarkReviewAsync(long subjectId,
         AssessmentMarkReviewRequestDto request, CancellationToken ct = default)
     {
