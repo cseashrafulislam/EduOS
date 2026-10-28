@@ -77,7 +77,7 @@ test('controller binds read, save and reset to a server-issued session reference
     // GET binds directly; both mutations bind through the shared serialized write guard.
     assert.equal(source.split('if (!BindCurrentSession())').length - 1, 2);
     assert.ok(source.includes('IsolationLevel.Serializable'));
-    assert.equal(source.split('if (!await SessionStillValidAsync())').length - 1, 2);
+    assert.equal(source.split('if (!await SessionStillValidAsync())').length - 1, 3);
     assert.ok(source.includes('WriteInCurrentSessionAsync(ct => service.SaveAsync(request, ct)'));
     assert.ok(source.includes('WriteInCurrentSessionAsync(ct => service.ResetAsync(request, ct)'));
     const page = read('EduOS.App/Views/WorkspacePreferences/Index.cshtml');
