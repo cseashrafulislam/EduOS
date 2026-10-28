@@ -69,6 +69,10 @@ public sealed class StudentImportExecutionServiceTests
         var logs = new GenericRepository<ImportLog>(db);
         var items = new GenericRepository<ImportLogItem>(db);
         var preview = new StudentImportPreviewService(students, enrollments, batches,
+            new GenericRepository<AcademicCurriculum>(db),
+            new GenericRepository<CurriculumSubject>(db),
+            new GenericRepository<SubjectOffering>(db),
+            new GenericRepository<StudentSubjectRegistration>(db),
             new GenericRepository<Campus>(db), logs, items, user,
             NullLogger<StudentImportPreviewService>.Instance);
         return new StudentImportExecutionService(previewOverride ?? preview, students, enrollments,

@@ -1011,6 +1011,10 @@ public sealed class SqlServerStudentImportConcurrencyIntegrationTests
         var items = new GenericRepository<ImportLogItem>(db);
         var admin = new TestAdmin(tenant, userId);
         var preview = new StudentImportPreviewService(students, enrollments, batches,
+            new GenericRepository<AcademicCurriculum>(db),
+            new GenericRepository<CurriculumSubject>(db),
+            new GenericRepository<SubjectOffering>(db),
+            new GenericRepository<StudentSubjectRegistration>(db),
             new GenericRepository<Campus>(db), logs, items, admin,
             NullLogger<StudentImportPreviewService>.Instance);
         return new StudentImportExecutionService(preview, students, enrollments,

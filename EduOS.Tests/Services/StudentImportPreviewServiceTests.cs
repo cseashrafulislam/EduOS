@@ -28,6 +28,61 @@ public sealed class StudentImportPreviewServiceTests
     };
     private const string Header = "SourceKey,StudentCode,FullName,CampusId,AcademicBatchId,RollNo,GuardianName,GuardianPhone\n";
 
+
+    [Fact]
+    public async Task Preview_reports_required_offering_capacity_and_missing_offerings_without_writes()
+    {
+        var options = Options(); await SeedAsync(options, capacity: 10);
+        await using var db = Context(options, 101);
+        db.Subjects.Add(new Subject { Id = 60, TenantId = 101, Code = "MATH", Name = "Mathematics" });
+        db.CurriculumSubjects.Add(new CurriculumSubject
+        {
+            Id = 61, TenantId = 101, AcademicCurriculumId = 50, AcademicLevelId = 1,
+            SubjectId = 60, CreditHours = 4m, IsOptional = false
+        });
+        var offering = new SubjectOffering
+        {
+            Id = 62, TenantId = 101, AcademicBatchId = 20,
+            AcademicYearId = 1, CurriculumSubjectId = 61, Code = "MATH-1", Capacity = 1
+        };
+        db.SubjectOfferings.Add(offering);
+        await db.SaveChangesAsync();
+        var service = Service(db, new User(101, true));
+        var source = Header + "PRE-SUB-A,STU-A,Learner A,10,20,11,,\\n" +
+            "PRE-SUB-B,STU-B,Learner B,10,20,12,,\\n";
+        using (var file = Csv(source))
+        {
+            var preview = await service.PreviewAsync(file, ".csv", Mapping);
+            Assert.True(preview.Success, preview.Message);
+            Assert.Equal(1, preview.Data!.ValidRows);
+            Assert.Equal(1, preview.Data.InvalidRows);
+            Assert.Contains(preview.Data.Errors[0].Issues, x => x.Contains("offering capacity"));
+        }
+        db.StudentSubjectRegistrations.Add(new StudentSubjectRegistration
+        {
+            TenantId = 101, StudentEnrollmentId = 40, SubjectOfferingId = 62,
+            ClientRequestId = Guid.NewGuid(),
+            State = EduOS.Core.Enums.Domain.SubjectRegistrationState.Approved
+        });
+        await db.SaveChangesAsync();
+        using (var file = Csv(source))
+        {
+            var full = await service.PreviewAsync(file, ".csv", Mapping);
+            Assert.Equal(0, full.Data!.ValidRows);
+            Assert.Equal(2, full.Data.InvalidRows);
+        }
+        db.SubjectOfferings.Remove(offering);
+        await db.SaveChangesAsync();
+        using (var file = Csv(source))
+        {
+            var missing = await service.PreviewAsync(file, ".csv", Mapping);
+            Assert.Equal(2, missing.Data!.InvalidRows);
+            Assert.All(missing.Data.Errors,
+                x => Assert.Contains(x.Issues, issue => issue.Contains("active batch offering")));
+        }
+        Assert.Empty(await db.ImportLogs.ToListAsync());
+    }
+
     [Fact]
     public async Task Csv_header_and_valid_preflight_are_read_only()
     {
@@ -215,6 +270,12 @@ public sealed class StudentImportPreviewServiceTests
             Id = 20, TenantId = 101, CampusId = 10, Name = "Batch", Code = "B1",
             AcademicYearId = 1, AcademicProgramId = 1, AcademicLevelId = 1, Capacity = capacity
         });
+        db.AcademicCurriculums.Add(new AcademicCurriculum
+        {
+            Id = 50, TenantId = 101, AcademicProgramId = 1,
+            Name = "Current Curriculum", Code = "CUR", IsCurrent = true, IsActive = true,
+            EffectiveFrom = new DateOnly(2020, 1, 1)
+        });
         db.Students.Add(new Student
         {
             Id = 30, TenantId = 101, PersonId = 1, StudentCode = "OLD",
@@ -233,7 +294,12 @@ public sealed class StudentImportPreviewServiceTests
 
     private static StudentImportPreviewService Service(EduOSDbContext db, ICurrentUserService user) => new(
         new GenericRepository<Student>(db), new GenericRepository<StudentEnrollment>(db),
-        new GenericRepository<AcademicBatch>(db), new GenericRepository<Campus>(db),
+        new GenericRepository<AcademicBatch>(db),
+        new GenericRepository<AcademicCurriculum>(db),
+        new GenericRepository<CurriculumSubject>(db),
+        new GenericRepository<SubjectOffering>(db),
+        new GenericRepository<StudentSubjectRegistration>(db),
+        new GenericRepository<Campus>(db),
         new GenericRepository<ImportLog>(db), new GenericRepository<ImportLogItem>(db),
         user, NullLogger<StudentImportPreviewService>.Instance);
 
