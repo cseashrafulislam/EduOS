@@ -1,0 +1,60 @@
+@{
+    ViewData["Title"] = "Payroll Payment Reconciliation";
+}
+<section class="container-fluid py-3" id="payrollReconciliation">
+    <header class="d-flex align-items-start justify-content-between gap-2 flex-wrap mb-3">
+        <h2 class="h4 mb-0">Payroll Payment Reconciliation</h2>
+        <div class="d-flex gap-2">
+            <a class="btn btn-sm btn-outline-secondary" href="/PayrollOperations/Index">Payroll</a>
+            <details class="position-relative">
+                <summary class="btn btn-sm btn-outline-secondary" title="Page help" aria-label="Reconciliation help">ⓘ</summary>
+                <div class="card card-body shadow-sm position-absolute end-0 mt-1" style="width:min(330px,85vw);z-index:10">
+                    Verified paid requires a valid posted settlement journal, not just a successful payment flag. Pending requests remain outstanding. NeedsReview identifies missing, reversed or inconsistent GL evidence. CSV is limited to 250 employees.
+                </div>
+            </details>
+        </div>
+    </header>
+    <div id="payrollReconNotice" class="alert d-none" role="alert" tabindex="-1" aria-live="polite"></div>
+    <form id="payrollReconFilter" class="card card-body mb-3">
+        <div class="row g-2 align-items-end">
+            <div class="col-md-2"><label class="form-label" for="payrollReconYear">Year</label>
+                <input class="form-control" id="payrollReconYear" type="number" min="2000" max="2200" required /></div>
+            <div class="col-md-3"><label class="form-label" for="payrollReconMonth">Month</label>
+                <select id="payrollReconMonth" class="form-select" required>
+                    @for (var m = 1; m <= 12; m++) {
+                        <option value="@m">@System.Globalization.CultureInfo.InvariantCulture.DateTimeFormat.GetMonthName(m)</option>
+                    }
+                </select></div>
+            <div class="col-md-3"><label class="form-label" for="payrollReconCampus">Campus</label>
+                <select id="payrollReconCampus" class="form-select"><option value="">All campuses</option></select></div>
+            <div class="col-md-4 d-flex flex-wrap gap-2">
+                <button type="submit" class="btn btn-primary">Load report</button>
+                <button type="button" id="payrollReconExport" class="btn btn-outline-primary">CSV</button>
+                <button type="button" id="payrollReconPrint" class="btn btn-outline-secondary">Print</button>
+            </div>
+        </div>
+    </form>
+    <div class="card card-body">
+        <div class="table-responsive"><table class="table table-sm table-hover align-middle">
+            <thead><tr><th>Payroll run</th><th>Employee</th><th>Campus</th>
+                <th class="text-end">Net payable</th><th class="text-end">Verified paid</th>
+                <th class="text-end">Pending</th><th class="text-end">Outstanding</th>
+                <th>Accrual</th><th>Settlement</th></tr></thead>
+            <tbody id="payrollReconRows"><tr><td colspan="9">Loading…</td></tr></tbody>
+            <tfoot><tr><th colspan="3">Current page totals</th>
+                <th class="text-end" id="payrollReconTotalNet">—</th>
+                <th class="text-end" id="payrollReconTotalPaid">—</th>
+                <th class="text-end" id="payrollReconTotalPending">—</th>
+                <th class="text-end" id="payrollReconTotalDue">—</th>
+                <th colspan="2"></th></tr></tfoot>
+        </table></div>
+        <div class="d-flex justify-content-between align-items-center">
+            <button type="button" id="payrollReconPrev" class="btn btn-sm btn-outline-secondary">Previous</button>
+            <span id="payrollReconPage" aria-live="polite"></span>
+            <button type="button" id="payrollReconNext" class="btn btn-sm btn-outline-secondary">Next</button>
+        </div>
+    </div>
+</section>
+@section Scripts {
+    <script src="~/js/payroll/reconciliation.js" asp-append-version="true"></script>
+}
