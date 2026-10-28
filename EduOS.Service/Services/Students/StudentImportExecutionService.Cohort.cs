@@ -64,7 +64,7 @@ public sealed partial class StudentImportExecutionService
                     x.CompletedAt.HasValue && logIds.Contains(x.Id))
                 .Select(x => new { x.Id, x.TotalRows, x.SuccessRows, x.FailedRows })
                 .ToListAsync(cancellationToken))
-                .ToDictionary(x => x.Id, x => (x.TotalRows, x.SuccessRows, x.FailedRows));
+                .ToDictionary(x => x.Id, x => (Total: x.TotalRows, Success: x.SuccessRows, Failed: x.FailedRows));
         var keyTargets = keys.ToDictionary(x => x.RequestId, x => x.TargetId!.Value);
 
         var result = new StudentImportCohortStatusDto { ExpectedRows = (int)expectedRows };
