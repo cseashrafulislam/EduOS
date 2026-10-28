@@ -162,6 +162,9 @@ public sealed class HrPayrollService : IPayrollAdministrationService
             x.IsActive && !x.IsDeleted).ToListAsync(ct);
         if (components.Count != request.Lines.Count)
             return Error<SalaryStructureDto>("One or more salary components are inactive.", 409);
+        if (components.Any(x => x.Code == "BONUS" || x.Code == "LOAN_RECOVERY"))
+            return Error<SalaryStructureDto>(
+                "BONUS and LOAN_RECOVERY are transaction-derived components; do not add them as fixed salary.", 409);
         if (request.Lines.Any(x => decimal.Round(x.Amount, 2) != x.Amount))
             return Error<SalaryStructureDto>("Salary component amounts must have at most two decimal places.", 409);
         var componentTypeById = components.ToDictionary(x => x.Id, x => x.Type);
@@ -381,8 +384,13 @@ public sealed class HrPayrollService : IPayrollAdministrationService
                     return Error<PayrollRunDto>("No employees are eligible for this payroll period.", 409);
                 var ids = employees.Select(x => x.Id).ToArray();
                 var structures = await _structures.GetQueryable().AsNoTracking().Where(x =>
-                    x.TenantId == tenant && ids.Contains(x.EmployeeId) && !x.IsDeleted)
-                    .ToListAsync(token);
+                    x.TenantId == tenant && ids.Contains(x.EmployeeId) && !x.IsDeleted &&
+                    x.EffectiveFrom <= lastDay &&
+                    (!x.EffectiveTo.HasValue || x.EffectiveTo >= firstDay))
+                    .OrderBy(x => x.EmployeeId).ThenByDescending(x => x.EffectiveFrom)
+                    .Take(10001).ToListAsync(token);
+                if (structures.Count > 10000)
+                    return Error<PayrollRunDto>("Salary history exceeds safe calculation bounds.", 409);
                 structures = structures.Where(x =>
                     employees.Any(e => e.Id == x.EmployeeId &&
                         x.EffectiveFrom <= (e.JoiningDate > firstDay ? e.JoiningDate : firstDay) &&
@@ -402,8 +410,11 @@ public sealed class HrPayrollService : IPayrollAdministrationService
                     .ToDictionaryAsync(x => x.Id, token);
                 if (comps.Count != componentIds.Length || salaryLines.Any(x =>
                     x.CalculationMethodCode != "Fixed" || x.Percentage.HasValue ||
-                    x.BasedOnSalaryComponentId.HasValue || x.Amount < 0))
-                    return Error<PayrollRunDto>("Salary calculation method is unsupported or component is missing.", 409);
+                    x.BasedOnSalaryComponentId.HasValue || x.Amount < 0 ||
+                    comps.TryGetValue(x.SalaryComponentId, out var component) &&
+                        (component.Code == "BONUS" || component.Code == "LOAN_RECOVERY")))
+                    return Error<PayrollRunDto>(
+                        "Invalid or transaction-derived fixed salary component; reconcile the salary structure.", 409);
                 var bonuses = await _bonuses.GetQueryable().AsNoTracking().Where(x =>
                     x.TenantId == tenant && ids.Contains(x.EmployeeId) &&
                     x.BonusDate >= firstDay && x.BonusDate <= lastDay && !x.IsDeleted)
