@@ -6,7 +6,7 @@
     const token = document.querySelector('#examWorkflow input[name="__RequestVerificationToken"]')?.value || '';
     const state = { history: null, historyPage: 1, historySize: 20, tabulation: null,
         tabulationPage: 1, tabulationSize: 50, integrity: null, integrityPage: 1,
-        integritySize: 25, busy: false };
+        integritySize: 25, comparison: null, comparisonPage: 1, comparisonSize: 25, busy: false };
     const cell = value => {
         const td = document.createElement('td');
         td.textContent = value == null ? '—' : String(value);
@@ -61,8 +61,10 @@
         const row = selectedVersion();
         clearTabulation();
         clearIntegrity();
+        clearComparison();
         el('examIntegrityLoad').disabled = !finalized(row);
         el('examTabulationLoad').disabled = !finalized(row) || !reconciled(row);
+        el('examComparisonLoad').disabled = !finalized(row) || !reconciled(row) || row.versionNo <= 1;
         el('examHistoryWithdraw').disabled = !published(row);
         el('examHistoryDetails').textContent = row
             ? 'Version ' + row.versionNo + ' · ' + stateLabel(row) +
@@ -280,6 +282,110 @@
         setTimeout(() => URL.revokeObjectURL(url), 1000);
     }
 
+    function clearComparison() {
+        state.comparison = null;
+        state.comparisonPage = 1;
+        const tr = document.createElement('tr'), td = cell('Select a finalized version to compare.');
+        td.colSpan = 12; td.className = 'text-center text-muted p-3'; tr.append(td);
+        el('examComparisonRows').replaceChildren(tr);
+        el('examComparisonInfo').textContent = 'Select a finalized version.';
+        for (const id of ['examComparisonCsv', 'examComparisonPrint', 'examComparisonPrev',
+            'examComparisonNext']) el(id).disabled = true;
+    }
+    async function loadComparison(page) {
+        if (state.busy || page < 1) return;
+        const version = selectedVersion();
+        if (!finalized(version) || !reconciled(version) || version.versionNo <= 1) {
+            notify('Select a reconciled finalized version with an earlier version.', true);
+            return;
+        }
+        state.busy = true;
+        el('examComparisonLoad').disabled = true;
+        try {
+            const params = new URLSearchParams({
+                publicationId: String(version.id), page: String(page),
+                pageSize: String(state.comparisonSize),
+                search: el('examComparisonSearch').value.trim(),
+                changesOnly: String(el('examComparisonChangedOnly').checked)
+            });
+            const data = await api('/api/assessment-administration/results/publications/compare?' + params);
+            state.comparison = data; state.comparisonPage = data.page;
+            const tbody = el('examComparisonRows');
+            tbody.replaceChildren();
+            const resultText = (passed, withheld) => withheld == null ? '—' :
+                withheld ? 'Withheld' : passed ? 'Passed' : 'Not passed';
+            for (const row of data.items || []) {
+                const tr = document.createElement('tr');
+                tr.append(cell(row.rollNo), cell(row.studentCode), cell(row.studentName),
+                    cell(row.change), cell(row.beforeObtainedMarks), cell(row.afterObtainedMarks),
+                    cell(row.beforeGpa), cell(row.afterGpa), cell(row.beforeGrade),
+                    cell(row.afterGrade), cell(resultText(row.beforePassed, row.beforeWithheld)),
+                    cell(resultText(row.afterPassed, row.afterWithheld)));
+                tbody.append(tr);
+            }
+            if (!data.items?.length) {
+                const tr = document.createElement('tr'), td = cell('No matching version differences.');
+                td.colSpan = 12; td.className = 'text-center text-muted p-3'; tr.append(td);
+                tbody.append(tr);
+            }
+            const first = data.totalCount ? (data.page - 1) * data.pageSize + 1 : 0;
+            const last = Math.min(data.page * data.pageSize, data.totalCount);
+            el('examComparisonInfo').textContent = 'Version ' + data.baselineVersionNo +
+                ' → ' + data.versionNo + ' · ' + first + '–' + last + ' of ' +
+                data.totalCount + ' rows · page-only export';
+            el('examComparisonPrev').disabled = data.page <= 1;
+            el('examComparisonNext').disabled = data.page * data.pageSize >= data.totalCount;
+            el('examComparisonCsv').disabled = !data.items?.length;
+            el('examComparisonPrint').disabled = !data.items?.length;
+        } catch (error) {
+            clearComparison();
+            notify(error.message, true);
+        } finally {
+            state.busy = false;
+            const selected = selectedVersion();
+            el('examComparisonLoad').disabled = !finalized(selected) ||
+                !reconciled(selected) || selected.versionNo <= 1;
+        }
+    }
+    function exportComparison() {
+        const data = state.comparison;
+        if (!data?.items?.length) return;
+        const safe = value => /^[=+@\-\t\r]/.test(String(value ?? '')) ? "'" + String(value) : value;
+        const quote = value => '"' + String(safe(value) ?? '').replace(/"/g, '""') + '"';
+        const rows = [['Baseline version', 'Target version', 'Roll', 'Student code', 'Student',
+            'Change', 'Marks before', 'Marks after', 'GPA before', 'GPA after',
+            'Grade before', 'Grade after', 'Passed before', 'Passed after',
+            'Withheld before', 'Withheld after'],
+            ...data.items.map(row => [data.baselineVersionNo, data.versionNo,
+                row.rollNo, row.studentCode, row.studentName, row.change,
+                row.beforeObtainedMarks, row.afterObtainedMarks, row.beforeGpa, row.afterGpa,
+                row.beforeGrade, row.afterGrade, row.beforePassed, row.afterPassed,
+                row.beforeWithheld, row.afterWithheld])];
+        const csv = rows.map(row => row.map(quote).join(',')).join('\r\n');
+        const url = URL.createObjectURL(new Blob(['\uFEFF' + csv],
+            { type: 'text/csv;charset=utf-8' }));
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = 'comparison-' + data.baselinePublicationId + '-' + data.publicationId +
+            '-page-' + data.page + '.csv';
+        document.body.append(link); link.click(); link.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+    }
+    function printComparison() {
+        if (!state.comparison?.items?.length) return;
+        document.body.classList.add('exam-comparison-print');
+        window.addEventListener('afterprint', () =>
+            document.body.classList.remove('exam-comparison-print'), { once: true });
+        window.print();
+    }
+
+    el('examComparisonFilters').addEventListener('submit', event => { event.preventDefault(); loadComparison(1); });
+    el('examComparisonPrev').addEventListener('click', () => loadComparison(state.comparisonPage - 1));
+    el('examComparisonNext').addEventListener('click', () => loadComparison(state.comparisonPage + 1));
+    el('examComparisonCsv').addEventListener('click', exportComparison);
+    el('examComparisonPrint').addEventListener('click', printComparison);
+    el('examComparisonChangedOnly').addEventListener('change', clearComparison);
+    el('examComparisonSearch').addEventListener('input', clearComparison);
     el('examHistoryFilters').addEventListener('submit', event => { event.preventDefault(); loadHistory(1); });
     el('examHistoryPrev').addEventListener('click', () => loadHistory(state.historyPage - 1));
     el('examHistoryNext').addEventListener('click', () => loadHistory(state.historyPage + 1));
