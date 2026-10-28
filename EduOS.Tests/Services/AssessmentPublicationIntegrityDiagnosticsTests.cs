@@ -31,7 +31,14 @@ public sealed class AssessmentPublicationIntegrityDiagnosticsTests
         Assert.Contains(".Skip(skip).Take(request.PageSize)", source);
         Assert.DoesNotContain("_summaries.Update(", source);
         Assert.DoesNotContain("_summaries.AddAsync(", source);
-        Assert.DoesNotContain("IgnoreQueryFilters()", source);
+        Assert.Contains("AsNoTracking().IgnoreQueryFilters().Where(x =>", source);
+        Assert.Contains("x.TenantId == tenant && x.ResultPublicationId == publication.Id", source);
+        Assert.Contains("Historical result integrity inspection tenant", source);
+        var evidence = Read("EduOS.Service/Services/Assessment/AssessmentAdministrationService.PublicationIntegrity.cs");
+        Assert.Contains("AsNoTracking().IgnoreQueryFilters()", evidence);
+        Assert.Contains("x.TenantId == tenant && publicationIds.Contains(x.ResultPublicationId)", evidence);
+        var readback = Read("EduOS.Service/Services/Assessment/AssessmentAdministrationService.cs");
+        Assert.Contains("GetPublicationEvidenceAsync([publication.Id]", readback);
     }
 
     private static bool Valid(object request) =>
