@@ -531,6 +531,45 @@ public sealed class StudentImportExecutionServiceTests
         Assert.Single(await db.Students.ToListAsync());
     }
 
+    [Fact]
+    public async Task Cohort_preflight_reconciles_existing_tenant_source_keys_and_student_codes_without_disclosure()
+    {
+        var options = Options(); await SeedAsync(options);
+        await using var db = Context(options, 101);
+        var service = Service(db, new User(101, true));
+        using (var original = Csv(Header + "SOURCE-OLD,CODE-OLD,Existing Learner,10,20,1,,\n"))
+            Assert.True((await service.ExecuteAsync(original, ".csv", Mapping, Guid.NewGuid())).Success);
+
+        var files = new[]
+        {
+            new EduOS.Core.DTOs.Students.StudentImportCohortUploadDto
+            {
+                Extension = ".csv", Content = Encoding.UTF8.GetBytes(
+                    Header + "source-old,CODE-NEW,First,10,20,2,,\n")
+            },
+            new EduOS.Core.DTOs.Students.StudentImportCohortUploadDto
+            {
+                Extension = ".csv", Content = Encoding.UTF8.GetBytes(
+                    Header + "SOURCE-NEW,code-old,Second,10,20,3,,\n")
+            }
+        };
+        var report = await service.PreflightCohortAsync(files, Mapping);
+        Assert.True(report.Success, report.Message);
+        Assert.Contains(report.Data!.Issues, x => x.FileNumber == 1 &&
+            x.Field == "SourceKey" && x.RowNumber == 2);
+        Assert.Contains(report.Data.Issues, x => x.FileNumber == 2 &&
+            x.Field == "StudentCode" && x.RowNumber == 2);
+        Assert.DoesNotContain(report.Data.Issues, x => x.Message.Contains("Existing Learner"));
+        Assert.Single(await db.Students.ToListAsync());
+        Assert.Single(await db.ImportLogs.ToListAsync());
+
+        await using var foreign = Context(options, 202);
+        var isolated = await Service(foreign, new User(202, true)).PreflightCohortAsync(files, Mapping);
+        Assert.True(isolated.Success, isolated.Message);
+        Assert.DoesNotContain(isolated.Data!.Issues,
+            x => x.Field == "SourceKey" || x.Field == "StudentCode");
+    }
+
     private sealed class InMemoryUow(EduOSDbContext db) : IUnitOfWork
     {
         public Task<int> SaveChangesAsync(CancellationToken token = default) => db.SaveChangesAsync(token);

@@ -139,6 +139,50 @@ public sealed partial class StudentImportExecutionService
                 .GroupBy(x => x.AcademicBatchId)
                 .Select(x => new { BatchId = x.Key, Count = x.Count() })
                 .ToDictionaryAsync(x => x.BatchId, x => x.Count, cancellationToken);
+            // Reconcile committed source identities without a global Person lookup.
+            // Bounded, tenant-indexed SQL lookups; no private identity values in errors.
+            var committedSources = new HashSet<Guid>();
+            foreach (var chunk in cohortRows.Select(x => x.Row.SourceKey)
+                .Where(x => !string.IsNullOrWhiteSpace(x))
+                .Select(SourceId).Distinct().Chunk(400))
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                var found = await _keys.GetQueryable().AsNoTracking()
+                    .Where(x => x.TenantId == tenant && x.Scope == SourceScope &&
+                        !x.IsDeleted && chunk.Contains(x.RequestId))
+                    .Select(x => x.RequestId).ToListAsync(cancellationToken);
+                committedSources.UnionWith(found);
+            }
+            var committedCodes = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var chunk in cohortRows.Select(x => x.Row.StudentCode)
+                .Where(x => !string.IsNullOrWhiteSpace(x) && x.Length <= 50)
+                .Distinct(StringComparer.OrdinalIgnoreCase).Chunk(400))
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                var found = await _students.GetQueryable().AsNoTracking()
+                    .Where(x => x.TenantId == tenant && !x.IsDeleted && chunk.Contains(x.StudentCode))
+                    .Select(x => x.StudentCode).ToListAsync(cancellationToken);
+                committedCodes.UnionWith(found);
+            }
+            foreach (var (fileNumber, row) in cohortRows)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                if (!string.IsNullOrWhiteSpace(row.SourceKey) &&
+                    committedSources.Contains(SourceId(row.SourceKey)))
+                    result.Issues.Add(new StudentImportCohortConflictDto
+                    {
+                        FileNumber = fileNumber, RowNumber = row.RowNumber, Field = "SourceKey",
+                        Message = "Source key was already committed by this institution."
+                    });
+                if (!string.IsNullOrWhiteSpace(row.StudentCode) &&
+                    committedCodes.Contains(row.StudentCode))
+                    result.Issues.Add(new StudentImportCohortConflictDto
+                    {
+                        FileNumber = fileNumber, RowNumber = row.RowNumber, Field = "StudentCode",
+                        Message = "Student code already exists in this institution."
+                    });
+            }
+
             var planned = new Dictionary<long, int>();
             foreach (var (fileNumber, row) in cohortRows)
             {
