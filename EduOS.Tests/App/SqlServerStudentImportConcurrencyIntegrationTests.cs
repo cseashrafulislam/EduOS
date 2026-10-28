@@ -334,7 +334,7 @@ public sealed class SqlServerStudentImportConcurrencyIntegrationTests
             TargetAcademicYearId = promotionOptions.Targets.Single(x => x.AcademicBatchId == targetBatchId).AcademicYearId,
             TargetAcademicLevelId = promotionOptions.Targets.Single(x => x.AcademicBatchId == targetBatchId).AcademicLevelId,
             TargetAcademicBatchId = targetBatchId,
-            Decision = EduOS.Core.Enums.StudentProgressionDecisionType.Repeated,
+            Decision = StudentProgressionDecisionType.Repeated,
             TargetRoll = "02", StudentRowVersion = promotionOptions.StudentRowVersion,
             SourceEnrollmentRowVersion = promotionOptions.SourceEnrollmentRowVersion
         };
