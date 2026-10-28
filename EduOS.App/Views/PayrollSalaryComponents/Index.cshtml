@@ -1,0 +1,57 @@
+@{
+    ViewData["Title"] = "Salary Components";
+}
+<section id="payrollComponents" class="container-fluid py-3">
+    <header class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-3">
+        <h2 class="h4 mb-0">Salary Components</h2>
+        <div class="d-flex gap-2 align-items-start">
+            <a class="btn btn-sm btn-outline-secondary" href="/PayrollSalaryStructures/Index">Salary structures</a>
+            <a class="btn btn-sm btn-outline-secondary" href="/PayrollOperations/Index">Payroll</a>
+            <details class="position-relative">
+                <summary class="btn btn-sm btn-outline-secondary" title="Page help" aria-label="Salary component help">ⓘ</summary>
+                <div class="card card-body shadow-sm position-absolute end-0 mt-1" style="width:min(320px,85vw);z-index:10">
+                    Components define earnings, deductions and employer contributions. Used components cannot change type. Configure BONUS as an earning and LOAN_RECOVERY as a deduction when using those payroll functions.
+                </div>
+            </details>
+        </div>
+    </header>
+    @Html.AntiForgeryToken()
+    <div id="componentNotice" class="alert d-none" role="alert" aria-live="polite" tabindex="-1"></div>
+    <section class="card mb-3"><div class="card-body">
+        <h3 class="h6 mb-3" id="componentFormTitle">New salary component</h3>
+        <form id="componentForm">
+            <div class="row g-2">
+                <div class="col-md-4"><label class="form-label" for="componentCode">Code *</label><input class="form-control" id="componentCode" maxlength="50" required /></div>
+                <div class="col-md-4"><label class="form-label" for="componentName">Name *</label><input class="form-control" id="componentName" maxlength="100" required /></div>
+                <div class="col-md-4"><label class="form-label" for="componentType">Type *</label>
+                    <select class="form-select" id="componentType" required>
+                        <option value="1">Earning</option><option value="2">Deduction</option><option value="3">Employer contribution</option>
+                    </select>
+                </div>
+                <div class="col-md-3"><label class="form-check-label"><input id="componentTaxable" type="checkbox" class="form-check-input me-2" />Taxable</label></div>
+                <div class="col-md-3"><label class="form-check-label"><input id="componentActive" type="checkbox" class="form-check-input me-2" checked />Active</label></div>
+            </div>
+            <div class="d-flex gap-2 mt-3">
+                <button id="componentSave" type="submit" class="btn btn-primary">Save component</button>
+                <button id="componentClear" type="button" class="btn btn-outline-secondary">New / clear</button>
+            </div>
+        </form>
+    </div></section>
+    <section class="card"><div class="card-body">
+        <div class="d-flex gap-2 align-items-center justify-content-between flex-wrap">
+            <h3 class="h6 mb-0">Component register</h3>
+            <div class="d-flex gap-2"><label class="visually-hidden" for="componentFilter">Search</label>
+                <input type="search" id="componentFilter" class="form-control form-control-sm" placeholder="Code or name" maxlength="100" />
+                <button id="componentRefresh" type="button" class="btn btn-sm btn-outline-primary">Refresh</button>
+            </div>
+        </div>
+        <div class="table-responsive mt-3"><table class="table table-sm table-hover align-middle">
+            <thead><tr><th>Code</th><th>Name</th><th>Type</th><th>Taxable</th><th>Status</th><th>Action</th></tr></thead>
+            <tbody id="componentRows"><tr><td colspan="6">Loading…</td></tr></tbody>
+        </table></div>
+        <p class="small text-muted mb-0" id="componentCount" aria-live="polite"></p>
+    </div></section>
+</section>
+@section Scripts {
+    <script src="~/js/payroll/salary-components.js" asp-append-version="true"></script>
+}
