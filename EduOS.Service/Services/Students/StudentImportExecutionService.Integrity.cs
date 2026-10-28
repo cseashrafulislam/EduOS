@@ -56,6 +56,12 @@ public sealed partial class StudentImportExecutionService
             .Where(x => x.TenantId == tenant && !x.IsDeleted && studentIds.Contains(x.Id))
             .Select(x => new { x.Id, x.PersonId })
             .ToDictionaryAsync(x => x.Id, cancellationToken);
+        // The global Person is read only by IDs already proven to belong to
+        // this tenant's students; never enumerate platform identities.
+        var personIds = students.Values.Select(x => x.PersonId).Distinct().ToArray();
+        var existingPersons = (await _persons.GetQueryable().AsNoTracking()
+            .Where(x => !x.IsDeleted && personIds.Contains(x.Id))
+            .Select(x => x.Id).ToListAsync(cancellationToken)).ToHashSet();
         var links = await _links.GetQueryable().AsNoTracking()
             .Where(x => x.TenantId == tenant && !x.IsDeleted && x.IsPrimary &&
                 studentIds.Contains(x.StudentId))
@@ -73,6 +79,7 @@ public sealed partial class StudentImportExecutionService
             ExpectedRows = log.TotalRows,
             CheckedRows = items.Count
         };
+        var seenStudentTargets = new HashSet<long>();
         void Issue(int row, string code, string message) =>
             report.Issues.Add(new StudentImportIntegrityIssueDto
             {
@@ -93,7 +100,17 @@ public sealed partial class StudentImportExecutionService
                 Issue(item.RowNumber, "MissingStudent", "Tenant-owned student record is unavailable.");
             else
             {
-                if (!linksByStudent[student.Id].Any(x => x.PersonId == student.PersonId))
+                if (!seenStudentTargets.Add(student.Id))
+                    Issue(item.RowNumber, "DuplicateStudentTarget",
+                        "Multiple committed source rows resolve to one student record.");
+                if (!existingPersons.Contains(student.PersonId))
+                    Issue(item.RowNumber, "MissingPersonIdentity",
+                        "Linked learner identity is unavailable.");
+                var primaryLinks = linksByStudent[student.Id].ToArray();
+                if (primaryLinks.Length != 1)
+                    Issue(item.RowNumber, "AmbiguousPrimaryLink",
+                        "Student must have exactly one active primary identity link.");
+                if (!primaryLinks.Any(x => x.PersonId == student.PersonId))
                     Issue(item.RowNumber, "PersonLinkMismatch", "Primary learner identity link is unavailable.");
                 if (!enrolled.Contains(student.Id))
                     Issue(item.RowNumber, "MissingEnrollment", "Student enrollment history is unavailable.");

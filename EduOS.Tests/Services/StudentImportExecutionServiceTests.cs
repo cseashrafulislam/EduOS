@@ -839,6 +839,51 @@ public sealed class StudentImportExecutionServiceTests
         Assert.Equal(400, (await service.GetIntegrityAsync(Guid.Empty)).StatusCode);
     }
 
+    [Fact]
+    public async Task Committed_integrity_audit_flags_duplicate_targets_and_deleted_person_without_private_details()
+    {
+        var options = Options(); await SeedAsync(options);
+        await using var db = Context(options, 101);
+        var service = Service(db, new User(101, true));
+        using var csv = Csv(Header +
+            "CHECK-1,STU-CHECK-1,Private First,10,20,31,,\n" +
+            "CHECK-2,STU-CHECK-2,Private Second,10,20,32,,\n");
+        var imported = await service.ExecuteAsync(csv, ".csv", Mapping, Guid.NewGuid());
+        Assert.True(imported.Success, imported.Message);
+        var reference = imported.Data!.ImportReference;
+        Assert.True((await service.GetIntegrityAsync(reference)).Data!.IsHealthy);
+
+        var keys = await db.IdempotencyRecords.Where(x =>
+            x.Scope == "StudentImportSource").OrderBy(x => x.Id).ToListAsync();
+        Assert.Equal(2, keys.Count);
+        var originalTarget = keys[1].TargetId;
+        keys[1].TargetId = keys[0].TargetId;
+        await db.SaveChangesAsync();
+        var duplicate = await service.GetIntegrityAsync(reference);
+        Assert.True(duplicate.Success, duplicate.Message);
+        Assert.False(duplicate.Data!.IsHealthy);
+        Assert.Contains(duplicate.Data.Issues, x => x.Code == "DuplicateStudentTarget");
+        Assert.DoesNotContain("Private", string.Join(" ", duplicate.Data.Issues.Select(x => x.Message)));
+        Assert.DoesNotContain("CHECK-", string.Join(" ", duplicate.Data.Issues.Select(x => x.Message)));
+
+        keys[1].TargetId = originalTarget;
+        var student = await db.Students.SingleAsync(x => x.Id == originalTarget);
+        var person = await db.Persons.SingleAsync(x => x.Id == student.PersonId);
+        person.IsDeleted = true;
+        await db.SaveChangesAsync();
+        var missing = await service.GetIntegrityAsync(reference);
+        Assert.True(missing.Success, missing.Message);
+        Assert.False(missing.Data!.IsHealthy);
+        Assert.Contains(missing.Data.Issues, x => x.Code == "MissingPersonIdentity");
+        Assert.Equal(2, await db.Students.CountAsync());
+
+        await using var foreign = Context(options, 202);
+        Assert.Equal(404, (await Service(foreign, new User(202, true))
+            .GetIntegrityAsync(reference)).StatusCode);
+        Assert.Equal(403, (await Service(db, new User(101, false))
+            .GetIntegrityAsync(reference)).StatusCode);
+    }
+
     private sealed class CountingUow(EduOSDbContext db) : IUnitOfWork
     {
         public int SaveCount { get; private set; }
