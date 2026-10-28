@@ -113,6 +113,7 @@
             button.type = 'button';
             button.addEventListener('click', () => {
                 state.selected = member; state.historyPage = 1; state.historyTotal = 0;
+                $('memberHistoryChangeFilter').value = 'all';
                 $('memberHistoryPanel').classList.add('d-none');
                 renderMemberEditor(); loadMemberCampuses(member);
             });
@@ -174,17 +175,20 @@
 
     async function loadMemberHistory(memberId) {
         const page = state.historyPage;
+        const change = $('memberHistoryChangeFilter').value;
         const body = $('memberHistoryRows');
         body.replaceChildren();
         const loading = document.createElement('tr');
         const loadingCell = textNode('td', t('Loading history...', 'ইতিহাস লোড হচ্ছে…'));
         loadingCell.colSpan = 5; loading.append(loadingCell); body.append(loading);
-        const result = await request('/' + memberId + '/access-history?page=' + page + '&pageSize=10');
-        if (state.selected?.membershipId !== memberId || state.historyPage !== page) return;
+        const result = await request('/' + memberId + '/access-history?page=' + page + '&pageSize=10&change=' + encodeURIComponent(change));
+        if (state.selected?.membershipId !== memberId || state.historyPage !== page ||
+            $('memberHistoryChangeFilter').value !== change) return;
         state.historyTotal = result.totalCount || 0;
         body.replaceChildren();
         const names = { TenantMemberRolesChanged: t('Roles', 'ভূমিকা'), TenantMemberCampusesChanged: t('Campuses', 'ক্যাম্পাস'),
-            TenantMemberStatusChanged: t('Membership status', 'সদস্যপদের অবস্থা') };
+            TenantMemberStatusChanged: t('Membership status', 'সদস্যপদের অবস্থা'),
+            TenantMemberPermissionOverrideChanged: t('Permission exception', 'অনুমতির ব্যতিক্রম') };
         for (const item of result.items || []) {
             const tr = document.createElement('tr');
             const when = item.occurredAt ? new Date(item.occurredAt).toLocaleString() : 'Unknown';
@@ -236,10 +240,11 @@
     async function exportMemberHistory() {
         const memberId = state.selected?.membershipId;
         if (!memberId) return;
+        const change = $('memberHistoryChangeFilter').value;
         const button = $('memberHistoryExport');
         button.disabled = true;
         try {
-            const response = await fetch(endpoint + '/' + memberId + '/access-history/export', {
+            const response = await fetch(endpoint + '/' + memberId + '/access-history/export?change=' + encodeURIComponent(change), {
                 credentials: 'same-origin', cache: 'no-store', headers: { Accept: 'text/csv' }
             });
             if (!response.ok) {
@@ -247,7 +252,7 @@
                 throw new Error(error?.message || t('Unable to export access history.', 'ইতিহাস ডাউনলোড করা যায়নি।'));
             }
             const blob = await response.blob();
-            if (state.selected?.membershipId !== memberId) return;
+            if (state.selected?.membershipId !== memberId || $('memberHistoryChangeFilter').value !== change) return;
             const url = URL.createObjectURL(blob);
             const link = document.createElement('a');
             link.href = url;
@@ -265,6 +270,10 @@
     $('memberHistoryExport').addEventListener('click', exportMemberHistory);
 
     $('memberHistoryButton').addEventListener('click', showMemberHistory);
+    $('memberHistoryChangeFilter').addEventListener('change', () => {
+        state.historyPage = 1;
+        if (!$('memberHistoryPanel').classList.contains('d-none')) showMemberHistory();
+    });
     $('memberHistoryPrev').addEventListener('click', () => {
         if (state.historyPage > 1) { state.historyPage--; showMemberHistory(); }
     });

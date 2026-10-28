@@ -15,7 +15,10 @@ test('member access history export uses the authorized bounded tenant-scoped ser
     assert.match(service, /\.Take\(1001\)/);
     assert.match(service, /rows\.Count > 1000/);
     assert.match(service, /HistoryCsvCell\(row\.OldValue\)/);
-    assert.doesNotMatch(service, /IgnoreQueryFilters\(/);
+    assert.match(service, /UserPermissions\.IgnoreQueryFilters\(\)/);
+    assert.match(service, /permission\.TenantId == TenantId/);
+    assert.match(service, /permission\.UserId == memberUserId/);
+    assert.match(service, /ValidHistoryChange\(change\)/);
     assert.match(contract, /ExportMemberAccessHistoryCsvAsync/);
     assert.match(api, /HttpGet\("\{membershipId:long\}\/access-history\/export"\)/);
     assert.match(api, /ExportMemberAccessHistoryCsvAsync/);
@@ -32,4 +35,21 @@ test('member access history export is selected-member-bound and safely rendered'
     assert.match(js, /URL\.revokeObjectURL/);
     assert.match(js, /textNode\('td', value/);
     assert.doesNotMatch(js, /innerHTML\s*=/);
+});
+
+test('permission exception lineage includes legacy rows and scoped filter in read and export', () => {
+    const service = read('EduOS.Service/Services/Auth/TenantUserAdministrationService.AccessHistory.cs');
+    const mutation = read('EduOS.Service/Services/Auth/TenantUserAdministrationService.PermissionOverrides.cs');
+    const api = read('EduOS.App/Controllers/Api/TenantUsersController.cs');
+    const js = read('EduOS.App/wwwroot/js/tenant-users/index.js');
+    const view = read('EduOS.App/Views/TenantUsers/Index.cshtml');
+    assert.match(mutation, /EntityName = nameof\(TenantMembership\), EntityId = membershipId/);
+    assert.match(mutation, /PermissionCode = permission\.Code/);
+    assert.match(service, /"permissions" => history\.Where/);
+    assert.match(service, /x\.EntityName == nameof\(UserPermission\)/);
+    assert.match(api, /\[FromQuery\] string\? change = null/);
+    assert.match(js, /memberHistoryChangeFilter/);
+    assert.match(js, /encodeURIComponent\(change\)/);
+    assert.match(js, /TenantMemberPermissionOverrideChanged/);
+    assert.match(view, /value="permissions"/);
 });

@@ -99,16 +99,17 @@ public sealed class TenantUsersController(ITenantUserAdministrationService servi
 
     [HttpGet("{membershipId:long}/access-history")]
     public async Task<IActionResult> MemberAccessHistory(long membershipId, [FromQuery] int page = 1,
-        [FromQuery] int pageSize = 20, CancellationToken ct = default)
+        [FromQuery] int pageSize = 20, [FromQuery] string? change = null, CancellationToken ct = default)
     {
-        var r = await service.GetMemberAccessHistoryAsync(membershipId, page, pageSize, ct);
+        var r = await service.GetMemberAccessHistoryAsync(membershipId, page, pageSize, ct, change);
         return StatusCode(r.StatusCode, r);
     }
 
     [HttpGet("{membershipId:long}/access-history/export")]
-    public async Task<IActionResult> ExportMemberAccessHistory(long membershipId, CancellationToken ct)
+    public async Task<IActionResult> ExportMemberAccessHistory(long membershipId,
+        [FromQuery] string? change = null, CancellationToken ct = default)
     {
-        var result = await service.ExportMemberAccessHistoryCsvAsync(membershipId, ct);
+        var result = await service.ExportMemberAccessHistoryCsvAsync(membershipId, ct, change);
         if (!result.Success) return StatusCode(result.StatusCode, result);
         Response.Headers["X-Content-Type-Options"] = "nosniff";
         return File(Encoding.UTF8.GetBytes(result.Data ?? string.Empty),

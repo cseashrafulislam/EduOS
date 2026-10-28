@@ -99,7 +99,7 @@ public sealed partial class TenantUserAdministrationService
 
                 var now = DateTime.UtcNow;
                 var before = existing == null ? null : JsonSerializer.Serialize(new
-                { existing.IsAllowed, existing.Reason, existing.ExpiresAt });
+                { existing.PermissionId, existing.IsAllowed, existing.Reason, existing.ExpiresAt });
                 if (inherit)
                 {
                     existing!.IsDeleted = true;
@@ -131,10 +131,11 @@ public sealed partial class TenantUserAdministrationService
                 {
                     TenantId = TenantId, UserId = _current.UserId,
                     Action = "TenantMemberPermissionOverrideChanged",
-                    EntityName = nameof(UserPermission), EntityId = existing!.Id,
+                    EntityName = nameof(TenantMembership), EntityId = membershipId,
                     OldValue = before,
                     NewValue = JsonSerializer.Serialize(new
-                    { member.UserId, PermissionId = permissionId, request.Mode, Reason = reason, request.ExpiresAt }),
+                    { member.UserId, PermissionId = permissionId, PermissionCode = permission.Code,
+                        request.Mode, Reason = reason, request.ExpiresAt }),
                     OccurredAt = now
                 });
                 await _db.SaveChangesAsync(token);

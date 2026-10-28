@@ -312,6 +312,56 @@ public sealed class TenantUserAdministrationTests
         Assert.NotEmpty(action.GetCustomAttributes(typeof(Microsoft.AspNetCore.Mvc.HttpGetAttribute), true));
     }
 
+    [Fact]
+    public async Task Member_history_includes_current_and_soft_deleted_legacy_permission_audits_only_for_owned_member()
+    {
+        var access = ContextFor(100, isAdmin: true);
+        await using var db = access.Db;
+        db.Users.AddRange(
+            new ApplicationUser { Id = 210, FullName = "Staff A", Email = "a@example.test" },
+            new ApplicationUser { Id = 211, FullName = "Staff B", Email = "b@example.test" });
+        db.TenantMemberships.AddRange(
+            new TenantMembership { Id = 300, TenantId = 100, UserId = 210 },
+            new TenantMembership { Id = 301, TenantId = 100, UserId = 211 });
+        db.UserPermissions.AddRange(
+            new UserPermission { Id = 91, TenantId = 100, UserId = 210, PermissionId = 10, IsDeleted = true },
+            new UserPermission { Id = 92, TenantId = 100, UserId = 211, PermissionId = 10 });
+        db.AuditLogs.AddRange(
+            new AuditLog { Id = 1, TenantId = 100, EntityName = nameof(UserPermission), EntityId = 91,
+                Action = "TenantMemberPermissionOverrideChanged", NewValue = "Legacy permission" },
+            new AuditLog { Id = 2, TenantId = 100, EntityName = nameof(TenantMembership), EntityId = 300,
+                Action = "TenantMemberPermissionOverrideChanged", NewValue = "Current permission" },
+            new AuditLog { Id = 3, TenantId = 100, EntityName = nameof(UserPermission), EntityId = 92,
+                Action = "TenantMemberPermissionOverrideChanged", NewValue = "Other member" },
+            new AuditLog { Id = 4, TenantId = 200, EntityName = nameof(UserPermission), EntityId = 91,
+                Action = "TenantMemberPermissionOverrideChanged", NewValue = "Foreign institution" },
+            new AuditLog { Id = 5, TenantId = 100, EntityName = nameof(TenantMembership), EntityId = 300,
+                Action = "TenantMemberRolesChanged", NewValue = "Roles" });
+        await db.SaveChangesAsync();
+        db.ChangeTracker.Clear();
+
+        var service = Service(db, access.User, access.Email);
+        var all = await service.GetMemberAccessHistoryAsync(300, 1, 20);
+        Assert.True(all.Success, all.Message);
+        Assert.Equal(3, all.Data!.TotalCount);
+        var filtered = await service.GetMemberAccessHistoryAsync(300, 1, 20, change: "permissions");
+        Assert.True(filtered.Success, filtered.Message);
+        Assert.Equal(2, filtered.Data!.TotalCount);
+        Assert.All(filtered.Data.Items, x => Assert.Equal("TenantMemberPermissionOverrideChanged", x.Action));
+        var export = await service.ExportMemberAccessHistoryCsvAsync(300, change: "permissions");
+        Assert.True(export.Success, export.Message);
+        Assert.Contains("Legacy permission", export.Data);
+        Assert.Contains("Current permission", export.Data);
+        Assert.DoesNotContain("Other member", export.Data);
+        Assert.DoesNotContain("Foreign institution", export.Data);
+        Assert.DoesNotContain("Roles", export.Data);
+        Assert.Equal(400, (await service.GetMemberAccessHistoryAsync(300, 1, 20, change: "unknown")).StatusCode);
+        Assert.Equal(400, (await service.ExportMemberAccessHistoryCsvAsync(300, change: "unknown")).StatusCode);
+        Assert.Equal(404, (await service.ExportMemberAccessHistoryCsvAsync(999, change: "permissions")).StatusCode);
+        Assert.Equal(403, (await Service(db, ContextFor(100, false).User, access.Email)
+            .GetMemberAccessHistoryAsync(300, 1, 20, change: "permissions")).StatusCode);
+    }
+
     private static (EduOSDbContext Db, Mock<ICurrentUserService> User, Mock<IEmailService> Email, HttpContextAccessor Accessor)
         ContextFor(long tenantId, bool isAdmin)
     {

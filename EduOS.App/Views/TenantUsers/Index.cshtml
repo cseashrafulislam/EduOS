@@ -74,7 +74,20 @@
                 <p class="small text-muted">Changes revoke the selected user's old sessions. Ownership cannot be changed here.</p>
                 <button id="memberHistoryButton" type="button" class="btn btn-outline-secondary btn-sm mb-3">@(bn ? "প্রবেশাধিকার পরিবর্তনের ইতিহাস" : "View access history")</button>
                 <div id="memberHistoryPanel" class="border rounded p-3 mb-3 d-none">
-                    <div class="d-flex justify-content-between align-items-center gap-2 flex-wrap mb-2"><h6 class="mb-0">@(bn ? "সদস্যের প্রবেশাধিকার পরিবর্তনের ইতিহাস" : "Member access history")</h6><button id="memberHistoryExport" type="button" class="btn btn-outline-primary btn-sm">@(bn ? "CSV ডাউনলোড" : "Export CSV")</button></div>
+                    <div class="d-flex justify-content-between align-items-center gap-2 flex-wrap mb-2">
+                        <h6 class="mb-0">@(bn ? "সদস্যের প্রবেশাধিকার পরিবর্তনের ইতিহাস" : "Member access history")</h6>
+                        <div class="d-flex align-items-center gap-2 flex-wrap">
+                            <label for="memberHistoryChangeFilter" class="visually-hidden">@(bn ? "পরিবর্তনের ধরন" : "Change type")</label>
+                            <select id="memberHistoryChangeFilter" class="form-select form-select-sm" aria-label="@(bn ? "পরিবর্তনের ধরন" : "Change type")">
+                                <option value="all">@(bn ? "সব পরিবর্তন" : "All changes")</option>
+                                <option value="roles">@(bn ? "ভূমিকা" : "Roles")</option>
+                                <option value="campuses">@(bn ? "ক্যাম্পাস" : "Campuses")</option>
+                                <option value="status">@(bn ? "সদস্যপদের অবস্থা" : "Membership status")</option>
+                                <option value="permissions">@(bn ? "অনুমতির ব্যতিক্রম" : "Permission exceptions")</option>
+                            </select>
+                            <button id="memberHistoryExport" type="button" class="btn btn-outline-primary btn-sm">@(bn ? "CSV ডাউনলোড" : "Export CSV")</button>
+                        </div>
+                    </div>
                     
                     <div class="table-responsive"><table class="table table-sm align-middle">
                         <thead><tr><th scope="col">@(bn ? "সময়" : "When")</th><th scope="col">@(bn ? "পরিবর্তন" : "Change")</th><th scope="col">@(bn ? "পরিবর্তনকারী" : "Actor")</th><th scope="col">@(bn ? "আগে" : "Previous")</th><th scope="col">@(bn ? "পরে" : "New")</th></tr></thead>
