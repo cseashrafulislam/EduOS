@@ -15,6 +15,7 @@
     let pending = null;
     let recheckRequested = false;
     let sessionChangePending = false;
+    let navigationPending = false;
 
     function block() {
         shield.hidden = false;
@@ -33,7 +34,15 @@
             'সেশন যাচাই করা যায়নি। সংযোগ ঠিক করে আবার চেষ্টা করুন।' :
             'Unable to verify your session. Reconnect and retry.';
     }
+    function redirectSafely(url) {
+        if (navigationPending) return;
+        navigationPending = true;
+        block();
+        window.location.replace(url);
+    }
     function check() {
+        // A redirect is terminal: queued checks cannot reveal a stale page.
+        if (navigationPending) return pending || Promise.resolve();
         // Focus/visibility events must never skip verification for a time-based
         // cooldown: a different tab may have switched institutions moments ago.
         // If the cookie changes during an in-flight request, perform another
@@ -53,7 +62,7 @@
                     headers: { Accept: 'application/json' }, signal: controller.signal
                 });
                 if (response.status === 401 || response.status === 403) {
-                    window.location.replace('/Account/Login');
+                    redirectSafely('/Account/Login');
                     return;
                 }
                 if (!response.ok) throw new Error('Session check unavailable');
@@ -68,7 +77,7 @@
                 }
                 if (current !== original || currentTenant !== originalTenant) {
                     // Never reuse an old page/form against the new institution cookie.
-                    window.location.replace('/Dashboard/Index');
+                    redirectSafely('/Dashboard/Index');
                     return;
                 }
                 // A cross-tab logout is announced before the server has finished
@@ -89,7 +98,7 @@
             }
         })().finally(() => {
             pending = null;
-            if (recheckRequested) {
+            if (recheckRequested && !navigationPending) {
                 recheckRequested = false;
                 void check();
             }
@@ -100,13 +109,15 @@
     // A switch response can be lost after the server commits the new cookie.
     // Reconcile against the server before an uncertain modal can show old data.
     window.EduOSVerifySessionContext = () => check();
+    // Reject institution-specific UI readbacks while cross-tab session changes are pending.
+    window.EduOSSessionTransitionPending = () => sessionChangePending || navigationPending;
 
     // Only a privileged same-institution operation that has fetched a fresh
     // server-issued token should adopt its new session reference on this page.
     // This is a privacy shield, not a substitute for server authorization.
     window.EduOSAdoptRotatedSession = (reference, tenantId) => {
         const tenant = tenantId == null ? '' : String(tenantId);
-        if (!/^[0-9A-F]{64}$/.test(reference || '') || tenant !== originalTenant)
+        if (navigationPending || !/^[0-9A-F]{64}$/.test(reference || '') || tenant !== originalTenant)
             return false;
         original = reference;
         document.body.dataset.authSessionReference = reference;
@@ -118,6 +129,7 @@
     };
 
     retry.addEventListener('click', () => {
+        if (navigationPending) return;
         // Explicit user retry may resume only after a fresh server check.
         // A broadcast alone can never grant or restore access.
         sessionChangePending = false;

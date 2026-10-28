@@ -185,7 +185,8 @@
     window.EduOSWorkspaceResponseMatchesSession = response => {
         const reference = document.body.dataset.authSessionReference || '';
         const tenant = document.body.dataset.authTenantId || '';
-        return /^[0-9A-F]{64}$/.test(reference) &&
+        return !window.EduOSSessionTransitionPending?.() &&
+            /^[0-9A-F]{64}$/.test(reference) &&
             response?.headers?.get('X-EduOS-Session-Reference') === reference &&
             response.headers.get('X-EduOS-Tenant-Id') === tenant;
     };

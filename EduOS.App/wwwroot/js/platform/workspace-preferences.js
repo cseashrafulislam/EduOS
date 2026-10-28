@@ -43,8 +43,8 @@
     }
     function updateTableButtons() {
         tableLists.forEach(list => tableColumnRows(list).forEach((row, index, rows) => {
-            row.querySelector('[data-column-move="up"]').disabled = busy || index === 0;
-            row.querySelector('[data-column-move="down"]').disabled = busy || index === rows.length - 1;
+            row.querySelector('[data-column-move="up"]').disabled = busy || sessionInvalidated || index === 0;
+            row.querySelector('[data-column-move="down"]').disabled = busy || sessionInvalidated || index === rows.length - 1;
         }));
     }
     function fillTables(tables) {
@@ -73,8 +73,8 @@
     }
     function updateMoveButtons() {
         panelRows().forEach((row, index) => {
-            row.querySelector('[data-panel-move="up"]').disabled = busy || index === 0;
-            row.querySelector('[data-panel-move="down"]').disabled = busy || index === panelIds.length - 1;
+            row.querySelector('[data-panel-move="up"]').disabled = busy || sessionInvalidated || index === 0;
+            row.querySelector('[data-panel-move="down"]').disabled = busy || sessionInvalidated || index === panelIds.length - 1;
         });
     }
     function fillPanels(panels) {
@@ -94,6 +94,7 @@
     let rowVersion = '';
     let persisted = { ...defaults };
     let busy = false;
+    let sessionInvalidated = false;
     function message(english, bengali, error = false) {
         status.textContent = bangla ? bengali : english;
         status.classList.toggle('text-danger', error);
@@ -112,47 +113,56 @@
         return { ...Object.fromEntries(fields.map(name => [name, form.elements.namedItem(name).value])), dashboardPanels: readPanels(), tablePreferences: readTables() };
     }
     function preview() {
-        window.EduOSApplyWorkspacePreferences?.(values());
+        if (!sessionInvalidated) window.EduOSApplyWorkspacePreferences?.(values());
     }
     function setBusy(value) {
         busy = value;
-        save.disabled = value;
-        reset.disabled = value;
-        fields.forEach(name => { form.elements.namedItem(name).disabled = value; });
-        panelRows().forEach(row => { row.querySelector('input[type="checkbox"]').disabled = value; });
+        const disabled = value || sessionInvalidated;
+        save.disabled = disabled;
+        reset.disabled = disabled;
+        fields.forEach(name => { form.elements.namedItem(name).disabled = disabled; });
+        panelRows().forEach(row => { row.querySelector('input[type="checkbox"]').disabled = disabled; });
         tableLists.forEach(list => tableColumnRows(list).forEach(row => {
-            row.querySelector('input[type="checkbox"]').disabled = value || row.dataset.columnRequired === 'true';
+            row.querySelector('input[type="checkbox"]').disabled = disabled || row.dataset.columnRequired === 'true';
         }));
         updateMoveButtons();
         updateTableButtons();
     }
     function requireCurrentSession(response) {
-        if (window.EduOSWorkspaceResponseMatchesSession?.(response)) return;
+        if (!sessionInvalidated && window.EduOSWorkspaceResponseMatchesSession?.(response)) return;
+        sessionInvalidated = true;
+        setBusy(true);
         window.EduOSVerifySessionContext?.();
         const error = new Error('Institution session changed.');
         error.sessionChanged = true;
         throw error;
     }
     async function request(url, method, payload) {
-        const response = await fetch(url, {
-            method, credentials: 'same-origin', cache: 'no-store',
-            headers: { 'Content-Type': 'application/json',
-                'RequestVerificationToken': form.querySelector('input[name="__RequestVerificationToken"]')?.value || '' },
-            body: JSON.stringify(payload)
-        });
-        requireCurrentSession(response);
-        const body = await response.json().catch(() => null);
-        // Do not render a stale institution's saved appearance if another tab
-        // changes the cookie while the response body is still being decoded.
-        requireCurrentSession(response);
-        if (!response.ok || !body?.success) {
-            const error = new Error(body?.message || 'Request failed.');
-            error.conflict = response.status === 409;
-            throw error;
+        const controller = new AbortController();
+        const timeout = window.setTimeout(() => controller.abort(), 10000);
+        try {
+            const response = await fetch(url, {
+                method, credentials: 'same-origin', cache: 'no-store', signal: controller.signal,
+                headers: { 'Content-Type': 'application/json',
+                    'RequestVerificationToken': form.querySelector('input[name="__RequestVerificationToken"]')?.value || '' },
+                body: JSON.stringify(payload)
+            });
+            requireCurrentSession(response);
+            const body = await response.json().catch(() => null);
+            // Do not apply an old institution's appearance after delayed decoding.
+            requireCurrentSession(response);
+            if (!response.ok || !body?.success) {
+                const error = new Error(body?.message || 'Request failed.');
+                error.conflict = response.status === 409;
+                throw error;
+            }
+            return body.data;
+        } finally {
+            window.clearTimeout(timeout);
         }
-        return body.data;
     }
     async function load() {
+        if (sessionInvalidated) return;
         setBusy(true);
         try {
             const data = await request('/api/workspace-preferences', 'GET');
@@ -172,7 +182,7 @@
         } finally { setBusy(false); }
     }
     async function commit(url, payload) {
-        if (busy) return;
+        if (busy || sessionInvalidated) return;
         setBusy(true);
         try {
             const data = await request(url, url.endsWith('/reset') ? 'POST' : 'PUT', payload);
@@ -207,7 +217,7 @@
     form.addEventListener('change', preview);
     panelList.addEventListener('click', event => {
         const button = event.target.closest('[data-panel-move]');
-        if (!button || busy) return;
+        if (!button || busy || sessionInvalidated) return;
         const row = button.closest('[data-panel-row]');
         const rows = panelRows();
         const index = rows.indexOf(row);
@@ -220,7 +230,7 @@
     });
     tableLists.forEach(list => list.addEventListener('click', event => {
         const button = event.target.closest('[data-column-move]');
-        if (!button || busy) return;
+        if (!button || busy || sessionInvalidated) return;
         const row = button.closest('[data-column-row]');
         const rows = tableColumnRows(list);
         const index = rows.indexOf(row);

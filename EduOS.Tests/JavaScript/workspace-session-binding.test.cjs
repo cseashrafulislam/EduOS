@@ -123,3 +123,24 @@ test('editor verifies the institution session both before and after JSON decodin
     assert.equal((request.match(/requireCurrentSession\(response\)/g) || []).length, 2);
     assert.match(request, /const body = await response\.json/);
 });
+
+
+test('cross-tab transition rejects otherwise matching workspace readback', async () => {
+    const b = boot({ 'X-EduOS-Session-Reference': reference, 'X-EduOS-Tenant-Id': '12' });
+    b.window.EduOSSessionTransitionPending = () => true;
+    await flush(); await flush();
+    assert.equal(b.document.documentElement.dataset.workspaceTheme, undefined);
+    assert.equal(b.events, 0);
+    assert.equal(b.verified, 1);
+});
+
+test('editor locks stale sessions and bounds network operations', () => {
+    const editor = read('EduOS.App/wwwroot/js/platform/workspace-preferences.js');
+    assert.match(editor, /sessionInvalidated = true;/);
+    assert.match(editor, /if \(busy \|\| sessionInvalidated\) return;/);
+    assert.match(editor, /const disabled = value \|\| sessionInvalidated;/);
+    assert.match(editor, /if \(!sessionInvalidated\) window\.EduOSApplyWorkspacePreferences/);
+    assert.match(editor, /const controller = new AbortController\(\);/);
+    assert.match(editor, /window\.setTimeout\(\(\) => controller\.abort\(\), 10000\)/);
+    assert.match(editor, /window\.clearTimeout\(timeout\)/);
+});

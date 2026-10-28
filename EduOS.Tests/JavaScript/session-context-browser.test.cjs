@@ -193,3 +193,47 @@ test('cross-tab session change during in-flight verification cannot reveal old d
     assert.deepEqual(b.redirects, ['/Dashboard/Index']);
     assert.equal(b.shield.hidden, false);
 });
+
+
+test('terminal redirect cannot be undone by queued checks, retry or MFA adoption', async () => {
+    const b = browser();
+    b.handlers.window.focus();
+    b.handlers.document.visibilitychange();
+    b.respond(0, other, 99);
+    await flush(); await flush();
+    assert.deepEqual(b.redirects, ['/Dashboard/Index']);
+    assert.equal(b.window.EduOSSessionTransitionPending(), true);
+    assert.equal(b.window.EduOSAdoptRotatedSession(reference, 12), false);
+    b.handlers.retry.click();
+    b.handlers.window.focus();
+    assert.equal(b.calls.length, 1);
+    assert.equal(b.shield.hidden, false);
+    assert.equal(b.shell.inert, true);
+});
+
+test('revoked session redirect remains terminal when focus rechecks were queued', async () => {
+    const b = browser();
+    b.handlers.window.focus();
+    b.handlers.document.visibilitychange();
+    b.respond(0, reference, 12, 401);
+    await flush(); await flush();
+    b.handlers.retry.click();
+    assert.deepEqual(b.redirects, ['/Account/Login']);
+    assert.equal(b.calls.length, 1);
+    assert.equal(b.shield.hidden, false);
+});
+
+test('cross-tab transition is visible to private workspace consumers', async () => {
+    const b = browser();
+    assert.equal(b.window.EduOSSessionTransitionPending(), false);
+    b.window.channel.onmessage({ data: { type: 'session-changed' } });
+    assert.equal(b.window.EduOSSessionTransitionPending(), true);
+    b.respond(0);
+    await flush(); await flush();
+    assert.equal(b.window.EduOSSessionTransitionPending(), true);
+    b.handlers.retry.click();
+    assert.equal(b.window.EduOSSessionTransitionPending(), false);
+    b.respond(1);
+    await flush(); await flush();
+    assert.equal(b.shield.hidden, true);
+});
