@@ -95,6 +95,12 @@ public sealed class AssessmentAdministrationApiController : ControllerBase
         [FromQuery] PublishedTabulationQueryDto query, CancellationToken ct) =>
         Result(await _service.SearchPublishedTabulationAsync(query, ct));
 
+    [HttpGet("results/publications/{publicationId:long}/integrity")]
+    [Authorize(Roles = "TenantAdmin,Principal,VicePrincipal,ExamController")]
+    public async Task<IActionResult> PublicationIntegrity(long publicationId,
+        [FromQuery] PublishedSnapshotIntegrityQueryDto query, CancellationToken ct) =>
+        Result(await _service.SearchPublishedSnapshotIssuesAsync(publicationId, query, ct));
+
     [HttpPost("results/publish")]
     [Authorize(Roles = "TenantAdmin,Principal,VicePrincipal,ExamController")]
     public async Task<IActionResult> Publish([FromBody] PublishResultRequestDto request,

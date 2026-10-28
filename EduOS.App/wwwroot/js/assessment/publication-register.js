@@ -5,7 +5,8 @@
     const el = id => document.getElementById(id);
     const token = document.querySelector('#examWorkflow input[name="__RequestVerificationToken"]')?.value || '';
     const state = { history: null, historyPage: 1, historySize: 20, tabulation: null,
-        tabulationPage: 1, tabulationSize: 50, busy: false };
+        tabulationPage: 1, tabulationSize: 50, integrity: null, integrityPage: 1,
+        integritySize: 25, busy: false };
     const cell = value => {
         const td = document.createElement('td');
         td.textContent = value == null ? '—' : String(value);
@@ -59,6 +60,8 @@
     function versionChanged() {
         const row = selectedVersion();
         clearTabulation();
+        clearIntegrity();
+        el('examIntegrityLoad').disabled = !finalized(row);
         el('examTabulationLoad').disabled = !finalized(row) || !reconciled(row);
         el('examHistoryWithdraw').disabled = !published(row);
         el('examHistoryDetails').textContent = row
@@ -203,11 +206,90 @@
         document.body.append(link); link.click(); link.remove();
         setTimeout(() => URL.revokeObjectURL(url), 1000);
     }
+
+    function clearIntegrity() {
+        state.integrity = null;
+        state.integrityPage = 1;
+        const tr = document.createElement('tr');
+        const td = cell('Select a finalized version to inspect saved evidence.');
+        td.colSpan = 3; td.className = 'text-center text-muted';
+        tr.append(td);
+        el('examIntegrityRows').replaceChildren(tr);
+        el('examIntegrityInfo').textContent = 'Select a finalized version to inspect saved evidence.';
+        for (const id of ['examIntegrityCsv', 'examIntegrityPrev', 'examIntegrityNext'])
+            el(id).disabled = true;
+    }
+    async function loadIntegrity(page) {
+        if (state.busy || page < 1) return;
+        const version = selectedVersion();
+        if (!finalized(version)) { notify('Select a finalized publication version.', true); return; }
+        state.busy = true;
+        el('examIntegrityLoad').disabled = true;
+        try {
+            const params = new URLSearchParams({ page: String(page),
+                pageSize: String(state.integritySize) });
+            const data = await api('/api/assessment-administration/results/publications/' +
+                encodeURIComponent(version.id) + '/integrity?' + params);
+            state.integrity = data; state.integrityPage = data.page;
+            const tbody = el('examIntegrityRows');
+            tbody.replaceChildren();
+            for (const row of data.items || []) {
+                const tr = document.createElement('tr');
+                tr.append(cell(row.summaryId), cell(row.studentEnrollmentId), cell(row.issueCode));
+                tbody.append(tr);
+            }
+            if (!data.items?.length) {
+                const tr = document.createElement('tr');
+                const td = cell(data.isEmptySnapshot ? 'No saved snapshot rows.' :
+                    data.isReconciled ? 'All saved snapshot rows reconcile.' : 'No issues on this page.');
+                td.colSpan = 3; td.className = 'text-center text-muted'; tr.append(td); tbody.append(tr);
+            }
+            const first = data.invalidCount ? (data.page - 1) * data.pageSize + 1 : 0;
+            const last = Math.min(data.page * data.pageSize, data.invalidCount);
+            el('examIntegrityInfo').textContent = 'Version ' + data.versionNo +
+                ' · ' + data.snapshotCount + ' snapshot rows · ' +
+                (data.isReconciled ? 'Reconciled' : 'Requires reconciliation') +
+                ' · issues ' + first + '–' + last + ' of ' + data.invalidCount;
+            el('examIntegrityPrev').disabled = data.page <= 1;
+            el('examIntegrityNext').disabled = data.page * data.pageSize >= data.invalidCount;
+            el('examIntegrityCsv').disabled = !data.items?.length;
+        } catch (error) {
+            clearIntegrity();
+            notify(error.message, true);
+        } finally {
+            state.busy = false;
+            el('examIntegrityLoad').disabled = !finalized(selectedVersion());
+        }
+    }
+    function exportIntegrity() {
+        const data = state.integrity;
+        if (!data?.items?.length) return;
+        const safe = value => /^[=+@\\-\\t\\r]/.test(String(value ?? ''))
+            ? "'" + String(value) : value;
+        const quote = value => '"' + String(safe(value) ?? '').replace(/"/g, '""') + '"';
+        const rows = [['Publication', 'Version', 'Snapshot ID', 'Enrollment ID', 'Issue'],
+            ...data.items.map(row => [data.publicationId, data.versionNo,
+                row.summaryId, row.studentEnrollmentId, row.issueCode])];
+        const csv = rows.map(row => row.map(quote).join(',')).join('\\r\\n');
+        const url = URL.createObjectURL(new Blob(['\\uFEFF' + csv],
+            { type: 'text/csv;charset=utf-8' }));
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = 'publication-integrity-' + data.publicationId +
+            '-page-' + data.page + '.csv';
+        document.body.append(link); link.click(); link.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+    }
+
     el('examHistoryFilters').addEventListener('submit', event => { event.preventDefault(); loadHistory(1); });
     el('examHistoryPrev').addEventListener('click', () => loadHistory(state.historyPage - 1));
     el('examHistoryNext').addEventListener('click', () => loadHistory(state.historyPage + 1));
     el('examHistoryVersion').addEventListener('change', versionChanged);
     el('examHistoryWithdraw').addEventListener('click', withdraw);
+    el('examIntegrityLoad').addEventListener('click', () => loadIntegrity(1));
+    el('examIntegrityPrev').addEventListener('click', () => loadIntegrity(state.integrityPage - 1));
+    el('examIntegrityNext').addEventListener('click', () => loadIntegrity(state.integrityPage + 1));
+    el('examIntegrityCsv').addEventListener('click', exportIntegrity);
     el('examTabulationFilters').addEventListener('submit', event => { event.preventDefault(); loadTabulation(1); });
     el('examTabulationPrev').addEventListener('click', () => loadTabulation(state.tabulationPage - 1));
     el('examTabulationNext').addEventListener('click', () => loadTabulation(state.tabulationPage + 1));

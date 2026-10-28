@@ -119,6 +119,22 @@
                 </form>
                 <div id="examHistoryInfo" class="small text-muted mb-2" role="status" aria-live="polite">Choose an assessment and batch, then load versions.</div>
                 <div id="examHistoryDetails" class="small mb-3" role="status" aria-live="polite"></div>
+                <section class="border rounded p-2 mb-3" aria-labelledby="examIntegrityHeading">
+                    <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
+                        <h4 id="examIntegrityHeading" class="h6 mb-0">Historical snapshot integrity</h4>
+                        <button id="examIntegrityLoad" class="btn btn-sm btn-outline-primary ms-auto" type="button" disabled>Inspect version</button>
+                        <button id="examIntegrityCsv" class="btn btn-sm btn-outline-secondary" type="button" disabled>Page CSV</button>
+                    </div>
+                    <div id="examIntegrityInfo" class="small text-muted mb-2" role="status" aria-live="polite">Select a finalized version to inspect saved evidence.</div>
+                    <div class="table-responsive"><table class="table table-sm table-hover align-middle">
+                        <thead><tr><th scope="col">Snapshot ID</th><th scope="col">Enrollment ID</th><th scope="col">Issue</th></tr></thead>
+                        <tbody id="examIntegrityRows"><tr><td colspan="3" class="text-center text-muted">No version inspected.</td></tr></tbody>
+                    </table></div>
+                    <div class="d-flex justify-content-end gap-2">
+                        <button id="examIntegrityPrev" class="btn btn-sm btn-outline-secondary" type="button" disabled>Previous</button>
+                        <button id="examIntegrityNext" class="btn btn-sm btn-outline-secondary" type="button" disabled>Next</button>
+                    </div>
+                </section>
                 <form id="examTabulationFilters" class="row g-2 align-items-end mb-2">
                     <div class="col-md-5"><label for="examTabulationSearch" class="form-label">Find roll, student code or name</label>
                         <input id="examTabulationSearch" class="form-control" type="search" maxlength="100" autocomplete="off" /></div>
@@ -149,6 +165,7 @@
     #examRosterSearchForm, #examRosterPrev, #examRosterNext, #examSaveMarks,
     #examReadinessCsv, #examReadinessPrev, #examReadinessNext,
     #examHistoryFilters, #examTabulationFilters, #examHistoryInfo, #examHistoryDetails,
+    #examIntegrityLoad, #examIntegrityCsv, #examIntegrityPrev, #examIntegrityNext,
     #examTabulationPrev, #examTabulationNext, #examMarkChangesLoad,
     #examMarkChangesCsv, #examMarkChangesPrev, #examMarkChangesNext { display:none!important; }
 }
