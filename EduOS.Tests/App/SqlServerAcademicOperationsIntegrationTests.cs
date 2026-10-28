@@ -518,7 +518,7 @@ public sealed class SqlServerAcademicOperationsIntegrationTests
             .CountAsync(x => x.AttendanceSessionId == draftSession.Id));
         // Real SQL Server: nullable offering joins, grouped counts, paging and tenant isolation.
         var sqlBatch = await db.AcademicBatches.AsNoTracking().SingleAsync(x => x.Id == batchId);
-        var sqlCurriculum = await db.AcademicCurricula.AsNoTracking().SingleAsync();
+        var sqlCurriculum = await db.AcademicCurriculums.AsNoTracking().SingleAsync();
         var sqlSubject = new Subject { TenantId = tenantId, Code = "ATT-" + suffix,
             Name = "SQL Attendance Subject" };
         db.Subjects.Add(sqlSubject);
