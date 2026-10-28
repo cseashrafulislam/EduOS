@@ -17,6 +17,7 @@ using EduOS.Service.Services.Students;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 using Xunit.Abstractions;
@@ -106,6 +107,7 @@ public sealed class SqlServerStudentImportCohortRehearsalTests
             .ToArray();
         var durations = new List<double>(jobs.Length);
         var retryableConflicts = 0;
+        var exceptionTypes = new System.Collections.Concurrent.ConcurrentBag<string>();
         Guid firstReference = Guid.Empty;
         var beforeSql = await SqlCountersAsync(connection);
         var clock = Stopwatch.StartNew();
@@ -126,7 +128,8 @@ public sealed class SqlServerStudentImportCohortRehearsalTests
                 {
                     await using var db = TenantDb(options, tenant);
                     using var source = new MemoryStream(sourceFiles[job.File], writable: false);
-                    result = await Service(db, tenant, admin).ExecuteSliceAsync(
+                    result = await Service(db, tenant, admin,
+                        new ExceptionTypeLogger(exceptionTypes)).ExecuteSliceAsync(
                         source, ".csv", Mapping, job.Request, job.Offset);
                     if (result.Success || result.StatusCode != 409) break;
                     retryableConflicts++;
@@ -136,7 +139,8 @@ public sealed class SqlServerStudentImportCohortRehearsalTests
                 durations.Add(Stopwatch.GetElapsedTime(start).TotalMilliseconds);
                 Assert.NotNull(result);
                 Assert.True(result.Success,
-                    $"Synthetic file {job.File + 1}, window {job.Offset}: {result.StatusCode} {result.Message}");
+                    $"Synthetic file {job.File + 1}, window {job.Offset}: {result.StatusCode} {result.Message}" +
+                    " | exception types: " + string.Join(" | ", exceptionTypes));
                 Assert.Equal(100, result.Data!.ImportedRows);
                 Assert.False(result.Data.Replayed);
                 if (firstReference == Guid.Empty) firstReference = result.Data.ImportReference;
@@ -376,7 +380,8 @@ public sealed class SqlServerStudentImportCohortRehearsalTests
         return new EduOSDbContext(options, accessor);
     }
 
-    private static StudentImportExecutionService Service(EduOSDbContext db, long tenant, long userId)
+    private static StudentImportExecutionService Service(EduOSDbContext db, long tenant, long userId,
+        ILogger<StudentImportExecutionService>? logger = null)
     {
         var students = new GenericRepository<Student>(db);
         var enrollments = new GenericRepository<StudentEnrollment>(db);
@@ -393,7 +398,27 @@ public sealed class SqlServerStudentImportCohortRehearsalTests
             new GenericRepository<StudentGuardian>(db), batches,
             new GenericRepository<AcademicCurriculum>(db), logs, items,
             new GenericRepository<IdempotencyRecord>(db), db, admin,
-            NullLogger<StudentImportExecutionService>.Instance);
+            logger ?? NullLogger<StudentImportExecutionService>.Instance);
+    }
+
+    // Privacy-safe SQL diagnostics: type names and SQL error numbers only.
+    // Never emit source rows, learner identities, SQL text or connection strings.
+    private sealed class ExceptionTypeLogger(
+        System.Collections.Concurrent.ConcurrentBag<string> output)
+        : ILogger<StudentImportExecutionService>
+    {
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+        public bool IsEnabled(LogLevel logLevel) => true;
+        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state,
+            Exception? exception, Func<TState, Exception?, string> formatter) where TState : notnull
+        {
+            if (exception == null) return;
+            var chain = new List<string>();
+            for (var current = exception; current != null; current = current.InnerException)
+                chain.Add(current.GetType().Name +
+                    (current is SqlException sql ? "#" + sql.Number : ""));
+            output.Add(string.Join(" -> ", chain));
+        }
     }
 
     private sealed class TestAdmin(long tenant, long userId) : ICurrentUserService
