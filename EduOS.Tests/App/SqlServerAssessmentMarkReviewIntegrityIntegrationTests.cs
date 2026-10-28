@@ -147,9 +147,10 @@ public sealed class SqlServerAssessmentMarkReviewIntegrityIntegrationTests
             var firstPage = await db.AssessmentMarkReviewEvents.AsNoTracking()
                 .Where(x => x.TenantId == tenantA && x.AssessmentSubjectId == subjectA)
                 .OrderByDescending(x => x.Id).Take(25).Select(x => x.Id).ToArrayAsync();
+            var cursor = firstPage[^1];
             var secondPage = await db.AssessmentMarkReviewEvents.AsNoTracking()
                 .Where(x => x.TenantId == tenantA && x.AssessmentSubjectId == subjectA &&
-                    x.Id < firstPage[^1])
+                    x.Id < cursor)
                 .OrderByDescending(x => x.Id).Take(25).Select(x => x.Id).ToArrayAsync();
             Assert.Equal(25, firstPage.Length);
             Assert.Equal(25, secondPage.Length);
