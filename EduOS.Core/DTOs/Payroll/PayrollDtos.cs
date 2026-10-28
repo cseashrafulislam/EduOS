@@ -100,6 +100,12 @@ public class CreatePayrollRunRequestDto
 public class PayrollEmployeeDto
 {
     public long Id { get; set; }
+    public Guid RunReference { get; set; }
+    public string RunNumber { get; set; } = string.Empty;
+    public DateOnly PeriodStart { get; set; }
+    public DateOnly PeriodEnd { get; set; }
+    public long? CampusId { get; set; }
+    public PayrollRunState RunState { get; set; }
     public Guid EmployeeReference { get; set; }
     public string EmployeeCode { get; set; } = string.Empty;
     public string EmployeeName { get; set; } = string.Empty;

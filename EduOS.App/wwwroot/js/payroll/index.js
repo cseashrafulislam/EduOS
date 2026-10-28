@@ -125,6 +125,31 @@ async function loadEmployees(reference,page=1) {
         el('payrollDetails').classList.remove('d-none');
     }catch(e){notice(e.message,true);}
 }
+function actionButtonForPayslip(row) {
+    const btn=document.createElement('button');btn.type='button';btn.className='btn btn-sm btn-outline-secondary';
+    btn.textContent='Print';btn.disabled=status(row.runState)!=='Posted';
+    btn.addEventListener('click',()=>printPayslip(row));return btn;
+}
+function printPayslip(row) {
+    if(status(row.runState)!=='Posted')return notice('Only posted payslips can be printed.',true);
+    const period=String(row.periodStart||'').slice(0,10)+' – '+String(row.periodEnd||'').slice(0,10);
+    el('payrollSlipPrintPeriod').textContent=period;
+    el('payrollSlipPrintRun').textContent=row.runNumber||'';
+    el('payrollSlipPrintEmployee').textContent=(row.employeeCode||'')+' · '+(row.employeeName||'');
+    const body=el('payrollSlipPrintLines');body.replaceChildren();
+    for(const line of row.lines||[]) {
+        const tr=document.createElement('tr');
+        tr.append(cell(line.salaryComponentName||''),cell(({1:'Earning',2:'Deduction',3:'Contribution'})[line.componentType]||'Other'),
+            cell(money(line.amount)));
+        body.append(tr);
+    }
+    el('payrollSlipPrintGross').textContent=money(row.grossAmount);
+    el('payrollSlipPrintDeduction').textContent=money(row.deductionAmount);
+    el('payrollSlipPrintNet').textContent=money(row.netAmount);
+    el('payrollSlipPrintArea').classList.remove('d-none');
+    window.print();
+}
+window.addEventListener('afterprint',()=>el('payrollSlipPrintArea').classList.add('d-none'));
 async function loadSlips() {
     try {
         const data=await api('/api/hr-payroll/my-payslips?'+new URLSearchParams({
@@ -132,12 +157,15 @@ async function loadSlips() {
         const body=el('payrollSlipRows');body.replaceChildren();
         for(const row of data.items||[]) {
             const tr=document.createElement('tr');
-            tr.append(cell(row.employeeName),cell(money(row.grossAmount)),cell(money(row.deductionAmount)),
+            tr.append(cell(String(row.periodStart||'').slice(0,10)+' – '+String(row.periodEnd||'').slice(0,10)),
+                cell(row.employeeName),cell(money(row.grossAmount)),cell(money(row.deductionAmount)),
                 cell(money(row.netAmount)),
                 cell((row.lines||[]).map(x=>x.salaryComponentName+': '+money(x.amount)).join('; ')));
-            body.append(tr);
+            const action=document.createElement('td');
+            action.append(actionButtonForPayslip(row));
+            tr.append(action);body.append(tr);
         }
-        if(!data.items?.length)empty(body,5,'No posted payslips found.');
+        if(!data.items?.length)empty(body,7,'No posted payslips found.');
         state.slipPages=Math.max(1,Math.ceil((data.totalCount||0)/10));
         pageInfo('payrollSlip',state.slipPage,state.slipPages,data.totalCount||0);
     }catch(e){notice(e.message,true);}

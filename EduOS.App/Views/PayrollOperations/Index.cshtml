@@ -47,10 +47,33 @@
     <section class="card">
         <div class="card-header d-flex justify-content-between align-items-center"><h3 class="h6 m-0">My posted payslips</h3><button id="payrollMy" type="button" class="btn btn-sm btn-outline-secondary">Refresh</button></div>
         <div class="table-responsive"><table class="table table-sm table-striped mb-0">
-            <thead><tr><th>Employee</th><th>Gross (BDT)</th><th>Deductions (BDT)</th><th>Net (BDT)</th><th>Components</th></tr></thead>
+            <thead><tr><th>Period</th><th>Employee</th><th>Gross (BDT)</th><th>Deductions (BDT)</th><th>Net (BDT)</th><th>Components</th><th>Print</th></tr></thead>
             <tbody id="payrollSlipRows"></tbody>
         </table></div>
         <div class="card-footer d-flex align-items-center gap-2"><button id="payrollSlipPrev" type="button" class="btn btn-sm btn-outline-secondary">Previous</button><span id="payrollSlipPageLabel" aria-live="polite"></span><button id="payrollSlipNext" type="button" class="btn btn-sm btn-outline-secondary">Next</button></div>
     </section>
+    <section id="payrollSlipPrintArea" class="d-none" aria-label="Printable payslip">
+        <h2 class="h4">Employee Payslip</h2>
+        <div class="d-flex justify-content-between"><span id="payrollSlipPrintPeriod"></span><strong id="payrollSlipPrintRun"></strong></div>
+        <hr />
+        <p id="payrollSlipPrintEmployee"></p>
+        <div class="table-responsive"><table class="table table-bordered table-sm">
+            <thead><tr><th>Component</th><th>Type</th><th class="text-end">Amount (BDT)</th></tr></thead>
+            <tbody id="payrollSlipPrintLines"></tbody>
+        </table></div>
+        <table class="table table-sm"><tbody>
+            <tr><th>Gross</th><td id="payrollSlipPrintGross" class="text-end"></td></tr>
+            <tr><th>Deductions</th><td id="payrollSlipPrintDeduction" class="text-end"></td></tr>
+            <tr><th>Net Payable (BDT)</th><td id="payrollSlipPrintNet" class="text-end fw-bold"></td></tr>
+        </tbody></table>
+        <small>Issued from a posted payroll snapshot; not a bank-payment receipt.</small>
+    </section>
 </section>
+<style>
+@@media print {
+    body * {visibility:hidden !important;}
+    #payrollSlipPrintArea, #payrollSlipPrintArea * {visibility:visible !important;}
+    #payrollSlipPrintArea {display:block !important;position:absolute;inset:0 auto auto 0;width:100%;padding:24px;background:white;color:black;}
+}
+</style>
 @section Scripts { <script src="~/js/payroll/index.js" asp-append-version="true"></script> }

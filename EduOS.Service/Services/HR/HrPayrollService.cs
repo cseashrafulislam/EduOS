@@ -910,10 +910,22 @@ public sealed class HrPayrollService : IPayrollAdministrationService
         var components = await _components.GetQueryable().AsNoTracking().Where(x =>
             x.TenantId == tenant && lines.Select(y => y.SalaryComponentId).Contains(x.Id))
             .ToDictionaryAsync(x => x.Id, ct);
+        var runIds = rows.Select(x => x.PayrollRunId).Distinct().ToArray();
+        var runs = await _runs.GetQueryable().AsNoTracking().Where(x =>
+            x.TenantId == tenant && runIds.Contains(x.Id) && !x.IsDeleted)
+            .Select(x => new { x.Id, x.PublicId, x.RunNumber, x.PeriodStart,
+                x.PeriodEnd, x.CampusId, x.State })
+            .ToDictionaryAsync(x => x.Id, ct);
         var byEmployee = lines.ToLookup(x => x.PayrollEmployeeId);
         return rows.Select(row => new PayrollEmployeeDto
         {
             Id = row.Id, EmployeeReference = details.GetValueOrDefault(row.EmployeeId)?.PublicId ?? Guid.Empty,
+            RunReference = runs.GetValueOrDefault(row.PayrollRunId)?.PublicId ?? Guid.Empty,
+            RunNumber = runs.GetValueOrDefault(row.PayrollRunId)?.RunNumber ?? string.Empty,
+            PeriodStart = runs.GetValueOrDefault(row.PayrollRunId)?.PeriodStart ?? default,
+            PeriodEnd = runs.GetValueOrDefault(row.PayrollRunId)?.PeriodEnd ?? default,
+            CampusId = runs.GetValueOrDefault(row.PayrollRunId)?.CampusId,
+            RunState = runs.GetValueOrDefault(row.PayrollRunId)?.State ?? PayrollRunState.Draft,
             EmployeeCode = row.EmployeeCodeSnapshot ?? string.Empty,
             EmployeeName = row.EmployeeNameSnapshot ?? string.Empty,
             GrossAmount = row.GrossAmount, DeductionAmount = row.DeductionAmount,
