@@ -1,7 +1,5 @@
 using EduOS.App.Security;
 using EduOS.Persistence.Context;
-using Microsoft.AspNetCore.Authentication;
-using Microsoft.AspNetCore.Identity;
 using System.Security.Claims;
 
 namespace EduOS.App.Middleware;
@@ -41,7 +39,10 @@ public sealed class AuthSessionMiddleware(RequestDelegate next)
 
     private static async Task RejectAsync(HttpContext context)
     {
-        await context.SignOutAsync(IdentityConstants.ApplicationScheme);
+        // An older in-flight request can finish after another tab rotates the cookie.
+        // Clearing the cookie here would erase the NEW valid cookie on the shared
+        // browser. Reject the stale request without emitting a Set-Cookie header;
+        // a fresh sign-in replaces a genuinely expired cookie normally.
         context.Response.Headers.CacheControl = "no-store";
         if (context.Request.Path.StartsWithSegments("/api"))
         {

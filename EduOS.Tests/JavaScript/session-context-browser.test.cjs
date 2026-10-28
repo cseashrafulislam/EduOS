@@ -157,3 +157,39 @@ test('an uncertain institution switch can invoke immediate session reconciliatio
     assert.deepEqual(b.redirects, ['/Dashboard/Index']);
     assert.equal(b.shield.hidden, false);
 });
+
+test('cross-tab logout stays shielded while server still reports the old session', async () => {
+    const b = browser();
+    b.window.channel.onmessage({ data: { type: 'session-changed' } });
+    assert.equal(b.shield.hidden, false);
+    assert.equal(b.calls.length, 1);
+    b.respond(0);
+    await flush(); await flush();
+    assert.equal(b.shield.hidden, false, 'old cookie response must not reveal private content');
+    assert.match(b.message.textContent, /Another tab is changing your session/);
+    const delayed = b.timers.find(t => t.ms === 1200);
+    assert.ok(delayed);
+    delayed.cb();
+    b.respond(1);
+    await flush(); await flush();
+    assert.equal(b.shield.hidden, false, 'second old cookie response must also remain shielded');
+    b.handlers.retry.click();
+    b.respond(2);
+    await flush(); await flush();
+    assert.equal(b.shield.hidden, true, 'explicit retry and fresh verification may restore the page');
+});
+
+test('cross-tab session change during in-flight verification cannot reveal old data', async () => {
+    const b = browser();
+    b.handlers.window.focus();
+    b.window.channel.onmessage({ data: { type: 'session-changed' } });
+    assert.equal(b.calls.length, 1);
+    b.respond(0);
+    await flush(); await flush();
+    assert.equal(b.shield.hidden, false);
+    assert.equal(b.calls.length, 2);
+    b.respond(1, other, 99);
+    await flush(); await flush();
+    assert.deepEqual(b.redirects, ['/Dashboard/Index']);
+    assert.equal(b.shield.hidden, false);
+});

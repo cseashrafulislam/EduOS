@@ -193,6 +193,50 @@ public sealed class AuthTenantSessionIntegrationTests
         Assert.False(await AuthSessionRegistry.IsValidAsync(db, 50, "invalid", 100));
     }
 
+
+    [Fact]
+    public async Task Stale_request_after_institution_rotation_cannot_clear_the_new_cookie()
+    {
+        await using var db = Db();
+        var oldSid = await AuthSessionRegistry.CreateAsync(db, 50, 100, "", "", false);
+        var newSid = await AuthSessionRegistry.RotateAsync(db, 50, oldSid, 100, 200, "", "", false);
+        Assert.NotNull(newSid);
+        var middlewareCalls = 0;
+        var middleware = new AuthSessionMiddleware(_ =>
+        {
+            middlewareCalls++;
+            return Task.CompletedTask;
+        });
+
+        var stale = new DefaultHttpContext();
+        stale.Request.Path = "/api/auth/session-context";
+        stale.RequestServices = new Microsoft.Extensions.DependencyInjection.ServiceCollection()
+            .AddOptions().BuildServiceProvider();
+        stale.User = new ClaimsPrincipal(new ClaimsIdentity(new[]
+        {
+            new Claim(ClaimTypes.NameIdentifier, "50"),
+            new Claim("TenantId", "100"),
+            new Claim(AuthSessionRegistry.ClaimType, oldSid)
+        }, "Test"));
+        await middleware.InvokeAsync(stale, db);
+        Assert.Equal(StatusCodes.Status401Unauthorized, stale.Response.StatusCode);
+        Assert.False(stale.Response.Headers.ContainsKey("Set-Cookie"));
+        Assert.Equal("no-store", stale.Response.Headers.CacheControl.ToString());
+        Assert.Equal(0, middlewareCalls);
+
+        // The old response must not invalidate the replacement institution session.
+        Assert.True(await AuthSessionRegistry.IsValidAsync(db, 50, newSid, 200));
+        var current = new DefaultHttpContext();
+        current.User = new ClaimsPrincipal(new ClaimsIdentity(new[]
+        {
+            new Claim(ClaimTypes.NameIdentifier, "50"),
+            new Claim("TenantId", "200"),
+            new Claim(AuthSessionRegistry.ClaimType, newSid!)
+        }, "Test"));
+        await middleware.InvokeAsync(current, db);
+        Assert.Equal(1, middlewareCalls);
+    }
+
     [Fact]
     public async Task Middleware_allows_only_a_valid_cookie_bound_to_the_same_institution()
     {

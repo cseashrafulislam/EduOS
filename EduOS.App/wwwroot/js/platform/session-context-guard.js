@@ -14,6 +14,7 @@
     let channel = null;
     let pending = null;
     let recheckRequested = false;
+    let sessionChangePending = false;
 
     function block() {
         shield.hidden = false;
@@ -70,6 +71,15 @@
                     window.location.replace('/Dashboard/Index');
                     return;
                 }
+                // A cross-tab logout is announced before the server has finished
+                // revoking its cookie. A successful check against the OLD session
+                // is not permission to reveal the old institution's private page.
+                if (sessionChangePending) {
+                    message.textContent = bangla ?
+                        'অন্য ট্যাবে সেশন পরিবর্তন চলছে। যাচাই করতে আবার চেষ্টা করুন।' :
+                        'Another tab is changing your session. Retry to verify access.';
+                    return;
+                }
                 if (!recheckRequested) unblock();
             } catch {
                 // Fail closed: do not display the previous institution's data offline.
@@ -107,7 +117,12 @@
         return true;
     };
 
-    retry.addEventListener('click', () => check());
+    retry.addEventListener('click', () => {
+        // Explicit user retry may resume only after a fresh server check.
+        // A broadcast alone can never grant or restore access.
+        sessionChangePending = false;
+        void check();
+    });
     window.addEventListener('pageshow', event => {
         if (event.persisted) void check();
     });
@@ -123,6 +138,10 @@
             channel = new BroadcastChannel('eduos-session-context-v1');
             channel.onmessage = event => {
                 if (event.data?.type !== 'session-changed') return;
+                // Shield immediately, even if the first server check still sees
+                // the old cookie while logout/institution switching is in flight.
+                sessionChangePending = true;
+                block();
                 void check();
                 // Logout submits before the response clears the cookie.
                 window.setTimeout(() => { void check(); }, 1200);
