@@ -240,6 +240,22 @@ public sealed class SqlServerAcademicOperationsIntegrationTests
         Assert.True(risk.Success, risk.Message);
         Assert.Equal(1, risk.Data!.TotalCount);
         Assert.Equal(enrollmentReference, Assert.Single(risk.Data.Items).StudentEnrollmentReference);
+        // Verify nested grouped aggregates translate on actual SQL Server, not only EF InMemory.
+        var riskSummary = await riskReport.GetRiskSummaryAsync(riskQuery);
+        Assert.True(riskSummary.Success, riskSummary.Message);
+        Assert.Equal(1, riskSummary.Data!.EligibleEnrollments);
+        Assert.Equal(1, riskSummary.Data.Below75);
+        Assert.Equal(1, riskSummary.Data.Below90);
+        Assert.Equal(1, riskSummary.Data.Below100);
+        riskQuery.MinMarkedSessions = 2;
+        var noEligible = await riskReport.GetRiskSummaryAsync(riskQuery);
+        Assert.True(noEligible.Success, noEligible.Message);
+        Assert.Equal(0, noEligible.Data!.EligibleEnrollments);
+        riskQuery.MinMarkedSessions = 1;
+        Assert.Equal(404, (await new StudentAttendanceReportService(
+            db, new Actor(tenantId + 999, managerId, "TenantAdmin"),
+            NullLogger<StudentAttendanceReportService>.Instance)
+            .GetRiskSummaryAsync(riskQuery)).StatusCode);
         riskQuery.MaxAttendancePercent = 0m;
         var noRisk = await riskReport.GetAsync(riskQuery);
         Assert.True(noRisk.Success, noRisk.Message);
