@@ -24,8 +24,8 @@ public sealed class AssessmentGradeDistributionContractTests
         var errors = new List<ValidationResult>();
         Validator.TryValidateObject(invalid, new ValidationContext(invalid), errors, true)
             .Should().BeFalse();
-        Validator.TryValidateObject(new PublishedGradeDistributionQueryDto { PublicationId = 1 },
-            new ValidationContext(new PublishedGradeDistributionQueryDto { PublicationId = 1 }),
+        var valid = new PublishedGradeDistributionQueryDto { PublicationId = 1 };
+        Validator.TryValidateObject(valid, new ValidationContext(valid),
             new List<ValidationResult>(), true).Should().BeTrue();
     }
 
