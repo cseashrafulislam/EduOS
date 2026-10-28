@@ -296,7 +296,7 @@ public sealed partial class StudentImportExecutionService : IStudentImportExecut
 
                 // Stage the bounded window in three FK-safe phases. Previously each
                 // learner/guardian performed multiple SaveChanges round-trips (O(rows)).
-                // All phases remain inside the same serializable transaction: a failure
+                // All phases remain inside the same batch-locked transaction: a failure
                 // in any phase rolls back Persons, Students, Guardians, links and keys.
                 // No identity matching is inferred from names or phone numbers.
                 var pendingStudents = new List<(ImportRow Row, Person Person, Student Student)>(rows.Count);

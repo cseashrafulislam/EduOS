@@ -26,7 +26,7 @@ test('student import execution is an authorized atomic bounded workflow', () => 
     assert.match(service, /BuildCsvSlice/);
     assert.match(service, /sourceRowOffset/);
     assert.match(api, /\[HttpGet\("\{reference:guid\}"\)\]/);
-    assert.match(service, /IsolationLevel\.Serializable/);
+    assert.match(service, /IsolationLevel\.ReadCommitted/);
     assert.match(service, /MaxBatchRows = 100/);
     assert.match(service, /SourceScope = "StudentImportSource"/);
     // Execution preflight must not turn a deadlock/EF failure into a normal
@@ -36,7 +36,7 @@ test('student import execution is an authorized atomic bounded workflow', () => 
     const batchLockWrite = service.indexOf('await _uow.SaveChangesAsync(token);');
     const transactionalPreview = service.indexOf('_preview.PreviewForExecutionAsync');
     assert.ok(batchLockWrite >= 0 && transactionalPreview > batchLockWrite,
-        'serializable import preview must follow the batch allocation write lock');
+        'batch-locked import preview must follow the allocation write lock');
     assert.match(service, /throw new ImportConflictException/);
     const preview = read('EduOS.Service/Services/Students/StudentImportPreviewService.cs');
     const previewContract = read('EduOS.Core/Interfaces/IServices/IStudentImportPreviewService.cs');
