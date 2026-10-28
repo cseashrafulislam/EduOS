@@ -212,6 +212,122 @@ public sealed class SqlServerAssessmentMarkReviewLifecycleIntegrationTests
     }
 
     [Fact]
+    public async Task Linked_student_and_guardian_can_apply_and_read_only_their_published_rescrutiny()
+    {
+        var connection = Environment.GetEnvironmentVariable("EDUOS_SQL_AUTH_TEST_CONNECTION");
+        if (string.IsNullOrWhiteSpace(connection)) return;
+        var options = new DbContextOptionsBuilder<EduOSDbContext>().UseSqlServer(connection).Options;
+        var seeded = await SeedAsync(options);
+        long publicationId;
+        Guid studentReference;
+        await using (var db = TenantDb(options, seeded.TenantId))
+        {
+            var subject = await db.AssessmentSubjects.AsNoTracking()
+                .SingleAsync(x => x.Id == seeded.AssessmentSubjectId);
+            var enrollment = await db.StudentEnrollments.SingleAsync(x =>
+                x.Id == (db.StudentSubjectRegistrations.AsNoTracking()
+                    .Single(r => r.Id == seeded.RegistrationId).StudentEnrollmentId));
+            var student = await db.Students.SingleAsync(x => x.Id == enrollment.StudentId);
+            student.UserId = seeded.UnassignedId;
+            studentReference = student.PublicId;
+            var guardian = new Guardian
+            {
+                TenantId = seeded.TenantId, PersonId = student.PersonId,
+                UserId = seeded.TeacherId, FullName = "Synthetic linked guardian"
+            };
+            db.Guardians.Add(guardian);
+            await db.SaveChangesAsync();
+            db.StudentGuardians.Add(new StudentGuardian
+            {
+                TenantId = seeded.TenantId, StudentId = student.Id,
+                GuardianId = guardian.Id, RelationCode = "Parent"
+            });
+            var batchId = await db.SubjectOfferings.AsNoTracking()
+                .Where(x => x.Id == subject.SubjectOfferingId)
+                .Select(x => x.AcademicBatchId).SingleAsync();
+            var publication = new ResultPublication
+            {
+                TenantId = seeded.TenantId, AssessmentId = subject.AssessmentId,
+                AcademicBatchId = batchId, VersionNo = 1,
+                State = ResultPublicationState.Published, PublishedAt = DateTime.UtcNow,
+                PublishedByUserId = seeded.ReviewerId,
+                VisibleToStudent = true, VisibleToGuardian = true
+            };
+            db.ResultPublications.Add(publication);
+            await db.SaveChangesAsync();
+            publicationId = publication.Id;
+            db.StudentResultSummaries.Add(new StudentResultSummary
+            {
+                TenantId = seeded.TenantId, ResultPublicationId = publicationId,
+                AssessmentId = subject.AssessmentId,
+                StudentEnrollmentId = enrollment.Id, PublicationVersionNo = 1,
+                TotalMarks = 100m, ObtainedMarks = 70m, Percentage = 70m,
+                GPA = 3m, GradeLetter = "B", IsPassed = true
+            });
+            await db.SaveChangesAsync();
+        }
+        var request = new RequestResultRescrutinyDto
+        {
+            ClientRequestId = Guid.NewGuid(), PublicationId = publicationId,
+            StudentReference = studentReference,
+            Reason = "Please review the published result for this student."
+        };
+        Guid caseReference;
+        await using (var db = TenantDb(options, seeded.TenantId))
+        {
+            var student = Service(db, new Actor(seeded.TenantId, seeded.UnassignedId, "Student"));
+            var created = await student.RequestResultRescrutinyAsync(request);
+            Assert.True(created.Success, created.Message);
+            caseReference = created.Data!.CaseReference;
+            var replay = await student.RequestResultRescrutinyAsync(request);
+            Assert.True(replay.Success, replay.Message);
+            Assert.Equal(caseReference, replay.Data!.CaseReference);
+            var page = await student.SearchLinkedResultRescrutinyAsync(studentReference, publicationId, null);
+            Assert.True(page.Success, page.Message);
+            Assert.Equal(caseReference, Assert.Single(page.Data!.Items).CaseReference);
+            Assert.Equal(ResultRescrutinyAction.Requested, page.Data.Items[0].Status);
+        }
+        await using (var db = TenantDb(options, seeded.TenantId))
+        {
+            var guardian = Service(db, new Actor(seeded.TenantId, seeded.TeacherId, "Guardian"));
+            var page = await guardian.SearchLinkedResultRescrutinyAsync(studentReference, publicationId, null);
+            Assert.True(page.Success, page.Message);
+            Assert.Equal(caseReference, Assert.Single(page.Data!.Items).CaseReference);
+            var duplicate = await guardian.RequestResultRescrutinyAsync(new()
+            {
+                ClientRequestId = Guid.NewGuid(), PublicationId = publicationId,
+                StudentReference = studentReference, Reason = "A second application is not allowed."
+            });
+            Assert.Equal(409, duplicate.StatusCode);
+            var stranger = Service(db, new Actor(seeded.TenantId, seeded.ReviewerId, "Guardian"));
+            Assert.Equal(404, (await stranger.SearchLinkedResultRescrutinyAsync(
+                studentReference, publicationId, null)).StatusCode);
+            Assert.Equal(404, (await stranger.RequestResultRescrutinyAsync(new()
+            {
+                ClientRequestId = Guid.NewGuid(), PublicationId = publicationId,
+                StudentReference = studentReference, Reason = "Unlinked guardian attempt must be denied."
+            })).StatusCode);
+        }
+        await using (var db = TenantDb(options, seeded.TenantId + 1))
+        {
+            var foreign = Service(db, new Actor(seeded.TenantId + 1, seeded.UnassignedId, "Student"));
+            Assert.Equal(404, (await foreign.SearchLinkedResultRescrutinyAsync(
+                studentReference, publicationId, null)).StatusCode);
+        }
+        await using (var db = TenantDb(options, seeded.TenantId))
+        {
+            var administrator = Service(db, new Actor(seeded.TenantId, seeded.ReviewerId, "TenantAdmin"));
+            var pending = await administrator.SearchResultRescrutinyAsync(new()
+            {
+                PublicationId = publicationId, Status = ResultRescrutinyAction.Requested
+            });
+            Assert.Equal(caseReference, Assert.Single(pending.Data!.Items).CaseReference);
+            Assert.Equal(70m, (await db.StudentResultSummaries.AsNoTracking()
+                .SingleAsync(x => x.ResultPublicationId == publicationId)).ObtainedMarks);
+        }
+    }
+
+    [Fact]
     public async Task Teacher_submission_rejection_correction_resubmission_and_independent_approval_are_atomic()
     {
         var connection = Environment.GetEnvironmentVariable("EDUOS_SQL_AUTH_TEST_CONNECTION");
@@ -734,7 +850,7 @@ public sealed class SqlServerAssessmentMarkReviewLifecycleIntegrationTests
             Repo<CertificateTemplate>(), Repo<CertificateIssue>(), Repo<TranscriptIssue>(),
             Repo<EduOS.Core.Entities.System.AuditLog>(), db, actor, TimeProvider.System,
             NullLogger<AssessmentAdministrationService>.Instance,
-            Repo<ResultRescrutinyEvent>());
+            Repo<ResultRescrutinyEvent>(), Repo<Guardian>(), Repo<StudentGuardian>());
     }
 
     private static EduOSDbContext TenantDb(DbContextOptions<EduOSDbContext> options, long tenant)
