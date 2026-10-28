@@ -280,7 +280,7 @@ public sealed class SqlServerAssessmentMarkReviewLifecycleIntegrationTests
                     AssessmentId = subject.AssessmentId,
                     StudentEnrollmentId = registration.StudentEnrollmentId,
                     PublicationVersionNo = 1, TotalMarks = 100m, ObtainedMarks = 75m,
-                    Percentage = 75m, GPA = 3m, GradeLetter = null, IsPassed = true
+                    Percentage = 75m, GPA = 3m, GradeLetter = "   ", IsPassed = true
                 },
                 new StudentResultSummary
                 {
@@ -288,7 +288,7 @@ public sealed class SqlServerAssessmentMarkReviewLifecycleIntegrationTests
                     AssessmentId = subject.AssessmentId,
                     StudentEnrollmentId = registration.StudentEnrollmentId,
                     PublicationVersionNo = 2, TotalMarks = 100m, ObtainedMarks = 90m,
-                    Percentage = 90m, GPA = 4m, GradeLetter = "A", IsPassed = true
+                    Percentage = 90m, GPA = 4m, GradeLetter = " A ", IsPassed = true
                 });
             await db.SaveChangesAsync();
         }
