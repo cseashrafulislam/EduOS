@@ -1,5 +1,6 @@
 using EduOS.Core.Common;
 using EduOS.Core.DTOs.Students;
+using EduOS.Core.Enums.Domain;
 using Microsoft.EntityFrameworkCore;
 
 namespace EduOS.Service.Services.Students;
@@ -89,6 +90,58 @@ public sealed partial class StudentImportExecutionService
                 studentIds.Contains(x.StudentId))
             .Select(x => x.StudentId).Distinct().ToListAsync(cancellationToken)).ToHashSet();
 
+        // Audit the CURRENT active academic registration state of imported students.
+        // Historical/completed enrollments are never rewritten or compared with
+        // today's curriculum; this is a bounded read-only remediation worklist.
+        var currentEnrollments = await _enrollments.GetQueryable().AsNoTracking()
+            .Where(x => x.TenantId == tenant && !x.IsDeleted && x.IsCurrent &&
+                x.State == EnrollmentState.Active && studentIds.Contains(x.StudentId))
+            .Select(x => new { x.Id, x.StudentId, x.AcademicCurriculumId,
+                x.AcademicLevelId, x.AcademicBatchId, x.AcademicYearId })
+            .Take(201).ToListAsync(cancellationToken);
+        if (currentEnrollments.Count > 200)
+            return ApiResponse<StudentImportIntegrityReportDto>.ErrorResponse(
+                "Current academic enrollment audit limit exceeded.", 409);
+        var curriculumIds = currentEnrollments.Select(x => x.AcademicCurriculumId).Distinct().ToArray();
+        var levelIds = currentEnrollments.Select(x => x.AcademicLevelId).Distinct().ToArray();
+        var requiredSubjects = await _curriculumSubjects.GetQueryable().AsNoTracking()
+            .Where(x => x.TenantId == tenant && !x.IsDeleted && x.IsActive && !x.IsOptional &&
+                curriculumIds.Contains(x.AcademicCurriculumId) && levelIds.Contains(x.AcademicLevelId))
+            .Select(x => new { x.Id, x.AcademicCurriculumId, x.AcademicLevelId })
+            .Take(2001).ToListAsync(cancellationToken);
+        if (requiredSubjects.Count > 2000)
+            return ApiResponse<StudentImportIntegrityReportDto>.ErrorResponse(
+                "Required-subject audit limit exceeded.", 409);
+        var requiredIds = requiredSubjects.Select(x => x.Id).ToArray();
+        var batchIds = currentEnrollments.Select(x => x.AcademicBatchId).Distinct().ToArray();
+        var yearIds = currentEnrollments.Select(x => x.AcademicYearId).Distinct().ToArray();
+        var offerings = await _offerings.GetQueryable().AsNoTracking()
+            .Where(x => x.TenantId == tenant && !x.IsDeleted && x.IsActive &&
+                requiredIds.Contains(x.CurriculumSubjectId) &&
+                batchIds.Contains(x.AcademicBatchId) && yearIds.Contains(x.AcademicYearId))
+            .Select(x => new { x.Id, x.CurriculumSubjectId, x.AcademicBatchId, x.AcademicYearId })
+            .Take(4001).ToListAsync(cancellationToken);
+        if (offerings.Count > 4000)
+            return ApiResponse<StudentImportIntegrityReportDto>.ErrorResponse(
+                "Required-offering audit limit exceeded.", 409);
+        var enrollmentIds = currentEnrollments.Select(x => x.Id).ToArray();
+        var registrations = await _registrations.GetQueryable().AsNoTracking()
+            .Where(x => x.TenantId == tenant && !x.IsDeleted &&
+                enrollmentIds.Contains(x.StudentEnrollmentId))
+            .Select(x => new { x.StudentEnrollmentId, x.SubjectOfferingId,
+                x.State, x.CreditHoursSnapshot })
+            .Take(4001).ToListAsync(cancellationToken);
+        if (registrations.Count > 4000)
+            return ApiResponse<StudentImportIntegrityReportDto>.ErrorResponse(
+                "Subject-registration audit limit exceeded.", 409);
+        var currentByStudent = currentEnrollments.ToLookup(x => x.StudentId);
+        var requiredByCurriculum = requiredSubjects.ToLookup(x =>
+            (x.AcademicCurriculumId, x.AcademicLevelId));
+        var offeringsBySubject = offerings.ToLookup(x =>
+            (x.CurriculumSubjectId, x.AcademicBatchId, x.AcademicYearId));
+        var registrationsByEnrollmentOffering = registrations.ToLookup(x =>
+            (x.StudentEnrollmentId, x.SubjectOfferingId));
+
         var report = new StudentImportIntegrityReportDto
         {
             ImportReference = importReference,
@@ -131,6 +184,46 @@ public sealed partial class StudentImportExecutionService
                 if (!enrolled.Contains(student.Id))
                     Issue(item.RowNumber, "MissingEnrollment", "Student enrollment history is unavailable.");
 
+                var activeEnrollments = currentByStudent[student.Id].ToArray();
+                if (activeEnrollments.Length == 0)
+                    report.AcademicRowsSkipped++;
+                else if (activeEnrollments.Length != 1)
+                    Issue(item.RowNumber, "AmbiguousCurrentEnrollment",
+                        "Student has multiple current active enrollments requiring academic review.");
+                else
+                {
+                    report.CurrentEnrollmentsChecked++;
+                    var current = activeEnrollments[0];
+                    foreach (var subject in requiredByCurriculum[
+                        (current.AcademicCurriculumId, current.AcademicLevelId)])
+                    {
+                        report.RequiredSubjectsExpected++;
+                        var matches = offeringsBySubject[
+                            (subject.Id, current.AcademicBatchId, current.AcademicYearId)].ToArray();
+                        if (matches.Length != 1)
+                        {
+                            Issue(item.RowNumber, matches.Length == 0
+                                ? "MissingRequiredOffering" : "AmbiguousRequiredOffering",
+                                "Current curriculum required-subject offering requires review.");
+                            continue;
+                        }
+                        var subjectRegistrations = registrationsByEnrollmentOffering[
+                            (current.Id, matches[0].Id)].ToArray();
+                        if (subjectRegistrations.Length != 1)
+                            Issue(item.RowNumber, subjectRegistrations.Length == 0
+                                ? "MissingRequiredRegistration" : "DuplicateRequiredRegistration",
+                                "Current required-subject registration requires reconciliation.");
+                        else if (subjectRegistrations[0].State != SubjectRegistrationState.Approved)
+                            Issue(item.RowNumber, "UnapprovedRequiredRegistration",
+                                "Current required-subject registration is not approved.");
+                        else if (!subjectRegistrations[0].CreditHoursSnapshot.HasValue)
+                            Issue(item.RowNumber, "MissingRequiredCreditSnapshot",
+                                "Approved required-subject registration lacks a credit snapshot.");
+                        else
+                            report.RequiredSubjectsHealthy++;
+                    }
+                }
+
                 var relations = guardianLinksByStudent[student.Id].ToArray();
                 report.GuardianLinksChecked += relations.Length;
                 var multiplePrimary = relations.Count(x => x.IsPrimary) > 1;
@@ -156,6 +249,9 @@ public sealed partial class StudentImportExecutionService
             }
             if (report.Issues.Count == before) report.HealthyRows++;
         }
+        if (report.Issues.Count > 2000)
+            return ApiResponse<StudentImportIntegrityReportDto>.ErrorResponse(
+                "Import integrity issue limit exceeded. Review smaller source windows.", 409);
         return ApiResponse<StudentImportIntegrityReportDto>.SuccessResponse(report);
     }
 }

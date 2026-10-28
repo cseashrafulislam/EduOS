@@ -338,8 +338,12 @@
             integritySummary.textContent = 'Physical record audit: ' +
                 integrityReport.healthyRows + ' / ' + integrityReport.expectedRows +
                 ' rows verified; Guardian links: ' + integrityReport.guardianLinksHealthy +
-                '/' + integrityReport.guardianLinksChecked + '; ' +
-                (integrityReport.issues || []).length + ' issues.';
+                '/' + integrityReport.guardianLinksChecked +
+                '; Current academic enrollments: ' + integrityReport.currentEnrollmentsChecked +
+                '; Required subjects: ' + integrityReport.requiredSubjectsHealthy +
+                '/' + integrityReport.requiredSubjectsExpected +
+                '; Historical/inactive academic rows skipped: ' + integrityReport.academicRowsSkipped +
+                '; ' + (integrityReport.issues || []).length + ' issues.';
             integrityExport.classList.remove('d-none');
         } catch (error) { message(error.message, true); }
         finally { busy = false; integrityButton.disabled = false; }

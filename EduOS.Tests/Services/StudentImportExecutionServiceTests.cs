@@ -4,6 +4,7 @@ using System.Security.Cryptography;
 using System.Text.Json;
 using System.Text;
 using EduOS.Core.Entities.Academic;
+using EduOS.Core.Enums.Domain;
 using EduOS.Core.Entities.Learners;
 using EduOS.Core.Entities.SaaS;
 using EduOS.Core.Entities.Students;
@@ -1051,6 +1052,79 @@ public sealed class StudentImportExecutionServiceTests
         await using var foreign = Context(options, 202);
         Assert.Equal(404, (await Service(foreign, new User(202, true))
             .GetIntegrityAsync(reference)).StatusCode);
+    }
+
+    [Fact]
+    public async Task Committed_import_academic_audit_reports_missing_or_unapproved_required_registration_without_mutation()
+    {
+        var options = Options(); await SeedAsync(options);
+        await using var db = Context(options, 101);
+        db.Subjects.Add(new Subject { Id = 70, TenantId = 101, Name = "Required Subject", Code = "REQ" });
+        db.CurriculumSubjects.Add(new CurriculumSubject
+        {
+            Id = 71, TenantId = 101, AcademicCurriculumId = 50, AcademicLevelId = 1,
+            SubjectId = 70, CreditHours = 3m, IsOptional = false
+        });
+        db.SubjectOfferings.Add(new SubjectOffering
+        {
+            Id = 72, TenantId = 101, AcademicBatchId = 20, AcademicYearId = 1,
+            CurriculumSubjectId = 71, Code = "REQ-1", Capacity = 10
+        });
+        await db.SaveChangesAsync();
+        var service = Service(db, new User(101, true));
+        using var csv = Csv(Header + "AUDIT-REQ,REQ-STU,Private Learner,10,20,70,,\n");
+        var imported = await service.ExecuteAsync(csv, ".csv", Mapping, Guid.NewGuid());
+        Assert.True(imported.Success, imported.Message);
+        var reference = imported.Data!.ImportReference;
+        var healthy = await service.GetIntegrityAsync(reference);
+        Assert.True(healthy.Data!.IsHealthy);
+        Assert.Equal(1, healthy.Data.CurrentEnrollmentsChecked);
+        Assert.Equal(1, healthy.Data.RequiredSubjectsExpected);
+        Assert.Equal(1, healthy.Data.RequiredSubjectsHealthy);
+
+        var registration = await db.StudentSubjectRegistrations.SingleAsync();
+        registration.IsDeleted = true;
+        await db.SaveChangesAsync();
+        var missing = await service.GetIntegrityAsync(reference);
+        Assert.False(missing.Data!.IsHealthy);
+        Assert.Equal(0, missing.Data.RequiredSubjectsHealthy);
+        Assert.Contains(missing.Data.Issues, x => x.RowNumber == 2 &&
+            x.Code == "MissingRequiredRegistration");
+        Assert.DoesNotContain("Private Learner", string.Join(" ", missing.Data.Issues.Select(x => x.Message)));
+        Assert.DoesNotContain("AUDIT-REQ", string.Join(" ", missing.Data.Issues.Select(x => x.Message)));
+
+        registration.IsDeleted = false;
+        registration.State = SubjectRegistrationState.Pending;
+        await db.SaveChangesAsync();
+        var unapproved = await service.GetIntegrityAsync(reference);
+        Assert.Contains(unapproved.Data!.Issues, x => x.Code == "UnapprovedRequiredRegistration");
+        Assert.Equal(1, await db.StudentSubjectRegistrations.CountAsync());
+
+        await using var foreign = Context(options, 202);
+        Assert.Equal(404, (await Service(foreign, new User(202, true))
+            .GetIntegrityAsync(reference)).StatusCode);
+        Assert.Equal(403, (await Service(db, new User(101, false))
+            .GetIntegrityAsync(reference)).StatusCode);
+    }
+
+    [Fact]
+    public async Task Committed_import_academic_audit_skips_historical_noncurrent_enrollments()
+    {
+        var options = Options(); await SeedAsync(options);
+        await using var db = Context(options, 101);
+        var service = Service(db, new User(101, true));
+        using var csv = Csv(Header + "AUDIT-HIST,HIST-STU,Private Learner,10,20,71,,\n");
+        var imported = await service.ExecuteAsync(csv, ".csv", Mapping, Guid.NewGuid());
+        Assert.True(imported.Success, imported.Message);
+        var enrollment = await db.StudentEnrollments.SingleAsync();
+        enrollment.IsCurrent = false;
+        enrollment.State = EnrollmentState.Completed;
+        await db.SaveChangesAsync();
+        var report = await service.GetIntegrityAsync(imported.Data!.ImportReference);
+        Assert.True(report.Data!.IsHealthy);
+        Assert.Equal(1, report.Data.AcademicRowsSkipped);
+        Assert.Equal(0, report.Data.RequiredSubjectsExpected);
+        Assert.Equal(0, report.Data.CurrentEnrollmentsChecked);
     }
 
     [Fact]
