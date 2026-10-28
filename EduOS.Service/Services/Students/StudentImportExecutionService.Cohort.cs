@@ -1,14 +1,15 @@
 using EduOS.Core.Common;
 using EduOS.Core.DTOs.Students;
+using Microsoft.EntityFrameworkCore;
 
 namespace EduOS.Service.Services.Students;
 
 public sealed partial class StudentImportExecutionService
 {
     /// <summary>
-    /// Reconcile up to eight independently bounded files (40,000 source rows)
-    /// against committed tenant-owned idempotency records. This is a read-only
-    /// status projection, not a cross-file atomic transaction or identity merge.
+    /// Reconcile at most 400 committed 100-row windows across eight source files.
+    /// One tenant-scoped key projection and one log projection replace the former
+    /// per-file status queries. This never reads learner PII or writes import state.
     /// </summary>
     public async Task<ApiResponse<StudentImportCohortStatusDto>> GetCohortStatusAsync(
         IReadOnlyList<StudentImportCohortFileRequestDto>? files,
@@ -35,25 +36,66 @@ public sealed partial class StudentImportExecutionService
             return ApiResponse<StudentImportCohortStatusDto>.ErrorResponse(
                 "Cohort reconciliation is limited to 40,000 source rows.", 400);
 
+        // Request identifiers are deterministic for each original source fingerprint,
+        // mapping and 100-row offset. Never trust a caller-provided target/log ID.
+        var plans = files.Select(file => (
+            File: file,
+            Windows: Enumerable.Range(0, (file.TotalRows + MaxBatchRows - 1) / MaxBatchRows)
+                .Select(i => (Offset: i * MaxBatchRows,
+                    RequestId: JobRequestId(file.FileHash.ToLowerInvariant(),
+                        file.MappingHash.ToLowerInvariant(), i * MaxBatchRows)))
+                .ToArray())).ToArray();
+        var requestIds = plans.SelectMany(x => x.Windows.Select(w => w.RequestId)).ToArray();
+        var tenant = _user.TenantId;
+        cancellationToken.ThrowIfCancellationRequested();
+
+        // At most 400 GUIDs; bounded well below SQL Server's parameter limit.
+        // The tenant/scope predicate is enforced in SQL, not after materialization.
+        var keys = await _keys.GetQueryable().AsNoTracking()
+            .Where(x => x.TenantId == tenant && x.Scope == BatchScope && !x.IsDeleted &&
+                x.CompletedAt.HasValue && x.TargetId.HasValue && requestIds.Contains(x.RequestId))
+            .Select(x => new { x.RequestId, x.TargetId })
+            .ToListAsync(cancellationToken);
+        var logIds = keys.Select(x => x.TargetId!.Value).Distinct().ToArray();
+        var logs = logIds.Length == 0
+            ? new Dictionary<long, (int Total, int Success, int Failed)>()
+            : (await _logs.GetQueryable().AsNoTracking()
+                .Where(x => x.TenantId == tenant && !x.IsDeleted && x.ImportType == "Student" &&
+                    x.CompletedAt.HasValue && logIds.Contains(x.Id))
+                .Select(x => new { x.Id, x.TotalRows, x.SuccessRows, x.FailedRows })
+                .ToListAsync(cancellationToken))
+                .ToDictionary(x => x.Id, x => (x.TotalRows, x.SuccessRows, x.FailedRows));
+        var keyTargets = keys.ToDictionary(x => x.RequestId, x => x.TargetId!.Value);
+
         var result = new StudentImportCohortStatusDto { ExpectedRows = (int)expectedRows };
-        foreach (var file in files)
+        foreach (var plan in plans)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            var status = await GetJobStatusAsync(file.FileHash, file.MappingHash,
-                file.TotalRows, cancellationToken);
-            if (!status.Success || status.Data == null)
-                return ApiResponse<StudentImportCohortStatusDto>.ErrorResponse(
-                    status.Message, status.StatusCode);
-            var job = status.Data;
-            result.CommittedRows += job.CommittedRows;
+            var committed = 0;
+            var completedWindows = 0;
+            var nextOffset = plan.File.TotalRows;
+            foreach (var window in plan.Windows)
+            {
+                var expected = Math.Min(MaxBatchRows, plan.File.TotalRows - window.Offset);
+                if (keyTargets.TryGetValue(window.RequestId, out var logId) &&
+                    logs.TryGetValue(logId, out var log) &&
+                    log.Total == expected && log.Success == expected && log.Failed == 0)
+                {
+                    committed += expected;
+                    completedWindows++;
+                }
+                else if (nextOffset == plan.File.TotalRows)
+                    nextOffset = window.Offset;
+            }
+            result.CommittedRows += committed;
             result.Files.Add(new StudentImportCohortFileStatusDto
             {
-                FileHash = file.FileHash.ToLowerInvariant(),
-                MappingHash = file.MappingHash.ToLowerInvariant(),
-                TotalRows = file.TotalRows,
-                CommittedRows = job.CommittedRows,
-                NextOffset = job.NextOffset,
-                MissingWindows = (file.TotalRows + MaxBatchRows - 1) / MaxBatchRows - job.Batches.Count
+                FileHash = plan.File.FileHash.ToLowerInvariant(),
+                MappingHash = plan.File.MappingHash.ToLowerInvariant(),
+                TotalRows = plan.File.TotalRows,
+                CommittedRows = committed,
+                NextOffset = nextOffset,
+                MissingWindows = plan.Windows.Length - completedWindows
             });
         }
         return ApiResponse<StudentImportCohortStatusDto>.SuccessResponse(result);

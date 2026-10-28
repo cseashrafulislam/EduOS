@@ -408,6 +408,88 @@ public sealed class StudentImportExecutionServiceTests
     }
 
     [Fact]
+    public async Task Cohort_reconciliation_handles_400_windows_and_only_counts_fully_committed_tenant_logs()
+    {
+        var options = Options(); await SeedAsync(options);
+        await using var db = Context(options, 101);
+        var files = Enumerable.Range(0, 8).Select(i =>
+            new EduOS.Core.DTOs.Students.StudentImportCohortFileRequestDto
+            {
+                FileHash = Convert.ToHexString(SHA256.HashData(
+                    Encoding.UTF8.GetBytes("synthetic-5000-file-" + i))),
+                MappingHash = Convert.ToHexString(SHA256.HashData(
+                    Encoding.UTF8.GetBytes("synthetic-column-mapping"))),
+                TotalRows = 5000
+            }).ToArray();
+        var now = DateTime.UtcNow;
+        var logs = new List<ImportLog>();
+        var keys = new List<IdempotencyRecord>();
+        for (var fileIndex = 0; fileIndex < files.Length; fileIndex++)
+        {
+            var file = files[fileIndex];
+            for (var offset = 0; offset < 5000; offset += 100)
+            {
+                var index = fileIndex * 50 + offset / 100;
+                var digest = SHA256.HashData(Encoding.UTF8.GetBytes(
+                    file.FileHash.ToLowerInvariant() + ":" +
+                    file.MappingHash.ToLowerInvariant() + ":" + offset));
+                digest[6] = (byte)((digest[6] & 0x0f) | 0x50);
+                digest[8] = (byte)((digest[8] & 0x3f) | 0x80);
+                var hex = Convert.ToHexString(digest.AsSpan(0, 16));
+                var requestId = Guid.ParseExact(
+                    $"{hex[..8]}-{hex[8..12]}-{hex[12..16]}-{hex[16..20]}-{hex[20..]}", "D");
+                var log = new ImportLog
+                {
+                    Id = 1000 + index, TenantId = 101, ImportType = "Student",
+                    TotalRows = 100, SuccessRows = index == 399 ? 99 : 100,
+                    CompletedAt = now, StartedAt = now
+                };
+                logs.Add(log);
+                keys.Add(new IdempotencyRecord
+                {
+                    Id = 2000 + index, TenantId = 101, Scope = "StudentImportBatch",
+                    RequestId = requestId, TargetId = log.Id,
+                    CompletedAt = now, ExpiresAt = now.AddYears(1)
+                });
+            }
+        }
+        db.ImportLogs.AddRange(logs);
+        db.IdempotencyRecords.AddRange(keys);
+        await db.SaveChangesAsync();
+
+        var service = Service(db, new User(101, true));
+        var partial = await service.GetCohortStatusAsync(files);
+        Assert.True(partial.Success, partial.Message);
+        Assert.Equal(40000, partial.Data!.ExpectedRows);
+        Assert.Equal(39900, partial.Data.CommittedRows);
+        Assert.Equal(100, partial.Data.PendingRows);
+        Assert.Equal(8, partial.Data.Files.Count);
+        Assert.Equal(1, partial.Data.Files[7].MissingWindows);
+        Assert.Equal(4900, partial.Data.Files[7].NextOffset);
+        Assert.All(partial.Data.Files.Take(7), x => Assert.True(x.IsComplete));
+        Assert.False(partial.Data.IsComplete);
+
+        logs[399].SuccessRows = 100;
+        await db.SaveChangesAsync();
+        var recovered = await service.GetCohortStatusAsync(files);
+        Assert.True(recovered.Success, recovered.Message);
+        Assert.True(recovered.Data!.IsComplete);
+        Assert.Equal(40000, recovered.Data.CommittedRows);
+        Assert.All(recovered.Data.Files, x =>
+        {
+            Assert.Equal(5000, x.CommittedRows);
+            Assert.Equal(5000, x.NextOffset);
+            Assert.Equal(0, x.MissingWindows);
+        });
+        await using var foreign = Context(options, 202);
+        var isolated = await Service(foreign, new User(202, true)).GetCohortStatusAsync(files);
+        Assert.True(isolated.Success);
+        Assert.Equal(0, isolated.Data!.CommittedRows);
+        Assert.Equal(40000, isolated.Data.PendingRows);
+        Assert.Empty(await db.Students.ToListAsync());
+    }
+
+    [Fact]
     public async Task Cohort_reconciliation_rejects_duplicate_fingerprints_invalid_counts_and_unbounded_files()
     {
         var options = Options(); await SeedAsync(options);
