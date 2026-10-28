@@ -57,7 +57,7 @@ public sealed class StudentImportExecutionServiceTests
         });
         await db.SaveChangesAsync();
     }
-    private static StudentImportExecutionService Service(EduOSDbContext db, ICurrentUserService user)
+    private static StudentImportExecutionService Service(EduOSDbContext db, ICurrentUserService user, IUnitOfWork? unitOfWork = null)
     {
         var students = new GenericRepository<Student>(db);
         var enrollments = new GenericRepository<StudentEnrollment>(db);
@@ -72,7 +72,7 @@ public sealed class StudentImportExecutionServiceTests
             new GenericRepository<Person>(db), new GenericRepository<Guardian>(db),
             new GenericRepository<StudentGuardian>(db), batches,
             new GenericRepository<AcademicCurriculum>(db), logs, items,
-            new GenericRepository<IdempotencyRecord>(db), new InMemoryUow(db),
+            new GenericRepository<IdempotencyRecord>(db), unitOfWork ?? new InMemoryUow(db),
             user, NullLogger<StudentImportExecutionService>.Instance);
     }
 
@@ -163,6 +163,56 @@ public sealed class StudentImportExecutionServiceTests
         Assert.Equal(100, await db.IdempotencyRecords.CountAsync(x =>
             x.Scope == "StudentImportSource" && x.TenantId == 101));
         Assert.Equal(1, await db.ImportLogs.CountAsync());
+    }
+
+    [Fact]
+    public async Task Hundred_row_import_with_ten_shared_guardians_commits_in_bounded_save_phases()
+    {
+        var options = Options(); await SeedAsync(options);
+        await using var db = Context(options, 101);
+        var batch = await db.AcademicBatches.SingleAsync();
+        batch.Capacity = 200;
+        await db.SaveChangesAsync();
+        var unitOfWork = new CountingUow(db);
+        var service = Service(db, new User(101, true), unitOfWork);
+        var mapping = new Dictionary<string, string>(Mapping)
+        {
+            ["GuardianSourceKey"] = "GuardianSourceKey"
+        };
+        const string header = "SourceKey,StudentCode,FullName,CampusId,AcademicBatchId,RollNo,GuardianName,GuardianPhone,GuardianSourceKey\n";
+        var source = header + string.Concat(Enumerable.Range(1, 100).Select(i =>
+            $"PERF-SRC-{i},PERF-STU-{i},Learner {i},10,20,{i},Guardian {(i - 1) / 10},01700000000,FAMILY-{(i - 1) / 10}\n"));
+        var request = Guid.NewGuid();
+
+        using (var file = Csv(source))
+        {
+            var result = await service.ExecuteAsync(file, ".csv", mapping, request);
+            Assert.True(result.Success, result.Message);
+            Assert.Equal(100, result.Data!.ImportedRows);
+        }
+        // One batch lock, one import log, one Person phase, one Student/Guardian
+        // phase and one dependent-record phase; no per-row database flushes.
+        Assert.Equal(5, unitOfWork.SaveCount);
+        Assert.Equal(100, await db.Students.CountAsync());
+        Assert.Equal(110, await db.Persons.CountAsync());
+        Assert.Equal(10, await db.Guardians.CountAsync());
+        Assert.Equal(100, await db.StudentGuardians.CountAsync());
+        Assert.Equal(100, await db.StudentPersonLinks.CountAsync());
+        Assert.Equal(100, await db.StudentEnrollments.CountAsync());
+        Assert.Equal(100, await db.ImportLogItems.CountAsync());
+        Assert.Equal(100, await db.IdempotencyRecords.CountAsync(x => x.Scope == "StudentImportSource"));
+        Assert.Equal(10, await db.IdempotencyRecords.CountAsync(x => x.Scope == "StudentImportGuardianSource"));
+        Assert.Equal(1, await db.IdempotencyRecords.CountAsync(x => x.Scope == "StudentImportBatch"));
+        Assert.Equal(10, await db.StudentGuardians.Select(x => x.GuardianId).Distinct().CountAsync());
+
+        using (var file = Csv(source))
+        {
+            var replay = await service.ExecuteAsync(file, ".csv", mapping, request);
+            Assert.True(replay.Success, replay.Message);
+            Assert.True(replay.Data!.Replayed);
+        }
+        Assert.Equal(5, unitOfWork.SaveCount);
+        Assert.Equal(100, await db.Students.CountAsync());
     }
 
     [Fact]
@@ -654,6 +704,20 @@ public sealed class StudentImportExecutionServiceTests
         Assert.True(isolated.Success, isolated.Message);
         Assert.DoesNotContain(isolated.Data!.Issues,
             x => x.Field == "SourceKey" || x.Field == "StudentCode");
+    }
+
+    private sealed class CountingUow(EduOSDbContext db) : IUnitOfWork
+    {
+        public int SaveCount { get; private set; }
+        public async Task<int> SaveChangesAsync(CancellationToken token = default)
+        {
+            SaveCount++;
+            return await db.SaveChangesAsync(token);
+        }
+        public Task<T> ExecuteInTransactionAsync<T>(Func<CancellationToken, Task<T>> operation,
+            CancellationToken token = default) => operation(token);
+        public Task<T> ExecuteInTransactionAsync<T>(Func<CancellationToken, Task<T>> operation,
+            IsolationLevel isolationLevel, CancellationToken token = default) => operation(token);
     }
 
     private sealed class InMemoryUow(EduOSDbContext db) : IUnitOfWork

@@ -275,8 +275,19 @@ public sealed partial class StudentImportExecutionService : IStudentImportExecut
                 await _logs.AddAsync(log);
                 await _uow.SaveChangesAsync(token);
 
+                // Stage the bounded window in three FK-safe phases. Previously each
+                // learner/guardian performed multiple SaveChanges round-trips (O(rows)).
+                // All phases remain inside the same serializable transaction: a failure
+                // in any phase rolls back Persons, Students, Guardians, links and keys.
+                // No identity matching is inferred from names or phone numbers.
+                var pendingStudents = new List<(ImportRow Row, Person Person, Student Student)>(rows.Count);
+                var pendingGuardians = new List<(Person Person, Guardian Guardian)>();
+                var newGuardiansByKey = new Dictionary<Guid, (Guardian Guardian, ImportRow Row)>();
+                var newGuardiansByRow = new Dictionary<ImportRow, Guardian>();
+
                 foreach (var row in rows)
                 {
+                    token.ThrowIfCancellationRequested();
                     var birth = string.IsNullOrWhiteSpace(row.DateOfBirth)
                         ? (DateOnly?)null
                         : DateOnly.ParseExact(row.DateOfBirth, "yyyy-MM-dd", CultureInfo.InvariantCulture);
@@ -286,18 +297,64 @@ public sealed partial class StudentImportExecutionService : IStudentImportExecut
                         CreatedAt = now, CreatedBy = _user.UserId
                     };
                     await _persons.AddAsync(person);
-                    await _uow.SaveChangesAsync(token);
                     var student = new Student
                     {
-                        TenantId = tenant, PersonId = person.Id, StudentCode = row.StudentCode,
+                        TenantId = tenant, StudentCode = row.StudentCode,
                         FullName = row.FullName, DateOfBirth = birth, AdmissionDate = today,
                         CreatedAt = now, CreatedBy = _user.UserId
                     };
-                    await _students.AddAsync(student);
-                    await _uow.SaveChangesAsync(token);
+                    pendingStudents.Add((row, person, student));
+
+                    if (string.IsNullOrWhiteSpace(row.GuardianName)) continue;
+                    Guid? guardianKey = string.IsNullOrWhiteSpace(row.GuardianSourceKey)
+                        ? null : GuardianSourceId(row.GuardianSourceKey);
+                    if (guardianKey.HasValue &&
+                        (guardianCache.ContainsKey(guardianKey.Value) ||
+                         newGuardiansByKey.ContainsKey(guardianKey.Value)))
+                        continue;
+
+                    var guardianPerson = new Person
+                    {
+                        FullName = row.GuardianName, Phone = EmptyToNull(row.GuardianPhone),
+                        CreatedAt = now, CreatedBy = _user.UserId
+                    };
+                    await _persons.AddAsync(guardianPerson);
+                    var guardian = new Guardian
+                    {
+                        TenantId = tenant, FullName = row.GuardianName,
+                        Phone = EmptyToNull(row.GuardianPhone),
+                        CreatedAt = now, CreatedBy = _user.UserId
+                    };
+                    pendingGuardians.Add((guardianPerson, guardian));
+                    if (guardianKey.HasValue)
+                        newGuardiansByKey.Add(guardianKey.Value, (guardian, row));
+                    else
+                        newGuardiansByRow.Add(row, guardian);
+                }
+
+                // Database-generated Person IDs are available after one save.
+                await _uow.SaveChangesAsync(token);
+                foreach (var entry in pendingStudents)
+                {
+                    entry.Student.PersonId = entry.Person.Id;
+                    await _students.AddAsync(entry.Student);
+                }
+                foreach (var entry in pendingGuardians)
+                {
+                    entry.Guardian.PersonId = entry.Person.Id;
+                    await _guardians.AddAsync(entry.Guardian);
+                }
+                // Student and Guardian IDs are available after the second save.
+                await _uow.SaveChangesAsync(token);
+
+                foreach (var entry in pendingStudents)
+                {
+                    token.ThrowIfCancellationRequested();
+                    var row = entry.Row;
+                    var student = entry.Student;
                     await _links.AddAsync(new StudentPersonLink
                     {
-                        TenantId = tenant, StudentId = student.Id, PersonId = person.Id,
+                        TenantId = tenant, StudentId = student.Id, PersonId = entry.Person.Id,
                         IsPrimary = true, LinkedAt = now, LinkedByUserId = _user.UserId,
                         CreatedAt = now, CreatedBy = _user.UserId
                     });
@@ -316,44 +373,12 @@ public sealed partial class StudentImportExecutionService : IStudentImportExecut
                     });
                     if (!string.IsNullOrWhiteSpace(row.GuardianName))
                     {
-                        var guardianKey = string.IsNullOrWhiteSpace(row.GuardianSourceKey)
-                            ? (Guid?)null : GuardianSourceId(row.GuardianSourceKey);
-                        long guardianId;
-                        if (guardianKey.HasValue && guardianCache.TryGetValue(guardianKey.Value, out var reusedId))
-                            guardianId = reusedId;
-                        else
-                        {
-                            // Never infer identity from name/phone. Only an explicitly mapped,
-                            // immutable tenant source key permits guardian reuse.
-                            var guardianPerson = new Person
-                            {
-                                FullName = row.GuardianName, Phone = EmptyToNull(row.GuardianPhone),
-                                CreatedAt = now, CreatedBy = _user.UserId
-                            };
-                            await _persons.AddAsync(guardianPerson);
-                            await _uow.SaveChangesAsync(token);
-                            var guardian = new Guardian
-                            {
-                                TenantId = tenant, PersonId = guardianPerson.Id,
-                                FullName = row.GuardianName, Phone = EmptyToNull(row.GuardianPhone),
-                                CreatedAt = now, CreatedBy = _user.UserId
-                            };
-                            await _guardians.AddAsync(guardian);
-                            await _uow.SaveChangesAsync(token);
-                            guardianId = guardian.Id;
-                            if (guardianKey.HasValue)
-                            {
-                                await _keys.AddAsync(new IdempotencyRecord
-                                {
-                                    TenantId = tenant, Scope = GuardianSourceScope,
-                                    RequestId = guardianKey.Value, RequestHash = GuardianProfileHash(row),
-                                    TargetId = guardianId, CompletedByUserId = _user.UserId,
-                                    CompletedAt = now, ExpiresAt = now.AddYears(50),
-                                    CreatedAt = now, CreatedBy = _user.UserId
-                                });
-                                guardianCache[guardianKey.Value] = guardianId;
-                            }
-                        }
+                        Guid? guardianKey = string.IsNullOrWhiteSpace(row.GuardianSourceKey)
+                            ? null : GuardianSourceId(row.GuardianSourceKey);
+                        var guardianId = guardianKey.HasValue
+                            ? guardianCache.TryGetValue(guardianKey.Value, out var existingId)
+                                ? existingId : newGuardiansByKey[guardianKey.Value].Guardian.Id
+                            : newGuardiansByRow[row].Id;
                         await _studentGuardians.AddAsync(new StudentGuardian
                         {
                             TenantId = tenant, StudentId = student.Id, GuardianId = guardianId,
@@ -375,7 +400,18 @@ public sealed partial class StudentImportExecutionService : IStudentImportExecut
                         ExpiresAt = now.AddYears(50), CreatedAt = now, CreatedBy = _user.UserId
                     });
                 }
-                await _uow.SaveChangesAsync(token);
+
+                foreach (var (key, entry) in newGuardiansByKey)
+                {
+                    await _keys.AddAsync(new IdempotencyRecord
+                    {
+                        TenantId = tenant, Scope = GuardianSourceScope,
+                        RequestId = key, RequestHash = GuardianProfileHash(entry.Row),
+                        TargetId = entry.Guardian.Id, CompletedByUserId = _user.UserId,
+                        CompletedAt = now, ExpiresAt = now.AddYears(50),
+                        CreatedAt = now, CreatedBy = _user.UserId
+                    });
+                }
                 await _keys.AddAsync(new IdempotencyRecord
                 {
                     TenantId = tenant, Scope = BatchScope, RequestId = clientRequestId,
@@ -383,6 +419,8 @@ public sealed partial class StudentImportExecutionService : IStudentImportExecut
                     CompletedByUserId = _user.UserId, CompletedAt = now,
                     ExpiresAt = now.AddYears(50), CreatedAt = now, CreatedBy = _user.UserId
                 });
+                // All remaining dependent records commit together; no intermediate
+                // completed batch key can become visible outside this transaction.
                 await _uow.SaveChangesAsync(token);
                 return ApiResponse<StudentImportExecutionDto>.SuccessResponse(new StudentImportExecutionDto
                 {
