@@ -225,15 +225,21 @@ public sealed partial class StudentImportExecutionService
                 foreach (var record in records)
                     prior[record.RequestId] = (record.RequestHash, record.TargetId);
             }
-            var activeGuardians = new HashSet<long>();
+            // A source-key hash is not enough after a guardian profile edit:
+            // execution also checks the current tenant-owned guardian name/phone.
+            // Keep preflight consistent without disclosing that profile to the caller.
+            var activeGuardians = new Dictionary<long, (string Name, string Phone)>();
             foreach (var chunk in prior.Values.Where(x => x.GuardianId.HasValue)
                 .Select(x => x.GuardianId!.Value).Distinct().Chunk(200))
             {
-                var ids = await _guardians.GetQueryable().AsNoTracking()
+                cancellationToken.ThrowIfCancellationRequested();
+                var guardians = await _guardians.GetQueryable().AsNoTracking()
                     .Where(x => x.TenantId == tenant && !x.IsDeleted && x.IsActive &&
                         chunk.Contains(x.Id))
-                    .Select(x => x.Id).ToListAsync(cancellationToken);
-                activeGuardians.UnionWith(ids);
+                    .Select(x => new { x.Id, x.FullName, x.Phone })
+                    .ToListAsync(cancellationToken);
+                foreach (var guardian in guardians)
+                    activeGuardians[guardian.Id] = (guardian.FullName, guardian.Phone ?? "");
             }
             foreach (var (fileNumber, row) in cohortRows)
             {
@@ -242,7 +248,10 @@ public sealed partial class StudentImportExecutionService
                     !prior.TryGetValue(GuardianSourceId(row.GuardianSourceKey), out var existing))
                     continue;
                 if (existing.Hash != GuardianProfileHash(row) ||
-                    !existing.GuardianId.HasValue || !activeGuardians.Contains(existing.GuardianId.Value))
+                    !existing.GuardianId.HasValue ||
+                    !activeGuardians.TryGetValue(existing.GuardianId.Value, out var guardian) ||
+                    !string.Equals(guardian.Name.Trim(), row.GuardianName.Trim(), StringComparison.OrdinalIgnoreCase) ||
+                    !string.Equals(guardian.Phone.Trim(), row.GuardianPhone.Trim(), StringComparison.Ordinal))
                     result.Issues.Add(new StudentImportCohortConflictDto
                     {
                         FileNumber = fileNumber, RowNumber = row.RowNumber, Field = "GuardianSourceKey",

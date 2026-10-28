@@ -532,6 +532,52 @@ public sealed class StudentImportExecutionServiceTests
     }
 
     [Fact]
+    public async Task Cohort_preflight_detects_guardian_profile_drift_before_commit_without_identity_disclosure()
+    {
+        var options = Options(); await SeedAsync(options);
+        await using var db = Context(options, 101);
+        var service = Service(db, new User(101, true));
+        var mapping = new Dictionary<string, string>(Mapping) { ["GuardianSourceKey"] = "GuardianSourceKey" };
+        const string header = "SourceKey,StudentCode,FullName,CampusId,AcademicBatchId,RollNo,GuardianName,GuardianPhone,GuardianSourceKey\n";
+        using (var original = Csv(header + "OLD-1,OLD-STU,Original,10,20,1,Guardian One,01700000000,FAMILY-1\n"))
+            Assert.True((await service.ExecuteAsync(original, ".csv", mapping, Guid.NewGuid())).Success);
+
+        var guardian = await db.Guardians.SingleAsync();
+        guardian.FullName = "Updated Private Guardian";
+        await db.SaveChangesAsync();
+        var files = new[]
+        {
+            new EduOS.Core.DTOs.Students.StudentImportCohortUploadDto
+            {
+                Extension = ".csv", Content = Encoding.UTF8.GetBytes(
+                    header + "NEW-1,NEW-STU-1,First,10,20,2,Guardian One,01700000000,FAMILY-1\n")
+            },
+            new EduOS.Core.DTOs.Students.StudentImportCohortUploadDto
+            {
+                Extension = ".csv", Content = Encoding.UTF8.GetBytes(
+                    header + "NEW-2,NEW-STU-2,Second,10,20,3,Guardian One,01700000000,FAMILY-1\n")
+            }
+        };
+        var report = await service.PreflightCohortAsync(files, mapping);
+        Assert.True(report.Success, report.Message);
+        Assert.Equal(2, report.Data!.Issues.Count(x => x.Field == "GuardianSourceKey"));
+        Assert.All(report.Data.Issues, issue =>
+            Assert.DoesNotContain("Updated Private Guardian", issue.Message));
+
+        using (var attempted = Csv(header + "NEW-3,NEW-STU-3,Third,10,20,4,Guardian One,01700000000,FAMILY-1\n"))
+            Assert.Equal(409, (await service.ExecuteAsync(attempted, ".csv", mapping, Guid.NewGuid())).StatusCode);
+        Assert.Single(await db.Guardians.ToListAsync());
+        Assert.Single(await db.Students.ToListAsync());
+        Assert.Single(await db.ImportLogs.ToListAsync());
+
+        await using var foreign = Context(options, 202);
+        var foreignReport = await Service(foreign, new User(202, true))
+            .PreflightCohortAsync(files, mapping);
+        Assert.True(foreignReport.Success);
+        Assert.DoesNotContain(foreignReport.Data!.Issues, x => x.Field == "GuardianSourceKey");
+    }
+
+    [Fact]
     public async Task Cohort_preflight_reconciles_existing_tenant_source_keys_and_student_codes_without_disclosure()
     {
         var options = Options(); await SeedAsync(options);
