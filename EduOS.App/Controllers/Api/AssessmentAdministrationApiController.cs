@@ -94,6 +94,12 @@ public sealed class AssessmentAdministrationApiController : ControllerBase
     public async Task<IActionResult> GradeDistribution([FromQuery] PublishedGradeDistributionQueryDto query,
         CancellationToken ct) => Result(await _service.GetPublishedGradeDistributionAsync(query, ct));
 
+    [HttpGet("results/grade-distribution/compare")]
+    [Authorize(Roles = "TenantAdmin,Principal,VicePrincipal,ExamController")]
+    public async Task<IActionResult> CompareGradeDistributions(
+        [FromQuery] PublishedGradeDistributionComparisonQueryDto query, CancellationToken ct) =>
+        Result(await _service.ComparePublishedGradeDistributionsAsync(query, ct));
+
     [HttpGet("results/tabulation")]
     [Authorize(Roles = "TenantAdmin,Principal,VicePrincipal,ExamController")]
     public async Task<IActionResult> PublishedTabulation(

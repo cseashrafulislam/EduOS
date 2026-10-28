@@ -7,8 +7,8 @@
         <details class="ms-auto small">
             <summary class="btn btn-sm btn-outline-secondary" aria-label="Grade distribution help">ⓘ</summary>
             <div class="border rounded p-2 mt-1" style="max-width:22rem" role="note">
-                Select an assessment and batch, then a finalized publication version. Counts and grades
-                come from its immutable saved snapshot, not current marks. Withdrawn versions remain historical.
+                Select a finalized version to report saved grades. Optionally select an earlier version
+                to compare category counts. Withdrawn versions remain historical.
             </div>
         </details>
     </header>
@@ -27,8 +27,10 @@
         <div class="row g-2 mt-1">
             <div class="col-md-6"><label class="form-label" for="gradeScope">Authorized assessment / batch</label>
                 <select id="gradeScope" class="form-select"><option value="">Select scope</option></select></div>
-            <div class="col-md-6"><label class="form-label" for="gradeVersion">Finalized publication version</label>
+            <div class="col-md-3"><label class="form-label" for="gradeVersion">Finalized publication version</label>
                 <select id="gradeVersion" class="form-select" disabled><option value="">Select scope first</option></select></div>
+            <div class="col-md-3"><label class="form-label" for="gradeBaseline">Compare with earlier version (optional)</label>
+                <select id="gradeBaseline" class="form-select" disabled><option value="">Single version</option></select></div>
         </div>
         <div class="d-flex flex-wrap gap-2 mt-2">
             <button type="button" class="btn btn-primary" id="gradeLoad" disabled>Load distribution</button>
@@ -36,7 +38,7 @@
             <button type="button" class="btn btn-outline-secondary" id="gradePrint" disabled>Print</button>
         </div>
     </form>
-    <section class="card" aria-labelledby="gradeReportTitle">
+    <section class="card" id="gradeSingle" aria-labelledby="gradeReportTitle">
         <div class="card-header">
             <h2 class="h6 mb-0" id="gradeReportTitle">Grade distribution</h2>
             <span id="gradeReportScope" class="small text-muted" role="status" aria-live="polite"></span>
@@ -48,6 +50,14 @@
                 <tbody id="gradeRows"><tr><td colspan="6">No publication selected.</td></tr></tbody>
             </table>
         </div>
+    </section>
+    <section class="card d-none mt-3" id="gradeCompare" aria-labelledby="gradeCompareTitle">
+        <div class="card-header"><h2 class="h6 mb-0" id="gradeCompareTitle">Historical grade changes</h2>
+            <span id="gradeCompareScope" class="small text-muted" role="status" aria-live="polite"></span></div>
+        <div class="card-body"><div id="gradeCompareTotals" class="fw-semibold" aria-live="polite"></div></div>
+        <div class="table-responsive"><table class="table table-sm table-hover mb-0">
+            <thead><tr><th scope="col">Grade</th><th scope="col">Outcome</th><th scope="col" class="text-end">Earlier</th><th scope="col" class="text-end">Later</th><th scope="col" class="text-end">Change</th><th scope="col" class="text-end">Earlier GPA</th><th scope="col" class="text-end">Later GPA</th></tr></thead>
+            <tbody id="gradeCompareRows"></tbody></table></div>
     </section>
 </section>
 <style>@@media print { #gradeScopeSearch, #gradeDistributionNotice, header details { display:none!important; } }</style>

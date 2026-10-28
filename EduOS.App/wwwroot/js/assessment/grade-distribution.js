@@ -3,7 +3,7 @@
     const root = document.getElementById('gradeDistributionWorkspace');
     if (!root) return;
     const el = id => document.getElementById(id);
-    const state = { page: 1, pageSize: 30, total: 0, scopes: [], versions: [], report: null, busy: false, sequence: 0 };
+    const state = { page: 1, pageSize: 30, total: 0, scopes: [], versions: [], report: null, comparison: null, busy: false, sequence: 0 };
     const cell = (value, right = false) => {
         const td = document.createElement('td');
         td.textContent = value == null ? '—' : String(value);
@@ -23,7 +23,10 @@
         return body.data;
     }
     function clearReport() {
-        state.report = null;
+        state.report = null; state.comparison = null;
+        el('gradeSingle').classList.remove('d-none');
+        el('gradeCompare').classList.add('d-none');
+        el('gradeCompareRows').replaceChildren();
         el('gradeReportScope').textContent = '';
         el('gradeTotals').textContent = 'Select a finalized publication.';
         const tbody = el('gradeRows');
@@ -55,6 +58,8 @@
             el('gradeScopeNext').disabled = state.page * state.pageSize >= state.total;
             el('gradeVersion').replaceChildren(new Option('Select scope first', ''));
             el('gradeVersion').disabled = true; el('gradeLoad').disabled = true;
+            el('gradeBaseline').replaceChildren(new Option('Single version', ''));
+            el('gradeBaseline').disabled = true;
         } catch (error) { if (sequence === state.sequence) notice(error.message, true); }
     }
     async function versions() {
@@ -62,6 +67,8 @@
         const select = el('gradeVersion');
         select.replaceChildren(new Option('Loading versions…', ''));
         select.disabled = true; el('gradeLoad').disabled = true;
+        el('gradeBaseline').replaceChildren(new Option('Single version', ''));
+        el('gradeBaseline').disabled = true;
         const value = el('gradeScope').value.split(':').map(Number);
         if (value.length !== 2 || value.some(x => !Number.isSafeInteger(x) || x <= 0)) return;
         const sequence = ++state.sequence;
@@ -77,35 +84,80 @@
                 select.add(new Option('Version ' + version.versionNo + ' · ' +
                     (version.state === 3 || version.state === 'Withdrawn' ? 'Withdrawn' : 'Published'), String(version.id)));
             select.disabled = !state.versions.length;
+            const baseline = el('gradeBaseline');
+            baseline.replaceChildren(new Option('Single version', ''));
+            for (const version of state.versions)
+                baseline.add(new Option('Version ' + version.versionNo, String(version.id)));
+            baseline.disabled = !state.versions.length;
         } catch (error) { if (sequence === state.sequence) notice(error.message, true); }
     }
     async function load() {
         const id = Number(el('gradeVersion').value);
+        const earlier = el('gradeBaseline').value ? Number(el('gradeBaseline').value) : null;
         if (!Number.isSafeInteger(id) || id <= 0 || state.busy) return;
+        if (earlier != null) {
+            const before = state.versions.find(x => x.id === earlier);
+            const after = state.versions.find(x => x.id === id);
+            if (!before || !after || before.versionNo >= after.versionNo) {
+                notice('Choose an earlier finalized version for comparison.', true);
+                return;
+            }
+        }
         state.busy = true; el('gradeLoad').disabled = true;
         clearReport();
         const sequence = ++state.sequence;
         try {
-            const report = await api('/api/assessment-administration/results/grade-distribution?publicationId=' +
-                encodeURIComponent(String(id)));
-            if (sequence !== state.sequence || String(id) !== el('gradeVersion').value) return;
-            state.report = report;
-            el('gradeReportScope').textContent = report.assessmentName + ' / ' +
-                report.academicBatchName + ' · Version ' + report.versionNo;
-            el('gradeTotals').textContent = 'Students: ' + report.studentCount +
-                ' · Passed: ' + report.passedCount + ' · Failed: ' + report.failedCount +
-                ' · Withheld: ' + report.withheldCount;
-            const tbody = el('gradeRows'); tbody.replaceChildren();
-            for (const row of report.grades || []) {
-                const tr = document.createElement('tr');
-                tr.append(cell(row.gradeLetter), cell(row.isWithheld ? 'Withheld' : row.isPassed ? 'Passed' : 'Failed'),
-                    cell(row.studentCount, true), cell(row.totalObtainedMarks, true),
-                    cell(row.averagePercentage, true), cell(row.averageGpa, true));
-                tbody.append(tr);
-            }
-            if (!tbody.children.length) {
-                const tr = document.createElement('tr'), td = cell('No saved result rows.');
-                td.colSpan = 6; tr.append(td); tbody.append(tr);
+            const path = earlier == null
+                ? '/api/assessment-administration/results/grade-distribution?publicationId=' + encodeURIComponent(String(id))
+                : '/api/assessment-administration/results/grade-distribution/compare?' +
+                    new URLSearchParams({ baselinePublicationId: String(earlier), targetPublicationId: String(id) });
+            const data = await api(path);
+            if (sequence !== state.sequence || String(id) !== el('gradeVersion').value ||
+                (earlier == null ? '' : String(earlier)) !== el('gradeBaseline').value) return;
+            if (earlier != null) {
+                state.comparison = data;
+                el('gradeSingle').classList.add('d-none');
+                el('gradeCompare').classList.remove('d-none');
+                el('gradeCompareScope').textContent = data.assessmentName + ' / ' +
+                    data.academicBatchName + ' · Version ' + data.baselineVersionNo +
+                    ' → ' + data.targetVersionNo;
+                el('gradeCompareTotals').textContent = 'Students: ' + data.baselineStudentCount +
+                    ' → ' + data.targetStudentCount + ' (change ' + data.studentCountChange + ')' +
+                    ' · Passed: ' + data.baselinePassedCount + ' → ' + data.targetPassedCount +
+                    ' · Failed: ' + data.baselineFailedCount + ' → ' + data.targetFailedCount +
+                    ' · Withheld: ' + data.baselineWithheldCount + ' → ' + data.targetWithheldCount;
+                const tbody = el('gradeCompareRows'); tbody.replaceChildren();
+                for (const row of data.grades || []) {
+                    const tr = document.createElement('tr');
+                    tr.append(cell(row.gradeLetter), cell(row.isWithheld ? 'Withheld' : row.isPassed ? 'Passed' : 'Failed'),
+                        cell(row.baselineCount, true), cell(row.targetCount, true),
+                        cell(row.countChange, true), cell(row.baselineAverageGpa, true),
+                        cell(row.targetAverageGpa, true));
+                    tbody.append(tr);
+                }
+                if (!tbody.children.length) {
+                    const tr = document.createElement('tr'), td = cell('No saved result rows.');
+                    td.colSpan = 7; tr.append(td); tbody.append(tr);
+                }
+            } else {
+                state.report = data;
+                el('gradeReportScope').textContent = data.assessmentName + ' / ' +
+                    data.academicBatchName + ' · Version ' + data.versionNo;
+                el('gradeTotals').textContent = 'Students: ' + data.studentCount +
+                    ' · Passed: ' + data.passedCount + ' · Failed: ' + data.failedCount +
+                    ' · Withheld: ' + data.withheldCount;
+                const tbody = el('gradeRows'); tbody.replaceChildren();
+                for (const row of data.grades || []) {
+                    const tr = document.createElement('tr');
+                    tr.append(cell(row.gradeLetter), cell(row.isWithheld ? 'Withheld' : row.isPassed ? 'Passed' : 'Failed'),
+                        cell(row.studentCount, true), cell(row.totalObtainedMarks, true),
+                        cell(row.averagePercentage, true), cell(row.averageGpa, true));
+                    tbody.append(tr);
+                }
+                if (!tbody.children.length) {
+                    const tr = document.createElement('tr'), td = cell('No saved result rows.');
+                    td.colSpan = 6; tr.append(td); tbody.append(tr);
+                }
             }
             el('gradeCsv').disabled = false; el('gradePrint').disabled = false;
         } catch (error) { if (sequence === state.sequence) notice(error.message, true); }
@@ -113,8 +165,13 @@
     }
     function exportCsv() {
         const report = state.report;
-        if (!report) return;
-        const rows = [['Grade', 'Outcome', 'Students', 'Total obtained marks', 'Average %', 'Average GPA'],
+        const comparison = state.comparison;
+        if (!report && !comparison) return;
+        const rows = comparison ? [['Grade', 'Outcome', 'Earlier', 'Later', 'Change', 'Earlier GPA', 'Later GPA'],
+            ...(comparison.grades || []).map(x => [x.gradeLetter,
+                x.isWithheld ? 'Withheld' : x.isPassed ? 'Passed' : 'Failed',
+                x.baselineCount, x.targetCount, x.countChange, x.baselineAverageGpa, x.targetAverageGpa])]
+            : [['Grade', 'Outcome', 'Students', 'Total obtained marks', 'Average %', 'Average GPA'],
             ...(report.grades || []).map(x => [x.gradeLetter,
                 x.isWithheld ? 'Withheld' : x.isPassed ? 'Passed' : 'Failed',
                 x.studentCount, x.totalObtainedMarks, x.averagePercentage, x.averageGpa])];
@@ -123,7 +180,9 @@
             '"' + String(safe(value) ?? '').replace(/"/g, '""') + '"').join(',')).join('\r\n');
         const url = URL.createObjectURL(new Blob(['\uFEFF', content], { type: 'text/csv;charset=utf-8' }));
         const link = document.createElement('a');
-        link.href = url; link.download = 'grade-distribution-version-' + report.versionNo + '.csv'; link.click();
+        link.href = url; link.download = comparison
+            ? 'grade-distribution-versions-' + comparison.baselineVersionNo + '-' + comparison.targetVersionNo + '.csv'
+            : 'grade-distribution-version-' + report.versionNo + '.csv'; link.click();
         setTimeout(() => URL.revokeObjectURL(url), 1000);
     }
     el('gradeScopeSearch').addEventListener('submit', event => {
@@ -139,6 +198,7 @@
     el('gradeVersion').addEventListener('change', () => {
         clearReport(); el('gradeLoad').disabled = !el('gradeVersion').value;
     });
+    el('gradeBaseline').addEventListener('change', clearReport);
     el('gradeLoad').addEventListener('click', load);
     el('gradeCsv').addEventListener('click', exportCsv);
     el('gradePrint').addEventListener('click', () => window.print());
