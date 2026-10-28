@@ -9,7 +9,8 @@ permissions:
   contents: read
 
 concurrency:
-  group: sqlserver-migration-${{ github.ref }}
+  # Parallel V1 sprints push the same branch; retain exact-commit SQL evidence.
+  group: sqlserver-migration-${{ github.sha }}
   cancel-in-progress: true
 
 jobs:
