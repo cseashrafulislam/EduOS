@@ -5,6 +5,7 @@ using EduOS.Persistence.Context;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using System.Security.Claims;
 using Xunit;
 
@@ -210,7 +211,7 @@ public sealed class AuthTenantSessionIntegrationTests
 
         var stale = new DefaultHttpContext();
         stale.Request.Path = "/api/auth/session-context";
-        stale.RequestServices = new Microsoft.Extensions.DependencyInjection.ServiceCollection()
+        stale.RequestServices = new ServiceCollection()
             .AddOptions().BuildServiceProvider();
         stale.User = new ClaimsPrincipal(new ClaimsIdentity(new[]
         {
