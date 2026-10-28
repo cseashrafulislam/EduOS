@@ -127,9 +127,26 @@ public sealed class SqlServerStudentImportConcurrencyIntegrationTests
             Assert.True(replay.Data!.Replayed);
             Assert.Equal(results[winner].Data!.ImportReference, replay.Data.ImportReference);
         }
+        // A deadlock victim must not leave a request key or partial learner;
+        // a fresh attempt still loses to the committed enrollment.
+        var loser = 1 - winner;
+        await using (var loserDb = TenantDb(options, tenantId))
+        {
+            using var source = new MemoryStream(Encoding.UTF8.GetBytes(sources[loser]));
+            var retry = await Service(loserDb, tenantId, adminId)
+                .ExecuteAsync(source, ".csv", Mapping, ids[loser]);
+            Assert.Equal(409, retry.StatusCode);
+        }
         await using (var verify = TenantDb(options, tenantId))
         {
             Assert.Equal(1, await verify.Students.CountAsync());
+            Assert.Equal("SQL-STU-" + (winner == 0 ? "A" : "B") + "-" + suffix,
+                await verify.Students.Select(x => x.StudentCode).SingleAsync());
+            Assert.Equal(1, await verify.Persons.CountAsync());
+            Assert.Equal(0, await verify.IdempotencyRecords.CountAsync(x =>
+                x.TenantId == tenantId && x.Scope == "StudentImportBatch" && x.RequestId == ids[loser]));
+            Assert.Equal(1, await verify.IdempotencyRecords.CountAsync(x =>
+                x.TenantId == tenantId && x.Scope == "StudentImportBatch"));
             Assert.Equal(1, await verify.StudentEnrollments.CountAsync());
             Assert.Equal(1, await verify.StudentPersonLinks.CountAsync());
             Assert.Equal(1, await verify.ImportLogs.CountAsync());

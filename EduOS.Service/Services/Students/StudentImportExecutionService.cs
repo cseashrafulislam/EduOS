@@ -398,12 +398,12 @@ public sealed partial class StudentImportExecutionService : IStudentImportExecut
         {
             return ApiResponse<StudentImportExecutionDto>.ErrorResponse("Invalid import file or mapping: " + ex.Message, 400);
         }
-        catch (Microsoft.Data.SqlClient.SqlException ex) when (ex.Number is 1205 or 3960 or 1222)
+        catch (Exception ex) when (IsRetryableSqlAllocationConflict(ex))
         {
-            // A competing serializable importer can be selected as a SQL deadlock
-            // victim or lose its lock. The transaction has rolled back: surface a
-            // retryable conflict, never claim that any student was committed.
-            _logger.LogWarning(ex, "Concurrent student import allocation conflict for tenant {TenantId}", _user.TenantId);
+            // EF can wrap SQL Server's deadlock victim in DbUpdateException and
+            // InvalidOperationException. The unit of work rolls back before this
+            // handler; only recognized SQL lock conflicts are retryable.
+            _logger.LogWarning("Concurrent student import allocation conflict for tenant {TenantId}", _user.TenantId);
             return ApiResponse<StudentImportExecutionDto>.ErrorResponse(
                 "Another import changed this allocation. Re-run preview and retry.", 409);
         }
@@ -417,6 +417,20 @@ public sealed partial class StudentImportExecutionService : IStudentImportExecut
             _logger.LogError(ex, "Student import execution failed for tenant {TenantId}", _user.TenantId);
             return ApiResponse<StudentImportExecutionDto>.ErrorResponse("Import batch could not be committed.", 500);
         }
+    }
+
+    // Do not convert arbitrary EF/SQL failures to a conflict. Only a known
+    // provider exception, optionally inside EF's observed wrappers, qualifies.
+    private static bool IsRetryableSqlAllocationConflict(Exception exception)
+    {
+        for (Exception? current = exception; current != null; current = current.InnerException)
+        {
+            if (current is Microsoft.Data.SqlClient.SqlException sql)
+                return sql.Number is 1205 or 3960 or 1222;
+            if (current is not InvalidOperationException && current is not DbUpdateException)
+                return false;
+        }
+        return false;
     }
 
     public async Task<ApiResponse<StudentImportReconciliationDto>> GetAsync(Guid importReference,
