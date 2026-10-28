@@ -108,7 +108,8 @@ public sealed class AcademicRoutineService : IAcademicRoutineService
         {
             var today = DateOnly.FromDateTime(_clock.GetUtcNow().UtcDateTime);
             var campusId = batch.CampusId;
-            query = query.Where(x => _employeeCampusAssignments.GetQueryable().AsNoTracking().Any(a =>
+            var campusAssignments = _employeeCampusAssignments.GetQueryable().AsNoTracking();
+            query = query.Where(x => campusAssignments.Any(a =>
                 a.TenantId == tenant && !a.IsDeleted && a.EmployeeId == x.Id &&
                 a.CampusId == campusId && a.IsCurrent && a.EffectiveFrom <= today &&
                 (!a.EffectiveTo.HasValue || a.EffectiveTo.Value >= today)));
