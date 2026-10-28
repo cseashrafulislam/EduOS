@@ -216,6 +216,8 @@ public sealed class FeeDocumentReadbackTests
         };
         (await Service(db, new User("Cashier")).CollectPaymentAsync(replay))
             .StatusCode.Should().Be(404);
+        (await Service(db, new User("TenantAdmin")).CollectPaymentAsync(replay))
+            .StatusCode.Should().Be(409);
         db.StudentPayments.Count(x => x.TenantId == 41).Should().Be(2);
     }
 
@@ -226,12 +228,13 @@ public sealed class FeeDocumentReadbackTests
         await using var db = Database(41, store);
         var data = Seed(db, store);
         var receipt = Guid.NewGuid();
+        var requestKey = Guid.NewGuid();
         db.StudentInvoices.Add(new StudentInvoice {
             Id = 24, TenantId = 41, PublicId = Guid.NewGuid(), StudentEnrollmentId = 11,
             InvoiceNumber = "INV-OTHER-STUDENT", TotalAmount = 10m, DueAmount = 10m });
         db.StudentPayments.Add(new StudentPayment {
-            Id = 45, TenantId = 41, PublicId = receipt, StudentId = 1,
-            ReceiptNumber = "RCP-WRONG-STUDENT", Amount = 10m,
+            Id = 45, TenantId = 41, PublicId = receipt, ClientRequestId = requestKey,
+            StudentId = 1, ReceiptNumber = "RCP-WRONG-STUDENT", Amount = 10m,
             PaymentDate = new DateOnly(2026, 10, 2) });
         db.PaymentAllocations.Add(new PaymentAllocation {
             Id = 56, TenantId = 41, StudentPaymentId = 45, StudentInvoiceId = 24,
@@ -245,6 +248,15 @@ public sealed class FeeDocumentReadbackTests
             .Data!.TotalCount.Should().Be(1);
         (await Service(db, new User("TenantAdmin"))
             .GetStudentPaymentDocumentAsync(data.student, receipt)).StatusCode.Should().Be(200);
+        var replay = new CreateStudentPaymentRequestDto {
+            ClientRequestId = requestKey, PaymentDate = new DateOnly(2026, 10, 2),
+            PaymentMethod = PaymentMethodType.Cash, Amount = 10m,
+            Allocations = new[] { new CreatePaymentAllocationRequestDto {
+                InvoiceReference = db.StudentInvoices.Single(x => x.Id == 24).PublicId,
+                Amount = 10m } }
+        };
+        (await Service(db, new User("TenantAdmin")).CollectPaymentAsync(replay))
+            .StatusCode.Should().Be(409);
     }
 
     [Fact]

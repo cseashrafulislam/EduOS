@@ -428,6 +428,13 @@ public sealed partial class FeeBillingService : IFeeBillingService
                     replayContext.CurrentTenantId != tenant ||
                     !await AccessiblePaymentIds(replayContext).ContainsAsync(replay.Id, token))
                     return Error<StudentPaymentDto>("Receipt unavailable.", 404);
+                // Never treat a tombstoned allocation as an absent transaction on
+                // replay, even for tenant administrators. Investigate instead.
+                if (await replayContext.PaymentAllocations.IgnoreQueryFilters().AsNoTracking()
+                    .AnyAsync(a => a.TenantId == tenant &&
+                        a.StudentPaymentId == replay.Id && a.IsDeleted, token))
+                    return Error<StudentPaymentDto>(
+                        "Historical receipt allocations require reconciliation.", 409);
                 var prior = await _allocations.GetQueryable().AsNoTracking().Where(x =>
                     x.TenantId == tenant && x.StudentPaymentId == replay.Id && !x.IsDeleted)
                     .Join(_invoices.GetQueryable().AsNoTracking(),
@@ -437,12 +444,13 @@ public sealed partial class FeeBillingService : IFeeBillingService
                     .Join(_enrollments.GetQueryable().AsNoTracking(),
                         x => new { x.TenantId, Id = x.StudentEnrollmentId },
                         e => new { e.TenantId, e.Id },
-                        (x, e) => new { x.PublicId, x.Amount, x.TenantId, e.CampusId })
+                        (x, e) => new { x.PublicId, x.Amount, x.TenantId, e.CampusId, e.StudentId })
                     .Where(x => x.TenantId == tenant).ToListAsync(token);
                 var match = replay.Amount == request.Amount &&
                     replay.PaymentDate == request.PaymentDate &&
                     replay.PaymentMethod == PaymentMethodType.Cash &&
                     prior.Count == request.Allocations.Count &&
+                    prior.All(x => x.StudentId == replay.StudentId) &&
                     request.Allocations.All(x => prior.Any(y =>
                         y.PublicId == x.InvoiceReference && y.Amount == x.Amount));
                 if (!await CanAccessBillingCampusesAsync(prior.Select(x => x.CampusId), token))
