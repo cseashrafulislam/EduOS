@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text;
 using EduOS.Core.DTOs.Students;
 
@@ -9,14 +10,17 @@ namespace EduOS.App.Reporting;
 /// </summary>
 public static class StudentDirectoryCsvWriter
 {
-    public static byte[] Write(IReadOnlyList<StudentDirectoryListItemDto> rows)
+    public static byte[] Write(IReadOnlyList<StudentDirectoryListItemDto> rows, CultureInfo? culture = null)
     {
         ArgumentNullException.ThrowIfNull(rows);
         if (rows.Count > 100)
             throw new ArgumentOutOfRangeException(nameof(rows), "A directory export is limited to 100 rows.");
 
         var csv = new StringBuilder("\uFEFF");
-        csv.AppendLine("Student Code,Full Name,Roll,Academic Year,Level,Batch,Status");
+        var bangla = (culture ?? CultureInfo.CurrentUICulture).TwoLetterISOLanguageName == "bn";
+        csv.AppendLine(bangla
+            ? "শিক্ষার্থী কোড,পূর্ণ নাম,রোল,শিক্ষাবর্ষ,শ্রেণি,ব্যাচ,অবস্থা"
+            : "Student Code,Full Name,Roll,Academic Year,Level,Batch,Status");
         foreach (var row in rows)
         {
             csv.AppendJoin(",", new[]

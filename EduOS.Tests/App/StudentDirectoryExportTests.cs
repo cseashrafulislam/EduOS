@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text;
 using EduOS.App.Controllers.Api;
 using EduOS.App.Reporting;
@@ -35,6 +36,9 @@ public sealed class StudentDirectoryExportTests
         Assert.Contains("\"A\"\"B\"", text);
         Assert.DoesNotContain("5678", text);
         Assert.DoesNotContain("Guardian", text);
+        var bangla = Encoding.UTF8.GetString(StudentDirectoryCsvWriter.Write(rows, new CultureInfo("bn-BD")));
+        Assert.StartsWith("\uFEFFশিক্ষার্থী কোড,পূর্ণ নাম,রোল", bangla);
+        Assert.Contains("\"'=HYPERLINK", bangla);
         Assert.Throws<ArgumentOutOfRangeException>(() => StudentDirectoryCsvWriter.Write(
             Enumerable.Range(0, 101).Select(_ => new StudentDirectoryListItemDto()).ToArray()));
     }
