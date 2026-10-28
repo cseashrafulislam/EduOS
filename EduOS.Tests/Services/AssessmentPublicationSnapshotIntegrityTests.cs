@@ -30,7 +30,10 @@ public sealed class AssessmentPublicationSnapshotIntegrityTests
         Assert.Contains("row.PublicationVersionNo == pub.VersionNo", source);
         Assert.Contains("valid.Distinct().GroupBy", source);
         Assert.Contains(".ToListAsync(ct)", source);
-        Assert.DoesNotContain("IgnoreQueryFilters()", source);
+        // The authorized integrity count must include soft-deleted historical evidence,
+        // but its privileged query is explicitly tenant-scoped.
+        Assert.Contains("AsNoTracking().IgnoreQueryFilters()", source);
+        Assert.Contains("x.TenantId == tenant && publicationIds.Contains(x.ResultPublicationId)", source);
     }
 
     private static string Read(params string[] segments)
