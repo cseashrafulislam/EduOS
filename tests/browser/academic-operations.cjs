@@ -171,9 +171,19 @@ async function routine(browser) {
                 id: 99, reference: '11111111-2222-4333-8444-555555555555',
                 subjectName: 'Math', subjectCode: 'MATH', code: 'MATH-A', isActive: true
             }] });
-        if (url.pathname === '/api/academic-routines/instructors')
-            return response(route, 200, [{ employeeReference: teacherReference,
-                employeeCode: 'T-001', name: 'Teacher One' }]);
+        if (url.pathname === '/api/academic-routines/batches/10/instructors/page') {
+            assert.equal(url.searchParams.get('pageSize'), '50');
+            const pageNumber = Number(url.searchParams.get('page'));
+            assert.ok(pageNumber === 1 || pageNumber === 2);
+            const items = pageNumber === 1
+                ? Array.from({ length: 50 }, (_, i) => ({
+                    employeeReference: 'aaaaaaaa-aaaa-4aaa-8aaa-' + String(i + 1).padStart(12, '0'),
+                    employeeCode: 'T-' + String(i + 100).padStart(3, '0'),
+                    name: 'Instructor ' + String(i + 1).padStart(3, '0')
+                }))
+                : [{ employeeReference: teacherReference, employeeCode: 'T-001', name: 'Teacher One' }];
+            return response(route, 200, { page: pageNumber, pageSize: 50, totalCount: 51, items });
+        }
         if (url.pathname === '/api/academic-routines/assignments' && request.method() === 'POST') {
             tokenOk(request);
             const data = request.postDataJSON();
@@ -233,6 +243,8 @@ async function routine(browser) {
     await page.locator('#routineEntries button[data-deactivate-id="70"]').click();
     await page.waitForFunction(() => document.querySelector('#routineAlert')?.textContent.includes('Routine entry deactivated.'));
     assert.equal(posted.length, 1);
+    await page.locator('#routineTeachersNext').click();
+    await page.locator('#routineTeachersPage').getByText('Page 2 of 2').waitFor();
     await page.locator('#routineTeacher option[value="' + teacherReference + '"]').waitFor({ state: 'attached' });
     await page.locator('#routineTeacher').selectOption(teacherReference);
     await page.locator('#routineSubject').selectOption(offeringReference);
