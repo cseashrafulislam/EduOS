@@ -15,8 +15,11 @@ test('stale institution tabs verify the server session before revealing private 
     assert.match(js, /fetch\('\/api\/auth\/session-context'/);
     assert.match(js, /credentials: 'same-origin', cache: 'no-store'/);
     assert.match(js, /current !== original/);
-    assert.match(js, /window\.location\.replace\('\/Dashboard\/Index'\)/);
-    assert.match(js, /window\.location\.replace\('\/Account\/Login'\)/);
+    assert.match(js, /function redirectSafely\(url\)/);
+    assert.match(js, /window\.location\.replace\(url\)/);
+    assert.match(js, /redirectSafely\('\/Dashboard\/Index'\)/);
+    assert.match(js, /redirectSafely\('\/Account\/Login'\)/);
+    assert.match(js, /if \(navigationPending\) return;/);
     assert.match(js, /visibilitychange/);
     assert.match(js, /event\.persisted/);
     assert.match(js, /BroadcastChannel/);
