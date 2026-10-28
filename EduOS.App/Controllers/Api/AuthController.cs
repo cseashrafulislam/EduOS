@@ -397,7 +397,7 @@ namespace EduOS.App.Controllers.Api
                 outcome = await AuthMfaLoginTransition.ConsumeAsync(
                     _db, _userManager, user, code, dto.UseRecoveryCode, HttpContext.RequestAborted);
             }
-            catch (DbUpdateConcurrencyException)
+            catch (Exception ex) when (ex is DbUpdateConcurrencyException or MfaLoginConflictException)
             {
                 _logger.LogWarning("Concurrent MFA completion rejected for user {UserId}", user.Id);
                 return Conflict(new { success = false, message = "Verification was already used or account state changed. Please sign in again." });
