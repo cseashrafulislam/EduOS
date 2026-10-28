@@ -13,6 +13,9 @@ public class SalaryComponent : BaseTenantEntity
 
 public class SalaryStructure : BaseTenantEntity
 {
+    // Nullable for historical rows; new salary commands retain an immutable replay receipt.
+    public Guid? ClientRequestId { get; set; }
+    [MaxLength(64)] public string? RequestFingerprint { get; set; }
     public long EmployeeId { get; set; }
     public DateOnly EffectiveFrom { get; set; }
     public DateOnly? EffectiveTo { get; set; }

@@ -159,6 +159,30 @@ public sealed class HrPayrollService : IPayrollAdministrationService
                 x.Amount is < 0 or > 999999999999m) ||
             request.Lines.Select(x => x.SalaryComponentId).Distinct().Count() != request.Lines.Count)
             return Error<SalaryStructureDto>("Invalid employee, structure dates or salary component lines.");
+        if (request.Lines.Any(x => decimal.Round(x.Amount, 2) != x.Amount))
+            return Error<SalaryStructureDto>("Salary component amounts must have at most two decimals.");
+        var fingerprint = SalaryStructureFingerprint(request);
+        var previous = await _structures.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
+            x.TenantId == _user.TenantId && x.ClientRequestId == request.ClientRequestId, ct);
+        if (previous != null)
+        {
+            if (previous.RequestFingerprint != fingerprint)
+                return Error<SalaryStructureDto>("Request key belongs to another salary structure.", 409);
+            var historicalEmployee = await _employees.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
+                x.TenantId == _user.TenantId && x.Id == previous.EmployeeId, ct);
+            if (historicalEmployee == null) return Error<SalaryStructureDto>("Salary employee is missing.", 409);
+            var historicalLines = await _structureLines.GetQueryable().AsNoTracking().Where(x =>
+                x.TenantId == _user.TenantId && x.SalaryStructureId == previous.Id && !x.IsDeleted)
+                .ToListAsync(ct);
+            var historicalIds = historicalLines.Select(x => x.SalaryComponentId).Distinct().ToArray();
+            var historicalComponents = await _components.GetQueryable().AsNoTracking().Where(x =>
+                x.TenantId == _user.TenantId && historicalIds.Contains(x.Id)).ToListAsync(ct);
+            if (historicalComponents.Count != historicalIds.Length)
+                return Error<SalaryStructureDto>("Salary history references missing components.", 409);
+            return ApiResponse<SalaryStructureDto>.SuccessResponse(
+                MapStructure(previous, historicalEmployee, historicalLines, historicalComponents),
+                "Existing salary request returned.");
+        }
         var employee = await ActiveEmployeeAsync(request.EmployeeReference, ct);
         if (employee == null) return Error<SalaryStructureDto>("Active employee not found.", 404);
         var components = await _components.GetQueryable().AsNoTracking().Where(x =>
@@ -180,6 +204,19 @@ public sealed class HrPayrollService : IPayrollAdministrationService
         {
             return await _uow.ExecuteInTransactionAsync(async token =>
             {
+                // Retry after an overlapping request committed while preflight was running.
+                var replay = await _structures.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
+                    x.TenantId == _user.TenantId && x.ClientRequestId == request.ClientRequestId, token);
+                if (replay != null)
+                {
+                    if (replay.RequestFingerprint != fingerprint || replay.EmployeeId != employee.Id)
+                        return Error<SalaryStructureDto>("Request key belongs to another salary structure.", 409);
+                    var replayLines = await _structureLines.GetQueryable().AsNoTracking().Where(x =>
+                        x.TenantId == _user.TenantId && x.SalaryStructureId == replay.Id && !x.IsDeleted)
+                        .ToListAsync(token);
+                    return ApiResponse<SalaryStructureDto>.SuccessResponse(
+                        MapStructure(replay, employee, replayLines, components), "Existing salary request returned.");
+                }
                 var duplicateEffectiveDate = await _structures.GetQueryable().AsNoTracking().AnyAsync(x =>
                     x.TenantId == _user.TenantId && x.EmployeeId == employee.Id &&
                     x.EffectiveFrom == request.EffectiveFrom && !x.IsDeleted, token);
@@ -216,6 +253,7 @@ public sealed class HrPayrollService : IPayrollAdministrationService
                 var row = new SalaryStructure
                 {
                     TenantId = _user.TenantId, EmployeeId = employee.Id,
+                    ClientRequestId = request.ClientRequestId, RequestFingerprint = fingerprint,
                     EffectiveFrom = request.EffectiveFrom, EffectiveTo = request.EffectiveTo,
                     IsCurrent = !request.EffectiveTo.HasValue,
                     CreatedAt = now, CreatedBy = _user.UserId
@@ -233,7 +271,7 @@ public sealed class HrPayrollService : IPayrollAdministrationService
                 await _uow.SaveChangesAsync(token);
                 return ApiResponse<SalaryStructureDto>.SuccessResponse(
                     MapStructure(row, employee, lines, components), "Salary structure saved.");
-            }, ct);
+            }, System.Data.IsolationLevel.Serializable, ct);
         }
         catch (DbUpdateException ex)
         {
@@ -1090,6 +1128,17 @@ public sealed class HrPayrollService : IPayrollAdministrationService
     private static bool ValidNameCode(string? name, string? code, int limit) =>
         !string.IsNullOrWhiteSpace(name) && name.Trim().Length <= limit &&
         !string.IsNullOrWhiteSpace(code) && code.Trim().Length <= 50;
+    private static string SalaryStructureFingerprint(SaveSalaryStructureRequestDto request)
+    {
+        var culture = System.Globalization.CultureInfo.InvariantCulture;
+        var canonical = request.EmployeeReference.ToString("N") + "|" +
+            request.EffectiveFrom.ToString("yyyy-MM-dd", culture) + "|" +
+            (request.EffectiveTo?.ToString("yyyy-MM-dd", culture) ?? "") + "|" +
+            string.Join("|", request.Lines.OrderBy(x => x.SalaryComponentId).Select(x =>
+                x.SalaryComponentId.ToString(culture) + ":" + x.Amount.ToString("0.00", culture)));
+        return Convert.ToHexString(SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(canonical)));
+    }
+
     private static string? Trim(string? text) => string.IsNullOrWhiteSpace(text) ? null : text.Trim();
     private static decimal Round(decimal amount) => Math.Round(amount, 2, MidpointRounding.AwayFromZero);
     private static string Version(byte[] bytes) => Convert.ToBase64String(bytes);

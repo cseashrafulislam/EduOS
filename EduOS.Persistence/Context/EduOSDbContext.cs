@@ -1370,6 +1370,8 @@ public class EduOSDbContext :
             .IsUnique().HasFilter("[IsCurrent] = 1 AND [IsDeleted] = 0");
         modelBuilder.Entity<SalaryStructure>().HasIndex(x => new { x.TenantId, x.EmployeeId })
             .IsUnique().HasFilter("[IsCurrent] = 1 AND [IsDeleted] = 0");
+        modelBuilder.Entity<SalaryStructure>().HasIndex(x => new { x.TenantId, x.ClientRequestId })
+            .IsUnique().HasFilter("[ClientRequestId] IS NOT NULL");
 
         // Student finance / accounting
         UniqueTenant<FeeHead>(modelBuilder, nameof(FeeHead.Code));
