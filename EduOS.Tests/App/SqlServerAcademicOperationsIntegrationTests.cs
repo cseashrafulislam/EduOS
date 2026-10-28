@@ -226,6 +226,28 @@ public sealed class SqlServerAcademicOperationsIntegrationTests
         db.ChangeTracker.Clear();
         var posted = await db.StudentAttendances.AsNoTracking().SingleAsync();
         Assert.Equal(AttendanceState.Absent, posted.State);
+        // Real SQL translation of the finalized historical attendance risk register:
+        // the threshold is evaluated on grouped marks before pagination.
+        var riskReport = new StudentAttendanceReportService(
+            db, new Actor(tenantId, managerId, "TenantAdmin"),
+            NullLogger<StudentAttendanceReportService>.Instance);
+        var riskQuery = new StudentAttendanceReportQueryDto {
+            AcademicBatchId = batchId, FromDate = new DateOnly(2026, 10, 10),
+            ToDate = new DateOnly(2026, 10, 10), MaxAttendancePercent = 75m,
+            MinMarkedSessions = 1, Sort = "lowest", Page = 1, PageSize = 1
+        };
+        var risk = await riskReport.GetAsync(riskQuery);
+        Assert.True(risk.Success, risk.Message);
+        Assert.Equal(1, risk.Data!.TotalCount);
+        Assert.Equal(enrollmentReference, Assert.Single(risk.Data.Items).StudentEnrollmentReference);
+        riskQuery.MaxAttendancePercent = 0m;
+        var noRisk = await riskReport.GetAsync(riskQuery);
+        Assert.True(noRisk.Success, noRisk.Message);
+        Assert.Equal(0, noRisk.Data!.TotalCount);
+        Assert.Equal(404, (await new StudentAttendanceReportService(
+            db, new Actor(tenantId + 999, managerId, "TenantAdmin"),
+            NullLogger<StudentAttendanceReportService>.Instance)
+            .GetAsync(riskQuery)).StatusCode);
         var adjustment = await db.StudentAttendanceAdjustments.AsNoTracking().SingleAsync();
         Assert.Equal(AttendanceState.Leave, adjustment.PreviousState);
         Assert.Equal(AttendanceState.Absent, adjustment.NewState);
