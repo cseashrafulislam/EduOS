@@ -129,6 +129,85 @@ public sealed class AcademicInstructionService : IAcademicInstructionService
             { Items = rows, TotalCount = total, Page = page, PageSize = pageSize });
     }
 
+
+    /// <summary>SQL-paged routine choices for a specific day, not a truncated generic timetable.</summary>
+    public async Task<ApiResponse<PagedResult<SubstitutionRoutineChoiceDto>>> GetSubstitutionRoutineChoicesAsync(
+        long academicBatchId, DateOnly date, string? search, int page, int pageSize, CancellationToken ct = default)
+    {
+        if (!CanManage()) return Denied<PagedResult<SubstitutionRoutineChoiceDto>>();
+        if (academicBatchId <= 0 || date == default || page < 1 || pageSize is < 1 or > 100 ||
+            search?.Length > 100)
+            return Error<PagedResult<SubstitutionRoutineChoiceDto>>("Invalid batch, date, search or page.");
+        var tenant = _currentUser.TenantId;
+        if (!await _academicBatches.GetQueryable().AsNoTracking().AnyAsync(x =>
+            x.TenantId == tenant && x.Id == academicBatchId && x.IsActive && !x.IsDeleted, ct))
+            return Error<PagedResult<SubstitutionRoutineChoiceDto>>("Active academic batch not found.", 404);
+        if (IsRestrictedManager() && !await AllowedManagerBatchIds(tenant)
+            .AnyAsync(x => x == academicBatchId, ct))
+            return Denied<PagedResult<SubstitutionRoutineChoiceDto>>();
+
+        var query =
+            from routine in _routineEntries.GetQueryable().AsNoTracking()
+            join offering in _subjectOfferings.GetQueryable().AsNoTracking()
+                on routine.SubjectOfferingId equals offering.Id
+            join curriculum in _curriculumSubjects.GetQueryable().AsNoTracking()
+                on offering.CurriculumSubjectId equals curriculum.Id
+            join subject in _subjects.GetQueryable().AsNoTracking()
+                on curriculum.SubjectId equals subject.Id
+            join slot in _routineSlots.GetQueryable().AsNoTracking()
+                on routine.RoutineTimeSlotId equals slot.Id
+            join assignment in _instructorAssignments.GetQueryable().AsNoTracking()
+                on routine.InstructorAssignmentId equals (long?)assignment.Id
+            join instructor in _employees.GetQueryable().AsNoTracking()
+                on assignment.EmployeeId equals instructor.Id
+            join year in _years.GetQueryable().AsNoTracking()
+                on offering.AcademicYearId equals year.Id
+            where routine.TenantId == tenant && !routine.IsDeleted && routine.IsActive &&
+                  routine.DayOfWeek == date.DayOfWeek && routine.EffectiveFrom <= date &&
+                  (routine.EffectiveTo == null || routine.EffectiveTo >= date) &&
+                  offering.TenantId == tenant && !offering.IsDeleted && offering.IsActive &&
+                  offering.AcademicBatchId == academicBatchId &&
+                  curriculum.TenantId == tenant && !curriculum.IsDeleted &&
+                  subject.TenantId == tenant && !subject.IsDeleted &&
+                  slot.TenantId == tenant && !slot.IsDeleted && slot.IsActive && !slot.IsBreak &&
+                  assignment.TenantId == tenant && !assignment.IsDeleted && assignment.IsActive &&
+                  assignment.SubjectOfferingId == offering.Id &&
+                  assignment.EffectiveFrom <= date &&
+                  (assignment.EffectiveTo == null || assignment.EffectiveTo >= date) &&
+                  instructor.TenantId == tenant && !instructor.IsDeleted &&
+                  instructor.CanTeach && instructor.State == EmployeeState.Active &&
+                  year.TenantId == tenant && !year.IsDeleted && year.IsActive &&
+                  year.StartDate <= date && year.EndDate >= date &&
+                  (offering.AcademicTermId == null ||
+                   _terms.GetQueryable().AsNoTracking().Any(term =>
+                       term.TenantId == tenant && term.Id == offering.AcademicTermId &&
+                       term.AcademicYearId == year.Id && term.IsActive && !term.IsDeleted &&
+                       term.StartDate <= date && term.EndDate >= date)) &&
+                  !_substitutions.GetQueryable().AsNoTracking().Any(sub =>
+                      sub.TenantId == tenant && sub.RoutineEntryId == routine.Id &&
+                      sub.Date == date && !sub.IsCancelled && !sub.IsDeleted)
+            select new SubstitutionRoutineChoiceDto
+            {
+                Id = routine.Id, SubjectName = subject.Name, TimeSlotName = slot.Name,
+                OriginalTeacherName = instructor.FullName, DayOfWeek = routine.DayOfWeek
+            };
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var term = search.Trim();
+            query = query.Where(x => x.SubjectName.StartsWith(term) ||
+                x.TimeSlotName.StartsWith(term) || x.OriginalTeacherName.StartsWith(term));
+        }
+        var total = await query.CountAsync(ct);
+        var offset = ((long)page - 1) * pageSize;
+        if (offset > int.MaxValue)
+            return Error<PagedResult<SubstitutionRoutineChoiceDto>>("Page exceeds supported range.");
+        var rows = await query.OrderBy(x => x.TimeSlotName).ThenBy(x => x.SubjectName)
+            .ThenBy(x => x.Id).Skip((int)offset).Take(pageSize).ToListAsync(ct);
+        return ApiResponse<PagedResult<SubstitutionRoutineChoiceDto>>.SuccessResponse(
+            new PagedResult<SubstitutionRoutineChoiceDto>
+            { Items = rows, TotalCount = total, Page = page, PageSize = pageSize });
+    }
+
     // Legacy bounded-list API remains compatible; the workspace uses the paged register.
     public async Task<ApiResponse<IReadOnlyList<SubstitutionDto>>> GetSubstitutionsAsync(
         DateOnly fromDate, DateOnly toDate, long? academicBatchId, CancellationToken ct = default)
@@ -261,6 +340,17 @@ public sealed class AcademicInstructionService : IAcademicInstructionService
             var dateError = await ValidateAcademicDateAsync(context.AcademicYearId, context.AcademicTermId,
                 request.Date, request.Date, ct);
             if (dateError != null) return Error<SubstitutionDto>(dateError, 409);
+            if (!routine.InstructorAssignmentId.HasValue ||
+                !await _instructorAssignments.GetQueryable().AsNoTracking().AnyAsync(x =>
+                    x.TenantId == tenant && x.Id == routine.InstructorAssignmentId.Value &&
+                    x.SubjectOfferingId == routine.SubjectOfferingId && x.IsActive && !x.IsDeleted &&
+                    x.EffectiveFrom <= request.Date &&
+                    (x.EffectiveTo == null || x.EffectiveTo >= request.Date), ct))
+                return Error<SubstitutionDto>("Original instructor assignment is not effective on this date.", 409);
+            if (!await _routineSlots.GetQueryable().AsNoTracking().AnyAsync(x =>
+                x.TenantId == tenant && x.Id == routine.RoutineTimeSlotId &&
+                x.IsActive && !x.IsBreak && !x.IsDeleted, ct))
+                return Error<SubstitutionDto>("Routine time slot is not available.", 409);
             if (context.OriginalEmployeeId == employee.Id)
                 return Error<SubstitutionDto>("Substitute cannot be the original instructor.", 409);
             if (await _substitutions.GetQueryable().AsNoTracking().AnyAsync(x =>
