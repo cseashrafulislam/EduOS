@@ -10,6 +10,9 @@ public interface IStudentImportExecutionService
     Task<ApiResponse<StudentImportExecutionDto>> ExecuteSliceAsync(Stream content, string extension,
         IReadOnlyDictionary<string, string> mapping, Guid clientRequestId, int rowOffset,
         CancellationToken cancellationToken = default);
+    Task<ApiResponse<byte[]>> ExportPendingCorrectionsAsync(Stream content, string extension,
+        IReadOnlyDictionary<string, string> mapping, string mappingJson,
+        CancellationToken cancellationToken = default);
     Task<ApiResponse<StudentImportJobStatusDto>> GetJobStatusAsync(
         string fileHash, string mappingHash, int totalRows, CancellationToken cancellationToken = default);
     Task<ApiResponse<StudentImportCohortStatusDto>> GetCohortStatusAsync(

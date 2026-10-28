@@ -117,6 +117,29 @@ public sealed class StudentImportsController : ControllerBase
         return StatusCode(result.StatusCode, result);
     }
 
+    /// <summary>Tenant-authorized export of uncommitted source rows for correction.</summary>
+    [HttpPost("pending-corrections")]
+    public async Task<IActionResult> PendingCorrections([FromForm] IFormFile? file,
+        [FromForm] string? mappingJson, CancellationToken cancellationToken)
+    {
+        var invalid = ValidateFile(file);
+        if (invalid != null) return invalid;
+        Dictionary<string, string>? mapping;
+        try { mapping = JsonSerializer.Deserialize<Dictionary<string, string>>(mappingJson ?? ""); }
+        catch (JsonException) { return BadRequest("Invalid column mapping."); }
+        if (mapping == null || mapping.Count is < 6 or > 10)
+            return BadRequest("Required import column mapping is missing.");
+        await using var stream = new MemoryStream();
+        await file!.CopyToAsync(stream, cancellationToken);
+        var result = await _execution.ExportPendingCorrectionsAsync(stream,
+            Path.GetExtension(file.FileName), mapping, mappingJson!, cancellationToken);
+        if (!result.Success || result.Data == null)
+            return StatusCode(result.StatusCode, result);
+        return File(result.Data,
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            "student-import-pending-corrections.xlsx");
+    }
+
     [HttpGet("job-status")]
     public async Task<IActionResult> JobStatus([FromQuery] string fileHash,
         [FromQuery] string mappingHash, [FromQuery] int totalRows,

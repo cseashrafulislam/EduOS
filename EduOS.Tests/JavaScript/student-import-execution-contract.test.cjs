@@ -17,6 +17,8 @@ test('student import execution is an authorized atomic bounded workflow', () => 
     assert.match(api, /PreviewAllErrorsAsync/);
     assert.match(api, /SafeCsvCell/);
     assert.match(api, /job-status/);
+    assert.match(api, /pending-corrections/);
+    assert.match(api, /ExportPendingCorrectionsAsync/);
     const job = read('EduOS.Service/Services/Students/StudentImportExecutionService.JobStatus.cs');
     assert.match(job, /GetJobStatusAsync/);
     assert.match(job, /x\.TenantId == tenant/);
@@ -44,6 +46,8 @@ test('import UI requires preview and token, offers reconciliation, avoids raw ht
     assert.match(view, /data-import-tenant/);
     assert.match(view, /studentImportCommittedRows/);
     assert.match(view, /studentImportJobExport/);
+    assert.match(view, /studentImportPendingCorrections/);
+    assert.match(js, /pending-corrections/);
     assert.match(js, /RequestVerificationToken/);
     assert.match(js, /credentials: 'same-origin'/);
     assert.match(js, /report\.invalidRows !== 0/);

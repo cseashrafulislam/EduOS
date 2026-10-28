@@ -16,6 +16,7 @@
     const progress = document.getElementById('studentImportProgress');
     const jobSummary = document.getElementById('studentImportJobSummary');
     const jobExport = document.getElementById('studentImportJobExport');
+    const pendingCorrections = document.getElementById('studentImportPendingCorrections');
     const tenant = document.querySelector('[data-import-tenant]')?.dataset.importTenant;
     const checkpointKey = 'eduos.student-import.v1.' + tenant;
     const jobTools = window.EduOSStudentImportJob;
@@ -57,6 +58,7 @@
         cohortAdd.disabled = true;
         jobSummary.textContent = '';
         jobExport.classList.add('d-none');
+        pendingCorrections.classList.add('d-none');
         validated = null;
         lastMapping = null;
         commit.classList.add('d-none');
@@ -70,6 +72,7 @@
         cohortAdd.disabled = true;
         jobSummary.textContent = '';
         jobExport.classList.add('d-none');
+        pendingCorrections.classList.add('d-none');
         validated = null;
         lastMapping = null;
         commit.classList.add('d-none');
@@ -161,6 +164,8 @@
         jobSummary.textContent = 'Source-file reconciliation: ' + status.committedRows +
             ' / ' + status.totalRows + ' rows committed.';
         jobExport.classList.toggle('d-none', !(status.batches || []).length);
+        pendingCorrections.classList.toggle('d-none', status.isComplete ||
+            !(status.committedRows > 0 || validated?.invalidRows > 0));
         resume.classList.toggle('d-none', status.isComplete || !status.committedRows);
     }
     async function refreshResume() {
@@ -322,6 +327,34 @@
             showJobStatus(currentFingerprint, status);
         } catch (error) { message(error.message, true); }
         finally { busy = false; jobExport.disabled = false; }
+    });
+
+    pendingCorrections.addEventListener('click', async () => {
+        if (busy || !currentJob || currentJob.isComplete) return;
+        busy = true; pendingCorrections.disabled = true;
+        try {
+            const token = form.querySelector('input[name="__RequestVerificationToken"]')?.value;
+            if (!token) throw new Error('Session verification token is missing. Refresh the page.');
+            const data = new FormData();
+            data.append('file', selectedFile());
+            data.append('mappingJson', chosenMapping());
+            const response = await fetch('/api/student-imports/pending-corrections', {
+                method: 'POST', body: data, credentials: 'same-origin', cache: 'no-store',
+                headers: { 'RequestVerificationToken': token }
+            });
+            if (!response.ok) {
+                const body = await response.json().catch(() => null);
+                throw new Error(body?.message || 'Unable to export pending source rows.');
+            }
+            const url = URL.createObjectURL(await response.blob());
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'student-import-pending-corrections.xlsx';
+            a.click();
+            URL.revokeObjectURL(url);
+            message('Edit the pending rows, then inspect and preview the corrected XLSX as a new source file.', false);
+        } catch (error) { message(error.message, true); }
+        finally { busy = false; pendingCorrections.disabled = false; }
     });
 
     function renderCohort(status = null) {

@@ -1,3 +1,4 @@
+using ClosedXML.Excel;
 using System.Data;
 using System.Security.Cryptography;
 using System.Text.Json;
@@ -334,6 +335,65 @@ public sealed class StudentImportExecutionServiceTests
             new EduOS.Core.DTOs.Students.StudentImportCohortFileRequestDto
                 { FileHash = "bad", MappingHash = file.MappingHash, TotalRows = 1 }
         ])).StatusCode);
+        Assert.Empty(await db.Students.ToListAsync());
+    }
+
+
+    [Fact]
+    public async Task Correction_export_only_contains_uncommitted_windows_and_uses_safe_text_cells()
+    {
+        var options = Options(); await SeedAsync(options);
+        await using var db = Context(options, 101);
+        var service = Service(db, new User(101, true));
+        var source = Header + string.Concat(Enumerable.Range(1, 101)
+            .Select(i => $"SRC-{i},STU-{i},{(i == 101 ? "=1+1" : "Learner " + i)},10,20,{i},,\n"));
+        var mappingJson = JsonSerializer.Serialize(Mapping);
+        var fileHash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(source))).ToLowerInvariant();
+        var mappingHash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(mappingJson))).ToLowerInvariant();
+        var digest = SHA256.HashData(Encoding.UTF8.GetBytes(fileHash + ":" + mappingHash + ":0"));
+        digest[6] = (byte)((digest[6] & 0x0f) | 0x50);
+        digest[8] = (byte)((digest[8] & 0x3f) | 0x80);
+        var hex = Convert.ToHexString(digest.AsSpan(0, 16));
+        var requestId = Guid.ParseExact(
+            $"{hex[..8]}-{hex[8..12]}-{hex[12..16]}-{hex[16..20]}-{hex[20..]}", "D");
+        using (var upload = Csv(source))
+            Assert.True((await service.ExecuteSliceAsync(upload, ".csv", Mapping, requestId, 0)).Success);
+        using var original = Csv(source);
+        var export = await service.ExportPendingCorrectionsAsync(original, ".csv", Mapping, mappingJson);
+        Assert.True(export.Success, export.Message);
+        using var workbook = new XLWorkbook(new MemoryStream(export.Data!));
+        var sheet = workbook.Worksheet(1);
+        Assert.Equal("SourceRowNumber", sheet.Cell(1, 1).GetString());
+        Assert.Equal(102, sheet.Cell(2, 1).GetValue<int>());
+        Assert.Equal("SRC-101", sheet.Cell(2, 2).GetString());
+        Assert.Equal("=1+1", sheet.Cell(2, 4).GetString());
+        Assert.False(sheet.Cell(2, 4).HasFormula);
+        Assert.Equal(2, sheet.LastRowUsed()!.RowNumber());
+        Assert.Equal(100, await db.Students.CountAsync());
+    }
+
+    [Fact]
+    public async Task Correction_export_denies_unauthorized_and_invalid_inputs_without_writes()
+    {
+        var options = Options(); await SeedAsync(options);
+        await using var db = Context(options, 101);
+        var admin = Service(db, new User(101, true));
+        var denied = Service(db, new User(101, false));
+        var mappingJson = JsonSerializer.Serialize(Mapping);
+        const string source = Header + "ONLY-1,STU-1,One,10,20,1,,\n";
+        using (var file = Csv(source))
+            Assert.Equal(403, (await denied.ExportPendingCorrectionsAsync(
+                file, ".csv", Mapping, mappingJson)).StatusCode);
+        using (var file = Csv(source))
+            Assert.Equal(400, (await admin.ExportPendingCorrectionsAsync(
+                file, ".txt", Mapping, mappingJson)).StatusCode);
+        using (var file = Csv(source))
+        {
+            var result = await admin.ExportPendingCorrectionsAsync(file, ".csv", Mapping, mappingJson);
+            Assert.True(result.Success, result.Message);
+            using var workbook = new XLWorkbook(new MemoryStream(result.Data!));
+            Assert.Equal(2, workbook.Worksheet(1).LastRowUsed()!.RowNumber());
+        }
         Assert.Empty(await db.Students.ToListAsync());
     }
 
