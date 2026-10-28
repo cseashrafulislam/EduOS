@@ -48,8 +48,8 @@ public sealed class StudentImportPreviewServiceTests
         db.SubjectOfferings.Add(offering);
         await db.SaveChangesAsync();
         var service = Service(db, new User(101, true));
-        var source = Header + "PRE-SUB-A,STU-A,Learner A,10,20,11,,\\n" +
-            "PRE-SUB-B,STU-B,Learner B,10,20,12,,\\n";
+        var source = Header + "PRE-SUB-A,STU-A,Learner A,10,20,11,,\n" +
+            "PRE-SUB-B,STU-B,Learner B,10,20,12,,\n";
         using (var file = Csv(source))
         {
             var preview = await service.PreviewAsync(file, ".csv", Mapping);
