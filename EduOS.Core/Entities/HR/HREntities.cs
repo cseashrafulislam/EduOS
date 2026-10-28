@@ -97,3 +97,18 @@ public class EmployeeAssignmentHistory : BaseTenantEntity
     public bool IsCurrent { get; set; } = true;
     [MaxLength(1000)] public string? Reason { get; set; }
 }
+
+public class EmployeeContract : BaseTenantEntity
+{
+    public Guid PublicId { get; set; } = Guid.NewGuid();
+    public Guid ClientRequestId { get; set; }
+    public long EmployeeId { get; set; }
+    [Required, MaxLength(50)] public string ContractCode { get; set; } = string.Empty;
+    public DateOnly EffectiveFrom { get; set; }
+    public DateOnly? EffectiveTo { get; set; }
+    [MaxLength(500)] public string? Remarks { get; set; }
+    public EmployeeContractState State { get; set; } = EmployeeContractState.Draft;
+    public DateTime? ReviewedAt { get; set; }
+    public long? ReviewedByUserId { get; set; }
+    [MaxLength(500)] public string? ReviewReason { get; set; }
+}

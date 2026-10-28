@@ -311,6 +311,7 @@ public class EduOSDbContext :
     public DbSet<EmployeeAssignmentHistory> EmployeeAssignmentHistories => Set<EmployeeAssignmentHistory>();
     public DbSet<EmployeeBankAccount> EmployeeBankAccounts => Set<EmployeeBankAccount>();
     public DbSet<EmployeeCampusAssignment> EmployeeCampusAssignments => Set<EmployeeCampusAssignment>();
+    public DbSet<EmployeeContract> EmployeeContracts => Set<EmployeeContract>();
     public DbSet<EmployeeShiftAssignment> EmployeeShiftAssignments => Set<EmployeeShiftAssignment>();
     public DbSet<OrganizationUnit> OrganizationUnits => Set<OrganizationUnit>();
     public DbSet<WorkShift> WorkShifts => Set<WorkShift>();
@@ -1310,6 +1311,16 @@ public class EduOSDbContext :
         UniqueTenant<WorkShift>(modelBuilder, nameof(WorkShift.Code));
         UniqueTenant<Employee>(modelBuilder, nameof(Employee.EmployeeCode));
         UniqueTenant<Employee>(modelBuilder, nameof(Employee.PersonId));
+        UniqueTenant<EmployeeContract>(modelBuilder, nameof(EmployeeContract.ClientRequestId));
+        UniqueTenant<EmployeeContract>(modelBuilder, nameof(EmployeeContract.ContractCode));
+        modelBuilder.Entity<EmployeeContract>().HasIndex(x => new { x.TenantId, x.EmployeeId, x.EffectiveFrom });
+        modelBuilder.Entity<EmployeeContract>().HasIndex(x => x.PublicId).IsUnique();
+        modelBuilder.Entity<EmployeeContract>().HasOne<Employee>().WithMany()
+            .HasForeignKey(x => new { x.TenantId, x.EmployeeId })
+            .HasPrincipalKey(x => new { x.TenantId, x.Id })
+            .OnDelete(DeleteBehavior.Restrict);
+        modelBuilder.Entity<EmployeeContract>().ToTable(t =>
+            t.HasCheckConstraint("CK_EmployeeContract_Dates", "[EffectiveTo] IS NULL OR [EffectiveTo] >= [EffectiveFrom]"));
         modelBuilder.Entity<EmployeeBankAccount>().HasIndex(x => new { x.TenantId, x.EmployeeId })
             .IsUnique().HasFilter("[IsPrimary] = 1 AND [IsActive] = 1 AND [IsDeleted] = 0");
         UniqueTenant<EmployeeCampusAssignment>(modelBuilder,

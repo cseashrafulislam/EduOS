@@ -8948,6 +8948,44 @@ namespace EduOS.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("EduOS.Core.Entities.HR.EmployeeContract", b =>
+                {
+                    b.Property<long>("Id").ValueGeneratedOnAdd().HasColumnType("bigint");
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
+                    b.Property<Guid>("PublicId").HasColumnType("uniqueidentifier");
+                    b.Property<Guid>("ClientRequestId").HasColumnType("uniqueidentifier");
+                    b.Property<long>("EmployeeId").HasColumnType("bigint");
+                    b.Property<string>("ContractCode").IsRequired().HasMaxLength(50).HasColumnType("nvarchar(50)");
+                    b.Property<DateOnly>("EffectiveFrom").HasColumnType("date");
+                    b.Property<DateOnly?>("EffectiveTo").HasColumnType("date");
+                    b.Property<string>("Remarks").HasMaxLength(500).HasColumnType("nvarchar(500)");
+                    b.Property<int>("State").HasColumnType("int");
+                    b.Property<DateTime?>("ReviewedAt").HasColumnType("datetime2");
+                    b.Property<long?>("ReviewedByUserId").HasColumnType("bigint");
+                    b.Property<string>("ReviewReason").HasMaxLength(500).HasColumnType("nvarchar(500)");
+                    b.Property<long>("TenantId").HasColumnType("bigint");
+                    b.Property<DateTime>("CreatedAt").HasColumnType("datetime2");
+                    b.Property<long?>("CreatedBy").HasColumnType("bigint");
+                    b.Property<DateTime?>("UpdatedAt").HasColumnType("datetime2");
+                    b.Property<long?>("UpdatedBy").HasColumnType("bigint");
+                    b.Property<bool>("IsDeleted").HasColumnType("bit");
+                    b.Property<DateTime?>("DeletedAt").HasColumnType("datetime2");
+                    b.Property<long?>("DeletedBy").HasColumnType("bigint");
+                    b.Property<byte[]>("RowVersion").IsConcurrencyToken().IsRequired()
+                        .ValueGeneratedOnAddOrUpdate().HasColumnType("rowversion");
+                    b.HasKey("Id");
+                    b.HasAlternateKey("TenantId", "Id");
+                    b.HasIndex("PublicId").IsUnique();
+                    b.HasIndex("TenantId", "ClientRequestId").IsUnique();
+                    b.HasIndex("TenantId", "ContractCode").IsUnique();
+                    b.HasIndex("TenantId", "EmployeeId", "EffectiveFrom");
+                    b.ToTable("EmployeeContracts", t =>
+                    {
+                        t.HasCheckConstraint("CK_EmployeeContract_Dates",
+                            "[EffectiveTo] IS NULL OR [EffectiveTo] >= [EffectiveFrom]");
+                    });
+                });
+
             modelBuilder.Entity("EduOS.Core.Entities.HR.EmployeeShiftAssignment", b =>
                 {
                     b.Property<long>("Id")
@@ -20458,6 +20496,16 @@ namespace EduOS.Persistence.Migrations
                         .IsRequired();
 
                     b.Navigation("Tenant");
+                });
+
+            modelBuilder.Entity("EduOS.Core.Entities.HR.EmployeeContract", b =>
+                {
+                    b.HasOne("EduOS.Core.Entities.HR.Employee", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "EmployeeId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("EduOS.Core.Entities.HR.EmployeeShiftAssignment", b =>

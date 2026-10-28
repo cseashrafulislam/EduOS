@@ -1,0 +1,55 @@
+@{ ViewData["Title"] = "Employee Contracts"; }
+<section id="employeeContracts" class="container-fluid py-3">
+    <header class="d-flex justify-content-between align-items-start gap-2 flex-wrap mb-3">
+        <h2 class="h4 mb-0">Employee Contracts</h2>
+        <div class="d-flex gap-2">
+            <a href="/HrEmployeeRecords/Index" class="btn btn-sm btn-outline-secondary">Employees</a>
+            <details class="position-relative">
+                <summary class="btn btn-sm btn-outline-secondary" aria-label="Contract help" title="Page help">ⓘ</summary>
+                <div class="card card-body position-absolute end-0 shadow-sm mt-1" style="width:min(320px,85vw);z-index:10">
+                    Draft effective-dated terms require a different tenant administrator for approval. Approved terms are immutable. HR approval does not replace a legally signed document.
+                </div>
+            </details>
+        </div>
+    </header>
+    @Html.AntiForgeryToken()
+    <div id="contractAlert" class="alert d-none" role="alert" tabindex="-1" aria-live="polite"></div>
+    <form id="contractFind" class="card card-body mb-3">
+        <label for="contractSearch" class="form-label">Employee code or name</label>
+        <div class="input-group"><input id="contractSearch" class="form-control" type="search" maxlength="100" />
+            <button type="submit" class="btn btn-outline-primary">Find</button></div>
+        <label for="contractEmployee" class="form-label mt-2">Employee</label>
+        <select id="contractEmployee" class="form-select"><option value="">Select employee</option></select>
+    </form>
+    <form id="contractForm" class="card card-body row g-2 mb-3">
+        <div class="col-12"><h3 class="h6">New contract draft</h3></div>
+        <div class="col-md-4"><label for="contractCode" class="form-label">Reference *</label><input id="contractCode" class="form-control" maxlength="50" required /></div>
+        <div class="col-md-4"><label for="contractFrom" class="form-label">Effective from *</label><input id="contractFrom" class="form-control" type="date" required /></div>
+        <div class="col-md-4"><label for="contractTo" class="form-label">Effective to</label><input id="contractTo" class="form-control" type="date" /></div>
+        <div class="col-md-9"><label for="contractRemarks" class="form-label">Remarks / terms reference</label><input id="contractRemarks" class="form-control" maxlength="500" /></div>
+        <div class="col-md-3"><button id="contractCreate" class="btn btn-primary" type="submit">Register draft</button></div>
+    </form>
+    <div class="card card-body">
+        <h3 class="h6">Contract history</h3>
+        <div class="table-responsive"><table class="table table-sm table-hover align-middle">
+            <thead><tr><th>Reference</th><th>From</th><th>To</th><th>Status</th><th>Actions</th></tr></thead>
+            <tbody id="contractRows"><tr><td colspan="5">Select employee.</td></tr></tbody>
+        </table></div>
+        <div class="d-flex justify-content-between align-items-center">
+            <button id="contractPrev" type="button" class="btn btn-sm btn-outline-secondary">Previous</button>
+            <span id="contractPage"></span>
+            <button id="contractNext" type="button" class="btn btn-sm btn-outline-secondary">Next</button>
+        </div>
+        <form id="contractReview" class="d-none border-top mt-3 pt-3">
+            <h4 id="contractReviewTitle" class="h6">Review</h4>
+            <label for="contractReason" class="form-label">Reason (required for rejection)</label>
+            <input id="contractReason" class="form-control" maxlength="500" />
+            <div class="d-flex gap-2 mt-2">
+                <button id="contractApprove" class="btn btn-success" type="button">Approve</button>
+                <button id="contractReject" class="btn btn-outline-danger" type="button">Reject</button>
+                <button id="contractCancel" class="btn btn-outline-secondary" type="button">Close</button>
+            </div>
+        </form>
+    </div>
+</section>
+@section Scripts { <script src="~/js/hr/employee-contracts.js" asp-append-version="true"></script> }

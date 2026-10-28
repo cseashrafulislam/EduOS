@@ -114,6 +114,7 @@ namespace EduOS.App.Extensions
             s.AddScoped<IEmployeeSelfServiceService, EmployeeSelfServiceService>();
             s.AddScoped<ILmsWorkflowService, LmsWorkflowService>();
             s.AddScoped<IHrAdminService, HrAdminService>();
+            s.AddScoped<IEmployeeContractService, EmployeeContractService>();
             s.AddScoped<IPayrollAdministrationService, HrPayrollService>();
             s.AddScoped<IPayrollSalaryStatementService, PayrollSalaryStatementService>();
             s.AddScoped<ILibraryService, LibraryService>();
