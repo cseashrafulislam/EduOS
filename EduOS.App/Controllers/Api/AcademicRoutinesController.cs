@@ -49,6 +49,13 @@ public sealed class AcademicRoutinesController : ControllerBase
     [HttpGet("batches/{academicBatchId:long}")]
     public async Task<IActionResult> BatchTimetable(long academicBatchId, [FromQuery] long? academicTermId, CancellationToken cancellationToken) => ToAction(await _service.GetBatchTimetableAsync(academicBatchId, academicTermId, cancellationToken));
 
+    [HttpGet("batches/{academicBatchId:long}/page")]
+    public async Task<IActionResult> BatchTimetablePage(long academicBatchId, [FromQuery] long? academicTermId,
+        [FromQuery] int page = 1, [FromQuery] int pageSize = 50,
+        CancellationToken cancellationToken = default) =>
+        ToAction(await _service.GetBatchTimetablePageAsync(academicBatchId, academicTermId,
+            page, pageSize, cancellationToken));
+
     [HttpGet("teachers/{employeeId:long}")]
     public async Task<IActionResult> TeacherTimetable(long employeeId, [FromQuery] long academicYearId, [FromQuery] long? academicTermId, CancellationToken cancellationToken) => ToAction(await _service.GetTeacherTimetableAsync(employeeId, academicYearId, academicTermId, cancellationToken));
 

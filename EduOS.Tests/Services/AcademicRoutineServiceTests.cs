@@ -369,6 +369,66 @@ public sealed class AcademicRoutineServiceTests
             .GetAssignmentsPageAsync(batchId, null, null, 1, 50)).Data!.TotalCount.Should().Be(121);
     }
 
+    [Fact]
+    public async Task Batch_timetable_pages_read_beyond_1000_and_enforce_teacher_tenant_and_live_campus_grants()
+    {
+        var options = Options();
+        var scope = await SeedAsync(options);
+        await using var db = Context(options, 101);
+        var batchId = await db.AcademicBatches.Select(x => x.Id).SingleAsync();
+        var offeringId = await db.SubjectOfferings.Select(x => x.Id).SingleAsync();
+        var teacherId = await db.Employees.Select(x => x.Id).SingleAsync();
+        var slot = new RoutineTimeSlot
+        {
+            TenantId = 101, Name = "Morning", StartTime = new TimeOnly(9, 0),
+            EndTime = new TimeOnly(9, 45), IsActive = true
+        };
+        var assignment = new InstructorAssignment
+        {
+            TenantId = 101, SubjectOfferingId = offeringId, EmployeeId = teacherId,
+            EffectiveFrom = Start, IsActive = true
+        };
+        db.AddRange(slot, assignment);
+        await db.SaveChangesAsync();
+        db.RoutineEntries.AddRange(Enumerable.Range(0, 1001).Select(i => new RoutineEntry
+        {
+            TenantId = 101, SubjectOfferingId = offeringId, InstructorAssignmentId = assignment.Id,
+            RoutineTimeSlotId = slot.Id, DayOfWeek = DayOfWeek.Monday,
+            EffectiveFrom = Start, IsActive = true
+        }));
+        await db.SaveChangesAsync();
+
+        var admin = Service(db, new TestUser(101));
+        var first = await admin.GetBatchTimetablePageAsync(batchId, null, 1, 50);
+        var last = await admin.GetBatchTimetablePageAsync(batchId, null, 21, 50);
+        first.Success.Should().BeTrue(first.Message);
+        first.Data!.TotalCount.Should().Be(1001);
+        first.Data.Items.Should().HaveCount(50);
+        last.Data!.Items.Should().ContainSingle();
+        last.Data.Items[0].Id.Should().NotBe(first.Data.Items[0].Id);
+        (await admin.GetBatchTimetablePageAsync(batchId, null, 0, 50)).StatusCode.Should().Be(400);
+        (await admin.GetBatchTimetablePageAsync(batchId, null, 1, 101)).StatusCode.Should().Be(400);
+        (await Service(db, new TestUser(202)).GetBatchTimetablePageAsync(batchId, null, 1, 50))
+            .StatusCode.Should().Be(404);
+        (await Service(db, new TestUser(101, "Teacher", 999))
+            .GetBatchTimetablePageAsync(batchId, null, 1, 50)).StatusCode.Should().Be(403);
+        var teacher = await Service(db, new TestUser(101, "Teacher", 70))
+            .GetBatchTimetablePageAsync(batchId, null, 21, 50);
+        teacher.Data!.TotalCount.Should().Be(1001);
+        teacher.Data.Items.Should().ContainSingle();
+
+        var principal = Service(db, new TestUser(101, "Principal"));
+        (await principal.GetBatchTimetablePageAsync(batchId, null, 1, 50)).StatusCode.Should().Be(404);
+        var grant = new UserCampusAccess { TenantId = 101, UserId = 7,
+            CampusId = scope.CampusId, IsActive = true };
+        db.UserCampusAccesses.Add(grant);
+        await db.SaveChangesAsync();
+        (await principal.GetBatchTimetablePageAsync(batchId, null, 1, 50)).Success.Should().BeTrue();
+        grant.IsActive = false;
+        await db.SaveChangesAsync();
+        (await principal.GetBatchTimetablePageAsync(batchId, null, 1, 50)).StatusCode.Should().Be(404);
+    }
+
     private static SaveInstructorAssignmentRequestDto Assign(Guid offering, Guid teacher) => new()
     {
         ClientRequestId = Guid.NewGuid(), SubjectOfferingReference = offering,

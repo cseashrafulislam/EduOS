@@ -204,14 +204,18 @@ async function routine(browser) {
             entryPosts.push(data);
             return response(route, 200, { id: 71, rowVersion: 'AQIDBAUGBwg=' });
         }
-        if (url.pathname === '/api/academic-routines/batches/10')
-            return response(route, 200, entryPosts.length ? [{
+        if (url.pathname === '/api/academic-routines/batches/10/page') {
+            assert.equal(url.searchParams.get('page'), '1');
+            assert.equal(url.searchParams.get('pageSize'), '50');
+            const items = entryPosts.length ? [{
                 id: 71, rowVersion: 'AQIDBAUGBwg=', dayOfWeek: 1, timeSlotName: 'Morning',
                 subjectName: 'Math', effectiveFrom: '2026-10-01', isActive: true
             }] : posted.length ? [] : [{
                 id: 70, rowVersion: 'AQIDBAUGBwg=', dayOfWeek: 1, timeSlotName: 'Morning',
                 subjectName: 'Math', effectiveFrom: '2026-10-01', isActive: true
-            }]);
+            }];
+            return response(route, 200, { page: 1, pageSize: 50, totalCount: items.length, items });
+        }
         if (url.pathname === '/api/academic-routines/entries/70/deactivate') {
             tokenOk(request);
             assert.equal(url.searchParams.get('rowVersion'), 'AQIDBAUGBwg=');

@@ -3,7 +3,8 @@
     const root=document.getElementById('routineApp');if(!root)return;
     const el=id=>document.getElementById(id),manager=root.dataset.canManage==='true';
     const days=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
-    const state={batches:[],rooms:[],assignments:[],assignmentPage:1,assignmentTotal:0,entries:[],slots:[],instructors:[],offerings:[],offeringPage:1,offeringTotal:0,teacherEntries:[],teacherPage:1,teacherTotal:0};
+    const state={batches:[],rooms:[],assignments:[],assignmentPage:1,assignmentTotal:0,entries:[],batchPage:1,batchTotal:0,slots:[],instructors:[],offerings:[],offeringPage:1,offeringTotal:0,teacherEntries:[],teacherPage:1,teacherTotal:0};
+    let batchRequestSequence=0;
     const option=(id,name)=>{const v=document.createElement('option');v.value=String(id);v.textContent=name;return v;};
     const dateOnly=x=>x?String(x).slice(0,10):'';
     function clientId(){
@@ -109,25 +110,49 @@
         const tm=new Map();state.assignments.forEach(x=>tm.set(Number(x.employeeId),x.employeeName||x.employeeCode));
         select('routineTeacherTimetable',[...tm].map(([id,name])=>({id,name})),'Select teacher');
     }
+    async function loadBatchTimetable(page=1){
+        const batch=selectedBatch();if(!batch)return;
+        const requestedBatch=String(batch.id),sequence=++batchRequestSequence;
+        const q=new URLSearchParams({page:String(page),pageSize:'50'});
+        if(batch.academicTermId)q.set('academicTermId',String(batch.academicTermId));
+        const data=await api('/api/academic-routines/batches/'+batch.id+'/page?'+q);
+        if(sequence!==batchRequestSequence||String(selectedBatch()?.id)!==requestedBatch)return;
+        state.entries=data.items||[];state.batchPage=data.page||page;state.batchTotal=data.totalCount||0;
+        const pages=Math.max(1,Math.ceil(state.batchTotal/50));
+        el('routineBatchPage').textContent='Page '+state.batchPage+' of '+pages+' ('+state.batchTotal+' entries)';
+        el('routineBatchPrev').disabled=state.batchPage<=1;
+        el('routineBatchNext').disabled=state.batchPage>=pages;
+        renderTable('routineEntries',state.entries,(tr,x)=>{
+            tr.append(cell(days[Number(x.dayOfWeek)]||String(x.dayOfWeek)),cell(x.timeSlotName),
+                cell(x.subjectName),cell(x.roomName||'—'),
+                cell(dateOnly(x.effectiveFrom)+(x.effectiveTo?' – '+dateOnly(x.effectiveTo):'')));
+            if(manager){
+                const td=document.createElement('td'),button=document.createElement('button');
+                button.type='button';button.className='btn btn-sm btn-outline-danger';
+                button.textContent='Deactivate';button.dataset.deactivateId=x.id;
+                td.append(button);tr.append(td);
+            }
+        },manager?6:5);
+    }
     async function load(){
         const batch=selectedBatch();if(!batch){status('warning','Select an active academic batch.');return;}
         clearStatus();const btn=el('routineLoad');btn.disabled=true;populateScopedOptions();
+        ++batchRequestSequence;
+        state.entries=[];state.batchPage=1;state.batchTotal=0;
+        el('routineBatchPage').textContent='Loading timetable…';
+        el('routineBatchPrev').disabled=true;el('routineBatchNext').disabled=true;
+        renderTable('routineEntries',[],()=>{},manager?6:5);
         if(manager){
             for(const id of ['routineAssignFrom','routineEntryFrom'])el(id).value=batch.startDate||'';
             for(const id of ['routineAssignTo','routineEntryTo'])el(id).value=batch.endDate||'';
         }
         try{
-            const entries=await api('/api/academic-routines/batches/'+batch.id);
-            state.entries=entries||[];
+            await loadBatchTimetable(1);
             await loadAssignments(1);
             state.teacherEntries=[];state.teacherPage=1;state.teacherTotal=0;
             el('routineTeacherPage').textContent='No timetable loaded';
             el('routineTeacherPrev').disabled=true;el('routineTeacherNext').disabled=true;
             renderTable('routineTeacherEntries',[],()=>{},4);
-            renderTable('routineEntries',state.entries,(tr,x)=>{
-                tr.append(cell(days[Number(x.dayOfWeek)]||String(x.dayOfWeek)),cell(x.timeSlotName),cell(x.subjectName),cell(x.roomName||'—'),cell(dateOnly(x.effectiveFrom)+(x.effectiveTo?' – '+dateOnly(x.effectiveTo):'')));
-                if(manager){const td=document.createElement('td');const button=document.createElement('button');button.type='button';button.className='btn btn-sm btn-outline-danger';button.textContent='Deactivate';button.dataset.deactivateId=x.id;td.append(button);tr.append(td);}
-            },manager?6:5);
             if(manager){
                 try{await loadOfferings(1);}
                 catch(error){status('warning','Offered-subject selector unavailable: '+error.message);}
@@ -214,7 +239,7 @@
     }
     function exportBatch(){
         const batch=selectedBatch();if(!batch)return status('warning','Select a batch.');
-        exportCsv('routine-batch-'+batch.id+'.csv',['Day','Slot','Subject','Room','From','To','Active'],
+        exportCsv('routine-batch-'+batch.id+'-page-'+state.batchPage+'.csv',['Day','Slot','Subject','Room','From','To','Active'],
             state.entries.map(x=>[days[Number(x.dayOfWeek)]||x.dayOfWeek,x.timeSlotName,x.subjectName,x.roomName||'',
                 dateOnly(x.effectiveFrom),dateOnly(x.effectiveTo),x.isActive?'Yes':'No']));
     }
@@ -241,6 +266,8 @@
     el('routineFindAssignments').addEventListener('click',()=>loadAssignments(1).catch(e=>status('danger',e.message)));
     el('routineAssignmentsPrev').addEventListener('click',()=>loadAssignments(state.assignmentPage-1).catch(e=>status('danger',e.message)));
     el('routineAssignmentsNext').addEventListener('click',()=>loadAssignments(state.assignmentPage+1).catch(e=>status('danger',e.message)));
+    el('routineBatchPrev').addEventListener('click',()=>loadBatchTimetable(state.batchPage-1).catch(e=>status('danger',e.message)));
+    el('routineBatchNext').addEventListener('click',()=>loadBatchTimetable(state.batchPage+1).catch(e=>status('danger',e.message)));
     el('routineExportBatch').addEventListener('click',exportBatch);
     el('routineExportTeacher').addEventListener('click',exportTeacher);
     el('routineSlotForm')?.addEventListener('submit',saveSlot);

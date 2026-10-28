@@ -61,7 +61,7 @@
         <div class="table-responsive"><table class="table table-sm align-middle mb-0"><thead><tr><th>Teacher</th><th>Employee code</th><th>Offering ID</th><th>Role</th></tr></thead><tbody id="routineAssignments"><tr><td colspan="4" class="text-muted text-center p-3">Load a batch.</td></tr></tbody></table></div>
     </div>
     <div class="card mb-3">
-        <div class="card-header d-flex justify-content-between align-items-center"><h3 class="h6 m-0">Class timetable</h3><button id="routineExportBatch" type="button" class="btn btn-sm btn-outline-secondary">Export CSV</button></div>
+        <div class="card-header d-flex justify-content-between align-items-center"><h3 class="h6 m-0">Class timetable</h3><button id="routineExportBatch" type="button" class="btn btn-sm btn-outline-secondary">Export current page CSV</button></div>
         @if(canManage)
         {
             <form id="routineEntryForm" class="card-body border-bottom row g-2 align-items-end">
@@ -75,6 +75,11 @@
             </form>
         }
         <div class="table-responsive"><table class="table table-sm table-hover align-middle mb-0"><thead><tr><th>Day</th><th>Time slot</th><th>Subject</th><th>Room</th><th>Effective</th>@if(canManage){<th>Action</th>}</tr></thead><tbody id="routineEntries"><tr><td colspan="6" class="text-muted text-center p-3">Load a batch.</td></tr></tbody></table></div>
+        <nav class="card-body d-flex align-items-center gap-2 justify-content-end" aria-label="Class timetable pages">
+            <button id="routineBatchPrev" type="button" class="btn btn-sm btn-outline-secondary" disabled>Previous</button>
+            <span id="routineBatchPage" class="small text-muted" aria-live="polite">No timetable loaded</span>
+            <button id="routineBatchNext" type="button" class="btn btn-sm btn-outline-secondary" disabled>Next</button>
+        </nav>
     </div>
     <div class="card mb-3">
         <div class="card-header d-flex justify-content-between align-items-center"><h3 class="h6 m-0">Teacher timetable</h3><button id="routineExportTeacher" type="button" class="btn btn-sm btn-outline-secondary">Export CSV</button></div>

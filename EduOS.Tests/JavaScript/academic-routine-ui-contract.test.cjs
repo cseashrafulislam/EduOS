@@ -53,3 +53,15 @@ test('instructor assignment list uses server-side scoped pages instead of a 500-
     assert.match(view,/id="routineAssignmentsPage"/);
     assert.doesNotMatch(script,/Showing at most 500 assignments/);
 });
+
+test('batch timetable is SQL-paged, guards stale batch responses and exports only visible rows',()=>{
+    assert.match(script,/academic-routines\/batches\/.*\/page\?/);
+    assert.match(script,/state\.entries=data\.items\|\|\[\]/);
+    assert.match(script,/batchRequestSequence/);
+    assert.match(script,/routineBatchPrev/);
+    assert.match(script,/routineBatchNext/);
+    assert.match(script,/routine-batch-'\+batch\.id\+'-page-'\+state\.batchPage/);
+    assert.doesNotMatch(script,/const entries=await api\('\/api\/academic-routines\/batches\/');
+    assert.match(view,/id="routineBatchPage"/);
+    assert.match(view,/Export current page CSV/);
+});

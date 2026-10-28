@@ -318,6 +318,71 @@ public sealed class AcademicRoutineService : IAcademicRoutineService
         return ApiResponse<IReadOnlyList<RoutineEntryDto>>.SuccessResponse(rows);
     }
 
+    /// <summary>
+    /// SQL-paged batch timetable. No offering-ID prefetch cap; active campus grants
+    /// and teacher assignment ownership are evaluated on every request.
+    /// </summary>
+    public async Task<ApiResponse<RoutineTimetablePageDto>> GetBatchTimetablePageAsync(
+        long academicBatchId, long? academicTermId, int page, int pageSize,
+        CancellationToken cancellationToken = default)
+    {
+        if (!CanRead()) return Denied<RoutineTimetablePageDto>();
+        if (academicBatchId <= 0 || page < 1 || page > 100000 || pageSize < 1 || pageSize > 100)
+            return Error<RoutineTimetablePageDto>("Invalid batch timetable page request.");
+
+        var batch = await GetBatchAsync(academicBatchId, cancellationToken);
+        if (batch == null) return Error<RoutineTimetablePageDto>("Academic batch not found.", 404);
+        var term = await ResolveTermAsync(batch, academicTermId, cancellationToken);
+        if (!term.IsValid) return Error<RoutineTimetablePageDto>(term.Error!);
+
+        var tenant = _currentUser.TenantId;
+        var entriesQuery =
+            from entry in _entries.GetQueryable().AsNoTracking()
+            join offering in _offerings.GetQueryable().AsNoTracking()
+                on entry.SubjectOfferingId equals offering.Id
+            where entry.TenantId == tenant && offering.TenantId == tenant &&
+                  entry.IsActive && offering.IsActive &&
+                  offering.AcademicBatchId == batch.Id &&
+                  offering.AcademicYearId == batch.AcademicYearId &&
+                  offering.AcademicTermId == term.TermId
+            select new { Entry = entry, Offering = offering };
+
+        if (!IsManager())
+        {
+            var teacherId = await GetLinkedTeacherIdAsync(cancellationToken);
+            if (!teacherId.HasValue) return Denied<RoutineTimetablePageDto>();
+            var ownAssignments = _assignments.GetQueryable().AsNoTracking()
+                .Where(x => x.TenantId == tenant && x.EmployeeId == teacherId.Value && x.IsActive);
+            var hasBatchAssignment = await (
+                from assignment in ownAssignments
+                join offering in _offerings.GetQueryable().AsNoTracking()
+                    on assignment.SubjectOfferingId equals offering.Id
+                where offering.TenantId == tenant && offering.IsActive &&
+                      offering.AcademicBatchId == batch.Id &&
+                      offering.AcademicYearId == batch.AcademicYearId &&
+                      offering.AcademicTermId == term.TermId
+                select assignment.Id).AnyAsync(cancellationToken);
+            if (!hasBatchAssignment) return Denied<RoutineTimetablePageDto>();
+
+            entriesQuery = entriesQuery.Where(x => x.Entry.InstructorAssignmentId.HasValue &&
+                ownAssignments.Any(a => a.Id == x.Entry.InstructorAssignmentId.Value &&
+                                        a.SubjectOfferingId == x.Offering.Id));
+        }
+
+        var total = await entriesQuery.CountAsync(cancellationToken);
+        var entries = await entriesQuery
+            .OrderBy(x => x.Entry.DayOfWeek)
+            .ThenBy(x => x.Entry.RoutineTimeSlotId)
+            .ThenBy(x => x.Entry.Id)
+            .Skip((page - 1) * pageSize).Take(pageSize)
+            .Select(x => x.Entry).ToListAsync(cancellationToken);
+        var items = await MapEntriesAsync(entries, cancellationToken);
+        return ApiResponse<RoutineTimetablePageDto>.SuccessResponse(new RoutineTimetablePageDto
+        {
+            Items = items, Page = page, PageSize = pageSize, TotalCount = total
+        });
+    }
+
     public async Task<ApiResponse<IReadOnlyList<RoutineEntryDto>>> GetTeacherTimetableAsync(
         long employeeId, long academicYearId, long? academicTermId, CancellationToken cancellationToken = default)
     {
