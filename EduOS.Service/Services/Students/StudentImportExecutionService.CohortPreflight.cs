@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Logging;
+using Microsoft.EntityFrameworkCore;
 using EduOS.Core.Common;
 using EduOS.Core.DTOs.Students;
 
@@ -31,6 +32,7 @@ public sealed partial class StudentImportExecutionService
             var guardians = new Dictionary<string, (string Name, string Phone, int File, int Row)>(
                 StringComparer.OrdinalIgnoreCase);
             var result = new StudentImportCohortPreflightDto { FileCount = files.Count };
+            var cohortRows = new List<(int FileNumber, ImportRow Row)>();
             long totalBytes = 0;
 
             for (var index = 0; index < files.Count; index++)
@@ -59,6 +61,7 @@ public sealed partial class StudentImportExecutionService
                 foreach (var row in rows)
                 {
                     cancellationToken.ThrowIfCancellationRequested();
+                    cohortRows.Add((fileNumber, row));
                     void Duplicate(Dictionary<string, (int File, int Row)> seen, string value, string field)
                     {
                         if (string.IsNullOrWhiteSpace(value)) return;
@@ -99,8 +102,7 @@ public sealed partial class StudentImportExecutionService
                 }
             }
             result.TotalIssues = result.Issues.Count;
-            return Task.FromResult(ApiResponse<StudentImportCohortPreflightDto>.SuccessResponse(result,
-                "Cross-file source identity check completed; each file still requires tenant-scoped preview and transactional validation."));
+            return ValidateTenantCohortAsync(result, cohortRows, cancellationToken);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
         catch (Exception ex) when (ex is FormatException or InvalidDataException or ArgumentException)
@@ -113,6 +115,106 @@ public sealed partial class StudentImportExecutionService
             _logger.LogError(ex, "Student import cohort preflight failed for tenant {TenantId}", _user.TenantId);
             return Task.FromResult(ApiResponse<StudentImportCohortPreflightDto>.ErrorResponse(
                 "Unable to check cohort source files.", 500));
+        }
+    }
+
+    /// <summary>Read-only, tenant-scoped capacity and previously committed guardian-key validation.</summary>
+    private async Task<ApiResponse<StudentImportCohortPreflightDto>> ValidateTenantCohortAsync(
+        StudentImportCohortPreflightDto result,
+        IReadOnlyList<(int FileNumber, ImportRow Row)> cohortRows,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var tenant = _user.TenantId;
+            var batchIds = cohortRows.Select(x => x.Row.BatchId).Where(x => x > 0).Distinct().ToArray();
+            var batches = await _batches.GetQueryable().AsNoTracking()
+                .Where(x => x.TenantId == tenant && !x.IsDeleted && x.IsActive && batchIds.Contains(x.Id))
+                .Select(x => new { x.Id, x.CampusId, x.Capacity })
+                .ToDictionaryAsync(x => x.Id, cancellationToken);
+            var occupancy = await _enrollments.GetQueryable().AsNoTracking()
+                .Where(x => x.TenantId == tenant && !x.IsDeleted && x.IsCurrent &&
+                    x.State == EduOS.Core.Enums.Domain.EnrollmentState.Active &&
+                    batchIds.Contains(x.AcademicBatchId))
+                .GroupBy(x => x.AcademicBatchId)
+                .Select(x => new { BatchId = x.Key, Count = x.Count() })
+                .ToDictionaryAsync(x => x.BatchId, x => x.Count, cancellationToken);
+            var planned = new Dictionary<long, int>();
+            foreach (var (fileNumber, row) in cohortRows)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                var validCampus = long.TryParse(row.CampusId, System.Globalization.NumberStyles.None,
+                    System.Globalization.CultureInfo.InvariantCulture, out var campusId) && campusId > 0;
+                if (!validCampus || !batches.TryGetValue(row.BatchId, out var batch) ||
+                    batch.CampusId != campusId)
+                {
+                    result.Issues.Add(new StudentImportCohortConflictDto
+                    {
+                        FileNumber = fileNumber, RowNumber = row.RowNumber, Field = "BatchCampus",
+                        Message = "Batch or campus is not available within this institution."
+                    });
+                    continue;
+                }
+                var allocated = occupancy.GetValueOrDefault(row.BatchId) + planned.GetValueOrDefault(row.BatchId);
+                if (allocated >= batch.Capacity)
+                    result.Issues.Add(new StudentImportCohortConflictDto
+                    {
+                        FileNumber = fileNumber, RowNumber = row.RowNumber, Field = "BatchCapacity",
+                        Message = "Combined source files would exceed remaining batch capacity."
+                    });
+                else planned[row.BatchId] = planned.GetValueOrDefault(row.BatchId) + 1;
+            }
+
+            // Only explicit, tenant-owned guardian source keys can be reconciled.
+            // Never look up a global Person by name or phone.
+            var sourceIds = cohortRows.Where(x => !string.IsNullOrWhiteSpace(x.Row.GuardianSourceKey))
+                .Select(x => GuardianSourceId(x.Row.GuardianSourceKey)).Distinct().ToArray();
+            var prior = new Dictionary<Guid, (string Hash, long? GuardianId)>();
+            foreach (var chunk in sourceIds.Chunk(200))
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                var records = await _keys.GetQueryable().AsNoTracking()
+                    .Where(x => x.TenantId == tenant && x.Scope == GuardianSourceScope &&
+                        !x.IsDeleted && chunk.Contains(x.RequestId))
+                    .Select(x => new { x.RequestId, x.RequestHash, x.TargetId })
+                    .ToListAsync(cancellationToken);
+                foreach (var record in records)
+                    prior[record.RequestId] = (record.RequestHash, record.TargetId);
+            }
+            var activeGuardians = new HashSet<long>();
+            foreach (var chunk in prior.Values.Where(x => x.GuardianId.HasValue)
+                .Select(x => x.GuardianId!.Value).Distinct().Chunk(200))
+            {
+                var ids = await _guardians.GetQueryable().AsNoTracking()
+                    .Where(x => x.TenantId == tenant && !x.IsDeleted && x.IsActive &&
+                        chunk.Contains(x.Id))
+                    .Select(x => x.Id).ToListAsync(cancellationToken);
+                activeGuardians.UnionWith(ids);
+            }
+            foreach (var (fileNumber, row) in cohortRows)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                if (string.IsNullOrWhiteSpace(row.GuardianSourceKey) ||
+                    !prior.TryGetValue(GuardianSourceId(row.GuardianSourceKey), out var existing))
+                    continue;
+                if (existing.Hash != GuardianProfileHash(row) ||
+                    !existing.GuardianId.HasValue || !activeGuardians.Contains(existing.GuardianId.Value))
+                    result.Issues.Add(new StudentImportCohortConflictDto
+                    {
+                        FileNumber = fileNumber, RowNumber = row.RowNumber, Field = "GuardianSourceKey",
+                        Message = "Guardian source key conflicts with an existing tenant-owned guardian."
+                    });
+            }
+            result.TotalIssues = result.Issues.Count;
+            return ApiResponse<StudentImportCohortPreflightDto>.SuccessResponse(result,
+                "Cross-file identity, capacity and guardian references checked; each file still needs transactional validation.");
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Student import tenant cohort preflight failed for tenant {TenantId}", _user.TenantId);
+            return ApiResponse<StudentImportCohortPreflightDto>.ErrorResponse(
+                "Unable to validate cohort allocations.", 500);
         }
     }
 }

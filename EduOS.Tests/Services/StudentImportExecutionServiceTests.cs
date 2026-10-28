@@ -465,6 +465,72 @@ public sealed class StudentImportExecutionServiceTests
         Assert.Empty(await db.Students.ToListAsync());
     }
 
+
+    [Fact]
+    public async Task Cohort_preflight_detects_cross_file_capacity_and_invalid_campus_without_writes()
+    {
+        var options = Options(); await SeedAsync(options);
+        await using var db = Context(options, 101);
+        var batch = await db.AcademicBatches.SingleAsync();
+        batch.Capacity = 1;
+        await db.SaveChangesAsync();
+        var service = Service(db, new User(101, true));
+        var files = new[]
+        {
+            new EduOS.Core.DTOs.Students.StudentImportCohortUploadDto
+            {
+                Extension = ".csv", Content = Encoding.UTF8.GetBytes(
+                    Header + "SRC-1,STU-1,Learner One,10,20,11,,\n")
+            },
+            new EduOS.Core.DTOs.Students.StudentImportCohortUploadDto
+            {
+                Extension = ".csv", Content = Encoding.UTF8.GetBytes(
+                    Header + "SRC-2,STU-2,Learner Two,10,20,12,,\n" +
+                    "SRC-3,STU-3,Learner Three,999,20,13,,\n")
+            }
+        };
+        var report = await service.PreflightCohortAsync(files, Mapping);
+        Assert.True(report.Success, report.Message);
+        Assert.Equal(3, report.Data!.TotalRows);
+        Assert.Contains(report.Data.Issues, x => x.FileNumber == 2 && x.Field == "BatchCapacity");
+        Assert.Contains(report.Data.Issues, x => x.FileNumber == 2 && x.Field == "BatchCampus");
+        Assert.Empty(await db.Students.ToListAsync());
+        Assert.Empty(await db.StudentEnrollments.ToListAsync());
+    }
+
+    [Fact]
+    public async Task Cohort_preflight_checks_existing_tenant_guardian_key_without_exposing_identity()
+    {
+        var options = Options(); await SeedAsync(options);
+        await using var db = Context(options, 101);
+        var service = Service(db, new User(101, true));
+        var mapping = new Dictionary<string, string>(Mapping) { ["GuardianSourceKey"] = "GuardianSourceKey" };
+        const string header = "SourceKey,StudentCode,FullName,CampusId,AcademicBatchId,RollNo,GuardianName,GuardianPhone,GuardianSourceKey\n";
+        using (var original = Csv(header + "ORIG,STU-ORIG,Learner,10,20,1,Guardian One,01700000000,FAMILY-1\n"))
+            Assert.True((await service.ExecuteAsync(original, ".csv", mapping, Guid.NewGuid())).Success);
+        var before = await db.Guardians.CountAsync();
+        var files = new[]
+        {
+            new EduOS.Core.DTOs.Students.StudentImportCohortUploadDto
+            {
+                Extension = ".csv", Content = Encoding.UTF8.GetBytes(
+                    header + "SRC-1,STU-1,First,10,20,2,Guardian Different,01700000000,FAMILY-1\n")
+            },
+            new EduOS.Core.DTOs.Students.StudentImportCohortUploadDto
+            {
+                Extension = ".csv", Content = Encoding.UTF8.GetBytes(
+                    header + "SRC-2,STU-2,Second,10,20,3,Guardian Different,01700000000,FAMILY-1\n")
+            }
+        };
+        var report = await service.PreflightCohortAsync(files, mapping);
+        Assert.True(report.Success, report.Message);
+        Assert.Equal(2, report.Data!.Issues.Count(x => x.Field == "GuardianSourceKey"));
+        Assert.All(report.Data.Issues.Where(x => x.Field == "GuardianSourceKey"),
+            issue => Assert.DoesNotContain("Guardian One", issue.Message));
+        Assert.Equal(before, await db.Guardians.CountAsync());
+        Assert.Single(await db.Students.ToListAsync());
+    }
+
     private sealed class InMemoryUow(EduOSDbContext db) : IUnitOfWork
     {
         public Task<int> SaveChangesAsync(CancellationToken token = default) => db.SaveChangesAsync(token);
