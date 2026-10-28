@@ -46,7 +46,7 @@ public sealed partial class AccountingReportingService
         return ApiResponse<PagedResult<BankReconciliationMatchEventDto>>.SuccessResponse(
             new PagedResult<BankReconciliationMatchEventDto>
             {
-                Items = rows.Select(e => MatchDto(e, e.ActionCode == 1 && cancelled.Contains(e.Id))).ToArray(),
+                Items = rows.Select(e => MatchDto(e, e.ActionCode == 1 && cancelled.Contains(e.Id))).ToList(),
                 TotalCount = total, Page = page, PageSize = pageSize
             });
     }
