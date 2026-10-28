@@ -15,7 +15,8 @@ test('session register is manager-authorized, bounded and includes unfinalized s
     assert.match(service, /GetSessionRegisterAsync/);
     assert.match(service, /GetAuthorizedCampusIdAsync/);
     assert.match(service, /session\.AcademicBatchId == query\.AcademicBatchId/);
-    assert.match(service, /from totals in marks\.DefaultIfEmpty\(\)/);
+    assert.match(service, /sessionIds\.Contains\(mark\.AttendanceSessionId\)/);
+    assert.match(service, /bySession\.TryGetValue/);
     assert.match(service, /\.Skip\(\(query\.Page - 1\) \* query\.PageSize\)/);
     assert.match(api, /HttpGet\("sessions"\)/);
     assert.match(api, /Authorize\(Roles = "TenantAdmin,Principal,VicePrincipal"\)/);
