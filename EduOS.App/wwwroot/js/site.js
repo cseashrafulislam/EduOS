@@ -180,9 +180,24 @@
         window.EduOSWorkspacePreferences = detail;
         window.dispatchEvent(new CustomEvent('eduos:workspace-preferences', { detail }));
     };
+    // Server response identity must match this rendered page, not just the current cookie.
+    // A tab opened under institute A must never apply preferences returned under B.
+    window.EduOSWorkspaceResponseMatchesSession = response => {
+        const reference = document.body.dataset.authSessionReference || '';
+        const tenant = document.body.dataset.authTenantId || '';
+        return /^[0-9A-F]{64}$/.test(reference) &&
+            response?.headers?.get('X-EduOS-Session-Reference') === reference &&
+            response.headers.get('X-EduOS-Tenant-Id') === tenant;
+    };
     if (document.body.dataset.workspacePreferences === 'enabled') {
         fetch('/api/workspace-preferences', { credentials: 'same-origin', cache: 'no-store' })
-            .then(response => response.ok ? response.json() : null)
+            .then(response => {
+                if (!window.EduOSWorkspaceResponseMatchesSession(response)) {
+                    window.EduOSVerifySessionContext?.();
+                    return null;
+                }
+                return response.ok ? response.json() : null;
+            })
             .then(result => {
                 if (result?.success && result.data)
                     window.EduOSApplyWorkspacePreferences(result.data);

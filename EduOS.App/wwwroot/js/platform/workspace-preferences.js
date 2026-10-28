@@ -133,6 +133,12 @@
                 'RequestVerificationToken': form.querySelector('input[name="__RequestVerificationToken"]')?.value || '' },
             body: JSON.stringify(payload)
         });
+        if (!window.EduOSWorkspaceResponseMatchesSession?.(response)) {
+            window.EduOSVerifySessionContext?.();
+            const error = new Error('Institution session changed.');
+            error.sessionChanged = true;
+            throw error;
+        }
         const body = await response.json().catch(() => null);
         if (!response.ok || !body?.success) {
             const error = new Error(body?.message || 'Request failed.');
@@ -150,7 +156,11 @@
             fill(persisted);
             preview();
             message('Appearance loaded.', 'ডিজাইন লোড হয়েছে।');
-        } catch {
+        } catch (error) {
+            if (error.sessionChanged) {
+                message('Institution session changed. Reload this page.', 'প্রতিষ্ঠানের সেশন পরিবর্তিত হয়েছে। পেজটি আবার লোড করুন।', true);
+                return;
+            }
             fill(defaults);
             preview();
             message('Could not load saved appearance. Try refreshing.', 'সংরক্ষিত ডিজাইন লোড হয়নি। আবার চেষ্টা করুন।', true);
@@ -167,6 +177,10 @@
             preview();
             message('Appearance saved for this institution.', 'এই প্রতিষ্ঠানের জন্য ডিজাইন সংরক্ষিত হয়েছে।');
         } catch (error) {
+            if (error.sessionChanged) {
+                message('Institution session changed. Reload this page.', 'প্রতিষ্ঠানের সেশন পরিবর্তিত হয়েছে। পেজটি আবার লোড করুন।', true);
+                return;
+            }
             if (error.conflict) {
                 message('Another device changed your design. Reloading current preferences.', 'অন্য ডিভাইসে ডিজাইন বদলেছে। নতুন তথ্য লোড হচ্ছে।', true);
                 await load();
@@ -175,6 +189,16 @@
             }
         } finally { setBusy(false); }
     }
+    const help = document.getElementById('workspaceHelp');
+    help?.addEventListener('keydown', event => {
+        if (event.key === 'Escape') {
+            help.open = false;
+            help.querySelector('summary')?.focus();
+        }
+    });
+    document.addEventListener('pointerdown', event => {
+        if (help?.open && !help.contains(event.target)) help.open = false;
+    });
     form.addEventListener('change', preview);
     panelList.addEventListener('click', event => {
         const button = event.target.closest('[data-panel-move]');

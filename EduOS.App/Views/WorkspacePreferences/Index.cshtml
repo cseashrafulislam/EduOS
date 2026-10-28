@@ -4,8 +4,15 @@
     var bn = CultureInfo.CurrentUICulture.Name == "bn-BD";
 }
 <section class="container-fluid py-3" id="workspacePreferencesPage" aria-labelledby="workspaceTitle">
-    <div class="mb-3">
-        <h2 id="workspaceTitle">@(bn ? "আপনার ওয়ার্কস্পেস" : "Your Workspace")</h2>
+    <div class="d-flex justify-content-between align-items-center gap-2 mb-3">
+        <h2 class="h4 mb-0" id="workspaceTitle">@(bn ? "আপনার ওয়ার্কস্পেস" : "Your Workspace")</h2>
+        <details id="workspaceHelp" class="position-relative">
+            <summary class="btn btn-outline-secondary btn-sm" aria-label="@(bn ? "ওয়ার্কস্পেস সহায়তা" : "Workspace help")" title="@(bn ? "সহায়তা" : "Help")">ⓘ</summary>
+            <div class="dropdown-menu show end-0 mt-1 p-3 shadow-sm page-header-help-panel" role="note">
+                <p class="small mb-2">@(bn ? "থিম, রঙ, নেভিগেশন ও লেখার আকার এই প্রতিষ্ঠানের জন্য আলাদাভাবে সংরক্ষিত হয়।" : "Theme, color, navigation and text size are saved separately for this institution.")</p>
+                <p class="small mb-0">@(bn ? "প্যানেল বা অনুমোদিত তালিকার কলাম সাজিয়ে সংরক্ষণ করুন। অন্য ডিভাইসে পরিবর্তন হলে বর্তমান সেটিং আবার লোড হবে।" : "Arrange panels or allowed table columns, then save. Changes from another device require a reload.")</p>
+            </div>
+        </details>
     </div>
     <div class="card shadow-sm">
         <div class="card-body">

@@ -3349,3 +3349,6 @@ select,
     .dashboard-custom-panels { grid-template-columns: minmax(0, 1fr); }
     .dashboard-custom-panels > .setup-checklist-panel { grid-column: auto; }
 }
+
+/* Shared, user-initiated page-header field guide; no page-specific layout overrides. */
+.page-header-help-panel { width: min(20rem, 85vw); max-height: 60vh; overflow-y: auto; }
