@@ -100,6 +100,22 @@ public sealed class SqlServerAssessmentMarkReviewLifecycleIntegrationTests
             Assert.True(page.Success, page.Message);
             Assert.Single(page.Data!.Items);
             Assert.False(page.Data.HasMore);
+            var history = await service.GetResultRescrutinyHistoryAsync(caseReference);
+            Assert.True(history.Success, history.Message);
+            Assert.Equal(studentReference, history.Data!.StudentReference);
+            Assert.Equal(ResultRescrutinyAction.Requested, Assert.Single(history.Data.Events).Action);
+            var pending = await service.SearchResultRescrutinyAsync(new()
+            {
+                PublicationId = publicationId, Status = ResultRescrutinyAction.Requested
+            });
+            Assert.True(pending.Success, pending.Message);
+            Assert.Single(pending.Data!.Items);
+            var rejected = await service.SearchResultRescrutinyAsync(new()
+            {
+                PublicationId = publicationId, Status = ResultRescrutinyAction.Rejected
+            });
+            Assert.True(rejected.Success, rejected.Message);
+            Assert.Empty(rejected.Data!.Items);
         }
         await using (var db = TenantDb(options, seeded.TenantId + 1))
         {
@@ -108,6 +124,7 @@ public sealed class SqlServerAssessmentMarkReviewLifecycleIntegrationTests
             {
                 PublicationId = publicationId
             })).StatusCode);
+            Assert.Equal(404, (await foreign.GetResultRescrutinyHistoryAsync(caseReference)).StatusCode);
             Assert.Equal(404, (await foreign.DecideResultRescrutinyAsync(caseReference, new()
             {
                 ClientRequestId = Guid.NewGuid(), RequestRowVersion = version,
@@ -151,6 +168,22 @@ public sealed class SqlServerAssessmentMarkReviewLifecycleIntegrationTests
             });
             Assert.Equal(ResultRescrutinyAction.AcceptedForCorrection,
                 Assert.Single(page.Data!.Items).Status);
+            var history = await service.GetResultRescrutinyHistoryAsync(caseReference);
+            Assert.True(history.Success, history.Message);
+            Assert.Equal(2, history.Data!.Events.Count);
+            Assert.Equal(ResultRescrutinyAction.AcceptedForCorrection, history.Data.Events[1].Action);
+            var accepted = await service.SearchResultRescrutinyAsync(new()
+            {
+                PublicationId = publicationId, Status = ResultRescrutinyAction.AcceptedForCorrection
+            });
+            Assert.True(accepted.Success, accepted.Message);
+            Assert.Single(accepted.Data!.Items);
+            var pending = await service.SearchResultRescrutinyAsync(new()
+            {
+                PublicationId = publicationId, Status = ResultRescrutinyAction.Requested
+            });
+            Assert.True(pending.Success, pending.Message);
+            Assert.Empty(pending.Data!.Items);
         }
         await using (var db = TenantDb(options, seeded.TenantId))
         {
