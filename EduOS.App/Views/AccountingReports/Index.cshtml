@@ -192,6 +192,24 @@
                             <thead><tr><th>Source</th><th>Date</th><th>Ledger line</th><th>Statement row</th><th>Reference</th><th class="text-end">Deposit</th><th class="text-end">Withdrawal</th><th>Result / Draft action</th></tr></thead>
                             <tbody id="statementSavedReviewRows"></tbody>
                         </table></div>
+                        <section class="border-top mt-3 pt-2 mb-3" aria-label="Reconciliation clearance workflow">
+                            <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2">
+                                <h5 class="h6 mb-0">Reconciliation Approval &amp; Clearance</h5>
+                                <button id="statementApprovalCsv" type="button" class="btn btn-outline-secondary btn-sm" disabled>Export Approval Evidence</button>
+                            </div>
+                            <div id="statementApprovalSummary" class="small fw-semibold mb-2" role="status" aria-live="polite"></div>
+                            <div class="row g-2 mb-2">
+                                <div class="col-md-8"><label for="statementApprovalReason" class="form-label">Reversal reason (required for reversal)</label>
+                                    <input id="statementApprovalReason" class="form-control form-control-sm" maxlength="250" /></div>
+                                <div class="col-md-4 d-flex align-items-end">
+                                    <button id="statementApprovalAction" type="button" class="btn btn-outline-primary btn-sm" disabled>Submit</button>
+                                </div>
+                            </div>
+                            <div class="table-responsive"><table class="table table-sm table-striped">
+                                <thead><tr><th>Action</th><th>Actor</th><th>Recorded UTC</th><th>Matched</th><th>Evidence hash</th><th>Reason</th></tr></thead>
+                                <tbody id="statementApprovalRows"></tbody>
+                            </table></div>
+                        </section>
                         <section class="border-top mt-3 pt-2" aria-label="Draft matching decisions">
                             <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2">
                                 <h5 class="h6 mb-0">Explicit Draft Matches</h5>

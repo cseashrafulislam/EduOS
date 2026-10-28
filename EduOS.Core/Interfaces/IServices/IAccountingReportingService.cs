@@ -22,6 +22,10 @@ public interface IAccountingReportingService
         long batchId, CancellationToken cancellationToken = default);
     Task<ApiResponse<PagedResult<BankReconciliationMatchEventDto>>> GetBankReconciliationMatchEventsAsync(
         long batchId, int page = 1, int pageSize = 50, CancellationToken cancellationToken = default);
+    Task<ApiResponse<BankReconciliationApprovalStatusDto>> GetBankReconciliationApprovalStatusAsync(
+        long batchId, CancellationToken cancellationToken = default);
+    Task<ApiResponse<BankReconciliationApprovalEventDto>> RecordBankReconciliationApprovalAsync(
+        BankReconciliationApprovalCommandDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<BankReconciliationMatchEventDto>> RecordBankReconciliationMatchEventAsync(
         BankReconciliationMatchCommandDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<BankReconciliationCandidatePageDto>> GetBankReconciliationCandidatesAsync(

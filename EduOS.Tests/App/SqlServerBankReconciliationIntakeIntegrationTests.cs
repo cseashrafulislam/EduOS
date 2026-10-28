@@ -23,7 +23,7 @@ public sealed class SqlServerBankReconciliationIntakeIntegrationTests
         if (string.IsNullOrWhiteSpace(connection)) return;
         var options = new DbContextOptionsBuilder<EduOSDbContext>().UseSqlServer(connection).Options;
         var suffix = Guid.NewGuid().ToString("N")[..10];
-        long tenantId, otherTenantId, userId, otherUserId, bankId;
+        long tenantId, otherTenantId, userId, otherUserId, checkerId, reversalCheckerId, bankId;
         var date = new DateOnly(2026, 10, 15);
 
         await using (var seed = new EduOSDbContext(options))
@@ -39,10 +39,17 @@ public sealed class SqlServerBankReconciliationIntakeIntegrationTests
                 NormalizedUserName = ("RECO-" + suffix).ToUpperInvariant(),
                 Email = "recother-" + suffix + "@example.test", FullName = "Other Finance CI" };
             seed.Tenants.AddRange(tenant, other);
-            seed.Users.AddRange(actor, otherActor);
+            var checker = new ApplicationUser { UserName = "rec-check-" + suffix,
+                NormalizedUserName = ("REC-CHECK-" + suffix).ToUpperInvariant(),
+                Email = "rec-check-" + suffix + "@example.test", FullName = "Independent Checker" };
+            var reversalChecker = new ApplicationUser { UserName = "rec-rev-" + suffix,
+                NormalizedUserName = ("REC-REV-" + suffix).ToUpperInvariant(),
+                Email = "rec-rev-" + suffix + "@example.test", FullName = "Reversal Checker" };
+            seed.Users.AddRange(actor, otherActor, checker, reversalChecker);
             await seed.SaveChangesAsync();
             tenantId = tenant.Id; otherTenantId = other.Id;
             userId = actor.Id; otherUserId = otherActor.Id;
+            checkerId = checker.Id; reversalCheckerId = reversalChecker.Id;
             seed.ChangeTracker.Clear();
 
             using (seed.BeginSystemTenantScope(tenantId))
@@ -141,7 +148,68 @@ public sealed class SqlServerBankReconciliationIntakeIntegrationTests
         var history = await service.GetBankReconciliationMatchEventsAsync(confirm.BatchId);
         Assert.True(history.Success, history.Message);
         Assert.True(history.Data!.Items.Single(x => x.ActionCode == 1).IsWithdrawn);
-        var matchEvent = await db.BankReconciliationMatchEvents.SingleAsync(x => x.ActionCode == 1);
+        var renewed = await service.RecordBankReconciliationMatchEventAsync(new BankReconciliationMatchCommandDto
+        {
+            ClientRequestId = Guid.NewGuid(), BatchId = confirm.BatchId,
+            BatchRowVersion = confirm.BatchRowVersion, ActionCode = 1,
+            StatementRowNumber = confirm.StatementRowNumber, JournalLineId = confirm.JournalLineId,
+            JournalLineVersion = confirm.JournalLineVersion
+        });
+        Assert.True(renewed.Success, renewed.Message);
+        var submit = new BankReconciliationApprovalCommandDto
+        {
+            ClientRequestId = Guid.NewGuid(), BatchId = confirm.BatchId,
+            BatchRowVersion = confirm.BatchRowVersion, ActionCode = 2
+        };
+        var submitted = await service.RecordBankReconciliationApprovalAsync(submit);
+        Assert.True(submitted.Success, submitted.Message);
+        Assert.Equal(submitted.Data!.Id, (await service.RecordBankReconciliationApprovalAsync(submit)).Data!.Id);
+        Assert.Equal(409, (await service.RecordBankReconciliationMatchEventAsync(new BankReconciliationMatchCommandDto
+        {
+            ClientRequestId = Guid.NewGuid(), BatchId = confirm.BatchId,
+            BatchRowVersion = confirm.BatchRowVersion, ActionCode = 2,
+            OriginalMatchEventId = renewed.Data!.Id, Reason = "Too late"
+        })).StatusCode);
+        var approve = new BankReconciliationApprovalCommandDto
+        {
+            ClientRequestId = Guid.NewGuid(), BatchId = confirm.BatchId,
+            BatchRowVersion = confirm.BatchRowVersion, ActionCode = 3
+        };
+        Assert.Equal(403, (await service.RecordBankReconciliationApprovalAsync(approve)).StatusCode);
+        await using var checkerDb = new EduOSDbContext(options, Accessor(tenantId, checkerId));
+        var checkerService = new AccountingReportingService(checkerDb, new TestUser(tenantId, checkerId));
+        var cleared = await checkerService.RecordBankReconciliationApprovalAsync(approve);
+        Assert.True(cleared.Success, cleared.Message);
+        Assert.Equal(3, (await checkerService.GetBankReconciliationApprovalStatusAsync(confirm.BatchId)).Data!.StateCode);
+        var reversal = await service.RecordBankReconciliationApprovalAsync(new BankReconciliationApprovalCommandDto
+        {
+            ClientRequestId = Guid.NewGuid(), BatchId = confirm.BatchId,
+            BatchRowVersion = confirm.BatchRowVersion, ActionCode = 4, Reason = "Documented bank correction"
+        });
+        Assert.True(reversal.Success, reversal.Message);
+        Assert.Equal(403, (await checkerService.RecordBankReconciliationApprovalAsync(new BankReconciliationApprovalCommandDto
+        {
+            ClientRequestId = Guid.NewGuid(), BatchId = confirm.BatchId,
+            BatchRowVersion = confirm.BatchRowVersion, ActionCode = 5, Reason = "Independent reversal"
+        })).StatusCode);
+        await using var reversalDb = new EduOSDbContext(options, Accessor(tenantId, reversalCheckerId));
+        var reversalService = new AccountingReportingService(reversalDb, new TestUser(tenantId, reversalCheckerId));
+        var reversed = await reversalService.RecordBankReconciliationApprovalAsync(new BankReconciliationApprovalCommandDto
+        {
+            ClientRequestId = Guid.NewGuid(), BatchId = confirm.BatchId,
+            BatchRowVersion = confirm.BatchRowVersion, ActionCode = 5, Reason = "Independent reversal"
+        });
+        Assert.True(reversed.Success, reversed.Message);
+        Assert.Equal(5, (await reversalService.GetBankReconciliationApprovalStatusAsync(confirm.BatchId)).Data!.StateCode);
+        Assert.Equal(4, await reversalDb.BankReconciliationApprovalEvents.CountAsync());
+        var immutableApproval = await reversalDb.BankReconciliationApprovalEvents.FirstAsync();
+        immutableApproval.Reason = "FORGED";
+        await Assert.ThrowsAsync<InvalidOperationException>(() => reversalDb.SaveChangesAsync());
+        reversalDb.Entry(immutableApproval).State = EntityState.Unchanged;
+        Assert.Equal(100m, await reversalDb.JournalLines.Where(x => x.DebitAmount > 0m)
+            .Select(x => x.DebitAmount).SingleAsync());
+
+        var matchEvent = await db.BankReconciliationMatchEvents.FirstAsync(x => x.ActionCode == 1);
         matchEvent.Reference = "FORGED";
         await Assert.ThrowsAsync<InvalidOperationException>(() => db.SaveChangesAsync());
         db.Entry(matchEvent).State = EntityState.Unchanged;
@@ -166,6 +234,7 @@ public sealed class SqlServerBankReconciliationIntakeIntegrationTests
         await using var otherDb = new EduOSDbContext(options, Accessor(otherTenantId, otherUserId));
         var otherService = new AccountingReportingService(otherDb, new TestUser(otherTenantId, otherUserId));
         Assert.Equal(404, (await otherService.GetBankReconciliationDraftAsync(saved.Data.Id)).StatusCode);
+        Assert.Equal(404, (await otherService.GetBankReconciliationApprovalStatusAsync(saved.Data.Id)).StatusCode);
         Assert.Equal(404, (await otherService.ReviewSavedBankReconciliationAsync(saved.Data.Id)).StatusCode);
         Assert.Equal(404, (await otherService.GetBankReconciliationDraftsAsync(bankId)).StatusCode);
     }

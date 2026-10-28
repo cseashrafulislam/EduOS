@@ -104,6 +104,11 @@ public sealed partial class AccountingReportingService
         {
             replay = await Replay();
             if (replay != null) return replay;
+            if (await db.BankReconciliationApprovalEvents.AsNoTracking().AnyAsync(x =>
+                x.TenantId == user.TenantId && !x.IsDeleted &&
+                x.BankReconciliationBatchId == request.BatchId, ct))
+                return ApiResponse<BankReconciliationMatchEventDto>.ErrorResponse(
+                    "Submitted reconciliation cannot change draft matches.", 409);
             if (await db.AccountingPeriods.AsNoTracking().AnyAsync(x =>
                 x.TenantId == user.TenantId && !x.IsDeleted && x.IsClosed &&
                 x.StartDate <= draft.Data.ToDate && x.EndDate >= draft.Data.FromDate, ct))

@@ -71,7 +71,7 @@ if (panel) {
     }
     let report = null, comparisonFrom = '', revision = 0, previewRequest = null;
     let requestKey = null, draftPage = 1, draftDetail = null, draftRevision = 0;
-    let savedReview = null, matchHistory = null, matchPage = 1;
+    let savedReview = null, matchHistory = null, matchPage = 1, approvalStatus = null;
     // Any changed input invalidates the exported evidence, including edits during a request.
     const invalidate = () => {
         revision++;
@@ -206,6 +206,12 @@ if (panel) {
         draftDetail = null;
         savedReview = null;
         matchHistory = null;
+        approvalStatus = null;
+        el('statementApprovalSummary').textContent = '';
+        el('statementApprovalRows').replaceChildren();
+        el('statementApprovalAction').disabled = true;
+        el('statementApprovalCsv').disabled = true;
+        el('statementApprovalReason').value = '';
         el('statementMatchHistoryRows').replaceChildren();
         el('statementMatchHistorySummary').textContent = '';
         el('statementMatchHistoryPage').textContent = '';
@@ -236,7 +242,7 @@ if (panel) {
             el('statementDraftRows').innerHTML = (result.items || []).map(x =>
                 '<tr><td>' + escapeHtml(x.statementIdentifier) + '</td><td>' +
                 escapeHtml(x.fromDate) + ' – ' + escapeHtml(x.toDate) + '</td><td>' +
-                escapeHtml(x.movementCount) + '</td><td>Draft</td><td>' +
+                escapeHtml(x.movementCount) + '</td><td>' + escapeHtml(({1:'Draft',2:'Submitted',3:'Cleared',4:'Reversal pending',5:'Reversed'})[x.stateCode] || 'Unknown') + '</td><td>' +
                 escapeHtml(x.preparedAt) + '</td><td><button type="button" class="btn btn-outline-primary btn-sm" data-draft-id="' +
                 escapeHtml(x.id) + '">View</button> <button type="button" class="btn btn-outline-secondary btn-sm" data-review-id="' +
                 escapeHtml(x.id) + '">Review</button></td></tr>').join('') ||
@@ -288,14 +294,14 @@ if (panel) {
         matchPage = page;
         const rows = data.items || [];
         el('statementMatchHistorySummary').textContent = data.totalCount +
-            ' recorded decisions. Draft confirmations are not bank clearance.';
+            ' recorded match decisions. Clearance requires independent approval.';
         el('statementMatchHistoryRows').innerHTML = rows.map(x =>
             '<tr><td>' + (x.actionCode === 1 ? (x.isWithdrawn ? 'Withdrawn match' : 'Confirmed match') : 'Withdrawal event') +
             '</td><td>' + escapeHtml(x.statementRowNumber) + '</td><td>' +
             escapeHtml(x.journalLineId) + '</td><td>' + escapeHtml(x.date) +
             '</td><td class="text-end">' + money(x.deposit) + ' / ' + money(x.withdrawal) +
             '</td><td>' + escapeHtml(x.actorUserId) + '</td><td>' + escapeHtml(x.eventAt) +
-            '</td><td>' + (x.actionCode === 1 && !x.isWithdrawn
+            '</td><td>' + (x.actionCode === 1 && !x.isWithdrawn && (!approvalStatus || approvalStatus.stateCode === 1)
                 ? '<button type="button" class="btn btn-outline-danger btn-sm" data-withdraw-match="' +
                     escapeHtml(x.id) + '">Withdraw</button>' : '') + '</td></tr>').join('') ||
             '<tr><td colspan="8">No draft match decisions.</td></tr>';
@@ -329,6 +335,64 @@ if (panel) {
             journalLineId:Number(button.dataset.confirmLine),
             journalLineVersion:button.dataset.confirmVersion},button);
     });
+    const approvalLabels = {1:'Draft',2:'Submitted for independent review',3:'Cleared — immutable evidence',
+        4:'Reversal awaiting independent review',5:'Clearance reversed'};
+    const approvalActions = {1:'Submit for Review',2:'Approve & Clear',3:'Request Reversal',4:'Approve Reversal'};
+    async function loadApprovalStatus() {
+        if (!savedReview) return;
+        const seq = draftRevision, id = savedReview.draft.id, bank = el('statementBank').value;
+        const result = await get(draftBase + '/' + encodeURIComponent(id) + '/approval');
+        if (seq !== draftRevision || !savedReview || savedReview.draft.id !== id ||
+            el('statementBank').value !== bank) return;
+        approvalStatus = result;
+        el('statementApprovalSummary').textContent = approvalLabels[result.stateCode] || 'Unknown state';
+        el('statementApprovalRows').innerHTML = (result.events || []).map(x =>
+            '<tr><td>' + escapeHtml(approvalLabels[x.actionCode]) + '</td><td>' +
+            escapeHtml(x.actorUserId) + '</td><td>' + escapeHtml(x.eventAt) + '</td><td>' +
+            escapeHtml(x.matchedCount) + '</td><td><code>' + escapeHtml(x.evidenceFingerprint) +
+            '</code></td><td>' + escapeHtml(x.reason) + '</td></tr>').join('') ||
+            '<tr><td colspan="6">No approval transitions recorded.</td></tr>';
+        const button = el('statementApprovalAction');
+        button.disabled = !approvalActions[result.stateCode];
+        button.textContent = approvalActions[result.stateCode] || 'Workflow complete';
+        button.dataset.requestKey = '';
+        el('statementApprovalCsv').disabled = !(result.events || []).length;
+    }
+    el('statementApprovalAction').addEventListener('click', async event => {
+        const button = event.currentTarget;
+        if (!savedReview || !approvalStatus || button.disabled) return;
+        const state = approvalStatus.stateCode;
+        if (!approvalActions[state]) return;
+        const reason = el('statementApprovalReason').value.trim();
+        if (state >= 3 && (!reason || reason.length > 250))
+            return show('Enter a reversal reason (up to 250 characters).', true);
+        if (!window.confirm(approvalActions[state] + '? This creates permanent audit evidence.')) return;
+        const seq = draftRevision, id = savedReview.draft.id, bank = el('statementBank').value;
+        button.disabled = true;
+        try {
+            const result = await get(draftBase + '/approval', {
+                method:'POST', headers:{'Content-Type':'application/json',RequestVerificationToken:token()},
+                body:JSON.stringify({clientRequestId:button.dataset.requestKey ||
+                    (button.dataset.requestKey = crypto.randomUUID()),batchId:id,
+                    batchRowVersion:savedReview.draft.rowVersion,actionCode:state + 1,
+                    reason:state >= 3 ? reason : null})
+            });
+            if (seq !== draftRevision || !savedReview || savedReview.draft.id !== id ||
+                el('statementBank').value !== bank) return;
+            show('Reconciliation transition #' + result.id + ' recorded; posted journals unchanged.');
+            await loadApprovalStatus();
+            await loadMatchHistory(1);
+        } catch (e) { if (seq === draftRevision) show(e.message, true); }
+        finally { if (seq === draftRevision && approvalStatus?.stateCode === state) button.disabled = false; }
+    });
+    el('statementApprovalCsv').addEventListener('click', () => {
+        if (!savedReview || !approvalStatus) return;
+        download([['Statement','Action','Actor','Recorded UTC','Matched','Evidence SHA256','Reason'],
+            ...(approvalStatus.events || []).map(x => [savedReview.draft.statementIdentifier,
+                approvalLabels[x.actionCode],x.actorUserId,x.eventAt,x.matchedCount,
+                x.evidenceFingerprint,x.reason])],
+            'bank-clearance-history-' + savedReview.draft.id + '.csv');
+    });
     el('statementMatchHistoryRows').addEventListener('click', event => {
         const button = event.target.closest('button[data-withdraw-match]');
         if (!button || !savedReview) return;
@@ -361,6 +425,7 @@ if (panel) {
             if (reviewing) {
                 savedReview = null;
                 matchHistory = null;
+                approvalStatus = null;
                 el('statementMatchHistoryCsv').disabled = true;
                 el('statementMatchHistoryRows').replaceChildren();
                 el('statementSavedReview').classList.add('d-none');
@@ -376,7 +441,7 @@ if (panel) {
                     c.referenceCollisionCount + ' reused references · ' +
                     'opening variance BDT ' + money(c.openingVariance) +
                     ', closing variance BDT ' + money(c.closingVariance) +
-                    ' · LIVE read-only review, not approved or cleared.';
+                    ' · LIVE ledger comparison; clearance state is shown below.';
                 const matched = (c.matches || []).map(x =>
                     '<tr><td>Exact match</td><td>' + escapeHtml(x.date) +
                     '</td><td>' + escapeHtml(x.journalLineId) + '</td><td>' +
@@ -398,6 +463,7 @@ if (panel) {
                 el('statementSavedReviewRows').innerHTML = matched.concat(exceptions).join('') ||
                     '<tr><td colspan="8">No matching or unmatched movements.</td></tr>';
                 el('statementSavedReview').classList.remove('d-none');
+                await loadApprovalStatus();
                 await loadMatchHistory(1);
             } else {
                 const detail = await get(draftBase + '/' + encodeURIComponent(id));
@@ -427,7 +493,7 @@ if (panel) {
                 money(c.openingVariance),money(c.closingVariance),'Opening / closing variance BDT'],
             ...(c.matches || []).map(x => [d.statementIdentifier,d.sourceFingerprint,savedReview.reviewedAtUtc,
                 'Exact match',x.date,x.journalNumber,x.journalLineId,x.journalLineVersion,
-                x.statementRowNumber,x.reference,money(x.deposit),money(x.withdrawal),'Review only; not cleared']),
+                x.statementRowNumber,x.reference,money(x.deposit),money(x.withdrawal),'Current live review; see separate clearance evidence']),
             ...(c.exceptions || []).map(x => [d.statementIdentifier,d.sourceFingerprint,savedReview.reviewedAtUtc,
                 x.source,x.date,x.journalNumber,x.journalLineId,x.journalLineVersion,
                 x.statementRowNumber,x.reference,money(x.deposit),money(x.withdrawal),x.reason])

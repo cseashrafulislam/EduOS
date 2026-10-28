@@ -2334,6 +2334,44 @@ namespace EduOS.Persistence.Migrations
                     b.ToTable("BankAccounts");
                 });
 
+            modelBuilder.Entity("EduOS.Core.Entities.Accounting.BankReconciliationApprovalEvent", b =>
+                {
+                    b.Property<long>("Id").ValueGeneratedOnAdd().HasColumnType("bigint");
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
+                    b.Property<int>("ActionCode").HasColumnType("int");
+                    b.Property<long>("ActorUserId").HasColumnType("bigint");
+                    b.Property<long>("BankReconciliationBatchId").HasColumnType("bigint");
+                    b.Property<Guid>("ClientRequestId").HasColumnType("uniqueidentifier");
+                    b.Property<string>("EvidenceFingerprint").IsRequired().HasMaxLength(64).HasColumnType("nvarchar(64)");
+                    b.Property<DateTime>("EventAt").HasColumnType("datetime2");
+                    b.Property<int>("MatchedCount").HasColumnType("int");
+                    b.Property<string>("Reason").HasMaxLength(250).HasColumnType("nvarchar(250)");
+                    b.Property<DateTime>("CreatedAt").HasColumnType("datetime2");
+                    b.Property<long?>("CreatedBy").HasColumnType("bigint");
+                    b.Property<DateTime?>("DeletedAt").HasColumnType("datetime2");
+                    b.Property<long?>("DeletedBy").HasColumnType("bigint");
+                    b.Property<bool>("IsDeleted").HasColumnType("bit");
+                    b.Property<byte[]>("RowVersion").IsConcurrencyToken().IsRequired()
+                        .ValueGeneratedOnAddOrUpdate().HasColumnType("rowversion");
+                    b.Property<long>("TenantId").HasColumnType("bigint");
+                    b.Property<DateTime?>("UpdatedAt").HasColumnType("datetime2");
+                    b.Property<long?>("UpdatedBy").HasColumnType("bigint");
+                    b.HasKey("Id");
+                    b.HasAlternateKey("TenantId", "Id");
+                    b.HasIndex("ActorUserId");
+                    b.HasIndex("TenantId", "ClientRequestId")
+                        .IsUnique().HasDatabaseName("UX_BankReconciliationApprovalEvents_Tenant_Request");
+                    b.HasIndex("TenantId", "BankReconciliationBatchId", "ActionCode")
+                        .IsUnique().HasDatabaseName("UX_BankReconciliationApprovalEvents_Tenant_Batch_Action");
+                    b.ToTable("BankReconciliationApprovalEvents", t =>
+                    {
+                        t.HasCheckConstraint("CK_BankReconciliationApprovalEvent_Valid",
+                            "[ActionCode] BETWEEN 2 AND 5 AND [MatchedCount] BETWEEN 1 AND 500 AND " +
+                            "LEN([EvidenceFingerprint]) = 64 AND " +
+                            "([ActionCode] IN (2,3) OR LEN([Reason]) > 0)");
+                    });
+                });
+
             modelBuilder.Entity("EduOS.Core.Entities.Accounting.BankReconciliationBatch", b =>
                 {
                     b.Property<long>("Id").ValueGeneratedOnAdd().HasColumnType("bigint");
@@ -18697,6 +18735,18 @@ namespace EduOS.Persistence.Migrations
                         .HasPrincipalKey("TenantId", "Id")
                         .OnDelete(DeleteBehavior.Restrict);
 
+                    b.Navigation("Tenant");
+                });
+
+            modelBuilder.Entity("EduOS.Core.Entities.Accounting.BankReconciliationApprovalEvent", b =>
+                {
+                    b.HasOne("EduOS.Core.Entities.SaaS.Tenant", "Tenant").WithMany()
+                        .HasForeignKey("TenantId").OnDelete(DeleteBehavior.Restrict).IsRequired();
+                    b.HasOne("EduOS.Core.Entities.Accounting.BankReconciliationBatch", null).WithMany()
+                        .HasForeignKey("TenantId", "BankReconciliationBatchId")
+                        .HasPrincipalKey("TenantId", "Id").OnDelete(DeleteBehavior.Restrict).IsRequired();
+                    b.HasOne("EduOS.Core.Entities.Auth.ApplicationUser", null).WithMany()
+                        .HasForeignKey("ActorUserId").OnDelete(DeleteBehavior.Restrict).IsRequired();
                     b.Navigation("Tenant");
                 });
 

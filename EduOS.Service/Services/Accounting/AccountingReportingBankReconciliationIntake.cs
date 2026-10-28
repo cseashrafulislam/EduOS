@@ -187,6 +187,15 @@ public sealed partial class AccountingReportingService
                 StateCode = x.StateCode, PreparedByUserId = x.PreparedByUserId,
                 PreparedAt = x.PreparedAt, RowVersion = ""
             }).ToListAsync(ct);
+        var ids = rows.Select(x => x.Id).ToArray();
+        var states = await db.BankReconciliationApprovalEvents.AsNoTracking()
+            .Where(x => x.TenantId == user.TenantId && !x.IsDeleted &&
+                ids.Contains(x.BankReconciliationBatchId))
+            .GroupBy(x => x.BankReconciliationBatchId)
+            .Select(g => new { BatchId = g.Key, State = g.Max(x => x.ActionCode) })
+            .ToDictionaryAsync(x => x.BatchId, x => x.State, ct);
+        foreach (var row in rows)
+            if (states.TryGetValue(row.Id, out var state)) row.StateCode = state;
         return ApiResponse<PagedResult<BankReconciliationBatchDto>>.SuccessResponse(
             new PagedResult<BankReconciliationBatchDto>
             { Items = rows, TotalCount = total, Page = page, PageSize = pageSize });
@@ -232,6 +241,10 @@ public sealed partial class AccountingReportingService
             return ApiResponse<BankReconciliationBatchDto>.ErrorResponse(
                 "Statement fingerprint does not match the immutable snapshot.", 409);
         var dto = IntakeDto(batch);
+        dto.StateCode = await db.BankReconciliationApprovalEvents.AsNoTracking()
+            .Where(x => x.TenantId == user.TenantId && !x.IsDeleted &&
+                x.BankReconciliationBatchId == batchId)
+            .Select(x => (int?)x.ActionCode).MaxAsync(ct) ?? 1;
         dto.Movements = rows;
         return ApiResponse<BankReconciliationBatchDto>.SuccessResponse(dto);
     }
