@@ -13,7 +13,7 @@ test('grade distribution loads authorized finalized versions and no private lear
     assert.match(js, /scopes\/page\?' \+ params/);
     assert.match(js, /results\/publications\?' \+ params/);
     assert.match(js, /results\/grade-distribution\?publicationId=/);
-    assert.match(js, /state\.report = report/);
+    assert.match(js, /state\.report = data/);
     assert.match(view, /id="gradeTotals"/);
     assert.doesNotMatch(view, /Student name|Guardian name/);
     assert.doesNotMatch(js, /innerHTML\s*=/);
@@ -22,6 +22,17 @@ test('grade distribution loads authorized finalized versions and no private lear
 test('CSV uses only server-authorized aggregate groups and prevents formulas', () => {
     assert.match(js, /report\.grades \|\| \[\]/);
     assert.match(js, /\^\[=\+@/);
-    assert.match(js, /link\.download = 'grade-distribution-version-'/);
+    assert.match(js, /'grade-distribution-version-' \+ report\.versionNo/);
     assert.match(js, /td\.textContent/);
+});
+
+test('historical comparison is explicitly version-ordered and aggregate-only', () => {
+    assert.match(view, /id="gradeBaseline"/);
+    assert.match(view, /id="gradeCompareRows"/);
+    assert.match(js, /results\/grade-distribution\/compare\?/);
+    assert.match(js, /baselinePublicationId: String\(earlier\)/);
+    assert.match(js, /before\.versionNo >= after\.versionNo/);
+    assert.match(js, /state\.comparison = data/);
+    assert.match(js, /comparison\.grades \|\| \[\]/);
+    assert.doesNotMatch(js, /innerHTML\s*=/);
 });
