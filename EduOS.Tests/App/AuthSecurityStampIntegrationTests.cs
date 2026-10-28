@@ -280,6 +280,42 @@ public sealed class AuthSecurityStampIntegrationTests
     }
 
     [Fact]
+    public async Task Mfa_login_metadata_changes_only_after_successful_recovery_code_consumption()
+    {
+        using var provider = CreateServices().BuildServiceProvider();
+        using var scope = provider.CreateScope();
+        var manager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+        var db = scope.ServiceProvider.GetRequiredService<EduOSDbContext>();
+        var user = new ApplicationUser { UserName = "mfa-metadata@example.test",
+            Email = "mfa-metadata@example.test", FullName = "MFA Metadata", EmailConfirmed = true };
+        Assert.True((await manager.CreateAsync(user, "Secure123!")).Succeeded);
+        Assert.True((await manager.SetTwoFactorEnabledAsync(user, true)).Succeeded);
+        var codes = (await manager.GenerateNewTwoFactorRecoveryCodesAsync(user, 8))!.ToArray();
+        var when = new DateTime(2026, 10, 28, 18, 0, 0, DateTimeKind.Utc);
+
+        Assert.Equal(MfaLoginConsumption.InvalidCode,
+            await AuthMfaLoginTransition.ConsumeAsync(db, manager, user, "wrong", true,
+                successfulLoginAtUtc: when, successfulLoginIp: "203.0.113.10"));
+        db.ChangeTracker.Clear();
+        var unchanged = await manager.FindByIdAsync(user.Id.ToString());
+        Assert.NotNull(unchanged);
+        Assert.Null(unchanged.LastLoginAt);
+        Assert.True(string.IsNullOrEmpty(unchanged.LastLoginIp));
+
+        Assert.Equal(MfaLoginConsumption.Completed,
+            await AuthMfaLoginTransition.ConsumeAsync(db, manager, unchanged, codes[0], true,
+                successfulLoginAtUtc: when, successfulLoginIp: "203.0.113.10"));
+        db.ChangeTracker.Clear();
+        var persisted = await manager.FindByIdAsync(user.Id.ToString());
+        Assert.NotNull(persisted);
+        Assert.Equal(when, persisted.LastLoginAt);
+        Assert.Equal(when, persisted.LastActivityAt);
+        Assert.Equal("203.0.113.10", persisted.LastLoginIp);
+        Assert.Equal(MfaLoginConsumption.InvalidCode,
+            await AuthMfaLoginTransition.ConsumeAsync(db, manager, persisted, codes[0], true));
+    }
+
+    [Fact]
     public async Task Sql_failed_mfa_completion_rolls_back_recovery_code_stamp_and_sessions()
     {
         var connection = Environment.GetEnvironmentVariable("EDUOS_SQL_AUTH_TEST_CONNECTION");
@@ -303,6 +339,8 @@ public sealed class AuthSecurityStampIntegrationTests
             db.ExecuteInTransactionAsync<bool>(async ct =>
             {
                 Assert.True((await manager.RedeemTwoFactorRecoveryCodeAsync(user, codes[0])).Succeeded);
+                user.LastLoginAt = new DateTime(2026, 10, 28, 18, 0, 0, DateTimeKind.Utc);
+                user.LastLoginIp = "203.0.113.10";
                 Assert.True((await manager.UpdateSecurityStampAsync(user)).Succeeded);
                 await AuthSessionRegistry.RevokeAllAsync(db, user.Id);
                 throw new InvalidOperationException("Injected failure after recovery-code redemption.");
@@ -314,10 +352,14 @@ public sealed class AuthSecurityStampIntegrationTests
         var persisted = await freshManager.FindByIdAsync(user.Id.ToString());
         Assert.NotNull(persisted);
         Assert.Equal(stamp, await freshManager.GetSecurityStampAsync(persisted));
+        Assert.Null(persisted.LastLoginAt);
+        Assert.True(string.IsNullOrEmpty(persisted.LastLoginIp));
         Assert.True(await AuthSessionRegistry.IsValidAsync(freshDb, user.Id, first, 101));
         Assert.True(await AuthSessionRegistry.IsValidAsync(freshDb, user.Id, second, 202));
         Assert.Equal(MfaLoginConsumption.Completed,
-            await AuthMfaLoginTransition.ConsumeAsync(freshDb, freshManager, persisted, codes[0], true));
+            await AuthMfaLoginTransition.ConsumeAsync(freshDb, freshManager, persisted, codes[0], true,
+                successfulLoginAtUtc: new DateTime(2026, 10, 28, 18, 0, 0, DateTimeKind.Utc),
+                successfulLoginIp: "203.0.113.10"));
 
         using var check = provider.CreateScope();
         var checkedDb = check.ServiceProvider.GetRequiredService<EduOSDbContext>();
@@ -325,6 +367,8 @@ public sealed class AuthSecurityStampIntegrationTests
         var checkedUser = await checkedManager.FindByIdAsync(user.Id.ToString());
         Assert.NotNull(checkedUser);
         Assert.NotEqual(stamp, await checkedManager.GetSecurityStampAsync(checkedUser));
+        Assert.Equal(new DateTime(2026, 10, 28, 18, 0, 0, DateTimeKind.Utc), checkedUser.LastLoginAt);
+        Assert.Equal("203.0.113.10", checkedUser.LastLoginIp);
         Assert.False(await AuthSessionRegistry.IsValidAsync(checkedDb, user.Id, first, 101));
         Assert.False(await AuthSessionRegistry.IsValidAsync(checkedDb, user.Id, second, 202));
         Assert.Equal(MfaLoginConsumption.InvalidCode,

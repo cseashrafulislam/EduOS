@@ -128,9 +128,12 @@ namespace EduOS.App.Controllers.Api
                 });
             }
 
-            await _userManager.ResetAccessFailedCountAsync(user);
-            await SignInSessionAsync(user, dto.RememberMe, "pwd", session);
+            var resetResult = await _userManager.ResetAccessFailedCountAsync(user);
+            if (!resetResult.Succeeded)
+                return Conflict(new { success = false, message = "Account state changed. Please try signing in again." });
 
+            // Do not issue a live cookie/SID until account metadata is persisted.
+            // A failed Identity update must never leave an orphan active session.
             user.LastLoginAt = DateTime.UtcNow;
             user.LastLoginIp = ip;
             user.LastActivityAt = DateTime.UtcNow;
@@ -139,11 +142,11 @@ namespace EduOS.App.Controllers.Api
             var updateResult = await _userManager.UpdateAsync(user);
             if (!updateResult.Succeeded)
             {
-                await _signInManager.SignOutAsync();
                 _logger.LogError("Failed to update login metadata for user {UserId}: {Errors}", user.Id, string.Join(" | ", updateResult.Errors.Select(x => x.Description)));
                 return StatusCode(StatusCodes.Status500InternalServerError, new { success = false, message = "Unable to complete sign in. Please try again." });
             }
 
+            await SignInSessionAsync(user, dto.RememberMe, "pwd", session);
             await SaveLoginHistoryAsync(user, ip, userAgent, true, null, session.TenantId);
             _logger.LogInformation("Login successful for user {UserId} from {Ip}", user.Id, ip);
 
@@ -395,7 +398,8 @@ namespace EduOS.App.Controllers.Api
             try
             {
                 outcome = await AuthMfaLoginTransition.ConsumeAsync(
-                    _db, _userManager, user, code, dto.UseRecoveryCode, HttpContext.RequestAborted);
+                    _db, _userManager, user, code, dto.UseRecoveryCode, HttpContext.RequestAborted,
+                    successfulLoginAtUtc: DateTime.UtcNow, successfulLoginIp: ip);
             }
             catch (Exception ex) when (ex is DbUpdateConcurrencyException or MfaLoginConflictException)
             {
@@ -415,22 +419,9 @@ namespace EduOS.App.Controllers.Api
                 _logger.LogWarning("MFA login challenge replay or concurrency conflict for user {UserId}", user.Id);
                 return Conflict(new { success = false, message = "Verification was already used or account state changed. Please sign in again." });
             }
+            // MFA metadata was committed atomically with code consumption.
+            // Issue the browser session only after the transaction succeeded.
             await SignInSessionAsync(user, challenge.RememberMe, "mfa", session);
-
-            user.LastLoginAt = DateTime.UtcNow;
-            user.LastLoginIp = ip;
-            user.LastActivityAt = DateTime.UtcNow;
-            user.UpdatedAt = DateTime.UtcNow;
-
-            var updateResult = await _userManager.UpdateAsync(user);
-
-            if (!updateResult.Succeeded)
-            {
-                await _signInManager.SignOutAsync();
-                _logger.LogError("Failed to update MFA login metadata for user {UserId}: {Errors}", user.Id, string.Join(" | ", updateResult.Errors.Select(x => x.Description)));
-                return StatusCode(StatusCodes.Status500InternalServerError, new { success = false, message = "Unable to complete sign in. Please try again." });
-            }
-
             await SaveLoginHistoryAsync(user, ip, userAgent, true, null, session.TenantId);
             _logger.LogInformation("MFA login successful for user {UserId} from {Ip}", user.Id, ip);
 

@@ -22,7 +22,8 @@ public static class AuthMfaLoginTransition
     public static Task<MfaLoginConsumption> ConsumeAsync(
         EduOSDbContext db, UserManager<ApplicationUser> userManager,
         ApplicationUser user, string code, bool useRecoveryCode,
-        CancellationToken cancellationToken = default) =>
+        CancellationToken cancellationToken = default,
+        DateTime? successfulLoginAtUtc = null, string? successfulLoginIp = null) =>
         db.ExecuteInTransactionAsync(async ct =>
         {
             if (useRecoveryCode)
@@ -41,6 +42,18 @@ public static class AuthMfaLoginTransition
             else if (!await userManager.VerifyTwoFactorTokenAsync(
                 user, TokenOptions.DefaultAuthenticatorProvider, code))
                 return MfaLoginConsumption.InvalidCode;
+
+            // Persist successful sign-in metadata in the SAME transaction as
+            // recovery-code redemption and session revocation. If a later step
+            // fails, neither the code nor the login timestamp is committed.
+            // Invalid codes must never update LastLoginAt.
+            if (successfulLoginAtUtc.HasValue)
+            {
+                user.LastLoginAt = successfulLoginAtUtc.Value;
+                user.LastActivityAt = successfulLoginAtUtc.Value;
+                user.UpdatedAt = successfulLoginAtUtc.Value;
+                user.LastLoginIp = successfulLoginIp;
+            }
 
             // Identity's optimistic concurrency stamp ensures a second request
             // holding the old signed challenge cannot complete independently.
