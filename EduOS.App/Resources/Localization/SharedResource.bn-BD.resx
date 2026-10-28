@@ -762,4 +762,14 @@
 	<data name="OtherSessionsRevokeFailed" xml:space="preserve"><value>অন্যান্য ডিভাইস থেকে সাইন আউট করা যায়নি।</value></data>
 	<data name="SignOutOtherDevices" xml:space="preserve"><value>অন্যান্য ডিভাইস থেকে সাইন আউট</value></data>
 	<data name="SignOutAllDevices" xml:space="preserve"><value>সব ডিভাইস থেকে সাইন আউট</value></data>
+	<data name="ActiveSessions" xml:space="preserve"><value>সক্রিয় সেশন</value></data>
+	<data name="SessionHelpLabel" xml:space="preserve"><value>সেশন ব্যবস্থাপনা সহায়তা</value></data>
+	<data name="SessionHelpText" xml:space="preserve"><value>সাইন ইন করা ডিভাইস দেখুন। অন্য ডিভাইসের সেশন বাতিল করতে পাসওয়ার্ড লাগবে; বর্তমান ডিভাইসের সেশন বাতিল করলে আপনি সাইন আউট হবেন।</value></data>
+	<data name="ThisDevice" xml:space="preserve"><value>এই ডিভাইস</value></data>
+	<data name="OtherSession" xml:space="preserve"><value>অন্য সেশন</value></data>
+	<data name="NoActiveSessions" xml:space="preserve"><value>কোনো সক্রিয় সেশন পাওয়া যায়নি।</value></data>
+	<data name="SessionListFailed" xml:space="preserve"><value>সক্রিয় সেশন লোড করা যায়নি।</value></data>
+	<data name="RevokeSession" xml:space="preserve"><value>বাতিল করুন</value></data>
+	<data name="SessionRevokeFailed" xml:space="preserve"><value>সেশন বাতিল করা যায়নি।</value></data>
+	<data name="LoadingSessions" xml:space="preserve"><value>সেশন লোড হচ্ছে...</value></data>
 </root>

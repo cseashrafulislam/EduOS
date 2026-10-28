@@ -678,7 +678,7 @@ async function loadActiveSessions() {
         if (!response?.success || !Array.isArray(response.data)) throw new Error('Session list unavailable.');
         container.replaceChildren();
         if (!response.data.length) {
-            container.textContent = 'No active sessions found.';
+            container.textContent = container.dataset.empty || 'No active sessions found.';
             return;
         }
         for (const session of response.data) {
@@ -687,7 +687,7 @@ async function loadActiveSessions() {
             row.className = 'd-flex flex-wrap justify-content-between align-items-center border-bottom py-2 gap-2';
             const description = document.createElement('div');
             const detail = document.createElement('strong');
-            detail.textContent = session.isCurrent ? 'This device' : 'Other session';
+            detail.textContent = session.isCurrent ? (container.dataset.current || 'This device') : (container.dataset.other || 'Other session');
             const meta = document.createElement('div');
             meta.className = 'text-muted small';
             meta.textContent = [session.ipAddress, session.userAgent, session.createdAtUtc]
@@ -696,15 +696,28 @@ async function loadActiveSessions() {
             const revoke = document.createElement('button');
             revoke.type = 'button';
             revoke.className = 'btn btn-sm btn-outline-danger';
-            revoke.textContent = 'Revoke';
+            revoke.textContent = container.dataset.revoke || 'Revoke';
             revoke.addEventListener('click', async () => {
+                const input = document.getElementById('sessionRevokePassword');
+                const currentPassword = input?.value || '';
+                if (!session.isCurrent && !currentPassword) {
+                    showAlert('danger', container.dataset.passwordRequired || 'Current password is required.');
+                    input?.focus();
+                    return;
+                }
                 revoke.disabled = true;
                 try {
-                    await authSecurityPost('/api/auth/sessions/revoke', { sessionId: session.sessionId });
+                    await authSecurityPost('/api/auth/sessions/revoke', {
+                        sessionId: session.sessionId,
+                        currentPassword: session.isCurrent ? null : currentPassword
+                    });
                     if (session.isCurrent) window.location.assign('/Account/Login');
-                    else await loadActiveSessions();
+                    else {
+                        if (input) input.value = '';
+                        await loadActiveSessions();
+                    }
                 } catch (error) {
-                    showAlert('danger', error.message || 'Unable to revoke session.');
+                    showAlert('danger', error.message || container.dataset.revokeError || 'Unable to revoke session.');
                     revoke.disabled = false;
                 }
             });
@@ -712,7 +725,7 @@ async function loadActiveSessions() {
             container.appendChild(row);
         }
     } catch (error) {
-        container.textContent = 'Unable to load active sessions.';
+        container.textContent = container.dataset.loadingError || 'Unable to load active sessions.';
         showAlert('danger', error.message || 'Unable to load sessions.');
     }
 }

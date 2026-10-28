@@ -119,9 +119,16 @@ public sealed class SqlServerAuthTenantIntegrationTests
             Assert.NotNull(rotated);
             Assert.False(await AuthSessionRegistry.IsValidAsync(db, userId, switched, tenantBId));
             Assert.True(await AuthSessionRegistry.IsValidAsync(db, userId, rotated, tenantAId));
+            var publicReference = AuthSessionRegistry.ToPublicReference(rotated!);
+            var listed = System.Text.Json.JsonSerializer.Serialize(
+                await AuthSessionRegistry.ListAsync(db, userId, rotated));
+            Assert.Contains(publicReference, listed);
+            Assert.DoesNotContain(rotated!, listed);
+            Assert.False(await AuthSessionRegistry.RevokeByReferenceAsync(db, userId + 1, publicReference));
+            Assert.False(await AuthSessionRegistry.RevokeByReferenceAsync(db, userId, rotated));
             Assert.Null(await AuthSessionRegistry.RotateAsync(db, userId, switched,
                 tenantBId, tenantAId, "", "", true));
-            Assert.True(await AuthSessionRegistry.RevokeAsync(db, userId, rotated!));
+            Assert.True(await AuthSessionRegistry.RevokeByReferenceAsync(db, userId, publicReference));
         }
 
         await using var first = new EduOSDbContext(options);

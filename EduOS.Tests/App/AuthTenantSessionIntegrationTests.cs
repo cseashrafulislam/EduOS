@@ -139,6 +139,32 @@ public sealed class AuthTenantSessionIntegrationTests
     }
 
     [Fact]
+    public async Task Public_session_references_hide_cookie_ids_and_revoke_only_the_owner_session()
+    {
+        await using var db = Db();
+        var current = await AuthSessionRegistry.CreateAsync(db, 50, 100, "", "", false);
+        var other = await AuthSessionRegistry.CreateAsync(db, 50, 200, "", "", false);
+        var stranger = await AuthSessionRegistry.CreateAsync(db, 51, 100, "", "", false);
+        var reference = AuthSessionRegistry.ToPublicReference(other);
+        Assert.Equal(64, reference.Length);
+        Assert.NotEqual(other, reference);
+        Assert.True(AuthSessionRegistry.IsCurrentReference(other, reference));
+        Assert.False(AuthSessionRegistry.IsCurrentReference(current, reference));
+        var json = System.Text.Json.JsonSerializer.Serialize(await AuthSessionRegistry.ListAsync(db, 50, current));
+        Assert.Contains(reference, json);
+        Assert.DoesNotContain(current, json);
+        Assert.DoesNotContain(other, json);
+        Assert.False(await AuthSessionRegistry.RevokeByReferenceAsync(db, 51, reference));
+        Assert.False(await AuthSessionRegistry.RevokeByReferenceAsync(db, 50, other));
+        Assert.False(await AuthSessionRegistry.RevokeByReferenceAsync(db, 50, new string('A', 64)));
+        Assert.True(await AuthSessionRegistry.RevokeByReferenceAsync(db, 50, reference));
+        Assert.False(await AuthSessionRegistry.IsValidAsync(db, 50, other, 200));
+        Assert.True(await AuthSessionRegistry.IsValidAsync(db, 50, current, 100));
+        Assert.True(await AuthSessionRegistry.IsValidAsync(db, 51, stranger, 100));
+        Assert.False(await AuthSessionRegistry.RevokeByReferenceAsync(db, 50, reference));
+    }
+
+    [Fact]
     public async Task Revoking_all_sessions_invalidates_all_cookie_ids_for_a_user_only()
     {
         await using var db = Db();

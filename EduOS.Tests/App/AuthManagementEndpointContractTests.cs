@@ -83,6 +83,21 @@ public sealed class AuthManagementEndpointContractTests
     }
 
     [Fact]
+    public void Individual_session_revoke_uses_public_reference_and_password_step_up()
+    {
+        var source = File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "TestAssets", "AuthController.cs"));
+        var start = source.IndexOf("public async Task<IActionResult> RevokeSession(", StringComparison.Ordinal);
+        var end = source.IndexOf("public async Task<IActionResult> RevokeOtherSessions(", start, StringComparison.Ordinal);
+        Assert.True(start >= 0 && end > start);
+        var action = source[start..end];
+        Assert.Contains("AuthSessionRegistry.IsCurrentReference", action);
+        Assert.Contains("CheckPasswordAsync(user, dto.CurrentPassword)", action);
+        Assert.Contains("user.TwoFactorEnabled && !User.HasClaim", action);
+        Assert.Contains("AuthSessionRegistry.RevokeByReferenceAsync", action);
+        Assert.DoesNotContain("revoked session {SessionId}", action);
+    }
+
+    [Fact]
     public void Session_registry_uses_separate_identity_provider_not_jwt_refresh_table()
     {
         Assert.Equal("EduOS.CookieSession", AuthSessionRegistry.Provider);

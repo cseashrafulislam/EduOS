@@ -228,11 +228,21 @@
                     </section>
 
                     <section class="card shadow-sm border-0 rounded-4 mt-4" aria-labelledby="sessionsTitle">
-                        <div class="card-header bg-white border-0 p-4 pb-0">
-                            <h5 id="sessionsTitle" class="fw-bold">Active Sessions</h5>
+                        <div class="card-header bg-white border-0 p-4 pb-0 d-flex align-items-center justify-content-between">
+                            <h5 id="sessionsTitle" class="fw-bold mb-0">@T["ActiveSessions"]</h5>
+                            <details class="position-relative">
+                                <summary class="btn btn-sm btn-outline-secondary" aria-label="@T["SessionHelpLabel"]" title="@T["SessionHelpLabel"]">
+                                    <i class="bi bi-info-circle" aria-hidden="true"></i>
+                                </summary>
+                                <div class="card shadow-sm position-absolute end-0 mt-1 p-3 small" style="width:min(18rem,80vw);z-index:20;">@T["SessionHelpText"]</div>
+                            </details>
                         </div>
                         <div class="card-body p-4">
-                            <div id="sessionList" role="list" aria-live="polite">Loading sessions...</div>
+                            <div id="sessionList" role="list" aria-live="polite"
+                                 data-current="@T["ThisDevice"]" data-other="@T["OtherSession"]"
+                                 data-empty="@T["NoActiveSessions"]" data-loading-error="@T["SessionListFailed"]"
+                                 data-revoke="@T["RevokeSession"]" data-revoke-error="@T["SessionRevokeFailed"]"
+                                 data-password-required="@T["SessionPasswordRequired"]">@T["LoadingSessions"]</div>
                             <hr />
                             <label for="sessionRevokePassword" class="form-label">@T["SessionManagementPassword"]</label>
                             <input id="sessionRevokePassword" type="password" class="form-control mb-2" autocomplete="current-password" />

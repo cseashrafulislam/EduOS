@@ -763,4 +763,14 @@
 	<data name="OtherSessionsRevokeFailed" xml:space="preserve"><value>Unable to sign out other devices.</value></data>
 	<data name="SignOutOtherDevices" xml:space="preserve"><value>Sign out other devices</value></data>
 	<data name="SignOutAllDevices" xml:space="preserve"><value>Sign out all devices</value></data>
+	<data name="ActiveSessions" xml:space="preserve"><value>Active sessions</value></data>
+	<data name="SessionHelpLabel" xml:space="preserve"><value>Session management help</value></data>
+	<data name="SessionHelpText" xml:space="preserve"><value>Review signed-in devices. Revoking another device requires your password; signing out this device ends your current session.</value></data>
+	<data name="ThisDevice" xml:space="preserve"><value>This device</value></data>
+	<data name="OtherSession" xml:space="preserve"><value>Other session</value></data>
+	<data name="NoActiveSessions" xml:space="preserve"><value>No active sessions found.</value></data>
+	<data name="SessionListFailed" xml:space="preserve"><value>Unable to load active sessions.</value></data>
+	<data name="RevokeSession" xml:space="preserve"><value>Revoke</value></data>
+	<data name="SessionRevokeFailed" xml:space="preserve"><value>Unable to revoke session.</value></data>
+	<data name="LoadingSessions" xml:space="preserve"><value>Loading sessions...</value></data>
 </root>

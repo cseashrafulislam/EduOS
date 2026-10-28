@@ -522,12 +522,22 @@ namespace EduOS.App.Controllers.Api
             var user = await GetCurrentUserAsync();
             if (user == null) return Unauthorized(new { success = false, message = "Session unavailable." });
             if (dto == null || string.IsNullOrWhiteSpace(dto.SessionId))
-                return BadRequest(new { success = false, message = "Session ID required." });
-            var revoked = await AuthSessionRegistry.RevokeAsync(_db, user.Id, dto.SessionId);
+                return BadRequest(new { success = false, message = "Session reference required." });
+            var current = AuthSessionRegistry.IsCurrentReference(
+                User.FindFirstValue(AuthSessionRegistry.ClaimType), dto.SessionId);
+            if (!current)
+            {
+                if (user.TwoFactorEnabled && !User.HasClaim("amr", "mfa"))
+                    return StatusCode(403, new { success = false, message = "Sign in with MFA to manage other devices." });
+                if (string.IsNullOrWhiteSpace(dto.CurrentPassword) ||
+                    !await _userManager.CheckPasswordAsync(user, dto.CurrentPassword))
+                    return BadRequest(new { success = false, message = "Current password is invalid." });
+            }
+            var revoked = await AuthSessionRegistry.RevokeByReferenceAsync(_db, user.Id, dto.SessionId);
             if (!revoked) return NotFound(new { success = false, message = "Session no longer active." });
-            if (dto.SessionId == User.FindFirstValue(AuthSessionRegistry.ClaimType))
-                await _signInManager.SignOutAsync();
-            _logger.LogInformation("User {UserId} revoked session {SessionId}", user.Id, dto.SessionId);
+            if (current) await _signInManager.SignOutAsync();
+            _logger.LogInformation("User {UserId} revoked {SessionScope} session",
+                user.Id, current ? "current" : "other");
             return Ok(new { success = true, message = "Session revoked." });
         }
 
@@ -567,6 +577,8 @@ namespace EduOS.App.Controllers.Api
             Response.Headers.CacheControl = "no-store";
             var user = await GetCurrentUserAsync();
             if (user == null) return Unauthorized(new { success = false, message = "Session unavailable." });
+            if (user.TwoFactorEnabled && !User.HasClaim("amr", "mfa"))
+                return StatusCode(403, new { success = false, message = "Sign in with MFA to manage sessions." });
             if (dto == null || string.IsNullOrWhiteSpace(dto.CurrentPassword) ||
                 !await _userManager.CheckPasswordAsync(user, dto.CurrentPassword))
                 return BadRequest(new { success = false, message = "Current password is invalid." });

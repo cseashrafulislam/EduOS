@@ -9,6 +9,7 @@ public sealed class MfaSecurityActionDto
 
 public sealed class RevokeUserSessionDto
 {
-    [Required, StringLength(48, MinimumLength = 48)]
-    public string SessionId { get; set; } = string.Empty;
+    [Required, StringLength(64, MinimumLength = 64)]
+    public string SessionId { get; set; } = string.Empty; // public reference, never cookie SID
+    [StringLength(256)] public string? CurrentPassword { get; set; }
 }

@@ -2,6 +2,7 @@ using EduOS.Persistence.Context;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
 
 namespace EduOS.App.Security;
@@ -112,11 +113,31 @@ public static class AuthSessionRegistry
             .OrderByDescending(x => x.Record!.CreatedAtUtc).Take(100)
             .Select(x => (object)new
             {
-                sessionId = x.Name, isCurrent = x.Name == currentSid,
+                sessionId = ToPublicReference(x.Name), isCurrent = x.Name == currentSid,
                 tenantId = x.Record!.TenantId, createdAtUtc = x.Record.CreatedAtUtc,
                 expiresAtUtc = x.Record.ExpiresAtUtc, ipAddress = x.Record.IpAddress,
                 userAgent = x.Record.UserAgent
             }).ToArray();
+    }
+
+    // Expose a non-reversible management reference, never a live cookie SID.
+    public static string ToPublicReference(string sid) =>
+        Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes("EduOS.session.management.v1:" + sid)));
+
+    public static bool IsCurrentReference(string? currentSid, string? reference) =>
+        ValidSid(currentSid) && ValidReference(reference) &&
+        string.Equals(ToPublicReference(currentSid!), reference, StringComparison.Ordinal);
+
+    public static async Task<bool> RevokeByReferenceAsync(EduOSDbContext db, long userId, string? reference)
+    {
+        if (userId <= 0 || !ValidReference(reference)) return false;
+        // Indexed by user/provider; cap legacy session rows rather than scanning all tenants.
+        var ids = await db.UserTokens.AsNoTracking()
+            .Where(x => x.UserId == userId && x.LoginProvider == Provider)
+            .Select(x => x.Name).Take(500).ToArrayAsync();
+        var sid = ids.FirstOrDefault(x => ValidSid(x) &&
+            string.Equals(ToPublicReference(x), reference, StringComparison.Ordinal));
+        return sid != null && await RevokeAsync(db, userId, sid);
     }
 
     public static async Task<bool> RevokeAsync(EduOSDbContext db, long userId, string sid)
@@ -158,6 +179,9 @@ public static class AuthSessionRegistry
         try { return JsonSerializer.Deserialize<SessionRecord>(json); }
         catch (JsonException) { return null; }
     }
+
+    private static bool ValidReference(string? reference) => reference is { Length: 64 } &&
+        reference.All(c => c is >= '0' and <= '9' or >= 'A' and <= 'F');
 
     private static bool ValidSid(string? sid) => sid is { Length: 48 } &&
         sid.All(c => c is >= '0' and <= '9' or >= 'A' and <= 'F');
