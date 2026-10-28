@@ -633,6 +633,16 @@ public class SaveRoutineEntryRequestDto
     public string? RowVersion { get; set; }
 }
 
+/// <summary>One active, dated, tenant-authorized routine available for substitution scheduling.</summary>
+public class SubstitutionRoutineChoiceDto
+{
+    public long Id { get; set; }
+    public string SubjectName { get; set; } = string.Empty;
+    public string TimeSlotName { get; set; } = string.Empty;
+    public string OriginalTeacherName { get; set; } = string.Empty;
+    public DayOfWeek DayOfWeek { get; set; }
+}
+
 public class SubstitutionDto
 {
     public long Id { get; set; }
