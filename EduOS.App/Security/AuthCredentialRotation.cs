@@ -18,6 +18,8 @@ public static class AuthCredentialRotation
         CancellationToken cancellationToken = default) =>
         db.ExecuteInTransactionAsync(async _ =>
         {
+            // Preserve the existing profile-security modification timestamp.
+            user.UpdatedAt = DateTime.UtcNow;
             var result = await userManager.ChangePasswordAsync(user, currentPassword, newPassword);
             if (!result.Succeeded) return result;
 
