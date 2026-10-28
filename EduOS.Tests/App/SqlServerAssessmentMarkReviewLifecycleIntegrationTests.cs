@@ -169,6 +169,72 @@ public sealed class SqlServerAssessmentMarkReviewLifecycleIntegrationTests
         }
     }
 
+    [Fact]
+    public async Task Teacher_submission_reconciles_actual_component_values_before_persisting_review()
+    {
+        var connection = Environment.GetEnvironmentVariable("EDUOS_SQL_AUTH_TEST_CONNECTION");
+        if (string.IsNullOrWhiteSpace(connection)) return;
+        var options = new DbContextOptionsBuilder<EduOSDbContext>().UseSqlServer(connection).Options;
+        var seeded = await SeedAsync(options);
+        await using (var db = TenantDb(options, seeded.TenantId))
+        {
+            var first = new AssessmentComponent {
+                TenantId = seeded.TenantId, AssessmentSubjectId = seeded.AssessmentSubjectId,
+                Name = "Written", Code = "WRITTEN", FullMarks = 100m, Weightage = 50m
+            };
+            var second = new AssessmentComponent {
+                TenantId = seeded.TenantId, AssessmentSubjectId = seeded.AssessmentSubjectId,
+                Name = "Practical", Code = "PRACTICAL", FullMarks = 100m, Weightage = 50m
+            };
+            db.AssessmentComponents.AddRange(first, second);
+            await db.SaveChangesAsync();
+            var master = await db.StudentAssessmentMarks.AsNoTracking()
+                .SingleAsync(x => x.AssessmentSubjectId == seeded.AssessmentSubjectId);
+            db.StudentAssessmentComponentMarks.AddRange(
+                new StudentAssessmentComponentMark {
+                    TenantId = seeded.TenantId, AssessmentComponentId = first.Id,
+                    StudentAssessmentMarkId = master.Id, ObtainedMarks = 60m,
+                    EnteredByUserId = seeded.TeacherId
+                },
+                new StudentAssessmentComponentMark {
+                    TenantId = seeded.TenantId, AssessmentComponentId = second.Id,
+                    StudentAssessmentMarkId = master.Id, ObtainedMarks = 80m,
+                    EnteredByUserId = seeded.TeacherId
+                });
+            await db.SaveChangesAsync();
+        }
+        var teacher = new Actor(seeded.TenantId, seeded.TeacherId, "Teacher");
+        await using (var db = TenantDb(options, seeded.TenantId))
+        {
+            var service = Service(db, teacher);
+            var review = await service.GetMarkReviewAsync(seeded.AssessmentSubjectId);
+            Assert.True(review.Success, review.Message);
+            var invalid = await service.DecideMarkReviewAsync(seeded.AssessmentSubjectId,
+                Decision(Guid.NewGuid(), review.Data!.AssessmentRowVersion,
+                    AssessmentMarkReviewDecision.Submitted));
+            Assert.Equal(409, invalid.StatusCode);
+            Assert.Empty(await db.AssessmentMarkReviewEvents.AsNoTracking().ToListAsync());
+        }
+        await using (var db = TenantDb(options, seeded.TenantId))
+        {
+            var part = await db.StudentAssessmentComponentMarks.SingleAsync(x =>
+                x.ObtainedMarks == 80m);
+            part.ObtainedMarks = 90m;
+            await db.SaveChangesAsync();
+        }
+        await using (var db = TenantDb(options, seeded.TenantId))
+        {
+            var service = Service(db, teacher);
+            var review = await service.GetMarkReviewAsync(seeded.AssessmentSubjectId);
+            var valid = await service.DecideMarkReviewAsync(seeded.AssessmentSubjectId,
+                Decision(Guid.NewGuid(), review.Data!.AssessmentRowVersion,
+                    AssessmentMarkReviewDecision.Submitted));
+            Assert.True(valid.Success, valid.Message);
+            Assert.Equal(AssessmentMarkReviewDecision.Submitted, valid.Data!.CurrentDecision);
+            Assert.Single(await db.AssessmentMarkReviewEvents.AsNoTracking().ToListAsync());
+        }
+    }
+
     private static AssessmentMarkReviewRequestDto Decision(Guid key, string version,
         AssessmentMarkReviewDecision decision, string? reason = null) => new()
     {
