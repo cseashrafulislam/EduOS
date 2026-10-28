@@ -328,6 +328,38 @@ public sealed class AcademicInstructionServiceTests
     }
 
     [Fact]
+    public async Task Revoked_original_teacher_assignment_cannot_read_private_substitution_history()
+    {
+        var options = Options();
+        var seed = await SeedAsync(options);
+        await using (var db = Context(options, 101, 7, "TenantAdmin"))
+        {
+            var manager = Service(db, 101, 7, "TenantAdmin");
+            (await manager.CreateSubstitutionAsync(new CreateSubstitutionRequestDto
+            {
+                ClientRequestId = Guid.NewGuid(), RoutineEntryId = seed.RoutineEntryId,
+                Date = LessonDate, SubstituteEmployeeReference = seed.SubstituteReference
+            })).StatusCode.Should().Be(201);
+            var assignmentId = (await db.RoutineEntries.SingleAsync(x => x.Id == seed.RoutineEntryId))
+                .InstructorAssignmentId;
+            (await db.InstructorAssignments.SingleAsync(x => x.Id == assignmentId)).IsActive = false;
+            await db.SaveChangesAsync();
+        }
+        await using (var db = Context(options, 101, 70, "Teacher"))
+        {
+            var result = await Service(db, 101, 70, "Teacher")
+                .GetSubstitutionsPageAsync(LessonDate, LessonDate, seed.BatchId, 1, 20);
+            result.Data!.Items.Should().BeEmpty();
+        }
+        await using (var db = Context(options, 101, 71, "Teacher"))
+        {
+            var result = await Service(db, 101, 71, "Teacher")
+                .GetSubstitutionsPageAsync(LessonDate, LessonDate, seed.BatchId, 1, 20);
+            result.Data!.Items.Should().ContainSingle();
+        }
+    }
+
+    [Fact]
     public async Task Substitution_routine_choices_are_date_eligible_searchable_and_sql_paged()
     {
         var options = Options();
