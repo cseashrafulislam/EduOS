@@ -27,6 +27,7 @@ public sealed class HrAdminService : IHrAdminService
     private readonly IGenericRepository<WorkShift> _shifts;
     private readonly IGenericRepository<EmployeeShiftAssignment> _shiftAssignments;
     private readonly IGenericRepository<EmployeeCampusAssignment> _campusAssignments;
+    private readonly IGenericRepository<UserCampusAccess> _campusAccess;
     private readonly IGenericRepository<EmployeeAssignmentHistory> _history;
     private readonly IGenericRepository<EmployeeBankAccount> _bankAccounts;
     private readonly IGenericRepository<Campus> _campuses;
@@ -45,6 +46,7 @@ public sealed class HrAdminService : IHrAdminService
         IGenericRepository<LeaveType> leaveTypes, IGenericRepository<WorkShift> shifts,
         IGenericRepository<EmployeeShiftAssignment> shiftAssignments,
         IGenericRepository<EmployeeCampusAssignment> campusAssignments,
+        IGenericRepository<UserCampusAccess> campusAccess,
         IGenericRepository<EmployeeAssignmentHistory> history,
         IGenericRepository<EmployeeBankAccount> bankAccounts, IGenericRepository<Campus> campuses,
         IGenericRepository<Person> persons, IGenericRepository<TenantMembership> memberships,
@@ -55,6 +57,7 @@ public sealed class HrAdminService : IHrAdminService
         _employees = employees; _designations = designations; _organizations = organizations;
         _leaves = leaves; _leaveTypes = leaveTypes; _shifts = shifts;
         _shiftAssignments = shiftAssignments; _campusAssignments = campusAssignments;
+        _campusAccess = campusAccess;
         _history = history; _bankAccounts = bankAccounts; _campuses = campuses; _persons = persons;
         _memberships = memberships; _students = students; _guardians = guardians;
         _uow = uow; _user = user; _clock = clock; _dataProtection = dataProtection; _logger = logger;
@@ -70,6 +73,8 @@ public sealed class HrAdminService : IHrAdminService
             return Error<PagedResult<HrEmployeeRowDto>>("Invalid employee search.");
         var tenant = _user.TenantId;
         var query = _employees.GetQueryable().AsNoTracking().Where(x => x.TenantId == tenant && !x.IsDeleted);
+        if (!_user.IsTenantAdmin)
+            query = query.Where(x => VisibleEmployeeIds().Contains(x.Id));
         if (request.OrganizationUnitId.HasValue)
             query = query.Where(x => x.OrganizationUnitId == request.OrganizationUnitId);
         if (request.CanTeach.HasValue) query = query.Where(x => x.CanTeach == request.CanTeach);
@@ -117,7 +122,8 @@ public sealed class HrAdminService : IHrAdminService
     public async Task<ApiResponse<EmployeeDto>> CreateEmployeeAsync(
         CreateEmployeeRequestDto request, CancellationToken ct = default)
     {
-        if (!CanHr()) return Error<EmployeeDto>("HR access required.", 403);
+        // New employees have no verified campus assignment yet: only a tenant administrator may create them.
+        if (!CanHr() || !_user.IsTenantAdmin) return Error<EmployeeDto>("Tenant administrator permission required to register an employee.", 403);
         if (request == null || request.ClientRequestId == Guid.Empty ||
             !ValidNameCode(request.FullName, request.EmployeeCode) || request.DesignationId <= 0 ||
             request.JoiningDate == default || request.PersonId is <= 0 || request.UserId is <= 0 ||
@@ -200,7 +206,8 @@ public sealed class HrAdminService : IHrAdminService
         {
             var row = await _employees.GetQueryable().FirstOrDefaultAsync(x =>
                 x.TenantId == _user.TenantId && x.PublicId == employeeReference && !x.IsDeleted, token);
-            if (row == null) return Error<EmployeeDto>("Employee not found.", 404);
+            if (row == null || !await CanAccessEmployeeAsync(row.Id, token))
+                return Error<EmployeeDto>("Employee not found.", 404);
             if (!Matches(row.RowVersion, version)) return Error<EmployeeDto>("Employee modified; reload.", 409);
             if (row.State is EmployeeState.Terminated or EmployeeState.Retired)
                 return Error<EmployeeDto>("Terminated or retired employees require controlled reinstatement.", 409);
@@ -254,7 +261,8 @@ public sealed class HrAdminService : IHrAdminService
         {
             var row = await _employees.GetQueryable().FirstOrDefaultAsync(x =>
                 x.TenantId == _user.TenantId && x.PublicId == employeeReference && !x.IsDeleted, token);
-            if (row == null) return Error<EmployeeDto>("Employee not found.", 404);
+            if (row == null || !await CanAccessEmployeeAsync(row.Id, token))
+                return Error<EmployeeDto>("Employee not found.", 404);
             if (!Matches(row.RowVersion, expected)) return Error<EmployeeDto>("Employee changed; reload.", 409);
             if (row.State == request.State)
                 return ApiResponse<EmployeeDto>.SuccessResponse(await MapEmployeeAsync(row, token),
@@ -675,6 +683,8 @@ public sealed class HrAdminService : IHrAdminService
                 equals new { kind.TenantId, kind.Id }
             where leave.TenantId == tenant && !leave.IsDeleted && !employee.IsDeleted
             select new { leave, employee, kind };
+        if (!_user.IsTenantAdmin)
+            query = query.Where(x => VisibleEmployeeIds().Contains(x.employee.Id));
         if (request.State.HasValue) query = query.Where(x => x.leave.State == request.State.Value);
         if (request.FromDate.HasValue) query = query.Where(x => x.leave.ToDate >= request.FromDate.Value);
         if (request.ToDate.HasValue) query = query.Where(x => x.leave.FromDate <= request.ToDate.Value);
@@ -724,7 +734,8 @@ public sealed class HrAdminService : IHrAdminService
             if (row == null) return Error<bool>("Employee leave application not found.", 404);
             var employee = await _employees.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
                 x.TenantId == _user.TenantId && x.Id == row.EmployeeId && !x.IsDeleted, token);
-            if (employee == null) return Error<bool>("Employee leave application not found.", 404);
+            if (employee == null || !await CanAccessEmployeeAsync(employee.Id, token))
+                return Error<bool>("Employee leave application not found.", 404);
             if (employee.UserId.HasValue && employee.UserId.Value == _user.UserId)
                 return Error<bool>("Reviewers cannot approve or reject their own leave.", 403);
             if (!Matches(row.RowVersion, version)) return Error<bool>("Leave application changed.", 409);
@@ -740,9 +751,32 @@ public sealed class HrAdminService : IHrAdminService
         }, ct);
     }
 
-    private async Task<Employee?> FindEmployeeAsync(Guid reference, CancellationToken ct) =>
-        reference == Guid.Empty ? null : await _employees.GetQueryable().AsNoTracking()
-            .FirstOrDefaultAsync(x => x.TenantId == _user.TenantId && x.PublicId == reference && !x.IsDeleted, ct);
+    // Current campus grants are the authoritative scope for Principal/HR access.
+    // Unassigned employees are visible only to TenantAdmin until assigned.
+    private IQueryable<long> VisibleEmployeeIds()
+    {
+        var tenant = _user.TenantId;
+        var today = DateOnly.FromDateTime(_clock.GetUtcNow().UtcDateTime);
+        var allowedCampuses = _campusAccess.GetQueryable().AsNoTracking().Where(x =>
+            x.TenantId == tenant && x.UserId == _user.UserId && x.IsActive && !x.IsDeleted)
+            .Select(x => x.CampusId);
+        return _campusAssignments.GetQueryable().AsNoTracking().Where(x =>
+            x.TenantId == tenant && !x.IsDeleted &&
+            x.EffectiveFrom <= today && (!x.EffectiveTo.HasValue || x.EffectiveTo >= today) &&
+            allowedCampuses.Contains(x.CampusId)).Select(x => x.EmployeeId);
+    }
+
+    private async Task<bool> CanAccessEmployeeAsync(long employeeId, CancellationToken ct) =>
+        _user.IsTenantAdmin || await VisibleEmployeeIds().AnyAsync(x => x == employeeId, ct);
+
+    private async Task<Employee?> FindEmployeeAsync(Guid reference, CancellationToken ct)
+    {
+        if (reference == Guid.Empty) return null;
+        var query = _employees.GetQueryable().AsNoTracking().Where(x =>
+            x.TenantId == _user.TenantId && x.PublicId == reference && !x.IsDeleted);
+        if (!_user.IsTenantAdmin) query = query.Where(x => VisibleEmployeeIds().Contains(x.Id));
+        return await query.FirstOrDefaultAsync(ct);
+    }
 
     private async Task<string?> ValidateReferencesAsync(long designationId, long? organizationId,
         long? personId, long? userId, CancellationToken ct)
@@ -754,6 +788,13 @@ public sealed class HrAdminService : IHrAdminService
         if (organizationId.HasValue && !await _organizations.GetQueryable().AsNoTracking().AnyAsync(x =>
             x.TenantId == tenant && x.Id == organizationId.Value && x.IsActive && !x.IsDeleted, ct))
             return "Organization unit does not belong to this tenant.";
+        if (organizationId.HasValue && !_user.IsTenantAdmin &&
+            !await _organizations.GetQueryable().AsNoTracking().AnyAsync(x =>
+                x.TenantId == tenant && x.Id == organizationId.Value &&
+                (!x.CampusId.HasValue || _campusAccess.GetQueryable().Any(a =>
+                    a.TenantId == tenant && a.UserId == _user.UserId && a.IsActive &&
+                    !a.IsDeleted && a.CampusId == x.CampusId.Value)), ct))
+            return "Department is outside your authorized campus scope.";
         if (userId.HasValue && !await _memberships.GetQueryable().AsNoTracking().AnyAsync(x =>
             x.TenantId == tenant && x.UserId == userId.Value &&
             x.Status == MembershipStatus.Active && !x.IsDeleted, ct))

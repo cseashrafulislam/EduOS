@@ -6,6 +6,7 @@
     const token = root.querySelector('input[name="__RequestVerificationToken"]')?.value
         || document.querySelector('meta[name="request-verification-token"]')?.content;
     const statuses = {1:'Active',2:'Suspended',3:'Resigned',4:'Terminated',5:'Retired'};
+    el('employeeNew').hidden = root.dataset.canCreate !== 'true';
     const state = {reference:null, record:null, page:1, pages:1, historyPage:1, historyPages:1, requestId:null, busy:false};
     const today = () => {const d=new Date(); return [d.getFullYear(),String(d.getMonth()+1).padStart(2,'0'),String(d.getDate()).padStart(2,'0')].join('-');};
     const clean = value => typeof value === 'string' ? value.trim() : value;
