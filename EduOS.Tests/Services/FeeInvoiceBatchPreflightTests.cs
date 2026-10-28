@@ -1,5 +1,6 @@
 using EduOS.Core.DTOs.Finance;
 using EduOS.Core.Entities.Academic;
+using EduOS.Core.Entities.Auth;
 using EduOS.Core.Entities.Finance;
 using EduOS.Core.Entities.SaaS;
 using EduOS.Core.Entities.Students;
@@ -69,6 +70,23 @@ public sealed class FeeInvoiceBatchPreflightTests
         var foreign = Request();
         foreign.AcademicBatchId = 999;
         (await Service(db).PreviewInvoiceBatchAsync(foreign)).StatusCode.Should().Be(409);
+    }
+
+    [Fact]
+    public async Task Accountant_requires_active_campus_grant_for_preflight_and_generation()
+    {
+        await using var db = Database();
+        Seed(db);
+        var denied = await Service(db, "Accountant").PreviewInvoiceBatchAsync(Request());
+        denied.StatusCode.Should().Be(403);
+        (await Service(db, "Accountant").GenerateInvoicesAsync(Request())).StatusCode.Should().Be(403);
+        db.UserCampusAccesses.Add(new UserCampusAccess
+        {
+            TenantId = 41, UserId = 9, CampusId = 1, IsActive = true
+        });
+        await db.SaveChangesAsync();
+        (await Service(db, "Accountant").PreviewInvoiceBatchAsync(Request())).StatusCode.Should().Be(200);
+        (await db.StudentInvoices.CountAsync()).Should().Be(0);
     }
 
     [Fact]

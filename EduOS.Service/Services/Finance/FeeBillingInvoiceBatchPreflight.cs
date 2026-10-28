@@ -2,11 +2,23 @@ using EduOS.Core.Common;
 using EduOS.Core.DTOs.Finance;
 using EduOS.Core.Enums.Domain;
 using Microsoft.EntityFrameworkCore;
+using EduOS.Persistence.Context;
 
 namespace EduOS.Service.Services.Finance;
 
 public sealed partial class FeeBillingService
 {
+    private async Task<bool> CanAccessBillingCampusAsync(long campusId, CancellationToken ct)
+    {
+        // Only an authenticated tenant context may disclose student fee information.
+        if (_uow is not EduOSDbContext context || context.CurrentTenantId != _user.TenantId)
+            return false;
+        if (_user.IsTenantAdmin) return true;
+        return await context.UserCampusAccesses.AsNoTracking().AnyAsync(x =>
+            x.TenantId == _user.TenantId && !x.IsDeleted && x.IsActive &&
+            x.UserId == _user.UserId && x.CampusId == campusId, ct);
+    }
+
     // Preview one bounded monthly invoice batch without mutating invoices, ledger or audit.
     // This is not a reservation: the posting endpoint repeats its transactional checks.
     public async Task<ApiResponse<InvoiceBatchPreflightDto>> PreviewInvoiceBatchAsync(
@@ -38,6 +50,9 @@ public sealed partial class FeeBillingService
             (structure.AcademicProgramId.HasValue && structure.AcademicProgramId != batch.AcademicProgramId) ||
             structure.CurrencyCode != "BDT")
             return Error<InvoiceBatchPreflightDto>("Active BDT fee structure does not match the academic batch.", 409);
+
+        if (!await CanAccessBillingCampusAsync(batch.CampusId, ct))
+            return Error<InvoiceBatchPreflightDto>("Campus finance access denied.", 403);
 
         var lines = await (from line in _structureLines.GetQueryable().AsNoTracking()
             join head in _heads.GetQueryable().AsNoTracking()
