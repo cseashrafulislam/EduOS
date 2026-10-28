@@ -53,3 +53,17 @@ test('permission exception lineage includes legacy rows and scoped filter in rea
     assert.match(js, /TenantMemberPermissionOverrideChanged/);
     assert.match(view, /value="permissions"/);
 });
+
+test('member access history UTC date filters are identical for page and export', () => {
+    const service = read('EduOS.Service/Services/Auth/TenantUserAdministrationService.AccessHistory.cs');
+    const api = read('EduOS.App/Controllers/Api/TenantUsersController.cs');
+    const js = read('EduOS.App/wwwroot/js/tenant-users/index.js');
+    const view = read('EduOS.App/Views/TenantUsers/Index.cshtml');
+    assert.match(service, /ValidHistoryRange\(from, to\)/);
+    assert.match(service, /OccurredAt >= startUtc && x\.OccurredAt < endExclusiveUtc/);
+    assert.match(api, /\[FromQuery\] DateOnly\? from = null/);
+    assert.match(js, /function historyRange\(\)/);
+    assert.match(js, /encodeURIComponent\(from\).*encodeURIComponent\(to\)/);
+    assert.match(view, /id="memberHistoryFrom"/);
+    assert.match(view, /id="memberHistoryTo"/);
+});

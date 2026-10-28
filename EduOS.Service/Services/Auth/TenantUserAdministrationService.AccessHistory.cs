@@ -10,10 +10,10 @@ namespace EduOS.Service.Services.Auth;
 public sealed partial class TenantUserAdministrationService
 {
     public async Task<ApiResponse<PagedResult<TenantMemberAccessHistoryDto>>> GetMemberAccessHistoryAsync(
-        long membershipId, int page, int pageSize, CancellationToken ct = default, string? change = null)
+        long membershipId, int page, int pageSize, CancellationToken ct = default, string? change = null, DateOnly? from = null, DateOnly? to = null)
     {
         if (!CanManage) return Denied<PagedResult<TenantMemberAccessHistoryDto>>();
-        if (membershipId <= 0 || page < 1 || pageSize is < 1 or > 100 || page > int.MaxValue / pageSize || !ValidHistoryChange(change))
+        if (membershipId <= 0 || page < 1 || pageSize is < 1 or > 100 || page > int.MaxValue / pageSize || !ValidHistoryChange(change) || !ValidHistoryRange(from, to))
             return ApiResponse<PagedResult<TenantMemberAccessHistoryDto>>.ErrorResponse(
                 "Invalid membership or paging parameters.", 400);
         var member = await _db.TenantMemberships.AsNoTracking()
@@ -25,7 +25,7 @@ public sealed partial class TenantUserAdministrationService
 
         // Never query generic audit records by user ID: one account may belong to
         // multiple institutions. The canonical membership and tenant must both match.
-        var query = MemberHistoryQuery(membershipId, member.UserId, change);
+        var query = MemberHistoryQuery(membershipId, member.UserId, change, from, to);
         var count = await query.CountAsync(ct);
         var rows = await query.OrderByDescending(x => x.OccurredAt).ThenByDescending(x => x.Id)
             .Skip((page - 1) * pageSize).Take(pageSize)
@@ -46,7 +46,15 @@ public sealed partial class TenantUserAdministrationService
     private static bool ValidHistoryChange(string? change) =>
         change is null or "all" or "roles" or "campuses" or "status" or "permissions";
 
-    private IQueryable<AuditLog> MemberHistoryQuery(long membershipId, long memberUserId, string? change)
+    // Date-only filters are UTC calendar days, inclusive at both ends. Keep old
+    // no-date callers compatible, but reject half-ranges and oversized windows.
+    private static bool ValidHistoryRange(DateOnly? from, DateOnly? to) =>
+        (from is null && to is null) ||
+        (from.HasValue && to.HasValue && from.Value <= to.Value && to.Value < DateOnly.MaxValue &&
+         to.Value.DayNumber - from.Value.DayNumber <= 365);
+
+    private IQueryable<AuditLog> MemberHistoryQuery(long membershipId, long memberUserId,
+        string? change, DateOnly? from, DateOnly? to)
     {
         // New permission audits are membership-linked. Legacy permission audits refer to
         // UserPermission IDs instead; retain soft-deleted rows for historical readback only.
@@ -63,6 +71,12 @@ public sealed partial class TenantUserAdministrationService
                 x.EntityId.HasValue && _db.UserPermissions.IgnoreQueryFilters().Any(permission =>
                     permission.Id == x.EntityId.Value && permission.TenantId == TenantId &&
                     permission.UserId == memberUserId))));
+        if (from.HasValue && to.HasValue)
+        {
+            var startUtc = DateTime.SpecifyKind(from.Value.ToDateTime(TimeOnly.MinValue), DateTimeKind.Utc);
+            var endExclusiveUtc = DateTime.SpecifyKind(to.Value.AddDays(1).ToDateTime(TimeOnly.MinValue), DateTimeKind.Utc);
+            history = history.Where(x => x.OccurredAt >= startUtc && x.OccurredAt < endExclusiveUtc);
+        }
         return change switch
         {
             "roles" => history.Where(x => x.Action == "TenantMemberRolesChanged"),
@@ -84,10 +98,11 @@ public sealed partial class TenantUserAdministrationService
 
     /// <summary>Bounded, tenant-authorized export of the same canonical member access events.</summary>
     public async Task<ApiResponse<string>> ExportMemberAccessHistoryCsvAsync(
-        long membershipId, CancellationToken ct = default, string? change = null)
+        long membershipId, CancellationToken ct = default, string? change = null,
+        DateOnly? from = null, DateOnly? to = null)
     {
         if (!CanManage) return Denied<string>();
-        if (membershipId <= 0 || !ValidHistoryChange(change))
+        if (membershipId <= 0 || !ValidHistoryChange(change) || !ValidHistoryRange(from, to))
             return ApiResponse<string>.ErrorResponse("Invalid membership or history filter.", 400);
         var member = await _db.TenantMemberships.AsNoTracking()
             .Where(x => x.Id == membershipId && x.TenantId == TenantId && !x.IsDeleted)
@@ -97,7 +112,7 @@ public sealed partial class TenantUserAdministrationService
 
         // One ordered SQL query avoids page-shift duplication while concurrent audits are appended.
         // Reject oversize exports rather than silently truncating an administrator's evidence.
-        var rows = await MemberHistoryQuery(membershipId, member.UserId, change)
+        var rows = await MemberHistoryQuery(membershipId, member.UserId, change, from, to)
             .OrderByDescending(x => x.OccurredAt).ThenByDescending(x => x.Id)
             .Take(1001)
             .Select(x => new { x.OccurredAt, x.Action, x.UserName, x.UserId, x.OldValue, x.NewValue })

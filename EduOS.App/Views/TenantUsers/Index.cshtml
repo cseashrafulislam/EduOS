@@ -85,6 +85,10 @@
                                 <option value="status">@(bn ? "সদস্যপদের অবস্থা" : "Membership status")</option>
                                 <option value="permissions">@(bn ? "অনুমতির ব্যতিক্রম" : "Permission exceptions")</option>
                             </select>
+                            <label for="memberHistoryFrom" class="visually-hidden">@(bn ? "শুরু (UTC)" : "From (UTC)")</label>
+                            <input id="memberHistoryFrom" type="date" class="form-control form-control-sm" aria-label="@(bn ? "শুরু (UTC)" : "From (UTC)")" />
+                            <label for="memberHistoryTo" class="visually-hidden">@(bn ? "শেষ (UTC)" : "To (UTC)")</label>
+                            <input id="memberHistoryTo" type="date" class="form-control form-control-sm" aria-label="@(bn ? "শেষ (UTC)" : "To (UTC)")" />
                             <button id="memberHistoryExport" type="button" class="btn btn-outline-primary btn-sm">@(bn ? "CSV ডাউনলোড" : "Export CSV")</button>
                         </div>
                     </div>

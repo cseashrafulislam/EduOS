@@ -19,7 +19,7 @@ public interface ITenantUserAdministrationService
     Task<ApiResponse<bool>> AcceptInvitationAsync(AcceptTenantInvitationRequestDto request, CancellationToken ct = default);
     Task<ApiResponse<IReadOnlyList<TenantMemberPermissionOverrideDto>>> GetMemberPermissionOverridesAsync(long membershipId, CancellationToken ct = default);
     Task<ApiResponse<TenantMemberPermissionOverrideDto>> SetMemberPermissionOverrideAsync(long membershipId, long permissionId, SetTenantMemberPermissionOverrideRequestDto request, CancellationToken ct = default);
-    Task<ApiResponse<PagedResult<TenantMemberAccessHistoryDto>>> GetMemberAccessHistoryAsync(long membershipId, int page, int pageSize, CancellationToken ct = default, string? change = null);
+    Task<ApiResponse<PagedResult<TenantMemberAccessHistoryDto>>> GetMemberAccessHistoryAsync(long membershipId, int page, int pageSize, CancellationToken ct = default, string? change = null, DateOnly? from = null, DateOnly? to = null);
     Task<ApiResponse<string>> ExportMemberAccessHistoryCsvAsync(long membershipId, CancellationToken ct = default, string? change = null);
     Task<ApiResponse<IReadOnlyList<UserCampusAccessDto>>> GetMemberCampusesAsync(long membershipId, CancellationToken ct = default);
     Task<ApiResponse<bool>> SetMemberCampusesAsync(long membershipId, SetMembershipCampusAccessRequestDto request, CancellationToken ct = default);

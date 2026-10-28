@@ -362,6 +362,39 @@ public sealed class TenantUserAdministrationTests
             .GetMemberAccessHistoryAsync(300, 1, 20, change: "permissions")).StatusCode);
     }
 
+    [Fact]
+    public async Task Member_history_utc_date_filter_is_inclusive_bounded_and_shared_by_export()
+    {
+        var access = ContextFor(100, isAdmin: true);
+        await using var db = access.Db;
+        db.Users.Add(new ApplicationUser { Id = 210, FullName = "Staff", Email = "staff@example.test" });
+        db.TenantMemberships.Add(new TenantMembership { Id = 300, TenantId = 100, UserId = 210 });
+        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        var noonUtc = DateTime.SpecifyKind(today.ToDateTime(new TimeOnly(12, 0)), DateTimeKind.Utc);
+        db.AuditLogs.AddRange(
+            new AuditLog { Id = 1, TenantId = 100, EntityName = nameof(TenantMembership),
+                EntityId = 300, Action = "TenantMemberRolesChanged", NewValue = "Today", OccurredAt = noonUtc },
+            new AuditLog { Id = 2, TenantId = 100, EntityName = nameof(TenantMembership),
+                EntityId = 300, Action = "TenantMemberRolesChanged", NewValue = "Yesterday",
+                OccurredAt = noonUtc.AddDays(-1) });
+        await db.SaveChangesAsync();
+        var service = Service(db, access.User, access.Email);
+        var page = await service.GetMemberAccessHistoryAsync(300, 1, 20,
+            change: "roles", from: today, to: today);
+        Assert.True(page.Success, page.Message);
+        Assert.Equal(1, page.Data!.TotalCount);
+        Assert.Equal("Today", Assert.Single(page.Data.Items).NewValue);
+        var csv = await service.ExportMemberAccessHistoryCsvAsync(300,
+            change: "roles", from: today, to: today);
+        Assert.True(csv.Success, csv.Message);
+        Assert.Contains("Today", csv.Data);
+        Assert.DoesNotContain("Yesterday", csv.Data);
+        Assert.Equal(400, (await service.GetMemberAccessHistoryAsync(300, 1, 20, from: today)).StatusCode);
+        Assert.Equal(400, (await service.ExportMemberAccessHistoryCsvAsync(300, from: today, to: today.AddDays(-1))).StatusCode);
+        Assert.Equal(400, (await service.GetMemberAccessHistoryAsync(300, 1, 20,
+            from: today.AddDays(-400), to: today)).StatusCode);
+    }
+
     private static (EduOSDbContext Db, Mock<ICurrentUserService> User, Mock<IEmailService> Email, HttpContextAccessor Accessor)
         ContextFor(long tenantId, bool isAdmin)
     {
