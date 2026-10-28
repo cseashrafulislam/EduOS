@@ -90,6 +90,16 @@ public sealed class StudentAttendanceSessionRegisterDto
     public int Excused { get; set; }
 }
 
+/// <summary>Tenant/campus-scoped session completion counts for a bounded reporting window.</summary>
+public sealed class StudentAttendanceSessionOverviewDto
+{
+    public int TotalSessions { get; set; }
+    public int DraftSessions { get; set; }
+    public int FinalizedSessions { get; set; }
+    public int EmptyDraftSessions { get; set; }
+    public int EmptyFinalizedSessions { get; set; }
+}
+
 /// <summary>Historical subject-offering picker for an authorized batch.</summary>
 public sealed class StudentAttendanceReportSubjectDto
 {

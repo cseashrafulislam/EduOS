@@ -12,18 +12,26 @@ test('session register is manager-authorized, bounded and includes unfinalized s
     const view = read('EduOS.App/Views/Attendance/Index.cshtml');
     const js = read('EduOS.App/wwwroot/js/attendance/session-register.js');
     assert.match(dto, /class StudentAttendanceSessionRegisterDto/);
+    assert.match(dto, /class StudentAttendanceSessionOverviewDto/);
     assert.match(service, /GetSessionRegisterAsync/);
+    assert.match(service, /GetSessionOverviewAsync/);
+    assert.match(service, /ValidMarkedSessionIds/);
+    assert.match(service, /"empty-draft" or "empty-finalized"/);
     assert.match(service, /GetAuthorizedCampusIdAsync/);
     assert.match(service, /session\.AcademicBatchId == query\.AcademicBatchId/);
     assert.match(service, /sessionIds\.Contains\(mark\.AttendanceSessionId\)/);
     assert.match(service, /bySession\.TryGetValue/);
     assert.match(service, /\.Skip\(\(query\.Page - 1\) \* query\.PageSize\)/);
     assert.match(api, /HttpGet\("sessions"\)/);
+    assert.match(api, /HttpGet\("sessions\/summary"\)/);
     assert.match(api, /Authorize\(Roles = "TenantAdmin,Principal,VicePrincipal"\)/);
-    for (const id of ['attendanceSessionsRows', 'attendanceSessionsStatusFilter',
+    for (const id of ['attendanceSessionsOverview', 'attendanceSessionsRows', 'attendanceSessionsStatusFilter',
         'attendanceSessionsCsv', 'attendanceSessionsPrevious', 'attendanceSessionsNext'])
         assert.ok(view.includes('id="' + id + '"'));
     assert.match(js, /token !== request/);
+    assert.match(js, /token !== summaryVersion/);
+    assert.match(js, /loadSummary\(\+\+summaryVersion, params\)/);
+    assert.match(js, /sessions\/summary/);
     assert.match(js, /visible\.map\(x =>/);
     assert.match(js, /row\.map\(csvCell\)/);
     assert.doesNotThrow(() => new Function(js));

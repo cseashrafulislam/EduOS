@@ -43,6 +43,15 @@ public sealed class StudentAttendanceReportsController(IStudentAttendanceReportS
         return StatusCode(result.StatusCode, result);
     }
 
+    [HttpGet("sessions/summary")]
+    public async Task<IActionResult> SessionOverview([FromQuery] StudentAttendanceReportQueryDto query,
+        CancellationToken ct)
+    {
+        if (!ModelState.IsValid) return ValidationProblem(ModelState);
+        var result = await service.GetSessionOverviewAsync(query, ct);
+        return StatusCode(result.StatusCode, result);
+    }
+
     [HttpGet("sessions")]
     public async Task<IActionResult> Sessions([FromQuery] StudentAttendanceReportQueryDto query,
         [FromQuery] string? status, CancellationToken ct)

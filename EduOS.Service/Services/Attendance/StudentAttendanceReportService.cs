@@ -189,6 +189,85 @@ public sealed class StudentAttendanceReportService(
     }
 
     /// <summary>
+    /// Authorized completion overview, including empty finalized sessions as an audit anomaly.
+    /// Two bounded SQL aggregates, never materializing all sessions or student records.
+    /// </summary>
+    public async Task<ApiResponse<StudentAttendanceSessionOverviewDto>> GetSessionOverviewAsync(
+        StudentAttendanceReportQueryDto query, CancellationToken cancellationToken = default)
+    {
+        if (!user.IsAuthenticated || user.TenantId <= 0 ||
+            !(user.IsTenantAdmin || user.IsInRole("Principal") || user.IsInRole("VicePrincipal")))
+            return ApiResponse<StudentAttendanceSessionOverviewDto>.ErrorResponse(
+                "Attendance report permission is required.", 403);
+        if (query == null || !ValidSessionQuery(query))
+            return ApiResponse<StudentAttendanceSessionOverviewDto>.ErrorResponse(
+                "Select a valid batch, page and date range of at most 31 days.");
+        try
+        {
+            var tenant = user.TenantId;
+            var campusId = await GetAuthorizedCampusIdAsync(tenant, query.AcademicBatchId, cancellationToken);
+            if (!campusId.HasValue)
+                return ApiResponse<StudentAttendanceSessionOverviewDto>.ErrorResponse(
+                    "Academic batch not found.", 404);
+            if (query.SubjectOfferingId.HasValue &&
+                !await db.SubjectOfferings.AsNoTracking().AnyAsync(x =>
+                    x.TenantId == tenant && x.Id == query.SubjectOfferingId.Value &&
+                    x.AcademicBatchId == query.AcademicBatchId && !x.IsDeleted, cancellationToken))
+                return ApiResponse<StudentAttendanceSessionOverviewDto>.ErrorResponse(
+                    "Subject offering not found for this batch.", 404);
+
+            var sessions = db.AttendanceSessions.AsNoTracking().Where(x =>
+                x.TenantId == tenant && !x.IsDeleted &&
+                x.AcademicBatchId == query.AcademicBatchId &&
+                x.AttendanceDate >= query.FromDate && x.AttendanceDate <= query.ToDate &&
+                (!query.SubjectOfferingId.HasValue ||
+                 x.SubjectOfferingId == query.SubjectOfferingId.Value));
+            var result = await sessions.GroupBy(x => 1)
+                .Select(g => new StudentAttendanceSessionOverviewDto {
+                    TotalSessions = g.Count(),
+                    DraftSessions = g.Count(x => !x.IsFinalized),
+                    FinalizedSessions = g.Count(x => x.IsFinalized)
+                }).SingleOrDefaultAsync(cancellationToken)
+                ?? new StudentAttendanceSessionOverviewDto();
+            var markedIds = ValidMarkedSessionIds(tenant, query.AcademicBatchId, campusId.Value);
+            var empty = await sessions.Where(x => !markedIds.Contains(x.Id))
+                .GroupBy(x => 1)
+                .Select(g => new {
+                    Draft = g.Count(x => !x.IsFinalized),
+                    Finalized = g.Count(x => x.IsFinalized)
+                }).SingleOrDefaultAsync(cancellationToken);
+            result.EmptyDraftSessions = empty?.Draft ?? 0;
+            result.EmptyFinalizedSessions = empty?.Finalized ?? 0;
+            return ApiResponse<StudentAttendanceSessionOverviewDto>.SuccessResponse(result);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            logger.LogError(ex, "Attendance session overview failed for tenant {TenantId}", user.TenantId);
+            return ApiResponse<StudentAttendanceSessionOverviewDto>.ErrorResponse(
+                "Attendance session overview could not be loaded.", 500);
+        }
+    }
+
+    private static bool ValidSessionQuery(StudentAttendanceReportQueryDto query) =>
+        query.AcademicBatchId > 0 && query.FromDate != default && query.ToDate != default &&
+        query.ToDate >= query.FromDate &&
+        query.ToDate.DayNumber - query.FromDate.DayNumber <= 30 &&
+        query.SubjectOfferingId is not <= 0 && query.Page >= 1 &&
+        query.PageSize is >= 1 and <= 100 && query.Page <= int.MaxValue / query.PageSize;
+
+    private IQueryable<long> ValidMarkedSessionIds(long tenant, long batchId, long campusId) =>
+        from mark in db.StudentAttendances.AsNoTracking()
+        join enrollment in db.StudentEnrollments.AsNoTracking()
+            on mark.StudentEnrollmentId equals enrollment.Id
+        join student in db.Students.AsNoTracking()
+            on enrollment.StudentId equals student.Id
+        where mark.TenantId == tenant && enrollment.TenantId == tenant &&
+            student.TenantId == tenant && !mark.IsDeleted && !enrollment.IsDeleted &&
+            !student.IsDeleted && enrollment.AcademicBatchId == batchId &&
+            enrollment.CampusId == campusId
+        select mark.AttendanceSessionId;
+
+    /// <summary>
     /// SQL-paged register of draft and finalized sessions, including sessions with no marks.
     /// Marks are counted only for the authorized batch/campus's historical enrollments.
     /// No student identity or cross-campus mark is projected into this operational report.
@@ -202,12 +281,8 @@ public sealed class StudentAttendanceReportService(
             return ApiResponse<PagedResult<StudentAttendanceSessionRegisterDto>>.ErrorResponse(
                 "Attendance report permission is required.", 403);
         var filter = (status ?? "all").Trim().ToLowerInvariant();
-        if (query == null || query.AcademicBatchId <= 0 || query.FromDate == default ||
-            query.ToDate == default || query.ToDate < query.FromDate ||
-            query.ToDate.DayNumber - query.FromDate.DayNumber > 30 ||
-            query.SubjectOfferingId is <= 0 || query.Page < 1 || query.PageSize is < 1 or > 100 ||
-            query.Page > int.MaxValue / query.PageSize ||
-            filter is not ("all" or "draft" or "finalized"))
+        if (query == null || !ValidSessionQuery(query) ||
+            filter is not ("all" or "draft" or "finalized" or "empty" or "empty-draft" or "empty-finalized"))
             return ApiResponse<PagedResult<StudentAttendanceSessionRegisterDto>>.ErrorResponse(
                 "Select a valid batch, session status, page and date range of at most 31 days.");
         try
@@ -246,8 +321,13 @@ public sealed class StudentAttendanceReportService(
                     IsFinalized = session.IsFinalized,
                     FinalizedAt = session.FinalizedAt
                 };
-            if (filter == "draft") sessions = sessions.Where(x => !x.IsFinalized);
-            if (filter == "finalized") sessions = sessions.Where(x => x.IsFinalized);
+            if (filter is "draft" or "empty-draft") sessions = sessions.Where(x => !x.IsFinalized);
+            if (filter is "finalized" or "empty-finalized") sessions = sessions.Where(x => x.IsFinalized);
+            if (filter is "empty" or "empty-draft" or "empty-finalized")
+            {
+                var markedIds = ValidMarkedSessionIds(tenant, query.AcademicBatchId, campusId.Value);
+                sessions = sessions.Where(x => !markedIds.Contains(x.SessionId));
+            }
             var count = await sessions.CountAsync(cancellationToken);
             var items = await sessions.OrderByDescending(x => x.AttendanceDate)
                 .ThenByDescending(x => x.SessionId)

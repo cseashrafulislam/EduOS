@@ -195,13 +195,17 @@
                         <option value="draft">Not finalized</option>
                         <option value="all">All sessions</option>
                         <option value="finalized">Finalized</option>
+                        <option value="empty-draft">Empty drafts</option>
+                        <option value="empty-finalized">Empty finalized (review)</option>
+                        <option value="empty">All empty sessions</option>
                     </select>
                 </div>
                 <div class="col-md-3">
                     <button id="attendanceSessionsLoad" type="button" class="btn btn-outline-primary">Load sessions</button>
                 </div>
             </div>
-            <div id="attendanceSessionsStatus" class="small text-muted mb-2" role="status" aria-live="polite"></div>
+            <div id="attendanceSessionsStatus" class="small text-muted mb-1" role="status" aria-live="polite"></div>
+            <div id="attendanceSessionsOverview" class="small fw-semibold mb-2" role="status" aria-live="polite"></div>
             <div class="table-responsive">
                 <table class="table table-sm table-striped align-middle">
                     <thead><tr><th>Date</th><th>Offering</th><th>Status</th><th>Marked</th><th>Present</th><th>Absent</th><th>Late</th><th>Leave</th><th>Excused</th></tr></thead>

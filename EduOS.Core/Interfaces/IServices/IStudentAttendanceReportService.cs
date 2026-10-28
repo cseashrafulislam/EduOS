@@ -11,6 +11,8 @@ public interface IStudentAttendanceReportService
     Task<ApiResponse<PagedResult<StudentAttendanceSubjectSummaryDto>>> GetSubjectSummaryAsync(
         StudentAttendanceReportQueryDto query, string? search, string? sort,
         CancellationToken cancellationToken = default);
+    Task<ApiResponse<StudentAttendanceSessionOverviewDto>> GetSessionOverviewAsync(
+        StudentAttendanceReportQueryDto query, CancellationToken cancellationToken = default);
     Task<ApiResponse<PagedResult<StudentAttendanceSessionRegisterDto>>> GetSessionRegisterAsync(
         StudentAttendanceReportQueryDto query, string? status,
         CancellationToken cancellationToken = default);

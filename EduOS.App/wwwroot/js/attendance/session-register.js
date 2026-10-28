@@ -5,18 +5,22 @@
     const body = el('attendanceSessionsRows');
     if (!form || !body) return;
     const status = el('attendanceSessionsStatus');
+    const overview = el('attendanceSessionsOverview');
     const filter = el('attendanceSessionsStatusFilter');
     const csvButton = el('attendanceSessionsCsv');
     const previous = el('attendanceSessionsPrevious');
     const next = el('attendanceSessionsNext');
     const pageLabel = el('attendanceSessionsPage');
     let page = 1, pages = 0, request = 0, visible = [];
+    let summaryVersion = 0, summaryKey = '';
 
     function reset() {
         request++;
         page = 1; pages = 0; visible = [];
         body.replaceChildren();
         status.textContent = '';
+        overview.textContent = '';
+        summaryVersion++; summaryKey = '';
         pageLabel.textContent = '';
         csvButton.disabled = previous.disabled = next.disabled = true;
     }
@@ -29,6 +33,27 @@
         const raw = String(value ?? '');
         const safe = /^[\s]*[=+\-@\t\r]/.test(raw) ? "'" + raw : raw;
         return '"' + safe.replace(/"/g, '""') + '"';
+    }
+    async function loadSummary(token, params) {
+        const query = new URLSearchParams(params);
+        query.delete('page'); query.delete('pageSize'); query.delete('status');
+        try {
+            const response = await fetch('/api/student-attendance/report/sessions/summary?' + query, {
+                credentials: 'same-origin', cache: 'no-store', headers: { Accept: 'application/json' }
+            });
+            const json = await response.json().catch(() => null);
+            if (!response.ok || !json?.success)
+                throw new Error('Session overview unavailable.');
+            if (token !== summaryVersion) return;
+            const data = json.data || {};
+            overview.textContent = 'Total ' + (data.totalSessions ?? 0) +
+                ' · Draft ' + (data.draftSessions ?? 0) +
+                ' · Finalized ' + (data.finalizedSessions ?? 0) +
+                ' · Empty drafts ' + (data.emptyDraftSessions ?? 0) +
+                ' · Empty finalized ' + (data.emptyFinalizedSessions ?? 0);
+        } catch {
+            if (token === summaryVersion) overview.textContent = 'Session overview unavailable.';
+        }
     }
     async function load() {
         if (!form.reportValidity()) return;
@@ -49,6 +74,13 @@
             ...(el('attendanceReportSubject').value ?
                 { subjectOfferingId: el('attendanceReportSubject').value } : {})
         });
+        const key = [params.get('academicBatchId'), from, to,
+            params.get('subjectOfferingId') || ''].join('|');
+        if (key !== summaryKey) {
+            summaryKey = key;
+            overview.textContent = 'Loading session overview…';
+            void loadSummary(++summaryVersion, params);
+        }
         try {
             const response = await fetch('/api/student-attendance/report/sessions?' + params, {
                 credentials: 'same-origin', cache: 'no-store', headers: { Accept: 'application/json' }
