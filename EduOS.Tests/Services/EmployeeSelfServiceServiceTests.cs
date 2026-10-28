@@ -36,6 +36,25 @@ public class EmployeeSelfServiceServiceTests
         result.Data![0].State.Should().Be(AttendanceState.Present);
     }
 
+    [Theory]
+    [InlineData(2L, true)]
+    [InlineData(1L, false)]
+    public async Task Profile_rejects_mismatched_person_or_inactive_login(long linkedPersonId, bool isActive)
+    {
+        await using var context = CreateContext(out var accessor);
+        context.Set<Employee>().Add(Employee(10, 99));
+        context.Users.Add(new EduOS.Core.Entities.Auth.ApplicationUser
+        {
+            Id = 99, UserName = "identity-99", PersonId = linkedPersonId,
+            IsActive = isActive, FullName = "User"
+        });
+        await context.SaveChangesAsync();
+        SetTenant(accessor, 10);
+        var response = await CreateService(context, new TestCurrentUser(10, 99)).GetProfileAsync();
+        response.Success.Should().BeFalse();
+        response.StatusCode.Should().Be(404);
+    }
+
     [Fact]
     public async Task Attendance_rejects_inactive_employee_link()
     {
