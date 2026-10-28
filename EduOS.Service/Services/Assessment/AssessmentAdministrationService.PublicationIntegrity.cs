@@ -17,7 +17,10 @@ public sealed partial class AssessmentAdministrationService
     {
         if (publicationIds.Length == 0) return new Dictionary<long, PublicationEvidence>();
         var tenant = _user.TenantId;
-        var all = await _summaries.GetQueryable().AsNoTracking()
+        // Reconciliation must see soft-deleted historical snapshots as well as active rows.
+        // IgnoreQueryFilters is limited to this tenant-scoped evidence count; callers
+        // are authorized examination controllers with a validated campus scope.
+        var all = await _summaries.GetQueryable().AsNoTracking().IgnoreQueryFilters()
             .Where(x => x.TenantId == tenant && publicationIds.Contains(x.ResultPublicationId))
             .GroupBy(x => x.ResultPublicationId)
             .Select(g => new { Id = g.Key, Total = g.Count(), Active = g.Count(x => !x.IsDeleted) })
