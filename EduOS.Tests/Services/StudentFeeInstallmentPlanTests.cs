@@ -243,6 +243,61 @@ public sealed class StudentFeeInstallmentPlanTests
         (await db.StudentInvoices.CountAsync()).Should().Be(0);
     }
 
+    [Fact]
+    public async Task Billing_audit_flags_competing_invoice_and_mismatched_fee_head_without_mutation()
+    {
+        await using var db = Database();
+        Seed(db);
+        var plan = new StudentFeeInstallmentPlan {
+            TenantId = 41, StudentEnrollmentId = 1, FeeStructureId = 1,
+            CampusId = 1, AcademicYearId = 2,
+            StartMonth = new DateOnly(2026, 2, 1), EndMonth = new DateOnly(2026, 2, 1),
+            GrossAmount = 100m, LineCount = 1, PreparedByUserId = 9,
+            RowVersion = [1, 2, 3, 4]
+        };
+        db.StudentFeeInstallmentPlans.Add(plan);
+        await db.SaveChangesAsync();
+        db.StudentFeeInstallmentPlanLines.Add(new StudentFeeInstallmentPlanLine {
+            TenantId = 41, StudentFeeInstallmentPlanId = plan.Id, FeeHeadId = 1,
+            MonthStart = plan.StartMonth, DueDate = new DateOnly(2026, 2, 28),
+            FeeHeadCodeSnapshot = "TUITION", FeeHeadNameSnapshot = "Tuition",
+            GrossAmount = 100m
+        });
+        db.StudentFeeInstallmentPlanEvents.AddRange(
+            new StudentFeeInstallmentPlanEvent {
+                TenantId = 41, StudentFeeInstallmentPlanId = plan.Id,
+                ActionCode = 2, ActorUserId = 9, ClientRequestId = Guid.NewGuid()
+            },
+            new StudentFeeInstallmentPlanEvent {
+                TenantId = 41, StudentFeeInstallmentPlanId = plan.Id,
+                ActionCode = 3, ActorUserId = 10, ClientRequestId = Guid.NewGuid()
+            });
+        var invoice = new StudentInvoice {
+            TenantId = 41, StudentEnrollmentId = 1, ClientRequestId = Guid.NewGuid(),
+            InvoiceNumber = "INV-LEGACY", InvoiceDate = plan.StartMonth,
+            DueDate = new DateOnly(2026, 2, 28), Subtotal = 100m,
+            TotalAmount = 100m, DueAmount = 100m
+        };
+        db.StudentInvoices.Add(invoice);
+        await db.SaveChangesAsync();
+        db.StudentInvoiceLines.Add(new StudentInvoiceLine {
+            TenantId = 41, StudentInvoiceId = invoice.Id, FeeHeadId = 1,
+            Description = "Tuition", Amount = 99m, NetAmount = 99m
+        });
+        await db.SaveChangesAsync();
+
+        var audit = await Service(db).GetInstallmentBillingAuditAsync(plan.PublicId);
+        audit.StatusCode.Should().Be(200);
+        audit.Data!.ReviewMonths.Should().Be(1);
+        audit.Data.BilledMonths.Should().Be(0);
+        audit.Data.Rows[0].Issues.Should().Contain(x => x.Contains("fee-head"));
+        (await db.StudentInvoices.CountAsync()).Should().Be(1);
+        (await Service(db, "Accountant").GetInstallmentBillingAuditAsync(plan.PublicId))
+            .StatusCode.Should().Be(404);
+        (await Service(db).GetInstallmentBillingAuditAsync(Guid.NewGuid()))
+            .StatusCode.Should().Be(404);
+    }
+
     private static CreateStudentFeeInstallmentPlanDto Request(EduOSDbContext db) => new() {
         ClientRequestId = Guid.NewGuid(),
         StudentReference = db.Students.Single().PublicId,

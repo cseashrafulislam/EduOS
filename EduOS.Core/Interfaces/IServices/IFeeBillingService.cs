@@ -8,6 +8,7 @@ public interface IFeeBillingService
 {
     Task<ApiResponse<PagedResult<StudentFeeInstallmentPlanDto>>> GetInstallmentPlansAsync(long? campusId = null, int page = 1, int pageSize = 25, CancellationToken cancellationToken = default);
     Task<ApiResponse<StudentFeeInstallmentPlanDto>> GetInstallmentPlanAsync(Guid reference, CancellationToken cancellationToken = default);
+    Task<ApiResponse<StudentFeeInstallmentBillingAuditDto>> GetInstallmentBillingAuditAsync(Guid reference, CancellationToken cancellationToken = default);
     Task<ApiResponse<StudentFeeInstallmentPlanDto>> CreateInstallmentPlanAsync(CreateStudentFeeInstallmentPlanDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<StudentFeeInstallmentMonthInvoiceDto>> IssueInstallmentMonthAsync(Guid reference, IssueStudentFeeInstallmentMonthDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<StudentFeeInstallmentPlanDto>> TransitionInstallmentPlanAsync(Guid reference, int actionCode, StudentFeeInstallmentTransitionDto request, CancellationToken cancellationToken = default);

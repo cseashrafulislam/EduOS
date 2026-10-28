@@ -179,11 +179,24 @@ public sealed class SqlServerStudentFeeInstallmentPlanIntegrationTests
         Assert.Equal(1, await db.StudentInvoiceLines.CountAsync());
         var readback = await checkerService.GetInstallmentPlanAsync(draft.Data.Reference);
         Assert.Equal(firstInvoice.Data.InvoiceReference, readback.Data!.Lines[0].InvoiceReference);
+        var audit = await checkerService.GetInstallmentBillingAuditAsync(draft.Data.Reference);
+        Assert.True(audit.Success, audit.Message);
+        Assert.Equal(3, audit.Data!.Months);
+        Assert.Equal(1, audit.Data.BilledMonths);
+        Assert.Equal(2, audit.Data.UnbilledMonths);
+        Assert.Equal(0, audit.Data.ReviewMonths);
+        Assert.Equal(100m, audit.Data.VerifiedInvoiceNet);
+        Assert.Equal(403, (await Service(db, tenantId + 1, checkerId)
+            .GetInstallmentBillingAuditAsync(draft.Data.Reference)).StatusCode);
         issue.MonthStart = new DateOnly(2026, 3, 1);
         var march = await checkerService.IssueInstallmentMonthAsync(draft.Data.Reference, issue);
         Assert.True(march.Success, march.Message);
         Assert.Equal(2, await db.StudentInvoices.CountAsync());
         Assert.Equal(2, await db.StudentInvoiceLines.CountAsync());
+        var twoMonths = await checkerService.GetInstallmentBillingAuditAsync(draft.Data.Reference);
+        Assert.Equal(2, twoMonths.Data!.BilledMonths);
+        Assert.Equal(1, twoMonths.Data.UnbilledMonths);
+        Assert.Equal(0, twoMonths.Data.ReviewMonths);
         Assert.Equal(0, await db.StudentPayments.CountAsync());
         Assert.Equal(0, await db.Journals.CountAsync());
         Assert.Equal(403, (await Service(db, tenantId + 1, checkerId)

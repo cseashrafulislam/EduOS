@@ -58,6 +58,7 @@
         <div class="card-header d-flex justify-content-between align-items-center gap-2">
             <strong id="feePlanDetailTitle">Agreement</strong>
             <div class="d-flex gap-2 d-print-none">
+                <button id="feePlanAuditOpen" class="btn btn-outline-secondary btn-sm" type="button">Billing Audit</button>
                 <button id="feePlanSubmit" class="btn btn-outline-primary btn-sm" type="button">Submit</button>
                 <label for="feePlanIssueMonth" class="visually-hidden">Invoice month</label>
                 <select id="feePlanIssueMonth" class="form-select form-select-sm" hidden aria-label="Approved invoice month"></select>
@@ -75,6 +76,28 @@
         </table></div>
         <div id="feePlanHistory" class="card-footer small"></div>
     </section>
+    <section id="feePlanAudit" class="card mt-3 d-none" aria-live="polite">
+        <div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-2">
+            <strong>Instalment billing reconciliation</strong>
+            <div class="d-flex gap-2 d-print-none">
+                <button id="feePlanAuditCsv" type="button" class="btn btn-outline-primary btn-sm" disabled>Export Audit CSV</button>
+                <button id="feePlanAuditPrint" type="button" class="btn btn-outline-secondary btn-sm" disabled>Print Audit</button>
+            </div>
+        </div>
+        <div id="feePlanAuditSummary" class="card-body small"></div>
+        <div class="table-responsive"><table class="table table-sm table-striped mb-0">
+            <thead><tr><th>Month</th><th>Due</th><th class="text-end">Contract gross</th>
+                <th>Invoice</th><th class="text-end">Invoice net</th><th class="text-end">Paid</th>
+                <th class="text-end">Due</th><th>Status</th><th>Review findings</th></tr></thead>
+            <tbody id="feePlanAuditRows"></tbody>
+        </table></div>
+    </section>
+    <style media="print">
+        #feePlanApp.audit-print #feePlanCreate,
+        #feePlanApp.audit-print > section.card:not(#feePlanAudit),
+        #feePlanApp.audit-print #feePlanNotice { display:none!important; }
+        #feePlanApp.audit-print #feePlanAudit { display:block!important; }
+    </style>
     <dialog id="feePlanCancelDialog" class="border rounded shadow p-3" aria-labelledby="feePlanCancelHeading">
         <form id="feePlanCancelForm" method="dialog" class="d-grid gap-2" style="width:min(26rem,80vw)">
             <h2 id="feePlanCancelHeading" class="h5">Cancel agreement</h2>

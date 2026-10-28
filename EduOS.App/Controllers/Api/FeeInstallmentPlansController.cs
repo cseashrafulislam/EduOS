@@ -33,6 +33,13 @@ public sealed class FeeInstallmentPlansController : ControllerBase
         return StatusCode(result.StatusCode, result);
     }
 
+    [HttpGet("{reference:guid}/billing-audit")]
+    public async Task<IActionResult> BillingAudit(Guid reference, CancellationToken ct)
+    {
+        var result = await service.GetInstallmentBillingAuditAsync(reference, ct);
+        return StatusCode(result.StatusCode, result);
+    }
+
     [HttpPost]
     public async Task<IActionResult> Create([FromBody] CreateStudentFeeInstallmentPlanDto request, CancellationToken ct)
     {

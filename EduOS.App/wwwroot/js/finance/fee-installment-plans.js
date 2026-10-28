@@ -104,6 +104,8 @@ async function register() {
     finally { el('feePlanRefresh').disabled = false; }
 }
 async function detail(reference) {
+    billingAudit = null;
+    el('feePlanAudit').classList.add('d-none');
     try {
         selected = await api('/plans/' + encodeURIComponent(reference));
         const body = document.createDocumentFragment();
@@ -207,6 +209,75 @@ el('feePlanNext').addEventListener('click', () => { if (page * 25 < total) { pag
 el('feePlanCsv').addEventListener('click', exportPage);
 el('feePlanPrint').addEventListener('click', () => { if (rows.length) window.print(); });
 el('feePlanSubmit').addEventListener('click', () => transition('submit'));
+
+let billingAudit = null;
+async function openBillingAudit() {
+    if (!selected) return;
+    const reference = selected.reference;
+    const button = el('feePlanAuditOpen');
+    button.disabled = true;
+    billingAudit = null;
+    el('feePlanAudit').classList.add('d-none');
+    el('feePlanAuditCsv').disabled = true;
+    el('feePlanAuditPrint').disabled = true;
+    try {
+        const audit = await api('/plans/' + encodeURIComponent(reference) + '/billing-audit');
+        if (!selected || selected.reference !== reference) return;
+        billingAudit = audit;
+        const findings = (audit.planIssues || []).join(' · ');
+        el('feePlanAuditSummary').textContent =
+            audit.studentCode + ' · ' + audit.months + ' months · ' +
+            audit.billedMonths + ' reconciled · ' + audit.unbilledMonths + ' unbilled · ' +
+            audit.reviewMonths + ' review · Contract ' + money(audit.contractGross) + ' ' +
+            audit.currencyCode + ' · Verified invoice net ' + money(audit.verifiedInvoiceNet) +
+            (findings ? ' · ' + findings : '');
+        const body = document.createDocumentFragment();
+        for (const row of audit.rows || []) {
+            const tr = document.createElement('tr');
+            const values = [row.monthStart, row.contractDueDate || '—', money(row.contractGross),
+                row.invoiceNumber || '—', row.invoiceNet == null ? '—' : money(row.invoiceNet),
+                row.invoicePaid == null ? '—' : money(row.invoicePaid),
+                row.invoiceDue == null ? '—' : money(row.invoiceDue),
+                row.status, (row.issues || []).join(' · ') || '—'];
+            values.forEach((value, index) => {
+                const td = cell(value);
+                if ([2,4,5,6].includes(index)) td.className = 'text-end';
+                tr.append(td);
+            });
+            body.append(tr);
+        }
+        el('feePlanAuditRows').replaceChildren(body);
+        el('feePlanAudit').classList.remove('d-none');
+        el('feePlanAuditCsv').disabled = !(audit.rows || []).length;
+        el('feePlanAuditPrint').disabled = !(audit.rows || []).length;
+    } catch (error) { notice(error.message, true); }
+    finally { button.disabled = false; }
+}
+function exportBillingAudit() {
+    if (!billingAudit?.rows?.length) return;
+    const lines = [['Month','Contract due date','Contract gross','Invoice number',
+        'Invoice gross','Invoice discount','Invoice net','Paid','Due','Journal linked',
+        'Status','Review findings']];
+    for (const x of billingAudit.rows) lines.push([x.monthStart,x.contractDueDate || '',
+        money(x.contractGross),x.invoiceNumber || '',x.invoiceGross ?? '',
+        x.invoiceDiscount ?? '',x.invoiceNet ?? '',x.invoicePaid ?? '',x.invoiceDue ?? '',
+        x.journalLinked ? 'Yes - link only' : 'No',x.status,(x.issues || []).join('; ')]);
+    const csv = '\uFEFF' + lines.map(x => x.map(csvCell).join(',')).join('\r\n') + '\r\n';
+    const url = URL.createObjectURL(new Blob([csv], {type:'text/csv;charset=utf-8'}));
+    const link = document.createElement('a');
+    link.href = url; link.download = 'fee-plan-billing-audit.csv';
+    document.body.append(link); link.click(); link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+el('feePlanAuditOpen').addEventListener('click', openBillingAudit);
+el('feePlanAuditCsv').addEventListener('click', exportBillingAudit);
+el('feePlanAuditPrint').addEventListener('click', () => {
+    if (!billingAudit?.rows?.length) return;
+    root.classList.add('audit-print');
+    window.print();
+});
+window.addEventListener('afterprint', () => root.classList.remove('audit-print'));
+
 el('feePlanIssueMonth').addEventListener('change', () => { invoiceKey = null; });
 el('feePlanIssue').addEventListener('click', async () => {
     if (!selected || selected.stateCode !== 3) return;
