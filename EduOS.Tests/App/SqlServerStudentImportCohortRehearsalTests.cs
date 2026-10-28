@@ -18,6 +18,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
+using Xunit.Abstractions;
 
 namespace EduOS.Tests.App;
 
@@ -29,6 +30,10 @@ namespace EduOS.Tests.App;
 [Collection("SqlServerIntegration")]
 public sealed class SqlServerStudentImportCohortRehearsalTests
 {
+    private readonly ITestOutputHelper _output;
+
+    public SqlServerStudentImportCohortRehearsalTests(ITestOutputHelper output) => _output = output;
+
     private const string ConnectionVariable = "EDUOS_SQL_AUTH_TEST_CONNECTION";
     private const string FullRehearsalVariable = "EDUOS_SQL_IMPORT_40K_REHEARSAL";
     private static readonly Dictionary<string, string> Mapping = new()
@@ -58,7 +63,7 @@ public sealed class SqlServerStudentImportCohortRehearsalTests
         await RunScenarioAsync(connection!, fileCount: 8, rowsPerFile: 5000);
     }
 
-    private static async Task RunScenarioAsync(string connection, int fileCount, int rowsPerFile)
+    private async Task RunScenarioAsync(string connection, int fileCount, int rowsPerFile)
     {
         var total = checked(fileCount * rowsPerFile);
         var options = new DbContextOptionsBuilder<EduOSDbContext>()
@@ -160,7 +165,7 @@ public sealed class SqlServerStudentImportCohortRehearsalTests
         static double Percentile(List<double> values, double p) =>
             values[(int)Math.Ceiling((values.Count - 1) * p)];
         // Aggregate timing only; no raw student, guardian, source key or connection data.
-        Console.WriteLine(JsonSerializer.Serialize(new
+        _output.WriteLine(JsonSerializer.Serialize(new
         {
             Scenario = "StudentImportSyntheticSql",
             Rows = total, Files = fileCount, Windows = jobs.Length,

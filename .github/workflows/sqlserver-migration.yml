@@ -113,7 +113,16 @@ jobs:
           set -euo pipefail
           dotnet test EduOS.Tests/EduOS.Tests.csproj --configuration Release --no-restore \
             --filter "FullyQualifiedName~Opt_in_disposable_sql_rehearsal_imports_and_recovers_40000_synthetic_students" \
-            --logger "trx;LogFileName=student-import-40k.trx" --results-directory TestResults
+            --logger "trx;LogFileName=student-import-40k.trx" --results-directory TestResults --logger "console;verbosity=detailed"
+
+      - name: Preserve opt-in 40K import rehearsal evidence
+        if: ${{ always() && github.event_name == 'workflow_dispatch' && inputs.run_40k }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: student-import-40k-${{ github.sha }}
+          path: TestResults/student-import-40k.trx
+          if-no-files-found: warn
+          retention-days: 14
 
       - name: Stop isolated SQL Server
         if: always()
