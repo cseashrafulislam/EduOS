@@ -79,6 +79,13 @@ public sealed class StudentImportCohortFileRequestDto
     public int TotalRows { get; set; }
 }
 
+public sealed class StudentImportCohortWindowStatusDto
+{
+    public int RowOffset { get; set; }
+    public int ImportedRows { get; set; }
+    public Guid ImportReference { get; set; }
+}
+
 public sealed class StudentImportCohortFileStatusDto
 {
     public string FileHash { get; set; } = string.Empty;
@@ -87,6 +94,7 @@ public sealed class StudentImportCohortFileStatusDto
     public int CommittedRows { get; set; }
     public int NextOffset { get; set; }
     public int MissingWindows { get; set; }
+    public List<StudentImportCohortWindowStatusDto> CompletedWindows { get; set; } = new();
     public bool IsComplete => CommittedRows == TotalRows;
 }
 

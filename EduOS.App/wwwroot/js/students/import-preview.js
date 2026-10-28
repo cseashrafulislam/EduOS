@@ -36,6 +36,8 @@
     const cohortClear = document.getElementById('studentImportCohortClear');
     const cohortSummary = document.getElementById('studentImportCohortSummary');
     const cohortRows = document.getElementById('studentImportCohortRows');
+    const cohortWindow = document.getElementById('studentImportCohortWindow');
+    const cohortInspect = document.getElementById('studentImportCohortInspect');
     const cohortKey = 'eduos.student-import.cohort.v1.' + tenant;
     let cohortFiles = [];
     let cohortStatus = null;
@@ -417,7 +419,8 @@
         const files = status?.files || cohortFiles.map(file => ({
             ...file, committedRows: null, missingWindows: null
         }));
-        for (const file of files) {
+        cohortWindow.replaceChildren();
+        for (const [fileIndex, file] of files.entries()) {
             const tr = document.createElement('tr');
             for (const value of [file.fileHash.slice(0, 12) + '…',
                 file.totalRows, file.committedRows ?? '—', file.missingWindows ?? '—']) {
@@ -426,7 +429,20 @@
                 tr.appendChild(td);
             }
             cohortRows.appendChild(tr);
+            for (const window of file.completedWindows || []) {
+                if (!/^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(window.importReference || '') ||
+                    !Number.isSafeInteger(window.rowOffset) || window.rowOffset < 0 ||
+                    !Number.isSafeInteger(window.importedRows) || window.importedRows < 1 ||
+                    window.importedRows > 100) continue;
+                const option = document.createElement('option');
+                option.value = window.importReference;
+                option.textContent = 'File ' + (fileIndex + 1) + ' · rows ' +
+                    (window.rowOffset + 1) + '–' + (window.rowOffset + window.importedRows);
+                cohortWindow.appendChild(option);
+            }
         }
+        cohortWindow.disabled = !status || cohortWindow.options.length === 0;
+        cohortInspect.disabled = cohortWindow.disabled;
         cohortCheck.disabled = busy || cohortFiles.length === 0;
         cohortExport.disabled = !status;
         cohortSummary.textContent = status
@@ -434,6 +450,22 @@
                 ' rows committed; ' + status.pendingRows + ' pending.'
             : cohortFiles.length + ' / 8 source files selected.';
     }
+    cohortInspect.addEventListener('click', async () => {
+        if (busy || !cohortStatus || !cohortWindow.value) return;
+        busy = true;
+        cohortInspect.disabled = true;
+        try {
+            const reference = cohortWindow.value;
+            if (!cohortStatus.files.some(file =>
+                (file.completedWindows || []).some(window => window.importReference === reference)))
+                throw new Error('Reconcile the selected source files again.');
+            importReference = reference;
+            reconciliationPage = 1;
+            await loadReconciliation();
+            committed.scrollIntoView({ block: 'start' });
+        } catch (error) { message(error.message, true); }
+        finally { busy = false; cohortInspect.disabled = cohortWindow.disabled; }
+    });
     function saveCohort() {
         sessionStorage.setItem(cohortKey, JSON.stringify(cohortFiles));
         renderCohort();

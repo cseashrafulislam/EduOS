@@ -55,6 +55,19 @@ public sealed class SqlServerStudentImportCohortRehearsalTests
     }
 
     [Fact]
+    public async Task Sql_parallel_institute_imports_reconcile_independently_with_shared_source_keys()
+    {
+        var connection = Environment.GetEnvironmentVariable(ConnectionVariable);
+        if (string.IsNullOrWhiteSpace(connection)) return;
+        // Both institutes deliberately use the same SourceKey and GuardianSourceKey
+        // values, but independent tenant-owned students, guardians and enrollments.
+        // Distinct DbContexts execute real transactions simultaneously.
+        await Task.WhenAll(
+            RunScenarioAsync(connection, fileCount: 2, rowsPerFile: 200),
+            RunScenarioAsync(connection, fileCount: 2, rowsPerFile: 200));
+    }
+
+    [Fact]
     public async Task Opt_in_disposable_sql_rehearsal_imports_and_recovers_40000_synthetic_students()
     {
         if (Environment.GetEnvironmentVariable(FullRehearsalVariable) != "1") return;
@@ -128,6 +141,13 @@ public sealed class SqlServerStudentImportCohortRehearsalTests
             {
                 Assert.Equal(phase == 0 ? rowsPerFile / 2 : rowsPerFile, file.CommittedRows);
                 Assert.Equal(phase == 0 ? rowsPerFile / 200 : 0, file.MissingWindows);
+                Assert.Equal(phase == 0 ? rowsPerFile / 200 : rowsPerFile / 100,
+                    file.CompletedWindows.Count);
+                Assert.All(file.CompletedWindows, window =>
+                {
+                    Assert.NotEqual(Guid.Empty, window.ImportReference);
+                    Assert.Equal(100, window.ImportedRows);
+                });
             });
         }
 
@@ -140,6 +160,22 @@ public sealed class SqlServerStudentImportCohortRehearsalTests
                 source, ".csv", Mapping, job.Request, job.Offset);
             Assert.True(replay.Success, replay.Message);
             Assert.True(replay.Data!.Replayed);
+        }
+
+        await using (var auditDb = TenantDb(options, tenant))
+        {
+            var status = await Service(auditDb, tenant, admin).GetCohortStatusAsync(manifest);
+            Assert.True(status.Success, status.Message);
+            var first = status.Data!.Files[0].CompletedWindows[0];
+            var last = status.Data.Files[^1].CompletedWindows[^1];
+            foreach (var window in new[] { first, last })
+            {
+                var audit = await Service(auditDb, tenant, admin)
+                    .GetIntegrityAsync(window.ImportReference);
+                Assert.True(audit.Success, audit.Message);
+                Assert.True(audit.Data!.IsHealthy);
+                Assert.Equal(100, audit.Data.HealthyRows);
+            }
         }
 
         await using (var verify = TenantDb(options, tenant))
@@ -234,12 +270,12 @@ public sealed class SqlServerStudentImportCohortRehearsalTests
         {
             var global = file * count + row + 1;
             var family = (global - 1) / 100;
-            csv.Append("REH-SRC-").Append(suffix).Append('-').Append(global)
+            csv.Append("REH-SRC-").Append(global)
                 .Append(",REH-STU-").Append(suffix).Append('-').Append(global)
                 .Append(",Learner ").Append(suffix).Append(' ').Append(global)
                 .Append(',').Append(campus).Append(',').Append(batch).Append(',').Append(global)
                 .Append(",Guardian ").Append(suffix).Append(' ').Append(family)
-                .Append(",01700000000,REH-FAM-").Append(suffix).Append('-').Append(family)
+                .Append(",01700000000,REH-FAM-").Append(family)
                 .Append('\n');
         }
         return Encoding.UTF8.GetBytes(csv.ToString());

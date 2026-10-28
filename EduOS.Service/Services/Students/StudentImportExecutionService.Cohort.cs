@@ -58,13 +58,13 @@ public sealed partial class StudentImportExecutionService
             .ToListAsync(cancellationToken);
         var logIds = keys.Select(x => x.TargetId!.Value).Distinct().ToArray();
         var logs = logIds.Length == 0
-            ? new Dictionary<long, (int Total, int Success, int Failed)>()
+            ? new Dictionary<long, (int Total, int Success, int Failed, Guid Reference)>()
             : (await _logs.GetQueryable().AsNoTracking()
                 .Where(x => x.TenantId == tenant && !x.IsDeleted && x.ImportType == "Student" &&
                     x.CompletedAt.HasValue && logIds.Contains(x.Id))
-                .Select(x => new { x.Id, x.TotalRows, x.SuccessRows, x.FailedRows })
+                .Select(x => new { x.Id, x.PublicId, x.TotalRows, x.SuccessRows, x.FailedRows })
                 .ToListAsync(cancellationToken))
-                .ToDictionary(x => x.Id, x => (Total: x.TotalRows, Success: x.SuccessRows, Failed: x.FailedRows));
+                .ToDictionary(x => x.Id, x => (Total: x.TotalRows, Success: x.SuccessRows, Failed: x.FailedRows, Reference: x.PublicId));
         var keyTargets = keys.ToDictionary(x => x.RequestId, x => x.TargetId!.Value);
 
         var result = new StudentImportCohortStatusDto { ExpectedRows = (int)expectedRows };
@@ -74,6 +74,7 @@ public sealed partial class StudentImportExecutionService
             var committed = 0;
             var completedWindows = 0;
             var nextOffset = plan.File.TotalRows;
+            var completed = new List<StudentImportCohortWindowStatusDto>(plan.Windows.Length);
             foreach (var window in plan.Windows)
             {
                 var expected = Math.Min(MaxBatchRows, plan.File.TotalRows - window.Offset);
@@ -83,6 +84,11 @@ public sealed partial class StudentImportExecutionService
                 {
                     committed += expected;
                     completedWindows++;
+                    completed.Add(new StudentImportCohortWindowStatusDto
+                    {
+                        RowOffset = window.Offset, ImportedRows = expected,
+                        ImportReference = log.Reference
+                    });
                 }
                 else if (nextOffset == plan.File.TotalRows)
                     nextOffset = window.Offset;
@@ -95,7 +101,8 @@ public sealed partial class StudentImportExecutionService
                 TotalRows = plan.File.TotalRows,
                 CommittedRows = committed,
                 NextOffset = nextOffset,
-                MissingWindows = plan.Windows.Length - completedWindows
+                MissingWindows = plan.Windows.Length - completedWindows,
+                CompletedWindows = completed
             });
         }
         return ApiResponse<StudentImportCohortStatusDto>.SuccessResponse(result);

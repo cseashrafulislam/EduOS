@@ -398,11 +398,17 @@ public sealed class StudentImportExecutionServiceTests
         Assert.Equal(1, status.Data.PendingRows);
         Assert.False(status.Data.IsComplete);
         Assert.Equal(0, status.Data.Files[0].MissingWindows);
+        Assert.Single(status.Data.Files[0].CompletedWindows);
+        Assert.Equal(0, status.Data.Files[0].CompletedWindows[0].RowOffset);
+        Assert.Equal(1, status.Data.Files[0].CompletedWindows[0].ImportedRows);
+        Assert.NotEqual(Guid.Empty, status.Data.Files[0].CompletedWindows[0].ImportReference);
         Assert.Equal(1, status.Data.Files[1].MissingWindows);
+        Assert.Empty(status.Data.Files[1].CompletedWindows);
         await using var otherDb = Context(options, 202);
         var other = await Service(otherDb, new User(202, true)).GetCohortStatusAsync(files);
         Assert.True(other.Success);
         Assert.Equal(0, other.Data!.CommittedRows);
+        Assert.All(other.Data.Files, x => Assert.Empty(x.CompletedWindows));
         Assert.Equal(403, (await Service(db, new User(101, false))
             .GetCohortStatusAsync(files)).StatusCode);
     }
@@ -442,7 +448,7 @@ public sealed class StudentImportExecutionServiceTests
                 {
                     Id = 1000 + index, TenantId = 101, ImportType = "Student",
                     TotalRows = 100, SuccessRows = index == 399 ? 99 : 100,
-                    CompletedAt = now, StartedAt = now
+                    PublicId = Guid.NewGuid(), CompletedAt = now, StartedAt = now
                 };
                 logs.Add(log);
                 keys.Add(new IdempotencyRecord
@@ -466,7 +472,14 @@ public sealed class StudentImportExecutionServiceTests
         Assert.Equal(8, partial.Data.Files.Count);
         Assert.Equal(1, partial.Data.Files[7].MissingWindows);
         Assert.Equal(4900, partial.Data.Files[7].NextOffset);
-        Assert.All(partial.Data.Files.Take(7), x => Assert.True(x.IsComplete));
+        Assert.Equal(49, partial.Data.Files[7].CompletedWindows.Count);
+        Assert.Equal(0, partial.Data.Files[7].CompletedWindows[0].RowOffset);
+        Assert.Equal(4800, partial.Data.Files[7].CompletedWindows[^1].RowOffset);
+        Assert.All(partial.Data.Files.Take(7), x =>
+        {
+            Assert.True(x.IsComplete);
+            Assert.Equal(50, x.CompletedWindows.Count);
+        });
         Assert.False(partial.Data.IsComplete);
 
         logs[399].SuccessRows = 100;
@@ -480,12 +493,15 @@ public sealed class StudentImportExecutionServiceTests
             Assert.Equal(5000, x.CommittedRows);
             Assert.Equal(5000, x.NextOffset);
             Assert.Equal(0, x.MissingWindows);
+            Assert.Equal(50, x.CompletedWindows.Count);
+            Assert.All(x.CompletedWindows, w => Assert.NotEqual(Guid.Empty, w.ImportReference));
         });
         await using var foreign = Context(options, 202);
         var isolated = await Service(foreign, new User(202, true)).GetCohortStatusAsync(files);
         Assert.True(isolated.Success);
         Assert.Equal(0, isolated.Data!.CommittedRows);
         Assert.Equal(40000, isolated.Data.PendingRows);
+        Assert.All(isolated.Data.Files, x => Assert.Empty(x.CompletedWindows));
         Assert.Empty(await db.Students.ToListAsync());
     }
 
