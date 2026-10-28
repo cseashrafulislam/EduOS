@@ -163,7 +163,7 @@ public sealed class StudentAttendanceReportService(
                 Leave = g.Count(x => x.State == AttendanceState.Leave),
                 Excused = g.Count(x => x.State == AttendanceState.Excused)
             });
-            var total = await grouped.CountAsync(cancellationToken);
+            var offeringCount = await grouped.CountAsync(cancellationToken);
             var ordered = ordering switch
             {
                 "lowest" => grouped.OrderBy(x => 100m * (x.Present + x.Late) / x.Marked)
@@ -177,7 +177,7 @@ public sealed class StudentAttendanceReportService(
                 .Take(query.PageSize).ToListAsync(cancellationToken);
             return ApiResponse<PagedResult<StudentAttendanceSubjectSummaryDto>>.SuccessResponse(
                 new PagedResult<StudentAttendanceSubjectSummaryDto> {
-                    Items = items, TotalCount = total, Page = query.Page, PageSize = query.PageSize
+                    Items = items, TotalCount = offeringCount, Page = query.Page, PageSize = query.PageSize
                 });
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
