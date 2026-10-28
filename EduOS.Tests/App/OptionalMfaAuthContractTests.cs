@@ -142,6 +142,7 @@ public sealed class OptionalMfaAuthContractTests
         Assert.Contains("GenerateNewTwoFactorRecoveryCodesAsync", enable);
         Assert.Contains("SetTwoFactorEnabledAsync(user, true)", enable);
         Assert.Contains("UpdateSecurityStampAsync(user)", enable);
+        Assert.Contains("await AuthSessionRegistry.RevokeAllAsync(_db, user.Id);", enable);
         Assert.Contains("throw new AuthTransactionRejectedException(", enable);
         Assert.Contains("SignInSessionAsync(user, auth.Properties?.IsPersistent == true, \"mfa\"", enable);
     }

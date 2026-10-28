@@ -757,4 +757,10 @@
 	<data name="Bank" xml:space="preserve"><value>Bank</value></data>
 	<data name="SlipNumber" xml:space="preserve"><value>Slip No.</value></data>
 	<data name="Submitted" xml:space="preserve"><value>Submitted</value></data>	
+	<data name="SessionManagementPassword" xml:space="preserve"><value>Current password for session management</value></data>
+	<data name="SessionPasswordRequired" xml:space="preserve"><value>Enter your current password to manage sessions.</value></data>
+	<data name="OtherSessionsRevoked" xml:space="preserve"><value>Other devices signed out successfully.</value></data>
+	<data name="OtherSessionsRevokeFailed" xml:space="preserve"><value>Unable to sign out other devices.</value></data>
+	<data name="SignOutOtherDevices" xml:space="preserve"><value>Sign out other devices</value></data>
+	<data name="SignOutAllDevices" xml:space="preserve"><value>Sign out all devices</value></data>
 </root>

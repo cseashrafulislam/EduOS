@@ -756,4 +756,10 @@
 	<data name="Bank" xml:space="preserve"><value>ব্যাংক</value></data>
 	<data name="SlipNumber" xml:space="preserve"><value>স্লিপ নম্বর</value></data>
 	<data name="Submitted" xml:space="preserve"><value>জমা দেওয়া</value></data>
+	<data name="SessionManagementPassword" xml:space="preserve"><value>সেশন পরিচালনার জন্য বর্তমান পাসওয়ার্ড</value></data>
+	<data name="SessionPasswordRequired" xml:space="preserve"><value>সেশন পরিচালনার জন্য বর্তমান পাসওয়ার্ড লিখুন।</value></data>
+	<data name="OtherSessionsRevoked" xml:space="preserve"><value>অন্যান্য ডিভাইস থেকে সফলভাবে সাইন আউট হয়েছে।</value></data>
+	<data name="OtherSessionsRevokeFailed" xml:space="preserve"><value>অন্যান্য ডিভাইস থেকে সাইন আউট করা যায়নি।</value></data>
+	<data name="SignOutOtherDevices" xml:space="preserve"><value>অন্যান্য ডিভাইস থেকে সাইন আউট</value></data>
+	<data name="SignOutAllDevices" xml:space="preserve"><value>সব ডিভাইস থেকে সাইন আউট</value></data>
 </root>

@@ -92,6 +92,19 @@ public static class AuthSessionRegistry
         return true;
     }
 
+    /// <summary>Revoke other devices without invalidating the current tenant-bound session.</summary>
+    public static async Task<int?> RevokeOthersAsync(EduOSDbContext db, long userId,
+        string? currentSid, long? tenantId)
+    {
+        if (!await IsValidAsync(db, userId, currentSid, tenantId)) return null;
+        var others = await db.UserTokens.Where(x => x.UserId == userId &&
+            x.LoginProvider == Provider && x.Name != currentSid).ToListAsync();
+        if (others.Count == 0) return 0;
+        db.UserTokens.RemoveRange(others);
+        await db.SaveChangesAsync();
+        return others.Count;
+    }
+
     public static async Task RevokeAllAsync(EduOSDbContext db, long userId)
     {
         var tokens = await db.UserTokens.Where(x =>

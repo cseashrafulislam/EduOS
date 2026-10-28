@@ -630,6 +630,28 @@ function initializeAuthSecurityControls() {
         });
     }
 
+    document.getElementById('sessionRevokeOthersBtn')?.addEventListener('click', async event => {
+        const button = event.currentTarget;
+        const input = document.getElementById('sessionRevokePassword');
+        const currentPassword = input?.value || '';
+        if (!currentPassword) {
+            showAlert('danger', button.dataset.required || 'Current password is required.');
+            input?.focus();
+            return;
+        }
+        button.disabled = true;
+        try {
+            await authSecurityPost('/api/auth/sessions/revoke-others', { currentPassword });
+            if (input) input.value = '';
+            await loadActiveSessions();
+            showAlert('success', button.dataset.success || 'Other devices signed out.');
+        } catch (error) {
+            showAlert('danger', error.message || button.dataset.failed || 'Unable to revoke other sessions.');
+        } finally {
+            button.disabled = false;
+        }
+    });
+
     document.getElementById('sessionRevokeAllBtn')?.addEventListener('click', async event => {
         const button = event.currentTarget;
         const currentPassword = document.getElementById('sessionRevokePassword')?.value || '';

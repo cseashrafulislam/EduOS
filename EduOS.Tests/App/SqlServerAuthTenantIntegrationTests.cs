@@ -100,6 +100,11 @@ public sealed class SqlServerAuthTenantIntegrationTests
             var sessionId = await AuthSessionRegistry.CreateAsync(db, userId, tenantAId, "127.0.0.1", "CI SQL", true);
             Assert.True(await AuthSessionRegistry.IsValidAsync(db, userId, sessionId, tenantAId));
             Assert.False(await AuthSessionRegistry.IsValidAsync(db, userId, sessionId, tenantBId));
+            var secondary = await AuthSessionRegistry.CreateAsync(db, userId, tenantBId, "127.0.0.1", "CI SQL", false);
+            Assert.Null(await AuthSessionRegistry.RevokeOthersAsync(db, userId, sessionId, tenantBId));
+            Assert.Equal(1, await AuthSessionRegistry.RevokeOthersAsync(db, userId, sessionId, tenantAId));
+            Assert.False(await AuthSessionRegistry.IsValidAsync(db, userId, secondary, tenantBId));
+            Assert.True(await AuthSessionRegistry.IsValidAsync(db, userId, sessionId, tenantAId));
             Assert.True(await AuthSessionRegistry.RevokeAsync(db, userId, sessionId));
             Assert.False(await AuthSessionRegistry.IsValidAsync(db, userId, sessionId, tenantAId));
         }

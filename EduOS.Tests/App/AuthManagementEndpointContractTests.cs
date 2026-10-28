@@ -15,6 +15,7 @@ public sealed class AuthManagementEndpointContractTests
     [InlineData(nameof(AuthController.RegenerateRecoveryCodes))]
     [InlineData(nameof(AuthController.RevokeSession))]
     [InlineData(nameof(AuthController.RevokeAllSessions))]
+    [InlineData(nameof(AuthController.RevokeOtherSessions))]
     public void Sensitive_auth_management_actions_require_authorization_and_rate_limits(string action)
     {
         var method = typeof(AuthController).GetMethod(action)!;

@@ -230,14 +230,19 @@
                     <section class="card shadow-sm border-0 rounded-4 mt-4" aria-labelledby="sessionsTitle">
                         <div class="card-header bg-white border-0 p-4 pb-0">
                             <h5 id="sessionsTitle" class="fw-bold">Active Sessions</h5>
-                            <p class="small text-muted">Review logged-in devices and revoke access individually.</p>
                         </div>
                         <div class="card-body p-4">
                             <div id="sessionList" role="list" aria-live="polite">Loading sessions...</div>
                             <hr />
-                            <label for="sessionRevokePassword" class="form-label">Current password to sign out everywhere</label>
+                            <label for="sessionRevokePassword" class="form-label">@T["SessionManagementPassword"]</label>
                             <input id="sessionRevokePassword" type="password" class="form-control mb-2" autocomplete="current-password" />
-                            <button id="sessionRevokeAllBtn" type="button" class="btn btn-outline-danger">Sign out all devices</button>
+                            <div class="d-flex flex-wrap gap-2">
+                                <button id="sessionRevokeOthersBtn" type="button" class="btn btn-outline-primary"
+                                        data-required="@T["SessionPasswordRequired"]"
+                                        data-success="@T["OtherSessionsRevoked"]"
+                                        data-failed="@T["OtherSessionsRevokeFailed"]">@T["SignOutOtherDevices"]</button>
+                                <button id="sessionRevokeAllBtn" type="button" class="btn btn-outline-danger">@T["SignOutAllDevices"]</button>
+                            </div>
                         </div>
                     </section>
 

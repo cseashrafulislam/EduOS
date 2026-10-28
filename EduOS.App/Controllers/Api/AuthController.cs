@@ -225,7 +225,8 @@ namespace EduOS.App.Controllers.Api
                 if (string.IsNullOrWhiteSpace(sharedKey))
                     return StatusCode(StatusCodes.Status500InternalServerError, new { success = false, message = "Authenticator setup failed." });
 
-                // ResetAuthenticatorKeyAsync changes Identity's security stamp.
+                // Immediately invalidate other cookies after authenticator-secret rotation.
+                await AuthSessionRegistry.RevokeAllAsync(_db, user.Id);
                 // Renew only the current session with its original tenant/role claims.
                 var auth = await HttpContext.AuthenticateAsync(IdentityConstants.ApplicationScheme);
                 await SignInSessionAsync(user, auth.Properties?.IsPersistent == true, "pwd", session);
@@ -301,6 +302,8 @@ namespace EduOS.App.Controllers.Api
                     var rotated = await _userManager.UpdateSecurityStampAsync(user);
                     if (!rotated.Succeeded)
                         throw new AuthTransactionRejectedException("Account security changed. Reload and try again.");
+                    // Atomic revocation: no old password-only cookie remains valid after MFA activation.
+                    await AuthSessionRegistry.RevokeAllAsync(_db, user.Id);
                     return generated;
                 });
             }
@@ -526,6 +529,34 @@ namespace EduOS.App.Controllers.Api
                 await _signInManager.SignOutAsync();
             _logger.LogInformation("User {UserId} revoked session {SessionId}", user.Id, dto.SessionId);
             return Ok(new { success = true, message = "Session revoked." });
+        }
+
+        [Authorize]
+        [EnableRateLimiting("AccountSecurityPolicy")]
+        [HttpPost("sessions/revoke-others")]
+        public async Task<IActionResult> RevokeOtherSessions([FromBody] MfaSetupRequestDto dto)
+        {
+            Response.Headers.CacheControl = "no-store";
+            var user = await GetCurrentUserAsync();
+            if (user == null) return Unauthorized(new { success = false, message = "Session unavailable." });
+            if (user.TwoFactorEnabled && !User.HasClaim("amr", "mfa"))
+                return StatusCode(403, new { success = false, message = "Sign in with MFA to manage other devices." });
+            if (dto == null || string.IsNullOrWhiteSpace(dto.CurrentPassword) ||
+                !await _userManager.CheckPasswordAsync(user, dto.CurrentPassword))
+                return BadRequest(new { success = false, message = "Current password is invalid." });
+
+            var tenantClaim = User.FindFirstValue("TenantId");
+            if (tenantClaim != null && (!long.TryParse(tenantClaim, out var parsed) || parsed <= 0))
+                return Unauthorized(new { success = false, message = "Session institution is invalid." });
+            long? tenantId = tenantClaim == null ? null : long.Parse(tenantClaim);
+            var revoked = await AuthSessionRegistry.RevokeOthersAsync(_db, user.Id,
+                User.FindFirstValue(AuthSessionRegistry.ClaimType), tenantId);
+            if (!revoked.HasValue)
+                return Conflict(new { success = false, message = "Session changed. Sign in again." });
+
+            _logger.LogInformation("User {UserId} revoked {Count} other sessions", user.Id, revoked.Value);
+            return Ok(new { success = true, message = "Other devices signed out.",
+                data = new { revokedCount = revoked.Value } });
         }
 
         [Authorize]

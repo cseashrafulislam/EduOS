@@ -94,6 +94,25 @@ public sealed class AuthTenantSessionIntegrationTests
     }
 
     [Fact]
+    public async Task Revoke_other_devices_keeps_only_the_current_tenant_bound_cookie()
+    {
+        await using var db = Db();
+        var current = await AuthSessionRegistry.CreateAsync(db, 50, 100, "", "", false);
+        var sameTenant = await AuthSessionRegistry.CreateAsync(db, 50, 100, "", "", false);
+        var anotherTenant = await AuthSessionRegistry.CreateAsync(db, 50, 200, "", "", false);
+        var anotherUser = await AuthSessionRegistry.CreateAsync(db, 51, 100, "", "", false);
+        Assert.Null(await AuthSessionRegistry.RevokeOthersAsync(db, 50, current, 200));
+        Assert.Null(await AuthSessionRegistry.RevokeOthersAsync(db, 51, current, 100));
+        Assert.Equal(2, await AuthSessionRegistry.RevokeOthersAsync(db, 50, current, 100));
+        Assert.True(await AuthSessionRegistry.IsValidAsync(db, 50, current, 100));
+        Assert.False(await AuthSessionRegistry.IsValidAsync(db, 50, sameTenant, 100));
+        Assert.False(await AuthSessionRegistry.IsValidAsync(db, 50, anotherTenant, 200));
+        Assert.True(await AuthSessionRegistry.IsValidAsync(db, 51, anotherUser, 100));
+        Assert.Equal(0, await AuthSessionRegistry.RevokeOthersAsync(db, 50, current, 100));
+        Assert.Null(await AuthSessionRegistry.RevokeOthersAsync(db, 50, sameTenant, 100));
+    }
+
+    [Fact]
     public async Task Revoking_all_sessions_invalidates_all_cookie_ids_for_a_user_only()
     {
         await using var db = Db();
