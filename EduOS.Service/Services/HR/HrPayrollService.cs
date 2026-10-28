@@ -424,7 +424,7 @@ public sealed class HrPayrollService : IPayrollAdministrationService
                 await _uow.SaveChangesAsync(token);
                 return ApiResponse<PayrollRunDto>.SuccessResponse(await MapRunAsync(run, token),
                     "Payroll calculated; approval and accounting posting are required.");
-            }, ct);
+            }, System.Data.IsolationLevel.Serializable, ct);
         }
         catch (DbUpdateConcurrencyException)
         { return Error<PayrollRunDto>("Payroll was updated concurrently.", 409); }

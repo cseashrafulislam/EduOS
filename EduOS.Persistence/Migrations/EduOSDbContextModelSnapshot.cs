@@ -13418,6 +13418,10 @@ namespace EduOS.Persistence.Migrations
                     b.HasIndex("TenantId", "RunNumber")
                         .IsUnique();
 
+                    b.HasIndex("TenantId", "Year", "Month")
+                        .IsUnique()
+                        .HasFilter("[State] <> 5 AND [IsDeleted] = 0");
+
                     b.ToTable("PayrollRuns");
                 });
 

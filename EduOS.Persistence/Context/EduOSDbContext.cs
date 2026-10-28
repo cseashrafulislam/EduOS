@@ -1348,6 +1348,9 @@ public class EduOSDbContext :
         modelBuilder.Entity<PayrollRun>().HasIndex(x => x.PublicId).IsUnique();
         UniqueTenant<PayrollRun>(modelBuilder, nameof(PayrollRun.RunNumber));
         UniqueTenant<PayrollRun>(modelBuilder, nameof(PayrollRun.ClientRequestId));
+        // Database serializes distinct request keys competing for the same active payroll period.
+        modelBuilder.Entity<PayrollRun>().HasIndex(x => new { x.TenantId, x.Year, x.Month })
+            .IsUnique().HasFilter("[State] <> 5 AND [IsDeleted] = 0");
         UniqueTenant<PayrollEmployee>(modelBuilder, nameof(PayrollEmployee.PayrollRunId), nameof(PayrollEmployee.EmployeeId));
         UniqueTenant<PayrollLine>(modelBuilder, nameof(PayrollLine.PayrollEmployeeId), nameof(PayrollLine.SalaryComponentId));
         modelBuilder.Entity<LoanAdvance>().HasIndex(x => new { x.TenantId, x.ClientRequestId })
