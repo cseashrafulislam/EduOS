@@ -5,6 +5,7 @@ on:
     branches: [Ashraful]
     paths:
       - '.github/workflows/hr-payroll-v2.yml'
+      - 'EduOS.HrPayroll.Tests/**'
       - 'EduOS.App/Controllers/Api/EmployeeContractsApiController.cs'
       - 'EduOS.App/Controllers/Api/PayrollPaymentPostingController.cs'
       - 'EduOS.App/Views/EmployeeContracts/**'
@@ -36,15 +37,12 @@ jobs:
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '10.0.x'
-      - name: Restore
-        run: dotnet restore EduOS.slnx
-      - name: Build
-        run: dotnet build EduOS.slnx --configuration Release --no-restore
+      - name: Restore isolated HR test project
+        run: dotnet restore EduOS.HrPayroll.Tests/EduOS.HrPayroll.Tests.csproj
+      - name: Build HR application and isolated regression suite
+        run: dotnet build EduOS.HrPayroll.Tests/EduOS.HrPayroll.Tests.csproj --configuration Release --no-restore
       - name: HR/Payroll independent regression tests
-        run: >-
-          dotnet test EduOS.Tests/EduOS.Tests.csproj
-          --configuration Release --no-build
-          --filter 'FullyQualifiedName~EmployeeContractSignedPdfTests|FullyQualifiedName~PayrollBankReviewExportTests|FullyQualifiedName~PayrollStatutoryCoverageTests|FullyQualifiedName~PayrollPaymentPostingServiceTests|FullyQualifiedName~PayrollPostingHistoricalIntegrityTests'
+        run: dotnet test EduOS.HrPayroll.Tests/EduOS.HrPayroll.Tests.csproj --configuration Release --no-build
       - name: HR/Payroll UI syntax
         run: |
           node --check EduOS.App/wwwroot/js/hr/employee-contracts.js
