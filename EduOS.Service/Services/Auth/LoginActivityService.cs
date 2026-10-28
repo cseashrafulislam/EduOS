@@ -5,11 +5,13 @@ using EduOS.Core.Interfaces;
 using EduOS.Core.Interfaces.IRepositories;
 using EduOS.Core.Interfaces.IServices;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using System.Text;
 
 namespace EduOS.Service.Services.Auth;
 
-public sealed class LoginActivityService(ILoginHistoryRepository history, ICurrentUserService user) : ILoginActivityService
+public sealed class LoginActivityService(ILoginHistoryRepository history, ICurrentUserService user,
+    ILogger<LoginActivityService>? logger = null) : ILoginActivityService
 {
     // UTC calendar dates are inclusive; incomplete, inverted and >365-day ranges are rejected.
     // The exclusive upper bound is safe because DateOnly.MaxValue is rejected.
@@ -20,14 +22,17 @@ public sealed class LoginActivityService(ILoginHistoryRepository history, ICurre
 
     private IQueryable<LoginHistory> ScopedHistory(bool? success, DateOnly? from, DateOnly? to, bool unassigned)
     {
-        // Do not remove the context query filter. One global account can belong to
-        // multiple institutions; both user and current institution must match.
-        var query = history.GetQueryable().AsNoTracking().Where(x => x.UserId == user.UserId);
-        // Unassigned attempts are account-global, not another institution's history.
-        // Keep the user predicate in both branches and never bypass query filters.
-        query = unassigned
-            ? query.Where(x => x.TenantId == null)
-            : query.Where(x => x.TenantId == user.TenantId);
+        // LoginHistory's global filter intentionally excludes null-TenantId rows.
+        // The exceptional account-global read is allowed only after authenticated
+        // account validation, with explicit user ownership, null tenant, soft-delete
+        // filtering and a privacy-safe audit. Institution reads retain all filters.
+        if (unassigned)
+            logger?.LogInformation("Unassigned sign-in activity accessed by account {UserId}", user.UserId);
+        var query = unassigned
+            ? history.GetQueryable().IgnoreQueryFilters().AsNoTracking()
+                .Where(x => x.UserId == user.UserId && x.TenantId == null && !x.IsDeleted)
+            : history.GetQueryable().AsNoTracking()
+                .Where(x => x.UserId == user.UserId && x.TenantId == user.TenantId);
         if (success.HasValue) query = query.Where(x => x.IsSuccess == success.Value);
         if (from.HasValue && to.HasValue)
         {

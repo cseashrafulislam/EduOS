@@ -26,7 +26,9 @@ test('sign-in activity uses canonical login history with account and tenant isol
     assert.match(js, /result\.set\('unassigned', 'true'\)/);
     assert.match(service, /DateTime\.SpecifyKind\(item\.OccurredAt, DateTimeKind\.Utc\)/);
     assert.match(service, /pageSize is < 1 or > 50/);
-    assert.doesNotMatch(service, /IgnoreQueryFilters\(/);
+    assert.match(service, /IgnoreQueryFilters\(\)\.AsNoTracking\(\)/);
+    assert.match(service, /x\.UserId == user\.UserId && x\.TenantId == null && !x\.IsDeleted/);
+    assert.match(service, /logger\?\.LogInformation/);
     assert.doesNotMatch(service, /IpAddress =|UserAgent =|FailureReason =/);
     assert.match(api, /\[Authorize\]/);
     assert.match(api, /AutoValidateAntiforgeryToken/);
