@@ -176,6 +176,78 @@ public sealed class FeeDocumentReadbackTests
 
 
     [Fact]
+    public async Task Deleted_foreign_campus_allocation_still_conceals_receipt_and_idempotent_replay()
+    {
+        var store = Guid.NewGuid().ToString("N");
+        await using var db = Database(41, store);
+        var data = Seed(db, store);
+        var receipt = Guid.NewGuid();
+        var requestKey = Guid.NewGuid();
+        db.StudentEnrollments.Add(new StudentEnrollment {
+            Id = 13, TenantId = 41, StudentId = 1, CampusId = 6, RollNo = "C6" });
+        db.StudentInvoices.Add(new StudentInvoice {
+            Id = 23, TenantId = 41, PublicId = Guid.NewGuid(), StudentEnrollmentId = 13,
+            InvoiceNumber = "INV-HIST-C6", TotalAmount = 10m, DueAmount = 10m });
+        db.StudentPayments.Add(new StudentPayment {
+            Id = 45, TenantId = 41, PublicId = receipt, ClientRequestId = requestKey,
+            StudentId = 1, ReceiptNumber = "RCP-HIST", Amount = 50m,
+            PaymentDate = new DateOnly(2026, 10, 2), PaymentMethod = PaymentMethodType.Cash });
+        db.PaymentAllocations.AddRange(
+            new PaymentAllocation { Id = 56, TenantId = 41,
+                StudentPaymentId = 45, StudentInvoiceId = 20, Amount = 50m },
+            new PaymentAllocation { Id = 57, TenantId = 41, IsDeleted = true,
+                StudentPaymentId = 45, StudentInvoiceId = 23, Amount = 10m });
+        await db.SaveChangesAsync();
+
+        var scoped = Service(db, new User("Accountant"));
+        (await scoped.GetStudentPaymentDocumentAsync(data.student, receipt))
+            .StatusCode.Should().Be(404);
+        (await scoped.GetStudentPaymentsAsync(data.student, 1, 25))
+            .Data!.TotalCount.Should().Be(1);
+        // An administrator can still inspect the historical receipt for investigation.
+        (await Service(db, new User("TenantAdmin"))
+            .GetStudentPaymentDocumentAsync(data.student, receipt)).StatusCode.Should().Be(200);
+
+        var replay = new CreateStudentPaymentRequestDto {
+            ClientRequestId = requestKey, PaymentDate = new DateOnly(2026, 10, 2),
+            PaymentMethod = PaymentMethodType.Cash, Amount = 50m,
+            Allocations = new[] { new CreatePaymentAllocationRequestDto {
+                InvoiceReference = data.invoice, Amount = 50m } }
+        };
+        (await Service(db, new User("Cashier")).CollectPaymentAsync(replay))
+            .StatusCode.Should().Be(404);
+        db.StudentPayments.Count(x => x.TenantId == 41).Should().Be(2);
+    }
+
+    [Fact]
+    public async Task Same_campus_allocation_to_another_student_never_authorizes_receipt()
+    {
+        var store = Guid.NewGuid().ToString("N");
+        await using var db = Database(41, store);
+        var data = Seed(db, store);
+        var receipt = Guid.NewGuid();
+        db.StudentInvoices.Add(new StudentInvoice {
+            Id = 24, TenantId = 41, PublicId = Guid.NewGuid(), StudentEnrollmentId = 11,
+            InvoiceNumber = "INV-OTHER-STUDENT", TotalAmount = 10m, DueAmount = 10m });
+        db.StudentPayments.Add(new StudentPayment {
+            Id = 45, TenantId = 41, PublicId = receipt, StudentId = 1,
+            ReceiptNumber = "RCP-WRONG-STUDENT", Amount = 10m,
+            PaymentDate = new DateOnly(2026, 10, 2) });
+        db.PaymentAllocations.Add(new PaymentAllocation {
+            Id = 56, TenantId = 41, StudentPaymentId = 45, StudentInvoiceId = 24,
+            Amount = 10m });
+        await db.SaveChangesAsync();
+
+        var scoped = Service(db, new User("Accountant"));
+        (await scoped.GetStudentPaymentDocumentAsync(data.student, receipt))
+            .StatusCode.Should().Be(404);
+        (await scoped.GetStudentPaymentsAsync(data.student, 1, 25))
+            .Data!.TotalCount.Should().Be(1);
+        (await Service(db, new User("TenantAdmin"))
+            .GetStudentPaymentDocumentAsync(data.student, receipt)).StatusCode.Should().Be(200);
+    }
+
+    [Fact]
     public async Task Scoped_fee_options_and_student_search_exclude_ungranted_campus()
     {
         var store = Guid.NewGuid().ToString("N");

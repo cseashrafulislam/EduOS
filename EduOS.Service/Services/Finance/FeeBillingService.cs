@@ -421,6 +421,13 @@ public sealed partial class FeeBillingService : IFeeBillingService
                 x.TenantId == tenant && x.ClientRequestId == request.ClientRequestId && !x.IsDeleted, token);
             if (replay != null)
             {
+                // Replay must pass the same complete historical campus/ownership guard
+                // as receipt readback. Active-only allocations are not sufficient:
+                // a deleted foreign-campus line can otherwise expose the full receipt.
+                if (_uow is not EduOSDbContext replayContext ||
+                    replayContext.CurrentTenantId != tenant ||
+                    !await AccessiblePaymentIds(replayContext).ContainsAsync(replay.Id, token))
+                    return Error<StudentPaymentDto>("Receipt unavailable.", 404);
                 var prior = await _allocations.GetQueryable().AsNoTracking().Where(x =>
                     x.TenantId == tenant && x.StudentPaymentId == replay.Id && !x.IsDeleted)
                     .Join(_invoices.GetQueryable().AsNoTracking(),

@@ -29,17 +29,29 @@ public sealed partial class FeeBillingService
     {
         var payments = _payments.GetQueryable().AsNoTracking()
             .Where(x => x.TenantId == _user.TenantId && !x.IsDeleted);
+        // Explicitly fail closed even when IgnoreQueryFilters is used for historical evidence.
+        if (!_user.IsAuthenticated || _user.TenantId <= 0 ||
+            context.CurrentTenantId != _user.TenantId)
+            return payments.Where(x => false).Select(x => x.Id);
         if (_user.IsTenantAdmin) return payments.Select(x => x.Id);
-        var accessible = AccessibleEnrollmentIds(context);
-        var allocations = _allocations.GetQueryable().AsNoTracking()
-            .Where(x => x.TenantId == _user.TenantId && !x.IsDeleted);
-        var invoices = _invoices.GetQueryable().AsNoTracking()
-            .Where(x => x.TenantId == _user.TenantId && !x.IsDeleted);
+
+        // A soft-deleted allocation must NEVER make a formerly cross-campus receipt
+        // visible to a campus-restricted member. Missing/deleted invoice or enrolment
+        // provenance also denies the entire receipt, rather than hiding only one line.
+        var allocations = context.PaymentAllocations.IgnoreQueryFilters().AsNoTracking()
+            .Where(a => a.TenantId == _user.TenantId);
+        var invoices = context.StudentInvoices.IgnoreQueryFilters().AsNoTracking()
+            .Where(i => i.TenantId == _user.TenantId);
+        var enrollments = context.StudentEnrollments.IgnoreQueryFilters().AsNoTracking()
+            .Where(e => e.TenantId == _user.TenantId);
+        var grants = GrantedBillingCampuses(context);
         return payments.Where(p =>
             allocations.Any(a => a.StudentPaymentId == p.Id) &&
             !allocations.Any(a => a.StudentPaymentId == p.Id &&
-                !invoices.Any(i => i.Id == a.StudentInvoiceId &&
-                    accessible.Contains(i.StudentEnrollmentId)))).Select(p => p.Id);
+                !invoices.Any(i => i.Id == a.StudentInvoiceId && !i.IsDeleted &&
+                    enrollments.Any(e => e.Id == i.StudentEnrollmentId &&
+                        !e.IsDeleted && e.StudentId == p.StudentId &&
+                        grants.Contains(e.CampusId))))).Select(p => p.Id);
     }
 
     private async Task<bool> CanAccessBillingCampusesAsync(
