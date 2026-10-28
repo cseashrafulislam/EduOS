@@ -86,7 +86,7 @@ public sealed partial class TenantUserAdministrationService
             var actor = row.UserName ?? (row.UserId.HasValue ? "User #" + row.UserId.Value : "System");
             csv.Append(string.Join(",", new[]
             {
-                HistoryCsvCell(row.OccurredAt.ToUniversalTime().ToString("O")),
+                HistoryCsvCell(DateTime.SpecifyKind(row.OccurredAt, DateTimeKind.Utc).ToString("O")),
                 HistoryCsvCell(row.Action),
                 HistoryCsvCell(actor),
                 HistoryCsvCell(row.OldValue),
