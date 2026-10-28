@@ -87,7 +87,9 @@ public sealed class RecruitmentService : IRecruitmentService
         RecruitmentCreateRequestDto request, CancellationToken ct = default)
     {
         if (!Allowed) return Error<RecruitmentCandidateDto>("Tenant administrator required.", 403);
-        var name = Clean(request?.FullName), email = Clean(request?.Email), phone = Clean(request?.Phone);
+        var name = Clean(request?.FullName);
+        var email = Clean(request?.Email);
+        var phone = Clean(request?.Phone);
         var notes = Clean(request?.Notes);
         if (request == null || request.ClientRequestId == Guid.Empty ||
             request.CampusId <= 0 || request.DesignationId <= 0 ||
