@@ -126,6 +126,46 @@ public sealed class StudentImportExecutionServiceTests
     }
 
     [Fact]
+    public async Task Full_hundred_row_window_commits_once_and_rejects_source_reuse_without_partial_records()
+    {
+        var options = Options(); await SeedAsync(options);
+        await using var db = Context(options, 101);
+        var batch = await db.AcademicBatches.SingleAsync();
+        batch.Capacity = 200;
+        await db.SaveChangesAsync();
+        var service = Service(db, new User(101, true));
+        var request = Guid.NewGuid();
+        var rows = Header + string.Concat(Enumerable.Range(1, 100)
+            .Select(i => $"SRC-100-{i},STU-100-{i},Learner {i},10,20,{i},,\\n"));
+
+        using (var file = Csv(rows))
+        {
+            var result = await service.ExecuteAsync(file, ".csv", Mapping, request);
+            Assert.True(result.Success, result.Message);
+            Assert.Equal(100, result.Data!.ImportedRows);
+        }
+        using (var file = Csv(rows))
+        {
+            var replay = await service.ExecuteAsync(file, ".csv", Mapping, request);
+            Assert.True(replay.Success, replay.Message);
+            Assert.True(replay.Data!.Replayed);
+        }
+        using (var file = Csv(Header + "SRC-100-75,STU-NEW,New Learner,10,20,150,,\\n"))
+        {
+            var conflict = await service.ExecuteAsync(file, ".csv", Mapping, Guid.NewGuid());
+            Assert.Equal(409, conflict.StatusCode);
+        }
+        Assert.Equal(100, await db.Students.CountAsync());
+        Assert.Equal(100, await db.Persons.CountAsync());
+        Assert.Equal(100, await db.StudentPersonLinks.CountAsync());
+        Assert.Equal(100, await db.StudentEnrollments.CountAsync());
+        Assert.Equal(100, await db.ImportLogItems.CountAsync());
+        Assert.Equal(100, await db.IdempotencyRecords.CountAsync(x =>
+            x.Scope == "StudentImportSource" && x.TenantId == 101));
+        Assert.Equal(1, await db.ImportLogs.CountAsync());
+    }
+
+    [Fact]
     public async Task Rejects_cross_tenant_batch_and_denies_unauthorized_reconciliation()
     {
         var options = Options(); await SeedAsync(options);
