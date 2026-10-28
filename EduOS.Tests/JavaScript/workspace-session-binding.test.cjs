@@ -74,7 +74,12 @@ test('controller binds read, save and reset to a server-issued session reference
     assert.match(source, /AuthSessionRegistry\.ToPublicReference\(sid\)/);
     assert.match(source, /X-EduOS-Session-Reference/);
     assert.match(source, /X-EduOS-Tenant-Id/);
-    assert.equal((source.match(/if \(!BindCurrentSession\(\)\)/g) || []).length, 3);
+    // GET binds directly; both mutations bind through the shared serialized write guard.
+    assert.equal((source.match(/if \\(!BindCurrentSession\\(\\)\\)/g) || []).length, 2);
+    assert.match(source, /IsolationLevel\\.Serializable/);
+    assert.equal((source.match(/if \\(!await SessionStillValidAsync\\(\\)\\)/g) || []).length, 2);
+    assert.match(source, /WriteInCurrentSessionAsync\\(ct => service\\.SaveAsync\\(request, ct\\)/);
+    assert.match(source, /WriteInCurrentSessionAsync\\(ct => service\\.ResetAsync\\(request, ct\\)/);
     const page = read('EduOS.App/Views/WorkspacePreferences/Index.cshtml');
     assert.match(page, /workspaceHelp/);
     assert.match(page, /page-header-help-panel/);
