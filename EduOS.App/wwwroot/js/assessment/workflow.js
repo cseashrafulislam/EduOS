@@ -278,6 +278,7 @@
         message(error ? 'danger' : 'success', error
             ? error.message + ' The roster was refreshed; review versions before retrying.'
             : 'Changed marks saved. The register has been refreshed.');
+        if (!error) window.dispatchEvent(new Event('assessment-marks-saved'));
     }
     function renderResults(data, mode) {
         state.sheet = data; state.sheetMode = mode;

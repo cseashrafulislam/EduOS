@@ -11,6 +11,7 @@ public interface IAssessmentAdministrationService
     Task<ApiResponse<AssessmentMarkRosterDto>> SearchMarkRosterAsync(AssessmentMarkRosterPageQueryDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<AssessmentMarkRosterDto>> GetMarkRosterAsync(AssessmentMarkRosterQueryDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<AssessmentReadinessPageDto>> GetResultReadinessAsync(AssessmentReadinessQueryDto request, CancellationToken cancellationToken = default);
+    Task<ApiResponse<AssessmentMarkChangePageDto>> SearchMarkChangesAsync(AssessmentMarkChangeQueryDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<AssessmentResultSheetDto>> PreviewResultsAsync(AssessmentScopeDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<AssessmentResultSheetDto>> GetResultsAsync(AssessmentScopeDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<AssessmentPublicationHistoryPageDto>> SearchPublicationHistoryAsync(AssessmentPublicationHistoryQueryDto request, CancellationToken cancellationToken = default);

@@ -147,6 +147,17 @@ public sealed partial class AssessmentAdministrationService
                     return Error<StudentAssessmentComponentMarkDto>("Component mark already recorded.", 409);
                 }
             }
+            if (!AssessmentMarkChangePolicy.HasChanged(row, request.ObtainedMarks,
+                request.IsAbsent, request.IsWithheld))
+                return ApiResponse<StudentAssessmentComponentMarkDto>.SuccessResponse(
+                    MapComponentMark(row!), "Component mark unchanged.");
+            var created = row == null;
+            var before = row == null ? null : JsonSerializer.Serialize(new
+            {
+                registrationId = master.StudentSubjectRegistrationId,
+                componentId = component.Id, obtainedMarks = row.ObtainedMarks,
+                isAbsent = row.IsAbsent, isWithheld = row.IsWithheld
+            });
             var now = _clock.GetUtcNow().UtcDateTime;
             row ??= new StudentAssessmentComponentMark
             {
@@ -162,6 +173,20 @@ public sealed partial class AssessmentAdministrationService
                 _componentMarks.Update(row);
             }
             else await _componentMarks.AddAsync(row);
+            await _auditLogs.AddAsync(new AuditLog
+            {
+                TenantId = tenant, UserId = _user.UserId,
+                EntityName = "AssessmentMarkChange", EntityId = subject.Id,
+                Action = created ? "ComponentCreated" : "ComponentUpdated",
+                OldValue = before,
+                NewValue = JsonSerializer.Serialize(new
+                {
+                    registrationId = master.StudentSubjectRegistrationId,
+                    componentId = component.Id, obtainedMarks = request.ObtainedMarks,
+                    isAbsent = request.IsAbsent, isWithheld = request.IsWithheld
+                }),
+                IsSuccess = true, OccurredAt = now
+            });
             // Component marks and lock share the assessment rowversion conflict boundary.
             exam.UpdatedAt = now; exam.UpdatedBy = _user.UserId;
             _assessments.Update(exam);

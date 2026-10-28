@@ -274,6 +274,7 @@ public sealed partial class AssessmentAdministrationService : IAssessmentAdminis
                     .Where(x => x.TenantId == tenant && x.GradeSchemeId == gradeSchemeId.Value && !x.IsDeleted)
                     .OrderByDescending(x => x.MinMarks).ToListAsync(token) : [];
                 var now = _clock.GetUtcNow().UtcDateTime;
+                var changedAny = false;
                 foreach (var item in request.Marks)
                 {
                     existing.TryGetValue(item.StudentSubjectRegistrationId, out var row);
@@ -281,6 +282,20 @@ public sealed partial class AssessmentAdministrationService : IAssessmentAdminis
                         return Error<bool>("A student mark was changed; reload and retry.", 409);
                     if (row == null && !string.IsNullOrEmpty(item.RowVersion))
                         return Error<bool>("A student mark no longer exists.", 409);
+                    var normalized = item.IsAbsent ? 0m : Round(item.ObtainedMarks);
+                    var remarks = Trim(item.Remarks);
+                    var percentage = sub.FullMarks <= 0 ? 0m : 100m * normalized / sub.FullMarks;
+                    var grade = grades.FirstOrDefault(x => percentage >= x.MinMarks && percentage <= x.MaxMarks);
+                    if (!AssessmentMarkChangePolicy.HasChanged(row, normalized, item.IsAbsent,
+                        item.IsWithheld, remarks, grade?.GradeLetter, grade?.GradePoint))
+                        continue;
+                    var created = row == null;
+                    var before = row == null ? null : System.Text.Json.JsonSerializer.Serialize(new
+                    {
+                        registrationId = row.StudentSubjectRegistrationId, obtainedMarks = row.ObtainedMarks,
+                        isAbsent = row.IsAbsent, isWithheld = row.IsWithheld, remarks = row.Remarks,
+                        gradeLetter = row.GradeLetter, gradePoint = row.GradePoint
+                    });
                     if (row == null)
                     {
                         row = new StudentAssessmentMark
@@ -296,15 +311,28 @@ public sealed partial class AssessmentAdministrationService : IAssessmentAdminis
                         row.UpdatedAt = now; row.UpdatedBy = _user.UserId;
                         _marks.Update(row);
                     }
-                    row.ObtainedMarks = item.IsAbsent ? 0m : Round(item.ObtainedMarks);
-                    row.IsAbsent = item.IsAbsent; row.IsWithheld = item.IsWithheld;
-                    row.Remarks = Trim(item.Remarks);
-                    var percentage = sub.FullMarks <= 0 ? 0m :
-                        100m * row.ObtainedMarks / sub.FullMarks;
-                    var grade = grades.FirstOrDefault(x => percentage >= x.MinMarks && percentage <= x.MaxMarks);
+                    row.ObtainedMarks = normalized; row.IsAbsent = item.IsAbsent;
+                    row.IsWithheld = item.IsWithheld; row.Remarks = remarks;
                     row.GradeLetter = grade?.GradeLetter; row.GradePoint = grade?.GradePoint;
                     row.EnteredByUserId = _user.UserId; row.EnteredAt = now;
+                    await _auditLogs.AddAsync(new AuditLog
+                    {
+                        TenantId = tenant, UserId = _user.UserId,
+                        EntityName = "AssessmentMarkChange", EntityId = sub.Id,
+                        Action = created ? "SubjectCreated" : "SubjectUpdated",
+                        OldValue = before,
+                        NewValue = System.Text.Json.JsonSerializer.Serialize(new
+                        {
+                            registrationId = item.StudentSubjectRegistrationId, obtainedMarks = normalized,
+                            isAbsent = item.IsAbsent, isWithheld = item.IsWithheld, remarks,
+                            gradeLetter = grade?.GradeLetter, gradePoint = grade?.GradePoint
+                        }),
+                        IsSuccess = true, OccurredAt = now
+                    });
+                    changedAny = true;
                 }
+                if (!changedAny)
+                    return ApiResponse<bool>.SuccessResponse(true, "Marks unchanged.");
                 // A concurrent lock and mark edit must conflict on the assessment rowversion.
                 exam.UpdatedAt = now; exam.UpdatedBy = _user.UserId;
                 _assessments.Update(exam);
