@@ -338,9 +338,9 @@ public sealed class SqlServerStudentImportConcurrencyIntegrationTests
             TargetRoll = "02", StudentRowVersion = promotionOptions.StudentRowVersion,
             SourceEnrollmentRowVersion = promotionOptions.SourceEnrollmentRowVersion
         };
-        var csv = "SourceKey,StudentCode,FullName,CampusId,AcademicBatchId,RollNo\n" +
+        var csv = "SourceKey,StudentCode,FullName,CampusId,AcademicBatchId,RollNo,GuardianName,GuardianPhone,GuardianSourceKey\n" +
             "MIX-SRC-" + suffix + ",MIX-NEW-" + suffix + ",Imported Learner " + suffix +
-            "," + campusId + "," + targetBatchId + ",03\n";
+            "," + campusId + "," + targetBatchId + ",03,,,\n";
         var importId = Guid.NewGuid();
         var start = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
         var promotionTask = Task.Run(async () =>
