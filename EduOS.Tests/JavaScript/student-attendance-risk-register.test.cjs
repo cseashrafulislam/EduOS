@@ -24,5 +24,13 @@ test('attendance risk register is SQL-filtered before count and paging with tena
     assert.match(js, /minMarkedSessions: el\('attendanceReportMinSessions'\)\.value/);
     assert.match(js, /sort: el\('attendanceReportSort'\)\.value/);
     assert.match(js, /visibleItems = \[\]; csvButton\.disabled = true/);
+    assert.match(service, /GetRiskSummaryAsync/);
+    assert.match(service, /BuildGroupedRows\(tenant, query\.AcademicBatchId, campusId\.Value, query\)/);
+    assert.match(service, /Below75 = g\.Count/);
+    assert.match(service, /Below90 = g\.Count/);
+    assert.match(service, /Below100 = g\.Count/);
+    assert.match(js, /loadRiskSummary\(\)/);
+    assert.match(js, /resetRiskSummary\(\)/);
+    assert.ok(view.includes('id="attendanceRiskSummary"'));
     assert.doesNotThrow(() => new Function(js));
 });

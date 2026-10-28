@@ -181,73 +181,21 @@ public sealed class StudentAttendanceReportService(
         try
         {
             var tenant = user.TenantId;
-            var batch = await db.AcademicBatches.AsNoTracking()
-                .Where(x => x.TenantId == tenant && x.Id == query.AcademicBatchId && !x.IsDeleted)
-                .Select(x => new { x.Id, x.CampusId })
-                .SingleOrDefaultAsync(cancellationToken);
-            if (batch == null)
+            var campusId = await GetAuthorizedCampusIdAsync(tenant, query.AcademicBatchId, cancellationToken);
+            if (!campusId.HasValue)
                 return ApiResponse<PagedResult<StudentAttendanceReportRowDto>>.ErrorResponse(
                     "Academic batch not found.", 404);
-
-            // Live campus grants apply to every manager report read, including after revocation.
-            if (!user.IsTenantAdmin)
-            {
-                var allowed = await (from access in db.UserCampusAccesses.AsNoTracking()
-                    join campus in db.Campuses.AsNoTracking() on access.CampusId equals campus.Id
-                    where access.TenantId == tenant && campus.TenantId == tenant &&
-                          access.UserId == user.UserId && access.CampusId == batch.CampusId &&
-                          access.IsActive && !access.IsDeleted && campus.IsActive && !campus.IsDeleted
-                    select access.Id).AnyAsync(cancellationToken);
-                if (!allowed)
-                    return ApiResponse<PagedResult<StudentAttendanceReportRowDto>>.ErrorResponse(
-                        "Academic batch not found.", 404);
-            }
 
             if (query.SubjectOfferingId.HasValue &&
                 !await db.SubjectOfferings.AsNoTracking().AnyAsync(x =>
                     x.TenantId == tenant && x.Id == query.SubjectOfferingId.Value &&
-                    x.AcademicBatchId == batch.Id, cancellationToken))
+                    x.AcademicBatchId == query.AcademicBatchId, cancellationToken))
                 return ApiResponse<PagedResult<StudentAttendanceReportRowDto>>.ErrorResponse(
                     "Subject offering not found for this batch.", 404);
 
             // Do not use Student.IsCurrent or current roll: old posted marks retain
             // the enrollment and roll that existed when attendance was recorded.
-            var grouped =
-                from mark in db.StudentAttendances.AsNoTracking()
-                join session in db.AttendanceSessions.AsNoTracking()
-                    on mark.AttendanceSessionId equals session.Id
-                join enrollment in db.StudentEnrollments.AsNoTracking()
-                    on mark.StudentEnrollmentId equals enrollment.Id
-                join student in db.Students.AsNoTracking()
-                    on enrollment.StudentId equals student.Id
-                where mark.TenantId == tenant && session.TenantId == tenant &&
-                      enrollment.TenantId == tenant && student.TenantId == tenant &&
-                      !mark.IsDeleted && !session.IsDeleted && !enrollment.IsDeleted &&
-                      !student.IsDeleted && session.IsFinalized &&
-                      session.AcademicBatchId == batch.Id &&
-                      (!query.SubjectOfferingId.HasValue ||
-                       session.SubjectOfferingId == query.SubjectOfferingId.Value) &&
-                      enrollment.AcademicBatchId == batch.Id &&
-                      enrollment.CampusId == batch.CampusId &&
-                      session.AttendanceDate >= query.FromDate &&
-                      session.AttendanceDate <= query.ToDate
-                group mark by new {
-                    enrollment.PublicId, enrollment.RollNo,
-                    student.StudentCode, student.FullName
-                } into g
-                select new StudentAttendanceReportRowDto
-                {
-                    StudentEnrollmentReference = g.Key.PublicId,
-                    RollNo = g.Key.RollNo,
-                    StudentCode = g.Key.StudentCode,
-                    StudentName = g.Key.FullName,
-                    MarkedSessions = g.Count(),
-                    Present = g.Count(x => x.State == AttendanceState.Present),
-                    Absent = g.Count(x => x.State == AttendanceState.Absent),
-                    Late = g.Count(x => x.State == AttendanceState.Late),
-                    Leave = g.Count(x => x.State == AttendanceState.Leave),
-                    Excused = g.Count(x => x.State == AttendanceState.Excused)
-                };
+            var grouped = BuildGroupedRows(tenant, query.AcademicBatchId, campusId.Value, query);
 
             // Filter grouped, finalized historical marks BEFORE count/paging: never filter a page in memory.
             grouped = grouped.Where(x => x.MarkedSessions >= query.MinMarkedSessions);
@@ -282,4 +230,119 @@ public sealed class StudentAttendanceReportService(
                 "Attendance report could not be loaded.", 500);
         }
     }
+
+    // One SQL projection is shared by the paged register and the risk summary;
+    // neither report reads unbounded student rows into application memory.
+    private IQueryable<StudentAttendanceReportRowDto> BuildGroupedRows(
+        long tenant, long batchId, long campusId, StudentAttendanceReportQueryDto query)
+    {
+        return
+            from mark in db.StudentAttendances.AsNoTracking()
+            join session in db.AttendanceSessions.AsNoTracking()
+                on mark.AttendanceSessionId equals session.Id
+            join enrollment in db.StudentEnrollments.AsNoTracking()
+                on mark.StudentEnrollmentId equals enrollment.Id
+            join student in db.Students.AsNoTracking()
+                on enrollment.StudentId equals student.Id
+            where mark.TenantId == tenant && session.TenantId == tenant &&
+                  enrollment.TenantId == tenant && student.TenantId == tenant &&
+                  !mark.IsDeleted && !session.IsDeleted && !enrollment.IsDeleted &&
+                  !student.IsDeleted && session.IsFinalized &&
+                  session.AcademicBatchId == batchId &&
+                  (!query.SubjectOfferingId.HasValue ||
+                   session.SubjectOfferingId == query.SubjectOfferingId.Value) &&
+                  enrollment.AcademicBatchId == batchId &&
+                  enrollment.CampusId == campusId &&
+                  session.AttendanceDate >= query.FromDate &&
+                  session.AttendanceDate <= query.ToDate
+            group mark by new {
+                enrollment.PublicId, enrollment.RollNo,
+                student.StudentCode, student.FullName
+            } into g
+            select new StudentAttendanceReportRowDto
+            {
+                StudentEnrollmentReference = g.Key.PublicId,
+                RollNo = g.Key.RollNo,
+                StudentCode = g.Key.StudentCode,
+                StudentName = g.Key.FullName,
+                MarkedSessions = g.Count(),
+                Present = g.Count(x => x.State == AttendanceState.Present),
+                Absent = g.Count(x => x.State == AttendanceState.Absent),
+                Late = g.Count(x => x.State == AttendanceState.Late),
+                Leave = g.Count(x => x.State == AttendanceState.Leave),
+                Excused = g.Count(x => x.State == AttendanceState.Excused)
+            };
+    }
+
+    private async Task<long?> GetAuthorizedCampusIdAsync(
+        long tenant, long academicBatchId, CancellationToken cancellationToken)
+    {
+        var batch = await db.AcademicBatches.AsNoTracking()
+            .Where(x => x.TenantId == tenant && x.Id == academicBatchId && !x.IsDeleted)
+            .Select(x => new { x.CampusId }).SingleOrDefaultAsync(cancellationToken);
+        if (batch == null) return null;
+        if (user.IsTenantAdmin) return batch.CampusId;
+        var allowed = await (from access in db.UserCampusAccesses.AsNoTracking()
+            join campus in db.Campuses.AsNoTracking() on access.CampusId equals campus.Id
+            where access.TenantId == tenant && campus.TenantId == tenant &&
+                  access.UserId == user.UserId && access.CampusId == batch.CampusId &&
+                  access.IsActive && !access.IsDeleted && campus.IsActive && !campus.IsDeleted
+            select access.Id).AnyAsync(cancellationToken);
+        return allowed ? batch.CampusId : null;
+    }
+
+    /// <summary>
+    /// Aggregate all qualifying finalized enrollments once in SQL. Counts are cumulative,
+    /// not disjoint: Below75 is a subset of Below90 and Below100.
+    /// </summary>
+    public async Task<ApiResponse<StudentAttendanceRiskSummaryDto>> GetRiskSummaryAsync(
+        StudentAttendanceReportQueryDto query, CancellationToken cancellationToken = default)
+    {
+        if (!user.IsAuthenticated || user.TenantId <= 0 ||
+            !(user.IsTenantAdmin || user.IsInRole("Principal") || user.IsInRole("VicePrincipal")))
+            return ApiResponse<StudentAttendanceRiskSummaryDto>.ErrorResponse(
+                "Attendance report permission is required.", 403);
+        if (query == null || query.AcademicBatchId <= 0 || query.FromDate == default ||
+            query.ToDate == default || query.ToDate < query.FromDate ||
+            query.ToDate.DayNumber - query.FromDate.DayNumber > 30 ||
+            query.SubjectOfferingId is <= 0 ||
+            query.MinMarkedSessions is < 1 or > 1000)
+            return ApiResponse<StudentAttendanceRiskSummaryDto>.ErrorResponse(
+                "Select a valid batch, subject and date range of at most 31 days.");
+
+        try
+        {
+            var tenant = user.TenantId;
+            var campusId = await GetAuthorizedCampusIdAsync(tenant, query.AcademicBatchId, cancellationToken);
+            if (!campusId.HasValue)
+                return ApiResponse<StudentAttendanceRiskSummaryDto>.ErrorResponse(
+                    "Academic batch not found.", 404);
+            if (query.SubjectOfferingId.HasValue &&
+                !await db.SubjectOfferings.AsNoTracking().AnyAsync(x =>
+                    x.TenantId == tenant && x.Id == query.SubjectOfferingId.Value &&
+                    x.AcademicBatchId == query.AcademicBatchId, cancellationToken))
+                return ApiResponse<StudentAttendanceRiskSummaryDto>.ErrorResponse(
+                    "Subject offering not found for this batch.", 404);
+
+            var grouped = BuildGroupedRows(tenant, query.AcademicBatchId, campusId.Value, query)
+                .Where(x => x.MarkedSessions >= query.MinMarkedSessions);
+            var summary = await grouped.GroupBy(x => 1)
+                .Select(g => new StudentAttendanceRiskSummaryDto
+                {
+                    EligibleEnrollments = g.Count(),
+                    Below75 = g.Count(x => 100m * (x.Present + x.Late) < 75m * x.MarkedSessions),
+                    Below90 = g.Count(x => 100m * (x.Present + x.Late) < 90m * x.MarkedSessions),
+                    Below100 = g.Count(x => (x.Present + x.Late) < x.MarkedSessions)
+                }).SingleOrDefaultAsync(cancellationToken);
+            return ApiResponse<StudentAttendanceRiskSummaryDto>.SuccessResponse(
+                summary ?? new StudentAttendanceRiskSummaryDto());
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            logger.LogError(ex, "Attendance risk summary failed for tenant {TenantId}", user.TenantId);
+            return ApiResponse<StudentAttendanceRiskSummaryDto>.ErrorResponse(
+                "Attendance risk summary could not be loaded.", 500);
+        }
+    }
+
 }

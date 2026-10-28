@@ -33,6 +33,15 @@ public sealed class StudentAttendanceReportRowDto
         Math.Round(100m * (Present + Late) / MarkedSessions, 2);
 }
 
+/// <summary>Distinct historical enrollments with finalized marks, before any risk threshold is selected.</summary>
+public sealed class StudentAttendanceRiskSummaryDto
+{
+    public int EligibleEnrollments { get; set; }
+    public int Below75 { get; set; }
+    public int Below90 { get; set; }
+    public int Below100 { get; set; }
+}
+
 /// <summary>Finalized attendance mark totals for a day; dates with no finalized marks are omitted.</summary>
 public sealed class StudentAttendanceDailySummaryDto
 {

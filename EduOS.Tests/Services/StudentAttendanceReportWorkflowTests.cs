@@ -349,6 +349,77 @@ public sealed class StudentAttendanceReportWorkflowTests
         Assert.Equal(404, (await Service(db, 72).GetAsync(query)).StatusCode);
     }
 
+
+    [Fact]
+    public async Task Risk_summary_counts_distinct_finalized_enrollments_across_all_severity_bands()
+    {
+        await using var db = Context(71);
+        db.AcademicBatches.Add(new AcademicBatch { Id = 10, TenantId = 71, CampusId = 8,
+            Name = "Cohort", Code = "C" });
+        for (var i = 1; i <= 4; i++)
+        {
+            db.Students.Add(new Student { Id = 20 + i, TenantId = 71,
+                StudentCode = "ST" + i, FullName = "Learner " + i,
+                AdmissionDate = new DateOnly(2025, 1, 1) });
+            db.StudentEnrollments.Add(new StudentEnrollment { Id = 30 + i, TenantId = 71,
+                StudentId = 20 + i, AcademicBatchId = 10, CampusId = 8, RollNo = "R" + i });
+        }
+        for (var i = 0; i < 4; i++)
+            db.AttendanceSessions.Add(new AttendanceSession { Id = 40 + i, TenantId = 71,
+                AcademicBatchId = 10, AttendanceDate = new DateOnly(2026, 10, 5 + i),
+                IsFinalized = i < 3 });
+        long id = 100;
+        for (var student = 1; student <= 4; student++)
+            for (var day = 0; day < 4; day++)
+                db.StudentAttendances.Add(new StudentAttendance {
+                    Id = id++, TenantId = 71, AttendanceSessionId = 40 + day,
+                    StudentEnrollmentId = 30 + student,
+                    State = student == 4 || (student == 3 && day < 2) ||
+                        (student == 2 && day == 0) ? AttendanceState.Present : AttendanceState.Absent
+                });
+        await db.SaveChangesAsync();
+        var query = Query();
+        query.MinMarkedSessions = 3;
+        var result = await Service(db, 71).GetRiskSummaryAsync(query);
+        Assert.True(result.Success, result.Message);
+        Assert.Equal(4, result.Data!.EligibleEnrollments);
+        Assert.Equal(3, result.Data.Below75);
+        Assert.Equal(3, result.Data.Below90);
+        Assert.Equal(3, result.Data.Below100);
+        query.MinMarkedSessions = 4;
+        var empty = await Service(db, 71).GetRiskSummaryAsync(query);
+        Assert.True(empty.Success, empty.Message);
+        Assert.Equal(0, empty.Data!.EligibleEnrollments);
+    }
+
+    [Fact]
+    public async Task Risk_summary_rejects_direct_id_probes_and_revoked_campus_grants()
+    {
+        await using var db = Context(71);
+        db.AcademicBatches.Add(new AcademicBatch { Id = 10, TenantId = 71,
+            CampusId = 8, Name = "Cohort", Code = "C" });
+        db.Campuses.Add(new Campus { Id = 8, TenantId = 71,
+            Name = "North", Code = "N", IsActive = true });
+        db.UserCampusAccesses.Add(new UserCampusAccess { Id = 101, TenantId = 71,
+            UserId = 7, CampusId = 8, IsActive = true });
+        db.SubjectOfferings.Add(new SubjectOffering { Id = 61, TenantId = 71,
+            AcademicBatchId = 11, Code = "FOREIGN" });
+        await db.SaveChangesAsync();
+        var principal = Service(db, 71, manager: false, principal: true);
+        Assert.True((await principal.GetRiskSummaryAsync(Query())).Success);
+        var foreign = Query();
+        foreign.SubjectOfferingId = 61;
+        Assert.Equal(404, (await principal.GetRiskSummaryAsync(foreign)).StatusCode);
+        Assert.Equal(404, (await Service(db, 72).GetRiskSummaryAsync(Query())).StatusCode);
+        Assert.Equal(403, (await Service(db, 71, manager: false).GetRiskSummaryAsync(Query())).StatusCode);
+        var invalid = Query();
+        invalid.MinMarkedSessions = 0;
+        Assert.Equal(400, (await principal.GetRiskSummaryAsync(invalid)).StatusCode);
+        db.UserCampusAccesses.Single().IsActive = false;
+        await db.SaveChangesAsync();
+        Assert.Equal(404, (await principal.GetRiskSummaryAsync(Query())).StatusCode);
+    }
+
     private static StudentAttendanceReportQueryDto Query() => new() {
         AcademicBatchId = 10, FromDate = new DateOnly(2026, 10, 1),
         ToDate = new DateOnly(2026, 10, 10)

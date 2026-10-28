@@ -25,6 +25,15 @@ public sealed class StudentAttendanceReportsController(IStudentAttendanceReportS
         return StatusCode(result.StatusCode, result);
     }
 
+    [HttpGet("risk-summary")]
+    public async Task<IActionResult> RiskSummary([FromQuery] StudentAttendanceReportQueryDto query,
+        CancellationToken ct)
+    {
+        if (!ModelState.IsValid) return ValidationProblem(ModelState);
+        var result = await service.GetRiskSummaryAsync(query, ct);
+        return StatusCode(result.StatusCode, result);
+    }
+
     [HttpGet("daily")]
     public async Task<IActionResult> Daily([FromQuery] StudentAttendanceReportQueryDto query, CancellationToken ct)
     {

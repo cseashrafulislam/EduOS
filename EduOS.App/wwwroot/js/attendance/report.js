@@ -8,7 +8,7 @@
     let page = 1, totalPages = 0, pending = 0;
     let batchPage = 1, batchPages = 0, batchPending = 0;
     let subjectPage = 1, subjectPages = 0, subjectPending = 0;
-    let visibleItems = [], dailyItems = [], dailyPending = 0;
+    let visibleItems = [], dailyItems = [], dailyPending = 0, riskPending = 0;
     const dailyBody = el('attendanceDailyRows'), dailyStatus = el('attendanceDailyStatus');
     const dailyCsvButton = el('attendanceDailyCsv');
     const csvButton = el('attendanceReportCsv');
@@ -55,6 +55,33 @@
         const data = await response.json().catch(() => null);
         if (!response.ok || !data?.success) throw new Error(data?.message || 'Report unavailable.');
         return data.data;
+    }
+    function resetRiskSummary() {
+        riskPending++;
+        el('attendanceRiskSummary').textContent = '';
+    }
+    async function loadRiskSummary() {
+        if (!form.reportValidity()) return;
+        const from = el('attendanceReportFrom').value, to = el('attendanceReportTo').value;
+        const days = (Date.parse(to) - Date.parse(from)) / 86400000;
+        if (!Number.isFinite(days) || days < 0 || days > 30) return;
+        const request = ++riskPending;
+        const summary = el('attendanceRiskSummary');
+        summary.textContent = 'Loading risk totals…';
+        const params = new URLSearchParams({
+            academicBatchId: el('attendanceReportBatch').value, fromDate: from, toDate: to,
+            minMarkedSessions: el('attendanceReportMinSessions').value,
+            ...(el('attendanceReportSubject').value ? { subjectOfferingId: el('attendanceReportSubject').value } : {})
+        });
+        try {
+            const data = await fetchJson('/api/student-attendance/report/risk-summary?' + params);
+            if (request !== riskPending) return;
+            summary.textContent = 'Eligible: ' + data.eligibleEnrollments +
+                ' · Below 75%: ' + data.below75 + ' · Below 90%: ' + data.below90 +
+                ' · Below 100%: ' + data.below100;
+        } catch (error) {
+            if (request === riskPending) summary.textContent = error.message;
+        }
     }
     function resetDaily() {
         dailyPending++;
@@ -121,6 +148,7 @@
     }
     function resetReport() {
         resetDaily();
+        resetRiskSummary();
         pending++; page = 1; totalPages = 0;
         previous.disabled = next.disabled = true;
         visibleItems = []; csvButton.disabled = true; body.replaceChildren();
@@ -177,6 +205,7 @@
         visibleItems = []; csvButton.disabled = true; body.replaceChildren();
         pageLabel.textContent = '';
         resetDaily();
+        resetRiskSummary();
         try {
             const params = new URLSearchParams({
                 search: el('attendanceReportBatchSearch').value.trim(),
@@ -250,7 +279,7 @@
     }
     csvButton.addEventListener('click', exportVisiblePage);
     dailyCsvButton.addEventListener('click', exportDaily);
-    form.addEventListener('submit', event => { event.preventDefault(); page = 1; load(); loadDaily(); });
+    form.addEventListener('submit', event => { event.preventDefault(); page = 1; load(); loadDaily(); loadRiskSummary(); });
     previous.addEventListener('click', () => { if (page > 1) { page--; load(); } });
     next.addEventListener('click', () => { if (page < totalPages) { page++; load(); } });
     el('attendanceReportBatch').addEventListener('change', () => {
@@ -273,6 +302,7 @@
     });
     for (const id of ['attendanceReportRisk', 'attendanceReportMinSessions', 'attendanceReportSort'])
         el(id).addEventListener('change', () => {
+            resetRiskSummary();
             pending++; page = 1; totalPages = 0;
             visibleItems = []; csvButton.disabled = true; body.replaceChildren();
             previous.disabled = next.disabled = true; pageLabel.textContent = '';
@@ -282,7 +312,7 @@
         el(id).addEventListener('change', () => { pending++; page = 1; totalPages = 0;
             previous.disabled = next.disabled = true;
         visibleItems = []; csvButton.disabled = true; body.replaceChildren();
-            resetDaily();
+            resetDaily(); resetRiskSummary();
             pageLabel.textContent = ''; message('Load report for the selected filters.'); });
     el('attendanceReportBatchFind').addEventListener('click', () => { batchPage = 1; loadBatches(); });
     el('attendanceReportBatchSearch').addEventListener('keydown', event => {
