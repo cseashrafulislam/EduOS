@@ -106,7 +106,101 @@ public sealed class AuthSecurityStampIntegrationTests
         Assert.Equal("mfa", refresh.NewPrincipal.FindFirstValue("amr"));
     }
 
-    private static ServiceCollection CreateServices()
+    [Fact]
+    public async Task Password_change_revokes_all_institution_sessions_but_not_another_account()
+    {
+        using var provider = CreateServices().BuildServiceProvider();
+        using var scope = provider.CreateScope();
+        var manager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+        var db = scope.ServiceProvider.GetRequiredService<EduOSDbContext>();
+        var owner = new ApplicationUser { UserName = "change@example.test", Email = "change@example.test",
+            FullName = "Owner", EmailConfirmed = true };
+        var stranger = new ApplicationUser { UserName = "stranger@example.test", Email = "stranger@example.test",
+            FullName = "Stranger", EmailConfirmed = true };
+        Assert.True((await manager.CreateAsync(owner, "Secure123!")).Succeeded);
+        Assert.True((await manager.CreateAsync(stranger, "Secure123!")).Succeeded);
+        var first = await AuthSessionRegistry.CreateAsync(db, owner.Id, 100, "", "", false);
+        var second = await AuthSessionRegistry.CreateAsync(db, owner.Id, 200, "", "", true);
+        var unrelated = await AuthSessionRegistry.CreateAsync(db, stranger.Id, 100, "", "", false);
+
+        var rejected = await AuthCredentialRotation.ChangePasswordAsync(
+            db, manager, owner, "Wrong123!", "Changed123!");
+        Assert.False(rejected.Succeeded);
+        Assert.True(await AuthSessionRegistry.IsValidAsync(db, owner.Id, first, 100));
+
+        var changed = await AuthCredentialRotation.ChangePasswordAsync(
+            db, manager, owner, "Secure123!", "Changed123!");
+        Assert.True(changed.Succeeded, string.Join(";", changed.Errors.Select(x => x.Description)));
+        Assert.True(await manager.CheckPasswordAsync(owner, "Changed123!"));
+        Assert.False(await manager.CheckPasswordAsync(owner, "Secure123!"));
+        Assert.False(await AuthSessionRegistry.IsValidAsync(db, owner.Id, first, 100));
+        Assert.False(await AuthSessionRegistry.IsValidAsync(db, owner.Id, second, 200));
+        Assert.True(await AuthSessionRegistry.IsValidAsync(db, stranger.Id, unrelated, 100));
+    }
+
+    [Fact]
+    public async Task Password_reset_revokes_all_institution_sessions_and_rejects_token_replay()
+    {
+        using var provider = CreateServices().BuildServiceProvider();
+        using var scope = provider.CreateScope();
+        var manager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+        var db = scope.ServiceProvider.GetRequiredService<EduOSDbContext>();
+        var user = new ApplicationUser { UserName = "reset@example.test", Email = "reset@example.test",
+            FullName = "Recovery", EmailConfirmed = true };
+        Assert.True((await manager.CreateAsync(user, "Secure123!")).Succeeded);
+        var first = await AuthSessionRegistry.CreateAsync(db, user.Id, 100, "", "", false);
+        var second = await AuthSessionRegistry.CreateAsync(db, user.Id, 200, "", "", false);
+        var invalid = await AuthCredentialRotation.ResetPasswordAsync(
+            db, manager, user, "invalid-token", "Changed123!");
+        Assert.False(invalid.Succeeded);
+        Assert.True(await AuthSessionRegistry.IsValidAsync(db, user.Id, first, 100));
+
+        var token = await manager.GeneratePasswordResetTokenAsync(user);
+        var reset = await AuthCredentialRotation.ResetPasswordAsync(
+            db, manager, user, token, "Changed123!");
+        Assert.True(reset.Succeeded, string.Join(";", reset.Errors.Select(x => x.Description)));
+        Assert.False(await AuthSessionRegistry.IsValidAsync(db, user.Id, first, 100));
+        Assert.False(await AuthSessionRegistry.IsValidAsync(db, user.Id, second, 200));
+        Assert.True(await manager.CheckPasswordAsync(user, "Changed123!"));
+        Assert.False((await AuthCredentialRotation.ResetPasswordAsync(
+            db, manager, user, token, "Again123!")).Succeeded);
+        Assert.True(await manager.CheckPasswordAsync(user, "Changed123!"));
+    }
+
+    [Fact]
+    public async Task Sql_password_recovery_persists_password_and_revocations_in_same_database()
+    {
+        var connection = Environment.GetEnvironmentVariable("EDUOS_SQL_AUTH_TEST_CONNECTION");
+        if (string.IsNullOrWhiteSpace(connection)) return;
+        using var provider = CreateServices(connection).BuildServiceProvider();
+        using var scope = provider.CreateScope();
+        var manager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+        var db = scope.ServiceProvider.GetRequiredService<EduOSDbContext>();
+        var suffix = Guid.NewGuid().ToString("N");
+        var user = new ApplicationUser { UserName = "recovery-" + suffix + "@example.test",
+            Email = "recovery-" + suffix + "@example.test", FullName = "SQL Recovery",
+            EmailConfirmed = true };
+        var created = await manager.CreateAsync(user, "Secure123!");
+        Assert.True(created.Succeeded, string.Join(";", created.Errors.Select(x => x.Description)));
+        var sidA = await AuthSessionRegistry.CreateAsync(db, user.Id, 100, "", "", false);
+        var sidB = await AuthSessionRegistry.CreateAsync(db, user.Id, 200, "", "", false);
+        var token = await manager.GeneratePasswordResetTokenAsync(user);
+        var result = await AuthCredentialRotation.ResetPasswordAsync(
+            db, manager, user, token, "Changed123!");
+        Assert.True(result.Succeeded, string.Join(";", result.Errors.Select(x => x.Description)));
+
+        using var fresh = provider.CreateScope();
+        var readDb = fresh.ServiceProvider.GetRequiredService<EduOSDbContext>();
+        var readManager = fresh.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+        var persisted = await readManager.FindByIdAsync(user.Id.ToString());
+        Assert.NotNull(persisted);
+        Assert.True(await readManager.CheckPasswordAsync(persisted, "Changed123!"));
+        Assert.False(await readManager.CheckPasswordAsync(persisted, "Secure123!"));
+        Assert.False(await AuthSessionRegistry.IsValidAsync(readDb, user.Id, sidA, 100));
+        Assert.False(await AuthSessionRegistry.IsValidAsync(readDb, user.Id, sidB, 200));
+    }
+
+    private static ServiceCollection CreateServices(string? sqlConnection = null)
     {
         var services = new ServiceCollection();
         var environment = new Mock<IHostEnvironment>();
@@ -114,7 +208,11 @@ public sealed class AuthSecurityStampIntegrationTests
         services.AddLogging();
         services.AddDataProtection();
         var databaseName = "auth-stamp-" + Guid.NewGuid().ToString("N");
-        services.AddDbContext<EduOSDbContext>(options => options.UseInMemoryDatabase(databaseName));
+        services.AddDbContext<EduOSDbContext>(options =>
+        {
+            if (string.IsNullOrWhiteSpace(sqlConnection)) options.UseInMemoryDatabase(databaseName);
+            else options.UseSqlServer(sqlConnection);
+        });
         services.AddIdentityConfiguration(environment.Object);
         return services;
     }

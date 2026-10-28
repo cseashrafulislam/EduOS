@@ -170,6 +170,23 @@ public sealed class OptionalMfaAuthContractTests
     }
 
     [Fact]
+    public void Credential_change_endpoints_commit_password_and_cookie_revocation_atomically()
+    {
+        var auth = File.ReadAllText(Asset("AuthController.cs"));
+        var reset = auth[auth.IndexOf("public async Task<IActionResult> ResetPassword(",
+            StringComparison.Ordinal)..auth.IndexOf("// ==================== Logout", StringComparison.Ordinal)];
+        var change = auth[auth.IndexOf("public async Task<IActionResult> ChangePassword(",
+            StringComparison.Ordinal)..auth.IndexOf("private sealed class AuthTransactionRejectedException", StringComparison.Ordinal)];
+        Assert.Contains("AuthCredentialRotation.ResetPasswordAsync(", reset);
+        Assert.Contains("AuthCredentialRotation.ChangePasswordAsync(", change);
+        Assert.DoesNotContain("_userManager.ResetPasswordAsync(user", reset);
+        Assert.DoesNotContain("_userManager.ChangePasswordAsync(user", change);
+        Assert.DoesNotContain("Password reset failed for {Email}", reset);
+        Assert.Contains("HttpContext.RequestAborted", reset);
+        Assert.Contains("HttpContext.RequestAborted", change);
+    }
+
+    [Fact]
     public void Profile_patch_does_not_reset_unrelated_language_preference()
     {
         var dto = new UpdateUserProfileRequestDto { FullName = "Example User" };

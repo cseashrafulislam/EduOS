@@ -664,16 +664,27 @@ namespace EduOS.App.Controllers.Api
             if (user == null || !user.IsActive || user.IsDeleted || !user.EmailConfirmed)
                 return BadRequest(new { success = false, message = "Invalid request." });
 
-            var result = await _userManager.ResetPasswordAsync(user, dto.Token, dto.NewPassword);
+            IdentityResult result;
+            try
+            {
+                // Commit the password hash/stamp and revocation of every tenant-bound
+                // cookie session together. A failed revocation must not leave a
+                // successful reset with an old session still usable.
+                result = await AuthCredentialRotation.ResetPasswordAsync(
+                    _db, _userManager, user, dto.Token, dto.NewPassword, HttpContext.RequestAborted);
+            }
+            catch (DbUpdateConcurrencyException)
+            {
+                _logger.LogWarning("Concurrent password reset rejected for user {UserId}", user.Id);
+                return Conflict(new { success = false, message = "Account security changed. Request a new reset link." });
+            }
 
             if (!result.Succeeded)
             {
-                var errors = string.Join(", ", result.Errors.Select(e => e.Description));
-                _logger.LogWarning("Password reset failed for {Email}: {Errors}", dto.Email, errors);
+                // Never log the submitted email, reset token or password.
+                _logger.LogWarning("Password reset rejected for user {UserId}", user.Id);
                 return BadRequest(new { success = false, message = "Password reset failed. The link may have expired." });
             }
-
-            await AuthSessionRegistry.RevokeAllAsync(_db, user.Id);
             _logger.LogInformation("Password reset successfully for user {UserId}", user.Id);
             return Ok(new { success = true, message = "Password reset successful." });
         }
@@ -827,14 +838,20 @@ namespace EduOS.App.Controllers.Api
             if (!await _userManager.CheckPasswordAsync(user, dto.CurrentPassword))
                 return BadRequest(new { success = false, message = "Current password is incorrect." });
 
-            user.UpdatedAt = DateTime.UtcNow;
-            var result = await _userManager.ChangePasswordAsync(user, dto.CurrentPassword, dto.NewPassword);
+            IdentityResult result;
+            try
+            {
+                result = await AuthCredentialRotation.ChangePasswordAsync(
+                    _db, _userManager, user, dto.CurrentPassword, dto.NewPassword, HttpContext.RequestAborted);
+            }
+            catch (DbUpdateConcurrencyException)
+            {
+                _logger.LogWarning("Concurrent password change rejected for user {UserId}", user.Id);
+                return Conflict(new { success = false, message = "Account security changed. Sign in again." });
+            }
 
             if (!result.Succeeded)
                 return BadRequest(new { success = false, message = string.Join(" | ", result.Errors.Select(x => x.Description)) });
-
-            // Password changes revoke all server-side sessions as well as security stamps.
-            await AuthSessionRegistry.RevokeAllAsync(_db, user.Id);
             await _signInManager.SignOutAsync();
             _logger.LogInformation("Password changed successfully for user {UserId}", user.Id);
             return Ok(new { success = true, message = "Password changed. Please sign in again.", redirectUrl = "/Account/Login" });
