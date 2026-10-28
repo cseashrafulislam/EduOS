@@ -27,7 +27,7 @@ public sealed partial class AssessmentAdministrationService
             x.TenantId == tenant && x.Id == offering.AcademicBatchId && x.IsActive && !x.IsDeleted, ct);
         if (batch == null || batch.CampusId != exam.CampusId || batch.AcademicYearId != exam.AcademicYearId)
             return Error<AssessmentMarkReviewDto>("Assessment subject scope is inconsistent.", 409);
-        var canSubmit = await CanEditOfferingAsync(subject.SubjectOfferingId, ct);
+        var canSubmit = await CanSubmitReviewAsync(subject.SubjectOfferingId, ct);
         if (!canSubmit && !CanPublish()) return Error<AssessmentMarkReviewDto>("Instructor assignment required.", 403);
         return ApiResponse<AssessmentMarkReviewDto>.SuccessResponse(
             await MapMarkReviewAsync(subject, exam, canSubmit, ct));
@@ -60,7 +60,7 @@ public sealed partial class AssessmentAdministrationService
                 x.TenantId == tenant && x.Id == offering.AcademicBatchId && x.IsActive && !x.IsDeleted, token);
             if (batch == null || batch.CampusId != exam.CampusId || batch.AcademicYearId != exam.AcademicYearId)
                 return Error<AssessmentMarkReviewDto>("Assessment subject scope is inconsistent.", 409);
-            var canSubmit = await CanEditOfferingAsync(subject.SubjectOfferingId, token);
+            var canSubmit = await CanSubmitReviewAsync(subject.SubjectOfferingId, token);
             if (request.Decision == AssessmentMarkReviewDecision.Submitted ? !canSubmit : !CanPublish())
                 return Error<AssessmentMarkReviewDto>("Mark review permission denied.", 403);
             var previousRequest = await _markReviews.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
@@ -152,6 +152,16 @@ public sealed partial class AssessmentAdministrationService
         }, ct);
     }
 
+    // A submission is always owned by an active teacher assigned to the exact offering.
+    // Administrative marks access does not automatically grant submission authorship.
+    private async Task<bool> CanSubmitReviewAsync(long offeringId, CancellationToken ct)
+    {
+        var employeeId = await OwnTeacherIdAsync(ct);
+        return employeeId > 0 && await _instructors.GetQueryable().AsNoTracking().AnyAsync(x =>
+            x.TenantId == _user.TenantId && x.SubjectOfferingId == offeringId &&
+            x.EmployeeId == employeeId && x.IsActive && !x.IsDeleted, ct);
+    }
+
     private async Task<AssessmentMarkReviewDto> MapMarkReviewAsync(AssessmentSubject subject,
         Assessment exam, bool canSubmit, CancellationToken ct)
     {
@@ -166,7 +176,7 @@ public sealed partial class AssessmentAdministrationService
             }).ToListAsync(ct);
         var latest = await query.OrderByDescending(x => x.Id).Select(x => new
         {
-            x.Decision, x.MarkRowVersion
+            x.Decision, x.MarkRowVersion, x.ActorUserId
         }).FirstOrDefaultAsync(ct);
         return new AssessmentMarkReviewDto
         {
@@ -176,6 +186,7 @@ public sealed partial class AssessmentAdministrationService
                 (latest == null || latest.Decision == AssessmentMarkReviewDecision.Rejected),
             CanReview = CanPublish() && exam.State == AssessmentState.MarksEntry &&
                 latest?.Decision == AssessmentMarkReviewDecision.Submitted &&
+                latest.ActorUserId != _user.UserId &&
                 latest.MarkRowVersion == Version(subject.RowVersion)
         };
     }

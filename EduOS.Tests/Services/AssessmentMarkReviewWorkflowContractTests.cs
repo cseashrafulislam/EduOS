@@ -21,7 +21,9 @@ public sealed class AssessmentMarkReviewWorkflowContractTests
         var service = Read("EduOS.Service/Services/Assessment/AssessmentAdministrationService.MarkReviews.cs");
         service.Should().Contain("x.TenantId == tenant && x.Id == subjectId");
         service.Should().Contain("CanAccessCampusAsync(exam.CampusId");
-        service.Should().Contain("CanEditOfferingAsync(subject.SubjectOfferingId");
+        service.Should().Contain("CanSubmitReviewAsync(subject.SubjectOfferingId");
+        service.Should().Contain("x.EmployeeId == employeeId && x.IsActive && !x.IsDeleted");
+        service.Should().Contain("latest.ActorUserId != _user.UserId");
         service.Should().Contain("latest.ActorUserId == _user.UserId");
         service.Should().Contain("Matches(exam.RowVersion, request.AssessmentRowVersion)");
         service.Should().Contain("latest.MarkRowVersion != Version(subject.RowVersion)");
