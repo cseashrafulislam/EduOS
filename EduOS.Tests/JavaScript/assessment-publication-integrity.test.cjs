@@ -25,6 +25,6 @@ test('integrity rows are DOM-encoded and CSV is limited to authorized page', () 
     assert.match(js, /tr\.append\(cell\(row\.summaryId\), cell\(row\.studentEnrollmentId\), cell\(row\.issueCode\)\)/);
     assert.match(js, /data\.items\.map\(row => \[data\.publicationId/);
     assert.match(js, /replace\(\/"\/g, '""'\)/);
-    assert.match(js, /'page-' \+ data\.page/);
+    assert.match(js, /'-page-' \+ data\.page/);
     assert.doesNotMatch(js, /innerHTML\s*=/);
 });
