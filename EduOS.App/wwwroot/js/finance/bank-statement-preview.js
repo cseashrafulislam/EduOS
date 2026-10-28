@@ -72,6 +72,7 @@ if (panel) {
     let report = null, comparisonFrom = '', revision = 0, previewRequest = null;
     let requestKey = null, draftPage = 1, draftDetail = null, draftRevision = 0;
     let savedReview = null, matchHistory = null, matchPage = 1, approvalStatus = null;
+    let evidenceReport = null;
     // Any changed input invalidates the exported evidence, including edits during a request.
     const invalidate = () => {
         revision++;
@@ -201,7 +202,17 @@ if (panel) {
         document.body.appendChild(a); a.click(); a.remove();
         setTimeout(() => URL.revokeObjectURL(url), 1000);
     };
+    const resetEvidence = () => {
+        evidenceReport = null;
+        el('statementEvidencePanel').classList.add('d-none');
+        el('statementEvidenceSummary').textContent = '';
+        el('statementEvidenceRows').replaceChildren();
+        el('statementEvidenceApprovals').replaceChildren();
+        el('statementEvidenceCsv').disabled = true;
+        el('statementEvidencePrint').disabled = true;
+    };
     const resetDraft = () => {
+        resetEvidence();
         draftRevision++;
         draftDetail = null;
         savedReview = null;
@@ -245,7 +256,8 @@ if (panel) {
                 escapeHtml(x.movementCount) + '</td><td>' + escapeHtml(({1:'Draft',2:'Submitted',3:'Cleared',4:'Reversal pending',5:'Reversed'})[x.stateCode] || 'Unknown') + '</td><td>' +
                 escapeHtml(x.preparedAt) + '</td><td><button type="button" class="btn btn-outline-primary btn-sm" data-draft-id="' +
                 escapeHtml(x.id) + '">View</button> <button type="button" class="btn btn-outline-secondary btn-sm" data-review-id="' +
-                escapeHtml(x.id) + '">Review</button></td></tr>').join('') ||
+                escapeHtml(x.id) + '">Review</button> <button type="button" class="btn btn-outline-secondary btn-sm" data-evidence-id="' +
+                escapeHtml(x.id) + '">Evidence</button></td></tr>').join('') ||
                 '<tr><td colspan="6">No saved statement drafts for this bank.</td></tr>';
             el('statementDraftPage').textContent = 'Page ' + page + ' of ' + Math.max(1,result.totalPages);
             el('statementDraftPrev').disabled = !result.hasPreviousPage;
@@ -324,6 +336,7 @@ if (panel) {
             if (seq !== draftRevision || !savedReview || savedReview.draft.id !== batch.id ||
                 el('statementBank').value !== bank) return;
             show('Draft matching event #' + result.id + ' recorded. Not approved or cleared.');
+            resetEvidence();
             await loadMatchHistory(1);
         } catch (e) { if (seq === draftRevision) show(e.message, true); }
         finally { button.disabled = false; }
@@ -380,6 +393,7 @@ if (panel) {
             if (seq !== draftRevision || !savedReview || savedReview.draft.id !== id ||
                 el('statementBank').value !== bank) return;
             show('Reconciliation transition #' + result.id + ' recorded; posted journals unchanged.');
+            resetEvidence();
             await loadApprovalStatus();
             await loadMatchHistory(1);
         } catch (e) { if (seq === draftRevision) show(e.message, true); }
@@ -414,11 +428,102 @@ if (panel) {
                 x.actorUserId,x.eventAt,x.isWithdrawn ? 'Yes' : 'No',x.reason])],
             'bank-match-history-' + savedReview.draft.id + '-page-' + matchPage + '.csv');
     });
+    // Historical report: snapshot and approval evidence only; never claim current live bank clearance.
+    el('statementDraftRows').addEventListener('click', async event => {
+        const button = event.target.closest('button[data-evidence-id]');
+        if (!button) return;
+        const id = button.dataset.evidenceId, seq = draftRevision, bank = el('statementBank').value;
+        resetEvidence();
+        button.disabled = true;
+        try {
+            const result = await get(draftBase + '/' + encodeURIComponent(id) + '/evidence');
+            if (seq !== draftRevision || el('statementBank').value !== bank ||
+                String(result.statement.bankAccountId) !== bank) return;
+            evidenceReport = result;
+            const d = result.statement;
+            const label = approvalLabels[result.stateCode] || 'Unknown';
+            el('statementEvidenceSummary').textContent =
+                d.statementIdentifier + ' · ' + d.fromDate + ' – ' + d.toDate +
+                ' · ' + label + ' · ' + result.confirmedCount + ' confirmed, ' +
+                result.unmatchedCount + ' unmatched · deposits BDT ' +
+                money(result.totalDeposits) + ', withdrawals BDT ' +
+                money(result.totalWithdrawals) + '. Historical evidence; not a live bank balance.';
+            el('statementEvidenceRows').innerHTML = (result.rows || []).map(x =>
+                '<tr><td>' + escapeHtml(x.rowNumber) + '</td><td>' + escapeHtml(x.date) +
+                '</td><td>' + escapeHtml(x.reference) + '</td><td class="text-end">' +
+                money(x.deposit) + '</td><td class="text-end">' + money(x.withdrawal) +
+                '</td><td>' + escapeHtml(x.matchEventId || 'Unmatched') +
+                '</td><td>' + escapeHtml(x.journalLineId) + '</td><td>' +
+                escapeHtml(x.journalLineVersion) + '</td></tr>').join('');
+            el('statementEvidenceApprovals').innerHTML = (result.approvalEvents || []).map(x =>
+                '<tr><td>' + escapeHtml(approvalLabels[x.actionCode]) + '</td><td>' +
+                escapeHtml(x.actorUserId) + '</td><td>' + escapeHtml(x.eventAt) +
+                '</td><td>' + escapeHtml(x.matchedCount) + '</td><td><code>' +
+                escapeHtml(x.evidenceFingerprint) + '</code></td><td>' +
+                escapeHtml(x.reason) + '</td></tr>').join('') ||
+                '<tr><td colspan="6">No approval history.</td></tr>';
+            el('statementEvidencePanel').classList.remove('d-none');
+            el('statementEvidenceCsv').disabled = false;
+            el('statementEvidencePrint').disabled = false;
+        } catch (e) { if (seq === draftRevision) show(e.message, true); }
+        finally { button.disabled = false; }
+    });
+    const evidenceRows = () => {
+        const r = evidenceReport, d = r.statement;
+        return [
+            ['Statement','State','Period From','Period To','Opening','Closing','Fingerprint'],
+            [d.statementIdentifier,approvalLabels[r.stateCode],d.fromDate,d.toDate,
+                money(d.openingBalance),money(d.closingBalance),d.sourceFingerprint],
+            ['Row','Date','Reference','Deposit','Withdrawal','Match Event','Journal Line','Archived Line Version'],
+            ...(r.rows || []).map(x => [x.rowNumber,x.date,x.reference,money(x.deposit),
+                money(x.withdrawal),x.matchEventId || 'Unmatched',x.journalLineId,x.journalLineVersion]),
+            ['Total','','',money(r.totalDeposits),money(r.totalWithdrawals),
+                r.confirmedCount + ' confirmed',r.unmatchedCount + ' unmatched',''],
+            ['Action','Actor','UTC','Matched','Evidence SHA256','Reason'],
+            ...(r.approvalEvents || []).map(x => [approvalLabels[x.actionCode],x.actorUserId,
+                x.eventAt,x.matchedCount,x.evidenceFingerprint,x.reason])
+        ];
+    };
+    el('statementEvidenceCsv').addEventListener('click', () => {
+        if (!evidenceReport) return;
+        download(evidenceRows(), 'bank-reconciliation-evidence-' + evidenceReport.statement.id + '.csv');
+    });
+    el('statementEvidencePrint').addEventListener('click', () => {
+        if (!evidenceReport) return;
+        const popup = window.open('', '_blank', 'width=980,height=740');
+        if (!popup) return show('Allow a print window to print historical evidence.', true);
+        popup.opener = null;
+        const doc = popup.document;
+        doc.title = 'Bank reconciliation evidence ' + evidenceReport.statement.id;
+        const heading = doc.createElement('h1');
+        heading.textContent = 'Bank reconciliation — historical evidence';
+        doc.body.appendChild(heading);
+        const note = doc.createElement('p');
+        note.textContent = el('statementEvidenceSummary').textContent;
+        doc.body.appendChild(note);
+        const rows = evidenceRows();
+        const table = doc.createElement('table');
+        table.setAttribute('border', '1');
+        table.setAttribute('cellpadding', '5');
+        rows.forEach(values => {
+            const tr = doc.createElement('tr');
+            values.forEach(value => {
+                const td = doc.createElement('td');
+                td.textContent = String(value ?? '');
+                tr.appendChild(td);
+            });
+            table.appendChild(tr);
+        });
+        doc.body.appendChild(table);
+        popup.focus();
+        popup.print();
+    });
     el('statementDraftRows').addEventListener('click', async event => {
         const button = event.target.closest('button[data-draft-id],button[data-review-id]');
         if (!button) return;
         const reviewing = button.hasAttribute('data-review-id');
         const id = reviewing ? button.dataset.reviewId : button.dataset.draftId;
+        resetEvidence();
         const seq = draftRevision, bank = el('statementBank').value;
         button.disabled = true;
         try {

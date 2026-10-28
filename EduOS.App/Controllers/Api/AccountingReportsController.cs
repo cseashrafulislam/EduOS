@@ -76,6 +76,9 @@ public sealed class AccountingReportsController : ControllerBase
     public async Task<IActionResult> RecordBankMatchEvent(
         [FromBody] EduOS.Core.DTOs.Accounting.BankReconciliationMatchCommandDto request, CancellationToken ct)
         => Reply(await service.RecordBankReconciliationMatchEventAsync(request, ct));
+    [HttpGet("bank-reconciliations/{batchId:long}/evidence"), Authorize(Roles = "TenantAdmin")]
+    public async Task<IActionResult> BankEvidence(long batchId, CancellationToken ct)
+        => Reply(await service.GetBankReconciliationEvidenceAsync(batchId, ct));
     [HttpGet("bank-reconciliations/{batchId:long}/approval"), Authorize(Roles = "TenantAdmin")]
     public async Task<IActionResult> BankApprovalStatus(long batchId, CancellationToken ct)
         => Reply(await service.GetBankReconciliationApprovalStatusAsync(batchId, ct));

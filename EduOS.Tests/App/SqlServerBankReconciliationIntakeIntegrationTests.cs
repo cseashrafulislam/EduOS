@@ -202,6 +202,18 @@ public sealed class SqlServerBankReconciliationIntakeIntegrationTests
         Assert.True(reversed.Success, reversed.Message);
         Assert.Equal(5, (await reversalService.GetBankReconciliationApprovalStatusAsync(confirm.BatchId)).Data!.StateCode);
         Assert.Equal(4, await reversalDb.BankReconciliationApprovalEvents.CountAsync());
+        var evidence = await reversalService.GetBankReconciliationEvidenceAsync(confirm.BatchId);
+        Assert.True(evidence.Success, evidence.Message);
+        Assert.Equal(5, evidence.Data!.StateCode);
+        Assert.Equal(1, evidence.Data.ConfirmedCount);
+        Assert.Equal(0, evidence.Data.UnmatchedCount);
+        Assert.Equal(100m, evidence.Data.TotalDeposits);
+        Assert.Equal(0m, evidence.Data.TotalWithdrawals);
+        Assert.Equal(renewed.Data!.Id, evidence.Data.Rows.Single().MatchEventId);
+        Assert.Equal(exact.JournalLineId, evidence.Data.Rows.Single().JournalLineId);
+        Assert.Equal(4, evidence.Data.ApprovalEvents.Count);
+        Assert.Equal(cleared.Data!.EvidenceFingerprint, evidence.Data.ClearanceFingerprint);
+
         var immutableApproval = await reversalDb.BankReconciliationApprovalEvents.FirstAsync();
         immutableApproval.Reason = "FORGED";
         await Assert.ThrowsAsync<InvalidOperationException>(() => reversalDb.SaveChangesAsync());
@@ -235,6 +247,8 @@ public sealed class SqlServerBankReconciliationIntakeIntegrationTests
         var otherService = new AccountingReportingService(otherDb, new TestUser(otherTenantId, otherUserId));
         Assert.Equal(404, (await otherService.GetBankReconciliationDraftAsync(saved.Data.Id)).StatusCode);
         Assert.Equal(404, (await otherService.GetBankReconciliationApprovalStatusAsync(saved.Data.Id)).StatusCode);
+        Assert.Equal(404, (await otherService.GetBankReconciliationEvidenceAsync(saved.Data.Id)).StatusCode);
+
         Assert.Equal(404, (await otherService.ReviewSavedBankReconciliationAsync(saved.Data.Id)).StatusCode);
         Assert.Equal(404, (await otherService.GetBankReconciliationDraftsAsync(bankId)).StatusCode);
     }
