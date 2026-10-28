@@ -47,7 +47,8 @@ public sealed class AssessmentComponentMarksWorkspaceContractTests
     public void Component_writes_block_published_and_ineligible_records()
     {
         var source = Read("EduOS.Service", "Services", "Assessment", "AssessmentAdministrationService.Documents.cs");
-        source.Should().Contain("Published component marks cannot be edited.");
+        source.Should().Contain("Published or withdrawn component marks require an approved, audited amendment.");
+        source.Should().Contain("HasFinalizedPublicationAsync(exam.Id, batch.Id, token)");
         source.Should().Contain("EligibleAsync(offering.Id, batch.Id, token)");
         source.Should().Contain("batch.CampusId != exam.CampusId");
         source.Should().Contain("Component mark already recorded.");
