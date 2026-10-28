@@ -1,0 +1,44 @@
+@{
+    ViewData["Title"] = "Scholarship & Discount Awards";
+}
+<section class="container-fluid py-3" id="discountAwardRegister">
+    <header class="d-flex justify-content-between align-items-center gap-2 mb-3">
+        <h1 class="h4 mb-0">Scholarship &amp; Discount Awards</h1>
+        <div class="d-flex align-items-center gap-2">
+            <details class="position-relative">
+                <summary class="btn btn-outline-secondary btn-sm" aria-label="Award register help" title="Award register help">ⓘ</summary>
+                <div class="small border bg-body rounded p-2 position-absolute end-0 shadow-sm" style="width:19rem;z-index:10">
+                    Awarded rules affect future invoices only. Rule values are not realized discounts or GL postings. CSV contains only the visible page.
+                </div>
+            </details>
+            <a href="/FinanceAdjustments/Index" class="btn btn-outline-secondary btn-sm">Adjustments</a>
+        </div>
+    </header>
+    <div id="awardNotice" class="alert d-none" role="status" aria-live="polite"></div>
+    <form id="awardFilters" class="card card-body row g-2 align-items-end mb-3">
+        <div class="col-md-2"><label for="awardCampus" class="form-label">Campus ID</label><input id="awardCampus" type="number" min="1" class="form-control" placeholder="All" /></div>
+        <div class="col-md-2"><label for="awardRule" class="form-label">Rule ID</label><input id="awardRule" type="number" min="1" class="form-control" placeholder="All" /></div>
+        <div class="col-md-2"><label for="awardState" class="form-label">Assignment</label><select id="awardState" class="form-select"><option value="">All</option><option value="true">Enabled</option><option value="false">Deactivated</option></select></div>
+        <div class="col-md-3"><label for="awardSearch" class="form-label">Student code / rule prefix</label><input id="awardSearch" maxlength="100" class="form-control" /></div>
+        <div class="col-md-1"><label for="awardSize" class="form-label">Rows</label><select id="awardSize" class="form-select"><option>25</option><option>50</option><option>100</option></select></div>
+        <div class="col-md-2 d-grid"><button id="awardRun" type="submit" class="btn btn-primary">Run register</button></div>
+    </form>
+    <section class="card">
+        <div class="card-header d-flex justify-content-between align-items-center gap-2">
+            <strong id="awardTotals">No register loaded</strong>
+            <button id="awardExport" type="button" class="btn btn-outline-primary btn-sm" disabled>Export page CSV</button>
+        </div>
+        <div class="table-responsive"><table class="table table-sm table-striped align-middle mb-0">
+            <thead><tr><th>Student code</th><th>Campus</th><th>Rule</th><th>Value</th><th>From</th><th>To</th><th>Status</th><th>Approved by ID</th></tr></thead>
+            <tbody id="awardRows"><tr><td colspan="8" class="text-center p-3">Run the register.</td></tr></tbody>
+        </table></div>
+        <div class="card-footer d-flex align-items-center gap-2">
+            <button id="awardPrev" type="button" class="btn btn-outline-secondary btn-sm" disabled>Previous</button>
+            <span id="awardPage" class="small" aria-live="polite">—</span>
+            <button id="awardNext" type="button" class="btn btn-outline-secondary btn-sm" disabled>Next</button>
+        </div>
+    </section>
+</section>
+@section Scripts {
+    <script src="~/js/finance/discount-awards.js" asp-append-version="true"></script>
+}

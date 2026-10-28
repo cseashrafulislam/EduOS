@@ -5,6 +5,7 @@ namespace EduOS.Core.Interfaces.IServices;
 
 public interface IFinanceAdjustmentService
 {
+    Task<ApiResponse<DiscountAwardRegisterDto>> GetDiscountAwardRegisterAsync(long? campusId, long? ruleId, bool? active, string? search, int page = 1, int pageSize = 25, CancellationToken cancellationToken = default);
     Task<ApiResponse<HostelOccupiedTransferFinanceReviewDto>> ReviewHostelOccupiedTransferAsync(HostelOccupiedTransferFinanceReviewRequestDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<ReservationFinanceChangeReviewDto>> ReviewReservationChangeAsync(ReservationFinanceChangeReviewRequestDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<ReservationFinanceWorklistDto>> GetReservationFinanceWorklistAsync(ReservationFinanceWorklistQueryDto request, CancellationToken cancellationToken = default);

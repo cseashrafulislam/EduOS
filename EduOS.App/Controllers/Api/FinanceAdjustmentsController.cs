@@ -42,6 +42,12 @@ public sealed class FinanceAdjustmentsController : ControllerBase
     public async Task<IActionResult> ReservationPreflight([FromQuery] string kind, [FromQuery] long id, CancellationToken ct)
         => Reply(await service.GetReservationFinancePreflightAsync(kind, id, ct));
 
+    [HttpGet("discount-awards")]
+    public async Task<IActionResult> DiscountAwards([FromQuery] long? campusId, [FromQuery] long? ruleId,
+        [FromQuery] bool? active, [FromQuery] string? search, [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 25, CancellationToken ct = default)
+        => Reply(await service.GetDiscountAwardRegisterAsync(campusId, ruleId, active, search, page, pageSize, ct));
+
     [HttpGet("discount-rules")]
     public async Task<IActionResult> DiscountRules(CancellationToken ct) => Reply(await service.GetDiscountRulesAsync(ct));
     [HttpPost("discount-rules")]
