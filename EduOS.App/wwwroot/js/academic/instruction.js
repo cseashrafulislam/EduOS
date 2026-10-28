@@ -6,7 +6,7 @@
     const manager = root.dataset.canManage === 'true';
     const teacher = root.dataset.canTeach === 'true';
     const statuses = {1:'Draft',2:'Submitted',3:'Approved',4:'Rejected',5:'In progress',6:'Completed'};
-    const state = { batches: [], offerings: [], instructors: [], routines: [], lessons: [], substitutions: [], editingId: null, lessonPage: 1, lessonPages: 1, lessonCount: 0, substitutionPage: 1, substitutionPages: 1, substitutionCount: 0, requestSeq: 0, draftRequestId: null, substitutionRequestId: null, routinePage: 1, routinePages: 1, routineCount: 0, routineRequestSeq: 0, offeringPage: 1, offeringPages: 1, offeringCount: 0, offeringRequestSeq: 0 };
+    const state = { batches: [], offerings: [], instructors: [], routines: [], lessons: [], substitutions: [], editingId: null, lessonPage: 1, lessonPages: 1, lessonCount: 0, substitutionPage: 1, substitutionPages: 1, substitutionCount: 0, requestSeq: 0, draftRequestId: null, substitutionRequestId: null, routinePage: 1, routinePages: 1, routineCount: 0, routineRequestSeq: 0, offeringPage: 1, offeringPages: 1, offeringCount: 0, offeringRequestSeq: 0, teacherPage: 1, teacherPages: 1, teacherCount: 0, teacherRequestSeq: 0 };
     const dateOnly = value => value ? String(value).slice(0,10) : '';
     const dateForApi = value => value; // ASP.NET DateOnly accepts yyyy-MM-dd, not a timestamp.
     const option = (value, text) => { const e=document.createElement('option');e.value=String(value);e.textContent=text;return e; };
@@ -46,10 +46,10 @@
         resetEditor();
         const id=Number(get('instructionBatch').value);
         get('lessonNew').disabled=!id;
-        state.lessonPage=1;state.substitutionPage=1;state.offeringPage=1;state.offeringPages=1;state.offeringCount=0;state.offeringRequestSeq++;state.routineRequestSeq++;
-        state.routinePage=1;state.routinePages=1;state.routineCount=0;
+        state.lessonPage=1;state.substitutionPage=1;state.offeringPage=1;state.offeringPages=1;state.offeringCount=0;state.offeringRequestSeq++;state.routineRequestSeq++;state.teacherRequestSeq++;
+        state.routinePage=1;state.teacherPage=1;state.teacherPages=1;state.teacherCount=0;state.routinePages=1;state.routineCount=0;
         if(manager){get('substitutionRoutineSearch').value='';if(!get('substitutionDate').value)get('substitutionDate').value=get('instructionTo').value;}
-        get('lessonOfferingSearch').value='';state.offerings=[];state.instructors=[];state.routines=[];state.lessons=[];state.substitutions=[];renderLessons([]);renderSubstitutions([]);updateLessonPager();updateSubstitutionPager();updateOfferingPager();if(manager)updateRoutinePager();
+        get('lessonOfferingSearch').value='';state.offerings=[];state.instructors=[];state.routines=[];state.lessons=[];state.substitutions=[];setOptions('substitutionTeacher',[],'Select substitute instructor');if(manager)updateTeacherPager();renderLessons([]);renderSubstitutions([]);updateLessonPager();updateSubstitutionPager();updateOfferingPager();if(manager)updateRoutinePager();
         if(id)load();
     }
     async function init() {
@@ -98,15 +98,38 @@
             Number(get('instructionBatch').value) !== batchId) return;
         applyOfferingPage(result, page);
     }
-    async function findInstructors() {
+    function updateTeacherPager() {
         if (!manager) return;
+        get('substitutionTeacherPage').textContent = 'Page ' + state.teacherPage + ' / ' +
+            state.teacherPages + ' (' + state.teacherCount + ' teachers)';
+        get('substitutionTeacherPrevious').disabled = state.teacherPage <= 1;
+        get('substitutionTeacherNext').disabled = state.teacherPage >= state.teacherPages;
+    }
+    async function findInstructors(page = 1) {
+        if (!manager) return;
+        const batchId = Number(get('instructionBatch').value);
+        if (!batchId) throw new Error('Select an academic batch first.');
         const search = get('substitutionTeacherSearch').value.trim();
-        if (search.length > 100) throw new Error('Instructor search is too long.');
-        const choices = await api('/api/academic-routines/instructors?' + new URLSearchParams({ search }));
-        state.instructors = choices || [];
+        if (search.length > 100 || !Number.isSafeInteger(page) || page < 1)
+            throw new Error('Invalid instructor search or page.');
+        const seq = ++state.teacherRequestSeq;
+        const query = new URLSearchParams({ page: String(page), pageSize: '50' });
+        if (search) query.set('search', search);
+        const result = await api('/api/academic-routines/batches/' + batchId + '/instructors/page?' + query);
+        if (seq !== state.teacherRequestSeq || Number(get('instructionBatch').value) !== batchId ||
+            get('substitutionTeacherSearch').value.trim() !== search) return;
+        if (!result || !Array.isArray(result.items)) throw new Error('Invalid instructor page response.');
+        const selected = get('substitutionTeacher').value;
+        state.instructors = result.items;
+        state.teacherPage = Number(result.page || page);
+        state.teacherPages = Math.max(1, Number(result.totalPages || 1));
+        state.teacherCount = Number(result.totalCount || 0);
         setOptions('substitutionTeacher', state.instructors.map(x => ({
             id: x.employeeReference, name: [x.employeeCode, x.name].filter(Boolean).join(' / ')
         })), 'Select substitute instructor');
+        if (state.instructors.some(x => x.employeeReference === selected))
+            get('substitutionTeacher').value = selected;
+        updateTeacherPager();
     }
 
     async function fetchRoutinePage(batchId, date, page, search) {
@@ -214,7 +237,7 @@
             renderLessons(state.lessons); renderSubstitutions(state.substitutions);
             setAssignments(); updateLessonPager(); updateSubstitutionPager();
             if (manager) {
-                try { await findInstructors(); }
+                try { await findInstructors(state.teacherPage); }
                 catch (e) { if (seq === state.requestSeq) status('warning', 'Instructor search: ' + e.message); }
             }
             if (offeringResult.status === 'rejected' || (manager && routineResult.status === 'rejected'))
@@ -431,7 +454,17 @@
     get('lessonRows').addEventListener('click',e=>{const button=e.target.closest('button[data-action]');if(button)lessonAction(button.dataset.action,Number(button.dataset.id));});
     get('substitutionRows').addEventListener('click',e=>{const button=e.target.closest('button[data-action]');if(button&&button.dataset.action==='cancelSub')substitutionAction(Number(button.dataset.id));});
     get('substitutionForm')?.addEventListener('submit',saveSub);
-    get('substitutionTeacherFind')?.addEventListener('click',()=>findInstructors().catch(e=>status('danger',e.message)));
+    get('substitutionTeacherFind')?.addEventListener('click',()=>findInstructors(1).catch(e=>status('danger',e.message)));
+    get('substitutionTeacherSearch')?.addEventListener('keydown',e=>{
+        if(e.key!=='Enter')return;e.preventDefault();
+        findInstructors(1).catch(error=>status('danger',error.message));
+    });
+    get('substitutionTeacherPrevious')?.addEventListener('click',()=>{
+        if(state.teacherPage>1)findInstructors(state.teacherPage-1).catch(e=>status('danger',e.message));
+    });
+    get('substitutionTeacherNext')?.addEventListener('click',()=>{
+        if(state.teacherPage<state.teacherPages)findInstructors(state.teacherPage+1).catch(e=>status('danger',e.message));
+    });
     get('substitutionRoutineFind')?.addEventListener('click',()=>findRoutines(1).catch(e=>status('danger',e.message)));
     get('substitutionDate')?.addEventListener('change',()=>{state.routinePage=1;findRoutines(1).catch(e=>status('danger',e.message));});
     get('substitutionRoutineSearch')?.addEventListener('keydown',e=>{

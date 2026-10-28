@@ -702,6 +702,58 @@ public sealed class AcademicInstructionServiceTests
         (await manager.GetLessonPlansAsync(null, null, null, 1, 20)).Data!.TotalCount.Should().Be(0);
     }
 
+
+    [Fact]
+    public async Task Principal_substitution_requires_active_date_effective_staff_assignment_in_owned_campus()
+    {
+        var options = Options();
+        var seed = await SeedAsync(options);
+        await using var db = Context(options, 101, 9, "Principal");
+        var campusId = await db.AcademicBatches.Where(x => x.Id == seed.BatchId)
+            .Select(x => x.CampusId).SingleAsync();
+        var otherCampus = new Campus { TenantId = 101, Name = "Secondary", Code = "SECONDARY" };
+        db.Campuses.Add(otherCampus);
+        db.UserCampusAccesses.Add(new UserCampusAccess
+        {
+            TenantId = 101, UserId = 9, CampusId = campusId, IsActive = true
+        });
+        await db.SaveChangesAsync();
+        var substituteId = await db.Employees.Where(x => x.PublicId == seed.SubstituteReference)
+            .Select(x => x.Id).SingleAsync();
+        var manager = Service(db, 101, 9, "Principal");
+        var request = new CreateSubstitutionRequestDto
+        {
+            ClientRequestId = Guid.NewGuid(), RoutineEntryId = seed.RoutineEntryId,
+            Date = LessonDate, SubstituteEmployeeReference = seed.SubstituteReference
+        };
+        (await manager.CreateSubstitutionAsync(request)).StatusCode.Should().Be(403);
+        var staffCampus = new EmployeeCampusAssignment
+        {
+            TenantId = 101, EmployeeId = substituteId, CampusId = otherCampus.Id,
+            IsCurrent = true, EffectiveFrom = LessonDate.AddDays(-1)
+        };
+        db.EmployeeCampusAssignments.Add(staffCampus);
+        await db.SaveChangesAsync();
+        (await manager.CreateSubstitutionAsync(request)).StatusCode.Should().Be(403);
+        staffCampus.CampusId = campusId;
+        staffCampus.EffectiveFrom = LessonDate.AddDays(1);
+        await db.SaveChangesAsync();
+        (await manager.CreateSubstitutionAsync(request)).StatusCode.Should().Be(403);
+        staffCampus.EffectiveFrom = LessonDate.AddDays(-1);
+        staffCampus.IsCurrent = false;
+        await db.SaveChangesAsync();
+        (await manager.CreateSubstitutionAsync(request)).StatusCode.Should().Be(403);
+        staffCampus.IsCurrent = true;
+        await db.SaveChangesAsync();
+        (await manager.CreateSubstitutionAsync(request)).StatusCode.Should().Be(201);
+        (await manager.CreateSubstitutionAsync(request)).Success.Should().BeTrue();
+        (await db.Substitutions.CountAsync()).Should().Be(1);
+        staffCampus.IsCurrent = false;
+        await db.SaveChangesAsync();
+        (await manager.CreateSubstitutionAsync(request)).StatusCode.Should().Be(403);
+        (await db.Substitutions.CountAsync()).Should().Be(1);
+    }
+
     private static AcademicInstructionService Service(EduOSDbContext db, long tenant, long user, string role, TimeProvider? clock = null) => new(
         new GenericRepository<Substitution>(db),
         new GenericRepository<LessonPlan>(db),
@@ -715,6 +767,7 @@ public sealed class AcademicInstructionServiceTests
         new GenericRepository<UserCampusAccess>(db),
         new GenericRepository<Campus>(db),
         new GenericRepository<Employee>(db),
+        new GenericRepository<EmployeeCampusAssignment>(db),
         new GenericRepository<AcademicYear>(db),
         new GenericRepository<AcademicTerm>(db),
         db, new TestUser(tenant, user, role), clock ?? TimeProvider.System,

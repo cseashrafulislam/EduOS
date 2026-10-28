@@ -28,6 +28,7 @@ public sealed class AcademicInstructionService : IAcademicInstructionService
     private readonly IGenericRepository<UserCampusAccess> _campusAccesses;
     private readonly IGenericRepository<Campus> _campuses;
     private readonly IGenericRepository<Employee> _employees;
+    private readonly IGenericRepository<EmployeeCampusAssignment> _employeeCampusAssignments;
     private readonly IGenericRepository<AcademicYear> _years;
     private readonly IGenericRepository<AcademicTerm> _terms;
     private readonly IUnitOfWork _unitOfWork;
@@ -48,6 +49,7 @@ public sealed class AcademicInstructionService : IAcademicInstructionService
         IGenericRepository<UserCampusAccess> campusAccesses,
         IGenericRepository<Campus> campuses,
         IGenericRepository<Employee> employees,
+        IGenericRepository<EmployeeCampusAssignment> employeeCampusAssignments,
         IGenericRepository<AcademicYear> years,
         IGenericRepository<AcademicTerm> terms,
         IUnitOfWork unitOfWork,
@@ -67,6 +69,7 @@ public sealed class AcademicInstructionService : IAcademicInstructionService
         _campusAccesses = campusAccesses;
         _campuses = campuses;
         _employees = employees;
+        _employeeCampusAssignments = employeeCampusAssignments;
         _years = years;
         _terms = terms;
         _unitOfWork = unitOfWork;
@@ -322,6 +325,28 @@ public sealed class AcademicInstructionService : IAcademicInstructionService
                 x.TenantId == tenant && x.PublicId == request.SubstituteEmployeeReference &&
                 x.CanTeach && x.State == EmployeeState.Active && !x.IsDeleted, ct);
             if (employee == null) return Error<SubstitutionDto>("Active substitute instructor not found.", 404);
+            // The picker is not an authorization boundary: enforce live campus staff
+            // assignment on direct-ID writes and idempotent replays alike.
+            if (IsRestrictedManager())
+            {
+                var eligible = await (
+                    from entry in _routineEntries.GetQueryable().AsNoTracking()
+                    join offering in _subjectOfferings.GetQueryable().AsNoTracking()
+                        on entry.SubjectOfferingId equals offering.Id
+                    join batch in _academicBatches.GetQueryable().AsNoTracking()
+                        on offering.AcademicBatchId equals batch.Id
+                    join campusAssignment in _employeeCampusAssignments.GetQueryable().AsNoTracking()
+                        on batch.CampusId equals campusAssignment.CampusId
+                    where entry.TenantId == tenant && entry.Id == request.RoutineEntryId &&
+                        offering.TenantId == tenant && batch.TenantId == tenant &&
+                        AllowedManagerBatchIds(tenant).Contains(batch.Id) &&
+                        campusAssignment.TenantId == tenant && !campusAssignment.IsDeleted &&
+                        campusAssignment.EmployeeId == employee.Id && campusAssignment.IsCurrent &&
+                        campusAssignment.EffectiveFrom <= request.Date &&
+                        (!campusAssignment.EffectiveTo.HasValue || campusAssignment.EffectiveTo.Value >= request.Date)
+                    select campusAssignment.Id).AnyAsync(ct);
+                if (!eligible) return Denied<SubstitutionDto>();
+            }
             var replay = await _substitutions.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
                 x.TenantId == tenant && x.ClientRequestId == request.ClientRequestId && !x.IsDeleted, ct);
             if (replay != null)
