@@ -773,4 +773,27 @@
 	<data name="RevokeSession" xml:space="preserve"><value>Revoke</value></data>
 	<data name="SessionRevokeFailed" xml:space="preserve"><value>Unable to revoke session.</value></data>
 	<data name="LoadingSessions" xml:space="preserve"><value>Loading sessions...</value></data>
+	<data name="LoginActivityTitle" xml:space="preserve"><value>Sign-in activity</value></data>
+	<data name="LoginActivityHelpLabel" xml:space="preserve"><value>Sign-in activity help</value></data>
+	<data name="LoginActivityHelpText" xml:space="preserve"><value>Review your own sign-in attempts for this institution only. Unattributed attempts are excluded. Dates use UTC; exports contain at most 1,000 rows and omit device and network details.</value></data>
+	<data name="LoginActivityBack" xml:space="preserve"><value>Account security</value></data>
+	<data name="LoginActivityResult" xml:space="preserve"><value>Result</value></data>
+	<data name="LoginActivityAll" xml:space="preserve"><value>All attempts</value></data>
+	<data name="LoginActivitySuccess" xml:space="preserve"><value>Successful</value></data>
+	<data name="LoginActivityFailure" xml:space="preserve"><value>Unsuccessful</value></data>
+	<data name="LoginActivityFrom" xml:space="preserve"><value>From (UTC)</value></data>
+	<data name="LoginActivityTo" xml:space="preserve"><value>To (UTC)</value></data>
+	<data name="LoginActivityRefresh" xml:space="preserve"><value>Refresh</value></data>
+	<data name="LoginActivityExport" xml:space="preserve"><value>Export CSV</value></data>
+	<data name="LoginActivityTime" xml:space="preserve"><value>Time</value></data>
+	<data name="LoginActivityLoading" xml:space="preserve"><value>Loading...</value></data>
+	<data name="LoginActivityEmpty" xml:space="preserve"><value>No sign-in attempts found.</value></data>
+	<data name="LoginActivityError" xml:space="preserve"><value>Sign-in activity could not be loaded.</value></data>
+	<data name="LoginActivityExportError" xml:space="preserve"><value>Unable to export sign-in activity.</value></data>
+	<data name="LoginActivityRangeError" xml:space="preserve"><value>Choose both UTC dates, in order, no more than 365 days apart.</value></data>
+	<data name="LoginActivityPrevious" xml:space="preserve"><value>Previous</value></data>
+	<data name="LoginActivityNext" xml:space="preserve"><value>Next</value></data>
+	<data name="LoginActivityPage" xml:space="preserve"><value>Page</value></data>
+	<data name="LoginActivityOf" xml:space="preserve"><value>of</value></data>
+	<data name="LoginActivityAttempts" xml:space="preserve"><value>attempts</value></data>
 </root>

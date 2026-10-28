@@ -1,17 +1,50 @@
-@{ ViewData["Title"] = "Sign-in Activity"; }
-<section class="container-fluid py-3" aria-labelledby="loginActivityTitle">
-    <div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-3">
-        <div><h2 id="loginActivityTitle">Sign-in activity</h2><p class="text-muted mb-0">Review successful and unsuccessful sign-ins for your account. Only events attributed to the current institution are included. Unattributed attempts are excluded.</p></div>
-        <a class="btn btn-outline-primary" asp-controller="Account" asp-action="Profile">Account security</a>
-    </div>
-    <div id="loginActivityAlert" class="alert alert-danger d-none" role="alert"></div>
-    <div class="card"><div class="card-body">
-        <div class="d-flex flex-wrap align-items-end gap-2 mb-3">
-            <div><label for="loginActivityStatus" class="form-label">Result</label><select id="loginActivityStatus" class="form-select"><option value="">All attempts</option><option value="true">Successful</option><option value="false">Unsuccessful</option></select></div>
-            <button id="loginActivityRefresh" class="btn btn-outline-secondary" type="button">Refresh</button>
+@{ ViewData["Title"] = T["LoginActivityTitle"]; }
+<section class="container-fluid py-3" id="loginActivityRoot" aria-labelledby="loginActivityTitle"
+         data-success="@T["LoginActivitySuccess"]" data-failure="@T["LoginActivityFailure"]"
+         data-loading="@T["LoginActivityLoading"]" data-empty="@T["LoginActivityEmpty"]"
+         data-error="@T["LoginActivityError"]" data-export-error="@T["LoginActivityExportError"]"
+         data-range-error="@T["LoginActivityRangeError"]" data-page="@T["LoginActivityPage"]"
+         data-of="@T["LoginActivityOf"]" data-attempts="@T["LoginActivityAttempts"]">
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+        <div class="d-flex align-items-center gap-2">
+            <h2 id="loginActivityTitle" class="h4 mb-0">@T["LoginActivityTitle"]</h2>
+            <details class="position-relative">
+                <summary class="btn btn-sm btn-outline-secondary" aria-label="@T["LoginActivityHelpLabel"]" title="@T["LoginActivityHelpLabel"]">
+                    <i class="bi bi-info-circle" aria-hidden="true"></i>
+                </summary>
+                <div class="card shadow-sm position-absolute start-0 mt-1 p-3 small" style="width:min(19rem,80vw);z-index:20;">@T["LoginActivityHelpText"]</div>
+            </details>
         </div>
-        <div class="table-responsive"><table class="table table-striped table-hover align-middle"><thead><tr><th>Time</th><th>Result</th></tr></thead><tbody id="loginActivityRows"><tr><td colspan="2">Loading...</td></tr></tbody></table></div>
-        <div class="d-flex justify-content-between align-items-center gap-2"><span id="loginActivityPageInfo" class="small text-muted" aria-live="polite"></span><div class="btn-group"><button id="loginActivityPrev" class="btn btn-outline-secondary btn-sm" type="button">Previous</button><button id="loginActivityNext" class="btn btn-outline-secondary btn-sm" type="button">Next</button></div></div>
+        <a class="btn btn-outline-secondary btn-sm" asp-controller="Account" asp-action="Profile">@T["LoginActivityBack"]</a>
+    </div>
+    <div id="loginActivityAlert" class="alert alert-danger d-none" role="alert" aria-live="assertive"></div>
+    <div class="card shadow-sm border-0"><div class="card-body">
+        <div class="d-flex flex-wrap align-items-end gap-2 mb-3">
+            <div><label for="loginActivityStatus" class="form-label">@T["LoginActivityResult"]</label>
+                <select id="loginActivityStatus" class="form-select">
+                    <option value="">@T["LoginActivityAll"]</option>
+                    <option value="true">@T["LoginActivitySuccess"]</option>
+                    <option value="false">@T["LoginActivityFailure"]</option>
+                </select>
+            </div>
+            <div><label for="loginActivityFrom" class="form-label">@T["LoginActivityFrom"]</label>
+                <input id="loginActivityFrom" type="date" class="form-control" /></div>
+            <div><label for="loginActivityTo" class="form-label">@T["LoginActivityTo"]</label>
+                <input id="loginActivityTo" type="date" class="form-control" /></div>
+            <button id="loginActivityRefresh" class="btn btn-outline-secondary" type="button">@T["LoginActivityRefresh"]</button>
+            <button id="loginActivityExport" class="btn btn-outline-primary" type="button">@T["LoginActivityExport"]</button>
+        </div>
+        <div class="table-responsive"><table class="table table-striped table-hover align-middle">
+            <thead><tr><th scope="col">@T["LoginActivityTime"]</th><th scope="col">@T["LoginActivityResult"]</th></tr></thead>
+            <tbody id="loginActivityRows"><tr><td colspan="2">@T["LoginActivityLoading"]</td></tr></tbody>
+        </table></div>
+        <div class="d-flex justify-content-between align-items-center gap-2">
+            <span id="loginActivityPageInfo" class="small text-muted" aria-live="polite"></span>
+            <div class="btn-group">
+                <button id="loginActivityPrev" class="btn btn-outline-secondary btn-sm" type="button">@T["LoginActivityPrevious"]</button>
+                <button id="loginActivityNext" class="btn btn-outline-secondary btn-sm" type="button">@T["LoginActivityNext"]</button>
+            </div>
+        </div>
     </div></div>
 </section>
 @section Scripts { <script src="~/js/account/login-activity.js" asp-append-version="true"></script> }

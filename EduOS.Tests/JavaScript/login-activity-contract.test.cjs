@@ -29,7 +29,9 @@ test('sign-in activity uses canonical login history with account and tenant isol
     assert.match(di, /AddScoped<ILoginActivityService, LoginActivityService>/);
     assert.match(nav, /href="\/LoginActivity\/Index"/);
     assert.match(view, /login-activity\.js/);
-    assert.match(view, /Unattributed attempts are excluded/);
+    assert.match(view, /LoginActivityHelpText/);
+    assert.match(view, /loginActivityExport/);
+    assert.match(view, /loginActivityFrom/);
     assert.match(js, /credentials: 'same-origin'/);
     assert.match(js, /cell\.textContent/);
     assert.doesNotMatch(js, /innerHTML/);

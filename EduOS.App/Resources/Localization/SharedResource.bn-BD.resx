@@ -772,4 +772,27 @@
 	<data name="RevokeSession" xml:space="preserve"><value>বাতিল করুন</value></data>
 	<data name="SessionRevokeFailed" xml:space="preserve"><value>সেশন বাতিল করা যায়নি।</value></data>
 	<data name="LoadingSessions" xml:space="preserve"><value>সেশন লোড হচ্ছে...</value></data>
+	<data name="LoginActivityTitle" xml:space="preserve"><value>সাইন-ইন কার্যক্রম</value></data>
+	<data name="LoginActivityHelpLabel" xml:space="preserve"><value>সাইন-ইন কার্যক্রমের সহায়তা</value></data>
+	<data name="LoginActivityHelpText" xml:space="preserve"><value>শুধু এই প্রতিষ্ঠানে আপনার নিজের সাইন-ইন প্রচেষ্টা দেখুন। প্রতিষ্ঠান নির্ধারিত নয় এমন প্রচেষ্টা দেখানো হয় না। তারিখ UTC অনুযায়ী; সর্বোচ্চ ১,০০০ সারি রপ্তানি করা যাবে, ডিভাইস ও নেটওয়ার্ক তথ্য ছাড়া।</value></data>
+	<data name="LoginActivityBack" xml:space="preserve"><value>অ্যাকাউন্ট নিরাপত্তা</value></data>
+	<data name="LoginActivityResult" xml:space="preserve"><value>ফলাফল</value></data>
+	<data name="LoginActivityAll" xml:space="preserve"><value>সব প্রচেষ্টা</value></data>
+	<data name="LoginActivitySuccess" xml:space="preserve"><value>সফল</value></data>
+	<data name="LoginActivityFailure" xml:space="preserve"><value>ব্যর্থ</value></data>
+	<data name="LoginActivityFrom" xml:space="preserve"><value>শুরু (UTC)</value></data>
+	<data name="LoginActivityTo" xml:space="preserve"><value>শেষ (UTC)</value></data>
+	<data name="LoginActivityRefresh" xml:space="preserve"><value>রিফ্রেশ</value></data>
+	<data name="LoginActivityExport" xml:space="preserve"><value>CSV রপ্তানি</value></data>
+	<data name="LoginActivityTime" xml:space="preserve"><value>সময়</value></data>
+	<data name="LoginActivityLoading" xml:space="preserve"><value>লোড হচ্ছে...</value></data>
+	<data name="LoginActivityEmpty" xml:space="preserve"><value>কোনো সাইন-ইন প্রচেষ্টা পাওয়া যায়নি।</value></data>
+	<data name="LoginActivityError" xml:space="preserve"><value>সাইন-ইন কার্যক্রম লোড করা যায়নি।</value></data>
+	<data name="LoginActivityExportError" xml:space="preserve"><value>সাইন-ইন কার্যক্রম রপ্তানি করা যায়নি।</value></data>
+	<data name="LoginActivityRangeError" xml:space="preserve"><value>শুরু ও শেষের UTC তারিখ দিন; ক্রমানুসারে এবং সর্বোচ্চ ৩৬৫ দিনের ব্যবধানে।</value></data>
+	<data name="LoginActivityPrevious" xml:space="preserve"><value>আগের</value></data>
+	<data name="LoginActivityNext" xml:space="preserve"><value>পরের</value></data>
+	<data name="LoginActivityPage" xml:space="preserve"><value>পৃষ্ঠা</value></data>
+	<data name="LoginActivityOf" xml:space="preserve"><value>মোট</value></data>
+	<data name="LoginActivityAttempts" xml:space="preserve"><value>প্রচেষ্টা</value></data>
 </root>
