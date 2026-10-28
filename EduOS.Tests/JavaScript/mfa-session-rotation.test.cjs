@@ -26,3 +26,11 @@ test('MFA setup and enable refresh the cookie-bound CSRF token and adopt only th
     assert.match(layout, /data-auth-tenant-id=/);
     assert.doesNotMatch(mfa, /localStorage|sessionStorage|innerHTML/);
 });
+
+test('MFA challenge replay or concurrency conflict expires the browser challenge', () => {
+    const source = read('EduOS.App/wwwroot/js/account/mfa-challenge.js');
+    assert.match(source, /response\.status === 409/);
+    assert.match(source, /sessionStorage\.removeItem\('eduos\.mfaChallenge'\)/);
+    assert.match(source, /challengeExpired = true/);
+    assert.match(source, /button\.disabled = true/);
+});

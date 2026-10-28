@@ -242,6 +242,95 @@ public sealed class AuthSecurityStampIntegrationTests
         Assert.True(await AuthSessionRegistry.IsValidAsync(freshDb, user.Id, second, 202));
     }
 
+
+    [Fact]
+    public async Task Mfa_recovery_code_is_single_use_and_atomically_revokes_only_owner_sessions()
+    {
+        using var provider = CreateServices().BuildServiceProvider();
+        using var scope = provider.CreateScope();
+        var manager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+        var db = scope.ServiceProvider.GetRequiredService<EduOSDbContext>();
+        var owner = new ApplicationUser { UserName = "mfa-owner@example.test",
+            Email = "mfa-owner@example.test", FullName = "Owner", EmailConfirmed = true };
+        var stranger = new ApplicationUser { UserName = "mfa-other@example.test",
+            Email = "mfa-other@example.test", FullName = "Other", EmailConfirmed = true };
+        Assert.True((await manager.CreateAsync(owner, "Secure123!")).Succeeded);
+        Assert.True((await manager.CreateAsync(stranger, "Secure123!")).Succeeded);
+        Assert.True((await manager.SetTwoFactorEnabledAsync(owner, true)).Succeeded);
+        var codes = (await manager.GenerateNewTwoFactorRecoveryCodesAsync(owner, 8))!.ToArray();
+        Assert.Equal(8, codes.Length);
+        var originalStamp = await manager.GetSecurityStampAsync(owner);
+        var tenantA = await AuthSessionRegistry.CreateAsync(db, owner.Id, 101, "", "", false);
+        var tenantB = await AuthSessionRegistry.CreateAsync(db, owner.Id, 202, "", "", false);
+        var other = await AuthSessionRegistry.CreateAsync(db, stranger.Id, 101, "", "", false);
+
+        Assert.Equal(MfaLoginConsumption.InvalidCode,
+            await AuthMfaLoginTransition.ConsumeAsync(db, manager, owner, "invalid-code", true));
+        Assert.Equal(originalStamp, await manager.GetSecurityStampAsync(owner));
+        Assert.True(await AuthSessionRegistry.IsValidAsync(db, owner.Id, tenantA, 101));
+
+        Assert.Equal(MfaLoginConsumption.Completed,
+            await AuthMfaLoginTransition.ConsumeAsync(db, manager, owner, codes[0], true));
+        Assert.NotEqual(originalStamp, await manager.GetSecurityStampAsync(owner));
+        Assert.False(await AuthSessionRegistry.IsValidAsync(db, owner.Id, tenantA, 101));
+        Assert.False(await AuthSessionRegistry.IsValidAsync(db, owner.Id, tenantB, 202));
+        Assert.True(await AuthSessionRegistry.IsValidAsync(db, stranger.Id, other, 101));
+        Assert.Equal(MfaLoginConsumption.InvalidCode,
+            await AuthMfaLoginTransition.ConsumeAsync(db, manager, owner, codes[0], true));
+    }
+
+    [Fact]
+    public async Task Sql_failed_mfa_completion_rolls_back_recovery_code_stamp_and_sessions()
+    {
+        var connection = Environment.GetEnvironmentVariable("EDUOS_SQL_AUTH_TEST_CONNECTION");
+        if (string.IsNullOrWhiteSpace(connection)) return;
+        using var provider = CreateServices(connection).BuildServiceProvider();
+        using var scope = provider.CreateScope();
+        var manager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+        var db = scope.ServiceProvider.GetRequiredService<EduOSDbContext>();
+        var suffix = Guid.NewGuid().ToString("N");
+        var user = new ApplicationUser { UserName = "mfa-atomic-" + suffix + "@example.test",
+            Email = "mfa-atomic-" + suffix + "@example.test",
+            FullName = "SQL MFA", EmailConfirmed = true };
+        Assert.True((await manager.CreateAsync(user, "Secure123!")).Succeeded);
+        Assert.True((await manager.SetTwoFactorEnabledAsync(user, true)).Succeeded);
+        var codes = (await manager.GenerateNewTwoFactorRecoveryCodesAsync(user, 8))!.ToArray();
+        var stamp = await manager.GetSecurityStampAsync(user);
+        var first = await AuthSessionRegistry.CreateAsync(db, user.Id, 101, "", "", false);
+        var second = await AuthSessionRegistry.CreateAsync(db, user.Id, 202, "", "", false);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            db.ExecuteInTransactionAsync<bool>(async ct =>
+            {
+                Assert.True((await manager.RedeemTwoFactorRecoveryCodeAsync(user, codes[0])).Succeeded);
+                Assert.True((await manager.UpdateSecurityStampAsync(user)).Succeeded);
+                await AuthSessionRegistry.RevokeAllAsync(db, user.Id);
+                throw new InvalidOperationException("Injected failure after recovery-code redemption.");
+            }));
+
+        using var fresh = provider.CreateScope();
+        var freshDb = fresh.ServiceProvider.GetRequiredService<EduOSDbContext>();
+        var freshManager = fresh.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+        var persisted = await freshManager.FindByIdAsync(user.Id.ToString());
+        Assert.NotNull(persisted);
+        Assert.Equal(stamp, await freshManager.GetSecurityStampAsync(persisted));
+        Assert.True(await AuthSessionRegistry.IsValidAsync(freshDb, user.Id, first, 101));
+        Assert.True(await AuthSessionRegistry.IsValidAsync(freshDb, user.Id, second, 202));
+        Assert.Equal(MfaLoginConsumption.Completed,
+            await AuthMfaLoginTransition.ConsumeAsync(freshDb, freshManager, persisted, codes[0], true));
+
+        using var check = provider.CreateScope();
+        var checkedDb = check.ServiceProvider.GetRequiredService<EduOSDbContext>();
+        var checkedManager = check.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+        var checkedUser = await checkedManager.FindByIdAsync(user.Id.ToString());
+        Assert.NotNull(checkedUser);
+        Assert.NotEqual(stamp, await checkedManager.GetSecurityStampAsync(checkedUser));
+        Assert.False(await AuthSessionRegistry.IsValidAsync(checkedDb, user.Id, first, 101));
+        Assert.False(await AuthSessionRegistry.IsValidAsync(checkedDb, user.Id, second, 202));
+        Assert.Equal(MfaLoginConsumption.InvalidCode,
+            await AuthMfaLoginTransition.ConsumeAsync(checkedDb, checkedManager, checkedUser, codes[0], true));
+    }
+
     private static ServiceCollection CreateServices(string? sqlConnection = null)
     {
         var services = new ServiceCollection();

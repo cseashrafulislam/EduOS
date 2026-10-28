@@ -98,7 +98,7 @@ public sealed class OptionalMfaAuthContractTests
         var tenant = File.ReadAllText(Asset("TenantContextMiddleware.cs"));
         var profile = File.ReadAllText(Asset("profile.js"));
         Assert.Contains("_userManager.UpdateSecurityStampAsync(user)", auth);
-        Assert.Contains("if (!consumed.Succeeded)", auth);
+        Assert.Contains("AuthMfaLoginTransition.ConsumeAsync(", auth);
         Assert.Contains("services.Configure<SecurityStampValidatorOptions>", identity);
         Assert.Contains("options.ValidationInterval = TimeSpan.Zero", identity);
         Assert.Contains("if (!user.IsActive || user.IsDeleted || !user.EmailConfirmed)", tenant);

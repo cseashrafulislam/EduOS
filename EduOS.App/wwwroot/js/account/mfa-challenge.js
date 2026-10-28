@@ -52,7 +52,7 @@
                 }
 
                 const message = String(payload?.message || '').toLowerCase();
-                if (message.includes('expired') || message.includes('request')) {
+                if (response.status === 409 || message.includes('expired') || message.includes('request')) {
                     sessionStorage.removeItem('eduos.mfaChallenge');
                     showAlert('danger', form.dataset.expiredMessage);
                     challengeExpired = true;

@@ -386,31 +386,35 @@ namespace EduOS.App.Controllers.Api
                 return StatusCode(StatusCodes.Status403Forbidden, new { success = false, message = "Select an active institution or contact your administrator." });
 
             var code = dto.UseRecoveryCode ? dto.Code.Trim() : NormalizeMfaCode(dto.Code);
-            var valid = dto.UseRecoveryCode
-                ? (await _userManager.RedeemTwoFactorRecoveryCodeAsync(user, code)).Succeeded
-                : await _userManager.VerifyTwoFactorTokenAsync(user, TokenOptions.DefaultAuthenticatorProvider, code);
-
             var ip = GetClientIp();
             var userAgent = Truncate(HttpContext.Request.Headers["User-Agent"].FirstOrDefault(), 500);
 
-            if (!valid)
+            // Recovery-code redemption, one-time challenge consumption and revocation
+            // must commit together. A failed SQL transaction must not burn a backup code.
+            MfaLoginConsumption outcome;
+            try
+            {
+                outcome = await AuthMfaLoginTransition.ConsumeAsync(
+                    _db, _userManager, user, code, dto.UseRecoveryCode, HttpContext.RequestAborted);
+            }
+            catch (DbUpdateConcurrencyException)
+            {
+                _logger.LogWarning("Concurrent MFA completion rejected for user {UserId}", user.Id);
+                return Conflict(new { success = false, message = "Verification was already used or account state changed. Please sign in again." });
+            }
+
+            if (outcome == MfaLoginConsumption.InvalidCode)
             {
                 await _userManager.AccessFailedAsync(user);
                 await SaveLoginHistoryAsync(user, ip, userAgent, false, "Wrong MFA code", session.TenantId);
                 return BadRequest(new { success = false, message = "The verification code is invalid." });
             }
 
-            // Rotate the security stamp with Identity's optimistic concurrency check.
-            // Only one request holding the old challenge stamp can complete; the rest fail.
-            // This also revokes existing sessions when the cookie validator runs.
-            var consumed = await _userManager.UpdateSecurityStampAsync(user);
-            if (!consumed.Succeeded)
+            if (outcome != MfaLoginConsumption.Completed)
             {
                 _logger.LogWarning("MFA login challenge replay or concurrency conflict for user {UserId}", user.Id);
                 return Conflict(new { success = false, message = "Verification was already used or account state changed. Please sign in again." });
             }
-            await AuthSessionRegistry.RevokeAllAsync(_db, user.Id);
-            await _userManager.ResetAccessFailedCountAsync(user);
             await SignInSessionAsync(user, challenge.RememberMe, "mfa", session);
 
             user.LastLoginAt = DateTime.UtcNow;
