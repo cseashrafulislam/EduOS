@@ -1,5 +1,6 @@
 using EduOS.App.Authorization;
 using EduOS.Core.DTOs.Attendance;
+using EduOS.Core.Enums.Domain;
 using EduOS.Core.Interfaces.IServices;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -46,9 +47,11 @@ public sealed class StudentAttendanceReportsController(IStudentAttendanceReportS
     [HttpGet("sessions/{sessionId:long}/roster")]
     public async Task<IActionResult> FinalizedSessionRoster(
         long sessionId, [FromQuery] int page = 1, [FromQuery] int pageSize = 50,
+        [FromQuery] string? search = null, [FromQuery] AttendanceState? state = null,
         CancellationToken ct = default)
     {
-        var result = await service.GetFinalizedSessionRosterAsync(sessionId, page, pageSize, ct);
+        var result = await service.GetFilteredFinalizedSessionRosterAsync(
+            sessionId, search, state, page, pageSize, ct);
         return StatusCode(result.StatusCode, result);
     }
 

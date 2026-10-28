@@ -600,6 +600,15 @@ public sealed class SqlServerAcademicOperationsIntegrationTests
         Assert.Equal(1, historicalRoster.Data.Summary.Marked);
         Assert.Equal(originalEnrollment.PublicId,
             Assert.Single(historicalRoster.Data.Students).StudentEnrollmentReference);
+        var historicalCode = Assert.Single(historicalRoster.Data.Students).StudentCode;
+        Assert.False(string.IsNullOrWhiteSpace(historicalCode));
+        var sqlFiltered = await riskReport.GetFilteredFinalizedSessionRosterAsync(
+            sqlSession.Id, historicalCode, AttendanceState.Absent, page: 1, pageSize: 50);
+        Assert.True(sqlFiltered.Success, sqlFiltered.Message);
+        Assert.Equal(1, sqlFiltered.Data!.Summary.Absent);
+        Assert.Single(sqlFiltered.Data.Students);
+        Assert.Equal(0, (await riskReport.GetFilteredFinalizedSessionRosterAsync(
+            sqlSession.Id, historicalCode, AttendanceState.Present)).Data!.Summary.TotalStudents);
         // An archived, finalized mark can only change through the audited correction
         // endpoint; the read-only historical roster then reflects the posted state.
         var archivedMark = await db.StudentAttendances.AsNoTracking()

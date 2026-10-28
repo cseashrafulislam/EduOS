@@ -678,6 +678,54 @@ public sealed class StudentAttendanceReportWorkflowTests
     }
 
     [Fact]
+    public async Task Filtered_historical_roster_applies_search_state_before_count_and_page()
+    {
+        await using var db = Context(71);
+        db.AcademicBatches.Add(new AcademicBatch { Id = 10, TenantId = 71, CampusId = 8,
+            Name = "Archived cohort", Code = "ARCH", IsActive = false });
+        db.Students.AddRange(
+            new Student { Id = 20, TenantId = 71, StudentCode = "A-101",
+                FullName = "Archived Alpha", AdmissionDate = new DateOnly(2025, 1, 1) },
+            new Student { Id = 21, TenantId = 71, StudentCode = "B-202",
+                FullName = "Archived Beta", AdmissionDate = new DateOnly(2025, 1, 1) });
+        db.StudentEnrollments.AddRange(
+            new StudentEnrollment { Id = 30, TenantId = 71, StudentId = 20,
+                AcademicBatchId = 10, CampusId = 8, RollNo = "OLD-01", IsCurrent = false },
+            new StudentEnrollment { Id = 31, TenantId = 71, StudentId = 21,
+                AcademicBatchId = 10, CampusId = 8, RollNo = "OLD-02", IsCurrent = false });
+        db.AttendanceSessions.Add(new AttendanceSession { Id = 40, TenantId = 71,
+            AcademicBatchId = 10, AttendanceDate = new DateOnly(2026, 10, 5),
+            IsFinalized = true });
+        db.StudentAttendances.AddRange(
+            new StudentAttendance { Id = 50, TenantId = 71, AttendanceSessionId = 40,
+                StudentEnrollmentId = 30, State = AttendanceState.Present },
+            new StudentAttendance { Id = 51, TenantId = 71, AttendanceSessionId = 40,
+                StudentEnrollmentId = 31, State = AttendanceState.Absent });
+        await db.SaveChangesAsync();
+        var service = Service(db, 71);
+        var match = await service.GetFilteredFinalizedSessionRosterAsync(
+            40, "OLD-", AttendanceState.Absent, page: 1, pageSize: 1);
+        Assert.True(match.Success, match.Message);
+        Assert.Equal(1, match.Data!.Summary.TotalStudents);
+        Assert.Equal(1, match.Data.Summary.Absent);
+        Assert.Equal(0, match.Data.Summary.Present);
+        Assert.Equal(1, match.Data.TotalPages);
+        Assert.Equal("OLD-02", Assert.Single(match.Data.Students).RollNo);
+        Assert.Equal(1, (await service.GetFilteredFinalizedSessionRosterAsync(
+            40, "A-101", null)).Data!.Summary.Present);
+        Assert.Equal(0, (await service.GetFilteredFinalizedSessionRosterAsync(
+            40, "NO-MATCH", null)).Data!.Summary.TotalStudents);
+        Assert.Equal(400, (await service.GetFilteredFinalizedSessionRosterAsync(
+            40, new string('x', 101), null)).StatusCode);
+        Assert.Equal(400, (await service.GetFilteredFinalizedSessionRosterAsync(
+            40, null, (AttendanceState)999)).StatusCode);
+        Assert.Equal(404, (await Service(db, 72).GetFilteredFinalizedSessionRosterAsync(
+            40, "OLD-", AttendanceState.Absent)).StatusCode);
+        Assert.Equal(403, (await Service(db, 71, manager: false)
+            .GetFilteredFinalizedSessionRosterAsync(40, "OLD-", null)).StatusCode);
+    }
+
+    [Fact]
     public async Task Finalized_session_roster_denies_teacher_cross_tenant_campus_revocation_and_draft()
     {
         await using var db = Context(71);

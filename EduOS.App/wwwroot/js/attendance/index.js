@@ -7,6 +7,8 @@
     const finalizeButton = el('finalizeAttendance'), summary = el('attendanceSummary');
     const historicalCsvButton = el('attendanceHistoricalCsv');
     const historicalPrintButton = el('attendanceHistoricalPrint');
+    const historicalSearchInput = el('attendanceHistoricalSearch');
+    const historicalStateInput = el('attendanceHistoricalState');
     const correctionModal = el('attendanceCorrectionModal');
     const correctionState = el('attendanceCorrectionState');
     const correctionReason = el('attendanceCorrectionReason');
@@ -16,7 +18,13 @@
     if (!form || !rows || !date) return;
     let loaded = false, roster = null, dirty = false;
     let historicalSessionId = null;
+    let historicalQuery = { search: '', state: '' };
     let rosterPage = 1, rosterPages = 0, rosterRequest = 0;
+    function resetHistoricalQuery() {
+        historicalQuery = { search: '', state: '' };
+        if (historicalSearchInput) historicalSearchInput.value = '';
+        if (historicalStateInput) historicalStateInput.value = '';
+    }
     let batchPage = 1, batchPages = 0, batchRequest = 0;
     let subjectPage = 1, subjectPages = 0, subjectRequest = 0;
     const local = new Date();
@@ -50,6 +58,7 @@
     }
     async function loadBatches() {
         historicalSessionId = null;
+        resetHistoricalQuery();
         rosterPage = 1;
         const request = ++batchRequest;
         invalidate();
@@ -101,6 +110,7 @@
     }
     async function loadSubjects() {
         historicalSessionId = null;
+        resetHistoricalQuery();
         rosterPage = 1;
         const request = ++subjectRequest;
         invalidate();
@@ -147,13 +157,25 @@
             roster?.students?.length > 0 && Number.isSafeInteger(rosterPage) && rosterPage > 0;
     }
     function updateHistoricalActions() {
+        el('attendanceHistoricalFilters')?.classList.toggle('d-none',
+            !loaded || roster?.isHistoricalReadOnly !== true);
         const disabled = !historicalPageReady();
         if (historicalCsvButton) historicalCsvButton.disabled = disabled;
         if (historicalPrintButton) historicalPrintButton.disabled = disabled;
     }
     function historicalPageUrl(action) {
-        return '/attendance/sessions/' + historicalSessionId + '/' + action +
-            '?page=' + rosterPage;
+        const params = new URLSearchParams({ page: String(rosterPage) });
+        if (historicalQuery.search) params.set('search', historicalQuery.search);
+        if (historicalQuery.state) params.set('state', historicalQuery.state);
+        return '/attendance/sessions/' + historicalSessionId + '/' + action + '?' + params;
+    }
+    function applyHistoricalFilters() {
+        if (historicalSessionId === null || !loaded || !roster?.isHistoricalReadOnly) return;
+        const search = historicalSearchInput?.value.trim() || '';
+        if (search.length > 100) return status('danger', 'Search must be at most 100 characters.');
+        historicalQuery = { search, state: historicalStateInput?.value || '' };
+        rosterPage = 1;
+        void loadRoster();
     }
     async function exportHistoricalPage() {
         if (!historicalPageReady() || !historicalCsvButton) return;
@@ -278,10 +300,15 @@
                 page: String(rosterPage), pageSize: '50'
             });
             if (scope.subjectOfferingId) params.set('subjectOfferingId', String(scope.subjectOfferingId));
+            const historicalParams = new URLSearchParams({
+                page: String(rosterPage), pageSize: '50'
+            });
+            if (historicalQuery.search) historicalParams.set('search', historicalQuery.search);
+            if (historicalQuery.state) historicalParams.set('state', historicalQuery.state);
             const result = historicalSessionId === null
                 ? await api('/api/student-attendance/roster-page?' + params)
                 : await api('/api/student-attendance/report/sessions/' + historicalSessionId +
-                    '/roster?page=' + rosterPage + '&pageSize=50');
+                    '/roster?' + historicalParams);
             if (request !== rosterRequest) return;
             if (expectedSessionId !== null && Number(result.data?.attendanceSessionId) !== expectedSessionId) {
                 status('warning', 'The selected attendance session changed. Reload the session register.');
@@ -301,7 +328,7 @@
             el('attendanceRosterNext').disabled = rosterPage >= rosterPages;
             el('attendanceRosterPage').textContent = 'Page ' + rosterPage + ' of ' +
                 rosterPages + ' · ' + (roster.summary?.totalStudents || 0) +
-                (roster.isHistoricalReadOnly ? ' historical marks (read-only)' : ' eligible students');
+                (roster.isHistoricalReadOnly ? ' matching historical marks (read-only)' : ' eligible students');
             return true;
         } catch (error) {
             if (request === rosterRequest) status('danger', error.message);
@@ -426,7 +453,9 @@
             (dirty ? ' · Unsaved edits on this page' : '');
     }
     el('sectionId').addEventListener('change', () => { subjectPage = 1; loadSubjects(); });
-    el('attendanceSubject').addEventListener('change', () => { historicalSessionId = null; rosterPage = 1; invalidate(); });
+    el('attendanceSubject').addEventListener('change', () => {
+        historicalSessionId = null; resetHistoricalQuery(); rosterPage = 1; invalidate();
+    });
     el('attendanceSubjectFind').addEventListener('click', () => { subjectPage = 1; loadSubjects(); });
     el('attendanceSubjectSearch').addEventListener('keydown', event => {
         if (event.key === 'Enter') { event.preventDefault(); subjectPage = 1; loadSubjects(); }
@@ -448,7 +477,9 @@
     el('attendanceBatchNext').addEventListener('click', () => {
         if (batchPage < batchPages) { batchPage++; loadBatches(); }
     });
-    form.addEventListener('submit', event => { historicalSessionId = null; rosterPage = 1; loadRoster(event); });
+    form.addEventListener('submit', event => {
+        historicalSessionId = null; resetHistoricalQuery(); rosterPage = 1; loadRoster(event);
+    });
     // Report navigation does not grant access: the roster API checks every scope again.
     document.addEventListener('attendance:session-open', async event => {
         const detail = event.detail || {};
@@ -463,6 +494,7 @@
         if (dirty && !confirm('Discard unsaved changes before opening this session?')) return;
         dirty = false;
         historicalSessionId = detail.isFinalized === true ? sessionId : null;
+        resetHistoricalQuery();
         ++batchRequest; ++subjectRequest;
         date.value = selectedDate;
         selectOptions('sectionId', [{ id: batchId,
@@ -500,6 +532,14 @@
         correctionTarget = null;
         correctionReason.value = '';
         correctionError.textContent = '';
+    });
+    el('attendanceHistoricalFind')?.addEventListener('click', applyHistoricalFilters);
+    historicalSearchInput?.addEventListener('keydown', event => {
+        if (event.key === 'Enter') { event.preventDefault(); applyHistoricalFilters(); }
+    });
+    el('attendanceHistoricalClear')?.addEventListener('click', () => {
+        if (historicalSessionId === null || !loaded) return;
+        resetHistoricalQuery(); rosterPage = 1; void loadRoster();
     });
     historicalCsvButton?.addEventListener('click', exportHistoricalPage);
     historicalPrintButton?.addEventListener('click', printHistoricalPage);

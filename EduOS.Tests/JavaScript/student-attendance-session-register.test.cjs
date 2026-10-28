@@ -40,6 +40,15 @@ test('session register is manager-authorized, bounded and includes unfinalized s
     for (const id of ['attendanceHistoricalCsv', 'attendanceHistoricalPrint'])
         assert.ok(view.includes('id="' + id + '"'));
     assert.match(roster, /function historicalPageReady\(\)/);
+    for (const id of ['attendanceHistoricalFilters', 'attendanceHistoricalSearch',
+        'attendanceHistoricalState', 'attendanceHistoricalFind', 'attendanceHistoricalClear'])
+        assert.ok(view.includes('id="' + id + '"'));
+    assert.match(roster, /historicalParams\.set\('search', historicalQuery\.search\)/);
+    assert.match(roster, /historicalParams\.set\('state', historicalQuery\.state\)/);
+    assert.match(roster, /function applyHistoricalFilters\(\)/);
+    assert.match(roster, /resetHistoricalQuery\(\)/);
+    assert.match(api, /GetFilteredFinalizedSessionRosterAsync/);
+    assert.match(service, /posted = posted\.Where/);
     assert.match(roster, /function updateHistoricalActions\(\)/);
     assert.match(roster, /historicalPageUrl\('export\.csv'\)/);
     assert.match(roster, /historicalPageUrl\('print'\)/);

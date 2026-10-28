@@ -1,5 +1,6 @@
 using EduOS.App.Authorization;
 using EduOS.Core.DTOs.Attendance;
+using EduOS.Core.Enums.Domain;
 using EduOS.Core.Interfaces.IServices;
 using Microsoft.AspNetCore.RateLimiting;
 using System.Globalization;
@@ -23,11 +24,13 @@ public sealed class AttendanceController(IStudentAttendanceReportService reportS
     [EnableRateLimiting("ApiPolicy")]
     [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
     public async Task<IActionResult> ExportFinalizedSessionCsv(
-        long sessionId, [FromQuery] int page = 1, CancellationToken cancellationToken = default)
+        long sessionId, [FromQuery] int page = 1,
+        [FromQuery] string? search = null, [FromQuery] AttendanceState? state = null,
+        CancellationToken cancellationToken = default)
     {
         const int pageSize = 50;
-        var result = await reportService.GetFinalizedSessionRosterAsync(
-            sessionId, page, pageSize, cancellationToken);
+        var result = await reportService.GetFilteredFinalizedSessionRosterAsync(
+            sessionId, search, state, page, pageSize, cancellationToken);
         if (!result.Success) return StatusCode(result.StatusCode, result);
         if (result.Data is null) return StatusCode(500);
 
@@ -59,11 +62,13 @@ public sealed class AttendanceController(IStudentAttendanceReportService reportS
     [EnableRateLimiting("ApiPolicy")]
     [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
     public async Task<IActionResult> PrintFinalizedSession(
-        long sessionId, [FromQuery] int page = 1, CancellationToken cancellationToken = default)
+        long sessionId, [FromQuery] int page = 1,
+        [FromQuery] string? search = null, [FromQuery] AttendanceState? state = null,
+        CancellationToken cancellationToken = default)
     {
         const int pageSize = 50;
-        var result = await reportService.GetFinalizedSessionRosterAsync(
-            sessionId, page, pageSize, cancellationToken);
+        var result = await reportService.GetFilteredFinalizedSessionRosterAsync(
+            sessionId, search, state, page, pageSize, cancellationToken);
         if (!result.Success) return StatusCode(result.StatusCode, result);
         if (result.Data is null) return StatusCode(500);
         return View("SessionPrint", result.Data);

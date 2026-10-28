@@ -74,6 +74,29 @@
                 </div>
             }
         </div>
+        @if (User.IsInRole("TenantAdmin") || User.IsInRole("Principal") || User.IsInRole("VicePrincipal"))
+        {
+            <div id="attendanceHistoricalFilters" class="row g-2 align-items-end mb-2 d-none">
+                <div class="col-sm-5">
+                    <label for="attendanceHistoricalSearch" class="form-label">Find historical learner</label>
+                    <input id="attendanceHistoricalSearch" class="form-control form-control-sm"
+                           maxlength="100" placeholder="Roll, student code or name" />
+                </div>
+                <div class="col-sm-3">
+                    <label for="attendanceHistoricalState" class="form-label">Posted status</label>
+                    <select id="attendanceHistoricalState" class="form-select form-select-sm">
+                        <option value="">All statuses</option>
+                        <option value="1">Present</option><option value="2">Absent</option>
+                        <option value="3">Late</option><option value="4">Leave</option>
+                        <option value="5">Excused</option>
+                    </select>
+                </div>
+                <div class="col-sm-4 d-flex gap-2">
+                    <button id="attendanceHistoricalFind" type="button" class="btn btn-sm btn-outline-primary">Search</button>
+                    <button id="attendanceHistoricalClear" type="button" class="btn btn-sm btn-outline-secondary">Clear</button>
+                </div>
+            </div>
+        }
         <div class="table-responsive">
             <table class="table table-hover align-middle mb-0">
                 <thead><tr><th>Roll</th><th>Student</th><th>Status</th><th>Check-in</th><th>Remarks</th></tr></thead>

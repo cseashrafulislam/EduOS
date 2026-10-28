@@ -23,16 +23,26 @@ public sealed class StudentAttendanceReportService(
     /// Historical enrollment/roll is authoritative; active year, current enrollment,
     /// current student status and current subject registration must not alter history.
     /// </summary>
-    public async Task<ApiResponse<StudentAttendanceRosterDto>> GetFinalizedSessionRosterAsync(
+    public Task<ApiResponse<StudentAttendanceRosterDto>> GetFinalizedSessionRosterAsync(
         long sessionId, int page = 1, int pageSize = 50,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default) =>
+        GetFilteredFinalizedSessionRosterAsync(sessionId, null, null, page, pageSize, cancellationToken);
+
+    /// <summary>
+    /// Filter and paginate authorized historical marks in SQL. Counts reflect
+    /// matching marks; no active-enrollment lookup rewrites posted history.
+    /// </summary>
+    public async Task<ApiResponse<StudentAttendanceRosterDto>> GetFilteredFinalizedSessionRosterAsync(
+        long sessionId, string? search, AttendanceState? state, int page = 1,
+        int pageSize = 50, CancellationToken cancellationToken = default)
     {
         if (!user.IsAuthenticated || user.TenantId <= 0 ||
             !(user.IsTenantAdmin || user.IsInRole("Principal") || user.IsInRole("VicePrincipal")))
             return ApiResponse<StudentAttendanceRosterDto>.ErrorResponse(
                 "Attendance report permission is required.", 403);
         if (sessionId <= 0 || page < 1 || pageSize is < 1 or > 100 ||
-            (long)(page - 1) * pageSize > int.MaxValue)
+            (long)(page - 1) * pageSize > int.MaxValue || search?.Length > 100 ||
+            (state.HasValue && !Enum.IsDefined(typeof(AttendanceState), state.Value)))
             return ApiResponse<StudentAttendanceRosterDto>.ErrorResponse(
                 "Invalid historical session or page.");
 
@@ -82,6 +92,17 @@ public sealed class StudentAttendanceReportService(
                     enrollment.RollNo, student.StudentCode, StudentName = student.FullName,
                     EnrollmentId = enrollment.Id
                 };
+
+            if (!string.IsNullOrWhiteSpace(search))
+            {
+                var term = search.Trim();
+                posted = posted.Where(x =>
+                    (x.RollNo != null && x.RollNo.StartsWith(term)) ||
+                    (x.StudentCode != null && x.StudentCode.StartsWith(term)) ||
+                    (x.StudentName != null && x.StudentName.StartsWith(term)));
+            }
+            if (state.HasValue)
+                posted = posted.Where(x => x.State == state.Value);
 
             var total = await posted.CountAsync(cancellationToken);
             var counts = await posted.GroupBy(x => x.State)

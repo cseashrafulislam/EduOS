@@ -54,7 +54,7 @@ public sealed class StudentAttendanceRosterExportTests
                 State = AttendanceState.Absent, Remarks = " +SUM(1,1)"
             } }
         };
-        service.Setup(x => x.GetFinalizedSessionRosterAsync(40, 2, 50,
+        service.Setup(x => x.GetFilteredFinalizedSessionRosterAsync(40, null, null, 2, 50,
             It.IsAny<CancellationToken>())).ReturnsAsync(
                 ApiResponse<StudentAttendanceRosterDto>.SuccessResponse(roster));
         var controller = new AttendanceController(service.Object);
@@ -81,13 +81,13 @@ public sealed class StudentAttendanceRosterExportTests
             AttendanceSessionId = 40, AcademicBatchId = 10, Page = 3,
             IsFinalized = true, IsHistoricalReadOnly = true
         };
-        service.Setup(x => x.GetFinalizedSessionRosterAsync(40, 3, 50,
+        service.Setup(x => x.GetFilteredFinalizedSessionRosterAsync(40, null, null, 3, 50,
             It.IsAny<CancellationToken>())).ReturnsAsync(
                 ApiResponse<StudentAttendanceRosterDto>.SuccessResponse(roster));
-        service.Setup(x => x.GetFinalizedSessionRosterAsync(999, 1, 50,
+        service.Setup(x => x.GetFilteredFinalizedSessionRosterAsync(999, null, null, 1, 50,
             It.IsAny<CancellationToken>())).ReturnsAsync(
                 ApiResponse<StudentAttendanceRosterDto>.ErrorResponse("Not found.", 404));
-        service.Setup(x => x.GetFinalizedSessionRosterAsync(40, 0, 50,
+        service.Setup(x => x.GetFilteredFinalizedSessionRosterAsync(40, null, null, 0, 50,
             It.IsAny<CancellationToken>())).ReturnsAsync(
                 ApiResponse<StudentAttendanceRosterDto>.ErrorResponse("Invalid page.", 400));
         var controller = new AttendanceController(service.Object);
