@@ -706,9 +706,9 @@ public sealed class SqlServerStudentImportConcurrencyIntegrationTests
             AcademicBatchId = batchId, AcademicCurriculumId = curriculumId,
             RollNo = "01", EnrollmentDate = today
         };
-        var csv = "SourceKey,StudentCode,FullName,CampusId,AcademicBatchId,RollNo,GuardianName,GuardianPhone,GuardianSourceKey\\n" +
+        var csv = "SourceKey,StudentCode,FullName,CampusId,AcademicBatchId,RollNo,GuardianName,GuardianPhone,GuardianSourceKey\n" +
             "ENROLL-SRC-" + suffix + ",ENROLL-NEW-" + suffix + ",Imported Learner " + suffix +
-            "," + campusId + "," + batchId + ",02,,,\\n";
+            "," + campusId + "," + batchId + ",02,,,\n";
         var start = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
         var enrollmentTask = Task.Run(async () =>
         {
