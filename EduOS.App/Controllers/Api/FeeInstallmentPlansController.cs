@@ -47,6 +47,15 @@ public sealed class FeeInstallmentPlansController : ControllerBase
         return StatusCode(result.StatusCode, result);
     }
 
+    [HttpPost("{reference:guid}/replace")]
+    [Authorize(Roles = "TenantAdmin")]
+    public async Task<IActionResult> Replace(Guid reference,
+        [FromBody] ReplaceStudentFeeInstallmentPlanDto request, CancellationToken ct)
+    {
+        var result = await service.ReplaceInstallmentPlanAsync(reference, request, ct);
+        return StatusCode(result.StatusCode, result);
+    }
+
     [HttpPost("{reference:guid}/issue-month")]
     public async Task<IActionResult> IssueMonth(Guid reference,
         [FromBody] IssueStudentFeeInstallmentMonthDto request, CancellationToken ct)

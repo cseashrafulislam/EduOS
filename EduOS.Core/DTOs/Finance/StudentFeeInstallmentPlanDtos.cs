@@ -10,6 +10,16 @@ public sealed class CreateStudentFeeInstallmentPlanDto
     public int Months { get; set; }
 }
 
+// A pre-billing, independently approved replacement of a complete frozen agreement.
+// No already issued invoice, allocation or posted journal may be rewritten.
+public sealed class ReplaceStudentFeeInstallmentPlanDto
+{
+    public Guid ClientRequestId { get; set; }
+    public string RowVersion { get; set; } = string.Empty;
+    public long FeeStructureId { get; set; }
+    public string Reason { get; set; } = string.Empty;
+}
+
 public sealed class StudentFeeInstallmentTransitionDto
 {
     public Guid ClientRequestId { get; set; }

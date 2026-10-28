@@ -8,7 +8,7 @@
             <details class="position-relative">
                 <summary class="btn btn-outline-secondary btn-sm" aria-label="Instalment plan help" title="Plan guide">ⓘ</summary>
                 <div class="position-absolute border rounded bg-body p-2 small shadow-sm" style="z-index:5;width:min(23rem,80vw);right:0">
-                    Search a student, choose their academic batch and monthly fee structure, then save a gross plan draft. Submit for independent tenant-admin approval. Approved plans preserve fee-head amounts and due dates. Issue each approved month separately with idempotent invoice linkage; no payment is collected by issuing an invoice. Legacy batch billing remains blocked for planned months. Cancellation is audited and blocked after invoice issuance.
+                    Search a student, choose their academic batch and monthly fee structure, then save a gross plan draft. Submit for independent tenant-admin approval. Approved plans preserve fee-head amounts and due dates. Issue each approved month separately with idempotent invoice linkage; no payment is collected by issuing an invoice. Legacy batch billing remains blocked for planned months. Cancellation is audited and blocked after invoice issuance. Before any invoice exists, a separate tenant administrator may replace an approved agreement with a new submitted version; a different administrator must approve the replacement.
                 </div>
             </details>
         </div>
@@ -66,6 +66,7 @@
                 @if (User.IsInRole("TenantAdmin"))
                 {
                     <button id="feePlanApprove" class="btn btn-primary btn-sm" type="button">Approve</button>
+                    <button id="feePlanReplace" class="btn btn-outline-primary btn-sm" type="button" hidden>Replace Agreement</button>
                     <button id="feePlanCancel" class="btn btn-outline-danger btn-sm" type="button">Cancel</button>
                 }
             </div>
@@ -98,6 +99,19 @@
         #feePlanApp.audit-print #feePlanNotice { display:none!important; }
         #feePlanApp.audit-print #feePlanAudit { display:block!important; }
     </style>
+    <dialog id="feePlanReplaceDialog" class="border rounded shadow p-3" aria-labelledby="feePlanReplaceHeading">
+        <form id="feePlanReplaceForm" class="d-grid gap-2" style="width:min(28rem,80vw)">
+            <h2 id="feePlanReplaceHeading" class="h5">Request agreement replacement</h2>
+            <label for="feePlanReplaceStructure" class="form-label">Replacement monthly fee structure</label>
+            <select id="feePlanReplaceStructure" class="form-select" required></select>
+            <label for="feePlanReplaceReason" class="form-label">Reason for replacement</label>
+            <textarea id="feePlanReplaceReason" class="form-control" minlength="3" maxlength="150" rows="3" required></textarea>
+            <div class="d-flex justify-content-end gap-2">
+                <button id="feePlanReplaceDismiss" type="button" class="btn btn-outline-secondary">Keep agreement</button>
+                <button id="feePlanReplaceConfirm" type="submit" class="btn btn-primary">Submit replacement</button>
+            </div>
+        </form>
+    </dialog>
     <dialog id="feePlanCancelDialog" class="border rounded shadow p-3" aria-labelledby="feePlanCancelHeading">
         <form id="feePlanCancelForm" method="dialog" class="d-grid gap-2" style="width:min(26rem,80vw)">
             <h2 id="feePlanCancelHeading" class="h5">Cancel agreement</h2>

@@ -241,7 +241,8 @@ public sealed partial class FeeBillingService
             actionCode is < 2 or > 4 || string.IsNullOrWhiteSpace(request.RowVersion) ||
             request.RowVersion.Length > 128 || request.Reason?.Length > 250 ||
             request.Reason?.Any(char.IsControl) == true ||
-            (actionCode == 4 && string.IsNullOrWhiteSpace(request.Reason)))
+            (actionCode == 4 && string.IsNullOrWhiteSpace(request.Reason)) ||
+            (actionCode == 2 && request.Reason?.StartsWith("Replacement of ", StringComparison.OrdinalIgnoreCase) == true))
             return Error<StudentFeeInstallmentPlanDto>("Invalid transition, version or reason.");
         if (actionCode is 3 or 4 && !_user.IsTenantAdmin)
             return Error<StudentFeeInstallmentPlanDto>("Independent tenant administrator approval required.", 403);
@@ -280,6 +281,28 @@ public sealed partial class FeeBillingService
             if (actionCode == 4 && state > 1 && (plan.PreparedByUserId == _user.UserId ||
                 history.Any(x => x.ActorUserId == _user.UserId)))
                 return Error<StudentFeeInstallmentPlanDto>("Independent cancellation checker required.", 403);
+            if (actionCode == 3)
+            {
+                var submission = history.Single(x => x.ActionCode == 2);
+                const string replacementPrefix = "Replacement of ";
+                if (submission.Reason?.StartsWith(replacementPrefix, StringComparison.Ordinal) == true)
+                {
+                    if (!Guid.TryParseExact(submission.Reason[replacementPrefix.Length..], "D", out var oldReference))
+                        return Error<StudentFeeInstallmentPlanDto>("Replacement provenance is invalid.", 409);
+                    var old = await db.StudentFeeInstallmentPlans.AsNoTracking().FirstOrDefaultAsync(x =>
+                        x.TenantId == tenant && x.PublicId == oldReference && !x.IsDeleted, ct);
+                    var cancellationPrefix = "Replaced by " + plan.PublicId.ToString("D") + ": ";
+                    if (old == null || old.Id == plan.Id ||
+                        old.StudentEnrollmentId != plan.StudentEnrollmentId ||
+                        old.CampusId != plan.CampusId || old.AcademicYearId != plan.AcademicYearId ||
+                        old.StartMonth != plan.StartMonth || old.EndMonth != plan.EndMonth ||
+                        !await db.StudentFeeInstallmentPlanEvents.AsNoTracking().AnyAsync(e =>
+                            e.TenantId == tenant && e.StudentFeeInstallmentPlanId == old.Id &&
+                            !e.IsDeleted && e.ActionCode == 4 &&
+                            e.Reason != null && e.Reason.StartsWith(cancellationPrefix), ct))
+                        return Error<StudentFeeInstallmentPlanDto>("Replacement cancellation evidence is missing.", 409);
+                }
+            }
             if (await db.StudentInvoices.AsNoTracking().AnyAsync(x =>
                 x.TenantId == tenant && x.StudentEnrollmentId == plan.StudentEnrollmentId &&
                 !x.IsDeleted && x.State != InvoiceState.Cancelled &&

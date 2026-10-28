@@ -28,7 +28,7 @@ public sealed class SqlServerStudentFeeInstallmentPlanIntegrationTests
         if (string.IsNullOrWhiteSpace(connection)) return;
         var options = new DbContextOptionsBuilder<EduOSDbContext>().UseSqlServer(connection).Options;
         var suffix = Guid.NewGuid().ToString("N")[..10];
-        long tenantId, makerId, checkerId, batchId, structureId;
+        long tenantId, makerId, checkerId, amenderId, batchId, structureId;
         Guid studentRef;
         await using (var setup = new EduOSDbContext(options))
         {
@@ -45,9 +45,15 @@ public sealed class SqlServerStudentFeeInstallmentPlanIntegrationTests
                 UserName = "plan-checker-" + suffix, NormalizedUserName = ("PLAN-CHECKER-" + suffix).ToUpperInvariant(),
                 Email = "checker-" + suffix + "@example.test", SecurityStamp = Guid.NewGuid().ToString("N")
             };
-            setup.AddRange(tenant, person, maker, checker);
+            var amender = new ApplicationUser {
+                UserName = "plan-amender-" + suffix,
+                NormalizedUserName = ("PLAN-AMENDER-" + suffix).ToUpperInvariant(),
+                Email = "amender-" + suffix + "@example.test",
+                SecurityStamp = Guid.NewGuid().ToString("N")
+            };
+            setup.AddRange(tenant, person, maker, checker, amender);
             await setup.SaveChangesAsync();
-            tenantId = tenant.Id; makerId = maker.Id; checkerId = checker.Id;
+            tenantId = tenant.Id; makerId = maker.Id; checkerId = checker.Id; amenderId = amender.Id;
             setup.ChangeTracker.Clear();
             using (setup.BeginSystemTenantScope(tenantId))
             {
@@ -201,6 +207,64 @@ public sealed class SqlServerStudentFeeInstallmentPlanIntegrationTests
         Assert.Equal(0, await db.Journals.CountAsync());
         Assert.Equal(403, (await Service(db, tenantId + 1, checkerId)
             .IssueInstallmentMonthAsync(draft.Data.Reference, issue)).StatusCode);
+        // A later, entirely unbilled approved agreement can be atomically replaced
+        // by a third administrator; the original evidence remains immutable.
+        var later = await makerService.CreateInstallmentPlanAsync(new CreateStudentFeeInstallmentPlanDto {
+            ClientRequestId = Guid.NewGuid(), StudentReference = studentRef,
+            AcademicBatchId = batchId, FeeStructureId = structureId,
+            StartMonth = new DateOnly(2026, 5, 1), Months = 2
+        });
+        Assert.True(later.Success, later.Message);
+        var laterSubmitted = await makerService.TransitionInstallmentPlanAsync(later.Data!.Reference, 2,
+            new StudentFeeInstallmentTransitionDto {
+                ClientRequestId = Guid.NewGuid(), RowVersion = later.Data.RowVersion
+            });
+        Assert.True(laterSubmitted.Success, laterSubmitted.Message);
+        var laterApproved = await checkerService.TransitionInstallmentPlanAsync(later.Data.Reference, 3,
+            new StudentFeeInstallmentTransitionDto {
+                ClientRequestId = Guid.NewGuid(), RowVersion = laterSubmitted.Data!.RowVersion
+            });
+        Assert.True(laterApproved.Success, laterApproved.Message);
+        var amenderService = Service(db, tenantId, amenderId);
+        var amendmentRequest = new ReplaceStudentFeeInstallmentPlanDto {
+            ClientRequestId = Guid.NewGuid(), RowVersion = laterApproved.Data!.RowVersion,
+            FeeStructureId = structureId, Reason = "Reconfirm future due dates"
+        };
+        Assert.Equal(403, (await makerService.ReplaceInstallmentPlanAsync(
+            later.Data.Reference, amendmentRequest)).StatusCode);
+        var amended = await amenderService.ReplaceInstallmentPlanAsync(later.Data.Reference, amendmentRequest);
+        Assert.True(amended.Success, amended.Message);
+        Assert.Equal(2, amended.Data!.StateCode);
+        Assert.Equal(4, (await checkerService.GetInstallmentPlanAsync(later.Data.Reference)).Data!.StateCode);
+        var replayAmendment = await amenderService.ReplaceInstallmentPlanAsync(later.Data.Reference, amendmentRequest);
+        Assert.True(replayAmendment.Success, replayAmendment.Message);
+        Assert.Equal(amended.Data.Reference, replayAmendment.Data!.Reference);
+        Assert.Equal(403, (await amenderService.TransitionInstallmentPlanAsync(amended.Data.Reference, 3,
+            new StudentFeeInstallmentTransitionDto {
+                ClientRequestId = Guid.NewGuid(), RowVersion = amended.Data.RowVersion
+            })).StatusCode);
+        Assert.Equal(403, (await Service(db, tenantId + 1, amenderId)
+            .ReplaceInstallmentPlanAsync(later.Data.Reference, amendmentRequest)).StatusCode);
+        var amendmentApproved = await makerService.TransitionInstallmentPlanAsync(amended.Data.Reference, 3,
+            new StudentFeeInstallmentTransitionDto {
+                ClientRequestId = Guid.NewGuid(), RowVersion = amended.Data.RowVersion
+            });
+        Assert.True(amendmentApproved.Success, amendmentApproved.Message);
+        var mayInvoice = await makerService.IssueInstallmentMonthAsync(amended.Data.Reference,
+            new IssueStudentFeeInstallmentMonthDto {
+                ClientRequestId = Guid.NewGuid(), RowVersion = amendmentApproved.Data!.RowVersion,
+                MonthStart = new DateOnly(2026, 5, 1)
+            });
+        Assert.True(mayInvoice.Success, mayInvoice.Message);
+        Assert.Equal(3, await db.StudentInvoices.CountAsync());
+        Assert.Equal(409, (await checkerService.ReplaceInstallmentPlanAsync(amended.Data.Reference,
+            new ReplaceStudentFeeInstallmentPlanDto {
+                ClientRequestId = Guid.NewGuid(), RowVersion = amendmentApproved.Data.RowVersion,
+                FeeStructureId = structureId, Reason = "Attempt to rewrite billed month"
+            })).StatusCode);
+        Assert.Equal(0, await db.StudentPayments.CountAsync());
+        Assert.Equal(0, await db.Journals.CountAsync());
+
         // The approving checker cannot cancel their own approved agreement.
         Assert.Equal(403, (await checkerService.TransitionInstallmentPlanAsync(draft.Data.Reference, 4,
             new StudentFeeInstallmentTransitionDto {

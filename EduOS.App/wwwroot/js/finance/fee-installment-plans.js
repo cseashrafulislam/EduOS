@@ -14,7 +14,7 @@ function money(value) {
     return parts[0] + '.' + (parts[1] || '').padEnd(2, '0');
 }
 let options, page = 1, total = 0, rows = [], selected, searchController, searchTimer;
-let draftKey, transitionKey, invoiceKey;
+let draftKey, transitionKey, invoiceKey, replacementKey;
 const cell = value => { const td = document.createElement('td'); td.textContent = String(value ?? ''); return td; };
 const option = (value, label) => { const o = document.createElement('option'); o.value = String(value); o.textContent = label; return o; };
 function notice(message, error = false) {
@@ -142,6 +142,7 @@ async function detail(reference) {
         el('feePlanIssue').hidden = monthSelect.hidden;
         invoiceKey = null;
         if (el('feePlanApprove')) el('feePlanApprove').hidden = selected.stateCode !== 2;
+        if (el('feePlanReplace')) el('feePlanReplace').hidden = selected.stateCode !== 3;
         if (el('feePlanCancel')) el('feePlanCancel').hidden = selected.stateCode === 4;
         el('feePlanDetail').classList.remove('d-none');
         transitionKey = null;
@@ -297,6 +298,49 @@ el('feePlanIssue').addEventListener('click', async () => {
     } catch (error) { notice(error.message, true); }
     finally { button.disabled = false; }
 });
+if (el('feePlanReplace')) {
+    const dialog = el('feePlanReplaceDialog');
+    el('feePlanReplace').addEventListener('click', () => {
+        if (!selected || selected.stateCode !== 3) return;
+        const structure = el('feePlanReplaceStructure');
+        structure.replaceChildren(option('', 'Select monthly structure'));
+        for (const x of options?.feeStructures || []) {
+            if (x.campusId !== selected.campusId ||
+                (x.academicBatchId != null && x.academicBatchId !== selected.academicBatchId)) continue;
+            structure.append(option(x.id, x.name));
+        }
+        structure.value = String(selected.feeStructureId);
+        el('feePlanReplaceReason').value = '';
+        replacementKey = null;
+        dialog.showModal();
+        structure.focus();
+    });
+    el('feePlanReplaceDismiss').addEventListener('click', () => dialog.close());
+    for (const id of ['feePlanReplaceStructure', 'feePlanReplaceReason'])
+        el(id).addEventListener('input', () => { replacementKey = null; });
+    el('feePlanReplaceForm').addEventListener('submit', async event => {
+        event.preventDefault();
+        if (!selected || selected.stateCode !== 3) return;
+        const reason = el('feePlanReplaceReason').value.trim();
+        const feeStructureId = Number(el('feePlanReplaceStructure').value);
+        if (reason.length < 3 || reason.length > 150 || !feeStructureId) return;
+        if (!replacementKey) replacementKey = crypto.randomUUID();
+        const button = el('feePlanReplaceConfirm');
+        button.disabled = true;
+        try {
+            const replacement = await api('/plans/' + encodeURIComponent(selected.reference) + '/replace', 'POST', {
+                clientRequestId: replacementKey, rowVersion: selected.rowVersion,
+                feeStructureId, reason
+            });
+            replacementKey = null;
+            dialog.close();
+            await register();
+            await detail(replacement.reference);
+            notice('Old agreement cancelled with history. Replacement submitted for independent approval.');
+        } catch (error) { notice(error.message, true); }
+        finally { button.disabled = false; }
+    });
+}
 if (el('feePlanApprove')) el('feePlanApprove').addEventListener('click', () => transition('approve'));
 if (el('feePlanCancel')) {
     const dialog = el('feePlanCancelDialog');
