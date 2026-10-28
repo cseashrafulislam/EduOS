@@ -9018,6 +9018,7 @@ namespace EduOS.Persistence.Migrations
                     b.HasIndex("PublicId").IsUnique();
                     b.HasIndex("TenantId", "ClientRequestId").IsUnique();
                     b.HasIndex("TenantId", "CampusId", "Stage", "AppliedOn");
+                    b.HasIndex("TenantId", "DesignationId");
                     b.HasIndex("TenantId", "LinkedEmployeeId").IsUnique()
                         .HasFilter("[LinkedEmployeeId] IS NOT NULL AND [IsDeleted] = 0");
                     b.ToTable("RecruitmentCandidates", t =>
