@@ -106,6 +106,7 @@ public sealed class PayrollSalaryStructureHistoryTests
             Mock.Of<IGenericRepository<LoanAdvance>>(),
             Mock.Of<IGenericRepository<LoanAdvanceRecovery>>(),
             Mock.Of<IGenericRepository<EduOS.Core.Entities.Accounting.BankAccount>>(),
+            Mock.Of<IGenericRepository<EduOS.Core.Entities.Accounting.Journal>>(),
             Mock.Of<IGenericRepository<EmployeeBankAccount>>(),
             Mock.Of<IUnitOfWork>(),new TestUser(role),TimeProvider.System,
             NullLogger<HrPayrollService>.Instance);
