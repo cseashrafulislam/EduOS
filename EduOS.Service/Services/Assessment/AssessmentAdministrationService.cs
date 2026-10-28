@@ -293,7 +293,7 @@ public sealed partial class AssessmentAdministrationService : IAssessmentAdminis
                     var before = row == null ? null : System.Text.Json.JsonSerializer.Serialize(new
                     {
                         registrationId = row.StudentSubjectRegistrationId, obtainedMarks = row.ObtainedMarks,
-                        isAbsent = row.IsAbsent, isWithheld = row.IsWithheld, remarks = row.Remarks,
+                        isAbsent = row.IsAbsent, isWithheld = row.IsWithheld,
                         gradeLetter = row.GradeLetter, gradePoint = row.GradePoint
                     });
                     if (row == null)
@@ -324,7 +324,7 @@ public sealed partial class AssessmentAdministrationService : IAssessmentAdminis
                         NewValue = System.Text.Json.JsonSerializer.Serialize(new
                         {
                             registrationId = item.StudentSubjectRegistrationId, obtainedMarks = normalized,
-                            isAbsent = item.IsAbsent, isWithheld = item.IsWithheld, remarks,
+                            isAbsent = item.IsAbsent, isWithheld = item.IsWithheld,
                             gradeLetter = grade?.GradeLetter, gradePoint = grade?.GradePoint
                         }),
                         IsSuccess = true, OccurredAt = now
