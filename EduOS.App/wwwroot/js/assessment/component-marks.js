@@ -4,7 +4,8 @@
     if (!root) return;
     const el = id => document.getElementById(id);
     const token = root.querySelector('input[name="__RequestVerificationToken"]')?.value || '';
-    const state = { scopes: [], roster: null, busy: false };
+    const state = { scopes: [], roster: null, busy: false, page: 1, pageSize: 50,
+        search: '', total: 0, scopeValue: '', componentValue: '' };
     const option = (value, label) => new Option(label, String(value));
     const cell = value => { const td = document.createElement('td'); td.textContent = value == null ? '' : String(value); return td; };
     const two = n => Number.isFinite(n) && Math.abs(Math.round(n * 100) - n * 100) < 1e-7;
@@ -30,12 +31,32 @@
         return Number.isInteger(index) && index >= 0 ? state.scopes[index] || null : null;
     }
     function component() { return state.roster?.components?.find(x => String(x.id) === el('cmComponent').value); }
+    function hasUnsaved() {
+        return [...el('cmRows').querySelectorAll('tr[data-master-id]')].some(tr => {
+            const [mark, absent, withheld] = tr.querySelectorAll('input');
+            return mark && (mark.value !== mark.dataset.initial ||
+                String(absent.checked) !== absent.dataset.initial ||
+                String(withheld.checked) !== withheld.dataset.initial);
+        });
+    }
+    function confirmDiscard() {
+        return !hasUnsaved() || window.confirm('Discard unsaved component marks before changing the register?');
+    }
+    function updatePager() {
+        const pages = Math.max(1, Math.ceil(state.total / state.pageSize));
+        el('cmPageInfo').textContent = state.roster ? 'Page ' + state.page + ' of ' + pages +
+            ' · ' + state.total + ' students' : '';
+        el('cmPrev').disabled = state.busy || !state.roster || state.page <= 1;
+        el('cmNext').disabled = state.busy || !state.roster || state.page >= pages;
+    }
     function clear() {
         state.roster = null;
+        state.page = 1; state.total = 0; state.componentValue = '';
         el('cmRows').replaceChildren();
         el('cmComponent').replaceChildren(option('', 'Load a subject first'));
         el('cmSave').disabled = true;
         el('cmInfo').textContent = '';
+        updatePager();
     }
     async function init() {
         state.scopes = await api('/api/assessment-administration/scopes') || [];
@@ -48,10 +69,11 @@
         const roster = state.roster, comp = component(), body = el('cmRows');
         body.replaceChildren();
         el('cmSave').disabled = true;
-        if (!roster || !comp) return;
+        if (!roster || !comp) { updatePager(); return; }
+        state.componentValue = String(comp.id);
         const editable = roster.isEditable && !state.busy;
         el('cmHeading').textContent = roster.assessmentName + ' / ' + roster.subjectName + ' / ' + comp.name;
-        el('cmInfo').textContent = roster.students.length + ' students · Full ' + comp.fullMarks +
+        el('cmInfo').textContent = roster.students.length + ' on page · Full ' + comp.fullMarks +
             ' · Pass ' + comp.passMarks + ' · Weight ' + comp.weightage + '%' +
             (roster.isResultPublished ? ' · Published (locked)' : '');
         for (const student of roster.students) {
@@ -86,19 +108,29 @@
             td.colSpan = 10; tr.append(td); body.append(tr);
         }
         el('cmSave').disabled = !editable || !roster.students.some(x => x.studentAssessmentMarkId);
+        updatePager();
     }
     async function load(event) {
         event?.preventDefault();
         if (state.busy) return;
         const s = selection();
         if (!s) { notice('Select an assessment, batch and subject.', true); return; }
+        if (event && !confirmDiscard()) return;
+        if (event) {
+            state.page = 1;
+            state.search = el('cmSearch').value.trim();
+            state.pageSize = Number(el('cmPageSize').value);
+        }
         state.busy = true; el('cmLoad').disabled = true;
         try {
             const q = new URLSearchParams({ assessmentId: s.assessmentId,
-                academicBatchId: s.academicBatchId, assessmentSubjectId: s.assessmentSubjectId });
+                academicBatchId: s.academicBatchId, assessmentSubjectId: s.assessmentSubjectId,
+                page: String(state.page), pageSize: String(state.pageSize), search: state.search });
             const roster = await api('/api/assessment-administration/component-marks/roster?' + q);
             const old = el('cmComponent').value;
             state.roster = roster;
+            state.page = roster.page; state.pageSize = roster.pageSize;
+            state.total = roster.totalCount; state.scopeValue = el('cmScope').value;
             el('cmComponent').replaceChildren(option('', 'Select component'));
             for (const c of roster.components || []) el('cmComponent').add(option(c.id, c.name + ' (' + c.code + ')'));
             if (roster.components?.some(x => String(x.id) === old)) el('cmComponent').value = old;
@@ -106,6 +138,14 @@
             notice(roster.isEditable ? 'Roster loaded.' : 'Roster is read-only until marks entry is open.', !roster.isEditable);
         } catch (error) { clear(); notice(error.message, true); }
         finally { state.busy = false; el('cmLoad').disabled = false; render(); }
+    }
+    async function navigate(delta) {
+        if (state.busy || !state.roster || !confirmDiscard()) return;
+        const pages = Math.max(1, Math.ceil(state.total / state.pageSize));
+        const next = state.page + delta;
+        if (next < 1 || next > pages) return;
+        state.page = next;
+        await load();
     }
     function changes() {
         const comp = component(), changed = [];
@@ -164,12 +204,20 @@
             })];
         const blob = new Blob(['\uFEFF' + rows.map(r => r.map(quote).join(',')).join('\r\n')], { type: 'text/csv;charset=utf-8' });
         const url = URL.createObjectURL(blob), link = document.createElement('a');
-        link.href = url; link.download = 'component-marks.csv'; document.body.append(link); link.click();
+        link.href = url; link.download = 'component-marks-page-' + state.page + '.csv'; document.body.append(link); link.click();
         link.remove(); setTimeout(() => URL.revokeObjectURL(url), 1000);
     }
     el('componentMarksFilters').addEventListener('submit', load);
-    el('cmScope').addEventListener('change', clear);
-    el('cmComponent').addEventListener('change', render);
+    el('cmScope').addEventListener('change', () => {
+        if (!confirmDiscard()) { el('cmScope').value = state.scopeValue; return; }
+        clear();
+    });
+    el('cmComponent').addEventListener('change', () => {
+        if (!confirmDiscard()) { el('cmComponent').value = state.componentValue; return; }
+        render();
+    });
+    el('cmPrev').addEventListener('click', () => navigate(-1));
+    el('cmNext').addEventListener('click', () => navigate(1));
     el('cmRows').addEventListener('change', event => {
         if (event.target.type !== 'checkbox') return;
         const inputs = event.target.closest('tr')?.querySelectorAll('input');

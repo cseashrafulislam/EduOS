@@ -5,6 +5,9 @@ namespace EduOS.Core.DTOs.Assessment;
 public sealed class AssessmentComponentMarkRosterQueryDto : AssessmentScopeDto
 {
     [Range(1, long.MaxValue)] public long AssessmentSubjectId { get; set; }
+    [Range(1, 100000)] public int Page { get; set; } = 1;
+    [Range(1, 100)] public int PageSize { get; set; } = 50;
+    [MaxLength(100)] public string? Search { get; set; }
 }
 
 public sealed class AssessmentComponentMarkOptionDto
@@ -51,6 +54,9 @@ public sealed class AssessmentComponentMarkRosterDto
     public string SubjectName { get; set; } = string.Empty;
     public bool IsResultPublished { get; set; }
     public bool IsEditable { get; set; }
+    public int Page { get; set; } = 1;
+    public int PageSize { get; set; }
+    public int TotalCount { get; set; }
     public IReadOnlyList<AssessmentComponentMarkOptionDto> Components { get; set; } = Array.Empty<AssessmentComponentMarkOptionDto>();
     public IReadOnlyList<AssessmentComponentMarkStudentDto> Students { get; set; } = Array.Empty<AssessmentComponentMarkStudentDto>();
 }

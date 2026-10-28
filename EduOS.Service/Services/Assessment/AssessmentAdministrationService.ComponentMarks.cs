@@ -13,14 +13,19 @@ public sealed partial class AssessmentAdministrationService
     {
         if (!CanRead()) return Error<AssessmentComponentMarkRosterDto>("Marks access denied.", 403);
         if (request == null || request.AssessmentId <= 0 ||
-            request.AcademicBatchId <= 0 || request.AssessmentSubjectId <= 0)
+            request.AcademicBatchId <= 0 || request.AssessmentSubjectId <= 0 ||
+            request.Page is < 1 or > 100000 || request.PageSize is < 1 or > 100 ||
+            request.Search?.Length > 100 ||
+            ((long)request.Page - 1) * request.PageSize > int.MaxValue)
             return Error<AssessmentComponentMarkRosterDto>("Assessment, batch and subject are required.");
-        // Reuse canonical enrollment, campus/year, instructor and tenant eligibility checks.
-        var rosterResult = await GetMarkRosterAsync(new AssessmentMarkRosterQueryDto
+        // Reuse canonical SQL-paged enrollment, campus/year, instructor and tenant eligibility checks.
+        // Component/mark evidence is read only for the authorized registration IDs on this page.
+        var rosterResult = await SearchMarkRosterAsync(new AssessmentMarkRosterPageQueryDto
         {
             AssessmentId = request.AssessmentId,
             AcademicBatchId = request.AcademicBatchId,
-            AssessmentSubjectId = request.AssessmentSubjectId
+            AssessmentSubjectId = request.AssessmentSubjectId,
+            Page = request.Page, PageSize = request.PageSize, Search = request.Search
         }, ct);
         if (!rosterResult.Success || rosterResult.Data == null)
             return Error<AssessmentComponentMarkRosterDto>(rosterResult.Message, rosterResult.StatusCode);
@@ -54,6 +59,7 @@ public sealed partial class AssessmentAdministrationService
             AssessmentName = roster.AssessmentName, SubjectName = roster.SubjectName,
             IsResultPublished = roster.IsResultPublished,
             IsEditable = !roster.IsResultPublished && exam.State == AssessmentState.MarksEntry,
+            Page = roster.Page, PageSize = roster.PageSize, TotalCount = roster.TotalCount,
             Components = components.Select(x => new AssessmentComponentMarkOptionDto
             {
                 Id = x.Id, Name = x.Name, Code = x.Code, FullMarks = x.FullMarks,

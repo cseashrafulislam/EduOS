@@ -34,7 +34,9 @@ public sealed class AssessmentComponentMarksWorkspaceContractTests
     public void Roster_reuses_canonical_eligibility_and_enforces_tenant()
     {
         var source = Read("EduOS.Service", "Services", "Assessment", "AssessmentAdministrationService.ComponentMarks.cs");
-        source.Should().Contain("GetMarkRosterAsync(new AssessmentMarkRosterQueryDto");
+        source.Should().Contain("SearchMarkRosterAsync(new AssessmentMarkRosterPageQueryDto");
+        source.Should().Contain("Page = request.Page, PageSize = request.PageSize, Search = request.Search");
+        source.Should().Contain("TotalCount = roster.TotalCount");
         source.Should().Contain("x.TenantId == tenant");
         source.Should().Contain("roster.IsResultPublished");
         source.Should().Contain("AssessmentState.MarksEntry");
