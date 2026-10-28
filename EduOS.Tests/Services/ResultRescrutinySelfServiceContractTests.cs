@@ -43,7 +43,7 @@ public sealed class ResultRescrutinySelfServiceContractTests
         api.Should().Contain("Authorize(Roles = \"Student,Guardian,Parent\")");
         api.Should().Contain("RequireModule(\"EXAM\")");
         api.Should().Contain("AutoValidateAntiforgeryToken");
-        api.Should().Contain("studentReference != request.StudentReference");
+        api.Should().Contain("request.StudentReference != studentReference");
         api.Should().Contain("SearchLinkedResultRescrutinyAsync");
         var mvc = Read("EduOS.App/Controllers/StudentPortalController.cs");
         mvc.Should().Contain("IActionResult ResultRescrutiny()");
