@@ -247,13 +247,13 @@ public sealed class SqlServerAcademicRoutineCollisionIntegrationTests
         Assert.Equal(1, await db.Substitutions.AsNoTracking().CountAsync(x =>
             x.TenantId == tenantId && x.Date == coverDate && !x.IsDeleted));
 
-        var winner = coverAttempts[0].Success ? coverA : coverB;
-        var loser = coverAttempts[0].Success ? coverB : coverA;
+        var coverWinner = coverAttempts[0].Success ? coverA : coverB;
+        var coverLoser = coverAttempts[0].Success ? coverB : coverA;
         var instruction = BuildInstructionService(db, tenantId, userId);
-        var replay = await instruction.CreateSubstitutionAsync(winner);
+        var replay = await instruction.CreateSubstitutionAsync(coverWinner);
         Assert.True(replay.Success, replay.Message);
         Assert.Equal(coverAttempts.First(x => x.Success).Data!.Id, replay.Data!.Id);
-        Assert.Equal(409, (await instruction.CreateSubstitutionAsync(loser)).StatusCode);
+        Assert.Equal(409, (await instruction.CreateSubstitutionAsync(coverLoser)).StatusCode);
         var active = await instruction.GetSubstitutionSummaryAsync(coverDate, coverDate, batchAId);
         Assert.True(active.Success, active.Message);
         Assert.Equal(1, active.Data!.TotalCount);
