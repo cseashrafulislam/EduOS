@@ -417,6 +417,26 @@ public sealed class AcademicInstructionServiceTests
     }
 
     [Fact]
+    public async Task Direct_routine_id_cannot_schedule_cover_after_subject_offering_is_deactivated()
+    {
+        var options = Options();
+        var seed = await SeedAsync(options);
+        await using var db = Context(options, 101, 7, "TenantAdmin");
+        var offering = await db.SubjectOfferings.SingleAsync(x => x.PublicId == seed.OfferingReference);
+        offering.IsActive = false;
+        await db.SaveChangesAsync();
+        var manager = Service(db, 101, 7, "TenantAdmin");
+        (await manager.GetSubstitutionRoutineChoicesAsync(seed.BatchId, LessonDate, null, 1, 20))
+            .Data!.Items.Should().BeEmpty();
+        (await manager.CreateSubstitutionAsync(new CreateSubstitutionRequestDto
+        {
+            ClientRequestId = Guid.NewGuid(), RoutineEntryId = seed.RoutineEntryId,
+            Date = LessonDate, SubstituteEmployeeReference = seed.SubstituteReference
+        })).StatusCode.Should().Be(409);
+        (await db.Substitutions.CountAsync()).Should().Be(0);
+    }
+
+    [Fact]
     public async Task Expired_original_instructor_assignment_blocks_substitution_and_routine_selection()
     {
         var options = Options();
