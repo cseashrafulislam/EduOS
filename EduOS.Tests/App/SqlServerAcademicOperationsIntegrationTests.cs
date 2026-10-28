@@ -356,6 +356,15 @@ public sealed class SqlServerAcademicOperationsIntegrationTests
         Assert.Equal(1, day.Marked);
         Assert.Equal(1, day.Absent);
         Assert.Equal(0m, day.AttendancePercent);
+        // Exercise the SQL Server left-joined session register: a finalized session
+        // remains visible with its historical enrollment mark and no draft leakage.
+        var sessions = await reportService.GetSessionRegisterAsync(reportQuery, "finalized");
+        Assert.True(sessions.Success, sessions.Message);
+        var registered = Assert.Single(sessions.Data!.Items);
+        Assert.Equal(1, sessions.Data.TotalCount);
+        Assert.Equal(1, registered.Marked);
+        Assert.Equal(1, registered.Absent);
+        Assert.True(registered.IsFinalized);
         Assert.Equal(403, (await new StudentAttendanceReportService(
             db, new Actor(tenantId, managerId, "Teacher"),
             NullLogger<StudentAttendanceReportService>.Instance).GetAsync(reportQuery)).StatusCode);
