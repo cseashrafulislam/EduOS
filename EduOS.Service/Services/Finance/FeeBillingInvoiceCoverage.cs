@@ -69,14 +69,38 @@ public sealed partial class FeeBillingService
             .Where(i => i.TenantId == tenant && !i.IsDeleted &&
                 i.InvoiceDate >= month && i.InvoiceDate < monthEnd &&
                 i.State != InvoiceState.Cancelled);
+        // Reconcile invoice lines in SQL before classifying a learner as billed.
+        // Correlated, tenant-scoped predicates preserve indexed invoice/line lookups
+        // without loading a cohort's financial details into application memory.
+        var currentLines = db.StudentInvoiceLines.AsNoTracking().Where(l =>
+            l.TenantId == tenant && !l.IsDeleted);
+        var lineFailures = monthlyInvoices.Where(i =>
+            !currentLines.Any(l => l.StudentInvoiceId == i.Id) ||
+            currentLines.Any(l => l.StudentInvoiceId == i.Id &&
+                (l.Amount < 0m || l.DiscountAmount < 0m || l.FineAmount < 0m ||
+                 l.NetAmount < 0m ||
+                 l.NetAmount != l.Amount - l.DiscountAmount + l.FineAmount)) ||
+            (currentLines.Where(l => l.StudentInvoiceId == i.Id)
+                .Sum(l => (decimal?)l.Amount) ?? 0m) != i.Subtotal ||
+            (currentLines.Where(l => l.StudentInvoiceId == i.Id)
+                .Sum(l => (decimal?)l.DiscountAmount) ?? 0m) != i.DiscountAmount ||
+            (currentLines.Where(l => l.StudentInvoiceId == i.Id)
+                .Sum(l => (decimal?)l.FineAmount) ?? 0m) != i.FineAmount ||
+            (currentLines.Where(l => l.StudentInvoiceId == i.Id)
+                .Sum(l => (decimal?)l.NetAmount) ?? 0m) != i.TotalAmount);
+        var invalidInvoices = monthlyInvoices.Where(i =>
+            i.Subtotal < 0m || i.DiscountAmount < 0m || i.FineAmount < 0m ||
+            i.TotalAmount < 0m || i.PaidAmount < 0m || i.DueAmount < 0m ||
+            i.TotalAmount != i.Subtotal - i.DiscountAmount + i.FineAmount ||
+            i.TotalAmount != i.PaidAmount + i.DueAmount ||
+            i.CurrencyCode == null || i.CurrencyCode == "" ||
+            lineFailures.Any(f => f.Id == i.Id));
         var coverage = eligible.Select(e => new
         {
             e.PublicId, e.StudentCode, e.FullName,
             InvoiceCount = monthlyInvoices.Count(i => i.StudentEnrollmentId == e.EnrollmentId),
-            IntegrityIssueCount = monthlyInvoices.Count(i => i.StudentEnrollmentId == e.EnrollmentId &&
-                (i.TotalAmount < 0m || i.PaidAmount < 0m || i.DueAmount < 0m ||
-                 i.TotalAmount != i.PaidAmount + i.DueAmount ||
-                 i.CurrencyCode == null || i.CurrencyCode == ""))
+            IntegrityIssueCount = invalidInvoices.Count(i => i.StudentEnrollmentId == e.EnrollmentId),
+            LineIssueCount = lineFailures.Count(i => i.StudentEnrollmentId == e.EnrollmentId)
         });
         // Aggregate the entire authorized cohort, not just the current page or search.
         var summary = await coverage.GroupBy(x => 1).Select(g => new
@@ -102,6 +126,7 @@ public sealed partial class FeeBillingService
             {
                 StudentReference = x.PublicId, StudentCode = x.StudentCode, StudentName = x.FullName,
                 InvoiceCount = x.InvoiceCount, IntegrityIssueCount = x.IntegrityIssueCount,
+                LineIssueCount = x.LineIssueCount,
                 Status = x.InvoiceCount == 0 ? "Unbilled" :
                     x.InvoiceCount > 1 || x.IntegrityIssueCount > 0 ? "Review" : "Billed"
             }).ToListAsync(ct);

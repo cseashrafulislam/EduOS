@@ -8,7 +8,7 @@
             <details class="position-relative">
                 <summary class="btn btn-outline-secondary btn-sm" aria-label="Invoice coverage help" title="Report guide">ⓘ</summary>
                 <div class="position-absolute border rounded bg-body p-2 small shadow-sm" style="z-index:5;width:min(23rem,80vw);right:0">
-                    Compare active current enrolments with non-cancelled invoices dated in the selected month. Unbilled means no invoice found; Review means duplicate or inconsistent invoices. This does not create instalments, prove fee-structure compliance or confirm GL posting. Totals cover the full batch; CSV and print cover only the displayed page.
+                    Compare active current enrolments with non-cancelled invoices dated in the selected month. Unbilled means no invoice found; Review means duplicate invoices or inconsistent header/line totals, including missing fee lines. This does not create instalments, prove fee-structure compliance or confirm GL posting. Totals cover the full batch; CSV and print cover only the displayed page.
                 </div>
             </details>
         </div>
@@ -39,8 +39,8 @@
     <section class="card">
         <div class="card-header d-flex justify-content-between"><strong>Student coverage</strong><span id="feeCoverageCount"></span></div>
         <div class="table-responsive"><table class="table table-sm table-hover mb-0">
-            <thead><tr><th>Student code</th><th>Student name</th><th class="text-end">Invoices</th><th class="text-end">Integrity issues</th><th>Status</th></tr></thead>
-            <tbody id="feeCoverageRows"><tr><td colspan="5" class="text-muted text-center p-3">Run the report.</td></tr></tbody>
+            <thead><tr><th>Student code</th><th>Student name</th><th class="text-end">Invoices</th><th class="text-end">Integrity issues</th><th class="text-end">Line issues</th><th>Status</th></tr></thead>
+            <tbody id="feeCoverageRows"><tr><td colspan="6" class="text-muted text-center p-3">Run the report.</td></tr></tbody>
         </table></div>
         <div class="card-footer d-flex gap-2 align-items-center d-print-none">
             <button id="feeCoveragePrev" class="btn btn-outline-secondary btn-sm" type="button" disabled>Previous</button>

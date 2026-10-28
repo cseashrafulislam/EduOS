@@ -14,6 +14,9 @@ test('invoice coverage is bounded, tenant and campus scoped, and read only', () 
     assert.match(service, /e\.TenantId == tenant && !e\.IsDeleted && !s\.IsDeleted/);
     assert.match(service, /i\.TenantId == tenant && !i\.IsDeleted/);
     assert.match(service, /monthlyInvoices\.Count\(i => i\.StudentEnrollmentId == e\.EnrollmentId\)/);
+    assert.match(service, /db\.StudentInvoiceLines\.AsNoTracking\(\)/);
+    assert.match(service, /lineFailures\.Count\(i => i\.StudentEnrollmentId == e\.EnrollmentId\)/);
+    assert.match(service, /l\.NetAmount != l\.Amount - l\.DiscountAmount \+ l\.FineAmount/);
     assert.match(service, /Skip\(\(int\)skip\)\.Take\(request\.PageSize\)/);
     assert.doesNotMatch(service, /SaveChangesAsync|IgnoreQueryFilters|ExecuteUpdate|ExecuteDelete/);
 });
@@ -21,6 +24,9 @@ test('coverage UI has safe page-only export and accessible help', () => {
     assert.match(view, /aria-label="Invoice coverage help"/);
     assert.match(view, /feeCoverageCsv/);
     assert.match(view, /feeCoveragePrint/);
+    assert.match(view, /Line issues/);
+    assert.match(js, /item\.lineIssueCount/);
+    assert.match(js, /x\.lineIssueCount/);
     assert.match(js, /cache: 'no-store'/);
     assert.match(js, /credentials: 'same-origin'/);
     assert.match(js, /textContent = String\(value \?\? ''\)/);

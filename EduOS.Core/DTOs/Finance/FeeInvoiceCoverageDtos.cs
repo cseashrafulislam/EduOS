@@ -20,6 +20,7 @@ public sealed class FeeInvoiceCoverageRowDto
     public string StudentName { get; set; } = string.Empty;
     public int InvoiceCount { get; set; }
     public int IntegrityIssueCount { get; set; }
+    public int LineIssueCount { get; set; }
     public string Status { get; set; } = string.Empty;
 }
 
@@ -35,6 +36,6 @@ public sealed class FeeInvoiceCoverageReportDto
     public int Review { get; set; }
     public string Basis { get; set; } =
         "Current active enrolments versus non-cancelled invoices dated in the selected month. " +
-        "Billed does not establish fee-structure compliance, payment, posting or a future instalment agreement.";
+        "Line and header totals are checked; billed does not establish fee-structure compliance, posting or a future instalment agreement.";
     public PagedResult<FeeInvoiceCoverageRowDto> Students { get; set; } = new();
 }

@@ -31,7 +31,7 @@ function clear() {
     el('feeCoverageCount').textContent = '';
     el('feeCoveragePage').textContent = '';
     const tr = document.createElement('tr'), td = cell('No report loaded');
-    td.colSpan = 5; td.className = 'text-muted text-center p-3';
+    td.colSpan = 6; td.className = 'text-muted text-center p-3';
     tr.append(td); el('feeCoverageRows').replaceChildren(tr);
 }
 async function api(url, signal) {
@@ -59,16 +59,18 @@ function render(data) {
     for (const item of data.students.items) {
         if (!Number.isSafeInteger(item.invoiceCount) || item.invoiceCount < 0 ||
             !Number.isSafeInteger(item.integrityIssueCount) || item.integrityIssueCount < 0 ||
+            !Number.isSafeInteger(item.lineIssueCount) || item.lineIssueCount < 0 ||
+            item.lineIssueCount > item.integrityIssueCount ||
             !['Billed','Unbilled','Review'].includes(item.status))
             throw Error('Unexpected coverage row.');
         const tr = document.createElement('tr');
         for (const value of [item.studentCode, item.studentName, item.invoiceCount,
-            item.integrityIssueCount, item.status]) tr.append(cell(value));
+            item.integrityIssueCount, item.lineIssueCount, item.status]) tr.append(cell(value));
         body.append(tr);
     }
     if (!data.students.items.length) {
         const tr = document.createElement('tr'), td = cell('No matching students');
-        td.colSpan = 5; td.className = 'text-center text-muted p-3';
+        td.colSpan = 6; td.className = 'text-center text-muted p-3';
         tr.append(td); body.append(tr);
     }
     el('feeCoverageRows').replaceChildren(body);
@@ -105,9 +107,9 @@ function csvCell(value) {
 }
 function exportCsv() {
     if (!report) return;
-    const rows = [['Student code','Student name','Invoices','Integrity issues','Status']];
+    const rows = [['Student code','Student name','Invoices','Integrity issues','Line issues','Status']];
     for (const x of report.students.items)
-        rows.push([x.studentCode, x.studentName, x.invoiceCount, x.integrityIssueCount, x.status]);
+        rows.push([x.studentCode, x.studentName, x.invoiceCount, x.integrityIssueCount, x.lineIssueCount, x.status]);
     const csv = '\uFEFF' + rows.map(row => row.map(csvCell).join(',')).join('\r\n') + '\r\n';
     const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
     const a = document.createElement('a');

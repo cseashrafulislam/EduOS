@@ -90,6 +90,38 @@ public sealed class FeeInvoiceCoverageTests
         result.Data.Review.Should().Be(2);
     }
 
+    [Fact]
+    public async Task Missing_or_inconsistent_invoice_lines_are_reviewed_without_mutation()
+    {
+        await using var db = Database(); Seed(db);
+        var missing = await db.StudentInvoiceLines.SingleAsync(x => x.StudentInvoiceId == 1);
+        db.StudentInvoiceLines.Remove(missing);
+        var inconsistent = await db.StudentInvoiceLines.SingleAsync(x => x.StudentInvoiceId == 2);
+        inconsistent.NetAmount = 99m;
+        await db.SaveChangesAsync();
+        var result = await Service(db).GetInvoiceCoverageAsync(Query());
+        result.StatusCode.Should().Be(200);
+        result.Data!.Billed.Should().Be(0);
+        result.Data.Review.Should().Be(2);
+        result.Data.Unbilled.Should().Be(1);
+        var learner = result.Data.Students.Items.Single(x => x.StudentCode == "ST-1");
+        learner.IntegrityIssueCount.Should().Be(1);
+        learner.LineIssueCount.Should().Be(1);
+        (await db.StudentInvoices.CountAsync()).Should().Be(3);
+    }
+
+    [Fact]
+    public async Task Deleted_invoice_line_cannot_satisfy_financial_evidence()
+    {
+        await using var db = Database(); Seed(db);
+        var line = await db.StudentInvoiceLines.SingleAsync(x => x.StudentInvoiceId == 1);
+        line.IsDeleted = true;
+        await db.SaveChangesAsync();
+        var result = await Service(db).GetInvoiceCoverageAsync(Query());
+        result.Data!.Students.Items.Single(x => x.StudentCode == "ST-1")
+            .LineIssueCount.Should().Be(1);
+    }
+
     private static void Seed(EduOSDbContext db)
     {
         db.Tenants.Add(new Tenant { Id = 41, Name = "Institute", Code = "INST-41" });
@@ -112,8 +144,12 @@ public sealed class FeeInvoiceCoverageTests
             db.StudentInvoices.Add(new StudentInvoice { Id = id, TenantId = 41,
                 StudentEnrollmentId = enrollmentId, InvoiceNumber = "INV-" + id,
                 InvoiceDate = new DateOnly(2026, 2, 1), DueDate = new DateOnly(2026, 2, 28),
-                CurrencyCode = "BDT", TotalAmount = 100m, PaidAmount = 20m,
+                CurrencyCode = "BDT", Subtotal = 100m, TotalAmount = 100m, PaidAmount = 20m,
                 DueAmount = 80m, State = InvoiceState.PartiallyPaid });
+        foreach (var id in new[] { 1, 2, 3 })
+            db.StudentInvoiceLines.Add(new StudentInvoiceLine { TenantId = 41,
+                StudentInvoiceId = id, FeeHeadId = 1, Description = "Tuition",
+                Amount = 100m, NetAmount = 100m });
         db.SaveChanges();
     }
 
