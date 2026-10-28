@@ -19,6 +19,10 @@ public sealed class StudentPortalController : Controller
     public IActionResult Index() => View();
 
     [HttpGet]
+    [RequireModule("EXAM")]
+    public IActionResult ResultRescrutiny() => View();
+
+    [HttpGet]
     [RequireModule("FINANCE")]
     public async Task<IActionResult> FeeDocument(Guid studentReference, Guid documentReference,
         string kind, CancellationToken ct)

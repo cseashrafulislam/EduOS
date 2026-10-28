@@ -6,6 +6,7 @@
         <h2 id="studentPortalTitle">Student & guardian portal</h2>
         <p class="text-muted">Only your own or explicitly linked students are visible. Each section respects institutional module access.</p>
         <a class="btn btn-outline-primary btn-sm" href="/MyStudentLeaves/Index">Request Student Leave</a>
+        <a class="btn btn-outline-primary btn-sm" href="/StudentPortal/ResultRescrutiny">Result re-scrutiny</a>
         @if (User.IsInRole("Guardian") || User.IsInRole("Parent"))
         {
             <a class="btn btn-outline-secondary btn-sm" href="#guardianPreferences">Communication preferences</a>

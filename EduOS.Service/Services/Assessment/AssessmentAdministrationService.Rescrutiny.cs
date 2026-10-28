@@ -124,7 +124,7 @@ public sealed partial class AssessmentAdministrationService
     public Task<ApiResponse<ResultRescrutinyItemDto>> RequestResultRescrutinyAsync(
         RequestResultRescrutinyDto request, CancellationToken ct = default)
     {
-        if (!CanPublish())
+        if (!CanPublish() && !CanRescrutinySelfServe())
             return Task.FromResult(Error<ResultRescrutinyItemDto>("Rescrutiny intake permission required.", 403));
         if (request == null || request.ClientRequestId == Guid.Empty ||
             request.PublicationId <= 0 || request.StudentReference == Guid.Empty ||
@@ -133,12 +133,17 @@ public sealed partial class AssessmentAdministrationService
         return WriteAsync("result rescrutiny request", async token =>
         {
             var tenant = _user.TenantId;
+            var linked = CanPublish() ? null : await FindLinkedRescrutinyStudentAsync(request.StudentReference, token);
+            if (!CanPublish() && linked == null)
+                return Error<ResultRescrutinyItemDto>("Student or published result not available.", 404);
             var scope = await FindRescrutinyScopeAsync(request.PublicationId, token);
             if (scope == null) return Error<ResultRescrutinyItemDto>("Publication not found.", 404);
             if (!await CanAccessCampusAsync(scope.CampusId, token))
                 return Error<ResultRescrutinyItemDto>("Campus access denied.", 403);
             if (scope.Publication.State != ResultPublicationState.Published)
                 return Error<ResultRescrutinyItemDto>("Only currently published results accept new applications.", 409);
+            if (linked != null && !CanViewLinkedRescrutinyPublication(linked, scope.Publication))
+                return Error<ResultRescrutinyItemDto>("Student or published result not available.", 404);
             var student = await (from enrollment in _enrollments.GetQueryable().AsNoTracking()
                 join learner in _students.GetQueryable().AsNoTracking()
                     on new { enrollment.TenantId, Id = enrollment.StudentId }
@@ -151,13 +156,16 @@ public sealed partial class AssessmentAdministrationService
                     !enrollment.IsDeleted && !learner.IsDeleted
                 select new { enrollment.Id, learner.PublicId, learner.StudentCode, enrollment.RollNo })
                 .FirstOrDefaultAsync(token);
-            if (student == null) return Error<ResultRescrutinyItemDto>("Student enrollment not found in publication scope.", 404);
+            if (student == null || (linked != null && student.Id != linked.Student.Id))
+                return Error<ResultRescrutinyItemDto>("Student enrollment not found in publication scope.", 404);
             if (!await HasValidRescrutinyEvidenceAsync(scope, token))
                 return Error<ResultRescrutinyItemDto>("Published snapshot requires reconciliation.", 409);
+            var privilegedIntake = linked == null;
             if (!await _summaries.GetQueryable().AsNoTracking().AnyAsync(x =>
                 x.TenantId == tenant && x.ResultPublicationId == scope.Publication.Id &&
                 x.StudentEnrollmentId == student.Id &&
-                x.PublicationVersionNo == scope.Publication.VersionNo && !x.IsDeleted, token))
+                x.PublicationVersionNo == scope.Publication.VersionNo && !x.IsDeleted &&
+                (privilegedIntake || !x.IsWithheld), token))
                 return Error<ResultRescrutinyItemDto>("Student has no published snapshot in this version.", 409);
             var normalized = request.Reason.Trim();
             var replay = await _rescrutinyEvents.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>

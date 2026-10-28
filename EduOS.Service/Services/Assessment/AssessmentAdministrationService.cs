@@ -41,6 +41,8 @@ public sealed partial class AssessmentAdministrationService : IAssessmentAdminis
     private readonly IGenericRepository<UserCampusAccess> _campusAccesses;
     private readonly IGenericRepository<Room> _rooms;
     private readonly IGenericRepository<Student> _students;
+    private readonly IGenericRepository<Guardian>? _rescrutinyGuardians;
+    private readonly IGenericRepository<StudentGuardian>? _rescrutinyStudentGuardians;
     private readonly IGenericRepository<Employee> _employees;
     private readonly IGenericRepository<InstructorAssignment> _instructors;
     private readonly IGenericRepository<AssessmentComponent> _components;
@@ -73,10 +75,15 @@ public sealed partial class AssessmentAdministrationService : IAssessmentAdminis
         IGenericRepository<TranscriptIssue> transcripts, IGenericRepository<AuditLog> auditLogs,
         IUnitOfWork uow, ICurrentUserService user,
         TimeProvider clock, ILogger<AssessmentAdministrationService> logger,
-        IGenericRepository<ResultRescrutinyEvent> rescrutinyEvents)
+        IGenericRepository<ResultRescrutinyEvent> rescrutinyEvents,
+        IGenericRepository<Guardian>? rescrutinyGuardians = null,
+        IGenericRepository<StudentGuardian>? rescrutinyStudentGuardians = null)
     {
         _assessments = assessments; _subjects = subjects; _markReviews = markReviews;
-        _rescrutinyEvents = rescrutinyEvents; _schedules = schedules;
+        _rescrutinyEvents = rescrutinyEvents;
+        _rescrutinyGuardians = rescrutinyGuardians;
+        _rescrutinyStudentGuardians = rescrutinyStudentGuardians;
+        _schedules = schedules;
         _marks = marks; _publications = publications; _summaries = summaries;
         _gradeSchemes = gradeSchemes; _grades = grades; _enrollments = enrollments;
         _subjectNames = subjectNames; _registrations = registrations; _offerings = offerings;

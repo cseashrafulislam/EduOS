@@ -1,0 +1,65 @@
+@using System.Globalization
+@{
+    ViewData["Title"] = "Result Re-scrutiny";
+    var bn = CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "bn";
+}
+<section class="container-fluid py-3" id="learnerRescrutiny" data-lang="@(bn ? "bn" : "en")">
+    @Html.AntiForgeryToken()
+    <header class="d-flex align-items-center gap-2 mb-3">
+        <h1 class="h4 mb-0">@(bn ? "ফলাফল পুনর্নিরীক্ষণ আবেদন" : "Result re-scrutiny application")</h1>
+        <details class="ms-auto small">
+            <summary class="btn btn-sm btn-outline-secondary" aria-label="@(bn ? "আবেদন সহায়তা" : "Application help")">ⓘ</summary>
+            <div class="border rounded p-2 mt-1" role="note" style="max-width:22rem">
+                @(bn ? "নিজের বা অনুমোদিত শিক্ষার্থীর প্রকাশিত ফলাফল নির্বাচন করুন। একই ফলাফলে একটি আবেদন করা যাবে। স্বাধীন পরীক্ষক সিদ্ধান্ত দেবেন।" : "Choose a visible published result for your linked learner. One application is allowed per publication; an independent examiner decides.")
+            </div>
+        </details>
+    </header>
+    <div id="learnerRescrutinyNotice" class="d-none" role="alert" aria-live="polite"></div>
+    <div class="card mb-3"><div class="card-body">
+        <div class="row g-2 align-items-end">
+            <div class="col-md-5">
+                <label class="form-label" for="learnerRescrutinyStudent">@(bn ? "শিক্ষার্থী" : "Student")</label>
+                <select id="learnerRescrutinyStudent" class="form-select" required><option value="">@(bn ? "লোড হচ্ছে" : "Loading")</option></select>
+            </div>
+            <div class="col-md-5">
+                <label class="form-label" for="learnerRescrutinyPublication">@(bn ? "প্রকাশিত ফলাফল" : "Published result")</label>
+                <select id="learnerRescrutinyPublication" class="form-select" required disabled></select>
+            </div>
+            <div class="col-auto">
+                <button id="learnerRescrutinyResultsPrev" class="btn btn-sm btn-outline-secondary" type="button" disabled>‹</button>
+                <button id="learnerRescrutinyResultsNext" class="btn btn-sm btn-outline-secondary" type="button" disabled>›</button>
+            </div>
+        </div>
+    </div></div>
+    <div class="card mb-3"><div class="card-body">
+        <form id="learnerRescrutinyForm">
+            <label class="form-label" for="learnerRescrutinyReason">@(bn ? "আবেদনের কারণ" : "Reason for re-scrutiny")</label>
+            <textarea id="learnerRescrutinyReason" class="form-control mb-2" rows="3" minlength="10" maxlength="1000" required></textarea>
+            <button id="learnerRescrutinySubmit" class="btn btn-primary" type="submit" disabled>@(bn ? "আবেদন জমা দিন" : "Submit application")</button>
+        </form>
+    </div></div>
+    <section class="card" aria-labelledby="learnerRescrutinyCasesTitle">
+        <div class="card-header d-flex align-items-center justify-content-between gap-2">
+            <h2 id="learnerRescrutinyCasesTitle" class="h6 mb-0">@(bn ? "আবেদন ও সিদ্ধান্ত" : "Applications and decisions")</h2>
+            <button type="button" id="learnerRescrutinyPrint" class="btn btn-sm btn-outline-secondary">@(bn ? "প্রিন্ট" : "Print")</button>
+        </div>
+        <div class="table-responsive">
+            <table class="table table-sm align-middle mb-0">
+                <thead><tr>
+                    <th>@(bn ? "আবেদনের সময়" : "Requested")</th>
+                    <th>@(bn ? "অবস্থা" : "Status")</th>
+                    <th>@(bn ? "আবেদনের কারণ" : "Request reason")</th>
+                    <th>@(bn ? "সিদ্ধান্তের কারণ" : "Decision reason")</th>
+                </tr></thead>
+                <tbody id="learnerRescrutinyRows"><tr><td colspan="4">@(bn ? "ফলাফল নির্বাচন করুন" : "Select a result")</td></tr></tbody>
+            </table>
+        </div>
+        <div class="card-body d-flex align-items-center gap-2">
+            <button id="learnerRescrutinyCasesPrev" class="btn btn-sm btn-outline-secondary" type="button" disabled>‹</button>
+            <button id="learnerRescrutinyCasesNext" class="btn btn-sm btn-outline-secondary" type="button" disabled>›</button>
+            <span id="learnerRescrutinyPage" role="status" aria-live="polite"></span>
+        </div>
+    </section>
+</section>
+<style>@@media print { #learnerRescrutinyForm,#learnerRescrutinyResultsPrev,#learnerRescrutinyResultsNext,#learnerRescrutinyCasesPrev,#learnerRescrutinyCasesNext,#learnerRescrutinyPrint,#learnerRescrutinyNotice { display:none!important; } }</style>
+@section Scripts { <script src="~/js/student-portal/result-rescrutiny.js" asp-append-version="true"></script> }
