@@ -69,6 +69,16 @@ public sealed class AssessmentAdministrationApiController : ControllerBase
     public async Task<IActionResult> MarkChanges([FromQuery] AssessmentMarkChangeQueryDto query,
         CancellationToken ct) => Result(await _service.SearchMarkChangesAsync(query, ct));
 
+    [HttpGet("results/rescrutiny/summary")]
+    [Authorize(Roles = "TenantAdmin,Principal,VicePrincipal,ExamController")]
+    public async Task<IActionResult> RescrutinySummary([FromQuery] long publicationId,
+        CancellationToken ct) => Result(await _service.GetResultRescrutinySummaryAsync(publicationId, ct));
+
+    [HttpGet("results/rescrutiny/export")]
+    [Authorize(Roles = "TenantAdmin,Principal,VicePrincipal,ExamController")]
+    public async Task<IActionResult> RescrutinyExport([FromQuery] ResultRescrutinyQueryDto query,
+        CancellationToken ct) => Result(await _service.ExportResultRescrutinyAsync(query, ct));
+
     [HttpGet("results/rescrutiny")]
     [Authorize(Roles = "TenantAdmin,Principal,VicePrincipal,ExamController")]
     public async Task<IActionResult> Rescrutiny([FromQuery] ResultRescrutinyQueryDto query,

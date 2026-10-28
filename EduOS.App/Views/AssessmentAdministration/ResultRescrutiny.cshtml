@@ -67,9 +67,10 @@
                 <option value="3">@(bn ? "সংশোধনের জন্য গৃহীত" : "Accepted for correction")</option>
                 <option value="2">@(bn ? "প্রত্যাখ্যাত" : "Rejected")</option>
             </select>
-            <button id="rescrutinyCsv" type="button" class="btn btn-sm btn-outline-secondary" disabled>CSV</button>
+            <button id="rescrutinyCsv" type="button" class="btn btn-sm btn-outline-secondary" disabled>@(bn ? "CSV (সর্বোচ্চ ৫০০)" : "CSV (max 500)")</button>
             <button id="rescrutinyPrint" type="button" class="btn btn-sm btn-outline-secondary">@(bn ? "প্রিন্ট" : "Print")</button>
         </div>
+        <div id="rescrutinySummary" class="small px-3 py-2 border-bottom" role="status" aria-live="polite"></div>
         <div class="table-responsive">
             <table class="table table-sm table-hover mb-0">
                 <thead><tr><th>@(bn ? "শিক্ষার্থী" : "Student")</th><th>@(bn ? "আবেদন" : "Requested")</th><th>@(bn ? "অবস্থা" : "Status")</th><th>@(bn ? "কারণ" : "Reason")</th><th>@(bn ? "সিদ্ধান্ত" : "Decision")</th></tr></thead>

@@ -12,6 +12,11 @@ test('rescrutiny status filter and case audit history use bounded server APIs an
     assert.doesNotThrow(() => new Function(js));
     assert.match(view, /id="rescrutinyStatusFilter"/);
     assert.match(view, /id="rescrutinyHistoryRows"/);
+    assert.match(view, /id="rescrutinySummary"/);
+    assert.match(js, /results\/rescrutiny\/summary/);
+    assert.match(js, /results\/rescrutiny\/export/);
+    assert.match(js, /data\.truncated/);
+    assert.match(js, /state\.exportBusy/);
     assert.match(js, /params\.set\('status',/);
     assert.match(js, /\/history'\)/);
     assert.match(js, /state\.historySeq/);

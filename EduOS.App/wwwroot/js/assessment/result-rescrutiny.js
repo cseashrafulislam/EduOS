@@ -7,7 +7,8 @@
     const tr = (en, bangla) => bn ? bangla : en;
     const state = { scopePage: 1, scopeTotal: 0, scopeSeq: 0, listSeq: 0,
         publication: 0, before: null, previous: [], hasMore: false, items: [],
-        selected: null, busy: false, requestKey: null, decisionKey: null, historySeq: 0, reviewSeq: 0 };
+        selected: null, busy: false, exportBusy: false, summarySeq: 0,
+        requestKey: null, decisionKey: null, historySeq: 0, reviewSeq: 0 };
     const endpoint = '/api/assessment-administration/';
     const token = document.querySelector('#resultRescrutinyWorkspace input[name="__RequestVerificationToken"]')?.value;
     function notice(message, error = false) {
@@ -45,6 +46,7 @@
         $('rescrutinyHistory').classList.add('d-none');
         state.historySeq++; state.reviewSeq++;
         $('rescrutinyReviewEvidence').classList.add('d-none');
+        state.summarySeq++; $('rescrutinySummary').textContent = '';
         $('rescrutinyCsv').disabled = true; $('rescrutinyPrev').disabled = true;
         $('rescrutinyNext').disabled = true;
         placeholder('rescrutinyRows', tr('Select a published version.', 'প্রকাশিত সংস্করণ নির্বাচন করুন।'), 5);
@@ -121,6 +123,28 @@
             return tr('Accepted for correction review', 'সংশোধন পর্যালোচনার জন্য গৃহীত');
         return tr('Pending', 'অপেক্ষমাণ');
     }
+    async function loadSummary() {
+        const id = state.publication, seq = ++state.summarySeq;
+        if (!id) return;
+        try {
+            const data = await api('results/rescrutiny/summary?' +
+                new URLSearchParams({ publicationId: String(id) }));
+            if (seq !== state.summarySeq || id !== state.publication) return;
+            $('rescrutinySummary').textContent = [
+                tr('Total', 'মোট') + ': ' + data.total,
+                tr('Pending', 'অপেক্ষমাণ') + ': ' + data.pending,
+                tr('Accepted for correction', 'সংশোধনের জন্য গৃহীত') + ': ' + data.acceptedForCorrection,
+                tr('Rejected', 'প্রত্যাখ্যাত') + ': ' + data.rejected,
+                data.oldestPendingAt ? tr('Oldest pending (UTC)', 'প্রাচীনতম অপেক্ষমাণ (UTC)') +
+                    ': ' + new Date(data.oldestPendingAt).toISOString() : ''
+            ].filter(Boolean).join('  ·  ');
+        } catch (e) {
+            if (seq === state.summarySeq) {
+                $('rescrutinySummary').textContent = '';
+                notice(e.message, true);
+            }
+        }
+    }
     async function loadCases() {
         const id = state.publication, before = state.before;
         const seq = ++state.listSeq;
@@ -163,7 +187,7 @@
                 placeholder('rescrutinyRows', tr('No applications on this page.', 'এই পৃষ্ঠায় কোনো আবেদন নেই।'), 5);
             $('rescrutinyPrev').disabled = !state.previous.length;
             $('rescrutinyNext').disabled = !state.hasMore;
-            $('rescrutinyCsv').disabled = !state.items.length;
+            $('rescrutinyCsv').disabled = !state.publication || state.exportBusy;
             $('rescrutinyPage').textContent = tr('Page ', 'পৃষ্ঠা ') + (state.previous.length + 1);
         } catch (e) { if (seq === state.listSeq) notice(e.message, true); }
     }
@@ -223,7 +247,8 @@
         resetPublication();
         if (!Number.isSafeInteger(id) || id <= 0) return;
         state.publication = id;
-        await Promise.all([loadCases(), loadStudents()]);
+        $('rescrutinyCsv').disabled = false;
+        await Promise.all([loadCases(), loadStudents(), loadSummary()]);
     }
     async function submitRequest(event) {
         event.preventDefault();
@@ -240,7 +265,7 @@
             state.requestKey = null; $('rescrutinyReason').value = '';
             state.before = null; state.previous = [];
             notice(tr('Application recorded.', 'আবেদন সংরক্ষিত হয়েছে।'));
-            await loadCases();
+            await Promise.all([loadCases(), loadSummary()]);
         } catch (e) { notice(e.message, true); }
         finally { state.busy = false; $('rescrutinySubmit').disabled = !$('rescrutinyStudent').value; }
     }
@@ -261,27 +286,42 @@
             $('rescrutinyDecisionForm').classList.add('d-none');
             notice(tr('Decision recorded. Published marks are unchanged.',
                 'সিদ্ধান্ত সংরক্ষিত হয়েছে। প্রকাশিত নম্বর অপরিবর্তিত।'));
-            await loadCases();
+            await Promise.all([loadCases(), loadSummary()]);
         } catch (e) { notice(e.message, true); }
         finally { state.busy = false; $('rescrutinyDecide').disabled = false; }
     }
-    function csv() {
-        if (!state.items.length) return;
-        const safe = value => {
-            let s = String(value ?? '');
-            if (/^[\s]*[=+\-@]/.test(s)) s = "'" + s;
-            return '"' + s.replace(/"/g, '""') + '"';
-        };
-        const rows = [['Student', 'Roll', 'Status', 'Requested UTC', 'Request reason',
-            'Decided UTC', 'Decision reason']];
-        for (const item of state.items)
-            rows.push([item.studentCode, item.rollNo, status(item.status), item.requestedAt,
-                item.requestReason, item.decidedAt, item.decisionReason]);
-        const blob = new Blob(['\uFEFF' + rows.map(x => x.map(safe).join(',')).join('\r\n')],
-            { type: 'text/csv;charset=utf-8' });
-        const url = URL.createObjectURL(blob), a = document.createElement('a');
-        a.href = url; a.download = 'rescrutiny-current-page.csv'; a.click();
-        setTimeout(() => URL.revokeObjectURL(url), 1000);
+    async function csv() {
+        if (!state.publication || state.exportBusy) return;
+        const publication = state.publication;
+        state.exportBusy = true; $('rescrutinyCsv').disabled = true;
+        try {
+            const params = new URLSearchParams({ publicationId: String(publication), pageSize: '50' });
+            const filter = $('rescrutinyStatusFilter').value;
+            if (filter) params.set('status', filter);
+            const data = await api('results/rescrutiny/export?' + params);
+            if (publication !== state.publication) return;
+            const safe = value => {
+                let s = String(value ?? '');
+                if (/^\s*[=+\-@]/.test(s)) s = "'" + s;
+                return '"' + s.replace(/"/g, '""') + '"';
+            };
+            const rows = [['Student', 'Roll', 'Status', 'Requested UTC', 'Request reason',
+                'Decided UTC', 'Decision reason']];
+            for (const item of data.items || [])
+                rows.push([item.studentCode, item.rollNo, status(item.status), item.requestedAt,
+                    item.requestReason, item.decidedAt, item.decisionReason]);
+            const blob = new Blob(['\uFEFF' + rows.map(x => x.map(safe).join(',')).join('\r\n')],
+                { type: 'text/csv;charset=utf-8' });
+            const url = URL.createObjectURL(blob), a = document.createElement('a');
+            a.href = url; a.download = 'rescrutiny-publication-' + publication + '.csv'; a.click();
+            setTimeout(() => URL.revokeObjectURL(url), 1000);
+            if (data.truncated) notice(tr('Export limited to 500 cases; narrow the status filter.',
+                'এক্সপোর্ট ৫০০ আবেদনে সীমিত; অবস্থা অনুযায়ী ফিল্টার করুন।'), true);
+        } catch (e) { notice(e.message, true); }
+        finally {
+            state.exportBusy = false;
+            $('rescrutinyCsv').disabled = !state.publication;
+        }
     }
     $('rescrutinyScopeForm').addEventListener('submit', e => {
         e.preventDefault(); state.scopePage = 1; loadScopes();

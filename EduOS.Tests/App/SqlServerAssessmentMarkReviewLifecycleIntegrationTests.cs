@@ -100,6 +100,19 @@ public sealed class SqlServerAssessmentMarkReviewLifecycleIntegrationTests
             Assert.True(page.Success, page.Message);
             Assert.Single(page.Data!.Items);
             Assert.False(page.Data.HasMore);
+            var workload = await service.GetResultRescrutinySummaryAsync(publicationId);
+            Assert.True(workload.Success, workload.Message);
+            Assert.Equal(1, workload.Data!.Total);
+            Assert.Equal(1, workload.Data.Pending);
+            Assert.Equal(0, workload.Data.AcceptedForCorrection);
+            Assert.NotNull(workload.Data.OldestPendingAt);
+            var export = await service.ExportResultRescrutinyAsync(new()
+            {
+                PublicationId = publicationId, PageSize = 50
+            });
+            Assert.True(export.Success, export.Message);
+            Assert.False(export.Data!.Truncated);
+            Assert.Equal(caseReference, Assert.Single(export.Data.Items).CaseReference);
             var history = await service.GetResultRescrutinyHistoryAsync(caseReference);
             Assert.True(history.Success, history.Message);
             Assert.Equal(studentReference, history.Data!.StudentReference);
@@ -129,6 +142,11 @@ public sealed class SqlServerAssessmentMarkReviewLifecycleIntegrationTests
         {
             var foreign = Service(db, new Actor(seeded.TenantId + 1, seeded.ReviewerId, "TenantAdmin"));
             Assert.Equal(404, (await foreign.SearchResultRescrutinyAsync(new()
+            {
+                PublicationId = publicationId
+            })).StatusCode);
+            Assert.Equal(404, (await foreign.GetResultRescrutinySummaryAsync(publicationId)).StatusCode);
+            Assert.Equal(404, (await foreign.ExportResultRescrutinyAsync(new()
             {
                 PublicationId = publicationId
             })).StatusCode);
@@ -188,6 +206,19 @@ public sealed class SqlServerAssessmentMarkReviewLifecycleIntegrationTests
             });
             Assert.Equal(ResultRescrutinyAction.AcceptedForCorrection,
                 Assert.Single(page.Data!.Items).Status);
+            var workload = await service.GetResultRescrutinySummaryAsync(publicationId);
+            Assert.True(workload.Success, workload.Message);
+            Assert.Equal(1, workload.Data!.Total);
+            Assert.Equal(0, workload.Data.Pending);
+            Assert.Equal(1, workload.Data.AcceptedForCorrection);
+            Assert.Null(workload.Data.OldestPendingAt);
+            var export = await service.ExportResultRescrutinyAsync(new()
+            {
+                PublicationId = publicationId, Status = ResultRescrutinyAction.AcceptedForCorrection
+            });
+            Assert.True(export.Success, export.Message);
+            Assert.Equal(ResultRescrutinyAction.AcceptedForCorrection,
+                Assert.Single(export.Data!.Items).Status);
             var history = await service.GetResultRescrutinyHistoryAsync(caseReference);
             Assert.True(history.Success, history.Message);
             Assert.Equal(2, history.Data!.Events.Count);

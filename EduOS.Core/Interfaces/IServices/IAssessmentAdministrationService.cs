@@ -26,6 +26,8 @@ public interface IAssessmentAdministrationService
     Task<ApiResponse<bool>> SaveMarksRegisterAsync(SaveMarksRegisterRequestDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<PagedResult<AssessmentMarkReviewQueueItemDto>>> SearchMarkReviewQueueAsync(AssessmentMarkReviewQueueQueryDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<AssessmentMarkReviewDto>> GetMarkReviewAsync(long subjectId, CancellationToken cancellationToken = default);
+    Task<ApiResponse<ResultRescrutinySummaryDto>> GetResultRescrutinySummaryAsync(long publicationId, CancellationToken cancellationToken = default);
+    Task<ApiResponse<ResultRescrutinyExportDto>> ExportResultRescrutinyAsync(ResultRescrutinyQueryDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<ResultRescrutinyPageDto>> SearchResultRescrutinyAsync(ResultRescrutinyQueryDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<ResultRescrutinyPageDto>> SearchLinkedResultRescrutinyAsync(Guid studentReference, long publicationId, long? beforeId, CancellationToken cancellationToken = default);
     Task<ApiResponse<ResultRescrutinyHistoryDto>> GetResultRescrutinyHistoryAsync(Guid caseReference, CancellationToken cancellationToken = default);

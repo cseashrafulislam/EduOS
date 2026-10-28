@@ -53,6 +53,26 @@ public sealed class ResultRescrutinyPageDto
     public long? NextBeforeId { get; set; }
 }
 
+/// <summary>Publication-wide, tenant-scoped operational counts; never exposes learner PII.</summary>
+public sealed class ResultRescrutinySummaryDto
+{
+    public long PublicationId { get; set; }
+    public int PublicationVersionNo { get; set; }
+    public long Total { get; set; }
+    public long Pending { get; set; }
+    public long AcceptedForCorrection { get; set; }
+    public long Rejected { get; set; }
+    public DateTime? OldestPendingAt { get; set; }
+}
+
+/// <summary>Bounded case register export; Truncated warns about further pages.</summary>
+public sealed class ResultRescrutinyExportDto
+{
+    public IReadOnlyList<ResultRescrutinyItemDto> Items { get; set; } = [];
+    public bool Truncated { get; set; }
+    public int Limit { get; set; } = 500;
+}
+
 public sealed class ResultRescrutinyHistoryEventDto
 {
     public ResultRescrutinyAction Action { get; set; }
