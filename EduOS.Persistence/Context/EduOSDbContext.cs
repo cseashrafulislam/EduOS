@@ -2747,9 +2747,24 @@ public class EduOSDbContext :
                 await transaction.CommitAsync(cancellationToken);
                 return result;
             }
-            catch
+            catch (Exception operationFailure)
             {
-                await transaction.RollbackAsync(CancellationToken.None);
+                // SQL Server may already have terminated a deadlock victim's
+                // transaction. Its subsequent rollback raises InvalidOperationException
+                // ("zombie" transaction), which must not hide the original SQL 1205.
+                // The caller must see the original failure to perform a safe,
+                // fresh-DbContext retry. Never turn a rollback error into success.
+                try
+                {
+                    await transaction.RollbackAsync(CancellationToken.None);
+                }
+                catch (Exception rollbackFailure)
+                {
+                    // Exception type only: never attach SQL text, connection details
+                    // or learner data to an exception exposed to callers.
+                    operationFailure.Data["EduOS.RollbackFailureType"] =
+                        rollbackFailure.GetType().Name;
+                }
                 throw;
             }
         });

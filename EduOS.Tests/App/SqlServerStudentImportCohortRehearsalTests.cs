@@ -56,6 +56,26 @@ public sealed class SqlServerStudentImportCohortRehearsalTests
     }
 
     [Fact]
+    public async Task Sql_transaction_preserves_original_failure_after_server_side_rollback()
+    {
+        var connection = Environment.GetEnvironmentVariable(ConnectionVariable);
+        if (string.IsNullOrWhiteSpace(connection)) return;
+        var options = new DbContextOptionsBuilder<EduOSDbContext>()
+            .UseSqlServer(connection).Options;
+        await using var db = new EduOSDbContext(options);
+
+        // Simulate a transaction already ended by SQL Server (as for a deadlock
+        // victim). The rollback attempt must never replace the original error.
+        var failure = await Assert.ThrowsAsync<InvalidDataException>(() =>
+            db.ExecuteInTransactionAsync<int>(async token =>
+            {
+                await db.Database.ExecuteSqlRawAsync("ROLLBACK TRANSACTION", token);
+                throw new InvalidDataException("Synthetic transaction aborted.");
+            }, System.Data.IsolationLevel.Serializable));
+        Assert.Equal("Synthetic transaction aborted.", failure.Message);
+    }
+
+    [Fact]
     public async Task Sql_parallel_institute_imports_reconcile_independently_with_shared_source_keys()
     {
         var connection = Environment.GetEnvironmentVariable(ConnectionVariable);
