@@ -13,7 +13,7 @@
     const shell = document.querySelector('.app-shell');
     let channel = null;
     let pending = null;
-    let lastChecked = 0;
+    let recheckRequested = false;
 
     function block() {
         shield.hidden = false;
@@ -32,15 +32,24 @@
             'সেশন যাচাই করা যায়নি। সংযোগ ঠিক করে আবার চেষ্টা করুন।' :
             'Unable to verify your session. Reconnect and retry.';
     }
-    function check(force = false) {
-        if (pending) return pending;
-        if (!force && Date.now() - lastChecked < 5000) return Promise.resolve();
+    function check() {
+        // Focus/visibility events must never skip verification for a time-based
+        // cooldown: a different tab may have switched institutions moments ago.
+        // If the cookie changes during an in-flight request, perform another
+        // server check before ever unshielding the previous institution page.
+        if (pending) {
+            recheckRequested = true;
+            return pending;
+        }
         block();
+        const expectedReference = original;
+        const controller = new AbortController();
+        const timeout = window.setTimeout(() => controller.abort(), 10000);
         pending = (async () => {
             try {
                 const response = await fetch('/api/auth/session-context', {
                     credentials: 'same-origin', cache: 'no-store',
-                    headers: { Accept: 'application/json' }
+                    headers: { Accept: 'application/json' }, signal: controller.signal
                 });
                 if (response.status === 401 || response.status === 403) {
                     window.location.replace('/Account/Login');
@@ -49,22 +58,32 @@
                 if (!response.ok) throw new Error('Session check unavailable');
                 const payload = await response.json();
                 const current = payload?.data?.sessionReference;
+                const currentTenant = payload?.data?.tenantId == null ? '' : String(payload.data.tenantId);
                 if (payload?.success !== true || !/^[0-9A-F]{64}$/.test(current || ''))
                     throw new Error('Invalid session response');
-                if (current !== original) {
+                if (expectedReference !== original) {
+                    recheckRequested = true;
+                    return;
+                }
+                if (current !== original || currentTenant !== originalTenant) {
                     // Never reuse an old page/form against the new institution cookie.
                     window.location.replace('/Dashboard/Index');
                     return;
                 }
-                unblock();
+                if (!recheckRequested) unblock();
             } catch {
                 // Fail closed: do not display the previous institution's data offline.
                 failed();
             } finally {
-                lastChecked = Date.now();
-                pending = null;
+                window.clearTimeout(timeout);
             }
-        })();
+        })().finally(() => {
+            pending = null;
+            if (recheckRequested) {
+                recheckRequested = false;
+                void check();
+            }
+        });
         return pending;
     }
 
@@ -77,17 +96,19 @@
             return false;
         original = reference;
         document.body.dataset.authSessionReference = reference;
-        lastChecked = 0;
-        unblock();
+        // A pending response may describe the old cookie; verify again before
+        // showing this page after adopting a same-institution rotated session.
+        if (pending) recheckRequested = true;
+        else void check();
         return true;
     };
 
-    retry.addEventListener('click', () => check(true));
+    retry.addEventListener('click', () => check());
     window.addEventListener('pageshow', event => {
-        if (event.persisted) void check(true);
+        if (event.persisted) void check();
     });
     document.addEventListener('visibilitychange', () => {
-        if (document.visibilityState === 'visible') void check(true);
+        if (document.visibilityState === 'visible') void check();
     });
     window.addEventListener('focus', () => { void check(); });
 
@@ -98,9 +119,9 @@
             channel = new BroadcastChannel('eduos-session-context-v1');
             channel.onmessage = event => {
                 if (event.data?.type !== 'session-changed') return;
-                void check(true);
+                void check();
                 // Logout submits before the response clears the cookie.
-                window.setTimeout(() => { void check(true); }, 1200);
+                window.setTimeout(() => { void check(); }, 1200);
             };
         } catch { channel = null; }
     }
