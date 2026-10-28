@@ -216,7 +216,7 @@ public sealed class StudentFeeInstallmentPlanTests
         request.MonthStart = new DateOnly(2026, 3, 1);
         (await service.IssueInstallmentMonthAsync(plan.PublicId, request)).StatusCode.Should().Be(200);
         (await db.StudentInvoices.CountAsync()).Should().Be(2);
-        (await service.TransitionInstallmentPlanAsync(plan.PublicId, 4,
+        (await Service(db, userId: 11).TransitionInstallmentPlanAsync(plan.PublicId, 4,
             new StudentFeeInstallmentTransitionDto { ClientRequestId = Guid.NewGuid(),
                 RowVersion = request.RowVersion, Reason = "Cancel" })).StatusCode.Should().Be(409);
     }

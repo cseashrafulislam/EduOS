@@ -188,7 +188,8 @@ public sealed class SqlServerStudentFeeInstallmentPlanIntegrationTests
         Assert.Equal(0, await db.Journals.CountAsync());
         Assert.Equal(403, (await Service(db, tenantId + 1, checkerId)
             .IssueInstallmentMonthAsync(draft.Data.Reference, issue)).StatusCode);
-        Assert.Equal(409, (await checkerService.TransitionInstallmentPlanAsync(draft.Data.Reference, 4,
+        // The approving checker cannot cancel their own approved agreement.
+        Assert.Equal(403, (await checkerService.TransitionInstallmentPlanAsync(draft.Data.Reference, 4,
             new StudentFeeInstallmentTransitionDto {
                 ClientRequestId = Guid.NewGuid(), RowVersion = approved.Data.RowVersion,
                 Reason = "Cancel after billing"
