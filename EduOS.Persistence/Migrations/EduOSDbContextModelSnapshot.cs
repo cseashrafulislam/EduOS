@@ -19370,7 +19370,7 @@ namespace EduOS.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
-                    b.HasOne("EduOS.Core.Entities.Students.StudentEnrollment", null)
+                    b.HasOne("EduOS.Core.Entities.Academic.StudentEnrollment", null)
                         .WithMany()
                         .HasForeignKey("TenantId", "StudentEnrollmentId")
                         .HasPrincipalKey("TenantId", "Id")
