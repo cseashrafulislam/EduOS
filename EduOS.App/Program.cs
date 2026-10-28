@@ -5,6 +5,8 @@ using EduOS.App.Filters;
 using EduOS.App.Health;
 using EduOS.App.Localization;
 using EduOS.App.Middleware;
+using EduOS.App.Security;
+using Microsoft.AspNetCore.Antiforgery;
 using EduOS.Core.Configurations;
 using EduOS.Persistence.Extensions;
 using EduOS.Persistence.Seed;
@@ -156,6 +158,9 @@ builder.Services.Configure<RequestLocalizationOptions>(
             };
     });
 
+// Antiforgery tokens are bound to the active cookie session and tenant.
+// Old forms fail closed after institution switching or session revocation.
+builder.Services.AddSingleton<IAntiforgeryAdditionalDataProvider, SessionBoundAntiforgeryDataProvider>();
 builder.Services.AddRazorPages();
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddSignalR(options => options.MaximumReceiveMessageSize = 8 * 1024);

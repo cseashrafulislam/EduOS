@@ -15,6 +15,8 @@
     string ActiveFor(string routePrefix) =>
         currentPath.StartsWith(routePrefix, StringComparison.OrdinalIgnoreCase) ? "active" : string.Empty;
     var requestVerificationToken = Antiforgery.GetAndStoreTokens(Context).RequestToken;
+    var sessionClaim = User?.FindFirst(EduOS.App.Security.AuthSessionRegistry.ClaimType)?.Value;
+    var sessionReference = string.IsNullOrWhiteSpace(sessionClaim) ? "" : EduOS.App.Security.AuthSessionRegistry.ToPublicReference(sessionClaim);
 }
 <!DOCTYPE html>
 <html lang="@currentCulture" dir="ltr">
@@ -37,7 +39,7 @@
     <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" asp-append-version="true" />
     <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
 </head>
-<body data-workspace-preferences="@(User?.Identity?.IsAuthenticated == true && User?.IsInRole("SuperAdmin") != true ? "enabled" : "disabled")">
+<body data-auth-session-reference="@sessionReference" data-workspace-preferences="@(User?.Identity?.IsAuthenticated == true && User?.IsInRole("SuperAdmin") != true ? "enabled" : "disabled")">
     <a class="skip-link" href="#main-content">@T["SkipToContent"]</a>
 
     <div class="app-shell">
@@ -599,11 +601,25 @@
         </div>
     }
 
+    @if (!string.IsNullOrWhiteSpace(sessionReference))
+    {
+        <section class="auth-session-shield" id="eduosSessionShield" role="alertdialog" aria-modal="true" aria-labelledby="eduosSessionShieldTitle" hidden>
+            <div class="auth-session-shield-card">
+                <h2 id="eduosSessionShieldTitle" class="fs-5">@(currentCulture == "bn-BD" ? "সেশন যাচাই" : "Verifying session")</h2>
+                <p id="eduosSessionShieldMessage" role="status" aria-live="polite">@(currentCulture == "bn-BD" ? "আপনার অ্যাকাউন্টের নিরাপত্তা যাচাই হচ্ছে…" : "Checking your account session…")</p>
+                <div class="d-flex flex-wrap gap-2">
+                    <button type="button" class="btn btn-primary" id="eduosSessionRetry">@(currentCulture == "bn-BD" ? "আবার চেষ্টা করুন" : "Retry")</button>
+                    <a class="btn btn-outline-secondary" href="/Account/Login">@(currentCulture == "bn-BD" ? "সাইন ইন" : "Sign in")</a>
+                </div>
+            </div>
+        </section>
+    }
     <div class="visually-hidden" aria-live="polite" data-app-status></div>
 
     <script src="~/lib/jquery/dist/jquery.min.js" asp-append-version="true"></script>
     <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js" asp-append-version="true"></script>
     <script src="~/js/site.js" asp-append-version="true"></script>
+    <script src="~/js/platform/session-context-guard.js" asp-append-version="true"></script>
     <script src="~/js/platform/institution-switch.js" asp-append-version="true"></script>
     <script src="~/js/platform/page-context-help.js" asp-append-version="true"></script>
     @await RenderSectionAsync("Scripts", required: false)

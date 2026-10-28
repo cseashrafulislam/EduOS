@@ -32,6 +32,25 @@ public partial class AuthController
         } });
     }
 
+    // This read-only, no-store snapshot is used by already-open tabs to detect
+    // a cookie switch/logout before showing old institution data again.
+    [Authorize]
+    [HttpGet("session-context")]
+    public IActionResult CurrentSessionContext()
+    {
+        Response.Headers.CacheControl = "no-store";
+        var sid = User.FindFirstValue(AuthSessionRegistry.ClaimType);
+        if (sid is not { Length: 48 })
+            return Unauthorized(new { success = false, message = "Session unavailable." });
+        var tenantId = long.TryParse(User.FindFirstValue("TenantId"), out var parsed) && parsed > 0
+            ? (long?)parsed : null;
+        return Ok(new { success = true, data = new
+        {
+            sessionReference = AuthSessionRegistry.ToPublicReference(sid),
+            tenantId
+        } });
+    }
+
     // Switching issues a fresh cookie with server-resolved roles and a new tenant-bound SID.
     // A posted TenantId is only a request for selection, never proof of authorization.
     [Authorize]

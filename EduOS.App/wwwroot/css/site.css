@@ -3295,6 +3295,21 @@ select,
     :root[data-workspace-navigation="top"] .main-area { width: 100%; margin: 0; }
 }
 
+/* Fail-closed shield for stale tabs after an institution/session change.
+   No tenant data or tokens are stored in the browser. */
+.auth-session-shield {
+    position: fixed; inset: 0; z-index: 2000;
+    display: flex; align-items: center; justify-content: center;
+    padding: 1rem; background: var(--bs-body-bg, #fff); color: var(--edu-text);
+}
+.auth-session-shield[hidden] { display: none !important; }
+.auth-session-shield-card {
+    width: min(100%, 26rem); padding: 1.5rem;
+    border: 1px solid var(--edu-border); border-radius: 1rem;
+    background: var(--bs-body-bg, #fff); box-shadow: 0 .5rem 2rem rgba(15, 23, 42, .12);
+}
+.auth-session-shield-card p { color: var(--edu-muted); }
+
 /* Non-blocking PWA connectivity status. No offline write queue or sensitive data cache. */
 .connectivity-notice {
     padding: .65rem 1.5rem;

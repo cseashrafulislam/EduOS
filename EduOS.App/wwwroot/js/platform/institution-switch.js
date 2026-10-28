@@ -84,6 +84,7 @@
             if (redirect !== '/Dashboard/Index')
                 throw new Error('Invalid institution redirect.');
             navigator.serviceWorker?.controller?.postMessage({ type: 'EDUOS_CLEAR_RUNTIME_STATIC' });
+            window.EduOSNotifySessionChanged?.();
             window.location.replace(redirect);
         } catch (error) {
             showStatus(error.message || 'Institution switch failed.', true);

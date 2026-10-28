@@ -28,6 +28,7 @@
         if (action.origin !== window.location.origin || action.pathname.toLowerCase() !== '/account/logout') return;
         form.addEventListener('submit', () => {
             navigator.serviceWorker?.controller?.postMessage({ type: 'EDUOS_CLEAR_RUNTIME_STATIC' });
+            window.EduOSNotifySessionChanged?.();
         });
     });
 

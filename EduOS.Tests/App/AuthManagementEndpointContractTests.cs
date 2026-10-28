@@ -28,6 +28,18 @@ public sealed class AuthManagementEndpointContractTests
     }
 
     [Fact]
+    public void Session_context_is_authenticated_and_read_only()
+    {
+        var method = typeof(AuthController).GetMethod(nameof(AuthController.CurrentSessionContext))!;
+        Assert.True(method.GetCustomAttributes(typeof(AuthorizeAttribute), true).Any());
+        Assert.True(method.GetCustomAttributes(typeof(HttpGetAttribute), true).Any());
+        var source = File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "TestAssets", "AuthInstitutionSwitchController.cs"));
+        Assert.Contains("session-context", source);
+        Assert.Contains("AuthSessionRegistry.ToPublicReference(sid)", source);
+        Assert.Contains("CacheControl = \"no-store\"", source);
+    }
+
+    [Fact]
     public void Institution_choices_are_authenticated_and_read_only()
     {
         var method = typeof(AuthController).GetMethod(nameof(AuthController.GetAvailableInstitutions))!;
