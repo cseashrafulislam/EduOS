@@ -57,7 +57,10 @@ public sealed partial class FeeBillingService
                 on new { enrollment.TenantId, Id = enrollment.StudentId }
                 equals new { student.TenantId, student.Id }
             where enrollment.TenantId == tenant && !enrollment.IsDeleted &&
-                enrollment.AcademicBatchId == batch.Id && enrollment.IsCurrent &&
+                enrollment.AcademicBatchId == batch.Id && enrollment.CampusId == batch.CampusId &&
+                enrollment.AcademicYearId == batch.AcademicYearId &&
+                enrollment.AcademicProgramId == batch.AcademicProgramId &&
+                enrollment.AcademicLevelId == batch.AcademicLevelId && enrollment.IsCurrent &&
                 enrollment.State == EnrollmentState.Active && !student.IsDeleted &&
                 student.StatusCode == "Active"
             orderby enrollment.Id
