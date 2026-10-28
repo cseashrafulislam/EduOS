@@ -126,6 +126,13 @@
         updateMoveButtons();
         updateTableButtons();
     }
+    function requireCurrentSession(response) {
+        if (window.EduOSWorkspaceResponseMatchesSession?.(response)) return;
+        window.EduOSVerifySessionContext?.();
+        const error = new Error('Institution session changed.');
+        error.sessionChanged = true;
+        throw error;
+    }
     async function request(url, method, payload) {
         const response = await fetch(url, {
             method, credentials: 'same-origin', cache: 'no-store',
@@ -133,13 +140,11 @@
                 'RequestVerificationToken': form.querySelector('input[name="__RequestVerificationToken"]')?.value || '' },
             body: JSON.stringify(payload)
         });
-        if (!window.EduOSWorkspaceResponseMatchesSession?.(response)) {
-            window.EduOSVerifySessionContext?.();
-            const error = new Error('Institution session changed.');
-            error.sessionChanged = true;
-            throw error;
-        }
+        requireCurrentSession(response);
         const body = await response.json().catch(() => null);
+        // Do not render a stale institution's saved appearance if another tab
+        // changes the cookie while the response body is still being decoded.
+        requireCurrentSession(response);
         if (!response.ok || !body?.success) {
             const error = new Error(body?.message || 'Request failed.');
             error.conflict = response.status === 409;

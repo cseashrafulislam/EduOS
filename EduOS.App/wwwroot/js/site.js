@@ -189,18 +189,33 @@
             response?.headers?.get('X-EduOS-Session-Reference') === reference &&
             response.headers.get('X-EduOS-Tenant-Id') === tenant;
     };
-    if (document.body.dataset.workspacePreferences === 'enabled') {
+    // The editor owns its own load/preview. A second shell request can otherwise
+    // overwrite an unsaved preview after the editor has already rendered.
+    if (document.body.dataset.workspacePreferences === 'enabled' &&
+        !document.getElementById?.('workspacePreferencesForm')) {
+        const initialReference = document.body.dataset.authSessionReference;
+        const initialTenant = document.body.dataset.authTenantId;
         fetch('/api/workspace-preferences', { credentials: 'same-origin', cache: 'no-store' })
-            .then(response => {
+            .then(async response => {
                 if (!window.EduOSWorkspaceResponseMatchesSession(response)) {
                     window.EduOSVerifySessionContext?.();
                     return null;
                 }
-                return response.ok ? response.json() : null;
+                if (!response.ok) return null;
+                return { response, body: await response.json() };
             })
             .then(result => {
-                if (result?.success && result.data)
-                    window.EduOSApplyWorkspacePreferences(result.data);
+                if (!result) return;
+                // Headers can match when received, then the user switches
+                // institutions before a delayed JSON body finishes parsing.
+                if (document.body.dataset.authSessionReference !== initialReference ||
+                    document.body.dataset.authTenantId !== initialTenant ||
+                    !window.EduOSWorkspaceResponseMatchesSession(result.response)) {
+                    window.EduOSVerifySessionContext?.();
+                    return;
+                }
+                if (result.body?.success && result.body.data)
+                    window.EduOSApplyWorkspacePreferences(result.body.data);
             })
             .catch(() => { /* Server defaults remain usable when offline. */ });
     }

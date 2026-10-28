@@ -1,5 +1,6 @@
 using EduOS.App.Security;
 using EduOS.Core.DTOs.SaaS;
+using EduOS.Persistence.Context;
 using System.Security.Claims;
 using EduOS.Core.Interfaces.IServices;
 using Microsoft.AspNetCore.Authorization;
@@ -13,7 +14,7 @@ namespace EduOS.App.Controllers;
 [EnableRateLimiting("ApiPolicy")]
 [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
 [Route("workspace")]
-public sealed class WorkspacePreferencesController(IWorkspacePreferencesService service) : Controller
+public sealed class WorkspacePreferencesController(IWorkspacePreferencesService service, EduOSDbContext db) : Controller
 {
     // Bind preference responses to the exact cookie session and institution that requested them.
     // A stale tab must not apply another institution's appearance after a cookie switch.
@@ -26,6 +27,18 @@ public sealed class WorkspacePreferencesController(IWorkspacePreferencesService 
         return true;
     }
 
+    // The session may be revoked or switched while a database query is in flight.
+    // Never return a saved user/institution preference document after that revocation.
+    private async Task<bool> SessionStillValidAsync()
+    {
+        var sid = User.FindFirstValue(AuthSessionRegistry.ClaimType);
+        return long.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var userId) &&
+            userId > 0 &&
+            long.TryParse(User.FindFirstValue("TenantId"), out var tenantId) &&
+            tenantId > 0 &&
+            await AuthSessionRegistry.IsValidAsync(db, userId, sid, tenantId);
+    }
+
     [HttpGet("")]
     public IActionResult Index() => View();
 
@@ -34,6 +47,7 @@ public sealed class WorkspacePreferencesController(IWorkspacePreferencesService 
     {
         if (!BindCurrentSession()) return Unauthorized(new { success = false, message = "Session unavailable." });
         var result = await service.GetAsync(cancellationToken);
+        if (!await SessionStillValidAsync()) return Unauthorized(new { success = false, message = "Session changed. Reload and sign in again." });
         return StatusCode(result.StatusCode, result);
     }
 
@@ -43,6 +57,7 @@ public sealed class WorkspacePreferencesController(IWorkspacePreferencesService 
     {
         if (!BindCurrentSession()) return Unauthorized(new { success = false, message = "Session unavailable." });
         var result = await service.SaveAsync(request, cancellationToken);
+        if (!await SessionStillValidAsync()) return Unauthorized(new { success = false, message = "Session changed. Reload and sign in again." });
         return StatusCode(result.StatusCode, result);
     }
 
@@ -52,6 +67,7 @@ public sealed class WorkspacePreferencesController(IWorkspacePreferencesService 
     {
         if (!BindCurrentSession()) return Unauthorized(new { success = false, message = "Session unavailable." });
         var result = await service.ResetAsync(request, cancellationToken);
+        if (!await SessionStillValidAsync()) return Unauthorized(new { success = false, message = "Session changed. Reload and sign in again." });
         return StatusCode(result.StatusCode, result);
     }
 }

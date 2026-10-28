@@ -9,30 +9,42 @@ const reference = 'A'.repeat(64);
 const nextReference = 'B'.repeat(64);
 const flush = () => new Promise(resolve => setImmediate(resolve));
 
-function boot(headers) {
+function boot(headers, options = {}) {
     const site = read('EduOS.App/wwwroot/js/site.js');
     const start = site.indexOf('    const workspaceChoices = {');
     assert.ok(start > 0);
     const fragment = site.slice(start, site.lastIndexOf('})();'));
     const document = {
         body: { dataset: { workspacePreferences: 'enabled', authSessionReference: reference, authTenantId: '12' } },
-        documentElement: { dataset: {} }
+        documentElement: { dataset: {} },
+        getElementById(id) { return options.editor && id === 'workspacePreferencesForm' ? {} : null; }
     };
-    let verified = 0, events = 0;
+    let verified = 0, events = 0, fetches = 0, resolveJson;
     const window = {
         dispatchEvent() { events++; },
         EduOSVerifySessionContext() { verified++; }
     };
     const response = {
         ok: true, headers: { get(name) { return headers[name] ?? null; } },
-        json: async () => ({ success: true, data: { theme: 'dark', palette: 'teal' } })
+        json: options.delayedJson
+            ? () => new Promise(resolve => { resolveJson = resolve; })
+            : async () => ({ success: true, data: { theme: 'dark', palette: 'teal' } })
     };
     vm.runInNewContext('(() => {' + fragment + '})();', {
-        window, document, fetch: async () => response, CustomEvent: class {
+        window, document, fetch: async () => { fetches++; return response; }, CustomEvent: class {
             constructor(name, options) { this.type = name; this.detail = options.detail; }
         }
     });
-    return { window, document, get verified() { return verified; }, get events() { return events; } };
+    return {
+        window, document,
+        finishJson() {
+            assert.ok(resolveJson, 'response body should have started parsing');
+            resolveJson({ success: true, data: { theme: 'dark', palette: 'teal' } });
+        },
+        get fetches() { return fetches; },
+        get verified() { return verified; },
+        get events() { return events; }
+    };
 }
 
 test('same-session and same-institution response applies only whitelisted appearance', async () => {
@@ -69,4 +81,45 @@ test('controller binds read, save and reset to a server-issued session reference
     const editor = read('EduOS.App/wwwroot/js/platform/workspace-preferences.js');
     assert.match(editor, /EduOSWorkspaceResponseMatchesSession/);
     assert.match(editor, /error\.sessionChanged/);
+});
+
+
+test('a delayed response body cannot apply appearance after a session rotation', async () => {
+    const b = boot({ 'X-EduOS-Session-Reference': reference, 'X-EduOS-Tenant-Id': '12' },
+        { delayedJson: true });
+    await flush();
+    b.document.body.dataset.authSessionReference = nextReference;
+    b.finishJson();
+    await flush(); await flush();
+    assert.equal(b.document.documentElement.dataset.workspaceTheme, undefined);
+    assert.equal(b.events, 0);
+    assert.equal(b.verified, 1);
+});
+
+test('a delayed response body cannot apply appearance after an institution change', async () => {
+    const b = boot({ 'X-EduOS-Session-Reference': reference, 'X-EduOS-Tenant-Id': '12' },
+        { delayedJson: true });
+    await flush();
+    b.document.body.dataset.authTenantId = '99';
+    b.finishJson();
+    await flush(); await flush();
+    assert.equal(b.document.documentElement.dataset.workspaceTheme, undefined);
+    assert.equal(b.events, 0);
+    assert.equal(b.verified, 1);
+});
+
+test('appearance editor avoids duplicate shell fetch and stale preview overwrite', async () => {
+    const b = boot({ 'X-EduOS-Session-Reference': reference, 'X-EduOS-Tenant-Id': '12' },
+        { editor: true });
+    await flush(); await flush();
+    assert.equal(b.fetches, 0);
+    assert.equal(b.events, 0);
+});
+
+test('editor verifies the institution session both before and after JSON decoding', () => {
+    const editor = read('EduOS.App/wwwroot/js/platform/workspace-preferences.js');
+    const request = editor.slice(editor.indexOf('    async function request('),
+        editor.indexOf('    async function load('));
+    assert.equal((request.match(/requireCurrentSession\(response\)/g) || []).length, 2);
+    assert.match(request, /const body = await response\.json/);
 });
