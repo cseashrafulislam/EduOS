@@ -88,6 +88,34 @@ public sealed class AcademicRoutineService : IAcademicRoutineService
         return ApiResponse<IReadOnlyList<AcademicInstructorChoiceDto>>.SuccessResponse(rows);
     }
 
+    /// <summary>Authorize the academic batch before a tenant-scoped, projected teacher search.</summary>
+    public async Task<ApiResponse<AcademicInstructorChoicePageDto>> GetInstructorChoicesPageAsync(
+        long academicBatchId, string? search, int page, int pageSize, CancellationToken cancellationToken = default)
+    {
+        if (!CanManage()) return Denied<AcademicInstructorChoicePageDto>();
+        if (page < 1 || page > 100000 || pageSize < 1 || pageSize > 100 || search?.Length > 100)
+            return Error<AcademicInstructorChoicePageDto>("Invalid teacher search page request.");
+        var batch = await GetBatchAsync(academicBatchId, cancellationToken);
+        if (batch == null) return Error<AcademicInstructorChoicePageDto>("Academic batch not found.", 404);
+        var tenant = _currentUser.TenantId;
+        var query = _employees.GetQueryable().AsNoTracking().Where(x =>
+            x.TenantId == tenant && !x.IsDeleted && x.CanTeach && x.State == EmployeeState.Active);
+        var needle = search?.Trim();
+        if (!string.IsNullOrEmpty(needle))
+            query = query.Where(x => x.FullName.StartsWith(needle) || x.EmployeeCode.StartsWith(needle));
+        var total = await query.CountAsync(cancellationToken);
+        var items = await query.OrderBy(x => x.FullName).ThenBy(x => x.Id)
+            .Skip((page - 1) * pageSize).Take(pageSize)
+            .Select(x => new AcademicInstructorChoiceDto
+            {
+                EmployeeReference = x.PublicId, Name = x.FullName, EmployeeCode = x.EmployeeCode
+            }).ToListAsync(cancellationToken);
+        return ApiResponse<AcademicInstructorChoicePageDto>.SuccessResponse(new AcademicInstructorChoicePageDto
+        {
+            Items = items, Page = page, PageSize = pageSize, TotalCount = total
+        });
+    }
+
     public async Task<ApiResponse<IReadOnlyList<RoutineTimeSlotDto>>> GetTimeSlotsAsync(CancellationToken cancellationToken = default)
     {
         if (!CanRead()) return Denied<IReadOnlyList<RoutineTimeSlotDto>>();

@@ -65,3 +65,13 @@ test('batch timetable is SQL-paged, guards stale batch responses and exports onl
     assert.match(view,/id="routineBatchPage"/);
     assert.match(view,/Export current page CSV/);
 });
+
+test('teacher assignment picker uses scoped SQL pages and rejects stale search responses',()=>{
+    assert.match(script,/instructors\\/page\\?/);
+    assert.match(script,/state\\.instructors=data\\.items\\|\\|\\[\\]/);
+    assert.match(script,/teacherRequestSequence/);
+    assert.match(script,/routineTeachersPrev/);
+    assert.match(script,/routineTeachersNext/);
+    assert.match(view,/id="routineTeachersPage"/);
+    assert.doesNotMatch(script,/Showing up to 50 teachers/);
+});

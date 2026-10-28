@@ -3,8 +3,8 @@
     const root=document.getElementById('routineApp');if(!root)return;
     const el=id=>document.getElementById(id),manager=root.dataset.canManage==='true';
     const days=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
-    const state={batches:[],rooms:[],assignments:[],assignmentPage:1,assignmentTotal:0,entries:[],batchPage:1,batchTotal:0,slots:[],instructors:[],offerings:[],offeringPage:1,offeringTotal:0,teacherEntries:[],teacherPage:1,teacherTotal:0};
-    let batchRequestSequence=0;
+    const state={batches:[],rooms:[],assignments:[],assignmentPage:1,assignmentTotal:0,entries:[],batchPage:1,batchTotal:0,slots:[],instructors:[],instructorPage:1,instructorTotal:0,offerings:[],offeringPage:1,offeringTotal:0,teacherEntries:[],teacherPage:1,teacherTotal:0};
+    let batchRequestSequence=0,teacherRequestSequence=0;
     const option=(id,name)=>{const v=document.createElement('option');v.value=String(id);v.textContent=name;return v;};
     const dateOnly=x=>x?String(x).slice(0,10):'';
     function clientId(){
@@ -48,21 +48,34 @@
     async function init(){
         try{await loadCatalog('');}catch(e){status('danger',e.message);}
         await loadSlots();
-        if(manager)await loadTeachers();
+        // Teacher lookup is available only after selecting an authorized academic batch.
     }
     async function loadSlots(){
         try{state.slots=await api('/api/academic-routines/time-slots')||[];el('routineSlotSummary').textContent=state.slots.map(x=>x.name+' ('+String(x.startTime).slice(0,5)+'–'+String(x.endTime).slice(0,5)+')').join(', ')||'No time slots.';
             select('routineSlot',state.slots.filter(x=>!x.isBreak).map(x=>({id:x.id,name:x.name+' / '+String(x.startTime).slice(0,5)+'-'+String(x.endTime).slice(0,5)})),'Select class time slot');
         }catch(e){status('danger',e.message);}
     }
-    async function loadTeachers(){
+    async function loadTeachers(page=1){
         if(!manager)return;
-        const search=el('routineTeacherSearch').value.trim(),q=search?'?search='+encodeURIComponent(search):'';
+        const batch=selectedBatch();
+        if(!batch)return status('warning','Select an active academic batch before searching teachers.');
+        const search=el('routineTeacherSearch').value.trim();
+        const q=new URLSearchParams({page:String(page),pageSize:'50'});
+        if(search)q.set('search',search);
+        const requestedBatch=String(batch.id),sequence=++teacherRequestSequence;
         try{
-            state.instructors=await api('/api/academic-routines/instructors'+q)||[];
+            const data=await api('/api/academic-routines/batches/'+batch.id+'/instructors/page?'+q);
+            if(sequence!==teacherRequestSequence||String(selectedBatch()?.id)!==requestedBatch||
+               el('routineTeacherSearch').value.trim()!==search)return;
+            state.instructors=data.items||[];
+            state.instructorPage=data.page||page;
+            state.instructorTotal=data.totalCount||0;
             select('routineTeacher',state.instructors.map(x=>({id:x.employeeReference,name:x.name+' ('+x.employeeCode+')'})),'Select active teacher');
-            if(state.instructors.length>=50)status('warning','Showing up to 50 teachers. Search by name or employee code to narrow the list.');
-        }catch(e){status('danger',e.message);}
+            const pages=Math.max(1,Math.ceil(state.instructorTotal/50));
+            el('routineTeachersPage').textContent='Page '+state.instructorPage+' of '+pages+' ('+state.instructorTotal+' teachers)';
+            el('routineTeachersPrev').disabled=state.instructorPage<=1;
+            el('routineTeachersNext').disabled=state.instructorPage>=pages;
+        }catch(e){if(sequence===teacherRequestSequence)status('danger',e.message);}
     }
     function populateScopedOptions(){
         const batch=selectedBatch();if(!batch)return;
@@ -138,6 +151,13 @@
         const batch=selectedBatch();if(!batch){status('warning','Select an active academic batch.');return;}
         clearStatus();const btn=el('routineLoad');btn.disabled=true;populateScopedOptions();
         ++batchRequestSequence;
+        ++teacherRequestSequence;
+        if(manager){
+            state.instructors=[];state.instructorPage=1;state.instructorTotal=0;
+            select('routineTeacher',[],'Loading teachers…');
+            el('routineTeachersPage').textContent='Loading teachers…';
+            el('routineTeachersPrev').disabled=true;el('routineTeachersNext').disabled=true;
+        }
         state.entries=[];state.batchPage=1;state.batchTotal=0;
         el('routineBatchPage').textContent='Loading timetable…';
         el('routineBatchPrev').disabled=true;el('routineBatchNext').disabled=true;
@@ -149,6 +169,7 @@
         try{
             await loadBatchTimetable(1);
             await loadAssignments(1);
+            if(manager)await loadTeachers(1);
             state.teacherEntries=[];state.teacherPage=1;state.teacherTotal=0;
             el('routineTeacherPage').textContent='No timetable loaded';
             el('routineTeacherPrev').disabled=true;el('routineTeacherNext').disabled=true;
@@ -273,7 +294,12 @@
     el('routineSlotForm')?.addEventListener('submit',saveSlot);
     el('routineAssignmentForm')?.addEventListener('submit',saveAssignment);
     el('routineEntryForm')?.addEventListener('submit',saveEntry);
-    el('routineFindTeachers')?.addEventListener('click',loadTeachers);
+    el('routineFindTeachers')?.addEventListener('click',()=>loadTeachers(1));
+    el('routineTeachersPrev')?.addEventListener('click',()=>loadTeachers(state.instructorPage-1));
+    el('routineTeachersNext')?.addEventListener('click',()=>loadTeachers(state.instructorPage+1));
+    el('routineTeacherSearch')?.addEventListener('keydown',e=>{
+        if(e.key==='Enter'){e.preventDefault();loadTeachers(1);}
+    });
     el('routineShowTeacher').addEventListener('click',()=>teacherTimetable(1));
     el('routineTeacherPrev').addEventListener('click',()=>teacherTimetable(state.teacherPage-1));
     el('routineTeacherNext').addEventListener('click',()=>teacherTimetable(state.teacherPage+1));

@@ -429,6 +429,50 @@ public sealed class AcademicRoutineServiceTests
         (await principal.GetBatchTimetablePageAsync(batchId, null, 1, 50)).StatusCode.Should().Be(404);
     }
 
+    [Fact]
+    public async Task Instructor_picker_pages_large_teacher_roster_and_checks_batch_campus_before_query()
+    {
+        var options = Options();
+        var scope = await SeedAsync(options);
+        await using var db = Context(options, 101);
+        db.Employees.AddRange(Enumerable.Range(1, 120).Select(i => new Employee
+        {
+            TenantId = 101, PublicId = Guid.NewGuid(), EmployeeCode = $"T-{i + 100:000}",
+            FullName = $"Instructor {i:000}", DesignationId = 1,
+            JoiningDate = Start, CanTeach = true, State = EmployeeState.Active
+        }));
+        await db.SaveChangesAsync();
+        var batchId = await db.AcademicBatches.Select(x => x.Id).SingleAsync();
+        var admin = Service(db, new TestUser(101));
+        var first = await admin.GetInstructorChoicesPageAsync(batchId, null, 1, 50);
+        var last = await admin.GetInstructorChoicesPageAsync(batchId, null, 3, 50);
+        first.Success.Should().BeTrue(first.Message);
+        first.Data!.TotalCount.Should().Be(121);
+        first.Data.Items.Should().HaveCount(50);
+        last.Data!.Items.Should().HaveCount(21);
+        (await admin.GetInstructorChoicesPageAsync(batchId, "T-119", 1, 50))
+            .Data!.Items.Should().ContainSingle(x => x.EmployeeCode == "T-119");
+        (await admin.GetInstructorChoicesPageAsync(batchId, null, 0, 50)).StatusCode.Should().Be(400);
+        (await admin.GetInstructorChoicesPageAsync(batchId, null, 1, 101)).StatusCode.Should().Be(400);
+        (await admin.GetInstructorChoicesPageAsync(batchId, new string('x', 101), 1, 50)).StatusCode.Should().Be(400);
+        (await Service(db, new TestUser(202)).GetInstructorChoicesPageAsync(batchId, null, 1, 50))
+            .StatusCode.Should().Be(404);
+        (await Service(db, new TestUser(101, "Teacher", 70)).GetInstructorChoicesPageAsync(batchId, null, 1, 50))
+            .StatusCode.Should().Be(403);
+        var principal = Service(db, new TestUser(101, "Principal"));
+        (await principal.GetInstructorChoicesPageAsync(batchId, null, 1, 50)).StatusCode.Should().Be(404);
+        var grant = new UserCampusAccess
+        {
+            TenantId = 101, UserId = 7, CampusId = scope.CampusId, IsActive = true
+        };
+        db.UserCampusAccesses.Add(grant);
+        await db.SaveChangesAsync();
+        (await principal.GetInstructorChoicesPageAsync(batchId, null, 1, 50)).Success.Should().BeTrue();
+        grant.IsActive = false;
+        await db.SaveChangesAsync();
+        (await principal.GetInstructorChoicesPageAsync(batchId, null, 1, 50)).StatusCode.Should().Be(404);
+    }
+
     private static SaveInstructorAssignmentRequestDto Assign(Guid offering, Guid teacher) => new()
     {
         ClientRequestId = Guid.NewGuid(), SubjectOfferingReference = offering,

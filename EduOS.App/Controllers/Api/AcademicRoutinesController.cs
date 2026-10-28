@@ -25,6 +25,12 @@ public sealed class AcademicRoutinesController : ControllerBase
     public async Task<IActionResult> Instructors([FromQuery] string? search, CancellationToken cancellationToken) =>
         ToAction(await _service.GetInstructorChoicesAsync(search, 50, cancellationToken));
 
+    [HttpGet("batches/{academicBatchId:long}/instructors/page")]
+    [Authorize(Roles = "TenantAdmin,Principal,VicePrincipal")]
+    public async Task<IActionResult> InstructorPage(long academicBatchId, [FromQuery] string? search,
+        [FromQuery] int page = 1, [FromQuery] int pageSize = 50, CancellationToken cancellationToken = default) =>
+        ToAction(await _service.GetInstructorChoicesPageAsync(academicBatchId, search, page, pageSize, cancellationToken));
+
     [HttpGet("time-slots")]
     public async Task<IActionResult> TimeSlots(CancellationToken cancellationToken) => ToAction(await _service.GetTimeSlotsAsync(cancellationToken));
 
