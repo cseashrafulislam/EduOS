@@ -92,6 +92,7 @@ public class PayrollRunDto
 public class CreatePayrollRunRequestDto
 {
     public Guid ClientRequestId { get; set; }
+    [Range(1, long.MaxValue)] public long? CampusId { get; set; }
     [Range(2000, 2200)] public int Year { get; set; }
     [Range(1, 12)] public int Month { get; set; }
 }

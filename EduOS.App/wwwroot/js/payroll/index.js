@@ -75,8 +75,11 @@ async function loadRuns() {
 async function generate() {
     if(state.busy)return;
     let selected;try{selected=period();}catch(e){return notice(e.message,true);}
-    if(!confirm('Calculate payroll for '+selected.month+'/'+selected.year+'? Salary structures must cover the full month.'))return;
-    const key=selected.year+'-'+selected.month;
+    const campus=el('payrollCampus').value;
+    selected.campusId=campus?Number(campus):null;
+    if(!confirm('Calculate '+(campus?'campus '+el('payrollCampus').selectedOptions[0].text:'institution-wide')+
+        ' payroll for '+selected.month+'/'+selected.year+'? Full-month primary campus assignments and salary structures are required.'))return;
+    const key=selected.year+'-'+selected.month+'-'+(campus||'all');
     if(state.requestPeriod!==key){state.requestPeriod=key;state.requestId=crypto.randomUUID();}
     state.busy=true;el('payrollGenerate').disabled=true;
     try {
@@ -144,7 +147,12 @@ if(admin) {
     el('payrollMonth').value=String(now.getMonth()+1);
     el('payrollLoad').addEventListener('click',()=>{state.runPage=1;loadRuns();});
     el('payrollGenerate').addEventListener('click',generate);
-    for(const id of ['payrollYear','payrollMonth'])
+    api('/api/institution-onboarding/campus-list').then(campuses=>{
+        const select=el('payrollCampus');
+        for(const campus of campuses||[])
+            if(campus.isActive)select.add(new Option(campus.name,campus.id));
+    }).catch(e=>notice('Campus selector: '+e.message,true));
+    for(const id of ['payrollYear','payrollMonth','payrollCampus'])
         el(id).addEventListener('change',()=>{state.requestId=null;state.requestPeriod=null;state.runPage=1;});
     el('payrollRunPrev').addEventListener('click',()=>{if(state.runPage>1){state.runPage--;loadRuns();}});
     el('payrollRunNext').addEventListener('click',()=>{if(state.runPage<state.runPages){state.runPage++;loadRuns();}});

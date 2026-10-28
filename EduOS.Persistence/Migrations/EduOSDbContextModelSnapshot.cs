@@ -13496,7 +13496,11 @@ namespace EduOS.Persistence.Migrations
 
                     b.HasIndex("TenantId", "Year", "Month")
                         .IsUnique()
-                        .HasFilter("[State] <> 5 AND [IsDeleted] = 0");
+                        .HasFilter("[CampusId] IS NULL AND [State] <> 5 AND [IsDeleted] = 0");
+
+                    b.HasIndex("TenantId", "Year", "Month", "CampusId")
+                        .IsUnique()
+                        .HasFilter("[CampusId] IS NOT NULL AND [State] <> 5 AND [IsDeleted] = 0");
 
                     b.ToTable("PayrollRuns");
                 });

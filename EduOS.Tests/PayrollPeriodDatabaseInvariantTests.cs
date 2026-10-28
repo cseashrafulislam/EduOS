@@ -21,6 +21,6 @@ public sealed class PayrollPeriodDatabaseInvariantTests
                 nameof(PayrollRun.TenantId), nameof(PayrollRun.Year), nameof(PayrollRun.Month)
             }));
         Assert.True(index.IsUnique);
-        Assert.Equal("[State] <> 5 AND [IsDeleted] = 0", index.GetFilter());
+        Assert.Equal("[CampusId] IS NULL AND [State] <> 5 AND [IsDeleted] = 0", index.GetFilter());
     }
 }

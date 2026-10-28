@@ -3,6 +3,7 @@ using EduOS.Core.DTOs.Payroll;
 using EduOS.Core.Entities.Accounting;
 using EduOS.Core.Entities.HR;
 using EduOS.Core.Entities.Payroll;
+using EduOS.Core.Entities.SaaS;
 using EduOS.Core.Enums.Domain;
 using EduOS.Core.Interfaces;
 using EduOS.Core.Interfaces.IRepositories;
@@ -16,6 +17,8 @@ namespace EduOS.Service.Services.HR;
 public sealed class HrPayrollService : IPayrollAdministrationService
 {
     private readonly IGenericRepository<Employee> _employees;
+    private readonly IGenericRepository<Campus> _campuses;
+    private readonly IGenericRepository<EmployeeCampusAssignment> _campusAssignments;
     private readonly IGenericRepository<SalaryComponent> _components;
     private readonly IGenericRepository<SalaryStructure> _structures;
     private readonly IGenericRepository<SalaryStructureLine> _structureLines;
@@ -35,6 +38,7 @@ public sealed class HrPayrollService : IPayrollAdministrationService
     private readonly ILogger<HrPayrollService> _logger;
 
     public HrPayrollService(IGenericRepository<Employee> employees,
+        IGenericRepository<Campus> campuses, IGenericRepository<EmployeeCampusAssignment> campusAssignments,
         IGenericRepository<SalaryComponent> components, IGenericRepository<SalaryStructure> structures,
         IGenericRepository<SalaryStructureLine> structureLines, IGenericRepository<PayrollRun> runs,
         IGenericRepository<PayrollEmployee> payrollEmployees, IGenericRepository<PayrollLine> payrollLines,
@@ -45,7 +49,8 @@ public sealed class HrPayrollService : IPayrollAdministrationService
         IGenericRepository<EmployeeBankAccount> employeeBankAccounts,
         IUnitOfWork uow, ICurrentUserService user, TimeProvider clock, ILogger<HrPayrollService> logger)
     {
-        _employees = employees; _components = components; _structures = structures;
+        _employees = employees; _campuses = campuses; _campusAssignments = campusAssignments;
+        _components = components; _structures = structures;
         _structureLines = structureLines; _runs = runs; _payrollEmployees = payrollEmployees;
         _payrollLines = payrollLines; _payments = payments; _bonuses = bonuses; _loans = loans;
         _recoveries = recoveries; _bankAccounts = bankAccounts; _journals = journals;
@@ -275,8 +280,8 @@ public sealed class HrPayrollService : IPayrollAdministrationService
     {
         if (!Manager()) return Denied<PayrollRunDto>();
         if (request == null || request.ClientRequestId == Guid.Empty || request.Year is < 2000 or > 2200 ||
-            request.Month is < 1 or > 12)
-            return Error<PayrollRunDto>("Invalid payroll period or idempotency key.");
+            request.Month is < 1 or > 12 || request.CampusId is <= 0)
+            return Error<PayrollRunDto>("Invalid payroll period, campus or idempotency key.");
         var tenant = _user.TenantId;
         var firstDay = new DateOnly(request.Year, request.Month, 1);
         var lastDay = firstDay.AddMonths(1).AddDays(-1);
@@ -288,19 +293,50 @@ public sealed class HrPayrollService : IPayrollAdministrationService
                     x.TenantId == tenant && x.ClientRequestId == request.ClientRequestId && !x.IsDeleted, token);
                 if (existing != null)
                 {
-                    if (existing.Year != request.Year || existing.Month != request.Month)
-                        return Error<PayrollRunDto>("Idempotency key was used for another payroll period.", 409);
+                    if (existing.Year != request.Year || existing.Month != request.Month ||
+                        existing.CampusId != request.CampusId)
+                        return Error<PayrollRunDto>("Idempotency key was used for a different payroll scope.", 409);
                     return ApiResponse<PayrollRunDto>.SuccessResponse(await MapRunAsync(existing, token),
                         "Payroll request already processed.");
                 }
                 if (await _runs.GetQueryable().AsNoTracking().AnyAsync(x =>
                     x.TenantId == tenant && x.Year == request.Year && x.Month == request.Month &&
-                    x.State != PayrollRunState.Cancelled && !x.IsDeleted, token))
-                    return Error<PayrollRunDto>("A payroll run already exists for the selected period.", 409);
+                    x.State != PayrollRunState.Cancelled && !x.IsDeleted &&
+                    (!x.CampusId.HasValue || !request.CampusId.HasValue ||
+                     x.CampusId == request.CampusId), token))
+                    return Error<PayrollRunDto>("An overlapping institution/campus payroll run already exists.", 409);
+                if (request.CampusId.HasValue && !await _campuses.GetQueryable().AsNoTracking()
+                    .AnyAsync(x => x.TenantId == tenant && x.Id == request.CampusId &&
+                        x.IsActive && !x.IsDeleted, token))
+                    return Error<PayrollRunDto>("Active payroll campus not found.", 404);
+
+                // A campus run pays only staff with an effective primary assignment
+                // for the entire month. Transfers/partial assignments need an approved rule.
+                var campusScope = _campusAssignments.GetQueryable().AsNoTracking().Where(a =>
+                    a.TenantId == tenant && !a.IsDeleted && a.IsPrimary &&
+                    a.CampusId == request.CampusId &&
+                    a.EffectiveFrom <= lastDay &&
+                    (!a.EffectiveTo.HasValue || a.EffectiveTo >= firstDay));
+                if (request.CampusId.HasValue &&
+                    await campusScope.AnyAsync(a => a.EffectiveFrom > firstDay ||
+                        a.EffectiveTo.HasValue && a.EffectiveTo < lastDay, token))
+                    return Error<PayrollRunDto>(
+                        "Campus transfers or partial-month assignments require an approved allocation policy.", 409);
+                var campusEmployeeIds = campusScope.Where(a => a.EffectiveFrom <= firstDay &&
+                    (!a.EffectiveTo.HasValue || a.EffectiveTo >= lastDay)).Select(a => a.EmployeeId);
+                if (request.CampusId.HasValue && await _campusAssignments.GetQueryable().AsNoTracking()
+                    .AnyAsync(a => a.TenantId == tenant && !a.IsDeleted && a.IsPrimary &&
+                        a.CampusId != request.CampusId && campusEmployeeIds.Contains(a.EmployeeId) &&
+                        a.EffectiveFrom <= lastDay &&
+                        (!a.EffectiveTo.HasValue || a.EffectiveTo >= firstDay), token))
+                    return Error<PayrollRunDto>("Overlapping primary campus assignments must be reconciled.", 409);
                 // No silent exclusion of partial-month service or non-active staff.
                 // Without an approved institution proration/leave policy, fail before snapshot creation.
-                var needsPolicy = await _employees.GetQueryable().AsNoTracking().AnyAsync(x =>
-                    x.TenantId == tenant && !x.IsDeleted &&
+                var employeeScope = _employees.GetQueryable().AsNoTracking()
+                    .Where(x => x.TenantId == tenant && !x.IsDeleted);
+                if (request.CampusId.HasValue)
+                    employeeScope = employeeScope.Where(x => campusEmployeeIds.Contains(x.Id));
+                var needsPolicy = await employeeScope.AnyAsync(x =>
                     x.JoiningDate <= lastDay &&
                     (!x.LeavingDate.HasValue || x.LeavingDate >= firstDay) &&
                     (x.JoiningDate > firstDay ||
@@ -309,9 +345,9 @@ public sealed class HrPayrollService : IPayrollAdministrationService
                 if (needsPolicy)
                     return Error<PayrollRunDto>(
                         "Partial-month employment or non-active staff needs an approved payroll proration/leave policy. No payroll was generated.", 409);
-                var employees = await _employees.GetQueryable().AsNoTracking().Where(x =>
-                    x.TenantId == tenant && x.State == EmployeeState.Active && !x.IsDeleted &&
-                    x.JoiningDate <= firstDay && (!x.LeavingDate.HasValue || x.LeavingDate >= lastDay))
+                var employees = await employeeScope.Where(x =>
+                    x.State == EmployeeState.Active && x.JoiningDate <= firstDay &&
+                    (!x.LeavingDate.HasValue || x.LeavingDate >= lastDay))
                     .OrderBy(x => x.Id).Take(5001).ToListAsync(token);
                 if (employees.Count > 5000)
                     return Error<PayrollRunDto>("Period exceeds the synchronous payroll size limit.", 409);
@@ -362,7 +398,7 @@ public sealed class HrPayrollService : IPayrollAdministrationService
                         x.TenantId == tenant && !x.IsDeleted && x.SourceType == "LoanAdvance" &&
                         x.SourceId.HasValue && loanIds.Contains(x.SourceId.Value))
                         .Select(x => new { x.Id, x.SourceId, x.State, x.JournalDate,
-                            x.ReversalOfJournalId, x.CurrencyCode })
+                            x.ReversalOfJournalId, x.CurrencyCode, x.CampusId })
                         .Take(5001).ToListAsync(token);
                     if (sources.Count > 5000)
                         return Error<PayrollRunDto>("Loan journal history exceeds the safe reconciliation limit.", 409);
@@ -371,7 +407,8 @@ public sealed class HrPayrollService : IPayrollAdministrationService
                         var history = sources.Where(x => x.SourceId == loan.Id).ToArray();
                         return history.Length != 1 || history[0].State != JournalState.Posted ||
                             history[0].ReversalOfJournalId.HasValue ||
-                            history[0].JournalDate > lastDay || history[0].CurrencyCode != "BDT";
+                            history[0].JournalDate > lastDay || history[0].CurrencyCode != "BDT" ||
+                            (request.CampusId.HasValue && history[0].CampusId != request.CampusId);
                     }))
                         return Error<PayrollRunDto>(
                             "Loan withholding requires one valid posted disbursement journal for every open loan. No payroll was generated.", 409);
@@ -411,8 +448,9 @@ public sealed class HrPayrollService : IPayrollAdministrationService
                     TenantId = tenant, PublicId = Guid.NewGuid(), ClientRequestId = request.ClientRequestId,
                     RunNumber = "PR-" + request.Year.ToString("D4") + request.Month.ToString("D2") +
                         "-" + request.ClientRequestId.ToString("N").Substring(0, 12),
-                    Year = request.Year, Month = request.Month, PeriodStart = firstDay,
-                    PeriodEnd = lastDay, State = PayrollRunState.Calculated, CalculatedAt = now,
+                    Year = request.Year, Month = request.Month, CampusId = request.CampusId,
+                    PeriodStart = firstDay, PeriodEnd = lastDay,
+                    State = PayrollRunState.Calculated, CalculatedAt = now,
                     CreatedAt = now, CreatedBy = _user.UserId
                 };
                 await _runs.AddAsync(run);

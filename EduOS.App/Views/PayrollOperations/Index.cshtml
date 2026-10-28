@@ -22,7 +22,8 @@
             <div class="row g-2 align-items-end">
                 <div class="col-md-3"><label for="payrollMonth" class="form-label">Month</label><select id="payrollMonth" class="form-select">@for(var m=1;m<=12;m++){<option value="@m">@System.Globalization.CultureInfo.InvariantCulture.DateTimeFormat.GetMonthName(m)</option>}</select></div>
                 <div class="col-md-3"><label for="payrollYear" class="form-label">Year</label><input id="payrollYear" type="number" min="2000" max="2200" class="form-control" required /></div>
-                <div class="col-md-6 d-flex gap-2"><button id="payrollLoad" type="button" class="btn btn-outline-primary">Load runs</button><button id="payrollGenerate" type="button" class="btn btn-primary">Calculate payroll</button></div>
+                <div class="col-md-3"><label for="payrollCampus" class="form-label">Payroll scope</label><select id="payrollCampus" class="form-select"><option value="">Institution-wide</option></select></div>
+                <div class="col-md-3 d-flex gap-2"><button id="payrollLoad" type="button" class="btn btn-outline-primary">Load runs</button><button id="payrollGenerate" type="button" class="btn btn-primary">Calculate payroll</button></div>
             </div>
             <p class="small text-muted mt-2 mb-0">Calculation snapshots canonical salary components. A different authorized administrator must approve the run. Approval does not post a journal or pay employees.</p>
         </section>
