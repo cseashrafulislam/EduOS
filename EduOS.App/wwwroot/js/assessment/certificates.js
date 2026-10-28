@@ -37,6 +37,15 @@
                 button.textContent = 'Revoke'; button.disabled = state.busy;
                 button.addEventListener('click', () => revoke(row)); action.append(button);
             }
+            if (row.reference) {
+                const verify = document.createElement('a');
+                verify.className = 'btn btn-sm btn-outline-secondary ms-1';
+                verify.textContent = 'Verify';
+                verify.href = '/verify/certificate/' + encodeURIComponent(row.reference);
+                verify.target = '_blank';
+                verify.rel = 'noopener noreferrer';
+                action.append(verify);
+            }
             tr.append(action); tbody.append(tr);
         }
         if (!state.rows.length) {

@@ -1,0 +1,28 @@
+@{
+    ViewData["Title"] = "Certificate verification";
+    Layout = "~/Views/Shared/_PublicLayout.cshtml";
+    var reference = ViewData["Reference"]?.ToString() ?? "";
+}
+<section class="container py-4" id="certificateVerification" data-reference="@reference">
+    <header class="d-flex align-items-center gap-2 mb-3">
+        <h1 class="h4 mb-0">Certificate verification / সনদ যাচাই</h1>
+        <details class="ms-auto small">
+            <summary class="btn btn-sm btn-outline-secondary" aria-label="Verification help / যাচাই সহায়তা">ⓘ</summary>
+            <div class="border rounded p-2 mt-1" role="note">Only credential validity is public. No learner or guardian information is shown. / শুধু সনদের বৈধতা প্রকাশিত হয়।</div>
+        </details>
+    </header>
+    <div class="card shadow-sm">
+        <div class="card-body">
+            <div id="certificateVerificationStatus" class="alert alert-secondary" role="status" aria-live="polite">Checking certificate / সনদ যাচাই হচ্ছে…</div>
+            <dl class="row mb-0">
+                <dt class="col-sm-4">Issuing institute / প্রতিষ্ঠান</dt><dd class="col-sm-8" id="certificateIssuer">—</dd>
+                <dt class="col-sm-4">Certificate / সনদ নম্বর</dt><dd class="col-sm-8" id="certificateNumber">—</dd>
+                <dt class="col-sm-4">Issue date / ইস্যুর তারিখ</dt><dd class="col-sm-8" id="certificateDate">—</dd>
+            </dl>
+            <button type="button" id="certificateVerifyAgain" class="btn btn-outline-primary mt-2">Recheck / আবার যাচাই</button>
+        </div>
+    </div>
+</section>
+@section Scripts {
+    <script src="~/js/assessment/certificate-verification.js" asp-append-version="true"></script>
+}
