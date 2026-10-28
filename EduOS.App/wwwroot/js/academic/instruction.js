@@ -6,7 +6,7 @@
     const manager = root.dataset.canManage === 'true';
     const teacher = root.dataset.canTeach === 'true';
     const statuses = {1:'Draft',2:'Submitted',3:'Approved',4:'Rejected',5:'In progress',6:'Completed'};
-    const state = { batches: [], offerings: [], instructors: [], routines: [], lessons: [], substitutions: [], editingId: null, lessonPage: 1, lessonPages: 1, lessonCount: 0, substitutionPage: 1, substitutionPages: 1, substitutionCount: 0, requestSeq: 0, draftRequestId: null, substitutionRequestId: null, substitutionRequestPayload: null, routinePage: 1, routinePages: 1, routineCount: 0, routineRequestSeq: 0, offeringPage: 1, offeringPages: 1, offeringCount: 0, offeringRequestSeq: 0, teacherPage: 1, teacherPages: 1, teacherCount: 0, teacherRequestSeq: 0 };
+    const state = { batches: [], offerings: [], instructors: [], routines: [], lessons: [], substitutions: [], editingId: null, lessonPage: 1, lessonPages: 1, lessonCount: 0, substitutionPage: 1, substitutionPages: 1, substitutionCount: 0, requestSeq: 0, draftRequestId: null, substitutionRequestId: null, substitutionRequestPayload: null, routinePage: 1, routinePages: 1, routineCount: 0, routineRequestSeq: 0, offeringPage: 1, offeringPages: 1, offeringCount: 0, offeringRequestSeq: 0, teacherPage: 1, teacherPages: 1, teacherCount: 0, teacherRequestSeq: 0, workloadRows: [], workloadPage: 1, workloadPages: 1, workloadCount: 0, workloadRequestSeq: 0, workloadLoaded: false };
     const dateOnly = value => value ? String(value).slice(0,10) : '';
     const dateForApi = value => value; // ASP.NET DateOnly accepts yyyy-MM-dd, not a timestamp.
     const option = (value, text) => { const e=document.createElement('option');e.value=String(value);e.textContent=text;return e; };
@@ -47,6 +47,7 @@
         state.substitutionRequestId = null; state.substitutionRequestPayload = null;
         const id=Number(get('instructionBatch').value);
         get('lessonNew').disabled=!id;
+        if (manager) resetWorkload();
         state.lessonPage=1;state.substitutionPage=1;state.offeringPage=1;state.offeringPages=1;state.offeringCount=0;state.offeringRequestSeq++;state.routineRequestSeq++;state.teacherRequestSeq++;
         state.routinePage=1;state.teacherPage=1;state.teacherPages=1;state.teacherCount=0;state.routinePages=1;state.routineCount=0;
         if(manager){get('substitutionRoutineSearch').value='';if(!get('substitutionDate').value)get('substitutionDate').value=get('instructionTo').value;}
@@ -192,6 +193,86 @@
         get('substitutionNext').disabled = state.substitutionPage >= state.substitutionPages;
         get('substitutionCsv').disabled = !state.substitutions.length;
     }
+    function updateWorkloadPager() {
+        if (!manager) return;
+        get('workloadPage').textContent = 'Page ' + state.workloadPage + ' / ' +
+            state.workloadPages + ' (' + state.workloadCount + ' teachers)';
+        get('workloadPrevious').disabled = state.workloadPage <= 1;
+        get('workloadNext').disabled = state.workloadPage >= state.workloadPages;
+        get('workloadCsv').disabled = !state.workloadRows.length;
+    }
+    function renderWorkload(rows) {
+        if (!manager) return;
+        const body = get('workloadRows'); body.replaceChildren();
+        if (!rows.length) {
+            const tr = document.createElement('tr'), td = cell('No substitute workload for this period.');
+            td.colSpan = 5; td.className = 'text-center text-muted p-3';
+            tr.append(td); body.append(tr); return;
+        }
+        for (const row of rows) {
+            const tr = document.createElement('tr');
+            tr.append(cell(row.employeeName), cell(row.employeeCode),
+                cell(row.activeCount), cell(row.cancelledCount), cell(row.totalCount));
+            body.append(tr);
+        }
+    }
+    function resetWorkload() {
+        if (!manager) return;
+        state.workloadRequestSeq++;
+        state.workloadRows = []; state.workloadPage = 1;
+        state.workloadPages = 1; state.workloadCount = 0; state.workloadLoaded = false;
+        get('workloadLoad').disabled = false;
+        renderWorkload([]); updateWorkloadPager();
+    }
+    async function loadWorkload(page = 1) {
+        if (!manager) return;
+        const scope = dateScope();
+        if (!Number.isSafeInteger(page) || page < 1) throw new Error('Invalid workload page.');
+        const seq = ++state.workloadRequestSeq;
+        const button = get('workloadLoad'); button.disabled = true;
+        const query = new URLSearchParams({
+            academicBatchId: String(scope.batchId), fromDate: scope.from, toDate: scope.to,
+            page: String(page), pageSize: '20'
+        });
+        try {
+            const result = await api('/api/academic-instruction/substitutions/workload?' + query);
+            if (seq !== state.workloadRequestSeq ||
+                Number(get('instructionBatch').value) !== scope.batchId ||
+                get('instructionFrom').value !== scope.from || get('instructionTo').value !== scope.to) return;
+            if (!result || !Array.isArray(result.items)) throw new Error('Invalid workload response.');
+            state.workloadRows = result.items; state.workloadPage = Number(result.page || page);
+            state.workloadPages = Math.max(1, Number(result.totalPages || 1));
+            state.workloadCount = Number(result.totalCount || 0);
+            state.workloadLoaded = true;
+            renderWorkload(state.workloadRows); updateWorkloadPager();
+        } catch (error) {
+            if (seq === state.workloadRequestSeq) {
+                state.workloadRows = []; state.workloadLoaded = false;
+                state.workloadPages = 1; state.workloadCount = 0;
+                renderWorkload([]); updateWorkloadPager();
+                status('warning', 'Substitute workload: ' + error.message);
+            }
+        } finally {
+            if (seq === state.workloadRequestSeq) button.disabled = false;
+        }
+    }
+    function exportWorkload() {
+        if (!manager || !state.workloadRows.length) return;
+        const headers = ['Substitute teacher', 'Employee code', 'Active', 'Cancelled', 'Total'];
+        const rows = state.workloadRows.map(x =>
+            [x.employeeName, x.employeeCode, x.activeCount, x.cancelledCount, x.totalCount]);
+        const safe = value => {
+            let s = String(value ?? '');
+            if (/^[=+@\-\t\r]/.test(s)) s = "'" + s;
+            return '"' + s.replaceAll('"', '""') + '"';
+        };
+        const csv = String.fromCharCode(0xfeff) + [headers, ...rows]
+            .map(row => row.map(safe).join(',')).join('\r\n');
+        const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+        const link = document.createElement('a'); link.href = url;
+        link.download = 'substitute-workload-page-' + state.workloadPage + '.csv'; link.click();
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+    }
     async function load() {
         let scope; try { scope = dateScope(); } catch (e) { status('danger', e.message); return; }
         const seq = ++state.requestSeq;
@@ -247,6 +328,7 @@
             }
             renderLessons(state.lessons); renderSubstitutions(state.substitutions);
             setAssignments(); updateLessonPager(); updateSubstitutionPager();
+            if (manager && state.workloadLoaded) await loadWorkload(state.workloadPage);
             if (manager) {
                 try { await findInstructors(state.teacherPage); }
                 catch (e) { if (seq === state.requestSeq) status('warning', 'Instructor search: ' + e.message); }
@@ -471,7 +553,7 @@
         a.download = 'academic-lesson-plans-page-' + state.lessonPage + '.csv'; a.click();
         setTimeout(() => URL.revokeObjectURL(url), 1000);
     }
-    get('instructionFilters').addEventListener('submit',e=>{e.preventDefault();state.lessonPage=1;state.substitutionPage=1;load();});
+    get('instructionFilters').addEventListener('submit',e=>{e.preventDefault();if(manager)resetWorkload();state.lessonPage=1;state.substitutionPage=1;load();});
     get('instructionBatch').addEventListener('change',selectBatch);
     get('lessonNew').addEventListener('click',()=>openEditor(null));
     get('lessonCancel').addEventListener('click',resetEditor);
@@ -542,6 +624,19 @@
     });
     get('substitutionPrevious').addEventListener('click',()=>{if(state.substitutionPage>1){state.substitutionPage--;load();}});
     get('substitutionNext').addEventListener('click',()=>{if(state.substitutionPage<state.substitutionPages){state.substitutionPage++;load();}});
+    if (manager) {
+        get('workloadLoad').addEventListener('click', () =>
+            loadWorkload(1).catch(error => status('danger', error.message)));
+        get('workloadPrevious').addEventListener('click', () => {
+            if (state.workloadPage > 1) loadWorkload(state.workloadPage - 1);
+        });
+        get('workloadNext').addEventListener('click', () => {
+            if (state.workloadPage < state.workloadPages) loadWorkload(state.workloadPage + 1);
+        });
+        get('workloadCsv').addEventListener('click', exportWorkload);
+        get('instructionFrom').addEventListener('change', resetWorkload);
+        get('instructionTo').addEventListener('change', resetWorkload);
+    }
     get('lessonCsv').addEventListener('click',exportLessons);
     get('substitutionCsv').addEventListener('click',exportSubstitutions);
     get('lessonPrint').addEventListener('click',()=>window.print());

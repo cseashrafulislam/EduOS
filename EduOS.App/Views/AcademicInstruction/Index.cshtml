@@ -4,7 +4,7 @@
 }
 <section id="instructionApp" data-can-manage="@canManage.ToString().ToLowerInvariant()" data-can-teach="@User.IsInRole("Teacher").ToString().ToLowerInvariant()" class="container-fluid py-3">
     <header class="mb-3 d-flex align-items-center justify-content-between gap-2"><h2 class="h4 mb-0">Academic Instruction</h2><button id="instructionHelp" type="button" class="btn btn-sm btn-outline-secondary" title="Page guide" aria-label="Academic instruction guide" aria-controls="instructionHelpText" aria-expanded="false">ⓘ</button></header>
-    <div id="instructionHelpText" class="d-none small text-muted mb-3" role="note">Choose a batch and date range. Search subject offerings when creating a lesson plan; only assigned instructors can progress approved lessons. Substitutions require an active routine and a different eligible teacher.</div>
+    <div id="instructionHelpText" class="d-none small text-muted mb-3" role="note">Choose a batch and date range. Search subject offerings when creating a lesson plan; only assigned instructors can progress approved lessons. Substitutions require an active routine and a different eligible teacher. Managers can view a date-scoped substitute workload report.</div>
     <div id="instructionAlert" class="d-none" tabindex="-1" role="alert" aria-live="polite"></div>
     <form id="instructionFilters" class="card card-body mb-3">
         <div class="row g-3 align-items-end">
@@ -93,6 +93,29 @@
             <button id="substitutionNext" type="button" class="btn btn-sm btn-outline-secondary" disabled>Next</button>
         </div>
     </section>
+    @if (canManage)
+    {
+        <section id="substitutionWorkloadPanel" class="card mb-3">
+            <div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-2">
+                <h3 class="h6 m-0">Substitute workload</h3>
+                <div class="d-flex gap-2">
+                    <button id="workloadLoad" type="button" class="btn btn-sm btn-outline-primary">View workload</button>
+                    <button id="workloadCsv" type="button" class="btn btn-sm btn-outline-secondary" disabled>CSV (current page)</button>
+                </div>
+            </div>
+            <div class="table-responsive">
+                <table class="table table-sm table-hover align-middle mb-0">
+                    <thead><tr><th>Substitute teacher</th><th>Employee code</th><th>Active</th><th>Cancelled</th><th>Total</th></tr></thead>
+                    <tbody id="workloadRows"><tr><td colspan="5" class="text-center text-muted p-3">Select View workload.</td></tr></tbody>
+                </table>
+            </div>
+            <div class="card-footer d-flex justify-content-end align-items-center gap-2">
+                <button id="workloadPrevious" type="button" class="btn btn-sm btn-outline-secondary" disabled>Previous</button>
+                <span id="workloadPage" class="small text-muted" aria-live="polite">Page 1 / 1</span>
+                <button id="workloadNext" type="button" class="btn btn-sm btn-outline-secondary" disabled>Next</button>
+            </div>
+        </section>
+    }
 </section>
 @section Scripts {
     <script src="~/js/academic/instruction.js" asp-append-version="true"></script>

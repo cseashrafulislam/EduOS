@@ -52,6 +52,15 @@ public sealed class AcademicInstructionController : ControllerBase
         CancellationToken cancellationToken = default) =>
         ToAction(await _service.GetSubstitutionSummaryAsync(fromDate, toDate, academicBatchId, cancellationToken));
 
+    [HttpGet("substitutions/workload")]
+    [Authorize(Roles = "TenantAdmin,Principal,VicePrincipal")]
+    public async Task<IActionResult> SubstitutionWorkload([FromQuery] DateOnly fromDate,
+        [FromQuery] DateOnly toDate, [FromQuery] long? academicBatchId,
+        [FromQuery] int page = 1, [FromQuery] int pageSize = 20,
+        CancellationToken cancellationToken = default) =>
+        ToAction(await _service.GetSubstitutionWorkloadAsync(
+            fromDate, toDate, academicBatchId, page, pageSize, cancellationToken));
+
     [HttpPost("substitutions")]
     [Authorize(Roles = "TenantAdmin,Principal,VicePrincipal")]
     public async Task<IActionResult> CreateSubstitution([FromBody] CreateSubstitutionRequestDto request, CancellationToken cancellationToken) =>

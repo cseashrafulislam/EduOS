@@ -678,6 +678,71 @@ public sealed class AcademicInstructionServiceTests
     }
 
     [Fact]
+    public async Task Substitute_workload_is_manager_only_campus_scoped_and_paged()
+    {
+        var options = Options();
+        var seed = await SeedAsync(options);
+        await using (var db = Context(options, 101, 7, "TenantAdmin"))
+        {
+            var cover = await db.Employees.SingleAsync(x => x.UserId == 71);
+            var other = Teacher(72, "=UNTRUSTED", "Another substitute");
+            db.Employees.Add(other);
+            await db.SaveChangesAsync();
+            db.Substitutions.AddRange(
+                new Substitution { TenantId = 101, ClientRequestId = Guid.NewGuid(),
+                    RoutineEntryId = seed.RoutineEntryId, Date = LessonDate,
+                    SubstituteEmployeeId = cover.Id },
+                new Substitution { TenantId = 101, ClientRequestId = Guid.NewGuid(),
+                    RoutineEntryId = seed.RoutineEntryId, Date = LessonDate,
+                    SubstituteEmployeeId = cover.Id, IsCancelled = true },
+                new Substitution { TenantId = 101, ClientRequestId = Guid.NewGuid(),
+                    RoutineEntryId = seed.RoutineEntryId, Date = LessonDate,
+                    SubstituteEmployeeId = other.Id });
+            await db.SaveChangesAsync();
+        }
+        await using (var db = Context(options, 101, 7, "TenantAdmin"))
+        {
+            var service = Service(db, 101, 7, "TenantAdmin");
+            var first = await service.GetSubstitutionWorkloadAsync(LessonDate, LessonDate, seed.BatchId, 1, 1);
+            var second = await service.GetSubstitutionWorkloadAsync(LessonDate, LessonDate, seed.BatchId, 2, 1);
+            first.Success.Should().BeTrue();
+            first.Data!.TotalCount.Should().Be(2);
+            first.Data.Items.Should().ContainSingle();
+            second.Data!.Items.Should().ContainSingle();
+            first.Data.Items[0].SubstituteEmployeeId.Should().NotBe(second.Data.Items[0].SubstituteEmployeeId);
+            (first.Data.Items.Sum(x => x.TotalCount) + second.Data.Items.Sum(x => x.TotalCount)).Should().Be(3);
+            (first.Data.Items.Sum(x => x.CancelledCount) + second.Data.Items.Sum(x => x.CancelledCount)).Should().Be(1);
+            (await service.GetSubstitutionWorkloadAsync(LessonDate, LessonDate, seed.BatchId, 1, 101))
+                .StatusCode.Should().Be(400);
+            (await service.GetSubstitutionWorkloadAsync(LessonDate.AddDays(1), LessonDate, null, 1, 20))
+                .StatusCode.Should().Be(400);
+        }
+        await using (var db = Context(options, 101, 71, "Teacher"))
+            (await Service(db, 101, 71, "Teacher")
+                .GetSubstitutionWorkloadAsync(LessonDate, LessonDate, null, 1, 20))
+                .StatusCode.Should().Be(403);
+        await using (var db = Context(options, 101, 9, "Principal"))
+        {
+            var restricted = Service(db, 101, 9, "Principal");
+            (await restricted.GetSubstitutionWorkloadAsync(LessonDate, LessonDate, null, 1, 20))
+                .Data!.TotalCount.Should().Be(0);
+            var campusId = await db.AcademicBatches.Where(x => x.Id == seed.BatchId)
+                .Select(x => x.CampusId).SingleAsync();
+            db.UserCampusAccesses.Add(new UserCampusAccess
+            {
+                TenantId = 101, UserId = 9, CampusId = campusId, IsActive = true
+            });
+            await db.SaveChangesAsync();
+            (await restricted.GetSubstitutionWorkloadAsync(LessonDate, LessonDate, null, 1, 20))
+                .Data!.TotalCount.Should().Be(2);
+        }
+        await using (var db = Context(options, 202, 8, "TenantAdmin"))
+            (await Service(db, 202, 8, "TenantAdmin")
+                .GetSubstitutionWorkloadAsync(LessonDate, LessonDate, null, 1, 20))
+                .Data!.TotalCount.Should().Be(0);
+    }
+
+    [Fact]
     public async Task Substitution_register_keeps_historical_rows_with_missing_routine_context_and_stable_page_counts()
     {
         var options = Options();

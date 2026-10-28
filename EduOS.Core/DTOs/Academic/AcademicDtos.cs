@@ -687,6 +687,17 @@ public class SubstitutionRegisterSummaryDto
     public int CancelledCount { get; set; }
 }
 
+/// <summary>Tenant/campus-authorized substitute workload including retained cancellations.</summary>
+public sealed class SubstitutionWorkloadDto
+{
+    public long SubstituteEmployeeId { get; set; }
+    public string EmployeeCode { get; set; } = string.Empty;
+    public string EmployeeName { get; set; } = string.Empty;
+    public int TotalCount { get; set; }
+    public int ActiveCount { get; set; }
+    public int CancelledCount { get; set; }
+}
+
 public class CreateSubstitutionRequestDto
 {
     public Guid ClientRequestId { get; set; }

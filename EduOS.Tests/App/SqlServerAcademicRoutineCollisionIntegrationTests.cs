@@ -268,6 +268,19 @@ public sealed class SqlServerAcademicRoutineCollisionIntegrationTests
         Assert.True(otherTenant.Success, otherTenant.Message);
         Assert.Equal(0, otherTenant.Data!.TotalCount);
 
+        var workload = await instruction.GetSubstitutionWorkloadAsync(coverDate, coverDate, batchAId, 1, 20);
+        Assert.True(workload.Success, workload.Message);
+        var workloadRow = Assert.Single(workload.Data!.Items);
+        Assert.Equal(1, workloadRow.ActiveCount);
+        Assert.Equal(0, workloadRow.CancelledCount);
+        Assert.Equal("Cover SQL Instructor", workloadRow.EmployeeName);
+        Assert.Equal(400, (await instruction.GetSubstitutionWorkloadAsync(
+            coverDate, coverDate, batchAId, 1, 101)).StatusCode);
+        var deniedWorkload = await BuildInstructionService(db, tenantId + 1, userId)
+            .GetSubstitutionWorkloadAsync(coverDate, coverDate, batchAId, 1, 20);
+        Assert.True(deniedWorkload.Success, deniedWorkload.Message);
+        Assert.Equal(0, deniedWorkload.Data!.TotalCount);
+
         var cancelled = await instruction.CancelSubstitutionAsync(replay.Data.Id,
             new CancelSubstitutionRequestDto { RowVersion = replay.Data.RowVersion });
         Assert.True(cancelled.Success, cancelled.Message);
@@ -275,6 +288,11 @@ public sealed class SqlServerAcademicRoutineCollisionIntegrationTests
         Assert.True(after.Success, after.Message);
         Assert.Equal(1, after.Data!.CancelledCount);
         Assert.Equal(0, after.Data.ActiveCount);
+        var retainedWorkload = await instruction.GetSubstitutionWorkloadAsync(
+            coverDate, coverDate, batchAId, 1, 20);
+        var retained = Assert.Single(retainedWorkload.Data!.Items);
+        Assert.Equal(0, retained.ActiveCount);
+        Assert.Equal(1, retained.CancelledCount);
         var history = await instruction.GetSubstitutionsPageFilteredAsync(
             coverDate, coverDate, batchAId, true, 1, 20);
         Assert.True(history.Success, history.Message);

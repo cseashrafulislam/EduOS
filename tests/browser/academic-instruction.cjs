@@ -41,6 +41,15 @@ const version = 'AQIDBAUGBwg=';
                 return reply(route, 200, { page: 1, totalPages: 1, totalCount: 0, items: [] });
             if (name === '/api/academic-instruction/batches/10/lesson-offerings')
                 return reply(route, 200, { page: 1, totalPages: 1, totalCount: 0, items: [] });
+            if (name === '/api/academic-instruction/substitutions/workload') {
+                assert.equal(url.searchParams.get('academicBatchId'), '10');
+                assert.equal(url.searchParams.get('pageSize'), '20');
+                return reply(route, 200, { items: [{
+                    substituteEmployeeId: 91, employeeCode: '=COVER',
+                    employeeName: 'Substitute teacher', activeCount: 1,
+                    cancelledCount: 1, totalCount: 2
+                }], totalCount: 1, page: 1, pageSize: 20, totalPages: 1 });
+            }
             if (name === '/api/academic-instruction/substitutions/summary') {
                 assert.equal(url.searchParams.get('academicBatchId'), '10');
                 assert.equal(url.searchParams.get('isCancelled'), null,
@@ -158,6 +167,11 @@ const version = 'AQIDBAUGBwg=';
         await page.waitForFunction(() => document.querySelector('#substitutionRows')?.textContent.includes('Cancelled'));
         const downloadPromise = page.waitForEvent('download');
         await page.locator('#substitutionCsv').click();
+        await page.locator('#workloadLoad').click();
+        await page.waitForFunction(() => document.querySelector('#workloadRows')?.textContent.includes('Substitute teacher'));
+        assert.match(await page.locator('#workloadRows').innerText(), /2/);
+        assert.equal(await page.locator('#workloadCsv').isDisabled(), false);
+        await page.locator('#workloadCsv').click();
         const download = await downloadPromise;
         const csv = fs.readFileSync(await download.path(), 'utf8');
         assert.match(csv, /"'=SUM\(1,1\)"/, 'CSV formula injection must be escaped');

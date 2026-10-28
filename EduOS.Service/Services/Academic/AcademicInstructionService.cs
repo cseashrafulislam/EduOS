@@ -248,6 +248,52 @@ public sealed class AcademicInstructionService : IAcademicInstructionService
             });
     }
 
+    /// <summary>SQL-side manager workload aggregation using the register's live tenant/campus authorization.</summary>
+    public async Task<ApiResponse<PagedResult<SubstitutionWorkloadDto>>> GetSubstitutionWorkloadAsync(
+        DateOnly fromDate, DateOnly toDate, long? academicBatchId, int page, int pageSize,
+        CancellationToken ct = default)
+    {
+        if (!CanManage()) return Denied<PagedResult<SubstitutionWorkloadDto>>();
+        if (page < 1 || pageSize is < 1 or > 100)
+            return Error<PagedResult<SubstitutionWorkloadDto>>("Invalid substitute workload page.");
+        var (scoped, status) = await GetAuthorizedSubstitutionQueryAsync(fromDate, toDate, academicBatchId, ct);
+        if (scoped == null)
+            return status == 403 ? Denied<PagedResult<SubstitutionWorkloadDto>>() :
+                Error<PagedResult<SubstitutionWorkloadDto>>("Invalid substitute workload date range or batch.");
+
+        // SQL groups before paging; staff names are fetched in one tenant-scoped page query.
+        var groups = scoped.GroupBy(x => x.SubstituteEmployeeId)
+            .Select(g => new { EmployeeId = g.Key, Total = g.Count(),
+                Cancelled = g.Count(x => x.IsCancelled) });
+        var total = await groups.CountAsync(ct);
+        var offset = ((long)page - 1) * pageSize;
+        if (offset > int.MaxValue)
+            return Error<PagedResult<SubstitutionWorkloadDto>>("Page exceeds supported range.");
+        var aggregates = await groups.OrderByDescending(x => x.Total - x.Cancelled)
+            .ThenBy(x => x.EmployeeId).Skip((int)offset).Take(pageSize).ToListAsync(ct);
+        var ids = aggregates.Select(x => x.EmployeeId).ToArray();
+        var tenant = _currentUser.TenantId;
+        var employees = await _employees.GetQueryable().AsNoTracking()
+            .Where(x => x.TenantId == tenant && ids.Contains(x.Id) && !x.IsDeleted)
+            .Select(x => new { x.Id, x.EmployeeCode, x.FullName })
+            .ToDictionaryAsync(x => x.Id, ct);
+        var rows = aggregates.Select(x =>
+        {
+            employees.TryGetValue(x.EmployeeId, out var employee);
+            return new SubstitutionWorkloadDto
+            {
+                SubstituteEmployeeId = x.EmployeeId,
+                EmployeeCode = employee?.EmployeeCode ?? string.Empty,
+                EmployeeName = employee?.FullName ?? "Unavailable",
+                TotalCount = x.Total, ActiveCount = x.Total - x.Cancelled,
+                CancelledCount = x.Cancelled
+            };
+        }).ToList();
+        return ApiResponse<PagedResult<SubstitutionWorkloadDto>>.SuccessResponse(
+            new PagedResult<SubstitutionWorkloadDto>
+            { Items = rows, TotalCount = total, Page = page, PageSize = pageSize });
+    }
+
     public async Task<ApiResponse<PagedResult<SubstitutionDto>>> GetSubstitutionsPageFilteredAsync(
         DateOnly fromDate, DateOnly toDate, long? academicBatchId, bool? isCancelled,
         int page, int pageSize, CancellationToken ct = default)
