@@ -10,6 +10,7 @@ using EduOS.Core.Interfaces.IServices;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using System.Security.Cryptography;
+using System.Data;
 
 namespace EduOS.Service.Services.Academic;
 
@@ -370,7 +371,7 @@ public sealed class AcademicInstructionService : IAcademicInstructionService
             await _substitutions.AddAsync(row);
             await _unitOfWork.SaveChangesAsync(ct);
             return Created(MapSubstitution(row, employee.FullName), "Substitution created.");
-        });
+        }, serializable: true);
     }
 
     public Task<ApiResponse<SubstitutionDto>> CancelSubstitutionAsync(
@@ -888,9 +889,14 @@ public sealed class AcademicInstructionService : IAcademicInstructionService
                         x.State == EmployeeState.Active && x.CanTeach)
             .Select(x => (long?)x.Id).FirstOrDefaultAsync(cancellationToken);
 
-    private async Task<ApiResponse<T>> ExecuteWriteAsync<T>(string operation, Func<Task<ApiResponse<T>>> action)
+    private async Task<ApiResponse<T>> ExecuteWriteAsync<T>(string operation, Func<Task<ApiResponse<T>>> action, bool serializable = false)
     {
-        try { return await _unitOfWork.ExecuteInTransactionAsync(_ => action()); }
+        try
+        {
+            return serializable
+                ? await _unitOfWork.ExecuteInTransactionAsync(_ => action(), IsolationLevel.Serializable)
+                : await _unitOfWork.ExecuteInTransactionAsync(_ => action());
+        }
         catch (DbUpdateConcurrencyException ex)
         {
             _logger.LogWarning(ex, "Concurrent academic instruction update {Operation} tenant {TenantId}", operation, _currentUser.TenantId);
