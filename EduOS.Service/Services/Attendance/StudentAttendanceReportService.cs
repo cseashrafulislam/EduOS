@@ -224,41 +224,12 @@ public sealed class StudentAttendanceReportService(
                 return ApiResponse<PagedResult<StudentAttendanceSessionRegisterDto>>.ErrorResponse(
                     "Subject offering not found for this batch.", 404);
 
-            var markTotals =
-                from mark in db.StudentAttendances.AsNoTracking()
-                join session in db.AttendanceSessions.AsNoTracking()
-                    on mark.AttendanceSessionId equals session.Id
-                join enrollment in db.StudentEnrollments.AsNoTracking()
-                    on mark.StudentEnrollmentId equals enrollment.Id
-                join student in db.Students.AsNoTracking()
-                    on enrollment.StudentId equals student.Id
-                where mark.TenantId == tenant && session.TenantId == tenant &&
-                    enrollment.TenantId == tenant && student.TenantId == tenant &&
-                    !mark.IsDeleted && !session.IsDeleted && !enrollment.IsDeleted &&
-                    !student.IsDeleted && session.AcademicBatchId == query.AcademicBatchId &&
-                    enrollment.AcademicBatchId == query.AcademicBatchId &&
-                    enrollment.CampusId == campusId.Value &&
-                    session.AttendanceDate >= query.FromDate &&
-                    session.AttendanceDate <= query.ToDate
-                group mark by mark.AttendanceSessionId into g
-                select new
-                {
-                    SessionId = g.Key,
-                    Marked = g.Count(),
-                    Present = g.Count(x => x.State == AttendanceState.Present),
-                    Absent = g.Count(x => x.State == AttendanceState.Absent),
-                    Late = g.Count(x => x.State == AttendanceState.Late),
-                    Leave = g.Count(x => x.State == AttendanceState.Leave),
-                    Excused = g.Count(x => x.State == AttendanceState.Excused)
-                };
             var sessions =
                 from session in db.AttendanceSessions.AsNoTracking()
                 join offering in db.SubjectOfferings.AsNoTracking().Where(x =>
                     x.TenantId == tenant && x.AcademicBatchId == query.AcademicBatchId)
                     on session.SubjectOfferingId equals (long?)offering.Id into offerings
                 from offering in offerings.DefaultIfEmpty()
-                join totals in markTotals on session.Id equals totals.SessionId into marks
-                from totals in marks.DefaultIfEmpty()
                 where session.TenantId == tenant && !session.IsDeleted &&
                     session.AcademicBatchId == query.AcademicBatchId &&
                     session.AttendanceDate >= query.FromDate &&
@@ -273,13 +244,7 @@ public sealed class StudentAttendanceReportService(
                     SubjectOfferingCode = !session.SubjectOfferingId.HasValue
                         ? "General" : offering == null ? "Archived offering" : offering.Code,
                     IsFinalized = session.IsFinalized,
-                    FinalizedAt = session.FinalizedAt,
-                    Marked = totals == null ? 0 : totals.Marked,
-                    Present = totals == null ? 0 : totals.Present,
-                    Absent = totals == null ? 0 : totals.Absent,
-                    Late = totals == null ? 0 : totals.Late,
-                    Leave = totals == null ? 0 : totals.Leave,
-                    Excused = totals == null ? 0 : totals.Excused
+                    FinalizedAt = session.FinalizedAt
                 };
             if (filter == "draft") sessions = sessions.Where(x => !x.IsFinalized);
             if (filter == "finalized") sessions = sessions.Where(x => x.IsFinalized);
@@ -288,6 +253,46 @@ public sealed class StudentAttendanceReportService(
                 .ThenByDescending(x => x.SessionId)
                 .Skip((query.Page - 1) * query.PageSize).Take(query.PageSize)
                 .ToListAsync(cancellationToken);
+            // Aggregate only the selected page's sessions, never the entire tenant's
+            // mark history. This remains two bounded SQL queries, not N+1.
+            var sessionIds = items.Select(x => x.SessionId).ToArray();
+            if (sessionIds.Length > 0)
+            {
+                var totals = await (
+                    from mark in db.StudentAttendances.AsNoTracking()
+                    join enrollment in db.StudentEnrollments.AsNoTracking()
+                        on mark.StudentEnrollmentId equals enrollment.Id
+                    join student in db.Students.AsNoTracking()
+                        on enrollment.StudentId equals student.Id
+                    where sessionIds.Contains(mark.AttendanceSessionId) &&
+                        mark.TenantId == tenant && enrollment.TenantId == tenant &&
+                        student.TenantId == tenant && !mark.IsDeleted &&
+                        !enrollment.IsDeleted && !student.IsDeleted &&
+                        enrollment.AcademicBatchId == query.AcademicBatchId &&
+                        enrollment.CampusId == campusId.Value
+                    group mark by mark.AttendanceSessionId into g
+                    select new
+                    {
+                        SessionId = g.Key,
+                        Marked = g.Count(),
+                        Present = g.Count(x => x.State == AttendanceState.Present),
+                        Absent = g.Count(x => x.State == AttendanceState.Absent),
+                        Late = g.Count(x => x.State == AttendanceState.Late),
+                        Leave = g.Count(x => x.State == AttendanceState.Leave),
+                        Excused = g.Count(x => x.State == AttendanceState.Excused)
+                    }).ToListAsync(cancellationToken);
+                var bySession = totals.ToDictionary(x => x.SessionId);
+                foreach (var item in items)
+                {
+                    if (!bySession.TryGetValue(item.SessionId, out var mark)) continue;
+                    item.Marked = mark.Marked;
+                    item.Present = mark.Present;
+                    item.Absent = mark.Absent;
+                    item.Late = mark.Late;
+                    item.Leave = mark.Leave;
+                    item.Excused = mark.Excused;
+                }
+            }
             return ApiResponse<PagedResult<StudentAttendanceSessionRegisterDto>>.SuccessResponse(
                 new PagedResult<StudentAttendanceSessionRegisterDto>
                 {
