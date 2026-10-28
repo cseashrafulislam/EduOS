@@ -218,6 +218,9 @@
             const params = new URLSearchParams({
                 academicBatchId: el('attendanceReportBatch').value,
                 fromDate: from, toDate: to, page: String(page), pageSize: '20',
+                minMarkedSessions: el('attendanceReportMinSessions').value,
+                sort: el('attendanceReportSort').value,
+                ...(el('attendanceReportRisk').value ? { maxAttendancePercent: el('attendanceReportRisk').value } : {}),
                 ...(el('attendanceReportSubject').value ? { subjectOfferingId: el('attendanceReportSubject').value } : {})
             });
             const data = await fetchJson('/api/student-attendance/report?' + params);
@@ -240,7 +243,7 @@
             pageLabel.textContent = 'Page ' + page + ' of ' + totalPages + ' · ' + data.totalCount + ' enrollment(s)';
             previous.disabled = page <= 1;
             next.disabled = page >= totalPages;
-            message('Only finalized sessions are counted; roll numbers come from historical enrollments.');
+            message(data.totalCount + ' matching historical enrollment(s).');
         } catch (error) {
             if (requestId === pending) { body.replaceChildren(); message(error.message); }
         }
@@ -268,6 +271,13 @@
     el('attendanceReportSubjectNext').addEventListener('click', () => {
         if (subjectPage < subjectPages) { subjectPage++; loadSubjects(); }
     });
+    for (const id of ['attendanceReportRisk', 'attendanceReportMinSessions', 'attendanceReportSort'])
+        el(id).addEventListener('change', () => {
+            pending++; page = 1; totalPages = 0;
+            visibleItems = []; csvButton.disabled = true; body.replaceChildren();
+            previous.disabled = next.disabled = true; pageLabel.textContent = '';
+            message('Load report for the selected filters.');
+        });
     for (const id of ['attendanceReportBatch', 'attendanceReportFrom', 'attendanceReportTo'])
         el(id).addEventListener('change', () => { pending++; page = 1; totalPages = 0;
             previous.disabled = next.disabled = true;

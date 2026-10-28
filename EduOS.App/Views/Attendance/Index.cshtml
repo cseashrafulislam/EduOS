@@ -115,6 +115,21 @@
                 <input id="attendanceReportFrom" class="form-control" type="date" required /></div>
             <div class="col-md-3"><label for="attendanceReportTo" class="form-label">To</label>
                 <input id="attendanceReportTo" class="form-control" type="date" required /></div>
+            <div class="col-md-2"><label for="attendanceReportRisk" class="form-label">Attendance risk</label>
+                <select id="attendanceReportRisk" class="form-select">
+                    <option value="">All percentages</option>
+                    <option value="75">Below 75%</option>
+                    <option value="90">Below 90%</option>
+                    <option value="100">Below 100%</option>
+                </select></div>
+            <div class="col-md-2"><label for="attendanceReportMinSessions" class="form-label">Minimum marks</label>
+                <input id="attendanceReportMinSessions" type="number" class="form-control" min="1" max="1000" value="1" required /></div>
+            <div class="col-md-2"><label for="attendanceReportSort" class="form-label">Order by</label>
+                <select id="attendanceReportSort" class="form-select">
+                    <option value="roll">Roll</option>
+                    <option value="lowest">Lowest attendance</option>
+                    <option value="absent">Most absences</option>
+                </select></div>
             <div class="col-md-2"><button type="submit" class="btn btn-primary w-100">Load report</button></div>
         </form>
         <p id="attendanceReportStatus" class="small text-muted mt-3" role="status" aria-live="polite">Select filters to load the report.</p>

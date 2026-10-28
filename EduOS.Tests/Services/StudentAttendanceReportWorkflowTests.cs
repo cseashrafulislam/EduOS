@@ -271,6 +271,84 @@ public sealed class StudentAttendanceReportWorkflowTests
             .GetAsync(Query())).StatusCode);
     }
 
+    [Fact]
+    public async Task Attendance_risk_register_filters_aggregates_before_paging_and_sorts_by_severity()
+    {
+        await using var db = Context(71);
+        db.AcademicBatches.Add(new AcademicBatch { Id = 10, TenantId = 71, CampusId = 8,
+            Name = "Cohort", Code = "C" });
+        for (var i = 1; i <= 3; i++)
+        {
+            db.Students.Add(new Student { Id = 20 + i, TenantId = 71,
+                StudentCode = "ST" + i, FullName = "Learner " + i,
+                AdmissionDate = new DateOnly(2025, 1, 1) });
+            db.StudentEnrollments.Add(new StudentEnrollment { Id = 30 + i, TenantId = 71,
+                StudentId = 20 + i, AcademicBatchId = 10, CampusId = 8,
+                RollNo = "R" + i, IsCurrent = false });
+        }
+        for (var i = 0; i < 3; i++)
+            db.AttendanceSessions.Add(new AttendanceSession { Id = 40 + i, TenantId = 71,
+                AcademicBatchId = 10, AttendanceDate = new DateOnly(2026, 10, 5 + i),
+                IsFinalized = true });
+        long markId = 50;
+        for (var student = 1; student <= 3; student++)
+            for (var day = 0; day < 3; day++)
+                db.StudentAttendances.Add(new StudentAttendance {
+                    Id = markId++, TenantId = 71, AttendanceSessionId = 40 + day,
+                    StudentEnrollmentId = 30 + student,
+                    State = student == 2 || (student == 1 && day < 2) ||
+                        (student == 3 && day == 0) ? AttendanceState.Present : AttendanceState.Absent
+                });
+        await db.SaveChangesAsync();
+
+        var service = Service(db, 71);
+        var query = Query();
+        query.MaxAttendancePercent = 75m;
+        query.MinMarkedSessions = 3;
+        query.Sort = "lowest";
+        query.PageSize = 1;
+        var first = await service.GetAsync(query);
+        Assert.True(first.Success, first.Message);
+        Assert.Equal(2, first.Data!.TotalCount);
+        Assert.Equal("R3", Assert.Single(first.Data.Items).RollNo);
+        query.Page = 2;
+        var second = await service.GetAsync(query);
+        Assert.True(second.Success, second.Message);
+        Assert.Equal("R1", Assert.Single(second.Data!.Items).RollNo);
+        query.Page = 1;
+        query.Sort = "absent";
+        Assert.Equal("R3", Assert.Single((await service.GetAsync(query)).Data!.Items).RollNo);
+        query.Sort = "roll";
+        Assert.Equal("R1", Assert.Single((await service.GetAsync(query)).Data!.Items).RollNo);
+        query.MinMarkedSessions = 4;
+        Assert.Equal(0, (await service.GetAsync(query)).Data!.TotalCount);
+        query.MinMarkedSessions = 1;
+        query.MaxAttendancePercent = 0m;
+        Assert.Equal(0, (await service.GetAsync(query)).Data!.TotalCount);
+    }
+
+    [Fact]
+    public async Task Attendance_risk_register_rejects_invalid_filters_and_respects_tenant_access()
+    {
+        await using var db = Context(71);
+        var query = Query();
+        query.MaxAttendancePercent = -1m;
+        Assert.Equal(400, (await Service(db, 71).GetAsync(query)).StatusCode);
+        query.MaxAttendancePercent = 101m;
+        Assert.Equal(400, (await Service(db, 71).GetAsync(query)).StatusCode);
+        query.MaxAttendancePercent = null;
+        query.MinMarkedSessions = 0;
+        Assert.Equal(400, (await Service(db, 71).GetAsync(query)).StatusCode);
+        query.MinMarkedSessions = 1001;
+        Assert.Equal(400, (await Service(db, 71).GetAsync(query)).StatusCode);
+        query.MinMarkedSessions = 1;
+        query.Sort = "unknown";
+        Assert.Equal(400, (await Service(db, 71).GetAsync(query)).StatusCode);
+        query.Sort = "lowest";
+        Assert.Equal(403, (await Service(db, 71, manager: false).GetAsync(query)).StatusCode);
+        Assert.Equal(404, (await Service(db, 72).GetAsync(query)).StatusCode);
+    }
+
     private static StudentAttendanceReportQueryDto Query() => new() {
         AcademicBatchId = 10, FromDate = new DateOnly(2026, 10, 1),
         ToDate = new DateOnly(2026, 10, 10)

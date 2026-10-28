@@ -171,7 +171,10 @@ public sealed class StudentAttendanceReportService(
             query.ToDate == default || query.ToDate < query.FromDate ||
             query.ToDate.DayNumber - query.FromDate.DayNumber > 30 ||
             query.Page < 1 || query.PageSize is < 1 or > 100 ||
-            query.Page > int.MaxValue / query.PageSize)
+            query.Page > int.MaxValue / query.PageSize ||
+            query.MinMarkedSessions is < 1 or > 1000 ||
+            query.MaxAttendancePercent is < 0m or > 100m ||
+            (query.Sort?.Trim().ToLowerInvariant() is not ("roll" or "lowest" or "absent")))
             return ApiResponse<PagedResult<StudentAttendanceReportRowDto>>.ErrorResponse(
                 "Select a valid batch and a date range of at most 31 days, with page size 1–100.");
 
@@ -246,11 +249,27 @@ public sealed class StudentAttendanceReportService(
                     Excused = g.Count(x => x.State == AttendanceState.Excused)
                 };
 
+            // Filter grouped, finalized historical marks BEFORE count/paging: never filter a page in memory.
+            grouped = grouped.Where(x => x.MarkedSessions >= query.MinMarkedSessions);
+            if (query.MaxAttendancePercent.HasValue)
+            {
+                var threshold = query.MaxAttendancePercent.Value;
+                grouped = grouped.Where(x =>
+                    100m * (x.Present + x.Late) < threshold * x.MarkedSessions);
+            }
             var total = await grouped.CountAsync(cancellationToken);
-            var offset = (int)Math.Min((long)(query.Page - 1) * query.PageSize, int.MaxValue);
-            var items = await grouped.OrderBy(x => x.RollNo).ThenBy(x => x.StudentCode)
-                .ThenBy(x => x.StudentEnrollmentReference)
-                .Skip(offset).Take(query.PageSize).ToListAsync(cancellationToken);
+            var offset = (query.Page - 1) * query.PageSize;
+            var ordered = query.Sort!.Trim().ToLowerInvariant() switch
+            {
+                "lowest" => grouped.OrderBy(x => 100m * (x.Present + x.Late) / x.MarkedSessions)
+                    .ThenBy(x => x.RollNo).ThenBy(x => x.StudentEnrollmentReference),
+                "absent" => grouped.OrderByDescending(x => x.Absent)
+                    .ThenBy(x => x.RollNo).ThenBy(x => x.StudentEnrollmentReference),
+                _ => grouped.OrderBy(x => x.RollNo).ThenBy(x => x.StudentCode)
+                    .ThenBy(x => x.StudentEnrollmentReference)
+            };
+            var items = await ordered.Skip(offset).Take(query.PageSize)
+                .ToListAsync(cancellationToken);
             return ApiResponse<PagedResult<StudentAttendanceReportRowDto>>.SuccessResponse(
                 new PagedResult<StudentAttendanceReportRowDto> {
                     Items = items, TotalCount = total, Page = query.Page, PageSize = query.PageSize
