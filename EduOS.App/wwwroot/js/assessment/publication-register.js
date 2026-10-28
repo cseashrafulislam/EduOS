@@ -353,13 +353,18 @@
         const safe = value => /^[=+@\-\t\r]/.test(String(value ?? '')) ? "'" + String(value) : value;
         const quote = value => '"' + String(safe(value) ?? '').replace(/"/g, '""') + '"';
         const rows = [['Baseline version', 'Target version', 'Roll', 'Student code', 'Student',
-            'Change', 'Marks before', 'Marks after', 'GPA before', 'GPA after',
-            'Grade before', 'Grade after', 'Passed before', 'Passed after',
+            'Change', 'Marks before', 'Marks after', 'Maximum before', 'Maximum after',
+            'Percentage before', 'Percentage after', 'GPA before', 'GPA after',
+            'CGPA before', 'CGPA after', 'Grade before', 'Grade after',
+            'Merit before', 'Merit after', 'Passed before', 'Passed after',
             'Withheld before', 'Withheld after'],
             ...data.items.map(row => [data.baselineVersionNo, data.versionNo,
                 row.rollNo, row.studentCode, row.studentName, row.change,
-                row.beforeObtainedMarks, row.afterObtainedMarks, row.beforeGpa, row.afterGpa,
-                row.beforeGrade, row.afterGrade, row.beforePassed, row.afterPassed,
+                row.beforeObtainedMarks, row.afterObtainedMarks,
+                row.beforeTotalMarks, row.afterTotalMarks,
+                row.beforePercentage, row.afterPercentage, row.beforeGpa, row.afterGpa,
+                row.beforeCgpa, row.afterCgpa, row.beforeGrade, row.afterGrade,
+                row.beforeMerit, row.afterMerit, row.beforePassed, row.afterPassed,
                 row.beforeWithheld, row.afterWithheld])];
         const csv = rows.map(row => row.map(quote).join(',')).join('\r\n');
         const url = URL.createObjectURL(new Blob(['\uFEFF' + csv],
