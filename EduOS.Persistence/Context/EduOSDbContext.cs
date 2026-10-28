@@ -312,6 +312,8 @@ public class EduOSDbContext :
     public DbSet<EmployeeBankAccount> EmployeeBankAccounts => Set<EmployeeBankAccount>();
     public DbSet<EmployeeCampusAssignment> EmployeeCampusAssignments => Set<EmployeeCampusAssignment>();
     public DbSet<EmployeeContract> EmployeeContracts => Set<EmployeeContract>();
+    public DbSet<RecruitmentCandidate> RecruitmentCandidates => Set<RecruitmentCandidate>();
+    public DbSet<RecruitmentStageHistory> RecruitmentStageHistories => Set<RecruitmentStageHistory>();
     public DbSet<EmployeeShiftAssignment> EmployeeShiftAssignments => Set<EmployeeShiftAssignment>();
     public DbSet<OrganizationUnit> OrganizationUnits => Set<OrganizationUnit>();
     public DbSet<WorkShift> WorkShifts => Set<WorkShift>();
@@ -1311,6 +1313,34 @@ public class EduOSDbContext :
         UniqueTenant<WorkShift>(modelBuilder, nameof(WorkShift.Code));
         UniqueTenant<Employee>(modelBuilder, nameof(Employee.EmployeeCode));
         UniqueTenant<Employee>(modelBuilder, nameof(Employee.PersonId));
+        modelBuilder.Entity<RecruitmentCandidate>().HasIndex(x => x.PublicId).IsUnique();
+        UniqueTenant<RecruitmentCandidate>(modelBuilder, nameof(RecruitmentCandidate.ClientRequestId));
+        modelBuilder.Entity<RecruitmentCandidate>().HasIndex(x =>
+            new { x.TenantId, x.CampusId, x.Stage, x.AppliedOn });
+        modelBuilder.Entity<RecruitmentCandidate>()
+            .HasIndex(x => new { x.TenantId, x.LinkedEmployeeId })
+            .IsUnique().HasFilter("[LinkedEmployeeId] IS NOT NULL AND [IsDeleted] = 0");
+        modelBuilder.Entity<RecruitmentCandidate>().HasOne<Campus>().WithMany()
+            .HasForeignKey(x => new { x.TenantId, x.CampusId })
+            .HasPrincipalKey(x => new { x.TenantId, x.Id })
+            .OnDelete(DeleteBehavior.Restrict);
+        modelBuilder.Entity<RecruitmentCandidate>().HasOne<Designation>().WithMany()
+            .HasForeignKey(x => new { x.TenantId, x.DesignationId })
+            .HasPrincipalKey(x => new { x.TenantId, x.Id })
+            .OnDelete(DeleteBehavior.Restrict);
+        modelBuilder.Entity<RecruitmentCandidate>().HasOne<Employee>().WithMany()
+            .HasForeignKey(x => new { x.TenantId, x.LinkedEmployeeId })
+            .HasPrincipalKey(x => new { x.TenantId, x.Id })
+            .OnDelete(DeleteBehavior.Restrict);
+        modelBuilder.Entity<RecruitmentCandidate>().ToTable(t =>
+            t.HasCheckConstraint("CK_RecruitmentCandidate_Stage",
+                "[Stage] BETWEEN 1 AND 6 AND ([Stage] <> 6 OR [LinkedEmployeeId] IS NOT NULL)"));
+        modelBuilder.Entity<RecruitmentStageHistory>().HasOne<RecruitmentCandidate>().WithMany()
+            .HasForeignKey(x => new { x.TenantId, x.RecruitmentCandidateId })
+            .HasPrincipalKey(x => new { x.TenantId, x.Id })
+            .OnDelete(DeleteBehavior.Restrict);
+        modelBuilder.Entity<RecruitmentStageHistory>().HasIndex(x =>
+            new { x.TenantId, x.RecruitmentCandidateId, x.TransitionAt, x.Id });
         UniqueTenant<EmployeeContract>(modelBuilder, nameof(EmployeeContract.ClientRequestId));
         UniqueTenant<EmployeeContract>(modelBuilder, nameof(EmployeeContract.ContractCode));
         modelBuilder.Entity<EmployeeContract>().HasIndex(x => new { x.TenantId, x.EmployeeId, x.EffectiveFrom });

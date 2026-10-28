@@ -1,0 +1,97 @@
+@{ ViewData["Title"] = "Recruitment & Hiring"; }
+<section class="container-fluid py-3" id="recruitmentApp">
+    <header class="d-flex align-items-start justify-content-between flex-wrap gap-2 mb-3">
+        <h2 class="h4 mb-0">Recruitment & Hiring</h2>
+        <div class="d-flex gap-2">
+            <a href="/HR/Index" class="btn btn-sm btn-outline-secondary">HR overview</a>
+            <details class="position-relative">
+                <summary class="btn btn-sm btn-outline-secondary" title="Page help" aria-label="Recruitment help">ⓘ</summary>
+                <div class="card card-body shadow-sm position-absolute end-0 mt-1" style="width:min(330px,85vw);z-index:10">
+                    Recruit applicants with recorded consent; independently approve offers. Hiring links an existing, verified employee after HR onboarding. No automatic account or Person creation occurs.
+                </div>
+            </details>
+        </div>
+    </header>
+    @Html.AntiForgeryToken()
+    <div class="alert d-none" id="recruitmentNotice" role="alert" tabindex="-1" aria-live="polite"></div>
+    <section class="card card-body mb-3">
+        <h3 class="h6">New application</h3>
+        <form id="recruitmentCreate">
+            <div class="row g-2">
+                <div class="col-md-4"><label for="recruitCampus" class="form-label">Campus *</label>
+                    <select class="form-select" id="recruitCampus" required><option value="">Choose campus</option></select></div>
+                <div class="col-md-4"><label for="recruitDesignation" class="form-label">Position *</label>
+                    <select class="form-select" id="recruitDesignation" required><option value="">Choose position</option></select></div>
+                <div class="col-md-4"><label for="recruitAppliedOn" class="form-label">Application date *</label>
+                    <input class="form-control" type="date" id="recruitAppliedOn" required /></div>
+                <div class="col-md-4"><label for="recruitName" class="form-label">Applicant name *</label>
+                    <input class="form-control" id="recruitName" maxlength="200" required /></div>
+                <div class="col-md-4"><label for="recruitEmail" class="form-label">Email</label>
+                    <input class="form-control" type="email" id="recruitEmail" maxlength="200" /></div>
+                <div class="col-md-4"><label for="recruitPhone" class="form-label">Phone</label>
+                    <input class="form-control" type="tel" id="recruitPhone" maxlength="30" /></div>
+                <div class="col-md-9"><label for="recruitNotes" class="form-label">Notes</label>
+                    <input class="form-control" id="recruitNotes" maxlength="500" /></div>
+                <div class="col-md-3 d-flex align-items-center">
+                    <label class="form-check-label"><input type="checkbox" id="recruitConsent" class="form-check-input me-2" required />Consent confirmed *</label>
+                </div>
+            </div>
+            <div class="mt-3 d-flex gap-2"><button id="recruitSave" type="submit" class="btn btn-primary">Register application</button>
+                <button id="recruitReset" type="button" class="btn btn-outline-secondary">Clear</button></div>
+        </form>
+    </section>
+    <section class="card card-body mb-3">
+        <div class="row g-2 align-items-end">
+            <div class="col-md-5"><label for="recruitSearch" class="form-label">Search applicants</label>
+                <input type="search" id="recruitSearch" maxlength="100" class="form-control" /></div>
+            <div class="col-md-4"><label for="recruitStageFilter" class="form-label">Stage</label>
+                <select id="recruitStageFilter" class="form-select">
+                    <option value="">All stages</option><option value="1">Applied</option><option value="2">Shortlisted</option>
+                    <option value="3">Interviewed</option><option value="4">Offered</option>
+                    <option value="5">Rejected</option><option value="6">Hired</option>
+                </select></div>
+            <div class="col-md-3"><button id="recruitSearchBtn" type="button" class="btn btn-outline-primary">Search</button></div>
+        </div>
+        <div class="table-responsive mt-3"><table class="table table-sm table-hover align-middle">
+            <thead><tr><th>Applicant</th><th>Campus</th><th>Position</th><th>Applied</th><th>Stage</th><th>Action</th></tr></thead>
+            <tbody id="recruitRows"><tr><td colspan="6">Loading…</td></tr></tbody>
+        </table></div>
+        <div class="d-flex justify-content-between align-items-center">
+            <button id="recruitPrev" class="btn btn-sm btn-outline-secondary" type="button">Previous</button>
+            <span id="recruitPage" aria-live="polite"></span>
+            <button id="recruitNext" class="btn btn-sm btn-outline-secondary" type="button">Next</button>
+        </div>
+    </section>
+    <section class="card card-body mb-3" id="recruitActionPanel" hidden>
+        <h3 class="h6" id="recruitActionTitle">Update applicant</h3>
+        <form id="recruitTransition">
+            <div class="row g-2">
+                <div class="col-md-4"><label for="recruitNextStage" class="form-label">Next stage *</label>
+                    <select id="recruitNextStage" class="form-select" required></select></div>
+                <div class="col-md-4"><label for="recruitInterviewOn" class="form-label">Interview date</label>
+                    <input id="recruitInterviewOn" class="form-control" type="date" /></div>
+                <div class="col-md-4"><label for="recruitReason" class="form-label">Reason / decision note</label>
+                    <input id="recruitReason" class="form-control" maxlength="500" /></div>
+                <div id="recruitHirePanel" class="col-12" hidden>
+                    <div class="row g-2 align-items-end">
+                        <div class="col-md-5"><label for="recruitEmployeeSearch" class="form-label">Existing HR employee</label>
+                            <div class="input-group"><input id="recruitEmployeeSearch" class="form-control" placeholder="Code or name" maxlength="100" />
+                                <button id="recruitEmployeeFind" type="button" class="btn btn-outline-secondary">Find</button></div></div>
+                        <div class="col-md-4"><label for="recruitEmployee" class="form-label">Verified employee</label>
+                            <select id="recruitEmployee" class="form-select"><option value="">Choose employee</option></select></div>
+                        <div class="col-md-3"><label class="form-check-label"><input type="checkbox" id="recruitIdentityVerified" class="form-check-input me-2" />Identity verified</label></div>
+                    </div>
+                </div>
+            </div>
+            <div class="d-flex gap-2 mt-3">
+                <button id="recruitTransitionSave" type="submit" class="btn btn-primary">Save stage</button>
+                <button id="recruitTransitionClose" type="button" class="btn btn-outline-secondary">Close</button>
+            </div>
+        </form>
+        <div class="table-responsive mt-3"><table class="table table-sm">
+            <thead><tr><th>From</th><th>To</th><th>Timestamp (UTC)</th><th>Reason</th></tr></thead>
+            <tbody id="recruitHistoryRows"></tbody>
+        </table></div>
+    </section>
+</section>
+@section Scripts { <script src="~/js/hr/recruitment.js" asp-append-version="true"></script> }

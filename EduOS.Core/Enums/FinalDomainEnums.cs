@@ -28,6 +28,7 @@ public enum ConsentState { Pending = 1, Approved = 2, Rejected = 3, Revoked = 4,
 public enum GrantState { Active = 1, Revoked = 2, Expired = 3 }
 public enum EmployeeState { Active = 1, Suspended = 2, Resigned = 3, Terminated = 4, Retired = 5 }
 public enum EmployeeContractState { Draft = 1, Approved = 2, Rejected = 3 }
+public enum RecruitmentStage { Applied = 1, Shortlisted = 2, Interviewed = 3, Offered = 4, Rejected = 5, Hired = 6 }
 public enum LeaveState { Draft = 1, Submitted = 2, Approved = 3, Rejected = 4, Cancelled = 5 }
 public enum PayrollRunState { Draft = 1, Calculated = 2, Approved = 3, Posted = 4, Cancelled = 5 }
 public enum SalaryComponentType { Earning = 1, Deduction = 2, EmployerContribution = 3 }

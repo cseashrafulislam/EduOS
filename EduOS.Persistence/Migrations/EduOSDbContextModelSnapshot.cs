@@ -8986,6 +8986,73 @@ namespace EduOS.Persistence.Migrations
                     });
                 });
 
+            modelBuilder.Entity("EduOS.Core.Entities.HR.RecruitmentCandidate", b =>
+                {
+                    b.Property<long>("Id").ValueGeneratedOnAdd().HasColumnType("bigint");
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
+                    b.Property<Guid>("PublicId").HasColumnType("uniqueidentifier");
+                    b.Property<Guid>("ClientRequestId").HasColumnType("uniqueidentifier");
+                    b.Property<long>("CampusId").HasColumnType("bigint");
+                    b.Property<long>("DesignationId").HasColumnType("bigint");
+                    b.Property<string>("FullName").IsRequired().HasMaxLength(200).HasColumnType("nvarchar(200)");
+                    b.Property<string>("Email").HasMaxLength(200).HasColumnType("nvarchar(200)");
+                    b.Property<string>("Phone").HasMaxLength(30).HasColumnType("nvarchar(30)");
+                    b.Property<DateOnly>("AppliedOn").HasColumnType("date");
+                    b.Property<DateOnly?>("InterviewOn").HasColumnType("date");
+                    b.Property<DateTime>("ConsentConfirmedAt").HasColumnType("datetime2");
+                    b.Property<int>("Stage").HasColumnType("int");
+                    b.Property<long?>("LinkedEmployeeId").HasColumnType("bigint");
+                    b.Property<string>("Notes").HasMaxLength(500).HasColumnType("nvarchar(500)");
+                    b.Property<long>("TenantId").HasColumnType("bigint");
+                    b.Property<DateTime>("CreatedAt").HasColumnType("datetime2");
+                    b.Property<long?>("CreatedBy").HasColumnType("bigint");
+                    b.Property<DateTime?>("UpdatedAt").HasColumnType("datetime2");
+                    b.Property<long?>("UpdatedBy").HasColumnType("bigint");
+                    b.Property<bool>("IsDeleted").HasColumnType("bit");
+                    b.Property<DateTime?>("DeletedAt").HasColumnType("datetime2");
+                    b.Property<long?>("DeletedBy").HasColumnType("bigint");
+                    b.Property<byte[]>("RowVersion").IsConcurrencyToken().IsRequired()
+                        .ValueGeneratedOnAddOrUpdate().HasColumnType("rowversion");
+                    b.HasKey("Id");
+                    b.HasAlternateKey("TenantId", "Id");
+                    b.HasIndex("PublicId").IsUnique();
+                    b.HasIndex("TenantId", "ClientRequestId").IsUnique();
+                    b.HasIndex("TenantId", "CampusId", "Stage", "AppliedOn");
+                    b.HasIndex("TenantId", "LinkedEmployeeId").IsUnique()
+                        .HasFilter("[LinkedEmployeeId] IS NOT NULL AND [IsDeleted] = 0");
+                    b.ToTable("RecruitmentCandidates", t =>
+                    {
+                        t.HasCheckConstraint("CK_RecruitmentCandidate_Stage",
+                            "[Stage] BETWEEN 1 AND 6 AND ([Stage] <> 6 OR [LinkedEmployeeId] IS NOT NULL)");
+                    });
+                });
+
+            modelBuilder.Entity("EduOS.Core.Entities.HR.RecruitmentStageHistory", b =>
+                {
+                    b.Property<long>("Id").ValueGeneratedOnAdd().HasColumnType("bigint");
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
+                    b.Property<long>("RecruitmentCandidateId").HasColumnType("bigint");
+                    b.Property<int?>("PreviousStage").HasColumnType("int");
+                    b.Property<int>("NewStage").HasColumnType("int");
+                    b.Property<DateTime>("TransitionAt").HasColumnType("datetime2");
+                    b.Property<string>("Reason").HasMaxLength(500).HasColumnType("nvarchar(500)");
+                    b.Property<long>("ActorUserId").HasColumnType("bigint");
+                    b.Property<long>("TenantId").HasColumnType("bigint");
+                    b.Property<DateTime>("CreatedAt").HasColumnType("datetime2");
+                    b.Property<long?>("CreatedBy").HasColumnType("bigint");
+                    b.Property<DateTime?>("UpdatedAt").HasColumnType("datetime2");
+                    b.Property<long?>("UpdatedBy").HasColumnType("bigint");
+                    b.Property<bool>("IsDeleted").HasColumnType("bit");
+                    b.Property<DateTime?>("DeletedAt").HasColumnType("datetime2");
+                    b.Property<long?>("DeletedBy").HasColumnType("bigint");
+                    b.Property<byte[]>("RowVersion").IsConcurrencyToken().IsRequired()
+                        .ValueGeneratedOnAddOrUpdate().HasColumnType("rowversion");
+                    b.HasKey("Id");
+                    b.HasAlternateKey("TenantId", "Id");
+                    b.HasIndex("TenantId", "RecruitmentCandidateId", "TransitionAt", "Id");
+                    b.ToTable("RecruitmentStageHistories");
+                });
+
             modelBuilder.Entity("EduOS.Core.Entities.HR.EmployeeShiftAssignment", b =>
                 {
                     b.Property<long>("Id")
@@ -20513,6 +20580,38 @@ namespace EduOS.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
+                    b.Navigation("Tenant");
+                });
+
+            modelBuilder.Entity("EduOS.Core.Entities.HR.RecruitmentCandidate", b =>
+                {
+                    b.HasOne("EduOS.Core.Entities.SaaS.Tenant", "Tenant")
+                        .WithMany().HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Restrict).IsRequired();
+                    b.HasOne("EduOS.Core.Entities.SaaS.Campus", null)
+                        .WithMany().HasForeignKey("TenantId", "CampusId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict).IsRequired();
+                    b.HasOne("EduOS.Core.Entities.HR.Designation", null)
+                        .WithMany().HasForeignKey("TenantId", "DesignationId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict).IsRequired();
+                    b.HasOne("EduOS.Core.Entities.HR.Employee", null)
+                        .WithMany().HasForeignKey("TenantId", "LinkedEmployeeId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
+                    b.Navigation("Tenant");
+                });
+
+            modelBuilder.Entity("EduOS.Core.Entities.HR.RecruitmentStageHistory", b =>
+                {
+                    b.HasOne("EduOS.Core.Entities.SaaS.Tenant", "Tenant")
+                        .WithMany().HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Restrict).IsRequired();
+                    b.HasOne("EduOS.Core.Entities.HR.RecruitmentCandidate", null)
+                        .WithMany().HasForeignKey("TenantId", "RecruitmentCandidateId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict).IsRequired();
                     b.Navigation("Tenant");
                 });
 
