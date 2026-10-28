@@ -17,6 +17,25 @@ public sealed class StudentFeeInstallmentTransitionDto
     public string? Reason { get; set; }
 }
 
+public sealed class IssueStudentFeeInstallmentMonthDto
+{
+    public Guid ClientRequestId { get; set; }
+    public DateOnly MonthStart { get; set; }
+    public string RowVersion { get; set; } = string.Empty;
+}
+
+public sealed class StudentFeeInstallmentMonthInvoiceDto
+{
+    public Guid PlanReference { get; set; }
+    public DateOnly MonthStart { get; set; }
+    public Guid InvoiceReference { get; set; }
+    public string InvoiceNumber { get; set; } = string.Empty;
+    public decimal GrossAmount { get; set; }
+    public decimal DiscountAmount { get; set; }
+    public decimal NetAmount { get; set; }
+    public bool Existing { get; set; }
+}
+
 public sealed class StudentFeeInstallmentPlanLineDto
 {
     public DateOnly MonthStart { get; set; }
@@ -25,6 +44,8 @@ public sealed class StudentFeeInstallmentPlanLineDto
     public string FeeHeadCode { get; set; } = string.Empty;
     public string FeeHeadName { get; set; } = string.Empty;
     public decimal GrossAmount { get; set; }
+    public Guid? InvoiceReference { get; set; }
+    public string? InvoiceNumber { get; set; }
 }
 
 public sealed class StudentFeeInstallmentPlanEventDto

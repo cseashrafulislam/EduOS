@@ -40,6 +40,14 @@ public sealed class FeeInstallmentPlansController : ControllerBase
         return StatusCode(result.StatusCode, result);
     }
 
+    [HttpPost("{reference:guid}/issue-month")]
+    public async Task<IActionResult> IssueMonth(Guid reference,
+        [FromBody] IssueStudentFeeInstallmentMonthDto request, CancellationToken ct)
+    {
+        var result = await service.IssueInstallmentMonthAsync(reference, request, ct);
+        return StatusCode(result.StatusCode, result);
+    }
+
     [HttpPost("{reference:guid}/submit")]
     public async Task<IActionResult> Submit(Guid reference,
         [FromBody] StudentFeeInstallmentTransitionDto request, CancellationToken ct)

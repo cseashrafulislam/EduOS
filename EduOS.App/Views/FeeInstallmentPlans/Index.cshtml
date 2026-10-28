@@ -8,7 +8,7 @@
             <details class="position-relative">
                 <summary class="btn btn-outline-secondary btn-sm" aria-label="Instalment plan help" title="Plan guide">ⓘ</summary>
                 <div class="position-absolute border rounded bg-body p-2 small shadow-sm" style="z-index:5;width:min(23rem,80vw);right:0">
-                    Search a student, choose their academic batch and monthly fee structure, then save a gross plan draft. Submit for independent tenant-admin approval. Approved plans preserve due dates and fee-head amounts but do not issue invoices or collect money. Legacy monthly billing is blocked for planned months until approved invoice linkage is implemented. Cancellation is audited and blocked once invoices exist.
+                    Search a student, choose their academic batch and monthly fee structure, then save a gross plan draft. Submit for independent tenant-admin approval. Approved plans preserve fee-head amounts and due dates. Issue each approved month separately with idempotent invoice linkage; no payment is collected by issuing an invoice. Legacy batch billing remains blocked for planned months. Cancellation is audited and blocked after invoice issuance.
                 </div>
             </details>
         </div>
@@ -59,6 +59,9 @@
             <strong id="feePlanDetailTitle">Agreement</strong>
             <div class="d-flex gap-2 d-print-none">
                 <button id="feePlanSubmit" class="btn btn-outline-primary btn-sm" type="button">Submit</button>
+                <label for="feePlanIssueMonth" class="visually-hidden">Invoice month</label>
+                <select id="feePlanIssueMonth" class="form-select form-select-sm" hidden aria-label="Approved invoice month"></select>
+                <button id="feePlanIssue" class="btn btn-outline-success btn-sm" type="button" hidden>Issue Month Invoice</button>
                 @if (User.IsInRole("TenantAdmin"))
                 {
                     <button id="feePlanApprove" class="btn btn-primary btn-sm" type="button">Approve</button>
@@ -67,7 +70,7 @@
             </div>
         </div>
         <div class="table-responsive"><table class="table table-sm mb-0">
-            <thead><tr><th>Month</th><th>Due date</th><th>Fee head</th><th class="text-end">Gross BDT</th></tr></thead>
+            <thead><tr><th>Month</th><th>Due date</th><th>Fee head</th><th class="text-end">Gross BDT</th><th>Invoice</th></tr></thead>
             <tbody id="feePlanDetailRows"></tbody>
         </table></div>
         <div id="feePlanHistory" class="card-footer small"></div>

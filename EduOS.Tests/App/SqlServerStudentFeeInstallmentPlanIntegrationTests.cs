@@ -160,6 +160,39 @@ public sealed class SqlServerStudentFeeInstallmentPlanIntegrationTests
         Assert.Equal(404, (await makerService.GetInstallmentPlanAsync(Guid.NewGuid())).StatusCode);
         Assert.Equal(403, (await Service(db, tenantId + 1, checkerId)
             .GetInstallmentPlanAsync(draft.Data.Reference)).StatusCode);
+        // Real SQL proof: the approved frozen February month is invoiced once,
+        // survives a different request key and is visible through plan readback.
+        var issue = new IssueStudentFeeInstallmentMonthDto {
+            ClientRequestId = Guid.NewGuid(), MonthStart = new DateOnly(2026, 2, 1),
+            RowVersion = approved.Data.RowVersion
+        };
+        var firstInvoice = await checkerService.IssueInstallmentMonthAsync(draft.Data.Reference, issue);
+        Assert.True(firstInvoice.Success, firstInvoice.Message);
+        Assert.False(firstInvoice.Data!.Existing);
+        Assert.Equal(100m, firstInvoice.Data.GrossAmount);
+        issue.ClientRequestId = Guid.NewGuid();
+        var sameMonth = await checkerService.IssueInstallmentMonthAsync(draft.Data.Reference, issue);
+        Assert.True(sameMonth.Success, sameMonth.Message);
+        Assert.True(sameMonth.Data!.Existing);
+        Assert.Equal(firstInvoice.Data.InvoiceReference, sameMonth.Data.InvoiceReference);
+        Assert.Equal(1, await db.StudentInvoices.CountAsync());
+        Assert.Equal(1, await db.StudentInvoiceLines.CountAsync());
+        var readback = await checkerService.GetInstallmentPlanAsync(draft.Data.Reference);
+        Assert.Equal(firstInvoice.Data.InvoiceReference, readback.Data!.Lines[0].InvoiceReference);
+        issue.MonthStart = new DateOnly(2026, 3, 1);
+        var march = await checkerService.IssueInstallmentMonthAsync(draft.Data.Reference, issue);
+        Assert.True(march.Success, march.Message);
+        Assert.Equal(2, await db.StudentInvoices.CountAsync());
+        Assert.Equal(2, await db.StudentInvoiceLines.CountAsync());
+        Assert.Equal(0, await db.StudentPayments.CountAsync());
+        Assert.Equal(0, await db.Journals.CountAsync());
+        Assert.Equal(403, (await Service(db, tenantId + 1, checkerId)
+            .IssueInstallmentMonthAsync(draft.Data.Reference, issue)).StatusCode);
+        Assert.Equal(409, (await checkerService.TransitionInstallmentPlanAsync(draft.Data.Reference, 4,
+            new StudentFeeInstallmentTransitionDto {
+                ClientRequestId = Guid.NewGuid(), RowVersion = approved.Data.RowVersion,
+                Reason = "Cancel after billing"
+            })).StatusCode);
     }
 
     private static IHttpContextAccessor Accessor(long tenantId)

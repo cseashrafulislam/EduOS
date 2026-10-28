@@ -168,6 +168,81 @@ public sealed class StudentFeeInstallmentPlanTests
         (await Service(db).CreateInstallmentPlanAsync(Request(db))).StatusCode.Should().Be(409);
     }
 
+    [Fact]
+    public async Task Approved_month_issues_frozen_invoice_and_replays_without_double_billing()
+    {
+        await using var db = Database();
+        Seed(db);
+        var plan = new StudentFeeInstallmentPlan {
+            TenantId = 41, StudentEnrollmentId = 1, FeeStructureId = 1,
+            CampusId = 1, AcademicYearId = 2, StartMonth = new DateOnly(2026, 2, 1),
+            EndMonth = new DateOnly(2026, 3, 1), GrossAmount = 200m,
+            LineCount = 2, PreparedByUserId = 9, RowVersion = [1, 2, 3, 4]
+        };
+        db.StudentFeeInstallmentPlans.Add(plan);
+        await db.SaveChangesAsync();
+        foreach (var month in new[] { new DateOnly(2026, 2, 1), new DateOnly(2026, 3, 1) })
+            db.StudentFeeInstallmentPlanLines.Add(new StudentFeeInstallmentPlanLine {
+                TenantId = 41, StudentFeeInstallmentPlanId = plan.Id, FeeHeadId = 1,
+                MonthStart = month, DueDate = month.AddMonths(1).AddDays(-1),
+                FeeHeadCodeSnapshot = "TUITION", FeeHeadNameSnapshot = "Tuition", GrossAmount = 100m
+            });
+        db.StudentFeeInstallmentPlanEvents.AddRange(
+            new StudentFeeInstallmentPlanEvent { TenantId = 41, StudentFeeInstallmentPlanId = plan.Id,
+                ActionCode = 2, ClientRequestId = Guid.NewGuid(), ActorUserId = 9 },
+            new StudentFeeInstallmentPlanEvent { TenantId = 41, StudentFeeInstallmentPlanId = plan.Id,
+                ActionCode = 3, ClientRequestId = Guid.NewGuid(), ActorUserId = 10 });
+        await db.SaveChangesAsync();
+        var request = new IssueStudentFeeInstallmentMonthDto {
+            ClientRequestId = Guid.NewGuid(), MonthStart = new DateOnly(2026, 2, 1),
+            RowVersion = Convert.ToBase64String(plan.RowVersion)
+        };
+        var service = Service(db);
+        var first = await service.IssueInstallmentMonthAsync(plan.PublicId, request);
+        first.StatusCode.Should().Be(200);
+        first.Data!.Existing.Should().BeFalse();
+        first.Data.GrossAmount.Should().Be(100m);
+        request.ClientRequestId = Guid.NewGuid();
+        var replay = await service.IssueInstallmentMonthAsync(plan.PublicId, request);
+        replay.StatusCode.Should().Be(200);
+        replay.Data!.Existing.Should().BeTrue();
+        replay.Data.InvoiceReference.Should().Be(first.Data.InvoiceReference);
+        (await db.StudentInvoices.CountAsync()).Should().Be(1);
+        (await db.StudentInvoiceLines.CountAsync()).Should().Be(1);
+        (await db.StudentPayments.CountAsync()).Should().Be(0);
+        (await db.Journals.CountAsync()).Should().Be(0);
+        var detail = await service.GetInstallmentPlanAsync(plan.PublicId);
+        detail.Data!.Lines[0].InvoiceReference.Should().Be(first.Data.InvoiceReference);
+        request.MonthStart = new DateOnly(2026, 3, 1);
+        (await service.IssueInstallmentMonthAsync(plan.PublicId, request)).StatusCode.Should().Be(200);
+        (await db.StudentInvoices.CountAsync()).Should().Be(2);
+        (await service.TransitionInstallmentPlanAsync(plan.PublicId, 4,
+            new StudentFeeInstallmentTransitionDto { ClientRequestId = Guid.NewGuid(),
+                RowVersion = request.RowVersion, Reason = "Cancel" })).StatusCode.Should().Be(409);
+    }
+
+    [Fact]
+    public async Task Draft_and_foreign_plan_cannot_be_billed_or_enumerated()
+    {
+        await using var db = Database();
+        Seed(db);
+        var created = await Service(db).CreateInstallmentPlanAsync(Request(db));
+        var request = new IssueStudentFeeInstallmentMonthDto {
+            ClientRequestId = Guid.NewGuid(), MonthStart = new DateOnly(2026, 2, 1),
+            RowVersion = created.Data!.RowVersion
+        };
+        (await Service(db).IssueInstallmentMonthAsync(created.Data.Reference, request)).StatusCode
+            .Should().Be(400); // Empty InMemory rowversion is rejected, never bypassed.
+        request.RowVersion = Convert.ToBase64String(new byte[] { 1, 2, 3, 4 });
+        (await Service(db).IssueInstallmentMonthAsync(created.Data.Reference, request)).StatusCode
+            .Should().Be(409);
+        (await Service(db).IssueInstallmentMonthAsync(Guid.NewGuid(), request)).StatusCode
+            .Should().Be(404);
+        (await Service(db, "Student").IssueInstallmentMonthAsync(created.Data.Reference, request))
+            .StatusCode.Should().Be(403);
+        (await db.StudentInvoices.CountAsync()).Should().Be(0);
+    }
+
     private static CreateStudentFeeInstallmentPlanDto Request(EduOSDbContext db) => new() {
         ClientRequestId = Guid.NewGuid(),
         StudentReference = db.Students.Single().PublicId,

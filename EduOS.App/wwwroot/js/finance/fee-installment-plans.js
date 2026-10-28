@@ -6,7 +6,7 @@ const el = id => document.getElementById(id);
 const base = '/api/finance/fees';
 const token = document.querySelector('meta[name="request-verification-token"]')?.content ||
     root.querySelector('input[name="__RequestVerificationToken"]')?.value;
-const status = { 1: 'Draft', 2: 'Submitted', 3: 'Approved (not billed)', 4: 'Cancelled' };
+const status = { 1: 'Draft', 2: 'Submitted', 3: 'Approved', 4: 'Cancelled' };
 function money(value) {
     const raw = String(value ?? '0');
     if (!/^-?\d+(?:\.\d{1,2})?$/.test(raw)) return 'Invalid amount';
@@ -14,7 +14,7 @@ function money(value) {
     return parts[0] + '.' + (parts[1] || '').padEnd(2, '0');
 }
 let options, page = 1, total = 0, rows = [], selected, searchController, searchTimer;
-let draftKey, transitionKey;
+let draftKey, transitionKey, invoiceKey;
 const cell = value => { const td = document.createElement('td'); td.textContent = String(value ?? ''); return td; };
 const option = (value, label) => { const o = document.createElement('option'); o.value = String(value); o.textContent = label; return o; };
 function notice(message, error = false) {
@@ -112,7 +112,16 @@ async function detail(reference) {
             for (const value of [line.monthStart, line.dueDate,
                 line.feeHeadCode + ' — ' + line.feeHeadName, money(line.grossAmount)])
                 tr.append(cell(value));
-            tr.lastChild.className = 'text-end'; body.append(tr);
+            tr.lastChild.className = 'text-end';
+            const invoice = document.createElement('td');
+            if (line.invoiceReference) {
+                const link = document.createElement('a');
+                link.href = '/FeeOperations/Index';
+                link.textContent = line.invoiceNumber || 'Issued';
+                link.title = 'Invoice recorded. Open Fees & Billing for authorized invoice access.';
+                invoice.append(link);
+            } else invoice.textContent = '—';
+            tr.append(invoice); body.append(tr);
         }
         el('feePlanDetailRows').replaceChildren(body);
         el('feePlanDetailTitle').textContent = selected.studentCode + ' · ' +
@@ -122,6 +131,14 @@ async function detail(reference) {
             .map(x => (status[x.actionCode] || x.actionCode) + ' by user #' + x.actorUserId +
                 ' at ' + x.eventAt + (x.reason ? ' · ' + x.reason : '')).join(' | ') || 'Draft';
         el('feePlanSubmit').hidden = selected.stateCode !== 1;
+        const monthSelect = el('feePlanIssueMonth');
+        const months = [...new Set((selected.lines || []).map(x => x.monthStart))];
+        const billed = new Set((selected.lines || []).filter(x => x.invoiceReference).map(x => x.monthStart));
+        monthSelect.replaceChildren(option('', 'Choose unbilled month'));
+        for (const month of months.filter(x => !billed.has(x))) monthSelect.append(option(month, month));
+        monthSelect.hidden = selected.stateCode !== 3 || monthSelect.options.length <= 1;
+        el('feePlanIssue').hidden = monthSelect.hidden;
+        invoiceKey = null;
         if (el('feePlanApprove')) el('feePlanApprove').hidden = selected.stateCode !== 2;
         if (el('feePlanCancel')) el('feePlanCancel').hidden = selected.stateCode === 4;
         el('feePlanDetail').classList.remove('d-none');
@@ -190,6 +207,25 @@ el('feePlanNext').addEventListener('click', () => { if (page * 25 < total) { pag
 el('feePlanCsv').addEventListener('click', exportPage);
 el('feePlanPrint').addEventListener('click', () => { if (rows.length) window.print(); });
 el('feePlanSubmit').addEventListener('click', () => transition('submit'));
+el('feePlanIssueMonth').addEventListener('change', () => { invoiceKey = null; });
+el('feePlanIssue').addEventListener('click', async () => {
+    if (!selected || selected.stateCode !== 3) return;
+    const month = el('feePlanIssueMonth').value;
+    if (!month) { notice('Choose an unbilled month.', true); return; }
+    if (!invoiceKey || invoiceKey.month !== month || invoiceKey.plan !== selected.reference)
+        invoiceKey = { month, plan: selected.reference, id: crypto.randomUUID() };
+    const button = el('feePlanIssue'); button.disabled = true;
+    try {
+        const reference = selected.reference;
+        const invoice = await api('/plans/' + encodeURIComponent(reference) + '/issue-month', 'POST', {
+            clientRequestId: invoiceKey.id, monthStart: month, rowVersion: selected.rowVersion
+        });
+        invoiceKey = null;
+        await detail(reference); await register();
+        notice((invoice.existing ? 'Existing' : 'New') + ' invoice ' + invoice.invoiceNumber + ' recorded.');
+    } catch (error) { notice(error.message, true); }
+    finally { button.disabled = false; }
+});
 if (el('feePlanApprove')) el('feePlanApprove').addEventListener('click', () => transition('approve'));
 if (el('feePlanCancel')) {
     const dialog = el('feePlanCancelDialog');

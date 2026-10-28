@@ -350,6 +350,28 @@ public sealed partial class FeeBillingService
             : new List<StudentFeeInstallmentPlanLineDto>();
         if (detail && (lines.Count != plan.LineCount || lines.Sum(x => x.GrossAmount) != plan.GrossAmount))
             return null;
+        if (detail && lines.Count > 0)
+        {
+            // Stable, plan-owned month keys provide a durable invoice readback without
+            // reinterpreting mutable fee structures or exposing another enrollment.
+            var keys = lines.Select(x => x.MonthStart).Distinct()
+                .Select(month => InstallmentMonthKey(plan.PublicId, month)).ToArray();
+            var invoices = await db.StudentInvoices.AsNoTracking().Where(x =>
+                x.TenantId == _user.TenantId && x.StudentEnrollmentId == plan.StudentEnrollmentId &&
+                !x.IsDeleted && keys.Contains(x.ClientRequestId))
+                .Select(x => new { x.PublicId, x.InvoiceNumber, x.ClientRequestId })
+                .Take(13).ToListAsync(ct);
+            if (invoices.Count > keys.Length || invoices.Select(x => x.ClientRequestId).Distinct().Count() != invoices.Count)
+                return null;
+            foreach (var line in lines)
+            {
+                var key = InstallmentMonthKey(plan.PublicId, line.MonthStart);
+                var invoice = invoices.FirstOrDefault(x => x.ClientRequestId == key);
+                if (invoice == null) continue;
+                line.InvoiceReference = invoice.PublicId;
+                line.InvoiceNumber = invoice.InvoiceNumber;
+            }
+        }
         return new StudentFeeInstallmentPlanDto {
             Reference = plan.PublicId, StudentReference = scope.PublicId,
             StudentCode = scope.StudentCode, StudentName = scope.FullName,
