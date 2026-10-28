@@ -566,6 +566,15 @@ public class InstructorAssignmentDto
     public string RowVersion { get; set; } = string.Empty;
 }
 
+/// <summary>One tenant-authorized SQL page of active instructor assignments for a batch.</summary>
+public sealed class InstructorAssignmentPageDto
+{
+    public IReadOnlyList<InstructorAssignmentDto> Items { get; set; } = Array.Empty<InstructorAssignmentDto>();
+    public int Page { get; set; }
+    public int PageSize { get; set; }
+    public int TotalCount { get; set; }
+}
+
 public class SaveInstructorAssignmentRequestDto
 {
     public Guid ClientRequestId { get; set; }

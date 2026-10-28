@@ -10,6 +10,7 @@ public interface IAcademicRoutineService
     Task<ApiResponse<IReadOnlyList<RoutineTimeSlotDto>>> GetTimeSlotsAsync(CancellationToken cancellationToken = default);
     Task<ApiResponse<RoutineTimeSlotDto>> CreateTimeSlotAsync(SaveRoutineTimeSlotRequestDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<IReadOnlyList<InstructorAssignmentDto>>> GetAssignmentsAsync(long academicBatchId, long? academicTermId, CancellationToken cancellationToken = default);
+    Task<ApiResponse<InstructorAssignmentPageDto>> GetAssignmentsPageAsync(long academicBatchId, long? academicTermId, string? search, int page, int pageSize, CancellationToken cancellationToken = default);
     Task<ApiResponse<InstructorAssignmentDto>> AssignInstructorAsync(SaveInstructorAssignmentRequestDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<IReadOnlyList<RoutineEntryDto>>> GetBatchTimetableAsync(long academicBatchId, long? academicTermId, CancellationToken cancellationToken = default);
     Task<ApiResponse<IReadOnlyList<RoutineEntryDto>>> GetTeacherTimetableAsync(long employeeId, long academicYearId, long? academicTermId, CancellationToken cancellationToken = default);

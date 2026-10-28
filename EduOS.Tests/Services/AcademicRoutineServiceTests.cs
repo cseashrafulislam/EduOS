@@ -318,6 +318,57 @@ public sealed class AcademicRoutineServiceTests
             .StatusCode.Should().Be(403);
     }
 
+    [Fact]
+    public async Task Assignment_pages_cover_large_batch_and_restrict_teacher_campus_and_tenant()
+    {
+        var options = Options();
+        var scope = await SeedAsync(options);
+        await using var db = Context(options, 101);
+        var batchId = await db.AcademicBatches.Select(x => x.Id).SingleAsync();
+        var employeeId = await db.Employees.Select(x => x.Id).SingleAsync();
+        var offerings = Enumerable.Range(0, 121).Select(i => new SubjectOffering
+        {
+            TenantId = 101, PublicId = Guid.NewGuid(), AcademicBatchId = batchId,
+            AcademicYearId = scope.YearId, CurriculumSubjectId = scope.CurriculumSubjectId,
+            Code = "SPEC-" + i.ToString("D3")
+        }).ToList();
+        db.SubjectOfferings.AddRange(offerings);
+        await db.SaveChangesAsync();
+        db.InstructorAssignments.AddRange(offerings.Select(x => new InstructorAssignment
+        {
+            TenantId = 101, SubjectOfferingId = x.Id, EmployeeId = employeeId,
+            EffectiveFrom = Start, IsActive = true
+        }));
+        await db.SaveChangesAsync();
+
+        var admin = Service(db, new TestUser(101));
+        var first = await admin.GetAssignmentsPageAsync(batchId, null, null, 1, 50);
+        var last = await admin.GetAssignmentsPageAsync(batchId, null, null, 3, 50);
+        first.Success.Should().BeTrue(first.Message);
+        first.Data!.TotalCount.Should().Be(121);
+        first.Data.Items.Should().HaveCount(50);
+        last.Data!.Items.Should().HaveCount(21);
+        (await admin.GetAssignmentsPageAsync(batchId, null, "SPEC-120", 1, 50))
+            .Data!.Items.Should().ContainSingle();
+        (await admin.GetAssignmentsPageAsync(batchId, null, null, 0, 50)).StatusCode.Should().Be(400);
+        (await admin.GetAssignmentsPageAsync(batchId, null, null, 1, 101)).StatusCode.Should().Be(400);
+        (await Service(db, new TestUser(101, "Teacher", 70))
+            .GetAssignmentsPageAsync(batchId, null, null, 1, 50)).Data!.TotalCount.Should().Be(121);
+        (await Service(db, new TestUser(101, "Teacher", 999))
+            .GetAssignmentsPageAsync(batchId, null, null, 1, 50)).StatusCode.Should().Be(403);
+        (await Service(db, new TestUser(202))
+            .GetAssignmentsPageAsync(batchId, null, null, 1, 50)).StatusCode.Should().Be(404);
+        (await Service(db, new TestUser(101, "Principal"))
+            .GetAssignmentsPageAsync(batchId, null, null, 1, 50)).StatusCode.Should().Be(404);
+        db.UserCampusAccesses.Add(new UserCampusAccess
+        {
+            TenantId = 101, UserId = 7, CampusId = scope.CampusId, IsActive = true
+        });
+        await db.SaveChangesAsync();
+        (await Service(db, new TestUser(101, "Principal"))
+            .GetAssignmentsPageAsync(batchId, null, null, 1, 50)).Data!.TotalCount.Should().Be(121);
+    }
+
     private static SaveInstructorAssignmentRequestDto Assign(Guid offering, Guid teacher) => new()
     {
         ClientRequestId = Guid.NewGuid(), SubjectOfferingReference = offering,

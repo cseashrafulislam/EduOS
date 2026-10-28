@@ -165,6 +165,57 @@ public sealed class AcademicRoutineService : IAcademicRoutineService
         return ApiResponse<IReadOnlyList<InstructorAssignmentDto>>.SuccessResponse(rows);
     }
 
+    /// <summary>SQL-paged active assignments; tenant, live campus grants and teacher ownership apply before count/page.</summary>
+    public async Task<ApiResponse<InstructorAssignmentPageDto>> GetAssignmentsPageAsync(
+        long academicBatchId, long? academicTermId, string? search, int page, int pageSize,
+        CancellationToken cancellationToken = default)
+    {
+        if (!CanRead()) return Denied<InstructorAssignmentPageDto>();
+        if (page < 1 || page > 100000 || pageSize < 1 || pageSize > 100 || search?.Length > 100)
+            return Error<InstructorAssignmentPageDto>("Invalid instructor assignment page request.");
+
+        var batch = await GetBatchAsync(academicBatchId, cancellationToken);
+        if (batch == null) return Error<InstructorAssignmentPageDto>("Academic batch not found.", 404);
+        var term = await ResolveTermAsync(batch, academicTermId, cancellationToken);
+        if (!term.IsValid) return Error<InstructorAssignmentPageDto>(term.Error!);
+        var tenant = _currentUser.TenantId;
+
+        var query =
+            from assignment in _assignments.GetQueryable().AsNoTracking()
+            join offering in _offerings.GetQueryable().AsNoTracking()
+                on assignment.SubjectOfferingId equals offering.Id
+            join employee in _employees.GetQueryable().AsNoTracking()
+                on assignment.EmployeeId equals employee.Id
+            where assignment.TenantId == tenant && offering.TenantId == tenant &&
+                  employee.TenantId == tenant && assignment.IsActive && offering.IsActive &&
+                  offering.AcademicBatchId == batch.Id && offering.AcademicYearId == batch.AcademicYearId &&
+                  offering.AcademicTermId == term.TermId
+            select new { Assignment = assignment, Offering = offering, Employee = employee };
+
+        if (!IsManager())
+        {
+            var teacherId = await GetLinkedTeacherIdAsync(cancellationToken);
+            if (!teacherId.HasValue) return Denied<InstructorAssignmentPageDto>();
+            query = query.Where(x => x.Assignment.EmployeeId == teacherId.Value);
+        }
+        var needle = search?.Trim();
+        if (!string.IsNullOrEmpty(needle))
+            query = query.Where(x => x.Employee.FullName.Contains(needle) ||
+                                     x.Employee.EmployeeCode.Contains(needle) ||
+                                     x.Offering.Code.Contains(needle));
+
+        var total = await query.CountAsync(cancellationToken);
+        var assignments = await query.OrderByDescending(x => x.Assignment.IsPrimary)
+            .ThenBy(x => x.Employee.FullName).ThenBy(x => x.Assignment.Id)
+            .Skip((page - 1) * pageSize).Take(pageSize)
+            .Select(x => x.Assignment).ToListAsync(cancellationToken);
+        return ApiResponse<InstructorAssignmentPageDto>.SuccessResponse(new InstructorAssignmentPageDto
+        {
+            Items = await MapAssignmentsAsync(assignments, cancellationToken),
+            Page = page, PageSize = pageSize, TotalCount = total
+        });
+    }
+
     public async Task<ApiResponse<InstructorAssignmentDto>> AssignInstructorAsync(
         SaveInstructorAssignmentRequestDto request, CancellationToken ct = default)
     {

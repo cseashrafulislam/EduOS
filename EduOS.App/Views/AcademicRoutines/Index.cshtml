@@ -47,6 +47,17 @@
                 </div>
             </form>
         }
+        <div class="card-body border-bottom">
+            <div class="row g-2 align-items-end">
+                <div class="col-md-7"><label for="routineAssignmentSearch" class="form-label">Find assigned teacher / offering</label><input id="routineAssignmentSearch" class="form-control" maxlength="100" placeholder="Teacher name, code or offering" /></div>
+                <div class="col-md-2"><button id="routineFindAssignments" type="button" class="btn btn-outline-secondary w-100">Find</button></div>
+                <div class="col-md-3 d-flex align-items-center justify-content-end gap-2">
+                    <button id="routineAssignmentsPrev" type="button" class="btn btn-sm btn-outline-secondary" disabled>Previous</button>
+                    <span id="routineAssignmentsPage" class="small text-muted" aria-live="polite">No assignments loaded</span>
+                    <button id="routineAssignmentsNext" type="button" class="btn btn-sm btn-outline-secondary" disabled>Next</button>
+                </div>
+            </div>
+        </div>
         <div class="table-responsive"><table class="table table-sm align-middle mb-0"><thead><tr><th>Teacher</th><th>Employee code</th><th>Offering ID</th><th>Role</th></tr></thead><tbody id="routineAssignments"><tr><td colspan="4" class="text-muted text-center p-3">Load a batch.</td></tr></tbody></table></div>
     </div>
     <div class="card mb-3">

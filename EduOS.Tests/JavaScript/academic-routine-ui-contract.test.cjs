@@ -43,3 +43,13 @@ test('timetable readback exposes CSV reports with spreadsheet formula protection
     assert.match(view,/id="routineExportBatch"/);
     assert.match(view,/id="routineExportTeacher"/);
 });
+
+test('instructor assignment list uses server-side scoped pages instead of a 500-row cap',()=>{
+    assert.match(script,/batches\/.*\/assignments\/page\?/);
+    assert.match(script,/state\.assignments=data\.items\|\|\[\]/);
+    assert.match(script,/routineAssignmentsPrev/);
+    assert.match(script,/routineAssignmentsNext/);
+    assert.match(view,/id="routineAssignmentSearch"/);
+    assert.match(view,/id="routineAssignmentsPage"/);
+    assert.doesNotMatch(script,/Showing at most 500 assignments/);
+});

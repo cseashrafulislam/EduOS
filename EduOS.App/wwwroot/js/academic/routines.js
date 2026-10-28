@@ -3,7 +3,7 @@
     const root=document.getElementById('routineApp');if(!root)return;
     const el=id=>document.getElementById(id),manager=root.dataset.canManage==='true';
     const days=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
-    const state={batches:[],rooms:[],assignments:[],entries:[],slots:[],instructors:[],offerings:[],offeringPage:1,offeringTotal:0,teacherEntries:[],teacherPage:1,teacherTotal:0};
+    const state={batches:[],rooms:[],assignments:[],assignmentPage:1,assignmentTotal:0,entries:[],slots:[],instructors:[],offerings:[],offeringPage:1,offeringTotal:0,teacherEntries:[],teacherPage:1,teacherTotal:0};
     const option=(id,name)=>{const v=document.createElement('option');v.value=String(id);v.textContent=name;return v;};
     const dateOnly=x=>x?String(x).slice(0,10):'';
     function clientId(){
@@ -86,6 +86,29 @@
         el('routineOfferingsPrev').disabled=state.offeringPage<=1;
         el('routineOfferingsNext').disabled=state.offeringPage>=pages;
     }
+    async function loadAssignments(page=1){
+        const batch=selectedBatch();if(!batch)return;
+        const search=el('routineAssignmentSearch').value.trim();
+        const q=new URLSearchParams({page:String(page),pageSize:'50'});
+        if(batch.academicTermId)q.set('academicTermId',String(batch.academicTermId));
+        if(search)q.set('search',search);
+        const requestedBatch=String(batch.id);
+        const data=await api('/api/academic-routines/batches/'+batch.id+'/assignments/page?'+q);
+        if(String(selectedBatch()?.id)!==requestedBatch||el('routineAssignmentSearch').value.trim()!==search)return;
+        state.assignments=data.items||[];
+        state.assignmentPage=data.page||page;
+        state.assignmentTotal=data.totalCount||0;
+        const pages=Math.max(1,Math.ceil(state.assignmentTotal/50));
+        el('routineAssignmentsPage').textContent='Page '+state.assignmentPage+' of '+pages+' ('+state.assignmentTotal+')';
+        el('routineAssignmentsPrev').disabled=state.assignmentPage<=1;
+        el('routineAssignmentsNext').disabled=state.assignmentPage>=pages;
+        renderTable('routineAssignments',state.assignments,(tr,x)=>
+            tr.append(cell(x.employeeName),cell(x.employeeCode),cell(x.subjectOfferingId),cell(x.isPrimary?'Primary':'Assistant')),4);
+        if(manager)select('routineAssignment',state.assignments.filter(x=>x.isActive)
+            .map(x=>({id:x.id,name:x.employeeName+' / Subject offering '+x.subjectOfferingId})),'Select instructor assignment');
+        const tm=new Map();state.assignments.forEach(x=>tm.set(Number(x.employeeId),x.employeeName||x.employeeCode));
+        select('routineTeacherTimetable',[...tm].map(([id,name])=>({id,name})),'Select teacher');
+    }
     async function load(){
         const batch=selectedBatch();if(!batch){status('warning','Select an active academic batch.');return;}
         clearStatus();const btn=el('routineLoad');btn.disabled=true;populateScopedOptions();
@@ -94,14 +117,13 @@
             for(const id of ['routineAssignTo','routineEntryTo'])el(id).value=batch.endDate||'';
         }
         try{
-            const results=await Promise.all([api('/api/academic-routines/batches/'+batch.id+'/assignments'),api('/api/academic-routines/batches/'+batch.id)]);
-            state.assignments=results[0]||[];state.entries=results[1]||[];
+            const entries=await api('/api/academic-routines/batches/'+batch.id);
+            state.entries=entries||[];
+            await loadAssignments(1);
             state.teacherEntries=[];state.teacherPage=1;state.teacherTotal=0;
             el('routineTeacherPage').textContent='No timetable loaded';
             el('routineTeacherPrev').disabled=true;el('routineTeacherNext').disabled=true;
             renderTable('routineTeacherEntries',[],()=>{},4);
-            if(state.assignments.length>=500)status('warning','Showing at most 500 assignments; narrow the selected batch where possible.');
-            renderTable('routineAssignments',state.assignments,(tr,x)=>tr.append(cell(x.employeeName),cell(x.employeeCode),cell(x.subjectOfferingId),cell(x.isPrimary?'Primary':'Assistant')),4);
             renderTable('routineEntries',state.entries,(tr,x)=>{
                 tr.append(cell(days[Number(x.dayOfWeek)]||String(x.dayOfWeek)),cell(x.timeSlotName),cell(x.subjectName),cell(x.roomName||'—'),cell(dateOnly(x.effectiveFrom)+(x.effectiveTo?' – '+dateOnly(x.effectiveTo):'')));
                 if(manager){const td=document.createElement('td');const button=document.createElement('button');button.type='button';button.className='btn btn-sm btn-outline-danger';button.textContent='Deactivate';button.dataset.deactivateId=x.id;td.append(button);tr.append(td);}
@@ -110,9 +132,6 @@
                 try{await loadOfferings(1);}
                 catch(error){status('warning','Offered-subject selector unavailable: '+error.message);}
             }
-            select('routineAssignment',state.assignments.filter(x=>x.isActive).map(x=>({id:x.id,name:x.employeeName+' / Subject offering '+x.subjectOfferingId})),'Select instructor assignment');
-            const tm=new Map();state.assignments.forEach(x=>tm.set(Number(x.employeeId),x.employeeName||x.employeeCode));
-            select('routineTeacherTimetable',[...tm].map(([id,name])=>({id,name})),'Select teacher');
         }catch(e){status('danger',e.message);}
         finally{btn.disabled=false;}
     }
@@ -219,6 +238,9 @@
     el('routineOfferingsNext')?.addEventListener('click',async()=>{
         try{await loadOfferings(state.offeringPage+1);}catch(e){status('danger',e.message);}
     });
+    el('routineFindAssignments').addEventListener('click',()=>loadAssignments(1).catch(e=>status('danger',e.message)));
+    el('routineAssignmentsPrev').addEventListener('click',()=>loadAssignments(state.assignmentPage-1).catch(e=>status('danger',e.message)));
+    el('routineAssignmentsNext').addEventListener('click',()=>loadAssignments(state.assignmentPage+1).catch(e=>status('danger',e.message)));
     el('routineExportBatch').addEventListener('click',exportBatch);
     el('routineExportTeacher').addEventListener('click',exportTeacher);
     el('routineSlotForm')?.addEventListener('submit',saveSlot);
