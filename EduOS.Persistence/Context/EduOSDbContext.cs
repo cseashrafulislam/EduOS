@@ -330,6 +330,9 @@ public class EduOSDbContext :
     public DbSet<RefundAllocation> RefundAllocations => Set<RefundAllocation>();
     public DbSet<StudentDiscount> StudentDiscounts => Set<StudentDiscount>();
     public DbSet<StudentFine> StudentFines => Set<StudentFine>();
+    public DbSet<StudentFeeInstallmentPlan> StudentFeeInstallmentPlans => Set<StudentFeeInstallmentPlan>();
+    public DbSet<StudentFeeInstallmentPlanLine> StudentFeeInstallmentPlanLines => Set<StudentFeeInstallmentPlanLine>();
+    public DbSet<StudentFeeInstallmentPlanEvent> StudentFeeInstallmentPlanEvents => Set<StudentFeeInstallmentPlanEvent>();
     public DbSet<StudentInvoice> StudentInvoices => Set<StudentInvoice>();
     public DbSet<StudentInvoiceLine> StudentInvoiceLines => Set<StudentInvoiceLine>();
     public DbSet<StudentPayment> StudentPayments => Set<StudentPayment>();
@@ -856,6 +859,15 @@ public class EduOSDbContext :
         TenantReference<FeeStructure, AcademicBatch>(modelBuilder, nameof(FeeStructure.AcademicBatchId));
         TenantReference<FeeStructureLine, FeeStructure>(modelBuilder, nameof(FeeStructureLine.FeeStructureId));
         TenantReference<FeeStructureLine, FeeHead>(modelBuilder, nameof(FeeStructureLine.FeeHeadId));
+        TenantReference<StudentFeeInstallmentPlan, StudentEnrollment>(modelBuilder, nameof(StudentFeeInstallmentPlan.StudentEnrollmentId));
+        TenantReference<StudentFeeInstallmentPlan, FeeStructure>(modelBuilder, nameof(StudentFeeInstallmentPlan.FeeStructureId));
+        TenantReference<StudentFeeInstallmentPlan, Campus>(modelBuilder, nameof(StudentFeeInstallmentPlan.CampusId));
+        TenantReference<StudentFeeInstallmentPlan, AcademicYear>(modelBuilder, nameof(StudentFeeInstallmentPlan.AcademicYearId));
+        Reference<StudentFeeInstallmentPlan, ApplicationUser>(modelBuilder, nameof(StudentFeeInstallmentPlan.PreparedByUserId));
+        TenantReference<StudentFeeInstallmentPlanLine, StudentFeeInstallmentPlan>(modelBuilder, nameof(StudentFeeInstallmentPlanLine.StudentFeeInstallmentPlanId));
+        TenantReference<StudentFeeInstallmentPlanLine, FeeHead>(modelBuilder, nameof(StudentFeeInstallmentPlanLine.FeeHeadId));
+        TenantReference<StudentFeeInstallmentPlanEvent, StudentFeeInstallmentPlan>(modelBuilder, nameof(StudentFeeInstallmentPlanEvent.StudentFeeInstallmentPlanId));
+        Reference<StudentFeeInstallmentPlanEvent, ApplicationUser>(modelBuilder, nameof(StudentFeeInstallmentPlanEvent.ActorUserId));
         TenantReference<StudentInvoice, StudentEnrollment>(modelBuilder, nameof(StudentInvoice.StudentEnrollmentId));
         TenantReference<StudentInvoice, Journal>(modelBuilder, nameof(StudentInvoice.JournalId));
         TenantReference<StudentInvoiceLine, StudentInvoice>(modelBuilder, nameof(StudentInvoiceLine.StudentInvoiceId));
@@ -1403,6 +1415,17 @@ public class EduOSDbContext :
         // Student finance / accounting
         UniqueTenant<FeeHead>(modelBuilder, nameof(FeeHead.Code));
         UniqueTenant<FeeStructureLine>(modelBuilder, nameof(FeeStructureLine.FeeStructureId), nameof(FeeStructureLine.FeeHeadId), nameof(FeeStructureLine.Frequency));
+        UniqueTenant<StudentFeeInstallmentPlan>(modelBuilder, nameof(StudentFeeInstallmentPlan.ClientRequestId));
+        modelBuilder.Entity<StudentFeeInstallmentPlan>().HasIndex(x => x.PublicId).IsUnique();
+        modelBuilder.Entity<StudentFeeInstallmentPlan>().HasIndex(x =>
+            new { x.TenantId, x.StudentEnrollmentId, x.StartMonth, x.EndMonth });
+        UniqueTenant<StudentFeeInstallmentPlanLine>(modelBuilder,
+            nameof(StudentFeeInstallmentPlanLine.StudentFeeInstallmentPlanId),
+            nameof(StudentFeeInstallmentPlanLine.MonthStart), nameof(StudentFeeInstallmentPlanLine.FeeHeadId));
+        UniqueTenant<StudentFeeInstallmentPlanEvent>(modelBuilder, nameof(StudentFeeInstallmentPlanEvent.ClientRequestId));
+        UniqueTenant<StudentFeeInstallmentPlanEvent>(modelBuilder,
+            nameof(StudentFeeInstallmentPlanEvent.StudentFeeInstallmentPlanId),
+            nameof(StudentFeeInstallmentPlanEvent.ActionCode));
         modelBuilder.Entity<StudentInvoice>().HasIndex(x => x.PublicId).IsUnique();
         UniqueTenant<StudentInvoice>(modelBuilder, nameof(StudentInvoice.InvoiceNumber));
         UniqueTenant<StudentInvoice>(modelBuilder, nameof(StudentInvoice.ClientRequestId));
@@ -1707,6 +1730,15 @@ public class EduOSDbContext :
             t.HasCheckConstraint("CK_SubscriptionInvoiceLine_Amounts", "[Quantity] > 0 AND [UnitPrice] >= 0 AND [Amount] >= 0"));
         modelBuilder.Entity<SubscriptionPayment>().ToTable(t =>
             t.HasCheckConstraint("CK_SubscriptionPayment_Amount", "[Amount] > 0"));
+        modelBuilder.Entity<StudentFeeInstallmentPlan>().ToTable(t =>
+            t.HasCheckConstraint("CK_StudentFeeInstallmentPlan_Valid",
+                "[StartMonth] <= [EndMonth] AND [GrossAmount] > 0 AND [LineCount] BETWEEN 1 AND 600"));
+        modelBuilder.Entity<StudentFeeInstallmentPlanLine>().ToTable(t =>
+            t.HasCheckConstraint("CK_StudentFeeInstallmentPlanLine_Valid",
+                "[GrossAmount] > 0 AND [DueDate] >= [MonthStart] AND [DueDate] < DATEADD(month, 1, [MonthStart])"));
+        modelBuilder.Entity<StudentFeeInstallmentPlanEvent>().ToTable(t =>
+            t.HasCheckConstraint("CK_StudentFeeInstallmentPlanEvent_Valid",
+                "[ActionCode] BETWEEN 2 AND 4 AND ([ActionCode] <> 4 OR ([Reason] IS NOT NULL AND LEN([Reason]) > 0))"));
         modelBuilder.Entity<FeeStructureLine>().ToTable(t =>
             t.HasCheckConstraint("CK_FeeStructureLine_AmountDueDay",
                 "[Amount] >= 0 AND ([DueDayOfMonth] IS NULL OR ([DueDayOfMonth] BETWEEN 1 AND 31))"));
@@ -2185,6 +2217,9 @@ public class EduOSDbContext :
                 or StudentAttendanceAdjustment
                 or EmployeeAttendanceAdjustment
                 or PaymentAllocation
+                or StudentFeeInstallmentPlan
+                or StudentFeeInstallmentPlanLine
+                or StudentFeeInstallmentPlanEvent
                 or BankReconciliationBatch
                 or BankReconciliationStatementLine
                 or BankReconciliationMatchEvent

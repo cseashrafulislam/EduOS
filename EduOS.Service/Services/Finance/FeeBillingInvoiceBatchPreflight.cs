@@ -81,6 +81,9 @@ public sealed partial class FeeBillingService
             return Error<InvoiceBatchPreflightDto>("No eligible students or more than 250; split the billing batch.", 422);
 
         var ids = enrollments.Select(x => x.EnrollmentId).ToArray();
+        if (await HasUnlinkedInstallmentPlanAsync(ids, monthStart, ct))
+            return Error<InvoiceBatchPreflightDto>(
+                "An uncancelled instalment agreement covers this month; linked billing is not enabled.", 409);
         var keys = ids.Select(id => PerEnrollmentKey(request.ClientRequestId, id)).ToArray();
         // Include matching request IDs outside this month: a reused key cannot silently
         // claim a prior invoice from a different period.

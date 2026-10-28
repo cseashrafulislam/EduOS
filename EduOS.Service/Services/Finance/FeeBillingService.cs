@@ -314,6 +314,9 @@ public sealed partial class FeeBillingService : IFeeBillingService
                 select enrollment.Id).Take(251).ToListAsync(token);
             if (enrollments.Count == 0 || enrollments.Count > 250)
                 return Error<InvoiceBatchResultDto>("Batch has no eligible students or exceeds 250; use smaller billing batches.", 409);
+            if (await HasUnlinkedInstallmentPlanAsync(enrollments, monthStart, token))
+                return Error<InvoiceBatchResultDto>(
+                    "An uncancelled instalment agreement covers this month; linked billing is not enabled.", 409);
             var previous = await _invoices.GetQueryable().AsNoTracking().Where(x =>
                 x.TenantId == tenant && enrollments.Contains(x.StudentEnrollmentId) &&
                 x.InvoiceDate >= monthStart && x.InvoiceDate < monthEnd && !x.IsDeleted &&

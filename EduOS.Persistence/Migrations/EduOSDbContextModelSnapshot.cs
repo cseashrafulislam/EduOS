@@ -8438,6 +8438,109 @@ namespace EduOS.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("EduOS.Core.Entities.Finance.StudentFeeInstallmentPlan", b =>
+                {
+                    b.Property<long>("Id").ValueGeneratedOnAdd().HasColumnType("bigint");
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
+                    b.Property<long>("AcademicYearId").HasColumnType("bigint");
+                    b.Property<long>("CampusId").HasColumnType("bigint");
+                    b.Property<Guid>("ClientRequestId").HasColumnType("uniqueidentifier");
+                    b.Property<string>("CurrencyCode").IsRequired().HasMaxLength(10).HasColumnType("nvarchar(10)");
+                    b.Property<DateOnly>("EndMonth").HasColumnType("date");
+                    b.Property<long>("FeeStructureId").HasColumnType("bigint");
+                    b.Property<decimal>("GrossAmount").HasColumnType("decimal(18,2)");
+                    b.Property<int>("LineCount").HasColumnType("int");
+                    b.Property<long>("PreparedByUserId").HasColumnType("bigint");
+                    b.Property<Guid>("PublicId").HasColumnType("uniqueidentifier");
+                    b.Property<DateOnly>("StartMonth").HasColumnType("date");
+                    b.Property<long>("StudentEnrollmentId").HasColumnType("bigint");
+                    b.Property<DateTime>("CreatedAt").HasColumnType("datetime2");
+                    b.Property<long?>("CreatedBy").HasColumnType("bigint");
+                    b.Property<DateTime?>("DeletedAt").HasColumnType("datetime2");
+                    b.Property<long?>("DeletedBy").HasColumnType("bigint");
+                    b.Property<bool>("IsDeleted").HasColumnType("bit");
+                    b.Property<byte[]>("RowVersion").IsConcurrencyToken().IsRequired()
+                        .ValueGeneratedOnAddOrUpdate().HasColumnType("rowversion");
+                    b.Property<long>("TenantId").HasColumnType("bigint");
+                    b.Property<DateTime?>("UpdatedAt").HasColumnType("datetime2");
+                    b.Property<long?>("UpdatedBy").HasColumnType("bigint");
+                    b.HasKey("Id");
+                    b.HasAlternateKey("TenantId", "Id");
+                    b.HasIndex("PreparedByUserId");
+                    b.HasIndex("PublicId").IsUnique();
+                    b.HasIndex("TenantId", "AcademicYearId");
+                    b.HasIndex("TenantId", "CampusId");
+                    b.HasIndex("TenantId", "ClientRequestId").IsUnique();
+                    b.HasIndex("TenantId", "FeeStructureId");
+                    b.HasIndex("TenantId", "StudentEnrollmentId", "StartMonth", "EndMonth");
+                    b.ToTable("StudentFeeInstallmentPlans", t =>
+                    {
+                        t.HasCheckConstraint("CK_StudentFeeInstallmentPlan_Valid", "[StartMonth] <= [EndMonth] AND [GrossAmount] > 0 AND [LineCount] BETWEEN 1 AND 600");
+                    });
+                });
+
+            modelBuilder.Entity("EduOS.Core.Entities.Finance.StudentFeeInstallmentPlanEvent", b =>
+                {
+                    b.Property<long>("Id").ValueGeneratedOnAdd().HasColumnType("bigint");
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
+                    b.Property<int>("ActionCode").HasColumnType("int");
+                    b.Property<long>("ActorUserId").HasColumnType("bigint");
+                    b.Property<Guid>("ClientRequestId").HasColumnType("uniqueidentifier");
+                    b.Property<DateTime>("EventAt").HasColumnType("datetime2");
+                    b.Property<string>("Reason").HasMaxLength(250).HasColumnType("nvarchar(250)");
+                    b.Property<long>("StudentFeeInstallmentPlanId").HasColumnType("bigint");
+                    b.Property<DateTime>("CreatedAt").HasColumnType("datetime2");
+                    b.Property<long?>("CreatedBy").HasColumnType("bigint");
+                    b.Property<DateTime?>("DeletedAt").HasColumnType("datetime2");
+                    b.Property<long?>("DeletedBy").HasColumnType("bigint");
+                    b.Property<bool>("IsDeleted").HasColumnType("bit");
+                    b.Property<byte[]>("RowVersion").IsConcurrencyToken().IsRequired()
+                        .ValueGeneratedOnAddOrUpdate().HasColumnType("rowversion");
+                    b.Property<long>("TenantId").HasColumnType("bigint");
+                    b.Property<DateTime?>("UpdatedAt").HasColumnType("datetime2");
+                    b.Property<long?>("UpdatedBy").HasColumnType("bigint");
+                    b.HasKey("Id");
+                    b.HasAlternateKey("TenantId", "Id");
+                    b.HasIndex("ActorUserId");
+                    b.HasIndex("TenantId", "ClientRequestId").IsUnique();
+                    b.HasIndex("TenantId", "StudentFeeInstallmentPlanId", "ActionCode").IsUnique();
+                    b.ToTable("StudentFeeInstallmentPlanEvents", t =>
+                    {
+                        t.HasCheckConstraint("CK_StudentFeeInstallmentPlanEvent_Valid", "[ActionCode] BETWEEN 2 AND 4 AND ([ActionCode] <> 4 OR ([Reason] IS NOT NULL AND LEN([Reason]) > 0))");
+                    });
+                });
+
+            modelBuilder.Entity("EduOS.Core.Entities.Finance.StudentFeeInstallmentPlanLine", b =>
+                {
+                    b.Property<long>("Id").ValueGeneratedOnAdd().HasColumnType("bigint");
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
+                    b.Property<DateOnly>("DueDate").HasColumnType("date");
+                    b.Property<string>("FeeHeadCodeSnapshot").IsRequired().HasMaxLength(50).HasColumnType("nvarchar(50)");
+                    b.Property<long>("FeeHeadId").HasColumnType("bigint");
+                    b.Property<string>("FeeHeadNameSnapshot").IsRequired().HasMaxLength(150).HasColumnType("nvarchar(150)");
+                    b.Property<decimal>("GrossAmount").HasColumnType("decimal(18,2)");
+                    b.Property<DateOnly>("MonthStart").HasColumnType("date");
+                    b.Property<long>("StudentFeeInstallmentPlanId").HasColumnType("bigint");
+                    b.Property<DateTime>("CreatedAt").HasColumnType("datetime2");
+                    b.Property<long?>("CreatedBy").HasColumnType("bigint");
+                    b.Property<DateTime?>("DeletedAt").HasColumnType("datetime2");
+                    b.Property<long?>("DeletedBy").HasColumnType("bigint");
+                    b.Property<bool>("IsDeleted").HasColumnType("bit");
+                    b.Property<byte[]>("RowVersion").IsConcurrencyToken().IsRequired()
+                        .ValueGeneratedOnAddOrUpdate().HasColumnType("rowversion");
+                    b.Property<long>("TenantId").HasColumnType("bigint");
+                    b.Property<DateTime?>("UpdatedAt").HasColumnType("datetime2");
+                    b.Property<long?>("UpdatedBy").HasColumnType("bigint");
+                    b.HasKey("Id");
+                    b.HasAlternateKey("TenantId", "Id");
+                    b.HasIndex("TenantId", "FeeHeadId");
+                    b.HasIndex("TenantId", "StudentFeeInstallmentPlanId", "MonthStart", "FeeHeadId").IsUnique();
+                    b.ToTable("StudentFeeInstallmentPlanLines", t =>
+                    {
+                        t.HasCheckConstraint("CK_StudentFeeInstallmentPlanLine_Valid", "[GrossAmount] > 0 AND [DueDate] >= [MonthStart] AND [DueDate] < DATEADD(month, 1, [MonthStart])");
+                    });
+                });
+
             modelBuilder.Entity("EduOS.Core.Entities.Finance.StudentInvoice", b =>
                 {
                     b.Property<long>("Id")
@@ -20707,6 +20810,52 @@ namespace EduOS.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
+                    b.Navigation("Tenant");
+                });
+
+            modelBuilder.Entity("EduOS.Core.Entities.Finance.StudentFeeInstallmentPlan", b =>
+                {
+                    b.HasOne("EduOS.Core.Entities.SaaS.Tenant", "Tenant").WithMany()
+                        .HasForeignKey("TenantId").OnDelete(DeleteBehavior.Restrict).IsRequired();
+                    b.HasOne("EduOS.Core.Entities.Academic.AcademicYear", null).WithMany()
+                        .HasForeignKey("TenantId", "AcademicYearId").HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict).IsRequired();
+                    b.HasOne("EduOS.Core.Entities.SaaS.Campus", null).WithMany()
+                        .HasForeignKey("TenantId", "CampusId").HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict).IsRequired();
+                    b.HasOne("EduOS.Core.Entities.Finance.FeeStructure", null).WithMany()
+                        .HasForeignKey("TenantId", "FeeStructureId").HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict).IsRequired();
+                    b.HasOne("EduOS.Core.Entities.Academic.StudentEnrollment", null).WithMany()
+                        .HasForeignKey("TenantId", "StudentEnrollmentId").HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict).IsRequired();
+                    b.HasOne("EduOS.Core.Entities.Auth.ApplicationUser", null).WithMany()
+                        .HasForeignKey("PreparedByUserId").OnDelete(DeleteBehavior.Restrict).IsRequired();
+                    b.Navigation("Tenant");
+                });
+
+            modelBuilder.Entity("EduOS.Core.Entities.Finance.StudentFeeInstallmentPlanEvent", b =>
+                {
+                    b.HasOne("EduOS.Core.Entities.SaaS.Tenant", "Tenant").WithMany()
+                        .HasForeignKey("TenantId").OnDelete(DeleteBehavior.Restrict).IsRequired();
+                    b.HasOne("EduOS.Core.Entities.Finance.StudentFeeInstallmentPlan", null).WithMany()
+                        .HasForeignKey("TenantId", "StudentFeeInstallmentPlanId").HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict).IsRequired();
+                    b.HasOne("EduOS.Core.Entities.Auth.ApplicationUser", null).WithMany()
+                        .HasForeignKey("ActorUserId").OnDelete(DeleteBehavior.Restrict).IsRequired();
+                    b.Navigation("Tenant");
+                });
+
+            modelBuilder.Entity("EduOS.Core.Entities.Finance.StudentFeeInstallmentPlanLine", b =>
+                {
+                    b.HasOne("EduOS.Core.Entities.SaaS.Tenant", "Tenant").WithMany()
+                        .HasForeignKey("TenantId").OnDelete(DeleteBehavior.Restrict).IsRequired();
+                    b.HasOne("EduOS.Core.Entities.Finance.FeeHead", null).WithMany()
+                        .HasForeignKey("TenantId", "FeeHeadId").HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict).IsRequired();
+                    b.HasOne("EduOS.Core.Entities.Finance.StudentFeeInstallmentPlan", null).WithMany()
+                        .HasForeignKey("TenantId", "StudentFeeInstallmentPlanId").HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict).IsRequired();
                     b.Navigation("Tenant");
                 });
 
