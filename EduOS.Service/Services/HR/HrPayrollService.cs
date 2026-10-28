@@ -294,6 +294,18 @@ public sealed class HrPayrollService : IPayrollAdministrationService
                     x.TenantId == tenant && x.Year == request.Year && x.Month == request.Month &&
                     x.State != PayrollRunState.Cancelled && !x.IsDeleted, token))
                     return Error<PayrollRunDto>("A payroll run already exists for the selected period.", 409);
+                // No silent exclusion of partial-month service or non-active staff.
+                // Without an approved institution proration/leave policy, fail before snapshot creation.
+                var needsPolicy = await _employees.GetQueryable().AsNoTracking().AnyAsync(x =>
+                    x.TenantId == tenant && !x.IsDeleted &&
+                    x.JoiningDate <= lastDay &&
+                    (!x.LeavingDate.HasValue || x.LeavingDate >= firstDay) &&
+                    (x.JoiningDate > firstDay ||
+                     (x.LeavingDate.HasValue && x.LeavingDate < lastDay) ||
+                     x.State != EmployeeState.Active), token);
+                if (needsPolicy)
+                    return Error<PayrollRunDto>(
+                        "Partial-month employment or non-active staff needs an approved payroll proration/leave policy. No payroll was generated.", 409);
                 var employees = await _employees.GetQueryable().AsNoTracking().Where(x =>
                     x.TenantId == tenant && x.State == EmployeeState.Active && !x.IsDeleted &&
                     x.JoiningDate <= firstDay && (!x.LeavingDate.HasValue || x.LeavingDate >= lastDay))
@@ -919,9 +931,9 @@ public sealed class HrPayrollService : IPayrollAdministrationService
         }
     }
 
-    private bool Manager() => _user.IsAuthenticated && _user.TenantId > 0 &&
-        (_user.IsTenantAdmin || _user.IsInRole("Principal") ||
-         _user.IsInRole("HR") || _user.IsInRole("Accountant"));
+    // This administration service processes institution-wide financial records.
+    // Campus delegation requires its own grant-checked salary and payroll flow.
+    private bool Manager() => _user.IsAuthenticated && _user.TenantId > 0 && _user.IsTenantAdmin;
     private bool Approver() => _user.IsAuthenticated && _user.TenantId > 0 &&
         (_user.IsTenantAdmin || _user.IsInRole("Principal") || _user.IsInRole("Accountant"));
     private static bool ValidNameCode(string? name, string? code, int limit) =>

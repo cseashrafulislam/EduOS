@@ -50,6 +50,18 @@ public sealed class HrCampusAssignmentWorkflowTests
         response.StatusCode.Should().Be(403);
     }
 
+    [Fact]
+    public async Task Non_admin_cannot_register_unassigned_cross_campus_employee()
+    {
+        var response = await Service("HR").CreateEmployeeAsync(new EduOS.Core.DTOs.HR.CreateEmployeeRequestDto
+        {
+            ClientRequestId = Guid.NewGuid(), EmployeeCode = "EMP-1234",
+            FullName = "Test employee", DesignationId = 1,
+            JoiningDate = new DateOnly(2026, 10, 28)
+        });
+        response.StatusCode.Should().Be(403);
+    }
+
     private static HrAdminService Service(string role) => new(
         null!, null!, null!, null!, null!, null!, null!, null!, null!, null!,
         null!, null!, null!, null!, null!, null!, null!, new TestUser(role),

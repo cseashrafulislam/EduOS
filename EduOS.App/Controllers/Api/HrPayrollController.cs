@@ -20,20 +20,20 @@ public sealed class HrPayrollController : ControllerBase
     public HrPayrollController(IPayrollAdministrationService service) => _service = service;
 
     [HttpGet("employee-options")]
-    [Authorize(Roles = "TenantAdmin,Principal,HR,Accountant")]
+    [Authorize(Roles = "TenantAdmin")]
     public async Task<IActionResult> EmployeeOptions([FromQuery] string? search,
         [FromQuery] int page = 1, [FromQuery] int pageSize = 25,
         CancellationToken ct = default) =>
         Result(await _service.GetEmployeeOptionsAsync(search, page, pageSize, ct));
 
     [HttpGet("salary-components")]
-    [Authorize(Roles = "TenantAdmin,Principal,HR,Accountant")]
+    [Authorize(Roles = "TenantAdmin")]
     public async Task<IActionResult> Components(CancellationToken ct) =>
         Result(await _service.GetSalaryComponentsAsync(ct));
 
     [HttpPost("salary-components")]
     [HttpPut("salary-components/{componentId:long}")]
-    [Authorize(Roles = "TenantAdmin,Principal,HR,Accountant")]
+    [Authorize(Roles = "TenantAdmin")]
     public async Task<IActionResult> SaveComponent(long? componentId,
         [FromBody] SaveSalaryComponentRequestDto request, CancellationToken ct) =>
         Result(await _service.SaveSalaryComponentAsync(componentId, request, ct));
@@ -45,7 +45,7 @@ public sealed class HrPayrollController : ControllerBase
         Result(await _service.GetSalaryStructuresAsync(employeeReference, page, pageSize, ct));
 
     [HttpPost("salary-structures")]
-    [Authorize(Roles = "TenantAdmin,Principal,HR,Accountant")]
+    [Authorize(Roles = "TenantAdmin")]
     public async Task<IActionResult> SaveSalary([FromBody] SaveSalaryStructureRequestDto request,
         CancellationToken ct) =>
         Result(await _service.SaveSalaryStructureAsync(request, ct));
@@ -94,13 +94,13 @@ public sealed class HrPayrollController : ControllerBase
 
     [HttpPost("bonuses")]
     [HttpPut("bonuses/{bonusId:long}")]
-    [Authorize(Roles = "TenantAdmin,Principal,HR,Accountant")]
+    [Authorize(Roles = "TenantAdmin")]
     public async Task<IActionResult> Bonus(long? bonusId, [FromBody] SaveBonusRequestDto request,
         CancellationToken ct) =>
         Result(await _service.SaveBonusAsync(bonusId, request, ct));
 
     [HttpPost("loans")]
-    [Authorize(Roles = "TenantAdmin,Principal,HR,Accountant")]
+    [Authorize(Roles = "TenantAdmin")]
     public async Task<IActionResult> Loan([FromBody] CreateLoanAdvanceRequestDto request,
         CancellationToken ct) =>
         Result(await _service.CreateLoanAdvanceAsync(request, ct));
