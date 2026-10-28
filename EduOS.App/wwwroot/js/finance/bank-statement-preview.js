@@ -71,7 +71,7 @@ if (panel) {
     }
     let report = null, comparisonFrom = '', revision = 0, previewRequest = null;
     let requestKey = null, draftPage = 1, draftDetail = null, draftRevision = 0;
-    let savedReview = null;
+    let savedReview = null, matchHistory = null, matchPage = 1;
     // Any changed input invalidates the exported evidence, including edits during a request.
     const invalidate = () => {
         revision++;
@@ -205,6 +205,13 @@ if (panel) {
         draftRevision++;
         draftDetail = null;
         savedReview = null;
+        matchHistory = null;
+        el('statementMatchHistoryRows').replaceChildren();
+        el('statementMatchHistorySummary').textContent = '';
+        el('statementMatchHistoryPage').textContent = '';
+        el('statementMatchHistoryCsv').disabled = true;
+        el('statementMatchHistoryPrev').disabled = true;
+        el('statementMatchHistoryNext').disabled = true;
         el('statementSavedReview').classList.add('d-none');
         el('statementSavedReviewRows').replaceChildren();
         el('statementSavedReviewSummary').textContent = '';
@@ -269,6 +276,80 @@ if (panel) {
             }
         }
     });
+    const matchBase = draftBase + '/match-events';
+    async function loadMatchHistory(page = 1) {
+        if (!savedReview) return;
+        const seq = draftRevision, batchId = savedReview.draft.id, bank = el('statementBank').value;
+        const data = await get(draftBase + '/' + encodeURIComponent(batchId) +
+            '/match-events?page=' + page + '&pageSize=50');
+        if (seq !== draftRevision || !savedReview || savedReview.draft.id !== batchId ||
+            el('statementBank').value !== bank) return;
+        matchHistory = data;
+        matchPage = page;
+        const rows = data.items || [];
+        el('statementMatchHistorySummary').textContent = data.totalCount +
+            ' recorded decisions. Draft confirmations are not bank clearance.';
+        el('statementMatchHistoryRows').innerHTML = rows.map(x =>
+            '<tr><td>' + (x.actionCode === 1 ? (x.isWithdrawn ? 'Withdrawn match' : 'Confirmed match') : 'Withdrawal event') +
+            '</td><td>' + escapeHtml(x.statementRowNumber) + '</td><td>' +
+            escapeHtml(x.journalLineId) + '</td><td>' + escapeHtml(x.date) +
+            '</td><td class="text-end">' + money(x.deposit) + ' / ' + money(x.withdrawal) +
+            '</td><td>' + escapeHtml(x.actorUserId) + '</td><td>' + escapeHtml(x.eventAt) +
+            '</td><td>' + (x.actionCode === 1 && !x.isWithdrawn
+                ? '<button type="button" class="btn btn-outline-danger btn-sm" data-withdraw-match="' +
+                    escapeHtml(x.id) + '">Withdraw</button>' : '') + '</td></tr>').join('') ||
+            '<tr><td colspan="8">No draft match decisions.</td></tr>';
+        el('statementMatchHistoryPage').textContent = 'Page ' + page + ' of ' + Math.max(1, data.totalPages);
+        el('statementMatchHistoryPrev').disabled = !data.hasPreviousPage;
+        el('statementMatchHistoryNext').disabled = !data.hasNextPage;
+        el('statementMatchHistoryCsv').disabled = !rows.length;
+    }
+    async function recordMatch(command, button) {
+        if (!savedReview || button.disabled) return;
+        const seq = draftRevision, batch = savedReview.draft, bank = el('statementBank').value;
+        button.disabled = true;
+        try {
+            const result = await get(matchBase, {
+                method:'POST', headers:{'Content-Type':'application/json',RequestVerificationToken:token()},
+                body:JSON.stringify({clientRequestId:button.dataset.requestKey ||
+                    (button.dataset.requestKey = crypto.randomUUID()),
+                    batchId:batch.id,batchRowVersion:batch.rowVersion,...command})
+            });
+            if (seq !== draftRevision || !savedReview || savedReview.draft.id !== batch.id ||
+                el('statementBank').value !== bank) return;
+            show('Draft matching event #' + result.id + ' recorded. Not approved or cleared.');
+            await loadMatchHistory(1);
+        } catch (e) { if (seq === draftRevision) show(e.message, true); }
+        finally { button.disabled = false; }
+    }
+    el('statementSavedReviewRows').addEventListener('click', event => {
+        const button = event.target.closest('button[data-confirm-row]');
+        if (!button || !savedReview) return;
+        recordMatch({actionCode:1,statementRowNumber:Number(button.dataset.confirmRow),
+            journalLineId:Number(button.dataset.confirmLine),
+            journalLineVersion:button.dataset.confirmVersion},button);
+    });
+    el('statementMatchHistoryRows').addEventListener('click', event => {
+        const button = event.target.closest('button[data-withdraw-match]');
+        if (!button || !savedReview) return;
+        if (!window.confirm('Withdraw this pending match? The decision will remain in audit history.')) return;
+        recordMatch({actionCode:2,originalMatchEventId:Number(button.dataset.withdrawMatch),
+            reason:'Withdrawn after manual review'},button);
+    });
+    el('statementMatchHistoryPrev').addEventListener('click', () =>
+        loadMatchHistory(matchPage - 1).catch(e => show(e.message, true)));
+    el('statementMatchHistoryNext').addEventListener('click', () =>
+        loadMatchHistory(matchPage + 1).catch(e => show(e.message, true)));
+    el('statementMatchHistoryCsv').addEventListener('click', () => {
+        if (!savedReview || !matchHistory) return;
+        download([['Event ID','Statement','Action','Statement row','Journal line','Line version',
+            'Date','Reference','Deposit','Withdrawal','Actor','Recorded UTC','Withdrawn','Reason'],
+            ...(matchHistory.items || []).map(x => [x.id,savedReview.draft.statementIdentifier,
+                x.actionCode === 1 ? 'Confirm' : 'Withdraw',x.statementRowNumber,x.journalLineId,
+                x.journalLineVersion,x.date,x.reference,money(x.deposit),money(x.withdrawal),
+                x.actorUserId,x.eventAt,x.isWithdrawn ? 'Yes' : 'No',x.reason])],
+            'bank-match-history-' + savedReview.draft.id + '-page-' + matchPage + '.csv');
+    });
     el('statementDraftRows').addEventListener('click', async event => {
         const button = event.target.closest('button[data-draft-id],button[data-review-id]');
         if (!button) return;
@@ -279,6 +360,9 @@ if (panel) {
         try {
             if (reviewing) {
                 savedReview = null;
+                matchHistory = null;
+                el('statementMatchHistoryCsv').disabled = true;
+                el('statementMatchHistoryRows').replaceChildren();
                 el('statementSavedReview').classList.add('d-none');
                 const result = await get(draftBase + '/' + encodeURIComponent(id) + '/review');
                 if (seq !== draftRevision || el('statementBank').value !== bank) return;
@@ -299,7 +383,11 @@ if (panel) {
                     escapeHtml(x.statementRowNumber) + '</td><td>' + escapeHtml(x.reference) +
                     '</td><td class="text-end">' + money(x.deposit) +
                     '</td><td class="text-end">' + money(x.withdrawal) +
-                    '</td><td>Review only</td></tr>');
+                    '</td><td><button type="button" class="btn btn-outline-primary btn-sm" ' +
+                    'data-confirm-row="' + escapeHtml(x.statementRowNumber) +
+                    '" data-confirm-line="' + escapeHtml(x.journalLineId) +
+                    '" data-confirm-version="' + escapeHtml(x.journalLineVersion) +
+                    '">Confirm Draft Match</button></td></tr>');
                 const exceptions = (c.exceptions || []).map(x =>
                     '<tr><td>' + escapeHtml(x.source) + '</td><td>' + escapeHtml(x.date) +
                     '</td><td>' + escapeHtml(x.journalLineId) + '</td><td>' +
@@ -310,6 +398,7 @@ if (panel) {
                 el('statementSavedReviewRows').innerHTML = matched.concat(exceptions).join('') ||
                     '<tr><td colspan="8">No matching or unmatched movements.</td></tr>';
                 el('statementSavedReview').classList.remove('d-none');
+                await loadMatchHistory(1);
             } else {
                 const detail = await get(draftBase + '/' + encodeURIComponent(id));
                 if (seq !== draftRevision || el('statementBank').value !== bank) return;

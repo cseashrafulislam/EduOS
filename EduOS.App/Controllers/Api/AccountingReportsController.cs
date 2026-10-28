@@ -68,6 +68,14 @@ public sealed class AccountingReportsController : ControllerBase
     [HttpGet("bank-reconciliations/{batchId:long}/review"), Authorize(Roles = "TenantAdmin")]
     public async Task<IActionResult> ReviewSavedBankReconciliation(long batchId, CancellationToken ct)
         => Reply(await service.ReviewSavedBankReconciliationAsync(batchId, ct));
+    [HttpGet("bank-reconciliations/{batchId:long}/match-events"), Authorize(Roles = "TenantAdmin")]
+    public async Task<IActionResult> BankMatchEvents(long batchId, [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 50, CancellationToken ct = default)
+        => Reply(await service.GetBankReconciliationMatchEventsAsync(batchId, page, pageSize, ct));
+    [HttpPost("bank-reconciliations/match-events"), Authorize(Roles = "TenantAdmin"), ValidateAntiForgeryToken]
+    public async Task<IActionResult> RecordBankMatchEvent(
+        [FromBody] EduOS.Core.DTOs.Accounting.BankReconciliationMatchCommandDto request, CancellationToken ct)
+        => Reply(await service.RecordBankReconciliationMatchEventAsync(request, ct));
     [HttpGet("trial-balance"), Authorize(Roles = "TenantAdmin")]
     public async Task<IActionResult> TrialBalance([FromQuery] DateOnly asOfDate, CancellationToken ct)
         => Reply(await service.GetTrialBalanceAsync(asOfDate, ct));

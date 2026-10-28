@@ -339,6 +339,7 @@ public class EduOSDbContext :
     public DbSet<BankAccount> BankAccounts => Set<BankAccount>();
     public DbSet<BankReconciliationBatch> BankReconciliationBatches => Set<BankReconciliationBatch>();
     public DbSet<BankReconciliationStatementLine> BankReconciliationStatementLines => Set<BankReconciliationStatementLine>();
+    public DbSet<BankReconciliationMatchEvent> BankReconciliationMatchEvents => Set<BankReconciliationMatchEvent>();
     public DbSet<Journal> Journals => Set<Journal>();
     public DbSet<JournalLine> JournalLines => Set<JournalLine>();
 
@@ -882,6 +883,14 @@ public class EduOSDbContext :
         Reference<BankReconciliationBatch, ApplicationUser>(modelBuilder, nameof(BankReconciliationBatch.PreparedByUserId));
         TenantReference<BankReconciliationStatementLine, BankReconciliationBatch>(modelBuilder,
             nameof(BankReconciliationStatementLine.BankReconciliationBatchId));
+        TenantReference<BankReconciliationMatchEvent, BankReconciliationBatch>(modelBuilder,
+            nameof(BankReconciliationMatchEvent.BankReconciliationBatchId));
+        TenantReference<BankReconciliationMatchEvent, JournalLine>(modelBuilder,
+            nameof(BankReconciliationMatchEvent.JournalLineId));
+        TenantReference<BankReconciliationMatchEvent, BankReconciliationMatchEvent>(modelBuilder,
+            nameof(BankReconciliationMatchEvent.OriginalMatchEventId));
+        Reference<BankReconciliationMatchEvent, ApplicationUser>(modelBuilder,
+            nameof(BankReconciliationMatchEvent.ActorUserId));
         TenantReference<Journal, AccountingPeriod>(modelBuilder, nameof(Journal.AccountingPeriodId));
         TenantReference<Journal, Campus>(modelBuilder, nameof(Journal.CampusId));
         TenantReference<Journal, Journal>(modelBuilder, nameof(Journal.ReversalOfJournalId));
@@ -1407,6 +1416,18 @@ public class EduOSDbContext :
             new { x.TenantId, x.BankReconciliationBatchId, x.RowNumber })
             .HasDatabaseName("UX_BankReconciliationStatementLines_Tenant_Batch_Row").IsUnique();
 
+        modelBuilder.Entity<BankReconciliationMatchEvent>().HasIndex(x => new { x.TenantId, x.ClientRequestId })
+            .HasDatabaseName("UX_BankReconciliationMatchEvents_Tenant_Request").IsUnique();
+        modelBuilder.Entity<BankReconciliationMatchEvent>().HasIndex(x => new { x.TenantId, x.OriginalMatchEventId })
+            .HasDatabaseName("UX_BankReconciliationMatchEvents_Tenant_Withdrawal").IsUnique()
+            .HasFilter("[OriginalMatchEventId] IS NOT NULL");
+        modelBuilder.Entity<BankReconciliationMatchEvent>().HasIndex(x =>
+            new { x.TenantId, x.BankReconciliationBatchId, x.StatementRowNumber, x.ActionCode })
+            .HasDatabaseName("IX_BankReconciliationMatchEvents_Tenant_Batch_Row");
+        modelBuilder.Entity<BankReconciliationMatchEvent>().HasIndex(x =>
+            new { x.TenantId, x.JournalLineId, x.ActionCode })
+            .HasDatabaseName("IX_BankReconciliationMatchEvents_Tenant_Line_Action");
+
         // Payroll
         UniqueTenant<SalaryComponent>(modelBuilder, nameof(SalaryComponent.Code));
         UniqueTenant<SalaryStructureLine>(modelBuilder, nameof(SalaryStructureLine.SalaryStructureId), nameof(SalaryStructureLine.SalaryComponentId));
@@ -1598,6 +1619,12 @@ public class EduOSDbContext :
         modelBuilder.Entity<BankReconciliationBatch>().ToTable(t =>
             t.HasCheckConstraint("CK_BankReconciliationBatch_Valid",
                 "[ToDate] >= [FromDate] AND [MovementCount] BETWEEN 1 AND 500 AND [StateCode] = 1"));
+        modelBuilder.Entity<BankReconciliationMatchEvent>().ToTable(t =>
+            t.HasCheckConstraint("CK_BankReconciliationMatchEvent_Valid",
+                "[StatementRowNumber] BETWEEN 1 AND 500 AND [ActionCode] IN (1,2) AND " +
+                "(([ActionCode] = 1 AND [OriginalMatchEventId] IS NULL AND [Reason] IS NULL) OR " +
+                "([ActionCode] = 2 AND [OriginalMatchEventId] IS NOT NULL AND LEN([Reason]) > 0)) AND " +
+                "(([Deposit] > 0 AND [Withdrawal] = 0) OR ([Withdrawal] > 0 AND [Deposit] = 0))"));
         modelBuilder.Entity<BankReconciliationStatementLine>().ToTable(t =>
             t.HasCheckConstraint("CK_BankReconciliationStatementLine_Valid",
                 "[RowNumber] BETWEEN 1 AND 500 AND (([Deposit] > 0 AND [Withdrawal] = 0) OR ([Withdrawal] > 0 AND [Deposit] = 0))"));
@@ -2130,6 +2157,7 @@ public class EduOSDbContext :
                 or PaymentAllocation
                 or BankReconciliationBatch
                 or BankReconciliationStatementLine
+                or BankReconciliationMatchEvent
                 or RefundAllocation
                 or LoanAdvanceRecovery)
             {

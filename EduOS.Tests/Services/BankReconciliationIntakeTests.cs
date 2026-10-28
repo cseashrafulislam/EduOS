@@ -181,6 +181,94 @@ public sealed class BankReconciliationIntakeTests
         (await service.ReviewSavedBankReconciliationAsync(999999)).StatusCode.Should().Be(404);
     }
 
+    [Fact]
+    public async Task Explicit_match_and_withdrawal_are_immutable_idempotent_and_never_clear_journals()
+    {
+        await using var db = Database();
+        Seed(db);
+        var service = new AccountingReportingService(db, new User());
+        var saved = await service.SaveBankReconciliationDraftAsync(Request());
+        saved.StatusCode.Should().Be(200);
+        var reviewed = await service.ReviewSavedBankReconciliationAsync(saved.Data!.Id);
+        var match = reviewed.Data!.Comparison.Matches.Single();
+        var confirm = new BankReconciliationMatchCommandDto
+        {
+            ClientRequestId = Guid.NewGuid(), BatchId = saved.Data.Id,
+            BatchRowVersion = reviewed.Data.Draft.RowVersion, ActionCode = 1,
+            StatementRowNumber = match.StatementRowNumber,
+            JournalLineId = match.JournalLineId, JournalLineVersion = match.JournalLineVersion
+        };
+        var first = await service.RecordBankReconciliationMatchEventAsync(confirm);
+        first.StatusCode.Should().Be(200);
+        (await service.RecordBankReconciliationMatchEventAsync(confirm)).Data!.Id.Should().Be(first.Data!.Id);
+        var competing = new BankReconciliationMatchCommandDto
+        {
+            ClientRequestId = Guid.NewGuid(), BatchId = confirm.BatchId,
+            BatchRowVersion = confirm.BatchRowVersion, ActionCode = 1,
+            StatementRowNumber = confirm.StatementRowNumber,
+            JournalLineId = confirm.JournalLineId, JournalLineVersion = confirm.JournalLineVersion
+        };
+        (await service.RecordBankReconciliationMatchEventAsync(competing)).StatusCode.Should().Be(409);
+        var wrongVersion = new BankReconciliationMatchCommandDto
+        {
+            ClientRequestId = Guid.NewGuid(), BatchId = confirm.BatchId,
+            BatchRowVersion = confirm.BatchRowVersion, ActionCode = 1,
+            StatementRowNumber = confirm.StatementRowNumber,
+            JournalLineId = confirm.JournalLineId, JournalLineVersion = "stale"
+        };
+        (await service.RecordBankReconciliationMatchEventAsync(wrongVersion)).StatusCode.Should().Be(409);
+        (await new AccountingReportingService(db, new User(false))
+            .RecordBankReconciliationMatchEventAsync(confirm)).StatusCode.Should().Be(403);
+        (await service.GetBankReconciliationMatchEventsAsync(999999)).StatusCode.Should().Be(404);
+
+        var withdraw = new BankReconciliationMatchCommandDto
+        {
+            ClientRequestId = Guid.NewGuid(), BatchId = confirm.BatchId,
+            BatchRowVersion = confirm.BatchRowVersion, ActionCode = 2,
+            OriginalMatchEventId = first.Data.Id, Reason = "Reviewed and withdrawn"
+        };
+        var withdrawn = await service.RecordBankReconciliationMatchEventAsync(withdraw);
+        withdrawn.StatusCode.Should().Be(200);
+        (await service.RecordBankReconciliationMatchEventAsync(withdraw)).Data!.Id.Should().Be(withdrawn.Data!.Id);
+        var history = await service.GetBankReconciliationMatchEventsAsync(confirm.BatchId);
+        history.Data!.TotalCount.Should().Be(2);
+        history.Data.Items.Single(x => x.ActionCode == 1).IsWithdrawn.Should().BeTrue();
+        (await db.Journals.SingleAsync()).State.Should().Be(JournalState.Posted);
+        var eventRow = await db.BankReconciliationMatchEvents.SingleAsync(x => x.ActionCode == 1);
+        eventRow.Reference = "TAMPERED";
+        Func<Task> mutate = async () => await db.SaveChangesAsync();
+        await mutate.Should().ThrowAsync<InvalidOperationException>().WithMessage("*append-only*");
+        db.Entry(eventRow).State = EntityState.Unchanged;
+        (await service.RecordBankReconciliationMatchEventAsync(competing)).StatusCode.Should().Be(200);
+    }
+
+    [Fact]
+    public async Task Closed_period_and_guessed_batch_block_match_decisions()
+    {
+        await using var db = Database();
+        Seed(db);
+        var service = new AccountingReportingService(db, new User());
+        var saved = await service.SaveBankReconciliationDraftAsync(Request());
+        var match = (await service.ReviewSavedBankReconciliationAsync(saved.Data!.Id)).Data!.Comparison.Matches.Single();
+        var cmd = new BankReconciliationMatchCommandDto
+        {
+            ClientRequestId = Guid.NewGuid(), BatchId = 999999,
+            BatchRowVersion = saved.Data.RowVersion, ActionCode = 1,
+            StatementRowNumber = match.StatementRowNumber,
+            JournalLineId = match.JournalLineId, JournalLineVersion = match.JournalLineVersion
+        };
+        (await service.RecordBankReconciliationMatchEventAsync(cmd)).StatusCode.Should().Be(404);
+        cmd.BatchId = saved.Data.Id;
+        cmd.BatchRowVersion = "incorrect";
+        (await service.RecordBankReconciliationMatchEventAsync(cmd)).StatusCode.Should().Be(409);
+        cmd.BatchRowVersion = saved.Data.RowVersion;
+        db.AccountingPeriods.Add(new AccountingPeriod
+        { Id = 1, TenantId = 41, Name = "Closed", StartDate = Day, EndDate = Day, IsClosed = true });
+        await db.SaveChangesAsync();
+        (await service.RecordBankReconciliationMatchEventAsync(cmd)).StatusCode.Should().Be(409);
+        (await db.BankReconciliationMatchEvents.CountAsync()).Should().Be(0);
+    }
+
     private static BankReconciliationSaveRequestDto Request() => new()
     {
         ClientRequestId = Guid.NewGuid(), StatementIdentifier = "OCT-2026-OPERATING",

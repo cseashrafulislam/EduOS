@@ -111,6 +111,41 @@ public sealed class SqlServerBankReconciliationIntakeIntegrationTests
         Assert.True(reviewed.Data!.Comparison.IsExactMatch);
         Assert.Equal(saved.Data.SourceFingerprint, reviewed.Data.Draft.SourceFingerprint);
 
+        var exact = reviewed.Data.Comparison.Matches.Single();
+        var confirm = new BankReconciliationMatchCommandDto
+        {
+            ClientRequestId = Guid.NewGuid(), BatchId = saved.Data.Id,
+            BatchRowVersion = reviewed.Data.Draft.RowVersion, ActionCode = 1,
+            StatementRowNumber = exact.StatementRowNumber, JournalLineId = exact.JournalLineId,
+            JournalLineVersion = exact.JournalLineVersion
+        };
+        var matched = await service.RecordBankReconciliationMatchEventAsync(confirm);
+        Assert.True(matched.Success, matched.Message);
+        Assert.Equal(matched.Data!.Id,
+            (await service.RecordBankReconciliationMatchEventAsync(confirm)).Data!.Id);
+        Assert.Equal(409, (await service.RecordBankReconciliationMatchEventAsync(new BankReconciliationMatchCommandDto
+        {
+            ClientRequestId = Guid.NewGuid(), BatchId = confirm.BatchId,
+            BatchRowVersion = confirm.BatchRowVersion, ActionCode = 1,
+            StatementRowNumber = confirm.StatementRowNumber, JournalLineId = confirm.JournalLineId,
+            JournalLineVersion = confirm.JournalLineVersion
+        })).StatusCode);
+        var withdrawn = await service.RecordBankReconciliationMatchEventAsync(new BankReconciliationMatchCommandDto
+        {
+            ClientRequestId = Guid.NewGuid(), BatchId = confirm.BatchId,
+            BatchRowVersion = confirm.BatchRowVersion, ActionCode = 2,
+            OriginalMatchEventId = matched.Data.Id, Reason = "SQL integration correction"
+        });
+        Assert.True(withdrawn.Success, withdrawn.Message);
+        Assert.Equal(2, await db.BankReconciliationMatchEvents.CountAsync());
+        var history = await service.GetBankReconciliationMatchEventsAsync(confirm.BatchId);
+        Assert.True(history.Success, history.Message);
+        Assert.True(history.Data!.Items.Single(x => x.ActionCode == 1).IsWithdrawn);
+        var matchEvent = await db.BankReconciliationMatchEvents.SingleAsync(x => x.ActionCode == 1);
+        matchEvent.Reference = "FORGED";
+        await Assert.ThrowsAsync<InvalidOperationException>(() => db.SaveChangesAsync());
+        db.Entry(matchEvent).State = EntityState.Unchanged;
+
         var line = await db.BankReconciliationStatementLines.SingleAsync();
         line.Reference = "ALTERED";
         await Assert.ThrowsAsync<InvalidOperationException>(() => db.SaveChangesAsync());

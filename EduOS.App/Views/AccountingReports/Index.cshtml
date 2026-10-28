@@ -189,9 +189,25 @@
                         </div>
                         <div id="statementSavedReviewSummary" class="small fw-semibold mb-2" role="status" aria-live="polite"></div>
                         <div class="table-responsive"><table class="table table-sm table-striped">
-                            <thead><tr><th>Source</th><th>Date</th><th>Ledger line</th><th>Statement row</th><th>Reference</th><th class="text-end">Deposit</th><th class="text-end">Withdrawal</th><th>Result</th></tr></thead>
+                            <thead><tr><th>Source</th><th>Date</th><th>Ledger line</th><th>Statement row</th><th>Reference</th><th class="text-end">Deposit</th><th class="text-end">Withdrawal</th><th>Result / Draft action</th></tr></thead>
                             <tbody id="statementSavedReviewRows"></tbody>
                         </table></div>
+                        <section class="border-top mt-3 pt-2" aria-label="Draft matching decisions">
+                            <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2">
+                                <h5 class="h6 mb-0">Explicit Draft Matches</h5>
+                                <button id="statementMatchHistoryCsv" type="button" class="btn btn-outline-secondary btn-sm" disabled>Export History Page</button>
+                            </div>
+                            <div id="statementMatchHistorySummary" class="small mb-2" role="status" aria-live="polite"></div>
+                            <div class="table-responsive"><table class="table table-sm table-striped">
+                                <thead><tr><th>Action</th><th>Statement row</th><th>Ledger line</th><th>Date</th><th>Amount BDT</th><th>Actor</th><th>Recorded UTC</th><th>Action</th></tr></thead>
+                                <tbody id="statementMatchHistoryRows"></tbody>
+                            </table></div>
+                            <div class="d-flex justify-content-end align-items-center gap-2">
+                                <button id="statementMatchHistoryPrev" type="button" class="btn btn-outline-secondary btn-sm" disabled>Previous</button>
+                                <span id="statementMatchHistoryPage" class="small" aria-live="polite"></span>
+                                <button id="statementMatchHistoryNext" type="button" class="btn btn-outline-secondary btn-sm" disabled>Next</button>
+                            </div>
+                        </section>
                     </section>
                 </section>
                 <div id="statementNotice" class="alert d-none" role="status" aria-live="polite"></div>
