@@ -60,7 +60,14 @@
     <section class="card">
         <div class="card-header d-flex flex-wrap align-items-center gap-2">
             <h2 class="h6 mb-0">@(bn ? "আবেদন ও সিদ্ধান্ত" : "Applications and decisions")</h2>
-            <button id="rescrutinyCsv" type="button" class="btn btn-sm btn-outline-secondary ms-auto" disabled>CSV</button>
+            <label class="visually-hidden" for="rescrutinyStatusFilter">@(bn ? "অবস্থা অনুযায়ী ফিল্টার" : "Filter by status")</label>
+            <select id="rescrutinyStatusFilter" class="form-select form-select-sm w-auto ms-auto" aria-label="@(bn ? "অবস্থা" : "Status")">
+                <option value="">@(bn ? "সব অবস্থা" : "All statuses")</option>
+                <option value="1">@(bn ? "অপেক্ষমাণ" : "Pending")</option>
+                <option value="3">@(bn ? "সংশোধনের জন্য গৃহীত" : "Accepted for correction")</option>
+                <option value="2">@(bn ? "প্রত্যাখ্যাত" : "Rejected")</option>
+            </select>
+            <button id="rescrutinyCsv" type="button" class="btn btn-sm btn-outline-secondary" disabled>CSV</button>
             <button id="rescrutinyPrint" type="button" class="btn btn-sm btn-outline-secondary">@(bn ? "প্রিন্ট" : "Print")</button>
         </div>
         <div class="table-responsive">
@@ -69,6 +76,18 @@
                 <tbody id="rescrutinyRows"><tr><td colspan="5">@(bn ? "প্রকাশিত সংস্করণ নির্বাচন করুন" : "Select a published version.")</td></tr></tbody>
             </table>
         </div>
+        <section id="rescrutinyHistory" class="card-body border-top d-none" aria-live="polite">
+            <div class="d-flex align-items-center gap-2 mb-2">
+                <h3 class="h6 mb-0" id="rescrutinyHistoryTitle">@(bn ? "আবেদনের ইতিহাস" : "Case history")</h3>
+                <button type="button" id="rescrutinyHistoryClose" class="btn btn-sm btn-outline-secondary ms-auto">@(bn ? "বন্ধ" : "Close")</button>
+            </div>
+            <div class="table-responsive">
+                <table class="table table-sm mb-0">
+                    <thead><tr><th>@(bn ? "পদক্ষেপ" : "Action")</th><th>@(bn ? "সময় (UTC)" : "Time (UTC)")</th><th>@(bn ? "ব্যবহারকারী" : "Actor ID")</th><th>@(bn ? "কারণ" : "Reason")</th></tr></thead>
+                    <tbody id="rescrutinyHistoryRows"></tbody>
+                </table>
+            </div>
+        </section>
         <div class="card-body d-flex gap-2 align-items-center">
             <button type="button" id="rescrutinyPrev" class="btn btn-sm btn-outline-secondary" disabled>@(bn ? "আগের" : "Previous")</button>
             <button type="button" id="rescrutinyNext" class="btn btn-sm btn-outline-secondary" disabled>@(bn ? "পরের" : "Next")</button>
@@ -90,5 +109,5 @@
         </form>
     </section>
 </section>
-<style>@@media print { #rescrutinyScopeForm,#rescrutinyRequestForm,#rescrutinyDecisionForm,#rescrutinyPrev,#rescrutinyNext,#rescrutinyCsv,#rescrutinyPrint,#rescrutinyNotice { display:none!important; } }</style>
+<style>@@media print { #rescrutinyScopeForm,#rescrutinyRequestForm,#rescrutinyDecisionForm,#rescrutinyPrev,#rescrutinyNext,#rescrutinyCsv,#rescrutinyPrint,#rescrutinyNotice,#rescrutinyStatusFilter,#rescrutinyHistoryClose { display:none!important; } }</style>
 @section Scripts { <script src="~/js/assessment/result-rescrutiny.js" asp-append-version="true"></script> }

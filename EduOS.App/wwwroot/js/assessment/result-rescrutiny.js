@@ -7,7 +7,7 @@
     const tr = (en, bangla) => bn ? bangla : en;
     const state = { scopePage: 1, scopeTotal: 0, scopeSeq: 0, listSeq: 0,
         publication: 0, before: null, previous: [], hasMore: false, items: [],
-        selected: null, busy: false, requestKey: null, decisionKey: null };
+        selected: null, busy: false, requestKey: null, decisionKey: null, historySeq: 0 };
     const endpoint = '/api/assessment-administration/';
     const token = document.querySelector('#resultRescrutinyWorkspace input[name="__RequestVerificationToken"]')?.value;
     function notice(message, error = false) {
@@ -42,6 +42,8 @@
         $('rescrutinyStudent').replaceChildren(new Option(tr('Find a student', 'শিক্ষার্থী খুঁজুন'), ''));
         $('rescrutinyStudent').disabled = true; $('rescrutinySubmit').disabled = true;
         $('rescrutinyDecisionForm').classList.add('d-none');
+        $('rescrutinyHistory').classList.add('d-none');
+        state.historySeq++;
         $('rescrutinyCsv').disabled = true; $('rescrutinyPrev').disabled = true;
         $('rescrutinyNext').disabled = true;
         placeholder('rescrutinyRows', tr('Select a published version.', 'প্রকাশিত সংস্করণ নির্বাচন করুন।'), 5);
@@ -125,6 +127,7 @@
         try {
             const params = new URLSearchParams({ publicationId: String(id), pageSize: '25' });
             if (before) params.set('beforeId', String(before));
+            if ($('rescrutinyStatusFilter').value) params.set('status', $('rescrutinyStatusFilter').value);
             const data = await api('results/rescrutiny?' + params);
             if (seq !== state.listSeq || id !== state.publication || before !== state.before) return;
             state.items = data.items || []; state.hasMore = !!data.hasMore;
@@ -136,6 +139,11 @@
                     cell(new Date(item.requestedAt).toLocaleString()),
                     cell(status(item.status)), cell(item.requestReason));
                 const actions = document.createElement('td');
+                const historyButton = document.createElement('button');
+                historyButton.type = 'button'; historyButton.className = 'btn btn-sm btn-outline-secondary';
+                historyButton.textContent = tr('History', 'ইতিহাস');
+                historyButton.addEventListener('click', () => loadHistory(item));
+                actions.append(historyButton);
                 if (item.status === 1 || item.status === 'Requested') {
                     const button = document.createElement('button');
                     button.type = 'button'; button.className = 'btn btn-sm btn-outline-primary';
@@ -148,8 +156,13 @@
                         $('rescrutinyDecisionForm').classList.remove('d-none');
                         $('rescrutinyDecisionReason').focus();
                     });
+                    button.classList.add('ms-1');
                     actions.append(button);
-                } else actions.textContent = item.decisionReason || '—';
+                } else {
+                    const reason = document.createElement('span');
+                    reason.className = 'small ms-2'; reason.textContent = item.decisionReason || '—';
+                    actions.append(reason);
+                }
                 row.append(actions); tbody.append(row);
             }
             if (!state.items.length)
@@ -159,6 +172,26 @@
             $('rescrutinyCsv').disabled = !state.items.length;
             $('rescrutinyPage').textContent = tr('Page ', 'পৃষ্ঠা ') + (state.previous.length + 1);
         } catch (e) { if (seq === state.listSeq) notice(e.message, true); }
+    }
+    async function loadHistory(item) {
+        const seq = ++state.historySeq;
+        $('rescrutinyHistory').classList.add('d-none');
+        try {
+            const data = await api('results/rescrutiny/' +
+                encodeURIComponent(item.caseReference) + '/history');
+            if (seq !== state.historySeq || state.publication !== item.publicationId) return;
+            $('rescrutinyHistoryTitle').textContent = tr('Case history: ', 'আবেদনের ইতিহাস: ') + item.studentCode;
+            const rows = $('rescrutinyHistoryRows'); rows.replaceChildren();
+            for (const event of data.events || []) {
+                const row = document.createElement('tr');
+                row.append(cell(event.action === 1 || event.action === 'Requested' ?
+                    tr('Application', 'আবেদন') : status(event.action)),
+                    cell(new Date(event.occurredAt).toISOString()),
+                    cell(event.actorUserId), cell(event.reason));
+                rows.append(row);
+            }
+            $('rescrutinyHistory').classList.remove('d-none');
+        } catch (e) { if (seq === state.historySeq) notice(e.message, true); }
     }
     async function selectPublication() {
         const id = Number($('rescrutinyPublication').value);
@@ -249,6 +282,15 @@
     $('rescrutinyNext').addEventListener('click', () => {
         if (!state.hasMore || !state.nextBeforeId) return;
         state.previous.push(state.before); state.before = state.nextBeforeId; loadCases();
+    });
+    $('rescrutinyStatusFilter').addEventListener('change', () => {
+        state.before = null; state.previous = []; state.historySeq++;
+        $('rescrutinyHistory').classList.add('d-none');
+        loadCases();
+    });
+    $('rescrutinyHistoryClose').addEventListener('click', () => {
+        state.historySeq++;
+        $('rescrutinyHistory').classList.add('d-none');
     });
     $('rescrutinyCsv').addEventListener('click', csv);
     $('rescrutinyPrint').addEventListener('click', () => window.print());

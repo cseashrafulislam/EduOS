@@ -41,7 +41,9 @@ public sealed partial class AssessmentAdministrationService
     {
         if (!CanPublish()) return Error<ResultRescrutinyPageDto>("Rescrutiny permission required.", 403);
         if (request == null || request.PublicationId <= 0 || request.PageSize is < 1 or > 50 ||
-            request.BeforeId is <= 0)
+            request.BeforeId is <= 0 ||
+            (request.Status.HasValue && request.Status.Value is not
+                (ResultRescrutinyAction.Requested or ResultRescrutinyAction.Rejected or ResultRescrutinyAction.AcceptedForCorrection)))
             return Error<ResultRescrutinyPageDto>("Invalid rescrutiny page.");
         var scope = await FindRescrutinyScopeAsync(request.PublicationId, ct);
         if (scope == null) return Error<ResultRescrutinyPageDto>("Publication not found.", 404);
@@ -64,6 +66,18 @@ public sealed partial class AssessmentAdministrationService
                 enrollment.AcademicBatchId == scope.Publication.AcademicBatchId &&
                 enrollment.CampusId == scope.CampusId
             select new { evt, enrollment, student };
+        if (request.Status.HasValue)
+        {
+            var decisionsForStatus = _rescrutinyEvents.GetQueryable().AsNoTracking().Where(x =>
+                x.TenantId == tenant && x.ResultPublicationId == scope.Publication.Id &&
+                x.IsTerminal && !x.IsDeleted);
+            if (request.Status.Value == ResultRescrutinyAction.Requested)
+                query = query.Where(x => !decisionsForStatus.Any(d =>
+                    d.CaseReference == x.evt.CaseReference));
+            else
+                query = query.Where(x => decisionsForStatus.Any(d =>
+                    d.CaseReference == x.evt.CaseReference && d.Action == request.Status.Value));
+        }
         if (request.BeforeId.HasValue)
             query = query.Where(x => x.evt.Id < request.BeforeId.Value);
         var rows = await query.OrderByDescending(x => x.evt.Id).Take(request.PageSize + 1)
