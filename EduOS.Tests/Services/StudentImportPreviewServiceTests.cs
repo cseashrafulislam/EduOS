@@ -71,7 +71,8 @@ public sealed class StudentImportPreviewServiceTests
             Assert.Equal(0, full.Data!.ValidRows);
             Assert.Equal(2, full.Data.InvalidRows);
         }
-        db.SubjectOfferings.Remove(offering);
+        // Preserve the required FK; inactive offerings must fail preview without deletion.
+        offering.IsActive = false;
         await db.SaveChangesAsync();
         using (var file = Csv(source))
         {
