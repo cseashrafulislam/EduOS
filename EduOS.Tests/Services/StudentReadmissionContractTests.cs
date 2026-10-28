@@ -26,6 +26,9 @@ public sealed class StudentReadmissionContractTests
         source.Should().Contain("Matches(student.RowVersion,studentVersion)");
         source.Should().Contain("Matches(source.RowVersion,sourceVersion)");
         source.Should().Contain("batch.CampusId!=source.CampusId");
+        source.Should().Contain("_batches.Update(batch);");
+        source.IndexOf("_batches.Update(batch);", StringComparison.Ordinal)
+            .Should().BeLessThan(source.IndexOf("if(await _enrollments.GetQueryable().AsNoTracking().CountAsync", StringComparison.Ordinal));
         source.Should().Contain("x.IsCurrent &&");
         source.Should().Contain("Roll already exists in this batch.");
         source.Should().Contain("student.StatusCode=\"Active\"");

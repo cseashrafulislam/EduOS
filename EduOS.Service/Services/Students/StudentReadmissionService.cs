@@ -180,7 +180,7 @@ public sealed class StudentReadmissionService : IStudentReadmissionService
                 if(await TransferBlocked(tenant,student.Id,token))
                     return Fail<StudentReadmissionResultDto>("Transfer workflow must be resolved first.",409);
                 var today=DateOnly.FromDateTime(_clock.GetLocalNow().DateTime);
-                var batch=await _batches.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x=>
+                var batch=await _batches.GetQueryable().FirstOrDefaultAsync(x=>
                     x.TenantId==tenant && x.Id==request.TargetAcademicBatchId && x.IsActive &&
                     !x.IsDeleted && x.Capacity>0,token);
                 if(batch==null || batch.CampusId!=source.CampusId ||
@@ -209,6 +209,12 @@ public sealed class StudentReadmissionService : IStudentReadmissionService
                     (!x.EffectiveTo.HasValue || x.EffectiveTo>=today))
                     .Take(2).Select(x=>x.Id).ToArrayAsync(token);
                 if(curricula.Length!=1)return Fail<StudentReadmissionResultDto>("Exactly one curriculum required.",409);
+                // Lock the tenant-owned target batch with its rowversion before
+                // checking roll and capacity, matching admission/import allocation.
+                batch.UpdatedAt=_clock.GetUtcNow().UtcDateTime;
+                batch.UpdatedBy=_user.UserId;
+                _batches.Update(batch);
+                await _uow.SaveChangesAsync(token);
                 // Canonical unique batch/roll index also reserves rolls belonging to historic rows.
                 if(await _enrollments.GetQueryable().AsNoTracking().AnyAsync(x=>
                     x.TenantId==tenant && x.AcademicBatchId==batch.Id && x.RollNo==roll && !x.IsDeleted,token))

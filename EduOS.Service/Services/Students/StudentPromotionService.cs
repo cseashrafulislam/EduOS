@@ -169,7 +169,7 @@ public sealed class StudentPromotionService : IStudentPromotionService
                 x.TenantId == tenant && x.Id == source.AcademicLevelId, ct);
             var targetLevel = await _levels.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
                 x.TenantId == tenant && x.Id == request.TargetAcademicLevelId && x.IsActive, ct);
-            var batch = await _batches.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x => x.TenantId == tenant &&
+            var batch = await _batches.GetQueryable().FirstOrDefaultAsync(x => x.TenantId == tenant &&
                 x.Id == request.TargetAcademicBatchId && x.IsActive &&
                 x.AcademicYearId == request.TargetAcademicYearId && x.AcademicLevelId == request.TargetAcademicLevelId, ct);
             if (sourceYear == null || targetYear == null || sourceLevel == null || targetLevel == null || batch == null)
@@ -209,6 +209,13 @@ public sealed class StudentPromotionService : IStudentPromotionService
                 x.StudentId == student.Id && x.AcademicYearId == targetYear.Id &&
                 x.State == EnrollmentState.Active && !x.IsDeleted, ct))
                 return Error("Student already has an active enrollment in the target year.", 409);
+            // Use the same target-batch rowversion write lock as admission and
+            // import before checking seats. Competing allocations cannot both
+            // pass capacity validation on a stale batch version.
+            batch.UpdatedAt = _clock.GetUtcNow().UtcDateTime;
+            batch.UpdatedBy = _user.UserId;
+            _batches.Update(batch);
+            await _uow.SaveChangesAsync(ct);
             if (await _enrollments.GetQueryable().AsNoTracking().AnyAsync(x => x.TenantId == tenant &&
                 x.AcademicBatchId == batch.Id && x.RollNo == roll && x.State == EnrollmentState.Active && x.IsCurrent && !x.IsDeleted, ct))
                 return Error("Target roll already belongs to an active student.", 409);

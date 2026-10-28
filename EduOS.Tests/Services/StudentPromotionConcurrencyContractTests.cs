@@ -21,6 +21,9 @@ public class StudentPromotionConcurrencyContractTests
         promoteMethod.Should().Contain("Target roll already belongs to an active student.");
         promoteMethod.Should().Contain("if (batch.Capacity <= 0 || await _enrollments.GetQueryable().AsNoTracking().CountAsync");
         promoteMethod.Should().Contain("System.Data.IsolationLevel.Serializable, ct);");
+        promoteMethod.Should().Contain("_batches.Update(batch);");
+        promoteMethod.IndexOf("_batches.Update(batch);", StringComparison.Ordinal)
+            .Should().BeLessThan(promoteMethod.IndexOf("if (batch.Capacity <= 0", StringComparison.Ordinal));
     }
 
     [Fact]

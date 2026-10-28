@@ -42,6 +42,9 @@ public sealed partial class StudentPromotionServiceTests
         enrollments.Single(x => x.Id == fixture.SourceEnrollmentId)
             .State.Should().Be(EnrollmentState.Promoted);
         (await service.GetHistoryAsync(fixture.StudentReference)).Data.Should().ContainSingle();
+        var lockedBatch = await db.AcademicBatches.SingleAsync(x => x.Id == fixture.TargetBatchId);
+        lockedBatch.UpdatedBy.Should().Be(7);
+        lockedBatch.UpdatedAt.Should().Be(Now.UtcDateTime);
     }
 
     [Fact]
