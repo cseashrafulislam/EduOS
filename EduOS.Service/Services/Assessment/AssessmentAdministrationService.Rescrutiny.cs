@@ -154,9 +154,9 @@ public sealed partial class AssessmentAdministrationService
                     enrollment.CampusId == scope.CampusId &&
                     enrollment.AcademicYearId == scope.AcademicYearId &&
                     !enrollment.IsDeleted && !learner.IsDeleted
-                select new { enrollment.Id, learner.PublicId, learner.StudentCode, enrollment.RollNo })
+                select new { enrollment.Id, StudentId = learner.Id, learner.PublicId, learner.StudentCode, enrollment.RollNo })
                 .FirstOrDefaultAsync(token);
-            if (student == null || (linked != null && student.Id != linked.Student.Id))
+            if (student == null || (linked != null && student.StudentId != linked.Student.Id))
                 return Error<ResultRescrutinyItemDto>("Student enrollment not found in publication scope.", 404);
             if (!await HasValidRescrutinyEvidenceAsync(scope, token))
                 return Error<ResultRescrutinyItemDto>("Published snapshot requires reconciliation.", 409);
