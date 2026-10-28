@@ -56,15 +56,31 @@ public sealed partial class StudentImportExecutionService
             .Where(x => x.TenantId == tenant && !x.IsDeleted && studentIds.Contains(x.Id))
             .Select(x => new { x.Id, x.PersonId })
             .ToDictionaryAsync(x => x.Id, cancellationToken);
-        // The global Person is read only by IDs already proven to belong to
-        // this tenant's students; never enumerate platform identities.
-        var personIds = students.Values.Select(x => x.PersonId).Distinct().ToArray();
+        // Guardian relationships are optional; the source log does not retain
+        // whether a particular imported row originally supplied one.
+        var guardianLinks = await _studentGuardians.GetQueryable().AsNoTracking()
+            .Where(x => x.TenantId == tenant && !x.IsDeleted && studentIds.Contains(x.StudentId))
+            .Select(x => new { x.StudentId, x.GuardianId, x.IsPrimary })
+            .Take(501).ToListAsync(cancellationToken);
+        if (guardianLinks.Count > 500)
+            return ApiResponse<StudentImportIntegrityReportDto>.ErrorResponse(
+                "Import guardian audit relationship limit exceeded.", 409);
+        var guardianIds = guardianLinks.Select(x => x.GuardianId).Distinct().ToArray();
+        var guardians = await _guardians.GetQueryable().AsNoTracking()
+            .Where(x => x.TenantId == tenant && !x.IsDeleted && guardianIds.Contains(x.Id))
+            .Select(x => new { x.Id, x.PersonId })
+            .ToDictionaryAsync(x => x.Id, cancellationToken);
+        var guardianLinksByStudent = guardianLinks.ToLookup(x => x.StudentId);
+        // Global identities are read only after a tenant-owned Student or
+        // Guardian has established the relationship; never enumerate Persons.
+        var personIds = students.Values.Select(x => x.PersonId)
+            .Concat(guardians.Values.Select(x => x.PersonId)).Distinct().ToArray();
         var existingPersons = (await _persons.GetQueryable().AsNoTracking()
             .Where(x => !x.IsDeleted && personIds.Contains(x.Id))
             .Select(x => x.Id).ToListAsync(cancellationToken)).ToHashSet();
         var links = await _links.GetQueryable().AsNoTracking()
             .Where(x => x.TenantId == tenant && !x.IsDeleted && x.IsPrimary &&
-                studentIds.Contains(x.StudentId))
+                x.UnlinkedAt == null && studentIds.Contains(x.StudentId))
             .Select(x => new { x.StudentId, x.PersonId })
             .ToListAsync(cancellationToken);
         var linksByStudent = links.ToLookup(x => x.StudentId);
@@ -114,6 +130,29 @@ public sealed partial class StudentImportExecutionService
                     Issue(item.RowNumber, "PersonLinkMismatch", "Primary learner identity link is unavailable.");
                 if (!enrolled.Contains(student.Id))
                     Issue(item.RowNumber, "MissingEnrollment", "Student enrollment history is unavailable.");
+
+                var relations = guardianLinksByStudent[student.Id].ToArray();
+                report.GuardianLinksChecked += relations.Length;
+                var multiplePrimary = relations.Count(x => x.IsPrimary) > 1;
+                if (multiplePrimary)
+                    Issue(item.RowNumber, "AmbiguousPrimaryGuardian",
+                        "Multiple primary guardian relationships require review.");
+                var seenGuardians = new HashSet<long>();
+                foreach (var relation in relations)
+                {
+                    var unique = seenGuardians.Add(relation.GuardianId);
+                    if (!unique)
+                        Issue(item.RowNumber, "DuplicateGuardianLink",
+                            "Repeated guardian relationship requires review.");
+                    if (!guardians.TryGetValue(relation.GuardianId, out var guardian))
+                        Issue(item.RowNumber, "MissingGuardian",
+                            "Guardian relationship does not resolve within this institution.");
+                    else if (!existingPersons.Contains(guardian.PersonId))
+                        Issue(item.RowNumber, "MissingGuardianIdentity",
+                            "Linked guardian identity is unavailable.");
+                    else if (unique && !(multiplePrimary && relation.IsPrimary))
+                        report.GuardianLinksHealthy++;
+                }
             }
             if (report.Issues.Count == before) report.HealthyRows++;
         }

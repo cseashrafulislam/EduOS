@@ -189,6 +189,17 @@ public sealed class SqlServerStudentImportConcurrencyIntegrationTests
             Assert.True(audit.Success, audit.Message);
             Assert.True(audit.Data!.IsHealthy);
             Assert.Equal(1, audit.Data.HealthyRows);
+            Assert.Equal(1, audit.Data.GuardianLinksChecked);
+            Assert.Equal(1, audit.Data.GuardianLinksHealthy);
+            var guardian = await integrityDb.Guardians.SingleAsync();
+            guardian.IsDeleted = true;
+            await integrityDb.SaveChangesAsync();
+            var drift = await Service(integrityDb, tenantId, adminId)
+                .GetIntegrityAsync(results[winner].Data!.ImportReference);
+            Assert.True(drift.Success, drift.Message);
+            Assert.Contains(drift.Data!.Issues, x => x.Code == "MissingGuardian");
+            guardian.IsDeleted = false;
+            await integrityDb.SaveChangesAsync();
         }
         await using (var foreign = TenantDb(options, tenantId + 1000000))
         {

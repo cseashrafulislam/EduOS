@@ -65,7 +65,7 @@
             report.expectedRows < 1 || report.expectedRows > 100 ||
             !Number.isSafeInteger(report.checkedRows) || report.checkedRows < 0 ||
             report.checkedRows > 100 || !Array.isArray(report.issues) ||
-            report.issues.length > 301)
+            report.issues.length > 2001)
             throw new Error('Invalid import integrity report.');
         const cell = value => {
             let s = String(value ?? '');

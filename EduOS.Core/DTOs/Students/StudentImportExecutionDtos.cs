@@ -120,7 +120,9 @@ public sealed class StudentImportIntegrityReportDto
     public int ExpectedRows { get; set; }
     public int CheckedRows { get; set; }
     public int HealthyRows { get; set; }
+    public int GuardianLinksChecked { get; set; }
+    public int GuardianLinksHealthy { get; set; }
     public bool IsHealthy => CheckedRows == ExpectedRows && HealthyRows == ExpectedRows &&
-        Issues.Count == 0;
+        GuardianLinksChecked == GuardianLinksHealthy && Issues.Count == 0;
     public List<StudentImportIntegrityIssueDto> Issues { get; set; } = new();
 }

@@ -68,4 +68,11 @@ test('integrity export is bounded, PII-free and formula-neutralized', () => {
     assert.throws(() => integrityCsv({ expectedRows: 101, checkedRows: 101, issues: [] }), /Invalid/);
     assert.throws(() => integrityCsv({ expectedRows: 1, checkedRows: 1,
         issues: [{ rowNumber: -1, code: 'bad', message: 'x' }] }), /Invalid/);
+    const bounded = Array.from({ length: 500 }, () => ({
+        rowNumber: 2, code: 'MissingGuardian', message: 'Guardian link unavailable'
+    }));
+    assert.equal((integrityCsv({ expectedRows: 100, checkedRows: 100, issues: bounded })
+        .match(/MissingGuardian/g) || []).length, 500);
+    assert.throws(() => integrityCsv({ expectedRows: 100, checkedRows: 100,
+        issues: Array(2002).fill(bounded[0]) }), /Invalid/);
 });

@@ -919,6 +919,73 @@ public sealed class StudentImportExecutionServiceTests
     }
 
     [Fact]
+    public async Task Committed_integrity_audit_validates_optional_guardian_ownership_identity_and_primary_links()
+    {
+        var options = Options(); await SeedAsync(options);
+        await using var db = Context(options, 101);
+        var service = Service(db, new User(101, true));
+        using var csv = Csv(Header +
+            "G-AUDIT-1,G-STU-1,Private Learner One,10,20,41,Private Guardian,01700000000\n" +
+            "G-AUDIT-2,G-STU-2,Private Learner Two,10,20,42,,\n");
+        var imported = await service.ExecuteAsync(csv, ".csv", Mapping, Guid.NewGuid());
+        Assert.True(imported.Success, imported.Message);
+        var reference = imported.Data!.ImportReference;
+        var healthy = await service.GetIntegrityAsync(reference);
+        Assert.True(healthy.Data!.IsHealthy);
+        Assert.Equal(1, healthy.Data.GuardianLinksChecked);
+        Assert.Equal(1, healthy.Data.GuardianLinksHealthy);
+
+        var relation = await db.StudentGuardians.SingleAsync();
+        var guardian = await db.Guardians.SingleAsync();
+        guardian.IsDeleted = true;
+        await db.SaveChangesAsync();
+        var missing = await service.GetIntegrityAsync(reference);
+        Assert.Contains(missing.Data!.Issues, x => x.Code == "MissingGuardian");
+        Assert.Equal(0, missing.Data.GuardianLinksHealthy);
+
+        guardian.IsDeleted = false;
+        var person = await db.Persons.SingleAsync(x => x.Id == guardian.PersonId);
+        person.IsDeleted = true;
+        await db.SaveChangesAsync();
+        var missingPerson = await service.GetIntegrityAsync(reference);
+        Assert.Contains(missingPerson.Data!.Issues, x => x.Code == "MissingGuardianIdentity");
+
+        person.IsDeleted = false;
+        db.StudentGuardians.Add(new StudentGuardian
+        {
+            TenantId = 101, StudentId = relation.StudentId,
+            GuardianId = guardian.Id, RelationCode = "Guardian", IsPrimary = true
+        });
+        await db.SaveChangesAsync();
+        var duplicate = await service.GetIntegrityAsync(reference);
+        Assert.Contains(duplicate.Data!.Issues, x => x.Code == "DuplicateGuardianLink");
+        Assert.Contains(duplicate.Data.Issues, x => x.Code == "AmbiguousPrimaryGuardian");
+        Assert.DoesNotContain("Private", string.Join(" ", duplicate.Data.Issues.Select(x => x.Message)));
+        Assert.DoesNotContain("G-AUDIT", string.Join(" ", duplicate.Data.Issues.Select(x => x.Message)));
+
+        await using var foreign = Context(options, 202);
+        Assert.Equal(404, (await Service(foreign, new User(202, true))
+            .GetIntegrityAsync(reference)).StatusCode);
+    }
+
+    [Fact]
+    public async Task Committed_integrity_audit_rejects_historically_unlinked_primary_person_link()
+    {
+        var options = Options(); await SeedAsync(options);
+        await using var db = Context(options, 101);
+        var service = Service(db, new User(101, true));
+        using var csv = Csv(Header + "UNLINK-SRC,UNLINK-STU,Private Learner,10,20,43,,\n");
+        var imported = await service.ExecuteAsync(csv, ".csv", Mapping, Guid.NewGuid());
+        Assert.True(imported.Success, imported.Message);
+        var link = await db.StudentPersonLinks.SingleAsync();
+        link.UnlinkedAt = DateTime.UtcNow;
+        await db.SaveChangesAsync();
+        var report = await service.GetIntegrityAsync(imported.Data!.ImportReference);
+        Assert.False(report.Data!.IsHealthy);
+        Assert.Contains(report.Data.Issues, x => x.Code == "PersonLinkMismatch");
+    }
+
+    [Fact]
     public async Task Transactional_preview_failure_uses_rollback_path_not_error_response_commit()
     {
         var options = Options();

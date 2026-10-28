@@ -337,7 +337,9 @@
             }
             integritySummary.textContent = 'Physical record audit: ' +
                 integrityReport.healthyRows + ' / ' + integrityReport.expectedRows +
-                ' rows verified; ' + (integrityReport.issues || []).length + ' issues.';
+                ' rows verified; Guardian links: ' + integrityReport.guardianLinksHealthy +
+                '/' + integrityReport.guardianLinksChecked + '; ' +
+                (integrityReport.issues || []).length + ' issues.';
             integrityExport.classList.remove('d-none');
         } catch (error) { message(error.message, true); }
         finally { busy = false; integrityButton.disabled = false; }
