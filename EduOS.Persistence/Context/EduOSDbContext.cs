@@ -337,6 +337,8 @@ public class EduOSDbContext :
     public DbSet<Account> Accounts => Set<Account>();
     public DbSet<AccountingPeriod> AccountingPeriods => Set<AccountingPeriod>();
     public DbSet<BankAccount> BankAccounts => Set<BankAccount>();
+    public DbSet<BankReconciliationBatch> BankReconciliationBatches => Set<BankReconciliationBatch>();
+    public DbSet<BankReconciliationStatementLine> BankReconciliationStatementLines => Set<BankReconciliationStatementLine>();
     public DbSet<Journal> Journals => Set<Journal>();
     public DbSet<JournalLine> JournalLines => Set<JournalLine>();
 
@@ -876,6 +878,10 @@ public class EduOSDbContext :
         TenantReference<Account, Account>(modelBuilder, nameof(Account.ParentAccountId));
         TenantReference<BankAccount, Account>(modelBuilder, nameof(BankAccount.AccountId));
         TenantReference<BankAccount, Campus>(modelBuilder, nameof(BankAccount.CampusId));
+        TenantReference<BankReconciliationBatch, BankAccount>(modelBuilder, nameof(BankReconciliationBatch.BankAccountId));
+        Reference<BankReconciliationBatch, ApplicationUser>(modelBuilder, nameof(BankReconciliationBatch.PreparedByUserId));
+        TenantReference<BankReconciliationStatementLine, BankReconciliationBatch>(modelBuilder,
+            nameof(BankReconciliationStatementLine.BankReconciliationBatchId));
         TenantReference<Journal, AccountingPeriod>(modelBuilder, nameof(Journal.AccountingPeriodId));
         TenantReference<Journal, Campus>(modelBuilder, nameof(Journal.CampusId));
         TenantReference<Journal, Journal>(modelBuilder, nameof(Journal.ReversalOfJournalId));
@@ -1387,6 +1393,17 @@ public class EduOSDbContext :
         UniqueTenant<JournalLine>(modelBuilder, nameof(JournalLine.JournalId), nameof(JournalLine.LineNo));
         modelBuilder.Entity<Journal>().HasIndex(x => new { x.TenantId, x.JournalDate, x.State });
         modelBuilder.Entity<AccountingPeriod>().HasIndex(x => new { x.TenantId, x.StartDate, x.EndDate });
+        modelBuilder.Entity<BankReconciliationBatch>().HasIndex(x => new { x.TenantId, x.ClientRequestId })
+            .HasDatabaseName("UX_BankReconciliationBatches_Tenant_Request").IsUnique();
+        modelBuilder.Entity<BankReconciliationBatch>().HasIndex(x =>
+            new { x.TenantId, x.BankAccountId, x.SourceFingerprint })
+            .HasDatabaseName("UX_BankReconciliationBatches_Tenant_Bank_Fingerprint").IsUnique();
+        modelBuilder.Entity<BankReconciliationBatch>().HasIndex(x =>
+            new { x.TenantId, x.BankAccountId, x.PreparedAt, x.Id })
+            .HasDatabaseName("IX_BankReconciliationBatches_Tenant_Bank_Prepared");
+        modelBuilder.Entity<BankReconciliationStatementLine>().HasIndex(x =>
+            new { x.TenantId, x.BankReconciliationBatchId, x.RowNumber })
+            .HasDatabaseName("UX_BankReconciliationStatementLines_Tenant_Batch_Row").IsUnique();
 
         // Payroll
         UniqueTenant<SalaryComponent>(modelBuilder, nameof(SalaryComponent.Code));
@@ -1576,6 +1593,12 @@ public class EduOSDbContext :
             t.HasCheckConstraint("CK_Assessment_DateRange", "[EndDate] >= [StartDate]"));
         modelBuilder.Entity<AccountingPeriod>().ToTable(t =>
             t.HasCheckConstraint("CK_AccountingPeriod_DateRange", "[EndDate] >= [StartDate]"));
+        modelBuilder.Entity<BankReconciliationBatch>().ToTable(t =>
+            t.HasCheckConstraint("CK_BankReconciliationBatch_Valid",
+                "[ToDate] >= [FromDate] AND [MovementCount] BETWEEN 1 AND 500 AND [StateCode] = 1"));
+        modelBuilder.Entity<BankReconciliationStatementLine>().ToTable(t =>
+            t.HasCheckConstraint("CK_BankReconciliationStatementLine_Valid",
+                "[RowNumber] BETWEEN 1 AND 500 AND (([Deposit] > 0 AND [Withdrawal] = 0) OR ([Withdrawal] > 0 AND [Deposit] = 0))"));
         modelBuilder.Entity<FeeStructure>().ToTable(t =>
             t.HasCheckConstraint("CK_FeeStructure_DateRange", "[EffectiveTo] IS NULL OR [EffectiveTo] >= [EffectiveFrom]"));
         modelBuilder.Entity<AcademicCurriculum>().ToTable(t =>

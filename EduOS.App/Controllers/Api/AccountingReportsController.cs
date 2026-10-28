@@ -53,6 +53,18 @@ public sealed class AccountingReportsController : ControllerBase
         [FromQuery] int pageSize = 25, CancellationToken ct = default)
         => Reply(await service.GetBankReconciliationCandidatesAsync(
             bankAccountId, fromDate, toDate, referencePrefix, page, pageSize, ct));
+    [HttpPost("bank-reconciliations"), Authorize(Roles = "TenantAdmin"), ValidateAntiForgeryToken]
+    public async Task<IActionResult> SaveBankReconciliationDraft(
+        [FromBody] EduOS.Core.DTOs.Accounting.BankReconciliationSaveRequestDto request, CancellationToken ct)
+        => Reply(await service.SaveBankReconciliationDraftAsync(request, ct));
+    [HttpGet("bank-reconciliations"), Authorize(Roles = "TenantAdmin")]
+    public async Task<IActionResult> BankReconciliationDrafts(
+        [FromQuery] long bankAccountId, [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 25, CancellationToken ct = default)
+        => Reply(await service.GetBankReconciliationDraftsAsync(bankAccountId, page, pageSize, ct));
+    [HttpGet("bank-reconciliations/{batchId:long}"), Authorize(Roles = "TenantAdmin")]
+    public async Task<IActionResult> BankReconciliationDraft(long batchId, CancellationToken ct)
+        => Reply(await service.GetBankReconciliationDraftAsync(batchId, ct));
     [HttpGet("trial-balance")]
     public async Task<IActionResult> TrialBalance([FromQuery] DateOnly asOfDate, CancellationToken ct)
         => Reply(await service.GetTrialBalanceAsync(asOfDate, ct));

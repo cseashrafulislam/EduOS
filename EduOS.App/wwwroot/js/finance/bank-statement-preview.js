@@ -64,16 +64,20 @@ if (panel) {
         const response = await fetch(url, {credentials:'same-origin',cache:'no-store',
             headers:{Accept:'application/json',...(options.headers || {})},...options});
         const raw = await response.text();
-        const safe = raw.replace(/("(?:deposit|withdrawal|ledgerOpeningBalance|ledgerClosingBalance|statementOpeningBalance|statementClosingBalance|openingVariance|movementVariance|closingVariance)"\s*:\s*)(-?\d+(?:\.\d+)?)/g, '$1"$2"');
+        const safe = raw.replace(/("(?:deposit|withdrawal|openingBalance|closingBalance|ledgerOpeningBalance|ledgerClosingBalance|statementOpeningBalance|statementClosingBalance|openingVariance|movementVariance|closingVariance)"\s*:\s*)(-?\d+(?:\.\d+)?)/g, '$1"$2"');
         let payload; try { payload = JSON.parse(safe); } catch { throw new Error('Unexpected bank response.'); }
         if (!response.ok || !payload.success) throw new Error(payload.message || 'Comparison failed.');
         return payload.data;
     }
-    let report = null, comparisonFrom = '', revision = 0;
+    let report = null, comparisonFrom = '', revision = 0, previewRequest = null;
+    let requestKey = null, draftPage = 1, draftDetail = null, draftRevision = 0;
     // Any changed input invalidates the exported evidence, including edits during a request.
     const invalidate = () => {
         revision++;
         report = null;
+        previewRequest = null;
+        requestKey = null;
+        el('statementSave').disabled = true;
         el('statementExport').disabled = true;
         el('statementSummary').textContent = '';
         el('statementMatchCount').textContent = '0';
@@ -120,13 +124,17 @@ if (panel) {
             const movements = parseRows(el('statementCsv').value, from, to);
             const token = document.querySelector('input[name="__RequestVerificationToken"]')?.value ||
                 document.querySelector('meta[name="request-verification-token"]')?.content || '';
+            const statement = {bankAccountId:Number(bank),fromDate:from,toDate:to,
+                openingBalance:opening,closingBalance:closing,movements};
             const result = await get('/api/finance/accounting/reports/bank-statement-preview', {
                 method:'POST', headers:{'Content-Type':'application/json',RequestVerificationToken:token},
-                body:JSON.stringify({bankAccountId:Number(bank),fromDate:from,toDate:to,
-                    openingBalance:opening,closingBalance:closing,movements})
+                body:JSON.stringify(statement)
             });
             if (submittedRevision !== revision) return; // Inputs changed while comparing.
             report = result;
+            previewRequest = statement;
+            requestKey = crypto.randomUUID();
+            el('statementSave').disabled = false;
             comparisonFrom = from;
             el('statementMatchCount').textContent = String((result.matches || []).length);
             el('statementMatches').innerHTML = (result.matches || []).map(x =>
@@ -179,5 +187,105 @@ if (panel) {
         a.download = 'bank-statement-comparison-' + comparisonFrom + '.csv';
         document.body.appendChild(a); a.click(); a.remove();
         setTimeout(() => URL.revokeObjectURL(url), 1000);
+    });
+
+    // Saving is a separate, explicit user action; comparison alone never persists data.
+    const token = () => document.querySelector('input[name="__RequestVerificationToken"]')?.value ||
+        document.querySelector('meta[name="request-verification-token"]')?.content || '';
+    const draftBase = '/api/finance/accounting/reports/bank-reconciliations';
+    const download = (rows, name) => {
+        const csv = '\uFEFF' + rows.map(row => row.map(cell).join(',')).join('\r\n') + '\r\n';
+        const url = URL.createObjectURL(new Blob([csv], {type:'text/csv;charset=utf-8'}));
+        const a = document.createElement('a'); a.href = url; a.download = name;
+        document.body.appendChild(a); a.click(); a.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+    };
+    const resetDraft = () => {
+        draftRevision++;
+        draftDetail = null;
+        el('statementDraftDetail').textContent = '';
+        el('statementDraftExport').classList.add('d-none');
+        el('statementDraftRows').replaceChildren();
+        el('statementDraftSummary').textContent = '';
+        el('statementDraftPage').textContent = '';
+        el('statementDraftPrev').disabled = true;
+        el('statementDraftNext').disabled = true;
+    };
+    async function loadDrafts(page = 1) {
+        resetDraft();
+        const bank = el('statementBank').value, seq = draftRevision;
+        if (!/^\d+$/.test(bank) || Number(bank) <= 0) return;
+        try {
+            const result = await get(draftBase + '?bankAccountId=' + encodeURIComponent(bank) +
+                '&page=' + page + '&pageSize=25');
+            if (seq !== draftRevision || el('statementBank').value !== bank) return;
+            draftPage = page;
+            el('statementDraftSummary').textContent = result.totalCount + ' saved drafts; no clearance or approval.';
+            el('statementDraftRows').innerHTML = (result.items || []).map(x =>
+                '<tr><td>' + escapeHtml(x.statementIdentifier) + '</td><td>' +
+                escapeHtml(x.fromDate) + ' – ' + escapeHtml(x.toDate) + '</td><td>' +
+                escapeHtml(x.movementCount) + '</td><td>Draft</td><td>' +
+                escapeHtml(x.preparedAt) + '</td><td><button type="button" class="btn btn-outline-primary btn-sm" data-draft-id="' +
+                escapeHtml(x.id) + '">View</button></td></tr>').join('') ||
+                '<tr><td colspan="6">No saved statement drafts for this bank.</td></tr>';
+            el('statementDraftPage').textContent = 'Page ' + page + ' of ' + Math.max(1,result.totalPages);
+            el('statementDraftPrev').disabled = !result.hasPreviousPage;
+            el('statementDraftNext').disabled = !result.hasNextPage;
+        } catch (e) {
+            if (seq === draftRevision) el('statementDraftSummary').textContent = e.message;
+        }
+    }
+    el('statementBank').addEventListener('change', () => loadDrafts(1));
+    el('statementDraftRefresh').addEventListener('click', () => loadDrafts(1));
+    el('statementDraftPrev').addEventListener('click', () => loadDrafts(draftPage - 1));
+    el('statementDraftNext').addEventListener('click', () => loadDrafts(draftPage + 1));
+    el('statementSave').addEventListener('click', async () => {
+        if (!previewRequest || !requestKey || !report) return;
+        const identifier = el('statementIdentifier').value.trim();
+        if (!identifier || identifier.length > 100 || /[\u0000-\u001f\u007f]/.test(identifier))
+            return show('Enter a valid bank statement identifier (up to 100 characters).', true);
+        const seq = revision;
+        el('statementSave').disabled = true;
+        try {
+            const result = await get(draftBase, {
+                method:'POST',
+                headers:{'Content-Type':'application/json',RequestVerificationToken:token()},
+                body:JSON.stringify({clientRequestId:requestKey,statementIdentifier:identifier,
+                    statement:previewRequest})
+            });
+            if (seq !== revision) return;
+            show('Saved immutable statement draft #' + result.id + '. Not approved or cleared.');
+            loadDrafts(1);
+        } catch (e) {
+            if (seq === revision) {
+                show(e.message, true);
+                el('statementSave').disabled = false; // Same key on retry.
+            }
+        }
+    });
+    el('statementDraftRows').addEventListener('click', async event => {
+        const button = event.target.closest('button[data-draft-id]');
+        if (!button) return;
+        const id = button.dataset.draftId;
+        const seq = draftRevision, bank = el('statementBank').value;
+        try {
+            const detail = await get(draftBase + '/' + encodeURIComponent(id));
+            if (seq !== draftRevision || el('statementBank').value !== bank) return;
+            draftDetail = detail;
+            el('statementDraftDetail').textContent = 'Statement ' + detail.statementIdentifier +
+                ' · ' + detail.movementCount + ' rows · fingerprint ' + detail.sourceFingerprint +
+                ' · immutable draft, not cleared.';
+            el('statementDraftExport').classList.remove('d-none');
+        } catch (e) {
+            if (seq === draftRevision) el('statementDraftDetail').textContent = e.message;
+        }
+    });
+    el('statementDraftExport').addEventListener('click', () => {
+        if (!draftDetail) return;
+        download([['Statement','Fingerprint','Row','Date','Reference','Deposit','Withdrawal'],
+            ...(draftDetail.movements || []).map(x => [
+                draftDetail.statementIdentifier,draftDetail.sourceFingerprint,x.rowNumber,x.date,
+                x.reference,money(x.deposit),money(x.withdrawal)])],
+            'bank-statement-draft-' + draftDetail.id + '.csv');
     });
 }

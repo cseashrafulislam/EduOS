@@ -129,7 +129,6 @@
 
 
             <div class="tab-pane fade" id="bankStatementPanel">
-                <p class="text-muted">Read-only BDT comparison against posted bank-book movements. Exact, unique date/reference/direction/amount matches only. This does not clear or post transactions.</p>
                 <form id="bankStatementForm" class="row g-2 mb-3">
                     @Html.AntiForgeryToken()
                     <div class="col-md-4"><label for="statementBank" class="form-label">Bank</label><select id="statementBank" class="form-select" required><option value="">Loading...</option></select></div>
@@ -138,9 +137,10 @@
                     <div class="col-md-2"><label for="statementOpening" class="form-label">Statement opening BDT</label><input id="statementOpening" class="form-control" inputmode="decimal" value="0.00" required /></div>
                     <div class="col-md-2"><label for="statementClosing" class="form-label">Statement closing BDT</label><input id="statementClosing" class="form-control" inputmode="decimal" required /></div>
                     <div class="col-12"><label for="statementCsv" class="form-label">CSV: date,reference,deposit,withdrawal (1–500 rows)</label><textarea id="statementCsv" rows="5" maxlength="80000" class="form-control font-monospace" placeholder="date,reference,deposit,withdrawal&#10;2026-10-15,DEP-1,100.00,0.00" required></textarea></div>
-                    <div class="col-md-6"><label for="statementFile" class="form-label">Load local CSV (not stored)</label><input id="statementFile" type="file" accept=".csv,text/csv" class="form-control" /></div>
-                    <div class="col-md-3 align-self-end"><button id="statementRun" type="submit" class="btn btn-primary w-100">Compare Statement</button></div>
-                    <div class="col-md-3 align-self-end"><button id="statementExport" type="button" class="btn btn-outline-secondary w-100" disabled>Export Comparison CSV</button></div>
+                    <div class="col-md-4"><label for="statementFile" class="form-label">Load local CSV</label><input id="statementFile" type="file" accept=".csv,text/csv" class="form-control" /></div>
+                    <div class="col-md-4"><label for="statementIdentifier" class="form-label">Bank statement identifier</label><input id="statementIdentifier" class="form-control" maxlength="100" autocomplete="off" placeholder="Statement number / period" /></div>
+                    <div class="col-md-4 d-flex align-items-end gap-2"><button id="statementRun" type="submit" class="btn btn-primary flex-fill">Compare</button><button id="statementSave" type="button" class="btn btn-outline-primary flex-fill" disabled>Save Draft</button></div>
+                    <div class="col-12"><button id="statementExport" type="button" class="btn btn-outline-secondary btn-sm" disabled>Export Comparison CSV</button></div>
                 </form>
                 <section id="bankCandidatePanel" class="border-top pt-3 mb-3" aria-label="Posted bank ledger candidate register">
                     <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
@@ -164,6 +164,24 @@
                         <span id="bankCandidatePage" class="small" aria-live="polite"></span>
                         <button id="bankCandidateNext" type="button" class="btn btn-outline-secondary btn-sm" disabled>Next</button>
                     </div>
+                </section>
+                <section class="border-top pt-3 mb-3" aria-label="Saved bank statement drafts">
+                    <div class="d-flex align-items-center justify-content-between gap-2 mb-2">
+                        <h3 class="h6 mb-0">Saved Statement Drafts</h3>
+                        <button id="statementDraftRefresh" type="button" class="btn btn-outline-secondary btn-sm">Refresh</button>
+                    </div>
+                    <div id="statementDraftSummary" class="small mb-2" role="status" aria-live="polite"></div>
+                    <div class="table-responsive"><table class="table table-sm table-striped">
+                        <thead><tr><th>Statement</th><th>Period</th><th>Rows</th><th>State</th><th>Prepared</th><th>Action</th></tr></thead>
+                        <tbody id="statementDraftRows"></tbody>
+                    </table></div>
+                    <div class="d-flex justify-content-end align-items-center gap-2">
+                        <button id="statementDraftPrev" type="button" class="btn btn-outline-secondary btn-sm" disabled>Previous</button>
+                        <span id="statementDraftPage" class="small" aria-live="polite"></span>
+                        <button id="statementDraftNext" type="button" class="btn btn-outline-secondary btn-sm" disabled>Next</button>
+                    </div>
+                    <div id="statementDraftDetail" class="small" aria-live="polite"></div>
+                    <button id="statementDraftExport" type="button" class="btn btn-outline-secondary btn-sm d-none">Export Saved CSV</button>
                 </section>
                 <div id="statementNotice" class="alert d-none" role="status" aria-live="polite"></div>
                 <p id="statementSummary" class="fw-semibold"></p>

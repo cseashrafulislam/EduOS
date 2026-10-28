@@ -2334,6 +2334,83 @@ namespace EduOS.Persistence.Migrations
                     b.ToTable("BankAccounts");
                 });
 
+            modelBuilder.Entity("EduOS.Core.Entities.Accounting.BankReconciliationBatch", b =>
+                {
+                    b.Property<long>("Id").ValueGeneratedOnAdd().HasColumnType("bigint");
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
+                    b.Property<long>("BankAccountId").HasColumnType("bigint");
+                    b.Property<Guid>("ClientRequestId").HasColumnType("uniqueidentifier");
+                    b.Property<decimal>("ClosingBalance").HasColumnType("decimal(18,2)");
+                    b.Property<DateOnly>("FromDate").HasColumnType("date");
+                    b.Property<int>("MovementCount").HasColumnType("int");
+                    b.Property<decimal>("OpeningBalance").HasColumnType("decimal(18,2)");
+                    b.Property<DateTime>("PreparedAt").HasColumnType("datetime2");
+                    b.Property<long>("PreparedByUserId").HasColumnType("bigint");
+                    b.Property<string>("SourceFingerprint").IsRequired()
+                        .HasMaxLength(64).HasColumnType("nvarchar(64)");
+                    b.Property<int>("StateCode").HasColumnType("int");
+                    b.Property<string>("StatementIdentifier").IsRequired()
+                        .HasMaxLength(100).HasColumnType("nvarchar(100)");
+                    b.Property<DateOnly>("ToDate").HasColumnType("date");
+
+                    b.Property<DateTime>("CreatedAt").HasColumnType("datetime2");
+                    b.Property<long?>("CreatedBy").HasColumnType("bigint");
+                    b.Property<DateTime?>("DeletedAt").HasColumnType("datetime2");
+                    b.Property<long?>("DeletedBy").HasColumnType("bigint");
+                    b.Property<bool>("IsDeleted").HasColumnType("bit");
+                    b.Property<byte[]>("RowVersion").IsConcurrencyToken().IsRequired()
+                        .ValueGeneratedOnAddOrUpdate().HasColumnType("rowversion");
+                    b.Property<long>("TenantId").HasColumnType("bigint");
+                    b.Property<DateTime?>("UpdatedAt").HasColumnType("datetime2");
+                    b.Property<long?>("UpdatedBy").HasColumnType("bigint");
+                    b.HasKey("Id");
+                    b.HasAlternateKey("TenantId", "Id");
+                    b.HasIndex("PreparedByUserId");
+                    b.HasIndex("TenantId", "ClientRequestId")
+                        .IsUnique().HasDatabaseName("UX_BankReconciliationBatches_Tenant_Request");
+                    b.HasIndex("TenantId", "BankAccountId", "SourceFingerprint")
+                        .IsUnique().HasDatabaseName("UX_BankReconciliationBatches_Tenant_Bank_Fingerprint");
+                    b.HasIndex("TenantId", "BankAccountId", "PreparedAt", "Id")
+                        .HasDatabaseName("IX_BankReconciliationBatches_Tenant_Bank_Prepared");
+                    b.ToTable("BankReconciliationBatches", t =>
+                    {
+                        t.HasCheckConstraint("CK_BankReconciliationBatch_Valid",
+                            "[ToDate] >= [FromDate] AND [MovementCount] BETWEEN 1 AND 500 AND [StateCode] = 1");
+                    });
+                });
+
+            modelBuilder.Entity("EduOS.Core.Entities.Accounting.BankReconciliationStatementLine", b =>
+                {
+                    b.Property<long>("Id").ValueGeneratedOnAdd().HasColumnType("bigint");
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
+                    b.Property<long>("BankReconciliationBatchId").HasColumnType("bigint");
+                    b.Property<DateOnly>("Date").HasColumnType("date");
+                    b.Property<decimal>("Deposit").HasColumnType("decimal(18,2)");
+                    b.Property<string>("Reference").HasMaxLength(150).HasColumnType("nvarchar(150)");
+                    b.Property<int>("RowNumber").HasColumnType("int");
+                    b.Property<decimal>("Withdrawal").HasColumnType("decimal(18,2)");
+
+                    b.Property<DateTime>("CreatedAt").HasColumnType("datetime2");
+                    b.Property<long?>("CreatedBy").HasColumnType("bigint");
+                    b.Property<DateTime?>("DeletedAt").HasColumnType("datetime2");
+                    b.Property<long?>("DeletedBy").HasColumnType("bigint");
+                    b.Property<bool>("IsDeleted").HasColumnType("bit");
+                    b.Property<byte[]>("RowVersion").IsConcurrencyToken().IsRequired()
+                        .ValueGeneratedOnAddOrUpdate().HasColumnType("rowversion");
+                    b.Property<long>("TenantId").HasColumnType("bigint");
+                    b.Property<DateTime?>("UpdatedAt").HasColumnType("datetime2");
+                    b.Property<long?>("UpdatedBy").HasColumnType("bigint");
+                    b.HasKey("Id");
+                    b.HasAlternateKey("TenantId", "Id");
+                    b.HasIndex("TenantId", "BankReconciliationBatchId", "RowNumber")
+                        .IsUnique().HasDatabaseName("UX_BankReconciliationStatementLines_Tenant_Batch_Row");
+                    b.ToTable("BankReconciliationStatementLines", t =>
+                    {
+                        t.HasCheckConstraint("CK_BankReconciliationStatementLine_Valid",
+                            "[RowNumber] BETWEEN 1 AND 500 AND (([Deposit] > 0 AND [Withdrawal] = 0) OR ([Withdrawal] > 0 AND [Deposit] = 0))");
+                    });
+                });
+
             modelBuilder.Entity("EduOS.Core.Entities.Accounting.Journal", b =>
                 {
                     b.Property<long>("Id")
@@ -18559,6 +18636,28 @@ namespace EduOS.Persistence.Migrations
                         .HasPrincipalKey("TenantId", "Id")
                         .OnDelete(DeleteBehavior.Restrict);
 
+                    b.Navigation("Tenant");
+                });
+
+            modelBuilder.Entity("EduOS.Core.Entities.Accounting.BankReconciliationBatch", b =>
+                {
+                    b.HasOne("EduOS.Core.Entities.SaaS.Tenant", "Tenant").WithMany()
+                        .HasForeignKey("TenantId").OnDelete(DeleteBehavior.Restrict).IsRequired();
+                    b.HasOne("EduOS.Core.Entities.Accounting.BankAccount", null).WithMany()
+                        .HasForeignKey("TenantId", "BankAccountId").HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict).IsRequired();
+                    b.HasOne("EduOS.Core.Entities.Auth.ApplicationUser", null).WithMany()
+                        .HasForeignKey("PreparedByUserId").OnDelete(DeleteBehavior.Restrict).IsRequired();
+                    b.Navigation("Tenant");
+                });
+
+            modelBuilder.Entity("EduOS.Core.Entities.Accounting.BankReconciliationStatementLine", b =>
+                {
+                    b.HasOne("EduOS.Core.Entities.SaaS.Tenant", "Tenant").WithMany()
+                        .HasForeignKey("TenantId").OnDelete(DeleteBehavior.Restrict).IsRequired();
+                    b.HasOne("EduOS.Core.Entities.Accounting.BankReconciliationBatch", null).WithMany()
+                        .HasForeignKey("TenantId", "BankReconciliationBatchId").HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict).IsRequired();
                     b.Navigation("Tenant");
                 });
 
