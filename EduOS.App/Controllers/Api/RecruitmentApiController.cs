@@ -1,5 +1,6 @@
 using EduOS.App.Authorization;
 using EduOS.Core.DTOs.HR;
+using EduOS.Core.Enums.Domain;
 using EduOS.Core.Interfaces.IServices;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
