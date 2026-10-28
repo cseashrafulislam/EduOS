@@ -23,7 +23,7 @@ public sealed class FeeDiscountAttributionReviewRowDto
     public decimal DiscountAmount { get; set; }
     public decimal TotalAmount { get; set; }
     public decimal PotentiallyMisattributedDiscount { get; set; }
-    public bool IsPosted { get; set; }
+    public bool HasJournalLink { get; set; }
     public bool NeedsReview { get; set; }
     public string EvidenceStatus { get; set; } = string.Empty;
 }

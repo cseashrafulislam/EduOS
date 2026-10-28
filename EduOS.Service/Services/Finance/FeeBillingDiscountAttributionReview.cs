@@ -129,7 +129,7 @@ public sealed partial class FeeBillingService
                 CurrencyCode = invoice.CurrencyCode, Subtotal = invoice.Subtotal,
                 DiscountAmount = invoice.DiscountAmount, TotalAmount = invoice.TotalAmount,
                 PotentiallyMisattributedDiscount = candidate,
-                IsPosted = invoice.JournalId.HasValue,
+                HasJournalLink = invoice.JournalId.HasValue,
                 NeedsReview = integrityIssue || invoice.DiscountAmount > 0m &&
                     (active.Length == 0 || hasGlobal || candidate > 0m),
                 EvidenceStatus = status

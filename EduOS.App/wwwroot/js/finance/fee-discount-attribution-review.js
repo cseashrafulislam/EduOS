@@ -68,7 +68,7 @@ function render(data) {
         const row = document.createElement('tr');
         const values = [item.invoiceNumber, item.studentCode, item.invoiceDate, item.currencyCode,
             money(item.subtotal), money(item.discountAmount), money(item.totalAmount),
-            money(item.potentiallyMisattributedDiscount), item.isPosted ? 'Yes' : 'No',
+            money(item.potentiallyMisattributedDiscount), item.hasJournalLink ? 'Yes' : 'No',
             item.evidenceStatus];
         values.forEach((value, index) => {
             const cell = td(value);
@@ -112,10 +112,10 @@ function csvCell(value) {
 function exportCsv() {
     if (!report) return;
     const rows = [['Invoice','Student code','Invoice date','Currency','Subtotal','Discount',
-        'Total','Candidate amount (unverified)','Posted','Needs review','Evidence status']];
+        'Total','Candidate amount (unverified)','GL linked','Needs review','Evidence status']];
     for (const r of report.invoices.items) rows.push([r.invoiceNumber,r.studentCode,r.invoiceDate,
         r.currencyCode,money(r.subtotal),money(r.discountAmount),money(r.totalAmount),
-        money(r.potentiallyMisattributedDiscount),r.isPosted ? 'Yes' : 'No',
+        money(r.potentiallyMisattributedDiscount),r.hasJournalLink ? 'Yes' : 'No',
         r.needsReview ? 'Yes' : 'No',r.evidenceStatus]);
     const csv = '\uFEFF' + rows.map(r => r.map(csvCell).join(',')).join('\r\n') + '\r\n';
     const url = URL.createObjectURL(new Blob([csv], { type:'text/csv;charset=utf-8' }));

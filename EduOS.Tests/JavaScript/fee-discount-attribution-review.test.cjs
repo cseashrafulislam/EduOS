@@ -18,4 +18,5 @@ test('CSV uses formula injection defense and reports candidate as unverified', (
     assert.match(source, /Candidate amount \(unverified\)/);
     assert.match(source, /textContent/);
     assert.match(source, /window\.print/);
+    assert.match(source, /hasJournalLink/);
 });
