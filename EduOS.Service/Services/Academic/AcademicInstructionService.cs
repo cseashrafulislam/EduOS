@@ -339,6 +339,15 @@ public sealed class AcademicInstructionService : IAcademicInstructionService
             if (routine == null) return Error<SubstitutionDto>("Active routine entry not found.", 404);
             if (IsRestrictedManager() && !await CanManageOfferingAsync(routine.SubjectOfferingId, ct))
                 return Denied<SubstitutionDto>();
+            // The selector is not an authorization boundary: reject stale or guessed routine
+            // IDs even if the client bypasses the date-scoped UI.
+            if (!await _subjectOfferings.GetQueryable().AsNoTracking().AnyAsync(x =>
+                x.TenantId == tenant && x.Id == routine.SubjectOfferingId &&
+                x.IsActive && !x.IsDeleted &&
+                _academicBatches.GetQueryable().AsNoTracking().Any(batch =>
+                    batch.TenantId == tenant && batch.Id == x.AcademicBatchId &&
+                    batch.IsActive && !batch.IsDeleted), ct))
+                return Error<SubstitutionDto>("Routine subject offering or batch is inactive.", 409);
             if (routine.DayOfWeek != request.Date.DayOfWeek || routine.EffectiveFrom > request.Date ||
                 routine.EffectiveTo.HasValue && routine.EffectiveTo.Value < request.Date)
                 return Error<SubstitutionDto>("Substitution date is outside the routine schedule.", 409);
@@ -359,6 +368,10 @@ public sealed class AcademicInstructionService : IAcademicInstructionService
                 x.TenantId == tenant && x.Id == routine.RoutineTimeSlotId &&
                 x.IsActive && !x.IsBreak && !x.IsDeleted, ct))
                 return Error<SubstitutionDto>("Routine time slot is not available.", 409);
+            if (!await _employees.GetQueryable().AsNoTracking().AnyAsync(x =>
+                x.TenantId == tenant && x.Id == context.OriginalEmployeeId &&
+                x.State == EmployeeState.Active && x.CanTeach && !x.IsDeleted, ct))
+                return Error<SubstitutionDto>("Original instructor is not currently eligible.", 409);
             if (context.OriginalEmployeeId == employee.Id)
                 return Error<SubstitutionDto>("Substitute cannot be the original instructor.", 409);
             if (await _substitutions.GetQueryable().AsNoTracking().AnyAsync(x =>
