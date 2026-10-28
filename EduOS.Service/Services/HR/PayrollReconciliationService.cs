@@ -61,8 +61,7 @@ public sealed class PayrollReconciliationService : IPayrollReconciliationService
 
         // Include soft-deleted financial history: deleting a payment must not erase an anomaly.
         var payments = await db.PayrollPayments.IgnoreQueryFilters().AsNoTracking()
-            .Where(x => x.TenantId == tenant && employeeIds.Contains(x.PayrollEmployeeId) &&
-                (x.State == PaymentState.Successful || x.State == PaymentState.AwaitingVerification))
+            .Where(x => x.TenantId == tenant && employeeIds.Contains(x.PayrollEmployeeId))
             .OrderBy(x => x.Id).Take(4001)
             .Select(x => new
             {
@@ -94,7 +93,7 @@ public sealed class PayrollReconciliationService : IPayrollReconciliationService
             .OrderBy(x => x.Id).Take(12001)
             .Select(x => new
             {
-                x.JournalId, x.DebitAmount, x.CreditAmount, x.Description, x.IsDeleted
+                x.JournalId, x.AccountId, x.DebitAmount, x.CreditAmount, x.Description, x.IsDeleted
             }).ToListAsync(ct);
         if (lines.Count > 12000)
             return Error<PagedResult<PayrollReconciliationRowDto>>(
@@ -127,14 +126,22 @@ public sealed class PayrollReconciliationService : IPayrollReconciliationService
             return l.Count(x => x.Description == "Payroll net payable" &&
                 x.DebitAmount == 0m && x.CreditAmount == runTotals.GetValueOrDefault(sourceId)) == 1;
         }
-        bool PaymentValid(long? id, long sourceId, decimal amount)
+        bool PaymentValid(long? id, long sourceId, decimal amount, long? accrualJournalId)
         {
-            if (!BaseJournal(id, "PayrollPayment", sourceId)) return false;
-            var l = byJournal[id!.Value].ToArray();
-            return l.Length == 2 && l.All(x => !x.IsDeleted &&
+            if (!BaseJournal(id, "PayrollPayment", sourceId) || !accrualJournalId.HasValue)
+                return false;
+            var payable = byJournal[accrualJournalId.Value].Where(x =>
+                !x.IsDeleted && x.Description == "Payroll net payable" &&
+                x.DebitAmount == 0m && x.CreditAmount > 0m).ToArray();
+            if (payable.Length != 1) return false;
+            var lines = byJournal[id!.Value].ToArray();
+            return lines.Length == 2 && lines.All(x => !x.IsDeleted &&
                 x.DebitAmount >= 0m && x.CreditAmount >= 0m &&
                 (x.DebitAmount == 0m) != (x.CreditAmount == 0m)) &&
-                l.Sum(x => x.DebitAmount) == amount && l.Sum(x => x.CreditAmount) == amount;
+                lines.Count(x => x.AccountId == payable[0].AccountId &&
+                    x.DebitAmount == amount && x.CreditAmount == 0m) == 1 &&
+                lines.Count(x => x.AccountId != payable[0].AccountId &&
+                    x.CreditAmount == amount && x.DebitAmount == 0m) == 1;
         }
         var rows = pageRows.Select(r =>
         {
@@ -154,9 +161,15 @@ public sealed class PayrollReconciliationService : IPayrollReconciliationService
                 else if (p.State == PaymentState.Successful)
                 {
                     if (p.IsDeleted || p.CurrencyCode != "BDT" || p.Amount <= 0m ||
-                        !PaymentValid(p.JournalId, p.Id, p.Amount))
+                        !PaymentValid(p.JournalId, p.Id, p.Amount, r.JournalId))
                         discrepancy = true;
                     else paid += p.Amount;
+                }
+                else if (p.JournalId.HasValue)
+                {
+                    // A refunded, cancelled or failed payment with a linked journal must
+                    // be reconciled against its reversal before this run can be certified.
+                    discrepancy = true;
                 }
             }
             return new PayrollReconciliationRowDto

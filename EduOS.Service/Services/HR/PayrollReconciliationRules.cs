@@ -10,9 +10,10 @@ public static class PayrollReconciliationRules
         decimal net, decimal paid, decimal pending)
     {
         if (!runPosted) return "NotPosted";
-        if (!journalValid || invalidPayment || net < 0m || paid < 0m || pending < 0m ||
-            paid + pending > net) return "NeedsReview";
+        if (!journalValid || invalidPayment || net < 0m || paid < 0m || pending < 0m)
+            return "NeedsReview";
         if (paid > net) return "Overpaid";
+        if (paid + pending > net) return "NeedsReview";
         if (paid == net) return "Paid";
         if (paid > 0m) return "Partial";
         return pending > 0m ? "PendingVerification" : "Outstanding";
