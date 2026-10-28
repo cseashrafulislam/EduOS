@@ -789,6 +789,7 @@
 	<data name="LoginActivityEmpty" xml:space="preserve"><value>কোনো সাইন-ইন প্রচেষ্টা পাওয়া যায়নি।</value></data>
 	<data name="LoginActivityError" xml:space="preserve"><value>সাইন-ইন কার্যক্রম লোড করা যায়নি।</value></data>
 	<data name="LoginActivityExportError" xml:space="preserve"><value>সাইন-ইন কার্যক্রম রপ্তানি করা যায়নি।</value></data>
+	<data name="LoginActivitySessionChanged" xml:space="preserve"><value>আপনার প্রতিষ্ঠানের সেশন পরিবর্তিত হয়েছে। কার্যক্রম দেখা বা রপ্তানির আগে পৃষ্ঠাটি পুনরায় লোড করুন।</value></data>
 	<data name="LoginActivityRangeError" xml:space="preserve"><value>শুরু ও শেষের UTC তারিখ দিন; ক্রমানুসারে এবং সর্বোচ্চ ৩৬৫ দিনের ব্যবধানে।</value></data>
 	<data name="LoginActivityPrevious" xml:space="preserve"><value>আগের</value></data>
 	<data name="LoginActivityNext" xml:space="preserve"><value>পরের</value></data>

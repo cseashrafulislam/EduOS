@@ -71,7 +71,7 @@ namespace EduOS.App.Controllers.Api
             if (await _userManager.IsLockedOutAsync(user))
             {
                 _logger.LogWarning("Locked out login attempt for user {UserId}", user.Id);
-                await SaveLoginHistoryAsync(user, ip, userAgent, false, "Account locked out");
+                await SaveLoginHistoryAsync(user, ip, userAgent, false, "Account locked out", dto.TenantId);
                 // Do not disclose account existence or lockout state to a caller with a wrong password.
                 if (!await _userManager.CheckPasswordAsync(user, dto.Password))
                     return BadRequest(new { success = false, message = "Invalid username/email or password." });
@@ -82,19 +82,19 @@ namespace EduOS.App.Controllers.Api
             {
                 await _userManager.AccessFailedAsync(user);
                 _logger.LogWarning("Failed login attempt for user {UserId}", user.Id);
-                await SaveLoginHistoryAsync(user, ip, userAgent, false, "Wrong password");
+                await SaveLoginHistoryAsync(user, ip, userAgent, false, "Wrong password", dto.TenantId);
                 return BadRequest(new { success = false, message = "Invalid username/email or password." });
             }
 
             if (!user.IsActive || user.IsDeleted)
             {
-                await SaveLoginHistoryAsync(user, ip, userAgent, false, "Account deactivated");
+                await SaveLoginHistoryAsync(user, ip, userAgent, false, "Account deactivated", dto.TenantId);
                 return BadRequest(new { success = false, message = "Your account has been deactivated. Please contact support." });
             }
 
             if (!user.EmailConfirmed)
             {
-                await SaveLoginHistoryAsync(user, ip, userAgent, false, "Email not verified");
+                await SaveLoginHistoryAsync(user, ip, userAgent, false, "Email not verified", dto.TenantId);
                 return BadRequest(new { success = false, message = "Please verify your email before signing in." });
             }
 
@@ -103,7 +103,7 @@ namespace EduOS.App.Controllers.Api
                 return Conflict(new { success = true, data = new { requiresTenantSelection = true, tenants = session.Tenants } });
             if (!session.IsValid)
             {
-                await SaveLoginHistoryAsync(user, ip, userAgent, false, "Invalid institution selection or membership");
+                await SaveLoginHistoryAsync(user, ip, userAgent, false, "Invalid institution selection or membership", dto.TenantId);
                 return StatusCode(StatusCodes.Status403Forbidden, new { success = false, message = "An active institution membership is required. Contact your administrator." });
             }
 
@@ -143,7 +143,7 @@ namespace EduOS.App.Controllers.Api
                 return StatusCode(StatusCodes.Status500InternalServerError, new { success = false, message = "Unable to complete sign in. Please try again." });
             }
 
-            await SaveLoginHistoryAsync(user, ip, userAgent, true, null);
+            await SaveLoginHistoryAsync(user, ip, userAgent, true, null, session.TenantId);
             _logger.LogInformation("Login successful for user {UserId} from {Ip}", user.Id, ip);
 
             return Ok(new
@@ -365,7 +365,7 @@ namespace EduOS.App.Controllers.Api
             if (!valid)
             {
                 await _userManager.AccessFailedAsync(user);
-                await SaveLoginHistoryAsync(user, ip, userAgent, false, "Wrong MFA code");
+                await SaveLoginHistoryAsync(user, ip, userAgent, false, "Wrong MFA code", session.TenantId);
                 return BadRequest(new { success = false, message = "The verification code is invalid." });
             }
 
@@ -396,7 +396,7 @@ namespace EduOS.App.Controllers.Api
                 return StatusCode(StatusCodes.Status500InternalServerError, new { success = false, message = "Unable to complete sign in. Please try again." });
             }
 
-            await SaveLoginHistoryAsync(user, ip, userAgent, true, null);
+            await SaveLoginHistoryAsync(user, ip, userAgent, true, null, session.TenantId);
             _logger.LogInformation("MFA login successful for user {UserId} from {Ip}", user.Id, ip);
 
             return Ok(new
@@ -968,17 +968,43 @@ namespace EduOS.App.Controllers.Api
             }
         }
 
-        private async Task SaveLoginHistoryAsync(ApplicationUser? user, string ip, string userAgent, bool isSuccess, string? failReason)
+        private async Task SaveLoginHistoryAsync(ApplicationUser? user, string ip, string userAgent, bool isSuccess,
+            string? failReason, long? requestedTenantId = null)
         {
             try
             {
                 long? tenantId = null;
-                if (user != null)
+                if (user != null && requestedTenantId.HasValue)
                 {
-                    var allowed = await _db.TenantMemberships.IgnoreQueryFilters().AsNoTracking()
-                        .Where(x => x.UserId == user.Id && !x.IsDeleted &&
-                            x.Status == MembershipStatus.Active)
-                        .Select(x => x.TenantId).Distinct().Take(2).ToArrayAsync();
+                    // A login request may contain an arbitrary TenantId. Only attribute
+                    // the event to that institute after verifying this account's active
+                    // membership and the institute's current login eligibility.
+                    var allowed = await (from member in _db.TenantMemberships.IgnoreQueryFilters().AsNoTracking()
+                                         join tenant in _db.Tenants.IgnoreQueryFilters().AsNoTracking()
+                                             on member.TenantId equals tenant.Id
+                                         where member.UserId == user.Id && member.TenantId == requestedTenantId.Value &&
+                                               !member.IsDeleted && member.Status == MembershipStatus.Active &&
+                                               !tenant.IsDeleted &&
+                                               (tenant.State == TenantState.Active ||
+                                                (tenant.State == TenantState.PendingVerification &&
+                                                 tenant.OnboardingStage != OnboardingStage.Completed))
+                                         select member.TenantId).AnyAsync();
+                    if (allowed) tenantId = requestedTenantId.Value;
+                }
+                else if (user != null && !isSuccess)
+                {
+                    // Before institution selection, a failed password attempt can be
+                    // attributed only if the account has exactly one active membership.
+                    // Multi-institute/global attempts remain unassigned, never guessed.
+                    var allowed = await (from member in _db.TenantMemberships.IgnoreQueryFilters().AsNoTracking()
+                                         join tenant in _db.Tenants.IgnoreQueryFilters().AsNoTracking()
+                                             on member.TenantId equals tenant.Id
+                                         where member.UserId == user.Id && !member.IsDeleted &&
+                                               member.Status == MembershipStatus.Active && !tenant.IsDeleted &&
+                                               (tenant.State == TenantState.Active ||
+                                                (tenant.State == TenantState.PendingVerification &&
+                                                 tenant.OnboardingStage != OnboardingStage.Completed))
+                                         select member.TenantId).Distinct().Take(2).ToArrayAsync();
                     if (allowed.Length == 1) tenantId = allowed[0];
                 }
                 _db.LoginHistories.Add(new LoginHistory

@@ -790,6 +790,7 @@
 	<data name="LoginActivityEmpty" xml:space="preserve"><value>No sign-in attempts found.</value></data>
 	<data name="LoginActivityError" xml:space="preserve"><value>Sign-in activity could not be loaded.</value></data>
 	<data name="LoginActivityExportError" xml:space="preserve"><value>Unable to export sign-in activity.</value></data>
+	<data name="LoginActivitySessionChanged" xml:space="preserve"><value>Your institution session changed. Reload this page before viewing or exporting activity.</value></data>
 	<data name="LoginActivityRangeError" xml:space="preserve"><value>Choose both UTC dates, in order, no more than 365 days apart.</value></data>
 	<data name="LoginActivityPrevious" xml:space="preserve"><value>Previous</value></data>
 	<data name="LoginActivityNext" xml:space="preserve"><value>Next</value></data>

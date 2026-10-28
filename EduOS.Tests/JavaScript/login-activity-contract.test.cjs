@@ -36,3 +36,21 @@ test('sign-in activity uses canonical login history with account and tenant isol
     assert.match(js, /cell\.textContent/);
     assert.doesNotMatch(js, /innerHTML/);
 });
+
+
+test('sign-in activity pins screen and CSV downloads to the original institution session', () => {
+    const js = read('EduOS.App/wwwroot/js/account/login-activity.js');
+    const view = read('EduOS.App/Views/LoginActivity/Index.cshtml');
+    const auth = read('EduOS.App/Controllers/Api/AuthController.cs');
+    assert.match(view, /data-session-error="@T\["LoginActivitySessionChanged"\]"/);
+    assert.match(js, /document\.body\?\.dataset\.authSessionReference/);
+    assert.match(js, /fetch\('\/api\/auth\/session-context'/);
+    assert.match(js, /body\.data\?\.sessionReference !== originalSession/);
+    assert.match(js, /window\.EduOSNotifySessionChanged\?\.\(\)/);
+    assert.match(js, /await assertSessionUnchanged\(\);/);
+    assert.equal((js.match(/await assertSessionUnchanged\(\);/g) || []).length, 3);
+    assert.match(auth, /SaveLoginHistoryAsync\(user, ip, userAgent, true, null, session\.TenantId\)/);
+    assert.match(auth, /member\.TenantId == requestedTenantId\.Value/);
+    assert.match(auth, /member\.Status == MembershipStatus\.Active/);
+    assert.match(auth, /tenant\.State == TenantState\.Active/);
+});

@@ -4,6 +4,7 @@
     const root = byId('loginActivityRoot'), rows = byId('loginActivityRows');
     if (!root || !rows) return;
     const state = { page: 1, pageSize: 20, generation: 0, exporting: false };
+    const originalSession = document.body?.dataset.authSessionReference || '';
     const status = byId('loginActivityStatus'), alert = byId('loginActivityAlert');
     const from = byId('loginActivityFrom'), to = byId('loginActivityTo');
     const info = byId('loginActivityPageInfo'), prev = byId('loginActivityPrev'), next = byId('loginActivityNext');
@@ -16,6 +17,19 @@
         return cell;
     };
     const showError = message => { alert.textContent = message; alert.classList.remove('d-none'); };
+    async function assertSessionUnchanged() {
+        // A different tab may switch institutions while a report request is in flight.
+        // Pin both screen rendering and file downloads to the original cookie session.
+        if (!originalSession) throw Error(label('sessionError', 'Session changed. Reload this page.'));
+        const response = await fetch('/api/auth/session-context', {
+            credentials: 'same-origin', cache: 'no-store', headers: { Accept: 'application/json' }
+        });
+        const body = await response.json().catch(() => null);
+        if (!response.ok || !body?.success || body.data?.sessionReference !== originalSession) {
+            window.EduOSNotifySessionChanged?.();
+            throw Error(label('sessionError', 'Session changed. Reload this page.'));
+        }
+    }
     function query() {
         const first = from.value, last = to.value;
         if (!!first !== !!last || (first && (first > last ||
@@ -44,6 +58,8 @@
             const body = await response.json().catch(() => null);
             if (!response.ok || !body?.success)
                 throw Error(body?.message || label('error', 'Sign-in history unavailable.'));
+            if (generation !== state.generation) return;
+            await assertSessionUnchanged();
             if (generation !== state.generation) return;
             const data = body.data || {}, items = Array.isArray(data.items) ? data.items : [];
             rows.replaceChildren();
@@ -77,6 +93,7 @@
         try {
             const params = query();
             state.exporting = true; exportButton.disabled = true;
+            await assertSessionUnchanged();
             const response = await fetch('/api/account/login-activity/export?' + params, {
                 credentials: 'same-origin', cache: 'no-store', headers: { Accept: 'text/csv' }
             });
@@ -85,6 +102,7 @@
                 throw Error(body?.message || label('exportError', 'Unable to export sign-in activity.'));
             }
             const blob = await response.blob();
+            await assertSessionUnchanged();
             const url = URL.createObjectURL(blob);
             try {
                 const anchor = document.createElement('a');
