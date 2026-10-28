@@ -54,6 +54,7 @@ public sealed partial class FeeBillingService
                 equals new { head.TenantId, head.Id }
             where line.TenantId == tenant && !line.IsDeleted && head.IsActive &&
                 !head.IsDeleted && line.FeeStructureId == structure.Id
+            orderby line.FeeHeadId, line.Id
             select new { line.FeeHeadId, line.Amount, line.Frequency })
             .ToListAsync(ct);
         if (lines.Count == 0 || lines.Count > 100 ||
@@ -121,7 +122,7 @@ public sealed partial class FeeBillingService
                 old[0].DueDate == request.DueDate &&
                 old[0].State != InvoiceState.Cancelled;
             rules.TryGetValue(student.EnrollmentId, out var applied);
-            var discount = CalculateDiscount(amounts, applied ?? new());
+            var discount = CalculateLineDiscounts(amounts, applied ?? new()).Sum();
             rows.Add(new InvoiceBatchPreflightRowDto
             {
                 StudentCode = student.StudentCode,

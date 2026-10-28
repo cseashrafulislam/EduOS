@@ -121,6 +121,101 @@ public sealed class FeeInvoiceBatchPreflightTests
         preview.Data.ConflictCount.Should().Be(1);
     }
 
+
+    [Fact]
+    public async Task Head_specific_award_stays_on_its_fee_head_and_global_award_uses_remaining_cents()
+    {
+        await using var db = Database();
+        Seed(db);
+        var local = await db.DiscountRules.SingleAsync();
+        local.FeeHeadId = 1;
+        local.Value = 50m;
+        db.FeeHeads.Add(new FeeHead { Id = 2, TenantId = 41, Code = "LAB", Name = "Lab" });
+        db.FeeStructureLines.Add(new FeeStructureLine { Id = 2, TenantId = 41,
+            FeeStructureId = 1, FeeHeadId = 2, Frequency = FeeFrequencyType.Monthly,
+            Amount = 100m });
+        db.DiscountRules.Add(new DiscountRule { Id = 2, TenantId = 41,
+            Name = "All heads", IsPercentage = true, Value = 10m });
+        db.StudentDiscounts.Add(new StudentDiscount { Id = 2, TenantId = 41,
+            StudentEnrollmentId = 1, DiscountRuleId = 2,
+            EffectiveFrom = new DateOnly(2026, 1, 1), ApprovedByUserId = 9 });
+        await db.SaveChangesAsync();
+
+        var request = Request();
+        var preview = await Service(db).PreviewInvoiceBatchAsync(request);
+        preview.StatusCode.Should().Be(200);
+        preview.Data!.NewSubtotal.Should().Be(200m);
+        preview.Data.NewDiscount.Should().Be(70m);
+        preview.Data.NewTotal.Should().Be(130m);
+        (await Service(db).GenerateInvoicesAsync(request)).StatusCode.Should().Be(200);
+        var invoice = await db.StudentInvoices.SingleAsync();
+        invoice.TotalAmount.Should().Be(130m);
+        invoice.DiscountAmount.Should().Be(70m);
+        var lines = await db.StudentInvoiceLines.OrderBy(x => x.FeeHeadId).ToListAsync();
+        lines.Should().HaveCount(2);
+        lines[0].DiscountAmount.Should().Be(56.67m);
+        lines[1].DiscountAmount.Should().Be(13.33m);
+        lines.Sum(x => x.NetAmount).Should().Be(invoice.TotalAmount);
+    }
+
+    [Fact]
+    public async Task Stacked_head_specific_awards_are_capped_without_discounting_other_heads()
+    {
+        await using var db = Database();
+        Seed(db);
+        var local = await db.DiscountRules.SingleAsync();
+        local.FeeHeadId = 1;
+        local.Value = 90m;
+        db.FeeHeads.Add(new FeeHead { Id = 2, TenantId = 41, Code = "LAB", Name = "Lab" });
+        db.FeeStructureLines.Add(new FeeStructureLine { Id = 2, TenantId = 41,
+            FeeStructureId = 1, FeeHeadId = 2, Frequency = FeeFrequencyType.Monthly,
+            Amount = 100m });
+        db.DiscountRules.Add(new DiscountRule { Id = 2, TenantId = 41,
+            Name = "Extra tuition", FeeHeadId = 1, IsPercentage = true, Value = 50m });
+        db.StudentDiscounts.Add(new StudentDiscount { Id = 2, TenantId = 41,
+            StudentEnrollmentId = 1, DiscountRuleId = 2,
+            EffectiveFrom = new DateOnly(2026, 1, 1), ApprovedByUserId = 9 });
+        await db.SaveChangesAsync();
+        var request = Request();
+        (await Service(db).PreviewInvoiceBatchAsync(request)).Data!.NewDiscount.Should().Be(100m);
+        (await Service(db).GenerateInvoicesAsync(request)).StatusCode.Should().Be(200);
+        var lines = await db.StudentInvoiceLines.OrderBy(x => x.FeeHeadId).ToListAsync();
+        lines[0].DiscountAmount.Should().Be(100m);
+        lines[0].NetAmount.Should().Be(0m);
+        lines[1].DiscountAmount.Should().Be(0m);
+        lines[1].NetAmount.Should().Be(100m);
+    }
+
+    [Fact]
+    public async Task Fractional_global_discount_is_exact_to_a_cent_and_replay_does_not_duplicate_lines()
+    {
+        await using var db = Database();
+        Seed(db);
+        var rule = await db.DiscountRules.SingleAsync();
+        rule.IsPercentage = false;
+        rule.Value = 0.02m;
+        (await db.FeeStructureLines.SingleAsync()).Amount = 0.01m;
+        db.FeeHeads.AddRange(
+            new FeeHead { Id = 2, TenantId = 41, Code = "LAB", Name = "Lab" },
+            new FeeHead { Id = 3, TenantId = 41, Code = "SPORT", Name = "Sport" });
+        db.FeeStructureLines.AddRange(
+            new FeeStructureLine { Id = 2, TenantId = 41, FeeStructureId = 1, FeeHeadId = 2,
+                Frequency = FeeFrequencyType.Monthly, Amount = 0.01m },
+            new FeeStructureLine { Id = 3, TenantId = 41, FeeStructureId = 1, FeeHeadId = 3,
+                Frequency = FeeFrequencyType.Monthly, Amount = 0.01m });
+        await db.SaveChangesAsync();
+        var request = Request();
+        (await Service(db).PreviewInvoiceBatchAsync(request)).Data!.NewDiscount.Should().Be(0.02m);
+        (await Service(db).GenerateInvoicesAsync(request)).StatusCode.Should().Be(200);
+        (await Service(db).GenerateInvoicesAsync(request)).StatusCode.Should().Be(200);
+        var lines = await db.StudentInvoiceLines.OrderBy(x => x.FeeHeadId).ToListAsync();
+        lines.Should().HaveCount(3);
+        lines.Select(x => x.DiscountAmount).Should().Equal(0.01m, 0.01m, 0m);
+        lines.Sum(x => x.DiscountAmount).Should().Be(0.02m);
+        lines.Sum(x => x.NetAmount).Should().Be(0.01m);
+        (await db.StudentInvoices.CountAsync()).Should().Be(1);
+    }
+
     private static GenerateStudentInvoiceBatchRequestDto Request() => new()
     {
         ClientRequestId = Guid.NewGuid(), AcademicBatchId = 1, FeeStructureId = 1,

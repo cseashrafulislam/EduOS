@@ -294,6 +294,7 @@ public sealed partial class FeeBillingService : IFeeBillingService
                     equals new { head.TenantId, head.Id }
                 where line.TenantId == tenant && line.FeeStructureId == structure.Id &&
                     !line.IsDeleted && !head.IsDeleted && head.IsActive
+                orderby line.FeeHeadId, line.Id
                 select new { line, head }).ToListAsync(token);
             if (lines.Count == 0 || lines.Any(x => x.line.Amount < 0m ||
                 x.line.Frequency != FeeFrequencyType.Monthly) ||
@@ -352,8 +353,9 @@ public sealed partial class FeeBillingService : IFeeBillingService
                 if (byEnrollment.ContainsKey(enrollmentId)) { existing++; continue; }
                 var subtotal = lines.Sum(x => x.line.Amount);
                 discounts.TryGetValue(enrollmentId, out var applied);
-                var discount = CalculateDiscount(lines.Select(x =>
+                var lineDiscounts = CalculateLineDiscounts(lines.Select(x =>
                     (x.line.FeeHeadId, x.line.Amount)).ToArray(), applied ?? new List<DiscountRule>());
+                var discount = lineDiscounts.Sum();
                 var publicId = Guid.NewGuid();
                 var invoice = new StudentInvoice
                 {
@@ -369,13 +371,10 @@ public sealed partial class FeeBillingService : IFeeBillingService
                 };
                 await _invoices.AddAsync(invoice);
                 await _uow.SaveChangesAsync(token);
-                var appliedSoFar = 0m;
                 for (var i = 0; i < lines.Count; i++)
                 {
                     var entry = lines[i];
-                    var share = i == lines.Count - 1 ? discount - appliedSoFar :
-                        decimal.Round(entry.line.Amount / subtotal * discount, 2);
-                    appliedSoFar += share;
+                    var share = lineDiscounts[i];
                     await _invoiceLines.AddAsync(new StudentInvoiceLine
                     {
                         TenantId = tenant, StudentInvoiceId = invoice.Id, FeeHeadId = entry.head.Id,
@@ -718,20 +717,59 @@ public sealed partial class FeeBillingService : IFeeBillingService
         }
     }
 
-    private static decimal CalculateDiscount((long HeadId, decimal Amount)[] lines, List<DiscountRule> rules)
+    // Snapshot fee-head awards on their own invoice lines. Head-specific awards
+    // cannot spill onto unrelated heads; tenant-wide awards use only remaining
+    // capacity. Both preview and issuance call this exact cent-safe calculation.
+    private static decimal[] CalculateLineDiscounts(
+        (long HeadId, decimal Amount)[] lines, List<DiscountRule> rules)
     {
+        var discounts = new decimal[lines.Length];
+        if (lines.Length == 0) return discounts;
         var total = lines.Sum(x => x.Amount);
-        decimal discount = 0m;
-        foreach (var rule in rules)
+        foreach (var rule in rules.Where(x => x.FeeHeadId.HasValue).OrderBy(x => x.Id))
         {
-            var basis = rule.FeeHeadId.HasValue ?
-                lines.Where(x => x.HeadId == rule.FeeHeadId).Sum(x => x.Amount) : total;
-            if (basis <= 0) continue;
-            var amount = rule.IsPercentage ? basis * Math.Clamp(rule.Value, 0m, 100m) / 100m :
-                Math.Max(0m, rule.Value);
-            discount += Math.Min(basis, decimal.Round(amount, 2));
+            for (var i = 0; i < lines.Length; i++)
+            {
+                if (lines[i].HeadId != rule.FeeHeadId) continue;
+                var available = Math.Max(0m, lines[i].Amount - discounts[i]);
+                var requested = rule.IsPercentage
+                    ? decimal.Round(lines[i].Amount * Math.Clamp(rule.Value, 0m, 100m) / 100m, 2)
+                    : Math.Max(0m, rule.Value);
+                discounts[i] += Math.Min(available, decimal.Round(requested, 2));
+            }
         }
-        return Math.Min(total, discount);
+        foreach (var rule in rules.Where(x => !x.FeeHeadId.HasValue).OrderBy(x => x.Id))
+        {
+            var capacities = lines.Select((x, i) =>
+                decimal.Round(Math.Max(0m, x.Amount - discounts[i]) * 100m, 0)).ToArray();
+            var availableCents = capacities.Sum();
+            if (availableCents <= 0m) break;
+            var requested = rule.IsPercentage
+                ? decimal.Round(total * Math.Clamp(rule.Value, 0m, 100m) / 100m, 2)
+                : Math.Max(0m, rule.Value);
+            var awardCents = Math.Min(availableCents, decimal.Round(requested, 2) * 100m);
+            if (awardCents <= 0m) continue;
+            // Largest-remainder cent distribution is deterministic and preserves
+            // exact total, even for one-cent heads and multiple discount rules.
+            var shares = capacities.Select(x => decimal.Floor(awardCents * x / availableCents))
+                .ToArray();
+            var remainder = awardCents - shares.Sum();
+            var order = Enumerable.Range(0, lines.Length)
+                .OrderByDescending(i => awardCents * capacities[i] / availableCents - shares[i])
+                .ThenBy(i => i);
+            foreach (var i in order)
+            {
+                if (remainder <= 0m) break;
+                if (shares[i] >= capacities[i]) continue;
+                shares[i] += 1m;
+                remainder -= 1m;
+            }
+            if (remainder != 0m)
+                throw new InvalidOperationException("Fee discount cent distribution failed.");
+            for (var i = 0; i < lines.Length; i++)
+                discounts[i] += shares[i] / 100m;
+        }
+        return discounts;
     }
     private static Guid PerEnrollmentKey(Guid clientId, long enrollmentId)
     {

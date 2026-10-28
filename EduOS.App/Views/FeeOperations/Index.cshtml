@@ -1,6 +1,14 @@
 @{ ViewData["Title"] = "Student Fees & Billing"; }
 <section id="feeApp" class="container-fluid py-3">
-    <header class="mb-3"><h2 class="h4 mb-1">Student Fees &amp; Billing</h2></header>
+    <header class="d-flex align-items-center gap-2 mb-3">
+        <h2 class="h4 mb-0">Student Fees &amp; Billing</h2>
+        <details class="position-relative">
+            <summary class="btn btn-outline-secondary btn-sm" aria-label="Fee billing guide" title="Page guide">ⓘ</summary>
+            <div class="position-absolute border rounded bg-body p-2 small shadow-sm" style="z-index:5;width:min(21rem,80vw);left:0">
+                Configure fee heads and effective dates, preview before generating invoices, then collect and allocate receipts. Head-specific awards reduce only their own fee heads; institution-wide awards share remaining eligible amounts. Posted records require approved corrections.
+            </div>
+        </details>
+    </header>
     <div class="mb-2"><a class="btn btn-outline-primary btn-sm" href="/FeeDiscountRules/Index">Discount Rule Administration</a> <a class="btn btn-outline-primary btn-sm" href="/StudentInvoicePosting/Index">Student Invoice GL Posting</a> <a class="btn btn-outline-primary btn-sm" href="/StudentPaymentPosting/Index">Student Cash Receipt GL Posting</a> <a class="btn btn-outline-primary btn-sm" href="/FeeReceivablesAging/Index#dailyCashCollections">Daily Cash Collections</a> <a class="btn btn-outline-primary btn-sm" href="/FeeDueCalendar/Index">Student Fee Due Calendar</a> <a class="btn btn-outline-primary btn-sm" href="/FeeInstallmentProjection/Index">Future Fee Projection</a> <a class="btn btn-outline-primary btn-sm" href="/FeeInvoiceCoverage/Index">Monthly Invoice Coverage</a> <a class="btn btn-outline-primary btn-sm" href="/FinanceAdjustments/Index#adjustRefundSection">Cash Refunds &amp; GL Settlement</a></div>
     <div class="d-none" tabindex="-1" id="feeAlert" role="alert" aria-live="polite"></div>
     <div class="row g-3 mb-3">
