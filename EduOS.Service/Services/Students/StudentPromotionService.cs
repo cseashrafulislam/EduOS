@@ -408,7 +408,7 @@ public sealed class StudentPromotionService : IStudentPromotionService
         request != null && request.ClientRequestId != Guid.Empty && request.SourceEnrollmentId > 0 &&
         request.TargetAcademicYearId > 0 && request.TargetAcademicLevelId > 0 && request.TargetAcademicBatchId > 0 &&
         request.TargetAcademicTrackId is not <= 0 && !string.IsNullOrWhiteSpace(request.TargetRoll) &&
-        request.TargetRoll.Trim().Length <= 50 && request.Note?.Length <= 500 &&
+        request.TargetRoll.Trim().Length <= 50 && (request.Note == null || request.Note.Length <= 500) &&
         Enum.IsDefined(request.Decision);
     private static bool TryVersion(string? value, out byte[] version)
     {
