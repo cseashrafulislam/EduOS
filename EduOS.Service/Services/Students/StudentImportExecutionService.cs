@@ -445,7 +445,12 @@ public sealed partial class StudentImportExecutionService : IStudentImportExecut
                 {
                     ImportReference = log.PublicId, TotalRows = rows.Count, ImportedRows = rows.Count
                 }, "Student import batch committed and reconciled.");
-            }, IsolationLevel.Serializable, cancellationToken);
+            // Batch rowversion writes serialize seat allocation across import, admission,
+            // promotion and readmission. READ COMMITTED avoids SERIALIZABLE key-range
+            // locks on absent tenant/source keys (a cross-tenant deadlock hotspot).
+            // Tenant-scoped unique indexes still arbitrate duplicate source/roll/code
+            // writes; the post-lock preview rechecks capacity inside this transaction.
+            }, IsolationLevel.ReadCommitted, cancellationToken);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
         catch (ImportConflictException ex)

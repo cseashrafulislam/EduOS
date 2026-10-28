@@ -211,6 +211,195 @@ public sealed class SqlServerStudentImportConcurrencyIntegrationTests
         }
     }
 
+
+    [Fact]
+    public async Task Concurrent_import_and_real_promotion_cannot_overfill_last_seat()
+    {
+        var connection = Environment.GetEnvironmentVariable("EDUOS_SQL_AUTH_TEST_CONNECTION");
+        if (string.IsNullOrWhiteSpace(connection)) return;
+        var options = new DbContextOptionsBuilder<EduOSDbContext>().UseSqlServer(connection).Options;
+        var suffix = Guid.NewGuid().ToString("N")[..12];
+        long tenantId, adminId, campusId, targetBatchId;
+        Guid studentReference;
+
+        await using (var setup = new EduOSDbContext(options))
+        {
+            var tenant = new Tenant
+            {
+                Code = "CI-MIX-" + suffix, Name = "Student Allocation Race CI",
+                Email = "mix-" + suffix + "@example.test", State = TenantState.Active
+            };
+            var username = "mix-admin-" + suffix + "@example.test";
+            var admin = new ApplicationUser
+            {
+                UserName = username, NormalizedUserName = username.ToUpperInvariant(),
+                Email = username, NormalizedEmail = username.ToUpperInvariant(),
+                FullName = "Allocation SQL Admin", EmailConfirmed = true, IsActive = true,
+                SecurityStamp = Guid.NewGuid().ToString(), ConcurrencyStamp = Guid.NewGuid().ToString()
+            };
+            setup.AddRange(tenant, admin);
+            await setup.SaveChangesAsync();
+            tenantId = tenant.Id; adminId = admin.Id;
+            setup.ChangeTracker.Clear();
+            using (setup.BeginSystemTenantScope(tenantId))
+            {
+                var campus = new Campus { TenantId = tenantId, Name = "Main", Code = "MAIN" };
+                var oldYear = new AcademicYear
+                {
+                    TenantId = tenantId, Name = "2025", Code = "2025",
+                    StartDate = new DateOnly(2025, 1, 1), EndDate = new DateOnly(2025, 12, 31)
+                };
+                var newYear = new AcademicYear
+                {
+                    TenantId = tenantId, Name = "2026", Code = "2026",
+                    StartDate = new DateOnly(2026, 1, 1), EndDate = new DateOnly(2026, 12, 31)
+                };
+                var program = new AcademicProgram { TenantId = tenantId, Name = "Training", Code = "TRAIN" };
+                setup.AddRange(campus, oldYear, newYear, program);
+                await setup.SaveChangesAsync();
+                campusId = campus.Id;
+                var level = new AcademicLevel
+                {
+                    TenantId = tenantId, AcademicProgramId = program.Id,
+                    Name = "Level One", Code = "L1", LevelNo = 1
+                };
+                var curriculum = new AcademicCurriculum
+                {
+                    TenantId = tenantId, AcademicProgramId = program.Id,
+                    Name = "Current Curriculum", Code = "CUR-26",
+                    EffectiveFrom = new DateOnly(2025, 1, 1), IsCurrent = true, IsActive = true
+                };
+                setup.AddRange(level, curriculum);
+                await setup.SaveChangesAsync();
+                var oldBatch = new AcademicBatch
+                {
+                    TenantId = tenantId, CampusId = campus.Id, AcademicYearId = oldYear.Id,
+                    AcademicProgramId = program.Id, AcademicLevelId = level.Id,
+                    Name = "Previous Year", Code = "OLD", Capacity = 2
+                };
+                var targetBatch = new AcademicBatch
+                {
+                    TenantId = tenantId, CampusId = campus.Id, AcademicYearId = newYear.Id,
+                    AcademicProgramId = program.Id, AcademicLevelId = level.Id,
+                    Name = "Last Seat", Code = "TARGET", Capacity = 1
+                };
+                setup.AddRange(oldBatch, targetBatch);
+                await setup.SaveChangesAsync();
+                targetBatchId = targetBatch.Id;
+
+                var person = new Person { FullName = "Existing Learner " + suffix };
+                setup.Add(person);
+                await setup.SaveChangesAsync();
+                var student = new Student
+                {
+                    TenantId = tenantId, PersonId = person.Id,
+                    FullName = person.FullName, StudentCode = "MIX-OLD-" + suffix,
+                    StatusCode = "Active", AdmissionDate = new DateOnly(2025, 1, 10)
+                };
+                setup.Add(student);
+                await setup.SaveChangesAsync();
+                studentReference = student.PublicId;
+                setup.Add(new StudentPersonLink
+                {
+                    TenantId = tenantId, StudentId = student.Id, PersonId = person.Id,
+                    IsPrimary = true, LinkedAt = DateTime.UtcNow, LinkedByUserId = adminId
+                });
+                setup.Add(new StudentEnrollment
+                {
+                    TenantId = tenantId, StudentId = student.Id,
+                    ClientRequestId = Guid.NewGuid(), CampusId = campus.Id,
+                    AcademicYearId = oldYear.Id, AcademicProgramId = program.Id,
+                    AcademicLevelId = level.Id, AcademicBatchId = oldBatch.Id,
+                    AcademicCurriculumId = curriculum.Id, RollNo = "01",
+                    EnrollmentDate = new DateOnly(2025, 1, 10),
+                    State = EnrollmentState.Active, IsCurrent = true
+                });
+                await setup.SaveChangesAsync();
+            }
+        }
+
+        EduOS.Core.DTOs.Students.StudentPromotionOptionsDto promotionOptions;
+        await using (var db = TenantDb(options, tenantId))
+        {
+            var response = await Promotion(db, tenantId, adminId).GetOptionsAsync(studentReference);
+            Assert.True(response.Success, response.Message);
+            promotionOptions = response.Data!;
+            Assert.Contains(promotionOptions.Targets, x => x.AcademicBatchId == targetBatchId);
+        }
+
+        var request = new EduOS.Core.DTOs.Students.PromoteStudentWorkflowRequestDto
+        {
+            ClientRequestId = Guid.NewGuid(),
+            SourceEnrollmentId = promotionOptions.SourceEnrollmentId,
+            TargetAcademicYearId = promotionOptions.Targets.Single(x => x.AcademicBatchId == targetBatchId).AcademicYearId,
+            TargetAcademicLevelId = promotionOptions.Targets.Single(x => x.AcademicBatchId == targetBatchId).AcademicLevelId,
+            TargetAcademicBatchId = targetBatchId,
+            Decision = EduOS.Core.Enums.StudentProgressionDecisionType.Repeated,
+            TargetRoll = "02", StudentRowVersion = promotionOptions.StudentRowVersion,
+            SourceEnrollmentRowVersion = promotionOptions.SourceEnrollmentRowVersion
+        };
+        var csv = "SourceKey,StudentCode,FullName,CampusId,AcademicBatchId,RollNo\n" +
+            "MIX-SRC-" + suffix + ",MIX-NEW-" + suffix + ",Imported Learner " + suffix +
+            "," + campusId + "," + targetBatchId + ",03\n";
+        var importId = Guid.NewGuid();
+        var start = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var promotionTask = Task.Run(async () =>
+        {
+            await using var db = TenantDb(options, tenantId);
+            await start.Task;
+            return await Promotion(db, tenantId, adminId).PromoteAsync(studentReference, request);
+        });
+        var importTask = Task.Run(async () =>
+        {
+            await using var db = TenantDb(options, tenantId);
+            using var stream = new MemoryStream(Encoding.UTF8.GetBytes(csv));
+            await start.Task;
+            return await Service(db, tenantId, adminId).ExecuteAsync(stream, ".csv", Mapping, importId);
+        });
+        start.SetResult(true);
+        await Task.WhenAll(promotionTask, importTask);
+        var promotion = await promotionTask;
+        var imported = await importTask;
+        Assert.True(promotion.Success != imported.Success,
+            "Exactly one last-seat allocation must commit. Promotion: " + promotion.StatusCode +
+            " / import: " + imported.StatusCode);
+        Assert.Equal(409, promotion.Success ? imported.StatusCode : promotion.StatusCode);
+
+        await using (var verify = TenantDb(options, tenantId))
+        {
+            Assert.Equal(1, await verify.StudentEnrollments.CountAsync(x =>
+                x.AcademicBatchId == targetBatchId && x.IsCurrent && x.State == EnrollmentState.Active));
+            Assert.Equal(promotion.Success ? 1 : 0,
+                await verify.StudentPromotionRecords.CountAsync());
+            Assert.Equal(imported.Success ? 1 : 0, await verify.ImportLogs.CountAsync());
+            Assert.Equal(imported.Success ? 1 : 0, await verify.Persons.CountAsync(x =>
+                x.FullName == "Imported Learner " + suffix));
+            Assert.Equal(imported.Success ? 2 : 1, await verify.Students.CountAsync());
+            Assert.Equal(imported.Success ? 1 : 0, await verify.IdempotencyRecords.CountAsync(x =>
+                x.TenantId == tenantId && x.Scope == "StudentImportBatch" && x.RequestId == importId));
+        }
+        if (imported.Success)
+        {
+            await using var replayDb = TenantDb(options, tenantId);
+            using var stream = new MemoryStream(Encoding.UTF8.GetBytes(csv));
+            var replay = await Service(replayDb, tenantId, adminId)
+                .ExecuteAsync(stream, ".csv", Mapping, importId);
+            Assert.True(replay.Success, replay.Message);
+            Assert.True(replay.Data!.Replayed);
+        }
+    }
+
+    private static StudentPromotionService Promotion(EduOSDbContext db, long tenant, long userId)
+        => new(new GenericRepository<Student>(db),
+            new GenericRepository<StudentEnrollment>(db),
+            new GenericRepository<StudentPromotionRecord>(db),
+            new GenericRepository<AcademicYear>(db),
+            new GenericRepository<AcademicLevel>(db),
+            new GenericRepository<AcademicBatch>(db),
+            new GenericRepository<AcademicCurriculum>(db),
+            db, new TestAdmin(tenant, userId), TimeProvider.System,
+            NullLogger<StudentPromotionService>.Instance);
+
     private static async Task<long> CampusIdAsync(
         DbContextOptions<EduOSDbContext> options, long tenant, long batch)
     {
