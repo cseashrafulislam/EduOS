@@ -124,9 +124,10 @@ public sealed partial class AssessmentAdministrationService
                     StudentReference = linked.Student.PublicId,
                     StudentCode = linked.Student.StudentCode, RollNo = enrolled[0].RollNo,
                     Status = decision?.Action ?? ResultRescrutinyAction.Requested,
-                    RequestedByUserId = x.ActorUserId, RequestedAt = x.OccurredAt,
-                    RequestReason = x.Reason, RequestRowVersion = Version(x.RowVersion),
-                    DecidedByUserId = decision?.ActorUserId, DecidedAt = decision?.OccurredAt,
+                    // Portal readers need the decision, never internal staff/user IDs.
+                    RequestedByUserId = 0, RequestedAt = x.OccurredAt,
+                    RequestReason = x.Reason, RequestRowVersion = string.Empty,
+                    DecidedByUserId = null, DecidedAt = decision?.OccurredAt,
                     DecisionReason = decision?.Reason
                 };
             }).ToArray()
