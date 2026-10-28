@@ -2,6 +2,7 @@ using EduOS.Core.Common;
 using EduOS.Core.DTOs.Accounting;
 using EduOS.Core.Entities.Accounting;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Data.SqlClient;
 using System.Data;
 using System.Globalization;
 using System.Security.Cryptography;
@@ -59,13 +60,44 @@ public sealed partial class AccountingReportingService
             return ApiResponse<BankReconciliationBatchDto>.ErrorResponse(
                 "Valid request ID, statement identity and 1-500 printable movements required.", 400);
 
-        // Reuse the canonical comparison validation for amounts, balances, bank, campus
-        // attribution, unique ledger mapping and historical posting integrity.
+        static bool ValidMoney(decimal x) => x >= -999999999999m &&
+            x <= 999999999999m && decimal.Round(x, 2) == x;
+        if (!ValidMoney(statement.OpeningBalance) || !ValidMoney(statement.ClosingBalance) ||
+            statement.Movements.Any(x => x.Date < statement.FromDate || x.Date > statement.ToDate ||
+                !ValidMoney(x.Deposit) || !ValidMoney(x.Withdrawal) ||
+                x.Deposit < 0m || x.Withdrawal < 0m ||
+                (x.Deposit > 0m) == (x.Withdrawal > 0m)))
+            return ApiResponse<BankReconciliationBatchDto>.ErrorResponse(
+                "Invalid statement dates, directions or amounts.", 400);
+        if (statement.OpeningBalance + statement.Movements.Sum(x => x.Deposit) -
+            statement.Movements.Sum(x => x.Withdrawal) != statement.ClosingBalance)
+            return ApiResponse<BankReconciliationBatchDto>.ErrorResponse(
+                "Statement opening and closing balances do not reconcile.", 422);
+
+        var fingerprint = BankStatementFingerprint(statement);
+        // An exact replay remains idempotent even if a later journal posting or period
+        // closure changes the live preview. Existing intake evidence is never rewritten.
+        var replay = await db.BankReconciliationBatches.AsNoTracking()
+            .FirstOrDefaultAsync(x => x.TenantId == user.TenantId &&
+                (x.ClientRequestId == request.ClientRequestId ||
+                 (x.BankAccountId == statement.BankAccountId && x.SourceFingerprint == fingerprint)), ct);
+        if (replay != null)
+        {
+            if (replay.ClientRequestId != request.ClientRequestId ||
+                replay.BankAccountId != statement.BankAccountId ||
+                replay.SourceFingerprint != fingerprint ||
+                replay.StatementIdentifier != identifier)
+                return ApiResponse<BankReconciliationBatchDto>.ErrorResponse(
+                    "Statement already imported or request key reused with different contents.", 409);
+            return ApiResponse<BankReconciliationBatchDto>.SuccessResponse(IntakeDto(replay),
+                "Existing immutable statement draft returned.");
+        }
+
+        // New imports must pass the canonical live bank-book validation. This is not
+        // approval: future clearance must revalidate all source journal versions.
         var preview = await PreviewBankStatementAsync(statement, ct);
         if (!preview.Success)
             return ApiResponse<BankReconciliationBatchDto>.ErrorResponse(preview.Message, preview.StatusCode);
-
-        var fingerprint = BankStatementFingerprint(statement);
         await using var transaction = db.Database.IsRelational()
             ? await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct) : null;
         try
@@ -116,7 +148,7 @@ public sealed partial class AccountingReportingService
             return ApiResponse<BankReconciliationBatchDto>.SuccessResponse(IntakeDto(batch),
                 "Immutable statement draft saved; not approved or cleared.");
         }
-        catch (DbUpdateException)
+        catch (DbUpdateException ex) when (ex.InnerException is SqlException { Number: 2601 or 2627 })
         {
             if (transaction != null) await transaction.RollbackAsync(ct);
             db.ChangeTracker.Clear();

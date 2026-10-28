@@ -2126,6 +2126,8 @@ public class EduOSDbContext :
                 or StudentAttendanceAdjustment
                 or EmployeeAttendanceAdjustment
                 or PaymentAllocation
+                or BankReconciliationBatch
+                or BankReconciliationStatementLine
                 or RefundAllocation
                 or LoanAdvanceRecovery)
             {
@@ -2376,6 +2378,8 @@ public class EduOSDbContext :
             or RefundAllocation
             or Journal
             or JournalLine
+            or BankReconciliationBatch
+            or BankReconciliationStatementLine
             or PayrollRun
             or PayrollEmployee
             or PayrollLine

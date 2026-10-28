@@ -51,6 +51,22 @@ public sealed class BankReconciliationIntakeTests
     }
 
     [Fact]
+    public async Task Exact_replay_remains_stable_after_period_is_closed()
+    {
+        await using var db = Database();
+        Seed(db);
+        var service = new AccountingReportingService(db, new User());
+        var request = Request();
+        var first = await service.SaveBankReconciliationDraftAsync(request);
+        db.AccountingPeriods.Add(new AccountingPeriod
+        { Id = 1, TenantId = 41, Name = "October", StartDate = Day, EndDate = Day, IsClosed = true });
+        await db.SaveChangesAsync();
+        var replay = await service.SaveBankReconciliationDraftAsync(request);
+        replay.StatusCode.Should().Be(200);
+        replay.Data!.Id.Should().Be(first.Data!.Id);
+    }
+
+    [Fact]
     public async Task Campus_tenant_and_role_probes_fail_closed()
     {
         await using var db = Database();
@@ -109,8 +125,11 @@ public sealed class BankReconciliationIntakeTests
         var saved = await service.SaveBankReconciliationDraftAsync(Request());
         var line = await db.BankReconciliationStatementLines.SingleAsync();
         line.Reference = "FORGED";
-        await db.SaveChangesAsync();
-        (await service.GetBankReconciliationDraftAsync(saved.Data!.Id)).StatusCode.Should().Be(409);
+        Func<Task> mutate = async () => await db.SaveChangesAsync();
+        await mutate.Should().ThrowAsync<InvalidOperationException>()
+            .WithMessage("*append-only*");
+        db.Entry(line).State = EntityState.Unchanged;
+        (await service.GetBankReconciliationDraftAsync(saved.Data!.Id)).StatusCode.Should().Be(200);
     }
 
     private static BankReconciliationSaveRequestDto Request() => new()
