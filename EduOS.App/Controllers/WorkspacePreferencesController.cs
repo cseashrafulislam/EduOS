@@ -1,4 +1,6 @@
 using EduOS.App.Security;
+using EduOS.Core.Common;
+using System.Data;
 using EduOS.Core.DTOs.SaaS;
 using EduOS.Persistence.Context;
 using System.Security.Claims;
@@ -51,23 +53,60 @@ public sealed class WorkspacePreferencesController(IWorkspacePreferencesService 
         return StatusCode(result.StatusCode, result);
     }
 
-    [HttpPut("/api/workspace-preferences")]
-    public async Task<IActionResult> Save([FromBody] SaveWorkspacePreferencesRequestDto request,
+    // A session can be revoked after the request middleware but before a preference
+    // write reaches SaveChanges. SERIALIZABLE holds the session-token read lock through
+    // the preference commit: either revocation wins and no preference is written, or
+    // the preference commits before revocation. A post-write mismatch rolls back BOTH.
+    private async Task<IActionResult> WriteInCurrentSessionAsync(
+        Func<CancellationToken, Task<ApiResponse<WorkspacePreferencesDto>>> write,
         CancellationToken cancellationToken)
     {
-        if (!BindCurrentSession()) return Unauthorized(new { success = false, message = "Session unavailable." });
-        var result = await service.SaveAsync(request, cancellationToken);
-        if (!await SessionStillValidAsync()) return Unauthorized(new { success = false, message = "Session changed. Reload and sign in again." });
-        return StatusCode(result.StatusCode, result);
+        if (!BindCurrentSession())
+            return Unauthorized(new { success = false, message = "Session unavailable." });
+
+        try
+        {
+            var result = await db.ExecuteInTransactionAsync(async ct =>
+            {
+                if (!await SessionStillValidAsync())
+                    throw new SessionChangedDuringWriteException();
+
+                var response = await write(ct);
+                if (!response.Success)
+                    throw new WorkspaceWriteRejectedException(response);
+
+                if (!await SessionStillValidAsync())
+                    throw new SessionChangedDuringWriteException();
+
+                return response;
+            }, IsolationLevel.Serializable, cancellationToken);
+
+            return StatusCode(result.StatusCode, result);
+        }
+        catch (SessionChangedDuringWriteException)
+        {
+            return Unauthorized(new { success = false, message = "Session changed. Reload and sign in again." });
+        }
+        catch (WorkspaceWriteRejectedException ex)
+        {
+            return StatusCode(ex.Response.StatusCode, ex.Response);
+        }
     }
 
-    [HttpPost("/api/workspace-preferences/reset")]
-    public async Task<IActionResult> Reset([FromBody] ResetWorkspacePreferencesRequestDto request,
-        CancellationToken cancellationToken)
+    private sealed class SessionChangedDuringWriteException : Exception;
+
+    private sealed class WorkspaceWriteRejectedException(ApiResponse<WorkspacePreferencesDto> response) : Exception
     {
-        if (!BindCurrentSession()) return Unauthorized(new { success = false, message = "Session unavailable." });
-        var result = await service.ResetAsync(request, cancellationToken);
-        if (!await SessionStillValidAsync()) return Unauthorized(new { success = false, message = "Session changed. Reload and sign in again." });
-        return StatusCode(result.StatusCode, result);
+        public ApiResponse<WorkspacePreferencesDto> Response { get; } = response;
     }
+
+    [HttpPut("/api/workspace-preferences")]
+    public Task<IActionResult> Save([FromBody] SaveWorkspacePreferencesRequestDto request,
+        CancellationToken cancellationToken) =>
+        WriteInCurrentSessionAsync(ct => service.SaveAsync(request, ct), cancellationToken);
+
+    [HttpPost("/api/workspace-preferences/reset")]
+    public Task<IActionResult> Reset([FromBody] ResetWorkspacePreferencesRequestDto request,
+        CancellationToken cancellationToken) =>
+        WriteInCurrentSessionAsync(ct => service.ResetAsync(request, ct), cancellationToken);
 }

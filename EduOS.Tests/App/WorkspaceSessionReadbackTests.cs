@@ -55,6 +55,48 @@ public sealed class WorkspaceSessionReadbackTests
         Assert.Equal("100", controller.Response.Headers["X-EduOS-Tenant-Id"].ToString());
     }
 
+    [Theory]
+    [InlineData("save")]
+    [InlineData("reset")]
+    public async Task Already_revoked_session_cannot_invoke_preference_mutation(string operation)
+    {
+        await using var db = NewDb();
+        var sid = await AuthSessionRegistry.CreateAsync(db, 50, 100, "", "", false);
+        Assert.True(await AuthSessionRegistry.RevokeAsync(db, 50, sid));
+        var calls = 0;
+        var service = new StubService(() => { calls++; return Task.CompletedTask; });
+        var controller = Controller(db, service, 50, 100, sid);
+
+        Assert.IsType<UnauthorizedObjectResult>(await InvokeAsync(controller, operation));
+        Assert.Equal(0, calls);
+    }
+
+    [Theory]
+    [InlineData("save")]
+    [InlineData("reset")]
+    public async Task Failed_preference_mutation_preserves_its_original_error(string operation)
+    {
+        await using var db = NewDb();
+        var sid = await AuthSessionRegistry.CreateAsync(db, 50, 100, "", "", false);
+        var controller = Controller(db, new RejectedWriteService(), 50, 100, sid);
+
+        var result = Assert.IsType<ObjectResult>(await InvokeAsync(controller, operation));
+        Assert.Equal(409, result.StatusCode);
+        Assert.True(await AuthSessionRegistry.IsValidAsync(db, 50, sid, 100));
+    }
+
+    private sealed class RejectedWriteService : IWorkspacePreferencesService
+    {
+        public Task<ApiResponse<WorkspacePreferencesDto>> GetAsync(CancellationToken ct = default) =>
+            Task.FromResult(ApiResponse<WorkspacePreferencesDto>.SuccessResponse(new WorkspacePreferencesDto()));
+        public Task<ApiResponse<WorkspacePreferencesDto>> SaveAsync(
+            SaveWorkspacePreferencesRequestDto request, CancellationToken ct = default) =>
+            Task.FromResult(ApiResponse<WorkspacePreferencesDto>.ErrorResponse("Stale preference version.", 409));
+        public Task<ApiResponse<WorkspacePreferencesDto>> ResetAsync(
+            ResetWorkspacePreferencesRequestDto request, CancellationToken ct = default) =>
+            Task.FromResult(ApiResponse<WorkspacePreferencesDto>.ErrorResponse("Stale preference version.", 409));
+    }
+
     private static EduOSDbContext NewDb() => new(
         new DbContextOptionsBuilder<EduOSDbContext>()
             .UseInMemoryDatabase("workspace-session-" + Guid.NewGuid().ToString("N")).Options);
