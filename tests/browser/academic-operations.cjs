@@ -75,6 +75,21 @@ async function attendance(browser) {
                 }))
             });
         }
+        if (url.pathname === '/api/student-attendance/report/sessions/99/roster' ||
+            url.pathname === '/api/student-attendance/report/sessions/98/roster') {
+            assert.equal(url.searchParams.get('page'), '1');
+            assert.equal(url.searchParams.get('pageSize'), '50');
+            return response(route, 200, {
+                ...roster, attendanceSessionId: 99, isFinalized: true,
+                isHistoricalReadOnly: true, sessionRowVersion: '',
+                summary: { totalStudents: 2, marked: 2, unmarked: 0,
+                    present: 1, absent: 1, late: 0, leave: 0, excused: 0 },
+                students: roster.students.map((x, i) => ({
+                    ...x, id: 901 + i, rowVersion: 'AQIDBAUGBwg=',
+                    state: i === 0 ? correctedState || 1 : 4
+                }))
+            });
+        }
         if (url.pathname === '/api/student-attendance/report/sessions/summary') {
             return response(route, 200, { totalSessions: 2, draftSessions: 0,
                 finalizedSessions: 2, emptyDraftSessions: 0, emptyFinalizedSessions: 0 });
@@ -173,6 +188,9 @@ async function attendance(browser) {
     await page.waitForFunction(() => document.querySelector('#attendanceRosterPage')?.textContent.includes('Page 1 of 1'));
     assert.equal(await page.locator('#sectionId').inputValue(), '10');
     assert.equal(await page.locator('#attendanceDate').inputValue(), '2026-10-10');
+    assert.equal(await page.locator('#attendanceRows [data-state]').first().isDisabled(), true);
+    assert.equal(await page.locator('#saveAttendance').isDisabled(), true);
+    assert.match(await page.locator('#attendanceRosterPage').innerText(), /historical marks \(read-only\)/);
     await page.locator('#attendanceSessionsRows button').last().click();
     await page.waitForFunction(() => document.querySelector('#attendanceAlert')?.textContent.includes('selected attendance session changed'));
     assert.equal(await page.locator('#saveAttendance').isDisabled(), true);

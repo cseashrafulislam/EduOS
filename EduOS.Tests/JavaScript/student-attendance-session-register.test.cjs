@@ -35,6 +35,10 @@ test('session register is manager-authorized, bounded and includes unfinalized s
     const roster = read('EduOS.App/wwwroot/js/attendance/index.js');
     assert.ok(js.includes('attendance:session-open'));
     assert.ok(js.includes('sessionId: item.sessionId'));
+    assert.ok(js.includes('isFinalized: item.isFinalized === true'));
+    assert.ok(roster.includes('isHistoricalReadOnly'));
+    assert.ok(roster.includes('/api/student-attendance/report/sessions/'));
+    assert.ok(roster.includes('historicalSessionId = detail.isFinalized === true ? sessionId : null'));
     assert.ok(js.includes('load(true)'));
     assert.ok(roster.includes('attendance:session-open'));
     assert.ok(roster.includes('expectedSessionId !== null'));
