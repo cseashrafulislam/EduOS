@@ -186,10 +186,14 @@ async function routine(browser) {
                 subjectOfferingReference: offeringReference, employeeId: 5,
                 employeeName: 'Teacher One', employeeCode: 'T-001', isActive: true });
         }
-        if (url.pathname.endsWith('/assignments'))
-            return response(route, 200, assignmentPosts.length ? [{ id: 80, subjectOfferingId: 99,
+        if (url.pathname === '/api/academic-routines/batches/10/assignments/page') {
+            assert.equal(url.searchParams.get('page'), '1');
+            assert.equal(url.searchParams.get('pageSize'), '50');
+            const items = assignmentPosts.length ? [{ id: 80, subjectOfferingId: 99,
                 subjectOfferingReference: offeringReference, employeeId: 5,
-                employeeName: 'Teacher One', employeeCode: 'T-001', isActive: true }] : []);
+                employeeName: 'Teacher One', employeeCode: 'T-001', isActive: true }] : [];
+            return response(route, 200, { page: 1, pageSize: 50, totalCount: items.length, items });
+        }
         if (url.pathname === '/api/academic-routines/entries' && request.method() === 'POST') {
             tokenOk(request);
             const data = request.postDataJSON();
