@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const read = p => fs.readFileSync(path.join(__dirname, '../../', p), 'utf8');
-const js = read('EduOS.App/wwwroot/js/assessment/certificate-verification.js');
+const js = read('EduOS.App/wwwroot/js/public-credentials/certificate-verification.js');
 const view = read('EduOS.App/Views/CertificateVerification/Index.cshtml');
 const register = read('EduOS.App/wwwroot/js/assessment/certificates.js');
 test('public verification is read-only, no-store and PII-free', () => {
