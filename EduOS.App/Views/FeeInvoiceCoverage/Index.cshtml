@@ -1,0 +1,54 @@
+@{
+    ViewData["Title"] = "Monthly Invoice Coverage";
+}
+<section id="feeCoverageApp" class="container-fluid py-3">
+    <header class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3 d-print-none">
+        <div class="d-flex align-items-center gap-2">
+            <h1 class="h4 mb-0">Monthly Invoice Coverage</h1>
+            <details class="position-relative">
+                <summary class="btn btn-outline-secondary btn-sm" aria-label="Invoice coverage help" title="Report guide">ⓘ</summary>
+                <div class="position-absolute border rounded bg-body p-2 small shadow-sm" style="z-index:5;width:min(23rem,80vw);right:0">
+                    Compare active current enrolments with non-cancelled invoices dated in the selected month. Unbilled means no invoice found; Review means duplicate or inconsistent invoices. This does not create instalments, prove fee-structure compliance or confirm GL posting. Totals cover the full batch; CSV and print cover only the displayed page.
+                </div>
+            </details>
+        </div>
+        <a href="/FeeOperations/Index" class="btn btn-outline-secondary btn-sm">Fees &amp; Billing</a>
+    </header>
+    <div id="feeCoverageNotice" class="alert d-none d-print-none" role="status" aria-live="polite"></div>
+    <form id="feeCoverageFilters" class="card card-body row g-2 align-items-end mb-3 d-print-none">
+        <div class="col-md-4"><label for="feeCoverageBatch" class="form-label">Academic batch</label><select id="feeCoverageBatch" class="form-select" required><option value="">Loading…</option></select></div>
+        <div class="col-md-2"><label for="feeCoverageMonth" class="form-label">Billing month</label><input id="feeCoverageMonth" class="form-control" type="month" required /></div>
+        <div class="col-md-2"><label for="feeCoverageStatus" class="form-label">Coverage</label><select id="feeCoverageStatus" class="form-select"><option value="all">All</option><option value="unbilled">Unbilled</option><option value="billed">Billed</option><option value="review">Review</option></select></div>
+        <div class="col-md-2"><label for="feeCoverageSearch" class="form-label">Student prefix</label><input id="feeCoverageSearch" class="form-control" maxlength="100" autocomplete="off" /></div>
+        <div class="col-md-1"><label for="feeCoverageSize" class="form-label">Rows</label><select id="feeCoverageSize" class="form-select"><option>25</option><option>50</option><option>100</option></select></div>
+        <div class="col-md-1 d-grid"><button id="feeCoverageRun" class="btn btn-primary" type="submit">Run</button></div>
+    </form>
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
+        <strong id="feeCoverageScope">No report loaded</strong>
+        <div class="d-flex gap-2 d-print-none">
+            <button id="feeCoverageCsv" class="btn btn-outline-primary btn-sm" type="button" disabled>Export page CSV</button>
+            <button id="feeCoveragePrint" class="btn btn-outline-secondary btn-sm" type="button" disabled>Print page</button>
+        </div>
+    </div>
+    <div class="row g-2 mb-3">
+        <div class="col-6 col-md-3"><div class="card card-body"><span>Eligible</span><strong id="feeCoverageEligible">—</strong></div></div>
+        <div class="col-6 col-md-3"><div class="card card-body"><span>Billed</span><strong id="feeCoverageBilled">—</strong></div></div>
+        <div class="col-6 col-md-3"><div class="card card-body"><span>Unbilled</span><strong id="feeCoverageUnbilled">—</strong></div></div>
+        <div class="col-6 col-md-3"><div class="card card-body"><span>Review</span><strong id="feeCoverageReview">—</strong></div></div>
+    </div>
+    <section class="card">
+        <div class="card-header d-flex justify-content-between"><strong>Student coverage</strong><span id="feeCoverageCount"></span></div>
+        <div class="table-responsive"><table class="table table-sm table-hover mb-0">
+            <thead><tr><th>Student code</th><th>Student name</th><th class="text-end">Invoices</th><th class="text-end">Integrity issues</th><th>Status</th></tr></thead>
+            <tbody id="feeCoverageRows"><tr><td colspan="5" class="text-muted text-center p-3">Run the report.</td></tr></tbody>
+        </table></div>
+        <div class="card-footer d-flex gap-2 align-items-center d-print-none">
+            <button id="feeCoveragePrev" class="btn btn-outline-secondary btn-sm" type="button" disabled>Previous</button>
+            <span id="feeCoveragePage" aria-live="polite"></span>
+            <button id="feeCoverageNext" class="btn btn-outline-secondary btn-sm" type="button" disabled>Next</button>
+        </div>
+    </section>
+</section>
+@section Scripts {
+    <script src="~/js/finance/fee-invoice-coverage.js" asp-append-version="true"></script>
+}

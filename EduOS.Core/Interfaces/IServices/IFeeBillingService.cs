@@ -6,6 +6,7 @@ namespace EduOS.Core.Interfaces.IServices;
 /// <summary>Tenant-scoped billing, idempotent payment allocation, and bounded historical reports.</summary>
 public interface IFeeBillingService
 {
+    Task<ApiResponse<FeeInvoiceCoverageReportDto>> GetInvoiceCoverageAsync(FeeInvoiceCoverageQueryDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<FeeInstallmentProjectionReportDto>> GetInstallmentProjectionAsync(
         FeeInstallmentProjectionQueryDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<PagedResult<DiscountRuleDto>>> GetDiscountRulesAsync(int page = 1, int pageSize = 25, CancellationToken cancellationToken = default);

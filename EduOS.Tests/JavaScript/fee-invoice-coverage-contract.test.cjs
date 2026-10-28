@@ -1,0 +1,29 @@
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
+const root = path.resolve(__dirname, '../..');
+const read = p => fs.readFileSync(path.join(root, p), 'utf8');
+const service = read('EduOS.Service/Services/Finance/FeeBillingInvoiceCoverage.cs');
+const api = read('EduOS.App/Controllers/Api/FeeBillingController.cs');
+const view = read('EduOS.App/Views/FeeInvoiceCoverage/Index.cshtml');
+const js = read('EduOS.App/wwwroot/js/finance/fee-invoice-coverage.js');
+test('invoice coverage is bounded, tenant and campus scoped, and read only', () => {
+    assert.match(api, /\[HttpGet\("invoice-coverage"\)\]/);
+    assert.match(service, /CanAccessBillingCampusAsync/);
+    assert.match(service, /e\.TenantId == tenant && !e\.IsDeleted && !s\.IsDeleted/);
+    assert.match(service, /i\.TenantId == tenant && !i\.IsDeleted/);
+    assert.match(service, /GroupBy\(i => i\.StudentEnrollmentId\)/);
+    assert.match(service, /Skip\(\(int\)skip\)\.Take\(request\.PageSize\)/);
+    assert.doesNotMatch(service, /SaveChangesAsync|IgnoreQueryFilters|ExecuteUpdate|ExecuteDelete/);
+});
+test('coverage UI has safe page-only export and accessible help', () => {
+    assert.match(view, /aria-label="Invoice coverage help"/);
+    assert.match(view, /feeCoverageCsv/);
+    assert.match(view, /feeCoveragePrint/);
+    assert.match(js, /cache: 'no-store'/);
+    assert.match(js, /credentials: 'same-origin'/);
+    assert.match(js, /textContent = String\(value \?\? ''\)/);
+    assert.match(js, /\\uFEFF/);
+    assert.match(js, /URL\.revokeObjectURL/);
+});

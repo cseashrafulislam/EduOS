@@ -32,6 +32,11 @@ public sealed class FeeBillingController : ControllerBase
         [FromBody] SaveDiscountRuleRequestDto request, CancellationToken ct) =>
         Result(await _service.SaveDiscountRuleAsync(id, request, ct));
 
+    [HttpGet("invoice-coverage")]
+    [Authorize(Roles = "TenantAdmin,Principal,Accountant")]
+    public async Task<IActionResult> InvoiceCoverage([FromQuery] FeeInvoiceCoverageQueryDto request, CancellationToken ct) =>
+        Result(await _service.GetInvoiceCoverageAsync(request, ct));
+
     [HttpGet("installment-projection")]
     [Authorize(Roles = "TenantAdmin,Principal,Accountant")]
     public async Task<IActionResult> InstallmentProjection(
