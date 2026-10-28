@@ -29,6 +29,20 @@ public sealed class StudentAttendanceReportRowDto
         Math.Round(100m * (Present + Late) / MarkedSessions, 2);
 }
 
+/// <summary>Finalized attendance mark totals for a day; dates with no finalized marks are omitted.</summary>
+public sealed class StudentAttendanceDailySummaryDto
+{
+    public DateOnly AttendanceDate { get; set; }
+    public int Marked { get; set; }
+    public int Present { get; set; }
+    public int Absent { get; set; }
+    public int Late { get; set; }
+    public int Leave { get; set; }
+    public int Excused { get; set; }
+    public decimal AttendancePercent => Marked == 0 ? 0 :
+        Math.Round(100m * (Present + Late) / Marked, 2);
+}
+
 /// <summary>Historical subject-offering picker for an authorized batch.</summary>
 public sealed class StudentAttendanceReportSubjectDto
 {

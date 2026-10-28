@@ -311,6 +311,13 @@ public sealed class SqlServerAcademicOperationsIntegrationTests
         Assert.Equal(1, reportRow.MarkedSessions);
         Assert.Equal(1, reportRow.Absent);
         Assert.Equal(0m, reportRow.AttendancePercent);
+        var daily = await reportService.GetDailySummaryAsync(reportQuery);
+        Assert.True(daily.Success, daily.Message);
+        var day = Assert.Single(daily.Data!);
+        Assert.Equal(new DateOnly(2026, 10, 10), day.AttendanceDate);
+        Assert.Equal(1, day.Marked);
+        Assert.Equal(1, day.Absent);
+        Assert.Equal(0m, day.AttendancePercent);
         Assert.Equal(403, (await new StudentAttendanceReportService(
             db, new Actor(tenantId, managerId, "Teacher"),
             NullLogger<StudentAttendanceReportService>.Instance).GetAsync(reportQuery)).StatusCode);

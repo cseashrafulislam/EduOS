@@ -126,6 +126,82 @@ public sealed class StudentAttendanceReportWorkflowTests
     }
 
     [Fact]
+    public async Task Daily_report_aggregates_finalized_historical_marks_by_date_and_subject()
+    {
+        await using var db = Context(71);
+        db.AcademicBatches.Add(new AcademicBatch { Id = 10, TenantId = 71, CampusId = 8,
+            Name = "Cohort", Code = "C" });
+        db.SubjectOfferings.AddRange(
+            new SubjectOffering { Id = 61, TenantId = 71, AcademicBatchId = 10, Code = "M" },
+            new SubjectOffering { Id = 62, TenantId = 71, AcademicBatchId = 10, Code = "S" });
+        db.Students.Add(new Student { Id = 20, TenantId = 71, StudentCode = "ST20",
+            FullName = "Learner", AdmissionDate = new DateOnly(2025, 1, 1) });
+        db.StudentEnrollments.Add(new StudentEnrollment { Id = 30, TenantId = 71,
+            StudentId = 20, AcademicBatchId = 10, CampusId = 8, RollNo = "OLD", IsCurrent = false });
+        db.AttendanceSessions.AddRange(
+            new AttendanceSession { Id = 40, TenantId = 71, AcademicBatchId = 10,
+                SubjectOfferingId = 61, AttendanceDate = new DateOnly(2026, 10, 5), IsFinalized = true },
+            new AttendanceSession { Id = 41, TenantId = 71, AcademicBatchId = 10,
+                SubjectOfferingId = 62, AttendanceDate = new DateOnly(2026, 10, 5), IsFinalized = true },
+            new AttendanceSession { Id = 42, TenantId = 71, AcademicBatchId = 10,
+                SubjectOfferingId = 61, AttendanceDate = new DateOnly(2026, 10, 6), IsFinalized = true },
+            new AttendanceSession { Id = 43, TenantId = 71, AcademicBatchId = 10,
+                SubjectOfferingId = 61, AttendanceDate = new DateOnly(2026, 10, 7), IsFinalized = false });
+        db.StudentAttendances.AddRange(
+            new StudentAttendance { Id = 50, TenantId = 71, AttendanceSessionId = 40,
+                StudentEnrollmentId = 30, State = AttendanceState.Present },
+            new StudentAttendance { Id = 51, TenantId = 71, AttendanceSessionId = 41,
+                StudentEnrollmentId = 30, State = AttendanceState.Absent },
+            new StudentAttendance { Id = 52, TenantId = 71, AttendanceSessionId = 42,
+                StudentEnrollmentId = 30, State = AttendanceState.Late },
+            new StudentAttendance { Id = 53, TenantId = 71, AttendanceSessionId = 43,
+                StudentEnrollmentId = 30, State = AttendanceState.Absent });
+        await db.SaveChangesAsync();
+        var service = Service(db, 71);
+        var all = await service.GetDailySummaryAsync(Query());
+        Assert.True(all.Success, all.Message);
+        Assert.Equal(2, all.Data!.Count);
+        Assert.Equal(new DateOnly(2026, 10, 5), all.Data[0].AttendanceDate);
+        Assert.Equal(2, all.Data[0].Marked);
+        Assert.Equal(1, all.Data[0].Present);
+        Assert.Equal(1, all.Data[0].Absent);
+        Assert.Equal(50m, all.Data[0].AttendancePercent);
+        Assert.Equal(1, all.Data[1].Late);
+        Assert.Equal(100m, all.Data[1].AttendancePercent);
+        var subject = Query();
+        subject.SubjectOfferingId = 61;
+        var filtered = await service.GetDailySummaryAsync(subject);
+        Assert.True(filtered.Success, filtered.Message);
+        Assert.Equal(2, filtered.Data!.Count);
+        Assert.Equal(1, filtered.Data[0].Marked);
+        Assert.Equal(100m, filtered.Data[0].AttendancePercent);
+        subject.SubjectOfferingId = 999;
+        Assert.Equal(404, (await service.GetDailySummaryAsync(subject)).StatusCode);
+    }
+
+    [Fact]
+    public async Task Daily_report_rejects_invalid_ranges_and_revoked_campus_access()
+    {
+        await using var db = Context(71);
+        var invalid = Query();
+        invalid.ToDate = invalid.FromDate.AddDays(31);
+        Assert.Equal(400, (await Service(db, 71).GetDailySummaryAsync(invalid)).StatusCode);
+        Assert.Equal(403, (await Service(db, 71, false).GetDailySummaryAsync(Query())).StatusCode);
+        db.AcademicBatches.Add(new AcademicBatch { Id = 10, TenantId = 71, CampusId = 8,
+            Name = "Cohort", Code = "C" });
+        db.Campuses.Add(new Campus { Id = 8, TenantId = 71, Name = "North", Code = "N", IsActive = true });
+        db.UserCampusAccesses.Add(new UserCampusAccess { Id = 101, TenantId = 71,
+            UserId = 7, CampusId = 8, IsActive = true });
+        await db.SaveChangesAsync();
+        var principal = Service(db, 71, manager: false, principal: true);
+        Assert.True((await principal.GetDailySummaryAsync(Query())).Success);
+        db.UserCampusAccesses.Single().IsActive = false;
+        await db.SaveChangesAsync();
+        Assert.Equal(404, (await principal.GetDailySummaryAsync(Query())).StatusCode);
+        Assert.Equal(404, (await Service(db, 72).GetDailySummaryAsync(Query())).StatusCode);
+    }
+
+    [Fact]
     public async Task Invalid_range_and_unprivileged_access_are_rejected()
     {
         await using var db = Context(71);

@@ -8,7 +8,9 @@
     let page = 1, totalPages = 0, pending = 0;
     let batchPage = 1, batchPages = 0, batchPending = 0;
     let subjectPage = 1, subjectPages = 0, subjectPending = 0;
-    let visibleItems = [];
+    let visibleItems = [], dailyItems = [], dailyPending = 0;
+    const dailyBody = el('attendanceDailyRows'), dailyStatus = el('attendanceDailyStatus');
+    const dailyCsvButton = el('attendanceDailyCsv');
     const csvButton = el('attendanceReportCsv');
     const today = new Date();
     const dateString = new Date(today.getTime() - today.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
@@ -54,7 +56,71 @@
         if (!response.ok || !data?.success) throw new Error(data?.message || 'Report unavailable.');
         return data.data;
     }
+    function resetDaily() {
+        dailyPending++;
+        dailyItems = [];
+        dailyCsvButton.disabled = true;
+        dailyBody.replaceChildren();
+        dailyStatus.textContent = '';
+    }
+    async function loadDaily() {
+        if (!form.reportValidity()) return;
+        const from = el('attendanceReportFrom').value, to = el('attendanceReportTo').value;
+        const days = (Date.parse(to) - Date.parse(from)) / 86400000;
+        if (!Number.isFinite(days) || days < 0 || days > 30) return;
+        const requestId = ++dailyPending;
+        dailyCsvButton.disabled = true;
+        dailyItems = [];
+        dailyBody.replaceChildren();
+        dailyStatus.textContent = 'Loading daily attendance…';
+        const params = new URLSearchParams({
+            academicBatchId: el('attendanceReportBatch').value,
+            fromDate: from, toDate: to,
+            ...(el('attendanceReportSubject').value ? { subjectOfferingId: el('attendanceReportSubject').value } : {})
+        });
+        try {
+            const data = await fetchJson('/api/student-attendance/report/daily?' + params);
+            if (requestId !== dailyPending) return;
+            dailyItems = Array.isArray(data) ? data : [];
+            for (const item of dailyItems) {
+                const tr = document.createElement('tr');
+                for (const value of [item.attendanceDate, item.marked, item.present, item.absent,
+                    item.late, item.leave, item.excused, item.attendancePercent + '%'])
+                    tr.append(cell(value));
+                dailyBody.append(tr);
+            }
+            if (!dailyItems.length) {
+                const tr = document.createElement('tr'), td = cell('No finalized marks in this period.');
+                td.colSpan = 8; td.className = 'text-center text-muted'; tr.append(td); dailyBody.append(tr);
+            }
+            dailyCsvButton.disabled = dailyItems.length === 0;
+            dailyStatus.textContent = dailyItems.length + ' day(s) with finalized marks.';
+        } catch (error) {
+            if (requestId === dailyPending) {
+                dailyBody.replaceChildren();
+                dailyStatus.textContent = error.message;
+            }
+        }
+    }
+    function exportDaily() {
+        if (!dailyItems.length) return;
+        const headings = ['Date','Marked','Present','Absent','Late','Leave','Excused','Attendance %'];
+        const records = dailyItems.map(x => [x.attendanceDate, x.marked, x.present,
+            x.absent, x.late, x.leave, x.excused, x.attendancePercent]);
+        const csv = [headings, ...records].map(row => row.map(csvCell).join(',')).join('\r\n');
+        const blob = new Blob(['\uFEFF', csv], { type: 'text/csv;charset=utf-8' });
+        const url = URL.createObjectURL(blob), link = document.createElement('a');
+        link.href = url;
+        link.download = 'attendance-daily-' + String(el('attendanceReportBatch').value).replace(/[^0-9]/g, '') +
+            '-' + String(el('attendanceReportFrom').value).replace(/[^0-9-]/g, '') +
+            '-' + String(el('attendanceReportTo').value).replace(/[^0-9-]/g, '') + '.csv';
+        document.body.append(link);
+        link.click();
+        link.remove();
+        URL.revokeObjectURL(url);
+    }
     function resetReport() {
+        resetDaily();
         pending++; page = 1; totalPages = 0;
         previous.disabled = next.disabled = true;
         visibleItems = []; csvButton.disabled = true; body.replaceChildren();
@@ -110,6 +176,7 @@
         previous.disabled = next.disabled = true;
         visibleItems = []; csvButton.disabled = true; body.replaceChildren();
         pageLabel.textContent = '';
+        resetDaily();
         try {
             const params = new URLSearchParams({
                 search: el('attendanceReportBatchSearch').value.trim(),
@@ -179,7 +246,8 @@
         }
     }
     csvButton.addEventListener('click', exportVisiblePage);
-    form.addEventListener('submit', event => { event.preventDefault(); page = 1; load(); });
+    dailyCsvButton.addEventListener('click', exportDaily);
+    form.addEventListener('submit', event => { event.preventDefault(); page = 1; load(); loadDaily(); });
     previous.addEventListener('click', () => { if (page > 1) { page--; load(); } });
     next.addEventListener('click', () => { if (page < totalPages) { page++; load(); } });
     el('attendanceReportBatch').addEventListener('change', () => {
@@ -204,6 +272,7 @@
         el(id).addEventListener('change', () => { pending++; page = 1; totalPages = 0;
             previous.disabled = next.disabled = true;
         visibleItems = []; csvButton.disabled = true; body.replaceChildren();
+            resetDaily();
             pageLabel.textContent = ''; message('Load report for the selected filters.'); });
     el('attendanceReportBatchFind').addEventListener('click', () => { batchPage = 1; loadBatches(); });
     el('attendanceReportBatchSearch').addEventListener('keydown', event => {
