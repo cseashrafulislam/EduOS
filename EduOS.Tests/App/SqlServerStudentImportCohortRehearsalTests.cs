@@ -93,6 +93,7 @@ public sealed class SqlServerStudentImportCohortRehearsalTests
             .ToArray();
         var durations = new List<double>(jobs.Length);
         Guid firstReference = Guid.Empty;
+        var beforeSql = await SqlCountersAsync(connection);
         var clock = Stopwatch.StartNew();
 
         // Alternating windows leave intentional gaps in every source file. Each
@@ -170,6 +171,8 @@ public sealed class SqlServerStudentImportCohortRehearsalTests
         }
 
         clock.Stop();
+        var afterSql = await SqlCountersAsync(connection);
+        long Delta(int index) => Math.Max(0, afterSql[index] - beforeSql[index]);
         durations.Sort();
         static double Percentile(List<double> values, double p) =>
             values[(int)Math.Ceiling((values.Count - 1) * p)];
@@ -183,8 +186,44 @@ public sealed class SqlServerStudentImportCohortRehearsalTests
             WindowLatencyMsP50 = Math.Round(Percentile(durations, .50), 2),
             WindowLatencyMsP95 = Math.Round(Percentile(durations, .95), 2),
             WindowLatencyMsP99 = Math.Round(Percentile(durations, .99), 2),
-            Committed = total, ReplayedWindows = 2, CrossTenantReadback = "Denied"
+            Committed = total, ReplayedWindows = 2, CrossTenantReadback = "Denied",
+            FailedWindows = 0,
+            SqlCpuMs = Math.Round(Delta(0) / 1000d, 2),
+            SqlLogicalReads = Delta(1), SqlPhysicalReads = Delta(2),
+            SqlLogicalWrites = Delta(3),
+            SqlFileReads = Delta(4), SqlFileWrites = Delta(5),
+            SqlReadStallMs = Delta(6), SqlWriteStallMs = Delta(7),
+            SqlLockWaits = Delta(8), SqlLockWaitMs = Delta(9),
+            SqlDeadlocks = Delta(10),
+            PeakTestProcessMemoryMb = Math.Round(Process.GetCurrentProcess().PeakWorkingSet64 / (1024d * 1024), 1)
         }));
+    }
+
+
+    // Aggregate SQL Server DMV deltas from this isolated disposable instance.
+    // Query-cache and server-wide counters are indicative, not a concurrency benchmark.
+    private static async Task<long[]> SqlCountersAsync(string connection)
+    {
+        await using var sql = new SqlConnection(connection);
+        await sql.OpenAsync();
+        await using var command = sql.CreateCommand();
+        command.CommandText = """
+            SELECT
+              (SELECT COALESCE(SUM(CONVERT(bigint, total_worker_time)), 0) FROM sys.dm_exec_query_stats),
+              (SELECT COALESCE(SUM(CONVERT(bigint, total_logical_reads)), 0) FROM sys.dm_exec_query_stats),
+              (SELECT COALESCE(SUM(CONVERT(bigint, total_physical_reads)), 0) FROM sys.dm_exec_query_stats),
+              (SELECT COALESCE(SUM(CONVERT(bigint, total_logical_writes)), 0) FROM sys.dm_exec_query_stats),
+              (SELECT COALESCE(SUM(CONVERT(bigint, num_of_reads)), 0) FROM sys.dm_io_virtual_file_stats(DB_ID(), NULL)),
+              (SELECT COALESCE(SUM(CONVERT(bigint, num_of_writes)), 0) FROM sys.dm_io_virtual_file_stats(DB_ID(), NULL)),
+              (SELECT COALESCE(SUM(CONVERT(bigint, io_stall_read_ms)), 0) FROM sys.dm_io_virtual_file_stats(DB_ID(), NULL)),
+              (SELECT COALESCE(SUM(CONVERT(bigint, io_stall_write_ms)), 0) FROM sys.dm_io_virtual_file_stats(DB_ID(), NULL)),
+              (SELECT COALESCE(SUM(CONVERT(bigint, waiting_tasks_count)), 0) FROM sys.dm_os_wait_stats WHERE wait_type LIKE 'LCK_M_%'),
+              (SELECT COALESCE(SUM(CONVERT(bigint, wait_time_ms)), 0) FROM sys.dm_os_wait_stats WHERE wait_type LIKE 'LCK_M_%'),
+              (SELECT COALESCE(SUM(CONVERT(bigint, cntr_value)), 0) FROM sys.dm_os_performance_counters WHERE counter_name LIKE 'Number of Deadlocks/sec%' AND instance_name = '_Total')
+            """;
+        await using var reader = await command.ExecuteReaderAsync();
+        Assert.True(await reader.ReadAsync(), "SQL resource counters unavailable.");
+        return Enumerable.Range(0, 11).Select(reader.GetInt64).ToArray();
     }
 
     private static byte[] BuildCsv(string suffix, int file, int count, long campus, long batch)

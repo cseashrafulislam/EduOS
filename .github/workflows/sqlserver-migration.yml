@@ -22,7 +22,7 @@ concurrency:
 jobs:
   migrate-disposable-sqlserver:
     runs-on: ubuntu-latest
-    timeout-minutes: ${{ inputs.run_40k && 120 || 25 }}
+    timeout-minutes: ${{ ((github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/Ashraful' && inputs.run_40k) || (github.event_name == 'push' && github.ref == 'refs/heads/Ashraful' && contains(github.event.head_commit.message, '[student-import-40k]'))) && 120 || 25 }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -103,8 +103,10 @@ jobs:
             --filter "FullyQualifiedName~SqlServerAuthTenantIntegrationTests|FullyQualifiedName~SqlServerMemberAccessHistoryIntegrationTests|FullyQualifiedName~SqlServerAcademicSetupIntegrationTests|FullyQualifiedName~SqlServerEnrollmentAllocationIntegrationTests|FullyQualifiedName~SqlServerStudentImportConcurrencyIntegrationTests|FullyQualifiedName~SqlServerStudentImportCohortRehearsalTests|FullyQualifiedName~SqlServerStudentLifecycleIntegrationTests|FullyQualifiedName~SqlServerGuardianContactProfileIntegrationTests|FullyQualifiedName~SqlServerManualPaymentIntegrationTests|FullyQualifiedName~SqlServerBankReconciliationIntakeIntegrationTests|FullyQualifiedName~SqlServerAcademicOperationsIntegrationTests|FullyQualifiedName~SqlServerAssessmentMarkReviewIntegrityIntegrationTests|FullyQualifiedName~SqlServerAcademicRoutineCollisionIntegrationTests|FullyQualifiedName~SqlServerTransportIdentityIntegrationTests|FullyQualifiedName~SqlServerTransportConcurrentUniquenessTests|FullyQualifiedName~SqlServerTransportSeatCapacityIntegrationTests|FullyQualifiedName~TransportReservationWindowIndexTests|FullyQualifiedName~HostelOccupiedTransferLineageContractTests|FullyQualifiedName~AssetAccountingPersistenceContractTests" \
             --logger "trx;LogFileName=sql-auth-tests.trx" --results-directory TestResults
 
+      # One-shot push marker permits a verified, exact-commit rehearsal when workflow
+      # dispatch is unavailable; ordinary parallel pushes retain the short smoke.
       - name: Rehearse 40K synthetic Student Import with restart and tenant isolation
-        if: ${{ github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/Ashraful' && inputs.run_40k }}
+        if: ${{ (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/Ashraful' && inputs.run_40k) || (github.event_name == 'push' && github.ref == 'refs/heads/Ashraful' && contains(github.event.head_commit.message, '[student-import-40k]')) }}
         shell: bash
         env:
           EDUOS_SQL_AUTH_TEST_CONNECTION: ${{ format('Server=127.0.0.1,14333;Database=EduOS_MigrationSmoke;User Id=sa;Password={0};Encrypt=True;TrustServerCertificate=True;Connect Timeout=30', env.CI_SQL_PASSWORD) }}
@@ -116,7 +118,7 @@ jobs:
             --logger "trx;LogFileName=student-import-40k.trx" --results-directory TestResults --logger "console;verbosity=detailed"
 
       - name: Preserve opt-in 40K import rehearsal evidence
-        if: ${{ always() && github.event_name == 'workflow_dispatch' && inputs.run_40k }}
+        if: ${{ always() && ((github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/Ashraful' && inputs.run_40k) || (github.event_name == 'push' && github.ref == 'refs/heads/Ashraful' && contains(github.event.head_commit.message, '[student-import-40k]'))) }}
         uses: actions/upload-artifact@v4
         with:
           name: student-import-40k-${{ github.sha }}
