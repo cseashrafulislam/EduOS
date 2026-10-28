@@ -4,6 +4,7 @@ using EduOS.Core.Entities.Academic;
 using EduOS.Core.Entities.Finance;
 using EduOS.Core.Entities.SaaS;
 using EduOS.Core.Entities.Students;
+using EduOS.Persistence.Context;
 using EduOS.Core.Enums.Domain;
 using EduOS.Core.Interfaces;
 using EduOS.Core.Interfaces.IRepositories;
@@ -59,28 +60,37 @@ public sealed partial class FeeBillingService : IFeeBillingService
 
     public async Task<ApiResponse<FeeBillingOptionsDto>> GetOptionsAsync(CancellationToken ct = default)
     {
-        if (!CanManage()) return Error<FeeBillingOptionsDto>("Finance access required.", 403);
+        if (!CanManage() || _uow is not EduOSDbContext context ||
+            context.CurrentTenantId != _user.TenantId)
+            return Error<FeeBillingOptionsDto>("Finance access required.", 403);
         var tenant = _user.TenantId;
+        var grants = GrantedBillingCampuses(context);
         var years = await _years.GetQueryable().AsNoTracking().Where(x =>
-            x.TenantId == tenant && x.IsActive && !x.IsDeleted).OrderByDescending(x => x.StartDate)
+            x.TenantId == tenant && x.IsActive && !x.IsDeleted &&
+            (_user.IsTenantAdmin || !x.CampusId.HasValue || grants.Contains(x.CampusId.Value)))
+            .OrderByDescending(x => x.StartDate)
             .Take(200).Select(x => new FeeOptionDto { Id = x.Id, Name = x.Name,
                 CampusId = x.CampusId, EffectiveFrom = x.StartDate, EffectiveTo = x.EndDate }).ToListAsync(ct);
         var levels = await _levels.GetQueryable().AsNoTracking().Where(x =>
             x.TenantId == tenant && x.IsActive && !x.IsDeleted).OrderBy(x => x.Name)
             .Take(300).Select(x => new FeeOptionDto { Id = x.Id, Name = x.Name }).ToListAsync(ct);
         var batches = await _batches.GetQueryable().AsNoTracking().Where(x =>
-            x.TenantId == tenant && x.IsActive && !x.IsDeleted).OrderBy(x => x.Name)
-            .Take(500).Select(x => new FeeOptionDto { Id = x.Id, Name = x.Name,
+            x.TenantId == tenant && x.IsActive && !x.IsDeleted &&
+            (_user.IsTenantAdmin || grants.Contains(x.CampusId)))
+            .OrderBy(x => x.Name).Take(500).Select(x => new FeeOptionDto { Id = x.Id, Name = x.Name,
                 AcademicYearId = x.AcademicYearId, AcademicLevelId = x.AcademicLevelId,
                 AcademicProgramId = x.AcademicProgramId, CampusId = x.CampusId }).ToListAsync(ct);
         var heads = await _heads.GetQueryable().AsNoTracking().Where(x =>
             x.TenantId == tenant && x.IsActive && !x.IsDeleted).OrderBy(x => x.Name)
             .Take(300).Select(x => new FeeOptionDto { Id = x.Id, Name = x.Name }).ToListAsync(ct);
         var campuses = await _campuses.GetQueryable().AsNoTracking().Where(x =>
-            x.TenantId == tenant && x.IsActive && !x.IsDeleted).OrderBy(x => x.Name)
-            .Take(200).Select(x => new FeeOptionDto { Id = x.Id, Name = x.Name }).ToListAsync(ct);
+            x.TenantId == tenant && x.IsActive && !x.IsDeleted &&
+            (_user.IsTenantAdmin || grants.Contains(x.Id)))
+            .OrderBy(x => x.Name).Take(200).Select(x => new FeeOptionDto { Id = x.Id, Name = x.Name }).ToListAsync(ct);
         var structures = await _structures.GetQueryable().AsNoTracking().Where(x =>
-            x.TenantId == tenant && x.IsActive && !x.IsDeleted).OrderByDescending(x => x.EffectiveFrom)
+            x.TenantId == tenant && x.IsActive && !x.IsDeleted &&
+            (_user.IsTenantAdmin || grants.Contains(x.CampusId)))
+            .OrderByDescending(x => x.EffectiveFrom)
             .ThenByDescending(x => x.Id).Take(500).Select(x => new FeeOptionDto {
                 Id = x.Id, Name = x.Name, CampusId = x.CampusId,
                 AcademicYearId = x.AcademicYearId, AcademicLevelId = x.AcademicLevelId,
@@ -98,10 +108,16 @@ public sealed partial class FeeBillingService : IFeeBillingService
         if (string.IsNullOrWhiteSpace(search) || search.Trim().Length is < 2 or > 100 ||
             take is < 1 or > 100)
             return Error<IReadOnlyList<FeeStudentOptionDto>>("Search requires 2–100 characters; take 1–100.");
+        if (_uow is not EduOSDbContext context || context.CurrentTenantId != _user.TenantId)
+            return Error<IReadOnlyList<FeeStudentOptionDto>>("Finance access required.", 403);
         var term = search.Trim();
+        var allowedEnrollmentIds = AccessibleEnrollmentIds(context);
+        var accessibleStudentIds = _enrollments.GetQueryable().AsNoTracking()
+            .Where(e => allowedEnrollmentIds.Contains(e.Id)).Select(e => e.StudentId);
         IReadOnlyList<FeeStudentOptionDto> students = await _students.GetQueryable().AsNoTracking()
             .Where(x => x.TenantId == _user.TenantId && !x.IsDeleted &&
                 x.StatusCode == "Active" &&
+                (_user.IsTenantAdmin || accessibleStudentIds.Contains(x.Id)) &&
                 (x.StudentCode.StartsWith(term) || x.FullName.StartsWith(term)))
             .OrderBy(x => x.StudentCode).ThenBy(x => x.Id).Take(take)
             .Select(x => new FeeStudentOptionDto
@@ -129,6 +145,8 @@ public sealed partial class FeeBillingService : IFeeBillingService
         return WriteAsync("fee structure", async token =>
         {
             var tenant = _user.TenantId;
+            if (!await CanAccessBillingCampusAsync(request.CampusId, token))
+                return Error<FeeStructureDto>("Fee structure or campus unavailable.", 404);
             var year = await _years.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
                 x.TenantId == tenant && x.Id == request.AcademicYearId &&
                 x.IsActive && !x.IsDeleted, token);
@@ -406,9 +424,14 @@ public sealed partial class FeeBillingService : IFeeBillingService
                 var prior = await _allocations.GetQueryable().AsNoTracking().Where(x =>
                     x.TenantId == tenant && x.StudentPaymentId == replay.Id && !x.IsDeleted)
                     .Join(_invoices.GetQueryable().AsNoTracking(),
-                        x => x.StudentInvoiceId, i => i.Id,
-                        (x, i) => new { i.PublicId, x.Amount, i.TenantId }).Where(x =>
-                            x.TenantId == tenant).ToListAsync(token);
+                        x => new { x.TenantId, Id = x.StudentInvoiceId },
+                        i => new { i.TenantId, i.Id },
+                        (x, i) => new { i.PublicId, x.Amount, i.TenantId, i.StudentEnrollmentId })
+                    .Join(_enrollments.GetQueryable().AsNoTracking(),
+                        x => new { x.TenantId, Id = x.StudentEnrollmentId },
+                        e => new { e.TenantId, e.Id },
+                        (x, e) => new { x.PublicId, x.Amount, x.TenantId, e.CampusId })
+                    .Where(x => x.TenantId == tenant).ToListAsync(token);
                 var match = replay.Amount == request.Amount &&
                     replay.PaymentDate == request.PaymentDate &&
                     replay.PaymentMethod == PaymentMethodType.Cash &&
@@ -416,6 +439,8 @@ public sealed partial class FeeBillingService : IFeeBillingService
                     request.Allocations.All(x => prior.Any(y =>
                         y.PublicId == x.InvoiceReference && y.Amount == x.Amount));
                 if (!match) return Error<StudentPaymentDto>("Request ID already used for different payment.", 409);
+                if (!await CanAccessBillingCampusesAsync(prior.Select(x => x.CampusId), token))
+                    return Error<StudentPaymentDto>("Receipt unavailable.", 404);
                 return ApiResponse<StudentPaymentDto>.SuccessResponse(
                     (await PaymentDtosAsync(new[] { replay }, token))[0], "Payment already recorded.");
             }
@@ -426,10 +451,12 @@ public sealed partial class FeeBillingService : IFeeBillingService
                     equals new { enrollment.TenantId, enrollment.Id }
                 where invoice.TenantId == tenant && refs.Contains(invoice.PublicId) &&
                     !invoice.IsDeleted && !enrollment.IsDeleted
-                select new { invoice, enrollment.StudentId }).ToListAsync(token);
+                select new { invoice, enrollment.StudentId, enrollment.CampusId }).ToListAsync(token);
             if (invoiceRows.Count != refs.Length || invoiceRows.Select(x => x.StudentId).Distinct().Count() != 1 ||
                 invoiceRows.Select(x => x.invoice.CurrencyCode).Distinct().Count() != 1)
                 return Error<StudentPaymentDto>("All invoices must belong to one student and currency.", 409);
+            if (!await CanAccessBillingCampusesAsync(invoiceRows.Select(x => x.CampusId), token))
+                return Error<StudentPaymentDto>("Invoice unavailable.", 404);
             foreach (var allocation in request.Allocations)
             {
                 var invoice = invoiceRows.First(x => x.invoice.PublicId == allocation.InvoiceReference).invoice;
@@ -480,9 +507,9 @@ public sealed partial class FeeBillingService : IFeeBillingService
         if (!CanManage()) return Error<StudentLedgerDto>("Finance ledger access required.", 403);
         var student = await StudentAsync(studentReference, ct);
         if (student == null) return Error<StudentLedgerDto>("Student not found.", 404);
-        var enrollmentIds = _enrollments.GetQueryable().AsNoTracking().Where(x =>
-            x.TenantId == _user.TenantId && x.StudentId == student.Id && !x.IsDeleted)
-            .Select(x => x.Id);
+        if (_uow is not EduOSDbContext context) return Error<StudentLedgerDto>("Finance access denied.", 403);
+        var enrollmentIds = AccessibleEnrollmentIds(context).Where(id =>
+            _enrollments.GetQueryable().AsNoTracking().Any(e => e.Id == id && e.StudentId == student.Id));
         var totals = await _invoices.GetQueryable().AsNoTracking().Where(x =>
             x.TenantId == _user.TenantId && !x.IsDeleted &&
             enrollmentIds.Contains(x.StudentEnrollmentId) &&
@@ -507,8 +534,10 @@ public sealed partial class FeeBillingService : IFeeBillingService
         if (!ValidPage(page, pageSize)) return Error<PagedResult<StudentInvoiceDto>>("Page size must be 1–100.");
         var student = await StudentAsync(studentReference, ct);
         if (student == null) return Error<PagedResult<StudentInvoiceDto>>("Student not found.", 404);
-        var ids = _enrollments.GetQueryable().AsNoTracking().Where(x =>
-            x.TenantId == _user.TenantId && x.StudentId == student.Id && !x.IsDeleted).Select(x => x.Id);
+        if (_uow is not EduOSDbContext context)
+            return Error<PagedResult<StudentInvoiceDto>>("Finance access denied.", 403);
+        var ids = AccessibleEnrollmentIds(context).Where(id =>
+            _enrollments.GetQueryable().AsNoTracking().Any(e => e.Id == id && e.StudentId == student.Id));
         var query = _invoices.GetQueryable().AsNoTracking().Where(x =>
             x.TenantId == _user.TenantId && ids.Contains(x.StudentEnrollmentId) && !x.IsDeleted);
         var total = await query.CountAsync(ct);
@@ -528,8 +557,12 @@ public sealed partial class FeeBillingService : IFeeBillingService
         if (!ValidPage(page, pageSize)) return Error<PagedResult<StudentPaymentDto>>("Page size must be 1–100.");
         var student = await StudentAsync(studentReference, ct);
         if (student == null) return Error<PagedResult<StudentPaymentDto>>("Student not found.", 404);
+        if (_uow is not EduOSDbContext context)
+            return Error<PagedResult<StudentPaymentDto>>("Finance access denied.", 403);
+        var allowedPayments = AccessiblePaymentIds(context);
         var query = _payments.GetQueryable().AsNoTracking().Where(x =>
-            x.TenantId == _user.TenantId && x.StudentId == student.Id && !x.IsDeleted);
+            x.TenantId == _user.TenantId && x.StudentId == student.Id && !x.IsDeleted &&
+            allowedPayments.Contains(x.Id));
         var count = await query.CountAsync(ct);
         var skip = Skip(page, pageSize);
         if (skip < 0) return Error<PagedResult<StudentPaymentDto>>("Page exceeds limit.");
@@ -646,10 +679,18 @@ public sealed partial class FeeBillingService : IFeeBillingService
         };
     }
 
-    private Task<Student?> StudentAsync(Guid reference, CancellationToken ct) =>
-        reference == Guid.Empty ? Task.FromResult<Student?>(null) :
-        _students.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
-            x.TenantId == _user.TenantId && x.PublicId == reference && !x.IsDeleted, ct);
+    private Task<Student?> StudentAsync(Guid reference, CancellationToken ct)
+    {
+        if (reference == Guid.Empty || _uow is not EduOSDbContext context ||
+            context.CurrentTenantId != _user.TenantId)
+            return Task.FromResult<Student?>(null);
+        var accessible = AccessibleEnrollmentIds(context);
+        var studentIds = _enrollments.GetQueryable().AsNoTracking()
+            .Where(e => accessible.Contains(e.Id)).Select(e => e.StudentId);
+        return _students.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
+            x.TenantId == _user.TenantId && x.PublicId == reference && !x.IsDeleted &&
+            (_user.IsTenantAdmin || studentIds.Contains(x.Id)), ct);
+    }
 
     private async Task<ApiResponse<T>> WriteAsync<T>(
         string action, Func<CancellationToken, Task<ApiResponse<T>>> callback, CancellationToken ct)

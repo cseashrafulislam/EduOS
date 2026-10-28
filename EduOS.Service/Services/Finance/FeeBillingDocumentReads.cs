@@ -17,9 +17,10 @@ public sealed partial class FeeBillingService
         var student = await StudentAsync(studentReference, ct);
         if (student == null) return Error<StudentInvoiceDto>("Invoice not found.", 404);
 
-        var enrollmentIds = _enrollments.GetQueryable().AsNoTracking().Where(e =>
-            e.TenantId == _user.TenantId && e.StudentId == student.Id && !e.IsDeleted)
-            .Select(e => e.Id);
+        if (_uow is not EduOS.Persistence.Context.EduOSDbContext context)
+            return Error<StudentInvoiceDto>("Invoice not found.", 404);
+        var enrollmentIds = AccessibleEnrollmentIds(context).Where(id =>
+            _enrollments.GetQueryable().AsNoTracking().Any(e => e.Id == id && e.StudentId == student.Id));
         var id = await _invoices.GetQueryable().AsNoTracking()
             .Where(i => i.TenantId == _user.TenantId && !i.IsDeleted &&
                 i.PublicId == documentReference && enrollmentIds.Contains(i.StudentEnrollmentId))
@@ -38,9 +39,12 @@ public sealed partial class FeeBillingService
             return Error<StudentPaymentDocumentDto>("Valid student and receipt references required.", 400);
         var student = await StudentAsync(studentReference, ct);
         if (student == null) return Error<StudentPaymentDocumentDto>("Receipt not found.", 404);
+        if (_uow is not EduOS.Persistence.Context.EduOSDbContext context)
+            return Error<StudentPaymentDocumentDto>("Receipt not found.", 404);
+        var allowedPayments = AccessiblePaymentIds(context);
         var payment = await _payments.GetQueryable().AsNoTracking().FirstOrDefaultAsync(p =>
             p.TenantId == _user.TenantId && !p.IsDeleted && p.StudentId == student.Id &&
-            p.PublicId == documentReference, ct);
+            p.PublicId == documentReference && allowedPayments.Contains(p.Id), ct);
         if (payment == null) return Error<StudentPaymentDocumentDto>("Receipt not found.", 404);
         var documents = await PaymentDtosAsync(new[] { payment }, ct);
         if (documents.Count != 1) return Error<StudentPaymentDocumentDto>("Receipt not found.", 404);

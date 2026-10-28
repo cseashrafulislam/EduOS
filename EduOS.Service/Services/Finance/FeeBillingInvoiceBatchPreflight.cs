@@ -10,13 +10,7 @@ public sealed partial class FeeBillingService
 {
     private async Task<bool> CanAccessBillingCampusAsync(long campusId, CancellationToken ct)
     {
-        // Only an authenticated tenant context may disclose student fee information.
-        if (_uow is not EduOSDbContext context || context.CurrentTenantId != _user.TenantId)
-            return false;
-        if (_user.IsTenantAdmin) return true;
-        return await context.UserCampusAccesses.AsNoTracking().AnyAsync(x =>
-            x.TenantId == _user.TenantId && !x.IsDeleted && x.IsActive &&
-            x.UserId == _user.UserId && x.CampusId == campusId, ct);
+        return await CanAccessBillingCampusesAsync(new[] { campusId }, ct);
     }
 
     // Preview one bounded monthly invoice batch without mutating invoices, ledger or audit.

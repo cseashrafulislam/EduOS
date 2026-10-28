@@ -1,4 +1,5 @@
 using EduOS.Core.Entities.Academic;
+using EduOS.Core.Entities.Auth;
 using EduOS.Core.Entities.Finance;
 using EduOS.Core.Entities.SaaS;
 using EduOS.Core.Entities.Students;
@@ -113,12 +114,72 @@ public sealed class FeeDocumentReadbackTests
         (await wrongService.GetStudentInvoiceDocumentAsync(data.student, data.invoice)).StatusCode.Should().Be(404);
     }
 
+
+    [Fact]
+    public async Task Campus_scoped_accountant_cannot_probe_other_campus_invoices_or_receipts()
+    {
+        var store = Guid.NewGuid().ToString("N");
+        await using var db = Database(41, store);
+        var data = Seed(db, store);
+        var otherInvoice = Guid.NewGuid();
+        var otherPayment = Guid.NewGuid();
+        db.StudentEnrollments.Add(new StudentEnrollment {
+            Id = 13, TenantId = 41, StudentId = 1, CampusId = 6, RollNo = "C6" });
+        db.StudentInvoices.Add(new StudentInvoice {
+            Id = 23, TenantId = 41, PublicId = otherInvoice, StudentEnrollmentId = 13,
+            InvoiceNumber = "INV-C6", InvoiceDate = new DateOnly(2026, 10, 1),
+            DueDate = new DateOnly(2026, 10, 31), TotalAmount = 90m, DueAmount = 90m });
+        db.StudentPayments.Add(new StudentPayment {
+            Id = 44, TenantId = 41, PublicId = otherPayment, StudentId = 1,
+            ReceiptNumber = "RCP-C6", Amount = 10m, PaymentDate = new DateOnly(2026, 10, 2) });
+        db.PaymentAllocations.Add(new PaymentAllocation {
+            Id = 54, TenantId = 41, StudentPaymentId = 44, StudentInvoiceId = 23, Amount = 10m });
+        await db.SaveChangesAsync();
+
+        var scoped = Service(db, new User("Accountant"));
+        (await scoped.GetStudentInvoiceDocumentAsync(data.student, data.invoice)).StatusCode.Should().Be(200);
+        (await scoped.GetStudentInvoiceDocumentAsync(data.student, otherInvoice)).StatusCode.Should().Be(404);
+        (await scoped.GetStudentPaymentDocumentAsync(data.student, data.payment)).StatusCode.Should().Be(200);
+        (await scoped.GetStudentPaymentDocumentAsync(data.student, otherPayment)).StatusCode.Should().Be(404);
+        var ledger = await scoped.GetStudentLedgerAsync(data.student);
+        ledger.StatusCode.Should().Be(200);
+        ledger.Data!.TotalBilled.Should().Be(100m);
+        var invoices = await scoped.GetStudentInvoicesAsync(data.student, 1, 25);
+        invoices.Data!.TotalCount.Should().Be(1);
+        var payments = await scoped.GetStudentPaymentsAsync(data.student, 1, 25);
+        payments.Data!.TotalCount.Should().Be(1);
+        var admin = Service(db, new User("TenantAdmin"));
+        (await admin.GetStudentInvoiceDocumentAsync(data.student, otherInvoice)).StatusCode.Should().Be(200);
+        (await admin.GetStudentPaymentDocumentAsync(data.student, otherPayment)).StatusCode.Should().Be(200);
+    }
+
+    [Fact]
+    public async Task Scoped_receipt_with_mixed_campus_allocations_is_concealed_in_full()
+    {
+        var store = Guid.NewGuid().ToString("N");
+        await using var db = Database(41, store);
+        var data = Seed(db, store);
+        db.StudentEnrollments.Add(new StudentEnrollment {
+            Id = 13, TenantId = 41, StudentId = 1, CampusId = 6, RollNo = "C6" });
+        db.StudentInvoices.Add(new StudentInvoice {
+            Id = 23, TenantId = 41, PublicId = Guid.NewGuid(), StudentEnrollmentId = 13,
+            InvoiceNumber = "INV-C6", TotalAmount = 10m, DueAmount = 10m });
+        db.PaymentAllocations.Add(new PaymentAllocation {
+            Id = 55, TenantId = 41, StudentPaymentId = 40, StudentInvoiceId = 23, Amount = 10m });
+        await db.SaveChangesAsync();
+        var scoped = Service(db, new User("Accountant"));
+        (await scoped.GetStudentPaymentDocumentAsync(data.student, data.payment)).StatusCode.Should().Be(404);
+        (await scoped.GetStudentPaymentsAsync(data.student, 1, 25)).Data!.TotalCount.Should().Be(0);
+    }
+
     private static (Guid student, Guid otherStudent, Guid invoice, Guid payment,
         Guid foreignInvoice, Guid foreignPayment) Seed(EduOSDbContext db, string store)
     {
         var student = Guid.NewGuid(); var other = Guid.NewGuid();
         var invoice = Guid.NewGuid(); var payment = Guid.NewGuid();
         var foreignInvoice = Guid.NewGuid(); var foreignPayment = Guid.NewGuid();
+        db.UserCampusAccesses.Add(new UserCampusAccess {
+            Id = 1, TenantId = 41, UserId = 9, CampusId = 5, IsActive = true });
         db.Students.AddRange(
             new Student { Id = 1, TenantId = 41, PublicId = student, StudentCode = "S-41", FullName = "Learner" },
             new Student { Id = 2, TenantId = 41, PublicId = other, StudentCode = "S-42", FullName = "Other" });
