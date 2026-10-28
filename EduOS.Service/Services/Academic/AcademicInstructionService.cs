@@ -666,39 +666,48 @@ public sealed class AcademicInstructionService : IAcademicInstructionService
     private async Task<bool> HasInstructorConflictAsync(
         long employeeId, long targetRoutineEntryId, long targetSlotId, DateOnly date, CancellationToken cancellationToken)
     {
-        var tenantId = _currentUser.TenantId;
+        var tenant = _currentUser.TenantId;
         var targetSlot = await _routineSlots.GetQueryable().AsNoTracking()
-            .FirstOrDefaultAsync(x => x.TenantId == tenantId && x.Id == targetSlotId, cancellationToken);
+            .Where(x => x.TenantId == tenant && x.Id == targetSlotId &&
+                        x.IsActive && !x.IsBreak && !x.IsDeleted)
+            .Select(x => new { x.StartTime, x.EndTime }).FirstOrDefaultAsync(cancellationToken);
         if (targetSlot == null) return true;
 
-        var assignmentIds = await _instructorAssignments.GetQueryable().AsNoTracking()
-            .Where(x => x.TenantId == tenantId && x.EmployeeId == employeeId && x.IsActive &&
-                        x.EffectiveFrom <= date && (x.EffectiveTo == null || x.EffectiveTo >= date))
-            .Select(x => x.Id).Take(200).ToListAsync(cancellationToken);
-        var routines = assignmentIds.Count == 0
-            ? new List<RoutineEntry>()
-            : await _routineEntries.GetQueryable().AsNoTracking()
-                .Where(x => x.TenantId == tenantId && x.Id != targetRoutineEntryId && x.InstructorAssignmentId.HasValue &&
-                            assignmentIds.Contains(x.InstructorAssignmentId.Value) && x.DayOfWeek == date.DayOfWeek && x.IsActive &&
-                            x.EffectiveFrom <= date && (x.EffectiveTo == null || x.EffectiveTo >= date))
-                .Take(200).ToListAsync(cancellationToken);
-        var otherSlotIds = routines.Select(x => x.RoutineTimeSlotId).Distinct().ToArray();
-        var otherSlots = otherSlotIds.Length == 0
-            ? new Dictionary<long, RoutineTimeSlot>()
-            : await _routineSlots.GetQueryable().AsNoTracking()
-                .Where(x => x.TenantId == tenantId && otherSlotIds.Contains(x.Id))
-                .ToDictionaryAsync(x => x.Id, cancellationToken);
-        if (routines.Any(x => otherSlots.TryGetValue(x.RoutineTimeSlotId, out var slot) &&
-                              slot.StartTime < targetSlot.EndTime && slot.EndTime > targetSlot.StartTime))
-            return true;
+        // SQL EXISTS rather than Take(200): a late matching assignment must not be ignored.
+        var scheduled =
+            from routine in _routineEntries.GetQueryable().AsNoTracking()
+            join assignment in _instructorAssignments.GetQueryable().AsNoTracking()
+                on routine.InstructorAssignmentId equals (long?)assignment.Id
+            join slot in _routineSlots.GetQueryable().AsNoTracking()
+                on routine.RoutineTimeSlotId equals slot.Id
+            where routine.TenantId == tenant && !routine.IsDeleted && routine.IsActive &&
+                  routine.Id != targetRoutineEntryId && routine.DayOfWeek == date.DayOfWeek &&
+                  routine.EffectiveFrom <= date &&
+                  (routine.EffectiveTo == null || routine.EffectiveTo >= date) &&
+                  assignment.TenantId == tenant && !assignment.IsDeleted && assignment.IsActive &&
+                  assignment.EmployeeId == employeeId &&
+                  assignment.EffectiveFrom <= date &&
+                  (assignment.EffectiveTo == null || assignment.EffectiveTo >= date) &&
+                  slot.TenantId == tenant && !slot.IsDeleted && slot.IsActive &&
+                  slot.StartTime < targetSlot.EndTime && slot.EndTime > targetSlot.StartTime
+            select routine.Id;
+        if (await scheduled.AnyAsync(cancellationToken)) return true;
 
-        var substitutions = await _substitutions.GetQueryable().AsNoTracking()
-            .Where(x => x.TenantId == tenantId && x.SubstituteEmployeeId == employeeId && x.Date == date && !x.IsCancelled)
-            .Take(200).ToListAsync(cancellationToken);
-        if (substitutions.Count == 0) return false;
-        var substitutionContext = await LoadRoutineContextAsync(substitutions.Select(x => x.RoutineEntryId), cancellationToken);
-        return substitutions.Any(x => substitutionContext.TryGetValue(x.RoutineEntryId, out var info) &&
-                                      info.StartTime < targetSlot.EndTime && info.EndTime > targetSlot.StartTime);
+        // Existing cover bookings also consume instructor time. Filter and overlap in SQL,
+        // including rows beyond the former 200-row in-memory cap.
+        var covered =
+            from substitution in _substitutions.GetQueryable().AsNoTracking()
+            join routine in _routineEntries.GetQueryable().AsNoTracking()
+                on substitution.RoutineEntryId equals routine.Id
+            join slot in _routineSlots.GetQueryable().AsNoTracking()
+                on routine.RoutineTimeSlotId equals slot.Id
+            where substitution.TenantId == tenant && !substitution.IsDeleted &&
+                  !substitution.IsCancelled && substitution.SubstituteEmployeeId == employeeId &&
+                  substitution.Date == date && routine.TenantId == tenant && !routine.IsDeleted &&
+                  slot.TenantId == tenant && !slot.IsDeleted &&
+                  slot.StartTime < targetSlot.EndTime && slot.EndTime > targetSlot.StartTime
+            select substitution.Id;
+        return await covered.AnyAsync(cancellationToken);
     }
 
     private async Task<Dictionary<long, RoutineContext>> LoadRoutineContextAsync(
