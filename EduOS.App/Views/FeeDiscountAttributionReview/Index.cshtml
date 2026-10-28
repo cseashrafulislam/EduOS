@@ -1,0 +1,56 @@
+@{
+    ViewData["Title"] = "Historical Discount Attribution";
+}
+<section id="feeAttributionApp" class="container-fluid py-3">
+    <header class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3 d-print-none">
+        <div class="d-flex align-items-center gap-2">
+            <h1 class="h4 mb-0">Historical Discount Attribution</h1>
+            <details class="position-relative">
+                <summary class="btn btn-outline-secondary btn-sm" aria-label="Discount attribution report guide" title="Report guide">ⓘ</summary>
+                <div class="position-absolute border rounded bg-body p-2 small shadow-sm" style="z-index:5;width:min(23rem,80vw);right:0">
+                    Review historical invoice fee-head discounts for one campus and up to 90 days. Award rules may have changed since issuance: flagged amounts are candidates, not proven errors or refunds. Never correct posted records from this report. CSV and print include the current page only.
+                </div>
+            </details>
+        </div>
+        <a href="/FeeOperations/Index" class="btn btn-outline-secondary btn-sm">Fees &amp; Billing</a>
+    </header>
+    <div id="feeAttributionNotice" class="alert d-none d-print-none" role="status" aria-live="polite"></div>
+    <form id="feeAttributionFilters" class="card card-body row g-2 align-items-end mb-3 d-print-none">
+        <div class="col-md-3"><label class="form-label" for="feeAttributionCampus">Campus</label>
+            <select class="form-select" id="feeAttributionCampus" required><option value="">Loading…</option></select></div>
+        <div class="col-md-2"><label class="form-label" for="feeAttributionFrom">From</label>
+            <input class="form-control" id="feeAttributionFrom" type="date" required /></div>
+        <div class="col-md-2"><label class="form-label" for="feeAttributionTo">To</label>
+            <input class="form-control" id="feeAttributionTo" type="date" required /></div>
+        <div class="col-md-2"><label class="form-label" for="feeAttributionSize">Rows</label>
+            <select class="form-select" id="feeAttributionSize"><option>25</option><option>50</option><option>100</option></select></div>
+        <div class="col-md-3 d-grid"><button class="btn btn-primary" id="feeAttributionRun" type="submit">Review invoices</button></div>
+    </form>
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
+        <strong id="feeAttributionScope">No report loaded</strong>
+        <div class="d-flex gap-2 d-print-none">
+            <button id="feeAttributionCsv" type="button" class="btn btn-outline-primary btn-sm" disabled>Export page CSV</button>
+            <button id="feeAttributionPrint" type="button" class="btn btn-outline-secondary btn-sm" disabled>Print page</button>
+        </div>
+    </div>
+    <div class="card">
+        <div class="card-header d-flex flex-wrap justify-content-between gap-2">
+            <strong>Invoice evidence</strong><span id="feeAttributionCount" aria-live="polite"></span>
+        </div>
+        <div class="table-responsive"><table class="table table-sm table-hover mb-0">
+            <thead><tr><th>Invoice</th><th>Student code</th><th>Date</th><th>Currency</th>
+                <th class="text-end">Subtotal</th><th class="text-end">Discount</th>
+                <th class="text-end">Total</th><th class="text-end">Candidate amount</th>
+                <th>Posted</th><th>Evidence status</th></tr></thead>
+            <tbody id="feeAttributionRows"><tr><td colspan="10" class="text-center text-muted p-3">Run the review.</td></tr></tbody>
+        </table></div>
+        <div class="card-footer d-flex align-items-center gap-2 d-print-none">
+            <button id="feeAttributionPrev" type="button" class="btn btn-outline-secondary btn-sm" disabled>Previous</button>
+            <span id="feeAttributionPage"></span>
+            <button id="feeAttributionNext" type="button" class="btn btn-outline-secondary btn-sm" disabled>Next</button>
+        </div>
+    </div>
+</section>
+@section Scripts {
+    <script src="~/js/finance/fee-discount-attribution-review.js" asp-append-version="true"></script>
+}
