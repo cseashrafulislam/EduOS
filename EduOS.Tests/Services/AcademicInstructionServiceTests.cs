@@ -96,7 +96,7 @@ public sealed class AcademicInstructionServiceTests
         await using (var db = Context(options, 202, 71, "Teacher"))
         {
             (await Service(db, 202, 71, "Teacher")
-                .CreateLessonPlanAsync(Lesson(seed.OfferingReference))).StatusCode.Should().Be(403);
+                .CreateLessonPlanAsync(Lesson(seed.OfferingReference))).StatusCode.Should().Be(404);
         }
     }
 
