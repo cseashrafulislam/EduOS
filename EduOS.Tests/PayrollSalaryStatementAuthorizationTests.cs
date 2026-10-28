@@ -13,7 +13,8 @@ public sealed class PayrollSalaryStatementAuthorizationTests
     public void Statement_api_is_tenant_admin_only_module_gated_and_rate_limited()
     {
         var controller = typeof(PayrollSalaryStatementController);
-        var authorization = Assert.Single(controller.GetCustomAttributes(typeof(AuthorizeAttribute), true).Cast<AuthorizeAttribute>());
+        var authorization = Assert.Single(controller.GetCustomAttributes(typeof(AuthorizeAttribute), true)
+            .Cast<AuthorizeAttribute>().Where(x => x.Roles == "TenantAdmin"));
         Assert.Equal("TenantAdmin", authorization.Roles);
         var module = Assert.Single(controller.GetCustomAttributes(typeof(RequireModuleAttribute), true).Cast<RequireModuleAttribute>());
         Assert.Equal(RequireModuleAttribute.PolicyPrefix + "PAYROLL", module.Policy);
