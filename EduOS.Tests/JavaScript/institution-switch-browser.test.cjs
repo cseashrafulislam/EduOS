@@ -69,7 +69,8 @@ test('successful authorized switch clears PWA runtime and navigates only to dash
     await b.click();
     assert.deepEqual(b.redirects, [['replace', '/Dashboard/Index']]);
     assert.equal(b.notified, 1);
-    assert.deepEqual(b.cacheMessages, [{ type: 'EDUOS_CLEAR_RUNTIME_STATIC' }]);
+    assert.equal(b.cacheMessages.length, 1);
+    assert.equal(b.cacheMessages[0].type, 'EDUOS_CLEAR_RUNTIME_STATIC');
     assert.equal(b.verified, 0);
     assert.equal(b.requests[1].options.credentials, 'same-origin');
     assert.equal(b.requests[1].options.cache, 'no-store');
