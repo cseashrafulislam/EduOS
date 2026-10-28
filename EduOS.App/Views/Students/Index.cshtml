@@ -24,7 +24,8 @@
         enrollment = T["EnrollmentHistory"].Value,
         previous = T["Previous"].Value,
         next = T["Next"].Value,
-        page = T["Page"].Value
+        page = T["Page"].Value,
+        exportFailed = T["StudentExportFailed"].Value
     };
     var pageJson = System.Text.Json.JsonSerializer.Serialize(strings);
 }
@@ -33,8 +34,15 @@
     <header class="content-header-card">
         <div>
             <p class="dashboard-eyebrow">@T["Students"]</p>
-            <h2 id="studentDirectoryTitle">@T["StudentDirectory"]</h2>
-            <p>@T["StudentDirectoryHelp"]</p>
+            <div class="d-flex align-items-center gap-2">
+                <h2 id="studentDirectoryTitle">@T["StudentDirectory"]</h2>
+                <button id="studentDirectoryHelp" type="button" class="btn btn-sm btn-link"
+                        data-bs-toggle="popover" data-bs-trigger="focus" data-bs-placement="bottom"
+                        data-bs-content="@T["StudentDirectoryHelp"]"
+                        title="@T["StudentDirectoryHelp"]" aria-label="@T["StudentDirectoryHelp"]">
+                    <span aria-hidden="true">ⓘ</span>
+                </button>
+            </div>
         </div>
         @if (User.IsInRole("TenantAdmin"))
         {
@@ -75,6 +83,7 @@
                 <option value="Archived">@T["Archived"]</option>
             </select>
             <button class="btn btn-outline-primary" type="submit">@T["Search"]</button>
+            <button id="studentExportPage" class="btn btn-outline-secondary" type="button" disabled>@T["ExportPageCsv"]</button>
         </form>
         <div id="studentList" class="admission-list" aria-live="polite" aria-busy="true"></div>
         <nav class="admission-pagination" aria-label="@T["StudentPagination"]">
@@ -113,7 +122,6 @@
                 {
                     <section class="border rounded p-3 mb-3" aria-labelledby="studentContactTitle">
                         <h3 id="studentContactTitle" class="h6">Student contact profile</h3>
-                        <p class="small text-muted">Update institution contact details only. Identity, enrollment and historical snapshots remain unchanged.</p>
                         <form id="studentContactForm" autocomplete="off">
                             @Html.AntiForgeryToken()
                             <div class="row g-2">
@@ -140,7 +148,6 @@
                 {
                     <section class="border rounded p-3 mb-3" aria-labelledby="studentOperationalTitle">
                         <h3 id="studentOperationalTitle" class="h6">Student operational status</h3>
-                        <p class="small text-muted">Suspend or reactivate an active enrollment's student. Exit, readmission, seat allocation and historic records are managed separately.</p>
                         <form id="studentOperationalStatusForm" autocomplete="off">
                             @Html.AntiForgeryToken()
                             <div class="row g-2">
@@ -167,7 +174,6 @@
                 {
                     <section class="mt-4" aria-labelledby="lifecycleTimelineTitle">
                         <h3 class="h6" id="lifecycleTimelineTitle">Lifecycle history</h3>
-                        <p class="small text-muted">Historical status, progression and exit events. Visible to institution administrators only.</p>
                         <div id="studentLifecycleTimeline" aria-live="polite"></div>
                         <nav class="d-flex align-items-center gap-2 mt-2" aria-label="Lifecycle history pages">
                             <button id="studentLifecyclePrevious" class="btn btn-sm btn-outline-secondary" type="button" disabled>Previous</button>

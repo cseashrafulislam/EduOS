@@ -2,7 +2,7 @@
     'use strict';
 
     const i18n = JSON.parse(document.getElementById('studentStrings')?.textContent || '{}');
-    const state = { page: 1, pageSize: 20, totalPages: 1 };
+    const state = { page: 1, pageSize: 20, totalPages: 1, search: '', status: '' };
 
     document.addEventListener('DOMContentLoaded', async () => {
         if (!document.getElementById('studentList')) return;
@@ -10,16 +10,19 @@
         document.getElementById('studentList')?.addEventListener('click', openStudent);
         document.getElementById('studentPrevious')?.addEventListener('click', () => changePage(-1));
         document.getElementById('studentNext')?.addEventListener('click', () => changePage(1));
+        document.getElementById('studentExportPage')?.addEventListener('click', exportPage);
+        const help = document.getElementById('studentDirectoryHelp');
+        if (help && window.bootstrap?.Popover) new bootstrap.Popover(help, { trigger: 'focus', container: 'body' });
         await loadStudents();
     }, { once: true });
 
     async function loadStudents() {
         const list = document.getElementById('studentList');
         list.setAttribute('aria-busy', 'true');
+        const exportButton = document.getElementById('studentExportPage');
+        if (exportButton) exportButton.disabled = true;
         list.replaceChildren(message(i18n.loading));
-        const params = new URLSearchParams({ page: String(state.page), pageSize: String(state.pageSize) });
-        if (valueOf('studentSearch')) params.set('search', valueOf('studentSearch'));
-        if (valueOf('studentStatus')) params.set('status', valueOf('studentStatus'));
+        const params = directoryParams();
         try {
             const response = await fetch(`/api/students?${params}`, apiOptions());
             const payload = await response.json().catch(() => null);
@@ -27,6 +30,7 @@
             state.totalPages = Math.max(1, Number(payload.data.totalPages) || 1);
             renderStudents(payload.data.items);
             updatePagination();
+            if (exportButton) exportButton.disabled = payload.data.items.length === 0;
         } catch {
             const box = message(i18n.loadFailed);
             const retry = document.createElement('button');
@@ -144,7 +148,46 @@
         target.replaceChildren(...rows.map(item => { const box = document.createElement('p'); box.className = 'admission-card'; box.textContent = format(item); return box; }));
     }
 
-    function applyFilters(event) { event.preventDefault(); state.page = 1; loadStudents(); }
+    function directoryParams() {
+        const params = new URLSearchParams({ page: String(state.page), pageSize: String(state.pageSize) });
+        if (state.search) params.set('search', state.search);
+        if (state.status) params.set('status', state.status);
+        return params;
+    }
+    async function exportPage() {
+        const button = document.getElementById('studentExportPage');
+        if (!button || button.disabled) return;
+        button.disabled = true;
+        try {
+            const response = await fetch('/api/students/export-page?' + directoryParams(), {
+                method: 'GET', cache: 'no-store', credentials: 'same-origin',
+                headers: { Accept: 'text/csv' }
+            });
+            if (!response.ok || !response.headers.get('content-type')?.includes('text/csv'))
+                throw new Error('Student directory export failed');
+            const blob = await response.blob();
+            if (!blob.size || blob.size > 2000000) throw new Error('Invalid export size');
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = 'students-page-' + state.page + '.csv';
+            document.body.append(link);
+            link.click();
+            link.remove();
+            setTimeout(() => URL.revokeObjectURL(url), 1000);
+        } catch {
+            showAlert(i18n.exportFailed);
+        } finally {
+            button.disabled = false;
+        }
+    }
+    function applyFilters(event) {
+        event.preventDefault();
+        state.search = valueOf('studentSearch');
+        state.status = valueOf('studentStatus');
+        state.page = 1;
+        loadStudents();
+    }
     function changePage(delta) { const page = state.page + delta; if (page < 1 || page > state.totalPages) return; state.page = page; loadStudents(); }
     function updatePagination() {
         document.getElementById('studentPrevious').disabled = state.page <= 1;

@@ -24,6 +24,20 @@ public sealed class StudentsController : ControllerBase
         return StatusCode(result.StatusCode, result);
     }
 
+
+    // Exports only the currently authorized, server-paged directory rows.
+    // No guardian, contact, global Person, historical or cross-tenant data.
+    [HttpGet("export-page")]
+    public async Task<IActionResult> ExportPage([FromQuery] StudentDirectoryQueryDto query,
+        CancellationToken cancellationToken)
+    {
+        var result = await _service.GetPageAsync(query, cancellationToken);
+        if (!result.Success || result.Data == null)
+            return StatusCode(result.StatusCode, result);
+        var csv = EduOS.App.Reporting.StudentDirectoryCsvWriter.Write(result.Data.Items);
+        return File(csv, "text/csv; charset=utf-8", $"students-page-{result.Data.Page}.csv");
+    }
+
     [HttpGet("{reference:guid}")]
     public async Task<IActionResult> Get(Guid reference, CancellationToken cancellationToken)
     {

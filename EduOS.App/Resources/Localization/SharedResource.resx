@@ -800,4 +800,10 @@
 	<data name="LoginActivityPage" xml:space="preserve"><value>Page</value></data>
 	<data name="LoginActivityOf" xml:space="preserve"><value>of</value></data>
 	<data name="LoginActivityAttempts" xml:space="preserve"><value>attempts</value></data>
+  <data name="ExportPageCsv" xml:space="preserve">
+    <value>Export page CSV</value>
+  </data>
+  <data name="StudentExportFailed" xml:space="preserve">
+    <value>Unable to export this student page. Retry after refreshing the list.</value>
+  </data>
 </root>

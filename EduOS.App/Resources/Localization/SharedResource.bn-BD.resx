@@ -799,4 +799,10 @@
 	<data name="LoginActivityPage" xml:space="preserve"><value>পৃষ্ঠা</value></data>
 	<data name="LoginActivityOf" xml:space="preserve"><value>মোট</value></data>
 	<data name="LoginActivityAttempts" xml:space="preserve"><value>প্রচেষ্টা</value></data>
+  <data name="ExportPageCsv" xml:space="preserve">
+    <value>বর্তমান পৃষ্ঠা CSV</value>
+  </data>
+  <data name="StudentExportFailed" xml:space="preserve">
+    <value>শিক্ষার্থীদের এই পৃষ্ঠা এক্সপোর্ট করা যায়নি। তালিকা রিফ্রেশ করে আবার চেষ্টা করুন।</value>
+  </data>
 </root>
