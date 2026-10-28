@@ -59,6 +59,6 @@ public sealed class AssessmentMarkChangePolicyTests
         write.Should().Contain("EntityName = \"AssessmentMarkChange\", EntityId = sub.Id");
         write.Should().Contain("Matches(row.RowVersion, item.RowVersion)");
         var component = Read("EduOS.Service/Services/Assessment/AssessmentAdministrationService.Documents.cs");
-        component.Should().Contain("EntityName = \"AssessmentMarkChange\", EntityId = subject.Id");
+        component.Should().Contain("EntityName = \"AssessmentMarkChange\", EntityId = subject!.Id");
     }
 }
