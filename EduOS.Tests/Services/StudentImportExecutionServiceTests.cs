@@ -997,7 +997,7 @@ public sealed class StudentImportExecutionServiceTests
             new GenericRepository<AcademicBatch>(db), new GenericRepository<Campus>(db),
             new GenericRepository<ImportLog>(db), new GenericRepository<ImportLogItem>(db),
             user, NullLogger<StudentImportPreviewService>.Instance);
-        var failingPreview = new FailOnSecondTransactionalPreview(realPreview);
+        var failingPreview = new FailOnFirstTransactionalPreview(realPreview);
         var transaction = new TransactionProbeUow(db);
         var service = Service(db, user, transaction, failingPreview);
         using var csv = Csv(Header + "ROLLBACK-SRC,ROLLBACK-STU,Student One,10,20,11,,\n");
@@ -1006,14 +1006,101 @@ public sealed class StudentImportExecutionServiceTests
 
         Assert.False(result.Success);
         Assert.Equal(500, result.StatusCode);
-        Assert.Equal(2, failingPreview.Calls);
+        Assert.Equal(1, failingPreview.Calls);
         Assert.Equal(0, transaction.Commits);
         Assert.Equal(1, transaction.Rollbacks);
         Assert.Empty(await db.Students.ToListAsync());
         Assert.Empty(await db.ImportLogs.ToListAsync());
     }
 
-    private sealed class FailOnSecondTransactionalPreview(IStudentImportPreviewService inner)
+    [Fact]
+    public async Task Transactional_preview_runs_once_after_batch_lock()
+    {
+        var options = Options();
+        await SeedAsync(options);
+        await using var db = Context(options, 101);
+        var user = new User(101, true);
+        var counting = new CountingUow(db);
+        var realPreview = new StudentImportPreviewService(
+            new GenericRepository<Student>(db), new GenericRepository<StudentEnrollment>(db),
+            new GenericRepository<AcademicBatch>(db), new GenericRepository<Campus>(db),
+            new GenericRepository<ImportLog>(db), new GenericRepository<ImportLogItem>(db),
+            user, NullLogger<StudentImportPreviewService>.Instance);
+        var preview = new LockOrderPreview(realPreview, () => counting.SaveCount);
+        var service = Service(db, user, counting, preview);
+        using var csv = Csv(Header + "LOCK-SRC,LOCK-STU,Student One,10,20,11,,\\n");
+
+        var result = await service.ExecuteAsync(csv, ".csv", Mapping, Guid.NewGuid());
+
+        Assert.True(result.Success, result.Message);
+        Assert.Equal(1, preview.Calls);
+        Assert.Single(await db.Students.ToListAsync());
+        Assert.Single(await db.StudentEnrollments.ToListAsync());
+    }
+
+    [Fact]
+    public async Task Invalid_post_lock_preview_aborts_transaction_callback()
+    {
+        var options = Options();
+        await SeedAsync(options);
+        await using var db = Context(options, 101);
+        var user = new User(101, true);
+        var transaction = new TransactionProbeUow(db);
+        var preview = new RejectTransactionalPreview();
+        var service = Service(db, user, transaction, preview);
+        using var csv = Csv(Header + "REJECT-SRC,REJECT-STU,Student One,10,20,11,,\\n");
+
+        var result = await service.ExecuteAsync(csv, ".csv", Mapping, Guid.NewGuid());
+
+        Assert.Equal(409, result.StatusCode);
+        Assert.Equal(1, preview.Calls);
+        Assert.Equal(0, transaction.Commits);
+        Assert.Equal(1, transaction.Rollbacks);
+        Assert.Empty(await db.Students.ToListAsync());
+        Assert.Empty(await db.ImportLogs.ToListAsync());
+    }
+
+    private sealed class LockOrderPreview(IStudentImportPreviewService inner, Func<int> saves)
+        : IStudentImportPreviewService
+    {
+        public int Calls { get; private set; }
+        public Task<ApiResponse<IReadOnlyList<string>>> GetHeadersAsync(Stream content, string extension,
+            CancellationToken token = default) => inner.GetHeadersAsync(content, extension, token);
+        public Task<ApiResponse<StudentImportPreviewDto>> PreviewAsync(Stream content, string extension,
+            IReadOnlyDictionary<string, string> mapping, CancellationToken token = default)
+            => inner.PreviewAsync(content, extension, mapping, token);
+        public Task<ApiResponse<StudentImportPreviewDto>> PreviewAllErrorsAsync(Stream content, string extension,
+            IReadOnlyDictionary<string, string> mapping, CancellationToken token = default)
+            => inner.PreviewAllErrorsAsync(content, extension, mapping, token);
+        public Task<ApiResponse<StudentImportPreviewDto>> PreviewForExecutionAsync(Stream content, string extension,
+            IReadOnlyDictionary<string, string> mapping, CancellationToken token = default)
+        {
+            Calls++;
+            Assert.True(saves() > 0, "The batch rowversion lock must be saved before transactional preview.");
+            return inner.PreviewForExecutionAsync(content, extension, mapping, token);
+        }
+    }
+
+    private sealed class RejectTransactionalPreview : IStudentImportPreviewService
+    {
+        public int Calls { get; private set; }
+        public Task<ApiResponse<IReadOnlyList<string>>> GetHeadersAsync(Stream content, string extension,
+            CancellationToken token = default) => Task.FromResult(ApiResponse<IReadOnlyList<string>>.ErrorResponse("Denied.", 403));
+        public Task<ApiResponse<StudentImportPreviewDto>> PreviewAsync(Stream content, string extension,
+            IReadOnlyDictionary<string, string> mapping, CancellationToken token = default)
+            => Task.FromResult(ApiResponse<StudentImportPreviewDto>.ErrorResponse("Rejected.", 400));
+        public Task<ApiResponse<StudentImportPreviewDto>> PreviewAllErrorsAsync(Stream content, string extension,
+            IReadOnlyDictionary<string, string> mapping, CancellationToken token = default)
+            => PreviewAsync(content, extension, mapping, token);
+        public Task<ApiResponse<StudentImportPreviewDto>> PreviewForExecutionAsync(Stream content, string extension,
+            IReadOnlyDictionary<string, string> mapping, CancellationToken token = default)
+        {
+            Calls++;
+            return Task.FromResult(ApiResponse<StudentImportPreviewDto>.ErrorResponse("Rejected.", 400));
+        }
+    }
+
+    private sealed class FailOnFirstTransactionalPreview(IStudentImportPreviewService inner)
         : IStudentImportPreviewService
     {
         public int Calls { get; private set; }
@@ -1032,7 +1119,7 @@ public sealed class StudentImportExecutionServiceTests
             Stream content, string extension, IReadOnlyDictionary<string, string> mapping,
             CancellationToken token = default)
         {
-            if (++Calls == 2)
+            if (++Calls == 1)
                 throw new InvalidOperationException("Synthetic transactional preview infrastructure failure.");
             return inner.PreviewForExecutionAsync(content, extension, mapping, token);
         }

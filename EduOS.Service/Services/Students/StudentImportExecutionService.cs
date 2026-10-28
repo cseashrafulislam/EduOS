@@ -203,24 +203,6 @@ public sealed partial class StudentImportExecutionService : IStudentImportExecut
                     }, "Previously committed import batch returned.");
                 }
 
-                // Re-run canonical validation inside the serializable write transaction.
-                using (var previewStream = new MemoryStream(bytes, writable: false))
-                {
-                    var check = await _preview.PreviewForExecutionAsync(previewStream, extension, mapping, token);
-                    if (!check.Success)
-                    {
-                        // A transactional infrastructure error must not be returned as
-                        // a successful callback result: doing so asks the unit of work
-                        // to commit a transaction SQL Server may have already aborted.
-                        if (check.StatusCode >= 500)
-                            throw new InvalidOperationException("Transactional student import preflight failed.");
-                        return ApiResponse<StudentImportExecutionDto>.ErrorResponse(check.Message, check.StatusCode);
-                    }
-                    if (check.Data == null || check.Data.InvalidRows > 0 || check.Data.ValidRows != rows.Count)
-                        return ApiResponse<StudentImportExecutionDto>.ErrorResponse(
-                            "Import validation changed or contains invalid rows. Run preview and correct the source.", 409);
-                }
-
                 var batchIds = rows.Select(x => x.BatchId).Distinct().OrderBy(x => x).ToArray();
                 var batches = await _batches.GetQueryable().Where(x => x.TenantId == tenant &&
                     !x.IsDeleted && x.IsActive && batchIds.Contains(x.Id))
@@ -252,11 +234,15 @@ public sealed partial class StudentImportExecutionService : IStudentImportExecut
                     _batches.Update(batch);
                 }
                 await _uow.SaveChangesAsync(token);
+                // Validate only after the deterministic AcademicBatch rowversion write lock.
+                // Serializable preview reads before that lock can retain range locks and
+                // deadlock against concurrent allocations. One post-lock validation is
+                // sufficient; any failure must roll back the batch update as well.
                 using (var lockedPreview = new MemoryStream(bytes, writable: false))
                 {
                     var check = await _preview.PreviewForExecutionAsync(lockedPreview, extension, mapping, token);
                     if (!check.Success || check.Data == null || check.Data.InvalidRows > 0 || check.Data.ValidRows != rows.Count)
-                        throw new ImportConflictException("Import data changed during allocation. No records were committed.");
+                        throw new ImportConflictException("Import data changed during allocation. No records were committed. Run preview and correct the source.");
                 }
 
                 // Existing unique tenant+scope+request indexes enforce source-key
