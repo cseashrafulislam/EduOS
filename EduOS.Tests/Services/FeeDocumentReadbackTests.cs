@@ -184,11 +184,11 @@ public sealed class FeeDocumentReadbackTests
         db.Campuses.AddRange(
             new Campus { Id = 5, TenantId = 41, Name = "Allowed campus", IsActive = true },
             new Campus { Id = 6, TenantId = 41, Name = "Other campus", IsActive = true });
-        db.Students.Add(new Student { Id = 3, TenantId = 41,
+        db.Students.Add(new Student { Id = 4, TenantId = 41,
             PublicId = Guid.NewGuid(), StudentCode = "C6-ONLY", FullName = "Hidden learner",
             StatusCode = "Active" });
         db.StudentEnrollments.Add(new StudentEnrollment { Id = 13, TenantId = 41,
-            StudentId = 3, CampusId = 6, RollNo = "C6" });
+            StudentId = 4, CampusId = 6, RollNo = "C6" });
         await db.SaveChangesAsync();
         var scoped = Service(db, new User("Accountant"));
         var options = await scoped.GetOptionsAsync();
