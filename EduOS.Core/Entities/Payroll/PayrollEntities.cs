@@ -76,6 +76,8 @@ public class Bonus : BaseTenantEntity
 
 public class LoanAdvance : BaseTenantEntity
 {
+    // Nullable for existing loans; new commands always provide an immutable replay key.
+    public Guid? ClientRequestId { get; set; }
     public long EmployeeId { get; set; }
     public DateOnly IssueDate { get; set; }
     [Column(TypeName = "decimal(18,2)")] public decimal PrincipalAmount { get; set; }

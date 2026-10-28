@@ -1350,6 +1350,8 @@ public class EduOSDbContext :
         UniqueTenant<PayrollRun>(modelBuilder, nameof(PayrollRun.ClientRequestId));
         UniqueTenant<PayrollEmployee>(modelBuilder, nameof(PayrollEmployee.PayrollRunId), nameof(PayrollEmployee.EmployeeId));
         UniqueTenant<PayrollLine>(modelBuilder, nameof(PayrollLine.PayrollEmployeeId), nameof(PayrollLine.SalaryComponentId));
+        modelBuilder.Entity<LoanAdvance>().HasIndex(x => new { x.TenantId, x.ClientRequestId })
+            .IsUnique().HasFilter("[ClientRequestId] IS NOT NULL");
         UniqueTenant<LoanAdvanceRecovery>(modelBuilder, nameof(LoanAdvanceRecovery.ClientRequestId));
         UniqueTenant<PayrollPayment>(modelBuilder, nameof(PayrollPayment.ClientRequestId));
 

@@ -552,37 +552,69 @@ public sealed class HrPayrollService : IPayrollAdministrationService
     {
         if (!Manager()) return Denied<LoanAdvanceDto>();
         if (request == null || request.ClientRequestId == Guid.Empty || request.EmployeeReference == Guid.Empty ||
-            request.IssueDate == default || request.PrincipalAmount <= 0 ||
-            request.InstallmentAmount <= 0 || request.InstallmentAmount > request.PrincipalAmount ||
-            request.PrincipalAmount > 999999999999m || request.Remarks?.Length > 500)
-            return Error<LoanAdvanceDto>("Invalid loan advance or installment.");
-        var employee = await ActiveEmployeeAsync(request.EmployeeReference, ct);
-        if (employee == null) return Error<LoanAdvanceDto>("Employee not found.", 404);
-        if (await _runs.GetQueryable().AsNoTracking().AnyAsync(x =>
-            x.TenantId == _user.TenantId && x.Year == request.IssueDate.Year &&
-            x.Month == request.IssueDate.Month && x.State != PayrollRunState.Cancelled &&
-            !x.IsDeleted, ct))
-            return Error<LoanAdvanceDto>("Loan issuance within an existing payroll period requires controlled amendment.", 409);
+            request.IssueDate == default || request.PrincipalAmount <= 0m ||
+            request.InstallmentAmount <= 0m || request.InstallmentAmount > request.PrincipalAmount ||
+            request.PrincipalAmount > 999999999999m || request.Remarks?.Length > 500 ||
+            Round(request.PrincipalAmount) != request.PrincipalAmount ||
+            Round(request.InstallmentAmount) != request.InstallmentAmount)
+            return Error<LoanAdvanceDto>("Invalid loan advance, amount precision or installment.");
+
+        var tenant = _user.TenantId;
         try
         {
             return await _uow.ExecuteInTransactionAsync(async token =>
             {
+                // Check the immutable request receipt BEFORE employment/period preflight.
+                // Retries must return the original result even when the employee state later changes.
+                var replay = await _loans.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
+                    x.TenantId == tenant && x.ClientRequestId == request.ClientRequestId, token);
+                if (replay != null)
+                {
+                    var originalEmployee = await _employees.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
+                        x.TenantId == tenant && x.Id == replay.EmployeeId, token);
+                    if (originalEmployee == null || originalEmployee.PublicId != request.EmployeeReference ||
+                        replay.IssueDate != request.IssueDate ||
+                        replay.PrincipalAmount != request.PrincipalAmount ||
+                        replay.InstallmentAmount != request.InstallmentAmount ||
+                        replay.Remarks != Trim(request.Remarks))
+                        return Error<LoanAdvanceDto>("Request key already belongs to a different loan.", 409);
+                    return ApiResponse<LoanAdvanceDto>.SuccessResponse(MapLoan(replay, originalEmployee),
+                        "Existing loan registration returned.");
+                }
+
+                var employee = await ActiveEmployeeAsync(request.EmployeeReference, token);
+                if (employee == null) return Error<LoanAdvanceDto>("Active employee not found.", 404);
+                if (request.IssueDate < employee.JoiningDate ||
+                    employee.LeavingDate.HasValue && request.IssueDate > employee.LeavingDate.Value)
+                    return Error<LoanAdvanceDto>("Loan date is outside the employee's employment period.", 409);
+                if (await _runs.GetQueryable().AsNoTracking().AnyAsync(x =>
+                    x.TenantId == tenant && x.Year == request.IssueDate.Year &&
+                    x.Month == request.IssueDate.Month && x.State != PayrollRunState.Cancelled &&
+                    !x.IsDeleted, token))
+                    return Error<LoanAdvanceDto>("Loan issuance within an existing payroll period requires controlled amendment.", 409);
+
                 var now = _clock.GetUtcNow().UtcDateTime;
                 var loan = new LoanAdvance
                 {
-                    TenantId = _user.TenantId, EmployeeId = employee.Id,
-                    IssueDate = request.IssueDate, PrincipalAmount = Round(request.PrincipalAmount),
-                    OutstandingAmount = Round(request.PrincipalAmount),
-                    InstallmentAmount = Round(request.InstallmentAmount),
-                    Remarks = Trim(request.Remarks), CreatedAt = now, CreatedBy = _user.UserId
+                    TenantId = tenant, ClientRequestId = request.ClientRequestId,
+                    EmployeeId = employee.Id, IssueDate = request.IssueDate,
+                    PrincipalAmount = request.PrincipalAmount, OutstandingAmount = request.PrincipalAmount,
+                    InstallmentAmount = request.InstallmentAmount, Remarks = Trim(request.Remarks),
+                    CreatedAt = now, CreatedBy = _user.UserId
                 };
                 await _loans.AddAsync(loan);
                 await _uow.SaveChangesAsync(token);
                 return ApiResponse<LoanAdvanceDto>.SuccessResponse(MapLoan(loan, employee),
                     "Loan registered; disbursement journal must be completed separately.");
-            }, ct);
+            }, System.Data.IsolationLevel.Serializable, ct);
         }
-        catch (DbUpdateException) { return Error<LoanAdvanceDto>("Loan advance conflicts with existing data.", 409); }
+        catch (DbUpdateConcurrencyException)
+        { return Error<LoanAdvanceDto>("Loan registration changed concurrently; reload the register.", 409); }
+        catch (DbUpdateException ex)
+        {
+            _logger.LogWarning(ex, "Loan registration conflict tenant {TenantId}", tenant);
+            return Error<LoanAdvanceDto>("Loan request already processed or conflicts with another registration. Reload the register.", 409);
+        }
     }
 
     public async Task<ApiResponse<PagedResult<PayrollRunDto>>> GetPayrollRunsAsync(
