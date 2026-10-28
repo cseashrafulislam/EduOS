@@ -100,7 +100,7 @@
                     clientRequestId: state.requestId, assessmentRowVersion: review.assessmentRowVersion,
                     decision, reason: reason || null
                 });
-            state.requestId = null; notice('Review decision recorded.'); render();
+            state.requestId = null; notice('Review decision recorded.'); render(); if (canReview) loadQueue();
         } catch (error) {
             notice(error.message + ' Refresh before retrying a conflicting decision.', true);
             await loadReview();
@@ -119,6 +119,81 @@
         const link = document.createElement('a'); link.href = url; link.download = 'mark-review-history.csv'; link.click();
         setTimeout(() => URL.revokeObjectURL(url), 1000);
     }
+
+    const queue = { page: 1, pageSize: 25, total: 0, rows: [], sequence: 0 };
+    function csvRows(filename, rows) {
+        const safe = value => /^[=+@\t\r-]/.test(String(value ?? '')) ? "'" + value : value;
+        const content = rows.map(row => row.map(value =>
+            '"' + String(safe(value) ?? '').replace(/"/g, '""') + '"').join(',')).join('\r\n');
+        const url = URL.createObjectURL(new Blob(['\uFEFF', content], { type: 'text/csv;charset=utf-8' }));
+        const link = document.createElement('a');
+        link.href = url; link.download = filename; link.click();
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+    }
+    function renderQueue() {
+        const tbody = el('markReviewQueueRows'); tbody.replaceChildren();
+        for (const item of queue.rows) {
+            const tr = document.createElement('tr');
+            const status = item.decision == null ? 'Unsubmitted' :
+                (labels[item.decision] || 'Unknown') + (item.isCurrent ? '' : ' · Stale');
+            tr.append(cell(item.assessmentName), cell(item.academicBatchName),
+                cell(item.subjectName), cell(status), cell(item.lastDecisionAt));
+            const action = document.createElement('td');
+            const button = document.createElement('button');
+            button.type = 'button'; button.className = 'btn btn-sm btn-outline-primary';
+            button.textContent = item.canReview ? 'Review' : 'Open';
+            button.addEventListener('click', () => {
+                const select = el('markReviewSubject'), id = String(item.assessmentSubjectId);
+                if (![...select.options].some(option => option.value === id))
+                    select.add(new Option(item.assessmentName + ' / ' +
+                        item.academicBatchName + ' / ' + item.subjectName, id));
+                select.value = id;
+                loadReview();
+                select.focus();
+            });
+            action.append(button); tr.append(action); tbody.append(tr);
+        }
+        if (!tbody.children.length) {
+            const tr = document.createElement('tr'), td = cell('No matching subjects.');
+            td.colSpan = 6; tr.append(td); tbody.append(tr);
+        }
+        el('markReviewQueuePage').textContent = queue.total + ' subjects · Page ' + queue.page;
+        el('markReviewQueuePrev').disabled = queue.page <= 1;
+        el('markReviewQueueNext').disabled = queue.page * queue.pageSize >= queue.total;
+        el('markReviewQueueCsv').disabled = !queue.rows.length;
+    }
+    async function loadQueue() {
+        if (!canReview) return;
+        const sequence = ++queue.sequence;
+        const params = new URLSearchParams({ page: String(queue.page),
+            pageSize: String(queue.pageSize), status: el('markReviewQueueStatus').value,
+            search: el('markReviewQueueTerm').value.trim() });
+        try {
+            const data = await api('/api/assessment-administration/marks/reviews/queue?' + params);
+            if (sequence !== queue.sequence) return;
+            queue.rows = data.items || []; queue.total = data.totalCount || 0;
+            renderQueue();
+        } catch (error) {
+            if (sequence === queue.sequence) notice(error.message, true);
+        }
+    }
+    if (canReview) {
+        el('markReviewQueueSearch').addEventListener('submit', event => {
+            event.preventDefault(); queue.page = 1; loadQueue();
+        });
+        el('markReviewQueuePrev').addEventListener('click', () => {
+            if (queue.page > 1) { queue.page--; loadQueue(); }
+        });
+        el('markReviewQueueNext').addEventListener('click', () => {
+            if (queue.page * queue.pageSize < queue.total) { queue.page++; loadQueue(); }
+        });
+        el('markReviewQueueCsv').addEventListener('click', () => csvRows(
+            'mark-review-queue.csv', [['Assessment','Batch','Subject','Status','Last decision UTC'],
+            ...queue.rows.map(x => [x.assessmentName, x.academicBatchName, x.subjectName,
+                x.decision == null ? 'Unsubmitted' : labels[x.decision] +
+                    (x.isCurrent ? '' : ' (stale)'), x.lastDecisionAt])]));
+    }
+
     el('markReviewSearch').addEventListener('submit', event => { event.preventDefault(); state.page = 1; loadScopes(); });
     el('markReviewPrev').addEventListener('click', () => { if (state.page > 1) { state.page--; loadScopes(); } });
     el('markReviewNext').addEventListener('click', () => { if (state.page * state.pageSize < state.total) { state.page++; loadScopes(); } });
@@ -131,4 +206,5 @@
     el('markReviewCsv').addEventListener('click', csv);
     el('markReviewPrint').addEventListener('click', () => window.print());
     loadScopes();
+    if (canReview) loadQueue();
 })();
