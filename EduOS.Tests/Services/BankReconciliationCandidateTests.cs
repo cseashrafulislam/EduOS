@@ -64,7 +64,7 @@ public sealed class BankReconciliationCandidateTests
         await using var db = Database();
         Seed(db);
         Post(db, 1, JournalState.Posted, "DEP-01", 100m);
-        db.JournalLines.Single(x => x.Id == 12).CreditAmount = 90m;
+        db.ChangeTracker.Entries<JournalLine>().Single(x => x.Entity.Id == 12).Entity.CreditAmount = 90m;
         await db.SaveChangesAsync();
         (await Service(db).GetBankReconciliationCandidatesAsync(1, From, To, null))
             .StatusCode.Should().Be(409);
