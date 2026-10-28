@@ -188,11 +188,11 @@ public sealed partial class StudentImportExecutionService : IStudentImportExecut
                             !string.Equals(committedItems[index].BusinessKey, row.SourceKey, StringComparison.Ordinal))
                             .Any())
                         return ApiResponse<StudentImportExecutionDto>.ErrorResponse("Previous import source receipts are incomplete. Verify committed links.", 409);
-                    var sourceIds = rows.Select(x => SourceId(x.SourceKey)).Distinct().ToArray();
+                    var replaySourceIds = rows.Select(x => SourceId(x.SourceKey)).Distinct().ToArray();
                     var sourceReceipts = await _keys.GetQueryable().AsNoTracking().CountAsync(x =>
                         x.TenantId == tenant && x.Scope == SourceScope && !x.IsDeleted &&
                         x.CompletedAt.HasValue && x.TargetId.HasValue &&
-                        sourceIds.Contains(x.RequestId), token);
+                        replaySourceIds.Contains(x.RequestId), token);
                     if (sourceReceipts != rows.Count)
                         return ApiResponse<StudentImportExecutionDto>.ErrorResponse("Previous import source identities are incomplete. Verify committed links.", 409);
 
