@@ -27,6 +27,7 @@ public sealed class HrPayrollService : IPayrollAdministrationService
     private readonly IGenericRepository<LoanAdvance> _loans;
     private readonly IGenericRepository<LoanAdvanceRecovery> _recoveries;
     private readonly IGenericRepository<BankAccount> _bankAccounts;
+    private readonly IGenericRepository<Journal> _journals;
     private readonly IGenericRepository<EmployeeBankAccount> _employeeBankAccounts;
     private readonly IUnitOfWork _uow;
     private readonly ICurrentUserService _user;
@@ -40,13 +41,15 @@ public sealed class HrPayrollService : IPayrollAdministrationService
         IGenericRepository<PayrollPayment> payments, IGenericRepository<Bonus> bonuses,
         IGenericRepository<LoanAdvance> loans, IGenericRepository<LoanAdvanceRecovery> recoveries,
         IGenericRepository<BankAccount> bankAccounts,
+        IGenericRepository<Journal> journals,
         IGenericRepository<EmployeeBankAccount> employeeBankAccounts,
         IUnitOfWork uow, ICurrentUserService user, TimeProvider clock, ILogger<HrPayrollService> logger)
     {
         _employees = employees; _components = components; _structures = structures;
         _structureLines = structureLines; _runs = runs; _payrollEmployees = payrollEmployees;
         _payrollLines = payrollLines; _payments = payments; _bonuses = bonuses; _loans = loans;
-        _recoveries = recoveries; _bankAccounts = bankAccounts; _employeeBankAccounts = employeeBankAccounts;
+        _recoveries = recoveries; _bankAccounts = bankAccounts; _journals = journals;
+        _employeeBankAccounts = employeeBankAccounts;
         _uow = uow; _user = user; _clock = clock; _logger = logger;
     }
 
@@ -347,7 +350,40 @@ public sealed class HrPayrollService : IPayrollAdministrationService
                 var loans = await _loans.GetQueryable().AsNoTracking().Where(x =>
                     x.TenantId == tenant && ids.Contains(x.EmployeeId) &&
                     !x.IsClosed && x.IssueDate <= lastDay && x.OutstandingAmount > 0m && !x.IsDeleted)
-                    .ToListAsync(token);
+                    .OrderBy(x => x.Id).Take(5001).ToListAsync(token);
+                if (loans.Count > 5000)
+                    return Error<PayrollRunDto>("Loan volume exceeds the safe payroll calculation limit.", 409);
+                if (loans.Count > 0)
+                {
+                    // A registered advance is NOT a paid advance. Salary must never withhold
+                    // repayment without an actual, non-reversed institutional disbursement.
+                    var loanIds = loans.Select(x => x.Id).ToArray();
+                    var sources = await _journals.GetQueryable().AsNoTracking().Where(x =>
+                        x.TenantId == tenant && !x.IsDeleted && x.SourceType == "LoanAdvance" &&
+                        x.SourceId.HasValue && loanIds.Contains(x.SourceId.Value))
+                        .Select(x => new { x.Id, x.SourceId, x.State, x.JournalDate,
+                            x.ReversalOfJournalId, x.CurrencyCode })
+                        .Take(5001).ToListAsync(token);
+                    if (sources.Count > 5000)
+                        return Error<PayrollRunDto>("Loan journal history exceeds the safe reconciliation limit.", 409);
+                    if (loans.Any(loan =>
+                    {
+                        var history = sources.Where(x => x.SourceId == loan.Id).ToArray();
+                        return history.Length != 1 || history[0].State != JournalState.Posted ||
+                            history[0].ReversalOfJournalId.HasValue ||
+                            history[0].JournalDate > lastDay || history[0].CurrencyCode != "BDT";
+                    }))
+                        return Error<PayrollRunDto>(
+                            "Loan withholding requires one valid posted disbursement journal for every open loan. No payroll was generated.", 409);
+                    var journalIds = sources.Select(x => x.Id).ToArray();
+                    if (await _journals.GetQueryable().AsNoTracking().AnyAsync(x =>
+                        x.TenantId == tenant && !x.IsDeleted && x.State == JournalState.Posted &&
+                        x.ReversalOfJournalId.HasValue &&
+                        journalIds.Contains(x.ReversalOfJournalId.Value), token))
+                        return Error<PayrollRunDto>(
+                            "A loan disbursement has been reversed. Reconcile the loan before calculating salary.", 409);
+                }
+                var loanByEmployee = loans.ToLookup(x => x.EmployeeId);
                 var loanComponent = await _components.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
                     x.TenantId == tenant && x.Code == "LOAN_RECOVERY" &&
                     x.Type == SalaryComponentType.Deduction && x.IsActive && !x.IsDeleted, token);
@@ -362,7 +398,7 @@ public sealed class HrPayrollService : IPayrollAdministrationService
                     var earnings = sourceLines.Where(x => comps[x.SalaryComponentId].Type == SalaryComponentType.Earning).Sum(x => x.Amount);
                     var withheld = sourceLines.Where(x => comps[x.SalaryComponentId].Type == SalaryComponentType.Deduction).Sum(x => x.Amount);
                     var bonus = bonusByEmployee.GetValueOrDefault(employee.Id);
-                    var recover = loans.Where(x => x.EmployeeId == employee.Id).Sum(x => Math.Min(x.InstallmentAmount, x.OutstandingAmount));
+                    var recover = loanByEmployee[employee.Id].Sum(x => Math.Min(x.InstallmentAmount, x.OutstandingAmount));
                     var gross = Round(earnings + bonus);
                     var deductions = Round(withheld + recover);
                     if (gross <= 0m || deductions > gross)
@@ -385,7 +421,7 @@ public sealed class HrPayrollService : IPayrollAdministrationService
                 {
                     var lines = structureLineLookup[structureByEmployee[employee.Id].Id].ToList();
                     var bonus = bonusByEmployee.GetValueOrDefault(employee.Id);
-                    var recover = loans.Where(x => x.EmployeeId == employee.Id)
+                    var recover = loanByEmployee[employee.Id]
                         .Sum(x => Math.Min(x.InstallmentAmount, x.OutstandingAmount));
                     var (gross, deductions) = amounts[employee.Id];
                     var row = new PayrollEmployee
