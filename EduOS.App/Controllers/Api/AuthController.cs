@@ -25,7 +25,7 @@ namespace EduOS.App.Controllers.Api
     [ApiController]
     [AutoValidateAntiforgeryToken]
     [Route("api/auth")]
-    public class AuthController : ControllerBase
+    public partial class AuthController : ControllerBase
     {
         private readonly UserManager<ApplicationUser> _userManager;
         private readonly SignInManager<ApplicationUser> _signInManager;

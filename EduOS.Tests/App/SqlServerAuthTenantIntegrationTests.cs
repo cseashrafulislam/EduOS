@@ -105,8 +105,14 @@ public sealed class SqlServerAuthTenantIntegrationTests
             Assert.Equal(1, await AuthSessionRegistry.RevokeOthersAsync(db, userId, sessionId, tenantAId));
             Assert.False(await AuthSessionRegistry.IsValidAsync(db, userId, secondary, tenantBId));
             Assert.True(await AuthSessionRegistry.IsValidAsync(db, userId, sessionId, tenantAId));
+            // A new signed tenant session cannot be used for the previous institution.
+            var switched = await AuthSessionRegistry.CreateAsync(db, userId, tenantBId,
+                "127.0.0.1", "CI SQL switched", true);
             Assert.True(await AuthSessionRegistry.RevokeAsync(db, userId, sessionId));
             Assert.False(await AuthSessionRegistry.IsValidAsync(db, userId, sessionId, tenantAId));
+            Assert.True(await AuthSessionRegistry.IsValidAsync(db, userId, switched, tenantBId));
+            Assert.False(await AuthSessionRegistry.IsValidAsync(db, userId, switched, tenantAId));
+            Assert.True(await AuthSessionRegistry.RevokeAsync(db, userId, switched));
         }
 
         await using var first = new EduOSDbContext(options);

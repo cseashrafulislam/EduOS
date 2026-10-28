@@ -537,6 +537,7 @@
                                 @if (User?.IsInRole("SuperAdmin") != true)
                                 {
                                     <li><a class="dropdown-item rounded-3" href="/workspace">@(currentCulture == "bn-BD" ? "ওয়ার্কস্পেস ডিজাইন" : "Workspace Appearance")</a></li>
+                                     <li><button type="button" class="dropdown-item rounded-3" data-bs-toggle="modal" data-bs-target="#institutionSwitchModal">@(currentCulture == "bn-BD" ? "প্রতিষ্ঠান পরিবর্তন" : "Switch institution")</button></li>
                                 }
                                 <li><a class="dropdown-item rounded-3" href="/LoginActivity/Index">Sign-in activity</a></li>
                                 <li><a class="dropdown-item rounded-3" href="/LegalDocuments/My">My Legal Agreements</a></li>
@@ -574,11 +575,36 @@
         </div>
     </div>
 
+
+    @if (User?.Identity?.IsAuthenticated == true && User?.IsInRole("SuperAdmin") != true)
+    {
+        <div class="modal fade" id="institutionSwitchModal" tabindex="-1" aria-labelledby="institutionSwitchTitle" aria-hidden="true">
+            <div class="modal-dialog modal-dialog-centered modal-sm">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h2 class="modal-title fs-6" id="institutionSwitchTitle">@(currentCulture == "bn-BD" ? "প্রতিষ্ঠান পরিবর্তন" : "Switch institution")</h2>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="@T["CloseMenu"]"></button>
+                    </div>
+                    <div class="modal-body">
+                        <label class="form-label" for="institutionSwitchSelect">@(currentCulture == "bn-BD" ? "প্রতিষ্ঠান" : "Institution")</label>
+                        <select class="form-select" id="institutionSwitchSelect" disabled></select>
+                        <div id="institutionSwitchStatus" class="small mt-2" role="status" aria-live="polite"></div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">@(currentCulture == "bn-BD" ? "বাতিল" : "Cancel")</button>
+                        <button type="button" class="btn btn-primary" id="institutionSwitchSubmit" disabled>@(currentCulture == "bn-BD" ? "পরিবর্তন করুন" : "Switch")</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+
     <div class="visually-hidden" aria-live="polite" data-app-status></div>
 
     <script src="~/lib/jquery/dist/jquery.min.js" asp-append-version="true"></script>
     <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js" asp-append-version="true"></script>
     <script src="~/js/site.js" asp-append-version="true"></script>
+    <script src="~/js/platform/institution-switch.js" asp-append-version="true"></script>
     <script src="~/js/platform/page-context-help.js" asp-append-version="true"></script>
     @await RenderSectionAsync("Scripts", required: false)
 </body>

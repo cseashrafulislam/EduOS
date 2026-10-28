@@ -16,6 +16,7 @@ public sealed class AuthManagementEndpointContractTests
     [InlineData(nameof(AuthController.RevokeSession))]
     [InlineData(nameof(AuthController.RevokeAllSessions))]
     [InlineData(nameof(AuthController.RevokeOtherSessions))]
+    [InlineData(nameof(AuthController.SwitchInstitution))]
     public void Sensitive_auth_management_actions_require_authorization_and_rate_limits(string action)
     {
         var method = typeof(AuthController).GetMethod(action)!;
@@ -24,6 +25,26 @@ public sealed class AuthManagementEndpointContractTests
         Assert.True(method.GetCustomAttributes(typeof(HttpPostAttribute), true).Any());
         Assert.True(method.GetCustomAttributes(typeof(EnableRateLimitingAttribute), true).Any());
         Assert.True(typeof(AuthController).GetCustomAttributes(typeof(AutoValidateAntiforgeryTokenAttribute), true).Any());
+    }
+
+    [Fact]
+    public void Institution_choices_are_authenticated_and_read_only()
+    {
+        var method = typeof(AuthController).GetMethod(nameof(AuthController.GetAvailableInstitutions))!;
+        Assert.True(method.GetCustomAttributes(typeof(AuthorizeAttribute), true).Any());
+        Assert.True(method.GetCustomAttributes(typeof(HttpGetAttribute), true).Any());
+    }
+
+    [Fact]
+    public void Institution_switch_requires_current_session_membership_and_mfa_before_reissuing_cookie()
+    {
+        var source = File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "TestAssets", "AuthInstitutionSwitchController.cs"));
+        Assert.Contains("AuthSessionRegistry.IsValidAsync", source);
+        Assert.Contains("GetSessionContextAsync(user, request.TenantId)", source);
+        Assert.Contains("selected.TenantId != request.TenantId", source);
+        Assert.Contains("user.TwoFactorEnabled && !User.HasClaim", source);
+        Assert.Contains("SignInSessionAsync(user", source);
+        Assert.Contains("Clear-Site-Data", source);
     }
 
     [Fact]
