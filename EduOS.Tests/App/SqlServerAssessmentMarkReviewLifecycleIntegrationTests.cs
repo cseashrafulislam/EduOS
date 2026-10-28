@@ -235,6 +235,175 @@ public sealed class SqlServerAssessmentMarkReviewLifecycleIntegrationTests
         }
     }
 
+    [Fact]
+    public async Task Historical_grade_distribution_and_version_comparison_execute_on_real_sql_with_tenant_guards()
+    {
+        var connection = Environment.GetEnvironmentVariable("EDUOS_SQL_AUTH_TEST_CONNECTION");
+        if (string.IsNullOrWhiteSpace(connection)) return;
+        var options = new DbContextOptionsBuilder<EduOSDbContext>().UseSqlServer(connection).Options;
+        var seeded = await SeedAsync(options);
+        long baselineId;
+        long targetId;
+        await using (var db = TenantDb(options, seeded.TenantId))
+        {
+            var subject = await db.AssessmentSubjects.AsNoTracking()
+                .SingleAsync(x => x.Id == seeded.AssessmentSubjectId);
+            var registration = await db.StudentSubjectRegistrations.AsNoTracking()
+                .SingleAsync(x => x.Id == seeded.RegistrationId);
+            var batchId = await db.SubjectOfferings.AsNoTracking()
+                .Where(x => x.Id == subject.SubjectOfferingId)
+                .Select(x => x.AcademicBatchId).SingleAsync();
+            var baseline = new ResultPublication
+            {
+                TenantId = seeded.TenantId, AssessmentId = subject.AssessmentId,
+                AcademicBatchId = batchId, VersionNo = 1,
+                State = ResultPublicationState.Withdrawn,
+                PublishedAt = DateTime.UtcNow.AddMinutes(-10),
+                PublishedByUserId = seeded.ReviewerId
+            };
+            var target = new ResultPublication
+            {
+                TenantId = seeded.TenantId, AssessmentId = subject.AssessmentId,
+                AcademicBatchId = batchId, VersionNo = 2,
+                State = ResultPublicationState.Published,
+                PublishedAt = DateTime.UtcNow,
+                PublishedByUserId = seeded.ReviewerId
+            };
+            db.ResultPublications.AddRange(baseline, target);
+            await db.SaveChangesAsync();
+            baselineId = baseline.Id;
+            targetId = target.Id;
+            db.StudentResultSummaries.AddRange(
+                new StudentResultSummary
+                {
+                    TenantId = seeded.TenantId, ResultPublicationId = baselineId,
+                    AssessmentId = subject.AssessmentId,
+                    StudentEnrollmentId = registration.StudentEnrollmentId,
+                    PublicationVersionNo = 1, TotalMarks = 100m, ObtainedMarks = 75m,
+                    Percentage = 75m, GPA = 3m, GradeLetter = null, IsPassed = true
+                },
+                new StudentResultSummary
+                {
+                    TenantId = seeded.TenantId, ResultPublicationId = targetId,
+                    AssessmentId = subject.AssessmentId,
+                    StudentEnrollmentId = registration.StudentEnrollmentId,
+                    PublicationVersionNo = 2, TotalMarks = 100m, ObtainedMarks = 90m,
+                    Percentage = 90m, GPA = 4m, GradeLetter = "A", IsPassed = true
+                });
+            await db.SaveChangesAsync();
+        }
+
+        await using (var db = TenantDb(options, seeded.TenantId))
+        {
+            var service = Service(db, new Actor(seeded.TenantId, seeded.ReviewerId, "TenantAdmin"));
+            var baseline = await service.GetPublishedGradeDistributionAsync(
+                new() { PublicationId = baselineId });
+            Assert.True(baseline.Success, baseline.Message);
+            Assert.Equal(1, baseline.Data!.StudentCount);
+            Assert.Equal(1, baseline.Data.PassedCount);
+            Assert.Equal("Unassigned", Assert.Single(baseline.Data.Grades).GradeLetter);
+            Assert.Equal(75m, baseline.Data.Grades[0].TotalObtainedMarks);
+
+            var target = await service.GetPublishedGradeDistributionAsync(
+                new() { PublicationId = targetId });
+            Assert.True(target.Success, target.Message);
+            Assert.Equal(90m, Assert.Single(target.Data!.Grades).TotalObtainedMarks);
+
+            var comparison = await service.ComparePublishedGradeDistributionsAsync(
+                new() { BaselinePublicationId = baselineId, TargetPublicationId = targetId });
+            Assert.True(comparison.Success, comparison.Message);
+            Assert.Equal(0, comparison.Data!.StudentCountChange);
+            Assert.Equal(-1, comparison.Data.Grades.Single(x =>
+                x.GradeLetter == "Unassigned").CountChange);
+            var added = comparison.Data.Grades.Single(x => x.GradeLetter == "A");
+            Assert.Equal(1, added.CountChange);
+            Assert.Equal(90m, added.ObtainedMarksChange);
+            Assert.Null(added.AveragePercentageChange);
+
+            var reversed = await service.ComparePublishedGradeDistributionsAsync(
+                new() { BaselinePublicationId = targetId, TargetPublicationId = baselineId });
+            Assert.Equal(409, reversed.StatusCode);
+        }
+
+        await using (var db = TenantDb(options, seeded.TenantId))
+        {
+            var teacher = Service(db, new Actor(seeded.TenantId, seeded.TeacherId, "Teacher"));
+            Assert.Equal(403, (await teacher.GetPublishedGradeDistributionAsync(
+                new() { PublicationId = baselineId })).StatusCode);
+            Assert.Equal(403, (await teacher.ComparePublishedGradeDistributionsAsync(
+                new() { BaselinePublicationId = baselineId,
+                    TargetPublicationId = targetId })).StatusCode);
+        }
+        await using (var db = TenantDb(options, seeded.TenantId + 1))
+        {
+            var foreign = Service(db,
+                new Actor(seeded.TenantId + 1, seeded.ReviewerId, "TenantAdmin"));
+            Assert.Equal(404, (await foreign.GetPublishedGradeDistributionAsync(
+                new() { PublicationId = targetId })).StatusCode);
+            Assert.Equal(404, (await foreign.ComparePublishedGradeDistributionsAsync(
+                new() { BaselinePublicationId = baselineId,
+                    TargetPublicationId = targetId })).StatusCode);
+        }
+    }
+
+    [Fact]
+    public async Task Historical_grade_report_fails_closed_when_finalized_snapshot_is_soft_deleted()
+    {
+        var connection = Environment.GetEnvironmentVariable("EDUOS_SQL_AUTH_TEST_CONNECTION");
+        if (string.IsNullOrWhiteSpace(connection)) return;
+        var options = new DbContextOptionsBuilder<EduOSDbContext>().UseSqlServer(connection).Options;
+        var seeded = await SeedAsync(options);
+        long publicationId;
+        await using (var db = TenantDb(options, seeded.TenantId))
+        {
+            var subject = await db.AssessmentSubjects.AsNoTracking()
+                .SingleAsync(x => x.Id == seeded.AssessmentSubjectId);
+            var enrollmentId = await db.StudentSubjectRegistrations.AsNoTracking()
+                .Where(x => x.Id == seeded.RegistrationId)
+                .Select(x => x.StudentEnrollmentId).SingleAsync();
+            var batchId = await db.SubjectOfferings.AsNoTracking()
+                .Where(x => x.Id == subject.SubjectOfferingId)
+                .Select(x => x.AcademicBatchId).SingleAsync();
+            var publication = new ResultPublication
+            {
+                TenantId = seeded.TenantId, AssessmentId = subject.AssessmentId,
+                AcademicBatchId = batchId, VersionNo = 1,
+                State = ResultPublicationState.Published,
+                PublishedAt = DateTime.UtcNow, PublishedByUserId = seeded.ReviewerId
+            };
+            db.ResultPublications.Add(publication);
+            await db.SaveChangesAsync();
+            publicationId = publication.Id;
+            db.StudentResultSummaries.Add(new StudentResultSummary
+            {
+                TenantId = seeded.TenantId, ResultPublicationId = publicationId,
+                AssessmentId = subject.AssessmentId, StudentEnrollmentId = enrollmentId,
+                PublicationVersionNo = 1, TotalMarks = 100m, ObtainedMarks = 75m,
+                Percentage = 75m, GPA = 3m, GradeLetter = "B", IsPassed = true
+            });
+            await db.SaveChangesAsync();
+        }
+        await using (var db = TenantDb(options, seeded.TenantId))
+        {
+            var service = Service(db,
+                new Actor(seeded.TenantId, seeded.ReviewerId, "TenantAdmin"));
+            var valid = await service.GetPublishedGradeDistributionAsync(
+                new() { PublicationId = publicationId });
+            Assert.True(valid.Success, valid.Message);
+
+            // Simulate corrupted historical evidence via SQL, deliberately bypassing
+            // the EF append-only guard in this disposable integration database.
+            var affected = await db.StudentResultSummaries
+                .Where(x => x.ResultPublicationId == publicationId)
+                .ExecuteUpdateAsync(setters => setters.SetProperty(x => x.IsDeleted, true));
+            Assert.Equal(1, affected);
+            var denied = await service.GetPublishedGradeDistributionAsync(
+                new() { PublicationId = publicationId });
+            Assert.Equal(409, denied.StatusCode);
+            Assert.Null(denied.Data);
+        }
+    }
+
     private static AssessmentMarkReviewRequestDto Decision(Guid key, string version,
         AssessmentMarkReviewDecision decision, string? reason = null) => new()
     {
