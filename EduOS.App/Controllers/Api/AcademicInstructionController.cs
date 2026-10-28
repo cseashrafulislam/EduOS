@@ -26,6 +26,14 @@ public sealed class AcademicInstructionController : ControllerBase
         [FromQuery] int page = 1, [FromQuery] int pageSize = 20, CancellationToken cancellationToken = default) =>
         ToAction(await _service.GetLessonOfferingChoicesAsync(academicBatchId, search, page, pageSize, cancellationToken));
 
+    [HttpGet("batches/{academicBatchId:long}/substitution-routines")]
+    [Authorize(Roles = "TenantAdmin,Principal,VicePrincipal")]
+    public async Task<IActionResult> SubstitutionRoutines(long academicBatchId, [FromQuery] DateOnly date,
+        [FromQuery] string? search, [FromQuery] int page = 1, [FromQuery] int pageSize = 20,
+        CancellationToken cancellationToken = default) =>
+        ToAction(await _service.GetSubstitutionRoutineChoicesAsync(
+            academicBatchId, date, search, page, pageSize, cancellationToken));
+
     [HttpGet("substitutions")]
     public async Task<IActionResult> Substitutions([FromQuery] DateOnly fromDate, [FromQuery] DateOnly toDate, [FromQuery] long? academicBatchId, CancellationToken cancellationToken) =>
         ToAction(await _service.GetSubstitutionsAsync(fromDate, toDate, academicBatchId, cancellationToken));
