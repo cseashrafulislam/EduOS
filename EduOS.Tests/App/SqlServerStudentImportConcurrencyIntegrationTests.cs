@@ -31,7 +31,9 @@ public sealed class SqlServerStudentImportConcurrencyIntegrationTests
     {
         ["SourceKey"] = "SourceKey", ["StudentCode"] = "StudentCode",
         ["FullName"] = "FullName", ["CampusId"] = "CampusId",
-        ["AcademicBatchId"] = "AcademicBatchId", ["RollNo"] = "RollNo"
+        ["AcademicBatchId"] = "AcademicBatchId", ["RollNo"] = "RollNo",
+        ["GuardianName"] = "GuardianName", ["GuardianPhone"] = "GuardianPhone",
+        ["GuardianSourceKey"] = "GuardianSourceKey"
     };
 
     [Fact]
@@ -101,12 +103,13 @@ public sealed class SqlServerStudentImportConcurrencyIntegrationTests
         // Globally unique synthetic names make orphan detection independent of
         // audit stamping and of identities seeded by other SQL smoke tests.
         var learnerNames = new[] { $"First Learner {suffix}", $"Second Learner {suffix}" };
-        var header = "SourceKey,StudentCode,FullName,CampusId,AcademicBatchId,RollNo\n";
+        var guardianNames = new[] { $"First Guardian {suffix}", $"Second Guardian {suffix}" };
+        var header = "SourceKey,StudentCode,FullName,CampusId,AcademicBatchId,RollNo,GuardianName,GuardianPhone,GuardianSourceKey\n";
         // Two separate tenant-authorized HTTP-style requests with independent DbContexts.
         var sources = new[]
         {
-            header + $"SQL-SRC-A-{suffix},SQL-STU-A-{suffix},{learnerNames[0]},{await CampusIdAsync(options, tenantId, batchId)},{batchId},01\n",
-            header + $"SQL-SRC-B-{suffix},SQL-STU-B-{suffix},{learnerNames[1]},{await CampusIdAsync(options, tenantId, batchId)},{batchId},02\n"
+            header + $"SQL-SRC-A-{suffix},SQL-STU-A-{suffix},{learnerNames[0]},{await CampusIdAsync(options, tenantId, batchId)},{batchId},01,{guardianNames[0]},01700000000,SQL-FAM-A-{suffix}\n",
+            header + $"SQL-SRC-B-{suffix},SQL-STU-B-{suffix},{learnerNames[1]},{await CampusIdAsync(options, tenantId, batchId)},{batchId},02,{guardianNames[1]},01700000001,SQL-FAM-B-{suffix}\n"
         };
         var diagnostic = new System.Collections.Concurrent.ConcurrentBag<string>();
         var results = await Task.WhenAll(Enumerable.Range(0, 2).Select(async i =>
@@ -157,6 +160,17 @@ public sealed class SqlServerStudentImportConcurrencyIntegrationTests
                 .Select(x => x.FullName).SingleAsync());
             Assert.Equal(1, await verify.Persons.CountAsync(x =>
                 x.FullName == learnerNames[0] || x.FullName == learnerNames[1]));
+            // The losing transaction must also roll back its guardian Person,
+            // tenant-owned Guardian, relationship and guardian source identity.
+            var guardian = await verify.Guardians.AsNoTracking().SingleAsync();
+            var guardianLink = await verify.StudentGuardians.AsNoTracking().SingleAsync();
+            Assert.Equal(committedStudent.Id, guardianLink.StudentId);
+            Assert.Equal(guardian.Id, guardianLink.GuardianId);
+            Assert.Equal(guardianNames[winner], guardian.FullName);
+            Assert.Equal(1, await verify.Persons.CountAsync(x =>
+                x.FullName == guardianNames[0] || x.FullName == guardianNames[1]));
+            Assert.Equal(1, await verify.IdempotencyRecords.CountAsync(x =>
+                x.TenantId == tenantId && x.Scope == "StudentImportGuardianSource"));
             Assert.Equal(0, await verify.IdempotencyRecords.CountAsync(x =>
                 x.TenantId == tenantId && x.Scope == "StudentImportBatch" && x.RequestId == ids[loser]));
             Assert.Equal(1, await verify.IdempotencyRecords.CountAsync(x =>
