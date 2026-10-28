@@ -179,7 +179,7 @@ public sealed class WorkspacePreferencesService : IWorkspacePreferencesService
         var defaults = TablePreferenceDto.Defaults();
         // The first two tables are the exact legacy client contract. A partial
         // new-client layout is invalid; it must not silently hide required columns.
-        if (tables is not { Count: 2 or 4 or 6 } ||
+        if (tables is not { Count: 2 or 4 or 6 or 8 } ||
             tables.Select(x => x?.Id).Distinct(StringComparer.Ordinal).Count() != tables.Count)
             return false;
         var definitions = defaults.Take(tables.Count).ToList();
@@ -200,6 +200,8 @@ public sealed class WorkspacePreferencesService : IWorkspacePreferencesService
                 "institution-activity-audit" => new[] { "time", "user", "action", "outcome" },
                 "institution-campuses" => new[] { "campus", "code", "action" },
                 "institution-change-history" => new[] { "when", "action", "actor" },
+                "institution-settings" => new[] { "key", "protection", "action" },
+                "institution-permission-exceptions" => new[] { "permission", "mode", "expires", "action" },
                 _ => Array.Empty<string>()
             };
             if (required.Any(id => !table.Columns.Single(x => x.Id == id).Visible))

@@ -1,58 +1,55 @@
 @{
-    ViewData["Title"] = "Member Permission Exceptions";
+    var bn = System.Globalization.CultureInfo.CurrentUICulture.Name == "bn-BD";
+    ViewData["Title"] = bn ? "সদস্যের অনুমতির ব্যতিক্রম" : "Member Permission Exceptions";
     Layout = "~/Views/Shared/_Layout.cshtml";
 }
 <section id="tenantPermissionOverridesApp" class="container-fluid py-3">
     @Html.AntiForgeryToken()
-    <div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-3">
-        <div>
-            <h1 class="h4">Member Permission Exceptions</h1>
-            <p class="text-muted mb-1">Apply an explicit allow or deny for an active institution member. Deny takes precedence over role permissions; Inherit restores role-based access.</p>
-            <p class="small text-muted">Overrides are tenant-specific. Owners, your own account and platform-exclusive permissions cannot be modified here.</p>
-        </div>
-        <a href="/TenantUsers/Index" class="btn btn-outline-secondary">Back to users and roles</a>
+    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+        <h1 class="h4 mb-0">@(bn ? "সদস্যের অনুমতির ব্যতিক্রম" : "Member Permission Exceptions")</h1>
+        <a href="/TenantUsers/Index" class="btn btn-outline-secondary">@(bn ? "ব্যবহারকারী ও ভূমিকা" : "Users and roles")</a>
     </div>
     <p id="permissionOverrideMessage" role="status" aria-live="polite"></p>
     <form id="permissionMemberSearchForm" class="row g-2 mb-3">
-        <div class="col-md-8"><label for="permissionMemberSearch" class="form-label">Find institution member</label>
-            <input id="permissionMemberSearch" type="search" maxlength="100" class="form-control" placeholder="Name or email begins with" /></div>
-        <div class="col-md-4 d-flex align-items-end"><button type="submit" class="btn btn-outline-primary">Search</button></div>
+        <div class="col-md-8"><label for="permissionMemberSearch" class="form-label">@(bn ? "প্রতিষ্ঠানের সদস্য খুঁজুন" : "Find institution member")</label>
+            <input id="permissionMemberSearch" type="search" maxlength="100" class="form-control" placeholder="@(bn ? "নাম বা ইমেইলের শুরু" : "Name or email begins with")" /></div>
+        <div class="col-md-4 d-flex align-items-end"><button type="submit" class="btn btn-outline-primary">@(bn ? "খুঁজুন" : "Search")</button></div>
     </form>
     <div class="card mb-3"><div class="card-body">
-        <label for="permissionMember" class="form-label">Active member</label>
-        <select id="permissionMember" class="form-select"><option value="">Loading members…</option></select>
+        <label for="permissionMember" class="form-label">@(bn ? "সক্রিয় সদস্য" : "Active member")</label>
+        <select id="permissionMember" class="form-select"><option value="">@(bn ? "সদস্য লোড হচ্ছে…" : "Loading members…")</option></select>
         <div class="d-flex gap-2 align-items-center mt-2">
-            <button id="permissionMembersPrev" type="button" class="btn btn-outline-secondary btn-sm">Previous</button>
+            <button id="permissionMembersPrev" type="button" class="btn btn-outline-secondary btn-sm">@(bn ? "আগে" : "Previous")</button>
             <span id="permissionMembersPage" aria-live="polite"></span>
-            <button id="permissionMembersNext" type="button" class="btn btn-outline-secondary btn-sm">Next</button>
+            <button id="permissionMembersNext" type="button" class="btn btn-outline-secondary btn-sm">@(bn ? "পরে" : "Next")</button>
         </div>
     </div></div>
     <div class="card mb-3"><div class="card-body">
-        <h2 class="h5">Current permission exceptions</h2>
-        <div class="table-responsive"><table class="table table-striped table-sm">
-            <thead><tr><th>Permission</th><th>Mode</th><th>Reason</th><th>Expires (UTC)</th><th>Action</th></tr></thead>
-            <tbody id="permissionOverrideRows"><tr><td colspan="5">Choose a member.</td></tr></tbody>
+        <h2 class="h5">@(bn ? "বর্তমান অনুমতির ব্যতিক্রম" : "Current permission exceptions")</h2>
+        <div class="table-responsive"><table class="table table-striped table-sm" data-workspace-table="institution-permission-exceptions">
+            <thead><tr><th scope="col" data-table-column="permission">@(bn ? "অনুমতি" : "Permission")</th><th scope="col" data-table-column="mode">@(bn ? "ধরন" : "Mode")</th><th scope="col" data-table-column="reason">@(bn ? "কারণ" : "Reason")</th><th scope="col" data-table-column="expires">@(bn ? "মেয়াদ (ইউটিসি)" : "Expires (UTC)")</th><th scope="col" data-table-column="action">@(bn ? "কার্যক্রম" : "Action")</th></tr></thead>
+            <tbody id="permissionOverrideRows"><tr><td colspan="5">@(bn ? "সদস্য নির্বাচন করুন" : "Choose a member.")</td></tr></tbody>
         </table></div>
     </div></div>
     <section id="permissionOverrideEditor" class="card" hidden><div class="card-body">
-        <h2 class="h5">Configure a permission exception</h2>
+        <h2 class="h5">@(bn ? "অনুমতির ব্যতিক্রম নির্ধারণ" : "Configure a permission exception")</h2>
         <form id="permissionOverrideForm">
             <div class="row g-3">
-                <div class="col-md-6"><label for="permissionOverrideCode" class="form-label">Permission</label>
+                <div class="col-md-6"><label for="permissionOverrideCode" class="form-label">@(bn ? "অনুমতি" : "Permission")</label>
                     <select id="permissionOverrideCode" class="form-select" required></select></div>
-                <div class="col-md-6"><label for="permissionOverrideMode" class="form-label">Access mode</label>
+                <div class="col-md-6"><label for="permissionOverrideMode" class="form-label">@(bn ? "প্রবেশাধিকার" : "Access mode")</label>
                     <select id="permissionOverrideMode" class="form-select" required>
-                        <option value="Inherit">Inherit from roles (remove exception)</option>
-                        <option value="Allow">Explicit allow</option>
-                        <option value="Deny">Explicit deny</option>
+                        <option value="Inherit">@(bn ? "ভূমিকা অনুযায়ী (ব্যতিক্রম সরান)" : "Inherit from roles (remove exception)")</option>
+                        <option value="Allow">@(bn ? "বিশেষ অনুমতি" : "Explicit allow")</option>
+                        <option value="Deny">@(bn ? "প্রবেশ নিষেধ" : "Explicit deny")</option>
                     </select></div>
-                <div class="col-md-6"><label for="permissionOverrideExpiry" class="form-label">Expiry (optional, local time)</label>
+                <div class="col-md-6"><label for="permissionOverrideExpiry" class="form-label">@(bn ? "মেয়াদ (ঐচ্ছিক, স্থানীয় সময়)" : "Expiry (optional, local time)")</label>
                     <input id="permissionOverrideExpiry" type="datetime-local" class="form-control" /></div>
-                <div class="col-md-6"><label for="permissionOverrideReason" class="form-label">Reason (optional)</label>
+                <div class="col-md-6"><label for="permissionOverrideReason" class="form-label">@(bn ? "কারণ (ঐচ্ছিক)" : "Reason (optional)")</label>
                     <input id="permissionOverrideReason" class="form-control" maxlength="500" /></div>
                 <div class="col-12 d-flex gap-2">
-                    <button id="permissionOverrideSave" type="submit" class="btn btn-primary">Save exception</button>
-                    <button id="permissionOverrideReload" type="button" class="btn btn-outline-secondary">Reload member</button>
+                    <button id="permissionOverrideSave" type="submit" class="btn btn-primary">@(bn ? "সংরক্ষণ" : "Save exception")</button>
+                    <button id="permissionOverrideReload" type="button" class="btn btn-outline-secondary">@(bn ? "সদস্য রিলোড" : "Reload member")</button>
                 </div>
             </div>
         </form>
@@ -60,4 +57,5 @@
 </section>
 @section Scripts {
     <script src="~/js/tenant-users/permission-overrides.js" asp-append-version="true"></script>
+    <script src="~/js/platform/table-column-preferences.js" asp-append-version="true"></script>
 }

@@ -162,3 +162,43 @@ test('institution history never hides timestamp, action or actor', () => {
     assert.deepEqual(h.header(), ids);
     assert.equal(h.hidden('actor'), false);
 });
+
+test('institution settings table keeps key, protection and edit actions visible', () => {
+    const ids = ['key', 'category', 'value', 'protection', 'action'];
+    const h = harness('institution-settings', ids, {});
+    h.emit([{ id: 'institution-settings', columns: [
+        { id: 'value', visible: false }, { id: 'action', visible: true },
+        { id: 'key', visible: true }, { id: 'category', visible: false },
+        { id: 'protection', visible: true }
+    ] }]);
+    assert.deepEqual(h.header(), ['value', 'action', 'key', 'category', 'protection']);
+    assert.equal(h.hidden('value'), true);
+    assert.equal(h.hidden('action'), false);
+    assert.deepEqual(h.appendRow().cells.map(cell => cell.name), h.header());
+    h.emit([{ id: 'institution-settings', columns: ids.map(id => ({
+        id, visible: id !== 'protection'
+    })) }]);
+    assert.deepEqual(h.header(), ids);
+    assert.equal(h.hidden('protection'), false);
+});
+
+test('permission exceptions keep permission, mode, expiry and edit actions visible', () => {
+    const ids = ['permission', 'mode', 'reason', 'expires', 'action'];
+    const h = harness('institution-permission-exceptions', ids, {});
+    h.emit([{ id: 'institution-permission-exceptions', columns: [
+        { id: 'reason', visible: false }, { id: 'expires', visible: true },
+        { id: 'permission', visible: true }, { id: 'action', visible: true },
+        { id: 'mode', visible: true }
+    ] }]);
+    assert.deepEqual(h.header(), ['reason', 'expires', 'permission', 'action', 'mode']);
+    assert.equal(h.hidden('reason'), true);
+    assert.equal(h.hidden('expires'), false);
+    assert.deepEqual(h.appendRow().cells.map(cell => cell.name), h.header());
+    for (const mandatory of ['permission', 'mode', 'expires', 'action']) {
+        h.emit([{ id: 'institution-permission-exceptions', columns: ids.map(id => ({
+            id, visible: id !== mandatory
+        })) }]);
+        assert.deepEqual(h.header(), ids);
+        assert.equal(h.hidden(mandatory), false);
+    }
+});

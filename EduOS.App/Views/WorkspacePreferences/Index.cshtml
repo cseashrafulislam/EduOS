@@ -117,6 +117,22 @@
                                     (Id: "action", En: "Action", Bn: "কার্যক্রম", Required: true),
                                     (Id: "fields", En: "Changed fields", Bn: "পরিবর্তিত ক্ষেত্র", Required: false),
                                     (Id: "actor", En: "Actor", Bn: "সম্পাদনকারী", Required: true)
+                                }),
+                            (Id: "institution-settings", En: "Institution settings", Bn: "প্রতিষ্ঠানের সেটিং",
+                                Columns: new[] {
+                                    (Id: "key", En: "Key", Bn: "কী", Required: true),
+                                    (Id: "category", En: "Category", Bn: "বিভাগ", Required: false),
+                                    (Id: "value", En: "Value", Bn: "মান", Required: false),
+                                    (Id: "protection", En: "Protection", Bn: "সুরক্ষা", Required: true),
+                                    (Id: "action", En: "Action", Bn: "কার্যক্রম", Required: true)
+                                }),
+                            (Id: "institution-permission-exceptions", En: "Permission exceptions", Bn: "অনুমতির ব্যতিক্রম",
+                                Columns: new[] {
+                                    (Id: "permission", En: "Permission", Bn: "অনুমতি", Required: true),
+                                    (Id: "mode", En: "Mode", Bn: "ধরন", Required: true),
+                                    (Id: "reason", En: "Reason", Bn: "কারণ", Required: false),
+                                    (Id: "expires", En: "Expires", Bn: "মেয়াদ", Required: true),
+                                    (Id: "action", En: "Action", Bn: "কার্যক্রম", Required: true)
                                 })
                         })
                         {

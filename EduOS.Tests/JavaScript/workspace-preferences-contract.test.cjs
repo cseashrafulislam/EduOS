@@ -90,6 +90,17 @@ test('institution administration table columns use private versioned allowlists 
     assert.match(management, /data-workspace-table="institution-campuses"/);
     assert.match(management, /data-workspace-table="institution-change-history"/);
     assert.match(management, /table-column-preferences/);
+    const settings = read('EduOS.App/Views/TenantSettings/Index.cshtml');
+    const exceptions = read('EduOS.App/Views/TenantPermissionOverrides/Index.cshtml');
+    const exceptionJs = read('EduOS.App/wwwroot/js/tenant-users/permission-overrides.js');
+    assert.match(settings, /data-workspace-table="institution-settings"/);
+    assert.match(exceptions, /data-workspace-table="institution-permission-exceptions"/);
+    assert.match(settings, /data-table-column="protection"/);
+    assert.match(exceptions, /data-table-column="expires"/);
+    assert.match(exceptionJs, /node\.dataset\.tableColumn = column/);
+    assert.match(exceptionJs, /cell\('td', '', null, 'action'\)/);
+    assert.match(settings, /table-column-preferences\.js/);
+    assert.match(exceptions, /table-column-preferences\.js/);
     assert.match(view, /__RequestVerificationToken|AntiForgeryToken/);
     assert.match(read('EduOS.App/wwwroot/js/platform/workspace-preferences.js'), /RequestVerificationToken/);
 });

@@ -9,7 +9,9 @@
         { prefix: '/account/campussetup', en: 'Manage campuses that belong to this institution. Check existing records before editing or archiving.', bn: 'এই প্রতিষ্ঠানের ক্যাম্পাস পরিচালনা করুন। সম্পাদনা বা আর্কাইভের আগে বিদ্যমান তথ্য যাচাই করুন।' },
         { prefix: '/account/academicsetup', en: 'Review the academic year and term dates before saving. Existing academic records may restrict changes.', bn: 'সংরক্ষণের আগে শিক্ষাবর্ষ ও টার্মের তারিখ যাচাই করুন। বিদ্যমান রেকর্ড পরিবর্তন সীমিত করতে পারে।' },
         { prefix: '/account/generalsettings', en: 'Choose approved regional and language settings for the institution, then save.', bn: 'প্রতিষ্ঠানের অনুমোদিত অঞ্চল ও ভাষার সেটিং নির্বাচন করে সংরক্ষণ করুন।' },
-        { prefix: '/account/modulesetup', en: 'Select only entitled modules. Unavailable modules require an authorized plan change.', bn: 'শুধু অনুমোদিত মডিউল নির্বাচন করুন। অন্য মডিউলের জন্য অনুমোদিত প্ল্যান পরিবর্তন প্রয়োজন।' }
+        { prefix: '/account/modulesetup', en: 'Select only entitled modules. Unavailable modules require an authorized plan change.', bn: 'শুধু অনুমোদিত মডিউল নির্বাচন করুন। অন্য মডিউলের জন্য অনুমোদিত প্ল্যান পরিবর্তন প্রয়োজন।' },
+        { prefix: '/tenantsettings', en: 'Edit institution settings with their current version. Protected values remain hidden; blank keeps an existing protected value.', bn: 'বর্তমান সংস্করণ যাচাই করে সেটিং সম্পাদনা করুন। সুরক্ষিত মান আড়াল থাকে; ফাঁকা রাখলে আগের মান বজায় থাকবে।' },
+        { prefix: '/tenantpermissionoverrides', en: 'Choose an active member, then review explicit allow or deny and expiry. Inherit removes the exception; changes require your institution authorization.', bn: 'সক্রিয় সদস্য বেছে বিশেষ অনুমতি, নিষেধ ও মেয়াদ যাচাই করুন। ভূমিকা অনুযায়ী নির্বাচন করলে ব্যতিক্রম সরে যাবে।' }
     ];
     const fallback = {
         en: 'Use the actions permitted for your role. Check required fields and validation messages before saving.',

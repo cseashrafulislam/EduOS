@@ -1,48 +1,49 @@
 @model EduOS.Core.Common.PagedResult<EduOS.Core.DTOs.SaaS.TenantSettingDto>
 @using EduOS.Core.DTOs.SaaS
 @{
-    ViewData["Title"] = "Institution Settings";
+    var bn = System.Globalization.CultureInfo.CurrentUICulture.Name == "bn-BD";
+    ViewData["Title"] = bn ? "প্রতিষ্ঠানের সেটিং" : "Institution Settings";
     var selected = ViewBag.Selected as TenantSettingDto;
     var category = ViewBag.Category as string;
 }
 <div class="container-fluid py-3" id="tenantSettingsPage">
     <div class="d-flex justify-content-between align-items-center mb-3 gap-2">
-        <div><h2 class="mb-1">Institution Settings</h2><p class="text-muted mb-0">Manage institution-specific settings. Protected values are never displayed.</p></div>
-        <a class="btn btn-outline-secondary btn-sm" href="/TenantTerminology/Index">Terminology</a>
+        <h2 class="mb-1">@(bn ? "প্রতিষ্ঠানের সেটিং" : "Institution Settings")</h2>
+        <a class="btn btn-outline-secondary btn-sm" href="/TenantTerminology/Index">@(bn ? "পরিভাষা" : "Terminology")</a>
     </div>
     @if (TempData["SettingsError"] is string error) { <div class="alert alert-danger" role="alert">@error</div> }
     @if (TempData["SettingsSuccess"] is string success) { <div class="alert alert-success" role="status">@success</div> }
     <section class="card mb-3" aria-labelledby="tsDirectoryTitle">
-        <div class="card-header"><h3 class="h5 mb-0" id="tsDirectoryTitle">Settings directory</h3></div>
+        <div class="card-header"><h3 class="h5 mb-0" id="tsDirectoryTitle">@(bn ? "সেটিং তালিকা" : "Settings directory")</h3></div>
         <div class="card-body">
             <form asp-action="Index" method="get" class="row g-2 align-items-end mb-3">
-                <div class="col-md-5"><label for="tsCategoryFilter" class="form-label">Category (exact match)</label>
+                <div class="col-md-5"><label for="tsCategoryFilter" class="form-label">@(bn ? "বিভাগ (হুবহু)" : "Category (exact match)")</label>
                     <input id="tsCategoryFilter" name="category" value="@category" maxlength="100" class="form-control" /></div>
-                <div class="col-auto"><button class="btn btn-outline-primary" type="submit">Filter</button></div>
-                <div class="col-auto"><a class="btn btn-outline-secondary" asp-action="Index">All categories</a></div>
+                <div class="col-auto"><button class="btn btn-outline-primary" type="submit">@(bn ? "ফিল্টার" : "Filter")</button></div>
+                <div class="col-auto"><a class="btn btn-outline-secondary" asp-action="Index">@(bn ? "সব বিভাগ" : "All categories")</a></div>
             </form>
-            <div class="table-responsive"><table class="table table-sm table-striped align-middle">
-                <thead><tr><th scope="col">Key</th><th scope="col">Category</th><th scope="col">Value</th><th scope="col">Protection</th><th scope="col">Action</th></tr></thead>
+            <div class="table-responsive"><table class="table table-sm table-striped align-middle" data-workspace-table="institution-settings">
+                <thead><tr><th scope="col" data-table-column="key">@(bn ? "কী" : "Key")</th><th scope="col" data-table-column="category">@(bn ? "বিভাগ" : "Category")</th><th scope="col" data-table-column="value">@(bn ? "মান" : "Value")</th><th scope="col" data-table-column="protection">@(bn ? "সুরক্ষা" : "Protection")</th><th scope="col" data-table-column="action">@(bn ? "কার্যক্রম" : "Action")</th></tr></thead>
                 <tbody>
                     @foreach (var row in Model.Items)
                     {
-                        <tr><td>@row.Key</td><td>@row.Category</td>
-                            <td>@(row.IsSensitive ? (row.HasValue ? "Protected ••••••••" : "Not configured") : row.Value)</td>
-                            <td>@(row.IsSensitive ? "Sensitive" : "Plain")</td>
-                            <td><a class="btn btn-outline-primary btn-sm" asp-action="Index" asp-route-category="@category" asp-route-page="@Model.Page" asp-route-editId="@row.Id">Edit</a></td>
+                        <tr><td data-table-column="key">@row.Key</td><td data-table-column="category">@row.Category</td>
+                            <td data-table-column="value">@(row.IsSensitive ? (row.HasValue ? (bn ? "সুরক্ষিত ••••••••" : "Protected ••••••••") : (bn ? "সেট করা হয়নি" : "Not configured")) : row.Value)</td>
+                            <td data-table-column="protection">@(row.IsSensitive ? (bn ? "সুরক্ষিত" : "Sensitive") : (bn ? "সাধারণ" : "Plain"))</td>
+                            <td data-table-column="action"><a class="btn btn-outline-primary btn-sm" asp-action="Index" asp-route-category="@category" asp-route-page="@Model.Page" asp-route-editId="@row.Id">@(bn ? "সম্পাদনা" : "Edit")</a></td>
                         </tr>
                     }
                 </tbody>
             </table></div>
             <div class="d-flex gap-2 align-items-center">
-                @if (Model.HasPreviousPage) { <a class="btn btn-outline-secondary btn-sm" asp-action="Index" asp-route-category="@category" asp-route-page="@(Model.Page - 1)">Previous</a> }
-                <span role="status">Page @Model.Page of @Math.Max(1, Model.TotalPages) · @Model.TotalCount settings</span>
-                @if (Model.HasNextPage) { <a class="btn btn-outline-secondary btn-sm" asp-action="Index" asp-route-category="@category" asp-route-page="@(Model.Page + 1)">Next</a> }
+                @if (Model.HasPreviousPage) { <a class="btn btn-outline-secondary btn-sm" asp-action="Index" asp-route-category="@category" asp-route-page="@(Model.Page - 1)">@(bn ? "আগে" : "Previous")</a> }
+                <span role="status">@(bn ? "পৃষ্ঠা" : "Page") @Model.Page / @Math.Max(1, Model.TotalPages) · @Model.TotalCount @(bn ? "সেটিং" : "settings")</span>
+                @if (Model.HasNextPage) { <a class="btn btn-outline-secondary btn-sm" asp-action="Index" asp-route-category="@category" asp-route-page="@(Model.Page + 1)">@(bn ? "পরে" : "Next")</a> }
             </div>
         </div>
     </section>
     <section class="card" aria-labelledby="tsEditorTitle">
-        <div class="card-header"><h3 class="h5 mb-0" id="tsEditorTitle">@(selected == null ? "New setting" : "Edit setting")</h3></div>
+        <div class="card-header"><h3 class="h5 mb-0" id="tsEditorTitle">@(selected == null ? (bn ? "নতুন সেটিং" : "New setting") : (bn ? "সেটিং সম্পাদনা" : "Edit setting"))</h3></div>
         <div class="card-body"><form asp-controller="TenantSettings" asp-action="Save" method="post" id="tsForm" autocomplete="off">
             @Html.AntiForgeryToken()
             <input type="hidden" name="id" value="@selected?.Id" />
@@ -50,7 +51,7 @@
             <input type="hidden" name="categoryFilter" value="@category" />
             <input type="hidden" name="page" value="@Model.Page" />
             <div class="row g-2">
-                <div class="col-md-5"><label for="tsKey" class="form-label">Key *</label>
+                <div class="col-md-5"><label for="tsKey" class="form-label">@(bn ? "কী" : "Key") *</label>
                     @if (selected is null)
                     {
                         <input id="tsKey" name="Key" class="form-control" maxlength="150" required />
@@ -60,26 +61,26 @@
                         <input id="tsKey" name="Key" class="form-control" maxlength="150" required readonly value="@selected.Key" />
                     }
                 </div>
-                <div class="col-md-4"><label for="tsCategory" class="form-label">Category</label>
+                <div class="col-md-4"><label for="tsCategory" class="form-label">@(bn ? "বিভাগ" : "Category")</label>
                     <input id="tsCategory" name="Category" class="form-control" maxlength="100" value="@selected?.Category" /></div>
                 <div class="col-md-3 d-flex align-items-end">
                     @if (selected?.IsSensitive == true)
                     {
                         <input type="hidden" name="IsSensitive" value="true" />
-                        <label class="form-check-label mb-2"><input id="tsSensitive" type="checkbox" class="form-check-input" checked disabled /> Sensitive (locked)</label>
+                        <label class="form-check-label mb-2"><input id="tsSensitive" type="checkbox" class="form-check-input" checked disabled /> @(bn ? "সুরক্ষিত (লক)" : "Sensitive (locked)")</label>
                     }
                     else
                     {
-                        <label class="form-check-label mb-2"><input id="tsSensitive" name="IsSensitive" type="checkbox" value="true" class="form-check-input" /> Sensitive / protected</label>
+                        <label class="form-check-label mb-2"><input id="tsSensitive" name="IsSensitive" type="checkbox" value="true" class="form-check-input" /> @(bn ? "সুরক্ষিত মান" : "Sensitive / protected")</label>
                     }
                 </div>
-                <div class="col-12"><label for="tsValue" class="form-label">Value</label>
+                <div class="col-12"><label for="tsValue" class="form-label">@(bn ? "মান" : "Value")</label>
                     <input id="tsValue" name="Value" class="form-control" type="@(selected?.IsSensitive == true ? "password" : "text")" maxlength="4000" autocomplete="new-password" value="@(selected?.IsSensitive == true ? "" : selected?.Value)" />
-                    <small id="tsValueHelp" class="text-muted">@(selected?.IsSensitive == true ? "Leave blank to preserve the encrypted value; enter a new value to rotate." : "Sensitive values are encrypted and hidden after saving.")</small></div>
+                    <span id="tsValueHelp" class="visually-hidden">@(selected?.IsSensitive == true ? (bn ? "ফাঁকা রাখলে আগের সুরক্ষিত মান অপরিবর্তিত থাকবে" : "Leave blank to keep the existing protected value") : (bn ? "সুরক্ষিত মান সংরক্ষণের পরে আড়াল থাকে" : "Protected values are hidden after saving"))</span></div>
             </div>
-            <div class="d-flex gap-2 mt-3"><button id="tsSave" class="btn btn-primary" type="submit">Save setting</button>
-                <a class="btn btn-outline-secondary" asp-action="Index" asp-route-category="@category" asp-route-page="@Model.Page">Clear form</a></div>
+            <div class="d-flex gap-2 mt-3"><button id="tsSave" class="btn btn-primary" type="submit">@(bn ? "সংরক্ষণ" : "Save setting")</button>
+                <a class="btn btn-outline-secondary" asp-action="Index" asp-route-category="@category" asp-route-page="@Model.Page">@(bn ? "ফর্ম পরিষ্কার" : "Clear form")</a></div>
         </form></div>
     </section>
 </div>
-@section Scripts { <script src="~/js/platform/tenant-settings.js" asp-append-version="true"></script> }
+@section Scripts { <script src="~/js/platform/tenant-settings.js" asp-append-version="true"></script><script src="~/js/platform/table-column-preferences.js" asp-append-version="true"></script> }

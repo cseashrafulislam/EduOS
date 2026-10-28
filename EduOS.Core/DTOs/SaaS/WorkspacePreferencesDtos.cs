@@ -78,6 +78,14 @@ public sealed class TablePreferenceDto
         [
             new() { Id = "when" }, new() { Id = "action" },
             new() { Id = "fields" }, new() { Id = "actor" }
+        ] },
+        new() { Id = "institution-settings", Columns =
+        [
+            new() { Id = "key" }, new() { Id = "category" }, new() { Id = "value" }, new() { Id = "protection" }, new() { Id = "action" }
+        ] },
+        new() { Id = "institution-permission-exceptions", Columns =
+        [
+            new() { Id = "permission" }, new() { Id = "mode" }, new() { Id = "reason" }, new() { Id = "expires" }, new() { Id = "action" }
         ] }
     ];
 }

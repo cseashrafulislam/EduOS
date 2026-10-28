@@ -7,7 +7,9 @@
         'institution-feature-audit': { ids: ['feature', 'code', 'plan', 'override', 'restriction', 'reason'], required: ['feature', 'code', 'restriction'] },
         'institution-activity-audit': { ids: ['time', 'user', 'action', 'entity', 'record', 'ip', 'outcome'], required: ['time', 'user', 'action', 'outcome'] },
         'institution-campuses': { ids: ['campus', 'code', 'contact', 'type', 'action'], required: ['campus', 'code', 'action'] },
-        'institution-change-history': { ids: ['when', 'action', 'fields', 'actor'], required: ['when', 'action', 'actor'] }
+        'institution-change-history': { ids: ['when', 'action', 'fields', 'actor'], required: ['when', 'action', 'actor'] },
+        'institution-settings': { ids: ['key', 'category', 'value', 'protection', 'action'], required: ['key', 'protection', 'action'] },
+        'institution-permission-exceptions': { ids: ['permission', 'mode', 'reason', 'expires', 'action'], required: ['permission', 'mode', 'expires', 'action'] }
     };
     const tables = [...document.querySelectorAll('table[data-workspace-table]')];
 

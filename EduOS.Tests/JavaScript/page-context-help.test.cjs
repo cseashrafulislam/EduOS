@@ -11,6 +11,8 @@ test('page header help is contextual, bilingual and falls back safely', () => {
     assert.match(guideFor('/Account/CampusSetup', false), /campuses/);
     assert.match(guideFor('/Account/AcademicSetup', false), /academic year/);
     assert.match(guideFor('/workspace', false), /appearance/);
+    assert.match(guideFor('/TenantSettings/Index', false), /Protected values/);
+    assert.match(guideFor('/TenantPermissionOverrides/Index', true), /অনুমতি/);
     assert.match(guideFor('/unknown/<script>', false), /permitted for your role/);
     assert.doesNotMatch(guideFor('/unknown/<script>', false), /script/);
 });

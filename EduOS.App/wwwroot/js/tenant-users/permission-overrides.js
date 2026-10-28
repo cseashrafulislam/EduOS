@@ -5,7 +5,15 @@
     const el = id => document.getElementById(id);
     const state = { page: 1, pageSize: 20, total: 0, members: [], permissions: [], member: null, overrides: [] };
     const token = () => root.querySelector('input[name="__RequestVerificationToken"]')?.value || '';
-    const cell = (tag, value) => { const node = document.createElement(tag); node.textContent = String(value ?? ''); return node; };
+    const bn = document.documentElement.lang.toLowerCase().startsWith('bn');
+    const t = (en, bangla) => bn ? bangla : en;
+    const cell = (tag, value, cssClass, column) => {
+        const node = document.createElement(tag);
+        node.textContent = String(value ?? '');
+        if (cssClass) node.className = cssClass;
+        if (column) node.dataset.tableColumn = column;
+        return node;
+    };
 
     function message(text, failed = false) {
         const node = el('permissionOverrideMessage');
@@ -59,21 +67,21 @@
         const tbody = el('permissionOverrideRows');
         tbody.replaceChildren();
         if (!state.member) {
-            const tr = cell('tr', ''), td = cell('td', 'Choose an active member.'); td.colSpan = 5;
+            const tr = cell('tr', ''), td = cell('td', t('Choose an active member.', 'সক্রিয় সদস্য নির্বাচন করুন।')); td.colSpan = 5;
             tr.append(td); tbody.append(tr); return;
         }
         if (!state.overrides.length) {
-            const tr = cell('tr', ''), td = cell('td', 'No exceptions. Role permissions apply.'); td.colSpan = 5;
+            const tr = cell('tr', ''), td = cell('td', t('No exceptions. Role permissions apply.', 'কোনো ব্যতিক্রম নেই। ভূমিকার অনুমতি প্রযোজ্য।')); td.colSpan = 5;
             tr.append(td); tbody.append(tr);
         }
         for (const entry of state.overrides) {
             const tr = cell('tr', '');
             const permission = state.permissions.find(x => x.id === entry.permissionId);
-            tr.append(cell('td', permission ? permission.moduleCode + ' · ' + permission.name : entry.permissionCode),
-                cell('td', entry.mode), cell('td', entry.reason || '—'),
-                cell('td', entry.expiresAt ? new Date(entry.expiresAt).toLocaleString() : 'Never'));
-            const actions = cell('td', '');
-            const edit = cell('button', 'Edit', 'btn btn-outline-primary btn-sm');
+            tr.append(cell('td', permission ? permission.moduleCode + ' · ' + permission.name : entry.permissionCode, null, 'permission'),
+                cell('td', entry.mode, null, 'mode'), cell('td', entry.reason || '—', null, 'reason'),
+                cell('td', entry.expiresAt ? new Date(entry.expiresAt).toLocaleString() : t('Never', 'কখনো নয়'), null, 'expires'));
+            const actions = cell('td', '', null, 'action');
+            const edit = cell('button', t('Edit', 'সম্পাদনা'), 'btn btn-outline-primary btn-sm');
             edit.type = 'button';
             edit.addEventListener('click', () => {
                 el('permissionOverrideCode').value = String(entry.permissionId);
@@ -103,14 +111,14 @@
         state.total = result.totalCount || 0;
         const select = el('permissionMember');
         const selectedId = state.member?.membershipId;
-        select.replaceChildren(new Option('Select active member', ''));
+        select.replaceChildren(new Option(t('Select active member', 'সদস্য নির্বাচন করুন'), ''));
         for (const member of state.members.filter(x => x.status === 2 && x.isActive && !x.isOwner))
             select.append(new Option(member.fullName + ' · ' + member.email, String(member.membershipId)));
         const stillPresent = state.members.find(x => x.membershipId === selectedId &&
             x.status === 2 && x.isActive && !x.isOwner);
         state.member = stillPresent || null;
         select.value = stillPresent ? String(stillPresent.membershipId) : '';
-        el('permissionMembersPage').textContent = 'Page ' + state.page + ' · ' + state.total + ' members';
+        el('permissionMembersPage').textContent = t('Page ', 'পৃষ্ঠা ') + state.page + ' · ' + state.total + t(' members', ' সদস্য');
         el('permissionMembersPrev').disabled = state.page <= 1;
         el('permissionMembersNext').disabled = state.page * state.pageSize >= state.total;
         await loadOverrides();
@@ -142,18 +150,18 @@
     el('permissionOverrideCode').addEventListener('change', resetEditor);
     el('permissionOverrideMode').addEventListener('change', updateInheritFields);
     el('permissionOverrideReload').addEventListener('click', async () => {
-        try { await loadMembers(); message('Member permissions refreshed.'); }
+        try { await loadMembers(); message(t('Member permissions refreshed.', 'সদস্যের অনুমতি হালনাগাদ হয়েছে।')); }
         catch (error) { message(error.message, true); }
     });
     el('permissionOverrideForm').addEventListener('submit', async event => {
         event.preventDefault();
         const member = state.member, permission = selectedPermission();
-        if (!member || !permission) return message('Choose a member and permission.', true);
+        if (!member || !permission) return message(t('Choose a member and permission.', 'সদস্য ও অনুমতি নির্বাচন করুন।'), true);
         const mode = el('permissionOverrideMode').value;
         const expiry = el('permissionOverrideExpiry').value;
         const expiresAt = mode !== 'Inherit' && expiry ? new Date(expiry).toISOString() : null;
         if (expiresAt && Date.parse(expiresAt) <= Date.now())
-            return message('Expiry must be in the future.', true);
+            return message(t('Expiry must be in the future.', 'মেয়াদ ভবিষ্যতের হতে হবে।'), true);
         const existing = selectedOverride();
         const button = el('permissionOverrideSave');
         button.disabled = true;
@@ -165,7 +173,7 @@
                 expiresAt
             });
             await loadOverrides();
-            message('Permission exception saved. Access is checked against current institution data.');
+            message(t('Permission exception saved.', 'অনুমতির ব্যতিক্রম সংরক্ষিত হয়েছে।'));
         } catch (error) { message(error.message, true); }
         finally { button.disabled = false; }
     });
