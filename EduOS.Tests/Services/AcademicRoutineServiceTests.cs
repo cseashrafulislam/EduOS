@@ -266,7 +266,9 @@ public sealed class AcademicRoutineServiceTests
         var slot = (await admin.CreateTimeSlotAsync(new SaveRoutineTimeSlotRequestDto
         { Name = "Period", StartTime = new TimeOnly(9, 0), EndTime = new TimeOnly(9, 45) })).Data!;
         var first = await admin.AssignInstructorAsync(Assign(scope.OfferingReference, scope.TeacherReference));
-        var second = await admin.AssignInstructorAsync(Assign(scope.OfferingReference, other.PublicId));
+        var assistantRequest = Assign(scope.OfferingReference, other.PublicId);
+        assistantRequest.IsPrimary = false;
+        var second = await admin.AssignInstructorAsync(assistantRequest);
         (await admin.CreateEntryAsync(Entry(scope.OfferingReference, slot.Id, first.Data!.Id))).Success.Should().BeTrue();
         // Another day avoids the class timetable collision.
         var otherEntry = Entry(scope.OfferingReference, slot.Id, second.Data!.Id);
