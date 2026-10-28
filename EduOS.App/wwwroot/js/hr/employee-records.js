@@ -74,7 +74,7 @@
         state.reference=null;state.record=null;state.requestId=crypto.randomUUID();
         el('employeeForm').reset();el('employeeJoin').value=today();
         el('employeeCode').readOnly=false;el('employeeJoin').readOnly=false;
-        el('employeeEditorTitle').textContent='Register employee';el('employeeSave').textContent='Register employee';
+        el('employeeEditorTitle').textContent='Register employee';el('employeeSave').textContent='Register employee';el('employeeSave').disabled=false;
         el('employeeStatusPanel').hidden=true;el('employeeHistoryPanel').hidden=true;editPanel(true);
     }
     function fillRecord(data) {
@@ -89,7 +89,7 @@
         el('employeeEditorTitle').textContent='Edit employee · '+data.employeeCode;
         el('employeeSave').textContent='Save changes';
         const terminal=[3,4,5].includes(Number(data.state));
-        el('employeeSave').disabled=terminal;el('employeeStatePanel')?.setAttribute('data-current',data.state);
+        el('employeeSave').disabled=terminal;
         const allowed=Number(data.state)===1?[2,3,4,5]:Number(data.state)===2?[1,3,4,5]:[];
         el('employeeState').replaceChildren(new Option('Choose status',''));
         for(const next of allowed) el('employeeState').add(new Option(statuses[next],next));

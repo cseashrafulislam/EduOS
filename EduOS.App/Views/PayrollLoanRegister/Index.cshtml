@@ -1,0 +1,59 @@
+@{
+    ViewData["Title"] = "Employee Loan Register";
+}
+<section id="payrollLoanRegister" class="container-fluid py-3">
+    <header class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-3">
+        <h2 class="h4 mb-0">Employee Loan Register</h2>
+        <div class="d-flex gap-2">
+            <a class="btn btn-sm btn-outline-secondary" href="/PayrollOperations/Index">Payroll</a>
+            <a class="btn btn-sm btn-outline-secondary" href="/LoanDisbursement/Index">Disbursement</a>
+            <a class="btn btn-sm btn-outline-secondary" href="/LoanRecovery/Index">Recovery</a>
+            <details class="position-relative"><summary class="btn btn-sm btn-outline-secondary" title="Page help" aria-label="Loan register help">ⓘ</summary>
+                <div class="card card-body shadow-sm position-absolute end-0 mt-1" style="width:min(320px,85vw);z-index:10">
+                    Register an agreed loan and installment amount. Registration is not cash disbursement. Posted cash movements are handled separately through Finance. After an uncertain save, check the register before creating another loan.
+                </div>
+            </details>
+        </div>
+    </header>
+    @Html.AntiForgeryToken()
+    <div id="loanRegNotice" class="alert d-none" role="alert" aria-live="polite" tabindex="-1"></div>
+    <section class="card mb-3"><div class="card-body">
+        <h3 class="h6">New loan / advance</h3>
+        <form id="loanRegForm">
+            <div class="row g-3">
+                <div class="col-md-7">
+                    <label for="loanRegSearch" class="form-label">Find employee *</label>
+                    <div class="input-group"><input id="loanRegSearch" class="form-control" maxlength="100" placeholder="Code or name" />
+                        <button id="loanRegFind" type="button" class="btn btn-outline-primary">Search</button></div>
+                    <select id="loanRegEmployee" class="form-select mt-2" required><option value="">Select an employee</option></select>
+                </div>
+                <div class="col-md-5"><label for="loanRegDate" class="form-label">Issue date *</label><input id="loanRegDate" class="form-control" type="date" required /></div>
+                <div class="col-md-4"><label for="loanRegAmount" class="form-label">Principal (BDT) *</label><input id="loanRegAmount" class="form-control" type="number" min="0.01" step="0.01" max="999999999999" required /></div>
+                <div class="col-md-4"><label for="loanRegInstallment" class="form-label">Installment (BDT) *</label><input id="loanRegInstallment" class="form-control" type="number" min="0.01" step="0.01" max="999999999999" required /></div>
+                <div class="col-md-4"><label for="loanRegRemarks" class="form-label">Remarks</label><input id="loanRegRemarks" class="form-control" maxlength="500" /></div>
+            </div>
+            <div class="d-flex gap-2 mt-3">
+                <button id="loanRegSave" type="submit" class="btn btn-primary">Register loan</button>
+                <button id="loanRegNew" type="button" class="btn btn-outline-secondary">New entry</button>
+            </div>
+        </form>
+    </div></section>
+    <section class="card"><div class="card-body">
+        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+            <h3 class="h6 mb-0">Existing loans</h3>
+            <button type="button" id="loanRegRefresh" class="btn btn-sm btn-outline-primary">Refresh register</button>
+        </div>
+        <div class="table-responsive mt-3"><table class="table table-sm table-hover align-middle">
+            <thead><tr><th>Loan</th><th>Employee</th><th>Issue date</th><th>Principal</th><th>Outstanding</th><th>Installment</th><th>GL status</th></tr></thead>
+            <tbody id="loanRegRows"><tr><td colspan="7">Loading…</td></tr></tbody>
+        </table></div>
+        <div class="d-flex justify-content-between align-items-center gap-2">
+            <button type="button" id="loanRegPrev" class="btn btn-sm btn-outline-secondary">Previous</button>
+            <span id="loanRegPage" aria-live="polite"></span>
+            <button type="button" id="loanRegNext" class="btn btn-sm btn-outline-secondary">Next</button>
+        </div>
+    </div></section>
+</section>
+@section Scripts {
+    <script src="~/js/payroll/loan-register.js" asp-append-version="true"></script>
+}
