@@ -406,6 +406,50 @@ public sealed class AcademicInstructionServiceTests
     }
 
     [Fact]
+    public async Task Substitution_conflict_checks_all_existing_bookings_beyond_two_hundred()
+    {
+        var options = Options();
+        var seed = await SeedAsync(options);
+        await using var db = Context(options, 101, 7, "TenantAdmin");
+        var original = await db.RoutineEntries.SingleAsync(x => x.Id == seed.RoutineEntryId);
+        var substituteId = await db.Employees.Where(x => x.UserId == 71).Select(x => x.Id).SingleAsync();
+        var freeSlot = new RoutineTimeSlot
+        {
+            TenantId = 101, Name = "Nonoverlapping Period",
+            StartTime = new TimeOnly(11, 0), EndTime = new TimeOnly(12, 0)
+        };
+        db.RoutineTimeSlots.Add(freeSlot);
+        await db.SaveChangesAsync();
+        for (var i = 0; i < 201; i++)
+        {
+            var routine = new RoutineEntry
+            {
+                TenantId = 101, SubjectOfferingId = original.SubjectOfferingId,
+                RoutineTimeSlotId = i == 200 ? original.RoutineTimeSlotId : freeSlot.Id,
+                InstructorAssignmentId = original.InstructorAssignmentId,
+                DayOfWeek = LessonDate.DayOfWeek, EffectiveFrom = LessonDate.AddDays(-7)
+            };
+            db.RoutineEntries.Add(routine);
+            await db.SaveChangesAsync();
+            db.Substitutions.Add(new Substitution
+            {
+                TenantId = 101, ClientRequestId = Guid.NewGuid(),
+                RoutineEntryId = routine.Id, Date = LessonDate,
+                SubstituteEmployeeId = substituteId
+            });
+        }
+        await db.SaveChangesAsync();
+        var service = Service(db, 101, 7, "TenantAdmin");
+        var result = await service.CreateSubstitutionAsync(new CreateSubstitutionRequestDto
+        {
+            ClientRequestId = Guid.NewGuid(), RoutineEntryId = seed.RoutineEntryId,
+            Date = LessonDate, SubstituteEmployeeReference = seed.SubstituteReference
+        });
+        result.StatusCode.Should().Be(409);
+        (await db.Substitutions.CountAsync()).Should().Be(201);
+    }
+
+    [Fact]
     public async Task Unauthorized_user_cannot_create_lesson_plan_or_substitution()
     {
         var options = Options();
@@ -557,6 +601,7 @@ public sealed class AcademicInstructionServiceTests
         substitution.StatusCode.Should().Be(201);
         var principal = Service(db, 101, 9, "Principal");
         (await principal.GetLessonOfferingChoicesAsync(seed.BatchId, null, 1, 20)).StatusCode.Should().Be(403);
+        (await principal.GetSubstitutionRoutineChoicesAsync(seed.BatchId, LessonDate, null, 1, 20)).StatusCode.Should().Be(403);
         (await principal.GetLessonPlansAsync(null, null, null, 1, 20)).Data!.TotalCount.Should().Be(0);
         (await principal.GetSubstitutionsPageAsync(LessonDate, LessonDate, null, 1, 20)).Data!.TotalCount.Should().Be(0);
         (await principal.CreateLessonPlanAsync(Lesson(seed.OfferingReference))).StatusCode.Should().Be(403);
@@ -582,6 +627,7 @@ public sealed class AcademicInstructionServiceTests
         });
         await db.SaveChangesAsync();
         (await principal.GetLessonOfferingChoicesAsync(seed.BatchId, null, 1, 20)).Success.Should().BeTrue();
+        (await principal.GetSubstitutionRoutineChoicesAsync(seed.BatchId, LessonDate, null, 1, 20)).Success.Should().BeTrue();
         (await principal.GetLessonPlansAsync(null, null, null, 1, 20)).Data!.TotalCount.Should().Be(1);
         (await principal.GetSubstitutionsPageAsync(LessonDate, LessonDate, null, 1, 20)).Data!.TotalCount.Should().Be(1);
     }
