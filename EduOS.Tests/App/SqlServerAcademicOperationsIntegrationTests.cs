@@ -283,7 +283,7 @@ public sealed class SqlServerAcademicOperationsIntegrationTests
         await db.SaveChangesAsync();
         var sqlSession = new AttendanceSession { TenantId = tenantId,
             ClientRequestId = Guid.NewGuid(), AcademicBatchId = batchId,
-            SubjectOfferingId = sqlOffering.Id, AttendanceDate = new DateOnly(2026, 10, 10),
+            SubjectOfferingId = sqlOffering.Id, AttendanceDate = new DateOnly(2026, 10, 12),
             IsFinalized = true };
         db.AttendanceSessions.Add(sqlSession);
         await db.SaveChangesAsync();
@@ -292,7 +292,11 @@ public sealed class SqlServerAcademicOperationsIntegrationTests
             AttendanceSessionId = sqlSession.Id, StudentEnrollmentId = sqlEnrollment.Id,
             State = AttendanceState.Absent });
         await db.SaveChangesAsync();
-        var subjectCoverage = await riskReport.GetSubjectSummaryAsync(riskQuery, "SQL Attendance", "lowest");
+        var subjectQuery = new StudentAttendanceReportQueryDto {
+            AcademicBatchId = batchId, FromDate = new DateOnly(2026, 10, 12),
+            ToDate = new DateOnly(2026, 10, 12), Page = 1, PageSize = 1
+        };
+        var subjectCoverage = await riskReport.GetSubjectSummaryAsync(subjectQuery, "SQL Attendance", "lowest");
         Assert.True(subjectCoverage.Success, subjectCoverage.Message);
         Assert.Equal(1, subjectCoverage.Data!.TotalCount);
         Assert.Equal(sqlOffering.Id, Assert.Single(subjectCoverage.Data.Items).SubjectOfferingId);
@@ -300,7 +304,7 @@ public sealed class SqlServerAcademicOperationsIntegrationTests
         Assert.Equal(404, (await new StudentAttendanceReportService(
             db, new Actor(tenantId + 999, managerId, "TenantAdmin"),
             NullLogger<StudentAttendanceReportService>.Instance)
-            .GetSubjectSummaryAsync(riskQuery, null, "subject")).StatusCode);
+            .GetSubjectSummaryAsync(subjectQuery, null, "subject")).StatusCode);
         var adjustment = await db.StudentAttendanceAdjustments.AsNoTracking().SingleAsync();
         Assert.Equal(AttendanceState.Leave, adjustment.PreviousState);
         Assert.Equal(AttendanceState.Absent, adjustment.NewState);
