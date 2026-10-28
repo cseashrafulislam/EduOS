@@ -417,7 +417,16 @@ public sealed class SqlServerStudentImportCohortRehearsalTests
             for (var current = exception; current != null; current = current.InnerException)
                 chain.Add(current.GetType().Name +
                     (current is SqlException sql ? "#" + sql.Number : ""));
-            output.Add(string.Join(" -> ", chain));
+            // Record only method/type names (no exception messages, SQL text or PII).
+            // A failed rollback can mask the original SQL error; identify the
+            // throwing framework method before changing transaction handling.
+            var frames = new System.Diagnostics.StackTrace(exception, false).GetFrames();
+            var origins = frames == null ? "" : string.Join(" > ", frames.Take(4).Select(frame =>
+            {
+                var method = frame.GetMethod();
+                return (method?.DeclaringType?.Name ?? "Unknown") + "." + (method?.Name ?? "Unknown");
+            }));
+            output.Add(string.Join(" -> ", chain) + " | origin: " + origins);
         }
     }
 
