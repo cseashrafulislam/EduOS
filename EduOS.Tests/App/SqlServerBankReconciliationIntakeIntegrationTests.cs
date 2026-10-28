@@ -112,11 +112,6 @@ public sealed class SqlServerBankReconciliationIntakeIntegrationTests
         await Assert.ThrowsAsync<InvalidOperationException>(() => db.SaveChangesAsync());
         db.Entry(line).State = EntityState.Unchanged;
 
-        await using var otherDb = new EduOSDbContext(options, Accessor(otherTenantId, otherUserId));
-        var otherService = new AccountingReportingService(otherDb, new TestUser(otherTenantId, otherUserId));
-        Assert.Equal(404, (await otherService.GetBankReconciliationDraftAsync(saved.Data.Id)).StatusCode);
-        Assert.Equal(404, (await otherService.GetBankReconciliationDraftsAsync(bankId)).StatusCode);
-
         // Database unique constraint is authoritative even if a caller bypasses service preflight.
         db.BankReconciliationBatches.Add(new BankReconciliationBatch
         {
@@ -126,6 +121,13 @@ public sealed class SqlServerBankReconciliationIntakeIntegrationTests
             MovementCount = 1, StateCode = 1, PreparedByUserId = userId
         });
         await Assert.ThrowsAsync<DbUpdateException>(() => db.SaveChangesAsync());
+
+        // HttpContextAccessor uses AsyncLocal. Switch the test request tenant only
+        // after the original tenant's write assertions have finished.
+        await using var otherDb = new EduOSDbContext(options, Accessor(otherTenantId, otherUserId));
+        var otherService = new AccountingReportingService(otherDb, new TestUser(otherTenantId, otherUserId));
+        Assert.Equal(404, (await otherService.GetBankReconciliationDraftAsync(saved.Data.Id)).StatusCode);
+        Assert.Equal(404, (await otherService.GetBankReconciliationDraftsAsync(bankId)).StatusCode);
     }
 
     private static HttpContextAccessor Accessor(long tenantId, long userId)
