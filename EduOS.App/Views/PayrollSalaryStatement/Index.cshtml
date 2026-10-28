@@ -1,0 +1,47 @@
+@{
+    ViewData["Title"] = "Payroll Salary Statement";
+}
+<section id="payrollSalaryStatement" class="container-fluid py-3">
+    <header class="d-flex align-items-start justify-content-between flex-wrap gap-2 mb-3">
+        <h2 class="h4 mb-0">Payroll Salary Statement</h2>
+        <div class="d-flex gap-2">
+            <a href="/PayrollOperations/Index" class="btn btn-sm btn-outline-secondary">Payroll</a>
+            <details class="position-relative">
+                <summary class="btn btn-sm btn-outline-secondary" title="Page help" aria-label="Statement help">ⓘ</summary>
+                <div class="card card-body shadow-sm position-absolute end-0 mt-1" style="width:min(320px,85vw);z-index:10">
+                    Historical payroll amounts are taken from calculated payroll snapshots, not current salary structures. Export requires a single month and is limited to 1,000 rows. Posted and unposted runs are labelled distinctly.
+                </div>
+            </details>
+        </div>
+    </header>
+    <div id="statementError" class="alert d-none" role="alert" aria-live="polite" tabindex="-1"></div>
+    <form id="statementFilter" class="card card-body mb-3">
+        <div class="row g-2 align-items-end">
+            <div class="col-md-3"><label for="statementYear" class="form-label">Year</label><input id="statementYear" class="form-control" type="number" min="2000" max="2200" required /></div>
+            <div class="col-md-3"><label for="statementMonth" class="form-label">Month</label><select id="statementMonth" class="form-select" required>
+                @for (var i = 1; i <= 12; i++) { <option value="@i">@System.Globalization.CultureInfo.InvariantCulture.DateTimeFormat.GetMonthName(i)</option> }
+            </select></div>
+            <div class="col-md-6 d-flex gap-2">
+                <button type="submit" class="btn btn-primary">Load statement</button>
+                <button id="statementCsv" type="button" class="btn btn-outline-primary">CSV export</button>
+                <button id="statementPrint" type="button" class="btn btn-outline-secondary">Print page</button>
+            </div>
+        </div>
+    </form>
+    <div class="card card-body">
+        <div class="table-responsive"><table class="table table-sm table-hover align-middle">
+            <thead><tr><th>Run</th><th>Employee</th><th>Period</th><th>Status</th>
+            <th class="text-end">Gross</th><th class="text-end">Deductions</th><th class="text-end">Net (BDT)</th></tr></thead>
+            <tbody id="statementRows"><tr><td colspan="7">Loading…</td></tr></tbody>
+            <tfoot><tr><th colspan="4">Current page totals</th><th id="statementGross" class="text-end">—</th><th id="statementDeduction" class="text-end">—</th><th id="statementNet" class="text-end">—</th></tr></tfoot>
+        </table></div>
+        <div class="d-flex justify-content-between align-items-center">
+            <button type="button" id="statementPrev" class="btn btn-sm btn-outline-secondary">Previous</button>
+            <span id="statementPage" aria-live="polite"></span>
+            <button type="button" id="statementNext" class="btn btn-sm btn-outline-secondary">Next</button>
+        </div>
+    </div>
+</section>
+@section Scripts {
+    <script src="~/js/payroll/salary-statement.js" asp-append-version="true"></script>
+}
