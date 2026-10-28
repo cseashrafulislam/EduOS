@@ -707,6 +707,8 @@ public sealed class AcademicInstructionService : IAcademicInstructionService
                 Id = x.Id,
                 Reference = x.PublicId,
                 SubjectOfferingId = x.SubjectOfferingId,
+                SubjectOfferingReference = offerings.TryGetValue(x.SubjectOfferingId, out var savedOffering)
+                    ? savedOffering.PublicId : Guid.Empty,
                 SubjectName = subjectName,
                 EmployeeId = x.EmployeeId,
                 EmployeeName = employee?.FullName ?? string.Empty,

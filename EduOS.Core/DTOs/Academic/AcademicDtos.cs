@@ -670,6 +670,7 @@ public class LessonPlanDto
     public long Id { get; set; }
     public Guid Reference { get; set; }
     public long SubjectOfferingId { get; set; }
+    public Guid SubjectOfferingReference { get; set; }
     public string SubjectName { get; set; } = string.Empty;
     public long EmployeeId { get; set; }
     public string EmployeeName { get; set; } = string.Empty;

@@ -37,6 +37,8 @@ public sealed class AcademicInstructionServiceTests
         created.StatusCode.Should().Be(201);
         replay.Success.Should().BeTrue();
         replay.Data!.Id.Should().Be(created.Data!.Id);
+        created.Data.SubjectOfferingReference.Should().Be(seed.OfferingReference);
+        replay.Data.SubjectOfferingReference.Should().Be(seed.OfferingReference);
         conflict.StatusCode.Should().Be(409);
         (await db.LessonPlans.CountAsync()).Should().Be(1);
 
@@ -270,6 +272,7 @@ public sealed class AcademicInstructionServiceTests
             secondPage.Success.Should().BeTrue();
             firstPage.Data!.TotalCount.Should().Be(2);
             firstPage.Data.Items.Should().ContainSingle();
+            firstPage.Data.Items[0].SubjectOfferingReference.Should().Be(seed.OfferingReference);
             secondPage.Data!.Items.Should().ContainSingle();
             firstPage.Data.Items[0].Id.Should().NotBe(secondPage.Data.Items[0].Id);
 

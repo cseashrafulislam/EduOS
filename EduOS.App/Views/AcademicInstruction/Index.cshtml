@@ -3,7 +3,8 @@
     var canManage = User.IsInRole("TenantAdmin") || User.IsInRole("Principal") || User.IsInRole("VicePrincipal");
 }
 <section id="instructionApp" data-can-manage="@canManage.ToString().ToLowerInvariant()" data-can-teach="@User.IsInRole("Teacher").ToString().ToLowerInvariant()" class="container-fluid py-3">
-    <header class="mb-3"><h2 class="h4 mb-1">Academic Instruction</h2><p class="text-muted mb-0">Lesson planning, review, teaching progress and teacher substitutions.</p></header>
+    <header class="mb-3 d-flex align-items-center justify-content-between gap-2"><h2 class="h4 mb-0">Academic Instruction</h2><button id="instructionHelp" type="button" class="btn btn-sm btn-outline-secondary" title="Page guide" aria-label="Academic instruction guide" aria-controls="instructionHelpText" aria-expanded="false">ⓘ</button></header>
+    <div id="instructionHelpText" class="d-none small text-muted mb-3" role="note">Choose a batch and date range. Search subject offerings when creating a lesson plan; only assigned instructors can progress approved lessons. Substitutions require an active routine and a different eligible teacher.</div>
     <div id="instructionAlert" class="d-none" tabindex="-1" role="alert" aria-live="polite"></div>
     <form id="instructionFilters" class="card card-body mb-3">
         <div class="row g-3 align-items-end">
@@ -32,6 +33,8 @@
         <div class="card-header"><h3 id="lessonEditorTitle" class="h6 m-0">New lesson plan</h3></div>
         <form id="lessonForm" class="card-body">
             <div class="row g-3">
+                <div class="col-lg-5"><label class="form-label" for="lessonOfferingSearch">Find subject offering</label><div class="input-group"><input id="lessonOfferingSearch" class="form-control" maxlength="100" placeholder="Name or code" /><button id="lessonFindOfferings" type="button" class="btn btn-outline-secondary">Find</button></div></div>
+                <div class="col-lg-7 d-flex align-items-end gap-2"><button id="lessonOfferingsPrevious" type="button" class="btn btn-sm btn-outline-secondary" disabled>Previous</button><span id="lessonOfferingPage" class="small text-muted" aria-live="polite">Page 1 / 1</span><button id="lessonOfferingsNext" type="button" class="btn btn-sm btn-outline-secondary" disabled>Next</button></div>
                 <div class="col-md-6"><label class="form-label" for="lessonAssignment">Subject offering</label><select id="lessonAssignment" class="form-select" required></select></div>
                 <div class="col-md-3"><label class="form-label" for="lessonDate">Lesson date</label><input id="lessonDate" type="date" class="form-control" required /></div>
                 <div class="col-md-3"><label class="form-label" for="lessonTitle">Chapter / title</label><input id="lessonTitle" maxlength="250" class="form-control" required /></div>
@@ -70,7 +73,6 @@
             <button id="substitutionNext" type="button" class="btn btn-sm btn-outline-secondary" disabled>Next</button>
         </div>
     </section>
-    <p class="text-muted small">All updates are authorized on the server. If another user updates a record, reload it before saving.</p>
 </section>
 @section Scripts {
     <script src="~/js/academic/instruction.js" asp-append-version="true"></script>

@@ -6,7 +6,7 @@
     const manager = root.dataset.canManage === 'true';
     const teacher = root.dataset.canTeach === 'true';
     const statuses = {1:'Draft',2:'Submitted',3:'Approved',4:'Rejected',5:'In progress',6:'Completed'};
-    const state = { batches: [], offerings: [], instructors: [], routines: [], lessons: [], substitutions: [], editingId: null, lessonPage: 1, lessonPages: 1, lessonCount: 0, substitutionPage: 1, substitutionPages: 1, substitutionCount: 0, requestSeq: 0, draftRequestId: null, substitutionRequestId: null };
+    const state = { batches: [], offerings: [], instructors: [], routines: [], lessons: [], substitutions: [], editingId: null, lessonPage: 1, lessonPages: 1, lessonCount: 0, substitutionPage: 1, substitutionPages: 1, substitutionCount: 0, requestSeq: 0, draftRequestId: null, substitutionRequestId: null, offeringPage: 1, offeringPages: 1, offeringCount: 0, offeringRequestSeq: 0 };
     const dateOnly = value => value ? String(value).slice(0,10) : '';
     const dateForApi = value => value; // ASP.NET DateOnly accepts yyyy-MM-dd, not a timestamp.
     const option = (value, text) => { const e=document.createElement('option');e.value=String(value);e.textContent=text;return e; };
@@ -46,7 +46,8 @@
         resetEditor();
         const id=Number(get('instructionBatch').value);
         get('lessonNew').disabled=!id;
-        state.lessonPage=1;state.substitutionPage=1;state.offerings=[];state.instructors=[];state.routines=[];state.lessons=[];state.substitutions=[];renderLessons([]);renderSubstitutions([]);updateLessonPager();updateSubstitutionPager();
+        state.lessonPage=1;state.substitutionPage=1;state.offeringPage=1;state.offeringPages=1;state.offeringCount=0;state.offeringRequestSeq++;
+        get('lessonOfferingSearch').value='';state.offerings=[];state.instructors=[];state.routines=[];state.lessons=[];state.substitutions=[];renderLessons([]);renderSubstitutions([]);updateLessonPager();updateSubstitutionPager();updateOfferingPager();
         if(id)load();
     }
     async function init() {
@@ -61,15 +62,38 @@
             if(!state.batches.length)status('warning','No active batch available. Configure an academic batch first.');
         } catch(e){status('danger',e.message);}
     }
-    async function loadOfferings(batchId) {
-        const rows = [];
-        for (let page = 1; page <= 5; page++) {
-            const result = await api('/api/academic-instruction/batches/' + batchId + '/lesson-offerings?' +
-                new URLSearchParams({ page: String(page), pageSize: '100' }));
-            rows.push(...(result?.items || []));
-            if (page >= (result?.totalPages || 1)) break;
-        }
-        return rows;
+    async function fetchOfferingPage(batchId, page, search) {
+        if (!Number.isSafeInteger(page) || page < 1) throw new Error('Invalid offering page.');
+        if (search.length > 100) throw new Error('Offering search is too long.');
+        const query = new URLSearchParams({ page: String(page), pageSize: '50' });
+        if (search) query.set('search', search);
+        const result = await api('/api/academic-instruction/batches/' + batchId + '/lesson-offerings?' + query);
+        if (!result || !Array.isArray(result.items)) throw new Error('Invalid subject-offering response.');
+        return result;
+    }
+    function updateOfferingPager() {
+        get('lessonOfferingPage').textContent = 'Page ' + state.offeringPage + ' / ' +
+            state.offeringPages + ' (' + state.offeringCount + ' offerings)';
+        get('lessonOfferingsPrevious').disabled = state.offeringPage <= 1;
+        get('lessonOfferingsNext').disabled = state.offeringPage >= state.offeringPages;
+    }
+    function applyOfferingPage(result, requestedPage) {
+        state.offerings = result.items;
+        state.offeringPage = Number(result.page || requestedPage);
+        state.offeringPages = Math.max(1, Number(result.totalPages || 1));
+        state.offeringCount = Number(result.totalCount || 0);
+        setAssignments();
+        updateOfferingPager();
+    }
+    async function findOfferings(page = 1) {
+        const batchId = Number(get('instructionBatch').value);
+        if (!batchId) throw new Error('Select an academic batch first.');
+        const search = get('lessonOfferingSearch').value.trim();
+        const sequence = ++state.offeringRequestSeq;
+        const result = await fetchOfferingPage(batchId, page, search);
+        if (sequence !== state.offeringRequestSeq ||
+            Number(get('instructionBatch').value) !== batchId) return;
+        applyOfferingPage(result, page);
     }
     async function findInstructors() {
         if (!manager) return;
@@ -98,6 +122,7 @@
     async function load() {
         let scope; try { scope = dateScope(); } catch (e) { status('danger', e.message); return; }
         const seq = ++state.requestSeq;
+        const offeringSeq = ++state.offeringRequestSeq;
         const btn = get('instructionLoad'); btn.disabled = true; clearStatus();
         const q = new URLSearchParams({ academicBatchId: String(scope.batchId),
             fromDate: dateForApi(scope.from), toDate: dateForApi(scope.to) });
@@ -109,7 +134,7 @@
             const [lessonResult, subResult, offeringResult, routineResult] = await Promise.allSettled([
                 api('/api/academic-instruction/lesson-plans?' + lessonQuery),
                 api('/api/academic-instruction/substitutions/page?' + substitutionQuery),
-                loadOfferings(scope.batchId),
+                fetchOfferingPage(scope.batchId, state.offeringPage, get('lessonOfferingSearch').value.trim()),
                 api('/api/academic-routines/batches/' + scope.batchId)
             ]);
             if (seq !== state.requestSeq) return;
@@ -125,7 +150,13 @@
             state.substitutions = subPage.items;
             state.substitutionCount = Number(subPage.totalCount || 0);
             state.substitutionPages = Math.max(1, Number(subPage.totalPages || 1));
-            state.offerings = offeringResult.status === 'fulfilled' ? offeringResult.value : [];
+            if (offeringSeq === state.offeringRequestSeq) {
+                if (offeringResult.status === 'fulfilled') applyOfferingPage(offeringResult.value, state.offeringPage);
+                else {
+                    state.offerings = []; state.offeringPage = 1; state.offeringPages = 1;
+                    state.offeringCount = 0; updateOfferingPager();
+                }
+            }
             state.routines = routineResult.status === 'fulfilled' ? (routineResult.value || []) : [];
             renderLessons(state.lessons); renderSubstitutions(state.substitutions);
             setAssignments(); updateLessonPager(); updateSubstitutionPager();
@@ -144,9 +175,22 @@
         } finally { if (seq === state.requestSeq) btn.disabled = false; }
     }
     function setAssignments() {
-        setOptions('lessonAssignment', state.offerings.filter(x => x.isActive).map(x => ({
-            id: x.reference, name: [x.subjectCode, x.subjectName, x.code].filter(Boolean).join(' / ')
-        })), 'Select subject offering');
+        const editing = state.editingId === null ? null :
+            state.lessons.find(x => Number(x.id) === Number(state.editingId));
+        if (editing) {
+            const ref = editing.subjectOfferingReference;
+            setOptions('lessonAssignment', ref ? [{
+                id: ref, name: editing.subjectName || 'Saved subject offering'
+            }] : [], 'Subject offering unavailable');
+            get('lessonAssignment').value = ref || '';
+        } else {
+            const selected = get('lessonAssignment').value;
+            const choices = state.offerings.filter(x => x.isActive).map(x => ({
+                id: x.reference, name: [x.subjectCode, x.subjectName, x.code].filter(Boolean).join(' / ')
+            }));
+            setOptions('lessonAssignment', choices, 'Select subject offering');
+            if (choices.some(x => String(x.id) === selected)) get('lessonAssignment').value = selected;
+        }
         setOptions('substitutionRoutine', state.routines.filter(x => x.isActive).map(x => ({
             id: x.id, name: [x.subjectName, x.timeSlotName, x.dayOfWeek].filter(x => x !== null && x !== undefined).join(' / ')
         })), 'Select routine entry');
@@ -192,9 +236,8 @@
     }
     function resetEditor(){state.editingId=null;get('lessonEditor').classList.add('d-none');}
     function openEditor(row) {
-        const offering = row ? state.offerings.find(x => Number(x.id) === Number(row.subjectOfferingId)) : null;
-        if (row && !offering) {
-            status('warning', 'The subject offering is not in the current active register; it cannot be edited here.');
+        if (row && !row.subjectOfferingReference) {
+            status('warning', 'The saved subject offering is unavailable. Reload before editing.');
             return;
         }
         state.editingId = row?.id || null;
@@ -205,7 +248,8 @@
         get('lessonObjectives').value = row?.objectives || '';
         get('lessonContent').value = row?.content || '';
         get('lessonResources').value = row?.resources || '';
-        get('lessonAssignment').value = offering?.reference || '';
+        setAssignments();
+        get('lessonAssignment').value = row?.subjectOfferingReference || '';
         get('lessonAssignment').disabled = !!row;
         get('lessonEditor').classList.remove('d-none'); get('lessonTitle').focus();
     }
@@ -215,7 +259,7 @@
         if (!form.reportValidity()) return;
         const row = state.lessons.find(x => Number(x.id) === state.editingId);
         const date = get('lessonDate').value, title = get('lessonTitle').value.trim();
-        const offering = get('lessonAssignment').value;
+        const offering = row ? row.subjectOfferingReference : get('lessonAssignment').value;
         if (!title || !date || !offering) { status('danger', 'Title, date and subject offering are required.'); return; }
         const body = {
             clientRequestId: row ? crypto.randomUUID() : state.draftRequestId,
@@ -336,6 +380,21 @@
     get('substitutionRows').addEventListener('click',e=>{const button=e.target.closest('button[data-action]');if(button&&button.dataset.action==='cancelSub')substitutionAction(Number(button.dataset.id));});
     get('substitutionForm')?.addEventListener('submit',saveSub);
     get('substitutionTeacherFind')?.addEventListener('click',()=>findInstructors().catch(e=>status('danger',e.message)));
+    get('lessonFindOfferings').addEventListener('click', () =>
+        findOfferings(1).catch(e => status('danger', e.message)));
+    get('lessonOfferingsPrevious').addEventListener('click', () => {
+        if (state.offeringPage > 1) findOfferings(state.offeringPage - 1).catch(e => status('danger', e.message));
+    });
+    get('lessonOfferingsNext').addEventListener('click', () => {
+        if (state.offeringPage < state.offeringPages)
+            findOfferings(state.offeringPage + 1).catch(e => status('danger', e.message));
+    });
+    get('instructionHelp').addEventListener('click', () => {
+        const guide = get('instructionHelpText');
+        const expanded = get('instructionHelp').getAttribute('aria-expanded') === 'true';
+        guide.classList.toggle('d-none', expanded);
+        get('instructionHelp').setAttribute('aria-expanded', String(!expanded));
+    });
     get('lessonPrevious').addEventListener('click',()=>{if(state.lessonPage>1){state.lessonPage--;load();}});
     get('lessonNext').addEventListener('click',()=>{if(state.lessonPage<state.lessonPages){state.lessonPage++;load();}});
     get('substitutionPrevious').addEventListener('click',()=>{if(state.substitutionPage>1){state.substitutionPage--;load();}});
