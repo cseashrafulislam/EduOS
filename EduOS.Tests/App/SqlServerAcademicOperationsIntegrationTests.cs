@@ -174,19 +174,19 @@ public sealed class SqlServerAcademicOperationsIntegrationTests
         Assert.Equal(409, incomplete.StatusCode);
         // Exercise the manager's real SQL Server completion overview and empty-register
         // filters before any marks are posted; draft sessions must remain visible.
-        var reportService = new StudentAttendanceReportService(
+        var completionReportService = new StudentAttendanceReportService(
             db, new Actor(tenantId, managerId, "TenantAdmin"),
             NullLogger<StudentAttendanceReportService>.Instance);
-        var reportQuery = new StudentAttendanceReportQueryDto
+        var completionReportQuery = new StudentAttendanceReportQueryDto
         {
             AcademicBatchId = batchId, FromDate = new DateOnly(2026, 10, 10),
             ToDate = new DateOnly(2026, 10, 10)
         };
-        var draftOverview = await reportService.GetSessionOverviewAsync(reportQuery);
+        var draftOverview = await completionReportService.GetSessionOverviewAsync(completionReportQuery);
         Assert.True(draftOverview.Success, draftOverview.Message);
         Assert.Equal(1, draftOverview.Data!.TotalSessions);
         Assert.Equal(1, draftOverview.Data.EmptyDraftSessions);
-        var emptyDraft = await reportService.GetSessionRegisterAsync(reportQuery, "empty-draft");
+        var emptyDraft = await completionReportService.GetSessionRegisterAsync(completionReportQuery, "empty-draft");
         Assert.True(emptyDraft.Success, emptyDraft.Message);
         Assert.Equal(session.Data.AttendanceSessionId, Assert.Single(emptyDraft.Data!.Items).SessionId);
         var saved = await attendance.SaveAsync(new SaveAttendanceRegisterRequestDto
@@ -216,12 +216,12 @@ public sealed class SqlServerAcademicOperationsIntegrationTests
         Assert.True(finalized.Success, finalized.Message);
         Assert.True(finalized.Data!.IsFinalized);
         db.ChangeTracker.Clear();
-        var finalizedOverview = await reportService.GetSessionOverviewAsync(reportQuery);
+        var finalizedOverview = await completionReportService.GetSessionOverviewAsync(completionReportQuery);
         Assert.True(finalizedOverview.Success, finalizedOverview.Message);
         Assert.Equal(1, finalizedOverview.Data!.FinalizedSessions);
         Assert.Equal(0, finalizedOverview.Data.EmptyFinalizedSessions);
-        Assert.Equal(0, (await reportService.GetSessionRegisterAsync(
-            reportQuery, "empty-finalized")).Data!.TotalCount);
+        Assert.Equal(0, (await completionReportService.GetSessionRegisterAsync(
+            completionReportQuery, "empty-finalized")).Data!.TotalCount);
         var finalizedReplay = await attendance.FinalizeSessionAsync(
             saved.Data.AttendanceSessionId, saved.Data.SessionRowVersion);
         Assert.True(finalizedReplay.Success, finalizedReplay.Message);
