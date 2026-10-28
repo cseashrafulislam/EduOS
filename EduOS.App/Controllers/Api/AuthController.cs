@@ -11,6 +11,7 @@ using EduOS.Core.Settings;
 using EduOS.Persistence.Context;
 using Hangfire;
 using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
@@ -186,6 +187,27 @@ namespace EduOS.App.Controllers.Api
             });
         }
 
+        // Refresh the antiforgery token after an authenticated credential/session rotation.
+        // The next GET observes the replacement cookie; never return a token for the old SID.
+        [Authorize]
+        [HttpGet("antiforgery")]
+        public IActionResult RefreshAntiforgery([FromServices] IAntiforgery antiforgery)
+        {
+            Response.Headers.CacheControl = "no-store";
+            var sid = User.FindFirstValue(AuthSessionRegistry.ClaimType);
+            if (sid is not { Length: 48 })
+                return Unauthorized(new { success = false, message = "Session unavailable." });
+            var tokens = antiforgery.GetAndStoreTokens(HttpContext);
+            var tenantId = long.TryParse(User.FindFirstValue("TenantId"), out var parsed) && parsed > 0
+                ? (long?)parsed : null;
+            return Ok(new { success = true, data = new
+            {
+                requestToken = tokens.RequestToken,
+                sessionReference = AuthSessionRegistry.ToPublicReference(sid),
+                tenantId
+            } });
+        }
+
         // ==================== MFA Setup ====================
 
         [Authorize]
@@ -217,16 +239,25 @@ namespace EduOS.App.Controllers.Api
 
             if (string.IsNullOrWhiteSpace(sharedKey))
             {
-                var reset = await _userManager.ResetAuthenticatorKeyAsync(user);
-                if (!reset.Succeeded)
-                    return StatusCode(StatusCodes.Status500InternalServerError, new { success = false, message = "Authenticator setup failed." });
-
-                sharedKey = await _userManager.GetAuthenticatorKeyAsync(user);
-                if (string.IsNullOrWhiteSpace(sharedKey))
-                    return StatusCode(StatusCodes.Status500InternalServerError, new { success = false, message = "Authenticator setup failed." });
-
-                // Immediately invalidate other cookies after authenticator-secret rotation.
-                await AuthSessionRegistry.RevokeAllAsync(_db, user.Id);
+                try
+                {
+                    sharedKey = await _db.ExecuteInTransactionAsync(async ct =>
+                    {
+                        var reset = await _userManager.ResetAuthenticatorKeyAsync(user);
+                        if (!reset.Succeeded)
+                            throw new AuthTransactionRejectedException("Authenticator setup failed.", 500);
+                        var key = await _userManager.GetAuthenticatorKeyAsync(user);
+                        if (string.IsNullOrWhiteSpace(key))
+                            throw new AuthTransactionRejectedException("Authenticator setup failed.", 500);
+                        // Never commit a rotated authenticator secret while old sessions remain registered.
+                        await AuthSessionRegistry.RevokeAllAsync(_db, user.Id);
+                        return key;
+                    }, HttpContext.RequestAborted);
+                }
+                catch (AuthTransactionRejectedException ex)
+                {
+                    return StatusCode(ex.StatusCode, new { success = false, message = ex.Message });
+                }
                 // Renew only the current session with its original tenant/role claims.
                 var auth = await HttpContext.AuthenticateAsync(IdentityConstants.ApplicationScheme);
                 await SignInSessionAsync(user, auth.Properties?.IsPersistent == true, "pwd", session);
@@ -435,6 +466,7 @@ namespace EduOS.App.Controllers.Api
                     var reset = await _userManager.ResetAuthenticatorKeyAsync(user);
                     if (!reset.Succeeded)
                         throw new AuthTransactionRejectedException("Authenticator reset failed.");
+                    await AuthSessionRegistry.RevokeAllAsync(_db, user.Id);
                     return true;
                 });
             }
@@ -442,7 +474,6 @@ namespace EduOS.App.Controllers.Api
             {
                 return StatusCode(ex.StatusCode, new { success = false, message = ex.Message });
             }
-            await AuthSessionRegistry.RevokeAllAsync(_db, user.Id);
             await _signInManager.SignOutAsync();
             _logger.LogWarning("MFA disabled by user {UserId}", user.Id);
             return Ok(new { success = true, message = "MFA disabled. Sign in again." });
@@ -477,6 +508,7 @@ namespace EduOS.App.Controllers.Api
                     var stamp = await _userManager.UpdateSecurityStampAsync(user);
                     if (!stamp.Succeeded)
                         throw new AuthTransactionRejectedException("Account changed. Retry after signing in.");
+                    await AuthSessionRegistry.RevokeAllAsync(_db, user.Id);
                     return newCodes;
                 });
             }
@@ -484,7 +516,6 @@ namespace EduOS.App.Controllers.Api
             {
                 return StatusCode(ex.StatusCode, new { success = false, message = ex.Message });
             }
-            await AuthSessionRegistry.RevokeAllAsync(_db, user.Id);
             await _signInManager.SignOutAsync();
             _logger.LogInformation("MFA recovery codes rotated for user {UserId}", user.Id);
             return Ok(new { success = true, message = "Store these recovery codes securely. Sign in again.",

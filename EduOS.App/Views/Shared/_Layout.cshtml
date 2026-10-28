@@ -39,7 +39,7 @@
     <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" asp-append-version="true" />
     <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
 </head>
-<body data-auth-session-reference="@sessionReference" data-workspace-preferences="@(User?.Identity?.IsAuthenticated == true && User?.IsInRole("SuperAdmin") != true ? "enabled" : "disabled")">
+<body data-auth-session-reference="@sessionReference" data-auth-tenant-id="@(User?.FindFirst("TenantId")?.Value ?? "")" data-workspace-preferences="@(User?.Identity?.IsAuthenticated == true && User?.IsInRole("SuperAdmin") != true ? "enabled" : "disabled")">
     <a class="skip-link" href="#main-content">@T["SkipToContent"]</a>
 
     <div class="app-shell">

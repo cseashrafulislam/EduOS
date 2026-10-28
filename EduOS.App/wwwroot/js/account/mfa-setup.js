@@ -61,6 +61,13 @@
                     return;
                 }
 
+                // Setup may rotate the cookie SID. Fetch a fresh session-bound CSRF token
+                // before allowing the enable POST; never reuse the old page token.
+                if (!await refreshRotatedSession()) {
+                    showAlert('danger', form.dataset.networkMessage);
+                    return;
+                }
+                window.EduOSNotifySessionChanged?.();
                 const keyOutput = document.getElementById('mfaSharedKey');
                 const appLink = document.getElementById('openAuthenticatorLink');
                 if (keyOutput) keyOutput.textContent = payload.data.sharedKey;
@@ -98,6 +105,10 @@
                     return;
                 }
 
+                // MFA activation issues a second new cookie. Keep this page's
+                // recovery-code view bound to that verified same-institution session.
+                const refreshed = await refreshRotatedSession();
+                window.EduOSNotifySessionChanged?.();
                 form.hidden = true;
                 const recoveryList = document.getElementById('mfaRecoveryCodes');
                 const recoveryPanel = document.getElementById('mfaRecoveryPanel');
@@ -109,12 +120,33 @@
                     recoveryList?.appendChild(item);
                 }
                 if (recoveryPanel) recoveryPanel.hidden = false;
+                if (!refreshed) showAlert('danger', form.dataset.networkMessage);
             } catch {
                 showAlert('danger', form.dataset.networkMessage);
             } finally {
                 setLoading(enableButton, false);
             }
         });
+
+        async function refreshRotatedSession() {
+            try {
+                const response = await fetch('/api/auth/antiforgery', {
+                    method: 'GET', cache: 'no-store', credentials: 'same-origin',
+                    headers: { Accept: 'application/json' }
+                });
+                const payload = await response.json().catch(() => null);
+                const data = payload?.data;
+                const meta = document.querySelector('meta[name="request-verification-token"]');
+                if (!response.ok || payload?.success !== true || !meta ||
+                    typeof data?.requestToken !== 'string' || !data.requestToken ||
+                    !window.EduOSAdoptRotatedSession?.(data.sessionReference, data.tenantId))
+                    return false;
+                meta.content = data.requestToken;
+                document.querySelectorAll('input[name="__RequestVerificationToken"]')
+                    .forEach(input => { input.value = data.requestToken; });
+                return true;
+            } catch { return false; }
+        }
 
         function showAlert(type, message) {
             const alert = document.getElementById('mfaSetupAlert');

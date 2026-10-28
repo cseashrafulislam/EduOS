@@ -110,6 +110,42 @@ public sealed class AuthManagementEndpointContractTests
     }
 
     [Fact]
+    public void Mfa_management_secret_changes_and_session_revocation_share_one_transaction()
+    {
+        var auth = File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "TestAssets", "AuthController.cs"));
+        foreach (var (start, end, lastWrite) in new[]
+        {
+            ("public async Task<IActionResult> SetupMfa(", "// ==================== MFA Enable", "return key;"),
+            ("public async Task<IActionResult> DisableMfa(", "public async Task<IActionResult> RegenerateRecoveryCodes(", "return true;"),
+            ("public async Task<IActionResult> RegenerateRecoveryCodes(", "private async Task<bool> VerifyMfaActionCodeAsync", "return newCodes;")
+        })
+        {
+            var from = auth.IndexOf(start, StringComparison.Ordinal);
+            var to = auth.IndexOf(end, from, StringComparison.Ordinal);
+            Assert.True(from >= 0 && to > from);
+            var action = auth[from..to];
+            var transaction = action.IndexOf("_db.ExecuteInTransactionAsync(", StringComparison.Ordinal);
+            var revoke = action.IndexOf("await AuthSessionRegistry.RevokeAllAsync(_db, user.Id);", StringComparison.Ordinal);
+            var endOfTransaction = action.IndexOf(lastWrite, StringComparison.Ordinal);
+            Assert.True(transaction >= 0 && revoke > transaction && endOfTransaction > revoke);
+            Assert.Equal(1, action.Split("await AuthSessionRegistry.RevokeAllAsync(_db, user.Id);").Length - 1);
+        }
+    }
+
+    [Fact]
+    public void Antiforgery_refresh_is_authenticated_and_uses_the_current_cookie_session()
+    {
+        var method = typeof(AuthController).GetMethod(nameof(AuthController.RefreshAntiforgery))!;
+        Assert.NotNull(method);
+        Assert.True(method.GetCustomAttributes(typeof(AuthorizeAttribute), true).Any());
+        Assert.True(method.GetCustomAttributes(typeof(HttpGetAttribute), true).Any());
+        var auth = File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "TestAssets", "AuthController.cs"));
+        Assert.Contains("antiforgery.GetAndStoreTokens(HttpContext)", auth);
+        Assert.Contains("AuthSessionRegistry.ToPublicReference(sid)", auth);
+        Assert.Contains("Response.Headers.CacheControl = \"no-store\"", auth);
+    }
+
+    [Fact]
     public void Session_registry_uses_separate_identity_provider_not_jwt_refresh_table()
     {
         Assert.Equal("EduOS.CookieSession", AuthSessionRegistry.Provider);

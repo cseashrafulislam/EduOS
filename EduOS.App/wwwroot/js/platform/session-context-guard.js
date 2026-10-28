@@ -2,7 +2,8 @@
     'use strict';
     // This is a UX/privacy shield, not the authorization boundary. The server
     // enforces tenant membership and session-bound antiforgery on every write.
-    const original = document.body?.dataset.authSessionReference;
+    let original = document.body?.dataset.authSessionReference;
+    const originalTenant = document.body?.dataset.authTenantId ?? '';
     const shield = document.getElementById('eduosSessionShield');
     const message = document.getElementById('eduosSessionShieldMessage');
     const retry = document.getElementById('eduosSessionRetry');
@@ -66,6 +67,20 @@
         })();
         return pending;
     }
+
+    // Only a privileged same-institution operation that has fetched a fresh
+    // server-issued token should adopt its new session reference on this page.
+    // This is a privacy shield, not a substitute for server authorization.
+    window.EduOSAdoptRotatedSession = (reference, tenantId) => {
+        const tenant = tenantId == null ? '' : String(tenantId);
+        if (!/^[0-9A-F]{64}$/.test(reference || '') || tenant !== originalTenant)
+            return false;
+        original = reference;
+        document.body.dataset.authSessionReference = reference;
+        lastChecked = 0;
+        unblock();
+        return true;
+    };
 
     retry.addEventListener('click', () => check(true));
     window.addEventListener('pageshow', event => {

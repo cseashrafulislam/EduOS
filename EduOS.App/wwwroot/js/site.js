@@ -2,8 +2,6 @@
     'use strict';
 
     const nativeFetch = window.fetch.bind(window);
-    const verificationToken = document.querySelector(
-        'meta[name="request-verification-token"]')?.content;
     const safeMethods = new Set(['GET', 'HEAD', 'OPTIONS', 'TRACE']);
 
     // Cookie-authenticated API writes require the server-issued anti-forgery token.
@@ -11,6 +9,10 @@
     window.fetch = (input, init) => {
         const request = new Request(input, init);
         const url = new URL(request.url, window.location.href);
+        // A privileged action can replace the cookie and its session-bound token
+        // without a full page reload. Read the current token for every write.
+        const verificationToken = document.querySelector(
+            'meta[name="request-verification-token"]')?.content;
         if (!verificationToken
             || url.origin !== window.location.origin
             || safeMethods.has(request.method.toUpperCase())) {

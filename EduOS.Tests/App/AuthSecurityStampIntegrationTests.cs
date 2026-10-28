@@ -200,6 +200,48 @@ public sealed class AuthSecurityStampIntegrationTests
         Assert.False(await AuthSessionRegistry.IsValidAsync(readDb, user.Id, sidB, 200));
     }
 
+    [Fact]
+    public async Task Sql_mfa_secret_rotation_failure_rolls_back_key_and_all_session_revocations()
+    {
+        var connection = Environment.GetEnvironmentVariable("EDUOS_SQL_AUTH_TEST_CONNECTION");
+        if (string.IsNullOrWhiteSpace(connection)) return;
+        using var provider = CreateServices(connection).BuildServiceProvider();
+        using var scope = provider.CreateScope();
+        var manager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+        var db = scope.ServiceProvider.GetRequiredService<EduOSDbContext>();
+        var suffix = Guid.NewGuid().ToString("N");
+        var user = new ApplicationUser
+        {
+            UserName = "mfa-rollback-" + suffix + "@example.test",
+            Email = "mfa-rollback-" + suffix + "@example.test",
+            FullName = "MFA Rollback", EmailConfirmed = true
+        };
+        Assert.True((await manager.CreateAsync(user, "Secure123!")).Succeeded);
+        Assert.True((await manager.ResetAuthenticatorKeyAsync(user)).Succeeded);
+        var originalKey = await manager.GetAuthenticatorKeyAsync(user);
+        Assert.False(string.IsNullOrWhiteSpace(originalKey));
+        var first = await AuthSessionRegistry.CreateAsync(db, user.Id, 101, "", "", false);
+        var second = await AuthSessionRegistry.CreateAsync(db, user.Id, 202, "", "", false);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            db.ExecuteInTransactionAsync<bool>(async ct =>
+            {
+                var reset = await manager.ResetAuthenticatorKeyAsync(user);
+                Assert.True(reset.Succeeded);
+                await AuthSessionRegistry.RevokeAllAsync(db, user.Id);
+                throw new InvalidOperationException("Injected failure after session revocation.");
+            }));
+
+        using var fresh = provider.CreateScope();
+        var freshDb = fresh.ServiceProvider.GetRequiredService<EduOSDbContext>();
+        var freshManager = fresh.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+        var persisted = await freshManager.FindByIdAsync(user.Id.ToString());
+        Assert.NotNull(persisted);
+        Assert.Equal(originalKey, await freshManager.GetAuthenticatorKeyAsync(persisted));
+        Assert.True(await AuthSessionRegistry.IsValidAsync(freshDb, user.Id, first, 101));
+        Assert.True(await AuthSessionRegistry.IsValidAsync(freshDb, user.Id, second, 202));
+    }
+
     private static ServiceCollection CreateServices(string? sqlConnection = null)
     {
         var services = new ServiceCollection();
