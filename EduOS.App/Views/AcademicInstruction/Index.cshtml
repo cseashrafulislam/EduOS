@@ -98,7 +98,13 @@
         <section id="substitutionWorkloadPanel" class="card mb-3">
             <div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-2">
                 <h3 class="h6 m-0">Substitute workload</h3>
-                <div class="d-flex gap-2">
+                <div class="d-flex flex-wrap align-items-center gap-2">
+                    <input id="workloadSearch" type="search" class="form-control form-control-sm" style="max-width: 190px" maxlength="80" placeholder="Teacher name or code" aria-label="Search substitute teacher name or code" />
+                    <select id="workloadSort" class="form-select form-select-sm" style="max-width: 155px" aria-label="Sort substitute workload">
+                        <option value="active">Most active</option>
+                        <option value="cancelled">Most cancelled</option>
+                        <option value="total">Most total</option>
+                    </select>
                     <button id="workloadLoad" type="button" class="btn btn-sm btn-outline-primary">View workload</button>
                     <button id="workloadCsv" type="button" class="btn btn-sm btn-outline-secondary" disabled>CSV (current page)</button>
                 </div>

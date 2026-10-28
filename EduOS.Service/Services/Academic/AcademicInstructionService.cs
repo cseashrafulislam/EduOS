@@ -249,19 +249,37 @@ public sealed class AcademicInstructionService : IAcademicInstructionService
     }
 
     /// <summary>SQL-side manager workload aggregation using the register's live tenant/campus authorization.</summary>
-    public async Task<ApiResponse<PagedResult<SubstitutionWorkloadDto>>> GetSubstitutionWorkloadAsync(
+    public Task<ApiResponse<PagedResult<SubstitutionWorkloadDto>>> GetSubstitutionWorkloadAsync(
         DateOnly fromDate, DateOnly toDate, long? academicBatchId, int page, int pageSize,
-        CancellationToken ct = default)
+        CancellationToken ct = default) =>
+        GetSubstitutionWorkloadFilteredAsync(fromDate, toDate, academicBatchId, null, "active", page, pageSize, ct);
+
+    /// <summary>Search and order teacher workload in SQL before counting and paging, never in the browser.</summary>
+    public async Task<ApiResponse<PagedResult<SubstitutionWorkloadDto>>> GetSubstitutionWorkloadFilteredAsync(
+        DateOnly fromDate, DateOnly toDate, long? academicBatchId, string? search, string? sort,
+        int page, int pageSize, CancellationToken ct = default)
     {
         if (!CanManage()) return Denied<PagedResult<SubstitutionWorkloadDto>>();
-        if (page < 1 || pageSize is < 1 or > 100)
-            return Error<PagedResult<SubstitutionWorkloadDto>>("Invalid substitute workload page.");
+        if (page < 1 || pageSize is < 1 or > 100 || search?.Length > 80 ||
+            (sort is not null && sort is not ("active" or "cancelled" or "total")))
+            return Error<PagedResult<SubstitutionWorkloadDto>>("Invalid substitute workload filters or page.");
         var (scoped, status) = await GetAuthorizedSubstitutionQueryAsync(fromDate, toDate, academicBatchId, ct);
         if (scoped == null)
             return status == 403 ? Denied<PagedResult<SubstitutionWorkloadDto>>() :
                 Error<PagedResult<SubstitutionWorkloadDto>>("Invalid substitute workload date range or batch.");
 
-        // SQL groups before paging; staff names are fetched in one tenant-scoped page query.
+        var term = search?.Trim();
+        if (!string.IsNullOrEmpty(term))
+        {
+            // SQL semi-join, with tenant ownership checked on both substitution and employee.
+            // No cross-tenant employee names/codes or unbounded employee-ID lists enter memory.
+            var matchingEmployeeIds = _employees.GetQueryable().AsNoTracking()
+                .Where(x => x.TenantId == _currentUser.TenantId && !x.IsDeleted &&
+                    (x.FullName.Contains(term) || x.EmployeeCode.Contains(term)))
+                .Select(x => x.Id);
+            scoped = scoped.Where(x => matchingEmployeeIds.Contains(x.SubstituteEmployeeId));
+        }
+
         var groups = scoped.GroupBy(x => x.SubstituteEmployeeId)
             .Select(g => new { EmployeeId = g.Key, Total = g.Count(),
                 Cancelled = g.Count(x => x.IsCancelled) });
@@ -269,8 +287,13 @@ public sealed class AcademicInstructionService : IAcademicInstructionService
         var offset = ((long)page - 1) * pageSize;
         if (offset > int.MaxValue)
             return Error<PagedResult<SubstitutionWorkloadDto>>("Page exceeds supported range.");
-        var aggregates = await groups.OrderByDescending(x => x.Total - x.Cancelled)
-            .ThenBy(x => x.EmployeeId).Skip((int)offset).Take(pageSize).ToListAsync(ct);
+        var ordered = sort switch
+        {
+            "cancelled" => groups.OrderByDescending(x => x.Cancelled).ThenBy(x => x.EmployeeId),
+            "total" => groups.OrderByDescending(x => x.Total).ThenBy(x => x.EmployeeId),
+            _ => groups.OrderByDescending(x => x.Total - x.Cancelled).ThenBy(x => x.EmployeeId)
+        };
+        var aggregates = await ordered.Skip((int)offset).Take(pageSize).ToListAsync(ct);
         var ids = aggregates.Select(x => x.EmployeeId).ToArray();
         var tenant = _currentUser.TenantId;
         var employees = await _employees.GetQueryable().AsNoTracking()

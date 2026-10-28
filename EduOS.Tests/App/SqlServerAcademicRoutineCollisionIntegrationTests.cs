@@ -274,6 +274,19 @@ public sealed class SqlServerAcademicRoutineCollisionIntegrationTests
         Assert.Equal(1, workloadRow.ActiveCount);
         Assert.Equal(0, workloadRow.CancelledCount);
         Assert.Equal("Cover SQL Instructor", workloadRow.EmployeeName);
+        var searchedWorkload = await instruction.GetSubstitutionWorkloadFilteredAsync(
+            coverDate, coverDate, batchAId, "COVER-", "cancelled", 1, 20);
+        Assert.True(searchedWorkload.Success, searchedWorkload.Message);
+        Assert.Equal(1, searchedWorkload.Data!.TotalCount);
+        Assert.Equal(workloadRow.SubstituteEmployeeId, Assert.Single(searchedWorkload.Data.Items).SubstituteEmployeeId);
+        var noMatch = await instruction.GetSubstitutionWorkloadFilteredAsync(
+            coverDate, coverDate, batchAId, "NO-SUCH-TEACHER", "total", 1, 20);
+        Assert.True(noMatch.Success, noMatch.Message);
+        Assert.Equal(0, noMatch.Data!.TotalCount);
+        var otherTenantFiltered = await BuildInstructionService(db, tenantId + 1, userId)
+            .GetSubstitutionWorkloadFilteredAsync(coverDate, coverDate, batchAId, "COVER-", "total", 1, 20);
+        Assert.True(otherTenantFiltered.Success, otherTenantFiltered.Message);
+        Assert.Equal(0, otherTenantFiltered.Data!.TotalCount);
         Assert.Equal(400, (await instruction.GetSubstitutionWorkloadAsync(
             coverDate, coverDate, batchAId, 1, 101)).StatusCode);
         var deniedWorkload = await BuildInstructionService(db, tenantId + 1, userId)

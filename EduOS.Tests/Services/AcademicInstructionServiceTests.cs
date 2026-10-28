@@ -712,6 +712,24 @@ public sealed class AcademicInstructionServiceTests
             first.Data.Items[0].SubstituteEmployeeId.Should().NotBe(second.Data.Items[0].SubstituteEmployeeId);
             (first.Data.Items.Sum(x => x.TotalCount) + second.Data.Items.Sum(x => x.TotalCount)).Should().Be(3);
             (first.Data.Items.Sum(x => x.CancelledCount) + second.Data.Items.Sum(x => x.CancelledCount)).Should().Be(1);
+            var filtered = await service.GetSubstitutionWorkloadFilteredAsync(
+                LessonDate, LessonDate, seed.BatchId, "UNTRUSTED", "total", 1, 20);
+            filtered.Success.Should().BeTrue();
+            filtered.Data!.TotalCount.Should().Be(1);
+            filtered.Data.Items.Single().EmployeeCode.Should().Be("=UNTRUSTED");
+            filtered.Data.Items.Single().ActiveCount.Should().Be(1);
+            (await service.GetSubstitutionWorkloadFilteredAsync(
+                LessonDate, LessonDate, seed.BatchId, "absent-employee", "total", 1, 20))
+                .Data!.TotalCount.Should().Be(0);
+            var byCancellation = await service.GetSubstitutionWorkloadFilteredAsync(
+                LessonDate, LessonDate, seed.BatchId, null, "cancelled", 1, 20);
+            byCancellation.Data!.Items.First().CancelledCount.Should().Be(1);
+            (await service.GetSubstitutionWorkloadFilteredAsync(
+                LessonDate, LessonDate, seed.BatchId, new string('x', 81), "active", 1, 20))
+                .StatusCode.Should().Be(400);
+            (await service.GetSubstitutionWorkloadFilteredAsync(
+                LessonDate, LessonDate, seed.BatchId, null, "unsafe", 1, 20))
+                .StatusCode.Should().Be(400);
             (await service.GetSubstitutionWorkloadAsync(LessonDate, LessonDate, seed.BatchId, 1, 101))
                 .StatusCode.Should().Be(400);
             (await service.GetSubstitutionWorkloadAsync(LessonDate.AddDays(1), LessonDate, null, 1, 20))
@@ -725,6 +743,9 @@ public sealed class AcademicInstructionServiceTests
         {
             var restricted = Service(db, 101, 9, "Principal");
             (await restricted.GetSubstitutionWorkloadAsync(LessonDate, LessonDate, null, 1, 20))
+                .Data!.TotalCount.Should().Be(0);
+            (await restricted.GetSubstitutionWorkloadFilteredAsync(
+                LessonDate, LessonDate, null, "UNTRUSTED", "total", 1, 20))
                 .Data!.TotalCount.Should().Be(0);
             var campusId = await db.AcademicBatches.Where(x => x.Id == seed.BatchId)
                 .Select(x => x.CampusId).SingleAsync();

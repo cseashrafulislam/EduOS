@@ -228,17 +228,23 @@
         if (!manager) return;
         const scope = dateScope();
         if (!Number.isSafeInteger(page) || page < 1) throw new Error('Invalid workload page.');
+        const search = get('workloadSearch').value.trim();
+        const sort = get('workloadSort').value;
+        if (search.length > 80 || !['active', 'cancelled', 'total'].includes(sort))
+            throw new Error('Invalid workload search or sorting.');
         const seq = ++state.workloadRequestSeq;
         const button = get('workloadLoad'); button.disabled = true;
         const query = new URLSearchParams({
             academicBatchId: String(scope.batchId), fromDate: scope.from, toDate: scope.to,
-            page: String(page), pageSize: '20'
+            sort, page: String(page), pageSize: '20'
         });
+        if (search) query.set('search', search);
         try {
             const result = await api('/api/academic-instruction/substitutions/workload?' + query);
             if (seq !== state.workloadRequestSeq ||
                 Number(get('instructionBatch').value) !== scope.batchId ||
-                get('instructionFrom').value !== scope.from || get('instructionTo').value !== scope.to) return;
+                get('instructionFrom').value !== scope.from || get('instructionTo').value !== scope.to ||
+                get('workloadSearch').value.trim() !== search || get('workloadSort').value !== sort) return;
             if (!result || !Array.isArray(result.items)) throw new Error('Invalid workload response.');
             state.workloadRows = result.items; state.workloadPage = Number(result.page || page);
             state.workloadPages = Math.max(1, Number(result.totalPages || 1));
@@ -634,6 +640,13 @@
             if (state.workloadPage < state.workloadPages) loadWorkload(state.workloadPage + 1);
         });
         get('workloadCsv').addEventListener('click', exportWorkload);
+        get('workloadSearch').addEventListener('input', resetWorkload);
+        get('workloadSearch').addEventListener('keydown', e => {
+            if (e.key !== 'Enter') return;
+            e.preventDefault();
+            loadWorkload(1).catch(error => status('danger', error.message));
+        });
+        get('workloadSort').addEventListener('change', resetWorkload);
         get('instructionFrom').addEventListener('change', resetWorkload);
         get('instructionTo').addEventListener('change', resetWorkload);
     }

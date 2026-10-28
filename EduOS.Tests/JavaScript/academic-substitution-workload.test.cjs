@@ -14,12 +14,19 @@ test('substitute workload report uses manager-only, scoped SQL grouping and boun
     assert.match(service, /if \(!CanManage\(\)\) return Denied<PagedResult<SubstitutionWorkloadDto>>/);
     assert.match(service, /GetAuthorizedSubstitutionQueryAsync\(fromDate, toDate, academicBatchId, ct\)/);
     assert.match(service, /GroupBy\(x => x.SubstituteEmployeeId\)/);
+    assert.match(service, /matchingEmployeeIds\.Contains\(x.SubstituteEmployeeId\)/);
+    assert.match(service, /"cancelled" => groups.OrderByDescending/);
+    assert.match(api, /GetSubstitutionWorkloadFilteredAsync/);
     assert.match(service, /Skip\(\(int\)offset\)\.Take\(pageSize\)/);
     assert.match(api, /\[HttpGet\("substitutions\/workload"\)\]/);
     assert.match(api, /\[Authorize\(Roles = "TenantAdmin,Principal,VicePrincipal"\)\]/);
-    for (const id of ['workloadLoad','workloadRows','workloadPage','workloadCsv','workloadPrevious','workloadNext'])
+    for (const id of ['workloadLoad','workloadRows','workloadPage','workloadCsv','workloadPrevious','workloadNext','workloadSearch','workloadSort'])
         assert.ok(view.includes('id="' + id + '"'), id + ' must exist');
     assert.match(js, /workloadRequestSeq/);
+    assert.match(js, /query\.set\('search', search\)/);
+    assert.match(js, /get\('workloadSearch'\)\.value\.trim\(\) !== search/);
+    assert.match(js, /get\('workloadSort'\)\.addEventListener\('change', resetWorkload\)/);
+    assert.doesNotThrow(() => new Function(js));
     assert.match(js, /state\.workloadRows\.map/);
     assert.match(js, /if \(\/\^\[=\+@/);
 });

@@ -56,10 +56,11 @@ public sealed class AcademicInstructionController : ControllerBase
     [Authorize(Roles = "TenantAdmin,Principal,VicePrincipal")]
     public async Task<IActionResult> SubstitutionWorkload([FromQuery] DateOnly fromDate,
         [FromQuery] DateOnly toDate, [FromQuery] long? academicBatchId,
+        [FromQuery] string? search = null, [FromQuery] string? sort = "active",
         [FromQuery] int page = 1, [FromQuery] int pageSize = 20,
         CancellationToken cancellationToken = default) =>
-        ToAction(await _service.GetSubstitutionWorkloadAsync(
-            fromDate, toDate, academicBatchId, page, pageSize, cancellationToken));
+        ToAction(await _service.GetSubstitutionWorkloadFilteredAsync(
+            fromDate, toDate, academicBatchId, search, sort, page, pageSize, cancellationToken));
 
     [HttpPost("substitutions")]
     [Authorize(Roles = "TenantAdmin,Principal,VicePrincipal")]
