@@ -7,6 +7,7 @@ using EduOS.Core.Entities.HR;
 using EduOS.Core.Interfaces;
 using EduOS.Core.Interfaces.IRepositories;
 using EduOS.Core.Interfaces.IServices;
+using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using System.Security.Cryptography;
@@ -999,6 +1000,22 @@ public sealed class AcademicInstructionService : IAcademicInstructionService
             _logger.LogWarning(ex, "Academic instruction update conflict {Operation} tenant {TenantId}", operation, _currentUser.TenantId);
             return Error<T>("Academic instruction conflicts with another update.", 409);
         }
+        catch (Exception ex) when (IsSqlInstructionConflict(ex))
+        {
+            // EF may wrap a SQL deadlock/lock timeout from a read or transaction commit.
+            // Unit of work rolls back; do not log SQL parameters or private staff data.
+            _logger.LogWarning("Concurrent academic instruction conflict {Operation} tenant {TenantId}",
+                operation, _currentUser.TenantId);
+            return Error<T>("Academic instruction conflicts with another update. Reload and retry.", 409);
+        }
+    }
+
+    private static bool IsSqlInstructionConflict(Exception exception)
+    {
+        for (Exception? current = exception; current != null; current = current.InnerException)
+            if (current is SqlException sql && sql.Number is 1205 or 3960 or 1222)
+                return true;
+        return false;
     }
 
     private void Touch(LessonPlan row)

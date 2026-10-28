@@ -2,6 +2,7 @@ using EduOS.Core.DTOs.Academic;
 using EduOS.Core.Entities.Academic;
 using EduOS.Core.Entities.Auth;
 using EduOS.Core.Entities.HR;
+using EduOS.Core.Entities.Learners;
 using EduOS.Core.Entities.SaaS;
 using EduOS.Core.Enums.Domain;
 using EduOS.Core.Interfaces;
@@ -187,6 +188,100 @@ public sealed class SqlServerAcademicRoutineCollisionIntegrationTests
         Assert.True((await service.CreateEntryAsync(winner)).Success);
         Assert.Equal(409, (await service.CreateEntryAsync(loser)).StatusCode);
         Assert.Equal(3, await db.RoutineEntries.CountAsync(x => x.TenantId == tenantId));
+
+        // Real SQL: independent requests compete for one cover date, then register,
+        // summary, replay, cancellation and cross-tenant reads share persisted state.
+        var personA = new Person { FullName = "Original SQL Instructor" };
+        var personB = new Person { FullName = "Cover SQL Instructor" };
+        var designation = new Designation { TenantId = tenantId, Name = "Teacher", Code = "TEACH-" + suffix };
+        db.AddRange(personA, personB, designation);
+        await db.SaveChangesAsync();
+        var original = new Employee
+        {
+            TenantId = tenantId, PersonId = personA.Id, DesignationId = designation.Id,
+            EmployeeCode = "ORIG-" + suffix, FullName = "Original SQL Instructor",
+            JoiningDate = new DateOnly(2026, 1, 1), CanTeach = true, State = EmployeeState.Active
+        };
+        var substitute = new Employee
+        {
+            TenantId = tenantId, PersonId = personB.Id, DesignationId = designation.Id,
+            EmployeeCode = "COVER-" + suffix, FullName = "Cover SQL Instructor",
+            JoiningDate = new DateOnly(2026, 1, 1), CanTeach = true, State = EmployeeState.Active
+        };
+        db.AddRange(original, substitute);
+        await db.SaveChangesAsync();
+        var offeringId = await db.SubjectOfferings.AsNoTracking()
+            .Where(x => x.TenantId == tenantId && x.PublicId == offeringA)
+            .Select(x => x.Id).SingleAsync();
+        var assignment = new InstructorAssignment
+        {
+            TenantId = tenantId, SubjectOfferingId = offeringId, EmployeeId = original.Id,
+            EffectiveFrom = new DateOnly(2026, 1, 1), IsActive = true
+        };
+        db.Add(assignment);
+        await db.SaveChangesAsync();
+        var scheduledRoutine = await db.RoutineEntries.SingleAsync(x =>
+            x.TenantId == tenantId && x.SubjectOfferingId == offeringId &&
+            x.DayOfWeek == DayOfWeek.Monday);
+        scheduledRoutine.InstructorAssignmentId = assignment.Id;
+        await db.SaveChangesAsync();
+        var routineId = scheduledRoutine.Id;
+        db.ChangeTracker.Clear();
+
+        var coverDate = new DateOnly(2026, 9, 21); // Monday, inside the academic year.
+        CreateSubstitutionRequestDto Cover() => new()
+        {
+            ClientRequestId = Guid.NewGuid(), RoutineEntryId = routineId,
+            Date = coverDate, SubstituteEmployeeReference = substitute.PublicId,
+            Reason = "Approved cover"
+        };
+        var coverA = Cover();
+        var coverB = Cover();
+        await using var coverDbA = new EduOSDbContext(options, accessor);
+        await using var coverDbB = new EduOSDbContext(options, accessor);
+        var coverAttempts = await Task.WhenAll(
+            BuildInstructionService(coverDbA, tenantId, userId).CreateSubstitutionAsync(coverA),
+            BuildInstructionService(coverDbB, tenantId, userId).CreateSubstitutionAsync(coverB));
+        Assert.Single(coverAttempts.Where(x => x.Success));
+        Assert.Single(coverAttempts.Where(x => x.StatusCode == 409));
+        Assert.Equal(1, await db.Substitutions.AsNoTracking().CountAsync(x =>
+            x.TenantId == tenantId && x.Date == coverDate && !x.IsDeleted));
+
+        var winner = coverAttempts[0].Success ? coverA : coverB;
+        var loser = coverAttempts[0].Success ? coverB : coverA;
+        var instruction = BuildInstructionService(db, tenantId, userId);
+        var replay = await instruction.CreateSubstitutionAsync(winner);
+        Assert.True(replay.Success, replay.Message);
+        Assert.Equal(coverAttempts.First(x => x.Success).Data!.Id, replay.Data!.Id);
+        Assert.Equal(409, (await instruction.CreateSubstitutionAsync(loser)).StatusCode);
+        var active = await instruction.GetSubstitutionSummaryAsync(coverDate, coverDate, batchAId);
+        Assert.True(active.Success, active.Message);
+        Assert.Equal(1, active.Data!.TotalCount);
+        Assert.Equal(1, active.Data.ActiveCount);
+        var page = await instruction.GetSubstitutionsPageFilteredAsync(
+            coverDate, coverDate, batchAId, false, 1, 20);
+        Assert.True(page.Success, page.Message);
+        Assert.Single(page.Data!.Items);
+        Assert.Equal("Cover SQL Instructor", page.Data.Items[0].SubstituteEmployeeName);
+        var otherTenant = await BuildInstructionService(db, tenantId + 1, userId)
+            .GetSubstitutionSummaryAsync(coverDate, coverDate, batchAId);
+        Assert.True(otherTenant.Success, otherTenant.Message);
+        Assert.Equal(0, otherTenant.Data!.TotalCount);
+
+        var cancelled = await instruction.CancelSubstitutionAsync(replay.Data.Id,
+            new CancelSubstitutionRequestDto { RowVersion = replay.Data.RowVersion });
+        Assert.True(cancelled.Success, cancelled.Message);
+        var after = await instruction.GetSubstitutionSummaryAsync(coverDate, coverDate, batchAId);
+        Assert.True(after.Success, after.Message);
+        Assert.Equal(1, after.Data!.CancelledCount);
+        Assert.Equal(0, after.Data.ActiveCount);
+        var history = await instruction.GetSubstitutionsPageFilteredAsync(
+            coverDate, coverDate, batchAId, true, 1, 20);
+        Assert.True(history.Success, history.Message);
+        Assert.Single(history.Data!.Items);
+        Assert.True(history.Data.Items[0].IsCancelled);
+        Assert.Equal(409, (await instruction.CancelSubstitutionAsync(replay.Data.Id,
+            new CancelSubstitutionRequestDto { RowVersion = replay.Data.RowVersion })).StatusCode);
     }
 
     private static AcademicRoutineService BuildService(EduOSDbContext db, long tenantId, long userId) => new(
@@ -206,6 +301,26 @@ public sealed class SqlServerAcademicRoutineCollisionIntegrationTests
         new GenericRepository<Campus>(db),
         db, new Admin(tenantId, userId), TimeProvider.System,
         NullLogger<AcademicRoutineService>.Instance);
+
+
+    private static AcademicInstructionService BuildInstructionService(EduOSDbContext db, long tenantId, long userId) => new(
+        new GenericRepository<Substitution>(db),
+        new GenericRepository<LessonPlan>(db),
+        new GenericRepository<RoutineEntry>(db),
+        new GenericRepository<RoutineTimeSlot>(db),
+        new GenericRepository<InstructorAssignment>(db),
+        new GenericRepository<SubjectOffering>(db),
+        new GenericRepository<CurriculumSubject>(db),
+        new GenericRepository<Subject>(db),
+        new GenericRepository<AcademicBatch>(db),
+        new GenericRepository<UserCampusAccess>(db),
+        new GenericRepository<Campus>(db),
+        new GenericRepository<Employee>(db),
+        new GenericRepository<EmployeeCampusAssignment>(db),
+        new GenericRepository<AcademicYear>(db),
+        new GenericRepository<AcademicTerm>(db),
+        db, new Admin(tenantId, userId), TimeProvider.System,
+        NullLogger<AcademicInstructionService>.Instance);
 
     private sealed class Admin(long tenant, long userId) : ICurrentUserService
     {
