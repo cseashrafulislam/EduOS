@@ -69,6 +69,22 @@ public sealed class AssessmentAdministrationApiController : ControllerBase
     public async Task<IActionResult> MarkChanges([FromQuery] AssessmentMarkChangeQueryDto query,
         CancellationToken ct) => Result(await _service.SearchMarkChangesAsync(query, ct));
 
+    [HttpGet("results/rescrutiny")]
+    [Authorize(Roles = "TenantAdmin,Principal,VicePrincipal,ExamController")]
+    public async Task<IActionResult> Rescrutiny([FromQuery] ResultRescrutinyQueryDto query,
+        CancellationToken ct) => Result(await _service.SearchResultRescrutinyAsync(query, ct));
+
+    [HttpPost("results/rescrutiny")]
+    [Authorize(Roles = "TenantAdmin,Principal,VicePrincipal,ExamController")]
+    public async Task<IActionResult> RequestRescrutiny([FromBody] RequestResultRescrutinyDto request,
+        CancellationToken ct) => Result(await _service.RequestResultRescrutinyAsync(request, ct));
+
+    [HttpPost("results/rescrutiny/{caseReference:guid}/decision")]
+    [Authorize(Roles = "TenantAdmin,Principal,VicePrincipal,ExamController")]
+    public async Task<IActionResult> DecideRescrutiny(Guid caseReference,
+        [FromBody] DecideResultRescrutinyDto request, CancellationToken ct) =>
+        Result(await _service.DecideResultRescrutinyAsync(caseReference, request, ct));
+
     [HttpGet("results/readiness")]
     [Authorize(Roles = "TenantAdmin,Principal,VicePrincipal,ExamController")]
     public async Task<IActionResult> ResultReadiness([FromQuery] AssessmentReadinessQueryDto query,

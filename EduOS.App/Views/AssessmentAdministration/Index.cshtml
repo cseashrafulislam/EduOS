@@ -8,6 +8,7 @@
         <h2 class="h4 mb-0">Exam Marks & Results</h2>
         <a class="btn btn-sm btn-outline-primary" asp-controller="AssessmentAdministration" asp-action="MarkReviews">Marks review</a>
         @if (canPublish) { <a class="btn btn-sm btn-outline-primary" asp-controller="AssessmentAdministration" asp-action="GradeDistribution">Grade distribution</a> }
+        @if (canPublish) { <a class="btn btn-sm btn-outline-primary" asp-controller="AssessmentAdministration" asp-action="ResultRescrutiny">Result re-scrutiny</a> }
         <details class="ms-auto small">
             <summary class="btn btn-sm btn-outline-secondary" aria-label="Exam workflow help">ⓘ</summary>
             <div class="border rounded p-2 mt-1" style="max-width: 22rem" role="note">

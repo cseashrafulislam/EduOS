@@ -1,0 +1,94 @@
+@using System.Globalization
+@{
+    ViewData["Title"] = "Result Re-scrutiny";
+    var bn = CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "bn";
+}
+<section class="container-fluid py-3" id="resultRescrutinyWorkspace" data-lang="@(bn ? "bn" : "en")">
+    @Html.AntiForgeryToken()
+    <header class="d-flex flex-wrap align-items-center gap-2 mb-3">
+        <h1 class="h4 mb-0">@(bn ? "ফলাফল পুনর্নিরীক্ষণ" : "Result re-scrutiny")</h1>
+        <details class="ms-auto small">
+            <summary class="btn btn-sm btn-outline-secondary" aria-label="@(bn ? "পুনর্নিরীক্ষণ সহায়তা" : "Re-scrutiny help")">ⓘ</summary>
+            <div class="border rounded p-2 mt-1" role="note" style="max-width:23rem">
+                @(bn ? "প্রকাশিত সংস্করণ ও শিক্ষার্থী নির্বাচন করুন। আবেদনকারী নিজে সিদ্ধান্ত দিতে পারবেন না। অনুমোদন ফলাফল পরিবর্তন করে না; পৃথক নিরীক্ষিত সংশোধন প্রয়োজন।" : "Choose a published version and student. A different reviewer must decide. Acceptance does not change marks; audited correction is a separate workflow.")
+            </div>
+        </details>
+    </header>
+    <div id="rescrutinyNotice" class="d-none" role="alert" aria-live="polite"></div>
+    <section class="card mb-3">
+        <div class="card-body">
+            <form id="rescrutinyScopeForm" class="row g-2 align-items-end">
+                <div class="col-md-4">
+                    <label class="form-label" for="rescrutinyScopeSearch">@(bn ? "মূল্যায়ন / ব্যাচ খুঁজুন" : "Find assessment / batch")</label>
+                    <input class="form-control" id="rescrutinyScopeSearch" maxlength="100" type="search" />
+                </div>
+                <div class="col-auto"><button class="btn btn-outline-primary" type="submit">@(bn ? "খুঁজুন" : "Search")</button></div>
+                <div class="col-auto"><button class="btn btn-outline-secondary" type="button" id="rescrutinyScopePrev">‹</button></div>
+                <div class="col-auto"><button class="btn btn-outline-secondary" type="button" id="rescrutinyScopeNext">›</button></div>
+                <div class="col-md-4">
+                    <label class="form-label" for="rescrutinyScope">@(bn ? "মূল্যায়ন ও ব্যাচ" : "Assessment and batch")</label>
+                    <select class="form-select" id="rescrutinyScope"><option value="">@(bn ? "নির্বাচন করুন" : "Select")</option></select>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label" for="rescrutinyPublication">@(bn ? "প্রকাশিত সংস্করণ" : "Published version")</label>
+                    <select class="form-select" id="rescrutinyPublication" disabled></select>
+                </div>
+            </form>
+        </div>
+    </section>
+    <section class="card mb-3">
+        <div class="card-header"><h2 class="h6 mb-0">@(bn ? "নতুন আবেদন" : "New application")</h2></div>
+        <div class="card-body">
+            <form id="rescrutinyRequestForm" class="row g-2 align-items-end">
+                <div class="col-md-4">
+                    <label class="form-label" for="rescrutinyStudentSearch">@(bn ? "শিক্ষার্থী খুঁজুন" : "Find student")</label>
+                    <input id="rescrutinyStudentSearch" class="form-control" type="search" maxlength="100" />
+                </div>
+                <div class="col-auto"><button id="rescrutinyStudentFind" class="btn btn-outline-primary" type="button">@(bn ? "খুঁজুন" : "Find")</button></div>
+                <div class="col-md-4">
+                    <label class="form-label" for="rescrutinyStudent">@(bn ? "শিক্ষার্থী" : "Student")</label>
+                    <select id="rescrutinyStudent" class="form-select" required disabled></select>
+                </div>
+                <div class="col-12">
+                    <label class="form-label" for="rescrutinyReason">@(bn ? "আবেদনের কারণ" : "Reason for re-scrutiny")</label>
+                    <textarea id="rescrutinyReason" class="form-control" rows="2" minlength="10" maxlength="1000" required></textarea>
+                </div>
+                <div class="col-auto"><button id="rescrutinySubmit" type="submit" class="btn btn-primary" disabled>@(bn ? "আবেদন জমা দিন" : "Submit application")</button></div>
+            </form>
+        </div>
+    </section>
+    <section class="card">
+        <div class="card-header d-flex flex-wrap align-items-center gap-2">
+            <h2 class="h6 mb-0">@(bn ? "আবেদন ও সিদ্ধান্ত" : "Applications and decisions")</h2>
+            <button id="rescrutinyCsv" type="button" class="btn btn-sm btn-outline-secondary ms-auto" disabled>CSV</button>
+            <button id="rescrutinyPrint" type="button" class="btn btn-sm btn-outline-secondary">@(bn ? "প্রিন্ট" : "Print")</button>
+        </div>
+        <div class="table-responsive">
+            <table class="table table-sm table-hover mb-0">
+                <thead><tr><th>@(bn ? "শিক্ষার্থী" : "Student")</th><th>@(bn ? "আবেদন" : "Requested")</th><th>@(bn ? "অবস্থা" : "Status")</th><th>@(bn ? "কারণ" : "Reason")</th><th>@(bn ? "সিদ্ধান্ত" : "Decision")</th></tr></thead>
+                <tbody id="rescrutinyRows"><tr><td colspan="5">@(bn ? "প্রকাশিত সংস্করণ নির্বাচন করুন" : "Select a published version.")</td></tr></tbody>
+            </table>
+        </div>
+        <div class="card-body d-flex gap-2 align-items-center">
+            <button type="button" id="rescrutinyPrev" class="btn btn-sm btn-outline-secondary" disabled>@(bn ? "আগের" : "Previous")</button>
+            <button type="button" id="rescrutinyNext" class="btn btn-sm btn-outline-secondary" disabled>@(bn ? "পরের" : "Next")</button>
+            <span id="rescrutinyPage" role="status" aria-live="polite"></span>
+        </div>
+        <form id="rescrutinyDecisionForm" class="card-body border-top d-none">
+            <h3 class="h6" id="rescrutinyDecisionTitle">@(bn ? "আবেদন পর্যালোচনা" : "Review application")</h3>
+            <label class="form-label" for="rescrutinyDecision">@(bn ? "সিদ্ধান্ত" : "Decision")</label>
+            <select id="rescrutinyDecision" class="form-select mb-2" required>
+                <option value="3">@(bn ? "সংশোধন পর্যালোচনার জন্য গ্রহণ" : "Accept for audited correction review")</option>
+                <option value="2">@(bn ? "প্রত্যাখ্যান" : "Reject")</option>
+            </select>
+            <label class="form-label" for="rescrutinyDecisionReason">@(bn ? "সিদ্ধান্তের কারণ" : "Decision reason")</label>
+            <textarea id="rescrutinyDecisionReason" class="form-control mb-2" rows="2" minlength="10" maxlength="1000" required></textarea>
+            <div class="d-flex gap-2">
+                <button type="submit" id="rescrutinyDecide" class="btn btn-primary">@(bn ? "সিদ্ধান্ত সংরক্ষণ" : "Record decision")</button>
+                <button type="button" id="rescrutinyCancel" class="btn btn-outline-secondary">@(bn ? "বাতিল" : "Cancel")</button>
+            </div>
+        </form>
+    </section>
+</section>
+<style>@@media print { #rescrutinyScopeForm,#rescrutinyRequestForm,#rescrutinyDecisionForm,#rescrutinyPrev,#rescrutinyNext,#rescrutinyCsv,#rescrutinyPrint,#rescrutinyNotice { display:none!important; } }</style>
+@section Scripts { <script src="~/js/assessment/result-rescrutiny.js" asp-append-version="true"></script> }

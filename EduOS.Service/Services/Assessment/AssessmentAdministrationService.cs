@@ -22,6 +22,7 @@ public sealed partial class AssessmentAdministrationService : IAssessmentAdminis
     private readonly IGenericRepository<Assessment> _assessments;
     private readonly IGenericRepository<AssessmentSubject> _subjects;
     private readonly IGenericRepository<AssessmentMarkReviewEvent> _markReviews;
+    private readonly IGenericRepository<ResultRescrutinyEvent> _rescrutinyEvents;
     private readonly IGenericRepository<AssessmentSchedule> _schedules;
     private readonly IGenericRepository<StudentAssessmentMark> _marks;
     private readonly IGenericRepository<ResultPublication> _publications;
@@ -71,9 +72,11 @@ public sealed partial class AssessmentAdministrationService : IAssessmentAdminis
         IGenericRepository<CertificateTemplate> templates, IGenericRepository<CertificateIssue> certificates,
         IGenericRepository<TranscriptIssue> transcripts, IGenericRepository<AuditLog> auditLogs,
         IUnitOfWork uow, ICurrentUserService user,
-        TimeProvider clock, ILogger<AssessmentAdministrationService> logger)
+        TimeProvider clock, ILogger<AssessmentAdministrationService> logger,
+        IGenericRepository<ResultRescrutinyEvent> rescrutinyEvents)
     {
-        _assessments = assessments; _subjects = subjects; _markReviews = markReviews; _schedules = schedules;
+        _assessments = assessments; _subjects = subjects; _markReviews = markReviews;
+        _rescrutinyEvents = rescrutinyEvents; _schedules = schedules;
         _marks = marks; _publications = publications; _summaries = summaries;
         _gradeSchemes = gradeSchemes; _grades = grades; _enrollments = enrollments;
         _subjectNames = subjectNames; _registrations = registrations; _offerings = offerings;

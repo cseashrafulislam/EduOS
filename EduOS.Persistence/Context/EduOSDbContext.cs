@@ -282,6 +282,7 @@ public class EduOSDbContext :
     public DbSet<Assessment> Assessments => Set<Assessment>();
     public DbSet<AssessmentComponent> AssessmentComponents => Set<AssessmentComponent>();
     public DbSet<AssessmentMarkReviewEvent> AssessmentMarkReviewEvents => Set<AssessmentMarkReviewEvent>();
+    public DbSet<ResultRescrutinyEvent> ResultRescrutinyEvents => Set<ResultRescrutinyEvent>();
     public DbSet<AssessmentSchedule> AssessmentSchedules => Set<AssessmentSchedule>();
     public DbSet<AssessmentSubject> AssessmentSubjects => Set<AssessmentSubject>();
     public DbSet<CertificateIssue> CertificateIssues => Set<CertificateIssue>();
@@ -776,6 +777,9 @@ public class EduOSDbContext :
         TenantReference<Assessment, GradeScheme>(modelBuilder, nameof(Assessment.GradeSchemeId));
         TenantReference<AssessmentSubject, Assessment>(modelBuilder, nameof(AssessmentSubject.AssessmentId));
         TenantReference<AssessmentMarkReviewEvent, AssessmentSubject>(modelBuilder, nameof(AssessmentMarkReviewEvent.AssessmentSubjectId));
+        TenantReference<ResultRescrutinyEvent, ResultPublication>(modelBuilder, nameof(ResultRescrutinyEvent.ResultPublicationId));
+        TenantReference<ResultRescrutinyEvent, StudentEnrollment>(modelBuilder, nameof(ResultRescrutinyEvent.StudentEnrollmentId));
+        Reference<ResultRescrutinyEvent, ApplicationUser>(modelBuilder, nameof(ResultRescrutinyEvent.ActorUserId));
         Reference<AssessmentMarkReviewEvent, ApplicationUser>(modelBuilder, nameof(AssessmentMarkReviewEvent.ActorUserId));
         TenantReference<AssessmentSubject, SubjectOffering>(modelBuilder, nameof(AssessmentSubject.SubjectOfferingId));
         TenantReference<AssessmentSubject, GradeScheme>(modelBuilder, nameof(AssessmentSubject.GradeSchemeId));
@@ -1312,6 +1316,15 @@ public class EduOSDbContext :
         UniqueTenant<Assessment>(modelBuilder, nameof(Assessment.Code), nameof(Assessment.VersionNo));
         UniqueTenant<AssessmentSubject>(modelBuilder, nameof(AssessmentSubject.AssessmentId), nameof(AssessmentSubject.SubjectOfferingId));
         UniqueTenant<AssessmentMarkReviewEvent>(modelBuilder, nameof(AssessmentMarkReviewEvent.ClientRequestId));
+        UniqueTenant<ResultRescrutinyEvent>(modelBuilder, nameof(ResultRescrutinyEvent.ClientRequestId));
+        modelBuilder.Entity<ResultRescrutinyEvent>().HasIndex(x => new { x.TenantId, x.CaseReference, x.IsTerminal }).IsUnique();
+        modelBuilder.Entity<ResultRescrutinyEvent>().HasIndex(x => new { x.TenantId, x.ResultPublicationId });
+        modelBuilder.Entity<ResultRescrutinyEvent>().HasIndex(x => new { x.TenantId, x.StudentEnrollmentId });
+        modelBuilder.Entity<ResultRescrutinyEvent>().HasIndex(x => new { x.TenantId, x.ResultPublicationId, x.StudentEnrollmentId })
+            .IsUnique().HasFilter("[IsTerminal] = 0");
+        modelBuilder.Entity<ResultRescrutinyEvent>().ToTable(t => t.HasCheckConstraint(
+            "CK_ResultRescrutinyEvents_Action",
+            "([IsTerminal] = 0 AND [Action] = 1) OR ([IsTerminal] = 1 AND [Action] IN (2,3))"));
         modelBuilder.Entity<AssessmentMarkReviewEvent>().HasIndex(x => new { x.TenantId, x.AssessmentSubjectId, x.Id });
         UniqueTenant<AssessmentComponent>(modelBuilder, nameof(AssessmentComponent.AssessmentSubjectId), nameof(AssessmentComponent.Code));
         UniqueTenant<StudentAssessmentMark>(modelBuilder, nameof(StudentAssessmentMark.AssessmentSubjectId), nameof(StudentAssessmentMark.StudentSubjectRegistrationId));
@@ -2165,6 +2178,7 @@ public class EduOSDbContext :
                 or LearnerIdentityAccessLog
                 or StudentPromotionRecord
                 or AssessmentMarkReviewEvent
+                or ResultRescrutinyEvent
                 or StudentExitRecord
                 or StudentStatusHistory
                 or PersonMergeRecord

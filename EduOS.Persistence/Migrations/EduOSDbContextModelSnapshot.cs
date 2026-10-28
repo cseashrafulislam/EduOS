@@ -3887,6 +3887,102 @@ namespace EduOS.Persistence.Migrations
                     b.ToTable("AssessmentMarkReviewEvents");
                 });
 
+            modelBuilder.Entity("EduOS.Core.Entities.Assessment.ResultRescrutinyEvent", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
+
+                    b.Property<int>("Action")
+                        .HasColumnType("int");
+
+                    b.Property<long>("ActorUserId")
+                        .HasColumnType("bigint");
+
+                    b.Property<Guid>("CaseReference")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("ClientRequestId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<long?>("CreatedBy")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<long?>("DeletedBy")
+                        .HasColumnType("bigint");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsTerminal")
+                        .HasColumnType("bit");
+
+                    b.Property<DateTime>("OccurredAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("PublicationVersionNo")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<long>("ResultPublicationId")
+                        .HasColumnType("bigint");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
+                    b.Property<long>("StudentEnrollmentId")
+                        .HasColumnType("bigint");
+
+                    b.Property<long>("TenantId")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<long?>("UpdatedBy")
+                        .HasColumnType("bigint");
+
+                    b.HasKey("Id");
+
+                    b.HasAlternateKey("TenantId", "Id");
+
+                    b.HasIndex("ActorUserId");
+
+                    b.HasIndex("TenantId", "CaseReference", "IsTerminal")
+                        .IsUnique();
+
+                    b.HasIndex("TenantId", "ClientRequestId")
+                        .IsUnique();
+
+                    b.HasIndex("TenantId", "ResultPublicationId");
+
+                    b.HasIndex("TenantId", "StudentEnrollmentId");
+
+                    b.HasIndex("TenantId", "ResultPublicationId", "StudentEnrollmentId")
+                        .IsUnique()
+                        .HasFilter("[IsTerminal] = 0");
+
+                    b.ToTable("ResultRescrutinyEvents", t =>
+                        {
+                            t.HasCheckConstraint("CK_ResultRescrutinyEvents_Action", "([IsTerminal] = 0 AND [Action] = 1) OR ([IsTerminal] = 1 AND [Action] IN (2,3))");
+                        });
+                });
+
             modelBuilder.Entity("EduOS.Core.Entities.Assessment.AssessmentSchedule", b =>
                 {
                     b.Property<long>("Id")
@@ -19246,6 +19342,37 @@ namespace EduOS.Persistence.Migrations
                     b.HasOne("EduOS.Core.Entities.Assessment.AssessmentSubject", null)
                         .WithMany()
                         .HasForeignKey("TenantId", "AssessmentSubjectId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("EduOS.Core.Entities.SaaS.Tenant", "Tenant")
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Tenant");
+                });
+
+            modelBuilder.Entity("EduOS.Core.Entities.Assessment.ResultRescrutinyEvent", b =>
+                {
+                    b.HasOne("EduOS.Core.Entities.Auth.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("ActorUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("EduOS.Core.Entities.Assessment.ResultPublication", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "ResultPublicationId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("EduOS.Core.Entities.Students.StudentEnrollment", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "StudentEnrollmentId")
                         .HasPrincipalKey("TenantId", "Id")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
