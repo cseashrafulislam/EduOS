@@ -71,6 +71,7 @@ if (panel) {
     }
     let report = null, comparisonFrom = '', revision = 0, previewRequest = null;
     let requestKey = null, draftPage = 1, draftDetail = null, draftRevision = 0;
+    let savedReview = null;
     // Any changed input invalidates the exported evidence, including edits during a request.
     const invalidate = () => {
         revision++;
@@ -203,6 +204,10 @@ if (panel) {
     const resetDraft = () => {
         draftRevision++;
         draftDetail = null;
+        savedReview = null;
+        el('statementSavedReview').classList.add('d-none');
+        el('statementSavedReviewRows').replaceChildren();
+        el('statementSavedReviewSummary').textContent = '';
         el('statementDraftDetail').textContent = '';
         el('statementDraftExport').classList.add('d-none');
         el('statementDraftRows').replaceChildren();
@@ -226,7 +231,8 @@ if (panel) {
                 escapeHtml(x.fromDate) + ' – ' + escapeHtml(x.toDate) + '</td><td>' +
                 escapeHtml(x.movementCount) + '</td><td>Draft</td><td>' +
                 escapeHtml(x.preparedAt) + '</td><td><button type="button" class="btn btn-outline-primary btn-sm" data-draft-id="' +
-                escapeHtml(x.id) + '">View</button></td></tr>').join('') ||
+                escapeHtml(x.id) + '">View</button> <button type="button" class="btn btn-outline-secondary btn-sm" data-review-id="' +
+                escapeHtml(x.id) + '">Review</button></td></tr>').join('') ||
                 '<tr><td colspan="6">No saved statement drafts for this bank.</td></tr>';
             el('statementDraftPage').textContent = 'Page ' + page + ' of ' + Math.max(1,result.totalPages);
             el('statementDraftPrev').disabled = !result.hasPreviousPage;
@@ -264,21 +270,80 @@ if (panel) {
         }
     });
     el('statementDraftRows').addEventListener('click', async event => {
-        const button = event.target.closest('button[data-draft-id]');
+        const button = event.target.closest('button[data-draft-id],button[data-review-id]');
         if (!button) return;
-        const id = button.dataset.draftId;
+        const reviewing = button.hasAttribute('data-review-id');
+        const id = reviewing ? button.dataset.reviewId : button.dataset.draftId;
         const seq = draftRevision, bank = el('statementBank').value;
+        button.disabled = true;
         try {
-            const detail = await get(draftBase + '/' + encodeURIComponent(id));
-            if (seq !== draftRevision || el('statementBank').value !== bank) return;
-            draftDetail = detail;
-            el('statementDraftDetail').textContent = 'Statement ' + detail.statementIdentifier +
-                ' · ' + detail.movementCount + ' rows · fingerprint ' + detail.sourceFingerprint +
-                ' · immutable draft, not cleared.';
-            el('statementDraftExport').classList.remove('d-none');
+            if (reviewing) {
+                savedReview = null;
+                el('statementSavedReview').classList.add('d-none');
+                const result = await get(draftBase + '/' + encodeURIComponent(id) + '/review');
+                if (seq !== draftRevision || el('statementBank').value !== bank) return;
+                savedReview = result;
+                const c = result.comparison, d = result.draft;
+                el('statementSavedReviewSummary').textContent =
+                    d.statementIdentifier + ' · reviewed ' + result.reviewedAtUtc +
+                    ' · ' + c.matchedCount + ' unique matches, ' +
+                    c.unmatchedLedgerCount + ' unmatched ledger, ' +
+                    c.unmatchedStatementCount + ' unmatched statement, ' +
+                    c.referenceCollisionCount + ' reused references · ' +
+                    'opening variance BDT ' + money(c.openingVariance) +
+                    ', closing variance BDT ' + money(c.closingVariance) +
+                    ' · LIVE read-only review, not approved or cleared.';
+                const matched = (c.matches || []).map(x =>
+                    '<tr><td>Exact match</td><td>' + escapeHtml(x.date) +
+                    '</td><td>' + escapeHtml(x.journalLineId) + '</td><td>' +
+                    escapeHtml(x.statementRowNumber) + '</td><td>' + escapeHtml(x.reference) +
+                    '</td><td class="text-end">' + money(x.deposit) +
+                    '</td><td class="text-end">' + money(x.withdrawal) +
+                    '</td><td>Review only</td></tr>');
+                const exceptions = (c.exceptions || []).map(x =>
+                    '<tr><td>' + escapeHtml(x.source) + '</td><td>' + escapeHtml(x.date) +
+                    '</td><td>' + escapeHtml(x.journalLineId) + '</td><td>' +
+                    escapeHtml(x.statementRowNumber) + '</td><td>' + escapeHtml(x.reference) +
+                    '</td><td class="text-end">' + money(x.deposit) +
+                    '</td><td class="text-end">' + money(x.withdrawal) +
+                    '</td><td>' + escapeHtml(x.reason) + '</td></tr>');
+                el('statementSavedReviewRows').innerHTML = matched.concat(exceptions).join('') ||
+                    '<tr><td colspan="8">No matching or unmatched movements.</td></tr>';
+                el('statementSavedReview').classList.remove('d-none');
+            } else {
+                const detail = await get(draftBase + '/' + encodeURIComponent(id));
+                if (seq !== draftRevision || el('statementBank').value !== bank) return;
+                draftDetail = detail;
+                el('statementDraftDetail').textContent = 'Statement ' + detail.statementIdentifier +
+                    ' · ' + detail.movementCount + ' rows · fingerprint ' + detail.sourceFingerprint +
+                    ' · immutable draft, not cleared.';
+                el('statementDraftExport').classList.remove('d-none');
+            }
         } catch (e) {
-            if (seq === draftRevision) el('statementDraftDetail').textContent = e.message;
-        }
+            if (seq === draftRevision) {
+                if (reviewing) show(e.message, true);
+                else el('statementDraftDetail').textContent = e.message;
+            }
+        } finally { button.disabled = false; }
+    });
+    el('statementSavedReviewExport').addEventListener('click', () => {
+        if (!savedReview) return;
+        const d = savedReview.draft, c = savedReview.comparison;
+        const rows = [
+            ['Statement','Fingerprint','Reviewed UTC','Source','Date','Journal','Ledger Line','Line Version',
+                'Statement Row','Reference','Deposit','Withdrawal','Review result'],
+            [d.statementIdentifier,d.sourceFingerprint,savedReview.reviewedAtUtc,'Summary','','','','','','','','',
+                'Read-only live review; NOT approved or cleared'],
+            [d.statementIdentifier,d.sourceFingerprint,savedReview.reviewedAtUtc,'Variance','','','','','','',
+                money(c.openingVariance),money(c.closingVariance),'Opening / closing variance BDT'],
+            ...(c.matches || []).map(x => [d.statementIdentifier,d.sourceFingerprint,savedReview.reviewedAtUtc,
+                'Exact match',x.date,x.journalNumber,x.journalLineId,x.journalLineVersion,
+                x.statementRowNumber,x.reference,money(x.deposit),money(x.withdrawal),'Review only; not cleared']),
+            ...(c.exceptions || []).map(x => [d.statementIdentifier,d.sourceFingerprint,savedReview.reviewedAtUtc,
+                x.source,x.date,x.journalNumber,x.journalLineId,x.journalLineVersion,
+                x.statementRowNumber,x.reference,money(x.deposit),money(x.withdrawal),x.reason])
+        ];
+        download(rows, 'bank-saved-review-' + d.id + '.csv');
     });
     el('statementDraftExport').addEventListener('click', () => {
         if (!draftDetail) return;

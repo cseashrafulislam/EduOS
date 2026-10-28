@@ -26,6 +26,21 @@ test('saved statements use tenant-authorized paged register and direct-ID readba
     assert.match(view, /id="statementDraftRows"/);
     assert.match(view, /id="statementSave"/);
 });
+test('saved statement review reuses authorized persisted snapshot and live ledger integrity', () => {
+    const api = fs.readFileSync(path.join(__dirname,
+        '../../EduOS.App/Controllers/Api/AccountingReportsController.cs'), 'utf8');
+    const service = fs.readFileSync(path.join(__dirname,
+        '../../EduOS.Service/Services/Accounting/AccountingReportingBankReconciliationSavedReview.cs'), 'utf8');
+    assert.match(api, /bank-reconciliations\/\{batchId:long\}\/review/);
+    assert.match(api, /ReviewSavedBankReconciliationAsync/);
+    assert.match(service, /GetBankReconciliationDraftAsync\(batchId, ct\)/);
+    assert.match(service, /PreviewBankStatementAsync\(statement, ct\)/);
+    assert.doesNotMatch(service, /SaveChanges|ExecuteSql|AddAsync/);
+    assert.match(script, /data-review-id/);
+    assert.match(script, /statementSavedReviewExport/);
+    assert.match(script, /savedReview = null/);
+    assert.match(view, /id="statementSavedReviewRows"/);
+});
 test('saved CSV applies formula-injection escaping and never offline-caches private statements', () => {
     assert.match(script, /row\.map\(cell\)/);
     assert.match(script, /cache:'no-store'/);

@@ -136,6 +136,51 @@ public sealed class BankReconciliationIntakeTests
         (await service.GetBankReconciliationDraftAsync(saved.Data!.Id)).StatusCode.Should().Be(200);
     }
 
+    [Fact]
+    public async Task Saved_review_rechecks_live_posted_ledger_without_changing_immutable_draft()
+    {
+        await using var db = Database();
+        Seed(db);
+        var service = new AccountingReportingService(db, new User());
+        var saved = await service.SaveBankReconciliationDraftAsync(Request());
+        saved.StatusCode.Should().Be(200);
+        var id = saved.Data!.Id;
+        var initial = await service.ReviewSavedBankReconciliationAsync(id);
+        initial.StatusCode.Should().Be(200);
+        initial.Data!.Comparison.IsExactMatch.Should().BeTrue();
+        initial.Data.Draft.SourceFingerprint.Should().Be(saved.Data.SourceFingerprint);
+
+        // A later, balanced posted journal changes the current bank book, not the snapshot.
+        db.Journals.Add(new Journal { Id = 2, TenantId = 41, JournalNumber = "J-2",
+            JournalDate = Day, AccountingPeriodId = 1, State = JournalState.Posted,
+            ReferenceNumber = "LATER-DEP" });
+        db.JournalLines.AddRange(
+            new JournalLine { Id = 3, TenantId = 41, JournalId = 2,
+                AccountId = 1, LineNo = 1, DebitAmount = 25m },
+            new JournalLine { Id = 4, TenantId = 41, JournalId = 2,
+                AccountId = 2, LineNo = 2, CreditAmount = 25m });
+        await db.SaveChangesAsync();
+        var changed = await service.ReviewSavedBankReconciliationAsync(id);
+        changed.StatusCode.Should().Be(200);
+        changed.Data!.Comparison.IsExactMatch.Should().BeFalse();
+        changed.Data.Comparison.UnmatchedLedgerCount.Should().Be(1);
+        changed.Data.Draft.SourceFingerprint.Should().Be(saved.Data.SourceFingerprint);
+        (await db.BankReconciliationStatementLines.CountAsync()).Should().Be(1);
+        (await db.Journals.CountAsync()).Should().Be(2);
+    }
+
+    [Fact]
+    public async Task Saved_review_enforces_role_and_direct_id_ownership()
+    {
+        await using var db = Database();
+        Seed(db);
+        var service = new AccountingReportingService(db, new User());
+        var saved = await service.SaveBankReconciliationDraftAsync(Request());
+        (await new AccountingReportingService(db, new User(false))
+            .ReviewSavedBankReconciliationAsync(saved.Data!.Id)).StatusCode.Should().Be(403);
+        (await service.ReviewSavedBankReconciliationAsync(999999)).StatusCode.Should().Be(404);
+    }
+
     private static BankReconciliationSaveRequestDto Request() => new()
     {
         ClientRequestId = Guid.NewGuid(), StatementIdentifier = "OCT-2026-OPERATING",

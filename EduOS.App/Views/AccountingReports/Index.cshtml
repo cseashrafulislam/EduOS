@@ -182,6 +182,17 @@
                     </div>
                     <div id="statementDraftDetail" class="small" aria-live="polite"></div>
                     <button id="statementDraftExport" type="button" class="btn btn-outline-secondary btn-sm d-none">Export Saved CSV</button>
+                    <section id="statementSavedReview" class="d-none border-top mt-3 pt-2" aria-label="Saved statement live reconciliation review">
+                        <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
+                            <h4 class="h6 mb-0">Saved Statement — Live Review</h4>
+                            <button id="statementSavedReviewExport" type="button" class="btn btn-outline-secondary btn-sm">Export Review CSV</button>
+                        </div>
+                        <div id="statementSavedReviewSummary" class="small fw-semibold mb-2" role="status" aria-live="polite"></div>
+                        <div class="table-responsive"><table class="table table-sm table-striped">
+                            <thead><tr><th>Source</th><th>Date</th><th>Ledger line</th><th>Statement row</th><th>Reference</th><th class="text-end">Deposit</th><th class="text-end">Withdrawal</th><th>Result</th></tr></thead>
+                            <tbody id="statementSavedReviewRows"></tbody>
+                        </table></div>
+                    </section>
                 </section>
                 <div id="statementNotice" class="alert d-none" role="status" aria-live="polite"></div>
                 <p id="statementSummary" class="fw-semibold"></p>

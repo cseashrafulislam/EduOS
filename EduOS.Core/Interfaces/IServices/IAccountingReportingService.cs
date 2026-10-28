@@ -18,6 +18,8 @@ public interface IAccountingReportingService
         long bankAccountId, int page = 1, int pageSize = 25, CancellationToken cancellationToken = default);
     Task<ApiResponse<BankReconciliationBatchDto>> GetBankReconciliationDraftAsync(
         long batchId, CancellationToken cancellationToken = default);
+    Task<ApiResponse<BankReconciliationSavedReviewDto>> ReviewSavedBankReconciliationAsync(
+        long batchId, CancellationToken cancellationToken = default);
     Task<ApiResponse<BankReconciliationCandidatePageDto>> GetBankReconciliationCandidatesAsync(
         long bankAccountId, DateOnly fromDate, DateOnly toDate, string? referencePrefix,
         int page = 1, int pageSize = 25, CancellationToken cancellationToken = default);

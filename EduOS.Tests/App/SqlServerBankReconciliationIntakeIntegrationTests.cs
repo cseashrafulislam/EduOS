@@ -106,6 +106,10 @@ public sealed class SqlServerBankReconciliationIntakeIntegrationTests
         var detail = await service.GetBankReconciliationDraftAsync(saved.Data.Id);
         Assert.True(detail.Success, detail.Message);
         Assert.Single(detail.Data!.Movements);
+        var reviewed = await service.ReviewSavedBankReconciliationAsync(saved.Data.Id);
+        Assert.True(reviewed.Success, reviewed.Message);
+        Assert.True(reviewed.Data!.Comparison.IsExactMatch);
+        Assert.Equal(saved.Data.SourceFingerprint, reviewed.Data.Draft.SourceFingerprint);
 
         var line = await db.BankReconciliationStatementLines.SingleAsync();
         line.Reference = "ALTERED";
@@ -127,6 +131,7 @@ public sealed class SqlServerBankReconciliationIntakeIntegrationTests
         await using var otherDb = new EduOSDbContext(options, Accessor(otherTenantId, otherUserId));
         var otherService = new AccountingReportingService(otherDb, new TestUser(otherTenantId, otherUserId));
         Assert.Equal(404, (await otherService.GetBankReconciliationDraftAsync(saved.Data.Id)).StatusCode);
+        Assert.Equal(404, (await otherService.ReviewSavedBankReconciliationAsync(saved.Data.Id)).StatusCode);
         Assert.Equal(404, (await otherService.GetBankReconciliationDraftsAsync(bankId)).StatusCode);
     }
 
