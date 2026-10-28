@@ -71,11 +71,20 @@
                 headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
                 body: JSON.stringify({ tenantId })
             });
-            const payload = await response.json();
-            if (!response.ok || payload.success !== true || payload.data?.tenantId !== tenantId)
-                throw new Error(payload.message || 'Institution switch failed.');
+            const payload = await response.json().catch(() => null);
+            // A concurrent switch or revoked cookie must not retry with stale context.
+            if (response.status === 401 || response.status === 409) {
+                window.location.assign('/Account/Login');
+                return;
+            }
+            if (!response.ok || payload?.success !== true || payload.data?.tenantId !== tenantId)
+                throw new Error(payload?.message || 'Institution switch failed.');
+            // Only accept the known same-origin post-switch destination.
+            const redirect = payload.data.redirectUrl;
+            if (redirect !== '/Dashboard/Index')
+                throw new Error('Invalid institution redirect.');
             navigator.serviceWorker?.controller?.postMessage({ type: 'EDUOS_CLEAR_RUNTIME_STATIC' });
-            window.location.replace('/Dashboard/Index');
+            window.location.replace(redirect);
         } catch (error) {
             showStatus(error.message || 'Institution switch failed.', true);
             loading = false;

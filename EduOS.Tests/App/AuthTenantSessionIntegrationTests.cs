@@ -113,6 +113,32 @@ public sealed class AuthTenantSessionIntegrationTests
     }
 
     [Fact]
+    public async Task Institution_switch_rotates_the_cookie_and_rejects_replay_or_cross_tenant_use()
+    {
+        await using var db = Db();
+        var original = await AuthSessionRegistry.CreateAsync(db, 50, 100, "127.0.0.1", "first", true);
+        var anotherDevice = await AuthSessionRegistry.CreateAsync(db, 50, 100, "", "second", false);
+        var anotherUser = await AuthSessionRegistry.CreateAsync(db, 51, 100, "", "other", false);
+
+        Assert.Null(await AuthSessionRegistry.RotateAsync(db, 50, original, 200, 300, "", "", true));
+        Assert.Null(await AuthSessionRegistry.RotateAsync(db, 51, original, 100, 200, "", "", true));
+        Assert.True(await AuthSessionRegistry.IsValidAsync(db, 50, original, 100));
+
+        var rotated = await AuthSessionRegistry.RotateAsync(db, 50, original, 100, 200,
+            "127.0.0.1", "switched", true);
+        Assert.NotNull(rotated);
+        Assert.NotEqual(original, rotated);
+        Assert.False(await AuthSessionRegistry.IsValidAsync(db, 50, original, 100));
+        Assert.True(await AuthSessionRegistry.IsValidAsync(db, 50, rotated, 200));
+        Assert.False(await AuthSessionRegistry.IsValidAsync(db, 50, rotated, 100));
+        Assert.Null(await AuthSessionRegistry.RotateAsync(db, 50, original, 100, 300, "", "", true));
+        Assert.True(await AuthSessionRegistry.IsValidAsync(db, 50, anotherDevice, 100));
+        Assert.True(await AuthSessionRegistry.IsValidAsync(db, 51, anotherUser, 100));
+        Assert.Equal(2, await db.UserTokens.CountAsync(x => x.UserId == 50 &&
+            x.LoginProvider == AuthSessionRegistry.Provider));
+    }
+
+    [Fact]
     public async Task Revoking_all_sessions_invalidates_all_cookie_ids_for_a_user_only()
     {
         await using var db = Db();

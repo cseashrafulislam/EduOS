@@ -54,6 +54,44 @@ public static class AuthSessionRegistry
         return sid;
     }
 
+    /// <summary>
+    /// Exchange a tenant-bound session ID atomically. Concurrent requests using
+    /// the same old ID cannot both succeed: the second delete encounters EF's
+    /// affected-row concurrency check and the transaction rolls back.
+    /// </summary>
+    public static Task<string?> RotateAsync(EduOSDbContext db, long userId,
+        string? currentSid, long fromTenantId, long toTenantId, string ip,
+        string userAgent, bool rememberMe, CancellationToken cancellationToken = default) =>
+        db.ExecuteInTransactionAsync<string?>(async ct =>
+        {
+            if (userId <= 0 || fromTenantId <= 0 || toTenantId <= 0 ||
+                fromTenantId == toTenantId || !ValidSid(currentSid))
+                return null;
+
+            var current = await db.UserTokens.SingleOrDefaultAsync(x =>
+                x.UserId == userId && x.LoginProvider == Provider && x.Name == currentSid, ct);
+            var record = Parse(current?.Value);
+            var now = DateTime.UtcNow;
+            if (current == null || record == null || record.TenantId != fromTenantId ||
+                record.ExpiresAtUtc <= now)
+                return null;
+
+            var newSid = Convert.ToHexString(RandomNumberGenerator.GetBytes(24));
+            db.UserTokens.Remove(current);
+            db.UserTokens.Add(new IdentityUserToken<long>
+            {
+                UserId = userId, LoginProvider = Provider, Name = newSid,
+                Value = JsonSerializer.Serialize(new SessionRecord
+                {
+                    TenantId = toTenantId, CreatedAtUtc = now,
+                    ExpiresAtUtc = now.AddDays(rememberMe ? 30 : 1),
+                    IpAddress = Truncate(ip, 64), UserAgent = Truncate(userAgent, 300)
+                })
+            });
+            await db.SaveChangesAsync(ct);
+            return newSid;
+        }, cancellationToken);
+
     public static async Task<bool> IsValidAsync(EduOSDbContext db, long userId, string? sid, long? tenantId)
     {
         if (userId <= 0 || !ValidSid(sid)) return false;

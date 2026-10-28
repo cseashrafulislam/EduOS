@@ -112,7 +112,16 @@ public sealed class SqlServerAuthTenantIntegrationTests
             Assert.False(await AuthSessionRegistry.IsValidAsync(db, userId, sessionId, tenantAId));
             Assert.True(await AuthSessionRegistry.IsValidAsync(db, userId, switched, tenantBId));
             Assert.False(await AuthSessionRegistry.IsValidAsync(db, userId, switched, tenantAId));
-            Assert.True(await AuthSessionRegistry.RevokeAsync(db, userId, switched));
+            // SQL Server persists the old-SID deletion and new-SID insertion
+            // in one transaction and rejects a replay of the old SID.
+            var rotated = await AuthSessionRegistry.RotateAsync(db, userId, switched,
+                tenantBId, tenantAId, "127.0.0.1", "CI SQL rotated", true);
+            Assert.NotNull(rotated);
+            Assert.False(await AuthSessionRegistry.IsValidAsync(db, userId, switched, tenantBId));
+            Assert.True(await AuthSessionRegistry.IsValidAsync(db, userId, rotated, tenantAId));
+            Assert.Null(await AuthSessionRegistry.RotateAsync(db, userId, switched,
+                tenantBId, tenantAId, "", "", true));
+            Assert.True(await AuthSessionRegistry.RevokeAsync(db, userId, rotated!));
         }
 
         await using var first = new EduOSDbContext(options);

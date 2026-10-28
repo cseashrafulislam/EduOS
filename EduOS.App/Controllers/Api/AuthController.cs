@@ -889,10 +889,10 @@ namespace EduOS.App.Controllers.Api
         }
 
         private async Task SignInSessionAsync(ApplicationUser user, bool rememberMe,
-            string authenticationMethod, SessionResolution session)
+            string authenticationMethod, SessionResolution session, string? rotatedSid = null)
         {
             var previousSid = User.FindFirstValue(AuthSessionRegistry.ClaimType);
-            var sid = await AuthSessionRegistry.CreateAsync(_db, user.Id, session.TenantId,
+            var sid = rotatedSid ?? await AuthSessionRegistry.CreateAsync(_db, user.Id, session.TenantId,
                 GetClientIp(), HttpContext.Request.Headers["User-Agent"].FirstOrDefault() ?? "", rememberMe);
             try
             {
@@ -917,7 +917,8 @@ namespace EduOS.App.Controllers.Api
                 await AuthSessionRegistry.RevokeAsync(_db, user.Id, sid);
                 throw;
             }
-            if (previousSid != null)
+            // A tenant switch already exchanged the previous SID transactionally.
+            if (rotatedSid == null && previousSid != null)
                 await AuthSessionRegistry.RevokeAsync(_db, user.Id, previousSid);
         }
 

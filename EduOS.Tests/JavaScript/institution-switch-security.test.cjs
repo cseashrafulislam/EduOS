@@ -17,7 +17,10 @@ test('institution switch uses authorized session API and discards runtime cache 
     assert.match(js, /cache: 'no-store'/);
     assert.match(js, /available\.has\(tenantId\)/);
     assert.match(js, /EDUOS_CLEAR_RUNTIME_STATIC/);
-    assert.match(js, /window\.location\.replace\('\/Dashboard\/Index'\)/);
+    assert.match(js, /redirect !== '\/Dashboard\/Index'/);
+    assert.match(js, /window\.location\.replace\(redirect\)/);
+    assert.match(js, /response\.status === 401 \|\| response\.status === 409/);
+    assert.match(js, /window\.location\.assign\('\/Account\/Login'\)/);
     assert.doesNotMatch(js, /localStorage|sessionStorage|innerHTML/);
     assert.match(read('EduOS.App/wwwroot/js/site.js'), /RequestVerificationToken/);
 });

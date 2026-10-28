@@ -43,6 +43,9 @@ public sealed class AuthManagementEndpointContractTests
         Assert.Contains("GetSessionContextAsync(user, request.TenantId)", source);
         Assert.Contains("selected.TenantId != request.TenantId", source);
         Assert.Contains("user.TwoFactorEnabled && !User.HasClaim", source);
+        Assert.Contains("AuthSessionRegistry.RotateAsync", source);
+        Assert.Contains("catch (DbUpdateConcurrencyException)", source);
+        Assert.Contains("selected, rotatedSid", source);
         Assert.Contains("SignInSessionAsync(user", source);
         Assert.Contains("Clear-Site-Data", source);
     }

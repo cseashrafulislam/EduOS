@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
+using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
 
 namespace EduOS.App.Controllers.Api;
@@ -64,8 +65,26 @@ public partial class AuthController
         var authentication = await HttpContext.AuthenticateAsync(IdentityConstants.ApplicationScheme);
         if (!authentication.Succeeded)
             return Unauthorized(new { success = false, message = "Session changed. Sign in again." });
+        // Commit the old-SID deletion and new-SID insertion before issuing a cookie.
+        // A concurrent request from another tab must not create a second valid switch.
+        string? rotatedSid;
+        try
+        {
+            rotatedSid = await AuthSessionRegistry.RotateAsync(_db, user.Id,
+                User.FindFirstValue(AuthSessionRegistry.ClaimType), currentTenantId,
+                selected.TenantId.Value, GetClientIp(),
+                HttpContext.Request.Headers["User-Agent"].FirstOrDefault() ?? "",
+                authentication.Properties?.IsPersistent == true, HttpContext.RequestAborted);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            return Conflict(new { success = false, message = "Institution session changed. Sign in again." });
+        }
+        if (rotatedSid == null)
+            return Conflict(new { success = false, message = "Institution session changed. Sign in again." });
+
         await SignInSessionAsync(user, authentication.Properties?.IsPersistent == true,
-            User.HasClaim("amr", "mfa") ? "mfa" : "pwd", selected);
+            User.HasClaim("amr", "mfa") ? "mfa" : "pwd", selected, rotatedSid);
         Response.Headers["Clear-Site-Data"] = "\"cache\"";
         _logger.LogInformation("User {UserId} switched to institution {TenantId}", user.Id, selected.TenantId);
         return Ok(new { success = true, data = new {
