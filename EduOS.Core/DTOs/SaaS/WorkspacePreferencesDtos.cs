@@ -67,6 +67,17 @@ public sealed class TablePreferenceDto
         new() { Id = "institution-activity-audit", Columns =
         [
             new() { Id = "time" }, new() { Id = "user" }, new() { Id = "action" }, new() { Id = "entity" }, new() { Id = "record" }, new() { Id = "ip" }, new() { Id = "outcome" }
+        ] },
+        new() { Id = "institution-campuses", Columns =
+        [
+            new() { Id = "campus" }, new() { Id = "code" },
+            new() { Id = "contact" }, new() { Id = "type" },
+            new() { Id = "action" }
+        ] },
+        new() { Id = "institution-change-history", Columns =
+        [
+            new() { Id = "when" }, new() { Id = "action" },
+            new() { Id = "fields" }, new() { Id = "actor" }
         ] }
     ];
 }

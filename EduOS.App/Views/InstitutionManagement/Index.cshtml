@@ -1,5 +1,6 @@
 @{
-    ViewData["Title"] = "Institution & Campus Management";
+    var bn = System.Globalization.CultureInfo.CurrentUICulture.Name == "bn-BD";
+    ViewData["Title"] = bn ? "প্রতিষ্ঠান ও ক্যাম্পাস ব্যবস্থাপনা" : "Institution & Campus Management";
     Layout = "~/Views/Shared/_Layout.cshtml";
 }
 <div class="container-fluid py-4" id="institutionManagementApp">
@@ -139,8 +140,8 @@
                     <button type="button" class="btn btn-outline-secondary btn-sm" id="refreshInstitutionHistory">Refresh history</button>
                 </div>
                 <div class="table-responsive">
-                    <table class="table table-sm table-striped align-middle">
-                        <thead><tr><th scope="col">When</th><th scope="col">Action</th><th scope="col">Changed fields</th><th scope="col">Actor</th></tr></thead>
+                    <table class="table table-sm table-striped align-middle" data-workspace-table="institution-change-history">
+                        <thead><tr><th scope="col" data-table-column="when">@(bn ? "সময়" : "When")</th><th scope="col" data-table-column="action">@(bn ? "কার্যক্রম" : "Action")</th><th scope="col" data-table-column="fields">@(bn ? "পরিবর্তিত ক্ষেত্র" : "Changed fields")</th><th scope="col" data-table-column="actor">@(bn ? "সম্পাদনকারী" : "Actor")</th></tr></thead>
                         <tbody id="institutionHistoryBody"><tr><td colspan="4">Loading history...</td></tr></tbody>
                     </table>
                 </div>
@@ -163,8 +164,8 @@
                     <button type="button" id="newCampus" class="btn btn-primary">Add campus</button>
                 </div>
                 <div class="table-responsive">
-                    <table class="table table-hover align-middle">
-                        <thead><tr><th>Campus</th><th>Code</th><th>Contact</th><th>Type</th><th>Manage</th></tr></thead>
+                    <table class="table table-hover align-middle" data-workspace-table="institution-campuses">
+                        <thead><tr><th data-table-column="campus">@(bn ? "ক্যাম্পাস" : "Campus")</th><th data-table-column="code">@(bn ? "কোড" : "Code")</th><th data-table-column="contact">@(bn ? "যোগাযোগ" : "Contact")</th><th data-table-column="type">@(bn ? "ধরন" : "Type")</th><th data-table-column="action">@(bn ? "পরিচালনা" : "Manage")</th></tr></thead>
                         <tbody id="institutionCampusesBody"><tr><td colspan="5">Loading campuses...</td></tr></tbody>
                     </table>
                 </div>
@@ -228,4 +229,5 @@
 </div>
 @section Scripts {
     <script src="~/js/institution-management/index.js" asp-append-version="true"></script>
+    <script src="~/js/platform/table-column-preferences.js" asp-append-version="true"></script>
 }

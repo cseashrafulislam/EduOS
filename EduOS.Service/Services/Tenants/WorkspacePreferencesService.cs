@@ -74,11 +74,11 @@ public sealed class WorkspacePreferencesService : IWorkspacePreferencesService
                 return ApiResponse<WorkspacePreferencesDto>.ErrorResponse("Reserved workspace key conflict.", 409);
 
             // Older cached clients do not send tablePreferences; never erase newer layout choices.
-            // Cached two-table clients may still save appearance: merge only their known
-            // tables and retain the newer audit layouts from the same versioned row.
+            // Older clients may submit only the first two or four table layouts.
+            // Merge those into the current versioned row without erasing newer layouts.
             var currentTables = ToDto(row).TablePreferences;
             var tables = request.TablePreferences == null ? currentTables :
-                request.TablePreferences.Count == 2
+                request.TablePreferences.Count < TablePreferenceDto.Defaults().Count
                     ? MergeTables(currentTables, request.TablePreferences)
                     : request.TablePreferences;
             var stored = new StoredPreferences
@@ -179,10 +179,10 @@ public sealed class WorkspacePreferencesService : IWorkspacePreferencesService
         var defaults = TablePreferenceDto.Defaults();
         // The first two tables are the exact legacy client contract. A partial
         // new-client layout is invalid; it must not silently hide required columns.
-        if (tables is not { Count: 2 or 4 } ||
+        if (tables is not { Count: 2 or 4 or 6 } ||
             tables.Select(x => x?.Id).Distinct(StringComparer.Ordinal).Count() != tables.Count)
             return false;
-        var definitions = tables.Count == 2 ? defaults.Take(2).ToList() : defaults;
+        var definitions = defaults.Take(tables.Count).ToList();
         foreach (var table in tables)
         {
             var definition = definitions.FirstOrDefault(x => x.Id == table?.Id);
@@ -198,6 +198,8 @@ public sealed class WorkspacePreferencesService : IWorkspacePreferencesService
                 "institution-invitations" => new[] { "email", "status", "action" },
                 "institution-feature-audit" => new[] { "feature", "code", "restriction" },
                 "institution-activity-audit" => new[] { "time", "user", "action", "outcome" },
+                "institution-campuses" => new[] { "campus", "code", "action" },
+                "institution-change-history" => new[] { "when", "action", "actor" },
                 _ => Array.Empty<string>()
             };
             if (required.Any(id => !table.Columns.Single(x => x.Id == id).Visible))

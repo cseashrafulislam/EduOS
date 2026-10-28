@@ -126,3 +126,39 @@ test('activity audit never hides actor, action, outcome or timestamp', () => {
     assert.equal(h.hidden('user'), false);
     assert.equal(h.hidden('outcome'), false);
 });
+
+test('campus directory preserves campus identity and management actions across reloads', () => {
+    const ids = ['campus', 'code', 'contact', 'type', 'action'];
+    const h = harness('institution-campuses', ids, {});
+    h.emit([{ id: 'institution-campuses', columns: [
+        { id: 'contact', visible: false }, { id: 'action', visible: true },
+        { id: 'campus', visible: true }, { id: 'type', visible: false },
+        { id: 'code', visible: true }
+    ] }]);
+    assert.deepEqual(h.header(), ['contact', 'action', 'campus', 'type', 'code']);
+    assert.equal(h.hidden('action'), false);
+    assert.equal(h.hidden('contact'), true);
+    assert.deepEqual(h.appendRow().cells.map(cell => cell.name), h.header());
+    h.emit([{ id: 'institution-campuses', columns: ids.map(id => ({
+        id, visible: id !== 'action'
+    })) }]);
+    assert.deepEqual(h.header(), ids);
+    assert.equal(h.hidden('action'), false);
+});
+
+test('institution history never hides timestamp, action or actor', () => {
+    const ids = ['when', 'action', 'fields', 'actor'];
+    const h = harness('institution-change-history', ids, {});
+    h.emit([{ id: 'institution-change-history', columns: [
+        { id: 'actor', visible: true }, { id: 'fields', visible: false },
+        { id: 'when', visible: true }, { id: 'action', visible: true }
+    ] }]);
+    assert.deepEqual(h.header(), ['actor', 'fields', 'when', 'action']);
+    assert.equal(h.hidden('fields'), true);
+    assert.deepEqual(h.appendRow().cells.map(cell => cell.name), h.header());
+    h.emit([{ id: 'institution-change-history', columns: ids.map(id => ({
+        id, visible: id !== 'actor'
+    })) }]);
+    assert.deepEqual(h.header(), ids);
+    assert.equal(h.hidden('actor'), false);
+});

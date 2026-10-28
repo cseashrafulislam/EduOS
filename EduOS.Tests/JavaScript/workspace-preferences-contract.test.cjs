@@ -86,6 +86,10 @@ test('institution administration table columns use private versioned allowlists 
     const activityAudit = read('EduOS.App/Views/AuditLogs/Index.cshtml');
     assert.match(featureAudit, /data-workspace-table="institution-feature-audit"/);
     assert.match(activityAudit, /data-workspace-table="institution-activity-audit"/);
+    const management = read('EduOS.App/Views/InstitutionManagement/Index.cshtml');
+    assert.match(management, /data-workspace-table="institution-campuses"/);
+    assert.match(management, /data-workspace-table="institution-change-history"/);
+    assert.match(management, /table-column-preferences/);
     assert.match(view, /__RequestVerificationToken|AntiForgeryToken/);
     assert.match(read('EduOS.App/wwwroot/js/platform/workspace-preferences.js'), /RequestVerificationToken/);
 });

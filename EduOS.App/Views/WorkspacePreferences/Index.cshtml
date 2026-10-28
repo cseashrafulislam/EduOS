@@ -102,6 +102,21 @@
                                     (Id: "record", En: "Record", Bn: "রেকর্ড", Required: false),
                                     (Id: "ip", En: "IP address", Bn: "আইপি ঠিকানা", Required: false),
                                     (Id: "outcome", En: "Outcome", Bn: "ফলাফল", Required: true)
+                                }),
+                            (Id: "institution-campuses", En: "Campus directory", Bn: "ক্যাম্পাস তালিকা",
+                                Columns: new[] {
+                                    (Id: "campus", En: "Campus", Bn: "ক্যাম্পাস", Required: true),
+                                    (Id: "code", En: "Code", Bn: "কোড", Required: true),
+                                    (Id: "contact", En: "Contact", Bn: "যোগাযোগ", Required: false),
+                                    (Id: "type", En: "Type", Bn: "ধরন", Required: false),
+                                    (Id: "action", En: "Manage", Bn: "পরিচালনা", Required: true)
+                                }),
+                            (Id: "institution-change-history", En: "Institution change history", Bn: "প্রতিষ্ঠান পরিবর্তনের ইতিহাস",
+                                Columns: new[] {
+                                    (Id: "when", En: "When", Bn: "সময়", Required: true),
+                                    (Id: "action", En: "Action", Bn: "কার্যক্রম", Required: true),
+                                    (Id: "fields", En: "Changed fields", Bn: "পরিবর্তিত ক্ষেত্র", Required: false),
+                                    (Id: "actor", En: "Actor", Bn: "সম্পাদনকারী", Required: true)
                                 })
                         })
                         {

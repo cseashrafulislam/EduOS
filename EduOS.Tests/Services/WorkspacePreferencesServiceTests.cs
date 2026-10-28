@@ -38,7 +38,7 @@ public sealed class WorkspacePreferencesServiceTests
         Assert.Equal(new[] { "quick-actions", "setup-checklist", "capacity" },
             (await owner.GetAsync()).Data!.DashboardPanels.Select(x => x.Id));
         Assert.False((await owner.GetAsync()).Data!.DashboardPanels[0].Visible);
-        Assert.Equal(4, (await owner.GetAsync()).Data!.TablePreferences.Count);
+        Assert.Equal(6, (await owner.GetAsync()).Data!.TablePreferences.Count);
         Assert.All((await Service(test.Db, 202, 71).GetAsync()).Data!.TablePreferences,
             table => Assert.All(table.Columns, column => Assert.True(column.Visible)));
         Assert.True((await Service(test.Db, 101, 72).GetAsync()).Data!.DashboardPanels.All(x => x.Visible));
@@ -270,7 +270,7 @@ public sealed class WorkspacePreferencesServiceTests
         row.RowVersion = [1, 2, 3, 4, 5, 6, 7, 8];
         await test.Db.SaveChangesAsync();
         var read = (await service.GetAsync()).Data!;
-        Assert.Equal(4, read.TablePreferences.Count);
+        Assert.Equal(6, read.TablePreferences.Count);
         Assert.All(read.TablePreferences, table =>
             Assert.All(table.Columns, column => Assert.True(column.Visible)));
         var stale = await service.SaveAsync(new SaveWorkspacePreferencesRequestDto
@@ -305,7 +305,7 @@ public sealed class WorkspacePreferencesServiceTests
         });
         Assert.True(legacy.Success, legacy.Message);
         var read = (await service.GetAsync()).Data!;
-        Assert.Equal(4, read.TablePreferences.Count);
+        Assert.Equal(6, read.TablePreferences.Count);
         Assert.False(read.TablePreferences[2].Columns.Single(x => x.Id == "reason").Visible);
         Assert.False(read.TablePreferences[3].Columns.Single(x => x.Id == "ip").Visible);
         Assert.All((await Service(test.Db, 202, 71).GetAsync()).Data!.TablePreferences,
@@ -336,6 +336,77 @@ public sealed class WorkspacePreferencesServiceTests
         Assert.Equal(400, (await service.SaveAsync(new SaveWorkspacePreferencesRequestDto
         {
             TablePreferences = partial
+        })).StatusCode);
+        Assert.Empty(await test.Db.TenantSettings.ToListAsync());
+    }
+
+
+    [Fact]
+    public async Task Campus_and_history_layouts_are_private_versioned_and_preserved_by_four_table_clients()
+    {
+        await using var test = Create();
+        var service = Service(test.Db, 101, 71);
+        var tables = TablePreferenceDto.Defaults();
+        tables[4].Columns = [
+            new() { Id = "type", Visible = false }, new() { Id = "action" },
+            new() { Id = "campus" }, new() { Id = "contact", Visible = false },
+            new() { Id = "code" }
+        ];
+        tables[5].Columns.Single(x => x.Id == "fields").Visible = false;
+        Assert.True((await service.SaveAsync(new SaveWorkspacePreferencesRequestDto
+        {
+            TablePreferences = tables
+        })).Success);
+        var row = await test.Db.TenantSettings.SingleAsync();
+        row.RowVersion = [1, 2, 3, 4, 5, 6, 7, 8];
+        await test.Db.SaveChangesAsync();
+        Assert.True((await service.SaveAsync(new SaveWorkspacePreferencesRequestDto
+        {
+            Theme = "dark",
+            TablePreferences = TablePreferenceDto.Defaults().Take(4).ToList(),
+            RowVersion = Convert.ToBase64String(row.RowVersion)
+        })).Success);
+        var current = (await service.GetAsync()).Data!;
+        Assert.Equal(6, current.TablePreferences.Count);
+        Assert.Equal("type", current.TablePreferences[4].Columns[0].Id);
+        Assert.False(current.TablePreferences[4].Columns[0].Visible);
+        Assert.False(current.TablePreferences[5].Columns.Single(x => x.Id == "fields").Visible);
+        Assert.All((await Service(test.Db, 202, 71).GetAsync()).Data!.TablePreferences[4].Columns,
+            column => Assert.True(column.Visible));
+        Assert.All((await Service(test.Db, 101, 72).GetAsync()).Data!.TablePreferences[5].Columns,
+            column => Assert.True(column.Visible));
+        Assert.Equal(409, (await service.SaveAsync(new SaveWorkspacePreferencesRequestDto
+        {
+            TablePreferences = tables, RowVersion = "AQID"
+        })).StatusCode);
+    }
+
+    [Fact]
+    public async Task Campus_and_history_columns_reject_hidden_required_unknown_and_partial_layouts()
+    {
+        await using var test = Create();
+        var service = Service(test.Db, 101, 71);
+        foreach (var (index, id) in new[] {
+            (4, "campus"), (4, "code"), (4, "action"),
+            (5, "when"), (5, "action"), (5, "actor")
+        })
+        {
+            var tables = TablePreferenceDto.Defaults();
+            tables[index].Columns.Single(x => x.Id == id).Visible = false;
+            Assert.Equal(400, (await service.SaveAsync(new SaveWorkspacePreferencesRequestDto
+            {
+                TablePreferences = tables
+            })).StatusCode);
+        }
+        var unknown = TablePreferenceDto.Defaults();
+        unknown[4].Columns[2].Id = "private-tenant-data";
+        Assert.Equal(400, (await service.SaveAsync(new SaveWorkspacePreferencesRequestDto
+        {
+            TablePreferences = unknown
+        })).StatusCode);
+        Assert.Equal(400, (await service.SaveAsync(new SaveWorkspacePreferencesRequestDto
+        {
+            TablePreferences = TablePreferenceDto.Defaults().Take(5).ToList()
         })).StatusCode);
         Assert.Empty(await test.Db.TenantSettings.ToListAsync());
     }
