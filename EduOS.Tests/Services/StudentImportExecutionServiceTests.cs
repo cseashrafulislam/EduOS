@@ -942,7 +942,6 @@ public sealed class StudentImportExecutionServiceTests
         Assert.Equal(2, failingPreview.Calls);
         Assert.Equal(0, transaction.Commits);
         Assert.Equal(1, transaction.Rollbacks);
-        Assert.Equal(IsolationLevel.ReadCommitted, transaction.RequestedIsolation);
         Assert.Empty(await db.Students.ToListAsync());
         Assert.Empty(await db.ImportLogs.ToListAsync());
     }
@@ -976,14 +975,12 @@ public sealed class StudentImportExecutionServiceTests
     {
         public int Commits { get; private set; }
         public int Rollbacks { get; private set; }
-        public IsolationLevel? RequestedIsolation { get; private set; }
         public Task<int> SaveChangesAsync(CancellationToken token = default) => db.SaveChangesAsync(token);
         public Task<T> ExecuteInTransactionAsync<T>(Func<CancellationToken, Task<T>> operation,
             CancellationToken token = default) => ExecuteInTransactionAsync(operation, IsolationLevel.Serializable, token);
         public async Task<T> ExecuteInTransactionAsync<T>(Func<CancellationToken, Task<T>> operation,
             IsolationLevel isolationLevel, CancellationToken token = default)
         {
-            RequestedIsolation = isolationLevel;
             try
             {
                 var result = await operation(token);

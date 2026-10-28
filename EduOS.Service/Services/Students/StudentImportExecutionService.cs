@@ -459,16 +459,7 @@ public sealed partial class StudentImportExecutionService : IStudentImportExecut
                 {
                     ImportReference = log.PublicId, TotalRows = rows.Count, ImportedRows = rows.Count
                 }, "Student import batch committed and reconciled.");
-            // SQL SERIALIZABLE takes shared key-range locks during the initial
-            // tenant-scoped idempotency/preview reads. When two new institutes
-            // import simultaneously, their empty index ranges can overlap and
-            // deadlock despite distinct TenantIds. READ COMMITTED avoids those
-            // cross-tenant gap locks. Capacity remains serialized by the
-            // AcademicBatch rowversion update above, followed by a second
-            // preview while that write lock is held; tenant-scoped unique keys
-            // enforce source, student, roll and guardian identity uniqueness.
-            // All writes still share one atomic database transaction.
-            }, IsolationLevel.ReadCommitted, cancellationToken);
+            }, IsolationLevel.Serializable, cancellationToken);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
         catch (ImportConflictException ex)
