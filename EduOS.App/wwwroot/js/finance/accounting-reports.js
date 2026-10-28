@@ -324,13 +324,15 @@ if (root) {
         const fetchAudit = async page => {
             const account = $('ledgerAccount').value;
             const from = $('ledgerFrom').value, to = $('ledgerTo').value;
-            if (!/^\\d+$/.test(account) || BigInt(account) <= 0n || !from || !to || from > to)
+            if (!/^\d+$/.test(account) || BigInt(account) <= 0n || !from || !to || from > to)
                 throw new Error('Select a valid account and date range.');
             const key = [account, from, to].join('|');
             const revision = ++auditRevision;
             $('ledgerAuditRun').disabled = true;
             $('ledgerAuditCsv').disabled = true;
             audit = null;
+            $('ledgerAuditRows').replaceChildren();
+            $('ledgerAuditSummary').textContent = 'Loading posted journal activity...';
             try {
                 const result = await get('/api/finance/accounting/reports/ledger/' +
                     encodeURIComponent(account) + '/activity?' +
@@ -380,7 +382,9 @@ if (root) {
                 rows.push([x.date,x.journalNumber,x.lineNo,x.campusId,x.sourceType,x.referenceNumber,
                     x.description,x.isReversal ? 'Reversal' : x.isReversedOriginal ? 'Reversed original' : 'Posted',
                     money(x.debitAmount),money(x.creditAmount)]);
-            rows.push(['PAGE TOTAL','','','','','','','','','']);
+            const pageDebit = (audit.entries.items || []).reduce((sum, x) => sum + cents(x.debitAmount), 0n);
+            const pageCredit = (audit.entries.items || []).reduce((sum, x) => sum + cents(x.creditAmount), 0n);
+            rows.push(['PAGE TOTAL','','','','','','','',money(pageDebit),money(pageCredit)]);
             downloadCsv('institution-journal-activity-page-' + auditPage + '-' + audit.fromDate +
                 '-' + audit.toDate + '.csv', rows);
         }));
