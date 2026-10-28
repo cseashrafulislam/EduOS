@@ -416,7 +416,10 @@ public sealed class SqlServerStudentImportCohortRehearsalTests
             new GenericRepository<StudentPersonLink>(db),
             new GenericRepository<Person>(db), new GenericRepository<Guardian>(db),
             new GenericRepository<StudentGuardian>(db), batches,
-            new GenericRepository<AcademicCurriculum>(db), logs, items,
+            new GenericRepository<AcademicCurriculum>(db),
+            new GenericRepository<CurriculumSubject>(db),
+            new GenericRepository<SubjectOffering>(db),
+            new GenericRepository<StudentSubjectRegistration>(db), logs, items,
             new GenericRepository<IdempotencyRecord>(db), db, admin,
             logger ?? NullLogger<StudentImportExecutionService>.Instance);
     }

@@ -75,9 +75,90 @@ public sealed class StudentImportExecutionServiceTests
             new GenericRepository<StudentPersonLink>(db),
             new GenericRepository<Person>(db), new GenericRepository<Guardian>(db),
             new GenericRepository<StudentGuardian>(db), batches,
-            new GenericRepository<AcademicCurriculum>(db), logs, items,
+            new GenericRepository<AcademicCurriculum>(db),
+            new GenericRepository<CurriculumSubject>(db),
+            new GenericRepository<SubjectOffering>(db),
+            new GenericRepository<StudentSubjectRegistration>(db), logs, items,
             new GenericRepository<IdempotencyRecord>(db), unitOfWork ?? new InMemoryUow(db),
             user, NullLogger<StudentImportExecutionService>.Instance);
+    }
+
+
+    [Fact]
+    public async Task Required_subjects_are_approved_atomically_with_credit_snapshot_and_idempotent_replay()
+    {
+        var options = Options(); await SeedAsync(options);
+        await using var db = Context(options, 101);
+        db.Subjects.Add(new Subject { Id = 60, TenantId = 101, Name = "Mathematics", Code = "MATH" });
+        db.CurriculumSubjects.Add(new CurriculumSubject
+        {
+            Id = 61, TenantId = 101, AcademicCurriculumId = 50, AcademicLevelId = 1,
+            SubjectId = 60, CreditHours = 4m, IsOptional = false
+        });
+        db.SubjectOfferings.Add(new SubjectOffering
+        {
+            Id = 62, TenantId = 101, AcademicBatchId = 20,
+            AcademicYearId = 1, CurriculumSubjectId = 61, Code = "MATH-1", Capacity = 2
+        });
+        await db.SaveChangesAsync();
+        var service = Service(db, new User(101, true));
+        var requestId = Guid.NewGuid();
+        var source = Header + "SUB-A,STU-A,Learner A,10,20,11,,\n" +
+            "SUB-B,STU-B,Learner B,10,20,12,,\n";
+        using (var file = Csv(source))
+        {
+            var result = await service.ExecuteAsync(file, ".csv", Mapping, requestId);
+            Assert.True(result.Success, result.Message);
+            Assert.Equal(2, result.Data!.ImportedRows);
+        }
+        var registrations = await db.StudentSubjectRegistrations.ToListAsync();
+        Assert.Equal(2, registrations.Count);
+        Assert.All(registrations, registration =>
+        {
+            Assert.Equal(62, registration.SubjectOfferingId);
+            Assert.Equal(4m, registration.CreditHoursSnapshot);
+            Assert.Equal(EduOS.Core.Enums.Domain.SubjectRegistrationState.Approved, registration.State);
+            Assert.Equal(99L, registration.ApprovedByUserId);
+        });
+        Assert.Equal(2, registrations.Select(x => x.StudentEnrollmentId).Distinct().Count());
+        using (var file = Csv(source))
+        {
+            var replay = await service.ExecuteAsync(file, ".csv", Mapping, requestId);
+            Assert.True(replay.Success, replay.Message);
+            Assert.True(replay.Data!.Replayed);
+        }
+        Assert.Equal(2, await db.StudentSubjectRegistrations.CountAsync());
+    }
+
+    [Fact]
+    public async Task Missing_or_full_required_offering_rejects_entire_window_without_student_records()
+    {
+        var options = Options(); await SeedAsync(options);
+        await using var db = Context(options, 101);
+        db.Subjects.Add(new Subject { Id = 60, TenantId = 101, Name = "Mathematics", Code = "MATH" });
+        db.CurriculumSubjects.Add(new CurriculumSubject
+        {
+            Id = 61, TenantId = 101, AcademicCurriculumId = 50, AcademicLevelId = 1,
+            SubjectId = 60, CreditHours = 4m, IsOptional = false
+        });
+        await db.SaveChangesAsync();
+        var service = Service(db, new User(101, true));
+        var source = Header + "SUB-C,STU-C,Learner C,10,20,11,,\n" +
+            "SUB-D,STU-D,Learner D,10,20,12,,\n";
+        using (var missing = Csv(source))
+            Assert.Equal(409, (await service.ExecuteAsync(missing, ".csv", Mapping, Guid.NewGuid())).StatusCode);
+        db.SubjectOfferings.Add(new SubjectOffering
+        {
+            Id = 62, TenantId = 101, AcademicBatchId = 20,
+            AcademicYearId = 1, CurriculumSubjectId = 61, Code = "MATH-1", Capacity = 1
+        });
+        await db.SaveChangesAsync();
+        using (var full = Csv(source))
+            Assert.Equal(409, (await service.ExecuteAsync(full, ".csv", Mapping, Guid.NewGuid())).StatusCode);
+        Assert.Empty(await db.Students.ToListAsync());
+        Assert.Empty(await db.StudentEnrollments.ToListAsync());
+        Assert.Empty(await db.StudentSubjectRegistrations.ToListAsync());
+        Assert.Empty(await db.ImportLogs.ToListAsync());
     }
 
     [Fact]

@@ -745,7 +745,11 @@ public sealed class SqlServerStudentImportConcurrencyIntegrationTests
                 x.FullName == "Imported Learner " + suffix));
             Assert.Equal(imported.Success ? 1 : 0, await verify.IdempotencyRecords.CountAsync(x =>
                 x.TenantId == tenantId && x.Scope == "StudentImportBatch" && x.RequestId == importId));
-            Assert.Equal(enrolled.Success ? 1 : 0, await verify.StudentSubjectRegistrations.CountAsync());
+            // Imported enrollment must now carry the same mandatory registration
+            // as the ordinary academic enrollment, regardless of race winner.
+            var registration = await verify.StudentSubjectRegistrations.SingleAsync();
+            Assert.Equal(SubjectRegistrationState.Approved, registration.State);
+            Assert.Equal(4m, registration.CreditHoursSnapshot);
         }
         if (imported.Success)
         {
@@ -1013,7 +1017,10 @@ public sealed class SqlServerStudentImportConcurrencyIntegrationTests
             new GenericRepository<StudentPersonLink>(db),
             new GenericRepository<Person>(db), new GenericRepository<Guardian>(db),
             new GenericRepository<StudentGuardian>(db), batches,
-            new GenericRepository<AcademicCurriculum>(db), logs, items,
+            new GenericRepository<AcademicCurriculum>(db),
+            new GenericRepository<CurriculumSubject>(db),
+            new GenericRepository<SubjectOffering>(db),
+            new GenericRepository<StudentSubjectRegistration>(db), logs, items,
             new GenericRepository<IdempotencyRecord>(db), db, admin,
             logger ?? NullLogger<StudentImportExecutionService>.Instance);
     }

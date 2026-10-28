@@ -40,6 +40,9 @@ public sealed partial class StudentImportExecutionService : IStudentImportExecut
     private readonly IGenericRepository<StudentGuardian> _studentGuardians;
     private readonly IGenericRepository<AcademicBatch> _batches;
     private readonly IGenericRepository<AcademicCurriculum> _curricula;
+    private readonly IGenericRepository<CurriculumSubject> _curriculumSubjects;
+    private readonly IGenericRepository<SubjectOffering> _offerings;
+    private readonly IGenericRepository<StudentSubjectRegistration> _registrations;
     private readonly IGenericRepository<ImportLog> _logs;
     private readonly IGenericRepository<ImportLogItem> _items;
     private readonly IGenericRepository<IdempotencyRecord> _keys;
@@ -52,6 +55,9 @@ public sealed partial class StudentImportExecutionService : IStudentImportExecut
         IGenericRepository<StudentPersonLink> links, IGenericRepository<Person> persons,
         IGenericRepository<Guardian> guardians, IGenericRepository<StudentGuardian> studentGuardians,
         IGenericRepository<AcademicBatch> batches, IGenericRepository<AcademicCurriculum> curricula,
+        IGenericRepository<CurriculumSubject> curriculumSubjects,
+        IGenericRepository<SubjectOffering> offerings,
+        IGenericRepository<StudentSubjectRegistration> registrations,
         IGenericRepository<ImportLog> logs, IGenericRepository<ImportLogItem> items,
         IGenericRepository<IdempotencyRecord> keys, IUnitOfWork uow,
         ICurrentUserService user, ILogger<StudentImportExecutionService> logger)
@@ -59,6 +65,7 @@ public sealed partial class StudentImportExecutionService : IStudentImportExecut
         _preview = preview; _students = students; _enrollments = enrollments;
         _links = links; _persons = persons; _guardians = guardians;
         _studentGuardians = studentGuardians; _batches = batches; _curricula = curricula;
+        _curriculumSubjects = curriculumSubjects; _offerings = offerings; _registrations = registrations;
         _logs = logs; _items = items; _keys = keys; _uow = uow;
         _user = user; _logger = logger;
     }
@@ -285,6 +292,12 @@ public sealed partial class StudentImportExecutionService : IStudentImportExecut
                     guardianCache[key] = guardian.Id;
                 }
 
+                // Required-subject reservations are planned after the batch rowversion
+                // write lock and inside the same transaction as the student/enrollment.
+                // A batch with no required curriculum subjects remains importable.
+                var requiredOfferingPlans = await LoadRequiredOfferingPlansAsync(
+                    tenant, batches, curricula, rows, token);
+
                 var log = new ImportLog
                 {
                     TenantId = tenant, ImportType = "Student", TotalRows = rows.Count,
@@ -303,6 +316,7 @@ public sealed partial class StudentImportExecutionService : IStudentImportExecut
                 var pendingGuardians = new List<(Person Person, Guardian Guardian)>();
                 var newGuardiansByKey = new Dictionary<Guid, (Guardian Guardian, ImportRow Row)>();
                 var newGuardiansByRow = new Dictionary<ImportRow, Guardian>();
+                var pendingEnrollments = new List<(long BatchId, StudentEnrollment Enrollment)>(rows.Count);
 
                 foreach (var row in rows)
                 {
@@ -378,7 +392,7 @@ public sealed partial class StudentImportExecutionService : IStudentImportExecut
                         CreatedAt = now, CreatedBy = _user.UserId
                     });
                     var batch = batches.Single(x => x.Id == row.BatchId);
-                    await _enrollments.AddAsync(new StudentEnrollment
+                    var enrollment = new StudentEnrollment
                     {
                         TenantId = tenant, ClientRequestId = Guid.NewGuid(),
                         StudentId = student.Id, CampusId = batch.CampusId,
@@ -389,7 +403,9 @@ public sealed partial class StudentImportExecutionService : IStudentImportExecut
                         RollNo = row.RollNo, EnrollmentDate = today,
                         State = EnrollmentState.Active, IsCurrent = true,
                         CreatedAt = now, CreatedBy = _user.UserId
-                    });
+                    };
+                    await _enrollments.AddAsync(enrollment);
+                    pendingEnrollments.Add((batch.Id, enrollment));
                     if (!string.IsNullOrWhiteSpace(row.GuardianName))
                     {
                         Guid? guardianKey = string.IsNullOrWhiteSpace(row.GuardianSourceKey)
@@ -418,6 +434,28 @@ public sealed partial class StudentImportExecutionService : IStudentImportExecut
                         TargetId = student.Id, CompletedByUserId = _user.UserId, CompletedAt = now,
                         ExpiresAt = now.AddYears(50), CreatedAt = now, CreatedBy = _user.UserId
                     });
+                }
+
+                if (requiredOfferingPlans.Count > 0)
+                {
+                    // Flush the new enrollment identities only when subject links
+                    // are required. This is NOT a commit; any failure rolls back
+                    // every staged Person, Student, Guardian, link and receipt.
+                    await _uow.SaveChangesAsync(token);
+                    foreach (var (batchId, enrollment) in pendingEnrollments)
+                    {
+                        if (!requiredOfferingPlans.TryGetValue(batchId, out var offeringsForBatch)) continue;
+                        foreach (var offering in offeringsForBatch)
+                            await _registrations.AddAsync(new StudentSubjectRegistration
+                            {
+                                TenantId = tenant, ClientRequestId = Guid.NewGuid(),
+                                StudentEnrollmentId = enrollment.Id, SubjectOfferingId = offering.OfferingId,
+                                State = SubjectRegistrationState.Approved, RegisteredAt = now,
+                                CreditHoursSnapshot = offering.CreditHours,
+                                ApprovedByUserId = _user.UserId, ApprovedAt = now,
+                                CreatedAt = now, CreatedBy = _user.UserId
+                            });
+                    }
                 }
 
                 foreach (var (key, entry) in newGuardiansByKey)
@@ -480,6 +518,78 @@ public sealed partial class StudentImportExecutionService : IStudentImportExecut
             _logger.LogError(ex, "Student import execution failed for tenant {TenantId}", _user.TenantId);
             return ApiResponse<StudentImportExecutionDto>.ErrorResponse("Import batch could not be committed.", 500);
         }
+    }
+
+
+    /// <summary>
+    /// Reconcile every required curriculum subject to exactly one active offering.
+    /// The caller already owns the AcademicBatch write locks. Query counts are
+    /// tenant-scoped and grouped; a 100-row window may create at most 2,000
+    /// registrations. Missing or full offerings abort the entire import window.
+    /// </summary>
+    private async Task<Dictionary<long, List<(long OfferingId, decimal CreditHours)>>>
+        LoadRequiredOfferingPlansAsync(long tenant, IReadOnlyList<AcademicBatch> batches,
+            IReadOnlyDictionary<long, long> curricula, IReadOnlyList<ImportRow> rows,
+            CancellationToken token)
+    {
+        var curriculumIds = curricula.Values.Distinct().ToArray();
+        var levelIds = batches.Select(x => x.AcademicLevelId).Distinct().ToArray();
+        var subjects = await _curriculumSubjects.GetQueryable().AsNoTracking().Where(x =>
+            x.TenantId == tenant && !x.IsDeleted && x.IsActive && !x.IsOptional &&
+            curriculumIds.Contains(x.AcademicCurriculumId) && levelIds.Contains(x.AcademicLevelId))
+            .Select(x => new { x.Id, x.AcademicCurriculumId, x.AcademicLevelId, x.CreditHours })
+            .ToListAsync(token);
+        var plans = new Dictionary<long, List<(long OfferingId, decimal CreditHours)>>();
+        if (subjects.Count == 0) return plans;
+
+        var requiredIds = subjects.Select(x => x.Id).ToArray();
+        var batchIds = batches.Select(x => x.Id).ToArray();
+        var offerings = await _offerings.GetQueryable().AsNoTracking().Where(x =>
+            x.TenantId == tenant && !x.IsDeleted && x.IsActive &&
+            batchIds.Contains(x.AcademicBatchId) && requiredIds.Contains(x.CurriculumSubjectId))
+            .Select(x => new { x.Id, x.AcademicBatchId, x.AcademicYearId,
+                x.CurriculumSubjectId, x.Capacity }).ToListAsync(token);
+        var offeringIds = offerings.Select(x => x.Id).ToArray();
+        var reserved = await _registrations.GetQueryable().AsNoTracking().Where(x =>
+            x.TenantId == tenant && !x.IsDeleted && offeringIds.Contains(x.SubjectOfferingId) &&
+            x.State != SubjectRegistrationState.Rejected && x.State != SubjectRegistrationState.Dropped)
+            .GroupBy(x => x.SubjectOfferingId)
+            .Select(g => new { OfferingId = g.Key, Count = g.Count() })
+            .ToDictionaryAsync(x => x.OfferingId, x => x.Count, token);
+
+        var totalRegistrations = 0;
+        foreach (var batch in batches)
+        {
+            var required = subjects.Where(x =>
+                x.AcademicCurriculumId == curricula[batch.Id] &&
+                x.AcademicLevelId == batch.AcademicLevelId).ToArray();
+            if (required.Length == 0) continue;
+            var requiredSet = required.Select(x => x.Id).ToHashSet();
+            var active = offerings.Where(x => x.AcademicBatchId == batch.Id &&
+                x.AcademicYearId == batch.AcademicYearId &&
+                requiredSet.Contains(x.CurriculumSubjectId)).ToArray();
+            if (active.Length != required.Length ||
+                active.GroupBy(x => x.CurriculumSubjectId).Any(x => x.Count() != 1))
+                throw new ImportConflictException(
+                    "Each required curriculum subject needs exactly one active batch offering.");
+
+            var incoming = rows.Count(x => x.BatchId == batch.Id);
+            totalRegistrations += required.Length * incoming;
+            if (totalRegistrations > 2000)
+                throw new ImportConflictException(
+                    "Required subject registrations exceed the 2,000-per-window limit. Split the import.");
+            foreach (var offering in active)
+                if (offering.Capacity <= 0 ||
+                    reserved.GetValueOrDefault(offering.Id) + incoming > offering.Capacity)
+                    throw new ImportConflictException(
+                        "A required subject offering has insufficient seats. Re-run preview.");
+
+            plans.Add(batch.Id, active.OrderBy(x => x.Id)
+                .Select(x => (OfferingId: x.Id,
+                    CreditHours: required.Single(y => y.Id == x.CurriculumSubjectId).CreditHours))
+                .ToList());
+        }
+        return plans;
     }
 
     // Do not convert arbitrary EF/SQL failures to a conflict. Only a known
