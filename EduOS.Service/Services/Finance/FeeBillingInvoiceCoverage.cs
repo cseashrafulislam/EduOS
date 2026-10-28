@@ -63,29 +63,21 @@ public sealed partial class FeeBillingService
                 e.AcademicLevelId == batch.AcademicLevelId &&
                 e.IsCurrent && e.State == EnrollmentState.Active && s.StatusCode == "Active"
             select new { EnrollmentId = e.Id, s.PublicId, s.StudentCode, s.FullName };
-        var invoiceGroups = _invoices.GetQueryable().AsNoTracking()
+        // Correlated indexed counts avoid nullable left-join materialization across
+        // EF InMemory and SQL Server. Tenant/enrolment predicates are server-side.
+        var monthlyInvoices = _invoices.GetQueryable().AsNoTracking()
             .Where(i => i.TenantId == tenant && !i.IsDeleted &&
                 i.InvoiceDate >= month && i.InvoiceDate < monthEnd &&
-                i.State != InvoiceState.Cancelled)
-            .GroupBy(i => i.StudentEnrollmentId)
-            .Select(g => new
-            {
-                EnrollmentId = g.Key,
-                InvoiceCount = (int?)g.Count(),
-                IntegrityIssueCount = (int?)g.Count(i => i.TotalAmount < 0m || i.PaidAmount < 0m ||
-                    i.DueAmount < 0m || i.TotalAmount != i.PaidAmount + i.DueAmount ||
-                    i.CurrencyCode == null || i.CurrencyCode == "")
-            });
-        var coverage =
-            from e in eligible
-            join a in invoiceGroups on e.EnrollmentId equals a.EnrollmentId into matches
-            from a in matches.DefaultIfEmpty()
-            select new
-            {
-                e.PublicId, e.StudentCode, e.FullName,
-                InvoiceCount = a == null ? 0 : (a.InvoiceCount ?? 0),
-                IntegrityIssueCount = a == null ? 0 : (a.IntegrityIssueCount ?? 0)
-            };
+                i.State != InvoiceState.Cancelled);
+        var coverage = eligible.Select(e => new
+        {
+            e.PublicId, e.StudentCode, e.FullName,
+            InvoiceCount = monthlyInvoices.Count(i => i.StudentEnrollmentId == e.EnrollmentId),
+            IntegrityIssueCount = monthlyInvoices.Count(i => i.StudentEnrollmentId == e.EnrollmentId &&
+                (i.TotalAmount < 0m || i.PaidAmount < 0m || i.DueAmount < 0m ||
+                 i.TotalAmount != i.PaidAmount + i.DueAmount ||
+                 i.CurrencyCode == null || i.CurrencyCode == ""))
+        });
         // Aggregate the entire authorized cohort, not just the current page or search.
         var summary = await coverage.GroupBy(x => 1).Select(g => new
         {
