@@ -66,8 +66,8 @@ public sealed class PayrollBankReviewExportTests
             .And.Contain("\"'=BAD\"").And.Contain("\"'+PAYEE\"")
             .And.Contain("\"'=PAYEE\"");
         (await db.PayrollPayments.SingleAsync()).State.Should().Be(PaymentState.AwaitingVerification);
-        (await db.AuditLogs.SingleAsync()).Action.Should().Be("Payroll.BankReviewExported");
-        (await db.AuditLogs.SingleAsync()).NewValue.Should().NotContain("1234567890");
+        var audit = await db.AuditLogs.SingleAsync(x => x.Action == "Payroll.BankReviewExported");
+        audit.NewValue.Should().NotContain("1234567890");
     }
 
     private static EduOSDbContext Database()

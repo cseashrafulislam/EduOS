@@ -4,6 +4,7 @@
 <section id="salaryWorkspace" class="container-fluid py-3">
     <h2 class="h4">Employee salary structures</h2>
     <p class="text-muted">Review effective-dated salary components and register a new structure before payroll calculation. Historical structures are retained, not overwritten. Only tenant administrators may view this institution-wide salary history.</p>
+    <p class="alert alert-info small" role="note"><strong>BDT statutory withholding:</strong> Define institution-reviewed deduction components with the <code>STAT_</code> prefix (for example <code>STAT_TAX</code>), then include a monthly fixed amount in every employee's effective-dated salary structure. Record <code>0.00</code> for a reviewed exemption. Payroll will stop if an active statutory category is missing. This is configurable withholding, not an automatic interpretation of Bangladesh tax rates; verify amounts with your payroll accountant before approval.</p>
     <p class="d-flex flex-wrap gap-2"><a href="/PayrollOperations/Index" class="btn btn-sm btn-outline-secondary">Payroll operations</a><a href="/PayrollSalaryComponents/Index" class="btn btn-sm btn-outline-primary">Manage salary components</a></p>
     @Html.AntiForgeryToken()
     <div id="salaryNotice" class="alert d-none" role="alert" aria-live="polite"></div>

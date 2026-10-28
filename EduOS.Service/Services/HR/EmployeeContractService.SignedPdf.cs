@@ -127,6 +127,7 @@ public sealed partial class EmployeeContractService
                 CreatedAt = clock.GetUtcNow().UtcDateTime, CreatedBy = user.UserId
             };
             db.Documents.Add(doc);
+            await db.SaveChangesAsync(ct);
             db.AuditLogs.Add(SignedPdfAudit(doc, "EmployeeContract.SignedPdfAttached"));
             await db.SaveChangesAsync(ct);
             await tx.CommitAsync(ct);
