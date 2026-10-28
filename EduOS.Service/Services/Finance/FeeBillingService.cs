@@ -269,7 +269,7 @@ public sealed partial class FeeBillingService : IFeeBillingService
                 structure.AcademicProgramId.HasValue && structure.AcademicProgramId != batch.AcademicProgramId)
                 return Error<InvoiceBatchResultDto>("Fee structure is not valid for this academic batch.", 409);
             if (!await CanAccessBillingCampusAsync(batch.CampusId, token))
-                return Error<InvoiceBatchResultDto>("Campus finance access denied.", 403);
+                return Error<InvoiceBatchResultDto>("Fee structure or campus unavailable.", 404);
             var lines = await (from line in _structureLines.GetQueryable().AsNoTracking()
                 join head in _heads.GetQueryable().AsNoTracking()
                     on new { line.TenantId, Id = line.FeeHeadId }

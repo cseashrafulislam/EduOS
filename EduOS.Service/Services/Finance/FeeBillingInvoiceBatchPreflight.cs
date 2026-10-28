@@ -52,7 +52,7 @@ public sealed partial class FeeBillingService
             return Error<InvoiceBatchPreflightDto>("Active BDT fee structure does not match the academic batch.", 409);
 
         if (!await CanAccessBillingCampusAsync(batch.CampusId, ct))
-            return Error<InvoiceBatchPreflightDto>("Campus finance access denied.", 403);
+            return Error<InvoiceBatchPreflightDto>("Fee structure or campus unavailable.", 404);
 
         var lines = await (from line in _structureLines.GetQueryable().AsNoTracking()
             join head in _heads.GetQueryable().AsNoTracking()

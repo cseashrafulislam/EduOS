@@ -78,8 +78,8 @@ public sealed class FeeInvoiceBatchPreflightTests
         await using var db = Database();
         Seed(db);
         var denied = await Service(db, "Accountant").PreviewInvoiceBatchAsync(Request());
-        denied.StatusCode.Should().Be(403);
-        (await Service(db, "Accountant").GenerateInvoicesAsync(Request())).StatusCode.Should().Be(403);
+        denied.StatusCode.Should().Be(404);
+        (await Service(db, "Accountant").GenerateInvoicesAsync(Request())).StatusCode.Should().Be(404);
         db.UserCampusAccesses.Add(new UserCampusAccess
         {
             TenantId = 41, UserId = 9, CampusId = 1, IsActive = true
