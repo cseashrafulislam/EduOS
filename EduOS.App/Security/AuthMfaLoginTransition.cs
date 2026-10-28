@@ -15,7 +15,7 @@ public enum MfaLoginConsumption
 /// of previous cookie sessions in one SQL transaction. Never performs browser
 /// cookie I/O or sends notifications inside the retryable transaction.
 /// </summary>
-public sealed class MfaLoginConflictException : Exception;
+public sealed class MfaLoginConflictException : Exception { }
 
 public static class AuthMfaLoginTransition
 {
