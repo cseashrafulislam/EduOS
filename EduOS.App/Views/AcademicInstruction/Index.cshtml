@@ -55,12 +55,20 @@
             <div class="card-body border-bottom">
                 <h4 class="h6">Schedule a substitution</h4>
                 <form id="substitutionForm" class="row g-2 align-items-end">
-                    <div class="col-lg-4"><label for="substitutionRoutine" class="form-label">Routine entry</label><select id="substitutionRoutine" class="form-select" required><option value="">Choose a batch</option></select></div>
+                    <div class="col-lg-2"><label for="substitutionDate" class="form-label">Date</label><input id="substitutionDate" type="date" class="form-control" required /></div>
+                    <div class="col-lg-4"><label for="substitutionRoutineSearch" class="form-label">Find scheduled routine</label>
+                        <div class="input-group"><input id="substitutionRoutineSearch" class="form-control" maxlength="100" placeholder="Subject, period or teacher" /><button id="substitutionRoutineFind" type="button" class="btn btn-outline-secondary">Find</button></div>
+                        <select id="substitutionRoutine" class="form-select mt-1" required><option value="">Select a date and batch</option></select>
+                        <div class="d-flex justify-content-between align-items-center gap-2 mt-1">
+                            <button id="substitutionRoutinePrevious" type="button" class="btn btn-sm btn-outline-secondary" disabled>Previous</button>
+                            <span id="substitutionRoutinePage" class="small text-muted" aria-live="polite">Page 1 / 1</span>
+                            <button id="substitutionRoutineNext" type="button" class="btn btn-sm btn-outline-secondary" disabled>Next</button>
+                        </div>
+                    </div>
                     <div class="col-lg-3"><label for="substitutionTeacherSearch" class="form-label">Find substitute teacher</label>
                         <div class="input-group"><input id="substitutionTeacherSearch" class="form-control" maxlength="100" placeholder="Name or code" />
                         <button id="substitutionTeacherFind" type="button" class="btn btn-outline-secondary">Find</button></div>
                         <select id="substitutionTeacher" class="form-select mt-1" required><option value="">Search teachers</option></select></div>
-                    <div class="col-lg-2"><label for="substitutionDate" class="form-label">Date</label><input id="substitutionDate" type="date" class="form-control" required /></div>
                     <div class="col-lg-3"><label for="substitutionReason" class="form-label">Reason</label><input id="substitutionReason" class="form-control" maxlength="500" /></div>
                     <div class="col-12"><button id="substitutionSave" class="btn btn-primary" type="submit">Schedule substitution</button></div>
                 </form>
