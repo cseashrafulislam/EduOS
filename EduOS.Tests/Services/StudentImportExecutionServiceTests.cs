@@ -10,6 +10,9 @@ using EduOS.Core.Entities.Students;
 using EduOS.Core.Entities.System;
 using EduOS.Core.Interfaces;
 using EduOS.Core.Interfaces.IRepositories;
+using EduOS.Core.Interfaces.IServices;
+using EduOS.Core.Common;
+using EduOS.Core.DTOs.Students;
 using EduOS.Persistence.Context;
 using EduOS.Persistence.Repositories;
 using EduOS.Service.Services.Students;
@@ -57,7 +60,8 @@ public sealed class StudentImportExecutionServiceTests
         });
         await db.SaveChangesAsync();
     }
-    private static StudentImportExecutionService Service(EduOSDbContext db, ICurrentUserService user, IUnitOfWork? unitOfWork = null)
+    private static StudentImportExecutionService Service(EduOSDbContext db, ICurrentUserService user,
+        IUnitOfWork? unitOfWork = null, IStudentImportPreviewService? previewOverride = null)
     {
         var students = new GenericRepository<Student>(db);
         var enrollments = new GenericRepository<StudentEnrollment>(db);
@@ -67,7 +71,7 @@ public sealed class StudentImportExecutionServiceTests
         var preview = new StudentImportPreviewService(students, enrollments, batches,
             new GenericRepository<Campus>(db), logs, items, user,
             NullLogger<StudentImportPreviewService>.Instance);
-        return new StudentImportExecutionService(preview, students, enrollments,
+        return new StudentImportExecutionService(previewOverride ?? preview, students, enrollments,
             new GenericRepository<StudentPersonLink>(db),
             new GenericRepository<Person>(db), new GenericRepository<Guardian>(db),
             new GenericRepository<StudentGuardian>(db), batches,
@@ -912,6 +916,83 @@ public sealed class StudentImportExecutionServiceTests
             .GetIntegrityAsync(reference)).StatusCode);
         Assert.Equal(403, (await Service(db, new User(101, false))
             .GetIntegrityAsync(reference)).StatusCode);
+    }
+
+    [Fact]
+    public async Task Transactional_preview_failure_uses_rollback_path_not_error_response_commit()
+    {
+        var options = Options();
+        await SeedAsync(options);
+        await using var db = Context(options, 101);
+        var user = new User(101, true);
+        var realPreview = new StudentImportPreviewService(
+            new GenericRepository<Student>(db), new GenericRepository<StudentEnrollment>(db),
+            new GenericRepository<AcademicBatch>(db), new GenericRepository<Campus>(db),
+            new GenericRepository<ImportLog>(db), new GenericRepository<ImportLogItem>(db),
+            user, NullLogger<StudentImportPreviewService>.Instance);
+        var failingPreview = new FailOnSecondTransactionalPreview(realPreview);
+        var transaction = new TransactionProbeUow(db);
+        var service = Service(db, user, transaction, failingPreview);
+        using var csv = Csv(Header + "ROLLBACK-SRC,ROLLBACK-STU,Student One,10,20,11,,\n");
+
+        var result = await service.ExecuteAsync(csv, ".csv", Mapping, Guid.NewGuid());
+
+        Assert.False(result.Success);
+        Assert.Equal(500, result.StatusCode);
+        Assert.Equal(2, failingPreview.Calls);
+        Assert.Equal(0, transaction.Commits);
+        Assert.Equal(1, transaction.Rollbacks);
+        Assert.Empty(await db.Students.ToListAsync());
+        Assert.Empty(await db.ImportLogs.ToListAsync());
+    }
+
+    private sealed class FailOnSecondTransactionalPreview(IStudentImportPreviewService inner)
+        : IStudentImportPreviewService
+    {
+        public int Calls { get; private set; }
+        public Task<ApiResponse<IReadOnlyList<string>>> GetHeadersAsync(
+            Stream content, string extension, CancellationToken token = default)
+            => inner.GetHeadersAsync(content, extension, token);
+        public Task<ApiResponse<StudentImportPreviewDto>> PreviewAsync(
+            Stream content, string extension, IReadOnlyDictionary<string, string> mapping,
+            CancellationToken token = default)
+            => inner.PreviewAsync(content, extension, mapping, token);
+        public Task<ApiResponse<StudentImportPreviewDto>> PreviewAllErrorsAsync(
+            Stream content, string extension, IReadOnlyDictionary<string, string> mapping,
+            CancellationToken token = default)
+            => inner.PreviewAllErrorsAsync(content, extension, mapping, token);
+        public Task<ApiResponse<StudentImportPreviewDto>> PreviewForExecutionAsync(
+            Stream content, string extension, IReadOnlyDictionary<string, string> mapping,
+            CancellationToken token = default)
+        {
+            if (++Calls == 2)
+                throw new InvalidOperationException("Synthetic transactional preview infrastructure failure.");
+            return inner.PreviewForExecutionAsync(content, extension, mapping, token);
+        }
+    }
+
+    private sealed class TransactionProbeUow(EduOSDbContext db) : IUnitOfWork
+    {
+        public int Commits { get; private set; }
+        public int Rollbacks { get; private set; }
+        public Task<int> SaveChangesAsync(CancellationToken token = default) => db.SaveChangesAsync(token);
+        public Task<T> ExecuteInTransactionAsync<T>(Func<CancellationToken, Task<T>> operation,
+            CancellationToken token = default) => ExecuteInTransactionAsync(operation, IsolationLevel.Serializable, token);
+        public async Task<T> ExecuteInTransactionAsync<T>(Func<CancellationToken, Task<T>> operation,
+            IsolationLevel isolationLevel, CancellationToken token = default)
+        {
+            try
+            {
+                var result = await operation(token);
+                Commits++;
+                return result;
+            }
+            catch
+            {
+                Rollbacks++;
+                throw;
+            }
+        }
     }
 
     private sealed class CountingUow(EduOSDbContext db) : IUnitOfWork

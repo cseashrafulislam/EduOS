@@ -81,6 +81,12 @@ public sealed class StudentImportPreviewService : IStudentImportPreviewService
         CancellationToken cancellationToken = default)
         => PreviewCoreAsync(content, extension, mapping, MaxReportedErrors, cancellationToken);
 
+    public Task<ApiResponse<StudentImportPreviewDto>> PreviewForExecutionAsync(
+        Stream content, string extension, IReadOnlyDictionary<string, string> mapping,
+        CancellationToken cancellationToken = default)
+        => PreviewCoreAsync(content, extension, mapping, MaxReportedErrors, cancellationToken,
+            propagateInfrastructureErrors: true);
+
     public Task<ApiResponse<StudentImportPreviewDto>> PreviewAllErrorsAsync(
         Stream content, string extension, IReadOnlyDictionary<string, string> mapping,
         CancellationToken cancellationToken = default)
@@ -88,7 +94,8 @@ public sealed class StudentImportPreviewService : IStudentImportPreviewService
 
     private async Task<ApiResponse<StudentImportPreviewDto>> PreviewCoreAsync(
         Stream content, string extension, IReadOnlyDictionary<string, string> mapping,
-        int errorLimit, CancellationToken cancellationToken)
+        int errorLimit, CancellationToken cancellationToken,
+        bool propagateInfrastructureErrors = false)
     {
         if (!CanManage()) return ApiResponse<StudentImportPreviewDto>.ErrorResponse("Student import access denied.", 403);
         if (mapping == null) return ApiResponse<StudentImportPreviewDto>.ErrorResponse("Column mapping is required.", 400);
@@ -262,6 +269,13 @@ public sealed class StudentImportPreviewService : IStudentImportPreviewService
         catch (Exception ex) when (ex is FormatException or InvalidDataException or ArgumentException)
         {
             return ApiResponse<StudentImportPreviewDto>.ErrorResponse("Invalid import file: " + ex.Message, 400);
+        }
+        catch (Exception) when (propagateInfrastructureErrors)
+        {
+            // An EF/SQL failure inside a serializable import transaction must escape
+            // to the unit of work. Returning HTTP 500 as a normal result would
+            // attempt CommitAsync on a possibly aborted/deadlock-victim transaction.
+            throw;
         }
         catch (Exception ex)
         {

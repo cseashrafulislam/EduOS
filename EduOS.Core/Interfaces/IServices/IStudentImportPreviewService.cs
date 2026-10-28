@@ -12,6 +12,15 @@ public interface IStudentImportPreviewService
     Task<ApiResponse<StudentImportPreviewDto>> PreviewAsync(
         Stream content, string extension, IReadOnlyDictionary<string, string> mapping,
         CancellationToken cancellationToken = default);
+    /// <summary>
+    /// Transactional preflight must propagate infrastructure failures so the caller
+    /// rolls back rather than committing an aborted SQL transaction with an error response.
+    /// Ordinary invalid rows still return a validation response.
+    /// </summary>
+    Task<ApiResponse<StudentImportPreviewDto>> PreviewForExecutionAsync(
+        Stream content, string extension, IReadOnlyDictionary<string, string> mapping,
+        CancellationToken cancellationToken = default);
+
     Task<ApiResponse<StudentImportPreviewDto>> PreviewAllErrorsAsync(
         Stream content, string extension, IReadOnlyDictionary<string, string> mapping,
         CancellationToken cancellationToken = default);
