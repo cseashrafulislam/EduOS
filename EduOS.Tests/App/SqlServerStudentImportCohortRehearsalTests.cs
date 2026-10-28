@@ -15,6 +15,7 @@ using EduOS.Persistence.Context;
 using EduOS.Persistence.Repositories;
 using EduOS.Service.Services.Students;
 using Microsoft.AspNetCore.Http;
+using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
@@ -60,6 +61,14 @@ public sealed class SqlServerStudentImportCohortRehearsalTests
         var connection = Environment.GetEnvironmentVariable(ConnectionVariable);
         Assert.False(string.IsNullOrWhiteSpace(connection),
             "The 40K rehearsal requires an explicitly configured disposable SQL connection.");
+        // Fail closed: this destructive-volume synthetic test is permitted only
+        // on the loopback disposable SQL database created by the smoke workflow.
+        var target = new SqlConnectionStringBuilder(connection);
+        Assert.True(string.Equals(target.DataSource, "127.0.0.1,14333",
+                StringComparison.OrdinalIgnoreCase) &&
+            string.Equals(target.InitialCatalog, "EduOS_MigrationSmoke",
+                StringComparison.OrdinalIgnoreCase),
+            "40K rehearsal refused: only disposable loopback SQL Server is allowed.");
         await RunScenarioAsync(connection!, fileCount: 8, rowsPerFile: 5000);
     }
 
