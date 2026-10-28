@@ -1,0 +1,54 @@
+@{
+    ViewData["Title"] = "Historical Grade Distribution";
+}
+<section class="container-fluid py-3" id="gradeDistributionWorkspace">
+    <header class="d-flex flex-wrap align-items-center gap-2 mb-3">
+        <h1 class="h4 mb-0">Historical grade distribution</h1>
+        <details class="ms-auto small">
+            <summary class="btn btn-sm btn-outline-secondary" aria-label="Grade distribution help">ⓘ</summary>
+            <div class="border rounded p-2 mt-1" style="max-width:22rem" role="note">
+                Select an assessment and batch, then a finalized publication version. Counts and grades
+                come from its immutable saved snapshot, not current marks. Withdrawn versions remain historical.
+            </div>
+        </details>
+    </header>
+    <div id="gradeDistributionNotice" class="d-none" role="alert" aria-live="polite"></div>
+    <form id="gradeScopeSearch" class="card card-body mb-3" role="search">
+        <div class="row g-2 align-items-end">
+            <div class="col-md-5">
+                <label class="form-label" for="gradeScopeTerm">Assessment, batch or subject</label>
+                <input id="gradeScopeTerm" type="search" maxlength="100" class="form-control" />
+            </div>
+            <div class="col-auto"><button class="btn btn-outline-primary" type="submit">Search</button></div>
+            <div class="col-auto"><button class="btn btn-outline-secondary" type="button" id="gradeScopePrev">Previous</button></div>
+            <div class="col-auto"><button class="btn btn-outline-secondary" type="button" id="gradeScopeNext">Next</button></div>
+            <div class="col-auto"><span id="gradeScopePage" role="status" aria-live="polite" class="small text-muted"></span></div>
+        </div>
+        <div class="row g-2 mt-1">
+            <div class="col-md-6"><label class="form-label" for="gradeScope">Authorized assessment / batch</label>
+                <select id="gradeScope" class="form-select"><option value="">Select scope</option></select></div>
+            <div class="col-md-6"><label class="form-label" for="gradeVersion">Finalized publication version</label>
+                <select id="gradeVersion" class="form-select" disabled><option value="">Select scope first</option></select></div>
+        </div>
+        <div class="d-flex flex-wrap gap-2 mt-2">
+            <button type="button" class="btn btn-primary" id="gradeLoad" disabled>Load distribution</button>
+            <button type="button" class="btn btn-outline-secondary" id="gradeCsv" disabled>CSV</button>
+            <button type="button" class="btn btn-outline-secondary" id="gradePrint" disabled>Print</button>
+        </div>
+    </form>
+    <section class="card" aria-labelledby="gradeReportTitle">
+        <div class="card-header">
+            <h2 class="h6 mb-0" id="gradeReportTitle">Grade distribution</h2>
+            <span id="gradeReportScope" class="small text-muted" role="status" aria-live="polite"></span>
+        </div>
+        <div class="card-body"><div id="gradeTotals" class="fw-semibold" aria-live="polite">Select a finalized publication.</div></div>
+        <div class="table-responsive">
+            <table class="table table-sm table-hover mb-0">
+                <thead><tr><th scope="col">Grade</th><th scope="col">Outcome</th><th scope="col" class="text-end">Students</th><th scope="col" class="text-end">Total marks obtained</th><th scope="col" class="text-end">Average %</th><th scope="col" class="text-end">Average GPA</th></tr></thead>
+                <tbody id="gradeRows"><tr><td colspan="6">No publication selected.</td></tr></tbody>
+            </table>
+        </div>
+    </section>
+</section>
+<style>@@media print { #gradeScopeSearch, #gradeDistributionNotice, header details { display:none!important; } }</style>
+@section Scripts { <script src="~/js/assessment/grade-distribution.js" asp-append-version="true"></script> }
