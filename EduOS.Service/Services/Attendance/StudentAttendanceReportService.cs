@@ -19,6 +19,119 @@ public sealed class StudentAttendanceReportService(
 {
 
     /// <summary>
+    /// Manager-only readback of the marks posted to one finalized session.
+    /// Historical enrollment/roll is authoritative; active year, current enrollment,
+    /// current student status and current subject registration must not alter history.
+    /// </summary>
+    public async Task<ApiResponse<StudentAttendanceRosterDto>> GetFinalizedSessionRosterAsync(
+        long sessionId, int page = 1, int pageSize = 50,
+        CancellationToken cancellationToken = default)
+    {
+        if (!user.IsAuthenticated || user.TenantId <= 0 ||
+            !(user.IsTenantAdmin || user.IsInRole("Principal") || user.IsInRole("VicePrincipal")))
+            return ApiResponse<StudentAttendanceRosterDto>.ErrorResponse(
+                "Attendance report permission is required.", 403);
+        if (sessionId <= 0 || page < 1 || pageSize is < 1 or > 100 ||
+            (long)(page - 1) * pageSize > int.MaxValue)
+            return ApiResponse<StudentAttendanceRosterDto>.ErrorResponse(
+                "Invalid historical session or page.");
+
+        var tenant = user.TenantId;
+        try
+        {
+            var session = await db.AttendanceSessions.AsNoTracking()
+                .Where(x => x.TenantId == tenant && x.Id == sessionId &&
+                    x.IsFinalized && !x.IsDeleted)
+                .Select(x => new { x.Id, x.AcademicBatchId, x.AttendanceDate, x.SubjectOfferingId })
+                .SingleOrDefaultAsync(cancellationToken);
+            if (session == null)
+                return ApiResponse<StudentAttendanceRosterDto>.ErrorResponse(
+                    "Finalized attendance session not found.", 404);
+
+            var campusId = await GetAuthorizedCampusIdAsync(
+                tenant, session.AcademicBatchId, cancellationToken);
+            if (!campusId.HasValue)
+                return ApiResponse<StudentAttendanceRosterDto>.ErrorResponse(
+                    "Finalized attendance session not found.", 404);
+
+            // Inactive archived offerings are valid; a deleted or foreign offering is not.
+            if (session.SubjectOfferingId.HasValue &&
+                !await db.SubjectOfferings.AsNoTracking().AnyAsync(x =>
+                    x.TenantId == tenant && x.Id == session.SubjectOfferingId.Value &&
+                    x.AcademicBatchId == session.AcademicBatchId && !x.IsDeleted,
+                    cancellationToken))
+                return ApiResponse<StudentAttendanceRosterDto>.ErrorResponse(
+                    "Finalized attendance session not found.", 404);
+
+            var posted = from mark in db.StudentAttendances.AsNoTracking()
+                join enrollment in db.StudentEnrollments.AsNoTracking()
+                    on mark.StudentEnrollmentId equals enrollment.Id
+                join student in db.Students.AsNoTracking()
+                    on enrollment.StudentId equals student.Id
+                where mark.TenantId == tenant && enrollment.TenantId == tenant &&
+                    student.TenantId == tenant && mark.AttendanceSessionId == session.Id &&
+                    !mark.IsDeleted && !enrollment.IsDeleted && !student.IsDeleted &&
+                    enrollment.AcademicBatchId == session.AcademicBatchId &&
+                    enrollment.CampusId == campusId.Value
+                select new
+                {
+                    mark.Id, mark.State, mark.CheckInTime, mark.CheckOutTime,
+                    mark.Remarks, mark.RowVersion,
+                    EnrollmentReference = enrollment.PublicId,
+                    StudentReference = student.PublicId,
+                    enrollment.RollNo, student.StudentCode, StudentName = student.FullName,
+                    EnrollmentId = enrollment.Id
+                };
+
+            var total = await posted.CountAsync(cancellationToken);
+            var counts = await posted.GroupBy(x => x.State)
+                .Select(g => new { State = g.Key, Count = g.Count() })
+                .ToListAsync(cancellationToken);
+            var rows = await posted.OrderBy(x => x.RollNo).ThenBy(x => x.StudentName)
+                .ThenBy(x => x.EnrollmentId).ThenBy(x => x.Id)
+                .Skip((page - 1) * pageSize).Take(pageSize).ToListAsync(cancellationToken);
+            int CountState(AttendanceState state) =>
+                counts.Where(x => x.State == state).Sum(x => x.Count);
+            var roster = new StudentAttendanceRosterDto
+            {
+                Page = page, PageSize = pageSize,
+                TotalPages = total == 0 ? 0 : (total - 1) / pageSize + 1,
+                AttendanceSessionId = session.Id, AcademicBatchId = session.AcademicBatchId,
+                AttendanceDate = session.AttendanceDate, IsFinalized = true,
+                IsHistoricalReadOnly = true,
+                Students = rows.Select(x => new StudentAttendanceDto
+                {
+                    Id = x.Id, AttendanceSessionId = session.Id,
+                    StudentEnrollmentReference = x.EnrollmentReference,
+                    StudentReference = x.StudentReference,
+                    StudentCode = x.StudentCode, StudentName = x.StudentName,
+                    RollNo = x.RollNo, State = x.State, CheckInTime = x.CheckInTime,
+                    CheckOutTime = x.CheckOutTime, Remarks = x.Remarks,
+                    RowVersion = x.RowVersion == null ? string.Empty :
+                        Convert.ToBase64String(x.RowVersion)
+                }).ToList(),
+                Summary = new StudentAttendanceSummaryDto
+                {
+                    TotalStudents = total, Marked = total, Unmarked = 0,
+                    Present = CountState(AttendanceState.Present),
+                    Absent = CountState(AttendanceState.Absent),
+                    Late = CountState(AttendanceState.Late),
+                    Leave = CountState(AttendanceState.Leave),
+                    Excused = CountState(AttendanceState.Excused)
+                }
+            };
+            return ApiResponse<StudentAttendanceRosterDto>.SuccessResponse(roster);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Historical attendance roster read failed for tenant {TenantId}", tenant);
+            return ApiResponse<StudentAttendanceRosterDto>.ErrorResponse(
+                "Historical attendance roster could not be loaded.", 500);
+        }
+    }
+
+    /// <summary>
     /// Historical (including inactive) offerings, SQL-paged and campus-authorized.
     /// No student names or marks are returned by the picker.
     /// </summary>

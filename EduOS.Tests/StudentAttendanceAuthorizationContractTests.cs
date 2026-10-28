@@ -10,6 +10,24 @@ namespace EduOS.Tests;
 public sealed class StudentAttendanceAuthorizationContractTests
 {
     [Fact]
+    public void Historical_roster_endpoint_is_manager_only_no_store_and_read_only()
+    {
+        var controller = typeof(StudentAttendanceReportsController);
+        var roles = Assert.Single(controller.GetCustomAttributes(typeof(AuthorizeAttribute), true)
+            .Cast<AuthorizeAttribute>().Where(x => !string.IsNullOrWhiteSpace(x.Roles)));
+        Assert.Equal("TenantAdmin,Principal,VicePrincipal", roles.Roles);
+        Assert.True(Assert.Single(controller.GetCustomAttributes(typeof(ResponseCacheAttribute), true)
+            .Cast<ResponseCacheAttribute>()).NoStore);
+        var action = controller.GetMethod(nameof(StudentAttendanceReportsController.FinalizedSessionRoster))!;
+        Assert.Equal("sessions/{sessionId:long}/roster",
+            Assert.Single(action.GetCustomAttributes(typeof(HttpGetAttribute), true)
+                .Cast<HttpGetAttribute>()).Template);
+        Assert.Empty(action.GetCustomAttributes(typeof(HttpPostAttribute), true));
+        Assert.NotNull(typeof(EduOS.Core.Interfaces.IServices.IStudentAttendanceReportService)
+            .GetMethod("GetFinalizedSessionRosterAsync"));
+    }
+
+    [Fact]
     public void Attendance_controller_keeps_role_module_antiforgery_rate_limit_and_no_store_boundaries()
     {
         var controller = typeof(StudentAttendanceController);

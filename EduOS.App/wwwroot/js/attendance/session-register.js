@@ -106,6 +106,7 @@
                 open.addEventListener('click', () => document.dispatchEvent(
                     new CustomEvent('attendance:session-open', { detail: {
                         sessionId: item.sessionId,
+                        isFinalized: item.isFinalized === true,
                         academicBatchId: params.get('academicBatchId'),
                         attendanceDate: item.attendanceDate,
                         subjectOfferingId: item.subjectOfferingId,

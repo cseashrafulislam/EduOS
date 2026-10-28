@@ -172,6 +172,8 @@ public sealed class StudentAttendanceRosterDto
     public int PageSize { get; set; } = 2000;
     public int TotalPages { get; set; }
     public bool IsFinalized { get; set; }
+    /// <summary>True only for posted historical marks, never an editable active roster.</summary>
+    public bool IsHistoricalReadOnly { get; set; }
     public long AttendanceSessionId { get; set; }
     public string SessionRowVersion { get; set; } = string.Empty;
     public long AcademicBatchId { get; set; }

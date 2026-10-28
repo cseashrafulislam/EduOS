@@ -43,6 +43,15 @@ public sealed class StudentAttendanceReportsController(IStudentAttendanceReportS
         return StatusCode(result.StatusCode, result);
     }
 
+    [HttpGet("sessions/{sessionId:long}/roster")]
+    public async Task<IActionResult> FinalizedSessionRoster(
+        long sessionId, [FromQuery] int page = 1, [FromQuery] int pageSize = 50,
+        CancellationToken ct = default)
+    {
+        var result = await service.GetFinalizedSessionRosterAsync(sessionId, page, pageSize, ct);
+        return StatusCode(result.StatusCode, result);
+    }
+
     [HttpGet("sessions/summary")]
     public async Task<IActionResult> SessionOverview([FromQuery] StudentAttendanceReportQueryDto query,
         CancellationToken ct)

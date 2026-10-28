@@ -639,6 +639,73 @@ public sealed class StudentAttendanceReportWorkflowTests
         Assert.Equal(404, (await principal.GetSessionOverviewAsync(Query())).StatusCode);
     }
 
+    [Fact]
+    public async Task Finalized_session_roster_reads_archived_offering_and_promoted_learner_without_current_registration()
+    {
+        await using var db = Context(71);
+        db.AcademicBatches.Add(new AcademicBatch { Id = 10, TenantId = 71, CampusId = 8,
+            Name = "Archived cohort", Code = "OLD", IsActive = false });
+        db.SubjectOfferings.Add(new SubjectOffering { Id = 61, TenantId = 71,
+            AcademicBatchId = 10, Code = "ARCH", IsActive = false });
+        db.Students.Add(new Student { Id = 20, TenantId = 71, StudentCode = "ST20",
+            FullName = "Archived learner", StatusCode = "Inactive",
+            AdmissionDate = new DateOnly(2025, 1, 1) });
+        db.StudentEnrollments.Add(new StudentEnrollment { Id = 30, TenantId = 71,
+            StudentId = 20, AcademicBatchId = 10, CampusId = 8,
+            RollNo = "HIST-09", IsCurrent = false });
+        db.AttendanceSessions.Add(new AttendanceSession { Id = 40, TenantId = 71,
+            AcademicBatchId = 10, SubjectOfferingId = 61,
+            AttendanceDate = new DateOnly(2026, 10, 5), IsFinalized = true });
+        db.StudentAttendances.Add(new StudentAttendance { Id = 50, TenantId = 71,
+            AttendanceSessionId = 40, StudentEnrollmentId = 30, State = AttendanceState.Present });
+        await db.SaveChangesAsync();
+
+        var service = Service(db, 71);
+        var result = await service.GetFinalizedSessionRosterAsync(40);
+        Assert.True(result.Success, result.Message);
+        Assert.True(result.Data!.IsFinalized);
+        Assert.True(result.Data.IsHistoricalReadOnly);
+        Assert.Equal(40, result.Data.AttendanceSessionId);
+        Assert.Equal(1, result.Data.Summary.Marked);
+        Assert.Equal(0, result.Data.Summary.Unmarked);
+        var row = Assert.Single(result.Data.Students);
+        Assert.Equal("HIST-09", row.RollNo);
+        Assert.Equal("Archived learner", row.StudentName);
+        Assert.Equal(AttendanceState.Present, row.State);
+        Assert.Equal(400, (await service.GetFinalizedSessionRosterAsync(40, pageSize: 101)).StatusCode);
+        Assert.Equal(0, (await service.GetFinalizedSessionRosterAsync(40, page: 2, pageSize: 1))
+            .Data!.Students.Count);
+    }
+
+    [Fact]
+    public async Task Finalized_session_roster_denies_teacher_cross_tenant_campus_revocation_and_draft()
+    {
+        await using var db = Context(71);
+        db.AcademicBatches.Add(new AcademicBatch { Id = 10, TenantId = 71, CampusId = 8,
+            Name = "Cohort", Code = "C" });
+        db.Campuses.Add(new Campus { Id = 8, TenantId = 71,
+            Name = "North", Code = "N", IsActive = true });
+        db.UserCampusAccesses.Add(new UserCampusAccess { Id = 101, TenantId = 71,
+            UserId = 7, CampusId = 8, IsActive = true });
+        db.AttendanceSessions.AddRange(
+            new AttendanceSession { Id = 40, TenantId = 71, AcademicBatchId = 10,
+                AttendanceDate = new DateOnly(2026, 10, 5), IsFinalized = true },
+            new AttendanceSession { Id = 41, TenantId = 71, AcademicBatchId = 10,
+                AttendanceDate = new DateOnly(2026, 10, 6), IsFinalized = false });
+        await db.SaveChangesAsync();
+
+        var principal = Service(db, 71, manager: false, principal: true);
+        Assert.True((await principal.GetFinalizedSessionRosterAsync(40)).Success);
+        Assert.Equal(403, (await Service(db, 71, manager: false)
+            .GetFinalizedSessionRosterAsync(40)).StatusCode);
+        Assert.Equal(404, (await Service(db, 72).GetFinalizedSessionRosterAsync(40)).StatusCode);
+        Assert.Equal(404, (await principal.GetFinalizedSessionRosterAsync(41)).StatusCode);
+        Assert.Equal(404, (await principal.GetFinalizedSessionRosterAsync(999)).StatusCode);
+        db.UserCampusAccesses.Single().IsActive = false;
+        await db.SaveChangesAsync();
+        Assert.Equal(404, (await principal.GetFinalizedSessionRosterAsync(40)).StatusCode);
+    }
+
     private static StudentAttendanceReportQueryDto Query() => new() {
         AcademicBatchId = 10, FromDate = new DateOnly(2026, 10, 1),
         ToDate = new DateOnly(2026, 10, 10)
