@@ -74,7 +74,8 @@ public sealed class AssessmentMarkReviewWorkflowContractTests
         freeze.Should().Contain("ResultPublicationState.Withdrawn");
         marks.Should().Contain("HasFinalizedPublicationAsync(exam.Id, offering.AcademicBatchId");
         parts.Should().Contain("HasFinalizedPublicationAsync(exam.Id, batch.Id");
-        setup.Should().Contain("HasFinalizedPublicationAsync(exam.Id, batch.Id");
+        setup.Should().Contain("HasAnyFinalizedPublicationAsync(exam.Id, token");
+        parts.Should().Contain("HasAnyFinalizedPublicationAsync(exam.Id, token");
         reviews.Should().Contain("HasFinalizedPublicationAsync(exam.Id, batch.Id");
         reviews.Should().Contain("CanReview = !finalized");
         context.Should().Contain("if (entry.Entity is StudentResultSummary)");

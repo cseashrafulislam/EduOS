@@ -40,7 +40,7 @@ public sealed partial class AssessmentAdministrationService
                 x.TenantId == tenant && x.Id == offering.AcademicBatchId && x.IsActive && !x.IsDeleted, token);
             if (batch == null || batch.CampusId != exam.CampusId || batch.AcademicYearId != exam.AcademicYearId)
                 return Error<AssessmentComponentDto>("Subject offering is outside assessment campus/year.", 409);
-            if (await HasFinalizedPublicationAsync(exam.Id, batch.Id, token))
+            if (await HasAnyFinalizedPublicationAsync(exam.Id, token))
                 return Error<AssessmentComponentDto>(
                     "Finalized result history prevents marking scheme changes.", 409);
             var old = componentId.HasValue ? await _components.GetQueryable().FirstOrDefaultAsync(x =>
