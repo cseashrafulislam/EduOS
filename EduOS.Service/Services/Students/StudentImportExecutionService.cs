@@ -398,6 +398,15 @@ public sealed partial class StudentImportExecutionService : IStudentImportExecut
         {
             return ApiResponse<StudentImportExecutionDto>.ErrorResponse("Invalid import file or mapping: " + ex.Message, 400);
         }
+        catch (Microsoft.Data.SqlClient.SqlException ex) when (ex.Number is 1205 or 3960 or 1222)
+        {
+            // A competing serializable importer can be selected as a SQL deadlock
+            // victim or lose its lock. The transaction has rolled back: surface a
+            // retryable conflict, never claim that any student was committed.
+            _logger.LogWarning(ex, "Concurrent student import allocation conflict for tenant {TenantId}", _user.TenantId);
+            return ApiResponse<StudentImportExecutionDto>.ErrorResponse(
+                "Another import changed this allocation. Re-run preview and retry.", 409);
+        }
         catch (DbUpdateException ex)
         {
             _logger.LogWarning(ex, "Student import integrity conflict for tenant {TenantId}", _user.TenantId);
