@@ -1028,7 +1028,7 @@ public sealed class StudentImportExecutionServiceTests
             user, NullLogger<StudentImportPreviewService>.Instance);
         var preview = new LockOrderPreview(realPreview, () => counting.SaveCount);
         var service = Service(db, user, counting, preview);
-        using var csv = Csv(Header + "LOCK-SRC,LOCK-STU,Student One,10,20,11,,\\n");
+        using var csv = Csv(Header + "LOCK-SRC,LOCK-STU,Student One,10,20,11,,\n");
 
         var result = await service.ExecuteAsync(csv, ".csv", Mapping, Guid.NewGuid());
 
@@ -1048,7 +1048,7 @@ public sealed class StudentImportExecutionServiceTests
         var transaction = new TransactionProbeUow(db);
         var preview = new RejectTransactionalPreview();
         var service = Service(db, user, transaction, preview);
-        using var csv = Csv(Header + "REJECT-SRC,REJECT-STU,Student One,10,20,11,,\\n");
+        using var csv = Csv(Header + "REJECT-SRC,REJECT-STU,Student One,10,20,11,,\n");
 
         var result = await service.ExecuteAsync(csv, ".csv", Mapping, Guid.NewGuid());
 
