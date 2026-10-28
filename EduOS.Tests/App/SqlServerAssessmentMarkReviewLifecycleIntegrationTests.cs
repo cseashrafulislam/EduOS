@@ -74,7 +74,8 @@ public sealed class SqlServerAssessmentMarkReviewLifecycleIntegrationTests
             Assert.True(replay.Success, replay.Message);
             var changedPayload = await service.DecideMarkReviewAsync(subjectId,
                 Decision(submissionKey, initialAssessmentVersion, AssessmentMarkReviewDecision.Rejected, "Altered"));
-            Assert.Equal(409, changedPayload.StatusCode);
+            // Authorization rejects a teacher trying to forge a reviewer decision before replay checks.
+            Assert.Equal(403, changedPayload.StatusCode);
             var mark = await db.StudentAssessmentMarks.AsNoTracking()
                 .SingleAsync(x => x.AssessmentSubjectId == subjectId);
             var blocked = await service.SaveMarksRegisterAsync(MarkChange(
@@ -91,6 +92,10 @@ public sealed class SqlServerAssessmentMarkReviewLifecycleIntegrationTests
             var pending = await service.GetMarkReviewAsync(subjectId);
             Assert.True(pending.Success, pending.Message);
             Assert.True(pending.Data!.CanReview);
+            var reusedTeacherKey = await service.DecideMarkReviewAsync(subjectId,
+                Decision(submissionKey, pending.Data.AssessmentRowVersion,
+                    AssessmentMarkReviewDecision.Rejected, "Forged review"));
+            Assert.Equal(409, reusedTeacherKey.StatusCode);
             var rejected = await service.DecideMarkReviewAsync(subjectId,
                 Decision(Guid.NewGuid(), pending.Data.AssessmentRowVersion,
                     AssessmentMarkReviewDecision.Rejected, "Component totals require checking"));
