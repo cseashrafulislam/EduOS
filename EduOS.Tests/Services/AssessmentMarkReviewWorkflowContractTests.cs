@@ -33,6 +33,21 @@ public sealed class AssessmentMarkReviewWorkflowContractTests
     }
 
     [Fact]
+    public void Teacher_submission_checks_component_values_and_orphaned_evidence_in_sql()
+    {
+        var service = Read("EduOS.Service/Services/Assessment/AssessmentAdministrationService.MarkReviews.cs");
+        service.Should().Contain("var allDetails = from part in _componentMarks");
+        service.Should().Contain("await allDetails.LongCountAsync(token)");
+        service.Should().Contain("var reconciled = from item in joined");
+        service.Should().Contain("group item by new");
+        service.Should().Contain("Math.Round(x.WeightedMarks * subject.FullMarks / 100m, 2)");
+        service.Should().Contain("x.AbsentCount == components.Count");
+        service.Should().Contain("Component totals, absence flags or subject marks require reconciliation.");
+        service.Should().Contain("Unexpected component marks require reconciliation.");
+        service.Should().Contain("(!mark.IsAbsent || mark.ObtainedMarks == 0m)");
+    }
+
+    [Fact]
     public void Mark_writes_and_lock_enforce_review_evidence()
     {
         var marks = Read("EduOS.Service/Services/Assessment/AssessmentAdministrationService.cs");

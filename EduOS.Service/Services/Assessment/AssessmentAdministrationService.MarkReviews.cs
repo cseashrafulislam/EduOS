@@ -114,27 +114,87 @@ public sealed partial class AssessmentAdministrationService
                     join registrationId in eligible on mark.StudentSubjectRegistrationId equals registrationId
                     where mark.TenantId == tenant && mark.AssessmentSubjectId == subjectId &&
                         !mark.IsDeleted && !mark.IsWithheld &&
+                        (!mark.IsAbsent || mark.ObtainedMarks == 0m) &&
                         mark.ObtainedMarks >= 0 && mark.ObtainedMarks <= subject.FullMarks
                     select mark.Id).CountAsync(token);
                 if (expected == 0 || recorded != expected || matched != expected)
                     return Error<AssessmentMarkReviewDto>("Marks are incomplete, withheld or inconsistent with eligible registrations.", 409);
+                // Submission must reconcile component values, not merely count rows.
+                // All aggregates execute in SQL; no cohort-sized marks list is materialized.
                 var components = await _components.GetQueryable().AsNoTracking().Where(x =>
                     x.TenantId == tenant && x.AssessmentSubjectId == subjectId && !x.IsDeleted)
-                    .Select(x => new { x.Id, x.Weightage }).ToListAsync(token);
-                if (components.Count > 0)
+                    .Select(x => new { x.Id, x.Weightage, x.FullMarks, x.PassMarks })
+                    .Take(51).ToListAsync(token);
+                if (components.Count > 50 || components.Any(x =>
+                        x.FullMarks <= 0m || x.PassMarks < 0m || x.PassMarks > x.FullMarks ||
+                        x.Weightage <= 0m || x.Weightage > 100m) ||
+                    components.Count > 0 && components.Sum(x => x.Weightage) != 100m)
+                    return Error<AssessmentMarkReviewDto>("Component weighting requires reconciliation.", 409);
+
+                // Include details referencing deleted/unconfigured components; an inner join
+                // alone would otherwise hide orphaned historical evidence.
+                var allDetails = from part in _componentMarks.GetQueryable().AsNoTracking()
+                    join mark in _marks.GetQueryable().AsNoTracking()
+                        on part.StudentAssessmentMarkId equals mark.Id
+                    where part.TenantId == tenant && mark.TenantId == tenant &&
+                        mark.AssessmentSubjectId == subjectId && !part.IsDeleted && !mark.IsDeleted
+                    select part.Id;
+                if (components.Count == 0)
                 {
-                    if (components.Count > 50 || components.Sum(x => x.Weightage) != 100m)
-                        return Error<AssessmentMarkReviewDto>("Component weighting requires reconciliation.", 409);
-                    var ids = components.Select(x => x.Id).ToArray();
-                    var componentCount = await (from part in _componentMarks.GetQueryable().AsNoTracking()
+                    if (await allDetails.AnyAsync(token))
+                        return Error<AssessmentMarkReviewDto>("Unexpected component marks require reconciliation.", 409);
+                }
+                else
+                {
+                    var componentIds = components.Select(x => x.Id).ToArray();
+                    var requiredCount = (long)expected * components.Count;
+                    if (await allDetails.LongCountAsync(token) != requiredCount)
+                        return Error<AssessmentMarkReviewDto>("Component marks are incomplete or unexpected.", 409);
+
+                    var joined = from part in _componentMarks.GetQueryable().AsNoTracking()
                         join mark in _marks.GetQueryable().AsNoTracking()
                             on part.StudentAssessmentMarkId equals mark.Id
+                        join component in _components.GetQueryable().AsNoTracking()
+                            on part.AssessmentComponentId equals component.Id
                         where part.TenantId == tenant && mark.TenantId == tenant &&
-                            ids.Contains(part.AssessmentComponentId) && mark.AssessmentSubjectId == subjectId &&
-                            !part.IsDeleted && !mark.IsDeleted && !part.IsWithheld
-                        select part.Id).CountAsync(token);
-                    if ((long)componentCount != (long)expected * components.Count)
-                        return Error<AssessmentMarkReviewDto>("Component marks are incomplete or withheld.", 409);
+                            component.TenantId == tenant && !part.IsDeleted && !mark.IsDeleted &&
+                            !component.IsDeleted && mark.AssessmentSubjectId == subjectId &&
+                            component.AssessmentSubjectId == subjectId &&
+                            componentIds.Contains(component.Id)
+                        select new { part, mark, component };
+                    var reconciled = from item in joined
+                        group item by new
+                        {
+                            item.mark.Id, item.mark.ObtainedMarks,
+                            item.mark.IsAbsent, item.mark.IsWithheld
+                        } into groupRows
+                        select new
+                        {
+                            groupRows.Key.ObtainedMarks,
+                            groupRows.Key.IsAbsent,
+                            groupRows.Key.IsWithheld,
+                            PartCount = groupRows.Count(),
+                            AbsentCount = groupRows.Count(x => x.part.IsAbsent),
+                            WithheldCount = groupRows.Count(x => x.part.IsWithheld),
+                            InvalidCount = groupRows.Count(x =>
+                                x.part.ObtainedMarks < 0m ||
+                                x.part.ObtainedMarks > x.component.FullMarks ||
+                                x.part.IsAbsent && x.part.IsWithheld ||
+                                (x.part.IsAbsent || x.part.IsWithheld) &&
+                                    x.part.ObtainedMarks != 0m),
+                            WeightedMarks = groupRows.Sum(x =>
+                                x.part.ObtainedMarks / x.component.FullMarks *
+                                x.component.Weightage)
+                        };
+                    if (await reconciled.LongCountAsync(token) != expected ||
+                        await reconciled.AnyAsync(x =>
+                            x.PartCount != components.Count || x.InvalidCount != 0 ||
+                            x.WithheldCount != 0 || x.IsWithheld ||
+                            (x.AbsentCount == components.Count) != x.IsAbsent ||
+                            Math.Round(x.WeightedMarks * subject.FullMarks / 100m, 2) !=
+                                x.ObtainedMarks, token))
+                        return Error<AssessmentMarkReviewDto>(
+                            "Component totals, absence flags or subject marks require reconciliation.", 409);
                 }
             }
             else

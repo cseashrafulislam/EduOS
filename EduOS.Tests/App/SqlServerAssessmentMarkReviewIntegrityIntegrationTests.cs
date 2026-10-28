@@ -127,6 +127,79 @@ public sealed class SqlServerAssessmentMarkReviewIntegrityIntegrationTests
         }
     }
 
+    [Fact]
+    public async Task Competing_review_event_writes_roll_back_the_stale_assessment_version()
+    {
+        var connection = Environment.GetEnvironmentVariable("EDUOS_SQL_AUTH_TEST_CONNECTION");
+        if (string.IsNullOrWhiteSpace(connection)) return;
+        var options = new DbContextOptionsBuilder<EduOSDbContext>()
+            .UseSqlServer(connection).Options;
+        var suffix = Guid.NewGuid().ToString("N")[..12];
+        long tenantId, subjectId, actorId;
+        await using (var setup = new EduOSDbContext(options))
+        {
+            var tenant = new Tenant { Code = "CI-EXR-" + suffix, Name = "Exam review race",
+                Email = "examrace-" + suffix + "@example.test", State = TenantState.Active };
+            var name = "exam-race-" + suffix + "@example.test";
+            var actor = new ApplicationUser { UserName = name,
+                NormalizedUserName = name.ToUpperInvariant(), Email = name,
+                NormalizedEmail = name.ToUpperInvariant(), FullName = "Synthetic reviewer",
+                IsActive = true, EmailConfirmed = true,
+                SecurityStamp = Guid.NewGuid().ToString(),
+                ConcurrencyStamp = Guid.NewGuid().ToString() };
+            setup.AddRange(tenant, actor);
+            await setup.SaveChangesAsync();
+            tenantId = tenant.Id; actorId = actor.Id;
+            setup.ChangeTracker.Clear();
+            using (setup.BeginSystemTenantScope(tenantId))
+                subjectId = await SeedSubjectAsync(setup, tenantId, suffix);
+        }
+
+        await using var first = TenantDb(options, tenantId);
+        await using var second = TenantDb(options, tenantId);
+        var assessmentId = await first.AssessmentSubjects.AsNoTracking()
+            .Where(x => x.Id == subjectId).Select(x => x.AssessmentId).SingleAsync();
+        var firstAssessment = await first.Assessments.SingleAsync(x => x.Id == assessmentId);
+        var staleAssessment = await second.Assessments.SingleAsync(x => x.Id == assessmentId);
+        Assert.Equal(firstAssessment.RowVersion, staleAssessment.RowVersion);
+        var now = DateTime.UtcNow;
+        var winningKey = Guid.NewGuid();
+        var losingKey = Guid.NewGuid();
+
+        await using (var tx = await first.Database.BeginTransactionAsync())
+        {
+            first.AssessmentMarkReviewEvents.Add(new AssessmentMarkReviewEvent {
+                TenantId = tenantId, AssessmentSubjectId = subjectId, ActorUserId = actorId,
+                ClientRequestId = winningKey, Decision = AssessmentMarkReviewDecision.Submitted,
+                MarkRowVersion = Convert.ToBase64String(firstAssessment.RowVersion),
+                OccurredAt = now, CreatedAt = now
+            });
+            firstAssessment.UpdatedAt = now.AddSeconds(1);
+            await first.SaveChangesAsync();
+            await tx.CommitAsync();
+        }
+        await using (var tx = await second.Database.BeginTransactionAsync())
+        {
+            second.AssessmentMarkReviewEvents.Add(new AssessmentMarkReviewEvent {
+                TenantId = tenantId, AssessmentSubjectId = subjectId, ActorUserId = actorId,
+                ClientRequestId = losingKey, Decision = AssessmentMarkReviewDecision.Approved,
+                MarkRowVersion = Convert.ToBase64String(staleAssessment.RowVersion),
+                OccurredAt = now, CreatedAt = now
+            });
+            staleAssessment.UpdatedAt = now.AddSeconds(2);
+            await Assert.ThrowsAsync<DbUpdateConcurrencyException>(
+                () => second.SaveChangesAsync());
+            await tx.RollbackAsync();
+        }
+        await using var verify = TenantDb(options, tenantId);
+        var events = await verify.AssessmentMarkReviewEvents.AsNoTracking()
+            .Where(x => x.AssessmentSubjectId == subjectId).ToListAsync();
+        Assert.Single(events);
+        Assert.Equal(winningKey, events[0].ClientRequestId);
+        Assert.False(await verify.AssessmentMarkReviewEvents.AsNoTracking()
+            .AnyAsync(x => x.ClientRequestId == losingKey));
+    }
+
     private static EduOSDbContext TenantDb(DbContextOptions<EduOSDbContext> options, long tenant)
     {
         var accessor = new HttpContextAccessor { HttpContext = new DefaultHttpContext() };
