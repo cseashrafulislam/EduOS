@@ -1,5 +1,7 @@
 using EduOS.Core.Entities.Academic;
 using EduOS.Core.Entities.Auth;
+using EduOS.Core.DTOs.Finance;
+using EduOS.Core.Enums.Domain;
 using EduOS.Core.Entities.Finance;
 using EduOS.Core.Entities.SaaS;
 using EduOS.Core.Entities.Students;
@@ -170,6 +172,68 @@ public sealed class FeeDocumentReadbackTests
         var scoped = Service(db, new User("Accountant"));
         (await scoped.GetStudentPaymentDocumentAsync(data.student, data.payment)).StatusCode.Should().Be(404);
         (await scoped.GetStudentPaymentsAsync(data.student, 1, 25)).Data!.TotalCount.Should().Be(0);
+    }
+
+
+    [Fact]
+    public async Task Scoped_fee_options_and_student_search_exclude_ungranted_campus()
+    {
+        var store = Guid.NewGuid().ToString("N");
+        await using var db = Database(41, store);
+        Seed(db, store);
+        db.Campuses.AddRange(
+            new Campus { Id = 5, TenantId = 41, Name = "Allowed campus", IsActive = true },
+            new Campus { Id = 6, TenantId = 41, Name = "Other campus", IsActive = true });
+        db.Students.Add(new Student { Id = 3, TenantId = 41,
+            PublicId = Guid.NewGuid(), StudentCode = "C6-ONLY", FullName = "Hidden learner",
+            StatusCode = "Active" });
+        db.StudentEnrollments.Add(new StudentEnrollment { Id = 13, TenantId = 41,
+            StudentId = 3, CampusId = 6, RollNo = "C6" });
+        await db.SaveChangesAsync();
+        var scoped = Service(db, new User("Accountant"));
+        var options = await scoped.GetOptionsAsync();
+        options.StatusCode.Should().Be(200);
+        options.Data!.Campuses.Select(x => x.Id).Should().Equal(5);
+        var search = await scoped.SearchStudentsAsync("C6-ONLY");
+        search.StatusCode.Should().Be(200);
+        search.Data.Should().BeEmpty();
+        (await Service(db, new User("TenantAdmin")).SearchStudentsAsync("C6-ONLY"))
+            .Data.Should().ContainSingle();
+    }
+
+    [Fact]
+    public async Task Scoped_cashier_cannot_collect_another_campus_invoice_or_replay_its_receipt()
+    {
+        var store = Guid.NewGuid().ToString("N");
+        await using var db = Database(41, store);
+        var data = Seed(db, store);
+        var foreignInvoice = Guid.NewGuid();
+        db.StudentEnrollments.Add(new StudentEnrollment {
+            Id = 13, TenantId = 41, StudentId = 1, CampusId = 6, RollNo = "C6" });
+        db.StudentInvoices.Add(new StudentInvoice {
+            Id = 23, TenantId = 41, PublicId = foreignInvoice, StudentEnrollmentId = 13,
+            InvoiceNumber = "INV-C6", TotalAmount = 10m, DueAmount = 10m });
+        await db.SaveChangesAsync();
+        var cashier = Service(db, new User("Cashier"));
+        var request = new CreateStudentPaymentRequestDto {
+            ClientRequestId = Guid.NewGuid(), PaymentDate = new DateOnly(2026, 10, 2),
+            PaymentMethod = PaymentMethodType.Cash, Amount = 10m,
+            Allocations = new[] { new CreatePaymentAllocationRequestDto {
+                InvoiceReference = foreignInvoice, Amount = 10m } }
+        };
+        (await cashier.CollectPaymentAsync(request)).StatusCode.Should().Be(404);
+        db.StudentPayments.Count(x => x.TenantId == 41).Should().Be(1);
+        // An inaccessible receipt must not be returned merely because its idempotency
+        // key is guessed, including a replay of an otherwise matching payload.
+        db.StudentPayments.Add(new StudentPayment { Id = 44, TenantId = 41,
+            PublicId = Guid.NewGuid(), ClientRequestId = request.ClientRequestId,
+            StudentId = 1, ReceiptNumber = "RCP-C6", Amount = 10m,
+            PaymentDate = request.PaymentDate, PaymentMethod = PaymentMethodType.Cash });
+        db.PaymentAllocations.Add(new PaymentAllocation { Id = 54, TenantId = 41,
+            StudentPaymentId = 44, StudentInvoiceId = 23, Amount = 10m });
+        await db.SaveChangesAsync();
+        (await cashier.CollectPaymentAsync(request)).StatusCode.Should().Be(404);
+        db.StudentPayments.Count(x => x.TenantId == 41).Should().Be(2);
     }
 
     private static (Guid student, Guid otherStudent, Guid invoice, Guid payment,

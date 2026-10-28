@@ -12,10 +12,11 @@ public sealed partial class FeeBillingService
             x.TenantId == _user.TenantId && x.UserId == _user.UserId &&
             x.IsActive && !x.IsDeleted).Select(x => x.CampusId);
 
-    private IQueryable<long> AccessibleEnrollmentIds(EduOSDbContext context)
+    private IQueryable<long> AccessibleEnrollmentIds(EduOSDbContext context, long? studentId = null)
     {
         var enrollments = _enrollments.GetQueryable().AsNoTracking()
-            .Where(x => x.TenantId == _user.TenantId && !x.IsDeleted);
+            .Where(x => x.TenantId == _user.TenantId && !x.IsDeleted &&
+                (!studentId.HasValue || x.StudentId == studentId.Value));
         if (_user.IsTenantAdmin) return enrollments.Select(x => x.Id);
         var campuses = GrantedBillingCampuses(context);
         return enrollments.Where(x => campuses.Contains(x.CampusId)).Select(x => x.Id);

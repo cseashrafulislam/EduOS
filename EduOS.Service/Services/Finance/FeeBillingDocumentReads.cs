@@ -19,8 +19,7 @@ public sealed partial class FeeBillingService
 
         if (_uow is not EduOS.Persistence.Context.EduOSDbContext context)
             return Error<StudentInvoiceDto>("Invoice not found.", 404);
-        var enrollmentIds = AccessibleEnrollmentIds(context).Where(id =>
-            _enrollments.GetQueryable().AsNoTracking().Any(e => e.Id == id && e.StudentId == student.Id));
+        var enrollmentIds = AccessibleEnrollmentIds(context, student.Id);
         var id = await _invoices.GetQueryable().AsNoTracking()
             .Where(i => i.TenantId == _user.TenantId && !i.IsDeleted &&
                 i.PublicId == documentReference && enrollmentIds.Contains(i.StudentEnrollmentId))

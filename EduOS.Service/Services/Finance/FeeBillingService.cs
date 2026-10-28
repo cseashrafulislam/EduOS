@@ -438,9 +438,9 @@ public sealed partial class FeeBillingService : IFeeBillingService
                     prior.Count == request.Allocations.Count &&
                     request.Allocations.All(x => prior.Any(y =>
                         y.PublicId == x.InvoiceReference && y.Amount == x.Amount));
-                if (!match) return Error<StudentPaymentDto>("Request ID already used for different payment.", 409);
                 if (!await CanAccessBillingCampusesAsync(prior.Select(x => x.CampusId), token))
                     return Error<StudentPaymentDto>("Receipt unavailable.", 404);
+                if (!match) return Error<StudentPaymentDto>("Request ID already used for different payment.", 409);
                 return ApiResponse<StudentPaymentDto>.SuccessResponse(
                     (await PaymentDtosAsync(new[] { replay }, token))[0], "Payment already recorded.");
             }
@@ -508,8 +508,7 @@ public sealed partial class FeeBillingService : IFeeBillingService
         var student = await StudentAsync(studentReference, ct);
         if (student == null) return Error<StudentLedgerDto>("Student not found.", 404);
         if (_uow is not EduOSDbContext context) return Error<StudentLedgerDto>("Finance access denied.", 403);
-        var enrollmentIds = AccessibleEnrollmentIds(context).Where(id =>
-            _enrollments.GetQueryable().AsNoTracking().Any(e => e.Id == id && e.StudentId == student.Id));
+        var enrollmentIds = AccessibleEnrollmentIds(context, student.Id);
         var totals = await _invoices.GetQueryable().AsNoTracking().Where(x =>
             x.TenantId == _user.TenantId && !x.IsDeleted &&
             enrollmentIds.Contains(x.StudentEnrollmentId) &&
@@ -536,8 +535,7 @@ public sealed partial class FeeBillingService : IFeeBillingService
         if (student == null) return Error<PagedResult<StudentInvoiceDto>>("Student not found.", 404);
         if (_uow is not EduOSDbContext context)
             return Error<PagedResult<StudentInvoiceDto>>("Finance access denied.", 403);
-        var ids = AccessibleEnrollmentIds(context).Where(id =>
-            _enrollments.GetQueryable().AsNoTracking().Any(e => e.Id == id && e.StudentId == student.Id));
+        var ids = AccessibleEnrollmentIds(context, student.Id);
         var query = _invoices.GetQueryable().AsNoTracking().Where(x =>
             x.TenantId == _user.TenantId && ids.Contains(x.StudentEnrollmentId) && !x.IsDeleted);
         var total = await query.CountAsync(ct);
