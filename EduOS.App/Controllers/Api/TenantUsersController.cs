@@ -1,4 +1,5 @@
 using EduOS.Core.DTOs.Auth;
+using System.Text;
 using EduOS.Core.Interfaces.IServices;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -102,6 +103,16 @@ public sealed class TenantUsersController(ITenantUserAdministrationService servi
     {
         var r = await service.GetMemberAccessHistoryAsync(membershipId, page, pageSize, ct);
         return StatusCode(r.StatusCode, r);
+    }
+
+    [HttpGet("{membershipId:long}/access-history/export")]
+    public async Task<IActionResult> ExportMemberAccessHistory(long membershipId, CancellationToken ct)
+    {
+        var result = await service.ExportMemberAccessHistoryCsvAsync(membershipId, ct);
+        if (!result.Success) return StatusCode(result.StatusCode, result);
+        Response.Headers["X-Content-Type-Options"] = "nosniff";
+        return File(Encoding.UTF8.GetBytes(result.Data ?? string.Empty),
+            "text/csv", "institution-member-access-history.csv");
     }
 
     [HttpGet("{membershipId:long}/campuses")]

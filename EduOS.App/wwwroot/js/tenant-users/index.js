@@ -6,6 +6,8 @@
     const state = { page: 1, pageSize: 20, total: 0, members: [], roles: [], permissions: [], selected: null,
         historyPage: 1, historyTotal: 0 };
     const endpoint = '/api/tenant-users';
+    const bn = document.documentElement.lang.toLowerCase().startsWith('bn');
+    const t = (en, bangla) => bn ? bangla : en;
 
     function message(text, danger = false) {
         const node = $('adminMessage');
@@ -175,14 +177,14 @@
         const body = $('memberHistoryRows');
         body.replaceChildren();
         const loading = document.createElement('tr');
-        const loadingCell = textNode('td', 'Loading history...');
+        const loadingCell = textNode('td', t('Loading history...', 'ইতিহাস লোড হচ্ছে…'));
         loadingCell.colSpan = 5; loading.append(loadingCell); body.append(loading);
         const result = await request('/' + memberId + '/access-history?page=' + page + '&pageSize=10');
         if (state.selected?.membershipId !== memberId || state.historyPage !== page) return;
         state.historyTotal = result.totalCount || 0;
         body.replaceChildren();
-        const names = { TenantMemberRolesChanged: 'Roles', TenantMemberCampusesChanged: 'Campuses',
-            TenantMemberStatusChanged: 'Membership status' };
+        const names = { TenantMemberRolesChanged: t('Roles', 'ভূমিকা'), TenantMemberCampusesChanged: t('Campuses', 'ক্যাম্পাস'),
+            TenantMemberStatusChanged: t('Membership status', 'সদস্যপদের অবস্থা') };
         for (const item of result.items || []) {
             const tr = document.createElement('tr');
             const when = item.occurredAt ? new Date(item.occurredAt).toLocaleString() : 'Unknown';
@@ -191,10 +193,10 @@
             body.append(tr);
         }
         if (!body.children.length) {
-            const tr = document.createElement('tr'); const td = textNode('td', 'No access changes recorded.');
+            const tr = document.createElement('tr'); const td = textNode('td', t('No access changes recorded.', 'প্রবেশাধিকার পরিবর্তনের কোনো ইতিহাস নেই।'));
             td.colSpan = 5; tr.append(td); body.append(tr);
         }
-        $('memberHistoryCount').textContent = 'Page ' + page + ' • ' + state.historyTotal + ' changes';
+        $('memberHistoryCount').textContent = t('Page ', 'পৃষ্ঠা ') + page + ' • ' + state.historyTotal + t(' changes', ' পরিবর্তন');
         $('memberHistoryPrev').disabled = page <= 1;
         $('memberHistoryNext').disabled = page * 10 >= state.historyTotal;
     }
@@ -229,6 +231,38 @@
         catch (error) { message(error.message, true); }
         finally { button.disabled = false; }
     }
+
+
+    async function exportMemberHistory() {
+        const memberId = state.selected?.membershipId;
+        if (!memberId) return;
+        const button = $('memberHistoryExport');
+        button.disabled = true;
+        try {
+            const response = await fetch(endpoint + '/' + memberId + '/access-history/export', {
+                credentials: 'same-origin', cache: 'no-store', headers: { Accept: 'text/csv' }
+            });
+            if (!response.ok) {
+                const error = await response.json().catch(() => null);
+                throw new Error(error?.message || t('Unable to export access history.', 'ইতিহাস ডাউনলোড করা যায়নি।'));
+            }
+            const blob = await response.blob();
+            if (state.selected?.membershipId !== memberId) return;
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = 'institution-member-access-history.csv';
+            document.body.append(link);
+            link.click();
+            link.remove();
+            setTimeout(() => URL.revokeObjectURL(url), 1000);
+        } catch (error) {
+            if (state.selected?.membershipId === memberId) message(error.message, true);
+        } finally {
+            button.disabled = false;
+        }
+    }
+    $('memberHistoryExport').addEventListener('click', exportMemberHistory);
 
     $('memberHistoryButton').addEventListener('click', showMemberHistory);
     $('memberHistoryPrev').addEventListener('click', () => {

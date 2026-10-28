@@ -251,6 +251,67 @@ public sealed class TenantUserAdministrationTests
         Assert.NotEmpty(method.GetCustomAttributes(typeof(Microsoft.AspNetCore.Mvc.HttpGetAttribute), true));
     }
 
+
+    [Fact]
+    public async Task Member_access_history_csv_export_is_scoped_bounded_and_formula_safe()
+    {
+        var access = ContextFor(100, isAdmin: true);
+        await using var db = access.Db;
+        db.Users.Add(new ApplicationUser { Id = 210, FullName = "Staff", Email = "staff@example.test" });
+        db.TenantMemberships.Add(new TenantMembership { Id = 300, TenantId = 100, UserId = 210 });
+        db.AuditLogs.AddRange(
+            new AuditLog { Id = 1, TenantId = 100, EntityName = nameof(TenantMembership), EntityId = 300,
+                Action = "TenantMemberRolesChanged", UserName = "=HYPERLINK(\"unsafe\")",
+                OldValue = "\t=SUM(1,1)", NewValue = "+cmd", OccurredAt = DateTime.UtcNow },
+            new AuditLog { Id = 2, TenantId = 200, EntityName = nameof(TenantMembership), EntityId = 300,
+                Action = "TenantMemberRolesChanged", UserName = "Foreign", OccurredAt = DateTime.UtcNow },
+            new AuditLog { Id = 3, TenantId = 100, EntityName = nameof(TenantMembership), EntityId = 300,
+                Action = "UnrelatedAction", UserName = "Not exported", OccurredAt = DateTime.UtcNow });
+        await db.SaveChangesAsync();
+        var service = Service(db, access.User, access.Email);
+        var export = await service.ExportMemberAccessHistoryCsvAsync(300);
+        Assert.True(export.Success, export.Message);
+        Assert.Contains("TenantMemberRolesChanged", export.Data);
+        Assert.Contains("'=HYPERLINK", export.Data);
+        Assert.Contains("'\t=SUM", export.Data);
+        Assert.Contains("'+cmd", export.Data);
+        Assert.DoesNotContain("Foreign", export.Data);
+        Assert.DoesNotContain("Not exported", export.Data);
+        Assert.Equal(404, (await service.ExportMemberAccessHistoryCsvAsync(999)).StatusCode);
+        Assert.Equal(400, (await service.ExportMemberAccessHistoryCsvAsync(-1)).StatusCode);
+        Assert.Equal(403, (await Service(db, ContextFor(100, false).User, access.Email)
+            .ExportMemberAccessHistoryCsvAsync(300)).StatusCode);
+    }
+
+    [Fact]
+    public async Task Member_access_history_csv_rejects_more_than_one_thousand_events()
+    {
+        var access = ContextFor(100, isAdmin: true);
+        await using var db = access.Db;
+        db.Users.Add(new ApplicationUser { Id = 210, FullName = "Staff", Email = "staff@example.test" });
+        db.TenantMemberships.Add(new TenantMembership { Id = 300, TenantId = 100, UserId = 210 });
+        db.AuditLogs.AddRange(Enumerable.Range(1, 1001).Select(i => new AuditLog
+        {
+            Id = i, TenantId = 100, EntityName = nameof(TenantMembership), EntityId = 300,
+            Action = "TenantMemberStatusChanged", OccurredAt = DateTime.UtcNow.AddSeconds(-i)
+        }));
+        await db.SaveChangesAsync();
+        var export = await Service(db, access.User, access.Email).ExportMemberAccessHistoryCsvAsync(300);
+        Assert.Equal(413, export.StatusCode);
+        Assert.False(export.Success);
+    }
+
+    [Fact]
+    public void Member_access_history_export_endpoint_is_tenant_admin_protected()
+    {
+        var controller = typeof(TenantUsersController);
+        Assert.Contains(controller.GetCustomAttributes(typeof(AuthorizeAttribute), true)
+            .Cast<AuthorizeAttribute>(), x => x.Roles == "TenantAdmin");
+        var action = controller.GetMethod(nameof(TenantUsersController.ExportMemberAccessHistory))!;
+        Assert.Empty(action.GetCustomAttributes(typeof(AllowAnonymousAttribute), true));
+        Assert.NotEmpty(action.GetCustomAttributes(typeof(Microsoft.AspNetCore.Mvc.HttpGetAttribute), true));
+    }
+
     private static (EduOSDbContext Db, Mock<ICurrentUserService> User, Mock<IEmailService> Email, HttpContextAccessor Accessor)
         ContextFor(long tenantId, bool isAdmin)
     {

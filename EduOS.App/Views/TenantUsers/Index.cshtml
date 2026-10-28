@@ -1,12 +1,13 @@
 @{
-    ViewData["Title"] = "User & Role Management";
+    var bn = System.Globalization.CultureInfo.CurrentUICulture.Name == "bn-BD";
+    ViewData["Title"] = bn ? "ব্যবহারকারী ও ভূমিকা ব্যবস্থাপনা" : "User & Role Management";
     Layout = "~/Views/Shared/_Layout.cshtml";
 }
 <div class="container-fluid py-4" id="tenantUsersApp">
     @Html.AntiForgeryToken()
     <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-4">
         <div>
-            <h2 class="h4 fw-bold mb-1">User &amp; Role Management</h2>
+            <h2 class="h4 fw-bold mb-1">@(bn ? "ব্যবহারকারী ও ভূমিকা ব্যবস্থাপনা" : "User & Role Management")</h2>
             <p class="text-muted mb-0">Manage only users and permissions belonging to this institution.</p>
         </div>
         <div class="d-flex gap-2"><a href="/TenantUsers/Invitations" class="btn btn-outline-primary">Invitation History</a><a href="/TenantPermissionOverrides/Index" class="btn btn-outline-primary">Permission Exceptions</a><a href="/Account/Profile" class="btn btn-outline-secondary">My Profile</a></div>
@@ -71,18 +72,18 @@
             <div class="card-body">
                 <h5 id="memberEditorTitle"></h5>
                 <p class="small text-muted">Changes revoke the selected user's old sessions. Ownership cannot be changed here.</p>
-                <button id="memberHistoryButton" type="button" class="btn btn-outline-secondary btn-sm mb-3">View access history</button>
+                <button id="memberHistoryButton" type="button" class="btn btn-outline-secondary btn-sm mb-3">@(bn ? "প্রবেশাধিকার পরিবর্তনের ইতিহাস" : "View access history")</button>
                 <div id="memberHistoryPanel" class="border rounded p-3 mb-3 d-none">
-                    <h6>Member access history</h6>
-                    <p class="small text-muted">Institution-scoped role, campus and membership-status changes, newest first.</p>
+                    <div class="d-flex justify-content-between align-items-center gap-2 flex-wrap mb-2"><h6 class="mb-0">@(bn ? "সদস্যের প্রবেশাধিকার পরিবর্তনের ইতিহাস" : "Member access history")</h6><button id="memberHistoryExport" type="button" class="btn btn-outline-primary btn-sm">@(bn ? "CSV ডাউনলোড" : "Export CSV")</button></div>
+                    
                     <div class="table-responsive"><table class="table table-sm align-middle">
-                        <thead><tr><th>When</th><th>Change</th><th>Actor</th><th>Previous</th><th>New</th></tr></thead>
+                        <thead><tr><th scope="col">@(bn ? "সময়" : "When")</th><th scope="col">@(bn ? "পরিবর্তন" : "Change")</th><th scope="col">@(bn ? "পরিবর্তনকারী" : "Actor")</th><th scope="col">@(bn ? "আগে" : "Previous")</th><th scope="col">@(bn ? "পরে" : "New")</th></tr></thead>
                         <tbody id="memberHistoryRows"></tbody>
                     </table></div>
                     <div class="d-flex justify-content-between align-items-center">
                         <small id="memberHistoryCount" class="text-muted"></small>
-                        <div><button id="memberHistoryPrev" type="button" class="btn btn-outline-secondary btn-sm">Previous</button>
-                        <button id="memberHistoryNext" type="button" class="btn btn-outline-secondary btn-sm">Next</button></div>
+                        <div><button id="memberHistoryPrev" type="button" class="btn btn-outline-secondary btn-sm">@(bn ? "আগে" : "Previous")</button>
+                        <button id="memberHistoryNext" type="button" class="btn btn-outline-secondary btn-sm">@(bn ? "পরে" : "Next")</button></div>
                     </div>
                 </div>
                 <div id="memberUnscopedIdentityRoleNotice" class="alert alert-warning d-none" role="status"></div>
