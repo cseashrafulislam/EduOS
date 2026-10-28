@@ -35,6 +35,7 @@ async function attendance(browser) {
     const page = await browser.newPage();
     const requests = [];
     const finalized = [], corrections = [];
+    let historicalCsvRequests = 0;
     let isFinalized = false, saved = false, correctedState = null;
     page.on('dialog', dialog => dialog.type() === 'prompt'
         ? dialog.accept('Reviewed correction reason') : dialog.accept());
@@ -51,6 +52,12 @@ async function attendance(browser) {
     };
     await page.route('http://eduos.test/**', async route => {
         const request = route.request(), url = new URL(request.url());
+        if (url.pathname === '/attendance/sessions/99/export.csv') {
+            assert.equal(url.searchParams.get('page'), '1');
+            historicalCsvRequests++;
+            return route.fulfill({ status: 200, contentType: 'text/csv; charset=utf-8',
+                body: 'Session ID,Roll,Student Name\r\n99,1,Historical Learner\r\n' });
+        }
         if (!url.pathname.startsWith('/api/'))
             return route.fulfill({ status: 200, contentType: 'text/html', body: attendanceHtml });
         if (url.pathname === '/api/student-attendance/batches') {
@@ -191,9 +198,17 @@ async function attendance(browser) {
     assert.equal(await page.locator('#attendanceRows [data-state]').first().isDisabled(), true);
     assert.equal(await page.locator('#saveAttendance').isDisabled(), true);
     assert.match(await page.locator('#attendanceRosterPage').innerText(), /historical marks \(read-only\)/);
+    assert.equal(await page.locator('#attendanceHistoricalCsv').isDisabled(), false);
+    assert.equal(await page.locator('#attendanceHistoricalPrint').isDisabled(), false);
+    const csvDownload = page.waitForEvent('download');
+    await page.locator('#attendanceHistoricalCsv').click();
+    assert.equal((await csvDownload).suggestedFilename(), 'attendance-session-99-page-1.csv');
+    assert.equal(historicalCsvRequests, 1);
     await page.locator('#attendanceSessionsRows button').last().click();
     await page.waitForFunction(() => document.querySelector('#attendanceAlert')?.textContent.includes('selected attendance session changed'));
     assert.equal(await page.locator('#saveAttendance').isDisabled(), true);
+    assert.equal(await page.locator('#attendanceHistoricalCsv').isDisabled(), true);
+    assert.equal(await page.locator('#attendanceHistoricalPrint').isDisabled(), true);
     await page.close();
     console.log('Attendance browser: PASS — approved leave, mass marking, CSRF, save and finalization.');
 }

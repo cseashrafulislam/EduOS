@@ -1,4 +1,9 @@
 using EduOS.App.Authorization;
+using EduOS.Core.DTOs.Attendance;
+using EduOS.Core.Interfaces.IServices;
+using Microsoft.AspNetCore.RateLimiting;
+using System.Globalization;
+using System.Text;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -6,9 +11,70 @@ namespace EduOS.App.Controllers;
 
 [Authorize(Roles = "TenantAdmin,Principal,VicePrincipal,Teacher")]
 [RequireModule("ATTENDANCE")]
-public sealed class AttendanceController : Controller
+public sealed class AttendanceController(IStudentAttendanceReportService reportService) : Controller
 {
     [HttpGet]
     [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
     public IActionResult Index() => View();
+
+    // Reauthorize on every download; never export cached browser data or an unbounded roster.
+    [HttpGet("attendance/sessions/{sessionId:long}/export.csv")]
+    [Authorize(Roles = "TenantAdmin,Principal,VicePrincipal")]
+    [EnableRateLimiting("ApiPolicy")]
+    [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
+    public async Task<IActionResult> ExportFinalizedSessionCsv(
+        long sessionId, [FromQuery] int page = 1, CancellationToken cancellationToken = default)
+    {
+        const int pageSize = 50;
+        var result = await reportService.GetFinalizedSessionRosterAsync(
+            sessionId, page, pageSize, cancellationToken);
+        if (!result.Success) return StatusCode(result.StatusCode, result);
+        if (result.Data is null) return StatusCode(500);
+
+        var roster = result.Data;
+        var csv = new StringBuilder();
+        csv.Append("Session ID,Date,Batch ID,Page,Roll,Student Code,Student Name,Status,Check In,Check Out,Remarks\r\n");
+        foreach (var mark in roster.Students)
+        {
+            var cells = new string?[]
+            {
+                roster.AttendanceSessionId.ToString(CultureInfo.InvariantCulture),
+                roster.AttendanceDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
+                roster.AcademicBatchId.ToString(CultureInfo.InvariantCulture),
+                roster.Page.ToString(CultureInfo.InvariantCulture),
+                mark.RollNo, mark.StudentCode, mark.StudentName, mark.State.ToString(),
+                mark.CheckInTime?.ToString("HH:mm", CultureInfo.InvariantCulture),
+                mark.CheckOutTime?.ToString("HH:mm", CultureInfo.InvariantCulture),
+                mark.Remarks
+            };
+            csv.Append(string.Join(",", cells.Select(EscapeCsv))).Append("\r\n");
+        }
+        var bytes = Encoding.UTF8.GetBytes("\uFEFF" + csv);
+        return File(bytes, "text/csv; charset=utf-8",
+            $"attendance-session-{sessionId}-page-{page}.csv");
+    }
+
+    [HttpGet("attendance/sessions/{sessionId:long}/print")]
+    [Authorize(Roles = "TenantAdmin,Principal,VicePrincipal")]
+    [EnableRateLimiting("ApiPolicy")]
+    [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
+    public async Task<IActionResult> PrintFinalizedSession(
+        long sessionId, [FromQuery] int page = 1, CancellationToken cancellationToken = default)
+    {
+        const int pageSize = 50;
+        var result = await reportService.GetFinalizedSessionRosterAsync(
+            sessionId, page, pageSize, cancellationToken);
+        if (!result.Success) return StatusCode(result.StatusCode, result);
+        if (result.Data is null) return StatusCode(500);
+        return View("SessionPrint", result.Data);
+    }
+
+    private static string EscapeCsv(string? value)
+    {
+        var raw = value ?? string.Empty;
+        var trimmed = raw.TrimStart();
+        if (trimmed.Length > 0 && "=+-@".Contains(trimmed[0]))
+            raw = "'" + raw;
+        return "\"" + raw.Replace("\"", "\"\"") + "\"";
+    }
 }

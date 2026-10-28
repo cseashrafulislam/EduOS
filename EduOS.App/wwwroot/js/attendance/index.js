@@ -5,6 +5,8 @@
     const canCorrect = document.querySelector('section[data-can-correct]')?.dataset.canCorrect === 'true';
     const saveButton = el('saveAttendance'), markAllButton = el('markAllPresent');
     const finalizeButton = el('finalizeAttendance'), summary = el('attendanceSummary');
+    const historicalCsvButton = el('attendanceHistoricalCsv');
+    const historicalPrintButton = el('attendanceHistoricalPrint');
     if (!form || !rows || !date) return;
     let loaded = false, roster = null, dirty = false;
     let historicalSessionId = null;
@@ -133,11 +135,56 @@
             }
         }
     }
+    function historicalPageReady() {
+        return loaded && roster?.isHistoricalReadOnly === true &&
+            Number(roster.attendanceSessionId) === historicalSessionId &&
+            roster?.students?.length > 0 && Number.isSafeInteger(rosterPage) && rosterPage > 0;
+    }
+    function updateHistoricalActions() {
+        const disabled = !historicalPageReady();
+        if (historicalCsvButton) historicalCsvButton.disabled = disabled;
+        if (historicalPrintButton) historicalPrintButton.disabled = disabled;
+    }
+    function historicalPageUrl(action) {
+        return '/attendance/sessions/' + historicalSessionId + '/' + action +
+            '?page=' + rosterPage;
+    }
+    async function exportHistoricalPage() {
+        if (!historicalPageReady() || !historicalCsvButton) return;
+        const sessionId = historicalSessionId, page = rosterPage, token = rosterRequest;
+        historicalCsvButton.disabled = true;
+        try {
+            const response = await fetch(historicalPageUrl('export.csv'), {
+                credentials: 'same-origin', cache: 'no-store',
+                headers: { Accept: 'text/csv' }
+            });
+            if (!response.ok || !response.headers.get('content-type')?.includes('text/csv'))
+                throw new Error('Historical attendance export is unavailable or access has changed.');
+            const blob = await response.blob();
+            if (token !== rosterRequest || sessionId !== historicalSessionId ||
+                page !== rosterPage || !historicalPageReady()) return;
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = 'attendance-session-' + sessionId + '-page-' + page + '.csv';
+            document.body.append(link); link.click(); link.remove();
+            URL.revokeObjectURL(url);
+        } catch (error) {
+            if (token === rosterRequest) status('danger', error.message);
+        } finally {
+            updateHistoricalActions();
+        }
+    }
+    function printHistoricalPage() {
+        if (!historicalPageReady()) return;
+        window.open(historicalPageUrl('print'), '_blank', 'noopener,noreferrer');
+    }
     function invalidate() {
         ++rosterRequest; dirty = false; loaded = false; roster = null; saveButton.disabled = true; markAllButton.disabled = true;
         if (finalizeButton) finalizeButton.disabled = true;
         render([]); clearStatus();
         rosterPages = 0;
+        updateHistoricalActions();
         el('attendanceRosterPrevious').disabled = true;
         el('attendanceRosterNext').disabled = true;
         el('attendanceRosterPage').textContent = '';
@@ -238,6 +285,7 @@
             rosterPages = roster?.totalPages || 0;
             render(roster?.students || []);
             loaded = true;
+            updateHistoricalActions();
             saveButton.disabled = roster?.isHistoricalReadOnly || !(roster?.students?.length > 0) || roster.isFinalized;
             markAllButton.disabled = saveButton.disabled;
             if (finalizeButton) finalizeButton.disabled = !roster.attendanceSessionId ||
@@ -409,6 +457,8 @@
         if (dirty && !confirm('Discard unsaved changes on this roster page?')) return;
         dirty = false; rosterPage++; await loadRoster();
     });
+    historicalCsvButton?.addEventListener('click', exportHistoricalPage);
+    historicalPrintButton?.addEventListener('click', printHistoricalPage);
     saveButton.addEventListener('click', saveAttendance);
     finalizeButton?.addEventListener('click', finalizeAttendance);
     markAllButton.addEventListener('click', () => {

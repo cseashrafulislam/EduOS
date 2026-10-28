@@ -1,0 +1,57 @@
+@model EduOS.Core.DTOs.Attendance.StudentAttendanceRosterDto
+@{
+    Layout = null;
+}
+<!doctype html>
+<html lang="@CultureInfo.CurrentUICulture.Name">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex,nofollow" />
+    <title>Finalized Attendance — @Model.AttendanceDate.ToString("yyyy-MM-dd")</title>
+    <style>
+        body { font-family: system-ui, sans-serif; margin: 1rem; color: #17212d; }
+        h1 { font-size: 1.3rem; margin: 0 0 .5rem; }
+        .scope { font-size: .9rem; margin-bottom: 1rem; }
+        table { width: 100%; border-collapse: collapse; font-size: .82rem; }
+        th, td { border: 1px solid #c7cdd3; padding: .4rem; text-align: left; overflow-wrap: anywhere; }
+        th { background: #f1f4f7; }
+        .actions { margin-bottom: 1rem; }
+        .actions button { padding: .5rem 1rem; cursor: pointer; }
+        @@page { size: A4 landscape; margin: 12mm; }
+        @@media print { .actions { display: none; } body { margin: 0; } }
+    </style>
+    <script src="~/js/attendance/print-roster.js" asp-append-version="true" defer></script>
+</head>
+<body>
+    <div class="actions"><button id="printRoster" type="button">Print this page</button></div>
+    <h1>Finalized attendance — historical roster</h1>
+    <div class="scope">
+        Date: <strong>@Model.AttendanceDate.ToString("yyyy-MM-dd")</strong>
+        · Session: @Model.AttendanceSessionId
+        · Academic batch: @Model.AcademicBatchId
+        · Page @Model.Page of @Model.TotalPages
+        · Showing @Model.Students.Count of @Model.Summary.TotalStudents posted marks
+    </div>
+    <table>
+        <thead><tr>
+            <th>Roll</th><th>Student code</th><th>Student</th><th>Status</th>
+            <th>Check-in</th><th>Check-out</th><th>Remarks</th>
+        </tr></thead>
+        <tbody>
+        @foreach (var student in Model.Students)
+        {
+            <tr>
+                <td>@student.RollNo</td>
+                <td>@student.StudentCode</td>
+                <td>@student.StudentName</td>
+                <td>@student.State</td>
+                <td>@(student.CheckInTime?.ToString("HH:mm") ?? "—")</td>
+                <td>@(student.CheckOutTime?.ToString("HH:mm") ?? "—")</td>
+                <td>@student.Remarks</td>
+            </tr>
+        }
+        </tbody>
+    </table>
+</body>
+</html>

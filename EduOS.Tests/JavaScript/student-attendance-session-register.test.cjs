@@ -37,6 +37,16 @@ test('session register is manager-authorized, bounded and includes unfinalized s
     assert.ok(js.includes('sessionId: item.sessionId'));
     assert.ok(js.includes('isFinalized: item.isFinalized === true'));
     assert.ok(roster.includes('isHistoricalReadOnly'));
+    for (const id of ['attendanceHistoricalCsv', 'attendanceHistoricalPrint'])
+        assert.ok(view.includes('id="' + id + '"'));
+    assert.match(roster, /function historicalPageReady\(\)/);
+    assert.match(roster, /function updateHistoricalActions\(\)/);
+    assert.match(roster, /historicalPageUrl\('export\.csv'\)/);
+    assert.match(roster, /historicalPageUrl\('print'\)/);
+    assert.match(roster, /token !== rosterRequest/);
+    assert.match(roster, /response\.headers\.get\('content-type'\)/);
+    assert.match(roster, /window\.open\(historicalPageUrl\('print'\)/);
+    assert.match(roster, /credentials: 'same-origin', cache: 'no-store'/);
     assert.ok(roster.includes('/api/student-attendance/report/sessions/'));
     assert.ok(roster.includes('historicalSessionId = detail.isFinalized === true ? sessionId : null'));
     assert.ok(js.includes('load(true)'));

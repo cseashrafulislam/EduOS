@@ -66,6 +66,13 @@
         <div class="content-card-heading d-flex justify-content-between align-items-center gap-3 flex-wrap">
             <h3 id="attendanceRosterTitle">Roster</h3>
             <div id="attendanceSummary" class="small text-muted" aria-live="polite"></div>
+            @if (User.IsInRole("TenantAdmin") || User.IsInRole("Principal") || User.IsInRole("VicePrincipal"))
+            {
+                <div class="d-flex gap-2 flex-wrap">
+                    <button id="attendanceHistoricalCsv" type="button" class="btn btn-sm btn-outline-secondary" disabled>Export historical page CSV</button>
+                    <button id="attendanceHistoricalPrint" type="button" class="btn btn-sm btn-outline-secondary" disabled>Print historical page</button>
+                </div>
+            }
         </div>
         <div class="table-responsive">
             <table class="table table-hover align-middle mb-0">
