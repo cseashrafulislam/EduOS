@@ -467,7 +467,24 @@ public sealed class AcademicRoutineServiceTests
         };
         db.UserCampusAccesses.Add(grant);
         await db.SaveChangesAsync();
-        (await principal.GetInstructorChoicesPageAsync(batchId, null, 1, 50)).Success.Should().BeTrue();
+        var restricted = await principal.GetInstructorChoicesPageAsync(batchId, null, 1, 50);
+        restricted.Success.Should().BeTrue();
+        restricted.Data!.TotalCount.Should().Be(0);
+        (await principal.AssignInstructorAsync(Assign(scope.OfferingReference, scope.TeacherReference)))
+            .StatusCode.Should().Be(404);
+        var employeeId = await db.Employees.Where(x => x.PublicId == scope.TeacherReference)
+            .Select(x => x.Id).SingleAsync();
+        db.EmployeeCampusAssignments.Add(new EmployeeCampusAssignment
+        {
+            TenantId = 101, EmployeeId = employeeId, CampusId = scope.CampusId,
+            EffectiveFrom = Start, IsCurrent = true
+        });
+        await db.SaveChangesAsync();
+        var scoped = await principal.GetInstructorChoicesPageAsync(batchId, null, 1, 50);
+        scoped.Success.Should().BeTrue();
+        scoped.Data!.Items.Should().ContainSingle(x => x.EmployeeReference == scope.TeacherReference);
+        (await principal.AssignInstructorAsync(Assign(scope.OfferingReference, scope.TeacherReference)))
+            .Success.Should().BeTrue();
         grant.IsActive = false;
         await db.SaveChangesAsync();
         (await principal.GetInstructorChoicesPageAsync(batchId, null, 1, 50)).StatusCode.Should().Be(404);
@@ -497,6 +514,7 @@ public sealed class AcademicRoutineServiceTests
         new GenericRepository<CurriculumSubject>(db),
         new GenericRepository<Subject>(db),
         new GenericRepository<Employee>(db),
+        new GenericRepository<EmployeeCampusAssignment>(db),
         new GenericRepository<Room>(db),
         new GenericRepository<UserCampusAccess>(db),
         new GenericRepository<Campus>(db), db, user,

@@ -21,7 +21,7 @@ public sealed class AcademicRoutinesController : ControllerBase
     public AcademicRoutinesController(IAcademicRoutineService service) => _service = service;
 
     [HttpGet("instructors")]
-    [Authorize(Roles = "TenantAdmin,Principal,VicePrincipal")]
+    [Authorize(Roles = "TenantAdmin")]
     public async Task<IActionResult> Instructors([FromQuery] string? search, CancellationToken cancellationToken) =>
         ToAction(await _service.GetInstructorChoicesAsync(search, 50, cancellationToken));
 

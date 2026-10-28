@@ -200,6 +200,7 @@ public sealed class SqlServerAcademicRoutineCollisionIntegrationTests
         new GenericRepository<CurriculumSubject>(db),
         new GenericRepository<Subject>(db),
         new GenericRepository<Employee>(db),
+        new GenericRepository<EmployeeCampusAssignment>(db),
         new GenericRepository<Room>(db),
         new GenericRepository<UserCampusAccess>(db),
         new GenericRepository<Campus>(db),

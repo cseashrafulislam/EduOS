@@ -27,6 +27,7 @@ public sealed class AcademicRoutineService : IAcademicRoutineService
     private readonly IGenericRepository<CurriculumSubject> _curriculumSubjects;
     private readonly IGenericRepository<Subject> _subjects;
     private readonly IGenericRepository<Employee> _employees;
+    private readonly IGenericRepository<EmployeeCampusAssignment> _employeeCampusAssignments;
     private readonly IGenericRepository<Room> _rooms;
     private readonly IGenericRepository<UserCampusAccess> _campusAccesses;
     private readonly IGenericRepository<Campus> _campuses;
@@ -46,6 +47,7 @@ public sealed class AcademicRoutineService : IAcademicRoutineService
         IGenericRepository<CurriculumSubject> curriculumSubjects,
         IGenericRepository<Subject> subjects,
         IGenericRepository<Employee> employees,
+        IGenericRepository<EmployeeCampusAssignment> employeeCampusAssignments,
         IGenericRepository<Room> rooms,
         IGenericRepository<UserCampusAccess> campusAccesses,
         IGenericRepository<Campus> campuses,
@@ -64,6 +66,7 @@ public sealed class AcademicRoutineService : IAcademicRoutineService
         _curriculumSubjects = curriculumSubjects;
         _subjects = subjects;
         _employees = employees;
+        _employeeCampusAssignments = employeeCampusAssignments;
         _rooms = rooms;
         _campusAccesses = campusAccesses;
         _campuses = campuses;
@@ -75,7 +78,8 @@ public sealed class AcademicRoutineService : IAcademicRoutineService
 
     public async Task<ApiResponse<IReadOnlyList<AcademicInstructorChoiceDto>>> GetInstructorChoicesAsync(string? search, int take = 50, CancellationToken cancellationToken = default)
     {
-        if (!CanManage()) return Denied<IReadOnlyList<AcademicInstructorChoiceDto>>();
+        // The legacy tenant-wide selector must not expose other campuses to a restricted principal.
+        if (!CanManage() || !_currentUser.IsTenantAdmin) return Denied<IReadOnlyList<AcademicInstructorChoiceDto>>();
         if (search?.Length > 100) return Error<IReadOnlyList<AcademicInstructorChoiceDto>>("Search is too long.");
         var term = search?.Trim();
         var query = _employees.GetQueryable().AsNoTracking().Where(x =>
@@ -100,6 +104,15 @@ public sealed class AcademicRoutineService : IAcademicRoutineService
         var tenant = _currentUser.TenantId;
         var query = _employees.GetQueryable().AsNoTracking().Where(x =>
             x.TenantId == tenant && !x.IsDeleted && x.CanTeach && x.State == EmployeeState.Active);
+        if (IsRestrictedManager())
+        {
+            var today = DateOnly.FromDateTime(_clock.GetUtcNow().UtcDateTime);
+            var campusId = batch.CampusId;
+            query = query.Where(x => _employeeCampusAssignments.GetQueryable().AsNoTracking().Any(a =>
+                a.TenantId == tenant && !a.IsDeleted && a.EmployeeId == x.Id &&
+                a.CampusId == campusId && a.IsCurrent && a.EffectiveFrom <= today &&
+                (!a.EffectiveTo.HasValue || a.EffectiveTo.Value >= today)));
+        }
         var needle = search?.Trim();
         if (!string.IsNullOrEmpty(needle))
             query = query.Where(x => x.FullName.StartsWith(needle) || x.EmployeeCode.StartsWith(needle));
@@ -267,6 +280,18 @@ public sealed class AcademicRoutineService : IAcademicRoutineService
                     x.TenantId == tenant && x.PublicId == request.EmployeeReference &&
                     x.CanTeach && x.State == EmployeeState.Active, token);
                 if (employee == null) return Error<InstructorAssignmentDto>("Active instructor not found.", 404);
+                if (IsRestrictedManager())
+                {
+                    var campusId = batch.CampusId;
+                    var permitted = await _employeeCampusAssignments.GetQueryable().AsNoTracking().AnyAsync(a =>
+                        a.TenantId == tenant && !a.IsDeleted && a.EmployeeId == employee.Id &&
+                        a.CampusId == campusId && a.IsCurrent &&
+                        a.EffectiveFrom <= request.EffectiveFrom &&
+                        (!a.EffectiveTo.HasValue || a.EffectiveTo.Value >=
+                            request.EffectiveTo.GetValueOrDefault(request.EffectiveFrom)), token);
+                    if (!permitted)
+                        return Error<InstructorAssignmentDto>("Instructor is not assigned to this campus.", 404);
+                }
                 var range = await ResolveEffectiveRangeAsync(batch, offering.AcademicTermId, token);
                 if (!range.IsValid || request.EffectiveFrom < range.From ||
                     request.EffectiveTo.GetValueOrDefault(range.To ?? DateOnly.MaxValue) >
