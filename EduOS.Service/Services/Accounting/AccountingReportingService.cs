@@ -23,7 +23,7 @@ public sealed partial class AccountingReportingService : IAccountingReportingSer
     private static bool Dates(DateOnly from, DateOnly to) => from != default && to >= from && to.DayNumber - from.DayNumber <= 3660;
     public async Task<ApiResponse<LedgerStatementDto>> GetLedgerStatementAsync(long accountId, DateOnly fromDate, DateOnly toDate, CancellationToken ct = default)
     {
-        if (!Allowed) return ApiResponse<LedgerStatementDto>.ErrorResponse("Institutional accounting access denied.", 403);
+        if (!TenantWideAllowed) return ApiResponse<LedgerStatementDto>.ErrorResponse("Tenant administrator access required for institution-wide ledger history.", 403);
         if (accountId <= 0 || !Dates(fromDate, toDate))
             return ApiResponse<LedgerStatementDto>.ErrorResponse("Valid account and date range (up to ten years) required.");
         var account = await db.Accounts.AsNoTracking().FirstOrDefaultAsync(x => x.TenantId == user.TenantId &&
@@ -61,7 +61,7 @@ public sealed partial class AccountingReportingService : IAccountingReportingSer
     }
     public async Task<ApiResponse<IReadOnlyList<TrialBalanceRowDto>>> GetTrialBalanceAsync(DateOnly asOfDate, CancellationToken ct = default)
     {
-        if (!Allowed) return ApiResponse<IReadOnlyList<TrialBalanceRowDto>>.ErrorResponse("Institutional accounting access denied.", 403);
+        if (!TenantWideAllowed) return ApiResponse<IReadOnlyList<TrialBalanceRowDto>>.ErrorResponse("Tenant administrator access required for institution-wide trial balance.", 403);
         if (asOfDate == default) return ApiResponse<IReadOnlyList<TrialBalanceRowDto>>.ErrorResponse("Valid as-of date required.");
 
         // A globally balanced total can conceal two individually unbalanced journals.

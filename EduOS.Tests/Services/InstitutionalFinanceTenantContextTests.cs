@@ -43,6 +43,33 @@ public sealed class InstitutionalFinanceTenantContextTests
         (await service.GetReservationFinancePreflightAsync("hostel", 1)).StatusCode.Should().Be(403);
     }
 
+    [Fact]
+    public async Task Campus_restricted_accountant_and_principal_cannot_read_institution_wide_ledger_or_trial_balance()
+    {
+        await using var db = Database(contextTenantId: 41);
+        foreach (var role in new[] { "Accountant", "Principal" })
+        {
+            var service = new AccountingReportingService(db, new CampusRestrictedUser(role));
+            (await service.GetLedgerStatementAsync(1, From, To)).StatusCode.Should().Be(403);
+            (await service.GetTrialBalanceAsync(To)).StatusCode.Should().Be(403);
+        }
+    }
+
+    private sealed class CampusRestrictedUser(string role) : ICurrentUserService
+    {
+        public bool IsAuthenticated => true;
+        public long UserId => 9;
+        public long TenantId => 41;
+        public string? FullName => null;
+        public string? Email => null;
+        public bool IsSuperAdmin => false;
+        public bool IsTenantAdmin => false;
+        public IReadOnlyList<string> Roles => [role];
+        public bool IsInRole(string value) => value == role;
+        public string? IpAddress => null;
+        public string? UserAgent => null;
+    }
+
     private static EduOSDbContext Database(long contextTenantId)
     {
         var accessor = new HttpContextAccessor { HttpContext = new DefaultHttpContext() };

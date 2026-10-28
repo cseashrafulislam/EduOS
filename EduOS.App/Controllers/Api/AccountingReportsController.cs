@@ -23,7 +23,7 @@ public sealed class AccountingReportsController : ControllerBase
         [FromQuery] int pageSize = 25, CancellationToken ct = default)
         => Reply(await service.GetLedgerActivityAsync(accountId, fromDate, toDate, page, pageSize, ct));
 
-    [HttpGet("ledger/{accountId:long}")]
+    [HttpGet("ledger/{accountId:long}"), Authorize(Roles = "TenantAdmin")]
     public async Task<IActionResult> Ledger(long accountId, [FromQuery] DateOnly fromDate,
         [FromQuery] DateOnly toDate, CancellationToken ct)
         => Reply(await service.GetLedgerStatementAsync(accountId, fromDate, toDate, ct));
@@ -65,7 +65,7 @@ public sealed class AccountingReportsController : ControllerBase
     [HttpGet("bank-reconciliations/{batchId:long}"), Authorize(Roles = "TenantAdmin")]
     public async Task<IActionResult> BankReconciliationDraft(long batchId, CancellationToken ct)
         => Reply(await service.GetBankReconciliationDraftAsync(batchId, ct));
-    [HttpGet("trial-balance")]
+    [HttpGet("trial-balance"), Authorize(Roles = "TenantAdmin")]
     public async Task<IActionResult> TrialBalance([FromQuery] DateOnly asOfDate, CancellationToken ct)
         => Reply(await service.GetTrialBalanceAsync(asOfDate, ct));
 }
