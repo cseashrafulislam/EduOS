@@ -142,6 +142,29 @@
                     <div class="col-md-3 align-self-end"><button id="statementRun" type="submit" class="btn btn-primary w-100">Compare Statement</button></div>
                     <div class="col-md-3 align-self-end"><button id="statementExport" type="button" class="btn btn-outline-secondary w-100" disabled>Export Comparison CSV</button></div>
                 </form>
+                <section id="bankCandidatePanel" class="border-top pt-3 mb-3" aria-label="Posted bank ledger candidate register">
+                    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
+                        <h3 class="h6 mb-0">Posted Ledger Candidates</h3>
+                        <div class="d-flex gap-2">
+                            <button id="bankCandidateRun" type="button" class="btn btn-outline-primary btn-sm">Find Movements</button>
+                            <button id="bankCandidateExport" type="button" class="btn btn-outline-secondary btn-sm" disabled>Export Page CSV</button>
+                        </div>
+                    </div>
+                    <div class="row g-2 mb-2">
+                        <div class="col-md-5"><label for="bankCandidateReference" class="form-label">Reference starts with (optional)</label>
+                            <input id="bankCandidateReference" class="form-control form-control-sm" maxlength="100" /></div>
+                        <div class="col-md-7 d-flex align-items-end"><div id="bankCandidateSummary" class="small" role="status" aria-live="polite"></div></div>
+                    </div>
+                    <div class="table-responsive"><table class="table table-sm table-striped">
+                        <thead><tr><th>Date</th><th>Journal</th><th>Line ID</th><th>Reference</th><th>Campus</th><th class="text-end">Deposit</th><th class="text-end">Withdrawal</th></tr></thead>
+                        <tbody id="bankCandidateRows"></tbody>
+                    </table></div>
+                    <div class="d-flex justify-content-end align-items-center gap-2">
+                        <button id="bankCandidatePrev" type="button" class="btn btn-outline-secondary btn-sm" disabled>Previous</button>
+                        <span id="bankCandidatePage" class="small" aria-live="polite"></span>
+                        <button id="bankCandidateNext" type="button" class="btn btn-outline-secondary btn-sm" disabled>Next</button>
+                    </div>
+                </section>
                 <div id="statementNotice" class="alert d-none" role="status" aria-live="polite"></div>
                 <p id="statementSummary" class="fw-semibold"></p>
                 <div class="table-responsive"><table class="table table-sm table-striped">
@@ -180,5 +203,6 @@
         }
     </div>
 </section>
-@section Scripts { <script type="module" src="~/js/finance/accounting-reports.js" asp-append-version="true"></script>
+@section Scripts { <script type="module" src="~/js/finance/bank-reconciliation-candidates.js" asp-append-version="true"></script>
+<script type="module" src="~/js/finance/accounting-reports.js" asp-append-version="true"></script>
 <script type="module" src="~/js/finance/bank-statement-preview.js" asp-append-version="true"></script> }
