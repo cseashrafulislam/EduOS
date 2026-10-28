@@ -112,7 +112,8 @@ public sealed class SqlServerStudentImportConcurrencyIntegrationTests
         }));
 
         Assert.Single(results, x => x.Success);
-        Assert.True(results.Count(x => x.StatusCode == 409) == 1,\n            string.Join("; ", results.Select(x => $"{x.StatusCode}: {x.Message}")));
+        Assert.True(results.Count(x => x.StatusCode == 409) == 1,
+            string.Join("; ", results.Select(x => $"{x.StatusCode}: {x.Message}")));
         var winner = Array.FindIndex(results, x => x.Success);
         await using (var retryDb = TenantDb(options, tenantId))
         {
