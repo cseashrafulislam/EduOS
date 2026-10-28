@@ -21,6 +21,12 @@
     <div id="loginActivityAlert" class="alert alert-danger d-none" role="alert" aria-live="assertive"></div>
     <div class="card shadow-sm border-0"><div class="card-body">
         <div class="d-flex flex-wrap align-items-end gap-2 mb-3">
+            <div><label for="loginActivityScope" class="form-label">@T["LoginActivityScope"]</label>
+                <select id="loginActivityScope" class="form-select">
+                    <option value="institution">@T["LoginActivityInstitution"]</option>
+                    <option value="unassigned">@T["LoginActivityUnassigned"]</option>
+                </select>
+            </div>
             <div><label for="loginActivityStatus" class="form-label">@T["LoginActivityResult"]</label>
                 <select id="loginActivityStatus" class="form-select">
                     <option value="">@T["LoginActivityAll"]</option>

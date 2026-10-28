@@ -18,12 +18,16 @@ public sealed class LoginActivityService(ILoginHistoryRepository history, ICurre
         (from.HasValue && to.HasValue && from.Value <= to.Value &&
          to.Value < DateOnly.MaxValue && to.Value.DayNumber - from.Value.DayNumber <= 365);
 
-    private IQueryable<LoginHistory> ScopedHistory(bool? success, DateOnly? from, DateOnly? to)
+    private IQueryable<LoginHistory> ScopedHistory(bool? success, DateOnly? from, DateOnly? to, bool unassigned)
     {
         // Do not remove the context query filter. One global account can belong to
         // multiple institutions; both user and current institution must match.
-        var query = history.GetQueryable().AsNoTracking().Where(x =>
-            x.UserId == user.UserId && x.TenantId == user.TenantId);
+        var query = history.GetQueryable().AsNoTracking().Where(x => x.UserId == user.UserId);
+        // Unassigned attempts are account-global, not another institution's history.
+        // Keep the user predicate in both branches and never bypass query filters.
+        query = unassigned
+            ? query.Where(x => x.TenantId == null)
+            : query.Where(x => x.TenantId == user.TenantId);
         if (success.HasValue) query = query.Where(x => x.IsSuccess == success.Value);
         if (from.HasValue && to.HasValue)
         {
@@ -36,7 +40,7 @@ public sealed class LoginActivityService(ILoginHistoryRepository history, ICurre
 
     public async Task<ApiResponse<PagedResult<LoginHistoryDto>>> GetMyHistoryAsync(
         int page, int pageSize, bool? success, CancellationToken cancellationToken = default,
-        DateOnly? from = null, DateOnly? to = null)
+        DateOnly? from = null, DateOnly? to = null, bool unassigned = false)
     {
         if (!user.IsAuthenticated || user.UserId <= 0 || user.TenantId <= 0)
             return ApiResponse<PagedResult<LoginHistoryDto>>.ErrorResponse("Institution session required.", 403);
@@ -44,7 +48,7 @@ public sealed class LoginActivityService(ILoginHistoryRepository history, ICurre
             (long)(page - 1) * pageSize > int.MaxValue || !ValidRange(from, to))
             return ApiResponse<PagedResult<LoginHistoryDto>>.ErrorResponse("Invalid pagination or UTC date range.", 400);
 
-        var query = ScopedHistory(success, from, to);
+        var query = ScopedHistory(success, from, to, unassigned);
         var count = await query.CountAsync(cancellationToken);
         var items = await query.OrderByDescending(x => x.OccurredAt).ThenByDescending(x => x.Id)
             .Skip((page - 1) * pageSize).Take(pageSize)
@@ -57,7 +61,7 @@ public sealed class LoginActivityService(ILoginHistoryRepository history, ICurre
 
     public async Task<ApiResponse<string>> ExportMyHistoryCsvAsync(
         bool? success, CancellationToken cancellationToken = default,
-        DateOnly? from = null, DateOnly? to = null)
+        DateOnly? from = null, DateOnly? to = null, bool unassigned = false)
     {
         if (!user.IsAuthenticated || user.UserId <= 0 || user.TenantId <= 0)
             return ApiResponse<string>.ErrorResponse("Institution session required.", 403);
@@ -66,7 +70,7 @@ public sealed class LoginActivityService(ILoginHistoryRepository history, ICurre
 
         // One stable, ordered SQL query. Reject rather than silently truncate evidence.
         // Never export IP, user agent, failure reason, user ID or another tenant's events.
-        var rows = await ScopedHistory(success, from, to)
+        var rows = await ScopedHistory(success, from, to, unassigned)
             .OrderByDescending(x => x.OccurredAt).ThenByDescending(x => x.Id)
             .Take(1001)
             .Select(x => new { x.OccurredAt, x.IsSuccess })

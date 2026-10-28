@@ -5,7 +5,8 @@
     if (!root || !rows) return;
     const state = { page: 1, pageSize: 20, generation: 0, exporting: false };
     const originalSession = document.body?.dataset.authSessionReference || '';
-    const status = byId('loginActivityStatus'), alert = byId('loginActivityAlert');
+    const status = byId('loginActivityStatus'), scope = byId('loginActivityScope');
+    const alert = byId('loginActivityAlert');
     const from = byId('loginActivityFrom'), to = byId('loginActivityTo');
     const info = byId('loginActivityPageInfo'), prev = byId('loginActivityPrev'), next = byId('loginActivityNext');
     const exportButton = byId('loginActivityExport');
@@ -38,6 +39,7 @@
         }
         const result = new URLSearchParams();
         if (status.value !== '') result.set('success', status.value);
+        if (scope.value === 'unassigned') result.set('unassigned', 'true');
         if (first) { result.set('from', first); result.set('to', last); }
         return result;
     }
@@ -118,7 +120,7 @@
             state.exporting = false; exportButton.disabled = false;
         }
     }
-    for (const control of [status, from, to]) control.addEventListener('change', () => {
+    for (const control of [scope, status, from, to]) control.addEventListener('change', () => {
         state.page = 1; load();
     });
     byId('loginActivityRefresh').addEventListener('click', load);

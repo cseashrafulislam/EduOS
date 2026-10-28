@@ -775,9 +775,12 @@
 	<data name="LoadingSessions" xml:space="preserve"><value>Loading sessions...</value></data>
 	<data name="LoginActivityTitle" xml:space="preserve"><value>Sign-in activity</value></data>
 	<data name="LoginActivityHelpLabel" xml:space="preserve"><value>Sign-in activity help</value></data>
-	<data name="LoginActivityHelpText" xml:space="preserve"><value>Review your own sign-in attempts for this institution only. Unattributed attempts are excluded. Dates use UTC; exports contain at most 1,000 rows and omit device and network details.</value></data>
+	<data name="LoginActivityHelpText" xml:space="preserve"><value>Review your own sign-in attempts for this institution or account attempts without a verified institution. Activity attributed to other institutions stays separate. Dates use UTC; CSV exports are limited to 1,000 rows without network or device details.</value></data>
 	<data name="LoginActivityBack" xml:space="preserve"><value>Account security</value></data>
-	<data name="LoginActivityResult" xml:space="preserve"><value>Result</value></data>
+	<data name="LoginActivityScope" xml:space="preserve"><value>Sign-in scope</value></data>
+<data name="LoginActivityInstitution" xml:space="preserve"><value>Current institution</value></data>
+<data name="LoginActivityUnassigned" xml:space="preserve"><value>Account attempts without institution</value></data>
+<data name="LoginActivityResult" xml:space="preserve"><value>Result</value></data>
 	<data name="LoginActivityAll" xml:space="preserve"><value>All attempts</value></data>
 	<data name="LoginActivitySuccess" xml:space="preserve"><value>Successful</value></data>
 	<data name="LoginActivityFailure" xml:space="preserve"><value>Unsuccessful</value></data>

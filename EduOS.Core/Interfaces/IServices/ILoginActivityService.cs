@@ -7,9 +7,9 @@ public interface ILoginActivityService
 {
     Task<ApiResponse<PagedResult<LoginHistoryDto>>> GetMyHistoryAsync(
         int page, int pageSize, bool? success, CancellationToken cancellationToken = default,
-        DateOnly? from = null, DateOnly? to = null);
+        DateOnly? from = null, DateOnly? to = null, bool unassigned = false);
 
     Task<ApiResponse<string>> ExportMyHistoryCsvAsync(
         bool? success, CancellationToken cancellationToken = default,
-        DateOnly? from = null, DateOnly? to = null);
+        DateOnly? from = null, DateOnly? to = null, bool unassigned = false);
 }

@@ -76,6 +76,8 @@ public sealed class SqlServerLoginActivityIntegrationTests
                 new LoginHistory { UserId = strangerId, TenantId = tenantAId,
                     OccurredAt = noon, IsSuccess = false },
                 new LoginHistory { UserId = sharedId, TenantId = null,
+                    OccurredAt = noon, IsSuccess = false },
+                new LoginHistory { UserId = strangerId, TenantId = null,
                     OccurredAt = noon, IsSuccess = false });
             await setup.SaveChangesAsync();
         }
@@ -102,6 +104,19 @@ public sealed class SqlServerLoginActivityIntegrationTests
         var failed = await service.GetMyHistoryAsync(1, 20, false, from: today, to: today);
         Assert.Single(failed.Data!.Items);
         Assert.False(failed.Data.Items[0].IsSuccess);
+
+        // Only this account's unattributed attempts, never tenant B or another user.
+        var unassigned = await service.GetMyHistoryAsync(1, 20, null,
+            from: today, to: today, unassigned: true);
+        Assert.True(unassigned.Success, unassigned.Message);
+        Assert.Single(unassigned.Data!.Items);
+        Assert.False(unassigned.Data.Items[0].IsSuccess);
+        var unassignedCsv = await service.ExportMyHistoryCsvAsync(null,
+            from: today, to: today, unassigned: true);
+        Assert.True(unassignedCsv.Success, unassignedCsv.Message);
+        Assert.Equal(2, unassignedCsv.Data!.Split("\r\n", StringSplitOptions.RemoveEmptyEntries).Length);
+        Assert.Equal(400, (await service.GetMyHistoryAsync(1, 20, null,
+            from: today, to: null, unassigned: true)).StatusCode);
 
         var csv = await service.ExportMyHistoryCsvAsync(null, from: today, to: today);
         Assert.True(csv.Success, csv.Message);
@@ -132,6 +147,8 @@ public sealed class SqlServerLoginActivityIntegrationTests
         Assert.Equal(1, onlyB.Data!.TotalCount);
         Assert.DoesNotContain("Unsuccessful", (await serviceB.ExportMyHistoryCsvAsync(null,
             from: today, to: today)).Data!);
+        Assert.Single((await serviceB.GetMyHistoryAsync(1, 20, null,
+            from: today, to: today, unassigned: true)).Data!.Items);
 
         // A large export is rejected, not silently truncated or leaked.
         await using (var bulk = new EduOSDbContext(options))
@@ -164,6 +181,8 @@ public sealed class SqlServerLoginActivityIntegrationTests
             from: today, to: today)).Data!.TotalCount);
         Assert.Equal(413, (await freshService.ExportMyHistoryCsvAsync(null,
             from: today, to: today)).StatusCode);
+        Assert.True((await freshService.ExportMyHistoryCsvAsync(null,
+            from: today, to: today, unassigned: true)).Success);
         Assert.Equal(1, (await freshService.GetMyHistoryAsync(1, 20, false,
             from: today.AddDays(-40), to: today)).Data!.TotalCount);
     }

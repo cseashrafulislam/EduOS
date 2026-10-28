@@ -19,6 +19,11 @@ test('sign-in activity uses canonical login history with account and tenant isol
     assert.match(dto, /class LoginHistoryDto/);
     assert.match(service, /x\.UserId == user\.UserId/);
     assert.match(service, /x\.TenantId == user\.TenantId/);
+    assert.match(service, /x\.TenantId == null/);
+    assert.match(api, /CurrentSessionValidAsync\(\)/);
+    assert.match(api, /AuthSessionRegistry\.IsValidAsync\(db, userId, sid, tenantId\)/);
+    assert.match(view, /loginActivityScope/);
+    assert.match(js, /result\.set\('unassigned', 'true'\)/);
     assert.match(service, /DateTime\.SpecifyKind\(item\.OccurredAt, DateTimeKind\.Utc\)/);
     assert.match(service, /pageSize is < 1 or > 50/);
     assert.doesNotMatch(service, /IgnoreQueryFilters\(/);

@@ -774,9 +774,12 @@
 	<data name="LoadingSessions" xml:space="preserve"><value>সেশন লোড হচ্ছে...</value></data>
 	<data name="LoginActivityTitle" xml:space="preserve"><value>সাইন-ইন কার্যক্রম</value></data>
 	<data name="LoginActivityHelpLabel" xml:space="preserve"><value>সাইন-ইন কার্যক্রমের সহায়তা</value></data>
-	<data name="LoginActivityHelpText" xml:space="preserve"><value>শুধু এই প্রতিষ্ঠানে আপনার নিজের সাইন-ইন প্রচেষ্টা দেখুন। প্রতিষ্ঠান নির্ধারিত নয় এমন প্রচেষ্টা দেখানো হয় না। তারিখ UTC অনুযায়ী; সর্বোচ্চ ১,০০০ সারি রপ্তানি করা যাবে, ডিভাইস ও নেটওয়ার্ক তথ্য ছাড়া।</value></data>
+	<data name="LoginActivityHelpText" xml:space="preserve"><value>এই প্রতিষ্ঠানে আপনার সাইন-ইন প্রচেষ্টা অথবা কোনো প্রতিষ্ঠান যাচাই করা হয়নি এমন অ্যাকাউন্ট প্রচেষ্টা দেখুন। অন্য প্রতিষ্ঠানের কার্যক্রম আলাদা ও গোপন থাকে। তারিখ UTC অনুযায়ী; ডিভাইস ও নেটওয়ার্ক তথ্য ছাড়া সর্বোচ্চ ১,০০০ সারি CSV রপ্তানি করা যাবে।</value></data>
 	<data name="LoginActivityBack" xml:space="preserve"><value>অ্যাকাউন্ট নিরাপত্তা</value></data>
-	<data name="LoginActivityResult" xml:space="preserve"><value>ফলাফল</value></data>
+	<data name="LoginActivityScope" xml:space="preserve"><value>সাইন-ইন কার্যক্রমের পরিধি</value></data>
+<data name="LoginActivityInstitution" xml:space="preserve"><value>বর্তমান প্রতিষ্ঠান</value></data>
+<data name="LoginActivityUnassigned" xml:space="preserve"><value>প্রতিষ্ঠানবিহীন অ্যাকাউন্ট প্রচেষ্টা</value></data>
+<data name="LoginActivityResult" xml:space="preserve"><value>ফলাফল</value></data>
 	<data name="LoginActivityAll" xml:space="preserve"><value>সব প্রচেষ্টা</value></data>
 	<data name="LoginActivitySuccess" xml:space="preserve"><value>সফল</value></data>
 	<data name="LoginActivityFailure" xml:space="preserve"><value>ব্যর্থ</value></data>
