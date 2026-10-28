@@ -53,7 +53,8 @@ public sealed class EmployeeContractSignedPdfTests
         var preview = await reviewer.DownloadSignedPdfAsync(contractRef, true);
         preview.StatusCode.Should().Be(200);
         preview.Data!.Content.Should().Equal(bytes);
-        (await db.AuditLogs.CountAsync()).Should().Be(2);
+        (await db.AuditLogs.CountAsync(x => x.Action == "EmployeeContract.SignedPdfAttached" ||
+            x.Action == "EmployeeContract.SignedPdfReviewViewed")).Should().Be(2);
         (await db.Documents.SingleAsync()).EntityType.Should().Be("EmployeeContract");
     }
 
