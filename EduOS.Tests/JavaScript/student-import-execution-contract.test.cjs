@@ -26,7 +26,14 @@ test('student import execution is an authorized atomic bounded workflow', () => 
     assert.match(service, /BuildCsvSlice/);
     assert.match(service, /sourceRowOffset/);
     assert.match(api, /\[HttpGet\("\{reference:guid\}"\)\]/);
-    assert.match(service, /IsolationLevel\.Serializable/);
+    // Read-committed avoids cross-institute serializable gap-lock deadlocks.
+    // Safety still requires a batch rowversion write lock, post-lock preview,
+    // and tenant-scoped unique source receipts in the same transaction.
+    assert.match(service, /IsolationLevel\\.ReadCommitted/);
+    assert.match(service, /_batches\\.Update\\(batch\\)/);
+    assert.match(service, /_uow\\.SaveChangesAsync\\(token\\)/);
+    assert.match(service, /lockedPreview/);
+    assert.match(service, /_keys\\.AddAsync\\(new IdempotencyRecord/);
     assert.match(service, /MaxBatchRows = 100/);
     assert.match(service, /SourceScope = "StudentImportSource"/);
     // Execution preflight must not turn a deadlock/EF failure into a normal
