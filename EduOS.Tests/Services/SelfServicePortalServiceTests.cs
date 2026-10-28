@@ -444,14 +444,39 @@ public class SelfServicePortalServiceTests
         (await service.GetReceiptDocumentAsync(other.PublicId, payment.PublicId))
             .StatusCode.Should().Be(403);
 
-        allocation.StudentInvoiceId = foreignInvoice.Id;
+        // PaymentAllocation is append-only: exercise corrupted provenance with new
+        // synthetic receipts, never by editing a historical allocation.
+        var mixed = new StudentPayment
+        {
+            TenantId = 10, StudentId = own.Id, ClientRequestId = Guid.NewGuid(),
+            ReceiptNumber = "MIXED-RCP", PaymentDate = new DateOnly(2026, 10, 2),
+            PaymentMethod = PaymentMethodType.Cash, Amount = 100m,
+            State = PaymentState.Successful, CurrencyCode = "BDT"
+        };
+        var tombstoned = new StudentPayment
+        {
+            TenantId = 10, StudentId = own.Id, ClientRequestId = Guid.NewGuid(),
+            ReceiptNumber = "DELETED-RCP", PaymentDate = new DateOnly(2026, 10, 2),
+            PaymentMethod = PaymentMethodType.Cash, Amount = 100m,
+            State = PaymentState.Successful, CurrencyCode = "BDT"
+        };
+        context.Set<StudentPayment>().AddRange(mixed, tombstoned);
         await context.SaveChangesAsync();
-        (await service.GetReceiptDocumentAsync(own.PublicId, payment.PublicId))
+        context.Set<PaymentAllocation>().AddRange(
+            new PaymentAllocation
+            {
+                TenantId = 10, StudentPaymentId = mixed.Id,
+                StudentInvoiceId = foreignInvoice.Id, Amount = 100m
+            },
+            new PaymentAllocation
+            {
+                TenantId = 10, StudentPaymentId = tombstoned.Id,
+                StudentInvoiceId = invoice.Id, Amount = 100m, IsDeleted = true
+            });
+        await context.SaveChangesAsync();
+        (await service.GetReceiptDocumentAsync(own.PublicId, mixed.PublicId))
             .StatusCode.Should().Be(409);
-        allocation.StudentInvoiceId = invoice.Id;
-        allocation.IsDeleted = true;
-        await context.SaveChangesAsync();
-        (await service.GetReceiptDocumentAsync(own.PublicId, payment.PublicId))
+        (await service.GetReceiptDocumentAsync(own.PublicId, tombstoned.PublicId))
             .StatusCode.Should().Be(409);
     }
 
