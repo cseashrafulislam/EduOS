@@ -136,7 +136,7 @@ public sealed class StudentImportExecutionServiceTests
         var service = Service(db, new User(101, true));
         var request = Guid.NewGuid();
         var rows = Header + string.Concat(Enumerable.Range(1, 100)
-            .Select(i => $"SRC-100-{i},STU-100-{i},Learner {i},10,20,{i},,\\n"));
+            .Select(i => $"SRC-100-{i},STU-100-{i},Learner {i},10,20,{i},,\n"));
 
         using (var file = Csv(rows))
         {
@@ -150,7 +150,7 @@ public sealed class StudentImportExecutionServiceTests
             Assert.True(replay.Success, replay.Message);
             Assert.True(replay.Data!.Replayed);
         }
-        using (var file = Csv(Header + "SRC-100-75,STU-NEW,New Learner,10,20,150,,\\n"))
+        using (var file = Csv(Header + "SRC-100-75,STU-NEW,New Learner,10,20,150,,\n"))
         {
             var conflict = await service.ExecuteAsync(file, ".csv", Mapping, Guid.NewGuid());
             Assert.Equal(409, conflict.StatusCode);
