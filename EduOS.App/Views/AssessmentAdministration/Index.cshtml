@@ -42,16 +42,25 @@
     }
     <section class="card mb-3" aria-labelledby="examRosterHeading">
         <div class="card-header d-flex flex-wrap align-items-center justify-content-between gap-2">
-            <h3 id="examRosterHeading" class="h6 m-0">Subject marks register</h3><div class="d-flex flex-wrap gap-2 align-items-center"><span id="examRosterInfo" class="small text-muted"></span><button id="examMarksCsv" type="button" class="btn btn-sm btn-outline-secondary">Marks CSV</button></div>
+            <h3 id="examRosterHeading" class="h6 m-0">Subject marks register</h3><div class="d-flex flex-wrap gap-2 align-items-center"><span id="examRosterInfo" class="small text-muted" role="status" aria-live="polite"></span><button id="examMarksCsv" type="button" class="btn btn-sm btn-outline-secondary" disabled>Page CSV</button></div>
         </div>
+        <form id="examRosterSearchForm" class="card-body py-2 d-flex flex-wrap gap-2 align-items-end" role="search">
+            <div><label for="examRosterSearch" class="form-label mb-1">Roll, student code or name</label>
+                <input id="examRosterSearch" type="search" class="form-control form-control-sm" maxlength="100" autocomplete="off" /></div>
+            <button class="btn btn-sm btn-outline-primary" type="submit">Find students</button>
+        </form>
         <div class="table-responsive">
             <table class="table table-hover table-sm align-middle mb-0">
                 <thead><tr><th scope="col">Roll</th><th scope="col">Student code</th><th scope="col">Student</th><th scope="col">Mark</th><th scope="col">Absent</th><th scope="col">Withheld</th><th scope="col">Grade</th></tr></thead>
                 <tbody id="examRoster"><tr><td colspan="7" class="text-center text-muted p-4">Choose assessment, batch and subject.</td></tr></tbody>
             </table>
         </div>
-        <div class="card-footer d-flex flex-wrap justify-content-between gap-2">
-            <span class="text-muted small">Only explicitly changed marks are saved. Blank marks are not treated as zero.</span>
+        <div class="card-footer d-flex flex-wrap justify-content-between align-items-center gap-2">
+            <div class="d-flex align-items-center gap-2">
+                <button id="examRosterPrev" class="btn btn-sm btn-outline-secondary" type="button" disabled>Previous</button>
+                <span id="examRosterPageInfo" class="small text-muted" role="status" aria-live="polite"></span>
+                <button id="examRosterNext" class="btn btn-sm btn-outline-secondary" type="button" disabled>Next</button>
+            </div>
             <button id="examSaveMarks" class="btn btn-primary" disabled type="button">Save changed marks</button>
         </div>
     </section>
@@ -118,6 +127,7 @@
 @@media print {
     #examScopeSearch, #examFilters, #examAlert, #examStateAdvance, #examSaveMarks, #examPublish, #examGenerate,
     #examLoadResults, #examMarksCsv, #examResultsCsv, #examPrint, #examReadinessLoad,
+    #examRosterSearchForm, #examRosterPrev, #examRosterNext, #examSaveMarks,
     #examReadinessCsv, #examReadinessPrev, #examReadinessNext,
     #examHistoryFilters, #examTabulationFilters, #examHistoryInfo, #examHistoryDetails,
     #examTabulationPrev, #examTabulationNext { display:none!important; }

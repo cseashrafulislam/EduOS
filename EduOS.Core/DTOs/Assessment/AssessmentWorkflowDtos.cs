@@ -14,6 +14,14 @@ public sealed class AssessmentMarkRosterQueryDto : AssessmentScopeDto
     [Range(1, long.MaxValue)] public long AssessmentSubjectId { get; set; }
 }
 
+public sealed class AssessmentMarkRosterPageQueryDto : AssessmentScopeDto
+{
+    [Range(1, long.MaxValue)] public long AssessmentSubjectId { get; set; }
+    [Range(1, 100000)] public int Page { get; set; } = 1;
+    [Range(1, 100)] public int PageSize { get; set; } = 50;
+    [MaxLength(100)] public string? Search { get; set; }
+}
+
 public sealed class AssessmentMarkRosterItemDto
 {
     public Guid StudentReference { get; set; }
@@ -39,6 +47,9 @@ public sealed class AssessmentMarkRosterDto
     public decimal FullMarks { get; set; }
     public decimal PassMarks { get; set; }
     public bool IsResultPublished { get; set; }
+    public int Page { get; set; } = 1;
+    public int PageSize { get; set; }
+    public int TotalCount { get; set; }
     public IReadOnlyList<AssessmentMarkRosterItemDto> Students { get; set; } = Array.Empty<AssessmentMarkRosterItemDto>();
 }
 

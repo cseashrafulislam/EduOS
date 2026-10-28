@@ -6,7 +6,8 @@
     const canPublish = root.dataset.canPublish === 'true';
     const token = root.querySelector('input[name="__RequestVerificationToken"]')?.value || '';
     const state = { scopes: [], scopePage: 1, scopeSize: 30, scopeTotal: 0, scopeSearch: '',
-        scopeBusy: false, roster: null, sheet: null, sheetMode: null, busy: false, publishKey: null,
+        scopeBusy: false, roster: null, rosterPage: 1, rosterSize: 50, rosterTotal: 0,
+        sheet: null, sheetMode: null, busy: false, publishKey: null,
         readiness: null, readinessPage: 1, readinessBusy: false, readinessSize: 20 };
     const option = (value, label) => new Option(label, String(value));
     const cell = value => { const td = document.createElement('td'); td.textContent = value == null ? '' : String(value); return td; };
@@ -51,8 +52,12 @@
         return row;
     }
     function resetRoster() {
-        state.roster = null;
+        state.roster = null; state.rosterPage = 1; state.rosterTotal = 0;
         el('examSaveMarks').disabled = true;
+        el('examMarksCsv').disabled = true;
+        el('examRosterPrev').disabled = true;
+        el('examRosterNext').disabled = true;
+        el('examRosterPageInfo').textContent = '';
         el('examRosterInfo').textContent = '';
         const tbody = el('examRoster'); tbody.replaceChildren();
         const tr = document.createElement('tr'), td = cell('Load a subject to view its marks register.');
@@ -169,11 +174,25 @@
         }
     }
     async function init() { await loadScopes(1); }
+    function hasUnsavedMarks() {
+        return [...el('examRoster').querySelectorAll('tr[data-registration-id]')].some(tr => {
+            const [mark, absent, withheld] = tr.querySelectorAll('input');
+            return mark.value !== mark.dataset.initial ||
+                String(absent.checked) !== absent.dataset.initial ||
+                String(withheld.checked) !== withheld.dataset.initial;
+        });
+    }
     function renderRoster(data) {
-        state.roster = data;
+        state.roster = data; state.rosterPage = data.page; state.rosterTotal = data.totalCount;
+        const first = data.totalCount ? (data.page - 1) * data.pageSize + 1 : 0;
+        const last = Math.min(data.page * data.pageSize, data.totalCount);
+        el('examRosterPageInfo').textContent = first + '–' + last + ' of ' + data.totalCount;
+        el('examRosterPrev').disabled = data.page <= 1;
+        el('examRosterNext').disabled = data.page * data.pageSize >= data.totalCount;
+        el('examMarksCsv').disabled = !data.students?.length;
         const editable = !data.isResultPublished && marksOpen(selected());
         const tbody = el('examRoster'); tbody.replaceChildren();
-        el('examRosterInfo').textContent = (data.students?.length || 0) + ' students · Full ' +
+        el('examRosterInfo').textContent = (data.students?.length || 0) + ' on page · Full ' +
             data.fullMarks + ' · Pass ' + data.passMarks +
             (data.isResultPublished ? ' · Published (immutable)' : editable ? ' · Marks entry open' : ' · Read-only');
         for (const student of data.students || []) {
@@ -206,16 +225,21 @@
         }
         el('examSaveMarks').disabled = !editable || !data.students?.length;
     }
-    async function loadRoster(event) {
+    async function loadRoster(event, page = state.rosterPage) {
         event?.preventDefault();
-        if (state.busy) return;
+        if (state.busy || page < 1) return;
+        if (state.roster && hasUnsavedMarks() &&
+            !window.confirm('Discard unsaved marks before changing the register?')) return;
         let s;
         try { s = scope(); } catch (error) { message('warning', error.message); return; }
         el('examLoadRoster').disabled = true;
+        el('examRosterPrev').disabled = true; el('examRosterNext').disabled = true;
         try {
             const q = new URLSearchParams({ assessmentId: String(s.assessmentId),
-                academicBatchId: String(s.academicBatchId), assessmentSubjectId: String(s.assessmentSubjectId) });
-            renderRoster(await api('/api/assessment-administration/mark-roster?' + q));
+                academicBatchId: String(s.academicBatchId), assessmentSubjectId: String(s.assessmentSubjectId),
+                page: String(page), pageSize: String(state.rosterSize),
+                search: el('examRosterSearch').value.trim() });
+            renderRoster(await api('/api/assessment-administration/mark-roster/page?' + q));
         } catch (error) { resetRoster(); message('danger', error.message); }
         finally { el('examLoadRoster').disabled = false; }
     }
@@ -250,7 +274,7 @@
         try {
             await api('/api/assessment-administration/marks', 'POST', body);
         } catch (e) { error = e; }
-        finally { state.busy = false; await loadRoster(); }
+        finally { state.busy = false; state.roster = null; await loadRoster(); }
         message(error ? 'danger' : 'success', error
             ? error.message + ' The roster was refreshed; review versions before retrying.'
             : 'Changed marks saved. The register has been refreshed.');
@@ -404,7 +428,10 @@
     });
     el('examScopePrev').addEventListener('click', () => loadScopes(state.scopePage - 1));
     el('examScopeNext').addEventListener('click', () => loadScopes(state.scopePage + 1));
-    el('examFilters').addEventListener('submit', loadRoster);
+    el('examFilters').addEventListener('submit', event => loadRoster(event, 1));
+    el('examRosterSearchForm').addEventListener('submit', event => loadRoster(event, 1));
+    el('examRosterPrev').addEventListener('click', () => loadRoster(null, state.rosterPage - 1));
+    el('examRosterNext').addEventListener('click', () => loadRoster(null, state.rosterPage + 1));
     el('examExam').addEventListener('change', examChanged);
     el('examBatch').addEventListener('change', batchChanged);
     el('examSubject').addEventListener('change', () => { resetRoster(); resetResults(); });

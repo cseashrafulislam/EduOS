@@ -33,6 +33,10 @@ public sealed class AssessmentAdministrationApiController : ControllerBase
     public async Task<IActionResult> AdmitCards([FromQuery] AssessmentAdmitCardQueryDto query,
         CancellationToken ct) => Result(await _service.SearchAdmitCardsAsync(query, ct));
 
+    [HttpGet("mark-roster/page")]
+    public async Task<IActionResult> SearchMarkRoster([FromQuery] AssessmentMarkRosterPageQueryDto query,
+        CancellationToken ct) => Result(await _service.SearchMarkRosterAsync(query, ct));
+
     [HttpGet("mark-roster")]
     public async Task<IActionResult> MarkRoster([FromQuery] AssessmentMarkRosterQueryDto query,
         CancellationToken ct) => Result(await _service.GetMarkRosterAsync(query, ct));

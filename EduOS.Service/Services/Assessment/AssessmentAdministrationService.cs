@@ -247,12 +247,25 @@ public sealed partial class AssessmentAdministrationService : IAssessmentAdminis
                     x.AcademicBatchId == offering.AcademicBatchId &&
                     x.State == ResultPublicationState.Published, token))
                     return Error<bool>("Published marks cannot be edited.", 409);
-                var eligibility = await EligibleAsync(offering.Id, offering.AcademicBatchId, token);
-                var eligibleIds = eligibility.Select(x => x.RegistrationId).ToHashSet();
-                if (request.Marks.Any(x => !eligibleIds.Contains(x.StudentSubjectRegistrationId) ||
+                // Validate only submitted registrations in SQL, not the legacy 2,001-row roster.
+                var ids = request.Marks.Select(x => x.StudentSubjectRegistrationId).ToArray();
+                var eligibleIds = await (from registration in _registrations.GetQueryable().AsNoTracking()
+                    join enrollment in _enrollments.GetQueryable().AsNoTracking()
+                        on registration.StudentEnrollmentId equals enrollment.Id
+                    join student in _students.GetQueryable().AsNoTracking()
+                        on enrollment.StudentId equals student.Id
+                    where registration.TenantId == tenant && enrollment.TenantId == tenant &&
+                        student.TenantId == tenant && ids.Contains(registration.Id) &&
+                        registration.SubjectOfferingId == offering.Id &&
+                        registration.State == SubjectRegistrationState.Approved &&
+                        enrollment.AcademicBatchId == offering.AcademicBatchId &&
+                        enrollment.IsCurrent && enrollment.State == EnrollmentState.Active &&
+                        student.StatusCode == "Active" && !registration.IsDeleted &&
+                        !enrollment.IsDeleted && !student.IsDeleted
+                    select registration.Id).ToListAsync(token);
+                if (eligibleIds.Count != ids.Length || request.Marks.Any(x =>
                     !x.IsAbsent && x.ObtainedMarks > sub.FullMarks))
                     return Error<bool>("Marks exceed maximum or student is not registered.", 409);
-                var ids = request.Marks.Select(x => x.StudentSubjectRegistrationId).ToArray();
                 var existing = await _marks.GetQueryable().Where(x => x.TenantId == tenant &&
                     x.AssessmentSubjectId == sub.Id && ids.Contains(x.StudentSubjectRegistrationId) &&
                     !x.IsDeleted).ToDictionaryAsync(x => x.StudentSubjectRegistrationId, token);
