@@ -32,7 +32,12 @@ test('student import execution is an authorized atomic bounded workflow', () => 
     // Execution preflight must not turn a deadlock/EF failure into a normal
     // response that causes the surrounding transaction to attempt CommitAsync.
     assert.match(service, /_preview\.PreviewForExecutionAsync/);
-    assert.match(service, /check\.StatusCode >= 500/);
+    assert.equal((service.match(/_preview\.PreviewForExecutionAsync/g) || []).length, 1);
+    const batchLockWrite = service.indexOf('await _uow.SaveChangesAsync(token);');
+    const transactionalPreview = service.indexOf('_preview.PreviewForExecutionAsync');
+    assert.ok(batchLockWrite >= 0 && transactionalPreview > batchLockWrite,
+        'serializable import preview must follow the batch allocation write lock');
+    assert.match(service, /throw new ImportConflictException/);
     const preview = read('EduOS.Service/Services/Students/StudentImportPreviewService.cs');
     const previewContract = read('EduOS.Core/Interfaces/IServices/IStudentImportPreviewService.cs');
     assert.match(previewContract, /PreviewForExecutionAsync/);
