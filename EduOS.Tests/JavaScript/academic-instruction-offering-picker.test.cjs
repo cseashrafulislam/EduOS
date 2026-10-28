@@ -37,6 +37,8 @@ test('lesson edit uses scoped saved offering reference, not a limited current se
     assert.match(script, /id: ref, name: editing\.subjectName/);
     assert.doesNotMatch(script, /page <= 5/);
     assert.doesNotMatch(script, /cannot be edited here/);
+    assert.match(script, /get\('lessonOfferingSearch'\)\.addEventListener\('keydown'/);
+    assert.match(script, /e\.preventDefault\(\);\s*findOfferings\(1\)/);
     assert.match(view, /id="lessonOfferingSearch"/);
     assert.match(view, /id="lessonOfferingsPrevious"/);
     assert.match(view, /id="lessonOfferingsNext"/);

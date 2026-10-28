@@ -382,6 +382,11 @@
     get('substitutionTeacherFind')?.addEventListener('click',()=>findInstructors().catch(e=>status('danger',e.message)));
     get('lessonFindOfferings').addEventListener('click', () =>
         findOfferings(1).catch(e => status('danger', e.message)));
+    get('lessonOfferingSearch').addEventListener('keydown', e => {
+        if (e.key !== 'Enter') return;
+        e.preventDefault();
+        findOfferings(1).catch(error => status('danger', error.message));
+    });
     get('lessonOfferingsPrevious').addEventListener('click', () => {
         if (state.offeringPage > 1) findOfferings(state.offeringPage - 1).catch(e => status('danger', e.message));
     });
