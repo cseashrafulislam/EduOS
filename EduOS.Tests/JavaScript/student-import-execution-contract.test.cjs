@@ -63,3 +63,24 @@ test('import UI requires preview and token, offers reconciliation, avoids raw ht
     assert.match(js, /textContent/);
     assert.doesNotMatch(js, /innerHTML\s*=/);
 });
+
+test('cohort inspection opens only server-reconciled tenant-owned committed windows', () => {
+    const view = read('EduOS.App/Views/StudentImports/Index.cshtml');
+    const js = read('EduOS.App/wwwroot/js/students/import-preview.js');
+    const service = read('EduOS.Service/Services/Students/StudentImportExecutionService.Cohort.cs');
+    const api = read('EduOS.App/Controllers/Api/StudentImportsController.cs');
+    assert.match(view, /studentImportCohortWindow/);
+    assert.match(view, /studentImportCohortInspect/);
+    assert.match(js, /file\.completedWindows/);
+    assert.match(js, /cohortStatus\.files\.some/);
+    assert.match(js, /importReference = reference/);
+    assert.match(js, /await loadReconciliation\(\)/);
+    assert.match(js, /cohortWindow\.replaceChildren\(\)/);
+    assert.doesNotMatch(js, /innerHTML\s*=/);
+    assert.match(service, /x\.TenantId == tenant/);
+    assert.match(service, /x\.PublicId/);
+    assert.match(service, /CompletedWindows = completed/);
+    assert.match(api, /\[Authorize\(Roles = "TenantAdmin"\)\]/);
+    assert.match(api, /\[RequireModule\("STUDENT"\)\]/);
+    assert.match(api, /GetIntegrityAsync/);
+});
