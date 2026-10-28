@@ -98,12 +98,15 @@ public sealed class SqlServerStudentImportConcurrencyIntegrationTests
         }
 
         var ids = new[] { Guid.NewGuid(), Guid.NewGuid() };
+        // Globally unique synthetic names make orphan detection independent of
+        // audit stamping and of identities seeded by other SQL smoke tests.
+        var learnerNames = new[] { $"First Learner {suffix}", $"Second Learner {suffix}" };
         var header = "SourceKey,StudentCode,FullName,CampusId,AcademicBatchId,RollNo\n";
         // Two separate tenant-authorized HTTP-style requests with independent DbContexts.
         var sources = new[]
         {
-            header + $"SQL-SRC-A-{suffix},SQL-STU-A-{suffix},First Learner,{await CampusIdAsync(options, tenantId, batchId)},{batchId},01\n",
-            header + $"SQL-SRC-B-{suffix},SQL-STU-B-{suffix},Second Learner,{await CampusIdAsync(options, tenantId, batchId)},{batchId},02\n"
+            header + $"SQL-SRC-A-{suffix},SQL-STU-A-{suffix},{learnerNames[0]},{await CampusIdAsync(options, tenantId, batchId)},{batchId},01\n",
+            header + $"SQL-SRC-B-{suffix},SQL-STU-B-{suffix},{learnerNames[1]},{await CampusIdAsync(options, tenantId, batchId)},{batchId},02\n"
         };
         var diagnostic = new System.Collections.Concurrent.ConcurrentBag<string>();
         var results = await Task.WhenAll(Enumerable.Range(0, 2).Select(async i =>
@@ -142,12 +145,18 @@ public sealed class SqlServerStudentImportConcurrencyIntegrationTests
             Assert.Equal(1, await verify.Students.CountAsync());
             Assert.Equal("SQL-STU-" + (winner == 0 ? "A" : "B") + "-" + suffix,
                 await verify.Students.Select(x => x.StudentCode).SingleAsync());
-            // Person is platform-global: unrelated SQL tests also create Persons.
-            // Count only this synthetic import's identities, including any
-            // mistakenly orphaned Person from the rolled-back losing request.
+            // Verify the committed learner through the tenant-owned link, then
+            // independently detect an orphan Person left by the losing transaction.
+            // Person is platform-global; CreatedBy may be audit-stamped by EF.
+            var committedStudent = await verify.Students.AsNoTracking().SingleAsync();
+            var committedLink = await verify.StudentPersonLinks.AsNoTracking().SingleAsync();
+            Assert.Equal(committedStudent.Id, committedLink.StudentId);
+            Assert.Equal(committedStudent.PersonId, committedLink.PersonId);
+            Assert.Equal(learnerNames[winner], await verify.Persons.AsNoTracking()
+                .Where(x => x.Id == committedLink.PersonId)
+                .Select(x => x.FullName).SingleAsync());
             Assert.Equal(1, await verify.Persons.CountAsync(x =>
-                x.CreatedBy == adminId &&
-                (x.FullName == "First Learner" || x.FullName == "Second Learner")));
+                x.FullName == learnerNames[0] || x.FullName == learnerNames[1]));
             Assert.Equal(0, await verify.IdempotencyRecords.CountAsync(x =>
                 x.TenantId == tenantId && x.Scope == "StudentImportBatch" && x.RequestId == ids[loser]));
             Assert.Equal(1, await verify.IdempotencyRecords.CountAsync(x =>
