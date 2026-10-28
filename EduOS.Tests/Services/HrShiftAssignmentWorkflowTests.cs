@@ -42,7 +42,7 @@ public sealed class HrShiftAssignmentWorkflowTests
 
     private static HrAdminService Service(string role) => new(
         null!, null!, null!, null!, null!, null!, null!, null!, null!, null!,
-        null!, null!, null!, null!, null!, null!, new TestUser(role),
+        null!, null!, null!, null!, null!, null!, null!, new TestUser(role),
         TimeProvider.System, null!, NullLogger<HrAdminService>.Instance);
 
     private sealed class TestUser(string role) : ICurrentUserService
