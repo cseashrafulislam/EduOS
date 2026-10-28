@@ -7,6 +7,12 @@
     const finalizeButton = el('finalizeAttendance'), summary = el('attendanceSummary');
     const historicalCsvButton = el('attendanceHistoricalCsv');
     const historicalPrintButton = el('attendanceHistoricalPrint');
+    const correctionModal = el('attendanceCorrectionModal');
+    const correctionState = el('attendanceCorrectionState');
+    const correctionReason = el('attendanceCorrectionReason');
+    const correctionError = el('attendanceCorrectionError');
+    const correctionConfirm = el('attendanceCorrectionConfirm');
+    let correctionTarget = null;
     if (!form || !rows || !date) return;
     let loaded = false, roster = null, dirty = false;
     let historicalSessionId = null;
@@ -230,13 +236,13 @@
                 opt.value = value; opt.textContent = label; selection.append(opt);
             }
             selection.value = student.state ? String(student.state) : '';
-            selection.disabled = roster?.isHistoricalReadOnly === true;
+            selection.disabled = roster?.isFinalized === true || roster?.isHistoricalReadOnly === true;
             td.append(selection);
-            if (canCorrect && roster?.isFinalized && !roster?.isHistoricalReadOnly && student.id > 0) {
+            if (canCorrect && roster?.isFinalized && student.id > 0) {
                 const edit = document.createElement('button');
                 edit.type = 'button'; edit.className = 'btn btn-sm btn-outline-warning mt-1';
                 edit.textContent = 'Correct (audit)';
-                edit.addEventListener('click', () => correctAttendance(tr, edit));
+                edit.addEventListener('click', () => openCorrection(student));
                 td.append(edit);
                 const history = document.createElement('button');
                 history.type = 'button'; history.className = 'btn btn-sm btn-outline-secondary mt-1 ms-1';
@@ -338,25 +344,55 @@
         } catch (error) { status('danger', error.message); }
         finally { saveButton.disabled = !loaded || roster?.isFinalized || !(roster?.students?.length > 0); }
     }
-    async function correctAttendance(tr, button) {
-        if (!roster?.isFinalized || roster?.isHistoricalReadOnly || !canCorrect) return;
-        const newState = Number(tr.querySelector('[data-state]')?.value);
-        if (!newState || !(newState >= 1 && newState <= 5))
-            return status('danger', 'Select the corrected status first.');
-        const reason = prompt('Reason for changing this finalized attendance record:', '');
-        if (reason === null) return;
-        if (!reason.trim() || reason.trim().length > 1000)
-            return status('danger', 'Provide a reason (up to 1000 characters).');
-        button.disabled = true;
+    function openCorrection(student) {
+        if (!canCorrect || !roster?.isFinalized || !correctionModal ||
+            !Number.isSafeInteger(Number(student.id)) || Number(student.id) <= 0 ||
+            !student.rowVersion) return;
+        correctionTarget = {
+            attendanceId: Number(student.id), rowVersion: student.rowVersion,
+            sessionId: Number(roster.attendanceSessionId), page: rosterPage,
+            token: rosterRequest, state: Number(student.state)
+        };
+        el('attendanceCorrectionStudent').textContent =
+            [student.rollNo, student.studentCode, student.studentName].filter(Boolean).join(' · ');
+        correctionState.value = String(student.state);
+        correctionReason.value = '';
+        correctionError.textContent = '';
+        bootstrap.Modal.getOrCreateInstance(correctionModal).show();
+        correctionState.focus();
+    }
+    async function submitCorrection() {
+        const target = correctionTarget;
+        if (!target || !canCorrect || !roster?.isFinalized ||
+            rosterRequest !== target.token || rosterPage !== target.page ||
+            Number(roster.attendanceSessionId) !== target.sessionId) {
+            correctionError.textContent = 'Roster changed. Close this dialog and reload the page.';
+            return;
+        }
+        const newState = Number(correctionState.value);
+        const reason = correctionReason.value.trim();
+        if (!Number.isInteger(newState) || newState < 1 || newState > 5 ||
+            newState === target.state || !reason || reason.length > 1000) {
+            correctionError.textContent = 'Choose a different status and provide a reason (up to 1000 characters).';
+            return;
+        }
+        correctionConfirm.disabled = true;
+        correctionError.textContent = '';
         try {
-            await api('/api/student-attendance/' + tr.dataset.attendanceId + '/correct', 'POST', {
-                newState, reason: reason.trim(), rowVersion: tr.dataset.rowVersion
+            await api('/api/student-attendance/' + target.attendanceId + '/correct', 'POST', {
+                newState, reason, rowVersion: target.rowVersion
             });
+            if (rosterRequest !== target.token || rosterPage !== target.page ||
+                Number(roster?.attendanceSessionId) !== target.sessionId) return;
+            bootstrap.Modal.getOrCreateInstance(correctionModal).hide();
             dirty = false;
             await loadRoster();
             status('success', 'Attendance corrected with an audit record.');
-        } catch (error) { status('danger', error.message); }
-        finally { button.disabled = false; }
+        } catch (error) {
+            correctionError.textContent = error.message || 'Correction failed. Reload and retry.';
+        } finally {
+            correctionConfirm.disabled = false;
+        }
     }
     async function finalizeAttendance() {
         if (!roster?.attendanceSessionId || roster.isFinalized || !roster.sessionRowVersion) return;
@@ -456,6 +492,12 @@
         if (rosterPage >= rosterPages) return;
         if (dirty && !confirm('Discard unsaved changes on this roster page?')) return;
         dirty = false; rosterPage++; await loadRoster();
+    });
+    correctionConfirm?.addEventListener('click', submitCorrection);
+    correctionModal?.addEventListener('hidden.bs.modal', () => {
+        correctionTarget = null;
+        correctionReason.value = '';
+        correctionError.textContent = '';
     });
     historicalCsvButton?.addEventListener('click', exportHistoricalPage);
     historicalPrintButton?.addEventListener('click', printHistoricalPage);

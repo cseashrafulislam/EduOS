@@ -600,6 +600,52 @@ public sealed class SqlServerAcademicOperationsIntegrationTests
         Assert.Equal(1, historicalRoster.Data.Summary.Marked);
         Assert.Equal(originalEnrollment.PublicId,
             Assert.Single(historicalRoster.Data.Students).StudentEnrollmentReference);
+        // An archived, finalized mark can only change through the audited correction
+        // endpoint; the read-only historical roster then reflects the posted state.
+        var archivedMark = await db.StudentAttendances.AsNoTracking()
+            .SingleAsync(x => x.AttendanceSessionId == sqlSession.Id);
+        var archivedVersion = Convert.ToBase64String(archivedMark.RowVersion);
+        var archivedCorrection = await attendance.CorrectAttendanceAsync(
+            archivedMark.Id, new AttendanceCorrectionRequestDto
+            {
+                NewState = AttendanceState.Present,
+                Reason = "Archived session correction with original enrollment retained",
+                RowVersion = archivedVersion
+            });
+        Assert.True(archivedCorrection.Success, archivedCorrection.Message);
+        db.ChangeTracker.Clear();
+        var correctedHistorical = await riskReport.GetFinalizedSessionRosterAsync(sqlSession.Id);
+        Assert.True(correctedHistorical.Success, correctedHistorical.Message);
+        Assert.Equal(1, correctedHistorical.Data!.Summary.Present);
+        Assert.Equal(0, correctedHistorical.Data.Summary.Absent);
+        Assert.Equal(originalEnrollment.PublicId,
+            Assert.Single(correctedHistorical.Data.Students).StudentEnrollmentReference);
+        var archivedEvents = await attendance.GetCorrectionsAsync(archivedMark.Id);
+        Assert.True(archivedEvents.Success, archivedEvents.Message);
+        var archivedEvent = Assert.Single(archivedEvents.Data!.Items);
+        Assert.Equal(AttendanceState.Absent, archivedEvent.PreviousState);
+        Assert.Equal(AttendanceState.Present, archivedEvent.NewState);
+        Assert.Equal(managerId, archivedEvent.ChangedByUserId);
+        Assert.Equal(409, (await attendance.CorrectAttendanceAsync(
+            archivedMark.Id, new AttendanceCorrectionRequestDto
+            {
+                NewState = AttendanceState.Late, Reason = "Stale archived correction",
+                RowVersion = archivedVersion
+            })).StatusCode);
+        Assert.Equal(1, await db.StudentAttendanceAdjustments.AsNoTracking()
+            .CountAsync(x => x.StudentAttendanceId == archivedMark.Id));
+        Assert.Equal(404, (await principal.CorrectAttendanceAsync(
+            archivedMark.Id, new AttendanceCorrectionRequestDto
+            {
+                NewState = AttendanceState.Late, Reason = "Revoked campus access",
+                RowVersion = archivedVersion
+            })).StatusCode);
+        Assert.Equal(404, (await otherTenant.CorrectAttendanceAsync(
+            archivedMark.Id, new AttendanceCorrectionRequestDto
+            {
+                NewState = AttendanceState.Late, Reason = "Foreign tenant access",
+                RowVersion = archivedVersion
+            })).StatusCode);
         Assert.Equal(404, (await new StudentAttendanceReportService(
             db, new Actor(tenantId + 999, managerId, "TenantAdmin"),
             NullLogger<StudentAttendanceReportService>.Instance)

@@ -154,6 +154,14 @@ async function attendance(browser) {
         return response(route, 404, null, 'Unexpected endpoint');
     });
     await page.goto('http://eduos.test/Attendance/Index');
+    // The harness renders Razor without the production Bootstrap bundle.
+    await page.evaluate(() => {
+        window.bootstrap = { Modal: { getOrCreateInstance: element => ({
+            show() { element.style.display = 'block'; element.classList.add('show'); },
+            hide() { element.style.display = 'none'; element.classList.remove('show');
+                element.dispatchEvent(new Event('hidden.bs.modal')); }
+        }) } };
+    });
     await page.addScriptTag({ path: path.join(root, 'EduOS.App/wwwroot/js/attendance/index.js') });
     await page.locator('#attendanceDate').fill('2026-10-10');
     await page.locator('#sectionId option[value="10"]').waitFor({ state: 'attached' });
@@ -175,12 +183,16 @@ async function attendance(browser) {
     assert.equal(finalized.length, 1);
     assert.equal(await page.locator('#saveAttendance').isDisabled(), true);
     assert.equal(await page.locator('#finalizeAttendance').isDisabled(), true);
-    await page.locator('#attendanceRows [data-state]').first().selectOption('2');
+    assert.equal(await page.locator('#attendanceRows [data-state]').first().isDisabled(), true);
     await page.locator('#attendanceRows button').first().click();
+    await page.locator('#attendanceCorrectionModal').waitFor({ state: 'visible' });
+    await page.locator('#attendanceCorrectionState').selectOption('2');
+    await page.locator('#attendanceCorrectionReason').fill('Reviewed correction reason');
+    await page.locator('#attendanceCorrectionConfirm').click();
     await page.waitForFunction(() => document.querySelector('#attendanceAlert')?.textContent.includes('Attendance corrected'));
     assert.equal(corrections.length, 1);
     assert.equal(corrections[0].newState, 2);
-    assert.match(corrections[0].reason, /reason|Reviewed|Approved|Correction/i);
+    assert.equal(corrections[0].reason, 'Reviewed correction reason');
     await page.addScriptTag({ path: path.join(root, 'EduOS.App/wwwroot/js/attendance/session-register.js') });
     await page.locator('#attendanceReportBatch').evaluate(select => {
         const option = document.createElement('option');
@@ -198,6 +210,26 @@ async function attendance(browser) {
     assert.equal(await page.locator('#attendanceRows [data-state]').first().isDisabled(), true);
     assert.equal(await page.locator('#saveAttendance').isDisabled(), true);
     assert.match(await page.locator('#attendanceRosterPage').innerText(), /historical marks \(read-only\)/);
+    // Historical posted marks stay read-only in the roster but support an explicit
+    // manager correction with rowversion, reason, CSRF and refreshed posted status.
+    await page.locator('#attendanceRows button').first().click();
+    await page.locator('#attendanceCorrectionModal').waitFor({ state: 'visible' });
+    await page.locator('#attendanceCorrectionState').selectOption('3');
+    await page.locator('#attendanceCorrectionReason').fill('Archived session audit review');
+    await page.locator('#attendanceCorrectionConfirm').click();
+    await page.waitForFunction(() => document.querySelector('#attendanceAlert')?.textContent.includes('Attendance corrected'));
+    assert.equal(corrections.length, 2);
+    assert.equal(corrections[1].newState, 3);
+    assert.equal(corrections[1].reason, 'Archived session audit review');
+    assert.equal(await page.locator('#attendanceRows [data-state]').first().inputValue(), '3');
+    assert.equal(await page.locator('#attendanceRows [data-state]').first().isDisabled(), true);
+    await page.evaluate(() => {
+        document.addEventListener('attendance:corrections-open', e => {
+            window.lastHistoryAttendanceId = e.detail.attendanceId;
+        }, { once: true });
+    });
+    await page.locator('#attendanceRows button').nth(1).click();
+    assert.equal(await page.evaluate(() => window.lastHistoryAttendanceId), 901);
     assert.equal(await page.locator('#attendanceHistoricalCsv').isDisabled(), false);
     assert.equal(await page.locator('#attendanceHistoricalPrint').isDisabled(), false);
     const csvDownload = page.waitForEvent('download');
