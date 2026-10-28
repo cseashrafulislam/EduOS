@@ -97,7 +97,7 @@ public sealed partial class AssessmentAdministrationService
             if (component == null || master == null ||
                 component.AssessmentSubjectId != master.AssessmentSubjectId)
                 return Error<StudentAssessmentComponentMarkDto>("Component and student mark do not match.", 409);
-            var subject = await _subjects.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
+            var subject = await _subjects.GetQueryable().FirstOrDefaultAsync(x =>
                 x.TenantId == tenant && x.Id == component.AssessmentSubjectId && !x.IsDeleted, token);
             var exam = subject == null ? null : await _assessments.GetQueryable()
                 .FirstOrDefaultAsync(x => x.TenantId == tenant && x.Id == subject.AssessmentId &&
@@ -106,6 +106,12 @@ public sealed partial class AssessmentAdministrationService
                 return Error<StudentAssessmentComponentMarkDto>("Campus access denied.", 403);
             if (exam == null || exam.State != AssessmentState.MarksEntry)
                 return Error<StudentAssessmentComponentMarkDto>("Assessment is not open for marks entry.", 409);
+            var review = await _markReviews.GetQueryable().AsNoTracking().Where(x =>
+                x.TenantId == tenant && x.AssessmentSubjectId == subject!.Id && !x.IsDeleted)
+                .OrderByDescending(x => x.Id).Select(x => (AssessmentMarkReviewDecision?)x.Decision)
+                .FirstOrDefaultAsync(token);
+            if (review is AssessmentMarkReviewDecision.Submitted or AssessmentMarkReviewDecision.Approved)
+                return Error<StudentAssessmentComponentMarkDto>("Review decision prevents component editing.", 409);
             var offering = await _offerings.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
                 x.TenantId == tenant && x.Id == subject!.SubjectOfferingId && x.IsActive && !x.IsDeleted, token);
             var batch = offering == null ? null : await _batches.GetQueryable().AsNoTracking()
@@ -187,6 +193,9 @@ public sealed partial class AssessmentAdministrationService
                 }),
                 IsSuccess = true, OccurredAt = now
             });
+            // Component marks also advance the subject evidence version.
+            subject!.UpdatedAt = now; subject.UpdatedBy = _user.UserId;
+            _subjects.Update(subject);
             // Component marks and lock share the assessment rowversion conflict boundary.
             exam.UpdatedAt = now; exam.UpdatedBy = _user.UserId;
             _assessments.Update(exam);

@@ -11,6 +11,10 @@ public sealed class AssessmentAdministrationController : Controller
     [HttpGet]
     [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
     public IActionResult Index() => View();
+
+    [HttpGet]
+    [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
+    public IActionResult MarkReviews() => View();
     
     [HttpGet]
     [Authorize(Roles = "TenantAdmin,Principal,VicePrincipal,ExamController")]

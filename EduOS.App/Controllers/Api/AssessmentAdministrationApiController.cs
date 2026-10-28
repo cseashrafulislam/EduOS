@@ -45,6 +45,15 @@ public sealed class AssessmentAdministrationApiController : ControllerBase
     public async Task<IActionResult> SaveMarks([FromBody] SaveMarksRegisterRequestDto request,
         CancellationToken ct) => Result(await _service.SaveMarksRegisterAsync(request, ct));
 
+    [HttpGet("marks/reviews/{subjectId:long}")]
+    public async Task<IActionResult> MarkReview(long subjectId, CancellationToken ct) =>
+        Result(await _service.GetMarkReviewAsync(subjectId, ct));
+
+    [HttpPost("marks/reviews/{subjectId:long}/decision")]
+    public async Task<IActionResult> DecideMarkReview(long subjectId,
+        [FromBody] AssessmentMarkReviewRequestDto request, CancellationToken ct) =>
+        Result(await _service.DecideMarkReviewAsync(subjectId, request, ct));
+
     [HttpGet("marks/history")]
     [Authorize(Roles = "TenantAdmin,Principal,VicePrincipal,ExamController")]
     public async Task<IActionResult> MarkChanges([FromQuery] AssessmentMarkChangeQueryDto query,

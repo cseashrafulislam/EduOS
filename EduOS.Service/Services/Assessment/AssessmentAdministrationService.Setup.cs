@@ -150,9 +150,22 @@ public sealed partial class AssessmentAdministrationService
                 // Reconcile every batch before the same transaction advances the rowversion.
                 var subjects = await _subjects.GetQueryable().AsNoTracking().Where(x =>
                     x.TenantId == _user.TenantId && x.AssessmentId == row.Id && !x.IsDeleted)
-                    .Select(x => new { x.Id, x.SubjectOfferingId }).Take(201).ToListAsync(token);
+                    .Select(x => new { x.Id, x.SubjectOfferingId, x.RowVersion }).Take(201).ToListAsync(token);
                 if (subjects.Count == 0 || subjects.Count > 200)
                     return Error<AssessmentDto>("Assessment has no subjects or exceeds the lock review limit.", 409);
+                var subjectIds = subjects.Select(x => x.Id).ToArray();
+                var approvedReviews = await _markReviews.GetQueryable().AsNoTracking().Where(x =>
+                    x.TenantId == _user.TenantId && subjectIds.Contains(x.AssessmentSubjectId) &&
+                    !x.IsDeleted && x.Id == _markReviews.GetQueryable().Where(y =>
+                        y.TenantId == _user.TenantId && y.AssessmentSubjectId == x.AssessmentSubjectId && !y.IsDeleted)
+                        .Max(y => y.Id))
+                    .Select(x => new { x.AssessmentSubjectId, x.Decision, x.MarkRowVersion })
+                    .ToListAsync(token);
+                if (approvedReviews.Count != subjects.Count || subjects.Any(sub =>
+                    !approvedReviews.Any(x => x.AssessmentSubjectId == sub.Id &&
+                        x.Decision == AssessmentMarkReviewDecision.Approved &&
+                        x.MarkRowVersion == Version(sub.RowVersion))))
+                    return Error<AssessmentDto>("All assessment subjects require approved, current mark review before locking.", 409);
                 var offeringIds = subjects.Select(x => x.SubjectOfferingId).Distinct().ToArray();
                 if (offeringIds.Length != subjects.Count)
                     return Error<AssessmentDto>("Duplicate assessment subject offerings require reconciliation.", 409);

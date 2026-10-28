@@ -3646,6 +3646,82 @@ namespace EduOS.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("EduOS.Core.Entities.Assessment.AssessmentMarkReviewEvent", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
+
+                    b.Property<long>("ActorUserId")
+                        .HasColumnType("bigint");
+
+                    b.Property<long>("AssessmentSubjectId")
+                        .HasColumnType("bigint");
+
+                    b.Property<Guid>("ClientRequestId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<long?>("CreatedBy")
+                        .HasColumnType("bigint");
+
+                    b.Property<int>("Decision")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<long?>("DeletedBy")
+                        .HasColumnType("bigint");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("MarkRowVersion")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<DateTime>("OccurredAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Reason")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
+                    b.Property<long>("TenantId")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<long?>("UpdatedBy")
+                        .HasColumnType("bigint");
+
+                    b.HasKey("Id");
+
+                    b.HasAlternateKey("TenantId", "Id");
+
+                    b.HasIndex("ActorUserId");
+
+                    b.HasIndex("TenantId", "AssessmentSubjectId", "Id");
+
+                    b.HasIndex("TenantId", "ClientRequestId")
+                        .IsUnique();
+
+                    b.ToTable("AssessmentMarkReviewEvents");
+                });
+
             modelBuilder.Entity("EduOS.Core.Entities.Assessment.AssessmentSchedule", b =>
                 {
                     b.Property<long>("Id")
@@ -18805,6 +18881,30 @@ namespace EduOS.Persistence.Migrations
                         .WithMany()
                         .HasForeignKey("TenantId", "AssessmentSubjectId")
                         .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Tenant");
+                });
+
+            modelBuilder.Entity("EduOS.Core.Entities.Assessment.AssessmentMarkReviewEvent", b =>
+                {
+                    b.HasOne("EduOS.Core.Entities.Auth.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("ActorUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("EduOS.Core.Entities.Assessment.AssessmentSubject", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "AssessmentSubjectId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("EduOS.Core.Entities.SaaS.Tenant", "Tenant")
+                        .WithMany()
+                        .HasForeignKey("TenantId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 

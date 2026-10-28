@@ -21,6 +21,7 @@ public sealed partial class AssessmentAdministrationService : IAssessmentAdminis
 {
     private readonly IGenericRepository<Assessment> _assessments;
     private readonly IGenericRepository<AssessmentSubject> _subjects;
+    private readonly IGenericRepository<AssessmentMarkReviewEvent> _markReviews;
     private readonly IGenericRepository<AssessmentSchedule> _schedules;
     private readonly IGenericRepository<StudentAssessmentMark> _marks;
     private readonly IGenericRepository<ResultPublication> _publications;
@@ -53,7 +54,8 @@ public sealed partial class AssessmentAdministrationService : IAssessmentAdminis
     private readonly ILogger<AssessmentAdministrationService> _logger;
 
     public AssessmentAdministrationService(IGenericRepository<Assessment> assessments,
-        IGenericRepository<AssessmentSubject> subjects, IGenericRepository<AssessmentSchedule> schedules,
+        IGenericRepository<AssessmentSubject> subjects,
+        IGenericRepository<AssessmentMarkReviewEvent> markReviews, IGenericRepository<AssessmentSchedule> schedules,
         IGenericRepository<StudentAssessmentMark> marks, IGenericRepository<ResultPublication> publications,
         IGenericRepository<StudentResultSummary> summaries, IGenericRepository<GradeScheme> gradeSchemes,
         IGenericRepository<GradeRule> grades, IGenericRepository<StudentEnrollment> enrollments,
@@ -71,7 +73,7 @@ public sealed partial class AssessmentAdministrationService : IAssessmentAdminis
         IUnitOfWork uow, ICurrentUserService user,
         TimeProvider clock, ILogger<AssessmentAdministrationService> logger)
     {
-        _assessments = assessments; _subjects = subjects; _schedules = schedules;
+        _assessments = assessments; _subjects = subjects; _markReviews = markReviews; _schedules = schedules;
         _marks = marks; _publications = publications; _summaries = summaries;
         _gradeSchemes = gradeSchemes; _grades = grades; _enrollments = enrollments;
         _subjectNames = subjectNames; _registrations = registrations; _offerings = offerings;
@@ -228,7 +230,7 @@ public sealed partial class AssessmentAdministrationService : IAssessmentAdminis
             return await _uow.ExecuteInTransactionAsync(async token =>
             {
                 var tenant = _user.TenantId;
-                var sub = await _subjects.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
+                var sub = await _subjects.GetQueryable().FirstOrDefaultAsync(x =>
                     x.TenantId == tenant && x.Id == request.AssessmentSubjectId && !x.IsDeleted, token);
                 if (sub == null) return Error<bool>("Assessment subject not found.", 404);
                 var exam = await _assessments.GetQueryable().FirstOrDefaultAsync(x =>
@@ -239,6 +241,12 @@ public sealed partial class AssessmentAdministrationService : IAssessmentAdminis
                     return Error<bool>("Assessment is not open for marks entry.", 409);
                 if (!await CanEditOfferingAsync(sub.SubjectOfferingId, token))
                     return Error<bool>("Instructor assignment not found.", 403);
+                var review = await _markReviews.GetQueryable().AsNoTracking().Where(x =>
+                    x.TenantId == tenant && x.AssessmentSubjectId == sub.Id && !x.IsDeleted)
+                    .OrderByDescending(x => x.Id).Select(x => (AssessmentMarkReviewDecision?)x.Decision)
+                    .FirstOrDefaultAsync(token);
+                if (review is AssessmentMarkReviewDecision.Submitted or AssessmentMarkReviewDecision.Approved)
+                    return Error<bool>("Review decision prevents marks editing.", 409);
                 var offering = await _offerings.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
                     x.TenantId == tenant && x.Id == sub.SubjectOfferingId && x.IsActive, token);
                 if (offering == null) return Error<bool>("Subject offering inactive.", 409);
@@ -333,6 +341,9 @@ public sealed partial class AssessmentAdministrationService : IAssessmentAdminis
                 }
                 if (!changedAny)
                     return ApiResponse<bool>.SuccessResponse(true, "Marks unchanged.");
+                // Change the subject evidence version and assessment lock boundary atomically.
+                sub.UpdatedAt = now; sub.UpdatedBy = _user.UserId;
+                _subjects.Update(sub);
                 // A concurrent lock and mark edit must conflict on the assessment rowversion.
                 exam.UpdatedAt = now; exam.UpdatedBy = _user.UserId;
                 _assessments.Update(exam);
