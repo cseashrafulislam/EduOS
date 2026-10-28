@@ -40,7 +40,7 @@ public sealed partial class AccountingReportingService
                   line.AccountId == accountId && journal.JournalDate <= toDate
             select new
             {
-                line.Id, line.LineNo, line.DebitAmount, line.CreditAmount,
+                line.Id, line.JournalId, line.LineNo, line.DebitAmount, line.CreditAmount,
                 LineDescription = line.Description, LineCampusId = line.CampusId,
                 journal.PublicId, journal.JournalDate, journal.JournalNumber,
                 journal.ReferenceNumber, journal.SourceType, journal.CurrencyCode,
@@ -52,6 +52,17 @@ public sealed partial class AccountingReportingService
             (x.DebitAmount > 0m) == (x.CreditAmount > 0m), ct))
             return ApiResponse<LedgerActivityPageDto>.ErrorResponse(
                 "Invalid posted bank/ledger movement prevents audit reporting.", 409);
+
+        // An individually unbalanced posted journal must never be hidden by a balanced
+        // account subtotal. Check every line of journals touching the selected account.
+        var affectedJournalIds = movements.Select(x => x.JournalId).Distinct();
+        var affectedLines = Lines.Where(x => affectedJournalIds.Contains(x.JournalId));
+        if (await affectedLines.GroupBy(x => x.JournalId)
+            .Select(g => new { Count = g.Count(), Debit = g.Sum(x => x.DebitAmount),
+                Credit = g.Sum(x => x.CreditAmount) })
+            .AnyAsync(x => x.Count < 2 || x.Debit <= 0m || x.Debit != x.Credit, ct))
+            return ApiResponse<LedgerActivityPageDto>.ErrorResponse(
+                "An unbalanced posted journal prevents activity reporting.", 409);
 
         var opening = await movements.Where(x => x.JournalDate < fromDate)
             .Select(x => (decimal?)(x.DebitAmount - x.CreditAmount)).SumAsync(ct) ?? 0m;
