@@ -49,10 +49,11 @@ public sealed class PayrollReconciliationService : IPayrollReconciliationService
             .Select(x => new
             {
                 EmployeeId = x.employee.Id,
+                EmployeeSourceId = x.employee.EmployeeId,
                 x.employee.EmployeeCodeSnapshot, x.employee.EmployeeNameSnapshot,
                 x.employee.NetAmount, RunId = x.run.Id, x.run.PublicId,
                 x.run.RunNumber, x.run.CampusId, x.run.State,
-                x.run.JournalId, x.run.Year, x.run.Month
+                x.run.JournalId, x.run.Year, x.run.Month, x.run.PeriodEnd
             }).ToListAsync(ct);
         var employeeIds = pageRows.Select(x => x.EmployeeId).ToArray();
         var runIds = pageRows.Select(x => x.RunId).Distinct().ToArray();
@@ -67,7 +68,8 @@ public sealed class PayrollReconciliationService : IPayrollReconciliationService
             {
                 x.Id, x.PayrollEmployeeId, x.JournalId, x.State,
                 x.Amount, x.IsDeleted, x.CurrencyCode, x.BankAccountId,
-                x.PaymentMethod
+                x.EmployeeBankAccountId, x.ExternalReference, x.PaymentMethod,
+                x.PaymentDate
             }).ToListAsync(ct);
         if (payments.Count > 4000)
             return Error<PagedResult<PayrollReconciliationRowDto>>("Payment history exceeds report safety limit.", 409);
@@ -79,7 +81,7 @@ public sealed class PayrollReconciliationService : IPayrollReconciliationService
             .Select(x => new
             {
                 x.Id, x.SourceType, x.SourceId, x.State, x.IsDeleted, x.CurrencyCode,
-                x.ReversalOfJournalId
+                x.ReversalOfJournalId, x.JournalDate, x.CampusId
             }).ToDictionaryAsync(x => x.Id, ct);
         var reversalIds = await db.Journals.IgnoreQueryFilters().AsNoTracking()
             .Where(x => x.TenantId == tenant && x.ReversalOfJournalId.HasValue &&
@@ -93,7 +95,8 @@ public sealed class PayrollReconciliationService : IPayrollReconciliationService
             .OrderBy(x => x.Id).Take(12001)
             .Select(x => new
             {
-                x.JournalId, x.AccountId, x.DebitAmount, x.CreditAmount, x.Description, x.IsDeleted
+                x.JournalId, x.AccountId, x.EmployeeId, x.CampusId,
+                x.DebitAmount, x.CreditAmount, x.Description, x.IsDeleted
             }).ToListAsync(ct);
         if (lines.Count > 12000)
             return Error<PagedResult<PayrollReconciliationRowDto>>(
@@ -106,16 +109,17 @@ public sealed class PayrollReconciliationService : IPayrollReconciliationService
             .Select(x => new { RunId = x.Key, Net = x.Sum(y => y.NetAmount) })
             .ToDictionaryAsync(x => x.RunId, x => x.Net, ct);
 
-        bool BaseJournal(long? id, string type, long sourceId)
+        bool BaseJournal(long? id, string type, long sourceId, long? campusId, DateOnly date)
         {
             return id.HasValue && journals.TryGetValue(id.Value, out var j) &&
                 !j.IsDeleted && !j.ReversalOfJournalId.HasValue &&
                 j.State == JournalState.Posted && j.SourceType == type &&
-                j.SourceId == sourceId && j.CurrencyCode == "BDT" && !reversed.Contains(j.Id);
+                j.SourceId == sourceId && j.CurrencyCode == "BDT" &&
+                j.CampusId == campusId && j.JournalDate == date && !reversed.Contains(j.Id);
         }
-        bool AccrualValid(long? id, long sourceId)
+        bool AccrualValid(long? id, long sourceId, long? campusId, DateOnly periodEnd)
         {
-            if (!BaseJournal(id, "PayrollRun", sourceId)) return false;
+            if (!BaseJournal(id, "PayrollRun", sourceId, campusId, periodEnd)) return false;
             var l = byJournal[id!.Value].ToArray();
             if (l.Length < 2 || l.Any(x => x.IsDeleted || x.DebitAmount < 0m ||
                 x.CreditAmount < 0m || x.DebitAmount > 0m && x.CreditAmount > 0m))
@@ -124,29 +128,45 @@ public sealed class PayrollReconciliationService : IPayrollReconciliationService
                 l.Sum(x => x.DebitAmount) != l.Sum(x => x.CreditAmount))
                 return false;
             return l.Count(x => x.Description == "Payroll net payable" &&
+                x.CampusId == campusId && x.EmployeeId == null &&
                 x.DebitAmount == 0m && x.CreditAmount == runTotals.GetValueOrDefault(sourceId)) == 1;
         }
-        bool PaymentValid(long? id, long sourceId, decimal amount, long? accrualJournalId)
+        bool PaymentValid(long? id, long sourceId, decimal amount, long? accrualJournalId,
+            long? campusId, long employeeSourceId, DateOnly paymentDate,
+            PaymentMethodType method, long? bankAccountId, long? employeeBankAccountId,
+            string? externalReference)
         {
-            if (!BaseJournal(id, "PayrollPayment", sourceId) || !accrualJournalId.HasValue)
+            if (!BaseJournal(id, "PayrollPayment", sourceId, campusId, paymentDate) ||
+                !accrualJournalId.HasValue || amount <= 0m ||
+                method is not (PaymentMethodType.Cash or PaymentMethodType.BankTransfer) ||
+                (method == PaymentMethodType.Cash &&
+                    (bankAccountId.HasValue || employeeBankAccountId.HasValue)) ||
+                (method == PaymentMethodType.BankTransfer &&
+                    (!bankAccountId.HasValue || !employeeBankAccountId.HasValue ||
+                        string.IsNullOrWhiteSpace(externalReference))))
                 return false;
             var payable = byJournal[accrualJournalId.Value].Where(x =>
                 !x.IsDeleted && x.Description == "Payroll net payable" &&
+                x.CampusId == campusId && x.EmployeeId == null &&
                 x.DebitAmount == 0m && x.CreditAmount > 0m).ToArray();
             if (payable.Length != 1) return false;
             var lines = byJournal[id!.Value].ToArray();
             return lines.Length == 2 && lines.All(x => !x.IsDeleted &&
+                x.EmployeeId == employeeSourceId && x.CampusId == campusId &&
                 x.DebitAmount >= 0m && x.CreditAmount >= 0m &&
                 (x.DebitAmount == 0m) != (x.CreditAmount == 0m)) &&
                 lines.Count(x => x.AccountId == payable[0].AccountId &&
+                    x.Description == "Salary payable settlement" &&
                     x.DebitAmount == amount && x.CreditAmount == 0m) == 1 &&
                 lines.Count(x => x.AccountId != payable[0].AccountId &&
+                    x.Description == "Cash/bank payroll disbursement" &&
                     x.CreditAmount == amount && x.DebitAmount == 0m) == 1;
         }
         var rows = pageRows.Select(r =>
         {
             var runPosted = r.State == PayrollRunState.Posted && r.JournalId.HasValue;
-            var accrualValid = runPosted && AccrualValid(r.JournalId, r.RunId);
+            var accrualValid = runPosted && AccrualValid(r.JournalId, r.RunId,
+                r.CampusId, r.PeriodEnd);
             var paid = 0m;
             var pending = 0m;
             var discrepancy = false;
@@ -154,14 +174,24 @@ public sealed class PayrollReconciliationService : IPayrollReconciliationService
             {
                 if (p.State == PaymentState.AwaitingVerification)
                 {
-                    if (p.IsDeleted || p.JournalId.HasValue || p.CurrencyCode != "BDT" || p.Amount <= 0m)
+                    if (p.IsDeleted || p.JournalId.HasValue || p.CurrencyCode != "BDT" ||
+                        p.Amount <= 0m || p.PaymentDate < r.PeriodEnd ||
+                        p.PaymentMethod is not (PaymentMethodType.Cash or PaymentMethodType.BankTransfer) ||
+                        (p.PaymentMethod == PaymentMethodType.Cash &&
+                            (p.BankAccountId.HasValue || p.EmployeeBankAccountId.HasValue)) ||
+                        (p.PaymentMethod == PaymentMethodType.BankTransfer &&
+                            (!p.BankAccountId.HasValue || !p.EmployeeBankAccountId.HasValue ||
+                                string.IsNullOrWhiteSpace(p.ExternalReference))))
                         discrepancy = true;
                     else pending += p.Amount;
                 }
                 else if (p.State == PaymentState.Successful)
                 {
                     if (p.IsDeleted || p.CurrencyCode != "BDT" || p.Amount <= 0m ||
-                        !PaymentValid(p.JournalId, p.Id, p.Amount, r.JournalId))
+                        !PaymentValid(p.JournalId, p.Id, p.Amount, r.JournalId,
+                            r.CampusId, r.EmployeeSourceId, p.PaymentDate,
+                            p.PaymentMethod, p.BankAccountId, p.EmployeeBankAccountId,
+                            p.ExternalReference) || p.PaymentDate < r.PeriodEnd)
                         discrepancy = true;
                     else paid += p.Amount;
                 }
