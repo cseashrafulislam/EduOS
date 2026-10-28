@@ -28,7 +28,7 @@ const version = 'AQIDBAUGBwg=';
         const cancellations = [];
         let active = false, cancelled = false;
         page.on('dialog', d => d.accept());
-        await page.route('http://eduos.test/**', async route => {
+        await page.route('http://localhost/**', async route => {
             const req = route.request(), url = new URL(req.url());
             const name = url.pathname;
             if (!name.startsWith('/api/'))
@@ -98,7 +98,7 @@ const version = 'AQIDBAUGBwg=';
             }
             return reply(route, 404, null, 'Unexpected API ' + name);
         });
-        await page.goto('http://eduos.test/AcademicInstruction/Index');
+        await page.goto('http://localhost/AcademicInstruction/Index');
         await page.addScriptTag({ path: path.join(root, 'EduOS.App/wwwroot/js/academic/instruction.js') });
         await page.locator('#instructionBatch option[value="10"]').waitFor({ state: 'attached' });
         await page.locator('#instructionBatch').selectOption('10');
@@ -112,6 +112,10 @@ const version = 'AQIDBAUGBwg=';
         await page.locator('#substitutionTeacher option[value="' + teacherRef + '"]').waitFor({ state: 'attached' });
         await page.locator('#substitutionTeacher').selectOption(teacherRef);
         await page.locator('#substitutionReason').fill('Coverage');
+        assert.equal(await page.evaluate(() => typeof crypto.randomUUID), 'function',
+            'Loopback browser fixture must expose secure-context Web Crypto');
+        assert.equal(await page.locator('#substitutionForm').evaluate(form => form.checkValidity()),
+            true, 'Substitution form must be valid before submission');
 
         for (let i = 0; i < 2; i++) {
             await Promise.all([
