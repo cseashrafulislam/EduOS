@@ -145,3 +145,15 @@ test('a hung session check times out to an accessible retry state', async () => 
     await flush(); await flush();
     assert.equal(b.shield.hidden, true);
 });
+
+test('an uncertain institution switch can invoke immediate session reconciliation', async () => {
+    const b = browser();
+    assert.equal(typeof b.window.EduOSVerifySessionContext, 'function');
+    const verification = b.window.EduOSVerifySessionContext();
+    assert.equal(b.shield.hidden, false);
+    b.respond(0, other, 99);
+    await verification;
+    await flush();
+    assert.deepEqual(b.redirects, ['/Dashboard/Index']);
+    assert.equal(b.shield.hidden, false);
+});

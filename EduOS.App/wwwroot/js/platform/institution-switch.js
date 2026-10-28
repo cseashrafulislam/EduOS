@@ -88,6 +88,17 @@
             window.location.replace(redirect);
         } catch (error) {
             showStatus(error.message || 'Institution switch failed.', true);
+            // The server may already have committed the tenant switch even if
+            // the response was lost or malformed. Shield this old page and
+            // reconcile the cookie before allowing another attempt.
+            try {
+                if (typeof window.EduOSVerifySessionContext === 'function')
+                    await window.EduOSVerifySessionContext();
+                else window.location.replace('/Dashboard/Index');
+            } catch {
+                // Never leave an old tenant page exposed if verification itself fails.
+                window.location.replace('/Dashboard/Index');
+            }
             loading = false;
             syncButton();
         }

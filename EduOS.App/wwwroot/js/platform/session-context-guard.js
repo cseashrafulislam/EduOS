@@ -87,6 +87,10 @@
         return pending;
     }
 
+    // A switch response can be lost after the server commits the new cookie.
+    // Reconcile against the server before an uncertain modal can show old data.
+    window.EduOSVerifySessionContext = () => check();
+
     // Only a privileged same-institution operation that has fetched a fresh
     // server-issued token should adopt its new session reference on this page.
     // This is a privacy shield, not a substitute for server authorization.
