@@ -252,6 +252,70 @@ public sealed class AcademicRoutineServiceTests
             .Success.Should().BeTrue();
     }
 
+    [Fact]
+    public async Task Teacher_batch_timetable_does_not_disclose_other_instructors_entries()
+    {
+        var options = Options();
+        var scope = await SeedAsync(options);
+        await using var db = Context(options, 101);
+        var other = new Employee { TenantId = 101, EmployeeCode = "T-002",
+            FullName = "Teacher Two", UserId = 71, Phone = "01700000001",
+            DesignationId = 1, JoiningDate = Start, CanTeach = true, State = EmployeeState.Active };
+        db.Employees.Add(other); await db.SaveChangesAsync();
+        var admin = Service(db, new TestUser(101));
+        var slot = (await admin.CreateTimeSlotAsync(new SaveRoutineTimeSlotRequestDto
+        { Name = "Period", StartTime = new TimeOnly(9, 0), EndTime = new TimeOnly(9, 45) })).Data!;
+        var first = await admin.AssignInstructorAsync(Assign(scope.OfferingReference, scope.TeacherReference));
+        var second = await admin.AssignInstructorAsync(Assign(scope.OfferingReference, other.PublicId));
+        (await admin.CreateEntryAsync(Entry(scope.OfferingReference, slot.Id, first.Data!.Id))).Success.Should().BeTrue();
+        // Another day avoids the class timetable collision.
+        var otherEntry = Entry(scope.OfferingReference, slot.Id, second.Data!.Id);
+        otherEntry.DayOfWeek = DayOfWeek.Tuesday;
+        (await admin.CreateEntryAsync(otherEntry)).Success.Should().BeTrue();
+        var batchId = await db.AcademicBatches.Select(x => x.Id).SingleAsync();
+        var teacher = Service(db, new TestUser(101, "Teacher", 70));
+        var timetable = await teacher.GetBatchTimetableAsync(batchId, null);
+        timetable.Success.Should().BeTrue(timetable.Message);
+        var ownEntryId = await db.RoutineEntries.Where(x => x.InstructorAssignmentId == first.Data.Id)
+            .Select(x => x.Id).SingleAsync();
+        timetable.Data.Should().ContainSingle(x => x.Id == ownEntryId);
+    }
+
+    [Fact]
+    public async Task Teacher_timetable_pages_are_scoped_and_validate_bounds()
+    {
+        var options = Options();
+        var scope = await SeedAsync(options);
+        await using var db = Context(options, 101);
+        var admin = Service(db, new TestUser(101));
+        var slot = (await admin.CreateTimeSlotAsync(new SaveRoutineTimeSlotRequestDto
+        { Name = "Period", StartTime = new TimeOnly(9, 0), EndTime = new TimeOnly(9, 45) })).Data!;
+        var assignment = (await admin.AssignInstructorAsync(Assign(scope.OfferingReference, scope.TeacherReference))).Data!;
+        var first = Entry(scope.OfferingReference, slot.Id, assignment.Id);
+        var second = Entry(scope.OfferingReference, slot.Id, assignment.Id);
+        second.DayOfWeek = DayOfWeek.Tuesday;
+        (await admin.CreateEntryAsync(first)).Success.Should().BeTrue();
+        (await admin.CreateEntryAsync(second)).Success.Should().BeTrue();
+        var employeeId = await db.Employees.Where(x => x.PublicId == scope.TeacherReference)
+            .Select(x => x.Id).SingleAsync();
+        var teacher = Service(db, new TestUser(101, "Teacher", 70));
+        var page1 = await teacher.GetTeacherTimetablePageAsync(employeeId, scope.YearId, null, 1, 1);
+        var page2 = await teacher.GetTeacherTimetablePageAsync(employeeId, scope.YearId, null, 2, 1);
+        page1.Success.Should().BeTrue(page1.Message);
+        page1.Data!.TotalCount.Should().Be(2);
+        page1.Data.Items.Should().ContainSingle();
+        page2.Data!.Items.Should().ContainSingle();
+        page2.Data.Items[0].Id.Should().NotBe(page1.Data.Items[0].Id);
+        (await teacher.GetTeacherTimetablePageAsync(employeeId, scope.YearId, null, 0, 50))
+            .StatusCode.Should().Be(400);
+        (await teacher.GetTeacherTimetablePageAsync(employeeId, scope.YearId, null, 1, 101))
+            .StatusCode.Should().Be(400);
+        (await Service(db, new TestUser(202)).GetTeacherTimetablePageAsync(employeeId, scope.YearId, null, 1, 50))
+            .StatusCode.Should().Be(404);
+        (await Service(db, new TestUser(101, "Teacher", 999)).GetTeacherTimetablePageAsync(employeeId, scope.YearId, null, 1, 50))
+            .StatusCode.Should().Be(403);
+    }
+
     private static SaveInstructorAssignmentRequestDto Assign(Guid offering, Guid teacher) => new()
     {
         ClientRequestId = Guid.NewGuid(), SubjectOfferingReference = offering,
@@ -330,10 +394,10 @@ public sealed class AcademicRoutineServiceTests
 
     private sealed record Scope(long CampusId, long YearId, long ProgramId, long LevelId,
         long CurriculumSubjectId, Guid OfferingReference, Guid TeacherReference, long RoomId);
-    private sealed class TestUser(long tenant, string role = "TenantAdmin") : ICurrentUserService
+    private sealed class TestUser(long tenant, string role = "TenantAdmin", long userId = 7) : ICurrentUserService
     {
         public bool IsAuthenticated => true;
-        public long UserId => 7;
+        public long UserId => userId;
         public long TenantId => tenant;
         public string? FullName => role;
         public string? Email => "admin@example.test";

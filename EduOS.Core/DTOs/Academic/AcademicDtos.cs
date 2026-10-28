@@ -618,6 +618,15 @@ public class RoutineEntryDto
     public string RowVersion { get; set; } = string.Empty;
 }
 
+/// <summary>One authorized, bounded page of teacher timetable entries; CSV export uses only this page.</summary>
+public sealed class RoutineTimetablePageDto
+{
+    public IReadOnlyList<RoutineEntryDto> Items { get; set; } = Array.Empty<RoutineEntryDto>();
+    public int Page { get; set; }
+    public int PageSize { get; set; }
+    public int TotalCount { get; set; }
+}
+
 public class SaveRoutineEntryRequestDto
 {
     public Guid ClientRequestId { get; set; }

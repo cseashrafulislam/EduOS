@@ -26,6 +26,16 @@ test('routine subject picker uses authorized paged offering lookup and teacher p
     assert.match(view,/id="routineOfferingSearch"/);
     assert.match(view,/id="routineOfferingsNext"/);
 });
+test('teacher timetable uses authorized SQL pages and exports only the displayed page',()=>{
+    assert.match(script,/teachers\/.*\/page\?/);
+    assert.match(script,/pageSize:'50'/);
+    assert.match(script,/state\.teacherEntries=data\.items\|\|\[\]/);
+    assert.match(script,/routineTeacherPrev/);
+    assert.match(script,/routineTeacherNext/);
+    assert.match(script,/page-'\+state\.teacherPage/);
+    assert.match(view,/id="routineTeacherPage"/);
+    assert.match(view,/Routine field guide/);
+});
 test('timetable readback exposes CSV reports with spreadsheet formula protection',()=>{
     assert.match(script,/function exportBatch\(/);
     assert.match(script,/function exportTeacher\(/);

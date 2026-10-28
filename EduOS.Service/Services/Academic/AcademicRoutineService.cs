@@ -246,9 +246,23 @@ public sealed class AcademicRoutineService : IAcademicRoutineService
             if (!accessible) return Denied<IReadOnlyList<RoutineEntryDto>>();
         }
 
-        var entries = await _entries.GetQueryable().AsNoTracking()
-            .Where(x => x.TenantId == _currentUser.TenantId && offeringIds.Contains(x.SubjectOfferingId) && x.IsActive)
-            .OrderBy(x => x.DayOfWeek).ThenBy(x => x.RoutineTimeSlotId).Take(1000).ToListAsync(cancellationToken);
+        var entriesQuery = _entries.GetQueryable().AsNoTracking()
+            .Where(x => x.TenantId == _currentUser.TenantId && offeringIds.Contains(x.SubjectOfferingId) && x.IsActive);
+        // A teacher may only read entries they are personally assigned to; access to one
+        // subject must never disclose the other teachers' routines in the same batch.
+        if (!IsManager())
+        {
+            var employeeId = await GetLinkedTeacherIdAsync(cancellationToken);
+            if (!employeeId.HasValue) return Denied<IReadOnlyList<RoutineEntryDto>>();
+            var ownAssignments = _assignments.GetQueryable().AsNoTracking()
+                .Where(x => x.TenantId == _currentUser.TenantId && x.EmployeeId == employeeId.Value && x.IsActive);
+            entriesQuery = entriesQuery.Where(x => x.InstructorAssignmentId.HasValue &&
+                ownAssignments.Any(a => a.Id == x.InstructorAssignmentId.Value &&
+                                        a.SubjectOfferingId == x.SubjectOfferingId));
+        }
+        var entries = await entriesQuery
+            .OrderBy(x => x.DayOfWeek).ThenBy(x => x.RoutineTimeSlotId).ThenBy(x => x.Id)
+            .Take(1000).ToListAsync(cancellationToken);
         IReadOnlyList<RoutineEntryDto> rows = await MapEntriesAsync(entries, cancellationToken);
         return ApiResponse<IReadOnlyList<RoutineEntryDto>>.SuccessResponse(rows);
     }
@@ -292,6 +306,69 @@ public sealed class AcademicRoutineService : IAcademicRoutineService
                 .OrderBy(x => x.DayOfWeek).ThenBy(x => x.RoutineTimeSlotId).Take(1000).ToListAsync(cancellationToken);
         IReadOnlyList<RoutineEntryDto> rows = await MapEntriesAsync(entries, cancellationToken);
         return ApiResponse<IReadOnlyList<RoutineEntryDto>>.SuccessResponse(rows);
+    }
+
+
+    /// <summary>
+    /// Read a teacher's timetable without truncating the offering/assignment source at 1,000.
+    /// Tenant, effective campus grants and teacher ownership are applied in SQL before paging.
+    /// </summary>
+    public async Task<ApiResponse<RoutineTimetablePageDto>> GetTeacherTimetablePageAsync(
+        long employeeId, long academicYearId, long? academicTermId, int page, int pageSize,
+        CancellationToken cancellationToken = default)
+    {
+        if (!CanRead()) return Denied<RoutineTimetablePageDto>();
+        if (employeeId <= 0 || academicYearId <= 0 || page < 1 || page > 100000 ||
+            pageSize < 1 || pageSize > 100)
+            return Error<RoutineTimetablePageDto>("Invalid teacher timetable page request.");
+
+        var tenant = _currentUser.TenantId;
+        var employee = await _employees.GetQueryable().AsNoTracking()
+            .FirstOrDefaultAsync(x => x.TenantId == tenant && x.Id == employeeId &&
+                                      x.State == EmployeeState.Active && x.CanTeach, cancellationToken);
+        if (employee == null) return Error<RoutineTimetablePageDto>("Instructor not found.", 404);
+        if (!IsManager() && employee.UserId != _currentUser.UserId)
+            return Denied<RoutineTimetablePageDto>();
+
+        if (!await _years.GetQueryable().AsNoTracking().AnyAsync(x =>
+            x.TenantId == tenant && x.Id == academicYearId && x.IsActive, cancellationToken))
+            return Error<RoutineTimetablePageDto>("Academic year not found.", 404);
+        if (academicTermId.HasValue && !await _terms.GetQueryable().AsNoTracking().AnyAsync(x =>
+            x.TenantId == tenant && x.Id == academicTermId.Value &&
+            x.AcademicYearId == academicYearId && x.IsActive, cancellationToken))
+            return Error<RoutineTimetablePageDto>("Academic term does not belong to the selected academic year.");
+
+        var entriesQuery =
+            from entry in _entries.GetQueryable().AsNoTracking()
+            join assignment in _assignments.GetQueryable().AsNoTracking()
+                on entry.InstructorAssignmentId equals (long?)assignment.Id
+            join offering in _offerings.GetQueryable().AsNoTracking()
+                on entry.SubjectOfferingId equals offering.Id
+            where entry.TenantId == tenant && assignment.TenantId == tenant &&
+                  offering.TenantId == tenant && entry.IsActive && assignment.IsActive &&
+                  offering.IsActive && assignment.EmployeeId == employeeId &&
+                  assignment.SubjectOfferingId == offering.Id &&
+                  offering.AcademicYearId == academicYearId &&
+                  offering.AcademicTermId == academicTermId
+            select new { Entry = entry, Offering = offering };
+
+        if (IsRestrictedManager())
+            entriesQuery = entriesQuery.Where(x =>
+                AllowedManagerBatchIds(tenant).Contains(x.Offering.AcademicBatchId));
+
+        var total = await entriesQuery.CountAsync(cancellationToken);
+        var offset = (page - 1) * pageSize;
+        var entries = await entriesQuery
+            .OrderBy(x => x.Entry.DayOfWeek)
+            .ThenBy(x => x.Entry.RoutineTimeSlotId)
+            .ThenBy(x => x.Entry.Id)
+            .Skip(offset).Take(pageSize)
+            .Select(x => x.Entry).ToListAsync(cancellationToken);
+        var items = await MapEntriesAsync(entries, cancellationToken);
+        return ApiResponse<RoutineTimetablePageDto>.SuccessResponse(new RoutineTimetablePageDto
+        {
+            Items = items, Page = page, PageSize = pageSize, TotalCount = total
+        });
     }
 
     public async Task<ApiResponse<RoutineEntryDto>> CreateEntryAsync(

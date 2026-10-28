@@ -3,7 +3,7 @@
     const root=document.getElementById('routineApp');if(!root)return;
     const el=id=>document.getElementById(id),manager=root.dataset.canManage==='true';
     const days=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
-    const state={batches:[],rooms:[],assignments:[],entries:[],slots:[],instructors:[],offerings:[],offeringPage:1,offeringTotal:0,teacherEntries:[]};
+    const state={batches:[],rooms:[],assignments:[],entries:[],slots:[],instructors:[],offerings:[],offeringPage:1,offeringTotal:0,teacherEntries:[],teacherPage:1,teacherTotal:0};
     const option=(id,name)=>{const v=document.createElement('option');v.value=String(id);v.textContent=name;return v;};
     const dateOnly=x=>x?String(x).slice(0,10):'';
     function clientId(){
@@ -96,7 +96,9 @@
         try{
             const results=await Promise.all([api('/api/academic-routines/batches/'+batch.id+'/assignments'),api('/api/academic-routines/batches/'+batch.id)]);
             state.assignments=results[0]||[];state.entries=results[1]||[];
-            state.teacherEntries=[];
+            state.teacherEntries=[];state.teacherPage=1;state.teacherTotal=0;
+            el('routineTeacherPage').textContent='No timetable loaded';
+            el('routineTeacherPrev').disabled=true;el('routineTeacherNext').disabled=true;
             renderTable('routineTeacherEntries',[],()=>{},4);
             if(state.assignments.length>=500)status('warning','Showing at most 500 assignments; narrow the selected batch where possible.');
             renderTable('routineAssignments',state.assignments,(tr,x)=>tr.append(cell(x.employeeName),cell(x.employeeCode),cell(x.subjectOfferingId),cell(x.isPrimary?'Primary':'Assistant')),4);
@@ -162,14 +164,21 @@
         try{await api('/api/academic-routines/entries/'+id+'/deactivate?rowVersion='+encodeURIComponent(entry.rowVersion),'POST');await load();status('success','Routine entry deactivated.');}
         catch(e){status('danger',e.message);}
     }
-    async function teacherTimetable(){
+    async function teacherTimetable(page=1){
         const batch=selectedBatch(),id=Number(el('routineTeacherTimetable').value);
         if(!batch||!id)return status('warning','Select a batch and teacher first.');
-        const q=new URLSearchParams({academicYearId:String(batch.academicYearId)});
+        const q=new URLSearchParams({academicYearId:String(batch.academicYearId),page:String(page),pageSize:'50'});
         if(batch.academicTermId)q.set('academicTermId',String(batch.academicTermId));
-        try{const rows=await api('/api/academic-routines/teachers/'+id+'?'+q)||[];
-            state.teacherEntries=rows;
-            renderTable('routineTeacherEntries',rows,(tr,x)=>tr.append(cell(days[Number(x.dayOfWeek)]||String(x.dayOfWeek)),cell(x.timeSlotName),cell(x.subjectName),cell(x.roomName||'—')),4);
+        const requestedBatch=String(batch.id),requestedTeacher=String(id);
+        try{
+            const data=await api('/api/academic-routines/teachers/'+id+'/page?'+q);
+            if(String(selectedBatch()?.id)!==requestedBatch||el('routineTeacherTimetable').value!==requestedTeacher)return;
+            state.teacherEntries=data.items||[];state.teacherPage=data.page||page;state.teacherTotal=data.totalCount||0;
+            renderTable('routineTeacherEntries',state.teacherEntries,(tr,x)=>tr.append(cell(days[Number(x.dayOfWeek)]||String(x.dayOfWeek)),cell(x.timeSlotName),cell(x.subjectName),cell(x.roomName||'—')),4);
+            const pages=Math.max(1,Math.ceil(state.teacherTotal/50));
+            el('routineTeacherPage').textContent='Page '+state.teacherPage+' of '+pages+' ('+state.teacherTotal+' entries)';
+            el('routineTeacherPrev').disabled=state.teacherPage<=1;
+            el('routineTeacherNext').disabled=state.teacherPage>=pages;
         }catch(e){status('danger',e.message);}
     }
     function csvEscape(value){
@@ -192,7 +201,7 @@
     }
     function exportTeacher(){
         const id=el('routineTeacherTimetable').value;
-        exportCsv('routine-teacher-'+id+'.csv',['Day','Slot','Subject','Room','From','To'],
+        exportCsv('routine-teacher-'+id+'-page-'+state.teacherPage+'.csv',['Day','Slot','Subject','Room','From','To'],
             state.teacherEntries.map(x=>[days[Number(x.dayOfWeek)]||x.dayOfWeek,x.timeSlotName,x.subjectName,
                 x.roomName||'',dateOnly(x.effectiveFrom),dateOnly(x.effectiveTo)]));
     }
@@ -216,7 +225,15 @@
     el('routineAssignmentForm')?.addEventListener('submit',saveAssignment);
     el('routineEntryForm')?.addEventListener('submit',saveEntry);
     el('routineFindTeachers')?.addEventListener('click',loadTeachers);
-    el('routineShowTeacher').addEventListener('click',teacherTimetable);
+    el('routineShowTeacher').addEventListener('click',()=>teacherTimetable(1));
+    el('routineTeacherPrev').addEventListener('click',()=>teacherTimetable(state.teacherPage-1));
+    el('routineTeacherNext').addEventListener('click',()=>teacherTimetable(state.teacherPage+1));
+    el('routineTeacherTimetable').addEventListener('change',()=>{
+        state.teacherEntries=[];state.teacherPage=1;state.teacherTotal=0;
+        el('routineTeacherPage').textContent='Select View schedule';
+        el('routineTeacherPrev').disabled=true;el('routineTeacherNext').disabled=true;
+        renderTable('routineTeacherEntries',[],()=>{},4);
+    });
     el('routineEntries').addEventListener('click',e=>{const button=e.target.closest('button[data-deactivate-id]');if(button)deactivate(Number(button.dataset.deactivateId));});
     init();
 })();

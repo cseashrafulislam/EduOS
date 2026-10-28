@@ -45,6 +45,13 @@ public sealed class AcademicRoutinesController : ControllerBase
     [HttpGet("teachers/{employeeId:long}")]
     public async Task<IActionResult> TeacherTimetable(long employeeId, [FromQuery] long academicYearId, [FromQuery] long? academicTermId, CancellationToken cancellationToken) => ToAction(await _service.GetTeacherTimetableAsync(employeeId, academicYearId, academicTermId, cancellationToken));
 
+    [HttpGet("teachers/{employeeId:long}/page")]
+    public async Task<IActionResult> TeacherTimetablePage(long employeeId, [FromQuery] long academicYearId,
+        [FromQuery] long? academicTermId, [FromQuery] int page = 1, [FromQuery] int pageSize = 50,
+        CancellationToken cancellationToken = default) =>
+        ToAction(await _service.GetTeacherTimetablePageAsync(employeeId, academicYearId, academicTermId,
+            page, pageSize, cancellationToken));
+
     [HttpPost("entries")]
     [Authorize(Roles = "TenantAdmin,Principal,VicePrincipal")]
     public async Task<IActionResult> CreateEntry([FromBody] SaveRoutineEntryRequestDto request, CancellationToken cancellationToken) => ToAction(await _service.CreateEntryAsync(request, cancellationToken));
