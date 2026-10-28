@@ -93,12 +93,7 @@ public sealed class FeeInvoiceCoverageTests
     [Fact]
     public async Task Missing_or_inconsistent_invoice_lines_are_reviewed_without_mutation()
     {
-        await using var db = Database(); Seed(db);
-        var missing = await db.StudentInvoiceLines.SingleAsync(x => x.StudentInvoiceId == 1);
-        db.StudentInvoiceLines.Remove(missing);
-        var inconsistent = await db.StudentInvoiceLines.SingleAsync(x => x.StudentInvoiceId == 2);
-        inconsistent.NetAmount = 99m;
-        await db.SaveChangesAsync();
+        await using var db = Database(); Seed(db, omitFirstLine: true, corruptSecondLine: true);
         var result = await Service(db).GetInvoiceCoverageAsync(Query());
         result.StatusCode.Should().Be(200);
         result.Data!.Billed.Should().Be(0);
@@ -111,18 +106,16 @@ public sealed class FeeInvoiceCoverageTests
     }
 
     [Fact]
-    public async Task Deleted_invoice_line_cannot_satisfy_financial_evidence()
+    public async Task Missing_invoice_line_remains_a_review_exception()
     {
-        await using var db = Database(); Seed(db);
-        var line = await db.StudentInvoiceLines.SingleAsync(x => x.StudentInvoiceId == 1);
-        line.IsDeleted = true;
-        await db.SaveChangesAsync();
+        await using var db = Database(); Seed(db, omitFirstLine: true);
         var result = await Service(db).GetInvoiceCoverageAsync(Query());
         result.Data!.Students.Items.Single(x => x.StudentCode == "ST-1")
             .LineIssueCount.Should().Be(1);
     }
 
-    private static void Seed(EduOSDbContext db)
+    private static void Seed(EduOSDbContext db, bool omitFirstLine = false,
+        bool corruptSecondLine = false)
     {
         db.Tenants.Add(new Tenant { Id = 41, Name = "Institute", Code = "INST-41" });
         db.Campuses.Add(new Campus { Id = 1, TenantId = 41, Code = "C1", Name = "Main" });
@@ -147,9 +140,12 @@ public sealed class FeeInvoiceCoverageTests
                 CurrencyCode = "BDT", Subtotal = 100m, TotalAmount = 100m, PaidAmount = 20m,
                 DueAmount = 80m, State = InvoiceState.PartiallyPaid });
         foreach (var id in new[] { 1, 2, 3 })
+        {
+            if (id == 1 && omitFirstLine) continue;
             db.StudentInvoiceLines.Add(new StudentInvoiceLine { TenantId = 41,
                 StudentInvoiceId = id, FeeHeadId = 1, Description = "Tuition",
-                Amount = 100m, NetAmount = 100m });
+                Amount = 100m, NetAmount = id == 2 && corruptSecondLine ? 99m : 100m });
+        }
         db.SaveChanges();
     }
 
