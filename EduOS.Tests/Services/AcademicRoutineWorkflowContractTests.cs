@@ -25,12 +25,17 @@ public class AcademicRoutineWorkflowContractTests
         source.Split("IsolationLevel.Serializable").Length.Should().Be(4,
             "time-slot, instructor-assignment and routine-entry writes must serialize their checks");
         source.Should().Contain("_unitOfWork.ExecuteInTransactionAsync(async token =>");
-        source.Should().Contain("x.DayOfWeek == request.DayOfWeek && x.IsActive");
-        source.Should().Contain("x.EffectiveFrom <= request.EffectiveTo.GetValueOrDefault(DateOnly.MaxValue)");
-        source.Should().Contain("TimeOverlaps(slot, otherSlot)");
+        source.Should().Contain("var overlappingEntries =");
+        source.Should().Contain("other.DayOfWeek == request.DayOfWeek && other.IsActive");
+        source.Should().Contain("other.EffectiveFrom <= request.EffectiveTo.GetValueOrDefault(DateOnly.MaxValue)");
+        source.Should().Contain("otherSlot.StartTime < slot.EndTime");
+        source.Should().Contain("otherSlot.EndTime > slot.StartTime");
         source.Should().Contain("otherOffering.AcademicBatchId == batch.Id");
-        source.Should().Contain("assignment.EmployeeId == otherAssignment.EmployeeId");
+        source.Should().Contain("otherAssignment.EmployeeId == assignment.EmployeeId");
         source.Should().Contain("other.RoomId == room.Id");
+        source.Should().Contain("AnyAsync(token)");
+        source.Should().NotContain("Schedule conflict check exceeded its safe limit.");
+        source.Should().NotContain(".Take(2000).ToListAsync(token)");
         source.Should().Contain("catch (DbUpdateException ex)");
         source.Should().Contain("Routine entry conflicts with another update.");
         var uow = File.ReadAllText(FindRepositoryFile("EduOS.Persistence", "Context", "EduOSDbContext.cs"));

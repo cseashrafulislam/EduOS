@@ -74,6 +74,80 @@ public sealed class AcademicRoutineServiceTests
     }
 
     [Fact]
+    public async Task Large_unrelated_timetable_does_not_block_valid_class_or_hide_real_collision()
+    {
+        var options = Options();
+        var scope = await SeedAsync(options);
+        await using var db = Context(options, 101);
+        var service = Service(db, new TestUser(101));
+        var first = await service.CreateTimeSlotAsync(new SaveRoutineTimeSlotRequestDto
+        { Name = "First Period", StartTime = new TimeOnly(9, 0), EndTime = new TimeOnly(9, 45) });
+        var later = await service.CreateTimeSlotAsync(new SaveRoutineTimeSlotRequestDto
+        { Name = "Later Period", StartTime = new TimeOnly(11, 0), EndTime = new TimeOnly(11, 45) });
+        var assigned = await service.AssignInstructorAsync(Assign(scope.OfferingReference, scope.TeacherReference));
+        first.Success.Should().BeTrue(first.Message);
+        later.Success.Should().BeTrue(later.Message);
+        assigned.Success.Should().BeTrue(assigned.Message);
+
+        // Simulate a large pre-existing timetable outside the requested slot.
+        var offeringId = await db.SubjectOfferings.Where(x => x.PublicId == scope.OfferingReference)
+            .Select(x => x.Id).SingleAsync();
+        db.RoutineEntries.AddRange(Enumerable.Range(0, 2001).Select(_ => new RoutineEntry
+        {
+            TenantId = 101, SubjectOfferingId = offeringId,
+            RoutineTimeSlotId = later.Data!.Id,
+            InstructorAssignmentId = assigned.Data!.Id,
+            DayOfWeek = DayOfWeek.Monday, EffectiveFrom = Start, IsActive = true
+        }));
+        await db.SaveChangesAsync();
+
+        var valid = await service.CreateEntryAsync(Entry(
+            scope.OfferingReference, first.Data!.Id, assigned.Data!.Id));
+        valid.Success.Should().BeTrue(valid.Message);
+        var conflicting = await service.CreateEntryAsync(Entry(
+            scope.OfferingReference, later.Data!.Id, assigned.Data!.Id, scope.RoomId));
+        conflicting.StatusCode.Should().Be(409);
+        (await db.RoutineEntries.CountAsync()).Should().Be(2002);
+    }
+
+    [Fact]
+    public async Task Overlapping_time_slots_conflict_even_when_slot_ids_differ()
+    {
+        var options = Options();
+        var scope = await SeedAsync(options);
+        await using var db = Context(options, 101);
+        var second = new AcademicBatch
+        {
+            TenantId = 101, CampusId = scope.CampusId, AcademicYearId = scope.YearId,
+            AcademicProgramId = scope.ProgramId, AcademicLevelId = scope.LevelId,
+            Name = "Batch B", Code = "B-B", Capacity = 25
+        };
+        db.AcademicBatches.Add(second);
+        await db.SaveChangesAsync();
+        var offering = new SubjectOffering
+        {
+            TenantId = 101, PublicId = Guid.NewGuid(), AcademicBatchId = second.Id,
+            AcademicYearId = scope.YearId, CurriculumSubjectId = scope.CurriculumSubjectId,
+            Code = "MATH-B"
+        };
+        db.SubjectOfferings.Add(offering);
+        await db.SaveChangesAsync();
+        var service = Service(db, new TestUser(101));
+        var first = await service.CreateTimeSlotAsync(new SaveRoutineTimeSlotRequestDto
+        { Name = "Morning", StartTime = new TimeOnly(9, 0), EndTime = new TimeOnly(9, 45) });
+        var overlapping = await service.CreateTimeSlotAsync(new SaveRoutineTimeSlotRequestDto
+        { Name = "Overlap", StartTime = new TimeOnly(9, 30), EndTime = new TimeOnly(10, 15) });
+        var a = await service.AssignInstructorAsync(Assign(scope.OfferingReference, scope.TeacherReference));
+        var b = await service.AssignInstructorAsync(Assign(offering.PublicId, scope.TeacherReference));
+        (await service.CreateEntryAsync(Entry(
+            scope.OfferingReference, first.Data!.Id, a.Data!.Id))).Success.Should().BeTrue();
+        var conflict = await service.CreateEntryAsync(Entry(
+            offering.PublicId, overlapping.Data!.Id, b.Data!.Id));
+        conflict.StatusCode.Should().Be(409);
+        conflict.Message.Should().Contain("Instructor");
+    }
+
+    [Fact]
     public async Task Other_tenant_cannot_assign_instructor_to_foreign_offering()
     {
         var options = Options();

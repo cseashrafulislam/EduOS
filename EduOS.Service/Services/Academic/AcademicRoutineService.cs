@@ -355,42 +355,38 @@ public sealed class AcademicRoutineService : IAcademicRoutineService
                 if (duplicate != null)
                     return ApiResponse<RoutineEntryDto>.SuccessResponse(
                         (await MapEntriesAsync([duplicate], token))[0], "Routine entry already exists.");
-                var relevant = await _entries.GetQueryable().AsNoTracking().Where(x =>
-                    x.TenantId == tenant && x.DayOfWeek == request.DayOfWeek && x.IsActive &&
-                    x.EffectiveFrom <= request.EffectiveTo.GetValueOrDefault(DateOnly.MaxValue) &&
-                    (!x.EffectiveTo.HasValue || x.EffectiveTo.Value >= request.EffectiveFrom))
-                    .Take(2000).ToListAsync(token);
-                if (relevant.Count == 2000) return Error<RoutineEntryDto>("Schedule conflict check exceeded its safe limit.", 409);
-                if (relevant.Count > 0)
-                {
-                    var others = relevant.Select(x => x.SubjectOfferingId).Distinct().ToArray();
-                    var offerings = await _offerings.GetQueryable().AsNoTracking()
-                        .Where(x => x.TenantId == tenant && others.Contains(x.Id))
-                        .ToDictionaryAsync(x => x.Id, token);
-                    var assignmentIds = relevant.Where(x => x.InstructorAssignmentId.HasValue)
-                        .Select(x => x.InstructorAssignmentId!.Value).Distinct().ToArray();
-                    var assigned = await _assignments.GetQueryable().AsNoTracking()
-                        .Where(x => x.TenantId == tenant && assignmentIds.Contains(x.Id))
-                        .ToDictionaryAsync(x => x.Id, token);
-                    var slotIds = relevant.Select(x => x.RoutineTimeSlotId).Distinct().ToArray();
-                    var slots = await _timeSlots.GetQueryable().AsNoTracking()
-                        .Where(x => x.TenantId == tenant && slotIds.Contains(x.Id))
-                        .ToDictionaryAsync(x => x.Id, token);
-                    foreach (var other in relevant)
-                    {
-                        if (!slots.TryGetValue(other.RoutineTimeSlotId, out var otherSlot) ||
-                            !TimeOverlaps(slot, otherSlot)) continue;
-                        if (offerings.TryGetValue(other.SubjectOfferingId, out var otherOffering) &&
-                            otherOffering.AcademicBatchId == batch.Id)
-                            return Error<RoutineEntryDto>("Batch already has class at this time.", 409);
-                        if (assignment != null && other.InstructorAssignmentId.HasValue &&
-                            assigned.TryGetValue(other.InstructorAssignmentId.Value, out var otherAssignment) &&
-                            assignment.EmployeeId == otherAssignment.EmployeeId)
-                            return Error<RoutineEntryDto>("Instructor already has class at this time.", 409);
-                        if (room != null && other.RoomId == room.Id)
-                            return Error<RoutineEntryDto>("Room is occupied at this time.", 409);
-                    }
-                }
+                // Collision checks stay in SQL: an unrelated large timetable
+                // must not exhaust a fixed in-memory candidate limit.
+                var overlappingEntries =
+                    from other in _entries.GetQueryable().AsNoTracking()
+                    join otherSlot in _timeSlots.GetQueryable().AsNoTracking()
+                        on other.RoutineTimeSlotId equals otherSlot.Id
+                    where other.TenantId == tenant && other.DayOfWeek == request.DayOfWeek && other.IsActive &&
+                          other.EffectiveFrom <= request.EffectiveTo.GetValueOrDefault(DateOnly.MaxValue) &&
+                          (!other.EffectiveTo.HasValue || other.EffectiveTo.Value >= request.EffectiveFrom) &&
+                          otherSlot.TenantId == tenant && otherSlot.StartTime < slot.EndTime &&
+                          otherSlot.EndTime > slot.StartTime
+                    select other;
+
+                if (await (from other in overlappingEntries
+                           join otherOffering in _offerings.GetQueryable().AsNoTracking()
+                               on other.SubjectOfferingId equals otherOffering.Id
+                           where otherOffering.TenantId == tenant && otherOffering.AcademicBatchId == batch.Id
+                           select other.Id).AnyAsync(token))
+                    return Error<RoutineEntryDto>("Batch already has class at this time.", 409);
+
+                if (assignment != null && await (
+                    from other in overlappingEntries
+                    join otherAssignment in _assignments.GetQueryable().AsNoTracking()
+                        on other.InstructorAssignmentId equals (long?)otherAssignment.Id
+                    where otherAssignment.TenantId == tenant &&
+                          otherAssignment.EmployeeId == assignment.EmployeeId
+                    select other.Id).AnyAsync(token))
+                    return Error<RoutineEntryDto>("Instructor already has class at this time.", 409);
+
+                if (room != null && await overlappingEntries.AnyAsync(
+                    other => other.RoomId == room.Id, token))
+                    return Error<RoutineEntryDto>("Room is occupied at this time.", 409);
                 var row = new RoutineEntry
                 {
                     TenantId = tenant, SubjectOfferingId = offering.Id, RoutineTimeSlotId = slot.Id,
@@ -630,7 +626,6 @@ public sealed class AcademicRoutineService : IAcademicRoutineService
                         x.State == EmployeeState.Active && x.CanTeach)
             .Select(x => (long?)x.Id).FirstOrDefaultAsync(cancellationToken);
 
-    private static bool TimeOverlaps(RoutineTimeSlot a, RoutineTimeSlot b) => a.StartTime < b.EndTime && a.EndTime > b.StartTime;
     private bool CanRead() => _currentUser.IsAuthenticated && _currentUser.TenantId > 0 && (IsManager() || _currentUser.IsInRole("Teacher"));
     private bool CanManage() => _currentUser.IsAuthenticated && _currentUser.TenantId > 0 && IsManager();
     private bool IsManager() => _currentUser.IsTenantAdmin || _currentUser.IsInRole("Principal") || _currentUser.IsInRole("VicePrincipal");
