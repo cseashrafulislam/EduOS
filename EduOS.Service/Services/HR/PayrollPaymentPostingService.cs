@@ -1,11 +1,14 @@
 using EduOS.Core.Common;
 using EduOS.Core.DTOs.Payroll;
 using EduOS.Core.Entities.Accounting;
+using EduOS.Core.Entities.System;
 using EduOS.Core.Enums.Domain;
 using EduOS.Core.Interfaces;
 using EduOS.Core.Interfaces.IServices;
 using EduOS.Persistence.Context;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.DataProtection;
+using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
 
@@ -17,8 +20,12 @@ public sealed class PayrollPaymentPostingService : IPayrollPaymentPostingService
     private readonly EduOSDbContext db;
     private readonly ICurrentUserService user;
     private readonly TimeProvider clock;
+    private readonly IDataProtectionProvider? dataProtection;
     public PayrollPaymentPostingService(EduOSDbContext db, ICurrentUserService user, TimeProvider clock)
     { this.db = db; this.user = user; this.clock = clock; }
+    public PayrollPaymentPostingService(EduOSDbContext db, ICurrentUserService user, TimeProvider clock,
+        IDataProtectionProvider dataProtection) : this(db, user, clock)
+    { this.dataProtection = dataProtection; }
 
     private bool CanRead => user.IsAuthenticated && user.TenantId > 0 && db.CurrentTenantId == user.TenantId &&
         (user.IsTenantAdmin || user.IsInRole("Principal") || user.IsInRole("Accountant"));
@@ -44,11 +51,14 @@ public sealed class PayrollPaymentPostingService : IPayrollPaymentPostingService
         account.Name.Contains("cash", StringComparison.OrdinalIgnoreCase);
 
     public async Task<ApiResponse<PayrollPaymentPostingRegisterDto>> GetRegisterAsync(
-        bool pendingOnly, int page, int pageSize, CancellationToken ct = default)
+        bool pendingOnly, int page, int pageSize, CancellationToken ct = default,
+        Guid? runReference = null)
     {
         if (!CanRead) return Error<PayrollPaymentPostingRegisterDto>("Payroll settlement access denied.", 403);
         if (page < 1 || pageSize is < 1 or > 10 || (long)(page - 1) * pageSize > int.MaxValue)
             return Error<PayrollPaymentPostingRegisterDto>("Invalid payroll payment pagination.");
+        if (runReference == Guid.Empty)
+            return Error<PayrollPaymentPostingRegisterDto>("Invalid payroll run reference.");
         var tenant = user.TenantId;
         var query = from payment in db.PayrollPayments.AsNoTracking()
                     join employee in db.PayrollEmployees.AsNoTracking()
@@ -62,6 +72,8 @@ public sealed class PayrollPaymentPostingService : IPayrollPaymentPostingService
                         (pendingOnly ? payment.State == PaymentState.AwaitingVerification :
                             (payment.State == PaymentState.AwaitingVerification || payment.State == PaymentState.Successful))
                     select new { Payment = payment, Employee = employee, Run = run };
+        if (runReference.HasValue)
+            query = query.Where(x => x.Run.PublicId == runReference.Value);
         if (!user.IsTenantAdmin)
             query = query.Where(x => x.Run.CampusId.HasValue && db.UserCampusAccesses.Any(a =>
                 a.TenantId == tenant && a.UserId == user.UserId && a.CampusId == x.Run.CampusId &&
@@ -208,7 +220,8 @@ public sealed class PayrollPaymentPostingService : IPayrollPaymentPostingService
                     issue = "Pending payment exceeds remaining salary or has invalid posting state.";
                 return new PayrollPaymentPostingRowDto
                 {
-                    Reference = x.Payment.PublicId, RunNumber = x.Run.RunNumber,
+                    Reference = x.Payment.PublicId, RunReference = x.Run.PublicId,
+                    RunNumber = x.Run.RunNumber,
                     EmployeeName = x.Employee.EmployeeNameSnapshot ?? x.Employee.EmployeeCodeSnapshot ?? "Employee",
                     CampusId = x.Run.CampusId, PaymentDate = x.Payment.PaymentDate,
                     PaymentMethod = x.Payment.PaymentMethod, State = x.Payment.State,
@@ -226,6 +239,120 @@ public sealed class PayrollPaymentPostingService : IPayrollPaymentPostingService
                 };
             }).ToArray()
         });
+    }
+
+    /// <summary>
+    /// A read-only, bank-neutral review worksheet. It is deliberately NOT a bank instruction,
+    /// an acknowledgement of a transfer, or a substitute for independently verifying the GL.
+    /// Decrypted account numbers are present only in the transient response body, never in logs.
+    /// </summary>
+    public async Task<ApiResponse<PayrollBankReviewExportDto>> GetBankReviewCsvAsync(
+        Guid runReference, CancellationToken ct = default)
+    {
+        if (!CanPost) return Error<PayrollBankReviewExportDto>("Tenant administrator required.", 403);
+        if (runReference == Guid.Empty) return Error<PayrollBankReviewExportDto>("Payroll run reference required.");
+        if (dataProtection == null) return Error<PayrollBankReviewExportDto>("Bank export security is unavailable.", 503);
+        var tenant = user.TenantId;
+        var run = await db.PayrollRuns.AsNoTracking().FirstOrDefaultAsync(x =>
+            x.TenantId == tenant && x.PublicId == runReference && !x.IsDeleted &&
+            x.State == PayrollRunState.Posted && x.JournalId.HasValue, ct);
+        if (run == null) return Error<PayrollBankReviewExportDto>("Posted payroll run not found.", 404);
+
+        // Collect only the complete, reconciled pending register; never silently export a
+        // truncated selection or any record that has failed the salary-payable checks.
+        var payments = new List<PayrollPaymentPostingRowDto>();
+        for (var page = 1; ; page++)
+        {
+            var register = await GetRegisterAsync(true, page, 10, ct, runReference);
+            if (!register.Success || register.Data == null)
+                return Error<PayrollBankReviewExportDto>(register.Message, register.StatusCode);
+            if (register.Data.TotalCount > 1000)
+                return Error<PayrollBankReviewExportDto>("Run exceeds the 1,000-payment review export limit.", 409);
+            payments.AddRange(register.Data.Payments);
+            if (payments.Count >= register.Data.TotalCount) break;
+        }
+        var bankRows = payments.Where(x => x.PaymentMethod == PaymentMethodType.BankTransfer).ToArray();
+        if (bankRows.Length == 0)
+            return Error<PayrollBankReviewExportDto>("No pending bank transfer requests for this run.", 404);
+        if (bankRows.Any(x => x.ReconciliationStatus != "Pending" || x.RunReference != runReference ||
+            !Money(x.Amount) || x.Amount <= 0m))
+            return Error<PayrollBankReviewExportDto>("Bank payment review requires fully reconciled pending requests.", 409);
+
+        var paymentIds = bankRows.Select(x => x.Reference).ToArray();
+        var details = await (from payment in db.PayrollPayments.AsNoTracking()
+            join salary in db.PayrollEmployees.AsNoTracking()
+                on new { payment.TenantId, Id = payment.PayrollEmployeeId }
+                equals new { salary.TenantId, salary.Id }
+            join employee in db.Employees.AsNoTracking()
+                on new { salary.TenantId, Id = salary.EmployeeId }
+                equals new { employee.TenantId, employee.Id }
+            join target in db.EmployeeBankAccounts.AsNoTracking()
+                on new { payment.TenantId, Id = payment.EmployeeBankAccountId }
+                equals new { target.TenantId, Id = (long?)target.Id }
+            join source in db.BankAccounts.AsNoTracking()
+                on new { payment.TenantId, Id = payment.BankAccountId }
+                equals new { source.TenantId, Id = (long?)source.Id }
+            where payment.TenantId == tenant && paymentIds.Contains(payment.PublicId) &&
+                !payment.IsDeleted && !salary.IsDeleted && !employee.IsDeleted &&
+                !target.IsDeleted && target.IsActive && target.EmployeeId == employee.Id &&
+                target.CurrencyCode == "BDT" && !source.IsDeleted && source.IsActive &&
+                source.CurrencyCode == "BDT" && (!source.CampusId.HasValue || source.CampusId == run.CampusId) &&
+                payment.State == PaymentState.AwaitingVerification && !payment.JournalId.HasValue &&
+                payment.CurrencyCode == "BDT" && salary.PayrollRunId == run.Id
+            select new { Payment = payment, Employee = employee, Target = target, Source = source })
+            .ToListAsync(ct);
+        if (details.Count != bankRows.Length || details.Select(x => x.Payment.PublicId).Distinct().Count() != bankRows.Length)
+            return Error<PayrollBankReviewExportDto>("Bank routing or employee account provenance changed; reload.", 409);
+        var rowsById = bankRows.ToDictionary(x => x.Reference);
+        var protector = dataProtection.CreateProtector("EduOS.HR.EmployeeBankAccount.v1", tenant.ToString(CultureInfo.InvariantCulture));
+        var csv = new StringBuilder("ReviewStatus,PaymentReference,RunNumber,EmployeeCode,EmployeeName,PaymentDate,AmountBDT,SourceBank,DestinationBank,DestinationAccountName,DestinationAccountNumber,RoutingNumber\r\n");
+        foreach (var row in details.OrderBy(x => x.Employee.EmployeeCode).ThenBy(x => x.Payment.PublicId))
+        {
+            if (!rowsById.TryGetValue(row.Payment.PublicId, out var register) ||
+                row.Payment.Amount != register.Amount ||
+                row.Payment.BankAccountId != register.BankAccountId ||
+                string.IsNullOrWhiteSpace(row.Payment.ExternalReference) ||
+                row.Target.ProtectedAccountNumber.Length == 0)
+                return Error<PayrollBankReviewExportDto>("Payment details changed or lack an external reference; reload.", 409);
+            string number;
+            try { number = protector.Unprotect(row.Target.ProtectedAccountNumber); }
+            catch (CryptographicException)
+            { return Error<PayrollBankReviewExportDto>("Employee bank account cannot be decrypted; contact administration.", 409); }
+            if (string.IsNullOrWhiteSpace(number) || number.Length > 200 ||
+                !number.All(c => char.IsLetterOrDigit(c) || c is ' ' or '-' or '/') ||
+                !number.EndsWith(row.Target.AccountNumberLast4 ?? "", StringComparison.Ordinal))
+                return Error<PayrollBankReviewExportDto>("Employee bank account needs verification.", 409);
+            csv.AppendJoin(',', new[] {
+                Csv("REVIEW_ONLY"), Csv(row.Payment.PublicId.ToString("D")), Csv(run.RunNumber),
+                Csv(row.Employee.EmployeeCode), Csv(row.Employee.FullName),
+                Csv(row.Payment.PaymentDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)),
+                row.Payment.Amount.ToString("F2", CultureInfo.InvariantCulture),
+                Csv(row.Source.BankName), Csv(row.Target.BankName), Csv(row.Target.AccountName),
+                Csv(number), Csv(row.Target.RoutingNumber ?? "")
+            }).Append("\r\n");
+        }
+        db.AuditLogs.Add(new AuditLog
+        {
+            TenantId = tenant, UserId = user.UserId, Action = "Payroll.BankReviewExported",
+            EntityName = "PayrollRun", EntityId = run.Id, CorrelationId = runReference.ToString("D"),
+            NewValue = $"PendingBankPayments={bankRows.Length}", IsSuccess = true,
+            OccurredAt = clock.GetUtcNow().UtcDateTime
+        });
+        try { await db.SaveChangesAsync(ct); }
+        catch (DbUpdateException) { return Error<PayrollBankReviewExportDto>("Bank export audit unavailable.", 503); }
+        return ApiResponse<PayrollBankReviewExportDto>.SuccessResponse(new PayrollBankReviewExportDto
+        {
+            FileName = "payroll-bank-review-" + runReference.ToString("N") + ".csv",
+            Csv = csv.ToString(), PaymentCount = bankRows.Length
+        });
+    }
+
+    private static string Csv(string value)
+    {
+        // RFC 4180 escaping plus neutralisation for spreadsheet formula injection.
+        if (value.Length > 0 && ("=+-@\t\r\n".Contains(value[0]) || char.IsWhiteSpace(value[0])))
+            value = "'" + value;
+        return '"' + value.Replace("\"", "\"\"") + '"';
     }
 
     public async Task<ApiResponse<PostPayrollPaymentJournalResultDto>> PostAsync(

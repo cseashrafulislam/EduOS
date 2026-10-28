@@ -7,6 +7,10 @@
     <p class="text-muted">Verify pending cash or bank-transfer disbursements against posted salary payable. The register reconciles employee net pay, all successful settlements and immutable GL evidence before enabling a new posting. Maker and verifier must differ; no platform subscription billing is involved.</p>
     <p><a class="btn btn-sm btn-outline-secondary" href="/PayrollOperations/Index">Payroll operations</a>
        <a class="btn btn-sm btn-outline-secondary" href="/PayrollJournalPosting/Index">Payroll accrual posting</a></p>
+    @if (canPost)
+    {
+        <div class="alert alert-info small" role="note">A bank-neutral salary CSV can be downloaded for pending, reconciled bank-transfer requests within one posted run. It contains sensitive account numbers and is marked <strong>REVIEW_ONLY</strong>. It does not send money or confirm settlement; verify the file independently and store it securely.</div>
+    }
     @Html.AntiForgeryToken()
     <div id="payrollPaymentNotice" class="alert d-none" role="alert" aria-live="polite"></div>
     <form id="payrollPaymentFilter" class="card card-body mb-3">

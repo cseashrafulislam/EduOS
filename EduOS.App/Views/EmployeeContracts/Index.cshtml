@@ -7,7 +7,7 @@
             <details class="position-relative">
                 <summary class="btn btn-sm btn-outline-secondary" aria-label="Contract help" title="Page help">ⓘ</summary>
                 <div class="card card-body position-absolute end-0 shadow-sm mt-1" style="width:min(320px,85vw);z-index:10">
-                    Draft effective-dated terms require a different tenant administrator for approval. Approved terms are immutable. HR approval does not replace a legally signed document.
+                    Draft effective-dated terms require a different tenant administrator for approval. After approval, upload the manually signed PDF; a different administrator must verify its scanned copy and checksum. This is manual document verification, not cryptographic e-signature validation.
                 </div>
             </details>
         </div>
@@ -50,6 +50,25 @@
                 <button id="contractCancel" class="btn btn-outline-secondary" type="button">Close</button>
             </div>
         </form>
+        <section class="border-top mt-3 pt-3 d-none" id="contractEvidence">
+            <h4 class="h6" id="contractEvidenceTitle">Signed contract evidence</h4>
+            <p class="small text-muted" id="contractEvidenceStatus"></p>
+            <form id="contractEvidenceUpload" class="d-none">
+                <label class="form-label" for="contractPdf">Scanned, manually signed PDF (maximum 5 MB)</label>
+                <input id="contractPdf" class="form-control" type="file" accept="application/pdf,.pdf" required />
+                <button type="submit" class="btn btn-sm btn-primary mt-2" id="contractPdfAttach">Secure upload &amp; attach</button>
+            </form>
+            <div id="contractEvidenceReview" class="d-none">
+                <p class="small text-muted">Open the private PDF preview and compare signatures against your offline identity verification. The uploader cannot approve the document.</p>
+                <label for="contractPdfNote" class="form-label">Reviewer note (required for rejection)</label>
+                <input id="contractPdfNote" class="form-control" maxlength="500" />
+                <div class="d-flex flex-wrap gap-2 mt-2">
+                    <button id="contractPdfApprove" type="button" class="btn btn-sm btn-success">Verify signed PDF</button>
+                    <button id="contractPdfReject" type="button" class="btn btn-sm btn-outline-danger">Reject PDF</button>
+                </div>
+            </div>
+            <div class="mt-2"><button id="contractEvidenceClose" type="button" class="btn btn-sm btn-outline-secondary">Close evidence</button></div>
+        </section>
     </div>
 </section>
 @section Scripts { <script src="~/js/hr/employee-contracts.js" asp-append-version="true"></script> }

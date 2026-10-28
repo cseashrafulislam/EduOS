@@ -4,6 +4,7 @@ namespace EduOS.Core.DTOs.Payroll;
 public sealed class PayrollPaymentPostingRowDto
 {
     public Guid Reference { get; set; }
+    public Guid RunReference { get; set; }
     public string RunNumber { get; set; } = string.Empty;
     public string EmployeeName { get; set; } = string.Empty;
     public long? CampusId { get; set; }
@@ -20,6 +21,12 @@ public sealed class PayrollPaymentPostingRowDto
     public long? BankLedgerId { get; set; }
     public string RowVersion { get; set; } = string.Empty;
     public Guid? JournalReference { get; set; }
+}
+public sealed class PayrollBankReviewExportDto
+{
+    public string FileName { get; set; } = string.Empty;
+    public string Csv { get; set; } = string.Empty;
+    public int PaymentCount { get; set; }
 }
 public sealed class PayrollPaymentPostingRegisterDto
 {

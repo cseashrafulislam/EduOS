@@ -42,4 +42,36 @@ public sealed class EmployeeContractsApiController : ControllerBase
         var r = await service.ReviewAsync(reference, request, false, ct);
         return StatusCode(r.StatusCode, r);
     }
+    [HttpPost("{reference:guid}/signed-pdf")]
+    public async Task<IActionResult> AttachSignedPdf(Guid reference,
+        [FromBody] AttachSignedEmployeeContractPdfRequestDto request, CancellationToken ct)
+    {
+        var result = await service.AttachSignedPdfAsync(reference, request, ct);
+        return StatusCode(result.StatusCode, result);
+    }
+    [HttpPost("{reference:guid}/signed-pdf/approve")]
+    public async Task<IActionResult> ApproveSignedPdf(Guid reference,
+        [FromBody] VerifySignedEmployeeContractPdfRequestDto request, CancellationToken ct)
+    {
+        var result = await service.VerifySignedPdfAsync(reference, request, true, ct);
+        return StatusCode(result.StatusCode, result);
+    }
+    [HttpPost("{reference:guid}/signed-pdf/reject")]
+    public async Task<IActionResult> RejectSignedPdf(Guid reference,
+        [FromBody] VerifySignedEmployeeContractPdfRequestDto request, CancellationToken ct)
+    {
+        var result = await service.VerifySignedPdfAsync(reference, request, false, ct);
+        return StatusCode(result.StatusCode, result);
+    }
+    [HttpGet("{reference:guid}/signed-pdf/download")]
+    public async Task<IActionResult> DownloadSignedPdf(Guid reference,
+        [FromQuery] bool reviewPreview = false, CancellationToken ct = default)
+    {
+        var result = await service.DownloadSignedPdfAsync(reference, reviewPreview, ct);
+        if (!result.Success || result.Data == null) return StatusCode(result.StatusCode, result);
+        Response.Headers.CacheControl = "no-store, private";
+        Response.Headers["X-Content-Type-Options"] = "nosniff";
+        Response.Headers["Content-Security-Policy"] = "default-src 'none'; sandbox";
+        return File(result.Data.Content, "application/pdf", result.Data.FileName);
+    }
 }
