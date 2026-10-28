@@ -75,6 +75,16 @@ public sealed class SelfServicePortalController : ControllerBase
         [FromQuery] int pageSize = 25, CancellationToken ct = default) =>
         Result(await _service.GetPaymentsAsync(reference, page, pageSize, ct));
 
+    [HttpGet("students/{reference:guid}/invoices/{documentReference:guid}/document")]
+    [RequireModule("FINANCE")]
+    public async Task<IActionResult> InvoiceDocument(Guid reference, Guid documentReference, CancellationToken ct) =>
+        Result(await _service.GetInvoiceDocumentAsync(reference, documentReference, ct));
+
+    [HttpGet("students/{reference:guid}/payments/{documentReference:guid}/document")]
+    [RequireModule("FINANCE")]
+    public async Task<IActionResult> ReceiptDocument(Guid reference, Guid documentReference, CancellationToken ct) =>
+        Result(await _service.GetReceiptDocumentAsync(reference, documentReference, ct));
+
     [HttpGet("students/{reference:guid}/transport")]
     [RequireModule("TRANSPORT")]
     public async Task<IActionResult> Transport(Guid reference, [FromQuery] int page = 1,

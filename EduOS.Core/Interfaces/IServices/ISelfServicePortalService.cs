@@ -15,6 +15,8 @@ public interface ISelfServicePortalService
     Task<ApiResponse<PortalFeeLedgerDto>> GetFeesAsync(Guid studentReference, CancellationToken cancellationToken = default);
     Task<ApiResponse<PagedResult<PortalInvoiceDto>>> GetInvoicesAsync(Guid studentReference, int page, int pageSize, CancellationToken cancellationToken = default);
     Task<ApiResponse<PagedResult<PortalPaymentDto>>> GetPaymentsAsync(Guid studentReference, int page, int pageSize, CancellationToken cancellationToken = default);
+    Task<ApiResponse<PortalFeeDocumentDto>> GetInvoiceDocumentAsync(Guid studentReference, Guid invoiceReference, CancellationToken cancellationToken = default);
+    Task<ApiResponse<PortalFeeDocumentDto>> GetReceiptDocumentAsync(Guid studentReference, Guid receiptReference, CancellationToken cancellationToken = default);
     Task<ApiResponse<PagedResult<PortalTransportDto>>> GetTransportAsync(Guid studentReference, int page, int pageSize, CancellationToken cancellationToken = default);
     Task<ApiResponse<PagedResult<PortalHomeworkDto>>> GetHomeworkAsync(Guid studentReference, int page, int pageSize, CancellationToken cancellationToken = default);
     Task<ApiResponse<PagedResult<PortalAssignmentDto>>> GetAssignmentsAsync(Guid studentReference, int page, int pageSize, CancellationToken cancellationToken = default);

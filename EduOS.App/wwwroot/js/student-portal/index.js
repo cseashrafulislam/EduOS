@@ -92,7 +92,23 @@
         el(prefix + 'Next').disabled = current >= last;
         el(prefix + 'Page').textContent = 'Page ' + current + ' of ' + last + ' · ' + total + ' records';
     }
-    function renderPayments(items) {
+    function appendFeeDocumentLinks(items, student, kind, header, body) {
+        const th = document.createElement('th'); th.scope = 'col'; th.textContent = 'Document';
+        header.firstElementChild.append(th);
+        const rows = body.children;
+        if (!items.length) { rows[0].firstElementChild.colSpan += 1; return; }
+        items.forEach((item, index) => {
+            const td = document.createElement('td'), link = document.createElement('a');
+            link.className = 'btn btn-sm btn-outline-primary';
+            link.textContent = kind === 'invoice' ? 'View invoice' : 'View receipt';
+            link.rel = 'noreferrer';
+            link.href = '/StudentPortal/FeeDocument?' + new URLSearchParams({
+                studentReference: student, documentReference: item.reference, kind
+            });
+            td.append(link); rows[index].append(td);
+        });
+    }
+    function renderPayments(items, student) {
         const extra = el('studentPortalExtra');
         const heading = document.createElement('h4'); heading.className = 'h6'; heading.textContent = 'Payments';
         const table = document.createElement('table'); table.className = 'table table-sm align-middle';
@@ -110,6 +126,7 @@
             paymentColumns.forEach(([key]) => row.append(cell(display(item[key], key))));
             body.append(row);
         });
+        appendFeeDocumentLinks(items, student, 'receipt', head, body);
         table.append(head, body); extra.append(heading, table);
     }
     function resetPages() { page = 1; paymentPage = 1; }
@@ -147,9 +164,10 @@
                 ]);
                 if (token !== latestRequest) return;
                 render(invoices.items || [], columns.fees);
+                appendFeeDocumentLinks(invoices.items || [], student, 'invoice', el('studentPortalHeaders'), el('studentPortalRows'));
                 el('studentPortalSummary').textContent = 'Total billed ' + ledger.totalBilled +
                     ' · Paid ' + ledger.totalPaid + ' · Due ' + ledger.totalDue;
-                renderPayments(payments.items || []);
+                renderPayments(payments.items || [], student);
                 showPaging(true, true);
                 pageInfo(invoices, page, 'studentPortal');
                 pageInfo(payments, paymentPage, 'studentPortalPayments');

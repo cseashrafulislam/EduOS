@@ -369,6 +369,92 @@ public class SelfServicePortalServiceTests
 
     private static void SetTenant(HttpContextAccessor accessor, long tenantId) => accessor.HttpContext!.Items["TenantId"] = tenantId;
 
+
+    [Fact]
+    public async Task Portal_fee_documents_require_linked_student_and_consistent_financial_history()
+    {
+        await using var context = CreateContext(out var accessor);
+        SetTenant(accessor, 10);
+        var own = Student(10, 99, "OWN");
+        var other = Student(10, 100, "OTHER");
+        context.Set<Student>().AddRange(own, other);
+        await context.SaveChangesAsync();
+        var ownEnrollment = new StudentEnrollment
+        {
+            TenantId = 10, StudentId = own.Id, CampusId = 7, AcademicYearId = 1,
+            AcademicProgramId = 1, AcademicLevelId = 1, AcademicBatchId = 1,
+            AcademicCurriculumId = 1, RollNo = "1", ClientRequestId = Guid.NewGuid(),
+            EnrollmentDate = new DateOnly(2026, 10, 1)
+        };
+        var otherEnrollment = new StudentEnrollment
+        {
+            TenantId = 10, StudentId = other.Id, CampusId = 8, AcademicYearId = 1,
+            AcademicProgramId = 1, AcademicLevelId = 1, AcademicBatchId = 1,
+            AcademicCurriculumId = 1, RollNo = "2", ClientRequestId = Guid.NewGuid(),
+            EnrollmentDate = new DateOnly(2026, 10, 1)
+        };
+        context.Set<StudentEnrollment>().AddRange(ownEnrollment, otherEnrollment);
+        await context.SaveChangesAsync();
+        StudentInvoice Invoice(long enrollmentId, string number) => new()
+        {
+            TenantId = 10, StudentEnrollmentId = enrollmentId, ClientRequestId = Guid.NewGuid(),
+            InvoiceNumber = number, InvoiceDate = new DateOnly(2026, 10, 1),
+            DueDate = new DateOnly(2026, 10, 15), Subtotal = 100m,
+            TotalAmount = 100m, DueAmount = 0m, PaidAmount = 100m,
+            State = InvoiceState.Paid, CurrencyCode = "BDT"
+        };
+        var invoice = Invoice(ownEnrollment.Id, "OWN-INV");
+        var foreignInvoice = Invoice(otherEnrollment.Id, "OTHER-INV");
+        context.Set<StudentInvoice>().AddRange(invoice, foreignInvoice);
+        await context.SaveChangesAsync();
+        context.Set<StudentInvoiceLine>().Add(new StudentInvoiceLine
+        {
+            TenantId = 10, StudentInvoiceId = invoice.Id, FeeHeadId = 1,
+            Description = "Tuition", Amount = 100m, NetAmount = 100m
+        });
+        var payment = new StudentPayment
+        {
+            TenantId = 10, StudentId = own.Id, ClientRequestId = Guid.NewGuid(),
+            ReceiptNumber = "OWN-RCP", PaymentDate = new DateOnly(2026, 10, 2),
+            PaymentMethod = PaymentMethodType.Cash, Amount = 100m,
+            State = PaymentState.Successful, CurrencyCode = "BDT"
+        };
+        context.Set<StudentPayment>().Add(payment);
+        await context.SaveChangesAsync();
+        var allocation = new PaymentAllocation
+        {
+            TenantId = 10, StudentPaymentId = payment.Id, StudentInvoiceId = invoice.Id,
+            Amount = 100m
+        };
+        context.Set<PaymentAllocation>().Add(allocation);
+        await context.SaveChangesAsync();
+
+        var service = CreateService(context, new TestCurrentUser(10, 99, "Student"));
+        var ownInvoice = await service.GetInvoiceDocumentAsync(own.PublicId, invoice.PublicId);
+        ownInvoice.Success.Should().BeTrue();
+        ownInvoice.Data!.Lines.Should().ContainSingle();
+        ownInvoice.Data.TotalAmount.Should().Be(100m);
+        (await service.GetInvoiceDocumentAsync(other.PublicId, foreignInvoice.PublicId))
+            .StatusCode.Should().Be(403);
+        (await service.GetInvoiceDocumentAsync(own.PublicId, foreignInvoice.PublicId))
+            .StatusCode.Should().Be(404);
+        var receipt = await service.GetReceiptDocumentAsync(own.PublicId, payment.PublicId);
+        receipt.Success.Should().BeTrue();
+        receipt.Data!.Lines.Single().Description.Should().Contain("OWN-INV");
+        (await service.GetReceiptDocumentAsync(other.PublicId, payment.PublicId))
+            .StatusCode.Should().Be(403);
+
+        allocation.StudentInvoiceId = foreignInvoice.Id;
+        await context.SaveChangesAsync();
+        (await service.GetReceiptDocumentAsync(own.PublicId, payment.PublicId))
+            .StatusCode.Should().Be(409);
+        allocation.StudentInvoiceId = invoice.Id;
+        allocation.IsDeleted = true;
+        await context.SaveChangesAsync();
+        (await service.GetReceiptDocumentAsync(own.PublicId, payment.PublicId))
+            .StatusCode.Should().Be(409);
+    }
+
     private static SelfServicePortalService CreateService(EduOSDbContext context, ICurrentUserService currentUser) => new(
         new GenericRepository<Student>(context),
         new GenericRepository<Guardian>(context),
@@ -390,6 +476,8 @@ public class SelfServicePortalServiceTests
         new GenericRepository<Assessment>(context),
         new GenericRepository<StudentInvoice>(context),
         new GenericRepository<StudentPayment>(context),
+        new GenericRepository<StudentInvoiceLine>(context),
+        new GenericRepository<PaymentAllocation>(context),
         new GenericRepository<StudentTransport>(context),
         new GenericRepository<Route>(context),
         new GenericRepository<Vehicle>(context),

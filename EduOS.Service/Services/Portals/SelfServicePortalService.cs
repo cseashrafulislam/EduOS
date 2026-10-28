@@ -38,6 +38,8 @@ public sealed class SelfServicePortalService : ISelfServicePortalService
     private readonly IGenericRepository<Assessment> _assessments;
     private readonly IGenericRepository<StudentInvoice> _invoices;
     private readonly IGenericRepository<StudentPayment> _payments;
+    private readonly IGenericRepository<StudentInvoiceLine> _portalInvoiceLines;
+    private readonly IGenericRepository<PaymentAllocation> _portalAllocations;
     private readonly IGenericRepository<StudentTransport> _transport;
     private readonly IGenericRepository<Route> _routes;
     private readonly IGenericRepository<Vehicle> _vehicles;
@@ -60,7 +62,10 @@ public sealed class SelfServicePortalService : ISelfServicePortalService
         IGenericRepository<StudentAttendance> attendance, IGenericRepository<AttendanceSession> attendanceSessions,
         IGenericRepository<StudentResultSummary> results, IGenericRepository<ResultPublication> resultPublications,
         IGenericRepository<Assessment> assessments, IGenericRepository<StudentInvoice> invoices,
-        IGenericRepository<StudentPayment> payments, IGenericRepository<StudentTransport> transport,
+        IGenericRepository<StudentPayment> payments,
+        IGenericRepository<StudentInvoiceLine> portalInvoiceLines,
+        IGenericRepository<PaymentAllocation> portalAllocations,
+        IGenericRepository<StudentTransport> transport,
         IGenericRepository<Route> routes, IGenericRepository<Vehicle> vehicles,
         IGenericRepository<RouteStop> routeStops, IGenericRepository<Course> courses,
         IGenericRepository<CourseEnrollment> enrollments, IGenericRepository<Assignment> assignments,
@@ -73,7 +78,8 @@ public sealed class SelfServicePortalService : ISelfServicePortalService
         _instructors = instructorAssignments; _employees = employees; _rooms = rooms;
         _attendance = attendance; _sessions = attendanceSessions; _results = results;
         _publications = resultPublications; _assessments = assessments; _invoices = invoices;
-        _payments = payments; _transport = transport; _routes = routes;
+        _payments = payments; _portalInvoiceLines = portalInvoiceLines;
+        _portalAllocations = portalAllocations; _transport = transport; _routes = routes;
         _vehicles = vehicles; _stops = routeStops; _courses = courses;
         _courseEnrollments = enrollments; _assignments = assignments; _user = currentUser;
     }
@@ -402,6 +408,118 @@ public sealed class SelfServicePortalService : ISelfServicePortalService
                 PaymentDate = x.PaymentDate
             }).ToListAsync(ct);
         return ApiResponse<PagedResult<PortalPaymentDto>>.SuccessResponse(Page(rows, count, page, pageSize));
+    }
+
+
+    // Finance readback deliberately uses the portal's verified student/guardian link,
+    // never an institution-wide Finance role or a caller-supplied tenant/campus ID.
+    public async Task<ApiResponse<PortalFeeDocumentDto>> GetInvoiceDocumentAsync(
+        Guid studentReference, Guid invoiceReference, CancellationToken ct = default)
+    {
+        var student = await AuthorizedStudentAsync(studentReference, ct);
+        if (student == null) return Denied<PortalFeeDocumentDto>();
+        if (invoiceReference == Guid.Empty)
+            return Error<PortalFeeDocumentDto>("Invoice not found.", 404);
+        var tenant = _user.TenantId;
+        var invoice = await (from i in _invoices.GetQueryable().AsNoTracking()
+            join e in _academicEnrollments.GetQueryable().AsNoTracking()
+                on new { i.TenantId, Id = i.StudentEnrollmentId }
+                equals new { e.TenantId, e.Id }
+            where i.TenantId == tenant && e.TenantId == tenant &&
+                e.StudentId == student.Id && !e.IsDeleted && !i.IsDeleted &&
+                i.PublicId == invoiceReference
+            select i).FirstOrDefaultAsync(ct);
+        if (invoice == null) return Error<PortalFeeDocumentDto>("Invoice not found.", 404);
+
+        // A tombstoned line is not silently excluded from a historical document.
+        var lines = await _portalInvoiceLines.GetQueryable().IgnoreQueryFilters()
+            .AsNoTracking().Where(x => x.TenantId == tenant &&
+                x.StudentInvoiceId == invoice.Id)
+            .OrderBy(x => x.Id).Take(101).ToListAsync(ct);
+        if (lines.Count is < 1 or > 100 || lines.Any(x => x.IsDeleted ||
+            x.Amount < 0m || x.DiscountAmount < 0m || x.FineAmount < 0m ||
+            x.NetAmount != x.Amount - x.DiscountAmount + x.FineAmount) ||
+            lines.Sum(x => x.Amount) != invoice.Subtotal ||
+            lines.Sum(x => x.DiscountAmount) != invoice.DiscountAmount ||
+            lines.Sum(x => x.FineAmount) != invoice.FineAmount ||
+            lines.Sum(x => x.NetAmount) != invoice.TotalAmount ||
+            invoice.TotalAmount != invoice.Subtotal - invoice.DiscountAmount + invoice.FineAmount ||
+            invoice.TotalAmount < 0m || invoice.PaidAmount < 0m ||
+            invoice.DueAmount < 0m || invoice.PaidAmount + invoice.DueAmount != invoice.TotalAmount)
+            return Error<PortalFeeDocumentDto>("Invoice history requires reconciliation.", 409);
+
+        return ApiResponse<PortalFeeDocumentDto>.SuccessResponse(new PortalFeeDocumentDto
+        {
+            DocumentType = "Invoice", StudentReference = student.PublicId,
+            StudentCode = student.StudentCode, StudentName = student.FullName,
+            Reference = invoice.PublicId, DocumentNumber = invoice.InvoiceNumber,
+            DocumentDate = invoice.InvoiceDate, DueDate = invoice.DueDate,
+            CurrencyCode = invoice.CurrencyCode, Status = invoice.State.ToString(),
+            Subtotal = invoice.Subtotal, DiscountAmount = invoice.DiscountAmount,
+            FineAmount = invoice.FineAmount, TotalAmount = invoice.TotalAmount,
+            PaidAmount = invoice.PaidAmount, DueAmount = invoice.DueAmount,
+            Lines = lines.Select(x => new PortalFeeDocumentLineDto
+            {
+                Description = x.FeeHeadNameSnapshot ?? x.Description,
+                Amount = x.Amount, DiscountAmount = x.DiscountAmount,
+                FineAmount = x.FineAmount, NetAmount = x.NetAmount
+            }).ToList()
+        });
+    }
+
+    public async Task<ApiResponse<PortalFeeDocumentDto>> GetReceiptDocumentAsync(
+        Guid studentReference, Guid receiptReference, CancellationToken ct = default)
+    {
+        var student = await AuthorizedStudentAsync(studentReference, ct);
+        if (student == null) return Denied<PortalFeeDocumentDto>();
+        if (receiptReference == Guid.Empty)
+            return Error<PortalFeeDocumentDto>("Receipt not found.", 404);
+        var tenant = _user.TenantId;
+        var payment = await _payments.GetQueryable().AsNoTracking()
+            .FirstOrDefaultAsync(x => x.TenantId == tenant && x.StudentId == student.Id &&
+                !x.IsDeleted && x.PublicId == receiptReference, ct);
+        if (payment == null) return Error<PortalFeeDocumentDto>("Receipt not found.", 404);
+        if (payment.State != PaymentState.Successful || payment.Amount <= 0m)
+            return Error<PortalFeeDocumentDto>("Receipt is not a successful collection.", 409);
+
+        // Re-read every allocation, including tombstones, before showing a receipt.
+        // An invalid/foreign allocation makes the entire receipt unavailable.
+        var allocations = await _portalAllocations.GetQueryable().IgnoreQueryFilters()
+            .AsNoTracking().Where(x => x.TenantId == tenant &&
+                x.StudentPaymentId == payment.Id)
+            .OrderBy(x => x.Id).Take(101).ToListAsync(ct);
+        if (allocations.Count is < 1 or > 100 ||
+            allocations.Any(x => x.IsDeleted || x.Amount <= 0m) ||
+            allocations.Select(x => x.StudentInvoiceId).Distinct().Count() != allocations.Count ||
+            allocations.Sum(x => x.Amount) != payment.Amount)
+            return Error<PortalFeeDocumentDto>("Receipt allocations require reconciliation.", 409);
+        var invoiceIds = allocations.Select(x => x.StudentInvoiceId).ToArray();
+        var invoices = await (from i in _invoices.GetQueryable().IgnoreQueryFilters().AsNoTracking()
+            join e in _academicEnrollments.GetQueryable().IgnoreQueryFilters().AsNoTracking()
+                on new { i.TenantId, Id = i.StudentEnrollmentId }
+                equals new { e.TenantId, e.Id }
+            where i.TenantId == tenant && e.TenantId == tenant && invoiceIds.Contains(i.Id)
+            select new { i.Id, i.InvoiceNumber, i.CurrencyCode, InvoiceDeleted = i.IsDeleted,
+                e.StudentId, EnrollmentDeleted = e.IsDeleted }).ToListAsync(ct);
+        if (invoices.Count != allocations.Count || invoices.Any(x =>
+            x.InvoiceDeleted || x.EnrollmentDeleted || x.StudentId != student.Id ||
+            x.CurrencyCode != payment.CurrencyCode))
+            return Error<PortalFeeDocumentDto>("Receipt ownership or currency requires reconciliation.", 409);
+        var invoiceNumbers = invoices.ToDictionary(x => x.Id, x => x.InvoiceNumber);
+        return ApiResponse<PortalFeeDocumentDto>.SuccessResponse(new PortalFeeDocumentDto
+        {
+            DocumentType = "Receipt", StudentReference = student.PublicId,
+            StudentCode = student.StudentCode, StudentName = student.FullName,
+            Reference = payment.PublicId, DocumentNumber = payment.ReceiptNumber,
+            DocumentDate = payment.PaymentDate, CurrencyCode = payment.CurrencyCode,
+            Status = payment.State.ToString(), PaymentMethod = payment.PaymentMethod.ToString(),
+            Subtotal = payment.Amount, TotalAmount = payment.Amount, PaidAmount = payment.Amount,
+            Lines = allocations.Select(x => new PortalFeeDocumentLineDto
+            {
+                Description = "Invoice " + invoiceNumbers[x.StudentInvoiceId],
+                Amount = x.Amount, NetAmount = x.Amount
+            }).ToList()
+        });
     }
 
     public async Task<ApiResponse<PagedResult<PortalTransportDto>>> GetTransportAsync(
