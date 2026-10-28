@@ -1,0 +1,51 @@
+name: HR and Payroll V2
+
+on:
+  pull_request:
+    branches: [Ashraful]
+    paths:
+      - '.github/workflows/hr-payroll-v2.yml'
+      - 'EduOS.App/Controllers/Api/EmployeeContractsApiController.cs'
+      - 'EduOS.App/Controllers/Api/PayrollPaymentPostingController.cs'
+      - 'EduOS.App/Views/EmployeeContracts/**'
+      - 'EduOS.App/Views/PayrollPaymentPosting/**'
+      - 'EduOS.App/Views/PayrollSalaryStructures/**'
+      - 'EduOS.App/wwwroot/js/hr/employee-contracts.js'
+      - 'EduOS.App/wwwroot/js/finance/payroll-payment-posting.js'
+      - 'EduOS.Core/DTOs/HR/**'
+      - 'EduOS.Core/DTOs/Payroll/**'
+      - 'EduOS.Core/Interfaces/IServices/IEmployeeContractService.cs'
+      - 'EduOS.Core/Interfaces/IServices/IPayrollPaymentPostingService.cs'
+      - 'EduOS.Service/Services/HR/**'
+      - 'EduOS.Tests/Services/EmployeeContractSignedPdfTests.cs'
+      - 'EduOS.Tests/Services/PayrollBankReviewExportTests.cs'
+      - 'EduOS.Tests/Services/PayrollStatutoryCoverageTests.cs'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  hr-payroll-build-regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Restore
+        run: dotnet restore EduOS.slnx
+      - name: Build
+        run: dotnet build EduOS.slnx --configuration Release --no-restore
+      - name: HR/Payroll independent regression tests
+        run: >-
+          dotnet test EduOS.Tests/EduOS.Tests.csproj
+          --configuration Release --no-build
+          --filter 'FullyQualifiedName~EmployeeContractSignedPdfTests|FullyQualifiedName~PayrollBankReviewExportTests|FullyQualifiedName~PayrollStatutoryCoverageTests|FullyQualifiedName~PayrollPaymentPostingServiceTests|FullyQualifiedName~PayrollPostingHistoricalIntegrityTests'
+      - name: HR/Payroll UI syntax
+        run: |
+          node --check EduOS.App/wwwroot/js/hr/employee-contracts.js
+          node --check EduOS.App/wwwroot/js/finance/payroll-payment-posting.js

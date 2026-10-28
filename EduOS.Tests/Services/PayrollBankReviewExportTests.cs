@@ -32,8 +32,11 @@ public sealed class PayrollBankReviewExportTests
         var provider = new EphemeralDataProtectionProvider();
         var runId = Guid.NewGuid();
         var date = new DateOnly(2026, 10, 20);
-        db.Accounts.Add(new Account { Id = 1, TenantId = 41, Code = "SALARY-PAYABLE",
-            Name = "Salary Payable", AccountType = AccountType.Liability });
+        db.Accounts.AddRange(
+            new Account { Id = 1, TenantId = 41, Code = "SALARY-PAYABLE",
+                Name = "Salary Payable", AccountType = AccountType.Liability },
+            new Account { Id = 2, TenantId = 41, Code = "BANK-OPERATING",
+                Name = "Operating Bank", AccountType = AccountType.Asset });
         db.PayrollRuns.Add(new PayrollRun { Id = 1, TenantId = 41, PublicId = runId,
             RunNumber = "PR-202610", PeriodEnd = date, State = PayrollRunState.Posted, JournalId = 1 });
         db.Employees.Add(new Employee { Id = 1, TenantId = 41, PublicId = Guid.NewGuid(),
@@ -68,6 +71,12 @@ public sealed class PayrollBankReviewExportTests
         (await db.PayrollPayments.SingleAsync()).State.Should().Be(PaymentState.AwaitingVerification);
         var audit = await db.AuditLogs.SingleAsync(x => x.Action == "Payroll.BankReviewExported");
         audit.NewValue.Should().NotContain("1234567890");
+        var sourceLedger = await db.Accounts.SingleAsync(x => x.Id == 2);
+        sourceLedger.IsActive = false;
+        await db.SaveChangesAsync();
+        var unsafeRetry = await new PayrollPaymentPostingService(db, new User("TenantAdmin"),
+            TimeProvider.System, provider).GetBankReviewCsvAsync(runId);
+        unsafeRetry.StatusCode.Should().Be(409);
     }
 
     private static EduOSDbContext Database()

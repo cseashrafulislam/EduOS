@@ -292,11 +292,17 @@ public sealed class PayrollPaymentPostingService : IPayrollPaymentPostingService
             join source in db.BankAccounts.AsNoTracking()
                 on new { payment.TenantId, Id = payment.BankAccountId }
                 equals new { source.TenantId, Id = (long?)source.Id }
+            join sourceLedger in db.Accounts.AsNoTracking()
+                on new { source.TenantId, Id = source.AccountId }
+                equals new { sourceLedger.TenantId, sourceLedger.Id }
             where payment.TenantId == tenant && paymentIds.Contains(payment.PublicId) &&
                 !payment.IsDeleted && !salary.IsDeleted && !employee.IsDeleted &&
                 !target.IsDeleted && target.IsActive && target.EmployeeId == employee.Id &&
                 target.CurrencyCode == "BDT" && !source.IsDeleted && source.IsActive &&
                 source.CurrencyCode == "BDT" && (!source.CampusId.HasValue || source.CampusId == run.CampusId) &&
+                !sourceLedger.IsDeleted && sourceLedger.IsActive && sourceLedger.AllowsPosting &&
+                !sourceLedger.IsGroup && sourceLedger.AccountType == AccountType.Asset &&
+                sourceLedger.CurrencyCode == "BDT" &&
                 payment.State == PaymentState.AwaitingVerification && !payment.JournalId.HasValue &&
                 payment.CurrencyCode == "BDT" && salary.PayrollRunId == run.Id
             select new { Payment = payment, Employee = employee, Target = target, Source = source })
