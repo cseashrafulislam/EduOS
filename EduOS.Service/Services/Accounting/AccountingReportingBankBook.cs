@@ -63,7 +63,7 @@ public sealed partial class AccountingReportingService
         var movements = from l in Lines
             join j in affected on l.JournalId equals j.Id
             where l.AccountId == bank.AccountId
-            select new { l.Id, l.LineNo, l.DebitAmount, l.CreditAmount, l.Description,
+            select new { l.Id, l.LineNo, l.RowVersion, l.DebitAmount, l.CreditAmount, l.Description,
                 j.JournalDate, j.JournalNumber, j.SourceType, j.ReferenceNumber };
         var opening = await movements.Where(x => x.JournalDate < fromDate)
             .Select(x => (decimal?)(x.DebitAmount - x.CreditAmount)).SumAsync(ct) ?? 0m;
@@ -81,6 +81,7 @@ public sealed partial class AccountingReportingService
             running += row.DebitAmount - row.CreditAmount;
             entries.Add(new BankBookLineDto
             {
+                JournalLineId = row.Id, JournalLineVersion = Convert.ToBase64String(row.RowVersion),
                 Date = row.JournalDate, JournalNumber = row.JournalNumber,
                 SourceType = row.SourceType, ReferenceNumber = row.ReferenceNumber,
                 Description = row.Description, DebitAmount = row.DebitAmount,

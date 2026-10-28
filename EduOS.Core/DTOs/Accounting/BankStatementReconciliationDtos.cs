@@ -19,6 +19,11 @@ public sealed class BankStatementMovementDto
 }
 public sealed class BankStatementExceptionDto
 {
+    // Populated only for ledger-side exceptions; never a statement-supplied identity.
+    public long? JournalLineId { get; set; }
+    public string? JournalLineVersion { get; set; }
+    // 1-based data-row ordinal in the submitted statement (excluding the CSV header).
+    public int? StatementRowNumber { get; set; }
     public string Source { get; set; } = string.Empty;
     public DateOnly Date { get; set; }
     public string? JournalNumber { get; set; }
@@ -30,6 +35,9 @@ public sealed class BankStatementExceptionDto
 // Unique exact matches are review evidence, never clearance or posting.
 public sealed class BankStatementMatchDto
 {
+    public long JournalLineId { get; set; }
+    public string JournalLineVersion { get; set; } = string.Empty;
+    public int StatementRowNumber { get; set; }
     public DateOnly Date { get; set; }
     public string JournalNumber { get; set; } = string.Empty;
     public string? Reference { get; set; }

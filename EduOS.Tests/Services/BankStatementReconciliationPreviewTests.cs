@@ -31,9 +31,17 @@ public sealed class BankStatementReconciliationPreviewTests
         if (matched == 1)
         {
             response.Data.Matches[0].JournalNumber.Should().Be("J-1");
+            response.Data.Matches[0].JournalLineId.Should().Be(1);
+            response.Data.Matches[0].StatementRowNumber.Should().Be(1);
+            response.Data.Matches[0].JournalLineVersion.Should().NotBeNull();
             response.Data.Matches[0].Deposit.Should().Be(100m);
         }
         response.Data.Exceptions.Should().HaveCount(exceptions);
+        if (exceptions > 0)
+        {
+            response.Data.Exceptions.Single(x => x.Source == "Ledger").JournalLineId.Should().Be(1);
+            response.Data.Exceptions.Single(x => x.Source == "Statement").StatementRowNumber.Should().Be(1);
+        }
         response.Data.ClosingVariance.Should().Be(0m);
         response.Data.IsExactMatch.Should().Be(matched == 1);
         (await db.Journals.SingleAsync()).State.Should().Be(JournalState.Posted);
@@ -75,6 +83,25 @@ public sealed class BankStatementReconciliationPreviewTests
         (await new AccountingReportingService(db, new User())
             .PreviewBankStatementAsync(request)).StatusCode.Should().Be(404);
     }
+    [Fact]
+    public async Task Duplicate_statement_rows_keep_distinct_ordinals_without_mutating_ledger()
+    {
+        await using var db = Database();
+        Seed(db);
+        var shared = new BankStatementMovementDto { Date = Day, Reference = "DEP-1", Deposit = 100m };
+        var request = Request("DEP-1");
+        request.ClosingBalance = 200m;
+        request.Movements = new[] { shared, shared };
+        var response = await new AccountingReportingService(db, new User())
+            .PreviewBankStatementAsync(request);
+        response.StatusCode.Should().Be(200);
+        response.Data!.Matches.Should().BeEmpty();
+        response.Data.Exceptions.Where(x => x.Source == "Statement")
+            .Select(x => x.StatementRowNumber).Should().BeEquivalentTo(new int?[] { 1, 2 });
+        response.Data.Exceptions.Single(x => x.Source == "Ledger").JournalLineId.Should().Be(1);
+        (await db.Journals.SingleAsync()).State.Should().Be(JournalState.Posted);
+    }
+
     [Fact]
     public async Task Duplicate_statement_keys_never_auto_match()
     {

@@ -6,6 +6,7 @@ namespace EduOS.Service.Services.Accounting;
 public sealed partial class AccountingReportingService
 {
     private readonly record struct BankMovementKey(DateOnly Date, decimal Deposit, decimal Withdrawal, string Reference);
+    private readonly record struct IndexedStatementMovement(int RowNumber, BankStatementMovementDto Movement);
     private static BankMovementKey Key(DateOnly date, decimal deposit, decimal withdrawal, string? reference) =>
         new(date, deposit, withdrawal, (reference ?? string.Empty).Trim().ToUpperInvariant());
 
@@ -35,7 +36,10 @@ public sealed partial class AccountingReportingService
             return ApiResponse<BankStatementPreviewDto>.ErrorResponse(book.Message, book.StatusCode);
         var ledger = book.Data.Entries.GroupBy(x => Key(x.Date, x.DebitAmount, x.CreditAmount, x.ReferenceNumber))
             .ToDictionary(x => x.Key, x => x.ToArray());
-        var statement = request.Movements.GroupBy(x => Key(x.Date, x.Deposit, x.Withdrawal, x.Reference))
+        var indexedStatement = request.Movements.Select((movement, index) =>
+            new IndexedStatementMovement(index + 1, movement)).ToArray();
+        var statement = indexedStatement.GroupBy(x => Key(x.Movement.Date, x.Movement.Deposit,
+                x.Movement.Withdrawal, x.Movement.Reference))
             .ToDictionary(x => x.Key, x => x.ToArray());
         // Reference-only candidates explain exceptions, but NEVER become automatic matches.
         // Reused references cannot identify a unique counterparty even when amounts agree.
@@ -43,9 +47,10 @@ public sealed partial class AccountingReportingService
             .Where(x => !string.IsNullOrWhiteSpace(x.ReferenceNumber))
             .GroupBy(x => Key(x.Date, x.DebitAmount, x.CreditAmount, x.ReferenceNumber).Reference)
             .ToDictionary(x => x.Key, x => x.ToArray());
-        var statementByReference = request.Movements
-            .Where(x => !string.IsNullOrWhiteSpace(x.Reference))
-            .GroupBy(x => Key(x.Date, x.Deposit, x.Withdrawal, x.Reference).Reference)
+        var statementByReference = indexedStatement
+            .Where(x => !string.IsNullOrWhiteSpace(x.Movement.Reference))
+            .GroupBy(x => Key(x.Movement.Date, x.Movement.Deposit,
+                x.Movement.Withdrawal, x.Movement.Reference).Reference)
             .ToDictionary(x => x.Key, x => x.ToArray());
         // A reference reused on different dates or amounts is not an unambiguous bank identifier.
         // Check frequency across the WHOLE period, not only within an exact-match key.
@@ -63,12 +68,15 @@ public sealed partial class AccountingReportingService
             ledger.TryGetValue(key, out var a);
             statement.TryGetValue(key, out var b);
             a ??= Array.Empty<BankBookLineDto>();
-            b ??= Array.Empty<BankStatementMovementDto>();
+            b ??= Array.Empty<IndexedStatementMovement>();
             if (key.Reference.Length > 0 && !reusedReferences.Contains(key.Reference) && a.Length == 1 && b.Length == 1)
             {
                 matched++;
                 matches.Add(new BankStatementMatchDto
                 {
+                    JournalLineId = a[0].JournalLineId,
+                    JournalLineVersion = a[0].JournalLineVersion,
+                    StatementRowNumber = b[0].RowNumber,
                     Date = a[0].Date, JournalNumber = a[0].JournalNumber,
                     Reference = a[0].ReferenceNumber,
                     Deposit = a[0].DebitAmount, Withdrawal = a[0].CreditAmount
@@ -91,8 +99,9 @@ public sealed partial class AccountingReportingService
                 {
                     var l = ledgerCandidates[0];
                     var s = statementCandidates[0];
-                    bool differentDate = l.Date != s.Date;
-                    bool differentAmount = l.DebitAmount != s.Deposit || l.CreditAmount != s.Withdrawal;
+                    bool differentDate = l.Date != s.Movement.Date;
+                    bool differentAmount = l.DebitAmount != s.Movement.Deposit ||
+                        l.CreditAmount != s.Movement.Withdrawal;
                     reason = differentDate && differentAmount ? "Date and amount/direction differ: manual review" :
                         differentDate ? "Date differs: manual review" :
                         differentAmount ? "Amount/direction differs: manual review" : "No exact counterpart";
@@ -103,12 +112,16 @@ public sealed partial class AccountingReportingService
             missingLedger += a.Length;
             missingStatement += b.Length;
             foreach (var x in a)
-                exceptions.Add(new BankStatementExceptionDto { Source = "Ledger", Date = x.Date,
+                exceptions.Add(new BankStatementExceptionDto { Source = "Ledger",
+                    JournalLineId = x.JournalLineId, JournalLineVersion = x.JournalLineVersion,
+                    Date = x.Date,
                     JournalNumber = x.JournalNumber, Reference = x.ReferenceNumber,
                     Deposit = x.DebitAmount, Withdrawal = x.CreditAmount, Reason = reason });
             foreach (var x in b)
-                exceptions.Add(new BankStatementExceptionDto { Source = "Statement", Date = x.Date,
-                    Reference = x.Reference, Deposit = x.Deposit, Withdrawal = x.Withdrawal, Reason = reason });
+                exceptions.Add(new BankStatementExceptionDto { Source = "Statement",
+                    StatementRowNumber = x.RowNumber, Date = x.Movement.Date,
+                    Reference = x.Movement.Reference, Deposit = x.Movement.Deposit,
+                    Withdrawal = x.Movement.Withdrawal, Reason = reason });
         }
         var openingVariance = book.Data.OpeningBalance - request.OpeningBalance;
         var movementVariance = (book.Data.TotalInflows - book.Data.TotalOutflows) -

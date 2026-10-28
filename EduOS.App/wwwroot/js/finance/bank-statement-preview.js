@@ -64,7 +64,7 @@ if (panel) {
         const response = await fetch(url, {credentials:'same-origin',cache:'no-store',
             headers:{Accept:'application/json',...(options.headers || {})},...options});
         const raw = await response.text();
-        const safe = raw.replace(/("(?:deposit|withdrawal|ledgerOpeningBalance|ledgerClosingBalance|statementOpeningBalance|statementClosingBalance|closingVariance)"\s*:\s*)(-?\d+(?:\.\d+)?)/g, '$1"$2"');
+        const safe = raw.replace(/("(?:deposit|withdrawal|ledgerOpeningBalance|ledgerClosingBalance|statementOpeningBalance|statementClosingBalance|openingVariance|movementVariance|closingVariance)"\s*:\s*)(-?\d+(?:\.\d+)?)/g, '$1"$2"');
         let payload; try { payload = JSON.parse(safe); } catch { throw new Error('Unexpected bank response.'); }
         if (!response.ok || !payload.success) throw new Error(payload.message || 'Comparison failed.');
         return payload.data;
@@ -95,13 +95,17 @@ if (panel) {
                 escapeHtml(x.bankName + ' — ' + x.accountName) + '</option>').join('');
     }).catch(e => show(e.message, true));
     el('statementFile').addEventListener('change', async event => {
+        invalidate(); // Never keep an export enabled while a replacement file is being read.
+        const fileRevision = revision;
         try {
             const file = event.target.files?.[0];
             if (!file) return;
             if (file.size > 80000) throw new Error('CSV must be 80 KB or smaller.');
-            el('statementCsv').value = await file.text();
+            const content = await file.text();
+            if (fileRevision !== revision) return; // Ignore a file read superseded by form edits.
+            el('statementCsv').value = content;
             invalidate();
-        } catch (e) { show(e.message, true); }
+        } catch (e) { if (fileRevision === revision) show(e.message, true); }
     });
     el('bankStatementForm').addEventListener('submit', async event => {
         event.preventDefault();
@@ -127,10 +131,11 @@ if (panel) {
             el('statementMatchCount').textContent = String((result.matches || []).length);
             el('statementMatches').innerHTML = (result.matches || []).map(x =>
                 '<tr><td>' + escapeHtml(x.date) + '</td><td>' + escapeHtml(x.journalNumber) +
-                '</td><td>' + escapeHtml(x.reference) + '</td><td class="text-end">' +
+                '</td><td>' + escapeHtml(x.journalLineId) + '</td><td>' +
+                escapeHtml(x.statementRowNumber) + '</td><td>' + escapeHtml(x.reference) + '</td><td class="text-end">' +
                 money(x.deposit) + '</td><td class="text-end">' + money(x.withdrawal) +
                 '</td></tr>').join('') ||
-                '<tr><td colspan="5">No unique exact matches.</td></tr>';
+                '<tr><td colspan="7">No unique exact matches.</td></tr>';
             el('statementSummary').textContent = result.bankName + ': ' + result.matchedCount +
                 ' matched; ' + result.referenceCollisionCount + ' reused references; ' +
                 result.unmatchedLedgerCount + ' unmatched ledger; ' +
@@ -143,26 +148,30 @@ if (panel) {
             el('statementExceptions').innerHTML = (result.exceptions || []).map(x =>
                 '<tr><td>' + escapeHtml(x.source) + '</td><td>' + escapeHtml(x.date) +
                 '</td><td>' + escapeHtml(x.journalNumber) + '</td><td>' +
-                escapeHtml(x.reference) + '</td><td class="text-end">' + money(x.deposit) +
+                escapeHtml(x.journalLineId) + '</td><td>' + escapeHtml(x.statementRowNumber) +
+                '</td><td>' + escapeHtml(x.reference) + '</td><td class="text-end">' + money(x.deposit) +
                 '</td><td class="text-end">' + money(x.withdrawal) +
                 '</td><td>' + escapeHtml(x.reason) + '</td></tr>').join('') ||
-                '<tr><td colspan="7">No unmatched movements in this exact-match preview.</td></tr>';
+                '<tr><td colspan="9">No unmatched movements in this exact-match preview.</td></tr>';
             el('statementExport').disabled = false;
             show('Read-only comparison complete. Differences are not approved or cleared.');
-        } catch (e) { show(e.message, true); } finally { el('statementRun').disabled = false; }
+        } catch (e) { if (submittedRevision === revision) show(e.message, true); }
+        finally { el('statementRun').disabled = false; }
     });
     el('statementExport').addEventListener('click', () => {
         if (!report) return;
-        const rows = [['Status','Source','Date','Journal','Reference','Deposit','Withdrawal','Reason'],
-            ['Summary','Bank',comparisonFrom,'',report.bankName,'','','Comparison only; not approved or cleared'],
-            ['Summary','Reused references','','','','','',String(report.referenceCollisionCount)],
-            ['Summary','Opening variance','','','','', '',money(report.openingVariance)],
-            ['Summary','Movement variance','','','','', '',money(report.movementVariance)],
-            ['Summary','Closing variance','','','','', '',money(report.closingVariance)],
-            ['Summary','Exact match','','','','','',report.isExactMatch ? 'Yes; not cleared' : 'No; manual review'],
+        const rows = [['Status','Source','Date','Journal','Ledger Line ID','Line Version','Statement Row','Reference','Deposit','Withdrawal','Reason'],
+            ['Summary','Bank',comparisonFrom,'','','','',report.bankName,'','','Comparison only; not approved or cleared'],
+            ['Summary','Reused references','','','','','','','','',String(report.referenceCollisionCount)],
+            ['Summary','Opening variance','','','','','','','','',money(report.openingVariance)],
+            ['Summary','Movement variance','','','','','','','','',money(report.movementVariance)],
+            ['Summary','Closing variance','','','','','','','','',money(report.closingVariance)],
+            ['Summary','Exact match','','','','','','','','',report.isExactMatch ? 'Yes; not cleared' : 'No; manual review'],
             ...(report.matches || []).map(x => ['Matched','Ledger + Statement',x.date,x.journalNumber,
-                x.reference,money(x.deposit),money(x.withdrawal),'Unique exact match; not cleared']),
-            ...(report.exceptions || []).map(x => ['Unmatched',x.source,x.date,x.journalNumber,x.reference,
+                x.journalLineId,x.journalLineVersion,x.statementRowNumber,x.reference,
+                money(x.deposit),money(x.withdrawal),'Unique exact match; not cleared']),
+            ...(report.exceptions || []).map(x => ['Unmatched',x.source,x.date,x.journalNumber,
+                x.journalLineId,x.journalLineVersion,x.statementRowNumber,x.reference,
                 money(x.deposit),money(x.withdrawal),x.reason])];
         const csv = '\uFEFF' + rows.map(x => x.map(cell).join(',')).join('\r\n') + '\r\n';
         const url = URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));

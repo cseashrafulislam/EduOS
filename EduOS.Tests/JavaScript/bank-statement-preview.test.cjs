@@ -30,5 +30,10 @@ test('statement preview is authorized, anti-forgery protected and read-only', ()
   assert.match(script, /addEventListener\('input', invalidate\)/);
   assert.match(script, /comparisonFrom/);
   assert.match(service, /Date and amount\/direction differ/);
+  assert.match(service, /JournalLineId = a\[0\]\.JournalLineId/);
+  assert.match(service, /StatementRowNumber = b\[0\]\.RowNumber/);
+  assert.match(script, /journalLineVersion/);
+  assert.match(script, /statementRowNumber/);
+  assert.match(script, /fileRevision !== revision/);
   assert.match(service, /missingLedger == 0 && missingStatement == 0/);
 });

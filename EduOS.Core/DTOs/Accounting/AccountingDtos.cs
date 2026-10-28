@@ -250,6 +250,9 @@ public sealed class BankLiquidityDto
 
 public sealed class BankBookLineDto
 {
+    // Stable identity and optimistic version of the exact posted bank ledger line.
+    public long JournalLineId { get; set; }
+    public string JournalLineVersion { get; set; } = string.Empty;
     public DateOnly Date { get; set; }
     public string JournalNumber { get; set; } = string.Empty;
     public string? SourceType { get; set; }
