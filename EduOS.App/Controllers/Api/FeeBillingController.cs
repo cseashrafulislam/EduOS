@@ -68,6 +68,12 @@ public sealed class FeeBillingController : ControllerBase
         [FromBody] SaveFeeStructureRequestDto request, CancellationToken ct) =>
         Result(await _service.SaveFeeStructureAsync(id, request, ct));
 
+    [HttpPost("invoices/preflight")]
+    [Authorize(Roles = "TenantAdmin,Principal,Accountant")]
+    public async Task<IActionResult> PreviewInvoices([FromBody] GenerateStudentInvoiceBatchRequestDto request,
+        CancellationToken ct) =>
+        Result(await _service.PreviewInvoiceBatchAsync(request, ct));
+
     [HttpPost("invoices/generate")]
     [Authorize(Roles = "TenantAdmin,Principal,Accountant")]
     public async Task<IActionResult> Generate([FromBody] GenerateStudentInvoiceBatchRequestDto request,

@@ -262,7 +262,7 @@ public sealed partial class FeeBillingService : IFeeBillingService
                 x.TenantId == tenant && x.Id == request.FeeStructureId &&
                 x.IsActive && !x.IsDeleted && x.EffectiveFrom <= monthStart &&
                 (!x.EffectiveTo.HasValue || x.EffectiveTo >= monthStart), token);
-            if (batch == null || structure == null || batch.CampusId != structure.CampusId ||
+            if (batch == null || structure == null || structure.CurrencyCode != "BDT" || batch.CampusId != structure.CampusId ||
                 batch.AcademicYearId != structure.AcademicYearId ||
                 structure.AcademicBatchId.HasValue && structure.AcademicBatchId != batch.Id ||
                 structure.AcademicLevelId.HasValue && structure.AcademicLevelId != batch.AcademicLevelId ||

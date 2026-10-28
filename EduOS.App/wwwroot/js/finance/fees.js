@@ -140,17 +140,76 @@ async function loadStructure(id,mode){
  e('feeStructureMode').textContent=mode==='copy'?'New version template: enter a new effective date. Existing overlapping scopes are rejected.':'Editing unbilled structure #'+x.id+'; issued invoices block amendments.';
  e('feeStructureForm').scrollIntoView({behavior:'smooth',block:'start'});
 }
+let invoicePreviewRevision = 0;
+function invalidateInvoicePreview(){
+ invoicePreviewRevision++;
+ state.invoicePreview = null; state.invoicePreviewKey = null;
+ e('feeGenerate').disabled = true; e('feePreviewCsv').disabled = true;
+ e('feePreviewSummary').textContent = '';
+ e('feePreviewRows').replaceChildren();
+}
+function invoiceBatchBody(){
+ const academicBatchId=Number(e('feeBatch').value),feeStructureId=Number(e('feeInvoiceStructure').value);
+ const month=Number(e('feeMonth').value),year=Number(e('feeBillingYear').value);
+ const invoiceDate=year+'-'+String(month).padStart(2,'0')+'-01',dueDate=e('feeDueDate').value;
+ if(!academicBatchId||!feeStructureId||!Number.isInteger(year)||year<2000||year>2200||
+  month<1||month>12||!dueDate||dueDate<invoiceDate)throw Error('Choose a batch, fee structure and valid due date.');
+ const body={academicBatchId,feeStructureId,month,year,invoiceDate,dueDate};
+ body.clientRequestId=stable('generate',JSON.stringify(body));
+ return body;
+}
+async function previewInvoices(){
+ const revision=invoicePreviewRevision;
+ let body;try{body=invoiceBatchBody();}catch(err){return alert('danger',err.message);}
+ e('feePreview').disabled=true;
+ try{
+  const preview=await api('/invoices/preflight','POST',body);
+  if(revision!==invoicePreviewRevision)return;
+  state.invoicePreview=preview;state.invoicePreviewKey=JSON.stringify(body);
+  e('feePreviewSummary').textContent='Eligible: '+preview.eligibleCount+'; new: '+preview.newCount+
+   '; existing: '+preview.existingCount+'; conflicts: '+preview.conflictCount+
+   '; new net BDT '+amount(preview.newTotal)+'.';
+  e('feePreviewRows').replaceChildren();
+  for(const x of preview.rows||[]){
+   const tr=document.createElement('tr');
+   tr.append(cell(x.studentCode),cell(x.studentName),cell(x.status),cell(x.invoiceNumber||''),
+    cell(amount(x.subtotal)),cell(amount(x.discount)),cell(amount(x.total)));
+   e('feePreviewRows').append(tr);
+  }
+  e('feeGenerate').disabled=!preview.canGenerate;
+  e('feePreviewCsv').disabled=false;
+  if(!preview.canGenerate)alert('warning','Resolve conflicting invoices before generating.');
+ }catch(err){if(revision===invoicePreviewRevision)alert('danger',err.message);}
+ finally{e('feePreview').disabled=false;}
+}
+function invoicePreviewCsv(){
+ const preview=state.invoicePreview;if(!preview)return;
+ const csvCell=value=>{
+  let v=String(value??'');
+  if(/^[\s\u0000-\u001f]*[=+\-@]/.test(v))v="'"+v;
+  return '"'+v.replace(/"/g,'""')+'"';
+ };
+ const rows=[['Student code','Name','Status','Invoice','Subtotal','Discount','Net BDT'],
+  ...(preview.rows||[]).map(x=>[x.studentCode,x.studentName,x.status,x.invoiceNumber||'',
+    amount(x.subtotal),amount(x.discount),amount(x.total)])];
+ const blob=new Blob(['\uFEFF'+rows.map(row=>row.map(csvCell).join(',')).join('\r\n')+'\r\n'],
+  {type:'text/csv;charset=utf-8'});
+ const url=URL.createObjectURL(blob),link=document.createElement('a');
+ link.href=url;link.download='invoice-batch-preflight.csv';
+ document.body.append(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);
+}
 async function generate(ev){
  ev.preventDefault();if(!ev.currentTarget.reportValidity())return;
- const academicBatchId=Number(e('feeBatch').value),feeStructureId=Number(e('feeInvoiceStructure').value),month=Number(e('feeMonth').value),year=Number(e('feeBillingYear').value);
- const invoiceDate=year+'-'+String(month).padStart(2,'0')+'-01',dueDate=e('feeDueDate').value;
- if(!academicBatchId||!feeStructureId||dueDate<invoiceDate)return alert('danger','Select an applicable structure and valid due date.');
- const body={academicBatchId,feeStructureId,month,year,invoiceDate,dueDate};body.clientRequestId=stable('generate',JSON.stringify(body));
- if(!confirm('Generate monthly invoices for this batch?'))return;
+ let body;try{body=invoiceBatchBody();}catch(err){return alert('danger',err.message);}
+ if(!state.invoicePreview?.canGenerate||state.invoicePreviewKey!==JSON.stringify(body))
+  return alert('warning','Run billing preview again after changing inputs.');
+ if(!confirm('Generate monthly invoices for the previewed batch?'))return;
  e('feeGenerate').disabled=true;
- try{const r=await api('/invoices/generate','POST',body);clear('generate');e('feeGenerationInfo').textContent='Generated: '+r.generated+'; existing: '+r.existing+'; failed: '+r.failed;alert('success','Invoices generated.');}
- catch(err){alert('danger',err.message+' Retry with the same request ID.');}
- finally{e('feeGenerate').disabled=false;}
+ try{const r=await api('/invoices/generate','POST',body);clear('generate');
+  invalidateInvoicePreview();
+  e('feeGenerationInfo').textContent='Generated: '+r.generated+'; existing: '+r.existing+'; failed: '+r.failed;
+  alert('success','Invoices generated.');}
+ catch(err){alert('danger',err.message+' Reload preview before retrying with the same request ID.');invalidateInvoicePreview();}
 }
 async function findStudent(){
  const s=e('feeStudentSearch').value.trim();if(s.length<2||s.length>100)return alert('warning','Search requires 2–100 characters.');
@@ -270,4 +329,12 @@ e('feeInvoicePrev').addEventListener('click',()=>page('invoice',-1));e('feeInvoi
 e('feeReceiptPrev').addEventListener('click',()=>page('receipt',-1));e('feeReceiptNext').addEventListener('click',()=>page('receipt',1));
 const now=new Date();e('feeMonth').value=String(now.getMonth()+1);e('feeBillingYear').value=String(now.getFullYear());e('feePaymentDate').value=today();e('feeEffectiveFrom').value=today();
 options().catch(err=>alert('danger',err.message));
+// A preview is advisory and becomes invalid on every invoice-scope edit.
+for(const id of ['feeBatch','feeInvoiceStructure','feeMonth','feeBillingYear','feeDueDate']){
+ const field=e(id);
+ if(field){field.addEventListener('change',invalidateInvoicePreview);
+  field.addEventListener('input',invalidateInvoicePreview);}
+}
+e('feePreview').addEventListener('click',previewInvoices);
+e('feePreviewCsv').addEventListener('click',invoicePreviewCsv);
 })();

@@ -28,7 +28,17 @@
                 <div class="col-4"><label for="feeMonth" class="form-label">Month</label><select id="feeMonth" class="form-select">@for(var m=1;m<=12;m++){<option value="@m">@System.Globalization.CultureInfo.InvariantCulture.DateTimeFormat.GetMonthName(m)</option>}</select></div>
                 <div class="col-4"><label for="feeBillingYear" class="form-label">Year</label><input id="feeBillingYear" type="number" min="2000" max="2200" class="form-control" required /></div>
                 <div class="col-4"><label for="feeDueDate" class="form-label">Due date</label><input id="feeDueDate" type="date" class="form-control" required /></div>
-                <div class="col-12"><button id="feeGenerate" class="btn btn-primary" type="submit">Generate invoices</button></div>
+                <div class="col-12 d-flex flex-wrap gap-2">
+                    <button id="feePreview" class="btn btn-outline-primary" type="button">Preview billing</button>
+                    <button id="feeGenerate" class="btn btn-primary" type="submit" disabled>Generate invoices</button>
+                    <button id="feePreviewCsv" class="btn btn-outline-secondary" type="button" disabled>Export preview CSV</button>
+                </div>
+                <div class="col-12"><div id="feePreviewSummary" class="small" role="status" aria-live="polite"></div>
+                    <div class="table-responsive"><table class="table table-sm table-striped">
+                        <thead><tr><th>Student code</th><th>Name</th><th>Status</th><th>Existing invoice</th><th class="text-end">Subtotal</th><th class="text-end">Discount</th><th class="text-end">Net BDT</th></tr></thead>
+                        <tbody id="feePreviewRows"></tbody>
+                    </table></div>
+                </div>
                 <p id="feeGenerationInfo" class="text-muted small mb-0">Existing invoices will not be duplicated for the same request.</p>
             </form>
         </section></div>
