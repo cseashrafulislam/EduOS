@@ -47,6 +47,13 @@ public sealed class FeeReceivablesAgingController : ControllerBase
         return StatusCode(result.StatusCode, result);
     }
 
+    [HttpGet("due-calendar")]
+    public async Task<IActionResult> DueCalendar([FromQuery] FeeDueCalendarQueryDto request, CancellationToken ct)
+    {
+        var result = await _service.GetDueCalendarAsync(request, ct);
+        return StatusCode(result.StatusCode, result);
+    }
+
     [HttpGet]
     public async Task<IActionResult> Get([FromQuery] FeeReceivablesAgingQueryDto request, CancellationToken ct)
     {

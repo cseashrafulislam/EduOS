@@ -1,0 +1,56 @@
+@{
+    ViewData["Title"] = "Student Fee Due Calendar";
+}
+<section id="feeDueCalendarApp" class="container-fluid py-3">
+    <header class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3 d-print-none">
+        <div class="d-flex align-items-center gap-2">
+            <h1 class="h4 mb-0">Student Fee Due Calendar</h1>
+            <details class="position-relative">
+                <summary class="btn btn-outline-secondary btn-sm" aria-label="Due calendar help" title="Report guide">ⓘ</summary>
+                <div class="position-absolute border rounded bg-body p-2 small shadow-sm" style="z-index:5;width:min(21rem,80vw);right:0">
+                    Groups current unpaid issued invoices by due month and currency. Does not include future unissued instalments or represent historical balances. CSV and print show only the current invoice page; monthly totals cover all matching invoices.
+                </div>
+            </details>
+        </div>
+        <a class="btn btn-outline-secondary btn-sm" href="/FeeOperations/Index">Fees &amp; Billing</a>
+    </header>
+    <div id="feeDueNotice" class="alert d-none d-print-none" role="status" aria-live="polite"></div>
+    <form id="feeDueFilters" class="card card-body row g-2 align-items-end mb-3 d-print-none">
+        <div class="col-md-2"><label for="feeDueFrom" class="form-label">Due from</label><input id="feeDueFrom" type="date" class="form-control" required /></div>
+        <div class="col-md-2"><label for="feeDueTo" class="form-label">Due to</label><input id="feeDueTo" type="date" class="form-control" required /></div>
+        <div class="col-md-3"><label for="feeDueCampus" class="form-label">Campus</label><select id="feeDueCampus" class="form-select"><option value="">All accessible</option></select></div>
+        <div class="col-md-3"><label for="feeDueSearch" class="form-label">Invoice or student prefix</label><input id="feeDueSearch" maxlength="100" autocomplete="off" class="form-control" /></div>
+        <div class="col-md-1"><label for="feeDueSize" class="form-label">Rows</label><select id="feeDueSize" class="form-select"><option>25</option><option>50</option><option>100</option></select></div>
+        <div class="col-md-1 d-grid"><button id="feeDueRun" type="submit" class="btn btn-primary">Run</button></div>
+    </form>
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
+        <strong id="feeDueScope">Current unpaid issued invoices</strong>
+        <div class="d-flex gap-2 d-print-none">
+            <button id="feeDueCsv" type="button" class="btn btn-outline-primary btn-sm" disabled>Export page CSV</button>
+            <button id="feeDuePrint" type="button" class="btn btn-outline-secondary btn-sm" disabled>Print page</button>
+        </div>
+    </div>
+    <section class="card mb-3">
+        <div class="card-header"><strong>Due month / currency totals</strong></div>
+        <div class="table-responsive"><table class="table table-sm table-striped mb-0">
+            <thead><tr><th>Month</th><th>Currency</th><th class="text-end">Invoices</th><th class="text-end">Outstanding</th></tr></thead>
+            <tbody id="feeDueMonths"><tr><td colspan="4" class="text-muted text-center p-3">Run the report.</td></tr></tbody>
+        </table></div>
+    </section>
+    <section class="card">
+        <div class="card-header d-flex justify-content-between"><strong>Issued invoice details</strong><span id="feeDueCount"></span></div>
+        <div class="table-responsive"><table class="table table-sm table-hover mb-0">
+            <thead><tr><th>Due date</th><th>Invoice</th><th>Student</th><th>Campus</th><th>Currency</th>
+                <th class="text-end">Total</th><th class="text-end">Paid</th><th class="text-end">Due</th></tr></thead>
+            <tbody id="feeDueRows"><tr><td colspan="8" class="text-muted text-center p-3">No report loaded.</td></tr></tbody>
+        </table></div>
+        <div class="card-footer d-flex gap-2 align-items-center d-print-none">
+            <button id="feeDuePrev" type="button" class="btn btn-outline-secondary btn-sm" disabled>Previous</button>
+            <span id="feeDuePage" aria-live="polite"></span>
+            <button id="feeDueNext" type="button" class="btn btn-outline-secondary btn-sm" disabled>Next</button>
+        </div>
+    </section>
+</section>
+@section Scripts {
+    <script src="~/js/finance/fee-due-calendar.js" asp-append-version="true"></script>
+}
