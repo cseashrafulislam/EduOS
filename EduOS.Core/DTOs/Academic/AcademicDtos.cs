@@ -679,6 +679,14 @@ public class SubstitutionDto
     public string RowVersion { get; set; } = string.Empty;
 }
 
+/// <summary>Authorized date/batch substitution totals; never includes another campus or teacher's records.</summary>
+public class SubstitutionRegisterSummaryDto
+{
+    public int TotalCount { get; set; }
+    public int ActiveCount { get; set; }
+    public int CancelledCount { get; set; }
+}
+
 public class CreateSubstitutionRequestDto
 {
     public Guid ClientRequestId { get; set; }

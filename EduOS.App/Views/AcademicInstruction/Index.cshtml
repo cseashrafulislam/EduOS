@@ -48,7 +48,14 @@
     <section class="card mb-3">
         <div class="card-header d-flex justify-content-between align-items-center gap-2">
             <h3 class="h6 m-0">Teacher substitutions</h3>
-            <button id="substitutionCsv" type="button" class="btn btn-sm btn-outline-secondary">CSV (current page)</button>
+            <div class="d-flex flex-wrap align-items-center gap-2">
+                <label for="substitutionStatus" class="visually-hidden">Substitution status</label>
+                <select id="substitutionStatus" class="form-select form-select-sm w-auto" aria-label="Filter substitution status">
+                    <option value="">All statuses</option><option value="false">Active</option><option value="true">Cancelled</option>
+                </select>
+                <span id="substitutionSummary" class="small text-muted" aria-live="polite"></span>
+                <button id="substitutionCsv" type="button" class="btn btn-sm btn-outline-secondary">CSV (current page)</button>
+            </div>
         </div>
         @if (canManage)
         {

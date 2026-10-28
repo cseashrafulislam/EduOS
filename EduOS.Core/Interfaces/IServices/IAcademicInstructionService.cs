@@ -10,6 +10,8 @@ public interface IAcademicInstructionService
     Task<ApiResponse<PagedResult<SubstitutionRoutineChoiceDto>>> GetSubstitutionRoutineChoicesAsync(long academicBatchId, DateOnly date, string? search, int page, int pageSize, CancellationToken cancellationToken = default);
     Task<ApiResponse<IReadOnlyList<SubstitutionDto>>> GetSubstitutionsAsync(DateOnly fromDate, DateOnly toDate, long? academicBatchId, CancellationToken cancellationToken = default);
     Task<ApiResponse<PagedResult<SubstitutionDto>>> GetSubstitutionsPageAsync(DateOnly fromDate, DateOnly toDate, long? academicBatchId, int page, int pageSize, CancellationToken cancellationToken = default);
+    Task<ApiResponse<PagedResult<SubstitutionDto>>> GetSubstitutionsPageFilteredAsync(DateOnly fromDate, DateOnly toDate, long? academicBatchId, bool? isCancelled, int page, int pageSize, CancellationToken cancellationToken = default);
+    Task<ApiResponse<SubstitutionRegisterSummaryDto>> GetSubstitutionSummaryAsync(DateOnly fromDate, DateOnly toDate, long? academicBatchId, CancellationToken cancellationToken = default);
     Task<ApiResponse<SubstitutionDto>> CreateSubstitutionAsync(CreateSubstitutionRequestDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<SubstitutionDto>> CancelSubstitutionAsync(long id, CancelSubstitutionRequestDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<PagedResult<LessonPlanDto>>> GetLessonPlansAsync(long? academicBatchId, DateOnly? fromDate, DateOnly? toDate, int page, int pageSize, CancellationToken cancellationToken = default);

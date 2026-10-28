@@ -25,7 +25,7 @@ const version = 'AQIDBAUGBwg=';
     try {
         const page = await browser.newPage({ acceptDownloads: true });
         const requests = [];
-        const cancellations = [];
+        const cancellations = [], statusFilters = [];
         let active = false, cancelled = false;
         page.on('dialog', d => d.accept());
         await page.route('http://localhost/**', async route => {
@@ -41,10 +41,21 @@ const version = 'AQIDBAUGBwg=';
                 return reply(route, 200, { page: 1, totalPages: 1, totalCount: 0, items: [] });
             if (name === '/api/academic-instruction/batches/10/lesson-offerings')
                 return reply(route, 200, { page: 1, totalPages: 1, totalCount: 0, items: [] });
+            if (name === '/api/academic-instruction/substitutions/summary') {
+                assert.equal(url.searchParams.get('academicBatchId'), '10');
+                assert.equal(url.searchParams.get('isCancelled'), null,
+                    'Summary must cover both statuses without leaking filter scope');
+                return reply(route, 200, { totalCount: active ? 1 : 0,
+                    activeCount: active && !cancelled ? 1 : 0,
+                    cancelledCount: active && cancelled ? 1 : 0 });
+            }
             if (name === '/api/academic-instruction/substitutions/page') {
                 assert.equal(url.searchParams.get('pageSize'), '20');
+                const status = url.searchParams.get('isCancelled');
+                statusFilters.push(status);
+                const visible = active && (status === null || status === String(cancelled));
                 return reply(route, 200, { page: 1, totalPages: 1,
-                    totalCount: active ? 1 : 0, items: active ? [{
+                    totalCount: visible ? 1 : 0, items: visible ? [{
                         id: 300, rowVersion: version, date: '2026-10-25',
                         batchName: 'Section A', subjectName: 'Mathematics',
                         timeSlotName: 'Period 2', originalTeacherName: 'Original teacher',
@@ -136,12 +147,21 @@ const version = 'AQIDBAUGBwg=';
         await page.locator('#substitutionRows button[data-action="cancelSub"]').click();
         await page.waitForFunction(() => document.querySelector('#substitutionRows')?.textContent.includes('Cancelled'));
         assert.equal(cancellations.length, 1);
+        await page.waitForFunction(() => document.querySelector('#substitutionSummary')?.textContent.includes('0 active'));
+        await page.locator('#substitutionStatus').selectOption('false');
+        await page.waitForFunction(() => document.querySelector('#substitutionRows')?.textContent.includes('No substitutions'));
+        assert(statusFilters.includes('false'), 'Active filter must be enforced by the API');
+        await page.locator('#substitutionStatus').selectOption('true');
+        await page.waitForFunction(() => document.querySelector('#substitutionRows')?.textContent.includes('Cancelled'));
+        assert(statusFilters.includes('true'), 'Cancelled filter must be enforced by the API');
+        await page.locator('#substitutionStatus').selectOption('');
+        await page.waitForFunction(() => document.querySelector('#substitutionRows')?.textContent.includes('Cancelled'));
         const downloadPromise = page.waitForEvent('download');
         await page.locator('#substitutionCsv').click();
         const download = await downloadPromise;
         const csv = fs.readFileSync(await download.path(), 'utf8');
         assert.match(csv, /"'=SUM\(1,1\)"/, 'CSV formula injection must be escaped');
         await page.close();
-        console.log('Academic Instruction browser: PASS — paged routine/teacher, CSRF, retry key, cancellation rowversion, CSV safety.');
+        console.log('Academic Instruction browser: PASS — paged routine/teacher, CSRF, retry key, cancellation, scoped status summary/filter, CSV safety.');
     } finally { await browser.close(); }
 })().catch(e => { console.error(e); process.exitCode = 1; });

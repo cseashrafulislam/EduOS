@@ -222,59 +222,43 @@ public sealed class AcademicInstructionService : IAcademicInstructionService
             : Error<IReadOnlyList<SubstitutionDto>>(result.Message, result.StatusCode);
     }
 
-    public async Task<ApiResponse<PagedResult<SubstitutionDto>>> GetSubstitutionsPageAsync(
+    public Task<ApiResponse<PagedResult<SubstitutionDto>>> GetSubstitutionsPageAsync(
         DateOnly fromDate, DateOnly toDate, long? academicBatchId, int page, int pageSize,
-        CancellationToken ct = default)
+        CancellationToken ct = default) =>
+        GetSubstitutionsPageFilteredAsync(fromDate, toDate, academicBatchId, null, page, pageSize, ct);
+
+    public async Task<ApiResponse<SubstitutionRegisterSummaryDto>> GetSubstitutionSummaryAsync(
+        DateOnly fromDate, DateOnly toDate, long? academicBatchId, CancellationToken ct = default)
     {
-        if (!CanRead()) return Denied<PagedResult<SubstitutionDto>>();
-        if (fromDate == default || toDate == default || toDate < fromDate ||
-            toDate.DayNumber - fromDate.DayNumber > 92 || academicBatchId is <= 0 ||
-            page < 1 || pageSize is < 1 or > 500)
+        var (query, status) = await GetAuthorizedSubstitutionQueryAsync(fromDate, toDate, academicBatchId, ct);
+        if (query == null)
+            return status == 403 ? Denied<SubstitutionRegisterSummaryDto>() :
+                Error<SubstitutionRegisterSummaryDto>("Invalid substitution date range or academic batch.");
+        // A single SQL aggregate gives consistent totals, including cancelled historical entries.
+        var counts = await query.GroupBy(x => 1)
+            .Select(g => new { Total = g.Count(), Cancelled = g.Count(x => x.IsCancelled) })
+            .SingleOrDefaultAsync(ct);
+        var total = counts?.Total ?? 0;
+        var cancelled = counts?.Cancelled ?? 0;
+        return ApiResponse<SubstitutionRegisterSummaryDto>.SuccessResponse(
+            new SubstitutionRegisterSummaryDto
+            {
+                TotalCount = total, ActiveCount = total - cancelled, CancelledCount = cancelled
+            });
+    }
+
+    public async Task<ApiResponse<PagedResult<SubstitutionDto>>> GetSubstitutionsPageFilteredAsync(
+        DateOnly fromDate, DateOnly toDate, long? academicBatchId, bool? isCancelled,
+        int page, int pageSize, CancellationToken ct = default)
+    {
+        if (page < 1 || pageSize is < 1 or > 500)
             return Error<PagedResult<SubstitutionDto>>("Invalid substitution date range, academic batch or page.");
-        var tenant = _currentUser.TenantId;
-        var q = _substitutions.GetQueryable().AsNoTracking().Where(x =>
-            x.TenantId == tenant && x.Date >= fromDate && x.Date <= toDate && !x.IsDeleted);
-        if (academicBatchId.HasValue)
-        {
-            var ids = from routine in _routineEntries.GetQueryable().AsNoTracking()
-                join offer in _subjectOfferings.GetQueryable().AsNoTracking()
-                    on routine.SubjectOfferingId equals offer.Id
-                where routine.TenantId == tenant && offer.TenantId == tenant &&
-                    offer.AcademicBatchId == academicBatchId.Value
-                select routine.Id;
-            q = q.Where(x => ids.Contains(x.RoutineEntryId));
-        }
-        if (IsRestrictedManager())
-        {
-            var permittedRoutines =
-                from routine in _routineEntries.GetQueryable().AsNoTracking()
-                join offering in _subjectOfferings.GetQueryable().AsNoTracking()
-                    on routine.SubjectOfferingId equals offering.Id
-                where routine.TenantId == tenant && offering.TenantId == tenant &&
-                    AllowedManagerBatchIds(tenant).Contains(offering.AcademicBatchId)
-                select routine.Id;
-            q = q.Where(x => permittedRoutines.Contains(x.RoutineEntryId));
-        }
-        var teacherId = !IsManager() ? await GetLinkedTeacherIdAsync(ct) : null;
-        if (!IsManager() && !teacherId.HasValue) return Denied<PagedResult<SubstitutionDto>>();
-        if (!IsManager())
-        {
-            // A historical assignment ID alone is not current authorization. The original
-            // instructor may read only cover records from an active assignment effective
-            // on the substitution date; substitute readback remains independently scoped.
-            q = q.Where(sub => sub.SubstituteEmployeeId == teacherId!.Value ||
-                (from routine in _routineEntries.GetQueryable().AsNoTracking()
-                 join assignment in _instructorAssignments.GetQueryable().AsNoTracking()
-                     on routine.InstructorAssignmentId equals (long?)assignment.Id
-                 where routine.TenantId == tenant && !routine.IsDeleted &&
-                       routine.Id == sub.RoutineEntryId &&
-                       assignment.TenantId == tenant && !assignment.IsDeleted &&
-                       assignment.IsActive && assignment.EmployeeId == teacherId.Value &&
-                       assignment.SubjectOfferingId == routine.SubjectOfferingId &&
-                       assignment.EffectiveFrom <= sub.Date &&
-                       (assignment.EffectiveTo == null || assignment.EffectiveTo >= sub.Date)
-                 select routine.Id).Any());
-        }
+        var (scoped, status) = await GetAuthorizedSubstitutionQueryAsync(fromDate, toDate, academicBatchId, ct);
+        if (scoped == null)
+            return status == 403 ? Denied<PagedResult<SubstitutionDto>>() :
+                Error<PagedResult<SubstitutionDto>>("Invalid substitution date range, academic batch or page.");
+        var q = isCancelled.HasValue
+            ? scoped.Where(x => x.IsCancelled == isCancelled.Value) : scoped;
         // Scope both the total count and the page before materialization.
         var total = await q.CountAsync(ct);
         var offset = ((long)page - 1) * pageSize;
@@ -308,6 +292,61 @@ public sealed class AcademicInstructionService : IAcademicInstructionService
         {
             Items = result.ToList(), TotalCount = total, Page = page, PageSize = pageSize
         });
+    }
+
+    /// <summary>One SQL-level scope shared by paged register and summary, including historical rows.</summary>
+    private async Task<(IQueryable<Substitution>? Query, int StatusCode)> GetAuthorizedSubstitutionQueryAsync(
+        DateOnly fromDate, DateOnly toDate, long? academicBatchId, CancellationToken ct)
+    {
+        if (!CanRead()) return (null, 403);
+        if (fromDate == default || toDate == default || toDate < fromDate ||
+            toDate.DayNumber - fromDate.DayNumber > 92 || academicBatchId is <= 0)
+            return (null, 400);
+        var tenant = _currentUser.TenantId;
+        var q = _substitutions.GetQueryable().AsNoTracking().Where(x =>
+            x.TenantId == tenant && x.Date >= fromDate && x.Date <= toDate && !x.IsDeleted);
+        if (academicBatchId.HasValue)
+        {
+            var ids = from routine in _routineEntries.GetQueryable().AsNoTracking()
+                join offer in _subjectOfferings.GetQueryable().AsNoTracking()
+                    on routine.SubjectOfferingId equals offer.Id
+                where routine.TenantId == tenant && offer.TenantId == tenant &&
+                    offer.AcademicBatchId == academicBatchId.Value
+                select routine.Id;
+            q = q.Where(x => ids.Contains(x.RoutineEntryId));
+        }
+        if (IsRestrictedManager())
+        {
+            var permittedRoutines =
+                from routine in _routineEntries.GetQueryable().AsNoTracking()
+                join offering in _subjectOfferings.GetQueryable().AsNoTracking()
+                    on routine.SubjectOfferingId equals offering.Id
+                where routine.TenantId == tenant && offering.TenantId == tenant &&
+                    AllowedManagerBatchIds(tenant).Contains(offering.AcademicBatchId)
+                select routine.Id;
+            q = q.Where(x => permittedRoutines.Contains(x.RoutineEntryId));
+        }
+        var teacherId = !IsManager() ? await GetLinkedTeacherIdAsync(ct) : null;
+        if (!IsManager() && !teacherId.HasValue) return (null, 403);
+        if (!IsManager())
+        {
+            // A historical assignment ID alone is not current authorization. The original
+            // instructor may read only cover records from an active assignment effective
+            // on the substitution date; substitute readback remains independently scoped.
+            q = q.Where(sub => sub.SubstituteEmployeeId == teacherId!.Value ||
+                (from routine in _routineEntries.GetQueryable().AsNoTracking()
+                 join assignment in _instructorAssignments.GetQueryable().AsNoTracking()
+                     on routine.InstructorAssignmentId equals (long?)assignment.Id
+                 where routine.TenantId == tenant && !routine.IsDeleted &&
+                       routine.Id == sub.RoutineEntryId &&
+                       assignment.TenantId == tenant && !assignment.IsDeleted &&
+                       assignment.IsActive && assignment.EmployeeId == teacherId.Value &&
+                       assignment.SubjectOfferingId == routine.SubjectOfferingId &&
+                       assignment.EffectiveFrom <= sub.Date &&
+                       (assignment.EffectiveTo == null || assignment.EffectiveTo >= sub.Date)
+                 select routine.Id).Any());
+        }
+        return (q, 200);
     }
 
     public Task<ApiResponse<SubstitutionDto>> CreateSubstitutionAsync(

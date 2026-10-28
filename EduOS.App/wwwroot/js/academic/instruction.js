@@ -50,7 +50,7 @@
         state.lessonPage=1;state.substitutionPage=1;state.offeringPage=1;state.offeringPages=1;state.offeringCount=0;state.offeringRequestSeq++;state.routineRequestSeq++;state.teacherRequestSeq++;
         state.routinePage=1;state.teacherPage=1;state.teacherPages=1;state.teacherCount=0;state.routinePages=1;state.routineCount=0;
         if(manager){get('substitutionRoutineSearch').value='';if(!get('substitutionDate').value)get('substitutionDate').value=get('instructionTo').value;}
-        get('lessonOfferingSearch').value='';state.offerings=[];state.instructors=[];state.routines=[];state.lessons=[];state.substitutions=[];setOptions('substitutionTeacher',[],'Select substitute instructor');if(manager)updateTeacherPager();renderLessons([]);renderSubstitutions([]);updateLessonPager();updateSubstitutionPager();updateOfferingPager();if(manager)updateRoutinePager();
+        get('lessonOfferingSearch').value='';state.offerings=[];state.instructors=[];state.routines=[];state.lessons=[];state.substitutions=[];get('substitutionSummary').textContent='';setOptions('substitutionTeacher',[],'Select substitute instructor');if(manager)updateTeacherPager();renderLessons([]);renderSubstitutions([]);updateLessonPager();updateSubstitutionPager();updateOfferingPager();if(manager)updateRoutinePager();
         if(id)load();
     }
     async function init() {
@@ -204,10 +204,13 @@
         lessonQuery.set('page', String(state.lessonPage)); lessonQuery.set('pageSize', '20');
         const substitutionQuery = new URLSearchParams(q);
         substitutionQuery.set('page', String(state.substitutionPage)); substitutionQuery.set('pageSize', '20');
+        const statusFilter = get('substitutionStatus').value;
+        if (statusFilter) substitutionQuery.set('isCancelled', statusFilter);
         try {
-            const [lessonResult, subResult, offeringResult, routineResult] = await Promise.allSettled([
+            const [lessonResult, subResult, summaryResult, offeringResult, routineResult] = await Promise.allSettled([
                 api('/api/academic-instruction/lesson-plans?' + lessonQuery),
                 api('/api/academic-instruction/substitutions/page?' + substitutionQuery),
+                api('/api/academic-instruction/substitutions/summary?' + q),
                 fetchOfferingPage(scope.batchId, state.offeringPage, get('lessonOfferingSearch').value.trim()),
                 fetchRoutinePage(scope.batchId, manager ? get('substitutionDate').value : scope.to,
                     state.routinePage, manager ? get('substitutionRoutineSearch').value.trim() : '')
@@ -225,6 +228,11 @@
             state.substitutions = subPage.items;
             state.substitutionCount = Number(subPage.totalCount || 0);
             state.substitutionPages = Math.max(1, Number(subPage.totalPages || 1));
+            if (summaryResult.status === 'fulfilled' && summaryResult.value) {
+                const summary = summaryResult.value;
+                get('substitutionSummary').textContent = Number(summary.activeCount || 0) +
+                    ' active · ' + Number(summary.cancelledCount || 0) + ' cancelled';
+            } else get('substitutionSummary').textContent = 'Summary unavailable';
             if (offeringSeq === state.offeringRequestSeq) {
                 if (offeringResult.status === 'fulfilled') applyOfferingPage(offeringResult.value, state.offeringPage);
                 else {
@@ -249,6 +257,7 @@
             if (seq === state.requestSeq) {
                 state.lessons = []; state.substitutions = []; state.lessonPages = 1; state.lessonCount = 0;
                 state.substitutionPages = 1; state.substitutionCount = 0;
+                get('substitutionSummary').textContent = '';
                 renderLessons([]); renderSubstitutions([]); updateLessonPager(); updateSubstitutionPager(); status('danger', e.message);
             }
         } finally { if (seq === state.requestSeq) btn.disabled = false; }
@@ -440,7 +449,10 @@
             .map(x => x.map(safe).join(',')).join('\r\n');
         const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
         const a = document.createElement('a'); a.href = url;
-        a.download = 'academic-substitutions-page-' + state.substitutionPage + '.csv'; a.click();
+        a.download = 'academic-substitutions-' +
+            (get('substitutionStatus').value === 'true' ? 'cancelled' :
+                get('substitutionStatus').value === 'false' ? 'active' : 'all') +
+            '-page-' + state.substitutionPage + '.csv'; a.click();
         setTimeout(() => URL.revokeObjectURL(url), 1000);
     }
     function exportLessons() {
@@ -524,6 +536,10 @@
     });
     get('lessonPrevious').addEventListener('click',()=>{if(state.lessonPage>1){state.lessonPage--;load();}});
     get('lessonNext').addEventListener('click',()=>{if(state.lessonPage<state.lessonPages){state.lessonPage++;load();}});
+    get('substitutionStatus').addEventListener('change', () => {
+        state.substitutionPage = 1;
+        load();
+    });
     get('substitutionPrevious').addEventListener('click',()=>{if(state.substitutionPage>1){state.substitutionPage--;load();}});
     get('substitutionNext').addEventListener('click',()=>{if(state.substitutionPage<state.substitutionPages){state.substitutionPage++;load();}});
     get('lessonCsv').addEventListener('click',exportLessons);

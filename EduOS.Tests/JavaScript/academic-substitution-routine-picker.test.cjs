@@ -72,3 +72,16 @@ test('substitution idempotency key is stable for identical retry and rotates on 
     assert.equal(next, 3);
     assert.match(source, /get\('substitutionRoutineSearch'\)\.value\.trim\(\)!==search/);
 });
+
+test('substitution status filter and authorized summary share scoped dates and reset paging', () => {
+    const js = read('EduOS.App/wwwroot/js/academic/instruction.js');
+    const view = read('EduOS.App/Views/AcademicInstruction/Index.cshtml');
+    const service = read('EduOS.Service/Services/Academic/AcademicInstructionService.cs');
+    assert.match(view, /id="substitutionStatus"/);
+    assert.match(view, /id="substitutionSummary"/);
+    assert.match(js, /substitutionQuery\.set\('isCancelled', statusFilter\)/);
+    assert.match(js, /substitutions\/summary\?' \+ q/);
+    assert.match(js, /get\('substitutionStatus'\)\.addEventListener\('change'/);
+    assert.match(service, /GetAuthorizedSubstitutionQueryAsync/);
+    assert.match(service, /GroupBy\(x => 1\)/);
+});

@@ -622,6 +622,62 @@ public sealed class AcademicInstructionServiceTests
     }
 
     [Fact]
+    public async Task Substitution_register_status_summary_and_pages_share_teacher_campus_and_tenant_scope()
+    {
+        var options = Options();
+        var seed = await SeedAsync(options);
+        await using (var db = Context(options, 101, 7, "TenantAdmin"))
+        {
+            var substituteId = (await db.Employees.SingleAsync(x => x.UserId == 71)).Id;
+            db.Substitutions.AddRange(
+                new Substitution { TenantId = 101, ClientRequestId = Guid.NewGuid(),
+                    RoutineEntryId = seed.RoutineEntryId, Date = LessonDate,
+                    SubstituteEmployeeId = substituteId, Reason = "Active cover" },
+                new Substitution { TenantId = 101, ClientRequestId = Guid.NewGuid(),
+                    RoutineEntryId = seed.RoutineEntryId, Date = LessonDate,
+                    SubstituteEmployeeId = substituteId, IsCancelled = true, Reason = "Cancelled cover" });
+            await db.SaveChangesAsync();
+        }
+        await using (var db = Context(options, 101, 7, "TenantAdmin"))
+        {
+            var manager = Service(db, 101, 7, "TenantAdmin");
+            var summary = await manager.GetSubstitutionSummaryAsync(LessonDate, LessonDate, seed.BatchId);
+            summary.Success.Should().BeTrue();
+            summary.Data!.TotalCount.Should().Be(2);
+            summary.Data.ActiveCount.Should().Be(1);
+            summary.Data.CancelledCount.Should().Be(1);
+            var active = await manager.GetSubstitutionsPageFilteredAsync(
+                LessonDate, LessonDate, seed.BatchId, false, 1, 20);
+            var cancelled = await manager.GetSubstitutionsPageFilteredAsync(
+                LessonDate, LessonDate, seed.BatchId, true, 1, 20);
+            active.Data!.TotalCount.Should().Be(1);
+            active.Data.Items.Should().ContainSingle(x => !x.IsCancelled);
+            cancelled.Data!.TotalCount.Should().Be(1);
+            cancelled.Data.Items.Should().ContainSingle(x => x.IsCancelled);
+            (await manager.GetSubstitutionSummaryAsync(LessonDate.AddDays(1), LessonDate, seed.BatchId))
+                .StatusCode.Should().Be(400);
+            (await manager.GetSubstitutionsPageFilteredAsync(
+                LessonDate, LessonDate, seed.BatchId, true, 1, 501)).StatusCode.Should().Be(400);
+        }
+        await using (var db = Context(options, 101, 71, "Teacher"))
+        {
+            var teacher = Service(db, 101, 71, "Teacher");
+            (await teacher.GetSubstitutionSummaryAsync(LessonDate, LessonDate, null))
+                .Data!.TotalCount.Should().Be(2);
+            (await teacher.GetSubstitutionsPageFilteredAsync(
+                LessonDate, LessonDate, null, true, 1, 20)).Data!.TotalCount.Should().Be(1);
+        }
+        await using (var db = Context(options, 202, 8, "TenantAdmin"))
+        {
+            var other = Service(db, 202, 8, "TenantAdmin");
+            var summary = await other.GetSubstitutionSummaryAsync(LessonDate, LessonDate, null);
+            summary.Data!.TotalCount.Should().Be(0);
+            (await other.GetSubstitutionsPageFilteredAsync(
+                LessonDate, LessonDate, null, true, 1, 20)).Data!.Items.Should().BeEmpty();
+        }
+    }
+
+    [Fact]
     public async Task Substitution_register_keeps_historical_rows_with_missing_routine_context_and_stable_page_counts()
     {
         var options = Options();

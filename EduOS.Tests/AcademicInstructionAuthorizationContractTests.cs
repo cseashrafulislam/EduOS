@@ -39,6 +39,16 @@ public sealed class AcademicInstructionAuthorizationContractTests
     }
 
     [Theory]
+    [InlineData(nameof(AcademicInstructionController.SubstitutionSummary))]
+    [InlineData(nameof(AcademicInstructionController.SubstitutionPage))]
+    public void Substitution_reports_are_authenticated_get_requests(string methodName)
+    {
+        var method = typeof(AcademicInstructionController).GetMethods().Single(x => x.Name == methodName);
+        Assert.Single(method.GetCustomAttributes(typeof(HttpGetAttribute), true).Cast<HttpGetAttribute>());
+        Assert.Empty(method.GetCustomAttributes(typeof(AllowAnonymousAttribute), true));
+    }
+
+    [Theory]
     [InlineData(nameof(AcademicInstructionController.CreateLessonPlan))]
     [InlineData(nameof(AcademicInstructionController.UpdateLessonPlan))]
     [InlineData(nameof(AcademicInstructionController.SubmitLessonPlan))]
