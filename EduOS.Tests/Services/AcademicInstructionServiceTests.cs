@@ -328,6 +328,84 @@ public sealed class AcademicInstructionServiceTests
     }
 
     [Fact]
+    public async Task Substitution_routine_choices_are_date_eligible_searchable_and_sql_paged()
+    {
+        var options = Options();
+        var seed = await SeedAsync(options);
+        long secondRoutineId;
+        await using (var db = Context(options, 101, 7, "TenantAdmin"))
+        {
+            var assignmentId = await db.RoutineEntries.Where(x => x.Id == seed.RoutineEntryId)
+                .Select(x => x.InstructorAssignmentId).SingleAsync();
+            var slot = new RoutineTimeSlot
+            {
+                TenantId = 101, Name = "Period Two",
+                StartTime = new TimeOnly(10, 0), EndTime = new TimeOnly(11, 0)
+            };
+            db.RoutineTimeSlots.Add(slot);
+            await db.SaveChangesAsync();
+            var entry = new RoutineEntry
+            {
+                TenantId = 101, SubjectOfferingId = (await db.RoutineEntries
+                    .SingleAsync(x => x.Id == seed.RoutineEntryId)).SubjectOfferingId,
+                InstructorAssignmentId = assignmentId, RoutineTimeSlotId = slot.Id,
+                DayOfWeek = LessonDate.DayOfWeek, EffectiveFrom = LessonDate.AddDays(-7)
+            };
+            db.RoutineEntries.Add(entry);
+            await db.SaveChangesAsync();
+            secondRoutineId = entry.Id;
+        }
+        await using (var db = Context(options, 101, 7, "TenantAdmin"))
+        {
+            var service = Service(db, 101, 7, "TenantAdmin");
+            var first = await service.GetSubstitutionRoutineChoicesAsync(seed.BatchId, LessonDate, null, 1, 1);
+            var second = await service.GetSubstitutionRoutineChoicesAsync(seed.BatchId, LessonDate, null, 2, 1);
+            first.Success.Should().BeTrue();
+            first.Data!.TotalCount.Should().Be(2);
+            first.Data.Items.Should().ContainSingle();
+            second.Data!.Items.Should().ContainSingle();
+            first.Data.Items[0].Id.Should().NotBe(second.Data.Items[0].Id);
+            var filtered = await service.GetSubstitutionRoutineChoicesAsync(seed.BatchId, LessonDate, "Period Two", 1, 20);
+            filtered.Data!.Items.Should().ContainSingle(x => x.Id == secondRoutineId);
+            (await service.GetSubstitutionRoutineChoicesAsync(seed.BatchId, LessonDate.AddDays(1), null, 1, 20))
+                .Data!.Items.Should().BeEmpty();
+            (await service.GetSubstitutionRoutineChoicesAsync(seed.BatchId, LessonDate, null, 0, 20))
+                .StatusCode.Should().Be(400);
+            (await service.GetSubstitutionRoutineChoicesAsync(seed.BatchId, LessonDate, null, 1, 101))
+                .StatusCode.Should().Be(400);
+        }
+        await using (var db = Context(options, 202, 8, "TenantAdmin"))
+            (await Service(db, 202, 8, "TenantAdmin")
+                .GetSubstitutionRoutineChoicesAsync(seed.BatchId, LessonDate, null, 1, 20))
+                .StatusCode.Should().Be(404);
+        await using (var db = Context(options, 101, 70, "Teacher"))
+            (await Service(db, 101, 70, "Teacher")
+                .GetSubstitutionRoutineChoicesAsync(seed.BatchId, LessonDate, null, 1, 20))
+                .StatusCode.Should().Be(403);
+    }
+
+    [Fact]
+    public async Task Expired_original_instructor_assignment_blocks_substitution_and_routine_selection()
+    {
+        var options = Options();
+        var seed = await SeedAsync(options);
+        await using var db = Context(options, 101, 7, "TenantAdmin");
+        var assignmentId = (await db.RoutineEntries.SingleAsync(x => x.Id == seed.RoutineEntryId))
+            .InstructorAssignmentId;
+        var assignment = await db.InstructorAssignments.SingleAsync(x => x.Id == assignmentId);
+        assignment.EffectiveTo = LessonDate.AddDays(-1);
+        await db.SaveChangesAsync();
+        var service = Service(db, 101, 7, "TenantAdmin");
+        (await service.GetSubstitutionRoutineChoicesAsync(seed.BatchId, LessonDate, null, 1, 20))
+            .Data!.Items.Should().BeEmpty();
+        (await service.CreateSubstitutionAsync(new CreateSubstitutionRequestDto
+        {
+            ClientRequestId = Guid.NewGuid(), RoutineEntryId = seed.RoutineEntryId,
+            Date = LessonDate, SubstituteEmployeeReference = seed.SubstituteReference
+        })).StatusCode.Should().Be(409);
+    }
+
+    [Fact]
     public async Task Unauthorized_user_cannot_create_lesson_plan_or_substitution()
     {
         var options = Options();
