@@ -2,6 +2,12 @@ name: SQL Server Migration Smoke
 
 on:
   workflow_dispatch:
+    inputs:
+      run_40k:
+        description: 'Run 40K synthetic Student Import rehearsal on disposable SQL Server'
+        required: false
+        type: boolean
+        default: false
   push:
     branches: [ Ashraful ]
 
@@ -16,7 +22,7 @@ concurrency:
 jobs:
   migrate-disposable-sqlserver:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: ${{ inputs.run_40k && 120 || 25 }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -94,8 +100,20 @@ jobs:
           set -euo pipefail
           dotnet restore EduOS.Tests/EduOS.Tests.csproj
           dotnet test EduOS.Tests/EduOS.Tests.csproj --configuration Release --no-restore \
-            --filter "FullyQualifiedName~SqlServerAuthTenantIntegrationTests|FullyQualifiedName~SqlServerMemberAccessHistoryIntegrationTests|FullyQualifiedName~SqlServerAcademicSetupIntegrationTests|FullyQualifiedName~SqlServerEnrollmentAllocationIntegrationTests|FullyQualifiedName~SqlServerStudentImportConcurrencyIntegrationTests|FullyQualifiedName~SqlServerStudentLifecycleIntegrationTests|FullyQualifiedName~SqlServerGuardianContactProfileIntegrationTests|FullyQualifiedName~SqlServerManualPaymentIntegrationTests|FullyQualifiedName~SqlServerBankReconciliationIntakeIntegrationTests|FullyQualifiedName~SqlServerAcademicOperationsIntegrationTests|FullyQualifiedName~SqlServerAssessmentMarkReviewIntegrityIntegrationTests|FullyQualifiedName~SqlServerAcademicRoutineCollisionIntegrationTests|FullyQualifiedName~SqlServerTransportIdentityIntegrationTests|FullyQualifiedName~SqlServerTransportConcurrentUniquenessTests|FullyQualifiedName~SqlServerTransportSeatCapacityIntegrationTests|FullyQualifiedName~TransportReservationWindowIndexTests|FullyQualifiedName~HostelOccupiedTransferLineageContractTests|FullyQualifiedName~AssetAccountingPersistenceContractTests" \
+            --filter "FullyQualifiedName~SqlServerAuthTenantIntegrationTests|FullyQualifiedName~SqlServerMemberAccessHistoryIntegrationTests|FullyQualifiedName~SqlServerAcademicSetupIntegrationTests|FullyQualifiedName~SqlServerEnrollmentAllocationIntegrationTests|FullyQualifiedName~SqlServerStudentImportConcurrencyIntegrationTests|FullyQualifiedName~SqlServerStudentImportCohortRehearsalTests|FullyQualifiedName~SqlServerStudentLifecycleIntegrationTests|FullyQualifiedName~SqlServerGuardianContactProfileIntegrationTests|FullyQualifiedName~SqlServerManualPaymentIntegrationTests|FullyQualifiedName~SqlServerBankReconciliationIntakeIntegrationTests|FullyQualifiedName~SqlServerAcademicOperationsIntegrationTests|FullyQualifiedName~SqlServerAssessmentMarkReviewIntegrityIntegrationTests|FullyQualifiedName~SqlServerAcademicRoutineCollisionIntegrationTests|FullyQualifiedName~SqlServerTransportIdentityIntegrationTests|FullyQualifiedName~SqlServerTransportConcurrentUniquenessTests|FullyQualifiedName~SqlServerTransportSeatCapacityIntegrationTests|FullyQualifiedName~TransportReservationWindowIndexTests|FullyQualifiedName~HostelOccupiedTransferLineageContractTests|FullyQualifiedName~AssetAccountingPersistenceContractTests" \
             --logger "trx;LogFileName=sql-auth-tests.trx" --results-directory TestResults
+
+      - name: Rehearse 40K synthetic Student Import with restart and tenant isolation
+        if: ${{ github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/Ashraful' && inputs.run_40k }}
+        shell: bash
+        env:
+          EDUOS_SQL_AUTH_TEST_CONNECTION: ${{ format('Server=127.0.0.1,14333;Database=EduOS_MigrationSmoke;User Id=sa;Password={0};Encrypt=True;TrustServerCertificate=True;Connect Timeout=30', env.CI_SQL_PASSWORD) }}
+          EDUOS_SQL_IMPORT_40K_REHEARSAL: '1'
+        run: |
+          set -euo pipefail
+          dotnet test EduOS.Tests/EduOS.Tests.csproj --configuration Release --no-restore \
+            --filter "FullyQualifiedName~Opt_in_disposable_sql_rehearsal_imports_and_recovers_40000_synthetic_students" \
+            --logger "trx;LogFileName=student-import-40k.trx" --results-directory TestResults
 
       - name: Stop isolated SQL Server
         if: always()
