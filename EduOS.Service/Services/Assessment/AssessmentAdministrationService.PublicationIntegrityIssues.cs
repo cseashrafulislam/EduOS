@@ -39,7 +39,11 @@ public sealed partial class AssessmentAdministrationService
 
         // All diagnostics remain inside the publication's tenant; left-out or deleted
         // enrollment/student evidence becomes an issue, never a cross-tenant join.
-        var snapshots = _summaries.GetQueryable().AsNoTracking().Where(x =>
+        // Privileged read includes soft-deleted evidence, but explicitly re-applies tenant
+        // isolation after bypassing the global filter. No other tenant's rows are joined.
+        _logger.LogInformation("Historical result integrity inspection tenant {TenantId} actor {ActorId} publication {PublicationId}",
+            tenant, _user.UserId, publicationId);
+        var snapshots = _summaries.GetQueryable().AsNoTracking().IgnoreQueryFilters().Where(x =>
             x.TenantId == tenant && x.ResultPublicationId == publication.Id);
         var duplicates = snapshots.Where(x => !x.IsDeleted)
             .GroupBy(x => x.StudentEnrollmentId).Where(g => g.Count() > 1)
