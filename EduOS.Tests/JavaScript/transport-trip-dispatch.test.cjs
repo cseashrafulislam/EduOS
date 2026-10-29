@@ -11,7 +11,7 @@ test('dispatch UI uses real API and anti-forgery, never inferred attendance', ()
     assert.match(js, /api\/transport\/trips/);
     assert.match(js, /RequestVerificationToken/);
     assert.match(js, /rowVersion:item\.rowVersion/);
-    assert.match(js, /trip\.operatingDate !== today\(\)/);
+    assert.match(js, /item\.operatingDate !== today\(\)/);
     assert.doesNotMatch(js, /gps|latitude|longitude/i);
 });
 test('trip view exposes responsive planning, dispatch and frozen manifest', () => {
