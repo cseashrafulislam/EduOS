@@ -102,13 +102,18 @@ public sealed partial class SqlServerTransportSeatCapacityIntegrationTests
             CertificateReference = certificateReference, GuardianLinkId = guardianLinkId,
             ClientRequestId = Guid.NewGuid()
         };
-        await using var firstDb = ScopedContext(fixture.Options, fixture.TenantId, fixture.UserId);
-        await using var secondDb = ScopedContext(fixture.Options, fixture.TenantId, fixture.UserId);
-        var first = CertificateSharingService(firstDb, "Student", fixture.TenantId, fixture.UserId);
-        var second = CertificateSharingService(secondDb, "Student", fixture.TenantId, fixture.UserId);
+        // Each SQL contender owns an independent execution context. Creating
+        // two IHttpContextAccessor-backed contexts on the parent async flow can
+        // overwrite the first contender's ambient request during audit writes.
+        async Task<EduOS.Core.Common.ApiResponse<LmsCertificateGuardianGrantDto>> AttemptAsync()
+        {
+            await using var contender = ScopedContext(
+                fixture.Options, fixture.TenantId, fixture.UserId);
+            return await CertificateSharingService(contender, "Student",
+                fixture.TenantId, fixture.UserId).GrantAsync(request);
+        }
         var attempts = await Task.WhenAll(
-            Task.Run(() => first.GrantAsync(request)),
-            Task.Run(() => second.GrantAsync(request)));
+            Task.Run(AttemptAsync), Task.Run(AttemptAsync));
         Assert.Contains(attempts, x => x.Success);
         Assert.All(attempts, x => Assert.True(x.Success || x.StatusCode == 409, x.Message));
         await using (var verifyDb = ScopedContext(fixture.Options, fixture.TenantId, fixture.UserId))
