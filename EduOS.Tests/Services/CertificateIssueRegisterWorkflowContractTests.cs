@@ -58,7 +58,7 @@ public sealed class CertificateIssueRegisterWorkflowContractTests
     }
 
     [Fact]
-    public void Browser_has_csrf_idempotency_concurrency_and_safe_csv()
+    public void Browser_has_csrf_idempotency_concurrency_safe_csv_and_authenticated_print_links()
     {
         var js = Read("EduOS.App", "wwwroot", "js", "assessment", "certificates.js");
         var view = Read("EduOS.App", "Views", "AssessmentAdministration", "Certificates.cshtml");
@@ -70,6 +70,8 @@ public sealed class CertificateIssueRegisterWorkflowContractTests
         js.Should().Contain("replace(/");
         view.Should().Contain("@Html.AntiForgeryToken()");
         view.Should().Contain("id=\"certificateRegisterRows\"");
-        view.Should().Contain("does not create a signed PDF");
+        view.Should().Contain("authenticated print-to-PDF is available after issue");
+        js.Should().Contain("row.hasPrintableDocument && !row.isRevoked");
+        js.Should().Contain("/AssessmentAdministration/CertificateDocument?reference=");
     }
 }
