@@ -2057,7 +2057,7 @@ public class EduOSDbContext :
                          p.Metadata.Name is not (nameof(TransportTrip.State) or
                              nameof(TransportTrip.CompletionRequestId) or
                              nameof(TransportTrip.CompletedAt) or
-                             nameof(TransportTrip.CompletedBy)))))
+                             nameof(TransportTrip.CompletedBy))))))
                 throw new InvalidOperationException("Dispatched trip history is immutable except for audited completion.");
         }
 
