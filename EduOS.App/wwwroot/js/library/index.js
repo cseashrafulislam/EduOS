@@ -2,7 +2,7 @@
     'use strict';
     const el = id => document.getElementById(id);
     const catalogRows = el('catalogRows'), issueRows = el('issueRows'), query = el('libraryQuery');
-    if (!catalogRows || !issueRows || !query) return;
+    if (!catalogRows || !query) return;
     const canManage = !!el('libraryBookForm');
     let books = [], categories = [], selectedCopyBook = null, copyPage = 1, copyRequest = 0;
     let branchPage = 1, branchRequest = 0;
@@ -278,10 +278,12 @@
     el('clearLibrarySearch').addEventListener('click', () => { query.value = ''; paging.catalog = 1; loadCatalog(); });
     el('catalogPrevious').addEventListener('click', () => { if (paging.catalog > 1) { paging.catalog--; loadCatalog(); } });
     el('catalogNext').addEventListener('click', () => { paging.catalog++; loadCatalog(); });
-    el('issuePrevious').addEventListener('click', () => { if (paging.issues > 1) { paging.issues--; loadIssues(); } });
-    el('issueNext').addEventListener('click', () => { paging.issues++; loadIssues(); });
-    el('issueStatus').addEventListener('change', () => { paging.issues = 1; loadIssues(); });
-    el('issueCsv').addEventListener('click', exportMyIssues);
+    if (issueRows) {
+        el('issuePrevious').addEventListener('click', () => { if (paging.issues > 1) { paging.issues--; loadIssues(); } });
+        el('issueNext').addEventListener('click', () => { paging.issues++; loadIssues(); });
+        el('issueStatus').addEventListener('change', () => { paging.issues = 1; loadIssues(); });
+        el('issueCsv').addEventListener('click', exportMyIssues);
+    }
     el('printLibrary')?.addEventListener('click', () => window.print());
     if (canManage) { el('libraryBookForm').addEventListener('submit', saveBook); el('bookReset').addEventListener('click', resetForm); }
 
@@ -351,5 +353,5 @@
         el('copyPrevious').addEventListener('click', () => { if (copyPage > 1) { copyPage--; loadCopies(); } });
         el('copyNext').addEventListener('click', () => { copyPage++; loadCopies(); });
     }
-    loadCatalog(); loadIssues();
+    loadCatalog(); if (issueRows) loadIssues();
 })();
