@@ -285,7 +285,7 @@ public sealed class LibraryDigitalResourceService(
                     Map(row, asset, book.PublicId, book.Title));
             }, IsolationLevel.Serializable, ct);
         }
-        catch (DbUpdateException ex)
+        catch (DbUpdateException ex) when (IsSqlRegistrationConflict(ex))
         {
             logger.LogWarning(ex, "Library digital registration conflict for tenant {TenantId}", Tenant);
             return Fail<LibraryDigitalResourceDto>("Concurrent resource registration; retry the same request ID.", 409);
