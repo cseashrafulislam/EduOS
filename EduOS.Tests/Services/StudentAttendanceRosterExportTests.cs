@@ -24,7 +24,9 @@ public sealed class StudentAttendanceRosterExportTests
                 .Cast<RequireModuleAttribute>()).Policy);
         foreach (var name in new[] {
             nameof(AttendanceController.ExportFinalizedSessionCsv),
-            nameof(AttendanceController.PrintFinalizedSession) })
+            nameof(AttendanceController.PrintFinalizedSession),
+            nameof(AttendanceController.ExportSessionRegisterCsv),
+            nameof(AttendanceController.PrintSessionRegister) })
         {
             var action = controller.GetMethod(name)!;
             Assert.Equal("TenantAdmin,Principal,VicePrincipal",
@@ -100,4 +102,72 @@ public sealed class StudentAttendanceRosterExportTests
             await controller.PrintFinalizedSession(40, 0)).StatusCode);
         service.VerifyAll();
     }
+    [Fact]
+    public async Task Session_register_csv_reauthorizes_scoped_page_and_escapes_formulas()
+    {
+        var service = new Mock<IStudentAttendanceReportService>();
+        var query = new StudentAttendanceReportQueryDto {
+            AcademicBatchId = 10, FromDate = new DateOnly(2026, 10, 1),
+            ToDate = new DateOnly(2026, 10, 10), Page = 2, PageSize = 100
+        };
+        var page = new PagedResult<StudentAttendanceSessionRegisterDto> {
+            Page = 2, PageSize = 20, TotalCount = 22,
+            Items = new List<StudentAttendanceSessionRegisterDto> { new StudentAttendanceSessionRegisterDto {
+                SessionId = 42, AttendanceDate = new DateOnly(2026, 10, 5),
+                SubjectOfferingCode = "=HYPERLINK(1)", Marked = 2, Absent = 1
+            } }
+        };
+        service.Setup(x => x.GetSessionRegisterAsync(
+            It.Is<StudentAttendanceReportQueryDto>(q => q.AcademicBatchId == 10 &&
+                q.Page == 2 && q.PageSize == 20), "empty-draft",
+            It.IsAny<CancellationToken>()))
+            .ReturnsAsync(ApiResponse<PagedResult<StudentAttendanceSessionRegisterDto>>.SuccessResponse(page));
+        var controller = new AttendanceController(service.Object);
+        var result = Assert.IsType<FileContentResult>(
+            await controller.ExportSessionRegisterCsv(query, "empty-draft"));
+        Assert.Equal("attendance-session-register-10-page-2.csv", result.FileDownloadName);
+        var csv = Encoding.UTF8.GetString(result.FileContents);
+        Assert.Contains("\"'=HYPERLINK(1)\"", csv);
+        Assert.Contains("\"Draft\"", csv);
+        service.VerifyAll();
+    }
+
+    [Fact]
+    public async Task Session_register_print_uses_authorized_page_and_denied_exports_fail_closed()
+    {
+        var service = new Mock<IStudentAttendanceReportService>();
+        var query = new StudentAttendanceReportQueryDto {
+            AcademicBatchId = 10, FromDate = new DateOnly(2026, 10, 1),
+            ToDate = new DateOnly(2026, 10, 10), Page = 1, PageSize = 100
+        };
+        var page = new PagedResult<StudentAttendanceSessionRegisterDto> {
+            Page = 1, PageSize = 20, TotalCount = 1,
+            Items = new List<StudentAttendanceSessionRegisterDto> { new StudentAttendanceSessionRegisterDto { SessionId = 9 } }
+        };
+        service.Setup(x => x.GetSessionRegisterAsync(
+            It.Is<StudentAttendanceReportQueryDto>(q => q.PageSize == 20 && q.AcademicBatchId == 10),
+            "finalized", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(ApiResponse<PagedResult<StudentAttendanceSessionRegisterDto>>.SuccessResponse(page));
+        var controller = new AttendanceController(service.Object);
+        var result = Assert.IsType<ViewResult>(
+            await controller.PrintSessionRegister(query, "finalized"));
+        Assert.Equal("SessionRegisterPrint", result.ViewName);
+        Assert.Same(page, result.Model);
+        Assert.Equal("finalized", controller.ViewData["StatusFilter"]);
+        service.VerifyAll();
+
+        service = new Mock<IStudentAttendanceReportService>();
+        service.Setup(x => x.GetSessionRegisterAsync(
+            It.IsAny<StudentAttendanceReportQueryDto>(), "finalized",
+            It.IsAny<CancellationToken>()))
+            .ReturnsAsync(ApiResponse<PagedResult<StudentAttendanceSessionRegisterDto>>.ErrorResponse(
+                "Academic batch not found.", 404));
+        controller = new AttendanceController(service.Object);
+        Assert.Equal(404, Assert.IsType<ObjectResult>(
+            await controller.ExportSessionRegisterCsv(query, "finalized")).StatusCode);
+        Assert.Equal(404, Assert.IsType<ObjectResult>(
+            await controller.PrintSessionRegister(query, "finalized")).StatusCode);
+        service.VerifyAll();
+    }
+
 }

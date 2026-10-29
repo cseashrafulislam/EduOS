@@ -8,31 +8,28 @@
     const overview = el('attendanceSessionsOverview');
     const filter = el('attendanceSessionsStatusFilter');
     const csvButton = el('attendanceSessionsCsv');
+    const printButton = el('attendanceSessionsPrint');
     const previous = el('attendanceSessionsPrevious');
     const next = el('attendanceSessionsNext');
     const pageLabel = el('attendanceSessionsPage');
     let page = 1, pages = 0, request = 0, visible = [];
+    let authorizedQuery = null, exportVersion = 0;
     let summaryVersion = 0, summaryKey = '';
 
     function reset() {
-        request++;
+        request++; exportVersion++; authorizedQuery = null;
         page = 1; pages = 0; visible = [];
         body.replaceChildren();
         status.textContent = '';
         overview.textContent = '';
         summaryVersion++; summaryKey = '';
         pageLabel.textContent = '';
-        csvButton.disabled = previous.disabled = next.disabled = true;
+        csvButton.disabled = printButton.disabled = previous.disabled = next.disabled = true;
     }
     function cell(value) {
         const td = document.createElement('td');
         td.textContent = String(value ?? '');
         return td;
-    }
-    function csvCell(value) {
-        const raw = String(value ?? '');
-        const safe = /^[\s]*[=+\-@\t\r]/.test(raw) ? "'" + raw : raw;
-        return '"' + safe.replace(/"/g, '""') + '"';
     }
     async function loadSummary(token, params) {
         const query = new URLSearchParams(params);
@@ -63,9 +60,10 @@
             status.textContent = 'Select a range of 1 to 31 days.'; return;
         }
         const token = ++request;
+        exportVersion++; authorizedQuery = null;
         visible = [];
         body.replaceChildren();
-        csvButton.disabled = previous.disabled = next.disabled = true;
+        csvButton.disabled = printButton.disabled = previous.disabled = next.disabled = true;
         status.textContent = 'Loading attendance sessions…';
         const params = new URLSearchParams({
             academicBatchId: el('attendanceReportBatch').value,
@@ -90,6 +88,7 @@
                 throw new Error(json?.message || 'Session register unavailable.');
             if (token !== request) return;
             visible = json.data?.items || [];
+            authorizedQuery = new URLSearchParams(params);
             for (const item of visible) {
                 const tr = document.createElement('tr');
                 for (const value of [
@@ -128,7 +127,7 @@
                 ' · ' + (json.data?.totalCount || 0) + ' session(s)';
             previous.disabled = page <= 1;
             next.disabled = page >= pages;
-            csvButton.disabled = visible.length === 0;
+            csvButton.disabled = printButton.disabled = visible.length === 0;
             status.textContent = (json.data?.totalCount || 0) + ' matching session(s).';
         } catch (error) {
             if (token === request) {
@@ -137,20 +136,44 @@
             }
         }
     }
-    function exportPage() {
-        if (!visible.length) return;
-        const columns = ['Date','Offering','Status','Marked','Present','Absent','Late','Leave','Excused'];
-        const rows = visible.map(x => [x.attendanceDate, x.subjectOfferingCode,
-            x.isFinalized ? 'Finalized' : 'Not finalized',
-            x.marked, x.present, x.absent, x.late, x.leave, x.excused]);
-        const csv = [columns, ...rows].map(row => row.map(csvCell).join(',')).join('\r\n');
-        const url = URL.createObjectURL(new Blob(['\uFEFF', csv], { type: 'text/csv;charset=utf-8' }));
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = 'attendance-sessions-' +
-            String(el('attendanceReportBatch').value).replace(/[^0-9]/g, '') +
-            '-page-' + page + '.csv';
-        document.body.append(link); link.click(); link.remove(); URL.revokeObjectURL(url);
+    function scopedUrl(suffix) {
+        return authorizedQuery
+            ? '/attendance/sessions/register/' + suffix + '?' + authorizedQuery.toString()
+            : null;
+    }
+    async function exportPage() {
+        const url = scopedUrl('export.csv');
+        if (!url || !visible.length) return;
+        const token = ++exportVersion;
+        csvButton.disabled = true;
+        try {
+            const response = await fetch(url, {
+                credentials: 'same-origin', cache: 'no-store',
+                headers: { Accept: 'text/csv' }
+            });
+            if (!response.ok || !response.headers.get('content-type')?.includes('text/csv'))
+                throw new Error('Authorized session export unavailable. Reload and retry.');
+            const blob = await response.blob();
+            if (token !== exportVersion || !authorizedQuery) return;
+            const objectUrl = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = objectUrl;
+            link.download = 'attendance-session-register-' +
+                authorizedQuery.get('academicBatchId') + '-page-' +
+                authorizedQuery.get('page') + '.csv';
+            document.body.append(link);
+            link.click();
+            link.remove();
+            URL.revokeObjectURL(objectUrl);
+        } catch (error) {
+            if (token === exportVersion) status.textContent = error.message;
+        } finally {
+            if (token === exportVersion) csvButton.disabled = !visible.length;
+        }
+    }
+    function printPage() {
+        const url = scopedUrl('print');
+        if (url && visible.length) window.open(url, '_blank', 'noopener,noreferrer');
     }
     form.addEventListener('submit', () => { page = 1; load(true); });
     filter.addEventListener('change', () => { reset(); load(); });
@@ -158,6 +181,7 @@
     previous.addEventListener('click', () => { if (page > 1) { page--; load(); } });
     next.addEventListener('click', () => { if (page < pages) { page++; load(); } });
     csvButton.addEventListener('click', exportPage);
+    printButton.addEventListener('click', printPage);
     for (const id of ['attendanceReportBatch', 'attendanceReportSubject',
         'attendanceReportFrom', 'attendanceReportTo'])
         el(id).addEventListener('change', reset);

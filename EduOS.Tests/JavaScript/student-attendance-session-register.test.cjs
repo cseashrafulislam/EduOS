@@ -26,7 +26,7 @@ test('session register is manager-authorized, bounded and includes unfinalized s
     assert.match(api, /HttpGet\("sessions\/summary"\)/);
     assert.match(api, /Authorize\(Roles = "TenantAdmin,Principal,VicePrincipal"\)/);
     for (const id of ['attendanceSessionsOverview', 'attendanceSessionsRows', 'attendanceSessionsStatusFilter',
-        'attendanceSessionsCsv', 'attendanceSessionsPrevious', 'attendanceSessionsNext'])
+        'attendanceSessionsCsv', 'attendanceSessionsPrint', 'attendanceSessionsPrevious', 'attendanceSessionsNext'])
         assert.ok(view.includes('id="' + id + '"'));
     assert.match(js, /token !== request/);
     assert.match(js, /token !== summaryVersion/);
@@ -64,7 +64,15 @@ test('session register is manager-authorized, bounded and includes unfinalized s
     assert.ok(roster.includes('Number(result.data?.attendanceSessionId) !== expectedSessionId'));
     assert.ok(roster.includes('Number.isSafeInteger(batchId)'));
     assert.ok(view.includes('<th>Action</th>'));
-    assert.match(js, /visible\.map\(x =>/);
-    assert.match(js, /row\.map\(csvCell\)/);
+    assert.match(js, /scopedUrl\('export\.csv'\)/);
+    assert.match(js, /scopedUrl\('print'\)/);
+    assert.match(js, /authorizedQuery = new URLSearchParams\(params\)/);
+    assert.match(js, /token !== exportVersion/);
+    assert.match(js, /response\.headers\.get\('content-type'\)/);
+    assert.doesNotMatch(js, /visible\.map\(x =>/);
+    const controller = read('EduOS.App/Controllers/AttendanceController.cs');
+    assert.match(controller, /GetSessionRegisterAsync\(query, status, cancellationToken\)/);
+    assert.match(controller, /query\.PageSize = 20/);
+    assert.match(controller, /SessionRegisterPrint/);
     assert.doesNotThrow(() => new Function(js));
 });
