@@ -218,10 +218,10 @@ public sealed class StudentPromotionService : IStudentPromotionService
             await _uow.SaveChangesAsync(ct);
             if (await _enrollments.GetQueryable().AsNoTracking().AnyAsync(x => x.TenantId == tenant &&
                 x.AcademicBatchId == batch.Id && x.RollNo == roll && x.State == EnrollmentState.Active && x.IsCurrent && !x.IsDeleted, ct))
-                return Error("Target roll already belongs to an active student.", 409);
+                throw new BatchAllocationException("Target roll already belongs to an active student.");
             if (batch.Capacity <= 0 || await _enrollments.GetQueryable().AsNoTracking().CountAsync(x =>
                 x.TenantId == tenant && x.AcademicBatchId == batch.Id && x.State == EnrollmentState.Active && x.IsCurrent && !x.IsDeleted, ct) >= batch.Capacity)
-                return Error("Target batch is closed or has reached capacity.", 409);
+                throw new BatchAllocationException("Target batch is closed or has reached capacity.");
 
             var now = _clock.GetUtcNow().UtcDateTime;
             source.IsCurrent = false;
@@ -263,7 +263,14 @@ public sealed class StudentPromotionService : IStudentPromotionService
                 Success = true, StatusCode = 201, Message = decision == StudentProgressionDecisionType.Promoted
                     ? "Student promoted." : "Student repeat placement recorded.", Data = result
             };
-            }, System.Data.IsolationLevel.Serializable, ct);
+            // All seat writers first take the target batch rowversion write lock.
+            // READ COMMITTED avoids pre-lock range locks against concurrent imports.
+            }, System.Data.IsolationLevel.ReadCommitted, ct);
+        }
+        catch (BatchAllocationException ex)
+        {
+            // Throw after the batch write so a rejected attempt rolls back the version.
+            return Error(ex.Message, 409);
         }
         catch (DbUpdateConcurrencyException ex)
         {
@@ -280,12 +287,19 @@ public sealed class StudentPromotionService : IStudentPromotionService
             _logger.LogWarning(ex, "Progression serialization conflict for tenant {TenantId}", tenant);
             return Error("Concurrent progression detected. Reload and retry.", 409);
         }
+        catch (Microsoft.Data.SqlClient.SqlException ex) when (ex.Number is 1205 or 3960 or 1222)
+        {
+            _logger.LogWarning(ex, "Progression allocation contention for tenant {TenantId}", tenant);
+            return Error("Concurrent progression detected. Reload and retry.", 409);
+        }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Student progression failed for tenant {TenantId}", tenant);
             return Error("Student progression could not be processed.", 500);
         }
     }
+
+    private sealed class BatchAllocationException(string message) : Exception(message);
 
     public async Task<ApiResponse<IReadOnlyList<StudentPromotionHistoryDto>>> GetHistoryAsync(
         Guid studentReference, CancellationToken ct = default)

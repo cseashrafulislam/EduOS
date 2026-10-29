@@ -110,6 +110,11 @@ public sealed class AcademicEnrollmentService : IAcademicEnrollmentService
             request.AcademicBatchId <= 0 || request.AcademicCurriculumId <= 0 || string.IsNullOrWhiteSpace(request.RollNo) ||
             request.RollNo.Trim().Length > 50 || request.Remarks?.Length > 500)
             return Task.FromResult(Error<StudentEnrollmentDto>("Student, batch, roll and request reference are required."));
+        // The batch rowversion write below is the seat-allocation mutex shared
+        // with import, admission, promotion and readmission. Pre-lock reads at
+        // SERIALIZABLE can hold range locks and deadlock against an importer
+        // acquiring that same batch write lock. Keep other elective transitions
+        // SERIALIZABLE; only this batch-serialized enrollment uses READ COMMITTED.
         return ExecuteWriteAsync("enroll student", async () =>
         {
             var tenant = _user.TenantId;
@@ -235,7 +240,7 @@ public sealed class AcademicEnrollmentService : IAcademicEnrollmentService
             await _uow.SaveChangesAsync(ct);
             var result = await BuildEnrollmentDtoAsync(entity, student, ct);
             return Created(result, "Student enrolled in academic batch.");
-        });
+        }, IsolationLevel.ReadCommitted);
     }
 
     public Task<ApiResponse<StudentSubjectRegistrationDto>> RequestOptionalSubjectAsync(
@@ -492,11 +497,12 @@ public sealed class AcademicEnrollmentService : IAcademicEnrollmentService
             x.TenantId == _user.TenantId && x.SubjectOfferingId == offeringId && !x.IsDeleted &&
             x.State != SubjectRegistrationState.Rejected && x.State != SubjectRegistrationState.Dropped, ct);
 
-    private async Task<ApiResponse<T>> ExecuteWriteAsync<T>(string operation, Func<Task<ApiResponse<T>>> action)
+    private async Task<ApiResponse<T>> ExecuteWriteAsync<T>(string operation, Func<Task<ApiResponse<T>>> action,
+        IsolationLevel isolation = IsolationLevel.Serializable)
     {
         try
         {
-            return await _uow.ExecuteInTransactionAsync(_ => action(), IsolationLevel.Serializable);
+            return await _uow.ExecuteInTransactionAsync(_ => action(), isolation);
         }
         catch (BatchAllocationException ex)
         {

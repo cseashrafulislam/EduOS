@@ -99,13 +99,36 @@ public sealed class SqlServerEnrollmentAllocationIntegrationTests
             AcademicBatchId = batchId, AcademicCurriculumId = curriculumId,
             RollNo = "02", EnrollmentDate = new DateOnly(2026, 9, 21)
         };
+        // Independent contexts start at the same gate to exercise the real SQL
+        // batch lock, not merely a sequential "seat already full" check.
+        var gate = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var firstTask = Task.Run(async () =>
+        {
+            await using var db = OpenTenantContext(options, tenantId);
+            await gate.Task;
+            return await Service(db, tenantId, managerUserId).EnrollAsync(firstRequest);
+        });
+        var secondTask = Task.Run(async () =>
+        {
+            await using var db = OpenTenantContext(options, tenantId);
+            await gate.Task;
+            return await Service(db, tenantId, managerUserId).EnrollAsync(secondRequest);
+        });
+        gate.SetResult(true);
+        await Task.WhenAll(firstTask, secondTask);
+        var first = await firstTask;
+        var second = await secondTask;
+        Assert.True(first.Success != second.Success,
+            $"Exactly one enrollment must win: first {first.StatusCode}, second {second.StatusCode}.");
+        Assert.Equal(409, first.Success ? second.StatusCode : first.StatusCode);
+        var winnerRequest = first.Success ? firstRequest : secondRequest;
+        var loserRequest = first.Success ? secondRequest : firstRequest;
+        var winnerReference = (first.Success ? first : second).Data!.Reference;
         await using (var db = OpenTenantContext(options, tenantId))
         {
-            var first = await Service(db, tenantId, managerUserId).EnrollAsync(firstRequest);
-            Assert.True(first.Success, first.Message);
-            var replay = await Service(db, tenantId, managerUserId).EnrollAsync(firstRequest);
+            var replay = await Service(db, tenantId, managerUserId).EnrollAsync(winnerRequest);
             Assert.True(replay.Success, replay.Message);
-            Assert.Equal(first.Data!.Reference, replay.Data!.Reference);
+            Assert.Equal(winnerReference, replay.Data!.Reference);
         }
         byte[] version;
         await using (var before = OpenTenantContext(options, tenantId))
@@ -116,7 +139,7 @@ public sealed class SqlServerEnrollmentAllocationIntegrationTests
         }
         await using (var db = OpenTenantContext(options, tenantId))
         {
-            var denied = await Service(db, tenantId, managerUserId).EnrollAsync(secondRequest);
+            var denied = await Service(db, tenantId, managerUserId).EnrollAsync(loserRequest);
             Assert.Equal(409, denied.StatusCode);
         }
         await using (var check = OpenTenantContext(options, tenantId))

@@ -608,6 +608,18 @@ public sealed class SqlServerStudentImportConcurrencyIntegrationTests
                 .ExecuteAsync(stream, ".csv", Mapping, importId);
             Assert.True(replay.Success, replay.Message);
             Assert.True(replay.Data!.Replayed);
+
+            // A capacity rejection occurs after the batch write lock. It must
+            // roll back that write instead of committing a phantom rowversion.
+            var before = await replayDb.AcademicBatches.AsNoTracking()
+                .Where(x => x.Id == targetBatchId).Select(x => x.RowVersion).SingleAsync();
+            await using var deniedDb = TenantDb(options, tenantId);
+            var denied = await Promotion(deniedDb, tenantId, adminId)
+                .PromoteAsync(studentReference, request);
+            Assert.Equal(409, denied.StatusCode);
+            var after = await replayDb.AcademicBatches.AsNoTracking()
+                .Where(x => x.Id == targetBatchId).Select(x => x.RowVersion).SingleAsync();
+            Assert.Equal(before, after);
         }
     }
 
@@ -806,6 +818,17 @@ public sealed class SqlServerStudentImportConcurrencyIntegrationTests
             var replay = await Service(db, tenantId, adminId).ExecuteAsync(stream, ".csv", Mapping, importId);
             Assert.True(replay.Success, replay.Message);
             Assert.True(replay.Data!.Replayed);
+
+            // Rejected readmission must not commit its batch write-lock update.
+            var before = await db.AcademicBatches.AsNoTracking()
+                .Where(x => x.Id == targetBatchId).Select(x => x.RowVersion).SingleAsync();
+            await using var deniedDb = TenantDb(options, tenantId);
+            var denied = await Readmission(deniedDb, tenantId, adminId)
+                .ProcessAsync(studentReference, request);
+            Assert.Equal(409, denied.StatusCode);
+            var after = await db.AcademicBatches.AsNoTracking()
+                .Where(x => x.Id == targetBatchId).Select(x => x.RowVersion).SingleAsync();
+            Assert.Equal(before, after);
         }
         await using var foreign = TenantDb(options, tenantId + 1000000);
         Assert.Equal(404, (await Readmission(foreign, tenantId + 1000000, adminId)

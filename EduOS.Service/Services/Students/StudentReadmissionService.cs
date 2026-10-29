@@ -222,13 +222,13 @@ public sealed class StudentReadmissionService : IStudentReadmissionService
                 // Canonical unique batch/roll index also reserves rolls belonging to historic rows.
                 if(await _enrollments.GetQueryable().AsNoTracking().AnyAsync(x=>
                     x.TenantId==tenant && x.AcademicBatchId==batch.Id && x.RollNo==roll && !x.IsDeleted,token))
-                    return Fail<StudentReadmissionResultDto>("Roll already exists in this batch.",409);
+                    throw new BatchAllocationException("Roll already exists in this batch.");
                 if(await _enrollments.GetQueryable().AsNoTracking().CountAsync(x=>
                     x.TenantId==tenant && x.AcademicBatchId==batch.Id && x.IsCurrent &&
                     x.State==EnrollmentState.Active && !x.IsDeleted,token)>=batch.Capacity)
-                    return Fail<StudentReadmissionResultDto>("Batch capacity reached.",409);
+                    throw new BatchAllocationException("Batch capacity reached.");
                 if(!await SubscriptionActiveCapacityPolicy.CanAddStudentsAsync(_db,tenant,1,token))
-                    return Fail<StudentReadmissionResultDto>("Subscription active student capacity reached.",409);
+                    throw new BatchAllocationException("Subscription active student capacity reached.");
                 var now=_clock.GetUtcNow().UtcDateTime;
                 var target=new StudentEnrollment
                 {
@@ -255,9 +255,16 @@ public sealed class StudentReadmissionService : IStudentReadmissionService
                 {
                     Success=true,StatusCode=201,Message="Student readmitted.",Data=Map(student,target,false)
                 };
-            },System.Data.IsolationLevel.Serializable,ct);
+            // The target batch rowversion write serializes seat allocation with
+            // import and enrollment; avoid pre-lock SERIALIZABLE range locks.
+            },System.Data.IsolationLevel.ReadCommitted,ct);
         }
         catch(OperationCanceledException) when(ct.IsCancellationRequested){throw;}
+        catch(BatchAllocationException ex)
+        {
+            // A post-lock rejection must roll back the batch version as well.
+            return Fail<StudentReadmissionResultDto>(ex.Message,409);
+        }
         catch(DbUpdateConcurrencyException ex)
         {
             _logger.LogWarning(ex,"Readmission concurrency conflict for tenant {TenantId}",tenant);
@@ -286,4 +293,6 @@ public sealed class StudentReadmissionService : IStudentReadmissionService
             return Fail<StudentReadmissionResultDto>("Readmission could not be completed.",500);
         }
     }
+
+    private sealed class BatchAllocationException(string message) : Exception(message);
 }
