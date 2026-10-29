@@ -12,6 +12,8 @@ public interface ILibraryDigitalResourceService
         CancellationToken ct = default);
     Task<ApiResponse<LibraryDigitalResourceDto>> UploadAsync(
         LibraryDigitalUploadRequestDto request, PrivateFileUploadDto file, CancellationToken ct = default);
+    Task<ApiResponse<LibraryDigitalResourceDto>> UpdateMetadataAsync(
+        Guid reference, LibraryDigitalMetadataRequestDto request, CancellationToken ct = default);
     Task<ApiResponse<LibraryDigitalResourceDto>> RevokeAsync(
         Guid reference, LibraryDigitalRevokeRequestDto request, CancellationToken ct = default);
     Task<ApiResponse<DocumentFileDownloadDto>> DownloadAsync(Guid reference, CancellationToken ct = default);

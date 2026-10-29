@@ -14,6 +14,7 @@ using Microsoft.Extensions.Logging;
 using System.Data;
 using System.IO;
 using System.Security.Cryptography;
+using System.Text.Json;
 
 namespace EduOS.Service.Services.Library;
 
@@ -95,12 +96,19 @@ public sealed class LibraryDigitalResourceService(
         catch (FormatException) { return false; }
     }
 
+    private static DateTime? Expiry(DateOnly? date) =>
+        date?.ToDateTime(TimeOnly.MaxValue, DateTimeKind.Utc);
+
+    private bool ValidExpiry(DateOnly? date) =>
+        !date.HasValue || date.Value >= DateOnly.FromDateTime(Now);
+
     private static LibraryDigitalResourceDto Map(Document document, FileAsset file,
         Guid bookReference, string bookTitle) => new()
     {
         Reference = document.PublicId, BookReference = bookReference, BookTitle = bookTitle,
         Title = document.Title ?? string.Empty, FileName = file.OriginalFileName,
         ContentType = file.ContentType, SizeBytes = file.SizeBytes, IsActive = document.IsActive,
+        ExpiresOn = document.ExpiresAt.HasValue ? DateOnly.FromDateTime(document.ExpiresAt.Value) : null,
         CreatedAt = document.CreatedAt, RowVersion = Convert.ToBase64String(document.RowVersion)
     };
 
@@ -161,7 +169,7 @@ public sealed class LibraryDigitalResourceService(
             .Select(x => new
             {
                 DocumentReference = x.Document.PublicId, x.Document.Title, x.Document.IsActive,
-                x.Document.CreatedAt, x.Document.RowVersion, BookReference = x.Book.PublicId,
+                x.Document.ExpiresAt, x.Document.CreatedAt, x.Document.RowVersion, BookReference = x.Book.PublicId,
                 BookTitle = x.Book.Title, x.File.OriginalFileName, x.File.ContentType, x.File.SizeBytes
             }).ToListAsync(ct);
         return ApiResponse<PagedResult<LibraryDigitalResourceDto>>.SuccessResponse(
@@ -172,7 +180,9 @@ public sealed class LibraryDigitalResourceService(
                     Reference = x.DocumentReference, BookReference = x.BookReference,
                     BookTitle = x.BookTitle, Title = x.Title ?? string.Empty,
                     FileName = x.OriginalFileName, ContentType = x.ContentType,
-                    SizeBytes = x.SizeBytes, IsActive = x.IsActive, CreatedAt = x.CreatedAt,
+                    SizeBytes = x.SizeBytes, IsActive = x.IsActive,
+                    ExpiresOn = x.ExpiresAt.HasValue ? DateOnly.FromDateTime(x.ExpiresAt.Value) : null,
+                    CreatedAt = x.CreatedAt,
                     RowVersion = Convert.ToBase64String(x.RowVersion)
                 }).ToList(),
                 TotalCount = total, Page = page, PageSize = pageSize
@@ -193,7 +203,7 @@ public sealed class LibraryDigitalResourceService(
         if (!CanPublish) return Fail<LibraryDigitalResourceDto>("Tenant administrator required.", 403);
         if (request == null || request.RequestId == Guid.Empty || request.BookReference == Guid.Empty ||
             string.IsNullOrWhiteSpace(request.Title) || request.Title.Trim().Length > 250 ||
-            file == null || file.Length is < 1 or > MaxBytes)
+            file == null || file.Length is < 1 or > MaxBytes || !ValidExpiry(request.ExpiresOn))
             return Fail<LibraryDigitalResourceDto>("Invalid book, title, request ID or file.");
         var book = await db.Books.AsNoTracking().FirstOrDefaultAsync(x =>
             x.TenantId == Tenant && x.PublicId == request.BookReference &&
@@ -205,6 +215,7 @@ public sealed class LibraryDigitalResourceService(
         if (!uploaded.Success || uploaded.Data == null)
             return Fail<LibraryDigitalResourceDto>(uploaded.Message, uploaded.StatusCode);
         var title = request.Title.Trim();
+        var expiry = Expiry(request.ExpiresOn);
         try
         {
             return await db.ExecuteInTransactionAsync(async token =>
@@ -222,8 +233,8 @@ public sealed class LibraryDigitalResourceService(
                 {
                     if (existing.FileAssetId != asset.Id || existing.EntityId != book.Id ||
                         existing.EntityType != EntityType || existing.DocumentTypeCode != TypeCode ||
-                        existing.Title != title)
-                        return Fail<LibraryDigitalResourceDto>("Request ID already used.", 409);
+                        existing.Title != title || existing.ExpiresAt != expiry || !existing.IsActive)
+                        return Fail<LibraryDigitalResourceDto>("Request ID already used or resource revoked.", 409);
                     return ApiResponse<LibraryDigitalResourceDto>.SuccessResponse(
                         Map(existing, asset, book.PublicId, book.Title));
                 }
@@ -249,7 +260,8 @@ public sealed class LibraryDigitalResourceService(
                 {
                     TenantId = Tenant, PublicId = request.RequestId, FileAssetId = asset.Id,
                     DocumentTypeCode = TypeCode, EntityType = EntityType, EntityId = book.Id,
-                    Title = title, IsActive = true, VerificationStatusCode = "NotRequired",
+                    Title = title, ExpiresAt = expiry, IsActive = true,
+                    VerificationStatusCode = "NotRequired",
                     CreatedBy = user.UserId, CreatedAt = Now
                 };
                 db.Documents.Add(row);
@@ -264,6 +276,60 @@ public sealed class LibraryDigitalResourceService(
         {
             logger.LogWarning(ex, "Library digital registration conflict for tenant {TenantId}", Tenant);
             return Fail<LibraryDigitalResourceDto>("Concurrent resource registration; retry the same request ID.", 409);
+        }
+    }
+
+    public async Task<ApiResponse<LibraryDigitalResourceDto>> UpdateMetadataAsync(
+        Guid reference, LibraryDigitalMetadataRequestDto request, CancellationToken ct = default)
+    {
+        if (!CanPublish) return Fail<LibraryDigitalResourceDto>("Tenant administrator required.", 403);
+        if (reference == Guid.Empty || request == null ||
+            string.IsNullOrWhiteSpace(request.Title) || request.Title.Trim().Length > 250 ||
+            string.IsNullOrWhiteSpace(request.RowVersion) || !ValidExpiry(request.ExpiresOn))
+            return Fail<LibraryDigitalResourceDto>("Valid title, future expiry and row version required.");
+        var title = request.Title.Trim();
+        var expiry = Expiry(request.ExpiresOn);
+        try
+        {
+            return await db.ExecuteInTransactionAsync(async token =>
+            {
+                var document = await db.Documents.FirstOrDefaultAsync(x =>
+                    x.TenantId == Tenant && x.PublicId == reference && !x.IsDeleted &&
+                    x.DocumentTypeCode == TypeCode && x.EntityType == EntityType, token);
+                if (document == null) return Fail<LibraryDigitalResourceDto>("Resource not found.", 404);
+                if (!VersionMatches(document.RowVersion, request.RowVersion))
+                    return Fail<LibraryDigitalResourceDto>("Resource changed. Reload and retry.", 409);
+                if (!document.IsActive)
+                    return Fail<LibraryDigitalResourceDto>("Revoked resources cannot be edited.", 409);
+                var book = await db.Books.AsNoTracking().FirstOrDefaultAsync(x =>
+                    x.TenantId == Tenant && x.Id == document.EntityId && !x.IsDeleted, token);
+                var asset = await db.FileAssets.AsNoTracking().FirstOrDefaultAsync(x =>
+                    x.TenantId == Tenant && x.Id == document.FileAssetId && !x.IsDeleted &&
+                    x.IsVerifiedSafe && x.MalwareScanStateCode == "Clean" &&
+                    x.Visibility == FileVisibility.Private && x.StorageProvider == "LocalPrivate", token);
+                if (book == null || asset == null ||
+                    !DocumentFileService.IsTenantDocumentKey(asset.StorageKey, Tenant))
+                    return Fail<LibraryDigitalResourceDto>("Verified resource unavailable.", 409);
+                if (document.Title == title && document.ExpiresAt == expiry)
+                    return ApiResponse<LibraryDigitalResourceDto>.SuccessResponse(
+                        Map(document, asset, book.PublicId, book.Title));
+                var before = JsonSerializer.Serialize(new { document.Title, document.ExpiresAt });
+                document.Title = title;
+                document.ExpiresAt = expiry;
+                document.UpdatedAt = Now;
+                document.UpdatedBy = user.UserId;
+                var audit = Audit("LibraryDigitalResource.Update", document.Id, reference);
+                audit.OldValue = before;
+                audit.NewValue = JsonSerializer.Serialize(new { document.Title, document.ExpiresAt });
+                db.AuditLogs.Add(audit);
+                await db.SaveChangesAsync(token);
+                return ApiResponse<LibraryDigitalResourceDto>.SuccessResponse(
+                    Map(document, asset, book.PublicId, book.Title));
+            }, IsolationLevel.Serializable, ct);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            return Fail<LibraryDigitalResourceDto>("Resource changed concurrently.", 409);
         }
     }
 

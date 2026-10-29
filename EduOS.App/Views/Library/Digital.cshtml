@@ -42,11 +42,36 @@
                     <label for="digitalFile" class="form-label">@(bn ? "ফাইল (সর্বোচ্চ ৫ এমবি) *" : "File (max 5 MB) *")</label>
                     <input id="digitalFile" class="form-control" type="file" accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx" required />
                 </div>
+                <div class="col-md-6">
+                    <label for="digitalExpiresOn" class="form-label">@(bn ? "প্রবেশাধিকার শেষের তারিখ (ঐচ্ছিক, UTC)" : "Access expiry date (optional, UTC)")</label>
+                    <input id="digitalExpiresOn" class="form-control" type="date" />
+                </div>
                 <div class="col-12">
                     <button id="digitalPublish" type="submit" class="btn btn-primary">@(bn ? "প্রকাশ করুন" : "Publish")</button>
                 </div>
             </form>
         </section>
+    }
+    @if (admin)
+    {
+        <dialog id="digitalEditDialog" class="border rounded shadow p-4" aria-labelledby="digitalEditHeading">
+            <h3 id="digitalEditHeading" class="h5">@(bn ? "রিসোর্সের তথ্য পরিবর্তন" : "Edit resource access")</h3>
+            <form id="digitalEditForm" class="row g-3">
+                @Html.AntiForgeryToken()
+                <div class="col-12">
+                    <label for="digitalEditName" class="form-label">@(bn ? "রিসোর্সের নাম" : "Resource title")</label>
+                    <input id="digitalEditName" class="form-control" maxlength="250" required />
+                </div>
+                <div class="col-12">
+                    <label for="digitalEditExpiry" class="form-label">@(bn ? "প্রবেশাধিকার শেষের তারিখ (UTC)" : "Access expiry date (UTC)")</label>
+                    <input id="digitalEditExpiry" class="form-control" type="date" />
+                </div>
+                <div class="col-12 d-flex justify-content-end gap-2">
+                    <button id="digitalEditCancel" type="button" class="btn btn-outline-secondary">@(bn ? "বাতিল" : "Cancel")</button>
+                    <button id="digitalEditSave" type="submit" class="btn btn-primary">@(bn ? "সংরক্ষণ" : "Save")</button>
+                </div>
+            </form>
+        </dialog>
     }
     <section class="content-card mt-3" aria-labelledby="digitalListTitle">
         <div class="content-card-heading d-flex justify-content-between align-items-center flex-wrap gap-2">
@@ -69,8 +94,8 @@
         </form>
         <div class="table-responsive mt-3">
             <table class="table table-hover align-middle">
-                <thead><tr><th>@(bn ? "বই" : "Book")</th><th>@(bn ? "রিসোর্স" : "Resource")</th><th>@(bn ? "ফাইল" : "File")</th><th>@(bn ? "অবস্থা" : "Status")</th><th>@(bn ? "কাজ" : "Actions")</th></tr></thead>
-                <tbody id="digitalRows"><tr><td colspan="5" class="text-center text-muted">@(bn ? "লোড হচ্ছে…" : "Loading…")</td></tr></tbody>
+                <thead><tr><th>@(bn ? "বই" : "Book")</th><th>@(bn ? "রিসোর্স" : "Resource")</th><th>@(bn ? "ফাইল" : "File")</th><th>@(bn ? "অবস্থা" : "Status")</th><th>@(bn ? "শেষের তারিখ (UTC)" : "Expiry (UTC)")</th><th>@(bn ? "কাজ" : "Actions")</th></tr></thead>
+                <tbody id="digitalRows"><tr><td colspan="6" class="text-center text-muted">@(bn ? "লোড হচ্ছে…" : "Loading…")</td></tr></tbody>
             </table>
         </div>
         <nav class="d-flex justify-content-end align-items-center gap-2" aria-label="Digital library pagination">

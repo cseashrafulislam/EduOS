@@ -191,4 +191,51 @@ public sealed class LibraryDigitalResourceTests
         (await principal.ListAsync(null, null, 1, 20, false)).StatusCode.Should().Be(403);
         (await principal.DownloadAsync(reference)).StatusCode.Should().Be(404);
     }
+    [Fact]
+    public async Task Expiry_extension_requires_admin_and_current_version_and_preserves_audit()
+    {
+        await using var db = Context();
+        var reference = Guid.NewGuid();
+        var seed = await SeedAsync(db, reference);
+        db.DocumentTypeDefinitions.Add(new DocumentTypeDefinition
+        { TenantId = 101, Code = "LIBRARY_DIGITAL", Name = "Digital", IsActive = true });
+        var document = new Document
+        {
+            TenantId = 101, PublicId = reference, FileAssetId = seed.Asset.Id,
+            DocumentTypeCode = "LIBRARY_DIGITAL", EntityType = "LibraryBook",
+            EntityId = seed.Book.Id, Title = "Old", IsActive = true,
+            ExpiresAt = DateTime.UtcNow.AddDays(-2), RowVersion = [1, 2, 3]
+        };
+        db.Documents.Add(document);
+        await db.SaveChangesAsync();
+        var storage = new Mock<IFileUploadService>();
+        storage.Setup(x => x.GetPrivateFileAsync(seed.Asset.StorageKey))
+            .ReturnsAsync(new FileDownloadResult { Content = seed.Bytes, ContentType = "application/pdf" });
+        var reader = Service(db, "Student", storage: storage);
+        (await reader.DownloadAsync(reference)).StatusCode.Should().Be(404);
+        (await reader.ListAsync(null, null, 1, 20, false)).Data!.Items.Should().BeEmpty();
+        var expiry = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(7));
+        var change = new LibraryDigitalMetadataRequestDto
+        { Title = "Renewed", ExpiresOn = expiry, RowVersion = Convert.ToBase64String(document.RowVersion) };
+        (await reader.UpdateMetadataAsync(reference, change)).StatusCode.Should().Be(403);
+        var admin = Service(db, "TenantAdmin", storage: storage);
+        var updated = await admin.UpdateMetadataAsync(reference, change);
+        updated.Success.Should().BeTrue(updated.Message);
+        updated.Data!.ExpiresOn.Should().Be(expiry);
+        (await reader.DownloadAsync(reference)).Success.Should().BeTrue();
+        var audit = await db.AuditLogs.SingleAsync(x => x.Action == "LibraryDigitalResource.Update");
+        audit.OldValue.Should().Contain("Old");
+        audit.NewValue.Should().Contain("Renewed");
+        document.RowVersion = [4, 5, 6];
+        await db.SaveChangesAsync();
+        (await admin.UpdateMetadataAsync(reference, change)).StatusCode.Should().Be(409);
+        (await admin.UpdateMetadataAsync(reference, new LibraryDigitalMetadataRequestDto
+        { Title = "Invalid", ExpiresOn = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(-1)),
+          RowVersion = Convert.ToBase64String(document.RowVersion) })).StatusCode.Should().Be(400);
+        document.IsActive = false;
+        await db.SaveChangesAsync();
+        (await admin.UpdateMetadataAsync(reference, new LibraryDigitalMetadataRequestDto
+        { Title = "Reactivation attempt", RowVersion = Convert.ToBase64String(document.RowVersion) }))
+            .StatusCode.Should().Be(409);
+    }
 }

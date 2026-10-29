@@ -6,7 +6,7 @@
     const bn = document.documentElement.lang?.toLowerCase().startsWith('bn');
     const words = (en, bd) => bn ? bd : en;
     const admin = !!el('digitalUploadForm');
-    let page = 1, requestSequence = 0, uploadRequestId = null;
+    let page = 1, requestSequence = 0, uploadRequestId = null, editing = null;
     const pageSize = 20;
     const token = () => document.querySelector('meta[name="request-verification-token"]')?.content ||
         el('digitalUploadForm')?.querySelector('input[name="__RequestVerificationToken"]')?.value;
@@ -41,7 +41,7 @@
     function empty(message) {
         rows.replaceChildren();
         const tr = document.createElement('tr'), cell = td(message);
-        cell.colSpan = 5; cell.className = 'text-center text-muted py-4';
+        cell.colSpan = 6; cell.className = 'text-center text-muted py-4';
         tr.append(cell); rows.append(tr);
     }
     function params() {
@@ -50,10 +50,10 @@
         if (admin && el('digitalStatus').value === 'all') q.set('includeInactive', 'true');
         return q;
     }
-    async function download(reference, button) {
+    async function download(resource, button) {
         button.disabled = true;
         try {
-            const response = await fetch('/api/library/digital/' + encodeURIComponent(reference) + '/download',
+            const response = await fetch('/api/library/digital/' + encodeURIComponent(resource.reference) + '/download',
                 { credentials: 'same-origin', cache: 'no-store', headers: { Accept: 'application/octet-stream' } });
             if (!response.ok) {
                 const error = await response.json().catch(() => null);
@@ -64,7 +64,7 @@
             try {
                 const anchor = document.createElement('a');
                 anchor.href = url;
-                anchor.download = 'library-resource';
+                anchor.download = (resource.fileName || 'library-resource').split(/[\\/]/).pop().replace(/[\x00-\x1f\x7f]/g, '') || 'library-resource';
                 document.body.append(anchor); anchor.click(); anchor.remove();
             } finally { setTimeout(() => URL.revokeObjectURL(url), 1000); }
         } catch (error) { notify(error.message); }
@@ -82,23 +82,56 @@
             notify(words('Access revoked.', 'অনুমতি বাতিল হয়েছে।'), true);
         } catch (error) { notify(error.message); button.disabled = false; }
     }
+    function edit(resource) {
+        editing = resource;
+        el('digitalEditName').value = resource.title || '';
+        el('digitalEditExpiry').value = resource.expiresOn || '';
+        el('digitalEditDialog').showModal();
+    }
+    async function saveEdit(event) {
+        event.preventDefault();
+        if (!editing || !el('digitalEditForm').reportValidity()) return;
+        const button = el('digitalEditSave');
+        button.disabled = true;
+        try {
+            await api('/api/library/digital/' + encodeURIComponent(editing.reference), {
+                method: 'PUT', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    title: el('digitalEditName').value.trim(),
+                    expiresOn: el('digitalEditExpiry').value || null,
+                    rowVersion: editing.rowVersion
+                })
+            });
+            el('digitalEditDialog').close(); editing = null;
+            await load();
+            notify(words('Resource updated.', 'রিসোর্স পরিবর্তন হয়েছে।'), true);
+        } catch (error) { notify(error.message); }
+        finally { button.disabled = false; }
+    }
     function render(resources) {
         rows.replaceChildren();
         if (!resources.length) return empty(words('No resources found.', 'কোনো রিসোর্স পাওয়া যায়নি।'));
         resources.forEach(resource => {
             const tr = document.createElement('tr');
+            const expired = !!resource.expiresOn && resource.expiresOn < new Date().toISOString().slice(0, 10);
             [resource.bookTitle, resource.title, resource.fileName,
-                resource.isActive ? words('Active', 'সক্রিয়') : words('Revoked', 'বাতিল')]
-                .forEach(value => tr.append(td(value)));
+                !resource.isActive ? words('Revoked', 'বাতিল') :
+                    expired ? words('Expired', 'মেয়াদ শেষ') : words('Active', 'সক্রিয়'),
+                resource.expiresOn || '—'].forEach(value => tr.append(td(value)));
             const actions = document.createElement('td');
-            if (resource.isActive) {
+            if (resource.isActive && !expired) {
                 const button = document.createElement('button');
                 button.type = 'button'; button.className = 'btn btn-sm btn-outline-primary';
                 button.textContent = words('Download', 'ডাউনলোড');
-                button.addEventListener('click', () => download(resource.reference, button));
+                button.addEventListener('click', () => download(resource, button));
                 actions.append(button);
             }
             if (admin && resource.isActive) {
+                const editButton = document.createElement('button');
+                editButton.type = 'button'; editButton.className = 'btn btn-sm btn-outline-secondary ms-2';
+                editButton.textContent = words('Edit', 'সম্পাদনা');
+                editButton.addEventListener('click', () => edit(resource));
+                actions.append(editButton);
                 const button = document.createElement('button');
                 button.type = 'button'; button.className = 'btn btn-sm btn-outline-danger ms-2';
                 button.textContent = words('Revoke', 'বাতিল');
@@ -148,6 +181,7 @@
         data.append('RequestId', uploadRequestId);
         data.append('BookReference', el('digitalBook').value);
         data.append('Title', el('digitalTitle').value.trim());
+        if (el('digitalExpiresOn').value) data.append('ExpiresOn', el('digitalExpiresOn').value);
         data.append('file', file, file.name);
         const button = el('digitalPublish');
         button.disabled = true;
@@ -187,9 +221,12 @@
     if (admin) {
         el('digitalBookFind').addEventListener('click', findBooks);
         el('digitalUploadForm').addEventListener('submit', publish);
-        ['digitalFile', 'digitalTitle', 'digitalBook'].forEach(id =>
+        ['digitalFile', 'digitalTitle', 'digitalBook', 'digitalExpiresOn'].forEach(id =>
             el(id).addEventListener('change', () => { uploadRequestId = null; }));
         el('digitalExport').addEventListener('click', exportPage);
+        el('digitalEditForm').addEventListener('submit', saveEdit);
+        el('digitalEditCancel').addEventListener('click', () => el('digitalEditDialog').close());
+        el('digitalEditDialog').addEventListener('close', () => { editing = null; });
         findBooks();
     }
     load();

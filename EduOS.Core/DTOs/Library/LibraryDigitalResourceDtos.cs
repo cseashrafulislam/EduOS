@@ -12,6 +12,7 @@ public sealed class LibraryDigitalResourceDto
     public string ContentType { get; set; } = string.Empty;
     public long SizeBytes { get; set; }
     public bool IsActive { get; set; }
+    public DateOnly? ExpiresOn { get; set; }
     public DateTime CreatedAt { get; set; }
     public string RowVersion { get; set; } = string.Empty;
 }
@@ -21,6 +22,14 @@ public sealed class LibraryDigitalUploadRequestDto
     [Required] public Guid RequestId { get; set; }
     [Required] public Guid BookReference { get; set; }
     [Required, MaxLength(250)] public string Title { get; set; } = string.Empty;
+    public DateOnly? ExpiresOn { get; set; }
+}
+
+public sealed class LibraryDigitalMetadataRequestDto
+{
+    [Required, MaxLength(250)] public string Title { get; set; } = string.Empty;
+    public DateOnly? ExpiresOn { get; set; }
+    [Required] public string RowVersion { get; set; } = string.Empty;
 }
 
 public sealed class LibraryDigitalRevokeRequestDto

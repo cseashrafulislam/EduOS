@@ -239,4 +239,35 @@ public sealed partial class SqlServerTransportSeatCapacityIntegrationTests
             x.TenantId == fixture.TenantId && x.Action == "LibraryDigitalResource.Download"));
         storage.Verify(x => x.GetPrivateFileAsync(asset.Key), Times.Once);
     }
+    [Fact]
+    public async Task V2_library_sql_expired_access_can_only_be_extended_by_versioned_tenant_admin()
+    {
+        var connection = Environment.GetEnvironmentVariable("EDUOS_SQL_AUTH_TEST_CONNECTION");
+        if (string.IsNullOrWhiteSpace(connection)) return;
+        var fixture = await SeedAsync(connection);
+        var asset = await SeedDigitalResourceAsync(fixture);
+        await using var db = ScopedContext(fixture.Options, fixture.TenantId, fixture.UserId);
+        var document = await db.Documents.SingleAsync(x =>
+            x.TenantId == fixture.TenantId && x.PublicId == asset.Reference);
+        document.ExpiresAt = DateTime.UtcNow.AddDays(-2);
+        await db.SaveChangesAsync();
+        var storage = DigitalStorage(asset);
+        var reader = DigitalService(db, fixture, "Student", storage);
+        Assert.Equal(404, (await reader.DownloadAsync(asset.Reference)).StatusCode);
+        var expiry = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(5));
+        var request = new EduOS.Core.DTOs.Library.LibraryDigitalMetadataRequestDto
+        {
+            Title = "Licensed resource renewed", ExpiresOn = expiry,
+            RowVersion = Convert.ToBase64String(document.RowVersion)
+        };
+        Assert.Equal(403, (await reader.UpdateMetadataAsync(asset.Reference, request)).StatusCode);
+        var admin = DigitalService(db, fixture, "TenantAdmin", storage);
+        var updated = await admin.UpdateMetadataAsync(asset.Reference, request);
+        Assert.True(updated.Success, updated.Message);
+        Assert.Equal(expiry, updated.Data!.ExpiresOn);
+        Assert.Equal(409, (await admin.UpdateMetadataAsync(asset.Reference, request)).StatusCode);
+        Assert.True((await reader.DownloadAsync(asset.Reference)).Success);
+        Assert.Equal(1, await db.AuditLogs.CountAsync(x =>
+            x.TenantId == fixture.TenantId && x.Action == "LibraryDigitalResource.Update"));
+    }
 }

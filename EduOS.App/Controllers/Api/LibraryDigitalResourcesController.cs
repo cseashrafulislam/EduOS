@@ -66,6 +66,16 @@ public sealed class LibraryDigitalResourcesController(ILibraryDigitalResourceSer
         return StatusCode(result.StatusCode, result);
     }
 
+    [HttpPut("{reference:guid}")]
+    [Authorize(Roles = "TenantAdmin")]
+    public async Task<IActionResult> Update(Guid reference,
+        [FromBody] LibraryDigitalMetadataRequestDto request, CancellationToken ct)
+    {
+        if (!ModelState.IsValid) return ValidationProblem(ModelState);
+        var result = await service.UpdateMetadataAsync(reference, request, ct);
+        return StatusCode(result.StatusCode, result);
+    }
+
     [HttpPost("{reference:guid}/revoke")]
     [Authorize(Roles = "TenantAdmin")]
     public async Task<IActionResult> Revoke(Guid reference,
