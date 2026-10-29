@@ -54,12 +54,17 @@ public sealed partial class LmsWorkflowService
         var count = await query.CountAsync(ct);
         var selected = await query.OrderBy(x => x.Student.StudentCode).ThenBy(x => x.Enrollment.Id)
             .Skip((int)skip).Take(pageSize).ToListAsync(ct);
+        // Eligibility is aggregated for the bounded page, not queried separately for every learner.
+        // Completion writes still re-evaluate under their serializable transaction.
+        var pendingIds = selected.Where(x => x.Enrollment.State != CourseEnrollmentState.Completed)
+            .Select(x => x.Enrollment.Id).ToArray();
+        var eligibilityByEnrollment = await EvaluateCourseCompletionPageAsync(pendingIds, course, ct);
         var rows = new List<CourseCompletionRegisterRowDto>(selected.Count);
         foreach (var item in selected)
         {
             var eligibility = item.Enrollment.State == CourseEnrollmentState.Completed
                 ? new CourseCompletionEligibilityDto { Ready = true }
-                : await EvaluateCourseCompletionAsync(item.Enrollment, course, ct);
+                : eligibilityByEnrollment[item.Enrollment.Id];
             if (item.Enrollment.State == CourseEnrollmentState.Active)
             {
                 var academicError = await CompletionAcademicScopeErrorAsync(item.Enrollment, course, ct);
@@ -181,6 +186,78 @@ public sealed partial class LmsWorkflowService
             if (!subjectAllowed) return "Course subject is not offered in the student's curriculum.";
         }
         return null;
+    }
+
+    // Fixed query count for evidence aggregation, independent of the number of enrollments on the page.
+    // All evidence is filtered by tenant and joined to currently published course requirements.
+    private async Task<Dictionary<long, CourseCompletionEligibilityDto>> EvaluateCourseCompletionPageAsync(
+        long[] enrollmentIds, Course course, CancellationToken ct)
+    {
+        var result = new Dictionary<long, CourseCompletionEligibilityDto>(enrollmentIds.Length);
+        if (enrollmentIds.Length == 0) return result;
+        var tenant = _user.TenantId;
+
+        var requiredLessons = await _lessons.GetQueryable().AsNoTracking().CountAsync(x =>
+            x.TenantId == tenant && x.CourseId == course.Id && x.IsPublished && !x.IsDeleted, ct);
+        var requiredAssignments = await _assignments.GetQueryable().AsNoTracking().CountAsync(x =>
+            x.TenantId == tenant && x.CourseId == course.Id && x.IsPublished && !x.IsDeleted, ct);
+        var requiredQuizzes = await _completionQuizzes!.GetQueryable().AsNoTracking().CountAsync(x =>
+            x.TenantId == tenant && x.CourseId == course.Id && x.IsPublished && !x.IsDeleted, ct);
+
+        var lessons = await (from progress in _progress.GetQueryable().AsNoTracking()
+            join lesson in _lessons.GetQueryable().AsNoTracking() on progress.LessonId equals lesson.Id
+            where progress.TenantId == tenant && lesson.TenantId == tenant &&
+                  lesson.CourseId == course.Id && lesson.IsPublished && !lesson.IsDeleted &&
+                  enrollmentIds.Contains(progress.CourseEnrollmentId) && !progress.IsDeleted &&
+                  progress.IsCompleted && progress.ProgressPercent >= 100
+            select new { progress.CourseEnrollmentId, progress.LessonId })
+            .Distinct().GroupBy(x => x.CourseEnrollmentId)
+            .Select(g => new { EnrollmentId = g.Key, Count = g.Count() }).ToListAsync(ct);
+
+        var assignments = await (from submission in _submissions.GetQueryable().AsNoTracking()
+            join assignment in _assignments.GetQueryable().AsNoTracking()
+                on submission.AssignmentId equals assignment.Id
+            where submission.TenantId == tenant && assignment.TenantId == tenant &&
+                  assignment.CourseId == course.Id && assignment.IsPublished && !assignment.IsDeleted &&
+                  enrollmentIds.Contains(submission.CourseEnrollmentId) && !submission.IsDeleted &&
+                  submission.State == LearningSubmissionState.Graded && submission.Marks.HasValue
+            select new { submission.CourseEnrollmentId, submission.AssignmentId })
+            .Distinct().GroupBy(x => x.CourseEnrollmentId)
+            .Select(g => new { EnrollmentId = g.Key, Count = g.Count() }).ToListAsync(ct);
+
+        var quizzes = await (from attempt in _completionAttempts!.GetQueryable().AsNoTracking()
+            join quiz in _completionQuizzes.GetQueryable().AsNoTracking() on attempt.QuizId equals quiz.Id
+            where attempt.TenantId == tenant && quiz.TenantId == tenant &&
+                  quiz.CourseId == course.Id && quiz.IsPublished && !quiz.IsDeleted &&
+                  enrollmentIds.Contains(attempt.CourseEnrollmentId) && !attempt.IsDeleted &&
+                  attempt.State == QuizAttemptState.Graded && attempt.ObtainedMarks.HasValue &&
+                  attempt.ObtainedMarks.Value >= quiz.PassMarks
+            select new { attempt.CourseEnrollmentId, attempt.QuizId })
+            .Distinct().GroupBy(x => x.CourseEnrollmentId)
+            .Select(g => new { EnrollmentId = g.Key, Count = g.Count() }).ToListAsync(ct);
+
+        var lessonCounts = lessons.ToDictionary(x => x.EnrollmentId, x => x.Count);
+        var assignmentCounts = assignments.ToDictionary(x => x.EnrollmentId, x => x.Count);
+        var quizCounts = quizzes.ToDictionary(x => x.EnrollmentId, x => x.Count);
+        foreach (var id in enrollmentIds)
+        {
+            var completedLessons = lessonCounts.GetValueOrDefault(id);
+            var gradedAssignments = assignmentCounts.GetValueOrDefault(id);
+            var passedQuizzes = quizCounts.GetValueOrDefault(id);
+            var blockers = new List<string>();
+            if (requiredLessons == 0) blockers.Add("At least one published lesson is required.");
+            if (completedLessons < requiredLessons) blockers.Add("Complete all published lessons.");
+            if (gradedAssignments < requiredAssignments) blockers.Add("All published assignments must be graded.");
+            if (passedQuizzes < requiredQuizzes) blockers.Add("Pass every published quiz.");
+            result[id] = new CourseCompletionEligibilityDto
+            {
+                RequiredLessons = requiredLessons, CompletedLessons = completedLessons,
+                RequiredAssignments = requiredAssignments, GradedAssignments = gradedAssignments,
+                RequiredQuizzes = requiredQuizzes, PassedQuizzes = passedQuizzes,
+                Ready = blockers.Count == 0, Blockers = blockers
+            };
+        }
+        return result;
     }
 
     private async Task<CourseCompletionEligibilityDto> EvaluateCourseCompletionAsync(

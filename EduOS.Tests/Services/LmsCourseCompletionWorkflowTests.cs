@@ -200,6 +200,95 @@ public sealed class LmsCourseCompletionWorkflowTests
         Assert.Empty(await db.Set<LessonProgress>().ToListAsync());
     }
 
+    [Fact]
+    public async Task Completion_register_aggregates_published_evidence_by_enrollment_with_search_and_paging()
+    {
+        await using var db = Db();
+        var (course, _, enrollment, lesson) = await Seed(db);
+        var secondStudent = new Student
+        {
+            TenantId = 101, StudentCode = "S-102", FullName = "Second Learner",
+            UserId = 88, StatusCode = "Active"
+        };
+        db.Add(secondStudent);
+        await db.SaveChangesAsync();
+        var secondEnrollment = new CourseEnrollment
+        {
+            TenantId = 101, CourseId = course.Id, StudentId = secondStudent.Id,
+            ClientRequestId = Guid.NewGuid(), RowVersion = [4, 5, 6]
+        };
+        var unpublished = new Lesson
+        {
+            TenantId = 101, CourseId = course.Id, Title = "Draft", IsPublished = false
+        };
+        var assignment = new Assignment
+        {
+            TenantId = 101, CourseId = course.Id, Title = "Published assignment", IsPublished = true
+        };
+        var quiz = new Quiz
+        {
+            TenantId = 101, CourseId = course.Id, Title = "Published quiz",
+            IsPublished = true, PassMarks = 6
+        };
+        db.AddRange(secondEnrollment, unpublished, assignment, quiz);
+        await db.SaveChangesAsync();
+        db.AddRange(
+            new LessonProgress
+            {
+                TenantId = 101, CourseEnrollmentId = enrollment.Id, LessonId = lesson.Id,
+                IsCompleted = true, ProgressPercent = 100
+            },
+            new AssignmentSubmission
+            {
+                TenantId = 101, CourseEnrollmentId = enrollment.Id, AssignmentId = assignment.Id,
+                State = EduOS.Core.Enums.Domain.LearningSubmissionState.Graded, Marks = 8
+            },
+            new QuizAttempt
+            {
+                TenantId = 101, CourseEnrollmentId = enrollment.Id, QuizId = quiz.Id,
+                AttemptNo = 1, State = EduOS.Core.Enums.Domain.QuizAttemptState.Graded, ObtainedMarks = 5
+            },
+            new QuizAttempt
+            {
+                TenantId = 101, CourseEnrollmentId = enrollment.Id, QuizId = quiz.Id,
+                AttemptNo = 2, State = EduOS.Core.Enums.Domain.QuizAttemptState.Graded, ObtainedMarks = 7
+            },
+            new LessonProgress
+            {
+                TenantId = 202, CourseEnrollmentId = secondEnrollment.Id, LessonId = lesson.Id,
+                IsCompleted = true, ProgressPercent = 100
+            });
+        await TestTenantSeeder.SaveAsync(db);
+
+        var service = Service(db);
+        var first = await service.GetCourseCompletionRegisterAsync(course.PublicId, 1, 1, null);
+        Assert.True(first.Success, first.Message);
+        Assert.Equal(2, first.Data!.TotalCount);
+        var firstRow = Assert.Single(first.Data.Items);
+        Assert.Equal(enrollment.Id, firstRow.EnrollmentId);
+        Assert.True(firstRow.Eligibility.Ready);
+        Assert.Equal(1, firstRow.Eligibility.RequiredLessons);
+        Assert.Equal(1, firstRow.Eligibility.CompletedLessons);
+        Assert.Equal(1, firstRow.Eligibility.RequiredAssignments);
+        Assert.Equal(1, firstRow.Eligibility.GradedAssignments);
+        Assert.Equal(1, firstRow.Eligibility.RequiredQuizzes);
+        Assert.Equal(1, firstRow.Eligibility.PassedQuizzes);
+
+        var second = await service.GetCourseCompletionRegisterAsync(course.PublicId, 2, 1, null);
+        Assert.True(second.Success, second.Message);
+        var secondRow = Assert.Single(second.Data!.Items);
+        Assert.Equal(secondEnrollment.Id, secondRow.EnrollmentId);
+        Assert.False(secondRow.Eligibility.Ready);
+        Assert.Equal(0, secondRow.Eligibility.CompletedLessons);
+        Assert.Equal(0, secondRow.Eligibility.GradedAssignments);
+        Assert.Equal(0, secondRow.Eligibility.PassedQuizzes);
+
+        var filtered = await service.GetCourseCompletionRegisterAsync(course.PublicId, 1, 20, "S-102");
+        Assert.True(filtered.Success, filtered.Message);
+        Assert.Equal(1, filtered.Data!.TotalCount);
+        Assert.Equal(secondEnrollment.Id, Assert.Single(filtered.Data.Items).EnrollmentId);
+    }
+
     private static async Task<(Course Course, Student Student, CourseEnrollment Enrollment, Lesson Lesson)> Seed(EduOSDbContext db)
     {
         var course = new Course { TenantId = 101, Code = "LMS-COMP", Title = "Completion", IsActive = true };
