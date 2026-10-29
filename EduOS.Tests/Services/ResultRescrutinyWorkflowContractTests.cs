@@ -60,6 +60,28 @@ public sealed class ResultRescrutinyWorkflowContractTests
     }
 
     [Fact]
+    public void Mark_evidence_is_scoped_bounded_and_never_rewrites_a_published_result()
+    {
+        var source = Read("EduOS.Service/Services/Assessment/AssessmentAdministrationService.RescrutinyMarkEvidence.cs");
+        var api = Read("EduOS.App/Controllers/Api/AssessmentAdministrationApiController.cs");
+        var view = Read("EduOS.App/Views/AssessmentAdministration/ResultRescrutiny.cshtml");
+        var js = Read("EduOS.App/wwwroot/js/assessment/result-rescrutiny.js");
+        source.Should().Contain("GetResultRescrutinyReviewAsync");
+        source.Should().Contain("CanAccessCampusAsync");
+        source.Should().Contain("StudentEnrollmentId == original.StudentEnrollmentId");
+        source.Should().Contain("Take(101)");
+        source.Should().Contain("Take(401)");
+        source.Should().Contain("TenantId == tenant");
+        source.Should().NotContain("IgnoreQueryFilters()");
+        source.Should().NotContain("_summaries.Update(");
+        source.Should().NotContain("_marks.Update(");
+        api.Should().Contain("results/rescrutiny/{caseReference:guid}/marks");
+        view.Should().Contain("rescrutinyMarkEvidenceRows");
+        js.Should().Contain("loadMarkEvidence(item)");
+        js.Should().Contain("state.marksSeq");
+    }
+
+    [Fact]
     public void Api_and_clean_bilingual_page_are_connected_to_scoped_list_and_audited_decision()
     {
         var api = Read("EduOS.App/Controllers/Api/AssessmentAdministrationApiController.cs");

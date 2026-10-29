@@ -94,6 +94,11 @@ public sealed class AssessmentAdministrationApiController : ControllerBase
     public async Task<IActionResult> RescrutinyReview(Guid caseReference, CancellationToken ct) =>
         Result(await _service.GetResultRescrutinyReviewAsync(caseReference, ct));
 
+    [HttpGet("results/rescrutiny/{caseReference:guid}/marks")]
+    [Authorize(Roles = "TenantAdmin,Principal,VicePrincipal,ExamController")]
+    public async Task<IActionResult> RescrutinyMarkEvidence(Guid caseReference, CancellationToken ct) =>
+        Result(await _service.GetResultRescrutinyMarkEvidenceAsync(caseReference, ct));
+
     [HttpPost("results/rescrutiny")]
     [Authorize(Roles = "TenantAdmin,Principal,VicePrincipal,ExamController")]
     public async Task<IActionResult> RequestRescrutiny([FromBody] RequestResultRescrutinyDto request,

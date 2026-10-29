@@ -8,7 +8,7 @@
     const state = { scopePage: 1, scopeTotal: 0, scopeSeq: 0, listSeq: 0,
         publication: 0, before: null, previous: [], hasMore: false, items: [],
         selected: null, busy: false, exportBusy: false, summarySeq: 0,
-        requestKey: null, decisionKey: null, historySeq: 0, reviewSeq: 0 };
+        requestKey: null, decisionKey: null, historySeq: 0, reviewSeq: 0, marksSeq: 0 };
     const endpoint = '/api/assessment-administration/';
     const token = document.querySelector('#resultRescrutinyWorkspace input[name="__RequestVerificationToken"]')?.value;
     function notice(message, error = false) {
@@ -44,7 +44,8 @@
         $('rescrutinyStudent').disabled = true; $('rescrutinySubmit').disabled = true;
         $('rescrutinyDecisionForm').classList.add('d-none');
         $('rescrutinyHistory').classList.add('d-none');
-        state.historySeq++; state.reviewSeq++;
+        state.historySeq++; state.reviewSeq++; state.marksSeq++;
+        $('rescrutinyMarkEvidence').classList.add('d-none');
         $('rescrutinyReviewEvidence').classList.add('d-none');
         state.summarySeq++; $('rescrutinySummary').textContent = '';
         $('rescrutinyCsv').disabled = true; $('rescrutinyPrev').disabled = true;
@@ -169,6 +170,11 @@
                 historyButton.textContent = tr('History', 'ইতিহাস');
                 historyButton.addEventListener('click', () => loadHistory(item));
                 actions.append(historyButton);
+                const marksButton = document.createElement('button');
+                marksButton.type = 'button'; marksButton.className = 'btn btn-sm btn-outline-secondary ms-1';
+                marksButton.textContent = tr('Mark evidence', 'নম্বরের প্রমাণ');
+                marksButton.addEventListener('click', () => loadMarkEvidence(item));
+                actions.append(marksButton);
                 if (item.status === 1 || item.status === 'Requested') {
                     const button = document.createElement('button');
                     button.type = 'button'; button.className = 'btn btn-sm btn-outline-primary';
@@ -222,6 +228,48 @@
             $('rescrutinyDecisionReason').focus();
         } catch (e) { if (seq === state.reviewSeq) notice(e.message, true); }
     }
+
+    async function loadMarkEvidence(item) {
+        const seq = ++state.marksSeq;
+        $('rescrutinyMarkEvidence').classList.add('d-none');
+        try {
+            const data = await api('results/rescrutiny/' +
+                encodeURIComponent(item.caseReference) + '/marks');
+            if (seq !== state.marksSeq || state.publication !== item.publicationId) return;
+            $('rescrutinyMarkEvidenceTitle').textContent =
+                tr('Current marks: ', 'বর্তমান নম্বর: ') + data.studentCode;
+            $('rescrutinyMarkEvidenceSummary').textContent =
+                tr('Published snapshot: ', 'প্রকাশিত স্ন্যাপশট: ') +
+                data.publishedObtainedMarks + ' / ' + data.publishedTotalMarks +
+                ' · ' + tr('Current working marks are not a historical subject snapshot.',
+                    'বর্তমান নম্বর পূর্বের প্রকাশিত বিষয়ভিত্তিক স্ন্যাপশট নয়।');
+            const body = $('rescrutinyMarkEvidenceRows'); body.replaceChildren();
+            for (const subject of data.subjects || []) {
+                const row = document.createElement('tr');
+                row.append(cell(subject.subjectName),
+                    cell(subject.currentObtainedMarks == null ? '—' :
+                        subject.currentObtainedMarks + ' / ' + subject.fullMarks),
+                    cell(subject.isWithheld ? tr('Withheld', 'স্থগিত') :
+                        subject.isAbsent ? tr('Absent', 'অনুপস্থিত') :
+                            (subject.currentGradeLetter || '—')));
+                body.append(row);
+                for (const component of subject.components || []) {
+                    const part = document.createElement('tr');
+                    part.append(cell('↳ ' + component.name),
+                        cell(component.currentObtainedMarks == null ? '—' :
+                            component.currentObtainedMarks + ' / ' + component.fullMarks),
+                        cell(component.isWithheld ? tr('Withheld', 'স্থগিত') :
+                            component.isAbsent ? tr('Absent', 'অনুপস্থিত') : '—'));
+                    body.append(part);
+                }
+            }
+            if (!body.children.length)
+                placeholder('rescrutinyMarkEvidenceRows',
+                    tr('No registered marks found.', 'কোনো নিবন্ধিত নম্বর পাওয়া যায়নি।'), 3);
+            $('rescrutinyMarkEvidence').classList.remove('d-none');
+        } catch (e) { if (seq === state.marksSeq) notice(e.message, true); }
+    }
+
     async function loadHistory(item) {
         const seq = ++state.historySeq;
         $('rescrutinyHistory').classList.add('d-none');
@@ -351,7 +399,8 @@
         state.previous.push(state.before); state.before = state.nextBeforeId; loadCases();
     });
     $('rescrutinyStatusFilter').addEventListener('change', () => {
-        state.before = null; state.previous = []; state.historySeq++; state.reviewSeq++;
+        state.before = null; state.previous = []; state.historySeq++; state.reviewSeq++; state.marksSeq++;
+        $('rescrutinyMarkEvidence').classList.add('d-none');
         state.selected = null; state.decisionKey = null;
         $('rescrutinyDecisionForm').classList.add('d-none');
         $('rescrutinyReviewEvidence').classList.add('d-none');
@@ -361,6 +410,10 @@
     $('rescrutinyHistoryClose').addEventListener('click', () => {
         state.historySeq++;
         $('rescrutinyHistory').classList.add('d-none');
+    });
+    $('rescrutinyMarkEvidenceClose').addEventListener('click', () => {
+        state.marksSeq++;
+        $('rescrutinyMarkEvidence').classList.add('d-none');
     });
     $('rescrutinyCsv').addEventListener('click', csv);
     $('rescrutinyPrint').addEventListener('click', () => window.print());

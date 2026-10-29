@@ -115,3 +115,36 @@ public sealed class ResultRescrutinyReviewDto
     public bool IsPassed { get; set; }
     public bool IsWithheld { get; set; }
 }
+
+/// <summary>Live locked-mark evidence for an authorized re-scrutiny reviewer.
+/// Published totals are a separate immutable snapshot, never inferred from these rows.</summary>
+public sealed class ResultRescrutinyMarkEvidenceDto
+{
+    public Guid CaseReference { get; set; }
+    public long PublicationId { get; set; }
+    public int PublicationVersionNo { get; set; }
+    public string StudentCode { get; set; } = string.Empty;
+    public decimal PublishedObtainedMarks { get; set; }
+    public decimal PublishedTotalMarks { get; set; }
+    public IReadOnlyList<ResultRescrutinySubjectEvidenceDto> Subjects { get; set; } = [];
+}
+public sealed class ResultRescrutinySubjectEvidenceDto
+{
+    public long AssessmentSubjectId { get; set; }
+    public string SubjectName { get; set; } = string.Empty;
+    public decimal FullMarks { get; set; }
+    public decimal? CurrentObtainedMarks { get; set; }
+    public bool IsAbsent { get; set; }
+    public bool IsWithheld { get; set; }
+    public string? CurrentGradeLetter { get; set; }
+    public decimal? CurrentGradePoint { get; set; }
+    public IReadOnlyList<ResultRescrutinyComponentEvidenceDto> Components { get; set; } = [];
+}
+public sealed class ResultRescrutinyComponentEvidenceDto
+{
+    public string Name { get; set; } = string.Empty;
+    public decimal FullMarks { get; set; }
+    public decimal? CurrentObtainedMarks { get; set; }
+    public bool IsAbsent { get; set; }
+    public bool IsWithheld { get; set; }
+}

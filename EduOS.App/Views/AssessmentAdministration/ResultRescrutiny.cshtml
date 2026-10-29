@@ -89,6 +89,19 @@
                 </table>
             </div>
         </section>
+        <section id="rescrutinyMarkEvidence" class="card-body border-top d-none" aria-live="polite">
+            <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
+                <h3 id="rescrutinyMarkEvidenceTitle" class="h6 mb-0">@(bn ? "বর্তমান সংরক্ষিত নম্বর" : "Current stored marks")</h3>
+                <button id="rescrutinyMarkEvidenceClose" type="button" class="btn btn-sm btn-outline-secondary ms-auto">@(bn ? "বন্ধ" : "Close")</button>
+            </div>
+            <div id="rescrutinyMarkEvidenceSummary" class="small mb-2"></div>
+            <div class="table-responsive">
+                <table class="table table-sm mb-0">
+                    <thead><tr><th>@(bn ? "বিষয় / অংশ" : "Subject / component")</th><th>@(bn ? "নম্বর" : "Marks")</th><th>@(bn ? "অবস্থা" : "Status")</th></tr></thead>
+                    <tbody id="rescrutinyMarkEvidenceRows"></tbody>
+                </table>
+            </div>
+        </section>
         <div class="card-body d-flex gap-2 align-items-center">
             <button type="button" id="rescrutinyPrev" class="btn btn-sm btn-outline-secondary" disabled>@(bn ? "আগের" : "Previous")</button>
             <button type="button" id="rescrutinyNext" class="btn btn-sm btn-outline-secondary" disabled>@(bn ? "পরের" : "Next")</button>
@@ -120,5 +133,5 @@
         </form>
     </section>
 </section>
-<style>@@media print { #rescrutinyScopeForm,#rescrutinyRequestForm,#rescrutinyDecisionForm,#rescrutinyPrev,#rescrutinyNext,#rescrutinyCsv,#rescrutinyPrint,#rescrutinyNotice,#rescrutinyStatusFilter,#rescrutinyHistoryClose { display:none!important; } }</style>
+<style>@@media print { #rescrutinyScopeForm,#rescrutinyRequestForm,#rescrutinyDecisionForm,#rescrutinyPrev,#rescrutinyNext,#rescrutinyCsv,#rescrutinyPrint,#rescrutinyNotice,#rescrutinyStatusFilter,#rescrutinyHistoryClose,#rescrutinyMarkEvidenceClose { display:none!important; } }</style>
 @section Scripts { <script src="~/js/assessment/result-rescrutiny.js" asp-append-version="true"></script> }
