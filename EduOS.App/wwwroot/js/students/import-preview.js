@@ -423,13 +423,16 @@
         cohortStatus = status;
         cohortRows.replaceChildren();
         const files = status?.files || cohortFiles.map(file => ({
-            ...file, committedRows: null, missingWindows: null
+            ...file, committedRows: null, missingWindows: null,
+            logItemsVerifiedRows: null, logItemReviewWindows: null
         }));
         cohortWindow.replaceChildren();
         for (const [fileIndex, file] of files.entries()) {
             const tr = document.createElement('tr');
             for (const value of [file.fileHash.slice(0, 12) + '…',
-                file.totalRows, file.committedRows ?? '—', file.missingWindows ?? '—']) {
+                file.totalRows, file.committedRows ?? '—',
+                file.logItemsVerifiedRows ?? '—', file.logItemReviewWindows ?? '—',
+                file.missingWindows ?? '—']) {
                 const td = document.createElement('td');
                 td.textContent = String(value);
                 tr.appendChild(td);
@@ -443,7 +446,8 @@
                 const option = document.createElement('option');
                 option.value = window.importReference;
                 option.textContent = 'File ' + (fileIndex + 1) + ' · rows ' +
-                    (window.rowOffset + 1) + '–' + (window.rowOffset + window.importedRows);
+                    (window.rowOffset + 1) + '–' + (window.rowOffset + window.importedRows) +
+                    (window.logItemsVerified ? '' : ' · ' + (window.logItemAuditCode || 'Review log items'));
                 cohortWindow.appendChild(option);
             }
         }
@@ -453,7 +457,9 @@
         cohortExport.disabled = !status;
         cohortSummary.textContent = status
             ? 'Cohort: ' + status.committedRows + ' / ' + status.expectedRows +
-                ' rows committed; ' + status.pendingRows + ' pending.'
+                ' rows committed; ' + status.pendingRows + ' pending. ' +
+                status.logItemsVerifiedRows + ' log rows verified; ' +
+                status.logItemReviewWindows + ' windows require review.'
             : cohortFiles.length + ' / 8 source files selected.';
     }
     cohortInspect.addEventListener('click', async () => {

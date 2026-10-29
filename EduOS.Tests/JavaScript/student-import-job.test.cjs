@@ -47,10 +47,22 @@ test('cohort summary export includes only bounded hashes and counts', () => {
     const { cohortSummaryCsv } = require('../../EduOS.App/wwwroot/js/students/import-job.js');
     const csv = cohortSummaryCsv({ files: [
         { fileHash: 'a'.repeat(64), mappingHash: 'b'.repeat(64),
-            totalRows: 100, committedRows: 80, missingWindows: 1, isComplete: false }
+            totalRows: 100, committedRows: 80, logItemsVerifiedRows: 70,
+            logItemReviewWindows: 1, missingWindows: 1, isComplete: false,
+            isLogItemReconciled: false }
     ] });
-    assert.match(csv, /100,80,1,Pending/);
+    assert.match(csv, /100,80,70,1,1,Pending/);
     assert.doesNotMatch(csv, /student name/i);
+    assert.match(cohortSummaryCsv({ files: [
+        { fileHash: 'a'.repeat(64), mappingHash: 'b'.repeat(64), totalRows: 100,
+            committedRows: 100, logItemsVerifiedRows: 100, logItemReviewWindows: 0,
+            missingWindows: 0, isComplete: true, isLogItemReconciled: true }
+    ] }), /100,100,100,0,0,LogItemsVerified/);
+    assert.throws(() => cohortSummaryCsv({ files: [
+        { fileHash: 'a'.repeat(64), mappingHash: 'b'.repeat(64), totalRows: 100,
+            committedRows: 100, logItemsVerifiedRows: 101, logItemReviewWindows: 0,
+            missingWindows: 0, isComplete: true }
+    ] }), /Invalid/);
     assert.throws(() => cohortSummaryCsv({ files: [
         { fileHash: '=cmd', mappingHash: 'b'.repeat(64),
             totalRows: 1, committedRows: 1, missingWindows: 0 }

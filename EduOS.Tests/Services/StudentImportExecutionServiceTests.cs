@@ -1354,4 +1354,68 @@ public sealed class StudentImportExecutionServiceTests
         public string? IpAddress => null;
         public string? UserAgent => "Test";
     }
+    [Fact]
+    public async Task Cohort_log_item_reconciliation_flags_missing_failed_and_unkeyed_rows_without_leaking_tenants()
+    {
+        var options = Options(); await SeedAsync(options);
+        await using var db = Context(options, 101);
+        var service = Service(db, new User(101, true));
+        const string source = Header +
+            "PHYS-1,PHYS-STU-1,Private Learner One,10,20,51,,\n" +
+            "PHYS-2,PHYS-STU-2,Private Learner Two,10,20,52,,\n";
+        var fileHash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(source))).ToLowerInvariant();
+        var mappingHash = Convert.ToHexString(SHA256.HashData(
+            Encoding.UTF8.GetBytes(JsonSerializer.Serialize(Mapping)))).ToLowerInvariant();
+        var digest = SHA256.HashData(Encoding.UTF8.GetBytes(fileHash + ":" + mappingHash + ":0"));
+        digest[6] = (byte)((digest[6] & 0x0f) | 0x50);
+        digest[8] = (byte)((digest[8] & 0x3f) | 0x80);
+        var hex = Convert.ToHexString(digest.AsSpan(0, 16));
+        var request = Guid.ParseExact(
+            $"{hex[..8]}-{hex[8..12]}-{hex[12..16]}-{hex[16..20]}-{hex[20..]}", "D");
+        using (var csv = Csv(source))
+            Assert.True((await service.ExecuteSliceAsync(csv, ".csv", Mapping, request, 0)).Success);
+        var files = new[] { new StudentImportCohortFileRequestDto
+            { FileHash = fileHash, MappingHash = mappingHash, TotalRows = 2 } };
+        var healthy = (await service.GetCohortStatusAsync(files)).Data!;
+        Assert.True(healthy.IsComplete);
+        Assert.True(healthy.IsLogItemReconciled);
+        Assert.Equal(2, healthy.LogItemsVerifiedRows);
+        Assert.Equal(0, healthy.LogItemReviewWindows);
+        Assert.Equal("Verified", Assert.Single(healthy.Files[0].CompletedWindows).LogItemAuditCode);
+
+        var items = await db.ImportLogItems.OrderBy(x => x.RowNumber).ToListAsync();
+        items[0].IsSuccess = false;
+        await db.SaveChangesAsync();
+        var failed = (await service.GetCohortStatusAsync(files)).Data!;
+        Assert.True(failed.IsComplete); // Existing log counters are unchanged.
+        Assert.False(failed.IsLogItemReconciled);
+        Assert.Equal(0, failed.LogItemsVerifiedRows);
+        Assert.Equal(1, failed.LogItemReviewWindows);
+        Assert.Equal("UnsuccessfulRows", Assert.Single(failed.Files[0].CompletedWindows).LogItemAuditCode);
+
+        items[0].IsSuccess = true;
+        var originalKey = items[0].BusinessKey;
+        items[0].BusinessKey = null;
+        await db.SaveChangesAsync();
+        var unkeyed = (await service.GetCohortStatusAsync(files)).Data!;
+        Assert.Equal("MissingSourceKeys", Assert.Single(unkeyed.Files[0].CompletedWindows).LogItemAuditCode);
+
+        items[0].BusinessKey = originalKey;
+        items[0].IsDeleted = true;
+        await db.SaveChangesAsync();
+        var missing = (await service.GetCohortStatusAsync(files)).Data!;
+        Assert.Equal("RowCountMismatch", Assert.Single(missing.Files[0].CompletedWindows).LogItemAuditCode);
+        Assert.Equal(0, missing.LogItemsVerifiedRows);
+
+        await using var foreign = Context(options, 202);
+        var isolated = (await Service(foreign, new User(202, true))
+            .GetCohortStatusAsync(files)).Data!;
+        Assert.Equal(0, isolated.CommittedRows);
+        Assert.Equal(0, isolated.LogItemsVerifiedRows);
+        Assert.Equal(0, isolated.LogItemReviewWindows);
+        Assert.Equal(403, (await Service(db, new User(101, false))
+            .GetCohortStatusAsync(files)).StatusCode);
+        Assert.Equal(2, await db.Students.CountAsync());
+    }
+
 }

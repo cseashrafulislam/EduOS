@@ -65,6 +65,22 @@ public sealed partial class StudentImportExecutionService
                 .Select(x => new { x.Id, x.PublicId, x.TotalRows, x.SuccessRows, x.FailedRows })
                 .ToListAsync(cancellationToken))
                 .ToDictionary(x => x.Id, x => (Total: x.TotalRows, Success: x.SuccessRows, Failed: x.FailedRows, Reference: x.PublicId));
+        // One bounded tenant-scoped SQL aggregate, not 400 per-window queries.
+        // Log counters alone cannot prove that source audit rows still exist.
+        var itemCounts = logIds.Length == 0
+            ? new Dictionary<long, (int Rows, int Success, int WithSource)>()
+            : (await _items.GetQueryable().AsNoTracking()
+                .Where(x => x.TenantId == tenant && !x.IsDeleted && logIds.Contains(x.ImportLogId))
+                .GroupBy(x => x.ImportLogId)
+                .Select(g => new
+                {
+                    ImportLogId = g.Key,
+                    Rows = g.Count(),
+                    Success = g.Count(x => x.IsSuccess),
+                    WithSource = g.Count(x => x.BusinessKey != null && x.BusinessKey.Trim() != "")
+                })
+                .ToListAsync(cancellationToken))
+                .ToDictionary(x => x.ImportLogId, x => (x.Rows, x.Success, x.WithSource));
         var keyTargets = keys.ToDictionary(x => x.RequestId, x => x.TargetId!.Value);
 
         var result = new StudentImportCohortStatusDto { ExpectedRows = (int)expectedRows };
@@ -72,6 +88,8 @@ public sealed partial class StudentImportExecutionService
         {
             cancellationToken.ThrowIfCancellationRequested();
             var committed = 0;
+            var logItemsVerified = 0;
+            var logItemReviewWindows = 0;
             var completedWindows = 0;
             var nextOffset = plan.File.TotalRows;
             var completed = new List<StudentImportCohortWindowStatusDto>(plan.Windows.Length);
@@ -84,22 +102,36 @@ public sealed partial class StudentImportExecutionService
                 {
                     committed += expected;
                     completedWindows++;
+                    var auditCode = !itemCounts.TryGetValue(logId, out var physical)
+                        ? "MissingLogItems"
+                        : physical.Rows != expected ? "RowCountMismatch"
+                        : physical.Success != expected ? "UnsuccessfulRows"
+                        : physical.WithSource != expected ? "MissingSourceKeys"
+                        : "Verified";
+                    var verified = auditCode == "Verified";
+                    if (verified) logItemsVerified += expected;
+                    else logItemReviewWindows++;
                     completed.Add(new StudentImportCohortWindowStatusDto
                     {
                         RowOffset = window.Offset, ImportedRows = expected,
-                        ImportReference = log.Reference
+                        ImportReference = log.Reference,
+                        LogItemsVerified = verified, LogItemAuditCode = auditCode
                     });
                 }
                 else if (nextOffset == plan.File.TotalRows)
                     nextOffset = window.Offset;
             }
             result.CommittedRows += committed;
+            result.LogItemsVerifiedRows += logItemsVerified;
+            result.LogItemReviewWindows += logItemReviewWindows;
             result.Files.Add(new StudentImportCohortFileStatusDto
             {
                 FileHash = plan.File.FileHash.ToLowerInvariant(),
                 MappingHash = plan.File.MappingHash.ToLowerInvariant(),
                 TotalRows = plan.File.TotalRows,
                 CommittedRows = committed,
+                LogItemsVerifiedRows = logItemsVerified,
+                LogItemReviewWindows = logItemReviewWindows,
                 NextOffset = nextOffset,
                 MissingWindows = plan.Windows.Length - completedWindows,
                 CompletedWindows = completed

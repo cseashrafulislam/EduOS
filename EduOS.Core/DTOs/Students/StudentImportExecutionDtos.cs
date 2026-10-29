@@ -84,6 +84,9 @@ public sealed class StudentImportCohortWindowStatusDto
     public int RowOffset { get; set; }
     public int ImportedRows { get; set; }
     public Guid ImportReference { get; set; }
+    // Only physical import-log items, not learner/guardian/academic integrity.
+    public bool LogItemsVerified { get; set; }
+    public string LogItemAuditCode { get; set; } = "NotChecked";
 }
 
 public sealed class StudentImportCohortFileStatusDto
@@ -94,6 +97,10 @@ public sealed class StudentImportCohortFileStatusDto
     public int CommittedRows { get; set; }
     public int NextOffset { get; set; }
     public int MissingWindows { get; set; }
+    public int LogItemsVerifiedRows { get; set; }
+    public int LogItemReviewWindows { get; set; }
+    public bool IsLogItemReconciled => IsComplete && LogItemReviewWindows == 0 &&
+        LogItemsVerifiedRows == CommittedRows;
     public List<StudentImportCohortWindowStatusDto> CompletedWindows { get; set; } = new();
     public bool IsComplete => CommittedRows == TotalRows;
 }
@@ -102,6 +109,10 @@ public sealed class StudentImportCohortStatusDto
 {
     public int ExpectedRows { get; set; }
     public int CommittedRows { get; set; }
+    public int LogItemsVerifiedRows { get; set; }
+    public int LogItemReviewWindows { get; set; }
+    public bool IsLogItemReconciled => IsComplete && LogItemReviewWindows == 0 &&
+        LogItemsVerifiedRows == CommittedRows;
     public int PendingRows => ExpectedRows - CommittedRows;
     public bool IsComplete => ExpectedRows > 0 && PendingRows == 0;
     public List<StudentImportCohortFileStatusDto> Files { get; set; } = new();

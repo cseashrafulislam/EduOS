@@ -48,15 +48,20 @@
         return normalized;
     }
     function cohortSummaryCsv(status) {
-        const lines = ['FileHash,MappingHash,ExpectedRows,CommittedRows,MissingWindows,Status'];
+        const lines = ['FileHash,MappingHash,ExpectedRows,CommittedRows,LogItemsVerifiedRows,LogItemReviewWindows,MissingWindows,Status'];
         for (const file of status.files || []) {
             if (!/^[a-f0-9]{64}$/.test(file.fileHash) ||
                 !/^[a-f0-9]{64}$/.test(file.mappingHash) ||
-                ![file.totalRows, file.committedRows, file.missingWindows].every(Number.isSafeInteger))
+                ![file.totalRows, file.committedRows, file.logItemsVerifiedRows,
+                    file.logItemReviewWindows, file.missingWindows].every(Number.isSafeInteger) ||
+                file.logItemsVerifiedRows < 0 || file.logItemsVerifiedRows > file.committedRows ||
+                file.logItemReviewWindows < 0 || file.logItemReviewWindows > 50)
                 throw new Error('Invalid reconciliation response.');
             lines.push([file.fileHash, file.mappingHash, file.totalRows,
-                file.committedRows, file.missingWindows,
-                file.isComplete ? 'Complete' : 'Pending'].join(','));
+                file.committedRows, file.logItemsVerifiedRows, file.logItemReviewWindows,
+                file.missingWindows,
+                file.isLogItemReconciled ? 'LogItemsVerified' :
+                    file.isComplete ? 'Review' : 'Pending'].join(','));
         }
         return '\uFEFF' + lines.join('\r\n');
     }
