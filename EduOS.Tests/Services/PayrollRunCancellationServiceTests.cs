@@ -82,6 +82,32 @@ public sealed class PayrollRunCancellationServiceTests
         (await db.PayrollRuns.SingleAsync()).State.Should().Be(PayrollRunState.Approved);
     }
 
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task Legacy_soft_deleted_financial_history_cannot_be_ignored(bool journal)
+    {
+        await using var db = Database();
+        var run = await SeedRun(db);
+        if (journal)
+            db.Journals.Add(new Journal { Id = 100, TenantId = 41, JournalNumber = "GL-HIST",
+                SourceType = "PayrollRun", SourceId = run.Id, State = JournalState.Posted,
+                IsDeleted = true });
+        else
+        {
+            db.PayrollEmployees.Add(new PayrollEmployee
+            { Id = 17, TenantId = 41, PayrollRunId = run.Id, EmployeeId = 3, NetAmount = 100m,
+                IsDeleted = true });
+            db.PayrollPayments.Add(new PayrollPayment
+            { Id = 21, TenantId = 41, PayrollEmployeeId = 17, ClientRequestId = Guid.NewGuid(),
+                PaymentDate = new DateOnly(2026, 10, 31), Amount = 100m,
+                State = PaymentState.Successful, IsDeleted = true });
+        }
+        await db.SaveChangesAsync();
+        (await Service(db).CancelAsync(run.PublicId, Request())).StatusCode.Should().Be(409);
+        (await db.PayrollRuns.SingleAsync()).State.Should().Be(PayrollRunState.Approved);
+    }
+
     [Fact]
     public async Task Posted_run_is_immutable_even_without_linked_journal()
     {

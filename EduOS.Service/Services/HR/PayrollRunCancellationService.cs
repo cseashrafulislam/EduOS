@@ -71,14 +71,16 @@ public sealed class PayrollRunCancellationService : IPayrollRunCancellationServi
                 return Error("Posted payroll is immutable; use an independently approved GL reversal workflow.", 409);
 
             // Check both directions: legacy journals may have SourceType/SourceId without a run.JournalId.
-            if (run.JournalId.HasValue || await db.Journals.AsNoTracking().AnyAsync(x =>
+            if (run.JournalId.HasValue || await db.Journals.IgnoreQueryFilters().AsNoTracking().AnyAsync(x =>
                 x.TenantId == tenant && x.SourceType == "PayrollRun" && x.SourceId == run.Id, ct))
                 return Error("A payroll GL journal exists; payroll cannot be administratively cancelled.", 409);
-            var employeeIds = db.PayrollEmployees.AsNoTracking().Where(x => x.TenantId == tenant &&
+            // Soft-deleted legacy imports still count as financial history. Keep an explicit
+            // tenant predicate whenever query filters are deliberately bypassed for this guard.
+            var employeeIds = db.PayrollEmployees.IgnoreQueryFilters().AsNoTracking().Where(x => x.TenantId == tenant &&
                 x.PayrollRunId == run.Id).Select(x => x.Id);
-            if (await db.PayrollPayments.AsNoTracking().AnyAsync(x =>
+            if (await db.PayrollPayments.IgnoreQueryFilters().AsNoTracking().AnyAsync(x =>
                     x.TenantId == tenant && employeeIds.Contains(x.PayrollEmployeeId), ct) ||
-                await db.LoanAdvanceRecoveries.AsNoTracking().AnyAsync(x =>
+                await db.LoanAdvanceRecoveries.IgnoreQueryFilters().AsNoTracking().AnyAsync(x =>
                     x.TenantId == tenant && x.PayrollEmployeeId.HasValue &&
                     employeeIds.Contains(x.PayrollEmployeeId.Value), ct))
                 return Error("This payroll has payment or loan recovery history and requires reconciliation.", 409);
