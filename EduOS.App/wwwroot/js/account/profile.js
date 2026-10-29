@@ -590,9 +590,9 @@ function escapeHtml(value) {
     );
 }
 
-async function authSecurityPost(url, body) {
+async function authSecurityPost(url, body, sessionBound = false) {
     return apiRequest(url, {
-        method: 'POST', cache: 'no-store',
+        method: 'POST', cache: 'no-store', sessionBound,
         headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': getAntiForgeryToken() },
         body: JSON.stringify(body)
     });
@@ -615,7 +615,7 @@ function initializeAuthSecurityControls() {
             }
             button.disabled = true;
             try {
-                const result = await authSecurityPost(url, { currentPassword, code, useRecoveryCode });
+                const result = await authSecurityPost(url, { currentPassword, code, useRecoveryCode }, true);
                 document.getElementById('mfaManagePassword').value = '';
                 document.getElementById('mfaManageCode').value = '';
                 if (id === 'mfaDisableBtn') {

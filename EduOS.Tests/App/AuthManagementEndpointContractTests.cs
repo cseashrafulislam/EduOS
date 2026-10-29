@@ -158,4 +158,38 @@ public sealed class AuthManagementEndpointContractTests
         Assert.Equal("EduOS.CookieSession", AuthSessionRegistry.Provider);
         Assert.NotEqual("RefreshToken", AuthSessionRegistry.Provider);
     }
+    [Theory]
+    [InlineData(nameof(AuthController.SetupMfa), "// ==================== MFA Enable")]
+    [InlineData(nameof(AuthController.EnableMfa), "// ==================== MFA Login")]
+    [InlineData(nameof(AuthController.DisableMfa), "public async Task<IActionResult> RegenerateRecoveryCodes(")]
+    [InlineData(nameof(AuthController.RegenerateRecoveryCodes), "private async Task<bool> VerifyMfaActionCodeAsync")]
+    public void Mfa_credential_mutations_recheck_exact_session_in_serializable_transaction(
+        string method, string next)
+    {
+        var source = File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "TestAssets", "AuthController.cs"));
+        var start = source.IndexOf("public async Task<IActionResult> " + method + "(", StringComparison.Ordinal);
+        var end = source.IndexOf(next, start, StringComparison.Ordinal);
+        Assert.True(start >= 0 && end > start);
+        var action = source[start..end];
+        Assert.Contains("AuthSessionRegistry.IsValidPrincipalAsync(_db, User)", action);
+        Assert.Contains("throw new AccountSessionChangedException();", action);
+        Assert.Contains("System.Data.IsolationLevel.Serializable, HttpContext.RequestAborted", action);
+        Assert.Contains("catch (AccountSessionChangedException)", action);
+    }
+
+    [Theory]
+    [InlineData(nameof(AuthController.DisableMfa), "public async Task<IActionResult> RegenerateRecoveryCodes(")]
+    [InlineData(nameof(AuthController.RegenerateRecoveryCodes), "private async Task<bool> VerifyMfaActionCodeAsync")]
+    public void Mfa_management_response_is_bound_to_original_session_before_signout(
+        string method, string next)
+    {
+        var source = File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "TestAssets", "AuthController.cs"));
+        var start = source.IndexOf("public async Task<IActionResult> " + method + "(", StringComparison.Ordinal);
+        var end = source.IndexOf(next, start, StringComparison.Ordinal);
+        Assert.True(start >= 0 && end > start);
+        var action = source[start..end];
+        var binding = action.IndexOf("BindAccountReadbackSession();", StringComparison.Ordinal);
+        var signout = action.IndexOf("await _signInManager.SignOutAsync();", StringComparison.Ordinal);
+        Assert.True(binding >= 0 && signout > binding);
+    }
 }

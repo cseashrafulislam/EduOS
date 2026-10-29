@@ -62,5 +62,55 @@ test('profile, MFA status and active device list request session-bound responses
     assert.match(script, /apiRequest\('\/api\/auth\/mfa\/status', \{ cache: 'no-store', sessionBound: true \}\)/);
     assert.match(script, /apiRequest\('\/api\/auth\/sessions', \{ cache: 'no-store', sessionBound: true \}\)/);
     assert.match(auth, /private void BindAccountReadbackSession\(\)/);
-    assert.equal((auth.match(/BindAccountReadbackSession\(\);/g) || []).length, 3);
+    assert.equal((auth.match(/BindAccountReadbackSession\(\);/g) || []).length, 5);
+});
+
+test('MFA recovery-code response is never returned to a stale institution or session', async () => {
+    const start = script.indexOf('async function authSecurityPost(');
+    const end = script.indexOf('function initializeAuthSecurityControls()', start);
+    assert.ok(start >= 0 && end > start);
+    assert.match(script, /authSecurityPost\(url, \{ currentPassword, code, useRecoveryCode \}, true\)/);
+    const helper = script.slice(start, end);
+    async function run(serverReference, serverTenant) {
+        let verificationCount = 0;
+        const context = {
+            document: { body: { dataset: { authSessionReference: reference, authTenantId: '100' } } },
+            window: {
+                EduOSSessionTransitionPending: () => false,
+                EduOSVerifySessionContext: () => { verificationCount++; }
+            },
+            getAntiForgeryToken: () => 'test-csrf-token',
+            fetch: async (_url, options) => {
+                assert.equal(options.method, 'POST');
+                assert.equal(options.sessionBound, undefined);
+                assert.equal(options.headers['X-CSRF-TOKEN'], 'test-csrf-token');
+                return {
+                    status: 200, ok: true,
+                    headers: { get: key => ({
+                        'content-type': 'application/json',
+                        'X-EduOS-Session-Reference': serverReference,
+                        'X-EduOS-Tenant-Id': serverTenant
+                    })[key] ?? null },
+                    json: async () => ({ success: true, data: { recoveryCodes: ['one-time-private-code'] } })
+                };
+            }
+        };
+        const post = vm.runInNewContext(requestFunction + helper + '\nauthSecurityPost', context);
+        try {
+            const result = await post('/api/auth/mfa/recovery-codes/regenerate',
+                { currentPassword: 'password', code: '123456' }, true);
+            return { codes: result.data.recoveryCodes, verificationCount };
+        } catch (error) {
+            return { error: error.message, verificationCount };
+        }
+    }
+    const accepted = await run(reference, '100');
+    assert.equal(accepted.codes[0], 'one-time-private-code');
+    assert.equal(accepted.verificationCount, 0);
+    for (const [sid, tenant] of [['B'.repeat(64), '100'], [reference, '200'], [null, '100']]) {
+        const denied = await run(sid, tenant);
+        assert.match(denied.error, /Account session changed/);
+        assert.equal(denied.verificationCount, 1);
+        assert.equal(denied.codes, undefined);
+    }
 });

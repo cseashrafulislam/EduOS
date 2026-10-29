@@ -230,6 +230,8 @@ namespace EduOS.App.Controllers.Api
 
             if (user == null)
                 return Unauthorized(new { success = false, message = "Invalid session." });
+            if (!await AuthSessionRegistry.IsValidPrincipalAsync(_db, User))
+                return Unauthorized(new { success = false, message = "Session changed. Sign in again." });
 
             if (user.TwoFactorEnabled)
                 return Conflict(new { success = false, message = "Multi-factor authentication is already enabled." });
@@ -251,6 +253,8 @@ namespace EduOS.App.Controllers.Api
                 {
                     sharedKey = await _db.ExecuteInTransactionAsync(async ct =>
                     {
+                        if (!await AuthSessionRegistry.IsValidPrincipalAsync(_db, User))
+                            throw new AccountSessionChangedException();
                         var reset = await _userManager.ResetAuthenticatorKeyAsync(user);
                         if (!reset.Succeeded)
                             throw new AuthTransactionRejectedException("Authenticator setup failed.", 500);
@@ -260,7 +264,11 @@ namespace EduOS.App.Controllers.Api
                         // Never commit a rotated authenticator secret while old sessions remain registered.
                         await AuthSessionRegistry.RevokeAllAsync(_db, user.Id);
                         return key;
-                    }, HttpContext.RequestAborted);
+                    }, System.Data.IsolationLevel.Serializable, HttpContext.RequestAborted);
+                }
+                catch (AccountSessionChangedException)
+                {
+                    return Conflict(new { success = false, message = "Session changed. Sign in again." });
                 }
                 catch (AuthTransactionRejectedException ex)
                 {
@@ -273,8 +281,9 @@ namespace EduOS.App.Controllers.Api
 
             if (string.IsNullOrWhiteSpace(sharedKey))
                 return StatusCode(StatusCodes.Status500InternalServerError, new { success = false, message = "Authenticator setup failed." });
-            if (issuedSid.Length != 48)
-                return Unauthorized(new { success = false, message = "Session unavailable." });
+            if (issuedSid.Length != 48 ||
+                !await AuthSessionRegistry.IsValidAsync(_db, user.Id, issuedSid, session.TenantId))
+                return Unauthorized(new { success = false, message = "Session changed. Sign in again." });
 
             var accountLabel = $"EduOS:{user.Email ?? user.UserName ?? user.Id.ToString()}";
             var authenticatorUri = "otpauth://totp/" + Uri.EscapeDataString(accountLabel) + "?secret=" + Uri.EscapeDataString(sharedKey) + "&issuer=" + Uri.EscapeDataString("EduOS") + "&digits=6";
@@ -302,6 +311,8 @@ namespace EduOS.App.Controllers.Api
 
             if (user == null)
                 return Unauthorized(new { success = false, message = "Invalid session." });
+            if (!await AuthSessionRegistry.IsValidPrincipalAsync(_db, User))
+                return Unauthorized(new { success = false, message = "Session changed. Sign in again." });
 
             if (user.TwoFactorEnabled)
                 return Conflict(new { success = false, message = "Multi-factor authentication is already enabled." });
@@ -330,6 +341,8 @@ namespace EduOS.App.Controllers.Api
             {
                 recoveryCodes = await _db.ExecuteInTransactionAsync(async ct =>
                 {
+                    if (!await AuthSessionRegistry.IsValidPrincipalAsync(_db, User))
+                        throw new AccountSessionChangedException();
                     var generated = (await _userManager.GenerateNewTwoFactorRecoveryCodesAsync(
                         user, _mfaSettings.RecoveryCodeCount))?.ToArray() ?? [];
                     if (generated.Length != _mfaSettings.RecoveryCodeCount)
@@ -346,7 +359,11 @@ namespace EduOS.App.Controllers.Api
                     // Atomic revocation: no old password-only cookie remains valid after MFA activation.
                     await AuthSessionRegistry.RevokeAllAsync(_db, user.Id);
                     return generated;
-                });
+                }, System.Data.IsolationLevel.Serializable, HttpContext.RequestAborted);
+            }
+            catch (AccountSessionChangedException)
+            {
+                return Conflict(new { success = false, message = "Session changed. Sign in again." });
             }
             catch (AuthTransactionRejectedException ex)
             {
@@ -450,6 +467,8 @@ namespace EduOS.App.Controllers.Api
             Response.Headers.CacheControl = "no-store";
             var user = await GetCurrentUserAsync();
             if (user == null) return Unauthorized(new { success = false, message = "Session unavailable." });
+            if (!await AuthSessionRegistry.IsValidPrincipalAsync(_db, User))
+                return Unauthorized(new { success = false, message = "Session changed. Sign in again." });
             if (!user.TwoFactorEnabled) return Conflict(new { success = false, message = "MFA is already disabled." });
             if (!User.HasClaim("amr", "mfa"))
                 return StatusCode(403, new { success = false, message = "Sign in with MFA before changing authenticator settings." });
@@ -460,6 +479,8 @@ namespace EduOS.App.Controllers.Api
             {
                 await _db.ExecuteInTransactionAsync(async ct =>
                 {
+                    if (!await AuthSessionRegistry.IsValidPrincipalAsync(_db, User))
+                        throw new AccountSessionChangedException();
                     if (!await VerifyMfaActionCodeAsync(user, dto))
                         throw new AuthTransactionRejectedException("Password or verification code is invalid.", 400);
                     var disabled = await _userManager.SetTwoFactorEnabledAsync(user, false);
@@ -470,12 +491,18 @@ namespace EduOS.App.Controllers.Api
                         throw new AuthTransactionRejectedException("Authenticator reset failed.");
                     await AuthSessionRegistry.RevokeAllAsync(_db, user.Id);
                     return true;
-                });
+                }, System.Data.IsolationLevel.Serializable, HttpContext.RequestAborted);
+            }
+            catch (AccountSessionChangedException)
+            {
+                return Conflict(new { success = false, message = "Session changed. Sign in again." });
             }
             catch (AuthTransactionRejectedException ex)
             {
                 return StatusCode(ex.StatusCode, new { success = false, message = ex.Message });
             }
+            // Bind one-time security response to the requesting cookie before revocation clears it.
+            BindAccountReadbackSession();
             await _signInManager.SignOutAsync();
             _logger.LogWarning("MFA disabled by user {UserId}", user.Id);
             return Ok(new { success = true, message = "MFA disabled. Sign in again." });
@@ -489,6 +516,8 @@ namespace EduOS.App.Controllers.Api
             Response.Headers.CacheControl = "no-store";
             var user = await GetCurrentUserAsync();
             if (user == null) return Unauthorized(new { success = false, message = "Session unavailable." });
+            if (!await AuthSessionRegistry.IsValidPrincipalAsync(_db, User))
+                return Unauthorized(new { success = false, message = "Session changed. Sign in again." });
             if (!user.TwoFactorEnabled || !User.HasClaim("amr", "mfa"))
                 return StatusCode(403, new { success = false, message = "Sign in with MFA to manage recovery codes." });
             if (dto == null || string.IsNullOrWhiteSpace(dto.CurrentPassword) || string.IsNullOrWhiteSpace(dto.Code) ||
@@ -501,6 +530,8 @@ namespace EduOS.App.Controllers.Api
             {
                 codes = await _db.ExecuteInTransactionAsync(async ct =>
                 {
+                    if (!await AuthSessionRegistry.IsValidPrincipalAsync(_db, User))
+                        throw new AccountSessionChangedException();
                     if (!await VerifyMfaActionCodeAsync(user, dto))
                         throw new AuthTransactionRejectedException("Password or verification code is invalid.", 400);
                     var newCodes = (await _userManager.GenerateNewTwoFactorRecoveryCodesAsync(
@@ -512,12 +543,18 @@ namespace EduOS.App.Controllers.Api
                         throw new AuthTransactionRejectedException("Account changed. Retry after signing in.");
                     await AuthSessionRegistry.RevokeAllAsync(_db, user.Id);
                     return newCodes;
-                });
+                }, System.Data.IsolationLevel.Serializable, HttpContext.RequestAborted);
+            }
+            catch (AccountSessionChangedException)
+            {
+                return Conflict(new { success = false, message = "Session changed. Sign in again." });
             }
             catch (AuthTransactionRejectedException ex)
             {
                 return StatusCode(ex.StatusCode, new { success = false, message = ex.Message });
             }
+            // Bind one-time security response to the requesting cookie before revocation clears it.
+            BindAccountReadbackSession();
             await _signInManager.SignOutAsync();
             _logger.LogInformation("MFA recovery codes rotated for user {UserId}", user.Id);
             return Ok(new { success = true, message = "Store these recovery codes securely. Sign in again.",
