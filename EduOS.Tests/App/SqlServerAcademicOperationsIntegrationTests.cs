@@ -635,6 +635,26 @@ public sealed class SqlServerAcademicOperationsIntegrationTests
         Assert.Equal(AttendanceState.Absent, archivedEvent.PreviousState);
         Assert.Equal(AttendanceState.Present, archivedEvent.NewState);
         Assert.Equal(managerId, archivedEvent.ChangedByUserId);
+        var correctionQuery = new StudentAttendanceCorrectionReportQueryDto
+        {
+            AcademicBatchId = batchId, FromDate = sqlSession.AttendanceDate,
+            ToDate = sqlSession.AttendanceDate, SubjectOfferingId = sqlOffering.Id,
+            StudentSearch = historicalCode, ChangedByUserId = managerId,
+            PreviousState = AttendanceState.Absent, NewState = AttendanceState.Present
+        };
+        var correctionFiltered = await attendance.GetCorrectionReportAsync(correctionQuery);
+        Assert.True(correctionFiltered.Success, correctionFiltered.Message);
+        Assert.Equal(1, correctionFiltered.Data!.TotalCount);
+        Assert.Equal(archivedEvent.Id, Assert.Single(correctionFiltered.Data.Items).AdjustmentId);
+        correctionQuery.ChangedByUserId = managerId + 1;
+        Assert.Equal(0, (await attendance.GetCorrectionReportAsync(correctionQuery)).Data!.TotalCount);
+        correctionQuery.ChangedByUserId = managerId;
+        correctionQuery.PreviousState = AttendanceState.Late;
+        Assert.Equal(0, (await attendance.GetCorrectionReportAsync(correctionQuery)).Data!.TotalCount);
+        correctionQuery.PreviousState = (AttendanceState)99;
+        Assert.Equal(400, (await attendance.GetCorrectionReportAsync(correctionQuery)).StatusCode);
+        correctionQuery.PreviousState = AttendanceState.Absent;
+        Assert.Equal(404, (await otherTenant.GetCorrectionReportAsync(correctionQuery)).StatusCode);
         Assert.Equal(409, (await attendance.CorrectAttendanceAsync(
             archivedMark.Id, new AttendanceCorrectionRequestDto
             {

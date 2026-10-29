@@ -269,6 +269,36 @@
 {
     <section class="content-card mt-3" aria-labelledby="attendanceCorrectionAuditTitle">
         <div class="content-card-heading"><h3 id="attendanceCorrectionAuditTitle">Attendance correction audit</h3></div>
+        <div class="row g-2 mb-2 align-items-end">
+            <div class="col-md-4">
+                <label for="attendanceCorrectionAuditStudent" class="form-label">Find student</label>
+                <input id="attendanceCorrectionAuditStudent" class="form-control form-control-sm"
+                       maxlength="100" autocomplete="off" placeholder="Roll, code or name prefix" />
+            </div>
+            <div class="col-md-2">
+                <label for="attendanceCorrectionAuditActor" class="form-label">Changed by user ID</label>
+                <input id="attendanceCorrectionAuditActor" class="form-control form-control-sm"
+                       type="number" min="1" step="1" inputmode="numeric" />
+            </div>
+            <div class="col-md-3">
+                <label for="attendanceCorrectionAuditPreviousState" class="form-label">Previous status</label>
+                <select id="attendanceCorrectionAuditPreviousState" class="form-select form-select-sm">
+                    <option value="">All</option>
+                    <option value="1">Present</option><option value="2">Absent</option>
+                    <option value="3">Late</option><option value="4">Leave</option>
+                    <option value="5">Excused</option>
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label for="attendanceCorrectionAuditNewState" class="form-label">New status</label>
+                <select id="attendanceCorrectionAuditNewState" class="form-select form-select-sm">
+                    <option value="">All</option>
+                    <option value="1">Present</option><option value="2">Absent</option>
+                    <option value="3">Late</option><option value="4">Leave</option>
+                    <option value="5">Excused</option>
+                </select>
+            </div>
+        </div>
         <div class="d-flex flex-wrap gap-2 mb-2">
             <button id="attendanceCorrectionAuditLoad" type="button" class="btn btn-sm btn-primary">Load corrections for report filters</button>
             <button id="attendanceCorrectionAuditCsv" type="button" class="btn btn-sm btn-outline-primary" disabled>Export visible page CSV</button>

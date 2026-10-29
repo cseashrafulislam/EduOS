@@ -196,6 +196,11 @@ public sealed class StudentAttendanceCorrectionReportQueryDto
     public DateOnly FromDate { get; set; }
     public DateOnly ToDate { get; set; }
     public long? SubjectOfferingId { get; set; }
+    // Manager audit filters are applied in SQL before count and paging.
+    [MaxLength(100)] public string? StudentSearch { get; set; }
+    [Range(1, long.MaxValue)] public long? ChangedByUserId { get; set; }
+    public AttendanceState? PreviousState { get; set; }
+    public AttendanceState? NewState { get; set; }
 }
 
 public sealed class StudentAttendanceCorrectionReportRowDto

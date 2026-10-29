@@ -302,8 +302,8 @@ public sealed class StudentAttendanceCampusWorkflowTests
         db.StudentAttendanceAdjustments.Add(new StudentAttendanceAdjustment
         {
             Id = 350, TenantId = 71, StudentAttendanceId = 332,
-            PreviousState = AttendanceState.Absent, NewState = AttendanceState.Present,
-            Reason = "Other subject", ChangedByUserId = 7
+            PreviousState = AttendanceState.Leave, NewState = AttendanceState.Absent,
+            Reason = "Other subject", ChangedByUserId = 8
         });
         await db.SaveChangesAsync();
         var service = Service(db, new Actor("TenantAdmin"));
@@ -323,6 +323,30 @@ public sealed class StudentAttendanceCampusWorkflowTests
         Assert.Equal(404, (await service.GetCorrectionReportAsync(query)).StatusCode);
         query.SubjectOfferingId = null;
         Assert.Equal(4, (await service.GetCorrectionReportAsync(query)).Data!.TotalCount);
+        query.StudentSearch = "A30";
+        Assert.Equal(4, (await service.GetCorrectionReportAsync(query)).Data!.TotalCount);
+        query.StudentSearch = "unknown";
+        Assert.Equal(0, (await service.GetCorrectionReportAsync(query)).Data!.TotalCount);
+        query.StudentSearch = null;
+        query.ChangedByUserId = 8;
+        Assert.Equal(1, (await service.GetCorrectionReportAsync(query)).Data!.TotalCount);
+        query.PreviousState = AttendanceState.Leave;
+        query.NewState = AttendanceState.Absent;
+        Assert.Equal(350, Assert.Single((await service.GetCorrectionReportAsync(query)).Data!.Items).AdjustmentId);
+        query.ChangedByUserId = 7;
+        Assert.Equal(0, (await service.GetCorrectionReportAsync(query)).Data!.TotalCount);
+        query.ChangedByUserId = 0;
+        Assert.Equal(400, (await service.GetCorrectionReportAsync(query)).StatusCode);
+        query.ChangedByUserId = null;
+        query.PreviousState = (AttendanceState)99;
+        Assert.Equal(400, (await service.GetCorrectionReportAsync(query)).StatusCode);
+        query.PreviousState = null;
+        query.NewState = (AttendanceState)99;
+        Assert.Equal(400, (await service.GetCorrectionReportAsync(query)).StatusCode);
+        query.NewState = null;
+        query.StudentSearch = new string('x', 101);
+        Assert.Equal(400, (await service.GetCorrectionReportAsync(query)).StatusCode);
+        query.StudentSearch = null;
         query.ToDate = query.FromDate.AddDays(31);
         Assert.Equal(400, (await service.GetCorrectionReportAsync(query)).StatusCode);
     }

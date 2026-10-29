@@ -627,7 +627,11 @@ public sealed class StudentAttendanceService : IStudentAttendanceService
             query.ToDate < query.FromDate ||
             query.ToDate > DateOnly.FromDateTime(_clock.GetUtcNow().UtcDateTime.AddDays(1)) ||
             query.ToDate.DayNumber - query.FromDate.DayNumber > 30 ||
-            query.SubjectOfferingId is <= 0 || page < 1 || pageSize is < 1 or > 100 ||
+            query.SubjectOfferingId is <= 0 || query.StudentSearch?.Length > 100 ||
+            query.ChangedByUserId is <= 0 ||
+            (query.PreviousState.HasValue && !Enum.IsDefined(typeof(AttendanceState), query.PreviousState.Value)) ||
+            (query.NewState.HasValue && !Enum.IsDefined(typeof(AttendanceState), query.NewState.Value)) ||
+            page < 1 || pageSize is < 1 or > 100 ||
             (long)(page - 1) * pageSize > int.MaxValue)
             return Error<PagedResult<StudentAttendanceCorrectionReportRowDto>>(
                 "Valid batch, attendance dates (up to 31 days), subject and page are required.");
@@ -690,6 +694,20 @@ public sealed class StudentAttendanceService : IStudentAttendanceService
                 var offeringId = query.SubjectOfferingId.Value;
                 rows = rows.Where(x => x.SubjectOfferingId == offeringId);
             }
+            // SQL-only prefix search and exact actor/state transition filters.
+            // Authorization remains inside the tenant/batch/campus join.
+            if (!string.IsNullOrWhiteSpace(query.StudentSearch))
+            {
+                var term = query.StudentSearch.Trim();
+                rows = rows.Where(x => x.RollNo.StartsWith(term) ||
+                    x.StudentCode.StartsWith(term) || x.StudentName.StartsWith(term));
+            }
+            if (query.ChangedByUserId.HasValue)
+                rows = rows.Where(x => x.ChangedByUserId == query.ChangedByUserId.Value);
+            if (query.PreviousState.HasValue)
+                rows = rows.Where(x => x.PreviousState == query.PreviousState.Value);
+            if (query.NewState.HasValue)
+                rows = rows.Where(x => x.NewState == query.NewState.Value);
             var total = await rows.CountAsync(ct);
             var items = await rows.OrderByDescending(x => x.ChangedAt)
                 .ThenByDescending(x => x.AdjustmentId)

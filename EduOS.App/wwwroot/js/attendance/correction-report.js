@@ -30,10 +30,23 @@
         const days = (Date.parse(to) - Date.parse(from)) / 86400000;
         if (!/^\d+$/.test(batch) || !from || !to || !Number.isFinite(days) ||
             days < 0 || days > 30) throw new Error('Choose a batch and 1–31 attendance days.');
+        const studentSearch = el('attendanceCorrectionAuditStudent').value.trim();
+        const actor = el('attendanceCorrectionAuditActor').value.trim();
+        const previousState = el('attendanceCorrectionAuditPreviousState').value;
+        const newState = el('attendanceCorrectionAuditNewState').value;
+        if (studentSearch.length > 100 ||
+            (actor && (!/^[1-9][0-9]*$/.test(actor) || !Number.isSafeInteger(Number(actor)))) ||
+            (previousState && !Object.hasOwn(names, previousState)) ||
+            (newState && !Object.hasOwn(names, newState)))
+            throw new Error('Use a valid student prefix, user ID and attendance status.');
         return {
             academicBatchId: batch, fromDate: from, toDate: to,
             ...(el('attendanceReportSubject').value ?
-                { subjectOfferingId: el('attendanceReportSubject').value } : {})
+                { subjectOfferingId: el('attendanceReportSubject').value } : {}),
+            ...(studentSearch ? { studentSearch } : {}),
+            ...(actor ? { changedByUserId: actor } : {}),
+            ...(previousState ? { previousState } : {}),
+            ...(newState ? { newState } : {})
         };
     }
     async function load() {
@@ -95,7 +108,7 @@
         const a = document.createElement('a');
         a.href = url;
         a.download = 'attendance-corrections-batch-' + applied.academicBatchId +
-            '-page-' + page + '.csv';
+            '-filtered-page-' + page + '.csv';
         document.body.append(a); a.click(); a.remove(); URL.revokeObjectURL(url);
     });
     loadButton.addEventListener('click', () => {
@@ -109,7 +122,9 @@
         if (page < pages) { page++; void load(); }
     });
     for (const id of ['attendanceReportBatch','attendanceReportFrom','attendanceReportTo',
-        'attendanceReportSubject','attendanceReportBatchSearch','attendanceReportSubjectSearch']) {
+        'attendanceReportSubject','attendanceReportBatchSearch','attendanceReportSubjectSearch',
+        'attendanceCorrectionAuditStudent','attendanceCorrectionAuditActor',
+        'attendanceCorrectionAuditPreviousState','attendanceCorrectionAuditNewState']) {
         el(id).addEventListener('change', reset);
     }
     reset();

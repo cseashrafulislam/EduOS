@@ -9,12 +9,16 @@ const api = fs.readFileSync(path.join(root, 'EduOS.App/Controllers/Api/StudentAt
 test('manager correction report has scoped SQL-paged API and authorized UI', () => {
     for (const id of ['attendanceCorrectionAuditLoad','attendanceCorrectionAuditCsv',
         'attendanceCorrectionAuditRows','attendanceCorrectionAuditPrevious',
-        'attendanceCorrectionAuditNext','attendanceCorrectionAuditPage'])
+        'attendanceCorrectionAuditNext','attendanceCorrectionAuditPage',
+        'attendanceCorrectionAuditStudent','attendanceCorrectionAuditActor',
+        'attendanceCorrectionAuditPreviousState','attendanceCorrectionAuditNewState'])
         assert.match(view, new RegExp('id="' + id + '"'));
     assert.match(api, /\[HttpGet\("corrections\/report"\)\]/);
     assert.match(api, /GetCorrectionReportAsync\(query, page, pageSize, cancellationToken\)/);
     assert.match(js, /\/api\/student-attendance\/corrections\/report\?/);
     assert.match(js, /pageSize: '20'/);
+    for (const filter of ['studentSearch','changedByUserId','previousState','newState'])
+        assert.match(js, new RegExp(filter));
     assert.match(js, /credentials: 'same-origin'/);
     assert.match(js, /cache: 'no-store'/);
     assert.match(js, /\^\\s\*\[=\+\\-@\\t\\r\]/);
