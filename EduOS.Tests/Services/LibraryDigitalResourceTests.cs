@@ -4,6 +4,7 @@ using EduOS.Core.DTOs.Library;
 using EduOS.Core.Entities.Academic;
 using EduOS.Core.Entities.Auth;
 using EduOS.Core.Entities.Files;
+using EduOS.Core.Entities.HR;
 using EduOS.Core.Entities.Library;
 using EduOS.Core.Entities.SaaS;
 using EduOS.Core.Entities.Students;
@@ -246,4 +247,84 @@ public sealed class LibraryDigitalResourceTests
         { Title = "Reactivation attempt", RowVersion = Convert.ToBase64String(document.RowVersion) }))
             .StatusCode.Should().Be(409);
     }
+
+    [Fact]
+    public async Task Employee_access_follows_effective_campus_assignment_and_employment_state()
+    {
+        await using var db = Context();
+        var reference = Guid.NewGuid();
+        var seed = await SeedAsync(db, reference);
+        db.DocumentTypeDefinitions.Add(new DocumentTypeDefinition
+        { TenantId = 101, Code = "LIBRARY_DIGITAL", Name = "Digital", IsActive = true });
+        db.Documents.Add(new Document
+        {
+            TenantId = 101, PublicId = reference, FileAssetId = seed.Asset.Id,
+            DocumentTypeCode = "LIBRARY_DIGITAL", EntityType = "LibraryBook",
+            EntityId = seed.Book.Id, Title = "Staff handbook", IsActive = true
+        });
+        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        var employee = new Employee
+        {
+            TenantId = 101, PersonId = 19, UserId = 7, DesignationId = 1,
+            EmployeeCode = "DIG-STAFF", FullName = "Digital reader",
+            JoiningDate = today.AddDays(-30), State = EmployeeState.Active
+        };
+        db.Employees.Add(employee);
+        await db.SaveChangesAsync();
+        var storage = new Mock<IFileUploadService>();
+        storage.Setup(x => x.GetPrivateFileAsync(seed.Asset.StorageKey))
+            .ReturnsAsync(new FileDownloadResult { Content = seed.Bytes, ContentType = "application/pdf" });
+        var reader = Service(db, "Employee", storage: storage);
+        (await reader.ListAsync(null, null, 1, 20, false)).StatusCode.Should().Be(403);
+        (await reader.DownloadAsync(reference)).StatusCode.Should().Be(404);
+        storage.Verify(x => x.GetPrivateFileAsync(It.IsAny<string>()), Times.Never);
+        var assignment = new EmployeeCampusAssignment
+        {
+            TenantId = 101, EmployeeId = employee.Id, CampusId = seed.Enrollment.CampusId,
+            EffectiveFrom = today.AddDays(-1), EffectiveTo = today.AddDays(1), IsCurrent = true
+        };
+        db.EmployeeCampusAssignments.Add(assignment);
+        await db.SaveChangesAsync();
+        (await reader.ListAsync(null, null, 1, 20, false)).Data!.Items.Should().ContainSingle();
+        (await reader.DownloadAsync(reference)).Success.Should().BeTrue();
+        assignment.EffectiveTo = today.AddDays(-1);
+        await db.SaveChangesAsync();
+        (await reader.DownloadAsync(reference)).StatusCode.Should().Be(404);
+        assignment.EffectiveTo = today.AddDays(1);
+        employee.State = EmployeeState.Suspended;
+        await db.SaveChangesAsync();
+        (await reader.ListAsync(null, null, 1, 20, false)).StatusCode.Should().Be(403);
+        (await reader.DownloadAsync(reference)).StatusCode.Should().Be(404);
+    }
+
+    [Fact]
+    public async Task Ambiguous_private_file_owner_is_never_listed_or_downloaded()
+    {
+        await using var db = Context();
+        var reference = Guid.NewGuid();
+        var seed = await SeedAsync(db, reference);
+        db.DocumentTypeDefinitions.Add(new DocumentTypeDefinition
+        { TenantId = 101, Code = "LIBRARY_DIGITAL", Name = "Digital", IsActive = true });
+        db.Documents.Add(new Document
+        {
+            TenantId = 101, PublicId = reference, FileAssetId = seed.Asset.Id,
+            DocumentTypeCode = "LIBRARY_DIGITAL", EntityType = "LibraryBook",
+            EntityId = seed.Book.Id, Title = "Library document", IsActive = true
+        });
+        db.Documents.Add(new Document
+        {
+            TenantId = 101, PublicId = Guid.NewGuid(), FileAssetId = seed.Asset.Id,
+            DocumentTypeCode = "SENSITIVE", EntityType = "Student",
+            EntityId = 999, Title = "Other owner", IsActive = true
+        });
+        await db.SaveChangesAsync();
+        var storage = new Mock<IFileUploadService>();
+        var reader = Service(db, "Student", storage: storage);
+        (await reader.ListAsync(null, null, 1, 20, false)).Data!.Items.Should().BeEmpty();
+        (await reader.DownloadAsync(reference)).StatusCode.Should().Be(404);
+        storage.Verify(x => x.GetPrivateFileAsync(It.IsAny<string>()), Times.Never);
+        (await db.AuditLogs.AnyAsync(x => x.Action == "LibraryDigitalResource.Download"))
+            .Should().BeFalse();
+    }
+
 }
