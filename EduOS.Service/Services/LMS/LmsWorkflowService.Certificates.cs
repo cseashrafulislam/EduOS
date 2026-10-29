@@ -10,6 +10,18 @@ namespace EduOS.Service.Services.LMS;
 
 public sealed partial class LmsWorkflowService
 {
+    // SQL Server may report a race as a direct SqlException, an EF update error,
+    // or an execution-strategy InvalidOperationException. Only known write
+    // conflicts become HTTP 409; unrelated database faults must remain visible.
+    private static bool IsCertificateSqlConflict(Exception error)
+    {
+        for (Exception? current = error; current != null; current = current.InnerException)
+            if (current is Microsoft.Data.SqlClient.SqlException sql &&
+                sql.Number is 1205 or 1222 or 3960 or 2601 or 2627)
+                return true;
+        return false;
+    }
+
     /// <summary>
     /// Issuance is idempotent by tenant/request GUID and unique active enrollment.
     /// A revoked certificate can only be reissued as a new revision retaining the
@@ -125,9 +137,9 @@ public sealed partial class LmsWorkflowService
         }
         catch (DbUpdateConcurrencyException)
         { return Error<LmsCertificateDto>("Certificate changed concurrently.", 409); }
-        catch (DbUpdateException ex)
+        catch (Exception ex) when (IsCertificateSqlConflict(ex))
         {
-            _logger.LogWarning(ex, "LMS certificate issuance conflict tenant {TenantId}", _user.TenantId);
+            _logger.LogWarning(ex, "LMS certificate issuance SQL conflict tenant {TenantId}", _user.TenantId);
             return Error<LmsCertificateDto>("Certificate issuance conflicts with another request.", 409);
         }
     }
@@ -171,9 +183,9 @@ public sealed partial class LmsWorkflowService
         }
         catch (DbUpdateConcurrencyException)
         { return Error<LmsCertificateDto>("Certificate changed concurrently.", 409); }
-        catch (DbUpdateException ex)
+        catch (Exception ex) when (IsCertificateSqlConflict(ex))
         {
-            _logger.LogWarning(ex, "LMS certificate revocation conflict tenant {TenantId}", _user.TenantId);
+            _logger.LogWarning(ex, "LMS certificate revocation SQL conflict tenant {TenantId}", _user.TenantId);
             return Error<LmsCertificateDto>("Certificate revocation conflicts with another request.", 409);
         }
     }
