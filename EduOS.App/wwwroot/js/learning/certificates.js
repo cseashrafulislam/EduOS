@@ -4,6 +4,7 @@ const root = document.getElementById('lmsCertificateApp');
 if (!root) return;
 const $ = id => document.getElementById(id);
 const student = root.dataset.studentMode === 'true';
+const guardian = root.dataset.guardianMode === 'true';
 const lang = (document.documentElement.lang || 'en').toLowerCase().startsWith('bn') ? 'bn' : 'en';
 const messages = {
  en: {title:'LMS Completion Certificates',help:'Certificates require verified course completion. Revocation preserves the original; reissue creates a new revision.',
@@ -16,7 +17,7 @@ const messages = {
  confirm:'Revoke this certificate? The original will remain in history.',error:'Request failed.',
  missing:'Your session changed. Sign in again.',refused:'Revoked certificates cannot be printed as valid.',
  retry:'Reload the certificate and try again.',history:'Issuance history',event:'Event',when:'When',actor:'Actor ID',
- issuedEvent:'Issued',reissuedEvent:'Reissued',revokedEvent:'Revoked',noHistory:'No audit events found.'},
+ issuedEvent:'Issued',reissuedEvent:'Reissued',revokedEvent:'Revoked',noHistory:'No audit events found.',sharing:'Guardian access',chooseGuardian:'Guardian',share:'Allow access'},
  bn: {title:'এলএমএস কোর্স সমাপ্তির সনদ',help:'যাচাইকৃত কোর্স সমাপ্তির পর সনদ দেওয়া হয়। বাতিল হলেও মূল ইতিহাস থাকে; পুনরায় দিলে নতুন সংস্করণ তৈরি হয়।',
  course:'কোর্স',previous:'আগের',next:'পরের',register:'সনদ নিবন্ধন',learner:'শিক্ষার্থী',
  revision:'সংস্করণ',issued:'ইস্যুর তারিখ',status:'অবস্থা',action:'কার্যক্রম',loading:'লোড হচ্ছে…',
@@ -27,7 +28,7 @@ const messages = {
  confirm:'এই সনদ বাতিল করবেন? মূল ইতিহাস সংরক্ষিত থাকবে।',error:'অনুরোধ ব্যর্থ হয়েছে।',
  missing:'সেশন পরিবর্তিত হয়েছে। আবার লগইন করুন।',refused:'বাতিল সনদ বৈধ হিসেবে প্রিন্ট করা যাবে না।',
  retry:'সনদ পুনরায় লোড করুন।',history:'ইস্যুর ইতিহাস',event:'ঘটনা',when:'সময়',actor:'কার্যসম্পাদনকারী আইডি',
- issuedEvent:'ইস্যু',reissuedEvent:'পুনরায় ইস্যু',revokedEvent:'বাতিল',noHistory:'কোনো অডিট তথ্য পাওয়া যায়নি।'}
+ issuedEvent:'ইস্যু',reissuedEvent:'পুনরায় ইস্যু',revokedEvent:'বাতিল',noHistory:'কোনো অডিট তথ্য পাওয়া যায়নি।',sharing:'অভিভাবকের প্রবেশাধিকার',chooseGuardian:'অভিভাবক',share:'প্রবেশাধিকার দিন'}
 };
 const t = key => messages[lang][key] || messages.en[key] || key;
 root.querySelectorAll('[data-lms-i18n]').forEach(node => {node.textContent=t(node.dataset.lmsI18n);});
@@ -90,8 +91,8 @@ function renderRows(){
 async function loadRows(){
  const seq=++state.request;
  state.controller?.abort();state.controller=new AbortController();
- if(!student&&!state.course){state.rows=[];state.pages=1;renderRows();return;}
- const url=student?'/api/lms/certificates/mine':
+ if(!student&&!guardian&&!state.course){state.rows=[];state.pages=1;renderRows();return;}
+ const url=guardian?'/api/lms/certificate-sharing/mine':student?'/api/lms/certificates/mine':
   '/api/lms/certificates/course/'+encodeURIComponent(state.course);
  try {
   const data=await api(url+'?page='+state.page+'&pageSize=20','GET',undefined,state.controller.signal);
@@ -117,7 +118,7 @@ async function loadCourses(){
 async function showCertificate(reference){
  const seq=++state.detailRequest;
  try {
-  const row=await api('/api/lms/certificates/'+encodeURIComponent(reference));
+  const row=await api((guardian?'/api/lms/certificate-sharing/':'/api/lms/certificates/')+encodeURIComponent(reference));
   if(!currentSession()||seq!==state.detailRequest)return;
   state.selected=row;
   $('lmsCertificateStudent').textContent=row.studentName+' ('+row.studentCode+')';
@@ -134,9 +135,10 @@ async function showCertificate(reference){
   const print=$('lmsCertificatePrint');
   if(row.isRevoked){print.removeAttribute('href');print.classList.add('disabled');
    print.setAttribute('aria-disabled','true');print.tabIndex=-1;}
-  else{print.href='/Learning/CertificatePrint?reference='+encodeURIComponent(row.reference);
+  else{print.href=(guardian?'/LmsGuardianCertificates/Print?reference=':'/Learning/CertificatePrint?reference=')+encodeURIComponent(row.reference);
    print.classList.remove('disabled');print.setAttribute('aria-disabled','false');print.tabIndex=0;}
   if($('lmsCertificateAuditRows'))loadAudit(row.reference,seq);
+  if(student)root.dispatchEvent(new CustomEvent('lms-certificate-selected',{detail:{reference:row.reference}}));
   if($('lmsCertificateRevoke')){
    $('lmsCertificateRevoke').disabled=row.isRevoked;
    $('lmsCertificateReissue').disabled=!row.isRevoked;
@@ -186,7 +188,7 @@ async function reissue(){
 $('lmsCertificatePrev').addEventListener('click',()=>{if(state.page>1){state.page--;loadRows();}});
 $('lmsCertificateNext').addEventListener('click',()=>{if(state.page<state.pages){state.page++;loadRows();}});
 
-if(!student){
+if(!student&&!guardian){
  $('lmsCertificateCourse').addEventListener('change',e=>{state.course=e.target.value;state.page=1;clearDetail();loadRows();});
  $('lmsCertificateCoursePrev').addEventListener('click',()=>{if(state.coursePage>1){state.coursePage--;loadCourses();}});
  $('lmsCertificateCourseNext').addEventListener('click',()=>{if(state.coursePage<state.coursePages){state.coursePage++;loadCourses();}});
@@ -198,7 +200,7 @@ if(!student){
 const help=$('lmsCertificateHelp');
 document.addEventListener('keydown',e=>{if(e.key==='Escape')help.open=false;});
 document.addEventListener('pointerdown',e=>{if(!help.contains(e.target))help.open=false;});
-if(student)loadRows();else loadCourses();
+if(student||guardian)loadRows();else loadCourses();
 const deepLink=new URLSearchParams(location.search).get('certificate');
 if(deepLink&&/^[0-9a-f-]{36}$/i.test(deepLink))showCertificate(deepLink);
 })();

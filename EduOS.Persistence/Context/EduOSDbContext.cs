@@ -398,6 +398,7 @@ public class EduOSDbContext :
     public DbSet<Course> Courses => Set<Course>();
     public DbSet<CourseEnrollment> CourseEnrollments => Set<CourseEnrollment>();
     public DbSet<LmsCompletionCertificate> LmsCompletionCertificates => Set<LmsCompletionCertificate>();
+    public DbSet<LmsCertificateGuardianGrant> LmsCertificateGuardianGrants => Set<LmsCertificateGuardianGrant>();
     public DbSet<CourseSection> CourseSections => Set<CourseSection>();
     public DbSet<Lesson> Lessons => Set<Lesson>();
     public DbSet<LessonProgress> LessonProgresses => Set<LessonProgress>();
@@ -478,12 +479,35 @@ public class EduOSDbContext :
         ConfigureIdentity(modelBuilder);
         ConfigureBaseEntityConventions(modelBuilder);
         ConfigureRelationships(modelBuilder);
+        ConfigureLmsCertificateGuardianGrants(modelBuilder);
         ConfigureIndexes(modelBuilder);
         ConfigureCheckConstraints(modelBuilder);
         ConfigureAuditLog(modelBuilder);
         ConfigureSpecialMappings(modelBuilder);
         ApplyDateTimeType(modelBuilder);
         DisableCascadeDelete(modelBuilder);
+    }
+
+    private static void ConfigureLmsCertificateGuardianGrants(ModelBuilder modelBuilder)
+    {
+        modelBuilder.Entity<LmsCertificateGuardianGrant>(entity =>
+        {
+            entity.ToTable(t => t.HasCheckConstraint("CK_LmsCertificateGuardianGrants_Revocation",
+                "([RevokedAt] IS NULL AND [RevokedByUserId] IS NULL) OR ([RevokedAt] IS NOT NULL AND [RevokedByUserId] IS NOT NULL)"));
+            entity.HasIndex(x => x.PublicId).IsUnique();
+            entity.HasIndex(x => new { x.TenantId, x.ClientRequestId }).IsUnique();
+            entity.HasIndex(x => new { x.TenantId, x.CertificateId, x.StudentGuardianId })
+                .IsUnique().HasFilter("[RevokedAt] IS NULL AND [IsDeleted] = 0");
+            entity.HasIndex(x => new { x.TenantId, x.StudentGuardianId, x.RevokedAt });
+            entity.HasOne<LmsCompletionCertificate>().WithMany()
+                .HasForeignKey(x => new { x.TenantId, x.CertificateId })
+                .HasPrincipalKey(x => new { x.TenantId, x.Id })
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne<StudentGuardian>().WithMany()
+                .HasForeignKey(x => new { x.TenantId, x.StudentGuardianId })
+                .HasPrincipalKey(x => new { x.TenantId, x.Id })
+                .OnDelete(DeleteBehavior.Restrict);
+        });
     }
 
     private void ConfigureIdentity(ModelBuilder modelBuilder)

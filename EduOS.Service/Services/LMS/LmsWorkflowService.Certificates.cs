@@ -321,7 +321,7 @@ public sealed partial class LmsWorkflowService
             x.UserId == _user.UserId && !x.IsDeleted, ct);
     }
 
-    private static LmsCertificateDto MapCertificate(LmsCompletionCertificate row, Guid courseReference) => new()
+    internal static LmsCertificateDto MapCertificate(LmsCompletionCertificate row, Guid courseReference) => new()
     {
         Reference = row.PublicId, CourseEnrollmentId = row.CourseEnrollmentId,
         CourseReference = courseReference, CourseTitle = row.CourseTitleSnapshot,

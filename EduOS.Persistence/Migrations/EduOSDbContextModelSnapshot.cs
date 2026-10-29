@@ -12743,6 +12743,90 @@ namespace EduOS.Persistence.Migrations
                     b.ToTable("LiveClasses");
                 });
 
+            modelBuilder.Entity("EduOS.Core.Entities.LMS.LmsCertificateGuardianGrant", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
+
+                    b.Property<long>("TenantId")
+                        .HasColumnType("bigint");
+
+                    b.Property<Guid>("PublicId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("ClientRequestId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<long>("CertificateId")
+                        .HasColumnType("bigint");
+
+                    b.Property<long>("StudentGuardianId")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime>("GrantedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<long>("GrantedByUserId")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime?>("RevokedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<long?>("RevokedByUserId")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<long?>("CreatedBy")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<long?>("UpdatedBy")
+                        .HasColumnType("bigint");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<long?>("DeletedBy")
+                        .HasColumnType("bigint");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
+                    b.HasKey("Id");
+
+                    b.HasAlternateKey("TenantId", "Id");
+
+                    b.HasIndex("PublicId")
+                        .IsUnique();
+
+                    b.HasIndex("TenantId", "ClientRequestId")
+                        .IsUnique();
+
+                    b.HasIndex("TenantId", "CertificateId", "StudentGuardianId")
+                        .IsUnique()
+                        .HasFilter("[RevokedAt] IS NULL AND [IsDeleted] = 0");
+
+                    b.HasIndex("TenantId", "StudentGuardianId", "RevokedAt");
+
+                    b.ToTable("LmsCertificateGuardianGrants", t =>
+                        {
+                            t.HasCheckConstraint("CK_LmsCertificateGuardianGrants_Revocation", "([RevokedAt] IS NULL AND [RevokedByUserId] IS NULL) OR ([RevokedAt] IS NOT NULL AND [RevokedByUserId] IS NOT NULL)");
+                        });
+                });
+
             modelBuilder.Entity("EduOS.Core.Entities.LMS.LmsCompletionCertificate", b =>
                 {
                     b.Property<Guid>("ClientRequestId")
@@ -23339,6 +23423,31 @@ namespace EduOS.Persistence.Migrations
                     b.HasOne("EduOS.Core.Entities.HR.Employee", null)
                         .WithMany()
                         .HasForeignKey("TenantId", "InstructorEmployeeId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Tenant");
+                });
+
+            modelBuilder.Entity("EduOS.Core.Entities.LMS.LmsCertificateGuardianGrant", b =>
+                {
+                    b.HasOne("EduOS.Core.Entities.SaaS.Tenant", "Tenant")
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("EduOS.Core.Entities.LMS.LmsCompletionCertificate", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "CertificateId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("EduOS.Core.Entities.Students.StudentGuardian", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "StudentGuardianId")
                         .HasPrincipalKey("TenantId", "Id")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();

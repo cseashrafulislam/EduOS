@@ -1,9 +1,10 @@
 @{
     ViewData["Title"] = "LMS Completion Certificates";
+    var guardianMode = ViewData["LmsGuardianMode"] is true;
     var studentMode = User.IsInRole("Student") &&
         !User.IsInRole("Teacher") && !User.IsInRole("Principal") && !User.IsInRole("TenantAdmin");
 }
-<section id="lmsCertificateApp" class="container-fluid py-3" data-student-mode="@studentMode.ToString().ToLowerInvariant()">
+<section id="lmsCertificateApp" class="container-fluid py-3" data-student-mode="@studentMode.ToString().ToLowerInvariant()" data-guardian-mode="@guardianMode.ToString().ToLowerInvariant()">
     <header class="d-flex align-items-center gap-2 mb-3">
         <h2 class="h4 mb-0" data-lms-i18n="title">LMS Completion Certificates</h2>
         <details id="lmsCertificateHelp" class="position-relative">
@@ -14,7 +15,7 @@
         </details>
     </header>
     <div id="lmsCertificateAlert" class="d-none" role="alert" aria-live="polite" tabindex="-1"></div>
-    @if (!studentMode)
+    @if (!studentMode && !guardianMode)
     {
         <div class="card mb-3"><div class="card-body">
             <label for="lmsCertificateCourse" class="form-label" data-lms-i18n="course">Course</label>
@@ -67,6 +68,20 @@
                 <strong id="lmsCertificateStatus"></strong>
             </div>
         </article>
+        @if (studentMode)
+        {
+            <section class="card mt-3" id="lmsCertificateSharing" aria-label="Certificate guardian sharing">
+                <div class="card-header"><strong data-lms-i18n="sharing">Guardian access</strong></div>
+                <div class="card-body">
+                    <label for="lmsCertificateGuardian" class="form-label" data-lms-i18n="chooseGuardian">Guardian</label>
+                    <div class="d-flex flex-wrap gap-2">
+                        <select id="lmsCertificateGuardian" class="form-select flex-grow-1" style="max-width:25rem"></select>
+                        <button id="lmsCertificateGrant" type="button" class="btn btn-outline-primary" data-lms-i18n="share">Allow access</button>
+                    </div>
+                    <div id="lmsCertificateGrants" class="mt-3" aria-live="polite"></div>
+                </div>
+            </section>
+        }
         @if (User.IsInRole("TenantAdmin") || User.IsInRole("Principal") || User.IsInRole("Teacher"))
         {
             <div class="card mt-3" id="lmsCertificateAudit">
@@ -91,4 +106,8 @@
 </style>
 @section Scripts {
     <script src="~/js/learning/certificates.js" asp-append-version="true"></script>
+    @if (studentMode)
+    {
+        <script src="~/js/learning/certificate-sharing.js" asp-append-version="true"></script>
+    }
 }
