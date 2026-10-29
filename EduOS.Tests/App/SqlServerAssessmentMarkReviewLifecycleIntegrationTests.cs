@@ -27,12 +27,13 @@ namespace EduOS.Tests.App;
 public sealed class SqlServerAssessmentMarkReviewLifecycleIntegrationTests
 {
     [Theory]
-    [InlineData(0, false, 7)] // Reject: distinct courses -> (4 + 3) / 2
-    [InlineData(0, true, -1)] // Reject: repeated course must fail closed
-    [InlineData(1, true, 6)]  // Latest attempt replaces earlier grade of the same course
-    [InlineData(2, true, 8)]  // Highest grade preserves the earlier, better course attempt
+    [InlineData(0, false, 7, false)] // Reject: distinct courses -> (4 + 3) / 2
+    [InlineData(0, true, -1, false)] // Reject: repeated course must fail closed
+    [InlineData(1, true, 6, false)]  // Latest attempt replaces earlier grade of the same course
+    [InlineData(2, true, 8, false)]  // Highest grade preserves the earlier, better course attempt
+    [InlineData(2, true, 6, true)]   // Withdrawn v1 must not supersede the corrected v2 grade
     public async Task Cumulative_credit_gpa_uses_only_published_historical_course_snapshots(
-        int repeatPolicy, bool repeatedCourse, int twiceExpectedCgpa)
+        int repeatPolicy, bool repeatedCourse, int twiceExpectedCgpa, bool supersededHistory)
     {
         var connection = Environment.GetEnvironmentVariable("EDUOS_SQL_AUTH_TEST_CONNECTION");
         if (string.IsNullOrWhiteSpace(connection)) return;
@@ -119,6 +120,34 @@ public sealed class SqlServerAssessmentMarkReviewLifecycleIntegrationTests
                 FullMarks = 100m, ObtainedMarks = 90m, CreditHours = 2m, GradePoint = 4m,
                 GradeLetter = "A", IsPassed = true });
             await db.SaveChangesAsync();
+            if (supersededHistory)
+            {
+                // Simulate an audited republication: the previous immutable
+                // version remains stored, but must never influence current CGPA.
+                pastPublication.State = ResultPublicationState.Withdrawn;
+                await db.SaveChangesAsync();
+                var corrected = new ResultPublication { TenantId = seeded.TenantId,
+                    AssessmentId = historic.Id, AcademicBatchId = offering.AcademicBatchId,
+                    VersionNo = 2, State = ResultPublicationState.Published,
+                    HasCourseGradeSnapshots = true,
+                    PublishedByUserId = seeded.ReviewerId, PublishedAt = DateTime.UtcNow.AddDays(-19) };
+                db.ResultPublications.Add(corrected);
+                await db.SaveChangesAsync();
+                db.StudentResultSummaries.Add(new StudentResultSummary { TenantId = seeded.TenantId,
+                    ResultPublicationId = corrected.Id, StudentEnrollmentId = enrollment.Id,
+                    AssessmentId = historic.Id, PublicationVersionNo = 2,
+                    TotalMarks = 100m, ObtainedMarks = 70m, Percentage = 70m,
+                    GPA = 3m, CGPA = 3m, CreditHours = 2m, CourseCount = 1,
+                    GradeLetter = "B", IsPassed = true });
+                db.StudentResultCourseSnapshots.Add(new StudentResultCourseSnapshot {
+                    TenantId = seeded.TenantId, ResultPublicationId = corrected.Id,
+                    StudentEnrollmentId = enrollment.Id, AssessmentSubjectId = pastSubject.Id,
+                    CurriculumSubjectId = pastOffering.CurriculumSubjectId,
+                    StudentSubjectRegistrationId = pastRegistration.Id,
+                    FullMarks = 100m, ObtainedMarks = 70m, CreditHours = 2m,
+                    GradePoint = 3m, GradeLetter = "B", IsPassed = true });
+                await db.SaveChangesAsync();
+            }
             assessmentId = currentExam.Id;
             assessmentReference = currentExam.PublicId;
             batchId = offering.AcademicBatchId;
@@ -126,6 +155,15 @@ public sealed class SqlServerAssessmentMarkReviewLifecycleIntegrationTests
         await using (var db = TenantDb(options, seeded.TenantId))
         {
             var service = Service(db, new Actor(seeded.TenantId, seeded.ReviewerId, "TenantAdmin"));
+            var draft = await db.Assessments.SingleAsync(x => x.Id == assessmentId);
+            draft.CountsTowardCgpa = false;
+            await db.SaveChangesAsync();
+            var excluded = await service.PreviewResultsAsync(new() {
+                AssessmentId = assessmentId, AcademicBatchId = batchId });
+            Assert.True(excluded.Success, excluded.Message);
+            Assert.Null(Assert.Single(excluded.Data!.Results).CumulativeGradePointAverage);
+            draft.CountsTowardCgpa = true;
+            await db.SaveChangesAsync();
             var preview = await service.PreviewResultsAsync(new() {
                 AssessmentId = assessmentId, AcademicBatchId = batchId });
             if (twiceExpectedCgpa < 0)
