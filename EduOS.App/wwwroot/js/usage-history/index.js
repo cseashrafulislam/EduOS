@@ -36,8 +36,9 @@ async function loadQuota() {
             ? "Plan: " + data.planName + " (" + data.subscriptionStatus + "). "
             : "No currently effective subscription. ")
             + (snapshot ? "Saved usage as of " + snapshot + " (not live)." :
-                "No saved usage snapshot yet. Capture today's usage to compare limits.");
-        for (const metric of data.metrics || []) {
+                "No saved usage snapshot yet. Capture today's usage to compare limits.")
+            + " Institution user seats are counted live.";
+        for (const metric of [data.currentUserSeats, ...(data.metrics || [])].filter(Boolean)) {
             const tr = document.createElement("tr");
             td(tr, metric.name); td(tr, format(metric.used));
             td(tr, metric.isUnlimited ? "Unlimited" :

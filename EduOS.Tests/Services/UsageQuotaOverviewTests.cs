@@ -34,6 +34,19 @@ public sealed class UsageQuotaOverviewTests
         Assert.Empty(action.GetCustomAttributes(typeof(HttpPostAttribute), true));
     }
 
+    [Fact]
+    public void Live_user_seat_metric_is_separate_from_saved_daily_metrics()
+    {
+        var overview = new UsageQuotaOverviewDto
+        {
+            CurrentUserSeats = UsageQuotaMetricDto.FromCount("Institution users (live)", 2, 2)
+        };
+        Assert.False(overview.HasSnapshot);
+        Assert.Empty(overview.Metrics);
+        Assert.Equal(2, overview.CurrentUserSeats!.Used);
+        Assert.True(overview.CurrentUserSeats.IsNearLimit);
+    }
+
     [Theory]
     [InlineData(89, 100, false, false)]
     [InlineData(90, 100, true, false)]

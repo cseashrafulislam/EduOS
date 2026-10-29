@@ -166,8 +166,10 @@ public sealed class UsageHistoryService(
             .FirstOrDefaultAsync(ct);
         var plan = subscription == null ? null : await db.SubscriptionPlans.AsNoTracking()
             .Where(x => x.Id == subscription.SubscriptionPlanId && !x.IsDeleted)
-            .Select(x => new { x.Name, x.MaxStudents, x.MaxEmployees, x.MaxCampuses })
+            .Select(x => new { x.Name, x.MaxStudents, x.MaxEmployees, x.MaxCampuses, x.MaxUsers })
             .FirstOrDefaultAsync(ct);
+        var reservedUserSeats = await db.TenantMemberships.AsNoTracking().CountAsync(x =>
+            x.TenantId == tenantId && !x.IsDeleted && x.Status != MembershipStatus.Left, ct);
         var result = new UsageQuotaOverviewDto
         {
             HasActiveSubscription = subscription != null,
@@ -175,6 +177,8 @@ public sealed class UsageHistoryService(
             SubscriptionStatus = subscription?.State.ToString() ?? "None",
             SubscriptionEndsAt = subscription?.EndsAt,
             SnapshotDay = snapshot?.PeriodStart,
+            CurrentUserSeats = UsageQuotaMetricDto.FromCount(
+                "Institution users (live)", reservedUserSeats, plan?.MaxUsers),
             Metrics = snapshot == null ? Array.Empty<UsageQuotaMetricDto>() :
                 new[]
                 {
