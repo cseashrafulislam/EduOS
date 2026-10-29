@@ -297,6 +297,11 @@ public sealed partial class FinanceAdjustmentService : IFinanceAdjustmentService
             var total=await Refunds.Where(x=>x.StudentPaymentId==payment.Id && x.State!=RefundState.Rejected && x.State!=RefundState.Cancelled)
                 .SumAsync(x=>(decimal?)x.Amount,ct)??0m;
             if(total+request.Amount>payment.Amount) return Error<RefundDto>("Refund reservations exceed payment amount.",409);
+            var pending=await Refunds.Where(x=>x.StudentPaymentId==payment.Id &&
+                (x.State==RefundState.Draft || x.State==RefundState.Approved))
+                .SumAsync(x=>(decimal?)x.Amount,ct)??0m;
+            if(!await CanReserveRefundCapacityAsync(payment.Id,pending+request.Amount,ct))
+                return Error<RefundDto>("Refund exceeds the remaining paid invoice capacity or pending reservations.",409);
             var now=clock.GetUtcNow().UtcDateTime;
             var row=new Refund{TenantId=user.TenantId,ClientRequestId=request.ClientRequestId,StudentPaymentId=payment.Id,
                 Amount=request.Amount,Reason=request.Reason.Trim(),RequestedByUserId=user.UserId,

@@ -14,6 +14,56 @@ namespace EduOS.Service.Services.Finance;
 /// <summary>Only institutional posted cash receipts; partial refunds are contra journals, not destructive receipt reversals.</summary>
 public sealed partial class FinanceAdjustmentService
 {
+    // Validate every pending reservation against the original allocation history
+    // and the current shared invoice paid balances. A fully posted earlier refund
+    // has already reduced PaidAmount and must not be reserved a second time.
+    private async Task<bool> CanReserveRefundCapacityAsync(long paymentId,
+        decimal pendingAmount, CancellationToken ct)
+    {
+        if(!ValidMoney(pendingAmount)) return false;
+        var tenant=user.TenantId;
+        var allocations=await db.PaymentAllocations.IgnoreQueryFilters().AsNoTracking()
+            .Where(x=>x.TenantId==tenant && x.StudentPaymentId==paymentId)
+            .Select(x=>new { x.Id,x.StudentInvoiceId,x.Amount,x.IsDeleted }).ToListAsync(ct);
+        if(allocations.Count is <1 or >99 || allocations.Any(x=>x.IsDeleted ||
+            !ValidMoney(x.Amount)) ||
+            allocations.Select(x=>x.StudentInvoiceId).Distinct().Count()!=allocations.Count)
+            return false;
+        var invoiceIds=allocations.Select(x=>x.StudentInvoiceId).ToArray();
+        var invoices=await db.StudentInvoices.IgnoreQueryFilters().AsNoTracking()
+            .Where(x=>x.TenantId==tenant && invoiceIds.Contains(x.Id))
+            .Select(x=>new { x.Id,x.IsDeleted,x.State,x.TotalAmount,x.PaidAmount,x.DueAmount })
+            .ToListAsync(ct);
+        if(invoices.Count!=invoiceIds.Length || invoices.Any(x=>x.IsDeleted ||
+            !RefundInvoicePolicy.CanAdjust(x.State) || x.PaidAmount<=0m ||
+            x.TotalAmount!=x.PaidAmount+x.DueAmount))
+            return false;
+        var allocationIds=allocations.Select(x=>x.Id).ToArray();
+        var history=await db.RefundAllocations.IgnoreQueryFilters().AsNoTracking()
+            .Where(x=>x.TenantId==tenant && allocationIds.Contains(x.PaymentAllocationId))
+            .Select(x=>new { x.PaymentAllocationId,x.RefundId,x.Amount,x.IsDeleted }).ToListAsync(ct);
+        var refundIds=history.Select(x=>x.RefundId).Distinct().ToArray();
+        var refunds=await db.Refunds.IgnoreQueryFilters().AsNoTracking()
+            .Where(x=>x.TenantId==tenant && refundIds.Contains(x.Id))
+            .Select(x=>new { x.Id,x.StudentPaymentId,x.State,x.IsDeleted })
+            .ToDictionaryAsync(x=>x.Id,ct);
+        if(history.Any(x=>x.IsDeleted || !ValidMoney(x.Amount) ||
+            !refunds.TryGetValue(x.RefundId,out var refund) || refund.IsDeleted ||
+            refund.StudentPaymentId!=paymentId || refund.State!=RefundState.Paid))
+            return false;
+        var previouslyRefunded=history.GroupBy(x=>x.PaymentAllocationId)
+            .ToDictionary(x=>x.Key,x=>x.Sum(r=>r.Amount));
+        var paid=invoices.ToDictionary(x=>x.Id,x=>x.PaidAmount);
+        try
+        {
+            RefundAllocationPlanner.Plan(allocations.Select(x=>new RefundAllocationBalance(
+                x.Id,x.StudentInvoiceId,x.Amount,previouslyRefunded.GetValueOrDefault(x.Id),
+                paid[x.StudentInvoiceId])).ToArray(),pendingAmount);
+            return true;
+        }
+        catch(InvalidOperationException){return false;}
+    }
+
     public async Task<ApiResponse<RefundOperationsRegisterDto>> GetRefundRegisterAsync(
         long? campusId, int page = 1, int pageSize = 25, CancellationToken ct = default)
     {
@@ -117,6 +167,11 @@ public sealed partial class FinanceAdjustmentService
                     !RefundInvoicePolicy.CanAdjust(x.State) || x.PaidAmount<=0m ||
                     x.PaidAmount+x.DueAmount!=x.TotalAmount))
                     return Error<RefundDto>("Refund of fully paid invoices requires a Platform-owned immutable invoice credit-note integration; only partially paid invoices are currently supported.",409);
+                var pending=await Refunds.Where(x=>x.StudentPaymentId==payment.Id &&
+                    (x.State==RefundState.Draft || x.State==RefundState.Approved))
+                    .SumAsync(x=>(decimal?)x.Amount,ct)??0m;
+                if(!await CanReserveRefundCapacityAsync(payment.Id,pending,ct))
+                    return Error<RefundDto>("Outstanding refund reservations exceed current invoice paid balances.",409);
             }
             var now=clock.GetUtcNow().UtcDateTime;
             refund.State=request.Approve?RefundState.Approved:RefundState.Rejected;
@@ -271,7 +326,7 @@ public sealed partial class FinanceAdjustmentService
             try
             {
                 portions=RefundAllocationPlanner.Plan(allocations.Select(x=>
-                    new RefundAllocationBalance(x.Id,x.Amount,priorTotals.GetValueOrDefault(x.Id),
+                    new RefundAllocationBalance(x.Id,x.StudentInvoiceId,x.Amount,priorTotals.GetValueOrDefault(x.Id),
                         paidByInvoice[x.StudentInvoiceId])).ToArray(),refund.Amount);
             }
             catch(InvalidOperationException){return Error<RefundDto>(
@@ -390,8 +445,8 @@ public sealed partial class FinanceAdjustmentService
 }
 
 /// <summary>Deterministic distribution of a refund across the remaining original immutable payment allocations.</summary>
-public sealed record RefundAllocationBalance(long AllocationId,decimal OriginalAmount,decimal RefundedAmount,
-    decimal InvoicePaidAmount);
+public sealed record RefundAllocationBalance(long AllocationId,long InvoiceId,
+    decimal OriginalAmount,decimal RefundedAmount,decimal InvoicePaidAmount);
 public sealed record RefundAllocationPortion(long AllocationId,decimal Amount);
 public static class RefundAllocationPlanner
 {
@@ -400,23 +455,35 @@ public static class RefundAllocationPlanner
     {
         if(amount<=0m || decimal.Round(amount,2)!=amount || sources.Count is <1 or >99 ||
             sources.Select(x=>x.AllocationId).Distinct().Count()!=sources.Count ||
-            sources.Any(x=>x.AllocationId<=0 || x.OriginalAmount<=0m ||
+            sources.Any(x=>x.AllocationId<=0 || x.InvoiceId<=0 || x.OriginalAmount<=0m ||
                 decimal.Round(x.OriginalAmount,2)!=x.OriginalAmount ||
                 x.RefundedAmount<0m || decimal.Round(x.RefundedAmount,2)!=x.RefundedAmount ||
                 x.RefundedAmount>x.OriginalAmount || x.InvoicePaidAmount<0m ||
-                decimal.Round(x.InvoicePaidAmount,2)!=x.InvoicePaidAmount))
+                decimal.Round(x.InvoicePaidAmount,2)!=x.InvoicePaidAmount) ||
+            sources.GroupBy(x=>x.InvoiceId).Any(g=>g.Select(x=>x.InvoicePaidAmount)
+                .Distinct().Count()!=1))
             throw new InvalidOperationException("Invalid original or refunded allocation.");
         var left=amount;
         var result=new List<RefundAllocationPortion>();
+        // Multiple receipts can be allocated to one invoice. The current paid balance
+        // belongs to that invoice, not independently to every allocation; consuming
+        // the same paid balance twice would over-refund and corrupt its due balance.
+        var invoiceCapacity=sources.GroupBy(x=>x.InvoiceId)
+            .ToDictionary(g=>g.Key,g=>g.First().InvoicePaidAmount);
         foreach(var source in sources.OrderBy(x=>x.AllocationId))
         {
             // A different receipt/refund can reduce this invoice's paid balance.
             // Skip unavailable capacity and allocate against the next original
             // receipt line instead of rejecting a valid multi-invoice payout.
             var available=Math.Min(source.OriginalAmount-source.RefundedAmount,
-                source.InvoicePaidAmount);
+                invoiceCapacity[source.InvoiceId]);
             var take=Math.Min(left,available);
-            if(take>0m){result.Add(new RefundAllocationPortion(source.AllocationId,take));left-=take;}
+            if(take>0m)
+            {
+                result.Add(new RefundAllocationPortion(source.AllocationId,take));
+                invoiceCapacity[source.InvoiceId]-=take;
+                left-=take;
+            }
             if(left==0m)break;
         }
         if(left!=0m)throw new InvalidOperationException("Refund exceeds available allocation.");

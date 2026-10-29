@@ -127,8 +127,8 @@ public sealed class FinanceAdjustmentServiceTests
     public void Refund_planner_allocates_in_stable_order_without_touching_original_amounts()
     {
         var sources=new[]{
-            new RefundAllocationBalance(8,100m,20m,80m),
-            new RefundAllocationBalance(3,50m,10m,40m)};
+            new RefundAllocationBalance(8,18,100m,20m,80m),
+            new RefundAllocationBalance(3,13,50m,10m,40m)};
         var lines=RefundAllocationPlanner.Plan(sources,90m);
         lines.Select(x=>x.AllocationId).Should().Equal(3,8);
         lines.Select(x=>x.Amount).Should().Equal(40m,50m);
@@ -137,7 +137,7 @@ public sealed class FinanceAdjustmentServiceTests
     [Fact]
     public void Refund_planner_rejects_over_refund_and_invalid_precision()
     {
-        var sources=new[]{new RefundAllocationBalance(1,50m,45m,5m)};
+        var sources=new[]{new RefundAllocationBalance(1,11,50m,45m,5m)};
         Action excess=()=>RefundAllocationPlanner.Plan(sources,5.01m);
         Action precision=()=>RefundAllocationPlanner.Plan(sources,0.001m);
         excess.Should().Throw<InvalidOperationException>();
@@ -147,8 +147,8 @@ public sealed class FinanceAdjustmentServiceTests
     public void Refund_planner_respects_current_invoice_paid_capacity_and_moves_to_next_original_allocation()
     {
         var sources=new[]{
-            new RefundAllocationBalance(1,100m,0m,20m),
-            new RefundAllocationBalance(2,100m,10m,90m)};
+            new RefundAllocationBalance(1,11,100m,0m,20m),
+            new RefundAllocationBalance(2,12,100m,10m,90m)};
         var result=RefundAllocationPlanner.Plan(sources,70m);
         result.Select(x=>x.AllocationId).Should().Equal(1,2);
         result.Select(x=>x.Amount).Should().Equal(20m,50m);
@@ -156,8 +156,57 @@ public sealed class FinanceAdjustmentServiceTests
         Action excess=()=>RefundAllocationPlanner.Plan(sources,111m);
         excess.Should().Throw<InvalidOperationException>();
         Action negativePaid=()=>RefundAllocationPlanner.Plan(
-            new[]{new RefundAllocationBalance(1,100m,0m,-1m)},1m);
+            new[]{new RefundAllocationBalance(1,11,100m,0m,-1m)},1m);
         negativePaid.Should().Throw<InvalidOperationException>();
+    }
+    [Fact]
+    public void Refund_planner_shares_paid_balance_between_multiple_allocations_on_one_invoice()
+    {
+        var sources=new[]{
+            new RefundAllocationBalance(1,21,100m,0m,80m),
+            new RefundAllocationBalance(2,21,100m,0m,80m),
+            new RefundAllocationBalance(3,22,100m,20m,30m)};
+        var result=RefundAllocationPlanner.Plan(sources,105m);
+        result.Select(x=>x.AllocationId).Should().Equal(1,3);
+        result.Select(x=>x.Amount).Should().Equal(80m,25m);
+        Action excess=()=>RefundAllocationPlanner.Plan(sources,111m);
+        excess.Should().Throw<InvalidOperationException>();
+        Action conflictingSnapshot=()=>RefundAllocationPlanner.Plan(new[]{
+            new RefundAllocationBalance(1,21,100m,0m,80m),
+            new RefundAllocationBalance(2,21,100m,0m,100m)},10m);
+        conflictingSnapshot.Should().Throw<InvalidOperationException>();
+    }
+    [Fact]
+    public async Task Refund_requests_reserve_only_current_paid_capacity_and_prevent_overbooking()
+    {
+        var accessor=new HttpContextAccessor{HttpContext=new DefaultHttpContext()};
+        accessor.HttpContext.Items["TenantId"]=11L;
+        await using var db=new EduOSDbContext(new DbContextOptionsBuilder<EduOSDbContext>()
+            .UseInMemoryDatabase("finance-refund-reservations-"+Guid.NewGuid().ToString("N"))
+            .ConfigureWarnings(w=>w.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.InMemoryEventId.TransactionIgnoredWarning))
+            .Options,accessor);
+        var invoice=new StudentInvoice{TenantId=11,InvoiceNumber="INV-RESERVE-1",
+            State=EduOS.Core.Enums.Domain.InvoiceState.PartiallyPaid,
+            TotalAmount=200m,PaidAmount=50m,DueAmount=150m};
+        var payment=new StudentPayment{TenantId=11,ReceiptNumber="RCP-RESERVE-1",
+            Amount=100m,State=EduOS.Core.Enums.Domain.PaymentState.Successful};
+        db.StudentInvoices.Add(invoice);db.StudentPayments.Add(payment);
+        await TestTenantSeeder.SaveAsync(db);
+        db.PaymentAllocations.Add(new PaymentAllocation{TenantId=11,
+            StudentInvoiceId=invoice.Id,StudentPaymentId=payment.Id,Amount=100m});
+        await TestTenantSeeder.SaveAsync(db);
+        var service=new FinanceAdjustmentService(db,new TestUser(11,true),TimeProvider.System);
+        Task<EduOS.Core.Common.ApiResponse<RefundDto>> Request(decimal amount)=>
+            service.RequestRefundAsync(new CreateRefundRequestDto{ClientRequestId=Guid.NewGuid(),
+                StudentPaymentReference=payment.PublicId,Amount=amount,Reason="Verified overpayment"});
+        (await Request(60m)).StatusCode.Should().Be(409);
+        (await Request(30m)).Success.Should().BeTrue();
+        (await Request(25m)).StatusCode.Should().Be(409);
+        (await Request(20m)).Success.Should().BeTrue();
+        db.Refunds.Should().HaveCount(2);
+        db.Refunds.Sum(x=>x.Amount).Should().Be(50m);
+        invoice.PaidAmount.Should().Be(50m);
+        db.RefundAllocations.Should().BeEmpty();
     }
     [Fact]
     public void Paid_invoices_cannot_be_mutated_by_refund_workflow()
