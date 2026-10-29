@@ -150,10 +150,23 @@ public sealed partial class LmsWorkflowService
             if (!_user.IsInRole("Student"))
                 return Error<IReadOnlyList<AssignmentSubmissionFileDto>>("Submission access denied.", 403);
             var studentId = await OwnStudentIdAsync(ct);
-            if (studentId == 0 || !await _enrollments.GetQueryable().AsNoTracking().AnyAsync(x =>
-                x.TenantId == tenant && x.Id == row.CourseEnrollmentId && x.CourseId == course.Id &&
-                x.StudentId == studentId && !x.IsDeleted, ct))
+            var ownedEnrollment = studentId == 0 ? null :
+                await _enrollments.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
+                    x.TenantId == tenant && x.Id == row.CourseEnrollmentId &&
+                    x.CourseId == course.Id && x.StudentId == studentId && !x.IsDeleted, ct);
+            // V1 academic withdrawal revokes active V2 file readback immediately.
+            // A completed LMS enrollment keeps its historical submission evidence.
+            if (ownedEnrollment == null ||
+                (ownedEnrollment.State != CourseEnrollmentState.Active &&
+                 ownedEnrollment.State != CourseEnrollmentState.Completed))
                 return Error<IReadOnlyList<AssignmentSubmissionFileDto>>("Submission access denied.", 403);
+            if (ownedEnrollment.State == CourseEnrollmentState.Active &&
+                ownedEnrollment.StudentEnrollmentId.HasValue &&
+                !await _academicEnrollments.GetQueryable().AsNoTracking().AnyAsync(x =>
+                    x.TenantId == tenant && x.Id == ownedEnrollment.StudentEnrollmentId.Value &&
+                    x.StudentId == studentId && x.State == EnrollmentState.Active &&
+                    x.IsCurrent && !x.IsDeleted, ct))
+                return Error<IReadOnlyList<AssignmentSubmissionFileDto>>("Academic enrollment is inactive.", 403);
         }
         var links = await _submissionFiles.GetQueryable().AsNoTracking().Where(x =>
             x.TenantId == tenant && x.AssignmentSubmissionId == row.Id && !x.IsDeleted)

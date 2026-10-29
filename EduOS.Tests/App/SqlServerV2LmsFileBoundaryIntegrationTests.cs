@@ -183,4 +183,49 @@ public sealed partial class SqlServerTransportSeatCapacityIntegrationTests
             Assert.Empty(files.Data!);
         }
     }
+
+    [Fact]
+    public async Task V1_academic_withdrawal_revokes_active_LMS_files_but_preserves_completed_history()
+    {
+        var connection = Environment.GetEnvironmentVariable("EDUOS_SQL_AUTH_TEST_CONNECTION");
+        if (string.IsNullOrWhiteSpace(connection)) return;
+        var fixture = await SeedAsync(connection);
+        var data = await SeedLmsPrivateSubmissionsAsync(fixture);
+        await using (var db = ScopedContext(fixture.Options, fixture.TenantId, fixture.UserId))
+        {
+            var academic = await db.StudentEnrollments.SingleAsync(x =>
+                x.TenantId == fixture.TenantId && x.PublicId == fixture.Enrollments[0]);
+            academic.IsCurrent = false;
+            academic.State = EnrollmentState.Withdrawn;
+            // Student status remains Active during the lifecycle transition.
+            await db.SaveChangesAsync();
+        }
+        await using (var db = ScopedContext(fixture.Options, fixture.TenantId, fixture.UserId))
+        {
+            var denied = await LmsFileBoundaryService(db, fixture)
+                .GetSubmissionFilesAsync(data.OwnSubmissionId);
+            Assert.Equal(403, denied.StatusCode);
+            Assert.False(denied.Success);
+        }
+        await using (var db = ScopedContext(fixture.Options, fixture.TenantId, fixture.UserId))
+        {
+            var submission = await db.Set<AssignmentSubmission>().SingleAsync(x =>
+                x.TenantId == fixture.TenantId && x.Id == data.OwnSubmissionId);
+            var enrollment = await db.Set<CourseEnrollment>().SingleAsync(x =>
+                x.TenantId == fixture.TenantId && x.Id == submission.CourseEnrollmentId);
+            enrollment.State = CourseEnrollmentState.Completed;
+            enrollment.CompletedAt = DateTime.UtcNow;
+            var academic = await db.StudentEnrollments.SingleAsync(x =>
+                x.TenantId == fixture.TenantId && x.Id == enrollment.StudentEnrollmentId);
+            academic.State = EnrollmentState.Completed;
+            await db.SaveChangesAsync();
+        }
+        await using (var db = ScopedContext(fixture.Options, fixture.TenantId, fixture.UserId))
+        {
+            var history = await LmsFileBoundaryService(db, fixture)
+                .GetSubmissionFilesAsync(data.OwnSubmissionId);
+            Assert.True(history.Success, history.Message);
+            Assert.Equal(data.OwnFile, Assert.Single(history.Data!).FileAssetReference);
+        }
+    }
 }
