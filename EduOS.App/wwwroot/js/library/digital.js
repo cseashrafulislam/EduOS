@@ -184,7 +184,7 @@
         resources.forEach(resource => {
             const tr = document.createElement('tr');
             const expired = !!resource.expiresOn && resource.expiresOn < new Date().toISOString().slice(0, 10);
-            [resource.bookTitle, (resource.title || '') + ' (v' + (resource.versionNo || 1) + ')', resource.fileName,
+            [resource.bookTitle, resource.title, resource.fileName,
                 !resource.isActive ? words('Revoked', 'বাতিল') :
                     expired ? words('Expired', 'মেয়াদ শেষ') : words('Active', 'সক্রিয়'),
                 resource.expiresOn || '—'].forEach(value => tr.append(td(value)));
