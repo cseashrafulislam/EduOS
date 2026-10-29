@@ -337,7 +337,9 @@
             }
             integritySummary.textContent = 'Physical record audit: ' +
                 integrityReport.healthyRows + ' / ' + integrityReport.expectedRows +
-                ' rows verified; Guardian links: ' + integrityReport.guardianLinksHealthy +
+                ' rows verified; Source receipts: ' + integrityReport.sourceReceiptsHealthy +
+                '/' + integrityReport.sourceReceiptsChecked +
+                '; Guardian links: ' + integrityReport.guardianLinksHealthy +
                 '/' + integrityReport.guardianLinksChecked +
                 '; Current academic enrollments: ' + integrityReport.currentEnrollmentsChecked +
                 '; Required subjects: ' + integrityReport.requiredSubjectsHealthy +

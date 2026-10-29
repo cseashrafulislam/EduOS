@@ -960,6 +960,72 @@ public sealed class StudentImportExecutionServiceTests
     }
 
     [Fact]
+    public async Task Committed_integrity_audit_detects_receipt_hash_and_row_sequence_drift_without_private_data()
+    {
+        var options = Options(); await SeedAsync(options);
+        await using var db = Context(options, 101);
+        var service = Service(db, new User(101, true));
+        using var csv = Csv(Header +
+            "HASH-1,HASH-STU-1,Private One,10,20,51,,\n" +
+            "HASH-2,HASH-STU-2,Private Two,10,20,52,,\n");
+        var imported = await service.ExecuteAsync(csv, ".csv", Mapping, Guid.NewGuid());
+        Assert.True(imported.Success, imported.Message);
+        var reference = imported.Data!.ImportReference;
+        var clean = await service.GetIntegrityAsync(reference);
+        Assert.True(clean.Data!.IsHealthy);
+        Assert.Equal(2, clean.Data.SourceReceiptsChecked);
+        Assert.Equal(2, clean.Data.SourceReceiptsHealthy);
+
+        var key = await db.IdempotencyRecords.SingleAsync(x =>
+            x.Scope == "StudentImportSource" && x.RequestHash != null &&
+            x.RequestHash.Length == 64 && x.TargetId ==
+                db.Students.Single(s => s.StudentCode == "HASH-STU-1").Id);
+        key.RequestHash = new string('0', 64);
+        var items = await db.ImportLogItems.OrderBy(x => x.RowNumber).ToListAsync();
+        items[1].RowNumber = items[0].RowNumber;
+        await db.SaveChangesAsync();
+
+        var report = await service.GetIntegrityAsync(reference);
+        Assert.True(report.Success, report.Message);
+        Assert.False(report.Data!.IsHealthy);
+        Assert.Equal(2, report.Data.SourceReceiptsChecked);
+        Assert.Equal(1, report.Data.SourceReceiptsHealthy);
+        Assert.Contains(report.Data.Issues, x => x.Code == "SourceReceiptHashMismatch");
+        Assert.Contains(report.Data.Issues, x => x.Code == "NonContiguousRowNumbers");
+        Assert.Contains(report.Data.Issues, x => x.Code == "InvalidRowNumber");
+        var messages = string.Join(" ", report.Data.Issues.Select(x => x.Message));
+        Assert.DoesNotContain("HASH-", messages);
+        Assert.DoesNotContain("Private", messages);
+        Assert.Equal(2, await db.Students.CountAsync());
+        await using var foreign = Context(options, 202);
+        Assert.Equal(404, (await Service(foreign, new User(202, true))
+            .GetIntegrityAsync(reference)).StatusCode);
+    }
+
+    [Fact]
+    public async Task Committed_integrity_audit_detects_duplicate_source_rows_without_throwing()
+    {
+        var options = Options(); await SeedAsync(options);
+        await using var db = Context(options, 101);
+        var service = Service(db, new User(101, true));
+        using var csv = Csv(Header +
+            "DUP-1,DUP-STU-1,Private One,10,20,61,,\n" +
+            "DUP-2,DUP-STU-2,Private Two,10,20,62,,\n");
+        var imported = await service.ExecuteAsync(csv, ".csv", Mapping, Guid.NewGuid());
+        Assert.True(imported.Success, imported.Message);
+        var items = await db.ImportLogItems.OrderBy(x => x.RowNumber).ToListAsync();
+        items[1].BusinessKey = items[0].BusinessKey;
+        await db.SaveChangesAsync();
+        var report = await service.GetIntegrityAsync(imported.Data!.ImportReference);
+        Assert.True(report.Success, report.Message);
+        Assert.False(report.Data!.IsHealthy);
+        Assert.Contains(report.Data.Issues, x => x.Code == "DuplicateSourceKey");
+        Assert.Contains(report.Data.Issues, x => x.Code == "DuplicateStudentTarget");
+        Assert.Equal(2, report.Data.SourceReceiptsChecked);
+        Assert.Equal(2, await db.Students.CountAsync());
+    }
+
+    [Fact]
     public async Task Committed_integrity_audit_flags_duplicate_targets_and_deleted_person_without_private_details()
     {
         var options = Options(); await SeedAsync(options);

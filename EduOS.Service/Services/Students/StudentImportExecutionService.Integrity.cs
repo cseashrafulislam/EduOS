@@ -1,3 +1,5 @@
+using System.Security.Cryptography;
+using System.Text;
 using EduOS.Core.Common;
 using EduOS.Core.DTOs.Students;
 using EduOS.Core.Enums.Domain;
@@ -48,9 +50,11 @@ public sealed partial class StudentImportExecutionService
         var keys = await _keys.GetQueryable().AsNoTracking()
             .Where(x => x.TenantId == tenant && x.Scope == SourceScope &&
                 !x.IsDeleted && x.CompletedAt.HasValue && sourceIds.Contains(x.RequestId))
-            .Select(x => new { x.RequestId, x.TargetId })
+            .Select(x => new { x.RequestId, x.RequestHash, x.TargetId })
             .ToListAsync(cancellationToken);
-        var bySource = keys.ToDictionary(x => x.RequestId, x => x.TargetId);
+        // Historical/corrupted duplicate receipts must be reported as an audit
+        // defect, not crash the entire authorized report with ToDictionary.
+        var bySource = keys.ToLookup(x => x.RequestId);
         var studentIds = keys.Where(x => x.TargetId.HasValue)
             .Select(x => x.TargetId!.Value).Distinct().ToArray();
         var students = await _students.GetQueryable().AsNoTracking()
@@ -149,6 +153,8 @@ public sealed partial class StudentImportExecutionService
             CheckedRows = items.Count
         };
         var seenStudentTargets = new HashSet<long>();
+        var seenSources = new HashSet<Guid>();
+        var seenRowNumbers = new HashSet<int>();
         void Issue(int row, string code, string message) =>
             report.Issues.Add(new StudentImportIntegrityIssueDto
             {
@@ -156,19 +162,46 @@ public sealed partial class StudentImportExecutionService
             });
         if (items.Count != log.TotalRows)
             Issue(0, "LogRowCountMismatch", "Committed import row count differs from its audit log.");
+        if (items.Count > 0 && items.Select((x, i) => x.RowNumber != items[0].RowNumber + i).Any(x => x))
+            Issue(0, "NonContiguousRowNumbers", "Committed source row numbers have a gap or duplicate.");
         foreach (var item in items)
         {
             cancellationToken.ThrowIfCancellationRequested();
             var before = report.Issues.Count;
+            if (item.RowNumber < 2 || !seenRowNumbers.Add(item.RowNumber))
+                Issue(Math.Max(0, item.RowNumber), "InvalidRowNumber",
+                    "Committed source row number is invalid or duplicated.");
             if (!item.IsSuccess || string.IsNullOrWhiteSpace(item.BusinessKey))
-                Issue(item.RowNumber, "InvalidLogRow", "Import row has no valid committed source identity.");
-            else if (!bySource.TryGetValue(SourceId(item.BusinessKey), out var targetId) ||
-                !targetId.HasValue)
-                Issue(item.RowNumber, "MissingSourceIdentity", "Committed source identity is missing.");
-            else if (!students.TryGetValue(targetId.Value, out var student))
-                Issue(item.RowNumber, "MissingStudent", "Tenant-owned student record is unavailable.");
+                Issue(Math.Max(0, item.RowNumber), "InvalidLogRow",
+                    "Import row has no valid committed source identity.");
             else
             {
+                var sourceId = SourceId(item.BusinessKey);
+                report.SourceReceiptsChecked++;
+                if (!seenSources.Add(sourceId))
+                    Issue(item.RowNumber, "DuplicateSourceKey",
+                        "Committed source identity is repeated in this window.");
+                var receipts = bySource[sourceId].ToArray();
+                if (receipts.Length != 1)
+                    Issue(item.RowNumber, receipts.Length == 0 ? "MissingSourceIdentity" : "AmbiguousSourceReceipt",
+                        "Committed source identity receipt is missing or ambiguous.");
+                else if (!receipts[0].TargetId.HasValue)
+                    Issue(item.RowNumber, "MissingSourceTarget",
+                        "Committed source identity has no student target.");
+                else
+                {
+                    var expectedHash = Convert.ToHexString(SHA256.HashData(
+                        Encoding.UTF8.GetBytes(item.BusinessKey.ToUpperInvariant())));
+                    if (!string.Equals(receipts[0].RequestHash, expectedHash, StringComparison.Ordinal))
+                        Issue(item.RowNumber, "SourceReceiptHashMismatch",
+                            "Committed source identity fingerprint does not match its audit row.");
+                    if (!students.TryGetValue(receipts[0].TargetId.Value, out var student))
+                        Issue(item.RowNumber, "MissingStudent",
+                            "Tenant-owned student record is unavailable.");
+                    else
+                    {
+                        if (string.Equals(receipts[0].RequestHash, expectedHash, StringComparison.Ordinal))
+                            report.SourceReceiptsHealthy++;
                 if (!seenStudentTargets.Add(student.Id))
                     Issue(item.RowNumber, "DuplicateStudentTarget",
                         "Multiple committed source rows resolve to one student record.");
@@ -245,6 +278,8 @@ public sealed partial class StudentImportExecutionService
                             "Linked guardian identity is unavailable.");
                     else if (unique && !(multiplePrimary && relation.IsPrimary))
                         report.GuardianLinksHealthy++;
+                }
+                    }
                 }
             }
             if (report.Issues.Count == before) report.HealthyRows++;

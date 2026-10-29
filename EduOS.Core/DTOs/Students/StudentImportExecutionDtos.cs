@@ -131,6 +131,8 @@ public sealed class StudentImportIntegrityReportDto
     public int ExpectedRows { get; set; }
     public int CheckedRows { get; set; }
     public int HealthyRows { get; set; }
+    public int SourceReceiptsChecked { get; set; }
+    public int SourceReceiptsHealthy { get; set; }
     public int GuardianLinksChecked { get; set; }
     public int GuardianLinksHealthy { get; set; }
     public int CurrentEnrollmentsChecked { get; set; }
@@ -138,6 +140,7 @@ public sealed class StudentImportIntegrityReportDto
     public int RequiredSubjectsExpected { get; set; }
     public int RequiredSubjectsHealthy { get; set; }
     public bool IsHealthy => CheckedRows == ExpectedRows && HealthyRows == ExpectedRows &&
+        SourceReceiptsChecked == ExpectedRows && SourceReceiptsHealthy == SourceReceiptsChecked &&
         GuardianLinksChecked == GuardianLinksHealthy &&
         RequiredSubjectsExpected == RequiredSubjectsHealthy && Issues.Count == 0;
     public List<StudentImportIntegrityIssueDto> Issues { get; set; } = new();
