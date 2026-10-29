@@ -157,4 +157,46 @@ public sealed class LibraryReservationServiceTests
         (await db.BookIssues.CountAsync()).Should().Be(1);
         (await db.BookCopies.SingleAsync()).State.Should().Be(BookCopyState.Issued);
     }
+    [Fact]
+    public async Task Self_service_reservation_status_filters_are_tenant_and_user_scoped()
+    {
+        await using var db = Context(101);
+        var (student, book, _) = await Seed(db, 101);
+        var other = new Student { TenantId = 101, UserId = 8, PersonId = 22,
+            StudentCode = "ST-OTHER", FullName = "Other borrower", StatusCode = "Active" };
+        db.Students.Add(other);
+        await db.SaveChangesAsync();
+        var now = DateTime.UtcNow;
+        db.BookReservations.AddRange(
+            new BookReservation { TenantId = 101, StudentId = student.Id, BookId = book.Id,
+                ClientRequestId = Guid.NewGuid(), State = BookReservationState.Pending,
+                ReservedAt = now.AddDays(-1), ExpiresAt = now.AddDays(1) },
+            new BookReservation { TenantId = 101, StudentId = student.Id, BookId = book.Id,
+                ClientRequestId = Guid.NewGuid(), State = BookReservationState.Pending,
+                ReservedAt = now.AddDays(-10), ExpiresAt = now.AddDays(-3) },
+            new BookReservation { TenantId = 101, StudentId = student.Id, BookId = book.Id,
+                ClientRequestId = Guid.NewGuid(), State = BookReservationState.Fulfilled,
+                ReservedAt = now.AddDays(-12) },
+            new BookReservation { TenantId = 101, StudentId = student.Id, BookId = book.Id,
+                ClientRequestId = Guid.NewGuid(), State = BookReservationState.Cancelled,
+                ReservedAt = now.AddDays(-15) },
+            new BookReservation { TenantId = 101, StudentId = other.Id, BookId = book.Id,
+                ClientRequestId = Guid.NewGuid(), State = BookReservationState.Pending,
+                ReservedAt = now, ExpiresAt = now.AddDays(2) });
+        await db.SaveChangesAsync();
+        var service = Service(db, 101, "Student");
+        (await service.GetMyReservationsAsync(1, 20)).Data!.TotalCount.Should().Be(4);
+        (await service.GetMyReservationsAsync(1, 20, default, "pending"))
+            .Data!.Items.Should().ContainSingle().Which.State.Should().Be(BookReservationState.Pending);
+        (await service.GetMyReservationsAsync(1, 20, default, "expired"))
+            .Data!.Items.Should().ContainSingle().Which.State.Should().Be(BookReservationState.Expired);
+        (await service.GetMyReservationsAsync(1, 20, default, "fulfilled"))
+            .Data!.TotalCount.Should().Be(1);
+        (await service.GetMyReservationsAsync(1, 20, default, "cancelled"))
+            .Data!.TotalCount.Should().Be(1);
+        (await service.GetMyReservationsAsync(1, 20, default, "invalid"))
+            .StatusCode.Should().Be(400);
+        (await service.GetMyReservationsAsync(1, 1)).Data!.Items.Should().HaveCount(1);
+    }
+
 }

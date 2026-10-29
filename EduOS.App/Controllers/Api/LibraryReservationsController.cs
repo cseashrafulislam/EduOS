@@ -27,7 +27,23 @@ public sealed class LibraryReservationsController : ControllerBase
 
     [HttpGet("mine")]
     public async Task<IActionResult> Mine([FromQuery] int page = 1, [FromQuery] int pageSize = 20,
-        CancellationToken ct = default) => Reply(await _service.GetMyReservationsAsync(page, pageSize, ct));
+        [FromQuery] string? status = null, CancellationToken ct = default) =>
+        Reply(await _service.GetMyReservationsAsync(page, pageSize, ct, status));
+
+    [HttpGet("mine/export")]
+    [Authorize(Roles = "Student")]
+    public async Task<IActionResult> ExportMine([FromQuery] int page = 1,
+        [FromQuery] int pageSize = 20, [FromQuery] string? status = null,
+        [FromQuery] string language = "en-BD", CancellationToken ct = default)
+    {
+        if (language is not ("en-BD" or "bn-BD")) return BadRequest("Unsupported report language.");
+        var result = await _service.GetMyReservationsAsync(page, pageSize, ct, status);
+        if (!result.Success || result.Data == null) return Reply(result);
+        Response.Headers.CacheControl = "no-store, private";
+        Response.Headers.Pragma = "no-cache";
+        return File(LibraryReservationCsvWriter.Write(result.Data.Items, language == "bn-BD"),
+            "text/csv; charset=utf-8", "my-library-reservations-page.csv");
+    }
 
     [HttpGet("books/{bookReference:guid}/queue")]
     [Authorize(Roles = "TenantAdmin,Principal,Librarian")]

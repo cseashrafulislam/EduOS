@@ -8,7 +8,7 @@ public interface ILibraryReservationService
     Task<ApiResponse<PagedResult<BookReservationStudentOptionDto>>> SearchEligibleStudentsAsync(string search, int page, int pageSize, CancellationToken cancellationToken = default);
     Task<ApiResponse<BookReservationDto>> ReserveBookAsync(ReserveBookRequestDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<BookReservationDto>> CancelReservationAsync(long reservationId, string rowVersion, CancellationToken cancellationToken = default);
-    Task<ApiResponse<PagedResult<BookReservationDto>>> GetMyReservationsAsync(int page, int pageSize, CancellationToken cancellationToken = default);
+    Task<ApiResponse<PagedResult<BookReservationDto>>> GetMyReservationsAsync(int page, int pageSize, CancellationToken cancellationToken = default, string? status = null);
     Task<ApiResponse<PagedResult<BookReservationDto>>> GetActiveReservationsForBookAsync(Guid bookReference, int page, int pageSize, CancellationToken cancellationToken = default);
     Task<ApiResponse<PagedResult<BookCopyDto>>> GetEligibleCopiesAsync(long reservationId, int page, int pageSize, CancellationToken cancellationToken = default);
     Task<ApiResponse<BookReservationDto>> FulfillReservationAsync(long reservationId, long bookCopyId, string rowVersion, CancellationToken cancellationToken = default);

@@ -5,7 +5,7 @@
     if (!root) return;
     const staff = root.dataset.staff === 'true', state = {
         mine: 1, queue: 1, book: '', key: crypto.randomUUID(), search: 0,
-        queueRequest: 0, studentRequest: 0, studentPage: 1
+        queueRequest: 0, mineRequest: 0, studentRequest: 0, studentPage: 1
     };
     const stateNames = { 1: 'Pending', 2: 'Fulfilled', 3: 'Cancelled', 4: 'Expired' };
     function alertUser(text, ok = false) {
@@ -94,9 +94,15 @@
             }
         }
     }
+    function mineQuery() {
+        return new URLSearchParams({ page: String(state.mine), pageSize: '20',
+            status: el('reservationMineStatus').value });
+    }
     async function loadMine() {
+        const sequence = ++state.mineRequest;
         try {
-            const data = await api('/api/library/reservations/mine?' + new URLSearchParams({ page: state.mine, pageSize: 20 }));
+            const data = await api('/api/library/reservations/mine?' + mineQuery());
+            if (sequence !== state.mineRequest) return;
             const rows = el('reservationMineRows'); rows.replaceChildren();
             (data?.items || []).forEach(item => {
                 const row = document.createElement('tr');
@@ -120,7 +126,33 @@
             });
             if (!data?.items?.length) empty('reservationMineRows', 5, 'No reservations.');
             pageButtons('reservationMine', data, state.mine);
-        } catch (error) { empty('reservationMineRows', 5, 'Could not load reservations.'); alertUser(error.message); }
+        } catch (error) {
+            if (sequence !== state.mineRequest) return;
+            empty('reservationMineRows', 5, 'Could not load reservations.'); alertUser(error.message);
+        }
+    }
+    async function exportMine() {
+        const button = el('reservationMineCsv');
+        if (!button || button.disabled) return;
+        button.disabled = true;
+        try {
+            const params = mineQuery();
+            params.set('language', document.documentElement.lang?.toLowerCase().startsWith('bn') ? 'bn-BD' : 'en-BD');
+            const response = await fetch('/api/library/reservations/mine/export?' + params, {
+                credentials: 'same-origin', cache: 'no-store', headers: { Accept: 'text/csv' }
+            });
+            if (!response.ok) {
+                const error = await response.json().catch(() => null);
+                throw Error(error?.message || 'Reservation export denied.');
+            }
+            const url = URL.createObjectURL(await response.blob());
+            try {
+                const link = document.createElement('a');
+                link.href = url; link.download = 'my-library-reservations-page.csv';
+                document.body.append(link); link.click(); link.remove();
+            } finally { setTimeout(() => URL.revokeObjectURL(url), 1000); }
+        } catch (error) { alertUser(error.message); }
+        finally { button.disabled = false; }
     }
     async function loadQueue() {
         if (!staff) return;
@@ -218,6 +250,8 @@
         finally { button.disabled = false; }
     });
     el('reservationMineRefresh').addEventListener('click', loadMine);
+    el('reservationMineStatus').addEventListener('change', () => { state.mine = 1; loadMine(); });
+    if (el('reservationMineCsv')) el('reservationMineCsv').addEventListener('click', exportMine);
     for (const [direction, delta] of [['Previous', -1], ['Next', 1]]) {
         el('reservationMine' + direction).addEventListener('click', () => { state.mine = Math.max(1, state.mine + delta); loadMine(); });
         if (staff) el('reservationQueue' + direction).addEventListener('click', () => { state.queue = Math.max(1, state.queue + delta); loadQueue(); });

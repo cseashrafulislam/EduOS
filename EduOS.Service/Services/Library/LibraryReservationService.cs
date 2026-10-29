@@ -141,13 +141,27 @@ public sealed partial class LibraryReservationService : ILibraryReservationServi
         return rows.Select(x => Map(x, books.GetValueOrDefault(x.BookId), students.GetValueOrDefault(x.StudentId),
             Now, campuses.GetValueOrDefault(x.StudentId))).ToList();
     }
-    public async Task<ApiResponse<PagedResult<BookReservationDto>>> GetMyReservationsAsync(int page, int pageSize, CancellationToken ct = default)
+    public async Task<ApiResponse<PagedResult<BookReservationDto>>> GetMyReservationsAsync(
+        int page, int pageSize, CancellationToken ct = default, string? status = null)
     {
         if (!CanRead()) return Denied<PagedResult<BookReservationDto>>();
+        status = (status ?? "all").Trim().ToLowerInvariant();
+        if (status is not ("all" or "pending" or "fulfilled" or "cancelled" or "expired"))
+            return Error<PagedResult<BookReservationDto>>("Invalid reservation status filter.");
         page = Math.Max(1, page); pageSize = Math.Clamp(pageSize, 1, 100);
         var tenant = _user.TenantId;
-        var studentIds = _students.GetQueryable().AsNoTracking().Where(x => x.TenantId == tenant && x.UserId == _user.UserId && !x.IsDeleted).Select(x => x.Id);
-        var query = _reservations.GetQueryable().AsNoTracking().Where(x => x.TenantId == tenant && !x.IsDeleted && studentIds.Contains(x.StudentId));
+        var studentIds = _students.GetQueryable().AsNoTracking()
+            .Where(x => x.TenantId == tenant && x.UserId == _user.UserId && !x.IsDeleted)
+            .Select(x => x.Id);
+        var query = _reservations.GetQueryable().AsNoTracking()
+            .Where(x => x.TenantId == tenant && !x.IsDeleted && studentIds.Contains(x.StudentId));
+        var now = Now;
+        if (status == "pending") query = query.Where(x => x.State == BookReservationState.Pending &&
+            (!x.ExpiresAt.HasValue || x.ExpiresAt > now));
+        if (status == "expired") query = query.Where(x => x.State == BookReservationState.Expired ||
+            (x.State == BookReservationState.Pending && x.ExpiresAt.HasValue && x.ExpiresAt <= now));
+        if (status == "fulfilled") query = query.Where(x => x.State == BookReservationState.Fulfilled);
+        if (status == "cancelled") query = query.Where(x => x.State == BookReservationState.Cancelled);
         var total = await query.CountAsync(ct); var offset = ((long)page - 1) * pageSize;
         var rows = offset > int.MaxValue ? new List<BookReservation>() : await query.OrderByDescending(x => x.ReservedAt)
             .ThenByDescending(x => x.Id).Skip((int)offset).Take(pageSize).ToListAsync(ct);

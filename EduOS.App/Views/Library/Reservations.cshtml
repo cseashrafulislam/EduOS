@@ -1,10 +1,15 @@
 @{
     ViewData["Title"] = "Library Reservations";
     var canManage = User.IsInRole("TenantAdmin") || User.IsInRole("Principal") || User.IsInRole("Librarian");
+    var canExportMine = User.IsInRole("Student");
 }
 <section id="reservationApp" class="container-fluid py-3" data-staff="@(canManage ? "true" : "false")">
-    <header class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
-        <div><h2 class="h4 mb-1">Library reservations</h2><p class="text-muted mb-0">Reserve a circulating book, track your requests and manage the fulfillment queue.</p></div>
+    <header class="content-header-card d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
+        <div class="d-flex align-items-center gap-2"><h2 class="h4 mb-0">Library reservations</h2>
+            <details class="position-relative"><summary class="btn btn-sm btn-outline-secondary" aria-label="Reservation help" title="Help">ⓘ</summary>
+                <div class="card position-absolute p-2 shadow-sm" style="width:min(20rem,80vw);z-index:10;">Choose a circulating book and submit a reservation. Students reserve for themselves; staff select an eligible learner. Pending reservations expire after seven days and are fulfilled in queue order.</div>
+            </details>
+        </div>
         <a asp-controller="Library" asp-action="Index" class="btn btn-outline-secondary">Back to catalog</a>
     </header>
     <div id="reservationAlert" class="d-none" role="alert" tabindex="-1"></div>
@@ -30,18 +35,27 @@
                 }
                 <div class="col-md-3"><button id="reservationCreateButton" type="submit" class="btn btn-primary w-100">Reserve book</button></div>
             </form>
-            <p class="text-muted small mt-2 mb-0">Students reserve for themselves. Staff can search and choose an active student. Active enrollment and campus eligibility are checked server-side.</p>
         </div>
     </section>
     <section class="card mb-3">
-        <div class="card-header d-flex justify-content-between align-items-center"><h3 class="h6 mb-0">My reservations</h3><button id="reservationMineRefresh" type="button" class="btn btn-outline-primary btn-sm">Refresh</button></div>
+        <div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-2"><h3 class="h6 mb-0">My reservations</h3>
+            <div class="d-flex align-items-center gap-2">
+                <label for="reservationMineStatus" class="visually-hidden">Reservation status</label>
+                <select id="reservationMineStatus" class="form-select form-select-sm" aria-label="Filter my reservations">
+                    <option value="all">All</option><option value="pending">Pending</option>
+                    <option value="fulfilled">Fulfilled</option><option value="cancelled">Cancelled</option>
+                    <option value="expired">Expired</option>
+                </select>
+                @if (canExportMine) { <button id="reservationMineCsv" type="button" class="btn btn-outline-secondary btn-sm">CSV (current page)</button> }
+                <button id="reservationMineRefresh" type="button" class="btn btn-outline-primary btn-sm">Refresh</button>
+            </div>
+        </div>
         <div class="table-responsive"><table class="table table-sm table-hover align-middle mb-0"><thead><tr><th>Book</th><th>Reserved</th><th>Expires</th><th>Status</th><th>Action</th></tr></thead><tbody id="reservationMineRows"><tr><td colspan="5">Loading…</td></tr></tbody></table></div>
         <div class="card-footer d-flex justify-content-end align-items-center gap-2"><button id="reservationMinePrevious" class="btn btn-outline-secondary btn-sm" type="button">Previous</button><span id="reservationMinePage"></span><button id="reservationMineNext" class="btn btn-outline-secondary btn-sm" type="button">Next</button></div>
     </section>
     @if (canManage) {
         <section class="card">
             <div class="card-header d-flex justify-content-between align-items-center"><h3 class="h6 mb-0">Active queue for selected book</h3><button id="reservationQueueRefresh" type="button" class="btn btn-outline-primary btn-sm">Refresh</button></div>
-            <div class="card-body"><p class="text-muted small">Oldest active reservation must be fulfilled first. Only available copies from the student's campus are eligible.</p></div>
             <div class="table-responsive"><table class="table table-sm table-hover align-middle mb-0"><thead><tr><th>Student</th><th>Reserved</th><th>Expires</th><th>Copy</th><th>Action</th></tr></thead><tbody id="reservationQueueRows"><tr><td colspan="5">Select a book to view its queue.</td></tr></tbody></table></div>
             <div class="card-footer d-flex justify-content-end align-items-center gap-2"><button id="reservationQueuePrevious" class="btn btn-outline-secondary btn-sm" type="button">Previous</button><span id="reservationQueuePage"></span><button id="reservationQueueNext" class="btn btn-outline-secondary btn-sm" type="button">Next</button></div>
         </section>
