@@ -25,6 +25,48 @@ namespace EduOS.Tests.Services;
 
 public class TransportServiceTests
 {
+    [Fact]
+    public async Task Boarding_manifest_counts_only_open_tenant_vehicle_cases_and_refreshes_after_resolution()
+    {
+        await using var db = CreateContext(CreateOptions(), 101);
+        await SeedAssignmentAsync(db, 101, true, [1,2,3,4,5,6,7,8]);
+        var campus = await db.Campuses.SingleAsync();
+        var vehicle = await db.Vehicles.SingleAsync();
+        var route = await db.Routes.SingleAsync();
+        vehicle.CampusId = campus.Id;
+        route.CampusId = campus.Id;
+        var today = DateOnly.FromDateTime(TimeProvider.System.GetLocalNow().DateTime);
+        var safetyCase = new TransportVehicleCase
+        {
+            TenantId = 101, CampusId = campus.Id, VehicleId = vehicle.Id,
+            VehicleNumberSnapshot = vehicle.VehicleNumber, ClientRequestId = Guid.NewGuid(),
+            OccurredOn = today, CaseType = "Maintenance", Severity = "High",
+            Summary = "Brake fault awaiting inspection", State = "Open"
+        };
+        db.TransportVehicleCases.Add(safetyCase);
+        await db.SaveChangesAsync();
+
+        var service = CreateService(db, 101);
+        var roster = await service.GetBoardingManifestAsync(today, null, null, null, 1, 25, null, false);
+        roster.Success.Should().BeTrue(roster.Message);
+        roster.Data!.Items.Should().ContainSingle(x => x.OpenVehicleCases == 1 && x.NeedsAttention);
+        var attention = await service.GetBoardingManifestAsync(today, null, null, null, 1, 25, null, true);
+        attention.Data!.Items.Should().ContainSingle(x => x.OpenVehicleCases == 1);
+        var export = await service.ExportBoardingManifestCsvAsync(today, null, null, null, null, false);
+        export.Success.Should().BeTrue(export.Message);
+        export.Data.Should().Contain("Open Vehicle Cases");
+
+        safetyCase.State = "Resolved";
+        safetyCase.Resolution = "Inspected and repaired";
+        safetyCase.ResolvedAt = DateTime.UtcNow;
+        safetyCase.ResolvedBy = 7;
+        await db.SaveChangesAsync();
+        var refreshed = await service.GetBoardingManifestAsync(today, null, null, null, 1, 25, null, false);
+        refreshed.Data!.Items.Should().ContainSingle(x => x.OpenVehicleCases == 0);
+        (await CreateService(db, 202).GetBoardingManifestAsync(
+            today, null, null, null, 1, 25, null, false)).Data!.Items.Should().BeEmpty();
+    }
+
 
     [Fact]
     public async Task Eligible_students_respect_requested_period_including_same_day_overlap()
@@ -1103,6 +1145,7 @@ public class TransportServiceTests
         NullLogger<TransportService>.Instance,
         new GenericRepository<TransportDriver>(context),
         new GenericRepository<VehicleDriverAssignment>(context),
+        new GenericRepository<TransportVehicleCase>(context),
         new ReservationFinancePolicy(context),
         new EduOS.Service.Services.Platform.ReservationCommandReceiptStore(context, TimeProvider.System));
 

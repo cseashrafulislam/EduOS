@@ -19,7 +19,7 @@ public sealed partial class TransportService
     {
         if (!CanManage()) return Denied<PagedResult<TransportBoardingManifestRowDto>>();
         // The legacy constructor has no driver repositories; never claim a roster is dispatch-ready without them.
-        if (_driverLinks is null || _drivers is null)
+        if (_driverLinks is null || _drivers is null || _vehicleCases is null)
             return ApiResponse<PagedResult<TransportBoardingManifestRowDto>>.ErrorResponse(
                 "Driver eligibility data is unavailable.", 503);
         var today = DateOnly.FromDateTime(_clock.GetLocalNow().DateTime);
@@ -62,6 +62,10 @@ public sealed partial class TransportService
                 assignment.PublicId, CampusId = campus.Id, CampusName = campus.Name,
                 student.StudentCode, RouteName = route.Name, vehicle.VehicleNumber,
                 Capacity = vehicle.Capacity,
+                OpenVehicleCases = _vehicleCases.GetQueryable().Count(item =>
+                    item.TenantId == tenant && !item.IsDeleted && item.VehicleId == vehicle.Id &&
+                    item.CampusId == campus.Id && item.State == "Open" &&
+                    item.OccurredOn <= operatingDate),
                 ReservedRiders = _assignments.GetQueryable().Count(rider =>
                     rider.TenantId == tenant && !rider.IsDeleted &&
                     rider.VehicleId == vehicle.Id && rider.State == TransportAssignmentState.Active &&
@@ -123,7 +127,7 @@ public sealed partial class TransportService
             query = query.Where(x => !x.EnrollmentReady || !x.RouteReady || !x.VehicleReady ||
                 !x.PickupReady || !x.DropReady || !x.HasRouteVehicleLink ||
                 x.ReservedRiders > x.Capacity || x.RouteLinkCount != 1 ||
-                x.DriverLinkCount != 1 || !x.HasEligibleDriver);
+                x.DriverLinkCount != 1 || !x.HasEligibleDriver || x.OpenVehicleCases > 0);
 
         var total = await query.CountAsync(ct);
         var records = await query.OrderBy(x => x.CampusName).ThenBy(x => x.RouteName)
@@ -138,7 +142,8 @@ public sealed partial class TransportService
                     var baseReadiness = ClassifyBoardingManifest(x.EnrollmentReady, x.RouteReady,
                         x.VehicleReady, x.PickupReady, x.DropReady, x.HasRouteVehicleLink);
                     var readiness = ClassifyBoardingDispatch(baseReadiness, x.ReservedRiders,
-                        x.Capacity, x.RouteLinkCount, x.DriverLinkCount, x.HasEligibleDriver);
+                        x.Capacity, x.RouteLinkCount, x.DriverLinkCount, x.HasEligibleDriver,
+                        x.OpenVehicleCases);
                     return new TransportBoardingManifestRowDto
                     {
                         AssignmentReference = x.PublicId, CampusId = x.CampusId,
@@ -148,6 +153,7 @@ public sealed partial class TransportService
                         DropStop = x.DropName ?? "Not assigned",
                         OperatingDate = operatingDate, Readiness = readiness,
                         Capacity = x.Capacity, ReservedRiders = x.ReservedRiders,
+                        OpenVehicleCases = x.OpenVehicleCases,
                         RouteLinks = x.RouteLinkCount, DriverLinks = x.DriverLinkCount,
                         DriverEligible = x.DriverLinkCount == 1 && x.HasEligibleDriver,
                         NeedsAttention = readiness != "Ready"
@@ -170,10 +176,11 @@ public sealed partial class TransportService
 
     /// <summary>Dispatch safety is a derived preview; no trip or attendance is recorded.</summary>
     public static string ClassifyBoardingDispatch(string baseReadiness, int reservedRiders,
-        int capacity, int routeLinks, int driverLinks, bool eligibleDriver)
+        int capacity, int routeLinks, int driverLinks, bool eligibleDriver, int openVehicleCases = 0)
     {
         if (reservedRiders > capacity || capacity <= 0) return "OverCapacity";
         if (baseReadiness != "Ready") return baseReadiness;
+        if (openVehicleCases > 0) return "VehicleCaseReview";
         if (routeLinks != 1) return "RouteConflict";
         if (driverLinks == 0) return "NoDriver";
         if (driverLinks > 1) return "DriverConflict";
@@ -204,7 +211,7 @@ public sealed partial class TransportService
         var seen = new HashSet<Guid>();
         if (rows.Count != first.Data.TotalCount || rows.Any(x => !seen.Add(x.AssignmentReference)))
             return ApiResponse<string>.ErrorResponse("Manifest changed during export. Retry.", 409);
-        var csv = new StringBuilder("Operating Date,Campus,Student Code,Route,Vehicle,Pickup Stop,Drop Stop,Reserved Riders,Capacity,Route Links,Driver Links,Driver Eligible,Readiness\r\n");
+        var csv = new StringBuilder("Operating Date,Campus,Student Code,Route,Vehicle,Pickup Stop,Drop Stop,Reserved Riders,Capacity,Route Links,Driver Links,Driver Eligible,Open Vehicle Cases,Readiness\r\n");
         foreach (var row in rows)
             csv.Append(operatingDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)).Append(',')
                 .Append(CsvCell(row.CampusName)).Append(',').Append(CsvCell(row.StudentCode)).Append(',')
@@ -215,6 +222,7 @@ public sealed partial class TransportService
                 .Append(row.RouteLinks.ToString(CultureInfo.InvariantCulture)).Append(',')
                 .Append(row.DriverLinks.ToString(CultureInfo.InvariantCulture)).Append(',')
                 .Append(row.DriverEligible ? "Yes" : "No").Append(',')
+                .Append(row.OpenVehicleCases.ToString(CultureInfo.InvariantCulture)).Append(',')
                 .Append(CsvCell(row.Readiness)).Append("\r\n");
         return ApiResponse<string>.SuccessResponse(csv.ToString());
     }

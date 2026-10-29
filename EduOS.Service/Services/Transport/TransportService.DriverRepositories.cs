@@ -15,6 +15,7 @@ public sealed partial class TransportService
 {
     private IGenericRepository<TransportDriver> _drivers = null!;
     private IGenericRepository<VehicleDriverAssignment> _driverLinks = null!;
+    private IGenericRepository<TransportVehicleCase> _vehicleCases = null!;
 
     // The existing constructor remains intact for legacy consumers. The registered
     // open-generic repositories allow DI to select this more complete constructor.
@@ -33,4 +34,23 @@ public sealed partial class TransportService
         _drivers = drivers;
         _driverLinks = driverLinks;
     }
+    // Operational case ledger is mandatory for a dispatch-readiness preview. Legacy
+    // constructors remain available for existing consumers but cannot claim Ready.
+    public TransportService(IGenericRepository<TransportRoute> routes, IGenericRepository<RouteStop> stops,
+        IGenericRepository<Vehicle> vehicles, IGenericRepository<RouteVehicleAssignment> vehicleRoutes,
+        IGenericRepository<StudentTransport> assignments, IGenericRepository<StudentEnrollment> enrollments,
+        IGenericRepository<Student> students, IGenericRepository<UserCampusAccess> campusAccesses,
+        IGenericRepository<Campus> campuses, IUnitOfWork unitOfWork, ICurrentUserService currentUser,
+        TimeProvider clock, ILogger<TransportService> logger,
+        IGenericRepository<TransportDriver> drivers, IGenericRepository<VehicleDriverAssignment> driverLinks,
+        IGenericRepository<TransportVehicleCase> vehicleCases,
+        IReservationFinancePolicy reservationFinancePolicy,
+        IReservationCommandReceiptStore commandReceipts)
+        : this(routes, stops, vehicles, vehicleRoutes, assignments, enrollments, students,
+            campusAccesses, campuses, unitOfWork, currentUser, clock, logger,
+            drivers, driverLinks, reservationFinancePolicy, commandReceipts)
+    {
+        _vehicleCases = vehicleCases;
+    }
+
 }

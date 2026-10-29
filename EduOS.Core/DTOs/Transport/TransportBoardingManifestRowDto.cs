@@ -19,4 +19,5 @@ public sealed class TransportBoardingManifestRowDto
     public int RouteLinks { get; set; }
     public int DriverLinks { get; set; }
     public bool DriverEligible { get; set; }
+    public int OpenVehicleCases { get; set; }
 }

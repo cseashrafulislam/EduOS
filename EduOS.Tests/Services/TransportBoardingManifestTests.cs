@@ -22,6 +22,25 @@ public sealed class TransportBoardingManifestTests
     }
 
     [Theory]
+    [InlineData(0, "Ready")]
+    [InlineData(1, "VehicleCaseReview")]
+    [InlineData(3, "VehicleCaseReview")]
+    public void Unresolved_vehicle_cases_block_ready_planning_roster(int openCases, string expected)
+    {
+        Assert.Equal(expected, TransportService.ClassifyBoardingDispatch(
+            "Ready", 1, 30, 1, 1, true, openCases));
+    }
+
+    [Fact]
+    public void Other_readiness_failures_are_not_masked_by_vehicle_case_hold()
+    {
+        Assert.Equal("OverCapacity", TransportService.ClassifyBoardingDispatch(
+            "Ready", 31, 30, 1, 1, true, 2));
+        Assert.Equal("PickupReview", TransportService.ClassifyBoardingDispatch(
+            "PickupReview", 1, 30, 1, 1, true, 2));
+    }
+
+    [Theory]
     [InlineData(false, true, true, true, true, true, "EnrollmentReview")]
     [InlineData(true, false, true, true, true, true, "RouteReview")]
     [InlineData(true, true, false, true, true, true, "VehicleReview")]
