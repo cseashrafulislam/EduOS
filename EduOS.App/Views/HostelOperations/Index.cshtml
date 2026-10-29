@@ -1,10 +1,42 @@
 @{
     ViewData["Title"] = "Hostel";
     var canManage = User.IsInRole("TenantAdmin") || User.IsInRole("Principal") || User.IsInRole("HostelWarden");
+    var isGuardian = User.IsInRole("Guardian") || User.IsInRole("Parent");
 }
 <section class="container-fluid py-3" aria-labelledby="hostelTitle">
-    <header class="mb-3"><h2 id="hostelTitle">Hostel operations</h2><p class="text-muted">Tenant-scoped rooms, bed allocation and release.</p>@if (canManage) { <a class="btn btn-outline-secondary btn-sm" href="#hostelHistoryPanel">Allocation history</a> }</header>
+    <header class="mb-3 d-flex align-items-center flex-wrap gap-2"><h2 id="hostelTitle" class="mb-0">Hostel operations</h2><details class="small"><summary aria-label="Hostel page guide" title="Hostel page guide">ⓘ</summary><span>Guardians with pickup authorization can view current scheduled stays. Managers can manage beds, allocations and reports. Physical check-in is not confirmed by a scheduled stay.</span></details>@if (canManage) { <a class="btn btn-outline-secondary btn-sm" href="#hostelHistoryPanel">Allocation history</a> }</header>
     <div id="hostelAlert" class="d-none" role="alert" tabindex="-1"></div>
+    @if (isGuardian)
+    {
+    <section id="hostelGuardianStays" class="card mb-3" aria-labelledby="hostelGuardianTitle">
+        <div class="card-body">
+            <div class="d-flex justify-content-between align-items-center gap-2 mb-2">
+                <h3 id="hostelGuardianTitle" class="h5 mb-0">Authorized student hostel stays</h3>
+                <div class="d-flex gap-2">
+                    <a id="hostelGuardianPrint" href="/hostel/guardian-stays/print" target="_blank" rel="noopener noreferrer" class="btn btn-outline-secondary btn-sm">Print</a>
+                    <button id="hostelGuardianCsv" type="button" class="btn btn-outline-secondary btn-sm" disabled>Export page</button>
+                </div>
+            </div>
+            <form id="hostelGuardianFilter" class="d-flex gap-2 mb-2">
+                <label for="hostelGuardianSearch" class="visually-hidden">Student name or code</label>
+                <input id="hostelGuardianSearch" class="form-control" maxlength="100" placeholder="Student name or code" />
+                <button type="submit" class="btn btn-outline-primary">Search</button>
+            </form>
+            <div id="hostelGuardianStatus" role="status" aria-live="polite"></div>
+            <div class="table-responsive"><table class="table table-sm">
+                <thead><tr><th>Student</th><th>Code</th><th>Campus</th><th>Hostel</th><th>Room / Bed</th><th>Start</th><th>End</th></tr></thead>
+                <tbody id="hostelGuardianRows"></tbody>
+            </table></div>
+            <div class="d-flex justify-content-between align-items-center">
+                <button id="hostelGuardianPrev" class="btn btn-outline-secondary btn-sm" type="button">Previous</button>
+                <span id="hostelGuardianPage"></span>
+                <button id="hostelGuardianNext" class="btn btn-outline-secondary btn-sm" type="button">Next</button>
+            </div>
+        </div>
+    </section>
+    }
+    @if (!isGuardian)
+    {
     <section class="card mb-3"><div class="card-body"><h3 class="h5">My current allocation</h3><div id="hostelMine" class="text-muted">Loading…</div></div></section>
     <section id="hostelMyHistoryPanel" class="card mb-3" aria-labelledby="hostelMyHistoryTitle">
         <div class="card-body">
@@ -36,6 +68,7 @@
             </div>
         </div>
     </section>
+    }
     @if (canManage)
     {
     <section class="card mb-3"><div class="card-body">
@@ -350,7 +383,11 @@
 </section>
 @section Scripts {
     <script src="~/js/hostel-operations/index.js" asp-append-version="true"></script>
-    <script src="~/js/hostel-operations/my-history.js" asp-append-version="true"></script>
+    @if (isGuardian) {
+        <script src="~/js/hostel-operations/guardian-stays.js" asp-append-version="true"></script>
+    } else {
+        <script src="~/js/hostel-operations/my-history.js" asp-append-version="true"></script>
+    }
     @if (canManage) {
         <script src="~/js/hostel-operations/upcoming-room-change.js" asp-append-version="true"></script>
         <script src="~/js/hostel-operations/upcoming-start-reschedule.js" asp-append-version="true"></script>

@@ -123,6 +123,7 @@ namespace EduOS.App.Extensions
             s.AddScoped<ITransportService, TransportService>();
             s.AddScoped<ITransportFamilyScheduleService, TransportFamilyScheduleService>();
             s.AddScoped<IHostelService, HostelService>();
+            s.AddScoped<IGuardianHostelStayService, GuardianHostelStayService>();
 
             // Canonical API service registrations: controllers receive interfaces from
             // the request scope instead of constructing concrete services themselves.

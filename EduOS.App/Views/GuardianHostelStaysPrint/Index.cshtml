@@ -1,0 +1,40 @@
+@model EduOS.Core.Common.PagedResult<EduOS.Core.DTOs.Hostel.GuardianHostelStayRowDto>
+@using System.Globalization
+@{
+    Layout = null;
+}
+<!doctype html>
+<html lang="@CultureInfo.CurrentUICulture.Name">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex,nofollow" />
+    <title>Authorized hostel stays</title>
+    <style>
+        body { font-family: system-ui, sans-serif; margin: 1rem; color: #17212d; }
+        h1 { font-size: 1.2rem; }
+        table { width: 100%; border-collapse: collapse; font-size: .8rem; }
+        th, td { border: 1px solid #bfc8d1; padding: .45rem; text-align: left; overflow-wrap: anywhere; }
+        @@page { size: A4 landscape; margin: 12mm; }
+        @@media print { .actions { display: none; } body { margin: 0; } }
+    </style>
+    <script src="~/js/attendance/print-roster.js" asp-append-version="true" defer></script>
+</head>
+<body>
+    <div class="actions"><button id="printRoster" type="button">Print</button></div>
+    <h1>Authorized guardian hostel stays</h1>
+    <p>Scheduled stays today · Page @Model.Page of @Model.TotalPages · @Model.TotalCount authorized stays</p>
+    <table>
+        <thead><tr><th>Student</th><th>Code</th><th>Campus</th><th>Hostel</th><th>Room / Bed</th><th>Start</th><th>End</th></tr></thead>
+        <tbody>
+        @foreach (var row in Model.Items)
+        {
+            <tr><td>@row.StudentName</td><td>@row.StudentCode</td><td>@row.CampusName</td>
+                <td>@row.HostelName</td><td>@row.RoomNumber / @row.BedNumber</td>
+                <td>@row.StartDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)</td>
+                <td>@(row.EndDate?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) ?? "—")</td></tr>
+        }
+        </tbody>
+    </table>
+</body>
+</html>
