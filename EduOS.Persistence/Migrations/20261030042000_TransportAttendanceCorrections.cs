@@ -19,9 +19,13 @@ public sealed class TransportAttendanceCorrections : Migration
         migrationBuilder.AddCheckConstraint("CK_TransportTripAttendanceEvents_Sequence", "TransportTripAttendanceEvents", "([Sequence] = 1 AND [EventType] IN ('Boarded','NoShow') AND [CorrectsEventId] IS NULL AND [CorrectionReason] IS NULL) OR ([Sequence] = 2 AND [EventType] = 'Dropped' AND [CorrectsEventId] IS NULL AND [CorrectionReason] IS NULL) OR ([Sequence] BETWEEN 3 AND 12 AND [EventType] IN ('Dropped','NoShow') AND [CorrectsEventId] IS NOT NULL AND [CorrectionReason] IS NOT NULL AND LEN(LTRIM(RTRIM([CorrectionReason]))) BETWEEN 15 AND 500)");
         migrationBuilder.CreateIndex("IX_TransportTripAttendanceEvents_TenantId_CorrectsEventId",
             "TransportTripAttendanceEvents", new[] { "TenantId", "CorrectsEventId" }, filter: "[CorrectsEventId] IS NOT NULL");
-        migrationBuilder.AddForeignKey("FK_TransportTripAttendanceEvents_TransportTripAttendanceEvents_TenantId_CorrectsEventId",
-            "TransportTripAttendanceEvents", new[] { "TenantId", "CorrectsEventId" },
-            "TransportTripAttendanceEvents", new[] { "TenantId", "Id" }, onDelete: ReferentialAction.Restrict);
+        migrationBuilder.AddForeignKey(
+            name: "FK_TransportTripAttendanceEvents_TransportTripAttendanceEvents_TenantId_CorrectsEventId",
+            table: "TransportTripAttendanceEvents",
+            columns: new[] { "TenantId", "CorrectsEventId" },
+            principalTable: "TransportTripAttendanceEvents",
+            principalColumns: new[] { "TenantId", "Id" },
+            onDelete: ReferentialAction.Restrict);
     }
     protected override void Down(MigrationBuilder migrationBuilder)
     {
