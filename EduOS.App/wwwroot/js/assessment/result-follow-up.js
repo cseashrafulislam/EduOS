@@ -31,7 +31,7 @@
         state.reportSeq++; state.report = null; state.page = 1;
         $('followUpCsv').disabled = true; $('followUpPrint').disabled = true;
         $('followUpPrev').disabled = true; $('followUpNext').disabled = true;
-        $('followUpInfo').textContent = ''; $('followUpPage').textContent = '';
+        $('followUpInfo').textContent = ''; $('followUpSummary').textContent = ''; $('followUpPage').textContent = '';
         const row = document.createElement('tr'), td = cell(tr('Load a finalized version.',
             'প্রকাশিত সংস্করণ নির্বাচন করুন।'));
         td.colSpan = 7; row.append(td); $('followUpRows').replaceChildren(row);
@@ -93,9 +93,17 @@
         state.report = null; $('followUpCsv').disabled = true;
         $('followUpPrint').disabled = true;
         try {
-            const data = await api(query(page));
+            const summaryPath = 'results/follow-up/summary?' + new URLSearchParams({
+                publicationId: publication, search: $('followUpSearch').value.trim()
+            });
+            const [data, summary] = await Promise.all([api(query(page)), api(summaryPath)]);
             if (seq !== state.reportSeq || $('followUpVersion').value !== publication) return;
+            if (summary.publicationId !== data.publicationId ||
+                summary.versionNo !== data.versionNo || summary.total < data.totalCount)
+                throw new Error(tr('Outcome summary requires reconciliation.', 'ফলাফল সারসংক্ষেপ যাচাই প্রয়োজন।'));
             state.report = data; state.page = page;
+            $('followUpSummary').textContent = tr('Failed: ', 'অনুত্তীর্ণ: ') + summary.failed +
+                ' · ' + tr('Withheld: ', 'স্থগিত: ') + summary.withheld;
             $('followUpTitle').textContent = data.assessmentName + ' / ' +
                 data.academicBatchName + ' · ' + tr('Version ', 'সংস্করণ ') + data.versionNo;
             $('followUpInfo').textContent = tr('Matching results: ', 'মোট ফলাফল: ') + data.totalCount;
@@ -119,21 +127,31 @@
             $('followUpCsv').disabled = false; $('followUpPrint').disabled = false;
         } catch (e) { if (seq === state.reportSeq) notice(e.message, true); }
     }
+    function matchesReport(data, report) {
+        return data.publicationId === report.publicationId &&
+            data.versionNo === report.versionNo &&
+            data.status === report.status &&
+            data.totalCount === report.totalCount;
+    }
     async function csv() {
         if (!state.report || state.exportBusy) return;
-        const report = state.report, page = state.page;
+        const report = state.report, seq = state.reportSeq;
         state.exportBusy = true; $('followUpCsv').disabled = true;
         try {
-            // Reauthorize every export and reject stale filter/publication changes.
-            const data = await api(query(page));
-            if (state.report !== report || data.publicationId !== report.publicationId ||
-                data.versionNo !== report.versionNo || data.page !== page ||
-                data.status !== report.status || data.totalCount !== report.totalCount ||
-                !Array.isArray(data.items) || data.items.length > 25)
+            const params = new URLSearchParams({
+                publicationId: String(report.publicationId),
+                status: String(report.status), search: $('followUpSearch').value.trim()
+            });
+            const data = await api('results/follow-up/export?' + params);
+            if (state.reportSeq !== seq || state.report !== report ||
+                !matchesReport(data, report) || data.limit !== 500 ||
+                !Array.isArray(data.items) || data.items.length > 500 ||
+                data.items.length !== Math.min(data.totalCount, 500) ||
+                data.truncated !== (data.totalCount > 500))
                 throw new Error(tr('Report changed; reload.', 'রিপোর্ট পরিবর্তিত; আবার লোড করুন।'));
             const safe = v => {
                 let s = String(v ?? '');
-                if (/^\s*[=+@\-]/.test(s)) s = "'" + s;
+                if (/^\\s*[=+@\\-]/.test(s)) s = "'" + s;
                 return '"' + s.replace(/"/g, '""') + '"';
             };
             const rows = [['Roll', 'Student code', 'Student', 'Marks', 'Maximum',
@@ -141,14 +159,30 @@
                 x.rollNo, x.studentCode, x.studentName, x.obtainedMarks,
                 x.totalMarks, x.gpa, x.gradeLetter, x.isWithheld ? 'Withheld' : 'Failed'
             ])];
-            const blob = new Blob(['\uFEFF' + rows.map(x => x.map(safe).join(',')).join('\r\n')],
+            const blob = new Blob(['\\uFEFF' + rows.map(x => x.map(safe).join(',')).join('\\r\\n')],
                 { type: 'text/csv;charset=utf-8' });
             const url = URL.createObjectURL(blob), link = document.createElement('a');
             link.href = url; link.download = 'result-follow-up-' + data.publicationId +
-                '-page-' + page + '.csv'; link.click();
+                '-v' + data.versionNo + '.csv'; link.click();
             setTimeout(() => URL.revokeObjectURL(url), 1000);
+            if (data.truncated) notice(tr('Export limited to the first 500 matches.',
+                'প্রথম ৫০০টি ফলাফল এক্সপোর্ট হয়েছে।'));
         } catch (e) { notice(e.message, true); }
         finally { state.exportBusy = false; $('followUpCsv').disabled = !state.report; }
+    }
+    async function printPage() {
+        if (!state.report) return;
+        const report = state.report, seq = state.reportSeq, page = state.page;
+        $('followUpPrint').disabled = true;
+        try {
+            const data = await api(query(page));
+            if (state.reportSeq !== seq || state.report !== report ||
+                !matchesReport(data, report) || data.page !== page ||
+                data.items.length !== report.items.length)
+                throw new Error(tr('Report changed; reload.', 'রিপোর্ট পরিবর্তিত; আবার লোড করুন।'));
+            window.print();
+        } catch (e) { notice(e.message, true); }
+        finally { $('followUpPrint').disabled = !state.report; }
     }
     $('followUpScopeForm').addEventListener('submit', e => {
         e.preventDefault(); state.scopePage = 1; scopes();
@@ -169,6 +203,6 @@
     $('followUpPrev').addEventListener('click', () => load(state.page - 1));
     $('followUpNext').addEventListener('click', () => load(state.page + 1));
     $('followUpCsv').addEventListener('click', csv);
-    $('followUpPrint').addEventListener('click', () => window.print());
+    $('followUpPrint').addEventListener('click', printPage);
     scopes();
 })();

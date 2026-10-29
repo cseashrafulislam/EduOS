@@ -146,6 +146,17 @@ public sealed class AssessmentAdministrationApiController : ControllerBase
     public async Task<IActionResult> ResultFollowUp([FromQuery] ResultFollowUpQueryDto query,
         CancellationToken ct) => Result(await _service.SearchResultFollowUpAsync(query, ct));
 
+    [HttpGet("results/follow-up/summary")]
+    [Authorize(Roles = "TenantAdmin,Principal,VicePrincipal,ExamController")]
+    public async Task<IActionResult> ResultFollowUpSummary([FromQuery] long publicationId,
+        [FromQuery] string? search, CancellationToken ct) =>
+        Result(await _service.GetResultFollowUpSummaryAsync(publicationId, search, ct));
+
+    [HttpGet("results/follow-up/export")]
+    [Authorize(Roles = "TenantAdmin,Principal,VicePrincipal,ExamController")]
+    public async Task<IActionResult> ResultFollowUpExport([FromQuery] ResultFollowUpQueryDto query,
+        CancellationToken ct) => Result(await _service.ExportResultFollowUpAsync(query, ct));
+
     [HttpGet("results/tabulation")]
     [Authorize(Roles = "TenantAdmin,Principal,VicePrincipal,ExamController")]
     public async Task<IActionResult> PublishedTabulation(

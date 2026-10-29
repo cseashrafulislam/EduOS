@@ -46,13 +46,14 @@
                 <input id="followUpSearch" class="form-control" type="search" maxlength="100" />
             </div>
             <div class="col-auto"><button id="followUpLoad" class="btn btn-primary" type="button" disabled>@(bn ? "তালিকা দেখুন" : "Load register")</button></div>
-            <div class="col-auto"><button id="followUpCsv" class="btn btn-outline-secondary" type="button" disabled>@(bn ? "পৃষ্ঠার CSV" : "Page CSV")</button></div>
-            <div class="col-auto"><button id="followUpPrint" class="btn btn-outline-secondary" type="button" disabled>@(bn ? "প্রিন্ট" : "Print")</button></div>
+            <div class="col-auto"><button id="followUpCsv" class="btn btn-outline-secondary" type="button" disabled>@(bn ? "CSV এক্সপোর্ট (সর্বোচ্চ ৫০০)" : "Export CSV (max 500)")</button></div>
+            <div class="col-auto"><button id="followUpPrint" class="btn btn-outline-secondary" type="button" disabled>@(bn ? "পৃষ্ঠা প্রিন্ট" : "Print page")</button></div>
         </div>
     </form>
     <section class="card">
         <div class="card-header"><h2 class="h6 mb-0" id="followUpTitle">@(bn ? "ফলাফল পর্যালোচনা" : "Result review")</h2>
-            <span id="followUpInfo" class="small text-muted" role="status" aria-live="polite"></span></div>
+            <span id="followUpInfo" class="small text-muted" role="status" aria-live="polite"></span>
+            <span id="followUpSummary" class="small text-muted ms-2" role="status" aria-live="polite"></span></div>
         <div class="table-responsive">
             <table class="table table-sm table-hover mb-0">
                 <thead><tr><th>@(bn ? "রোল" : "Roll")</th><th>@(bn ? "কোড" : "Code")</th><th>@(bn ? "শিক্ষার্থী" : "Student")</th><th>@(bn ? "নম্বর" : "Marks")</th><th>GPA</th><th>@(bn ? "গ্রেড" : "Grade")</th><th>@(bn ? "অবস্থা" : "Outcome")</th></tr></thead>

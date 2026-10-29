@@ -42,3 +42,25 @@ public sealed class ResultFollowUpPageDto
     public int PageSize { get; set; }
     public IReadOnlyList<ResultFollowUpRowDto> Items { get; set; } = [];
 }
+
+/// <summary>Whole-publication outcome counts, optionally filtered by student search.</summary>
+public sealed class ResultFollowUpSummaryDto
+{
+    public long PublicationId { get; set; }
+    public int VersionNo { get; set; }
+    public int Failed { get; set; }
+    public int Withheld { get; set; }
+    public int Total => Failed + Withheld;
+}
+
+/// <summary>Server-authorized bounded export. Truncated means more matching rows exist.</summary>
+public sealed class ResultFollowUpExportDto
+{
+    public long PublicationId { get; set; }
+    public int VersionNo { get; set; }
+    public ResultFollowUpStatus Status { get; set; }
+    public int TotalCount { get; set; }
+    public int Limit { get; set; } = 500;
+    public bool Truncated { get; set; }
+    public IReadOnlyList<ResultFollowUpRowDto> Items { get; set; } = [];
+}

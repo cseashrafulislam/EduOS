@@ -100,4 +100,86 @@ public sealed partial class AssessmentAdministrationService
             PageSize = request.PageSize, Items = items
         });
     }
+
+    /// <summary>Independent disjoint counts, using the same authorization and full snapshot integrity gates as the register.</summary>
+    public async Task<ApiResponse<ResultFollowUpSummaryDto>> GetResultFollowUpSummaryAsync(
+        long publicationId, string? search, CancellationToken ct = default)
+    {
+        if (publicationId <= 0 || search?.Trim().Length > 100)
+            return Error<ResultFollowUpSummaryDto>("Invalid follow-up summary scope.");
+        var failed = await SearchResultFollowUpAsync(new()
+        {
+            PublicationId = publicationId, Search = search,
+            Status = ResultFollowUpStatus.Failed, Page = 1, PageSize = 1
+        }, ct);
+        if (!failed.Success || failed.Data == null)
+            return Error<ResultFollowUpSummaryDto>(failed.Message, failed.StatusCode);
+        var withheld = await SearchResultFollowUpAsync(new()
+        {
+            PublicationId = publicationId, Search = search,
+            Status = ResultFollowUpStatus.Withheld, Page = 1, PageSize = 1
+        }, ct);
+        if (!withheld.Success || withheld.Data == null)
+            return Error<ResultFollowUpSummaryDto>(withheld.Message, withheld.StatusCode);
+        if (failed.Data.PublicationId != withheld.Data.PublicationId ||
+            failed.Data.VersionNo != withheld.Data.VersionNo)
+            return Error<ResultFollowUpSummaryDto>("Follow-up version changed during summary.", 409);
+        return ApiResponse<ResultFollowUpSummaryDto>.SuccessResponse(new()
+        {
+            PublicationId = publicationId, VersionNo = failed.Data.VersionNo,
+            Failed = failed.Data.TotalCount, Withheld = withheld.Data.TotalCount
+        });
+    }
+
+    /// <summary>
+    /// Reauthorize each bounded page; never export beyond 500 matching students or
+    /// silently combine different publication versions or changing result sets.
+    /// </summary>
+    public async Task<ApiResponse<ResultFollowUpExportDto>> ExportResultFollowUpAsync(
+        ResultFollowUpQueryDto request, CancellationToken ct = default)
+    {
+        if (request == null || request.PublicationId <= 0 || request.Page != 1 ||
+            request.PageSize is < 1 or > 50 || request.Search?.Trim().Length > 100 ||
+            request.Status is not (ResultFollowUpStatus.Failed or
+                ResultFollowUpStatus.Withheld or ResultFollowUpStatus.Both))
+            return Error<ResultFollowUpExportDto>("Invalid follow-up export scope.");
+
+        const int limit = 500;
+        var items = new List<ResultFollowUpRowDto>(limit);
+        var seen = new HashSet<(Guid StudentReference, string RollNo)>();
+        int? expectedTotal = null;
+        int? expectedVersion = null;
+        for (var page = 1; page <= 10; page++)
+        {
+            ct.ThrowIfCancellationRequested();
+            var response = await SearchResultFollowUpAsync(new()
+            {
+                PublicationId = request.PublicationId, Status = request.Status,
+                Search = request.Search, Page = page, PageSize = 50
+            }, ct);
+            if (!response.Success || response.Data == null)
+                return Error<ResultFollowUpExportDto>(response.Message, response.StatusCode);
+            var data = response.Data;
+            expectedTotal ??= data.TotalCount;
+            expectedVersion ??= data.VersionNo;
+            if (data.PublicationId != request.PublicationId || data.VersionNo != expectedVersion ||
+                data.TotalCount != expectedTotal || data.Status != request.Status ||
+                data.Page != page || data.PageSize != 50 ||
+                data.Items.Count != Math.Min(50, Math.Max(0, data.TotalCount - items.Count)))
+                return Error<ResultFollowUpExportDto>("Follow-up export changed during pagination.", 409);
+            foreach (var item in data.Items)
+            {
+                if (!seen.Add((item.StudentReference, item.RollNo)))
+                    return Error<ResultFollowUpExportDto>("Duplicate follow-up evidence requires reconciliation.", 409);
+                items.Add(item);
+            }
+            if (items.Count >= data.TotalCount) break;
+        }
+        return ApiResponse<ResultFollowUpExportDto>.SuccessResponse(new()
+        {
+            PublicationId = request.PublicationId, VersionNo = expectedVersion!.Value,
+            Status = request.Status, TotalCount = expectedTotal!.Value,
+            Limit = limit, Truncated = items.Count < expectedTotal.Value, Items = items
+        });
+    }
 }
