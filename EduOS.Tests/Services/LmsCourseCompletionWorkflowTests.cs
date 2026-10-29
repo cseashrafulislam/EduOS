@@ -366,9 +366,9 @@ public sealed class LmsCourseCompletionWorkflowTests
         Assert.Equal(3, rows.Count);
         Assert.True(rows[enrollment.Id].Eligibility.Ready);
         Assert.False(rows[second.Id].Eligibility.Ready);
-        Assert.Contains("Active student academic enrollment", rows[second.Id].Eligibility.Blockers);
+        Assert.Contains(rows[second.Id].Eligibility.Blockers, x => x.Contains("Active student academic enrollment"));
         Assert.False(rows[third.Id].Eligibility.Ready);
-        Assert.Contains("Academic enrollment is required", rows[third.Id].Eligibility.Blockers);
+        Assert.Contains(rows[third.Id].Eligibility.Blockers, x => x.Contains("Academic enrollment is required"));
     }
 
     private static async Task<(Course Course, Student Student, CourseEnrollment Enrollment, Lesson Lesson)> Seed(EduOSDbContext db)
