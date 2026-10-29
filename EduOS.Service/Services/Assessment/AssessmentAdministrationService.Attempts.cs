@@ -74,7 +74,7 @@ public sealed partial class AssessmentAdministrationService
             return Error<PagedResult<AssessmentAttemptCandidateDto>>("Candidate history requires a narrower search.", 409);
         var registrationIds = rows.Select(x => x.RegistrationId).ToArray();
         var already = await _attemptRegistrations.GetQueryable().AsNoTracking().Where(x =>
-            x.TenantId == tenant && x.AssessmentSubjectId == subject.Id &&
+            x.TenantId == tenant && x.AssessmentSubjectId == subject!.Id &&
             registrationIds.Contains(x.StudentSubjectRegistrationId) && !x.IsDeleted)
             .Select(x => x.StudentSubjectRegistrationId).ToListAsync(ct);
         var registered = already.ToHashSet();
@@ -238,7 +238,7 @@ public sealed partial class AssessmentAdministrationService
             if (latest != prior.Id)
                 return Error<AssessmentAttemptRegistrationDto>("Only the latest published course attempt can authorize a repeat.", 409);
             var existing = await _attemptRegistrations!.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
-                x.TenantId == tenant && x.AssessmentSubjectId == subject.Id &&
+                x.TenantId == tenant && x.AssessmentSubjectId == subject!.Id &&
                 x.StudentSubjectRegistrationId == course.Id && !x.IsDeleted, token);
             if (existing != null)
                 return existing.PriorResultPublicationId == prior.Id && existing.Reason == request.Reason.Trim()
@@ -254,7 +254,7 @@ public sealed partial class AssessmentAdministrationService
             var now = _clock.GetUtcNow().UtcDateTime;
             var row = new AssessmentAttemptRegistration
             {
-                TenantId = tenant, AssessmentSubjectId = subject.Id,
+                TenantId = tenant, AssessmentSubjectId = subject!.Id,
                 StudentSubjectRegistrationId = course.Id, PriorResultPublicationId = prior.Id,
                 Decision = AssessmentAttemptDecision.Requested,
                 Reason = request.Reason.Trim(), CreatedAt = now, CreatedBy = _user.UserId
