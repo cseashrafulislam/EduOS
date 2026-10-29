@@ -504,6 +504,16 @@ public sealed class AcademicEnrollmentService : IAcademicEnrollmentService
             // Throwing inside ExecuteInTransactionAsync guarantees rollback.
             return Error<T>(ex.Message, 409);
         }
+        catch (Exception ex) when (IsSqlAllocationConflict(ex))
+        {
+            // SQL Server may pick either enrollment or import as the deadlock victim.
+            // EF sometimes wraps 1205/3960/1222 in InvalidOperationException
+            // (transient failure), not DbUpdateException. The transaction has
+            // already been rolled back; callers may retry in a fresh transaction.
+            _logger.LogWarning(ex, "Academic enrollment SQL allocation conflict during {Operation} tenant {TenantId}",
+                operation, _user.TenantId);
+            return Error<T>("Enrollment allocation changed. Reload and retry.", 409);
+        }
         catch (DbUpdateConcurrencyException ex)
         {
             _logger.LogWarning(ex, "Academic enrollment concurrency failure during {Operation} tenant {TenantId}", operation, _user.TenantId);
@@ -514,6 +524,19 @@ public sealed class AcademicEnrollmentService : IAcademicEnrollmentService
             _logger.LogWarning(ex, "Academic enrollment conflict during {Operation} tenant {TenantId}", operation, _user.TenantId);
             return Error<T>("Enrollment conflicts with another request.", 409);
         }
+    }
+
+    private static bool IsSqlAllocationConflict(Exception error)
+    {
+        for (Exception? current = error; current != null; current = current.InnerException)
+        {
+            if (current is Microsoft.Data.SqlClient.SqlException sql)
+                return sql.Number is 1205 or 3960 or 1222;
+            // Do not mask unknown database/provider errors as a business conflict.
+            if (current is not InvalidOperationException && current is not DbUpdateException)
+                return false;
+        }
+        return false;
     }
 
     private sealed class BatchAllocationException(string message) : Exception(message);
