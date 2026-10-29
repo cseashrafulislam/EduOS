@@ -40,7 +40,10 @@ public sealed partial class FeeBillingService
             return Error<PagedResult<StudentFeeInstallmentPlanDto>>("Independent approval role required.", 403);
         var skip = Skip(page, pageSize);
         if (skip < 0) return Error<PagedResult<StudentFeeInstallmentPlanDto>>("Page exceeds limit.");
-        if (campusId.HasValue && !await CanAccessBillingCampusAsync(campusId.Value, ct))
+        if (campusId.HasValue &&
+            (!await db.Campuses.AsNoTracking().AnyAsync(x =>
+                x.TenantId == _user.TenantId && x.Id == campusId.Value && !x.IsDeleted, ct) ||
+             !await CanAccessBillingCampusAsync(campusId.Value, ct)))
             return Error<PagedResult<StudentFeeInstallmentPlanDto>>("Campus unavailable.", 404);
 
         var tenant = _user.TenantId;
