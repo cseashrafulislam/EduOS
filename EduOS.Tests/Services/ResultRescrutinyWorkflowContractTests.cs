@@ -42,6 +42,9 @@ public sealed class ResultRescrutinyWorkflowContractTests
         source.Should().Contain("if (!CanPublish())");
         source.Should().Contain("CanAccessCampusAsync(scope.CampusId");
         source.Should().Contain("HasValidRescrutinyEvidenceAsync");
+        source.Should().Contain("HasReconciledRescrutinyLedgerAsync");
+        source.Should().Contain("GroupBy(x => x.CaseReference)");
+        source.Should().Contain("r.ActorUserId != d.ActorUserId");
         source.Should().Contain("StudentEnrollmentId == student.Id");
         source.Should().Contain("replay.ActorUserId != _user.UserId");
         source.Should().Contain("original.ActorUserId == _user.UserId");

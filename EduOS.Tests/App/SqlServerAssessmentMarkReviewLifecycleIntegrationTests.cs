@@ -137,6 +137,37 @@ public sealed class SqlServerAssessmentMarkReviewLifecycleIntegrationTests
             });
             Assert.True(rejected.Success, rejected.Message);
             Assert.Empty(rejected.Data!.Items);
+
+            // A structurally valid but orphan terminal event must not vanish
+            // behind the Pending filter or yield misleading workload/export totals.
+            var orphan = new ResultRescrutinyEvent
+            {
+                TenantId = seeded.TenantId,
+                CaseReference = Guid.NewGuid(), ClientRequestId = Guid.NewGuid(),
+                ResultPublicationId = publicationId,
+                StudentEnrollmentId = await db.ResultRescrutinyEvents.AsNoTracking()
+                    .Where(x => x.CaseReference == caseReference && !x.IsTerminal)
+                    .Select(x => x.StudentEnrollmentId).SingleAsync(),
+                PublicationVersionNo = 1, Action = ResultRescrutinyAction.Rejected,
+                IsTerminal = true, ActorUserId = seeded.TeacherId,
+                OccurredAt = DateTime.UtcNow,
+                Reason = "Orphan reviewer decision must be rejected."
+            };
+            db.ResultRescrutinyEvents.Add(orphan);
+            await db.SaveChangesAsync();
+            Assert.Equal(409, (await service.SearchResultRescrutinyAsync(new()
+            {
+                PublicationId = publicationId, PageSize = 10,
+                Status = ResultRescrutinyAction.Requested
+            })).StatusCode);
+            Assert.Equal(409, (await service.GetResultRescrutinySummaryAsync(publicationId)).StatusCode);
+            Assert.Equal(409, (await service.ExportResultRescrutinyAsync(new()
+            {
+                PublicationId = publicationId, PageSize = 50
+            })).StatusCode);
+            db.ResultRescrutinyEvents.Remove(orphan);
+            await db.SaveChangesAsync();
+            Assert.True((await service.GetResultRescrutinySummaryAsync(publicationId)).Success);
         }
         await using (var db = TenantDb(options, seeded.TenantId + 1))
         {

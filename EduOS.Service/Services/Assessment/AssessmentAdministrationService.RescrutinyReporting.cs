@@ -19,6 +19,8 @@ public sealed partial class AssessmentAdministrationService
             return Error<ResultRescrutinySummaryDto>("Campus access denied.", 403);
         if (!await HasValidRescrutinyEvidenceAsync(scope, ct))
             return Error<ResultRescrutinySummaryDto>("Published snapshot requires reconciliation.", 409);
+        if (!await HasReconciledRescrutinyLedgerAsync(scope, ct))
+            return Error<ResultRescrutinySummaryDto>("Rescrutiny case evidence requires reconciliation.", 409);
 
         var tenant = _user.TenantId;
         var requests = _rescrutinyEvents.GetQueryable().AsNoTracking().Where(x =>

@@ -36,6 +36,51 @@ public sealed partial class AssessmentAdministrationService
         return proof.TryGetValue(scope.Publication.Id, out var evidence) && evidence.IsReconciled;
     }
 
+    // A status-filtered worklist can otherwise hide orphan/duplicate terminal events.
+    // Validate the complete tenant-owned publication ledger in SQL before displaying
+    // counts, allowing decisions or exporting even one case.
+    private async Task<bool> HasReconciledRescrutinyLedgerAsync(
+        RescrutinyScope scope, CancellationToken ct)
+    {
+        var tenant = _user.TenantId;
+        var events = _rescrutinyEvents.GetQueryable().AsNoTracking().Where(x =>
+            x.TenantId == tenant && x.ResultPublicationId == scope.Publication.Id && !x.IsDeleted);
+        var requests = events.Where(x => !x.IsTerminal && x.Action == ResultRescrutinyAction.Requested);
+        var decisions = events.Where(x => x.IsTerminal);
+
+        if (await events.AnyAsync(x =>
+            x.PublicationVersionNo != scope.Publication.VersionNo ||
+            x.CaseReference == Guid.Empty || x.ClientRequestId == Guid.Empty ||
+            x.ActorUserId <= 0 ||
+            (x.IsTerminal
+                ? x.Action != ResultRescrutinyAction.Rejected &&
+                  x.Action != ResultRescrutinyAction.AcceptedForCorrection
+                : x.Action != ResultRescrutinyAction.Requested) ||
+            !_enrollments.GetQueryable().AsNoTracking().Any(e =>
+                e.TenantId == tenant && e.Id == x.StudentEnrollmentId && !e.IsDeleted &&
+                e.AcademicBatchId == scope.Publication.AcademicBatchId &&
+                e.AcademicYearId == scope.AcademicYearId && e.CampusId == scope.CampusId), ct))
+            return false;
+
+        // Aggregation is executed in SQL: no unbounded materialization of case events.
+        if (await events.GroupBy(x => x.CaseReference)
+            .Select(g => new
+            {
+                Requests = g.Count(x => !x.IsTerminal),
+                Decisions = g.Count(x => x.IsTerminal)
+            }).AnyAsync(x => x.Requests != 1 || x.Decisions > 1, ct))
+            return false;
+
+        // A terminal event must reference the exact original case, enrollment,
+        // version and a different actor; no independent decision may predate intake.
+        return !await decisions.AnyAsync(d => !requests.Any(r =>
+            r.CaseReference == d.CaseReference &&
+            r.StudentEnrollmentId == d.StudentEnrollmentId &&
+            r.PublicationVersionNo == d.PublicationVersionNo &&
+            r.ActorUserId != d.ActorUserId &&
+            r.OccurredAt <= d.OccurredAt), ct);
+    }
+
     public async Task<ApiResponse<ResultRescrutinyPageDto>> SearchResultRescrutinyAsync(
         ResultRescrutinyQueryDto request, CancellationToken ct = default)
     {
@@ -51,6 +96,8 @@ public sealed partial class AssessmentAdministrationService
             return Error<ResultRescrutinyPageDto>("Campus access denied.", 403);
         if (!await HasValidRescrutinyEvidenceAsync(scope, ct))
             return Error<ResultRescrutinyPageDto>("Published snapshot requires reconciliation.", 409);
+        if (!await HasReconciledRescrutinyLedgerAsync(scope, ct))
+            return Error<ResultRescrutinyPageDto>("Rescrutiny case evidence requires reconciliation.", 409);
 
         var tenant = _user.TenantId;
         var query = from evt in _rescrutinyEvents.GetQueryable().AsNoTracking()
@@ -172,6 +219,8 @@ public sealed partial class AssessmentAdministrationService
                 return Error<ResultRescrutinyItemDto>("Student enrollment not found in publication scope.", 404);
             if (!await HasValidRescrutinyEvidenceAsync(scope, token))
                 return Error<ResultRescrutinyItemDto>("Published snapshot requires reconciliation.", 409);
+            if (!await HasReconciledRescrutinyLedgerAsync(scope, token))
+                return Error<ResultRescrutinyItemDto>("Rescrutiny case evidence requires reconciliation.", 409);
             var privilegedIntake = linked == null;
             if (!await _summaries.GetQueryable().AsNoTracking().AnyAsync(x =>
                 x.TenantId == tenant && x.ResultPublicationId == scope.Publication.Id &&
@@ -283,6 +332,8 @@ public sealed partial class AssessmentAdministrationService
                 return Error<bool>("Application version changed; refresh.", 409);
             if (!await HasValidRescrutinyEvidenceAsync(scope, token))
                 return Error<bool>("Published snapshot requires reconciliation.", 409);
+            if (!await HasReconciledRescrutinyLedgerAsync(scope, token))
+                return Error<bool>("Rescrutiny case evidence requires reconciliation.", 409);
             var normalized = request.Reason.Trim();
             var replay = await _rescrutinyEvents.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
                 x.TenantId == tenant && x.ClientRequestId == request.ClientRequestId && !x.IsDeleted, token);
