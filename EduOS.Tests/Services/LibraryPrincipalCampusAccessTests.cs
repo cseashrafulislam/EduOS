@@ -142,11 +142,16 @@ public sealed class LibraryPrincipalCampusAccessTests
         var x = await SeedAsync(db);
         x.CopyA.State = BookCopyState.Available; // Open loan on an available copy.
         x.AvailableB.State = BookCopyState.Issued; // Issued copy with no open loan.
-        db.BookCopies.Add(new BookCopy
+        // A tenant-101 context must reject foreign-tenant fixture writes; never
+        // bypass the production tenant boundary merely to seed a report test.
+        var foreignCopy = new BookCopy
         {
             TenantId = 202, BookId = x.Book.Id, LibraryBranchId = x.BranchA.Id,
             AccessionNumber = "OTHER-TENANT", State = BookCopyState.Issued
-        });
+        };
+        db.BookCopies.Add(foreignCopy);
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => db.SaveChangesAsync());
+        db.Entry(foreignCopy).State = EntityState.Detached;
         await db.SaveChangesAsync();
 
         var principal = Service(db, "Principal");

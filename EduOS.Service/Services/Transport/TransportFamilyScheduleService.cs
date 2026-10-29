@@ -120,8 +120,8 @@ public sealed class TransportFamilyScheduleService : ITransportFamilyScheduleSer
                      enrollment.StudentId == student.Id && enrollment.IsCurrent &&
                      enrollment.State == EnrollmentState.Active &&
                      campus.TenantId == tenant && !campus.IsDeleted && campus.IsActive &&
-                     route.TenantId == tenant && !route.IsDeleted &&
-                     vehicle.TenantId == tenant && !vehicle.IsDeleted &&
+                     route.TenantId == tenant && !route.IsDeleted && route.IsActive &&
+                     vehicle.TenantId == tenant && !vehicle.IsDeleted && vehicle.IsActive &&
                      route.CampusId == campus.Id && vehicle.CampusId == campus.Id &&
                      assignment.State == TransportAssignmentState.Active &&
                      assignment.StartDate <= date &&

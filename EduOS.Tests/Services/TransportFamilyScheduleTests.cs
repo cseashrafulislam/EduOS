@@ -108,6 +108,33 @@ public sealed class TransportFamilyScheduleTests
     }
 
     [Fact]
+    public async Task Retired_route_or_vehicle_is_not_published_as_a_current_family_schedule()
+    {
+        await using var db = CreateContext(101);
+        await SeedAsync(db);
+        var today = DateOnly.FromDateTime(TimeProvider.System.GetLocalNow().DateTime);
+        var family = new TransportFamilyScheduleService(db, new User(101, 42, "Parent"), TimeProvider.System);
+        var student = new TransportFamilyScheduleService(db, new User(101, 21, "Student"), TimeProvider.System);
+        var route = await db.Routes.SingleAsync();
+        var vehicle = await db.Vehicles.SingleAsync();
+
+        (await family.GetAsync(today, 1, 20)).Data!.Items.Should().ContainSingle();
+        route.IsActive = false;
+        await db.SaveChangesAsync();
+        (await family.GetAsync(today, 1, 20)).Data!.Items.Should().BeEmpty();
+        (await student.GetAsync(today, 1, 20)).Data!.Items.Should().BeEmpty();
+        (await family.ExportCsvAsync(today)).Data.Should().NotContain("FAMILY-BUS");
+
+        route.IsActive = true;
+        await db.SaveChangesAsync();
+        (await family.GetAsync(today, 1, 20)).Data!.Items.Should().ContainSingle();
+        vehicle.IsActive = false;
+        await db.SaveChangesAsync();
+        (await family.GetAsync(today, 1, 20)).Data!.Items.Should().BeEmpty();
+        (await student.ExportCsvAsync(today)).Data.Should().NotContain("FAMILY-BUS");
+    }
+
+    [Fact]
     public async Task Invalid_date_and_paging_are_bounded()
     {
         await using var db = CreateContext(101);

@@ -1,3 +1,6 @@
+using EduOS.App.Controllers;
+using EduOS.Core.Common;
+using EduOS.Core.DTOs.Hostel;
 using EduOS.Core.Entities.Academic;
 using EduOS.Core.Entities.Hostel;
 using EduOS.Core.Entities.SaaS;
@@ -7,6 +10,7 @@ using EduOS.Core.Interfaces;
 using EduOS.Persistence.Context;
 using EduOS.Service.Services.Hostel;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using System.Security.Claims;
@@ -84,6 +88,14 @@ public sealed class GuardianHostelStayIsolationTests
         Assert.Contains("SAFE", csv.Data);
         Assert.DoesNotContain("PRIVATE", csv.Data);
         Assert.DoesNotContain("NO-PICKUP", csv.Data);
+        var parent = new GuardianHostelStayService(db, User(101, 41, "Parent"),
+            TimeProvider.System, NullLogger<GuardianHostelStayService>.Instance);
+        Assert.Single((await parent.GetCurrentStaysAsync(1, 20, null)).Data!.Items);
+        Assert.Contains("SAFE", (await parent.ExportCurrentPageCsvAsync(1, null)).Data);
+        var switchedTenant = new GuardianHostelStayService(db, User(202, 41),
+            TimeProvider.System, NullLogger<GuardianHostelStayService>.Instance);
+        Assert.Empty((await switchedTenant.GetCurrentStaysAsync(1, 20, null)).Data!.Items);
+        Assert.DoesNotContain("SAFE", (await switchedTenant.ExportCurrentPageCsvAsync(1, null)).Data);
         Assert.Equal(400, (await service.GetCurrentStaysAsync(0, 20, null)).StatusCode);
         Assert.Equal(400, (await service.GetCurrentStaysAsync(1, 21, null)).StatusCode);
         Assert.Equal(400, (await service.GetCurrentStaysAsync(1, 20, new string('x', 101))).StatusCode);
@@ -100,6 +112,46 @@ public sealed class GuardianHostelStayIsolationTests
         await db.SaveChangesAsync();
         Assert.Empty((await service.GetCurrentStaysAsync(1, 20, null)).Data!.Items);
         Assert.DoesNotContain("SAFE", (await service.ExportCurrentPageCsvAsync(1, null)).Data);
+
+        // Reinstating consent does not make a retired bed, room, hostel or campus
+        // a valid current-location disclosure. API, CSV and print share this rule.
+        link.IsAuthorizedPickup = true;
+        await db.SaveChangesAsync();
+        var allowedBed = await db.HostelBeds.SingleAsync(x => x.BedNumber == "1");
+        async Task AssertHiddenAsync()
+        {
+            Assert.Empty((await service.GetCurrentStaysAsync(1, 20, null)).Data!.Items);
+            Assert.DoesNotContain("SAFE", (await service.ExportCurrentPageCsvAsync(1, null)).Data);
+            var print = Assert.IsType<ViewResult>(
+                await new GuardianHostelStaysPrintController(service).Index(1, null, CancellationToken.None));
+            Assert.Empty(Assert.IsType<PagedResult<GuardianHostelStayRowDto>>(print.Model).Items);
+        }
+        async Task AssertVisibleAsync()
+        {
+            Assert.Single((await service.GetCurrentStaysAsync(1, 20, null)).Data!.Items);
+        }
+        await AssertVisibleAsync();
+        allowedBed.IsActive = false;
+        await db.SaveChangesAsync();
+        await AssertHiddenAsync();
+        allowedBed.IsActive = true;
+        await db.SaveChangesAsync();
+        await AssertVisibleAsync();
+        room.IsActive = false;
+        await db.SaveChangesAsync();
+        await AssertHiddenAsync();
+        room.IsActive = true;
+        await db.SaveChangesAsync();
+        await AssertVisibleAsync();
+        hostel.IsActive = false;
+        await db.SaveChangesAsync();
+        await AssertHiddenAsync();
+        hostel.IsActive = true;
+        await db.SaveChangesAsync();
+        await AssertVisibleAsync();
+        campus.IsActive = false;
+        await db.SaveChangesAsync();
+        await AssertHiddenAsync();
     }
 
     [Fact]
@@ -143,9 +195,12 @@ public sealed class GuardianHostelStayIsolationTests
     }
 
     private static ICurrentUserService User(long tenant, long id, bool guardian = true) =>
-        new GuardianUser(tenant, id, guardian);
+        new GuardianUser(tenant, id, guardian ? "Guardian" : "Student");
 
-    private sealed class GuardianUser(long tenant, long id, bool guardian) : ICurrentUserService
+    private static ICurrentUserService User(long tenant, long id, string role) =>
+        new GuardianUser(tenant, id, role);
+
+    private sealed class GuardianUser(long tenant, long id, string role) : ICurrentUserService
     {
         public bool IsAuthenticated => true;
         public long UserId => id;
@@ -154,8 +209,8 @@ public sealed class GuardianHostelStayIsolationTests
         public string? Email => null;
         public bool IsSuperAdmin => false;
         public bool IsTenantAdmin => false;
-        public IReadOnlyList<string> Roles => guardian ? ["Guardian"] : ["Student"];
-        public bool IsInRole(string role) => guardian && role == "Guardian";
+        public IReadOnlyList<string> Roles => [role];
+        public bool IsInRole(string name) => role == name;
         public string? IpAddress => null;
         public string? UserAgent => null;
     }

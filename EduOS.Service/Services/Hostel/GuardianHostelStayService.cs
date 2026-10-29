@@ -48,8 +48,9 @@ public sealed class GuardianHostelStayService(
                 join campus in db.Campuses.AsNoTracking() on hostel.CampusId equals campus.Id
                 where link.TenantId == tenant && guardian.TenantId == tenant &&
                     student.TenantId == tenant && enrollment.TenantId == tenant &&
-                    stay.TenantId == tenant && bed.TenantId == tenant &&
-                    room.TenantId == tenant && hostel.TenantId == tenant &&
+                    stay.TenantId == tenant && bed.TenantId == tenant && bed.IsActive &&
+                    room.TenantId == tenant && room.IsActive &&
+                    hostel.TenantId == tenant && hostel.IsActive &&
                     campus.TenantId == tenant && guardian.UserId == user.UserId &&
                     guardian.IsActive && !guardian.IsDeleted && !link.IsDeleted &&
                     link.IsAuthorizedPickup && !student.IsDeleted &&
