@@ -26,7 +26,12 @@ function fixture(admin, language) {
         '<dialog id="digitalEditDialog"><form id="digitalEditForm">',
         '<input id="digitalEditName" required><input id="digitalEditExpiry" type="date">',
         '<button id="digitalEditSave" type="submit">Save</button>',
-        '<button id="digitalEditCancel" type="button">Cancel</button></form></dialog>'
+        '<button id="digitalEditCancel" type="button">Cancel</button></form></dialog>',
+        '<dialog id="digitalReplaceDialog"><form id="digitalReplaceForm">',
+        '<input id="digitalReplaceTitle" required><input id="digitalReplaceExpiry" type="date">',
+        '<input id="digitalReplaceFile" type="file" required>',
+        '<button id="digitalReplaceSave" type="submit">Publish version</button>',
+        '<button id="digitalReplaceCancel" type="button">Cancel</button></form></dialog>'
     ].join('') : '';
     return '<!doctype html><html lang="' + language + '"><head>' +
         '<meta name="request-verification-token" content="csrf"></head>' +
@@ -104,6 +109,12 @@ async function scenario(browser, admin, language) {
             assert.equal(await page.locator('#digitalBook option').count(), 2);
             await page.locator('#digitalEditCancel').click();
             assert.equal(await page.locator('#digitalEditDialog').evaluate(el => el.open), false);
+            await page.locator('#digitalRows button').filter({ hasText: 'Replace' }).click();
+            assert.equal(await page.locator('#digitalReplaceDialog').evaluate(el => el.open), true);
+            assert.equal(await page.locator('#digitalReplaceTitle').inputValue(),
+                'Protected course reader');
+            await page.locator('#digitalReplaceCancel').click();
+            assert.equal(await page.locator('#digitalReplaceDialog').evaluate(el => el.open), false);
             // Reopen the edit dialog only after the download has started, so
             // the subsequent session transition also proves modal scrubbing.
         }
