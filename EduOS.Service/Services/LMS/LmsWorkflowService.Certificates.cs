@@ -3,6 +3,7 @@ using EduOS.Core.DTOs.LMS;
 using EduOS.Core.Entities.LMS;
 using EduOS.Core.Enums.Domain;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using System.Data;
 
 namespace EduOS.Service.Services.LMS;
@@ -218,7 +219,7 @@ public sealed partial class LmsWorkflowService
             new PagedResult<LmsCertificateDto>
             {
                 Page = page, PageSize = pageSize, TotalCount = total,
-                Items = rows.Select(x => MapCertificate(x.Certificate, x.CourseReference)).ToArray()
+                Items = rows.Select(x => MapCertificate(x.Certificate, x.CourseReference)).ToList()
             });
     }
 
@@ -242,7 +243,7 @@ public sealed partial class LmsWorkflowService
             new PagedResult<LmsCertificateDto>
             {
                 Page = page, PageSize = pageSize, TotalCount = total,
-                Items = rows.Select(x => MapCertificate(x, course.PublicId)).ToArray()
+                Items = rows.Select(x => MapCertificate(x, course.PublicId)).ToList()
             });
     }
 
