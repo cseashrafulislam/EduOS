@@ -1,3 +1,4 @@
+using EduOS.Core.Entities.Academic;
 using EduOS.Core.Entities.SaaS;
 using EduOS.Core.Entities.Students;
 using EduOS.Core.Entities.Transport;
