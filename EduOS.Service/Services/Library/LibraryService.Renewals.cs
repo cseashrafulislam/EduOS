@@ -3,6 +3,7 @@ using EduOS.Core.DTOs.Library;
 using EduOS.Core.Entities.System;
 using EduOS.Core.Enums.Domain;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using System.Globalization;
 using System.Text.Json;
 using System.Transactions;
