@@ -4,6 +4,7 @@ using EduOS.Core.Entities.Assessment;
 using EduOS.Core.Entities.System;
 using EduOS.Core.Enums.Domain;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.DataProtection;
 using System.Text.Json;
 
 namespace EduOS.Service.Services.AssessmentAdministration;

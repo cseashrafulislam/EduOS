@@ -63,7 +63,7 @@ async function main() {
         await page.addScriptTag({ path: path.join(root, 'EduOS.App/wwwroot/js/assessment/transcripts.js') });
         await page.locator('#transcriptStudentSearch').fill('ST-101');
         await page.locator('#transcriptFindStudent').click();
-        await page.locator('#transcriptStudent option').nth(1).waitFor();
+        await page.locator('#transcriptStudent option').nth(1).waitFor({ state: 'attached' });
         await page.selectOption('#transcriptStudent', student);
         await page.locator('#transcriptPreviewRecord').click();
         await page.getByText('MAT — Math').waitFor();
