@@ -10,6 +10,7 @@ using EduOS.Persistence.Context;
 using EduOS.Service.Helpers.Storage;
 using EduOS.Service.Services.Documents;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Logging;
 using System.Data;
 using System.IO;
@@ -82,6 +83,18 @@ public sealed class LibraryDigitalResourceService(
         if (!Authenticated) return false;
         var campuses = MemberCampusIds();
         return campuses != null && await campuses.AnyAsync(ct);
+    }
+
+    private static bool IsSqlRegistrationConflict(Exception error)
+    {
+        // Only normalize recognized SQL write-contention codes. Unrelated storage,
+        // authentication and programming failures must remain visible to diagnostics.
+        for (Exception? current = error; current != null; current = current.InnerException)
+        {
+            if (current is SqlException sql && sql.Number is 1205 or 2601 or 2627 or 3960)
+                return true;
+        }
+        return false;
     }
 
     private static bool VersionMatches(byte[] current, string? supplied)
@@ -275,6 +288,14 @@ public sealed class LibraryDigitalResourceService(
         catch (DbUpdateException ex)
         {
             logger.LogWarning(ex, "Library digital registration conflict for tenant {TenantId}", Tenant);
+            return Fail<LibraryDigitalResourceDto>("Concurrent resource registration; retry the same request ID.", 409);
+        }
+        catch (Exception ex) when (IsSqlRegistrationConflict(ex))
+        {
+            // SQL Server can surface a serializable publish collision as SqlException
+            // 1205 (deadlock) or 3960 (snapshot update conflict), sometimes wrapped
+            // by EF's execution strategy. Never turn a concurrent replay into HTTP 500.
+            logger.LogWarning(ex, "Library digital publication contention for tenant {TenantId}", Tenant);
             return Fail<LibraryDigitalResourceDto>("Concurrent resource registration; retry the same request ID.", 409);
         }
     }
