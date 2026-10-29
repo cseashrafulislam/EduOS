@@ -2,17 +2,17 @@
 'use strict';
 const root=document.getElementById('lmsCompletionApp');if(!root)return;
 const $=id=>document.getElementById(id);
-const state={courses:[],coursePage:1,coursePages:1,rows:[],page:1,pages:1,request:0,busy:false};
+const state={courses:[],coursePage:1,coursePages:1,rows:[],page:1,pages:1,request:0,busy:false,exporting:false};
 const option=(value,label)=>{const o=document.createElement('option');o.value=value;o.textContent=label;return o;};
 const cell=(tr,value)=>{const td=document.createElement('td');td.textContent=String(value??'');tr.append(td);return td;};
 function alertUser(type,message){const node=$('lmsCompletionAlert');node.className='alert alert-'+type;node.textContent=message;node.focus();}
-async function api(url,method='GET',body){
+async function api(url,method='GET',body,signal){
  const headers={Accept:'application/json'};
  if(method!=='GET'){const token=document.querySelector('meta[name="request-verification-token"]')?.content;
   if(!token)throw Error('Security token missing. Reload the page.');
   headers.RequestVerificationToken=token;headers['Content-Type']='application/json';}
  const response=await fetch(url,{method,credentials:'same-origin',cache:'no-store',headers,
-  ...(body===undefined?{}:{body:JSON.stringify(body)})});
+  ...(body===undefined?{}:{body:JSON.stringify(body)}),...(signal?{signal}:{})});
  const result=await response.json().catch(()=>null);
  if(!response.ok||!result?.success)throw Error(result?.message||'Request failed.');
  return result.data;
@@ -69,15 +69,35 @@ async function complete(row,button){
  }catch(e){alertUser('danger',e.message);await loadRegister();}
  finally{state.busy=false;}
 }
-function csv(){
- const headers=['Student code','Student name','State','Lessons','Assignments','Quizzes','Eligibility'];
- const rows=state.rows.map(x=>{const e=x.eligibility||{};return [x.studentCode,x.studentName,x.state===2?'Completed':x.state===1?'Active':'Inactive',
-  (e.completedLessons||0)+'/'+(e.requiredLessons||0),(e.gradedAssignments||0)+'/'+(e.requiredAssignments||0),
-  (e.passedQuizzes||0)+'/'+(e.requiredQuizzes||0),x.state===2?'Completed':e.ready?'Ready':(e.blockers||[]).join(' ')];});
- const safe=v=>{let s=String(v??'');if(/^[=+@\-\t\r]/.test(s))s="'"+s;return '"'+s.replaceAll('"','""')+'"';};
- const blob=new Blob([String.fromCharCode(0xfeff),[headers,...rows].map(x=>x.map(safe).join(',')).join('\r\n')],{type:'text/csv;charset=utf-8'});
- const url=URL.createObjectURL(blob),link=document.createElement('a');link.href=url;link.download='lms-course-completions.csv';
- link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
+async function exportFiltered(){
+ if(state.exporting)return;
+ const course=$('lmsCompletionCourse').value,search=$('lmsCompletionSearch').value.trim();
+ if(!course){alertUser('danger','Choose a course before exporting.');return;}
+ const report=window.EduOSLmsCompletionReport;
+ if(!report){alertUser('danger','Report exporter is unavailable. Reload the page.');return;}
+ const reference=document.body?.dataset.authSessionReference||'';
+ const tenant=document.body?.dataset.authTenantId||'';
+ const isCurrent=()=>/^[0-9A-F]{64}$/.test(reference)&&
+  document.body?.dataset.authSessionReference===reference&&
+  document.body?.dataset.authTenantId===tenant&&
+  $('lmsCompletionCourse').value===course&&$('lmsCompletionSearch').value.trim()===search&&
+  window.EduOSSessionTransitionPending?.()!==true;
+ state.exporting=true;$('lmsCompletionCsv').disabled=true;
+ try{
+  const rows=await report.collect(async(page,pageSize)=>{
+   const query=new URLSearchParams({page:String(page),pageSize:String(pageSize),search});
+   const controller=new AbortController(),timeout=window.setTimeout(()=>controller.abort(),10000);
+   try{return await api('/api/lms/courses/'+encodeURIComponent(course)+'/completion-register?'+query,'GET',undefined,controller.signal);}
+   finally{window.clearTimeout(timeout);}
+  },isCurrent);
+  if(!isCurrent())throw Error('Course, filter or account changed. Restart the export.');
+  const blob=new Blob([report.toCsv(rows)],{type:'text/csv;charset=utf-8'});
+  const url=URL.createObjectURL(blob),link=document.createElement('a');
+  link.href=url;link.download='lms-course-completions-filtered.csv';link.click();
+  window.setTimeout(()=>URL.revokeObjectURL(url),1000);
+  alertUser('success','Exported '+rows.length+' matching enrollment(s).');
+ }catch(e){alertUser('danger',e.message||'Unable to export the completion register.');}
+ finally{state.exporting=false;$('lmsCompletionCsv').disabled=false;}
 }
 $('lmsCompletionCourse').addEventListener('change',()=>{state.page=1;loadRegister();});
 $('lmsCompletionSearchButton').addEventListener('click',()=>{state.page=1;loadRegister();});
@@ -86,7 +106,10 @@ $('lmsCompletionCoursePrev').addEventListener('click',()=>{if(state.coursePage>1
 $('lmsCompletionCourseNext').addEventListener('click',()=>{if(state.coursePage<state.coursePages){state.coursePage++;loadCourses();}});
 $('lmsCompletionPrev').addEventListener('click',()=>{if(state.page>1){state.page--;loadRegister();}});
 $('lmsCompletionNext').addEventListener('click',()=>{if(state.page<state.pages){state.page++;loadRegister();}});
-$('lmsCompletionCsv').addEventListener('click',csv);
+$('lmsCompletionCsv').addEventListener('click',exportFiltered);
 $('lmsCompletionPrint').addEventListener('click',()=>window.print());
+const help=$('lmsCompletionHelp');
+document.addEventListener('keydown',event=>{if(event.key==='Escape'&&help)help.open=false;});
+document.addEventListener('pointerdown',event=>{if(help&&!help.contains(event.target))help.open=false;});
 loadCourses();
 })();

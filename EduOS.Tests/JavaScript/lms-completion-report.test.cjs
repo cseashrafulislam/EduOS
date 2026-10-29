@@ -1,0 +1,57 @@
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const { collect, toCsv, PAGE_SIZE, MAX_ROWS } = require('../../EduOS.App/wwwroot/js/learning/completion-report.js');
+const rows = n => Array.from({ length: n }, (_, i) => ({
+    enrollmentId: i + 1, studentCode: `S${i + 1}`, studentName: `Learner ${i + 1}`,
+    state: 1, eligibility: { ready: true, completedLessons: 1, requiredLessons: 1 }
+}));
+
+test('exports every filtered page without silently truncating at the visible page', async () => {
+    const data = rows(53), calls = [];
+    const result = await collect(async (page, size) => {
+        calls.push([page, size]);
+        return { totalCount: data.length, items: data.slice((page - 1) * size, page * size) };
+    });
+    assert.equal(result.length, 53);
+    assert.deepEqual(calls, [[1, PAGE_SIZE], [2, PAGE_SIZE], [3, PAGE_SIZE]]);
+    assert.equal(toCsv(result).split('\r\n').length, 54);
+});
+
+test('rejects an oversized export before downloading any partial CSV', async () => {
+    let calls = 0;
+    await assert.rejects(collect(async () => { calls++; return { totalCount: MAX_ROWS + 1, items: rows(25) }; }), /Narrow the student search/);
+    assert.equal(calls, 1);
+});
+
+test('rejects changed account or filter while a request is in flight', async () => {
+    let current = true;
+    await assert.rejects(collect(async () => { current = false; return { totalCount: 1, items: rows(1) }; }, () => current), /account changed/);
+});
+
+test('rejects duplicate IDs and inconsistent totals instead of silently corrupting a report', async () => {
+    const full = rows(25);
+    await assert.rejects(collect(async page => page === 1
+        ? { totalCount: 26, items: full }
+        : { totalCount: 26, items: [full[0]] }), /changed during export/);
+    await assert.rejects(collect(async page => page === 1
+        ? { totalCount: 26, items: full }
+        : { totalCount: 27, items: rows(2) }), /changed during export/);
+});
+
+test('neutralizes formula cells including leading tab and newline while preserving Bangla', () => {
+    const row = rows(1)[0];
+    row.studentCode = '=1+1';
+    row.studentName = '\t@SUM(A1:A2)';
+    row.eligibility = { blockers: ['\n-1+2', 'বাংলা'], ready: false };
+    const csv = toCsv([row]);
+    assert.ok(csv.startsWith('\uFEFF'));
+    assert.ok(csv.includes('"\'=1+1"'));
+    assert.ok(csv.includes('"\'\t@SUM(A1:A2)"'));
+    assert.ok(csv.includes('"\'\n-1+2 বাংলা"'));
+});
+
+test('empty register yields only the header', async () => {
+    const result = await collect(async () => ({ totalCount: 0, items: [] }));
+    assert.deepEqual(result, []);
+    assert.equal(toCsv(result).split('\r\n').length, 1);
+});
