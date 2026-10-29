@@ -24,6 +24,7 @@ public partial class AuthController
         {
             if (!await AuthSessionRegistry.IsValidPrincipalAsync(_db, User))
                 return Unauthorized(new { success = false, message = "Session changed. Sign in again." });
+            BindAccountReadbackSession();
             return Ok(new { success = true, data = new {
                 currentTenantId = (long?)null, institutions = Array.Empty<TenantChoice>()
             } });
@@ -32,6 +33,7 @@ public partial class AuthController
         if (!await AuthSessionRegistry.IsValidPrincipalAsync(_db, User))
             return Unauthorized(new { success = false, message = "Session changed. Sign in again." });
         var currentId = long.TryParse(User.FindFirstValue("TenantId"), out var parsed) ? parsed : (long?)null;
+        BindAccountReadbackSession();
         return Ok(new { success = true, data = new {
             currentTenantId = currentId,
             institutions = session.Tenants.Select(t => new { id = t.Id, name = t.Name })

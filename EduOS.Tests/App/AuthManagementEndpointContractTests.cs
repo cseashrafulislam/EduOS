@@ -45,6 +45,11 @@ public sealed class AuthManagementEndpointContractTests
         var method = typeof(AuthController).GetMethod(nameof(AuthController.GetAvailableInstitutions))!;
         Assert.True(method.GetCustomAttributes(typeof(AuthorizeAttribute), true).Any());
         Assert.True(method.GetCustomAttributes(typeof(HttpGetAttribute), true).Any());
+        var source = File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "TestAssets", "AuthInstitutionSwitchController.cs"));
+        var choices = source[source.IndexOf("public async Task<IActionResult> GetAvailableInstitutions()", StringComparison.Ordinal)..
+            source.IndexOf("// This read-only, no-store snapshot", StringComparison.Ordinal)];
+        Assert.Equal(2, choices.Split("BindAccountReadbackSession();").Length - 1);
+        Assert.Equal(2, choices.Split("AuthSessionRegistry.IsValidPrincipalAsync(_db, User)").Length - 1);
     }
 
     [Fact]
