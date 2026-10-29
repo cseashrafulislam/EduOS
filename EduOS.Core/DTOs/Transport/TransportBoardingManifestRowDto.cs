@@ -14,4 +14,9 @@ public sealed class TransportBoardingManifestRowDto
     public DateOnly OperatingDate { get; set; }
     public string Readiness { get; set; } = string.Empty;
     public bool NeedsAttention { get; set; }
+    public int Capacity { get; set; }
+    public int ReservedRiders { get; set; }
+    public int RouteLinks { get; set; }
+    public int DriverLinks { get; set; }
+    public bool DriverEligible { get; set; }
 }

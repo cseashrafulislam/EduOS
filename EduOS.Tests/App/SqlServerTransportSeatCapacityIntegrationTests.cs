@@ -59,7 +59,7 @@ public sealed class SqlServerTransportSeatCapacityIntegrationTests
         }
 
         await using var db = ScopedContext(fixture.Options, fixture.TenantId, fixture.UserId);
-        var service = Service(db, fixture.TenantId, fixture.UserId);
+        var service = DriverService(db, fixture.TenantId, fixture.UserId);
         var result = await service.GetBoardingManifestAsync(
             fixture.Start, null, fixture.RouteReference, fixture.VehicleReference, 1, 25, null, false);
         Assert.True(result.Success, result.Message);
@@ -67,6 +67,10 @@ public sealed class SqlServerTransportSeatCapacityIntegrationTests
         Assert.Equal("PickupReview", row.Readiness);
         Assert.True(row.NeedsAttention);
         Assert.Equal(1, result.Data.TotalCount);
+        Assert.Equal(1, row.ReservedRiders);
+        Assert.Equal(1, row.Capacity);
+        Assert.Equal(0, row.DriverLinks);
+        Assert.False(row.DriverEligible);
 
         var attention = await service.GetBoardingManifestAsync(
             fixture.Start, null, null, null, 1, 25, null, true);
@@ -88,13 +92,82 @@ public sealed class SqlServerTransportSeatCapacityIntegrationTests
         Assert.True(export.Success, export.Message);
         Assert.Contains(row.StudentCode, export.Data);
         Assert.DoesNotContain("Capacity student A", export.Data);
+        Assert.Contains("Driver Eligible", export.Data);
 
         await using var otherDb = ScopedContext(fixture.Options, fixture.TenantId, fixture.UserId);
-        var otherTenant = Service(otherDb, long.MaxValue, fixture.UserId);
+        var otherTenant = DriverService(otherDb, long.MaxValue, fixture.UserId);
         var isolated = await otherTenant.GetBoardingManifestAsync(
             fixture.Start, null, null, null, 1, 25, null, false);
         Assert.True(isolated.Success, isolated.Message);
         Assert.Empty(isolated.Data!.Items);
+
+        // A complete pickup/drop roster must still fail closed without a licensed driver.
+        await using (var setup = ScopedContext(fixture.Options, fixture.TenantId, fixture.UserId))
+        {
+            var routeId = await setup.Set<TransportRoute>().Where(x =>
+                x.TenantId == fixture.TenantId && x.PublicId == fixture.RouteReference)
+                .Select(x => x.Id).SingleAsync();
+            var pickup = new RouteStop
+            {
+                TenantId = fixture.TenantId, RouteId = routeId,
+                Name = "Test pickup", SequenceNo = 1, IsActive = true
+            };
+            var drop = new RouteStop
+            {
+                TenantId = fixture.TenantId, RouteId = routeId,
+                Name = "Test drop", SequenceNo = 2, IsActive = true
+            };
+            setup.AddRange(pickup, drop);
+            await setup.SaveChangesAsync();
+            var rider = await setup.Set<StudentTransport>().SingleAsync(x =>
+                x.TenantId == fixture.TenantId && x.PublicId == row.AssignmentReference);
+            rider.PickupStopId = pickup.Id;
+            rider.DropStopId = drop.Id;
+            await setup.SaveChangesAsync();
+        }
+        var noDriver = await service.GetBoardingManifestAsync(
+            fixture.Start, null, fixture.RouteReference, fixture.VehicleReference, 1, 25, null, true);
+        Assert.True(noDriver.Success, noDriver.Message);
+        Assert.Equal("NoDriver", Assert.Single(noDriver.Data!.Items).Readiness);
+
+        await using (var setup = ScopedContext(fixture.Options, fixture.TenantId, fixture.UserId))
+        {
+            var driver = new TransportDriver
+            {
+                TenantId = fixture.TenantId, FullName = "Roster test driver",
+                LicenseNumber = "CI-BM-" + Guid.NewGuid().ToString("N")[..12],
+                LicenseExpiresOn = fixture.Start.AddDays(30), IsActive = true
+            };
+            setup.Add(driver);
+            await setup.SaveChangesAsync();
+            setup.Add(new VehicleDriverAssignment
+            {
+                TenantId = fixture.TenantId, VehicleId = fixture.VehicleId,
+                TransportDriverId = driver.Id, EffectiveFrom = fixture.Start.AddDays(-1),
+                EffectiveTo = fixture.Start.AddDays(10), IsCurrent = true
+            });
+            await setup.SaveChangesAsync();
+        }
+        var ready = await service.GetBoardingManifestAsync(
+            fixture.Start, null, fixture.RouteReference, fixture.VehicleReference, 1, 25, null, false);
+        Assert.True(ready.Success, ready.Message);
+        var readyRow = Assert.Single(ready.Data!.Items);
+        Assert.Equal("Ready", readyRow.Readiness);
+        Assert.True(readyRow.DriverEligible);
+        Assert.Equal(1, readyRow.DriverLinks);
+        Assert.Equal(1, readyRow.RouteLinks);
+
+        await using (var setup = ScopedContext(fixture.Options, fixture.TenantId, fixture.UserId))
+        {
+            var driver = await setup.Set<TransportDriver>().SingleAsync(x =>
+                x.TenantId == fixture.TenantId && x.FullName == "Roster test driver");
+            driver.LicenseExpiresOn = fixture.Start.AddDays(-1);
+            await setup.SaveChangesAsync();
+        }
+        var expired = await service.GetBoardingManifestAsync(
+            fixture.Start, null, fixture.RouteReference, fixture.VehicleReference, 1, 25, null, true);
+        Assert.True(expired.Success, expired.Message);
+        Assert.Equal("DriverReview", Assert.Single(expired.Data!.Items).Readiness);
     }
 
     private static readonly ConcurrentQueue<string> Diagnostics = new();

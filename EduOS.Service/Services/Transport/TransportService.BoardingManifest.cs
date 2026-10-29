@@ -18,6 +18,10 @@ public sealed partial class TransportService
         int page, int pageSize, string? search, bool attentionOnly, CancellationToken ct = default)
     {
         if (!CanManage()) return Denied<PagedResult<TransportBoardingManifestRowDto>>();
+        // The legacy constructor has no driver repositories; never claim a roster is dispatch-ready without them.
+        if (_driverLinks is null || _drivers is null)
+            return ApiResponse<PagedResult<TransportBoardingManifestRowDto>>.ErrorResponse(
+                "Driver eligibility data is unavailable.", 503);
         var today = DateOnly.FromDateTime(_clock.GetLocalNow().DateTime);
         if (operatingDate < today || operatingDate > today.AddDays(90) ||
             campusId is <= 0 || routeReference == Guid.Empty || vehicleReference == Guid.Empty ||
@@ -57,6 +61,31 @@ public sealed partial class TransportService
             {
                 assignment.PublicId, CampusId = campus.Id, CampusName = campus.Name,
                 student.StudentCode, RouteName = route.Name, vehicle.VehicleNumber,
+                Capacity = vehicle.Capacity,
+                ReservedRiders = _assignments.GetQueryable().Count(rider =>
+                    rider.TenantId == tenant && !rider.IsDeleted &&
+                    rider.VehicleId == vehicle.Id && rider.State == TransportAssignmentState.Active &&
+                    rider.StartDate <= operatingDate &&
+                    (!rider.EndDate.HasValue || rider.EndDate.Value >= operatingDate)),
+                RouteLinkCount = _vehicleRoutes.GetQueryable().Count(link =>
+                    link.TenantId == tenant && !link.IsDeleted && link.IsCurrent &&
+                    link.VehicleId == vehicle.Id && link.EffectiveFrom <= operatingDate &&
+                    (!link.EffectiveTo.HasValue || link.EffectiveTo.Value >= operatingDate) &&
+                    _routes.GetQueryable().Any(coveredRoute => coveredRoute.Id == link.RouteId &&
+                        coveredRoute.TenantId == tenant && !coveredRoute.IsDeleted &&
+                        coveredRoute.IsActive && coveredRoute.CampusId == (long?)campus.Id)),
+                DriverLinkCount = _driverLinks.GetQueryable().Count(link =>
+                    link.TenantId == tenant && !link.IsDeleted && link.IsCurrent &&
+                    link.VehicleId == vehicle.Id && link.EffectiveFrom <= operatingDate &&
+                    (!link.EffectiveTo.HasValue || link.EffectiveTo.Value >= operatingDate)),
+                HasEligibleDriver = _driverLinks.GetQueryable().Any(link =>
+                    link.TenantId == tenant && !link.IsDeleted && link.IsCurrent &&
+                    link.VehicleId == vehicle.Id && link.EffectiveFrom <= operatingDate &&
+                    (!link.EffectiveTo.HasValue || link.EffectiveTo.Value >= operatingDate) &&
+                    _drivers.GetQueryable().Any(driver => driver.Id == link.TransportDriverId &&
+                        driver.TenantId == tenant && !driver.IsDeleted && driver.IsActive &&
+                        driver.LicenseExpiresOn.HasValue &&
+                        driver.LicenseExpiresOn.Value >= operatingDate)),
                 EnrollmentReady = enrollment.IsCurrent &&
                     enrollment.State == EnrollmentState.Active && student.StatusCode == "Active",
                 RouteReady = !route.IsDeleted && route.IsActive,
@@ -92,7 +121,9 @@ public sealed partial class TransportService
                 x.RouteName.Contains(term) || x.VehicleNumber.Contains(term));
         if (attentionOnly)
             query = query.Where(x => !x.EnrollmentReady || !x.RouteReady || !x.VehicleReady ||
-                !x.PickupReady || !x.DropReady || !x.HasRouteVehicleLink);
+                !x.PickupReady || !x.DropReady || !x.HasRouteVehicleLink ||
+                x.ReservedRiders > x.Capacity || x.RouteLinkCount != 1 ||
+                x.DriverLinkCount != 1 || !x.HasEligibleDriver);
 
         var total = await query.CountAsync(ct);
         var records = await query.OrderBy(x => x.CampusName).ThenBy(x => x.RouteName)
@@ -104,8 +135,10 @@ public sealed partial class TransportService
                 Page = page, PageSize = pageSize, TotalCount = total,
                 Items = records.Select(x =>
                 {
-                    var readiness = ClassifyBoardingManifest(x.EnrollmentReady, x.RouteReady,
+                    var baseReadiness = ClassifyBoardingManifest(x.EnrollmentReady, x.RouteReady,
                         x.VehicleReady, x.PickupReady, x.DropReady, x.HasRouteVehicleLink);
+                    var readiness = ClassifyBoardingDispatch(baseReadiness, x.ReservedRiders,
+                        x.Capacity, x.RouteLinkCount, x.DriverLinkCount, x.HasEligibleDriver);
                     return new TransportBoardingManifestRowDto
                     {
                         AssignmentReference = x.PublicId, CampusId = x.CampusId,
@@ -114,6 +147,9 @@ public sealed partial class TransportService
                         PickupStop = x.PickupName ?? "Not assigned",
                         DropStop = x.DropName ?? "Not assigned",
                         OperatingDate = operatingDate, Readiness = readiness,
+                        Capacity = x.Capacity, ReservedRiders = x.ReservedRiders,
+                        RouteLinks = x.RouteLinkCount, DriverLinks = x.DriverLinkCount,
+                        DriverEligible = x.DriverLinkCount == 1 && x.HasEligibleDriver,
                         NeedsAttention = readiness != "Ready"
                     };
                 }).ToList()
@@ -129,6 +165,19 @@ public sealed partial class TransportService
         if (!hasRouteVehicleLink) return "MissingRouteVehicleLink";
         if (!pickupReady) return "PickupReview";
         if (!dropReady) return "DropReview";
+        return "Ready";
+    }
+
+    /// <summary>Dispatch safety is a derived preview; no trip or attendance is recorded.</summary>
+    public static string ClassifyBoardingDispatch(string baseReadiness, int reservedRiders,
+        int capacity, int routeLinks, int driverLinks, bool eligibleDriver)
+    {
+        if (reservedRiders > capacity || capacity <= 0) return "OverCapacity";
+        if (baseReadiness != "Ready") return baseReadiness;
+        if (routeLinks != 1) return "RouteConflict";
+        if (driverLinks == 0) return "NoDriver";
+        if (driverLinks > 1) return "DriverConflict";
+        if (!eligibleDriver) return "DriverReview";
         return "Ready";
     }
 
@@ -155,12 +204,17 @@ public sealed partial class TransportService
         var seen = new HashSet<Guid>();
         if (rows.Count != first.Data.TotalCount || rows.Any(x => !seen.Add(x.AssignmentReference)))
             return ApiResponse<string>.ErrorResponse("Manifest changed during export. Retry.", 409);
-        var csv = new StringBuilder("Operating Date,Campus,Student Code,Route,Vehicle,Pickup Stop,Drop Stop,Readiness\r\n");
+        var csv = new StringBuilder("Operating Date,Campus,Student Code,Route,Vehicle,Pickup Stop,Drop Stop,Reserved Riders,Capacity,Route Links,Driver Links,Driver Eligible,Readiness\r\n");
         foreach (var row in rows)
             csv.Append(operatingDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)).Append(',')
                 .Append(CsvCell(row.CampusName)).Append(',').Append(CsvCell(row.StudentCode)).Append(',')
                 .Append(CsvCell(row.RouteName)).Append(',').Append(CsvCell(row.VehicleNumber)).Append(',')
                 .Append(CsvCell(row.PickupStop)).Append(',').Append(CsvCell(row.DropStop)).Append(',')
+                .Append(row.ReservedRiders.ToString(CultureInfo.InvariantCulture)).Append(',')
+                .Append(row.Capacity.ToString(CultureInfo.InvariantCulture)).Append(',')
+                .Append(row.RouteLinks.ToString(CultureInfo.InvariantCulture)).Append(',')
+                .Append(row.DriverLinks.ToString(CultureInfo.InvariantCulture)).Append(',')
+                .Append(row.DriverEligible ? "Yes" : "No").Append(',')
                 .Append(CsvCell(row.Readiness)).Append("\r\n");
         return ApiResponse<string>.SuccessResponse(csv.ToString());
     }

@@ -2,7 +2,7 @@
     <div class="d-flex align-items-center gap-2 mb-2">
         <h3 id="transportBoardingManifestTitle" class="h5 mb-0">Daily pickup/drop planning roster</h3>
         <details><summary class="btn btn-sm btn-outline-secondary" aria-label="Roster guidance">i</summary>
-            <p class="small mb-0 mt-2">Planning snapshot only: no trip, attendance or live location is recorded. Review flagged riders and driver readiness before dispatch. CSV is limited to 500 matching reservations.</p>
+            <p class="small mb-0 mt-2">Planning snapshot only: no trip, attendance or live location is recorded. Readiness also checks reserved capacity, route coverage and licensed driver eligibility before dispatch. CSV is limited to 500 matching reservations.</p>
         </details>
     </div>
     <form id="transportBoardingManifestFilters" class="row g-2 mb-2">
@@ -19,7 +19,7 @@
     </form>
     <div id="transportBoardingManifestStatus" class="small text-muted mb-2" role="status" aria-live="polite"></div>
     <div class="table-responsive"><table class="table table-sm table-hover align-middle">
-        <thead><tr><th>Campus</th><th>Student code</th><th>Route</th><th>Vehicle</th><th>Pickup</th><th>Drop</th><th>Readiness</th></tr></thead>
+        <thead><tr><th>Campus</th><th>Student code</th><th>Route</th><th>Vehicle</th><th>Pickup</th><th>Drop</th><th>Load</th><th>Driver</th><th>Readiness</th></tr></thead>
         <tbody id="transportBoardingManifestRows"></tbody>
     </table></div>
     <div class="d-flex align-items-center justify-content-between">

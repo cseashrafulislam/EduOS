@@ -39,10 +39,11 @@ async function load() {
   for (const item of items) {
    const tr = document.createElement('tr');
    for (const value of [item.campusName,item.studentCode,item.routeName,item.vehicleNumber,
-    item.pickupStop,item.dropStop,item.readiness]) tr.append(cell(value));
+    item.pickupStop,item.dropStop,`${item.reservedRiders}/${item.capacity}`,
+    item.driverEligible ? 'Eligible' : 'Review',item.readiness]) tr.append(cell(value));
    rows.append(tr);
   }
-  if (!items.length) { const tr = document.createElement('tr'), td = cell('No matching reservations'); td.colSpan = 7; tr.append(td); rows.append(tr); }
+  if (!items.length) { const tr = document.createElement('tr'), td = cell('No matching reservations'); td.colSpan = 9; tr.append(td); rows.append(tr); }
   pages = Math.max(1,Math.ceil((Number(data.totalCount)||0)/25));
   el('transportBoardingManifestPage').textContent = 'Page '+page+' of '+pages+' · '+data.totalCount+' reservations';
   prev.disabled = page <= 1; next.disabled = page >= pages;

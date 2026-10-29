@@ -6,6 +6,22 @@ namespace EduOS.Tests.Services;
 public sealed class TransportBoardingManifestTests
 {
     [Theory]
+    [InlineData("Ready", 2, 1, 1, 1, true, "OverCapacity")]
+    [InlineData("Ready", 1, 2, 2, 1, true, "RouteConflict")]
+    [InlineData("Ready", 1, 2, 1, 0, false, "NoDriver")]
+    [InlineData("Ready", 1, 2, 1, 2, true, "DriverConflict")]
+    [InlineData("Ready", 1, 2, 1, 1, false, "DriverReview")]
+    [InlineData("Ready", 1, 2, 1, 1, true, "Ready")]
+    [InlineData("PickupReview", 1, 2, 1, 1, true, "PickupReview")]
+    public void Dispatch_readiness_rejects_unsafe_vehicle_and_driver_coverage(
+        string baseReadiness, int riders, int capacity, int routes, int drivers,
+        bool eligible, string expected)
+    {
+        Assert.Equal(expected, TransportService.ClassifyBoardingDispatch(
+            baseReadiness, riders, capacity, routes, drivers, eligible));
+    }
+
+    [Theory]
     [InlineData(false, true, true, true, true, true, "EnrollmentReview")]
     [InlineData(true, false, true, true, true, true, "RouteReview")]
     [InlineData(true, true, false, true, true, true, "VehicleReview")]

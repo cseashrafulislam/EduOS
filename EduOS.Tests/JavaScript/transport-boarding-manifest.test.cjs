@@ -15,6 +15,8 @@ for (const marker of ['assignment.TenantId == tenant','enrollment.TenantId == te
  'campus.TenantId == tenant','AllowedCampusIds(tenant)','!assignment.IsDeleted',
  'enrollment.StudentId == assignment.StudentId','assignment.State == TransportAssignmentState.Active',
  'assignment.StartDate <= operatingDate','link.EffectiveFrom <= operatingDate',
+ 'rider.VehicleId == vehicle.Id','x.ReservedRiders > x.Capacity',
+ 'x.RouteLinkCount != 1','x.DriverLinkCount != 1','!x.HasEligibleDriver',
  'pageSize is < 1 or > 100','TotalCount > 500','CsvCell(row.StudentCode)'])
  assert.ok(service.includes(marker),marker);
 assert.match(iface,/GetBoardingManifestAsync/);
@@ -26,6 +28,10 @@ assert.match(view,/boarding-manifest.js/);
 assert.match(partial,/transportBoardingManifestPanel/);
 assert.match(js,/credentials:'same-origin',cache:'no-store'/);
 assert.match(js,/textContent/);
+assert.match(js,/item.driverEligible/);
+assert.match(partial,/<th>Load<\/th>/);
+assert.match(dto,/ReservedRiders/);
+assert.match(service,/ClassifyBoardingDispatch/);
 assert.doesNotMatch(js,/innerHTML/);
 for (const forbidden of ['FullName','Phone','Email','MonthlyFare','Address','DriverName'])
  assert.ok(!dto.includes(forbidden),forbidden);
