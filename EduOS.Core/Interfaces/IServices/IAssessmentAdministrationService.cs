@@ -72,6 +72,7 @@ public interface IAssessmentAdministrationService
     Task<ApiResponse<IReadOnlyList<TranscriptCandidateDto>>> GetTranscriptCandidatesAsync(string? search, CancellationToken cancellationToken = default);
     Task<ApiResponse<PagedResult<TranscriptCandidateDto>>> SearchTranscriptCandidatesAsync(string? search, int page, int pageSize, CancellationToken cancellationToken = default);
     Task<ApiResponse<TranscriptRegisterPageDto>> SearchTranscriptRegisterAsync(TranscriptRegisterQueryDto request, CancellationToken cancellationToken = default);
+    Task<ApiResponse<TranscriptAcademicRecordDto>> GetTranscriptAcademicRecordAsync(Guid studentReference, CancellationToken cancellationToken = default);
     Task<ApiResponse<TranscriptIssueDto>> IssueTranscriptAsync(IssueTranscriptRequestDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<TranscriptIssueDto>> RevokeTranscriptAsync(Guid transcriptReference, RevokeTranscriptRequestDto request, CancellationToken cancellationToken = default);
 }

@@ -34,6 +34,22 @@
             <button type="button" class="btn btn-sm btn-outline-secondary" id="transcriptCandidateNext">Next matches</button>
         </div>
     </div></div>
+    <section class="card mb-3" aria-labelledby="transcriptCourseHeading">
+        <div class="card-header d-flex flex-wrap gap-2 align-items-center">
+            <h2 class="h6 mb-0" id="transcriptCourseHeading">Published course-grade history</h2>
+            <button id="transcriptPreviewRecord" class="btn btn-sm btn-outline-primary ms-auto" type="button" disabled>View selected student's history</button>
+            <button id="transcriptRecordCsv" class="btn btn-sm btn-outline-secondary" type="button" disabled>History CSV</button>
+        </div>
+        <div class="card-body">
+            <p class="small text-muted" id="transcriptRecordSummary" role="status" aria-live="polite">
+                Select a student above. Historical grades come from immutable published snapshots; this preview is not a signed transcript.
+            </p>
+            <div class="table-responsive"><table class="table table-sm table-hover">
+                <thead><tr><th>Exam / published version</th><th>Batch</th><th>Subject</th><th>Marks</th><th>Credits</th><th>Point</th><th>Grade</th><th>Outcome</th></tr></thead>
+                <tbody id="transcriptRecordRows"><tr><td colspan="8" class="text-center text-muted">No student selected.</td></tr></tbody>
+            </table></div>
+        </div>
+    </section>
     <div class="card"><div class="card-body">
         <div class="row g-2 align-items-end mb-3">
             <div class="col-lg-5"><label class="form-label" for="transcriptSearch">Search issued transcripts</label>

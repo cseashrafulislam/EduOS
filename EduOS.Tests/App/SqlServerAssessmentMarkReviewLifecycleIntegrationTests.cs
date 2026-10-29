@@ -141,6 +141,18 @@ public sealed class SqlServerAssessmentMarkReviewLifecycleIntegrationTests
                 AssessmentId = assessmentId, AcademicBatchId = batchId });
             Assert.True(readable.Success, readable.Message);
             Assert.Equal(3.5m, Assert.Single(readable.Data!.Results).CumulativeGradePointAverage);
+            var currentEnrollment = await db.StudentEnrollments.AsNoTracking()
+                .SingleAsync(x => x.AcademicBatchId == batchId && x.IsCurrent);
+            var pupil = await db.Students.AsNoTracking()
+                .SingleAsync(x => x.Id == currentEnrollment.StudentId);
+            var history = await service.GetTranscriptAcademicRecordAsync(pupil.PublicId);
+            Assert.True(history.Success, history.Message);
+            Assert.Equal(2, history.Data!.Courses.Count);
+            Assert.Equal(3.5m, history.Data!.LatestPublishedCgpa);
+            var isolated = Service(db,
+                new Actor(seeded.TenantId + 100_000, seeded.ReviewerId, "TenantAdmin"));
+            var forbidden = await isolated.GetTranscriptAcademicRecordAsync(pupil.PublicId);
+            Assert.False(forbidden.Success);
             // Even a soft-deleted immutable course must invalidate the entire published
             // version. Nothing silently falls back to editable marks.
             await db.Database.ExecuteSqlInterpolatedAsync(
@@ -149,6 +161,9 @@ public sealed class SqlServerAssessmentMarkReviewLifecycleIntegrationTests
                 AssessmentId = assessmentId, AcademicBatchId = batchId });
             Assert.False(broken.Success);
             Assert.Equal(409, broken.StatusCode);
+            var damagedHistory = await service.GetTranscriptAcademicRecordAsync(pupil.PublicId);
+            Assert.False(damagedHistory.Success);
+            Assert.Equal(409, damagedHistory.StatusCode);
         }
     }
 

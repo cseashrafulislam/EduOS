@@ -4,7 +4,8 @@
     if (!root) return;
     const el = id => document.getElementById(id);
     const token = root.querySelector('input[name="__RequestVerificationToken"]')?.value || '';
-    const state = { page: 1, pageSize: 20, total: 0, rows: [], busy: false, requestId: null, candidatePage: 1, candidateTotal: 0, candidateRequest: 0 };
+    const state = { page: 1, pageSize: 20, total: 0, rows: [], busy: false, requestId: null,
+        candidatePage: 1, candidateTotal: 0, candidateRequest: 0, recordRequest: 0, record: null };
     const message = (value, error = false) => {
         const box = el('transcriptNotice');
         box.className = 'alert ' + (error ? 'alert-danger' : 'alert-success');
@@ -74,6 +75,7 @@
             select.replaceChildren(new Option('Select student', ''));
             (data.items || []).forEach(row => select.add(new Option(row.studentCode + ' — ' + row.studentName, row.studentReference)));
             state.candidatePage = page; state.candidateTotal = data.totalCount || 0; resetRequest();
+            clearRecord();
             el('transcriptCandidateCount').textContent = state.candidateTotal + ' matches · Page ' + page;
             el('transcriptCandidatePrev').disabled = page <= 1;
             el('transcriptCandidateNext').disabled = page * 20 >= state.candidateTotal;
@@ -83,6 +85,71 @@
         } }
     }
     function resetRequest() { state.requestId = null; }
+    function clearRecord() {
+        ++state.recordRequest;
+        state.record = null;
+        el('transcriptRecordCsv').disabled = true;
+        el('transcriptPreviewRecord').disabled = !el('transcriptStudent').value;
+        el('transcriptRecordSummary').textContent = 'Select a student and load immutable published course history.';
+        const body = el('transcriptRecordRows'); body.replaceChildren();
+        const tr = document.createElement('tr'), td = cell('No course history loaded.');
+        td.colSpan = 8; tr.append(td); body.append(tr);
+    }
+    async function academicRecord() {
+        const studentReference = el('transcriptStudent').value;
+        if (!studentReference) return;
+        const request = ++state.recordRequest;
+        const button = el('transcriptPreviewRecord'); button.disabled = true;
+        try {
+            const data = await api('/api/assessment-administration/transcripts/academic-record/' +
+                encodeURIComponent(studentReference));
+            if (request !== state.recordRequest || el('transcriptStudent').value !== studentReference) return;
+            state.record = data;
+            const body = el('transcriptRecordRows'); body.replaceChildren();
+            for (const course of data.courses || []) {
+                const tr = document.createElement('tr');
+                tr.append(cell(course.assessmentName + ' · v' + course.publicationVersionNo),
+                    cell(course.academicBatchName), cell(course.subjectCode + ' — ' + course.subjectName),
+                    cell(course.obtainedMarks + ' / ' + course.fullMarks), cell(course.creditHours),
+                    cell(course.gradePoint), cell(course.gradeLetter),
+                    cell(course.isWithheld ? 'Withheld' : course.isPassed ? 'Passed' : 'Not passed'));
+                body.append(tr);
+            }
+            if (!data.courses?.length) {
+                const tr = document.createElement('tr'), td = cell('No course-level snapshots in released publications.');
+                td.colSpan = 8; tr.append(td); body.append(tr);
+            }
+            el('transcriptRecordSummary').textContent = data.studentCode + ' · ' + data.studentName +
+                ' · Latest published CGPA: ' + (data.latestPublishedCgpa ?? '—') +
+                ' · ' + (data.courses?.length || 0) + ' course snapshot(s)' +
+                (data.legacyPublishedResults ? ' · ' + data.legacyPublishedResults +
+                    ' older publication(s) have no course-level evidence.' : '') +
+                ' · Preview only—not a signed transcript.';
+            el('transcriptRecordCsv').disabled = !data.courses?.length;
+        } catch (error) {
+            if (request !== state.recordRequest) return;
+            state.record = null;
+            el('transcriptRecordCsv').disabled = true;
+            message(error.message, true);
+        } finally {
+            if (request === state.recordRequest) button.disabled = false;
+        }
+    }
+    function recordCsv() {
+        if (!state.record?.courses?.length) return;
+        const fields = ['Assessment', 'Version', 'Batch', 'Subject code', 'Subject',
+            'Marks', 'Maximum', 'Credits', 'Grade point', 'Grade letter', 'Passed', 'Withheld'];
+        const rows = [fields, ...state.record.courses.map(x => [x.assessmentName, x.publicationVersionNo,
+            x.academicBatchName, x.subjectCode, x.subjectName, x.obtainedMarks, x.fullMarks,
+            x.creditHours, x.gradePoint, x.gradeLetter, x.isPassed, x.isWithheld])];
+        const safe = value => /^[=+@\-\t\r]/.test(String(value ?? '')) ? "'" + String(value) : value;
+        const csv = rows.map(row => row.map(v => '"' + String(safe(v) ?? '').replace(/"/g, '""') + '"').join(','))
+            .join('\r\n');
+        const url = URL.createObjectURL(new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8' }));
+        const link = document.createElement('a'); link.href = url;
+        link.download = 'published-course-history-' + state.record.studentCode.replace(/[^\w-]/g, '_') + '.csv';
+        document.body.append(link); link.click(); link.remove(); setTimeout(() => URL.revokeObjectURL(url), 1000);
+    }
     async function issue(event) {
         event.preventDefault();
         if (state.busy) return;
@@ -132,11 +199,14 @@
         el('transcriptStudent').replaceChildren(new Option('Search first', ''));
         el('transcriptCandidateCount').textContent = '';
         el('transcriptCandidatePrev').disabled = true; el('transcriptCandidateNext').disabled = true;
+        clearRecord();
     });
     el('transcriptCandidatePrev').addEventListener('click', () => { if (state.candidatePage > 1) candidates(state.candidatePage - 1); });
     el('transcriptCandidateNext').addEventListener('click', () => { if (state.candidatePage * 20 < state.candidateTotal) candidates(state.candidatePage + 1); });
     el('transcriptCandidatePrev').disabled = true; el('transcriptCandidateNext').disabled = true;
-    el('transcriptStudent').addEventListener('change', resetRequest);
+    el('transcriptStudent').addEventListener('change', () => { resetRequest(); clearRecord(); });
+    el('transcriptPreviewRecord').addEventListener('click', academicRecord);
+    el('transcriptRecordCsv').addEventListener('click', recordCsv);
     el('transcriptDate').addEventListener('change', resetRequest);
     el('transcriptRefresh').addEventListener('click', () => { state.page = 1; load(); });
     el('transcriptPrev').addEventListener('click', () => { if (state.page > 1) { state.page--; load(); } });

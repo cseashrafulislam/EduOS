@@ -362,6 +362,11 @@ public sealed class AssessmentAdministrationApiController : ControllerBase
     public async Task<IActionResult> TranscriptRegister([FromQuery] TranscriptRegisterQueryDto query, CancellationToken ct) =>
         Result(await _service.SearchTranscriptRegisterAsync(query, ct));
 
+    [HttpGet("transcripts/academic-record/{studentReference:guid}")]
+    [Authorize(Roles = "TenantAdmin,Principal,VicePrincipal,ExamController")]
+    public async Task<IActionResult> TranscriptAcademicRecord(Guid studentReference, CancellationToken ct) =>
+        Result(await _service.GetTranscriptAcademicRecordAsync(studentReference, ct));
+
     [HttpPost("transcripts")]
     [Authorize(Roles = "TenantAdmin,Principal,VicePrincipal,ExamController")]
     public async Task<IActionResult> IssueTranscript([FromBody] IssueTranscriptRequestDto request,

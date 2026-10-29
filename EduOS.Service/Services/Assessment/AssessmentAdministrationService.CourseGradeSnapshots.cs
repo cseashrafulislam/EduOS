@@ -60,46 +60,58 @@ public sealed partial class AssessmentAdministrationService
         if (_courseSnapshots == null)
             return flagged.ToDictionary(x => x, _ => false);
 
-        // Query-filter bypass is narrow and tenant-scoped so that soft-deleted
-        // course evidence is counted as a reconciliation error rather than hidden.
-        var physical = _courseSnapshots.GetQueryable().AsNoTracking().IgnoreQueryFilters()
-            .Where(x => x.TenantId == tenant && flagged.Contains(x.ResultPublicationId));
-        var aggregates = physical.GroupBy(x => new { x.ResultPublicationId, x.StudentEnrollmentId })
-            .Select(g => new
+        // EF Core/SQL Server does not translate some left joins against grouped
+        // aggregates. Aggregate separately on SQL Server, then compare only the
+        // bounded, tenant-scoped summaries in memory. The query-filter bypass
+        // deliberately sees soft-deleted historical evidence.
+        for (var offset = 0; offset < flagged.Length; offset += 5)
+        {
+            var ids = flagged.Skip(offset).Take(5).ToArray();
+            var summaries = await _summaries.GetQueryable().AsNoTracking().IgnoreQueryFilters()
+                .Where(x => x.TenantId == tenant && ids.Contains(x.ResultPublicationId))
+                .Select(x => new { x.ResultPublicationId, x.StudentEnrollmentId,
+                    x.IsDeleted, x.CourseCount, x.TotalMarks, x.ObtainedMarks,
+                    x.CreditHours, x.GPA })
+                .Take(25001).ToListAsync(ct);
+            var aggregates = await _courseSnapshots.GetQueryable().AsNoTracking().IgnoreQueryFilters()
+                .Where(x => x.TenantId == tenant && ids.Contains(x.ResultPublicationId))
+                .GroupBy(x => new { x.ResultPublicationId, x.StudentEnrollmentId })
+                .Select(g => new
+                {
+                    g.Key.ResultPublicationId, g.Key.StudentEnrollmentId,
+                    Count = g.Count(), Active = g.Count(x => !x.IsDeleted),
+                    Bad = g.Count(x => x.IsDeleted || x.AssessmentSubjectId <= 0 ||
+                        x.StudentSubjectRegistrationId <= 0 || x.CurriculumSubjectId <= 0 ||
+                        x.FullMarks <= 0m || x.ObtainedMarks < 0m || x.ObtainedMarks > x.FullMarks ||
+                        x.CreditHours < 0m || x.GradePoint < 0m || x.GradeLetter == ""),
+                    Full = g.Sum(x => x.FullMarks), Obtained = g.Sum(x => x.ObtainedMarks),
+                    Credits = g.Sum(x => x.CreditHours),
+                    WeightedPoints = g.Sum(x => x.CreditHours * x.GradePoint)
+                }).Take(25001).ToListAsync(ct);
+            if (summaries.Count > 25000 || aggregates.Count > 25000)
             {
-                g.Key.ResultPublicationId, g.Key.StudentEnrollmentId,
-                Count = g.Count(), Active = g.Count(x => !x.IsDeleted),
-                Bad = g.Count(x => x.IsDeleted || x.AssessmentSubjectId <= 0 ||
-                    x.StudentSubjectRegistrationId <= 0 || x.CurriculumSubjectId <= 0 ||
-                    x.FullMarks <= 0m || x.ObtainedMarks < 0m || x.ObtainedMarks > x.FullMarks ||
-                    x.CreditHours < 0m || x.GradePoint < 0m || x.GradeLetter == ""),
-                Full = g.Sum(x => x.FullMarks), Obtained = g.Sum(x => x.ObtainedMarks),
-                Credits = g.Sum(x => x.CreditHours),
-                WeightedPoints = g.Sum(x => x.CreditHours * x.GradePoint)
-            });
-        var invalid = await (
-            from summary in _summaries.GetQueryable().AsNoTracking()
-            join course in aggregates
-                on new { summary.ResultPublicationId, summary.StudentEnrollmentId }
-                equals new { course.ResultPublicationId, course.StudentEnrollmentId }
-                into collection
-            from course in collection.DefaultIfEmpty()
-            where summary.TenantId == tenant && flagged.Contains(summary.ResultPublicationId) &&
-                (course == null || !summary.CourseCount.HasValue || summary.CourseCount <= 0 ||
-                 course.Count != summary.CourseCount || course.Count != course.Active || course.Bad > 0 ||
-                 course.Full != summary.TotalMarks || course.Obtained != summary.ObtainedMarks ||
-                 (summary.CreditHours.HasValue &&
-                     (course.Credits != summary.CreditHours || summary.GPA == null ||
-                      Math.Abs(course.WeightedPoints - summary.GPA.Value * summary.CreditHours.Value) >
-                         summary.CreditHours.Value * 0.0001m)))
-            select summary.ResultPublicationId).Distinct().ToArrayAsync(ct);
-
-        var orphans = await physical.Where(course =>
-            !_summaries.GetQueryable().AsNoTracking().IgnoreQueryFilters().Any(summary =>
-                summary.TenantId == tenant && summary.ResultPublicationId == course.ResultPublicationId &&
-                summary.StudentEnrollmentId == course.StudentEnrollmentId && !summary.IsDeleted))
-            .Select(x => x.ResultPublicationId).Distinct().ToArrayAsync(ct);
-        foreach (var id in invalid.Concat(orphans)) result[id] = false;
+                foreach (var id in ids) result[id] = false;
+                continue;
+            }
+            var courseByKey = aggregates.ToDictionary(x => (x.ResultPublicationId, x.StudentEnrollmentId));
+            var summaryKeys = summaries.Select(x => (x.ResultPublicationId, x.StudentEnrollmentId)).ToHashSet();
+            foreach (var course in aggregates)
+                if (!summaryKeys.Contains((course.ResultPublicationId, course.StudentEnrollmentId)))
+                    result[course.ResultPublicationId] = false;
+            foreach (var summary in summaries)
+            {
+                if (!courseByKey.TryGetValue((summary.ResultPublicationId, summary.StudentEnrollmentId),
+                        out var course) ||
+                    summary.IsDeleted || !summary.CourseCount.HasValue || summary.CourseCount <= 0 ||
+                    course.Count != summary.CourseCount || course.Count != course.Active || course.Bad > 0 ||
+                    course.Full != summary.TotalMarks || course.Obtained != summary.ObtainedMarks ||
+                    (summary.CreditHours.HasValue &&
+                        (course.Credits != summary.CreditHours || !summary.GPA.HasValue ||
+                         Math.Abs(course.WeightedPoints - summary.GPA.Value * summary.CreditHours.Value) >
+                            summary.CreditHours.Value * 0.0001m)))
+                    result[summary.ResultPublicationId] = false;
+            }
+        }
         return result;
     }
 }
