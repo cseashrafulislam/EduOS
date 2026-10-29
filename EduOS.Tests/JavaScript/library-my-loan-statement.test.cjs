@@ -23,6 +23,8 @@ test('student loan statement uses tenant-owned identity and server-filtered pagi
 test('borrower page filters loans and exports a fresh authorized page',()=>{
  assert.match(view,/id="issueStatus"/);
  assert.match(view,/id="issueCsv"/);
+ assert.match(view,/@if \(canViewMyLoans\)/);
+ assert.match(js,/if \(issueRows\) loadIssues\(\)/);
  assert.match(view,/aria-label="Library help"/);
  assert.match(js,/status: el\('issueStatus'\)\.value/);
  assert.match(js,/\/api\/library\/my-issues\/export\?/);
