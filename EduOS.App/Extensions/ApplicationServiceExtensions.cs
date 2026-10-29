@@ -151,6 +151,7 @@ namespace EduOS.App.Extensions
             s.AddScoped<ILoanDisbursementService, LoanDisbursementService>();
             s.AddScoped<ILoanRecoveryService, LoanRecoveryService>();
             s.AddScoped<IPayrollJournalPostingService, PayrollJournalPostingService>();
+            s.AddScoped<IPayrollRunCancellationService, PayrollRunCancellationService>();
             s.AddScoped<IPayrollPaymentPostingService, PayrollPaymentPostingService>();
             s.AddScoped<IStudentGuardianWorkspaceService, StudentGuardianWorkspaceService>();
             s.AddScoped<IStudentInvoicePostingService, StudentInvoicePostingService>();

@@ -6,7 +6,8 @@ const token = root.querySelector('input[name="__RequestVerificationToken"]')?.va
 const el = id => document.getElementById(id);
 const state = {runPage:1, runPages:1, detailPage:1, detailPages:1, slipPage:1, slipPages:1,
     selected:null, requestId:null, requestPeriod:null, busy:false,
-    paymentEmployee:null, paymentRequestId:null, paymentBusy:false, bankLoadToken:0};
+    paymentEmployee:null, paymentRequestId:null, paymentBusy:false, bankLoadToken:0,
+    cancelRun:null};
 const cell = value => {const td=document.createElement('td');td.textContent=value==null?'':String(value);return td;};
 const money = value => Number(value||0).toLocaleString('en-BD',{minimumFractionDigits:2,maximumFractionDigits:2});
 const status = value => ({1:'Draft',2:'Calculated',3:'Approved',4:'Posted',5:'Cancelled'}[value] ||
@@ -158,11 +159,44 @@ async function loadRuns() {
                 controls.append(' ',action('GL posting',()=>{window.location.assign('/PayrollJournalPosting/Index');},'btn-outline-success'));
             if(status(row.state)==='Posted')
                 controls.append(' ',action('Payments',()=>{window.location.assign('/PayrollPaymentPosting/Index');},'btn-outline-success'));
+            if(['Draft','Calculated','Approved'].includes(status(row.state)))
+                controls.append(' ',action('Cancel',()=>openCancellation(row),'btn-outline-danger'));
             tr.append(controls);body.append(tr);
         }
         if(!data.items?.length)empty(body,10,'No payroll runs for this period.');
         pageInfo('payrollRun',state.runPage,state.runPages,data.totalCount||0);
     } catch(e){notice(e.message,true);}
+}
+function openCancellation(row) {
+    if(state.busy)return;
+    state.cancelRun=row;
+    el('payrollCancellationRun').textContent=row.runNumber+' · '+status(row.state);
+    el('payrollCancellationReason').value='';
+    el('payrollCancellationPanel').classList.remove('d-none');
+    el('payrollCancellationReason').focus();
+}
+function closeCancellation() {
+    state.cancelRun=null;
+    el('payrollCancellationPanel').classList.add('d-none');
+}
+async function cancelPayroll(e) {
+    e.preventDefault();
+    const row=state.cancelRun,reason=el('payrollCancellationReason').value.trim();
+    if(state.busy||!row)return;
+    if(reason.length<10||reason.length>1000)return notice('Provide a cancellation reason of 10–1000 characters.',true);
+    if(!confirm('Cancel '+row.runNumber+'? Its historical snapshots will remain in the audit trail.'))return;
+    state.busy=true;el('payrollCancellationSubmit').disabled=true;
+    try {
+        const latest=await api('/api/hr-payroll/runs/'+encodeURIComponent(row.reference));
+        if(!['Draft','Calculated','Approved'].includes(status(latest.state)))
+            throw Error('Payroll is no longer unposted. Reload the register.');
+        await api('/api/hr-payroll/runs/'+encodeURIComponent(row.reference)+'/cancel','POST',
+            {rowVersion:latest.rowVersion,reason});
+        closeCancellation();
+        notice('Unposted payroll cancelled; payroll snapshots and audit history retained.');
+        await loadRuns();
+    }catch(err){notice(err.message,true);}
+    finally{state.busy=false;el('payrollCancellationSubmit').disabled=false;}
 }
 async function generate() {
     if(state.busy)return;
@@ -269,6 +303,8 @@ async function loadSlips() {
     }catch(e){notice(e.message,true);}
 }
 if(admin) {
+    el('payrollCancellationForm').addEventListener('submit',cancelPayroll);
+    el('payrollCancellationClose').addEventListener('click',closeCancellation);
     el('payrollPaymentMethod').addEventListener('change', paymentBankFields);
     for (const id of ['payrollPaymentDate','payrollPaymentAmount','payrollPaymentMethod',
         'payrollPaymentSourceBank','payrollPaymentDestinationBank','payrollPaymentExternalRef'])

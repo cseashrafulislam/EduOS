@@ -8,6 +8,8 @@ const view=read('EduOS.App/Views/PayrollOperations/Index.cshtml');
 const api=read('EduOS.App/Controllers/Api/HrPayrollController.cs');
 const service=read('EduOS.Service/Services/HR/HrPayrollService.cs');
 const dto=read('EduOS.Core/DTOs/Payroll/PayrollDtos.cs');
+const cancellationApi=read('EduOS.App/Controllers/Api/PayrollRunCancellationController.cs');
+const cancellationService=read('EduOS.Service/Services/HR/PayrollRunCancellationService.cs');
 new Function(js);
 for(const endpoint of ['/api/hr-payroll/runs','/approve','/employees','/api/hr-payroll/my-payslips',
     '/api/hr-payroll/payments','/api/finance/accounting/setup/banks','/bank-accounts'])
@@ -26,7 +28,19 @@ assert.match(js,/paymentMethod:method/);
 assert.match(js,/state.paymentRequestId = crypto.randomUUID\(\)/);
 assert.match(js,/state.paymentBusy/);
 assert.match(js,/No funds are moved/);
+assert.match(js,/payrollCancellationForm/);
+assert.match(js,/rowVersion:latest.rowVersion,reason/);
 assert.doesNotMatch(js,/innerHTML\s*=/);
+for(const id of ['payrollCancellationPanel','payrollCancellationForm','payrollCancellationReason',
+    'payrollCancellationSubmit','payrollCancellationClose'])
+    assert.ok(view.includes('id="'+id+'"'),'Missing cancellation control: '+id);
+assert.match(cancellationApi,/\{reference:guid\}\/cancel/);
+assert.match(cancellationService,/IsolationLevel\.Serializable/);
+assert.match(cancellationService,/CancelUnpostedPayroll/);
+assert.match(cancellationService,/PayrollPayments/);
+assert.match(cancellationService,/LoanAdvanceRecoveries/);
+assert.match(service,/await _journalPosting\.PostAsync/);
+assert.match(api,/\[RequireModule\("FINANCE"\)\]/);
 assert.match(view,/@Html.AntiForgeryToken\(\)/);
 assert.match(view,/User.IsInRole\("TenantAdmin"\)/);
 assert.match(view,/PayrollJournalPosting\/Index/);

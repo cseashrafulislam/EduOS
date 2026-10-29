@@ -146,6 +146,9 @@ public class ApprovePayrollRunRequestDto
 public class PostPayrollRunRequestDto
 {
     [Required] public string RowVersion { get; set; } = string.Empty;
+    public long AccountingPeriodId { get; set; }
+    public long SalaryPayableAccountId { get; set; }
+    public IReadOnlyList<PayrollComponentAccountMappingDto> Mappings { get; set; } = Array.Empty<PayrollComponentAccountMappingDto>();
 }
 
 public class BonusDto

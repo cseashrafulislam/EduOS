@@ -44,6 +44,23 @@
             </table></div>
             <div class="card-footer d-flex align-items-center gap-2"><button id="payrollRunPrev" type="button" class="btn btn-sm btn-outline-secondary">Previous</button><span id="payrollRunPageLabel" aria-live="polite"></span><button id="payrollRunNext" type="button" class="btn btn-sm btn-outline-secondary">Next</button></div>
         </section>
+        <section id="payrollCancellationPanel" class="card card-body mb-3 d-none" aria-labelledby="payrollCancellationTitle">
+            <div class="d-flex align-items-center gap-2 mb-2">
+                <h3 id="payrollCancellationTitle" class="h6 m-0">Cancel unposted payroll</h3>
+                <details><summary class="btn btn-sm btn-outline-secondary" aria-label="Payroll cancellation help">ⓘ</summary>
+                    <div class="small">Unposted runs can be cancelled with an audit reason. Posted journals and payment histories are immutable and cannot be removed here.</div>
+                </details>
+            </div>
+            <p id="payrollCancellationRun" class="fw-semibold mb-2"></p>
+            <form id="payrollCancellationForm">
+                <label for="payrollCancellationReason" class="form-label">Cancellation reason</label>
+                <textarea id="payrollCancellationReason" class="form-control" required minlength="10" maxlength="1000" rows="2"></textarea>
+                <div class="d-flex gap-2 mt-2">
+                    <button id="payrollCancellationSubmit" class="btn btn-danger" type="submit">Confirm cancellation</button>
+                    <button id="payrollCancellationClose" class="btn btn-outline-secondary" type="button">Keep payroll</button>
+                </div>
+            </form>
+        </section>
         <section id="payrollDetails" class="card mb-3 d-none">
             <div class="card-header"><h3 class="h6 m-0">Calculated employee payroll snapshots</h3></div>
             <div class="table-responsive"><table class="table table-sm table-striped mb-0">

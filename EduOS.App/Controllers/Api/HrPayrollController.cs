@@ -81,6 +81,7 @@ public sealed class HrPayrollController : ControllerBase
 
     [HttpPost("runs/{reference:guid}/post")]
     [Authorize(Roles = "TenantAdmin")]
+    [RequireModule("FINANCE")]
     public async Task<IActionResult> Post(Guid reference,
         [FromBody] PostPayrollRunRequestDto request, CancellationToken ct) =>
         Result(await _service.PostPayrollRunAsync(reference, request, ct));

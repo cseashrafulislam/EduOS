@@ -38,6 +38,7 @@ public sealed class HrPayrollService : IPayrollAdministrationService
     private readonly ICurrentUserService _user;
     private readonly TimeProvider _clock;
     private readonly ILogger<HrPayrollService> _logger;
+    private readonly IPayrollJournalPostingService? _journalPosting;
 
     public HrPayrollService(IGenericRepository<Employee> employees,
         IGenericRepository<ApplicationUser> identityUsers,
@@ -50,7 +51,8 @@ public sealed class HrPayrollService : IPayrollAdministrationService
         IGenericRepository<BankAccount> bankAccounts,
         IGenericRepository<Journal> journals,
         IGenericRepository<EmployeeBankAccount> employeeBankAccounts,
-        IUnitOfWork uow, ICurrentUserService user, TimeProvider clock, ILogger<HrPayrollService> logger)
+        IUnitOfWork uow, ICurrentUserService user, TimeProvider clock, ILogger<HrPayrollService> logger,
+        IPayrollJournalPostingService? journalPosting = null)
     {
         _employees = employees; _identityUsers = identityUsers;
         _campuses = campuses; _campusAssignments = campusAssignments;
@@ -60,6 +62,7 @@ public sealed class HrPayrollService : IPayrollAdministrationService
         _recoveries = recoveries; _bankAccounts = bankAccounts; _journals = journals;
         _employeeBankAccounts = employeeBankAccounts;
         _uow = uow; _user = user; _clock = clock; _logger = logger;
+        _journalPosting = journalPosting;
     }
 
     public async Task<ApiResponse<PagedResult<PayrollEmployeeOptionDto>>> GetEmployeeOptionsAsync(
@@ -702,18 +705,28 @@ public sealed class HrPayrollService : IPayrollAdministrationService
     public async Task<ApiResponse<PayrollRunDto>> PostPayrollRunAsync(Guid runReference,
         PostPayrollRunRequestDto request, CancellationToken ct = default)
     {
-        if (!Approver()) return Denied<PayrollRunDto>();
-        if (runReference == Guid.Empty || request == null || !TryVersion(request.RowVersion, out var version))
-            return Error<PayrollRunDto>("Payroll reference and version required.");
-        var row = await FindRunAsync(runReference, ct);
-        if (row == null) return Error<PayrollRunDto>("Payroll run not found.", 404);
-        if (!Matches(row.RowVersion, version)) return Error<PayrollRunDto>("Payroll changed; reload.", 409);
-        if (row.State != PayrollRunState.Approved)
-            return Error<PayrollRunDto>("Payroll must be approved before accounting posting.", 409);
-        // There is no authoritative salary-component-to-COA mapping in the canonical model.
-        // Do not mark a financially unbalanced or unposted run as Posted.
-        return Error<PayrollRunDto>(
-            "Payroll posting requires configured salary-component ledger mappings and a balanced accounting journal.", 409);
+        if (!Manager()) return Denied<PayrollRunDto>();
+        if (runReference == Guid.Empty || request == null || !TryVersion(request.RowVersion, out _) ||
+            request.AccountingPeriodId <= 0 || request.SalaryPayableAccountId <= 0 || request.Mappings == null)
+            return Error<PayrollRunDto>("Payroll reference, row version, accounting period and complete component ledger mappings are required.");
+        if (_journalPosting == null)
+            return Error<PayrollRunDto>("Institutional payroll posting service is unavailable.", 503);
+        // Both API routes must use the same serializable, idempotent GL transaction.
+        // No state transition is permitted here independently of a balanced journal.
+        var posted = await _journalPosting.PostAsync(runReference, new PostPayrollJournalRequestDto
+        {
+            RowVersion = request.RowVersion,
+            AccountingPeriodId = request.AccountingPeriodId,
+            SalaryPayableAccountId = request.SalaryPayableAccountId,
+            Mappings = request.Mappings
+        }, ct);
+        if (!posted.Success)
+            return Error<PayrollRunDto>(posted.Message, posted.StatusCode);
+        var run = await GetPayrollRunAsync(runReference, ct);
+        if (!run.Success) return run;
+        run.Message = posted.Data?.AlreadyPosted == true ? "Payroll was already posted." :
+            "Payroll GL journal posted and reconciled.";
+        return run;
     }
 
     /// <summary>Tenant administrator's immutable bonus register; payroll snapshots are not changed by this read.</summary>
