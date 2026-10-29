@@ -4,7 +4,7 @@
 }
 <section class="container-fluid py-3" aria-labelledby="transportTitle">
     <header class="mb-3"><h2 id="transportTitle">Transport operations</h2><p class="text-muted">Routes, vehicles and student transport assignments.</p></header>
-    @if (User.IsInRole("Student") || User.IsInRole("Guardian"))
+    @if (User.IsInRole("Student") || User.IsInRole("Guardian") || User.IsInRole("Parent"))
     {
         <div class="mb-3"><a class="btn btn-outline-primary" asp-controller="TransportOperations" asp-action="Family">My transport schedule / আমার পরিবহন সূচি</a></div>
     }

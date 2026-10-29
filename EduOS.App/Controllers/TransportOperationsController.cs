@@ -13,7 +13,7 @@ public sealed class TransportOperationsController : Controller
     public IActionResult Index() => View();
 
     [HttpGet]
-    [Authorize(Roles = "Student,Guardian")]
+    [Authorize(Roles = "Student,Guardian,Parent")]
     [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
     public IActionResult Family() => View();
 

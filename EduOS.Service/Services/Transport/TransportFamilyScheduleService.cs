@@ -23,7 +23,7 @@ public sealed class TransportFamilyScheduleService : ITransportFamilyScheduleSer
     }
 
     private bool Allowed => _user.IsAuthenticated && _user.TenantId > 0 &&
-        (_user.IsInRole("Student") || _user.IsInRole("Guardian"));
+        (_user.IsInRole("Student") || _user.IsInRole("Guardian") || _user.IsInRole("Parent"));
 
     private bool ValidDate(DateOnly date)
     {
@@ -109,7 +109,7 @@ public sealed class TransportFamilyScheduleService : ITransportFamilyScheduleSer
                                    guardian.IsActive && guardian.UserId == _user.UserId
                              select link.StudentId;
         IQueryable<long> visibleStudents = _user.IsInRole("Student")
-            ? (_user.IsInRole("Guardian") ? ownStudents.Union(linkedStudents) : ownStudents)
+            ? ((_user.IsInRole("Guardian") || _user.IsInRole("Parent")) ? ownStudents.Union(linkedStudents) : ownStudents)
             : linkedStudents;
 
         return from assignment in _db.StudentTransports.AsNoTracking()

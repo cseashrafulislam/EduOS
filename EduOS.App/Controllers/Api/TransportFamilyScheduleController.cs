@@ -9,7 +9,7 @@ namespace EduOS.App.Controllers.Api;
 
 [ApiController]
 [Route("api/transport/family-schedule")]
-[Authorize(Roles = "Student,Guardian")]
+[Authorize(Roles = "Student,Guardian,Parent")]
 [RequireModule("TRANSPORT")]
 [EnableRateLimiting("ApiPolicy")]
 [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]

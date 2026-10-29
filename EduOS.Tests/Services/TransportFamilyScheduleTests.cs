@@ -8,6 +8,7 @@ using EduOS.Persistence.Context;
 using EduOS.Service.Services.Transport;
 using FluentAssertions;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
 using Xunit;
@@ -78,6 +79,54 @@ public sealed class TransportFamilyScheduleTests
         (await service.GetAsync(today, 0, 20)).StatusCode.Should().Be(400);
         (await service.GetAsync(today, 1, 501)).StatusCode.Should().Be(400);
         (await service.ExportCsvAsync(today.AddDays(-1))).StatusCode.Should().Be(400);
+    }
+
+
+    [Fact]
+    public async Task Parent_role_can_read_and_export_only_live_linked_child_with_tenant_isolation()
+    {
+        await using var db = CreateContext(101);
+        var (_, _, link) = await SeedAsync(db);
+        var today = DateOnly.FromDateTime(TimeProvider.System.GetLocalNow().DateTime);
+        var parent = new TransportFamilyScheduleService(db, new User(101, 42, "Parent"), TimeProvider.System);
+        var visible = await parent.GetAsync(today, 1, 20);
+        visible.Success.Should().BeTrue(visible.Message);
+        visible.Data!.Items.Should().ContainSingle(x => x.VehicleNumber == "FAMILY-BUS");
+        (await parent.ExportCsvAsync(today)).Data.Should().Contain("FAMILY-BUS").And.NotContain("1750");
+
+        var unrelated = new TransportFamilyScheduleService(db, new User(101, 99, "Parent"), TimeProvider.System);
+        (await unrelated.GetAsync(today, 1, 20)).Data!.Items.Should().BeEmpty();
+        (await unrelated.ExportCsvAsync(today)).Data.Should().NotContain("FAMILY-BUS");
+
+        var switchedTenant = new TransportFamilyScheduleService(db, new User(202, 42, "Parent"), TimeProvider.System);
+        (await switchedTenant.GetAsync(today, 1, 20)).Data!.Items.Should().BeEmpty();
+        (await switchedTenant.ExportCsvAsync(today)).Data.Should().NotContain("FAMILY-BUS");
+
+        link.IsDeleted = true;
+        await db.SaveChangesAsync();
+        (await parent.GetAsync(today, 1, 20)).Data!.Items.Should().BeEmpty();
+        (await parent.ExportCsvAsync(today)).Data.Should().NotContain("FAMILY-BUS");
+    }
+
+    [Fact]
+    public void Parent_role_is_accepted_by_both_family_routes_without_opening_staff_access()
+    {
+        var apiType = typeof(EduOS.App.Controllers.Api.TransportFamilyScheduleController);
+        var apiRole = apiType.GetCustomAttributes(typeof(AuthorizeAttribute), true)
+            .Cast<AuthorizeAttribute>().Single(x => !string.IsNullOrWhiteSpace(x.Roles));
+        apiRole.Roles.Should().Be("Student,Guardian,Parent");
+
+        var familyAction = typeof(EduOS.App.Controllers.TransportOperationsController)
+            .GetMethod(nameof(EduOS.App.Controllers.TransportOperationsController.Family))!;
+        var pageRole = familyAction.GetCustomAttributes(typeof(AuthorizeAttribute), true)
+            .Cast<AuthorizeAttribute>().Single();
+        pageRole.Roles.Should().Be("Student,Guardian,Parent");
+
+        var editAction = typeof(EduOS.App.Controllers.TransportOperationsController)
+            .GetMethod(nameof(EduOS.App.Controllers.TransportOperationsController.EditStops))!;
+        var staffRole = editAction.GetCustomAttributes(typeof(AuthorizeAttribute), true)
+            .Cast<AuthorizeAttribute>().Single();
+        staffRole.Roles.Should().NotContain("Parent");
     }
 
     private static EduOSDbContext CreateContext(long tenant)
