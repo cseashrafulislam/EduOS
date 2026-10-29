@@ -114,6 +114,7 @@ public class DiscountRule : BaseTenantEntity
 
 public class StudentDiscount : BaseTenantEntity
 {
+    public Guid? ClientRequestId { get; set; }
     public long StudentEnrollmentId { get; set; }
     public long DiscountRuleId { get; set; }
     public DateOnly EffectiveFrom { get; set; }
@@ -135,6 +136,7 @@ public class FineRule : BaseTenantEntity
 
 public class StudentFine : BaseTenantEntity
 {
+    public Guid? ClientRequestId { get; set; }
     public long StudentEnrollmentId { get; set; }
     public long FineRuleId { get; set; }
     public DateOnly FineDate { get; set; }

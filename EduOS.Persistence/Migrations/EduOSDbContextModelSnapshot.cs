@@ -8623,6 +8623,9 @@ namespace EduOS.Persistence.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
 
+                    b.Property<Guid?>("ClientRequestId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<long>("ApprovedByUserId")
                         .HasColumnType("bigint");
 
@@ -8681,6 +8684,10 @@ namespace EduOS.Persistence.Migrations
 
                     b.HasIndex("ApprovedByUserId");
 
+                    b.HasIndex("TenantId", "ClientRequestId")
+                        .IsUnique()
+                        .HasFilter("[ClientRequestId] IS NOT NULL");
+
                     b.HasIndex("TenantId", "DiscountRuleId");
 
                     b.HasIndex("TenantId", "StudentEnrollmentId");
@@ -8695,6 +8702,9 @@ namespace EduOS.Persistence.Migrations
                         .HasColumnType("bigint");
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
+
+                    b.Property<Guid?>("ClientRequestId")
+                        .HasColumnType("uniqueidentifier");
 
                     b.Property<decimal>("Amount")
                         .HasColumnType("decimal(18,2)");
@@ -8753,6 +8763,10 @@ namespace EduOS.Persistence.Migrations
                     b.HasAlternateKey("TenantId", "Id");
 
                     b.HasIndex("WaivedByUserId");
+
+                    b.HasIndex("TenantId", "ClientRequestId")
+                        .IsUnique()
+                        .HasFilter("[ClientRequestId] IS NOT NULL");
 
                     b.HasIndex("TenantId", "FineRuleId");
 

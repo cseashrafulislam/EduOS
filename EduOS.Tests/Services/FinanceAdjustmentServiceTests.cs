@@ -54,6 +54,76 @@ public sealed class FinanceAdjustmentServiceTests
     }
 
     [Fact]
+    public async Task Discount_assignment_retry_returns_original_and_reused_key_with_different_terms_conflicts()
+    {
+        var accessor=new HttpContextAccessor{HttpContext=new DefaultHttpContext()};
+        accessor.HttpContext.Items["TenantId"]=11L;
+        await using var db=new EduOSDbContext(new DbContextOptionsBuilder<EduOSDbContext>()
+            .UseInMemoryDatabase("finance-discount-retry-"+Guid.NewGuid().ToString("N"))
+            .ConfigureWarnings(w=>w.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.InMemoryEventId.TransactionIgnoredWarning))
+            .Options,accessor);
+        var enrollment=new EduOS.Core.Entities.Academic.StudentEnrollment{TenantId=11,StudentId=7,CampusId=3,RollNo="D-7"};
+        var rule=new DiscountRule{TenantId=11,Name="Merit",Value=10m,IsPercentage=true};
+        db.StudentEnrollments.Add(enrollment);db.DiscountRules.Add(rule);
+        await TestTenantSeeder.SaveAsync(db);
+        var service=new FinanceAdjustmentService(db,new TestUser(11,true),TimeProvider.System);
+        var request=new AssignStudentDiscountRequestDto{ClientRequestId=Guid.NewGuid(),
+            StudentEnrollmentReference=enrollment.PublicId,DiscountRuleId=rule.Id,
+            EffectiveFrom=new DateOnly(2026,10,1),Reason="Approved merit"};
+        var original=await service.AssignDiscountAsync(request);
+        var retry=await service.AssignDiscountAsync(request);
+        var conflict=await service.AssignDiscountAsync(new AssignStudentDiscountRequestDto
+        {ClientRequestId=request.ClientRequestId,StudentEnrollmentReference=enrollment.PublicId,
+            DiscountRuleId=rule.Id,EffectiveFrom=request.EffectiveFrom,Reason="Changed reason"});
+        rule.IsActive=false;
+        await TestTenantSeeder.SaveAsync(db);
+        var afterDeactivation=await service.AssignDiscountAsync(request);
+        original.Success.Should().BeTrue();
+        retry.Success.Should().BeTrue();
+        retry.Data!.Id.Should().Be(original.Data!.Id);
+        afterDeactivation.Success.Should().BeTrue();
+        afterDeactivation.Data!.Id.Should().Be(original.Data.Id);
+        conflict.StatusCode.Should().Be(409);
+        db.StudentDiscounts.Should().ContainSingle();
+        db.StudentDiscounts.Single().ClientRequestId.Should().Be(request.ClientRequestId);
+    }
+
+    [Fact]
+    public async Task Fine_application_retry_does_not_record_a_second_fine()
+    {
+        var accessor=new HttpContextAccessor{HttpContext=new DefaultHttpContext()};
+        accessor.HttpContext.Items["TenantId"]=11L;
+        await using var db=new EduOSDbContext(new DbContextOptionsBuilder<EduOSDbContext>()
+            .UseInMemoryDatabase("finance-fine-retry-"+Guid.NewGuid().ToString("N"))
+            .ConfigureWarnings(w=>w.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.InMemoryEventId.TransactionIgnoredWarning))
+            .Options,accessor);
+        var enrollment=new EduOS.Core.Entities.Academic.StudentEnrollment{TenantId=11,StudentId=8,CampusId=3,RollNo="F-8"};
+        var rule=new FineRule{TenantId=11,Name="Late fee",Amount=50m};
+        db.StudentEnrollments.Add(enrollment);db.FineRules.Add(rule);
+        await TestTenantSeeder.SaveAsync(db);
+        var service=new FinanceAdjustmentService(db,new TestUser(11,true),TimeProvider.System);
+        var request=new ApplyStudentFineRequestDto{ClientRequestId=Guid.NewGuid(),
+            StudentEnrollmentReference=enrollment.PublicId,FineRuleId=rule.Id,
+            FineDate=new DateOnly(2026,10,1),Reason="Approved late charge"};
+        var original=await service.ApplyFineAsync(request);
+        var retry=await service.ApplyFineAsync(request);
+        var conflict=await service.ApplyFineAsync(new ApplyStudentFineRequestDto
+        {ClientRequestId=request.ClientRequestId,StudentEnrollmentReference=enrollment.PublicId,
+            FineRuleId=rule.Id,FineDate=request.FineDate,Reason="Changed reason"});
+        rule.IsActive=false;
+        await TestTenantSeeder.SaveAsync(db);
+        var afterDeactivation=await service.ApplyFineAsync(request);
+        original.Success.Should().BeTrue();
+        retry.Success.Should().BeTrue();
+        retry.Data!.Id.Should().Be(original.Data!.Id);
+        afterDeactivation.Success.Should().BeTrue();
+        afterDeactivation.Data!.Id.Should().Be(original.Data.Id);
+        conflict.StatusCode.Should().Be(409);
+        db.StudentFines.Should().ContainSingle();
+        db.StudentFines.Single().ClientRequestId.Should().Be(request.ClientRequestId);
+    }
+
+    [Fact]
     public void Refund_planner_allocates_in_stable_order_without_touching_original_amounts()
     {
         var sources=new[]{

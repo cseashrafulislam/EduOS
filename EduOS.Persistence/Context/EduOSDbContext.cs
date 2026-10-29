@@ -1466,6 +1466,10 @@ public class EduOSDbContext :
         UniqueTenant<StudentPayment>(modelBuilder, nameof(StudentPayment.ReceiptNumber));
         UniqueTenant<StudentPayment>(modelBuilder, nameof(StudentPayment.ClientRequestId));
         UniqueTenant<PaymentAllocation>(modelBuilder, nameof(PaymentAllocation.StudentPaymentId), nameof(PaymentAllocation.StudentInvoiceId));
+        modelBuilder.Entity<StudentDiscount>().HasIndex(x => new { x.TenantId, x.ClientRequestId })
+            .IsUnique().HasFilter("[ClientRequestId] IS NOT NULL");
+        modelBuilder.Entity<StudentFine>().HasIndex(x => new { x.TenantId, x.ClientRequestId })
+            .IsUnique().HasFilter("[ClientRequestId] IS NOT NULL");
         UniqueTenant<Refund>(modelBuilder, nameof(Refund.ClientRequestId));
         UniqueTenant<Account>(modelBuilder, nameof(Account.Code));
         modelBuilder.Entity<Account>().HasIndex(x => new { x.TenantId, x.ParentAccountId, x.IsActive });

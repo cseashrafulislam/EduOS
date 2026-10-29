@@ -108,6 +108,18 @@ public sealed partial class FinanceAdjustmentService : IFinanceAdjustmentService
             await using var tx=await db.Database.BeginTransactionAsync(IsolationLevel.Serializable,ct);
             var enrollment=await FindEnrollment(request.StudentEnrollmentReference,ct);
             if(enrollment==null) return Error<StudentDiscountDto>("Enrollment not found.",404);
+            var replay=await Assignments.FirstOrDefaultAsync(x=>x.ClientRequestId==request.ClientRequestId,ct);
+            if(replay!=null)
+            {
+                if(replay.StudentEnrollmentId!=enrollment.Id || replay.DiscountRuleId!=request.DiscountRuleId ||
+                    replay.EffectiveFrom!=request.EffectiveFrom || replay.EffectiveTo!=request.EffectiveTo ||
+                    replay.Reason!=request.Reason?.Trim())
+                    return Error<StudentDiscountDto>("Idempotency key was reused with different assignment details.",409);
+                var historicalRule=await Discounts.AsNoTracking().FirstOrDefaultAsync(x=>x.Id==replay.DiscountRuleId,ct);
+                if(historicalRule==null) return Error<StudentDiscountDto>("Original discount rule needs reconciliation.",409);
+                return ApiResponse<StudentDiscountDto>.SuccessResponse(Map(replay,enrollment.PublicId,historicalRule.Name),
+                    "Existing assignment returned.");
+            }
             var rule=await Discounts.FirstOrDefaultAsync(x=>x.Id==request.DiscountRuleId && x.IsActive,ct);
             if(rule==null) return Error<StudentDiscountDto>("Active discount rule not found.",404);
             if((rule.EffectiveFrom.HasValue && request.EffectiveFrom<rule.EffectiveFrom) ||
@@ -117,11 +129,17 @@ public sealed partial class FinanceAdjustmentService : IFinanceAdjustmentService
                 return Error<StudentDiscountDto>("Invoices already exist from this date; retroactive discounts require an audited billing adjustment.",409);
             var existing=await Assignments.Where(x=>x.StudentEnrollmentId==enrollment.Id && x.DiscountRuleId==rule.Id && x.IsActive).ToListAsync(ct);
             var same=existing.FirstOrDefault(x=>x.EffectiveFrom==request.EffectiveFrom && x.EffectiveTo==request.EffectiveTo && x.Reason==(request.Reason?.Trim()));
-            if(same!=null) return ApiResponse<StudentDiscountDto>.SuccessResponse(Map(same,enrollment.PublicId,rule.Name),"Existing assignment returned.");
+            if(same!=null)
+            {
+                if(same.ClientRequestId.HasValue)
+                    return Error<StudentDiscountDto>("An identical assignment already exists with a different request key.",409);
+                return ApiResponse<StudentDiscountDto>.SuccessResponse(Map(same,enrollment.PublicId,rule.Name),"Existing legacy assignment returned.");
+            }
             if(existing.Any(x=>Overlap(x.EffectiveFrom,x.EffectiveTo,request.EffectiveFrom,request.EffectiveTo)))
                 return Error<StudentDiscountDto>("An overlapping assignment already exists.",409);
             var now=clock.GetUtcNow().UtcDateTime;
-            var row=new StudentDiscount{TenantId=user.TenantId,StudentEnrollmentId=enrollment.Id,DiscountRuleId=rule.Id,
+            var row=new StudentDiscount{TenantId=user.TenantId,ClientRequestId=request.ClientRequestId,
+                StudentEnrollmentId=enrollment.Id,DiscountRuleId=rule.Id,
                 EffectiveFrom=request.EffectiveFrom,EffectiveTo=request.EffectiveTo,Reason=request.Reason?.Trim(),
                 ApprovedByUserId=user.UserId,IsActive=true,CreatedAt=now,CreatedBy=user.UserId};
             db.StudentDiscounts.Add(row);await db.SaveChangesAsync(ct);await tx.CommitAsync(ct);
@@ -179,6 +197,17 @@ public sealed partial class FinanceAdjustmentService : IFinanceAdjustmentService
             await using var tx=await db.Database.BeginTransactionAsync(IsolationLevel.Serializable,ct);
             var enrollment=await FindEnrollment(request.StudentEnrollmentReference,ct);
             if(enrollment==null) return Error<StudentFineDto>("Enrollment not found.",404);
+            var replay=await StudentFines.FirstOrDefaultAsync(x=>x.ClientRequestId==request.ClientRequestId,ct);
+            if(replay!=null)
+            {
+                if(replay.StudentEnrollmentId!=enrollment.Id || replay.FineRuleId!=request.FineRuleId ||
+                    replay.FineDate!=request.FineDate || replay.Reason!=request.Reason?.Trim())
+                    return Error<StudentFineDto>("Idempotency key was reused with different fine details.",409);
+                var historicalRule=await Fines.AsNoTracking().FirstOrDefaultAsync(x=>x.Id==replay.FineRuleId,ct);
+                if(historicalRule==null) return Error<StudentFineDto>("Original fine rule needs reconciliation.",409);
+                return ApiResponse<StudentFineDto>.SuccessResponse(Map(replay,enrollment.PublicId,historicalRule.Name),
+                    "Existing fine returned.");
+            }
             var rule=await Fines.FirstOrDefaultAsync(x=>x.Id==request.FineRuleId && x.IsActive && !x.IsDaily,ct);
             if(rule==null) return Error<StudentFineDto>("Active fixed fine rule not found.",404);
             if(await HasIssuedInvoice(enrollment.Id,request.FineDate,ct))
@@ -186,9 +215,15 @@ public sealed partial class FinanceAdjustmentService : IFinanceAdjustmentService
             var reason=request.Reason?.Trim();
             var old=await StudentFines.FirstOrDefaultAsync(x=>x.StudentEnrollmentId==enrollment.Id &&
                 x.FineRuleId==rule.Id && x.FineDate==request.FineDate && x.Reason==reason,ct);
-            if(old!=null) return ApiResponse<StudentFineDto>.SuccessResponse(Map(old,enrollment.PublicId,rule.Name),"Existing identical fine returned.");
+            if(old!=null)
+            {
+                if(old.ClientRequestId.HasValue)
+                    return Error<StudentFineDto>("An identical fine already exists with a different request key.",409);
+                return ApiResponse<StudentFineDto>.SuccessResponse(Map(old,enrollment.PublicId,rule.Name),"Existing legacy fine returned.");
+            }
             var now=clock.GetUtcNow().UtcDateTime;
-            var row=new StudentFine{TenantId=user.TenantId,StudentEnrollmentId=enrollment.Id,FineRuleId=rule.Id,
+            var row=new StudentFine{TenantId=user.TenantId,ClientRequestId=request.ClientRequestId,
+                StudentEnrollmentId=enrollment.Id,FineRuleId=rule.Id,
                 FineDate=request.FineDate,Amount=rule.Amount,Reason=reason,CreatedAt=now,CreatedBy=user.UserId};
             db.StudentFines.Add(row);await db.SaveChangesAsync(ct);await tx.CommitAsync(ct);
             return ApiResponse<StudentFineDto>.SuccessResponse(Map(row,enrollment.PublicId,rule.Name),

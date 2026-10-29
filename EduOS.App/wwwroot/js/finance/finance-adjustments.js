@@ -4,6 +4,14 @@ if(!document.getElementById('adjustRoot'))return;
 const el=id=>document.getElementById('adjust'+id),base='/api/finance/adjustments';
 const token=document.querySelector('meta[name="request-verification-token"]')?.content;
 let discounts=[],fines=[];
+// Preserve an idempotency key while a failed/uncertain request is retried with identical inputs.
+const requestFingerprints=new Map();
+function stableRequestId(operation,payload){
+ const fingerprint=JSON.stringify(payload),old=requestFingerprints.get(operation);
+ if(old?.fingerprint===fingerprint)return old.id;
+ const id=crypto.randomUUID();requestFingerprints.set(operation,{fingerprint,id});return id;
+}
+function clearRequestId(operation){requestFingerprints.delete(operation);}
 function notice(message,ok=false){const a=el('Alert');a.className='alert alert-'+(ok?'success':'danger');a.textContent=message;a.focus();}
 async function api(url,method='GET',body){
  const headers={Accept:'application/json'};
@@ -85,13 +93,15 @@ el('SearchButton').addEventListener('click',()=>run(null,async()=>{
 el('Enrollment').addEventListener('change',()=>{if(el('Enrollment').value)run(null,refreshRegister);});
 el('Refresh').addEventListener('click',()=>run(null,refreshRegister));
 el('AssignForm').addEventListener('submit',e=>{e.preventDefault();run(e.currentTarget,async()=>{
- const body={clientRequestId:crypto.randomUUID(),studentEnrollmentReference:enrollment(),discountRuleId:number('AssignRule'),
+ const body={studentEnrollmentReference:enrollment(),discountRuleId:number('AssignRule'),
  effectiveFrom:date('AssignFrom'),effectiveTo:date('AssignTo'),reason:el('AssignReason').value.trim()||null};
+ body.clientRequestId=stableRequestId('discount-assignment',body);
  await api(base+'/discounts','POST',body);await refreshRegister();
 });});
 el('ApplyForm').addEventListener('submit',e=>{e.preventDefault();run(e.currentTarget,async()=>{
- const body={clientRequestId:crypto.randomUUID(),studentEnrollmentReference:enrollment(),fineRuleId:number('ApplyRule'),
+ const body={studentEnrollmentReference:enrollment(),fineRuleId:number('ApplyRule'),
  fineDate:date('ApplyDate'),reason:el('ApplyReason').value.trim()||null};
+ body.clientRequestId=stableRequestId('fine-application',body);
  await api(base+'/fines','POST',body);await refreshRegister();
 });});
 
@@ -150,8 +160,12 @@ async function loadRefunds(){
     if(!/^\d{4}-\d{2}-\d{2}$/.test(date))throw Error('Select the actual cash payout date.');
     const selected=(el('RefundPeriod').selectedOptions[0]?.textContent||'');
     if(!confirm('Confirm cash was paid, independently checked, and voucher is correct for '+selected+'?'))return;
-    await api(base+'/refunds/'+r.id+'/record-payout','POST',{clientRequestId:crypto.randomUUID(),
-     accountingPeriodId:Number(period),payoutDate:date,payoutEvidenceReference:reference,rowVersion:r.rowVersion});
+    const body={accountingPeriodId:Number(period),payoutDate:date,
+     payoutEvidenceReference:reference,rowVersion:r.rowVersion};
+    const operation='refund-payout-'+r.id;
+    body.clientRequestId=stableRequestId(operation,body);
+    await api(base+'/refunds/'+r.id+'/record-payout','POST',body);
+    clearRequestId(operation);
     el('RefundEvidence').value='';
     await loadRefunds();
    })));
@@ -166,8 +180,11 @@ el('RefundRequestForm').addEventListener('submit',e=>{e.preventDefault();run(e.c
  const amount=el('RefundAmount').value.trim();
  if(!validRefundAmount(amount))throw Error('Refund amount must have at most two decimal places.');
  if(!el('RefundPayment').value)throw Error('Select a posted cash receipt.');
- await api(base+'/refunds','POST',{clientRequestId:crypto.randomUUID(),
-  studentPaymentReference:el('RefundPayment').value,amount,reason:el('RefundReason').value.trim()});
+ const body={studentPaymentReference:el('RefundPayment').value,amount,
+  reason:el('RefundReason').value.trim()};
+ body.clientRequestId=stableRequestId('refund-request',body);
+ await api(base+'/refunds','POST',body);
+ clearRequestId('refund-request');
  el('RefundRequestForm').reset();await loadRefunds();
 });});
 (async()=>{
