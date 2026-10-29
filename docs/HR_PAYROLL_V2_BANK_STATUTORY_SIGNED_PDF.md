@@ -5,32 +5,38 @@ It preserves the five independent V1 hourly workflows. It does not execute a
 live bank transfer, apply an assumed national tax table, or assert that a PDF
 contains a cryptographically valid electronic signature.
 
-## 1. Effective-dated statutory withholding (manual, configurable)
+## 1. Effective-dated statutory withholding (Auto or Manual)
 
 1. A payroll accountant confirms the relevant tax, provident-fund and other
-   obligations, exemptions and monthly BDT amounts for the institution's staff.
+   obligations, exemptions, approved percentages or monthly BDT amounts for staff.
 2. Tenant administrator adds an **active deduction** salary component with a
    stable code starting `STAT_`, e.g. `STAT_TAX`. Mark `IsTaxable=false`.
-3. In each employee's effective-dated salary structure, enter **one fixed BDT
-   monthly amount** for every active `STAT_` code. Enter **0.00** for a
-   professionally reviewed exemption. Keep supporting evidence securely.
+3. In each employee's effective-dated salary structure choose **Manual** for
+   fixed monthly BDT withholding. For `STAT_TAX` and `STAT_PF`, **Auto** can
+   instead compute a configured `0–100%` of one specified earning component;
+   `STAT_TAX` may also use the sum of *taxable* earning components (including
+   taxable bonus). `STAT_PF` requires an explicit earning component as its base.
+   Use an approved `0.00` manual amount for a reviewed exemption. Store rate
+   assumptions/evidence outside the payroll system's normal public views.
 4. The salary structure save and payroll calculation validate that no eligible
    employee is missing an active statutory component. The run fails closed
    before producing snapshots if the withholding coverage is incomplete.
 5. Review payroll employee lines, net pay, accounting mapping and GL before a
    different approver approves and posts the payroll run.
 
-**Limits:** EduOS currently does not derive monthly tax obligations from annual
-thresholds, taxable exemptions, investment rebates or evolving Bangladesh law.
-The accountant supplies and signs off the fixed amounts, updates effective
-dates as required and independently checks the generated payslips. Never use
-the `STAT_` code as an assertion that national tax compliance is automatic.
+**Limits:** Auto means *arithmetic from a tenant-approved effective-dated rate*;
+it is **not** an NBR progressive tax-slab, annualization, rebate, exemption,
+minimum-tax or year-end true-up engine. The accountant supplies, approves and
+reconciles each percentage or manual amount, reviews new effective dates and
+checks the payslips. Fixed historical structures remain readable and valid.
+Do not construe `STAT_` or Auto as certified national tax compliance.
 
 ## 2. Pending bank-transfer review worksheet
 
-1. Record a bank-transfer payroll payment request for an employee with an
-   active BDT destination bank account; the source institution bank must be
-   active and scoped to the payroll campus.
+1. Configure any number of institution BDT bank accounts under **Accounting
+   Setup** and employee destination accounts under **HR / Bank Accounts**.
+   Select the appropriate active BDT source and destination for *each* payment
+   request; the source institution bank must be scoped to the payroll campus.
 2. Open **Payroll payments -> Institutional GL**, find a pending bank-transfer
    row and select **Bank review CSV**.
 3. Only tenant administrators can export. The API reloads the complete pending

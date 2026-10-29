@@ -31,6 +31,7 @@
     <Compile Include="../EduOS.Tests/Services/EmployeeContractSignedPdfTests.cs" Link="EmployeeContractSignedPdfTests.cs" />
     <Compile Include="../EduOS.Tests/Services/PayrollBankReviewExportTests.cs" Link="PayrollBankReviewExportTests.cs" />
     <Compile Include="../EduOS.Tests/Services/PayrollStatutoryCoverageTests.cs" Link="PayrollStatutoryCoverageTests.cs" />
+    <Compile Include="../EduOS.Tests/Services/PayrollStatutoryCalculationTests.cs" Link="PayrollStatutoryCalculationTests.cs" />
     <Compile Include="../EduOS.Tests/Services/PayrollPaymentPostingServiceTests.cs" Link="PayrollPaymentPostingServiceTests.cs" />
     <Compile Include="../EduOS.Tests/Services/PayrollPostingHistoricalIntegrityTests.cs" Link="PayrollPostingHistoricalIntegrityTests.cs" />
     <Compile Include="../EduOS.Tests/Services/PayrollJournalPostingServiceTests.cs" Link="PayrollJournalPostingServiceTests.cs" />

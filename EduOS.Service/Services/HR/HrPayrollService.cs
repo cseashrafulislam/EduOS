@@ -114,9 +114,8 @@ public sealed class HrPayrollService : IPayrollAdministrationService
             {
                 var tenant = _user.TenantId;
                 var code = request.Code.Trim().ToUpperInvariant();
-                // Tenant-managed statutory withholding is deliberately a FIXED monthly amount,
-                // not an invented national tax-bracket calculator. A configured STAT_ code
-                // is mandatory on every eligible employee's effective-dated structure.
+                // Tenant-reviewed Tax/PF percentages are supported alongside manual amounts.
+                // We never infer statutory rates or exemptions from a component code.
                 if (code.StartsWith("STAT_", StringComparison.Ordinal) &&
                     (request.Type != SalaryComponentType.Deduction || request.IsTaxable))
                     return Error<SalaryComponentDto>(
@@ -167,11 +166,13 @@ public sealed class HrPayrollService : IPayrollAdministrationService
             request.EffectiveFrom == default || request.EffectiveTo < request.EffectiveFrom ||
             request.Lines == null || request.Lines.Count is < 1 or > 100 ||
             request.Lines.Any(x => x == null || x.SalaryComponentId <= 0 ||
-                x.Amount is < 0 or > 999999999999m) ||
+                x.Amount is < 0 or > 999999999999m ||
+                x.CalculationMethodCode is not ("Fixed" or "Manual" or "Auto")) ||
             request.Lines.Select(x => x.SalaryComponentId).Distinct().Count() != request.Lines.Count)
             return Error<SalaryStructureDto>("Invalid employee, structure dates or salary component lines.");
-        if (request.Lines.Any(x => decimal.Round(x.Amount, 2) != x.Amount))
-            return Error<SalaryStructureDto>("Salary component amounts must have at most two decimals.");
+        if (request.Lines.Any(x => decimal.Round(x.Amount, 2) != x.Amount ||
+            x.Percentage.HasValue && decimal.Round(x.Percentage.Value, 4) != x.Percentage.Value))
+            return Error<SalaryStructureDto>("Amount precision is two decimals; rate precision is four decimals.");
         var fingerprint = SalaryStructureFingerprint(request);
         var previous = await _structures.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
             x.TenantId == _user.TenantId && x.ClientRequestId == request.ClientRequestId, ct);
@@ -216,6 +217,12 @@ public sealed class HrPayrollService : IPayrollAdministrationService
         if (request.Lines.Any(x => decimal.Round(x.Amount, 2) != x.Amount))
             return Error<SalaryStructureDto>("Salary component amounts must have at most two decimal places.", 409);
         var componentTypeById = components.ToDictionary(x => x.Id, x => x.Type);
+        if (request.Lines.Any(x => !PayrollStatutoryCalculation.ValidLine(
+            components.First(c => c.Id == x.SalaryComponentId).Code,
+            componentTypeById[x.SalaryComponentId], x.CalculationMethodCode,
+            x.Amount, x.Percentage, x.BasedOnSalaryComponentId, componentTypeById)))
+            return Error<SalaryStructureDto>(
+                "Tax/PF Auto requires an approved 0–100% rate and an eligible earning base (PF requires a base). Other components use Manual BDT amounts.", 409);
         var gross = request.Lines.Where(x => componentTypeById[x.SalaryComponentId] == SalaryComponentType.Earning).Sum(x => x.Amount);
         var deductions = request.Lines.Where(x => componentTypeById[x.SalaryComponentId] == SalaryComponentType.Deduction).Sum(x => x.Amount);
         if (gross <= 0m || deductions > gross)
@@ -252,7 +259,8 @@ public sealed class HrPayrollService : IPayrollAdministrationService
                         current.EffectiveTo == request.EffectiveTo && currentLines.Count == request.Lines.Count &&
                         request.Lines.All(x => currentLines.Any(y =>
                             y.SalaryComponentId == x.SalaryComponentId && y.Amount == x.Amount &&
-                            y.CalculationMethodCode == "Fixed")))
+                            y.CalculationMethodCode == (x.CalculationMethodCode == "Auto" ? "Auto" : "Fixed") &&
+                            y.Percentage == x.Percentage && y.BasedOnSalaryComponentId == x.BasedOnSalaryComponentId)))
                         return ApiResponse<SalaryStructureDto>.SuccessResponse(
                             MapStructure(current, employee, currentLines, components), "Salary structure already exists.");
                     if (request.EffectiveFrom <= current.EffectiveFrom)
@@ -283,7 +291,9 @@ public sealed class HrPayrollService : IPayrollAdministrationService
                 var lines = request.Lines.Select(x => new SalaryStructureLine
                 {
                     TenantId = _user.TenantId, SalaryStructureId = row.Id,
-                    SalaryComponentId = x.SalaryComponentId, CalculationMethodCode = "Fixed",
+                    SalaryComponentId = x.SalaryComponentId,
+                    CalculationMethodCode = x.CalculationMethodCode == "Auto" ? "Auto" : "Fixed",
+                    Percentage = x.Percentage, BasedOnSalaryComponentId = x.BasedOnSalaryComponentId,
                     Amount = Math.Round(x.Amount, 2, MidpointRounding.AwayFromZero),
                     CreatedAt = now, CreatedBy = _user.UserId
                 }).ToList();
@@ -471,12 +481,10 @@ public sealed class HrPayrollService : IPayrollAdministrationService
                     x.TenantId == tenant && componentIds.Contains(x.Id) && !x.IsDeleted)
                     .ToDictionaryAsync(x => x.Id, token);
                 if (comps.Count != componentIds.Length || salaryLines.Any(x =>
-                    x.CalculationMethodCode != "Fixed" || x.Percentage.HasValue ||
-                    x.BasedOnSalaryComponentId.HasValue || x.Amount < 0 ||
                     comps.TryGetValue(x.SalaryComponentId, out var component) &&
                         (component.Code == "BONUS" || component.Code == "LOAN_RECOVERY")))
                     return Error<PayrollRunDto>(
-                        "Invalid or transaction-derived fixed salary component; reconcile the salary structure.", 409);
+                        "Invalid or transaction-derived salary component; reconcile the salary structure.", 409);
                 var statutoryComponents = await _components.GetQueryable().AsNoTracking().Where(x =>
                     x.TenantId == tenant && x.IsActive && !x.IsDeleted &&
                     x.Code.StartsWith("STAT_")).OrderBy(x => x.Id).Take(51).ToListAsync(token);
@@ -547,19 +555,24 @@ public sealed class HrPayrollService : IPayrollAdministrationService
                 var structureByEmployee = structures.ToDictionary(x => x.EmployeeId);
                 var structureLineLookup = salaryLines.ToLookup(x => x.SalaryStructureId);
                 var amounts = new Dictionary<long, (decimal Gross, decimal Deductions)>();
+                var calculatedLines = new Dictionary<long, IReadOnlyList<PayrollStatutoryCalculation.CalculatedLine>>();
                 foreach (var employee in employees)
                 {
                     var sourceLines = structureLineLookup[structureByEmployee[employee.Id].Id].ToList();
-                    var earningLines = sourceLines.Where(x => comps[x.SalaryComponentId].Type == SalaryComponentType.Earning);
-                    var deductionLines = sourceLines.Where(x => comps[x.SalaryComponentId].Type == SalaryComponentType.Deduction);
                     var serviceDays = PayrollProration.ServiceDays(employee.JoiningDate, employee.LeavingDate,
                         firstDay, lastDay);
                     var monthDays = lastDay.DayNumber - firstDay.DayNumber + 1;
-                    var earnings = earningLines.Sum(x => PayrollProration.FixedAmount(x.Amount, serviceDays,
-                        monthDays, request.ProrationModeCode));
-                    var withheld = deductionLines.Sum(x => PayrollProration.FixedAmount(x.Amount, serviceDays,
-                        monthDays, request.ProrationModeCode));
                     var bonus = bonusByEmployee.GetValueOrDefault(employee.Id);
+                    if (!PayrollStatutoryCalculation.TryCalculate(sourceLines, comps,
+                        serviceDays, monthDays, request.ProrationModeCode,
+                        bonusComponent?.IsTaxable == true ? bonus : 0m, out var calculated))
+                        return Error<PayrollRunDto>(
+                            "Invalid Tax/PF Auto or Manual salary configuration; payroll was not generated.", 409);
+                    calculatedLines.Add(employee.Id, calculated);
+                    var earnings = calculated.Where(x => comps[x.SalaryComponentId].Type == SalaryComponentType.Earning)
+                        .Sum(x => x.Amount);
+                    var withheld = calculated.Where(x => comps[x.SalaryComponentId].Type == SalaryComponentType.Deduction)
+                        .Sum(x => x.Amount);
                     var recover = loanByEmployee[employee.Id].Sum(x => Math.Min(x.InstallmentAmount, x.OutstandingAmount));
                     var gross = Round(earnings + bonus);
                     var deductions = Round(withheld + recover);
@@ -583,7 +596,6 @@ public sealed class HrPayrollService : IPayrollAdministrationService
                 await _uow.SaveChangesAsync(token);
                 foreach (var employee in employees)
                 {
-                    var lines = structureLineLookup[structureByEmployee[employee.Id].Id].ToList();
                     var bonus = bonusByEmployee.GetValueOrDefault(employee.Id);
                     var recover = loanByEmployee[employee.Id]
                         .Sum(x => Math.Min(x.InstallmentAmount, x.OutstandingAmount));
@@ -598,16 +610,11 @@ public sealed class HrPayrollService : IPayrollAdministrationService
                     };
                     await _payrollEmployees.AddAsync(row);
                     await _uow.SaveChangesAsync(token);
-                    var days = PayrollProration.ServiceDays(employee.JoiningDate, employee.LeavingDate,
-                        firstDay, lastDay);
-                    var periodDays = lastDay.DayNumber - firstDay.DayNumber + 1;
-                    var snapshots = lines.Select(x => new PayrollLine
+                    var snapshots = calculatedLines[employee.Id].Select(x => new PayrollLine
                     {
                         TenantId = tenant, PayrollEmployeeId = row.Id,
                         SalaryComponentId = x.SalaryComponentId,
-                        Amount = PayrollProration.FixedAmount(x.Amount, days, periodDays,
-                            request.ProrationModeCode),
-                        Description = x.CalculationMethodCode,
+                        Amount = x.Amount, Description = x.Description,
                         CreatedAt = now, CreatedBy = _user.UserId
                     }).ToList();
                     if (bonus > 0m && bonusComponent != null)
@@ -1108,7 +1115,9 @@ public sealed class HrPayrollService : IPayrollAdministrationService
             return new SalaryStructureLineDto
             {
                 Id = line.Id, SalaryComponentId = line.SalaryComponentId,
-                SalaryComponentName = component.Name, Type = component.Type, Amount = line.Amount
+                SalaryComponentName = component.Name, Type = component.Type, Amount = line.Amount,
+                CalculationMethodCode = line.CalculationMethodCode == "Auto" ? "Auto" : "Manual",
+                Percentage = line.Percentage, BasedOnSalaryComponentId = line.BasedOnSalaryComponentId
             };
         }).ToList(),
         GrossMonthlyAmount = lines.Where(line => components.Any(x =>
@@ -1180,7 +1189,10 @@ public sealed class HrPayrollService : IPayrollAdministrationService
             request.EffectiveFrom.ToString("yyyy-MM-dd", culture) + "|" +
             (request.EffectiveTo?.ToString("yyyy-MM-dd", culture) ?? "") + "|" +
             string.Join("|", request.Lines.OrderBy(x => x.SalaryComponentId).Select(x =>
-                x.SalaryComponentId.ToString(culture) + ":" + x.Amount.ToString("0.00", culture)));
+                x.SalaryComponentId.ToString(culture) + ":" + x.Amount.ToString("0.00", culture) +
+                (x.CalculationMethodCode == "Auto" ? ":Auto:" +
+                    x.Percentage?.ToString("0.0000", culture) + ":" +
+                    x.BasedOnSalaryComponentId?.ToString(culture) : "")));
         return Convert.ToHexString(SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(canonical)));
     }
 

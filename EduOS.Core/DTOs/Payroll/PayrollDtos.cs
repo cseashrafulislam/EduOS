@@ -58,12 +58,21 @@ public class SalaryStructureLineDto
     public string SalaryComponentName { get; set; } = string.Empty;
     public SalaryComponentType Type { get; set; }
     public decimal Amount { get; set; }
+    public string CalculationMethodCode { get; set; } = "Manual";
+    public long? BasedOnSalaryComponentId { get; set; }
+    public decimal? Percentage { get; set; }
 }
 
 public class SaveSalaryStructureLineRequestDto
 {
     public long SalaryComponentId { get; set; }
     [Range(typeof(decimal), "0", "999999999999")] public decimal Amount { get; set; }
+    // Existing fixed entries remain valid; Manual is the user-facing synonym for Fixed.
+    [RegularExpression("^(Fixed|Manual|Auto)$")]
+    public string CalculationMethodCode { get; set; } = "Manual";
+    public long? BasedOnSalaryComponentId { get; set; }
+    [Range(typeof(decimal), "0", "100")]
+    public decimal? Percentage { get; set; }
 }
 
 public class PayrollRunDto
