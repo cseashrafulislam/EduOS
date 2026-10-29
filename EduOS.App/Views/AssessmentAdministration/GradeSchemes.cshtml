@@ -29,6 +29,12 @@
                         <option value="overall">Overall percentage</option>
                         <option value="credits">Course credits (weighted)</option>
                     </select></div>
+                <div class="col-md-4"><label for="gradeSchemeRepeatPolicy" class="form-label">Repeated course / improvement</label>
+                    <select id="gradeSchemeRepeatPolicy" class="form-select" disabled>
+                        <option value="0">Reject until policy approved</option>
+                        <option value="1">Use latest attempt</option>
+                        <option value="2">Use highest grade point</option>
+                    </select></div>
             </div>
             <p class="small text-muted mt-3 mb-2">Rules must cover 0.00–100.00 continuously in 0.01 increments, without overlaps. Grade letters must be unique.</p>
             <div class="table-responsive"><table class="table table-sm align-middle">
@@ -54,7 +60,7 @@
             <button id="gradeSchemePrint" type="button" class="btn btn-outline-secondary">Print</button>
         </div>
         <div class="table-responsive"><table class="table table-sm table-hover">
-            <thead><tr><th>Code</th><th>Name</th><th>Program</th><th>GPA</th><th>Rules</th><th>Active</th><th>Default</th><th class="grade-scheme-action">Details</th></tr></thead>
+            <thead><tr><th>Code</th><th>Name</th><th>Program</th><th>GPA</th><th>Repeat policy</th><th>Rules</th><th>Active</th><th>Default</th><th class="grade-scheme-action">Details</th></tr></thead>
             <tbody id="gradeSchemeRows"></tbody>
         </table></div>
         <div class="d-flex justify-content-between align-items-center">

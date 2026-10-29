@@ -66,6 +66,9 @@ public class GradeScheme : BaseTenantEntity
     // Historical schemes default to overall-percentage grading. New credit-based
     // programmes explicitly opt in; grading policy is immutable after creation.
     public bool UseCreditWeightedGpa { get; set; }
+    // Default Reject preserves historical fail-closed behavior until a new
+    // approved scheme explicitly chooses the repeated-course grade policy.
+    public RepeatCourseGradePolicy RepeatCourseGradePolicy { get; set; } = RepeatCourseGradePolicy.Reject;
 }
 
 public class GradeRule : BaseTenantEntity

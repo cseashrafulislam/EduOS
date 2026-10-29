@@ -4513,6 +4513,9 @@ namespace EduOS.Persistence.Migrations
                     b.Property<bool>("UseCreditWeightedGpa")
                         .HasColumnType("bit");
 
+                    b.Property<int>("RepeatCourseGradePolicy")
+                        .HasColumnType("int");
+
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(150)
@@ -4540,7 +4543,10 @@ namespace EduOS.Persistence.Migrations
                     b.HasIndex("TenantId", "Code")
                         .IsUnique();
 
-                    b.ToTable("GradeSchemes");
+                    b.ToTable("GradeSchemes", t =>
+                        {
+                            t.HasCheckConstraint("CK_GradeSchemes_RepeatCourseGradePolicy", "[RepeatCourseGradePolicy] IN (0,1,2)");
+                        });
                 });
 
             modelBuilder.Entity("EduOS.Core.Entities.Assessment.ResultPublication", b =>

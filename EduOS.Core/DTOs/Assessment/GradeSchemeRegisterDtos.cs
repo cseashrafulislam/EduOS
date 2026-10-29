@@ -18,6 +18,7 @@ public sealed class GradeSchemeRegisterRowDto
     public bool IsDefault { get; set; }
     public bool IsActive { get; set; }
     public bool UseCreditWeightedGpa { get; set; }
+    public RepeatCourseGradePolicy RepeatCourseGradePolicy { get; set; }
     public int RuleCount { get; set; }
     public string RowVersion { get; set; } = string.Empty;
 }

@@ -43,6 +43,7 @@ public sealed partial class AssessmentAdministrationService
                     AcademicProgramId = x.AcademicProgramId,
                     IsDefault = x.IsDefault, IsActive = x.IsActive,
                     UseCreditWeightedGpa = x.UseCreditWeightedGpa,
+                    RepeatCourseGradePolicy = x.RepeatCourseGradePolicy,
                     RuleCount = counts.GetValueOrDefault(x.Id),
                     RowVersion = Version(x.RowVersion)
                 }).ToList()

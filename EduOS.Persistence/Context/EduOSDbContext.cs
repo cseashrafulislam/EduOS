@@ -1335,6 +1335,8 @@ public class EduOSDbContext :
 
         // Assessment / result
         UniqueTenant<GradeScheme>(modelBuilder, nameof(GradeScheme.Code));
+        modelBuilder.Entity<GradeScheme>().ToTable(t => t.HasCheckConstraint(
+            "CK_GradeSchemes_RepeatCourseGradePolicy", "[RepeatCourseGradePolicy] IN (0,1,2)"));
         UniqueTenant<GradeRule>(modelBuilder, nameof(GradeRule.GradeSchemeId), nameof(GradeRule.GradeLetter));
         UniqueTenant<Assessment>(modelBuilder, nameof(Assessment.Code), nameof(Assessment.VersionNo));
         UniqueTenant<AssessmentSubject>(modelBuilder, nameof(AssessmentSubject.AssessmentId), nameof(AssessmentSubject.SubjectOfferingId));

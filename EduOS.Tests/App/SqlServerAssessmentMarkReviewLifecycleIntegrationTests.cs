@@ -26,13 +26,19 @@ namespace EduOS.Tests.App;
 [Collection("SqlServerIntegration")]
 public sealed class SqlServerAssessmentMarkReviewLifecycleIntegrationTests
 {
-    [Fact]
-    public async Task Cumulative_credit_gpa_uses_only_published_historical_course_snapshots()
+    [Theory]
+    [InlineData(0, false, 7)] // Reject: distinct courses -> (4 + 3) / 2
+    [InlineData(0, true, -1)] // Reject: repeated course must fail closed
+    [InlineData(1, true, 6)]  // Latest attempt replaces earlier grade of the same course
+    [InlineData(2, true, 8)]  // Highest grade preserves the earlier, better course attempt
+    public async Task Cumulative_credit_gpa_uses_only_published_historical_course_snapshots(
+        int repeatPolicy, bool repeatedCourse, int twiceExpectedCgpa)
     {
         var connection = Environment.GetEnvironmentVariable("EDUOS_SQL_AUTH_TEST_CONNECTION");
         if (string.IsNullOrWhiteSpace(connection)) return;
         var options = new DbContextOptionsBuilder<EduOSDbContext>().UseSqlServer(connection).Options;
         var seeded = await SeedAsync(options);
+        var expectedCgpa = twiceExpectedCgpa / 2m;
         long assessmentId;
         long batchId;
         Guid assessmentReference;
@@ -48,7 +54,8 @@ public sealed class SqlServerAssessmentMarkReviewLifecycleIntegrationTests
             registration.CreditHoursSnapshot = 2m;
             var scheme = new GradeScheme { TenantId = seeded.TenantId,
                 Name = "Transcript credits", Code = "CGPA-" + Guid.NewGuid().ToString("N")[..12],
-                UseCreditWeightedGpa = true };
+                UseCreditWeightedGpa = true,
+                RepeatCourseGradePolicy = (RepeatCourseGradePolicy)repeatPolicy };
             db.GradeSchemes.Add(scheme);
             await db.SaveChangesAsync();
             db.GradeRules.AddRange(
@@ -78,7 +85,8 @@ public sealed class SqlServerAssessmentMarkReviewLifecycleIntegrationTests
             await db.SaveChangesAsync();
             var pastOffering = new SubjectOffering { TenantId = seeded.TenantId,
                 AcademicBatchId = offering.AcademicBatchId, AcademicYearId = offering.AcademicYearId,
-                CurriculumSubjectId = pastCourse.Id, Code = "HIST" };
+                CurriculumSubjectId = repeatedCourse ? originalCourse.Id : pastCourse.Id,
+                Code = "HIST" };
             db.SubjectOfferings.Add(pastOffering);
             await db.SaveChangesAsync();
             var pastSubject = new AssessmentSubject { TenantId = seeded.TenantId,
@@ -106,7 +114,8 @@ public sealed class SqlServerAssessmentMarkReviewLifecycleIntegrationTests
             db.StudentResultCourseSnapshots.Add(new StudentResultCourseSnapshot {
                 TenantId = seeded.TenantId, ResultPublicationId = pastPublication.Id,
                 StudentEnrollmentId = enrollment.Id, AssessmentSubjectId = pastSubject.Id,
-                CurriculumSubjectId = pastCourse.Id, StudentSubjectRegistrationId = pastRegistration.Id,
+                CurriculumSubjectId = pastOffering.CurriculumSubjectId,
+                StudentSubjectRegistrationId = pastRegistration.Id,
                 FullMarks = 100m, ObtainedMarks = 90m, CreditHours = 2m, GradePoint = 4m,
                 GradeLetter = "A", IsPassed = true });
             await db.SaveChangesAsync();
@@ -119,10 +128,16 @@ public sealed class SqlServerAssessmentMarkReviewLifecycleIntegrationTests
             var service = Service(db, new Actor(seeded.TenantId, seeded.ReviewerId, "TenantAdmin"));
             var preview = await service.PreviewResultsAsync(new() {
                 AssessmentId = assessmentId, AcademicBatchId = batchId });
+            if (twiceExpectedCgpa < 0)
+            {
+                Assert.False(preview.Success);
+                Assert.Equal(409, preview.StatusCode);
+                return;
+            }
             Assert.True(preview.Success, preview.Message);
             var row = Assert.Single(preview.Data!.Results);
             Assert.Equal(3m, row.GradePointAverage);
-            Assert.Equal(3.5m, row.CumulativeGradePointAverage);
+            Assert.Equal(expectedCgpa, row.CumulativeGradePointAverage);
 
             var published = await service.PublishResultAsync(new() {
                 ClientRequestId = Guid.NewGuid(), AssessmentReference = assessmentReference,
@@ -130,7 +145,7 @@ public sealed class SqlServerAssessmentMarkReviewLifecycleIntegrationTests
             Assert.True(published.Success, published.Message);
             var saved = await db.StudentResultSummaries.AsNoTracking()
                 .SingleAsync(x => x.ResultPublicationId == published.Data!.Id);
-            Assert.Equal(3.5m, saved.CGPA);
+            Assert.Equal(expectedCgpa, saved.CGPA);
             Assert.Equal(2m, saved.CreditHours);
             var courseGrade = await db.StudentResultCourseSnapshots.AsNoTracking()
                 .SingleAsync(x => x.ResultPublicationId == published.Data!.Id);
@@ -140,7 +155,7 @@ public sealed class SqlServerAssessmentMarkReviewLifecycleIntegrationTests
             var readable = await service.GetResultsAsync(new() {
                 AssessmentId = assessmentId, AcademicBatchId = batchId });
             Assert.True(readable.Success, readable.Message);
-            Assert.Equal(3.5m, Assert.Single(readable.Data!.Results).CumulativeGradePointAverage);
+            Assert.Equal(expectedCgpa, Assert.Single(readable.Data!.Results).CumulativeGradePointAverage);
             var currentEnrollment = await db.StudentEnrollments.AsNoTracking()
                 .SingleAsync(x => x.AcademicBatchId == batchId && x.IsCurrent);
             var pupil = await db.Students.AsNoTracking()
@@ -148,7 +163,7 @@ public sealed class SqlServerAssessmentMarkReviewLifecycleIntegrationTests
             var history = await service.GetTranscriptAcademicRecordAsync(pupil.PublicId);
             Assert.True(history.Success, history.Message);
             Assert.Equal(2, history.Data!.Courses.Count);
-            Assert.Equal(3.5m, history.Data!.LatestPublishedCgpa);
+            Assert.Equal(expectedCgpa, history.Data!.LatestPublishedCgpa);
             var isolated = Service(db,
                 new Actor(seeded.TenantId + 100_000, seeded.ReviewerId, "TenantAdmin"));
             var forbidden = await isolated.GetTranscriptAcademicRecordAsync(pupil.PublicId);

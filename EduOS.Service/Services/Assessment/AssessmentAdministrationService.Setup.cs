@@ -371,7 +371,10 @@ public sealed partial class AssessmentAdministrationService
         if (request == null || gradeSchemeId is <= 0 || string.IsNullOrWhiteSpace(request.Name) ||
             request.Name.Trim().Length > 150 || string.IsNullOrWhiteSpace(request.Code) ||
             request.Code.Trim().Length > 50 || request.Rules == null ||
-            request.Rules.Count is < 1 or > 100 || request.Rules.Any(x =>
+            request.Rules.Count is < 1 or > 100 ||
+            !Enum.IsDefined(request.RepeatCourseGradePolicy) ||
+            (!request.UseCreditWeightedGpa && request.RepeatCourseGradePolicy != RepeatCourseGradePolicy.Reject) ||
+            request.Rules.Any(x =>
                 x == null || x.MinMarks < 0 || x.MaxMarks > 100 || x.MinMarks > x.MaxMarks ||
                 string.IsNullOrWhiteSpace(x.GradeLetter) || x.GradeLetter.Trim().Length > 20 ||
                 x.GradePoint is < 0 or > 10 ||
@@ -406,6 +409,7 @@ public sealed partial class AssessmentAdministrationService
                 TenantId = tenant, Name = request.Name.Trim(), Code = code,
                 AcademicProgramId = request.AcademicProgramId, IsDefault = request.IsDefault,
                 IsActive = request.IsActive, UseCreditWeightedGpa = request.UseCreditWeightedGpa,
+                RepeatCourseGradePolicy = request.RepeatCourseGradePolicy,
                 CreatedAt = now, CreatedBy = _user.UserId
             };
             if (request.IsDefault && await _gradeSchemes.GetQueryable().AsNoTracking().AnyAsync(x =>
@@ -502,6 +506,7 @@ public sealed partial class AssessmentAdministrationService
         AcademicProgramId = row.AcademicProgramId,
         IsDefault = row.IsDefault, IsActive = row.IsActive,
         UseCreditWeightedGpa = row.UseCreditWeightedGpa,
+        RepeatCourseGradePolicy = row.RepeatCourseGradePolicy,
         RowVersion = Version(row.RowVersion),
         Rules = rules.Select(x => new GradeRuleDto
         {

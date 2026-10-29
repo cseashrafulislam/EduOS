@@ -8,6 +8,9 @@ namespace EduOS.Service.Services.AssessmentAdministration;
 
 public sealed partial class AssessmentAdministrationService
 {
+    private sealed record CumulativeCourseAttempt(long CurriculumSubjectId, decimal CreditHours,
+        decimal GradePoint, DateOnly AssessmentEndDate, long PublicationId);
+
     /// <summary>
     /// Read only from eligible, frozen publication versions of the same tenant,
     /// programme and campus, never from today's editable marks. Repeated courses
@@ -21,10 +24,14 @@ public sealed partial class AssessmentAdministrationService
         if (_courseSnapshots == null)
             return "Course evidence storage is required for cumulative GPA.";
         var tenant = _user.TenantId;
+        var scheme = await _gradeSchemes.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
+            x.TenantId == tenant && x.Id == assessment.GradeSchemeId && x.IsActive && !x.IsDeleted, token);
+        if (scheme == null || !scheme.UseCreditWeightedGpa || !Enum.IsDefined(scheme.RepeatCourseGradePolicy))
+            return "Cumulative grade-selection policy is missing or invalid.";
         var resultByRoll = results.ToDictionary(x => x.RollNo);
         var studentByRoll = pupils.ToDictionary(x => x.Roll, x => x.Enrollment.StudentId);
         var allStudentIds = studentByRoll.Values.Distinct().ToArray();
-        var priorByStudent = new Dictionary<long, List<(decimal GradePoints, decimal Credits, long[] CourseIds)>>();
+        var priorByStudent = new Dictionary<long, List<CumulativeCourseAttempt>>();
 
         for (var offset = 0; offset < allStudentIds.Length; offset += 200)
         {
@@ -55,7 +62,8 @@ public sealed partial class AssessmentAdministrationService
                 {
                     enrollment.StudentId, enrollment.Id,
                     summary.ResultPublicationId, summary.GPA, summary.CreditHours,
-                    summary.IsWithheld, publication.HasCourseGradeSnapshots
+                    summary.IsWithheld, publication.HasCourseGradeSnapshots,
+                    historical.EndDate
                 }).Take(10001).ToListAsync(token);
             if (previous.Count > 10000)
                 return "Cumulative result history exceeds the synchronous limit.";
@@ -84,32 +92,42 @@ public sealed partial class AssessmentAdministrationService
                     return "Historical GPA and course credit snapshots do not reconcile.";
                 if (!priorByStudent.TryGetValue(earlier.StudentId, out var list))
                     priorByStudent[earlier.StudentId] = list = [];
-                list.Add((earlier.GPA!.Value * earlier.CreditHours!.Value,
-                    earlier.CreditHours.Value, courses.Select(x => x.CurriculumSubjectId).ToArray()));
+                list.AddRange(courses.Select(x => new CumulativeCourseAttempt(x.CurriculumSubjectId,
+                    x.CreditHours, x.GradePoint, earlier.EndDate, earlier.ResultPublicationId)));
             }
         }
 
         foreach (var (roll, studentId) in studentByRoll)
         {
             var result = resultByRoll[roll];
+            if (result.IsWithheld)
+            {
+                result.CumulativeGradePointAverage = null;
+                continue;
+            }
             if (!result.CreditHours.HasValue || result.CreditHours <= 0 ||
                 !result.GradePointAverage.HasValue || result.Courses.Any(x => x.CreditHours <= 0))
                 return "Cumulative grade credit evidence is incomplete.";
             var courseIds = result.Courses.Select(x => x.CurriculumSubjectId).ToArray();
             if (courseIds.Distinct().Count() != courseIds.Length)
                 return "Duplicate curriculum courses are not eligible for cumulative credit.";
-            decimal numerator = result.CreditHours.Value * result.GradePointAverage.Value;
-            decimal denominator = result.CreditHours.Value;
-            var seen = courseIds.ToHashSet();
-            if (priorByStudent.TryGetValue(studentId, out var past))
+            var attempts = result.Courses.Select(x => new CumulativeCourseAttempt(x.CurriculumSubjectId,
+                x.CreditHours, x.GradePoint, assessment.EndDate, long.MaxValue)).ToList();
+            if (priorByStudent.TryGetValue(studentId, out var past)) attempts.AddRange(past);
+            decimal numerator = 0m, denominator = 0m;
+            foreach (var group in attempts.GroupBy(x => x.CurriculumSubjectId))
             {
-                foreach (var earlier in past)
-                {
-                    if (earlier.CourseIds.Any(x => !seen.Add(x)))
-                        return "Repeated course needs an approved retake/improvement grade-selection policy.";
-                    numerator += earlier.GradePoints;
-                    denominator += earlier.Credits;
-                }
+                if (group.Count() > 1 && scheme.RepeatCourseGradePolicy == RepeatCourseGradePolicy.Reject)
+                    return "Repeated course needs an approved retake/improvement grade-selection policy.";
+                var selected = scheme.RepeatCourseGradePolicy == RepeatCourseGradePolicy.HighestGradePoint
+                    ? group.OrderByDescending(x => x.GradePoint)
+                        .ThenByDescending(x => x.AssessmentEndDate).ThenByDescending(x => x.PublicationId).First()
+                    : group.OrderByDescending(x => x.AssessmentEndDate)
+                        .ThenByDescending(x => x.PublicationId).First();
+                if (selected.CreditHours <= 0)
+                    return "Repeated course has invalid credit evidence.";
+                numerator += selected.CreditHours * selected.GradePoint;
+                denominator += selected.CreditHours;
             }
             result.CumulativeGradePointAverage = decimal.Round(numerator / denominator, 4,
                 MidpointRounding.AwayFromZero);

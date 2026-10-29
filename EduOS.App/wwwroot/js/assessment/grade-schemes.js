@@ -27,12 +27,14 @@
         td.textContent = value == null ? '' : String(value);
         return td;
     };
+    const policyLabel = value => ({ 0: 'Reject', 1: 'Latest', 2: 'Highest' })[value] || 'Unknown';
     function render() {
         const body = el('gradeSchemeRows'); body.replaceChildren();
         for (const row of state.rows) {
             const tr = document.createElement('tr');
             tr.append(cell(row.code), cell(row.name), cell(row.academicProgramId || 'Tenant-wide'),
                 cell(row.useCreditWeightedGpa ? 'Credits' : 'Overall'),
+                cell(policyLabel(row.repeatCourseGradePolicy)),
                 cell(row.ruleCount), cell(row.isActive ? 'Yes' : 'No'),
                 cell(row.isDefault ? 'Yes' : 'No'));
             const action = document.createElement('td'); action.className = 'grade-scheme-action';
@@ -44,7 +46,7 @@
         }
         if (!state.rows.length) {
             const tr = document.createElement('tr'), td = cell('No grade schemes found.');
-            td.colSpan = 8; tr.append(td); body.append(tr);
+            td.colSpan = 9; tr.append(td); body.append(tr);
         }
         el('gradeSchemeCount').textContent = state.total + ' scheme(s) · Page ' + state.page;
         el('gradeSchemePrev').disabled = state.page <= 1;
@@ -66,7 +68,8 @@
         try {
             const data = await api('/api/assessment-administration/grade-schemes/' + encodeURIComponent(id));
             el('gradeSchemeDetailTitle').textContent = data.code + ' — ' + data.name +
-                (data.useCreditWeightedGpa ? ' · Credit-weighted GPA' : ' · Overall-percentage GPA');
+                (data.useCreditWeightedGpa ? ' · Credit-weighted GPA' : ' · Overall-percentage GPA') +
+                ' · Repeat policy: ' + policyLabel(data.repeatCourseGradePolicy);
             const body = el('gradeSchemeDetailRules'); body.replaceChildren();
             for (const rule of data.rules || []) {
                 const tr = document.createElement('tr');
@@ -144,6 +147,7 @@
                 isActive: el('gradeSchemeActive').checked,
                 isDefault: el('gradeSchemeDefault').checked,
                 useCreditWeightedGpa: el('gradeSchemeGpaMode').value === 'credits',
+                repeatCourseGradePolicy: Number(el('gradeSchemeRepeatPolicy').value),
                 rules: collectRules()
             };
             if (!body.code || !body.name || body.code.length > 50 || body.name.length > 150)
@@ -164,13 +168,15 @@
         el('gradeSchemeRuleEditor').replaceChildren();
         addRule();
         el('gradeSchemeActive').checked = true;
+        el('gradeSchemeRepeatPolicy').disabled = true;
+        el('gradeSchemeRepeatPolicy').value = '0';
     }
     function csv() {
         const safe = value => /^[=+@\-\t\r]/.test(String(value ?? '')) ? "'" + String(value) : value;
         const quote = value => '"' + String(safe(value) ?? '').replace(/"/g, '""') + '"';
-        const rows = [['Code', 'Name', 'Program', 'GPA mode', 'Rules', 'Active', 'Default'],
+        const rows = [['Code', 'Name', 'Program', 'GPA mode', 'Repeat policy', 'Rules', 'Active', 'Default'],
             ...state.rows.map(x => [x.code, x.name, x.academicProgramId || 'Tenant-wide',
-                x.useCreditWeightedGpa ? 'Credits' : 'Overall', x.ruleCount,
+                x.useCreditWeightedGpa ? 'Credits' : 'Overall', policyLabel(x.repeatCourseGradePolicy), x.ruleCount,
                 x.isActive ? 'Yes' : 'No', x.isDefault ? 'Yes' : 'No'])];
         const data = rows.map(row => row.map(quote).join(',')).join('\r\n');
         const url = URL.createObjectURL(new Blob(['\uFEFF' + data], { type: 'text/csv;charset=utf-8' }));
@@ -179,6 +185,11 @@
         document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 1000);
     }
     el('gradeSchemeForm').addEventListener('submit', save);
+    el('gradeSchemeGpaMode').addEventListener('change', () => {
+        const field = el('gradeSchemeRepeatPolicy');
+        field.disabled = el('gradeSchemeGpaMode').value !== 'credits';
+        if (field.disabled) field.value = '0';
+    });
     el('gradeSchemeClear').addEventListener('click', clear);
     el('gradeSchemeAddRule').addEventListener('click', addRule);
     el('gradeSchemeRefresh').addEventListener('click', () => { state.page = 1; load(); });
