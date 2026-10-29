@@ -198,11 +198,40 @@ public sealed partial class PayrollJournalPostingService : IPayrollJournalPostin
             if (run.CampusId.HasValue)
             {
                 var ids = people.Select(x => x.EmployeeId).ToArray();
-                var covered = await db.EmployeeCampusAssignments.AsNoTracking().Where(x => x.TenantId == tenant &&
-                    ids.Contains(x.EmployeeId) && x.CampusId == run.CampusId &&
-                    x.EffectiveFrom <= run.PeriodEnd && (!x.EffectiveTo.HasValue || x.EffectiveTo >= run.PeriodEnd) &&
-                    !x.IsDeleted).Select(x => x.EmployeeId).Distinct().CountAsync(ct);
-                if (covered != people.Count) return Error<PostPayrollJournalResultDto>("Payroll contains employees outside the selected campus.", 409);
+                // A CalendarDays run can include a mid-month joiner or leaver. Check the
+                // primary assignment for the employee's actual paid service interval,
+                // not unconditionally on the month's final day.
+                var covered = await (from employee in db.Employees.AsNoTracking()
+                    join assignment in db.EmployeeCampusAssignments.AsNoTracking()
+                        on new { employee.TenantId, EmployeeId = employee.Id }
+                        equals new { assignment.TenantId, assignment.EmployeeId }
+                    where employee.TenantId == tenant && ids.Contains(employee.Id) && !employee.IsDeleted &&
+                        employee.JoiningDate <= run.PeriodEnd &&
+                        (!employee.LeavingDate.HasValue || employee.LeavingDate >= run.PeriodStart) &&
+                        assignment.TenantId == tenant && !assignment.IsDeleted && assignment.IsPrimary &&
+                        assignment.CampusId == run.CampusId &&
+                        assignment.EffectiveFrom <= (employee.JoiningDate > run.PeriodStart ?
+                            employee.JoiningDate : run.PeriodStart) &&
+                        (!assignment.EffectiveTo.HasValue || assignment.EffectiveTo >=
+                            (employee.LeavingDate.HasValue && employee.LeavingDate.Value < run.PeriodEnd ?
+                                employee.LeavingDate.Value : run.PeriodEnd))
+                    select employee.Id).Distinct().CountAsync(ct);
+                if (covered != people.Count)
+                    return Error<PostPayrollJournalResultDto>("Payroll contains employees outside the selected campus service period.", 409);
+                var conflicting = await (from employee in db.Employees.AsNoTracking()
+                    join assignment in db.EmployeeCampusAssignments.AsNoTracking()
+                        on new { employee.TenantId, EmployeeId = employee.Id }
+                        equals new { assignment.TenantId, assignment.EmployeeId }
+                    where employee.TenantId == tenant && ids.Contains(employee.Id) && !employee.IsDeleted &&
+                        assignment.TenantId == tenant && !assignment.IsDeleted && assignment.IsPrimary &&
+                        assignment.CampusId != run.CampusId &&
+                        assignment.EffectiveFrom <= (employee.LeavingDate.HasValue &&
+                            employee.LeavingDate.Value < run.PeriodEnd ? employee.LeavingDate.Value : run.PeriodEnd) &&
+                        (!assignment.EffectiveTo.HasValue || assignment.EffectiveTo >=
+                            (employee.JoiningDate > run.PeriodStart ? employee.JoiningDate : run.PeriodStart))
+                    select employee.Id).AnyAsync(ct);
+                if (conflicting)
+                    return Error<PostPayrollJournalResultDto>("Overlapping primary campus assignments require payroll reconciliation.", 409);
             }
             var peopleIds = people.Select(x => x.Id).ToArray();
             var payrollLines = await db.PayrollLines.AsNoTracking().Where(x => x.TenantId == tenant &&
