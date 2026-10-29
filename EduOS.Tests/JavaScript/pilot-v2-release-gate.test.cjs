@@ -15,9 +15,18 @@ function nearestConditionalBefore(href) {
     return layout.slice(guard, link);
 }
 
-test("V1 pilot hides LMS and Library entry points in shared shell", () => {
-    assert.match(nearestConditionalBefore("/Learning/Index"), /^@if \(!pilotCoreOnly && /);
-    assert.match(nearestConditionalBefore("/Library/Index"), /^@if \(!pilotCoreOnly\)/);
+test("pilot and current-tenant entitlement jointly guard all optional module menus", () => {
+    const navigation = fs.readFileSync(path.join(root,
+        "EduOS.App/Authorization/OptionalModuleNavigation.cs"), "utf8");
+    assert.match(layout, /OptionalModuleNavigation\.GetAvailableAsync\(/);
+    assert.match(layout, /TenantModuleService, pilotCoreOnly,/);
+    assert.match(navigation, /if \(pilotCoreOnly \|\| !authenticatedTenantMember\) return denied;/);
+    assert.match(navigation, /x\.IsEnabled && x\.IsEntitledByPlan/);
+    assert.match(nearestConditionalBefore("/Learning/Index"), /^@if \(showLms && /);
+    assert.match(nearestConditionalBefore("/Library/Index"), /^@if \(showLibrary\)/);
+    assert.match(nearestConditionalBefore("/HostelOperations/Index"), /^@if \(showHostel\)/);
+    assert.match(nearestConditionalBefore("/TransportOperations/Index"), /^@if \(showTransport\)/);
+    assert.match(nearestConditionalBefore("/InventoryCatalog/Index"), /^@if \(showInventory && /);
     assert.match(layout, /href="\/Library\/Circulation"/);
     assert.match(layout, /href="\/Learning\/CourseCompletions"/);
 });
