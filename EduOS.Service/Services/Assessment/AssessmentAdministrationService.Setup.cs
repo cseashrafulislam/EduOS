@@ -35,7 +35,8 @@ public sealed partial class AssessmentAdministrationService
                 x.TenantId == tenant && x.Id == request.CampusId && x.IsActive && !x.IsDeleted, token);
             var year = await _years.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
                 x.TenantId == tenant && x.Id == request.AcademicYearId && x.IsActive && !x.IsDeleted, token);
-            if (campus == null || year == null) return Error<AssessmentDto>("Campus or academic year not found.", 404);
+            if (campus == null || year == null || year.CampusId.HasValue && year.CampusId != campus.Id)
+                return Error<AssessmentDto>("Campus or matching academic year not found.", 404);
             if (request.StartDate < year.StartDate || request.EndDate > year.EndDate)
                 return Error<AssessmentDto>("Assessment dates exceed academic year.", 409);
             if (request.AcademicTermId.HasValue)

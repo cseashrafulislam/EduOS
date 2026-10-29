@@ -18,6 +18,8 @@ on:
       - 'EduOS.App/Views/AssessmentAdministration/TranscriptDocument.cshtml'
       - 'EduOS.App/Views/AssessmentAdministration/Attempts.cshtml'
       - 'EduOS.App/wwwroot/js/assessment/attempts.js'
+      - 'EduOS.App/Views/AssessmentAdministration/Setup.cshtml'
+      - 'EduOS.App/wwwroot/js/assessment/setup.js'
       - 'EduOS.App/wwwroot/js/attendance/**'
       - 'EduOS.App/wwwroot/js/academic/routines.js'
       - 'tests/browser/**'
@@ -48,6 +50,8 @@ jobs:
         run: node tests/browser/assessment-transcript.cjs
       - name: Exercise student-specific retake and improvement approval UI
         run: node tests/browser/assessment-attempts.cjs
+      - name: Exercise exam setup and subject assignment browser UI
+        run: node tests/browser/assessment-setup.cjs
       - name: Exercise student enrollment and retry browser UI
         run: node tests/browser/student-enrollment.cjs
       - name: Exercise student lifecycle and transfer certificate browser UI

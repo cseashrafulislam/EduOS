@@ -245,6 +245,26 @@ public sealed class AssessmentAdministrationApiController : ControllerBase
     public async Task<IActionResult> CreateAssessment([FromBody] SaveAssessmentRequestDto request,
         CancellationToken ct) => Result(await _service.SaveAssessmentAsync(null, request, ct));
 
+    [HttpGet("assessments/page")]
+    [Authorize(Roles = "TenantAdmin,Principal,VicePrincipal,ExamController")]
+    public async Task<IActionResult> AssessmentDefinitions([FromQuery] AssessmentSetupListQueryDto query,
+        CancellationToken ct) => Result(await _service.SearchAssessmentDefinitionsAsync(query, ct));
+
+    [HttpGet("setup/references")]
+    [Authorize(Roles = "TenantAdmin,Principal,VicePrincipal,ExamController")]
+    public async Task<IActionResult> SetupReferences(CancellationToken ct) =>
+        Result(await _service.GetAssessmentSetupReferenceDataAsync(ct));
+
+    [HttpGet("setup/batches")]
+    [Authorize(Roles = "TenantAdmin,Principal,VicePrincipal,ExamController")]
+    public async Task<IActionResult> SetupBatches([FromQuery] AssessmentSetupListQueryDto query,
+        CancellationToken ct) => Result(await _service.SearchAssessmentSetupBatchesAsync(query, ct));
+
+    [HttpGet("setup/batches/{batchId:long}/offerings")]
+    [Authorize(Roles = "TenantAdmin,Principal,VicePrincipal,ExamController")]
+    public async Task<IActionResult> SetupOfferings(long batchId, [FromQuery] AssessmentSetupListQueryDto query,
+        CancellationToken ct) => Result(await _service.SearchAssessmentSetupOfferingsAsync(batchId, query, ct));
+
     [HttpPut("assessments/{reference:guid}")]
     [Authorize(Roles = "TenantAdmin,Principal,VicePrincipal,ExamController")]
     public async Task<IActionResult> UpdateAssessment(Guid reference,

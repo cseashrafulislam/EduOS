@@ -1,0 +1,74 @@
+@{
+    ViewData["Title"] = "Assessment Setup";
+}
+<div class="container-fluid py-3" id="assessmentSetupWorkspace">
+    @Html.AntiForgeryToken()
+    <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
+        <div><h1 class="h4 mb-1">Assessment Setup</h1><p class="text-muted mb-0">Create, edit and assign exam subjects before scheduling and marks entry.</p></div>
+        <a asp-controller="AssessmentAdministration" asp-action="Index" class="btn btn-outline-secondary">Exam workspace</a>
+    </div>
+    <div id="setupAlert" class="alert alert-info" role="status" aria-live="polite">Select an assessment or create a new one.</div>
+    <section class="card mb-3" aria-labelledby="setupRegistersHeading">
+        <div class="card-body">
+            <h2 class="h6" id="setupRegistersHeading">Existing assessments</h2>
+            <form id="setupFindForm" class="d-flex gap-2 mb-2">
+                <input id="setupFind" class="form-control" maxlength="100" type="search" placeholder="Assessment code or name" aria-label="Assessment search" />
+                <button class="btn btn-outline-primary" type="submit">Search</button>
+                <button class="btn btn-outline-secondary" id="setupNew" type="button">New</button>
+            </form>
+            <select id="setupExisting" class="form-select" aria-label="Choose existing assessment"><option value="">New assessment</option></select>
+            <p id="setupCount" class="small text-muted mb-0 mt-2"></p>
+        </div>
+    </section>
+    <section class="card mb-3" aria-labelledby="setupDefinitionHeading">
+        <div class="card-header"><h2 class="h6 mb-0" id="setupDefinitionHeading">Assessment definition</h2></div>
+        <form id="setupDefinition" class="card-body row g-3">
+            <div class="col-md-6"><label class="form-label" for="setupName">Assessment name *</label>
+                <input class="form-control" id="setupName" maxlength="150" required /></div>
+            <div class="col-md-3"><label class="form-label" for="setupCode">Code *</label>
+                <input class="form-control" id="setupCode" maxlength="50" required /></div>
+            <div class="col-md-3"><label class="form-label" for="setupType">Assessment type</label>
+                <select class="form-select" id="setupType"><option value="1">Exam</option><option value="2">Quiz</option><option value="3">Assignment</option><option value="4">Class Test</option><option value="5">Practical</option><option value="6">Viva</option><option value="7">Project</option><option value="8">Continuous assessment</option></select></div>
+            <div class="col-md-4"><label class="form-label" for="setupCampus">Campus *</label><select class="form-select" id="setupCampus" required></select></div>
+            <div class="col-md-4"><label class="form-label" for="setupYear">Academic year *</label><select class="form-select" id="setupYear" required></select></div>
+            <div class="col-md-4"><label class="form-label" for="setupTerm">Term (optional)</label><select class="form-select" id="setupTerm"></select></div>
+            <div class="col-md-4"><label class="form-label" for="setupScheme">Grade scheme</label><select class="form-select" id="setupScheme"></select></div>
+            <div class="col-md-4"><label class="form-label" for="setupStart">Start date *</label><input id="setupStart" type="date" class="form-control" required /></div>
+            <div class="col-md-4"><label class="form-label" for="setupEnd">End date *</label><input id="setupEnd" type="date" class="form-control" required /></div>
+            <div class="col-md-4"><label class="form-label" for="setupAttemptMode">Assessment attempt</label>
+                <select id="setupAttemptMode" class="form-select"><option value="0">Regular</option>
+                    <option value="1">Retake — failed previous course</option><option value="2">Improvement — passed previous course</option></select></div>
+            <div class="col-md-4 d-flex align-items-end"><div class="form-check"><input id="setupCgpa" type="checkbox" class="form-check-input" />
+                <label class="form-check-label" for="setupCgpa">Counts toward cumulative GPA</label></div></div>
+            <div class="col-md-12"><label class="form-label" for="setupRemarks">Remarks</label>
+                <textarea id="setupRemarks" class="form-control" maxlength="1000" rows="2"></textarea></div>
+            <div class="col-12 d-flex flex-wrap align-items-center gap-2">
+                <button type="submit" class="btn btn-primary" id="setupSave">Save draft assessment</button>
+                <span id="setupStatus" class="small text-muted">New draft</span>
+            </div>
+        </form>
+    </section>
+    <section class="card" aria-labelledby="setupSubjectHeading">
+        <div class="card-header"><h2 id="setupSubjectHeading" class="h6 mb-0">Assessment subjects</h2></div>
+        <div class="card-body">
+            <p class="text-muted small">Save a draft assessment before adding subjects. Select an active batch and offering from the same campus and academic year.</p>
+            <div class="row g-2 align-items-end">
+                <div class="col-md-4"><label for="setupBatchSearch" class="form-label">Find batch</label><input id="setupBatchSearch" class="form-control" maxlength="100" placeholder="Name or code" /></div>
+                <div class="col-md-2"><button id="setupBatchFind" class="btn btn-outline-primary w-100" type="button">Find</button></div>
+                <div class="col-md-6"><label for="setupBatch" class="form-label">Batch *</label><select id="setupBatch" class="form-select"></select></div>
+                <div class="col-md-4"><label for="setupOfferingSearch" class="form-label">Find subject offering</label><input id="setupOfferingSearch" class="form-control" maxlength="100" placeholder="Subject name or code" /></div>
+                <div class="col-md-2"><button id="setupOfferingFind" class="btn btn-outline-primary w-100" type="button">Find</button></div>
+                <div class="col-md-6"><label for="setupOffering" class="form-label">Subject offering *</label><select id="setupOffering" class="form-select"></select></div>
+                <div class="col-md-3"><label for="setupFull" class="form-label">Full marks *</label><input id="setupFull" type="number" min="0.01" step="0.01" value="100" class="form-control" /></div>
+                <div class="col-md-3"><label for="setupPass" class="form-label">Pass marks *</label><input id="setupPass" type="number" min="0" step="0.01" value="33" class="form-control" /></div>
+                <div class="col-md-3"><label for="setupWeight" class="form-label">Weightage *</label><input id="setupWeight" type="number" min="0.01" max="100" step="0.01" value="100" class="form-control" /></div>
+                <div class="col-md-3"><button id="setupAddSubject" class="btn btn-outline-primary w-100" type="button" disabled>Add subject</button></div>
+            </div>
+            <div class="table-responsive mt-3"><table class="table table-sm table-hover align-middle">
+                <thead><tr><th>Subject</th><th>Full</th><th>Pass</th><th>Weightage</th></tr></thead>
+                <tbody id="setupSubjectRows"><tr><td colspan="4" class="text-muted">Save an assessment to see its subjects.</td></tr></tbody>
+            </table></div>
+        </div>
+    </section>
+</div>
+<script src="~/js/assessment/setup.js" asp-append-version="true"></script>
