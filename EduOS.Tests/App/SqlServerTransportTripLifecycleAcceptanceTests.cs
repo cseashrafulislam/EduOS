@@ -64,8 +64,14 @@ public sealed partial class SqlServerTransportSeatCapacityIntegrationTests
             return (response.Success, response.StatusCode);
         }
         var results = await Task.WhenAll(RecordAsync("Boarded"), RecordAsync("NoShow"));
-        Assert.Single(results.Where(x => x.Success));
-        Assert.Single(results.Where(x => !x.Success && x.Status == 409));
+        // A SQL deadlock can reject both contenders. Clients must receive a
+        // retryable conflict, and a fresh request must make forward progress.
+        Assert.True(results.Count(x => x.Success) <= 1,
+            "Concurrent first events must never both commit.");
+        Assert.All(results.Where(x => !x.Success), x => Assert.Equal(409, x.Status));
+        if (!results.Any(x => x.Success))
+            Assert.True((await RecordAsync("NoShow")).Success,
+                "A fresh request must succeed after both contenders conflicted.");
         await using var verify = ScopedContext(state.Fixture.Options, state.Fixture.TenantId, state.Fixture.UserId);
         var tripId = await verify.TransportTrips.Where(x => x.PublicId == state.Reference)
             .Select(x => x.Id).SingleAsync();
@@ -108,9 +114,17 @@ public sealed partial class SqlServerTransportSeatCapacityIntegrationTests
             return (response.Success, response.StatusCode);
         }
         var results = await Task.WhenAll(CompleteAsync(keys[0]), CompleteAsync(keys[1]));
-        Assert.Single(results.Where(x => x.Success));
-        Assert.Single(results.Where(x => !x.Success && x.Status == 409));
-        var winner = keys[Array.FindIndex(results, x => x.Success)];
+        Assert.True(results.Count(x => x.Success) <= 1,
+            "Competing completion keys must not both commit.");
+        Assert.All(results.Where(x => !x.Success), x => Assert.Equal(409, x.Status));
+        var winningIndex = Array.FindIndex(results, x => x.Success);
+        if (winningIndex < 0)
+        {
+            var retry = await CompleteAsync(keys[0]);
+            Assert.True(retry.Success, "Operation must succeed on a fresh retry after conflicts: " + retry.Status);
+            winningIndex = 0;
+        }
+        var winner = keys[winningIndex];
         await using var verify = ScopedContext(state.Fixture.Options, state.Fixture.TenantId, state.Fixture.UserId);
         var trip = await verify.TransportTrips.AsNoTracking().SingleAsync(x => x.PublicId == state.Reference);
         Assert.Equal("Completed", trip.State);
@@ -162,9 +176,17 @@ public sealed partial class SqlServerTransportSeatCapacityIntegrationTests
             return (response.Success, response.StatusCode);
         }
         var results = await Task.WhenAll(CorrectAsync(keys[0]), CorrectAsync(keys[1]));
-        Assert.Single(results.Where(x => x.Success));
-        Assert.Single(results.Where(x => !x.Success && x.Status == 409));
-        var winner = keys[Array.FindIndex(results, x => x.Success)];
+        Assert.True(results.Count(x => x.Success) <= 1,
+            "Competing completion keys must not both commit.");
+        Assert.All(results.Where(x => !x.Success), x => Assert.Equal(409, x.Status));
+        var winningIndex = Array.FindIndex(results, x => x.Success);
+        if (winningIndex < 0)
+        {
+            var retry = await CorrectAsync(keys[0]);
+            Assert.True(retry.Success, "Operation must succeed on a fresh retry after conflicts: " + retry.Status);
+            winningIndex = 0;
+        }
+        var winner = keys[winningIndex];
         await using var verify = ScopedContext(state.Fixture.Options, state.Fixture.TenantId, state.Fixture.UserId);
         var history = await TripService(verify, state.Fixture).GetAttendanceHistoryAsync(
             state.Reference, state.StudentCode);
