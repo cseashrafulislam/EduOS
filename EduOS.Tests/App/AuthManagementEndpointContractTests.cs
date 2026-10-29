@@ -105,7 +105,9 @@ public sealed class AuthManagementEndpointContractTests
         Assert.Contains("AuthSessionRegistry.IsCurrentReference", action);
         Assert.Contains("CheckPasswordAsync(user, dto.CurrentPassword)", action);
         Assert.Contains("user.TwoFactorEnabled && !User.HasClaim", action);
-        Assert.Contains("AuthSessionRegistry.RevokeByReferenceAsync", action);
+        Assert.Contains("AuthSessionRegistry.RevokeByReferenceForCurrentSessionAsync", action);
+        Assert.Contains("HttpContext.RequestAborted", action);
+        Assert.Contains("if (!revoked.HasValue)", action);
         Assert.DoesNotContain("revoked session {SessionId}", action);
     }
 
