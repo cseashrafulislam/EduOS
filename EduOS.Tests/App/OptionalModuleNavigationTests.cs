@@ -26,9 +26,9 @@ public sealed class OptionalModuleNavigationTests
             Module("HR", true, true));
         var available = await OptionalModuleNavigation.GetAvailableAsync(service.Object, false, true);
         Assert.Equal(3, available.Count);
-        Assert.Contains("LMS", available);
-        Assert.Contains("TRANSPORT", available);
-        Assert.Contains("INVENTORY", available);
+        Assert.True(available.Contains("LMS"));
+        Assert.True(available.Contains("TRANSPORT"));
+        Assert.True(available.Contains("INVENTORY"));
         Assert.DoesNotContain("LIBRARY", available);
         Assert.DoesNotContain("HOSTEL", available);
         Assert.DoesNotContain("HR", available);
@@ -101,8 +101,8 @@ public sealed class OptionalModuleNavigationTests
             return;
         }
         Assert.IsType<ViewResult>(result);
-        Assert.Equal(transport, controller.ViewData["ShowTransport"]);
-        Assert.Equal(hostel, controller.ViewData["ShowHostel"]);
+        Assert.Equal(transport, Assert.IsType<bool>(controller.ViewData["ShowTransport"]));
+        Assert.Equal(hostel, Assert.IsType<bool>(controller.ViewData["ShowHostel"]));
     }
 
     [Fact]
