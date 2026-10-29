@@ -35,27 +35,21 @@ public sealed class HostelMyHistoryIsolationTests
         http.Items["TenantId"] = 101L;
         await using var db = new EduOSDbContext(options, new HttpContextAccessor { HttpContext = http });
         var campus = new Campus { TenantId = 101, Name = "My campus", Code = "MY" };
-        var foreignCampus = new Campus { TenantId = 202, Name = "Foreign campus", Code = "FOREIGN" };
-        db.AddRange(campus, foreignCampus);
+        db.Add(campus);
         await db.SaveChangesAsync();
         var hostel = new Hostel { TenantId = 101, CampusId = campus.Id, Name = "My hostel", Code = "MYH" };
-        var foreignHostel = new Hostel { TenantId = 202, CampusId = foreignCampus.Id, Name = "Foreign hostel", Code = "FH" };
         var mine = new Student { TenantId = 101, UserId = 41, PersonId = 1,
             FullName = "My student", StudentCode = "OWN", StatusCode = "Inactive" };
         var other = new Student { TenantId = 101, UserId = 42, PersonId = 2,
             FullName = "Other student", StudentCode = "OTHER" };
-        var foreign = new Student { TenantId = 202, UserId = 41, PersonId = 3,
-            FullName = "Foreign student", StudentCode = "FOREIGN" };
-        db.AddRange(hostel, foreignHostel, mine, other, foreign);
+        db.AddRange(hostel, mine, other);
         await db.SaveChangesAsync();
         var room = new HostelRoom { TenantId = 101, HostelId = hostel.Id, RoomNumber = "A", Capacity = 2 };
-        var foreignRoom = new HostelRoom { TenantId = 202, HostelId = foreignHostel.Id, RoomNumber = "X", Capacity = 1 };
-        db.AddRange(room, foreignRoom);
+        db.Add(room);
         await db.SaveChangesAsync();
         var bed = new HostelBed { TenantId = 101, HostelRoomId = room.Id, BedNumber = "1" };
         var otherBed = new HostelBed { TenantId = 101, HostelRoomId = room.Id, BedNumber = "2" };
-        var foreignBed = new HostelBed { TenantId = 202, HostelRoomId = foreignRoom.Id, BedNumber = "9" };
-        db.AddRange(bed, otherBed, foreignBed);
+        db.AddRange(bed, otherBed);
         await db.SaveChangesAsync();
         StudentEnrollment Enrol(long tenant, Student student, Campus place) => new()
         {
@@ -66,8 +60,7 @@ public sealed class HostelMyHistoryIsolationTests
         };
         var ownEnrollment = Enrol(101, mine, campus);
         var otherEnrollment = Enrol(101, other, campus);
-        var foreignEnrollment = Enrol(202, foreign, foreignCampus);
-        db.AddRange(ownEnrollment, otherEnrollment, foreignEnrollment);
+        db.AddRange(ownEnrollment, otherEnrollment);
         await db.SaveChangesAsync();
         StudentHostelAllocation Stay(long tenant, Student student, StudentEnrollment enrollment, HostelBed slot) => new()
         {
@@ -77,11 +70,46 @@ public sealed class HostelMyHistoryIsolationTests
             State = HostelAllocationState.Closed
         };
         db.AddRange(Stay(101, mine, ownEnrollment, bed),
-            Stay(101, other, otherEnrollment, otherBed),
-            Stay(202, foreign, foreignEnrollment, foreignBed));
+            Stay(101, other, otherEnrollment, otherBed));
         await db.SaveChangesAsync();
         hostel.IsDeleted = true; room.IsDeleted = true; bed.IsDeleted = true;
         await db.SaveChangesAsync();
+
+        // The write guard intentionally rejects cross-tenant inserts through the
+        // 101-scoped context. Seed the other institute using its own authenticated
+        // tenant context against the same in-memory store.
+        var foreignHttp = new DefaultHttpContext
+        {
+            User = new ClaimsPrincipal(new ClaimsIdentity([
+                new Claim(ClaimTypes.NameIdentifier, "41"),
+                new Claim(ClaimTypes.Role, "Student"),
+                new Claim("TenantId", "202")
+            ], "TestAuthentication"))
+        };
+        foreignHttp.Items["TenantId"] = 202L;
+        await using (var foreignDb = new EduOSDbContext(options,
+            new HttpContextAccessor { HttpContext = foreignHttp }))
+        {
+            var foreignCampus = new Campus { TenantId = 202, Name = "Foreign campus", Code = "FOREIGN" };
+            foreignDb.Add(foreignCampus);
+            await foreignDb.SaveChangesAsync();
+            var foreignHostel = new Hostel { TenantId = 202, CampusId = foreignCampus.Id,
+                Name = "Foreign hostel", Code = "FH" };
+            var foreign = new Student { TenantId = 202, UserId = 41, PersonId = 3,
+                FullName = "Foreign student", StudentCode = "FOREIGN" };
+            foreignDb.AddRange(foreignHostel, foreign);
+            await foreignDb.SaveChangesAsync();
+            var foreignRoom = new HostelRoom { TenantId = 202, HostelId = foreignHostel.Id,
+                RoomNumber = "X", Capacity = 1 };
+            var foreignEnrollment = Enrol(202, foreign, foreignCampus);
+            foreignDb.AddRange(foreignRoom, foreignEnrollment);
+            await foreignDb.SaveChangesAsync();
+            var foreignBed = new HostelBed { TenantId = 202, HostelRoomId = foreignRoom.Id, BedNumber = "9" };
+            foreignDb.Add(foreignBed);
+            await foreignDb.SaveChangesAsync();
+            foreignDb.Add(Stay(202, foreign, foreignEnrollment, foreignBed));
+            await foreignDb.SaveChangesAsync();
+        }
 
         var service = new HostelService(
             new GenericRepository<Hostel>(db), new GenericRepository<HostelRoom>(db),
