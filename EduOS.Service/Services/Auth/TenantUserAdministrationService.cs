@@ -4,6 +4,7 @@ using EduOS.Core.DTOs.Auth;
 using EduOS.Core.Entities.Auth;
 using EduOS.Core.Entities.System;
 using EduOS.Core.Entities.SaaS;
+using EduOS.Service.Services.SaaS;
 using System.Text.Json;
 using EduOS.Core.Enums.Domain;
 using EduOS.Core.Interfaces;
@@ -544,6 +545,12 @@ public sealed partial class TenantUserAdministrationService : ITenantUserAdminis
                     x.RevokedAt == null && x.ExpiresAt > DateTime.UtcNow, tx);
                 if (stored == null) throw new AdminRejectException("Invitation already used.", 409);
                 using var scope = _db.BeginSystemTenantScope(stored.TenantId);
+                // Reserve seats at acceptance (not when sending an unaccepted
+                // email), under Serializable isolation. Counts include owners
+                // and suspended members, but not departed members.
+                if (!await SubscriptionUserSeatPolicy.CanAddMemberAsync(
+                        _db, stored.TenantId, DateTime.UtcNow, tx))
+                    throw new AdminRejectException("Subscription user seat limit reached. Upgrade the plan or remove a member.", 409);
                 var existing = await _users.FindByEmailAsync(stored.Email);
                 ApplicationUser user;
                 if (existing == null)
@@ -626,11 +633,30 @@ public sealed partial class TenantUserAdministrationService : ITenantUserAdminis
             }, IsolationLevel.Serializable, ct);
         }
         catch (AdminRejectException ex) { return ApiResponse<bool>.ErrorResponse(ex.Message, ex.StatusCode); }
+        catch (Exception ex) when (IsSqlSeatContention(ex))
+        {
+            // A Serializable acceptance race may be selected as a SQL deadlock
+            // victim. Never let a failed transaction appear to have accepted
+            // the invitation; the caller can retry the original token.
+            return ApiResponse<bool>.ErrorResponse("Concurrent invitation acceptance. Retry safely.", 409);
+        }
         catch (DbUpdateException)
         {
             return ApiResponse<bool>.ErrorResponse("Invitation was already accepted or changed. Retry login.", 409);
         }
         return ApiResponse<bool>.SuccessResponse(true, "Invitation accepted. Sign in to select your institution.");
+    }
+
+    private static bool IsSqlSeatContention(Exception error)
+    {
+        for (Exception? current = error; current != null; current = current.InnerException)
+        {
+            if (current is Microsoft.Data.SqlClient.SqlException sql)
+                return sql.Number is 1205 or 3960 or 1222;
+            if (current is not InvalidOperationException && current is not DbUpdateException)
+                return false;
+        }
+        return false;
     }
 
     public async Task<ApiResponse<IReadOnlyList<UserCampusAccessDto>>> GetMemberCampusesAsync(
