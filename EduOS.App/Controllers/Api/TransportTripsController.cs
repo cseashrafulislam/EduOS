@@ -42,6 +42,14 @@ public sealed class TransportTripsController : ControllerBase
         return StatusCode(result.StatusCode, result);
     }
 
+    [HttpPost("{reference:guid}/complete")]
+    public async Task<IActionResult> Complete(Guid reference,
+        [FromBody] CompleteTransportTripRequestDto request, CancellationToken ct)
+    {
+        var result = await _service.CompleteAsync(reference, request, ct);
+        return StatusCode(result.StatusCode, result);
+    }
+
     [HttpPost("{reference:guid}/attendance")]
     public async Task<IActionResult> Attendance(Guid reference,
         [FromBody] RecordTransportTripAttendanceRequestDto request, CancellationToken ct)

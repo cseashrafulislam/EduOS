@@ -298,7 +298,7 @@ public sealed partial class TransportTripService : ITransportTripService
             return ApiResponse<PagedResult<TransportTripRiderDto>>.ErrorResponse("Invalid trip or paging.");
         var tenant = _user.TenantId;
         var trip = await _db.TransportTrips.AsNoTracking().Where(x =>
-            x.TenantId == tenant && !x.IsDeleted && x.PublicId == reference && x.State == "Dispatched")
+            x.TenantId == tenant && !x.IsDeleted && x.PublicId == reference && (x.State == "Dispatched" || x.State == "Completed"))
             .Select(x => new { x.Id, x.CampusId, x.RiderCount }).FirstOrDefaultAsync(ct);
         if (trip == null) return ApiResponse<PagedResult<TransportTripRiderDto>>.ErrorResponse("Dispatched trip not found.", 404);
         if (!await HasCampusAsync(trip.CampusId, ct))

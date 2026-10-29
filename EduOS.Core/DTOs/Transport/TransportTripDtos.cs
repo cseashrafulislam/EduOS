@@ -13,6 +13,11 @@ public sealed class DispatchTransportTripRequestDto
     public Guid ClientRequestId { get; set; }
     [Required] public string RowVersion { get; set; } = string.Empty;
 }
+public sealed class CompleteTransportTripRequestDto
+{
+    public Guid ClientRequestId { get; set; }
+    [Required] public string RowVersion { get; set; } = string.Empty;
+}
 public sealed class TransportTripRowDto
 {
     public Guid Reference { get; set; }

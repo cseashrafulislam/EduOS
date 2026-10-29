@@ -59,7 +59,25 @@
                         } else { trip = item.reference; riderPage = 1; await loadRiders(); }
                     } catch (e) { status(e.message, true); } finally { button.disabled = false; }
                 });
-                actions.append(button); tr.append(actions); body.append(tr);
+                actions.append(button);
+                if (item.state === 'Dispatched') {
+                    const finish = document.createElement('button');
+                    finish.type = 'button'; finish.className = 'btn btn-outline-success btn-sm ms-1';
+                    finish.textContent = 'Complete / শেষ';
+                    finish.addEventListener('click', async () => {
+                        if (!confirm('Complete this trip? Every rider must be Dropped or NoShow. Attendance will be locked.')) return;
+                        finish.disabled = true;
+                        try {
+                            await api('/api/transport/trips/' + encodeURIComponent(item.reference) + '/complete', 'POST',
+                                { clientRequestId: crypto.randomUUID(), rowVersion: item.rowVersion });
+                            status('Trip completed / ট্রিপ সম্পন্ন');
+                            await load();
+                            if (trip === item.reference) await loadRiders();
+                        } catch (e) { status(e.message, true); } finally { finish.disabled = false; }
+                    });
+                    actions.append(finish);
+                }
+                tr.append(actions); body.append(tr);
             }
             if (!data.items?.length) { const tr = document.createElement('tr'), td = cell('No trips / কোনো ট্রিপ নেই'); td.colSpan = 8; tr.append(td); body.append(tr); }
         } catch (e) { status(e.message, true); }

@@ -112,7 +112,8 @@ public sealed partial class TransportTripService
             join trip in _db.TransportTrips.AsNoTracking() on rider.TransportTripId equals trip.Id
             join route in _db.Routes.AsNoTracking() on trip.RouteId equals route.Id
             where rider.TenantId == tenant && !rider.IsDeleted && visible.Contains(rider.StudentId) &&
-                trip.TenantId == tenant && !trip.IsDeleted && trip.State == "Dispatched" &&
+                trip.TenantId == tenant && !trip.IsDeleted &&
+                (trip.State == "Dispatched" || trip.State == "Completed") &&
                 trip.OperatingDate == date && route.TenantId == tenant
             select new
             {

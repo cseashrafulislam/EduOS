@@ -2042,11 +2042,24 @@ public class EduOSDbContext :
         if (entries.Any(e => e.Entity is TransportTripRider &&
                 e.State is EntityState.Modified or EntityState.Deleted))
             throw new InvalidOperationException("Frozen transport trip riders cannot be modified or deleted.");
-        if (entries.Any(e => e.Entity is TransportTrip &&
-                e.State is EntityState.Modified or EntityState.Deleted &&
-                (e.State == EntityState.Deleted ||
-                 (string?)e.OriginalValues[nameof(TransportTrip.State)] == "Dispatched")))
-            throw new InvalidOperationException("Dispatched transport trips cannot be modified or deleted.");
+        foreach (var tripEntry in entries.Where(e => e.Entity is TransportTrip &&
+                     e.State is EntityState.Modified or EntityState.Deleted))
+        {
+            if (tripEntry.State == EntityState.Deleted)
+                throw new InvalidOperationException("Transport trip history cannot be deleted.");
+            var previousState = (string?)tripEntry.OriginalValues[nameof(TransportTrip.State)];
+            var trip = (TransportTrip)tripEntry.Entity;
+            if (previousState == "Completed" ||
+                (previousState == "Dispatched" &&
+                    (trip.State != "Completed" || trip.CompletionRequestId is null ||
+                     trip.CompletedAt is null || trip.CompletedBy is null ||
+                     tripEntry.Properties.Any(p => p.IsModified &&
+                         p.Metadata.Name is not (nameof(TransportTrip.State) or
+                             nameof(TransportTrip.CompletionRequestId) or
+                             nameof(TransportTrip.CompletedAt) or
+                             nameof(TransportTrip.CompletedBy)))))
+                throw new InvalidOperationException("Dispatched trip history is immutable except for audited completion.");
+        }
 
         await ValidateAggregateImmutabilityAsync(entries, cancellationToken);
 

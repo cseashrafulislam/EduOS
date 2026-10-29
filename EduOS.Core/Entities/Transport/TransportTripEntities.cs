@@ -15,6 +15,9 @@ public sealed class TransportTrip : BaseTenantEntity
     public int RiderCount { get; set; }
     public DateTime? DispatchedAt { get; set; }
     public long? DispatchedBy { get; set; }
+    public Guid? CompletionRequestId { get; set; }
+    public DateTime? CompletedAt { get; set; }
+    public long? CompletedBy { get; set; }
 }
 public sealed class TransportTripRider : BaseTenantEntity
 {

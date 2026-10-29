@@ -19008,6 +19008,9 @@ namespace EduOS.Persistence.Migrations
                 {
                     b.Property<long>("CampusId").HasColumnType("bigint");
                     b.Property<Guid>("ClientRequestId").HasColumnType("uniqueidentifier");
+                    b.Property<Guid?>("CompletionRequestId").HasColumnType("uniqueidentifier");
+                    b.Property<DateTime?>("CompletedAt").HasColumnType("datetime2");
+                    b.Property<long?>("CompletedBy").HasColumnType("bigint");
                     b.Property<DateTime>("CreatedAt").HasColumnType("datetime2");
                     b.Property<long?>("CreatedBy").HasColumnType("bigint");
                     b.Property<DateTime?>("DeletedAt").HasColumnType("datetime2");
@@ -19036,6 +19039,7 @@ namespace EduOS.Persistence.Migrations
                     b.HasIndex("PublicId").IsUnique();
                     b.HasIndex("TenantId", "ClientRequestId").IsUnique();
                     b.HasIndex("TenantId", "DispatchRequestId").IsUnique().HasFilter("[DispatchRequestId] IS NOT NULL");
+                    b.HasIndex("TenantId", "CompletionRequestId").IsUnique().HasFilter("[CompletionRequestId] IS NOT NULL");
                     b.HasIndex("TenantId", "VehicleId", "OperatingDate", "Direction").IsUnique();
                     b.HasIndex("TenantId", "CampusId", "OperatingDate");
                     b.HasIndex("TenantId", "TransportDriverId", "OperatingDate", "Direction").IsUnique().HasFilter("[TransportDriverId] IS NOT NULL");
@@ -19043,8 +19047,8 @@ namespace EduOS.Persistence.Migrations
                     b.ToTable("TransportTrips", t =>
                         {
                             t.HasCheckConstraint("CK_TransportTrips_Direction", "[Direction] IN ('Pickup','Drop')");
-                            t.HasCheckConstraint("CK_TransportTrips_State", "[State] IN ('Planned','Dispatched')");
-                            t.HasCheckConstraint("CK_TransportTrips_Dispatch", "([State] = 'Planned' AND [TransportDriverId] IS NULL AND [DispatchRequestId] IS NULL AND [DispatchedAt] IS NULL AND [DispatchedBy] IS NULL AND [RiderCount] = 0) OR ([State] = 'Dispatched' AND [TransportDriverId] IS NOT NULL AND [DispatchRequestId] IS NOT NULL AND [DispatchedAt] IS NOT NULL AND [DispatchedBy] IS NOT NULL AND [RiderCount] > 0)");
+                            t.HasCheckConstraint("CK_TransportTrips_State", "[State] IN ('Planned','Dispatched','Completed')");
+                            t.HasCheckConstraint("CK_TransportTrips_Dispatch", "([State] = 'Planned' AND [TransportDriverId] IS NULL AND [DispatchRequestId] IS NULL AND [DispatchedAt] IS NULL AND [DispatchedBy] IS NULL AND [RiderCount] = 0 AND [CompletionRequestId] IS NULL AND [CompletedAt] IS NULL AND [CompletedBy] IS NULL) OR ([State] IN ('Dispatched','Completed') AND [TransportDriverId] IS NOT NULL AND [DispatchRequestId] IS NOT NULL AND [DispatchedAt] IS NOT NULL AND [DispatchedBy] IS NOT NULL AND [RiderCount] > 0 AND (([State] = 'Dispatched' AND [CompletionRequestId] IS NULL AND [CompletedAt] IS NULL AND [CompletedBy] IS NULL) OR ([State] = 'Completed' AND [CompletionRequestId] IS NOT NULL AND [CompletedAt] IS NOT NULL AND [CompletedBy] IS NOT NULL)))");
                         });
                 });
 

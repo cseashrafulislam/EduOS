@@ -12,12 +12,13 @@ public sealed class TransportTripConfiguration : IEntityTypeConfiguration<Transp
         b.ToTable("TransportTrips", t =>
         {
             t.HasCheckConstraint("CK_TransportTrips_Direction", "[Direction] IN ('Pickup','Drop')");
-            t.HasCheckConstraint("CK_TransportTrips_State", "[State] IN ('Planned','Dispatched')");
+            t.HasCheckConstraint("CK_TransportTrips_State", "[State] IN ('Planned','Dispatched','Completed')");
             t.HasCheckConstraint("CK_TransportTrips_Dispatch",
-                "([State] = 'Planned' AND [TransportDriverId] IS NULL AND [DispatchRequestId] IS NULL AND [DispatchedAt] IS NULL AND [DispatchedBy] IS NULL AND [RiderCount] = 0) OR ([State] = 'Dispatched' AND [TransportDriverId] IS NOT NULL AND [DispatchRequestId] IS NOT NULL AND [DispatchedAt] IS NOT NULL AND [DispatchedBy] IS NOT NULL AND [RiderCount] > 0)");
+                "([State] = 'Planned' AND [TransportDriverId] IS NULL AND [DispatchRequestId] IS NULL AND [DispatchedAt] IS NULL AND [DispatchedBy] IS NULL AND [RiderCount] = 0 AND [CompletionRequestId] IS NULL AND [CompletedAt] IS NULL AND [CompletedBy] IS NULL) OR ([State] IN ('Dispatched','Completed') AND [TransportDriverId] IS NOT NULL AND [DispatchRequestId] IS NOT NULL AND [DispatchedAt] IS NOT NULL AND [DispatchedBy] IS NOT NULL AND [RiderCount] > 0 AND (([State] = 'Dispatched' AND [CompletionRequestId] IS NULL AND [CompletedAt] IS NULL AND [CompletedBy] IS NULL) OR ([State] = 'Completed' AND [CompletionRequestId] IS NOT NULL AND [CompletedAt] IS NOT NULL AND [CompletedBy] IS NOT NULL)))");
         });
         b.HasIndex(x => new { x.TenantId, x.ClientRequestId }).IsUnique();
         b.HasIndex(x => new { x.TenantId, x.DispatchRequestId }).IsUnique().HasFilter("[DispatchRequestId] IS NOT NULL");
+        b.HasIndex(x => new { x.TenantId, x.CompletionRequestId }).IsUnique().HasFilter("[CompletionRequestId] IS NOT NULL");
         b.HasIndex(x => new { x.TenantId, x.VehicleId, x.OperatingDate, x.Direction }).IsUnique();
         b.HasIndex(x => new { x.TenantId, x.CampusId, x.OperatingDate });
         b.HasIndex(x => new { x.TenantId, x.TransportDriverId, x.OperatingDate, x.Direction })
