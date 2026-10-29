@@ -24,7 +24,10 @@ function documentFor(mode){
  return '<!doctype html><html lang="en"><head><meta name="request-verification-token" content="csrf"></head>'+
   '<body data-auth-session-reference="'+SESSION+'" data-auth-tenant-id="101">'+
   view.replace(/data-student-mode="[^"]*"/,'data-student-mode="'+(mode==='student')+'"')
-   .replace(/data-guardian-mode="[^"]*"/,'data-guardian-mode="'+(mode==='guardian')+'"')+
+   .replace(/data-guardian-mode="[^"]*"/,'data-guardian-mode="'+(mode==='guardian')+'"')
+   // Razor asset URLs are resolved by ASP.NET in production. Do not load them as
+   // literal "~/" paths in this isolated fixture; scripts are injected explicitly.
+   .replace(/<script[^>]*src="~\/[^"]*"[^>]*><\/script>/g,'')+
   '</body></html>';
 }
 async function scenario(browser,mode){
