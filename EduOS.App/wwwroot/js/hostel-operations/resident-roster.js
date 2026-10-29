@@ -27,7 +27,7 @@
         ++sequence; applied = null;
         el('hostelResidentRosterRows').replaceChildren();
         el('hostelResidentRosterPage').textContent = '';
-        for (const id of ['hostelResidentRosterPrev','hostelResidentRosterNext','hostelResidentRosterCsv'])
+        for (const id of ['hostelResidentRosterPrev','hostelResidentRosterNext','hostelResidentRosterCsv','hostelResidentRosterPrint'])
             el(id).disabled = true;
     };
     async function load() {
@@ -73,6 +73,7 @@
             el('hostelResidentRosterNext').disabled = requestedPage >= pages;
             applied = params(false).toString();
             el('hostelResidentRosterCsv').disabled = !items.length;
+            el('hostelResidentRosterPrint').disabled = !items.length;
             status('Scheduled occupancy; not a physical check-in record.');
         } catch (error) {
             if (ticket === sequence) { invalidate(); status(error.message, true); }
@@ -116,6 +117,11 @@
             setTimeout(() => URL.revokeObjectURL(url), 1000);
         } catch (error) { status(error.message, true); }
         finally { button.disabled = applied === null || applied !== params(false).toString(); }
+    });
+    el('hostelResidentRosterPrint').addEventListener('click', () => {
+        const snapshot = params(false).toString();
+        if (applied === null || snapshot !== applied) return;
+        window.open('/hostel/residents/print?' + params(true), '_blank', 'noopener,noreferrer');
     });
     async function campuses() {
         try {

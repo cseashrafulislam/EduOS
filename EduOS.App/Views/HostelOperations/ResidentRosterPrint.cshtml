@@ -1,0 +1,54 @@
+@model EduOS.Core.Common.PagedResult<EduOS.Core.DTOs.Hostel.HostelResidentRosterRowDto>
+@using System.Globalization
+@{
+    Layout = null;
+}
+<!doctype html>
+<html lang="@CultureInfo.CurrentUICulture.Name">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex,nofollow" />
+    <title>Hostel scheduled resident roster — page @Model.Page</title>
+    <style>
+        body { font-family: system-ui, sans-serif; color: #17212d; margin: 1rem; }
+        h1 { font-size: 1.25rem; margin: 0 0 .4rem; }
+        .scope { font-size: .85rem; margin-bottom: 1rem; }
+        table { width: 100%; border-collapse: collapse; font-size: .78rem; }
+        th, td { border: 1px solid #c7cdd3; padding: .4rem; text-align: left; overflow-wrap: anywhere; }
+        th { background: #f1f4f7; }
+        .actions { margin-bottom: 1rem; }
+        .actions button { padding: .5rem 1rem; cursor: pointer; }
+        @@page { size: A4 landscape; margin: 12mm; }
+        @@media print { .actions { display: none; } body { margin: 0; } }
+    </style>
+    <script src="~/js/attendance/print-roster.js" asp-append-version="true" defer></script>
+</head>
+<body>
+    <div class="actions"><button id="printRoster" type="button">Print this page</button></div>
+    <h1>Hostel scheduled resident roster</h1>
+    <div class="scope">
+        Date: @ViewData["OperatingDate"] · Campus: @ViewData["CampusScope"]
+        · Search: @ViewData["Search"] · Page @Model.Page of @Model.TotalPages
+        · Showing @Model.Items.Count of @Model.TotalCount authorized stays
+        · Scheduled occupancy, not proof of physical check-in
+    </div>
+    <table>
+        <thead><tr><th>Campus</th><th>Hostel</th><th>Room</th><th>Bed</th>
+            <th>Student</th><th>Code</th><th>Start</th><th>End</th><th>Current state</th></tr></thead>
+        <tbody>
+        @foreach (var item in Model.Items)
+        {
+            <tr>
+                <td>@item.CampusName</td><td>@item.HostelName</td>
+                <td>@item.RoomNumber</td><td>@item.BedNumber</td>
+                <td>@item.StudentName</td><td>@item.StudentCode</td>
+                <td>@item.StartDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)</td>
+                <td>@(item.EndDate?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) ?? "—")</td>
+                <td>@item.CurrentState</td>
+            </tr>
+        }
+        </tbody>
+    </table>
+</body>
+</html>

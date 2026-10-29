@@ -22,6 +22,7 @@
     function invalidate() {
         ++serial; loadedFilter = null;
         el('hostelHistoryExport').disabled = true;
+        el('hostelHistoryPrint').disabled = true;
         el('hostelHistoryPrev').disabled = true; el('hostelHistoryNext').disabled = true;
         el('hostelHistoryRows').replaceChildren();
         el('hostelHistoryPage').textContent = '';
@@ -64,6 +65,7 @@
             el('hostelHistoryNext').disabled = requestedPage >= pages;
             loadedFilter = filters(false).toString();
             el('hostelHistoryExport').disabled = !records.length;
+            el('hostelHistoryPrint').disabled = !records.length;
             status('Showing authorized allocation history without financial or contact details.');
         } catch (error) {
             if (token === serial) { invalidate(); status(error.message,true); }
@@ -100,6 +102,11 @@
     });
     el('hostelHistoryPrev').addEventListener('click', () => { page = Math.max(1,page-1); load(); });
     el('hostelHistoryNext').addEventListener('click', () => { page = Math.min(pages,page+1); load(); });
+    el('hostelHistoryPrint').addEventListener('click', () => {
+        const snapshot = filters(false).toString();
+        if (loadedFilter === null || snapshot !== loadedFilter) return;
+        window.open('/hostel/allocations/history/print?' + filters(true), '_blank', 'noopener,noreferrer');
+    });
     async function campuses() {
         try {
             const response = await fetch('/api/hostel/facility-campuses',{
