@@ -27,6 +27,95 @@ namespace EduOS.Tests.App;
 public sealed class SqlServerAssessmentMarkReviewLifecycleIntegrationTests
 {
     [Fact]
+    public async Task Credit_weighted_gpa_uses_registered_course_credits_and_opt_in_grade_scheme()
+    {
+        var connection = Environment.GetEnvironmentVariable("EDUOS_SQL_AUTH_TEST_CONNECTION");
+        if (string.IsNullOrWhiteSpace(connection)) return;
+        var options = new DbContextOptionsBuilder<EduOSDbContext>().UseSqlServer(connection).Options;
+        var seeded = await SeedAsync(options);
+        long examId;
+        long batchId;
+        long schemeId;
+        await using (var db = TenantDb(options, seeded.TenantId))
+        {
+            var initial = await db.AssessmentSubjects.SingleAsync(x => x.Id == seeded.AssessmentSubjectId);
+            var offering = await db.SubjectOfferings.SingleAsync(x => x.Id == initial.SubjectOfferingId);
+            var originalCourse = await db.CurriculumSubjects.SingleAsync(x => x.Id == offering.CurriculumSubjectId);
+            var registration = await db.StudentSubjectRegistrations.SingleAsync(x => x.Id == seeded.RegistrationId);
+            var exam = await db.Assessments.SingleAsync(x => x.Id == initial.AssessmentId);
+            originalCourse.CreditHours = 1m;
+            registration.CreditHoursSnapshot = 1m;
+            var scheme = new GradeScheme
+            {
+                TenantId = seeded.TenantId, Name = "Credit weighted", Code = "GPA-" + Guid.NewGuid().ToString("N")[..12],
+                UseCreditWeightedGpa = true
+            };
+            db.GradeSchemes.Add(scheme);
+            await db.SaveChangesAsync();
+            schemeId = scheme.Id;
+            exam.GradeSchemeId = schemeId;
+            db.GradeRules.AddRange(
+                new GradeRule { TenantId = seeded.TenantId, GradeSchemeId = schemeId,
+                    GradeLetter = "F", GradePoint = 0m, MinMarks = 0m, MaxMarks = 49.99m, IsFailGrade = true },
+                new GradeRule { TenantId = seeded.TenantId, GradeSchemeId = schemeId,
+                    GradeLetter = "B", GradePoint = 3m, MinMarks = 50m, MaxMarks = 79.99m },
+                new GradeRule { TenantId = seeded.TenantId, GradeSchemeId = schemeId,
+                    GradeLetter = "A", GradePoint = 4m, MinMarks = 80m, MaxMarks = 100m });
+
+            var science = new Subject { TenantId = seeded.TenantId,
+                Name = "Science", Code = "SCI-" + Guid.NewGuid().ToString("N")[..8] };
+            db.Subjects.Add(science);
+            await db.SaveChangesAsync();
+            var course = new CurriculumSubject { TenantId = seeded.TenantId,
+                AcademicCurriculumId = originalCourse.AcademicCurriculumId,
+                AcademicLevelId = originalCourse.AcademicLevelId,
+                SubjectId = science.Id, CreditHours = 3m };
+            db.CurriculumSubjects.Add(course);
+            await db.SaveChangesAsync();
+            var scienceOffering = new SubjectOffering { TenantId = seeded.TenantId,
+                AcademicBatchId = offering.AcademicBatchId, AcademicYearId = offering.AcademicYearId,
+                CurriculumSubjectId = course.Id, Code = "SCI" };
+            db.SubjectOfferings.Add(scienceOffering);
+            await db.SaveChangesAsync();
+            var scienceSubject = new AssessmentSubject { TenantId = seeded.TenantId,
+                AssessmentId = exam.Id, SubjectOfferingId = scienceOffering.Id };
+            var scienceRegistration = new StudentSubjectRegistration { TenantId = seeded.TenantId,
+                StudentEnrollmentId = registration.StudentEnrollmentId,
+                SubjectOfferingId = scienceOffering.Id, ClientRequestId = Guid.NewGuid(),
+                CreditHoursSnapshot = 3m, State = SubjectRegistrationState.Approved };
+            db.AssessmentSubjects.Add(scienceSubject);
+            db.StudentSubjectRegistrations.Add(scienceRegistration);
+            await db.SaveChangesAsync();
+            db.StudentAssessmentMarks.Add(new StudentAssessmentMark {
+                TenantId = seeded.TenantId, AssessmentSubjectId = scienceSubject.Id,
+                StudentSubjectRegistrationId = scienceRegistration.Id,
+                ObtainedMarks = 90m, EnteredByUserId = seeded.TeacherId });
+            await db.SaveChangesAsync();
+            examId = exam.Id;
+            batchId = offering.AcademicBatchId;
+        }
+        await using (var db = TenantDb(options, seeded.TenantId))
+        {
+            var service = Service(db, new Actor(seeded.TenantId, seeded.ReviewerId, "TenantAdmin"));
+            var credit = await service.PreviewResultsAsync(new() {
+                AssessmentId = examId, AcademicBatchId = batchId });
+            Assert.True(credit.Success, credit.Message);
+            var row = Assert.Single(credit.Data!.Results);
+            Assert.Equal(3.7500m, row.GradePointAverage);
+            Assert.Equal(82.5m, row.Percentage);
+            Assert.Equal("A", row.GradeLetter);
+            var scheme = await db.GradeSchemes.SingleAsync(x => x.Id == schemeId);
+            // Test-only direct toggle proves pre-existing schemes retain legacy grading.
+            scheme.UseCreditWeightedGpa = false;
+            await db.SaveChangesAsync();
+            var legacy = await service.PreviewResultsAsync(new() {
+                AssessmentId = examId, AcademicBatchId = batchId });
+            Assert.True(legacy.Success, legacy.Message);
+            Assert.Equal(4m, Assert.Single(legacy.Data!.Results).GradePointAverage);
+        }
+    }
+
+    [Fact]
     public async Task Published_result_rescrutiny_is_tenant_scoped_idempotent_and_independently_decided()
     {
         var connection = Environment.GetEnvironmentVariable("EDUOS_SQL_AUTH_TEST_CONNECTION");

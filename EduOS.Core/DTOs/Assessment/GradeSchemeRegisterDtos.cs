@@ -17,6 +17,7 @@ public sealed class GradeSchemeRegisterRowDto
     public long? AcademicProgramId { get; set; }
     public bool IsDefault { get; set; }
     public bool IsActive { get; set; }
+    public bool UseCreditWeightedGpa { get; set; }
     public int RuleCount { get; set; }
     public string RowVersion { get; set; } = string.Empty;
 }

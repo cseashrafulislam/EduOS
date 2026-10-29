@@ -397,7 +397,8 @@ public sealed partial class AssessmentAdministrationService
             {
                 TenantId = tenant, Name = request.Name.Trim(), Code = code,
                 AcademicProgramId = request.AcademicProgramId, IsDefault = request.IsDefault,
-                IsActive = request.IsActive, CreatedAt = now, CreatedBy = _user.UserId
+                IsActive = request.IsActive, UseCreditWeightedGpa = request.UseCreditWeightedGpa,
+                CreatedAt = now, CreatedBy = _user.UserId
             };
             if (request.IsDefault && await _gradeSchemes.GetQueryable().AsNoTracking().AnyAsync(x =>
                 x.TenantId == tenant && x.AcademicProgramId == row.AcademicProgramId &&
@@ -491,6 +492,7 @@ public sealed partial class AssessmentAdministrationService
         Id = row.Id, Name = row.Name, Code = row.Code,
         AcademicProgramId = row.AcademicProgramId,
         IsDefault = row.IsDefault, IsActive = row.IsActive,
+        UseCreditWeightedGpa = row.UseCreditWeightedGpa,
         RowVersion = Version(row.RowVersion),
         Rules = rules.Select(x => new GradeRuleDto
         {

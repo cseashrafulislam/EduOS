@@ -136,6 +136,7 @@ public class GradeSchemeDto
     public string? AcademicProgramName { get; set; }
     public bool IsDefault { get; set; }
     public bool IsActive { get; set; }
+    public bool UseCreditWeightedGpa { get; set; }
     public IReadOnlyList<GradeRuleDto> Rules { get; set; } = Array.Empty<GradeRuleDto>();
     public string RowVersion { get; set; } = string.Empty;
 }
@@ -147,6 +148,7 @@ public class SaveGradeSchemeRequestDto
     public long? AcademicProgramId { get; set; }
     public bool IsDefault { get; set; }
     public bool IsActive { get; set; } = true;
+    public bool UseCreditWeightedGpa { get; set; }
     public IReadOnlyList<SaveGradeRuleRequestDto> Rules { get; set; } = Array.Empty<SaveGradeRuleRequestDto>();
     public string? RowVersion { get; set; }
 }

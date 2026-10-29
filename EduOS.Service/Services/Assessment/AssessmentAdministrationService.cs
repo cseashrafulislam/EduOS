@@ -609,10 +609,14 @@ public sealed partial class AssessmentAdministrationService : IAssessmentAdminis
             x.TenantId == tenant && x.GradeSchemeId == scheme.Id && !x.IsDeleted)
             .OrderByDescending(x => x.MinMarks).ToListAsync(ct);
         if (grades.Count == 0) return (null, "Grade scheme has no grading rules.");
+        if (scheme.UseCreditWeightedGpa && (exam.GradeSchemeId != scheme.Id ||
+            subjectData.Any(x => x.sub.GradeSchemeId.HasValue && x.sub.GradeSchemeId != scheme.Id)))
+            return (null, "Credit-weighted GPA requires one consistent assessment grade scheme.");
         var results = new List<AssessmentResultItemDto>();
         foreach (var person in enrollments)
         {
             decimal total = 0, full = 0, weighted = 0, weightSum = 0;
+            decimal creditPoints = 0, earnedCredits = 0;
             var withheld = false; var passed = true;
             foreach (var subject in subjectData)
             {
@@ -645,19 +649,38 @@ public sealed partial class AssessmentAdministrationService : IAssessmentAdminis
                 withheld |= mark.IsWithheld;
                 passed &= !mark.IsAbsent && !mark.IsWithheld &&
                     mark.ObtainedMarks >= subject.sub.PassMarks;
+                if (scheme.UseCreditWeightedGpa)
+                {
+                    var credits = registration!.CreditHoursSnapshot ?? item.CreditHours;
+                    if (credits <= 0 || credits > 100 || decimal.Round(credits, 2) != credits)
+                        return (null, "Credit-weighted GPA requires valid positive credit hours for each included course.");
+                    var subjectPercent = Round(100m * mark.ObtainedMarks / subject.sub.FullMarks);
+                    var subjectGrade = grades.FirstOrDefault(x =>
+                        subjectPercent >= x.MinMarks && subjectPercent <= x.MaxMarks);
+                    if (subjectGrade == null)
+                        return (null, "No grade rule matches an individual course percentage.");
+                    earnedCredits += credits;
+                    creditPoints += credits * subjectGrade.GradePoint;
+                    passed &= !subjectGrade.IsFailGrade;
+                }
             }
             if (weightSum <= 0)
                 return (null, "Student has no applicable registered assessment subjects.");
             var percent = decimal.Round(100m * weighted / weightSum, 4);
             var grade = grades.FirstOrDefault(x => percent >= x.MinMarks && percent <= x.MaxMarks);
             if (grade == null) return (null, "No grade rule matches the result percentage.");
+            if (scheme.UseCreditWeightedGpa && earnedCredits <= 0)
+                return (null, "Credit-weighted GPA requires registered courses with positive credits.");
             results.Add(new AssessmentResultItemDto
             {
                 StudentReference = person.student.PublicId,
                 StudentCode = person.student.StudentCode, StudentName = person.student.FullName,
                 RollNo = person.enrollment.RollNo, TotalMarks = Round(total),
                 MaximumMarks = Round(full), Percentage = percent,
-                GradePointAverage = grade.GradePoint, GradeLetter = grade.GradeLetter,
+                GradePointAverage = scheme.UseCreditWeightedGpa
+                    ? decimal.Round(creditPoints / earnedCredits, 4, MidpointRounding.AwayFromZero)
+                    : grade.GradePoint,
+                GradeLetter = grade.GradeLetter,
                 IsPassed = passed && !grade.IsFailGrade, IsWithheld = withheld
             });
         }

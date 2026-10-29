@@ -60,6 +60,9 @@ public class GradeScheme : BaseTenantEntity
     public long? AcademicProgramId { get; set; }
     public bool IsDefault { get; set; }
     public bool IsActive { get; set; } = true;
+    // Historical schemes default to overall-percentage grading. New credit-based
+    // programmes explicitly opt in; grading policy is immutable after creation.
+    public bool UseCreditWeightedGpa { get; set; }
 }
 
 public class GradeRule : BaseTenantEntity

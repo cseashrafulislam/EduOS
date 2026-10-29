@@ -32,6 +32,7 @@
         for (const row of state.rows) {
             const tr = document.createElement('tr');
             tr.append(cell(row.code), cell(row.name), cell(row.academicProgramId || 'Tenant-wide'),
+                cell(row.useCreditWeightedGpa ? 'Credits' : 'Overall'),
                 cell(row.ruleCount), cell(row.isActive ? 'Yes' : 'No'),
                 cell(row.isDefault ? 'Yes' : 'No'));
             const action = document.createElement('td'); action.className = 'grade-scheme-action';
@@ -43,7 +44,7 @@
         }
         if (!state.rows.length) {
             const tr = document.createElement('tr'), td = cell('No grade schemes found.');
-            td.colSpan = 7; tr.append(td); body.append(tr);
+            td.colSpan = 8; tr.append(td); body.append(tr);
         }
         el('gradeSchemeCount').textContent = state.total + ' scheme(s) · Page ' + state.page;
         el('gradeSchemePrev').disabled = state.page <= 1;
@@ -64,7 +65,8 @@
     async function details(id) {
         try {
             const data = await api('/api/assessment-administration/grade-schemes/' + encodeURIComponent(id));
-            el('gradeSchemeDetailTitle').textContent = data.code + ' — ' + data.name;
+            el('gradeSchemeDetailTitle').textContent = data.code + ' — ' + data.name +
+                (data.useCreditWeightedGpa ? ' · Credit-weighted GPA' : ' · Overall-percentage GPA');
             const body = el('gradeSchemeDetailRules'); body.replaceChildren();
             for (const rule of data.rules || []) {
                 const tr = document.createElement('tr');
@@ -141,6 +143,7 @@
                 academicProgramId: program ? Number(program) : null,
                 isActive: el('gradeSchemeActive').checked,
                 isDefault: el('gradeSchemeDefault').checked,
+                useCreditWeightedGpa: el('gradeSchemeGpaMode').value === 'credits',
                 rules: collectRules()
             };
             if (!body.code || !body.name || body.code.length > 50 || body.name.length > 150)
@@ -165,9 +168,10 @@
     function csv() {
         const safe = value => /^[=+@\-\t\r]/.test(String(value ?? '')) ? "'" + String(value) : value;
         const quote = value => '"' + String(safe(value) ?? '').replace(/"/g, '""') + '"';
-        const rows = [['Code', 'Name', 'Program', 'Rules', 'Active', 'Default'],
+        const rows = [['Code', 'Name', 'Program', 'GPA mode', 'Rules', 'Active', 'Default'],
             ...state.rows.map(x => [x.code, x.name, x.academicProgramId || 'Tenant-wide',
-                x.ruleCount, x.isActive ? 'Yes' : 'No', x.isDefault ? 'Yes' : 'No'])];
+                x.useCreditWeightedGpa ? 'Credits' : 'Overall', x.ruleCount,
+                x.isActive ? 'Yes' : 'No', x.isDefault ? 'Yes' : 'No'])];
         const data = rows.map(row => row.map(quote).join(',')).join('\r\n');
         const url = URL.createObjectURL(new Blob(['\uFEFF' + data], { type: 'text/csv;charset=utf-8' }));
         const a = document.createElement('a'); a.href = url;
