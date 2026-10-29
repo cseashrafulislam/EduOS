@@ -149,8 +149,7 @@ public sealed class V2PrivateHttpBoundaryIntegrationTests
         using var guessed = await GetAsync(client,
             $"/api/library/digital/{Guid.NewGuid()}/download", "Student");
         Assert.Equal(HttpStatusCode.NotFound, guessed.StatusCode);
-        Assert.DoesNotContain(bytes, await guessed.Content.ReadAsByteArrayAsync(),
-            new ByteArrayEqualityComparer());
+        Assert.NotEqual(bytes, await guessed.Content.ReadAsByteArrayAsync());
         AssertPrivateNoStore(guessed);
         library.Verify(x => x.DownloadAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()),
             Times.Exactly(2));
@@ -236,9 +235,4 @@ public sealed class V2PrivateHttpBoundaryIntegrationTests
         if (expected == HttpStatusCode.NotFound) AssertPrivateNoStore(response);
     }
 
-    private sealed class ByteArrayEqualityComparer : IEqualityComparer<byte>
-    {
-        public bool Equals(byte x, byte y) => x == y;
-        public int GetHashCode(byte obj) => obj.GetHashCode();
-    }
 }
