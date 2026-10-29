@@ -6,7 +6,7 @@ namespace EduOS.Tests.Services;
 public class StudentPromotionConcurrencyContractTests
 {
     [Fact]
-    public void Promote_keeps_roll_and_capacity_checks_inside_serializable_transaction()
+    public void Promote_keeps_roll_and_capacity_checks_inside_batch_locked_transaction()
     {
         var source = File.ReadAllText(FindRepositoryFile("EduOS.Service", "Services", "Students", "StudentPromotionService.cs"));
         var promoteStart = source.IndexOf("Task<ApiResponse<StudentPromotionResultDto>> PromoteAsync", StringComparison.Ordinal);
@@ -16,11 +16,13 @@ public class StudentPromotionConcurrencyContractTests
         historyStart.Should().BeGreaterThan(promoteStart);
         var promoteMethod = source[promoteStart..historyStart];
 
-        promoteMethod.Should().Contain("System.Data.IsolationLevel.Serializable");
+        promoteMethod.Should().Contain("System.Data.IsolationLevel.ReadCommitted");
         promoteMethod.Should().Contain("_uow.ExecuteInTransactionAsync(async token =>");
         promoteMethod.Should().Contain("Target roll already belongs to an active student.");
         promoteMethod.Should().Contain("if (batch.Capacity <= 0 || await _enrollments.GetQueryable().AsNoTracking().CountAsync");
-        promoteMethod.Should().Contain("System.Data.IsolationLevel.Serializable, ct);");
+        promoteMethod.Should().Contain("System.Data.IsolationLevel.ReadCommitted, ct);");
+        promoteMethod.Should().Contain("throw new BatchAllocationException(\"Target batch is closed or has reached capacity.\")");
+        promoteMethod.Should().Contain("catch (BatchAllocationException ex)");
         promoteMethod.Should().Contain("_batches.Update(batch);");
         promoteMethod.IndexOf("_batches.Update(batch);", StringComparison.Ordinal)
             .Should().BeLessThan(promoteMethod.IndexOf("if (batch.Capacity <= 0", StringComparison.Ordinal));

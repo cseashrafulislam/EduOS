@@ -122,9 +122,13 @@ public sealed class SqlServerAssessmentMarkReviewLifecycleIntegrationTests
             await db.SaveChangesAsync();
             if (supersededHistory)
             {
-                // Simulate an audited republication: the previous immutable
-                // version remains stored, but must never influence current CGPA.
+                // Arrange a permitted one-way withdrawal before a newer
+                // version; the old immutable evidence must not enter CGPA.
                 pastPublication.State = ResultPublicationState.Withdrawn;
+                pastPublication.VisibleToStudent = false;
+                pastPublication.VisibleToGuardian = false;
+                pastPublication.UpdatedAt = DateTime.UtcNow;
+                pastPublication.UpdatedBy = seeded.ReviewerId;
                 await db.SaveChangesAsync();
                 var corrected = new ResultPublication { TenantId = seeded.TenantId,
                     AssessmentId = historic.Id, AcademicBatchId = offering.AcademicBatchId,

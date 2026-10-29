@@ -15,13 +15,13 @@ public sealed class StudentReadmissionContractTests
         throw new FileNotFoundException(string.Join("/",segments));
     }
     [Fact]
-    public void Readmission_is_tenant_scoped_serializable_idempotent_and_audited()
+    public void Readmission_is_tenant_scoped_batch_locked_idempotent_and_audited()
     {
         var source=Read("EduOS.Service","Services","Students","StudentReadmissionService.cs");
         source.Should().Contain("IGenericRepository<StudentEnrollment>");
         source.Should().Contain("IGenericRepository<StudentExitRecord>");
         source.Should().Contain("IGenericRepository<StudentStatusHistory>");
-        source.Should().Contain("System.Data.IsolationLevel.Serializable");
+        source.Should().Contain("System.Data.IsolationLevel.ReadCommitted");
         source.Should().Contain("x.ClientRequestId==request.ClientRequestId");
         source.Should().Contain("Matches(student.RowVersion,studentVersion)");
         source.Should().Contain("Matches(source.RowVersion,sourceVersion)");
@@ -31,6 +31,8 @@ public sealed class StudentReadmissionContractTests
             .Should().BeLessThan(source.IndexOf("if(await _enrollments.GetQueryable().AsNoTracking().CountAsync", StringComparison.Ordinal));
         source.Should().Contain("x.IsCurrent &&");
         source.Should().Contain("Roll already exists in this batch.");
+        source.Should().Contain("throw new BatchAllocationException(\"Batch capacity reached.\")");
+        source.Should().Contain("catch(BatchAllocationException ex)");
         source.Should().Contain("student.StatusCode=\"Active\"");
         source.Should().Contain("catch(DbUpdateConcurrencyException ex)");
         source.Should().Contain("catch(DbUpdateException ex)");
