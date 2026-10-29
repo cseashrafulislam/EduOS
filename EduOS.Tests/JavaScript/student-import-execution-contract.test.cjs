@@ -97,3 +97,17 @@ test('cohort inspection opens only server-reconciled tenant-owned committed wind
     assert.match(api, /\[RequireModule\("STUDENT"\)\]/);
     assert.match(api, /GetIntegrityAsync/);
 });
+
+test('import audit CSV downloads reauthorize on the server instead of exporting cached browser state', () => {
+    const api = read('EduOS.App/Controllers/Api/StudentImportsController.cs');
+    const ui = read('EduOS.App/wwwroot/js/students/import-preview.js');
+    assert.match(api, /\[HttpPost\("cohort-status\/export"\)\]/);
+    assert.match(api, /\[HttpGet\("\{reference:guid\}\/integrity\/export"\)\]/);
+    assert.match(api, /GetCohortStatusAsync\(files, cancellationToken\)/);
+    assert.match(api, /GetIntegrityAsync\(reference, cancellationToken\)/);
+    assert.match(ui, /\/api\/student-imports\/cohort-status\/export/);
+    assert.match(ui, /\/integrity\/export/);
+    assert.match(ui, /RequestVerificationToken/);
+    assert.doesNotMatch(ui, /jobTools\.integrityCsv\(/);
+    assert.doesNotMatch(ui, /jobTools\.cohortSummaryCsv\(/);
+});

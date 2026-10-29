@@ -357,15 +357,24 @@
         } catch (error) { message(error.message, true); }
         finally { busy = false; integrityButton.disabled = false; }
     });
-    integrityExport.addEventListener('click', () => {
+    integrityExport.addEventListener('click', async () => {
+        if (busy) return;
+        busy = true; integrityExport.disabled = true;
         try {
-            if (!integrityReport) throw new Error('Verify committed links first.');
-            const csv = jobTools.integrityCsv(integrityReport);
-            const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+            if (!integrityReport || !importReference) throw new Error('Verify committed links first.');
+            const response = await fetch('/api/student-imports/' +
+                encodeURIComponent(importReference) + '/integrity/export',
+                { credentials: 'same-origin', cache: 'no-store' });
+            if (!response.ok) {
+                const body = await response.json().catch(() => null);
+                throw new Error(body?.message || 'Integrity export was denied or changed. Refresh the audit.');
+            }
+            const url = URL.createObjectURL(await response.blob());
             const link = document.createElement('a');
             link.href = url; link.download = 'student-import-integrity.csv'; link.click();
             URL.revokeObjectURL(url);
         } catch (error) { message(error.message, true); }
+        finally { busy = false; integrityExport.disabled = false; }
     });
 
     jobExport.addEventListener('click', async () => {
@@ -532,15 +541,29 @@
         } catch (error) { message(error.message, true); }
         finally { busy = false; cohortCheck.disabled = cohortFiles.length === 0; }
     });
-    cohortExport.addEventListener('click', () => {
+    cohortExport.addEventListener('click', async () => {
+        if (busy) return;
+        busy = true; cohortExport.disabled = true;
         try {
             if (!cohortStatus) throw new Error('Reconcile selected files first.');
-            const csv = jobTools.cohortSummaryCsv(cohortStatus);
-            const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+            const files = jobTools.validateCohort(cohortFiles);
+            const token = form.querySelector('input[name="__RequestVerificationToken"]')?.value;
+            if (!token) throw new Error('Session verification token is missing. Refresh the page.');
+            const response = await fetch('/api/student-imports/cohort-status/export', {
+                method: 'POST', credentials: 'same-origin', cache: 'no-store',
+                headers: { 'Content-Type': 'application/json', 'RequestVerificationToken': token },
+                body: JSON.stringify(files)
+            });
+            if (!response.ok) {
+                const body = await response.json().catch(() => null);
+                throw new Error(body?.message || 'Cohort export was denied or changed. Reconcile again.');
+            }
+            const url = URL.createObjectURL(await response.blob());
             const link = document.createElement('a');
             link.href = url; link.download = 'student-import-cohort-summary.csv'; link.click();
             URL.revokeObjectURL(url);
         } catch (error) { message(error.message, true); }
+        finally { busy = false; cohortExport.disabled = false; }
     });
 
     const cohortSources = document.getElementById('studentImportCohortSources');

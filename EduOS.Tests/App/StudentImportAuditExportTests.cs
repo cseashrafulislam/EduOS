@@ -1,0 +1,99 @@
+using System.Text;
+using EduOS.App.Controllers.Api;
+using EduOS.Core.Common;
+using EduOS.Core.DTOs.Students;
+using EduOS.Core.Interfaces.IServices;
+using Microsoft.AspNetCore.Mvc;
+using Moq;
+using Xunit;
+
+namespace EduOS.Tests.App;
+
+public sealed class StudentImportAuditExportTests
+{
+    [Fact]
+    public async Task Cohort_export_uses_fresh_authorized_reconciliation_and_never_trusts_browser_counters()
+    {
+        var execution = new Mock<IStudentImportExecutionService>();
+        var preview = new Mock<IStudentImportPreviewService>();
+        var files = new List<StudentImportCohortFileRequestDto>
+        {
+            new() { FileHash = new string('a', 64), MappingHash = new string('b', 64), TotalRows = 100 }
+        };
+        execution.Setup(x => x.GetCohortStatusAsync(files, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(ApiResponse<StudentImportCohortStatusDto>.SuccessResponse(
+                new StudentImportCohortStatusDto
+                {
+                    ExpectedRows = 100, CommittedRows = 100, LogItemsVerifiedRows = 100,
+                    Files = new List<StudentImportCohortFileStatusDto>
+                    {
+                        new() { FileHash = files[0].FileHash, MappingHash = files[0].MappingHash,
+                            TotalRows = 100, CommittedRows = 100, LogItemsVerifiedRows = 100 }
+                    }
+                }));
+        var controller = new StudentImportsController(preview.Object, execution.Object);
+        var file = Assert.IsType<FileContentResult>(
+            await controller.ExportCohortStatus(files, CancellationToken.None));
+        Assert.Equal("student-import-cohort-summary.csv", file.FileDownloadName);
+        Assert.Equal("text/csv; charset=utf-8", file.ContentType);
+        var csv = Encoding.UTF8.GetString(file.FileContents);
+        Assert.StartsWith("\uFEFFFileHash,MappingHash,ExpectedRows", csv);
+        Assert.Contains("LogItemsVerified", csv);
+        execution.Verify(x => x.GetCohortStatusAsync(files, It.IsAny<CancellationToken>()), Times.Once);
+
+        execution.Setup(x => x.GetCohortStatusAsync(files, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(ApiResponse<StudentImportCohortStatusDto>.ErrorResponse(
+                "Student import access denied.", 403));
+        var denied = Assert.IsType<ObjectResult>(
+            await controller.ExportCohortStatus(files, CancellationToken.None));
+        Assert.Equal(403, denied.StatusCode);
+    }
+
+    [Fact]
+    public async Task Integrity_export_rechecks_exact_reference_and_escapes_spreadsheet_formulas()
+    {
+        var execution = new Mock<IStudentImportExecutionService>();
+        var reference = Guid.NewGuid();
+        execution.Setup(x => x.GetIntegrityAsync(reference, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(ApiResponse<StudentImportIntegrityReportDto>.SuccessResponse(
+                new StudentImportIntegrityReportDto
+                {
+                    ImportReference = reference, ExpectedRows = 1, CheckedRows = 1,
+                    Issues = new List<StudentImportIntegrityIssueDto>
+                    {
+                        new() { RowNumber = 2, Code = "=HYPERLINK", Message = "  +SUM(1,2)" }
+                    }
+                }));
+        var controller = new StudentImportsController(
+            new Mock<IStudentImportPreviewService>().Object, execution.Object);
+        var file = Assert.IsType<FileContentResult>(
+            await controller.ExportIntegrity(reference, CancellationToken.None));
+        var csv = Encoding.UTF8.GetString(file.FileContents);
+        Assert.StartsWith("\uFEFFRowNumber,IssueCode,Details", csv);
+        Assert.Contains("\"'=HYPERLINK\"", csv);
+        Assert.Contains("\"'  +SUM(1,2)\"", csv);
+        Assert.DoesNotContain("PersonId", csv);
+        execution.Verify(x => x.GetIntegrityAsync(reference, It.IsAny<CancellationToken>()), Times.Once);
+
+        execution.Setup(x => x.GetIntegrityAsync(reference, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(ApiResponse<StudentImportIntegrityReportDto>.ErrorResponse(
+                "Import batch not found.", 404));
+        var denied = Assert.IsType<ObjectResult>(
+            await controller.ExportIntegrity(reference, CancellationToken.None));
+        Assert.Equal(404, denied.StatusCode);
+    }
+
+    [Fact]
+    public void Audit_exports_keep_role_module_csrf_and_no_store_guards()
+    {
+        var type = typeof(StudentImportsController);
+        Assert.NotNull(Attribute.GetCustomAttribute(type,
+            typeof(Microsoft.AspNetCore.Authorization.AuthorizeAttribute)));
+        Assert.NotNull(Attribute.GetCustomAttribute(type,
+            typeof(Microsoft.AspNetCore.Mvc.AutoValidateAntiforgeryTokenAttribute)));
+        Assert.NotNull(Attribute.GetCustomAttribute(type,
+            typeof(Microsoft.AspNetCore.Mvc.ResponseCacheAttribute)));
+        Assert.NotNull(type.GetMethod(nameof(StudentImportsController.ExportIntegrity)));
+        Assert.NotNull(type.GetMethod(nameof(StudentImportsController.ExportCohortStatus)));
+    }
+}

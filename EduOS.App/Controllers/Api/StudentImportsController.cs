@@ -210,6 +210,59 @@ public sealed class StudentImportsController : ControllerBase
             }));
     }
 
+    /// <summary>
+    /// Reauthorize the selected source cohort and regenerate the CSV from fresh
+    /// tenant-owned SQL state. Never export a cached browser reconciliation.
+    /// </summary>
+    [HttpPost("cohort-status/export")]
+    public async Task<IActionResult> ExportCohortStatus(
+        [FromBody] List<StudentImportCohortFileRequestDto>? files,
+        CancellationToken cancellationToken = default)
+    {
+        var result = await _execution.GetCohortStatusAsync(files, cancellationToken);
+        if (!result.Success || result.Data == null)
+            return StatusCode(result.StatusCode, result);
+        var report = result.Data;
+        if (report.ExpectedRows is < 1 or > 40000 || report.Files.Count is < 1 or > 8)
+            return StatusCode(409, "Cohort reconciliation exceeds export limits.");
+
+        var csv = new StringBuilder(
+            "FileHash,MappingHash,ExpectedRows,CommittedRows,LogItemsVerifiedRows,LogItemReviewWindows,MissingWindows,Status\r\n");
+        foreach (var file in report.Files)
+            csv.Append(SafeCsvCell(file.FileHash)).Append(',')
+                .Append(SafeCsvCell(file.MappingHash)).Append(',')
+                .Append(file.TotalRows).Append(',').Append(file.CommittedRows).Append(',')
+                .Append(file.LogItemsVerifiedRows).Append(',').Append(file.LogItemReviewWindows)
+                .Append(',').Append(file.MissingWindows).Append(',')
+                .Append(SafeCsvCell(file.IsLogItemReconciled ? "LogItemsVerified" :
+                    file.IsComplete ? "Review" : "Pending")).Append("\r\n");
+        return File(Encoding.UTF8.GetPreamble().Concat(Encoding.UTF8.GetBytes(csv.ToString())).ToArray(),
+            "text/csv; charset=utf-8", "student-import-cohort-summary.csv");
+    }
+
+    /// <summary>
+    /// Recheck role, tenant and the exact committed import reference on every
+    /// download. Issues are row numbers and controlled audit codes, never PII.
+    /// </summary>
+    [HttpGet("{reference:guid}/integrity/export")]
+    public async Task<IActionResult> ExportIntegrity(Guid reference, CancellationToken cancellationToken)
+    {
+        var result = await _execution.GetIntegrityAsync(reference, cancellationToken);
+        if (!result.Success || result.Data == null)
+            return StatusCode(result.StatusCode, result);
+        var report = result.Data;
+        if (report.ExpectedRows is < 1 or > 100 || report.Issues.Count > 2000)
+            return StatusCode(409, "Import integrity report exceeds export limits.");
+
+        var csv = new StringBuilder("RowNumber,IssueCode,Details\r\n");
+        foreach (var issue in report.Issues)
+            csv.Append(issue.RowNumber).Append(',')
+                .Append(SafeCsvCell(issue.Code)).Append(',')
+                .Append(SafeCsvCell(issue.Message)).Append("\r\n");
+        return File(Encoding.UTF8.GetPreamble().Concat(Encoding.UTF8.GetBytes(csv.ToString())).ToArray(),
+            "text/csv; charset=utf-8", "student-import-integrity.csv");
+    }
+
     /// <summary>Read-only tenant-owned import integrity audit, without learner PII.</summary>
     [HttpGet("{reference:guid}/integrity")]
     public async Task<IActionResult> Integrity(Guid reference, CancellationToken cancellationToken)
