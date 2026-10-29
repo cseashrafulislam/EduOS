@@ -472,6 +472,8 @@ public sealed partial class AssessmentAdministrationService
                 IssueDate = request.IssueDate, IssuedByUserId = _user.UserId,
                 IssuedAtUtc = now, AcademicRecord = academic.Data
             };
+            if (!await TranscriptPublicationsStillValidAsync(document, token))
+                return Error<TranscriptIssueDto>("Published evidence is superseded or postdates the issue date.", 409);
             var serialized = JsonSerializer.Serialize(document);
             if (serialized.Length > 131072)
                 return Error<TranscriptIssueDto>("Transcript exceeds the secure synchronous document limit.", 409);

@@ -239,11 +239,20 @@ public sealed class PublicCertificateVerificationService : IPublicCertificateVer
                     join enrollment in _db.StudentEnrollments.IgnoreQueryFilters().AsNoTracking()
                         on new { summary.TenantId, Id = summary.StudentEnrollmentId }
                         equals new { enrollment.TenantId, enrollment.Id }
+                    join assessment in _db.Assessments.IgnoreQueryFilters().AsNoTracking()
+                        on new { publication.TenantId, Id = publication.AssessmentId }
+                        equals new { assessment.TenantId, assessment.Id }
                     where publication.TenantId == tenant.Id && !publication.IsDeleted && !summary.IsDeleted &&
-                        !enrollment.IsDeleted && enrollment.StudentId == transcript.StudentId &&
+                        !enrollment.IsDeleted && !assessment.IsDeleted &&
+                        enrollment.StudentId == transcript.StudentId &&
+                        publication.AcademicBatchId == enrollment.AcademicBatchId &&
+                        assessment.CampusId == enrollment.CampusId &&
+                        assessment.AcademicYearId == enrollment.AcademicYearId &&
+                        summary.AssessmentId == assessment.Id &&
                         publicationIds.Contains(publication.Id) &&
                         publication.State == ResultPublicationState.Published &&
                         publication.VisibleToStudent && publication.PublishedAt != null &&
+                        publication.PublishedAt <= issuedBefore &&
                         summary.PublicationVersionNo == publication.VersionNo && !summary.IsWithheld &&
                         !_db.ResultPublications.IgnoreQueryFilters().AsNoTracking().Any(newer =>
                             newer.TenantId == tenant.Id && !newer.IsDeleted &&

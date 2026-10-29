@@ -73,4 +73,24 @@ public sealed class TranscriptRegisterWorkflowContractTests
         view.Should().Contain("id=\"transcriptRows\"");
         view.Should().Contain("authenticated, immutable academic documents");
     }
+
+    [Fact]
+    public void Formal_transcript_print_uses_frozen_protected_evidence_and_revalidates_publication_state()
+    {
+        var issuer = Read("EduOS.Service", "Services", "Assessment", "AssessmentAdministrationService.Documents.cs");
+        var document = Read("EduOS.Service", "Services", "Assessment", "AssessmentAdministrationService.TranscriptDocument.cs");
+        var controller = Read("EduOS.App", "Controllers", "AssessmentAdministrationController.cs");
+        var view = Read("EduOS.App", "Views", "AssessmentAdministration", "TranscriptDocument.cshtml");
+        var migration = Read("EduOS.Persistence", "Migrations", "20261029170000_ProtectedTranscriptEvidence.cs");
+        issuer.Should().Contain("ProtectedAcademicRecord = _transcriptProtector.Protect(serialized)");
+        issuer.Should().Contain("TranscriptPublicationsStillValidAsync(document, token)");
+        document.Should().Contain("CanAccessStudentHistoryAsync(issue.StudentId, ct)");
+        document.Should().Contain("TranscriptSnapshotIntegrity.TryRead(_transcriptProtector, issue");
+        document.Should().Contain("TranscriptPublicationsStillValidAsync(snapshot!, ct)");
+        controller.Should().Contain("public async Task<IActionResult> TranscriptDocument(Guid reference");
+        controller.Should().Contain("[Authorize(Roles = \"TenantAdmin,Principal,VicePrincipal,ExamController\")]");
+        view.Should().Contain("@model EduOS.Core.DTOs.Assessment.TranscriptSnapshotDocumentDto");
+        view.Should().Contain("window.print()");
+        migration.Should().Contain("nullable: true");
+    }
 }

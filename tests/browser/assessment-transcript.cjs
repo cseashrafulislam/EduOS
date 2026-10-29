@@ -25,7 +25,9 @@ async function main() {
         page.on('dialog', dialog => dialog.type() === 'prompt'
             ? dialog.accept('Approved administrative revocation') : dialog.accept());
         let issued = false, revoked = false;
-        await page.route('http://eduos.test/**', async route => {
+        // localhost is a secure browser context, so native crypto.randomUUID
+        // exercises the same idempotency path as the production HTTPS origin.
+        await page.route('http://localhost/**', async route => {
             const request = route.request(), url = new URL(request.url());
             if (!url.pathname.startsWith('/api/'))
                 return route.fulfill({ status: 200, contentType: 'text/html', body: html });
@@ -59,7 +61,7 @@ async function main() {
             return route.fulfill({ status: 404, contentType: 'application/json',
                 body: JSON.stringify({ success: false, message: 'Unexpected browser endpoint' }) });
         });
-        await page.goto('http://eduos.test/AssessmentAdministration/Transcripts');
+        await page.goto('http://localhost/AssessmentAdministration/Transcripts');
         await page.addScriptTag({ path: path.join(root, 'EduOS.App/wwwroot/js/assessment/transcripts.js') });
         await page.locator('#transcriptStudentSearch').fill('ST-101');
         await page.locator('#transcriptFindStudent').click();
