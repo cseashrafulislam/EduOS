@@ -122,6 +122,31 @@ public sealed class AuthTenantSessionIntegrationTests
     }
 
     [Fact]
+    public void Account_profile_and_membership_readbacks_revalidate_after_sensitive_queries()
+    {
+        var auth = File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "TestAssets", "AuthController.cs"));
+        var switching = File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "TestAssets", "AuthInstitutionSwitchController.cs"));
+        var mfa = auth[auth.IndexOf("public async Task<IActionResult> MfaStatus()", StringComparison.Ordinal)..
+            auth.IndexOf("// Refresh the antiforgery token", StringComparison.Ordinal)];
+        var sessions = auth[auth.IndexOf("public async Task<IActionResult> GetSessions()", StringComparison.Ordinal)..
+            auth.IndexOf("[HttpPost(\"sessions/revoke\")]", StringComparison.Ordinal)];
+        var profile = auth[auth.IndexOf("public async Task<IActionResult> GetProfile()", StringComparison.Ordinal)..
+            auth.IndexOf("[HttpPut(\"profile\")]", StringComparison.Ordinal)];
+        var update = auth[auth.IndexOf("public async Task<IActionResult> UpdateProfile(", StringComparison.Ordinal)..
+            auth.IndexOf("// ==================== Change Password", StringComparison.Ordinal)];
+        var choices = switching[switching.IndexOf("public async Task<IActionResult> GetAvailableInstitutions()", StringComparison.Ordinal)..
+            switching.IndexOf("// This read-only, no-store snapshot", StringComparison.Ordinal)];
+
+        Assert.Contains("AuthSessionRegistry.IsValidPrincipalAsync(_db, User)", mfa);
+        Assert.Contains("AuthSessionRegistry.IsValidPrincipalAsync(_db, User)", sessions);
+        Assert.Contains("AuthSessionRegistry.IsValidPrincipalAsync(_db, User)", profile);
+        Assert.Equal(2, update.Split("AuthSessionRegistry.IsValidPrincipalAsync(_db, User)").Length - 1);
+        Assert.Contains("System.Data.IsolationLevel.Serializable", update);
+        Assert.Contains("catch (AccountSessionChangedException)", update);
+        Assert.Equal(2, choices.Split("AuthSessionRegistry.IsValidPrincipalAsync(_db, User)").Length - 1);
+    }
+
+    [Fact]
     public async Task Authenticated_sessions_are_scoped_revocable_and_cannot_be_used_by_another_user_or_tenant()
     {
         await using var db = Db();
