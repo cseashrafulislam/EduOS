@@ -119,6 +119,20 @@ public sealed class SqlServerAuthTenantIntegrationTests
             Assert.NotNull(rotated);
             Assert.False(await AuthSessionRegistry.IsValidAsync(db, userId, switched, tenantBId));
             Assert.True(await AuthSessionRegistry.IsValidAsync(db, userId, rotated, tenantAId));
+            // The device-management endpoint must validate the requesting
+            // institution session inside its SQL transaction before revocation.
+            var remote = await AuthSessionRegistry.CreateAsync(db, userId, tenantBId,
+                "127.0.0.1", "CI SQL remote", false);
+            var remoteReference = AuthSessionRegistry.ToPublicReference(remote);
+            Assert.Null(await AuthSessionRegistry.RevokeByReferenceForCurrentSessionAsync(
+                db, userId, rotated, tenantBId, remoteReference));
+            Assert.True(await AuthSessionRegistry.IsValidAsync(db, userId, remote, tenantBId));
+            Assert.Equal(false, await AuthSessionRegistry.RevokeByReferenceForCurrentSessionAsync(
+                db, userId, rotated, tenantAId, new string('A', 64)));
+            Assert.Equal(true, await AuthSessionRegistry.RevokeByReferenceForCurrentSessionAsync(
+                db, userId, rotated, tenantAId, remoteReference));
+            Assert.False(await AuthSessionRegistry.IsValidAsync(db, userId, remote, tenantBId));
+            Assert.True(await AuthSessionRegistry.IsValidAsync(db, userId, rotated, tenantAId));
             var publicReference = AuthSessionRegistry.ToPublicReference(rotated!);
             var listed = System.Text.Json.JsonSerializer.Serialize(
                 await AuthSessionRegistry.ListAsync(db, userId, rotated));
