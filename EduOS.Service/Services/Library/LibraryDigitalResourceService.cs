@@ -337,6 +337,18 @@ public sealed class LibraryDigitalResourceService(
             !string.Equals(Convert.ToHexString(SHA256.HashData(stored.Content)), row.Sha256,
                 StringComparison.Ordinal))
             return Fail<DocumentFileDownloadDto>("File integrity verification failed.", 409);
+
+        // Private storage is asynchronous. A student may withdraw, lose campus
+        // access, or an administrator may revoke the resource while bytes are
+        // being read. Recheck the authoritative V1 membership and the complete
+        // tenant-bound document/book/file chain before returning those bytes.
+        // A successful pre-read authorization is not a durable download grant.
+        if (!await CanReadAsync(ct) || !await ResourceQuery().AnyAsync(x =>
+                x.Document.Id == row.DocumentId && x.Document.PublicId == reference &&
+                x.Document.IsActive && x.Book.IsActive &&
+                (!x.Document.ExpiresAt.HasValue || x.Document.ExpiresAt > Now), ct))
+            return Fail<DocumentFileDownloadDto>("Resource not found.", 404);
+
         db.AuditLogs.Add(Audit("LibraryDigitalResource.Download", row.DocumentId, reference));
         await db.SaveChangesAsync(ct);
         return ApiResponse<DocumentFileDownloadDto>.SuccessResponse(new DocumentFileDownloadDto
