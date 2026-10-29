@@ -37,7 +37,7 @@ async function loadQuota() {
             : "No currently effective subscription. ")
             + (snapshot ? "Saved usage as of " + snapshot + " (not live)." :
                 "No saved usage snapshot yet. Capture today's usage to compare limits.")
-            + " Institution user seats are counted live.";
+            + " User seats and storage are counted live.";
         for (const metric of [data.currentUserSeats, ...(data.metrics || [])].filter(Boolean)) {
             const tr = document.createElement("tr");
             td(tr, metric.name); td(tr, format(metric.used));
@@ -48,6 +48,20 @@ async function loadQuota() {
             td(tr, metric.isOverLimit ? "Over limit" :
                 (metric.isNearLimit ? "At or near limit" :
                     (metric.limit == null ? "No applicable limit" : "Within limit")));
+            rows.append(tr);
+        }
+        if (data.currentStorage) {
+            const metric = data.currentStorage;
+            const mib = bytes => (Number(bytes) / 1048576).toFixed(2) + " MiB";
+            const tr = document.createElement("tr");
+            td(tr, "File storage (live)"); td(tr, mib(metric.usedBytes));
+            td(tr, metric.isUnlimited ? "Unlimited" :
+                (metric.limitBytes == null ? "Not available" : mib(metric.limitBytes)));
+            td(tr, metric.utilizationPercent == null ? "—" :
+                Number(metric.utilizationPercent).toFixed(1) + "%");
+            td(tr, metric.isOverLimit ? "Over limit" :
+                (metric.isNearLimit ? "At or near limit" :
+                    (metric.limitBytes == null ? "No applicable limit" : "Within limit")));
             rows.append(tr);
         }
     } catch (error) {

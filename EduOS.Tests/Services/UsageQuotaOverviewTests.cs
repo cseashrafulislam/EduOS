@@ -47,6 +47,20 @@ public sealed class UsageQuotaOverviewTests
         Assert.True(overview.CurrentUserSeats.IsNearLimit);
     }
 
+    [Fact]
+    public void Storage_quota_thresholds_keep_bytes_precise_and_distinguish_unlimited()
+    {
+        var below = UsageStorageQuotaMetricDto.FromBytes(943718, 1);
+        Assert.Equal(1048576L, below.LimitBytes);
+        Assert.False(below.IsNearLimit);
+        var atLimit = UsageStorageQuotaMetricDto.FromBytes(1048576, 1);
+        Assert.True(atLimit.IsNearLimit);
+        Assert.False(atLimit.IsOverLimit);
+        Assert.True(UsageStorageQuotaMetricDto.FromBytes(1048577, 1).IsOverLimit);
+        Assert.True(UsageStorageQuotaMetricDto.FromBytes(20, 0).IsUnlimited);
+        Assert.Null(UsageStorageQuotaMetricDto.FromBytes(20, null).LimitBytes);
+    }
+
     [Theory]
     [InlineData(89, 100, false, false)]
     [InlineData(90, 100, true, false)]

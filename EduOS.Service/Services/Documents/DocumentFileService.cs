@@ -6,10 +6,12 @@ using EduOS.Core.Interfaces;
 using EduOS.Core.Interfaces.IServices;
 using EduOS.Persistence.Context;
 using EduOS.Service.Helpers.Storage;
+using EduOS.Service.Services.SaaS;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using System.Security.Cryptography;
+using System.Data;
 
 namespace EduOS.Service.Services.Documents;
 
@@ -184,6 +186,13 @@ public sealed class DocumentFileService(EduOSDbContext db, ICurrentUserService u
                 : ApiResponse<FileAssetDto>.ErrorResponse("Upload request ID already used.", 409);
         }
 
+        // Reject an over-quota upload before writing a private file. The second
+        // check below, inside the SQL registration transaction, is authoritative.
+        var storageUsage = await SubscriptionStorageQuotaPolicy.GetAsync(
+            db, user.TenantId, DateTime.UtcNow, ct);
+        if (!storageUsage.CanAdd(buffer.Length))
+            return ApiResponse<FileAssetDto>.ErrorResponse("Subscription storage limit reached.", 409);
+
         buffer.Position = 0;
         var file = new FormFile(buffer, 0, buffer.Length, "file", fileName)
         {
@@ -229,9 +238,19 @@ public sealed class DocumentFileService(EduOSDbContext db, ICurrentUserService u
         };
         try
         {
-            db.FileAssets.Add(asset);
-            await db.SaveChangesAsync(ct);
-            return ApiResponse<FileAssetDto>.SuccessResponse(Map(asset));
+            var registration = await db.ExecuteInTransactionAsync(async token =>
+            {
+                var currentUsage = await SubscriptionStorageQuotaPolicy.GetAsync(
+                    db, user.TenantId, DateTime.UtcNow, token);
+                if (!currentUsage.CanAdd(asset.SizeBytes))
+                    return ApiResponse<FileAssetDto>.ErrorResponse("Subscription storage limit reached.", 409);
+                db.FileAssets.Add(asset);
+                await db.SaveChangesAsync(token);
+                return ApiResponse<FileAssetDto>.SuccessResponse(Map(asset));
+            }, IsolationLevel.Serializable, ct);
+            if (!registration.Success)
+                await CleanupRegisteredUploadFailureAsync(asset, stored.FileUrl);
+            return registration;
         }
         catch (DbUpdateException ex)
         {

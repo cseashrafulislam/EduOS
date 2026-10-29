@@ -1,5 +1,6 @@
 using EduOS.Core.Common;
 using EduOS.Core.Entities.Files;
+using EduOS.Core.Entities.SaaS;
 using EduOS.Core.Enums.Domain;
 using EduOS.Core.Interfaces.IServices;
 using EduOS.Core.DTOs.Files;
@@ -32,6 +33,46 @@ public sealed class DocumentFileSecuritySmokeTests
         await using var db = Context();
         var service = new DocumentFileService(db, new User(false), null!, NullLogger<DocumentFileService>.Instance, null!);
         Assert.Equal(403, (await service.UploadAsync(Guid.NewGuid(), null!)).StatusCode);
+    }
+
+    [Fact]
+    public async Task Tenant_over_storage_limit_cannot_upload_even_before_private_storage_is_called()
+    {
+        var http = new DefaultHttpContext();
+        http.Items["TenantId"] = 42L;
+        await using var db = new EduOSDbContext(new DbContextOptionsBuilder<EduOSDbContext>()
+            .UseInMemoryDatabase("document-storage-cap-" + Guid.NewGuid().ToString("N")).Options,
+            new HttpContextAccessor { HttpContext = http });
+
+        var plan = new SubscriptionPlan { Code = "STORAGE-CAP", Name = "Storage cap", MaxStorageMb = 1 };
+        db.SubscriptionPlans.Add(plan);
+        await db.SaveChangesAsync();
+        db.TenantSubscriptions.Add(new TenantSubscription
+        {
+            TenantId = 42, SubscriptionPlanId = plan.Id,
+            State = SubscriptionState.Active,
+            StartsAt = DateTime.UtcNow.AddDays(-1), EndsAt = DateTime.UtcNow.AddDays(1)
+        });
+        db.FileAssets.Add(new FileAsset
+        {
+            TenantId = 42, PublicId = Guid.NewGuid(),
+            StorageProvider = "LocalPrivate", StorageKey = "tenant-42/documents/existing.pdf",
+            OriginalFileName = "existing.pdf", ContentType = "application/pdf", SizeBytes = 1048576
+        });
+        await db.SaveChangesAsync();
+
+        var service = new DocumentFileService(db, new User(true), null!,
+            NullLogger<DocumentFileService>.Instance, null!);
+        using var stream = new MemoryStream(new byte[] { 1, 2, 3, 4 });
+        var request = new PrivateFileUploadDto
+        {
+            FileName = "report.pdf", ContentType = "application/pdf",
+            Length = 4, Content = stream
+        };
+
+        var response = await service.UploadAsync(Guid.NewGuid(), request);
+        Assert.Equal(409, response.StatusCode);
+        Assert.Single(db.FileAssets);
     }
 
     [Theory]

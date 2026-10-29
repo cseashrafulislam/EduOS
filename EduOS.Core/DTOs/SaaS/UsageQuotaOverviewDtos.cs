@@ -12,7 +12,33 @@ public sealed class UsageQuotaOverviewDto
     public bool HasSnapshot => SnapshotDay.HasValue;
     /// <summary>Current reserved member seats, independent of historical daily snapshots.</summary>
     public UsageQuotaMetricDto? CurrentUserSeats { get; set; }
+    /// <summary>Current committed tenant file storage, not a historical billing meter.</summary>
+    public UsageStorageQuotaMetricDto? CurrentStorage { get; set; }
     public IReadOnlyList<UsageQuotaMetricDto> Metrics { get; set; } = Array.Empty<UsageQuotaMetricDto>();
+}
+
+public sealed class UsageStorageQuotaMetricDto
+{
+    public long UsedBytes { get; set; }
+    public long? LimitBytes { get; set; }
+    public bool IsUnlimited { get; set; }
+    public decimal? UtilizationPercent { get; set; }
+    public bool IsNearLimit { get; set; }
+    public bool IsOverLimit { get; set; }
+
+    public static UsageStorageQuotaMetricDto FromBytes(long usedBytes, int? maxStorageMb)
+    {
+        var used = Math.Max(0, usedBytes);
+        var limit = maxStorageMb is > 0 ? (long?)maxStorageMb.Value * 1048576L : null;
+        return new UsageStorageQuotaMetricDto
+        {
+            UsedBytes = used, LimitBytes = limit,
+            IsUnlimited = maxStorageMb.HasValue && maxStorageMb.Value <= 0,
+            UtilizationPercent = limit.HasValue ? decimal.Round(used * 100m / limit.Value, 1) : null,
+            IsNearLimit = limit.HasValue && used >= limit.Value - limit.Value / 10,
+            IsOverLimit = limit.HasValue && used > limit.Value
+        };
+    }
 }
 
 public sealed class UsageQuotaMetricDto

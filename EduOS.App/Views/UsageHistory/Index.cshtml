@@ -4,16 +4,15 @@
         <h2>Institution Usage History</h2>
         <a href="/IntegrationAdministration/Index" class="btn btn-outline-secondary btn-sm">Back to Integration Administration</a>
     </div>
-    <p class="text-muted">Daily tenant-scoped snapshots of active students, employees and campuses. A day is determined by the institution timezone, falling back to UTC. Capturing twice on the same day returns the original snapshot.</p>
-    <div class="alert alert-info" role="note">Storage, SMS and email metering are not connected to this capture. Their existing database fields are not displayed as measured values.</div>
+    <p class="text-muted small">Daily institution-timezone snapshots; duplicate captures retain the original counts. Historical storage snapshots predating metering may be zero even when files existed. SMS and email remain unmetered.</p>
     @Html.AntiForgeryToken()
     <section class="card mb-3" aria-labelledby="uhQuotaTitle">
         <div class="card-body">
             <h3 id="uhQuotaTitle" class="h5">Subscription quota comparison</h3>
-            <p class="text-muted small mb-2">Compares the most recent saved daily snapshot with current plan limits. These counts are not live. A zero plan limit means unlimited. Storage, SMS and email are not metered here.</p>
+            <p class="text-muted small mb-2">Student, employee and campus snapshots are not live. User seats and committed file storage are live; zero plan limits mean unlimited.</p>
             <div id="uhQuotaInfo" role="status" aria-live="polite">Loading quota comparison...</div>
             <div class="table-responsive mt-2"><table class="table table-sm">
-                <thead><tr><th>Resource</th><th>Saved count</th><th>Plan limit</th><th>Utilization</th><th>Status</th></tr></thead>
+                <thead><tr><th>Resource</th><th>Usage</th><th>Plan limit</th><th>Utilization</th><th>Status</th></tr></thead>
                 <tbody id="uhQuotaRows"></tbody>
             </table></div>
         </div>
@@ -26,7 +25,7 @@
         <div class="col-sm-3"><label class="form-label" for="uhFrom">Export from (local day)</label><input id="uhFrom" name="fromDate" type="date" class="form-control" /></div>
         <div class="col-sm-3"><label class="form-label" for="uhTo">Export through (local day)</label><input id="uhTo" name="toDate" type="date" class="form-control" /></div>
         <div class="col-sm-3"><button type="submit" class="btn btn-outline-primary">Export CSV</button></div>
-        <div class="col-12 small text-muted">Exports up to 366 days of saved snapshots; unmetered SMS, email and storage are excluded.</div>
+        <div class="col-12 small text-muted">Exports up to 366 days of saved counts; historical storage, SMS and email are excluded.</div>
     </form>
     <div id="uhStatus" role="status" aria-live="polite" class="small mb-3 text-muted"></div>
     <div class="card"><div class="card-body">

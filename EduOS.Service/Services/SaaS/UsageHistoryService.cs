@@ -11,7 +11,8 @@ using Microsoft.Extensions.Logging;
 
 namespace EduOS.Service.Services.SaaS;
 
-/// <summary>Tenant-admin daily operational counts; never represents unmetered SMS, email or storage as measured.</summary>
+/// <summary>Tenant-admin daily operational counts. New captures record committed file storage;
+/// legacy storage snapshots and SMS/email are not reliable billing meters.</summary>
 public sealed class UsageHistoryService(
     EduOSDbContext db, ICurrentUserService user, ILogger<UsageHistoryService> logger) : IUsageHistoryService
 {
@@ -71,10 +72,14 @@ public sealed class UsageHistoryService(
             x.TenantId == tenantId && !x.IsDeleted && x.State == EmployeeState.Active, ct);
         var campuses = await db.Campuses.AsNoTracking().CountAsync(x =>
             x.TenantId == tenantId && !x.IsDeleted && x.IsActive, ct);
+        var storedBytes = await db.FileAssets.AsNoTracking()
+            .Where(x => x.TenantId == tenantId && !x.IsDeleted)
+            .SumAsync(x => (long?)x.SizeBytes, ct) ?? 0;
         var row = new UsageStatistics
         {
             TenantId = tenantId, PeriodStart = day, PeriodEnd = day,
             ActiveStudents = students, ActiveEmployees = employees, ActiveCampuses = campuses,
+            StorageBytes = Math.Max(0, storedBytes),
             CreatedBy = actorId
         };
         db.UsageStatistics.Add(row);
@@ -166,10 +171,11 @@ public sealed class UsageHistoryService(
             .FirstOrDefaultAsync(ct);
         var plan = subscription == null ? null : await db.SubscriptionPlans.AsNoTracking()
             .Where(x => x.Id == subscription.SubscriptionPlanId && !x.IsDeleted)
-            .Select(x => new { x.Name, x.MaxStudents, x.MaxEmployees, x.MaxCampuses, x.MaxUsers })
+            .Select(x => new { x.Name, x.MaxStudents, x.MaxEmployees, x.MaxCampuses, x.MaxUsers, x.MaxStorageMb })
             .FirstOrDefaultAsync(ct);
         var reservedUserSeats = await db.TenantMemberships.AsNoTracking().CountAsync(x =>
             x.TenantId == tenantId && !x.IsDeleted && x.Status != MembershipStatus.Left, ct);
+        var currentStorage = await SubscriptionStorageQuotaPolicy.GetAsync(db, tenantId, now, ct);
         var result = new UsageQuotaOverviewDto
         {
             HasActiveSubscription = subscription != null,
@@ -179,6 +185,8 @@ public sealed class UsageHistoryService(
             SnapshotDay = snapshot?.PeriodStart,
             CurrentUserSeats = UsageQuotaMetricDto.FromCount(
                 "Institution users (live)", reservedUserSeats, plan?.MaxUsers),
+            CurrentStorage = UsageStorageQuotaMetricDto.FromBytes(
+                currentStorage.UsedBytes, plan?.MaxStorageMb),
             Metrics = snapshot == null ? Array.Empty<UsageQuotaMetricDto>() :
                 new[]
                 {
@@ -190,7 +198,8 @@ public sealed class UsageHistoryService(
         return ApiResponse<UsageQuotaOverviewDto>.SuccessResponse(result);
     }
 
-    /// <summary>Bounded tenant-only export. Unmetered storage/SMS/email fields are intentionally excluded.</summary>
+    /// <summary>Bounded tenant-only export. Historical storage before metering was
+    /// enabled and unmetered SMS/email are intentionally excluded.</summary>
     public async Task<ApiResponse<string>> ExportHistoryCsvAsync(
         DateOnly? fromDate, DateOnly? toDate, CancellationToken ct = default)
     {
