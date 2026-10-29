@@ -445,9 +445,10 @@ async function leaves(browser) {
     console.log('Student leave browser: PASS — submission retry idempotency, review, CSRF and listing.');
 }
 async function correctionAudit(browser) {
-    const page = await browser.newPage({ acceptDownloads: true });
+    const context = await browser.newContext({ acceptDownloads: true });
+    const page = await context.newPage();
     let csvRequests = 0, printRequests = 0, denyCsv = false;
-    await page.route('http://eduos.test/**', async route => {
+    await context.route('http://eduos.test/**', async route => {
         const request = route.request(), url = new URL(request.url());
         if (url.pathname === '/api/student-attendance/corrections/report') {
             assert.equal(url.searchParams.get('academicBatchId'), '10');
@@ -509,19 +510,21 @@ async function correctionAudit(browser) {
     ]);
     assert.equal(download.suggestedFilename(), 'attendance-corrections-batch-10-page-1.csv');
     assert.equal(csvRequests, 1);
-    await Promise.all([
-        page.context().waitForEvent('response', {
-            predicate: response => response.url().includes('/attendance/corrections/print?')
-        }),
-        page.locator('#attendanceCorrectionAuditPrint').click()
-    ]);
+    // A noopener popup's first navigation is not intercepted by page.route.
+    // Intercept at browser-context scope and assert the real popup document.
+    const popupPromise = context.waitForEvent('page', { predicate: p => p !== page });
+    await page.locator('#attendanceCorrectionAuditPrint').click();
+    const popup = await popupPromise;
+    await popup.getByText('Authorized print').waitFor();
+    assert.equal(new URL(popup.url()).pathname, '/attendance/corrections/print');
     assert.equal(printRequests, 1);
+    await popup.close();
     denyCsv = true;
     await page.locator('#attendanceCorrectionAuditCsv').click();
     await page.waitForFunction(() => document.querySelector('#attendanceCorrectionAuditStatus')
         ?.textContent.includes('Authorized correction export unavailable.'));
     assert.equal(csvRequests, 2);
-    await page.close();
+    await context.close();
     console.log('Correction audit browser: PASS — scoped CSV, print and denied download.');
 }
 (async () => {
