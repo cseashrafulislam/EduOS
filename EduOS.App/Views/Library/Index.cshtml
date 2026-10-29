@@ -1,6 +1,7 @@
 @{
     ViewData["Title"] = "Library";
     var canManage = User.IsInRole("TenantAdmin") || User.IsInRole("Principal") || User.IsInRole("Librarian");
+    var canViewMyLoans = User.IsInRole("Student");
 }
 <section class="admission-page" aria-labelledby="libraryTitle">
     <header class="content-header-card d-flex justify-content-between align-items-center gap-3 flex-wrap">
@@ -85,6 +86,8 @@
             <nav class="d-flex gap-2 justify-content-end align-items-center"><button id="copyPrevious" type="button" class="btn btn-outline-secondary btn-sm">Previous</button><span id="copyPage"></span><button id="copyNext" type="button" class="btn btn-outline-secondary btn-sm">Next</button></nav>
         </section>
     }
+    @if (canViewMyLoans)
+    {
     <section class="content-card mt-3" aria-labelledby="issuesTitle">
         <div class="content-card-heading d-flex flex-wrap justify-content-between align-items-center gap-2">
             <h3 id="issuesTitle">My borrowing history <span id="issueCount" class="small text-muted"></span></h3>
@@ -100,6 +103,7 @@
         <div class="table-responsive"><table class="table table-hover align-middle mb-0"><thead><tr><th>Book</th><th>Accession</th><th>Issued</th><th>Due</th><th>Returned</th><th>Status</th><th class="text-end">Recorded fine</th></tr></thead><tbody id="issueRows"><tr><td colspan="7" class="text-center text-muted py-4">Loading issues…</td></tr></tbody></table></div>
         <nav class="d-flex justify-content-end align-items-center gap-2 mt-3" aria-label="Borrowing history pagination"><button id="issuePrevious" type="button" class="btn btn-outline-secondary btn-sm" disabled>Previous</button><span id="issuePage" aria-live="polite">Page 1</span><button id="issueNext" type="button" class="btn btn-outline-secondary btn-sm" disabled>Next</button></nav>
     </section>
+    }
 </section>
 @section Scripts {
     <script src="~/js/library/index.js" asp-append-version="true"></script>
