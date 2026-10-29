@@ -1,0 +1,31 @@
+name: Library Digital Browser Security
+on:
+  push:
+    branches: [Ashraful]
+    paths:
+      - 'EduOS.App/Views/Library/Digital.cshtml'
+      - 'EduOS.App/wwwroot/js/library/digital.js'
+      - 'tests/browser/library-digital-lifecycle.cjs'
+      - '.github/workflows/library-digital-browser.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: library-digital-browser-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  chromium-library-digital:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install pinned Playwright
+        run: npm install --no-save --no-audit --no-fund playwright@1.56.0
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Exercise digital library session-bound downloads and private DOM scrubbing
+        run: node tests/browser/library-digital-lifecycle.cjs
