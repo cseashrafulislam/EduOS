@@ -87,12 +87,14 @@ public sealed class StudentImportAuditExportTests
     public void Audit_exports_keep_role_module_csrf_and_no_store_guards()
     {
         var type = typeof(StudentImportsController);
-        Assert.NotNull(Attribute.GetCustomAttribute(type,
-            typeof(Microsoft.AspNetCore.Authorization.AuthorizeAttribute)));
-        Assert.NotNull(Attribute.GetCustomAttribute(type,
-            typeof(Microsoft.AspNetCore.Mvc.AutoValidateAntiforgeryTokenAttribute)));
-        Assert.NotNull(Attribute.GetCustomAttribute(type,
-            typeof(Microsoft.AspNetCore.Mvc.ResponseCacheAttribute)));
+        // The controller inherits authorization metadata; GetCustomAttribute
+        // throws on multiple valid Authorize attributes. Assert presence only.
+        Assert.Contains(type.GetCustomAttributes(inherit: true),
+            attribute => attribute is Microsoft.AspNetCore.Authorization.AuthorizeAttribute);
+        Assert.Contains(type.GetCustomAttributes(inherit: true),
+            attribute => attribute is Microsoft.AspNetCore.Mvc.AutoValidateAntiforgeryTokenAttribute);
+        Assert.Contains(type.GetCustomAttributes(inherit: true),
+            attribute => attribute is Microsoft.AspNetCore.Mvc.ResponseCacheAttribute);
         Assert.NotNull(type.GetMethod(nameof(StudentImportsController.ExportIntegrity)));
         Assert.NotNull(type.GetMethod(nameof(StudentImportsController.ExportCohortStatus)));
     }
