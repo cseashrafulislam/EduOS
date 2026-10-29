@@ -26,6 +26,18 @@ public sealed class LmsCertificateGuardianService(
     private static ApiResponse<T> Deny<T>() => ApiResponse<T>.ErrorResponse("Certificate not found.", 404);
     private static ApiResponse<T> Invalid<T>() => ApiResponse<T>.ErrorResponse("Invalid certificate sharing request.", 400);
 
+    // EF Core's SQL execution strategy may wrap deadlock victims in
+    // InvalidOperationException rather than surfacing SqlException directly.
+    // Only known SQL concurrency/uniqueness errors are translated to 409.
+    private static bool IsSqlConflict(Exception exception)
+    {
+        for (Exception? current = exception; current != null; current = current.InnerException)
+            if (current is Microsoft.Data.SqlClient.SqlException sql &&
+                sql.Number is 1205 or 1222 or 3960 or 2601 or 2627)
+                return true;
+        return false;
+    }
+
     private IQueryable<LmsCompletionCertificate> OwnedCertificates() =>
         from certificate in db.LmsCompletionCertificates
         join learner in db.Students on certificate.StudentId equals learner.Id
@@ -137,6 +149,11 @@ public sealed class LmsCertificateGuardianService(
             logger.LogWarning(ex, "LMS guardian consent SQL race tenant {TenantId}", user.TenantId);
             return ApiResponse<LmsCertificateGuardianGrantDto>.ErrorResponse("Concurrent consent change. Retry.", 409);
         }
+        catch (InvalidOperationException ex) when (IsSqlConflict(ex))
+        {
+            logger.LogWarning(ex, "LMS guardian consent transient SQL conflict tenant {TenantId}", user.TenantId);
+            return ApiResponse<LmsCertificateGuardianGrantDto>.ErrorResponse("Concurrent consent change. Retry.", 409);
+        }
         catch (DbUpdateException ex)
         {
             logger.LogWarning(ex, "LMS guardian certificate grant conflict tenant {TenantId}", user.TenantId);
@@ -187,6 +204,11 @@ public sealed class LmsCertificateGuardianService(
         catch (Microsoft.Data.SqlClient.SqlException ex) when (ex.Number is 1205 or 1222 or 3960 or 2601 or 2627)
         {
             logger.LogWarning(ex, "LMS guardian consent SQL race tenant {TenantId}", user.TenantId);
+            return ApiResponse<LmsCertificateGuardianGrantDto>.ErrorResponse("Concurrent consent change. Retry.", 409);
+        }
+        catch (InvalidOperationException ex) when (IsSqlConflict(ex))
+        {
+            logger.LogWarning(ex, "LMS guardian consent transient SQL conflict tenant {TenantId}", user.TenantId);
             return ApiResponse<LmsCertificateGuardianGrantDto>.ErrorResponse("Concurrent consent change. Retry.", 409);
         }
         catch (DbUpdateException ex)
