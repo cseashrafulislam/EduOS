@@ -43,6 +43,7 @@ public sealed class AssessmentAttemptAuthorizations : Migration
             constraints: table =>
             {
                 table.PrimaryKey("PK_AssessmentAttemptRegistrations", x => x.Id);
+                table.UniqueConstraint("AK_AssessmentAttemptRegistrations_TenantId_Id", x => new { x.TenantId, x.Id });
                 table.CheckConstraint("CK_AssessmentAttemptRegistration_Decision", "[Decision] BETWEEN 1 AND 3");
                 table.ForeignKey("FK_AssessmentAttemptRegistrations_Tenants_TenantId", x => x.TenantId,
                     "Tenants", "Id", onDelete: ReferentialAction.Restrict);

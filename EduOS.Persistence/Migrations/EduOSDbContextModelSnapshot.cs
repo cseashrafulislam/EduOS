@@ -3808,6 +3808,8 @@ namespace EduOS.Persistence.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasAlternateKey("TenantId", "Id");
+
                     b.HasIndex("DecidedByUserId");
 
                     b.HasIndex("TenantId", "PriorResultPublicationId");
