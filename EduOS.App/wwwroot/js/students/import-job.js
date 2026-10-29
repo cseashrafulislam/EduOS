@@ -65,6 +65,16 @@
         }
         return '\uFEFF' + lines.join('\r\n');
     }
+    function requireVerifiedRecovery(status) {
+        if (!status || !Number.isSafeInteger(status.reviewWindows) ||
+            status.reviewWindows < 0 || status.reviewWindows > 50 ||
+            status.requiresReview !== (status.reviewWindows > 0) ||
+            !Array.isArray(status.batches) || status.batches.length > 50)
+            throw new Error('Invalid student import recovery response.');
+        if (status.requiresReview)
+            throw new Error('Committed import audit rows require review. Resume and export are paused.');
+        return status;
+    }
     function integrityCsv(report) {
         if (!report || !Number.isSafeInteger(report.expectedRows) ||
             report.expectedRows < 1 || report.expectedRows > 100 ||
@@ -87,7 +97,7 @@
         }
         return '\uFEFF' + lines.join('\r\n');
     }
-    const api = { fingerprint, requestId, resumeRowCount, validateCohort, cohortSummaryCsv, integrityCsv };
+    const api = { fingerprint, requestId, resumeRowCount, validateCohort, cohortSummaryCsv, requireVerifiedRecovery, integrityCsv };
     if (typeof module !== 'undefined' && module.exports) module.exports = api;
     else root.EduOSStudentImportJob = api;
 })(typeof window !== 'undefined' ? window : globalThis);

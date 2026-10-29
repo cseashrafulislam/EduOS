@@ -439,6 +439,62 @@ public sealed class StudentImportExecutionServiceTests
     }
 
     [Fact]
+    public async Task Job_recovery_blocks_corrupt_physical_rows_and_ambiguous_receipts_without_reimport()
+    {
+        var options = Options(); await SeedAsync(options);
+        var rows = Header + string.Concat(Enumerable.Range(1, 101)
+            .Select(i => $"REC-{i},REC-STU-{i},Learner {i},10,20,{i},,\n"));
+        var fileHash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(rows))).ToLowerInvariant();
+        var mappingJson = JsonSerializer.Serialize(Mapping);
+        var mappingHash = Convert.ToHexString(SHA256.HashData(
+            Encoding.UTF8.GetBytes(mappingJson))).ToLowerInvariant();
+        var digest = SHA256.HashData(Encoding.UTF8.GetBytes(fileHash + ":" + mappingHash + ":0"));
+        digest[6] = (byte)((digest[6] & 0x0f) | 0x50);
+        digest[8] = (byte)((digest[8] & 0x3f) | 0x80);
+        var hex = Convert.ToHexString(digest.AsSpan(0, 16));
+        var requestId = Guid.ParseExact(
+            $"{hex[..8]}-{hex[8..12]}-{hex[12..16]}-{hex[16..20]}-{hex[20..]}", "D");
+
+        await using var db = Context(options, 101);
+        var service = Service(db, new User(101, true));
+        using (var source = Csv(rows))
+            Assert.True((await service.ExecuteSliceAsync(source, ".csv", Mapping, requestId, 0)).Success);
+        var healthy = (await service.GetJobStatusAsync(fileHash, mappingHash, 101)).Data!;
+        Assert.Equal(100, healthy.CommittedRows);
+        Assert.Equal(0, healthy.ReviewWindows);
+        Assert.True(Assert.Single(healthy.Batches).LogItemsVerified);
+
+        var item = await db.ImportLogItems.OrderBy(x => x.RowNumber).FirstAsync();
+        item.IsSuccess = false;
+        await db.SaveChangesAsync();
+        var reviewed = (await service.GetJobStatusAsync(fileHash, mappingHash, 101)).Data!;
+        Assert.Equal(100, reviewed.CommittedRows); // Never silently retry a corrupt committed window.
+        Assert.Equal(1, reviewed.ReviewWindows);
+        Assert.True(reviewed.RequiresReview);
+        Assert.Equal("UnsuccessfulRows", Assert.Single(reviewed.Batches).LogItemAuditCode);
+        using (var source = Csv(rows))
+            Assert.Equal(409, (await service.ExportPendingCorrectionsAsync(
+                source, ".csv", Mapping, mappingJson)).StatusCode);
+
+        item.IsSuccess = true;
+        await db.SaveChangesAsync();
+        var receipt = await db.IdempotencyRecords.SingleAsync(x => x.Scope == "StudentImportBatch");
+        db.IdempotencyRecords.Add(new IdempotencyRecord
+        {
+            Id = 90001, TenantId = 101, Scope = receipt.Scope,
+            RequestId = receipt.RequestId, TargetId = receipt.TargetId,
+            CompletedAt = receipt.CompletedAt, ExpiresAt = DateTime.UtcNow.AddYears(1)
+        });
+        await db.SaveChangesAsync();
+        Assert.Equal(409, (await service.GetJobStatusAsync(fileHash, mappingHash, 101)).StatusCode);
+        Assert.Equal(409, (await service.GetCohortStatusAsync([
+            new StudentImportCohortFileRequestDto
+            { FileHash = fileHash, MappingHash = mappingHash, TotalRows = 101 }
+        ])).StatusCode);
+        Assert.Equal(100, await db.Students.CountAsync());
+    }
+
+    [Fact]
     public async Task Explicit_guardian_source_key_reuses_tenant_guardian_across_import_batches()
     {
         var options = Options(); await SeedAsync(options);

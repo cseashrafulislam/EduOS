@@ -42,6 +42,9 @@ public sealed partial class StudentImportExecutionService
             var status = await GetJobStatusAsync(fileHash, mappingHash, rows.Count, cancellationToken);
             if (!status.Success || status.Data == null)
                 return ApiResponse<byte[]>.ErrorResponse(status.Message, status.StatusCode);
+            if (status.Data.RequiresReview)
+                return ApiResponse<byte[]>.ErrorResponse(
+                    "Committed import audit rows require review before exporting pending corrections.", 409);
             if (status.Data.IsComplete)
                 return ApiResponse<byte[]>.ErrorResponse("Every source row is already committed.", 409);
 

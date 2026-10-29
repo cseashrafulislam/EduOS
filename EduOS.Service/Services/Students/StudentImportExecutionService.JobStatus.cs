@@ -35,15 +35,35 @@ public sealed partial class StudentImportExecutionService
             .Where(x => x.TenantId == tenant && x.Scope == BatchScope && !x.IsDeleted &&
                 x.CompletedAt.HasValue && x.TargetId.HasValue && ids.Contains(x.RequestId))
             .Select(x => new { x.RequestId, x.TargetId }).ToListAsync(cancellationToken);
+        // A replay must not silently select one of several receipts or reuse the
+        // same import log for two different source windows.
+        if (keys.GroupBy(x => x.RequestId).Any(g => g.Count() != 1) ||
+            keys.GroupBy(x => x.TargetId!.Value).Any(g => g.Count() != 1))
+            return ApiResponse<StudentImportJobStatusDto>.ErrorResponse(
+                "Import batch receipts are ambiguous. Review committed history before resuming.", 409);
         var logIds = keys.Select(x => x.TargetId!.Value).Distinct().ToArray();
         var logs = await _logs.GetQueryable().AsNoTracking()
             .Where(x => x.TenantId == tenant && !x.IsDeleted && x.ImportType == "Student" &&
                 x.CompletedAt.HasValue && logIds.Contains(x.Id))
             .Select(x => new { x.Id, x.PublicId, x.TotalRows, x.SuccessRows, x.FailedRows })
             .ToListAsync(cancellationToken);
+        // The import-log counters alone are not proof that their physical audit
+        // rows survived. One bounded tenant-scoped aggregate covers <= 50 windows.
+        var itemCounts = await _items.GetQueryable().AsNoTracking()
+            .Where(x => x.TenantId == tenant && !x.IsDeleted && logIds.Contains(x.ImportLogId))
+            .GroupBy(x => x.ImportLogId)
+            .Select(g => new
+            {
+                LogId = g.Key,
+                Rows = g.Count(),
+                Success = g.Count(x => x.IsSuccess),
+                WithSource = g.Count(x => x.BusinessKey != null && x.BusinessKey.Trim() != "")
+            })
+            .ToDictionaryAsync(x => x.LogId, cancellationToken);
         var byRequest = keys.ToDictionary(x => x.RequestId, x => x.TargetId!.Value);
         var byLog = logs.ToDictionary(x => x.Id);
         var completed = new List<StudentImportJobBatchDto>();
+        var reviewWindows = 0;
         foreach (var request in requests)
         {
             if (!byRequest.TryGetValue(request.RequestId, out var logId) ||
@@ -51,9 +71,17 @@ public sealed partial class StudentImportExecutionService
             var expected = Math.Min(MaxBatchRows, totalRows - request.Offset);
             if (log.TotalRows != expected || log.SuccessRows != expected || log.FailedRows != 0)
                 continue;
+            var auditCode = !itemCounts.TryGetValue(logId, out var physical)
+                ? "MissingLogItems"
+                : physical.Rows != expected ? "RowCountMismatch"
+                : physical.Success != expected ? "UnsuccessfulRows"
+                : physical.WithSource != expected ? "MissingSourceKeys"
+                : "Verified";
+            if (auditCode != "Verified") reviewWindows++;
             completed.Add(new StudentImportJobBatchDto
             {
-                RowOffset = request.Offset, ImportedRows = expected, ImportReference = log.PublicId
+                RowOffset = request.Offset, ImportedRows = expected, ImportReference = log.PublicId,
+                LogItemsVerified = auditCode == "Verified", LogItemAuditCode = auditCode
             });
         }
         var completeOffsets = completed.Select(x => x.RowOffset).ToHashSet();
@@ -61,6 +89,7 @@ public sealed partial class StudentImportExecutionService
         {
             TotalRows = totalRows,
             CommittedRows = completed.Sum(x => x.ImportedRows),
+            ReviewWindows = reviewWindows,
             NextOffset = offsets.FirstOrDefault(x => !completeOffsets.Contains(x), totalRows),
             Batches = completed
         });

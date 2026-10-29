@@ -56,6 +56,12 @@ public sealed partial class StudentImportExecutionService
                 x.CompletedAt.HasValue && x.TargetId.HasValue && requestIds.Contains(x.RequestId))
             .Select(x => new { x.RequestId, x.TargetId })
             .ToListAsync(cancellationToken);
+        // Fail closed rather than throwing ToDictionary or counting a shared
+        // import log as two separately committed source windows.
+        if (keys.GroupBy(x => x.RequestId).Any(g => g.Count() != 1) ||
+            keys.GroupBy(x => x.TargetId!.Value).Any(g => g.Count() != 1))
+            return ApiResponse<StudentImportCohortStatusDto>.ErrorResponse(
+                "Import batch receipts are ambiguous. Review committed history before reconciliation.", 409);
         var logIds = keys.Select(x => x.TargetId!.Value).Distinct().ToArray();
         var logs = logIds.Length == 0
             ? new Dictionary<long, (int Total, int Success, int Failed, Guid Reference)>()

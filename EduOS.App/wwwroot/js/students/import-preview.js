@@ -173,11 +173,15 @@
         currentJob = status;
         cohortAdd.disabled = false;
         jobSummary.textContent = 'Source-file reconciliation: ' + status.committedRows +
-            ' / ' + status.totalRows + ' rows committed.';
-        jobExport.classList.toggle('d-none', !(status.batches || []).length);
-        pendingCorrections.classList.toggle('d-none', status.isComplete ||
+            ' / ' + status.totalRows + ' rows committed.' +
+            (status.requiresReview ? ' ' + status.reviewWindows +
+                ' committed windows require physical audit review; resume is paused.' : '');
+        jobExport.classList.toggle('d-none', !(status.batches || []).length || status.requiresReview);
+        pendingCorrections.classList.toggle('d-none', status.isComplete || status.requiresReview ||
             !(status.committedRows > 0 || validated?.invalidRows > 0));
-        resume.classList.toggle('d-none', status.isComplete || !status.committedRows);
+        resume.classList.toggle('d-none', status.isComplete || status.requiresReview ||
+            !status.committedRows);
+        if (status.requiresReview) commit.classList.add('d-none');
     }
     async function refreshResume() {
         resume.classList.add('d-none');
@@ -198,7 +202,8 @@
             validated = report;
             const fp = await jobTools.fingerprint(selectedFile(), lastMapping);
             showJobStatus(fp, await getJobStatus(fp, report.totalRows));
-            commit.classList.toggle('d-none', report.invalidRows !== 0 || report.validRows < 1 || report.validRows > 5000);
+            commit.classList.toggle('d-none', report.invalidRows !== 0 || report.validRows < 1 ||
+                report.validRows > 5000 || currentJob?.requiresReview);
             errors = Array.isArray(report.errors) ? report.errors : [];
             summary.textContent = 'Rows: ' + report.totalRows + ' | Valid: ' + report.validRows +
                 ' | Invalid: ' + report.invalidRows + (report.hasMoreErrors ? ' | More errors not shown' : '');
@@ -263,6 +268,7 @@
                 ? jobTools.resumeRowCount(saved, validated) : validated.totalRows;
             const status = await getJobStatus(fp, totalRows);
             showJobStatus(fp, status);
+            jobTools.requireVerifiedRecovery(status);
             if (status.isComplete) { message('This file is fully reconciled.', false); return; }
             if (continuing && status.committedRows < 1)
                 throw new Error('No committed windows exist for this file and mapping.');
@@ -291,6 +297,7 @@
             }
             const finalStatus = await getJobStatus(fp, totalRows);
             showJobStatus(fp, finalStatus);
+            jobTools.requireVerifiedRecovery(finalStatus);
             if (!finalStatus.isComplete) throw new Error('Some source windows remain unreconciled.');
             progress.textContent = 'Committed ' + finalStatus.committedRows + ' of ' + totalRows + ' rows.';
             reconciliationPage = 1;
@@ -366,6 +373,7 @@
         busy = true; jobExport.disabled = true;
         try {
             const status = await getJobStatus(currentFingerprint, currentJob.totalRows);
+            jobTools.requireVerifiedRecovery(status);
             const escape = value => {
                 let s = String(value ?? '');
                 if (/^[\s\x00-\x1f]*[=+\-@]/.test(s)) s = "'" + s;
@@ -394,7 +402,7 @@
     });
 
     pendingCorrections.addEventListener('click', async () => {
-        if (busy || !currentJob || currentJob.isComplete) return;
+        if (busy || !currentJob || currentJob.isComplete || currentJob.requiresReview) return;
         busy = true; pendingCorrections.disabled = true;
         try {
             const token = form.querySelector('input[name="__RequestVerificationToken"]')?.value;

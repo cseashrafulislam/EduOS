@@ -69,6 +69,21 @@ test('cohort summary export includes only bounded hashes and counts', () => {
     ] }), /Invalid/);
 });
 
+test('unsafe committed recovery is blocked even if counters say complete', () => {
+    const { requireVerifiedRecovery } = require('../../EduOS.App/wwwroot/js/students/import-job.js');
+    const healthy = { reviewWindows: 0, requiresReview: false, batches: [] };
+    assert.equal(requireVerifiedRecovery(healthy), healthy);
+    assert.throws(() => requireVerifiedRecovery({
+        reviewWindows: 1, requiresReview: true, batches: [{ rowOffset: 0 }]
+    }), /audit rows require review/);
+    assert.throws(() => requireVerifiedRecovery({
+        reviewWindows: 1, requiresReview: false, batches: []
+    }), /Invalid/);
+    assert.throws(() => requireVerifiedRecovery({
+        reviewWindows: 51, requiresReview: true, batches: []
+    }), /Invalid/);
+});
+
 test('integrity export is bounded, PII-free and formula-neutralized', () => {
     const { integrityCsv } = require('../../EduOS.App/wwwroot/js/students/import-job.js');
     const csv = integrityCsv({ expectedRows: 100, checkedRows: 100, issues: [

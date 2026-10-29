@@ -61,7 +61,10 @@ public sealed class StudentImportJobStatusDto
     public int TotalRows { get; set; }
     public int CommittedRows { get; set; }
     public int NextOffset { get; set; }
+    public int ReviewWindows { get; set; }
+    public bool RequiresReview => ReviewWindows > 0;
     public bool IsComplete => CommittedRows == TotalRows;
+    public bool IsLogItemReconciled => IsComplete && !RequiresReview;
     public List<StudentImportJobBatchDto> Batches { get; set; } = new();
 }
 public sealed class StudentImportJobBatchDto
@@ -69,6 +72,8 @@ public sealed class StudentImportJobBatchDto
     public int RowOffset { get; set; }
     public int ImportedRows { get; set; }
     public Guid ImportReference { get; set; }
+    public bool LogItemsVerified { get; set; }
+    public string LogItemAuditCode { get; set; } = "NotChecked";
 }
 
 /** One selected source file in a bounded, tenant-owned launch-cohort reconciliation. */
