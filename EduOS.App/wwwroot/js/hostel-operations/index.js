@@ -45,12 +45,6 @@
                 'No active hostel allocation.';
         } catch (error) { notify(error.message); }
     }
-    async function loadRooms() {
-        try {
-            const info = await api('/api/hostel/rooms');
-            rows('hostelRoomRows', info, ['hostelName','roomNumber','capacity','activeAllocations','rentPerBed'], 'No active hostel rooms.');
-        } catch (error) { notify(error.message); }
-    }
     async function loadStudents() {
         const lookup = ++studentLookup;
         try {
@@ -98,7 +92,7 @@
             await api('/api/hostel/allocations', 'POST', body);
             requestId = crypto.randomUUID(); form.reset(); el('hostelStart').value = today();
             notify('Hostel bed allocated.', true);
-            await Promise.all([loadStudents(), loadBeds(), loadRooms(), loadActive()]);
+            await Promise.all([loadStudents(), loadBeds(), loadActive()]);
         } catch (error) { notify(error.message); } finally { button.disabled = false; }
     }
     async function loadActive() {
@@ -167,7 +161,7 @@
             await api('/api/hostel/allocations/' + encodeURIComponent(item.id) + '/cancel', 'POST',
                 { rowVersion: item.rowVersion });
             notify('Upcoming reservation cancelled.', true);
-            await Promise.all([loadActive(), loadStudents(), loadBeds(), loadRooms()]);
+            await Promise.all([loadActive(), loadStudents(), loadBeds()]);
         } catch (error) { notify(error.message); } finally { button.disabled = false; }
     }
     function dismissBedMove() {
@@ -218,7 +212,7 @@
                 { targetBedId, rowVersion: pendingBedMove.rowVersion });
             dismissBedMove();
             notify('Upcoming reservation bed updated.', true);
-            await Promise.all([loadActive(), loadBeds(), loadRooms()]);
+            await Promise.all([loadActive(), loadBeds()]);
         } catch (error) { notify(error.message); } finally { button.disabled = false; }
     }
     async function closeAllocation(item, button) {
@@ -233,12 +227,11 @@
             await api('/api/hostel/allocations/' + encodeURIComponent(item.id) + '/close', 'POST',
                 { endDate, rowVersion: item.rowVersion });
             notify('Hostel allocation closed.', true);
-            await Promise.all([loadActive(), loadStudents(), loadBeds(), loadRooms()]);
+            await Promise.all([loadActive(), loadStudents(), loadBeds()]);
         } catch (error) { notify(error.message); } finally { button.disabled = false; }
     }
     if (el('hostelMine')) loadMine();
-    if (manager) loadRooms();
-    if (manager) {
+        if (manager) {
         el('hostelStart').value = today();
         for (const field of ['hostelStart', 'hostelEnd']) {
             el(field).addEventListener('change', () => {
@@ -259,16 +252,16 @@
         el('hostelPrev').addEventListener('click', () => { activePage = Math.max(1, activePage - 1); loadActive(); });
         el('hostelNext').addEventListener('click', () => { activePage = Math.min(activePages, activePage + 1); loadActive(); });
         window.addEventListener('hostel-stay-shortened', () => {
-            dismissBedMove(); loadActive(); loadBeds(); loadRooms();
+            dismissBedMove(); loadActive(); loadBeds();
         });
         window.addEventListener('hostel-stay-extended', () => {
-            dismissBedMove(); loadActive(); loadBeds(); loadRooms();
+            dismissBedMove(); loadActive(); loadBeds();
         });
         window.addEventListener('hostel-start-rescheduled', () => {
-            dismissBedMove(); loadActive(); loadBeds(); loadRooms();
+            dismissBedMove(); loadActive(); loadBeds();
         });
         window.addEventListener('hostel-room-change-completed', () => {
-            dismissBedMove(); loadActive(); loadBeds(); loadRooms();
+            dismissBedMove(); loadActive(); loadBeds();
         });
         loadStudents(); loadBeds(); loadActive();
     }

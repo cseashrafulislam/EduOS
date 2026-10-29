@@ -137,6 +137,21 @@ public sealed class HostelCampusSecurityTests
         var service = CreateService(db);
         (await service.GetRoomsAsync()).Data!.Select(x => x.HostelName).Should().Equal("North hostel");
         (await service.GetAvailableBedsAsync(1, 25, null)).Data!.Items.Select(x => x.HostelName).Should().Equal("North hostel");
+        // A warden has 101 rooms in the permitted campus, plus an inaccessible south room.
+        // The legacy compatibility endpoint must reject an oversized catalogue, not truncate it.
+        db.AddRange(Enumerable.Range(0, 100).Select(i => new HostelRoom
+        {
+            TenantId = 101, HostelId = hostels[0].Id, RoomNumber = "EX-" + i, Capacity = 1
+        }));
+        await db.SaveChangesAsync();
+        var legacyOverflow = await service.GetRoomsAsync();
+        legacyOverflow.Success.Should().BeFalse();
+        legacyOverflow.StatusCode.Should().Be(409);
+        var pagedInventory = await service.GetRoomInventoryAsync(null, 1, 25, null);
+        pagedInventory.Success.Should().BeTrue(pagedInventory.Message);
+        pagedInventory.Data!.TotalCount.Should().Be(101);
+        pagedInventory.Data.Items.Should().HaveCount(25);
+        pagedInventory.Data.Items.Should().OnlyContain(x => x.HostelName == "North hostel");
         (await service.GetEligibleStudentsAsync(1, 25, null)).Data!.Items.Select(x => x.StudentCode).Should().Equal("N");
         grant.IsActive = false;
         await db.SaveChangesAsync();

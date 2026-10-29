@@ -209,7 +209,13 @@ public sealed partial class HostelService : IHostelService
             var allowed = AllowedCampusIds(tenant);
             roomsQuery = roomsQuery.Where(x => allowed.Contains(x.CampusId));
         }
-        var data = await roomsQuery.ToListAsync(cancellationToken);
+        // Compatibility endpoint: fail explicitly for large catalogues instead of materializing
+        // every room and building an unbounded SQL IN list. The manager UI uses paged inventory.
+        var roomCount = await roomsQuery.CountAsync(cancellationToken);
+        if (roomCount > 100)
+            return ApiResponse<IReadOnlyList<HostelRoomDto>>.ErrorResponse(
+                "Room summary exceeds 100 rooms. Use the paged room inventory.", 409);
+        var data = await roomsQuery.Take(100).ToListAsync(cancellationToken);
         var roomIds = data.Select(x => x.Room.Id).ToArray();
         var today = DateOnly.FromDateTime(_clock.GetLocalNow().DateTime);
         var occupied = await (from allocation in _allocations.GetQueryable().AsNoTracking()

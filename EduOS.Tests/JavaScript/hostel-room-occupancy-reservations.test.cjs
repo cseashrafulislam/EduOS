@@ -10,6 +10,7 @@ const service = read('EduOS.Service/Services/Hostel/HostelService.cs');
 const dto = read('EduOS.Core/DTOs/Hostel/HostelRoomInventoryDto.cs');
 const ui = read('EduOS.App/wwwroot/js/hostel-operations/room-inventory.js');
 const view = read('EduOS.App/Views/HostelOperations/Index.cshtml');
+const managerUi = read('EduOS.App/wwwroot/js/hostel-operations/index.js');
 test('room inventory separates effective occupancy from active reservations', () => {
     const part = room.split('GetRoomInventoryAsync(')[1].split('SetRoomStateAsync(')[0];
     assert.match(part, /var reservations = await/);
@@ -51,4 +52,18 @@ test('inclusive dates exclude future and expired allocations without lifting res
     assert.equal(occupied('Active', '2026-10-01', '2026-10-16', '2026-10-16'), true);
     assert.equal(occupied('Active', '2026-10-01', '2026-10-15', '2026-10-16'), false);
     assert.equal(occupied('Closed', '2026-10-01', null, '2026-10-16'), false);
+});
+
+test('manager room dashboard uses canonical paged inventory; legacy compatibility fails explicitly over limit', () => {
+    const part = service.split('GetRoomsAsync(')[1].split('GetCapacityAsync(')[0];
+    assert.match(part, /var roomCount = await roomsQuery\.CountAsync\(cancellationToken\)/);
+    assert.match(part, /if \(roomCount > 100\)/);
+    assert.match(part, /roomsQuery\.Take\(100\)\.ToListAsync\(cancellationToken\)/);
+    assert.match(part, /Room summary exceeds 100 rooms/);
+    assert.doesNotMatch(managerUi, /\/api\/hostel\/rooms['"]/);
+    assert.doesNotMatch(managerUi, /loadRooms\(/);
+    assert.doesNotMatch(view, /hostelRoomRows/);
+    assert.match(view, /hostelRoomInventoryPanel/);
+    assert.match(ui, /\/api\/hostel\/room-inventory\?/);
+    new Function(managerUi);
 });
