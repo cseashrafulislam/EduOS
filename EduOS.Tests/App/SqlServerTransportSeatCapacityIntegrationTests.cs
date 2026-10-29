@@ -156,6 +156,47 @@ public sealed class SqlServerTransportSeatCapacityIntegrationTests
         Assert.True(readyRow.DriverEligible);
         Assert.Equal(1, readyRow.DriverLinks);
         Assert.Equal(1, readyRow.RouteLinks);
+        Assert.Equal(0, readyRow.OpenVehicleCases);
+
+        // SQL-backed operational hold must apply to the same tenant/campus vehicle
+        // and clear only after the case has been explicitly resolved.
+        await using (var setup = ScopedContext(fixture.Options, fixture.TenantId, fixture.UserId))
+        {
+            var vehicle = await setup.Vehicles.SingleAsync(x =>
+                x.TenantId == fixture.TenantId && x.Id == fixture.VehicleId);
+            Assert.True(vehicle.CampusId.HasValue);
+            setup.TransportVehicleCases.Add(new TransportVehicleCase
+            {
+                TenantId = fixture.TenantId, CampusId = vehicle.CampusId.Value,
+                VehicleId = vehicle.Id, VehicleNumberSnapshot = vehicle.VehicleNumber,
+                ClientRequestId = Guid.NewGuid(), OccurredOn = fixture.Start.AddDays(-1),
+                CaseType = "Incident", Severity = "High",
+                Summary = "Unsafe brake system pending inspection", State = "Open"
+            });
+            await setup.SaveChangesAsync();
+        }
+        var held = await service.GetBoardingManifestAsync(
+            fixture.Start, null, fixture.RouteReference, fixture.VehicleReference, 1, 25, null, true);
+        Assert.True(held.Success, held.Message);
+        var heldRow = Assert.Single(held.Data!.Items);
+        Assert.Equal(1, heldRow.OpenVehicleCases);
+        Assert.Equal("VehicleCaseReview", heldRow.Readiness);
+        await using (var setup = ScopedContext(fixture.Options, fixture.TenantId, fixture.UserId))
+        {
+            var vehicleCase = await setup.TransportVehicleCases.SingleAsync(x =>
+                x.TenantId == fixture.TenantId && x.VehicleId == fixture.VehicleId &&
+                x.State == "Open");
+            vehicleCase.State = "Resolved";
+            vehicleCase.Resolution = "Brake system repaired and independently inspected";
+            vehicleCase.ResolvedAt = DateTime.UtcNow;
+            vehicleCase.ResolvedBy = fixture.UserId;
+            await setup.SaveChangesAsync();
+        }
+        var released = await service.GetBoardingManifestAsync(
+            fixture.Start, null, fixture.RouteReference, fixture.VehicleReference, 1, 25, null, false);
+        Assert.True(released.Success, released.Message);
+        Assert.Equal("Ready", Assert.Single(released.Data!.Items).Readiness);
+        Assert.Equal(0, Assert.Single(released.Data.Items).OpenVehicleCases);
 
         await using (var setup = ScopedContext(fixture.Options, fixture.TenantId, fixture.UserId))
         {
@@ -1556,6 +1597,7 @@ public sealed class SqlServerTransportSeatCapacityIntegrationTests
         new CaptureLogger(),
         new GenericRepository<TransportDriver>(db),
         new GenericRepository<VehicleDriverAssignment>(db),
+        new GenericRepository<TransportVehicleCase>(db),
         new ReservationFinancePolicy(db),
         new ReservationCommandReceiptStore(db, TimeProvider.System));
 
