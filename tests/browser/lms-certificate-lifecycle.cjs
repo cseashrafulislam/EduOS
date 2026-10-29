@@ -64,7 +64,7 @@ async function scenario(browser,mode){
   await page.addScriptTag({path:certScript});
   if(mode==='student')await page.addScriptTag({path:shareScript});
   if(mode==='instructor'){
-   await page.locator('#lmsCertificateCourse option').nth(1).waitFor();
+   await page.locator('#lmsCertificateCourse option').nth(1).waitFor({state:'attached'});
    await page.locator('#lmsCertificateCourse').selectOption(COURSE);
   }
   await page.locator('#lmsCertificateRows tr button').first().click();
