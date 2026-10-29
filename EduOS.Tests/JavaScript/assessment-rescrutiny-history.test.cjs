@@ -23,6 +23,11 @@ test('rescrutiny status filter and case audit history use bounded server APIs an
     assert.match(js, /rows\.replaceChildren\(\)/);
     assert.match(js, /\/review'\)/);
     assert.match(js, /state\.reviewSeq/);
+    assert.match(view, /id="rescrutinyMarkCsv"/);
+    assert.match(js, /CURRENT_WORKING_MARKS_NOT_HISTORICAL/);
+    assert.match(js, /data\.retrievedAtUtc/);
+    assert.match(js, /state\.markCase !== caseReference/);
+    assert.match(js, /downloadCsv\(/);
     assert.match(js, /rescrutinyReviewEvidence/);
     assert.match(view, /id="rescrutinyReviewMarks"/);
     assert.doesNotMatch(js, /innerHTML\s*=/);

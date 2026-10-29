@@ -8,7 +8,8 @@
     const state = { scopePage: 1, scopeTotal: 0, scopeSeq: 0, listSeq: 0,
         publication: 0, before: null, previous: [], hasMore: false, items: [],
         selected: null, busy: false, exportBusy: false, summarySeq: 0,
-        requestKey: null, decisionKey: null, historySeq: 0, reviewSeq: 0, marksSeq: 0 };
+        requestKey: null, decisionKey: null, historySeq: 0, reviewSeq: 0, marksSeq: 0,
+        markCase: null, markExportBusy: false };
     const endpoint = '/api/assessment-administration/';
     const token = document.querySelector('#resultRescrutinyWorkspace input[name="__RequestVerificationToken"]')?.value;
     function notice(message, error = false) {
@@ -46,6 +47,7 @@
         $('rescrutinyHistory').classList.add('d-none');
         state.historySeq++; state.reviewSeq++; state.marksSeq++;
         $('rescrutinyMarkEvidence').classList.add('d-none');
+        state.markCase = null; $('rescrutinyMarkCsv').disabled = true;
         $('rescrutinyReviewEvidence').classList.add('d-none');
         state.summarySeq++; $('rescrutinySummary').textContent = '';
         $('rescrutinyCsv').disabled = true; $('rescrutinyPrev').disabled = true;
@@ -231,6 +233,7 @@
 
     async function loadMarkEvidence(item) {
         const seq = ++state.marksSeq;
+        state.markCase = null; $('rescrutinyMarkCsv').disabled = true;
         $('rescrutinyMarkEvidence').classList.add('d-none');
         try {
             const data = await api('results/rescrutiny/' +
@@ -266,6 +269,8 @@
             if (!body.children.length)
                 placeholder('rescrutinyMarkEvidenceRows',
                     tr('No registered marks found.', 'কোনো নিবন্ধিত নম্বর পাওয়া যায়নি।'), 3);
+            state.markCase = item.caseReference;
+            $('rescrutinyMarkCsv').disabled = false;
             $('rescrutinyMarkEvidence').classList.remove('d-none');
         } catch (e) { if (seq === state.marksSeq) notice(e.message, true); }
     }
@@ -338,6 +343,60 @@
         } catch (e) { notice(e.message, true); }
         finally { state.busy = false; $('rescrutinyDecide').disabled = false; }
     }
+    function downloadCsv(filename, rows) {
+        const safe = value => {
+            let s = String(value ?? '');
+            if (/^\s*[=+\-@]/.test(s)) s = "'" + s;
+            return '"' + s.replace(/"/g, '""') + '"';
+        };
+        const blob = new Blob(['\uFEFF' + rows.map(x => x.map(safe).join(',')).join('\r\n')],
+            { type: 'text/csv;charset=utf-8' });
+        const url = URL.createObjectURL(blob), a = document.createElement('a');
+        a.href = url; a.download = filename; a.click();
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+    }
+    async function exportMarkEvidence() {
+        const caseReference = state.markCase, publication = state.publication;
+        if (!caseReference || !publication || state.markExportBusy) return;
+        state.markExportBusy = true; $('rescrutinyMarkCsv').disabled = true;
+        try {
+            // Re-fetch from the authorized, no-store API. Never export a stale
+            // case after a publication or tenant navigation change.
+            const data = await api('results/rescrutiny/' +
+                encodeURIComponent(caseReference) + '/marks');
+            if (state.markCase !== caseReference || state.publication !== publication) return;
+            if (String(data.caseReference).toLowerCase() !== caseReference.toLowerCase() ||
+                data.publicationId !== publication || !Array.isArray(data.subjects) ||
+                data.subjects.length > 100 ||
+                data.subjects.some(x => !Array.isArray(x.components) || x.components.length > 400))
+                throw new Error(tr('Evidence scope mismatch; refresh.', 'প্রমাণের পরিধি মিলছে না; রিফ্রেশ করুন।'));
+            const captured = data.retrievedAtUtc || '';
+            const rows = [['Source', 'Retrieved UTC', 'Case', 'Version', 'Student',
+                'Subject / component', 'Obtained marks', 'Full marks', 'Status', 'Grade']];
+            rows.push(['PUBLISHED_AGGREGATE', captured, caseReference,
+                data.publicationVersionNo, data.studentCode, 'Published total',
+                data.publishedObtainedMarks, data.publishedTotalMarks, '', '']);
+            for (const subject of data.subjects) {
+                const subjectStatus = subject.isWithheld ? 'Withheld' :
+                    subject.isAbsent ? 'Absent' : '';
+                rows.push(['CURRENT_WORKING_MARKS_NOT_HISTORICAL', captured, caseReference,
+                    data.publicationVersionNo, data.studentCode, subject.subjectName,
+                    subject.currentObtainedMarks, subject.fullMarks, subjectStatus,
+                    subject.currentGradeLetter]);
+                for (const part of subject.components)
+                    rows.push(['CURRENT_WORKING_MARKS_NOT_HISTORICAL', captured, caseReference,
+                        data.publicationVersionNo, data.studentCode,
+                        subject.subjectName + ' / ' + part.name,
+                        part.currentObtainedMarks, part.fullMarks,
+                        part.isWithheld ? 'Withheld' : part.isAbsent ? 'Absent' : '', '']);
+            }
+            downloadCsv('rescrutiny-evidence-' + caseReference + '.csv', rows);
+        } catch (e) { notice(e.message, true); }
+        finally {
+            state.markExportBusy = false;
+            $('rescrutinyMarkCsv').disabled = !state.markCase;
+        }
+    }
     async function csv() {
         if (!state.publication || state.exportBusy) return;
         const publication = state.publication;
@@ -348,21 +407,12 @@
             if (filter) params.set('status', filter);
             const data = await api('results/rescrutiny/export?' + params);
             if (publication !== state.publication) return;
-            const safe = value => {
-                let s = String(value ?? '');
-                if (/^\s*[=+\-@]/.test(s)) s = "'" + s;
-                return '"' + s.replace(/"/g, '""') + '"';
-            };
             const rows = [['Student', 'Roll', 'Status', 'Requested UTC', 'Request reason',
                 'Decided UTC', 'Decision reason']];
             for (const item of data.items || [])
                 rows.push([item.studentCode, item.rollNo, status(item.status), item.requestedAt,
                     item.requestReason, item.decidedAt, item.decisionReason]);
-            const blob = new Blob(['\uFEFF' + rows.map(x => x.map(safe).join(',')).join('\r\n')],
-                { type: 'text/csv;charset=utf-8' });
-            const url = URL.createObjectURL(blob), a = document.createElement('a');
-            a.href = url; a.download = 'rescrutiny-publication-' + publication + '.csv'; a.click();
-            setTimeout(() => URL.revokeObjectURL(url), 1000);
+            downloadCsv('rescrutiny-publication-' + publication + '.csv', rows);
             if (data.truncated) notice(tr('Export limited to 500 cases; narrow the status filter.',
                 'এক্সপোর্ট ৫০০ আবেদনে সীমিত; অবস্থা অনুযায়ী ফিল্টার করুন।'), true);
         } catch (e) { notice(e.message, true); }
@@ -401,6 +451,7 @@
     $('rescrutinyStatusFilter').addEventListener('change', () => {
         state.before = null; state.previous = []; state.historySeq++; state.reviewSeq++; state.marksSeq++;
         $('rescrutinyMarkEvidence').classList.add('d-none');
+        state.markCase = null; $('rescrutinyMarkCsv').disabled = true;
         state.selected = null; state.decisionKey = null;
         $('rescrutinyDecisionForm').classList.add('d-none');
         $('rescrutinyReviewEvidence').classList.add('d-none');
@@ -412,9 +463,11 @@
         $('rescrutinyHistory').classList.add('d-none');
     });
     $('rescrutinyMarkEvidenceClose').addEventListener('click', () => {
-        state.marksSeq++;
+        state.marksSeq++; state.markCase = null;
+        $('rescrutinyMarkCsv').disabled = true;
         $('rescrutinyMarkEvidence').classList.add('d-none');
     });
+    $('rescrutinyMarkCsv').addEventListener('click', exportMarkEvidence);
     $('rescrutinyCsv').addEventListener('click', csv);
     $('rescrutinyPrint').addEventListener('click', () => window.print());
     loadScopes();

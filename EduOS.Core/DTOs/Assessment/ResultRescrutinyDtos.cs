@@ -126,6 +126,8 @@ public sealed class ResultRescrutinyMarkEvidenceDto
     public string StudentCode { get; set; } = string.Empty;
     public decimal PublishedObtainedMarks { get; set; }
     public decimal PublishedTotalMarks { get; set; }
+    /// <summary>UTC time of this live evidence read; not the historical publication time.</summary>
+    public DateTime RetrievedAtUtc { get; set; }
     public IReadOnlyList<ResultRescrutinySubjectEvidenceDto> Subjects { get; set; } = [];
 }
 public sealed class ResultRescrutinySubjectEvidenceDto

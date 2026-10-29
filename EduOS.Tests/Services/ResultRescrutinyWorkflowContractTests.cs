@@ -71,12 +71,20 @@ public sealed class ResultRescrutinyWorkflowContractTests
         source.Should().Contain("StudentEnrollmentId == original.StudentEnrollmentId");
         source.Should().Contain("Take(101)");
         source.Should().Contain("Take(401)");
+        source.Should().Contain("allowedPairs.TryGetValue");
+        source.Should().Contain("allDetailCount != details.Count");
+        source.Should().Contain("Current component marks require reconciliation.");
+        source.Should().Contain("RetrievedAtUtc = _clock.GetUtcNow()");
         source.Should().Contain("TenantId == tenant");
         source.Should().NotContain("IgnoreQueryFilters()");
         source.Should().NotContain("_summaries.Update(");
         source.Should().NotContain("_marks.Update(");
         api.Should().Contain("results/rescrutiny/{caseReference:guid}/marks");
         view.Should().Contain("rescrutinyMarkEvidenceRows");
+        view.Should().Contain("rescrutinyMarkCsv");
+        js.Should().Contain("CURRENT_WORKING_MARKS_NOT_HISTORICAL");
+        js.Should().Contain("state.markCase !== caseReference");
+        js.Should().Contain("downloadCsv(");
         js.Should().Contain("loadMarkEvidence(item)");
         js.Should().Contain("state.marksSeq");
     }

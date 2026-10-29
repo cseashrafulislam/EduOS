@@ -92,7 +92,8 @@
         <section id="rescrutinyMarkEvidence" class="card-body border-top d-none" aria-live="polite">
             <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
                 <h3 id="rescrutinyMarkEvidenceTitle" class="h6 mb-0">@(bn ? "বর্তমান সংরক্ষিত নম্বর" : "Current stored marks")</h3>
-                <button id="rescrutinyMarkEvidenceClose" type="button" class="btn btn-sm btn-outline-secondary ms-auto">@(bn ? "বন্ধ" : "Close")</button>
+                <button id="rescrutinyMarkCsv" type="button" class="btn btn-sm btn-outline-secondary ms-auto" disabled>@(bn ? "প্রমাণ CSV" : "Evidence CSV")</button>
+                <button id="rescrutinyMarkEvidenceClose" type="button" class="btn btn-sm btn-outline-secondary">@(bn ? "বন্ধ" : "Close")</button>
             </div>
             <div id="rescrutinyMarkEvidenceSummary" class="small mb-2"></div>
             <div class="table-responsive">
@@ -133,5 +134,5 @@
         </form>
     </section>
 </section>
-<style>@@media print { #rescrutinyScopeForm,#rescrutinyRequestForm,#rescrutinyDecisionForm,#rescrutinyPrev,#rescrutinyNext,#rescrutinyCsv,#rescrutinyPrint,#rescrutinyNotice,#rescrutinyStatusFilter,#rescrutinyHistoryClose,#rescrutinyMarkEvidenceClose { display:none!important; } }</style>
+<style>@@media print { #rescrutinyScopeForm,#rescrutinyRequestForm,#rescrutinyDecisionForm,#rescrutinyPrev,#rescrutinyNext,#rescrutinyCsv,#rescrutinyPrint,#rescrutinyNotice,#rescrutinyStatusFilter,#rescrutinyHistoryClose,#rescrutinyMarkEvidenceClose,#rescrutinyMarkCsv { display:none!important; } }</style>
 @section Scripts { <script src="~/js/assessment/result-rescrutiny.js" asp-append-version="true"></script> }

@@ -74,13 +74,28 @@ public sealed partial class AssessmentAdministrationService
             .Any(x => x.Count() != 1))
             return Error<ResultRescrutinyMarkEvidenceDto>("Current mark evidence requires reconciliation.", 409);
 
+        // Do not silently discard a mark whose registration/subject pairing is invalid.
+        // All evidence is current working data, but it must still reconcile before review.
+        var allowedPairs = registrations.ToDictionary(
+            x => (x.SubjectId, x.RegistrationId), x => x.FullMarks);
+        if (marks.Any(x =>
+            !allowedPairs.TryGetValue((x.AssessmentSubjectId, x.StudentSubjectRegistrationId), out var full) ||
+            x.ObtainedMarks < 0m || x.ObtainedMarks > full ||
+            (x.IsAbsent && x.IsWithheld) ||
+            ((x.IsAbsent || x.IsWithheld) && x.ObtainedMarks != 0m) ||
+            x.GradePoint is < 0m))
+            return Error<ResultRescrutinyMarkEvidenceDto>(
+                "Current subject marks require reconciliation.", 409);
+
         var components = await _components.GetQueryable().AsNoTracking().Where(x =>
             x.TenantId == tenant && subjectIds.Contains(x.AssessmentSubjectId) && !x.IsDeleted)
             .Select(x => new { x.Id, x.AssessmentSubjectId, x.Name, x.FullMarks, x.DisplayOrder })
             .OrderBy(x => x.AssessmentSubjectId).ThenBy(x => x.DisplayOrder).ThenBy(x => x.Id)
             .Take(401).ToListAsync(ct);
-        if (components.Count > 400)
-            return Error<ResultRescrutinyMarkEvidenceDto>("Component evidence exceeds review limit.", 409);
+        if (components.Count > 400 || components.Any(x =>
+            x.FullMarks <= 0m || string.IsNullOrWhiteSpace(x.Name)))
+            return Error<ResultRescrutinyMarkEvidenceDto>(
+                "Component configuration requires reconciliation.", 409);
         var componentIds = components.Select(x => x.Id).ToArray();
         var markIds = marks.Select(x => x.Id).ToArray();
         var details = await _componentMarks.GetQueryable().AsNoTracking().Where(x =>
@@ -91,6 +106,23 @@ public sealed partial class AssessmentAdministrationService
         if (details.Count > 400 || details.GroupBy(x => (x.AssessmentComponentId, x.StudentAssessmentMarkId))
             .Any(x => x.Count() != 1))
             return Error<ResultRescrutinyMarkEvidenceDto>("Component marks require reconciliation.", 409);
+
+        // A component row pointing at a missing, deleted or different-subject
+        // component must not disappear from the review merely because of filtering.
+        var allDetailCount = await _componentMarks.GetQueryable().AsNoTracking()
+            .LongCountAsync(x => x.TenantId == tenant &&
+                markIds.Contains(x.StudentAssessmentMarkId) && !x.IsDeleted, ct);
+        var componentById = components.ToDictionary(x => x.Id);
+        var markById = marks.ToDictionary(x => x.Id);
+        if (allDetailCount != details.Count || details.Any(x =>
+            !componentById.TryGetValue(x.AssessmentComponentId, out var component) ||
+            !markById.TryGetValue(x.StudentAssessmentMarkId, out var mark) ||
+            component.AssessmentSubjectId != mark.AssessmentSubjectId ||
+            x.ObtainedMarks < 0m || x.ObtainedMarks > component.FullMarks ||
+            (x.IsAbsent && x.IsWithheld) ||
+            ((x.IsAbsent || x.IsWithheld) && x.ObtainedMarks != 0m)))
+            return Error<ResultRescrutinyMarkEvidenceDto>(
+                "Current component marks require reconciliation.", 409);
 
         var markByPair = marks.ToDictionary(x => (x.AssessmentSubjectId, x.StudentSubjectRegistrationId));
         var detailByPair = details.ToDictionary(x => (x.AssessmentComponentId, x.StudentAssessmentMarkId));
@@ -122,7 +154,8 @@ public sealed partial class AssessmentAdministrationService
             PublicationVersionNo = review.Data.PublicationVersionNo,
             StudentCode = review.Data.StudentCode,
             PublishedObtainedMarks = review.Data.ObtainedMarks,
-            PublishedTotalMarks = review.Data.TotalMarks, Subjects = result
+            PublishedTotalMarks = review.Data.TotalMarks,
+            RetrievedAtUtc = _clock.GetUtcNow().UtcDateTime, Subjects = result
         });
     }
 }
