@@ -95,7 +95,7 @@
                 if (!currentSession()) return;
                 const anchor = document.createElement('a');
                 anchor.href = url;
-                anchor.download = (resource.fileName || 'library-resource').split(/[\\\\/]/).pop().replace(/[\\x00-\\x1f\\x7f]/g, '') || 'library-resource';
+                anchor.download = (resource.fileName || 'library-resource').split(/[\\/]/).pop().replace(/[\x00-\x1f\x7f]/g, '') || 'library-resource';
                 document.body.append(anchor); anchor.click(); anchor.remove();
             } finally { setTimeout(() => URL.revokeObjectURL(url), 1000); }
         } catch (error) {
