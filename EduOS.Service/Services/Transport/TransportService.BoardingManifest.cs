@@ -66,6 +66,12 @@ public sealed partial class TransportService
                     item.TenantId == tenant && !item.IsDeleted && item.VehicleId == vehicle.Id &&
                     item.CampusId == campus.Id && item.State == "Open" &&
                     item.OccurredOn <= operatingDate),
+                // Unresolved cases at a former campus hold the physical vehicle.
+                // Do not expose former-campus identity or case details.
+                CrossCampusCaseHold = _vehicleCases.GetQueryable().Any(item =>
+                    item.TenantId == tenant && !item.IsDeleted && item.VehicleId == vehicle.Id &&
+                    item.CampusId != campus.Id && item.State == "Open" &&
+                    item.OccurredOn <= operatingDate),
                 ReservedRiders = _assignments.GetQueryable().Count(rider =>
                     rider.TenantId == tenant && !rider.IsDeleted &&
                     rider.VehicleId == vehicle.Id && rider.State == TransportAssignmentState.Active &&
@@ -127,7 +133,8 @@ public sealed partial class TransportService
             query = query.Where(x => !x.EnrollmentReady || !x.RouteReady || !x.VehicleReady ||
                 !x.PickupReady || !x.DropReady || !x.HasRouteVehicleLink ||
                 x.ReservedRiders > x.Capacity || x.RouteLinkCount != 1 ||
-                x.DriverLinkCount != 1 || !x.HasEligibleDriver || x.OpenVehicleCases > 0);
+                x.DriverLinkCount != 1 || !x.HasEligibleDriver ||
+                x.OpenVehicleCases > 0 || x.CrossCampusCaseHold);
 
         var total = await query.CountAsync(ct);
         var records = await query.OrderBy(x => x.CampusName).ThenBy(x => x.RouteName)
@@ -143,7 +150,7 @@ public sealed partial class TransportService
                         x.VehicleReady, x.PickupReady, x.DropReady, x.HasRouteVehicleLink);
                     var readiness = ClassifyBoardingDispatch(baseReadiness, x.ReservedRiders,
                         x.Capacity, x.RouteLinkCount, x.DriverLinkCount, x.HasEligibleDriver,
-                        x.OpenVehicleCases);
+                        x.OpenVehicleCases + (x.CrossCampusCaseHold ? 1 : 0));
                     return new TransportBoardingManifestRowDto
                     {
                         AssignmentReference = x.PublicId, CampusId = x.CampusId,
@@ -154,6 +161,7 @@ public sealed partial class TransportService
                         OperatingDate = operatingDate, Readiness = readiness,
                         Capacity = x.Capacity, ReservedRiders = x.ReservedRiders,
                         OpenVehicleCases = x.OpenVehicleCases,
+                        CrossCampusCaseHold = x.CrossCampusCaseHold,
                         RouteLinks = x.RouteLinkCount, DriverLinks = x.DriverLinkCount,
                         DriverEligible = x.DriverLinkCount == 1 && x.HasEligibleDriver,
                         NeedsAttention = readiness != "Ready"
@@ -211,7 +219,7 @@ public sealed partial class TransportService
         var seen = new HashSet<Guid>();
         if (rows.Count != first.Data.TotalCount || rows.Any(x => !seen.Add(x.AssignmentReference)))
             return ApiResponse<string>.ErrorResponse("Manifest changed during export. Retry.", 409);
-        var csv = new StringBuilder("Operating Date,Campus,Student Code,Route,Vehicle,Pickup Stop,Drop Stop,Reserved Riders,Capacity,Route Links,Driver Links,Driver Eligible,Open Vehicle Cases,Readiness\r\n");
+        var csv = new StringBuilder("Operating Date,Campus,Student Code,Route,Vehicle,Pickup Stop,Drop Stop,Reserved Riders,Capacity,Route Links,Driver Links,Driver Eligible,Open Vehicle Cases,Other-Campus Safety Hold,Readiness\r\n");
         foreach (var row in rows)
             csv.Append(operatingDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)).Append(',')
                 .Append(CsvCell(row.CampusName)).Append(',').Append(CsvCell(row.StudentCode)).Append(',')
@@ -223,6 +231,7 @@ public sealed partial class TransportService
                 .Append(row.DriverLinks.ToString(CultureInfo.InvariantCulture)).Append(',')
                 .Append(row.DriverEligible ? "Yes" : "No").Append(',')
                 .Append(row.OpenVehicleCases.ToString(CultureInfo.InvariantCulture)).Append(',')
+                .Append(row.CrossCampusCaseHold ? "Yes" : "No").Append(',')
                 .Append(CsvCell(row.Readiness)).Append("\r\n");
         return ApiResponse<string>.SuccessResponse(csv.ToString());
     }

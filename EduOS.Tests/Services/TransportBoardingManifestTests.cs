@@ -32,6 +32,13 @@ public sealed class TransportBoardingManifestTests
     }
 
     [Fact]
+    public void Former_campus_hold_uses_the_existing_fail_closed_vehicle_case_classification()
+    {
+        Assert.Equal("VehicleCaseReview", TransportService.ClassifyBoardingDispatch(
+            "Ready", 1, 30, 1, 1, true, 1));
+    }
+
+    [Fact]
     public void Other_readiness_failures_are_not_masked_by_vehicle_case_hold()
     {
         Assert.Equal("OverCapacity", TransportService.ClassifyBoardingDispatch(

@@ -20,4 +20,6 @@ public sealed class TransportBoardingManifestRowDto
     public int DriverLinks { get; set; }
     public bool DriverEligible { get; set; }
     public int OpenVehicleCases { get; set; }
+    /// <summary>Safety hold from another campus; case details remain private.</summary>
+    public bool CrossCampusCaseHold { get; set; }
 }

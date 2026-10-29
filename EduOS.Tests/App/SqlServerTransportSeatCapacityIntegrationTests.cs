@@ -198,6 +198,62 @@ public sealed class SqlServerTransportSeatCapacityIntegrationTests
         Assert.Equal("Ready", Assert.Single(released.Data!.Items).Readiness);
         Assert.Equal(0, Assert.Single(released.Data.Items).OpenVehicleCases);
 
+        // A vehicle's unresolved former-campus safety case must block readiness,
+        // without exposing the other campus or its private case narrative.
+        long formerCampusId;
+        await using (var setup = ScopedContext(fixture.Options, fixture.TenantId, fixture.UserId))
+        {
+            var formerCampus = new Campus
+            {
+                TenantId = fixture.TenantId, Name = "Historical safety campus",
+                Code = "SC-" + Guid.NewGuid().ToString("N")[..10], IsActive = true
+            };
+            setup.Campuses.Add(formerCampus);
+            await setup.SaveChangesAsync();
+            formerCampusId = formerCampus.Id;
+            var vehicle = await setup.Vehicles.SingleAsync(x =>
+                x.TenantId == fixture.TenantId && x.Id == fixture.VehicleId);
+            setup.TransportVehicleCases.Add(new TransportVehicleCase
+            {
+                TenantId = fixture.TenantId, CampusId = formerCampusId,
+                VehicleId = vehicle.Id, VehicleNumberSnapshot = vehicle.VehicleNumber,
+                ClientRequestId = Guid.NewGuid(), OccurredOn = fixture.Start.AddDays(-1),
+                CaseType = "Maintenance", Severity = "High",
+                Summary = "Private historic campus brake inspection", State = "Open"
+            });
+            await setup.SaveChangesAsync();
+        }
+        var historicHold = await service.GetBoardingManifestAsync(
+            fixture.Start, null, fixture.RouteReference, fixture.VehicleReference, 1, 25, null, true);
+        Assert.True(historicHold.Success, historicHold.Message);
+        var historicRow = Assert.Single(historicHold.Data!.Items);
+        Assert.True(historicRow.CrossCampusCaseHold);
+        Assert.Equal(0, historicRow.OpenVehicleCases);
+        Assert.Equal("VehicleCaseReview", historicRow.Readiness);
+        var historicExport = await service.ExportBoardingManifestCsvAsync(
+            fixture.Start, null, fixture.RouteReference, fixture.VehicleReference, null, true);
+        Assert.True(historicExport.Success, historicExport.Message);
+        Assert.Contains("Other-Campus Safety Hold", historicExport.Data);
+        Assert.DoesNotContain("Private historic campus brake inspection", historicExport.Data);
+        Assert.DoesNotContain("Historical safety campus", historicExport.Data);
+        await using (var setup = ScopedContext(fixture.Options, fixture.TenantId, fixture.UserId))
+        {
+            var historicCase = await setup.TransportVehicleCases.SingleAsync(x =>
+                x.TenantId == fixture.TenantId && x.VehicleId == fixture.VehicleId &&
+                x.CampusId == formerCampusId && x.State == "Open");
+            historicCase.State = "Resolved";
+            historicCase.Resolution = "Inspected and repaired";
+            historicCase.ResolvedAt = DateTime.UtcNow;
+            historicCase.ResolvedBy = fixture.UserId;
+            await setup.SaveChangesAsync();
+        }
+        var afterHistoricResolution = await service.GetBoardingManifestAsync(
+            fixture.Start, null, fixture.RouteReference, fixture.VehicleReference, 1, 25, null, false);
+        Assert.True(afterHistoricResolution.Success, afterHistoricResolution.Message);
+        var afterHistoricRow = Assert.Single(afterHistoricResolution.Data!.Items);
+        Assert.False(afterHistoricRow.CrossCampusCaseHold);
+        Assert.Equal("Ready", afterHistoricRow.Readiness);
+
         await using (var setup = ScopedContext(fixture.Options, fixture.TenantId, fixture.UserId))
         {
             var driver = await setup.Set<TransportDriver>().SingleAsync(x =>
