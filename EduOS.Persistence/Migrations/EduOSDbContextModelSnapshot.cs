@@ -24865,7 +24865,7 @@ namespace EduOS.Persistence.Migrations
                     b.HasOne("EduOS.Core.Entities.Students.Student", null).WithMany()
                         .HasForeignKey("TenantId", "StudentId").HasPrincipalKey("TenantId", "Id")
                         .OnDelete(DeleteBehavior.Restrict).IsRequired();
-                    b.HasOne("EduOS.Core.Entities.Students.StudentEnrollment", null).WithMany()
+                    b.HasOne("EduOS.Core.Entities.Academic.StudentEnrollment", null).WithMany()
                         .HasForeignKey("TenantId", "StudentEnrollmentId").HasPrincipalKey("TenantId", "Id")
                         .OnDelete(DeleteBehavior.Restrict).IsRequired();
                     b.Navigation("Tenant");
