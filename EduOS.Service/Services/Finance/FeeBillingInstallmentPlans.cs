@@ -125,7 +125,8 @@ public sealed partial class FeeBillingService
         if (request == null || request.ClientRequestId == Guid.Empty ||
             request.StudentReference == Guid.Empty || request.AcademicBatchId <= 0 ||
             request.FeeStructureId <= 0 || request.Months is < 1 or > 12 ||
-            request.StartMonth.Year is < 2000 or > 2200 || request.StartMonth.Day != 1)
+            request.StartMonth.Year is < 2000 or > 2200 || request.StartMonth.Day != 1 ||
+            !FeeInstallmentDistribution.ValidWeights(request.Months, request.MonthWeightsBasisPoints))
             return Error<StudentFeeInstallmentPlanDto>("Invalid student, structure, month or request key.");
         var lastMonth = request.StartMonth.AddMonths(request.Months - 1);
         var endDate = lastMonth.AddMonths(1).AddDays(-1);
@@ -145,7 +146,8 @@ public sealed partial class FeeBillingService
                 return prior.StudentReference == request.StudentReference &&
                     prior.AcademicBatchId == request.AcademicBatchId &&
                     prior.FeeStructureId == request.FeeStructureId &&
-                    prior.StartMonth == request.StartMonth && prior.EndMonth == lastMonth
+                    prior.StartMonth == request.StartMonth && prior.EndMonth == lastMonth &&
+                    FeeInstallmentDistribution.Matches(prior, request.MonthWeightsBasisPoints)
                     ? ApiResponse<StudentFeeInstallmentPlanDto>.SuccessResponse(prior, "Existing plan returned.")
                     : Error<StudentFeeInstallmentPlanDto>("Request key belongs to a different plan.", 409);
             }
@@ -190,6 +192,10 @@ public sealed partial class FeeBillingService
                     x.Amount != decimal.Round(x.Amount, 2) ||
                     x.DueDayOfMonth is null or < 1 or > 31))
                 return Error<StudentFeeInstallmentPlanDto>("Plan requires 1–50 positive monthly heads with explicit due days.", 409);
+            var distribution = FeeInstallmentDistribution.Allocate(
+                source.Select(x => x.Amount).ToArray(), request.Months, request.MonthWeightsBasisPoints);
+            if (distribution == null)
+                return Error<StudentFeeInstallmentPlanDto>("Monthly shares produce a zero-cent fee head; choose a valid distribution.", 409);
             if (await db.StudentInvoices.AsNoTracking().AnyAsync(x =>
                 x.TenantId == tenant && x.StudentEnrollmentId == enrollment.Id &&
                 !x.IsDeleted && x.State != InvoiceState.Cancelled &&
@@ -217,15 +223,18 @@ public sealed partial class FeeBillingService
             for (var m = 0; m < request.Months; m++)
             {
                 var month = request.StartMonth.AddMonths(m);
-                foreach (var line in source)
+                for (var i = 0; i < source.Count; i++)
+                {
+                    var line = source[i];
                     db.StudentFeeInstallmentPlanLines.Add(new StudentFeeInstallmentPlanLine {
                         TenantId = tenant, StudentFeeInstallmentPlanId = plan.Id,
                         FeeHeadId = line.FeeHeadId, MonthStart = month,
                         DueDate = new DateOnly(month.Year, month.Month,
                             Math.Min(line.DueDayOfMonth!.Value, DateTime.DaysInMonth(month.Year, month.Month))),
                         FeeHeadCodeSnapshot = line.Code, FeeHeadNameSnapshot = line.Name,
-                        GrossAmount = line.Amount, CreatedAt = now, CreatedBy = _user.UserId
+                        GrossAmount = distribution[m][i], CreatedAt = now, CreatedBy = _user.UserId
                     });
+                }
             }
             await db.SaveChangesAsync(ct);
             // Shared tenant rowversion gate prevents a racing monthly invoice

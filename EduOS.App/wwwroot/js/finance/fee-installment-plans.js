@@ -7,6 +7,17 @@ const base = '/api/finance/fees';
 const token = document.querySelector('meta[name="request-verification-token"]')?.content ||
     root.querySelector('input[name="__RequestVerificationToken"]')?.value;
 const status = { 1: 'Draft', 2: 'Submitted', 3: 'Approved', 4: 'Cancelled' };
+function parseMonthWeights(id, months) {
+    const raw = el(id).value.trim();
+    if (!raw) return null;
+    const parts = raw.split(',').map(x => x.trim());
+    if (parts.length !== months || parts.some(x => !/^\d{1,3}(?:\.\d{1,2})?$/.test(x)))
+        throw Error('Enter one positive percentage per month, separated by commas.');
+    const weights = parts.map(x => Math.round(Number(x) * 100));
+    if (weights.some(x => x <= 0 || x > 10000) || weights.reduce((a, b) => a + b, 0) !== 10000)
+        throw Error('Monthly shares must be positive and total exactly 100%.');
+    return weights;
+}
 function money(value) {
     const raw = String(value ?? '0');
     if (!/^-?\d+(?:\.\d{1,2})?$/.test(raw)) return 'Invalid amount';
@@ -194,17 +205,21 @@ function exportPage() {
 el('feePlanStudentSearch').addEventListener('input', () => {
     draftKey = null; clearTimeout(searchTimer); searchTimer = setTimeout(searchStudents, 350);
 });
-for (const id of ['feePlanStudent','feePlanBatch','feePlanStructure','feePlanMonth','feePlanMonths'])
+for (const id of ['feePlanStudent','feePlanBatch','feePlanStructure','feePlanMonth','feePlanMonths','feePlanWeights'])
     el(id).addEventListener('change', () => { draftKey = null; });
 el('feePlanBatch').addEventListener('change', refreshStructures);
 el('feePlanCreate').addEventListener('submit', async event => {
     event.preventDefault();
+    let monthWeightsBasisPoints;
+    try { monthWeightsBasisPoints = parseMonthWeights('feePlanWeights', Number(el('feePlanMonths').value)); }
+    catch (error) { notice(error.message, true); return; }
     if (!draftKey) draftKey = crypto.randomUUID();
     const payload = {
         clientRequestId: draftKey, studentReference: el('feePlanStudent').value,
         academicBatchId: Number(el('feePlanBatch').value),
         feeStructureId: Number(el('feePlanStructure').value),
-        startMonth: el('feePlanMonth').value + '-01', months: Number(el('feePlanMonths').value)
+        startMonth: el('feePlanMonth').value + '-01', months: Number(el('feePlanMonths').value),
+        monthWeightsBasisPoints
     };
     el('feePlanSave').disabled = true;
     try {
@@ -333,12 +348,13 @@ if (el('feePlanReplace')) {
         }
         structure.value = String(selected.feeStructureId);
         el('feePlanReplaceReason').value = '';
+        el('feePlanReplaceWeights').value = '';
         replacementKey = null;
         dialog.showModal();
         structure.focus();
     });
     el('feePlanReplaceDismiss').addEventListener('click', () => dialog.close());
-    for (const id of ['feePlanReplaceStructure', 'feePlanReplaceReason'])
+    for (const id of ['feePlanReplaceStructure', 'feePlanReplaceReason', 'feePlanReplaceWeights'])
         el(id).addEventListener('input', () => { replacementKey = null; });
     el('feePlanReplaceForm').addEventListener('submit', async event => {
         event.preventDefault();
@@ -346,13 +362,18 @@ if (el('feePlanReplace')) {
         const reason = el('feePlanReplaceReason').value.trim();
         const feeStructureId = Number(el('feePlanReplaceStructure').value);
         if (reason.length < 3 || reason.length > 150 || !feeStructureId) return;
+        const months = (Number(selected.endMonth.slice(0, 4)) - Number(selected.startMonth.slice(0, 4))) * 12 +
+            Number(selected.endMonth.slice(5, 7)) - Number(selected.startMonth.slice(5, 7)) + 1;
+        let monthWeightsBasisPoints;
+        try { monthWeightsBasisPoints = parseMonthWeights('feePlanReplaceWeights', months); }
+        catch (error) { notice(error.message, true); return; }
         if (!replacementKey) replacementKey = crypto.randomUUID();
         const button = el('feePlanReplaceConfirm');
         button.disabled = true;
         try {
             const replacement = await api('/plans/' + encodeURIComponent(selected.reference) + '/replace', 'POST', {
                 clientRequestId: replacementKey, rowVersion: selected.rowVersion,
-                feeStructureId, reason
+                feeStructureId, reason, monthWeightsBasisPoints
             });
             replacementKey = null;
             dialog.close();

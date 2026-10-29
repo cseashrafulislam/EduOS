@@ -8,7 +8,7 @@
             <details class="position-relative">
                 <summary class="btn btn-outline-secondary btn-sm" aria-label="Instalment plan help" title="Plan guide">ⓘ</summary>
                 <div class="position-absolute border rounded bg-body p-2 small shadow-sm" style="z-index:5;width:min(23rem,80vw);right:0">
-                    Filter the register by student, state or your independent approval queue. Search a student, choose their academic batch and monthly fee structure, then save a gross plan draft. Submit for independent tenant-admin approval. Approved plans preserve fee-head amounts and due dates. Issue each approved month separately with idempotent invoice linkage; no payment is collected by issuing an invoice. Legacy batch billing remains blocked for planned months. Cancellation is audited and blocked after invoice issuance. Before any invoice exists, a separate tenant administrator may replace an approved agreement with a new submitted version; a different administrator must approve the replacement.
+                    Filter the register by student, state or your independent approval queue. Search a student, choose their academic batch and monthly fee structure, then save a gross plan draft. Optional positive monthly percentage shares must match the month count and total 100%; each fee head retains its full contractual total, with deterministic cent rounding. Submit for independent tenant-admin approval. Approved plans preserve fee-head amounts and due dates. Issue each approved month separately with idempotent invoice linkage; no payment is collected by issuing an invoice. Legacy batch billing remains blocked for planned months. Cancellation is audited and blocked after invoice issuance. Before any invoice exists, a separate tenant administrator may replace an approved agreement with a new submitted version; a different administrator must approve the replacement.
                 </div>
             </details>
         </div>
@@ -29,6 +29,8 @@
                 <input id="feePlanMonth" type="month" class="form-control" required /></div>
             <div class="col-lg-1"><label class="form-label" for="feePlanMonths">Months</label>
                 <select id="feePlanMonths" class="form-select"><option>1</option><option>3</option><option selected>6</option><option>9</option><option>12</option></select></div>
+            <div class="col-lg-6"><label class="form-label" for="feePlanWeights">Monthly shares (%) — optional</label>
+                <input id="feePlanWeights" class="form-control" maxlength="100" inputmode="decimal" autocomplete="off" placeholder="Example for 3 months: 50,25,25" /></div>
             <div class="col-12 d-flex justify-content-end"><button id="feePlanSave" type="submit" class="btn btn-primary">Save Draft</button></div>
         </div>
     </form>
@@ -119,6 +121,8 @@
             <h2 id="feePlanReplaceHeading" class="h5">Request agreement replacement</h2>
             <label for="feePlanReplaceStructure" class="form-label">Replacement monthly fee structure</label>
             <select id="feePlanReplaceStructure" class="form-select" required></select>
+            <label for="feePlanReplaceWeights" class="form-label">New monthly shares (%) — optional</label>
+            <input id="feePlanReplaceWeights" class="form-control" maxlength="100" inputmode="decimal" autocomplete="off" placeholder="Blank for equal monthly shares" />
             <label for="feePlanReplaceReason" class="form-label">Reason for replacement</label>
             <textarea id="feePlanReplaceReason" class="form-control" minlength="3" maxlength="150" rows="3" required></textarea>
             <div class="d-flex justify-content-end gap-2">

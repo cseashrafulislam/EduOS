@@ -53,6 +53,8 @@ public sealed partial class FeeBillingService
                             x.ActionCode == 4 && !x.IsDeleted && x.Reason == expected, token))
                         return Error<StudentFeeInstallmentPlanDto>("Request key belongs to another replacement.", 409);
                     var replay = await InstallmentPlanDtoAsync(db, prior, true, token);
+                    if (replay != null && !FeeInstallmentDistribution.Matches(replay, request.MonthWeightsBasisPoints))
+                        return Error<StudentFeeInstallmentPlanDto>("Request key belongs to a different distribution.", 409);
                     return replay == null
                         ? Error<StudentFeeInstallmentPlanDto>("Replacement provenance unavailable.", 409)
                         : ApiResponse<StudentFeeInstallmentPlanDto>.SuccessResponse(replay, "Existing replacement returned.");
@@ -116,6 +118,10 @@ public sealed partial class FeeBillingService
                     old.EndMonth.Month - old.StartMonth.Month + 1;
                 if (months is < 1 or > 12)
                     return Error<StudentFeeInstallmentPlanDto>("Original agreement period is invalid.", 409);
+                var distribution = FeeInstallmentDistribution.Allocate(
+                    source.Select(x => x.Amount).ToArray(), months, request.MonthWeightsBasisPoints);
+                if (distribution == null)
+                    return Error<StudentFeeInstallmentPlanDto>("Invalid monthly shares or zero-cent fee head.", 409);
                 var replacement = new StudentFeeInstallmentPlan {
                     TenantId = tenant, PublicId = Guid.NewGuid(), ClientRequestId = request.ClientRequestId,
                     StudentEnrollmentId = old.StudentEnrollmentId, FeeStructureId = structure.Id,
@@ -130,15 +136,18 @@ public sealed partial class FeeBillingService
                 for (var m = 0; m < months; m++)
                 {
                     var month = old.StartMonth.AddMonths(m);
-                    foreach (var line in source)
+                    for (var i = 0; i < source.Count; i++)
+                    {
+                        var line = source[i];
                         db.StudentFeeInstallmentPlanLines.Add(new StudentFeeInstallmentPlanLine {
                             TenantId = tenant, StudentFeeInstallmentPlanId = replacement.Id,
                             FeeHeadId = line.FeeHeadId, MonthStart = month,
                             DueDate = new DateOnly(month.Year, month.Month,
                                 Math.Min(line.DueDayOfMonth!.Value, DateTime.DaysInMonth(month.Year, month.Month))),
                             FeeHeadCodeSnapshot = line.Code, FeeHeadNameSnapshot = line.Name,
-                            GrossAmount = line.Amount, CreatedAt = now, CreatedBy = _user.UserId
+                            GrossAmount = distribution[m][i], CreatedAt = now, CreatedBy = _user.UserId
                         });
+                    }
                 }
                 db.StudentFeeInstallmentPlanEvents.AddRange(
                     new StudentFeeInstallmentPlanEvent {

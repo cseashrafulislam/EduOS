@@ -8,6 +8,9 @@ public sealed class CreateStudentFeeInstallmentPlanDto
     public long FeeStructureId { get; set; }
     public DateOnly StartMonth { get; set; }
     public int Months { get; set; }
+    // Optional positive monthly shares in basis points, totaling exactly 10,000.
+    // Absent means the existing equal monthly schedule.
+    public IReadOnlyList<int>? MonthWeightsBasisPoints { get; set; }
 }
 
 // A pre-billing, independently approved replacement of a complete frozen agreement.
@@ -18,6 +21,7 @@ public sealed class ReplaceStudentFeeInstallmentPlanDto
     public string RowVersion { get; set; } = string.Empty;
     public long FeeStructureId { get; set; }
     public string Reason { get; set; } = string.Empty;
+    public IReadOnlyList<int>? MonthWeightsBasisPoints { get; set; }
 }
 
 public sealed class StudentFeeInstallmentTransitionDto

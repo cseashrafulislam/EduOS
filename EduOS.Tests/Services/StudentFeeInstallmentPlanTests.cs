@@ -39,6 +39,55 @@ public sealed class StudentFeeInstallmentPlanTests
     }
 
     [Fact]
+    public async Task Weighted_instalments_preserve_fee_head_total_and_replay_contract()
+    {
+        await using var db = Database();
+        Seed(db);
+        var request = Request(db);
+        request.MonthWeightsBasisPoints = [5000, 2500, 2500];
+        var service = Service(db);
+        var first = await service.CreateInstallmentPlanAsync(request);
+        first.StatusCode.Should().Be(200);
+        first.Data!.GrossAmount.Should().Be(300m);
+        first.Data.Lines.Select(x => x.GrossAmount).Should().Equal(150m, 75m, 75m);
+        (await service.CreateInstallmentPlanAsync(request)).StatusCode.Should().Be(200);
+        request.MonthWeightsBasisPoints = [4000, 3000, 3000];
+        (await service.CreateInstallmentPlanAsync(request)).StatusCode.Should().Be(409);
+        (await db.StudentFeeInstallmentPlans.CountAsync()).Should().Be(1);
+        (await db.StudentInvoices.CountAsync()).Should().Be(0);
+    }
+
+    [Fact]
+    public async Task Invalid_instalment_weights_are_rejected_without_writes()
+    {
+        await using var db = Database();
+        Seed(db);
+        var request = Request(db);
+        request.MonthWeightsBasisPoints = [5000, 2500];
+        (await Service(db).CreateInstallmentPlanAsync(request)).StatusCode.Should().Be(400);
+        request.MonthWeightsBasisPoints = [5000, 2500, 2400];
+        (await Service(db).CreateInstallmentPlanAsync(request)).StatusCode.Should().Be(400);
+        request.MonthWeightsBasisPoints = [10000, 0, 0];
+        (await Service(db).CreateInstallmentPlanAsync(request)).StatusCode.Should().Be(400);
+        (await db.StudentFeeInstallmentPlans.CountAsync()).Should().Be(0);
+    }
+
+    [Fact]
+    public void Weighted_cent_distribution_is_deterministic_and_conserves_every_head()
+    {
+        var rows = FeeInstallmentDistribution.Allocate([0.01m, 0.02m], 3, [9998, 1, 1]);
+        rows.Should().BeNull(); // A near-zero share cannot create a positive cent in every month.
+        rows = FeeInstallmentDistribution.Allocate([0.02m, 0.03m], 3, [3334, 3333, 3333]);
+        rows.Should().NotBeNull();
+        rows!.Sum(x => x[0]).Should().Be(0.06m);
+        rows.Sum(x => x[1]).Should().Be(0.09m);
+        rows.Select(x => x[0]).Should().Equal(0.02m, 0.02m, 0.02m);
+        var odd = FeeInstallmentDistribution.Allocate([0.05m], 3, [5000, 2500, 2500]);
+        odd.Should().NotBeNull();
+        odd!.Select(x => x[0]).Should().Equal(0.07m, 0.04m, 0.04m);
+    }
+
+    [Fact]
     public async Task Planned_month_blocks_legacy_invoice_preflight_and_generation_until_linked_billing()
     {
         await using var db = Database();
