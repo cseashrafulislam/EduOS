@@ -9,8 +9,8 @@ using System.Text;
 
 namespace EduOS.Service.Services.Transport;
 
-/// <summary>Read-only family transport schedule. A guardian must have a live tenant-owned
-/// relationship to the student; shared Person identity never grants transport access.</summary>
+/// <summary>Read-only family transport schedule. A guardian must have a live, pickup-authorized
+/// tenant-owned relationship to the student; shared Person identity never grants transport access.</summary>
 public sealed class TransportFamilyScheduleService : ITransportFamilyScheduleService
 {
     private readonly EduOSDbContext _db;
@@ -22,7 +22,7 @@ public sealed class TransportFamilyScheduleService : ITransportFamilyScheduleSer
         _db = db; _user = user; _clock = clock;
     }
 
-    private bool Allowed => _user.IsAuthenticated && _user.TenantId > 0 &&
+    private bool Allowed => _user.IsAuthenticated && _user.UserId > 0 && _user.TenantId > 0 &&
         (_user.IsInRole("Student") || _user.IsInRole("Guardian") || _user.IsInRole("Parent"));
 
     private bool ValidDate(DateOnly date)
@@ -105,7 +105,7 @@ public sealed class TransportFamilyScheduleService : ITransportFamilyScheduleSer
                              join guardian in _db.Guardians.AsNoTracking()
                                  on link.GuardianId equals guardian.Id
                              where link.TenantId == tenant && !link.IsDeleted &&
-                                   guardian.TenantId == tenant && !guardian.IsDeleted &&
+                                   link.IsAuthorizedPickup && guardian.TenantId == tenant && !guardian.IsDeleted &&
                                    guardian.IsActive && guardian.UserId == _user.UserId
                              select link.StudentId;
         IQueryable<long> visibleStudents = _user.IsInRole("Student")

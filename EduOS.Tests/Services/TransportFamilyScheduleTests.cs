@@ -41,6 +41,40 @@ public sealed class TransportFamilyScheduleTests
         (await service.GetAsync(today, 1, 20)).Data!.Items.Should().BeEmpty();
     }
 
+
+    [Theory]
+    [InlineData("Guardian")]
+    [InlineData("Parent")]
+    public async Task Family_schedule_and_export_require_current_pickup_authorization(string role)
+    {
+        await using var db = CreateContext(101);
+        var (_, _, link) = await SeedAsync(db);
+        var today = DateOnly.FromDateTime(TimeProvider.System.GetLocalNow().DateTime);
+        var family = new TransportFamilyScheduleService(db, new User(101, 42, role), TimeProvider.System);
+        var student = new TransportFamilyScheduleService(db, new User(101, 21, "Student"), TimeProvider.System);
+
+        (await family.GetAsync(today, 1, 20)).Data!.Items.Should().ContainSingle();
+        (await family.ExportCsvAsync(today)).Data.Should().Contain("FAMILY-BUS");
+
+        // V1 guardian relationship permission changes must immediately affect both V2 read paths.
+        link.IsAuthorizedPickup = false;
+        await db.SaveChangesAsync();
+        (await family.GetAsync(today, 1, 20)).Data!.Items.Should().BeEmpty();
+        (await family.ExportCsvAsync(today)).Data.Should().NotContain("FAMILY-BUS");
+        // Student self-service does not depend on a guardian's pickup permission.
+        (await student.GetAsync(today, 1, 20)).Data!.Items.Should().ContainSingle();
+
+        link.IsAuthorizedPickup = true;
+        await db.SaveChangesAsync();
+        (await family.GetAsync(today, 1, 20)).Data!.Items.Should().ContainSingle();
+        (await family.ExportCsvAsync(today)).Data.Should().Contain("FAMILY-BUS");
+
+        link.IsDeleted = true;
+        await db.SaveChangesAsync();
+        (await family.GetAsync(today, 1, 20)).Data!.Items.Should().BeEmpty();
+        (await family.ExportCsvAsync(today)).Data.Should().NotContain("FAMILY-BUS");
+    }
+
     [Fact]
     public async Task Student_sees_own_schedule_but_not_another_students_schedule()
     {
@@ -167,7 +201,7 @@ public sealed class TransportFamilyScheduleTests
             ClientRequestId = Guid.NewGuid(), RollNo = "1", IsCurrent = true,
             State = EnrollmentState.Active, EnrollmentDate = today };
         var link = new StudentGuardian { TenantId = 101, StudentId = student.Id,
-            GuardianId = guardian.Id, RelationCode = "Parent" };
+            GuardianId = guardian.Id, RelationCode = "Parent", IsAuthorizedPickup = true };
         db.AddRange(pickup, enrollment, link);
         await db.SaveChangesAsync();
         db.StudentTransports.Add(new StudentTransport { TenantId = 101,

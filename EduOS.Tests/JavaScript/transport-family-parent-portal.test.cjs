@@ -18,3 +18,14 @@ test('Parent family entry and V2 route remain aligned with the server permission
     assert.match(client, /rows\.replaceChildren\(\)/);
     assert.doesNotMatch(client, /\.innerHTML\s*=/);
 });
+
+test('Transport family readback and CSV use the same live pickup permission as guardian hostel', () => {
+    const transport = read('EduOS.Service/Services/Transport/TransportFamilyScheduleService.cs');
+    const hostel = read('EduOS.Service/Services/Hostel/GuardianHostelStayService.cs');
+    const family = read('EduOS.App/Views/TransportOperations/Family.cshtml');
+    assert.match(transport, /link\.IsAuthorizedPickup/);
+    assert.match(hostel, /link\.IsAuthorizedPickup/);
+    assert.match(transport, /var query = BuildQuery\(date\)/);
+    assert.match(transport, /await BuildQuery\(date\)/);
+    assert.match(family, /guardian link permits pickup/);
+});
