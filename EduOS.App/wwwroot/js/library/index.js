@@ -8,6 +8,7 @@
     let branchPage = 1, branchRequest = 0;
     const branchLabels = new Map();
     const paging = { catalog: 1, issues: 1, pageSize: 20 };
+    let issueRequest = 0;
     const catalogColumns = canManage ? 6 : 5;
     function message(text, success = false) {
         const node = el('libraryAlert');
@@ -69,15 +70,27 @@
             el('catalogPage').textContent = 'Page ' + paging.catalog + ' of ' + Math.max(1, result?.totalPages ?? 1);
         } catch (error) { renderEmpty(catalogRows, catalogColumns, 'Catalog could not be loaded.'); message(error.message); }
     }
+    function issueQuery() {
+        return new URLSearchParams({ page: String(paging.issues), pageSize: String(paging.pageSize),
+            status: el('issueStatus').value });
+    }
+    function loanState(issue) {
+        const state = Number(issue.state);
+        if (state === 1) return issue.dueDate < new Date().toISOString().slice(0, 10) ? 'Overdue' : 'Issued';
+        return state === 2 ? 'Returned' : state === 3 ? 'Lost' : state === 4 ? 'Damaged' : 'Other';
+    }
     async function loadIssues() {
+        const request = ++issueRequest;
         try {
-            const result = await api('/api/library/my-issues?' + new URLSearchParams({ page: paging.issues, pageSize: paging.pageSize }));
+            const result = await api('/api/library/my-issues?' + issueQuery());
+            if (request !== issueRequest) return;
             const issues = Array.isArray(result?.items) ? result.items : [];
             issueRows.replaceChildren();
-            if (!issues.length) renderEmpty(issueRows, 7, 'No borrowing history.');
+            if (!issues.length) renderEmpty(issueRows, 7, 'No matching loans.');
             issues.forEach(issue => {
                 const tr = document.createElement('tr');
-                [issue.bookTitle, issue.accessionNumber, issue.issueDate, issue.dueDate, issue.returnDate, issue.state, formatMoney(issue.fineAmount)]
+                [issue.bookTitle, issue.accessionNumber, issue.issueDate, issue.dueDate,
+                    issue.returnDate, loanState(issue), formatMoney(issue.fineAmount)]
                     .forEach((v, index) => { const td = cell(v); if (index === 6) td.className = 'text-end'; tr.append(td); });
                 issueRows.append(tr);
             });
@@ -85,7 +98,33 @@
             el('issuePrevious').disabled = !result?.hasPreviousPage;
             el('issueNext').disabled = !result?.hasNextPage;
             el('issuePage').textContent = 'Page ' + paging.issues + ' of ' + Math.max(1, result?.totalPages ?? 1);
-        } catch (error) { renderEmpty(issueRows, 7, 'Issue history could not be loaded.'); message(error.message); }
+        } catch (error) {
+            if (request !== issueRequest) return;
+            renderEmpty(issueRows, 7, 'Loan history could not be loaded.'); message(error.message);
+        }
+    }
+    async function exportMyIssues() {
+        const button = el('issueCsv');
+        if (button.disabled) return;
+        button.disabled = true;
+        try {
+            const params = issueQuery();
+            params.set('language', document.documentElement.lang?.toLowerCase().startsWith('bn') ? 'bn-BD' : 'en-BD');
+            const response = await fetch('/api/library/my-issues/export?' + params, {
+                credentials: 'same-origin', cache: 'no-store', headers: { Accept: 'text/csv' }
+            });
+            if (!response.ok) {
+                const error = await response.json().catch(() => null);
+                throw Error(error?.message || 'Loan statement export denied.');
+            }
+            const url = URL.createObjectURL(await response.blob());
+            try {
+                const link = document.createElement('a');
+                link.href = url; link.download = 'my-library-loans-page.csv';
+                document.body.append(link); link.click(); link.remove();
+            } finally { setTimeout(() => URL.revokeObjectURL(url), 1000); }
+        } catch (error) { message(error.message); }
+        finally { button.disabled = false; }
     }
     function formatMoney(value) {
         const n = Number(value || 0);
@@ -241,6 +280,8 @@
     el('catalogNext').addEventListener('click', () => { paging.catalog++; loadCatalog(); });
     el('issuePrevious').addEventListener('click', () => { if (paging.issues > 1) { paging.issues--; loadIssues(); } });
     el('issueNext').addEventListener('click', () => { paging.issues++; loadIssues(); });
+    el('issueStatus').addEventListener('change', () => { paging.issues = 1; loadIssues(); });
+    el('issueCsv').addEventListener('click', exportMyIssues);
     el('printLibrary')?.addEventListener('click', () => window.print());
     if (canManage) { el('libraryBookForm').addEventListener('submit', saveBook); el('bookReset').addEventListener('click', resetForm); }
 
