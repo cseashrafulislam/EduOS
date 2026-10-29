@@ -11,6 +11,8 @@ namespace EduOS.Tests.App;
 public sealed class PilotReleaseModuleGateTests
 {
     [Theory]
+    [InlineData("LMS")]
+    [InlineData("library")]
     [InlineData("HOSTEL")]
     [InlineData("transport")]
     [InlineData("Inventory")]
@@ -47,6 +49,8 @@ public sealed class PilotReleaseModuleGateTests
     }
 
     [Theory]
+    [InlineData("LMS")]
+    [InlineData("LIBRARY")]
     [InlineData("HOSTEL")]
     [InlineData("TRANSPORT")]
     [InlineData("INVENTORY")]
@@ -58,6 +62,17 @@ public sealed class PilotReleaseModuleGateTests
     }
 
     [Theory]
+    [InlineData(typeof(EduOS.App.Controllers.LearningController), "LMS")]
+    [InlineData(typeof(EduOS.App.Controllers.LibraryController), "LIBRARY")]
+    [InlineData(typeof(EduOS.App.Controllers.Api.LmsWorkflowController), "LMS")]
+    [InlineData(typeof(EduOS.App.Controllers.Api.LmsAssessmentController), "LMS")]
+    [InlineData(typeof(EduOS.App.Controllers.Api.LmsCourseContentController), "LMS")]
+    [InlineData(typeof(EduOS.App.Controllers.Api.LmsLiveClassesController), "LMS")]
+    [InlineData(typeof(EduOS.App.Controllers.Api.LmsAssignmentAttachmentsController), "LMS")]
+    [InlineData(typeof(EduOS.App.Controllers.Api.LmsSubmissionFilesController), "LMS")]
+    [InlineData(typeof(EduOS.App.Controllers.Api.LibraryController), "LIBRARY")]
+    [InlineData(typeof(EduOS.App.Controllers.Api.LibraryBranchesController), "LIBRARY")]
+    [InlineData(typeof(EduOS.App.Controllers.Api.LibraryReservationsController), "LIBRARY")]
     [InlineData(typeof(EduOS.App.Controllers.HostelOperationsController), "HOSTEL")]
     [InlineData(typeof(EduOS.App.Controllers.TransportOperationsController), "TRANSPORT")]
     [InlineData(typeof(EduOS.App.Controllers.AssetLifecycleController), "INVENTORY")]
@@ -66,6 +81,9 @@ public sealed class PilotReleaseModuleGateTests
     [InlineData(typeof(EduOS.App.Controllers.Api.HostelController), "HOSTEL")]
     [InlineData(typeof(EduOS.App.Controllers.Api.HostelAllocationReadinessController), "HOSTEL")]
     [InlineData(typeof(EduOS.App.Controllers.Api.HostelOccupancyForecastController), "HOSTEL")]
+    [InlineData(typeof(EduOS.App.Controllers.Api.HostelPeakOccupancyForecastController), "HOSTEL")]
+    [InlineData(typeof(EduOS.App.Controllers.Api.TransportBoardingManifestController), "TRANSPORT")]
+    [InlineData(typeof(EduOS.App.Controllers.Api.TransportDriverCoverageForecastController), "TRANSPORT")]
     [InlineData(typeof(EduOS.App.Controllers.Api.TransportController), "TRANSPORT")]
     [InlineData(typeof(EduOS.App.Controllers.Api.TransportDriverReadinessController), "TRANSPORT")]
     [InlineData(typeof(EduOS.App.Controllers.Api.TransportDriverCoverageWindowController), "TRANSPORT")]
