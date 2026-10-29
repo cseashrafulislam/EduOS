@@ -65,7 +65,6 @@ public sealed partial class LibraryService
             join branch in branches on copy.LibraryBranchId equals (long?)branch.Id into branchGroup
             from branch in branchGroup.DefaultIfEmpty()
             join loan in openLoanCounts on copy.Id equals loan.CopyId into loanGroup
-            from loan in loanGroup.DefaultIfEmpty()
             select new
             {
                 CopyId = copy.Id, copy.AccessionNumber, CopyState = copy.State,
@@ -75,7 +74,9 @@ public sealed partial class LibraryService
                 BranchCode = branch == null ? null : branch.Code,
                 CampusId = branch == null ? (long?)null : branch.CampusId,
                 BranchExists = branch != null,
-                OpenLoanCount = loan == null ? 0 : loan.OpenLoans
+                // Sum on an empty group is zero. Avoid dereferencing a missing
+                // left-joined aggregate (also fails on EF InMemory test provider).
+                OpenLoanCount = loanGroup.Sum(x => x.OpenLoans)
             };
 
         var anomalies = projected.Where(x =>

@@ -166,6 +166,7 @@ public sealed class LibraryPrincipalCampusAccessTests
         var admin = await Service(db, "TenantAdmin").GetCopyIntegrityAsync(null, null, 1, 20);
         admin.Data!.TotalCount.Should().Be(2);
         admin.Data.Items.Select(v => v.AccessionNumber).Should().BeEquivalentTo("A-1", "B-2");
+        admin.Data.Items.Single(v => v.AccessionNumber == "B-2").OpenLoanCount.Should().Be(0);
         (await Service(db, "Student").GetCopyIntegrityAsync(null, null, 1, 20))
             .StatusCode.Should().Be(403);
         (await principal.GetCopyIntegrityAsync(null, null, 1, 101)).Success.Should().BeFalse();
