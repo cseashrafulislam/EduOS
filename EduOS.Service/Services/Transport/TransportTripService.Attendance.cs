@@ -3,6 +3,7 @@ using EduOS.Core.DTOs.Transport;
 using EduOS.Core.Entities.Transport;
 using EduOS.Core.Interfaces;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using System.Data;
 
 namespace EduOS.Service.Services.Transport;
