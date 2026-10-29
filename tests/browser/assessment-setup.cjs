@@ -88,7 +88,7 @@ async function main() {
         await page.selectOption('#setupOffering', offeringReference);
         await page.locator('#setupAddSubject').click();
         await page.getByText('Assessment subject saved', { exact: false }).waitFor();
-        await page.getByText('MAT-101 — Mathematics').waitFor();
+        await page.getByRole('cell', { name: 'MAT-101 — Mathematics' }).waitFor();
         assert.equal(writes.length, 2);
         assert.equal(writes[0].body.attemptMode, 1);
         assert.equal(writes[0].body.gradeSchemeId, 9);
