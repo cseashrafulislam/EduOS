@@ -135,6 +135,42 @@ public sealed class LibraryPrincipalCampusAccessTests
             .Data!.TotalCount.Should().Be(0);
     }
 
+    [Fact]
+    public async Task Copy_integrity_report_is_tenant_and_campus_scoped_and_detects_state_discrepancies()
+    {
+        await using var db = Context();
+        var x = await SeedAsync(db);
+        x.CopyA.State = BookCopyState.Available; // Open loan on an available copy.
+        x.AvailableB.State = BookCopyState.Issued; // Issued copy with no open loan.
+        db.BookCopies.Add(new BookCopy
+        {
+            TenantId = 202, BookId = x.Book.Id, LibraryBranchId = x.BranchA.Id,
+            AccessionNumber = "OTHER-TENANT", State = BookCopyState.Issued
+        });
+        await db.SaveChangesAsync();
+
+        var principal = Service(db, "Principal");
+        var scoped = await principal.GetCopyIntegrityAsync(null, null, 1, 20);
+        scoped.Success.Should().BeTrue();
+        scoped.Data!.TotalCount.Should().Be(1);
+        scoped.Data.Items.Single().AccessionNumber.Should().Be("A-1");
+        scoped.Data.Items.Single().StateMismatch.Should().BeTrue();
+        (await principal.GetCopyIntegrityAsync(null, x.CampusB.Id, 1, 20))
+            .Data!.TotalCount.Should().Be(0);
+
+        var admin = await Service(db, "TenantAdmin").GetCopyIntegrityAsync(null, null, 1, 20);
+        admin.Data!.TotalCount.Should().Be(2);
+        admin.Data.Items.Select(v => v.AccessionNumber).Should().BeEquivalentTo("A-1", "B-2");
+        (await Service(db, "Student").GetCopyIntegrityAsync(null, null, 1, 20))
+            .StatusCode.Should().Be(403);
+        (await principal.GetCopyIntegrityAsync(null, null, 1, 101)).Success.Should().BeFalse();
+
+        x.Grant.IsActive = false;
+        await db.SaveChangesAsync();
+        (await principal.GetCopyIntegrityAsync(null, null, 1, 20))
+            .Data!.TotalCount.Should().Be(0);
+    }
+
     private static async Task<(Campus CampusA, Campus CampusB, LibraryBranch BranchA,
         LibraryBranch BranchB, Book Book, Student StudentA, Student StudentB,
         BookCopy CopyA, BookCopy CopyB, BookCopy AvailableB, BookIssue IssueA,

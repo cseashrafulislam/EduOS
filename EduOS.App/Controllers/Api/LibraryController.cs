@@ -77,6 +77,30 @@ public sealed class LibraryController : ControllerBase
     [Authorize(Roles="TenantAdmin,Principal,Librarian")]
     public async Task<IActionResult> ArchiveBook(Guid reference,[FromQuery]string rowVersion,CancellationToken ct)=>ToAction(await _service.ArchiveBookAsync(reference,rowVersion,ct));
 
+    [HttpGet("reports/copy-integrity")]
+    [Authorize(Roles = "TenantAdmin,Principal,Librarian")]
+    public async Task<IActionResult> CopyIntegrity([FromQuery] string? accession = null,
+        [FromQuery] long? campusId = null, [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 20, CancellationToken ct = default) =>
+        ToAction(await _service.GetCopyIntegrityAsync(accession, campusId, page, pageSize, ct));
+
+    [HttpGet("reports/copy-integrity/export")]
+    [Authorize(Roles = "TenantAdmin,Principal,Librarian")]
+    public async Task<IActionResult> ExportCopyIntegrity([FromQuery] string? accession = null,
+        [FromQuery] long? campusId = null, [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 20, [FromQuery] string language = "en-BD",
+        CancellationToken ct = default)
+    {
+        if (language is not ("en-BD" or "bn-BD"))
+            return BadRequest("Unsupported report language.");
+        var result = await _service.GetCopyIntegrityAsync(accession, campusId, page, pageSize, ct);
+        if (!result.Success || result.Data == null) return ToAction(result);
+        Response.Headers.CacheControl = "no-store, private";
+        Response.Headers.Pragma = "no-cache";
+        return File(LibraryCopyIntegrityCsvWriter.Write(result.Data.Items, language == "bn-BD"),
+            "text/csv; charset=utf-8", "library-copy-integrity-page.csv");
+    }
+
     [HttpGet("reports/overdue")]
     [Authorize(Roles = "TenantAdmin,Principal,Librarian")]
     public async Task<IActionResult> OverdueReport([FromQuery] string? search = null,
