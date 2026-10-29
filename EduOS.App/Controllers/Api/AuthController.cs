@@ -178,6 +178,8 @@ namespace EduOS.App.Controllers.Api
 
             if (user == null)
                 return Unauthorized(new { success = false, message = "Invalid session." });
+            if (!await AuthSessionRegistry.IsValidPrincipalAsync(_db, User))
+                return Unauthorized(new { success = false, message = "Session changed. Sign in again." });
 
             return Ok(new
             {
@@ -536,6 +538,8 @@ namespace EduOS.App.Controllers.Api
             if (user == null) return Unauthorized(new { success = false, message = "Session unavailable." });
             var records = await AuthSessionRegistry.ListAsync(_db, user.Id,
                 User.FindFirstValue(AuthSessionRegistry.ClaimType));
+            if (!await AuthSessionRegistry.IsValidPrincipalAsync(_db, User))
+                return Unauthorized(new { success = false, message = "Session changed. Sign in again." });
             return Ok(new { success = true, data = records });
         }
 
@@ -756,6 +760,8 @@ namespace EduOS.App.Controllers.Api
                     .Select(x => x.AddressLine1).FirstOrDefaultAsync() : null
             };
 
+            if (!await AuthSessionRegistry.IsValidPrincipalAsync(_db, User))
+                return Unauthorized(new { success = false, message = "Session changed. Sign in again." });
             return Ok(new { success = true, data = dto });
         }
 
@@ -784,6 +790,10 @@ namespace EduOS.App.Controllers.Api
             {
                 addressLine = await _db.ExecuteInTransactionAsync(async ct =>
                 {
+                    // Hold the session-token read lock until the account/profile commit.
+                    // A concurrent logout or institution switch cannot authorize a late write.
+                    if (!await AuthSessionRegistry.IsValidPrincipalAsync(_db, User))
+                        throw new AccountSessionChangedException();
                     user.FullName = dto.FullName.Trim();
                     if (dto.PhoneNumber != null)
                         user.PhoneNumber = string.IsNullOrWhiteSpace(dto.PhoneNumber) ? null : dto.PhoneNumber.Trim();
@@ -816,8 +826,14 @@ namespace EduOS.App.Controllers.Api
                         throw new AuthTransactionRejectedException(
                             string.Join(" | ", updated.Errors.Select(x => x.Description)), 400);
                     if (user.PersonId.HasValue) await _db.SaveChangesAsync(ct);
+                    if (!await AuthSessionRegistry.IsValidPrincipalAsync(_db, User))
+                        throw new AccountSessionChangedException();
                     return address?.AddressLine1;
-                });
+                }, System.Data.IsolationLevel.Serializable);
+            }
+            catch (AccountSessionChangedException)
+            {
+                return Unauthorized(new { success = false, message = "Session changed. Sign in again." });
             }
             catch (AuthTransactionRejectedException ex)
             {
@@ -882,6 +898,8 @@ namespace EduOS.App.Controllers.Api
             _logger.LogInformation("Password changed successfully for user {UserId}", user.Id);
             return Ok(new { success = true, message = "Password changed. Please sign in again.", redirectUrl = "/Account/Login" });
         }
+
+        private sealed class AccountSessionChangedException : Exception;
 
         private sealed class AuthTransactionRejectedException(string message, int statusCode = 409) : Exception(message)
         {
