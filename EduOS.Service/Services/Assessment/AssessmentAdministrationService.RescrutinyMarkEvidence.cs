@@ -68,7 +68,7 @@ public sealed partial class AssessmentAdministrationService
             .Select(x => new
             {
                 x.Id, x.AssessmentSubjectId, x.StudentSubjectRegistrationId,
-                x.ObtainedMarks, x.IsAbsent, x.IsWithheld, x.GradeLetter, x.GradePoint
+                x.ObtainedMarks, x.IsAbsent, x.IsWithheld, x.GradeLetter, x.GradePoint, x.RowVersion
             }).Take(201).ToListAsync(ct);
         if (marks.Count > 200 || marks.GroupBy(x => (x.AssessmentSubjectId, x.StudentSubjectRegistrationId))
             .Any(x => x.Count() != 1))
@@ -89,7 +89,7 @@ public sealed partial class AssessmentAdministrationService
 
         var components = await _components.GetQueryable().AsNoTracking().Where(x =>
             x.TenantId == tenant && subjectIds.Contains(x.AssessmentSubjectId) && !x.IsDeleted)
-            .Select(x => new { x.Id, x.AssessmentSubjectId, x.Name, x.FullMarks, x.DisplayOrder })
+            .Select(x => new { x.Id, x.AssessmentSubjectId, x.Name, x.FullMarks, x.Weightage, x.DisplayOrder })
             .OrderBy(x => x.AssessmentSubjectId).ThenBy(x => x.DisplayOrder).ThenBy(x => x.Id)
             .Take(401).ToListAsync(ct);
         if (components.Count > 400 || components.Any(x =>
@@ -102,7 +102,7 @@ public sealed partial class AssessmentAdministrationService
             x.TenantId == tenant && componentIds.Contains(x.AssessmentComponentId) &&
             markIds.Contains(x.StudentAssessmentMarkId) && !x.IsDeleted)
             .Select(x => new { x.AssessmentComponentId, x.StudentAssessmentMarkId,
-                x.ObtainedMarks, x.IsAbsent, x.IsWithheld }).Take(401).ToListAsync(ct);
+                x.ObtainedMarks, x.IsAbsent, x.IsWithheld, x.RowVersion }).Take(401).ToListAsync(ct);
         if (details.Count > 400 || details.GroupBy(x => (x.AssessmentComponentId, x.StudentAssessmentMarkId))
             .Any(x => x.Count() != 1))
             return Error<ResultRescrutinyMarkEvidenceDto>("Component marks require reconciliation.", 409);
@@ -132,6 +132,8 @@ public sealed partial class AssessmentAdministrationService
             return new ResultRescrutinySubjectEvidenceDto
             {
                 AssessmentSubjectId = reg.SubjectId, SubjectName = reg.SubjectName,
+                StudentAssessmentMarkId = mark?.Id,
+                MarkRowVersion = mark == null ? null : Version(mark.RowVersion),
                 FullMarks = reg.FullMarks, CurrentObtainedMarks = mark?.ObtainedMarks,
                 IsAbsent = mark?.IsAbsent ?? false, IsWithheld = mark?.IsWithheld ?? false,
                 CurrentGradeLetter = mark?.GradeLetter, CurrentGradePoint = mark?.GradePoint,
@@ -141,7 +143,9 @@ public sealed partial class AssessmentAdministrationService
                     var detail = hasDetail ? detailByPair[(c.Id, mark!.Id)] : null;
                     return new ResultRescrutinyComponentEvidenceDto
                     {
-                        Name = c.Name, FullMarks = c.FullMarks,
+                        AssessmentComponentId = c.Id,
+                        MarkRowVersion = detail == null ? null : Version(detail.RowVersion),
+                        Name = c.Name, FullMarks = c.FullMarks, Weightage = c.Weightage,
                         CurrentObtainedMarks = detail?.ObtainedMarks,
                         IsAbsent = detail?.IsAbsent ?? false, IsWithheld = detail?.IsWithheld ?? false
                     };
@@ -152,6 +156,7 @@ public sealed partial class AssessmentAdministrationService
         {
             CaseReference = caseReference, PublicationId = review.Data.PublicationId,
             PublicationVersionNo = review.Data.PublicationVersionNo,
+            PublicationRowVersion = Version(scope.Publication.RowVersion),
             StudentCode = review.Data.StudentCode,
             PublishedObtainedMarks = review.Data.ObtainedMarks,
             PublishedTotalMarks = review.Data.TotalMarks,

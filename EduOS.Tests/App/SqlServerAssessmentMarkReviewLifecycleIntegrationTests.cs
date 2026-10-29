@@ -992,6 +992,170 @@ public sealed class SqlServerAssessmentMarkReviewLifecycleIntegrationTests
         }]
     };
 
+    [Fact]
+    public async Task Accepted_rescrutiny_requires_independent_correction_and_retains_both_published_versions()
+    {
+        var connection = Environment.GetEnvironmentVariable("EDUOS_SQL_AUTH_TEST_CONNECTION");
+        if (string.IsNullOrWhiteSpace(connection)) return;
+        var options = new DbContextOptionsBuilder<EduOSDbContext>().UseSqlServer(connection).Options;
+        var seeded = await SeedAsync(options);
+        long publicationId;
+        Guid studentReference;
+        await using (var db = TenantDb(options, seeded.TenantId))
+        {
+            var subject = await db.AssessmentSubjects.SingleAsync(x => x.Id == seeded.AssessmentSubjectId);
+            var exam = await db.Assessments.SingleAsync(x => x.Id == subject.AssessmentId);
+            var scheme = new GradeScheme
+            {
+                TenantId = seeded.TenantId, Code = "SCHEME-" + Guid.NewGuid().ToString("N")[..8],
+                Name = "Synthetic examination grade", IsActive = true
+            };
+            db.GradeSchemes.Add(scheme);
+            await db.SaveChangesAsync();
+            db.GradeRules.Add(new GradeRule
+            {
+                TenantId = seeded.TenantId, GradeSchemeId = scheme.Id,
+                GradeLetter = "B", GradePoint = 3m, MinMarks = 0m, MaxMarks = 100m
+            });
+            exam.GradeSchemeId = scheme.Id;
+            exam.State = AssessmentState.Locked;
+            await db.SaveChangesAsync();
+            var registration = await db.StudentSubjectRegistrations.SingleAsync(x => x.Id == seeded.RegistrationId);
+            var enrollment = await db.StudentEnrollments.SingleAsync(x => x.Id == registration.StudentEnrollmentId);
+            studentReference = await db.Students.AsNoTracking().Where(x => x.Id == enrollment.StudentId)
+                .Select(x => x.PublicId).SingleAsync();
+            var offering = await db.SubjectOfferings.SingleAsync(x => x.Id == subject.SubjectOfferingId);
+            var publication = new ResultPublication
+            {
+                TenantId = seeded.TenantId, AssessmentId = exam.Id,
+                AcademicBatchId = offering.AcademicBatchId, VersionNo = 1,
+                State = ResultPublicationState.Published, PublishedAt = DateTime.UtcNow,
+                PublishedByUserId = seeded.ReviewerId
+            };
+            db.ResultPublications.Add(publication);
+            await db.SaveChangesAsync();
+            publicationId = publication.Id;
+            db.StudentResultSummaries.Add(new StudentResultSummary
+            {
+                TenantId = seeded.TenantId, ResultPublicationId = publicationId,
+                AssessmentId = exam.Id, StudentEnrollmentId = enrollment.Id,
+                PublicationVersionNo = 1, TotalMarks = 100m,
+                ObtainedMarks = 75m, Percentage = 75m, GPA = 3m,
+                GradeLetter = "B", IsPassed = true
+            });
+            await db.SaveChangesAsync();
+        }
+        Guid caseReference;
+        string requestVersion;
+        await using (var db = TenantDb(options, seeded.TenantId))
+        {
+            var intake = await Service(db, new Actor(seeded.TenantId, seeded.ReviewerId, "TenantAdmin"))
+                .RequestResultRescrutinyAsync(new()
+                {
+                    PublicationId = publicationId, ClientRequestId = Guid.NewGuid(),
+                    StudentReference = studentReference, Reason = "Correct an independently reviewed mark."
+                });
+            Assert.True(intake.Success, intake.Message);
+            caseReference = intake.Data!.CaseReference;
+            requestVersion = intake.Data.RequestRowVersion;
+        }
+        await using (var db = TenantDb(options, seeded.TenantId))
+        {
+            var decision = await Service(db, new Actor(seeded.TenantId, seeded.TeacherId, "TenantAdmin"))
+                .DecideResultRescrutinyAsync(caseReference, new()
+                {
+                    ClientRequestId = Guid.NewGuid(), RequestRowVersion = requestVersion,
+                    Decision = ResultRescrutinyAction.AcceptedForCorrection,
+                    Reason = "Correction approved after independent evidence review."
+                });
+            Assert.True(decision.Success, decision.Message);
+        }
+        ApplyResultCorrectionRequestDto amendment;
+        await using (var db = TenantDb(options, seeded.TenantId))
+        {
+            var reviewer = Service(db, new Actor(seeded.TenantId, seeded.TeacherId, "TenantAdmin"));
+            var marks = await reviewer.GetResultRescrutinyMarkEvidenceAsync(caseReference);
+            Assert.True(marks.Success, marks.Message);
+            var subject = Assert.Single(marks.Data!.Subjects);
+            amendment = new ApplyResultCorrectionRequestDto
+            {
+                ClientRequestId = Guid.NewGuid(),
+                PublicationRowVersion = marks.Data.PublicationRowVersion,
+                Reason = "Independent correction to the verified marks register.",
+                Subjects = [new ResultCorrectionSubjectInputDto
+                {
+                    AssessmentSubjectId = subject.AssessmentSubjectId,
+                    RowVersion = subject.MarkRowVersion!, ObtainedMarks = 85m
+                }]
+            };
+            var selfCorrection = await reviewer.ApplyResultCorrectionAsync(caseReference, amendment);
+            Assert.Equal(403, selfCorrection.StatusCode);
+        }
+        long latestId;
+        await using (var db = TenantDb(options, seeded.TenantId))
+        {
+            var executor = Service(db, new Actor(seeded.TenantId, seeded.UnassignedId, "TenantAdmin"));
+            var invalid = new ApplyResultCorrectionRequestDto
+            {
+                ClientRequestId = Guid.NewGuid(), PublicationRowVersion = amendment.PublicationRowVersion,
+                Reason = amendment.Reason,
+                Subjects = [new ResultCorrectionSubjectInputDto
+                {
+                    AssessmentSubjectId = seeded.AssessmentSubjectId,
+                    RowVersion = amendment.Subjects[0].RowVersion, ObtainedMarks = 101m
+                }]
+            };
+            Assert.Equal(409, (await executor.ApplyResultCorrectionAsync(caseReference, invalid)).StatusCode);
+            var applied = await executor.ApplyResultCorrectionAsync(caseReference, amendment);
+            Assert.True(applied.Success, applied.Message);
+            Assert.Equal(1, applied.Data!.PreviousVersionNo);
+            Assert.Equal(2, applied.Data.NewVersionNo);
+            latestId = applied.Data.NewPublicationId;
+            var replay = await executor.ApplyResultCorrectionAsync(caseReference, amendment);
+            Assert.True(replay.Success, replay.Message);
+            Assert.Equal(latestId, replay.Data!.NewPublicationId);
+            var reusedKey = await executor.ApplyResultCorrectionAsync(caseReference, new()
+            {
+                ClientRequestId = amendment.ClientRequestId,
+                PublicationRowVersion = amendment.PublicationRowVersion,
+                Reason = "A different unauthorized request under the same idempotency key.",
+                Subjects = amendment.Subjects
+            });
+            Assert.Equal(409, reusedKey.StatusCode);
+            var correction = await executor.GetResultCorrectionAsync(caseReference);
+            Assert.True(correction.Success, correction.Message);
+            Assert.Equal(latestId, correction.Data!.NewPublicationId);
+            var old = await db.ResultPublications.AsNoTracking().SingleAsync(x => x.Id == publicationId);
+            Assert.Equal(ResultPublicationState.Withdrawn, old.State);
+            Assert.False(old.VisibleToStudent);
+            Assert.False(old.VisibleToGuardian);
+            var next = await db.ResultPublications.AsNoTracking().SingleAsync(x => x.Id == latestId);
+            Assert.Equal(ResultPublicationState.Published, next.State);
+            Assert.Equal(2, next.VersionNo);
+            var historic = await db.StudentResultSummaries.AsNoTracking()
+                .Where(x => x.ResultPublicationId == publicationId).SingleAsync();
+            var corrected = await db.StudentResultSummaries.AsNoTracking()
+                .Where(x => x.ResultPublicationId == latestId).SingleAsync();
+            Assert.Equal(75m, historic.ObtainedMarks);
+            Assert.Equal(85m, corrected.ObtainedMarks);
+            Assert.Equal(1, await db.ResultCorrectionEvents.AsNoTracking()
+                .CountAsync(x => x.CaseReference == caseReference));
+            var subjectMark = await db.StudentAssessmentMarks.AsNoTracking()
+                .SingleAsync(x => x.AssessmentSubjectId == seeded.AssessmentSubjectId);
+            Assert.Equal(85m, subjectMark.ObtainedMarks);
+        }
+        await using (var db = TenantDb(options, seeded.TenantId + 1))
+        {
+            var foreign = Service(db, new Actor(seeded.TenantId + 1, seeded.UnassignedId, "TenantAdmin"));
+            Assert.Equal(404, (await foreign.GetResultCorrectionAsync(caseReference)).StatusCode);
+            Assert.Equal(404, (await foreign.ApplyResultCorrectionAsync(caseReference, new()
+            {
+                ClientRequestId = Guid.NewGuid(), PublicationRowVersion = amendment.PublicationRowVersion,
+                Reason = amendment.Reason, Subjects = amendment.Subjects
+            })).StatusCode);
+        }
+    }
+
     private static AssessmentAdministrationService Service(EduOSDbContext db, Actor actor)
     {
         GenericRepository<T> Repo<T>() where T : class => new(db);
@@ -1007,7 +1171,8 @@ public sealed class SqlServerAssessmentMarkReviewLifecycleIntegrationTests
             Repo<CertificateTemplate>(), Repo<CertificateIssue>(), Repo<TranscriptIssue>(),
             Repo<EduOS.Core.Entities.System.AuditLog>(), db, actor, TimeProvider.System,
             NullLogger<AssessmentAdministrationService>.Instance,
-            Repo<ResultRescrutinyEvent>(), Repo<Guardian>(), Repo<StudentGuardian>());
+            Repo<ResultRescrutinyEvent>(), Repo<Guardian>(), Repo<StudentGuardian>(),
+            Repo<ResultCorrectionEvent>());
     }
 
     private static EduOSDbContext TenantDb(DbContextOptions<EduOSDbContext> options, long tenant)

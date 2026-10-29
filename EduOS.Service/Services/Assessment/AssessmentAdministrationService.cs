@@ -23,6 +23,7 @@ public sealed partial class AssessmentAdministrationService : IAssessmentAdminis
     private readonly IGenericRepository<AssessmentSubject> _subjects;
     private readonly IGenericRepository<AssessmentMarkReviewEvent> _markReviews;
     private readonly IGenericRepository<ResultRescrutinyEvent> _rescrutinyEvents;
+    private readonly IGenericRepository<ResultCorrectionEvent>? _corrections;
     private readonly IGenericRepository<AssessmentSchedule> _schedules;
     private readonly IGenericRepository<StudentAssessmentMark> _marks;
     private readonly IGenericRepository<ResultPublication> _publications;
@@ -77,10 +78,12 @@ public sealed partial class AssessmentAdministrationService : IAssessmentAdminis
         TimeProvider clock, ILogger<AssessmentAdministrationService> logger,
         IGenericRepository<ResultRescrutinyEvent> rescrutinyEvents,
         IGenericRepository<Guardian>? rescrutinyGuardians = null,
-        IGenericRepository<StudentGuardian>? rescrutinyStudentGuardians = null)
+        IGenericRepository<StudentGuardian>? rescrutinyStudentGuardians = null,
+        IGenericRepository<ResultCorrectionEvent>? corrections = null)
     {
         _assessments = assessments; _subjects = subjects; _markReviews = markReviews;
         _rescrutinyEvents = rescrutinyEvents;
+        _corrections = corrections;
         _rescrutinyGuardians = rescrutinyGuardians;
         _rescrutinyStudentGuardians = rescrutinyStudentGuardians;
         _schedules = schedules;

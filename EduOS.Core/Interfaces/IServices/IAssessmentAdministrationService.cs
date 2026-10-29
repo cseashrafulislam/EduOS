@@ -36,6 +36,9 @@ public interface IAssessmentAdministrationService
     Task<ApiResponse<ResultRescrutinyHistoryDto>> GetResultRescrutinyHistoryAsync(Guid caseReference, CancellationToken cancellationToken = default);
     Task<ApiResponse<ResultRescrutinyReviewDto>> GetResultRescrutinyReviewAsync(Guid caseReference, CancellationToken cancellationToken = default);
     Task<ApiResponse<ResultRescrutinyMarkEvidenceDto>> GetResultRescrutinyMarkEvidenceAsync(Guid caseReference, CancellationToken cancellationToken = default);
+    Task<ApiResponse<ResultCorrectionDto>> GetResultCorrectionAsync(Guid caseReference, CancellationToken cancellationToken = default);
+    Task<ApiResponse<ResultCorrectionDto>> ApplyResultCorrectionAsync(Guid caseReference,
+        ApplyResultCorrectionRequestDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<ResultRescrutinyItemDto>> RequestResultRescrutinyAsync(RequestResultRescrutinyDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<bool>> DecideResultRescrutinyAsync(Guid caseReference, DecideResultRescrutinyDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<AssessmentMarkReviewHistoryPageDto>> SearchMarkReviewHistoryAsync(

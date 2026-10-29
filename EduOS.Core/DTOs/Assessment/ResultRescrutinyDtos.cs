@@ -123,6 +123,7 @@ public sealed class ResultRescrutinyMarkEvidenceDto
     public Guid CaseReference { get; set; }
     public long PublicationId { get; set; }
     public int PublicationVersionNo { get; set; }
+    public string PublicationRowVersion { get; set; } = string.Empty;
     public string StudentCode { get; set; } = string.Empty;
     public decimal PublishedObtainedMarks { get; set; }
     public decimal PublishedTotalMarks { get; set; }
@@ -133,6 +134,8 @@ public sealed class ResultRescrutinyMarkEvidenceDto
 public sealed class ResultRescrutinySubjectEvidenceDto
 {
     public long AssessmentSubjectId { get; set; }
+    public long? StudentAssessmentMarkId { get; set; }
+    public string? MarkRowVersion { get; set; }
     public string SubjectName { get; set; } = string.Empty;
     public decimal FullMarks { get; set; }
     public decimal? CurrentObtainedMarks { get; set; }
@@ -144,8 +147,11 @@ public sealed class ResultRescrutinySubjectEvidenceDto
 }
 public sealed class ResultRescrutinyComponentEvidenceDto
 {
+    public long AssessmentComponentId { get; set; }
+    public string? MarkRowVersion { get; set; }
     public string Name { get; set; } = string.Empty;
     public decimal FullMarks { get; set; }
+    public decimal Weightage { get; set; }
     public decimal? CurrentObtainedMarks { get; set; }
     public bool IsAbsent { get; set; }
     public bool IsWithheld { get; set; }

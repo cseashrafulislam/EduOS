@@ -9,7 +9,8 @@
         publication: 0, before: null, previous: [], hasMore: false, items: [],
         selected: null, busy: false, exportBusy: false, summarySeq: 0,
         requestKey: null, decisionKey: null, historySeq: 0, reviewSeq: 0, marksSeq: 0,
-        markCase: null, markExportBusy: false };
+        markCase: null, markExportBusy: false, correctionCase: null,
+        correctionEvidence: null, correctionKey: null, correctionSeq: 0, correctionBusy: false };
     const endpoint = '/api/assessment-administration/';
     const token = document.querySelector('#resultRescrutinyWorkspace input[name="__RequestVerificationToken"]')?.value;
     function notice(message, error = false) {
@@ -46,6 +47,9 @@
         $('rescrutinyDecisionForm').classList.add('d-none');
         $('rescrutinyHistory').classList.add('d-none');
         state.historySeq++; state.reviewSeq++; state.marksSeq++;
+        state.correctionSeq++; state.correctionCase = null;
+        state.correctionEvidence = null; state.correctionKey = null;
+        $('rescrutinyCorrectionForm').classList.add('d-none');
         $('rescrutinyMarkEvidence').classList.add('d-none');
         state.markCase = null; $('rescrutinyMarkCsv').disabled = true;
         $('rescrutinyReviewEvidence').classList.add('d-none');
@@ -94,8 +98,12 @@
             if (seq !== state.scopeSeq) return;
             select.replaceChildren(new Option(tr('Select published version', 'প্রকাশিত সংস্করণ নির্বাচন করুন'), ''));
             for (const item of data.items || []) {
-                if (item.state !== 2 && item.state !== 'Published') continue;
-                select.add(new Option(tr('Version ', 'সংস্করণ ') + item.versionNo, String(item.id)));
+                if (![2, 3, 'Published', 'Withdrawn'].includes(item.state)) continue;
+                const previous = item.state === 3 || item.state === 'Withdrawn';
+                const option = new Option(tr('Version ', 'সংস্করণ ') + item.versionNo +
+                    (previous ? tr(' (withdrawn history)', ' (পূর্ববর্তী ইতিহাস)') : ''), String(item.id));
+                option.dataset.withdrawn = previous ? 'true' : 'false';
+                select.add(option);
             }
             select.disabled = select.options.length <= 1;
         } catch (e) { if (seq === state.scopeSeq) notice(e.message, true); }
@@ -117,7 +125,8 @@
                 select.add(new Option(item.studentCode + ' / ' + item.rollNo + ' / ' + item.studentName,
                     item.studentReference));
             select.disabled = select.options.length <= 1;
-            $('rescrutinySubmit').disabled = select.disabled;
+            $('rescrutinySubmit').disabled = select.disabled ||
+                $('rescrutinyPublication').selectedOptions[0]?.dataset.withdrawn === 'true';
         } catch (e) { notice(e.message, true); }
     }
     function status(value) {
@@ -184,6 +193,15 @@
                     button.addEventListener('click', () => loadReview(item));
                     button.classList.add('ms-1');
                     actions.append(button);
+                } else if (item.status === 3 || item.status === 'AcceptedForCorrection') {
+                    const button = document.createElement('button');
+                    button.type = 'button'; button.className = 'btn btn-sm btn-outline-danger ms-1';
+                    button.textContent = tr('Correct', 'সংশোধন');
+                    button.addEventListener('click', () => loadCorrection(item));
+                    actions.append(button);
+                    const reason = document.createElement('span');
+                    reason.className = 'small ms-2'; reason.textContent = item.decisionReason || '—';
+                    actions.append(reason);
                 } else {
                     const reason = document.createElement('span');
                     reason.className = 'small ms-2'; reason.textContent = item.decisionReason || '—';
@@ -275,6 +293,159 @@
         } catch (e) { if (seq === state.marksSeq) notice(e.message, true); }
     }
 
+    function correctionNumber(labelText, value, max, container) {
+        const wrap = document.createElement('label');
+        wrap.className = 'form-label small me-2 mb-1';
+        wrap.append(document.createTextNode(labelText + ' '));
+        const input = document.createElement('input');
+        input.type = 'number'; input.step = '0.01'; input.min = '0';
+        input.max = String(max); input.required = true;
+        input.className = 'form-control form-control-sm';
+        input.style.width = '8rem'; input.value = String(value ?? 0);
+        wrap.append(input); container.append(wrap);
+        return input;
+    }
+    function correctionFlag(labelText, checked, container) {
+        const wrap = document.createElement('label');
+        wrap.className = 'form-check form-check-inline ms-2';
+        const input = document.createElement('input');
+        input.type = 'checkbox'; input.className = 'form-check-input';
+        input.checked = !!checked;
+        const text = document.createElement('span');
+        text.className = 'form-check-label'; text.textContent = labelText;
+        wrap.append(input, text); container.append(wrap);
+        return input;
+    }
+    async function loadCorrection(item) {
+        if (state.correctionBusy || !state.publication) return;
+        const seq = ++state.correctionSeq;
+        state.correctionCase = null; state.correctionEvidence = null; state.correctionKey = null;
+        $('rescrutinyCorrectionForm').classList.add('d-none');
+        try {
+            // Historical corrections are exposed read-only; replay must never
+            // overwrite a previous immutable correction event or result version.
+            try {
+                const previous = await api('results/rescrutiny/' +
+                    encodeURIComponent(item.caseReference) + '/correction');
+                if (seq !== state.correctionSeq) return;
+                notice(tr('Already corrected in version ', 'ইতিমধ্যে সংশোধিত সংস্করণ ') +
+                    previous.newVersionNo + '.');
+                return;
+            } catch (_) { /* Nonexistent correction: the separate marks authorization still applies. */ }
+            if ($('rescrutinyPublication').selectedOptions[0]?.dataset.withdrawn === 'true') {
+                notice(tr('This version is withdrawn. Use the latest published version.',
+                    'এই সংস্করণ প্রত্যাহার হয়েছে। সর্বশেষ প্রকাশিত সংস্করণ ব্যবহার করুন।'), true);
+                return;
+            }
+            const evidence = await api('results/rescrutiny/' +
+                encodeURIComponent(item.caseReference) + '/marks');
+            if (seq !== state.correctionSeq || state.publication !== item.publicationId) return;
+            if (evidence.publicationId !== item.publicationId ||
+                String(evidence.caseReference).toLowerCase() !== String(item.caseReference).toLowerCase() ||
+                !evidence.publicationRowVersion || !Array.isArray(evidence.subjects))
+                throw new Error(tr('Correction evidence changed; refresh.',
+                    'সংশোধনের প্রমাণ বদলেছে; রিফ্রেশ করুন।'));
+            const container = $('rescrutinyCorrectionSubjects'); container.replaceChildren();
+            const editors = [];
+            for (const subject of evidence.subjects) {
+                if (!subject.studentAssessmentMarkId || !subject.markRowVersion ||
+                    !Array.isArray(subject.components) ||
+                    subject.components.some(x => !x.markRowVersion)) continue;
+                const section = document.createElement('section');
+                section.className = 'border rounded p-2';
+                const title = document.createElement('label');
+                title.className = 'form-check d-flex gap-2 align-items-center mb-2';
+                const enabled = document.createElement('input');
+                enabled.type = 'checkbox'; enabled.className = 'form-check-input';
+                const name = document.createElement('span');
+                name.className = 'form-check-label fw-semibold';
+                name.textContent = subject.subjectName + ' (' + subject.currentObtainedMarks +
+                    ' / ' + subject.fullMarks + ')';
+                title.append(enabled, name); section.append(title);
+                const fields = document.createElement('div'); fields.className = 'ps-3';
+                const marks = correctionNumber(tr('Marks', 'নম্বর'),
+                    subject.currentObtainedMarks, subject.fullMarks, fields);
+                const absent = correctionFlag(tr('Absent', 'অনুপস্থিত'), subject.isAbsent, fields);
+                const withheld = correctionFlag(tr('Withheld', 'স্থগিত'), subject.isWithheld, fields);
+                const components = [];
+                for (const part of subject.components) {
+                    const field = document.createElement('div');
+                    field.className = 'border-start ps-2 ms-2 mt-2';
+                    const partName = document.createElement('span');
+                    partName.className = 'd-block small fw-semibold'; partName.textContent = part.name;
+                    field.append(partName);
+                    const quantity = correctionNumber(tr('Component', 'অংশ'),
+                        part.currentObtainedMarks, part.fullMarks, field);
+                    const isAbsent = correctionFlag(tr('Absent', 'অনুপস্থিত'), part.isAbsent, field);
+                    const isWithheld = correctionFlag(tr('Withheld', 'স্থগিত'), part.isWithheld, field);
+                    components.push({ data: part, quantity, isAbsent, isWithheld });
+                    fields.append(field);
+                }
+                const enabledInputs = [marks, absent, withheld, ...components.flatMap(x =>
+                    [x.quantity, x.isAbsent, x.isWithheld])];
+                const toggle = () => { for (const x of enabledInputs) x.disabled = !enabled.checked; };
+                enabled.addEventListener('change', toggle); toggle();
+                enabledInputs.forEach(x => x.addEventListener('input', () => {
+                    if (!state.correctionBusy) state.correctionKey = null;
+                }));
+                section.append(fields); container.append(section);
+                editors.push({ subject, enabled, marks, absent, withheld, components });
+            }
+            if (!editors.length)
+                throw new Error(tr('No complete subject-mark evidence is available.',
+                    'সম্পূর্ণ বিষয়ভিত্তিক নম্বরের প্রমাণ পাওয়া যায়নি।'));
+            state.correctionCase = item.caseReference;
+            state.correctionEvidence = { evidence, editors, publication: state.publication };
+            $('rescrutinyCorrectionTitle').textContent =
+                tr('Correct accepted case: ', 'গৃহীত আবেদন সংশোধন: ') + evidence.studentCode;
+            $('rescrutinyCorrectionReason').value = '';
+            $('rescrutinyCorrectionForm').classList.remove('d-none');
+            $('rescrutinyCorrectionReason').focus();
+        } catch (e) { if (seq === state.correctionSeq) notice(e.message, true); }
+    }
+    async function applyCorrection(event) {
+        event.preventDefault();
+        const choice = state.correctionEvidence;
+        if (!choice || state.correctionBusy || choice.publication !== state.publication ||
+            !state.correctionCase || !$('rescrutinyCorrectionForm').reportValidity()) return;
+        const selected = choice.editors.filter(x => x.enabled.checked);
+        if (!selected.length || selected.length > 25) {
+            notice(tr('Select between 1 and 25 changed subjects.',
+                '১ থেকে ২৫টি পরিবর্তিত বিষয় নির্বাচন করুন।'), true); return;
+        }
+        if (!window.confirm(tr('Apply the corrections and publish a new immutable version?',
+            'সংশোধন প্রয়োগ করে নতুন অপরিবর্তনীয় সংস্করণ প্রকাশ করবেন?'))) return;
+        const subjects = selected.map(x => ({
+            assessmentSubjectId: x.subject.assessmentSubjectId,
+            rowVersion: x.subject.markRowVersion,
+            obtainedMarks: Number(x.marks.value),
+            isAbsent: x.absent.checked, isWithheld: x.withheld.checked,
+            components: x.components.map(c => ({
+                assessmentComponentId: c.data.assessmentComponentId,
+                rowVersion: c.data.markRowVersion,
+                obtainedMarks: Number(c.quantity.value),
+                isAbsent: c.isAbsent.checked, isWithheld: c.isWithheld.checked
+            }))
+        }));
+        state.correctionBusy = true; $('rescrutinyCorrectionApply').disabled = true;
+        state.correctionKey ||= crypto.randomUUID();
+        try {
+            const result = await api('results/rescrutiny/' +
+                encodeURIComponent(state.correctionCase) + '/correction', 'POST', {
+                clientRequestId: state.correctionKey,
+                publicationRowVersion: choice.evidence.publicationRowVersion,
+                reason: $('rescrutinyCorrectionReason').value.trim(), subjects
+            });
+            state.correctionKey = null; state.correctionCase = null;
+            state.correctionEvidence = null; state.correctionSeq++;
+            $('rescrutinyCorrectionForm').classList.add('d-none');
+            notice(tr('Correction published as version ', 'সংশোধিত ফলাফল প্রকাশিত সংস্করণ ') +
+                result.newVersionNo + '.');
+            await loadVersions();
+        } catch (e) { notice(e.message, true); }
+        finally { state.correctionBusy = false; $('rescrutinyCorrectionApply').disabled = false; }
+    }
+
     async function loadHistory(item) {
         const seq = ++state.historySeq;
         $('rescrutinyHistory').classList.add('d-none');
@@ -305,7 +476,8 @@
     }
     async function submitRequest(event) {
         event.preventDefault();
-        if (state.busy || !state.publication || !$('rescrutinyStudent').value) return;
+        if (state.busy || !state.publication || !$('rescrutinyStudent').value ||
+            $('rescrutinyPublication').selectedOptions[0]?.dataset.withdrawn === 'true') return;
         if (!$('rescrutinyRequestForm').reportValidity()) return;
         state.busy = true; $('rescrutinySubmit').disabled = true;
         state.requestKey ||= crypto.randomUUID();
@@ -320,7 +492,8 @@
             notice(tr('Application recorded.', 'আবেদন সংরক্ষিত হয়েছে।'));
             await Promise.all([loadCases(), loadSummary()]);
         } catch (e) { notice(e.message, true); }
-        finally { state.busy = false; $('rescrutinySubmit').disabled = !$('rescrutinyStudent').value; }
+        finally { state.busy = false; $('rescrutinySubmit').disabled = !$('rescrutinyStudent').value ||
+            $('rescrutinyPublication').selectedOptions[0]?.dataset.withdrawn === 'true'; }
     }
     async function decide(event) {
         event.preventDefault();
@@ -435,6 +608,15 @@
     $('rescrutinyStudentFind').addEventListener('click', loadStudents);
     $('rescrutinyRequestForm').addEventListener('submit', submitRequest);
     $('rescrutinyDecisionForm').addEventListener('submit', decide);
+    $('rescrutinyCorrectionForm').addEventListener('submit', applyCorrection);
+    $('rescrutinyCorrectionCancel').addEventListener('click', () => {
+        state.correctionSeq++; state.correctionCase = null;
+        state.correctionEvidence = null; state.correctionKey = null;
+        $('rescrutinyCorrectionForm').classList.add('d-none');
+    });
+    $('rescrutinyCorrectionReason').addEventListener('input', () => {
+        if (!state.correctionBusy) state.correctionKey = null;
+    });
     $('rescrutinyCancel').addEventListener('click', () => {
         state.selected = null; state.decisionKey = null; state.reviewSeq++;
         $('rescrutinyReviewEvidence').classList.add('d-none');
@@ -450,6 +632,9 @@
     });
     $('rescrutinyStatusFilter').addEventListener('change', () => {
         state.before = null; state.previous = []; state.historySeq++; state.reviewSeq++; state.marksSeq++;
+        state.correctionSeq++; state.correctionCase = null;
+        state.correctionEvidence = null; state.correctionKey = null;
+        $('rescrutinyCorrectionForm').classList.add('d-none');
         $('rescrutinyMarkEvidence').classList.add('d-none');
         state.markCase = null; $('rescrutinyMarkCsv').disabled = true;
         state.selected = null; state.decisionKey = null;

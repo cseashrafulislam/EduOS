@@ -132,7 +132,18 @@
                 <button type="button" id="rescrutinyCancel" class="btn btn-outline-secondary">@(bn ? "বাতিল" : "Cancel")</button>
             </div>
         </form>
+        <form id="rescrutinyCorrectionForm" class="card-body border-top d-none">
+            <h3 class="h6" id="rescrutinyCorrectionTitle">@(bn ? "নিরীক্ষিত নম্বর সংশোধন" : "Audited result correction")</h3>
+            <p class="small text-muted">@(bn ? "স্বতন্ত্র পর্যালোচক আবেদন গ্রহণের পর অন্য অনুমোদিত কর্মকর্তা সংশোধন করবেন। পরিবর্তিত বিষয়গুলো নির্বাচন করুন। পূর্বের প্রকাশিত সংস্করণ সংরক্ষিত থাকবে।" : "After independent acceptance, a different authorized officer can correct selected subjects. The previous published version is retained.")</p>
+            <div id="rescrutinyCorrectionSubjects" class="vstack gap-2 mb-3" aria-live="polite"></div>
+            <label class="form-label" for="rescrutinyCorrectionReason">@(bn ? "সংশোধনের কারণ" : "Correction reason")</label>
+            <textarea id="rescrutinyCorrectionReason" class="form-control mb-2" rows="2" minlength="10" maxlength="1000" required></textarea>
+            <div class="d-flex flex-wrap gap-2">
+                <button type="submit" id="rescrutinyCorrectionApply" class="btn btn-danger">@(bn ? "সংশোধন ও নতুন সংস্করণ প্রকাশ" : "Apply correction & publish new version")</button>
+                <button type="button" id="rescrutinyCorrectionCancel" class="btn btn-outline-secondary">@(bn ? "বাতিল" : "Cancel")</button>
+            </div>
+        </form>
     </section>
 </section>
-<style>@@media print { #rescrutinyScopeForm,#rescrutinyRequestForm,#rescrutinyDecisionForm,#rescrutinyPrev,#rescrutinyNext,#rescrutinyCsv,#rescrutinyPrint,#rescrutinyNotice,#rescrutinyStatusFilter,#rescrutinyHistoryClose,#rescrutinyMarkEvidenceClose,#rescrutinyMarkCsv { display:none!important; } }</style>
+<style>@@media print { #rescrutinyScopeForm,#rescrutinyRequestForm,#rescrutinyDecisionForm,#rescrutinyCorrectionForm,#rescrutinyPrev,#rescrutinyNext,#rescrutinyCsv,#rescrutinyPrint,#rescrutinyNotice,#rescrutinyStatusFilter,#rescrutinyHistoryClose,#rescrutinyMarkEvidenceClose,#rescrutinyMarkCsv { display:none!important; } }</style>
 @section Scripts { <script src="~/js/assessment/result-rescrutiny.js" asp-append-version="true"></script> }
