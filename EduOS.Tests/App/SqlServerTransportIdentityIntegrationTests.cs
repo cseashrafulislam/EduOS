@@ -416,6 +416,88 @@ public sealed class SqlServerTransportIdentityIntegrationTests
             .Where(x => x.Id == linkId).Select(x => x.EffectiveTo).SingleAsync());
     }
 
+    [Fact]
+    public async Task Vehicle_case_request_uniqueness_rowversion_and_tenant_scope_are_enforced_by_sql_server()
+    {
+        var connection = Environment.GetEnvironmentVariable("EDUOS_SQL_AUTH_TEST_CONNECTION");
+        if (string.IsNullOrWhiteSpace(connection)) return;
+        var options = new DbContextOptionsBuilder<EduOSDbContext>().UseSqlServer(connection).Options;
+        var suffix = Guid.NewGuid().ToString("N")[..12];
+        long tenantId, caseId;
+        var requestId = Guid.NewGuid();
+        var reference = Guid.NewGuid();
+        await using (var seed = new EduOSDbContext(options))
+        {
+            var tenant = new Tenant
+            {
+                Code = "CI-CASE-" + suffix, Name = "Vehicle case CI",
+                Email = "case-" + suffix + "@example.test", State = TenantState.Active
+            };
+            seed.Tenants.Add(tenant);
+            await seed.SaveChangesAsync();
+            tenantId = tenant.Id;
+            using (seed.BeginSystemTenantScope(tenantId))
+            {
+                var campus = new Campus
+                {
+                    TenantId = tenantId, Name = "Case campus", Code = "CASE-" + suffix, IsActive = true
+                };
+                seed.Campuses.Add(campus);
+                await seed.SaveChangesAsync();
+                var vehicle = new Vehicle
+                {
+                    TenantId = tenantId, CampusId = campus.Id,
+                    VehicleNumber = "CASE-BUS-" + suffix, Capacity = 25, IsActive = true
+                };
+                seed.Vehicles.Add(vehicle);
+                await seed.SaveChangesAsync();
+                var item = new TransportVehicleCase
+                {
+                    TenantId = tenantId, CampusId = campus.Id, VehicleId = vehicle.Id,
+                    PublicId = reference, ClientRequestId = requestId,
+                    VehicleNumberSnapshot = vehicle.VehicleNumber,
+                    OccurredOn = DateOnly.FromDateTime(DateTime.UtcNow),
+                    CaseType = "Maintenance", Severity = "High", Summary = "Brake inspection",
+                    State = "Open"
+                };
+                seed.TransportVehicleCases.Add(item);
+                await seed.SaveChangesAsync();
+                caseId = item.Id;
+                Assert.Equal(8, item.RowVersion.Length);
+
+                var duplicate = new TransportVehicleCase
+                {
+                    TenantId = tenantId, CampusId = campus.Id, VehicleId = vehicle.Id,
+                    PublicId = Guid.NewGuid(), ClientRequestId = requestId,
+                    VehicleNumberSnapshot = vehicle.VehicleNumber,
+                    OccurredOn = item.OccurredOn, CaseType = "Incident",
+                    Severity = "Low", Summary = "Duplicate", State = "Open"
+                };
+                seed.TransportVehicleCases.Add(duplicate);
+                await Assert.ThrowsAsync<DbUpdateException>(() => seed.SaveChangesAsync());
+                seed.Entry(duplicate).State = EntityState.Detached;
+            }
+        }
+
+        await using var first = ScopedContext(options, tenantId);
+        await using var stale = ScopedContext(options, tenantId);
+        var a = await first.TransportVehicleCases.SingleAsync(x => x.Id == caseId);
+        var b = await stale.TransportVehicleCases.SingleAsync(x => x.Id == caseId);
+        a.State = "Resolved"; a.Resolution = "Repaired and checked";
+        a.ResolvedAt = DateTime.UtcNow; a.ResolvedBy = 7;
+        await first.SaveChangesAsync();
+        b.State = "Resolved"; b.Resolution = "Stale resolution";
+        b.ResolvedAt = DateTime.UtcNow; b.ResolvedBy = 7;
+        await Assert.ThrowsAsync<DbUpdateConcurrencyException>(() => stale.SaveChangesAsync());
+
+        await using var otherTenant = ScopedContext(options, tenantId + 9000000);
+        Assert.False(await otherTenant.TransportVehicleCases.AnyAsync(x => x.PublicId == reference));
+        await using var verify = ScopedContext(options, tenantId);
+        var persisted = await verify.TransportVehicleCases.SingleAsync(x => x.Id == caseId);
+        Assert.Equal("Brake inspection", persisted.Summary);
+        Assert.Equal("Repaired and checked", persisted.Resolution);
+    }
+
     private static EduOSDbContext ScopedContext(DbContextOptions<EduOSDbContext> options, long tenant)
     {
         var http = new DefaultHttpContext();
