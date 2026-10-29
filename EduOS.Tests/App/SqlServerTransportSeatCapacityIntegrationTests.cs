@@ -35,6 +35,68 @@ namespace EduOS.Tests.App;
 [Collection("SqlServerIntegration")]
 public sealed class SqlServerTransportSeatCapacityIntegrationTests
 {
+
+    [Fact]
+    public async Task Boarding_manifest_filters_by_date_and_tenant_and_exports_only_authorized_roster()
+    {
+        var connection = Environment.GetEnvironmentVariable("EDUOS_SQL_AUTH_TEST_CONNECTION");
+        if (string.IsNullOrWhiteSpace(connection)) return;
+        var fixture = await SeedAsync(connection);
+        await using (var setup = ScopedContext(fixture.Options, fixture.TenantId, fixture.UserId))
+        {
+            var booking = await Service(setup, fixture.TenantId, fixture.UserId)
+                .AssignAsync(new AssignStudentTransportRequestDto
+                {
+                    ClientRequestId = Guid.NewGuid(),
+                    StudentEnrollmentReference = fixture.Enrollments[0],
+                    RouteReference = fixture.RouteReference,
+                    VehicleReference = fixture.VehicleReference,
+                    StartDate = fixture.Start,
+                    EndDate = fixture.Start.AddDays(2),
+                    MonthlyFare = 0m
+                });
+            Assert.True(booking.Success, booking.Message);
+        }
+
+        await using var db = ScopedContext(fixture.Options, fixture.TenantId, fixture.UserId);
+        var service = Service(db, fixture.TenantId, fixture.UserId);
+        var result = await service.GetBoardingManifestAsync(
+            fixture.Start, null, fixture.RouteReference, fixture.VehicleReference, 1, 25, null, false);
+        Assert.True(result.Success, result.Message);
+        var row = Assert.Single(result.Data!.Items);
+        Assert.Equal("PickupReview", row.Readiness);
+        Assert.True(row.NeedsAttention);
+        Assert.Equal(1, result.Data.TotalCount);
+
+        var attention = await service.GetBoardingManifestAsync(
+            fixture.Start, null, null, null, 1, 25, null, true);
+        Assert.True(attention.Success, attention.Message);
+        Assert.Equal(row.AssignmentReference, Assert.Single(attention.Data!.Items).AssignmentReference);
+
+        var before = await service.GetBoardingManifestAsync(
+            fixture.Start.AddDays(-1), null, null, null, 1, 25, null, false);
+        Assert.True(before.Success, before.Message);
+        Assert.Empty(before.Data!.Items);
+
+        var guessedRoute = await service.GetBoardingManifestAsync(
+            fixture.Start, null, Guid.NewGuid(), null, 1, 25, null, false);
+        Assert.True(guessedRoute.Success, guessedRoute.Message);
+        Assert.Empty(guessedRoute.Data!.Items);
+
+        var export = await service.ExportBoardingManifestCsvAsync(
+            fixture.Start, null, fixture.RouteReference, fixture.VehicleReference, null, false);
+        Assert.True(export.Success, export.Message);
+        Assert.Contains(row.StudentCode, export.Data);
+        Assert.DoesNotContain("Capacity student A", export.Data);
+
+        await using var otherDb = ScopedContext(fixture.Options, fixture.TenantId, fixture.UserId);
+        var otherTenant = Service(otherDb, long.MaxValue, fixture.UserId);
+        var isolated = await otherTenant.GetBoardingManifestAsync(
+            fixture.Start, null, null, null, 1, 25, null, false);
+        Assert.True(isolated.Success, isolated.Message);
+        Assert.Empty(isolated.Data!.Items);
+    }
+
     private static readonly ConcurrentQueue<string> Diagnostics = new();
 
 
