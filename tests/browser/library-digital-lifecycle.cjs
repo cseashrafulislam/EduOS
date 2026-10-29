@@ -102,10 +102,18 @@ async function scenario(browser, admin, language) {
                 'Protected course reader');
             await page.locator('#digitalBook option').nth(1).waitFor({ state: 'attached' });
             assert.equal(await page.locator('#digitalBook option').count(), 2);
+            await page.locator('#digitalEditCancel').click();
+            assert.equal(await page.locator('#digitalEditDialog').evaluate(el => el.open), false);
+            // Reopen the edit dialog only after the download has started, so
+            // the subsequent session transition also proves modal scrubbing.
         }
         await page.locator('#digitalRows button').filter({ hasText:
             language === 'bn-BD' ? 'ডাউনলোড' : 'Download' }).click();
         await started;
+        if (admin) {
+            await page.locator('#digitalRows button').filter({ hasText: 'Edit' }).click();
+            assert.equal(await page.locator('#digitalEditDialog').evaluate(el => el.open), true);
+        }
         await page.evaluate(() => { document.body.dataset.authTenantId = '202'; });
         await page.waitForFunction(() => document.getElementById('digitalRows').children.length === 0);
         releaseDownload();
