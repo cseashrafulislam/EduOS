@@ -1,7 +1,17 @@
 @inject Microsoft.AspNetCore.Antiforgery.IAntiforgery Antiforgery
 @inject Microsoft.Extensions.Configuration.IConfiguration PilotConfiguration
+@inject EduOS.Core.Interfaces.IServices.ITenantModuleService TenantModuleService
 @{
     var pilotCoreOnly = string.Equals(PilotConfiguration["PilotRelease:Enabled"], "true", StringComparison.OrdinalIgnoreCase);
+    // One current-tenant entitlement read per shell render; never cache it across users or institutes.
+    var availableOptionalModules = await EduOS.App.Authorization.OptionalModuleNavigation.GetAvailableAsync(
+        TenantModuleService, pilotCoreOnly,
+        User?.Identity?.IsAuthenticated == true && User?.IsInRole("SuperAdmin") != true);
+    var showLms = availableOptionalModules.Contains("LMS");
+    var showLibrary = availableOptionalModules.Contains("LIBRARY");
+    var showHostel = availableOptionalModules.Contains("HOSTEL");
+    var showTransport = availableOptionalModules.Contains("TRANSPORT");
+    var showInventory = availableOptionalModules.Contains("INVENTORY");
     var titleKey = ViewData["Title"]?.ToString() ?? "Dashboard";
     var localizedTitle = T[titleKey];
     var pageTitle = localizedTitle.ResourceNotFound ? titleKey : localizedTitle.Value;
@@ -240,7 +250,7 @@
                 }
 
 
-                @if (!pilotCoreOnly && (User?.IsInRole("TenantAdmin") == true || User?.IsInRole("Principal") == true ||
+                @if (showLms && (User?.IsInRole("TenantAdmin") == true || User?.IsInRole("Principal") == true ||
                      User?.IsInRole("Teacher") == true || User?.IsInRole("Student") == true))
                 {
                     <a class="nav-link @ActiveFor("/Learning") href="/Learning/Index">
@@ -387,7 +397,7 @@
                         <span>General Ledger &amp; Trial Balance</span>
                     </a>
                 }
-                @if (!pilotCoreOnly && (User?.IsInRole("TenantAdmin") == true || User?.IsInRole("Principal") == true ||
+                @if (showInventory && (User?.IsInRole("TenantAdmin") == true || User?.IsInRole("Principal") == true ||
                      User?.IsInRole("InventoryManager") == true || User?.IsInRole("StoreKeeper") == true ||
                      User?.IsInRole("Accountant") == true))
                 {
@@ -404,12 +414,15 @@
                         <span>Fixed Assets &amp; Maintenance</span>
                     </a>
                 }
-                @if (!pilotCoreOnly)
+                @if (showHostel)
                 {
                 <a class="nav-link @ActiveFor("/HostelOperations")" href="/HostelOperations/Index">
                     <svg class="edu-icon"><use href="/images/eduos-icons.svg#campus" /></svg>
                     <span>Hostel</span>
                 </a>
+                }
+                @if (showTransport)
+                {
                 <a class="nav-link @ActiveFor("/TransportOperations")" href="/TransportOperations/Index">
                     <svg class="edu-icon"><use href="/images/eduos-icons.svg#campus" /></svg>
                     <span>Transport</span>
@@ -417,7 +430,7 @@
                 }
                 @if (User?.IsInRole("TenantAdmin") == true || User?.IsInRole("Principal") == true)
                 {
-                    @if (!pilotCoreOnly)
+                    @if (showHostel || showTransport)
                     {
                     <a class="nav-link @ActiveFor("/OperationsInsights")" href="/OperationsInsights/Index">
                         <svg class="edu-icon"><use href="/images/eduos-icons.svg#reports" /></svg>
@@ -458,7 +471,7 @@
                         <span>Document Administration</span>
                     </a>
                 }
-                @if (!pilotCoreOnly)
+                @if (showLibrary)
                 {
                     <a class="nav-link @ActiveFor("/Library/Index")" href="/Library/Index">
                         <svg class="edu-icon"><use href="/images/eduos-icons.svg#book" /></svg>

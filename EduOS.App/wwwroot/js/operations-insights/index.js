@@ -115,5 +115,6 @@
         form.addEventListener('submit', event => { event.preventDefault(); load(); });
         initialize();
     }
-    modules.forEach(setup);
+    // Hidden, unentitled modules have no DOM controls and must never make API calls.
+    modules.filter(module => el("ops" + module.key + "Filters")).forEach(setup);
 })();

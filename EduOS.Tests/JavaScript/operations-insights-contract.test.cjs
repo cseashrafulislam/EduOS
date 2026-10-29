@@ -50,3 +50,11 @@ test('filter invalidation restores refresh after cancelling a pending request', 
     assert.match(invalidate, /if \(available\) button\.disabled = false;/);
     assert.match(js, /if \(token === serial\) \{ controller = null; button\.disabled = false; \}/);
 });
+
+test('overview renders only entitled module sections and skips absent API widgets', () => {
+    assert.match(controller, /OptionalModuleNavigation\.GetAvailableAsync/);
+    assert.match(controller, /if \(!transport && !hostel\) return Forbid\(\)/);
+    assert.match(view, /@if \(showTransport\)/);
+    assert.match(view, /@if \(showHostel\)/);
+    assert.match(js, /modules\.filter\(module => el\("ops" \+ module\.key \+ "Filters"\)\)\.forEach\(setup\)/);
+});

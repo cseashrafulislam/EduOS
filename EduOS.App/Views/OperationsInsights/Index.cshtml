@@ -1,6 +1,8 @@
 @{
     ViewData["Title"] = "Operations Insights";
     Layout = "~/Views/Shared/_Layout.cshtml";
+    var showTransport = ViewData["ShowTransport"] is true;
+    var showHostel = ViewData["ShowHostel"] is true;
 }
 <section id="operationsInsightsPage" class="container-fluid py-3" aria-labelledby="operationsInsightsTitle">
     <header class="mb-4">
@@ -8,6 +10,8 @@
         <p class="text-muted mb-0">Live, campus-authorized aggregate capacity and risk indicators. No student, driver, room or financial details are shown.</p>
     </header>
     <div class="alert alert-info small" role="note">Each module is checked independently. Metrics are not a transactional snapshot; refresh before making operational decisions.</div>
+    @if (showTransport)
+    {
     <section class="card mb-3" aria-labelledby="opsTransportTitle">
         <div class="card-body">
             <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
@@ -23,6 +27,9 @@
             <div id="opsTransportMetrics" class="row row-cols-2 row-cols-lg-4 g-2" aria-label="Transport aggregate metrics"></div>
         </div>
     </section>
+    }
+    @if (showHostel)
+    {
     <section class="card mb-3" aria-labelledby="opsHostelTitle">
         <div class="card-body">
             <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
@@ -38,6 +45,7 @@
             <div id="opsHostelMetrics" class="row row-cols-2 row-cols-lg-4 g-2" aria-label="Hostel aggregate metrics"></div>
         </div>
     </section>
+    }
 </section>
 @section Scripts {
     <script src="~/js/operations-insights/index.js" asp-append-version="true"></script>
