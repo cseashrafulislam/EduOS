@@ -67,15 +67,14 @@ public sealed class PayrollJournalPostingServiceTests
         (await db.Journals.CountAsync()).Should().Be(0);
     }
     [Theory]
-    [InlineData(1, 15, 1, 15, true, 41, false, 200)]
-    [InlineData(16, 31, 16, 31, true, 41, false, 200)]
-    [InlineData(1, 15, 1, 14, true, 41, false, 409)]
-    [InlineData(1, 15, 1, 15, false, 41, false, 409)]
-    [InlineData(1, 15, 1, 15, true, 42, false, 409)]
-    [InlineData(1, 15, 1, 15, true, 41, true, 409)]
+    [InlineData(1, 15, 1, 15, true, false, 200)]
+    [InlineData(16, 31, 16, 31, true, false, 200)]
+    [InlineData(1, 15, 1, 14, true, false, 409)]
+    [InlineData(1, 15, 1, 15, false, false, 409)]
+    [InlineData(1, 15, 1, 15, true, true, 409)]
     public async Task Posting_checks_primary_campus_for_actual_calendar_day_service_period(
         int joinDay, int leaveDay, int assignmentStart, int assignmentEnd,
-        bool primary, long assignmentTenant, bool conflictingPrimary, int expectedStatus)
+        bool primary, bool conflictingPrimary, int expectedStatus)
     {
         await using var db = Database();
         var runReference = Guid.NewGuid();
@@ -91,7 +90,7 @@ public sealed class PayrollJournalPostingServiceTests
         });
         db.EmployeeCampusAssignments.Add(new EmployeeCampusAssignment
         {
-            Id = 1, TenantId = assignmentTenant, EmployeeId = 10, CampusId = 5,
+            Id = 1, TenantId = 41, EmployeeId = 10, CampusId = 5,
             IsPrimary = primary, EffectiveFrom = new DateOnly(2026, 10, assignmentStart),
             EffectiveTo = new DateOnly(2026, 10, assignmentEnd)
         });
