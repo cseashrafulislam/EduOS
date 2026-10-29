@@ -371,6 +371,63 @@ public sealed class LmsCourseCompletionWorkflowTests
         Assert.Contains(rows[third.Id].Eligibility.Blockers, x => x.Contains("Academic enrollment is required"));
     }
 
+    [Fact]
+    public async Task Completion_export_returns_all_matching_rows_in_one_bounded_authorized_page()
+    {
+        await using var db = Db();
+        var (course, _, _, _) = await Seed(db);
+        var students = Enumerable.Range(1, 25).Select(i => new Student
+        {
+            TenantId = 101, StudentCode = "EX-" + i.ToString("D3"),
+            FullName = "Export Learner " + i, StatusCode = "Active"
+        }).ToArray();
+        db.AddRange(students);
+        await db.SaveChangesAsync();
+        db.AddRange(students.Select(student => new CourseEnrollment
+        {
+            TenantId = 101, StudentId = student.Id, CourseId = course.Id,
+            ClientRequestId = Guid.NewGuid()
+        }));
+        await db.SaveChangesAsync();
+
+        var result = await Service(db).GetCourseCompletionExportAsync(course.PublicId, null);
+        Assert.True(result.Success, result.Message);
+        Assert.Equal(26, result.Data!.TotalCount);
+        Assert.Equal(26, result.Data.Items.Count);
+        Assert.Equal(1, result.Data.Page);
+        Assert.Equal(250, result.Data.PageSize);
+        Assert.Equal(1, (await Service(db).GetCourseCompletionExportAsync(course.PublicId, "EX-001")).Data!.TotalCount);
+        Assert.Equal(403, (await Service(db, "Student").GetCourseCompletionExportAsync(course.PublicId, null)).StatusCode);
+        Assert.Equal(404, (await Service(db).GetCourseCompletionExportAsync(Guid.NewGuid(), null)).StatusCode);
+    }
+
+    [Fact]
+    public async Task Completion_export_refuses_oversized_register_without_partial_rows()
+    {
+        await using var db = Db();
+        var (course, _, _, _) = await Seed(db);
+        var students = Enumerable.Range(1, 250).Select(i => new Student
+        {
+            TenantId = 101, StudentCode = "LIMIT-" + i.ToString("D3"),
+            FullName = "Limit Learner " + i, StatusCode = "Active"
+        }).ToArray();
+        db.AddRange(students);
+        await db.SaveChangesAsync();
+        db.AddRange(students.Select(student => new CourseEnrollment
+        {
+            TenantId = 101, StudentId = student.Id, CourseId = course.Id,
+            ClientRequestId = Guid.NewGuid()
+        }));
+        await db.SaveChangesAsync();
+
+        var result = await Service(db).GetCourseCompletionExportAsync(course.PublicId, null);
+        Assert.Equal(409, result.StatusCode);
+        Assert.Null(result.Data);
+        Assert.Contains("Narrow the student search", result.Message);
+        Assert.Equal(400, (await Service(db).GetCourseCompletionExportAsync(course.PublicId,
+            new string('x', 101))).StatusCode);
+    }
+
     private static async Task<(Course Course, Student Student, CourseEnrollment Enrollment, Lesson Lesson)> Seed(EduOSDbContext db)
     {
         var course = new Course { TenantId = 101, Code = "LMS-COMP", Title = "Completion", IsActive = true };

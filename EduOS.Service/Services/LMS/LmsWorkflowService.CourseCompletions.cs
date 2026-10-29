@@ -27,11 +27,22 @@ public sealed partial class LmsWorkflowService
         });
     }
 
-    public async Task<ApiResponse<PagedResult<CourseCompletionRegisterRowDto>>> GetCourseCompletionRegisterAsync(
-        Guid courseReference, int page, int pageSize, string? search, CancellationToken ct = default)
+    public Task<ApiResponse<PagedResult<CourseCompletionRegisterRowDto>>> GetCourseCompletionRegisterAsync(
+        Guid courseReference, int page, int pageSize, string? search, CancellationToken ct = default) =>
+        GetCourseCompletionRegisterCoreAsync(courseReference, page, pageSize, search, false, ct);
+
+    // Export is one bounded, authorized server request rather than ten independent browser
+    // page requests. It refuses oversized registers instead of silently truncating them.
+    public Task<ApiResponse<PagedResult<CourseCompletionRegisterRowDto>>> GetCourseCompletionExportAsync(
+        Guid courseReference, string? search, CancellationToken ct = default) =>
+        GetCourseCompletionRegisterCoreAsync(courseReference, 1, 250, search, true, ct);
+
+    private async Task<ApiResponse<PagedResult<CourseCompletionRegisterRowDto>>> GetCourseCompletionRegisterCoreAsync(
+        Guid courseReference, int page, int pageSize, string? search, bool export, CancellationToken ct)
     {
         if (!CanTeach()) return Error<PagedResult<CourseCompletionRegisterRowDto>>("LMS authoring permission required.", 403);
-        if (courseReference == Guid.Empty || page < 1 || pageSize is < 1 or > 25 || search?.Length > 100)
+        if (courseReference == Guid.Empty || page < 1 || pageSize < 1 ||
+            pageSize > (export ? 250 : 25) || search?.Length > 100)
             return Error<PagedResult<CourseCompletionRegisterRowDto>>("Invalid course, search or pagination.");
         var course = await EditableCourseAsync(courseReference, ct);
         if (course == null) return Error<PagedResult<CourseCompletionRegisterRowDto>>("Course not found or instructor access denied.", 404);
@@ -52,8 +63,14 @@ public sealed partial class LmsWorkflowService
         if (skip > int.MaxValue)
             return Error<PagedResult<CourseCompletionRegisterRowDto>>("Page is outside the allowed range.");
         var count = await query.CountAsync(ct);
+        if (export && count > 250)
+            return Error<PagedResult<CourseCompletionRegisterRowDto>>(
+                "More than 250 matching enrollments. Narrow the student search before exporting.", 409);
         var selected = await query.OrderBy(x => x.Student.StudentCode).ThenBy(x => x.Enrollment.Id)
             .Skip((int)skip).Take(pageSize).ToListAsync(ct);
+        if (export && (selected.Count != count || await query.CountAsync(ct) != count))
+            return Error<PagedResult<CourseCompletionRegisterRowDto>>(
+                "The completion register changed during export. Retry.", 409);
         // Eligibility is aggregated for the bounded page, not queried separately for every learner.
         // Completion writes still re-evaluate under their serializable transaction.
         var pendingIds = selected.Where(x => x.Enrollment.State != CourseEnrollmentState.Completed)

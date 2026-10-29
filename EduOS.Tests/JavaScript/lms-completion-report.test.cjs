@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { collect, toCsv, PAGE_SIZE, MAX_ROWS } = require('../../EduOS.App/wwwroot/js/learning/completion-report.js');
+const { collect, validateSnapshot, toCsv, PAGE_SIZE, MAX_ROWS } = require('../../EduOS.App/wwwroot/js/learning/completion-report.js');
 const rows = n => Array.from({ length: n }, (_, i) => ({
     enrollmentId: i + 1, studentCode: `S${i + 1}`, studentName: `Learner ${i + 1}`,
     state: 1, eligibility: { ready: true, completedLessons: 1, requiredLessons: 1 }
@@ -54,4 +54,19 @@ test('empty register yields only the header', async () => {
     const result = await collect(async () => ({ totalCount: 0, items: [] }));
     assert.deepEqual(result, []);
     assert.equal(toCsv(result).split('\r\n').length, 1);
+});
+
+test('single-request export accepts an entire bounded register and preserves CSV protection', () => {
+    const data = rows(53);
+    const accepted = validateSnapshot({ page: 1, pageSize: MAX_ROWS, totalCount: 53, items: data });
+    assert.equal(accepted.length, 53);
+    assert.equal(toCsv(accepted).split('\\r\\n').length, 54);
+});
+
+test('single-request export rejects truncated, oversized, duplicate and stale snapshots', () => {
+    const good = { page: 1, pageSize: MAX_ROWS, totalCount: 2, items: rows(2) };
+    assert.throws(() => validateSnapshot({ ...good, totalCount: 3 }), /changed or exceeded/);
+    assert.throws(() => validateSnapshot({ ...good, totalCount: 251 }), /changed or exceeded/);
+    assert.throws(() => validateSnapshot({ ...good, items: [rows(1)[0], rows(1)[0]] }), /duplicate/);
+    assert.throws(() => validateSnapshot(good, () => false), /account changed/);
 });

@@ -41,6 +41,23 @@
         throw new Error('The completion register exceeded the export limit. Narrow the search.');
     }
 
+    function validateSnapshot(data, isCurrent = () => true) {
+        if (!isCurrent()) throw new Error('Course, filter or account changed. Restart the export.');
+        if (!data || !Array.isArray(data.items) || !Number.isSafeInteger(data.totalCount) ||
+            data.totalCount < 0 || data.totalCount > MAX_ROWS || data.page !== 1 ||
+            data.pageSize !== MAX_ROWS || data.items.length !== data.totalCount)
+            throw new Error('The completion register changed or exceeded the export limit. Narrow the search and retry.');
+        const ids = new Set();
+        for (const row of data.items) {
+            const id = String(row?.enrollmentId ?? '');
+            if (!/^[1-9]\\d*$/.test(id) || ids.has(id))
+                throw new Error('The completion register contains duplicate or invalid enrollments.');
+            ids.add(id);
+        }
+        if (!isCurrent()) throw new Error('Course, filter or account changed. Restart the export.');
+        return data.items;
+    }
+
     function csvCell(value) {
         let text = String(value ?? '');
         // Spreadsheet formula injection can begin after leading whitespace/control characters.
@@ -63,5 +80,5 @@
         }
         return '\uFEFF' + lines.map(row => row.map(csvCell).join(',')).join('\r\n');
     }
-    return Object.freeze({ PAGE_SIZE, MAX_ROWS, collect, toCsv });
+    return Object.freeze({ PAGE_SIZE, MAX_ROWS, collect, validateSnapshot, toCsv });
 });

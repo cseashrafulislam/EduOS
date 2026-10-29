@@ -78,6 +78,15 @@ public sealed class LmsWorkflowController : ControllerBase
         return StatusCode(result.StatusCode, result);
     }
 
+    [HttpGet("courses/{reference:guid}/completion-export")]
+    [Authorize(Roles = "TenantAdmin,Principal,Teacher")]
+    public async Task<IActionResult> CompletionExport(Guid reference,
+        [FromQuery] string? search = null, CancellationToken ct = default)
+    {
+        var result = await _service.GetCourseCompletionExportAsync(reference, search, ct);
+        return StatusCode(result.StatusCode, result);
+    }
+
     [HttpPost("courses/enrollments/{enrollmentId:long}/complete")]
     [Authorize(Roles = "TenantAdmin,Principal,Teacher")]
     public async Task<IActionResult> CompleteEnrollment(long enrollmentId,

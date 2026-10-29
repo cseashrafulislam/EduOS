@@ -25,6 +25,7 @@ public interface ILmsWorkflowService
     Task<ApiResponse<AssignmentSubmissionDto>> GradeSubmissionAsync(long submissionId, GradeAssignmentSubmissionRequestDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<CourseAuthoringLockDto>> GetCourseAuthoringLockAsync(Guid courseReference, CancellationToken cancellationToken = default);
     Task<ApiResponse<PagedResult<CourseCompletionRegisterRowDto>>> GetCourseCompletionRegisterAsync(Guid courseReference, int page, int pageSize, string? search, CancellationToken cancellationToken = default);
+    Task<ApiResponse<PagedResult<CourseCompletionRegisterRowDto>>> GetCourseCompletionExportAsync(Guid courseReference, string? search, CancellationToken cancellationToken = default);
     Task<ApiResponse<CourseCompletionRegisterRowDto>> CompleteCourseEnrollmentAsync(long enrollmentId, CompleteCourseEnrollmentRequestDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<PagedResult<LmsLearnerCourseProgressDto>>> GetMyCourseProgressAsync(int page, int pageSize, CancellationToken cancellationToken = default, bool includeArchived = false);
     Task<ApiResponse<PagedResult<LessonProgressDto>>> GetMyLessonProgressAsync(Guid courseReference, int page, int pageSize, CancellationToken cancellationToken = default);

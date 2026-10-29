@@ -84,12 +84,12 @@ async function exportFiltered(){
   window.EduOSSessionTransitionPending?.()!==true;
  state.exporting=true;$('lmsCompletionCsv').disabled=true;
  try{
-  const rows=await report.collect(async(page,pageSize)=>{
-   const query=new URLSearchParams({page:String(page),pageSize:String(pageSize),search});
-   const controller=new AbortController(),timeout=window.setTimeout(()=>controller.abort(),10000);
-   try{return await api('/api/lms/courses/'+encodeURIComponent(course)+'/completion-register?'+query,'GET',undefined,controller.signal);}
-   finally{window.clearTimeout(timeout);}
-  },isCurrent);
+  const query=new URLSearchParams({search});
+  const controller=new AbortController(),timeout=window.setTimeout(()=>controller.abort(),15000);
+  let data;
+  try{data=await api('/api/lms/courses/'+encodeURIComponent(course)+'/completion-export?'+query,'GET',undefined,controller.signal);}
+  finally{window.clearTimeout(timeout);}
+  const rows=report.validateSnapshot(data,isCurrent);
   if(!isCurrent())throw Error('Course, filter or account changed. Restart the export.');
   const blob=new Blob([report.toCsv(rows)],{type:'text/csv;charset=utf-8'});
   const url=URL.createObjectURL(blob),link=document.createElement('a');
