@@ -101,6 +101,11 @@ public sealed partial class StudentImportExecutionService
                     }
                 }
             }
+            // Bound SQL IN predicates and academic planning for large cohorts.
+            // Operators can split an unusually wide cohort into smaller jobs.
+            if (cohortRows.Select(x => x.Row.BatchId).Where(x => x > 0).Distinct().Take(201).Count() > 200)
+                return Task.FromResult(ApiResponse<StudentImportCohortPreflightDto>.ErrorResponse(
+                    "Cohort preflight supports at most 200 academic batches.", 400));
             result.TotalIssues = result.Issues.Count;
             return ValidateTenantCohortAsync(result, cohortRows, cancellationToken);
         }
@@ -258,6 +263,10 @@ public sealed partial class StudentImportExecutionService
                         Message = "Guardian source key conflicts with an existing tenant-owned guardian."
                     });
             }
+            // The same required-subject capacity contract used by transactional
+            // 100-row execution must be visible before a 40K multi-file run.
+            // This is a read-only warning; execution still revalidates under lock.
+            await CheckCohortRequiredOfferingsAsync(result, cohortRows, tenant, cancellationToken);
             result.TotalIssues = result.Issues.Count;
             return ApiResponse<StudentImportCohortPreflightDto>.SuccessResponse(result,
                 "Cross-file identity, capacity and guardian references checked; each file still needs transactional validation.");

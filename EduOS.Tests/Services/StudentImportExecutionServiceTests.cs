@@ -1543,4 +1543,83 @@ public sealed class StudentImportExecutionServiceTests
             .GetCohortStatusAsync(files)).StatusCode);
     }
 
+    [Fact]
+    public async Task Cohort_preflight_reconciles_required_offering_capacity_across_files_without_writes()
+    {
+        var options = Options(); await SeedAsync(options);
+        await using var db = Context(options, 101);
+        db.Subjects.Add(new Subject { Id = 60, TenantId = 101, Name = "Math", Code = "MATH" });
+        db.CurriculumSubjects.Add(new CurriculumSubject
+        {
+            Id = 61, TenantId = 101, AcademicCurriculumId = 50,
+            AcademicLevelId = 1, SubjectId = 60, CreditHours = 4m, IsOptional = false
+        });
+        db.SubjectOfferings.Add(new SubjectOffering
+        {
+            Id = 62, TenantId = 101, AcademicBatchId = 20, AcademicYearId = 1,
+            CurriculumSubjectId = 61, Code = "MATH-1", Capacity = 1
+        });
+        await db.SaveChangesAsync();
+        var files = new[]
+        {
+            new EduOS.Core.DTOs.Students.StudentImportCohortUploadDto
+            {
+                Extension = ".csv",
+                Content = Encoding.UTF8.GetBytes(Header + "SRC-1,STU-1,First,10,20,11,,\n")
+            },
+            new EduOS.Core.DTOs.Students.StudentImportCohortUploadDto
+            {
+                Extension = ".csv",
+                Content = Encoding.UTF8.GetBytes(Header + "SRC-2,STU-2,Second,10,20,12,,\n")
+            }
+        };
+        var report = await Service(db, new User(101, true)).PreflightCohortAsync(files, Mapping);
+        Assert.True(report.Success, report.Message);
+        Assert.Equal(2, report.Data!.Issues.Count(x => x.Field == "RequiredOfferingCapacity"));
+        Assert.All(report.Data.Issues.Where(x => x.Field == "RequiredOfferingCapacity"),
+            x => Assert.DoesNotContain("Math", x.Message));
+        Assert.Empty(await db.Students.ToListAsync());
+        Assert.Empty(await db.StudentSubjectRegistrations.ToListAsync());
+
+        await using var foreign = Context(options, 202);
+        var denied = await Service(foreign, new User(202, false)).PreflightCohortAsync(files, Mapping);
+        Assert.Equal(403, denied.StatusCode);
+        var foreignReport = await Service(foreign, new User(202, true)).PreflightCohortAsync(files, Mapping);
+        Assert.True(foreignReport.Success);
+        Assert.DoesNotContain(foreignReport.Data!.Issues,
+            x => x.Field == "RequiredOfferingCapacity");
+    }
+
+    [Fact]
+    public async Task Cohort_preflight_flags_missing_required_offering_and_keeps_source_uncommitted()
+    {
+        var options = Options(); await SeedAsync(options);
+        await using var db = Context(options, 101);
+        db.Subjects.Add(new Subject { Id = 60, TenantId = 101, Name = "Math", Code = "MATH" });
+        db.CurriculumSubjects.Add(new CurriculumSubject
+        {
+            Id = 61, TenantId = 101, AcademicCurriculumId = 50,
+            AcademicLevelId = 1, SubjectId = 60, CreditHours = 4m, IsOptional = false
+        });
+        await db.SaveChangesAsync();
+        var files = new[]
+        {
+            new EduOS.Core.DTOs.Students.StudentImportCohortUploadDto
+            {
+                Extension = ".csv",
+                Content = Encoding.UTF8.GetBytes(Header + "SRC-1,STU-1,First,10,20,11,,\n")
+            },
+            new EduOS.Core.DTOs.Students.StudentImportCohortUploadDto
+            {
+                Extension = ".csv",
+                Content = Encoding.UTF8.GetBytes(Header + "SRC-2,STU-2,Second,10,20,12,,\n")
+            }
+        };
+        var report = await Service(db, new User(101, true)).PreflightCohortAsync(files, Mapping);
+        Assert.True(report.Success, report.Message);
+        Assert.Equal(2, report.Data!.Issues.Count(x => x.Field == "RequiredOffering"));
+        Assert.Empty(await db.Students.ToListAsync());
+        Assert.Empty(await db.ImportLogs.ToListAsync());
+    }
+
 }
