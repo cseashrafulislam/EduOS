@@ -1,0 +1,133 @@
+'use strict';
+const assert = require('node:assert/strict');
+const path = require('node:path');
+const { chromium } = require('playwright');
+
+const script = path.resolve(__dirname, '../../EduOS.App/wwwroot/js/library/digital.js');
+const SESSION = 'A'.repeat(64);
+const RESOURCE = '11111111-2222-4333-8444-555555555551';
+const BOOK = 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee';
+const resource = {
+    reference: RESOURCE, bookReference: BOOK, bookTitle: 'Private catalogue title',
+    title: 'Protected course reader', fileName: 'private-reader.pdf',
+    contentType: 'application/pdf', sizeBytes: 32, isActive: true,
+    expiresOn: '2027-12-31', rowVersion: 'AQIDBA=='
+};
+
+function fixture(admin, language) {
+    const adminFields = admin ? [
+        '<form id="digitalUploadForm"><input name="__RequestVerificationToken" value="csrf">',
+        '<input id="digitalBookSearch"><button id="digitalBookFind" type="button">Find</button>',
+        '<select id="digitalBook" required><option value="">Select</option></select>',
+        '<input id="digitalTitle" required><input id="digitalFile" type="file" required>',
+        '<input id="digitalExpiresOn" type="date"><button id="digitalPublish" type="submit">Publish</button></form>',
+        '<select id="digitalStatus"><option value="active">Active</option><option value="all">All</option></select>',
+        '<button id="digitalExport" type="button">Export</button>',
+        '<dialog id="digitalEditDialog"><form id="digitalEditForm">',
+        '<input id="digitalEditName" required><input id="digitalEditExpiry" type="date">',
+        '<button id="digitalEditSave" type="submit">Save</button>',
+        '<button id="digitalEditCancel" type="button">Cancel</button></form></dialog>'
+    ].join('') : '';
+    return '<!doctype html><html lang="' + language + '"><head>' +
+        '<meta name="request-verification-token" content="csrf"></head>' +
+        '<body data-auth-session-reference="' + SESSION + '" data-auth-tenant-id="101">' +
+        '<div id="digitalAlert" class="d-none" tabindex="-1"></div>' +
+        adminFields +
+        '<form id="digitalSearchForm"><input id="digitalQuery"></form>' +
+        '<span id="digitalCount"></span><span id="digitalPage"></span>' +
+        '<button id="digitalPrevious" type="button"></button>' +
+        '<button id="digitalNext" type="button"></button>' +
+        '<table><tbody id="digitalRows"></tbody></table></body></html>';
+}
+
+async function scenario(browser, admin, language) {
+    const page = await browser.newPage({ viewport: { width: 390, height: 800 },
+        acceptDownloads: true });
+    const errors = [], writes = [], downloads = [];
+    page.on('pageerror', error => errors.push(error.message));
+    page.on('download', download => downloads.push(download.suggestedFilename()));
+    let releaseDownload;
+    let downloadStarted;
+    const started = new Promise(resolve => { downloadStarted = resolve; });
+    const released = new Promise(resolve => { releaseDownload = resolve; });
+    page.on('dialog', dialog => dialog.accept());
+    await page.route('http://localhost/**', async route => {
+        const req = route.request(), url = new URL(req.url());
+        if (!url.pathname.startsWith('/api/'))
+            return route.fulfill({ contentType: 'text/html', body: fixture(admin, language) });
+        if (req.method() !== 'GET')
+            writes.push({ method: req.method(), path: url.pathname,
+                csrf: req.headers().requestverificationtoken });
+        if (url.pathname === '/api/library/catalog')
+            return route.fulfill({ contentType: 'application/json',
+                body: JSON.stringify({ success: true, data: { items: [
+                    { reference: BOOK, title: 'Private catalogue title' }] } }) });
+        if (url.pathname === '/api/library/digital')
+            return route.fulfill({ contentType: 'application/json',
+                body: JSON.stringify({ success: true, data: {
+                    items: [resource], totalCount: 1, totalPages: 1,
+                    hasPreviousPage: false, hasNextPage: false
+                } }) });
+        if (url.pathname.endsWith('/download')) {
+            downloadStarted();
+            await released;
+            return route.fulfill({ status: 200, contentType: 'application/pdf',
+                body: '%PDF-1.4\nprivate bytes' });
+        }
+        if (url.pathname.endsWith('/revoke'))
+            return route.fulfill({ contentType: 'application/json',
+                body: JSON.stringify({ success: true, data: { ...resource, isActive: false } }) });
+        if (req.method() === 'PUT')
+            return route.fulfill({ contentType: 'application/json',
+                body: JSON.stringify({ success: true, data: resource }) });
+        return route.fulfill({ status: 404, body: 'Not found' });
+    });
+
+    try {
+        await page.goto('http://localhost/Library/Digital');
+        await page.addScriptTag({ path: script });
+        await page.locator('#digitalRows').getByText('Protected course reader').waitFor();
+        assert.match(await page.locator('#digitalRows').innerText(), /private-reader.pdf/);
+        if (admin) {
+            await page.locator('#digitalRows button').filter({ hasText:
+                language === 'bn-BD' ? 'সম্পাদনা' : 'Edit' }).click();
+            assert.equal(await page.locator('#digitalEditDialog').evaluate(el => el.open), true);
+            assert.equal(await page.locator('#digitalEditName').inputValue(),
+                'Protected course reader');
+            assert.equal(await page.locator('#digitalBook option').count(), 2);
+        }
+        await page.locator('#digitalRows button').filter({ hasText:
+            language === 'bn-BD' ? 'ডাউনলোড' : 'Download' }).click();
+        await started;
+        await page.evaluate(() => { document.body.dataset.authTenantId = '202'; });
+        await page.waitForFunction(() => document.getElementById('digitalRows').children.length === 0);
+        releaseDownload();
+        await page.waitForTimeout(200);
+        assert.equal(await page.locator('#digitalRows').innerText(), '');
+        assert.equal(await page.locator('#digitalCount').innerText(), '');
+        assert.equal(await page.locator('#digitalPage').innerText(), '');
+        assert.equal(await page.locator('#digitalPrevious').isDisabled(), true);
+        assert.equal(await page.locator('#digitalNext').isDisabled(), true);
+        assert.deepEqual(downloads, [], 'old tenant private bytes must never be downloaded');
+        if (admin) {
+            assert.equal(await page.locator('#digitalEditDialog').evaluate(el => el.open), false);
+            assert.equal(await page.locator('#digitalEditName').inputValue(), '');
+            assert.equal(await page.locator('#digitalBook option').count(), 0);
+        }
+        assert.deepEqual(writes, [], 'session transition must not submit a stale mutation');
+        assert.deepEqual(errors, []);
+        console.log('Library digital ' + (admin ? 'admin' : 'student') + ' ' +
+            language + ' session/download privacy PASS');
+    } finally {
+        releaseDownload();
+        await page.close();
+    }
+}
+
+(async () => {
+    const browser = await chromium.launch({ headless: true, args: ['--no-sandbox'] });
+    try {
+        await scenario(browser, false, 'bn-BD');
+        await scenario(browser, true, 'en-BD');
+    } finally { await browser.close(); }
+})().catch(error => { console.error(error); process.exitCode = 1; });
