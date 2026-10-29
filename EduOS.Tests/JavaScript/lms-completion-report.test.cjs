@@ -60,7 +60,7 @@ test('single-request export accepts an entire bounded register and preserves CSV
     const data = rows(53);
     const accepted = validateSnapshot({ page: 1, pageSize: MAX_ROWS, totalCount: 53, items: data });
     assert.equal(accepted.length, 53);
-    assert.equal(toCsv(accepted).split('\\r\\n').length, 54);
+    assert.equal(toCsv(accepted).split('\r\n').length, 54);
 });
 
 test('single-request export rejects truncated, oversized, duplicate and stale snapshots', () => {

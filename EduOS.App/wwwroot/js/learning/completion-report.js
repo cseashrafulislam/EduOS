@@ -50,7 +50,7 @@
         const ids = new Set();
         for (const row of data.items) {
             const id = String(row?.enrollmentId ?? '');
-            if (!/^[1-9]\\d*$/.test(id) || ids.has(id))
+            if (!/^[1-9]\d*$/.test(id) || ids.has(id))
                 throw new Error('The completion register contains duplicate or invalid enrollments.');
             ids.add(id);
         }
