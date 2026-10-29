@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using System.Data;
 using System.Security.Claims;
 
 namespace EduOS.App.Security;
@@ -149,6 +150,37 @@ public static class AuthSessionRegistry
         ValidSid(currentSid) && ValidReference(reference) &&
         string.Equals(ToPublicReference(currentSid!), reference, StringComparison.Ordinal);
 
+    /// <summary>
+    /// Revoke a device only while the requesting cookie still belongs to this
+    /// account and institution. The serializable token read and deletion share
+    /// one transaction so a delayed request cannot act after logout or switching.
+    /// Null means the requesting session is no longer valid; false means the
+    /// requested device is missing. Never accept the public reference as a SID.
+    /// </summary>
+    public static Task<bool?> RevokeByReferenceForCurrentSessionAsync(
+        EduOSDbContext db, long userId, string? currentSid, long? tenantId,
+        string? reference, CancellationToken cancellationToken = default) =>
+        db.ExecuteInTransactionAsync<bool?>(async ct =>
+        {
+            if (!await IsValidAsync(db, userId, currentSid, tenantId))
+                return null;
+            if (!ValidReference(reference)) return false;
+
+            var ids = await db.UserTokens.AsNoTracking()
+                .Where(x => x.UserId == userId && x.LoginProvider == Provider)
+                .Select(x => x.Name).Take(500).ToArrayAsync(ct);
+            var targetSid = ids.FirstOrDefault(x => ValidSid(x) &&
+                string.Equals(ToPublicReference(x), reference, StringComparison.Ordinal));
+            if (targetSid == null) return false;
+
+            var target = await db.UserTokens.SingleOrDefaultAsync(x =>
+                x.UserId == userId && x.LoginProvider == Provider && x.Name == targetSid, ct);
+            if (target == null) return false;
+            db.UserTokens.Remove(target);
+            await db.SaveChangesAsync(ct);
+            return true;
+        }, IsolationLevel.Serializable, cancellationToken);
+
     public static async Task<bool> RevokeByReferenceAsync(EduOSDbContext db, long userId, string? reference)
     {
         if (userId <= 0 || !ValidReference(reference)) return false;
@@ -173,17 +205,20 @@ public static class AuthSessionRegistry
     }
 
     /// <summary>Revoke other devices without invalidating the current tenant-bound session.</summary>
-    public static async Task<int?> RevokeOthersAsync(EduOSDbContext db, long userId,
-        string? currentSid, long? tenantId)
-    {
-        if (!await IsValidAsync(db, userId, currentSid, tenantId)) return null;
-        var others = await db.UserTokens.Where(x => x.UserId == userId &&
-            x.LoginProvider == Provider && x.Name != currentSid).ToListAsync();
-        if (others.Count == 0) return 0;
-        db.UserTokens.RemoveRange(others);
-        await db.SaveChangesAsync();
-        return others.Count;
-    }
+    public static Task<int?> RevokeOthersAsync(EduOSDbContext db, long userId,
+        string? currentSid, long? tenantId, CancellationToken cancellationToken = default) =>
+        db.ExecuteInTransactionAsync<int?>(async ct =>
+        {
+            // Revalidate under the same serializable transaction as the delete.
+            // A revoked or switched cookie must not sign out another device.
+            if (!await IsValidAsync(db, userId, currentSid, tenantId)) return null;
+            var others = await db.UserTokens.Where(x => x.UserId == userId &&
+                x.LoginProvider == Provider && x.Name != currentSid).ToListAsync(ct);
+            if (others.Count == 0) return 0;
+            db.UserTokens.RemoveRange(others);
+            await db.SaveChangesAsync(ct);
+            return others.Count;
+        }, IsolationLevel.Serializable, cancellationToken);
 
     public static async Task RevokeAllAsync(EduOSDbContext db, long userId)
     {

@@ -180,6 +180,7 @@ namespace EduOS.App.Controllers.Api
                 return Unauthorized(new { success = false, message = "Invalid session." });
             if (!await AuthSessionRegistry.IsValidPrincipalAsync(_db, User))
                 return Unauthorized(new { success = false, message = "Session changed. Sign in again." });
+            BindAccountReadbackSession();
 
             return Ok(new
             {
@@ -527,6 +528,16 @@ namespace EduOS.App.Controllers.Api
                 user, TokenOptions.DefaultAuthenticatorProvider, NormalizeMfaCode(dto.Code));
         }
 
+        // Bind private account readbacks to the exact cookie and institution.
+        // A delayed response from an older tab cannot populate the new session UI.
+        private void BindAccountReadbackSession()
+        {
+            var sid = User.FindFirstValue(AuthSessionRegistry.ClaimType);
+            if (sid is not { Length: 48 }) return;
+            Response.Headers["X-EduOS-Session-Reference"] = AuthSessionRegistry.ToPublicReference(sid);
+            Response.Headers["X-EduOS-Tenant-Id"] = User.FindFirstValue("TenantId") ?? string.Empty;
+        }
+
         // ==================== Active Sessions ====================
 
         [Authorize]
@@ -540,6 +551,7 @@ namespace EduOS.App.Controllers.Api
                 User.FindFirstValue(AuthSessionRegistry.ClaimType));
             if (!await AuthSessionRegistry.IsValidPrincipalAsync(_db, User))
                 return Unauthorized(new { success = false, message = "Session changed. Sign in again." });
+            BindAccountReadbackSession();
             return Ok(new { success = true, data = records });
         }
 
@@ -563,8 +575,16 @@ namespace EduOS.App.Controllers.Api
                     !await _userManager.CheckPasswordAsync(user, dto.CurrentPassword))
                     return BadRequest(new { success = false, message = "Current password is invalid." });
             }
-            var revoked = await AuthSessionRegistry.RevokeByReferenceAsync(_db, user.Id, dto.SessionId);
-            if (!revoked) return NotFound(new { success = false, message = "Session no longer active." });
+            var tenantClaim = User.FindFirstValue("TenantId");
+            if (tenantClaim != null && (!long.TryParse(tenantClaim, out var parsed) || parsed <= 0))
+                return Unauthorized(new { success = false, message = "Session institution is invalid." });
+            long? tenantId = tenantClaim == null ? null : long.Parse(tenantClaim);
+            var revoked = await AuthSessionRegistry.RevokeByReferenceForCurrentSessionAsync(
+                _db, user.Id, User.FindFirstValue(AuthSessionRegistry.ClaimType),
+                tenantId, dto.SessionId, HttpContext.RequestAborted);
+            if (!revoked.HasValue)
+                return Conflict(new { success = false, message = "Session changed. Sign in again." });
+            if (!revoked.Value) return NotFound(new { success = false, message = "Session no longer active." });
             if (current) await _signInManager.SignOutAsync();
             _logger.LogInformation("User {UserId} revoked {SessionScope} session",
                 user.Id, current ? "current" : "other");
@@ -616,12 +636,18 @@ namespace EduOS.App.Controllers.Api
             {
                 await _db.ExecuteInTransactionAsync(async ct =>
                 {
+                    if (!await AuthSessionRegistry.IsValidPrincipalAsync(_db, User))
+                        throw new AccountSessionChangedException();
                     await AuthSessionRegistry.RevokeAllAsync(_db, user.Id);
                     var stamp = await _userManager.UpdateSecurityStampAsync(user);
                     if (!stamp.Succeeded)
                         throw new AuthTransactionRejectedException("Concurrent account change. Retry.");
                     return true;
-                });
+                }, System.Data.IsolationLevel.Serializable, HttpContext.RequestAborted);
+            }
+            catch (AccountSessionChangedException)
+            {
+                return Conflict(new { success = false, message = "Session changed. Sign in again." });
             }
             catch (AuthTransactionRejectedException ex)
             {
@@ -762,6 +788,7 @@ namespace EduOS.App.Controllers.Api
 
             if (!await AuthSessionRegistry.IsValidPrincipalAsync(_db, User))
                 return Unauthorized(new { success = false, message = "Session changed. Sign in again." });
+            BindAccountReadbackSession();
             return Ok(new { success = true, data = dto });
         }
 

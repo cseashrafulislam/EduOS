@@ -182,6 +182,49 @@ public sealed class AuthTenantSessionIntegrationTests
     }
 
     [Fact]
+    public async Task Device_revocation_requires_live_requesting_cookie_and_cannot_cross_users_or_institutions()
+    {
+        await using var db = Db();
+        var current = await AuthSessionRegistry.CreateAsync(db, 50, 100, "", "", false);
+        var other = await AuthSessionRegistry.CreateAsync(db, 50, 200, "", "", false);
+        var stranger = await AuthSessionRegistry.CreateAsync(db, 51, 100, "", "", false);
+        var otherRef = AuthSessionRegistry.ToPublicReference(other);
+        var strangerRef = AuthSessionRegistry.ToPublicReference(stranger);
+
+        Assert.Null(await AuthSessionRegistry.RevokeByReferenceForCurrentSessionAsync(
+            db, 50, current, 200, otherRef));
+        Assert.Null(await AuthSessionRegistry.RevokeByReferenceForCurrentSessionAsync(
+            db, 51, current, 100, otherRef));
+        Assert.Equal(false, await AuthSessionRegistry.RevokeByReferenceForCurrentSessionAsync(
+            db, 50, current, 100, strangerRef));
+        Assert.True(await AuthSessionRegistry.IsValidAsync(db, 50, other, 200));
+        Assert.Equal(true, await AuthSessionRegistry.RevokeByReferenceForCurrentSessionAsync(
+            db, 50, current, 100, otherRef));
+        Assert.False(await AuthSessionRegistry.IsValidAsync(db, 50, other, 200));
+        Assert.True(await AuthSessionRegistry.IsValidAsync(db, 51, stranger, 100));
+
+        await AuthSessionRegistry.RevokeAsync(db, 50, current);
+        Assert.Null(await AuthSessionRegistry.RevokeByReferenceForCurrentSessionAsync(
+            db, 50, current, 100, strangerRef));
+        Assert.Null(await AuthSessionRegistry.RevokeOthersAsync(db, 50, current, 100));
+        Assert.True(await AuthSessionRegistry.IsValidAsync(db, 51, stranger, 100));
+    }
+
+    [Fact]
+    public void Session_management_endpoints_revalidate_within_serializable_mutations()
+    {
+        var auth = File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "TestAssets", "AuthController.cs"));
+        var revoke = auth[auth.IndexOf("public async Task<IActionResult> RevokeSession(", StringComparison.Ordinal)..
+            auth.IndexOf("[HttpPost(\"sessions/revoke-others\")]", StringComparison.Ordinal)];
+        var all = auth[auth.IndexOf("public async Task<IActionResult> RevokeAllSessions(", StringComparison.Ordinal)..
+            auth.IndexOf("// ==================== Forgot Password", StringComparison.Ordinal)];
+        Assert.Contains("RevokeByReferenceForCurrentSessionAsync(", revoke);
+        Assert.Contains("AuthSessionRegistry.IsValidPrincipalAsync(_db, User)", all);
+        Assert.Contains("System.Data.IsolationLevel.Serializable", all);
+        Assert.Contains("catch (AccountSessionChangedException)", all);
+    }
+
+    [Fact]
     public async Task Institution_switch_rotates_the_cookie_and_rejects_replay_or_cross_tenant_use()
     {
         await using var db = Db();

@@ -20,7 +20,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
 async function loadProfile() {
     try {
-        const response = await apiRequest('/api/auth/profile');
+        const response = await apiRequest('/api/auth/profile', { cache: 'no-store', sessionBound: true });
 
         const profile = response?.data;
 
@@ -59,7 +59,7 @@ async function loadMfaStatus() {
     if (!status || !help || !setupLink) return;
     setupLink.classList.add('d-none');
     try {
-        const response = await apiRequest('/api/auth/mfa/status');
+        const response = await apiRequest('/api/auth/mfa/status', { cache: 'no-store', sessionBound: true });
         if (response?.success !== true || typeof response.data?.enabled !== 'boolean')
             throw new Error('MFA status is unavailable.');
         if (response.data.enabled) {
@@ -317,12 +317,13 @@ function initializePasswordToggle() {
 // ============================================================
 
 async function apiRequest(url, options = {}) {
+    const { sessionBound = false, ...fetchOptions } = options;
     const requestOptions = {
         credentials: 'include',
-        ...options,
+        ...fetchOptions,
         headers: {
             Accept: 'application/json',
-            ...(options.headers || {})
+            ...(fetchOptions.headers || {})
         }
     };
 
@@ -368,6 +369,19 @@ async function apiRequest(url, options = {}) {
         );
     }
 
+    if (sessionBound) {
+        const expected = document.body?.dataset.authSessionReference;
+        const expectedTenant = document.body?.dataset.authTenantId ?? '';
+        const received = response.headers.get('X-EduOS-Session-Reference');
+        const receivedTenant = response.headers.get('X-EduOS-Tenant-Id');
+        if (!/^[0-9A-F]{64}$/.test(expected || '') ||
+            received !== expected || receivedTenant !== expectedTenant ||
+            window.EduOSSessionTransitionPending?.() === true) {
+            // Do not render stale profile, MFA or device data after a cookie switch.
+            void window.EduOSVerifySessionContext?.();
+            throw new Error('Account session changed. Reload to continue.');
+        }
+    }
     return result;
 }
 
@@ -674,7 +688,7 @@ async function loadActiveSessions() {
     const container = document.getElementById('sessionList');
     if (!container) return;
     try {
-        const response = await apiRequest('/api/auth/sessions', { cache: 'no-store' });
+        const response = await apiRequest('/api/auth/sessions', { cache: 'no-store', sessionBound: true });
         if (!response?.success || !Array.isArray(response.data)) throw new Error('Session list unavailable.');
         container.replaceChildren();
         if (!response.data.length) {
