@@ -1,4 +1,4 @@
-> **SUPERSEDED — HISTORICAL CONTRACT ONLY (2026-10-28).** The owner replaced this two-version scope with the [authoritative V1/V2/V3 release contract](RELEASE_V1_V2_V3.md). Do **not** use the V1 HR/LMS or V2 Inventory assignments below when planning, coding or giving release status. This file is retained only to preserve historical decisions and links.
+> **SUPERSEDED — HISTORICAL CONTRACT ONLY (updated 2026-10-29).** The owner replaced this two-version scope with the [authoritative V1/V2/V3 release contract](RELEASE_V1_V2_V3.md). **Current ownership: HR/Payroll is entirely V1, LMS/Library/Hostel/Transport are V2, and Inventory/Assets are V3.** Do not use older assignments below to override this decision. This file is retained only to preserve historical decisions and links.
 
 # EduOS — Version 1.0 and Version 2.0 Release Contract
 

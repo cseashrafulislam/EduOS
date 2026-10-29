@@ -1,6 +1,6 @@
-# HR / Payroll V2: Bangladesh BDT operational controls
+# HR / Payroll V1: Bangladesh BDT operational controls
 
-This implementation is institution-scoped HR/payroll, **not** platform billing.
+This V1 implementation is institution-scoped HR/payroll, **not** platform billing.
 It preserves the five independent V1 hourly workflows. It does not execute a
 live bank transfer, apply an assumed national tax table, or assert that a PDF
 contains a cryptographically valid electronic signature.

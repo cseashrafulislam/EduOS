@@ -6,9 +6,9 @@ EduOS is a configurable, multi-tenant SaaS platform for the Bangladesh education
 
 একটি প্রতিষ্ঠান signup করবে, plan/trial বেছে নেবে, payment করবে, নিজের campus, academic structure, branding, terminology, workflow ও enabled modules configure করবে এবং ব্যবহার শুরু করবে। কোনো নির্দিষ্ট প্রতিষ্ঠানের নাম, class structure, fee rule, grading rule বা approval flow shared code-এ hard-code করা যাবে না।
 
-## Product decisions and engineering specifications (2026-10-28)
+## Product decisions and engineering specifications (updated 2026-10-29)
 
-**EduOS is an institution-agnostic, multi-tenant Education ERP + LMS + Finance + Administration platform.** **Version 1.0 covers the complete Education & Finance scope**; **Version 2.0 completes LMS, HR/Payroll, Library, Hostel and Transport**; **Version 3.0 completes Inventory/Procurement, Assets/Facilities and other approved enterprise modules**. Across 16 potential launch institutes and approximately 40,000 initial student records, enable only fully accepted workflows; online-only LMS providers require V2 before claiming their full online learning operations are production ready. Canonical models remain generic for all institution presets.
+**EduOS is an institution-agnostic, multi-tenant Education ERP + LMS + Finance + Administration platform.** **Version 1.0 owns complete Education, Finance and HR/Payroll**; **Version 2.0 completes LMS, Library, Hostel and Transport only (no HR/Payroll reimplementation)**; **Version 3.0 completes Inventory/Procurement, Assets/Facilities and other approved enterprise modules**. Across 16 potential launch institutes and approximately 40,000 initial student records, enable only fully accepted workflows; online-only LMS providers require V2 before claiming their full online learning operations are production ready. Canonical models remain generic for all institution presets. Outstanding HR statutory/pilot sign-off remains under V1, not V2.
 
 | Area | Current decision |
 | --- | --- |
@@ -16,7 +16,7 @@ EduOS is a configurable, multi-tenant SaaS platform for the Bangladesh education
 | Data architecture | Keep the existing **single SQL Server database** and existing **EduOSDbContext**. No database routing, sharding, registry or schema changes are authorized by these documents. Evaluate multi-database only later on measured capacity/operational evidence. |
 | Tenant and security | Tenant/campus/membership/role/ownership/entitlement isolation across API, UI, report, file, cache and background work; audited, atomic high-risk transactions. |
 | User experience | Clean responsive bilingual (`bn-BD` / `en-BD`) UI, header help icon, global language selection, PWA, and **per-user-per-institute saved design** (sidebar top/left/right, safe themes/colors/fonts/density, allowed menu/dashboard layout). Personalization is a **target requirement**, not yet a verified completed workflow. |
-| Release order | **V1:** full SaaS/security, admission/students/import, academic/routine/attendance, complete examination/results/credentials, complete fees/accounts/finance, role portals, bilingual polished UI/PWA. **V2:** complete LMS, HR/Payroll, Library, Hostel and Transport. **V3:** complete Inventory/Procurement, Assets/Facilities, Visitor/Campus and approved enterprise modules. Existing partial later-version code/data is preserved and gated. |
+| Release order | **V1:** full SaaS/security, admission/students/import, academic/routine/attendance, complete examination/results/credentials, complete fees/accounts/finance, **complete HR/Payroll**, role portals, bilingual polished UI/PWA. **V2:** complete LMS, Library, Hostel and Transport **without HR/Payroll duplication**. **V3:** complete Inventory/Procurement, Assets/Facilities, Visitor/Campus and approved enterprise modules. Existing code/data is preserved and gated appropriately. |
 | Quality | No duplicate/dead speculative code, fake dashboards, unbounded queries, silent posting/editing, incomplete layer chains or untested claims. CI, security, migration/restore, concurrency and real-user acceptance are required. |
 | Scale promise | Architecture targets millions of learners; **no million-concurrent-user or production-capacity claim** without measured load tests and recovery evidence. |
 
@@ -1000,7 +1000,7 @@ A feature is complete only when:
 
 ## 18. Implementation roadmap
 
-**Historical implementation workstreams, not the V1/V2 product-release split.** Phase numbers below describe prior build sequencing and verified partial progress; they do **not** authorize deferring advanced Result, LMS, Accounts, HR/Payroll, Academic or any other accepted V1 features to V2. The authoritative freeze is [the V1/V2 release contract](docs/RELEASE_V1_V2.md).
+**Historical implementation workstreams, not the V1/V2/V3 product-release split.** Phase numbers below describe prior build sequencing and verified partial progress; they do **not** authorize deferring Results, Accounts, HR/Payroll, Academic or any other accepted V1 feature to V2; full LMS remains a V2 module. The authoritative freeze is [the current V1/V2/V3 release contract](docs/RELEASE_V1_V2_V3.md).
 
 ### Phase 0 — Security and repository foundation ✅
 
@@ -1095,17 +1095,17 @@ Acceptance:
 
 ---
 
-## 19. Production release strategy — complete V1, then new-module V2
+## 19. Production release strategy — complete V1, then V2 and V3
 
 **The launch cohort is 16 real institutes**: 2 primary-through-college, 3 madrasa, 2 training, 1 coaching, 3 online LMS, 3 university and 2 private teachers. Approximately 40,000 student records require validated, reconciled, resumable per-tenant bulk import. One verified global learner may have separate tenant-owned student/enrolment history in two or three institutes; private records never become cross-tenant-visible merely because a person matches.
 
-**Version 1.0 must be 100% of its frozen module scope before real-user release:** complete SaaS, identity/roles/privacy, institute configuration, academic/admission/student, routines/attendance, exam/result/certification, full LMS, fees/finance/accounts, **full HR and Payroll**, relevant portals/reports, bilingual professionally polished UI, safe customizable PWA, import/reconciliation and operational/security release gates. Every institute category must pass its applicable end-to-end acceptance journey. No placeholder, fake dashboard, unfinished button or Basic-only V1 module is production complete.
+**Version 1.0 must be 100% of its frozen module scope before real-user release:** complete SaaS, identity/roles/privacy, institute configuration, academic/admission/student, routines/attendance, exam/result/certification, fees/finance/accounts, **full HR and Payroll**, relevant portals/reports, bilingual professionally polished UI, safe customizable PWA, import/reconciliation and operational/security release gates. Every V1-covered institute workflow must pass its applicable end-to-end acceptance journey. **HR payroll statutory review, pilot UAT and owner go/no-go are still V1 acceptance requirements, even when automated tests pass.** Full online LMS operations await V2. No placeholder, fake dashboard, unfinished button or Basic-only V1 module is production complete.
 
-**Version 2.0 starts only new modules and finishes each fully:** Library, Hostel, Transport, Inventory/Procurement, Assets/Facilities, or separately agreed other business areas. V2 is **not** the place for Advanced Results, Advanced LMS, Advanced Accounts, Advanced HR/Payroll, deferred V1 Reports or deferred V1 design polish. Normal bug fixes, security patches and additive compatibility changes continue as maintenance.
+**Version 2.0 starts only four complete new modules:** LMS, Library, Hostel and Transport. **No HR/Payroll implementation, redesign, duplication, second phase or V2 HR backlog is authorized.** V1 Results, Accounts, HR/Payroll, Reports and V1 UX remain owned by V1; maintenance, statutory/security fixes and justified V2 integration may still touch their existing code without reassigning scope. **V3** separately owns Inventory/Procurement, Assets/Facilities, Visitor/Campus and approved enterprise modules.
 
 Use a **single codebase and one default production SQL Server database**. Upgrade real institution records safely from V1 to V2. Any preview/staging link uses an isolated test database and non-live/anonymized data. Separate simultaneous production databases for the same institute would create conflicting financial and student history and are not the approved design.
 
-Full preproduction scope, acceptance, migration, finance/payroll reconciliation, tenancy, backups/restore, concurrency, performance, actual institutional sign-off and go/no-go criteria: [RELEASE_V1_V2.md](docs/RELEASE_V1_V2.md). The older [school/college staging checklist](docs/deployment/SCHOOL_PILOT_STAGING_RELEASE.md) documents a narrower staging-only switch and is not the new V1 production scope.
+Full preproduction scope, acceptance, migration, finance/payroll reconciliation, tenancy, backups/restore, concurrency, performance, actual institutional sign-off and go/no-go criteria: [RELEASE_V1_V2_V3.md](docs/RELEASE_V1_V2_V3.md). The older [school/college staging checklist](docs/deployment/SCHOOL_PILOT_STAGING_RELEASE.md) documents a narrower staging-only switch and is not the new V1 production scope.
 
 ---
 ## 20. Repository map
