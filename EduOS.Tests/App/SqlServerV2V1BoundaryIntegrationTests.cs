@@ -44,18 +44,25 @@ public sealed partial class SqlServerTransportSeatCapacityIntegrationTests
         Assert.Equal(404, (await AssignAsync(first, foreignRoute)).StatusCode);
         Assert.Equal(404, (await AssignAsync(first, foreignVehicle)).StatusCode);
 
-        await using var own = ScopedContext(first.Options, first.TenantId, first.UserId);
-        await using var other = ScopedContext(second.Options, second.TenantId, second.UserId);
-        Assert.Equal(0, await own.StudentHostelAllocations.CountAsync());
-        Assert.Equal(0, await own.StudentTransports.CountAsync());
-        Assert.Equal(0, await other.StudentHostelAllocations.CountAsync());
-        Assert.Equal(0, await other.StudentTransports.CountAsync());
-        Assert.Equal(2, (await HostelServiceFor(own, first)
-            .GetEligibleStudentsAsync(1, 25, null, startDate: first.Start, endDate: through))
-            .Data!.TotalCount);
-        Assert.Equal(2, (await Service(other, second.TenantId, second.UserId)
-            .GetEligibleStudentsAsync(1, 25, null, second.Start, second.Start.AddDays(2)))
-            .Data!.TotalCount);
+        // IHttpContextAccessor is AsyncLocal. Do not keep two different
+        // tenant HttpContexts alive in one async flow: constructing the second
+        // test context would replace the ambient tenant of the first query.
+        await using (var own = ScopedContext(first.Options, first.TenantId, first.UserId))
+        {
+            Assert.Equal(0, await own.StudentHostelAllocations.CountAsync());
+            Assert.Equal(0, await own.StudentTransports.CountAsync());
+            Assert.Equal(2, (await HostelServiceFor(own, first)
+                .GetEligibleStudentsAsync(1, 25, null, startDate: first.Start, endDate: through))
+                .Data!.TotalCount);
+        }
+        await using (var other = ScopedContext(second.Options, second.TenantId, second.UserId))
+        {
+            Assert.Equal(0, await other.StudentHostelAllocations.CountAsync());
+            Assert.Equal(0, await other.StudentTransports.CountAsync());
+            Assert.Equal(2, (await Service(other, second.TenantId, second.UserId)
+                .GetEligibleStudentsAsync(1, 25, null, second.Start, second.Start.AddDays(2)))
+                .Data!.TotalCount);
+        }
     }
 
     [Fact]

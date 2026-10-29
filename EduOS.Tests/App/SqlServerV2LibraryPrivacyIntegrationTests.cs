@@ -110,30 +110,35 @@ public sealed partial class SqlServerTransportSeatCapacityIntegrationTests
         var own = await SeedDigitalResourceAsync(first);
         var foreign = await SeedDigitalResourceAsync(second);
         var storage = DigitalStorage(own);
-        await using var db = ScopedContext(first.Options, first.TenantId, first.UserId);
-        var reader = DigitalService(db, first, "Student", storage);
-
-        var list = await reader.ListAsync(null, null, 1, 20, false);
-        Assert.True(list.Success, list.Message);
-        Assert.Equal(own.Reference, Assert.Single(list.Data!.Items).Reference);
-        Assert.Equal(404, (await reader.DownloadAsync(foreign.Reference)).StatusCode);
-        storage.Verify(x => x.GetPrivateFileAsync(foreign.Key), Times.Never);
-        var permitted = await reader.DownloadAsync(own.Reference);
-        Assert.True(permitted.Success, permitted.Message);
-        Assert.Equal(own.Bytes, permitted.Data!.Content);
+        // Each tenant gets its own ambient HttpContext; keep their scopes
+        // sequential so the AsyncLocal test accessor cannot switch the first.
+        await using (var db = ScopedContext(first.Options, first.TenantId, first.UserId))
+        {
+            var reader = DigitalService(db, first, "Student", storage);
+            var list = await reader.ListAsync(null, null, 1, 20, false);
+            Assert.True(list.Success, list.Message);
+            Assert.Equal(own.Reference, Assert.Single(list.Data!.Items).Reference);
+            Assert.Equal(404, (await reader.DownloadAsync(foreign.Reference)).StatusCode);
+            storage.Verify(x => x.GetPrivateFileAsync(foreign.Key), Times.Never);
+            var permitted = await reader.DownloadAsync(own.Reference);
+            Assert.True(permitted.Success, permitted.Message);
+            Assert.Equal(own.Bytes, permitted.Data!.Content);
+            Assert.Equal(1, await db.AuditLogs.CountAsync(x =>
+                x.TenantId == first.TenantId && x.Action == "LibraryDigitalResource.Download"));
+        }
 
         // Same SQL database, independent institute and tenant context.
-        await using var otherDb = ScopedContext(second.Options, second.TenantId, second.UserId);
-        var otherStorage = DigitalStorage(foreign);
-        var otherReader = DigitalService(otherDb, second, "Student", otherStorage);
-        Assert.Equal(404, (await otherReader.DownloadAsync(own.Reference)).StatusCode);
-        Assert.Equal(foreign.Reference,
-            Assert.Single((await otherReader.ListAsync(null, null, 1, 20, false)).Data!.Items).Reference);
-        Assert.True((await otherReader.DownloadAsync(foreign.Reference)).Success);
-        Assert.Equal(1, await db.AuditLogs.CountAsync(x =>
-            x.TenantId == first.TenantId && x.Action == "LibraryDigitalResource.Download"));
-        Assert.Equal(1, await otherDb.AuditLogs.CountAsync(x =>
-            x.TenantId == second.TenantId && x.Action == "LibraryDigitalResource.Download"));
+        await using (var otherDb = ScopedContext(second.Options, second.TenantId, second.UserId))
+        {
+            var otherStorage = DigitalStorage(foreign);
+            var otherReader = DigitalService(otherDb, second, "Student", otherStorage);
+            Assert.Equal(404, (await otherReader.DownloadAsync(own.Reference)).StatusCode);
+            Assert.Equal(foreign.Reference,
+                Assert.Single((await otherReader.ListAsync(null, null, 1, 20, false)).Data!.Items).Reference);
+            Assert.True((await otherReader.DownloadAsync(foreign.Reference)).Success);
+            Assert.Equal(1, await otherDb.AuditLogs.CountAsync(x =>
+                x.TenantId == second.TenantId && x.Action == "LibraryDigitalResource.Download"));
+        }
     }
 
     [Fact]
