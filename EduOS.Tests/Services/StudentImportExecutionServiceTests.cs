@@ -976,10 +976,10 @@ public sealed class StudentImportExecutionServiceTests
         Assert.Equal(2, clean.Data.SourceReceiptsChecked);
         Assert.Equal(2, clean.Data.SourceReceiptsHealthy);
 
+        var firstStudentId = (await db.Students.SingleAsync(
+            s => s.StudentCode == "HASH-STU-1")).Id;
         var key = await db.IdempotencyRecords.SingleAsync(x =>
-            x.Scope == "StudentImportSource" && x.RequestHash != null &&
-            x.RequestHash.Length == 64 && x.TargetId ==
-                db.Students.Single(s => s.StudentCode == "HASH-STU-1").Id);
+            x.Scope == "StudentImportSource" && x.TargetId == firstStudentId);
         key.RequestHash = new string('0', 64);
         var items = await db.ImportLogItems.OrderBy(x => x.RowNumber).ToListAsync();
         items[1].RowNumber = items[0].RowNumber;
@@ -1022,6 +1022,7 @@ public sealed class StudentImportExecutionServiceTests
         Assert.Contains(report.Data.Issues, x => x.Code == "DuplicateSourceKey");
         Assert.Contains(report.Data.Issues, x => x.Code == "DuplicateStudentTarget");
         Assert.Equal(2, report.Data.SourceReceiptsChecked);
+        Assert.Equal(1, report.Data.SourceReceiptsHealthy);
         Assert.Equal(2, await db.Students.CountAsync());
     }
 

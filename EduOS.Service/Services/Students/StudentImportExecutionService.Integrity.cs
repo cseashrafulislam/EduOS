@@ -178,7 +178,8 @@ public sealed partial class StudentImportExecutionService
             {
                 var sourceId = SourceId(item.BusinessKey);
                 report.SourceReceiptsChecked++;
-                if (!seenSources.Add(sourceId))
+                var uniqueSource = seenSources.Add(sourceId);
+                if (!uniqueSource)
                     Issue(item.RowNumber, "DuplicateSourceKey",
                         "Committed source identity is repeated in this window.");
                 var receipts = bySource[sourceId].ToArray();
@@ -200,7 +201,7 @@ public sealed partial class StudentImportExecutionService
                             "Tenant-owned student record is unavailable.");
                     else
                     {
-                        if (string.Equals(receipts[0].RequestHash, expectedHash, StringComparison.Ordinal))
+                        if (uniqueSource && string.Equals(receipts[0].RequestHash, expectedHash, StringComparison.Ordinal))
                             report.SourceReceiptsHealthy++;
                 if (!seenStudentTargets.Add(student.Id))
                     Issue(item.RowNumber, "DuplicateStudentTarget",
