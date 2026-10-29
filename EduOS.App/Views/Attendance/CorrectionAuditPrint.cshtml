@@ -1,0 +1,59 @@
+@model EduOS.Core.Common.PagedResult<EduOS.Core.DTOs.Attendance.StudentAttendanceCorrectionReportRowDto>
+@using System.Globalization
+@{
+    Layout = null;
+}
+<!doctype html>
+<html lang="@CultureInfo.CurrentUICulture.Name">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex,nofollow" />
+    <title>Attendance correction audit — page @Model.Page</title>
+    <style>
+        body { font-family: system-ui, sans-serif; color: #17212d; margin: 1rem; }
+        h1 { font-size: 1.3rem; margin: 0 0 .5rem; }
+        .scope { font-size: .85rem; margin-bottom: 1rem; overflow-wrap: anywhere; }
+        table { width: 100%; border-collapse: collapse; font-size: .76rem; }
+        th, td { border: 1px solid #c7cdd3; padding: .35rem; text-align: left; overflow-wrap: anywhere; }
+        th { background: #f1f4f7; }
+        .actions { margin-bottom: 1rem; }
+        .actions button { padding: .5rem 1rem; cursor: pointer; }
+        @@page { size: A4 landscape; margin: 12mm; }
+        @@media print { .actions { display: none; } body { margin: 0; } }
+    </style>
+    <script src="~/js/attendance/print-roster.js" asp-append-version="true" defer></script>
+</head>
+<body>
+    <div class="actions"><button id="printRoster" type="button">Print this page</button></div>
+    <h1>Attendance correction audit</h1>
+    <div class="scope">
+        Batch: @ViewData["BatchId"]
+        · @ViewData["FromDate"] to @ViewData["ToDate"]
+        · Subject offering: @ViewData["SubjectOffering"]
+        · Student prefix: @ViewData["StudentSearch"]
+        · Changed by: @ViewData["ChangedBy"]
+        · Transition: @ViewData["Transition"]
+        · Page @Model.Page of @Model.TotalPages
+        · Showing @Model.Items.Count of @Model.TotalCount matching corrections
+    </div>
+    <table>
+        <thead><tr><th>Date</th><th>Roll</th><th>Student code</th><th>Student</th>
+            <th>Offering</th><th>Previous</th><th>New</th><th>Reason</th>
+            <th>Changed at (UTC)</th><th>Changed by</th></tr></thead>
+        <tbody>
+        @foreach (var item in Model.Items)
+        {
+            <tr>
+                <td>@item.AttendanceDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)</td>
+                <td>@item.RollNo</td><td>@item.StudentCode</td><td>@item.StudentName</td>
+                <td>@(item.SubjectOfferingId?.ToString(CultureInfo.InvariantCulture) ?? "Batch")</td>
+                <td>@item.PreviousState</td><td>@item.NewState</td><td>@item.Reason</td>
+                <td>@item.ChangedAt.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture)</td>
+                <td>@item.ChangedByUserId</td>
+            </tr>
+        }
+        </tbody>
+    </table>
+</body>
+</html>

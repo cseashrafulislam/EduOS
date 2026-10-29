@@ -9,13 +9,14 @@
     const next = el('attendanceCorrectionAuditNext');
     const pageLabel = el('attendanceCorrectionAuditPage');
     const csvButton = el('attendanceCorrectionAuditCsv');
+    const printButton = el('attendanceCorrectionAuditPrint');
     const names = { 1: 'Present', 2: 'Absent', 3: 'Late', 4: 'Leave', 5: 'Excused' };
     let page = 1, pages = 0, request = 0, visible = [], applied = null;
 
     function reset() {
         ++request; page = 1; pages = 0; applied = null; visible = [];
         rows.replaceChildren(); pageLabel.textContent = '';
-        previous.disabled = next.disabled = csvButton.disabled = true;
+        previous.disabled = next.disabled = csvButton.disabled = printButton.disabled = true;
         status.textContent = 'Select report filters and load corrections.';
     }
     function cell(value) {
@@ -52,7 +53,7 @@
     async function load() {
         if (!applied) return;
         const token = ++request;
-        previous.disabled = next.disabled = csvButton.disabled = true;
+        previous.disabled = next.disabled = csvButton.disabled = printButton.disabled = true;
         rows.replaceChildren();
         status.textContent = 'Loading correction audit…';
         try {
@@ -82,34 +83,51 @@
                 ' · ' + Number(result.data.totalCount || 0) + ' corrections';
             previous.disabled = page <= 1;
             next.disabled = page >= pages;
-            csvButton.disabled = !visible.length;
+            csvButton.disabled = printButton.disabled = !visible.length;
         } catch (error) {
             if (token === request) {
-                visible = []; csvButton.disabled = true; pageLabel.textContent = '';
+                visible = []; csvButton.disabled = printButton.disabled = true; pageLabel.textContent = '';
                 status.textContent = error.message || 'Correction audit unavailable.';
             }
         }
     }
-    function csvCell(value) {
-        const raw = String(value ?? '');
-        const safe = /^\s*[=+\-@\t\r]/.test(raw) ? "'" + raw : raw;
-        return '"' + safe.replace(/"/g, '""') + '"';
+    function exportParams() {
+        return new URLSearchParams({ ...applied, page: String(page) });
     }
-    csvButton.addEventListener('click', () => {
-        if (!visible.length || !applied) return;
-        const headers = ['Attendance date','Roll','Student code','Student','Subject offering',
-            'Previous','New','Reason','Changed at UTC','Changed by user'];
-        const data = visible.map(x => [x.attendanceDate, x.rollNo, x.studentCode, x.studentName,
-            x.subjectOfferingId || 'Batch', names[x.previousState] || x.previousState,
-            names[x.newState] || x.newState, x.reason, x.changedAt, x.changedByUserId]);
-        const csv = [headers, ...data].map(line => line.map(csvCell).join(',')).join('\r\n');
-        const blob = new Blob(['\uFEFF', csv], { type: 'text/csv;charset=utf-8' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = 'attendance-corrections-batch-' + applied.academicBatchId +
-            '-filtered-page-' + page + '.csv';
-        document.body.append(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+    csvButton.addEventListener('click', async () => {
+        if (!visible.length || !applied || csvButton.disabled) return;
+        const token = request;
+        const pageAtClick = page;
+        const params = exportParams();
+        csvButton.disabled = true;
+        try {
+            const response = await fetch('/attendance/corrections/export.csv?' + params, {
+                credentials: 'same-origin', cache: 'no-store', referrerPolicy: 'no-referrer',
+                headers: { Accept: 'text/csv' }
+            });
+            if (token !== request || page !== pageAtClick || !applied) return;
+            if (!response.ok || !(response.headers.get('content-type') || '').includes('text/csv'))
+                throw new Error('Authorized correction export unavailable.');
+            const blob = await response.blob();
+            if (token !== request || page !== pageAtClick || !applied) return;
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'attendance-corrections-batch-' + applied.academicBatchId +
+                '-page-' + pageAtClick + '.csv';
+            document.body.append(a); a.click(); a.remove();
+            URL.revokeObjectURL(url);
+        } catch (error) {
+            if (token === request)
+                status.textContent = error.message || 'Authorized correction export unavailable.';
+        } finally {
+            if (token === request) csvButton.disabled = !visible.length;
+        }
+    });
+    printButton.addEventListener('click', () => {
+        if (!visible.length || !applied || printButton.disabled) return;
+        window.open('/attendance/corrections/print?' + exportParams(),
+            '_blank', 'noopener,noreferrer');
     });
     loadButton.addEventListener('click', () => {
         try { applied = filters(); page = 1; void load(); }
