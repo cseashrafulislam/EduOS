@@ -13,6 +13,7 @@ using EduOS.Core.Interfaces.IRepositories;
 using EduOS.Core.Interfaces.IServices;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using Microsoft.AspNetCore.DataProtection;
 using System.Security.Cryptography;
 
 namespace EduOS.Service.Services.AssessmentAdministration;
@@ -57,6 +58,8 @@ public sealed partial class AssessmentAdministrationService : IAssessmentAdminis
     private readonly ICurrentUserService _user;
     private readonly TimeProvider _clock;
     private readonly ILogger<AssessmentAdministrationService> _logger;
+    private readonly IDataProtector? _transcriptProtector;
+    private readonly IGenericRepository<Tenant>? _issuingTenants;
 
     public AssessmentAdministrationService(IGenericRepository<Assessment> assessments,
         IGenericRepository<AssessmentSubject> subjects,
@@ -81,7 +84,9 @@ public sealed partial class AssessmentAdministrationService : IAssessmentAdminis
         IGenericRepository<Guardian>? rescrutinyGuardians = null,
         IGenericRepository<StudentGuardian>? rescrutinyStudentGuardians = null,
         IGenericRepository<ResultCorrectionEvent>? corrections = null,
-        IGenericRepository<StudentResultCourseSnapshot>? courseSnapshots = null)
+        IGenericRepository<StudentResultCourseSnapshot>? courseSnapshots = null,
+        IDataProtectionProvider? transcriptProtection = null,
+        IGenericRepository<Tenant>? issuingTenants = null)
     {
         _assessments = assessments; _subjects = subjects; _markReviews = markReviews;
         _rescrutinyEvents = rescrutinyEvents;
@@ -99,6 +104,8 @@ public sealed partial class AssessmentAdministrationService : IAssessmentAdminis
         _componentMarks = componentMarks; _templates = templates;
         _certificates = certificates; _transcripts = transcripts; _auditLogs = auditLogs;
         _uow = uow; _user = user; _clock = clock; _logger = logger;
+        _transcriptProtector = transcriptProtection?.CreateProtector(TranscriptSnapshotIntegrity.Purpose);
+        _issuingTenants = issuingTenants;
     }
 
     // Legacy bounded selector remains available to existing clients.

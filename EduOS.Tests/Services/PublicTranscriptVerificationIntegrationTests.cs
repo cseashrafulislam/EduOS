@@ -8,7 +8,9 @@ using EduOS.Persistence.Context;
 using EduOS.Service.Services.AssessmentAdministration;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.Extensions.Logging.Abstractions;
+using System.Text.Json;
 using Xunit;
 
 namespace EduOS.Tests.Services;
@@ -55,14 +57,47 @@ public sealed class PublicTranscriptVerificationIntegrationTests
         (await Service(db).VerifyTranscriptAsync(reference)).StatusCode.Should().Be(404);
     }
 
+    [Theory]
+    [InlineData(false, "Valid")]
+    [InlineData(true, "ReviewRequired")]
+    public async Task Authenticated_document_requires_its_exact_published_version(bool superseded, string expected)
+    {
+        await using var db = Context();
+        var reference = Guid.NewGuid();
+        var provider = new EphemeralDataProtectionProvider();
+        var snapshot = new EduOS.Core.DTOs.Assessment.TranscriptSnapshotDocumentDto
+        {
+            TenantId = 1, IssuerName = "Institute A", StudentId = 7,
+            TranscriptReference = reference, TranscriptNumber = "TRN-TEST",
+            IssueDate = DateOnly.FromDateTime(DateTime.UtcNow), IssuedByUserId = 1,
+            AcademicRecord = new EduOS.Core.DTOs.Assessment.TranscriptAcademicRecordDto
+            {
+                StudentReference = Guid.NewGuid(), Courses =
+                [new EduOS.Core.DTOs.Assessment.TranscriptAcademicCourseDto
+                {
+                    PublicationId = 11, PublicationVersionNo = 1, CreditHours = 3,
+                    FullMarks = 100, ObtainedMarks = 75, SubjectCode = "MAT",
+                    SubjectName = "Mathematics", GradePoint = 3.5m
+                }]
+            }
+        };
+        var protectedRecord = provider.CreateProtector(TranscriptSnapshotIntegrity.Purpose)
+            .Protect(JsonSerializer.Serialize(snapshot));
+        await SeedAsync(db, reference, false, true, false, superseded, protectedRecord);
+        var result = await Service(db, provider).VerifyTranscriptAsync(reference);
+        result.Success.Should().BeTrue();
+        result.Data!.Status.Should().Be(expected);
+    }
+
     private static EduOSDbContext Context() => new(
         new DbContextOptionsBuilder<EduOSDbContext>()
             .UseInMemoryDatabase("transcript-verification-" + Guid.NewGuid().ToString("N")).Options);
-    private static PublicCertificateVerificationService Service(EduOSDbContext db) =>
-        new(db, TimeProvider.System, NullLogger<PublicCertificateVerificationService>.Instance);
+    private static PublicCertificateVerificationService Service(EduOSDbContext db,
+        IDataProtectionProvider? provider = null) =>
+        new(db, TimeProvider.System, NullLogger<PublicCertificateVerificationService>.Instance, provider);
 
     private static async Task SeedAsync(EduOSDbContext db, Guid reference,
-        bool revoked, bool published, bool foreignEvidence, bool superseded)
+        bool revoked, bool published, bool foreignEvidence, bool superseded, string? protectedRecord = null)
     {
         var now = DateTime.UtcNow;
         var today = DateOnly.FromDateTime(now);
@@ -85,7 +120,8 @@ public sealed class PublicTranscriptVerificationIntegrationTests
                 Name = "Final", Code = "FINAL", State = AssessmentState.Locked },
             new TranscriptIssue { Id = 10, TenantId = 1, PublicId = reference,
                 StudentId = 7, TranscriptNumber = "TRN-TEST", IssueDate = today,
-                IsRevoked = revoked, IssuedByUserId = 1 },
+                IsRevoked = revoked, IssuedByUserId = 1,
+                ProtectedAcademicRecord = protectedRecord },
             new ResultPublication { Id = 11, TenantId = foreignEvidence ? 2 : 1,
                 AssessmentId = 8, AcademicBatchId = 5, VersionNo = 1,
                 State = published ? ResultPublicationState.Published : ResultPublicationState.Withdrawn,

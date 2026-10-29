@@ -71,6 +71,6 @@ public sealed class TranscriptRegisterWorkflowContractTests
         script.Should().Contain("replace(/");
         view.Should().Contain("@Html.AntiForgeryToken()");
         view.Should().Contain("id=\"transcriptRows\"");
-        view.Should().Contain("not a signed transcript document");
+        view.Should().Contain("authenticated, immutable academic documents");
     }
 }

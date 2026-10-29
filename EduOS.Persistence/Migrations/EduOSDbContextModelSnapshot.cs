@@ -5024,6 +5024,9 @@ namespace EduOS.Persistence.Migrations
                     b.Property<Guid>("PublicId")
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<string>("ProtectedAcademicRecord")
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<DateTime?>("RevokedAt")
                         .HasColumnType("datetime2");
 

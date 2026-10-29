@@ -1,0 +1,66 @@
+@model EduOS.Core.DTOs.Assessment.TranscriptSnapshotDocumentDto
+@{
+    Layout = null;
+    ViewData["Title"] = "Issued Academic Transcript";
+    var record = Model.AcademicRecord;
+}
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Transcript @Model.TranscriptNumber</title>
+    <style>
+        body { font: 12px/1.45 system-ui, 'Noto Sans Bengali', sans-serif; color: #172236; max-width: 1000px; margin: auto; padding: 28px; }
+        h1, h2 { margin: 0; } h1 { font-size: 22px; } h2 { font-size: 17px; margin: 10px 0 16px; }
+        .heading { text-align: center; border-bottom: 2px solid #233853; padding-bottom: 18px; }
+        .details { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 30px; margin: 22px 0; }
+        .key { color: #4e6178; } table { width: 100%; border-collapse: collapse; font-size: 11px; }
+        th, td { border: 1px solid #b5c0cd; padding: 7px; text-align: left; }
+        thead { background: #e9eef4; } .number { text-align: right; white-space: nowrap; }
+        .footer { border-top: 1px solid #8c9cb0; margin-top: 26px; padding-top: 14px; font-size: 11px; }
+        .actions { margin-bottom: 18px; display: flex; gap: 12px; justify-content: end; }
+        button { padding: 7px 12px; cursor: pointer; } tr { break-inside: avoid; }
+        @@media print { @@page { size: A4; margin: 14mm; } body { padding: 0; } .actions { display: none; } }
+    </style>
+</head>
+<body>
+    <nav class="actions"><button onclick="window.print()" type="button">Print / Save as PDF</button></nav>
+    <header class="heading">
+        <h1>@Model.IssuerName</h1>
+        <h2>Official Academic Transcript</h2>
+        <div>@Model.TranscriptNumber</div>
+    </header>
+    <section class="details" aria-label="Student and issue details">
+        <div><span class="key">Student:</span> @record.StudentName</div>
+        <div><span class="key">Student Code:</span> @record.StudentCode</div>
+        <div><span class="key">Issue Date:</span> @Model.IssueDate.ToString("yyyy-MM-dd")</div>
+        <div><span class="key">Latest Published CGPA:</span> @(record.LatestPublishedCgpa?.ToString("0.0000") ?? "N/A")</div>
+    </section>
+    <table aria-label="Frozen published course results">
+        <thead><tr><th>Assessment</th><th>Batch</th><th>Course</th><th class="number">Credits</th><th class="number">Marks</th><th class="number">Grade point</th><th>Grade</th><th>Outcome</th></tr></thead>
+        <tbody>
+            @foreach (var course in record.Courses)
+            {
+                <tr>
+                    <td>@course.AssessmentName (@course.AssessmentEndDate.ToString("yyyy-MM-dd"))</td>
+                    <td>@course.AcademicBatchName</td>
+                    <td>@course.SubjectCode — @course.SubjectName</td>
+                    <td class="number">@course.CreditHours.ToString("0.00")</td>
+                    <td class="number">@course.ObtainedMarks.ToString("0.00") / @course.FullMarks.ToString("0.00")</td>
+                    <td class="number">@course.GradePoint.ToString("0.00")</td>
+                    <td>@course.GradeLetter</td>
+                    <td>@(course.IsPassed ? "Passed" : "Not Passed")</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+    <footer class="footer">
+        <div>Issued by authorized examination administration · Reference @Model.TranscriptReference · UTC @Model.IssuedAtUtc.ToString("yyyy-MM-dd HH:mm")</div>
+        <div>This document preserves authenticated issue-time course evidence. Verify current validity at
+            <a href="/verify/transcript/@Model.TranscriptReference">/verify/transcript/@Model.TranscriptReference</a>.
+            Revoked or superseded results require review.
+        </div>
+    </footer>
+</body>
+</html>

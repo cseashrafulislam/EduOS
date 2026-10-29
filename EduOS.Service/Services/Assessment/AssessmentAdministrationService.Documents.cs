@@ -420,6 +420,8 @@ public sealed partial class AssessmentAdministrationService
         if (request == null || request.ClientRequestId == Guid.Empty ||
             request.StudentReference == Guid.Empty || request.IssueDate == default)
             return Task.FromResult(Error<TranscriptIssueDto>("Invalid transcript request."));
+        if (_transcriptProtector == null)
+            return Task.FromResult(Error<TranscriptIssueDto>("Secure transcript document storage is unavailable.", 503));
         return WriteAsync("issue transcript", async token =>
         {
             var tenant = _user.TenantId;
@@ -445,11 +447,39 @@ public sealed partial class AssessmentAdministrationService
             if (!await EligibleTranscriptStudentIds(tenant).AnyAsync(id => id == student.Id, token))
                 return Error<TranscriptIssueDto>("No published, released result exists for the student.", 409);
             var now = _clock.GetUtcNow().UtcDateTime;
+            if (request.IssueDate > DateOnly.FromDateTime(now))
+                return Error<TranscriptIssueDto>("Transcript issue date cannot be in the future.");
+            var academic = await GetTranscriptAcademicRecordAsync(student.PublicId, token);
+            if (!academic.Success || academic.Data == null)
+                return Error<TranscriptIssueDto>(academic.Message, academic.StatusCode);
+            // A formal transcript must be complete. Legacy summary-only results
+            // cannot silently appear as zero-course history on an official record.
+            if (academic.Data.LegacyPublishedResults != 0 || academic.Data.Courses.Count == 0)
+                return Error<TranscriptIssueDto>("Legacy or incomplete published course evidence must be reconciled before official issuance.", 409);
+            if (_issuingTenants == null)
+                return Error<TranscriptIssueDto>("Issuing institution details are unavailable.", 503);
+            var issuerName = await _issuingTenants.GetQueryable().AsNoTracking()
+                .Where(x => x.Id == tenant && !x.IsDeleted)
+                .Select(x => x.Name).FirstOrDefaultAsync(token);
+            if (string.IsNullOrWhiteSpace(issuerName))
+                return Error<TranscriptIssueDto>("Issuing institution not found.", 409);
+            var number = "TRN-" + request.ClientRequestId.ToString("N").ToUpperInvariant();
+            var document = new TranscriptSnapshotDocumentDto
+            {
+                TenantId = tenant, IssuerName = issuerName, StudentId = student.Id,
+                TranscriptReference = request.ClientRequestId, TranscriptNumber = number,
+                IssueDate = request.IssueDate, IssuedByUserId = _user.UserId,
+                IssuedAtUtc = now, AcademicRecord = academic.Data
+            };
+            var serialized = JsonSerializer.Serialize(document);
+            if (serialized.Length > 131072)
+                return Error<TranscriptIssueDto>("Transcript exceeds the secure synchronous document limit.", 409);
             var row = new TranscriptIssue
             {
                 TenantId = tenant, PublicId = request.ClientRequestId, StudentId = student.Id,
-                TranscriptNumber = "TRN-" + request.ClientRequestId.ToString("N").ToUpperInvariant(),
+                TranscriptNumber = number,
                 IssueDate = request.IssueDate, IssuedByUserId = _user.UserId,
+                ProtectedAcademicRecord = _transcriptProtector.Protect(serialized),
                 CreatedAt = now, CreatedBy = _user.UserId
             };
             await _transcripts.AddAsync(row);

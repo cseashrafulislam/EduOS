@@ -32,6 +32,14 @@
                 cell(row.issueDate), cell(row.isRevoked ? 'Revoked' : 'Issued'));
             const action = document.createElement('td'); action.className = 'transcript-action';
             if (row.reference) {
+                if (!row.isRevoked) {
+                    const documentLink = document.createElement('a');
+                    documentLink.href = '/AssessmentAdministration/TranscriptDocument?reference=' +
+                        encodeURIComponent(row.reference);
+                    documentLink.target = '_blank'; documentLink.rel = 'noopener noreferrer';
+                    documentLink.className = 'btn btn-sm btn-outline-primary me-1';
+                    documentLink.textContent = 'Document'; action.append(documentLink);
+                }
                 const link = document.createElement('a');
                 link.href = '/verify/transcript/' + encodeURIComponent(row.reference);
                 link.target = '_blank'; link.rel = 'noopener noreferrer';
@@ -162,7 +170,7 @@
             await api('/api/assessment-administration/transcripts', 'POST', {
                 clientRequestId: state.requestId, studentReference, issueDate
             });
-            message('Transcript record issued.'); resetRequest();
+            message('Issue-time transcript document saved. Open Document to print or save as PDF.'); resetRequest();
             state.page = 1; await load();
         } catch (e) { message(e.message, true); }
         finally { state.busy = false; el('transcriptIssue').disabled = false; }

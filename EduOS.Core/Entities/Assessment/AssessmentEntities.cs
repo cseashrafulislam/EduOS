@@ -194,6 +194,9 @@ public class TranscriptIssue : BaseTenantEntity
     public long IssuedByUserId { get; set; }
     public long? FileAssetId { get; set; }
     [MaxLength(128)] public string? VerificationCodeHash { get; set; }
+    // Authenticated, encrypted and immutable at issuance. Legacy rows remain null;
+    // they are verification-register records, not formal transcript documents.
+    public string? ProtectedAcademicRecord { get; set; }
     public bool IsRevoked { get; set; }
     public DateTime? RevokedAt { get; set; }
 }

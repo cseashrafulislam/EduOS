@@ -2,10 +2,12 @@ using EduOS.Core.Common;
 using EduOS.Core.DTOs.Assessment;
 using EduOS.Core.Enums;
 using EduOS.Core.Enums.Domain;
+using EduOS.Core.Entities.Assessment;
 using EduOS.Core.Interfaces.IServices;
 using EduOS.Persistence.Context;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using Microsoft.AspNetCore.DataProtection;
 
 namespace EduOS.Service.Services.AssessmentAdministration;
 
@@ -19,13 +21,16 @@ public sealed class PublicCertificateVerificationService : IPublicCertificateVer
     private readonly EduOSDbContext _db;
     private readonly TimeProvider _clock;
     private readonly ILogger<PublicCertificateVerificationService> _logger;
+    private readonly IDataProtector? _transcriptProtector;
 
     public PublicCertificateVerificationService(EduOSDbContext db, TimeProvider clock,
-        ILogger<PublicCertificateVerificationService> logger)
+        ILogger<PublicCertificateVerificationService> logger,
+        IDataProtectionProvider? transcriptProtection = null)
     {
         _db = db;
         _clock = clock;
         _logger = logger;
+        _transcriptProtector = transcriptProtection?.CreateProtector(TranscriptSnapshotIntegrity.Purpose);
     }
 
     public async Task<ApiResponse<PublicCertificateVerificationDto>> VerifyAsync(
@@ -138,7 +143,8 @@ public sealed class PublicCertificateVerificationService : IPublicCertificateVer
             return ApiResponse<PublicTranscriptVerificationDto>.ErrorResponse("Credential not found.", 404);
         var matches = await _db.TranscriptIssues.IgnoreQueryFilters().AsNoTracking()
             .Where(x => x.PublicId == reference && !x.IsDeleted)
-            .Select(x => new { x.TenantId, x.StudentId, x.TranscriptNumber, x.IssueDate, x.IsRevoked })
+            .Select(x => new { x.TenantId, x.StudentId, x.PublicId, x.TranscriptNumber,
+                x.IssueDate, x.IssuedByUserId, x.IsRevoked, x.ProtectedAcademicRecord })
             .Take(2).ToListAsync(cancellationToken);
         if (matches.Count != 1)
             return ApiResponse<PublicTranscriptVerificationDto>.ErrorResponse("Credential not found.", 404);
@@ -209,8 +215,52 @@ public sealed class PublicCertificateVerificationService : IPublicCertificateVer
                     (newer.State == ResultPublicationState.Published ||
                      newer.State == ResultPublicationState.Withdrawn))
             select summary.Id).AnyAsync(cancellationToken);
+        var authenticated = true;
+        if (!string.IsNullOrWhiteSpace(transcript.ProtectedAcademicRecord))
+        {
+            var issue = new TranscriptIssue
+            {
+                TenantId = transcript.TenantId, StudentId = transcript.StudentId,
+                PublicId = transcript.PublicId, TranscriptNumber = transcript.TranscriptNumber,
+                IssueDate = transcript.IssueDate, IssuedByUserId = transcript.IssuedByUserId,
+                ProtectedAcademicRecord = transcript.ProtectedAcademicRecord
+            };
+            authenticated = TranscriptSnapshotIntegrity.TryRead(_transcriptProtector, issue, out var snapshot);
+            if (authenticated)
+            {
+                var pinned = snapshot!.AcademicRecord.Courses
+                    .Select(x => (x.PublicationId, x.PublicationVersionNo)).Distinct().ToArray();
+                var publicationIds = pinned.Select(x => x.PublicationId).ToArray();
+                var published = await (
+                    from publication in _db.ResultPublications.IgnoreQueryFilters().AsNoTracking()
+                    join summary in _db.StudentResultSummaries.IgnoreQueryFilters().AsNoTracking()
+                        on new { publication.TenantId, Id = publication.Id }
+                        equals new { summary.TenantId, Id = summary.ResultPublicationId }
+                    join enrollment in _db.StudentEnrollments.IgnoreQueryFilters().AsNoTracking()
+                        on new { summary.TenantId, Id = summary.StudentEnrollmentId }
+                        equals new { enrollment.TenantId, enrollment.Id }
+                    where publication.TenantId == tenant.Id && !publication.IsDeleted && !summary.IsDeleted &&
+                        !enrollment.IsDeleted && enrollment.StudentId == transcript.StudentId &&
+                        publicationIds.Contains(publication.Id) &&
+                        publication.State == ResultPublicationState.Published &&
+                        publication.VisibleToStudent && publication.PublishedAt != null &&
+                        summary.PublicationVersionNo == publication.VersionNo && !summary.IsWithheld &&
+                        !_db.ResultPublications.IgnoreQueryFilters().AsNoTracking().Any(newer =>
+                            newer.TenantId == tenant.Id && !newer.IsDeleted &&
+                            newer.AssessmentId == publication.AssessmentId &&
+                            newer.AcademicBatchId == publication.AcademicBatchId &&
+                            newer.VersionNo > publication.VersionNo &&
+                            (newer.State == ResultPublicationState.Published ||
+                             newer.State == ResultPublicationState.Withdrawn))
+                    select new { publication.Id, publication.VersionNo })
+                    .Distinct().Take(501).ToListAsync(cancellationToken);
+                authenticated = pinned.Length <= 500 && pinned.Length == published.Count &&
+                    pinned.All(x => published.Any(p => p.Id == x.PublicationId &&
+                        p.VersionNo == x.PublicationVersionNo));
+            }
+        }
         var status = transcript.IsRevoked ? "Revoked" :
-            evidence && transcript.IssueDate <= DateOnly.FromDateTime(now)
+            evidence && authenticated && transcript.IssueDate <= DateOnly.FromDateTime(now)
                 ? "Valid" : "ReviewRequired";
         _logger.LogInformation("Public transcript verification: tenant {TenantId}, status {Status}",
             tenant.Id, status);
