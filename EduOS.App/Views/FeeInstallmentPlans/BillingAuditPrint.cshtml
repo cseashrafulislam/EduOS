@@ -1,0 +1,74 @@
+@using EduOS.Core.DTOs.Finance
+@using System.Globalization
+@model StudentFeeInstallmentBillingAuditDto
+@{
+    Layout = null;
+    var culture = CultureInfo.InvariantCulture;
+}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex,nofollow,noarchive" />
+    <title>Instalment billing reconciliation</title>
+    <style>
+        body { font-family: system-ui, sans-serif; color: #202632; margin: 1.5rem; font-size: 12px; }
+        h1 { font-size: 1.35rem; margin: 0 0 .8rem; }
+        .scope { margin-bottom: 1rem; line-height: 1.6; }
+        table { width: 100%; border-collapse: collapse; }
+        th, td { padding: .45rem; border: 1px solid #d4d9e0; text-align: left; vertical-align: top; }
+        th { background: #f3f5f7; }
+        .num { text-align: right; white-space: nowrap; }
+        .notice { margin: 1rem 0; }
+        tr { break-inside: avoid; }
+    </style>
+</head>
+<body>
+    <h1>Instalment billing reconciliation</h1>
+    <div class="scope">
+        <strong>Student:</strong> @Model.StudentCode
+        <strong>Campus:</strong> @Model.CampusId
+        <strong>Agreement:</strong> @Model.PlanReference
+        <strong>Currency:</strong> @Model.CurrencyCode
+        <div>
+            Contract @Model.ContractGross.ToString("0.00", culture);
+            frozen @Model.FrozenLineGross.ToString("0.00", culture);
+            verified invoice net @Model.VerifiedInvoiceNet.ToString("0.00", culture).
+            Billed @Model.BilledMonths; unbilled @Model.UnbilledMonths; review @Model.ReviewMonths.
+        </div>
+    </div>
+    @if (Model.PlanIssues.Count > 0)
+    {
+        <p class="notice"><strong>Plan findings:</strong> @string.Join("; ", Model.PlanIssues)</p>
+    }
+    <table>
+        <thead>
+            <tr><th>Month</th><th>Contract due</th><th class="num">Contract gross</th>
+                <th>Invoice</th><th class="num">Invoice gross</th><th class="num">Discount</th>
+                <th class="num">Invoice net</th><th class="num">Paid</th><th class="num">Due</th>
+                <th>Journal link</th><th>Status</th><th>Review findings</th></tr>
+        </thead>
+        <tbody>
+        @foreach (var row in Model.Rows)
+        {
+            <tr>
+                <td>@row.MonthStart.ToString("yyyy-MM-dd", culture)</td>
+                <td>@(row.ContractDueDate?.ToString("yyyy-MM-dd", culture) ?? "—")</td>
+                <td class="num">@row.ContractGross.ToString("0.00", culture)</td>
+                <td>@(row.InvoiceNumber ?? "—")</td>
+                <td class="num">@(row.InvoiceGross?.ToString("0.00", culture) ?? "—")</td>
+                <td class="num">@(row.InvoiceDiscount?.ToString("0.00", culture) ?? "—")</td>
+                <td class="num">@(row.InvoiceNet?.ToString("0.00", culture) ?? "—")</td>
+                <td class="num">@(row.InvoicePaid?.ToString("0.00", culture) ?? "—")</td>
+                <td class="num">@(row.InvoiceDue?.ToString("0.00", culture) ?? "—")</td>
+                <td>@(row.JournalLinked ? "Link only" : "No link")</td>
+                <td>@row.Status</td>
+                <td>@string.Join("; ", row.Issues)</td>
+            </tr>
+        }
+        </tbody>
+    </table>
+    <p class="notice">Read-only reconciliation evidence. A journal link does not certify that a journal is posted or unreversed.</p>
+</body>
+</html>

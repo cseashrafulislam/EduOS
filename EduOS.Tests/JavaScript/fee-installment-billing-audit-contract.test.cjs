@@ -17,7 +17,7 @@ test('plan audit has a scoped read-only endpoint and real responsive UI', () => 
   assert.match(js, /billing-audit/);
   assert.match(js, /textContent/);
   assert.match(js, /csvCell/);
-  assert.match(js, /afterprint/);
+  assert.match(js, /billing-audit\/print/);
 });
 
 test('audit compares frozen heads, invoice totals and receipt allocations with tenant/campus boundaries', () => {

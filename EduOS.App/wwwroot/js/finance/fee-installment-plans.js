@@ -294,30 +294,37 @@ async function openBillingAudit() {
     } catch (error) { notice(error.message, true); }
     finally { button.disabled = false; }
 }
-function exportBillingAudit() {
-    if (!billingAudit?.rows?.length) return;
-    const lines = [['Month','Contract due date','Contract gross','Invoice number',
-        'Invoice gross','Invoice discount','Invoice net','Paid','Due','Journal linked',
-        'Status','Review findings']];
-    for (const x of billingAudit.rows) lines.push([x.monthStart,x.contractDueDate || '',
-        money(x.contractGross),x.invoiceNumber || '',x.invoiceGross ?? '',
-        x.invoiceDiscount ?? '',x.invoiceNet ?? '',x.invoicePaid ?? '',x.invoiceDue ?? '',
-        x.journalLinked ? 'Yes - link only' : 'No',x.status,(x.issues || []).join('; ')]);
-    const csv = '\uFEFF' + lines.map(x => x.map(csvCell).join(',')).join('\r\n') + '\r\n';
-    const url = URL.createObjectURL(new Blob([csv], {type:'text/csv;charset=utf-8'}));
-    const link = document.createElement('a');
-    link.href = url; link.download = 'fee-plan-billing-audit.csv';
-    document.body.append(link); link.click(); link.remove();
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
+async function exportBillingAudit() {
+    if (!billingAudit?.rows?.length || !selected ||
+        selected.reference !== billingAudit.planReference) return;
+    const reference = selected.reference;
+    const button = el('feePlanAuditCsv');
+    button.disabled = true;
+    try {
+        const response = await fetch('/finance/fees/plans/' + encodeURIComponent(reference) +
+            '/billing-audit/export.csv', {
+            credentials: 'same-origin', cache: 'no-store', headers: { Accept: 'text/csv' }
+        });
+        if (!response.ok || !(response.headers.get('content-type') || '').includes('text/csv'))
+            throw Error('Unable to export authorized audit. Refresh and retry.');
+        const data = await response.blob();
+        if (!selected || selected.reference !== reference) return;
+        const url = URL.createObjectURL(data);
+        const link = document.createElement('a');
+        link.href = url; link.download = 'fee-installment-' + reference + '-billing-audit.csv';
+        document.body.append(link); link.click(); link.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch (error) { notice(error.message, true); }
+    finally { button.disabled = !billingAudit?.rows?.length; }
 }
 el('feePlanAuditOpen').addEventListener('click', openBillingAudit);
 el('feePlanAuditCsv').addEventListener('click', exportBillingAudit);
 el('feePlanAuditPrint').addEventListener('click', () => {
-    if (!billingAudit?.rows?.length) return;
-    root.classList.add('audit-print');
-    window.print();
+    if (!billingAudit?.rows?.length || !selected ||
+        selected.reference !== billingAudit.planReference) return;
+    window.open('/finance/fees/plans/' + encodeURIComponent(selected.reference) +
+        '/billing-audit/print', '_blank', 'noopener,noreferrer');
 });
-window.addEventListener('afterprint', () => root.classList.remove('audit-print'));
 
 el('feePlanIssueMonth').addEventListener('change', () => {
     invoiceKey = null; previewSequence++; previewFor = null;
