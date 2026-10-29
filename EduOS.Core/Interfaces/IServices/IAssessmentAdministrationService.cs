@@ -26,6 +26,10 @@ public interface IAssessmentAdministrationService
     Task<ApiResponse<AssessmentDto>> SaveAssessmentAsync(Guid? reference, SaveAssessmentRequestDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<AssessmentDto>> GetAssessmentAsync(Guid reference, CancellationToken cancellationToken = default);
     Task<ApiResponse<AssessmentDto>> ChangeAssessmentStateAsync(Guid reference, ChangeAssessmentStateRequestDto request, CancellationToken cancellationToken = default);
+    Task<ApiResponse<PagedResult<AssessmentAttemptRegistrationDto>>> SearchAssessmentAttemptsAsync(AssessmentAttemptQueryDto request, CancellationToken cancellationToken = default);
+    Task<ApiResponse<PagedResult<AssessmentAttemptCandidateDto>>> SearchAssessmentAttemptCandidatesAsync(AssessmentAttemptCandidateQueryDto request, CancellationToken cancellationToken = default);
+    Task<ApiResponse<AssessmentAttemptRegistrationDto>> RequestAssessmentAttemptAsync(RequestAssessmentAttemptDto request, CancellationToken cancellationToken = default);
+    Task<ApiResponse<bool>> DecideAssessmentAttemptAsync(long attemptId, DecideAssessmentAttemptDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<bool>> SaveMarksRegisterAsync(SaveMarksRegisterRequestDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<PagedResult<AssessmentMarkReviewQueueItemDto>>> SearchMarkReviewQueueAsync(AssessmentMarkReviewQueueQueryDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<AssessmentMarkReviewDto>> GetMarkReviewAsync(long subjectId, CancellationToken cancellationToken = default);

@@ -13,6 +13,7 @@ public class Assessment : BaseTenantEntity
     [Required, MaxLength(150)] public string Name { get; set; } = string.Empty;
     [Required, MaxLength(50)] public string Code { get; set; } = string.Empty;
     public AssessmentKind Type { get; set; } = AssessmentKind.Exam;
+    public AssessmentAttemptMode AttemptMode { get; set; } = AssessmentAttemptMode.Regular;
     // Explicitly marks a terminal course assessment for transcript credit;
     // quizzes and practice marks never enter CGPA implicitly.
     public bool CountsTowardCgpa { get; set; }
@@ -30,6 +31,22 @@ public class AssessmentSubject : BaseTenantEntity
     [Column(TypeName = "decimal(18,2)")] public decimal FullMarks { get; set; } = 100;
     [Column(TypeName = "decimal(18,2)")] public decimal PassMarks { get; set; } = 33;
     [Column(TypeName = "decimal(18,2)")] public decimal Weightage { get; set; } = 100;
+}
+
+/// <summary>
+/// A controlled student/subject-specific opportunity for a new terminal attempt.
+/// Does not alter the original result or its immutable course-grade evidence.
+/// </summary>
+public sealed class AssessmentAttemptRegistration : BaseTenantEntity
+{
+    public long AssessmentSubjectId { get; set; }
+    public long StudentSubjectRegistrationId { get; set; }
+    public long PriorResultPublicationId { get; set; }
+    public AssessmentAttemptDecision Decision { get; set; } = AssessmentAttemptDecision.Requested;
+    [Required, MaxLength(500)] public string Reason { get; set; } = string.Empty;
+    public long? DecidedByUserId { get; set; }
+    public DateTime? DecidedAt { get; set; }
+    [MaxLength(500)] public string? DecisionNote { get; set; }
 }
 
 public class AssessmentSchedule : BaseTenantEntity

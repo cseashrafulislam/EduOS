@@ -45,10 +45,16 @@
         </section>
         <section class="card mb-3" aria-labelledby="examCreditHeading">
             <div class="card-body d-flex flex-wrap align-items-center gap-2">
-                <h3 id="examCreditHeading" class="h6 mb-0">Transcript credit inclusion</h3>
+                <h3 id="examCreditHeading" class="h6 mb-0">Transcript credit &amp; attempt policy</h3>
+                <label for="examAttemptMode" class="small">Attempt</label>
+                <select id="examAttemptMode" class="form-select form-select-sm w-auto" disabled>
+                    <option value="0">Regular</option><option value="1">Retake (failed course)</option>
+                    <option value="2">Improvement (passed course)</option>
+                </select>
                 <div class="form-check ms-2"><input id="examCountsTowardCgpa" class="form-check-input" type="checkbox" disabled />
                     <label for="examCountsTowardCgpa" class="form-check-label">Include this final exam in cumulative GPA</label></div>
                 <button id="examSaveCreditPolicy" class="btn btn-sm btn-outline-primary ms-auto" type="button" disabled>Save draft setting</button>
+                <a class="btn btn-sm btn-outline-secondary" asp-controller="AssessmentAdministration" asp-action="Attempts">Retake / Improvement approvals</a>
                 <span id="examCreditInfo" class="small text-muted" role="status" aria-live="polite">Choose a draft assessment.</span>
             </div>
         </section>

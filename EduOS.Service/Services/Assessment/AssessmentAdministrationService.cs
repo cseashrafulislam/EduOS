@@ -21,6 +21,7 @@ namespace EduOS.Service.Services.AssessmentAdministration;
 public sealed partial class AssessmentAdministrationService : IAssessmentAdministrationService
 {
     private readonly IGenericRepository<Assessment> _assessments;
+    private readonly IGenericRepository<AssessmentAttemptRegistration>? _attemptRegistrations;
     private readonly IGenericRepository<AssessmentSubject> _subjects;
     private readonly IGenericRepository<AssessmentMarkReviewEvent> _markReviews;
     private readonly IGenericRepository<ResultRescrutinyEvent> _rescrutinyEvents;
@@ -86,7 +87,8 @@ public sealed partial class AssessmentAdministrationService : IAssessmentAdminis
         IGenericRepository<ResultCorrectionEvent>? corrections = null,
         IGenericRepository<StudentResultCourseSnapshot>? courseSnapshots = null,
         IDataProtectionProvider? transcriptProtection = null,
-        IGenericRepository<Tenant>? issuingTenants = null)
+        IGenericRepository<Tenant>? issuingTenants = null,
+        IGenericRepository<AssessmentAttemptRegistration>? attemptRegistrations = null)
     {
         _assessments = assessments; _subjects = subjects; _markReviews = markReviews;
         _rescrutinyEvents = rescrutinyEvents;
@@ -106,6 +108,7 @@ public sealed partial class AssessmentAdministrationService : IAssessmentAdminis
         _uow = uow; _user = user; _clock = clock; _logger = logger;
         _transcriptProtector = transcriptProtection?.CreateProtector(TranscriptSnapshotIntegrity.Purpose);
         _issuingTenants = issuingTenants;
+        _attemptRegistrations = attemptRegistrations;
     }
 
     // Legacy bounded selector remains available to existing clients.
@@ -200,6 +203,13 @@ public sealed partial class AssessmentAdministrationService : IAssessmentAdminis
         if (!await CanEditOfferingAsync(offering.Id, ct))
             return Error<AssessmentMarkRosterDto>("Instructor is not assigned to this offering.", 403);
         var eligible = await EligibleAsync(offering.Id, request.AcademicBatchId, ct);
+        if (scope.Value.Exam.AttemptMode != AssessmentAttemptMode.Regular)
+        {
+            if (_attemptRegistrations == null)
+                return Error<AssessmentMarkRosterDto>("Attempt register is unavailable.", 503);
+            var approved = await ApprovedAttemptQuery(sub.Id).Select(x => x.StudentSubjectRegistrationId).ToListAsync(ct);
+            eligible = eligible.Where(x => approved.Contains(x.RegistrationId)).ToList();
+        }
         if (eligible.Count > 2000)
             return Error<AssessmentMarkRosterDto>("Assessment roster exceeds synchronous reporting limit.", 409);
         var ids = eligible.Select(x => x.RegistrationId).ToArray();
@@ -295,6 +305,16 @@ public sealed partial class AssessmentAdministrationService : IAssessmentAdminis
                 if (eligibleIds.Count != ids.Length || request.Marks.Any(x =>
                     !x.IsAbsent && x.ObtainedMarks > sub.FullMarks))
                     return Error<bool>("Marks exceed maximum or student is not registered.", 409);
+                if (exam.AttemptMode != AssessmentAttemptMode.Regular)
+                {
+                    if (_attemptRegistrations == null)
+                        return Error<bool>("Attempt register is unavailable.", 503);
+                    var approved = await ApprovedAttemptQuery(sub.Id)
+                        .Where(x => ids.Contains(x.StudentSubjectRegistrationId))
+                        .Select(x => x.StudentSubjectRegistrationId).ToListAsync(token);
+                    if (approved.Distinct().Count() != ids.Length)
+                        return Error<bool>("Retake/improvement marks require approved student-specific attempt authorization.", 409);
+                }
                 var existing = await _marks.GetQueryable().Where(x => x.TenantId == tenant &&
                     x.AssessmentSubjectId == sub.Id && ids.Contains(x.StudentSubjectRegistrationId) &&
                     !x.IsDeleted).ToDictionaryAsync(x => x.StudentSubjectRegistrationId, token);
@@ -594,6 +614,35 @@ public sealed partial class AssessmentAdministrationService : IAssessmentAdminis
                 student.StatusCode == "Active" && !enrollment.IsDeleted && !student.IsDeleted
             select new { enrollment, student }).OrderBy(x => x.enrollment.RollNo).Take(5001).ToListAsync(ct);
         if (enrollments.Count is 0 or > 5000) return (null, "Active roster is empty or too large.");
+        HashSet<(long SubjectId, long RegistrationId)>? allowedAttempts = null;
+        if (exam.AttemptMode != AssessmentAttemptMode.Regular)
+        {
+            if (_attemptRegistrations == null)
+                return (null, "Attempt register is unavailable.");
+            var applicableSubjectIds = subjectData.Select(x => x.sub.Id).ToArray();
+            var attemptRows = await _attemptRegistrations.GetQueryable().AsNoTracking().Where(x =>
+                x.TenantId == tenant && applicableSubjectIds.Contains(x.AssessmentSubjectId) &&
+                !x.IsDeleted).Select(x => new
+                { x.AssessmentSubjectId, x.StudentSubjectRegistrationId, x.PriorResultPublicationId, x.Decision }).ToListAsync(ct);
+            if (attemptRows.Count == 0 || attemptRows.Any(x => x.Decision == AssessmentAttemptDecision.Requested))
+                return (null, "Targeted retake/improvement has no approved candidates or undecided requests.");
+            allowedAttempts = attemptRows.Where(x => x.Decision == AssessmentAttemptDecision.Approved)
+                .Select(x => (x.AssessmentSubjectId, x.StudentSubjectRegistrationId)).ToHashSet();
+            if (allowedAttempts.Count == 0)
+                return (null, "Targeted retake/improvement has no approved candidates.");
+            var sourceIds = attemptRows.Where(x => x.Decision == AssessmentAttemptDecision.Approved)
+                .Select(x => x.PriorResultPublicationId).Distinct().ToArray();
+            var sourceQuery = _publications.GetQueryable().AsNoTracking();
+            var sources = await sourceQuery.Where(x => x.TenantId == tenant && sourceIds.Contains(x.Id) &&
+                x.State == ResultPublicationState.Published && x.VisibleToStudent && !x.IsDeleted &&
+                !sourceQuery.Any(newer => newer.TenantId == tenant &&
+                    newer.AssessmentId == x.AssessmentId && newer.AcademicBatchId == x.AcademicBatchId &&
+                    newer.VersionNo > x.VersionNo && !newer.IsDeleted &&
+                    (newer.State == ResultPublicationState.Published || newer.State == ResultPublicationState.Withdrawn)))
+                .Select(x => x.Id).ToListAsync(ct);
+            if (sources.Count != sourceIds.Length)
+                return (null, "Approved retake/improvement cites a withdrawn or superseded prior result.");
+        }
         var enrollmentIds = enrollments.Select(x => x.enrollment.Id).ToArray();
         var offerings = subjectData.Select(x => x.offering.Id).ToArray();
         var registrations = await _registrations.GetQueryable().AsNoTracking().Where(x =>
@@ -659,6 +708,9 @@ public sealed partial class AssessmentAdministrationService : IAssessmentAdminis
                     continue;
                 var registered = regByPair.TryGetValue(
                     (person.enrollment.Id, subject.offering.Id), out var registration);
+                if (allowedAttempts != null && (!registered ||
+                    !allowedAttempts.Contains((subject.sub.Id, registration!.Id))))
+                    continue;
                 if (!AssessmentSubjectEligibility.RequiresMark(item.IsOptional, registered))
                     continue;
                 if (!registered || !marksByPair.TryGetValue((subject.sub.Id, registration!.Id), out var mark))
@@ -714,7 +766,10 @@ public sealed partial class AssessmentAdministrationService : IAssessmentAdminis
                 }
             }
             if (weightSum <= 0)
+            {
+                if (allowedAttempts != null) continue;
                 return (null, "Student has no applicable registered assessment subjects.");
+            }
             var percent = decimal.Round(100m * weighted / weightSum, 4);
             var grade = grades.FirstOrDefault(x => percent >= x.MinMarks && percent <= x.MaxMarks);
             if (grade == null) return (null, "No grade rule matches the result percentage.");
@@ -735,8 +790,10 @@ public sealed partial class AssessmentAdministrationService : IAssessmentAdminis
                 IsPassed = passed && !grade.IsFailGrade, IsWithheld = withheld
             });
         }
+        var resultRolls = results.Select(x => x.RollNo).ToHashSet();
         var cumulativeError = await ApplyCumulativeGradePointsAsync(exam, batch,
-            enrollments.Select(x => (Enrollment: x.enrollment, Roll: x.enrollment.RollNo)).ToArray(),
+            enrollments.Where(x => resultRolls.Contains(x.enrollment.RollNo))
+                .Select(x => (Enrollment: x.enrollment, Roll: x.enrollment.RollNo)).ToArray(),
             results, ct);
         if (cumulativeError != null) return (null, cumulativeError);
         var rank = 0;

@@ -1443,6 +1443,129 @@ public sealed class SqlServerAssessmentMarkReviewLifecycleIntegrationTests
         }
     }
 
+    [Fact]
+    public async Task Retake_requires_prior_failed_publication_explicit_approval_and_limits_eligible_mark_roster()
+    {
+        var connection = Environment.GetEnvironmentVariable("EDUOS_SQL_AUTH_TEST_CONNECTION");
+        if (string.IsNullOrWhiteSpace(connection)) return;
+        var options = new DbContextOptionsBuilder<EduOSDbContext>().UseSqlServer(connection).Options;
+        var seeded = await SeedAsync(options);
+        long retakeId;
+        long retakeSubjectId;
+        long originalPublicationId;
+        await using (var db = TenantDb(options, seeded.TenantId))
+        {
+            var originalSubject = await db.AssessmentSubjects.SingleAsync(x => x.Id == seeded.AssessmentSubjectId);
+            var original = await db.Assessments.SingleAsync(x => x.Id == originalSubject.AssessmentId);
+            var offering = await db.SubjectOfferings.SingleAsync(x => x.Id == originalSubject.SubjectOfferingId);
+            var registration = await db.StudentSubjectRegistrations.SingleAsync(x => x.Id == seeded.RegistrationId);
+            var curriculumSubject = await db.CurriculumSubjects.SingleAsync(x => x.Id == offering.CurriculumSubjectId);
+            curriculumSubject.CreditHours = 3m;
+            registration.CreditHoursSnapshot = 3m;
+            var scheme = new GradeScheme { TenantId = seeded.TenantId, Name = "Retake policy",
+                Code = "RETAKE-" + Guid.NewGuid().ToString("N")[..12], UseCreditWeightedGpa = true,
+                RepeatCourseGradePolicy = RepeatCourseGradePolicy.LatestAttempt };
+            db.GradeSchemes.Add(scheme);
+            await db.SaveChangesAsync();
+            db.GradeRules.AddRange(new GradeRule { TenantId = seeded.TenantId, GradeSchemeId = scheme.Id,
+                MinMarks = 0m, MaxMarks = 59.99m, GradeLetter = "F", GradePoint = 0m, IsFailGrade = true },
+                new GradeRule { TenantId = seeded.TenantId, GradeSchemeId = scheme.Id,
+                MinMarks = 60m, MaxMarks = 100m, GradeLetter = "A", GradePoint = 4m });
+            original.CountsTowardCgpa = true;
+            original.GradeSchemeId = scheme.Id;
+            var prior = new ResultPublication { TenantId = seeded.TenantId,
+                AssessmentId = original.Id, AcademicBatchId = offering.AcademicBatchId,
+                VersionNo = 1, State = ResultPublicationState.Published,
+                PublishedAt = new DateTime(2026, 10, 3), PublishedByUserId = seeded.ReviewerId,
+                HasCourseGradeSnapshots = true, VisibleToStudent = true };
+            db.ResultPublications.Add(prior);
+            var retake = new Assessment { TenantId = seeded.TenantId, CampusId = original.CampusId,
+                AcademicYearId = original.AcademicYearId, Name = "Mathematics retake",
+                Code = "RETAKE-" + Guid.NewGuid().ToString("N")[..8],
+                StartDate = new DateOnly(2026, 11, 1), EndDate = new DateOnly(2026, 11, 2),
+                AttemptMode = AssessmentAttemptMode.Retake, CountsTowardCgpa = true,
+                GradeSchemeId = scheme.Id, State = AssessmentState.Draft };
+            db.Assessments.Add(retake);
+            await db.SaveChangesAsync();
+            retakeId = retake.Id; originalPublicationId = prior.Id;
+            db.StudentResultSummaries.Add(new StudentResultSummary { TenantId = seeded.TenantId,
+                ResultPublicationId = prior.Id, AssessmentId = original.Id,
+                StudentEnrollmentId = registration.StudentEnrollmentId,
+                PublicationVersionNo = 1, TotalMarks = 100m, ObtainedMarks = 25m,
+                GPA = 0m, CreditHours = 3m, CourseCount = 1, IsPassed = false });
+            db.StudentResultCourseSnapshots.Add(new StudentResultCourseSnapshot { TenantId = seeded.TenantId,
+                ResultPublicationId = prior.Id, StudentEnrollmentId = registration.StudentEnrollmentId,
+                AssessmentSubjectId = originalSubject.Id, CurriculumSubjectId = offering.CurriculumSubjectId,
+                StudentSubjectRegistrationId = registration.Id, FullMarks = 100m, ObtainedMarks = 25m,
+                CreditHours = 3m, GradePoint = 0m, GradeLetter = "F", IsPassed = false });
+            var retakeSubject = new AssessmentSubject { TenantId = seeded.TenantId,
+                AssessmentId = retake.Id, SubjectOfferingId = offering.Id,
+                FullMarks = 100m, PassMarks = 60m, Weightage = 100m };
+            db.AssessmentSubjects.Add(retakeSubject);
+            await db.SaveChangesAsync();
+            retakeSubjectId = retakeSubject.Id;
+        }
+        var controller = new Actor(seeded.TenantId, seeded.ReviewerId, "TenantAdmin");
+        await using (var db = TenantDb(options, seeded.TenantId))
+        {
+            var service = Service(db, controller);
+            var before = await service.SearchMarkRosterAsync(new AssessmentMarkRosterPageQueryDto
+            { AssessmentId = retakeId, AcademicBatchId = await db.SubjectOfferings.Where(x =>
+                x.Id == db.AssessmentSubjects.Where(s => s.Id == retakeSubjectId).Select(s => s.SubjectOfferingId)
+                    .First()).Select(x => x.AcademicBatchId).FirstAsync(),
+                AssessmentSubjectId = retakeSubjectId, Page = 1, PageSize = 10 });
+            Assert.True(before.Success);
+            Assert.Equal(0, before.Data!.TotalCount);
+            var requested = await service.RequestAssessmentAttemptAsync(new RequestAssessmentAttemptDto
+            {
+                AssessmentSubjectId = retakeSubjectId, StudentSubjectRegistrationId = seeded.RegistrationId,
+                PriorResultPublicationId = originalPublicationId, Reason = "Prior terminal failure"
+            });
+            Assert.True(requested.Success, requested.Message);
+            var second = await service.RequestAssessmentAttemptAsync(new RequestAssessmentAttemptDto
+            {
+                AssessmentSubjectId = retakeSubjectId, StudentSubjectRegistrationId = seeded.RegistrationId,
+                PriorResultPublicationId = originalPublicationId, Reason = "Prior terminal failure"
+            });
+            Assert.True(second.Success);
+            Assert.Equal(requested.Data!.Id, second.Data!.Id);
+            var approved = await service.DecideAssessmentAttemptAsync(requested.Data.Id, new DecideAssessmentAttemptDto
+            { Decision = AssessmentAttemptDecision.Approved, RowVersion = requested.Data.RowVersion,
+                Reason = "Published course failure verified" });
+            Assert.True(approved.Success, approved.Message);
+            Assert.Equal(409, (await service.DecideAssessmentAttemptAsync(requested.Data.Id,
+                new DecideAssessmentAttemptDto { Decision = AssessmentAttemptDecision.Rejected,
+                    RowVersion = requested.Data.RowVersion, Reason = "Race" })).StatusCode);
+        }
+        await using (var db = TenantDb(options, seeded.TenantId))
+        {
+            var exam = await db.Assessments.SingleAsync(x => x.Id == retakeId);
+            exam.State = AssessmentState.MarksEntry;
+            await db.SaveChangesAsync();
+            var scopeBatch = await (from subject in db.AssessmentSubjects
+                join offering in db.SubjectOfferings on subject.SubjectOfferingId equals offering.Id
+                where subject.Id == retakeSubjectId select offering.AcademicBatchId).FirstAsync();
+            var service = Service(db, controller);
+            var roster = await service.SearchMarkRosterAsync(new AssessmentMarkRosterPageQueryDto
+            { AssessmentId = retakeId, AcademicBatchId = scopeBatch,
+                AssessmentSubjectId = retakeSubjectId, Page = 1, PageSize = 10 });
+            Assert.True(roster.Success, roster.Message);
+            Assert.Equal(1, roster.Data!.TotalCount);
+            var markSaved = await service.SaveMarksRegisterAsync(new SaveMarksRegisterRequestDto
+            {
+                AssessmentSubjectId = retakeSubjectId,
+                Marks = [new SaveStudentAssessmentMarkRequestDto
+                { StudentSubjectRegistrationId = seeded.RegistrationId, ObtainedMarks = 80m }]
+            });
+            Assert.True(markSaved.Success, markSaved.Message);
+            var preview = await service.PreviewResultsAsync(new AssessmentScopeDto
+            { AssessmentId = retakeId, AcademicBatchId = scopeBatch });
+            Assert.True(preview.Success, preview.Message);
+            Assert.Single(preview.Data!.Results);
+            Assert.Equal(4m, preview.Data.Results.Single().CumulativeGradePointAverage);
+        }
+    }
+
     private static AssessmentAdministrationService Service(EduOSDbContext db, Actor actor)
     {
         GenericRepository<T> Repo<T>() where T : class => new(db);
@@ -1459,7 +1582,8 @@ public sealed class SqlServerAssessmentMarkReviewLifecycleIntegrationTests
             Repo<EduOS.Core.Entities.System.AuditLog>(), db, actor, TimeProvider.System,
             NullLogger<AssessmentAdministrationService>.Instance,
             Repo<ResultRescrutinyEvent>(), Repo<Guardian>(), Repo<StudentGuardian>(),
-            Repo<ResultCorrectionEvent>(), Repo<StudentResultCourseSnapshot>());
+            Repo<ResultCorrectionEvent>(), Repo<StudentResultCourseSnapshot>(),
+            null, null, Repo<AssessmentAttemptRegistration>());
     }
 
     private static EduOSDbContext TenantDb(DbContextOptions<EduOSDbContext> options, long tenant)

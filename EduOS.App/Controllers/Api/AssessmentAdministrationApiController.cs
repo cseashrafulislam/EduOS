@@ -37,6 +37,27 @@ public sealed class AssessmentAdministrationApiController : ControllerBase
     public async Task<IActionResult> SearchMarkRoster([FromQuery] AssessmentMarkRosterPageQueryDto query,
         CancellationToken ct) => Result(await _service.SearchMarkRosterAsync(query, ct));
 
+    [HttpGet("attempts")]
+    [Authorize(Roles = "TenantAdmin,Principal,VicePrincipal,ExamController")]
+    public async Task<IActionResult> Attempts([FromQuery] AssessmentAttemptQueryDto query,
+        CancellationToken ct) => Result(await _service.SearchAssessmentAttemptsAsync(query, ct));
+
+    [HttpGet("attempts/candidates")]
+    [Authorize(Roles = "TenantAdmin,Principal,VicePrincipal,ExamController")]
+    public async Task<IActionResult> AttemptCandidates([FromQuery] AssessmentAttemptCandidateQueryDto query,
+        CancellationToken ct) => Result(await _service.SearchAssessmentAttemptCandidatesAsync(query, ct));
+
+    [HttpPost("attempts")]
+    [Authorize(Roles = "TenantAdmin,Principal,VicePrincipal,ExamController")]
+    public async Task<IActionResult> RequestAttempt([FromBody] RequestAssessmentAttemptDto request,
+        CancellationToken ct) => Result(await _service.RequestAssessmentAttemptAsync(request, ct));
+
+    [HttpPost("attempts/{attemptId:long}/decision")]
+    [Authorize(Roles = "TenantAdmin,Principal,VicePrincipal,ExamController")]
+    public async Task<IActionResult> DecideAttempt(long attemptId,
+        [FromBody] DecideAssessmentAttemptDto request, CancellationToken ct) =>
+        Result(await _service.DecideAssessmentAttemptAsync(attemptId, request, ct));
+
     [HttpGet("mark-roster")]
     public async Task<IActionResult> MarkRoster([FromQuery] AssessmentMarkRosterQueryDto query,
         CancellationToken ct) => Result(await _service.GetMarkRosterAsync(query, ct));

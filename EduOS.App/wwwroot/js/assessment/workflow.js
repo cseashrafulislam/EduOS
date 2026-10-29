@@ -104,6 +104,7 @@
         const s = currentAssessment();
         state.creditDetail = null;
         el('examCountsTowardCgpa').disabled = true;
+        el('examAttemptMode').disabled = true;
         el('examSaveCreditPolicy').disabled = true;
         el('examCreditInfo').textContent = s ? 'Loading policy…' : 'Choose a draft assessment.';
         if (!s?.assessmentReference) return;
@@ -115,6 +116,8 @@
             state.creditDetail = detail;
             const draft = Number(detail.state) === 1;
             el('examCountsTowardCgpa').checked = !!detail.countsTowardCgpa;
+            el('examAttemptMode').value = String(detail.attemptMode ?? 0);
+            el('examAttemptMode').disabled = !draft;
             el('examCountsTowardCgpa').disabled = !draft;
             el('examSaveCreditPolicy').disabled = !draft;
             el('examCreditInfo').textContent = draft
@@ -129,10 +132,14 @@
             Number(state.creditDetail.state) !== 1) return;
         const detail = state.creditDetail;
         const desired = el('examCountsTowardCgpa').checked;
-        if (desired === !!detail.countsTowardCgpa) {
+        const attemptMode = Number(el('examAttemptMode').value);
+        if (attemptMode !== 0 && !desired) {
+            message('warning', 'Retake / improvement exams must count toward cumulative GPA.'); return;
+        }
+        if (desired === !!detail.countsTowardCgpa && attemptMode === Number(detail.attemptMode ?? 0)) {
             message('warning', 'There is no change to save.'); return;
         }
-        if (!window.confirm('Update this draft assessment\'s transcript-credit inclusion?')) return;
+        if (!window.confirm('Update this draft assessment\'s transcript credit and attempt policy?')) return;
         state.busy = true; el('examSaveCreditPolicy').disabled = true;
         try {
             await api('/api/assessment-administration/assessments/' +
@@ -140,7 +147,7 @@
                 clientRequestId: crypto.randomUUID(), campusId: detail.campusId,
                 academicYearId: detail.academicYearId, academicTermId: detail.academicTermId,
                 gradeSchemeId: detail.gradeSchemeId, name: detail.name, code: detail.code,
-                type: detail.type, countsTowardCgpa: desired,
+                type: detail.type, countsTowardCgpa: desired, attemptMode,
                 startDate: detail.startDate, endDate: detail.endDate,
                 remarks: detail.remarks, rowVersion: detail.rowVersion
             });

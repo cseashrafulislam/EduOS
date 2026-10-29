@@ -280,6 +280,7 @@ public class EduOSDbContext :
 
     // Assessment / Result
     public DbSet<Assessment> Assessments => Set<Assessment>();
+    public DbSet<AssessmentAttemptRegistration> AssessmentAttemptRegistrations => Set<AssessmentAttemptRegistration>();
     public DbSet<AssessmentComponent> AssessmentComponents => Set<AssessmentComponent>();
     public DbSet<AssessmentMarkReviewEvent> AssessmentMarkReviewEvents => Set<AssessmentMarkReviewEvent>();
     public DbSet<ResultRescrutinyEvent> ResultRescrutinyEvents => Set<ResultRescrutinyEvent>();
@@ -781,6 +782,10 @@ public class EduOSDbContext :
         TenantReference<Assessment, AcademicTerm>(modelBuilder, nameof(Assessment.AcademicTermId));
         TenantReference<Assessment, GradeScheme>(modelBuilder, nameof(Assessment.GradeSchemeId));
         TenantReference<AssessmentSubject, Assessment>(modelBuilder, nameof(AssessmentSubject.AssessmentId));
+        TenantReference<AssessmentAttemptRegistration, AssessmentSubject>(modelBuilder, nameof(AssessmentAttemptRegistration.AssessmentSubjectId));
+        TenantReference<AssessmentAttemptRegistration, StudentSubjectRegistration>(modelBuilder, nameof(AssessmentAttemptRegistration.StudentSubjectRegistrationId));
+        TenantReference<AssessmentAttemptRegistration, ResultPublication>(modelBuilder, nameof(AssessmentAttemptRegistration.PriorResultPublicationId));
+        Reference<AssessmentAttemptRegistration, ApplicationUser>(modelBuilder, nameof(AssessmentAttemptRegistration.DecidedByUserId));
         TenantReference<AssessmentMarkReviewEvent, AssessmentSubject>(modelBuilder, nameof(AssessmentMarkReviewEvent.AssessmentSubjectId));
         TenantReference<ResultRescrutinyEvent, ResultPublication>(modelBuilder, nameof(ResultRescrutinyEvent.ResultPublicationId));
         TenantReference<ResultRescrutinyEvent, StudentEnrollment>(modelBuilder, nameof(ResultRescrutinyEvent.StudentEnrollmentId));
@@ -1340,6 +1345,7 @@ public class EduOSDbContext :
         UniqueTenant<GradeRule>(modelBuilder, nameof(GradeRule.GradeSchemeId), nameof(GradeRule.GradeLetter));
         UniqueTenant<Assessment>(modelBuilder, nameof(Assessment.Code), nameof(Assessment.VersionNo));
         UniqueTenant<AssessmentSubject>(modelBuilder, nameof(AssessmentSubject.AssessmentId), nameof(AssessmentSubject.SubjectOfferingId));
+        UniqueTenant<AssessmentAttemptRegistration>(modelBuilder, nameof(AssessmentAttemptRegistration.AssessmentSubjectId), nameof(AssessmentAttemptRegistration.StudentSubjectRegistrationId));
         UniqueTenant<AssessmentMarkReviewEvent>(modelBuilder, nameof(AssessmentMarkReviewEvent.ClientRequestId));
         UniqueTenant<ResultRescrutinyEvent>(modelBuilder, nameof(ResultRescrutinyEvent.ClientRequestId));
         UniqueTenant<ResultCorrectionEvent>(modelBuilder, nameof(ResultCorrectionEvent.ClientRequestId));
@@ -1686,7 +1692,12 @@ public class EduOSDbContext :
         modelBuilder.Entity<StudentEnrollment>().ToTable(t =>
             t.HasCheckConstraint("CK_StudentEnrollment_DateRange", "[EndDate] IS NULL OR [EndDate] >= [EnrollmentDate]"));
         modelBuilder.Entity<Assessment>().ToTable(t =>
-            t.HasCheckConstraint("CK_Assessment_DateRange", "[EndDate] >= [StartDate]"));
+        {
+            t.HasCheckConstraint("CK_Assessment_DateRange", "[EndDate] >= [StartDate]");
+            t.HasCheckConstraint("CK_Assessment_AttemptMode", "[AttemptMode] IN (0,1,2)");
+        });
+        modelBuilder.Entity<AssessmentAttemptRegistration>().ToTable(t =>
+            t.HasCheckConstraint("CK_AssessmentAttemptRegistration_Decision", "[Decision] BETWEEN 1 AND 3"));
         modelBuilder.Entity<AccountingPeriod>().ToTable(t =>
             t.HasCheckConstraint("CK_AccountingPeriod_DateRange", "[EndDate] >= [StartDate]"));
         modelBuilder.Entity<BankReconciliationBatch>().ToTable(t =>

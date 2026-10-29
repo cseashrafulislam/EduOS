@@ -18,6 +18,8 @@ public enum AdmissionFormState { Draft = 1, Published = 2, Closed = 3, Archived 
 public enum AdmissionApplicantState { Draft = 1, Submitted = 2, UnderReview = 3, DocumentPending = 4, AssessmentPending = 5, Qualified = 6, Rejected = 7, Admitted = 8, Withdrawn = 9 }
 public enum AdmissionDecisionState { Pending = 1, Offered = 2, Accepted = 3, Rejected = 4, Expired = 5, Cancelled = 6 }
 public enum AssessmentKind { Exam = 1, Quiz = 2, Assignment = 3, ClassTest = 4, Practical = 5, Viva = 6, Project = 7, ContinuousAssessment = 8 }
+public enum AssessmentAttemptMode { Regular = 0, Retake = 1, Improvement = 2 }
+public enum AssessmentAttemptDecision { Requested = 1, Approved = 2, Rejected = 3 }
 // Explicit immutable programme policy for repeated course attempts in CGPA.
 public enum RepeatCourseGradePolicy { Reject = 0, LatestAttempt = 1, HighestGradePoint = 2 }
 public enum AssessmentState { Draft = 1, Scheduled = 2, InProgress = 3, MarksEntry = 4, Locked = 5, Published = 6, Cancelled = 7 }

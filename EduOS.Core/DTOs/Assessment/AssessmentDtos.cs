@@ -14,6 +14,7 @@ public class AssessmentDto
     public string Name { get; set; } = string.Empty;
     public string Code { get; set; } = string.Empty;
     public AssessmentKind Type { get; set; }
+    public AssessmentAttemptMode AttemptMode { get; set; }
     public bool CountsTowardCgpa { get; set; }
     public AssessmentState State { get; set; }
     public DateOnly StartDate { get; set; }
@@ -33,6 +34,7 @@ public class SaveAssessmentRequestDto
     [Required, MaxLength(150)] public string Name { get; set; } = string.Empty;
     [Required, MaxLength(50)] public string Code { get; set; } = string.Empty;
     public AssessmentKind Type { get; set; } = AssessmentKind.Exam;
+    public AssessmentAttemptMode AttemptMode { get; set; }
     public bool CountsTowardCgpa { get; set; }
     public DateOnly StartDate { get; set; }
     public DateOnly EndDate { get; set; }

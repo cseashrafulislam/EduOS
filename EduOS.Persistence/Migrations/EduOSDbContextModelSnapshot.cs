@@ -3644,6 +3644,9 @@ namespace EduOS.Persistence.Migrations
                     b.Property<long>("AcademicYearId")
                         .HasColumnType("bigint");
 
+                    b.Property<int>("AttemptMode")
+                        .HasColumnType("int");
+
                     b.Property<long>("CampusId")
                         .HasColumnType("bigint");
 
@@ -3733,7 +3736,90 @@ namespace EduOS.Persistence.Migrations
 
                     b.ToTable("Assessments", t =>
                         {
+                            t.HasCheckConstraint("CK_Assessment_AttemptMode", "[AttemptMode] IN (0,1,2)");
                             t.HasCheckConstraint("CK_Assessment_DateRange", "[EndDate] >= [StartDate]");
+                        });
+                });
+
+            modelBuilder.Entity("EduOS.Core.Entities.Assessment.AssessmentAttemptRegistration", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
+
+                    b.Property<long>("AssessmentSubjectId")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<long?>("CreatedBy")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime?>("DecidedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<long?>("DecidedByUserId")
+                        .HasColumnType("bigint");
+
+                    b.Property<int>("Decision")
+                        .HasColumnType("int");
+
+                    b.Property<string>("DecisionNote")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<long?>("DeletedBy")
+                        .HasColumnType("bigint");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
+
+                    b.Property<long>("PriorResultPublicationId")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
+                    b.Property<long>("StudentSubjectRegistrationId")
+                        .HasColumnType("bigint");
+
+                    b.Property<long>("TenantId")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<long?>("UpdatedBy")
+                        .HasColumnType("bigint");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("DecidedByUserId");
+
+                    b.HasIndex("TenantId", "PriorResultPublicationId");
+
+                    b.HasIndex("TenantId", "StudentSubjectRegistrationId");
+
+                    b.HasIndex("TenantId", "AssessmentSubjectId", "StudentSubjectRegistrationId")
+                        .IsUnique();
+
+                    b.ToTable("AssessmentAttemptRegistrations", t =>
+                        {
+                            t.HasCheckConstraint("CK_AssessmentAttemptRegistration_Decision", "[Decision] BETWEEN 1 AND 3");
                         });
                 });
 
@@ -19647,6 +19733,43 @@ namespace EduOS.Persistence.Migrations
                         .HasForeignKey("TenantId", "GradeSchemeId")
                         .HasPrincipalKey("TenantId", "Id")
                         .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("Tenant");
+                });
+
+            modelBuilder.Entity("EduOS.Core.Entities.Assessment.AssessmentAttemptRegistration", b =>
+                {
+                    b.HasOne("EduOS.Core.Entities.SaaS.Tenant", "Tenant")
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("EduOS.Core.Entities.Assessment.AssessmentSubject", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "AssessmentSubjectId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("EduOS.Core.Entities.Auth.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("DecidedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("EduOS.Core.Entities.Assessment.ResultPublication", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "PriorResultPublicationId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("EduOS.Core.Entities.Academic.StudentSubjectRegistration", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "StudentSubjectRegistrationId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
 
                     b.Navigation("Tenant");
                 });

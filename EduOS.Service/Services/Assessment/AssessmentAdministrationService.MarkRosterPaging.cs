@@ -49,6 +49,13 @@ public sealed partial class AssessmentAdministrationService
                 StudentCode = student.StudentCode, StudentName = student.FullName,
                 RollNo = enrollment.RollNo
             };
+        if (scope.Value.Exam.AttemptMode != AssessmentAttemptMode.Regular)
+        {
+            if (_attemptRegistrations == null)
+                return Error<AssessmentMarkRosterDto>("Attempt register is unavailable.", 503);
+            var allowed = ApprovedAttemptQuery(sub.Id).Select(x => x.StudentSubjectRegistrationId);
+            eligible = eligible.Where(x => allowed.Contains(x.RegistrationId));
+        }
         var term = request.Search?.Trim();
         if (!string.IsNullOrWhiteSpace(term))
             eligible = eligible.Where(x => x.RollNo.StartsWith(term) ||

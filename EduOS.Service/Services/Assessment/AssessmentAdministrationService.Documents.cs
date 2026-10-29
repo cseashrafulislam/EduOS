@@ -127,6 +127,10 @@ public sealed partial class AssessmentAdministrationService
             var eligible = await EligibleAsync(offering.Id, batch.Id, token);
             if (!eligible.Any(x => x.RegistrationId == master.StudentSubjectRegistrationId))
                 return Error<StudentAssessmentComponentMarkDto>("Student is not eligible for this subject.", 409);
+            if (exam.AttemptMode != AssessmentAttemptMode.Regular &&
+                (_attemptRegistrations == null || !await ApprovedAttemptQuery(subject!.Id).AnyAsync(x =>
+                    x.StudentSubjectRegistrationId == master.StudentSubjectRegistrationId, token)))
+                return Error<StudentAssessmentComponentMarkDto>("Approved attempt authorization is required for component marks.", 409);
             if (await HasFinalizedPublicationAsync(exam.Id, batch.Id, token))
                 return Error<StudentAssessmentComponentMarkDto>(
                     "Published or withdrawn component marks require an approved, audited amendment.", 409);

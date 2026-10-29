@@ -64,6 +64,14 @@ public sealed partial class AssessmentAdministrationService
             return Error<AssessmentAdmitCardPageDto>("Exam room evidence requires reconciliation.", 409);
 
         var offeringIds = subjects.Select(x => x.SubjectOfferingId).ToArray();
+        if (exam.AttemptMode != AssessmentAttemptMode.Regular && _attemptRegistrations == null)
+            return Error<AssessmentAdmitCardPageDto>("Attempt register is unavailable.", 503);
+        var approvedRegistrationIds = _attemptRegistrations == null
+            ? _registrations.GetQueryable().AsNoTracking().Where(x => false).Select(x => x.Id)
+            : _attemptRegistrations.GetQueryable().AsNoTracking().Where(x =>
+                x.TenantId == tenant && subjectIds.Contains(x.AssessmentSubjectId) &&
+                x.Decision == AssessmentAttemptDecision.Approved && !x.IsDeleted)
+                .Select(x => x.StudentSubjectRegistrationId);
         var candidates = from enrollment in _enrollments.GetQueryable().AsNoTracking()
             join student in _students.GetQueryable().AsNoTracking()
                 on enrollment.StudentId equals student.Id
@@ -77,6 +85,7 @@ public sealed partial class AssessmentAdministrationService
                     reg.TenantId == tenant && !reg.IsDeleted &&
                     reg.StudentEnrollmentId == enrollment.Id &&
                     offeringIds.Contains(reg.SubjectOfferingId) &&
+                    (exam.AttemptMode == AssessmentAttemptMode.Regular || approvedRegistrationIds.Contains(reg.Id)) &&
                     (reg.State == SubjectRegistrationState.Approved ||
                      reg.State == SubjectRegistrationState.Completed))
             select new { EnrollmentId = enrollment.Id, student.PublicId,
@@ -93,6 +102,7 @@ public sealed partial class AssessmentAdministrationService
             .Where(x => x.TenantId == tenant && !x.IsDeleted &&
                 enrollmentIds.Contains(x.StudentEnrollmentId) &&
                 offeringIds.Contains(x.SubjectOfferingId) &&
+                (exam.AttemptMode == AssessmentAttemptMode.Regular || approvedRegistrationIds.Contains(x.Id)) &&
                 (x.State == SubjectRegistrationState.Approved ||
                  x.State == SubjectRegistrationState.Completed))
             .Select(x => new { x.StudentEnrollmentId, x.SubjectOfferingId }).ToListAsync(ct);

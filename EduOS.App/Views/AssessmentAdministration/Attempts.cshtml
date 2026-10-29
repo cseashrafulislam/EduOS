@@ -1,0 +1,59 @@
+@{
+    ViewData["Title"] = "Retake & Improvement Approvals";
+}
+<div class="container-fluid py-3" id="assessmentAttemptWorkspace">
+    @Html.AntiForgeryToken()
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+        <div><h1 class="h4 mb-1">Retake &amp; Improvement</h1>
+            <p class="text-muted mb-0">Approve student-specific attempts using an earlier published course result. The original result remains unchanged.</p></div>
+        <a class="btn btn-outline-secondary" asp-controller="AssessmentAdministration" asp-action="Index">Back to exam workspace</a>
+    </div>
+    <div id="attemptAlert" class="alert alert-info" role="status" aria-live="polite">Choose an assessment subject to load candidates and pending decisions.</div>
+    <section class="card mb-3" aria-labelledby="attemptSelectionHeading">
+        <div class="card-body">
+            <h2 class="h6" id="attemptSelectionHeading">Assessment subject</h2>
+            <form id="attemptFindForm" class="row g-2 align-items-end">
+                <div class="col-lg-4"><label for="attemptScopeSearch" class="form-label">Find assessment, batch or course</label>
+                    <input id="attemptScopeSearch" class="form-control" type="search" maxlength="100" autocomplete="off" /></div>
+                <div class="col-lg-2"><button class="btn btn-outline-primary w-100" type="submit">Search</button></div>
+                <div class="col-lg-6"><label for="attemptSubject" class="form-label">Select assessment / batch / subject</label>
+                    <select id="attemptSubject" class="form-select"><option value="">Search for an assessment first</option></select></div>
+            </form>
+            <p id="attemptScopeInfo" class="small text-muted mt-2 mb-0"></p>
+        </div>
+    </section>
+    <section class="card mb-3" aria-labelledby="attemptCandidateHeading">
+        <div class="card-header"><h2 id="attemptCandidateHeading" class="h6 m-0">Eligible student registration candidates</h2></div>
+        <div class="card-body">
+            <form id="attemptCandidateForm" class="row g-2 align-items-end mb-3">
+                <div class="col-md-4"><label for="attemptStudentSearch" class="form-label">Student name, code or roll</label>
+                    <input id="attemptStudentSearch" class="form-control" maxlength="100" type="search" /></div>
+                <div class="col-md-2"><button type="submit" class="btn btn-outline-primary w-100">Find students</button></div>
+                <div class="col-md-6"><label for="attemptRequestReason" class="form-label">Reason for request</label>
+                    <input id="attemptRequestReason" class="form-control" maxlength="500" placeholder="Required for audit trail" /></div>
+            </form>
+            <div class="table-responsive"><table class="table table-sm table-hover align-middle">
+                <thead><tr><th>Roll</th><th>Student</th><th>Prior outcome</th><th>Action</th></tr></thead>
+                <tbody id="attemptCandidates"><tr><td colspan="4" class="text-center text-muted">Select a subject</td></tr></tbody>
+            </table></div>
+            <div class="d-flex align-items-center gap-2"><button type="button" id="attemptCandidatePrev" class="btn btn-sm btn-outline-secondary">Previous</button>
+                <span id="attemptCandidatePage" class="small text-muted" role="status"></span>
+                <button type="button" id="attemptCandidateNext" class="btn btn-sm btn-outline-secondary">Next</button></div>
+        </div>
+    </section>
+    <section class="card" aria-labelledby="attemptQueueHeading">
+        <div class="card-header"><h2 id="attemptQueueHeading" class="h6 m-0">Approval queue and history</h2></div>
+        <div class="card-body">
+            <div class="mb-3"><label for="attemptDecisionReason" class="form-label">Approval / rejection note</label>
+                <input id="attemptDecisionReason" class="form-control" maxlength="500" placeholder="Required for every decision" /></div>
+            <div class="table-responsive"><table class="table table-sm table-hover align-middle">
+                <thead><tr><th>Student</th><th>Course</th><th>Request reason</th><th>Status</th><th>Decision</th></tr></thead>
+                <tbody id="attemptQueue"><tr><td colspan="5" class="text-center text-muted">Select an assessment</td></tr></tbody>
+            </table></div>
+            <div class="d-flex align-items-center gap-2"><button type="button" id="attemptQueuePrev" class="btn btn-sm btn-outline-secondary">Previous</button>
+                <span id="attemptQueuePage" class="small text-muted" role="status"></span>
+                <button type="button" id="attemptQueueNext" class="btn btn-sm btn-outline-secondary">Next</button></div>
+        </div>
+    </section>
+</div>
+<script src="~/js/assessment/attempts.js" asp-append-version="true"></script>

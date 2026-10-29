@@ -27,6 +27,20 @@ public sealed partial class AssessmentAdministrationService
                 enrollment.State == EnrollmentState.Active && enrollment.IsCurrent &&
                 student.StatusCode == "Active" && !enrollment.IsDeleted && !student.IsDeleted
             select new { enrollment, student };
+        if (scope.Value.Exam.AttemptMode != AssessmentAttemptMode.Regular)
+        {
+            if (_attemptRegistrations == null)
+                return Error<AssessmentReadinessPageDto>("Attempt register is unavailable.", 503);
+            var approved = from attempt in _attemptRegistrations.GetQueryable().AsNoTracking()
+                join subject in _subjects.GetQueryable().AsNoTracking() on attempt.AssessmentSubjectId equals subject.Id
+                join registration in _registrations.GetQueryable().AsNoTracking()
+                    on attempt.StudentSubjectRegistrationId equals registration.Id
+                where attempt.TenantId == tenant && subject.TenantId == tenant && registration.TenantId == tenant &&
+                    subject.AssessmentId == scope.Value.Exam.Id && !attempt.IsDeleted && !subject.IsDeleted &&
+                    !registration.IsDeleted && attempt.Decision == AssessmentAttemptDecision.Approved
+                select registration.StudentEnrollmentId;
+            roster = roster.Where(x => approved.Contains(x.enrollment.Id));
+        }
         var total = await roster.CountAsync(ct);
         var students = await roster.OrderBy(x => x.enrollment.RollNo).ThenBy(x => x.enrollment.Id)
             .Skip((request.Page - 1) * request.PageSize).Take(request.PageSize).ToListAsync(ct);
@@ -55,6 +69,16 @@ public sealed partial class AssessmentAdministrationService
             x.State == SubjectRegistrationState.Approved && !x.IsDeleted).ToListAsync(ct);
         var registrationIds = registrations.Select(x => x.Id).ToArray();
         var subjectIds = subjects.Select(x => x.AssessmentSubjectId).ToArray();
+        HashSet<(long SubjectId, long RegistrationId)>? authorized = null;
+        if (scope.Value.Exam.AttemptMode != AssessmentAttemptMode.Regular)
+        {
+            var attempts = await _attemptRegistrations!.GetQueryable().AsNoTracking().Where(x =>
+                x.TenantId == tenant && subjectIds.Contains(x.AssessmentSubjectId) &&
+                registrationIds.Contains(x.StudentSubjectRegistrationId) &&
+                x.Decision == AssessmentAttemptDecision.Approved && !x.IsDeleted)
+                .Select(x => new { x.AssessmentSubjectId, x.StudentSubjectRegistrationId }).ToListAsync(ct);
+            authorized = attempts.Select(x => (x.AssessmentSubjectId, x.StudentSubjectRegistrationId)).ToHashSet();
+        }
         var marks = await _marks.GetQueryable().AsNoTracking().Where(x =>
             x.TenantId == tenant && subjectIds.Contains(x.AssessmentSubjectId) &&
             registrationIds.Contains(x.StudentSubjectRegistrationId) && !x.IsDeleted).ToListAsync(ct);
@@ -85,6 +109,9 @@ public sealed partial class AssessmentAdministrationService
                     person.enrollment.AcademicLevelId))
                     continue;
                 registrationLookup.TryGetValue((person.enrollment.Id, subject.OfferingId), out var regs);
+                if (authorized != null && (regs == null ||
+                    !regs.Any(x => authorized.Contains((subject.AssessmentSubjectId, x.Id)))))
+                    continue;
                 if (!AssessmentSubjectEligibility.RequiresMark(subject.IsOptional, regs is { Length: > 0 }))
                     continue;
                 applicable++;

@@ -18,9 +18,14 @@ public sealed partial class AssessmentAdministrationService
             string.IsNullOrWhiteSpace(request.Code) || request.Code.Trim().Length > 50 ||
             request.StartDate == default || request.EndDate < request.StartDate ||
             request.Remarks?.Length > 1000 || !Enum.IsDefined(request.Type) ||
+            !Enum.IsDefined(request.AttemptMode) ||
+            request.AttemptMode != AssessmentAttemptMode.Regular &&
+                (!request.CountsTowardCgpa || request.Type != AssessmentKind.Exam) ||
             request.CountsTowardCgpa && (request.Type != AssessmentKind.Exam ||
                 !request.GradeSchemeId.HasValue))
             return Error<AssessmentDto>("Invalid assessment name, scope, period or type.");
+        if (request.AttemptMode != AssessmentAttemptMode.Regular && _attemptRegistrations == null)
+            return Error<AssessmentDto>("Attempt register is unavailable.", 503);
         return await WriteAsync("save assessment", async token =>
         {
             var tenant = _user.TenantId;
@@ -49,6 +54,12 @@ public sealed partial class AssessmentAdministrationService
                 .AnyAsync(x => x.TenantId == tenant && x.Id == request.GradeSchemeId &&
                     x.UseCreditWeightedGpa && x.IsActive && !x.IsDeleted, token))
                 return Error<AssessmentDto>("Cumulative credit requires a credit-weighted grade scheme.", 409);
+            if (request.AttemptMode != AssessmentAttemptMode.Regular &&
+                !await _gradeSchemes.GetQueryable().AsNoTracking().AnyAsync(x =>
+                    x.TenantId == tenant && x.Id == request.GradeSchemeId &&
+                    x.UseCreditWeightedGpa && x.RepeatCourseGradePolicy != RepeatCourseGradePolicy.Reject &&
+                    x.IsActive && !x.IsDeleted, token))
+                return Error<AssessmentDto>("Retake/improvement requires an approved grade-selection policy.", 409);
             var row = reference.HasValue ? await _assessments.GetQueryable().FirstOrDefaultAsync(x =>
                 x.TenantId == tenant && x.PublicId == reference && !x.IsDeleted, token) : null;
             if (reference.HasValue && row == null) return Error<AssessmentDto>("Assessment not found.", 404);
@@ -58,6 +69,17 @@ public sealed partial class AssessmentAdministrationService
                 return Error<AssessmentDto>("Assessment was changed; reload and retry.", 409);
             if (row != null && row.State != AssessmentState.Draft)
                 return Error<AssessmentDto>("Only draft assessment can be edited.", 409);
+            if (row != null && _attemptRegistrations != null &&
+                (row.AttemptMode != request.AttemptMode || row.CampusId != request.CampusId ||
+                 row.AcademicYearId != request.AcademicYearId || row.GradeSchemeId != request.GradeSchemeId ||
+                 row.StartDate != request.StartDate || row.EndDate != request.EndDate ||
+                 row.CountsTowardCgpa != request.CountsTowardCgpa) &&
+                await (from attempt in _attemptRegistrations.GetQueryable().AsNoTracking()
+                    join sub in _subjects.GetQueryable().AsNoTracking() on attempt.AssessmentSubjectId equals sub.Id
+                    where attempt.TenantId == tenant && sub.TenantId == tenant &&
+                        sub.AssessmentId == row.Id && !attempt.IsDeleted && !sub.IsDeleted
+                    select attempt.Id).AnyAsync(token))
+                return Error<AssessmentDto>("Existing attempt decisions prevent changing academic assessment policy.", 409);
             var code = request.Code.Trim().ToUpperInvariant();
             var existing = await _assessments.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
                 x.TenantId == tenant && x.Code == code && x.VersionNo == 1 && !x.IsDeleted, token);
@@ -69,6 +91,7 @@ public sealed partial class AssessmentAdministrationService
                     existing.Name != request.Name.Trim() || existing.StartDate != request.StartDate ||
                     existing.EndDate != request.EndDate || existing.Type != request.Type ||
                     existing.CountsTowardCgpa != request.CountsTowardCgpa ||
+                    existing.AttemptMode != request.AttemptMode ||
                     existing.Remarks != Trim(request.Remarks))
                     return Error<AssessmentDto>("Assessment code already belongs to another definition.", 409);
                 return ApiResponse<AssessmentDto>.SuccessResponse(await MapAssessmentAsync(existing, token),
@@ -93,6 +116,7 @@ public sealed partial class AssessmentAdministrationService
             row.AcademicTermId = request.AcademicTermId; row.GradeSchemeId = request.GradeSchemeId;
             row.Type = request.Type; row.StartDate = request.StartDate;
             row.CountsTowardCgpa = request.CountsTowardCgpa;
+            row.AttemptMode = request.AttemptMode;
             row.EndDate = request.EndDate; row.Remarks = Trim(request.Remarks);
             await _uow.SaveChangesAsync(token);
             return ApiResponse<AssessmentDto>.SuccessResponse(await MapAssessmentAsync(row, token),
@@ -153,6 +177,20 @@ public sealed partial class AssessmentAdministrationService
                 _ => false
             };
             if (!allowed) return Error<AssessmentDto>("Assessment status transition is forbidden.", 409);
+            if (row.AttemptMode != AssessmentAttemptMode.Regular && request.State == AssessmentState.InProgress)
+            {
+                if (_attemptRegistrations == null)
+                    return Error<AssessmentDto>("Attempt register is unavailable.", 503);
+                var subjects = _subjects.GetQueryable().AsNoTracking().Where(x =>
+                    x.TenantId == _user.TenantId && x.AssessmentId == row.Id && !x.IsDeleted)
+                    .Select(x => x.Id);
+                var candidates = await _attemptRegistrations.GetQueryable().AsNoTracking()
+                    .Where(x => x.TenantId == _user.TenantId && subjects.Contains(x.AssessmentSubjectId) && !x.IsDeleted)
+                    .Select(x => x.Decision).ToListAsync(token);
+                if (!candidates.Contains(AssessmentAttemptDecision.Approved) ||
+                    candidates.Contains(AssessmentAttemptDecision.Requested))
+                    return Error<AssessmentDto>("Approve or reject every attempt request before starting the assessment.", 409);
+            }
             if (request.State == AssessmentState.Locked)
             {
                 // Reconcile every batch before the same transaction advances the rowversion.
@@ -456,6 +494,7 @@ public sealed partial class AssessmentAdministrationService
             AcademicTermName = termName, GradeSchemeId = row.GradeSchemeId, Name = row.Name, Code = row.Code,
             Type = row.Type, State = row.State, StartDate = row.StartDate, EndDate = row.EndDate,
             CountsTowardCgpa = row.CountsTowardCgpa,
+            AttemptMode = row.AttemptMode,
             Remarks = row.Remarks, RowVersion = Version(row.RowVersion), Subjects = mapped
         };
     }
