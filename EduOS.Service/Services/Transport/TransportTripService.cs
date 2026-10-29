@@ -26,6 +26,19 @@ public sealed partial class TransportTripService : ITransportTripService
         _db = db; _user = user; _clock = clock; _logger = logger;
     }
 
+    // Provider and EF execution strategies can wrap SQL concurrency exceptions.
+    // Classify only known retryable SQL conflict numbers; do not mask unrelated errors.
+    private static bool IsRetryableTripSqlConflict(Exception exception, int depth = 0)
+    {
+        if (depth >= 8) return false;
+        if (exception is SqlException sql && sql.Number is 1205 or 1222 or 3960)
+            return true;
+        if (exception is AggregateException aggregate)
+            return aggregate.InnerExceptions.Any(inner => IsRetryableTripSqlConflict(inner, depth + 1));
+        return exception.InnerException != null &&
+            IsRetryableTripSqlConflict(exception.InnerException, depth + 1);
+    }
+
     private bool CanManage => _user.IsAuthenticated && _user.TenantId > 0 &&
         (_user.IsTenantAdmin || _user.IsInRole("Principal") || _user.IsInRole("TransportManager"));
 
@@ -127,7 +140,7 @@ public sealed partial class TransportTripService : ITransportTripService
             _logger.LogWarning(ex, "Transport trip plan conflict for tenant {TenantId}", tenant);
             return ApiResponse<TransportTripRowDto>.ErrorResponse("A trip already occupies this vehicle/date/direction.", 409);
         }
-        catch (SqlException ex) when (ex.Number is 1205 or 3960 or 1222)
+        catch (Exception ex) when (IsRetryableTripSqlConflict(ex))
         {
             _logger.LogWarning(ex, "Transport trip SQL concurrency conflict for tenant {TenantId}", tenant);
             return ApiResponse<TransportTripRowDto>.ErrorResponse("Concurrent trip operation; reload and retry.", 409);
@@ -268,7 +281,7 @@ public sealed partial class TransportTripService : ITransportTripService
             _logger.LogWarning(ex, "Transport dispatch uniqueness conflict for tenant {TenantId}", tenant);
             return ApiResponse<TransportTripRowDto>.ErrorResponse("Concurrent dispatch conflict.", 409);
         }
-        catch (SqlException ex) when (ex.Number is 1205 or 3960 or 1222)
+        catch (Exception ex) when (IsRetryableTripSqlConflict(ex))
         {
             _logger.LogWarning(ex, "Transport trip SQL concurrency conflict for tenant {TenantId}", tenant);
             return ApiResponse<TransportTripRowDto>.ErrorResponse("Concurrent trip operation; reload and retry.", 409);

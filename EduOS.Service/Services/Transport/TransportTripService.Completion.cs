@@ -87,7 +87,7 @@ public sealed partial class TransportTripService
             _logger.LogWarning(ex, "Transport trip completion conflict for tenant {TenantId}", tenant);
             return ApiResponse<TransportTripRowDto>.ErrorResponse("Concurrent completion conflict.", 409);
         }
-        catch (SqlException ex) when (ex.Number is 1205 or 3960 or 1222)
+        catch (Exception ex) when (IsRetryableTripSqlConflict(ex))
         {
             _logger.LogWarning(ex, "Transport trip SQL concurrency conflict for tenant {TenantId}", tenant);
             return ApiResponse<TransportTripRowDto>.ErrorResponse("Concurrent trip operation; reload and retry.", 409);

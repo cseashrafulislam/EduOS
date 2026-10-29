@@ -6,6 +6,8 @@ using EduOS.Persistence.Context;
 using EduOS.Service.Services.Transport;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Logging;
+using System.Collections.Concurrent;
 using Xunit;
 
 namespace EduOS.Tests.App;
@@ -17,6 +19,35 @@ namespace EduOS.Tests.App;
 /// </summary>
 public sealed partial class SqlServerTransportSeatCapacityIntegrationTests
 {
+    // CI diagnostics contain only exception types and SQL numbers, never private data.
+    private static readonly ConcurrentQueue<string> TripSqlFailureTypes = new();
+
+    private sealed class TripSqlFailureLogger : ILogger<TransportTripService>
+    {
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+        public bool IsEnabled(LogLevel logLevel) => true;
+        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state,
+            Exception? exception, Func<TState, Exception?, string> formatter)
+        {
+            if (exception == null) return;
+            var types = new List<string>();
+            for (var current = exception; current != null && types.Count < 8; current = current.InnerException)
+                types.Add(current is Microsoft.Data.SqlClient.SqlException sql
+                    ? current.GetType().Name + "#" + sql.Number
+                    : current.GetType().Name);
+            TripSqlFailureTypes.Enqueue(string.Join(" > ", types));
+        }
+    }
+
+    private static void AssertRetryableTripConflicts((bool Success, int Status)[] results)
+    {
+        Assert.True(results.Count(x => x.Success) <= 1,
+            "Competing trip operations must never both commit.");
+        Assert.All(results.Where(x => !x.Success), x => Assert.True(x.Status == 409,
+            "Expected retryable 409, received " + x.Status +
+            "; exception types: " + string.Join(" | ", TripSqlFailureTypes.ToArray())));
+    }
+
     [Fact]
     public async Task Trip_dispatch_freezes_one_rider_and_replays_without_duplicate_snapshots()
     {
@@ -68,7 +99,7 @@ public sealed partial class SqlServerTransportSeatCapacityIntegrationTests
         // retryable conflict, and a fresh request must make forward progress.
         Assert.True(results.Count(x => x.Success) <= 1,
             "Concurrent first events must never both commit.");
-        Assert.All(results.Where(x => !x.Success), x => Assert.Equal(409, x.Status));
+        AssertRetryableTripConflicts(results);
         if (!results.Any(x => x.Success))
             Assert.True((await RecordAsync("NoShow")).Success,
                 "A fresh request must succeed after both contenders conflicted.");
@@ -116,7 +147,7 @@ public sealed partial class SqlServerTransportSeatCapacityIntegrationTests
         var results = await Task.WhenAll(CompleteAsync(keys[0]), CompleteAsync(keys[1]));
         Assert.True(results.Count(x => x.Success) <= 1,
             "Competing completion keys must not both commit.");
-        Assert.All(results.Where(x => !x.Success), x => Assert.Equal(409, x.Status));
+        AssertRetryableTripConflicts(results);
         var winningIndex = Array.FindIndex(results, x => x.Success);
         if (winningIndex < 0)
         {
@@ -178,7 +209,7 @@ public sealed partial class SqlServerTransportSeatCapacityIntegrationTests
         var results = await Task.WhenAll(CorrectAsync(keys[0]), CorrectAsync(keys[1]));
         Assert.True(results.Count(x => x.Success) <= 1,
             "Competing completion keys must not both commit.");
-        Assert.All(results.Where(x => !x.Success), x => Assert.Equal(409, x.Status));
+        AssertRetryableTripConflicts(results);
         var winningIndex = Array.FindIndex(results, x => x.Success);
         if (winningIndex < 0)
         {
@@ -246,7 +277,7 @@ public sealed partial class SqlServerTransportSeatCapacityIntegrationTests
 
     private static TransportTripService TripService(EduOSDbContext db, Fixture fixture) =>
         new(db, new TenantAdmin(fixture.TenantId, fixture.UserId),
-            TimeProvider.System, NullLogger<TransportTripService>.Instance);
+            TimeProvider.System, new TripSqlFailureLogger());
 
     private sealed record DispatchedTripFixture(Fixture Fixture, Guid Reference,
         Guid DispatchKey, string StudentCode);
