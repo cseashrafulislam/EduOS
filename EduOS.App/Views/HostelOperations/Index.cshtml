@@ -105,6 +105,7 @@
 
     @if (canManage)
     {
+        @await Html.PartialAsync("_ResidentRoster")
         @await Html.PartialAsync("_AllocationHistory")
         @await Html.PartialAsync("_AllocationReadiness")
         @await Html.PartialAsync("_CheckoutFollowUp")
@@ -337,6 +338,7 @@
         <script src="~/js/hostel-operations/room-capacity.js" asp-append-version="true"></script>
         <script src="~/js/hostel-operations/room-create.js" asp-append-version="true"></script>
         <script src="~/js/hostel-operations/facilities.js" asp-append-version="true"></script>
+        <script src="~/js/hostel-operations/resident-roster.js" asp-append-version="true"></script>
         <script src="~/js/hostel-operations/allocation-history.js" asp-append-version="true"></script>
         <script src="~/js/hostel-operations/allocation-readiness.js" asp-append-version="true"></script>
         <script src="~/js/hostel-operations/checkout-follow-up.js" asp-append-version="true"></script>

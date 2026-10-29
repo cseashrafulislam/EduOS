@@ -46,6 +46,8 @@ public interface IHostelService
     Task<ApiResponse<PagedResult<HostelStudentOptionDto>>> GetEligibleStudentsAsync(int page, int pageSize, string? search, CancellationToken cancellationToken = default, DateOnly? startDate = null, DateOnly? endDate = null);
     Task<ApiResponse<PagedResult<HostelBedOptionDto>>> GetAvailableBedsAsync(int page, int pageSize, string? search, CancellationToken cancellationToken = default, DateOnly? startDate = null);
     Task<ApiResponse<PagedResult<HostelAllocationRowDto>>> GetActiveAllocationsAsync(int page, int pageSize, string? search, CancellationToken cancellationToken = default);
+    Task<ApiResponse<PagedResult<HostelResidentRosterRowDto>>> GetResidentRosterAsync(DateOnly operatingDate, long? campusId, int page, int pageSize, string? search, CancellationToken cancellationToken = default);
+    Task<ApiResponse<string>> ExportResidentRosterCsvAsync(DateOnly operatingDate, long? campusId, string? search, CancellationToken cancellationToken = default);
     Task<ApiResponse<PagedResult<HostelAllocationHistoryRowDto>>> GetAllocationHistoryAsync(long? campusId, int page, int pageSize, string? search, HostelAllocationState? state, DateOnly? fromDate, DateOnly? toDate, CancellationToken cancellationToken = default);
     Task<ApiResponse<string>> ExportAllocationHistoryCsvAsync(long? campusId, string? search, HostelAllocationState? state, DateOnly? fromDate, DateOnly? toDate, CancellationToken cancellationToken = default);
     Task<ApiResponse<StudentHostelAllocationDto?>> GetMyAllocationAsync(CancellationToken cancellationToken = default);

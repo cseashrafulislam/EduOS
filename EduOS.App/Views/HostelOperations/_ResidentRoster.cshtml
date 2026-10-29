@@ -1,0 +1,41 @@
+<section id="hostelResidentRosterPanel" class="card mb-3" aria-labelledby="hostelResidentRosterTitle">
+    <div class="card-body">
+        <div class="d-flex align-items-center gap-2 mb-3">
+            <h3 id="hostelResidentRosterTitle" class="h5 mb-0">Resident roster by date</h3>
+            <details class="small">
+                <summary aria-label="Resident roster information" title="Resident roster information" class="text-primary">ⓘ</summary>
+                <p class="mb-0">Shows scheduled bed stays on a selected past or current date, not physical check-in or attendance. Closed stays remain in their historical period. CSV is limited to 1,000 authorized stays.</p>
+            </details>
+        </div>
+        <form id="hostelResidentRosterFilter" class="row g-2 mb-2">
+            <div class="col-lg-2 col-md-4">
+                <label for="hostelResidentRosterDate" class="form-label">Date</label>
+                <input id="hostelResidentRosterDate" type="date" class="form-control" required min="2000-01-01" />
+            </div>
+            <div class="col-lg-3 col-md-4">
+                <label for="hostelResidentRosterCampus" class="form-label">Campus</label>
+                <select id="hostelResidentRosterCampus" class="form-select"><option value="">All permitted campuses</option></select>
+            </div>
+            <div class="col-lg-4 col-md-4">
+                <label for="hostelResidentRosterSearch" class="form-label">Search</label>
+                <input id="hostelResidentRosterSearch" type="search" class="form-control" maxlength="100" placeholder="Student code, name, hostel or bed" />
+            </div>
+            <div class="col-lg-3 d-flex align-items-end gap-2">
+                <button type="submit" class="btn btn-outline-primary">Filter</button>
+                <button id="hostelResidentRosterCsv" type="button" class="btn btn-outline-secondary" disabled>Export CSV</button>
+            </div>
+        </form>
+        <div id="hostelResidentRosterStatus" role="status" aria-live="polite" class="small text-muted mb-2"></div>
+        <div class="table-responsive">
+            <table class="table table-sm table-hover">
+                <thead><tr><th>Campus</th><th>Hostel</th><th>Room / bed</th><th>Student</th><th>Code</th><th>Start</th><th>End</th><th>Current state</th></tr></thead>
+                <tbody id="hostelResidentRosterRows"></tbody>
+            </table>
+        </div>
+        <div class="d-flex justify-content-between align-items-center">
+            <button id="hostelResidentRosterPrev" type="button" class="btn btn-outline-secondary btn-sm" disabled>Previous</button>
+            <span id="hostelResidentRosterPage" class="small text-muted"></span>
+            <button id="hostelResidentRosterNext" type="button" class="btn btn-outline-secondary btn-sm" disabled>Next</button>
+        </div>
+    </div>
+</section>
