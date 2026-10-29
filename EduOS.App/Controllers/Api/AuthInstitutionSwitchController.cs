@@ -21,10 +21,16 @@ public partial class AuthController
         var user = await GetCurrentUserAsync();
         if (user == null) return Unauthorized(new { success = false, message = "Session unavailable." });
         if (await TenantRoleResolver.IsPlatformAdminAsync(_db, user.Id))
+        {
+            if (!await AuthSessionRegistry.IsValidPrincipalAsync(_db, User))
+                return Unauthorized(new { success = false, message = "Session changed. Sign in again." });
             return Ok(new { success = true, data = new {
                 currentTenantId = (long?)null, institutions = Array.Empty<TenantChoice>()
             } });
+        }
         var session = await GetSessionContextAsync(user);
+        if (!await AuthSessionRegistry.IsValidPrincipalAsync(_db, User))
+            return Unauthorized(new { success = false, message = "Session changed. Sign in again." });
         var currentId = long.TryParse(User.FindFirstValue("TenantId"), out var parsed) ? parsed : (long?)null;
         return Ok(new { success = true, data = new {
             currentTenantId = currentId,
