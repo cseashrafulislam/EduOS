@@ -16,6 +16,23 @@ public sealed class HostelOperationsController(IHostelService hostelService) : C
     [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
     public IActionResult Index() => View();
 
+    [HttpGet("hostel/my-history/print")]
+    [EnableRateLimiting("ApiPolicy")]
+    [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
+    public async Task<IActionResult> PrintMyHistory(
+        [FromQuery] int page = 1, [FromQuery] HostelAllocationState? state = null,
+        CancellationToken cancellationToken = default)
+    {
+        var result = await hostelService.GetMyAllocationHistoryAsync(page, 20, state, cancellationToken);
+        if (!result.Success) return StatusCode(result.StatusCode, result);
+        if (result.Data is null) return StatusCode(500);
+        ViewData["CampusScope"] = "My authorized stays";
+        ViewData["StateFilter"] = state?.ToString() ?? "All";
+        ViewData["DateRange"] = "All";
+        ViewData["Search"] = "My stays";
+        return View("AllocationHistoryPrint", result.Data);
+    }
+
     [HttpGet("hostel/residents/print")]
     [Authorize(Roles = "TenantAdmin,Principal,HostelWarden")]
     [EnableRateLimiting("ApiPolicy")]

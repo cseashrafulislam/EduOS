@@ -356,7 +356,30 @@ public sealed class HostelController : ControllerBase
     }
 
     [HttpGet("my-allocation")]
+    [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
     public async Task<IActionResult> MyAllocation(CancellationToken ct) => ToAction(await _service.GetMyAllocationAsync(ct));
+
+    [HttpGet("my-history")]
+    [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
+    public async Task<IActionResult> MyHistory([FromQuery] int page = 1, [FromQuery] int pageSize = 20,
+        [FromQuery] EduOS.Core.Enums.Domain.HostelAllocationState? state = null,
+        CancellationToken ct = default) =>
+        ToAction(await _service.GetMyAllocationHistoryAsync(page, pageSize, state, ct));
+
+    [HttpGet("my-history/export")]
+    [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
+    public async Task<IActionResult> MyHistoryExport([FromQuery] int page = 1,
+        [FromQuery] EduOS.Core.Enums.Domain.HostelAllocationState? state = null,
+        CancellationToken ct = default)
+    {
+        var result = await _service.ExportMyAllocationHistoryPageCsvAsync(page, state, ct);
+        if (!result.Success || result.Data == null) return StatusCode(result.StatusCode, result);
+        Response.Headers["Cache-Control"] = "no-store";
+        Response.Headers["X-Content-Type-Options"] = "nosniff";
+        return File(System.Text.Encoding.UTF8.GetPreamble().Concat(
+            System.Text.Encoding.UTF8.GetBytes(result.Data)).ToArray(),
+            "text/csv; charset=utf-8", "my-hostel-stays.csv");
+    }
 
     [HttpPost("allocations")]
     [Authorize(Roles = "TenantAdmin,Principal,HostelWarden")]

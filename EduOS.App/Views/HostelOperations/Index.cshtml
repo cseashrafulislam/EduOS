@@ -6,6 +6,36 @@
     <header class="mb-3"><h2 id="hostelTitle">Hostel operations</h2><p class="text-muted">Tenant-scoped rooms, bed allocation and release.</p>@if (canManage) { <a class="btn btn-outline-secondary btn-sm" href="#hostelHistoryPanel">Allocation history</a> }</header>
     <div id="hostelAlert" class="d-none" role="alert" tabindex="-1"></div>
     <section class="card mb-3"><div class="card-body"><h3 class="h5">My current allocation</h3><div id="hostelMine" class="text-muted">Loading…</div></div></section>
+    <section id="hostelMyHistoryPanel" class="card mb-3" aria-labelledby="hostelMyHistoryTitle">
+        <div class="card-body">
+            <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-2">
+                <h3 id="hostelMyHistoryTitle" class="h5 mb-0">My hostel stay history</h3>
+                <div class="d-flex gap-2">
+                    <a id="hostelMyHistoryPrint" class="btn btn-outline-secondary btn-sm" target="_blank" rel="noopener noreferrer" href="/hostel/my-history/print" aria-label="Print my hostel history page">Print</a>
+                    <button id="hostelMyHistoryCsv" class="btn btn-outline-secondary btn-sm" type="button" disabled>Export page (CSV)</button>
+                </div>
+            </div>
+            <div class="d-flex align-items-center gap-2 mb-2">
+                <label for="hostelMyHistoryState" class="form-label mb-0">Status</label>
+                <select id="hostelMyHistoryState" class="form-select form-select-sm w-auto">
+                    <option value="">All</option><option value="Active">Active</option>
+                    <option value="Closed">Closed</option><option value="Cancelled">Cancelled</option>
+                </select>
+            </div>
+            <div id="hostelMyHistoryStatus" class="small text-muted" role="status" aria-live="polite"></div>
+            <div class="table-responsive">
+                <table class="table table-sm table-hover">
+                    <thead><tr><th>Campus</th><th>Hostel</th><th>Room / Bed</th><th>Start</th><th>End</th><th>Status</th></tr></thead>
+                    <tbody id="hostelMyHistoryRows"><tr><td colspan="6">Loading…</td></tr></tbody>
+                </table>
+            </div>
+            <div class="d-flex align-items-center justify-content-between">
+                <button id="hostelMyHistoryPrev" class="btn btn-outline-secondary btn-sm" type="button">Previous</button>
+                <span id="hostelMyHistoryPage" class="small text-muted"></span>
+                <button id="hostelMyHistoryNext" class="btn btn-outline-secondary btn-sm" type="button">Next</button>
+            </div>
+        </div>
+    </section>
     @if (canManage)
     {
     <section class="card mb-3"><div class="card-body">
@@ -320,6 +350,7 @@
 </section>
 @section Scripts {
     <script src="~/js/hostel-operations/index.js" asp-append-version="true"></script>
+    <script src="~/js/hostel-operations/my-history.js" asp-append-version="true"></script>
     @if (canManage) {
         <script src="~/js/hostel-operations/upcoming-room-change.js" asp-append-version="true"></script>
         <script src="~/js/hostel-operations/upcoming-start-reschedule.js" asp-append-version="true"></script>
