@@ -40,6 +40,6 @@ public static class V2PrivateApiResponseHeadersExtensions
             });
         }
 
-        await next(context);
+        await next();
     });
 }
