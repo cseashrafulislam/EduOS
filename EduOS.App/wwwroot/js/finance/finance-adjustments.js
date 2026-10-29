@@ -38,9 +38,23 @@ function renderDiscounts(){
 }
 function renderFines(){
  const body=table('FineRuleRows',fines,4);
- for(const r of fines){const tr=document.createElement('tr');[r.name,r.amount,r.isActive?'Yes':'No'].forEach(v=>tr.append(cell(v)));
- const td=cell('');td.append(button('Edit',()=>{el('FrId').value=r.id;el('FrVersion').value=r.rowVersion;el('FrName').value=r.name;el('FrAmount').value=r.amount;el('FrGrace').value=r.graceDays;el('FrHead').value=r.feeHeadId||'';el('FrActive').checked=r.isActive;el('FrName').focus();}));tr.append(td);body.append(tr);}
- fill('ApplyRule',fines.filter(x=>x.isActive&&!x.isDaily),'Select fixed fine',x=>x.name+' — '+x.amount+' BDT');
+ for(const r of fines){const tr=document.createElement('tr');[r.name,r.amount+(r.isDaily?' BDT/day':' BDT'),r.isActive?'Yes':'No'].forEach(v=>tr.append(cell(v)));
+ const td=cell('');td.append(button('Edit',()=>{el('FrId').value=r.id;el('FrVersion').value=r.rowVersion;el('FrName').value=r.name;el('FrAmount').value=r.amount;el('FrGrace').value=r.graceDays;el('FrDaily').checked=r.isDaily;el('FrHead').value=r.feeHeadId||'';el('FrActive').checked=r.isActive;el('FrName').focus();}));tr.append(td);body.append(tr);}
+ fill('ApplyRule',fines.filter(x=>x.isActive),'Select fine',x=>x.name+' — '+x.amount+(x.isDaily?' BDT/day':' BDT'));
+ updateSourceMode();
+}
+let eligibleSources=[];
+function updateSourceMode(){
+ const rule=fines.find(x=>String(x.id)===el('ApplyRule').value),daily=!!rule?.isDaily;
+ el('ApplySourceWrap').hidden=!daily;
+ el('ApplySource').required=daily;
+ if(!daily)el('ApplySource').value='';
+}
+async function refreshFineSources(){
+ const ref=el('Enrollment').value;
+ eligibleSources=ref?await api(base+'/fine-source-invoices/'+encodeURIComponent(ref)):[];
+ fill('ApplySource',eligibleSources,'Select original unpaid invoice',x=>x.invoiceNumber+' / Due '+x.dueDate+' / BDT '+x.dueAmount);
+ updateSourceMode();
 }
 async function refreshRules(){
  const [d,f]=await Promise.all([api(base+'/discount-rules'),api(base+'/fine-rules')]);
@@ -62,7 +76,7 @@ async function refreshRegister(){
  }
  const f=table('StudentFineRows',result.fines,5);
  for(const row of result.fines){
- const tr=document.createElement('tr');[row.fineRuleName,row.fineDate,row.amount,row.isWaived?'Waived':row.billedInvoiceReference?'Posted':'Unposted'].forEach(v=>tr.append(cell(v)));
+ const tr=document.createElement('tr');[row.fineRuleName+(row.chargedOverdueDays?' ('+row.chargedOverdueDays+' overdue days)':''),row.fineDate,row.amount,row.isWaived?'Waived':row.billedInvoiceReference?'Posted':'Unposted'].forEach(v=>tr.append(cell(v)));
  const td=cell('');
  if(!row.isWaived&&!row.billedInvoiceReference){
   td.append(button('Waive',async()=>{const reason=window.prompt('Reason for waiver (required, audited):');if(reason===null)return;if(!reason.trim())return notice('Waiver reason is required.');await run(null,async()=>{await api(base+'/fines/'+row.id+'/waive','POST',{reason:reason.trim(),rowVersion:row.rowVersion});await refreshRegister();});}));
@@ -85,6 +99,7 @@ async function run(form,action){
 }
 el('DrNew').addEventListener('click',newDiscount);
 el('FrNew').addEventListener('click',newFine);
+el('ApplyRule').addEventListener('change',updateSourceMode);
 el('DiscountRuleForm').addEventListener('submit',e=>{e.preventDefault();run(e.currentTarget,async()=>{
  const id=el('DrId').value,body={name:el('DrName').value.trim(),feeHeadId:el('DrHead').value?Number(el('DrHead').value):null,
  isPercentage:el('DrPercentage').checked,value:number('DrValue'),effectiveFrom:date('DrFrom'),effectiveTo:date('DrTo'),
@@ -93,7 +108,7 @@ el('DiscountRuleForm').addEventListener('submit',e=>{e.preventDefault();run(e.cu
 });});
 el('FineRuleForm').addEventListener('submit',e=>{e.preventDefault();run(e.currentTarget,async()=>{
  const id=el('FrId').value,body={name:el('FrName').value.trim(),feeHeadId:el('FrHead').value?Number(el('FrHead').value):null,
- amount:number('FrAmount'),isDaily:false,graceDays:number('FrGrace'),isActive:el('FrActive').checked,rowVersion:id?el('FrVersion').value:null};
+ amount:number('FrAmount'),isDaily:el('FrDaily').checked,graceDays:number('FrGrace'),isActive:el('FrActive').checked,rowVersion:id?el('FrVersion').value:null};
  await api(base+'/fine-rules'+(id?'/'+id:''),id?'PUT':'POST',body);newFine();await refreshRules();
 });});
 el('SearchButton').addEventListener('click',()=>run(null,async()=>{
@@ -103,7 +118,7 @@ el('SearchButton').addEventListener('click',()=>run(null,async()=>{
  for(const row of rows)select.add(new Option(row.studentCode+' — '+row.name+' / Campus '+row.campusId+' / Roll '+row.rollNo,row.reference));
  if(!rows.length)notice('No matching enrollments.');
 }));
-el('Enrollment').addEventListener('change',()=>{if(el('Enrollment').value)run(null,refreshRegister);});
+el('Enrollment').addEventListener('change',()=>{if(el('Enrollment').value)run(null,async()=>{await Promise.all([refreshRegister(),refreshFineSources()]);});});
 el('Refresh').addEventListener('click',()=>run(null,refreshRegister));
 el('AssignForm').addEventListener('submit',e=>{e.preventDefault();run(e.currentTarget,async()=>{
  const body={studentEnrollmentReference:enrollment(),discountRuleId:number('AssignRule'),
@@ -114,6 +129,10 @@ el('AssignForm').addEventListener('submit',e=>{e.preventDefault();run(e.currentT
 el('ApplyForm').addEventListener('submit',e=>{e.preventDefault();run(e.currentTarget,async()=>{
  const body={studentEnrollmentReference:enrollment(),fineRuleId:number('ApplyRule'),
  fineDate:date('ApplyDate'),reason:el('ApplyReason').value.trim()||null};
+ if(fines.find(x=>x.id===body.fineRuleId)?.isDaily){
+  const source=el('ApplySource').value;if(!source)throw Error('Select the original unpaid invoice for a daily fine.');
+  body.sourceInvoiceReference=source;
+ }
  body.clientRequestId=stableRequestId('fine-application',body);
  await api(base+'/fines','POST',body);await refreshRegister();
 });});

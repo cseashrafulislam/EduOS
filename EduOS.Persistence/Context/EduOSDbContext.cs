@@ -931,6 +931,7 @@ public class EduOSDbContext :
         TenantReference<FineRule, FeeHead>(modelBuilder, nameof(FineRule.FeeHeadId));
         TenantReference<StudentFine, StudentEnrollment>(modelBuilder, nameof(StudentFine.StudentEnrollmentId));
         TenantReference<StudentFine, FineRule>(modelBuilder, nameof(StudentFine.FineRuleId));
+        TenantReference<StudentFine, StudentInvoice>(modelBuilder, nameof(StudentFine.SourceInvoiceId));
         Reference<StudentFine, ApplicationUser>(modelBuilder, nameof(StudentFine.WaivedByUserId));
         TenantReference<Refund, StudentPayment>(modelBuilder, nameof(Refund.StudentPaymentId));
         Reference<Refund, ApplicationUser>(modelBuilder, nameof(Refund.RequestedByUserId));
@@ -1506,6 +1507,8 @@ public class EduOSDbContext :
         modelBuilder.Entity<StudentFine>().HasIndex(x => new { x.TenantId, x.ClientRequestId })
             .IsUnique().HasFilter("[ClientRequestId] IS NOT NULL");
         modelBuilder.Entity<StudentFine>().HasIndex(x => new { x.TenantId, x.FineDate, x.Id });
+        modelBuilder.Entity<StudentFine>().HasIndex(x => new { x.TenantId, x.SourceInvoiceId, x.FineRuleId })
+            .IsUnique().HasFilter("[SourceInvoiceId] IS NOT NULL");
         UniqueTenant<Refund>(modelBuilder, nameof(Refund.ClientRequestId));
         modelBuilder.Entity<RefundAllocation>().Property(x => x.IsCreditNote)
             .HasDefaultValue(false);
@@ -1841,7 +1844,12 @@ public class EduOSDbContext :
         modelBuilder.Entity<FineRule>().ToTable(t =>
             t.HasCheckConstraint("CK_FineRule_Amount", "[Amount] >= 0 AND [GraceDays] >= 0"));
         modelBuilder.Entity<StudentFine>().ToTable(t =>
-            t.HasCheckConstraint("CK_StudentFine_Amount", "[Amount] >= 0"));
+        {
+            t.HasCheckConstraint("CK_StudentFine_Amount", "[Amount] >= 0");
+            t.HasCheckConstraint("CK_StudentFine_DailySource",
+                "([SourceInvoiceId] IS NULL AND [SourceInvoiceDueDate] IS NULL AND [ChargedOverdueDays] IS NULL AND [DailyRateSnapshot] IS NULL) OR " +
+                "([SourceInvoiceId] IS NOT NULL AND [SourceInvoiceDueDate] IS NOT NULL AND [ChargedOverdueDays] BETWEEN 1 AND 3650 AND [DailyRateSnapshot] > 0)");
+        });
         modelBuilder.Entity<StudentInvoice>().ToTable(t =>
             t.HasCheckConstraint("CK_StudentInvoice_Amounts",
                 "[Subtotal] >= 0 AND [DiscountAmount] >= 0 AND [FineAmount] >= 0 AND [TotalAmount] >= 0 AND [PaidAmount] >= 0 AND [PaidAmount] <= [TotalAmount] AND [DueAmount] = [TotalAmount] - [PaidAmount]"));

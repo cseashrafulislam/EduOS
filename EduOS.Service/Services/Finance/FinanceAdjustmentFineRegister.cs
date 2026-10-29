@@ -69,9 +69,13 @@ public sealed partial class FinanceAdjustmentService
                 x.fine.Id, x.enrollment.PublicId, x.student.StudentCode, x.student.FullName,
                 x.enrollment.CampusId, RuleName = x.rule.Name, x.fine.FineDate,
                 x.fine.Amount, x.fine.Reason, x.fine.IsWaived, x.fine.WaivedByUserId,
+                x.fine.SourceInvoiceId, x.fine.ChargedOverdueDays,
                 x.fine.RowVersion
             }).ToListAsync(ct);
         var rowIds = rows.Select(x => x.Id).ToArray();
+        var sourceIds = rows.Where(x => x.SourceInvoiceId.HasValue).Select(x => x.SourceInvoiceId!.Value).Distinct().ToArray();
+        var sources = await db.StudentInvoices.AsNoTracking().Where(x => x.TenantId == tenant && sourceIds.Contains(x.Id))
+            .ToDictionaryAsync(x => x.Id, x => x.PublicId, ct);
         var billed = await postedSource.Where(x => rowIds.Contains(x.FineId))
             .ToDictionaryAsync(x => x.FineId, x => x.PublicId, ct);
         return ApiResponse<StudentFineRegisterDto>.SuccessResponse(new StudentFineRegisterDto {
@@ -83,6 +87,9 @@ public sealed partial class FinanceAdjustmentService
                     FineDate = x.FineDate, Amount = x.Amount, Reason = x.Reason,
                     IsWaived = x.IsWaived, WaivedByUserId = x.WaivedByUserId,
                     BilledInvoiceReference = billed.TryGetValue(x.Id, out var invoiceRef) ? invoiceRef : null,
+                    SourceInvoiceReference = x.SourceInvoiceId.HasValue &&
+                        sources.TryGetValue(x.SourceInvoiceId.Value, out var originalRef) ? originalRef : null,
+                    ChargedOverdueDays = x.ChargedOverdueDays,
                     RowVersion = Convert.ToBase64String(x.RowVersion)
                 }).ToList()
             },

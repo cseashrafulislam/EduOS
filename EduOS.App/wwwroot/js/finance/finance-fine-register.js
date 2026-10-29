@@ -71,7 +71,8 @@ async function load() {
         for (const row of data.fines.items || []) {
             const tr = document.createElement('tr');
             [row.fineDate, row.studentCode + ' — ' + row.studentName, row.campusId,
-                row.ruleName, money(row.amount), row.isWaived ? 'Waived' : row.billedInvoiceReference ? 'Posted' : 'Unposted',
+                row.ruleName + (row.chargedOverdueDays ? ' · '+row.chargedOverdueDays+' days' : ''),
+                money(row.amount), row.isWaived ? 'Waived' : row.billedInvoiceReference ? 'Posted' : 'Unposted',
                 row.reason || '—'].forEach(value => tr.append(cell(value)));
             const action = cell('');
             const button = document.createElement('button');

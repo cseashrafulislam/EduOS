@@ -11,7 +11,7 @@ using System.Text;
 
 namespace EduOS.Service.Services.Finance;
 
-/// <summary>Post an assessed fixed fine as a separate, traceable invoice and balanced journal.</summary>
+/// <summary>Post an assessed fixed/daily fine as a separate, traceable invoice and balanced journal.</summary>
 public sealed partial class FinanceAdjustmentService
 {
     private static Guid FinePostingKey(long tenantId, long fineId, string kind)
@@ -88,14 +88,39 @@ public sealed partial class FinanceAdjustmentService
             var enrollment = await Enrollments.AsNoTracking().FirstOrDefaultAsync(x =>
                 x.Id == fine.StudentEnrollmentId, ct);
             var rule = await Fines.AsNoTracking().FirstOrDefaultAsync(x => x.Id == fine.FineRuleId, ct);
-            if (enrollment == null || rule == null || rule.IsDaily || !rule.FeeHeadId.HasValue ||
+            if (enrollment == null || rule == null || !rule.FeeHeadId.HasValue ||
                 !await db.Campuses.AsNoTracking().AnyAsync(x => x.TenantId == tenant &&
                     x.Id == enrollment.CampusId && !x.IsDeleted, ct) ||
                 !await db.Students.AsNoTracking().AnyAsync(x => x.TenantId == tenant &&
                     x.Id == enrollment.StudentId && !x.IsDeleted, ct))
                 return Error<PostedStudentFineInvoiceDto>("Fine rule, campus or student provenance invalid.", 409);
-            if (rule.Amount != fine.Amount)
-                return Error<PostedStudentFineInvoiceDto>("Fine amount differs from its immutable rule.", 409);
+            if (rule.IsDaily)
+            {
+                var source = fine.SourceInvoiceId.HasValue ? await db.StudentInvoices.IgnoreQueryFilters().AsNoTracking()
+                    .FirstOrDefaultAsync(x => x.TenantId == tenant && x.Id == fine.SourceInvoiceId.Value, ct) : null;
+                if (source == null || source.IsDeleted || source.StudentEnrollmentId != enrollment.Id ||
+                    source.CurrencyCode != "BDT" || !fine.SourceInvoiceDueDate.HasValue ||
+                    fine.SourceInvoiceDueDate != source.DueDate || !fine.ChargedOverdueDays.HasValue ||
+                    fine.ChargedOverdueDays.Value is < 1 or > 3650 || fine.DailyRateSnapshot != rule.Amount ||
+                    fine.ChargedOverdueDays != fine.FineDate.DayNumber - source.DueDate.DayNumber - rule.GraceDays ||
+                    fine.Amount != rule.Amount * fine.ChargedOverdueDays)
+                    return Error<PostedStudentFineInvoiceDto>("Daily fine source, days or rate snapshot needs reconciliation.", 409);
+                var sourceJournal = source.JournalId.HasValue ? await db.Journals.IgnoreQueryFilters().AsNoTracking()
+                    .FirstOrDefaultAsync(x => x.TenantId == tenant && x.Id == source.JournalId.Value, ct) : null;
+                var sourceLines = sourceJournal == null ? new List<JournalLine>() :
+                    await db.JournalLines.IgnoreQueryFilters().AsNoTracking().Where(x =>
+                        x.TenantId == tenant && x.JournalId == sourceJournal.Id).ToListAsync(ct);
+                if (sourceJournal == null || sourceJournal.State != JournalState.Posted ||
+                    sourceJournal.SourceType != "StudentInvoice" || sourceJournal.SourceId != source.Id ||
+                    !InstitutionalPostingJournalIntegrity.Matches(sourceJournal,sourceLines,tenant,
+                        "StudentInvoice",source.Id,enrollment.CampusId,enrollment.StudentId,source.TotalAmount) ||
+                    await db.Journals.IgnoreQueryFilters().AsNoTracking().AnyAsync(x => x.TenantId == tenant &&
+                        x.State == JournalState.Posted && x.ReversalOfJournalId == sourceJournal.Id, ct))
+                    return Error<PostedStudentFineInvoiceDto>("Source invoice journal was not posted or was reversed.", 409);
+            }
+            else if (rule.Amount != fine.Amount || fine.SourceInvoiceId.HasValue ||
+                fine.SourceInvoiceDueDate.HasValue || fine.ChargedOverdueDays.HasValue || fine.DailyRateSnapshot.HasValue)
+                return Error<PostedStudentFineInvoiceDto>("Fixed fine differs from immutable rule terms.", 409);
 
             var head = await Heads.AsNoTracking().FirstOrDefaultAsync(x => x.Id == rule.FeeHeadId.Value, ct);
             if (head == null || !head.IsActive || !head.IncomeAccountId.HasValue || !head.ReceivableAccountId.HasValue ||
@@ -147,7 +172,7 @@ public sealed partial class FinanceAdjustmentService
             {
                 TenantId = tenant, StudentInvoiceId = invoice.Id, StudentFineId = fine.Id,
                 FeeHeadId = head.Id, FeeHeadCodeSnapshot = head.Code, FeeHeadNameSnapshot = head.Name,
-                Description = "Fixed fine — " + rule.Name,
+                Description = (rule.IsDaily ? "Daily overdue fine — " : "Fixed fine — ") + rule.Name,
                 Amount = 0m, DiscountAmount = 0m, FineAmount = fine.Amount, NetAmount = fine.Amount,
                 CreatedAt = now, CreatedBy = user.UserId
             });
@@ -160,7 +185,7 @@ public sealed partial class FinanceAdjustmentService
                 CampusId = enrollment.CampusId, ReferenceNumber = invoice.InvoiceNumber,
                 CurrencyCode = "BDT", State = JournalState.Posted,
                 SourceType = "StudentInvoice", SourceId = invoice.Id,
-                Description = "Fixed fine invoice " + invoice.InvoiceNumber,
+                Description = "Fine invoice " + invoice.InvoiceNumber,
                 ApprovedByUserId = user.UserId, ApprovedAt = now,
                 PostedByUserId = user.UserId, PostedAt = now,
                 CreatedAt = now, CreatedBy = user.UserId

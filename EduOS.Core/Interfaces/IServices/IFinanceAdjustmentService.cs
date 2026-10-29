@@ -18,6 +18,7 @@ public interface IFinanceAdjustmentService
     Task<ApiResponse<StudentDiscountDto>> AssignDiscountAsync(AssignStudentDiscountRequestDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<StudentDiscountDto>> DeactivateStudentDiscountAsync(long discountId, DeactivateStudentDiscountRequestDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<IReadOnlyList<FineRuleDto>>> GetFineRulesAsync(CancellationToken cancellationToken = default);
+    Task<ApiResponse<IReadOnlyList<FineSourceInvoiceDto>>> GetFineSourceInvoicesAsync(Guid enrollmentReference, CancellationToken cancellationToken = default);
     Task<ApiResponse<FineRuleDto>> SaveFineRuleAsync(long? ruleId, SaveFineRuleRequestDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<StudentFineRegisterDto>> GetFineRegisterAsync(StudentFineRegisterQueryDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<StudentFineDto>> ApplyFineAsync(ApplyStudentFineRequestDto request, CancellationToken cancellationToken = default);

@@ -65,6 +65,9 @@ public sealed class FinanceAdjustmentsController : ControllerBase
         => Reply(await service.DeactivateStudentDiscountAsync(id,request,ct));
     [HttpGet("fine-rules")]
     public async Task<IActionResult> FineRules(CancellationToken ct) => Reply(await service.GetFineRulesAsync(ct));
+    [HttpGet("fine-source-invoices/{enrollmentReference:guid}")]
+    public async Task<IActionResult> FineSourceInvoices(Guid enrollmentReference,CancellationToken ct)
+        => Reply(await service.GetFineSourceInvoicesAsync(enrollmentReference,ct));
     [HttpPost("fine-rules")]
     public async Task<IActionResult> CreateFineRule([FromBody] SaveFineRuleRequestDto request,CancellationToken ct)
         => Reply(await service.SaveFineRuleAsync(null,request,ct));

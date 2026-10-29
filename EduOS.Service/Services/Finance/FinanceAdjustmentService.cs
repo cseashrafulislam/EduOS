@@ -37,7 +37,7 @@ public sealed partial class FinanceAdjustmentService : IFinanceAdjustmentService
     private static DiscountRuleDto Map(DiscountRule x) => new() { Id=x.Id, Name=x.Name, FeeHeadId=x.FeeHeadId, IsPercentage=x.IsPercentage, Value=x.Value, EffectiveFrom=x.EffectiveFrom, EffectiveTo=x.EffectiveTo, IsActive=x.IsActive, RowVersion=Version(x.RowVersion) };
     private static FineRuleDto Map(FineRule x) => new() { Id=x.Id, Name=x.Name, FeeHeadId=x.FeeHeadId, Amount=x.Amount, IsDaily=x.IsDaily, GraceDays=x.GraceDays, IsActive=x.IsActive, RowVersion=Version(x.RowVersion) };
     private static StudentDiscountDto Map(StudentDiscount x, Guid reference, string name) => new() { Id=x.Id, StudentEnrollmentReference=reference, DiscountRuleId=x.DiscountRuleId, DiscountRuleName=name, EffectiveFrom=x.EffectiveFrom, EffectiveTo=x.EffectiveTo, ApprovedByUserId=x.ApprovedByUserId, Reason=x.Reason, IsActive=x.IsActive, RowVersion=Version(x.RowVersion) };
-    private static StudentFineDto Map(StudentFine x, Guid reference, string name, Guid? invoiceReference=null) => new() { Id=x.Id, StudentEnrollmentReference=reference, FineRuleId=x.FineRuleId, FineRuleName=name, FineDate=x.FineDate, Amount=x.Amount, Reason=x.Reason, IsWaived=x.IsWaived, WaivedByUserId=x.WaivedByUserId, BilledInvoiceReference=invoiceReference, RowVersion=Version(x.RowVersion) };
+    private static StudentFineDto Map(StudentFine x, Guid reference, string name, Guid? invoiceReference=null, Guid? sourceInvoiceReference=null) => new() { Id=x.Id, StudentEnrollmentReference=reference, FineRuleId=x.FineRuleId, FineRuleName=name, FineDate=x.FineDate, Amount=x.Amount, Reason=x.Reason, IsWaived=x.IsWaived, WaivedByUserId=x.WaivedByUserId, BilledInvoiceReference=invoiceReference, SourceInvoiceReference=sourceInvoiceReference, SourceInvoiceDueDate=x.SourceInvoiceDueDate, ChargedOverdueDays=x.ChargedOverdueDays, DailyRateSnapshot=x.DailyRateSnapshot, RowVersion=Version(x.RowVersion) };
     private static RefundDto Map(Refund x, Guid paymentReference) => new() { Id=x.Id, StudentPaymentReference=paymentReference, Amount=x.Amount, State=x.State, Reason=x.Reason, RequestedByUserId=x.RequestedByUserId, ApprovedByUserId=x.ApprovedByUserId, ApprovedAt=x.ApprovedAt, PaidAt=x.PaidAt, ReversalJournalId=x.ReversalJournalId, RowVersion=Version(x.RowVersion) };
     private static bool Dates(DateOnly? from, DateOnly? to) => !from.HasValue || !to.HasValue || from <= to;
     private static bool Overlap(DateOnly a, DateOnly? b, DateOnly c, DateOnly? d) =>
@@ -155,13 +155,37 @@ public sealed partial class FinanceAdjustmentService : IFinanceAdjustmentService
         if(rows.Count>500) return Error<IReadOnlyList<FineRuleDto>>("Rule list limit exceeded.",409);
         return ApiResponse<IReadOnlyList<FineRuleDto>>.SuccessResponse(rows.Select(Map).ToArray());
     }
+    public async Task<ApiResponse<IReadOnlyList<FineSourceInvoiceDto>>> GetFineSourceInvoicesAsync(Guid enrollmentReference, CancellationToken ct = default)
+    {
+        if (!Authorized) return Error<IReadOnlyList<FineSourceInvoiceDto>>("Institution administrator permission required.",403);
+        if (enrollmentReference == Guid.Empty) return Error<IReadOnlyList<FineSourceInvoiceDto>>("Enrollment reference required.");
+        var enrollment = await FindEnrollment(enrollmentReference,ct);
+        if (enrollment == null) return Error<IReadOnlyList<FineSourceInvoiceDto>>("Enrollment not found.",404);
+        var sources = await (from invoice in db.StudentInvoices.AsNoTracking()
+            join journal in db.Journals.AsNoTracking()
+                on new { invoice.TenantId, Id = invoice.JournalId }
+                equals new { journal.TenantId, Id = (long?)journal.Id }
+            where invoice.TenantId == user.TenantId && invoice.StudentEnrollmentId == enrollment.Id &&
+                !invoice.IsDeleted && invoice.DueAmount > 0m && invoice.CurrencyCode == "BDT" &&
+                (invoice.State == InvoiceState.Issued || invoice.State == InvoiceState.PartiallyPaid) &&
+                journal.State == JournalState.Posted && journal.SourceType == "StudentInvoice" &&
+                journal.SourceId == invoice.Id && !db.Journals.IgnoreQueryFilters().Any(reversal =>
+                    reversal.TenantId == user.TenantId && reversal.State == JournalState.Posted &&
+                    reversal.ReversalOfJournalId == journal.Id) && !db.StudentInvoiceLines.Any(line =>
+                    line.TenantId == user.TenantId && line.StudentInvoiceId == invoice.Id && line.StudentFineId.HasValue)
+            orderby invoice.DueDate, invoice.Id
+            select new FineSourceInvoiceDto { Reference = invoice.PublicId, InvoiceNumber = invoice.InvoiceNumber,
+                DueDate = invoice.DueDate, DueAmount = invoice.DueAmount }).Take(101).ToListAsync(ct);
+        if (sources.Count > 100) return Error<IReadOnlyList<FineSourceInvoiceDto>>("Too many eligible invoices; settle older invoices first.",409);
+        return ApiResponse<IReadOnlyList<FineSourceInvoiceDto>>.SuccessResponse(sources);
+    }
     public async Task<ApiResponse<FineRuleDto>> SaveFineRuleAsync(long? ruleId, SaveFineRuleRequestDto request, CancellationToken ct = default)
     {
         if(!Authorized) return Error<FineRuleDto>("Institution administrator permission required.",403);
         if(request==null || ruleId is <=0 || string.IsNullOrWhiteSpace(request.Name) ||
             request.Name.Trim().Length>150 || request.Amount<=0 || request.Amount>999999999999m ||
-            !Scale(request.Amount,2) || request.GraceDays is <0 or >3650 || request.IsDaily)
-            return Error<FineRuleDto>("Only positive fixed fines are supported; daily fine billing is not integrated.");
+            !Scale(request.Amount,2) || request.GraceDays is <0 or >3650)
+            return Error<FineRuleDto>("Fine rate must be positive BDT with two decimals and a valid grace period.");
         try
         {
             await using var tx=await db.Database.BeginTransactionAsync(IsolationLevel.Serializable,ct);
@@ -173,12 +197,12 @@ public sealed partial class FinanceAdjustmentService : IFinanceAdjustmentService
             if(await Fines.AnyAsync(x=>x.Name==name && (!ruleId.HasValue || x.Id!=ruleId.Value),ct))
                 return Error<FineRuleDto>("Fine rule name already exists.",409);
             if(row!=null && await StudentFines.AnyAsync(x=>x.FineRuleId==row.Id,ct) &&
-                (row.Amount!=request.Amount || row.FeeHeadId!=request.FeeHeadId || row.IsDaily!=request.IsDaily))
+                (row.Amount!=request.Amount || row.FeeHeadId!=request.FeeHeadId || row.IsDaily!=request.IsDaily || row.GraceDays!=request.GraceDays))
                 return Error<FineRuleDto>("Applied fine rule terms are immutable; create a new rule.",409);
             var now=clock.GetUtcNow().UtcDateTime;
             if(row==null){row=new FineRule{TenantId=user.TenantId,CreatedAt=now,CreatedBy=user.UserId};db.FineRules.Add(row);}
             else{row.UpdatedAt=now;row.UpdatedBy=user.UserId;}
-            row.Name=name;row.FeeHeadId=request.FeeHeadId;row.Amount=request.Amount;row.IsDaily=false;
+            row.Name=name;row.FeeHeadId=request.FeeHeadId;row.Amount=request.Amount;row.IsDaily=request.IsDaily;
             row.GraceDays=request.GraceDays;row.IsActive=request.IsActive;
             await db.SaveChangesAsync(ct);await tx.CommitAsync(ct);
             return ApiResponse<FineRuleDto>.SuccessResponse(Map(row),"Fine rule saved.");
@@ -200,21 +224,63 @@ public sealed partial class FinanceAdjustmentService : IFinanceAdjustmentService
             var replay=await StudentFines.FirstOrDefaultAsync(x=>x.ClientRequestId==request.ClientRequestId,ct);
             if(replay!=null)
             {
+                var replaySource = request.SourceInvoiceReference.HasValue && request.SourceInvoiceReference.Value != Guid.Empty ?
+                    await db.StudentInvoices.AsNoTracking().FirstOrDefaultAsync(x=>x.TenantId==user.TenantId &&
+                        x.PublicId==request.SourceInvoiceReference.Value,ct) : null;
                 if(replay.StudentEnrollmentId!=enrollment.Id || replay.FineRuleId!=request.FineRuleId ||
-                    replay.FineDate!=request.FineDate || replay.Reason!=request.Reason?.Trim())
+                    replay.FineDate!=request.FineDate || replay.Reason!=request.Reason?.Trim() ||
+                    replay.SourceInvoiceId!=replaySource?.Id)
                     return Error<StudentFineDto>("Idempotency key was reused with different fine details.",409);
                 var historicalRule=await Fines.AsNoTracking().FirstOrDefaultAsync(x=>x.Id==replay.FineRuleId,ct);
                 if(historicalRule==null) return Error<StudentFineDto>("Original fine rule needs reconciliation.",409);
-                return ApiResponse<StudentFineDto>.SuccessResponse(Map(replay,enrollment.PublicId,historicalRule.Name),
+                return ApiResponse<StudentFineDto>.SuccessResponse(Map(replay,enrollment.PublicId,historicalRule.Name,sourceInvoiceReference:replaySource?.PublicId),
                     "Existing fine returned.");
             }
-            var rule=await Fines.FirstOrDefaultAsync(x=>x.Id==request.FineRuleId && x.IsActive && !x.IsDaily,ct);
-            if(rule==null) return Error<StudentFineDto>("Active fixed fine rule not found.",404);
+            var rule=await Fines.FirstOrDefaultAsync(x=>x.Id==request.FineRuleId && x.IsActive,ct);
+            if(rule==null) return Error<StudentFineDto>("Active fine rule not found.",404);
+            StudentInvoice? source=null;
+            int? overdueDays=null;
+            decimal amount=rule.Amount;
+            if(rule.IsDaily)
+            {
+                if(!request.SourceInvoiceReference.HasValue || request.SourceInvoiceReference==Guid.Empty ||
+                    request.FineDate>DateOnly.FromDateTime(clock.GetUtcNow().UtcDateTime))
+                    return Error<StudentFineDto>("Daily fine requires an overdue source invoice and a non-future assessment date.");
+                source=await db.StudentInvoices.FirstOrDefaultAsync(x=>x.TenantId==user.TenantId &&
+                    x.StudentEnrollmentId==enrollment.Id && x.PublicId==request.SourceInvoiceReference && !x.IsDeleted,ct);
+                if(source==null) return Error<StudentFineDto>("Eligible source invoice not found.",404);
+                var sourceJournal=source.JournalId.HasValue ? await db.Journals.AsNoTracking().FirstOrDefaultAsync(x=>
+                    x.TenantId==user.TenantId && x.Id==source.JournalId.Value && !x.IsDeleted,ct) : null;
+                var journalLines=sourceJournal==null ? new List<EduOS.Core.Entities.Accounting.JournalLine>() :
+                    await db.JournalLines.IgnoreQueryFilters().AsNoTracking().Where(x=>
+                        x.TenantId==user.TenantId && x.JournalId==sourceJournal.Id).ToListAsync(ct);
+                if(source.CurrencyCode!="BDT" || source.DueAmount<=0m ||
+                    (source.State!=InvoiceState.Issued && source.State!=InvoiceState.PartiallyPaid) ||
+                    source.TotalAmount<=0m || source.PaidAmount+source.DueAmount!=source.TotalAmount ||
+                    sourceJournal?.State!=JournalState.Posted || sourceJournal.SourceType!="StudentInvoice" ||
+                    sourceJournal.SourceId!=source.Id ||
+                    !InstitutionalPostingJournalIntegrity.Matches(sourceJournal,journalLines,user.TenantId,
+                        "StudentInvoice",source.Id,enrollment.CampusId,enrollment.StudentId,source.TotalAmount) ||
+                    await db.StudentInvoiceLines.AnyAsync(x=>x.TenantId==user.TenantId &&
+                        x.StudentInvoiceId==source.Id && x.StudentFineId.HasValue,ct) ||
+                    await db.Journals.IgnoreQueryFilters().AnyAsync(x=>x.TenantId==user.TenantId &&
+                        x.State==JournalState.Posted && x.ReversalOfJournalId==sourceJournal.Id,ct))
+                    return Error<StudentFineDto>("Source invoice is not an active posted unpaid tuition invoice.",409);
+                var days=request.FineDate.DayNumber-source.DueDate.DayNumber-rule.GraceDays;
+                if(days<1 || days>3650) return Error<StudentFineDto>("Invoice is not overdue after grace days, or exceeds the supported 10-year fine window.",409);
+                if(rule.Amount>999999999999m/days)
+                    return Error<StudentFineDto>("Computed daily fine exceeds the supported maximum.",409);
+                overdueDays=days;amount=rule.Amount*days;
+                if(await StudentFines.AnyAsync(x=>x.SourceInvoiceId==source.Id && x.FineRuleId==rule.Id,ct))
+                    return Error<StudentFineDto>("This daily fine rule has already been assessed against this invoice.",409);
+            }
+            else if(request.SourceInvoiceReference.HasValue)
+                return Error<StudentFineDto>("Fixed fines cannot specify an overdue source invoice.");
             // A fine is assessed separately and can only affect a new dedicated invoice.
             // Prior issued/paid tuition invoices must remain untouched.
             var reason=request.Reason?.Trim();
-            var old=await StudentFines.FirstOrDefaultAsync(x=>x.StudentEnrollmentId==enrollment.Id &&
-                x.FineRuleId==rule.Id && x.FineDate==request.FineDate && x.Reason==reason,ct);
+            var old=!rule.IsDaily ? await StudentFines.FirstOrDefaultAsync(x=>x.StudentEnrollmentId==enrollment.Id &&
+                x.FineRuleId==rule.Id && x.FineDate==request.FineDate && x.Reason==reason,ct) : null;
             if(old!=null)
             {
                 if(old.ClientRequestId.HasValue)
@@ -223,11 +289,13 @@ public sealed partial class FinanceAdjustmentService : IFinanceAdjustmentService
             }
             var now=clock.GetUtcNow().UtcDateTime;
             var row=new StudentFine{TenantId=user.TenantId,ClientRequestId=request.ClientRequestId,
-                StudentEnrollmentId=enrollment.Id,FineRuleId=rule.Id,
-                FineDate=request.FineDate,Amount=rule.Amount,Reason=reason,CreatedAt=now,CreatedBy=user.UserId};
+                StudentEnrollmentId=enrollment.Id,FineRuleId=rule.Id,SourceInvoiceId=source?.Id,
+                SourceInvoiceDueDate=source?.DueDate,ChargedOverdueDays=overdueDays,
+                DailyRateSnapshot=rule.IsDaily?rule.Amount:null,
+                FineDate=request.FineDate,Amount=amount,Reason=reason,CreatedAt=now,CreatedBy=user.UserId};
             db.StudentFines.Add(row);await db.SaveChangesAsync(ct);await tx.CommitAsync(ct);
-            return ApiResponse<StudentFineDto>.SuccessResponse(Map(row,enrollment.PublicId,rule.Name),
-                "Fine recorded in register only; invoice/GL integration is pending.");
+            return ApiResponse<StudentFineDto>.SuccessResponse(Map(row,enrollment.PublicId,rule.Name,sourceInvoiceReference:source?.PublicId),
+                "Fine assessed; a second administrator must post its separate invoice and balanced journal.");
         }
         catch(DbUpdateConcurrencyException){return Error<StudentFineDto>("Fine changed; reload.",409);}
         catch(DbUpdateException){return Error<StudentFineDto>("Conflicting fine.",409);}
@@ -347,6 +415,9 @@ public sealed partial class FinanceAdjustmentService : IFinanceAdjustmentService
         var studentFineIds=fines.Select(x=>x.Id).ToArray();
         var names=await Discounts.AsNoTracking().Where(x=>ruleIds.Contains(x.Id)).ToDictionaryAsync(x=>x.Id,x=>x.Name,ct);
         var fineNames=await Fines.AsNoTracking().Where(x=>fineIds.Contains(x.Id)).ToDictionaryAsync(x=>x.Id,x=>x.Name,ct);
+        var sourceIds=fines.Where(x=>x.SourceInvoiceId.HasValue).Select(x=>x.SourceInvoiceId!.Value).Distinct().ToArray();
+        var sources=await db.StudentInvoices.AsNoTracking().Where(x=>x.TenantId==user.TenantId && sourceIds.Contains(x.Id))
+            .ToDictionaryAsync(x=>x.Id,x=>x.PublicId,ct);
         var linked=await (from line in db.StudentInvoiceLines.AsNoTracking()
             join invoice in db.StudentInvoices.AsNoTracking()
                 on new {line.TenantId,Id=line.StudentInvoiceId} equals new {invoice.TenantId,invoice.Id}
@@ -357,7 +428,8 @@ public sealed partial class FinanceAdjustmentService : IFinanceAdjustmentService
         return ApiResponse<FinanceAdjustmentRegisterDto>.SuccessResponse(new FinanceAdjustmentRegisterDto {
             Discounts=discounts.Select(x=>Map(x,reference,names.GetValueOrDefault(x.DiscountRuleId,"[deleted rule]"))).ToArray(),
             Fines=fines.Select(x=>Map(x,reference,fineNames.GetValueOrDefault(x.FineRuleId,"[deleted rule]"),
-                linked.TryGetValue(x.Id,out var invoiceRef)?invoiceRef:null)).ToArray()
+                linked.TryGetValue(x.Id,out var invoiceRef)?invoiceRef:null,
+                x.SourceInvoiceId.HasValue && sources.TryGetValue(x.SourceInvoiceId.Value,out var sourceRef)?sourceRef:null)).ToArray()
         });
     }
 }

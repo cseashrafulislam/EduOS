@@ -277,7 +277,19 @@ public class StudentFineDto
     public bool IsWaived { get; set; }
     public long? WaivedByUserId { get; set; }
     public Guid? BilledInvoiceReference { get; set; }
+    public Guid? SourceInvoiceReference { get; set; }
+    public DateOnly? SourceInvoiceDueDate { get; set; }
+    public int? ChargedOverdueDays { get; set; }
+    public decimal? DailyRateSnapshot { get; set; }
     public string RowVersion { get; set; } = string.Empty;
+}
+
+public sealed class FineSourceInvoiceDto
+{
+    public Guid Reference { get; set; }
+    public string InvoiceNumber { get; set; } = string.Empty;
+    public DateOnly DueDate { get; set; }
+    public decimal DueAmount { get; set; }
 }
 
 public sealed class PostStudentFineInvoiceRequestDto
@@ -303,6 +315,7 @@ public class ApplyStudentFineRequestDto
     public Guid StudentEnrollmentReference { get; set; }
     public long FineRuleId { get; set; }
     public DateOnly FineDate { get; set; }
+    public Guid? SourceInvoiceReference { get; set; }
     [MaxLength(500)] public string? Reason { get; set; }
 }
 

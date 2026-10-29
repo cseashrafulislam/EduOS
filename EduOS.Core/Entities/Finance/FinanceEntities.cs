@@ -141,6 +141,11 @@ public class StudentFine : BaseTenantEntity
     public Guid? ClientRequestId { get; set; }
     public long StudentEnrollmentId { get; set; }
     public long FineRuleId { get; set; }
+    // Daily fines reference the original issued invoice; they are not recurring charges.
+    public long? SourceInvoiceId { get; set; }
+    public DateOnly? SourceInvoiceDueDate { get; set; }
+    public int? ChargedOverdueDays { get; set; }
+    [Column(TypeName = "decimal(18,2)")] public decimal? DailyRateSnapshot { get; set; }
     public DateOnly FineDate { get; set; }
     [Column(TypeName = "decimal(18,2)")] public decimal Amount { get; set; }
     [MaxLength(500)] public string? Reason { get; set; }

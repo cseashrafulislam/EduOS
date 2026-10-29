@@ -9167,6 +9167,12 @@ namespace EduOS.Persistence.Migrations
                     b.Property<Guid?>("ClientRequestId")
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<int?>("ChargedOverdueDays")
+                        .HasColumnType("int");
+
+                    b.Property<decimal?>("DailyRateSnapshot")
+                        .HasColumnType("decimal(18,2)");
+
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
 
@@ -9194,6 +9200,12 @@ namespace EduOS.Persistence.Migrations
                     b.Property<string>("Reason")
                         .HasMaxLength(500)
                         .HasColumnType("nvarchar(500)");
+
+                    b.Property<DateOnly?>("SourceInvoiceDueDate")
+                        .HasColumnType("date");
+
+                    b.Property<long?>("SourceInvoiceId")
+                        .HasColumnType("bigint");
 
                     b.Property<byte[]>("RowVersion")
                         .IsConcurrencyToken()
@@ -9228,11 +9240,17 @@ namespace EduOS.Persistence.Migrations
 
                     b.HasIndex("TenantId", "FineRuleId");
 
+                    b.HasIndex("TenantId", "SourceInvoiceId", "FineRuleId")
+                        .IsUnique()
+                        .HasFilter("[SourceInvoiceId] IS NOT NULL");
+
                     b.HasIndex("TenantId", "StudentEnrollmentId");
 
                     b.ToTable("StudentFines", t =>
                         {
                             t.HasCheckConstraint("CK_StudentFine_Amount", "[Amount] >= 0");
+
+                            t.HasCheckConstraint("CK_StudentFine_DailySource", "([SourceInvoiceId] IS NULL AND [SourceInvoiceDueDate] IS NULL AND [ChargedOverdueDays] IS NULL AND [DailyRateSnapshot] IS NULL) OR ([SourceInvoiceId] IS NOT NULL AND [SourceInvoiceDueDate] IS NOT NULL AND [ChargedOverdueDays] BETWEEN 1 AND 3650 AND [DailyRateSnapshot] > 0)");
                         });
                 });
 
@@ -22310,6 +22328,12 @@ namespace EduOS.Persistence.Migrations
                         .HasPrincipalKey("TenantId", "Id")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+
+                    b.HasOne("EduOS.Core.Entities.Finance.StudentInvoice", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "SourceInvoiceId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
 
                     b.HasOne("EduOS.Core.Entities.Academic.StudentEnrollment", null)
                         .WithMany()
