@@ -121,6 +121,7 @@ namespace EduOS.App.Extensions
             s.AddScoped<IPayrollReconciliationService, PayrollReconciliationService>();
             s.AddScoped<ILibraryService, LibraryService>();
             s.AddScoped<ITransportService, TransportService>();
+            s.AddScoped<ITransportFamilyScheduleService, TransportFamilyScheduleService>();
             s.AddScoped<IHostelService, HostelService>();
 
             // Canonical API service registrations: controllers receive interfaces from

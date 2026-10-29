@@ -13,6 +13,11 @@ public sealed class TransportOperationsController : Controller
     public IActionResult Index() => View();
 
     [HttpGet]
+    [Authorize(Roles = "Student,Guardian")]
+    [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
+    public IActionResult Family() => View();
+
+    [HttpGet]
     [Authorize(Roles = "TenantAdmin,Principal,TransportManager")]
     [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
     public IActionResult EditStops(Guid reference)
