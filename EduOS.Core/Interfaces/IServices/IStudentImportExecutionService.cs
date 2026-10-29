@@ -24,6 +24,11 @@ public interface IStudentImportExecutionService
         CancellationToken cancellationToken = default);
     Task<ApiResponse<StudentImportIntegrityReportDto>> GetIntegrityAsync(
         Guid importReference, CancellationToken cancellationToken = default);
+    Task<ApiResponse<StudentImportAcademicRepairPlanDto>> PreviewAcademicRepairAsync(
+        Guid importReference, CancellationToken cancellationToken = default);
+    Task<ApiResponse<StudentImportAcademicRepairResultDto>> ApplyAcademicRepairAsync(
+        Guid importReference, Guid clientRequestId, string expectedPlanHash,
+        CancellationToken cancellationToken = default);
     Task<ApiResponse<StudentImportReconciliationDto>> GetAsync(Guid importReference, int page, int pageSize,
         CancellationToken cancellationToken = default);
 }

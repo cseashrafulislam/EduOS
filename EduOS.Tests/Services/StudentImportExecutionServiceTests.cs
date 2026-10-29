@@ -88,6 +88,110 @@ public sealed class StudentImportExecutionServiceTests
             user, NullLogger<StudentImportExecutionService>.Instance, db);
     }
 
+    [Fact]
+    public async Task Historical_import_academic_repair_requires_preflight_and_replays_without_duplicate_registration()
+    {
+        var options = Options(); await SeedAsync(options);
+        await using var db = Context(options, 101);
+        var service = Service(db, new User(101, true));
+        using (var file = Csv(Header + "OLD-REQ,OLD-STU,Historical Learner,10,20,17,,\n"))
+        {
+            var imported = await service.ExecuteAsync(file, ".csv", Mapping, Guid.NewGuid());
+            Assert.True(imported.Success, imported.Message);
+            var reference = imported.Data!.ImportReference;
+            Assert.Empty(await db.StudentSubjectRegistrations.ToListAsync());
+
+            // Older imported enrollment predates the required offering.
+            db.Subjects.Add(new Subject { Id = 70, TenantId = 101, Code = "REQ", Name = "Required" });
+            db.CurriculumSubjects.Add(new CurriculumSubject
+            {
+                Id = 71, TenantId = 101, AcademicCurriculumId = 50,
+                AcademicLevelId = 1, SubjectId = 70, CreditHours = 3.5m
+            });
+            db.SubjectOfferings.Add(new SubjectOffering
+            {
+                Id = 72, TenantId = 101, AcademicBatchId = 20,
+                AcademicYearId = 1, CurriculumSubjectId = 71, Code = "REQ-1", Capacity = 1
+            });
+            await db.SaveChangesAsync();
+
+            var preview = await service.PreviewAcademicRepairAsync(reference);
+            Assert.True(preview.Success, preview.Message);
+            Assert.True(preview.Data!.CanApply);
+            Assert.Equal(1, preview.Data.MissingRegistrations);
+            Assert.Empty(await db.StudentSubjectRegistrations.ToListAsync());
+            var requestId = Guid.NewGuid();
+            var repaired = await service.ApplyAcademicRepairAsync(reference, requestId, preview.Data.PlanHash);
+            Assert.True(repaired.Success, repaired.Message);
+            Assert.Equal(1, repaired.Data!.CreatedRegistrations);
+            Assert.False(repaired.Data.Replayed);
+
+            var registration = await db.StudentSubjectRegistrations.SingleAsync();
+            Assert.Equal(72, registration.SubjectOfferingId);
+            Assert.Equal(3.5m, registration.CreditHoursSnapshot);
+            Assert.Equal(SubjectRegistrationState.Approved, registration.State);
+            var replay = await service.ApplyAcademicRepairAsync(reference, requestId, preview.Data.PlanHash);
+            Assert.True(replay.Success, replay.Message);
+            Assert.True(replay.Data!.Replayed);
+            Assert.Equal(1, await db.StudentSubjectRegistrations.CountAsync());
+            Assert.False((await service.PreviewAcademicRepairAsync(reference)).Data!.CanApply);
+            Assert.True((await service.GetIntegrityAsync(reference)).Data!.IsHealthy);
+
+            Assert.Equal(409, (await service.ApplyAcademicRepairAsync(
+                reference, requestId, new string('A', 64))).StatusCode);
+            Assert.Equal(409, (await service.ApplyAcademicRepairAsync(
+                reference, Guid.NewGuid(), preview.Data.PlanHash)).StatusCode);
+            await using var foreign = Context(options, 202);
+            Assert.Equal(404, (await Service(foreign, new User(202, true))
+                .PreviewAcademicRepairAsync(reference)).StatusCode);
+            Assert.Equal(403, (await Service(db, new User(101, false))
+                .ApplyAcademicRepairAsync(reference, Guid.NewGuid(), preview.Data.PlanHash)).StatusCode);
+        }
+    }
+
+    [Fact]
+    public async Task Academic_repair_fails_closed_on_stale_capacity_and_on_changed_enrollment_history()
+    {
+        var options = Options(); await SeedAsync(options);
+        await using var db = Context(options, 101);
+        var service = Service(db, new User(101, true));
+        using var file = Csv(Header + "OLD-FULL,OLD-FULL-STU,Historical Learner,10,20,18,,\n");
+        var imported = await service.ExecuteAsync(file, ".csv", Mapping, Guid.NewGuid());
+        Assert.True(imported.Success, imported.Message);
+        var reference = imported.Data!.ImportReference;
+        db.Subjects.Add(new Subject { Id = 80, TenantId = 101, Name = "Required", Code = "REQ2" });
+        db.CurriculumSubjects.Add(new CurriculumSubject
+        {
+            Id = 81, TenantId = 101, AcademicCurriculumId = 50,
+            AcademicLevelId = 1, SubjectId = 80, CreditHours = 2
+        });
+        var offering = new SubjectOffering
+        {
+            Id = 82, TenantId = 101, AcademicBatchId = 20,
+            AcademicYearId = 1, CurriculumSubjectId = 81, Code = "REQ2-1", Capacity = 1
+        };
+        db.SubjectOfferings.Add(offering);
+        await db.SaveChangesAsync();
+        var preview = await service.PreviewAcademicRepairAsync(reference);
+        Assert.True(preview.Data!.CanApply);
+
+        offering.Capacity = 0;
+        await db.SaveChangesAsync();
+        var stale = await service.ApplyAcademicRepairAsync(reference, Guid.NewGuid(), preview.Data.PlanHash);
+        Assert.Equal(409, stale.StatusCode);
+        Assert.Empty(await db.StudentSubjectRegistrations.ToListAsync());
+
+        offering.Capacity = 1;
+        var enrollment = await db.StudentEnrollments.SingleAsync();
+        enrollment.IsCurrent = false;
+        enrollment.State = EnrollmentState.Completed;
+        await db.SaveChangesAsync();
+        var changed = await service.PreviewAcademicRepairAsync(reference);
+        Assert.False(changed.Data!.CanApply);
+        Assert.Contains(changed.Data.Blockers, x => x.Code == "ChangedEnrollmentHistory");
+        Assert.Empty(await db.StudentSubjectRegistrations.ToListAsync());
+    }
+
 
     [Fact]
     public async Task Required_subjects_are_approved_atomically_with_credit_snapshot_and_idempotent_replay()

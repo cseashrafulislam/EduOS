@@ -150,3 +150,24 @@ public sealed class StudentImportIntegrityReportDto
         RequiredSubjectsExpected == RequiredSubjectsHealthy && Issues.Count == 0;
     public List<StudentImportIntegrityIssueDto> Issues { get; set; } = new();
 }
+
+/// <summary>
+/// A bounded, PII-free reconciliation of the CURRENT enrollment of students
+/// from one completed import window. A preview is not authorization to mutate.
+/// </summary>
+public sealed class StudentImportAcademicRepairPlanDto
+{
+    public Guid ImportReference { get; set; }
+    public string PlanHash { get; set; } = string.Empty;
+    public int ImportedRowsChecked { get; set; }
+    public int MissingRegistrations { get; set; }
+    public List<StudentImportIntegrityIssueDto> Blockers { get; set; } = new();
+    public bool CanApply => MissingRegistrations > 0 && Blockers.Count == 0;
+}
+
+public sealed class StudentImportAcademicRepairResultDto
+{
+    public Guid ImportReference { get; set; }
+    public int CreatedRegistrations { get; set; }
+    public bool Replayed { get; set; }
+}

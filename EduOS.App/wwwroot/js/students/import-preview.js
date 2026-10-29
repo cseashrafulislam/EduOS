@@ -28,6 +28,10 @@
     const integritySummary = document.getElementById('studentImportIntegritySummary');
     const integrityRows = document.getElementById('studentImportIntegrityRows');
     let integrityReport = null;
+    const academicRepairButton = document.getElementById('studentImportRepairAcademics');
+    const academicRepairSummary = document.getElementById('studentImportRepairSummary');
+    let academicRepairPlan = null;
+    let academicRepairRequestId = null;
     const reload = document.getElementById('studentImportReload');
     const more = document.getElementById('studentImportMore');
     const cohortAdd = document.getElementById('studentImportCohortAdd');
@@ -74,6 +78,10 @@
         integritySummary.textContent = '';
         integrityRows.replaceChildren();
         integrityExport.classList.add('d-none');
+        academicRepairPlan = null;
+        academicRepairRequestId = null;
+        academicRepairButton.classList.add('d-none');
+        academicRepairSummary.textContent = '';
         alert.classList.add('d-none');
     }
     fileInput.addEventListener('change', reset);
@@ -232,6 +240,10 @@
             integritySummary.textContent = '';
             integrityRows.replaceChildren();
             integrityExport.classList.add('d-none');
+            academicRepairPlan = null;
+            academicRepairRequestId = null;
+            academicRepairButton.classList.add('d-none');
+            academicRepairSummary.textContent = '';
         }
         const response = await fetch('/api/student-imports/' + encodeURIComponent(importReference) +
             '?page=' + reconciliationPage + '&pageSize=50', { credentials: 'same-origin', cache: 'no-store' });
@@ -354,8 +366,58 @@
                 '; Historical/inactive academic rows skipped: ' + integrityReport.academicRowsSkipped +
                 '; ' + (integrityReport.issues || []).length + ' issues.';
             integrityExport.classList.remove('d-none');
+            academicRepairButton.classList.add('d-none');
+            academicRepairPlan = null;
+            try {
+                const repairResponse = await fetch('/api/student-imports/' +
+                    encodeURIComponent(importReference) + '/academic-repair',
+                    { credentials: 'same-origin', cache: 'no-store', headers: { Accept: 'application/json' } });
+                const repairBody = await repairResponse.json().catch(() => null);
+                if (!repairResponse.ok || !repairBody?.success)
+                    throw new Error(repairBody?.message || 'Academic repair preview is unavailable.');
+                academicRepairPlan = repairBody.data;
+                academicRepairSummary.textContent = academicRepairPlan.canApply
+                    ? academicRepairPlan.missingRegistrations +
+                      ' missing mandatory registrations can be safely reconciled.'
+                    : (academicRepairPlan.blockers || []).length
+                        ? 'Repair requires manual academic review: ' +
+                          academicRepairPlan.blockers.map(x => x.code).join(', ')
+                        : 'No missing mandatory registrations require repair.';
+                academicRepairButton.classList.toggle('d-none', !academicRepairPlan.canApply);
+            } catch (error) {
+                academicRepairSummary.textContent = error.message;
+            }
         } catch (error) { message(error.message, true); }
         finally { busy = false; integrityButton.disabled = false; }
+    });
+    academicRepairButton.addEventListener('click', async () => {
+        if (busy || !academicRepairPlan?.canApply || !importReference) return;
+        if (!confirm('Reconcile ' + academicRepairPlan.missingRegistrations +
+            ' missing mandatory registrations for this unchanged import batch? Published results and historical enrollments are never altered.')) return;
+        busy = true;
+        academicRepairButton.disabled = true;
+        let completed = false;
+        try {
+            if (!academicRepairRequestId) academicRepairRequestId = crypto.randomUUID();
+            const formData = new FormData();
+            formData.append('clientRequestId', academicRepairRequestId);
+            formData.append('expectedPlanHash', academicRepairPlan.planHash);
+            const result = await send('/api/student-imports/' +
+                encodeURIComponent(importReference) + '/academic-repair', formData);
+            academicRepairSummary.textContent = (result.replayed ? 'Previously reconciled ' : 'Reconciled ') +
+                result.createdRegistrations + ' mandatory registrations.';
+            academicRepairRequestId = null;
+            academicRepairPlan = null;
+            academicRepairButton.classList.add('d-none');
+            completed = true;
+        } catch (error) {
+            academicRepairSummary.textContent = error.message +
+                ' Refresh the preview if records changed; otherwise retry this request.';
+        } finally {
+            busy = false;
+            academicRepairButton.disabled = false;
+        }
+        if (completed) integrityButton.click();
     });
     integrityExport.addEventListener('click', async () => {
         if (busy) return;

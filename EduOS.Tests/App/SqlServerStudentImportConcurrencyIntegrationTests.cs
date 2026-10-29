@@ -107,6 +107,158 @@ public sealed class SqlServerStudentImportConcurrencyIntegrationTests
     };
 
     [Fact]
+    public async Task Historical_import_academic_repair_commits_once_with_real_sql_constraints()
+    {
+        var connection = Environment.GetEnvironmentVariable("EDUOS_SQL_AUTH_TEST_CONNECTION");
+        if (string.IsNullOrWhiteSpace(connection)) return;
+        var options = new DbContextOptionsBuilder<EduOSDbContext>().UseSqlServer(connection).Options;
+        var suffix = Guid.NewGuid().ToString("N")[..12];
+        long tenantId, adminId, batchId;
+        await using (var setup = new EduOSDbContext(options))
+        {
+            var tenant = new Tenant
+            {
+                Code = "CI-REPAIR-" + suffix, Name = "Historical Import Repair CI",
+                Email = "repair-" + suffix + "@example.test", State = TenantState.Active
+            };
+            var username = "repair-" + suffix + "@example.test";
+            var admin = new ApplicationUser
+            {
+                UserName = username, NormalizedUserName = username.ToUpperInvariant(),
+                Email = username, NormalizedEmail = username.ToUpperInvariant(),
+                FullName = "Import Repair SQL Admin", EmailConfirmed = true, IsActive = true,
+                SecurityStamp = Guid.NewGuid().ToString(), ConcurrencyStamp = Guid.NewGuid().ToString()
+            };
+            setup.AddRange(tenant, admin);
+            await setup.SaveChangesAsync();
+            tenantId = tenant.Id;
+            adminId = admin.Id;
+            setup.ChangeTracker.Clear();
+            using (setup.BeginSystemTenantScope(tenantId))
+            {
+                var campus = new Campus { TenantId = tenantId, Code = "MAIN", Name = "Main" };
+                var year = new AcademicYear
+                {
+                    TenantId = tenantId, Name = "2026", Code = "2026",
+                    StartDate = new DateOnly(2026, 1, 1), EndDate = new DateOnly(2026, 12, 31)
+                };
+                var program = new AcademicProgram
+                {
+                    TenantId = tenantId, Code = "TRAIN", Name = "Training"
+                };
+                setup.AddRange(campus, year, program);
+                await setup.SaveChangesAsync();
+                var level = new AcademicLevel
+                {
+                    TenantId = tenantId, AcademicProgramId = program.Id,
+                    Code = "L1", Name = "Level One", LevelNo = 1
+                };
+                var curriculum = new AcademicCurriculum
+                {
+                    TenantId = tenantId, AcademicProgramId = program.Id,
+                    Code = "CUR", Name = "Current Curriculum", IsCurrent = true, IsActive = true,
+                    EffectiveFrom = new DateOnly(2026, 1, 1)
+                };
+                setup.AddRange(level, curriculum);
+                await setup.SaveChangesAsync();
+                var batch = new AcademicBatch
+                {
+                    TenantId = tenantId, CampusId = campus.Id, AcademicYearId = year.Id,
+                    AcademicProgramId = program.Id, AcademicLevelId = level.Id,
+                    Code = "COHORT", Name = "Cohort", Capacity = 3
+                };
+                setup.Add(batch);
+                await setup.SaveChangesAsync();
+                batchId = batch.Id;
+            }
+        }
+
+        Guid reference;
+        await using (var db = TenantDb(options, tenantId))
+        {
+            using var csv = new MemoryStream(Encoding.UTF8.GetBytes(
+                "SourceKey,StudentCode,FullName,CampusId,AcademicBatchId,RollNo,GuardianName,GuardianPhone,GuardianSourceKey\n" +
+                "HIST-" + suffix + ",STU-" + suffix + ",Historical Learner " + suffix +
+                "," + (await db.AcademicBatches.Where(x => x.Id == batchId).Select(x => x.CampusId).SingleAsync()) +
+                "," + batchId + ",09,,,\n"));
+            var imported = await Service(db, tenantId, adminId).ExecuteAsync(
+                csv, ".csv", Mapping, Guid.NewGuid());
+            Assert.True(imported.Success, imported.Message);
+            reference = imported.Data!.ImportReference;
+            Assert.Empty(await db.StudentSubjectRegistrations.ToListAsync());
+        }
+
+        await using (var setup = TenantDb(options, tenantId))
+        {
+            var batch = await setup.AcademicBatches.SingleAsync(x => x.Id == batchId);
+            var curriculum = await setup.AcademicCurriculums.SingleAsync();
+            var subject = new Subject
+            {
+                TenantId = tenantId, Code = "HIST-" + suffix, Name = "Historical Required"
+            };
+            setup.Subjects.Add(subject);
+            await setup.SaveChangesAsync();
+            var required = new CurriculumSubject
+            {
+                TenantId = tenantId, AcademicCurriculumId = curriculum.Id,
+                AcademicLevelId = batch.AcademicLevelId, SubjectId = subject.Id,
+                CreditHours = 2.75m
+            };
+            setup.CurriculumSubjects.Add(required);
+            await setup.SaveChangesAsync();
+            setup.SubjectOfferings.Add(new SubjectOffering
+            {
+                TenantId = tenantId, AcademicBatchId = batch.Id, AcademicYearId = batch.AcademicYearId,
+                CurriculumSubjectId = required.Id, Code = "HIST-REQ", Capacity = 3
+            });
+            await setup.SaveChangesAsync();
+        }
+
+        Guid requestId = Guid.NewGuid();
+        string fingerprint;
+        await using (var db = TenantDb(options, tenantId))
+        {
+            var service = Service(db, tenantId, adminId);
+            var preview = await service.PreviewAcademicRepairAsync(reference);
+            Assert.True(preview.Success && preview.Data!.CanApply, preview.Message);
+            Assert.Equal(1, preview.Data!.MissingRegistrations);
+            fingerprint = preview.Data.PlanHash;
+        }
+        var competingRequestId = Guid.NewGuid();
+        var release = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        async Task<ApiResponse<StudentImportAcademicRepairResultDto>> RepairAsync(Guid request)
+        {
+            await using var db = TenantDb(options, tenantId);
+            await release.Task;
+            return await Service(db, tenantId, adminId)
+                .ApplyAcademicRepairAsync(reference, request, fingerprint);
+        }
+        var first = Task.Run(() => RepairAsync(requestId));
+        var second = Task.Run(() => RepairAsync(competingRequestId));
+        release.SetResult(true);
+        var outcomes = await Task.WhenAll(first, second);
+        Assert.Single(outcomes.Where(x => x.Success));
+        Assert.Single(outcomes.Where(x => x.StatusCode == 409));
+        Assert.Equal(1, outcomes.Single(x => x.Success).Data!.CreatedRegistrations);
+        requestId = outcomes[0].Success ? requestId : competingRequestId;
+        await using (var verify = TenantDb(options, tenantId))
+        {
+            var service = Service(verify, tenantId, adminId);
+            var replay = await service.ApplyAcademicRepairAsync(reference, requestId, fingerprint);
+            Assert.True(replay.Success && replay.Data!.Replayed, replay.Message);
+            var registration = await verify.StudentSubjectRegistrations.SingleAsync();
+            Assert.Equal(SubjectRegistrationState.Approved, registration.State);
+            Assert.Equal(2.75m, registration.CreditHoursSnapshot);
+            Assert.True((await service.GetIntegrityAsync(reference)).Data!.IsHealthy);
+            Assert.Equal(409, (await service.ApplyAcademicRepairAsync(
+                reference, Guid.NewGuid(), fingerprint)).StatusCode);
+        }
+        await using (var foreign = TenantDb(options, tenantId + 999999))
+            Assert.Equal(404, (await Service(foreign, tenantId + 999999, adminId)
+                .PreviewAcademicRepairAsync(reference)).StatusCode);
+    }
+
+    [Fact]
     public async Task Concurrent_imports_for_last_seat_commit_once_and_replay_without_partial_records()
     {
         var connection = Environment.GetEnvironmentVariable("EDUOS_SQL_AUTH_TEST_CONNECTION");

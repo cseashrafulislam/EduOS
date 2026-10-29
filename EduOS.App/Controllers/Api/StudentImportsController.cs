@@ -271,6 +271,28 @@ public sealed class StudentImportsController : ControllerBase
         return StatusCode(result.StatusCode, result);
     }
 
+    /// <summary>Bounded, PII-free preview. No enrollment or result is modified.</summary>
+    [HttpGet("{reference:guid}/academic-repair")]
+    public async Task<IActionResult> PreviewAcademicRepair(Guid reference, CancellationToken cancellationToken)
+    {
+        var result = await _execution.PreviewAcademicRepairAsync(reference, cancellationToken);
+        return StatusCode(result.StatusCode, result);
+    }
+
+    /// <summary>
+    /// Explicit tenant-admin reconciliation of an unchanged import window.
+    /// Uses the preview fingerprint, antiforgery token and idempotent request ID.
+    /// </summary>
+    [HttpPost("{reference:guid}/academic-repair")]
+    public async Task<IActionResult> ApplyAcademicRepair(Guid reference,
+        [FromForm] Guid clientRequestId, [FromForm] string? expectedPlanHash,
+        CancellationToken cancellationToken)
+    {
+        var result = await _execution.ApplyAcademicRepairAsync(reference,
+            clientRequestId, expectedPlanHash ?? "", cancellationToken);
+        return StatusCode(result.StatusCode, result);
+    }
+
     [HttpGet("{reference:guid}")]
     public async Task<IActionResult> Reconciliation(Guid reference, [FromQuery] int page = 1,
         [FromQuery] int pageSize = 50, CancellationToken cancellationToken = default)

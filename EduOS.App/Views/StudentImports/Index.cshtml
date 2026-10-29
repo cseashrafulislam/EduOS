@@ -104,8 +104,10 @@
                 <button id="studentImportReload" type="button" class="btn btn-outline-primary btn-sm">Refresh reconciliation</button>
                 <button id="studentImportVerifyIntegrity" type="button" class="btn btn-outline-primary btn-sm">Verify links &amp; required subjects</button>
                 <button id="studentImportIntegrityExport" type="button" class="btn btn-outline-secondary btn-sm d-none">Export integrity CSV</button>
+                <button id="studentImportRepairAcademics" type="button" class="btn btn-outline-warning btn-sm d-none">Repair missing required subjects</button>
             </div>
             <p id="studentImportIntegritySummary" class="mt-2 mb-1" role="status" aria-live="polite"></p>
+            <p id="studentImportRepairSummary" role="status" aria-live="polite"></p>
             <div class="table-responsive">
                 <table class="table table-sm"><thead><tr><th>Row</th><th>Issue</th><th>Details</th></tr></thead>
                     <tbody id="studentImportIntegrityRows"></tbody></table>

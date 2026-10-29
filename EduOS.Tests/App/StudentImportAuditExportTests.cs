@@ -98,4 +98,44 @@ public sealed class StudentImportAuditExportTests
         Assert.NotNull(type.GetMethod(nameof(StudentImportsController.ExportIntegrity)));
         Assert.NotNull(type.GetMethod(nameof(StudentImportsController.ExportCohortStatus)));
     }
+
+    [Fact]
+    public async Task Academic_repair_routes_rely_on_service_authorization_and_forward_same_request_identity()
+    {
+        var execution = new Mock<IStudentImportExecutionService>();
+        var reference = Guid.NewGuid();
+        var requestId = Guid.NewGuid();
+        var fingerprint = new string('B', 64);
+        var preview = new StudentImportAcademicRepairPlanDto
+        {
+            ImportReference = reference, PlanHash = fingerprint, MissingRegistrations = 2
+        };
+        execution.Setup(x => x.PreviewAcademicRepairAsync(reference, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(ApiResponse<StudentImportAcademicRepairPlanDto>.SuccessResponse(preview));
+        execution.Setup(x => x.ApplyAcademicRepairAsync(reference, requestId, fingerprint,
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(ApiResponse<StudentImportAcademicRepairResultDto>.SuccessResponse(
+                new StudentImportAcademicRepairResultDto
+                {
+                    ImportReference = reference, CreatedRegistrations = 2
+                }));
+        var controller = new StudentImportsController(
+            new Mock<IStudentImportPreviewService>().Object, execution.Object);
+        var read = Assert.IsType<ObjectResult>(
+            await controller.PreviewAcademicRepair(reference, CancellationToken.None));
+        Assert.Equal(200, read.StatusCode);
+        var post = Assert.IsType<ObjectResult>(
+            await controller.ApplyAcademicRepair(reference, requestId, fingerprint, CancellationToken.None));
+        Assert.Equal(200, post.StatusCode);
+        execution.Verify(x => x.ApplyAcademicRepairAsync(reference, requestId, fingerprint,
+            It.IsAny<CancellationToken>()), Times.Once);
+
+        execution.Setup(x => x.ApplyAcademicRepairAsync(reference, requestId, fingerprint,
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(ApiResponse<StudentImportAcademicRepairResultDto>.ErrorResponse(
+                "Academic records changed.", 409));
+        var stale = Assert.IsType<ObjectResult>(
+            await controller.ApplyAcademicRepair(reference, requestId, fingerprint, CancellationToken.None));
+        Assert.Equal(409, stale.StatusCode);
+    }
 }
