@@ -122,6 +122,7 @@ namespace EduOS.App.Extensions
             s.AddScoped<ILibraryService, LibraryService>();
             s.AddScoped<ITransportService, TransportService>();
             s.AddScoped<ITransportFamilyScheduleService, TransportFamilyScheduleService>();
+            s.AddScoped<ITransportVehicleCaseService, TransportVehicleCaseService>();
             s.AddScoped<IHostelService, HostelService>();
             s.AddScoped<IGuardianHostelStayService, GuardianHostelStayService>();
 

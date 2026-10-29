@@ -379,6 +379,7 @@ public class EduOSDbContext :
     public DbSet<TransportDriver> TransportDrivers => Set<TransportDriver>();
     public DbSet<Vehicle> Vehicles => Set<Vehicle>();
     public DbSet<VehicleDriverAssignment> VehicleDriverAssignments => Set<VehicleDriverAssignment>();
+    public DbSet<TransportVehicleCase> TransportVehicleCases => Set<TransportVehicleCase>();
 
     // Hostel
     public DbSet<Hostel> Hostels => Set<Hostel>();

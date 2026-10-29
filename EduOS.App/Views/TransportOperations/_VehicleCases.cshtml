@@ -1,0 +1,56 @@
+<section class="card mb-3" id="transportVehicleCasesPanel" aria-labelledby="transportVehicleCasesTitle">
+    <div class="card-body">
+        <div class="d-flex align-items-center gap-2 mb-3">
+            <h3 class="h5 mb-0" id="transportVehicleCasesTitle">Vehicle maintenance &amp; incident register</h3>
+            <details><summary class="btn btn-outline-secondary btn-sm" aria-label="Case guidance">i</summary>
+                <div class="small mt-2">Record a vehicle issue once, then resolve it with an audited outcome. This operational register does not post expenses or authorize a vehicle for dispatch.</div>
+            </details>
+        </div>
+        <form id="transportVehicleCaseCreate" class="row g-2 mb-3">
+            @Html.AntiForgeryToken()
+            <div class="col-md-3"><label for="transportVehicleCaseVehicle" class="form-label">Vehicle</label>
+                <select id="transportVehicleCaseVehicle" class="form-select" required><option value="">Select vehicle</option></select></div>
+            <div class="col-md-2"><label for="transportVehicleCaseDate" class="form-label">Occurred on</label>
+                <input id="transportVehicleCaseDate" type="date" class="form-control" required /></div>
+            <div class="col-md-2"><label for="transportVehicleCaseType" class="form-label">Type</label>
+                <select id="transportVehicleCaseType" class="form-select"><option value="Maintenance">Maintenance</option><option value="Incident">Incident</option></select></div>
+            <div class="col-md-2"><label for="transportVehicleCaseSeverity" class="form-label">Severity</label>
+                <select id="transportVehicleCaseSeverity" class="form-select"><option value="Low">Low</option><option value="Medium">Medium</option><option value="High">High</option></select></div>
+            <div class="col-md-3"><label for="transportVehicleCaseSummary" class="form-label">Summary</label>
+                <input id="transportVehicleCaseSummary" class="form-control" maxlength="500" required /></div>
+            <div class="col-12"><button type="submit" class="btn btn-primary btn-sm">Record case</button></div>
+        </form>
+        <form id="transportVehicleCaseFilters" class="row g-2 mb-2">
+            <div class="col-md-3"><label for="transportVehicleCaseState" class="form-label">Status</label>
+                <select id="transportVehicleCaseState" class="form-select"><option value="Open">Open</option><option value="All">All</option><option value="Resolved">Resolved</option></select></div>
+            <div class="col-md-5"><label for="transportVehicleCaseSearch" class="form-label">Search vehicle / summary</label>
+                <input id="transportVehicleCaseSearch" class="form-control" maxlength="100" type="search" /></div>
+            <div class="col-md-4 d-flex align-items-end gap-2">
+                <button type="submit" class="btn btn-outline-primary btn-sm">Apply</button>
+                <button id="transportVehicleCaseExport" type="button" class="btn btn-outline-secondary btn-sm" disabled>Export CSV</button>
+                <button id="transportVehicleCasePrint" type="button" class="btn btn-outline-secondary btn-sm" disabled>Print</button>
+            </div>
+        </form>
+        <div id="transportVehicleCaseStatus" class="small text-muted mb-2" role="status" aria-live="polite"></div>
+        <div class="table-responsive"><table class="table table-sm table-hover align-middle">
+            <thead><tr><th>Date</th><th>Campus</th><th>Vehicle</th><th>Type</th><th>Severity</th><th>Summary</th><th>Status</th><th>Resolution</th><th>Action</th></tr></thead>
+            <tbody id="transportVehicleCaseRows"></tbody>
+        </table></div>
+        <div class="d-flex justify-content-between align-items-center">
+            <button id="transportVehicleCasePrev" type="button" class="btn btn-outline-secondary btn-sm" disabled>Previous</button>
+            <span id="transportVehicleCasePage" class="small text-muted"></span>
+            <button id="transportVehicleCaseNext" type="button" class="btn btn-outline-secondary btn-sm" disabled>Next</button>
+        </div>
+        <dialog id="transportVehicleCaseDialog" class="border rounded shadow p-3" aria-labelledby="transportVehicleCaseDialogTitle">
+            <form id="transportVehicleCaseResolve" class="d-grid gap-2">
+                <h4 id="transportVehicleCaseDialogTitle" class="h6">Resolve vehicle case</h4>
+                <label class="form-label" for="transportVehicleCaseResolution">Action taken</label>
+                <textarea id="transportVehicleCaseResolution" class="form-control" rows="3" maxlength="1000" required></textarea>
+                <div class="d-flex gap-2 justify-content-end">
+                    <button id="transportVehicleCaseCancel" type="button" class="btn btn-outline-secondary">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Confirm resolution</button>
+                </div>
+            </form>
+        </dialog>
+    </div>
+</section>

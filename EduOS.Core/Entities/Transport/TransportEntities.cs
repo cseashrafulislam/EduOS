@@ -75,3 +75,20 @@ public class RouteVehicleAssignment : BaseTenantEntity
     public DateOnly? EffectiveTo { get; set; }
     public bool IsCurrent { get; set; } = true;
 }
+
+public sealed class TransportVehicleCase : BaseTenantEntity
+{
+    public Guid PublicId { get; set; } = Guid.NewGuid();
+    public Guid ClientRequestId { get; set; }
+    public long CampusId { get; set; }
+    public long VehicleId { get; set; }
+    [Required, MaxLength(50)] public string VehicleNumberSnapshot { get; set; } = string.Empty;
+    public DateOnly OccurredOn { get; set; }
+    [Required, MaxLength(20)] public string CaseType { get; set; } = string.Empty;
+    [Required, MaxLength(20)] public string Severity { get; set; } = string.Empty;
+    [Required, MaxLength(500)] public string Summary { get; set; } = string.Empty;
+    [Required, MaxLength(20)] public string State { get; set; } = "Open";
+    [MaxLength(1000)] public string? Resolution { get; set; }
+    public DateTime? ResolvedAt { get; set; }
+    public long? ResolvedBy { get; set; }
+}
