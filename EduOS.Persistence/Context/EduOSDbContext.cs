@@ -1661,9 +1661,13 @@ public class EduOSDbContext :
             .IsUnique().HasFilter("[IsRevoked] = 0 AND [IsDeleted] = 0");
         modelBuilder.Entity<LmsCompletionCertificate>().HasIndex(x => new { x.TenantId, x.CourseId, x.IssuedAt });
         modelBuilder.Entity<LmsCompletionCertificate>().HasIndex(x => new { x.TenantId, x.StudentId, x.IssuedAt });
+        modelBuilder.Entity<LmsCompletionCertificate>().HasIndex(x => x.VerificationTokenHash)
+            .IsUnique().HasFilter("[VerificationTokenHash] IS NOT NULL");
         modelBuilder.Entity<LmsCompletionCertificate>().ToTable(t =>
         {
             t.HasCheckConstraint("CK_LmsCompletionCertificates_Revision", "[Revision] >= 1");
+            t.HasCheckConstraint("CK_LmsCompletionCertificates_VerificationPair",
+                "([VerificationTokenHash] IS NULL AND [VerificationExpiresAt] IS NULL) OR ([VerificationTokenHash] IS NOT NULL AND [VerificationExpiresAt] IS NOT NULL AND [VerificationExpiresAt] > [IssuedAt])");
             t.HasCheckConstraint("CK_LmsCompletionCertificates_Revocation",
                 "([IsRevoked] = 0 AND [RevokedAt] IS NULL AND [RevokedByUserId] IS NULL AND [RevocationReason] IS NULL) OR ([IsRevoked] = 1 AND [RevokedAt] IS NOT NULL AND [RevokedByUserId] IS NOT NULL AND [RevocationReason] IS NOT NULL)");
         });

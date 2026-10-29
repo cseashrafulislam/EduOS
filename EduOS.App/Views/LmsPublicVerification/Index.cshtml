@@ -1,0 +1,32 @@
+@{
+    Layout = null;
+    ViewData["Title"] = "LMS Certificate Verification";
+}
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta name="referrer" content="no-referrer" />
+    <title>LMS Certificate Verification · EduOS</title>
+    <style>
+        body{font-family:system-ui,sans-serif;margin:0;background:#f4f6f9;color:#192d3e}
+        main{max-width:34rem;margin:8vh auto;padding:1.5rem}
+        article{background:white;border-radius:12px;padding:1.5rem;box-shadow:0 4px 20px #0001}
+        h1{font-size:1.35rem}button{padding:.65rem 1rem;border:0;border-radius:6px;background:#165d91;color:white;cursor:pointer}
+        button:focus-visible{outline:3px solid #ed9d35;outline-offset:3px}
+        .muted{color:#536476}#result{margin-top:1rem;white-space:pre-line}
+    </style>
+</head>
+<body>
+<main>
+    <article>
+        <h1 id="heading">Certificate verification / সনদ যাচাই</h1>
+        <p class="muted" id="description">Only issuer and validity are shown. শিক্ষার্থীর ব্যক্তিগত তথ্য প্রকাশ করা হয় না।</p>
+        <button id="verify" type="button">Verify / যাচাই করুন</button>
+        <div id="result" role="status" aria-live="polite"></div>
+    </article>
+</main>
+<script src="~/js/learning/lms-public-verification.js" asp-append-version="true"></script>
+</body>
+</html>

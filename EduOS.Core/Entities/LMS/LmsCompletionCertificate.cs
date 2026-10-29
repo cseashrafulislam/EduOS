@@ -26,6 +26,10 @@ public sealed class LmsCompletionCertificate : BaseTenantEntity
     public int GradedAssignmentsSnapshot { get; set; }
     public int RequiredQuizzesSnapshot { get; set; }
     public int PassedQuizzesSnapshot { get; set; }
+    // Opt-in verification is separate from immutable completion evidence. Only the
+    // digest is persisted; disabling or rotating invalidates all previous links.
+    [MaxLength(64)] public string? VerificationTokenHash { get; set; }
+    public DateTime? VerificationExpiresAt { get; set; }
     public DateTime IssuedAt { get; set; }
     public long IssuedByUserId { get; set; }
     public bool IsRevoked { get; set; }

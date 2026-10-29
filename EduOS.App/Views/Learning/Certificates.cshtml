@@ -70,6 +70,23 @@
         </article>
         @if (studentMode)
         {
+            <section class="card mt-3 d-none" id="lmsCertificatePublicSharing" aria-label="Public certificate verification">
+                <div class="card-header"><strong>Public verification / সর্বজনীন যাচাই</strong></div>
+                <div class="card-body">
+                    <div class="d-flex gap-2 flex-wrap">
+                        <button id="lmsPublicEnable" class="btn btn-sm btn-outline-primary" type="button">Create / Rotate link · লিংক তৈরি</button>
+                        <button id="lmsPublicDisable" class="btn btn-sm btn-outline-danger" type="button" disabled>Disable link · বন্ধ করুন</button>
+                    </div>
+                    <div id="lmsPublicStatus" class="small mt-2" aria-live="polite"></div>
+                    <div id="lmsPublicLinkWrap" class="d-none mt-2">
+                        <label class="form-label" for="lmsPublicLink">Shareable verification link / যাচাইয়ের লিংক</label>
+                        <div class="d-flex gap-2">
+                            <input id="lmsPublicLink" class="form-control" type="text" readonly autocomplete="off" />
+                            <button id="lmsPublicCopy" class="btn btn-sm btn-outline-secondary" type="button">Copy / কপি</button>
+                        </div>
+                    </div>
+                </div>
+            </section>
             <section class="card mt-3" id="lmsCertificateSharing" aria-label="Certificate guardian sharing">
                 <div class="card-header"><strong data-lms-i18n="sharing">Guardian access</strong></div>
                 <div class="card-body">
@@ -109,5 +126,6 @@
     @if (studentMode)
     {
         <script src="~/js/learning/certificate-sharing.js" asp-append-version="true"></script>
+        <script src="~/js/learning/certificate-public-sharing.js" asp-append-version="true"></script>
     }
 }

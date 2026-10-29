@@ -12899,6 +12899,13 @@ namespace EduOS.Persistence.Migrations
                     b.Property<bool>("IsRevoked")
                         .HasColumnType("bit");
 
+                    b.Property<DateTime?>("VerificationExpiresAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("VerificationTokenHash")
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
                     b.Property<DateTime>("IssuedAt")
                         .HasColumnType("datetime2");
 
@@ -12982,9 +12989,14 @@ namespace EduOS.Persistence.Migrations
 
                     b.HasIndex("TenantId", "StudentId", "IssuedAt");
 
+                    b.HasIndex("VerificationTokenHash")
+                        .IsUnique()
+                        .HasFilter("[VerificationTokenHash] IS NOT NULL");
+
                     b.ToTable("LmsCompletionCertificates", t =>
                         {
                             t.HasCheckConstraint("CK_LmsCompletionCertificates_Revision", "[Revision] >= 1");
+                            t.HasCheckConstraint("CK_LmsCompletionCertificates_VerificationPair", "([VerificationTokenHash] IS NULL AND [VerificationExpiresAt] IS NULL) OR ([VerificationTokenHash] IS NOT NULL AND [VerificationExpiresAt] IS NOT NULL AND [VerificationExpiresAt] > [IssuedAt])");
                             t.HasCheckConstraint("CK_LmsCompletionCertificates_Revocation", "([IsRevoked] = 0 AND [RevokedAt] IS NULL AND [RevokedByUserId] IS NULL AND [RevocationReason] IS NULL) OR ([IsRevoked] = 1 AND [RevokedAt] IS NOT NULL AND [RevokedByUserId] IS NOT NULL AND [RevocationReason] IS NOT NULL)");
                         });
                 });
