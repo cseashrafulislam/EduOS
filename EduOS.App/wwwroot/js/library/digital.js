@@ -6,11 +6,33 @@
     const bn = document.documentElement.lang?.toLowerCase().startsWith('bn');
     const words = (en, bd) => bn ? bd : en;
     const admin = !!el('digitalUploadForm');
+    const initialSession = document.body?.dataset.authSessionReference || '';
+    const initialTenant = document.body?.dataset.authTenantId || '';
+    const activeRequests = new Set();
+    const currentSession = () => /^[0-9A-F]{64}$/.test(initialSession) &&
+        document.body?.dataset.authSessionReference === initialSession &&
+        document.body?.dataset.authTenantId === initialTenant &&
+        window.EduOSSessionTransitionPending?.() !== true;
+    const sessionError = () => Error(words('Your session changed. Sign in again.',
+        'আপনার সেশন পরিবর্তিত হয়েছে। আবার লগইন করুন।'));
+    async function sessionFetch(url, options, consume) {
+        if (!currentSession()) throw sessionError();
+        const controller = new AbortController();
+        activeRequests.add(controller);
+        try {
+            const response = await fetch(url, { ...options, signal: controller.signal });
+            if (!currentSession()) throw sessionError();
+            const data = await consume(response);
+            if (!currentSession()) throw sessionError();
+            return data;
+        } finally { activeRequests.delete(controller); }
+    }
     let page = 1, requestSequence = 0, uploadRequestId = null, editing = null;
     const pageSize = 20;
     const token = () => document.querySelector('meta[name="request-verification-token"]')?.content ||
         el('digitalUploadForm')?.querySelector('input[name="__RequestVerificationToken"]')?.value;
     function notify(message, success = false) {
+        if (!currentSession()) return;
         const alert = el('digitalAlert');
         alert.className = 'alert alert-' + (success ? 'success' : 'danger');
         alert.textContent = message;
@@ -28,10 +50,13 @@
             if (!csrf) throw Error(words('Security token missing. Reload the page.', 'নিরাপত্তা টোকেন নেই। পৃষ্ঠা পুনরায় খুলুন।'));
             headers.RequestVerificationToken = csrf;
         }
-        const response = await fetch(url, { ...options, method, headers, cache: 'no-store', credentials: 'same-origin' });
-        const result = await response.json().catch(() => null);
-        if (!response.ok || !result?.success) throw Error(result?.message || words('Request failed.', 'অনুরোধ ব্যর্থ হয়েছে।'));
-        return result.data;
+        return sessionFetch(url, { ...options, method, headers, cache: 'no-store',
+            credentials: 'same-origin' }, async response => {
+            const result = await response.json().catch(() => null);
+            if (!response.ok || !result?.success)
+                throw Error(result?.message || words('Request failed.', 'অনুরোধ ব্যর্থ হয়েছে।'));
+            return result.data;
+        });
     }
     function td(value) {
         const cell = document.createElement('td');
@@ -51,24 +76,31 @@
         return q;
     }
     async function download(resource, button) {
+        if (!currentSession()) return;
         button.disabled = true;
         try {
-            const response = await fetch('/api/library/digital/' + encodeURIComponent(resource.reference) + '/download',
-                { credentials: 'same-origin', cache: 'no-store', headers: { Accept: 'application/octet-stream' } });
-            if (!response.ok) {
-                const error = await response.json().catch(() => null);
-                throw Error(error?.message || words('Download denied.', 'ডাউনলোডের অনুমতি নেই।'));
-            }
-            const file = await response.blob();
+            const file = await sessionFetch('/api/library/digital/' +
+                encodeURIComponent(resource.reference) + '/download',
+                { credentials: 'same-origin', cache: 'no-store',
+                    headers: { Accept: 'application/octet-stream' } }, async response => {
+                    if (!response.ok) {
+                        const error = await response.json().catch(() => null);
+                        throw Error(error?.message || words('Download denied.', 'ডাউনলোডের অনুমতি নেই।'));
+                    }
+                    return response.blob();
+                });
+            if (!currentSession()) return;
             const url = URL.createObjectURL(file);
             try {
+                if (!currentSession()) return;
                 const anchor = document.createElement('a');
                 anchor.href = url;
-                anchor.download = (resource.fileName || 'library-resource').split(/[\\/]/).pop().replace(/[\x00-\x1f\x7f]/g, '') || 'library-resource';
+                anchor.download = (resource.fileName || 'library-resource').split(/[\\\\/]/).pop().replace(/[\\x00-\\x1f\\x7f]/g, '') || 'library-resource';
                 document.body.append(anchor); anchor.click(); anchor.remove();
             } finally { setTimeout(() => URL.revokeObjectURL(url), 1000); }
-        } catch (error) { notify(error.message); }
-        finally { button.disabled = false; }
+        } catch (error) {
+            if (currentSession() && error.name !== 'AbortError') notify(error.message);
+        } finally { button.disabled = false; }
     }
     async function revoke(resource, button) {
         if (!window.confirm(words('Revoke access to this resource?', 'এই রিসোর্সের অনুমতি বাতিল করবেন?'))) return;
@@ -83,6 +115,7 @@
         } catch (error) { notify(error.message); button.disabled = false; }
     }
     function edit(resource) {
+        if (!currentSession()) return;
         editing = resource;
         el('digitalEditName').value = resource.title || '';
         el('digitalEditExpiry').value = resource.expiresOn || '';
@@ -143,9 +176,13 @@
     }
     async function load() {
         const sequence = ++requestSequence;
+        rows.replaceChildren();
+        el('digitalCount').textContent = '';
+        el('digitalPrevious').disabled = true;
+        el('digitalNext').disabled = true;
         try {
             const result = await api('/api/library/digital?' + params());
-            if (sequence !== requestSequence) return;
+            if (sequence !== requestSequence || !currentSession()) return;
             render(Array.isArray(result?.items) ? result.items : []);
             el('digitalCount').textContent = String(result?.totalCount ?? 0);
             el('digitalPage').textContent = words('Page ', 'পৃষ্ঠা ') + page +
@@ -153,7 +190,7 @@
             el('digitalPrevious').disabled = !result?.hasPreviousPage;
             el('digitalNext').disabled = !result?.hasNextPage;
         } catch (error) {
-            if (sequence !== requestSequence) return;
+            if (sequence !== requestSequence || !currentSession()) return;
             empty(words('Unable to load resources.', 'রিসোর্স লোড করা যায়নি।'));
             notify(error.message);
         }
@@ -195,23 +232,29 @@
     }
     async function exportPage() {
         const button = el('digitalExport');
+        if (!currentSession()) return;
         button.disabled = true;
         try {
             const query = params(); query.set('language', bn ? 'bn-BD' : 'en-BD');
-            const response = await fetch('/api/library/digital/export?' + query,
-                { credentials: 'same-origin', cache: 'no-store' });
-            if (!response.ok) {
-                const error = await response.json().catch(() => null);
-                throw Error(error?.message || words('Export denied.', 'এক্সপোর্টের অনুমতি নেই।'));
-            }
-            const url = URL.createObjectURL(await response.blob());
+            const file = await sessionFetch('/api/library/digital/export?' + query,
+                { credentials: 'same-origin', cache: 'no-store' }, async response => {
+                    if (!response.ok) {
+                        const error = await response.json().catch(() => null);
+                        throw Error(error?.message || words('Export denied.', 'এক্সপোর্টের অনুমতি নেই।'));
+                    }
+                    return response.blob();
+                });
+            if (!currentSession()) return;
+            const url = URL.createObjectURL(file);
             try {
+                if (!currentSession()) return;
                 const a = document.createElement('a');
                 a.href = url; a.download = 'library-digital-page.csv';
                 document.body.append(a); a.click(); a.remove();
             } finally { setTimeout(() => URL.revokeObjectURL(url), 1000); }
-        } catch (error) { notify(error.message); }
-        finally { button.disabled = false; }
+        } catch (error) {
+            if (currentSession() && error.name !== 'AbortError') notify(error.message);
+        } finally { button.disabled = false; }
     }
     el('digitalSearchForm').addEventListener('submit', event => {
         event.preventDefault(); page = 1; clearAlert(); load();
@@ -229,5 +272,46 @@
         el('digitalEditDialog').addEventListener('close', () => { editing = null; });
         findBooks();
     }
-    load();
+    function clearSensitive() {
+        requestSequence++;
+        for (const request of activeRequests) request.abort();
+        activeRequests.clear();
+        uploadRequestId = null; editing = null;
+        rows.replaceChildren();
+        el('digitalCount').textContent = '';
+        el('digitalPage').textContent = '';
+        el('digitalPrevious').disabled = true;
+        el('digitalNext').disabled = true;
+        el('digitalQuery').value = '';
+        clearAlert();
+        if (admin) {
+            el('digitalUploadForm').reset();
+            el('digitalBook').replaceChildren();
+            el('digitalBookSearch').value = '';
+            el('digitalEditForm').reset();
+            if (el('digitalEditDialog').open) el('digitalEditDialog').close();
+        }
+    }
+    const sessionObserver = new MutationObserver(() => {
+        if (!currentSession()) {
+            clearSensitive();
+            sessionObserver.disconnect();
+        }
+    });
+    sessionObserver.observe(document.body, { attributes: true,
+        attributeFilter: ['data-auth-session-reference', 'data-auth-tenant-id'] });
+    window.addEventListener('pagehide', clearSensitive);
+    window.addEventListener('focus', () => { if (!currentSession()) clearSensitive(); });
+    document.addEventListener('visibilitychange', () => {
+        if (!currentSession()) clearSensitive();
+    });
+    window.addEventListener('pageshow', event => {
+        if (!currentSession()) clearSensitive();
+        else if (event.persisted) {
+            if (admin) findBooks();
+            load();
+        }
+    });
+    if (currentSession()) load();
+    else clearSensitive();
 })();
