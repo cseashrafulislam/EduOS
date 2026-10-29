@@ -34,5 +34,6 @@
     <Compile Include="../EduOS.Tests/Services/PayrollPaymentPostingServiceTests.cs" Link="PayrollPaymentPostingServiceTests.cs" />
     <Compile Include="../EduOS.Tests/Services/PayrollPostingHistoricalIntegrityTests.cs" Link="PayrollPostingHistoricalIntegrityTests.cs" />
     <Compile Include="../EduOS.Tests/Services/PayrollJournalPostingServiceTests.cs" Link="PayrollJournalPostingServiceTests.cs" />
+    <Compile Include="../EduOS.Tests/Services/PayrollLoanRecoverySettlementTests.cs" Link="PayrollLoanRecoverySettlementTests.cs" />
   </ItemGroup>
 </Project>

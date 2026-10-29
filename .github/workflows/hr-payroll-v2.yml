@@ -22,6 +22,7 @@ on:
       - 'EduOS.Tests/Services/PayrollBankReviewExportTests.cs'
       - 'EduOS.Tests/Services/PayrollStatutoryCoverageTests.cs'
       - 'EduOS.Tests/Services/PayrollJournalPostingServiceTests.cs'
+      - 'EduOS.Tests/Services/PayrollLoanRecoverySettlementTests.cs'
   pull_request:
     branches: [Ashraful]
     paths:
@@ -43,6 +44,7 @@ on:
       - 'EduOS.Tests/Services/PayrollBankReviewExportTests.cs'
       - 'EduOS.Tests/Services/PayrollStatutoryCoverageTests.cs'
       - 'EduOS.Tests/Services/PayrollJournalPostingServiceTests.cs'
+      - 'EduOS.Tests/Services/PayrollLoanRecoverySettlementTests.cs'
   workflow_dispatch:
 
 permissions:

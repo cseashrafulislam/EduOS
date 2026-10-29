@@ -133,7 +133,7 @@ public sealed class PayrollLoanRecoverySettlementTests
             FullName = "Test Employee", JoiningDate = new DateOnly(2026, 1, 1) });
         db.EmployeeCampusAssignments.Add(new EmployeeCampusAssignment
         { Id = 1, TenantId = 41, EmployeeId = 7, CampusId = 1,
-            EffectiveFrom = new DateOnly(2026, 1, 1) });
+            IsPrimary = true, EffectiveFrom = new DateOnly(2026, 1, 1) });
         db.Accounts.AddRange(
             new Account { Id = 1, TenantId = 41, Code = "SAL-EXP", Name = "Salary Expense",
                 AccountType = AccountType.Expense },
