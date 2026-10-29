@@ -510,8 +510,8 @@ async function correctionAudit(browser) {
     assert.equal(download.suggestedFilename(), 'attendance-corrections-batch-10-page-1.csv');
     assert.equal(csvRequests, 1);
     await Promise.all([
-        page.context().waitForEvent('request', {
-            predicate: req => req.url().includes('/attendance/corrections/print?')
+        page.context().waitForEvent('response', {
+            predicate: response => response.url().includes('/attendance/corrections/print?')
         }),
         page.locator('#attendanceCorrectionAuditPrint').click()
     ]);
