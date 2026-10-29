@@ -21,7 +21,7 @@ public sealed class StudentAttendanceCorrectionExportTests
         var type = typeof(AttendanceCorrectionExportsController);
         Assert.Equal("TenantAdmin,Principal,VicePrincipal",
             Assert.Single(type.GetCustomAttributes(typeof(AuthorizeAttribute), true)
-                .Cast<AuthorizeAttribute>()).Roles);
+                .Cast<AuthorizeAttribute>().Where(x => x.GetType() == typeof(AuthorizeAttribute))).Roles);
         Assert.Equal(RequireModuleAttribute.PolicyPrefix + "ATTENDANCE",
             Assert.Single(type.GetCustomAttributes(typeof(RequireModuleAttribute), true)
                 .Cast<RequireModuleAttribute>()).Policy);

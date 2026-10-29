@@ -476,7 +476,7 @@ async function correctionAudit(browser) {
             });
             return route.fulfill({
                 status: 200, contentType: 'text/csv; charset=utf-8',
-                body: 'Attendance date,Student\\r\\n2026-10-15,Historical Learner\\r\\n'
+                body: 'Attendance date,Student\r\n2026-10-15,Historical Learner\r\n'
             });
         }
         if (url.pathname === '/attendance/corrections/print') {
