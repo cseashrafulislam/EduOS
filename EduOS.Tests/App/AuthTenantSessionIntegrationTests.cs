@@ -78,6 +78,49 @@ public sealed class AuthTenantSessionIntegrationTests
         Assert.DoesNotContain("Teacher", await TenantRoleResolver.GetTenantRolesAsync(db, 50, 100, false, 2));
     }
 
+
+    [Fact]
+    public async Task Sensitive_account_session_readback_rejects_revoked_cross_tenant_and_other_user_cookies()
+    {
+        await using var db = Db();
+        var sid = await AuthSessionRegistry.CreateAsync(db, 50, 100, "", "", false);
+        ClaimsPrincipal Principal(long userId, string? tenant, string session) =>
+            new(new ClaimsIdentity(new[]
+            {
+                new Claim(ClaimTypes.NameIdentifier, userId.ToString()),
+                new Claim(AuthSessionRegistry.ClaimType, session)
+            }.Concat(tenant == null ? Array.Empty<Claim>() : new[] { new Claim("TenantId", tenant) }), "Test"));
+
+        Assert.True(await AuthSessionRegistry.IsValidPrincipalAsync(db, Principal(50, "100", sid)));
+        Assert.False(await AuthSessionRegistry.IsValidPrincipalAsync(db, Principal(50, "200", sid)));
+        Assert.False(await AuthSessionRegistry.IsValidPrincipalAsync(db, Principal(51, "100", sid)));
+        Assert.False(await AuthSessionRegistry.IsValidPrincipalAsync(db, Principal(50, "invalid", sid)));
+        Assert.False(await AuthSessionRegistry.IsValidPrincipalAsync(db, Principal(50, null, sid)));
+        Assert.False(await AuthSessionRegistry.IsValidPrincipalAsync(db, new ClaimsPrincipal()));
+        await AuthSessionRegistry.RevokeAsync(db, 50, sid);
+        Assert.False(await AuthSessionRegistry.IsValidPrincipalAsync(db, Principal(50, "100", sid)));
+    }
+
+    [Fact]
+    public async Task Platform_account_session_readback_requires_the_original_unassigned_session()
+    {
+        await using var db = Db();
+        var sid = await AuthSessionRegistry.CreateAsync(db, 80, null, "", "", false);
+        var platform = new ClaimsPrincipal(new ClaimsIdentity(new[]
+        {
+            new Claim(ClaimTypes.NameIdentifier, "80"),
+            new Claim(AuthSessionRegistry.ClaimType, sid)
+        }, "Test"));
+        Assert.True(await AuthSessionRegistry.IsValidPrincipalAsync(db, platform));
+        var impersonatedTenant = new ClaimsPrincipal(new ClaimsIdentity(new[]
+        {
+            new Claim(ClaimTypes.NameIdentifier, "80"),
+            new Claim(AuthSessionRegistry.ClaimType, sid),
+            new Claim("TenantId", "100")
+        }, "Test"));
+        Assert.False(await AuthSessionRegistry.IsValidPrincipalAsync(db, impersonatedTenant));
+    }
+
     [Fact]
     public async Task Authenticated_sessions_are_scoped_revocable_and_cannot_be_used_by_another_user_or_tenant()
     {
