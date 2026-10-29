@@ -14,7 +14,8 @@ function money(value) {
     return parts[0] + '.' + (parts[1] || '').padEnd(2, '0');
 }
 let options, page = 1, total = 0, rows = [], selected, searchController, searchTimer;
-let draftKey, transitionKey, invoiceKey, replacementKey;
+let draftKey, transitionKey, invoiceKey, replacementKey, filterTimer;
+let registerSequence = 0;
 const cell = value => { const td = document.createElement('td'); td.textContent = String(value ?? ''); return td; };
 const option = (value, label) => { const o = document.createElement('option'); o.value = String(value); o.textContent = label; return o; };
 function notice(message, error = false) {
@@ -69,25 +70,34 @@ async function searchStudents() {
     }
 }
 async function register() {
+    const sequence = ++registerSequence;
     const campusId = el('feePlanCampus').value;
     const query = new URLSearchParams({ page: String(page), pageSize: '25' });
     if (campusId) query.set('campusId', campusId);
+    const term = el('feePlanFilterSearch').value.trim();
+    if (term) query.set('search', term);
+    const stateCode = el('feePlanState').value;
+    if (stateCode) query.set('stateCode', stateCode);
+    if (el('feePlanMyQueue')?.checked) query.set('myApprovalQueue', 'true');
     el('feePlanRefresh').disabled = true;
     try {
         const data = await api('/plans?' + query);
+        if (sequence !== registerSequence) return;
         rows = data.items || []; total = data.totalCount || 0;
         const body = document.createDocumentFragment();
         for (const item of rows) {
             const tr = document.createElement('tr');
             for (const value of [item.studentCode + ' — ' + item.studentName,
                 item.startMonth + ' to ' + item.endMonth, item.campusId,
-                status[item.stateCode] || 'Unknown', money(item.grossAmount)])
+                (status[item.stateCode] || 'Unknown') +
+                    (item.canReviewForApproval ? ' · Your review' : ''), money(item.grossAmount)])
                 tr.append(cell(value));
             tr.children[4].className = 'text-end';
             const action = document.createElement('td'); action.className = 'd-print-none';
             const button = document.createElement('button');
             button.type = 'button'; button.className = 'btn btn-outline-primary btn-sm';
-            button.textContent = 'View'; button.addEventListener('click', () => detail(item.reference));
+            button.textContent = item.canReviewForApproval ? 'Review' : 'View';
+            button.addEventListener('click', () => detail(item.reference));
             action.append(button); tr.append(action); body.append(tr);
         }
         if (!rows.length) {
@@ -100,8 +110,8 @@ async function register() {
         el('feePlanNext').disabled = page * 25 >= total;
         el('feePlanCsv').disabled = !rows.length;
         el('feePlanPrint').disabled = !rows.length;
-    } catch (error) { notice(error.message, true); }
-    finally { el('feePlanRefresh').disabled = false; }
+    } catch (error) { if (sequence === registerSequence) notice(error.message, true); }
+    finally { if (sequence === registerSequence) el('feePlanRefresh').disabled = false; }
 }
 async function detail(reference) {
     billingAudit = null;
@@ -141,7 +151,7 @@ async function detail(reference) {
         monthSelect.hidden = selected.stateCode !== 3 || monthSelect.options.length <= 1;
         el('feePlanIssue').hidden = monthSelect.hidden;
         invoiceKey = null;
-        if (el('feePlanApprove')) el('feePlanApprove').hidden = selected.stateCode !== 2;
+        if (el('feePlanApprove')) el('feePlanApprove').hidden = !selected.canReviewForApproval;
         if (el('feePlanReplace')) el('feePlanReplace').hidden = selected.stateCode !== 3;
         if (el('feePlanCancel')) el('feePlanCancel').hidden = selected.stateCode === 4;
         el('feePlanDetail').classList.remove('d-none');
@@ -171,9 +181,10 @@ function csvCell(value) {
 }
 function exportPage() {
     if (!rows.length) return;
-    const lines = [['Student','Name','Start month','End month','Campus','State','Gross BDT']];
+    const lines = [['Student','Name','Start month','End month','Campus','State','Gross BDT','Approval review']];
     for (const x of rows) lines.push([x.studentCode,x.studentName,x.startMonth,x.endMonth,
-        x.campusId,status[x.stateCode] || '',money(x.grossAmount)]);
+        x.campusId,status[x.stateCode] || '',money(x.grossAmount),
+        x.canReviewForApproval ? 'Available for independent review' : '']);
     const csv = '\uFEFF' + lines.map(x => x.map(csvCell).join(',')).join('\r\n') + '\r\n';
     const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
     const link = document.createElement('a'); link.href = url; link.download = 'fee-agreements-page.csv';
@@ -204,6 +215,17 @@ el('feePlanCreate').addEventListener('submit', async event => {
     finally { el('feePlanSave').disabled = false; }
 });
 el('feePlanCampus').addEventListener('change', () => { page = 1; register(); });
+el('feePlanState').addEventListener('change', () => { page = 1; register(); });
+el('feePlanFilterSearch').addEventListener('input', () => {
+    clearTimeout(filterTimer);
+    filterTimer = setTimeout(() => { page = 1; register(); }, 300);
+});
+if (el('feePlanMyQueue')) el('feePlanMyQueue').addEventListener('change', () => {
+    const queue = el('feePlanMyQueue').checked;
+    el('feePlanState').value = queue ? '2' : '';
+    el('feePlanState').disabled = queue;
+    page = 1; register();
+});
 el('feePlanRefresh').addEventListener('click', register);
 el('feePlanPrevious').addEventListener('click', () => { if (page > 1) { page--; register(); } });
 el('feePlanNext').addEventListener('click', () => { if (page * 25 < total) { page++; register(); } });

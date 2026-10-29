@@ -146,6 +146,15 @@ public sealed class SqlServerStudentFeeInstallmentPlanIntegrationTests
                 ClientRequestId = Guid.NewGuid(), RowVersion = draft.Data.RowVersion
             });
         Assert.True(submitted.Success, submitted.Message);
+        // Real SQL translation and actor isolation of the independent approval queue.
+        var checkerQueue = await Service(db, tenantId, checkerId).GetInstallmentPlansAsync(
+            search: "PL-" + suffix, stateCode: 2, myApprovalQueue: true);
+        Assert.True(checkerQueue.Success, checkerQueue.Message);
+        Assert.Single(checkerQueue.Data!.Items);
+        Assert.True(checkerQueue.Data.Items[0].CanReviewForApproval);
+        var makerQueue = await makerService.GetInstallmentPlansAsync(myApprovalQueue: true);
+        Assert.True(makerQueue.Success, makerQueue.Message);
+        Assert.Empty(makerQueue.Data!.Items);
         var denied = await makerService.TransitionInstallmentPlanAsync(draft.Data.Reference, 3,
             new StudentFeeInstallmentTransitionDto {
                 ClientRequestId = Guid.NewGuid(), RowVersion = draft.Data.RowVersion

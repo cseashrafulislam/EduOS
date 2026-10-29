@@ -298,6 +298,52 @@ public sealed class StudentFeeInstallmentPlanTests
             .StatusCode.Should().Be(404);
     }
 
+    [Fact]
+    public async Task Pending_approval_queue_is_server_filtered_and_actor_scoped()
+    {
+        await using var db = Database();
+        Seed(db);
+        var plan = new StudentFeeInstallmentPlan {
+            TenantId = 41, StudentEnrollmentId = 1, FeeStructureId = 1,
+            CampusId = 1, AcademicYearId = 2,
+            StartMonth = new DateOnly(2026, 2, 1), EndMonth = new DateOnly(2026, 2, 1),
+            GrossAmount = 100m, LineCount = 1, PreparedByUserId = 9,
+            RowVersion = [1, 2, 3, 4]
+        };
+        db.StudentFeeInstallmentPlans.Add(plan);
+        await db.SaveChangesAsync();
+        db.StudentFeeInstallmentPlanLines.Add(new StudentFeeInstallmentPlanLine {
+            TenantId = 41, StudentFeeInstallmentPlanId = plan.Id,
+            FeeHeadId = 1, MonthStart = plan.StartMonth,
+            DueDate = new DateOnly(2026, 2, 28),
+            FeeHeadCodeSnapshot = "TUITION", FeeHeadNameSnapshot = "Tuition",
+            GrossAmount = 100m
+        });
+        db.StudentFeeInstallmentPlanEvents.Add(new StudentFeeInstallmentPlanEvent {
+            TenantId = 41, StudentFeeInstallmentPlanId = plan.Id,
+            ActionCode = 2, ActorUserId = 9, ClientRequestId = Guid.NewGuid()
+        });
+        await db.SaveChangesAsync();
+        var checker = Service(db, userId: 10);
+        var pending = await checker.GetInstallmentPlansAsync(
+            search: "ST-1", stateCode: 2, myApprovalQueue: true);
+        pending.StatusCode.Should().Be(200);
+        pending.Data!.TotalCount.Should().Be(1);
+        pending.Data.Items.Single().CanReviewForApproval.Should().BeTrue();
+        (await checker.GetInstallmentPlanAsync(plan.PublicId)).Data!
+            .CanReviewForApproval.Should().BeTrue();
+        (await Service(db).GetInstallmentPlansAsync(myApprovalQueue: true))
+            .Data!.TotalCount.Should().Be(0);
+        (await Service(db, "Accountant").GetInstallmentPlansAsync(myApprovalQueue: true))
+            .StatusCode.Should().Be(403);
+        (await checker.GetInstallmentPlansAsync(search: "UNKNOWN", stateCode: 2))
+            .Data!.TotalCount.Should().Be(0);
+        (await checker.GetInstallmentPlansAsync(stateCode: 5)).StatusCode.Should().Be(400);
+        (await checker.GetInstallmentPlansAsync(search: new string('x', 101)))
+            .StatusCode.Should().Be(400);
+        (await checker.GetInstallmentPlansAsync(campusId: 999)).StatusCode.Should().Be(404);
+    }
+
     private static CreateStudentFeeInstallmentPlanDto Request(EduOSDbContext db) => new() {
         ClientRequestId = Guid.NewGuid(),
         StudentReference = db.Students.Single().PublicId,

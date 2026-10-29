@@ -8,7 +8,7 @@
             <details class="position-relative">
                 <summary class="btn btn-outline-secondary btn-sm" aria-label="Instalment plan help" title="Plan guide">ⓘ</summary>
                 <div class="position-absolute border rounded bg-body p-2 small shadow-sm" style="z-index:5;width:min(23rem,80vw);right:0">
-                    Search a student, choose their academic batch and monthly fee structure, then save a gross plan draft. Submit for independent tenant-admin approval. Approved plans preserve fee-head amounts and due dates. Issue each approved month separately with idempotent invoice linkage; no payment is collected by issuing an invoice. Legacy batch billing remains blocked for planned months. Cancellation is audited and blocked after invoice issuance. Before any invoice exists, a separate tenant administrator may replace an approved agreement with a new submitted version; a different administrator must approve the replacement.
+                    Filter the register by student, state or your independent approval queue. Search a student, choose their academic batch and monthly fee structure, then save a gross plan draft. Submit for independent tenant-admin approval. Approved plans preserve fee-head amounts and due dates. Issue each approved month separately with idempotent invoice linkage; no payment is collected by issuing an invoice. Legacy batch billing remains blocked for planned months. Cancellation is audited and blocked after invoice issuance. Before any invoice exists, a separate tenant administrator may replace an approved agreement with a new submitted version; a different administrator must approve the replacement.
                 </div>
             </details>
         </div>
@@ -38,6 +38,21 @@
             <div class="d-flex align-items-center gap-2 d-print-none">
                 <label for="feePlanCampus" class="visually-hidden">Campus</label>
                 <select id="feePlanCampus" class="form-select form-select-sm"><option value="">All authorized campuses</option></select>
+                <label for="feePlanFilterSearch" class="visually-hidden">Search student code or name</label>
+                <input id="feePlanFilterSearch" type="search" class="form-control form-control-sm" maxlength="100" placeholder="Search student" autocomplete="off" />
+                <label for="feePlanState" class="visually-hidden">Agreement status</label>
+                <select id="feePlanState" class="form-select form-select-sm" aria-label="Agreement status">
+                    <option value="">All states</option><option value="1">Draft</option>
+                    <option value="2">Submitted</option><option value="3">Approved</option>
+                    <option value="4">Cancelled</option>
+                </select>
+                @if (User.IsInRole("TenantAdmin"))
+                {
+                    <label class="d-flex align-items-center gap-1 small text-nowrap mb-0" for="feePlanMyQueue">
+                        <input id="feePlanMyQueue" type="checkbox" class="form-check-input mt-0" />
+                        My approval queue
+                    </label>
+                }
                 <button id="feePlanRefresh" class="btn btn-outline-secondary btn-sm" type="button">Refresh</button>
                 <button id="feePlanCsv" class="btn btn-outline-primary btn-sm" type="button" disabled>Export Page CSV</button>
                 <button id="feePlanPrint" class="btn btn-outline-secondary btn-sm" type="button" disabled>Print</button>

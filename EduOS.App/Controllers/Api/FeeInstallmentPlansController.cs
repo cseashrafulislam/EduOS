@@ -20,9 +20,12 @@ public sealed class FeeInstallmentPlansController : ControllerBase
 
     [HttpGet]
     public async Task<IActionResult> List([FromQuery] long? campusId,
-        [FromQuery] int page = 1, [FromQuery] int pageSize = 25, CancellationToken ct = default)
+        [FromQuery] int page = 1, [FromQuery] int pageSize = 25,
+        [FromQuery] string? search = null, [FromQuery] int? stateCode = null,
+        [FromQuery] bool myApprovalQueue = false, CancellationToken ct = default)
     {
-        var result = await service.GetInstallmentPlansAsync(campusId, page, pageSize, ct);
+        var result = await service.GetInstallmentPlansAsync(
+            campusId, page, pageSize, ct, search, stateCode, myApprovalQueue);
         return StatusCode(result.StatusCode, result);
     }
 

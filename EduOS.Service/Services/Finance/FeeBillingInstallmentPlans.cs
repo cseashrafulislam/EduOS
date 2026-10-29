@@ -25,51 +25,73 @@ public sealed partial class FeeBillingService
                 !e.IsDeleted && e.ActionCode == 4), ct);
     }
 
-    // These are immutable GROSS planning agreements. They do not create a receivable,
-    // invoice, payment, journal or an entitlement to spend an advance.
+    // Immutable gross agreements. Review eligibility is a display hint only;
+    // the approval command still checks current actor, version and invoice evidence.
     public async Task<ApiResponse<PagedResult<StudentFeeInstallmentPlanDto>>> GetInstallmentPlansAsync(
-        long? campusId = null, int page = 1, int pageSize = 25, CancellationToken ct = default)
+        long? campusId = null, int page = 1, int pageSize = 25, CancellationToken ct = default,
+        string? search = null, int? stateCode = null, bool myApprovalQueue = false)
     {
         if (!CanManage() || _uow is not EduOSDbContext db || db.CurrentTenantId != _user.TenantId)
             return Error<PagedResult<StudentFeeInstallmentPlanDto>>("Finance access required.", 403);
-        if (!ValidPage(page, pageSize) || pageSize > 50 || campusId is <= 0)
-            return Error<PagedResult<StudentFeeInstallmentPlanDto>>("Invalid campus or page.");
+        if (!ValidPage(page, pageSize) || pageSize > 50 || campusId is <= 0 ||
+            search?.Length > 100 || stateCode is < 1 or > 4)
+            return Error<PagedResult<StudentFeeInstallmentPlanDto>>("Invalid campus, search, state or page.");
+        if (myApprovalQueue && !_user.IsTenantAdmin)
+            return Error<PagedResult<StudentFeeInstallmentPlanDto>>("Independent approval role required.", 403);
         var skip = Skip(page, pageSize);
         if (skip < 0) return Error<PagedResult<StudentFeeInstallmentPlanDto>>("Page exceeds limit.");
         if (campusId.HasValue && !await CanAccessBillingCampusAsync(campusId.Value, ct))
             return Error<PagedResult<StudentFeeInstallmentPlanDto>>("Campus unavailable.", 404);
+
+        var tenant = _user.TenantId;
+        var actor = _user.UserId;
         var grants = GrantedBillingCampuses(db);
-        var query = db.StudentFeeInstallmentPlans.AsNoTracking().Where(x =>
-            x.TenantId == _user.TenantId && !x.IsDeleted &&
-            (!campusId.HasValue || x.CampusId == campusId.Value) &&
-            (_user.IsTenantAdmin || grants.Contains(x.CampusId)));
-        var count = await query.CountAsync(ct);
-        // Single bounded SQL projection for the register; no per-row student/event queries.
-        var plans = await (from plan in query
+        var visible = from plan in db.StudentFeeInstallmentPlans.AsNoTracking()
             join enrollment in db.StudentEnrollments.AsNoTracking()
                 on new { plan.TenantId, Id = plan.StudentEnrollmentId }
                 equals new { enrollment.TenantId, enrollment.Id }
             join student in db.Students.AsNoTracking()
                 on new { enrollment.TenantId, Id = enrollment.StudentId }
                 equals new { student.TenantId, student.Id }
-            where !enrollment.IsDeleted && !student.IsDeleted
-            orderby plan.CreatedAt descending, plan.Id descending
+            where plan.TenantId == tenant && !plan.IsDeleted &&
+                !enrollment.IsDeleted && !student.IsDeleted &&
+                (!campusId.HasValue || plan.CampusId == campusId.Value) &&
+                (_user.IsTenantAdmin || grants.Contains(plan.CampusId))
             select new {
                 Plan = plan, enrollment.AcademicBatchId,
-                StudentReference = student.PublicId, student.StudentCode, student.FullName,
+                StudentReference = student.PublicId, student.StudentCode,
+                StudentName = student.FullName,
                 State = db.StudentFeeInstallmentPlanEvents
-                    .Where(e => e.TenantId == plan.TenantId &&
+                    .Where(e => e.TenantId == tenant &&
                         e.StudentFeeInstallmentPlanId == plan.Id && !e.IsDeleted)
-                    .Max(e => (int?)e.ActionCode) ?? 1
-            }).Skip(skip).Take(pageSize).ToListAsync(ct);
+                    .Max(e => (int?)e.ActionCode) ?? 1,
+                SubmittedByActor = db.StudentFeeInstallmentPlanEvents.Any(e =>
+                    e.TenantId == tenant && e.StudentFeeInstallmentPlanId == plan.Id &&
+                    !e.IsDeleted && e.ActionCode == 2 && e.ActorUserId == actor)
+            };
+        var term = search?.Trim();
+        if (!string.IsNullOrEmpty(term))
+            visible = visible.Where(x => x.StudentCode.StartsWith(term) ||
+                x.StudentName.StartsWith(term));
+        if (stateCode.HasValue)
+            visible = visible.Where(x => x.State == stateCode.Value);
+        if (myApprovalQueue)
+            visible = visible.Where(x => x.State == 2 &&
+                x.Plan.PreparedByUserId != actor && !x.SubmittedByActor);
+
+        var count = await visible.CountAsync(ct);
+        var plans = await visible.OrderByDescending(x => x.Plan.CreatedAt)
+            .ThenByDescending(x => x.Plan.Id).Skip(skip).Take(pageSize).ToListAsync(ct);
         var items = plans.Select(x => new StudentFeeInstallmentPlanDto {
             Reference = x.Plan.PublicId, StudentReference = x.StudentReference,
-            StudentCode = x.StudentCode, StudentName = x.FullName,
+            StudentCode = x.StudentCode, StudentName = x.StudentName,
             CampusId = x.Plan.CampusId, AcademicBatchId = x.AcademicBatchId,
             FeeStructureId = x.Plan.FeeStructureId, StartMonth = x.Plan.StartMonth,
             EndMonth = x.Plan.EndMonth, CurrencyCode = x.Plan.CurrencyCode,
             GrossAmount = x.Plan.GrossAmount, LineCount = x.Plan.LineCount,
             StateCode = x.State, PreparedByUserId = x.Plan.PreparedByUserId,
+            CanReviewForApproval = _user.IsTenantAdmin && x.State == 2 &&
+                x.Plan.PreparedByUserId != actor && !x.SubmittedByActor,
             RowVersion = Convert.ToBase64String(x.Plan.RowVersion)
         }).ToList();
         return ApiResponse<PagedResult<StudentFeeInstallmentPlanDto>>.SuccessResponse(
@@ -403,6 +425,9 @@ public sealed partial class FeeBillingService
             EndMonth = plan.EndMonth, CurrencyCode = plan.CurrencyCode,
             GrossAmount = plan.GrossAmount, LineCount = plan.LineCount,
             StateCode = events.Count == 0 ? 1 : events[^1].ActionCode,
+            CanReviewForApproval = _user.IsTenantAdmin && events.Count > 0 &&
+                events[^1].ActionCode == 2 && plan.PreparedByUserId != _user.UserId &&
+                !events.Any(x => x.ActionCode == 2 && x.ActorUserId == _user.UserId),
             PreparedByUserId = plan.PreparedByUserId,
             RowVersion = Convert.ToBase64String(plan.RowVersion),
             Lines = lines, Events = detail ? events : []

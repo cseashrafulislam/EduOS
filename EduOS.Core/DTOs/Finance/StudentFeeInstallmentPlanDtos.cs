@@ -81,6 +81,8 @@ public sealed class StudentFeeInstallmentPlanDto
     public decimal GrossAmount { get; set; }
     public int LineCount { get; set; }
     public int StateCode { get; set; }
+    // Display hint only; approval always revalidates the live financial evidence.
+    public bool CanReviewForApproval { get; set; }
     public long PreparedByUserId { get; set; }
     public string RowVersion { get; set; } = string.Empty;
     public IReadOnlyList<StudentFeeInstallmentPlanLineDto> Lines { get; set; } = [];
