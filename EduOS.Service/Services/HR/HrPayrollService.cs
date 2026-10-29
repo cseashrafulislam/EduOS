@@ -1004,6 +1004,11 @@ public sealed class HrPayrollService : IPayrollAdministrationService
                     x.TenantId == tenant && x.Id == employee.PayrollRunId && !x.IsDeleted, token);
                 if (run == null || run.State != PayrollRunState.Posted || run.JournalId == null)
                     return Error<PayrollPaymentDto>("Payroll must be journal-posted before payment.", 409);
+                if (await _journals.GetQueryable().IgnoreQueryFilters().AsNoTracking().AnyAsync(x =>
+                    x.TenantId == tenant && x.ReversalOfJournalId == run.JournalId &&
+                    (x.State == JournalState.Posted || x.State == JournalState.Reversed ||
+                     (!x.IsDeleted && x.State != JournalState.Rejected && x.State != JournalState.Cancelled)), token))
+                    return Error<PayrollPaymentDto>("Payroll accrual has an active or posted reversal; salary payment is blocked.", 409);
                 if (request.PaymentDate < run.PeriodEnd)
                     return Error<PayrollPaymentDto>("Salary settlement date must follow payroll period end.", 409);
                 if (request.PaymentMethod == PaymentMethodType.BankTransfer)

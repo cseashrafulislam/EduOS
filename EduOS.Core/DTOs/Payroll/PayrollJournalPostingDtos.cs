@@ -35,8 +35,38 @@ public sealed class PayrollPostingRowDto
     public decimal DeductionAmount { get; set; }
     public decimal NetAmount { get; set; }
     public Guid? JournalReference { get; set; }
+    public Guid? ReversalReference { get; set; }
+    public JournalState? ReversalState { get; set; }
+    public long? ReversalMakerId { get; set; }
+    public string? ReversalRowVersion { get; set; }
     public string RowVersion { get; set; } = string.Empty;
     public IReadOnlyList<PayrollPostingComponentDto> Components { get; set; } = Array.Empty<PayrollPostingComponentDto>();
+}
+public sealed class RequestPayrollReversalDto
+{
+    public Guid ClientRequestId { get; set; }
+    public long AccountingPeriodId { get; set; }
+    public DateOnly ReversalDate { get; set; }
+    public string Reason { get; set; } = string.Empty;
+    public string RowVersion { get; set; } = string.Empty;
+}
+public sealed class ReviewPayrollReversalDto
+{
+    public bool Approve { get; set; }
+    public string? Note { get; set; }
+    public string RowVersion { get; set; } = string.Empty;
+}
+public sealed class PostPayrollReversalDto
+{
+    public string RowVersion { get; set; } = string.Empty;
+}
+public sealed class PayrollReversalResultDto
+{
+    public Guid PayrollReference { get; set; }
+    public Guid ReversalReference { get; set; }
+    public JournalState State { get; set; }
+    public string RowVersion { get; set; } = string.Empty;
+    public bool AlreadyProcessed { get; set; }
 }
 public sealed class PayrollPostingRegisterDto
 {

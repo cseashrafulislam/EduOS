@@ -27,4 +27,16 @@ public sealed class PayrollJournalPostingController : ControllerBase
     public async Task<IActionResult> Post(Guid reference,
         [FromBody] PostPayrollJournalRequestDto request, CancellationToken ct) =>
         Reply(await service.PostAsync(reference, request, ct));
+    [HttpPost("{reference:guid}/reverse/request"), Authorize(Roles = "TenantAdmin")]
+    public async Task<IActionResult> RequestReversal(Guid reference,
+        [FromBody] RequestPayrollReversalDto request, CancellationToken ct) =>
+        Reply(await service.RequestReversalAsync(reference, request, ct));
+    [HttpPost("{reference:guid}/reverse/review"), Authorize(Roles = "TenantAdmin")]
+    public async Task<IActionResult> ReviewReversal(Guid reference,
+        [FromBody] ReviewPayrollReversalDto request, CancellationToken ct) =>
+        Reply(await service.ReviewReversalAsync(reference, request, ct));
+    [HttpPost("{reference:guid}/reverse/post"), Authorize(Roles = "TenantAdmin")]
+    public async Task<IActionResult> PostReversal(Guid reference,
+        [FromBody] PostPayrollReversalDto request, CancellationToken ct) =>
+        Reply(await service.PostReversalAsync(reference, request, ct));
 }

@@ -1,0 +1,39 @@
+'use strict';
+const assert=require('node:assert/strict');
+const fs=require('node:fs'),path=require('node:path');
+const root=path.resolve(__dirname,'../..');
+const read=p=>fs.readFileSync(path.join(root,p),'utf8');
+const js=read('EduOS.App/wwwroot/js/finance/payroll-journal-posting.js');
+const view=read('EduOS.App/Views/PayrollJournalPosting/Index.cshtml');
+const api=read('EduOS.App/Controllers/Api/PayrollJournalPostingController.cs');
+const reversal=read('EduOS.Service/Services/HR/PayrollJournalReversalService.cs');
+const dto=read('EduOS.Core/DTOs/Payroll/PayrollJournalPostingDtos.cs');
+new Function(js);
+for(const route of ['reverse/request','reverse/review','reverse/post']) {
+    assert.match(api,new RegExp(route));
+    assert.match(js,new RegExp(route));
+}
+assert.match(api,/AutoValidateAntiforgeryToken/);
+assert.match(api,/RequireModule\("FINANCE"\)/);
+assert.match(api,/RequireModule\("PAYROLL"\)/);
+assert.match(js,/headers.RequestVerificationToken = token/);
+assert.match(js,/clientRequestId:reversalRequest.id/);
+assert.match(js,/rowVersion:row.reversalRowVersion/);
+assert.match(js,/rowVersion:reversalRun.rowVersion/);
+assert.match(js,/approve, note, rowVersion/);
+assert.doesNotMatch(js,/innerHTML\s*=/);
+for(const id of ['payrollReversalPanel','payrollReversalForm','payrollReversalReason','payrollReversalDate'])
+    assert.ok(view.includes('id="'+id+'"'),'Missing reversal form: '+id);
+assert.match(reversal,/IsolationLevel.Serializable/);
+assert.match(reversal,/JournalState.Submitted/);
+assert.match(reversal,/ReversalOfJournalId = original.Id/);
+assert.match(reversal,/DebitAmount = source.CreditAmount/);
+assert.match(reversal,/CreditAmount = source.DebitAmount/);
+assert.match(reversal,/ApprovedByUserId/);
+assert.match(reversal,/HasDeletedLinesAsync/);
+assert.match(reversal,/PayrollPayments.IgnoreQueryFilters/);
+assert.match(reversal,/LoanAdvanceRecoveries.IgnoreQueryFilters/);
+assert.match(dto,/class RequestPayrollReversalDto/);
+assert.match(dto,/class ReviewPayrollReversalDto/);
+assert.match(dto,/class PostPayrollReversalDto/);
+console.log('Payroll reversal contracts, UI and anti-CSRF authorization: PASS');

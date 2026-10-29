@@ -5,6 +5,25 @@ const el = id => document.getElementById(id), canPost = root.dataset.post === 't
 const token = root.querySelector('input[name="__RequestVerificationToken"]')?.value;
 const endpoint = '/api/finance/payroll-posting';
 let page = 1, totalPages = 1, selected = null, periods = [], accounts = [];
+let reversalRun = null, reversalRequest = null;
+function requestReversal(row) {
+    reversalRun = row;
+    el('payrollReversalSelected').textContent = row.runNumber + ' · original GL ' + row.journalReference;
+    el('payrollReversalForm').reset();
+    el('payrollReversalDate').value = new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+    el('payrollReversalPanel').classList.remove('d-none');
+    el('payrollReversalReason').focus();
+}
+async function reviewReversal(row, approve) {
+    const note = approve ? null : prompt('Reason for rejecting the contra journal:');
+    if (!approve && !note?.trim()) return;
+    if (approve && !confirm('Approve the independent payroll contra journal for ' + row.runNumber + '?')) return;
+    try {
+        await request(endpoint + '/' + encodeURIComponent(row.reference) + '/reverse/review', 'POST',
+            {approve, note, rowVersion:row.reversalRowVersion});
+        await load();alertBox(approve ? 'Reversal approved; still needs GL posting.' : 'Reversal rejected with audit history.');
+    } catch (error) {alertBox(error.message,true);}
+}
 function alertBox(message, error = false) {
     const box = el('payrollPostingNotice'); box.textContent = message;
     box.className = 'alert ' + (error ? 'alert-danger' : 'alert-success');
@@ -78,6 +97,8 @@ function render(data) {
         const tr = document.createElement('tr');
         for (const value of [row.runNumber, row.periodEnd, row.campusId || 'Institution-wide',
             money(row.grossAmount), money(row.deductionAmount), money(row.netAmount),
+            row.reversalState && [4, 'Posted'].includes(row.reversalState) ? 'Reversed · original preserved' :
+            row.reversalState ? 'Reversal ' + ({2:'submitted',3:'approved'}[row.reversalState] || row.reversalState) :
             row.journalReference ? 'Posted · ' + row.journalReference : ([2, 'Calculated'].includes(row.state) ? 'Calculated / approval required' : 'Approved / not posted')]) tr.append(cell(value));
         {
             const action = document.createElement('td'), button = document.createElement('button');
@@ -96,10 +117,33 @@ function render(data) {
                 });
             } else if (canPost && !row.journalReference && [3, 'Approved'].includes(row.state)) {
                 button.textContent = 'Map & post'; button.addEventListener('click', () => choose(row));
+            } else if (canPost && row.journalReference && !row.reversalState) {
+                button.textContent = 'Request reversal'; button.className = 'btn btn-sm btn-outline-danger';
+                button.addEventListener('click', () => requestReversal(row));
+            } else if (canPost && row.reversalState && [2, 'Submitted'].includes(row.reversalState)) {
+                button.textContent = 'Approve reversal';button.className = 'btn btn-sm btn-outline-warning';
+                button.addEventListener('click', () => reviewReversal(row,true));
+            } else if (canPost && row.reversalState && [3, 'Approved'].includes(row.reversalState)) {
+                button.textContent = 'Post reversal';button.className = 'btn btn-sm btn-outline-danger';
+                button.addEventListener('click', async () => {
+                    if (!confirm('Post the balanced contra journal? The original payroll remains in history.')) return;
+                    button.disabled = true;
+                    try {
+                        await request(endpoint + '/' + encodeURIComponent(row.reference) + '/reverse/post', 'POST',
+                            {rowVersion:row.reversalRowVersion});
+                        await load();alertBox('Payroll GL reversed with a separate posted contra journal.');
+                    } catch(e) {alertBox(e.message,true);} finally {button.disabled=false;}
+                });
             } else {
                 button.textContent = '—'; button.disabled = true;
             }
-            action.append(button); tr.append(action);
+            action.append(button);
+            if (canPost && row.reversalState && [2, 3, 'Submitted', 'Approved'].includes(row.reversalState)) {
+                const reject = document.createElement('button');reject.type = 'button';
+                reject.className = 'btn btn-sm btn-outline-secondary ms-1';reject.textContent = 'Reject';
+                reject.addEventListener('click', () => reviewReversal(row,false));action.append(reject);
+            }
+            tr.append(action);
         }
         body.append(tr);
     }
@@ -151,6 +195,29 @@ if (canPost) {
     el('payrollPostingConfirm').addEventListener('click', post);
     el('payrollPostingCancel').addEventListener('click', () => {
         selected = null; el('payrollPostingMappingPanel').classList.add('d-none');
+    });
+    el('payrollReversalForm').addEventListener('submit',async event => {
+        event.preventDefault();
+        if (!reversalRun) return;
+        const periodId = Number(el('payrollPostingPeriod').value);
+        const date = el('payrollReversalDate').value, reason = el('payrollReversalReason').value.trim();
+        const period = periods.find(x => x.id === periodId);
+        if (!period || !date || date < period.startDate || date > period.endDate || !reason)
+            return alertBox('Choose an open accounting period covering reversal date and provide the reason.',true);
+        if (!confirm('Request reversal of payroll ' + reversalRun.runNumber + '? Payments and loan recoveries must be cleared first.')) return;
+        const payload = {accountingPeriodId:periodId,reversalDate:date,reason,rowVersion:reversalRun.rowVersion};
+        const fingerprint = JSON.stringify({reference:reversalRun.reference,...payload});
+        if (!reversalRequest || reversalRequest.fingerprint !== fingerprint)
+            reversalRequest = {fingerprint,id:crypto.randomUUID()};
+        const submit = el('payrollReversalSubmit');submit.disabled = true;
+        try {
+            await request(endpoint + '/' + encodeURIComponent(reversalRun.reference) + '/reverse/request','POST',
+                {...payload,clientRequestId:reversalRequest.id});
+            reversalRun=null;reversalRequest=null;
+            el('payrollReversalPanel').classList.add('d-none');
+            el('payrollPostingUnposted').checked = false;page = 1;
+            await load();alertBox('Payroll reversal submitted for independent approval.');
+        } catch (error) {alertBox(error.message,true);} finally {submit.disabled=false;}
     });
 }
 load();

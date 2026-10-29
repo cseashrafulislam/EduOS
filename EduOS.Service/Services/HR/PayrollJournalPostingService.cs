@@ -67,6 +67,11 @@ public sealed partial class PayrollJournalPostingService : IPayrollJournalPostin
         var journalIds = runs.Where(x => x.JournalId.HasValue).Select(x => x.JournalId!.Value).ToArray();
         var journals = await db.Journals.AsNoTracking().Where(x => x.TenantId == tenant &&
             journalIds.Contains(x.Id) && !x.IsDeleted).ToDictionaryAsync(x => x.Id, ct);
+        var reversals = await db.Journals.IgnoreQueryFilters().AsNoTracking().Where(x => x.TenantId == tenant &&
+            x.ReversalOfJournalId.HasValue && journalIds.Contains(x.ReversalOfJournalId.Value) &&
+            x.SourceType == "PayrollRunReversal" &&
+            (x.State == JournalState.Posted || (!x.IsDeleted && x.State != JournalState.Rejected &&
+                x.State != JournalState.Cancelled))).ToListAsync(ct);
         var employeeToRun = employees.ToDictionary(x => x.Id, x => x.PayrollRunId);
         var rows = runs.Select(run =>
         {
@@ -82,13 +87,17 @@ public sealed partial class PayrollJournalPostingService : IPayrollJournalPostin
                         IsLoanRecovery = component?.Code == "LOAN_RECOVERY" };
                 }).ToArray();
             var journal = run.JournalId.HasValue ? journals.GetValueOrDefault(run.JournalId.Value) : null;
+            var reversal = run.JournalId.HasValue ? reversals.FirstOrDefault(x => x.ReversalOfJournalId == run.JournalId.Value) : null;
             return new PayrollPostingRowDto { Reference = run.PublicId, RunNumber = run.RunNumber,
                 PeriodEnd = run.PeriodEnd, CampusId = run.CampusId, State = run.State,
                 GrossAmount = people.Sum(x => x.GrossAmount),
                 DeductionAmount = people.Sum(x => x.DeductionAmount),
                 NetAmount = people.Sum(x => x.NetAmount),
                 RowVersion = Convert.ToBase64String(run.RowVersion),
-                JournalReference = journal?.PublicId, Components = used };
+                JournalReference = journal?.PublicId, ReversalReference = reversal?.PublicId,
+                ReversalState = reversal?.State, ReversalMakerId = reversal?.CreatedBy,
+                ReversalRowVersion = reversal == null ? null : Convert.ToBase64String(reversal.RowVersion),
+                Components = used };
         }).ToArray();
         var periods = await db.AccountingPeriods.AsNoTracking().Where(x => x.TenantId == tenant &&
             !x.IsDeleted && !x.IsClosed).OrderByDescending(x => x.StartDate).Take(101)
