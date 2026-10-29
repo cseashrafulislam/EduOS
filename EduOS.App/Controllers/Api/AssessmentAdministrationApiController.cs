@@ -141,6 +141,11 @@ public sealed class AssessmentAdministrationApiController : ControllerBase
         [FromQuery] PublishedGradeDistributionComparisonQueryDto query, CancellationToken ct) =>
         Result(await _service.ComparePublishedGradeDistributionsAsync(query, ct));
 
+    [HttpGet("results/follow-up")]
+    [Authorize(Roles = "TenantAdmin,Principal,VicePrincipal,ExamController")]
+    public async Task<IActionResult> ResultFollowUp([FromQuery] ResultFollowUpQueryDto query,
+        CancellationToken ct) => Result(await _service.SearchResultFollowUpAsync(query, ct));
+
     [HttpGet("results/tabulation")]
     [Authorize(Roles = "TenantAdmin,Principal,VicePrincipal,ExamController")]
     public async Task<IActionResult> PublishedTabulation(

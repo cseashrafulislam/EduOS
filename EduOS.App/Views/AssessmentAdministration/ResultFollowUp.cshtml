@@ -1,0 +1,70 @@
+@using System.Globalization
+@{
+    ViewData["Title"] = "Result Follow-up";
+    var bn = CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "bn";
+}
+<section class="container-fluid py-3" id="resultFollowUpWorkspace" data-lang="@(bn ? "bn" : "en")">
+    <header class="d-flex flex-wrap align-items-center gap-2 mb-3">
+        <h1 class="h4 mb-0">@(bn ? "ফলাফল পরবর্তী পর্যালোচনা" : "Result follow-up register")</h1>
+        <details class="ms-auto small">
+            <summary class="btn btn-sm btn-outline-secondary" aria-label="@(bn ? "সহায়তা" : "Help")">ⓘ</summary>
+            <div class="border rounded p-2 mt-1" style="max-width:23rem" role="note">
+                @(bn ? "প্রকাশিত সংস্করণের অনুত্তীর্ণ ও স্থগিত ফলাফল দেখুন। এটি পুনঃপরীক্ষা বা উন্নয়ন পরীক্ষার স্বয়ংক্রিয় অনুমোদন নয়।" : "Review failed and withheld results from a saved version. This is not an automatic retake or improvement approval.")
+            </div>
+        </details>
+    </header>
+    <div id="followUpNotice" class="d-none" role="alert" aria-live="polite"></div>
+    <form id="followUpScopeForm" class="card card-body mb-3" role="search">
+        <div class="row g-2 align-items-end">
+            <div class="col-md-4">
+                <label class="form-label" for="followUpScopeTerm">@(bn ? "মূল্যায়ন বা ব্যাচ খুঁজুন" : "Find assessment or batch")</label>
+                <input id="followUpScopeTerm" class="form-control" type="search" maxlength="100" />
+            </div>
+            <div class="col-auto"><button class="btn btn-outline-primary" type="submit">@(bn ? "খুঁজুন" : "Search")</button></div>
+            <div class="col-auto"><button id="followUpScopePrev" class="btn btn-outline-secondary" type="button">‹</button></div>
+            <div class="col-auto"><button id="followUpScopeNext" class="btn btn-outline-secondary" type="button">›</button></div>
+            <div class="col-md-4">
+                <label class="form-label" for="followUpScope">@(bn ? "মূল্যায়ন ও ব্যাচ" : "Assessment and batch")</label>
+                <select id="followUpScope" class="form-select"></select>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label" for="followUpVersion">@(bn ? "প্রকাশিত সংস্করণ" : "Finalized version")</label>
+                <select id="followUpVersion" class="form-select" disabled></select>
+            </div>
+        </div>
+        <div class="row g-2 align-items-end mt-1">
+            <div class="col-md-3">
+                <label class="form-label" for="followUpStatus">@(bn ? "ফলাফলের ধরন" : "Outcome")</label>
+                <select id="followUpStatus" class="form-select">
+                    <option value="3">@(bn ? "অনুত্তীর্ণ ও স্থগিত" : "Failed and withheld")</option>
+                    <option value="1">@(bn ? "শুধু অনুত্তীর্ণ" : "Failed only")</option>
+                    <option value="2">@(bn ? "শুধু স্থগিত" : "Withheld only")</option>
+                </select>
+            </div>
+            <div class="col-md-4">
+                <label class="form-label" for="followUpSearch">@(bn ? "রোল, কোড বা নাম" : "Roll, code or name")</label>
+                <input id="followUpSearch" class="form-control" type="search" maxlength="100" />
+            </div>
+            <div class="col-auto"><button id="followUpLoad" class="btn btn-primary" type="button" disabled>@(bn ? "তালিকা দেখুন" : "Load register")</button></div>
+            <div class="col-auto"><button id="followUpCsv" class="btn btn-outline-secondary" type="button" disabled>@(bn ? "পৃষ্ঠার CSV" : "Page CSV")</button></div>
+            <div class="col-auto"><button id="followUpPrint" class="btn btn-outline-secondary" type="button" disabled>@(bn ? "প্রিন্ট" : "Print")</button></div>
+        </div>
+    </form>
+    <section class="card">
+        <div class="card-header"><h2 class="h6 mb-0" id="followUpTitle">@(bn ? "ফলাফল পর্যালোচনা" : "Result review")</h2>
+            <span id="followUpInfo" class="small text-muted" role="status" aria-live="polite"></span></div>
+        <div class="table-responsive">
+            <table class="table table-sm table-hover mb-0">
+                <thead><tr><th>@(bn ? "রোল" : "Roll")</th><th>@(bn ? "কোড" : "Code")</th><th>@(bn ? "শিক্ষার্থী" : "Student")</th><th>@(bn ? "নম্বর" : "Marks")</th><th>GPA</th><th>@(bn ? "গ্রেড" : "Grade")</th><th>@(bn ? "অবস্থা" : "Outcome")</th></tr></thead>
+                <tbody id="followUpRows"><tr><td colspan="7">@(bn ? "প্রকাশিত সংস্করণ নির্বাচন করুন" : "Select a finalized version.")</td></tr></tbody>
+            </table>
+        </div>
+        <div class="card-body d-flex gap-2 align-items-center">
+            <button id="followUpPrev" class="btn btn-sm btn-outline-secondary" type="button" disabled>@(bn ? "আগের" : "Previous")</button>
+            <button id="followUpNext" class="btn btn-sm btn-outline-secondary" type="button" disabled>@(bn ? "পরের" : "Next")</button>
+            <span id="followUpPage" role="status" aria-live="polite"></span>
+        </div>
+    </section>
+</section>
+<style>@@media print { #followUpScopeForm,#followUpPrev,#followUpNext,#followUpNotice,header details { display:none!important; } }</style>
+@section Scripts { <script src="~/js/assessment/result-follow-up.js" asp-append-version="true"></script> }
