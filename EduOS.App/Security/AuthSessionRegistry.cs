@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using System.Security.Claims;
 
 namespace EduOS.App.Security;
 
@@ -92,6 +93,26 @@ public static class AuthSessionRegistry
             await db.SaveChangesAsync(ct);
             return newSid;
         }, cancellationToken);
+
+    // Revalidate the exact authenticated account and institution after sensitive reads
+    // and inside serialized account writes; a middleware check alone cannot protect
+    // a request whose session is revoked while SQL work is in flight.
+    public static Task<bool> IsValidPrincipalAsync(EduOSDbContext db, ClaimsPrincipal principal)
+    {
+        if (principal.Identity?.IsAuthenticated != true ||
+            !long.TryParse(principal.FindFirstValue(ClaimTypes.NameIdentifier), out var userId) || userId <= 0)
+            return Task.FromResult(false);
+
+        var tenantClaim = principal.FindFirstValue("TenantId");
+        long? tenantId = null;
+        if (tenantClaim != null)
+        {
+            if (!long.TryParse(tenantClaim, out var parsed) || parsed <= 0)
+                return Task.FromResult(false);
+            tenantId = parsed;
+        }
+        return IsValidAsync(db, userId, principal.FindFirstValue(ClaimType), tenantId);
+    }
 
     public static async Task<bool> IsValidAsync(EduOSDbContext db, long userId, string? sid, long? tenantId)
     {
