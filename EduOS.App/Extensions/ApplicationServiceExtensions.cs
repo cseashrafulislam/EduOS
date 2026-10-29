@@ -120,6 +120,7 @@ namespace EduOS.App.Extensions
             s.AddScoped<IPayrollSalaryStatementService, PayrollSalaryStatementService>();
             s.AddScoped<IPayrollReconciliationService, PayrollReconciliationService>();
             s.AddScoped<ILibraryService, LibraryService>();
+            s.AddScoped<ILibraryDigitalResourceService, LibraryDigitalResourceService>();
             s.AddScoped<ITransportService, TransportService>();
             s.AddScoped<ITransportFamilyScheduleService, TransportFamilyScheduleService>();
             s.AddScoped<ITransportVehicleCaseService, TransportVehicleCaseService>();

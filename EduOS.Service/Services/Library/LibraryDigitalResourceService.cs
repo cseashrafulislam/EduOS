@@ -1,0 +1,348 @@
+using EduOS.Core.Common;
+using EduOS.Core.DTOs.Files;
+using EduOS.Core.DTOs.Library;
+using EduOS.Core.Entities.Files;
+using EduOS.Core.Entities.System;
+using EduOS.Core.Enums.Domain;
+using EduOS.Core.Interfaces;
+using EduOS.Core.Interfaces.IServices;
+using EduOS.Persistence.Context;
+using EduOS.Service.Helpers.Storage;
+using EduOS.Service.Services.Documents;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
+using System.Data;
+using System.IO;
+using System.Security.Cryptography;
+
+namespace EduOS.Service.Services.Library;
+
+/// <summary>
+/// Tenant-wide licensed library resources. Reuses the existing private, scanned FileAsset
+/// and Document source of truth, rather than introducing a second file table or public URL.
+/// A resource is visible only to an active member of a campus in this institution.
+/// </summary>
+public sealed class LibraryDigitalResourceService(
+    EduOSDbContext db, ICurrentUserService user, IDocumentFileService documentFiles,
+    IFileUploadService storage, TimeProvider clock, ILogger<LibraryDigitalResourceService> logger)
+    : ILibraryDigitalResourceService
+{
+    private const string TypeCode = "LIBRARY_DIGITAL";
+    private const string EntityType = "LibraryBook";
+    private const long MaxBytes = 5 * 1024 * 1024;
+    private long Tenant => user.TenantId;
+    private DateTime Now => clock.GetUtcNow().UtcDateTime;
+    private bool Authenticated => user.IsAuthenticated && Tenant > 0 && user.UserId > 0;
+    // The library-wide licence is controlled by the institution administrator.
+    // Campus-scoped staff cannot publish or revoke access for other campuses.
+    private bool CanPublish => Authenticated && user.IsTenantAdmin;
+    private static ApiResponse<T> Fail<T>(string message, int status = 400) =>
+        ApiResponse<T>.ErrorResponse(message, status);
+
+    private IQueryable<long> ActiveCampusIds() => db.Campuses.AsNoTracking()
+        .Where(x => x.TenantId == Tenant && x.IsActive && !x.IsDeleted).Select(x => x.Id);
+
+    private IQueryable<long>? MemberCampusIds()
+    {
+        var campuses = ActiveCampusIds();
+        var today = DateOnly.FromDateTime(Now);
+        if (user.IsTenantAdmin) return campuses;
+        if (user.IsInRole("Principal"))
+            return db.UserCampusAccesses.AsNoTracking().Where(x =>
+                x.TenantId == Tenant && x.UserId == user.UserId && x.IsActive && !x.IsDeleted &&
+                campuses.Contains(x.CampusId)).Select(x => x.CampusId);
+        if (user.IsInRole("Student"))
+        {
+            var studentIds = db.Students.AsNoTracking().Where(x =>
+                x.TenantId == Tenant && x.UserId == user.UserId &&
+                x.StatusCode == "Active" && !x.IsDeleted).Select(x => x.Id);
+            return db.StudentEnrollments.AsNoTracking().Where(x =>
+                x.TenantId == Tenant && !x.IsDeleted && x.IsCurrent &&
+                x.State == EnrollmentState.Active && studentIds.Contains(x.StudentId) &&
+                campuses.Contains(x.CampusId)).Select(x => x.CampusId);
+        }
+        if (user.IsInRole("Librarian") || user.IsInRole("Teacher") || user.IsInRole("Employee") ||
+            user.IsInRole("Staff"))
+        {
+            var employeeIds = db.Employees.AsNoTracking().Where(x =>
+                x.TenantId == Tenant && x.UserId == user.UserId &&
+                x.State == EmployeeState.Active && !x.IsDeleted).Select(x => x.Id);
+            return db.EmployeeCampusAssignments.AsNoTracking().Where(x =>
+                x.TenantId == Tenant && !x.IsDeleted && x.IsCurrent &&
+                employeeIds.Contains(x.EmployeeId) && x.EffectiveFrom <= today &&
+                (!x.EffectiveTo.HasValue || x.EffectiveTo.Value >= today) &&
+                campuses.Contains(x.CampusId)).Select(x => x.CampusId);
+        }
+        return null;
+    }
+
+    private async Task<bool> CanReadAsync(CancellationToken ct)
+    {
+        if (!Authenticated) return false;
+        var campuses = MemberCampusIds();
+        return campuses != null && await campuses.AnyAsync(ct);
+    }
+
+    private static bool VersionMatches(byte[] current, string? supplied)
+    {
+        if (current.Length == 0 || string.IsNullOrWhiteSpace(supplied)) return false;
+        try
+        {
+            var expected = Convert.FromBase64String(supplied);
+            return current.Length == expected.Length &&
+                CryptographicOperations.FixedTimeEquals(current, expected);
+        }
+        catch (FormatException) { return false; }
+    }
+
+    private static LibraryDigitalResourceDto Map(Document document, FileAsset file,
+        Guid bookReference, string bookTitle) => new()
+    {
+        Reference = document.PublicId, BookReference = bookReference, BookTitle = bookTitle,
+        Title = document.Title ?? string.Empty, FileName = file.OriginalFileName,
+        ContentType = file.ContentType, SizeBytes = file.SizeBytes, IsActive = document.IsActive,
+        CreatedAt = document.CreatedAt, RowVersion = Convert.ToBase64String(document.RowVersion)
+    };
+
+    private IQueryable<LibraryDigitalRow> ResourceQuery()
+    {
+        // The projection is tenant-filtered on all three source tables before paging.
+        return from document in db.Documents.AsNoTracking()
+               join book in db.Books.AsNoTracking()
+                   on new { document.TenantId, Id = document.EntityId }
+                   equals new { book.TenantId, Id = (long?)book.Id }
+               join file in db.FileAssets.AsNoTracking()
+                   on new { document.TenantId, Id = document.FileAssetId }
+                   equals new { file.TenantId, file.Id }
+               join definition in db.DocumentTypeDefinitions.AsNoTracking()
+                   on new { document.TenantId, Code = document.DocumentTypeCode }
+                   equals new { definition.TenantId, definition.Code }
+               where definition.IsActive && !definition.IsDeleted &&
+                   !definition.RequiresVerification && !definition.IsSensitive &&
+                   document.TenantId == Tenant && !document.IsDeleted &&
+                   document.EntityType == EntityType && document.DocumentTypeCode == TypeCode &&
+                   !book.IsDeleted && !file.IsDeleted && file.IsVerifiedSafe &&
+                   file.MalwareScanStateCode == "Clean" &&
+                   file.Visibility == FileVisibility.Private && file.StorageProvider == "LocalPrivate"
+               select new LibraryDigitalRow { Document = document, Book = book, File = file };
+    }
+
+    private sealed class LibraryDigitalRow
+    {
+        public Document Document { get; set; } = null!;
+        public EduOS.Core.Entities.Library.Book Book { get; set; } = null!;
+        public FileAsset File { get; set; } = null!;
+    }
+
+    public async Task<ApiResponse<PagedResult<LibraryDigitalResourceDto>>> ListAsync(
+        Guid? bookReference, string? search, int page, int pageSize, bool includeInactive,
+        CancellationToken ct = default)
+    {
+        if (!await CanReadAsync(ct)) return Fail<PagedResult<LibraryDigitalResourceDto>>("Library access denied.", 403);
+        if (page < 1 || pageSize is < 1 or > 50 || ((long)page - 1) * pageSize > int.MaxValue ||
+            search?.Length > 100 || bookReference == Guid.Empty)
+            return Fail<PagedResult<LibraryDigitalResourceDto>>("Invalid digital library filters.");
+        var query = ResourceQuery();
+        if (!CanPublish || !includeInactive)
+            query = query.Where(x => x.Document.IsActive && x.Book.IsActive &&
+                (!x.Document.ExpiresAt.HasValue || x.Document.ExpiresAt > Now));
+        if (bookReference.HasValue)
+            query = query.Where(x => x.Book.PublicId == bookReference.Value);
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var term = search.Trim();
+            query = query.Where(x => x.Book.Title.Contains(term) ||
+                (x.Document.Title != null && x.Document.Title.Contains(term)));
+        }
+        var total = await query.CountAsync(ct);
+        var rows = await query.OrderByDescending(x => x.Document.CreatedAt)
+            .ThenByDescending(x => x.Document.Id)
+            .Skip((page - 1) * pageSize).Take(pageSize)
+            .Select(x => new
+            {
+                DocumentReference = x.Document.PublicId, x.Document.Title, x.Document.IsActive,
+                x.Document.CreatedAt, x.Document.RowVersion, BookReference = x.Book.PublicId,
+                BookTitle = x.Book.Title, x.File.OriginalFileName, x.File.ContentType, x.File.SizeBytes
+            }).ToListAsync(ct);
+        return ApiResponse<PagedResult<LibraryDigitalResourceDto>>.SuccessResponse(
+            new PagedResult<LibraryDigitalResourceDto>
+            {
+                Items = rows.Select(x => new LibraryDigitalResourceDto
+                {
+                    Reference = x.DocumentReference, BookReference = x.BookReference,
+                    BookTitle = x.BookTitle, Title = x.Title ?? string.Empty,
+                    FileName = x.OriginalFileName, ContentType = x.ContentType,
+                    SizeBytes = x.SizeBytes, IsActive = x.IsActive, CreatedAt = x.CreatedAt,
+                    RowVersion = Convert.ToBase64String(x.RowVersion)
+                }).ToList(),
+                TotalCount = total, Page = page, PageSize = pageSize
+            });
+    }
+
+    private AuditLog Audit(string action, long id, Guid reference) => new()
+    {
+        TenantId = Tenant, UserId = user.UserId, Action = action,
+        EntityName = "LibraryDigitalResource", EntityId = id,
+        CorrelationId = reference.ToString("N"), NewValue = action,
+        IsSuccess = true, OccurredAt = Now
+    };
+
+    public async Task<ApiResponse<LibraryDigitalResourceDto>> UploadAsync(
+        LibraryDigitalUploadRequestDto request, PrivateFileUploadDto file, CancellationToken ct = default)
+    {
+        if (!CanPublish) return Fail<LibraryDigitalResourceDto>("Tenant administrator required.", 403);
+        if (request == null || request.RequestId == Guid.Empty || request.BookReference == Guid.Empty ||
+            string.IsNullOrWhiteSpace(request.Title) || request.Title.Trim().Length > 250 ||
+            file == null || file.Length is < 1 or > MaxBytes)
+            return Fail<LibraryDigitalResourceDto>("Invalid book, title, request ID or file.");
+        var book = await db.Books.AsNoTracking().FirstOrDefaultAsync(x =>
+            x.TenantId == Tenant && x.PublicId == request.BookReference &&
+            x.IsActive && !x.IsDeleted, ct);
+        if (book == null) return Fail<LibraryDigitalResourceDto>("Active book not found.", 404);
+        // The existing document uploader enforces the private tenant namespace, bounded
+        // byte stream, quota, malware scan, SHA-256 and idempotent upload receipt.
+        var uploaded = await documentFiles.UploadAsync(request.RequestId, file, ct);
+        if (!uploaded.Success || uploaded.Data == null)
+            return Fail<LibraryDigitalResourceDto>(uploaded.Message, uploaded.StatusCode);
+        var title = request.Title.Trim();
+        try
+        {
+            return await db.ExecuteInTransactionAsync(async token =>
+            {
+                var asset = await db.FileAssets.AsNoTracking().FirstOrDefaultAsync(x =>
+                    x.TenantId == Tenant && x.Id == uploaded.Data.Id &&
+                    x.PublicId == request.RequestId && x.UploadedByUserId == user.UserId &&
+                    !x.IsDeleted && x.IsVerifiedSafe && x.MalwareScanStateCode == "Clean" &&
+                    x.Visibility == FileVisibility.Private && x.StorageProvider == "LocalPrivate", token);
+                if (asset == null || !DocumentFileService.IsTenantDocumentKey(asset.StorageKey, Tenant))
+                    return Fail<LibraryDigitalResourceDto>("Verified private file unavailable.", 403);
+                var existing = await db.Documents.AsNoTracking().FirstOrDefaultAsync(x =>
+                    x.TenantId == Tenant && x.PublicId == request.RequestId && !x.IsDeleted, token);
+                if (existing != null)
+                {
+                    if (existing.FileAssetId != asset.Id || existing.EntityId != book.Id ||
+                        existing.EntityType != EntityType || existing.DocumentTypeCode != TypeCode ||
+                        existing.Title != title)
+                        return Fail<LibraryDigitalResourceDto>("Request ID already used.", 409);
+                    return ApiResponse<LibraryDigitalResourceDto>.SuccessResponse(
+                        Map(existing, asset, book.PublicId, book.Title));
+                }
+                if (await db.Documents.AsNoTracking().AnyAsync(x =>
+                    x.TenantId == Tenant && x.FileAssetId == asset.Id && !x.IsDeleted, token))
+                    return Fail<LibraryDigitalResourceDto>("File already attached.", 409);
+                var definition = await db.DocumentTypeDefinitions.FirstOrDefaultAsync(x =>
+                    x.TenantId == Tenant && x.Code == TypeCode && !x.IsDeleted, token);
+                if (definition == null)
+                {
+                    definition = new DocumentTypeDefinition
+                    {
+                        TenantId = Tenant, Code = TypeCode, Name = "Library digital resource",
+                        IsActive = true, RequiresVerification = false, IsSensitive = false,
+                        CreatedBy = user.UserId, CreatedAt = Now
+                    };
+                    db.DocumentTypeDefinitions.Add(definition);
+                    await db.SaveChangesAsync(token);
+                }
+                if (!definition.IsActive || definition.RequiresVerification || definition.IsSensitive)
+                    return Fail<LibraryDigitalResourceDto>("Library document type requires administrator review.", 409);
+                var row = new Document
+                {
+                    TenantId = Tenant, PublicId = request.RequestId, FileAssetId = asset.Id,
+                    DocumentTypeCode = TypeCode, EntityType = EntityType, EntityId = book.Id,
+                    Title = title, IsActive = true, VerificationStatusCode = "NotRequired",
+                    CreatedBy = user.UserId, CreatedAt = Now
+                };
+                db.Documents.Add(row);
+                await db.SaveChangesAsync(token);
+                db.AuditLogs.Add(Audit("LibraryDigitalResource.Publish", row.Id, row.PublicId));
+                await db.SaveChangesAsync(token);
+                return ApiResponse<LibraryDigitalResourceDto>.SuccessResponse(
+                    Map(row, asset, book.PublicId, book.Title));
+            }, IsolationLevel.Serializable, ct);
+        }
+        catch (DbUpdateException ex)
+        {
+            logger.LogWarning(ex, "Library digital registration conflict for tenant {TenantId}", Tenant);
+            return Fail<LibraryDigitalResourceDto>("Concurrent resource registration; retry the same request ID.", 409);
+        }
+    }
+
+    public async Task<ApiResponse<LibraryDigitalResourceDto>> RevokeAsync(
+        Guid reference, LibraryDigitalRevokeRequestDto request, CancellationToken ct = default)
+    {
+        if (!CanPublish) return Fail<LibraryDigitalResourceDto>("Tenant administrator required.", 403);
+        if (reference == Guid.Empty || request == null || string.IsNullOrWhiteSpace(request.RowVersion))
+            return Fail<LibraryDigitalResourceDto>("Resource and row version required.");
+        try
+        {
+            return await db.ExecuteInTransactionAsync(async token =>
+            {
+                var row = await db.Documents.FirstOrDefaultAsync(x =>
+                    x.TenantId == Tenant && x.PublicId == reference && !x.IsDeleted &&
+                    x.DocumentTypeCode == TypeCode && x.EntityType == EntityType, token);
+                if (row == null) return Fail<LibraryDigitalResourceDto>("Resource not found.", 404);
+                if (!VersionMatches(row.RowVersion, request.RowVersion))
+                    return Fail<LibraryDigitalResourceDto>("Resource changed. Reload and retry.", 409);
+                var book = await db.Books.AsNoTracking().FirstOrDefaultAsync(x =>
+                    x.TenantId == Tenant && x.Id == row.EntityId && !x.IsDeleted, token);
+                var asset = await db.FileAssets.AsNoTracking().FirstOrDefaultAsync(x =>
+                    x.TenantId == Tenant && x.Id == row.FileAssetId && !x.IsDeleted, token);
+                if (book == null || asset == null)
+                    return Fail<LibraryDigitalResourceDto>("Resource references unavailable.", 409);
+                if (row.IsActive)
+                {
+                    row.IsActive = false; row.UpdatedAt = Now; row.UpdatedBy = user.UserId;
+                    db.AuditLogs.Add(Audit("LibraryDigitalResource.Revoke", row.Id, row.PublicId));
+                    await db.SaveChangesAsync(token);
+                }
+                return ApiResponse<LibraryDigitalResourceDto>.SuccessResponse(
+                    Map(row, asset, book.PublicId, book.Title));
+            }, IsolationLevel.Serializable, ct);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            return Fail<LibraryDigitalResourceDto>("Resource changed concurrently.", 409);
+        }
+    }
+
+    public async Task<ApiResponse<DocumentFileDownloadDto>> DownloadAsync(
+        Guid reference, CancellationToken ct = default)
+    {
+        if (reference == Guid.Empty || !await CanReadAsync(ct))
+            return Fail<DocumentFileDownloadDto>("Resource not found.", 404);
+        var row = await ResourceQuery().Where(x => x.Document.PublicId == reference &&
+            x.Document.IsActive && x.Book.IsActive &&
+            (!x.Document.ExpiresAt.HasValue || x.Document.ExpiresAt > Now))
+            .Select(x => new { DocumentId = x.Document.Id, x.File.StorageKey, x.File.SizeBytes,
+                x.File.Sha256, x.File.ContentType, x.File.OriginalFileName })
+            .FirstOrDefaultAsync(ct);
+        if (row == null || row.SizeBytes is < 1 or > MaxBytes ||
+            !DocumentFileService.IsTenantDocumentKey(row.StorageKey, Tenant))
+            return Fail<DocumentFileDownloadDto>("Resource not found.", 404);
+        // No public storage URL is returned; every download rechecks live membership,
+        // resource state, private namespace and cryptographic file integrity.
+        FileDownloadResult? stored;
+        try { stored = await storage.GetPrivateFileAsync(row.StorageKey); }
+        catch (IOException ex)
+        {
+            logger.LogWarning(ex, "Library private file read unavailable for tenant {TenantId}", Tenant);
+            return Fail<DocumentFileDownloadDto>("File temporarily unavailable.", 503);
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            logger.LogWarning(ex, "Library private file access unavailable for tenant {TenantId}", Tenant);
+            return Fail<DocumentFileDownloadDto>("File temporarily unavailable.", 503);
+        }
+        if (stored == null || stored.Content.LongLength != row.SizeBytes ||
+            !string.Equals(Convert.ToHexString(SHA256.HashData(stored.Content)), row.Sha256,
+                StringComparison.Ordinal))
+            return Fail<DocumentFileDownloadDto>("File integrity verification failed.", 409);
+        db.AuditLogs.Add(Audit("LibraryDigitalResource.Download", row.DocumentId, reference));
+        await db.SaveChangesAsync(ct);
+        return ApiResponse<DocumentFileDownloadDto>.SuccessResponse(new DocumentFileDownloadDto
+        {
+            Content = stored.Content, ContentType = row.ContentType,
+            FileName = Path.GetFileName(row.OriginalFileName.Replace('\\', '/'))
+        });
+    }
+}

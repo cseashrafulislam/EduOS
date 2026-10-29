@@ -1,0 +1,85 @@
+@{
+    ViewData["Title"] = "Digital Library";
+    var admin = User.IsInRole("TenantAdmin");
+    var bn = System.Globalization.CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "bn";
+}
+<section class="admission-page" aria-labelledby="digitalLibraryTitle">
+    <header class="content-header-card d-flex justify-content-between align-items-center gap-3 flex-wrap">
+        <div class="d-flex align-items-center gap-2">
+            <h2 id="digitalLibraryTitle" class="mb-0">@(bn ? "ডিজিটাল লাইব্রেরি" : "Digital library")</h2>
+            <details class="position-relative">
+                <summary class="btn btn-sm btn-outline-secondary" aria-label="@(bn ? "সহায়তা" : "Digital library help")" title="@(bn ? "সহায়তা" : "Help")">ⓘ</summary>
+                <div class="card position-absolute p-2 shadow-sm" style="width:min(20rem,80vw);z-index:10;">
+                    @(bn ? "প্রকাশিত রিসোর্স শুধু অনুমোদিত প্রতিষ্ঠানের সক্রিয় সদস্যরা দেখতে পারবেন। ফাইল সর্বোচ্চ ৫ এমবি; প্রকাশের আগে নিরাপত্তা যাচাই বাধ্যতামূলক।" : "Published files are available only to active institute members. Uploads are limited to 5 MB and must pass a security scan.")
+                </div>
+            </details>
+        </div>
+        <a asp-controller="Library" asp-action="Index" class="btn btn-outline-secondary">@(bn ? "বইয়ের তালিকা" : "Book catalog")</a>
+    </header>
+    <div id="digitalAlert" class="d-none" role="alert" tabindex="-1"></div>
+    @if (admin)
+    {
+        <section class="content-card mt-3" aria-labelledby="digitalUploadTitle">
+            <h3 id="digitalUploadTitle" class="h5">@(bn ? "নতুন রিসোর্স প্রকাশ" : "Publish a digital resource")</h3>
+            <form id="digitalUploadForm" class="row g-3" enctype="multipart/form-data">
+                @Html.AntiForgeryToken()
+                <div class="col-md-5">
+                    <label for="digitalBookSearch" class="form-label">@(bn ? "বই খুঁজুন" : "Find book")</label>
+                    <div class="input-group">
+                        <input id="digitalBookSearch" class="form-control" maxlength="100" autocomplete="off" />
+                        <button id="digitalBookFind" type="button" class="btn btn-outline-secondary">@(bn ? "খুঁজুন" : "Find")</button>
+                    </div>
+                </div>
+                <div class="col-md-7">
+                    <label for="digitalBook" class="form-label">@(bn ? "বই নির্বাচন *" : "Book *")</label>
+                    <select id="digitalBook" class="form-select" required><option value="">@(bn ? "বই নির্বাচন করুন" : "Select a book")</option></select>
+                </div>
+                <div class="col-md-6">
+                    <label for="digitalTitle" class="form-label">@(bn ? "রিসোর্সের নাম *" : "Resource title *")</label>
+                    <input id="digitalTitle" class="form-control" maxlength="250" required />
+                </div>
+                <div class="col-md-6">
+                    <label for="digitalFile" class="form-label">@(bn ? "ফাইল (সর্বোচ্চ ৫ এমবি) *" : "File (max 5 MB) *")</label>
+                    <input id="digitalFile" class="form-control" type="file" accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx" required />
+                </div>
+                <div class="col-12">
+                    <button id="digitalPublish" type="submit" class="btn btn-primary">@(bn ? "প্রকাশ করুন" : "Publish")</button>
+                </div>
+            </form>
+        </section>
+    }
+    <section class="content-card mt-3" aria-labelledby="digitalListTitle">
+        <div class="content-card-heading d-flex justify-content-between align-items-center flex-wrap gap-2">
+            <h3 id="digitalListTitle" class="h5 mb-0">@(bn ? "অনুমোদিত রিসোর্স" : "Available resources") <span id="digitalCount" class="small text-muted"></span></h3>
+            @if (admin) { <button id="digitalExport" type="button" class="btn btn-sm btn-outline-secondary">@(bn ? "CSV (এই পৃষ্ঠা)" : "CSV (current page)")</button> }
+        </div>
+        <form id="digitalSearchForm" class="row g-2 align-items-end mt-2">
+            <div class="col-md-7">
+                <label for="digitalQuery" class="form-label">@(bn ? "বই বা রিসোর্স খুঁজুন" : "Search book or resource")</label>
+                <input id="digitalQuery" class="form-control" maxlength="100" />
+            </div>
+            @if (admin)
+            {
+                <div class="col-md-3">
+                    <label for="digitalStatus" class="form-label">@(bn ? "অবস্থা" : "Status")</label>
+                    <select id="digitalStatus" class="form-select"><option value="active">@(bn ? "সক্রিয়" : "Active")</option><option value="all">@(bn ? "সব" : "All")</option></select>
+                </div>
+            }
+            <div class="col-md-2"><button type="submit" class="btn btn-outline-primary w-100">@(bn ? "খুঁজুন" : "Search")</button></div>
+        </form>
+        <div class="table-responsive mt-3">
+            <table class="table table-hover align-middle">
+                <thead><tr><th>@(bn ? "বই" : "Book")</th><th>@(bn ? "রিসোর্স" : "Resource")</th><th>@(bn ? "ফাইল" : "File")</th><th>@(bn ? "অবস্থা" : "Status")</th><th>@(bn ? "কাজ" : "Actions")</th></tr></thead>
+                <tbody id="digitalRows"><tr><td colspan="5" class="text-center text-muted">@(bn ? "লোড হচ্ছে…" : "Loading…")</td></tr></tbody>
+            </table>
+        </div>
+        <nav class="d-flex justify-content-end align-items-center gap-2" aria-label="Digital library pagination">
+            <button id="digitalPrevious" type="button" class="btn btn-sm btn-outline-secondary" disabled>@(bn ? "আগে" : "Previous")</button>
+            <span id="digitalPage" aria-live="polite">1</span>
+            <button id="digitalNext" type="button" class="btn btn-sm btn-outline-secondary" disabled>@(bn ? "পরে" : "Next")</button>
+        </nav>
+    </section>
+</section>
+@section Scripts {
+    <script src="~/js/library/digital.js" asp-append-version="true"></script>
+}

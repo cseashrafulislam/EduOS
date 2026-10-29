@@ -33,4 +33,9 @@ public sealed class LibraryController : Controller
     [HttpGet]
     [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
     public IActionResult Index() => View();
+
+    [HttpGet]
+    [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
+    [Authorize(Roles = "TenantAdmin,Principal,Librarian,Student,Teacher,Employee,Staff")]
+    public IActionResult Digital() => View();
 }

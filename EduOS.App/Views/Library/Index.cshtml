@@ -12,6 +12,8 @@
         @if (User.IsInRole("TenantAdmin")) { <a asp-controller="Library" asp-action="Branches" class="btn btn-outline-primary">Manage library branches</a> }
         @if (canManage) { <a asp-controller="Library" asp-action="Circulation" class="btn btn-outline-primary">Circulation register</a> }
         <a asp-controller="Library" asp-action="Reservations" class="btn btn-primary">Book reservations</a>
+        @if (canManage || canViewMyLoans || User.IsInRole("Teacher") || User.IsInRole("Employee") || User.IsInRole("Staff"))
+        { <a asp-controller="Library" asp-action="Digital" class="btn btn-outline-primary">Digital resources</a> }
         <button id="printLibrary" type="button" class="btn btn-outline-secondary">Print current page</button>
     </header>
     <div id="libraryAlert" class="d-none" role="alert" tabindex="-1"></div>
