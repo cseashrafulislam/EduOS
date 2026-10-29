@@ -98,6 +98,43 @@ public sealed class LibraryPrincipalCampusAccessTests
             data.Book.PublicId, data.StudentB.PublicId, 1, 20)).StatusCode.Should().Be(403);
     }
 
+
+    [Fact]
+    public async Task Overdue_ageing_report_is_campus_scoped_and_uses_disjoint_age_buckets()
+    {
+        await using var db = Context();
+        var x = await SeedAsync(db);
+        x.IssueA.DueDate = x.Today.AddDays(-5);
+        x.IssueB.DueDate = x.Today.AddDays(-40);
+        await db.SaveChangesAsync();
+
+        var principal = Service(db, "Principal");
+        var scoped = await principal.GetOverdueBranchesAsync(null, null, 1, 20);
+        scoped.Success.Should().BeTrue();
+        scoped.Data!.TotalCount.Should().Be(1);
+        var row = scoped.Data.Items.Single();
+        row.BranchId.Should().Be(x.BranchA.Id);
+        row.CampusId.Should().Be(x.CampusA.Id);
+        row.TotalOverdue.Should().Be(1);
+        row.Days1To7.Should().Be(1);
+        row.Days8To30.Should().Be(0);
+        row.Days31Plus.Should().Be(0);
+        row.OldestDueDate.Should().Be(x.Today.AddDays(-5));
+
+        (await principal.GetOverdueBranchesAsync(null, x.CampusB.Id, 1, 20))
+            .Data!.TotalCount.Should().Be(0);
+        var admin = await Service(db, "TenantAdmin").GetOverdueBranchesAsync(null, null, 1, 20);
+        admin.Data!.TotalCount.Should().Be(2);
+        admin.Data.Items.Sum(x => x.Days31Plus).Should().Be(1);
+        (await principal.GetOverdueBranchesAsync(null, null, 1, 101)).Success.Should().BeFalse();
+        (await Service(db, "Student").GetOverdueBranchesAsync(null, null, 1, 20))
+            .StatusCode.Should().Be(403);
+        x.Grant.IsActive = false;
+        await db.SaveChangesAsync();
+        (await principal.GetOverdueBranchesAsync(null, null, 1, 20))
+            .Data!.TotalCount.Should().Be(0);
+    }
+
     private static async Task<(Campus CampusA, Campus CampusB, LibraryBranch BranchA,
         LibraryBranch BranchB, Book Book, Student StudentA, Student StudentB,
         BookCopy CopyA, BookCopy CopyB, BookCopy AvailableB, BookIssue IssueA,

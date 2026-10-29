@@ -5,7 +5,10 @@
     <header class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
         <div><h2 class="h4 mb-1">Library Circulation Register</h2>
             <p class="text-muted mb-0">Find issued and overdue copies, review history, and record returns. Returns update copy availability atomically.</p></div>
-        <a asp-controller="Library" asp-action="Index" class="btn btn-outline-secondary">Back to catalog</a>
+        <div class="d-flex gap-2">
+            <a asp-controller="Library" asp-action="Overdue" class="btn btn-outline-primary">Overdue ageing</a>
+            <a asp-controller="Library" asp-action="Index" class="btn btn-outline-secondary">Back to catalog</a>
+        </div>
     </header>
     <div id="circulationAlert" class="d-none" role="alert" tabindex="-1" aria-live="polite"></div>
     <section class="card mb-3" aria-labelledby="directIssueTitle">

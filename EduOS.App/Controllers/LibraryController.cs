@@ -21,6 +21,11 @@ public sealed class LibraryController : Controller
     public IActionResult Circulation() => View();
 
     [HttpGet]
+    [Authorize(Roles = "TenantAdmin,Principal,Librarian")]
+    [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
+    public IActionResult Overdue() => View();
+
+    [HttpGet]
     [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
     public IActionResult Index() => View();
 }
