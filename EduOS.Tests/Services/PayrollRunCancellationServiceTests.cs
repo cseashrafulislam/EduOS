@@ -158,6 +158,11 @@ public sealed class PayrollRunCancellationServiceTests
             tenant42Db.PayrollRuns.Add(foreign);
             await tenant42Db.SaveChangesAsync();
         }
+        // IHttpContextAccessor uses a shared AsyncLocal slot; reset the active request to
+        // tenant 41 after seeding the second institution's records.
+        var originalRequest = new HttpContextAccessor { HttpContext = new DefaultHttpContext() };
+        originalRequest.HttpContext.Items["TenantId"] = 41L;
+        db.CurrentTenantId.Should().Be(41);
         (await Service(db).CancelAsync(foreign.PublicId, Request())).StatusCode.Should().Be(404);
         (await db.PayrollRuns.SingleAsync()).State.Should().Be(PayrollRunState.Approved);
     }

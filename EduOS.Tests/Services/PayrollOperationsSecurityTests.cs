@@ -19,9 +19,11 @@ public sealed class PayrollOperationsSecurityTests
     {
         var method = typeof(HrPayrollController).GetMethod(action);
         Assert.NotNull(method);
-        var rule = Assert.Single(method!.GetCustomAttributes(typeof(AuthorizeAttribute), true)
-            .Cast<AuthorizeAttribute>());
-        Assert.Equal("TenantAdmin", rule.Roles);
+        var rules = method!.GetCustomAttributes(typeof(AuthorizeAttribute), true)
+            .Cast<AuthorizeAttribute>().ToArray();
+        Assert.Contains(rules, rule => rule.Roles == "TenantAdmin");
+        if (action == "Post")
+            Assert.Contains(rules, rule => rule.Policy == "EduOSModule:FINANCE");
     }
 
     [Fact]
