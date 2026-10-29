@@ -256,12 +256,14 @@ public sealed partial class SqlServerTransportSeatCapacityIntegrationTests
         };
         db.AddRange(pickup, drop, driver);
         await db.SaveChangesAsync();
-        var routeLink = new RouteVehicleAssignment
-        {
-            TenantId = fixture.TenantId, RouteId = route.Id, VehicleId = fixture.VehicleId,
-            EffectiveFrom = today, EffectiveTo = today.AddDays(1), IsCurrent = true
-        };
-        db.AddRange(routeLink, new VehicleDriverAssignment
+        // The seeded fixture already owns the unique route/vehicle link. Move its
+        // synthetic effective window to today; do not create a duplicate link.
+        var routeLink = await db.RouteVehicleAssignments.SingleAsync(x =>
+            x.TenantId == fixture.TenantId && x.RouteId == route.Id &&
+            x.VehicleId == fixture.VehicleId && x.IsCurrent && !x.IsDeleted);
+        routeLink.EffectiveFrom = today;
+        routeLink.EffectiveTo = today.AddDays(1);
+        db.VehicleDriverAssignments.Add(new VehicleDriverAssignment
         {
             TenantId = fixture.TenantId, VehicleId = fixture.VehicleId,
             TransportDriverId = driver.Id, EffectiveFrom = today,
