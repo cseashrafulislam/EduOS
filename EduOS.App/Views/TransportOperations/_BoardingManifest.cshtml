@@ -1,0 +1,30 @@
+<section id="transportBoardingManifestPanel" class="card mb-3" aria-labelledby="transportBoardingManifestTitle"><div class="card-body">
+    <div class="d-flex align-items-center gap-2 mb-2">
+        <h3 id="transportBoardingManifestTitle" class="h5 mb-0">Daily pickup/drop planning roster</h3>
+        <details><summary class="btn btn-sm btn-outline-secondary" aria-label="Roster guidance">i</summary>
+            <p class="small mb-0 mt-2">Planning snapshot only: no trip, attendance or live location is recorded. Review flagged riders and driver readiness before dispatch. CSV is limited to 500 matching reservations.</p>
+        </details>
+    </div>
+    <form id="transportBoardingManifestFilters" class="row g-2 mb-2">
+        <div class="col-lg-2 col-md-4"><label class="form-label" for="transportBoardingManifestDate">Operating date</label><input id="transportBoardingManifestDate" type="date" class="form-control" required /></div>
+        <div class="col-lg-2 col-md-4"><label class="form-label" for="transportBoardingManifestCampus">Campus</label><select id="transportBoardingManifestCampus" class="form-select"><option value="">All permitted campuses</option></select></div>
+        <div class="col-lg-2 col-md-4"><label class="form-label" for="transportBoardingManifestRoute">Route</label><select id="transportBoardingManifestRoute" class="form-select"><option value="">All routes</option></select></div>
+        <div class="col-lg-2 col-md-4"><label class="form-label" for="transportBoardingManifestVehicle">Vehicle</label><select id="transportBoardingManifestVehicle" class="form-select"><option value="">All vehicles</option></select></div>
+        <div class="col-lg-2 col-md-4"><label class="form-label" for="transportBoardingManifestSearch">Student code / route</label><input id="transportBoardingManifestSearch" type="search" maxlength="100" class="form-control" /></div>
+        <div class="col-lg-2 col-md-4 d-flex align-items-end"><button class="btn btn-outline-primary w-100" type="submit">Apply</button></div>
+        <div class="col-12 d-flex align-items-center gap-3">
+            <label for="transportBoardingManifestAttention"><input id="transportBoardingManifestAttention" type="checkbox" /> Needs review only</label>
+            <button id="transportBoardingManifestExport" type="button" class="btn btn-outline-secondary btn-sm" disabled>Export CSV</button>
+        </div>
+    </form>
+    <div id="transportBoardingManifestStatus" class="small text-muted mb-2" role="status" aria-live="polite"></div>
+    <div class="table-responsive"><table class="table table-sm table-hover align-middle">
+        <thead><tr><th>Campus</th><th>Student code</th><th>Route</th><th>Vehicle</th><th>Pickup</th><th>Drop</th><th>Readiness</th></tr></thead>
+        <tbody id="transportBoardingManifestRows"></tbody>
+    </table></div>
+    <div class="d-flex align-items-center justify-content-between">
+        <button id="transportBoardingManifestPrev" type="button" class="btn btn-outline-secondary btn-sm" disabled>Previous</button>
+        <span id="transportBoardingManifestPage" class="small text-muted"></span>
+        <button id="transportBoardingManifestNext" type="button" class="btn btn-outline-secondary btn-sm" disabled>Next</button>
+    </div>
+</div></section>
