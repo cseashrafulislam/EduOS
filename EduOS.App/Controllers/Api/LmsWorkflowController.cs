@@ -152,9 +152,10 @@ public sealed class LmsWorkflowController : ControllerBase
     [HttpGet("my-progress")]
     [Authorize(Roles = "Student")]
     public async Task<IActionResult> MyCourseProgress([FromQuery] int page = 1,
-        [FromQuery] int pageSize = 20, CancellationToken ct = default)
+        [FromQuery] int pageSize = 20, [FromQuery] bool includeArchived = false,
+        CancellationToken ct = default)
     {
-        var result = await _service.GetMyCourseProgressAsync(page, pageSize, ct);
+        var result = await _service.GetMyCourseProgressAsync(page, pageSize, ct, includeArchived);
         return StatusCode(result.StatusCode, result);
     }
 

@@ -253,12 +253,12 @@ function renderMyProgress(){
   const assignments=x.gradedAssignments+' / '+x.requiredAssignments;
   const quizzes=x.passedQuizzes+' / '+x.requiredQuizzes;
   tr.append(cell(x.courseTitle+' ('+x.courseCode+')'),
-   cell(Number(x.state)===2?'Completed':'Active'),cell(lessons),
+   cell((Number(x.state)===2?'Completed':'Active')+(x.isArchived?' (archived)':'')),cell(lessons),
    cell(assignments),cell(quizzes),cell(x.lessonCompletionPercent+'%'));
   body.append(tr);
  }
  if(!body.childNodes.length){
-  const tr=document.createElement('tr'),td=cell('No active course enrollments on this page.');
+  const tr=document.createElement('tr'),td=cell('No matching course enrollments on this page.');
   td.colSpan=6;tr.append(td);body.append(tr);
  }
  $('learningMyProgressPage').textContent='Page '+state.myProgressPage+' / '+state.myProgressPages;
@@ -269,7 +269,7 @@ async function loadMyProgress(){
  if(!student)return;
  const seq=++state.myProgressLoadId;
  try{
-  const data=await api('/api/lms/my-progress?page='+state.myProgressPage+'&pageSize=20');
+  const data=await api('/api/lms/my-progress?page='+state.myProgressPage+'&pageSize=20'+(state.includeArchived?'&includeArchived=true':''));
   if(seq!==state.myProgressLoadId)return;
   state.myProgressRows=data?.items||[];
   state.myProgressPages=Math.max(1,data?.totalPages||1);
@@ -281,10 +281,10 @@ async function loadMyProgress(){
 }
 function exportMyProgress(){
  const rows=[['Course','Code','Enrollment','Completed lessons','Required lessons','Graded assignments',
-  'Required assignments','Passed quizzes','Required quizzes','Lesson completion %'],
+  'Required assignments','Passed quizzes','Required quizzes','Lesson completion %','Archived','Completed at (UTC)'],
   ...state.myProgressRows.map(x=>[x.courseTitle,x.courseCode,Number(x.state)===2?'Completed':'Active',
    x.completedLessons,x.requiredLessons,x.gradedAssignments,x.requiredAssignments,
-   x.passedQuizzes,x.requiredQuizzes,x.lessonCompletionPercent])];
+   x.passedQuizzes,x.requiredQuizzes,x.lessonCompletionPercent,x.isArchived?'Yes':'No',x.completedAt||''])];
  const safe=value=>{
   let s=String(value??'');
   if(/^[=+@\-\t\r]/.test(s))s="'"+s;
@@ -301,7 +301,9 @@ if(student){
  $('learningMyProgressNext').addEventListener('click',()=>{if(state.myProgressPage<state.myProgressPages){state.myProgressPage++;loadMyProgress();}});
  $('learningMyProgressExport').addEventListener('click',exportMyProgress);
  $('learningIncludeArchived').addEventListener('change',e=>{
-  state.includeArchived=!!e.target.checked;state.page=1;courses();
+  state.includeArchived=!!e.target.checked;state.page=1;state.myProgressPage=1;
+  ++state.myProgressLoadId;state.myProgressRows=[];renderMyProgress();
+  courses();loadMyProgress();
  });
  $('learningHistoricalExport').addEventListener('click',()=>{
   const rows=[['Code','Title','Program','Subject','Status'],...state.courses.map(x=>[

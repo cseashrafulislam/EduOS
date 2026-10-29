@@ -11,9 +11,17 @@ public sealed partial class LmsWorkflowService
     // curriculum effective on the enrollment date, and a completed LMS enrollment.
     private async Task<long[]> HistoricalCourseIdsAsync(long studentId, CancellationToken ct)
     {
+        var query = HistoricalCourseIdsQuery(studentId);
+        return query == null ? Array.Empty<long>() : await query.ToArrayAsync(ct);
+    }
+
+    // Reuse the historical-access predicate as a correlated SQL subquery in
+    // paged learner reports; never materialize every archived course ID.
+    private IQueryable<long>? HistoricalCourseIdsQuery(long studentId)
+    {
         if (studentId <= 0 || _submissionBatches == null || _submissionYears == null ||
             _submissionCurricula == null || _submissionTerms == null)
-            return Array.Empty<long>();
+            return null;
         var tenant = _user.TenantId;
         var now = _clock.GetUtcNow().UtcDateTime;
         var query =
@@ -69,6 +77,6 @@ public sealed partial class LmsWorkflowService
                     subject.AcademicLevelId == academic.AcademicLevelId &&
                     subject.SubjectId == course.SubjectId.Value))
             select course.Id;
-        return await query.Distinct().ToArrayAsync(ct);
+        return query.Distinct();
     }
 }

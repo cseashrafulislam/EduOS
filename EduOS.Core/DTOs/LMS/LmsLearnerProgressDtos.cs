@@ -8,6 +8,7 @@ public sealed class LmsLearnerCourseProgressDto
     public Guid CourseReference { get; set; }
     public string CourseCode { get; set; } = string.Empty;
     public string CourseTitle { get; set; } = string.Empty;
+    public bool IsArchived { get; set; }
     public CourseEnrollmentState State { get; set; }
     public DateTime EnrolledAt { get; set; }
     public DateTime? CompletedAt { get; set; }

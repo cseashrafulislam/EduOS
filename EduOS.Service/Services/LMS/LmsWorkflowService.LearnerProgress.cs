@@ -8,7 +8,7 @@ namespace EduOS.Service.Services.LMS;
 public sealed partial class LmsWorkflowService
 {
     public async Task<ApiResponse<PagedResult<LmsLearnerCourseProgressDto>>> GetMyCourseProgressAsync(
-        int page, int pageSize, CancellationToken ct = default)
+        int page, int pageSize, CancellationToken ct = default, bool includeArchived = false)
     {
         if (!Authenticated() || !_user.IsInRole("Student"))
             return Error<PagedResult<LmsLearnerCourseProgressDto>>("Student permission required.", 403);
@@ -22,14 +22,21 @@ public sealed partial class LmsWorkflowService
             return ApiResponse<PagedResult<LmsLearnerCourseProgressDto>>.SuccessResponse(
                 EmptyPage<LmsLearnerCourseProgressDto>(page, pageSize));
         var tenant = _user.TenantId;
+        var historicalIds = includeArchived ? HistoricalCourseIdsQuery(studentId) : null;
         var query = from enrollment in _enrollments.GetQueryable().AsNoTracking()
                     join course in _courses.GetQueryable().AsNoTracking() on enrollment.CourseId equals course.Id
                     where enrollment.TenantId == tenant && course.TenantId == tenant &&
                           enrollment.StudentId == studentId && !enrollment.IsDeleted &&
-                          course.IsActive && !course.IsDeleted &&
+                          !course.IsDeleted &&
                           (enrollment.State == CourseEnrollmentState.Active ||
                            enrollment.State == CourseEnrollmentState.Completed)
                     select new { Enrollment = enrollment, Course = course };
+        if (historicalIds == null)
+            query = query.Where(x => x.Course.IsActive);
+        else
+            query = query.Where(x => x.Course.IsActive ||
+                (x.Enrollment.State == CourseEnrollmentState.Completed &&
+                 historicalIds.Contains(x.Course.Id)));
         var total = await query.CountAsync(ct);
         var pageRows = await query.OrderByDescending(x => x.Enrollment.EnrolledAt)
             .ThenByDescending(x => x.Enrollment.Id).Skip((int)(((long)page - 1) * pageSize))
@@ -38,7 +45,7 @@ public sealed partial class LmsWorkflowService
                 EnrollmentId = x.Enrollment.Id, x.Enrollment.CourseId, x.Enrollment.State,
                 x.Enrollment.EnrolledAt, x.Enrollment.CompletedAt,
                 CourseReference = x.Course.PublicId, CourseCode = x.Course.Code,
-                CourseTitle = x.Course.Title
+                CourseTitle = x.Course.Title, IsArchived = !x.Course.IsActive
             }).ToListAsync(ct);
         if (pageRows.Count == 0)
             return ApiResponse<PagedResult<LmsLearnerCourseProgressDto>>.SuccessResponse(
@@ -118,7 +125,7 @@ public sealed partial class LmsWorkflowService
             return new LmsLearnerCourseProgressDto
             {
                 CourseEnrollmentId = x.EnrollmentId, CourseReference = x.CourseReference,
-                CourseCode = x.CourseCode, CourseTitle = x.CourseTitle, State = x.State,
+                CourseCode = x.CourseCode, CourseTitle = x.CourseTitle, IsArchived = x.IsArchived, State = x.State,
                 EnrolledAt = x.EnrolledAt, CompletedAt = x.CompletedAt,
                 RequiredLessons = lessons, CompletedLessons = completed,
                 RequiredAssignments = requiredAssignments.GetValueOrDefault(x.CourseId),

@@ -105,6 +105,40 @@ public sealed class LmsHistoricalCourseAccessTests
         Assert.Equal(404, (await service.GetCourseDetailsAsync(course.PublicId)).StatusCode);
     }
 
+
+    [Fact]
+    public async Task Archived_completed_progress_requires_explicit_opt_in_and_original_academic_scope()
+    {
+        await using var db = Db();
+        var (course, academic, enrollment) = await Seed(db);
+        var service = Service(db);
+        var normal = await service.GetMyCourseProgressAsync(1, 20);
+        Assert.True(normal.Success, normal.Message);
+        Assert.Empty(normal.Data!.Items);
+        var historical = await service.GetMyCourseProgressAsync(1, 20, default, true);
+        Assert.True(historical.Success, historical.Message);
+        var row = Assert.Single(historical.Data!.Items);
+        Assert.Equal(course.PublicId, row.CourseReference);
+        Assert.Equal(enrollment.Id, row.CourseEnrollmentId);
+        Assert.True(row.IsArchived);
+        Assert.Equal(CourseEnrollmentState.Completed, row.State);
+        Assert.Equal(enrollment.CompletedAt, row.CompletedAt);
+        academic.CampusId = 999;
+        await db.SaveChangesAsync();
+        Assert.Empty((await service.GetMyCourseProgressAsync(1, 20, default, true)).Data!.Items);
+    }
+
+    [Fact]
+    public async Task Archived_progress_fails_closed_without_historical_academic_repositories()
+    {
+        await using var db = Db();
+        await Seed(db);
+        var result = await Service(db, withAcademicRepositories: false)
+            .GetMyCourseProgressAsync(1, 20, default, true);
+        Assert.True(result.Success, result.Message);
+        Assert.Empty(result.Data!.Items);
+    }
+
     private static async Task<(Course Course, StudentEnrollment Academic, CourseEnrollment Enrollment)> Seed(EduOSDbContext db)
     {
         var program = new AcademicProgram { TenantId = 101, Name = "Science", Code = "SCI" };
@@ -170,7 +204,9 @@ public sealed class LmsHistoricalCourseAccessTests
         submissionYears: withAcademicRepositories ? new GenericRepository<AcademicYear>(db) : null,
         submissionTerms: withAcademicRepositories ? new GenericRepository<AcademicTerm>(db) : null,
         submissionBatches: withAcademicRepositories ? new GenericRepository<AcademicBatch>(db) : null,
-        submissionCurricula: withAcademicRepositories ? new GenericRepository<AcademicCurriculum>(db) : null);
+        submissionCurricula: withAcademicRepositories ? new GenericRepository<AcademicCurriculum>(db) : null,
+        completionQuizzes: new GenericRepository<Quiz>(db),
+        completionAttempts: new GenericRepository<QuizAttempt>(db));
 
     private sealed class StudentUser : ICurrentUserService
     {
