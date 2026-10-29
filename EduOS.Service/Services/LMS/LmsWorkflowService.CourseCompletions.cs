@@ -59,20 +59,21 @@ public sealed partial class LmsWorkflowService
         var pendingIds = selected.Where(x => x.Enrollment.State != CourseEnrollmentState.Completed)
             .Select(x => x.Enrollment.Id).ToArray();
         var eligibilityByEnrollment = await EvaluateCourseCompletionPageAsync(pendingIds, course, ct);
+        // Resolve academic/campus/curriculum scope once for the bounded page. The write path
+        // continues to validate one enrollment inside its serializable transaction.
+        var academicErrors = await CompletionAcademicScopeErrorsPageAsync(
+            selected.Select(x => x.Enrollment).Where(x => x.State == CourseEnrollmentState.Active).ToArray(),
+            course, ct);
         var rows = new List<CourseCompletionRegisterRowDto>(selected.Count);
         foreach (var item in selected)
         {
             var eligibility = item.Enrollment.State == CourseEnrollmentState.Completed
                 ? new CourseCompletionEligibilityDto { Ready = true }
                 : eligibilityByEnrollment[item.Enrollment.Id];
-            if (item.Enrollment.State == CourseEnrollmentState.Active)
+            if (academicErrors.TryGetValue(item.Enrollment.Id, out var academicError))
             {
-                var academicError = await CompletionAcademicScopeErrorAsync(item.Enrollment, course, ct);
-                if (academicError != null)
-                {
-                    eligibility.Ready = false;
-                    eligibility.Blockers = eligibility.Blockers.Concat(new[] { academicError }).ToArray();
-                }
+                eligibility.Ready = false;
+                eligibility.Blockers = eligibility.Blockers.Concat(new[] { academicError }).ToArray();
             }
             rows.Add(MapCourseCompletion(item.Enrollment, item.Student.PublicId, item.Student.StudentCode,
                 item.Student.FullName, eligibility));

@@ -289,6 +289,88 @@ public sealed class LmsCourseCompletionWorkflowTests
         Assert.Equal(secondEnrollment.Id, Assert.Single(filtered.Data.Items).EnrollmentId);
     }
 
+    [Fact]
+    public async Task Completion_register_validates_mixed_academic_scope_in_one_bounded_page()
+    {
+        await using var db = Db();
+        var (course, student, enrollment, lesson) = await Seed(db);
+        course.AcademicProgramId = 99;
+        var year = new AcademicYear
+        {
+            TenantId = 101, Code = "AY-26", Name = "Academic 2026",
+            StartDate = new DateOnly(2026, 1, 1), EndDate = new DateOnly(2027, 12, 31)
+        };
+        var curriculum = new AcademicCurriculum
+        {
+            TenantId = 101, Code = "CUR-1", Name = "Curriculum", AcademicProgramId = 99,
+            EffectiveFrom = new DateOnly(2026, 1, 1)
+        };
+        db.AddRange(year, curriculum);
+        await db.SaveChangesAsync();
+        var batch = new AcademicBatch
+        {
+            TenantId = 101, CampusId = 11, AcademicYearId = year.Id, AcademicProgramId = 99,
+            AcademicLevelId = 1, Code = "B-1", Name = "Batch"
+        };
+        db.Add(batch);
+        await db.SaveChangesAsync();
+        var academic = new StudentEnrollment
+        {
+            TenantId = 101, StudentId = student.Id, CampusId = 11,
+            AcademicYearId = year.Id, AcademicProgramId = 99,
+            AcademicBatchId = batch.Id, AcademicCurriculumId = curriculum.Id,
+            EnrollmentDate = new DateOnly(2026, 1, 1), RollNo = "R-1"
+        };
+        db.Add(academic);
+        await db.SaveChangesAsync();
+        enrollment.StudentEnrollmentId = academic.Id;
+        db.Add(new LessonProgress
+        {
+            TenantId = 101, CourseEnrollmentId = enrollment.Id, LessonId = lesson.Id,
+            IsCompleted = true, ProgressPercent = 100
+        });
+        var secondStudent = new Student
+        {
+            TenantId = 101, StudentCode = "S-102", FullName = "Second",
+            UserId = 88, StatusCode = "Active"
+        };
+        var thirdStudent = new Student
+        {
+            TenantId = 101, StudentCode = "S-103", FullName = "Third",
+            UserId = 89, StatusCode = "Active"
+        };
+        db.AddRange(secondStudent, thirdStudent);
+        await db.SaveChangesAsync();
+        var second = new CourseEnrollment
+        {
+            TenantId = 101, CourseId = course.Id, StudentId = secondStudent.Id,
+            StudentEnrollmentId = academic.Id, ClientRequestId = Guid.NewGuid()
+        };
+        var third = new CourseEnrollment
+        {
+            TenantId = 101, CourseId = course.Id, StudentId = thirdStudent.Id,
+            ClientRequestId = Guid.NewGuid()
+        };
+        db.AddRange(second, third);
+        await db.SaveChangesAsync();
+        db.AddRange(
+            new LessonProgress { TenantId = 101, CourseEnrollmentId = second.Id,
+                LessonId = lesson.Id, IsCompleted = true, ProgressPercent = 100 },
+            new LessonProgress { TenantId = 101, CourseEnrollmentId = third.Id,
+                LessonId = lesson.Id, IsCompleted = true, ProgressPercent = 100 });
+        await db.SaveChangesAsync();
+
+        var response = await Service(db).GetCourseCompletionRegisterAsync(course.PublicId, 1, 20, null);
+        Assert.True(response.Success, response.Message);
+        var rows = response.Data!.Items.ToDictionary(x => x.EnrollmentId);
+        Assert.Equal(3, rows.Count);
+        Assert.True(rows[enrollment.Id].Eligibility.Ready);
+        Assert.False(rows[second.Id].Eligibility.Ready);
+        Assert.Contains("Active student academic enrollment", rows[second.Id].Eligibility.Blockers);
+        Assert.False(rows[third.Id].Eligibility.Ready);
+        Assert.Contains("Academic enrollment is required", rows[third.Id].Eligibility.Blockers);
+    }
+
     private static async Task<(Course Course, Student Student, CourseEnrollment Enrollment, Lesson Lesson)> Seed(EduOSDbContext db)
     {
         var course = new Course { TenantId = 101, Code = "LMS-COMP", Title = "Completion", IsActive = true };
@@ -319,7 +401,10 @@ public sealed class LmsCourseCompletionWorkflowTests
         new GenericRepository<CurriculumSubject>(db), new GenericRepository<FileAsset>(db),
         db, new TestUser(role), TimeProvider.System, NullLogger<LmsWorkflowService>.Instance,
         completionQuizzes: new GenericRepository<Quiz>(db),
-        completionAttempts: new GenericRepository<QuizAttempt>(db));
+        completionAttempts: new GenericRepository<QuizAttempt>(db),
+        submissionYears: new GenericRepository<AcademicYear>(db),
+        submissionBatches: new GenericRepository<AcademicBatch>(db),
+        submissionCurricula: new GenericRepository<AcademicCurriculum>(db));
 
     private sealed class TestUser(string role) : ICurrentUserService
     {
