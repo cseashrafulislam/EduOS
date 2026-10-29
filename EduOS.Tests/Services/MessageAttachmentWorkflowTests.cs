@@ -3,6 +3,7 @@ using EduOS.App.Controllers.Api;
 using EduOS.Core.Entities.Auth;
 using EduOS.Core.Entities.Communication;
 using EduOS.Core.Entities.Files;
+using EduOS.Core.Entities.SaaS;
 using EduOS.Core.Enums.Domain;
 using EduOS.Core.Interfaces;
 using EduOS.Persistence.Context;
@@ -63,6 +64,45 @@ public sealed class MessageAttachmentWorkflowTests
         var result = await service.UploadAsync(999, Guid.NewGuid(), new EduOS.Core.DTOs.Files.PrivateFileUploadDto
         { FileName = "a.pdf", ContentType = "application/pdf", Length = input.Length, Content = input });
         result.StatusCode.Should().Be(404);
+        storage.VerifyNoOtherCalls();
+    }
+
+    [Fact]
+    public async Task Upload_rejects_storage_quota_before_accessing_private_storage()
+    {
+        await using var db = Database();
+        db.TenantMemberships.AddRange(
+            new TenantMembership { TenantId = 101, UserId = 10, Status = MembershipStatus.Active },
+            new TenantMembership { TenantId = 101, UserId = 11, Status = MembershipStatus.Active });
+        db.MessageThreads.Add(new MessageThread { Id = 100, TenantId = 101 });
+        db.MessageThreadParticipants.Add(new MessageThreadParticipant
+            { TenantId = 101, MessageThreadId = 100, UserId = 10 });
+        db.Messages.Add(new Message { Id = 1000, TenantId = 101, MessageThreadId = 100,
+            SenderUserId = 10, RecipientUserId = 11, Body = "Quota" });
+        var plan = new SubscriptionPlan { Code = "MESSAGE-CAP", Name = "Message cap", MaxStorageMb = 1 };
+        db.SubscriptionPlans.Add(plan);
+        await db.SaveChangesAsync();
+        db.TenantSubscriptions.Add(new TenantSubscription
+        {
+            TenantId = 101, SubscriptionPlanId = plan.Id, State = SubscriptionState.Active,
+            StartsAt = DateTime.UtcNow.AddDays(-1), EndsAt = DateTime.UtcNow.AddDays(1)
+        });
+        db.FileAssets.Add(new FileAsset
+        {
+            TenantId = 101, StorageProvider = "LocalPrivate",
+            StorageKey = "tenant-101/documents/previous.pdf",
+            OriginalFileName = "previous.pdf", ContentType = "application/pdf", SizeBytes = 1048576
+        });
+        await db.SaveChangesAsync();
+
+        var storage = new Mock<IFileUploadService>(MockBehavior.Strict);
+        var service = Service(db, storage);
+        await using var input = new MemoryStream(new byte[] { 37, 80, 68, 70, 45 });
+        var response = await service.UploadAsync(1000, Guid.NewGuid(), new EduOS.Core.DTOs.Files.PrivateFileUploadDto
+        { FileName = "quota.pdf", ContentType = "application/pdf", Length = input.Length, Content = input });
+
+        response.StatusCode.Should().Be(409);
+        db.MessageAttachments.Should().BeEmpty();
         storage.VerifyNoOtherCalls();
     }
 

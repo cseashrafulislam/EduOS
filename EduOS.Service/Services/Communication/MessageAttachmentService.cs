@@ -11,6 +11,7 @@ using EduOS.Core.Interfaces.IRepositories;
 using EduOS.Core.Interfaces.IServices;
 using EduOS.Persistence.Context;
 using EduOS.Service.Helpers.Storage;
+using EduOS.Service.Services.SaaS;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -131,6 +132,12 @@ public sealed class MessageAttachmentService(
                 : ApiResponse<MessageAttachmentDto>.ErrorResponse("Upload request ID already used.", 409);
         }
 
+        // The same tenant plan covers stored documents and private message attachments.
+        // Keep the existing idempotent replay path available even at capacity.
+        var quota = await SubscriptionStorageQuotaPolicy.GetAsync(db, tenant, DateTime.UtcNow, ct);
+        if (!quota.CanAdd(buffer.Length))
+            return ApiResponse<MessageAttachmentDto>.ErrorResponse("Subscription storage limit reached.", 409);
+
         buffer.Position = 0;
         var file = new FormFile(buffer, 0, buffer.Length, "file", fileName)
         { Headers = new HeaderDictionary(), ContentType = upload.ContentType };
@@ -175,6 +182,12 @@ public sealed class MessageAttachmentService(
                 if (await db.MessageAttachments.CountAsync(a => a.TenantId == tenant &&
                     a.MessageId == messageId && !a.IsDeleted, token) >= MaxAttachments)
                     return ApiResponse<MessageAttachmentDto>.ErrorResponse("Maximum three attachments per message.", 409);
+                // A serializable registration check arbitrates competing document
+                // and message uploads against the same committed tenant file total.
+                var currentQuota = await SubscriptionStorageQuotaPolicy.GetAsync(
+                    db, tenant, DateTime.UtcNow, token);
+                if (!currentQuota.CanAdd(asset.SizeBytes))
+                    return ApiResponse<MessageAttachmentDto>.ErrorResponse("Subscription storage limit reached.", 409);
                 db.FileAssets.Add(asset);
                 await db.SaveChangesAsync(token);
                 attachment = new MessageAttachment
