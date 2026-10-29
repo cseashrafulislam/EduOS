@@ -60,3 +60,22 @@ test('digital resource export never exposes storage keys or student identity', (
     assert.match(writer, /TrimStart/);
     assert.doesNotMatch(writer, /StorageKey|StudentId|PersonId|Sha256/);
 });
+
+test('digital library scrubs private rows, form state and pending bytes on tenant/session changes', () => {
+    assert.match(ui, /data(?:set)?\.authSessionReference|dataset\.authSessionReference/);
+    assert.match(ui, /dataset\.authTenantId/);
+    assert.match(ui, /EduOSSessionTransitionPending/);
+    assert.match(ui, /new AbortController\(\)/);
+    assert.match(ui, /activeRequests\.add\(controller\)/);
+    assert.match(ui, /activeRequests\.clear\(\)/);
+    assert.match(ui, /if \(!currentSession\(\)\) throw sessionError\(\)/);
+    assert.match(ui, /sessionFetch\('\/api\/library\/digital\/'/);
+    assert.match(ui, /function clearSensitive\(\)/);
+    assert.match(ui, /rows\.replaceChildren\(\)/);
+    assert.match(ui, /digitalUploadForm'\)\.reset\(\)/);
+    assert.match(ui, /digitalEditDialog'\)\.close\(\)/);
+    assert.match(ui, /sessionObserver\.observe\(document\.body/);
+    assert.match(ui, /window\.addEventListener\('pagehide', clearSensitive\)/);
+    assert.match(ui, /event\.persisted/);
+    assert.doesNotMatch(ui, /innerHTML\s*=/);
+});
