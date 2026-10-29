@@ -444,8 +444,88 @@ async function leaves(browser) {
     await page.close();
     console.log('Student leave browser: PASS — submission retry idempotency, review, CSRF and listing.');
 }
+async function correctionAudit(browser) {
+    const page = await browser.newPage({ acceptDownloads: true });
+    let csvRequests = 0, printRequests = 0, denyCsv = false;
+    await page.route('http://eduos.test/**', async route => {
+        const request = route.request(), url = new URL(request.url());
+        if (url.pathname === '/api/student-attendance/corrections/report') {
+            assert.equal(url.searchParams.get('academicBatchId'), '10');
+            assert.equal(url.searchParams.get('studentSearch'), 'ST');
+            assert.equal(url.searchParams.get('previousState'), '2');
+            assert.equal(url.searchParams.get('newState'), '1');
+            assert.equal(url.searchParams.get('pageSize'), '20');
+            return response(route, 200, {
+                page: 1, pageSize: 20, totalPages: 1, totalCount: 1,
+                items: [{ attendanceDate: '2026-10-15', rollNo: '01',
+                    studentCode: 'ST-1', studentName: 'Historical Learner',
+                    subjectOfferingId: null, previousState: 2, newState: 1,
+                    reason: 'Reviewed', changedAt: '2026-10-16T10:30:00Z',
+                    changedByUserId: 7 }]
+            });
+        }
+        if (url.pathname === '/attendance/corrections/export.csv') {
+            csvRequests++;
+            assert.equal(url.searchParams.get('academicBatchId'), '10');
+            assert.equal(url.searchParams.get('studentSearch'), 'ST');
+            assert.equal(url.searchParams.get('previousState'), '2');
+            assert.equal(url.searchParams.get('newState'), '1');
+            assert.equal(url.searchParams.get('page'), '1');
+            if (denyCsv) return route.fulfill({
+                status: 403, contentType: 'application/json', body: '{"message":"Denied"}'
+            });
+            return route.fulfill({
+                status: 200, contentType: 'text/csv; charset=utf-8',
+                body: 'Attendance date,Student\\r\\n2026-10-15,Historical Learner\\r\\n'
+            });
+        }
+        if (url.pathname === '/attendance/corrections/print') {
+            printRequests++;
+            assert.equal(url.searchParams.get('academicBatchId'), '10');
+            assert.equal(url.searchParams.get('studentSearch'), 'ST');
+            assert.equal(url.searchParams.get('page'), '1');
+            return route.fulfill({ status: 200, contentType: 'text/html',
+                body: '<!doctype html><html><body>Authorized print</body></html>' });
+        }
+        if (!url.pathname.startsWith('/api/'))
+            return route.fulfill({ status: 200, contentType: 'text/html', body: attendanceHtml });
+        return response(route, 404, null, 'Unexpected endpoint');
+    });
+    await page.goto('http://eduos.test/Attendance/Index');
+    await page.addScriptTag({ path: path.join(root, 'EduOS.App/wwwroot/js/attendance/correction-report.js') });
+    await page.locator('#attendanceReportBatch').evaluate(select => {
+        select.add(new Option('Batch', '10')); select.disabled = false; select.value = '10';
+    });
+    await page.locator('#attendanceReportFrom').fill('2026-10-01');
+    await page.locator('#attendanceReportTo').fill('2026-10-20');
+    await page.locator('#attendanceCorrectionAuditStudent').fill('ST');
+    await page.locator('#attendanceCorrectionAuditPreviousState').selectOption('2');
+    await page.locator('#attendanceCorrectionAuditNewState').selectOption('1');
+    await page.locator('#attendanceCorrectionAuditLoad').click();
+    await page.locator('#attendanceCorrectionAuditRows tr').first().waitFor();
+    const [download] = await Promise.all([
+        page.waitForEvent('download'),
+        page.locator('#attendanceCorrectionAuditCsv').click()
+    ]);
+    assert.match(download.suggestedFilename(), /attendance-corrections-batch-10-page-1\\.csv/);
+    assert.equal(csvRequests, 1);
+    await Promise.all([
+        page.context().waitForEvent('request', {
+            predicate: req => req.url().includes('/attendance/corrections/print?')
+        }),
+        page.locator('#attendanceCorrectionAuditPrint').click()
+    ]);
+    assert.equal(printRequests, 1);
+    denyCsv = true;
+    await page.locator('#attendanceCorrectionAuditCsv').click();
+    await page.waitForFunction(() => document.querySelector('#attendanceCorrectionAuditStatus')
+        ?.textContent.includes('Authorized correction export unavailable.'));
+    assert.equal(csvRequests, 2);
+    await page.close();
+    console.log('Correction audit browser: PASS — scoped CSV, print and denied download.');
+}
 (async () => {
     const browser = await chromium.launch({ headless: true, args: ['--no-sandbox'] });
-    try { await attendance(browser); await routine(browser); await leaves(browser); }
+    try { await attendance(browser); await routine(browser); await leaves(browser); await correctionAudit(browser); }
     finally { await browser.close(); }
 })().catch(e => { console.error(e); process.exitCode = 1; });
