@@ -144,7 +144,10 @@ public sealed class LibraryDigitalResourceService(
                    document.EntityType == EntityType && document.DocumentTypeCode == TypeCode &&
                    !book.IsDeleted && !file.IsDeleted && file.IsVerifiedSafe &&
                    file.MalwareScanStateCode == "Clean" &&
-                   file.Visibility == FileVisibility.Private && file.StorageProvider == "LocalPrivate"
+                   file.Visibility == FileVisibility.Private && file.StorageProvider == "LocalPrivate" &&
+                   !db.Documents.AsNoTracking().Any(other =>
+                       other.TenantId == Tenant && !other.IsDeleted &&
+                       other.FileAssetId == file.Id && other.Id != document.Id)
                select new LibraryDigitalRow { Document = document, Book = book, File = file };
     }
 
@@ -352,6 +355,11 @@ public sealed class LibraryDigitalResourceService(
         {
             return Fail<LibraryDigitalResourceDto>("Resource changed concurrently.", 409);
         }
+        catch (Exception ex) when (IsSqlRegistrationConflict(ex))
+        {
+            logger.LogWarning(ex, "Library digital write contention for tenant {TenantId}", Tenant);
+            return Fail<LibraryDigitalResourceDto>("Concurrent resource change. Reload and retry.", 409);
+        }
     }
 
     public async Task<ApiResponse<LibraryDigitalResourceDto>> RevokeAsync(
@@ -389,6 +397,11 @@ public sealed class LibraryDigitalResourceService(
         catch (DbUpdateConcurrencyException)
         {
             return Fail<LibraryDigitalResourceDto>("Resource changed concurrently.", 409);
+        }
+        catch (Exception ex) when (IsSqlRegistrationConflict(ex))
+        {
+            logger.LogWarning(ex, "Library digital write contention for tenant {TenantId}", Tenant);
+            return Fail<LibraryDigitalResourceDto>("Concurrent resource change. Reload and retry.", 409);
         }
     }
 
