@@ -104,6 +104,75 @@ public sealed class TransportVehicleCaseTests
             .SequenceEqual(new[] {"TenantId","CampusId"}));
     }
 
+
+    [Fact]
+    public async Task Safety_impact_is_tenant_scoped_and_open_cases_hold_reserved_vehicle()
+    {
+        await using var db = Context(101);
+        var vehicle = await SeedVehicle(db, 101);
+        var today = DateOnly.FromDateTime(TimeProvider.System.GetLocalNow().DateTime);
+        db.StudentTransports.Add(new StudentTransport
+        {
+            TenantId = 101, VehicleId = vehicle.Id, StudentId = 1,
+            StudentEnrollmentId = 1, RouteId = 1, ClientRequestId = Guid.NewGuid(),
+            StartDate = today, State = EduOS.Core.Enums.Domain.TransportAssignmentState.Active
+        });
+        db.TransportVehicleCases.Add(new TransportVehicleCase
+        {
+            TenantId = 101, VehicleId = vehicle.Id, CampusId = vehicle.CampusId!.Value,
+            VehicleNumberSnapshot = vehicle.VehicleNumber, ClientRequestId = Guid.NewGuid(),
+            OccurredOn = today, CaseType = "Incident", Severity = "High",
+            Summary = "Vehicle not cleared", State = "Open"
+        });
+        await db.SaveChangesAsync();
+        var admin = Service(db, new User(101, 42, "TenantAdmin"));
+        var impact = await admin.GetSafetyImpactAsync(today, null, null, true, 1, 25);
+        impact.Success.Should().BeTrue(impact.Message);
+        var row = impact.Data!.Items.Single();
+        row.ReservedRiders.Should().Be(1);
+        row.OpenCases.Should().Be(1);
+        row.HighSeverityCases.Should().Be(1);
+        row.SafetyState.Should().Be("SafetyHold");
+        var csv = await admin.ExportSafetyImpactCsvAsync(today, null, null, true);
+        csv.Data.Should().Contain("BUS-101");
+        csv.Data.Should().Contain("SafetyHold");
+        (await Service(db, new User(202, 42, "TenantAdmin"))
+            .GetSafetyImpactAsync(today, null, null, false, 1, 25))
+            .Data!.Items.Should().BeEmpty();
+        (await Service(db, new User(101, 99, "TransportManager"))
+            .GetSafetyImpactAsync(today, null, null, false, 1, 25))
+            .Data!.Items.Should().BeEmpty();
+        (await Service(db, new User(101, 42, "Student"))
+            .GetSafetyImpactAsync(today, null, null, false, 1, 25))
+            .StatusCode.Should().Be(403);
+        (await admin.GetSafetyImpactAsync(today.AddDays(91), null, null, false, 1, 25))
+            .StatusCode.Should().Be(400);
+    }
+
+    [Fact]
+    public async Task Safety_impact_retains_vehicle_hold_after_campus_case_mismatch_without_exposing_case_details()
+    {
+        await using var db = Context(101);
+        var vehicle = await SeedVehicle(db, 101);
+        var today = DateOnly.FromDateTime(TimeProvider.System.GetLocalNow().DateTime);
+        db.TransportVehicleCases.Add(new TransportVehicleCase
+        {
+            TenantId = 101, VehicleId = vehicle.Id, CampusId = vehicle.CampusId!.Value + 999,
+            VehicleNumberSnapshot = vehicle.VehicleNumber, ClientRequestId = Guid.NewGuid(),
+            OccurredOn = today, CaseType = "Maintenance", Severity = "Medium",
+            Summary = "Private old campus issue", State = "Open"
+        });
+        await db.SaveChangesAsync();
+        var impact = await Service(db, new User(101, 42, "TenantAdmin"))
+            .GetSafetyImpactAsync(today, null, null, true, 1, 25);
+        var row = impact.Data!.Items.Single();
+        row.CrossCampusCaseHold.Should().BeTrue();
+        row.SafetyState.Should().Be("SafetyHold");
+        var csv = await Service(db, new User(101, 42, "TenantAdmin"))
+            .ExportSafetyImpactCsvAsync(today, null, null, true);
+        csv.Data.Should().NotContain("Private old campus issue");
+    }
+
     private static CreateTransportVehicleCaseRequestDto NewCase(Guid vehicle) => new()
     {
         ClientRequestId = Guid.NewGuid(), VehicleReference = vehicle,

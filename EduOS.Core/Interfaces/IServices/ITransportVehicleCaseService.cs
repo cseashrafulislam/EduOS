@@ -5,6 +5,12 @@ namespace EduOS.Core.Interfaces.IServices;
 
 public interface ITransportVehicleCaseService
 {
+    Task<ApiResponse<PagedResult<TransportVehicleSafetyImpactRowDto>>> GetSafetyImpactAsync(
+        DateOnly operatingDate, long? campusId, string? search, bool attentionOnly,
+        int page, int pageSize, CancellationToken ct = default);
+    Task<ApiResponse<string>> ExportSafetyImpactCsvAsync(
+        DateOnly operatingDate, long? campusId, string? search, bool attentionOnly,
+        CancellationToken ct = default);
     Task<ApiResponse<PagedResult<TransportVehicleCaseRowDto>>> GetAsync(
         long? campusId, string? state, string? search, int page, int pageSize,
         CancellationToken ct = default);

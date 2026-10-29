@@ -56,4 +56,29 @@ public sealed class TransportVehicleCasesController : ControllerBase
         return File(Encoding.UTF8.GetBytes(result.Data), "text/csv; charset=utf-8",
             "transport-vehicle-cases.csv");
     }
+
+    [HttpGet("safety-impact")]
+    public async Task<IActionResult> SafetyImpact([FromQuery] DateOnly operatingDate,
+        [FromQuery] long? campusId = null, [FromQuery] string? search = null,
+        [FromQuery] bool attentionOnly = true, [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 25, CancellationToken ct = default)
+    {
+        var result = await _service.GetSafetyImpactAsync(
+            operatingDate, campusId, search, attentionOnly, page, pageSize, ct);
+        return StatusCode(result.StatusCode, result);
+    }
+
+    [HttpGet("safety-impact/export")]
+    public async Task<IActionResult> SafetyImpactExport([FromQuery] DateOnly operatingDate,
+        [FromQuery] long? campusId = null, [FromQuery] string? search = null,
+        [FromQuery] bool attentionOnly = true, CancellationToken ct = default)
+    {
+        var result = await _service.ExportSafetyImpactCsvAsync(
+            operatingDate, campusId, search, attentionOnly, ct);
+        if (!result.Success || result.Data == null) return StatusCode(result.StatusCode, result);
+        Response.Headers["X-Content-Type-Options"] = "nosniff";
+        return File(Encoding.UTF8.GetBytes(result.Data), "text/csv; charset=utf-8",
+            "transport-vehicle-safety-impact.csv");
+    }
+
 }

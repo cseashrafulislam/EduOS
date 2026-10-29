@@ -1,0 +1,34 @@
+<section class="card mb-3" id="transportSafetyImpactPanel" aria-labelledby="transportSafetyImpactTitle">
+    <div class="card-body">
+        <header class="d-flex align-items-center gap-2 mb-3">
+            <h3 class="h5 mb-0" id="transportSafetyImpactTitle">Vehicle safety impact / গাড়ির নিরাপত্তা প্রভাব</h3>
+            <details><summary class="btn btn-outline-secondary btn-sm" aria-label="Safety impact help / সহায়তা">i</summary>
+                <div class="small mt-2">Choose an operating date to see unresolved vehicle cases and affected reserved seats. This is not a dispatch clearance or attendance record.</div>
+            </details>
+        </header>
+        <form id="transportSafetyImpactFilters" class="row g-2 mb-3">
+            <div class="col-md-3"><label class="form-label" for="transportSafetyImpactDate">Operating date / তারিখ</label>
+                <input class="form-control" id="transportSafetyImpactDate" type="date" required /></div>
+            <div class="col-md-4"><label class="form-label" for="transportSafetyImpactSearch">Vehicle or campus / গাড়ি বা ক্যাম্পাস</label>
+                <input class="form-control" id="transportSafetyImpactSearch" type="search" maxlength="100" /></div>
+            <div class="col-md-2 d-flex align-items-end"><label class="form-check">
+                <input id="transportSafetyImpactAttention" type="checkbox" class="form-check-input" checked />
+                <span class="form-check-label">Attention only / সতর্কতা</span></label></div>
+            <div class="col-md-3 d-flex align-items-end gap-2">
+                <button type="submit" class="btn btn-primary btn-sm">Apply</button>
+                <button type="button" id="transportSafetyImpactExport" class="btn btn-outline-secondary btn-sm" disabled>CSV</button>
+                <button type="button" id="transportSafetyImpactPrint" class="btn btn-outline-secondary btn-sm" disabled>Print</button>
+            </div>
+        </form>
+        <div id="transportSafetyImpactStatus" role="status" aria-live="polite" class="small text-muted mb-2"></div>
+        <div class="table-responsive"><table class="table table-sm table-hover align-middle">
+            <thead><tr><th>Campus</th><th>Vehicle</th><th>Reserved</th><th>Capacity</th><th>Open cases</th><th>High</th><th>Other-campus hold</th><th>Safety state</th></tr></thead>
+            <tbody id="transportSafetyImpactRows"></tbody>
+        </table></div>
+        <div class="d-flex justify-content-between align-items-center">
+            <button type="button" id="transportSafetyImpactPrev" class="btn btn-outline-secondary btn-sm" disabled>Previous</button>
+            <span id="transportSafetyImpactPage" class="small text-muted"></span>
+            <button type="button" id="transportSafetyImpactNext" class="btn btn-outline-secondary btn-sm" disabled>Next</button>
+        </div>
+    </div>
+</section>

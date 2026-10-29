@@ -252,4 +252,131 @@ public sealed class TransportVehicleCaseService : ITransportVehicleCaseService
         if (text.Length > 0 && (text[0] is '=' or '+' or '-' or '@' or '\t')) text = "'" + text;
         return "\"" + text.Replace("\"", "\"\"") + "\"";
     }
+
+    /// <summary>
+    /// Campus-authorized fleet impact of unresolved safety cases and active seat reservations.
+    /// Historical cases from another campus still hold the same physical vehicle without
+    /// disclosing the former campus or case narrative to the current campus operator.
+    /// This is a safety worklist, never dispatch authorization.
+    /// </summary>
+    private IQueryable<TransportVehicleSafetyImpactRowDto> SafetyImpactQuery(
+        DateOnly operatingDate, long? campusId, string? search, bool attentionOnly)
+    {
+        var tenant = _user.TenantId;
+        var allowed = AllowedCampuses();
+        var query =
+            from vehicle in _db.Vehicles.AsNoTracking()
+            join campus in _db.Campuses.AsNoTracking() on vehicle.CampusId equals (long?)campus.Id
+            where vehicle.TenantId == tenant && !vehicle.IsDeleted &&
+                  campus.TenantId == tenant && !campus.IsDeleted &&
+                  (_user.IsTenantAdmin || allowed.Contains(campus.Id)) &&
+                  (!campusId.HasValue || campus.Id == campusId.Value)
+            select new TransportVehicleSafetyImpactRowDto
+            {
+                VehicleReference = vehicle.PublicId,
+                CampusId = campus.Id,
+                CampusName = campus.Name,
+                VehicleNumber = vehicle.VehicleNumber,
+                OperatingDate = operatingDate,
+                Capacity = vehicle.Capacity,
+                VehicleActive = vehicle.IsActive && campus.IsActive,
+                ReservedRiders = _db.StudentTransports.AsNoTracking().Count(rider =>
+                    rider.TenantId == tenant && !rider.IsDeleted &&
+                    rider.VehicleId == vehicle.Id &&
+                    rider.State == EduOS.Core.Enums.Domain.TransportAssignmentState.Active &&
+                    rider.StartDate <= operatingDate &&
+                    (!rider.EndDate.HasValue || rider.EndDate.Value >= operatingDate)),
+                OpenCases = _db.TransportVehicleCases.AsNoTracking().Count(item =>
+                    item.TenantId == tenant && !item.IsDeleted &&
+                    item.VehicleId == vehicle.Id && item.State == "Open" &&
+                    item.OccurredOn <= operatingDate),
+                HighSeverityCases = _db.TransportVehicleCases.AsNoTracking().Count(item =>
+                    item.TenantId == tenant && !item.IsDeleted &&
+                    item.VehicleId == vehicle.Id && item.State == "Open" &&
+                    item.Severity == "High" && item.OccurredOn <= operatingDate),
+                CrossCampusCaseHold = _db.TransportVehicleCases.AsNoTracking().Any(item =>
+                    item.TenantId == tenant && !item.IsDeleted &&
+                    item.VehicleId == vehicle.Id && item.State == "Open" &&
+                    item.CampusId != campus.Id && item.OccurredOn <= operatingDate)
+            };
+        var term = search?.Trim();
+        if (!string.IsNullOrEmpty(term))
+            query = query.Where(x => x.VehicleNumber.Contains(term) || x.CampusName.Contains(term));
+        if (attentionOnly)
+            query = query.Where(x => x.OpenCases > 0 || !x.VehicleActive ||
+                x.Capacity <= 0 || x.ReservedRiders > x.Capacity);
+        return query;
+    }
+
+    private static void ClassifySafetyImpact(TransportVehicleSafetyImpactRowDto row)
+    {
+        row.SafetyState = row.OpenCases > 0 ? "SafetyHold" :
+            !row.VehicleActive ? "InactiveVehicle" :
+            row.Capacity <= 0 || row.ReservedRiders > row.Capacity ? "CapacityReview" :
+            "NoOpenCases";
+    }
+
+    private ApiResponse<string>? ValidateSafetyImpact(
+        DateOnly date, long? campusId, string? search, int page, int pageSize)
+    {
+        if (!CanManage) return ApiResponse<string>.ErrorResponse("Transport permission required.", 403);
+        var today = DateOnly.FromDateTime(_clock.GetLocalNow().DateTime);
+        if (date < today || date > today.AddDays(90) || campusId is <= 0 ||
+            search?.Trim().Length > 100 || page < 1 || pageSize is < 1 or > 100 ||
+            (long)(page - 1) * pageSize > int.MaxValue)
+            return ApiResponse<string>.ErrorResponse("Invalid date, campus, search or paging.");
+        return null;
+    }
+
+    public async Task<ApiResponse<PagedResult<TransportVehicleSafetyImpactRowDto>>> GetSafetyImpactAsync(
+        DateOnly operatingDate, long? campusId, string? search, bool attentionOnly,
+        int page, int pageSize, CancellationToken ct = default)
+    {
+        var invalid = ValidateSafetyImpact(operatingDate, campusId, search, page, pageSize);
+        if (invalid != null)
+            return ApiResponse<PagedResult<TransportVehicleSafetyImpactRowDto>>.ErrorResponse(
+                invalid.Message, invalid.StatusCode);
+        var query = SafetyImpactQuery(operatingDate, campusId, search, attentionOnly);
+        var count = await query.CountAsync(ct);
+        var rows = await query.OrderBy(x => x.CampusName).ThenBy(x => x.VehicleNumber)
+            .ThenBy(x => x.VehicleReference).Skip((page - 1) * pageSize)
+            .Take(pageSize).ToListAsync(ct);
+        rows.ForEach(ClassifySafetyImpact);
+        return ApiResponse<PagedResult<TransportVehicleSafetyImpactRowDto>>.SuccessResponse(
+            new PagedResult<TransportVehicleSafetyImpactRowDto>
+            {
+                Items = rows, TotalCount = count, Page = page, PageSize = pageSize
+            });
+    }
+
+    public async Task<ApiResponse<string>> ExportSafetyImpactCsvAsync(
+        DateOnly operatingDate, long? campusId, string? search, bool attentionOnly,
+        CancellationToken ct = default)
+    {
+        var invalid = ValidateSafetyImpact(operatingDate, campusId, search, 1, 100);
+        if (invalid != null) return invalid;
+        // One authorized bounded SQL query avoids cross-page drift and silent truncation.
+        var rows = await SafetyImpactQuery(operatingDate, campusId, search, attentionOnly)
+            .OrderBy(x => x.CampusName).ThenBy(x => x.VehicleNumber)
+            .ThenBy(x => x.VehicleReference).Take(501).ToListAsync(ct);
+        if (rows.Count > 500)
+            return ApiResponse<string>.ErrorResponse(
+                "More than 500 vehicles. Narrow campus or search.", 413);
+        if (rows.Select(x => x.VehicleReference).Distinct().Count() != rows.Count)
+            return ApiResponse<string>.ErrorResponse("Duplicate fleet evidence. Retry.", 409);
+        var csv = new StringBuilder("\uFEFFDate,Campus,Vehicle,Capacity,Reserved Riders,Open Cases,High Severity,Cross-campus Safety Hold,Vehicle Active,Safety State\r\n");
+        foreach (var row in rows)
+        {
+            ClassifySafetyImpact(row);
+            csv.Append(operatingDate.ToString("yyyy-MM-dd")).Append(',')
+                .Append(Cell(row.CampusName)).Append(',').Append(Cell(row.VehicleNumber)).Append(',')
+                .Append(row.Capacity).Append(',').Append(row.ReservedRiders).Append(',')
+                .Append(row.OpenCases).Append(',').Append(row.HighSeverityCases).Append(',')
+                .Append(row.CrossCampusCaseHold ? "Yes" : "No").Append(',')
+                .Append(row.VehicleActive ? "Yes" : "No").Append(',')
+                .Append(Cell(row.SafetyState)).Append("\r\n");
+        }
+        return ApiResponse<string>.SuccessResponse(csv.ToString());
+    }
+
 }
