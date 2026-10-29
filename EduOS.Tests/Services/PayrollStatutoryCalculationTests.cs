@@ -56,7 +56,7 @@ public sealed class PayrollStatutoryCalculationTests
     [InlineData("OTHER", "Auto", null, 10, 0, false)]
     [InlineData("STAT_TAX", "Manual", null, 10, 0, false)]
     [InlineData("STAT_TAX", "Manual", null, null, 100, true)]
-    [InlineData("STAT_PF", "Auto", 1, 10, 0, true)]
+    [InlineData("STAT_PF", "Auto", 1L, 10, 0, true)]
     [InlineData("STAT_TAX", "Auto", null, 0, 0, true)]
     public void Invalid_or_valid_configuration_is_enforced(string code, string method,
         long? basedOn, int? rate, int amount, bool expected)
