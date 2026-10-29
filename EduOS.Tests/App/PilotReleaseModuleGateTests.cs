@@ -31,6 +31,7 @@ public sealed class PilotReleaseModuleGateTests
     [InlineData("ATTENDANCE")]
     [InlineData("EXAM")]
     [InlineData("FINANCE")]
+    [InlineData("HR")]
     public async Task Pilot_mode_keeps_core_module_entitlement_checks(string module)
     {
         var service = new Mock<ITenantModuleService>();
