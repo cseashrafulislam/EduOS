@@ -96,6 +96,74 @@ public sealed class LmsHistoricalCourseAccessTests
     }
 
     [Fact]
+    public async Task Archived_lesson_progress_uses_only_the_historically_authorized_enrollment()
+    {
+        await using var db = Db();
+        var (course, _, original) = await Seed(db);
+        var lesson = await db.Set<Lesson>().SingleAsync(x => x.IsPublished);
+        var unrelatedAttempt = new CourseEnrollment
+        {
+            TenantId = 101, CourseId = course.Id, StudentId = original.StudentId,
+            StudentEnrollmentId = null, ClientRequestId = Guid.NewGuid(),
+            State = CourseEnrollmentState.Completed,
+            EnrolledAt = DateTime.UtcNow.AddDays(-2),
+            CompletedAt = DateTime.UtcNow.AddDays(-1)
+        };
+        db.Add(unrelatedAttempt);
+        await db.SaveChangesAsync();
+        db.AddRange(
+            new LessonProgress { TenantId = 101, CourseEnrollmentId = original.Id,
+                LessonId = lesson.Id, IsCompleted = true, ProgressPercent = 100 },
+            new LessonProgress { TenantId = 101, CourseEnrollmentId = unrelatedAttempt.Id,
+                LessonId = lesson.Id, IsCompleted = false, ProgressPercent = 20 });
+        await db.SaveChangesAsync();
+
+        var result = await Service(db).GetMyLessonProgressAsync(course.PublicId, 1, 20);
+        Assert.True(result.Success, result.Message);
+        var progress = Assert.Single(result.Data!.Items);
+        Assert.Equal(original.Id, progress.CourseEnrollmentId);
+        Assert.Equal(100m, progress.ProgressPercent);
+        Assert.True(progress.IsCompleted);
+    }
+
+    [Fact]
+    public async Task Archived_course_discovery_remains_server_paged_with_many_valid_enrollments()
+    {
+        await using var db = Db();
+        var (_, academic, original) = await Seed(db);
+        var courses = Enumerable.Range(0, 55).Select(i => new Course
+        {
+            TenantId = 101, Code = "ARCH-" + i, Title = "Archived " + i.ToString("D3"),
+            IsActive = false, AcademicProgramId = academic.AcademicProgramId
+        }).ToArray();
+        db.AddRange(courses);
+        await db.SaveChangesAsync();
+        db.AddRange(courses.Select(course => new CourseEnrollment
+        {
+            TenantId = 101, CourseId = course.Id, StudentId = original.StudentId,
+            StudentEnrollmentId = academic.Id, ClientRequestId = Guid.NewGuid(),
+            State = CourseEnrollmentState.Completed,
+            EnrolledAt = new DateTime(2024, 2, 2, 0, 0, 0, DateTimeKind.Utc),
+            CompletedAt = new DateTime(2024, 12, 15, 0, 0, 0, DateTimeKind.Utc)
+        }));
+        await db.SaveChangesAsync();
+
+        var service = Service(db);
+        var first = await service.GetMyCoursesAsync(1, 20, default, true);
+        var second = await service.GetMyCoursesAsync(2, 20, default, true);
+        var third = await service.GetMyCoursesAsync(3, 20, default, true);
+        Assert.True(first.Success, first.Message);
+        Assert.True(second.Success, second.Message);
+        Assert.True(third.Success, third.Message);
+        Assert.Equal(56, first.Data!.TotalCount);
+        Assert.Equal(20, first.Data.Items.Count);
+        Assert.Equal(20, second.Data!.Items.Count);
+        Assert.Equal(16, third.Data!.Items.Count);
+        Assert.Equal(56, first.Data.Items.Concat(second.Data.Items).Concat(third.Data.Items)
+            .Select(x => x.Reference).Distinct().Count());
+    }
+
+    [Fact]
     public async Task Historical_access_fails_closed_when_optional_academic_repositories_are_missing()
     {
         await using var db = Db();

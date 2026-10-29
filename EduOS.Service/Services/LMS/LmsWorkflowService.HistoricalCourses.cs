@@ -1,4 +1,5 @@
 using EduOS.Core.Entities.Academic;
+using EduOS.Core.Entities.LMS;
 using EduOS.Core.Enums.Domain;
 using Microsoft.EntityFrameworkCore;
 
@@ -9,15 +10,15 @@ public sealed partial class LmsWorkflowService
     // Archived courses are never discoverable from a bare course-enrollment record.
     // Require the original linked academic enrollment, matching campus/batch/year,
     // curriculum effective on the enrollment date, and a completed LMS enrollment.
-    private async Task<long[]> HistoricalCourseIdsAsync(long studentId, CancellationToken ct)
-    {
-        var query = HistoricalCourseIdsQuery(studentId);
-        return query == null ? Array.Empty<long>() : await query.ToArrayAsync(ct);
-    }
+    // Reuse the exact same historical authorization predicate for course discovery,
+    // direct-ID reads and enrollment-specific progress. No unbounded ID materialization.
+    private IQueryable<long>? HistoricalCourseIdsQuery(long studentId) =>
+        HistoricalCourseEnrollmentsQuery(studentId)?.Select(x => x.CourseId).Distinct();
 
-    // Reuse the historical-access predicate as a correlated SQL subquery in
-    // paged learner reports; never materialize every archived course ID.
-    private IQueryable<long>? HistoricalCourseIdsQuery(long studentId)
+    private IQueryable<long>? HistoricalCourseEnrollmentIdsQuery(long studentId) =>
+        HistoricalCourseEnrollmentsQuery(studentId)?.Select(x => x.Id).Distinct();
+
+    private IQueryable<CourseEnrollment>? HistoricalCourseEnrollmentsQuery(long studentId)
     {
         if (studentId <= 0 || _submissionBatches == null || _submissionYears == null ||
             _submissionCurricula == null || _submissionTerms == null)
@@ -76,7 +77,7 @@ public sealed partial class LmsWorkflowService
                     subject.AcademicCurriculumId == curriculum.Id &&
                     subject.AcademicLevelId == academic.AcademicLevelId &&
                     subject.SubjectId == course.SubjectId.Value))
-            select course.Id;
-        return query.Distinct();
+            select enrollment;
+        return query;
     }
 }

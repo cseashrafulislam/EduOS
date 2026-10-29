@@ -389,10 +389,14 @@ public sealed partial class LmsWorkflowService : ILmsWorkflowService
                     x.TenantId == _user.TenantId && x.StudentId == studentId && !x.IsDeleted &&
                     (x.State == CourseEnrollmentState.Active || x.State == CourseEnrollmentState.Completed))
                     .Select(x => x.CourseId);
-                var archivedIds = includeArchived
-                    ? await HistoricalCourseIdsAsync(studentId, ct) : Array.Empty<long>();
-                q = q.Where(x => (x.IsActive && ids.Contains(x.Id)) ||
-                    (!x.IsActive && archivedIds.Contains(x.Id)));
+                // Keep the historical authorization predicate in SQL. Loading every archived
+                // course ID would make a small paged list grow with the student's history.
+                var archivedIds = includeArchived ? HistoricalCourseIdsQuery(studentId) : null;
+                if (archivedIds == null)
+                    q = q.Where(x => x.IsActive && ids.Contains(x.Id));
+                else
+                    q = q.Where(x => (x.IsActive && ids.Contains(x.Id)) ||
+                        (!x.IsActive && archivedIds.Contains(x.Id)));
             }
             else if (_user.IsInRole("Teacher"))
             {
@@ -721,7 +725,10 @@ public sealed partial class LmsWorkflowService : ILmsWorkflowService
         var id = await OwnStudentIdAsync(ct);
         if (id <= 0) return false;
         if (!course.IsActive)
-            return (await HistoricalCourseIdsAsync(id, ct)).Contains(course.Id);
+        {
+            var historicalIds = HistoricalCourseIdsQuery(id);
+            return historicalIds != null && await historicalIds.AnyAsync(x => x == course.Id, ct);
+        }
         return await _enrollments.GetQueryable().AsNoTracking().AnyAsync(x =>
             x.TenantId == _user.TenantId && x.CourseId == course.Id && x.StudentId == id &&
             !x.IsDeleted &&

@@ -156,11 +156,21 @@ public sealed partial class LmsWorkflowService
             x.TenantId == tenant && x.PublicId == courseReference && !x.IsDeleted, ct);
         if (course == null || !await CanViewAsync(course, ct))
             return Error<PagedResult<LessonProgressDto>>("Course not found.", 404);
-        var enrollment = await _enrollments.GetQueryable().AsNoTracking()
+        var eligibleEnrollments = _enrollments.GetQueryable().AsNoTracking()
             .Where(x => x.TenantId == tenant && x.CourseId == course.Id &&
                         x.StudentId == studentId && !x.IsDeleted &&
-                        (x.State == CourseEnrollmentState.Active || x.State == CourseEnrollmentState.Completed) &&
-                        (course.IsActive || x.State == CourseEnrollmentState.Completed))
+                        (x.State == CourseEnrollmentState.Active || x.State == CourseEnrollmentState.Completed));
+        if (!course.IsActive)
+        {
+            // A second, later enrollment without a valid original academic link must not
+            // replace the historically authorized completed enrollment's progress.
+            var historicalEnrollmentIds = HistoricalCourseEnrollmentIdsQuery(studentId);
+            if (historicalEnrollmentIds == null)
+                return Error<PagedResult<LessonProgressDto>>("Course not found.", 404);
+            eligibleEnrollments = eligibleEnrollments.Where(x =>
+                x.State == CourseEnrollmentState.Completed && historicalEnrollmentIds.Contains(x.Id));
+        }
+        var enrollment = await eligibleEnrollments
             .OrderByDescending(x => x.EnrolledAt).ThenByDescending(x => x.Id)
             .Select(x => x.Id).FirstOrDefaultAsync(ct);
         if (enrollment == 0) return Error<PagedResult<LessonProgressDto>>("Course not found.", 404);
