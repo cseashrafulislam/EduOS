@@ -132,6 +132,11 @@ public sealed class LmsCertificateGuardianService(
             }, IsolationLevel.Serializable, ct);
         }
         catch (DbUpdateConcurrencyException) { return ApiResponse<LmsCertificateGuardianGrantDto>.ErrorResponse("Consent changed concurrently.", 409); }
+        catch (Microsoft.Data.SqlClient.SqlException ex) when (ex.Number is 1205 or 1222 or 3960 or 2601 or 2627)
+        {
+            logger.LogWarning(ex, "LMS guardian consent SQL race tenant {TenantId}", user.TenantId);
+            return ApiResponse<LmsCertificateGuardianGrantDto>.ErrorResponse("Concurrent consent change. Retry.", 409);
+        }
         catch (DbUpdateException ex)
         {
             logger.LogWarning(ex, "LMS guardian certificate grant conflict tenant {TenantId}", user.TenantId);
@@ -179,6 +184,11 @@ public sealed class LmsCertificateGuardianService(
             }, IsolationLevel.Serializable, ct);
         }
         catch (DbUpdateConcurrencyException) { return ApiResponse<LmsCertificateGuardianGrantDto>.ErrorResponse("Consent changed concurrently.", 409); }
+        catch (Microsoft.Data.SqlClient.SqlException ex) when (ex.Number is 1205 or 1222 or 3960 or 2601 or 2627)
+        {
+            logger.LogWarning(ex, "LMS guardian consent SQL race tenant {TenantId}", user.TenantId);
+            return ApiResponse<LmsCertificateGuardianGrantDto>.ErrorResponse("Concurrent consent change. Retry.", 409);
+        }
         catch (DbUpdateException ex)
         {
             logger.LogWarning(ex, "LMS guardian certificate revoke conflict tenant {TenantId}", user.TenantId);
@@ -212,8 +222,9 @@ public sealed class LmsCertificateGuardianService(
         var total = await query.CountAsync(ct);
         var rows = await query.OrderByDescending(x => x.IssuedAt).ThenByDescending(x => x.Id)
             .Skip((page - 1) * pageSize).Take(pageSize).ToListAsync(ct);
+        var courseIds = rows.Select(x => x.CourseId).Distinct().ToArray();
         var courses = await db.Courses.AsNoTracking().Where(x => x.TenantId == user.TenantId &&
-            rows.Select(r => r.CourseId).Contains(x.Id)).Select(x => new { x.Id, x.PublicId })
+            courseIds.Contains(x.Id)).Select(x => new { x.Id, x.PublicId })
             .ToDictionaryAsync(x => x.Id, x => x.PublicId, ct);
         return ApiResponse<PagedResult<LmsCertificateDto>>.SuccessResponse(new PagedResult<LmsCertificateDto>
         {
