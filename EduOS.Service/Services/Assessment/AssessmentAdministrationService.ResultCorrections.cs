@@ -210,6 +210,27 @@ public sealed partial class AssessmentAdministrationService
                     x.TenantId == tenant && x.Id == scope.Publication.AssessmentId && !x.IsDeleted, token);
                 if (assessment == null || assessment.State != AssessmentState.Locked)
                     return Error<ResultCorrectionDto>("Assessment is no longer locked.", 409);
+                if (assessment.CountsTowardCgpa && await (
+                    from otherSummary in _summaries.GetQueryable().AsNoTracking()
+                    join laterPublication in _publications.GetQueryable().AsNoTracking()
+                        on new { otherSummary.TenantId, Id = otherSummary.ResultPublicationId }
+                        equals new { laterPublication.TenantId, laterPublication.Id }
+                    join laterAssessment in _assessments.GetQueryable().AsNoTracking()
+                        on new { laterPublication.TenantId, Id = laterPublication.AssessmentId }
+                        equals new { laterAssessment.TenantId, laterAssessment.Id }
+                    join laterEnrollment in _enrollments.GetQueryable().AsNoTracking()
+                        on new { otherSummary.TenantId, Id = otherSummary.StudentEnrollmentId }
+                        equals new { laterEnrollment.TenantId, laterEnrollment.Id }
+                    where otherSummary.TenantId == tenant && !otherSummary.IsDeleted &&
+                        !laterPublication.IsDeleted && !laterAssessment.IsDeleted &&
+                        !laterEnrollment.IsDeleted && laterEnrollment.StudentId == enrollment.StudentId &&
+                        laterAssessment.Id != assessment.Id && laterAssessment.CountsTowardCgpa &&
+                        laterAssessment.StartDate > assessment.EndDate &&
+                        laterAssessment.CampusId == assessment.CampusId &&
+                        laterPublication.State == ResultPublicationState.Published
+                    select otherSummary.Id).AnyAsync(token))
+                    return Error<ResultCorrectionDto>(
+                        "Later cumulative publications depend on this result; use a controlled downstream amendment.", 409);
                 if (assessment.GradeSchemeId.HasValue)
                     schemeIds = schemeIds.Append(assessment.GradeSchemeId.Value).Distinct().ToArray();
                 var gradeRules = await _grades.GetQueryable().AsNoTracking().Where(x =>
@@ -303,6 +324,9 @@ public sealed partial class AssessmentAdministrationService
                 var recomputed = await CalculateAsync(assessment, batch, token);
                 if (recomputed.Error != null || recomputed.Sheet == null)
                     throw new ResultCorrectionRollbackException(recomputed.Error ?? "Recalculation failed.");
+                if (!CanCaptureCourseSnapshots(recomputed.Sheet) ||
+                    (_courseSnapshots == null && recomputed.Sheet.Results.Any(x => x.CreditHours.HasValue)))
+                    throw new ResultCorrectionRollbackException("Course grade snapshot storage requires reconciliation.");
                 var priorSummaries = await _summaries.GetQueryable().AsNoTracking().Where(x =>
                     x.TenantId == tenant && x.ResultPublicationId == oldPublication.Id && !x.IsDeleted)
                     .ToListAsync(token);
@@ -331,6 +355,9 @@ public sealed partial class AssessmentAdministrationService
                         prior.ObtainedMarks != result.TotalMarks ||
                         prior.Percentage != result.Percentage ||
                         prior.GPA != result.GradePointAverage ||
+                        prior.CGPA != result.CumulativeGradePointAverage ||
+                        prior.CreditHours != result.CreditHours ||
+                        (prior.CourseCount.HasValue && prior.CourseCount != result.Courses.Count) ||
                         prior.GradeLetter != result.GradeLetter ||
                         prior.IsPassed != result.IsPassed || prior.IsWithheld != result.IsWithheld;
                 }))
@@ -349,6 +376,7 @@ public sealed partial class AssessmentAdministrationService
                     AcademicBatchId = oldPublication.AcademicBatchId, VersionNo = version,
                     State = ResultPublicationState.Published,
                     PublishedAt = now, PublishedByUserId = _user.UserId,
+                    HasCourseGradeSnapshots = _courseSnapshots != null,
                     VisibleToStudent = scope.Publication.VisibleToStudent,
                     VisibleToGuardian = scope.Publication.VisibleToGuardian,
                     PublishNote = "Audited re-scrutiny correction " + caseReference.ToString("D"),
@@ -365,11 +393,15 @@ public sealed partial class AssessmentAdministrationService
                         PublicationVersionNo = version,
                         TotalMarks = result.MaximumMarks, ObtainedMarks = result.TotalMarks,
                         Percentage = result.Percentage, GPA = result.GradePointAverage,
+                        CGPA = result.CumulativeGradePointAverage, CreditHours = result.CreditHours,
+                        CourseCount = _courseSnapshots != null ? result.Courses.Count : null,
                         GradeLetter = result.GradeLetter,
                         MeritPosition = result.MeritPosition, IsPassed = result.IsPassed,
                         IsWithheld = result.IsWithheld, CalculatedAt = now,
                         CreatedAt = now, CreatedBy = _user.UserId
                     });
+                await CaptureCourseSnapshotsAsync(replacement, recomputed.Sheet,
+                    enrollmentByRoll, now, token);
                 var correction = new ResultCorrectionEvent
                 {
                     TenantId = tenant, CaseReference = caseReference,

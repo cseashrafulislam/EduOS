@@ -13,6 +13,9 @@ public class Assessment : BaseTenantEntity
     [Required, MaxLength(150)] public string Name { get; set; } = string.Empty;
     [Required, MaxLength(50)] public string Code { get; set; } = string.Empty;
     public AssessmentKind Type { get; set; } = AssessmentKind.Exam;
+    // Explicitly marks a terminal course assessment for transcript credit;
+    // quizzes and practice marks never enter CGPA implicitly.
+    public bool CountsTowardCgpa { get; set; }
     public AssessmentState State { get; set; } = AssessmentState.Draft;
     public DateOnly StartDate { get; set; }
     public DateOnly EndDate { get; set; }
@@ -86,6 +89,7 @@ public class ResultPublication : BaseTenantEntity
     public long? PublishedByUserId { get; set; }
     public bool VisibleToStudent { get; set; } = true;
     public bool VisibleToGuardian { get; set; } = true;
+    public bool HasCourseGradeSnapshots { get; set; }
     [MaxLength(1000)] public string? PublishNote { get; set; }
 }
 
@@ -147,11 +151,35 @@ public class StudentResultSummary : BaseTenantEntity
     [Column(TypeName = "decimal(18,4)")] public decimal? Percentage { get; set; }
     [Column(TypeName = "decimal(18,4)")] public decimal? GPA { get; set; }
     [Column(TypeName = "decimal(18,4)")] public decimal? CGPA { get; set; }
+    [Column(TypeName = "decimal(18,2)")] public decimal? CreditHours { get; set; }
+    // Allows a publication read to detect a missing or extra immutable course row.
+    public int? CourseCount { get; set; }
     [MaxLength(20)] public string? GradeLetter { get; set; }
     public int? MeritPosition { get; set; }
     public bool IsPassed { get; set; }
     public bool IsWithheld { get; set; }
     public DateTime CalculatedAt { get; set; } = DateTime.UtcNow;
+}
+
+/// <summary>
+/// Immutable per-course evidence for a specific published version. Unlike the
+/// editable StudentAssessmentMark this survives marking-policy revisions.
+/// </summary>
+public sealed class StudentResultCourseSnapshot : BaseTenantEntity
+{
+    public long ResultPublicationId { get; set; }
+    public long StudentEnrollmentId { get; set; }
+    public long AssessmentSubjectId { get; set; }
+    public long CurriculumSubjectId { get; set; }
+    public long StudentSubjectRegistrationId { get; set; }
+    [Column(TypeName = "decimal(18,2)")] public decimal FullMarks { get; set; }
+    [Column(TypeName = "decimal(18,2)")] public decimal ObtainedMarks { get; set; }
+    [Column(TypeName = "decimal(18,2)")] public decimal CreditHours { get; set; }
+    [Column(TypeName = "decimal(18,2)")] public decimal GradePoint { get; set; }
+    [Required, MaxLength(20)] public string GradeLetter { get; set; } = string.Empty;
+    public bool IsPassed { get; set; }
+    public bool IsWithheld { get; set; }
+    public bool IsAbsent { get; set; }
 }
 
 public class TranscriptIssue : BaseTenantEntity

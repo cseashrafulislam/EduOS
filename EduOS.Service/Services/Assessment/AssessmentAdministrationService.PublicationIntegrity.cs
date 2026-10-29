@@ -6,10 +6,11 @@ namespace EduOS.Service.Services.AssessmentAdministration;
 // All counts are SQL aggregates over a bounded set of publication IDs; no per-student materialization.
 public sealed partial class AssessmentAdministrationService
 {
-    private sealed record PublicationEvidence(int TotalCount, int ActiveCount, int ValidCount, int UniqueCount)
+    private sealed record PublicationEvidence(int TotalCount, int ActiveCount, int ValidCount, int UniqueCount,
+        bool CoursesReconciled)
     {
         public bool IsReconciled => AssessmentPublicationSnapshotIntegrity.IsReconciled(
-            TotalCount, ActiveCount, ValidCount, UniqueCount);
+            TotalCount, ActiveCount, ValidCount, UniqueCount) && CoursesReconciled;
     }
 
     private async Task<Dictionary<long, PublicationEvidence>> GetPublicationEvidenceAsync(
@@ -55,7 +56,9 @@ public sealed partial class AssessmentAdministrationService
             .Select(g => new { Id = g.Key, Count = g.Count() }).ToListAsync(ct);
         var v = validCounts.ToDictionary(x => x.Id, x => x.Count);
         var u = uniqueCounts.ToDictionary(x => x.Id, x => x.Count);
+        var courseProof = await ReconcileCourseSnapshotPublicationsAsync(publicationIds, ct);
         return all.ToDictionary(x => x.Id, x => new PublicationEvidence(
-            x.Total, x.Active, v.GetValueOrDefault(x.Id), u.GetValueOrDefault(x.Id)));
+            x.Total, x.Active, v.GetValueOrDefault(x.Id), u.GetValueOrDefault(x.Id),
+            courseProof.GetValueOrDefault(x.Id, true)));
     }
 }

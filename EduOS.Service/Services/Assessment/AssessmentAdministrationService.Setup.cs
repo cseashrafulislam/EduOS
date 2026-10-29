@@ -17,7 +17,9 @@ public sealed partial class AssessmentAdministrationService
             string.IsNullOrWhiteSpace(request.Name) || request.Name.Trim().Length > 150 ||
             string.IsNullOrWhiteSpace(request.Code) || request.Code.Trim().Length > 50 ||
             request.StartDate == default || request.EndDate < request.StartDate ||
-            request.Remarks?.Length > 1000 || !Enum.IsDefined(request.Type))
+            request.Remarks?.Length > 1000 || !Enum.IsDefined(request.Type) ||
+            request.CountsTowardCgpa && (request.Type != AssessmentKind.Exam ||
+                !request.GradeSchemeId.HasValue))
             return Error<AssessmentDto>("Invalid assessment name, scope, period or type.");
         return await WriteAsync("save assessment", async token =>
         {
@@ -43,6 +45,10 @@ public sealed partial class AssessmentAdministrationService
                 .AnyAsync(x => x.TenantId == tenant && x.Id == request.GradeSchemeId.Value &&
                     x.IsActive && !x.IsDeleted, token))
                 return Error<AssessmentDto>("Grade scheme not found.", 404);
+            if (request.CountsTowardCgpa && !await _gradeSchemes.GetQueryable().AsNoTracking()
+                .AnyAsync(x => x.TenantId == tenant && x.Id == request.GradeSchemeId &&
+                    x.UseCreditWeightedGpa && x.IsActive && !x.IsDeleted, token))
+                return Error<AssessmentDto>("Cumulative credit requires a credit-weighted grade scheme.", 409);
             var row = reference.HasValue ? await _assessments.GetQueryable().FirstOrDefaultAsync(x =>
                 x.TenantId == tenant && x.PublicId == reference && !x.IsDeleted, token) : null;
             if (reference.HasValue && row == null) return Error<AssessmentDto>("Assessment not found.", 404);
@@ -62,6 +68,7 @@ public sealed partial class AssessmentAdministrationService
                     existing.AcademicTermId != request.AcademicTermId || existing.GradeSchemeId != request.GradeSchemeId ||
                     existing.Name != request.Name.Trim() || existing.StartDate != request.StartDate ||
                     existing.EndDate != request.EndDate || existing.Type != request.Type ||
+                    existing.CountsTowardCgpa != request.CountsTowardCgpa ||
                     existing.Remarks != Trim(request.Remarks))
                     return Error<AssessmentDto>("Assessment code already belongs to another definition.", 409);
                 return ApiResponse<AssessmentDto>.SuccessResponse(await MapAssessmentAsync(existing, token),
@@ -85,6 +92,7 @@ public sealed partial class AssessmentAdministrationService
             row.CampusId = campus.Id; row.AcademicYearId = year.Id;
             row.AcademicTermId = request.AcademicTermId; row.GradeSchemeId = request.GradeSchemeId;
             row.Type = request.Type; row.StartDate = request.StartDate;
+            row.CountsTowardCgpa = request.CountsTowardCgpa;
             row.EndDate = request.EndDate; row.Remarks = Trim(request.Remarks);
             await _uow.SaveChangesAsync(token);
             return ApiResponse<AssessmentDto>.SuccessResponse(await MapAssessmentAsync(row, token),
@@ -443,6 +451,7 @@ public sealed partial class AssessmentAdministrationService
             AcademicYearName = yearName ?? string.Empty, AcademicTermId = row.AcademicTermId,
             AcademicTermName = termName, GradeSchemeId = row.GradeSchemeId, Name = row.Name, Code = row.Code,
             Type = row.Type, State = row.State, StartDate = row.StartDate, EndDate = row.EndDate,
+            CountsTowardCgpa = row.CountsTowardCgpa,
             Remarks = row.Remarks, RowVersion = Version(row.RowVersion), Subjects = mapped
         };
     }

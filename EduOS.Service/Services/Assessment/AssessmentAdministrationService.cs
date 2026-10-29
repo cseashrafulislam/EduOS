@@ -24,6 +24,7 @@ public sealed partial class AssessmentAdministrationService : IAssessmentAdminis
     private readonly IGenericRepository<AssessmentMarkReviewEvent> _markReviews;
     private readonly IGenericRepository<ResultRescrutinyEvent> _rescrutinyEvents;
     private readonly IGenericRepository<ResultCorrectionEvent>? _corrections;
+    private readonly IGenericRepository<StudentResultCourseSnapshot>? _courseSnapshots;
     private readonly IGenericRepository<AssessmentSchedule> _schedules;
     private readonly IGenericRepository<StudentAssessmentMark> _marks;
     private readonly IGenericRepository<ResultPublication> _publications;
@@ -79,11 +80,13 @@ public sealed partial class AssessmentAdministrationService : IAssessmentAdminis
         IGenericRepository<ResultRescrutinyEvent> rescrutinyEvents,
         IGenericRepository<Guardian>? rescrutinyGuardians = null,
         IGenericRepository<StudentGuardian>? rescrutinyStudentGuardians = null,
-        IGenericRepository<ResultCorrectionEvent>? corrections = null)
+        IGenericRepository<ResultCorrectionEvent>? corrections = null,
+        IGenericRepository<StudentResultCourseSnapshot>? courseSnapshots = null)
     {
         _assessments = assessments; _subjects = subjects; _markReviews = markReviews;
         _rescrutinyEvents = rescrutinyEvents;
         _corrections = corrections;
+        _courseSnapshots = courseSnapshots;
         _rescrutinyGuardians = rescrutinyGuardians;
         _rescrutinyStudentGuardians = rescrutinyStudentGuardians;
         _schedules = schedules;
@@ -434,6 +437,7 @@ public sealed partial class AssessmentAdministrationService : IAssessmentAdminis
                     StudentName = student.FullName, RollNo = enrollment.RollNo,
                     TotalMarks = row.ObtainedMarks, MaximumMarks = row.TotalMarks,
                     Percentage = row.Percentage ?? 0m, GradePointAverage = row.GPA,
+                    CumulativeGradePointAverage = row.CGPA, CreditHours = row.CreditHours,
                     GradeLetter = row.GradeLetter, MeritPosition = row.MeritPosition,
                     IsPassed = row.IsPassed, IsWithheld = row.IsWithheld
                 }).Take(5001).ToListAsync(ct);
@@ -494,6 +498,10 @@ public sealed partial class AssessmentAdministrationService : IAssessmentAdminis
                     return Error<ResultPublicationDto>("Assessment must be locked before publishing results.", 409);
                 var calculated = await CalculateAsync(exam, scope.Value.Batch, token);
                 if (calculated.Error != null) return Error<ResultPublicationDto>(calculated.Error, 409);
+                if (calculated.Sheet == null || !CanCaptureCourseSnapshots(calculated.Sheet))
+                    return Error<ResultPublicationDto>("Course-grade evidence exceeds the synchronous publication limit or is incomplete.", 409);
+                if (_courseSnapshots == null && calculated.Sheet.Results.Any(x => x.CreditHours.HasValue))
+                    return Error<ResultPublicationDto>("Credit-based result snapshot storage is not configured.", 503);
                 var prior = await _publications.GetQueryable().AsNoTracking().AnyAsync(x =>
                     x.TenantId == _user.TenantId && x.AssessmentId == exam.Id &&
                     x.AcademicBatchId == request.AcademicBatchId && !x.IsDeleted, token);
@@ -514,6 +522,7 @@ public sealed partial class AssessmentAdministrationService : IAssessmentAdminis
                     PublishedByUserId = _user.UserId,
                     VisibleToStudent = request.VisibleToStudent,
                     VisibleToGuardian = request.VisibleToGuardian,
+                    HasCourseGradeSnapshots = _courseSnapshots != null,
                     PublishNote = Trim(request.PublishNote),
                     CreatedAt = now, CreatedBy = _user.UserId
                 };
@@ -529,11 +538,16 @@ public sealed partial class AssessmentAdministrationService : IAssessmentAdminis
                         PublicationVersionNo = 1, TotalMarks = result.MaximumMarks,
                         ObtainedMarks = result.TotalMarks, Percentage = result.Percentage,
                         GPA = result.GradePointAverage, GradeLetter = result.GradeLetter,
+                        CGPA = result.CumulativeGradePointAverage,
+                        CreditHours = result.CreditHours,
+                        CourseCount = _courseSnapshots != null ? result.Courses.Count : null,
                         MeritPosition = result.MeritPosition, IsPassed = result.IsPassed,
                         IsWithheld = result.IsWithheld, CalculatedAt = now,
                         CreatedAt = now, CreatedBy = _user.UserId
                     });
                 }
+                await CaptureCourseSnapshotsAsync(publication, calculated.Sheet,
+                    enrolled.ToDictionary(x => x.Key, x => x.Value.Id), now, token);
                 await _uow.SaveChangesAsync(token);
                 return ApiResponse<ResultPublicationDto>.SuccessResponse(
                     MapPublication(publication, exam.PublicId, scope.Value.Batch.Name), "Results published.");
@@ -609,6 +623,16 @@ public sealed partial class AssessmentAdministrationService : IAssessmentAdminis
             x.TenantId == tenant && x.GradeSchemeId == scheme.Id && !x.IsDeleted)
             .OrderByDescending(x => x.MinMarks).ToListAsync(ct);
         if (grades.Count == 0) return (null, "Grade scheme has no grading rules.");
+        if (exam.CountsTowardCgpa && !scheme.UseCreditWeightedGpa)
+            return (null, "Cumulative GPA requires the assessment's credit-weighted grade scheme.");
+        var otherSchemeIds = subjectData.Where(x => x.sub.GradeSchemeId.HasValue &&
+            x.sub.GradeSchemeId != scheme.Id).Select(x => x.sub.GradeSchemeId!.Value)
+            .Distinct().ToArray();
+        var subjectGradeRules = await _grades.GetQueryable().AsNoTracking().Where(x =>
+            x.TenantId == tenant && otherSchemeIds.Contains(x.GradeSchemeId) && !x.IsDeleted)
+            .OrderByDescending(x => x.MinMarks).ToListAsync(ct);
+        var gradeSets = grades.Concat(subjectGradeRules).GroupBy(x => x.GradeSchemeId)
+            .ToDictionary(x => x.Key, x => x.ToArray());
         if (scheme.UseCreditWeightedGpa && (exam.GradeSchemeId != scheme.Id ||
             subjectData.Any(x => x.sub.GradeSchemeId.HasValue && x.sub.GradeSchemeId != scheme.Id)))
             return (null, "Credit-weighted GPA requires one consistent assessment grade scheme.");
@@ -618,6 +642,7 @@ public sealed partial class AssessmentAdministrationService : IAssessmentAdminis
             decimal total = 0, full = 0, weighted = 0, weightSum = 0;
             decimal creditPoints = 0, earnedCredits = 0;
             var withheld = false; var passed = true;
+            var courseOutcomes = new List<AssessmentResultCourseDto>();
             foreach (var subject in subjectData)
             {
                 var item = curriculumItems[subject.offering.CurriculumSubjectId];
@@ -642,26 +667,43 @@ public sealed partial class AssessmentAdministrationService : IAssessmentAdminis
                     details ?? Array.Empty<StudentAssessmentComponentMark>());
                 if (!componentCheck.IsReconciled)
                     return (null, "Component marks require reconciliation before publication.");
+                var selectedGradeScheme = subject.sub.GradeSchemeId ?? scheme.Id;
+                if (!gradeSets.TryGetValue(selectedGradeScheme, out var subjectGrades))
+                    return (null, "Course grading policy is missing.");
+                var subjectPercent = Round(100m * mark.ObtainedMarks / subject.sub.FullMarks);
+                var subjectGrade = subjectGrades.FirstOrDefault(x =>
+                    subjectPercent >= x.MinMarks && subjectPercent <= x.MaxMarks);
+                if (subjectGrade == null)
+                    return (null, "No grade rule matches an individual course percentage.");
+                var credits = registration!.CreditHoursSnapshot ?? item.CreditHours;
+                if (credits < 0 || credits > 100 || decimal.Round(credits, 2) != credits)
+                    return (null, "Configured course credit hours require reconciliation.");
                 passed &= componentCheck.MandatoryComponentsPassed;
                 full += subject.sub.FullMarks; total += mark.ObtainedMarks;
                 weighted += mark.ObtainedMarks / subject.sub.FullMarks * subject.sub.Weightage;
                 weightSum += subject.sub.Weightage;
                 withheld |= mark.IsWithheld;
                 passed &= !mark.IsAbsent && !mark.IsWithheld &&
-                    mark.ObtainedMarks >= subject.sub.PassMarks;
+                    mark.ObtainedMarks >= subject.sub.PassMarks && !subjectGrade.IsFailGrade;
+                courseOutcomes.Add(new AssessmentResultCourseDto
+                {
+                    AssessmentSubjectId = subject.sub.Id,
+                    CurriculumSubjectId = subject.offering.CurriculumSubjectId,
+                    StudentSubjectRegistrationId = registration.Id,
+                    FullMarks = subject.sub.FullMarks, ObtainedMarks = mark.ObtainedMarks,
+                    CreditHours = credits, GradeLetter = subjectGrade.GradeLetter,
+                    GradePoint = subjectGrade.GradePoint, IsAbsent = mark.IsAbsent,
+                    IsWithheld = mark.IsWithheld,
+                    IsPassed = componentCheck.MandatoryComponentsPassed && !mark.IsAbsent &&
+                        !mark.IsWithheld && mark.ObtainedMarks >= subject.sub.PassMarks &&
+                        !subjectGrade.IsFailGrade
+                });
                 if (scheme.UseCreditWeightedGpa)
                 {
-                    var credits = registration!.CreditHoursSnapshot ?? item.CreditHours;
-                    if (credits <= 0 || credits > 100 || decimal.Round(credits, 2) != credits)
+                    if (credits <= 0)
                         return (null, "Credit-weighted GPA requires valid positive credit hours for each included course.");
-                    var subjectPercent = Round(100m * mark.ObtainedMarks / subject.sub.FullMarks);
-                    var subjectGrade = grades.FirstOrDefault(x =>
-                        subjectPercent >= x.MinMarks && subjectPercent <= x.MaxMarks);
-                    if (subjectGrade == null)
-                        return (null, "No grade rule matches an individual course percentage.");
                     earnedCredits += credits;
                     creditPoints += credits * subjectGrade.GradePoint;
-                    passed &= !subjectGrade.IsFailGrade;
                 }
             }
             if (weightSum <= 0)
@@ -680,10 +722,16 @@ public sealed partial class AssessmentAdministrationService : IAssessmentAdminis
                 GradePointAverage = scheme.UseCreditWeightedGpa
                     ? decimal.Round(creditPoints / earnedCredits, 4, MidpointRounding.AwayFromZero)
                     : grade.GradePoint,
+                CreditHours = scheme.UseCreditWeightedGpa ? earnedCredits : null,
+                Courses = courseOutcomes,
                 GradeLetter = grade.GradeLetter,
                 IsPassed = passed && !grade.IsFailGrade, IsWithheld = withheld
             });
         }
+        var cumulativeError = await ApplyCumulativeGradePointsAsync(exam, batch,
+            enrollments.Select(x => (Enrollment: x.enrollment, Roll: x.enrollment.RollNo)).ToArray(),
+            results, ct);
+        if (cumulativeError != null) return (null, cumulativeError);
         var rank = 0;
         foreach (var row in results.OrderBy(x => x.IsWithheld).ThenByDescending(x => x.IsPassed)
             .ThenByDescending(x => x.TotalMarks).ThenBy(x => x.RollNo))

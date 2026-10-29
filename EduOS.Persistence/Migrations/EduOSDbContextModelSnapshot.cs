@@ -3652,6 +3652,9 @@ namespace EduOS.Persistence.Migrations
                         .HasMaxLength(50)
                         .HasColumnType("nvarchar(50)");
 
+                    b.Property<bool>("CountsTowardCgpa")
+                        .HasColumnType("bit");
+
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
 
@@ -4569,6 +4572,9 @@ namespace EduOS.Persistence.Migrations
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("bit");
 
+                    b.Property<bool>("HasCourseGradeSnapshots")
+                        .HasColumnType("bit");
+
                     b.Property<string>("PublishNote")
                         .HasMaxLength(1000)
                         .HasColumnType("nvarchar(1000)");
@@ -4773,6 +4779,106 @@ namespace EduOS.Persistence.Migrations
                     b.ToTable("StudentAssessmentMarks");
                 });
 
+            modelBuilder.Entity("EduOS.Core.Entities.Assessment.StudentResultCourseSnapshot", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
+
+                    b.Property<long>("AssessmentSubjectId")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<long?> ("CreatedBy")
+                        .HasColumnType("bigint");
+
+                    b.Property<decimal>("CreditHours")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<long>("CurriculumSubjectId")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime?> ("DeletedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<long?> ("DeletedBy")
+                        .HasColumnType("bigint");
+
+                    b.Property<decimal>("FullMarks")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<string>("GradeLetter")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<decimal>("GradePoint")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<bool>("IsAbsent")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsPassed")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsWithheld")
+                        .HasColumnType("bit");
+
+                    b.Property<decimal>("ObtainedMarks")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<long>("ResultPublicationId")
+                        .HasColumnType("bigint");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
+                    b.Property<long>("StudentEnrollmentId")
+                        .HasColumnType("bigint");
+
+                    b.Property<long>("StudentSubjectRegistrationId")
+                        .HasColumnType("bigint");
+
+                    b.Property<long>("TenantId")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime?> ("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<long?> ("UpdatedBy")
+                        .HasColumnType("bigint");
+
+                    b.HasKey("Id");
+
+                    b.HasAlternateKey("TenantId", "Id");
+
+                    b.HasIndex("TenantId", "AssessmentSubjectId");
+
+                    b.HasIndex("TenantId", "CurriculumSubjectId");
+
+                    b.HasIndex("TenantId", "StudentSubjectRegistrationId");
+
+                    b.HasIndex("TenantId", "ResultPublicationId", "StudentEnrollmentId", "AssessmentSubjectId")
+                        .IsUnique();
+
+                    b.HasIndex("TenantId", "StudentEnrollmentId", "CurriculumSubjectId");
+
+                    b.ToTable("StudentResultCourseSnapshots", t =>
+                        {
+                            t.HasCheckConstraint("CK_StudentResultCourseSnapshots_Grade", "[FullMarks] > 0 AND [ObtainedMarks] >= 0 AND [ObtainedMarks] <= [FullMarks] AND [CreditHours] >= 0 AND [GradePoint] >= 0");
+                        });
+                });
+
             modelBuilder.Entity("EduOS.Core.Entities.Assessment.StudentResultSummary", b =>
                 {
                     b.Property<long>("Id")
@@ -4792,6 +4898,12 @@ namespace EduOS.Persistence.Migrations
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
+
+                    b.Property<decimal?>("CreditHours")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<int?>("CourseCount")
+                        .HasColumnType("int");
 
                     b.Property<long?>("CreatedBy")
                         .HasColumnType("bigint");
@@ -19864,6 +19976,52 @@ namespace EduOS.Persistence.Migrations
                     b.HasOne("EduOS.Core.Entities.Assessment.AssessmentSubject", null)
                         .WithMany()
                         .HasForeignKey("TenantId", "AssessmentSubjectId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("EduOS.Core.Entities.Academic.StudentSubjectRegistration", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "StudentSubjectRegistrationId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Tenant");
+                });
+
+            modelBuilder.Entity("EduOS.Core.Entities.Assessment.StudentResultCourseSnapshot", b =>
+                {
+                    b.HasOne("EduOS.Core.Entities.SaaS.Tenant", "Tenant")
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("EduOS.Core.Entities.Assessment.AssessmentSubject", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "AssessmentSubjectId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("EduOS.Core.Entities.Academic.CurriculumSubject", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "CurriculumSubjectId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("EduOS.Core.Entities.Assessment.ResultPublication", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "ResultPublicationId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("EduOS.Core.Entities.Academic.StudentEnrollment", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "StudentEnrollmentId")
                         .HasPrincipalKey("TenantId", "Id")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();

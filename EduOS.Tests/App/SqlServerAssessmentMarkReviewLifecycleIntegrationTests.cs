@@ -27,6 +27,132 @@ namespace EduOS.Tests.App;
 public sealed class SqlServerAssessmentMarkReviewLifecycleIntegrationTests
 {
     [Fact]
+    public async Task Cumulative_credit_gpa_uses_only_published_historical_course_snapshots()
+    {
+        var connection = Environment.GetEnvironmentVariable("EDUOS_SQL_AUTH_TEST_CONNECTION");
+        if (string.IsNullOrWhiteSpace(connection)) return;
+        var options = new DbContextOptionsBuilder<EduOSDbContext>().UseSqlServer(connection).Options;
+        var seeded = await SeedAsync(options);
+        long assessmentId;
+        long batchId;
+        Guid assessmentReference;
+        await using (var db = TenantDb(options, seeded.TenantId))
+        {
+            var subject = await db.AssessmentSubjects.SingleAsync(x => x.Id == seeded.AssessmentSubjectId);
+            var currentExam = await db.Assessments.SingleAsync(x => x.Id == subject.AssessmentId);
+            var offering = await db.SubjectOfferings.SingleAsync(x => x.Id == subject.SubjectOfferingId);
+            var originalCourse = await db.CurriculumSubjects.SingleAsync(x => x.Id == offering.CurriculumSubjectId);
+            var registration = await db.StudentSubjectRegistrations.SingleAsync(x => x.Id == seeded.RegistrationId);
+            var enrollment = await db.StudentEnrollments.SingleAsync(x => x.Id == registration.StudentEnrollmentId);
+            originalCourse.CreditHours = 2m;
+            registration.CreditHoursSnapshot = 2m;
+            var scheme = new GradeScheme { TenantId = seeded.TenantId,
+                Name = "Transcript credits", Code = "CGPA-" + Guid.NewGuid().ToString("N")[..12],
+                UseCreditWeightedGpa = true };
+            db.GradeSchemes.Add(scheme);
+            await db.SaveChangesAsync();
+            db.GradeRules.AddRange(
+                new GradeRule { TenantId = seeded.TenantId, GradeSchemeId = scheme.Id,
+                    GradeLetter = "B", GradePoint = 3m, MinMarks = 0m, MaxMarks = 79.99m },
+                new GradeRule { TenantId = seeded.TenantId, GradeSchemeId = scheme.Id,
+                    GradeLetter = "A", GradePoint = 4m, MinMarks = 80m, MaxMarks = 100m });
+            currentExam.State = AssessmentState.Locked;
+            currentExam.GradeSchemeId = scheme.Id;
+            currentExam.CountsTowardCgpa = true;
+            var historic = new Assessment { TenantId = seeded.TenantId,
+                CampusId = currentExam.CampusId, AcademicYearId = currentExam.AcademicYearId,
+                Name = "Prior term exam", Code = "PRIOR-" + Guid.NewGuid().ToString("N")[..8],
+                StartDate = new DateOnly(2026, 5, 1), EndDate = new DateOnly(2026, 5, 2),
+                State = AssessmentState.Locked, GradeSchemeId = scheme.Id,
+                CountsTowardCgpa = true };
+            db.Assessments.Add(historic);
+            var otherSubject = new Subject { TenantId = seeded.TenantId,
+                Name = "History", Code = "HIST-" + Guid.NewGuid().ToString("N")[..8] };
+            db.Subjects.Add(otherSubject);
+            await db.SaveChangesAsync();
+            var pastCourse = new CurriculumSubject { TenantId = seeded.TenantId,
+                AcademicCurriculumId = originalCourse.AcademicCurriculumId,
+                AcademicLevelId = originalCourse.AcademicLevelId,
+                SubjectId = otherSubject.Id, CreditHours = 2m };
+            db.CurriculumSubjects.Add(pastCourse);
+            await db.SaveChangesAsync();
+            var pastOffering = new SubjectOffering { TenantId = seeded.TenantId,
+                AcademicBatchId = offering.AcademicBatchId, AcademicYearId = offering.AcademicYearId,
+                CurriculumSubjectId = pastCourse.Id, Code = "HIST" };
+            db.SubjectOfferings.Add(pastOffering);
+            await db.SaveChangesAsync();
+            var pastSubject = new AssessmentSubject { TenantId = seeded.TenantId,
+                AssessmentId = historic.Id, SubjectOfferingId = pastOffering.Id };
+            var pastRegistration = new StudentSubjectRegistration { TenantId = seeded.TenantId,
+                StudentEnrollmentId = enrollment.Id, SubjectOfferingId = pastOffering.Id,
+                ClientRequestId = Guid.NewGuid(), CreditHoursSnapshot = 2m,
+                State = SubjectRegistrationState.Approved };
+            db.AssessmentSubjects.Add(pastSubject);
+            db.StudentSubjectRegistrations.Add(pastRegistration);
+            await db.SaveChangesAsync();
+            var pastPublication = new ResultPublication { TenantId = seeded.TenantId,
+                AssessmentId = historic.Id, AcademicBatchId = offering.AcademicBatchId,
+                VersionNo = 1, State = ResultPublicationState.Published,
+                HasCourseGradeSnapshots = true, PublishedByUserId = seeded.ReviewerId,
+                PublishedAt = DateTime.UtcNow.AddDays(-20) };
+            db.ResultPublications.Add(pastPublication);
+            await db.SaveChangesAsync();
+            db.StudentResultSummaries.Add(new StudentResultSummary { TenantId = seeded.TenantId,
+                ResultPublicationId = pastPublication.Id, StudentEnrollmentId = enrollment.Id,
+                AssessmentId = historic.Id, PublicationVersionNo = 1,
+                TotalMarks = 100m, ObtainedMarks = 90m, Percentage = 90m,
+                GPA = 4m, CGPA = 4m, CreditHours = 2m, CourseCount = 1,
+                GradeLetter = "A", IsPassed = true });
+            db.StudentResultCourseSnapshots.Add(new StudentResultCourseSnapshot {
+                TenantId = seeded.TenantId, ResultPublicationId = pastPublication.Id,
+                StudentEnrollmentId = enrollment.Id, AssessmentSubjectId = pastSubject.Id,
+                CurriculumSubjectId = pastCourse.Id, StudentSubjectRegistrationId = pastRegistration.Id,
+                FullMarks = 100m, ObtainedMarks = 90m, CreditHours = 2m, GradePoint = 4m,
+                GradeLetter = "A", IsPassed = true });
+            await db.SaveChangesAsync();
+            assessmentId = currentExam.Id;
+            assessmentReference = currentExam.PublicId;
+            batchId = offering.AcademicBatchId;
+        }
+        await using (var db = TenantDb(options, seeded.TenantId))
+        {
+            var service = Service(db, new Actor(seeded.TenantId, seeded.ReviewerId, "TenantAdmin"));
+            var preview = await service.PreviewResultsAsync(new() {
+                AssessmentId = assessmentId, AcademicBatchId = batchId });
+            Assert.True(preview.Success, preview.Message);
+            var row = Assert.Single(preview.Data!.Results);
+            Assert.Equal(3m, row.GradePointAverage);
+            Assert.Equal(3.5m, row.CumulativeGradePointAverage);
+
+            var published = await service.PublishResultAsync(new() {
+                ClientRequestId = Guid.NewGuid(), AssessmentReference = assessmentReference,
+                AcademicBatchId = batchId, VisibleToStudent = true, VisibleToGuardian = true });
+            Assert.True(published.Success, published.Message);
+            var saved = await db.StudentResultSummaries.AsNoTracking()
+                .SingleAsync(x => x.ResultPublicationId == published.Data!.Id);
+            Assert.Equal(3.5m, saved.CGPA);
+            Assert.Equal(2m, saved.CreditHours);
+            var courseGrade = await db.StudentResultCourseSnapshots.AsNoTracking()
+                .SingleAsync(x => x.ResultPublicationId == published.Data.Id);
+            Assert.Equal(2m, courseGrade.CreditHours);
+            Assert.Equal(3m, courseGrade.GradePoint);
+            Assert.Equal(1, saved.CourseCount);
+            var readable = await service.GetResultsAsync(new() {
+                AssessmentId = assessmentId, AcademicBatchId = batchId });
+            Assert.True(readable.Success, readable.Message);
+            Assert.Equal(3.5m, Assert.Single(readable.Data!.Results).CumulativeGradePointAverage);
+            // Even a soft-deleted immutable course must invalidate the entire published
+            // version. Nothing silently falls back to editable marks.
+            await db.Database.ExecuteSqlInterpolatedAsync(
+                $"UPDATE StudentResultCourseSnapshots SET IsDeleted = 1 WHERE Id = {courseGrade.Id}");
+            var broken = await service.GetResultsAsync(new() {
+                AssessmentId = assessmentId, AcademicBatchId = batchId });
+            Assert.False(broken.Success);
+            Assert.Equal(409, broken.StatusCode);
+        }
+    }
+
+    [Fact]
     public async Task Credit_weighted_gpa_uses_registered_course_credits_and_opt_in_grade_scheme()
     {
         var connection = Environment.GetEnvironmentVariable("EDUOS_SQL_AUTH_TEST_CONNECTION");
@@ -1261,7 +1387,7 @@ public sealed class SqlServerAssessmentMarkReviewLifecycleIntegrationTests
             Repo<EduOS.Core.Entities.System.AuditLog>(), db, actor, TimeProvider.System,
             NullLogger<AssessmentAdministrationService>.Instance,
             Repo<ResultRescrutinyEvent>(), Repo<Guardian>(), Repo<StudentGuardian>(),
-            Repo<ResultCorrectionEvent>());
+            Repo<ResultCorrectionEvent>(), Repo<StudentResultCourseSnapshot>());
     }
 
     private static EduOSDbContext TenantDb(DbContextOptions<EduOSDbContext> options, long tenant)

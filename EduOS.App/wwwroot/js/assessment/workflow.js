@@ -291,7 +291,8 @@
             const tr = document.createElement('tr');
             tr.append(cell(item.meritPosition ?? '—'), cell(item.rollNo),
                 cell(item.studentName), cell(item.totalMarks + ' / ' + item.maximumMarks),
-                cell(item.percentage), cell(item.gradePointAverage ?? '—'),
+                cell(item.percentage), cell(item.creditHours ?? '—'),
+                cell(item.gradePointAverage ?? '—'), cell(item.cumulativeGradePointAverage ?? '—'),
                 cell(item.gradeLetter || '—'),
                 cell(item.isWithheld ? 'Withheld' : item.isPassed ? 'Passed' : 'Not passed'));
             tbody.append(tr);
@@ -411,9 +412,10 @@
             ? [['Roll', 'Student code', 'Student', 'Mark', 'Absent', 'Withheld', 'Grade'],
                 ...(roster.students || []).map(x => [x.rollNo, x.studentCode, x.studentName,
                     x.obtainedMarks, x.isAbsent, x.isWithheld, x.gradeLetter])]
-            : [['Position', 'Roll', 'Student code', 'Student', 'Marks', 'Maximum', 'Percentage', 'GPA', 'Grade', 'Passed', 'Withheld', 'Status'],
+            : [['Position', 'Roll', 'Student code', 'Student', 'Marks', 'Maximum', 'Percentage', 'Credits', 'GPA', 'CGPA', 'Grade', 'Passed', 'Withheld', 'Status'],
                 ...(roster.results || []).map(x => [x.meritPosition, x.rollNo, x.studentCode, x.studentName,
-                    x.totalMarks, x.maximumMarks, x.percentage, x.gradePointAverage, x.gradeLetter,
+                    x.totalMarks, x.maximumMarks, x.percentage, x.creditHours, x.gradePointAverage,
+                    x.cumulativeGradePointAverage, x.gradeLetter,
                     x.isPassed, x.isWithheld, state.sheetMode])];
         const output = rows.map(row => row.map(quote).join(',')).join('\r\n');
         const url = URL.createObjectURL(new Blob(['\uFEFF' + output], { type: 'text/csv;charset=utf-8' }));

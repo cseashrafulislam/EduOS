@@ -63,10 +63,28 @@ public sealed class AssessmentResultItemDto
     public decimal MaximumMarks { get; set; }
     public decimal Percentage { get; set; }
     public decimal? GradePointAverage { get; set; }
+    public decimal? CumulativeGradePointAverage { get; set; }
+    public decimal? CreditHours { get; set; }
+    public IReadOnlyList<AssessmentResultCourseDto> Courses { get; set; } = Array.Empty<AssessmentResultCourseDto>();
     public string? GradeLetter { get; set; }
     public int? MeritPosition { get; set; }
     public bool IsPassed { get; set; }
     public bool IsWithheld { get; set; }
+}
+
+public sealed class AssessmentResultCourseDto
+{
+    public long AssessmentSubjectId { get; set; }
+    public long CurriculumSubjectId { get; set; }
+    public long StudentSubjectRegistrationId { get; set; }
+    public decimal FullMarks { get; set; }
+    public decimal ObtainedMarks { get; set; }
+    public decimal CreditHours { get; set; }
+    public decimal GradePoint { get; set; }
+    public string GradeLetter { get; set; } = string.Empty;
+    public bool IsPassed { get; set; }
+    public bool IsWithheld { get; set; }
+    public bool IsAbsent { get; set; }
 }
 
 public sealed class AssessmentResultSheetDto
