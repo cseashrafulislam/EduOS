@@ -117,4 +117,56 @@ public sealed class LibraryDigitalScannerPipelineTests
             storage.Verify(x => x.GetPrivateFileAsync(It.IsAny<string>()), Times.Never);
         }
     }
+
+    [Fact]
+    public async Task Interrupted_scanner_cleans_private_bytes_and_same_request_can_recover_without_orphan()
+    {
+        await using var db = Context();
+        var admin = new Admin();
+        var book = new Book { TenantId = admin.TenantId, Title = "Interrupted upload", IsActive = true };
+        db.Books.Add(book);
+        await db.SaveChangesAsync();
+        var requestId = Guid.NewGuid();
+        var bytes = "%PDF-1.4\\nRecoverable upload"u8.ToArray();
+        var key = $"tenant-{admin.TenantId}/documents/{requestId:N}.pdf";
+        var sha = Convert.ToHexString(SHA256.HashData(bytes));
+        var storage = new Mock<IFileUploadService>();
+        storage.Setup(x => x.UploadPrivateAsync(It.IsAny<IFormFile>(), "documents"))
+            .ReturnsAsync(new FileUploadResult { Success = true, FileUrl = key });
+        storage.Setup(x => x.DeletePrivateAsync(key)).ReturnsAsync(true);
+        var scanCount = 0;
+        storage.Setup(x => x.ScanPrivateForMalwareAsync(key, It.IsAny<CancellationToken>()))
+            .Returns(() =>
+            {
+                if (++scanCount == 1)
+                    throw new OperationCanceledException("Interrupted security scan");
+                return Task.FromResult<string?>(sha);
+            });
+        var documents = new DocumentFileService(db, admin, storage.Object,
+            NullLogger<DocumentFileService>.Instance, null!);
+        var library = new LibraryDigitalResourceService(db, admin, documents,
+            storage.Object, TimeProvider.System, NullLogger<LibraryDigitalResourceService>.Instance);
+        var request = new LibraryDigitalUploadRequestDto
+        { RequestId = requestId, BookReference = book.PublicId, Title = "Recoverable PDF" };
+        PrivateFileUploadDto Upload() => new()
+        {
+            FileName = "recovery.pdf", ContentType = "application/pdf",
+            Length = bytes.Length, Content = new MemoryStream(bytes)
+        };
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+            library.UploadAsync(request, Upload()));
+        Assert.Empty(await db.FileAssets.ToListAsync());
+        Assert.Empty(await db.Documents.ToListAsync());
+        storage.Verify(x => x.DeletePrivateAsync(key), Times.Once);
+
+        var recovered = await library.UploadAsync(request, Upload());
+        Assert.True(recovered.Success, recovered.Message);
+        Assert.Single(await db.FileAssets.ToListAsync());
+        Assert.Single(await db.Documents.ToListAsync());
+        Assert.Single(await db.AuditLogs.Where(x =>
+            x.Action == "LibraryDigitalResource.Publish").ToListAsync());
+        storage.Verify(x => x.DeletePrivateAsync(key), Times.Once);
+        Assert.Equal(2, scanCount);
+    }
+
 }
