@@ -128,7 +128,27 @@ public sealed class LibraryController : ControllerBase
     }
 
     [HttpGet("my-issues")]
-    public async Task<IActionResult> MyIssues([FromQuery]int page=1,[FromQuery]int pageSize=20,CancellationToken ct=default)=>ToAction(await _service.GetMyIssuesAsync(page,pageSize,ct));
+    [Authorize(Roles = "Student")]
+    public async Task<IActionResult> MyIssues([FromQuery] int page = 1, [FromQuery] int pageSize = 20,
+        [FromQuery] string? status = null, CancellationToken ct = default) =>
+        ToAction(await _service.GetMyIssuesAsync(page, pageSize, ct, status));
+
+    // Re-query on every download; only the authenticated student's own tenant loans.
+    [HttpGet("my-issues/export")]
+    [Authorize(Roles = "Student")]
+    public async Task<IActionResult> ExportMyIssues([FromQuery] int page = 1,
+        [FromQuery] int pageSize = 20, [FromQuery] string? status = null,
+        [FromQuery] string language = "en-BD", CancellationToken ct = default)
+    {
+        if (language is not ("en-BD" or "bn-BD"))
+            return BadRequest("Unsupported report language.");
+        var result = await _service.GetMyIssuesAsync(page, pageSize, ct, status);
+        if (!result.Success || result.Data == null) return ToAction(result);
+        Response.Headers.CacheControl = "no-store, private";
+        Response.Headers.Pragma = "no-cache";
+        return File(LibraryMyLoanCsvWriter.Write(result.Data.Items, language == "bn-BD"),
+            "text/csv; charset=utf-8", "my-library-loans-page.csv");
+    }
 
     [HttpPost("issues")]
     [Authorize(Roles="TenantAdmin,Principal,Librarian")]
@@ -153,4 +173,42 @@ public sealed class LibraryController : ControllerBase
     public async Task<IActionResult> Close(Guid reference,[FromBody]ReturnBookRequestDto request,CancellationToken ct)=>ToAction(await _service.CloseAsync(reference,request,ct));
 
     private IActionResult ToAction<T>(EduOS.Core.Common.ApiResponse<T> response)=>StatusCode(response.StatusCode,response);
+}
+
+// Self-service exports never contain global Person IDs or another borrower's identity.
+public static class LibraryMyLoanCsvWriter
+{
+    public static byte[] Write(IEnumerable<BookIssueDto> rows, bool bangla)
+    {
+        var csv = new System.Text.StringBuilder();
+        csv.AppendLine(bangla
+            ? "বই,অ্যাকসেশন,ইস্যুর তারিখ,ফেরতের শেষ তারিখ,ফেরতের তারিখ,অবস্থা,নথিভুক্ত জরিমানা"
+            : "Book,Accession,Issued,Due,Returned,Status,Recorded fine");
+        foreach (var row in rows)
+        {
+            csv.AppendLine(string.Join(",", new[] {
+                Cell(row.BookTitle), Cell(row.AccessionNumber),
+                Cell(row.IssueDate.ToString("yyyy-MM-dd")),
+                Cell(row.DueDate.ToString("yyyy-MM-dd")),
+                Cell(row.ReturnDate?.ToString("yyyy-MM-dd") ?? ""),
+                Cell(row.State.ToString()),
+                Cell(row.FineAmount.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture))
+            }));
+        }
+        var bytes = new System.Text.UTF8Encoding(false).GetBytes(csv.ToString());
+        var preamble = new System.Text.UTF8Encoding(true).GetPreamble();
+        var result = new byte[preamble.Length + bytes.Length];
+        Buffer.BlockCopy(preamble, 0, result, 0, preamble.Length);
+        Buffer.BlockCopy(bytes, 0, result, preamble.Length, bytes.Length);
+        return result;
+    }
+
+    private static string Cell(string? value)
+    {
+        var text = value ?? string.Empty;
+        var trimmed = text.TrimStart(' ', '\t', '\r', '\n');
+        if (trimmed.Length > 0 && "=+-@".Contains(trimmed[0]))
+            text = "'" + text;
+        return "\"" + text.Replace("\"", "\"\"") + "\"";
+    }
 }
