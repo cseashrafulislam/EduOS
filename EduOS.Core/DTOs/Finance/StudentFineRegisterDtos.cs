@@ -2,7 +2,7 @@ using EduOS.Core.Common;
 
 namespace EduOS.Core.DTOs.Finance;
 
-/// <summary>Administrative fines are not invoices or GL revenue until an audited posting workflow exists.</summary>
+/// <summary>Register covers both unposted assessments and separately posted fine invoices.</summary>
 public sealed class StudentFineRegisterQueryDto
 {
     public long? CampusId { get; set; }
@@ -25,6 +25,7 @@ public sealed class StudentFineRegisterRowDto
     public decimal Amount { get; set; }
     public string? Reason { get; set; }
     public bool IsWaived { get; set; }
+    public Guid? BilledInvoiceReference { get; set; }
     public long? WaivedByUserId { get; set; }
     public string RowVersion { get; set; } = string.Empty;
 }
@@ -35,5 +36,6 @@ public sealed class StudentFineRegisterDto
     public decimal RecordedTotal { get; set; }
     public decimal WaivedTotal { get; set; }
     public decimal OutstandingAdministrativeTotal { get; set; }
+    public decimal PostedFineTotal { get; set; }
     public bool IsPostedToLedger { get; set; } = false;
 }

@@ -179,7 +179,7 @@ public sealed class FinanceAdjustmentServiceTests
         db.RefundAllocations.Should().BeEmpty();
     }
     [Fact]
-    public async Task Legacy_soft_deleted_posted_invoice_blocks_retroactive_discount_and_fine()
+    public async Task Legacy_soft_deleted_posted_invoice_blocks_discount_but_new_fine_assessment_is_separate()
     {
         var accessor = new HttpContextAccessor { HttpContext = new DefaultHttpContext() };
         accessor.HttpContext.Items["TenantId"] = 11L;
@@ -221,9 +221,11 @@ public sealed class FinanceAdjustmentServiceTests
             Reason = "Historical posting must remain immutable"
         });
         discountResult.StatusCode.Should().Be(409);
-        fineResult.StatusCode.Should().Be(409);
+        fineResult.Success.Should().BeTrue();
         db.StudentDiscounts.Should().BeEmpty();
-        db.StudentFines.Should().BeEmpty();
+        db.StudentFines.Should().ContainSingle();
+        db.StudentInvoices.IgnoreQueryFilters().Should().ContainSingle();
+        db.Journals.Should().BeEmpty();
     }
 
     private sealed class TestUser(long tenant,bool admin):ICurrentUserService

@@ -80,6 +80,9 @@ public sealed class FinanceAdjustmentsController : ControllerBase
     [HttpPost("fines/{id:long}/waive")]
     public async Task<IActionResult> WaiveFine(long id,[FromBody] WaiveStudentFineRequestDto request,CancellationToken ct)
         => Reply(await service.WaiveFineAsync(id,request,ct));
+    [HttpPost("fines/{id:long}/post-invoice")]
+    public async Task<IActionResult> PostFineInvoice(long id,[FromBody] PostStudentFineInvoiceRequestDto request,CancellationToken ct)
+        => Reply(await service.PostFineInvoiceAsync(id,request,ct));
     [HttpGet("refunds")]
     public async Task<IActionResult> Refunds([FromQuery] long? campusId, [FromQuery] int page = 1,
         [FromQuery] int pageSize = 25, CancellationToken ct = default)

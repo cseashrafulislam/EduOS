@@ -64,18 +64,19 @@ async function load() {
         total = data.fines.totalCount;
         el('fineRegisterRecorded').textContent = money(data.recordedTotal);
         el('fineRegisterWaived').textContent = money(data.waivedTotal);
+        el('fineRegisterPosted').textContent = money(data.postedFineTotal);
         el('fineRegisterOpen').textContent = money(data.outstandingAdministrativeTotal);
         const body = el('fineRegisterRows');
         body.replaceChildren();
         for (const row of data.fines.items || []) {
             const tr = document.createElement('tr');
             [row.fineDate, row.studentCode + ' — ' + row.studentName, row.campusId,
-                row.ruleName, money(row.amount), row.isWaived ? 'Waived' : 'Unposted',
+                row.ruleName, money(row.amount), row.isWaived ? 'Waived' : row.billedInvoiceReference ? 'Posted' : 'Unposted',
                 row.reason || '—'].forEach(value => tr.append(cell(value)));
             const action = cell('');
             const button = document.createElement('button');
             button.type = 'button'; button.className = 'btn btn-sm btn-outline-primary';
-            button.textContent = row.isWaived ? 'Inspect' : 'Inspect / waive';
+            button.textContent = row.isWaived || row.billedInvoiceReference ? 'Inspect' : 'Inspect / assess';
             button.addEventListener('click', () => inspect(row));
             action.append(button); tr.append(action); body.append(tr);
         }
@@ -87,7 +88,7 @@ async function load() {
         el('fineRegisterPage').textContent = 'Page ' + page + ' / ' + pages + ' · ' + total + ' records';
         el('fineRegisterPrev').disabled = page <= 1;
         el('fineRegisterNext').disabled = page >= pages;
-        notice('Fine register loaded. These amounts are not posted revenue.');
+        notice('Fine register loaded. Posted and unposted amounts are shown separately.');
     } catch (error) { notice(error.message, true); }
     finally { loading = false; el('fineRegisterLoad').disabled = false; }
 }

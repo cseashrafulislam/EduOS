@@ -62,8 +62,21 @@ async function refreshRegister(){
  }
  const f=table('StudentFineRows',result.fines,5);
  for(const row of result.fines){
- const tr=document.createElement('tr');[row.fineRuleName,row.fineDate,row.amount,row.isWaived?'Waived':'Recorded (unposted)'].forEach(v=>tr.append(cell(v)));
- const td=cell('');if(!row.isWaived)td.append(button('Waive',async()=>{const reason=window.prompt('Reason for waiver (required, audited):');if(reason===null)return;if(!reason.trim())return notice('Waiver reason is required.');await run(null,async()=>{await api(base+'/fines/'+row.id+'/waive','POST',{reason:reason.trim(),rowVersion:row.rowVersion});await refreshRegister();});}));tr.append(td);f.append(tr);
+ const tr=document.createElement('tr');[row.fineRuleName,row.fineDate,row.amount,row.isWaived?'Waived':row.billedInvoiceReference?'Posted':'Unposted'].forEach(v=>tr.append(cell(v)));
+ const td=cell('');
+ if(!row.isWaived&&!row.billedInvoiceReference){
+  td.append(button('Waive',async()=>{const reason=window.prompt('Reason for waiver (required, audited):');if(reason===null)return;if(!reason.trim())return notice('Waiver reason is required.');await run(null,async()=>{await api(base+'/fines/'+row.id+'/waive','POST',{reason:reason.trim(),rowVersion:row.rowVersion});await refreshRegister();});}));
+  td.append(' ');
+  td.append(button('Post invoice',()=>run(null,async()=>{
+   const period=Number(el('FinePeriod').value);
+   if(!Number.isInteger(period)||period<=0)throw Error('Select an open accounting period for fine posting.');
+   if(!confirm('Post a separate fine invoice and balanced ledger journal? The assessor cannot approve their own fine.'))return;
+   const result=await api(base+'/fines/'+row.id+'/post-invoice','POST',
+    {accountingPeriodId:period,rowVersion:row.rowVersion});
+   await refreshRegister();notice('Posted '+result.invoiceNumber+' / '+result.journalNumber,true);
+  })));
+ }
+ tr.append(td);f.append(tr);
  }
 }
 async function run(form,action){
@@ -120,6 +133,11 @@ async function loadRefunds(){
  for(const period of data.openPeriods||[])
   periodSelect.add(new Option(period.name+' ('+period.startDate+' to '+period.endDate+')',String(period.id)));
  periodSelect.value=priorPeriod;
+ const finePeriod=el('FinePeriod'),priorFine=finePeriod.value;
+ finePeriod.replaceChildren(new Option('Select accounting period',''));
+ for(const period of data.openPeriods||[])
+  finePeriod.add(new Option(period.name+' ('+period.startDate+' to '+period.endDate+')',String(period.id)));
+ finePeriod.value=priorFine;
  if(!el('RefundPayoutDate').value)el('RefundPayoutDate').value=new Date().toISOString().slice(0,10);
  refundTotal=data.totalCount;
  el('RefundPage').textContent='Page '+refundPage+' / '+Math.max(1,Math.ceil(refundTotal/refundSize));

@@ -61,6 +61,8 @@ public class StudentInvoiceLine : BaseTenantEntity
 {
     public long StudentInvoiceId { get; set; }
     public long FeeHeadId { get; set; }
+    // Populated only for an independently posted fine invoice; never for normal tuition lines.
+    public long? StudentFineId { get; set; }
     [MaxLength(50)] public string? FeeHeadCodeSnapshot { get; set; }
     [MaxLength(150)] public string? FeeHeadNameSnapshot { get; set; }
     [Required, MaxLength(250)] public string Description { get; set; } = string.Empty;

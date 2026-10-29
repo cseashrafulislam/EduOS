@@ -3,7 +3,7 @@
 }
 <section class="container-fluid py-3" id="adjustRoot">
     <header class="d-flex justify-content-between align-items-center flex-wrap mb-3">
-        <div><h2>Institutional Finance Adjustments</h2><p class="text-muted">Discounts affect future invoices. Fine records are not posted to invoices or the general ledger.</p></div>
+        <div><h2>Institutional Finance Adjustments</h2></div>
         <div class="d-flex gap-2"><a class="btn btn-outline-warning" href="/FinanceAdjustments/ReservationPreflight">Hostel / Transport finance preflight</a><a class="btn btn-outline-secondary" href="/FeeOperations/Index">Fees &amp; Billing</a><a class="btn btn-outline-primary" href="/FinanceAdjustments/DiscountAwards">Award register</a></div>
     </header>
     <div id="adjustAlert" class="d-none" role="alert" tabindex="-1"></div>
@@ -57,7 +57,7 @@
             </form>
         </div></div></div>
         <div class="col-xl-6"><div class="card h-100"><div class="card-body">
-            <h3 class="h5">Record fixed fine</h3><p class="small text-warning">This is an administrative fine register, not an invoice charge or GL posting.</p>
+            <h3 class="h5">Assess fixed fine</h3>
             <form id="adjustApplyForm" class="row g-2">
                 <div class="col-md-5"><label for="adjustApplyRule" class="form-label">Active fixed fine</label><select id="adjustApplyRule" class="form-select" required></select></div>
                 <div class="col-md-3"><label for="adjustApplyDate" class="form-label">Fine date</label><input id="adjustApplyDate" type="date" class="form-control" required /></div>
@@ -68,8 +68,7 @@
     </div>
     <section class="card mb-3" id="fineRegisterRoot" aria-labelledby="fineRegisterHeading">
         <div class="card-body">
-            <h3 class="h5" id="fineRegisterHeading">Institution-wide administrative fine register</h3>
-            <p class="small text-warning">Unwaived fines here are administrative records only. They are not billed receivables, cash collected or GL income. Invoice posting requires separate source linkage and accounting configuration.</p>
+            <h3 class="h5" id="fineRegisterHeading">Institution-wide fine register</h3>
             <div id="fineRegisterAlert" class="alert d-none" role="status" aria-live="polite"></div>
             <div class="row g-2 align-items-end mb-3">
                 <div class="col-md-2"><label class="form-label" for="fineRegisterCampus">Campus ID (optional)</label><input id="fineRegisterCampus" type="number" min="1" class="form-control" /></div>
@@ -79,9 +78,10 @@
                 <div class="col-md-2"><button id="fineRegisterLoad" type="button" class="btn btn-outline-primary w-100">Load fines</button></div>
             </div>
             <div class="row g-2 mb-3" aria-label="Administrative fine totals for selected campus and dates">
-                <div class="col-md-4"><div class="border rounded p-2">Recorded (BDT): <strong id="fineRegisterRecorded">0.00</strong></div></div>
-                <div class="col-md-4"><div class="border rounded p-2">Waived (BDT): <strong id="fineRegisterWaived">0.00</strong></div></div>
-                <div class="col-md-4"><div class="border rounded p-2">Unwaived, unposted (BDT): <strong id="fineRegisterOpen">0.00</strong></div></div>
+                <div class="col-md-3"><div class="border rounded p-2">Assessed (BDT): <strong id="fineRegisterRecorded">0.00</strong></div></div>
+                <div class="col-md-3"><div class="border rounded p-2">Waived (BDT): <strong id="fineRegisterWaived">0.00</strong></div></div>
+                <div class="col-md-3"><div class="border rounded p-2">Posted (BDT): <strong id="fineRegisterPosted">0.00</strong></div></div>
+                <div class="col-md-3"><div class="border rounded p-2">Unposted (BDT): <strong id="fineRegisterOpen">0.00</strong></div></div>
             </div>
             <div class="table-responsive"><table class="table table-sm table-striped align-middle">
                 <thead><tr><th>Fine date</th><th>Student</th><th>Campus</th><th>Rule</th><th>Amount (BDT)</th><th>Status</th><th>Reason</th><th>Action</th></tr></thead>
@@ -92,7 +92,7 @@
                 <span id="fineRegisterPage" aria-live="polite">Page 1</span>
                 <button id="fineRegisterNext" type="button" class="btn btn-sm btn-outline-secondary">Next</button>
             </div>
-            <p class="small text-muted mt-2">Inspect / waive opens the existing authorized enrollment adjustment workflow. Waiver reasons are recorded separately in the audit log.</p>
+            <p class="small text-muted mt-2">Inspect opens the selected student's fine register. Posting requires a separate administrator, a dedicated fine fee head and an open accounting period.</p>
         </div>
     </section>
     <div class="card mb-3" id="adjustRefundSection"><div class="card-body">
@@ -123,7 +123,8 @@
         <button id="adjustRefresh" type="button" class="btn btn-sm btn-outline-secondary mb-3">Refresh register</button>
         <h4 class="h6">Discount assignments</h4>
         <div class="table-responsive"><table class="table table-sm"><thead><tr><th>Rule</th><th>From</th><th>To</th><th>Approval reason</th><th>Status</th><th>Action</th></tr></thead><tbody id="adjustStudentDiscountRows"></tbody></table></div>
-        <h4 class="h6 mt-3">Fine records (unposted)</h4>
+        <h4 class="h6 mt-3">Fine assessments and posted invoices</h4>
+        <div class="row g-2 mb-2"><div class="col-md-4"><label class="form-label" for="adjustFinePeriod">Open period for fine posting</label><select id="adjustFinePeriod" class="form-select"><option value="">Select accounting period</option></select></div></div>
         <div class="table-responsive"><table class="table table-sm"><thead><tr><th>Rule</th><th>Date</th><th>Amount</th><th>Status</th><th></th></tr></thead><tbody id="adjustStudentFineRows"></tbody></table></div>
     </div></div>
 </section>

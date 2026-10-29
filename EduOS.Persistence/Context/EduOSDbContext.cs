@@ -889,6 +889,7 @@ public class EduOSDbContext :
         TenantReference<StudentInvoice, Journal>(modelBuilder, nameof(StudentInvoice.JournalId));
         TenantReference<StudentInvoiceLine, StudentInvoice>(modelBuilder, nameof(StudentInvoiceLine.StudentInvoiceId));
         TenantReference<StudentInvoiceLine, FeeHead>(modelBuilder, nameof(StudentInvoiceLine.FeeHeadId));
+        TenantReference<StudentInvoiceLine, StudentFine>(modelBuilder, nameof(StudentInvoiceLine.StudentFineId));
         TenantReference<StudentPayment, Student>(modelBuilder, nameof(StudentPayment.StudentId));
         TenantReference<StudentPayment, BankAccount>(modelBuilder, nameof(StudentPayment.BankAccountId));
         Reference<StudentPayment, ApplicationUser>(modelBuilder, nameof(StudentPayment.ReceivedByUserId));
@@ -1462,6 +1463,8 @@ public class EduOSDbContext :
         modelBuilder.Entity<StudentInvoice>().HasIndex(x => x.PublicId).IsUnique();
         UniqueTenant<StudentInvoice>(modelBuilder, nameof(StudentInvoice.InvoiceNumber));
         UniqueTenant<StudentInvoice>(modelBuilder, nameof(StudentInvoice.ClientRequestId));
+        modelBuilder.Entity<StudentInvoiceLine>().HasIndex(x => new { x.TenantId, x.StudentFineId })
+            .IsUnique().HasFilter("[StudentFineId] IS NOT NULL");
         modelBuilder.Entity<StudentInvoice>().HasIndex(x => new { x.TenantId, x.State, x.DueDate });
         modelBuilder.Entity<StudentPayment>().HasIndex(x => x.PublicId).IsUnique();
         UniqueTenant<StudentPayment>(modelBuilder, nameof(StudentPayment.ReceiptNumber));
@@ -1471,6 +1474,7 @@ public class EduOSDbContext :
             .IsUnique().HasFilter("[ClientRequestId] IS NOT NULL");
         modelBuilder.Entity<StudentFine>().HasIndex(x => new { x.TenantId, x.ClientRequestId })
             .IsUnique().HasFilter("[ClientRequestId] IS NOT NULL");
+        modelBuilder.Entity<StudentFine>().HasIndex(x => new { x.TenantId, x.FineDate, x.Id });
         UniqueTenant<Refund>(modelBuilder, nameof(Refund.ClientRequestId));
         UniqueTenant<Account>(modelBuilder, nameof(Account.Code));
         modelBuilder.Entity<Account>().HasIndex(x => new { x.TenantId, x.ParentAccountId, x.IsActive });

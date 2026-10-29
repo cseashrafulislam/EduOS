@@ -37,7 +37,7 @@ public sealed partial class FinanceAdjustmentService : IFinanceAdjustmentService
     private static DiscountRuleDto Map(DiscountRule x) => new() { Id=x.Id, Name=x.Name, FeeHeadId=x.FeeHeadId, IsPercentage=x.IsPercentage, Value=x.Value, EffectiveFrom=x.EffectiveFrom, EffectiveTo=x.EffectiveTo, IsActive=x.IsActive, RowVersion=Version(x.RowVersion) };
     private static FineRuleDto Map(FineRule x) => new() { Id=x.Id, Name=x.Name, FeeHeadId=x.FeeHeadId, Amount=x.Amount, IsDaily=x.IsDaily, GraceDays=x.GraceDays, IsActive=x.IsActive, RowVersion=Version(x.RowVersion) };
     private static StudentDiscountDto Map(StudentDiscount x, Guid reference, string name) => new() { Id=x.Id, StudentEnrollmentReference=reference, DiscountRuleId=x.DiscountRuleId, DiscountRuleName=name, EffectiveFrom=x.EffectiveFrom, EffectiveTo=x.EffectiveTo, ApprovedByUserId=x.ApprovedByUserId, Reason=x.Reason, IsActive=x.IsActive, RowVersion=Version(x.RowVersion) };
-    private static StudentFineDto Map(StudentFine x, Guid reference, string name) => new() { Id=x.Id, StudentEnrollmentReference=reference, FineRuleId=x.FineRuleId, FineRuleName=name, FineDate=x.FineDate, Amount=x.Amount, Reason=x.Reason, IsWaived=x.IsWaived, WaivedByUserId=x.WaivedByUserId, RowVersion=Version(x.RowVersion) };
+    private static StudentFineDto Map(StudentFine x, Guid reference, string name, Guid? invoiceReference=null) => new() { Id=x.Id, StudentEnrollmentReference=reference, FineRuleId=x.FineRuleId, FineRuleName=name, FineDate=x.FineDate, Amount=x.Amount, Reason=x.Reason, IsWaived=x.IsWaived, WaivedByUserId=x.WaivedByUserId, BilledInvoiceReference=invoiceReference, RowVersion=Version(x.RowVersion) };
     private static RefundDto Map(Refund x, Guid paymentReference) => new() { Id=x.Id, StudentPaymentReference=paymentReference, Amount=x.Amount, State=x.State, Reason=x.Reason, RequestedByUserId=x.RequestedByUserId, ApprovedByUserId=x.ApprovedByUserId, ApprovedAt=x.ApprovedAt, PaidAt=x.PaidAt, ReversalJournalId=x.ReversalJournalId, RowVersion=Version(x.RowVersion) };
     private static bool Dates(DateOnly? from, DateOnly? to) => !from.HasValue || !to.HasValue || from <= to;
     private static bool Overlap(DateOnly a, DateOnly? b, DateOnly c, DateOnly? d) =>
@@ -210,8 +210,8 @@ public sealed partial class FinanceAdjustmentService : IFinanceAdjustmentService
             }
             var rule=await Fines.FirstOrDefaultAsync(x=>x.Id==request.FineRuleId && x.IsActive && !x.IsDaily,ct);
             if(rule==null) return Error<StudentFineDto>("Active fixed fine rule not found.",404);
-            if(await HasIssuedInvoice(enrollment.Id,request.FineDate,ct))
-                return Error<StudentFineDto>("Existing invoices require audited adjustment; no retroactive fine.",409);
+            // A fine is assessed separately and can only affect a new dedicated invoice.
+            // Prior issued/paid tuition invoices must remain untouched.
             var reason=request.Reason?.Trim();
             var old=await StudentFines.FirstOrDefaultAsync(x=>x.StudentEnrollmentId==enrollment.Id &&
                 x.FineRuleId==rule.Id && x.FineDate==request.FineDate && x.Reason==reason,ct);
@@ -244,6 +244,9 @@ public sealed partial class FinanceAdjustmentService : IFinanceAdjustmentService
             if(row==null) return Error<StudentFineDto>("Fine not found.",404);
             if(!Matches(row.RowVersion,request.RowVersion)) return Error<StudentFineDto>("Fine changed; reload.",409);
             if(row.IsWaived) return Error<StudentFineDto>("Fine already waived.",409);
+            if(await db.StudentInvoiceLines.IgnoreQueryFilters().AsNoTracking().AnyAsync(x=>
+                x.TenantId==user.TenantId && x.StudentFineId==row.Id,ct))
+                return Error<StudentFineDto>("This fine has an invoice; use an audited credit-note/reversal workflow, not an administrative waiver.",409);
             var enrollment=await Enrollments.FirstOrDefaultAsync(x=>x.Id==row.StudentEnrollmentId,ct);
             var rule=await Fines.FirstOrDefaultAsync(x=>x.Id==row.FineRuleId,ct);
             if(enrollment==null || rule==null) return Error<StudentFineDto>("Fine references invalid tenant records.",409);
@@ -336,11 +339,20 @@ public sealed partial class FinanceAdjustmentService : IFinanceAdjustmentService
         if(discounts.Count>200 || fines.Count>200) return Error<FinanceAdjustmentRegisterDto>("Register limit exceeded.",409);
         var ruleIds=discounts.Select(x=>x.DiscountRuleId).Distinct().ToArray();
         var fineIds=fines.Select(x=>x.FineRuleId).Distinct().ToArray();
+        var studentFineIds=fines.Select(x=>x.Id).ToArray();
         var names=await Discounts.AsNoTracking().Where(x=>ruleIds.Contains(x.Id)).ToDictionaryAsync(x=>x.Id,x=>x.Name,ct);
         var fineNames=await Fines.AsNoTracking().Where(x=>fineIds.Contains(x.Id)).ToDictionaryAsync(x=>x.Id,x=>x.Name,ct);
+        var linked=await (from line in db.StudentInvoiceLines.AsNoTracking()
+            join invoice in db.StudentInvoices.AsNoTracking()
+                on new {line.TenantId,Id=line.StudentInvoiceId} equals new {invoice.TenantId,invoice.Id}
+            where line.TenantId==user.TenantId && line.StudentFineId.HasValue &&
+                studentFineIds.Contains(line.StudentFineId.Value) && !line.IsDeleted && !invoice.IsDeleted &&
+                invoice.JournalId.HasValue
+            select new { FineId=line.StudentFineId!.Value,invoice.PublicId }).ToDictionaryAsync(x=>x.FineId,x=>x.PublicId,ct);
         return ApiResponse<FinanceAdjustmentRegisterDto>.SuccessResponse(new FinanceAdjustmentRegisterDto {
             Discounts=discounts.Select(x=>Map(x,reference,names.GetValueOrDefault(x.DiscountRuleId,"[deleted rule]"))).ToArray(),
-            Fines=fines.Select(x=>Map(x,reference,fineNames.GetValueOrDefault(x.FineRuleId,"[deleted rule]"))).ToArray()
+            Fines=fines.Select(x=>Map(x,reference,fineNames.GetValueOrDefault(x.FineRuleId,"[deleted rule]"),
+                linked.TryGetValue(x.Id,out var invoiceRef)?invoiceRef:null)).ToArray()
         });
     }
 }

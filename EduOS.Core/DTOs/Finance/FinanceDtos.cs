@@ -276,7 +276,25 @@ public class StudentFineDto
     public string? Reason { get; set; }
     public bool IsWaived { get; set; }
     public long? WaivedByUserId { get; set; }
+    public Guid? BilledInvoiceReference { get; set; }
     public string RowVersion { get; set; } = string.Empty;
+}
+
+public sealed class PostStudentFineInvoiceRequestDto
+{
+    [Range(1, long.MaxValue)] public long AccountingPeriodId { get; set; }
+    [Required] public string RowVersion { get; set; } = string.Empty;
+}
+
+public sealed class PostedStudentFineInvoiceDto
+{
+    public long FineId { get; set; }
+    public Guid InvoiceReference { get; set; }
+    public string InvoiceNumber { get; set; } = string.Empty;
+    public Guid JournalReference { get; set; }
+    public string JournalNumber { get; set; } = string.Empty;
+    public decimal Amount { get; set; }
+    public bool AlreadyPosted { get; set; }
 }
 
 public class ApplyStudentFineRequestDto
