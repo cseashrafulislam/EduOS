@@ -63,6 +63,14 @@ public sealed class LmsCertificatesController : ControllerBase
         return StatusCode(result.StatusCode, result);
     }
 
+    [HttpGet("{reference:guid}/history")]
+    [Authorize(Roles = "TenantAdmin,Principal,Teacher")]
+    public async Task<IActionResult> History(Guid reference, CancellationToken ct)
+    {
+        var result = await _service.GetCertificateAuditAsync(reference, ct);
+        return StatusCode(result.StatusCode, result);
+    }
+
     [HttpGet("{reference:guid}/verify")]
     public async Task<IActionResult> Verify(Guid reference, CancellationToken ct)
     {

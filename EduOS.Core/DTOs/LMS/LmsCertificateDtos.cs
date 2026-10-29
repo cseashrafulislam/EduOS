@@ -47,3 +47,10 @@ public sealed class LmsCertificateVerificationDto
     public DateTime CompletedAt { get; set; }
     public int Revision { get; set; }
 }
+
+public sealed class LmsCertificateAuditDto
+{
+    public string Action { get; set; } = string.Empty;
+    public DateTime OccurredAt { get; set; }
+    public long? ActorUserId { get; set; }
+}

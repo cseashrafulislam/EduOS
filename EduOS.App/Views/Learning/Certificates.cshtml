@@ -46,7 +46,7 @@
     </div>
     <div id="lmsCertificateDetail" class="d-none">
         <div class="d-flex gap-2 mb-2 flex-wrap">
-            <button id="lmsCertificatePrint" class="btn btn-primary btn-sm" type="button" data-lms-i18n="print">Print / Save PDF</button>
+            <a id="lmsCertificatePrint" class="btn btn-primary btn-sm disabled" target="_blank" rel="noopener noreferrer" aria-disabled="true" tabindex="-1" data-lms-i18n="print">Print / Save PDF</a>
             @if (User.IsInRole("TenantAdmin") || User.IsInRole("Principal"))
             {
                 <button id="lmsCertificateRevoke" class="btn btn-outline-danger btn-sm" type="button" data-lms-i18n="revoke">Revoke</button>
@@ -67,6 +67,18 @@
                 <strong id="lmsCertificateStatus"></strong>
             </div>
         </article>
+        @if (User.IsInRole("TenantAdmin") || User.IsInRole("Principal") || User.IsInRole("Teacher"))
+        {
+            <div class="card mt-3" id="lmsCertificateAudit">
+                <div class="card-header"><strong data-lms-i18n="history">Issuance history</strong></div>
+                <div class="table-responsive">
+                    <table class="table table-sm align-middle mb-0">
+                        <thead><tr><th data-lms-i18n="event">Event</th><th data-lms-i18n="when">When</th><th data-lms-i18n="actor">Actor ID</th></tr></thead>
+                        <tbody id="lmsCertificateAuditRows"></tbody>
+                    </table>
+                </div>
+            </div>
+        }
     </div>
 </section>
 <style>

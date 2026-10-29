@@ -1,0 +1,62 @@
+@model EduOS.Core.DTOs.LMS.LmsCertificateDto
+@using System.Globalization
+@{
+    Layout = null;
+    var bn = CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "bn";
+    var language = bn ? "bn" : "en";
+    var completed = Model.CompletedAt.ToString("dd MMM yyyy", CultureInfo.InvariantCulture);
+    var issued = Model.IssuedAt.ToString("dd MMM yyyy", CultureInfo.InvariantCulture);
+}
+<!doctype html>
+<html lang="@language">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta name="robots" content="noindex,nofollow,noarchive" />
+    <title>@(bn ? "কোর্স সমাপ্তির সনদ" : "LMS Course Completion Certificate")</title>
+    <style>
+        :root { color-scheme: light; }
+        body { margin: 0; background: #f1f3f7; color: #16243a; font-family: system-ui, "Noto Sans Bengali", sans-serif; }
+        .actions { max-width: 210mm; margin: 1rem auto; display: flex; justify-content: flex-end; }
+        button { border: 0; border-radius: .4rem; padding: .7rem 1.2rem; background: #234a84; color: white; font: inherit; cursor: pointer; }
+        button:focus-visible { outline: 3px solid #e59a15; outline-offset: 3px; }
+        main { box-sizing: border-box; width: min(210mm,100%); min-height: 250mm; margin: auto; padding: 24mm 18mm; background: white; border: 9px double #234a84; text-align: center; }
+        h1 { font-size: clamp(1.5rem,4vw,2.2rem); margin: 0 0 1.5rem; }
+        h2 { font-size: clamp(1.3rem,3vw,1.9rem); overflow-wrap: anywhere; }
+        p { line-height: 1.8; overflow-wrap: anywhere; }
+        .name { font-weight: 700; font-size: 1.5rem; }
+        .details { margin-top: 2rem; font-size: .95rem; }
+        .reference { font-family: ui-monospace, monospace; font-size: .8rem; overflow-wrap: anywhere; }
+        .status { color: #1b6a3a; font-weight: 700; }
+        @@media (max-width: 640px) { main { min-height: 0; padding: 2rem 1rem; border-width: 5px; } .actions { padding: 0 1rem; } }
+        @@media print {
+            @@page { size: A4 portrait; margin: 12mm; }
+            body { background: white; print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+            .actions { display: none; }
+            main { width: 100%; min-height: 265mm; padding: 24mm 15mm; box-shadow: none; }
+        }
+    </style>
+</head>
+<body>
+    <div class="actions"><button type="button" id="lmsPrintNow">@(bn ? "প্রিন্ট / পিডিএফ সংরক্ষণ" : "Print / Save PDF")</button></div>
+    <main aria-label="@(bn ? "এলএমএস সনদ" : "LMS certificate")">
+        <h1>@(bn ? "কোর্স সমাপ্তির সনদ" : "Certificate of Course Completion")</h1>
+        <p>@(bn ? "এই মর্মে প্রত্যয়ন করা যাচ্ছে যে" : "This certifies that")</p>
+        <p class="name">@Model.StudentName</p>
+        <p>@Model.StudentCode</p>
+        <p>@(bn ? "নিম্নোক্ত কোর্সটি সম্পন্ন করেছেন" : "has successfully completed the course")</p>
+        <h2>@Model.CourseTitle</h2>
+        <p>@Model.CourseCode</p>
+        <div class="details">
+            <p>@(bn ? "সম্পন্নের তারিখ" : "Completed"): @completed</p>
+            <p>@(bn ? "ইস্যুর তারিখ" : "Issued"): @issued · @(bn ? "সংস্করণ" : "Revision") @Model.Revision</p>
+            <p>@(bn ? "পাঠ" : "Lessons"): @Model.CompletedLessons / @Model.RequiredLessons ·
+                @(bn ? "অ্যাসাইনমেন্ট" : "Assignments"): @Model.GradedAssignments / @Model.RequiredAssignments ·
+                @(bn ? "কুইজ" : "Quizzes"): @Model.PassedQuizzes / @Model.RequiredQuizzes</p>
+            <p class="reference">@(bn ? "সনদ রেফারেন্স" : "Certificate reference"): @Model.Reference</p>
+            <p class="status">@(bn ? "ইস্যুর সময় যাচাইকৃত — বর্তমান অবস্থা যাচাই করতে লগইন করুন" : "Issued after verification — sign in to check current status")</p>
+        </div>
+    </main>
+    <script src="~/js/learning/certificate-print.js" asp-append-version="true"></script>
+</body>
+</html>

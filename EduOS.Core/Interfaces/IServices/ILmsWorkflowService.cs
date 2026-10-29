@@ -32,6 +32,7 @@ public interface ILmsWorkflowService
     Task<ApiResponse<LmsCertificateDto>> GetCertificateAsync(Guid reference, CancellationToken cancellationToken = default);
     Task<ApiResponse<PagedResult<LmsCertificateDto>>> GetMyCertificatesAsync(int page, int pageSize, CancellationToken cancellationToken = default);
     Task<ApiResponse<PagedResult<LmsCertificateDto>>> GetCourseCertificatesAsync(Guid courseReference, int page, int pageSize, CancellationToken cancellationToken = default);
+    Task<ApiResponse<IReadOnlyList<LmsCertificateAuditDto>>> GetCertificateAuditAsync(Guid reference, CancellationToken cancellationToken = default);
     Task<ApiResponse<LmsCertificateVerificationDto>> VerifyCertificateAsync(Guid reference, CancellationToken cancellationToken = default);
     Task<ApiResponse<PagedResult<LmsLearnerCourseProgressDto>>> GetMyCourseProgressAsync(int page, int pageSize, CancellationToken cancellationToken = default, bool includeArchived = false);
     Task<ApiResponse<PagedResult<LessonProgressDto>>> GetMyLessonProgressAsync(Guid courseReference, int page, int pageSize, CancellationToken cancellationToken = default);

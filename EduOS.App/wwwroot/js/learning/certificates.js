@@ -15,7 +15,8 @@ const messages = {
  choose:'Choose a course',select:'Select a course to view certificates.',reason:'Reason for revocation:',
  confirm:'Revoke this certificate? The original will remain in history.',error:'Request failed.',
  missing:'Your session changed. Sign in again.',refused:'Revoked certificates cannot be printed as valid.',
- retry:'Reload the certificate and try again.'},
+ retry:'Reload the certificate and try again.',history:'Issuance history',event:'Event',when:'When',actor:'Actor ID',
+ issuedEvent:'Issued',reissuedEvent:'Reissued',revokedEvent:'Revoked',noHistory:'No audit events found.'},
  bn: {title:'এলএমএস কোর্স সমাপ্তির সনদ',help:'যাচাইকৃত কোর্স সমাপ্তির পর সনদ দেওয়া হয়। বাতিল হলেও মূল ইতিহাস থাকে; পুনরায় দিলে নতুন সংস্করণ তৈরি হয়।',
  course:'কোর্স',previous:'আগের',next:'পরের',register:'সনদ নিবন্ধন',learner:'শিক্ষার্থী',
  revision:'সংস্করণ',issued:'ইস্যুর তারিখ',status:'অবস্থা',action:'কার্যক্রম',loading:'লোড হচ্ছে…',
@@ -25,7 +26,8 @@ const messages = {
  choose:'কোর্স নির্বাচন করুন',select:'সনদ দেখতে কোর্স নির্বাচন করুন।',reason:'বাতিলের কারণ:',
  confirm:'এই সনদ বাতিল করবেন? মূল ইতিহাস সংরক্ষিত থাকবে।',error:'অনুরোধ ব্যর্থ হয়েছে।',
  missing:'সেশন পরিবর্তিত হয়েছে। আবার লগইন করুন।',refused:'বাতিল সনদ বৈধ হিসেবে প্রিন্ট করা যাবে না।',
- retry:'সনদ পুনরায় লোড করুন।'}
+ retry:'সনদ পুনরায় লোড করুন।',history:'ইস্যুর ইতিহাস',event:'ঘটনা',when:'সময়',actor:'কার্যসম্পাদনকারী আইডি',
+ issuedEvent:'ইস্যু',reissuedEvent:'পুনরায় ইস্যু',revokedEvent:'বাতিল',noHistory:'কোনো অডিট তথ্য পাওয়া যায়নি।'}
 };
 const t = key => messages[lang][key] || messages.en[key] || key;
 root.querySelectorAll('[data-lms-i18n]').forEach(node => {node.textContent=t(node.dataset.lmsI18n);});
@@ -36,7 +38,7 @@ const currentSession = () => /^[0-9A-F]{64}$/.test(initialSession) &&
  document.body?.dataset.authTenantId === initialTenant &&
  window.EduOSSessionTransitionPending?.() !== true;
 const state = {coursePage:1,coursePages:1,course:'',page:1,pages:1,rows:[],
- selected:null,request:0,controller:null,busy:false};
+ selected:null,request:0,detailRequest:0,controller:null,busy:false};
 function notice(type, message) {
  const node=$('lmsCertificateAlert');node.className='alert alert-'+type;
  node.textContent=message;node.focus();
@@ -66,7 +68,10 @@ async function api(path,method='GET',body,signal) {
   return result.data;
  } finally {clearTimeout(timeout);if(signal)signal.removeEventListener('abort',abort);}
 }
-function clearDetail(){state.selected=null;$('lmsCertificateDetail').classList.add('d-none');}
+function clearDetail(){state.detailRequest++;state.selected=null;$('lmsCertificateDetail').classList.add('d-none');
+ const print=$('lmsCertificatePrint');print.removeAttribute('href');print.classList.add('disabled');
+ print.setAttribute('aria-disabled','true');print.tabIndex=-1;
+ if($('lmsCertificateAuditRows'))$('lmsCertificateAuditRows').replaceChildren();}
 function renderRows(){
  const tbody=$('lmsCertificateRows');tbody.replaceChildren();
  for(const row of state.rows){
@@ -110,9 +115,10 @@ async function loadCourses(){
  }catch(e){notice('danger',e.message);}
 }
 async function showCertificate(reference){
+ const seq=++state.detailRequest;
  try {
   const row=await api('/api/lms/certificates/'+encodeURIComponent(reference));
-  if(!currentSession())return;
+  if(!currentSession()||seq!==state.detailRequest)return;
   state.selected=row;
   $('lmsCertificateStudent').textContent=row.studentName+' ('+row.studentCode+')';
   $('lmsCertificateTitle').textContent=row.courseTitle;
@@ -125,11 +131,33 @@ async function showCertificate(reference){
   $('lmsCertificateStatus').textContent=row.isRevoked?t('revoked'):t('valid');
   $('lmsCertificateStatus').className=row.isRevoked?'text-danger':'text-success';
   $('lmsCertificateDetail').classList.remove('d-none');
+  const print=$('lmsCertificatePrint');
+  if(row.isRevoked){print.removeAttribute('href');print.classList.add('disabled');
+   print.setAttribute('aria-disabled','true');print.tabIndex=-1;}
+  else{print.href='/Learning/CertificatePrint?reference='+encodeURIComponent(row.reference);
+   print.classList.remove('disabled');print.setAttribute('aria-disabled','false');print.tabIndex=0;}
+  if($('lmsCertificateAuditRows'))loadAudit(row.reference,seq);
   if($('lmsCertificateRevoke')){
    $('lmsCertificateRevoke').disabled=row.isRevoked;
    $('lmsCertificateReissue').disabled=!row.isRevoked;
   }
- }catch(e){clearDetail();notice('danger',e.message);}
+ }catch(e){if(seq===state.detailRequest){clearDetail();notice('danger',e.message);}}
+}
+async function loadAudit(reference,seq){
+ const tbody=$('lmsCertificateAuditRows');if(!tbody)return;
+ tbody.replaceChildren();
+ try{
+  const events=await api('/api/lms/certificates/'+encodeURIComponent(reference)+'/history');
+  if(seq!==state.detailRequest||state.selected?.reference!==reference||!currentSession())return;
+  for(const entry of events||[]){
+   const tr=document.createElement('tr');
+   const key=entry.action==='LMS.CertificateIssued'?'issuedEvent':
+    entry.action==='LMS.CertificateReissued'?'reissuedEvent':'revokedEvent';
+   td(tr,t(key));td(tr,date(entry.occurredAt));td(tr,entry.actorUserId??'—');tbody.append(tr);
+  }
+  if(!tbody.children.length){const tr=document.createElement('tr');const cell=td(tr,t('noHistory'));
+   cell.colSpan=3;tbody.append(tr);}
+ }catch(e){if(seq===state.detailRequest)notice('danger',e.message);}
 }
 async function revoke(){
  const row=state.selected;if(!row||row.isRevoked||state.busy)return;
@@ -155,17 +183,9 @@ async function reissue(){
  }catch(e){notice('danger',e.message);}
  finally{state.busy=false;}
 }
-async function printCertificate(){
- const row=state.selected;if(!row||row.isRevoked||state.busy)return notice('danger',t('refused'));
- try {
-  const result=await api('/api/lms/certificates/'+encodeURIComponent(row.reference)+'/verify');
-  if(!result?.isValid||!currentSession())throw Error(t('refused'));
-  window.print();
- }catch(e){notice('danger',e.message);}
-}
 $('lmsCertificatePrev').addEventListener('click',()=>{if(state.page>1){state.page--;loadRows();}});
 $('lmsCertificateNext').addEventListener('click',()=>{if(state.page<state.pages){state.page++;loadRows();}});
-$('lmsCertificatePrint').addEventListener('click',printCertificate);
+
 if(!student){
  $('lmsCertificateCourse').addEventListener('change',e=>{state.course=e.target.value;state.page=1;clearDetail();loadRows();});
  $('lmsCertificateCoursePrev').addEventListener('click',()=>{if(state.coursePage>1){state.coursePage--;loadCourses();}});

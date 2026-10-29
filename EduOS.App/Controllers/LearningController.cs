@@ -1,4 +1,5 @@
 using EduOS.App.Authorization;
+using EduOS.Core.Interfaces.IServices;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 namespace EduOS.App.Controllers;
@@ -7,6 +8,8 @@ namespace EduOS.App.Controllers;
 [RequireModule("LMS")]
 public sealed class LearningController : Controller
 {
+    private readonly ILmsWorkflowService _lms;
+    public LearningController(ILmsWorkflowService lms) => _lms = lms;
     [HttpGet]
     [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
     public IActionResult Index() => View();
@@ -29,6 +32,19 @@ public sealed class LearningController : Controller
     [HttpGet]
     [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
     public IActionResult Certificates() => View();
+    [HttpGet]
+    [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
+    public async Task<IActionResult> CertificatePrint([FromQuery] Guid reference, CancellationToken ct)
+    {
+        if (reference == Guid.Empty) return NotFound();
+        // A fresh authenticated server read, not browser-held certificate state, controls printing.
+        var result = await _lms.GetCertificateAsync(reference, ct);
+        if (!result.Success || result.Data == null || result.Data.IsRevoked)
+            return NotFound();
+        Response.Headers["Cache-Control"] = "no-store, private";
+        return View(result.Data);
+    }
+
     [HttpGet]
     [Authorize(Roles = "Student")]
     [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]

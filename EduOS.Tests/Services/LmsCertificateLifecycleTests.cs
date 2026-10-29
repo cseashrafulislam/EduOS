@@ -4,6 +4,7 @@ using EduOS.Core.Entities.Files;
 using EduOS.Core.Entities.HR;
 using EduOS.Core.Entities.LMS;
 using EduOS.Core.Entities.Students;
+using EduOS.Core.Entities.System;
 using EduOS.Core.Enums.Domain;
 using EduOS.Core.Interfaces;
 using EduOS.Persistence.Context;
@@ -53,6 +54,12 @@ public sealed class LmsCertificateLifecycleTests
         });
         Assert.Equal(issued.Data.Reference, anotherRequest.Data!.Reference);
         Assert.Equal(1, await db.Set<LmsCompletionCertificate>().CountAsync());
+        var audit = await db.Set<AuditLog>().SingleAsync(x => x.Action == "LMS.CertificateIssued");
+        Assert.Equal(101, audit.TenantId);
+        Assert.Equal(77, audit.UserId);
+        Assert.Null(audit.OldValue);
+        Assert.Null(audit.NewValue);
+        Assert.Single((await service.GetCertificateAuditAsync(issued.Data.Reference)).Data!);
         Assert.Equal(409, (await service.IssueCertificateAsync(new IssueLmsCertificateRequestDto
         {
             CourseEnrollmentId = enrollment.Id + 1000, ClientRequestId = requestId
@@ -100,6 +107,14 @@ public sealed class LmsCertificateLifecycleTests
         Assert.Equal(issued.Data.StudentName, reissued.Data.StudentName);
         Assert.Equal(issued.Data.CompletedAt, reissued.Data.CompletedAt);
         Assert.Equal(2, await db.Set<LmsCompletionCertificate>().CountAsync());
+        Assert.Equal(3, await db.Set<AuditLog>().CountAsync(x => x.EntityName == "LmsCompletionCertificate"));
+        var events = await service.GetCertificateAuditAsync(issued.Data.Reference);
+        Assert.True(events.Success);
+        Assert.Contains(events.Data!, x => x.Action == "LMS.CertificateRevoked");
+        Assert.Equal(404, (await Service(db, "TenantAdmin", 202).GetCertificateAuditAsync(
+            issued.Data.Reference)).StatusCode);
+        Assert.Equal(403, (await Service(db, "Student").GetCertificateAuditAsync(
+            issued.Data.Reference)).StatusCode);
         Assert.True((await service.VerifyCertificateAsync(reissued.Data.Reference)).Data!.IsValid);
         Assert.False((await service.VerifyCertificateAsync(first.PublicId)).Data!.IsValid);
     }
@@ -183,7 +198,8 @@ public sealed class LmsCertificateLifecycleTests
         NullLogger<LmsWorkflowService>.Instance,
         completionQuizzes: new GenericRepository<Quiz>(db),
         completionAttempts: new GenericRepository<QuizAttempt>(db),
-        certificates: new GenericRepository<LmsCompletionCertificate>(db));
+        certificates: new GenericRepository<LmsCompletionCertificate>(db),
+        certificateAudits: new GenericRepository<AuditLog>(db));
 
     private sealed class TestUser(string role, long tenant, long userId) : ICurrentUserService
     {

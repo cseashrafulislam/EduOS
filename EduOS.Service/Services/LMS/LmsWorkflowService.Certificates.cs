@@ -21,7 +21,7 @@ public sealed partial class LmsWorkflowService
         if (!CanTeach()) return Error<LmsCertificateDto>("LMS instructor permission required.", 403);
         if (request == null || request.CourseEnrollmentId <= 0 || request.ClientRequestId == Guid.Empty)
             return Error<LmsCertificateDto>("Enrollment and request reference are required.");
-        if (_certificates == null || _completionQuizzes == null || _completionAttempts == null)
+        if (_certificates == null || _certificateAudits == null || _completionQuizzes == null || _completionAttempts == null)
             return Error<LmsCertificateDto>("LMS certificate repositories are unavailable.", 503);
         try
         {
@@ -115,6 +115,9 @@ public sealed partial class LmsWorkflowService
                 };
                 await _certificates.AddAsync(certificate);
                 await _uow.SaveChangesAsync(token);
+                await WriteCertificateAuditAsync(certificate, latest == null
+                    ? "LMS.CertificateIssued" : "LMS.CertificateReissued", now);
+                await _uow.SaveChangesAsync(token);
                 return ApiResponse<LmsCertificateDto>.SuccessResponse(
                     MapCertificate(certificate, course.PublicId), latest == null
                         ? "LMS certificate issued." : "LMS certificate reissued.");
@@ -136,7 +139,8 @@ public sealed partial class LmsWorkflowService
         if (reference == Guid.Empty || request == null || string.IsNullOrWhiteSpace(request.Reason) ||
             request.Reason.Trim().Length > 500 || !TryVersion(request.RowVersion, out _))
             return Error<LmsCertificateDto>("Certificate, reason and valid row version are required.");
-        if (_certificates == null) return Error<LmsCertificateDto>("Certificate repository unavailable.", 503);
+        if (_certificates == null || _certificateAudits == null)
+            return Error<LmsCertificateDto>("Certificate audit repositories unavailable.", 503);
         try
         {
             return await _uow.ExecuteInTransactionAsync(async token =>
@@ -159,6 +163,7 @@ public sealed partial class LmsWorkflowService
                 row.RevokedByUserId = _user.UserId; row.RevocationReason = request.Reason.Trim();
                 row.UpdatedAt = now; row.UpdatedBy = _user.UserId;
                 _certificates.Update(row);
+                await WriteCertificateAuditAsync(row, "LMS.CertificateRevoked", now);
                 await _uow.SaveChangesAsync(token);
                 return ApiResponse<LmsCertificateDto>.SuccessResponse(
                     MapCertificate(row, course.PublicId), "Certificate revoked. Original issue remains in history.");
@@ -245,6 +250,47 @@ public sealed partial class LmsWorkflowService
                 Page = page, PageSize = pageSize, TotalCount = total,
                 Items = rows.Select(x => MapCertificate(x, course.PublicId)).ToList()
             });
+    }
+
+    /// <summary>Bounded tenant-scoped certificate event history; never returns raw PII or audit payloads.</summary>
+    public async Task<ApiResponse<IReadOnlyList<LmsCertificateAuditDto>>> GetCertificateAuditAsync(
+        Guid reference, CancellationToken ct = default)
+    {
+        if (!CanTeach()) return Error<IReadOnlyList<LmsCertificateAuditDto>>("Instructor permission required.", 403);
+        if (reference == Guid.Empty) return Error<IReadOnlyList<LmsCertificateAuditDto>>("Invalid certificate reference.");
+        if (_certificates == null || _certificateAudits == null)
+            return Error<IReadOnlyList<LmsCertificateAuditDto>>("Certificate audit unavailable.", 503);
+        var tenant = _user.TenantId;
+        var record = await (from certificate in _certificates.GetQueryable().AsNoTracking()
+            join course in _courses.GetQueryable().AsNoTracking() on certificate.CourseId equals course.Id
+            where certificate.TenantId == tenant && course.TenantId == tenant &&
+                  certificate.PublicId == reference && !certificate.IsDeleted && !course.IsDeleted
+            select new { CertificateId = certificate.Id, Course = course }).FirstOrDefaultAsync(ct);
+        if (record == null || !await CanEditAsync(record.Course, ct))
+            return Error<IReadOnlyList<LmsCertificateAuditDto>>("Certificate not found.", 404);
+        IReadOnlyList<LmsCertificateAuditDto> events = await _certificateAudits.GetQueryable().AsNoTracking()
+            .Where(x => x.TenantId == tenant && x.EntityName == "LmsCompletionCertificate" &&
+                x.EntityId == record.CertificateId &&
+                (x.Action == "LMS.CertificateIssued" || x.Action == "LMS.CertificateReissued" ||
+                 x.Action == "LMS.CertificateRevoked"))
+            .OrderByDescending(x => x.OccurredAt).ThenByDescending(x => x.Id).Take(50)
+            .Select(x => new LmsCertificateAuditDto
+            {
+                Action = x.Action, OccurredAt = x.OccurredAt, ActorUserId = x.UserId
+            }).ToListAsync(ct);
+        return ApiResponse<IReadOnlyList<LmsCertificateAuditDto>>.SuccessResponse(events);
+    }
+
+    private async Task WriteCertificateAuditAsync(LmsCompletionCertificate certificate, string action, DateTime now)
+    {
+        // Must share the issuance/revocation SQL transaction. Never record learner identity,
+        // raw evidence, revocation reason, or sensitive request payload in the audit log.
+        await _certificateAudits!.AddAsync(new EduOS.Core.Entities.System.AuditLog
+        {
+            TenantId = _user.TenantId, UserId = _user.UserId,
+            EntityName = "LmsCompletionCertificate", EntityId = certificate.Id,
+            Action = action, OccurredAt = now, IsSuccess = true
+        });
     }
 
     // This is intentionally authenticated, tenant-scoped verification. Public third-party
