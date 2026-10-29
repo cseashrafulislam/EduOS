@@ -10,7 +10,7 @@
             <details class="position-relative">
                 <summary class="btn btn-sm btn-outline-secondary" title="Page help" aria-label="Salary component help">ⓘ</summary>
                 <div class="card card-body shadow-sm position-absolute end-0 mt-1" style="width:min(320px,85vw);z-index:10">
-                    Components define earnings, deductions and employer contributions. Used components cannot change type. Configure BONUS as an earning and LOAN_RECOVERY as a deduction when using those payroll functions.
+                    Define earnings, deductions and employer contributions. Use Set up Tax / Set up PF to fill the statutory component form, then save explicitly. Activating a STAT_ component requires a reviewed line for every eligible salary structure (zero only for a reviewed exemption). Configure BONUS as an earning and LOAN_RECOVERY as a deduction when used. Existing component types cannot change after use.
                 </div>
             </details>
         </div>
@@ -18,7 +18,13 @@
     @Html.AntiForgeryToken()
     <div id="componentNotice" class="alert d-none" role="alert" aria-live="polite" tabindex="-1"></div>
     <section class="card mb-3"><div class="card-body">
-        <h3 class="h6 mb-3" id="componentFormTitle">New salary component</h3>
+        <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
+            <h3 class="h6 mb-0" id="componentFormTitle">New salary component</h3>
+            <div class="d-flex gap-2">
+                <button type="button" id="componentPresetTax" class="btn btn-sm btn-outline-secondary">Set up Tax</button>
+                <button type="button" id="componentPresetPf" class="btn btn-sm btn-outline-secondary">Set up PF</button>
+            </div>
+        </div>
         <form id="componentForm">
             <div class="row g-2">
                 <div class="col-md-4"><label class="form-label" for="componentCode">Code *</label><input class="form-control" id="componentCode" maxlength="50" required /></div>

@@ -23,6 +23,22 @@
         editing=null;el('componentForm').reset();el('componentActive').checked=true;el('componentType').value='1';
         el('componentFormTitle').textContent='New salary component';el('componentSave').textContent='Save component';
     }
+    function edit(item) {
+        editing=item;el('componentCode').value=item.code;el('componentName').value=item.name;
+        el('componentType').value=String(item.type);el('componentTaxable').checked=Boolean(item.isTaxable);
+        el('componentActive').checked=Boolean(item.isActive);
+        el('componentFormTitle').textContent='Edit component · '+item.code;
+        el('componentSave').textContent='Update component';
+        el('componentFormTitle').scrollIntoView({block:'nearest'});
+    }
+    function preset(code,name) {
+        const existing=rows.find(x=>x.code===code);
+        if(existing){edit(existing);notice(code+' already exists. Review its settings before updating.');return;}
+        clear();el('componentCode').value=code;el('componentName').value=name;
+        el('componentType').value='2';el('componentTaxable').checked=false;
+        el('componentFormTitle').textContent='Set up '+name;
+        el('componentCode').focus();
+    }
     function textCell(value) {const c=document.createElement('td');c.textContent=String(value??'');return c;}
     function render() {
         const q=el('componentFilter').value.trim().toLowerCase();
@@ -34,14 +50,7 @@
                 item.isActive?'Active':'Inactive'].forEach(v=>tr.append(textCell(v)));
             const actions=document.createElement('td'),button=document.createElement('button');
             button.className='btn btn-sm btn-outline-primary';button.type='button';button.textContent='Edit';
-            button.addEventListener('click',()=>{
-                editing=item;el('componentCode').value=item.code;el('componentName').value=item.name;
-                el('componentType').value=String(item.type);el('componentTaxable').checked=Boolean(item.isTaxable);
-                el('componentActive').checked=Boolean(item.isActive);
-                el('componentFormTitle').textContent='Edit component · '+item.code;
-                el('componentSave').textContent='Update component';
-                el('componentFormTitle').scrollIntoView({block:'nearest'});
-            });
+            button.addEventListener('click',()=>edit(item));
             actions.append(button);tr.append(actions);body.append(tr);
         }
         if(!filtered.length) {
@@ -64,6 +73,8 @@
             type:Number(el('componentType').value),isTaxable:el('componentTaxable').checked,
             isActive:el('componentActive').checked,rowVersion:editing?.rowVersion||null};
         if(!payload.code||!payload.name||!types[payload.type])return notice('Enter valid component details.',true);
+        if(payload.isActive&&payload.code.toUpperCase().startsWith('STAT_')&&
+            (!editing||!editing.isActive)&&!confirm('Activate '+payload.code+'? Every eligible employee will need an explicit salary structure deduction (including reviewed zero exemptions) before payroll can run.'))return;
         busy=true;el('componentSave').disabled=true;
         try {
             await api('/api/hr-payroll/salary-components'+(editing?'/'+editing.id:''),
@@ -74,6 +85,8 @@
     }
     el('componentForm').addEventListener('submit',save);
     el('componentClear').addEventListener('click',clear);
+    el('componentPresetTax').addEventListener('click',()=>preset('STAT_TAX','Income tax withholding'));
+    el('componentPresetPf').addEventListener('click',()=>preset('STAT_PF','Provident fund deduction'));
     el('componentFilter').addEventListener('input',render);
     el('componentRefresh').addEventListener('click',load);
     load();

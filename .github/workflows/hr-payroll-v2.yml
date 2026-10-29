@@ -11,9 +11,12 @@ on:
       - 'EduOS.App/Views/EmployeeContracts/**'
       - 'EduOS.App/Views/PayrollPaymentPosting/**'
       - 'EduOS.App/Views/PayrollSalaryStructures/**'
+      - 'EduOS.App/Views/PayrollSalaryComponents/**'
+      - 'EduOS.App/Views/PayrollOperations/**'
       - 'EduOS.App/wwwroot/js/hr/employee-contracts.js'
       - 'EduOS.App/wwwroot/js/finance/payroll-payment-posting.js'
       - 'EduOS.App/wwwroot/js/payroll/salary-structures.js'
+      - 'EduOS.App/wwwroot/js/payroll/salary-components.js'
       - 'EduOS.Core/DTOs/HR/**'
       - 'EduOS.Core/DTOs/Payroll/**'
       - 'EduOS.Core/Interfaces/IServices/IEmployeeContractService.cs'
@@ -35,9 +38,12 @@ on:
       - 'EduOS.App/Views/EmployeeContracts/**'
       - 'EduOS.App/Views/PayrollPaymentPosting/**'
       - 'EduOS.App/Views/PayrollSalaryStructures/**'
+      - 'EduOS.App/Views/PayrollSalaryComponents/**'
+      - 'EduOS.App/Views/PayrollOperations/**'
       - 'EduOS.App/wwwroot/js/hr/employee-contracts.js'
       - 'EduOS.App/wwwroot/js/finance/payroll-payment-posting.js'
       - 'EduOS.App/wwwroot/js/payroll/salary-structures.js'
+      - 'EduOS.App/wwwroot/js/payroll/salary-components.js'
       - 'EduOS.Core/DTOs/HR/**'
       - 'EduOS.Core/DTOs/Payroll/**'
       - 'EduOS.Core/Interfaces/IServices/IEmployeeContractService.cs'
@@ -76,3 +82,4 @@ jobs:
           node --check EduOS.App/wwwroot/js/hr/employee-contracts.js
           node --check EduOS.App/wwwroot/js/finance/payroll-payment-posting.js
           node --check EduOS.App/wwwroot/js/payroll/salary-structures.js
+          node --check EduOS.App/wwwroot/js/payroll/salary-components.js

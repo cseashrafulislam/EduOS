@@ -17,16 +17,60 @@ async function api(url,method='GET',body){
  return json.data;
 }
 function clearRequest(){state.requestId=null;}
+function refreshEstimate(){
+ const rows=[...el('salaryLines').querySelectorAll('tr')];
+ const components=new Map(state.components.map(x=>[String(x.id),x]));
+ const earnings=new Map();let gross=0,deductions=0,incomplete=!rows.length;
+ for(const tr of rows){
+  const component=components.get(tr.querySelector('select').value);
+  const value=tr.querySelector('.salary-amount').value;
+  if(!component||value===''){incomplete=true;continue;}
+  if(component.type===1){const amount=Number(value);earnings.set(String(component.id),amount);gross+=amount;}
+ }
+ const taxable=[...earnings].reduce((sum,[id,value])=>sum+(components.get(id)?.isTaxable?value:0),0);
+ for(const tr of rows){
+  const component=components.get(tr.querySelector('select').value);
+  if(!component||component.type!==2)continue;
+  const mode=tr.querySelector('.salary-mode').value;
+  const value=tr.querySelector('.salary-amount').value;
+  if(mode!=='Auto'){
+   if(value==='')incomplete=true;else deductions+=Number(value);
+   continue;
+  }
+  const rate=tr.querySelector('.salary-rate').value;
+  const basedOn=tr.querySelector('.salary-basis').value;
+  if(rate===''||(component.code==='STAT_PF'&&!basedOn)||
+      (basedOn&&!earnings.has(basedOn))||
+      (!basedOn&&![...earnings.keys()].some(id=>components.get(id)?.isTaxable))){incomplete=true;continue;}
+  const basis=basedOn?earnings.get(basedOn):taxable;
+  deductions+=Math.round((basis*Number(rate)/100+Number.EPSILON)*100)/100;
+ }
+ const target=el('salaryEstimate');
+ if(incomplete||!Number.isFinite(gross)||!Number.isFinite(deductions)||gross<=0){
+  target.textContent='Complete the earning amounts and Tax/PF settings to see the monthly estimate.';
+  target.className='small text-muted mb-3';return;
+ }
+ const fmt=x=>x.toLocaleString('en-BD',{minimumFractionDigits:2,maximumFractionDigits:2});
+ target.textContent='Estimated monthly · Earnings '+fmt(gross)+' · Deductions '+fmt(deductions)+
+  ' · Net '+fmt(gross-deductions)+' BDT (before bonus, loans and partial-month rules)';
+ target.className='small mb-3 '+(deductions>gross?'text-danger':'text-muted');
+}
+function ensureStatutoryLines(){
+ const selected=new Set([...el('salaryLines').querySelectorAll('tr')].map(tr=>tr.querySelector('select').value));
+ for(const component of state.components.filter(x=>x.isActive&&x.code.startsWith('STAT_'))){
+  if(!selected.has(String(component.id)))addLine(component.id,'');
+ }
+}
 function addLine(componentId='',amount='',method='Manual',percentage=null,basedOn=null){
- const tr=document.createElement('tr'),c=document.createElement('td'),m=document.createElement('td'),a=document.createElement('td'),p=document.createElement('td'),b=document.createElement('td'),actions=document.createElement('td');
+ const tr=document.createElement('tr'),c=document.createElement('td'),m=document.createElement('td'),a=document.createElement('td'),b=document.createElement('td'),actions=document.createElement('td');
  const select=document.createElement('select');select.className='form-select form-select-sm';select.required=true;
  select.append(option('','Select component'));
  for(const item of state.components.filter(x=>x.isActive))select.append(option(item.id,item.name+' ('+item.code+') — '+(['','Earning','Deduction','Employer contribution'][item.type]||'Other')));
  select.value=String(componentId);
  const mode=document.createElement('select');mode.className='form-select form-select-sm salary-mode';
  mode.append(option('Manual','Manual (BDT)'),option('Auto','Auto (%)'));mode.value=method==='Auto'?'Auto':'Manual';
- const input=document.createElement('input');input.type='number';input.min='0';input.max='999999999999';input.step='0.01';input.required=true;input.className='form-control form-control-sm salary-amount';input.value=String(amount);
- const rate=document.createElement('input');rate.type='number';rate.min='0';rate.max='100';rate.step='0.0001';rate.className='form-control form-control-sm salary-rate';rate.value=percentage==null?'':String(percentage);rate.placeholder='0–100';
+ const input=document.createElement('input');input.type='number';input.min='0';input.max='999999999999';input.step='0.01';input.required=true;input.className='form-control form-control-sm salary-amount';input.value=method==='Auto'?'':String(amount);input.setAttribute('aria-label','Monthly amount in BDT');
+ const rate=document.createElement('input');rate.type='number';rate.min='0';rate.max='100';rate.step='0.0001';rate.className='form-control form-control-sm salary-rate';rate.value=percentage==null?'':String(percentage);rate.placeholder='Rate %';rate.setAttribute('aria-label','Auto calculation rate percentage');
  const basis=document.createElement('select');basis.className='form-select form-select-sm salary-basis';basis.append(option('','Taxable earnings'));
  for(const item of state.components.filter(x=>x.isActive&&x.type===1))basis.append(option(item.id,item.name+' ('+item.code+')'));
  basis.value=basedOn==null?'':String(basedOn);
@@ -38,23 +82,24 @@ function addLine(componentId='',amount='',method='Manual',percentage=null,basedO
   const auto=eligible&&mode.value==='Auto';
   if(auto){tr.dataset.manualAmount??=input.value;input.value='0';}
   else if(tr.dataset.manualAmount!==undefined){input.value=tr.dataset.manualAmount;delete tr.dataset.manualAmount;}
-  input.readOnly=auto;rate.disabled=!auto;rate.required=auto;
-  basis.disabled=!auto;basis.required=auto&&code==='STAT_PF';
+  input.readOnly=auto;input.disabled=auto;input.required=!auto;input.classList.toggle('d-none',auto);
+  rate.disabled=!auto;rate.required=auto;rate.classList.toggle('d-none',!auto);
+  basis.disabled=!auto;basis.required=auto&&code==='STAT_PF';basis.classList.toggle('d-none',!auto);
   basis.options[0].disabled=code==='STAT_PF';
   if(code==='STAT_PF'&&!basis.value)basis.value='';
  }
  const remove=document.createElement('button');remove.type='button';remove.className='btn btn-sm btn-outline-danger';remove.textContent='Remove';
- remove.onclick=()=>{tr.remove();clearRequest();};
- select.onchange=()=>{sync();clearRequest();};mode.onchange=()=>{sync();clearRequest();};
- input.oninput=()=>{if(!input.readOnly)tr.dataset.manualAmount=input.value;clearRequest();};
- rate.oninput=clearRequest;basis.onchange=clearRequest;
- c.append(select);m.append(mode);a.append(input);p.append(rate);b.append(basis);
- actions.append(remove);tr.append(c,m,a,p,b,actions);el('salaryLines').append(tr);sync();
+ remove.onclick=()=>{tr.remove();clearRequest();refreshEstimate();};
+ select.onchange=()=>{sync();clearRequest();refreshEstimate();};mode.onchange=()=>{sync();clearRequest();refreshEstimate();};
+ input.oninput=()=>{if(!input.readOnly)tr.dataset.manualAmount=input.value;clearRequest();refreshEstimate();};
+ rate.oninput=()=>{clearRequest();refreshEstimate();};basis.onchange=()=>{clearRequest();refreshEstimate();};
+ c.append(select);m.append(mode);a.append(input,rate);b.append(basis);
+ actions.append(remove);tr.append(c,m,a,b,actions);el('salaryLines').append(tr);sync();refreshEstimate();
 }
 async function components(){
  state.components=await api('/api/hr-payroll/salary-components');
  if(!state.components.some(x=>x.isActive))notice('No active salary components. Configure them before registering salary structures.',true);
- else addLine();
+ else {addLine();ensureStatutoryLines();}
 }
 async function find(){
  const term=el('salaryEmployeeSearch').value.trim();
@@ -85,6 +130,7 @@ function render(data){
    if(missing.length){notice('This structure contains inactive components. Configure replacements before copying.',true);return;}
    el('salaryLines').replaceChildren();
    for(const line of row.lines||[])addLine(line.salaryComponentId,line.amount,line.calculationMethodCode,line.percentage,line.basedOnSalaryComponentId);
+   ensureStatutoryLines();refreshEstimate();
    clearRequest();notice('Components copied. Select a new effective date before saving.');
   };
   action.append(copy);tr.append(action);body.append(tr);
