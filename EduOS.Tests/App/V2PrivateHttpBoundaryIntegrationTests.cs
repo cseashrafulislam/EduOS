@@ -3,6 +3,7 @@ using System.Net.Http;
 using System.Security.Claims;
 using System.Text.Encodings.Web;
 using EduOS.App.Authorization;
+using EduOS.App.Middleware;
 using EduOS.App.Controllers.Api;
 using EduOS.Core.Common;
 using EduOS.Core.DTOs.Files;
@@ -94,6 +95,7 @@ public sealed class V2PrivateHttpBoundaryIntegrationTests
             .Configure(app =>
             {
                 app.UseRouting();
+                app.UseV2PrivateApiResponseHeaders();
                 app.UseRateLimiter();
                 app.UseAuthentication();
                 app.UseAuthorization();
@@ -169,6 +171,7 @@ public sealed class V2PrivateHttpBoundaryIntegrationTests
         using var response = await GetAsync(client,
             $"/api/library/digital/{Guid.NewGuid()}/download", role);
         Assert.Equal(expected, response.StatusCode);
+        AssertPrivateNoStore(response);
         library.Verify(x => x.DownloadAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()),
             Times.Never);
     }

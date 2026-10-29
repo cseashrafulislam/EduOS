@@ -3,6 +3,7 @@ using System.Net.Http;
 using System.Security.Claims;
 using System.Text.Encodings.Web;
 using EduOS.App.Authorization;
+using EduOS.App.Middleware;
 using EduOS.App.Controllers.Api;
 using EduOS.Core.Interfaces;
 using EduOS.Core.Interfaces.IServices;
@@ -115,6 +116,7 @@ public sealed partial class SqlServerTransportSeatCapacityIntegrationTests
             .Configure(app =>
             {
                 app.UseRouting();
+                app.UseV2PrivateApiResponseHeaders();
                 app.UseRateLimiter();
                 app.UseAuthentication();
                 app.Use(async (http, next) =>
@@ -225,8 +227,10 @@ public sealed partial class SqlServerTransportSeatCapacityIntegrationTests
         var fixture = await SeedAsync(connection);
         var asset = await SeedDigitalResourceAsync(fixture);
         var storage = new Mock<IFileUploadService>();
-        storage.Setup(x => x.GetPrivateFileAsync(asset.Key)).Returns(async () =>
+        storage.Setup(x => x.GetPrivateFileAsync(asset.Key)).Returns(() => Task.Run(async () =>
         {
+            // Keep the original HTTP request's AsyncLocal tenant intact while
+            // a separate SQL connection commits the concurrent revocation.
             await using var db = ScopedContext(fixture.Options, fixture.TenantId, fixture.UserId);
             if (documentRevoked)
                 (await db.Documents.SingleAsync(x => x.PublicId == asset.Reference)).IsActive = false;
@@ -239,7 +243,7 @@ public sealed partial class SqlServerTransportSeatCapacityIntegrationTests
             }
             await db.SaveChangesAsync();
             return new FileDownloadResult { Content = asset.Bytes, ContentType = "application/pdf" };
-        });
+        }));
         using var server = PrivateSqlServer(fixture.Options, storage);
         using var client = server.CreateClient();
         using var response = await PrivateGetAsync(client, asset.Reference,

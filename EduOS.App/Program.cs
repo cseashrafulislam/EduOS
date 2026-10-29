@@ -382,6 +382,9 @@ app.UseStaticFiles(
 
 app.UseRequestLocalization();
 app.UseRouting();
+// Private V2 API responses must remain non-cacheable even when authentication,
+// entitlement or tenant middleware rejects a request before MVC filters execute.
+app.UseV2PrivateApiResponseHeaders();
 app.UseCors(CorsExtensions.DefaultPolicy);
 app.UseRateLimiter();
 
