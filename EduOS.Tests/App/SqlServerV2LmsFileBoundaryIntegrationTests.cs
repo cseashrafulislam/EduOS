@@ -72,7 +72,7 @@ public sealed partial class SqlServerTransportSeatCapacityIntegrationTests
         var assets = academic.Select((x, i) => new FileAsset
         {
             TenantId = fixture.TenantId, PublicId = Guid.NewGuid(),
-            UploadedByUserId = i == 0 ? fixture.UserId : fixture.UserId + 10000,
+            UploadedByUserId = fixture.UserId,
             StorageProvider = "LocalPrivate",
             StorageKey = $"tenant-{fixture.TenantId}/documents/{Guid.NewGuid():N}.pdf",
             OriginalFileName = $"private-{i}.pdf", ContentType = "application/pdf",
