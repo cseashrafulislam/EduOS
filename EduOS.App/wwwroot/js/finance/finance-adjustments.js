@@ -152,10 +152,11 @@ async function loadRefunds(){
   tr.append(action);rows.append(tr);
   select.add(new Option(p.receiptNumber+' — '+p.studentName+' / '+moneyText(p.amount),p.paymentReference));
  }
- const refunds=table('RefundRows',data.refunds,5);
+ const refunds=table('RefundRows',data.refunds,6);
  for(const r of data.refunds){
   const tr=document.createElement('tr');
-  [r.receiptNumber,moneyText(r.amount),refundStates[r.state]||r.state,r.requestedByUserId].forEach(x=>tr.append(cell(x)));
+  [r.receiptNumber,moneyText(r.amount),refundStates[r.state]||r.state,
+   r.creditNoteNumber||'—',r.requestedByUserId].forEach(x=>tr.append(cell(x)));
   const actions=cell('');
   if(r.state===1){
    actions.append(button('Approve',()=>run(null,async()=>{

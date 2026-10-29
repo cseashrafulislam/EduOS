@@ -1,5 +1,6 @@
 using EduOS.Core.DTOs.Finance;
 using EduOS.Core.Entities.Finance;
+using EduOS.Core.Entities.Accounting;
 using EduOS.Core.Interfaces;
 using EduOS.Persistence.Context;
 using EduOS.Service.Services.Finance;
@@ -215,6 +216,128 @@ public sealed class FinanceAdjustmentServiceTests
             EduOS.Core.Enums.Domain.InvoiceState.Paid).Should().BeFalse();
         EduOS.Service.Services.Finance.RefundInvoicePolicy.CanAdjust(
             EduOS.Core.Enums.Domain.InvoiceState.PartiallyPaid).Should().BeTrue();
+        EduOS.Service.Services.Finance.RefundInvoicePolicy.CanCredit(
+            EduOS.Core.Enums.Domain.InvoiceState.Paid).Should().BeTrue();
+    }
+    [Fact]
+    public void Fully_paid_credit_note_reverses_frozen_income_proportionately_in_exact_cents()
+    {
+        var sources=new[]{
+            new RefundCreditIncomeSource(10,101,20,60.01m),
+            new RefundCreditIncomeSource(11,102,20,39.99m)};
+        var portions=RefundCreditNoteAllocator.Split(sources,100m,17.01m);
+        portions.Select(x=>x.Amount).Should().Equal(10.21m,6.80m);
+        portions.Sum(x=>x.Amount).Should().Be(17.01m);
+        sources[0].Amount.Should().Be(60.01m);
+        Action oversized=()=>RefundCreditNoteAllocator.Split(sources,100m,101m);
+        Action brokenOriginal=()=>RefundCreditNoteAllocator.Split(sources,99m,17m);
+        oversized.Should().Throw<InvalidOperationException>();
+        brokenOriginal.Should().Throw<InvalidOperationException>();
+        var cents=RefundCreditNoteAllocator.Split(new[]{
+            new RefundCreditIncomeSource(1,1,1,0.01m),
+            new RefundCreditIncomeSource(2,2,1,0.01m),
+            new RefundCreditIncomeSource(3,3,1,0.01m)},0.03m,0.02m);
+        cents.Should().HaveCount(2);
+        cents.All(x=>x.Amount<=0.01m).Should().BeTrue();
+    }
+    [Fact]
+    public async Task Approved_fully_paid_cash_refund_creates_credit_note_and_payout_without_mutating_invoice()
+    {
+        var accessor=new HttpContextAccessor{HttpContext=new DefaultHttpContext()};
+        accessor.HttpContext.Items["TenantId"]=11L;
+        await using var db=new EduOSDbContext(new DbContextOptionsBuilder<EduOSDbContext>()
+            .UseInMemoryDatabase("finance-paid-credit-note-"+Guid.NewGuid().ToString("N"))
+            .ConfigureWarnings(w=>w.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.InMemoryEventId.TransactionIgnoredWarning))
+            .Options,accessor);
+        var today=DateOnly.FromDateTime(DateTime.UtcNow);
+        var cash=new Account{TenantId=11,Code="CASH-HAND",Name="Cash in hand",
+            AccountType=EduOS.Core.Enums.Domain.AccountType.Asset,CurrencyCode="BDT"};
+        var ar=new Account{TenantId=11,Code="STUDENT-AR",Name="Student receivable",
+            AccountType=EduOS.Core.Enums.Domain.AccountType.Asset,CurrencyCode="BDT"};
+        var income=new Account{TenantId=11,Code="TUITION-REV",Name="Tuition income",
+            AccountType=EduOS.Core.Enums.Domain.AccountType.Income,CurrencyCode="BDT"};
+        var period=new AccountingPeriod{TenantId=11,Name="Open payout period",
+            StartDate=today.AddDays(-5),EndDate=today.AddDays(5)};
+        var enrollment=new EduOS.Core.Entities.Academic.StudentEnrollment{
+            TenantId=11,StudentId=7,CampusId=3,RollNo="CR-7"};
+        db.Campuses.Add(new EduOS.Core.Entities.SaaS.Campus{Id=3,TenantId=11,
+            Name="Main campus",IsActive=true});
+        db.Students.Add(new EduOS.Core.Entities.Students.Student{Id=7,TenantId=11,
+            StudentCode="ST-CR-7",FullName="Refund student"});
+        db.Accounts.AddRange(cash,ar,income);db.AccountingPeriods.Add(period);
+        db.StudentEnrollments.Add(enrollment);
+        await TestTenantSeeder.SaveAsync(db);
+        var invoice=new StudentInvoice{Id=50001,TenantId=11,StudentEnrollmentId=enrollment.Id,
+            InvoiceNumber="INV-CR-7",InvoiceDate=today,DueDate=today,
+            Subtotal=100m,TotalAmount=100m,PaidAmount=100m,DueAmount=0m,
+            State=EduOS.Core.Enums.Domain.InvoiceState.Paid,JournalId=50003};
+        var payment=new StudentPayment{Id=50002,TenantId=11,StudentId=7,
+            ReceiptNumber="RCP-CR-7",PaymentDate=today,Amount=100m,
+            State=EduOS.Core.Enums.Domain.PaymentState.Successful,
+            PaymentMethod=EduOS.Core.Enums.Domain.PaymentMethodType.Cash,JournalId=50004};
+        db.StudentInvoices.Add(invoice);db.StudentPayments.Add(payment);
+        await TestTenantSeeder.SaveAsync(db);
+        db.PaymentAllocations.Add(new PaymentAllocation{TenantId=11,
+            StudentInvoiceId=invoice.Id,StudentPaymentId=payment.Id,Amount=100m});
+        var invoiceJournal=new Journal{Id=50003,TenantId=11,JournalNumber="INV-JRN-CR-7",
+            AccountingPeriodId=period.Id,JournalDate=today,CampusId=3,CurrencyCode="BDT",
+            SourceType="StudentInvoice",SourceId=invoice.Id,
+            State=EduOS.Core.Enums.Domain.JournalState.Posted};
+        var receiptJournal=new Journal{Id=50004,TenantId=11,JournalNumber="RCP-JRN-CR-7",
+            AccountingPeriodId=period.Id,JournalDate=today,CampusId=3,CurrencyCode="BDT",
+            SourceType="StudentPayment",SourceId=payment.Id,
+            State=EduOS.Core.Enums.Domain.JournalState.Posted};
+        db.Journals.AddRange(invoiceJournal,receiptJournal);
+        await TestTenantSeeder.SaveAsync(db);
+        db.JournalLines.AddRange(
+            new JournalLine{TenantId=11,JournalId=invoiceJournal.Id,LineNo=1,
+                AccountId=ar.Id,StudentId=7,CampusId=3,DebitAmount=100m},
+            new JournalLine{TenantId=11,JournalId=invoiceJournal.Id,LineNo=2,
+                AccountId=income.Id,StudentId=7,CampusId=3,CreditAmount=100m},
+            new JournalLine{TenantId=11,JournalId=receiptJournal.Id,LineNo=1,
+                AccountId=cash.Id,StudentId=7,CampusId=3,DebitAmount=100m},
+            new JournalLine{TenantId=11,JournalId=receiptJournal.Id,LineNo=2,
+                AccountId=ar.Id,StudentId=7,CampusId=3,CreditAmount=100m});
+        await TestTenantSeeder.SaveAsync(db);
+        db.ChangeTracker.Clear();
+        var refund=new Refund{TenantId=11,ClientRequestId=Guid.NewGuid(),
+            StudentPaymentId=payment.Id,Amount=20m,
+            State=EduOS.Core.Enums.Domain.RefundState.Approved,
+            RequestedByUserId=7,ApprovedByUserId=8,ApprovedAt=DateTime.UtcNow,
+            Reason="Approved fee reduction",RowVersion=new byte[]{1,2,3}};
+        db.Refunds.Add(refund);
+        await TestTenantSeeder.SaveAsync(db);
+        var service=new FinanceAdjustmentService(db,new TestUser(11,true),TimeProvider.System);
+        var request=new RecordRefundDisbursementRequestDto{ClientRequestId=Guid.NewGuid(),
+            AccountingPeriodId=period.Id,PayoutDate=today,
+            PayoutEvidenceReference="CASH-VOUCHER-CR-7",
+            RowVersion=Convert.ToBase64String(refund.RowVersion)};
+        var result=await service.RecordRefundDisbursementAsync(refund.Id,request);
+        result.Success.Should().BeTrue(result.Message);
+        var original=await db.StudentInvoices.AsNoTracking().SingleAsync(x=>x.Id==invoice.Id);
+        original.State.Should().Be(EduOS.Core.Enums.Domain.InvoiceState.Paid);
+        original.PaidAmount.Should().Be(100m);
+        original.DueAmount.Should().Be(0m);
+        db.RefundAllocations.Single().IsCreditNote.Should().BeTrue();
+        var note=db.Journals.Single(x=>x.SourceType=="StudentRefundCreditNote");
+        var payout=db.Journals.Single(x=>x.SourceType=="StudentRefund");
+        var noteLines=db.JournalLines.Where(x=>x.JournalId==note.Id).ToArray();
+        noteLines.Sum(x=>x.DebitAmount).Should().Be(20m);
+        noteLines.Sum(x=>x.CreditAmount).Should().Be(20m);
+        noteLines.Single(x=>x.DebitAmount>0m).AccountId.Should().Be(income.Id);
+        noteLines.Single(x=>x.CreditAmount>0m).AccountId.Should().Be(ar.Id);
+        db.JournalLines.Where(x=>x.JournalId==payout.Id).Sum(x=>x.DebitAmount).Should().Be(20m);
+        db.JournalLines.Where(x=>x.JournalId==payout.Id).Sum(x=>x.CreditAmount).Should().Be(20m);
+        (await service.RecordRefundDisbursementAsync(refund.Id,request)).Success.Should().BeTrue();
+        db.Journals.Count(x=>x.SourceType=="StudentRefundCreditNote").Should().Be(1);
+        db.Journals.Count(x=>x.SourceType=="StudentRefund").Should().Be(1);
+        var reconciliation=await new FeeReceivablesAgingService(db,new TestUser(11,true))
+            .GetReconciliationAsync(null,null,1,25);
+        reconciliation.Success.Should().BeTrue(reconciliation.Message);
+        reconciliation.Data!.Rows.Should().ContainSingle();
+        reconciliation.Data.Rows[0].CreditNoteAmount.Should().Be(20m);
+        reconciliation.Data.Rows[0].NetAllocatedAmount.Should().Be(100m);
+        reconciliation.Data.Rows[0].Status.Should().Be("Reconciled");
     }
     [Fact]
     public async Task Refund_review_and_payout_require_institution_admin()

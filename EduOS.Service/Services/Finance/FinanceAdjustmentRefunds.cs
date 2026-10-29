@@ -35,7 +35,7 @@ public sealed partial class FinanceAdjustmentService
             .Select(x=>new { x.Id,x.IsDeleted,x.State,x.TotalAmount,x.PaidAmount,x.DueAmount })
             .ToListAsync(ct);
         if(invoices.Count!=invoiceIds.Length || invoices.Any(x=>x.IsDeleted ||
-            !RefundInvoicePolicy.CanAdjust(x.State) || x.PaidAmount<=0m ||
+            !RefundInvoicePolicy.CanRefund(x.State) || x.PaidAmount<=0m ||
             x.TotalAmount!=x.PaidAmount+x.DueAmount))
             return false;
         var allocationIds=allocations.Select(x=>x.Id).ToArray();
@@ -105,6 +105,14 @@ public sealed partial class FinanceAdjustmentService
         if (refundRows.Count==500) return Error<RefundOperationsRegisterDto>("Refund register limit reached; narrow the page.",409);
         var reserved=refundRows.Where(x=>x.State!=RefundState.Rejected && x.State!=RefundState.Cancelled)
             .GroupBy(x=>x.StudentPaymentId).ToDictionary(x=>x.Key,x=>x.Sum(r=>r.Amount));
+        var refundIds=refundRows.Select(x=>x.Id).ToArray();
+        var creditNotes=await db.Journals.AsNoTracking().Where(x=>x.TenantId==tenant &&
+            x.SourceType=="StudentRefundCreditNote" && x.SourceId.HasValue &&
+            refundIds.Contains(x.SourceId.Value) && !x.IsDeleted)
+            .Select(x=>new { RefundId=x.SourceId!.Value,x.JournalNumber }).ToListAsync(ct);
+        if(creditNotes.GroupBy(x=>x.RefundId).Any(x=>x.Count()!=1))
+            return Error<RefundOperationsRegisterDto>("Duplicate historical credit note; reconcile before reporting.",409);
+        var noteNumbers=creditNotes.ToDictionary(x=>x.RefundId,x=>x.JournalNumber);
         var byPayment=pageRows.ToDictionary(x=>x.Id);
         return ApiResponse<RefundOperationsRegisterDto>.SuccessResponse(new RefundOperationsRegisterDto
         {
@@ -119,6 +127,7 @@ public sealed partial class FinanceAdjustmentService
                 Amount=x.Amount,State=x.State,Reason=x.Reason,
                 RequestedByUserId=x.RequestedByUserId,ApprovedByUserId=x.ApprovedByUserId,
                 ApprovedAt=x.ApprovedAt,PaidAt=x.PaidAt,ReversalJournalId=x.ReversalJournalId,
+                CreditNoteNumber=noteNumbers.GetValueOrDefault(x.Id),
                 RowVersion=Version(x.RowVersion) }).ToArray()
         });
     }
@@ -164,9 +173,9 @@ public sealed partial class FinanceAdjustmentService
                         !a.IsDeleted && !i.IsDeleted
                     select new { i.State,i.PaidAmount,i.TotalAmount,i.DueAmount }).ToListAsync(ct);
                 if(allocatedInvoices.Count==0 || allocatedInvoices.Any(x=>
-                    !RefundInvoicePolicy.CanAdjust(x.State) || x.PaidAmount<=0m ||
+                    !RefundInvoicePolicy.CanRefund(x.State) || x.PaidAmount<=0m ||
                     x.PaidAmount+x.DueAmount!=x.TotalAmount))
-                    return Error<RefundDto>("Refund of fully paid invoices requires a Platform-owned immutable invoice credit-note integration; only partially paid invoices are currently supported.",409);
+                    return Error<RefundDto>("Refund invoice state or balance is inconsistent.",409);
                 var pending=await Refunds.Where(x=>x.StudentPaymentId==payment.Id &&
                     (x.State==RefundState.Draft || x.State==RefundState.Approved))
                     .SumAsync(x=>(decimal?)x.Amount,ct)??0m;
@@ -193,6 +202,11 @@ public sealed partial class FinanceAdjustmentService
     private static Guid RefundPostingKey(long tenant,long refundId)
     {
         var hash=SHA256.HashData(Encoding.UTF8.GetBytes("EduOS:Institution:StudentRefund:"+tenant+":"+refundId));
+        return new Guid(hash.AsSpan(0,16));
+    }
+    private static Guid RefundCreditNoteKey(long tenant,long refundId)
+    {
+        var hash=SHA256.HashData(Encoding.UTF8.GetBytes("EduOS:Institution:StudentRefundCreditNote:"+tenant+":"+refundId));
         return new Guid(hash.AsSpan(0,16));
     }
     private static bool ValidMoney(decimal value) => value>0m && value<=999999999999m &&
@@ -252,7 +266,11 @@ public sealed partial class FinanceAdjustmentService
                         decimal.Round(x.Amount,2)!=x.Amount ||
                         !originalAllocations.TryGetValue(x.PaymentAllocationId,out var source) ||
                         source.IsDeleted || source.StudentPaymentId!=payment.Id) ||
-                    priorAllocations.Sum(x=>x.Amount)!=refund.Amount)
+                    priorAllocations.Sum(x=>x.Amount)!=refund.Amount ||
+                    (priorAllocations.Any(x=>x.IsCreditNote) &&
+                     !evidenceRows.MatchesCreditNote(refund,tenant,previous.CampusId.Value,
+                         payment.StudentId,priorAllocations.Where(x=>x.IsCreditNote)
+                             .Sum(x=>x.Amount))))
                     return Error<RefundDto>("Prior payout journal or allocation history requires reconciliation.",409);
                 return ApiResponse<RefundDto>.SuccessResponse(Map(refund,payment.PublicId),"Existing posted refund returned.");
             }
@@ -271,6 +289,8 @@ public sealed partial class FinanceAdjustmentService
             if(period==null) return Error<RefundDto>("Open period must cover actual payout date.",409);
             if(await db.Journals.AsNoTracking().AnyAsync(x=>x.TenantId==tenant && !x.IsDeleted &&
                 ((x.SourceType=="StudentRefund" && x.SourceId==refund.Id) ||
+                 (x.SourceType=="StudentRefundCreditNote" && x.SourceId==refund.Id) ||
+                 x.IdempotencyKey==RefundCreditNoteKey(tenant,refund.Id) ||
                  x.IdempotencyKey==RefundPostingKey(tenant,refund.Id)),ct) ||
                await db.RefundAllocations.AsNoTracking().AnyAsync(x=>x.TenantId==tenant &&
                    x.RefundId==refund.Id && !x.IsDeleted,ct))
@@ -358,7 +378,7 @@ public sealed partial class FinanceAdjustmentService
                 if(source.State!=JournalState.Posted || source.SourceType!="StudentInvoice" ||
                     source.SourceId!=invoice.Id || source.CampusId!=receipt.CampusId ||
                     source.ReversalOfJournalId.HasValue || invoice.CurrencyCode!="BDT" ||
-                    !RefundInvoicePolicy.CanAdjust(invoice.State) ||
+                    !RefundInvoicePolicy.CanRefund(invoice.State) ||
                     invoice.TotalAmount<=0m || invoice.PaidAmount<0m ||
                     invoice.DueAmount<0m || invoice.PaidAmount+invoice.DueAmount!=invoice.TotalAmount ||
                     debits.Length==0 || debits.Select(x=>x.AccountId).Distinct().Count()!=1 ||
@@ -382,6 +402,71 @@ public sealed partial class FinanceAdjustmentService
                 .Select(x=>x.Id).ToListAsync(ct);
             if(validAccounts.Count!=accountIds.Length || accountIds.Contains(cashId))
                 return Error<RefundDto>("Receivable account is invalid or equals cash ledger.",409);
+
+            // A fully-paid invoice is immutable. Its refund reduces recognized income
+            // through a distinct credit-note journal, while the cash payout clears
+            // the resulting receivable credit balance. Never reopen its original invoice.
+            var noteLines=new List<JournalLine>();
+            var creditedInvoices=new Dictionary<long,decimal>();
+            foreach(var portion in portions)
+            {
+                var allocation=allocations.Single(x=>x.Id==portion.AllocationId);
+                var invoice=invoices.Single(x=>x.Id==allocation.StudentInvoiceId);
+                if(!RefundInvoicePolicy.CanCredit(invoice.State)) continue;
+                var original=sourceLines.Where(x=>x.JournalId==invoice.JournalId &&
+                    x.CreditAmount>0m).ToArray();
+                IReadOnlyList<RefundCreditIncomePortion> reversedIncome;
+                try
+                {
+                    reversedIncome=RefundCreditNoteAllocator.Split(original.Select(x=>
+                        new RefundCreditIncomeSource(x.AccountId,x.FeeHeadId,
+                            x.AcademicProgramId,x.CreditAmount)).ToArray(),
+                        invoice.TotalAmount,portion.Amount);
+                }
+                catch(InvalidOperationException)
+                { return Error<RefundDto>("Original income GL cannot support a credit note.",409); }
+                foreach(var line in reversedIncome)
+                    noteLines.Add(new JournalLine{TenantId=tenant,AccountId=line.AccountId,
+                        FeeHeadId=line.FeeHeadId,AcademicProgramId=line.ProgramId,
+                        CampusId=receipt.CampusId,StudentId=payment.StudentId,
+                        DebitAmount=line.Amount,Description="Reverse original student fee income"});
+                noteLines.Add(new JournalLine{TenantId=tenant,AccountId=receivables[allocation.Id],
+                    CampusId=receipt.CampusId,StudentId=payment.StudentId,
+                    CreditAmount=portion.Amount,Description="Immutable paid-invoice credit note"});
+                creditedInvoices[invoice.Id]=creditedInvoices.GetValueOrDefault(invoice.Id)+portion.Amount;
+            }
+            var creditedTotal=creditedInvoices.Values.Sum();
+            if(noteLines.Count>100 || creditedTotal!=noteLines.Sum(x=>x.DebitAmount) ||
+                creditedTotal!=noteLines.Sum(x=>x.CreditAmount))
+                return Error<RefundDto>("Credit-note journal is unbalanced or too large.",409);
+            if(creditedTotal>0m)
+            {
+                var creditedInvoiceIds=creditedInvoices.Keys.ToArray();
+                var incomeIds=noteLines.Where(x=>x.DebitAmount>0m)
+                    .Select(x=>x.AccountId).Distinct().ToArray();
+                var incomeCount=await db.Accounts.AsNoTracking().CountAsync(x=>x.TenantId==tenant &&
+                    incomeIds.Contains(x.Id) && !x.IsDeleted && x.IsActive && !x.IsGroup &&
+                    x.AllowsPosting && x.CurrencyCode=="BDT" && x.AccountType==AccountType.Income,ct);
+                if(incomeCount!=incomeIds.Length)
+                    return Error<RefundDto>("Original fee income account is not valid for a credit note.",409);
+                var priorCredits=await (from ra in db.RefundAllocations.AsNoTracking()
+                    join a in db.PaymentAllocations.AsNoTracking()
+                        on new { ra.TenantId, Id=ra.PaymentAllocationId } equals new { a.TenantId, a.Id }
+                    join r in db.Refunds.AsNoTracking()
+                        on new { ra.TenantId, Id=ra.RefundId } equals new { r.TenantId, r.Id }
+                    join j in db.Journals.AsNoTracking()
+                        on new { ra.TenantId, SourceId=(long?)r.Id } equals new { j.TenantId, j.SourceId }
+                    where ra.TenantId==tenant && creditedInvoiceIds.Contains(a.StudentInvoiceId) &&
+                        !ra.IsDeleted && !a.IsDeleted && !r.IsDeleted && !j.IsDeleted &&
+                        r.State==RefundState.Paid && j.SourceType=="StudentRefundCreditNote" &&
+                        j.State==JournalState.Posted
+                    select new { a.StudentInvoiceId,ra.Amount }).ToListAsync(ct);
+                var priorByInvoice=priorCredits.GroupBy(x=>x.StudentInvoiceId)
+                    .ToDictionary(x=>x.Key,x=>x.Sum(y=>y.Amount));
+                if(creditedInvoices.Any(x=>x.Value+priorByInvoice.GetValueOrDefault(x.Key)>
+                    invoices.Single(i=>i.Id==x.Key).TotalAmount))
+                    return Error<RefundDto>("Cumulative credit notes exceed the original paid invoice.",409);
+            }
             foreach(var portion in portions)
             {
                 var allocation=allocations.Single(x=>x.Id==portion.AllocationId);
@@ -390,6 +475,28 @@ public sealed partial class FinanceAdjustmentService
                     return Error<RefundDto>("Invoice paid balance cannot cover refund.",409);
             }
             var now=clock.GetUtcNow().UtcDateTime;
+            if(creditedTotal>0m)
+            {
+                var noteId=Guid.NewGuid();
+                var creditNote=new Journal{TenantId=tenant,PublicId=noteId,
+                    IdempotencyKey=RefundCreditNoteKey(tenant,refund.Id),
+                    JournalNumber="JRN-"+noteId.ToString("N").ToUpperInvariant(),
+                    JournalDate=request.PayoutDate,AccountingPeriodId=period.Id,CampusId=receipt.CampusId,
+                    ReferenceNumber="CN-"+refund.Id,CurrencyCode="BDT",State=JournalState.Posted,
+                    SourceType="StudentRefundCreditNote",SourceId=refund.Id,
+                    Description="Approved paid-invoice credit note for refund "+refund.Id,
+                    ApprovedByUserId=refund.ApprovedByUserId,ApprovedAt=refund.ApprovedAt,
+                    PostedByUserId=user.UserId,PostedAt=now,CreatedAt=now,CreatedBy=user.UserId};
+                db.Journals.Add(creditNote);await db.SaveChangesAsync(ct);
+                for(var lineNoCredit=0;lineNoCredit<noteLines.Count;lineNoCredit++)
+                {
+                    noteLines[lineNoCredit].JournalId=creditNote.Id;
+                    noteLines[lineNoCredit].LineNo=lineNoCredit+1;
+                    noteLines[lineNoCredit].CreatedAt=now;
+                    noteLines[lineNoCredit].CreatedBy=user.UserId;
+                }
+                db.JournalLines.AddRange(noteLines);
+            }
             var guid=Guid.NewGuid();
             var journal=new Journal{TenantId=tenant,PublicId=guid,
                 IdempotencyKey=RefundPostingKey(tenant,refund.Id),
@@ -421,11 +528,16 @@ public sealed partial class FinanceAdjustmentService
             {
                 var allocation=allocations.Single(x=>x.Id==portion.AllocationId);
                 var invoice=invoices.Single(x=>x.Id==allocation.StudentInvoiceId);
-                invoice.PaidAmount-=portion.Amount;invoice.DueAmount+=portion.Amount;
-                invoice.State=invoice.PaidAmount==0m?InvoiceState.Issued:InvoiceState.PartiallyPaid;
-                invoice.PaidAt=null;invoice.UpdatedAt=now;invoice.UpdatedBy=user.UserId;
+                if(RefundInvoicePolicy.CanAdjust(invoice.State))
+                {
+                    invoice.PaidAmount-=portion.Amount;invoice.DueAmount+=portion.Amount;
+                    invoice.State=invoice.PaidAmount==0m?InvoiceState.Issued:InvoiceState.PartiallyPaid;
+                    invoice.PaidAt=null;invoice.UpdatedAt=now;invoice.UpdatedBy=user.UserId;
+                }
                 db.RefundAllocations.Add(new RefundAllocation{TenantId=tenant,RefundId=refund.Id,
-                    PaymentAllocationId=allocation.Id,Amount=portion.Amount,CreatedAt=now,CreatedBy=user.UserId});
+                    PaymentAllocationId=allocation.Id,Amount=portion.Amount,
+                    IsCreditNote=RefundInvoicePolicy.CanCredit(invoice.State),
+                    CreatedAt=now,CreatedBy=user.UserId});
             }
             refund.State=RefundState.Paid;refund.PaidAt=now;refund.ReversalJournalId=journal.Id;
             refund.UpdatedAt=now;refund.UpdatedBy=user.UserId;
@@ -495,4 +607,6 @@ public static class RefundAllocationPlanner
 public static class RefundInvoicePolicy
 {
     public static bool CanAdjust(InvoiceState state) => state==InvoiceState.PartiallyPaid;
+    public static bool CanCredit(InvoiceState state) => state==InvoiceState.Paid;
+    public static bool CanRefund(InvoiceState state) => CanAdjust(state)||CanCredit(state);
 }

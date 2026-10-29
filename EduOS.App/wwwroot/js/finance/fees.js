@@ -280,7 +280,7 @@ async function receipts(){
 async function ledger(){
  const ref=e('feeStudent').value;if(!ref)return alert('warning','Select a student.');
  if(state.student!==ref){if(e('feeAllocationAudit'))e('feeAllocationAudit').classList.add('d-none');state.auditInvoice=null;state.auditData=null;state.student=ref;state.invoicePage=1;state.receiptPage=1;state.invoice=null;clear('payment');e('feePaymentPanel').classList.add('d-none');}
- try{const r=await api('/students/'+encodeURIComponent(ref)+'/ledger');e('feeLedgerSummary').textContent=r.studentName+' ('+r.studentCode+') — Billed: '+amount(r.totalBilled)+' Paid: '+amount(r.totalPaid)+' Due: '+amount(r.totalDue)+' BDT';await Promise.all([invoices(),receipts()]);}
+ try{const r=await api('/students/'+encodeURIComponent(ref)+'/ledger');e('feeLedgerSummary').textContent=r.studentName+' ('+r.studentCode+') — Gross billed: '+amount(r.totalBilled)+' Credit notes: '+amount(r.totalCreditNotes)+' Net billed: '+amount(r.netBilled)+' Net paid: '+amount(r.netPaid)+' Due: '+amount(r.totalDue)+' BDT';await Promise.all([invoices(),receipts()]);}
  catch(err){alert('danger',err.message);}
 }
 async function collect(ev){

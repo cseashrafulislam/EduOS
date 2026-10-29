@@ -167,4 +167,7 @@ public class RefundAllocation : BaseTenantEntity
     public long RefundId { get; set; }
     public long PaymentAllocationId { get; set; }
     [Column(TypeName = "decimal(18,2)")] public decimal Amount { get; set; }
+    // Immutable historical classification: a paid invoice is credited by a
+    // separate income-reversal journal; its original invoice remains untouched.
+    public bool IsCreditNote { get; set; }
 }

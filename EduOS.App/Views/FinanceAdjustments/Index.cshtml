@@ -97,7 +97,7 @@
     </section>
     <div class="card mb-3" id="adjustRefundSection"><div class="card-body">
         <h3 class="h5">Student cash refund review &amp; GL payout recording</h3>
-        <p class="small text-warning">Record payout only after cash has actually been disbursed and independently verified. This screen does not send money. Posted receipt journals are never edited; a new contra journal and append-only refund allocations are created. <strong>Current scope:</strong> only receipts allocated to partially paid invoices. Fully paid invoices require a Platform-owned credit-note/immutability integration and cannot be paid out here.</p>
+        <p class="small text-warning">Record payout only after independently verified cash disbursement. This screen does not send money. Posted receipts and fully paid invoices remain immutable. A paid-invoice refund creates an additional income credit-note journal; partially paid invoices use a receivable contra journal. Every payout is independently approved and audited.</p>
         <div class="row g-2 mb-2 align-items-end">
             <div class="col-md-3"><label class="form-label" for="adjustRefundCampus">Campus ID (optional)</label><input id="adjustRefundCampus" type="number" min="1" class="form-control" /></div>
             <div class="col-md-3"><button id="adjustRefundRefresh" class="btn btn-outline-primary" type="button">Load cash receipts</button></div>
@@ -116,7 +116,7 @@
             <div class="col-md-5"><label class="form-label" for="adjustRefundEvidence">Independently checked cash voucher/reference</label><input id="adjustRefundEvidence" class="form-control" maxlength="100" placeholder="Verified voucher number" /></div>
         </div>
         <h4 class="h6">Refund requests for displayed receipts</h4>
-        <div class="table-responsive"><table class="table table-sm"><thead><tr><th>Receipt</th><th>Amount</th><th>Status</th><th>Requested by</th><th>Actions</th></tr></thead><tbody id="adjustRefundRows"></tbody></table></div>
+        <div class="table-responsive"><table class="table table-sm"><thead><tr><th>Receipt</th><th>Amount</th><th>Status</th><th>Credit note journal</th><th>Requested by</th><th>Actions</th></tr></thead><tbody id="adjustRefundRows"></tbody></table></div>
     </div></div>
     <div class="card"><div class="card-body">
         <h3 class="h5">Enrollment adjustment register</h3>

@@ -2818,6 +2818,9 @@ namespace EduOS.Persistence.Migrations
 
                     b.HasIndex("TenantId", "JournalDate", "State");
 
+                    b.HasIndex("TenantId", "SourceType", "SourceId")
+                        .HasDatabaseName("IX_Journals_Tenant_SourceType_SourceId");
+
                     b.ToTable("Journals");
                 });
 
@@ -8777,6 +8780,10 @@ namespace EduOS.Persistence.Migrations
 
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("bit");
+
+                    b.Property<bool>("IsCreditNote")
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false);
 
                     b.Property<long>("PaymentAllocationId")
                         .HasColumnType("bigint");

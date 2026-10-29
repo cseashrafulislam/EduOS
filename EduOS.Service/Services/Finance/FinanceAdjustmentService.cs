@@ -291,9 +291,9 @@ public sealed partial class FinanceAdjustmentService : IFinanceAdjustmentService
                     !a.IsDeleted && !i.IsDeleted
                 select new { a.Amount,i.State,i.PaidAmount,i.TotalAmount,i.DueAmount }).ToListAsync(ct);
             if(originalAllocations.Count==0 || originalAllocations.Sum(x=>x.Amount)!=payment.Amount ||
-                originalAllocations.Any(x=>!RefundInvoicePolicy.CanAdjust(x.State) ||
+                originalAllocations.Any(x=>!RefundInvoicePolicy.CanRefund(x.State) ||
                     x.PaidAmount<=0m || x.PaidAmount+x.DueAmount!=x.TotalAmount))
-                return Error<RefundDto>("Only cash receipts allocated to partially paid invoices can be refunded until the immutable paid-invoice credit-note integration is available.",409);
+                return Error<RefundDto>("Only consistent paid or partially-paid invoices can be refunded.",409);
             var total=await Refunds.Where(x=>x.StudentPaymentId==payment.Id && x.State!=RefundState.Rejected && x.State!=RefundState.Cancelled)
                 .SumAsync(x=>(decimal?)x.Amount,ct)??0m;
             if(total+request.Amount>payment.Amount) return Error<RefundDto>("Refund reservations exceed payment amount.",409);

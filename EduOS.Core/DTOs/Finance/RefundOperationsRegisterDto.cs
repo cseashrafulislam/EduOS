@@ -22,4 +22,5 @@ public sealed class RefundPaymentRegisterRowDto
 public sealed class RefundRegisterRowDto : RefundDto
 {
     public string ReceiptNumber { get; set; } = string.Empty;
+    public string? CreditNoteNumber { get; set; }
 }

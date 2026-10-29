@@ -11,6 +11,9 @@ public sealed class InvoiceAllocationAuditDto
     public decimal CurrentPaid { get; set; }
     public decimal CurrentDue { get; set; }
     public decimal GrossSuccessfulAllocations { get; set; }
+    public decimal PaidRefundAmount { get; set; }
+    public decimal CreditNoteAmount { get; set; }
+    public decimal NetCashCollected { get; set; }
     public decimal GrossToNetDifference { get; set; }
     public bool MatchesCurrentInvoice { get; set; }
     public int TotalAllocations { get; set; }

@@ -203,6 +203,13 @@ public sealed partial class FeeReceivablesAgingService
                         continue;
                     }
                     paidRefunds += portion.Amount;
+                    if(portion.IsCreditNote &&
+                        (!campus.HasValue || campus!=maxCampus ||
+                         !invoices.TryGetValue(allocation.StudentInvoiceId,out var creditedInvoice) ||
+                         creditedInvoice.State!=InvoiceState.Paid ||
+                         !refundEvidence.MatchesCreditNote(refund,tenant,campus.Value,
+                             payment.StudentId,portion.Amount)))
+                        issues.Add("Paid invoice credit-note journal requires reconciliation");
                 }
             }
             if (gross != payment.Amount)

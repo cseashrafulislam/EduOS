@@ -1482,6 +1482,8 @@ public class EduOSDbContext :
             .IsUnique().HasFilter("[ClientRequestId] IS NOT NULL");
         modelBuilder.Entity<StudentFine>().HasIndex(x => new { x.TenantId, x.FineDate, x.Id });
         UniqueTenant<Refund>(modelBuilder, nameof(Refund.ClientRequestId));
+        modelBuilder.Entity<RefundAllocation>().Property(x => x.IsCreditNote)
+            .HasDefaultValue(false);
         UniqueTenant<Account>(modelBuilder, nameof(Account.Code));
         modelBuilder.Entity<Account>().HasIndex(x => new { x.TenantId, x.ParentAccountId, x.IsActive });
         UniqueTenant<NumberSeries>(modelBuilder, nameof(EduOS.Core.Entities.System.NumberSeries.Key));
@@ -1491,6 +1493,8 @@ public class EduOSDbContext :
             .IsUnique().HasFilter("[IdempotencyKey] IS NOT NULL AND [IsDeleted] = 0");
         UniqueTenant<JournalLine>(modelBuilder, nameof(JournalLine.JournalId), nameof(JournalLine.LineNo));
         modelBuilder.Entity<Journal>().HasIndex(x => new { x.TenantId, x.JournalDate, x.State });
+        modelBuilder.Entity<Journal>().HasIndex(x => new { x.TenantId, x.SourceType, x.SourceId })
+            .HasDatabaseName("IX_Journals_Tenant_SourceType_SourceId");
         modelBuilder.Entity<AccountingPeriod>().HasIndex(x => new { x.TenantId, x.StartDate, x.EndDate });
         modelBuilder.Entity<BankReconciliationBatch>().HasIndex(x => new { x.TenantId, x.ClientRequestId })
             .HasDatabaseName("UX_BankReconciliationBatches_Tenant_Request").IsUnique();

@@ -111,7 +111,7 @@ public sealed partial class FeeReceivablesAgingService
                 decimal.Round(invoice.TotalAmount, 2) != invoice.TotalAmount ||
                 decimal.Round(invoice.PaidAmount, 2) != invoice.PaidAmount)
                 issues.Add("Invoice monetary totals or currency invalid");
-            decimal gross = 0m, refunded = 0m;
+            decimal gross = 0m, refunded = 0m, credited = 0m;
             foreach (var allocation in byInvoice[invoice.Id])
             {
                 if (allocation.IsDeleted || allocation.Amount <= 0m ||
@@ -143,11 +143,18 @@ public sealed partial class FeeReceivablesAgingService
                     refunded += portion.Amount;
                     if (!refundEvidence.Matches(refund, tenant, invoice.CampusId, invoice.StudentId))
                         issues.Add("Paid refund journal requires reconciliation");
+                    if(portion.IsCreditNote)
+                    {
+                        credited+=portion.Amount;
+                        if(!refundEvidence.MatchesCreditNote(refund,tenant,invoice.CampusId,
+                            invoice.StudentId,portion.Amount))
+                            issues.Add("Paid-invoice credit note journal requires reconciliation");
+                    }
                 }
             }
-            var net = gross - refunded;
+            var net = gross - refunded + credited;
             if (net < 0m || net != invoice.PaidAmount)
-                issues.Add("Paid balance differs from receipts less paid refunds");
+                issues.Add("Paid balance differs from receipts less cash refunds plus immutable credit notes");
             if (invoice.JournalId.HasValue &&
                 (!journals.TryGetValue(invoice.JournalId.Value, out var journal) ||
                  reversed.Contains(invoice.JournalId.Value) ||
@@ -163,6 +170,7 @@ public sealed partial class FeeReceivablesAgingService
                 CampusName = invoice.CampusName, CurrencyCode = invoice.CurrencyCode,
                 TotalAmount = invoice.TotalAmount, PaidAmount = invoice.PaidAmount,
                 DueAmount = invoice.DueAmount, NetAllocatedAmount = net,
+                CreditNoteAmount = credited,
                 Status = issues.Count > 0 ? "Requires review" :
                     invoice.JournalId.HasValue ? "Reconciled" : "Unposted",
                 Issues = string.Join("; ", issues.Distinct())

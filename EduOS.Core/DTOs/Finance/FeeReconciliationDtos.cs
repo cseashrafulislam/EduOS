@@ -13,6 +13,7 @@ public sealed class FeeReconciliationRowDto
     public decimal PaidAmount { get; set; }
     public decimal DueAmount { get; set; }
     public decimal NetAllocatedAmount { get; set; }
+    public decimal CreditNoteAmount { get; set; }
     public string Status { get; set; } = string.Empty;
     public string Issues { get; set; } = string.Empty;
 }

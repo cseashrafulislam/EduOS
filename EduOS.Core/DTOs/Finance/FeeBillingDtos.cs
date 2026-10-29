@@ -29,6 +29,9 @@ public sealed class StudentLedgerDto
     public decimal TotalBilled { get; set; }
     public decimal TotalPaid { get; set; }
     public decimal TotalDue { get; set; }
+    public decimal TotalCreditNotes { get; set; }
+    public decimal NetBilled { get; set; }
+    public decimal NetPaid { get; set; }
 }
 
 public sealed class FeeOptionDto

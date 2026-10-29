@@ -652,11 +652,32 @@ public sealed partial class FeeBillingService : IFeeBillingService
                 Billed = g.Sum(x => x.TotalAmount), Paid = g.Sum(x => x.PaidAmount),
                 Due = g.Sum(x => x.DueAmount)
             }).FirstOrDefaultAsync(ct);
+        var credited=await (from ra in context.RefundAllocations.AsNoTracking()
+            join a in context.PaymentAllocations.AsNoTracking()
+                on new { ra.TenantId, Id=ra.PaymentAllocationId } equals new { a.TenantId, a.Id }
+            join i in context.StudentInvoices.AsNoTracking()
+                on new { a.TenantId, Id=a.StudentInvoiceId } equals new { i.TenantId, i.Id }
+            join r in context.Refunds.AsNoTracking()
+                on new { ra.TenantId, Id=ra.RefundId } equals new { r.TenantId, r.Id }
+            where ra.TenantId==_user.TenantId && ra.IsCreditNote &&
+                enrollmentIds.Contains(i.StudentEnrollmentId) &&
+                r.State==RefundState.Paid && !ra.IsDeleted && !a.IsDeleted &&
+                !i.IsDeleted && !r.IsDeleted &&
+                context.Journals.Any(j=>j.TenantId==_user.TenantId &&
+                    j.SourceType=="StudentRefundCreditNote" && j.SourceId==r.Id &&
+                    !j.IsDeleted && j.State==JournalState.Posted &&
+                    !context.Journals.Any(reversal=>reversal.TenantId==j.TenantId &&
+                        reversal.ReversalOfJournalId==j.Id &&
+                        reversal.State==JournalState.Posted && !reversal.IsDeleted))
+            select (decimal?)ra.Amount).SumAsync(ct)??0m;
+        var billed=totals?.Billed??0m;
+        var paid=totals?.Paid??0m;
         return ApiResponse<StudentLedgerDto>.SuccessResponse(new StudentLedgerDto
         {
             StudentReference = student.PublicId, StudentCode = student.StudentCode,
-            StudentName = student.FullName, TotalBilled = totals?.Billed ?? 0m,
-            TotalPaid = totals?.Paid ?? 0m, TotalDue = totals?.Due ?? 0m
+            StudentName = student.FullName, TotalBilled = billed,
+            TotalPaid = paid, TotalDue = totals?.Due ?? 0m,
+            TotalCreditNotes = credited,NetBilled = billed-credited,NetPaid = paid-credited
         });
     }
 

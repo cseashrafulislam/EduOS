@@ -4,7 +4,7 @@ const root = document.getElementById('feeReconciliation');
 if (!root) return;
 const el = id => document.getElementById(id);
 let page = 1, pages = 1, active = null;
-const moneyKeys = /("(?:totalAmount|paidAmount|dueAmount|netAllocatedAmount)"\s*:\s*)(-?\d+(?:\.\d+)?)/g;
+const moneyKeys = /("(?:totalAmount|paidAmount|dueAmount|netAllocatedAmount|creditNoteAmount)"\s*:\s*)(-?\d+(?:\.\d+)?)/g;
 function money(value) {
     const s = String(value ?? '0');
     if (!/^-?\d+(?:\.\d{1,2})?$/.test(s)) throw Error('Invalid monetary precision.');
@@ -31,13 +31,14 @@ async function load(next) {
             const tr = document.createElement('tr');
             for (const value of [x.invoiceNumber, x.studentCode + ' — ' + x.studentName,
                 x.campusName, money(x.totalAmount), money(x.paidAmount),
-                money(x.netAllocatedAmount), money(x.dueAmount), x.status, x.issues || '—'])
+                money(x.netAllocatedAmount), money(x.creditNoteAmount),
+                money(x.dueAmount), x.status, x.issues || '—'])
                 tr.append(cell(value));
             el('reconcileRows').append(tr);
         }
         if (!el('reconcileRows').children.length) {
             const tr = document.createElement('tr'), td = cell('No matching invoices.');
-            td.colSpan = 9; tr.append(td); el('reconcileRows').append(tr);
+            td.colSpan = 10; tr.append(td); el('reconcileRows').append(tr);
         }
         page = data.page; pages = Math.max(1, Math.ceil(data.totalCount / data.pageSize));
         el('reconcilePage').textContent = 'Page ' + page + ' of ' + pages + ' · ' +
