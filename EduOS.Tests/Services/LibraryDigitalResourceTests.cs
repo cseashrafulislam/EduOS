@@ -133,7 +133,8 @@ public sealed class LibraryDigitalResourceTests
             { Id = seed.Asset.Id, Reference = requestId, IsVerifiedSafe = true }));
         var service = Service(db, "TenantAdmin", documents: files);
         var request = new LibraryDigitalUploadRequestDto
-        { RequestId = requestId, BookReference = seed.Book.PublicId, Title = "Reference PDF" };
+        { RequestId = requestId, BookReference = seed.Book.PublicId, Title = "Reference PDF",
+          ExpiresOn = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(10)) };
         PrivateFileUploadDto Upload() => new()
         {
             FileName = "verified.pdf", ContentType = "application/pdf",
@@ -141,10 +142,17 @@ public sealed class LibraryDigitalResourceTests
         };
         var first = await service.UploadAsync(request, Upload());
         first.Success.Should().BeTrue(first.Message);
+        first.Data!.ExpiresOn.Should().Be(request.ExpiresOn);
         var replay = await service.UploadAsync(request, Upload());
         replay.Success.Should().BeTrue(replay.Message);
         (await db.Documents.CountAsync(x => x.DocumentTypeCode == "LIBRARY_DIGITAL")).Should().Be(1);
+        (await service.UploadAsync(new LibraryDigitalUploadRequestDto
+        { RequestId = requestId, BookReference = seed.Book.PublicId, Title = "Reference PDF",
+          ExpiresOn = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(11)) }, Upload()))
+            .StatusCode.Should().Be(409);
         var row = await db.Documents.SingleAsync(x => x.PublicId == requestId);
+        row.ExpiresAt.Should().HaveValue();
+        DateOnly.FromDateTime(row.ExpiresAt!.Value).Should().Be(request.ExpiresOn);
         row.RowVersion = [1, 2, 3];
         await db.SaveChangesAsync();
         var revoked = await service.RevokeAsync(requestId,
