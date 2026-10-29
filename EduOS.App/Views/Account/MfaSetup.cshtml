@@ -21,6 +21,7 @@
     </div>
 
     <form id="mfaSetupForm" novalidate
+          data-auth-session-reference="@(EduOS.App.Security.AuthSessionRegistry.ToPublicReference(User.FindFirst(EduOS.App.Security.AuthSessionRegistry.ClaimType)?.Value ?? ""))"
           data-required-message="@T["CurrentPasswordRequired"]"
           data-setup-failed="@T["MfaSetupFailed"]"
           data-enable-failed="@T["MfaEnableFailed"]"

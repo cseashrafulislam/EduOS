@@ -241,6 +241,8 @@ namespace EduOS.App.Controllers.Api
             if (!session.IsValid)
                 return StatusCode(StatusCodes.Status403Forbidden, new { success = false, message = "Your institution membership is unavailable." });
 
+            // Bind one-time authenticator disclosure to the exact cookie issued by this operation.
+            var issuedSid = User.FindFirstValue(AuthSessionRegistry.ClaimType) ?? string.Empty;
             var sharedKey = await _userManager.GetAuthenticatorKeyAsync(user);
 
             if (string.IsNullOrWhiteSpace(sharedKey))
@@ -266,11 +268,13 @@ namespace EduOS.App.Controllers.Api
                 }
                 // Renew only the current session with its original tenant/role claims.
                 var auth = await HttpContext.AuthenticateAsync(IdentityConstants.ApplicationScheme);
-                await SignInSessionAsync(user, auth.Properties?.IsPersistent == true, "pwd", session);
+                issuedSid = await SignInSessionAsync(user, auth.Properties?.IsPersistent == true, "pwd", session);
             }
 
             if (string.IsNullOrWhiteSpace(sharedKey))
                 return StatusCode(StatusCodes.Status500InternalServerError, new { success = false, message = "Authenticator setup failed." });
+            if (issuedSid.Length != 48)
+                return Unauthorized(new { success = false, message = "Session unavailable." });
 
             var accountLabel = $"EduOS:{user.Email ?? user.UserName ?? user.Id.ToString()}";
             var authenticatorUri = "otpauth://totp/" + Uri.EscapeDataString(accountLabel) + "?secret=" + Uri.EscapeDataString(sharedKey) + "&issuer=" + Uri.EscapeDataString("EduOS") + "&digits=6";
@@ -278,7 +282,7 @@ namespace EduOS.App.Controllers.Api
             return Ok(new
             {
                 success = true,
-                data = new { sharedKey, authenticatorUri }
+                data = new { sharedKey, authenticatorUri, sessionReference = AuthSessionRegistry.ToPublicReference(issuedSid) }
             });
         }
 
@@ -351,13 +355,13 @@ namespace EduOS.App.Controllers.Api
             }
 
             var auth = await HttpContext.AuthenticateAsync(IdentityConstants.ApplicationScheme);
-            await SignInSessionAsync(user, auth.Properties?.IsPersistent == true, "mfa", session);
+            var issuedSid = await SignInSessionAsync(user, auth.Properties?.IsPersistent == true, "mfa", session);
             _logger.LogInformation("MFA enabled for user {UserId}", user.Id);
             return Ok(new
             {
                 success = true,
                 message = "Multi-factor authentication is enabled.",
-                data = new { recoveryCodes }
+                data = new { recoveryCodes, sessionReference = AuthSessionRegistry.ToPublicReference(issuedSid) }
             });
         }
 
@@ -988,7 +992,7 @@ namespace EduOS.App.Controllers.Api
             return new SessionResolution(true, false, role, selected, roles, choices);
         }
 
-        private async Task SignInSessionAsync(ApplicationUser user, bool rememberMe,
+        private async Task<string> SignInSessionAsync(ApplicationUser user, bool rememberMe,
             string authenticationMethod, SessionResolution session, string? rotatedSid = null)
         {
             var previousSid = User.FindFirstValue(AuthSessionRegistry.ClaimType);
@@ -1020,6 +1024,7 @@ namespace EduOS.App.Controllers.Api
             // A tenant switch already exchanged the previous SID transactionally.
             if (rotatedSid == null && previousSid != null)
                 await AuthSessionRegistry.RevokeAsync(_db, user.Id, previousSid);
+            return sid;
         }
 
         private static List<Claim> BuildSessionClaims(ApplicationUser user, string authenticationMethod,

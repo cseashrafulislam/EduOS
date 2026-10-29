@@ -10,6 +10,10 @@
         const keyPanel = document.getElementById('mfaKeyPanel');
         if (!form || !setupButton || !enableButton || !passwordField || !codeField || !keyPanel) return;
 
+        // This public-layout page is authenticated but has no private-shell guard.
+        // Bind the initial status read to the cookie that rendered the page.
+        const initialReference = form.dataset.authSessionReference;
+        const originalTenant = document.body.dataset.authTenantId ?? '';
         try {
             const response = await fetch('/api/auth/mfa/status', {
                 method: 'GET',
@@ -18,7 +22,16 @@
                 headers: { 'Accept': 'application/json' }
             });
             const payload = await response.json().catch(() => null);
-            if (response.ok && payload?.data?.enabled === true) {
+            const bound = /^[0-9A-F]{64}$/.test(initialReference || '') &&
+                response.headers?.get('X-EduOS-Session-Reference') === initialReference &&
+                response.headers?.get('X-EduOS-Tenant-Id') === originalTenant;
+            if (!response.ok || payload?.success !== true ||
+                typeof payload.data?.enabled !== 'boolean' || !bound) {
+                form.hidden = true;
+                showAlert('danger', form.dataset.networkMessage);
+                return;
+            }
+            if (payload.data.enabled === true) {
                 form.hidden = true;
                 const enabledPanel = document.getElementById('mfaAlreadyEnabled');
                 const enabledAction = document.getElementById('mfaEnabledAction');
@@ -32,7 +45,9 @@
                 return;
             }
         } catch {
+            form.hidden = true;
             showAlert('danger', form.dataset.networkMessage);
+            return;
         }
 
         setupButton.addEventListener('click', async () => {
@@ -56,14 +71,15 @@
                     || !payload?.success
                     || typeof payload.data?.sharedKey !== 'string'
                     || typeof payload.data?.authenticatorUri !== 'string'
-                    || !payload.data.authenticatorUri.startsWith('otpauth://totp/')) {
+                    || !payload.data.authenticatorUri.startsWith('otpauth://totp/')
+                    || !/^[0-9A-F]{64}$/.test(payload.data.sessionReference || '')) {
                     showAlert('danger', form.dataset.setupFailed);
                     return;
                 }
 
                 // Setup may rotate the cookie SID. Fetch a fresh session-bound CSRF token
                 // before allowing the enable POST; never reuse the old page token.
-                if (!await refreshRotatedSession()) {
+                if (!await refreshRotatedSession(payload.data.sessionReference)) {
                     showAlert('danger', form.dataset.networkMessage);
                     return;
                 }
@@ -100,16 +116,22 @@
                     body: JSON.stringify({ currentPassword, code })
                 });
                 const payload = await response.json().catch(() => null);
-                if (!response.ok || !payload?.success || !Array.isArray(payload.data?.recoveryCodes)) {
+                if (!response.ok || !payload?.success || !Array.isArray(payload.data?.recoveryCodes) ||
+                    !/^[0-9A-F]{64}$/.test(payload.data.sessionReference || '')) {
                     showAlert('danger', form.dataset.enableFailed);
                     return;
                 }
 
                 // MFA activation issues a second new cookie. Keep this page's
                 // recovery-code view bound to that verified same-institution session.
-                const refreshed = await refreshRotatedSession();
+                const refreshed = await refreshRotatedSession(payload.data.sessionReference);
                 window.EduOSNotifySessionChanged?.();
                 form.hidden = true;
+                if (!refreshed) {
+                    // Never expose recovery codes after an unverified cookie switch.
+                    showAlert('danger', form.dataset.networkMessage);
+                    return;
+                }
                 const recoveryList = document.getElementById('mfaRecoveryCodes');
                 const recoveryPanel = document.getElementById('mfaRecoveryPanel');
                 recoveryList?.replaceChildren();
@@ -120,7 +142,6 @@
                     recoveryList?.appendChild(item);
                 }
                 if (recoveryPanel) recoveryPanel.hidden = false;
-                if (!refreshed) showAlert('danger', form.dataset.networkMessage);
             } catch {
                 showAlert('danger', form.dataset.networkMessage);
             } finally {
@@ -128,7 +149,8 @@
             }
         });
 
-        async function refreshRotatedSession() {
+        async function refreshRotatedSession(expectedReference) {
+            if (!/^[0-9A-F]{64}$/.test(expectedReference || '')) return false;
             try {
                 const response = await fetch('/api/auth/antiforgery', {
                     method: 'GET', cache: 'no-store', credentials: 'same-origin',
@@ -142,12 +164,17 @@
                 // there; on private pages adopt through the shared guard.
                 const tenant = data?.tenantId == null ? '' : String(data.tenantId);
                 const sameTenant = tenant === (document.body.dataset.authTenantId ?? '');
-                const adopted = typeof window.EduOSAdoptRotatedSession === 'function'
-                    ? window.EduOSAdoptRotatedSession(data?.sessionReference, data?.tenantId)
-                    : sameTenant && /^[0-9A-F]{64}$/.test(data?.sessionReference || '');
-                if (!response.ok || payload?.success !== true || !meta ||
-                    typeof data?.requestToken !== 'string' || !data.requestToken || !adopted)
+                // A matching tenant is insufficient: another tab may have signed in
+                // as a different user in the same institute during this request.
+                if (!response.ok || payload?.success !== true || !meta || !sameTenant ||
+                    data?.sessionReference !== expectedReference ||
+                    typeof data?.requestToken !== 'string' || !data.requestToken)
                     return false;
+                const adopted = typeof window.EduOSAdoptRotatedSession === 'function'
+                    ? window.EduOSAdoptRotatedSession(expectedReference, data.tenantId)
+                    : true;
+                if (!adopted) return false;
+                form.dataset.authSessionReference = expectedReference;
                 meta.content = data.requestToken;
                 document.querySelectorAll('input[name="__RequestVerificationToken"]')
                     .forEach(input => { input.value = data.requestToken; });
