@@ -37,17 +37,20 @@ function render(){
  el('circulationPrevious').disabled=state.page<=1;
  el('circulationNext').disabled=state.page>=state.pages;
 }
-async function load(){
- const seq=++state.request;
- const query=new URLSearchParams({page:String(state.page),pageSize:'20',search:el('circulationSearch').value.trim(),
-  status:el('circulationStatus').value});
+function circulationQuery(){
+ const query=new URLSearchParams({page:String(state.page),pageSize:'20',
+  search:el('circulationSearch').value.trim(),status:el('circulationStatus').value});
  const campus=el('circulationCampus').value.trim();
  if(campus){
-  if(!/^[1-9]\d*$/.test(campus)){message('Campus ID must be a positive whole number.');return;}
+  if(!/^[1-9]\d*$/.test(campus))throw Error('Campus ID must be a positive whole number.');
   query.set('campusId',campus);
  }
+ return query;
+}
+async function load(){
+ const seq=++state.request;
  try{
-  const result=await api('/api/library/circulation?'+query);
+  const result=await api('/api/library/circulation?'+circulationQuery());
   if(seq!==state.request)return;
   state.rows=result?.items||[];state.pages=Math.max(1,result?.totalPages||1);
   el('circulationCount').textContent='('+Number(result?.totalCount||0)+')';render();
@@ -65,15 +68,28 @@ async function closeIssue(row,button){
  }catch(e){message(e.message);}
  finally{state.busy=false;await load();}
 }
-function csv(){
- const headers=['Student','Book','Accession','Campus','Issue date','Due date','Return date','Status','Overdue days'];
- const rows=state.rows.map(r=>{const i=r.issue;return [i.studentName,i.bookTitle,i.accessionNumber,r.campusId,
-  i.issueDate,i.dueDate,i.returnDate,label(i.state),r.daysOverdue];});
- const safe=v=>{let s=String(v??'');if(/^[=+@\-\t\r]/.test(s))s="'"+s;return '"'+s.replaceAll('"','""')+'"';};
- const content=String.fromCharCode(0xfeff)+[headers,...rows].map(r=>r.map(safe).join(',')).join('\r\n');
- const url=URL.createObjectURL(new Blob([content],{type:'text/csv;charset=utf-8'}));
- const a=document.createElement('a');a.href=url;a.download='library-circulation.csv';a.click();
- setTimeout(()=>URL.revokeObjectURL(url),1000);
+// Always fetch a fresh, server-authorized page rather than exporting stale browser rows.
+async function csv(){
+ const button=el('circulationCsv');
+ if(button.disabled)return;
+ button.disabled=true;
+ try{
+  const query=circulationQuery();
+  query.set('language',document.documentElement.lang?.toLowerCase().startsWith('bn')?'bn-BD':'en-BD');
+  const response=await fetch('/api/library/circulation/export?'+query,{
+   method:'GET',credentials:'same-origin',cache:'no-store',headers:{Accept:'text/csv'}});
+  if(!response.ok){
+   const error=await response.json().catch(()=>null);
+   throw Error(error?.message||'Circulation export was denied.');
+  }
+  const blob=await response.blob();
+  const url=URL.createObjectURL(blob);
+  try{
+   const link=document.createElement('a');link.href=url;link.download='library-circulation-page.csv';
+   document.body.append(link);link.click();link.remove();
+  }finally{setTimeout(()=>URL.revokeObjectURL(url),1000);}
+ }catch(error){message(error.message);}
+ finally{button.disabled=false;}
 }
 
 const direct={key:crypto.randomUUID(),studentPage:0,bookPage:0,copyPage:0,

@@ -3,8 +3,15 @@
 }
 <section id="libraryCirculationApp" class="container-fluid py-3">
     <header class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
-        <div><h2 class="h4 mb-1">Library Circulation Register</h2>
-            <p class="text-muted mb-0">Find issued and overdue copies, review history, and record returns. Returns update copy availability atomically.</p></div>
+        <div class="d-flex align-items-center gap-2">
+            <h2 class="h4 mb-0">Library Circulation Register</h2>
+            <details class="position-relative">
+                <summary class="btn btn-sm btn-outline-secondary" aria-label="Circulation help" title="Circulation help">ⓘ</summary>
+                <div class="card card-body position-absolute shadow-sm mt-1" style="width:min(19rem,85vw);z-index:5">
+                    Issue an available copy for an eligible student. Reservations take priority. Returns update availability; CSV downloads the filtered authorized page from the server.
+                </div>
+            </details>
+        </div>
         <div class="d-flex gap-2">
             <a asp-controller="Library" asp-action="Overdue" class="btn btn-outline-primary">Overdue ageing</a>
             <a asp-controller="Library" asp-action="Index" class="btn btn-outline-secondary">Back to catalog</a>
@@ -17,7 +24,6 @@
             <a asp-controller="Library" asp-action="Reservations" class="btn btn-outline-primary btn-sm">Fulfill reservations</a>
         </div>
         <div class="card-body">
-            <p class="small text-muted">Search an active student and book, then select a copy from an authorized campus branch. Active reservations take priority; use the reservation queue instead of direct issue when a queue exists.</p>
             <div class="row g-2 mb-2">
                 <div class="col-md-7"><label for="directIssueStudentQuery" class="form-label">Active student name or code</label>
                     <input id="directIssueStudentQuery" type="search" class="form-control" minlength="2" maxlength="100" autocomplete="off" /></div>
@@ -57,7 +63,7 @@
             <input id="circulationCampus" class="form-control" type="number" min="1" step="1" placeholder="All campuses" /></div>
         <div class="col-lg-2"><label for="circulationReturnDate" class="form-label">Return date (optional)</label>
             <input id="circulationReturnDate" class="form-control" type="date" />
-            <small class="text-muted">Blank uses server UTC date.</small></div>
+</div>
         <div class="col-lg-2"><button type="submit" class="btn btn-primary w-100">Search</button></div>
     </form>
     <div class="card">

@@ -108,6 +108,25 @@ public sealed class LibraryController : ControllerBase
         [FromQuery] int page = 1, [FromQuery] int pageSize = 20, CancellationToken ct = default) =>
         ToAction(await _service.GetCirculationRegisterAsync(search, status, campusId, page, pageSize, ct));
 
+    // Fresh tenant, campus and role checks on every export; no browser-held borrower rows.
+    [HttpGet("circulation/export")]
+    [Authorize(Roles = "TenantAdmin,Principal,Librarian")]
+    public async Task<IActionResult> ExportCirculation(
+        [FromQuery] string? search = null, [FromQuery] string? status = "issued",
+        [FromQuery] long? campusId = null, [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 20, [FromQuery] string language = "en-BD",
+        CancellationToken ct = default)
+    {
+        if (language is not ("en-BD" or "bn-BD"))
+            return BadRequest("Unsupported report language.");
+        var result = await _service.GetCirculationRegisterAsync(search, status, campusId, page, pageSize, ct);
+        if (!result.Success || result.Data == null) return ToAction(result);
+        Response.Headers.CacheControl = "no-store, private";
+        Response.Headers.Pragma = "no-cache";
+        return File(LibraryCirculationCsvWriter.Write(result.Data.Items, language == "bn-BD"),
+            "text/csv; charset=utf-8", "library-circulation-page.csv");
+    }
+
     [HttpGet("my-issues")]
     public async Task<IActionResult> MyIssues([FromQuery]int page=1,[FromQuery]int pageSize=20,CancellationToken ct=default)=>ToAction(await _service.GetMyIssuesAsync(page,pageSize,ct));
 
