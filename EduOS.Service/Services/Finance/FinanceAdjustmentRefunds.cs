@@ -262,17 +262,20 @@ public sealed partial class FinanceAdjustmentService
                 select new { ra.PaymentAllocationId, ra.Amount }).ToListAsync(ct);
             var priorTotals=prior.GroupBy(x=>x.PaymentAllocationId)
                 .ToDictionary(x=>x.Key,x=>x.Sum(y=>y.Amount));
-            IReadOnlyList<RefundAllocationPortion> portions;
-            try
-            {
-                portions=RefundAllocationPlanner.Plan(allocations.Select(x=>
-                    new RefundAllocationBalance(x.Id,x.Amount,priorTotals.GetValueOrDefault(x.Id))).ToArray(),refund.Amount);
-            }
-            catch(InvalidOperationException){return Error<RefundDto>("Refund exceeds unreversed original allocations.",409);}
             var invoiceIds=allocations.Select(x=>x.StudentInvoiceId).ToArray();
             var invoices=await db.StudentInvoices.Where(x=>x.TenantId==tenant &&
                 invoiceIds.Contains(x.Id) && !x.IsDeleted).ToListAsync(ct);
             if(invoices.Count!=invoiceIds.Length) return Error<RefundDto>("Invoice allocation missing.",409);
+            var paidByInvoice=invoices.ToDictionary(x=>x.Id,x=>x.PaidAmount);
+            IReadOnlyList<RefundAllocationPortion> portions;
+            try
+            {
+                portions=RefundAllocationPlanner.Plan(allocations.Select(x=>
+                    new RefundAllocationBalance(x.Id,x.Amount,priorTotals.GetValueOrDefault(x.Id),
+                        paidByInvoice[x.StudentInvoiceId])).ToArray(),refund.Amount);
+            }
+            catch(InvalidOperationException){return Error<RefundDto>(
+                "Refund exceeds original allocation or current invoice paid balance.",409);}
             var enrollmentIds=invoices.Select(x=>x.StudentEnrollmentId).Distinct().ToArray();
             var enrollments=await db.StudentEnrollments.AsNoTracking().Where(x=>x.TenantId==tenant &&
                 enrollmentIds.Contains(x.Id) && !x.IsDeleted).ToListAsync(ct);
@@ -387,7 +390,8 @@ public sealed partial class FinanceAdjustmentService
 }
 
 /// <summary>Deterministic distribution of a refund across the remaining original immutable payment allocations.</summary>
-public sealed record RefundAllocationBalance(long AllocationId,decimal OriginalAmount,decimal RefundedAmount);
+public sealed record RefundAllocationBalance(long AllocationId,decimal OriginalAmount,decimal RefundedAmount,
+    decimal InvoicePaidAmount);
 public sealed record RefundAllocationPortion(long AllocationId,decimal Amount);
 public static class RefundAllocationPlanner
 {
@@ -399,13 +403,19 @@ public static class RefundAllocationPlanner
             sources.Any(x=>x.AllocationId<=0 || x.OriginalAmount<=0m ||
                 decimal.Round(x.OriginalAmount,2)!=x.OriginalAmount ||
                 x.RefundedAmount<0m || decimal.Round(x.RefundedAmount,2)!=x.RefundedAmount ||
-                x.RefundedAmount>x.OriginalAmount))
+                x.RefundedAmount>x.OriginalAmount || x.InvoicePaidAmount<0m ||
+                decimal.Round(x.InvoicePaidAmount,2)!=x.InvoicePaidAmount))
             throw new InvalidOperationException("Invalid original or refunded allocation.");
         var left=amount;
         var result=new List<RefundAllocationPortion>();
         foreach(var source in sources.OrderBy(x=>x.AllocationId))
         {
-            var take=Math.Min(left,source.OriginalAmount-source.RefundedAmount);
+            // A different receipt/refund can reduce this invoice's paid balance.
+            // Skip unavailable capacity and allocate against the next original
+            // receipt line instead of rejecting a valid multi-invoice payout.
+            var available=Math.Min(source.OriginalAmount-source.RefundedAmount,
+                source.InvoicePaidAmount);
+            var take=Math.Min(left,available);
             if(take>0m){result.Add(new RefundAllocationPortion(source.AllocationId,take));left-=take;}
             if(left==0m)break;
         }

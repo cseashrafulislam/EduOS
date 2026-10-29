@@ -127,8 +127,8 @@ public sealed class FinanceAdjustmentServiceTests
     public void Refund_planner_allocates_in_stable_order_without_touching_original_amounts()
     {
         var sources=new[]{
-            new RefundAllocationBalance(8,100m,20m),
-            new RefundAllocationBalance(3,50m,10m)};
+            new RefundAllocationBalance(8,100m,20m,80m),
+            new RefundAllocationBalance(3,50m,10m,40m)};
         var lines=RefundAllocationPlanner.Plan(sources,90m);
         lines.Select(x=>x.AllocationId).Should().Equal(3,8);
         lines.Select(x=>x.Amount).Should().Equal(40m,50m);
@@ -137,11 +137,27 @@ public sealed class FinanceAdjustmentServiceTests
     [Fact]
     public void Refund_planner_rejects_over_refund_and_invalid_precision()
     {
-        var sources=new[]{new RefundAllocationBalance(1,50m,45m)};
+        var sources=new[]{new RefundAllocationBalance(1,50m,45m,5m)};
         Action excess=()=>RefundAllocationPlanner.Plan(sources,5.01m);
         Action precision=()=>RefundAllocationPlanner.Plan(sources,0.001m);
         excess.Should().Throw<InvalidOperationException>();
         precision.Should().Throw<InvalidOperationException>();
+    }
+    [Fact]
+    public void Refund_planner_respects_current_invoice_paid_capacity_and_moves_to_next_original_allocation()
+    {
+        var sources=new[]{
+            new RefundAllocationBalance(1,100m,0m,20m),
+            new RefundAllocationBalance(2,100m,10m,90m)};
+        var result=RefundAllocationPlanner.Plan(sources,70m);
+        result.Select(x=>x.AllocationId).Should().Equal(1,2);
+        result.Select(x=>x.Amount).Should().Equal(20m,50m);
+        sources[0].OriginalAmount.Should().Be(100m);
+        Action excess=()=>RefundAllocationPlanner.Plan(sources,111m);
+        excess.Should().Throw<InvalidOperationException>();
+        Action negativePaid=()=>RefundAllocationPlanner.Plan(
+            new[]{new RefundAllocationBalance(1,100m,0m,-1m)},1m);
+        negativePaid.Should().Throw<InvalidOperationException>();
     }
     [Fact]
     public void Paid_invoices_cannot_be_mutated_by_refund_workflow()
