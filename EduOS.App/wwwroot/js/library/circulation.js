@@ -3,6 +3,7 @@
 const root=document.getElementById('libraryCirculationApp');if(!root)return;
 const el=id=>document.getElementById(id);
 const state={page:1,pages:1,rows:[],request:0,busy:false};
+const renewal={issue:null,historyReference:null,page:1,pages:1,sequence:0};
 function message(text,ok=false){const n=el('circulationAlert');n.className='alert alert-'+(ok?'success':'danger');n.textContent=text;n.focus();}
 async function api(url,method='GET',body){
  const headers={Accept:'application/json'};
@@ -29,7 +30,15 @@ function render(){
    const b=document.createElement('button');b.type='button';b.className='btn btn-sm btn-outline-primary';
    b.textContent='Return';b.disabled=state.busy;
    b.addEventListener('click',()=>closeIssue(row,b));td.append(b);
+   if(!row.isOverdue){
+    const renew=document.createElement('button');renew.type='button';
+    renew.className='btn btn-sm btn-outline-secondary ms-1';renew.textContent='Renew';
+    renew.disabled=state.busy;renew.addEventListener('click',()=>showRenewal(row));td.append(renew);
+   }
   }
+  const history=document.createElement('button');history.type='button';
+  history.className='btn btn-sm btn-link';history.textContent='History';
+  history.addEventListener('click',()=>openRenewalHistory(i.reference));td.append(history);
   body.append(tr);
  }
  if(!state.rows.length){const tr=document.createElement('tr');cell(tr,'No matching circulation records.').colSpan=10;body.append(tr);}
@@ -68,6 +77,69 @@ async function closeIssue(row,button){
  }catch(e){message(e.message);}
  finally{state.busy=false;await load();}
 }
+function datePlus(iso,days){
+ const date=new Date(iso+'T00:00:00Z');date.setUTCDate(date.getUTCDate()+days);
+ return date.toISOString().slice(0,10);
+}
+function showRenewal(row){
+ renewal.issue=row.issue;
+ el('circulationRenewalTitle').textContent='Renew '+row.issue.bookTitle;
+ el('circulationRenewalCurrent').textContent='Current due date: '+row.issue.dueDate;
+ const input=el('circulationRenewalDue'),today=new Date().toISOString().slice(0,10);
+ input.min=datePlus(row.issue.dueDate,1);
+ input.max=[datePlus(row.issue.dueDate,14),datePlus(today,30)].sort()[0];
+ input.value=input.min<=input.max?input.min:'';
+ el('circulationRenewalForm').classList.remove('d-none');input.focus();
+}
+el('circulationRenewalCancel').addEventListener('click',()=>{
+ renewal.issue=null;el('circulationRenewalForm').classList.add('d-none');
+});
+el('circulationRenewalForm').addEventListener('submit',async event=>{
+ event.preventDefault();if(!renewal.issue||state.busy)return;
+ const issue=renewal.issue,newDueDate=el('circulationRenewalDue').value;
+ state.busy=true;el('circulationRenewalSave').disabled=true;
+ try{
+  await api('/api/library/issues/'+encodeURIComponent(issue.reference)+'/renew','POST',
+   {newDueDate,rowVersion:issue.rowVersion});
+  renewal.issue=null;el('circulationRenewalForm').classList.add('d-none');
+  message('Loan renewed. Previous due date preserved in audit history.',true);
+  await load();if(renewal.historyReference===issue.reference)await loadRenewalHistory();
+ }catch(error){message(error.message);}
+ finally{state.busy=false;el('circulationRenewalSave').disabled=false;}
+});
+async function openRenewalHistory(reference){
+ renewal.historyReference=reference;renewal.page=1;
+ el('circulationRenewalHistory').classList.remove('d-none');await loadRenewalHistory();
+}
+async function loadRenewalHistory(){
+ const reference=renewal.historyReference;if(!reference)return;
+ const seq=++renewal.sequence;
+ try{
+  const result=await api('/api/library/issues/'+encodeURIComponent(reference)+'/renewals?'+
+   new URLSearchParams({page:String(renewal.page),pageSize:'20'}));
+  if(seq!==renewal.sequence||reference!==renewal.historyReference)return;
+  const body=el('circulationRenewalHistoryRows');body.replaceChildren();
+  for(const item of result?.items||[]){
+   const tr=document.createElement('tr');
+   [item.previousDueDate,item.newDueDate,item.changedAtUtc].forEach(value=>cell(tr,value));
+   body.append(tr);
+  }
+  if(!result?.items?.length){const tr=document.createElement('tr');cell(tr,'No renewals recorded.').colSpan=3;body.append(tr);}
+  renewal.pages=Math.max(1,result?.totalPages||1);
+  el('circulationRenewalHistoryPage').textContent='Page '+renewal.page+' / '+renewal.pages;
+  el('circulationRenewalHistoryPrevious').disabled=renewal.page<=1;
+  el('circulationRenewalHistoryNext').disabled=renewal.page>=renewal.pages;
+ }catch(error){if(seq===renewal.sequence)message(error.message);}
+}
+el('circulationRenewalHistoryClose').addEventListener('click',()=>{
+ ++renewal.sequence;renewal.historyReference=null;el('circulationRenewalHistory').classList.add('d-none');
+});
+el('circulationRenewalHistoryPrevious').addEventListener('click',()=>{
+ if(renewal.page>1){renewal.page--;loadRenewalHistory();}
+});
+el('circulationRenewalHistoryNext').addEventListener('click',()=>{
+ if(renewal.page<renewal.pages){renewal.page++;loadRenewalHistory();}
+});
 // Always fetch a fresh, server-authorized page rather than exporting stale browser rows.
 async function csv(){
  const button=el('circulationCsv');

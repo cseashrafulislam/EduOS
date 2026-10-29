@@ -8,7 +8,7 @@
             <details class="position-relative">
                 <summary class="btn btn-sm btn-outline-secondary" aria-label="Circulation help" title="Circulation help">ⓘ</summary>
                 <div class="card card-body position-absolute shadow-sm mt-1" style="width:min(19rem,85vw);z-index:5">
-                    Issue an available copy for an eligible student. Reservations take priority. Returns update availability; CSV downloads the filtered authorized page from the server.
+                    Issue an available copy for an eligible student. Reservations take priority. Returns update availability. Renewals require an unexpired loan and no waiting reservation. CSV is freshly authorized.
                 </div>
             </details>
         </div>
@@ -66,6 +66,16 @@
 </div>
         <div class="col-lg-2"><button type="submit" class="btn btn-primary w-100">Search</button></div>
     </form>
+    <form id="circulationRenewalForm" class="card card-body mb-3 d-none" aria-label="Renew library loan">
+        <div class="row g-2 align-items-end">
+            <div class="col-md-5"><strong id="circulationRenewalTitle">Renew loan</strong>
+                <div id="circulationRenewalCurrent" class="small text-muted"></div></div>
+            <div class="col-md-3"><label for="circulationRenewalDue" class="form-label">New due date *</label>
+                <input id="circulationRenewalDue" class="form-control" type="date" required /></div>
+            <div class="col-md-4 d-flex gap-2"><button id="circulationRenewalSave" type="submit" class="btn btn-primary">Confirm renewal</button>
+                <button id="circulationRenewalCancel" type="button" class="btn btn-outline-secondary">Cancel</button></div>
+        </div>
+    </form>
     <div class="card">
         <div class="card-header d-flex flex-wrap align-items-center justify-content-between gap-2">
             <strong>Circulation records <span id="circulationCount" class="small text-muted"></span></strong>
@@ -82,5 +92,20 @@
             <button id="circulationNext" type="button" class="btn btn-outline-secondary btn-sm">Next</button>
         </div>
     </div>
+    <section id="circulationRenewalHistory" class="card mt-3 d-none" aria-labelledby="circulationRenewalHistoryTitle">
+        <div class="card-header d-flex justify-content-between align-items-center gap-2">
+            <strong id="circulationRenewalHistoryTitle">Renewal history</strong>
+            <button id="circulationRenewalHistoryClose" class="btn btn-sm btn-outline-secondary" type="button">Close</button>
+        </div>
+        <div class="table-responsive"><table class="table table-sm mb-0">
+            <thead><tr><th>Previous due date</th><th>New due date</th><th>Changed (UTC)</th></tr></thead>
+            <tbody id="circulationRenewalHistoryRows"></tbody>
+        </table></div>
+        <div class="card-footer d-flex justify-content-end align-items-center gap-2">
+            <button id="circulationRenewalHistoryPrevious" type="button" class="btn btn-sm btn-outline-secondary">Previous</button>
+            <span id="circulationRenewalHistoryPage" class="small"></span>
+            <button id="circulationRenewalHistoryNext" type="button" class="btn btn-sm btn-outline-secondary">Next</button>
+        </div>
+    </section>
 </section>
 @section Scripts { <script src="~/js/library/circulation.js" asp-append-version="true"></script> }

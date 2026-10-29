@@ -100,6 +100,19 @@ public class IssueBookRequestDto
     public DateOnly DueDate { get; set; }
 }
 
+public sealed class RenewBookRequestDto
+{
+    [Required] public DateOnly NewDueDate { get; set; }
+    [Required] public string RowVersion { get; set; } = string.Empty;
+}
+
+public sealed class BookRenewalHistoryDto
+{
+    public DateOnly PreviousDueDate { get; set; }
+    public DateOnly NewDueDate { get; set; }
+    public DateTime ChangedAtUtc { get; set; }
+}
+
 public class ReturnBookRequestDto
 {
     public DateOnly ReturnDate { get; set; }

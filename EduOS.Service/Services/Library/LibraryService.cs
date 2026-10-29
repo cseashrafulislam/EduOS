@@ -6,6 +6,7 @@ using EduOS.Core.Entities.Students;
 using EduOS.Core.Entities.HR;
 using EduOS.Core.Entities.Auth;
 using EduOS.Core.Entities.SaaS;
+using EduOS.Core.Entities.System;
 using EduOS.Core.Enums.Domain;
 using EduOS.Core.Interfaces;
 using EduOS.Core.Interfaces.IRepositories;
@@ -21,6 +22,7 @@ public sealed partial class LibraryService : ILibraryService
     private readonly IGenericRepository<Book> _books;
     private readonly IGenericRepository<BookCopy> _copies;
     private readonly IGenericRepository<BookIssue> _issues;
+    private readonly IGenericRepository<AuditLog>? _renewalAudits;
     private readonly IGenericRepository<BookReservation>? _reservations;
     private readonly IGenericRepository<BookCategory> _categories;
     private readonly IGenericRepository<LibraryBranch>? _branches;
@@ -44,11 +46,12 @@ public sealed partial class LibraryService : ILibraryService
         IGenericRepository<EmployeeCampusAssignment>? staffCampusAssignments = null,
         IGenericRepository<UserCampusAccess>? campusAccesses = null,
         IGenericRepository<Campus>? campuses = null,
-        IGenericRepository<BookReservation>? reservations = null)
+        IGenericRepository<BookReservation>? reservations = null,
+        IGenericRepository<AuditLog>? renewalAudits = null)
     {
         _books = books; _copies = copies; _issues = issues; _categories = categories;
         _students = students; _enrollments = enrollments; _uow = unitOfWork; _user = currentUser; _clock = clock; _logger = logger;
-        _branches = branches; _staffEmployees = staffEmployees; _staffCampusAssignments = staffCampusAssignments;
+        _branches = branches; _renewalAudits = renewalAudits; _staffEmployees = staffEmployees; _staffCampusAssignments = staffCampusAssignments;
         _campusAccesses = campusAccesses; _campuses = campuses; _reservations = reservations;
     }
 

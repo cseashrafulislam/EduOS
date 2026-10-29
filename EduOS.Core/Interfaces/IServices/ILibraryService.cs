@@ -16,6 +16,8 @@ public interface ILibraryService
     Task<ApiResponse<BookDto>> SaveBookAsync(SaveBookRequestDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<bool>> ArchiveBookAsync(Guid reference, string rowVersion, CancellationToken cancellationToken = default);
     Task<ApiResponse<BookIssueDto>> IssueAsync(IssueBookRequestDto request, CancellationToken cancellationToken = default);
+    Task<ApiResponse<BookIssueDto>> RenewAsync(Guid issueReference, RenewBookRequestDto request, CancellationToken cancellationToken = default);
+    Task<ApiResponse<PagedResult<BookRenewalHistoryDto>>> GetRenewalHistoryAsync(Guid issueReference, int page, int pageSize, CancellationToken cancellationToken = default);
     Task<ApiResponse<BookIssueDto>> CloseAsync(Guid issueReference, ReturnBookRequestDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<PagedResult<BookIssueDto>>> GetMyIssuesAsync(int page, int pageSize, CancellationToken cancellationToken = default);
     Task<ApiResponse<PagedResult<LibraryOverdueBranchDto>>> GetOverdueBranchesAsync(

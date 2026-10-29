@@ -134,6 +134,20 @@ public sealed class LibraryController : ControllerBase
     [Authorize(Roles="TenantAdmin,Principal,Librarian")]
     public async Task<IActionResult> Issue([FromBody]IssueBookRequestDto request,CancellationToken ct)=>ToAction(await _service.IssueAsync(request,ct));
 
+    [HttpPost("issues/{reference:guid}/renew")]
+    [Authorize(Roles = "TenantAdmin,Principal,Librarian")]
+    public async Task<IActionResult> Renew(Guid reference, [FromBody] RenewBookRequestDto request, CancellationToken ct)
+    {
+        if (!ModelState.IsValid) return ValidationProblem(ModelState);
+        return ToAction(await _service.RenewAsync(reference, request, ct));
+    }
+
+    [HttpGet("issues/{reference:guid}/renewals")]
+    [Authorize(Roles = "TenantAdmin,Principal,Librarian")]
+    public async Task<IActionResult> Renewals(Guid reference, [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 20, CancellationToken ct = default) =>
+        ToAction(await _service.GetRenewalHistoryAsync(reference, page, pageSize, ct));
+
     [HttpPost("issues/{reference:guid}/close")]
     [Authorize(Roles="TenantAdmin,Principal,Librarian")]
     public async Task<IActionResult> Close(Guid reference,[FromBody]ReturnBookRequestDto request,CancellationToken ct)=>ToAction(await _service.CloseAsync(reference,request,ct));
