@@ -88,7 +88,7 @@ public sealed class V2PrivateHttpBoundaryIntegrationTests
                         limiter.Window = TimeSpan.FromMinutes(1);
                         limiter.QueueLimit = 0;
                     }));
-                services.AddControllers()
+                services.AddControllersWithViews()
                     .AddApplicationPart(typeof(LibraryDigitalResourcesController).Assembly);
             })
             .Configure(app =>
