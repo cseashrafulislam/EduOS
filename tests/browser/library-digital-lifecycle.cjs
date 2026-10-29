@@ -71,8 +71,14 @@ async function scenario(browser, admin, language) {
         if (url.pathname.endsWith('/download')) {
             downloadStarted();
             await released;
-            return route.fulfill({ status: 200, contentType: 'application/pdf',
-                body: '%PDF-1.4\nprivate bytes' });
+            try {
+                return await route.fulfill({ status: 200, contentType: 'application/pdf',
+                    body: '%PDF-1.4\nprivate bytes' });
+            } catch (error) {
+                // The browser intentionally aborts this in-flight private read on
+                // tenant switch; Playwright may reject fulfill after cancellation.
+                if (!/abort|cancel|closed|intercept/i.test(String(error))) throw error;
+            }
         }
         if (url.pathname.endsWith('/revoke'))
             return route.fulfill({ contentType: 'application/json',
@@ -94,6 +100,7 @@ async function scenario(browser, admin, language) {
             assert.equal(await page.locator('#digitalEditDialog').evaluate(el => el.open), true);
             assert.equal(await page.locator('#digitalEditName').inputValue(),
                 'Protected course reader');
+            await page.locator('#digitalBook option').nth(1).waitFor({ state: 'attached' });
             assert.equal(await page.locator('#digitalBook option').count(), 2);
         }
         await page.locator('#digitalRows button').filter({ hasText:
