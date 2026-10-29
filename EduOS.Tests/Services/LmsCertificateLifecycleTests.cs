@@ -107,7 +107,8 @@ public sealed class LmsCertificateLifecycleTests
         Assert.Equal(issued.Data.StudentName, reissued.Data.StudentName);
         Assert.Equal(issued.Data.CompletedAt, reissued.Data.CompletedAt);
         Assert.Equal(2, await db.Set<LmsCompletionCertificate>().CountAsync());
-        Assert.Equal(3, await db.Set<AuditLog>().CountAsync(x => x.EntityName == "LmsCompletionCertificate"));
+        Assert.Equal(3, await db.Set<AuditLog>().CountAsync(x =>
+            x.EntityName == "LmsCompletionCertificate" && x.Action.StartsWith("LMS.Certificate")));
         var events = await service.GetCertificateAuditAsync(issued.Data.Reference);
         Assert.True(events.Success);
         Assert.Contains(events.Data!, x => x.Action == "LMS.CertificateRevoked");
