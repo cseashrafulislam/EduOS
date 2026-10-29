@@ -38,6 +38,14 @@
                 button.addEventListener('click', () => revoke(row)); action.append(button);
             }
             if (row.reference) {
+                if (row.hasPrintableDocument && !row.isRevoked) {
+                    const print = document.createElement('a');
+                    print.className = 'btn btn-sm btn-outline-primary ms-1';
+                    print.textContent = 'Print';
+                    print.href = '/AssessmentAdministration/CertificateDocument?reference=' + encodeURIComponent(row.reference);
+                    print.target = '_blank'; print.rel = 'noopener noreferrer';
+                    action.append(print);
+                }
                 const verify = document.createElement('a');
                 verify.className = 'btn btn-sm btn-outline-secondary ms-1';
                 verify.textContent = 'Verify';

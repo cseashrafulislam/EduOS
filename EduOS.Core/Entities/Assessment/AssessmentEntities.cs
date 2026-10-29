@@ -133,6 +133,8 @@ public class CertificateIssue : BaseTenantEntity
     public long IssuedByUserId { get; set; }
     public long? FileAssetId { get; set; }
     [MaxLength(128)] public string? VerificationCodeHash { get; set; }
+    // Null on legacy register-only issues. New formal documents freeze and authenticate issue-time facts.
+    public string? ProtectedDocument { get; set; }
     public bool IsRevoked { get; set; }
     public DateTime? RevokedAt { get; set; }
 }

@@ -22,6 +22,7 @@ public sealed class PublicCertificateVerificationService : IPublicCertificateVer
     private readonly TimeProvider _clock;
     private readonly ILogger<PublicCertificateVerificationService> _logger;
     private readonly IDataProtector? _transcriptProtector;
+    private readonly IDataProtector? _certificateProtector;
 
     public PublicCertificateVerificationService(EduOSDbContext db, TimeProvider clock,
         ILogger<PublicCertificateVerificationService> logger,
@@ -31,6 +32,7 @@ public sealed class PublicCertificateVerificationService : IPublicCertificateVer
         _clock = clock;
         _logger = logger;
         _transcriptProtector = transcriptProtection?.CreateProtector(TranscriptSnapshotIntegrity.Purpose);
+        _certificateProtector = transcriptProtection?.CreateProtector(CertificateSnapshotIntegrity.Purpose);
     }
 
     public async Task<ApiResponse<PublicCertificateVerificationDto>> VerifyAsync(
@@ -46,7 +48,8 @@ public sealed class PublicCertificateVerificationService : IPublicCertificateVer
             .Select(x => new
             {
                 x.TenantId, x.StudentId, x.StudentEnrollmentId, x.CertificateTemplateId,
-                x.CertificateNumber, x.IssueDate, x.IsRevoked
+                x.CertificateNumber, x.IssueDate, x.IssuedByUserId,
+                x.ProtectedDocument, x.IsRevoked
             }).Take(2).ToListAsync(cancellationToken);
         if (matches.Count != 1)
             return ApiResponse<PublicCertificateVerificationDto>.ErrorResponse("Credential not found.", 404);
@@ -119,8 +122,51 @@ public sealed class PublicCertificateVerificationService : IPublicCertificateVer
             .AnyAsync(x => x.TenantId == tenant.Id && x.Id == certificate.CertificateTemplateId &&
                 !x.IsDeleted, cancellationToken);
 
+        // New formal documents carry an authenticated pin to one specific published result.
+        // Metadata-only legacy records preserve their historical verification semantics.
+        var authenticated = true;
+        if (!string.IsNullOrWhiteSpace(certificate.ProtectedDocument))
+        {
+            var issue = new CertificateIssue
+            {
+                TenantId = certificate.TenantId, StudentId = certificate.StudentId,
+                StudentEnrollmentId = certificate.StudentEnrollmentId,
+                CertificateTemplateId = certificate.CertificateTemplateId,
+                PublicId = reference, CertificateNumber = certificate.CertificateNumber,
+                IssueDate = certificate.IssueDate, IssuedByUserId = certificate.IssuedByUserId,
+                ProtectedDocument = certificate.ProtectedDocument
+            };
+            authenticated = CertificateSnapshotIntegrity.TryRead(_certificateProtector, issue, out var snapshot);
+            if (authenticated)
+            {
+                var pinned = snapshot!;
+                authenticated = await (
+                    from summary in _db.StudentResultSummaries.IgnoreQueryFilters().AsNoTracking()
+                    join publication in _db.ResultPublications.IgnoreQueryFilters().AsNoTracking()
+                        on new { summary.TenantId, Id = summary.ResultPublicationId }
+                        equals new { publication.TenantId, publication.Id }
+                    where summary.TenantId == tenant.Id && !summary.IsDeleted &&
+                        summary.StudentEnrollmentId == certificate.StudentEnrollmentId &&
+                        summary.ResultPublicationId == pinned.ResultPublicationId &&
+                        summary.PublicationVersionNo == pinned.ResultPublicationVersionNo &&
+                        summary.IsPassed && !summary.IsWithheld && !publication.IsDeleted &&
+                        publication.VersionNo == pinned.ResultPublicationVersionNo &&
+                        publication.State == ResultPublicationState.Published &&
+                        publication.VisibleToStudent && publication.PublishedAt != null &&
+                        publication.PublishedAt <= issuedBefore &&
+                        !_db.ResultPublications.IgnoreQueryFilters().AsNoTracking().Any(newer =>
+                            newer.TenantId == tenant.Id && !newer.IsDeleted &&
+                            newer.AssessmentId == publication.AssessmentId &&
+                            newer.AcademicBatchId == publication.AcademicBatchId &&
+                            newer.VersionNo > publication.VersionNo &&
+                            (newer.State == ResultPublicationState.Published ||
+                             newer.State == ResultPublicationState.Withdrawn))
+                    select summary.Id).AnyAsync(cancellationToken);
+            }
+        }
+
         var status = certificate.IsRevoked ? "Revoked" :
-            evidence && templateExists && certificate.IssueDate <= DateOnly.FromDateTime(now)
+            evidence && authenticated && templateExists && certificate.IssueDate <= DateOnly.FromDateTime(now)
                 ? "Valid" : "ReviewRequired";
         // Privacy-safe observability: no certificate token, student identifier or raw PII.
         _logger.LogInformation("Public certificate verification: tenant {TenantId}, status {Status}",

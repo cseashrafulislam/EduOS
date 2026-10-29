@@ -33,6 +33,7 @@ public sealed class CertificateIssueRegisterRowDto
     public string TemplateName { get; set; } = string.Empty;
     public DateOnly IssueDate { get; set; }
     public bool IsRevoked { get; set; }
+    public bool HasPrintableDocument { get; set; }
     public DateTime? RevokedAt { get; set; }
     public string RowVersion { get; set; } = string.Empty;
 }

@@ -16,8 +16,10 @@ on:
       - 'EduOS.App/wwwroot/js/assessment/transcripts.js'
       - 'EduOS.App/Views/AssessmentAdministration/Transcripts.cshtml'
       - 'EduOS.App/Views/AssessmentAdministration/TranscriptDocument.cshtml'
+      - 'EduOS.App/Views/AssessmentAdministration/CertificateDocument.cshtml'
       - 'EduOS.App/Views/AssessmentAdministration/Attempts.cshtml'
       - 'EduOS.App/wwwroot/js/assessment/attempts.js'
+      - 'EduOS.App/wwwroot/js/assessment/certificates.js'
       - 'EduOS.App/Views/AssessmentAdministration/Setup.cshtml'
       - 'EduOS.App/wwwroot/js/assessment/setup.js'
       - 'EduOS.App/wwwroot/js/attendance/**'
@@ -48,6 +50,8 @@ jobs:
         run: node tests/browser/academic-management.cjs
       - name: Exercise authenticated transcript issue and revocation UI
         run: node tests/browser/assessment-transcript.cjs
+      - name: Verify certificate print link excludes legacy and revoked records
+        run: node tests/browser/assessment-certificate.cjs
       - name: Exercise student-specific retake and improvement approval UI
         run: node tests/browser/assessment-attempts.cjs
       - name: Exercise exam setup and subject assignment browser UI

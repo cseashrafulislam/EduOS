@@ -1,0 +1,45 @@
+@model EduOS.Core.DTOs.Assessment.CertificateSnapshotDocumentDto
+@{
+    Layout = null;
+    ViewData["Title"] = "Issued Academic Certificate";
+}
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Certificate @Model.CertificateNumber</title>
+    <style>
+        body { font: 15px/1.6 system-ui, 'Noto Sans Bengali', sans-serif; color: #203049; max-width: 980px; margin: auto; padding: 24px; }
+        header { border: 2px solid #203b61; padding: 28px; text-align: center; }
+        h1 { font-size: 28px; margin: 0; } h2 { font-size: 21px; margin: 10px 0 0; font-weight: 500; }
+        .body { padding: 32px 18px; min-height: 300px; text-align: center; white-space: pre-wrap; overflow-wrap: anywhere; }
+        .facts { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 8px 24px; border-top: 1px solid #a1aec0; border-bottom: 1px solid #a1aec0; padding: 12px 0; font-size: 13px; }
+        footer { margin-top: 35px; font-size: 11px; color: #45556c; }
+        .actions { display: flex; justify-content: end; margin-bottom: 14px; }
+        button { padding: 8px 16px; cursor: pointer; }
+        @@media print { @@page { size: A4; margin: 13mm; } body { padding: 0; } .actions { display: none; } }
+    </style>
+</head>
+<body>
+    <nav class="actions"><button type="button" onclick="window.print()">Print / Save as PDF</button></nav>
+    <header>
+        <h1>@Model.IssuerName</h1>
+        <h2>@Model.TemplateName</h2>
+        <div>Certificate @Model.CertificateNumber</div>
+    </header>
+    <div class="body" aria-label="Frozen certificate text">@Model.RenderedBody</div>
+    <section class="facts" aria-label="Certificate details">
+        <div><strong>Student:</strong> @Model.StudentName (@Model.StudentCode)</div>
+        <div><strong>Campus:</strong> @Model.CampusName</div>
+        <div><strong>Academic batch:</strong> @Model.BatchName</div>
+        <div><strong>Issue date:</strong> @Model.IssueDate.ToString("yyyy-MM-dd")</div>
+    </section>
+    <footer>
+        <p>Authenticated issue-time academic certificate · Reference @Model.CertificateReference ·
+            Issued UTC @Model.IssuedAtUtc.ToString("yyyy-MM-dd HH:mm")</p>
+        <p>Verify current status at <a href="/verify/certificate/@Model.CertificateReference">/verify/certificate/@Model.CertificateReference</a>.
+            An issued certificate can be revoked if its underlying published evidence changes.</p>
+    </footer>
+</body>
+</html>

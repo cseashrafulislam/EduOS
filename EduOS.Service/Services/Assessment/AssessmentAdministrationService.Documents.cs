@@ -327,6 +327,8 @@ public sealed partial class AssessmentAdministrationService
         IssueCertificateRequestDto request, CancellationToken ct = default)
     {
         if (!CanPublish()) return Task.FromResult(Error<CertificateIssueDto>("Certificate issue permission required.", 403));
+        if (_certificateProtector == null || _issuingTenants == null)
+            return Task.FromResult(Error<CertificateIssueDto>("Secure certificate storage or issuer details unavailable.", 503));
         if (request == null || request.ClientRequestId == Guid.Empty ||
             request.CertificateTemplateId <= 0 || request.StudentReference == Guid.Empty ||
             request.StudentEnrollmentReference == Guid.Empty || request.IssueDate == default)
@@ -373,15 +375,58 @@ public sealed partial class AssessmentAdministrationService
             if (!await EligibleCertificateEnrollmentIds(tenant, request.IssueDate)
                 .AnyAsync(id => id == enrollment.Id, token))
                 return Error<CertificateIssueDto>("No passed, released published result exists for this enrollment and issue date.", 409);
+            var batch = await _batches.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
+                x.TenantId == tenant && x.Id == enrollment.AcademicBatchId && !x.IsDeleted, token);
+            var campus = await _campuses.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
+                x.TenantId == tenant && x.Id == enrollment.CampusId && !x.IsDeleted, token);
+            var issuer = await _issuingTenants!.GetQueryable().AsNoTracking()
+                .Where(x => x.Id == tenant && !x.IsDeleted)
+                .Select(x => x.Name).FirstOrDefaultAsync(token);
+            if (batch == null || campus == null || string.IsNullOrWhiteSpace(issuer))
+                return Error<CertificateIssueDto>("Issuing institution or enrollment scope is unavailable.", 409);
+            var evidence = await (from summary in _summaries.GetQueryable().AsNoTracking()
+                join publication in _publications.GetQueryable().AsNoTracking()
+                    on new { summary.TenantId, Id = summary.ResultPublicationId }
+                    equals new { publication.TenantId, publication.Id }
+                where summary.TenantId == tenant && !summary.IsDeleted && summary.IsPassed &&
+                    !summary.IsWithheld && summary.StudentEnrollmentId == enrollment.Id &&
+                    summary.PublicationVersionNo == publication.VersionNo && !publication.IsDeleted &&
+                    publication.State == ResultPublicationState.Published && publication.VisibleToStudent &&
+                    publication.AcademicBatchId == batch.Id && publication.PublishedAt != null &&
+                    publication.PublishedAt <= request.IssueDate.ToDateTime(TimeOnly.MaxValue)
+                orderby publication.PublishedAt descending, publication.Id descending
+                select new { publication.Id, publication.VersionNo }).FirstOrDefaultAsync(token);
+            if (evidence == null) return Error<CertificateIssueDto>("Published assessment evidence is unavailable.", 409);
             var now = _clock.GetUtcNow().UtcDateTime;
+            var number = "CERT-" + request.ClientRequestId.ToString("N").ToUpperInvariant();
+            var document = new CertificateSnapshotDocumentDto
+            {
+                TenantId = tenant, IssuerName = issuer, StudentId = student!.Id,
+                StudentReference = student.PublicId, StudentEnrollmentId = enrollment.Id,
+                StudentEnrollmentReference = enrollment.PublicId, CertificateReference = request.ClientRequestId,
+                CertificateNumber = number, CertificateTemplateId = template.Id, TemplateName = template.Name,
+                StudentName = student.FullName, StudentCode = student.StudentCode,
+                CampusName = campus.Name, BatchName = batch.Name,
+                ResultPublicationId = evidence.Id, ResultPublicationVersionNo = evidence.VersionNo,
+                IssueDate = request.IssueDate, IssuedByUserId = _user.UserId, IssuedAtUtc = now
+            };
+            document.RenderedBody = RenderCertificateTemplate(template.HtmlTemplate, document);
+            if (!await CertificatePublicationStillValidAsync(document, token))
+                return Error<CertificateIssueDto>("Published evidence was superseded; review before certificate issue.", 409);
+            var serialized = JsonSerializer.Serialize(document);
+            if (serialized.Length > 131072)
+                return Error<CertificateIssueDto>("Certificate document is invalid or exceeds secure limit.", 409);
             var row = new CertificateIssue
             {
                 TenantId = tenant, PublicId = request.ClientRequestId, StudentId = student!.Id,
                 StudentEnrollmentId = enrollment.Id, CertificateTemplateId = template.Id,
-                CertificateNumber = "CERT-" + request.ClientRequestId.ToString("N").ToUpperInvariant(),
+                CertificateNumber = number,
                 IssueDate = request.IssueDate, IssuedByUserId = _user.UserId,
+                ProtectedDocument = _certificateProtector!.Protect(serialized),
                 CreatedAt = now, CreatedBy = _user.UserId
             };
+            if (!CertificateSnapshotIntegrity.TryRead(_certificateProtector, row, out _))
+                return Error<CertificateIssueDto>("Certificate document fields failed integrity verification.", 409);
             await _certificates.AddAsync(row);
             await RecordAuditAsync("Issue", "CertificateIssue", null,
                 row.CertificateNumber, now);

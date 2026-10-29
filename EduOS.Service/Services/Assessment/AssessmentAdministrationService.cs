@@ -60,6 +60,7 @@ public sealed partial class AssessmentAdministrationService : IAssessmentAdminis
     private readonly TimeProvider _clock;
     private readonly ILogger<AssessmentAdministrationService> _logger;
     private readonly IDataProtector? _transcriptProtector;
+    private readonly IDataProtector? _certificateProtector;
     private readonly IGenericRepository<Tenant>? _issuingTenants;
 
     public AssessmentAdministrationService(IGenericRepository<Assessment> assessments,
@@ -107,6 +108,7 @@ public sealed partial class AssessmentAdministrationService : IAssessmentAdminis
         _certificates = certificates; _transcripts = transcripts; _auditLogs = auditLogs;
         _uow = uow; _user = user; _clock = clock; _logger = logger;
         _transcriptProtector = transcriptProtection?.CreateProtector(TranscriptSnapshotIntegrity.Purpose);
+        _certificateProtector = transcriptProtection?.CreateProtector(CertificateSnapshotIntegrity.Purpose);
         _issuingTenants = issuingTenants;
         _attemptRegistrations = attemptRegistrations;
     }

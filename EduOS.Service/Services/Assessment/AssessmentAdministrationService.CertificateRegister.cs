@@ -157,6 +157,7 @@ public sealed partial class AssessmentAdministrationService
                 CampusName = x.campus.Name, BatchName = x.batch.Name,
                 TemplateName = x.template.Name, IssueDate = x.issue.IssueDate,
                 IsRevoked = x.issue.IsRevoked, RevokedAt = x.issue.RevokedAt,
+                HasPrintableDocument = x.issue.ProtectedDocument != null,
                 RowVersion = Version(x.issue.RowVersion)
             }).ToList()
         });

@@ -87,6 +87,17 @@ public sealed class AssessmentAdministrationController : Controller
     public IActionResult Certificates() => View();
 
     [HttpGet]
+    [Authorize(Roles = "TenantAdmin,Principal,VicePrincipal,ExamController")]
+    [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
+    public async Task<IActionResult> CertificateDocument(Guid reference, CancellationToken ct)
+    {
+        var result = await _assessment.GetIssuedCertificateDocumentAsync(reference, ct);
+        if (!result.Success || result.Data == null)
+            return StatusCode(result.StatusCode, result.Message);
+        return View(result.Data);
+    }
+
+    [HttpGet]
     [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
     public IActionResult ComponentMarks() => View();
 

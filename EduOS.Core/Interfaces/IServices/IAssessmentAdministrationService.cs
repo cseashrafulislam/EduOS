@@ -28,6 +28,7 @@ public interface IAssessmentAdministrationService
     Task<ApiResponse<PagedResult<AssessmentSetupBatchDto>>> SearchAssessmentSetupBatchesAsync(AssessmentSetupListQueryDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<PagedResult<AssessmentSetupOfferingDto>>> SearchAssessmentSetupOfferingsAsync(long academicBatchId, AssessmentSetupListQueryDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<AssessmentSetupReferenceDataDto>> GetAssessmentSetupReferenceDataAsync(CancellationToken cancellationToken = default);
+    Task<ApiResponse<CertificateSnapshotDocumentDto>> GetIssuedCertificateDocumentAsync(Guid reference, CancellationToken cancellationToken = default);
     Task<ApiResponse<AssessmentDto>> GetAssessmentAsync(Guid reference, CancellationToken cancellationToken = default);
     Task<ApiResponse<AssessmentDto>> ChangeAssessmentStateAsync(Guid reference, ChangeAssessmentStateRequestDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<PagedResult<AssessmentAttemptRegistrationDto>>> SearchAssessmentAttemptsAsync(AssessmentAttemptQueryDto request, CancellationToken cancellationToken = default);

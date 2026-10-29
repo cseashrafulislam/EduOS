@@ -6,7 +6,7 @@
     @Html.AntiForgeryToken()
     <div class="d-flex flex-wrap justify-content-between align-items-center mb-3">
         <div><h1 class="h4 mb-1">Certificate templates</h1>
-            <p class="text-muted mb-0">Maintain escaped-text templates and merge placeholders. Issued templates are immutable; this page does not generate certificates.</p></div>
+            <p class="text-muted mb-0">Maintain plain-text templates. Issued documents freeze merged text. Allowed placeholders: {{StudentName}}, {{StudentCode}}, {{CampusName}}, {{BatchName}}, {{CertificateNumber}}, {{IssueDate}}, {{IssuerName}}.</p></div>
         <a class="btn btn-outline-secondary" asp-controller="AssessmentAdministration" asp-action="Index">Exam marks &amp; results</a>
     </div>
     <div id="certificateTemplateNotice" class="alert d-none" role="alert" aria-live="polite"></div>
