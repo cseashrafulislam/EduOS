@@ -43,6 +43,7 @@ public static class PayrollStatutoryCalculation
         var types = components.ToDictionary(x => x.Key, x => x.Value.Type);
         if (lines.Select(x => x.SalaryComponentId).Distinct().Count() != lines.Count ||
             lines.Any(x => !components.ContainsKey(x.SalaryComponentId) ||
+            !components[x.SalaryComponentId].IsActive ||
             !ValidLine(components[x.SalaryComponentId].Code, types[x.SalaryComponentId],
                 x.CalculationMethodCode, x.Amount, x.Percentage, x.BasedOnSalaryComponentId, types)))
             return false;

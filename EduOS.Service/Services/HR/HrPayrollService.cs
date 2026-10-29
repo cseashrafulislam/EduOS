@@ -498,6 +498,11 @@ public sealed class HrPayrollService : IPayrollAdministrationService
                         (component.Code == "BONUS" || component.Code == "LOAN_RECOVERY")))
                     return Error<PayrollRunDto>(
                         "Invalid or transaction-derived salary component; reconcile the salary structure.", 409);
+                // Deactivation affects new calculations only. Never silently keep withholding
+                // from an inactive component; posted payroll snapshots remain untouched.
+                if (comps.Values.Any(x => !x.IsActive))
+                    return Error<PayrollRunDto>(
+                        "A salary structure uses an inactive component. Register a new effective-dated salary structure before calculating payroll.", 409);
                 var statutoryComponents = await _components.GetQueryable().AsNoTracking().Where(x =>
                     x.TenantId == tenant && x.IsActive && !x.IsDeleted &&
                     x.Code.StartsWith("STAT_")).OrderBy(x => x.Id).Take(51).ToListAsync(token);

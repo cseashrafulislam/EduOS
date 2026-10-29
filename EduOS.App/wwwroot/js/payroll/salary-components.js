@@ -75,6 +75,8 @@
         if(!payload.code||!payload.name||!types[payload.type])return notice('Enter valid component details.',true);
         if(payload.isActive&&payload.code.toUpperCase().startsWith('STAT_')&&
             (!editing||!editing.isActive)&&!confirm('Activate '+payload.code+'? Every eligible employee will need an explicit salary structure deduction (including reviewed zero exemptions) before payroll can run.'))return;
+        if(editing?.isActive&&!payload.isActive&&
+            !confirm('Deactivate '+editing.code+'? Any current salary structure using it must be replaced with a new effective-dated structure before the next payroll. Existing posted payroll stays unchanged.'))return;
         busy=true;el('componentSave').disabled=true;
         try {
             await api('/api/hr-payroll/salary-components'+(editing?'/'+editing.id:''),

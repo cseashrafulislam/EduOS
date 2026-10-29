@@ -95,4 +95,47 @@ public sealed class PayrollStatutoryCalculationTests
             "FullMonthOnly", 0m, out var result));
         Assert.Equal(0m, result.Single(x => x.SalaryComponentId == 3).Amount);
     }
+
+    [Theory]
+    [InlineData(1L)]
+    [InlineData(3L)]
+    [InlineData(4L)]
+    public void Inactive_referenced_component_blocks_new_payroll_without_changing_salary_history(long inactiveId)
+    {
+        var components = Components.ToDictionary(x => x.Key, x => new SalaryComponent
+        {
+            Id = x.Value.Id, Code = x.Value.Code, Type = x.Value.Type,
+            IsTaxable = x.Value.IsTaxable, IsActive = x.Key != inactiveId
+        });
+        var lines = new[]
+        {
+            new SalaryStructureLine { SalaryComponentId = 1, Amount = 20000m },
+            new SalaryStructureLine { SalaryComponentId = 3, Amount = 500m },
+            new SalaryStructureLine { SalaryComponentId = 4, CalculationMethodCode = "Auto",
+                Percentage = 5m, BasedOnSalaryComponentId = 1 }
+        };
+        Assert.False(PayrollStatutoryCalculation.TryCalculate(lines, components, 30, 30,
+            "FullMonthOnly", 0m, out var calculated));
+        Assert.Empty(calculated);
+        Assert.Equal(500m, lines[1].Amount);
+        Assert.Equal(5m, lines[2].Percentage);
+    }
+
+    [Fact]
+    public void Inactive_unreferenced_optional_component_does_not_block_payroll()
+    {
+        var components = Components.ToDictionary(x => x.Key, x => new SalaryComponent
+        {
+            Id = x.Value.Id, Code = x.Value.Code, Type = x.Value.Type,
+            IsTaxable = x.Value.IsTaxable, IsActive = x.Key != 5
+        });
+        var lines = new[]
+        {
+            new SalaryStructureLine { SalaryComponentId = 1, Amount = 10000m },
+            new SalaryStructureLine { SalaryComponentId = 3, Amount = 200m }
+        };
+        Assert.True(PayrollStatutoryCalculation.TryCalculate(lines, components, 30, 30,
+            "FullMonthOnly", 0m, out var calculated));
+        Assert.Equal(200m, calculated.Single(x => x.SalaryComponentId == 3).Amount);
+    }
 }
