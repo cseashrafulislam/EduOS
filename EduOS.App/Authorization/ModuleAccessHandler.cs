@@ -10,9 +10,10 @@ public sealed class ModuleAccessHandler : AuthorizationHandler<ModuleAccessRequi
     private readonly IConfiguration _configuration;
 
     // A staging-only safety boundary. Existing tenant module selections and data are not changed.
+    // V2 LMS/Library/Hostel/Transport and V3 Inventory remain unavailable during V1 pilot.
     // Inventory includes Asset Lifecycle in the canonical module catalog.
     private static readonly HashSet<string> PilotExcludedModules =
-        new(StringComparer.OrdinalIgnoreCase) { "HOSTEL", "TRANSPORT", "INVENTORY" };
+        new(StringComparer.OrdinalIgnoreCase) { "LMS", "LIBRARY", "HOSTEL", "TRANSPORT", "INVENTORY" };
 
     public ModuleAccessHandler(ITenantModuleService tenantModuleService, IConfiguration configuration)
     {
