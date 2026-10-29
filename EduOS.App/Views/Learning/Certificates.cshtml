@@ -1,0 +1,82 @@
+@{
+    ViewData["Title"] = "LMS Completion Certificates";
+    var studentMode = User.IsInRole("Student") &&
+        !User.IsInRole("Teacher") && !User.IsInRole("Principal") && !User.IsInRole("TenantAdmin");
+}
+<section id="lmsCertificateApp" class="container-fluid py-3" data-student-mode="@studentMode.ToString().ToLowerInvariant()">
+    <header class="d-flex align-items-center gap-2 mb-3">
+        <h2 class="h4 mb-0" data-lms-i18n="title">LMS Completion Certificates</h2>
+        <details id="lmsCertificateHelp" class="position-relative">
+            <summary class="btn btn-sm btn-outline-secondary" aria-label="Certificate help" title="Help">ⓘ</summary>
+            <div class="card position-absolute shadow-sm p-2" style="width:min(20rem,80vw);z-index:10" data-lms-i18n="help">
+                Certificates are issued only for verified completed courses. Revocation keeps the original record; reissue creates a new revision.
+            </div>
+        </details>
+    </header>
+    <div id="lmsCertificateAlert" class="d-none" role="alert" aria-live="polite" tabindex="-1"></div>
+    @if (!studentMode)
+    {
+        <div class="card mb-3"><div class="card-body">
+            <label for="lmsCertificateCourse" class="form-label" data-lms-i18n="course">Course</label>
+            <select id="lmsCertificateCourse" class="form-select"><option value="">Loading…</option></select>
+            <div class="d-flex gap-2 align-items-center mt-2">
+                <button id="lmsCertificateCoursePrev" class="btn btn-sm btn-outline-secondary" type="button" data-lms-i18n="previous">Previous</button>
+                <span id="lmsCertificateCoursePage" class="small text-muted"></span>
+                <button id="lmsCertificateCourseNext" class="btn btn-sm btn-outline-secondary" type="button" data-lms-i18n="next">Next</button>
+            </div>
+        </div></div>
+    }
+    <div class="card mb-3" id="lmsCertificateRegister">
+        <div class="card-header"><strong data-lms-i18n="register">Certificate register</strong></div>
+        <div class="table-responsive">
+            <table class="table table-sm align-middle mb-0">
+                <thead><tr>
+                    <th data-lms-i18n="learner">Learner</th><th data-lms-i18n="course">Course</th>
+                    <th data-lms-i18n="revision">Revision</th><th data-lms-i18n="issued">Issued</th>
+                    <th data-lms-i18n="status">Status</th><th data-lms-i18n="action">Action</th>
+                </tr></thead>
+                <tbody id="lmsCertificateRows"><tr><td colspan="6" data-lms-i18n="loading">Loading…</td></tr></tbody>
+            </table>
+        </div>
+        <div class="card-footer d-flex gap-2 align-items-center">
+            <button id="lmsCertificatePrev" type="button" class="btn btn-sm btn-outline-secondary" data-lms-i18n="previous">Previous</button>
+            <span id="lmsCertificatePage" class="small text-muted"></span>
+            <button id="lmsCertificateNext" type="button" class="btn btn-sm btn-outline-secondary" data-lms-i18n="next">Next</button>
+        </div>
+    </div>
+    <div id="lmsCertificateDetail" class="d-none">
+        <div class="d-flex gap-2 mb-2 flex-wrap">
+            <button id="lmsCertificatePrint" class="btn btn-primary btn-sm" type="button" data-lms-i18n="print">Print / Save PDF</button>
+            @if (User.IsInRole("TenantAdmin") || User.IsInRole("Principal"))
+            {
+                <button id="lmsCertificateRevoke" class="btn btn-outline-danger btn-sm" type="button" data-lms-i18n="revoke">Revoke</button>
+                <button id="lmsCertificateReissue" class="btn btn-outline-primary btn-sm" type="button" data-lms-i18n="reissue">Reissue</button>
+            }
+        </div>
+        <article id="lmsCertificateDocument" class="card p-4 p-md-5" aria-label="LMS course completion certificate">
+            <div class="text-center">
+                <h2 class="h3" data-lms-i18n="documentTitle">Certificate of Course Completion</h2>
+                <p class="text-muted" data-lms-i18n="documentSubtitle">EduOS Learning Management System</p>
+                <h3 id="lmsCertificateStudent" class="h4 mt-4"></h3>
+                <p data-lms-i18n="completed">has completed the course</p>
+                <h4 id="lmsCertificateTitle" class="h5"></h4>
+                <p id="lmsCertificateCode"></p>
+                <p id="lmsCertificateDates"></p>
+                <p id="lmsCertificateEvidence" class="small"></p>
+                <p id="lmsCertificateReference" class="small text-muted"></p>
+                <strong id="lmsCertificateStatus"></strong>
+            </div>
+        </article>
+    </div>
+</section>
+<style>
+@@media print {
+    body * { visibility: hidden !important; }
+    #lmsCertificateDocument, #lmsCertificateDocument * { visibility: visible !important; }
+    #lmsCertificateDocument { position: absolute; inset: 0 auto auto 0; width: 100%; border: 0 !important; box-shadow: none !important; }
+    @@page { size: A4 portrait; margin: 18mm; }
+}
+</style>
+@section Scripts {
+    <script src="~/js/learning/certificates.js" asp-append-version="true"></script>
+}

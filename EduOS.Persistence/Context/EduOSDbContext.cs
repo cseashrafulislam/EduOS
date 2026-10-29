@@ -394,6 +394,7 @@ public class EduOSDbContext :
     public DbSet<AssignmentSubmissionFile> AssignmentSubmissionFiles => Set<AssignmentSubmissionFile>();
     public DbSet<Course> Courses => Set<Course>();
     public DbSet<CourseEnrollment> CourseEnrollments => Set<CourseEnrollment>();
+    public DbSet<LmsCompletionCertificate> LmsCompletionCertificates => Set<LmsCompletionCertificate>();
     public DbSet<CourseSection> CourseSections => Set<CourseSection>();
     public DbSet<Lesson> Lessons => Set<Lesson>();
     public DbSet<LessonProgress> LessonProgresses => Set<LessonProgress>();
@@ -1006,6 +1007,9 @@ public class EduOSDbContext :
         TenantReference<CourseEnrollment, Course>(modelBuilder, nameof(CourseEnrollment.CourseId));
         TenantReference<CourseEnrollment, Student>(modelBuilder, nameof(CourseEnrollment.StudentId));
         TenantReference<CourseEnrollment, StudentEnrollment>(modelBuilder, nameof(CourseEnrollment.StudentEnrollmentId));
+        TenantReference<LmsCompletionCertificate, CourseEnrollment>(modelBuilder, nameof(LmsCompletionCertificate.CourseEnrollmentId));
+        TenantReference<LmsCompletionCertificate, Course>(modelBuilder, nameof(LmsCompletionCertificate.CourseId));
+        TenantReference<LmsCompletionCertificate, Student>(modelBuilder, nameof(LmsCompletionCertificate.StudentId));
         TenantReference<CourseSection, Course>(modelBuilder, nameof(CourseSection.CourseId));
         TenantReference<Lesson, Course>(modelBuilder, nameof(Lesson.CourseId));
         TenantReference<Lesson, CourseSection>(modelBuilder, nameof(Lesson.CourseSectionId));
@@ -1617,6 +1621,18 @@ public class EduOSDbContext :
         // LMS
         UniqueTenant<Course>(modelBuilder, nameof(Course.Code));
         UniqueTenant<CourseEnrollment>(modelBuilder, nameof(CourseEnrollment.ClientRequestId));
+        UniqueTenant<LmsCompletionCertificate>(modelBuilder, nameof(LmsCompletionCertificate.ClientRequestId));
+        modelBuilder.Entity<LmsCompletionCertificate>().HasIndex(x => new { x.TenantId, x.CourseEnrollmentId, x.Revision }).IsUnique();
+        modelBuilder.Entity<LmsCompletionCertificate>().HasIndex(x => new { x.TenantId, x.CourseEnrollmentId })
+            .IsUnique().HasFilter("[IsRevoked] = 0 AND [IsDeleted] = 0");
+        modelBuilder.Entity<LmsCompletionCertificate>().HasIndex(x => new { x.TenantId, x.CourseId, x.IssuedAt });
+        modelBuilder.Entity<LmsCompletionCertificate>().HasIndex(x => new { x.TenantId, x.StudentId, x.IssuedAt });
+        modelBuilder.Entity<LmsCompletionCertificate>().ToTable(t =>
+        {
+            t.HasCheckConstraint("CK_LmsCompletionCertificates_Revision", "[Revision] >= 1");
+            t.HasCheckConstraint("CK_LmsCompletionCertificates_Revocation",
+                "([IsRevoked] = 0 AND [RevokedAt] IS NULL AND [RevokedByUserId] IS NULL AND [RevocationReason] IS NULL) OR ([IsRevoked] = 1 AND [RevokedAt] IS NOT NULL AND [RevokedByUserId] IS NOT NULL AND [RevocationReason] IS NOT NULL)");
+        });
         modelBuilder.Entity<CourseEnrollment>().HasIndex(x => new { x.TenantId, x.CourseId, x.StudentEnrollmentId })
             .IsUnique().HasFilter("[StudentEnrollmentId] IS NOT NULL AND [IsDeleted] = 0");
         modelBuilder.Entity<CourseEnrollment>().HasIndex(x => new { x.TenantId, x.CourseId, x.StudentId })

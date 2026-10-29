@@ -44,6 +44,10 @@ function render(){
   if(row.state===1&&elig.ready){
    const btn=document.createElement('button');btn.type='button';btn.className='btn btn-sm btn-primary';
    btn.textContent='Complete';btn.disabled=state.busy;btn.addEventListener('click',()=>complete(row,btn));td.append(btn);
+  } else if(completed) {
+   const btn=document.createElement('button');btn.type='button';btn.className='btn btn-sm btn-outline-primary';
+   btn.textContent='Issue / Reissue certificate';btn.disabled=state.busy;
+   btn.addEventListener('click',()=>issueCertificate(row,btn));td.append(btn);
   }
   body.append(tr);
  }
@@ -67,6 +71,17 @@ async function complete(row,button){
   {rowVersion:row.rowVersion});
   alertUser('success','Course completion recorded.');await loadRegister();
  }catch(e){alertUser('danger',e.message);await loadRegister();}
+ finally{state.busy=false;}
+}
+async function issueCertificate(row,button){
+ if(state.busy||!window.confirm('Issue or reissue an auditable certificate for '+row.studentName+'?'))return;
+ state.busy=true;button.disabled=true;
+ try{
+  const data=await api('/api/lms/certificates','POST',
+   {courseEnrollmentId:row.enrollmentId,clientRequestId:crypto.randomUUID()});
+  if(!data?.reference)throw Error('Certificate reference missing.');
+  window.location.assign('/Learning/Certificates?certificate='+encodeURIComponent(data.reference));
+ }catch(e){alertUser('danger',e.message);button.disabled=false;}
  finally{state.busy=false;}
 }
 async function exportFiltered(){

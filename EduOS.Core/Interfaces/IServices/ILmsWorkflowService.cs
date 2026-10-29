@@ -27,6 +27,12 @@ public interface ILmsWorkflowService
     Task<ApiResponse<PagedResult<CourseCompletionRegisterRowDto>>> GetCourseCompletionRegisterAsync(Guid courseReference, int page, int pageSize, string? search, CancellationToken cancellationToken = default);
     Task<ApiResponse<PagedResult<CourseCompletionRegisterRowDto>>> GetCourseCompletionExportAsync(Guid courseReference, string? search, CancellationToken cancellationToken = default);
     Task<ApiResponse<CourseCompletionRegisterRowDto>> CompleteCourseEnrollmentAsync(long enrollmentId, CompleteCourseEnrollmentRequestDto request, CancellationToken cancellationToken = default);
+    Task<ApiResponse<LmsCertificateDto>> IssueCertificateAsync(IssueLmsCertificateRequestDto request, CancellationToken cancellationToken = default);
+    Task<ApiResponse<LmsCertificateDto>> RevokeCertificateAsync(Guid reference, RevokeLmsCertificateRequestDto request, CancellationToken cancellationToken = default);
+    Task<ApiResponse<LmsCertificateDto>> GetCertificateAsync(Guid reference, CancellationToken cancellationToken = default);
+    Task<ApiResponse<PagedResult<LmsCertificateDto>>> GetMyCertificatesAsync(int page, int pageSize, CancellationToken cancellationToken = default);
+    Task<ApiResponse<PagedResult<LmsCertificateDto>>> GetCourseCertificatesAsync(Guid courseReference, int page, int pageSize, CancellationToken cancellationToken = default);
+    Task<ApiResponse<LmsCertificateVerificationDto>> VerifyCertificateAsync(Guid reference, CancellationToken cancellationToken = default);
     Task<ApiResponse<PagedResult<LmsLearnerCourseProgressDto>>> GetMyCourseProgressAsync(int page, int pageSize, CancellationToken cancellationToken = default, bool includeArchived = false);
     Task<ApiResponse<PagedResult<LessonProgressDto>>> GetMyLessonProgressAsync(Guid courseReference, int page, int pageSize, CancellationToken cancellationToken = default);
     Task<ApiResponse<LessonProgressDto>> UpdateLessonProgressAsync(UpdateLessonProgressRequestDto request, CancellationToken cancellationToken = default);
