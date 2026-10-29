@@ -165,8 +165,10 @@ public sealed class SqlServerAssessmentMarkReviewLifecycleIntegrationTests
             {
                 PublicationId = publicationId, PageSize = 50
             })).StatusCode);
-            db.ResultRescrutinyEvents.Remove(orphan);
-            await db.SaveChangesAsync();
+            // Test-only cleanup uses exact synthetic tenant/row SQL: the EF
+            // history guard intentionally rejects deletes of immutable events.
+            await db.Database.ExecuteSqlInterpolatedAsync(
+                $"DELETE FROM [ResultRescrutinyEvents] WHERE [TenantId] = {seeded.TenantId} AND [Id] = {orphan.Id}");
             Assert.True((await service.GetResultRescrutinySummaryAsync(publicationId)).Success);
         }
         await using (var db = TenantDb(options, seeded.TenantId + 1))
