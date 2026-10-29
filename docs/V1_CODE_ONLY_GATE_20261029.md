@@ -8,8 +8,8 @@ This is a **development and automated-test checkpoint**, not a release approval 
 | --- | --- | --- |
 | Dependency restore | `.NET 10.0.403`, `dotnet restore EduOS.slnx` | Pass |
 | C# Release build | `dotnet build EduOS.slnx --configuration Release --no-restore -m:1 /nr:false` | Pass, 0 errors (existing warnings remain) |
-| C# tests | `dotnet test EduOS.slnx --configuration Release --no-build -m:1` | 2,616 passed, 0 failed, 0 skipped |
-| Browser/JS contract tests | `node --test EduOS.Tests/JavaScript/*.test.cjs` | 262 passed, 0 failed |
+| C# tests | `dotnet test EduOS.slnx --configuration Release --no-build -m:1` | 2,635 passed, 0 failed, 0 skipped, re-run after latest V2 merge |
+| Browser/JS contract tests | `node --test EduOS.Tests/JavaScript/*.test.cjs` | 263 passed, 0 failed, re-run after latest V2 merge |
 | EF model/snapshot | `dotnet-ef migrations has-pending-model-changes --configuration Release --no-build` | No pending model changes |
 
 These are local automated checks. A passing test suite does not imply SQL Server integration checks actually exercised a connected database; no SQL Server instance, restored-data rehearsal, representative peak-load evidence, or real-institution acceptance was available during this checkpoint. Existing test fixtures may use alternative in-memory implementations or early-exit without configured SQL Server.
