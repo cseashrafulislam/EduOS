@@ -68,10 +68,10 @@ public sealed class OptionalModuleNavigationTests
     }
 
     [Theory]
-    [InlineData(true, false, false)]
-    [InlineData(false, true, false)]
-    [InlineData(false, false, true)]
+    [InlineData(true, false, true)]
     [InlineData(false, true, true)]
+    [InlineData(false, false, false)]
+    [InlineData(true, true, true)]
     public async Task Overview_only_renders_authorized_module_sections(
         bool transport, bool hostel, bool allowed)
     {
