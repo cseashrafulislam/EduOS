@@ -461,6 +461,97 @@ public sealed class StudentFeeInstallmentPlanTests
         (await db.StudentInvoices.CountAsync()).Should().Be(1);
     }
 
+    [Fact]
+    public async Task Cash_preflight_and_collection_reject_cross_campus_receipts_without_writes()
+    {
+        await using var db = Database();
+        Seed(db);
+        db.Campuses.Add(new Campus { Id = 2, TenantId = 41, Code = "C2", Name = "Second" });
+        db.StudentEnrollments.Add(new StudentEnrollment {
+            Id = 2, TenantId = 41, StudentId = 1, CampusId = 2,
+            AcademicYearId = 2, AcademicBatchId = 1, RollNo = "02"
+        });
+        var first = new StudentInvoice {
+            TenantId = 41, StudentEnrollmentId = 1, InvoiceNumber = "INV-A",
+            InvoiceDate = new DateOnly(2026, 2, 1), DueDate = new DateOnly(2026, 2, 28),
+            TotalAmount = 100m, DueAmount = 100m, CurrencyCode = "BDT"
+        };
+        var second = new StudentInvoice {
+            TenantId = 41, StudentEnrollmentId = 2, InvoiceNumber = "INV-B",
+            InvoiceDate = new DateOnly(2026, 2, 1), DueDate = new DateOnly(2026, 2, 28),
+            TotalAmount = 100m, DueAmount = 100m, CurrencyCode = "BDT"
+        };
+        db.StudentInvoices.AddRange(first, second);
+        await db.SaveChangesAsync();
+        var request = new CreateStudentPaymentRequestDto {
+            ClientRequestId = Guid.NewGuid(),
+            PaymentDate = DateOnly.FromDateTime(DateTime.UtcNow).AddDays(-1),
+            PaymentMethod = PaymentMethodType.Cash, Amount = 50m,
+            Allocations = [
+                new CreatePaymentAllocationRequestDto {
+                    InvoiceReference = first.PublicId, Amount = 25m
+                },
+                new CreatePaymentAllocationRequestDto {
+                    InvoiceReference = second.PublicId, Amount = 25m
+                }
+            ]
+        };
+        var service = Service(db);
+        (await service.PreviewCashCollectionAsync(request)).StatusCode.Should().Be(409);
+        (await service.CollectPaymentAsync(request)).StatusCode.Should().Be(409);
+        (await db.StudentPayments.CountAsync()).Should().Be(0);
+        (await db.PaymentAllocations.CountAsync()).Should().Be(0);
+        (await db.StudentInvoices.SumAsync(x => x.DueAmount)).Should().Be(200m);
+        request.Allocations = [
+            new CreatePaymentAllocationRequestDto {
+                InvoiceReference = first.PublicId, Amount = 50m
+            }
+        ];
+        var quote = await service.PreviewCashCollectionAsync(request);
+        quote.StatusCode.Should().Be(200);
+        quote.Data!.Invoices.Single().DueAfter.Should().Be(50m);
+        (await db.StudentPayments.CountAsync()).Should().Be(0);
+        (await service.CollectPaymentAsync(request)).StatusCode.Should().Be(200);
+        var replayQuote = await service.PreviewCashCollectionAsync(request);
+        replayQuote.StatusCode.Should().Be(200);
+        replayQuote.Data!.AlreadyRecorded.Should().BeTrue();
+        (await service.CollectPaymentAsync(request)).StatusCode.Should().Be(200);
+        (await db.StudentPayments.CountAsync()).Should().Be(1);
+        (await db.PaymentAllocations.CountAsync()).Should().Be(1);
+    }
+
+    [Fact]
+    public async Task Cash_preflight_denies_foreign_invoice_and_ungranted_campus()
+    {
+        await using var db = Database();
+        Seed(db);
+        db.StudentInvoices.Add(new StudentInvoice {
+            TenantId = 41, StudentEnrollmentId = 1, InvoiceNumber = "INV-1",
+            InvoiceDate = new DateOnly(2026, 2, 1), DueDate = new DateOnly(2026, 2, 28),
+            TotalAmount = 100m, DueAmount = 100m
+        });
+        await db.SaveChangesAsync();
+        var invoice = await db.StudentInvoices.SingleAsync();
+        var request = new CreateStudentPaymentRequestDto {
+            ClientRequestId = Guid.NewGuid(),
+            PaymentDate = DateOnly.FromDateTime(DateTime.UtcNow).AddDays(-1),
+            PaymentMethod = PaymentMethodType.Cash, Amount = 20m,
+            Allocations = [new CreatePaymentAllocationRequestDto {
+                InvoiceReference = invoice.PublicId, Amount = 20m
+            }]
+        };
+        (await Service(db, "Student").PreviewCashCollectionAsync(request))
+            .StatusCode.Should().Be(403);
+        (await Service(db, "Accountant").PreviewCashCollectionAsync(request))
+            .StatusCode.Should().Be(404);
+        request.Allocations = [new CreatePaymentAllocationRequestDto {
+            InvoiceReference = Guid.NewGuid(), Amount = 20m
+        }];
+        (await Service(db).PreviewCashCollectionAsync(request))
+            .StatusCode.Should().Be(404);
+        (await db.StudentPayments.CountAsync()).Should().Be(0);
+    }
+
     private static CreateStudentFeeInstallmentPlanDto Request(EduOSDbContext db) => new() {
         ClientRequestId = Guid.NewGuid(),
         StudentReference = db.Students.Single().PublicId,

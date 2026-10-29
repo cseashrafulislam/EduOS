@@ -289,7 +289,19 @@ async function collect(ev){
  if(!/^\d+(\.\d{1,2})?$/.test(raw)||Number(raw)<=0||Number(raw)>Number(invoice.dueAmount)||paymentDate>today())return alert('danger','Invalid cash amount or payment date.');
  const body={paymentDate,paymentMethod:1,amount:Number(raw),bankAccountId:null,externalReference:null,allocations:[{invoiceReference:invoice.reference,amount:Number(raw)}]};
  body.clientRequestId=stable('payment',JSON.stringify(body));
- if(!confirm('Record cash receipt for '+invoice.invoiceNumber+'?'))return;
+ // Read-only preflight provides current, authorized balances; the write
+ // revalidates independently in its own transaction.
+ let preview;
+ try{preview=await api('/payments/preflight','POST',body);}
+ catch(err){return alert('danger',err.message+' Reload invoice balances before retrying.');}
+ if(preview.amount!==body.amount||preview.currencyCode!=='BDT'||
+    preview.invoices?.length!==1||
+    preview.invoices[0].invoiceReference!==invoice.reference||
+    preview.invoices[0].allocating!==body.amount)
+    return alert('danger','Receipt preview changed. Reload and retry.');
+ if(!confirm((preview.alreadyRecorded?'Retrieve existing receipt for ':'Record ')+
+    amount(preview.amount)+' BDT for '+preview.invoices[0].invoiceNumber+
+    '? Current remaining due: '+amount(preview.invoices[0].dueAfter)+' BDT.'))return;
  e('feeCollect').disabled=true;
  try{const r=await api('/payments','POST',body);clear('payment');state.invoice=null;e('feePaymentPanel').classList.add('d-none');await ledger();alert('success','Receipt recorded: '+r.receiptNumber);}
  catch(err){alert('danger',err.message+' Keep values unchanged for a safe retry.');}

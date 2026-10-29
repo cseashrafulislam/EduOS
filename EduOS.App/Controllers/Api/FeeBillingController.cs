@@ -96,6 +96,12 @@ public sealed class FeeBillingController : ControllerBase
         CancellationToken ct) =>
         Result(await _service.GenerateInvoicesAsync(request, ct));
 
+    // POST preflight is read-only, antiforgery-protected and never reserves a balance.
+    [HttpPost("payments/preflight")]
+    public async Task<IActionResult> PreviewCashCollection([FromBody] CreateStudentPaymentRequestDto request,
+        CancellationToken ct) =>
+        Result(await _service.PreviewCashCollectionAsync(request, ct));
+
     [HttpPost("payments")]
     public async Task<IActionResult> Collect([FromBody] CreateStudentPaymentRequestDto request,
         CancellationToken ct) =>

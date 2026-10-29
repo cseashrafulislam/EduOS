@@ -166,6 +166,25 @@ public class PaymentAllocationDto
     public decimal Amount { get; set; }
 }
 
+// Advisory evidence only: no receipt, allocation or GL journal is created.
+public sealed class CashCollectionPreviewDto
+{
+    public bool AlreadyRecorded { get; set; }
+    public decimal Amount { get; set; }
+    public string CurrencyCode { get; set; } = "BDT";
+    public long CampusId { get; set; }
+    public IReadOnlyList<CashCollectionPreviewInvoiceDto> Invoices { get; set; } = [];
+}
+
+public sealed class CashCollectionPreviewInvoiceDto
+{
+    public Guid InvoiceReference { get; set; }
+    public string InvoiceNumber { get; set; } = string.Empty;
+    public decimal DueBefore { get; set; }
+    public decimal Allocating { get; set; }
+    public decimal DueAfter { get; set; }
+}
+
 public class CreatePaymentAllocationRequestDto
 {
     public Guid InvoiceReference { get; set; }

@@ -399,21 +399,125 @@ public sealed partial class FeeBillingService : IFeeBillingService
         }, ct);
     }
 
+    // This is advisory only. CollectPaymentAsync revalidates every fact under its
+    // transaction; preflight never reserves a balance or creates a financial row.
+    public async Task<ApiResponse<CashCollectionPreviewDto>> PreviewCashCollectionAsync(
+        CreateStudentPaymentRequestDto request, CancellationToken ct = default)
+    {
+        if (!CanCollect() || _uow is not EduOSDbContext db ||
+            db.CurrentTenantId != _user.TenantId)
+            return Error<CashCollectionPreviewDto>("Fee collection access required.", 403);
+        if (!ValidCashCollectionRequest(request))
+            return Error<CashCollectionPreviewDto>("Invalid cash receipt or allocations.");
+        var tenant = _user.TenantId;
+        var priorPayment = await db.StudentPayments.AsNoTracking().FirstOrDefaultAsync(x =>
+            x.TenantId == tenant && x.ClientRequestId == request.ClientRequestId &&
+            !x.IsDeleted, ct);
+        if (priorPayment != null)
+        {
+            if (!await AccessiblePaymentIds(db).ContainsAsync(priorPayment.Id, ct) ||
+                await db.PaymentAllocations.IgnoreQueryFilters().AsNoTracking().AnyAsync(x =>
+                    x.TenantId == tenant && x.StudentPaymentId == priorPayment.Id &&
+                    x.IsDeleted, ct))
+                return Error<CashCollectionPreviewDto>("Receipt unavailable.", 404);
+            var oldLines = await (from allocation in db.PaymentAllocations.AsNoTracking()
+                join invoice in db.StudentInvoices.AsNoTracking()
+                    on new { allocation.TenantId, Id = allocation.StudentInvoiceId }
+                    equals new { invoice.TenantId, invoice.Id }
+                join enrollment in db.StudentEnrollments.AsNoTracking()
+                    on new { invoice.TenantId, Id = invoice.StudentEnrollmentId }
+                    equals new { enrollment.TenantId, enrollment.Id }
+                where allocation.TenantId == tenant &&
+                    allocation.StudentPaymentId == priorPayment.Id && !allocation.IsDeleted &&
+                    !invoice.IsDeleted && !enrollment.IsDeleted
+                select new { invoice.PublicId, invoice.InvoiceNumber, invoice.DueAmount,
+                    allocation.Amount, enrollment.CampusId, enrollment.StudentId })
+                .Take(101).ToListAsync(ct);
+            if (priorPayment.Amount != request.Amount ||
+                priorPayment.PaymentDate != request.PaymentDate ||
+                priorPayment.PaymentMethod != PaymentMethodType.Cash ||
+                oldLines.Count != request.Allocations.Count ||
+                oldLines.Any(x => x.StudentId != priorPayment.StudentId) ||
+                !request.Allocations.All(x => oldLines.Any(y =>
+                    y.PublicId == x.InvoiceReference && y.Amount == x.Amount)) ||
+                oldLines.Select(x => x.CampusId).Distinct().Count() != 1)
+                return Error<CashCollectionPreviewDto>(
+                    "Request key belongs to a different or unreconciled receipt.", 409);
+            return ApiResponse<CashCollectionPreviewDto>.SuccessResponse(
+                new CashCollectionPreviewDto {
+                    AlreadyRecorded = true, Amount = priorPayment.Amount,
+                    CurrencyCode = priorPayment.CurrencyCode,
+                    CampusId = oldLines[0].CampusId,
+                    Invoices = oldLines.Select(x => new CashCollectionPreviewInvoiceDto {
+                        InvoiceReference = x.PublicId, InvoiceNumber = x.InvoiceNumber,
+                        Allocating = x.Amount, DueBefore = x.DueAmount,
+                        DueAfter = x.DueAmount
+                    }).ToList()
+                });
+        }
+        var references = request.Allocations.Select(x => x.InvoiceReference).ToArray();
+        var rows = await (from invoice in db.StudentInvoices.AsNoTracking()
+            join enrollment in db.StudentEnrollments.AsNoTracking()
+                on new { invoice.TenantId, Id = invoice.StudentEnrollmentId }
+                equals new { enrollment.TenantId, enrollment.Id }
+            join campus in db.Campuses.AsNoTracking()
+                on new { enrollment.TenantId, Id = enrollment.CampusId }
+                equals new { campus.TenantId, campus.Id }
+            where invoice.TenantId == tenant && references.Contains(invoice.PublicId) &&
+                !invoice.IsDeleted && !enrollment.IsDeleted &&
+                !campus.IsDeleted && campus.IsActive
+            select new { invoice.PublicId, invoice.InvoiceNumber, invoice.State,
+                invoice.TotalAmount, invoice.PaidAmount, invoice.DueAmount,
+                invoice.CurrencyCode, enrollment.StudentId, enrollment.CampusId })
+            .Take(101).ToListAsync(ct);
+        if (rows.Count != references.Length ||
+            !await CanAccessBillingCampusesAsync(rows.Select(x => x.CampusId), ct))
+            return Error<CashCollectionPreviewDto>("Invoice unavailable.", 404);
+        if (rows.Select(x => x.StudentId).Distinct().Count() != 1 ||
+            rows.Select(x => x.CampusId).Distinct().Count() != 1 ||
+            rows.Any(x => x.CurrencyCode != "BDT"))
+            return Error<CashCollectionPreviewDto>(
+                "Cash allocations must belong to one student, one active campus and BDT.", 409);
+        var lines = new List<CashCollectionPreviewInvoiceDto>(references.Length);
+        foreach (var allocation in request.Allocations)
+        {
+            var invoice = rows.Single(x => x.PublicId == allocation.InvoiceReference);
+            if (invoice.State is not (InvoiceState.Issued or InvoiceState.PartiallyPaid) ||
+                invoice.TotalAmount != invoice.PaidAmount + invoice.DueAmount ||
+                invoice.DueAmount < allocation.Amount)
+                return Error<CashCollectionPreviewDto>(
+                    "Invoice is closed, inconsistent or has insufficient due.", 409);
+            lines.Add(new CashCollectionPreviewInvoiceDto {
+                InvoiceReference = invoice.PublicId, InvoiceNumber = invoice.InvoiceNumber,
+                DueBefore = invoice.DueAmount, Allocating = allocation.Amount,
+                DueAfter = invoice.DueAmount - allocation.Amount
+            });
+        }
+        return ApiResponse<CashCollectionPreviewDto>.SuccessResponse(new CashCollectionPreviewDto {
+            Amount = request.Amount, CurrencyCode = "BDT",
+            CampusId = rows[0].CampusId, Invoices = lines
+        });
+    }
+
+    private bool ValidCashCollectionRequest(CreateStudentPaymentRequestDto? request) =>
+        request != null && request.ClientRequestId != Guid.Empty &&
+        request.Amount > 0m && request.Amount == decimal.Round(request.Amount, 2) &&
+        request.PaymentDate != default &&
+        request.PaymentDate <= DateOnly.FromDateTime(_clock.GetUtcNow().UtcDateTime).AddDays(1) &&
+        request.PaymentMethod == PaymentMethodType.Cash && !request.BankAccountId.HasValue &&
+        string.IsNullOrWhiteSpace(request.ExternalReference) &&
+        request.Allocations != null && request.Allocations.Count is >= 1 and <= 100 &&
+        request.Allocations.All(x => x.InvoiceReference != Guid.Empty &&
+            x.Amount > 0m && x.Amount == decimal.Round(x.Amount, 2)) &&
+        request.Allocations.Select(x => x.InvoiceReference).Distinct().Count() ==
+            request.Allocations.Count &&
+        request.Allocations.Sum(x => x.Amount) == request.Amount;
+
     public Task<ApiResponse<StudentPaymentDto>> CollectPaymentAsync(
         CreateStudentPaymentRequestDto request, CancellationToken ct = default)
     {
         if (!CanCollect()) return Task.FromResult(Error<StudentPaymentDto>("Fee collection access required.", 403));
-        if (request == null || request.ClientRequestId == Guid.Empty || request.Amount <= 0m ||
-            request.Amount != decimal.Round(request.Amount, 2) ||
-            request.PaymentDate == default ||
-            request.PaymentDate > DateOnly.FromDateTime(_clock.GetUtcNow().UtcDateTime).AddDays(1) ||
-            request.PaymentMethod != PaymentMethodType.Cash || request.BankAccountId.HasValue ||
-            !string.IsNullOrWhiteSpace(request.ExternalReference) ||
-            request.Allocations == null || request.Allocations.Count is < 1 or > 100 ||
-            request.Allocations.Any(x => x.InvoiceReference == Guid.Empty ||
-                x.Amount <= 0m || x.Amount != decimal.Round(x.Amount, 2)) ||
-            request.Allocations.GroupBy(x => x.InvoiceReference).Any(g => g.Count() > 1) ||
-            request.Allocations.Sum(x => x.Amount) != request.Amount)
+        if (!ValidCashCollectionRequest(request))
             return Task.FromResult(Error<StudentPaymentDto>(
                 "Cash collection requires valid date and allocations totalling the payment amount."));
         return WriteAsync("cash collection", async token =>
@@ -469,11 +573,24 @@ public sealed partial class FeeBillingService : IFeeBillingService
                 where invoice.TenantId == tenant && refs.Contains(invoice.PublicId) &&
                     !invoice.IsDeleted && !enrollment.IsDeleted
                 select new { invoice, enrollment.StudentId, enrollment.CampusId }).ToListAsync(token);
-            if (invoiceRows.Count != refs.Length || invoiceRows.Select(x => x.StudentId).Distinct().Count() != 1 ||
-                invoiceRows.Select(x => x.invoice.CurrencyCode).Distinct().Count() != 1)
-                return Error<StudentPaymentDto>("All invoices must belong to one student and currency.", 409);
-            if (!await CanAccessBillingCampusesAsync(invoiceRows.Select(x => x.CampusId), token))
+            // A cross-campus cash receipt cannot be posted to one campus GL journal.
+            // Reject before any receipt or allocation is persisted.
+            if (invoiceRows.Count != refs.Length ||
+                !await CanAccessBillingCampusesAsync(invoiceRows.Select(x => x.CampusId), token))
                 return Error<StudentPaymentDto>("Invoice unavailable.", 404);
+            if (invoiceRows.Select(x => x.StudentId).Distinct().Count() != 1 ||
+                invoiceRows.Select(x => x.CampusId).Distinct().Count() != 1 ||
+                invoiceRows.Any(x => x.invoice.CurrencyCode != "BDT") ||
+                !await (from enrollment in _enrollments.GetQueryable().AsNoTracking()
+                    join campus in _campuses.GetQueryable().AsNoTracking()
+                        on new { enrollment.TenantId, Id = enrollment.CampusId }
+                        equals new { campus.TenantId, campus.Id }
+                    where enrollment.TenantId == tenant && !enrollment.IsDeleted &&
+                        enrollment.Id == invoiceRows[0].invoice.StudentEnrollmentId &&
+                        !campus.IsDeleted && campus.IsActive
+                    select campus.Id).AnyAsync(token))
+                return Error<StudentPaymentDto>(
+                    "Cash allocations must belong to one student, one active campus and BDT.", 409);
             foreach (var allocation in request.Allocations)
             {
                 var invoice = invoiceRows.First(x => x.invoice.PublicId == allocation.InvoiceReference).invoice;

@@ -28,6 +28,7 @@ public interface IFeeBillingService
     Task<ApiResponse<FeeStructureDto>> SaveFeeStructureAsync(long? feeStructureId, SaveFeeStructureRequestDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<InvoiceBatchPreflightDto>> PreviewInvoiceBatchAsync(GenerateStudentInvoiceBatchRequestDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<InvoiceBatchResultDto>> GenerateInvoicesAsync(GenerateStudentInvoiceBatchRequestDto request, CancellationToken cancellationToken = default);
+    Task<ApiResponse<CashCollectionPreviewDto>> PreviewCashCollectionAsync(CreateStudentPaymentRequestDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<StudentPaymentDto>> CollectPaymentAsync(CreateStudentPaymentRequestDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<StudentInvoiceDto>> GetStudentInvoiceDocumentAsync(Guid studentReference, Guid documentReference, CancellationToken cancellationToken = default);
     Task<ApiResponse<StudentPaymentDocumentDto>> GetStudentPaymentDocumentAsync(Guid studentReference, Guid documentReference, CancellationToken cancellationToken = default);
