@@ -151,7 +151,7 @@
                 throw new Error(tr('Report changed; reload.', 'রিপোর্ট পরিবর্তিত; আবার লোড করুন।'));
             const safe = v => {
                 let s = String(v ?? '');
-                if (/^\\s*[=+@\\-]/.test(s)) s = "'" + s;
+                if (/^\s*[=+@\-]/.test(s)) s = "'" + s;
                 return '"' + s.replace(/"/g, '""') + '"';
             };
             const rows = [['Roll', 'Student code', 'Student', 'Marks', 'Maximum',
@@ -159,7 +159,7 @@
                 x.rollNo, x.studentCode, x.studentName, x.obtainedMarks,
                 x.totalMarks, x.gpa, x.gradeLetter, x.isWithheld ? 'Withheld' : 'Failed'
             ])];
-            const blob = new Blob(['\\uFEFF' + rows.map(x => x.map(safe).join(',')).join('\\r\\n')],
+            const blob = new Blob(['\uFEFF' + rows.map(x => x.map(safe).join(',')).join('\r\n')],
                 { type: 'text/csv;charset=utf-8' });
             const url = URL.createObjectURL(blob), link = document.createElement('a');
             link.href = url; link.download = 'result-follow-up-' + data.publicationId +
