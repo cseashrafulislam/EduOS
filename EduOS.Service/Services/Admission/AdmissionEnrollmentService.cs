@@ -9,6 +9,8 @@ using EduOS.Core.Enums.Domain;
 using EduOS.Core.Interfaces;
 using EduOS.Core.Interfaces.IRepositories;
 using EduOS.Core.Interfaces.IServices;
+using EduOS.Persistence.Context;
+using EduOS.Service.Services.SaaS;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using System.Security.Cryptography;
@@ -33,6 +35,7 @@ public sealed class AdmissionEnrollmentService : IAdmissionEnrollmentService
     private readonly IGenericRepository<AcademicCurriculum> _curricula;
     private readonly IGenericRepository<AcademicYear> _years;
     private readonly IUnitOfWork _uow;
+    private readonly EduOSDbContext _db;
     private readonly ICurrentUserService _user;
     private readonly TimeProvider _clock;
     private readonly ILogger<AdmissionEnrollmentService> _logger;
@@ -47,14 +50,14 @@ public sealed class AdmissionEnrollmentService : IAdmissionEnrollmentService
         IGenericRepository<AcademicBatch> batches, IGenericRepository<AcademicTrack> tracks,
         IGenericRepository<AcademicCurriculum> curricula, IGenericRepository<AcademicYear> years,
         IUnitOfWork unitOfWork, ICurrentUserService currentUser, TimeProvider clock,
-        ILogger<AdmissionEnrollmentService> logger)
+        ILogger<AdmissionEnrollmentService> logger, EduOSDbContext db)
     {
         _applicants = applicants; _forms = forms; _decisions = decisions; _documents = documents;
         _applicantGuardians = applicantGuardians; _students = students;
         _enrollments = enrollments; _guardians = guardians; _studentGuardians = studentGuardians;
         _persons = persons; _personLinks = personLinks; _batches = batches;
         _tracks = tracks; _curricula = curricula; _years = years;
-        _uow = unitOfWork; _user = currentUser; _clock = clock; _logger = logger;
+        _uow = unitOfWork; _user = currentUser; _clock = clock; _logger = logger; _db = db;
     }
 
     public async Task<ApiResponse<AdmissionEnrollmentOptionsDto>> GetOptionsAsync(Guid applicationReference,
@@ -389,6 +392,8 @@ public sealed class AdmissionEnrollmentService : IAdmissionEnrollmentService
                     if (await _enrollments.GetQueryable().AsNoTracking().AnyAsync(x => x.TenantId == tenant &&
                         x.AcademicBatchId == batch.Id && x.RollNo == roll && x.IsCurrent && !x.IsDeleted, cancellationToken))
                         throw new BatchAllocationException("Roll is already assigned in this batch.");
+                    if (!await SubscriptionActiveCapacityPolicy.CanAddStudentsAsync(_db, tenant, 1, token))
+                        throw new BatchAllocationException("Subscription active student capacity reached.");
 
                     var now = _clock.GetUtcNow().UtcDateTime;
                     var person = application.PersonId.HasValue
@@ -496,6 +501,11 @@ public sealed class AdmissionEnrollmentService : IAdmissionEnrollmentService
         {
             _logger.LogWarning(ex, "Admission conversion integrity conflict for tenant {TenantId}", tenant);
             return ApiResponse<AdmittedStudentDto>.ErrorResponse("Conversion conflicts with an existing student or roll.", 409);
+        }
+        catch (Microsoft.Data.SqlClient.SqlException ex) when (ex.Number is 1205 or 1222)
+        {
+            _logger.LogWarning(ex, "Admission quota allocation contention for tenant {TenantId}", tenant);
+            return ApiResponse<AdmittedStudentDto>.ErrorResponse("Admission is busy; reload and retry.", 409);
         }
         catch (Exception ex)
         {

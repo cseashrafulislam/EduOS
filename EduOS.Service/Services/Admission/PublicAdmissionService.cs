@@ -11,6 +11,8 @@ using EduOS.Core.Interfaces;
 using EduOS.Core.Interfaces.IRepositories;
 using EduOS.Core.Interfaces.IServices;
 using EduOS.Service.Helpers.Storage;
+using EduOS.Service.Services.SaaS;
+using EduOS.Persistence.Context;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -46,6 +48,7 @@ public sealed class PublicAdmissionService : IPublicAdmissionService
     private readonly IHttpContextAccessor _http;
     private readonly TimeProvider _clock;
     private readonly ILogger<PublicAdmissionService> _logger;
+    private readonly EduOSDbContext _db;
 
     public PublicAdmissionService(IGenericRepository<Tenant> tenants,
         IGenericRepository<TenantModule> modules, IGenericRepository<ProductModule> products,
@@ -60,7 +63,8 @@ public sealed class PublicAdmissionService : IPublicAdmissionService
         IGenericRepository<AcademicYear> years, IGenericRepository<AcademicTerm> terms,
         IGenericRepository<Campus> campuses, IGenericRepository<AcademicLevel> levels,
         IUnitOfWork unitOfWork, IFileUploadService storage,
-        IHttpContextAccessor http, TimeProvider clock, ILogger<PublicAdmissionService> logger)
+        IHttpContextAccessor http, TimeProvider clock, ILogger<PublicAdmissionService> logger,
+        EduOSDbContext db)
     {
         _tenants = tenants; _modules = modules; _products = products; _subscriptions = subscriptions;
         _forms = forms; _fields = fields; _applicants = applicants; _values = values;
@@ -68,6 +72,7 @@ public sealed class PublicAdmissionService : IPublicAdmissionService
         _assets = assets; _persons = persons; _results = results; _tests = tests; _decisions = decisions;
         _years = years; _terms = terms; _campuses = campuses; _levels = levels;
         _uow = unitOfWork; _storage = storage; _http = http; _clock = clock; _logger = logger;
+        _db = db;
     }
 
     public async Task<ApiResponse<IReadOnlyList<PublicAdmissionIntakeFormDto>>> GetFormsAsync(string tenantKey,
@@ -395,6 +400,16 @@ public sealed class PublicAdmissionService : IPublicAdmissionService
             {
                 await _storage.DeletePrivateAsync(uploaded.FileUrl);
                 return Error<AdmissionApplicantDocumentDto>("Document changed while uploading. Refresh and retry.", 409);
+            }
+            // The tenant was resolved and the applicant verified before upload.
+            // Count all committed assets within the serializable transaction so
+            // simultaneous public uploads cannot exceed the same plan limit.
+            var quota = await SubscriptionStorageQuotaPolicy.GetAsync(_db, tenant.Id, now, ct);
+            if (!quota.CanAdd(file.Length))
+            {
+                await _storage.DeletePrivateAsync(uploaded.FileUrl);
+                return Error<AdmissionApplicantDocumentDto>(
+                    "Institution file storage limit reached. Contact the institution administrator.", 409);
             }
             var asset = new FileAsset
             {

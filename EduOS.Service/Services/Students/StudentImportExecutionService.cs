@@ -14,6 +14,8 @@ using EduOS.Core.Enums.Domain;
 using EduOS.Core.Interfaces;
 using EduOS.Core.Interfaces.IRepositories;
 using EduOS.Core.Interfaces.IServices;
+using EduOS.Persistence.Context;
+using EduOS.Service.Services.SaaS;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.VisualBasic.FileIO;
@@ -47,6 +49,7 @@ public sealed partial class StudentImportExecutionService : IStudentImportExecut
     private readonly IGenericRepository<ImportLogItem> _items;
     private readonly IGenericRepository<IdempotencyRecord> _keys;
     private readonly IUnitOfWork _uow;
+    private readonly EduOSDbContext _db;
     private readonly ICurrentUserService _user;
     private readonly ILogger<StudentImportExecutionService> _logger;
 
@@ -60,14 +63,15 @@ public sealed partial class StudentImportExecutionService : IStudentImportExecut
         IGenericRepository<StudentSubjectRegistration> registrations,
         IGenericRepository<ImportLog> logs, IGenericRepository<ImportLogItem> items,
         IGenericRepository<IdempotencyRecord> keys, IUnitOfWork uow,
-        ICurrentUserService user, ILogger<StudentImportExecutionService> logger)
+        ICurrentUserService user, ILogger<StudentImportExecutionService> logger,
+        EduOSDbContext db)
     {
         _preview = preview; _students = students; _enrollments = enrollments;
         _links = links; _persons = persons; _guardians = guardians;
         _studentGuardians = studentGuardians; _batches = batches; _curricula = curricula;
         _curriculumSubjects = curriculumSubjects; _offerings = offerings; _registrations = registrations;
         _logs = logs; _items = items; _keys = keys; _uow = uow;
-        _user = user; _logger = logger;
+        _user = user; _logger = logger; _db = db;
     }
 
     public Task<ApiResponse<StudentImportExecutionDto>> ExecuteAsync(Stream content, string extension,
@@ -262,6 +266,12 @@ public sealed partial class StudentImportExecutionService : IStudentImportExecut
                     x.TenantId == tenant && x.Scope == SourceScope && !x.IsDeleted &&
                     sourceIds.Contains(x.RequestId), token))
                     throw new ImportConflictException("A source key has already been imported.");
+
+                // One whole batch must fit. The transaction-scoped tenant lock
+                // coordinates this import with direct admission and readmission.
+                if (!await SubscriptionActiveCapacityPolicy.CanAddStudentsAsync(
+                        _db, tenant, rows.Count, token))
+                    throw new ImportConflictException("Subscription active student capacity reached. Reduce this batch or upgrade the plan.");
 
                 // Guardian source keys are explicit, tenant-owned references. A name or phone
                 // match alone must never link or merge people, including across institutes.

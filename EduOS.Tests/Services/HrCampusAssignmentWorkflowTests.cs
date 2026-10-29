@@ -65,7 +65,7 @@ public sealed class HrCampusAssignmentWorkflowTests
     private static HrAdminService Service(string role) => new(
         null!, null!, null!, null!, null!, null!, null!, null!, null!, null!,
         null!, null!, null!, null!, null!, null!, null!, null!, new TestUser(role),
-        TimeProvider.System, null!, NullLogger<HrAdminService>.Instance);
+        TimeProvider.System, null!, NullLogger<HrAdminService>.Instance, null!);
 
     private sealed class TestUser(string role) : ICurrentUserService
     {

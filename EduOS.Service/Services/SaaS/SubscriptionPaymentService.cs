@@ -275,6 +275,11 @@ public sealed partial class SubscriptionPaymentService : ISubscriptionPaymentSer
                     return ApiResponse<SubscriptionPaymentDto>.ErrorResponse("A payment is already pending.", 409);
 
                 var now = DateTime.UtcNow;
+                // Financial evidence is an intentional exception to the tenant's
+                // document-storage admission gate. It is still private, size/type
+                // validated, counted in storage usage and limited to one pending
+                // submission per payable invoice. A full storage quota must not
+                // prevent the institution from paying to renew or upgrade.
                 var file = new FileAsset
                 {
                     TenantId = tenant, StorageProvider = "local-private", StorageKey = storageKey!,

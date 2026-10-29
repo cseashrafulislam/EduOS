@@ -6,6 +6,8 @@ using EduOS.Core.Enums.Domain;
 using EduOS.Core.Interfaces;
 using EduOS.Core.Interfaces.IRepositories;
 using EduOS.Core.Interfaces.IServices;
+using EduOS.Persistence.Context;
+using EduOS.Service.Services.SaaS;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using System.Security.Cryptography;
@@ -26,6 +28,7 @@ public sealed class StudentReadmissionService : IStudentReadmissionService
     private readonly IGenericRepository<AcademicTerm> _terms;
     private readonly IGenericRepository<AcademicCurriculum> _curricula;
     private readonly IUnitOfWork _uow;
+    private readonly EduOSDbContext _db;
     private readonly ICurrentUserService _user;
     private readonly TimeProvider _clock;
     private readonly ILogger<StudentReadmissionService> _logger;
@@ -35,11 +38,12 @@ public sealed class StudentReadmissionService : IStudentReadmissionService
         IGenericRepository<AcademicYear> years, IGenericRepository<AcademicLevel> levels,
         IGenericRepository<AcademicBatch> batches, IGenericRepository<AcademicTerm> terms,
         IGenericRepository<AcademicCurriculum> curricula, IUnitOfWork uow, ICurrentUserService user,
-        TimeProvider clock, ILogger<StudentReadmissionService> logger)
+        TimeProvider clock, ILogger<StudentReadmissionService> logger,
+        EduOSDbContext db)
     {
         _students=students; _enrollments=enrollments; _exits=exits; _history=history; _transfers=transfers;
         _years=years; _levels=levels; _batches=batches; _terms=terms; _curricula=curricula;
-        _uow=uow; _user=user; _clock=clock; _logger=logger;
+        _uow=uow; _user=user; _clock=clock; _logger=logger; _db=db;
     }
     private bool Allowed => _user.IsAuthenticated && _user.IsTenantAdmin && _user.TenantId > 0;
     private static ApiResponse<T> Fail<T>(string message,int code=400)=>ApiResponse<T>.ErrorResponse(message,code);
@@ -223,6 +227,8 @@ public sealed class StudentReadmissionService : IStudentReadmissionService
                     x.TenantId==tenant && x.AcademicBatchId==batch.Id && x.IsCurrent &&
                     x.State==EnrollmentState.Active && !x.IsDeleted,token)>=batch.Capacity)
                     return Fail<StudentReadmissionResultDto>("Batch capacity reached.",409);
+                if(!await SubscriptionActiveCapacityPolicy.CanAddStudentsAsync(_db,tenant,1,token))
+                    return Fail<StudentReadmissionResultDto>("Subscription active student capacity reached.",409);
                 var now=_clock.GetUtcNow().UtcDateTime;
                 var target=new StudentEnrollment
                 {

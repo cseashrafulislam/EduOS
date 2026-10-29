@@ -425,7 +425,7 @@ public sealed class SqlServerStudentImportCohortRehearsalTests
             new GenericRepository<SubjectOffering>(db),
             new GenericRepository<StudentSubjectRegistration>(db), logs, items,
             new GenericRepository<IdempotencyRecord>(db), db, admin,
-            logger ?? NullLogger<StudentImportExecutionService>.Instance);
+            logger ?? NullLogger<StudentImportExecutionService>.Instance, db);
     }
 
     // Privacy-safe SQL diagnostics: type names and SQL error numbers only.

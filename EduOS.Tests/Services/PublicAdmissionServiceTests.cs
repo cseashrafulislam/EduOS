@@ -177,6 +177,51 @@ public sealed class PublicAdmissionServiceTests
     }
 
     [Fact]
+    public async Task Public_admission_upload_respects_tenant_storage_cap_and_removes_uncommitted_blob()
+    {
+        await using var fixture = await Fixture.CreateAsync("document-storage-cap");
+        var applicant = await fixture.CreateApplicantAsync(AdmissionApplicantState.UnderReview);
+        fixture.Db.Add(new DocumentTypeDefinition
+        {
+            TenantId = fixture.Tenant.Id, Code = "BIRTH-CERTIFICATE",
+            Name = "Birth certificate", IsActive = true
+        });
+        var plan = await fixture.Db.SubscriptionPlans.SingleAsync();
+        plan.MaxStorageMb = 1;
+        fixture.Db.Add(new FileAsset
+        {
+            TenantId = fixture.Tenant.Id, StorageProvider = "PrivateFileSystem",
+            StorageKey = "existing-file", SizeBytes = 1048576,
+            OriginalFileName = "existing.pdf", ContentType = "application/pdf"
+        });
+        await fixture.Db.SaveChangesAsync();
+        fixture.Storage.Setup(x => x.ValidateFile(It.IsAny<IFormFile>())).Returns(true);
+        var uploadedKey = $"tenant-{fixture.Tenant.Id}/admissions/over-cap.pdf";
+        fixture.Storage.Setup(x => x.UploadPrivateForTenantAsync(
+                It.IsAny<IFormFile>(), It.IsAny<string>(), fixture.Tenant.Id))
+            .ReturnsAsync(new FileUploadResult { Success = true, FileUrl = uploadedKey });
+        fixture.Storage.Setup(x => x.DeletePrivateAsync(uploadedKey)).ReturnsAsync(true);
+        var bytes = "%PDF-1.7\ntest"u8.ToArray();
+
+        var response = await fixture.Service.UploadDocumentAsync(fixture.Tenant.Code,
+            applicant.PublicId, new AdmissionDocumentUploadDto
+            {
+                ClientRequestId = Guid.NewGuid(), Mobile = "01712345678",
+                DocumentType = "BIRTH-CERTIFICATE",
+                File = new PrivateFileUploadDto
+                {
+                    FileName = "birth.pdf", ContentType = "application/pdf",
+                    Length = bytes.Length, Content = new MemoryStream(bytes)
+                }
+            });
+
+        response.StatusCode.Should().Be(409);
+        (await fixture.Db.AdmissionApplicantDocuments.CountAsync()).Should().Be(0);
+        (await fixture.Db.FileAssets.CountAsync()).Should().Be(1);
+        fixture.Storage.Verify(x => x.DeletePrivateAsync(uploadedKey), Times.Once);
+    }
+
+    [Fact]
     public async Task Closed_intake_accepts_exact_committed_replay_but_rejects_new_or_changed_request()
     {
         await using var fixture = await Fixture.CreateAsync("closed-intake-replay");
@@ -394,7 +439,7 @@ public sealed class PublicAdmissionServiceTests
                 new GenericRepository<Campus>(f.Db),
                 new GenericRepository<AcademicLevel>(f.Db),
                 f.Db, f.Storage.Object, f._http,
-                new FixedTimeProvider(Now), NullLogger<PublicAdmissionService>.Instance);
+                new FixedTimeProvider(Now), NullLogger<PublicAdmissionService>.Instance, f.Db);
             return f;
         }
 

@@ -220,7 +220,7 @@ public class AdmissionEnrollmentServiceTests
         new GenericRepository<AcademicCurriculum>(context),
         new GenericRepository<AcademicYear>(context),
         context, user,
-        new FixedTimeProvider(Now), NullLogger<AdmissionEnrollmentService>.Instance);
+        new FixedTimeProvider(Now), NullLogger<AdmissionEnrollmentService>.Instance, context);
 
     private static AdmitAdmissionApplicationDto Request(SeedData seed) => new()
     {

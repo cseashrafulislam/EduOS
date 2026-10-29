@@ -10,6 +10,7 @@ using EduOS.Core.Enums.Domain;
 using EduOS.Core.Interfaces;
 using EduOS.Core.Interfaces.IServices;
 using EduOS.Persistence.Context;
+using EduOS.Service.Services.SaaS;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 
@@ -99,6 +100,10 @@ public sealed class StudentStatusTransitionService(
                         !CryptographicOperations.FixedTimeEquals(student.RowVersion, supplied))
                         return Fail<StudentStatusTransitionDto>("Student changed. Reload and retry.", 409);
                 }
+
+                if (request.TargetStatus == "Active" &&
+                    !await SubscriptionActiveCapacityPolicy.CanAddStudentsAsync(db, user.TenantId, 1, token))
+                    return Fail<StudentStatusTransitionDto>("Subscription active student capacity reached.", 409);
 
                 var from = student.StatusCode;
                 var now = DateTime.UtcNow;

@@ -48,6 +48,21 @@ public sealed class UsageQuotaOverviewTests
     }
 
     [Fact]
+    public void Live_student_and_employee_metrics_are_available_without_daily_capture()
+    {
+        var overview = new UsageQuotaOverviewDto
+        {
+            CurrentStudents = UsageQuotaMetricDto.FromCount("Active students (live)", 10, 10),
+            CurrentEmployees = UsageQuotaMetricDto.FromCount("Active employees (live)", 11, 10)
+        };
+        Assert.False(overview.HasSnapshot);
+        Assert.Empty(overview.Metrics);
+        Assert.True(overview.CurrentStudents!.IsNearLimit);
+        Assert.False(overview.CurrentStudents.IsOverLimit);
+        Assert.True(overview.CurrentEmployees!.IsOverLimit);
+    }
+
+    [Fact]
     public void Storage_quota_thresholds_keep_bytes_precise_and_distinguish_unlimited()
     {
         var below = UsageStorageQuotaMetricDto.FromBytes(943718, 1);

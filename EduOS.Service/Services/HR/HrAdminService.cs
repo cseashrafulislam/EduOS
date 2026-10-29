@@ -10,6 +10,8 @@ using EduOS.Core.Enums.Domain;
 using EduOS.Core.Interfaces;
 using EduOS.Core.Interfaces.IRepositories;
 using EduOS.Core.Interfaces.IServices;
+using EduOS.Persistence.Context;
+using EduOS.Service.Services.SaaS;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -37,6 +39,7 @@ public sealed class HrAdminService : IHrAdminService
     private readonly IGenericRepository<Student> _students;
     private readonly IGenericRepository<Guardian> _guardians;
     private readonly IUnitOfWork _uow;
+    private readonly EduOSDbContext _db;
     private readonly ICurrentUserService _user;
     private readonly TimeProvider _clock;
     private readonly IDataProtectionProvider _dataProtection;
@@ -53,7 +56,8 @@ public sealed class HrAdminService : IHrAdminService
         IGenericRepository<Person> persons, IGenericRepository<TenantMembership> memberships,
         IGenericRepository<ApplicationUser> identityUsers, IGenericRepository<Student> students, IGenericRepository<Guardian> guardians,
         IUnitOfWork uow, ICurrentUserService user, TimeProvider clock,
-        IDataProtectionProvider dataProtection, ILogger<HrAdminService> logger)
+        IDataProtectionProvider dataProtection, ILogger<HrAdminService> logger,
+        EduOSDbContext db)
     {
         _employees = employees; _designations = designations; _organizations = organizations;
         _leaves = leaves; _leaveTypes = leaveTypes; _shifts = shifts;
@@ -62,7 +66,7 @@ public sealed class HrAdminService : IHrAdminService
         _history = history; _bankAccounts = bankAccounts; _campuses = campuses; _persons = persons;
         _memberships = memberships; _identityUsers = identityUsers;
         _students = students; _guardians = guardians;
-        _uow = uow; _user = user; _clock = clock; _dataProtection = dataProtection; _logger = logger;
+        _uow = uow; _user = user; _clock = clock; _dataProtection = dataProtection; _logger = logger; _db = db;
     }
 
     public async Task<ApiResponse<PagedResult<HrEmployeeRowDto>>> GetEmployeesAsync(
@@ -156,6 +160,8 @@ public sealed class HrAdminService : IHrAdminService
                 return ApiResponse<EmployeeDto>.SuccessResponse(await MapEmployeeAsync(existing, token),
                     "Employee already exists.");
             }
+            if (!await SubscriptionActiveCapacityPolicy.CanAddEmployeesAsync(_db, tenant, 1, token))
+                return Error<EmployeeDto>("Subscription active employee capacity reached.", 409);
             var now = _clock.GetUtcNow().UtcDateTime;
             var personId = request.PersonId.GetValueOrDefault();
             if (personId == 0)
@@ -282,6 +288,10 @@ public sealed class HrAdminService : IHrAdminService
                 return Error<EmployeeDto>("Employment exit requires leaving date and reason.", 409);
             if (!exit && request.LeavingDate.HasValue)
                 return Error<EmployeeDto>("Leaving date must be absent for non-terminal states.");
+            if (request.State == EmployeeState.Active &&
+                !await SubscriptionActiveCapacityPolicy.CanAddEmployeesAsync(
+                    _db, _user.TenantId, 1, token))
+                return Error<EmployeeDto>("Subscription active employee capacity reached.", 409);
             var now = _clock.GetUtcNow().UtcDateTime;
             row.State = request.State; row.LeavingDate = exit ? request.LeavingDate : null;
             row.UpdatedAt = now; row.UpdatedBy = _user.UserId;
@@ -928,6 +938,11 @@ public sealed class HrAdminService : IHrAdminService
         Func<CancellationToken, Task<ApiResponse<T>>> callback, CancellationToken ct)
     {
         try { return await _uow.ExecuteInTransactionAsync(callback, ct); }
+        catch (Microsoft.Data.SqlClient.SqlException ex) when (ex.Number is 1205 or 1222)
+        {
+            _logger.LogWarning(ex, "HR quota allocation contention {Operation} tenant {TenantId}", operation, _user.TenantId);
+            return Error<T>("Concurrent capacity allocation; reload and retry.", 409);
+        }
         catch (DbUpdateConcurrencyException)
         { return Error<T>("Record changed concurrently; reload and retry.", 409); }
         catch (DbUpdateException ex)

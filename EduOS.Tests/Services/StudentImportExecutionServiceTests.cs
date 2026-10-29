@@ -85,7 +85,7 @@ public sealed class StudentImportExecutionServiceTests
             new GenericRepository<SubjectOffering>(db),
             new GenericRepository<StudentSubjectRegistration>(db), logs, items,
             new GenericRepository<IdempotencyRecord>(db), unitOfWork ?? new InMemoryUow(db),
-            user, NullLogger<StudentImportExecutionService>.Instance);
+            user, NullLogger<StudentImportExecutionService>.Instance, db);
     }
 
 

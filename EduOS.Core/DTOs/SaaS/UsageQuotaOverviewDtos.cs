@@ -1,7 +1,7 @@
 namespace EduOS.Core.DTOs.SaaS;
 
 /// <summary>Read-only comparison of saved daily usage and explicitly identified
-/// live user seats with the current subscription plan. Not a billing meter.</summary>
+/// live capacity with the current subscription plan. Not a billing meter.</summary>
 public sealed class UsageQuotaOverviewDto
 {
     public bool HasActiveSubscription { get; set; }
@@ -12,6 +12,10 @@ public sealed class UsageQuotaOverviewDto
     public bool HasSnapshot => SnapshotDay.HasValue;
     /// <summary>Current reserved member seats, independent of historical daily snapshots.</summary>
     public UsageQuotaMetricDto? CurrentUserSeats { get; set; }
+    /// <summary>Current active students, independent of historical daily snapshots.</summary>
+    public UsageQuotaMetricDto? CurrentStudents { get; set; }
+    /// <summary>Current active employees, independent of historical daily snapshots.</summary>
+    public UsageQuotaMetricDto? CurrentEmployees { get; set; }
     /// <summary>Current committed tenant file storage, not a historical billing meter.</summary>
     public UsageStorageQuotaMetricDto? CurrentStorage { get; set; }
     public IReadOnlyList<UsageQuotaMetricDto> Metrics { get; set; } = Array.Empty<UsageQuotaMetricDto>();

@@ -17,6 +17,7 @@ using EduOS.Persistence.Repositories;
 using EduOS.Service.Services.Students;
 using EduOS.Service.Services.Academic;
 using EduOS.Service.Services.Admission;
+using EduOS.Service.Services.SaaS;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -32,6 +33,70 @@ namespace EduOS.Tests.App;
 [Collection("SqlServerIntegration")]
 public sealed class SqlServerStudentImportConcurrencyIntegrationTests
 {
+    [Fact]
+    public async Task Concurrent_active_student_reservations_respect_tenant_plan_at_sql_commit()
+    {
+        var connection = Environment.GetEnvironmentVariable("EDUOS_SQL_AUTH_TEST_CONNECTION");
+        if (string.IsNullOrWhiteSpace(connection)) return;
+        var options = new DbContextOptionsBuilder<EduOSDbContext>().UseSqlServer(connection).Options;
+        var suffix = Guid.NewGuid().ToString("N")[..12];
+        long tenantId;
+        await using (var setup = new EduOSDbContext(options))
+        {
+            var tenant = new Tenant
+            {
+                Code = "CI-ACTIVE-CAP-" + suffix, Name = "Active Capacity CI",
+                Email = "capacity-" + suffix + "@example.test", State = TenantState.Active
+            };
+            var plan = new SubscriptionPlan
+            {
+                Code = "CI-CAP-" + suffix, Name = "One Active Student", MaxStudents = 1
+            };
+            setup.AddRange(tenant, plan);
+            await setup.SaveChangesAsync();
+            tenantId = tenant.Id;
+            setup.ChangeTracker.Clear();
+            using (setup.BeginSystemTenantScope(tenantId))
+            {
+                setup.TenantSubscriptions.Add(new TenantSubscription
+                {
+                    TenantId = tenantId, SubscriptionPlanId = plan.Id,
+                    State = SubscriptionState.Active,
+                    StartsAt = DateTime.UtcNow.AddDays(-1),
+                    EndsAt = DateTime.UtcNow.AddDays(7)
+                });
+                await setup.SaveChangesAsync();
+            }
+        }
+
+        async Task<bool> AdmitReservedStudentAsync(int index)
+        {
+            await using var ctx = TenantDb(options, tenantId);
+            return await ctx.ExecuteInTransactionAsync(async ct =>
+            {
+                if (!await SubscriptionActiveCapacityPolicy.CanAddStudentsAsync(ctx, tenantId, 1, ct))
+                    return false;
+                var person = new Person { FullName = "Quota SQL learner " + index + " " + suffix };
+                ctx.Persons.Add(person);
+                await ctx.SaveChangesAsync(ct);
+                ctx.Students.Add(new Student
+                {
+                    TenantId = tenantId, PersonId = person.Id,
+                    StudentCode = "CAP-" + suffix + "-" + index,
+                    FullName = person.FullName, StatusCode = "Active",
+                    AdmissionDate = DateOnly.FromDateTime(DateTime.UtcNow)
+                });
+                await ctx.SaveChangesAsync(ct);
+                return true;
+            });
+        }
+
+        var outcomes = await Task.WhenAll(AdmitReservedStudentAsync(1), AdmitReservedStudentAsync(2));
+        Assert.Single(outcomes.Where(x => x));
+        await using var verify = TenantDb(options, tenantId);
+        Assert.Equal(1, await verify.Students.CountAsync(x => x.StatusCode == "Active"));
+    }
+
     private static readonly Dictionary<string, string> Mapping = new()
     {
         ["SourceKey"] = "SourceKey", ["StudentCode"] = "StudentCode",
@@ -959,7 +1024,7 @@ public sealed class SqlServerStudentImportConcurrencyIntegrationTests
             new GenericRepository<AcademicBatch>(db), new GenericRepository<AcademicTrack>(db),
             new GenericRepository<AcademicCurriculum>(db), new GenericRepository<AcademicYear>(db),
             db, new TestAdmin(tenant, userId), TimeProvider.System,
-            NullLogger<AdmissionEnrollmentService>.Instance);
+            NullLogger<AdmissionEnrollmentService>.Instance, db);
 
     private static StudentReadmissionService Readmission(EduOSDbContext db, long tenant, long userId)
         => new(new GenericRepository<Student>(db),
@@ -973,7 +1038,7 @@ public sealed class SqlServerStudentImportConcurrencyIntegrationTests
             new GenericRepository<AcademicTerm>(db),
             new GenericRepository<AcademicCurriculum>(db),
             db, new TestAdmin(tenant, userId), TimeProvider.System,
-            NullLogger<StudentReadmissionService>.Instance);
+            NullLogger<StudentReadmissionService>.Instance, db);
 
     private static StudentPromotionService Promotion(EduOSDbContext db, long tenant, long userId)
         => new(new GenericRepository<Student>(db),
@@ -1026,7 +1091,7 @@ public sealed class SqlServerStudentImportConcurrencyIntegrationTests
             new GenericRepository<SubjectOffering>(db),
             new GenericRepository<StudentSubjectRegistration>(db), logs, items,
             new GenericRepository<IdempotencyRecord>(db), db, admin,
-            logger ?? NullLogger<StudentImportExecutionService>.Instance);
+            logger ?? NullLogger<StudentImportExecutionService>.Instance, db);
     }
 
     // Synthetic SQL integration only: emit exception types and SQL numbers, never learner data.

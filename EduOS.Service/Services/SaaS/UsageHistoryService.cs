@@ -175,6 +175,10 @@ public sealed class UsageHistoryService(
             .FirstOrDefaultAsync(ct);
         var reservedUserSeats = await db.TenantMemberships.AsNoTracking().CountAsync(x =>
             x.TenantId == tenantId && !x.IsDeleted && x.Status != MembershipStatus.Left, ct);
+        var activeStudents = await db.Students.AsNoTracking().CountAsync(x =>
+            x.TenantId == tenantId && !x.IsDeleted && x.StatusCode == "Active", ct);
+        var activeEmployees = await db.Employees.AsNoTracking().CountAsync(x =>
+            x.TenantId == tenantId && !x.IsDeleted && x.State == EmployeeState.Active, ct);
         var currentStorage = await SubscriptionStorageQuotaPolicy.GetAsync(db, tenantId, now, ct);
         var result = new UsageQuotaOverviewDto
         {
@@ -185,6 +189,10 @@ public sealed class UsageHistoryService(
             SnapshotDay = snapshot?.PeriodStart,
             CurrentUserSeats = UsageQuotaMetricDto.FromCount(
                 "Institution users (live)", reservedUserSeats, plan?.MaxUsers),
+            CurrentStudents = UsageQuotaMetricDto.FromCount(
+                "Active students (live)", activeStudents, plan?.MaxStudents),
+            CurrentEmployees = UsageQuotaMetricDto.FromCount(
+                "Active employees (live)", activeEmployees, plan?.MaxEmployees),
             CurrentStorage = UsageStorageQuotaMetricDto.FromBytes(
                 currentStorage.UsedBytes, plan?.MaxStorageMb),
             Metrics = snapshot == null ? Array.Empty<UsageQuotaMetricDto>() :
