@@ -20,4 +20,22 @@ public sealed class SecurityHeadersCspContractTests
         Assert.DoesNotContain("'unsafe-inline'", audit);
         Assert.DoesNotContain("script-src", context.Response.Headers["Content-Security-Policy"].ToString());
     }
+
+    [Theory]
+    [InlineData("/api/students", "no-store")]
+    [InlineData("/api/subscription/current", "no-store")]
+    [InlineData("/api/public/admissions/school", "no-store")]
+    [InlineData("/images/logo.png", "")]
+    public async Task Api_payloads_are_not_browser_or_shared_proxy_cacheable(
+        string requestPath, string expectedCacheControl)
+    {
+        var middleware = new SecurityHeadersMiddleware(_ => Task.CompletedTask);
+        var context = new DefaultHttpContext();
+        context.Request.Path = requestPath;
+        await middleware.InvokeAsync(context);
+
+        Assert.Equal(expectedCacheControl, context.Response.Headers.CacheControl.ToString());
+        if (expectedCacheControl.Length > 0)
+            Assert.Equal("no-cache", context.Response.Headers.Pragma.ToString());
+    }
 }

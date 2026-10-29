@@ -18,6 +18,7 @@ namespace EduOS.App.Middleware
         public async Task InvokeAsync(HttpContext context)
         {
             var headers = context.Response.Headers;
+            var isApi = context.Request.Path.StartsWithSegments("/api");
 
             headers["X-Content-Type-Options"] = "nosniff";
             headers["X-Frame-Options"] = "SAMEORIGIN";
@@ -45,8 +46,22 @@ namespace EduOS.App.Middleware
             context.Response.OnStarting(() =>
             {
                 context.Response.Headers.Remove("X-Powered-By");
+                // API responses may contain institution, learner, payroll or
+                // billing data. No intermediary/browser may reuse one user's
+                // payload across authentication or institution switches.
+                if (isApi)
+                {
+                    context.Response.Headers.CacheControl = "no-store";
+                    context.Response.Headers.Pragma = "no-cache";
+                }
                 return Task.CompletedTask;
             });
+
+            if (isApi)
+            {
+                headers.CacheControl = "no-store";
+                headers.Pragma = "no-cache";
+            }
 
             await _next(context);
         }

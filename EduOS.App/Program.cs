@@ -16,6 +16,7 @@ using Microsoft.AspNetCore.Localization;
 using Microsoft.AspNetCore.StaticFiles;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.OpenApi;
+using EduOS.Service.Helpers.Storage;
 using System.Globalization;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -35,6 +36,17 @@ if (builder.Environment.IsProduction() &&
 {
     throw new InvalidOperationException(
         "DataProtection:KeysPath is required in Production and must point to durable protected storage.");
+}
+
+if (builder.Environment.IsProduction())
+{
+    ProductionStoragePathPolicy.Validate(
+        builder.Environment.ContentRootPath,
+        builder.Environment.WebRootPath ??
+            Path.Combine(builder.Environment.ContentRootPath, "wwwroot"),
+        builder.Configuration["FileStorage:PrivateBasePath"] ??
+            new FileStorageSettings().PrivateBasePath,
+        dataProtectionKeysPath);
 }
 
 if (builder.Environment.IsProduction())
@@ -180,6 +192,13 @@ if (!string.IsNullOrWhiteSpace(dataProtectionKeysPath))
 
     dataProtection.PersistKeysToFileSystem(
         keyDirectory);
+
+    // The first production target is a Windows Server VM. Protect persisted
+    // authentication/cookie keys at rest with Windows DPAPI, not plaintext
+    // XML. Machine scope survives app-pool identity rotations on that VM;
+    // deployments spanning machines must use an approved shared key protector.
+    if (builder.Environment.IsProduction() && OperatingSystem.IsWindows())
+        dataProtection.ProtectKeysWithDpapi(protectToLocalMachine: true);
 }
 
 // =============================================================================

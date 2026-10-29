@@ -80,6 +80,7 @@ namespace EduOS.App.Extensions
                 options.OnRejected = async (context, ct) =>
                 {
                     context.HttpContext.Response.StatusCode = StatusCodes.Status429TooManyRequests;
+                    context.HttpContext.Response.Headers.CacheControl = "no-store";
 
                     if (context.HttpContext.Request.Path.StartsWithSegments("/api"))
                     {
@@ -89,10 +90,11 @@ namespace EduOS.App.Extensions
                             message = "Too many requests. Please try again later."
                         }, cancellationToken: ct);
                     }
-                    else
-                    {
-                        context.HttpContext.Response.Redirect("/Error/429");
-                    }
+                    // A redirect silently replaces HTTP 429 with HTTP 302,
+                    // defeating retry/backoff handling and confusing clients.
+                    // For browser requests, leave the response body empty so
+                    // the existing StatusCodePages middleware renders /Error/429
+                    // while preserving the original 429 status.
                 };
             });
 
