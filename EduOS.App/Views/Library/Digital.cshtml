@@ -73,6 +73,31 @@
             </form>
         </dialog>
     }
+    @if (admin)
+    {
+        <dialog id="digitalReplaceDialog" class="border rounded shadow p-4" aria-labelledby="digitalReplaceHeading">
+            <h3 id="digitalReplaceHeading" class="h5">@(bn ? "নতুন সংস্করণ প্রকাশ" : "Publish replacement version")</h3>
+            <form id="digitalReplaceForm" class="row g-3" enctype="multipart/form-data">
+                @Html.AntiForgeryToken()
+                <div class="col-12">
+                    <label for="digitalReplaceTitle" class="form-label">@(bn ? "রিসোর্সের নাম" : "Resource title")</label>
+                    <input id="digitalReplaceTitle" class="form-control" maxlength="250" required />
+                </div>
+                <div class="col-md-6">
+                    <label for="digitalReplaceFile" class="form-label">@(bn ? "নতুন ফাইল (সর্বোচ্চ ৫ এমবি)" : "New file (max 5 MB)")</label>
+                    <input id="digitalReplaceFile" type="file" class="form-control" accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx" required />
+                </div>
+                <div class="col-md-6">
+                    <label for="digitalReplaceExpiry" class="form-label">@(bn ? "মেয়াদ শেষ (UTC)" : "Access expiry (UTC)")</label>
+                    <input id="digitalReplaceExpiry" class="form-control" type="date" />
+                </div>
+                <div class="col-12 d-flex justify-content-end gap-2">
+                    <button id="digitalReplaceCancel" type="button" class="btn btn-outline-secondary">@(bn ? "বাতিল" : "Cancel")</button>
+                    <button id="digitalReplaceSave" type="submit" class="btn btn-primary">@(bn ? "নতুন সংস্করণ প্রকাশ" : "Publish version")</button>
+                </div>
+            </form>
+        </dialog>
+    }
     <section class="content-card mt-3" aria-labelledby="digitalListTitle">
         <div class="content-card-heading d-flex justify-content-between align-items-center flex-wrap gap-2">
             <h3 id="digitalListTitle" class="h5 mb-0">@(bn ? "অনুমোদিত রিসোর্স" : "Available resources") <span id="digitalCount" class="small text-muted"></span></h3>

@@ -66,6 +66,27 @@ public sealed class LibraryDigitalResourcesController(ILibraryDigitalResourceSer
         return StatusCode(result.StatusCode, result);
     }
 
+    [HttpPost("{reference:guid}/replace")]
+    [Authorize(Roles = "TenantAdmin")]
+    [RequestSizeLimit(6291456)]
+    [Consumes("multipart/form-data")]
+    public async Task<IActionResult> Replace(Guid reference,
+        [FromForm] LibraryDigitalReplaceRequestDto request,
+        [FromForm] IFormFile file, CancellationToken ct)
+    {
+        if (!ModelState.IsValid) return ValidationProblem(ModelState);
+        if (file == null || file.Length is < 1 or > 5242880)
+            return BadRequest("A replacement file of at most 5 MB is required.");
+        await using var stream = file.OpenReadStream();
+        var upload = new PrivateFileUploadDto
+        {
+            FileName = file.FileName, ContentType = file.ContentType,
+            Length = file.Length, Content = stream
+        };
+        var result = await service.ReplaceAsync(reference, request, upload, ct);
+        return StatusCode(result.StatusCode, result);
+    }
+
     [HttpPut("{reference:guid}")]
     [Authorize(Roles = "TenantAdmin")]
     public async Task<IActionResult> Update(Guid reference,

@@ -122,7 +122,7 @@ public sealed class LibraryDigitalResourceService(
         Title = document.Title ?? string.Empty, FileName = file.OriginalFileName,
         ContentType = file.ContentType, SizeBytes = file.SizeBytes, IsActive = document.IsActive,
         ExpiresOn = document.ExpiresAt.HasValue ? DateOnly.FromDateTime(document.ExpiresAt.Value) : null,
-        CreatedAt = document.CreatedAt, RowVersion = Convert.ToBase64String(document.RowVersion)
+        VersionNo = document.VersionNo, CreatedAt = document.CreatedAt, RowVersion = Convert.ToBase64String(document.RowVersion)
     };
 
     private IQueryable<LibraryDigitalRow> ResourceQuery()
@@ -185,7 +185,7 @@ public sealed class LibraryDigitalResourceService(
             .Select(x => new
             {
                 DocumentReference = x.Document.PublicId, x.Document.Title, x.Document.IsActive,
-                x.Document.ExpiresAt, x.Document.CreatedAt, x.Document.RowVersion, BookReference = x.Book.PublicId,
+                x.Document.ExpiresAt, x.Document.CreatedAt, x.Document.RowVersion, x.Document.VersionNo, BookReference = x.Book.PublicId,
                 BookTitle = x.Book.Title, x.File.OriginalFileName, x.File.ContentType, x.File.SizeBytes
             }).ToListAsync(ct);
         return ApiResponse<PagedResult<LibraryDigitalResourceDto>>.SuccessResponse(
@@ -198,7 +198,7 @@ public sealed class LibraryDigitalResourceService(
                     FileName = x.OriginalFileName, ContentType = x.ContentType,
                     SizeBytes = x.SizeBytes, IsActive = x.IsActive,
                     ExpiresOn = x.ExpiresAt.HasValue ? DateOnly.FromDateTime(x.ExpiresAt.Value) : null,
-                    CreatedAt = x.CreatedAt,
+                    VersionNo = x.VersionNo, CreatedAt = x.CreatedAt,
                     RowVersion = Convert.ToBase64String(x.RowVersion)
                 }).ToList(),
                 TotalCount = total, Page = page, PageSize = pageSize
@@ -300,6 +300,117 @@ public sealed class LibraryDigitalResourceService(
             // by EF's execution strategy. Never turn a concurrent replay into HTTP 500.
             logger.LogWarning(ex, "Library digital publication contention for tenant {TenantId}", Tenant);
             return Fail<LibraryDigitalResourceDto>("Concurrent resource registration; retry the same request ID.", 409);
+        }
+    }
+
+
+    /// <summary>
+    /// Atomically supersede an existing publication while preserving its immutable file
+    /// and document history. Scanning runs before the short SQL transaction; an upload
+    /// losing a concurrent replacement stays private and unattached for reconciliation.
+    /// </summary>
+    public async Task<ApiResponse<LibraryDigitalResourceDto>> ReplaceAsync(
+        Guid reference, LibraryDigitalReplaceRequestDto request,
+        PrivateFileUploadDto file, CancellationToken ct = default)
+    {
+        if (!CanPublish) return Fail<LibraryDigitalResourceDto>("Tenant administrator required.", 403);
+        if (reference == Guid.Empty || request == null || request.RequestId == Guid.Empty ||
+            request.RequestId == reference || string.IsNullOrWhiteSpace(request.RowVersion) ||
+            string.IsNullOrWhiteSpace(request.Title) || request.Title.Trim().Length > 250 ||
+            file == null || file.Length is < 1 or > MaxBytes || !ValidExpiry(request.ExpiresOn))
+            return Fail<LibraryDigitalResourceDto>("Valid resource, version, title and replacement file required.");
+
+        var old = await db.Documents.AsNoTracking().FirstOrDefaultAsync(x =>
+            x.TenantId == Tenant && x.PublicId == reference && !x.IsDeleted &&
+            x.DocumentTypeCode == TypeCode && x.EntityType == EntityType, ct);
+        if (old == null) return Fail<LibraryDigitalResourceDto>("Resource not found.", 404);
+        var replay = await db.Documents.AsNoTracking().FirstOrDefaultAsync(x =>
+            x.TenantId == Tenant && x.PublicId == request.RequestId && !x.IsDeleted, ct);
+        if (replay == null && (!old.IsActive || !VersionMatches(old.RowVersion, request.RowVersion)))
+            return Fail<LibraryDigitalResourceDto>("Resource changed. Reload and retry.", 409);
+        if (replay != null && replay.SupersedesDocumentId != old.Id)
+            return Fail<LibraryDigitalResourceDto>("Request ID already used.", 409);
+        if (old.VersionNo < 1 || old.VersionNo == int.MaxValue)
+            return Fail<LibraryDigitalResourceDto>("Resource version requires reconciliation.", 409);
+        var book = await db.Books.AsNoTracking().FirstOrDefaultAsync(x =>
+            x.TenantId == Tenant && x.Id == old.EntityId && !x.IsDeleted && x.IsActive, ct);
+        if (book == null) return Fail<LibraryDigitalResourceDto>("Active book unavailable.", 409);
+
+        var uploaded = await documentFiles.UploadAsync(request.RequestId, file, ct);
+        if (!uploaded.Success || uploaded.Data == null)
+            return Fail<LibraryDigitalResourceDto>(uploaded.Message, uploaded.StatusCode);
+        var title = request.Title.Trim();
+        var expiry = Expiry(request.ExpiresOn);
+        try
+        {
+            return await db.ExecuteInTransactionAsync(async token =>
+            {
+                var previous = await db.Documents.FirstOrDefaultAsync(x =>
+                    x.TenantId == Tenant && x.PublicId == reference && !x.IsDeleted &&
+                    x.DocumentTypeCode == TypeCode && x.EntityType == EntityType, token);
+                if (previous == null) return Fail<LibraryDigitalResourceDto>("Resource not found.", 404);
+                var asset = await db.FileAssets.AsNoTracking().FirstOrDefaultAsync(x =>
+                    x.TenantId == Tenant && x.Id == uploaded.Data.Id &&
+                    x.PublicId == request.RequestId && x.UploadedByUserId == user.UserId &&
+                    !x.IsDeleted && x.IsVerifiedSafe && x.MalwareScanStateCode == "Clean" &&
+                    x.Visibility == FileVisibility.Private && x.StorageProvider == "LocalPrivate", token);
+                if (asset == null || !DocumentFileService.IsTenantDocumentKey(asset.StorageKey, Tenant))
+                    return Fail<LibraryDigitalResourceDto>("Verified replacement file unavailable.", 403);
+                var existing = await db.Documents.AsNoTracking().FirstOrDefaultAsync(x =>
+                    x.TenantId == Tenant && x.PublicId == request.RequestId && !x.IsDeleted, token);
+                if (existing != null)
+                {
+                    if (existing.SupersedesDocumentId != previous.Id ||
+                        existing.VersionNo != previous.VersionNo + 1 ||
+                        existing.EntityId != previous.EntityId || existing.EntityType != EntityType ||
+                        existing.DocumentTypeCode != TypeCode || existing.FileAssetId != asset.Id ||
+                        existing.Title != title || existing.ExpiresAt != expiry || !existing.IsActive ||
+                        previous.IsActive)
+                        return Fail<LibraryDigitalResourceDto>("Replacement replay differs or was revoked.", 409);
+                    return ApiResponse<LibraryDigitalResourceDto>.SuccessResponse(
+                        Map(existing, asset, book.PublicId, book.Title));
+                }
+                if (!previous.IsActive || !VersionMatches(previous.RowVersion, request.RowVersion))
+                    return Fail<LibraryDigitalResourceDto>("Resource changed. Reload and retry.", 409);
+                if (await db.Documents.AsNoTracking().AnyAsync(x =>
+                    x.TenantId == Tenant && x.FileAssetId == asset.Id && !x.IsDeleted, token))
+                    return Fail<LibraryDigitalResourceDto>("Replacement file already attached.", 409);
+                if (!await db.DocumentTypeDefinitions.AsNoTracking().AnyAsync(x =>
+                    x.TenantId == Tenant && x.Code == TypeCode && x.IsActive &&
+                    !x.IsDeleted && !x.RequiresVerification && !x.IsSensitive, token))
+                    return Fail<LibraryDigitalResourceDto>("Library publication policy unavailable.", 409);
+                previous.IsActive = false;
+                previous.UpdatedAt = Now;
+                previous.UpdatedBy = user.UserId;
+                var next = new Document
+                {
+                    TenantId = Tenant, PublicId = request.RequestId,
+                    FileAssetId = asset.Id, DocumentTypeCode = TypeCode,
+                    EntityType = EntityType, EntityId = previous.EntityId,
+                    SupersedesDocumentId = previous.Id, VersionNo = previous.VersionNo + 1,
+                    Title = title, ExpiresAt = expiry, IsActive = true,
+                    VerificationStatusCode = "NotRequired",
+                    CreatedBy = user.UserId, CreatedAt = Now
+                };
+                db.Documents.Add(next);
+                await db.SaveChangesAsync(token);
+                var audit = Audit("LibraryDigitalResource.Replace", next.Id, next.PublicId);
+                audit.OldValue = JsonSerializer.Serialize(new { PreviousReference = reference, previous.VersionNo });
+                audit.NewValue = JsonSerializer.Serialize(new { NewReference = next.PublicId, next.VersionNo });
+                db.AuditLogs.Add(audit);
+                await db.SaveChangesAsync(token);
+                return ApiResponse<LibraryDigitalResourceDto>.SuccessResponse(
+                    Map(next, asset, book.PublicId, book.Title));
+            }, IsolationLevel.Serializable, ct);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            return Fail<LibraryDigitalResourceDto>("Resource changed concurrently.", 409);
+        }
+        catch (Exception ex) when (IsSqlRegistrationConflict(ex))
+        {
+            logger.LogWarning(ex, "Library digital replacement contention for tenant {TenantId}", Tenant);
+            return Fail<LibraryDigitalResourceDto>("Concurrent replacement. Reload and retry.", 409);
         }
     }
 

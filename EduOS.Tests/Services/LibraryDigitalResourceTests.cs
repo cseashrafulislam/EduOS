@@ -327,4 +327,77 @@ public sealed class LibraryDigitalResourceTests
             .Should().BeFalse();
     }
 
+
+    [Fact]
+    public async Task Replacement_supersedes_scanned_resource_atomically_and_replays_without_duplicate_audit()
+    {
+        await using var db = Context();
+        var originalId = Guid.NewGuid();
+        var replacementId = Guid.NewGuid();
+        var seed = await SeedAsync(db, originalId);
+        var replacementAsset = new FileAsset
+        {
+            TenantId = 101, PublicId = replacementId, StorageProvider = "LocalPrivate",
+            StorageKey = "tenant-101/documents/replacement.pdf", OriginalFileName = "replacement.pdf",
+            ContentType = "application/pdf", SizeBytes = seed.Bytes.Length,
+            Sha256 = Convert.ToHexString(SHA256.HashData(seed.Bytes)), UploadedByUserId = 7,
+            MalwareScanStateCode = "Clean", IsVerifiedSafe = true,
+            Visibility = FileVisibility.Private
+        };
+        db.FileAssets.Add(replacementAsset);
+        db.DocumentTypeDefinitions.Add(new DocumentTypeDefinition
+        { TenantId = 101, Code = "LIBRARY_DIGITAL", Name = "Digital", IsActive = true });
+        await db.SaveChangesAsync();
+        var previous = new Document
+        {
+            TenantId = 101, PublicId = originalId, FileAssetId = seed.Asset.Id,
+            DocumentTypeCode = "LIBRARY_DIGITAL", EntityType = "LibraryBook",
+            EntityId = seed.Book.Id, Title = "Original", IsActive = true,
+            VersionNo = 1, RowVersion = [1, 2, 3]
+        };
+        db.Documents.Add(previous);
+        await db.SaveChangesAsync();
+        var documents = new Mock<IDocumentFileService>();
+        documents.Setup(x => x.UploadAsync(replacementId, It.IsAny<PrivateFileUploadDto>(),
+            It.IsAny<CancellationToken>())).ReturnsAsync(
+            ApiResponse<FileAssetDto>.SuccessResponse(new FileAssetDto
+            { Id = replacementAsset.Id, Reference = replacementId, IsVerifiedSafe = true }));
+        var storage = new Mock<IFileUploadService>();
+        storage.Setup(x => x.GetPrivateFileAsync(replacementAsset.StorageKey))
+            .ReturnsAsync(new FileDownloadResult { Content = seed.Bytes, ContentType = "application/pdf" });
+        var admin = Service(db, "TenantAdmin", documents, storage);
+        var request = new LibraryDigitalReplaceRequestDto
+        {
+            RequestId = replacementId, Title = "Corrected edition",
+            RowVersion = Convert.ToBase64String(previous.RowVersion),
+            ExpiresOn = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(15))
+        };
+        PrivateFileUploadDto Upload() => new()
+        {
+            FileName = "replacement.pdf", ContentType = "application/pdf",
+            Length = seed.Bytes.Length, Content = new MemoryStream(seed.Bytes)
+        };
+        (await Service(db, "Student").ReplaceAsync(originalId, request, Upload()))
+            .StatusCode.Should().Be(403);
+        var result = await admin.ReplaceAsync(originalId, request, Upload());
+        result.Success.Should().BeTrue(result.Message);
+        result.Data!.VersionNo.Should().Be(2);
+        (await admin.ReplaceAsync(originalId, request, Upload())).Success.Should().BeTrue();
+        (await db.Documents.CountAsync(x => x.DocumentTypeCode == "LIBRARY_DIGITAL")).Should().Be(2);
+        previous.IsActive.Should().BeFalse();
+        var next = await db.Documents.SingleAsync(x => x.PublicId == replacementId);
+        next.SupersedesDocumentId.Should().Be(previous.Id);
+        next.VersionNo.Should().Be(2);
+        (await db.AuditLogs.CountAsync(x => x.Action == "LibraryDigitalResource.Replace"))
+            .Should().Be(1);
+        (await Service(db, "Student", storage: storage).DownloadAsync(originalId))
+            .StatusCode.Should().Be(404);
+        (await Service(db, "Student", storage: storage).DownloadAsync(replacementId))
+            .Success.Should().BeTrue();
+        (await admin.ReplaceAsync(originalId, new LibraryDigitalReplaceRequestDto
+        {
+            RequestId = Guid.NewGuid(), RowVersion = request.RowVersion,
+            Title = "Unsafe second replacement"
+        }, Upload())).StatusCode.Should().Be(409);
+    }
 }

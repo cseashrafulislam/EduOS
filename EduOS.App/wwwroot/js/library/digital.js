@@ -28,6 +28,7 @@
         } finally { activeRequests.delete(controller); }
     }
     let page = 1, requestSequence = 0, uploadRequestId = null, editing = null;
+    let replacing = null, replaceRequestId = null;
     const pageSize = 20;
     const token = () => document.querySelector('meta[name="request-verification-token"]')?.content ||
         el('digitalUploadForm')?.querySelector('input[name="__RequestVerificationToken"]')?.value;
@@ -141,13 +142,49 @@
         } catch (error) { notify(error.message); }
         finally { button.disabled = false; }
     }
+
+    function replaceVersion(resource) {
+        if (!currentSession()) return;
+        replacing = resource;
+        replaceRequestId = null;
+        el('digitalReplaceForm').reset();
+        el('digitalReplaceTitle').value = resource.title || '';
+        el('digitalReplaceExpiry').value = resource.expiresOn || '';
+        el('digitalReplaceDialog').showModal();
+    }
+    async function saveReplacement(event) {
+        event.preventDefault();
+        if (!replacing || !currentSession() || !el('digitalReplaceForm').reportValidity()) return;
+        const file = el('digitalReplaceFile').files?.[0];
+        if (!file || file.size < 1 || file.size > 5242880)
+            return notify(words('Select a file up to 5 MB.', 'সর্বোচ্চ ৫ এমবি ফাইল নির্বাচন করুন।'));
+        if (!replaceRequestId) replaceRequestId = crypto.randomUUID();
+        const data = new FormData();
+        data.append('RequestId', replaceRequestId);
+        data.append('RowVersion', replacing.rowVersion);
+        data.append('Title', el('digitalReplaceTitle').value.trim());
+        if (el('digitalReplaceExpiry').value)
+            data.append('ExpiresOn', el('digitalReplaceExpiry').value);
+        data.append('file', file, file.name);
+        const button = el('digitalReplaceSave');
+        button.disabled = true;
+        try {
+            await api('/api/library/digital/' + encodeURIComponent(replacing.reference) +
+                '/replace', { method: 'POST', body: data });
+            el('digitalReplaceDialog').close();
+            replacing = null; replaceRequestId = null;
+            await load();
+            notify(words('New version published.', 'নতুন সংস্করণ প্রকাশিত হয়েছে।'), true);
+        } catch (error) { notify(error.message); }
+        finally { button.disabled = false; }
+    }
     function render(resources) {
         rows.replaceChildren();
         if (!resources.length) return empty(words('No resources found.', 'কোনো রিসোর্স পাওয়া যায়নি।'));
         resources.forEach(resource => {
             const tr = document.createElement('tr');
             const expired = !!resource.expiresOn && resource.expiresOn < new Date().toISOString().slice(0, 10);
-            [resource.bookTitle, resource.title, resource.fileName,
+            [resource.bookTitle, (resource.title || '') + ' (v' + (resource.versionNo || 1) + ')', resource.fileName,
                 !resource.isActive ? words('Revoked', 'বাতিল') :
                     expired ? words('Expired', 'মেয়াদ শেষ') : words('Active', 'সক্রিয়'),
                 resource.expiresOn || '—'].forEach(value => tr.append(td(value)));
@@ -160,6 +197,11 @@
                 actions.append(button);
             }
             if (admin && resource.isActive) {
+                const replaceButton = document.createElement('button');
+                replaceButton.type = 'button'; replaceButton.className = 'btn btn-sm btn-outline-primary ms-2';
+                replaceButton.textContent = words('Replace', 'নতুন সংস্করণ');
+                replaceButton.addEventListener('click', () => replaceVersion(resource));
+                actions.append(replaceButton);
                 const editButton = document.createElement('button');
                 editButton.type = 'button'; editButton.className = 'btn btn-sm btn-outline-secondary ms-2';
                 editButton.textContent = words('Edit', 'সম্পাদনা');
@@ -268,6 +310,14 @@
             el(id).addEventListener('change', () => { uploadRequestId = null; }));
         el('digitalExport').addEventListener('click', exportPage);
         el('digitalEditForm').addEventListener('submit', saveEdit);
+        el('digitalReplaceForm').addEventListener('submit', saveReplacement);
+        ['digitalReplaceTitle', 'digitalReplaceExpiry', 'digitalReplaceFile'].forEach(id =>
+            el(id).addEventListener('change', () => { replaceRequestId = null; }));
+        el('digitalReplaceCancel').addEventListener('click', () => el('digitalReplaceDialog').close());
+        el('digitalReplaceDialog').addEventListener('close', () => {
+            replacing = null; replaceRequestId = null;
+            el('digitalReplaceForm').reset();
+        });
         el('digitalEditCancel').addEventListener('click', () => el('digitalEditDialog').close());
         el('digitalEditDialog').addEventListener('close', () => { editing = null; });
         findBooks();
@@ -276,7 +326,7 @@
         requestSequence++;
         for (const request of activeRequests) request.abort();
         activeRequests.clear();
-        uploadRequestId = null; editing = null;
+        uploadRequestId = null; editing = null; replacing = null; replaceRequestId = null;
         rows.replaceChildren();
         el('digitalCount').textContent = '';
         el('digitalPage').textContent = '';
@@ -289,6 +339,8 @@
             el('digitalBook').replaceChildren();
             el('digitalBookSearch').value = '';
             el('digitalEditForm').reset();
+            el('digitalReplaceForm').reset();
+            if (el('digitalReplaceDialog').open) el('digitalReplaceDialog').close();
             if (el('digitalEditDialog').open) el('digitalEditDialog').close();
         }
     }
