@@ -31,4 +31,5 @@ public sealed class TransportTripRiderDto
     public string StudentCode { get; set; } = string.Empty;
     public string PickupStop { get; set; } = string.Empty;
     public string DropStop { get; set; } = string.Empty;
+    public string AttendanceState { get; set; } = string.Empty;
 }

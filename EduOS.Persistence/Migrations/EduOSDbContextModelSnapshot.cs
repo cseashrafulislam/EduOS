@@ -18964,6 +18964,35 @@ namespace EduOS.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("EduOS.Core.Entities.Transport.TransportTripAttendanceEvent", b =>
+                {
+                    b.Property<long>("Id").ValueGeneratedOnAdd().HasColumnType("bigint");
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
+                    b.Property<Guid>("ClientRequestId").HasColumnType("uniqueidentifier");
+                    b.Property<DateTime>("CreatedAt").HasColumnType("datetime2");
+                    b.Property<long?>("CreatedBy").HasColumnType("bigint");
+                    b.Property<DateTime?>("DeletedAt").HasColumnType("datetime2");
+                    b.Property<long?>("DeletedBy").HasColumnType("bigint");
+                    b.Property<string>("EventType").IsRequired().HasMaxLength(12).HasColumnType("nvarchar(12)");
+                    b.Property<bool>("IsDeleted").HasColumnType("bit");
+                    b.Property<DateTime>("OccurredAt").HasColumnType("datetime2");
+                    b.Property<byte[]>("RowVersion").IsConcurrencyToken().IsRequired().ValueGeneratedOnAddOrUpdate().HasColumnType("rowversion");
+                    b.Property<int>("Sequence").HasColumnType("int");
+                    b.Property<long>("TenantId").HasColumnType("bigint");
+                    b.Property<long>("TransportTripRiderId").HasColumnType("bigint");
+                    b.Property<DateTime?>("UpdatedAt").HasColumnType("datetime2");
+                    b.Property<long?>("UpdatedBy").HasColumnType("bigint");
+                    b.HasKey("Id");
+                    b.HasAlternateKey("TenantId", "Id");
+                    b.HasIndex("TenantId", "ClientRequestId").IsUnique();
+                    b.HasIndex("TenantId", "TransportTripRiderId", "Sequence").IsUnique();
+                    b.ToTable("TransportTripAttendanceEvents", t =>
+                        {
+                            t.HasCheckConstraint("CK_TransportTripAttendanceEvents_Type", "[EventType] IN ('Boarded','Dropped','NoShow')");
+                            t.HasCheckConstraint("CK_TransportTripAttendanceEvents_Sequence", "([Sequence] = 1 AND [EventType] IN ('Boarded','NoShow')) OR ([Sequence] = 2 AND [EventType] = 'Dropped')");
+                        });
+                });
+
             modelBuilder.Entity("EduOS.Core.Entities.Transport.TransportTripRider", b =>
                 {
                     b.Property<DateTime>("CreatedAt").HasColumnType("datetime2");
@@ -24856,6 +24885,16 @@ namespace EduOS.Persistence.Migrations
                     b.HasOne("EduOS.Core.Entities.Transport.TransportDriver", null).WithMany()
                         .HasForeignKey("TenantId", "TransportDriverId").HasPrincipalKey("TenantId", "Id")
                         .OnDelete(DeleteBehavior.Restrict);
+                    b.Navigation("Tenant");
+                });
+
+            modelBuilder.Entity("EduOS.Core.Entities.Transport.TransportTripAttendanceEvent", b =>
+                {
+                    b.HasOne("EduOS.Core.Entities.SaaS.Tenant", "Tenant").WithMany()
+                        .HasForeignKey("TenantId").OnDelete(DeleteBehavior.Restrict).IsRequired();
+                    b.HasOne("EduOS.Core.Entities.Transport.TransportTripRider", null).WithMany()
+                        .HasForeignKey("TenantId", "TransportTripRiderId").HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict).IsRequired();
                     b.Navigation("Tenant");
                 });
 

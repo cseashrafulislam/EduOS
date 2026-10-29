@@ -36,6 +36,23 @@
         <span id="transportFamilyPage" class="small text-muted"></span>
         <button class="btn btn-outline-secondary btn-sm" id="transportFamilyNext" type="button" disabled>Next</button>
     </div>
+    <section class="mt-4" aria-labelledby="familyAttendanceTitle">
+        <h2 id="familyAttendanceTitle" class="h5">Recorded trip attendance / যাত্রার উপস্থিতি</h2>
+        <form id="familyAttendanceFilters" class="row g-2 mb-2">
+            <div class="col-sm-4 col-md-3"><label class="form-label" for="familyAttendanceDate">Trip date / তারিখ</label><input id="familyAttendanceDate" class="form-control" type="date" required /></div>
+            <div class="col-auto align-self-end"><button class="btn btn-outline-primary" type="submit">View / দেখুন</button></div>
+        </form>
+        <p id="familyAttendanceStatus" class="small text-muted" role="status" aria-live="polite"></p>
+        <div class="table-responsive"><table class="table table-sm table-hover align-middle">
+            <thead><tr><th>Student</th><th>Route</th><th>Date</th><th>Direction</th><th>Recorded state</th><th>Recorded at (UTC)</th></tr></thead>
+            <tbody id="familyAttendanceRows"></tbody>
+        </table></div>
+        <div class="d-flex gap-2 align-items-center">
+            <button id="familyAttendancePrev" class="btn btn-outline-secondary btn-sm" type="button">Previous</button>
+            <span id="familyAttendancePage" class="small text-muted"></span>
+            <button id="familyAttendanceNext" class="btn btn-outline-secondary btn-sm" type="button">Next</button>
+        </div>
+    </section>
 </section>
 @section Scripts {
     <script src="~/js/transport-operations/family-schedule.js" asp-append-version="true"></script>

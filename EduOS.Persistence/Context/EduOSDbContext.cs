@@ -382,6 +382,7 @@ public class EduOSDbContext :
     public DbSet<TransportVehicleCase> TransportVehicleCases => Set<TransportVehicleCase>();
     public DbSet<TransportTrip> TransportTrips => Set<TransportTrip>();
     public DbSet<TransportTripRider> TransportTripRiders => Set<TransportTripRider>();
+    public DbSet<TransportTripAttendanceEvent> TransportTripAttendanceEvents => Set<TransportTripAttendanceEvent>();
 
     // Hostel
     public DbSet<Hostel> Hostels => Set<Hostel>();
@@ -2008,6 +2009,10 @@ public class EduOSDbContext :
         ValidateTenantBoundaries(entries);
         ValidateIdentityTenantBoundary(identityEntries);
         ValidateImmutableHistory(entries);
+        // Attendance events are append-only evidence; never rewrite or soft-delete recorded events.
+        if (entries.Any(e => e.Entity is TransportTripAttendanceEvent &&
+                e.State is EntityState.Modified or EntityState.Deleted))
+            throw new InvalidOperationException("Recorded transport attendance cannot be modified or deleted.");
         // A dispatched rider manifest is a historical snapshot, not an editable reservation.
         // The only legal trip mutation is the Planned -> Dispatched transition.
         if (entries.Any(e => e.Entity is TransportTripRider &&

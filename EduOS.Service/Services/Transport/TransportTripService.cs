@@ -13,7 +13,7 @@ using System.Text;
 namespace EduOS.Service.Services.Transport;
 
 /// <summary>Real persisted service slots and frozen dispatch-time rider snapshots; not live tracking.</summary>
-public sealed class TransportTripService : ITransportTripService
+public sealed partial class TransportTripService : ITransportTripService
 {
     private readonly EduOSDbContext _db;
     private readonly ICurrentUserService _user;
@@ -313,7 +313,10 @@ public sealed class TransportTripService : ITransportTripService
             .Select(x => new TransportTripRiderDto
             {
                 StudentCode = x.StudentCodeSnapshot, PickupStop = x.PickupStopSnapshot,
-                DropStop = x.DropStopSnapshot
+                DropStop = x.DropStopSnapshot,
+                AttendanceState = _db.TransportTripAttendanceEvents.AsNoTracking()
+                    .Where(e => e.TenantId == tenant && !e.IsDeleted && e.TransportTripRiderId == x.Id)
+                    .OrderByDescending(e => e.Sequence).Select(e => e.EventType).FirstOrDefault() ?? "Awaiting"
             }).ToListAsync(ct);
         return ApiResponse<PagedResult<TransportTripRiderDto>>.SuccessResponse(
             new PagedResult<TransportTripRiderDto>
@@ -338,10 +341,10 @@ public sealed class TransportTripService : ITransportTripService
         if (rows.Count != first.Data.TotalCount ||
             rows.Select(x => x.StudentCode).Distinct().Count() != rows.Count)
             return ApiResponse<string>.ErrorResponse("Manifest integrity conflict.", 409);
-        var csv = new StringBuilder("\uFEFFStudent code,Pickup stop,Drop stop\r\n");
+        var csv = new StringBuilder("\uFEFFStudent code,Pickup stop,Drop stop,Attendance\r\n");
         foreach (var row in rows)
             csv.Append(Escape(row.StudentCode)).Append(',').Append(Escape(row.PickupStop))
-                .Append(',').Append(Escape(row.DropStop)).Append("\r\n");
+                .Append(',').Append(Escape(row.DropStop)).Append(',').Append(Escape(row.AttendanceState)).Append("\r\n");
         return ApiResponse<string>.SuccessResponse(csv.ToString());
     }
 

@@ -81,4 +81,47 @@ exportButton.addEventListener('click',async()=>{
  finally { exportButton.disabled = loadedDate !== date.value; }
 });
 load();
+
+const attendanceDate = el('familyAttendanceDate'), attendanceRows = el('familyAttendanceRows');
+const attendanceStatus = el('familyAttendanceStatus');
+const attendancePrev = el('familyAttendancePrev'), attendanceNext = el('familyAttendanceNext');
+let attendancePage = 1, attendancePages = 1, attendanceSerial = 0;
+const earliest = new Date(now.getFullYear(),now.getMonth(),now.getDate()-30);
+attendanceDate.min = localDate(earliest); attendanceDate.max = localDate(now); attendanceDate.value = attendanceDate.max;
+async function loadAttendance() {
+ const requestDate = attendanceDate.value, token = ++attendanceSerial;
+ attendanceRows.replaceChildren(); attendanceStatus.textContent = 'Loading / লোড হচ্ছে…';
+ if (!requestDate || requestDate < attendanceDate.min || requestDate > attendanceDate.max) {
+  attendanceStatus.textContent = 'Choose a date in the last 30 days / গত ৩০ দিনের তারিখ দিন'; return;
+ }
+ try {
+  const query = new URLSearchParams({date:requestDate,page:String(attendancePage),pageSize:'20'});
+  const response = await fetch('/api/transport/family-attendance?'+query,{
+   credentials:'same-origin',cache:'no-store',headers:{Accept:'application/json'}
+  });
+  const body = await response.json().catch(()=>null);
+  if (!response.ok || !body?.success || !body.data) throw Error(body?.message||'Attendance unavailable.');
+  if (token !== attendanceSerial || requestDate !== attendanceDate.value) return;
+  for (const item of body.data.items || []) {
+   const tr = document.createElement('tr');
+   [item.studentCode,item.routeName,item.operatingDate,item.direction,
+    item.attendanceState,item.lastEventAt ? new Date(item.lastEventAt+'Z').toLocaleString() : '—'
+   ].forEach(x=>tr.append(cell(x)));
+   attendanceRows.append(tr);
+  }
+  if (!body.data.items?.length) {
+   const tr=document.createElement('tr'),td=cell('No dispatched trip / কোনো ডিসপ্যাচকৃত ট্রিপ নেই');
+   td.colSpan=6;tr.append(td);attendanceRows.append(tr);
+  }
+  attendancePages=Math.max(1,Math.ceil((Number(body.data.totalCount)||0)/20));
+  el('familyAttendancePage').textContent=attendancePage+' / '+attendancePages;
+  attendancePrev.disabled=attendancePage<=1;attendanceNext.disabled=attendancePage>=attendancePages;
+  attendanceStatus.textContent='Recorded attendance only; not live tracking / রেকর্ডকৃত উপস্থিতি';
+ } catch(e) { if(token===attendanceSerial) attendanceStatus.textContent=e.message; }
+}
+el('familyAttendanceFilters').addEventListener('submit',e=>{e.preventDefault();attendancePage=1;loadAttendance();});
+attendanceDate.addEventListener('change',()=>{attendanceSerial++;attendancePage=1;attendanceRows.replaceChildren();});
+attendancePrev.addEventListener('click',()=>{if(attendancePage>1){attendancePage--;loadAttendance();}});
+attendanceNext.addEventListener('click',()=>{if(attendancePage<attendancePages){attendancePage++;loadAttendance();}});
+loadAttendance();
 })();

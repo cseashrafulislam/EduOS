@@ -73,7 +73,30 @@
             el('tripRiderPage').textContent = riderPage + ' / ' + riderPages;
             el('tripRiderPrev').disabled = riderPage <= 1; el('tripRiderNext').disabled = riderPage >= riderPages;
             const body = el('tripManifestRows'); body.replaceChildren();
-            for (const row of data.items || []) { const tr = document.createElement('tr'); [row.studentCode,row.pickupStop,row.dropStop].forEach(x=>tr.append(cell(x))); body.append(tr); }
+            for (const row of data.items || []) {
+                const tr = document.createElement('tr');
+                [row.studentCode,row.pickupStop,row.dropStop,row.attendanceState].forEach(x=>tr.append(cell(x)));
+                const actions = document.createElement('td');
+                const next = row.attendanceState === 'Awaiting' ? ['Boarded','NoShow'] :
+                    row.attendanceState === 'Boarded' ? ['Dropped'] : [];
+                for (const eventType of next) {
+                    const btn = document.createElement('button');
+                    btn.type = 'button'; btn.className = 'btn btn-outline-primary btn-sm me-1';
+                    btn.textContent = ({Boarded:'Board / উঠেছে',Dropped:'Drop / নেমেছে',NoShow:'No-show / অনুপস্থিত'})[eventType];
+                    btn.addEventListener('click', async () => {
+                        if (!confirm('Record '+eventType+' for '+row.studentCode+'?')) return;
+                        btn.disabled = true;
+                        try {
+                            await api('/api/transport/trips/'+encodeURIComponent(trip)+'/attendance','POST',
+                                {clientRequestId:crypto.randomUUID(),studentCode:row.studentCode,eventType});
+                            status('Attendance saved / উপস্থিতি সংরক্ষিত');
+                            await loadRiders();
+                        } catch (e) { status(e.message,true); } finally { btn.disabled = false; }
+                    });
+                    actions.append(btn);
+                }
+                tr.append(actions); body.append(tr);
+            }
         } catch (e) { status(e.message, true); }
     }
     el('tripPlanForm').addEventListener('submit', async e => {
