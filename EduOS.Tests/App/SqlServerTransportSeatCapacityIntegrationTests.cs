@@ -33,7 +33,7 @@ namespace EduOS.Tests.App;
 /// survive two independent DbContexts racing for the last physical seat.
 /// </summary>
 [Collection("SqlServerIntegration")]
-public sealed class SqlServerTransportSeatCapacityIntegrationTests
+public sealed partial class SqlServerTransportSeatCapacityIntegrationTests
 {
 
     [Fact]
