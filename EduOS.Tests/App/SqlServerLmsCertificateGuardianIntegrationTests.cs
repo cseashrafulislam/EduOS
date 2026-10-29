@@ -121,6 +121,58 @@ public sealed partial class SqlServerTransportSeatCapacityIntegrationTests
             var otherTenant = CertificateSharingService(verifyDb, "Guardian", other.TenantId, fixture.UserId);
             Assert.Equal(404, (await otherTenant.GetSharedCertificateAsync(certificateReference)).StatusCode);
             Assert.Equal(404, (await parent.GetSharedCertificateAsync(Guid.NewGuid())).StatusCode);
+            var parentRole = CertificateSharingService(verifyDb, "Parent", fixture.TenantId, fixture.UserId);
+            Assert.True((await parentRole.GetSharedCertificateAsync(certificateReference)).Success);
+            Assert.Single((await parentRole.GetSharedCertificatesAsync(1, 20)).Data!.Items);
+            var unrelatedRole = CertificateSharingService(verifyDb, "Teacher", fixture.TenantId, fixture.UserId);
+            Assert.Equal(404, (await unrelatedRole.GetSharedCertificateAsync(certificateReference)).StatusCode);
+        }
+        // Explicit learner consent, not just a guardian relationship, controls
+        // historical certificate readback. A stale rowversion must not revoke it.
+        await using (var db = ScopedContext(fixture.Options, fixture.TenantId, fixture.UserId))
+        {
+            var student = CertificateSharingService(db, "Student", fixture.TenantId, fixture.UserId);
+            var active = await student.GetActiveGrantsAsync(certificateReference);
+            Assert.True(active.Success, active.Message);
+            var grant = Assert.Single(active.Data!);
+            var stale = await student.RevokeAsync(grant.Reference,
+                new RevokeLmsCertificateGuardianRequestDto
+                { RowVersion = Convert.ToBase64String(new byte[] { 1, 2, 3 }) });
+            Assert.Equal(409, stale.StatusCode);
+            var revoked = await student.RevokeAsync(grant.Reference,
+                new RevokeLmsCertificateGuardianRequestDto { RowVersion = grant.RowVersion });
+            Assert.True(revoked.Success, revoked.Message);
+            var replay = await student.RevokeAsync(grant.Reference,
+                new RevokeLmsCertificateGuardianRequestDto { RowVersion = grant.RowVersion });
+            Assert.True(replay.Success, replay.Message);
+            Assert.Empty((await student.GetActiveGrantsAsync(certificateReference)).Data!);
+        }
+        await using (var db = ScopedContext(fixture.Options, fixture.TenantId, fixture.UserId))
+        {
+            var guardian = CertificateSharingService(db, "Guardian", fixture.TenantId, fixture.UserId);
+            var parent = CertificateSharingService(db, "Parent", fixture.TenantId, fixture.UserId);
+            Assert.Equal(404, (await guardian.GetSharedCertificateAsync(certificateReference)).StatusCode);
+            Assert.Equal(404, (await parent.GetSharedCertificateAsync(certificateReference)).StatusCode);
+            Assert.Empty((await parent.GetSharedCertificatesAsync(1, 20)).Data!.Items);
+        }
+        // Regrant with a NEW idempotency key, then revoke the relationship:
+        // neither a prior consent revocation nor a stale guardian link may leak.
+        await using (var db = ScopedContext(fixture.Options, fixture.TenantId, fixture.UserId))
+        {
+            var student = CertificateSharingService(db, "Student", fixture.TenantId, fixture.UserId);
+            var again = await student.GrantAsync(new GrantLmsCertificateGuardianRequestDto
+            {
+                CertificateReference = certificateReference, GuardianLinkId = guardianLinkId,
+                ClientRequestId = Guid.NewGuid()
+            });
+            Assert.True(again.Success, again.Message);
+            Assert.Equal(2, await db.LmsCertificateGuardianGrants.CountAsync(x =>
+                x.TenantId == fixture.TenantId && x.CertificateId > 0));
+        }
+        await using (var db = ScopedContext(fixture.Options, fixture.TenantId, fixture.UserId))
+        {
+            var parent = CertificateSharingService(db, "Parent", fixture.TenantId, fixture.UserId);
+            Assert.True((await parent.GetSharedCertificateAsync(certificateReference)).Success);
         }
         await using (var db = ScopedContext(fixture.Options, fixture.TenantId, fixture.UserId))
         {
