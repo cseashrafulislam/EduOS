@@ -14,6 +14,7 @@ namespace EduOS.App.Controllers.Api;
 [RequireModule("TRANSPORT")]
 [AutoValidateAntiforgeryToken]
 [EnableRateLimiting("ApiPolicy")]
+[ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
 public sealed class TransportController : ControllerBase
 {
     private readonly ITransportService _service;

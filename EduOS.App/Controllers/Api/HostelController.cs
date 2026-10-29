@@ -13,6 +13,7 @@ namespace EduOS.App.Controllers.Api;
 [RequireModule("HOSTEL")]
 [AutoValidateAntiforgeryToken]
 [EnableRateLimiting("ApiPolicy")]
+[ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
 public sealed class HostelController : ControllerBase
 {
     private readonly IHostelService _service;
