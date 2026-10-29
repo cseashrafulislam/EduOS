@@ -11,4 +11,6 @@ public sealed class TransportTripAttendanceEvent : BaseTenantEntity
     public int Sequence { get; set; }
     [Required, MaxLength(12)] public string EventType { get; set; } = string.Empty;
     public DateTime OccurredAt { get; set; }
+    public long? CorrectsEventId { get; set; }
+    [MaxLength(500)] public string? CorrectionReason { get; set; }
 }

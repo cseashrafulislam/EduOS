@@ -1,7 +1,8 @@
 @{
     ViewData["Title"] = "Transport trips";
 }
-<section class="container-fluid py-3" id="transportTrips" aria-labelledby="transportTripsTitle">
+<section class="container-fluid py-3" id="transportTrips" aria-labelledby="transportTripsTitle"
+    data-can-correct="@(User.IsInRole("TenantAdmin") || User.IsInRole("Principal") ? "true" : "false")">
     <header class="d-flex align-items-center gap-2 mb-3">
         <h1 class="h4 mb-0" id="transportTripsTitle">Trip dispatch / ট্রিপ পরিচালনা</h1>
         <details class="ms-auto">
@@ -34,6 +35,19 @@
         <div class="table-responsive"><table class="table table-sm"><thead><tr><th>Student code</th><th>Pickup</th><th>Drop</th><th>Attendance / উপস্থিতি</th><th>Action / কার্যক্রম</th></tr></thead><tbody id="tripManifestRows"></tbody></table></div>
         <div class="d-flex gap-2 align-items-center"><button id="tripRiderPrev" type="button" class="btn btn-outline-secondary btn-sm">Previous</button><span id="tripRiderPage" class="small text-muted"></span><button id="tripRiderNext" type="button" class="btn btn-outline-secondary btn-sm">Next</button></div>
     </section>
+    <dialog id="tripCorrectionDialog" class="border rounded shadow p-3" aria-labelledby="tripCorrectionTitle" style="width:min(95vw,30rem)">
+        <form id="tripCorrectionForm">
+            <h2 id="tripCorrectionTitle" class="h5">Correct attendance / উপস্থিতি সংশোধন</h2>
+            <p id="tripCorrectionStudent" class="small fw-semibold"></p>
+            <p id="tripCorrectionState" class="small text-muted"></p>
+            <label for="tripCorrectionReason" class="form-label">Reason / কারণ (15–500)</label>
+            <textarea id="tripCorrectionReason" class="form-control" required minlength="15" maxlength="500" rows="3"></textarea>
+            <div class="d-flex justify-content-end gap-2 mt-3">
+                <button id="tripCorrectionCancel" class="btn btn-outline-secondary" type="button">Cancel / বাতিল</button>
+                <button class="btn btn-primary" type="submit">Save correction / সংরক্ষণ</button>
+            </div>
+        </form>
+    </dialog>
 </section>
 @section Scripts {
     <script src="~/js/transport-operations/trips.js" asp-append-version="true"></script>

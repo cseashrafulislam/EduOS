@@ -19075,6 +19075,8 @@ namespace EduOS.Persistence.Migrations
                     b.Property<long>("Id").ValueGeneratedOnAdd().HasColumnType("bigint");
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
                     b.Property<Guid>("ClientRequestId").HasColumnType("uniqueidentifier");
+                    b.Property<long?>("CorrectsEventId").HasColumnType("bigint");
+                    b.Property<string>("CorrectionReason").HasMaxLength(500).HasColumnType("nvarchar(500)");
                     b.Property<DateTime>("CreatedAt").HasColumnType("datetime2");
                     b.Property<long?>("CreatedBy").HasColumnType("bigint");
                     b.Property<DateTime?>("DeletedAt").HasColumnType("datetime2");
@@ -19091,11 +19093,12 @@ namespace EduOS.Persistence.Migrations
                     b.HasKey("Id");
                     b.HasAlternateKey("TenantId", "Id");
                     b.HasIndex("TenantId", "ClientRequestId").IsUnique();
+                    b.HasIndex("TenantId", "CorrectsEventId").HasFilter("[CorrectsEventId] IS NOT NULL");
                     b.HasIndex("TenantId", "TransportTripRiderId", "Sequence").IsUnique();
                     b.ToTable("TransportTripAttendanceEvents", t =>
                         {
                             t.HasCheckConstraint("CK_TransportTripAttendanceEvents_Type", "[EventType] IN ('Boarded','Dropped','NoShow')");
-                            t.HasCheckConstraint("CK_TransportTripAttendanceEvents_Sequence", "([Sequence] = 1 AND [EventType] IN ('Boarded','NoShow')) OR ([Sequence] = 2 AND [EventType] = 'Dropped')");
+                            t.HasCheckConstraint("CK_TransportTripAttendanceEvents_Sequence", "([Sequence] = 1 AND [EventType] IN ('Boarded','NoShow') AND [CorrectsEventId] IS NULL AND [CorrectionReason] IS NULL) OR ([Sequence] = 2 AND [EventType] = 'Dropped' AND [CorrectsEventId] IS NULL AND [CorrectionReason] IS NULL) OR ([Sequence] BETWEEN 3 AND 12 AND [EventType] IN ('Dropped','NoShow') AND [CorrectsEventId] IS NOT NULL AND [CorrectionReason] IS NOT NULL AND LEN(LTRIM(RTRIM([CorrectionReason]))) BETWEEN 15 AND 500)");
                         });
                 });
 
@@ -25029,6 +25032,9 @@ namespace EduOS.Persistence.Migrations
                 {
                     b.HasOne("EduOS.Core.Entities.SaaS.Tenant", "Tenant").WithMany()
                         .HasForeignKey("TenantId").OnDelete(DeleteBehavior.Restrict).IsRequired();
+                    b.HasOne("EduOS.Core.Entities.Transport.TransportTripAttendanceEvent", null).WithMany()
+                        .HasForeignKey("TenantId", "CorrectsEventId").HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
                     b.HasOne("EduOS.Core.Entities.Transport.TransportTripRider", null).WithMany()
                         .HasForeignKey("TenantId", "TransportTripRiderId").HasPrincipalKey("TenantId", "Id")
                         .OnDelete(DeleteBehavior.Restrict).IsRequired();

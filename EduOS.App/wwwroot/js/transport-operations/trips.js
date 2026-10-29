@@ -4,7 +4,9 @@
     if (!root) return;
     const el = id => document.getElementById(id);
     const today = () => { const d = new Date(); return [d.getFullYear(), String(d.getMonth()+1).padStart(2,'0'), String(d.getDate()).padStart(2,'0')].join('-'); };
-    let planKey = crypto.randomUUID(), page = 1, pages = 1, trip = null, riderPage = 1, riderPages = 1;
+    let planKey = crypto.randomUUID(), page = 1, pages = 1, trip = null, tripState = null, riderPage = 1, riderPages = 1;
+    let correction = null;
+    const canCorrect = root.dataset.canCorrect === 'true';
     el('tripDate').value = today();
     const status = (message, error = false) => { el('tripStatus').textContent = message; el('tripStatus').className = 'small ' + (error ? 'text-danger' : 'text-muted'); };
     async function api(url, method = 'GET', data) {
@@ -56,7 +58,7 @@
                                 {clientRequestId:crypto.randomUUID(),rowVersion:item.rowVersion});
                             status('Trip dispatched / ট্রিপ ডিসপ্যাচ হয়েছে');
                             await load();
-                        } else { trip = item.reference; riderPage = 1; await loadRiders(); }
+                        } else { trip = item.reference; tripState = item.state; riderPage = 1; await loadRiders(); }
                     } catch (e) { status(e.message, true); } finally { button.disabled = false; }
                 });
                 actions.append(button);
@@ -72,7 +74,7 @@
                                 { clientRequestId: crypto.randomUUID(), rowVersion: item.rowVersion });
                             status('Trip completed / ট্রিপ সম্পন্ন');
                             await load();
-                            if (trip === item.reference) await loadRiders();
+                            if (trip === item.reference) { tripState = 'Completed'; await loadRiders(); }
                         } catch (e) { status(e.message, true); } finally { finish.disabled = false; }
                     });
                     actions.append(finish);
@@ -113,10 +115,53 @@
                     });
                     actions.append(btn);
                 }
+                if (tripState === 'Completed') {
+                    const history = document.createElement('button');
+                    history.type = 'button'; history.className = 'btn btn-outline-secondary btn-sm me-1';
+                    history.textContent = 'History / ইতিহাস';
+                    history.addEventListener('click', async () => {
+                        try {
+                            const events = await api('/api/transport/trips/'+encodeURIComponent(trip)+'/attendance/history?'+
+                                new URLSearchParams({studentCode:row.studentCode}));
+                            status((events || []).map(x => x.eventType + ' · ' + new Date(x.occurredAt).toLocaleString() +
+                                (x.isCorrection ? ' · corrected: ' + x.correctionReason : '')).join(' | ') || 'No attendance events.');
+                        } catch (e) { status(e.message,true); }
+                    });
+                    actions.append(history);
+                    if (canCorrect && ['Dropped','NoShow'].includes(row.attendanceState)) {
+                        const edit = document.createElement('button');
+                        edit.type = 'button'; edit.className = 'btn btn-outline-warning btn-sm';
+                        edit.textContent = 'Correct / সংশোধন';
+                        edit.addEventListener('click', () => {
+                            correction = {studentCode:row.studentCode,expectedState:row.attendanceState,
+                                correctedState:row.attendanceState === 'Dropped' ? 'NoShow' : 'Dropped'};
+                            el('tripCorrectionStudent').textContent = row.studentCode;
+                            el('tripCorrectionState').textContent = row.attendanceState + ' → ' + correction.correctedState;
+                            el('tripCorrectionReason').value = '';
+                            el('tripCorrectionDialog').showModal();
+                            el('tripCorrectionReason').focus();
+                        });
+                        actions.append(edit);
+                    }
+                }
                 tr.append(actions); body.append(tr);
             }
         } catch (e) { status(e.message, true); }
     }
+    el('tripCorrectionCancel').addEventListener('click', () => el('tripCorrectionDialog').close());
+    el('tripCorrectionForm').addEventListener('submit', async e => {
+        e.preventDefault();
+        if (!correction || !e.currentTarget.reportValidity()) return;
+        const button = e.currentTarget.querySelector('button[type="submit"]');
+        button.disabled = true;
+        try {
+            await api('/api/transport/trips/'+encodeURIComponent(trip)+'/attendance/corrections', 'POST', {
+                ...correction, clientRequestId:crypto.randomUUID(), reason:el('tripCorrectionReason').value
+            });
+            el('tripCorrectionDialog').close(); correction = null;
+            status('Correction recorded / সংশোধন সংরক্ষিত'); await loadRiders();
+        } catch (err) { status(err.message,true); } finally { button.disabled = false; }
+    });
     el('tripPlanForm').addEventListener('submit', async e => {
         e.preventDefault(); if (!e.currentTarget.reportValidity()) return;
         const button = el('tripPlan'); button.disabled = true;
@@ -127,7 +172,7 @@
         } catch (err) { status(err.message, true); } finally { button.disabled = false; }
     });
     el('tripReload').addEventListener('click', () => { page=1; load(); });
-    el('tripDate').addEventListener('change', () => { page=1; trip=null; el('tripManifestPanel').hidden=true; load(); });
+    el('tripDate').addEventListener('change', () => { page=1; trip=null; el('tripManifestPanel').hidden=true; tripState=null; load(); });
     el('tripPrev').addEventListener('click',()=>{if(page>1){page--;load();}});
     el('tripNext').addEventListener('click',()=>{if(page<pages){page++;load();}});
     el('tripRiderPrev').addEventListener('click',()=>{if(riderPage>1){riderPage--;loadRiders();}});

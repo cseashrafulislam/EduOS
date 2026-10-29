@@ -58,6 +58,22 @@ public sealed class TransportTripsController : ControllerBase
         return StatusCode(result.StatusCode, result);
     }
 
+    [HttpPost("{reference:guid}/attendance/corrections")]
+    public async Task<IActionResult> CorrectAttendance(Guid reference,
+        [FromBody] CorrectTransportTripAttendanceRequestDto request, CancellationToken ct)
+    {
+        var result = await _service.CorrectAttendanceAsync(reference, request, ct);
+        return StatusCode(result.StatusCode, result);
+    }
+
+    [HttpGet("{reference:guid}/attendance/history")]
+    public async Task<IActionResult> AttendanceHistory(Guid reference,
+        [FromQuery] string studentCode, CancellationToken ct = default)
+    {
+        var result = await _service.GetAttendanceHistoryAsync(reference, studentCode, ct);
+        return StatusCode(result.StatusCode, result);
+    }
+
     [HttpGet("{reference:guid}/riders")]
     public async Task<IActionResult> Riders(Guid reference,
         [FromQuery] int page = 1, [FromQuery] int pageSize = 25, CancellationToken ct = default)

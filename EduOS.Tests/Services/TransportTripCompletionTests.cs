@@ -78,6 +78,38 @@ public sealed class TransportTripCompletionTests
         type.FindProperty(nameof(TransportTrip.RowVersion))!.IsConcurrencyToken.Should().BeTrue();
     }
 
+    [Fact]
+    public async Task Completed_trip_correction_is_append_only_idempotent_and_scope_safe()
+    {
+        await using var db = Context();
+        var trip = await SeedAsync(db);
+        var admin = Service(db, 101, "TenantAdmin");
+        (await admin.RecordAttendanceAsync(trip.PublicId, new RecordTransportTripAttendanceRequestDto
+        { ClientRequestId = Guid.NewGuid(), StudentCode = "S-101", EventType = "NoShow" })).Success.Should().BeTrue();
+        (await admin.CompleteAsync(trip.PublicId, new CompleteTransportTripRequestDto
+        { ClientRequestId = Guid.NewGuid(), RowVersion = Convert.ToBase64String(trip.RowVersion) })).Success.Should().BeTrue();
+        var command = new CorrectTransportTripAttendanceRequestDto
+        {
+            ClientRequestId = Guid.NewGuid(), StudentCode = "S-101",
+            ExpectedState = "NoShow", CorrectedState = "Dropped",
+            Reason = "Verified with signed vehicle attendance register."
+        };
+        (await admin.CorrectAttendanceAsync(trip.PublicId, command)).Success.Should().BeTrue();
+        (await admin.CorrectAttendanceAsync(trip.PublicId, command)).Success.Should().BeTrue();
+        (await admin.CorrectAttendanceAsync(trip.PublicId, new CorrectTransportTripAttendanceRequestDto
+        { ClientRequestId = Guid.NewGuid(), StudentCode = "S-101", ExpectedState = "NoShow",
+          CorrectedState = "Dropped", Reason = command.Reason })).StatusCode.Should().Be(409);
+        (await Service(db, 101, "TransportManager").CorrectAttendanceAsync(trip.PublicId, command)).StatusCode.Should().Be(403);
+        (await Service(db, 202, "TenantAdmin").CorrectAttendanceAsync(trip.PublicId, command)).StatusCode.Should().Be(404);
+        (await admin.GetRidersAsync(trip.PublicId, 1, 25)).Data!.Items.Single().AttendanceState.Should().Be("Dropped");
+        var history = await admin.GetAttendanceHistoryAsync(trip.PublicId, "S-101");
+        history.Data!.Count.Should().Be(2);
+        history.Data.Last().IsCorrection.Should().BeTrue();
+        var ev = await db.TransportTripAttendanceEvents.OrderByDescending(x => x.Sequence).FirstAsync();
+        ev.EventType = "NoShow";
+        await Assert.ThrowsAsync<InvalidOperationException>(() => db.SaveChangesAsync());
+    }
+
     private static TransportTripService Service(EduOSDbContext db, long tenant, string role) =>
         new(db, new User(tenant, role), TimeProvider.System, NullLogger<TransportTripService>.Instance);
 
