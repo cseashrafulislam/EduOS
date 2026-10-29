@@ -98,17 +98,8 @@ public sealed partial class FeeBillingService
                             NetAmount = prior.TotalAmount, Existing = true
                         }, "Existing plan-month invoice returned.");
                 }
-                var awards = await (from award in db.StudentDiscounts.AsNoTracking()
-                    join rule in db.DiscountRules.AsNoTracking()
-                        on new { award.TenantId, Id = award.DiscountRuleId }
-                        equals new { rule.TenantId, rule.Id }
-                    where award.TenantId == tenant && award.StudentEnrollmentId == plan.StudentEnrollmentId &&
-                        award.IsActive && !award.IsDeleted && rule.IsActive && !rule.IsDeleted &&
-                        award.EffectiveFrom <= request.MonthStart &&
-                        (!award.EffectiveTo.HasValue || award.EffectiveTo >= request.MonthStart) &&
-                        (!rule.EffectiveFrom.HasValue || rule.EffectiveFrom <= request.MonthStart) &&
-                        (!rule.EffectiveTo.HasValue || rule.EffectiveTo >= request.MonthStart)
-                    select rule).ToListAsync(token);
+                var awards = await GetActiveInstallmentDiscountRulesAsync(
+                    db, plan, request.MonthStart, token);
                 var discounts = CalculateLineDiscounts(lines.Select(x =>
                     (HeadId: x.FeeHeadId, Amount: x.GrossAmount)).ToArray(), awards);
                 var totalDiscount = discounts.Sum();

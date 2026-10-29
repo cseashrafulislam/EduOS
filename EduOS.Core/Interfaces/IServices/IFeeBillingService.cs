@@ -11,6 +11,7 @@ public interface IFeeBillingService
     Task<ApiResponse<StudentFeeInstallmentBillingAuditDto>> GetInstallmentBillingAuditAsync(Guid reference, CancellationToken cancellationToken = default);
     Task<ApiResponse<StudentFeeInstallmentPlanDto>> CreateInstallmentPlanAsync(CreateStudentFeeInstallmentPlanDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<StudentFeeInstallmentPlanDto>> ReplaceInstallmentPlanAsync(Guid reference, ReplaceStudentFeeInstallmentPlanDto request, CancellationToken cancellationToken = default);
+    Task<ApiResponse<StudentFeeInstallmentMonthPreviewDto>> PreviewInstallmentMonthAsync(Guid reference, IssueStudentFeeInstallmentMonthDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<StudentFeeInstallmentMonthInvoiceDto>> IssueInstallmentMonthAsync(Guid reference, IssueStudentFeeInstallmentMonthDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<StudentFeeInstallmentPlanDto>> TransitionInstallmentPlanAsync(Guid reference, int actionCode, StudentFeeInstallmentTransitionDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<FeeDiscountAttributionReviewReportDto>> GetDiscountAttributionReviewAsync(FeeDiscountAttributionReviewQueryDto request, CancellationToken cancellationToken = default);

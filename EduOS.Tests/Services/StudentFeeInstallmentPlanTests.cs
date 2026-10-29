@@ -393,6 +393,74 @@ public sealed class StudentFeeInstallmentPlanTests
         (await checker.GetInstallmentPlansAsync(campusId: 999)).StatusCode.Should().Be(404);
     }
 
+    [Fact]
+    public async Task Approved_month_preview_uses_invoice_discounts_without_writing_or_exposing_foreign_plans()
+    {
+        await using var db = Database();
+        Seed(db);
+        var plan = new StudentFeeInstallmentPlan {
+            TenantId = 41, StudentEnrollmentId = 1, FeeStructureId = 1,
+            CampusId = 1, AcademicYearId = 2,
+            StartMonth = new DateOnly(2026, 2, 1), EndMonth = new DateOnly(2026, 2, 1),
+            GrossAmount = 100m, LineCount = 1, PreparedByUserId = 9,
+            RowVersion = [1, 2, 3, 4]
+        };
+        db.StudentFeeInstallmentPlans.Add(plan);
+        await db.SaveChangesAsync();
+        db.StudentFeeInstallmentPlanLines.Add(new StudentFeeInstallmentPlanLine {
+            TenantId = 41, StudentFeeInstallmentPlanId = plan.Id, FeeHeadId = 1,
+            MonthStart = plan.StartMonth, DueDate = new DateOnly(2026, 2, 28),
+            FeeHeadCodeSnapshot = "TUITION", FeeHeadNameSnapshot = "Tuition",
+            GrossAmount = 100m
+        });
+        db.StudentFeeInstallmentPlanEvents.AddRange(
+            new StudentFeeInstallmentPlanEvent {
+                TenantId = 41, StudentFeeInstallmentPlanId = plan.Id,
+                ActionCode = 2, ActorUserId = 9, ClientRequestId = Guid.NewGuid()
+            },
+            new StudentFeeInstallmentPlanEvent {
+                TenantId = 41, StudentFeeInstallmentPlanId = plan.Id,
+                ActionCode = 3, ActorUserId = 10, ClientRequestId = Guid.NewGuid()
+            });
+        var rule = new DiscountRule {
+            TenantId = 41, FeeHeadId = 1, Name = "Tuition award",
+            IsPercentage = true, Value = 20m, IsActive = true
+        };
+        db.DiscountRules.Add(rule);
+        await db.SaveChangesAsync();
+        db.StudentDiscounts.Add(new StudentDiscount {
+            TenantId = 41, StudentEnrollmentId = 1, DiscountRuleId = rule.Id,
+            EffectiveFrom = plan.StartMonth, ApprovedByUserId = 10, IsActive = true
+        });
+        await db.SaveChangesAsync();
+        var request = new IssueStudentFeeInstallmentMonthDto {
+            ClientRequestId = Guid.NewGuid(), MonthStart = plan.StartMonth,
+            RowVersion = Convert.ToBase64String(plan.RowVersion)
+        };
+        var service = Service(db);
+        var quote = await service.PreviewInstallmentMonthAsync(plan.PublicId, request);
+        quote.StatusCode.Should().Be(200);
+        quote.Data!.GrossAmount.Should().Be(100m);
+        quote.Data.DiscountAmount.Should().Be(20m);
+        quote.Data.NetAmount.Should().Be(80m);
+        quote.Data.DueDate.Should().Be(new DateOnly(2026, 2, 28));
+        quote.Data.Lines.Single().NetAmount.Should().Be(80m);
+        (await db.StudentInvoices.CountAsync()).Should().Be(0);
+        (await db.StudentPayments.CountAsync()).Should().Be(0);
+        (await db.Journals.CountAsync()).Should().Be(0);
+        (await Service(db, "Student").PreviewInstallmentMonthAsync(plan.PublicId, request))
+            .StatusCode.Should().Be(403);
+        (await Service(db).PreviewInstallmentMonthAsync(Guid.NewGuid(), request))
+            .StatusCode.Should().Be(404);
+        var issued = await service.IssueInstallmentMonthAsync(plan.PublicId, request);
+        issued.StatusCode.Should().Be(200);
+        issued.Data!.NetAmount.Should().Be(quote.Data.NetAmount);
+        issued.Data.DiscountAmount.Should().Be(quote.Data.DiscountAmount);
+        (await service.PreviewInstallmentMonthAsync(plan.PublicId, request))
+            .StatusCode.Should().Be(409);
+        (await db.StudentInvoices.CountAsync()).Should().Be(1);
+    }
+
     private static CreateStudentFeeInstallmentPlanDto Request(EduOSDbContext db) => new() {
         ClientRequestId = Guid.NewGuid(),
         StudentReference = db.Students.Single().PublicId,

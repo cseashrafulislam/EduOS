@@ -59,6 +59,15 @@ public sealed class FeeInstallmentPlansController : ControllerBase
         return StatusCode(result.StatusCode, result);
     }
 
+    // Preflight is read-only, but POST keeps the same antiforgery and no-store policy.
+    [HttpPost("{reference:guid}/preview-month")]
+    public async Task<IActionResult> PreviewMonth(Guid reference,
+        [FromBody] IssueStudentFeeInstallmentMonthDto request, CancellationToken ct)
+    {
+        var result = await service.PreviewInstallmentMonthAsync(reference, request, ct);
+        return StatusCode(result.StatusCode, result);
+    }
+
     [HttpPost("{reference:guid}/issue-month")]
     public async Task<IActionResult> IssueMonth(Guid reference,
         [FromBody] IssueStudentFeeInstallmentMonthDto request, CancellationToken ct)

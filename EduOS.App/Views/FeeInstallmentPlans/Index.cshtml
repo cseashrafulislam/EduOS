@@ -79,6 +79,7 @@
                 <button id="feePlanSubmit" class="btn btn-outline-primary btn-sm" type="button">Submit</button>
                 <label for="feePlanIssueMonth" class="visually-hidden">Invoice month</label>
                 <select id="feePlanIssueMonth" class="form-select form-select-sm" hidden aria-label="Approved invoice month"></select>
+                <button id="feePlanPreview" class="btn btn-outline-secondary btn-sm" type="button" hidden>Preview Month</button>
                 <button id="feePlanIssue" class="btn btn-outline-success btn-sm" type="button" hidden>Issue Month Invoice</button>
                 @if (User.IsInRole("TenantAdmin"))
                 {
@@ -116,6 +117,21 @@
         #feePlanApp.audit-print #feePlanNotice { display:none!important; }
         #feePlanApp.audit-print #feePlanAudit { display:block!important; }
     </style>
+    <dialog id="feePlanPreviewDialog" class="border rounded shadow p-3" aria-labelledby="feePlanPreviewHeading">
+        <div class="d-grid gap-2" style="width:min(40rem,85vw)">
+            <h2 id="feePlanPreviewHeading" class="h5">Monthly invoice preview</h2>
+            <div id="feePlanPreviewSummary" class="fw-semibold" aria-live="polite"></div>
+            <div class="table-responsive"><table class="table table-sm mb-0">
+                <thead><tr><th>Fee head</th><th>Due date</th><th class="text-end">Gross</th>
+                    <th class="text-end">Discount</th><th class="text-end">Net</th></tr></thead>
+                <tbody id="feePlanPreviewRows"></tbody>
+            </table></div>
+            <div class="d-flex justify-content-end gap-2">
+                <button id="feePlanPreviewClose" type="button" class="btn btn-outline-secondary">Close</button>
+                <button id="feePlanPreviewIssue" type="button" class="btn btn-primary">Issue this invoice</button>
+            </div>
+        </div>
+    </dialog>
     <dialog id="feePlanReplaceDialog" class="border rounded shadow p-3" aria-labelledby="feePlanReplaceHeading">
         <form id="feePlanReplaceForm" class="d-grid gap-2" style="width:min(28rem,80vw)">
             <h2 id="feePlanReplaceHeading" class="h5">Request agreement replacement</h2>

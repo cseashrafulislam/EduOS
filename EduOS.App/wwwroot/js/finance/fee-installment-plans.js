@@ -26,7 +26,7 @@ function money(value) {
 }
 let options, page = 1, total = 0, rows = [], selected, searchController, searchTimer;
 let draftKey, transitionKey, invoiceKey, replacementKey, filterTimer;
-let registerSequence = 0;
+let registerSequence = 0, previewSequence = 0, previewFor = null;
 const cell = value => { const td = document.createElement('td'); td.textContent = String(value ?? ''); return td; };
 const option = (value, label) => { const o = document.createElement('option'); o.value = String(value); o.textContent = label; return o; };
 function notice(message, error = false) {
@@ -125,6 +125,8 @@ async function register() {
     finally { if (sequence === registerSequence) el('feePlanRefresh').disabled = false; }
 }
 async function detail(reference) {
+    previewSequence++; previewFor = null;
+    if (el('feePlanPreviewDialog').open) el('feePlanPreviewDialog').close();
     billingAudit = null;
     el('feePlanAudit').classList.add('d-none');
     try {
@@ -161,6 +163,7 @@ async function detail(reference) {
         for (const month of months.filter(x => !billed.has(x))) monthSelect.append(option(month, month));
         monthSelect.hidden = selected.stateCode !== 3 || monthSelect.options.length <= 1;
         el('feePlanIssue').hidden = monthSelect.hidden;
+        el('feePlanPreview').hidden = monthSelect.hidden;
         invoiceKey = null;
         if (el('feePlanApprove')) el('feePlanApprove').hidden = !selected.canReviewForApproval;
         if (el('feePlanReplace')) el('feePlanReplace').hidden = selected.stateCode !== 3;
@@ -316,7 +319,50 @@ el('feePlanAuditPrint').addEventListener('click', () => {
 });
 window.addEventListener('afterprint', () => root.classList.remove('audit-print'));
 
-el('feePlanIssueMonth').addEventListener('change', () => { invoiceKey = null; });
+el('feePlanIssueMonth').addEventListener('change', () => {
+    invoiceKey = null; previewSequence++; previewFor = null;
+    if (el('feePlanPreviewDialog').open) el('feePlanPreviewDialog').close();
+});
+el('feePlanPreview').addEventListener('click', async () => {
+    if (!selected || selected.stateCode !== 3) return;
+    const month = el('feePlanIssueMonth').value;
+    if (!month) { notice('Choose an unbilled month.', true); return; }
+    const reference = selected.reference, rowVersion = selected.rowVersion;
+    const sequence = ++previewSequence, button = el('feePlanPreview');
+    button.disabled = true;
+    try {
+        const quote = await api('/plans/' + encodeURIComponent(reference) + '/preview-month', 'POST', {
+            clientRequestId: crypto.randomUUID(), monthStart: month, rowVersion
+        });
+        if (sequence !== previewSequence || selected?.reference !== reference ||
+            selected?.rowVersion !== rowVersion || el('feePlanIssueMonth').value !== month) return;
+        const body = document.createDocumentFragment();
+        for (const line of quote.lines || []) {
+            const tr = document.createElement('tr');
+            for (const value of [line.feeHeadCode + ' — ' + line.feeHeadName, line.dueDate,
+                money(line.grossAmount), money(line.discountAmount), money(line.netAmount)])
+                tr.append(cell(value));
+            for (const td of [...tr.children].slice(2)) td.className = 'text-end';
+            body.append(tr);
+        }
+        el('feePlanPreviewRows').replaceChildren(body);
+        el('feePlanPreviewSummary').textContent = month + ' · Due ' + quote.dueDate +
+            ' · Gross ' + money(quote.grossAmount) + ' · Discount ' +
+            money(quote.discountAmount) + ' · Net ' + money(quote.netAmount) +
+            ' ' + quote.currencyCode;
+        previewFor = { reference, month, rowVersion };
+        el('feePlanPreviewDialog').showModal();
+    } catch (error) { if (sequence === previewSequence) notice(error.message, true); }
+    finally { button.disabled = false; }
+});
+el('feePlanPreviewClose').addEventListener('click', () => el('feePlanPreviewDialog').close());
+el('feePlanPreviewIssue').addEventListener('click', () => {
+    if (!previewFor || selected?.reference !== previewFor.reference ||
+        selected?.rowVersion !== previewFor.rowVersion ||
+        el('feePlanIssueMonth').value !== previewFor.month || selected?.stateCode !== 3) return;
+    el('feePlanPreviewDialog').close();
+    el('feePlanIssue').click();
+});
 el('feePlanIssue').addEventListener('click', async () => {
     if (!selected || selected.stateCode !== 3) return;
     const month = el('feePlanIssueMonth').value;

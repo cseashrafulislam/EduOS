@@ -181,10 +181,22 @@ public sealed class SqlServerStudentFeeInstallmentPlanIntegrationTests
             ClientRequestId = Guid.NewGuid(), MonthStart = new DateOnly(2026, 2, 1),
             RowVersion = approved.Data.RowVersion
         };
+        var preview = await checkerService.PreviewInstallmentMonthAsync(draft.Data.Reference, issue);
+        Assert.True(preview.Success, preview.Message);
+        Assert.Equal(100m, preview.Data!.GrossAmount);
+        Assert.Equal(0m, preview.Data.DiscountAmount);
+        Assert.Equal(100m, preview.Data.NetAmount);
+        Assert.Single(preview.Data.Lines);
+        Assert.Equal(0, await db.StudentInvoices.CountAsync());
+        Assert.Equal(403, (await Service(db, tenantId + 1, checkerId)
+            .PreviewInstallmentMonthAsync(draft.Data.Reference, issue)).StatusCode);
         var firstInvoice = await checkerService.IssueInstallmentMonthAsync(draft.Data.Reference, issue);
         Assert.True(firstInvoice.Success, firstInvoice.Message);
         Assert.False(firstInvoice.Data!.Existing);
         Assert.Equal(100m, firstInvoice.Data.GrossAmount);
+        Assert.Equal(preview.Data.NetAmount, firstInvoice.Data.NetAmount);
+        Assert.Equal(409, (await checkerService.PreviewInstallmentMonthAsync(
+            draft.Data.Reference, issue)).StatusCode);
         issue.ClientRequestId = Guid.NewGuid();
         var sameMonth = await checkerService.IssueInstallmentMonthAsync(draft.Data.Reference, issue);
         Assert.True(sameMonth.Success, sameMonth.Message);

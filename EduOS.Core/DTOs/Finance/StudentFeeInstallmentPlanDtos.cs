@@ -38,6 +38,30 @@ public sealed class IssueStudentFeeInstallmentMonthDto
     public string RowVersion { get; set; } = string.Empty;
 }
 
+// Read-only quote; no reservation, invoice, receipt or journal is created.
+public sealed class StudentFeeInstallmentMonthPreviewLineDto
+{
+    public long FeeHeadId { get; set; }
+    public string FeeHeadCode { get; set; } = string.Empty;
+    public string FeeHeadName { get; set; } = string.Empty;
+    public DateOnly DueDate { get; set; }
+    public decimal GrossAmount { get; set; }
+    public decimal DiscountAmount { get; set; }
+    public decimal NetAmount { get; set; }
+}
+
+public sealed class StudentFeeInstallmentMonthPreviewDto
+{
+    public Guid PlanReference { get; set; }
+    public DateOnly MonthStart { get; set; }
+    public DateOnly DueDate { get; set; }
+    public string CurrencyCode { get; set; } = "BDT";
+    public decimal GrossAmount { get; set; }
+    public decimal DiscountAmount { get; set; }
+    public decimal NetAmount { get; set; }
+    public IReadOnlyList<StudentFeeInstallmentMonthPreviewLineDto> Lines { get; set; } = [];
+}
+
 public sealed class StudentFeeInstallmentMonthInvoiceDto
 {
     public Guid PlanReference { get; set; }
