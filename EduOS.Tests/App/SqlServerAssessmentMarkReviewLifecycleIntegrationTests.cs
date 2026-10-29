@@ -133,7 +133,7 @@ public sealed class SqlServerAssessmentMarkReviewLifecycleIntegrationTests
             Assert.Equal(3.5m, saved.CGPA);
             Assert.Equal(2m, saved.CreditHours);
             var courseGrade = await db.StudentResultCourseSnapshots.AsNoTracking()
-                .SingleAsync(x => x.ResultPublicationId == published.Data.Id);
+                .SingleAsync(x => x.ResultPublicationId == published.Data!.Id);
             Assert.Equal(2m, courseGrade.CreditHours);
             Assert.Equal(3m, courseGrade.GradePoint);
             Assert.Equal(1, saved.CourseCount);
