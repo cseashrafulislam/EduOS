@@ -38,3 +38,10 @@ test('guardian read and print use separate server-authorized routes, never stude
     assert.match(share, /cache:'no-store'/);
     assert.match(share, /credentials:'same-origin'/);
 });
+
+test('guardian consent choices and grants are scrubbed on certificate and session changes', () => {
+    assert.match(share, /lms-certificate-cleared',clearSharing/);
+    assert.match(share, /new MutationObserver/);
+    assert.match(share, /pagehide',clearSharing/);
+    assert.match(share, /generation\+\+;selected='';busy=false/);
+});

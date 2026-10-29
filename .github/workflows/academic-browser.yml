@@ -68,3 +68,5 @@ jobs:
         run: node tests/browser/my-student-leaves.cjs
       - name: Verify LMS authoring and quiz contracts
         run: node --test tests/browser/lms-contract.cjs tests/browser/lms-quiz-contract.cjs
+      - name: Exercise LMS certificate student, guardian and instructor privacy in Chromium
+        run: node tests/browser/lms-certificate-lifecycle.cjs

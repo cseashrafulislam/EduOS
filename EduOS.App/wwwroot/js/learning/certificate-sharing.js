@@ -81,6 +81,17 @@ async function load(reference){
   }
  }catch(e){if(seq===generation)error(e.message);}
 }
+function clearSharing(){
+ generation++;selected='';busy=false;
+ select.replaceChildren();list.replaceChildren();button.disabled=true;
+}
+root.addEventListener('lms-certificate-cleared',clearSharing);
+const sessionObserver=new MutationObserver(()=>{
+ if(!valid()){clearSharing();sessionObserver.disconnect();}
+});
+sessionObserver.observe(document.body,{attributes:true,
+ attributeFilter:['data-auth-session-reference','data-auth-tenant-id']});
+window.addEventListener('pagehide',clearSharing);
 root.addEventListener('lms-certificate-selected',e=>{
  const reference=e.detail?.reference;
  if(!/^[0-9a-f-]{36}$/i.test(reference||''))return;

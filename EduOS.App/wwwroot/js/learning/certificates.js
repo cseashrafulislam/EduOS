@@ -69,10 +69,17 @@ async function api(path,method='GET',body,signal) {
   return result.data;
  } finally {clearTimeout(timeout);if(signal)signal.removeEventListener('abort',abort);}
 }
-function clearDetail(){state.detailRequest++;state.selected=null;$('lmsCertificateDetail').classList.add('d-none');
+function clearDetail(){
+ state.detailRequest++;state.selected=null;
+ $('lmsCertificateDetail').classList.add('d-none');
  const print=$('lmsCertificatePrint');print.removeAttribute('href');print.classList.add('disabled');
  print.setAttribute('aria-disabled','true');print.tabIndex=-1;
- if($('lmsCertificateAuditRows'))$('lmsCertificateAuditRows').replaceChildren();}
+ for(const id of ['lmsCertificateStudent','lmsCertificateTitle','lmsCertificateCode',
+  'lmsCertificateDates','lmsCertificateEvidence','lmsCertificateReference','lmsCertificateStatus'])
+  $(id).textContent='';
+ if($('lmsCertificateAuditRows'))$('lmsCertificateAuditRows').replaceChildren();
+ root.dispatchEvent(new CustomEvent('lms-certificate-cleared'));
+}
 function renderRows(){
  const tbody=$('lmsCertificateRows');tbody.replaceChildren();
  for(const row of state.rows){
@@ -91,7 +98,9 @@ function renderRows(){
 async function loadRows(){
  const seq=++state.request;
  state.controller?.abort();state.controller=new AbortController();
- if(!student&&!guardian&&!state.course){state.rows=[];state.pages=1;renderRows();return;}
+ // A failed filter/page request must not leave a previous learner's records visible.
+ state.rows=[];state.pages=1;renderRows();
+ if(!student&&!guardian&&!state.course)return;
  const url=guardian?'/api/lms/certificate-sharing/mine':student?'/api/lms/certificates/mine':
   '/api/lms/certificates/course/'+encodeURIComponent(state.course);
  try {
@@ -197,6 +206,28 @@ if(!student&&!guardian){
   $('lmsCertificateReissue').addEventListener('click',reissue);
  }
 }
+// A tab can survive an institute switch, a cross-tab logout or BFCache navigation.
+ // Scrub private learner/guardian data rather than merely hiding the old document.
+function clearSensitive(){
+ state.request++;state.controller?.abort();
+ state.rows=[];state.pages=1;renderRows();clearDetail();
+ state.course='';state.coursePages=1;
+ const course=$('lmsCertificateCourse');
+ if(course){course.replaceChildren(option('',t('choose')));course.value='';
+  $('lmsCertificateCoursePage').textContent='';}
+ const alert=$('lmsCertificateAlert');alert.textContent='';alert.className='d-none';
+}
+const sessionObserver=new MutationObserver(()=>{
+ if(!currentSession()){clearSensitive();sessionObserver.disconnect();}
+});
+sessionObserver.observe(document.body,{attributes:true,
+ attributeFilter:['data-auth-session-reference','data-auth-tenant-id']});
+window.addEventListener('pagehide',clearSensitive);
+window.addEventListener('pageshow',event=>{
+ if(event.persisted&&currentSession()){
+  if(student||guardian)loadRows();else loadCourses();
+ }else if(!currentSession())clearSensitive();
+});
 const help=$('lmsCertificateHelp');
 document.addEventListener('keydown',e=>{if(e.key==='Escape')help.open=false;});
 document.addEventListener('pointerdown',e=>{if(!help.contains(e.target))help.open=false;});

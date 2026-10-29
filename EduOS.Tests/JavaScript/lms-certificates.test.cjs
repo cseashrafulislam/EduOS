@@ -41,3 +41,13 @@ test('certificate audit history is rendered without injecting raw HTML', () => {
     assert.match(page, /entry\.actorUserId/);
     assert.match(page, /td\(tr,t\(key\)\)/);
 });
+
+test('changing institute, BFCache navigation and filter errors scrub certificate PII and print links', () => {
+    assert.match(page, /new MutationObserver/);
+    assert.match(page, /data-auth-session-reference/);
+    assert.match(page, /data-auth-tenant-id/);
+    assert.match(page, /pagehide',clearSensitive/);
+    assert.match(page, /lms-certificate-cleared/);
+    assert.match(page, /lmsCertificateStudent','lmsCertificateTitle'/);
+    assert.match(page, /state\.rows=\[\];state\.pages=1;renderRows\(\)/);
+});
