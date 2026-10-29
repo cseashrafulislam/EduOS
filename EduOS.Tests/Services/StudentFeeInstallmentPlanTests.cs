@@ -483,6 +483,9 @@ public sealed class StudentFeeInstallmentPlanTests
         };
         db.StudentInvoices.AddRange(first, second);
         await db.SaveChangesAsync();
+        // Simulate a fresh HTTP request: production DbContexts do not retain
+        // the invoice seed instances when the receipt command attaches updates.
+        db.ChangeTracker.Clear();
         var request = new CreateStudentPaymentRequestDto {
             ClientRequestId = Guid.NewGuid(),
             PaymentDate = DateOnly.FromDateTime(DateTime.UtcNow).AddDays(-1),
