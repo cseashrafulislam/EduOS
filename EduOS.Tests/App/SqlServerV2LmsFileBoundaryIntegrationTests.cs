@@ -28,7 +28,7 @@ public sealed partial class SqlServerTransportSeatCapacityIntegrationTests
         new GenericRepository<Assignment>(db),
         new GenericRepository<AssignmentSubmission>(db),
         new GenericRepository<EduOS.Core.Entities.Students.Student>(db),
-        new GenericRepository<EduOS.Core.Entities.Students.StudentEnrollment>(db),
+        new GenericRepository<EduOS.Core.Entities.Academic.StudentEnrollment>(db),
         new GenericRepository<EduOS.Core.Entities.HR.Employee>(db),
         new GenericRepository<EduOS.Core.Entities.Academic.AcademicProgram>(db),
         new GenericRepository<EduOS.Core.Entities.Academic.Subject>(db),
