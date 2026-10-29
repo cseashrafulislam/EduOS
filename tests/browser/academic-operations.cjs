@@ -507,7 +507,7 @@ async function correctionAudit(browser) {
         page.waitForEvent('download'),
         page.locator('#attendanceCorrectionAuditCsv').click()
     ]);
-    assert.match(download.suggestedFilename(), /attendance-corrections-batch-10-page-1\\.csv/);
+    assert.equal(download.suggestedFilename(), 'attendance-corrections-batch-10-page-1.csv');
     assert.equal(csvRequests, 1);
     await Promise.all([
         page.context().waitForEvent('request', {
