@@ -90,6 +90,10 @@ public sealed class GuardianHostelStayIsolationTests
         Assert.Equal(403, (await new GuardianHostelStayService(db, User(101, 41, false),
             TimeProvider.System, NullLogger<GuardianHostelStayService>.Instance)
             .GetCurrentStaysAsync(1, 20, null)).StatusCode);
+        // Formula-prefixed child names must remain inert even after leading whitespace.
+        allowed.FullName = " \t=1+1";
+        await db.SaveChangesAsync();
+        Assert.Contains("\"'  =1+1\"", (await service.ExportCurrentPageCsvAsync(1, null)).Data);
         // Revoking pickup permission must immediately revoke read and export.
         var link = await db.StudentGuardians.SingleAsync(x => x.StudentId == allowed.Id);
         link.IsAuthorizedPickup = false;

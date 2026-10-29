@@ -110,12 +110,5 @@ public sealed class GuardianHostelStayService(
         return ApiResponse<string>.SuccessResponse(csv.ToString());
     }
 
-    private static string Cell(string? value)
-    {
-        var safe = (value ?? "").Replace("\r", " ").Replace("\n", " ");
-        var leading = safe.TrimStart(' ', '\t');
-        if (leading.Length > 0 && (leading[0] is '=' or '+' or '-' or '@'))
-            safe = "'" + safe;
-        return "\"" + safe.Replace("\"", "\"\"") + "\"";
-    }
+    private static string Cell(string? value) => PrivateCsvCell.Escape(value);
 }

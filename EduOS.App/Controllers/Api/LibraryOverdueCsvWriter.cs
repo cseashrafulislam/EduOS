@@ -1,3 +1,4 @@
+using EduOS.Core.Common;
 using EduOS.Core.DTOs.Library;
 using System.Text;
 
@@ -40,10 +41,7 @@ public static class LibraryOverdueCsvWriter
         {
             if (!first) output.Append(',');
             first = false;
-            var text = value ?? string.Empty;
-            if (text.Length > 0 && (text[0] is '=' or '+' or '-' or '@' or '\t' or '\r' or '\n'))
-                text = "'" + text;
-            output.Append('"').Append(text.Replace("\"", "\"\"")).Append('"');
+            output.Append(PrivateCsvCell.Escape(value));
         }
         output.Append("\r\n");
     }

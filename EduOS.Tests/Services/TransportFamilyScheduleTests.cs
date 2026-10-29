@@ -32,6 +32,11 @@ public sealed class TransportFamilyScheduleTests
         var csv = await service.ExportCsvAsync(today);
         csv.Success.Should().BeTrue(csv.Message);
         csv.Data.Should().Contain("FAMILY-BUS").And.NotContain("1750");
+        // Family exports must neutralize spreadsheet formulas after whitespace.
+        student.FullName = " \t=1+1";
+        await db.SaveChangesAsync();
+        (await service.ExportCsvAsync(today)).Data.Should().Contain("\"'  =1+1\"");
+
         link.IsDeleted = true;
         await db.SaveChangesAsync();
         (await service.GetAsync(today, 1, 20)).Data!.Items.Should().BeEmpty();

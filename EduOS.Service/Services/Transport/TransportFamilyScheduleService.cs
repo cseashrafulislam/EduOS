@@ -79,13 +79,7 @@ public sealed class TransportFamilyScheduleService : ITransportFamilyScheduleSer
         return ApiResponse<string>.SuccessResponse(csv.ToString());
     }
 
-    private static string Cell(string? value)
-    {
-        var clean = (value ?? string.Empty).Replace("\r", " ").Replace("\n", " ");
-        if (clean.Length > 0 && (clean[0] is '=' or '+' or '-' or '@' or '\t'))
-            clean = "'" + clean;
-        return "\"" + clean.Replace("\"", "\"\"") + "\"";
-    }
+    private static string Cell(string? value) => PrivateCsvCell.Escape(value);
 
     private static TransportFamilyScheduleDto Map(ScheduleProjection row) => new()
     {

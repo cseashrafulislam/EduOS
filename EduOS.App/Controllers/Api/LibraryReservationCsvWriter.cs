@@ -1,3 +1,4 @@
+using EduOS.Core.Common;
 using EduOS.Core.DTOs.Library;
 using EduOS.Core.Enums.Domain;
 using System.Globalization;
@@ -47,13 +48,7 @@ public static class LibraryReservationCsvWriter
         {
             if (!first) output.Append(',');
             first = false;
-            var text = value ?? string.Empty;
-            var trimmed = text.TrimStart(' ', '\t', '\r', '\n');
-            if (trimmed.Length > 0 && (trimmed[0] is '=' or '+' or '-' or '@'))
-                text = "'" + text;
-            else if (text.Length > 0 && (text[0] is '\t' or '\r' or '\n'))
-                text = "'" + text;
-            output.Append('"').Append(text.Replace("\"", "\"\"")).Append('"');
+            output.Append(PrivateCsvCell.Escape(value));
         }
         output.Append("\r\n");
     }
