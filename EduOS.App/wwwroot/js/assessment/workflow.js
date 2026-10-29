@@ -8,7 +8,8 @@
     const state = { scopes: [], scopePage: 1, scopeSize: 30, scopeTotal: 0, scopeSearch: '',
         scopeBusy: false, roster: null, rosterPage: 1, rosterSize: 50, rosterTotal: 0,
         sheet: null, sheetMode: null, busy: false, publishKey: null,
-        readiness: null, readinessPage: 1, readinessBusy: false, readinessSize: 20 };
+        readiness: null, readinessPage: 1, readinessBusy: false, readinessSize: 20,
+        creditDetail: null, creditRequest: 0 };
     const option = (value, label) => new Option(label, String(value));
     const cell = value => { const td = document.createElement('td'); td.textContent = value == null ? '' : String(value); return td; };
     const validDecimal = n => Number.isFinite(n) && Math.abs(Math.round(n * 100) - n * 100) < 1e-7;
@@ -97,6 +98,60 @@
         el('examStateAdvance').textContent = stage?.[2] || 'No further stage';
         el('examStateAdvance').disabled = state.busy || !s || !stage;
     }
+    async function loadCreditPolicy() {
+        if (!canPublish) return;
+        const request = ++state.creditRequest;
+        const s = currentAssessment();
+        state.creditDetail = null;
+        el('examCountsTowardCgpa').disabled = true;
+        el('examSaveCreditPolicy').disabled = true;
+        el('examCreditInfo').textContent = s ? 'Loading policy…' : 'Choose a draft assessment.';
+        if (!s?.assessmentReference) return;
+        try {
+            const detail = await api('/api/assessment-administration/assessments/' +
+                encodeURIComponent(s.assessmentReference));
+            if (request !== state.creditRequest ||
+                currentAssessment()?.assessmentReference !== s.assessmentReference) return;
+            state.creditDetail = detail;
+            const draft = Number(detail.state) === 1;
+            el('examCountsTowardCgpa').checked = !!detail.countsTowardCgpa;
+            el('examCountsTowardCgpa').disabled = !draft;
+            el('examSaveCreditPolicy').disabled = !draft;
+            el('examCreditInfo').textContent = draft
+                ? 'Draft only · final exams require an active course-credit grading scheme.'
+                : 'Read-only after the assessment leaves Draft.';
+        } catch (error) {
+            if (request === state.creditRequest) el('examCreditInfo').textContent = error.message;
+        }
+    }
+    async function saveCreditPolicy() {
+        if (!canPublish || state.busy || !state.creditDetail ||
+            Number(state.creditDetail.state) !== 1) return;
+        const detail = state.creditDetail;
+        const desired = el('examCountsTowardCgpa').checked;
+        if (desired === !!detail.countsTowardCgpa) {
+            message('warning', 'There is no change to save.'); return;
+        }
+        if (!window.confirm('Update this draft assessment\'s transcript-credit inclusion?')) return;
+        state.busy = true; el('examSaveCreditPolicy').disabled = true;
+        try {
+            await api('/api/assessment-administration/assessments/' +
+                encodeURIComponent(detail.reference), 'PUT', {
+                clientRequestId: crypto.randomUUID(), campusId: detail.campusId,
+                academicYearId: detail.academicYearId, academicTermId: detail.academicTermId,
+                gradeSchemeId: detail.gradeSchemeId, name: detail.name, code: detail.code,
+                type: detail.type, countsTowardCgpa: desired,
+                startDate: detail.startDate, endDate: detail.endDate,
+                remarks: detail.remarks, rowVersion: detail.rowVersion
+            });
+            message('success', 'Draft transcript-credit setting saved.');
+        } catch (error) {
+            message('danger', error.message + ' Reload policy before retrying.');
+        } finally {
+            state.busy = false;
+            await loadCreditPolicy();
+        }
+    }
     async function advanceAssessmentState() {
         if (!canPublish || state.busy) return;
         const s = currentAssessment(), next = s && assessmentStages[Number(s.state)];
@@ -129,6 +184,7 @@
     }
     function examChanged() {
         renderAssessmentState();
+        loadCreditPolicy();
         const rows = state.scopes.filter(x => String(x.assessmentId) === el('examExam').value);
         select('examBatch', rows, 'academicBatchId', 'academicBatchName', 'Select batch');
         batchChanged();
@@ -447,6 +503,7 @@
     });
     el('examSaveMarks').addEventListener('click', saveMarks);
     el('examStateAdvance')?.addEventListener('click', advanceAssessmentState);
+    el('examSaveCreditPolicy')?.addEventListener('click', saveCreditPolicy);
     el('examReadinessLoad')?.addEventListener('click', () => loadReadiness(1));
     el('examReadinessPrev')?.addEventListener('click', () => loadReadiness(state.readinessPage - 1));
     el('examReadinessNext')?.addEventListener('click', () => loadReadiness(state.readinessPage + 1));

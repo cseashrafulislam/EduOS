@@ -43,6 +43,15 @@
                 <button id="examStateAdvance" type="button" class="btn btn-sm btn-outline-primary ms-auto" disabled>Next stage</button>
             </div>
         </section>
+        <section class="card mb-3" aria-labelledby="examCreditHeading">
+            <div class="card-body d-flex flex-wrap align-items-center gap-2">
+                <h3 id="examCreditHeading" class="h6 mb-0">Transcript credit inclusion</h3>
+                <div class="form-check ms-2"><input id="examCountsTowardCgpa" class="form-check-input" type="checkbox" disabled />
+                    <label for="examCountsTowardCgpa" class="form-check-label">Include this final exam in cumulative GPA</label></div>
+                <button id="examSaveCreditPolicy" class="btn btn-sm btn-outline-primary ms-auto" type="button" disabled>Save draft setting</button>
+                <span id="examCreditInfo" class="small text-muted" role="status" aria-live="polite">Choose a draft assessment.</span>
+            </div>
+        </section>
     }
     <section class="card mb-3" aria-labelledby="examRosterHeading">
         <div class="card-header d-flex flex-wrap align-items-center justify-content-between gap-2">
