@@ -1,0 +1,40 @@
+@{
+    ViewData["Title"] = "Transport trips";
+}
+<section class="container-fluid py-3" id="transportTrips" aria-labelledby="transportTripsTitle">
+    <header class="d-flex align-items-center gap-2 mb-3">
+        <h1 class="h4 mb-0" id="transportTripsTitle">Trip dispatch / ট্রিপ পরিচালনা</h1>
+        <details class="ms-auto">
+            <summary class="btn btn-sm btn-outline-secondary" aria-label="Trip dispatch guidance">i</summary>
+            <div class="small mt-2" style="max-width:22rem">Plan a vehicle's pickup or drop trip. Dispatch only today's eligible trip after rechecking safety, driver and seats. Frozen rider snapshots are not boarding attendance. / পরিকল্পনা ও নিরাপদ ডিসপ্যাচ; উপস্থিতি নয়।</div>
+        </details>
+    </header>
+    <p id="tripStatus" role="status" aria-live="polite" class="small text-muted"></p>
+    <form id="tripPlanForm" class="row g-2 mb-3">
+        @Html.AntiForgeryToken()
+        <div class="col-sm-4 col-lg-3"><label for="tripDate" class="form-label">Date / তারিখ</label><input id="tripDate" class="form-control" type="date" required /></div>
+        <div class="col-sm-4 col-lg-3"><label for="tripRoute" class="form-label">Route / রুট</label><select id="tripRoute" class="form-select" required><option value="">Loading…</option></select></div>
+        <div class="col-sm-4 col-lg-3"><label for="tripVehicle" class="form-label">Vehicle / গাড়ি</label><select id="tripVehicle" class="form-select" required><option value="">Loading…</option></select></div>
+        <div class="col-sm-4 col-lg-2"><label for="tripDirection" class="form-label">Direction / দিক</label><select id="tripDirection" class="form-select"><option value="Pickup">Pickup / উঠানো</option><option value="Drop">Drop / নামানো</option></select></div>
+        <div class="col-sm-4 col-lg-1 d-flex align-items-end"><button id="tripPlan" class="btn btn-primary w-100" type="submit">Plan</button></div>
+    </form>
+    <div class="d-flex gap-2 mb-2"><button id="tripReload" class="btn btn-outline-primary btn-sm" type="button">Refresh / রিফ্রেশ</button><button id="tripPrint" class="btn btn-outline-secondary btn-sm" type="button">Print / প্রিন্ট</button></div>
+    <div class="table-responsive"><table class="table table-sm table-hover align-middle">
+        <thead><tr><th>Campus</th><th>Route</th><th>Vehicle</th><th>Date</th><th>Direction</th><th>Status</th><th>Riders</th><th>Action</th></tr></thead>
+        <tbody id="tripRows"></tbody>
+    </table></div>
+    <div class="d-flex justify-content-between align-items-center gap-2 mb-3">
+        <button id="tripPrev" class="btn btn-outline-secondary btn-sm" type="button">Previous</button>
+        <span id="tripPage" class="small text-muted"></span>
+        <button id="tripNext" class="btn btn-outline-secondary btn-sm" type="button">Next</button>
+    </div>
+    <section id="tripManifestPanel" hidden aria-labelledby="tripManifestTitle">
+        <h2 id="tripManifestTitle" class="h5">Frozen rider manifest / যাত্রী তালিকা</h2>
+        <button id="tripExport" class="btn btn-outline-primary btn-sm mb-2" type="button">CSV</button>
+        <div class="table-responsive"><table class="table table-sm"><thead><tr><th>Student code</th><th>Pickup</th><th>Drop</th></tr></thead><tbody id="tripManifestRows"></tbody></table></div>
+        <div class="d-flex gap-2 align-items-center"><button id="tripRiderPrev" type="button" class="btn btn-outline-secondary btn-sm">Previous</button><span id="tripRiderPage" class="small text-muted"></span><button id="tripRiderNext" type="button" class="btn btn-outline-secondary btn-sm">Next</button></div>
+    </section>
+</section>
+@section Scripts {
+    <script src="~/js/transport-operations/trips.js" asp-append-version="true"></script>
+}

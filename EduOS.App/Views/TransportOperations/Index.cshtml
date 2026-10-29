@@ -8,6 +8,10 @@
     {
         <div class="mb-3"><a class="btn btn-outline-primary" asp-controller="TransportOperations" asp-action="Family">My transport schedule / আমার পরিবহন সূচি</a></div>
     }
+    @if (canManage)
+    {
+        <div class="mb-3"><a class="btn btn-outline-primary" asp-controller="TransportOperations" asp-action="Trips">Trip dispatch / ট্রিপ পরিচালনা</a></div>
+    }
     <div id="transportAlert" class="d-none" role="alert" tabindex="-1"></div>
     <section class="card mb-3"><div class="card-body">
         <h3 class="h5">My current assignment</h3><div id="transportMine" class="text-muted">Loading…</div>

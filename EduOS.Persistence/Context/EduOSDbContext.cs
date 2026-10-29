@@ -380,6 +380,8 @@ public class EduOSDbContext :
     public DbSet<Vehicle> Vehicles => Set<Vehicle>();
     public DbSet<VehicleDriverAssignment> VehicleDriverAssignments => Set<VehicleDriverAssignment>();
     public DbSet<TransportVehicleCase> TransportVehicleCases => Set<TransportVehicleCase>();
+    public DbSet<TransportTrip> TransportTrips => Set<TransportTrip>();
+    public DbSet<TransportTripRider> TransportTripRiders => Set<TransportTripRider>();
 
     // Hostel
     public DbSet<Hostel> Hostels => Set<Hostel>();
@@ -2002,6 +2004,17 @@ public class EduOSDbContext :
         ValidateTenantBoundaries(entries);
         ValidateIdentityTenantBoundary(identityEntries);
         ValidateImmutableHistory(entries);
+        // A dispatched rider manifest is a historical snapshot, not an editable reservation.
+        // The only legal trip mutation is the Planned -> Dispatched transition.
+        if (entries.Any(e => e.Entity is TransportTripRider &&
+                e.State is EntityState.Modified or EntityState.Deleted))
+            throw new InvalidOperationException("Frozen transport trip riders cannot be modified or deleted.");
+        if (entries.Any(e => e.Entity is TransportTrip &&
+                e.State is EntityState.Modified or EntityState.Deleted &&
+                (e.State == EntityState.Deleted ||
+                 (string?)e.OriginalValues[nameof(TransportTrip.State)] == "Dispatched")))
+            throw new InvalidOperationException("Dispatched transport trips cannot be modified or deleted.");
+
         await ValidateAggregateImmutabilityAsync(entries, cancellationToken);
 
         // Invalidate receiving-tenant attestations in the SAME transaction as the

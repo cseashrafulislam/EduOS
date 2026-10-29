@@ -20,6 +20,11 @@ public sealed class TransportOperationsController : Controller
     [HttpGet]
     [Authorize(Roles = "TenantAdmin,Principal,TransportManager")]
     [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
+    public IActionResult Trips() => View();
+
+    [HttpGet]
+    [Authorize(Roles = "TenantAdmin,Principal,TransportManager")]
+    [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
     public IActionResult EditStops(Guid reference)
     {
         if (reference == Guid.Empty) return BadRequest();

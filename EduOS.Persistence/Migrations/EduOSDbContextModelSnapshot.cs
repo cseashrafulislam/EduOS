@@ -18913,6 +18913,82 @@ namespace EduOS.Persistence.Migrations
                     b.ToTable("TransportDrivers");
                 });
 
+            modelBuilder.Entity("EduOS.Core.Entities.Transport.TransportTrip", b =>
+                {
+                    b.Property<long>("CampusId").HasColumnType("bigint");
+                    b.Property<Guid>("ClientRequestId").HasColumnType("uniqueidentifier");
+                    b.Property<DateTime>("CreatedAt").HasColumnType("datetime2");
+                    b.Property<long?>("CreatedBy").HasColumnType("bigint");
+                    b.Property<DateTime?>("DeletedAt").HasColumnType("datetime2");
+                    b.Property<long?>("DeletedBy").HasColumnType("bigint");
+                    b.Property<string>("Direction").IsRequired().HasMaxLength(10).HasColumnType("nvarchar(10)");
+                    b.Property<DateTime?>("DispatchedAt").HasColumnType("datetime2");
+                    b.Property<long?>("DispatchedBy").HasColumnType("bigint");
+                    b.Property<Guid?>("DispatchRequestId").HasColumnType("uniqueidentifier");
+                    b.Property<long>("Id").ValueGeneratedOnAdd().HasColumnType("bigint");
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
+                    b.Property<bool>("IsDeleted").HasColumnType("bit");
+                    b.Property<DateOnly>("OperatingDate").HasColumnType("date");
+                    b.Property<Guid>("PublicId").HasColumnType("uniqueidentifier");
+                    b.Property<int>("RiderCount").HasColumnType("int");
+                    b.Property<long>("RouteId").HasColumnType("bigint");
+                    b.Property<byte[]>("RowVersion").IsConcurrencyToken().IsRequired().ValueGeneratedOnAddOrUpdate().HasColumnType("rowversion");
+                    b.Property<string>("State").IsRequired().HasMaxLength(15).HasColumnType("nvarchar(15)");
+                    b.Property<long>("TenantId").HasColumnType("bigint");
+                    b.Property<long?>("TransportDriverId").HasColumnType("bigint");
+                    b.Property<DateTime?>("UpdatedAt").HasColumnType("datetime2");
+                    b.Property<long?>("UpdatedBy").HasColumnType("bigint");
+                    b.Property<long>("VehicleId").HasColumnType("bigint");
+
+                    b.HasKey("Id");
+                    b.HasAlternateKey("TenantId", "Id");
+                    b.HasIndex("PublicId").IsUnique();
+                    b.HasIndex("TenantId", "ClientRequestId").IsUnique();
+                    b.HasIndex("TenantId", "DispatchRequestId").IsUnique().HasFilter("[DispatchRequestId] IS NOT NULL");
+                    b.HasIndex("TenantId", "VehicleId", "OperatingDate", "Direction").IsUnique();
+                    b.HasIndex("TenantId", "CampusId", "OperatingDate");
+                    b.HasIndex("TenantId", "TransportDriverId", "OperatingDate", "Direction").IsUnique().HasFilter("[TransportDriverId] IS NOT NULL");
+                    b.HasIndex("TenantId", "RouteId");
+                    b.ToTable("TransportTrips", t =>
+                        {
+                            t.HasCheckConstraint("CK_TransportTrips_Direction", "[Direction] IN ('Pickup','Drop')");
+                            t.HasCheckConstraint("CK_TransportTrips_State", "[State] IN ('Planned','Dispatched')");
+                            t.HasCheckConstraint("CK_TransportTrips_Dispatch", "([State] = 'Planned' AND [TransportDriverId] IS NULL AND [DispatchRequestId] IS NULL AND [DispatchedAt] IS NULL AND [DispatchedBy] IS NULL AND [RiderCount] = 0) OR ([State] = 'Dispatched' AND [TransportDriverId] IS NOT NULL AND [DispatchRequestId] IS NOT NULL AND [DispatchedAt] IS NOT NULL AND [DispatchedBy] IS NOT NULL AND [RiderCount] > 0)");
+                        });
+                });
+
+            modelBuilder.Entity("EduOS.Core.Entities.Transport.TransportTripRider", b =>
+                {
+                    b.Property<DateTime>("CreatedAt").HasColumnType("datetime2");
+                    b.Property<long?>("CreatedBy").HasColumnType("bigint");
+                    b.Property<DateTime?>("DeletedAt").HasColumnType("datetime2");
+                    b.Property<long?>("DeletedBy").HasColumnType("bigint");
+                    b.Property<long>("DropStopId").HasColumnType("bigint");
+                    b.Property<string>("DropStopSnapshot").IsRequired().HasMaxLength(150).HasColumnType("nvarchar(150)");
+                    b.Property<long>("Id").ValueGeneratedOnAdd().HasColumnType("bigint");
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
+                    b.Property<bool>("IsDeleted").HasColumnType("bit");
+                    b.Property<long>("PickupStopId").HasColumnType("bigint");
+                    b.Property<string>("PickupStopSnapshot").IsRequired().HasMaxLength(150).HasColumnType("nvarchar(150)");
+                    b.Property<byte[]>("RowVersion").IsConcurrencyToken().IsRequired().ValueGeneratedOnAddOrUpdate().HasColumnType("rowversion");
+                    b.Property<string>("StudentCodeSnapshot").IsRequired().HasMaxLength(60).HasColumnType("nvarchar(60)");
+                    b.Property<long>("StudentEnrollmentId").HasColumnType("bigint");
+                    b.Property<long>("StudentId").HasColumnType("bigint");
+                    b.Property<long>("StudentTransportId").HasColumnType("bigint");
+                    b.Property<long>("TenantId").HasColumnType("bigint");
+                    b.Property<long>("TransportTripId").HasColumnType("bigint");
+                    b.Property<DateTime?>("UpdatedAt").HasColumnType("datetime2");
+                    b.Property<long?>("UpdatedBy").HasColumnType("bigint");
+
+                    b.HasKey("Id");
+                    b.HasAlternateKey("TenantId", "Id");
+                    b.HasIndex("TenantId", "TransportTripId", "StudentTransportId").IsUnique();
+                    b.HasIndex("TenantId", "StudentId", "TransportTripId");
+                    b.HasIndex("TenantId", "StudentTransportId");
+                    b.HasIndex("TenantId", "StudentEnrollmentId");
+                    b.ToTable("TransportTripRiders");
+                });
+
             modelBuilder.Entity("EduOS.Core.Entities.Transport.TransportVehicleCase", b =>
                 {
                     b.Property<long>("Id")
@@ -24754,6 +24830,44 @@ namespace EduOS.Persistence.Migrations
                         .HasPrincipalKey("TenantId", "Id")
                         .OnDelete(DeleteBehavior.Restrict);
 
+                    b.Navigation("Tenant");
+                });
+
+            modelBuilder.Entity("EduOS.Core.Entities.Transport.TransportTrip", b =>
+                {
+                    b.HasOne("EduOS.Core.Entities.SaaS.Tenant", "Tenant").WithMany()
+                        .HasForeignKey("TenantId").OnDelete(DeleteBehavior.Restrict).IsRequired();
+                    b.HasOne("EduOS.Core.Entities.SaaS.Campus", null).WithMany()
+                        .HasForeignKey("TenantId", "CampusId").HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict).IsRequired();
+                    b.HasOne("EduOS.Core.Entities.Transport.Route", null).WithMany()
+                        .HasForeignKey("TenantId", "RouteId").HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict).IsRequired();
+                    b.HasOne("EduOS.Core.Entities.Transport.Vehicle", null).WithMany()
+                        .HasForeignKey("TenantId", "VehicleId").HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict).IsRequired();
+                    b.HasOne("EduOS.Core.Entities.Transport.TransportDriver", null).WithMany()
+                        .HasForeignKey("TenantId", "TransportDriverId").HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
+                    b.Navigation("Tenant");
+                });
+
+            modelBuilder.Entity("EduOS.Core.Entities.Transport.TransportTripRider", b =>
+                {
+                    b.HasOne("EduOS.Core.Entities.SaaS.Tenant", "Tenant").WithMany()
+                        .HasForeignKey("TenantId").OnDelete(DeleteBehavior.Restrict).IsRequired();
+                    b.HasOne("EduOS.Core.Entities.Transport.TransportTrip", null).WithMany()
+                        .HasForeignKey("TenantId", "TransportTripId").HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict).IsRequired();
+                    b.HasOne("EduOS.Core.Entities.Transport.StudentTransport", null).WithMany()
+                        .HasForeignKey("TenantId", "StudentTransportId").HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict).IsRequired();
+                    b.HasOne("EduOS.Core.Entities.Students.Student", null).WithMany()
+                        .HasForeignKey("TenantId", "StudentId").HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict).IsRequired();
+                    b.HasOne("EduOS.Core.Entities.Students.StudentEnrollment", null).WithMany()
+                        .HasForeignKey("TenantId", "StudentEnrollmentId").HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict).IsRequired();
                     b.Navigation("Tenant");
                 });
 
