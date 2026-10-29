@@ -160,13 +160,23 @@ public sealed partial class LmsWorkflowService
                 (ownedEnrollment.State != CourseEnrollmentState.Active &&
                  ownedEnrollment.State != CourseEnrollmentState.Completed))
                 return Error<IReadOnlyList<AssignmentSubmissionFileDto>>("Submission access denied.", 403);
+            // A current V1 academic enrollment AND its tenant-owned campus must
+            // remain active before private V2 submission file references are disclosed.
+            // Completed LMS submissions retain immutable historical readback.
             if (ownedEnrollment.State == CourseEnrollmentState.Active &&
                 ownedEnrollment.StudentEnrollmentId.HasValue &&
-                !await _academicEnrollments.GetQueryable().AsNoTracking().AnyAsync(x =>
-                    x.TenantId == tenant && x.Id == ownedEnrollment.StudentEnrollmentId.Value &&
-                    x.StudentId == studentId && x.State == EnrollmentState.Active &&
-                    x.IsCurrent && !x.IsDeleted, ct))
-                return Error<IReadOnlyList<AssignmentSubmissionFileDto>>("Academic enrollment is inactive.", 403);
+                (_studentCampuses == null || !await (
+                    from academic in _academicEnrollments.GetQueryable().AsNoTracking()
+                    join campus in _studentCampuses.GetQueryable().AsNoTracking()
+                        on academic.CampusId equals campus.Id
+                    where academic.TenantId == tenant &&
+                        academic.Id == ownedEnrollment.StudentEnrollmentId.Value &&
+                        academic.StudentId == studentId &&
+                        academic.State == EnrollmentState.Active && academic.IsCurrent &&
+                        !academic.IsDeleted && campus.TenantId == tenant &&
+                        campus.IsActive && !campus.IsDeleted
+                    select academic.Id).AnyAsync(ct)))
+                return Error<IReadOnlyList<AssignmentSubmissionFileDto>>("Academic enrollment or campus is inactive.", 403);
         }
         var links = await _submissionFiles.GetQueryable().AsNoTracking().Where(x =>
             x.TenantId == tenant && x.AssignmentSubmissionId == row.Id && !x.IsDeleted)

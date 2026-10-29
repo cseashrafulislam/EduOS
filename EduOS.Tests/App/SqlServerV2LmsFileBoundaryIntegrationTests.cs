@@ -37,7 +37,8 @@ public sealed partial class SqlServerTransportSeatCapacityIntegrationTests
         new GenericRepository<FileAsset>(db),
         db, new DigitalReader(fixture.TenantId, fixture.UserId, "Student"),
         TimeProvider.System, NullLogger<LmsWorkflowService>.Instance,
-        new GenericRepository<AssignmentSubmissionFile>(db));
+        new GenericRepository<AssignmentSubmissionFile>(db),
+        studentCampuses: new GenericRepository<EduOS.Core.Entities.SaaS.Campus>(db));
 
     private static async Task<(long OwnSubmissionId, long OtherSubmissionId, Guid OwnFile, Guid OtherFile)>
         SeedLmsPrivateSubmissionsAsync(Fixture fixture)
@@ -228,4 +229,86 @@ public sealed partial class SqlServerTransportSeatCapacityIntegrationTests
             Assert.Equal(data.OwnFile, Assert.Single(history.Data!).FileAssetReference);
         }
     }
+
+    [Fact]
+    public async Task V1_campus_deactivation_revokes_active_LMS_private_file_metadata_and_reactivation_restores()
+    {
+        var connection = Environment.GetEnvironmentVariable("EDUOS_SQL_AUTH_TEST_CONNECTION");
+        if (string.IsNullOrWhiteSpace(connection)) return;
+        var fixture = await SeedAsync(connection);
+        var data = await SeedLmsPrivateSubmissionsAsync(fixture);
+        long campusId;
+        await using (var db = ScopedContext(fixture.Options, fixture.TenantId, fixture.UserId))
+        {
+            var enrollment = await db.StudentEnrollments.SingleAsync(x =>
+                x.TenantId == fixture.TenantId && x.PublicId == fixture.Enrollments[0]);
+            campusId = enrollment.CampusId;
+            Assert.True((await LmsFileBoundaryService(db, fixture)
+                .GetSubmissionFilesAsync(data.OwnSubmissionId)).Success);
+        }
+        await using (var db = ScopedContext(fixture.Options, fixture.TenantId, fixture.UserId))
+        {
+            var campus = await db.Campuses.SingleAsync(x =>
+                x.TenantId == fixture.TenantId && x.Id == campusId);
+            campus.IsActive = false;
+            await db.SaveChangesAsync();
+        }
+        await using (var db = ScopedContext(fixture.Options, fixture.TenantId, fixture.UserId))
+        {
+            var denied = await LmsFileBoundaryService(db, fixture)
+                .GetSubmissionFilesAsync(data.OwnSubmissionId);
+            Assert.Equal(403, denied.StatusCode);
+            Assert.False(denied.Success);
+            Assert.Equal(1, await db.Set<AssignmentSubmission>().CountAsync(x =>
+                x.TenantId == fixture.TenantId && x.Id == data.OwnSubmissionId && !x.IsDeleted));
+        }
+        await using (var db = ScopedContext(fixture.Options, fixture.TenantId, fixture.UserId))
+        {
+            var campus = await db.Campuses.SingleAsync(x =>
+                x.TenantId == fixture.TenantId && x.Id == campusId);
+            campus.IsActive = true;
+            await db.SaveChangesAsync();
+        }
+        await using (var db = ScopedContext(fixture.Options, fixture.TenantId, fixture.UserId))
+        {
+            var allowed = await LmsFileBoundaryService(db, fixture)
+                .GetSubmissionFilesAsync(data.OwnSubmissionId);
+            Assert.True(allowed.Success, allowed.Message);
+            Assert.Equal(data.OwnFile, Assert.Single(allowed.Data!).FileAssetReference);
+        }
+    }
+
+    [Fact]
+    public async Task V1_campus_deactivation_does_not_erase_completed_LMS_submission_evidence()
+    {
+        var connection = Environment.GetEnvironmentVariable("EDUOS_SQL_AUTH_TEST_CONNECTION");
+        if (string.IsNullOrWhiteSpace(connection)) return;
+        var fixture = await SeedAsync(connection);
+        var data = await SeedLmsPrivateSubmissionsAsync(fixture);
+        await using (var db = ScopedContext(fixture.Options, fixture.TenantId, fixture.UserId))
+        {
+            var submission = await db.Set<AssignmentSubmission>().SingleAsync(x =>
+                x.TenantId == fixture.TenantId && x.Id == data.OwnSubmissionId);
+            var lmsEnrollment = await db.Set<CourseEnrollment>().SingleAsync(x =>
+                x.TenantId == fixture.TenantId && x.Id == submission.CourseEnrollmentId);
+            lmsEnrollment.State = CourseEnrollmentState.Completed;
+            lmsEnrollment.CompletedAt = DateTime.UtcNow;
+            var academic = await db.StudentEnrollments.SingleAsync(x =>
+                x.TenantId == fixture.TenantId && x.Id == lmsEnrollment.StudentEnrollmentId);
+            academic.IsCurrent = false;
+            academic.State = EnrollmentState.Completed;
+            var campus = await db.Campuses.SingleAsync(x =>
+                x.TenantId == fixture.TenantId && x.Id == academic.CampusId);
+            campus.IsActive = false;
+            await db.SaveChangesAsync();
+        }
+        await using (var db = ScopedContext(fixture.Options, fixture.TenantId, fixture.UserId))
+        {
+            var history = await LmsFileBoundaryService(db, fixture)
+                .GetSubmissionFilesAsync(data.OwnSubmissionId);
+            Assert.True(history.Success, history.Message);
+            Assert.Equal(data.OwnFile, Assert.Single(history.Data!).FileAssetReference);
+        }
+    }
+
 }

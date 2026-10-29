@@ -5,6 +5,7 @@ using EduOS.Core.Entities.Academic;
 using EduOS.Core.Entities.Files;
 using EduOS.Core.Entities.HR;
 using EduOS.Core.Entities.LMS;
+using EduOS.Core.Entities.SaaS;
 using EduOS.Core.Entities.Students;
 using EduOS.Core.Entities.System;
 using EduOS.Core.Enums.Domain;
@@ -35,6 +36,7 @@ public sealed partial class LmsWorkflowService : ILmsWorkflowService
     private readonly IGenericRepository<CurriculumSubject> _curriculumSubjects;
     private readonly IGenericRepository<FileAsset> _files;
     private readonly IGenericRepository<AssignmentSubmissionFile>? _submissionFiles;
+    private readonly IGenericRepository<Campus>? _studentCampuses;
     private readonly IGenericRepository<AcademicYear>? _submissionYears;
     private readonly IGenericRepository<AcademicTerm>? _submissionTerms;
     private readonly IGenericRepository<AcademicBatch>? _submissionBatches;
@@ -65,7 +67,8 @@ public sealed partial class LmsWorkflowService : ILmsWorkflowService
         IGenericRepository<Quiz>? completionQuizzes = null,
         IGenericRepository<QuizAttempt>? completionAttempts = null,
         IGenericRepository<LmsCompletionCertificate>? certificates = null,
-        IGenericRepository<AuditLog>? certificateAudits = null)
+        IGenericRepository<AuditLog>? certificateAudits = null,
+        IGenericRepository<Campus>? studentCampuses = null)
     {
         _courses = courses; _enrollments = enrollments; _lessons = lessons; _progress = progress;
         _assignments = assignments; _submissions = submissions; _students = students;
@@ -78,6 +81,7 @@ public sealed partial class LmsWorkflowService : ILmsWorkflowService
         _completionQuizzes = completionQuizzes; _completionAttempts = completionAttempts;
         _certificates = certificates;
         _certificateAudits = certificateAudits;
+        _studentCampuses = studentCampuses;
     }
 
     public async Task<ApiResponse<CourseDto>> SaveCourseAsync(Guid? courseReference, SaveCourseRequestDto request,
