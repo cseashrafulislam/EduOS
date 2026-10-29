@@ -588,15 +588,26 @@ public sealed partial class LibraryService : ILibraryService
         }
     }
 
-    public async Task<ApiResponse<PagedResult<BookIssueDto>>> GetMyIssuesAsync(int page, int pageSize, CancellationToken ct = default)
+    public async Task<ApiResponse<PagedResult<BookIssueDto>>> GetMyIssuesAsync(int page, int pageSize,
+        CancellationToken ct = default, string? status = null)
     {
-        if (!CanRead()) return Denied<PagedResult<BookIssueDto>>();
-        page = Math.Max(1, page); pageSize = Math.Clamp(pageSize, 1, 100);
+        if (!CanRead() || !_user.IsInRole("Student")) return Denied<PagedResult<BookIssueDto>>();
+        status = (status ?? "all").Trim().ToLowerInvariant();
+        if (page < 1 || pageSize is < 1 or > 100 ||
+            status is not ("all" or "issued" or "overdue" or "returned"))
+            return ApiResponse<PagedResult<BookIssueDto>>.ErrorResponse("Invalid loan statement filters.");
         var tenant = _user.TenantId;
         var studentIds = _students.GetQueryable().AsNoTracking()
             .Where(x => x.TenantId == tenant && x.UserId == _user.UserId).Select(x => x.Id);
         var query = _issues.GetQueryable().AsNoTracking()
-            .Where(x => x.TenantId == tenant && studentIds.Contains(x.StudentId));
+            .Where(x => x.TenantId == tenant && studentIds.Contains(x.StudentId) && !x.IsDeleted);
+        if (status == "issued") query = query.Where(x => x.State == BookIssueState.Issued);
+        if (status == "returned") query = query.Where(x => x.State == BookIssueState.Returned);
+        if (status == "overdue")
+        {
+            var today = DateOnly.FromDateTime(_clock.GetUtcNow().UtcDateTime);
+            query = query.Where(x => x.State == BookIssueState.Issued && x.DueDate < today);
+        }
         var total = await query.CountAsync(ct);
         var offset = ((long)page - 1) * pageSize;
         var issues = offset > int.MaxValue ? new List<BookIssue>() : await query
