@@ -11,7 +11,7 @@ function error(message) {
 }
 function query() {
  const campus = el('libraryIntegrityCampus').value.trim();
- if (campus && !/^[1-9]\\d*$/.test(campus)) throw Error('Campus ID must be a positive whole number.');
+ if (campus && !/^[1-9]\d*$/.test(campus)) throw Error('Campus ID must be a positive whole number.');
  const params = new URLSearchParams({
   accession: el('libraryIntegrityAccession').value.trim(),
   page: String(state.page), pageSize: '20'
