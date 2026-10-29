@@ -223,8 +223,21 @@ public sealed class HrPayrollService : IPayrollAdministrationService
             x.Amount, x.Percentage, x.BasedOnSalaryComponentId, componentTypeById)))
             return Error<SalaryStructureDto>(
                 "Tax/PF Auto requires an approved 0–100% rate and an eligible earning base (PF requires a base). Other components use Manual BDT amounts.", 409);
-        var gross = request.Lines.Where(x => componentTypeById[x.SalaryComponentId] == SalaryComponentType.Earning).Sum(x => x.Amount);
-        var deductions = request.Lines.Where(x => componentTypeById[x.SalaryComponentId] == SalaryComponentType.Deduction).Sum(x => x.Amount);
+        var previewLines = request.Lines.Select(x => new SalaryStructureLine
+        {
+            SalaryComponentId = x.SalaryComponentId,
+            CalculationMethodCode = x.CalculationMethodCode == "Auto" ? "Auto" : "Fixed",
+            Amount = x.Amount, Percentage = x.Percentage,
+            BasedOnSalaryComponentId = x.BasedOnSalaryComponentId
+        }).ToList();
+        if (!PayrollStatutoryCalculation.TryCalculate(previewLines,
+            components.ToDictionary(x => x.Id), 30, 30, "FullMonthOnly", 0m, out var preview))
+            return Error<SalaryStructureDto>(
+                "Auto calculation base must be included among this salary structure's earnings.", 409);
+        var gross = preview.Where(x => componentTypeById[x.SalaryComponentId] == SalaryComponentType.Earning)
+            .Sum(x => x.Amount);
+        var deductions = preview.Where(x => componentTypeById[x.SalaryComponentId] == SalaryComponentType.Deduction)
+            .Sum(x => x.Amount);
         if (gross <= 0m || deductions > gross)
             return Error<SalaryStructureDto>("Salary structure requires positive earnings and nonnegative net salary.", 409);
         try

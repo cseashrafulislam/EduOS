@@ -13,6 +13,7 @@ on:
       - 'EduOS.App/Views/PayrollSalaryStructures/**'
       - 'EduOS.App/wwwroot/js/hr/employee-contracts.js'
       - 'EduOS.App/wwwroot/js/finance/payroll-payment-posting.js'
+      - 'EduOS.App/wwwroot/js/payroll/salary-structures.js'
       - 'EduOS.Core/DTOs/HR/**'
       - 'EduOS.Core/DTOs/Payroll/**'
       - 'EduOS.Core/Interfaces/IServices/IEmployeeContractService.cs'
@@ -21,6 +22,7 @@ on:
       - 'EduOS.Tests/Services/EmployeeContractSignedPdfTests.cs'
       - 'EduOS.Tests/Services/PayrollBankReviewExportTests.cs'
       - 'EduOS.Tests/Services/PayrollStatutoryCoverageTests.cs'
+      - 'EduOS.Tests/Services/PayrollStatutoryCalculationTests.cs'
       - 'EduOS.Tests/Services/PayrollJournalPostingServiceTests.cs'
       - 'EduOS.Tests/Services/PayrollLoanRecoverySettlementTests.cs'
   pull_request:
@@ -35,6 +37,7 @@ on:
       - 'EduOS.App/Views/PayrollSalaryStructures/**'
       - 'EduOS.App/wwwroot/js/hr/employee-contracts.js'
       - 'EduOS.App/wwwroot/js/finance/payroll-payment-posting.js'
+      - 'EduOS.App/wwwroot/js/payroll/salary-structures.js'
       - 'EduOS.Core/DTOs/HR/**'
       - 'EduOS.Core/DTOs/Payroll/**'
       - 'EduOS.Core/Interfaces/IServices/IEmployeeContractService.cs'
@@ -43,6 +46,7 @@ on:
       - 'EduOS.Tests/Services/EmployeeContractSignedPdfTests.cs'
       - 'EduOS.Tests/Services/PayrollBankReviewExportTests.cs'
       - 'EduOS.Tests/Services/PayrollStatutoryCoverageTests.cs'
+      - 'EduOS.Tests/Services/PayrollStatutoryCalculationTests.cs'
       - 'EduOS.Tests/Services/PayrollJournalPostingServiceTests.cs'
       - 'EduOS.Tests/Services/PayrollLoanRecoverySettlementTests.cs'
   workflow_dispatch:
@@ -71,3 +75,4 @@ jobs:
         run: |
           node --check EduOS.App/wwwroot/js/hr/employee-contracts.js
           node --check EduOS.App/wwwroot/js/finance/payroll-payment-posting.js
+          node --check EduOS.App/wwwroot/js/payroll/salary-structures.js
