@@ -1407,6 +1407,9 @@ public sealed class StudentImportExecutionServiceTests
         Assert.Equal("RowCountMismatch", Assert.Single(missing.Files[0].CompletedWindows).LogItemAuditCode);
         Assert.Equal(0, missing.LogItemsVerifiedRows);
 
+        // Assert tenant-owned records before switching the ambient HTTP tenant in
+        // this shared in-memory test harness.
+        Assert.Equal(2, await db.Students.CountAsync());
         await using var foreign = Context(options, 202);
         var isolated = (await Service(foreign, new User(202, true))
             .GetCohortStatusAsync(files)).Data!;
@@ -1415,7 +1418,6 @@ public sealed class StudentImportExecutionServiceTests
         Assert.Equal(0, isolated.LogItemReviewWindows);
         Assert.Equal(403, (await Service(db, new User(101, false))
             .GetCohortStatusAsync(files)).StatusCode);
-        Assert.Equal(2, await db.Students.CountAsync());
     }
 
 }
