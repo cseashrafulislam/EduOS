@@ -18,7 +18,7 @@ public sealed partial class SqlServerTransportSeatCapacityIntegrationTests
         new(new GenericRepository<Book>(db), new GenericRepository<BookCopy>(db),
             new GenericRepository<BookIssue>(db), new GenericRepository<BookCategory>(db),
             new GenericRepository<EduOS.Core.Entities.Students.Student>(db),
-            new GenericRepository<EduOS.Core.Entities.Students.StudentEnrollment>(db),
+            new GenericRepository<EduOS.Core.Entities.Academic.StudentEnrollment>(db),
             db, new DigitalReader(tenant, user, "TenantAdmin"), TimeProvider.System,
             NullLogger<LibraryService>.Instance,
             branches: new GenericRepository<LibraryBranch>(db),
