@@ -4,6 +4,7 @@ using EduOS.Core.Interfaces.IServices;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
+using System.Text;
 
 namespace EduOS.App.Controllers.Api;
 
@@ -33,6 +34,16 @@ public sealed class TransportDriverTripsController : ControllerBase
     {
         var result = await _service.GetDriverRidersAsync(reference, page, pageSize, ct);
         return StatusCode(result.StatusCode, result);
+    }
+
+    [HttpGet("{reference:guid}/export")]
+    public async Task<IActionResult> Export(Guid reference, CancellationToken ct = default)
+    {
+        var result = await _service.ExportDriverRidersCsvAsync(reference, ct);
+        if (!result.Success || result.Data == null)
+            return StatusCode(result.StatusCode, result);
+        Response.Headers["X-Content-Type-Options"] = "nosniff";
+        return File(Encoding.UTF8.GetBytes(result.Data), "text/csv; charset=utf-8", "my-transport-trip-riders.csv");
     }
 
     [HttpPost("{reference:guid}/attendance")]

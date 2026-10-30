@@ -177,7 +177,29 @@
     el('tripNext').addEventListener('click',()=>{if(page<pages){page++;load();}});
     el('tripRiderPrev').addEventListener('click',()=>{if(riderPage>1){riderPage--;loadRiders();}});
     el('tripRiderNext').addEventListener('click',()=>{if(riderPage<riderPages){riderPage++;loadRiders();}});
-    el('tripExport').addEventListener('click',()=>{if(trip) window.location.assign('/api/transport/trips/'+encodeURIComponent(trip)+'/export');});
-    el('tripPrint').addEventListener('click',()=>window.print());
+    el('tripExport').addEventListener('click', async () => {
+        if (!trip) return;
+        const button = el('tripExport'); button.disabled = true;
+        try {
+            const response = await fetch('/api/transport/trips/' + encodeURIComponent(trip) + '/export', {
+                credentials: 'same-origin', cache: 'no-store', headers: { Accept: 'text/csv' }
+            });
+            if (!response.ok) {
+                const error = await response.json().catch(() => null);
+                throw new Error(error?.message || 'Manifest export unavailable.');
+            }
+            const blob = await response.blob(), url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url; link.download = 'transport-trip-riders.csv';
+            document.body.append(link); link.click(); link.remove();
+            setTimeout(() => URL.revokeObjectURL(url), 1000);
+        } catch (e) { status(e.message, true); }
+        finally { button.disabled = false; }
+    });
+    el('tripPrint').addEventListener('click', () => {
+        if (!trip) return;
+        window.open('/transport/trips/' + encodeURIComponent(trip) + '/print',
+            '_blank', 'noopener,noreferrer');
+    });
     setup(); load();
 })();

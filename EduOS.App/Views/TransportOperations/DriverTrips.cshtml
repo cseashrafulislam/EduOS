@@ -13,7 +13,6 @@
     <p id="driverTripStatus" class="small text-muted" role="status" aria-live="polite"></p>
     <div class="d-flex gap-2 mb-2">
         <button id="driverTripReload" class="btn btn-outline-primary btn-sm" type="button">Refresh / রিফ্রেশ</button>
-        <button id="driverTripPrint" class="btn btn-outline-secondary btn-sm" type="button">Print / প্রিন্ট</button>
     </div>
     <div class="table-responsive">
         <table class="table table-sm table-hover align-middle">
@@ -28,6 +27,10 @@
     </div>
     <section id="driverManifest" hidden aria-labelledby="driverManifestTitle">
         <h2 id="driverManifestTitle" class="h5">Assigned riders / নির্ধারিত যাত্রী</h2>
+        <div class="d-flex gap-2 mb-2">
+            <button id="driverTripPrint" class="btn btn-outline-secondary btn-sm" type="button">Print full manifest / সম্পূর্ণ প্রিন্ট</button>
+            <button id="driverTripExport" class="btn btn-outline-primary btn-sm" type="button">CSV</button>
+        </div>
         <div class="table-responsive">
             <table class="table table-sm table-hover align-middle">
                 <thead><tr><th>Student / শিক্ষার্থী</th><th>Pickup / উঠবে</th><th>Drop / নামবে</th><th>Attendance / উপস্থিতি</th><th>Action / কার্যক্রম</th></tr></thead>

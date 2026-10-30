@@ -380,11 +380,19 @@ public sealed partial class SqlServerTransportSeatCapacityIntegrationTests
                 ClientRequestId = Guid.NewGuid(), StudentCode = state.StudentCode, EventType = "Boarded"
             })).StatusCode);
         Assert.Equal(404, (await other.ExportRidersCsvAsync(state.Reference)).StatusCode);
+        Assert.Equal(404, (await other.GetManifestReportAsync(state.Reference)).StatusCode);
         await using var campusDb = ScopedContext(state.Fixture.Options, state.Fixture.TenantId, state.Fixture.UserId);
         var campusDenied = new TransportTripService(campusDb,
             new RestrictedTransportManager(state.Fixture.TenantId, state.Fixture.UserId),
             TimeProvider.System, NullLogger<TransportTripService>.Instance);
         Assert.Equal(403, (await campusDenied.GetRidersAsync(state.Reference, 1, 25)).StatusCode);
+        Assert.Equal(403, (await campusDenied.GetManifestReportAsync(state.Reference)).StatusCode);
+        Assert.Equal(403, (await campusDenied.ExportRidersCsvAsync(state.Reference)).StatusCode);
+        var authorizedReport = await TripService(campusDb, state.Fixture).GetManifestReportAsync(state.Reference);
+        Assert.True(authorizedReport.Success, authorizedReport.Message);
+        Assert.Equal(state.StudentCode, Assert.Single(authorizedReport.Data!.Riders).StudentCode);
+        Assert.Equal(1, authorizedReport.Data.AwaitingCount);
+        Assert.Equal(1, authorizedReport.Data.Trip.RiderCount);
         Assert.Equal(403, (await campusDenied.RecordAttendanceAsync(state.Reference,
             new RecordTransportTripAttendanceRequestDto
             {

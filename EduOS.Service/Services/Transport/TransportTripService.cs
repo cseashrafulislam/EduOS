@@ -352,30 +352,8 @@ public sealed partial class TransportTripService : ITransportTripService
             { Items = rows, TotalCount = count, Page = page, PageSize = pageSize });
     }
 
-    public async Task<ApiResponse<string>> ExportRidersCsvAsync(Guid reference, CancellationToken ct = default)
-    {
-        var first = await GetRidersAsync(reference, 1, 100, ct);
-        if (!first.Success || first.Data == null)
-            return ApiResponse<string>.ErrorResponse(first.Message, first.StatusCode);
-        if (first.Data.TotalCount > 500)
-            return ApiResponse<string>.ErrorResponse("More than 500 riders; narrow the trip.", 413);
-        var rows = new List<TransportTripRiderDto>(first.Data.Items);
-        for (var page = 2; page <= (first.Data.TotalCount + 99) / 100; page++)
-        {
-            var next = await GetRidersAsync(reference, page, 100, ct);
-            if (!next.Success || next.Data == null || next.Data.TotalCount != first.Data.TotalCount)
-                return ApiResponse<string>.ErrorResponse("Manifest changed during export.", 409);
-            rows.AddRange(next.Data.Items);
-        }
-        if (rows.Count != first.Data.TotalCount ||
-            rows.Select(x => x.StudentCode).Distinct().Count() != rows.Count)
-            return ApiResponse<string>.ErrorResponse("Manifest integrity conflict.", 409);
-        var csv = new StringBuilder("\uFEFFStudent code,Pickup stop,Drop stop,Attendance\r\n");
-        foreach (var row in rows)
-            csv.Append(Escape(row.StudentCode)).Append(',').Append(Escape(row.PickupStop))
-                .Append(',').Append(Escape(row.DropStop)).Append(',').Append(Escape(row.AttendanceState)).Append("\r\n");
-        return ApiResponse<string>.SuccessResponse(csv.ToString());
-    }
+    public Task<ApiResponse<string>> ExportRidersCsvAsync(Guid reference, CancellationToken ct = default) =>
+        ExportManifestCsvAsync(reference, driverOnly: false, ct);
 
     private static string Escape(string? value)
     {

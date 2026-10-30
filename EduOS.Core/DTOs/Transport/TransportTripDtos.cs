@@ -38,3 +38,14 @@ public sealed class TransportTripRiderDto
     public string DropStop { get; set; } = string.Empty;
     public string AttendanceState { get; set; } = string.Empty;
 }
+
+public sealed class TransportTripManifestReportDto
+{
+    public TransportTripRowDto Trip { get; set; } = new();
+    public IReadOnlyList<TransportTripRiderDto> Riders { get; set; } = Array.Empty<TransportTripRiderDto>();
+    public int AwaitingCount { get; set; }
+    public int BoardedCount { get; set; }
+    public int DroppedCount { get; set; }
+    public int NoShowCount { get; set; }
+    public DateTime GeneratedAtUtc { get; set; }
+}

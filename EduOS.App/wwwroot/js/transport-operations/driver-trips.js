@@ -117,7 +117,31 @@
         }
     }
     el('driverTripReload').addEventListener('click', () => { page = 1; loadTrips(); if (selected) loadRiders(); });
-    el('driverTripPrint').addEventListener('click', () => window.print());
+    el('driverTripPrint').addEventListener('click', () => {
+        if (!selected) return;
+        window.open('/transport/driver-trips/' + encodeURIComponent(selected) + '/print',
+            '_blank', 'noopener,noreferrer');
+    });
+    el('driverTripExport').addEventListener('click', async () => {
+        if (!selected) return;
+        const button = el('driverTripExport'); button.disabled = true;
+        try {
+            const response = await fetch('/api/transport/driver-trips/' +
+                encodeURIComponent(selected) + '/export', {
+                credentials: 'same-origin', cache: 'no-store', headers: { Accept: 'text/csv' }
+            });
+            if (!response.ok) {
+                const error = await response.json().catch(() => null);
+                throw new Error(error?.message || 'Manifest export unavailable.');
+            }
+            const blob = await response.blob(), url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url; link.download = 'my-transport-trip-riders.csv';
+            document.body.append(link); link.click(); link.remove();
+            setTimeout(() => URL.revokeObjectURL(url), 1000);
+        } catch (e) { status(e.message, true); }
+        finally { button.disabled = false; }
+    });
     el('driverTripPrev').addEventListener('click', () => { if (page > 1) { page--; loadTrips(); } });
     el('driverTripNext').addEventListener('click', () => { if (page < pages) { page++; loadTrips(); } });
     el('driverRiderPrev').addEventListener('click', () => { if (riderPage > 1) { riderPage--; loadRiders(); } });

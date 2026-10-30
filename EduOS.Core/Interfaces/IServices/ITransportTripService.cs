@@ -16,4 +16,7 @@ public interface ITransportTripService
     Task<ApiResponse<PagedResult<TransportTripRiderDto>>> GetDriverRidersAsync(Guid reference, int page, int pageSize, CancellationToken ct = default);
     Task<ApiResponse<TransportTripAttendanceDto>> RecordDriverAttendanceAsync(Guid reference, RecordTransportTripAttendanceRequestDto request, CancellationToken ct = default);
     Task<ApiResponse<string>> ExportRidersCsvAsync(Guid reference, CancellationToken ct = default);
+    Task<ApiResponse<string>> ExportDriverRidersCsvAsync(Guid reference, CancellationToken ct = default);
+    Task<ApiResponse<TransportTripManifestReportDto>> GetManifestReportAsync(Guid reference, CancellationToken ct = default);
+    Task<ApiResponse<TransportTripManifestReportDto>> GetDriverManifestReportAsync(Guid reference, CancellationToken ct = default);
 }

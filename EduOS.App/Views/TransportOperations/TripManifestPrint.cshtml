@@ -1,0 +1,70 @@
+@model EduOS.Core.DTOs.Transport.TransportTripManifestReportDto
+@{
+    Layout = null;
+    ViewData["Title"] = "Transport trip manifest";
+}
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex,nofollow" />
+    <meta name="referrer" content="no-referrer" />
+    <title>Trip manifest / যাত্রী তালিকা</title>
+    <style>
+        body { font-family: system-ui, "Noto Sans Bengali", sans-serif; color: #17212e; max-width: 1100px; margin: 1.5rem auto; padding: 0 1rem; }
+        h1 { font-size: 1.45rem; margin-bottom: .4rem; }
+        .meta { display: flex; flex-wrap: wrap; gap: .5rem 1.4rem; margin: 1rem 0; }
+        .meta span { display: block; font-size: .9rem; }
+        .summary { display: flex; flex-wrap: wrap; gap: .6rem; margin: 1rem 0; }
+        .summary strong { border: 1px solid #b8c3ce; padding: .45rem .65rem; border-radius: .35rem; }
+        table { width: 100%; border-collapse: collapse; font-size: .88rem; }
+        th, td { border: 1px solid #bac3cc; padding: .45rem .55rem; text-align: left; overflow-wrap: anywhere; }
+        th { background: #eaf0f5; }
+        tr { break-inside: avoid; }
+        .muted { color: #53606c; font-size: .8rem; }
+        button { padding: .5rem 1rem; border: 1px solid #617285; background: white; border-radius: .35rem; cursor: pointer; }
+        @@media print {
+            body { max-width: none; margin: 0; padding: 0; }
+            .no-print { display: none; }
+            thead { display: table-header-group; }
+            @@page { size: A4; margin: 12mm; }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>Frozen trip manifest / নির্ধারিত যাত্রী তালিকা</h1>
+        <p class="muted">Recorded dispatch manifest and latest attendance; not live GPS tracking. / রেকর্ডকৃত যাত্রী ও উপস্থিতি।</p>
+        <button id="manifestPrintAction" type="button" class="no-print">Print / প্রিন্ট</button>
+        <div class="meta">
+            <div><span>Campus / ক্যাম্পাস</span><strong>@Model.Trip.CampusName</strong></div>
+            <div><span>Route / রুট</span><strong>@Model.Trip.RouteName</strong></div>
+            <div><span>Vehicle / গাড়ি</span><strong>@Model.Trip.VehicleNumber</strong></div>
+            <div><span>Date / তারিখ</span><strong>@Model.Trip.OperatingDate.ToString("yyyy-MM-dd")</strong></div>
+            <div><span>Direction / দিক</span><strong>@Model.Trip.Direction</strong></div>
+            <div><span>State / অবস্থা</span><strong>@Model.Trip.State</strong></div>
+        </div>
+        <div class="summary" aria-label="Attendance summary">
+            <strong>Total / মোট: @Model.Riders.Count</strong>
+            <strong>Awaiting / অপেক্ষমান: @Model.AwaitingCount</strong>
+            <strong>Boarded / উঠেছে: @Model.BoardedCount</strong>
+            <strong>Dropped / নেমেছে: @Model.DroppedCount</strong>
+            <strong>No-show / অনুপস্থিত: @Model.NoShowCount</strong>
+        </div>
+    </header>
+    <table>
+        <thead><tr><th scope="col">#</th><th scope="col">Student code / শিক্ষার্থী</th><th scope="col">Pickup / উঠবে</th><th scope="col">Drop / নামবে</th><th scope="col">Attendance / উপস্থিতি</th></tr></thead>
+        <tbody>
+            @{ var number = 0; }
+            @foreach (var rider in Model.Riders)
+            {
+                number++;
+                <tr><td>@number</td><td>@rider.StudentCode</td><td>@rider.PickupStop</td><td>@rider.DropStop</td><td>@rider.AttendanceState</td></tr>
+            }
+        </tbody>
+    </table>
+    <p class="muted">Generated UTC / প্রস্তুত: @Model.GeneratedAtUtc.ToString("yyyy-MM-dd HH:mm:ss") · Total frozen riders: @Model.Trip.RiderCount</p>
+    <script src="~/js/transport-operations/manifest-print.js" asp-append-version="true"></script>
+</body>
+</html>

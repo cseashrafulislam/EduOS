@@ -66,6 +66,13 @@ public sealed partial class SqlServerTransportSeatCapacityIntegrationTests
             var riders = await service.GetDriverRidersAsync(state.Reference, 1, 25);
             Assert.True(riders.Success, riders.Message);
             Assert.Equal(state.StudentCode, Assert.Single(riders.Data!.Items).StudentCode);
+            var report = await service.GetDriverManifestReportAsync(state.Reference);
+            Assert.True(report.Success, report.Message);
+            Assert.Equal(state.StudentCode, Assert.Single(report.Data!.Riders).StudentCode);
+            Assert.Equal(1, report.Data.Trip.RiderCount);
+            var csv = await service.ExportDriverRidersCsvAsync(state.Reference);
+            Assert.True(csv.Success, csv.Message);
+            Assert.Contains(state.StudentCode, csv.Data);
             var key = Guid.NewGuid();
             var request = new RecordTransportTripAttendanceRequestDto
             { ClientRequestId = key, StudentCode = state.StudentCode, EventType = "Boarded" };
@@ -84,6 +91,8 @@ public sealed partial class SqlServerTransportSeatCapacityIntegrationTests
                 TimeProvider.System, NullLogger<TransportTripService>.Instance);
             Assert.Empty((await foreign.GetDriverTripsAsync(1, 20)).Data!.Items);
             Assert.Equal(404, (await foreign.GetDriverRidersAsync(state.Reference, 1, 25)).StatusCode);
+            Assert.Equal(404, (await foreign.GetDriverManifestReportAsync(state.Reference)).StatusCode);
+            Assert.Equal(404, (await foreign.ExportDriverRidersCsvAsync(state.Reference)).StatusCode);
         }
         await using (var revoke = ScopedContext(state.Fixture.Options, state.Fixture.TenantId, state.Fixture.UserId))
         {
@@ -99,6 +108,8 @@ public sealed partial class SqlServerTransportSeatCapacityIntegrationTests
                 TimeProvider.System, NullLogger<TransportTripService>.Instance);
             Assert.Empty((await revoked.GetDriverTripsAsync(1, 20)).Data!.Items);
             Assert.Equal(403, (await revoked.GetDriverRidersAsync(state.Reference, 1, 25)).StatusCode);
+            Assert.Equal(403, (await revoked.GetDriverManifestReportAsync(state.Reference)).StatusCode);
+            Assert.Equal(403, (await revoked.ExportDriverRidersCsvAsync(state.Reference)).StatusCode);
             Assert.Equal(403, (await revoked.RecordDriverAttendanceAsync(state.Reference,
                 new RecordTransportTripAttendanceRequestDto
                 { ClientRequestId = Guid.NewGuid(), StudentCode = state.StudentCode, EventType = "Dropped" })).StatusCode);
