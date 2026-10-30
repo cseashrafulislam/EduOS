@@ -148,9 +148,15 @@ async function scenario(browser, role, lang) {
             await page.locator('#familyAttendanceRows button').first().click();
             await page.waitForFunction(() =>
                 document.getElementById('familyAttendanceHistoryDialog').open);
+            await page.locator('#familyAttendanceHistoryClose').click();
             await page.locator('#familyAttendanceExport').click();
         }
         await pending;
+        if (role === 'family') {
+            await page.locator('#familyAttendanceRows button').first().click();
+            await page.waitForFunction(() =>
+                document.getElementById('familyAttendanceHistoryDialog').open);
+        }
         await page.evaluate(() => { document.body.dataset.authTenantId = '202'; });
         const privateSelectors = role === 'dispatcher' ? ['#tripRows','#tripManifestRows'] :
             role === 'driver' ? ['#driverTripRows','#driverRiderRows'] :
