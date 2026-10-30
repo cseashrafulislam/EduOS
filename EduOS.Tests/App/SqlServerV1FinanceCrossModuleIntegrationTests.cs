@@ -405,7 +405,9 @@ public sealed class SqlServerV1FinanceCrossModuleIntegrationTests
         var returned = Assert.Single(register.Data!.Payments);
         Assert.Equal("Returned", returned.ReconciliationStatus);
         Assert.Equal(0m, returned.SettledAmount);
-        Assert.Equal(40m, returned.RemainingAmount);
+        // Return restores the full net-payable capacity: the unpaid 60 plus
+        // the independently returned 40, without modifying the paid receipt.
+        Assert.Equal(100m, returned.RemainingAmount);
 
         var otherTenant = new PayrollPaymentPostingService(db,
             new Actor(tenantId + 100_000, makerId), TimeProvider.System);
