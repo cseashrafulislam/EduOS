@@ -203,57 +203,65 @@ public sealed partial class ProcurementPurchaseOrderService : IProcurementPurcha
         if (id <= 0 || request == null || action is not ("submit" or "approve" or "reject" or "revise" or "cancel") ||
             request.Reason?.Length > 500)
             return ApiResponse<ProcurementPurchaseOrderDto>.ErrorResponse("Invalid decision.");
-        var order = await db.ProcurementPurchaseOrders.FirstOrDefaultAsync(x =>
-            x.TenantId == user.TenantId && x.Id == id && !x.IsDeleted, ct);
-        if (order == null || !await CampusAllowed(order.CampusId, ct))
-            return ApiResponse<ProcurementPurchaseOrderDto>.ErrorResponse("Order not found.", 404);
-        var owner = order.CreatedBy == user.UserId;
-        if ((action is "submit" or "revise" or "cancel" && (!Maker || !owner)) ||
-            (action is "approve" or "reject" && (!Checker || owner)))
-            return Denied<ProcurementPurchaseOrderDto>();
-        if (!Version(order.RowVersion, request.RowVersion))
-            return ApiResponse<ProcurementPurchaseOrderDto>.ErrorResponse("Order changed; reload.", 409);
-        var valid = action switch
-        {
-            "submit" => order.StateCode == "Draft",
-            "approve" or "reject" => order.StateCode == "Submitted",
-            "revise" => order.StateCode == "Rejected",
-            "cancel" => order.StateCode is "Draft" or "Submitted" or "Rejected",
-            _ => false
-        };
-        if (!valid) return ApiResponse<ProcurementPurchaseOrderDto>.ErrorResponse("Invalid state transition.", 409);
-        if (action is "reject" or "cancel" && string.IsNullOrWhiteSpace(request.Reason))
-            return ApiResponse<ProcurementPurchaseOrderDto>.ErrorResponse("Reason required.");
-        if (action is "submit" or "approve")
-        {
-            var reqOk = await db.ProcurementRequisitions.AsNoTracking().AnyAsync(x =>
-                x.TenantId == user.TenantId && x.Id == order.RequisitionId &&
-                x.CampusId == order.CampusId && x.StateCode == "Approved" && !x.IsDeleted, ct);
-            var supplierOk = await db.ProcurementSuppliers.AsNoTracking().AnyAsync(x =>
-                x.TenantId == user.TenantId && x.Id == order.SupplierId &&
-                x.CampusId == order.CampusId && x.StateCode == "Approved" && !x.IsDeleted, ct);
-            if (!reqOk || !supplierOk)
-                return ApiResponse<ProcurementPurchaseOrderDto>.ErrorResponse("Source approval no longer valid.", 409);
-        }
-        var now = clock.GetUtcNow().UtcDateTime;
-        order.StateCode = action switch
-        {
-            "submit" => "Submitted", "approve" => "Approved", "reject" => "Rejected",
-            "revise" => "Draft", _ => "Cancelled"
-        };
-        if (action == "submit")
-        { order.SubmittedAt = now; order.DecidedAt = null; order.DecidedByUserId = null; order.DecisionReason = null; }
-        if (action == "revise")
-        { order.SubmittedAt = null; order.DecidedAt = null; order.DecidedByUserId = null; order.DecisionReason = null; }
-        if (action is "approve" or "reject" or "cancel")
-        { order.DecidedAt = now; order.DecidedByUserId = user.UserId; order.DecisionReason = request.Reason?.Trim(); }
-        order.UpdatedAt = now; order.UpdatedBy = user.UserId;
+        // Serialize the source approval check and the PO decision. No inventory or Finance posting occurs.
+        await using var tx = db.Database.IsRelational()
+            ? await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct) : null;
         try
         {
+            var order = await db.ProcurementPurchaseOrders.FirstOrDefaultAsync(x =>
+                x.TenantId == user.TenantId && x.Id == id && !x.IsDeleted, ct);
+            if (order == null || !await CampusAllowed(order.CampusId, ct))
+                return ApiResponse<ProcurementPurchaseOrderDto>.ErrorResponse("Order not found.", 404);
+            var owner = order.CreatedBy == user.UserId;
+            if ((action is "submit" or "revise" or "cancel" && (!Maker || !owner)) ||
+                (action is "approve" or "reject" && (!Checker || owner)))
+                return Denied<ProcurementPurchaseOrderDto>();
+            if (!Version(order.RowVersion, request.RowVersion))
+                return ApiResponse<ProcurementPurchaseOrderDto>.ErrorResponse("Order changed; reload.", 409);
+            var valid = action switch
+            {
+                "submit" => order.StateCode == "Draft",
+                "approve" or "reject" => order.StateCode == "Submitted",
+                "revise" => order.StateCode == "Rejected",
+                "cancel" => order.StateCode is "Draft" or "Submitted" or "Rejected",
+                _ => false
+            };
+            if (!valid) return ApiResponse<ProcurementPurchaseOrderDto>.ErrorResponse("Invalid state transition.", 409);
+            if (action is "reject" or "cancel" && string.IsNullOrWhiteSpace(request.Reason))
+                return ApiResponse<ProcurementPurchaseOrderDto>.ErrorResponse("Reason required.");
+            // Never approve a stale or tampered supplier commitment: recheck every source line,
+            // active stock item, approved requisition budget and campus supplier under the lock.
+            if (action is "submit" or "approve" && !await CommitmentValidAsync(order, ct))
+                return ApiResponse<ProcurementPurchaseOrderDto>.ErrorResponse(
+                    "Purchase order lines or source approval changed; revise and resubmit.", 409);
+            var now = clock.GetUtcNow().UtcDateTime;
+            order.StateCode = action switch
+            {
+                "submit" => "Submitted", "approve" => "Approved", "reject" => "Rejected",
+                "revise" => "Draft", _ => "Cancelled"
+            };
+            if (action == "submit")
+            { order.SubmittedAt = now; order.DecidedAt = null; order.DecidedByUserId = null; order.DecisionReason = null; }
+            if (action == "revise")
+            { order.SubmittedAt = null; order.DecidedAt = null; order.DecidedByUserId = null; order.DecisionReason = null; }
+            if (action is "approve" or "reject" or "cancel")
+            { order.DecidedAt = now; order.DecidedByUserId = user.UserId; order.DecisionReason = request.Reason?.Trim(); }
+            order.UpdatedAt = now; order.UpdatedBy = user.UserId;
             await db.SaveChangesAsync(ct);
+            if (tx != null) await tx.CommitAsync(ct);
             return ApiResponse<ProcurementPurchaseOrderDto>.SuccessResponse(await MapAsync(order, ct));
         }
         catch (DbUpdateConcurrencyException)
-        { return ApiResponse<ProcurementPurchaseOrderDto>.ErrorResponse("Competing decision; reload.", 409); }
+        {
+            if (tx != null) await tx.RollbackAsync(ct);
+            return ApiResponse<ProcurementPurchaseOrderDto>.ErrorResponse("Competing decision; reload.", 409);
+        }
+        catch (DbUpdateException ex)
+        {
+            if (tx != null) await tx.RollbackAsync(ct);
+            logger.LogWarning(ex, "Procurement PO decision integrity conflict for tenant {TenantId}", user.TenantId);
+            return ApiResponse<ProcurementPurchaseOrderDto>.ErrorResponse("Decision references changed; reload.", 409);
+        }
     }
+
 }

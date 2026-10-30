@@ -135,6 +135,45 @@ public sealed class SqlServerV3ProcurementPurchaseOrderTests
             Assert.True(ownQueue.Success, ownQueue.Message);
             Assert.DoesNotContain(ownQueue.Data!.Items, x => x.Id == id);
         }
+        // Revalidate PO/source integrity at checker time, not only when the draft was saved.
+        // Simulate a stale line, a reduced approved budget and a disabled stock item.
+        await using (var corrupt = Open(options, tenantId, makerId))
+        {
+            var line = await corrupt.ProcurementPurchaseOrderLines.SingleAsync(x => x.PurchaseOrderId == id);
+            line.Quantity = 13m;
+            await corrupt.SaveChangesAsync();
+        }
+        await using (var invalid = Open(options, tenantId, checkerId))
+            Assert.Equal(409, (await Service(invalid, tenantId, checkerId).TransitionAsync(id, "approve",
+                new ProcurementPurchaseOrderDecisionRequest { RowVersion = version })).StatusCode);
+        await using (var repair = Open(options, tenantId, makerId))
+        {
+            var line = await repair.ProcurementPurchaseOrderLines.SingleAsync(x => x.PurchaseOrderId == id);
+            line.Quantity = 10m;
+            var source = await repair.ProcurementRequisitionLines.SingleAsync(x => x.RequisitionId == reqId);
+            source.EstimatedUnitPrice = 3m; // approved budget now 36, PO commitment 40
+            await repair.SaveChangesAsync();
+        }
+        await using (var invalid = Open(options, tenantId, checkerId))
+            Assert.Equal(409, (await Service(invalid, tenantId, checkerId).TransitionAsync(id, "approve",
+                new ProcurementPurchaseOrderDecisionRequest { RowVersion = version })).StatusCode);
+        await using (var repair = Open(options, tenantId, makerId))
+        {
+            var source = await repair.ProcurementRequisitionLines.SingleAsync(x => x.RequisitionId == reqId);
+            source.EstimatedUnitPrice = 5m;
+            var item = await repair.InventoryItems.SingleAsync(x => x.Id == source.InventoryItemId);
+            item.IsActive = false;
+            await repair.SaveChangesAsync();
+        }
+        await using (var invalid = Open(options, tenantId, checkerId))
+            Assert.Equal(409, (await Service(invalid, tenantId, checkerId).TransitionAsync(id, "approve",
+                new ProcurementPurchaseOrderDecisionRequest { RowVersion = version })).StatusCode);
+        await using (var repair = Open(options, tenantId, makerId))
+        {
+            var item = await repair.InventoryItems.SingleAsync(x => x.Code == "I-" + suffix);
+            item.IsActive = true;
+            await repair.SaveChangesAsync();
+        }
         var checkerQueue = await Service(checkerDb, tenantId, checkerId)
             .PendingApprovalsAsync(1, 20, null, null);
         Assert.True(checkerQueue.Success, checkerQueue.Message);
