@@ -27,10 +27,8 @@ async function load() {
  status.textContent = 'Loading / লোড হচ্ছে…';
  try {
   const query = new URLSearchParams({operatingDate:requested,page:String(page),pageSize:'20'});
-  const response = await fetch('/api/transport/family-schedule?'+query,{
-   credentials:'same-origin',cache:'no-store',headers:{Accept:'application/json'}
-  });
-  const body = await response.json().catch(()=>null);
+  const body = await guard.request('/api/transport/family-schedule?'+query,
+   {headers:{Accept:'application/json'}}, response => response.json().catch(()=>null));
   if (!response.ok || !body?.success || !body.data) throw Error(body?.message || 'Schedule unavailable.');
   if (token !== serial || requested !== date.value) return;
   const items = Array.isArray(body.data.items) ? body.data.items : [];
@@ -64,14 +62,11 @@ exportButton.addEventListener('click',async()=>{
  if (loadedDate !== requested) return;
  exportButton.disabled = true;
  try {
-  const response = await fetch('/api/transport/family-schedule/export?'+new URLSearchParams({operatingDate:requested}),{
-   credentials:'same-origin',cache:'no-store',headers:{Accept:'text/csv'}
-  });
-  if (!response.ok) {
-   const body = await response.json().catch(()=>null);
-   throw Error(body?.message||'Export unavailable.');
-  }
-  const blob = await response.blob();
+  const blob = await guard.request('/api/transport/family-schedule/export?'+
+   new URLSearchParams({operatingDate:requested}),{headers:{Accept:'text/csv'}},async response=>{
+    if(!response.ok){const body=await response.json().catch(()=>null);throw Error(body?.message||'Export unavailable.');}
+    return response.blob();
+   });
   if (token !== serial || requested !== date.value || loadedDate !== requested)
    throw Error('Date changed; reload before exporting.');
   const url = URL.createObjectURL(blob), a = document.createElement('a');
@@ -80,7 +75,7 @@ exportButton.addEventListener('click',async()=>{
  } catch(error) { status.textContent = error.message; }
  finally { exportButton.disabled = loadedDate !== date.value; }
 });
-load();
+/* Initial reads run only after the shared session guard is initialized. */
 
 const attendanceDate = el('familyAttendanceDate'), attendanceRows = el('familyAttendanceRows');
 const attendanceStatus = el('familyAttendanceStatus');
@@ -99,10 +94,8 @@ async function loadAttendance() {
  }
  try {
   const query = new URLSearchParams({date:requestDate,page:String(attendancePage),pageSize:'20'});
-  const response = await fetch('/api/transport/family-attendance?'+query,{
-   credentials:'same-origin',cache:'no-store',headers:{Accept:'application/json'}
-  });
-  const body = await response.json().catch(()=>null);
+  const body = await guard.request('/api/transport/family-attendance?'+query,
+   {headers:{Accept:'application/json'}},response=>response.json().catch(()=>null));
   if (!response.ok || !body?.success || !body.data) throw Error(body?.message||'Attendance unavailable.');
   if (token !== attendanceSerial || requestDate !== attendanceDate.value) return;
   for (const item of body.data.items || []) {
@@ -118,8 +111,8 @@ async function loadAttendance() {
     try {
      const url = '/api/transport/family-attendance/' + encodeURIComponent(item.tripReference) +
       '/history?' + new URLSearchParams({studentCode:item.studentCode});
-     const response = await fetch(url, {credentials:'same-origin',cache:'no-store',headers:{Accept:'application/json'}});
-     const body = await response.json().catch(()=>null);
+     const body = await guard.request(url,{headers:{Accept:'application/json'}},
+      response=>response.json().catch(()=>null));
      if (!response.ok || !body?.success || !Array.isArray(body.data)) throw Error(body?.message||'History unavailable.');
      const list = el('familyAttendanceHistoryRows'); list.replaceChildren();
      el('familyAttendanceHistoryStudent').textContent = item.studentCode;
@@ -160,11 +153,11 @@ attendanceExport.addEventListener('click',async()=>{
  if (attendanceLoadedDate!==requested) return;
  attendanceExport.disabled=true;
  try {
-  const response=await fetch('/api/transport/family-attendance/export?'+new URLSearchParams({date:requested}),{
-   credentials:'same-origin',cache:'no-store',headers:{Accept:'text/csv'}
-  });
-  if(!response.ok){const body=await response.json().catch(()=>null);throw Error(body?.message||'Export unavailable.');}
-  const blob=await response.blob();
+  const blob=await guard.request('/api/transport/family-attendance/export?'+
+   new URLSearchParams({date:requested}),{headers:{Accept:'text/csv'}},async response=>{
+    if(!response.ok){const body=await response.json().catch(()=>null);throw Error(body?.message||'Export unavailable.');}
+    return response.blob();
+   });
   if(token!==attendanceSerial||requested!==attendanceDate.value||attendanceLoadedDate!==requested)
    throw Error('Date changed; reload before exporting.');
   const url=URL.createObjectURL(blob),link=document.createElement('a');
@@ -175,5 +168,16 @@ attendanceExport.addEventListener('click',async()=>{
 });
 attendancePrev.addEventListener('click',()=>{if(attendancePage>1){attendancePage--;loadAttendance();}});
 attendanceNext.addEventListener('click',()=>{if(attendancePage<attendancePages){attendancePage++;loadAttendance();}});
-loadAttendance();
+function scrub() {
+ invalidate(); attendanceSerial++; attendanceLoadedDate=null;
+ attendanceRows.replaceChildren(); attendanceExport.disabled=true;
+ attendancePrev.disabled=true; attendanceNext.disabled=true;
+ el('familyAttendancePage').textContent='';
+ status.textContent=''; attendanceStatus.textContent='';
+ el('familyAttendanceHistoryRows').replaceChildren();
+ el('familyAttendanceHistoryStudent').textContent='';
+ if(historyDialog.open) historyDialog.close();
+}
+const guard=window.EduOSTransportSession?.create(scrub);
+if(guard?.valid()){load();loadAttendance();}else scrub();
 })();

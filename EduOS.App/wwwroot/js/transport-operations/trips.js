@@ -8,12 +8,29 @@
     let planKey = crypto.randomUUID(), page = 1, pages = 1, trip = null, tripState = null, riderPage = 1, riderPages = 1;
     let correction = null, calendarPreviewSequence = 0;
     const canCorrect = root.dataset.canCorrect === 'true';
+    const guard = window.EduOSTransportSession?.create(() => {
+        calendarPreviewSequence++;
+        trip = null; tripState = null; correction = null;
+        planKey = crypto.randomUUID(); scheduleKey = crypto.randomUUID();
+        el('tripRows').replaceChildren(); el('tripManifestRows').replaceChildren();
+        el('tripRoute').replaceChildren(); el('tripVehicle').replaceChildren();
+        el('tripManifestPanel').hidden = true;
+        el('tripPage').textContent = ''; el('tripRiderPage').textContent = '';
+        el('tripCalendarStatus').textContent = ''; el('tripStatus').textContent = '';
+        for (const id of ['tripPrev','tripNext','tripRiderPrev','tripRiderNext',
+            'tripExport','tripPrint','tripPlan','tripSchedule']) el(id).disabled = true;
+        el('tripCorrectionReason').value = '';
+        el('tripCorrectionStudent').textContent = '';
+        el('tripCorrectionState').textContent = '';
+        if (el('tripCorrectionDialog').open) el('tripCorrectionDialog').close();
+    });
+    if (!guard) return;
     el('tripDate').value = today();
     el('tripScheduleEnd').value = today();
     el('tripScheduleEnd').min = today();
     { const max = new Date(); max.setDate(max.getDate() + 30);
       el('tripScheduleEnd').max = [max.getFullYear(), String(max.getMonth()+1).padStart(2,'0'), String(max.getDate()).padStart(2,'0')].join('-'); }
-    const status = (message, error = false) => { el('tripStatus').textContent = message; el('tripStatus').className = 'small ' + (error ? 'text-danger' : 'text-muted'); };
+    const status = (message, error = false) => { if (!guard.valid()) return; el('tripStatus').textContent = message; el('tripStatus').className = 'small ' + (error ? 'text-danger' : 'text-muted'); };
     async function api(url, method = 'GET', data) {
         const headers = { Accept: 'application/json' };
         if (data !== undefined) {
@@ -23,11 +40,12 @@
             headers.RequestVerificationToken = token;
             headers['Content-Type'] = 'application/json';
         }
-        const response = await fetch(url, { method, headers, credentials: 'same-origin', cache: 'no-store',
-            ...(data !== undefined ? { body: JSON.stringify(data) } : {}) });
-        const result = await response.json().catch(() => null);
-        if (!response.ok || !result?.success) throw new Error(result?.message || 'Transport request failed.');
-        return result.data;
+        return guard.request(url, { method, headers,
+            ...(data !== undefined ? { body: JSON.stringify(data) } : {}) }, async response => {
+            const result = await response.json().catch(() => null);
+            if (!response.ok || !result?.success) throw new Error(result?.message || 'Transport request failed.');
+            return result.data;
+        });
     }
     function option(select, value, label) { const o = document.createElement('option'); o.value = value; o.textContent = label; select.append(o); }
     function cell(value) { const td = document.createElement('td'); td.textContent = value == null || value === '' ? '—' : String(value); return td; }
@@ -240,14 +258,17 @@
         if (!trip) return;
         const button = el('tripExport'); button.disabled = true;
         try {
-            const response = await fetch('/api/transport/trips/' + encodeURIComponent(trip) + '/export', {
-                credentials: 'same-origin', cache: 'no-store', headers: { Accept: 'text/csv' }
-            });
-            if (!response.ok) {
-                const error = await response.json().catch(() => null);
-                throw new Error(error?.message || 'Manifest export unavailable.');
-            }
-            const blob = await response.blob(), url = URL.createObjectURL(blob);
+            const blob = await guard.request('/api/transport/trips/' +
+                encodeURIComponent(trip) + '/export', { headers: { Accept: 'text/csv' } },
+                async response => {
+                    if (!response.ok) {
+                        const error = await response.json().catch(() => null);
+                        throw new Error(error?.message || 'Manifest export unavailable.');
+                    }
+                    return response.blob();
+                });
+            guard.assert();
+            const url = URL.createObjectURL(blob);
             const link = document.createElement('a');
             link.href = url; link.download = 'transport-trip-riders.csv';
             document.body.append(link); link.click(); link.remove();
@@ -256,9 +277,9 @@
         finally { button.disabled = false; }
     });
     el('tripPrint').addEventListener('click', () => {
-        if (!trip) return;
+        if (!trip || !guard.valid()) return;
         window.open('/transport/trips/' + encodeURIComponent(trip) + '/print',
             '_blank', 'noopener,noreferrer');
     });
-    setup(); load();
+    if (guard.valid()) { setup(); load(); }
 })();
