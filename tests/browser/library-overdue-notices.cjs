@@ -23,6 +23,7 @@ function html(language) {
 async function scenario(browser, language) {
     const page = await browser.newPage({ viewport: { width: 390, height: 800 } });
     const errors = [], posts = [];
+    let previewRequests = 0;
     let firstPost = true, sent = false, holdPreview = false;
     let startDelayed, releaseDelayed;
     let delayedStarted = new Promise(resolve => { startDelayed = resolve; });
@@ -34,6 +35,7 @@ async function scenario(browser, language) {
         if (!url.pathname.startsWith('/api/'))
             return route.fulfill({ contentType: 'text/html', body: html(language) });
         if (url.pathname.endsWith('/preview')) {
+            previewRequests++;
             const campusId = Number(url.searchParams.get('campusId'));
             if (holdPreview && campusId === 202) {
                 startDelayed();
@@ -76,7 +78,17 @@ async function scenario(browser, language) {
         await page.locator('#libraryOverdueCampus').fill('101');
         await page.locator('#libraryNoticePreview').focus();
         await page.keyboard.press('Enter');
-        await page.getByText('S-1').waitFor();
+        await page.getByText('S-1').waitFor({ timeout: 7000 }).catch(async error => {
+            const diagnostic = {
+                previewRequests,
+                message: await page.locator('#libraryNoticeMessage').innerText(),
+                count: await page.locator('#libraryNoticeCount').innerText(),
+                rows: await page.locator('#libraryNoticeRows').innerText(),
+                errors
+            };
+            throw new Error('Initial overdue preview did not render: ' +
+                JSON.stringify(diagnostic), { cause: error });
+        });
         assert.match(await page.locator('#libraryNoticeCount').innerText(), /2/);
         assert.match(await page.locator('#libraryNoticeRows').innerText(), /<img src=x/);
         assert.equal(await page.locator('#libraryNoticeRows img').count(), 0,
