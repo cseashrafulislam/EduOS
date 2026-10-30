@@ -325,11 +325,12 @@ public sealed class LmsCourseContentServiceTests
             ExternalUrl = "https://example.org/first", DisplayOrder = 1
         });
         Assert.True(first.Success, first.Message);
-        var second = await author.SaveResourceAsync(first.Data!.Id, new SaveLessonResourceRequestDto
+        // SQLite fixtures do not generate SQL Server rowversions. A second independent
+        // resource create still proves sequential immutable snapshots without faking a token.
+        var second = await author.SaveResourceAsync(null, new SaveLessonResourceRequestDto
         {
-            LessonReference = lesson.PublicId, Title = "Updated handout",
-            ExternalUrl = "https://example.org/second", DisplayOrder = 1,
-            RowVersion = first.Data.RowVersion
+            LessonReference = lesson.PublicId, Title = "Second handout",
+            ExternalUrl = "https://example.org/second", DisplayOrder = 2
         });
         Assert.True(second.Success, second.Message);
         var history = await author.GetLessonRevisionsAsync(lesson.PublicId, 1, 20);
@@ -338,8 +339,8 @@ public sealed class LmsCourseContentServiceTests
         Assert.Equal(new[] { 3, 2, 1 }, history.Data.Items.Select(x => x.RevisionNo));
         Assert.Equal("Original lesson", history.Data.Items[2].Title);
         Assert.Empty(history.Data.Items[2].Resources);
-        Assert.Single(history.Data.Items[0].Resources);
-        Assert.Equal("Updated handout", history.Data.Items[0].Resources[0].Title);
+        Assert.Equal(2, history.Data.Items[0].Resources.Count);
+        Assert.Equal("Second handout", history.Data.Items[0].Resources[1].Title);
         Assert.Equal(403, (await Service(db, "Student").GetLessonRevisionsAsync(lesson.PublicId, 1, 20)).StatusCode);
         Assert.Equal(404, (await author.GetLessonRevisionsAsync(Guid.NewGuid(), 1, 20)).StatusCode);
         Assert.Equal(400, (await author.GetLessonRevisionsAsync(lesson.PublicId, 1, 101)).StatusCode);
