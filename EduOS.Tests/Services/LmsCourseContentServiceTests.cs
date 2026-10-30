@@ -1,4 +1,5 @@
 using EduOS.Core.DTOs.LMS;
+using EduOS.Service.Helpers.Storage;
 using EduOS.Core.Entities.Academic;
 using EduOS.Core.Entities.Files;
 using EduOS.Core.Entities.HR;
@@ -199,6 +200,72 @@ public sealed class LmsCourseContentServiceTests
         Assert.False(resource.IsDeleted);
     }
 
+
+    [Fact]
+    public async Task Private_lesson_download_checks_enrollment_publication_namespace_and_file_hash()
+    {
+        await using var db = Db();
+        var course = new Course { TenantId = 101, Code = "SECURE", Title = "Secure resources" };
+        var student = new Student { TenantId = 101, FullName = "Learner", StudentCode = "S-SEC", UserId = 51, StatusCode = "Active" };
+        db.AddRange(course, student); await db.SaveChangesAsync();
+        var lesson = new Lesson { TenantId = 101, CourseId = course.Id, Title = "Published", IsPublished = true };
+        var bytes = System.Text.Encoding.UTF8.GetBytes("verified LMS handout bytes");
+        var file = new FileAsset
+        {
+            TenantId = 101, StorageProvider = "LocalPrivate", StorageKey = "tenant-101/lms/handout.pdf",
+            OriginalFileName = "handout.pdf", ContentType = "application/pdf",
+            SizeBytes = bytes.Length, Sha256 = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(bytes)),
+            UploadedByUserId = 51, MalwareScanStateCode = "Clean",
+            Visibility = FileVisibility.Private, IsVerifiedSafe = true
+        };
+        db.AddRange(lesson, file);
+        db.Add(new CourseEnrollment { TenantId = 101, CourseId = course.Id, StudentId = student.Id });
+        await db.SaveChangesAsync();
+        var resource = new LessonResource { TenantId = 101, LessonId = lesson.Id, FileAssetId = file.Id, Title = "Handout" };
+        db.Add(resource); await db.SaveChangesAsync();
+        var storage = new Moq.Mock<IFileUploadService>();
+        storage.Setup(x => x.GetPrivateFileAsync(file.StorageKey)).ReturnsAsync(new FileDownloadResult { Content = bytes });
+        var learner = Service(db, "Student", storage.Object);
+        var allowed = await learner.DownloadResourceFileAsync(resource.Id);
+        Assert.True(allowed.Success, allowed.Message);
+        Assert.Equal(bytes, allowed.Data!.Content);
+        Assert.Equal("handout.pdf", allowed.Data.FileName);
+        lesson.IsPublished = false; await db.SaveChangesAsync();
+        Assert.Equal(404, (await learner.DownloadResourceFileAsync(resource.Id)).StatusCode);
+        lesson.IsPublished = true; file.StorageKey = "tenant-101/documents/private.pdf";
+        await db.SaveChangesAsync();
+        Assert.Equal(404, (await learner.DownloadResourceFileAsync(resource.Id)).StatusCode);
+        file.StorageKey = "tenant-101/lms/handout.pdf"; file.Sha256 = new string('A', 64);
+        await db.SaveChangesAsync();
+        Assert.Equal(409, (await learner.DownloadResourceFileAsync(resource.Id)).StatusCode);
+    }
+
+    [Fact]
+    public async Task Private_lesson_linking_rejects_other_users_and_document_assets()
+    {
+        await using var db = Db();
+        var course = new Course { TenantId = 101, Code = "OWN", Title = "Ownership" };
+        db.Add(course); await db.SaveChangesAsync();
+        var lesson = new Lesson { TenantId = 101, CourseId = course.Id, Title = "Lesson" };
+        var file = new FileAsset
+        {
+            TenantId = 101, StorageProvider = "LocalPrivate", StorageKey = "tenant-101/lms/notes.pdf",
+            OriginalFileName = "notes.pdf", ContentType = "application/pdf",
+            SizeBytes = 2, Sha256 = new string('A', 64), UploadedByUserId = 999,
+            MalwareScanStateCode = "Clean", Visibility = FileVisibility.Private, IsVerifiedSafe = true
+        };
+        db.AddRange(lesson, file); await db.SaveChangesAsync();
+        var admin = Service(db, "TenantAdmin");
+        var request = new SaveLessonResourceRequestDto
+        { LessonReference = lesson.PublicId, FileAssetReference = file.PublicId, DisplayOrder = 1 };
+        Assert.Equal(409, (await admin.SaveResourceAsync(null, request)).StatusCode);
+        file.UploadedByUserId = 51; file.StorageKey = "tenant-101/documents/notes.pdf";
+        await db.SaveChangesAsync();
+        Assert.Equal(409, (await admin.SaveResourceAsync(null, request)).StatusCode);
+        file.StorageKey = "tenant-101/lms/notes.pdf"; await db.SaveChangesAsync();
+        Assert.True((await admin.SaveResourceAsync(null, request)).Success);
+    }
+
     private static EduOSDbContext Db()
     {
         var options = new DbContextOptionsBuilder<EduOSDbContext>()
@@ -207,7 +274,7 @@ public sealed class LmsCourseContentServiceTests
         context.Items["TenantId"] = 101L;
         return new EduOSDbContext(options, new HttpContextAccessor { HttpContext = context });
     }
-    private static LmsCourseContentService Service(EduOSDbContext db, string role) => new(
+    private static LmsCourseContentService Service(EduOSDbContext db, string role, IFileUploadService? storage = null) => new(
         new GenericRepository<Course>(db), new GenericRepository<CourseSection>(db),
         new GenericRepository<Lesson>(db), new GenericRepository<LessonResource>(db),
         new GenericRepository<FileAsset>(db), new GenericRepository<Employee>(db),
@@ -216,7 +283,7 @@ public sealed class LmsCourseContentServiceTests
         new GenericRepository<CurriculumSubject>(db), new GenericRepository<AcademicCurriculum>(db),
         new GenericRepository<AcademicBatch>(db), new GenericRepository<AcademicYear>(db),
         new GenericRepository<AcademicTerm>(db), new GenericRepository<InstructorAssignment>(db), new GenericRepository<EmployeeCampusAssignment>(db),
-        db, new TestUser(role), TimeProvider.System, NullLogger<LmsCourseContentService>.Instance);
+        db, new TestUser(role), TimeProvider.System, NullLogger<LmsCourseContentService>.Instance, storage: storage);
 
     private sealed class TestUser(string role) : ICurrentUserService
     {

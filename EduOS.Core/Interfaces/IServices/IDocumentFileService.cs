@@ -6,6 +6,7 @@ namespace EduOS.Core.Interfaces.IServices;
 public interface IDocumentFileService
 {
     Task<ApiResponse<FileAssetDto>> UploadAsync(Guid clientRequestId, PrivateFileUploadDto upload, CancellationToken cancellationToken = default);
+    Task<ApiResponse<FileAssetDto>> UploadForLmsAsync(Guid clientRequestId, PrivateFileUploadDto upload, CancellationToken cancellationToken = default);
     Task<ApiResponse<FileAssetDto>> UploadForLeaveAsync(Guid clientRequestId, PrivateFileUploadDto upload, CancellationToken cancellationToken = default);
     Task<ApiResponse<FileAssetDto>> UploadPortalAsync(Guid studentReference, Guid clientRequestId, PrivateFileUploadDto upload, CancellationToken cancellationToken = default);
     Task<ApiResponse<DocumentFileDownloadDto>> DownloadAsync(Guid fileReference, CancellationToken cancellationToken = default);

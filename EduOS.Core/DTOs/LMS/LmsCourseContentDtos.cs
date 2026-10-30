@@ -35,6 +35,7 @@ public sealed class LessonResourceDto
     public string? Title { get; set; }
     public string? ExternalUrl { get; set; }
     public Guid? FileAssetReference { get; set; }
+    public bool FileDownloadable { get; set; }
     public string? FileName { get; set; }
     public int DisplayOrder { get; set; }
     public string RowVersion { get; set; } = string.Empty;

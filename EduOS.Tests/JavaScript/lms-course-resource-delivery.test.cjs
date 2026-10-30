@@ -1,0 +1,31 @@
+'use strict';
+const {test}=require('node:test');
+const assert=require('node:assert/strict');
+const fs=require('node:fs');
+const path=require('node:path');
+const root=path.resolve(__dirname,'../..');
+const read=p=>fs.readFileSync(path.join(root,p),'utf8');
+const script=read('EduOS.App/wwwroot/js/learning/course-content.js');
+const view=read('EduOS.App/Views/Learning/CourseContent.cshtml');
+const controller=read('EduOS.App/Controllers/Api/LmsCourseContentController.cs');
+const service=read('EduOS.Service/Services/LMS/LmsCourseContentService.ResourceFiles.cs');
+test('lesson file upload uses private multipart and CSRF with bounded size',()=>{
+ assert.doesNotThrow(()=>new Function(script));
+ assert.match(script,/new FormData\(\)/);
+ assert.match(script,/RequestVerificationToken:token/);
+ assert.match(script,/selected.size>5242880/);
+ assert.match(controller,/\[RequireModule\("LMS"\)\]/);
+ assert.match(controller,/\[RequestSizeLimit\(6291456\)\]/);
+ assert.match(controller,/UploadForLmsAsync/);
+ assert.match(view,/id="contentResourceUpload"/);
+});
+test('file links use server authorization, never storage keys or raw HTML',()=>{
+ assert.match(script,/course-content\/resources\/.*\/download/);
+ assert.doesNotMatch(script,/innerHTML\s*=/);
+ assert.match(controller,/DownloadResourceFileAsync/);
+ assert.match(controller,/nosniff/);
+ assert.match(controller,/private, no-store/);
+ assert.match(service,/IsolationLevel.Serializable/);
+ assert.match(service,/IsLmsPrivateAsset/);
+ assert.match(service,/SHA256.HashData/);
+});

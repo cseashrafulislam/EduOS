@@ -1,6 +1,7 @@
 using EduOS.App.Authorization;
 using EduOS.Core.Common;
 using EduOS.Core.DTOs.LMS;
+using EduOS.Core.DTOs.Files;
 using EduOS.Core.Interfaces.IServices;
 using EduOS.Service.Services.LMS;
 using Microsoft.AspNetCore.Authorization;
@@ -20,7 +21,9 @@ namespace EduOS.App.Controllers.Api;
 public sealed class LmsCourseContentController : ControllerBase
 {
     private readonly ILmsCourseContentService _service;
-    public LmsCourseContentController(ILmsCourseContentService implementation) => _service = implementation;
+    private readonly IDocumentFileService _files;
+    public LmsCourseContentController(ILmsCourseContentService implementation, IDocumentFileService files)
+    { _service = implementation; _files = files; }
 
     private IActionResult Reply<T>(ApiResponse<T> response) => StatusCode(response.StatusCode, response);
 
@@ -42,6 +45,37 @@ public sealed class LmsCourseContentController : ControllerBase
     [Authorize(Roles = "TenantAdmin,Principal,Teacher")]
     public async Task<IActionResult> AssignLesson([FromBody] AssignLessonSectionRequestDto request, CancellationToken ct) =>
         Reply(await _service.AssignLessonSectionAsync(request, ct));
+
+    [HttpPost("lessons/{lessonReference:guid}/files")]
+    [Authorize(Roles = "TenantAdmin,Principal,Teacher")]
+    [Consumes("multipart/form-data")]
+    [RequestSizeLimit(6291456)]
+    public async Task<IActionResult> UploadLessonFile(Guid lessonReference, [FromForm] IFormFile? file,
+        [FromForm] Guid requestId, CancellationToken ct)
+    {
+        if (file == null || file.Length is < 1 or > 5242880 || requestId == Guid.Empty)
+            return BadRequest(new { success = false, message = "Choose a file up to 5 MB." });
+        var access = await _service.CanUploadResourceFileAsync(lessonReference, ct);
+        if (!access.Success) return StatusCode(access.StatusCode, access);
+        await using var stream = file.OpenReadStream();
+        var uploaded = await _files.UploadForLmsAsync(requestId, new PrivateFileUploadDto
+        {
+            FileName = file.FileName, ContentType = file.ContentType,
+            Length = file.Length, Content = stream
+        }, ct);
+        return StatusCode(uploaded.StatusCode, uploaded);
+    }
+
+    [HttpGet("resources/{id:long}/download")]
+    public async Task<IActionResult> DownloadResource(long id, CancellationToken ct)
+    {
+        var result = await _service.DownloadResourceFileAsync(id, ct);
+        if (!result.Success || result.Data == null) return StatusCode(result.StatusCode, result);
+        Response.Headers.CacheControl = "private, no-store";
+        Response.Headers["X-Content-Type-Options"] = "nosniff";
+        Response.Headers["Content-Security-Policy"] = "sandbox";
+        return File(result.Data.Content, result.Data.ContentType, result.Data.FileName);
+    }
 
     [HttpPost("resources")]
     [Authorize(Roles = "TenantAdmin,Principal,Teacher")]

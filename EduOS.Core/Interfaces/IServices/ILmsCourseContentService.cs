@@ -1,10 +1,13 @@
 using EduOS.Core.Common;
 using EduOS.Core.DTOs.LMS;
+using EduOS.Core.DTOs.Files;
 
 namespace EduOS.Core.Interfaces.IServices;
 
 public interface ILmsCourseContentService
 {
+    Task<ApiResponse<bool>> CanUploadResourceFileAsync(Guid lessonReference, CancellationToken ct = default);
+    Task<ApiResponse<DocumentFileDownloadDto>> DownloadResourceFileAsync(long resourceId, CancellationToken ct = default);
     Task<ApiResponse<CourseContentDto>> GetCourseContentAsync(Guid courseReference, CancellationToken ct = default);
     Task<ApiResponse<CourseSectionDto>> SaveSectionAsync(long? sectionId, SaveCourseSectionRequestDto request, CancellationToken ct = default);
     Task<ApiResponse<ContentLessonDto>> AssignLessonSectionAsync(AssignLessonSectionRequestDto request, CancellationToken ct = default);

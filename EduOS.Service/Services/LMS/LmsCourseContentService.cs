@@ -1,5 +1,6 @@
 using EduOS.Core.Common;
 using EduOS.Core.DTOs.LMS;
+using EduOS.Service.Helpers.Storage;
 using EduOS.Core.Entities.Academic;
 using EduOS.Core.Entities.Files;
 using EduOS.Core.Entities.HR;
@@ -42,6 +43,7 @@ public sealed partial class LmsCourseContentService : ILmsCourseContentService
     private readonly ICurrentUserService _user;
     private readonly TimeProvider _clock;
     private readonly ILogger<LmsCourseContentService> _logger;
+    private readonly IFileUploadService? _storage;
 
     public LmsCourseContentService(IGenericRepository<Course> courses,
         IGenericRepository<CourseSection> sections, IGenericRepository<Lesson> lessons,
@@ -54,7 +56,8 @@ public sealed partial class LmsCourseContentService : ILmsCourseContentService
         IGenericRepository<EmployeeCampusAssignment> campuses, IUnitOfWork uow,
         ICurrentUserService user, TimeProvider clock, ILogger<LmsCourseContentService> logger,
         IGenericRepository<Assignment>? assignments = null,
-        IGenericRepository<AssignmentAttachment>? attachments = null)
+        IGenericRepository<AssignmentAttachment>? attachments = null,
+        IFileUploadService? storage = null)
     {
         _courses = courses; _sections = sections; _lessons = lessons; _resources = resources;
         _assignments = assignments!; _attachments = attachments!; _files = files;
@@ -62,6 +65,7 @@ public sealed partial class LmsCourseContentService : ILmsCourseContentService
         _academicEnrollments = academicEnrollments; _offerings = offerings; _subjects = subjects;
         _curricula = curricula; _batches = batches; _years = years; _instructors = instructors;
         _campuses = campuses; _terms = terms; _uow = uow; _user = user; _clock = clock; _logger = logger;
+        _storage = storage;
     }
 
     private long Tenant => _user.TenantId;
@@ -183,7 +187,8 @@ public sealed partial class LmsCourseContentService : ILmsCourseContentService
     {
         Id = row.Id, LessonReference = lessonReference, Title = row.Title,
         ExternalUrl = row.ExternalUrl, FileAssetReference = file?.PublicId,
-        FileName = file?.OriginalFileName, DisplayOrder = row.DisplayOrder,
+        FileName = file?.OriginalFileName, FileDownloadable = file != null && IsLmsPrivateAsset(file, row.TenantId),
+        DisplayOrder = row.DisplayOrder,
         RowVersion = Convert.ToBase64String(row.RowVersion)
     };
 
@@ -212,6 +217,8 @@ public sealed partial class LmsCourseContentService : ILmsCourseContentService
         var files = await _files.GetQueryable().AsNoTracking().Where(x =>
             x.TenantId == Tenant && fileIds.Contains(x.Id) && !x.IsDeleted && x.IsVerifiedSafe)
             .ToDictionaryAsync(x => x.Id, ct);
+        files = files.Where(x => IsLmsPrivateAsset(x.Value, Tenant))
+            .ToDictionary(x => x.Key, x => x.Value);
         var lessonMap = lessons.ToDictionary(x => x.Id, x => LessonRow(x));
         foreach (var row in lessons)
         {
@@ -357,7 +364,7 @@ public sealed partial class LmsCourseContentService : ILmsCourseContentService
             file = await _files.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
                 x.TenantId == Tenant && x.PublicId == request.FileAssetReference &&
                 x.IsVerifiedSafe && !x.IsDeleted, ct);
-            if (file == null) return Fail<LessonResourceDto>("Verified safe file not found.", 409);
+            if (!IsLmsPrivateAsset(file, Tenant, _user.UserId)) return Fail<LessonResourceDto>("A clean LMS file uploaded by this author is required.", 409);
         }
         try
         {
@@ -368,7 +375,7 @@ public sealed partial class LmsCourseContentService : ILmsCourseContentService
                     file = await _files.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
                         x.TenantId == Tenant && x.PublicId == request.FileAssetReference.Value &&
                         x.IsVerifiedSafe && !x.IsDeleted, token);
-                    if (file == null) return Fail<LessonResourceDto>("Verified safe file not found.", 409);
+                    if (!IsLmsPrivateAsset(file, Tenant, _user.UserId)) return Fail<LessonResourceDto>("A clean LMS file uploaded by this author is required.", 409);
                 }
                 if (await CourseCompletionPublicationGuard.IsLockedAsync(_enrollments, Tenant, course.Id, token))
                     return Fail<LessonResourceDto>(CourseCompletionPublicationGuard.Message, 409);

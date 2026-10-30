@@ -2,7 +2,7 @@
 'use strict';
 const root=document.getElementById('contentApp');if(!root)return;
 const el=id=>document.getElementById('content'+id),author=root.dataset.author==='true',student=root.dataset.student==='true';
-const state={courses:[],page:1,pages:1,course:null,lessons:[],seq:0,includeArchived:false};
+const state={courses:[],page:1,pages:1,course:null,lessons:[],seq:0,includeArchived:false,fileRequestId:null};
 const node=(tag,text)=>{const e=document.createElement(tag);if(text!==undefined)e.textContent=text;return e;};
 const alert=(message,kind='danger')=>{const e=el('Alert');e.className='alert alert-'+kind;e.textContent=message;e.focus();};
 async function api(url,method='GET',body){
@@ -32,7 +32,7 @@ function resetSection(){
 }
 function resetResource(){
  el('ResourceForm').reset();el('ResourceId').value='';el('ResourceVersion').value='';
- el('ResourceOrder').value=1;
+ el('ResourceOrder').value=1;state.fileRequestId=null;
 }
 function btn(label,action,style='btn-outline-primary'){
  const e=node('button',label);e.type='button';e.className='btn btn-sm '+style;e.addEventListener('click',action);return e;
@@ -52,7 +52,7 @@ function editResource(row){
  el('ResourceId').value=row.id;el('ResourceVersion').value=row.rowVersion;
  el('ResourceLesson').value=row.lessonReference;el('ResourceTitle').value=row.title||'';
  el('ResourceOrder').value=row.displayOrder;el('ResourceUrl').value=row.externalUrl||'';
- el('ResourceFile').value=row.fileAssetReference||'';el('ResourceTitle').focus();
+ el('ResourceFile').value=row.fileAssetReference||'';el('ResourceUpload').value='';state.fileRequestId=null;el('ResourceTitle').focus();
 }
 async function removeResource(row){
  if(!confirm('Remove this lesson resource?'))return;
@@ -80,7 +80,10 @@ function render(){
    const line=node('div');line.className='mb-1';
    const label=resource.title||resource.fileName||resource.externalUrl||'Resource';
    if(resource.externalUrl)line.append(link(resource.externalUrl,label));
-   else line.append(node('span',label+' (verified file)'));
+   else if(resource.fileAssetReference&&resource.fileDownloadable){
+    const a=node('a',label);a.href='/api/lms/course-content/resources/'+encodeURIComponent(resource.id)+'/download';
+    a.rel='nofollow';line.append(a);
+   } else line.append(node('span',label+' (file unavailable)'));
    if(data.canEdit){line.append(document.createTextNode(' '),
     btn('Edit',()=>editResource(resource)),document.createTextNode(' '),
     btn('Remove',()=>removeResource(resource),'btn-outline-danger'));}
@@ -135,6 +138,7 @@ async function run(form,action){
 }
 if(author){
  el('SectionClear').onclick=resetSection;el('ResourceClear').onclick=resetResource;
+ el('ResourceUpload').addEventListener('change',()=>{state.fileRequestId=null;el('ResourceFile').value='';});
  el('SectionForm').onsubmit=e=>{e.preventDefault();run(e.currentTarget,async()=>{
   const id=el('SectionId').value,courseReference=el('Course').value;
   if(!courseReference)throw Error('Select a course.');
@@ -152,10 +156,27 @@ if(author){
   await loadCourse();alert('Lesson assignment saved.','success');
  });};
  el('ResourceForm').onsubmit=e=>{e.preventDefault();run(e.currentTarget,async()=>{
-  const id=el('ResourceId').value,url=el('ResourceUrl').value.trim(),file=el('ResourceFile').value.trim();
-  if(Boolean(url)===Boolean(file))throw Error('Enter either one HTTPS URL or one verified file UUID.');
-  if(file&&!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(file))
-   throw Error('Enter a valid file UUID.');
+  const id=el('ResourceId').value,url=el('ResourceUrl').value.trim();
+  let file=el('ResourceFile').value.trim();
+  const selected=el('ResourceUpload').files?.[0];
+  if(selected){
+   if(url)throw Error('Choose either a private file or HTTPS URL.');
+   if(selected.size<1||selected.size>5242880)throw Error('File must be 5 MB or smaller.');
+   const lessonReference=el('ResourceLesson').value;
+   if(!lessonReference)throw Error('Select an existing lesson.');
+   if(!state.fileRequestId)state.fileRequestId=crypto.randomUUID();
+   const token=document.querySelector('meta[name="request-verification-token"]')?.content;
+   if(!token)throw Error('Security token missing; reload the page.');
+   const payload=new FormData();payload.append('file',selected);payload.append('requestId',state.fileRequestId);
+   const response=await fetch('/api/lms/course-content/lessons/'+encodeURIComponent(lessonReference)+'/files',
+    {method:'POST',headers:{RequestVerificationToken:token,Accept:'application/json'},
+     credentials:'same-origin',cache:'no-store',body:payload});
+   const result=await response.json().catch(()=>null);
+   if(!response.ok||!result?.success)throw Error(result?.message||'Private upload failed.');
+   file=result.data?.reference||'';
+   el('ResourceFile').value=file;
+  }
+  if(Boolean(url)===Boolean(file))throw Error('Choose either a private file or HTTPS URL.');
   const request={lessonReference:el('ResourceLesson').value,title:el('ResourceTitle').value.trim()||null,
    externalUrl:url||null,fileAssetReference:file||null,displayOrder:Number(el('ResourceOrder').value),
    rowVersion:id?el('ResourceVersion').value:null};

@@ -28,6 +28,14 @@ public sealed class DocumentFileService(EduOSDbContext db, ICurrentUserService u
         key.StartsWith($"tenant-{tenantId}/documents/", StringComparison.Ordinal) &&
         !key.Contains('\\') && !key.Split('/').Any(x => x is "." or ".." or "");
 
+    private static bool IsTenantUploadKey(string? key, long tenantId, string folder) =>
+        (folder == "documents" || folder == "lms") && tenantId > 0 &&
+        !string.IsNullOrWhiteSpace(key) &&
+        key.StartsWith($"tenant-{tenantId}/{folder}/", StringComparison.Ordinal) &&
+        key.Length > $"tenant-{tenantId}/{folder}/".Length &&
+        !key.Contains('\\') && !key.Contains("//") &&
+        !key.Split('/').Any(x => x is "." or ".." or "");
+
     // Match the document administration UI's supported formats on the server.
     // Filename and ContentType are both caller-controlled; this is a format-policy
     // check, not a substitute for the mandatory private malware scan.
@@ -85,11 +93,11 @@ public sealed class DocumentFileService(EduOSDbContext db, ICurrentUserService u
     // lookup but before our insert. Compare all upload invariants after the unique
     // key conflict; identical retries must return the canonical committed asset.
     private static bool MatchesVerifiedUpload(FileAsset existing, long length, string sha,
-        string fileName, string contentType, long tenantId) =>
+        string fileName, string contentType, long tenantId, string folder) =>
         existing.IsVerifiedSafe && existing.MalwareScanStateCode == "Clean" &&
         existing.Visibility == FileVisibility.Private && existing.StorageProvider == "LocalPrivate" &&
         existing.SizeBytes == length && existing.Sha256 == sha &&
-        IsTenantDocumentKey(existing.StorageKey, tenantId) &&
+        IsTenantUploadKey(existing.StorageKey, tenantId, folder) &&
         existing.OriginalFileName == fileName && existing.ContentType == contentType;
 
     private static FileAssetDto Map(FileAsset asset) => new()
@@ -106,6 +114,17 @@ public sealed class DocumentFileService(EduOSDbContext db, ICurrentUserService u
         if (!CanManage)
             return Task.FromResult(ApiResponse<FileAssetDto>.ErrorResponse("Tenant administrator required.", 403));
         return UploadCoreAsync(clientRequestId, upload, ct);
+    }
+
+    // LMS authoring calls this only after checking the exact lesson and course.
+    // It stages a scanned file in the LMS-only namespace; linking rechecks ownership.
+    public Task<ApiResponse<FileAssetDto>> UploadForLmsAsync(Guid clientRequestId,
+        PrivateFileUploadDto upload, CancellationToken ct = default)
+    {
+        if (!user.IsAuthenticated || user.TenantId <= 0 || user.UserId <= 0 ||
+            !(user.IsTenantAdmin || user.IsInRole("Principal") || user.IsInRole("Teacher")))
+            return Task.FromResult(ApiResponse<FileAssetDto>.ErrorResponse("LMS author permission required.", 403));
+        return UploadCoreAsync(clientRequestId, upload, ct, "lms");
     }
 
     // Student leave administrators may stage a scanned supporting file only after the
@@ -144,8 +163,10 @@ public sealed class DocumentFileService(EduOSDbContext db, ICurrentUserService u
     }
 
     private async Task<ApiResponse<FileAssetDto>> UploadCoreAsync(Guid clientRequestId,
-        PrivateFileUploadDto upload, CancellationToken ct)
+        PrivateFileUploadDto upload, CancellationToken ct, string folder = "documents")
     {
+        if (folder != "documents" && folder != "lms")
+            return ApiResponse<FileAssetDto>.ErrorResponse("Unsupported private upload scope.", 400);
         if (clientRequestId == Guid.Empty || upload == null || upload.Content == null ||
             upload.Length is < 1 or > 5242880 || string.IsNullOrWhiteSpace(upload.FileName) ||
             upload.FileName.Length > 255 || string.IsNullOrWhiteSpace(upload.ContentType) ||
@@ -181,7 +202,7 @@ public sealed class DocumentFileService(EduOSDbContext db, ICurrentUserService u
             x.TenantId == user.TenantId && x.PublicId == clientRequestId && !x.IsDeleted, ct);
         if (existing != null)
         {
-            return MatchesVerifiedUpload(existing, buffer.Length, sha, fileName, upload.ContentType, user.TenantId)
+            return MatchesVerifiedUpload(existing, buffer.Length, sha, fileName, upload.ContentType, user.TenantId, folder)
                 ? ApiResponse<FileAssetDto>.SuccessResponse(Map(existing))
                 : ApiResponse<FileAssetDto>.ErrorResponse("Upload request ID already used.", 409);
         }
@@ -198,10 +219,10 @@ public sealed class DocumentFileService(EduOSDbContext db, ICurrentUserService u
         {
             Headers = new HeaderDictionary(), ContentType = upload.ContentType
         };
-        var stored = await storage.UploadPrivateAsync(file, "documents");
+        var stored = await storage.UploadPrivateAsync(file, folder);
         if (!stored.Success || string.IsNullOrWhiteSpace(stored.FileUrl))
             return ApiResponse<FileAssetDto>.ErrorResponse(stored.ErrorMessage ?? "Private upload failed.", 400);
-        if (!IsTenantDocumentKey(stored.FileUrl, user.TenantId))
+        if (!IsTenantUploadKey(stored.FileUrl, user.TenantId, folder))
         {
             // Do not delete the unexpected key: it might belong to another tenant.
             logger.LogError("Private document storage returned a key outside tenant {TenantId} document namespace.", user.TenantId);
@@ -264,7 +285,7 @@ public sealed class DocumentFileService(EduOSDbContext db, ICurrentUserService u
             var winner = await db.FileAssets.AsNoTracking().FirstOrDefaultAsync(x =>
                 x.TenantId == user.TenantId && x.PublicId == clientRequestId && !x.IsDeleted, ct);
             if (winner != null && MatchesVerifiedUpload(winner, buffer.Length, sha,
-                fileName, upload.ContentType, user.TenantId))
+                fileName, upload.ContentType, user.TenantId, folder))
                 return ApiResponse<FileAssetDto>.SuccessResponse(Map(winner));
             return ApiResponse<FileAssetDto>.ErrorResponse("Upload registration conflict; retry with a new request ID.", 409);
         }
