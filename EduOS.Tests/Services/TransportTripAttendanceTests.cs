@@ -105,18 +105,30 @@ public sealed class TransportTripAttendanceTests
         };
         db.TransportTripAttendanceEvents.Add(board);
         await db.SaveChangesAsync();
+        var drop = new TransportTripAttendanceEvent
+        {
+            TenantId = 101, TransportTripRiderId = rider.Id, ClientRequestId = Guid.NewGuid(),
+            Sequence = 2, EventType = "Dropped", OccurredAt = DateTime.UtcNow
+        };
+        db.TransportTripAttendanceEvents.Add(drop);
+        await db.SaveChangesAsync();
+        trip.State = "Completed";
+        trip.CompletionRequestId = Guid.NewGuid();
+        trip.CompletedAt = DateTime.UtcNow;
+        trip.CompletedBy = 42;
+        await db.SaveChangesAsync();
         db.TransportTripAttendanceEvents.Add(new TransportTripAttendanceEvent
         {
             TenantId = 101, TransportTripRiderId = rider.Id, ClientRequestId = Guid.NewGuid(),
-            Sequence = 2, EventType = "NoShow", OccurredAt = DateTime.UtcNow,
-            CorrectsEventId = board.Id, CorrectionReason = "Internal sensitive staff-only explanation"
+            Sequence = 3, EventType = "NoShow", OccurredAt = DateTime.UtcNow,
+            CorrectsEventId = drop.Id, CorrectionReason = "Internal sensitive staff-only explanation"
         });
         await db.SaveChangesAsync();
 
         var guardian = Service(db, new User(101, "Guardian"));
         var history = await guardian.GetFamilyAttendanceHistoryAsync(trip.PublicId, rider.StudentCodeSnapshot);
         history.Success.Should().BeTrue(history.Message);
-        history.Data!.Count.Should().Be(2);
+        history.Data!.Count.Should().Be(3);
         history.Data.Last().IsCorrection.Should().BeTrue();
         history.Data.Last().CorrectionReason.Should().BeNull();
         var list = await guardian.GetFamilyAttendanceAsync(trip.OperatingDate, 1, 20);
