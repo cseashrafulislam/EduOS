@@ -35,8 +35,14 @@ test('dispatcher and assigned driver print all report riders, not only a paged U
     assert.match(print, /@rider\.StudentCode/);
     assert.match(trips, /\/transport\/trips\//);
     assert.match(driver, /\/transport\/driver-trips\//);
-    assert.match(trips, /credentials: 'same-origin', cache: 'no-store'/);
-    assert.match(driver, /credentials: 'same-origin', cache: 'no-store'/);
+    const guard = read('EduOS.App/wwwroot/js/transport-operations/session-guard.js');
+    assert.match(trips, /guard\.request\(/);
+    assert.match(driver, /guard\.request\(/);
+    assert.match(trips, /guard\.assert\(\)/);
+    assert.match(driver, /guard\.assert\(\)/);
+    assert.match(guard, /credentials: 'same-origin'/);
+    assert.match(guard, /cache: 'no-store'/);
+    assert.match(guard, /controller\.abort\(\)/);
     assert.match(driverApi, /ExportDriverRidersCsvAsync/);
     assert.doesNotMatch(trips, /window\.print\(\)/);
     assert.doesNotMatch(driver, /window\.print\(\)/);

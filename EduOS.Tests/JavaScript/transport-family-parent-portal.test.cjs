@@ -14,7 +14,12 @@ test('Parent family entry and V2 route remain aligned with the server permission
     assert.match(view, /asp-action="Family"/);
     assert.match(family, /transportFamilyPanel/);
     assert.match(client, /\/api\/transport\/family-schedule/);
-    assert.match(client, /credentials:'same-origin',cache:'no-store'/);
+    const guard = read('EduOS.App/wwwroot/js/transport-operations/session-guard.js');
+    assert.match(client, /guard\.request\(/);
+    assert.match(guard, /credentials: 'same-origin'/);
+    assert.match(guard, /cache: 'no-store'/);
+    assert.match(guard, /controller\.abort\(\)/);
+    assert.match(family, /session-guard\.js/);
     assert.match(client, /rows\.replaceChildren\(\)/);
     assert.doesNotMatch(client, /\.innerHTML\s*=/);
 });
