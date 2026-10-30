@@ -1,21 +1,12 @@
 # EduOS — authoritative V1 / V2 / V3 module-complete release contract
 
-**Owner decision: 2026-10-29 (HR/Payroll moved from V2 to V1).** Supersedes the historic two-version contract at docs/RELEASE_V1_V2.md. Product targets: **one configurable education ERP** for schools/colleges, madrasa, university, training, coaching, online institute and private tutor. **This is release scope, not evidence that implementation is complete.**
+**Owner decisions: 2026-10-29 (HR/Payroll moved from V2 to V1); 2026-10-30 (verified V1 development-baseline freeze).** Supersedes the historic two-version contract at docs/RELEASE_V1_V2.md. Product targets: **one configurable education ERP** for schools/colleges, madrasa, university, training, coaching, online institute and private tutor. **This is release scope, not evidence that implementation is complete or production-approved.** For current engineering status and what may reopen V1, see [V1 development baseline](V1_DEVELOPMENT_BASELINE_20261030.md).
 
-## Cohort and identity
+## Dynamic institution and learner scale; identity
 
-| Initial institution category | Count |
-| --- | ---: |
-| Primary through college | 2 |
-| Madrasa | 3 |
-| Training centre | 2 |
-| Coaching centre | 1 |
-| Online LMS institute | 3 |
-| University | 3 |
-| Private teacher | 2 |
-| **Total** | **16** |
+No fixed number of institutions, students, Excel files or student rows is part of the product contract. School/college, madrasa, training, coaching, online, university and private-tutor presets are configurable, not a hardcoded list of institution slots. Excel import uses a downloadable template with **fixed field headers**, reads the real uploaded file contents, and processes validated, tenant-scoped, bounded, retryable batches; any protective resource limits must be documented operational controls, **not invented business caps**. Actual institution plan quotas, if configured, remain enforceable.
 
-Approximately **40,000 initial student records**, not necessarily unique persons or concurrent users. The same learner can belong to 2–3 institutes; one protected platform-global Person can link to independently tenant-owned Student/Enrollment data only after appropriate verification and consent. No cross-institute grades, guardian, fee or attendance disclosure. Presets configure terminology/structure; canonical models remain institution-agnostic.
+The same learner may have independent memberships in multiple institutes; one protected platform-global Person can link to independently tenant-owned Student/Enrollment data only after appropriate verification and consent. No cross-institute grades, guardian, fee or attendance disclosure. Canonical models remain institution-agnostic. Total records do not imply concurrent-user capacity.
 
 ## Non-negotiable ownership rule
 
@@ -24,13 +15,15 @@ A **named business module is completed entirely in one version**: setup, master 
 ## Version 1 — Production-complete Education, Finance & HR/Payroll
 
 - SaaS/institution foundation: signup/onboarding, institutional presets/configuration, multi-campus where applicable, identity, tenant membership, roles/permissions/ownership, MFA policy, entitlement/subscription, audits and safe account recovery.
-- Admission and student lifecycle: intake/application, verification/assessment/merit/offer, guardian relationships, enrolment/registrations, transfer/promotion/repeat/readmission/completion, privacy-safe shared Person linking, authorized bulk CSV/XLSX import with previews, row errors, retries and reconciled ~40k records.
+- Admission and student lifecycle: intake/application, verification/assessment/merit/offer, guardian relationships, enrolment/registrations, transfer/promotion/repeat/readmission/completion, privacy-safe shared Person linking, authorized bulk CSV/XLSX import with fixed-header templates, preview, row errors, retries and reconciliation driven by actual uploaded records without a fixed cohort size.
 - Full academic operations: programmes, levels/terms/year/curriculum versions, classes/cohorts/sections, subjects/courses/credits/prerequisites/electives as applicable, course registration, academic calendar, teacher assignments, timetable conflict control, class and learner attendance, approved correction and required reports.
 - **Complete Examination/Assessment/Results:** assessment policy, exam/test/setup, written/MCQ/practical, marking & review/moderation, grade/GPA/CGPA/credit, failures/retake/reassessment/improvement, approval/publish/lock, authorized history-preserving correction, marksheet/tabulation/transcript/certificate/verification and all agreed reports.
 - **Complete Fees and Accounts:** fee structures, instalments, scholarships/waivers/penalties, student billing/collections/due, payment verification and reconciliation, refund/reversal; complete chart of accounts, balanced voucher lifecycle, cash/bank, receivables/payables and offered budgets/period close, reports/statements/trial balance, audit/approval; no double posting.
 - **Complete HR & Payroll:** recruitment and onboarding, employee identity/lifecycle/contracts and assignments, shifts, attendance, leave, effective-dated salary structures, allowances, bonuses, deductions, loans and recovery, configurable and lawfully reviewed statutory tax/PF settings, payroll periods/locks, maker-checker approval, payslips, bank account/payment review and export, approved payment/reconciliation, balanced finance posting/reversal, audit/history and reports. Preserve existing tenant/campus/role/plan isolation and signed historical payroll snapshots. **All remaining HR gaps, Bangladesh statutory sign-off, real bank-process acceptance, pilot UAT and production approval are V1 acceptance items, never V2 work.** Automated regressions alone do not certify production readiness.
 - Required V1 role-specific admin/teacher/student/guardian/finance workflows, communication within promised channels, localization, reusable professional UI, per-user/institute theme/navigation preferences, page-header smart help, PWA and authorized reports/exports.
 - **Do not call V1 complete** until all agreed V1 workflows pass authorization, integrity, concurrency, historical and real-institute UAT. Features absent from V1 must be securely gated and preserved.
+
+**V1 development change control (effective 2026-10-30):** The verified `Ashraful` code baseline is feature-frozen pending real-world acceptance. Do not regenerate, redesign or repeatedly audit V1 modules on every V2 run. Existing V1 code and all security/integrity regression gates remain authoritative. Only documented reproducible defects, security/statutory work, formally approved owner changes and minimal V2 integration can reopen a V1 path under review. This freeze is **not** a declaration of general production readiness; see [the baseline and evidence](V1_DEVELOPMENT_BASELINE_20261030.md).
 
 **Online LMS-provider caveat:** Three online-only institutes are in the launch cohort, but **full digital course/content/LMS capability is V2**. V1 may onboard them and handle only the V1 education/fee features they can actually use. Do **not** sell or declare their full LMS operation production-ready until V2 acceptance; do not pull partial LMS into V1 merely to claim all 16 can use every operation.
 
@@ -61,4 +54,4 @@ Complete Inventory/Procurement/Store; Asset and Facility lifecycle; Visitor/Camp
 
 **Architecture:** maintain one existing SQL Server DB and EduOSDbContext and current modular monolith. No current database splitting or mass renaming. App deployment may be separated from SQL hosting when measured operationally appropriate. Any later multi-DB tenant relocation is a separately approved engineering project.
 
-**Task execution:** existing five V1 automated sprints work on meaningful complete workflows, check current Ashraful HEAD to avoid duplicate/loop work, and must not disable themselves unless owner says OFF. Future V2 tasks own **only LMS, Library, Hostel and Transport**: read AGENTS.md and this release contract before planning, exclude HR/Payroll from V2 issue generation, implementation and completion reports, and leave any unfinished HR verification assigned to V1. A promised time target cannot waive tenant isolation, tests or data safety.
+**Task execution:** The currently approved V2 automations own **only LMS, Library, Hostel and Transport**. They must read `AGENTS.md`, this contract and the V1 freeze document, check current `Ashraful` HEAD, avoid duplicate/loop work, and leave V1 modules in maintenance/acceptance rather than generating a new V1 backlog. They must not disable themselves unless the owner says OFF. A promised time target cannot waive tenant isolation, tests or data safety.

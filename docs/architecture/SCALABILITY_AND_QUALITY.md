@@ -12,7 +12,7 @@
 
 ## 2. What 'millions of learners' actually means
 
-**Actual first-release intake:** 16 institutes across seven education categories and approximately 40,000 student records, including legitimate multi-institute learners. See [V1 / V2 / V3 Release Contract](../RELEASE_V1_V2_V3.md). Validate duplicate prevention, tenant isolation and bounded/reconciled import before live use. Do not infer concurrent-user capacity from this record count.
+**Dynamic onboarding and import:** No initial institute count, student count, number of import files or data-row total is a fixed business limit. Institutional configuration and fixed-header Excel templates support file-driven, tenant-validated, bounded, retryable uploads; an effective subscription may enforce its actual configured plan limits. See [V1 / V2 / V3 Release Contract](../RELEASE_V1_V2_V3.md). Validate duplicate prevention, tenant isolation and bounded/reconciled import before live use. Do not infer concurrent-user capacity from record counts.
 
 Scale is a **target and design constraint**, not a current performance claim. The important dimensions are distinct: total accounts, active institutes, students per institute, concurrent logged-in users, peak requests/sec, rows per tenant/year, file volume and report/export concurrency. Do not equate one million registered students with one million simultaneous requests.
 

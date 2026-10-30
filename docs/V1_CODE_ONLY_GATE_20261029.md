@@ -1,5 +1,7 @@
 # EduOS V1 — code-only release gate (2026-10-29)
 
+> **Historical checkpoint only — superseded for current planning.** The blockers and test counts below describe the 2026-10-29 code state; they must **not** be copied into new V1 sprint backlogs without checking later merged implementations. The current 2026-10-30 `Ashraful` development baseline, passed CI/SQL evidence and mandatory feature-freeze/change-control rules are recorded in [V1_DEVELOPMENT_BASELINE_20261030.md](V1_DEVELOPMENT_BASELINE_20261030.md). Keep this file as immutable history, not the current status dashboard.
+
 This is a **development and automated-test checkpoint**, not a release approval or institutional UAT result. See `AGENTS.md` and `docs/RELEASE_V1_V2_V3.md` for the binding complete-module contract. The owner excludes institute-dependent real-user acceptance from the *code-only* progress measure; the release contract still requires it before production.
 
 ## Executed on the merged `Ashraful` working branch
