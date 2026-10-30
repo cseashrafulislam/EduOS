@@ -229,6 +229,90 @@ public sealed class LibraryDigitalResourceService(
             });
     }
 
+    // Metadata-only lineage investigation. Never permit historical bytes to be downloaded:
+    // superseded and revoked versions remain inaccessible through DownloadAsync.
+    // The bounded, tenant/book-filtered candidate set prevents an unbounded history scan.
+    public async Task<ApiResponse<PagedResult<LibraryDigitalVersionDto>>> GetVersionHistoryAsync(
+        Guid reference, int page, int pageSize, CancellationToken ct = default)
+    {
+        if (!CanPublish || db.CurrentTenantId != Tenant)
+            return Fail<PagedResult<LibraryDigitalVersionDto>>("Tenant administrator required.", 403);
+        if (reference == Guid.Empty || page < 1 || pageSize is < 1 or > 50 ||
+            ((long)page - 1) * pageSize > int.MaxValue)
+            return Fail<PagedResult<LibraryDigitalVersionDto>>("Invalid version history request.");
+
+        var selected = await db.Documents.AsNoTracking().Where(x =>
+            x.TenantId == Tenant && !x.IsDeleted && x.PublicId == reference &&
+            x.DocumentTypeCode == TypeCode && x.EntityType == EntityType)
+            .Select(x => new { x.Id, x.EntityId }).FirstOrDefaultAsync(ct);
+        if (selected == null)
+            return Fail<PagedResult<LibraryDigitalVersionDto>>("Resource not found.", 404);
+
+        // All independent publications for the same book may coexist. Resolve only
+        // the selected SupersedesDocumentId chain; never mix another publication.
+        var candidates = await db.Documents.AsNoTracking().Where(x =>
+            x.TenantId == Tenant && !x.IsDeleted && x.EntityId == selected.EntityId &&
+            x.DocumentTypeCode == TypeCode && x.EntityType == EntityType)
+            .OrderBy(x => x.Id).Take(251)
+            .Select(x => new {
+                x.Id, x.PublicId, x.SupersedesDocumentId, x.VersionNo, x.Title,
+                x.LibraryCampusId, x.ExpiresAt, x.IsActive, x.CreatedAt
+            }).ToListAsync(ct);
+        if (candidates.Count > 250)
+            return Fail<PagedResult<LibraryDigitalVersionDto>>(
+                "Book publication history exceeds the safe investigation limit.", 409);
+        var byId = candidates.ToDictionary(x => x.Id);
+        var seen = new HashSet<long>();
+        var rootId = selected.Id;
+        while (true)
+        {
+            if (!seen.Add(rootId) || !byId.TryGetValue(rootId, out var current))
+                return Fail<PagedResult<LibraryDigitalVersionDto>>(
+                    "Publication lineage is incomplete or cyclic.", 409);
+            if (!current.SupersedesDocumentId.HasValue) break;
+            rootId = current.SupersedesDocumentId.Value;
+        }
+
+        var successors = candidates.Where(x => x.SupersedesDocumentId.HasValue)
+            .ToLookup(x => x.SupersedesDocumentId!.Value);
+        var lineage = new List<LibraryDigitalVersionDto>();
+        seen.Clear();
+        var cursor = rootId;
+        while (true)
+        {
+            if (!seen.Add(cursor) || !byId.TryGetValue(cursor, out var current))
+                return Fail<PagedResult<LibraryDigitalVersionDto>>(
+                    "Publication lineage is incomplete or cyclic.", 409);
+            var next = successors[cursor].ToList();
+            if (next.Count > 1 || (next.Count == 1 &&
+                next[0].VersionNo != current.VersionNo + 1))
+                return Fail<PagedResult<LibraryDigitalVersionDto>>(
+                    "Conflicting publication successors require investigation.", 409);
+            lineage.Add(new LibraryDigitalVersionDto
+            {
+                Reference = current.PublicId, VersionNo = current.VersionNo,
+                Title = current.Title ?? string.Empty, CampusId = current.LibraryCampusId,
+                ExpiresOn = current.ExpiresAt.HasValue
+                    ? DateOnly.FromDateTime(current.ExpiresAt.Value) : null,
+                PublishedAtUtc = current.CreatedAt,
+                State = next.Count == 1 ? "Superseded" :
+                    current.IsActive ? "Active" : "Revoked"
+            });
+            if (next.Count == 0) break;
+            cursor = next[0].Id;
+        }
+        if (!seen.Contains(selected.Id))
+            return Fail<PagedResult<LibraryDigitalVersionDto>>(
+                "Selected resource is not in the resolved publication lineage.", 409);
+
+        var total = lineage.Count;
+        var items = lineage.OrderByDescending(x => x.VersionNo)
+            .Skip((int)(((long)page - 1) * pageSize)).Take(pageSize).ToList();
+        return ApiResponse<PagedResult<LibraryDigitalVersionDto>>.SuccessResponse(
+            new PagedResult<LibraryDigitalVersionDto>
+            { Items = items, TotalCount = total, Page = page, PageSize = pageSize });
+    }
+
     // Historical audit events remain immutable. Only tenant admins may investigate actor IDs.
     // Date windows are bounded and private file keys, audit JSON and borrower names never leave SQL.
     public async Task<ApiResponse<PagedResult<LibraryDigitalAuditDto>>> GetAuditTrailAsync(

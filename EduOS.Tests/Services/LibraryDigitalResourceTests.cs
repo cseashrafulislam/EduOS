@@ -129,6 +129,65 @@ public sealed class LibraryDigitalResourceTests
     }
 
     [Fact]
+    public async Task Version_history_is_tenant_admin_only_and_isolates_independent_publication_chains()
+    {
+        await using var db = Context();
+        var seed = await SeedAsync(db, Guid.NewGuid());
+        var first = new Document {
+            TenantId = 101, PublicId = Guid.NewGuid(), FileAssetId = seed.Asset.Id,
+            DocumentTypeCode = "LIBRARY_DIGITAL", EntityType = "LibraryBook",
+            EntityId = seed.Book.Id, Title = "Original", VersionNo = 1, IsActive = false };
+        db.Documents.Add(first);
+        await db.SaveChangesAsync();
+        var second = new Document {
+            TenantId = 101, PublicId = Guid.NewGuid(), FileAssetId = seed.Asset.Id,
+            DocumentTypeCode = "LIBRARY_DIGITAL", EntityType = "LibraryBook",
+            EntityId = seed.Book.Id, Title = "Revision", VersionNo = 2,
+            SupersedesDocumentId = first.Id, IsActive = false };
+        db.Documents.Add(second);
+        await db.SaveChangesAsync();
+        var third = new Document {
+            TenantId = 101, PublicId = Guid.NewGuid(), FileAssetId = seed.Asset.Id,
+            DocumentTypeCode = "LIBRARY_DIGITAL", EntityType = "LibraryBook",
+            EntityId = seed.Book.Id, Title = "Final", VersionNo = 3,
+            SupersedesDocumentId = second.Id, IsActive = true };
+        var unrelated = new Document {
+            TenantId = 101, PublicId = Guid.NewGuid(), FileAssetId = seed.Asset.Id,
+            DocumentTypeCode = "LIBRARY_DIGITAL", EntityType = "LibraryBook",
+            EntityId = seed.Book.Id, Title = "Separate publication", VersionNo = 1, IsActive = true };
+        db.Documents.AddRange(third, unrelated);
+        await db.SaveChangesAsync();
+
+        var admin = Service(db, "TenantAdmin");
+        var history = await admin.GetVersionHistoryAsync(second.PublicId, 1, 2);
+        history.Success.Should().BeTrue(history.Message);
+        history.Data!.TotalCount.Should().Be(3);
+        history.Data.Items.Select(x => x.Title).Should().Equal("Final", "Revision");
+        history.Data.Items.Select(x => x.State).Should().Equal("Active", "Superseded");
+        var last = await admin.GetVersionHistoryAsync(third.PublicId, 2, 2);
+        last.Data!.Items.Should().ContainSingle().Which.Title.Should().Be("Original");
+        (await admin.GetVersionHistoryAsync(unrelated.PublicId, 1, 20))
+            .Data!.TotalCount.Should().Be(1);
+        (await Service(db, "Student").GetVersionHistoryAsync(third.PublicId, 1, 20))
+            .StatusCode.Should().Be(403);
+        (await admin.GetVersionHistoryAsync(Guid.NewGuid(), 1, 20))
+            .StatusCode.Should().Be(404);
+        (await admin.GetVersionHistoryAsync(third.PublicId, 1, 51))
+            .StatusCode.Should().Be(400);
+
+        // An impossible fork is not silently presented as a valid historical chain.
+        var fork = new Document {
+            TenantId = 101, PublicId = Guid.NewGuid(), FileAssetId = seed.Asset.Id,
+            DocumentTypeCode = "LIBRARY_DIGITAL", EntityType = "LibraryBook",
+            EntityId = seed.Book.Id, Title = "Conflicting successor", VersionNo = 2,
+            SupersedesDocumentId = first.Id, IsActive = false };
+        db.Documents.Add(fork);
+        await db.SaveChangesAsync();
+        (await admin.GetVersionHistoryAsync(first.PublicId, 1, 20))
+            .StatusCode.Should().Be(409);
+    }
+
+    [Fact]
     public async Task Scanned_resource_requires_live_student_enrollment_for_list_and_download()
     {
         await using var db = Context();

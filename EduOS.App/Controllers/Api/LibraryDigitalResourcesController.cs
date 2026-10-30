@@ -53,6 +53,32 @@ public sealed class LibraryDigitalResourcesController(ILibraryDigitalResourceSer
             "text/csv; charset=utf-8", "library-digital-page.csv");
     }
 
+    [HttpGet("{reference:guid}/versions")]
+    [Authorize(Roles = "TenantAdmin")]
+    public async Task<IActionResult> Versions(Guid reference, [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 20, CancellationToken ct = default)
+    {
+        var result = await service.GetVersionHistoryAsync(reference, page, pageSize, ct);
+        return StatusCode(result.StatusCode, result);
+    }
+
+    [HttpGet("{reference:guid}/versions/export")]
+    [Authorize(Roles = "TenantAdmin")]
+    public async Task<IActionResult> ExportVersions(Guid reference, [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 20, [FromQuery] string language = "en-BD",
+        CancellationToken ct = default)
+    {
+        if (language is not ("en-BD" or "bn-BD"))
+            return BadRequest("Unsupported report language.");
+        var result = await service.GetVersionHistoryAsync(reference, page, pageSize, ct);
+        if (!result.Success || result.Data == null)
+            return StatusCode(result.StatusCode, result);
+        Response.Headers.CacheControl = "no-store, private";
+        Response.Headers.Pragma = "no-cache";
+        return File(LibraryDigitalCsvWriter.WriteVersions(result.Data.Items, language == "bn-BD"),
+            "text/csv; charset=utf-8", "library-digital-versions-page.csv");
+    }
+
     [HttpGet("audit")]
     [Authorize(Roles = "TenantAdmin")]
     public async Task<IActionResult> Audit([FromQuery] DateOnly? from = null,

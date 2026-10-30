@@ -52,6 +52,30 @@ public static class LibraryDigitalCsvWriter
         return result;
     }
 
+    public static byte[] WriteVersions(IEnumerable<LibraryDigitalVersionDto> rows, bool bangla)
+    {
+        var csv = new StringBuilder();
+        csv.AppendLine(bangla
+            ? "রিসোর্স,সংস্করণ,নাম,অবস্থা,ক্যাম্পাস,মেয়াদ (UTC),প্রকাশ (UTC)"
+            : "Resource,Version,Title,State,Campus,Expires UTC,Published UTC");
+        foreach (var row in rows)
+            csv.AppendLine(string.Join(",", new[] {
+                Cell(row.Reference.ToString("D")),
+                Cell(row.VersionNo.ToString(System.Globalization.CultureInfo.InvariantCulture)),
+                Cell(row.Title), Cell(row.State),
+                Cell(row.CampusId?.ToString(System.Globalization.CultureInfo.InvariantCulture)
+                    ?? (bangla ? "সব ক্যাম্পাস" : "All campuses")),
+                Cell(row.ExpiresOn?.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture)),
+                Cell(row.PublishedAtUtc.ToString("O"))
+            }));
+        var payload = new UTF8Encoding(false).GetBytes(csv.ToString());
+        var bom = new UTF8Encoding(true).GetPreamble();
+        var result = new byte[bom.Length + payload.Length];
+        Buffer.BlockCopy(bom, 0, result, 0, bom.Length);
+        Buffer.BlockCopy(payload, 0, result, bom.Length, payload.Length);
+        return result;
+    }
+
     private static string Cell(string? value)
     {
         var text = value ?? string.Empty;

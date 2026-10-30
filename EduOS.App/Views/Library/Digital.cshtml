@@ -110,6 +110,34 @@
             </form>
         </dialog>
     }
+    @if (admin)
+    {
+        <dialog id="digitalHistoryDialog" class="border rounded shadow p-3 p-md-4" aria-labelledby="digitalHistoryHeading">
+            <div class="d-flex justify-content-between align-items-center gap-2 flex-wrap">
+                <h3 id="digitalHistoryHeading" class="h5 mb-0">@(bn ? "প্রকাশিত সংস্করণের ইতিহাস" : "Publication version history")</h3>
+                <button id="digitalHistoryExport" type="button" class="btn btn-sm btn-outline-secondary">@(bn ? "CSV (এই পৃষ্ঠা)" : "CSV (current page)")</button>
+            </div>
+            <div class="table-responsive mt-3">
+                <table class="table table-sm table-hover align-middle">
+                    <thead><tr>
+                        <th>@(bn ? "সংস্করণ" : "Version")</th>
+                        <th>@(bn ? "নাম" : "Title")</th>
+                        <th>@(bn ? "অবস্থা" : "State")</th>
+                        <th>@(bn ? "ক্যাম্পাস" : "Campus")</th>
+                        <th>@(bn ? "মেয়াদ (UTC)" : "Expiry (UTC)")</th>
+                        <th>@(bn ? "প্রকাশ (UTC)" : "Published (UTC)")</th>
+                    </tr></thead>
+                    <tbody id="digitalHistoryRows"></tbody>
+                </table>
+            </div>
+            <div class="d-flex justify-content-end align-items-center gap-2 flex-wrap">
+                <button id="digitalHistoryPrevious" type="button" class="btn btn-sm btn-outline-secondary" disabled>@(bn ? "আগে" : "Previous")</button>
+                <span id="digitalHistoryPage" aria-live="polite"></span>
+                <button id="digitalHistoryNext" type="button" class="btn btn-sm btn-outline-secondary" disabled>@(bn ? "পরে" : "Next")</button>
+                <button id="digitalHistoryClose" type="button" class="btn btn-sm btn-primary">@(bn ? "বন্ধ করুন" : "Close")</button>
+            </div>
+        </dialog>
+    }
     <section class="content-card mt-3" aria-labelledby="digitalListTitle">
         <div class="content-card-heading d-flex justify-content-between align-items-center flex-wrap gap-2">
             <h3 id="digitalListTitle" class="h5 mb-0">@(bn ? "অনুমোদিত রিসোর্স" : "Available resources") <span id="digitalCount" class="small text-muted"></span></h3>

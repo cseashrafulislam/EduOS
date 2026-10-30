@@ -110,3 +110,23 @@ test('campus licences are tenant-bound, inherited by replacement and controlled 
     assert.match(ui, /data\.append\('CampusId'/);
     assert.match(ui, /confirmTenantWideAccess: widening/);
 });
+
+
+test('digital publication history resolves one bounded tenant-owned lineage and never exposes old file bytes', () => {
+    assert.match(api, /HttpGet\("{reference:guid}\/versions"\)/);
+    assert.match(api, /HttpGet\("{reference:guid}\/versions\/export"\)/);
+    assert.match(service, /GetVersionHistoryAsync\(/);
+    assert.match(service, /SupersedesDocumentId/);
+    assert.match(service, /Take\(251\)/);
+    assert.match(service, /Conflicting publication successors/);
+    assert.match(view, /id="digitalHistoryDialog"/);
+    assert.match(view, /id="digitalHistoryRows"/);
+    assert.match(ui, /function loadHistory\(/);
+    assert.match(ui, /historySequence\+\+/);
+    assert.match(ui, /openHistory\(resource\)/);
+    assert.match(ui, /digitalHistoryDialog'\)\.close\(\)/);
+    assert.doesNotMatch(ui, /innerHTML\s*=/);
+    const writer = read('EduOS.App/Controllers/Api/LibraryDigitalCsvWriter.cs');
+    assert.match(writer, /WriteVersions/);
+    assert.doesNotMatch(writer, /StorageKey|Sha256|PersonId/);
+});

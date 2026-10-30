@@ -191,6 +191,69 @@
         } catch (error) { notify(error.message); }
         finally { button.disabled = false; }
     }
+    let historyReference = null, historyPage = 1, historyPages = 1, historySequence = 0;
+    async function loadHistory() {
+        if (!admin || !historyReference || !currentSession()) return;
+        const sequence = ++historySequence, reference = historyReference;
+        const body = el('digitalHistoryRows');
+        body.replaceChildren();
+        try {
+            const query = new URLSearchParams({ page: String(historyPage), pageSize: '20' });
+            const result = await api('/api/library/digital/' +
+                encodeURIComponent(reference) + '/versions?' + query);
+            if (sequence !== historySequence || reference !== historyReference || !currentSession()) return;
+            for (const item of result?.items || []) {
+                const tr = document.createElement('tr');
+                [item.versionNo, item.title, item.state,
+                    item.campusId == null ? words('All campuses', 'সব ক্যাম্পাস') : item.campusId,
+                    item.expiresOn || '—', item.publishedAtUtc].forEach(value => tr.append(td(value)));
+                body.append(tr);
+            }
+            if (!body.children.length) {
+                const tr = document.createElement('tr');
+                const cell = td(words('No versions found.', 'কোনো সংস্করণ পাওয়া যায়নি।'));
+                cell.colSpan = 6; tr.append(cell); body.append(tr);
+            }
+            historyPages = Math.max(1, result?.totalPages || 1);
+            el('digitalHistoryPage').textContent = historyPage + ' / ' + historyPages;
+            el('digitalHistoryPrevious').disabled = historyPage <= 1;
+            el('digitalHistoryNext').disabled = historyPage >= historyPages;
+        } catch (error) {
+            if (sequence === historySequence && currentSession()) notify(error.message);
+        }
+    }
+    function openHistory(resource) {
+        if (!admin || !currentSession()) return;
+        historyReference = resource.reference;
+        historyPage = 1; historyPages = 1;
+        el('digitalHistoryDialog').showModal();
+        loadHistory();
+    }
+    async function exportHistory() {
+        if (!admin || !historyReference || !currentSession()) return;
+        const reference = historyReference, button = el('digitalHistoryExport');
+        button.disabled = true;
+        try {
+            const query = new URLSearchParams({
+                page: String(historyPage), pageSize: '20', language: bn ? 'bn-BD' : 'en-BD'
+            });
+            const blob = await sessionFetch('/api/library/digital/' +
+                encodeURIComponent(reference) + '/versions/export?' + query,
+                { credentials: 'same-origin', cache: 'no-store' }, async response => {
+                    if (!response.ok) throw Error(words('Version export denied.', 'সংস্করণ এক্সপোর্ট অনুমোদিত নয়।'));
+                    return response.blob();
+                });
+            if (!currentSession() || reference !== historyReference) return;
+            const url = URL.createObjectURL(blob);
+            try {
+                const a = document.createElement('a');
+                a.href = url; a.download = 'library-digital-versions-page.csv';
+                document.body.append(a); a.click(); a.remove();
+            } finally { setTimeout(() => URL.revokeObjectURL(url), 1000); }
+        } catch (error) {
+            if (currentSession() && error.name !== 'AbortError') notify(error.message);
+        } finally { button.disabled = false; }
+    }
     function render(resources) {
         rows.replaceChildren();
         if (!resources.length) return empty(words('No resources found.', 'কোনো রিসোর্স পাওয়া যায়নি।'));
@@ -211,6 +274,14 @@
                 button.textContent = words('Download', 'ডাউনলোড');
                 button.addEventListener('click', () => download(resource, button));
                 actions.append(button);
+            }
+            if (admin) {
+                const historyButton = document.createElement('button');
+                historyButton.type = 'button';
+                historyButton.className = 'btn btn-sm btn-outline-secondary ms-2';
+                historyButton.textContent = words('History', 'ইতিহাস');
+                historyButton.addEventListener('click', () => openHistory(resource));
+                actions.append(historyButton);
             }
             if (admin && resource.isActive) {
                 const replaceButton = document.createElement('button');
@@ -405,6 +476,20 @@
         });
         el('digitalAuditExport').addEventListener('click', exportAudit);
     }
+    if (admin) {
+        el('digitalHistoryPrevious').addEventListener('click', () => {
+            if (historyPage > 1) { historyPage--; loadHistory(); }
+        });
+        el('digitalHistoryNext').addEventListener('click', () => {
+            if (historyPage < historyPages) { historyPage++; loadHistory(); }
+        });
+        el('digitalHistoryExport').addEventListener('click', exportHistory);
+        el('digitalHistoryClose').addEventListener('click', () => el('digitalHistoryDialog').close());
+        el('digitalHistoryDialog').addEventListener('close', () => {
+            historySequence++; historyReference = null;
+            el('digitalHistoryRows').replaceChildren();
+        });
+    }
     el('digitalSearchForm').addEventListener('submit', event => {
         event.preventDefault(); page = 1; clearAlert(); load();
     });
@@ -431,8 +516,13 @@
         loadCampuses();
     }
     function clearSensitive() {
-        requestSequence++; auditSequence++;
-        if (admin) { el('digitalAuditRows').replaceChildren(); el('digitalAuditPage').textContent = ''; }
+        requestSequence++; auditSequence++; historySequence++;
+        historyReference = null;
+        if (admin) {
+            el('digitalAuditRows').replaceChildren(); el('digitalAuditPage').textContent = '';
+            el('digitalHistoryRows').replaceChildren(); el('digitalHistoryPage').textContent = '';
+            if (el('digitalHistoryDialog').open) el('digitalHistoryDialog').close();
+        }
         for (const request of activeRequests) request.abort();
         activeRequests.clear();
         uploadRequestId = null; editing = null; replacing = null; replaceRequestId = null;

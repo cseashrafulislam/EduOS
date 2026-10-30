@@ -50,6 +50,17 @@ public sealed class LibraryDigitalRevokeRequestDto
     [Required] public string RowVersion { get; set; } = string.Empty;
 }
 
+public sealed class LibraryDigitalVersionDto
+{
+    public Guid Reference { get; set; }
+    public int VersionNo { get; set; }
+    public string Title { get; set; } = string.Empty;
+    public long? CampusId { get; set; }
+    public DateOnly? ExpiresOn { get; set; }
+    public DateTime PublishedAtUtc { get; set; }
+    public string State { get; set; } = string.Empty;
+}
+
 public sealed class LibraryDigitalAuditDto
 {
     public Guid ResourceReference { get; set; }
