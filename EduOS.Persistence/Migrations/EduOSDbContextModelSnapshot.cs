@@ -12058,6 +12058,7 @@ namespace EduOS.Persistence.Migrations
                     b.Property<DateTime?>("UpdatedAt").HasColumnType("datetime2");
                     b.Property<long?>("UpdatedBy").HasColumnType("bigint");
                     b.HasKey("Id");
+                    b.HasAlternateKey("TenantId", "Id");
                     b.HasIndex("TenantId", "InventoryItemId");
                     b.HasIndex("TenantId", "PurchaseOrderId", "LineNo").IsUnique();
                     b.HasIndex("TenantId", "RequisitionLineId").IsUnique();
