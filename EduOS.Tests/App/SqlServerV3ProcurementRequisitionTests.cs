@@ -30,10 +30,14 @@ public sealed class SqlServerV3ProcurementRequisitionTests
         public string? IpAddress => null;
         public string? UserAgent => null;
     }
-    private static EduOSDbContext Open(DbContextOptions<EduOSDbContext> options, long tenant)
+    private static EduOSDbContext Open(DbContextOptions<EduOSDbContext> options, long tenant, long userId = 0)
     {
         var http = new DefaultHttpContext();
         http.Items["TenantId"] = tenant;
+        if (userId > 0)
+            http.User = new System.Security.Claims.ClaimsPrincipal(new System.Security.Claims.ClaimsIdentity(
+                [new System.Security.Claims.Claim(System.Security.Claims.ClaimTypes.NameIdentifier, userId.ToString()),
+                 new System.Security.Claims.Claim("TenantId", tenant.ToString())], "TestAuthentication"));
         return new EduOSDbContext(options, new HttpContextAccessor { HttpContext = http });
     }
     private static ProcurementRequisitionService Service(EduOSDbContext db, long tenant, long userId)
@@ -78,7 +82,7 @@ public sealed class SqlServerV3ProcurementRequisitionTests
             Lines = [new ProcurementRequisitionLineInput { InventoryItemId = itemId, Quantity = 3, EstimatedUnitPrice = 2 }]
         };
         long id;
-        await using (var makerDb = Open(options, tenantId))
+        await using (var makerDb = Open(options, tenantId, makerId))
         {
             var maker = Service(makerDb, tenantId, makerId);
             var created = await maker.SaveAsync(null, request);
@@ -93,8 +97,8 @@ public sealed class SqlServerV3ProcurementRequisitionTests
                 new ProcurementDecisionRequest { RowVersion = submitted.Data!.RowVersion });
             Assert.Equal(403, denied.StatusCode);
         }
-        await using var firstDb = Open(options, tenantId);
-        await using var secondDb = Open(options, tenantId);
+        await using var firstDb = Open(options, tenantId, checkerId);
+        await using var secondDb = Open(options, tenantId, checkerId);
         var first = Service(firstDb, tenantId, checkerId);
         var second = Service(secondDb, tenantId, checkerId);
         var snapshot = await first.GetAsync(id);
@@ -105,7 +109,7 @@ public sealed class SqlServerV3ProcurementRequisitionTests
         var competing = await second.TransitionAsync(id, "reject",
             new ProcurementDecisionRequest { RowVersion = version, Reason = "Competing rejection" });
         Assert.Equal(409, competing.StatusCode);
-        await using var verify = Open(options, tenantId);
+        await using var verify = Open(options, tenantId, makerId);
         Assert.Equal("Approved", (await Service(verify, tenantId, makerId).GetAsync(id)).Data!.StateCode);
         Assert.Equal(1, await verify.ProcurementRequisitions.CountAsync(x => x.Id == id));
         Assert.Empty(await verify.InventoryMovements.Where(x => x.SourceType == "ProcurementRequisition").ToListAsync());

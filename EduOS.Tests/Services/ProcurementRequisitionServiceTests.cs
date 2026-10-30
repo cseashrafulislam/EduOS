@@ -31,6 +31,9 @@ public sealed class ProcurementRequisitionServiceTests
     {
         var http = new DefaultHttpContext();
         http.Items["TenantId"] = tenant;
+        http.User = new System.Security.Claims.ClaimsPrincipal(new System.Security.Claims.ClaimsIdentity(
+            [new System.Security.Claims.Claim(System.Security.Claims.ClaimTypes.NameIdentifier, "10"),
+             new System.Security.Claims.Claim("TenantId", tenant.ToString())], "TestAuthentication"));
         return new EduOSDbContext(options, new HttpContextAccessor { HttpContext = http });
     }
     private static ProcurementRequisitionService Service(EduOSDbContext db, long tenant, long userId, string role)
