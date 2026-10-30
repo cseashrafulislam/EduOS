@@ -1,3 +1,20 @@
+using System.Net;
+using System.Net.Http;
+using System.Security.Claims;
+using EduOS.App.Authorization;
+using EduOS.App.Controllers.Api;
+using EduOS.App.Middleware;
+using EduOS.Core.Interfaces;
+using EduOS.Core.Interfaces.IServices;
+using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.RateLimiting;
+using Microsoft.AspNetCore.TestHost;
+using Microsoft.Extensions.DependencyInjection;
+using Moq;
 using EduOS.Core.DTOs.LMS;
 using EduOS.Core.Entities.LMS;
 using EduOS.Core.Entities.Learners;
@@ -19,6 +36,66 @@ public sealed partial class SqlServerTransportSeatCapacityIntegrationTests
         EduOSDbContext db, string role, long tenant, long userId) =>
         new(db, new CertificateActor(role, tenant, userId), TimeProvider.System,
             NullLogger<LmsProgressGuardianService>.Instance);
+
+    private static TestServer ProgressGuardianHttpServer(DbContextOptions<EduOSDbContext> options)
+    {
+        var modules = new Mock<ITenantModuleService>();
+        modules.Setup(x => x.IsCurrentTenantModuleAvailableAsync(It.IsAny<string>()))
+            .ReturnsAsync(true);
+        return new TestServer(new WebHostBuilder()
+            .ConfigureServices(services =>
+            {
+                services.AddLogging();
+                services.AddRouting();
+                services.AddHttpContextAccessor();
+                services.AddAuthentication("SqlPrivateTest")
+                    .AddScheme<AuthenticationSchemeOptions, PrivateHttpAuth>("SqlPrivateTest", _ => { });
+                services.AddAuthorization();
+                services.AddSingleton<IAuthorizationPolicyProvider, ModuleAuthorizationPolicyProvider>();
+                services.AddSingleton<IAuthorizationHandler, ModuleAccessHandler>();
+                services.AddSingleton(modules.Object);
+                services.AddAntiforgery();
+                services.AddRateLimiter(x => x.AddFixedWindowLimiter("ApiPolicy", y =>
+                {
+                    y.PermitLimit = 1000;
+                    y.Window = TimeSpan.FromMinutes(1);
+                    y.QueueLimit = 0;
+                }));
+                services.AddScoped(sp => new EduOSDbContext(
+                    options, sp.GetRequiredService<IHttpContextAccessor>()));
+                services.AddScoped<ICurrentUserService, PrivateHttpUser>();
+                services.AddScoped<ILmsProgressGuardianService, LmsProgressGuardianService>();
+                services.AddSingleton(TimeProvider.System);
+                services.AddControllersWithViews()
+                    .AddApplicationPart(typeof(LmsProgressSharingController).Assembly);
+            })
+            .Configure(app =>
+            {
+                app.UseRouting();
+                app.UseV2PrivateApiResponseHeaders();
+                app.UseRateLimiter();
+                app.UseAuthentication();
+                app.Use(async (http, next) =>
+                {
+                    if (http.User.Identity?.IsAuthenticated == true &&
+                        long.TryParse(http.User.FindFirstValue("TenantId"), out var tenant))
+                        http.Items["TenantId"] = tenant;
+                    await next();
+                });
+                app.UseAuthorization();
+                app.UseEndpoints(endpoints => endpoints.MapControllers());
+            }));
+    }
+
+    private static async Task<HttpResponseMessage> ProgressGuardianGetAsync(
+        HttpClient client, string path, string? role, long tenant, long user)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Get, path);
+        if (role != null) request.Headers.TryAddWithoutValidation("X-Test-Role", role);
+        request.Headers.TryAddWithoutValidation("X-Test-Tenant", tenant.ToString());
+        request.Headers.TryAddWithoutValidation("X-Test-User", user.ToString());
+        return await client.SendAsync(request);
+    }
 
     [Fact]
     public async Task SQL_LMS_guardian_progress_requires_enrollment_consent_and_revocation()
@@ -97,6 +174,29 @@ public sealed partial class SqlServerTransportSeatCapacityIntegrationTests
         Assert.Contains(attempts, x => x.Success);
         Assert.All(attempts, x => Assert.True(x.Success || x.StatusCode == 409, x.Message));
 
+        using var server = ProgressGuardianHttpServer(fixture.Options);
+        using var client = server.CreateClient();
+        const string exportPath = "/api/lms/progress-sharing/mine/export?page=1&pageSize=20";
+        using (var denied = await ProgressGuardianGetAsync(client, exportPath,
+            "Student", fixture.TenantId, fixture.UserId))
+            Assert.Equal(HttpStatusCode.Forbidden, denied.StatusCode);
+        using (var wrongTenant = await ProgressGuardianGetAsync(client, exportPath,
+            "Guardian", other.TenantId, fixture.UserId))
+        {
+            Assert.Equal(HttpStatusCode.OK, wrongTenant.StatusCode);
+            Assert.DoesNotContain("Progress consent course",
+                await wrongTenant.Content.ReadAsStringAsync());
+        }
+        using (var export = await ProgressGuardianGetAsync(client, exportPath,
+            "Guardian", fixture.TenantId, fixture.UserId))
+        {
+            Assert.Equal(HttpStatusCode.OK, export.StatusCode);
+            Assert.Contains("attachment", export.Content.Headers.ContentDisposition?.ToString() ?? "");
+            Assert.Contains("no-store", export.Headers.CacheControl?.ToString() ?? "",
+                StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("Progress consent course", await export.Content.ReadAsStringAsync());
+        }
+
         await using (var db = ScopedContext(fixture.Options, fixture.TenantId, fixture.UserId))
         {
             Assert.Equal(1, await db.LmsProgressGuardianGrants.CountAsync(x =>
@@ -119,5 +219,34 @@ public sealed partial class SqlServerTransportSeatCapacityIntegrationTests
             Assert.Empty((await guardian.SharedAsync(1, 20)).Data!.Items);
             Assert.Equal(404, (await guardian.LessonsAsync(enrollmentId, 1, 20)).StatusCode);
         }
+        using (var export = await ProgressGuardianGetAsync(client, exportPath,
+            "Parent", fixture.TenantId, fixture.UserId))
+            Assert.DoesNotContain("Progress consent course", await export.Content.ReadAsStringAsync());
+
+        // A new consent cannot override a retired guardian relationship.
+        await using (var db = ScopedContext(fixture.Options, fixture.TenantId, fixture.UserId))
+        {
+            var renewed = await ProgressSharing(db, "Student", fixture.TenantId, fixture.UserId)
+                .GrantAsync(new GrantLmsProgressGuardianRequestDto
+                {
+                    CourseEnrollmentId = enrollmentId, GuardianLinkId = guardianLinkId,
+                    ClientRequestId = Guid.NewGuid()
+                });
+            Assert.True(renewed.Success, renewed.Message);
+        }
+        using (var export = await ProgressGuardianGetAsync(client, exportPath,
+            "Guardian", fixture.TenantId, fixture.UserId))
+            Assert.Contains("Progress consent course", await export.Content.ReadAsStringAsync());
+        await using (var db = ScopedContext(fixture.Options, fixture.TenantId, fixture.UserId))
+        {
+            (await db.StudentGuardians.SingleAsync(x => x.Id == guardianLinkId)).IsDeleted = true;
+            await db.SaveChangesAsync();
+        }
+        using (var export = await ProgressGuardianGetAsync(client, exportPath,
+            "Guardian", fixture.TenantId, fixture.UserId))
+            Assert.DoesNotContain("Progress consent course", await export.Content.ReadAsStringAsync());
+        await using (var db = ScopedContext(fixture.Options, fixture.TenantId, fixture.UserId))
+            Assert.Equal(404, (await ProgressSharing(db, "Guardian", fixture.TenantId, fixture.UserId)
+                .LessonsAsync(enrollmentId, 1, 20)).StatusCode);
     }
 }
