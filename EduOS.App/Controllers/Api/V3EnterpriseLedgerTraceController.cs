@@ -66,17 +66,17 @@ public sealed class V3EnterpriseLedgerTraceController(EduOSDbContext db, ICurren
         static string Cell(object? value)
         {
             var s = Convert.ToString(value, CultureInfo.InvariantCulture) ?? "";
-            if (s.Length > 0 && "=+-@\\t\\r".Contains(s[0])) s = "'" + s;
+            if (s.Length > 0 && "=+-@\t\r".Contains(s[0])) s = "'" + s;
             return "\"" + s.Replace("\"", "\"\"") + "\"";
         }
-        var csv = new StringBuilder("Evidence,Reference,State,Debit,Credit,RunAmount,LinesAmount,Campus,PeriodEnd\\r\\n");
+        var csv = new StringBuilder("Evidence,Reference,State,Debit,Credit,RunAmount,LinesAmount,Campus,PeriodEnd\r\n");
         csv.AppendJoin(",", new[] { Cell("AssetDepreciation"), Cell(d.RunReference),
             Cell(d.State), Cell(""), Cell(""), Cell(d.RunTotalAmount),
-            Cell(d.DepreciationLinesAmount), Cell(d.CampusId), Cell(d.PeriodEnd) }).Append("\\r\\n");
+            Cell(d.DepreciationLinesAmount), Cell(d.CampusId), Cell(d.PeriodEnd) }).Append("\r\n");
         foreach (var j in d.Journals)
             csv.AppendJoin(",", new[] { Cell("Journal"), Cell(j.Reference), Cell(j.State),
                 Cell(j.Debit), Cell(j.Credit), Cell(""), Cell(""), Cell(j.CampusId),
-                Cell("") }).Append("\\r\\n");
+                Cell("") }).Append("\r\n");
         Response.Headers["X-Content-Type-Options"] = "nosniff";
         return File(new UTF8Encoding(true).GetBytes(csv.ToString()), "text/csv; charset=utf-8",
             "v3-asset-finance-trace-" + reference.ToString("N") + ".csv");
