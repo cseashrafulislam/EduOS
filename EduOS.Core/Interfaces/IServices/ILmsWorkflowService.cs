@@ -15,6 +15,10 @@ public interface ILmsWorkflowService
     Task<ApiResponse<LessonDto>> SaveLessonAsync(Guid? lessonReference, SaveLessonRequestDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<AssignmentDto>> SaveAssignmentAsync(Guid? assignmentReference, SaveAssignmentRequestDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<CourseEnrollmentDto>> EnrollStudentAsync(EnrollCourseRequestDto request, CancellationToken cancellationToken = default);
+    Task<ApiResponse<IReadOnlyList<LmsStudentChoiceDto>>> SearchEligibleStudentsAsync(string search, int take = 25, CancellationToken cancellationToken = default);
+    Task<ApiResponse<AssignmentRubricDto>> GetAssignmentRubricAsync(Guid assignmentReference, CancellationToken cancellationToken = default);
+    Task<ApiResponse<AssignmentRubricDto>> SaveAssignmentRubricAsync(Guid assignmentReference, SaveAssignmentRubricRequestDto request, CancellationToken cancellationToken = default);
+    Task<ApiResponse<IReadOnlyList<AssignmentRubricScoreDto>>> GetSubmissionRubricScoresAsync(long submissionId, CancellationToken cancellationToken = default);
     Task<ApiResponse<IReadOnlyList<AcademicInstructorChoiceDto>>> SearchInstructorsAsync(string search, int take = 20, CancellationToken cancellationToken = default);
     Task<ApiResponse<PagedResult<CourseDto>>> GetMyCoursesAsync(int page, int pageSize, CancellationToken cancellationToken = default, bool includeArchived = false);
     Task<ApiResponse<CourseDetailsDto>> GetCourseDetailsAsync(Guid courseReference, CancellationToken cancellationToken = default);

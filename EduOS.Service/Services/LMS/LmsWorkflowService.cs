@@ -31,6 +31,8 @@ public sealed partial class LmsWorkflowService : ILmsWorkflowService
     private readonly IGenericRepository<LessonProgress> _progress;
     private readonly IGenericRepository<Assignment> _assignments;
     private readonly IGenericRepository<AssignmentSubmission> _submissions;
+    private readonly IGenericRepository<AssignmentRubricCriterion>? _rubricCriteria;
+    private readonly IGenericRepository<AssignmentRubricScore>? _rubricScores;
     private readonly IGenericRepository<Student> _students;
     private readonly IGenericRepository<StudentEnrollment> _academicEnrollments;
     private readonly IGenericRepository<Employee> _employees;
@@ -78,7 +80,9 @@ public sealed partial class LmsWorkflowService : ILmsWorkflowService
         IGenericRepository<LmsLessonRevision>? lessonRevisions = null,
         IGenericRepository<LessonResource>? lessonResources = null,
         IFileUploadService? privateStorage = null,
-        IDocumentFileService? documentFiles = null)
+        IDocumentFileService? documentFiles = null,
+        IGenericRepository<AssignmentRubricCriterion>? rubricCriteria = null,
+        IGenericRepository<AssignmentRubricScore>? rubricScores = null)
     {
         _courses = courses; _enrollments = enrollments; _lessons = lessons; _progress = progress;
         _assignments = assignments; _submissions = submissions; _students = students;
@@ -94,6 +98,7 @@ public sealed partial class LmsWorkflowService : ILmsWorkflowService
         _studentCampuses = studentCampuses;
         _lessonRevisions = lessonRevisions; _lessonResources = lessonResources;
         _privateStorage = privateStorage; _documentFiles = documentFiles;
+        _rubricCriteria = rubricCriteria; _rubricScores = rubricScores;
     }
 
     public async Task<ApiResponse<CourseDto>> SaveCourseAsync(Guid? courseReference, SaveCourseRequestDto request,
@@ -260,6 +265,14 @@ public sealed partial class LmsWorkflowService : ILmsWorkflowService
                     !x.IsDeleted && x.State != LearningSubmissionState.Draft, token))
                     return Error<AssignmentDto>(
                         "Assignment has submissions and cannot be edited. Create a new assignment.", 409);
+                if (row != null && _rubricCriteria != null)
+                {
+                    var maxima = await _rubricCriteria.GetQueryable().AsNoTracking()
+                        .Where(x => x.TenantId == _user.TenantId && x.AssignmentId == row.Id && !x.IsDeleted)
+                        .Select(x => x.MaxMarks).ToListAsync(token);
+                    if (maxima.Count > 0 && maxima.Sum() != request.MaxMarks)
+                        return Error<AssignmentDto>("Assignment marks must equal the saved rubric total.", 409);
+                }
                 var now = _clock.GetUtcNow().UtcDateTime;
                 if (row == null)
                 {
@@ -340,6 +353,16 @@ public sealed partial class LmsWorkflowService : ILmsWorkflowService
         {
             return await _uow.ExecuteInTransactionAsync(async token =>
             {
+                // Enrollment and course state may change while a manager is choosing
+                // a student. Recheck both inside the write transaction.
+                if (!await _students.GetQueryable().AsNoTracking().AnyAsync(x =>
+                    x.TenantId == tenant && x.Id == student.Id && x.StatusCode == "Active" && !x.IsDeleted, token) ||
+                    !await _courses.GetQueryable().AsNoTracking().AnyAsync(x =>
+                    x.TenantId == tenant && x.Id == course.Id && x.IsActive && !x.IsDeleted, token) ||
+                    (academic != null && !await _academicEnrollments.GetQueryable().AsNoTracking().AnyAsync(x =>
+                        x.TenantId == tenant && x.Id == academic.Id && x.StudentId == student.Id &&
+                        x.State == EnrollmentState.Active && x.IsCurrent && !x.IsDeleted, token)))
+                    return Error<CourseEnrollmentDto>("Student, course or academic enrollment changed. Reload and retry.", 409);
                 var replay = await _enrollments.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
                     x.TenantId == tenant && x.ClientRequestId == request.ClientRequestId && !x.IsDeleted, token);
                 if (replay != null)
@@ -375,6 +398,25 @@ public sealed partial class LmsWorkflowService : ILmsWorkflowService
             _logger.LogWarning(ex, "Course enrollment conflict for tenant {TenantId}", tenant);
             return Error<CourseEnrollmentDto>("Course enrollment conflicts with another request.", 409);
         }
+    }
+
+    public async Task<ApiResponse<IReadOnlyList<LmsStudentChoiceDto>>> SearchEligibleStudentsAsync(
+        string search, int take = 25, CancellationToken ct = default)
+    {
+        if (!Authenticated() || !IsManager())
+            return Error<IReadOnlyList<LmsStudentChoiceDto>>("LMS management permission required.", 403);
+        var term = search?.Trim() ?? string.Empty;
+        if (term.Length is < 2 or > 80 || take is < 1 or > 50)
+            return Error<IReadOnlyList<LmsStudentChoiceDto>>("Enter 2-80 characters to find a student.");
+        IReadOnlyList<LmsStudentChoiceDto> result = await _students.GetQueryable().AsNoTracking()
+            .Where(x => x.TenantId == _user.TenantId && x.StatusCode == "Active" && !x.IsDeleted &&
+                (x.StudentCode.StartsWith(term) || x.FullName.StartsWith(term)))
+            .OrderBy(x => x.StudentCode).ThenBy(x => x.Id).Take(take)
+            .Select(x => new LmsStudentChoiceDto
+            {
+                StudentReference = x.PublicId, StudentCode = x.StudentCode, StudentName = x.FullName
+            }).ToListAsync(ct);
+        return ApiResponse<IReadOnlyList<LmsStudentChoiceDto>>.SuccessResponse(result);
     }
 
     public async Task<ApiResponse<IReadOnlyList<AcademicInstructorChoiceDto>>> SearchInstructorsAsync(
@@ -653,6 +695,35 @@ public sealed partial class LmsWorkflowService : ILmsWorkflowService
                     return Error<AssignmentSubmissionDto>("Marks cannot exceed assignment maximum.", 409);
                 if (row.State != LearningSubmissionState.Submitted && row.State != LearningSubmissionState.Returned)
                     return Error<AssignmentSubmissionDto>("Only submitted assignments may be graded.", 409);
+                if (_rubricCriteria != null && _rubricScores != null)
+                {
+                    var criteria = await _rubricCriteria.GetQueryable().AsNoTracking()
+                        .Where(x => x.TenantId == tenant && x.AssignmentId == assignment.Id && !x.IsDeleted)
+                        .OrderBy(x => x.DisplayOrder).ToListAsync(token);
+                    var scores = request.RubricScores ?? Array.Empty<AssignmentRubricScoreDto>();
+                    if (criteria.Count > 0)
+                    {
+                        if (scores.Count != criteria.Count ||
+                            scores.GroupBy(x => x.CriterionReference).Any(x => x.Count() > 1) ||
+                            scores.Sum(x => x.AwardedMarks) != request.Marks ||
+                            criteria.Sum(x => x.MaxMarks) != assignment.MaxMarks ||
+                            criteria.Any(x => !scores.Any(s => s.CriterionReference == x.PublicId &&
+                                s.AwardedMarks >= 0 && s.AwardedMarks <= x.MaxMarks)))
+                            return Error<AssignmentSubmissionDto>("All rubric criteria require valid awarded marks matching the final total.", 409);
+                        foreach (var criterion in criteria)
+                        {
+                            var awarded = scores.Single(x => x.CriterionReference == criterion.PublicId).AwardedMarks;
+                            await _rubricScores.AddAsync(new AssignmentRubricScore
+                            {
+                                TenantId = tenant, AssignmentSubmissionId = row.Id,
+                                AssignmentRubricCriterionId = criterion.Id, AwardedMarks = awarded,
+                                CreatedAt = _clock.GetUtcNow().UtcDateTime, CreatedBy = _user.UserId
+                            });
+                        }
+                    }
+                    else if (scores.Count > 0)
+                        return Error<AssignmentSubmissionDto>("This assignment has no rubric criteria.", 409);
+                }
                 row.Marks = request.Marks; row.Feedback = Trim(request.Feedback);
                 row.State = LearningSubmissionState.Graded;
                 row.GradedAt = _clock.GetUtcNow().UtcDateTime; row.GradedByUserId = _user.UserId;

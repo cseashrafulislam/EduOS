@@ -392,6 +392,8 @@ public class EduOSDbContext :
 
     // LMS
     public DbSet<Assignment> Assignments => Set<Assignment>();
+    public DbSet<AssignmentRubricCriterion> AssignmentRubricCriteria => Set<AssignmentRubricCriterion>();
+    public DbSet<AssignmentRubricScore> AssignmentRubricScores => Set<AssignmentRubricScore>();
     public DbSet<AssignmentAttachment> AssignmentAttachments => Set<AssignmentAttachment>();
     public DbSet<AssignmentSubmission> AssignmentSubmissions => Set<AssignmentSubmission>();
     public DbSet<AssignmentSubmissionFile> AssignmentSubmissionFiles => Set<AssignmentSubmissionFile>();
@@ -1087,6 +1089,9 @@ public class EduOSDbContext :
         TenantReference<LessonProgress, CourseEnrollment>(modelBuilder, nameof(LessonProgress.CourseEnrollmentId));
         TenantReference<LessonProgress, Lesson>(modelBuilder, nameof(LessonProgress.LessonId));
         TenantReference<Assignment, Course>(modelBuilder, nameof(Assignment.CourseId));
+        TenantReference<AssignmentRubricCriterion, Assignment>(modelBuilder, nameof(AssignmentRubricCriterion.AssignmentId));
+        TenantReference<AssignmentRubricScore, AssignmentSubmission>(modelBuilder, nameof(AssignmentRubricScore.AssignmentSubmissionId));
+        TenantReference<AssignmentRubricScore, AssignmentRubricCriterion>(modelBuilder, nameof(AssignmentRubricScore.AssignmentRubricCriterionId));
         TenantReference<AssignmentAttachment, Assignment>(modelBuilder, nameof(AssignmentAttachment.AssignmentId));
         TenantReference<AssignmentAttachment, FileAsset>(modelBuilder, nameof(AssignmentAttachment.FileAssetId));
         TenantReference<AssignmentSubmission, Assignment>(modelBuilder, nameof(AssignmentSubmission.AssignmentId));
@@ -1728,6 +1733,17 @@ public class EduOSDbContext :
         modelBuilder.Entity<CourseEnrollment>().HasIndex(x => new { x.TenantId, x.CourseId, x.StudentId })
             .IsUnique().HasFilter("[StudentEnrollmentId] IS NULL AND [IsDeleted] = 0");
         UniqueTenant<LessonProgress>(modelBuilder, nameof(LessonProgress.CourseEnrollmentId), nameof(LessonProgress.LessonId));
+        UniqueTenant<AssignmentRubricCriterion>(modelBuilder,
+            [nameof(AssignmentRubricCriterion.AssignmentId), nameof(AssignmentRubricCriterion.DisplayOrder)], "[IsDeleted] = 0");
+        UniqueTenant<AssignmentRubricScore>(modelBuilder, nameof(AssignmentRubricScore.AssignmentSubmissionId), nameof(AssignmentRubricScore.AssignmentRubricCriterionId));
+        modelBuilder.Entity<AssignmentRubricCriterion>().HasIndex(x => new { x.TenantId, x.PublicId }).IsUnique();
+        modelBuilder.Entity<AssignmentRubricCriterion>().ToTable(t =>
+        {
+            t.HasCheckConstraint("CK_AssignmentRubricCriteria_MaxMarks", "[MaxMarks] > 0 AND [MaxMarks] <= 100000");
+            t.HasCheckConstraint("CK_AssignmentRubricCriteria_Order", "[DisplayOrder] >= 1 AND [DisplayOrder] <= 20");
+        });
+        modelBuilder.Entity<AssignmentRubricScore>().ToTable(t =>
+            t.HasCheckConstraint("CK_AssignmentRubricScores_AwardedMarks", "[AwardedMarks] >= 0"));
         UniqueTenant<QuizAttempt>(modelBuilder, nameof(QuizAttempt.ClientRequestId));
         UniqueTenant<QuizAnswer>(modelBuilder, nameof(QuizAnswer.QuizAttemptId), nameof(QuizAnswer.QuizQuestionId));
         UniqueTenant<QuizAnswerOption>(modelBuilder, nameof(QuizAnswerOption.QuizAnswerId), nameof(QuizAnswerOption.QuizOptionId));

@@ -26,6 +26,7 @@
     <form id="mySubmissionForm" class="card mb-3" hidden>
         <div class="card-header"><h2 id="mySubmissionHeading" class="h6 mb-0">Submit assignment</h2></div>
         <div class="card-body">
+            <div id="mySubmissionRubricPreview" class="small text-muted mb-2" aria-live="polite"></div>
             <label for="mySubmissionText" class="form-label">Answer</label>
             <textarea id="mySubmissionText" maxlength="4000" rows="4" class="form-control mb-3"></textarea>
             <label for="mySubmissionUploadFiles" class="form-label">Attachments (maximum 10, 5 MB each)</label>
@@ -35,9 +36,11 @@
         </div>
     </form>
     <div class="card" id="mySubmissionFilePanel" hidden>
-        <div class="card-header d-flex align-items-center justify-content-between">Submission files
+        <div class="card-header d-flex align-items-center justify-content-between">Submission details
             <button id="mySubmissionFileClose" class="btn btn-outline-secondary btn-sm" type="button">Close</button>
         </div>
+        <div class="card-body border-bottom"><div id="mySubmissionFeedback" class="small" style="white-space:pre-wrap;overflow-wrap:anywhere;"></div>
+            <div id="mySubmissionRubricBreakdown" class="mt-2 small"></div></div>
         <div class="table-responsive"><table class="table table-sm mb-0"><thead><tr><th>File</th><th>Action</th></tr></thead><tbody id="mySubmissionFileRows"></tbody></table></div>
     </div>
 </section>

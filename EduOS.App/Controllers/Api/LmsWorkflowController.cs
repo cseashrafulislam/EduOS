@@ -52,12 +52,45 @@ public sealed class LmsWorkflowController : ControllerBase
         return StatusCode(result.StatusCode, result);
     }
 
+    [HttpGet("assignments/{reference:guid}/rubric")]
+    public async Task<IActionResult> GetAssignmentRubric(Guid reference, CancellationToken ct)
+    {
+        var result = await _service.GetAssignmentRubricAsync(reference, ct);
+        return StatusCode(result.StatusCode, result);
+    }
+
+    [HttpPut("assignments/{reference:guid}/rubric")]
+    [Authorize(Roles = "TenantAdmin,Principal,Teacher")]
+    public async Task<IActionResult> SaveAssignmentRubric(Guid reference,
+        [FromBody] SaveAssignmentRubricRequestDto request, CancellationToken ct)
+    {
+        if (!ModelState.IsValid) return ValidationProblem(ModelState);
+        var result = await _service.SaveAssignmentRubricAsync(reference, request, ct);
+        return StatusCode(result.StatusCode, result);
+    }
+
+    [HttpGet("assignments/submissions/{submissionId:long}/rubric-scores")]
+    public async Task<IActionResult> SubmissionRubricScores(long submissionId, CancellationToken ct)
+    {
+        var result = await _service.GetSubmissionRubricScoresAsync(submissionId, ct);
+        return StatusCode(result.StatusCode, result);
+    }
+
     [HttpPost("courses/enrollments")]
     [Authorize(Roles = "TenantAdmin,Principal,Student")]
     public async Task<IActionResult> EnrollStudent([FromBody] EnrollCourseRequestDto request, CancellationToken ct)
     {
         if (!ModelState.IsValid) return ValidationProblem(ModelState);
         var result = await _service.EnrollStudentAsync(request, ct);
+        return StatusCode(result.StatusCode, result);
+    }
+
+    [HttpGet("students/search")]
+    [Authorize(Roles = "TenantAdmin,Principal")]
+    public async Task<IActionResult> SearchEligibleStudents([FromQuery] string search,
+        [FromQuery] int take = 25, CancellationToken ct = default)
+    {
+        var result = await _service.SearchEligibleStudentsAsync(search ?? string.Empty, take, ct);
         return StatusCode(result.StatusCode, result);
     }
 

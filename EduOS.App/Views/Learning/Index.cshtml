@@ -37,12 +37,7 @@
         </section>
         <section class="card mb-3" id="lmsProgressConsentApp" data-mode="student"
             data-lang="@System.Globalization.CultureInfo.CurrentUICulture.TwoLetterISOLanguageName">
-            <div class="card-header d-flex align-items-center gap-2">
-                <h3 class="h6 mb-0">Guardian learning-progress access / অভিভাবকের অগ্রগতি দেখার অনুমতি</h3>
-                <details><summary class="btn btn-sm btn-outline-secondary" aria-label="Progress sharing help">ⓘ</summary>
-                    <span class="small">Consent applies only to the selected course enrollment and can be revoked.</span>
-                </details>
-            </div>
+            <div class="card-header"><h3 class="h6 mb-0">Guardian learning-progress access / অভিভাবকের অগ্রগতি দেখার অনুমতি</h3></div>
             <div class="card-body">
                 <div id="lmsProgressConsentAlert" class="d-none" role="alert" aria-live="polite"></div>
                 <div class="row g-2 align-items-end">
@@ -65,6 +60,19 @@
     @if(canAuthor) { <div id="learningAuthoringLock" class="alert alert-warning d-none" role="status" aria-live="polite"></div> }
     <div class="card mb-3"><div class="card-body row g-2 align-items-end"><div class="col-md-9"><label for="learningCourse" class="form-label">Course</label><select id="learningCourse" class="form-select"><option value="">Loading courses…</option></select></div>@if(canAuthor) { <div class="col-md-3"><button id="learningEditCourse" type="button" class="btn btn-outline-secondary w-100">Edit selected course</button></div> }
     <div class="col-md-3"><button id="learningRefresh" type="button" class="btn btn-outline-primary w-100">Refresh courses</button></div><div class="col-12 d-flex align-items-center justify-content-end gap-2"><button id="learningCoursePrev" type="button" class="btn btn-outline-secondary btn-sm">Previous</button><span id="learningCoursePage">Page 1</span><button id="learningCourseNext" type="button" class="btn btn-outline-secondary btn-sm">Next</button></div></div></div>
+    @if(isManager)
+    {
+        <section class="card mb-3">
+            <div class="card-header"><h3 class="h6 m-0">Enroll student in selected course</h3></div>
+            <form id="learningEnrollForm" class="card-body row g-2 align-items-end">
+                <div class="col-md-5"><label class="form-label" for="learningStudentSearch">Find student by name or code</label>
+                    <input id="learningStudentSearch" class="form-control" autocomplete="off" minlength="2" maxlength="80" /></div>
+                <div class="col-md-5"><label class="form-label" for="learningStudentChoice">Student</label>
+                    <select id="learningStudentChoice" class="form-select" required><option value="">Search for a student</option></select></div>
+                <div class="col-md-2"><button id="learningEnrollSave" class="btn btn-primary w-100" type="submit">Enroll</button></div>
+            </form>
+        </section>
+    }
     @if(canAuthor)
     {
         <section class="card mb-3">
@@ -74,7 +82,7 @@
                 <div class="col-md-4"><label for="learningSubject" class="form-label">Subject</label><select id="learningSubject" class="form-select"><option value="">Loading…</option></select></div>
                 @if(isManager)
                 {
-                    <div class="col-md-4"><label for="learningInstructor" class="form-label">Instructor</label><select id="learningInstructor" class="form-select"><option value="">Loading instructors…</option></select></div>
+                    <div class="col-md-4"><label for="learningInstructorSearch" class="form-label">Find instructor</label><input id="learningInstructorSearch" class="form-control mb-1" maxlength="100" autocomplete="off" placeholder="Name or employee code" /><select id="learningInstructor" class="form-select" aria-label="Instructor"><option value="">Optional instructor</option></select></div>
                 }
                 <div class="col-md-4"><label for="learningCode" class="form-label">Course code</label><input id="learningCode" class="form-control" maxlength="50" required /></div><div class="col-md-4"><label for="learningTitle" class="form-label">Course title</label><input id="learningTitle" class="form-control" maxlength="200" required /></div>
                 <div class="col-md-10"><label for="learningDescription" class="form-label">Description</label><textarea id="learningDescription" class="form-control" rows="2" maxlength="4000"></textarea></div>
@@ -124,13 +132,49 @@
     </section>
     @if(canAuthor)
     {
+        <section class="card mb-3" aria-labelledby="learningRubricHeading">
+            <div class="card-header"><h3 class="h6 mb-0" id="learningRubricHeading">Assignment marking rubric</h3></div>
+            <div class="card-body">
+                <div class="row g-2 align-items-end mb-2">
+                    <div class="col-md-8"><label class="form-label" for="learningRubricAssignment">Assignment</label>
+                        <select id="learningRubricAssignment" class="form-select"><option value="">Choose an assignment</option></select></div>
+                    <div class="col-md-4"><button id="learningRubricAdd" type="button" class="btn btn-outline-primary w-100">Add criterion</button></div>
+                </div>
+                <div class="table-responsive"><table class="table table-sm align-middle">
+                    <thead><tr><th scope="col">Criterion</th><th scope="col" style="width:9rem;">Max marks</th><th scope="col" style="width:6rem;">Action</th></tr></thead>
+                    <tbody id="learningRubricRows"></tbody>
+                </table></div>
+                <div class="d-flex flex-wrap align-items-center justify-content-between gap-2">
+                    <span id="learningRubricTotal" class="text-muted small" aria-live="polite">Choose an assignment.</span>
+                    <button id="learningRubricSave" type="button" class="btn btn-primary">Save rubric</button>
+                </div>
+            </div>
+        </section>
+    }
+    @if(isStudent)
+    {
+        <section class="card mb-3 d-none" id="learningStudentRubricPanel" aria-live="polite">
+            <div class="card-header d-flex justify-content-between align-items-center"><h3 class="h6 mb-0" id="learningStudentRubricTitle">Marking rubric</h3>
+                <button id="learningStudentRubricClose" type="button" class="btn btn-outline-secondary btn-sm">Close</button></div>
+            <div class="table-responsive"><table class="table table-sm mb-0"><thead><tr><th>Criterion</th><th>Maximum marks</th></tr></thead><tbody id="learningStudentRubricRows"></tbody></table></div>
+        </section>
+    }
+    @if(canAuthor)
+    {
         <section class="card mb-3" id="learningReviewPanel">
             <div class="card-header"><h3 class="h6 m-0">Submission review and grading</h3></div>
             <div class="card-body row g-2 align-items-end">
                 <div class="col-md-8"><label for="learningReviewAssignment" class="form-label">Assignment</label><select id="learningReviewAssignment" class="form-select"><option value="">Choose an assignment</option></select></div>
-                <div class="col-md-4"><button id="learningReviewRefresh" type="button" class="btn btn-outline-primary w-100">Refresh submissions</button></div>
+                <div class="col-md-4 d-flex gap-2"><button id="learningReviewRefresh" type="button" class="btn btn-outline-primary flex-fill">Refresh</button>
+                    <button id="learningReviewExport" type="button" class="btn btn-outline-secondary flex-fill">Export page</button></div>
             </div>
             <div class="table-responsive"><table class="table table-sm table-hover align-middle mb-0"><thead><tr><th>Student</th><th>Submitted</th><th>Answer</th><th>Status</th><th>Marks / feedback</th><th>Action</th></tr></thead><tbody id="learningReviewRows"><tr><td colspan="6" class="text-muted">Choose an assignment.</td></tr></tbody></table></div>
+            <div class="border-top p-3 d-none" id="learningReviewFilesPanel" aria-live="polite">
+                <div class="d-flex align-items-center justify-content-between gap-2 mb-2"><h4 class="h6 mb-0" id="learningReviewFilesTitle">Submission details</h4>
+                    <button id="learningReviewFilesClose" type="button" class="btn btn-outline-secondary btn-sm">Close</button></div>
+                <div id="learningReviewFullAnswer" class="mb-2 small" style="white-space:pre-wrap;overflow-wrap:anywhere;max-height:16rem;overflow-y:auto;"></div>
+                <div class="table-responsive"><table class="table table-sm align-middle mb-0"><thead><tr><th>File</th><th>Action</th></tr></thead><tbody id="learningReviewFilesRows"></tbody></table></div>
+            </div>
             <div class="card-footer d-flex align-items-center gap-2"><button id="learningReviewPrev" type="button" class="btn btn-outline-secondary btn-sm">Previous</button><span id="learningReviewPage" class="small text-muted">Page 1</span><button id="learningReviewNext" type="button" class="btn btn-outline-secondary btn-sm">Next</button></div>
         </section>
     }

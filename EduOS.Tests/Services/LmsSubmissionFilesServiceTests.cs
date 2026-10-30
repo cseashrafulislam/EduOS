@@ -25,6 +25,139 @@ namespace EduOS.Tests.Services;
 public sealed class LmsSubmissionFilesServiceTests
 {
     [Fact]
+    public async Task Assignment_rubric_requires_authorized_versioned_total_and_grades_are_atomic()
+    {
+        await using var db = Database();
+        var (assignment, enrollment) = await Seed(db);
+        assignment.RowVersion = [11, 12, 13, 14, 15, 16, 17, 18];
+        await db.SaveChangesAsync();
+        var version = Convert.ToBase64String(assignment.RowVersion);
+        var criteria = new SaveAssignmentRubricCriterionDto[]
+        {
+            new() { Title = "Accuracy", MaxMarks = 60 },
+            new() { Title = "Explanation", MaxMarks = 40 }
+        };
+        Assert.Equal(403, (await Service(db).SaveAssignmentRubricAsync(assignment.PublicId,
+            new SaveAssignmentRubricRequestDto { RowVersion = version, Criteria = criteria })).StatusCode);
+        var manager = Service(db, 77, role: "TenantAdmin");
+        Assert.Equal(409, (await manager.SaveAssignmentRubricAsync(assignment.PublicId,
+            new SaveAssignmentRubricRequestDto
+            {
+                RowVersion = version, Criteria = [new() { Title = "Accuracy", MaxMarks = 50 }]
+            })).StatusCode);
+        var saved = await manager.SaveAssignmentRubricAsync(assignment.PublicId,
+            new SaveAssignmentRubricRequestDto { RowVersion = version, Criteria = criteria });
+        Assert.True(saved.Success, saved.Message);
+        Assert.Equal(2, saved.Data!.Criteria.Count);
+        Assert.Equal(100, saved.Data.Criteria.Sum(x => x.MaxMarks));
+        Assert.Equal(2, (await Service(db).GetAssignmentRubricAsync(assignment.PublicId)).Data!.Criteria.Count);
+        Assert.Equal(404, (await Service(db, 99).GetAssignmentRubricAsync(assignment.PublicId)).StatusCode);
+        var submitted = await Service(db).SubmitAssignmentAsync(new SubmitAssignmentRequestDto
+        {
+            ClientRequestId = Guid.NewGuid(), AssignmentReference = assignment.PublicId,
+            CourseEnrollmentId = enrollment.Id, SubmissionText = "Answer with evidence"
+        });
+        Assert.True(submitted.Success, submitted.Message);
+        Assert.Equal(409, (await manager.SaveAssignmentRubricAsync(assignment.PublicId,
+            new SaveAssignmentRubricRequestDto { RowVersion = version, Criteria = criteria })).StatusCode);
+        var grading = new GradeAssignmentSubmissionRequestDto
+        {
+            RowVersion = Convert.ToBase64String((await db.Set<AssignmentSubmission>().SingleAsync()).RowVersion),
+            Marks = 90, Feedback = "Clear work",
+            RubricScores =
+            [
+                new() { CriterionReference = saved.Data.Criteria[0].Reference, AwardedMarks = 55 },
+                new() { CriterionReference = saved.Data.Criteria[1].Reference, AwardedMarks = 25 }
+            ]
+        };
+        var submissionRow = await db.Set<AssignmentSubmission>().SingleAsync();
+        submissionRow.RowVersion = [21, 22, 23, 24, 25, 26, 27, 28];
+        await db.SaveChangesAsync();
+        grading.RowVersion = Convert.ToBase64String(submissionRow.RowVersion);
+        Assert.Equal(409, (await manager.GradeSubmissionAsync(submissionRow.Id, grading)).StatusCode);
+        Assert.Empty(await db.Set<AssignmentRubricScore>().ToListAsync());
+        grading.RubricScores[1].AwardedMarks = 35;
+        var graded = await manager.GradeSubmissionAsync(submissionRow.Id, grading);
+        Assert.True(graded.Success, graded.Message);
+        Assert.Equal(90, graded.Data!.Marks);
+        var ownScores = await Service(db).GetSubmissionRubricScoresAsync(submissionRow.Id);
+        Assert.True(ownScores.Success, ownScores.Message);
+        Assert.Equal(2, ownScores.Data!.Count);
+        Assert.Equal(90, ownScores.Data.Sum(x => x.AwardedMarks));
+        Assert.Equal(404, (await Service(db, 99).GetSubmissionRubricScoresAsync(submissionRow.Id)).StatusCode);
+        Assert.Equal(409, (await manager.GradeSubmissionAsync(submissionRow.Id, grading)).StatusCode);
+        Assert.Equal(2, await db.Set<AssignmentRubricScore>().CountAsync());
+    }
+
+    [Fact]
+    public async Task Rubric_relations_have_tenant_scoped_foreign_keys_and_unique_score_receipts()
+    {
+        await using var db = Database();
+        var model = db.Model;
+        var criteria = model.FindEntityType(typeof(AssignmentRubricCriterion))!;
+        var scores = model.FindEntityType(typeof(AssignmentRubricScore))!;
+        Assert.Contains(criteria.GetForeignKeys(), fk =>
+            fk.PrincipalEntityType.ClrType == typeof(Assignment) &&
+            fk.Properties.Select(p => p.Name).SequenceEqual(["TenantId", "AssignmentId"]));
+        Assert.Contains(scores.GetForeignKeys(), fk =>
+            fk.PrincipalEntityType.ClrType == typeof(AssignmentSubmission) &&
+            fk.Properties.Select(p => p.Name).SequenceEqual(["TenantId", "AssignmentSubmissionId"]));
+        Assert.Contains(scores.GetIndexes(), x => x.IsUnique &&
+            x.Properties.Select(p => p.Name).SequenceEqual(
+                ["TenantId", "AssignmentSubmissionId", "AssignmentRubricCriterionId"]));
+    }
+
+    [Fact]
+    public async Task LMS_student_lookup_is_tenant_filtered_and_manager_only()
+    {
+        await using var db = Database();
+        await Seed(db);
+        db.AddRange(
+            new Student { TenantId = 101, PersonId = 2, StudentCode = "ST-22",
+                FullName = "Student Twenty Two", UserId = 77, StatusCode = "Active" },
+            new Student { TenantId = 101, PersonId = 3, StudentCode = "ST-99",
+                FullName = "Student Ninety Nine", UserId = 88, StatusCode = "Inactive" });
+        await db.SaveChangesAsync();
+        var manager = Service(db, 77, role: "TenantAdmin");
+        var search = await manager.SearchEligibleStudentsAsync("ST-", 25);
+        Assert.True(search.Success, search.Message);
+        Assert.Single(search.Data!);
+        Assert.Equal("ST-22", search.Data![0].StudentCode);
+        Assert.Equal(403, (await Service(db).SearchEligibleStudentsAsync("ST-", 25)).StatusCode);
+        Assert.Equal(400, (await manager.SearchEligibleStudentsAsync("S", 25)).StatusCode);
+        Assert.Equal(400, (await manager.SearchEligibleStudentsAsync("ST-", 51)).StatusCode);
+    }
+
+    [Fact]
+    public async Task Manager_enrollment_is_idempotent_and_checks_student_state_inside_transaction()
+    {
+        await using var db = Database();
+        var (assignment, _) = await Seed(db);
+        var course = await db.Set<Course>().SingleAsync(x => x.Id == assignment.CourseId);
+        var student = new Student { TenantId = 101, PersonId = 4, UserId = 81,
+            StudentCode = "ST-NEW", FullName = "New Learner", StatusCode = "Active" };
+        db.Add(student);await db.SaveChangesAsync();
+        var manager = Service(db, 77, role: "TenantAdmin");
+        var input = new EnrollCourseRequestDto
+        {
+            ClientRequestId = Guid.NewGuid(), CourseReference = course.PublicId,
+            StudentReference = student.PublicId
+        };
+        var first = await manager.EnrollStudentAsync(input);
+        Assert.True(first.Success, first.Message);
+        var replay = await manager.EnrollStudentAsync(input);
+        Assert.True(replay.Success, replay.Message);
+        Assert.Equal(first.Data!.Id, replay.Data!.Id);
+        Assert.Equal(2, await db.Set<CourseEnrollment>().CountAsync());
+        student.StatusCode = "Inactive";await db.SaveChangesAsync();
+        var revoked = await manager.EnrollStudentAsync(new EnrollCourseRequestDto
+        {
+            ClientRequestId = Guid.NewGuid(), CourseReference = course.PublicId,
+            StudentReference = student.PublicId
+        });
+        Assert.Equal(404, revoked.StatusCode);
+    }
+    [Fact]
     public async Task Student_uploads_scanned_submission_file_only_for_owned_open_assignment()
     {
         await using var db = Database();
@@ -98,6 +231,34 @@ public sealed class LmsSubmissionFilesServiceTests
         await db.SaveChangesAsync();
         Assert.Equal(404, (await service.DownloadSubmissionFileAsync(submitted.Data.Id, file.PublicId)).StatusCode);
         storage.Verify(x => x.GetPrivateFileAsync(storageKey), Times.Exactly(2));
+    }
+
+    [Fact]
+    public async Task Authorized_course_manager_can_read_submission_bytes_but_unrelated_user_cannot()
+    {
+        await using var db = Database();
+        var (assignment, enrollment) = await Seed(db);
+        var payload = new byte[] { 2, 4, 6 };
+        var file = File(101, 51, true);
+        file.SizeBytes = payload.Length;
+        file.Sha256 = Convert.ToHexString(SHA256.HashData(payload));
+        db.Add(file); await db.SaveChangesAsync();
+        var submission = await Service(db).SubmitAssignmentAsync(new SubmitAssignmentRequestDto
+        {
+            ClientRequestId = Guid.NewGuid(), AssignmentReference = assignment.PublicId,
+            CourseEnrollmentId = enrollment.Id, FileAssetReferences = [file.PublicId]
+        });
+        Assert.True(submission.Success, submission.Message);
+        var storage = new Mock<IFileUploadService>();
+        storage.Setup(x => x.GetPrivateFileAsync(file.StorageKey))
+            .ReturnsAsync(new FileDownloadResult { Content = payload });
+        var manager = Service(db, 77, storage: storage.Object, role: "TenantAdmin");
+        var allowed = await manager.DownloadSubmissionFileAsync(submission.Data!.Id, file.PublicId);
+        Assert.True(allowed.Success, allowed.Message);
+        Assert.Equal(payload, allowed.Data!.Content);
+        Assert.Equal(404, (await Service(db, 77, storage: storage.Object)
+            .DownloadSubmissionFileAsync(submission.Data.Id, file.PublicId)).StatusCode);
+        storage.Verify(x => x.GetPrivateFileAsync(file.StorageKey), Times.Once);
     }
     [Fact]
     public async Task Multi_file_submission_is_atomic_and_exact_replay_is_idempotent()
@@ -218,7 +379,8 @@ public sealed class LmsSubmissionFilesServiceTests
         return new EduOSDbContext(options, new HttpContextAccessor { HttpContext = http });
     }
     private static LmsWorkflowService Service(EduOSDbContext db, long userId = 51,
-        IFileUploadService? storage = null, IDocumentFileService? documents = null) => new(
+        IFileUploadService? storage = null, IDocumentFileService? documents = null,
+        string role = "Student") => new(
         new GenericRepository<Course>(db), new GenericRepository<CourseEnrollment>(db),
         new GenericRepository<Lesson>(db), new GenericRepository<LessonProgress>(db),
         new GenericRepository<Assignment>(db), new GenericRepository<AssignmentSubmission>(db),
@@ -226,10 +388,12 @@ public sealed class LmsSubmissionFilesServiceTests
         new GenericRepository<Employee>(db), new GenericRepository<AcademicProgram>(db),
         new GenericRepository<Subject>(db), new GenericRepository<SubjectOffering>(db),
         new GenericRepository<CurriculumSubject>(db), new GenericRepository<FileAsset>(db),
-        db, new StudentUser(userId), TimeProvider.System, NullLogger<LmsWorkflowService>.Instance,
+        db, new StudentUser(userId, role), TimeProvider.System, NullLogger<LmsWorkflowService>.Instance,
         new GenericRepository<AssignmentSubmissionFile>(db),
-        privateStorage: storage, documentFiles: documents);
-    private sealed class StudentUser(long id) : ICurrentUserService
+        privateStorage: storage, documentFiles: documents,
+        rubricCriteria: new GenericRepository<AssignmentRubricCriterion>(db),
+        rubricScores: new GenericRepository<AssignmentRubricScore>(db));
+    private sealed class StudentUser(long id, string role) : ICurrentUserService
     {
         public bool IsAuthenticated => true;
         public long UserId => id;
@@ -237,9 +401,9 @@ public sealed class LmsSubmissionFilesServiceTests
         public string? FullName => "Student";
         public string? Email => null;
         public bool IsSuperAdmin => false;
-        public bool IsTenantAdmin => false;
-        public IReadOnlyList<string> Roles => ["Student"];
-        public bool IsInRole(string role) => role == "Student";
+        public bool IsTenantAdmin => role == "TenantAdmin";
+        public IReadOnlyList<string> Roles => [role];
+        public bool IsInRole(string value) => role == value;
         public string? IpAddress => null;
         public string? UserAgent => null;
     }

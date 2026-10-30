@@ -218,6 +218,60 @@ public sealed class V2PrivateHttpBoundaryIntegrationTests
     }
 
     [Fact]
+    public async Task LMS_student_picker_is_manager_only_and_never_caches_student_details()
+    {
+        var lms = new Mock<ILmsWorkflowService>();
+        lms.Setup(x => x.SearchEligibleStudentsAsync("ST-", 25, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(ApiResponse<IReadOnlyList<LmsStudentChoiceDto>>.SuccessResponse(
+                [new LmsStudentChoiceDto { StudentReference = Guid.NewGuid(), StudentCode = "ST-22", StudentName = "Learner" }]));
+        using var server = CreateServer(true, lms: lms);
+        using var client = server.CreateClient();
+        using var manager = await GetAsync(client, "/api/lms/students/search?search=ST-&take=25", "TenantAdmin");
+        Assert.Equal(HttpStatusCode.OK, manager.StatusCode);
+        Assert.Contains("ST-22", await manager.Content.ReadAsStringAsync());
+        AssertPrivateNoStore(manager);
+        using var teacher = await GetAsync(client, "/api/lms/students/search?search=ST-&take=25", "Teacher");
+        Assert.Equal(HttpStatusCode.Forbidden, teacher.StatusCode);
+        AssertPrivateNoStore(teacher);
+        using var student = await GetAsync(client, "/api/lms/students/search?search=ST-&take=25", "Student");
+        Assert.Equal(HttpStatusCode.Forbidden, student.StatusCode);
+        using var anonymous = await GetAsync(client, "/api/lms/students/search?search=ST-&take=25", null);
+        Assert.Equal(HttpStatusCode.Unauthorized, anonymous.StatusCode);
+        lms.Verify(x => x.SearchEligibleStudentsAsync("ST-", 25, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task LMS_rubric_reads_and_score_breakdown_have_private_http_and_role_guards()
+    {
+        var reference = Guid.NewGuid();
+        var lms = new Mock<ILmsWorkflowService>();
+        lms.Setup(x => x.GetAssignmentRubricAsync(reference, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(ApiResponse<AssignmentRubricDto>.SuccessResponse(new AssignmentRubricDto
+            {
+                AssignmentReference = reference,
+                Criteria = [new AssignmentRubricCriterionDto { Title = "Accuracy", MaxMarks = 10 }]
+            }));
+        lms.Setup(x => x.GetSubmissionRubricScoresAsync(33, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(ApiResponse<IReadOnlyList<AssignmentRubricScoreDto>>.SuccessResponse(
+                [new AssignmentRubricScoreDto { AwardedMarks = 8 }]));
+        using var server = CreateServer(true, lms: lms);
+        using var client = server.CreateClient();
+        using var rubric = await GetAsync(client, $"/api/lms/assignments/{reference}/rubric", "Student");
+        Assert.Equal(HttpStatusCode.OK, rubric.StatusCode);
+        Assert.Contains("Accuracy", await rubric.Content.ReadAsStringAsync());
+        AssertPrivateNoStore(rubric);
+        using var scores = await GetAsync(client, "/api/lms/assignments/submissions/33/rubric-scores", "Student");
+        Assert.Equal(HttpStatusCode.OK, scores.StatusCode);
+        AssertPrivateNoStore(scores);
+        using var denied = await GetAsync(client, $"/api/lms/assignments/{reference}/rubric", "Guardian");
+        Assert.Equal(HttpStatusCode.Forbidden, denied.StatusCode);
+        using var anonymous = await GetAsync(client, "/api/lms/assignments/submissions/33/rubric-scores", null);
+        Assert.Equal(HttpStatusCode.Unauthorized, anonymous.StatusCode);
+        lms.Verify(x => x.GetAssignmentRubricAsync(reference, It.IsAny<CancellationToken>()), Times.Once);
+        lms.Verify(x => x.GetSubmissionRubricScoresAsync(33, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
     public async Task LMS_submission_download_returns_only_authorized_private_bytes_with_attachment_headers()
     {
         const long ownSubmission = 1201;
@@ -246,13 +300,18 @@ public sealed class V2PrivateHttpBoundaryIntegrationTests
         Assert.Equal("nosniff", allowed.Headers.GetValues("X-Content-Type-Options").Single());
         Assert.Equal("sandbox", allowed.Headers.GetValues("Content-Security-Policy").Single());
 
+        using var teacher = await GetAsync(client, url, "Teacher");
+        Assert.Equal(HttpStatusCode.OK, teacher.StatusCode);
+        Assert.Equal(bytes, await teacher.Content.ReadAsByteArrayAsync());
+        AssertPrivateNoStore(teacher);
+
         using var guessed = await GetAsync(client,
             $"/api/lms/assignment-work/submissions/{ownSubmission}/files/{Guid.NewGuid()}/download", "Student");
         Assert.Equal(HttpStatusCode.NotFound, guessed.StatusCode);
         AssertPrivateNoStore(guessed);
         Assert.NotEqual(bytes, await guessed.Content.ReadAsByteArrayAsync());
         lms.Verify(x => x.DownloadSubmissionFileAsync(It.IsAny<long>(), It.IsAny<Guid>(),
-            It.IsAny<CancellationToken>()), Times.Exactly(2));
+            It.IsAny<CancellationToken>()), Times.Exactly(3));
     }
 
     [Theory]

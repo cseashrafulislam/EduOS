@@ -48,6 +48,13 @@ public class CourseEnrollmentDto
     public string RowVersion { get; set; } = string.Empty;
 }
 
+public sealed class LmsStudentChoiceDto
+{
+    public Guid StudentReference { get; set; }
+    public string StudentCode { get; set; } = string.Empty;
+    public string StudentName { get; set; } = string.Empty;
+}
+
 public class EnrollCourseRequestDto
 {
     public Guid ClientRequestId { get; set; }
@@ -119,6 +126,39 @@ public class AssignmentDto
     public string RowVersion { get; set; } = string.Empty;
 }
 
+public sealed class AssignmentRubricCriterionDto
+{
+    public Guid Reference { get; set; }
+    public string Title { get; set; } = string.Empty;
+    public decimal MaxMarks { get; set; }
+    public int DisplayOrder { get; set; }
+}
+
+public sealed class AssignmentRubricDto
+{
+    public Guid AssignmentReference { get; set; }
+    public string RowVersion { get; set; } = string.Empty;
+    public IReadOnlyList<AssignmentRubricCriterionDto> Criteria { get; set; } = Array.Empty<AssignmentRubricCriterionDto>();
+}
+
+public sealed class SaveAssignmentRubricRequestDto
+{
+    [Required] public string RowVersion { get; set; } = string.Empty;
+    public IReadOnlyList<SaveAssignmentRubricCriterionDto> Criteria { get; set; } = Array.Empty<SaveAssignmentRubricCriterionDto>();
+}
+
+public sealed class SaveAssignmentRubricCriterionDto
+{
+    [Required, MaxLength(200)] public string Title { get; set; } = string.Empty;
+    [Range(typeof(decimal), "0.01", "100000")] public decimal MaxMarks { get; set; }
+}
+
+public sealed class AssignmentRubricScoreDto
+{
+    public Guid CriterionReference { get; set; }
+    public decimal AwardedMarks { get; set; }
+}
+
 public class SaveAssignmentRequestDto
 {
     public Guid CourseReference { get; set; }
@@ -164,6 +204,7 @@ public class GradeAssignmentSubmissionRequestDto
     [Range(typeof(decimal), "0", "100000")] public decimal Marks { get; set; }
     [MaxLength(2000)] public string? Feedback { get; set; }
     [Required] public string RowVersion { get; set; } = string.Empty;
+    public IReadOnlyList<AssignmentRubricScoreDto> RubricScores { get; set; } = Array.Empty<AssignmentRubricScoreDto>();
 }
 
 public class QuizDto

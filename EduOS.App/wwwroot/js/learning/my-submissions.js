@@ -1,17 +1,19 @@
 (() => {
 'use strict';
 const el = id => document.getElementById(id);
-const state = {page:1, rows:[], selected:null, uploadKeys:new Map(), submitId:null, downloading:new Set(), submitting:false};
+const state = {page:1, rows:[], selected:null, uploadKeys:new Map(), submitId:null, downloading:new Set(), submitting:false, previewLoadId:0};
 const initialTenant=document.body?.dataset.authTenantId||'';
 const initialSession=document.body?.dataset.authSessionReference||'';
 const sessionValid=()=>document.body?.dataset.authTenantId===initialTenant&&
  document.body?.dataset.authSessionReference===initialSession&&
  window.EduOSSessionTransitionPending?.()!==true;
 function clearSensitive(){
- state.rows=[];state.selected=null;state.uploadKeys.clear();state.submitId=null;
+ state.rows=[];state.selected=null;state.uploadKeys.clear();state.submitId=null;state.previewLoadId++;
  for(const controller of state.downloading)controller.abort();state.downloading.clear();
  el('mySubmissionForm').hidden=true;el('mySubmissionFilePanel').hidden=true;
  el('mySubmissionRows').replaceChildren();el('mySubmissionFileRows').replaceChildren();
+ el('mySubmissionFeedback').textContent='';
+ el('mySubmissionRubricBreakdown').replaceChildren();el('mySubmissionRubricPreview').textContent='';
  el('mySubmissionText').value='';el('mySubmissionUploadFiles').value='';
 }
 const notice = message => {el('mySubmissionAlert').className='alert alert-info';el('mySubmissionAlert').textContent=message;};
@@ -31,9 +33,9 @@ async function load() {
     const td=document.createElement('td');td.textContent=value??'—';tr.append(td);
    }
    const td=document.createElement('td'),b=document.createElement('button');
-   b.type='button';b.textContent=row.canSubmit?'Submit':'View files';
+   b.type='button';b.textContent=row.canSubmit?'Submit':'View result / files';
    b.disabled=!row.canSubmit&&!row.submissionId;
-   b.onclick=()=>row.canSubmit?choose(row):files(row.submissionId);
+   b.onclick=()=>row.canSubmit?choose(row):files(row);
    td.append(b);tr.append(td);tbody.append(tr);
   }
   el('mySubmissionPage').textContent='Page '+state.page+' / '+state.pages;
@@ -46,10 +48,34 @@ function choose(row) {
  el('mySubmissionHeading').textContent=row.assignmentTitle;
  el('mySubmissionText').value='';el('mySubmissionUploadFiles').value='';
  el('mySubmissionForm').hidden=false;
+ const seq=++state.previewLoadId;el('mySubmissionRubricPreview').textContent='Loading marking criteria…';
+ get('/api/lms/assignments/'+encodeURIComponent(row.assignmentReference)+'/rubric').then(rubric=>{
+  if(seq!==state.previewLoadId||state.selected!==row)return;
+  el('mySubmissionRubricPreview').textContent=(rubric.criteria||[]).length
+   ?'Marking criteria: '+rubric.criteria.map(x=>x.title+' ('+x.maxMarks+')').join(' • ')
+   :'Assessment uses overall marks (no criterion breakdown).';
+ }).catch(error=>{if(seq===state.previewLoadId)el('mySubmissionRubricPreview').textContent=error.message;});
 }
-async function files(id) {
+async function files(row) {
  try {
+  const id=row.submissionId;
   const rows=await get('/api/lms/assignment-work/submissions/'+id+'/files');
+  const grade=row.marks==null?'Not graded yet':'Marks: '+row.marks;
+  el('mySubmissionFeedback').textContent=grade+'\n'+(row.feedback||'No instructor feedback yet.');
+  const breakdown=el('mySubmissionRubricBreakdown');breakdown.replaceChildren();
+  if(row.marks!=null){
+   try{
+    const [rubric,scores]=await Promise.all([
+     get('/api/lms/assignments/'+encodeURIComponent(row.assignmentReference)+'/rubric'),
+     get('/api/lms/assignments/submissions/'+id+'/rubric-scores')
+    ]);
+    const awarded=new Map((scores||[]).map(x=>[x.criterionReference,x.awardedMarks]));
+    for(const criterion of rubric.criteria||[]){const line=document.createElement('div');
+     line.textContent=criterion.title+': '+(awarded.get(criterion.reference)??'—')+' / '+criterion.maxMarks;
+     breakdown.append(line);
+    }
+   }catch(error){if(sessionValid())breakdown.textContent='Criterion details unavailable. '+error.message;}
+  }
   const body=el('mySubmissionFileRows');body.replaceChildren();
   for(const row of rows) {
    const tr=document.createElement('tr');
@@ -130,7 +156,7 @@ el('mySubmissionForm').onsubmit=async event=>{
  }catch(error){notice(error.message);}
  finally{state.submitting=false;el('mySubmissionSend').disabled=false;}
 };
-el('mySubmissionCancel').onclick=()=>{if(!state.submitting){el('mySubmissionForm').hidden=true;state.selected=null;state.uploadKeys.clear();}};
+el('mySubmissionCancel').onclick=()=>{if(!state.submitting){state.previewLoadId++;el('mySubmissionForm').hidden=true;state.selected=null;state.uploadKeys.clear();}};
 el('mySubmissionFileClose').onclick=()=>{el('mySubmissionFilePanel').hidden=true;};
 el('mySubmissionRefresh').onclick=load;
 el('mySubmissionPrev').onclick=()=>{state.page--;load();};

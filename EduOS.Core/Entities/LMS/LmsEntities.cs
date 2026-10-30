@@ -62,6 +62,22 @@ public class Assignment : BaseTenantEntity
     public bool IsPublished { get; set; }
 }
 
+public class AssignmentRubricCriterion : BaseTenantEntity
+{
+    public Guid PublicId { get; set; } = Guid.NewGuid();
+    public long AssignmentId { get; set; }
+    [Required, MaxLength(200)] public string Title { get; set; } = string.Empty;
+    [Column(TypeName = "decimal(18,2)")] public decimal MaxMarks { get; set; }
+    public int DisplayOrder { get; set; }
+}
+
+public class AssignmentRubricScore : BaseTenantEntity
+{
+    public long AssignmentSubmissionId { get; set; }
+    public long AssignmentRubricCriterionId { get; set; }
+    [Column(TypeName = "decimal(18,2)")] public decimal AwardedMarks { get; set; }
+}
+
 public class AssignmentSubmission : BaseTenantEntity
 {
     public long AssignmentId { get; set; }

@@ -104,14 +104,25 @@ public sealed partial class LmsWorkflowService
             x.TenantId == tenant && assignmentIds.Contains(x.AssignmentId) &&
             enrollmentIds.Contains(x.CourseEnrollmentId) && !x.IsDeleted).ToListAsync(ct);
         var now = _clock.GetUtcNow().UtcDateTime;
+        // Several assignments in one course share the same academic eligibility.
+        // Evaluate once per enrollment per page instead of repeating 5-7 SQL reads
+        // for every assignment row in the same course.
+        var eligibility = new Dictionary<long, bool>();
         var items = new List<MyAssignmentWorkDto>(rows.Count);
         foreach (var x in rows)
         {
             var submission = submissions.FirstOrDefault(s =>
                 s.AssignmentId == x.Assignment.Id && s.CourseEnrollmentId == x.Enrollment.Id);
             var open = (x.Assignment.OpensAt == null || x.Assignment.OpensAt <= now) && (x.Assignment.DueAt == null || x.Assignment.DueAt >= now);
-            var eligible = submission == null && open &&
-                await SubmissionAcademicEligibleAsync(x.Course, x.Enrollment, now, ct);
+            var eligible = false;
+            if (submission == null && open)
+            {
+                if (!eligibility.TryGetValue(x.Enrollment.Id, out eligible))
+                {
+                    eligible = await SubmissionAcademicEligibleAsync(x.Course, x.Enrollment, now, ct);
+                    eligibility.Add(x.Enrollment.Id, eligible);
+                }
+            }
             items.Add(new MyAssignmentWorkDto
             {
                 AssignmentReference = x.Assignment.PublicId, AssignmentTitle = x.Assignment.Title,

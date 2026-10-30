@@ -45,6 +45,15 @@ test('browser downloads use private bytes, not storage keys or guessed generic U
  assert.doesNotMatch(view,/StorageKey|fileAssetReference/);
 });
 
+test('student reads teacher marks and full feedback in their own scoped submission details',()=>{
+ assert.match(view,/mySubmissionFeedback/);
+ assert.match(js,/View result \/ files/);
+ assert.match(js,/const grade=row\.marks==null/);
+ assert.match(js,/row\.feedback\|\|'No instructor feedback yet\.'/);
+ assert.match(js,/mySubmissionFeedback'\)\.textContent=/);
+ assert.doesNotMatch(js,/innerHTML\s*=/);
+});
+
 test('tenant/session switch removes private submission state and aborts pending bytes',()=>{
  assert.match(js,/authTenantId/);
  assert.match(js,/authSessionReference/);
