@@ -189,11 +189,13 @@ public sealed partial class SqlServerTransportSeatCapacityIntegrationTests
         }
         Assert.Equal(new[] { "TenantId", "State", "DueDate", "Id" },
             keys["IX_BookIssues_LibraryOverdueCandidates"]);
-        Assert.Equal("[IsDeleted] = 0", filters["IX_BookIssues_LibraryOverdueCandidates"]);
+        Assert.Equal("[IsDeleted]=0", NormalizeSqlFilter(filters["IX_BookIssues_LibraryOverdueCandidates"]));
         Assert.Equal(new[] { "TenantId", "SourceType", "SourceId", "TypeCode", "CreatedAt" },
             keys["IX_Notifications_LibraryOverdueSourceDay"]);
-        Assert.Equal("[IsDeleted] = 0 AND [SourceId] IS NOT NULL",
-            filters["IX_Notifications_LibraryOverdueSourceDay"]);
+        Assert.Equal("[IsDeleted]=0AND[SourceId]ISNOTNULL",
+            NormalizeSqlFilter(filters["IX_Notifications_LibraryOverdueSourceDay"]));
     }
 
+    private static string NormalizeSqlFilter(string expression) =>
+        new(expression.Where(ch => !char.IsWhiteSpace(ch) && ch != '(' && ch != ')').ToArray());
 }
