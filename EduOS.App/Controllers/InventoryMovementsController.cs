@@ -27,5 +27,20 @@ public sealed class InventoryMovementsController : Controller
     }
 
     [HttpGet, ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
+    public async Task<IActionResult> PrintReservationCoverage(long locationId, string? search,
+        bool overdueOnly = false, CancellationToken ct = default)
+    {
+        var result = await movements.GetReservationCoverageAsync(locationId, search,
+            overdueOnly, 1, 250, ct);
+        if (!result.Success || result.Data == null)
+            return StatusCode(result.StatusCode);
+        if (result.Data.TotalCount > 250)
+            return UnprocessableEntity("Narrow filters to 250 item/lot groups or fewer.");
+        Response.Headers["Cache-Control"] = "private, no-store";
+        Response.Headers["X-Content-Type-Options"] = "nosniff";
+        return View(result.Data);
+    }
+
+    [HttpGet, ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
     public IActionResult Index() => View();
 }

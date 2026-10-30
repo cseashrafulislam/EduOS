@@ -977,4 +977,64 @@ public sealed class SqlServerV3InventoryTransferLifecycleTests
         Assert.Equal(10m, balance.AvailableQuantity);
     }
 
+
+    [Fact]
+    public async Task Reservation_coverage_reconciles_current_lot_stock_after_partial_issue_and_release()
+    {
+        var connection = Environment.GetEnvironmentVariable("EDUOS_SQL_AUTH_TEST_CONNECTION");
+        if (string.IsNullOrWhiteSpace(connection)) return;
+        var f = await SeedAsync(connection);
+        await using var db = Open(f.Options, f.TenantId);
+        var service = Service(db, f);
+        var draft = await DraftIssueAsync(db, f, 8m);
+        var held = await service.ReserveMovementAsync(draft.Reference,
+            new PostInventoryMovementRequestDto { RowVersion = draft.RowVersion });
+        Assert.Equal(200, held.StatusCode);
+
+        var first = await service.GetReservationCoverageAsync(f.SourceId, "PEN-", false, 1, 25);
+        Assert.Equal(200, first.StatusCode);
+        var row = Assert.Single(first.Data!.Items);
+        Assert.Equal(10m, row.QuantityOnHand);
+        Assert.Equal(8m, row.ReservedQuantity);
+        Assert.Equal(2m, row.AvailableQuantity);
+        Assert.Equal(0m, row.ShortfallQuantity);
+        Assert.Equal("Covered", row.StatusCode);
+        Assert.Equal(1, row.ActiveHoldLines);
+        Assert.Equal(f.ItemId, row.InventoryItemId);
+        Assert.Equal(0, (await service.GetReservationCoverageAsync(f.DestinationId,
+            null, false, 1, 25)).Data!.TotalCount);
+        Assert.Equal(404, (await service.GetReservationCoverageAsync(long.MaxValue,
+            null, false, 1, 25)).StatusCode);
+        Assert.Equal(403, (await Service(db, f, "Student").GetReservationCoverageAsync(
+            f.SourceId, null, false, 1, 25)).StatusCode);
+
+        var part = await service.FulfillReservedIssueAsync(draft.Reference,
+            new FulfillInventoryReservedIssueRequestDto
+            {
+                ClientRequestId = Guid.NewGuid(), RowVersion = held.Data!.RowVersion,
+                Lines = [new FulfillInventoryReservedIssueLineDto { LineNo = 1, Quantity = 3m }]
+            });
+        Assert.Equal(200, part.StatusCode);
+        row = Assert.Single((await service.GetReservationCoverageAsync(
+            f.SourceId, null, false, 1, 25)).Data!.Items);
+        Assert.Equal(7m, row.QuantityOnHand);
+        Assert.Equal(5m, row.ReservedQuantity);
+        Assert.Equal(2m, row.AvailableQuantity);
+
+        var remaining = (await service.GetMovementAsync(draft.Reference)).Data!;
+        var released = await service.ReleaseReservationAsync(draft.Reference,
+            new ReleaseInventoryReservationRequestDto
+            {
+                RowVersion = remaining.RowVersion,
+                Reason = "Manager cancelled the outstanding partial issue"
+            });
+        Assert.Equal(200, released.StatusCode);
+        Assert.Empty((await service.GetReservationCoverageAsync(
+            f.SourceId, null, false, 1, 25)).Data!.Items);
+
+        await using var foreign = Open(f.Options, f.TenantId + 999);
+        Assert.Equal(404, (await Service(foreign, f, tenantId: f.TenantId + 999)
+            .GetReservationCoverageAsync(f.SourceId, null, false, 1, 25)).StatusCode);
+    }
+
 }

@@ -1,0 +1,66 @@
+@model EduOS.Core.Common.PagedResult<EduOS.Core.DTOs.Inventory.InventoryReservationCoverageRowDto>
+@using System.Globalization
+@{
+    Layout = null;
+    var bn = CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "bn";
+}
+<!doctype html>
+<html lang="@CultureInfo.CurrentUICulture.Name">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex,nofollow" />
+    <title>@(bn ? "রিজার্ভেশন স্টক রিকনসিলিয়েশন" : "Reservation stock coverage")</title>
+    <style>
+        body { font-family: system-ui, sans-serif; margin: 1rem; color: #17212d; }
+        h1 { font-size: 1.2rem; margin-bottom: .4rem; }
+        .meta { font-size: .8rem; margin-bottom: .7rem; }
+        table { width: 100%; border-collapse: collapse; font-size: .76rem; }
+        th, td { border: 1px solid #bfc8d1; padding: .35rem; text-align: left; overflow-wrap: anywhere; }
+        th { background: #edf1f5; }
+        @@page { size: A4 landscape; margin: 10mm; }
+        @@media print { .actions { display: none; } body { margin: 0; } }
+    </style>
+    <script src="~/js/attendance/print-roster.js" asp-append-version="true" defer></script>
+</head>
+<body>
+    <div class="actions"><button id="printRoster" type="button">@(bn ? "প্রিন্ট করুন" : "Print")</button></div>
+    <h1>@(bn ? "স্টক রিজার্ভেশন কভারেজ" : "Reservation stock coverage")</h1>
+    <p class="meta">@(bn ? "অনুমোদিত পণ্য/লট" : "Authorized item/lot groups"): @Model.TotalCount ·
+        @(bn ? "বর্তমান পোস্টেড স্টক বনাম সক্রিয় রিজার্ভেশন" : "Current posted stock versus active holds") ·
+        @(bn ? "এককভিত্তিক পরিমাণ; একসাথে যোগ নয়" : "Quantities are per item unit; do not sum unlike units")</p>
+    <table>
+        <thead><tr>
+            <th>@(bn ? "পণ্য" : "Item")</th>
+            <th>@(bn ? "লট" : "Lot")</th>
+            <th>@(bn ? "একক" : "Unit")</th>
+            <th>@(bn ? "স্টক" : "On hand")</th>
+            <th>@(bn ? "রিজার্ভ" : "Reserved")</th>
+            <th>@(bn ? "ব্যবহারযোগ্য" : "Available")</th>
+            <th>@(bn ? "মেয়াদ পেরোনো" : "Overdue held")</th>
+            <th>@(bn ? "ঘাটতি" : "Shortfall")</th>
+            <th>@(bn ? "হোল্ড লাইন" : "Hold lines")</th>
+            <th>@(bn ? "পুরোনো হোল্ড (দিন)" : "Oldest age (days)")</th>
+            <th>@(bn ? "অবস্থা" : "Status")</th>
+        </tr></thead>
+        <tbody>
+        @foreach (var row in Model.Items)
+        {
+            <tr>
+                <td>@row.ItemCode — @row.ItemName</td>
+                <td>@(string.IsNullOrEmpty(row.LotOrBatchNo) ? "—" : row.LotOrBatchNo)</td>
+                <td>@row.UnitCode</td>
+                <td>@row.QuantityOnHand.ToString(CultureInfo.InvariantCulture)</td>
+                <td>@row.ReservedQuantity.ToString(CultureInfo.InvariantCulture)</td>
+                <td>@row.AvailableQuantity.ToString(CultureInfo.InvariantCulture)</td>
+                <td>@row.OverdueReservedQuantity.ToString(CultureInfo.InvariantCulture)</td>
+                <td>@row.ShortfallQuantity.ToString(CultureInfo.InvariantCulture)</td>
+                <td>@row.ActiveHoldLines</td>
+                <td>@row.OldestHoldAgeDays</td>
+                <td>@row.StatusCode</td>
+            </tr>
+        }
+        </tbody>
+    </table>
+</body>
+</html>
