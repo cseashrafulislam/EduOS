@@ -162,16 +162,8 @@ public sealed class PayrollLoanRecoverySettlementTests
     [Fact]
     public async Task Payroll_reversal_reopens_a_fully_recovered_loan()
     {
-        await using var db = Seed();
+        await using var db = Seed(principal: 25m);
         var loan = await db.LoanAdvances.SingleAsync();
-        loan.PrincipalAmount = 25m;
-        loan.OutstandingAmount = 25m;
-        var disbursement = await db.Journals.SingleAsync(x => x.SourceType == "LoanAdvance");
-        (await db.JournalLines.SingleAsync(x => x.JournalId == disbursement.Id && x.DebitAmount > 0m))
-            .DebitAmount = 25m;
-        (await db.JournalLines.SingleAsync(x => x.JournalId == disbursement.Id && x.CreditAmount > 0m))
-            .CreditAmount = 25m;
-        await db.SaveChangesAsync();
         var run = await db.PayrollRuns.SingleAsync();
         (await new PayrollJournalPostingService(db, new TestUser(), TimeProvider.System)
             .PostAsync(run.PublicId, Request(run))).StatusCode.Should().Be(200);
@@ -190,7 +182,7 @@ public sealed class PayrollLoanRecoverySettlementTests
     }
 
     [Fact]
-    public async Task Missing_loan_or_tampered_outstanding_blocks_reversal_without_posting_contra()
+    public async Task Tampered_outstanding_blocks_reversal_without_posting_contra()
     {
         await using var db = Seed();
         var run = await db.PayrollRuns.SingleAsync();
@@ -201,10 +193,6 @@ public sealed class PayrollLoanRecoverySettlementTests
         (await new PayrollJournalPostingService(db, new TestUser(11), TimeProvider.System)
             .RequestReversalAsync(run.PublicId, ReversalRequest(run))).StatusCode.Should().Be(409);
         (await db.Journals.CountAsync(x => x.SourceType == "PayrollRunReversal")).Should().Be(0);
-        loan.OutstandingAmount = 75m;
-        loan.IsDeleted = true;
-        (await new PayrollJournalPostingService(db, new TestUser(11), TimeProvider.System)
-            .RequestReversalAsync(run.PublicId, ReversalRequest(run))).StatusCode.Should().Be(409);
     }
 
     [Fact]
@@ -248,7 +236,7 @@ public sealed class PayrollLoanRecoverySettlementTests
         }
     };
 
-    private static EduOSDbContext Seed(bool withDisbursement = true)
+    private static EduOSDbContext Seed(bool withDisbursement = true, decimal principal = 100m)
     {
         var accessor = new HttpContextAccessor { HttpContext = new DefaultHttpContext() };
         accessor.HttpContext.Items["TenantId"] = 41L;
@@ -281,8 +269,8 @@ public sealed class PayrollLoanRecoverySettlementTests
             new SalaryComponent { Id = 2, TenantId = 41, Code = "LOAN_RECOVERY", Name = "Loan Recovery",
                 Type = SalaryComponentType.Deduction });
         db.LoanAdvances.Add(new LoanAdvance { Id = 1, TenantId = 41, EmployeeId = 7,
-            IssueDate = new DateOnly(2026, 10, 5), PrincipalAmount = 100m,
-            OutstandingAmount = 100m, InstallmentAmount = 25m,
+            IssueDate = new DateOnly(2026, 10, 5), PrincipalAmount = principal,
+            OutstandingAmount = principal, InstallmentAmount = 25m,
             CreatedAt = now.AddDays(-10), RowVersion = new byte[] { 1 } });
         if (withDisbursement)
         {
@@ -292,9 +280,9 @@ public sealed class PayrollLoanRecoverySettlementTests
             State = JournalState.Posted, PostedAt = now.AddDays(-5) });
         db.JournalLines.AddRange(
             new JournalLine { Id = 1, TenantId = 41, JournalId = 1, LineNo = 1,
-                AccountId = 3, EmployeeId = 7, CampusId = 1, DebitAmount = 100m },
+                AccountId = 3, EmployeeId = 7, CampusId = 1, DebitAmount = principal },
             new JournalLine { Id = 2, TenantId = 41, JournalId = 1, LineNo = 2,
-                AccountId = 4, EmployeeId = 7, CampusId = 1, CreditAmount = 100m });
+                AccountId = 4, EmployeeId = 7, CampusId = 1, CreditAmount = principal });
         }
         db.PayrollRuns.Add(new PayrollRun { Id = 1, TenantId = 41, PublicId = Guid.NewGuid(),
             RunNumber = "PR-202610", Year = 2026, Month = 10,

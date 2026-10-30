@@ -456,11 +456,11 @@ public sealed class SqlServerV1FinanceCrossModuleIntegrationTests
             await setup.SaveChangesAsync();
             tenantId = tenant.Id;
             var maker = User("loan-maker", suffix);
-            var checker = User("loan-checker", suffix);
-            var poster = User("loan-poster", suffix);
-            setup.ApplicationUsers.AddRange(maker, checker, poster);
+            var checkerUser = User("loan-checker", suffix);
+            var posterUser = User("loan-poster", suffix);
+            setup.ApplicationUsers.AddRange(maker, checkerUser, posterUser);
             await setup.SaveChangesAsync();
-            makerId = maker.Id; approverId = checker.Id; posterId = poster.Id;
+            makerId = maker.Id; approverId = checkerUser.Id; posterId = posterUser.Id;
             using (setup.BeginSystemTenantScope(tenantId))
             {
                 var campus = new Campus { TenantId = tenantId, Name = "Main", Code = "MAIN" };
