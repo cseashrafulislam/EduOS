@@ -1,0 +1,50 @@
+@{
+    ViewData["Title"] = "Guardian Learning Progress";
+}
+<section id="lmsGuardianProgressApp" class="container-fluid py-3" data-mode="guardian"
+    data-lang="@System.Globalization.CultureInfo.CurrentUICulture.TwoLetterISOLanguageName">
+    <header class="d-flex gap-2 align-items-center mb-3">
+        <h2 class="h4 mb-0" data-progress-i18n="title">Shared learning progress</h2>
+        <details class="position-relative"><summary class="btn btn-sm btn-outline-secondary" aria-label="Progress help">ⓘ</summary>
+            <div class="card position-absolute p-2 shadow-sm" style="width:min(19rem,80vw);z-index:10" data-progress-i18n="help">
+                Only courses explicitly shared by a learner are visible. Access ends when consent or the guardian relationship ends.
+            </div>
+        </details>
+    </header>
+    <div id="lmsGuardianProgressAlert" class="d-none" role="alert" aria-live="polite"></div>
+    <div class="card">
+        <div class="card-header d-flex flex-wrap gap-2 justify-content-between align-items-center">
+            <strong data-progress-i18n="courses">Courses</strong>
+            <button id="lmsGuardianProgressExport" type="button" class="btn btn-sm btn-outline-secondary" data-progress-i18n="export">Export visible CSV</button>
+        </div>
+        <div class="table-responsive"><table class="table table-sm table-striped mb-0">
+            <thead><tr><th data-progress-i18n="learner">Learner</th><th data-progress-i18n="course">Course</th>
+            <th data-progress-i18n="lessons">Lessons</th><th data-progress-i18n="percent">Completion</th>
+            <th data-progress-i18n="action">Action</th></tr></thead>
+            <tbody id="lmsGuardianProgressRows"></tbody>
+        </table></div>
+        <div class="card-footer d-flex gap-2 align-items-center justify-content-end">
+            <button id="lmsGuardianProgressPrev" class="btn btn-sm btn-outline-secondary" type="button" data-progress-i18n="previous">Previous</button>
+            <span id="lmsGuardianProgressPage" aria-live="polite"></span>
+            <button id="lmsGuardianProgressNext" class="btn btn-sm btn-outline-secondary" type="button" data-progress-i18n="next">Next</button>
+        </div>
+    </div>
+    <section class="card mt-3 d-none" id="lmsGuardianLessonPanel">
+        <div class="card-header d-flex justify-content-between align-items-center gap-2">
+            <h3 class="h6 mb-0" id="lmsGuardianLessonHeading" data-progress-i18n="detail">Lesson progress</h3>
+            <button id="lmsGuardianLessonClose" class="btn btn-sm btn-outline-secondary" type="button" data-progress-i18n="close">Close</button>
+        </div>
+        <div class="table-responsive"><table class="table table-sm mb-0">
+            <thead><tr><th data-progress-i18n="lesson">Lesson</th><th data-progress-i18n="percent">Completion</th><th data-progress-i18n="completed">Completed</th></tr></thead>
+            <tbody id="lmsGuardianLessonRows"></tbody>
+        </table></div>
+        <div class="card-footer d-flex justify-content-end align-items-center gap-2">
+            <button id="lmsGuardianLessonPrev" class="btn btn-sm btn-outline-secondary" type="button" data-progress-i18n="previous">Previous</button>
+            <span id="lmsGuardianLessonPage"></span>
+            <button id="lmsGuardianLessonNext" class="btn btn-sm btn-outline-secondary" type="button" data-progress-i18n="next">Next</button>
+        </div>
+    </section>
+</section>
+@section Scripts {
+    <script src="~/js/learning/progress-guardian.js" asp-append-version="true"></script>
+}
