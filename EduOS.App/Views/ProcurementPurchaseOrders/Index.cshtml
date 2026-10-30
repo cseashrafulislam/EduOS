@@ -17,6 +17,7 @@
         <div class="d-flex flex-wrap gap-2">
             <a asp-controller="ProcurementRequisitions" asp-action="Index" class="btn btn-outline-secondary btn-sm" data-i18n="requisitions">Requisitions</a>
             <a asp-controller="ProcurementSuppliers" asp-action="Index" class="btn btn-outline-secondary btn-sm" data-i18n="suppliers">Suppliers</a>
+            <a asp-controller="ProcurementPurchaseOrders" asp-action="Commitments" class="btn btn-outline-secondary btn-sm" data-i18n="commitments">Commitments</a>
             @if (checker) { <button id="poQueueToggle" type="button" class="btn btn-outline-primary btn-sm"
                 aria-pressed="false" data-i18n="approvalQueue">Approval queue</button> }
             <button id="poExport" type="button" class="btn btn-outline-secondary btn-sm" data-i18n="export">CSV</button>

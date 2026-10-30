@@ -76,6 +76,9 @@ public sealed class ProcurementPurchaseOrderServiceTests
         Assert.Equal(404, (await Service(db, 101, 11, "StoreKeeper").GetAsync(first.Data.Id)).StatusCode);
         Assert.Single(await db.ProcurementPurchaseOrderLines.ToListAsync());
         Assert.Empty(await db.InventoryMovements.ToListAsync());
+        Assert.Empty((await maker.CommitmentsAsync(1, 25, null, null, null, false, null)).Data!.Items);
+        Assert.Equal(403, (await Service(db, 101, 11, "Guest")
+            .CommitmentsAsync(1, 25, null, null, null, false, null)).StatusCode);
         Assert.Equal(403, (await Service(db, 101, 11, "Accountant").SaveDraftAsync(first.Data.Id,
             new SaveProcurementPurchaseOrderDraftRequest {
                 RowVersion = "invalid", Reason = "Unauthorized draft amendment"

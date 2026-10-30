@@ -193,6 +193,19 @@ public sealed class SqlServerV3ProcurementPurchaseOrderTests
         Assert.True(history.Data!.TotalCount >= 1);
         Assert.All(history.Data.Items, x => Assert.True(x.Reason == null || x.Reason.Length <= 500));
         Assert.Equal("Approved", (await Service(verify, tenantId, makerId).GetAsync(id)).Data!.StateCode);
+        var commitment = await Service(verify, tenantId, makerId)
+            .CommitmentsAsync(1, 25, null, supplierId, DateTime.UtcNow.Date, false, "Office supplier");
+        Assert.True(commitment.Success, commitment.Message);
+        var row = Assert.Single(commitment.Data!.Items);
+        Assert.Equal(id, row.Id);
+        Assert.Equal(40m, row.ApprovedAmount);
+        Assert.Equal(1, row.LineCount);
+        Assert.Equal("Unscheduled", row.DeliverySchedule);
+        Assert.Equal(0, row.DaysOverdue);
+        Assert.Empty((await Service(verify, tenantId, makerId)
+            .CommitmentsAsync(1, 25, null, null, DateTime.UtcNow.Date, true, null)).Data!.Items);
+        Assert.Equal(400, (await Service(verify, tenantId, makerId)
+            .CommitmentsAsync(0, 25, null, null, null, false, null)).StatusCode);
         Assert.Equal(40m, (await Service(verify, tenantId, makerId).GetAsync(id)).Data!.TotalAmount);
         Assert.Equal(409, (await Service(verify, tenantId, makerId).SaveDraftAsync(id,
             new SaveProcurementPurchaseOrderDraftRequest {
@@ -208,5 +221,7 @@ public sealed class SqlServerV3ProcurementPurchaseOrderTests
             .HistoryAsync(id, 1, 20)).StatusCode);
         Assert.DoesNotContain((await Service(foreign, tenantId + 99999, makerId)
             .PendingApprovalsAsync(1, 20, null, null)).Data!.Items, x => x.Id == id);
+        Assert.Empty((await Service(foreign, tenantId + 99999, makerId)
+            .CommitmentsAsync(1, 25, null, null, null, false, null)).Data!.Items);
     }
 }

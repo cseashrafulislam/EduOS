@@ -1,0 +1,64 @@
+@{ ViewData["Title"] = "Approved supplier commitments"; }
+<section class="container-fluid py-3" id="poCommitWorkspace">
+    <header class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+        <div class="d-flex align-items-center gap-2">
+            <h1 class="h4 mb-0" data-i18n="title">Approved supplier commitments</h1>
+            <button id="poCommitHelp" type="button" class="btn btn-outline-secondary btn-sm"
+                    aria-label="Page help" aria-expanded="false" aria-controls="poCommitHelpText">ⓘ</button>
+        </div>
+        <div class="d-flex gap-2 flex-wrap print-hide">
+            <a asp-action="Index" class="btn btn-outline-secondary btn-sm" data-i18n="orders">Purchase orders</a>
+            <button id="poCommitPrint" type="button" class="btn btn-outline-secondary btn-sm" data-i18n="print">Print current page</button>
+            <button id="poCommitExport" type="button" class="btn btn-outline-primary btn-sm" data-i18n="export">Export CSV</button>
+        </div>
+    </header>
+    <div id="poCommitHelpText" class="alert alert-light border d-none print-hide" role="note" data-i18n="help">Current approved PO amounts and expected delivery aging only. Received, returned and outstanding quantities cannot be determined until Goods Receipt integration. Print covers this page; CSV is limited to 500 filtered orders.</div>
+    <div id="poCommitAlert" class="d-none print-hide" role="status" aria-live="polite"></div>
+    <form id="poCommitFilters" class="row g-2 mb-3 print-hide">
+        <div class="col-12 col-md-3">
+            <label class="form-label" for="poCommitSearch" data-i18n="search">Order or supplier</label>
+            <input id="poCommitSearch" class="form-control" maxlength="100" autocomplete="off" />
+        </div>
+        <div class="col-6 col-md-2">
+            <label class="form-label" for="poCommitCampus" data-i18n="campus">Campus ID</label>
+            <input id="poCommitCampus" class="form-control" type="number" min="1" />
+        </div>
+        <div class="col-6 col-md-3">
+            <label class="form-label" for="poCommitDate" data-i18n="agingDate">Aging date</label>
+            <input id="poCommitDate" class="form-control" type="date" />
+        </div>
+        <div class="col-6 col-md-2 d-flex align-items-end">
+            <div class="form-check mb-2">
+                <input id="poCommitOverdue" class="form-check-input" type="checkbox" />
+                <label for="poCommitOverdue" class="form-check-label" data-i18n="overdueOnly">Overdue only</label>
+            </div>
+        </div>
+        <div class="col-6 col-md-2 d-flex align-items-end">
+            <button type="submit" class="btn btn-primary w-100" data-i18n="filter">Filter</button>
+        </div>
+    </form>
+    <p class="small text-muted" id="poCommitScope" aria-live="polite"></p>
+    <div class="table-responsive"><table class="table table-sm table-hover table-striped">
+        <thead><tr>
+            <th data-i18n="number">Order</th><th data-i18n="supplier">Supplier</th>
+            <th data-i18n="campus">Campus</th><th data-i18n="approved">Approved UTC</th>
+            <th data-i18n="expected">Expected</th><th data-i18n="schedule">Schedule</th>
+            <th data-i18n="days">Days overdue</th><th data-i18n="lines">Lines</th>
+            <th data-i18n="amount">Approved commitment</th>
+        </tr></thead><tbody id="poCommitRows"></tbody>
+    </table></div>
+    <nav class="d-flex align-items-center gap-2 print-hide" aria-label="Commitment pages">
+        <button id="poCommitPrev" type="button" class="btn btn-outline-secondary btn-sm" data-i18n="previous">Previous</button>
+        <span id="poCommitPage" aria-live="polite"></span>
+        <button id="poCommitNext" type="button" class="btn btn-outline-secondary btn-sm" data-i18n="next">Next</button>
+    </nav>
+</section>
+<style>
+@media print {
+    .print-hide, nav, aside, footer { display: none !important; }
+    #poCommitWorkspace { font-size: 10pt; }
+    #poCommitWorkspace table { width: 100%; }
+    #poCommitWorkspace th, #poCommitWorkspace td { white-space: normal; }
+}
+</style>
+@section Scripts { <script src="~/js/procurement/commitments.js" asp-append-version="true"></script> }

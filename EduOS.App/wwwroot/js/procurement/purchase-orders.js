@@ -19,6 +19,7 @@ const bd = {title:'ক্রয়াদেশ',requisitions:'ক্রয় চা�
  item:'পণ্য আইডি',quantity:'পরিমাণ',price:'একক মূল্য',reason:'কারণ',confirm:'নিশ্চিত',
  submit:'জমা',approve:'অনুমোদন',reject:'প্রত্যাখ্যান',revise:'সংশোধন',cancel:'বাতিল',view:'দেখুন',
  empty:'ক্রয়াদেশ পাওয়া যায়নি।',failed:'অনুরোধ ব্যর্থ।',saved:'সংরক্ষিত।',page:'পৃষ্ঠা',of:'এর',selected:'নির্বাচিত'};
+en.commitments='Commitments';bd.commitments='ক্রয় প্রতিশ্রুতি';
 en.edit='Amend draft order';en.amendReason='Amendment reason';en.save='Save amendment';
 bd.edit='খসড়া ক্রয়াদেশ সংশোধন';bd.amendReason='সংশোধনের কারণ';bd.save='সংশোধন সংরক্ষণ';
 Object.assign(en,{approvalQueue:'Approval queue',allOrders:'All orders',history:'Decision history',

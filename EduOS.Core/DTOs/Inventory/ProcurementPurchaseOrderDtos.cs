@@ -70,3 +70,20 @@ public sealed class ProcurementPurchaseOrderHistoryDto
     public string? State { get; set; }
     public string? Reason { get; set; }
 }
+
+public sealed class ProcurementPurchaseOrderCommitmentDto
+{
+    public long Id { get; set; }
+    public string OrderNumber { get; set; } = string.Empty;
+    public long CampusId { get; set; }
+    public long SupplierId { get; set; }
+    public string SupplierName { get; set; } = string.Empty;
+    public string CurrencyCode { get; set; } = "BDT";
+    public DateTime? ExpectedDeliveryDate { get; set; }
+    public DateTime? ApprovedAt { get; set; }
+    public DateTime AgingDate { get; set; }
+    public int DaysOverdue { get; set; }
+    public string DeliverySchedule { get; set; } = string.Empty;
+    public int LineCount { get; set; }
+    public decimal ApprovedAmount { get; set; }
+}

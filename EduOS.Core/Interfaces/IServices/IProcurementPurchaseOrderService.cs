@@ -13,6 +13,9 @@ public interface IProcurementPurchaseOrderService
         int page, int pageSize, long? campusId, string? search, CancellationToken ct = default);
     Task<ApiResponse<PagedResult<ProcurementPurchaseOrderHistoryDto>>> HistoryAsync(
         long id, int page, int pageSize, CancellationToken ct = default);
+    Task<ApiResponse<PagedResult<ProcurementPurchaseOrderCommitmentDto>>> CommitmentsAsync(
+        int page, int pageSize, long? campusId, long? supplierId, DateTime? agingDate,
+        bool overdueOnly, string? search, CancellationToken ct = default);
     Task<ApiResponse<ProcurementPurchaseOrderDto>> GetAsync(long id, CancellationToken ct = default);
     Task<ApiResponse<ProcurementPurchaseOrderDto>> CreateAsync(
         CreateProcurementPurchaseOrderRequest request, CancellationToken ct = default);

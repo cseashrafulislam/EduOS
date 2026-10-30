@@ -24,6 +24,49 @@ public sealed class ProcurementPurchaseOrdersController : ControllerBase
     public async Task<IActionResult> PendingApprovals(int page = 1, int pageSize = 25,
         long? campusId = null, string? search = null, CancellationToken ct = default)
         => Reply(await service.PendingApprovalsAsync(page, pageSize, campusId, search, ct));
+    [HttpGet("commitments"), Authorize(Roles = "TenantAdmin,Principal,InventoryManager,StoreKeeper,Accountant")]
+    public async Task<IActionResult> Commitments(int page = 1, int pageSize = 25,
+        long? campusId = null, long? supplierId = null, DateTime? agingDate = null,
+        bool overdueOnly = false, string? search = null, CancellationToken ct = default)
+        => Reply(await service.CommitmentsAsync(page, pageSize, campusId, supplierId,
+            agingDate, overdueOnly, search, ct));
+
+    [HttpGet("commitments/export"), Authorize(Roles = "TenantAdmin,Principal,InventoryManager,StoreKeeper,Accountant")]
+    public async Task<IActionResult> ExportCommitments(long? campusId = null, long? supplierId = null,
+        DateTime? agingDate = null, bool overdueOnly = false, string? search = null,
+        CancellationToken ct = default)
+    {
+        var first = await service.CommitmentsAsync(1, 100, campusId, supplierId,
+            agingDate, overdueOnly, search, ct);
+        if (!first.Success || first.Data == null) return StatusCode(first.StatusCode, first);
+        if (first.Data.TotalCount > 500)
+            return StatusCode(413, new { message = "Filter to 500 or fewer commitments." });
+        var records = new List<ProcurementPurchaseOrderCommitmentDto>(first.Data.Items);
+        for (var page = 2; page <= first.Data.TotalPages; page++)
+        {
+            var next = await service.CommitmentsAsync(page, 100, campusId, supplierId,
+                agingDate, overdueOnly, search, ct);
+            if (!next.Success || next.Data == null) return StatusCode(next.StatusCode, next);
+            records.AddRange(next.Data.Items);
+        }
+        static string Csv(object? value)
+        {
+            var s = Convert.ToString(value, System.Globalization.CultureInfo.InvariantCulture) ?? "";
+            if (s.TrimStart().Length > 0 && "=+-@".Contains(s.TrimStart()[0])) s = "'" + s;
+            return "\"" + s.Replace("\"", "\"\"") + "\"";
+        }
+        var csv = new StringBuilder("Order,Campus ID,Supplier ID,Supplier,Approved UTC,Expected Delivery,Aging Date,Schedule,Days Overdue,Lines,Currency,Approved Commitment\r\n");
+        foreach (var x in records)
+            csv.AppendJoin(',', Csv(x.OrderNumber), Csv(x.CampusId), Csv(x.SupplierId),
+                Csv(x.SupplierName), Csv(x.ApprovedAt?.ToString("O")),
+                Csv(x.ExpectedDeliveryDate?.ToString("yyyy-MM-dd")),
+                Csv(x.AgingDate.ToString("yyyy-MM-dd")), Csv(x.DeliverySchedule),
+                Csv(x.DaysOverdue), Csv(x.LineCount), Csv(x.CurrencyCode),
+                Csv(x.ApprovedAmount)).Append("\r\n");
+        return File(new UTF8Encoding(true).GetBytes(csv.ToString()),
+            "text/csv; charset=utf-8", "procurement-approved-commitments.csv");
+    }
+
     [HttpGet("{id:long}/history"), Authorize(Roles = "TenantAdmin,Principal,InventoryManager,StoreKeeper,Accountant")]
     public async Task<IActionResult> History(long id, int page = 1, int pageSize = 20,
         CancellationToken ct = default)
