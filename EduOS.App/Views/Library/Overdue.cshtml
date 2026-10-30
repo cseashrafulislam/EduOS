@@ -27,6 +27,27 @@
         <div class="col-md-2"><button class="btn btn-primary w-100" type="submit">Apply</button></div>
         <div class="col-md-2"><button id="libraryOverdueCsv" class="btn btn-outline-secondary w-100" type="button">CSV (page)</button></div>
     </form>
+    <section id="libraryOverdueNoticeApp" class="card mb-3" aria-labelledby="libraryNoticeTitle">
+        <div class="card-header d-flex flex-wrap align-items-center justify-content-between gap-2">
+            <h3 id="libraryNoticeTitle" class="h6 mb-0">@(System.Globalization.CultureInfo.CurrentUICulture.Name.StartsWith("bn") ? "মেয়াদোত্তীর্ণ বইয়ের স্মরণবার্তা" : "Overdue borrower reminders")</h3>
+            <div class="d-flex gap-2">
+                <button id="libraryNoticePreview" type="button" class="btn btn-sm btn-outline-secondary">@(System.Globalization.CultureInfo.CurrentUICulture.Name.StartsWith("bn") ? "প্রাপক দেখুন" : "Preview recipients")</button>
+                <button id="libraryNoticeSend" type="button" class="btn btn-sm btn-primary" disabled>@(System.Globalization.CultureInfo.CurrentUICulture.Name.StartsWith("bn") ? "পরবর্তী ৫০ জনকে পাঠান" : "Send next 50")</button>
+            </div>
+        </div>
+        <div class="card-body">
+            <div id="libraryNoticeMessage" class="d-none" role="alert" tabindex="-1" aria-live="polite"></div>
+            <p id="libraryNoticeCount" class="small text-muted mb-2" aria-live="polite"></p>
+            <div class="table-responsive"><table class="table table-sm align-middle mb-0">
+                <thead><tr>
+                    <th>@(System.Globalization.CultureInfo.CurrentUICulture.Name.StartsWith("bn") ? "শিক্ষার্থী কোড" : "Student code")</th>
+                    <th>@(System.Globalization.CultureInfo.CurrentUICulture.Name.StartsWith("bn") ? "বই" : "Book")</th>
+                    <th>@(System.Globalization.CultureInfo.CurrentUICulture.Name.StartsWith("bn") ? "ফেরতের শেষ তারিখ" : "Due date")</th>
+                    <th>@(System.Globalization.CultureInfo.CurrentUICulture.Name.StartsWith("bn") ? "অতিক্রান্ত দিন" : "Days overdue")</th>
+                </tr></thead><tbody id="libraryNoticeRows"></tbody>
+            </table></div>
+        </div>
+    </section>
     <div class="card">
         <div class="card-header d-flex justify-content-between align-items-center">
             <strong>Overdue branches</strong><span id="libraryOverdueCount" class="text-muted small"></span>
@@ -44,4 +65,4 @@
         </div>
     </div>
 </section>
-@section Scripts { <script src="~/js/library/overdue.js" asp-append-version="true"></script> }
+@section Scripts { <script src="~/js/library/overdue.js" asp-append-version="true"></script><script src="~/js/library/overdue-notices.js" asp-append-version="true"></script> }
