@@ -1105,7 +1105,7 @@ public sealed class SqlServerV3InventoryTransferLifecycleTests
         InventoryMovementDto draft;
         await using (var db = Open(f.Options, f.TenantId))
         {
-            var maker = Service(db, f, "StoreKeeper");
+            var maker = Service(db, f, "TenantAdmin");
             var created = await maker.CreateStockAdjustmentAsync(request);
             Assert.Equal(200, created.StatusCode);
             draft = created.Data!;
@@ -1129,7 +1129,7 @@ public sealed class SqlServerV3InventoryTransferLifecycleTests
             await using (var checkerDb = Open(f.Options, f.TenantId))
             {
                 var checker = new InventoryMovementService(checkerDb,
-                    new Actor(f.TenantId, checkerId, "InventoryManager"),
+                    new Actor(f.TenantId, checkerId, "TenantAdmin"),
                     TimeProvider.System, NullLogger<InventoryMovementService>.Instance);
                 Assert.Equal(409, (await checker.PostMovementAsync(draft.Reference,
                     new PostInventoryMovementRequestDto { RowVersion = draft.RowVersion })).StatusCode);
@@ -1144,7 +1144,7 @@ public sealed class SqlServerV3InventoryTransferLifecycleTests
         await using (var db = Open(f.Options, f.TenantId))
         {
             var checker = new InventoryMovementService(db,
-                new Actor(f.TenantId, checkerId, "InventoryManager"),
+                new Actor(f.TenantId, checkerId, "TenantAdmin"),
                 TimeProvider.System, NullLogger<InventoryMovementService>.Instance);
             var posted = await checker.PostMovementAsync(draft.Reference,
                 new PostInventoryMovementRequestDto { RowVersion = draft.RowVersion });
