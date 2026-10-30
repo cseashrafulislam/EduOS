@@ -135,6 +135,7 @@ public sealed partial class SqlServerV2SixteenInstituteEntitlementHttpAcceptance
             using var response = await RolePortalRazorGetAsync(
                 client, institute.TenantId, role, culture);
             Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            Assert.Contains("no-store", response.Headers.CacheControl?.ToString() ?? "", StringComparison.OrdinalIgnoreCase);
             Assert.Equal("text/html", response.Content.Headers.ContentType?.MediaType);
             var html = await response.Content.ReadAsStringAsync();
             Assert.Contains($"<html lang=\"{culture}\"", html, StringComparison.OrdinalIgnoreCase);
