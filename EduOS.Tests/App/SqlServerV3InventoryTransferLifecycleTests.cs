@@ -37,11 +37,7 @@ public sealed class SqlServerV3InventoryTransferLifecycleTests
 
     private static EduOSDbContext Open(DbContextOptions<EduOSDbContext> options, long tenantId)
     {
-        var http = new DefaultHttpContext
-        {
-            User = new ClaimsPrincipal(new ClaimsIdentity(
-                [new Claim(ClaimTypes.NameIdentifier, "0")], "SqlFixture"))
-        };
+        var http = new DefaultHttpContext();
         http.Items["TenantId"] = tenantId;
         return new EduOSDbContext(options, new HttpContextAccessor { HttpContext = http });
     }
@@ -171,6 +167,7 @@ public sealed class SqlServerV3InventoryTransferLifecycleTests
         Assert.Equal(0m, (await service.GetItemBalanceAsync(f.ItemId, f.DestinationId, null)).Data!.QuantityOnHand);
         Assert.Equal(409, (await service.ReceiveTransferAsync(dispatch.Reference,
             new ReceiveInventoryTransferRequestDto { ClientRequestId = Guid.NewGuid() })).StatusCode);
+        Assert.Equal(409, (await service.ReceiveTransferAsync(dispatch.Reference, request)).StatusCode);
     }
 
     [Fact]

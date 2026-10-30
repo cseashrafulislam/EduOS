@@ -34,10 +34,18 @@ public sealed partial class InventoryMovementService
             var priorRequest = await db.InventoryMovements.AsNoTracking().FirstOrDefaultAsync(x =>
                 x.TenantId == user.TenantId && x.ClientRequestId == request.ClientRequestId, ct);
             if (priorRequest != null)
-                return priorRequest.SourceType == "TransferReceipt" && priorRequest.SourceId == dispatch.Id &&
-                    priorRequest.StateCode == "Posted" && !priorRequest.IsDeleted
+            {
+                var sameReceipt = priorRequest.SourceType == "TransferReceipt" &&
+                    priorRequest.SourceId == dispatch.Id && priorRequest.StateCode == "Posted" &&
+                    !priorRequest.IsDeleted;
+                var compensated = sameReceipt && await db.InventoryMovements.AsNoTracking()
+                    .AnyAsync(x => x.TenantId == user.TenantId &&
+                        x.ReversalOfMovementId == priorRequest.Id && x.StateCode == "Posted" &&
+                        !x.IsDeleted, ct);
+                return sameReceipt && !compensated
                     ? ApiResponse<InventoryMovementDto>.SuccessResponse(await MapAsync(priorRequest, ct), "Existing receipt returned.")
-                    : ApiResponse<InventoryMovementDto>.ErrorResponse("Request ID belongs to another operation.", 409);
+                    : ApiResponse<InventoryMovementDto>.ErrorResponse("Receipt request was corrected or belongs to another operation.", 409);
+            }
 
             if (await db.InventoryMovements.AsNoTracking().AnyAsync(x =>
                 x.TenantId == user.TenantId && x.ReversalOfMovementId == dispatch.Id &&

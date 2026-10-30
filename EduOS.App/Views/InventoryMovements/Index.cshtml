@@ -12,7 +12,7 @@
         <div class="card mb-3"><div class="card-body">
             <h3 class="h5">@(System.Globalization.CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "bn" ? "ট্রান্সফার গ্রহণ" : "Receive in-transit stock")</h3>
             <form id="transferReceiveForm" class="row g-2">
-                <div class="col-md-8"><label for="transferDispatchReference" class="form-label">@(System.Globalization.CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "bn" ? "ডিসপ্যাচ রেফারেন্স (UUID)" : "Dispatch reference (UUID)")</label>
+                <div class="col-md-8"><label for="transferDispatchReference" class="form-label">@(System.Globalization.CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "bn" ? "ডিসপ্যাচ নম্বর বা UUID" : "Dispatch number or UUID")</label>
                     <input id="transferDispatchReference" class="form-control" required maxlength="36" autocomplete="off" /></div>
                 <div class="col-md-4 d-flex align-items-end"><button class="btn btn-primary" type="submit">@(System.Globalization.CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "bn" ? "স্টক গ্রহণ করুন" : "Receive stock")</button></div>
             </form>

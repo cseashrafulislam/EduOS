@@ -4,6 +4,11 @@ export function initLedger() {
     const pendingReversals = new Map(), pendingReceipts = new Map();
     const bn = document.documentElement.lang?.toLowerCase().startsWith('bn');
     async function receive(reference) {
+        if (/^IM-[0-9a-f]{32}$/i.test(reference)) {
+            const hex = reference.slice(3);
+            reference = [hex.slice(0, 8), hex.slice(8, 12), hex.slice(12, 16),
+                hex.slice(16, 20), hex.slice(20)].join('-');
+        }
         if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(reference))
             return notice(bn ? 'সঠিক ডিসপ্যাচ রেফারেন্স দিন।' : 'Enter a valid dispatch reference.');
         if (!pendingReceipts.has(reference)) pendingReceipts.set(reference, crypto.randomUUID());
