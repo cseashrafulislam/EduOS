@@ -83,6 +83,7 @@ jobs:
             --context EduOSDbContext --configuration Release --no-build --verbose
 
       - name: Verify repeat migration deployment is idempotent
+        id: migration_repeat
         shell: bash
         run: |
           set -euo pipefail
@@ -106,7 +107,9 @@ jobs:
       # One-shot push marker permits a verified, exact-commit rehearsal when workflow
       # dispatch is unavailable; ordinary parallel pushes retain the short smoke.
       - name: Rehearse 40K synthetic Student Import with restart and tenant isolation
-        if: ${{ (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/Ashraful' && inputs.run_40k) || (github.event_name == 'push' && github.ref == 'refs/heads/Ashraful' && contains(github.event.head_commit.message, '[student-import-40k]')) }}
+        # A separate V2 smoke-test failure must not suppress the explicitly
+        # requested V1 capacity rehearsal after migrations succeeded.
+        if: ${{ always() && steps.migration_repeat.outcome == 'success' && ((github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/Ashraful' && inputs.run_40k) || (github.event_name == 'push' && github.ref == 'refs/heads/Ashraful' && contains(github.event.head_commit.message, '[student-import-40k]'))) }}
         shell: bash
         env:
           EDUOS_SQL_AUTH_TEST_CONNECTION: ${{ format('Server=127.0.0.1,14333;Database=EduOS_MigrationSmoke;User Id=sa;Password={0};Encrypt=True;TrustServerCertificate=True;Connect Timeout=30', env.CI_SQL_PASSWORD) }}

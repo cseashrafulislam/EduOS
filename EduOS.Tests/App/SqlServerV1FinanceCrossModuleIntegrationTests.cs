@@ -400,7 +400,7 @@ public sealed class SqlServerV1FinanceCrossModuleIntegrationTests
         Assert.Equal(40m, contraLines.Sum(x => x.CreditAmount));
         Assert.Equal(PaymentState.Successful,
             (await db.PayrollPayments.AsNoTracking().SingleAsync(x => x.Id == paymentId)).State);
-        var register = await checker.GetRegisterAsync(false, 1, 25);
+        var register = await checker.GetRegisterAsync(false, 1, 10);
         Assert.True(register.Success, register.Message);
         var returned = Assert.Single(register.Data!.Payments);
         Assert.Equal("Returned", returned.ReconciliationStatus);
