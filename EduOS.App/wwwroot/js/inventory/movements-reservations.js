@@ -10,6 +10,7 @@ export async function initReservations() {
     const next = el('inventoryReservationNext');
     const pageLabel = el('inventoryReservationPage');
     const exportButton = el('inventoryReservationExport');
+    const printButton = el('inventoryReservationPrint');
     const locationSelect = el('inventoryReservationLocation');
     const searchInput = el('inventoryReservationSearch');
     const includeClosed = el('inventoryReservationIncludeClosed');
@@ -120,6 +121,13 @@ export async function initReservations() {
     overdueOnly.addEventListener('change', () => { page = 1; load(); });
     prev.addEventListener('click', () => { if (page > 1) { page--; load(); } });
     next.addEventListener('click', () => { if (page < last) { page++; load(); } });
+    printButton?.addEventListener('click', () => {
+        // Server rechecks tenant, campus, role and module entitlement at print time.
+        const q = params();
+        q.delete('page'); q.delete('pageSize');
+        window.open('/InventoryMovements/PrintReservations?' + q.toString(),
+            '_blank', 'noopener,noreferrer');
+    });
     exportButton.addEventListener('click', async () => {
         exportButton.disabled = true;
         try {

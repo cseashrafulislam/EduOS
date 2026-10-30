@@ -10,6 +10,7 @@
             <select id="inventoryReservationLocation" class="form-select"><option value="">@(bn ? "সব অনুমোদিত স্টোর" : "All accessible stores")</option></select></div>
         <div class="col-md-4 d-flex align-items-end gap-2">
             <button type="submit" class="btn btn-primary">@(bn ? "খুঁজুন" : "Search")</button>
+            <button type="button" id="inventoryReservationPrint" class="btn btn-outline-secondary">@(bn ? "প্রিন্ট" : "Print")</button>
             <button type="button" id="inventoryReservationExport" class="btn btn-outline-secondary">@(bn ? "CSV এক্সপোর্ট" : "Export CSV")</button>
         </div>
     </form>

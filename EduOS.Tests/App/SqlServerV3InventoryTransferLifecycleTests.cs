@@ -801,4 +801,180 @@ public sealed class SqlServerV3InventoryTransferLifecycleTests
         Assert.Contains(history.StateCode, new[] { "Expired", "Cancelled" });
     }
 
+
+    [Fact]
+    public async Task Campus_scoped_reservation_reads_and_direct_id_writes_deny_unassigned_warehouse()
+    {
+        var connection = Environment.GetEnvironmentVariable("EDUOS_SQL_AUTH_TEST_CONNECTION");
+        if (string.IsNullOrWhiteSpace(connection)) return;
+        var f = await SeedAsync(connection);
+        await using var db = Open(f.Options, f.TenantId);
+        var suffix = Guid.NewGuid().ToString("N")[..12];
+        var allowedCampus = new Campus { TenantId = f.TenantId, Code = "INV-A-" + suffix, Name = "Allowed campus" };
+        var otherCampus = new Campus { TenantId = f.TenantId, Code = "INV-B-" + suffix, Name = "Other campus" };
+        db.Campuses.AddRange(allowedCampus, otherCampus);
+        await db.SaveChangesAsync();
+        var origin = await db.InventoryLocations.SingleAsync(x => x.Id == f.SourceId);
+        var destination = await db.InventoryLocations.SingleAsync(x => x.Id == f.DestinationId);
+        origin.CampusId = allowedCampus.Id;
+        destination.CampusId = otherCampus.Id;
+        db.UserCampusAccesses.Add(new UserCampusAccess
+        {
+            TenantId = f.TenantId, UserId = f.UserId, CampusId = allowedCampus.Id, IsActive = true
+        });
+        await db.SaveChangesAsync();
+
+        var admin = Service(db, f);
+        var issue = await DraftIssueAsync(db, f, 4m);
+        var reservedIssue = await admin.ReserveMovementAsync(issue.Reference,
+            new PostInventoryMovementRequestDto { RowVersion = issue.RowVersion });
+        Assert.Equal(200, reservedIssue.StatusCode);
+        var transfer = await admin.CreateMovementAsync(new CreateInventoryMovementRequestDto
+        {
+            ClientRequestId = Guid.NewGuid(), MovementTypeCode = "Transfer",
+            SourceType = "ManualTransfer", FromLocationId = f.SourceId,
+            ToLocationId = f.DestinationId, Remarks = "Campus restricted transfer",
+            Lines = [new CreateInventoryMovementLineRequestDto
+            { InventoryItemId = f.ItemId, Quantity = 2m, UnitCost = 5m }]
+        });
+        Assert.Equal(200, transfer.StatusCode);
+        var reservedTransfer = await admin.ReserveMovementAsync(transfer.Data!.Reference,
+            new PostInventoryMovementRequestDto { RowVersion = transfer.Data.RowVersion });
+        Assert.Equal(200, reservedTransfer.StatusCode);
+
+        var restricted = Service(db, f, "InventoryManager");
+        var visible = await restricted.GetReservationRegisterAsync(null, null, 1, 25);
+        Assert.Equal(200, visible.StatusCode);
+        Assert.Single(visible.Data!.Items);
+        Assert.Equal(issue.Reference, visible.Data.Items[0].MovementReference);
+        Assert.Equal(404, (await restricted.GetReservationRegisterAsync(f.DestinationId, null, 1, 25)).StatusCode);
+        Assert.Equal(404, (await restricted.GetMovementAsync(transfer.Data.Reference)).StatusCode);
+        Assert.Equal(404, (await restricted.ScheduleReservationExpiryAsync(reservedTransfer.Data!.Reference,
+            new ScheduleInventoryReservationExpiryRequestDto
+            {
+                RowVersion = reservedTransfer.Data.RowVersion,
+                ExpiresAtUtc = DateTime.UtcNow.AddHours(1)
+            })).StatusCode);
+        Assert.Equal(404, (await restricted.ExpireReservationAsync(reservedTransfer.Data.Reference,
+            new ExpireInventoryReservationRequestDto
+            {
+                RowVersion = reservedTransfer.Data.RowVersion,
+                Reason = "Unassigned campus cannot expire this reservation"
+            })).StatusCode);
+        Assert.Equal(404, (await restricted.FulfillReservedTransferAsync(reservedTransfer.Data.Reference,
+            new FulfillInventoryReservedTransferRequestDto
+            {
+                ClientRequestId = Guid.NewGuid(), RowVersion = reservedTransfer.Data.RowVersion,
+                Lines = [new FulfillInventoryReservedIssueLineDto { LineNo = 1, Quantity = 1m }]
+            })).StatusCode);
+        Assert.Equal(6m, (await admin.GetItemBalanceAsync(f.ItemId, f.SourceId, null)).Data!.ReservedQuantity);
+    }
+
+    [Fact]
+    public async Task Concurrent_partial_issue_and_expiration_preserve_one_authoritative_hold()
+    {
+        var connection = Environment.GetEnvironmentVariable("EDUOS_SQL_AUTH_TEST_CONNECTION");
+        if (string.IsNullOrWhiteSpace(connection)) return;
+        var f = await SeedAsync(connection);
+        var now = DateTimeOffset.UtcNow;
+        InventoryMovementDto scheduled;
+        await using (var setup = Open(f.Options, f.TenantId))
+        {
+            var service = Service(setup, f);
+            var draft = await DraftIssueAsync(setup, f, 8m);
+            var held = (await service.ReserveMovementAsync(draft.Reference,
+                new PostInventoryMovementRequestDto { RowVersion = draft.RowVersion })).Data!;
+            scheduled = (await service.ScheduleReservationExpiryAsync(held.Reference,
+                new ScheduleInventoryReservationExpiryRequestDto
+                {
+                    RowVersion = held.RowVersion, ExpiresAtUtc = now.AddMinutes(1).UtcDateTime
+                })).Data!;
+        }
+
+        await using var expireDb = Open(f.Options, f.TenantId);
+        await using var partialDb = Open(f.Options, f.TenantId);
+        var outcomes = await Task.WhenAll(
+            Service(expireDb, f, time: new FixedClock(now.AddMinutes(2))).ExpireReservationAsync(
+                scheduled.Reference, new ExpireInventoryReservationRequestDto
+                {
+                    RowVersion = scheduled.RowVersion, Reason = "Approved expiry after hold deadline"
+                }),
+            Service(partialDb, f, time: new FixedClock(now)).FulfillReservedIssueAsync(
+                scheduled.Reference, new FulfillInventoryReservedIssueRequestDto
+                {
+                    ClientRequestId = Guid.NewGuid(), RowVersion = scheduled.RowVersion,
+                    Lines = [new FulfillInventoryReservedIssueLineDto { LineNo = 1, Quantity = 5m }]
+                }));
+        Assert.Single(outcomes, x => x.StatusCode == 200);
+        Assert.Single(outcomes, x => x.StatusCode == 409);
+
+        await using var verify = Open(f.Options, f.TenantId);
+        var serviceAfter = Service(verify, f, time: new FixedClock(now.AddMinutes(2)));
+        var parent = (await serviceAfter.GetMovementAsync(scheduled.Reference)).Data!;
+        if (parent.StateCode == "Reserved")
+        {
+            Assert.Equal(5m, parent.Lines.Single().FulfilledQuantity);
+            Assert.Equal(200, (await serviceAfter.ExpireReservationAsync(parent.Reference,
+                new ExpireInventoryReservationRequestDto
+                {
+                    RowVersion = parent.RowVersion, Reason = "Approved expiry after partial issue"
+                })).StatusCode);
+        }
+        var final = (await serviceAfter.GetMovementAsync(scheduled.Reference)).Data!;
+        Assert.Equal("Expired", final.StateCode);
+        var balance = (await serviceAfter.GetItemBalanceAsync(f.ItemId, f.SourceId, null)).Data!;
+        Assert.Equal(0m, balance.ReservedQuantity);
+        Assert.Equal(10m - final.Lines.Single().FulfilledQuantity, balance.QuantityOnHand);
+        Assert.Equal(balance.QuantityOnHand, balance.AvailableQuantity);
+        var originalId = await verify.InventoryMovements.Where(x => x.PublicId == scheduled.Reference)
+            .Select(x => x.Id).SingleAsync();
+        Assert.Equal(final.Lines.Single().FulfilledQuantity > 0m ? 1 : 0,
+            await verify.InventoryMovements.CountAsync(x => x.SourceType == "ReservationIssueFulfillment" &&
+                x.SourceId == originalId && x.StateCode == "Posted"));
+        var history = (await serviceAfter.GetReservationRegisterAsync(f.SourceId, null, 1, 25,
+            includeClosed: true)).Data!.Items.Single();
+        Assert.Equal(8m - final.Lines.Single().FulfilledQuantity, history.ReleasedQuantity);
+    }
+
+    [Fact]
+    public async Task Due_reservation_posting_race_fails_closed_and_expiration_is_retry_safe()
+    {
+        var connection = Environment.GetEnvironmentVariable("EDUOS_SQL_AUTH_TEST_CONNECTION");
+        if (string.IsNullOrWhiteSpace(connection)) return;
+        var f = await SeedAsync(connection);
+        var now = DateTimeOffset.UtcNow;
+        InventoryMovementDto scheduled;
+        await using (var setup = Open(f.Options, f.TenantId))
+        {
+            var service = Service(setup, f);
+            var draft = await DraftIssueAsync(setup, f, 7m);
+            var held = (await service.ReserveMovementAsync(draft.Reference,
+                new PostInventoryMovementRequestDto { RowVersion = draft.RowVersion })).Data!;
+            scheduled = (await service.ScheduleReservationExpiryAsync(held.Reference,
+                new ScheduleInventoryReservationExpiryRequestDto
+                {
+                    RowVersion = held.RowVersion, ExpiresAtUtc = now.AddMinutes(1).UtcDateTime
+                })).Data!;
+        }
+        await using var first = Open(f.Options, f.TenantId);
+        await using var second = Open(f.Options, f.TenantId);
+        var result = await Task.WhenAll(
+            Service(first, f, time: new FixedClock(now.AddMinutes(2))).ExpireReservationAsync(
+                scheduled.Reference, new ExpireInventoryReservationRequestDto
+                {
+                    RowVersion = scheduled.RowVersion, Reason = "Approved due reservation expiry"
+                }),
+            Service(second, f, time: new FixedClock(now.AddMinutes(2))).PostMovementAsync(
+                scheduled.Reference, new PostInventoryMovementRequestDto { RowVersion = scheduled.RowVersion }));
+        Assert.Single(result, x => x.StatusCode == 200);
+        Assert.Single(result, x => x.StatusCode == 409);
+        await using var verify = Open(f.Options, f.TenantId);
+        var serviceAfter = Service(verify, f, time: new FixedClock(now.AddMinutes(2)));
+        Assert.Equal("Expired", (await serviceAfter.GetMovementAsync(scheduled.Reference)).Data!.StateCode);
+        var balance = (await serviceAfter.GetItemBalanceAsync(f.ItemId, f.SourceId, null)).Data!;
+        Assert.Equal(10m, balance.QuantityOnHand);
+        Assert.Equal(0m, balance.ReservedQuantity);
+        Assert.Equal(10m, balance.AvailableQuantity);
+    }
+
 }
