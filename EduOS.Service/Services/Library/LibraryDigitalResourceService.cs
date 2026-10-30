@@ -205,6 +205,60 @@ public sealed class LibraryDigitalResourceService(
             });
     }
 
+    // Historical audit events remain immutable. Only tenant admins may investigate actor IDs.
+    // Date windows are bounded and private file keys, audit JSON and borrower names never leave SQL.
+    public async Task<ApiResponse<PagedResult<LibraryDigitalAuditDto>>> GetAuditTrailAsync(
+        DateOnly? from, DateOnly? to, string? action, int page, int pageSize,
+        CancellationToken ct = default)
+    {
+        if (!CanPublish || db.CurrentTenantId != Tenant)
+            return Fail<PagedResult<LibraryDigitalAuditDto>>("Tenant administrator required.", 403);
+        var today = DateOnly.FromDateTime(Now);
+        var first = from ?? today.AddDays(-30);
+        var last = to ?? today;
+        var filter = (action ?? "all").Trim().ToLowerInvariant();
+        if (page < 1 || pageSize is < 1 or > 50 || ((long)page - 1) * pageSize > int.MaxValue ||
+            first > last || last > today || last.DayNumber - first.DayNumber > 31 ||
+            filter is not ("all" or "publish" or "replace" or "update" or "revoke" or "download"))
+            return Fail<PagedResult<LibraryDigitalAuditDto>>("Invalid audit filters.");
+        var begin = first.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc);
+        var end = last.AddDays(1).ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc);
+        var query = from audit in db.AuditLogs.AsNoTracking()
+                    join doc in db.Documents.AsNoTracking() on audit.EntityId equals (long?)doc.Id
+                    where audit.TenantId == Tenant && audit.IsSuccess &&
+                        audit.EntityName == "LibraryDigitalResource" &&
+                        audit.OccurredAt >= begin && audit.OccurredAt < end &&
+                        doc.TenantId == Tenant && !doc.IsDeleted &&
+                        doc.EntityType == EntityType && doc.DocumentTypeCode == TypeCode &&
+                        (audit.Action == "LibraryDigitalResource.Publish" ||
+                         audit.Action == "LibraryDigitalResource.Replace" ||
+                         audit.Action == "LibraryDigitalResource.Update" ||
+                         audit.Action == "LibraryDigitalResource.Revoke" ||
+                         audit.Action == "LibraryDigitalResource.Download")
+                    select new { audit, doc };
+        if (filter != "all")
+        {
+            var code = "LibraryDigitalResource." + char.ToUpperInvariant(filter[0]) + filter[1..];
+            query = query.Where(x => x.audit.Action == code);
+        }
+        var total = await query.CountAsync(ct);
+        var rows = await query.OrderByDescending(x => x.audit.OccurredAt)
+            .ThenByDescending(x => x.audit.Id)
+            .Skip((int)(((long)page - 1) * pageSize)).Take(pageSize)
+            .Select(x => new LibraryDigitalAuditDto
+            {
+                ResourceReference = x.doc.PublicId,
+                CurrentTitle = x.doc.Title ?? string.Empty,
+                Action = x.audit.Action,
+                VersionNo = x.doc.VersionNo,
+                OccurredAtUtc = x.audit.OccurredAt,
+                ActorUserId = x.audit.UserId
+            }).ToListAsync(ct);
+        return ApiResponse<PagedResult<LibraryDigitalAuditDto>>.SuccessResponse(
+            new PagedResult<LibraryDigitalAuditDto>
+            { Items = rows, TotalCount = total, Page = page, PageSize = pageSize });
+    }
+
     private AuditLog Audit(string action, long id, Guid reference) => new()
     {
         TenantId = Tenant, UserId = user.UserId, Action = action,

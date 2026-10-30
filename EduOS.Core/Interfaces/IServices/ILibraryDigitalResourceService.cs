@@ -10,6 +10,9 @@ public interface ILibraryDigitalResourceService
     Task<ApiResponse<PagedResult<LibraryDigitalResourceDto>>> ListAsync(
         Guid? bookReference, string? search, int page, int pageSize, bool includeInactive,
         CancellationToken ct = default);
+    Task<ApiResponse<PagedResult<LibraryDigitalAuditDto>>> GetAuditTrailAsync(
+        DateOnly? from, DateOnly? to, string? action, int page, int pageSize,
+        CancellationToken ct = default);
     Task<ApiResponse<LibraryDigitalResourceDto>> UploadAsync(
         LibraryDigitalUploadRequestDto request, PrivateFileUploadDto file, CancellationToken ct = default);
     Task<ApiResponse<LibraryDigitalResourceDto>> ReplaceAsync(

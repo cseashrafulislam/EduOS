@@ -79,3 +79,16 @@ test('digital library scrubs private rows, form state and pending bytes on tenan
     assert.match(ui, /event\.persisted/);
     assert.doesNotMatch(ui, /innerHTML\s*=/);
 });
+
+test('digital access audit is tenant-admin-only, bounded, session-safe and not raw audit JSON', () => {
+    assert.match(api, /\[HttpGet\("audit"\)\]/);
+    assert.match(api, /\[HttpGet\("audit\/export"\)\]/);
+    assert.match(service, /GetAuditTrailAsync\(/);
+    assert.match(service, /db\.CurrentTenantId != Tenant/);
+    assert.match(service, /last\.DayNumber - first\.DayNumber > 31/);
+    assert.match(view, /id="digitalAuditRows"/);
+    assert.match(ui, /function loadAudit\(/);
+    assert.match(ui, /function exportAudit\(/);
+    assert.match(ui, /auditSequence\+\+/);
+    assert.doesNotMatch(ui, /innerHTML\s*=/);
+});

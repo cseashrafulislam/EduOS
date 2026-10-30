@@ -8,6 +8,7 @@ using EduOS.Core.Entities.HR;
 using EduOS.Core.Entities.Library;
 using EduOS.Core.Entities.SaaS;
 using EduOS.Core.Entities.Students;
+using EduOS.Core.Entities.System;
 using EduOS.Core.Enums.Domain;
 using EduOS.Core.Interfaces;
 using EduOS.Core.Interfaces.IServices;
@@ -85,6 +86,46 @@ public sealed class LibraryDigitalResourceTests
         db.AddRange(enrollment, asset);
         await db.SaveChangesAsync();
         return (book, enrollment, asset, bytes);
+    }
+
+    [Fact]
+    public async Task Digital_audit_filters_tenant_action_date_and_actor_without_exposing_raw_values()
+    {
+        await using var db = Context();
+        var seed = await SeedAsync(db, Guid.NewGuid());
+        var document = new Document {
+            TenantId = 101, FileAssetId = seed.Asset.Id,
+            DocumentTypeCode = "LIBRARY_DIGITAL", EntityType = "LibraryBook",
+            EntityId = seed.Book.Id, Title = "Current title", IsActive = false };
+        db.Documents.Add(document);
+        await db.SaveChangesAsync();
+        var now = DateTime.UtcNow;
+        db.AuditLogs.AddRange(
+            new AuditLog { TenantId = 101, EntityName = "LibraryDigitalResource",
+                EntityId = document.Id, Action = "LibraryDigitalResource.Publish",
+                OccurredAt = now.AddDays(-2), UserId = 7, OldValue = "private" },
+            new AuditLog { TenantId = 101, EntityName = "LibraryDigitalResource",
+                EntityId = document.Id, Action = "LibraryDigitalResource.Download",
+                OccurredAt = now.AddDays(-1), UserId = 8 },
+            new AuditLog { TenantId = 102, EntityName = "LibraryDigitalResource",
+                EntityId = document.Id, Action = "LibraryDigitalResource.Download",
+                OccurredAt = now, UserId = 99 });
+        await db.SaveChangesAsync();
+        var from = DateOnly.FromDateTime(now.AddDays(-3));
+        var to = DateOnly.FromDateTime(now);
+        var admin = Service(db, "TenantAdmin");
+        var all = await admin.GetAuditTrailAsync(from, to, "all", 1, 1);
+        all.Success.Should().BeTrue(all.Message);
+        all.Data!.TotalCount.Should().Be(2);
+        all.Data.Items.Should().ContainSingle();
+        all.Data.Items[0].ActorUserId.Should().Be(8);
+        var downloads = await admin.GetAuditTrailAsync(from, to, "download", 1, 20);
+        downloads.Data!.Items.Should().ContainSingle();
+        downloads.Data.Items[0].CurrentTitle.Should().Be("Current title");
+        (await Service(db, "Student").GetAuditTrailAsync(from, to, "all", 1, 20))
+            .StatusCode.Should().Be(403);
+        (await admin.GetAuditTrailAsync(from.AddDays(-40), to, "all", 1, 20))
+            .StatusCode.Should().Be(400);
     }
 
     [Fact]

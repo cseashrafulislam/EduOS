@@ -45,6 +45,34 @@ public sealed class LibraryDigitalResourcesController(ILibraryDigitalResourceSer
             "text/csv; charset=utf-8", "library-digital-page.csv");
     }
 
+    [HttpGet("audit")]
+    [Authorize(Roles = "TenantAdmin")]
+    public async Task<IActionResult> Audit([FromQuery] DateOnly? from = null,
+        [FromQuery] DateOnly? to = null, [FromQuery] string? action = null,
+        [FromQuery] int page = 1, [FromQuery] int pageSize = 20,
+        CancellationToken ct = default)
+    {
+        var result = await service.GetAuditTrailAsync(from, to, action, page, pageSize, ct);
+        return StatusCode(result.StatusCode, result);
+    }
+
+    [HttpGet("audit/export")]
+    [Authorize(Roles = "TenantAdmin")]
+    public async Task<IActionResult> ExportAudit([FromQuery] DateOnly? from = null,
+        [FromQuery] DateOnly? to = null, [FromQuery] string? action = null,
+        [FromQuery] int page = 1, [FromQuery] int pageSize = 20,
+        [FromQuery] string language = "en-BD", CancellationToken ct = default)
+    {
+        if (language is not ("en-BD" or "bn-BD"))
+            return BadRequest("Unsupported report language.");
+        var result = await service.GetAuditTrailAsync(from, to, action, page, pageSize, ct);
+        if (!result.Success || result.Data == null) return StatusCode(result.StatusCode, result);
+        Response.Headers.CacheControl = "no-store, private";
+        Response.Headers.Pragma = "no-cache";
+        return File(LibraryDigitalCsvWriter.WriteAudit(result.Data.Items, language == "bn-BD"),
+            "text/csv; charset=utf-8", "library-digital-audit-page.csv");
+    }
+
     [HttpPost]
     [Authorize(Roles = "TenantAdmin")]
     [RequestSizeLimit(6291456)]

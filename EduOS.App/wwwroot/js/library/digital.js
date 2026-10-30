@@ -298,6 +298,75 @@
             if (currentSession() && error.name !== 'AbortError') notify(error.message);
         } finally { button.disabled = false; }
     }
+    let auditPage = 1, auditPages = 1, auditSequence = 0;
+    if (admin) {
+        el('digitalAuditTo').value = new Date().toISOString().slice(0, 10);
+        el('digitalAuditFrom').value = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
+    }
+    function auditParams() {
+        const from = el('digitalAuditFrom').value, to = el('digitalAuditTo').value;
+        const first = Date.parse(from + 'T00:00:00Z'), last = Date.parse(to + 'T00:00:00Z');
+        if (!Number.isFinite(first) || !Number.isFinite(last) ||
+            first > last || last - first > 31 * 86400000)
+            throw Error(words('Select at most 31 days.', 'সর্বোচ্চ ৩১ দিন নির্বাচন করুন।'));
+        return new URLSearchParams({ from, to, action: el('digitalAuditAction').value,
+            page: String(auditPage), pageSize: '20' });
+    }
+    async function loadAudit() {
+        if (!admin || !currentSession()) return;
+        const sequence = ++auditSequence, body = el('digitalAuditRows');
+        body.replaceChildren();
+        try {
+            const result = await api('/api/library/digital/audit?' + auditParams());
+            if (sequence !== auditSequence || !currentSession()) return;
+            for (const item of result?.items || []) {
+                const tr = document.createElement('tr');
+                [item.currentTitle, item.resourceReference, item.action, item.versionNo,
+                    item.occurredAtUtc, item.actorUserId].forEach(value => tr.append(td(value)));
+                body.append(tr);
+            }
+            if (!body.children.length) {
+                const tr = document.createElement('tr'), c = td(words('No audit events.', 'কোনো ঘটনা নেই।'));
+                c.colSpan = 6; tr.append(c); body.append(tr);
+            }
+            auditPages = Math.max(1, result?.totalPages || 1);
+            el('digitalAuditPage').textContent = auditPage + ' / ' + auditPages;
+            el('digitalAuditPrevious').disabled = auditPage <= 1;
+            el('digitalAuditNext').disabled = auditPage >= auditPages;
+        } catch (error) { if (sequence === auditSequence && currentSession()) notify(error.message); }
+    }
+    async function exportAudit() {
+        if (!admin || !currentSession()) return;
+        const button = el('digitalAuditExport'); button.disabled = true;
+        try {
+            const query = auditParams(); query.set('language', bn ? 'bn-BD' : 'en-BD');
+            const blob = await sessionFetch('/api/library/digital/audit/export?' + query,
+                { credentials: 'same-origin', cache: 'no-store' }, async response => {
+                    if (!response.ok) throw Error(words('Audit export denied.', 'অডিট এক্সপোর্ট অনুমোদিত নয়।'));
+                    return response.blob();
+                });
+            if (!currentSession()) return;
+            const url = URL.createObjectURL(blob);
+            try {
+                const link = document.createElement('a'); link.href = url;
+                link.download = 'library-digital-audit-page.csv';
+                document.body.append(link); link.click(); link.remove();
+            } finally { setTimeout(() => URL.revokeObjectURL(url), 1000); }
+        } catch (error) { if (currentSession() && error.name !== 'AbortError') notify(error.message); }
+        finally { button.disabled = false; }
+    }
+    if (admin) {
+        el('digitalAuditFilters').addEventListener('submit', event => {
+            event.preventDefault(); auditPage = 1; loadAudit();
+        });
+        el('digitalAuditPrevious').addEventListener('click', () => {
+            if (auditPage > 1) { auditPage--; loadAudit(); }
+        });
+        el('digitalAuditNext').addEventListener('click', () => {
+            if (auditPage < auditPages) { auditPage++; loadAudit(); }
+        });
+        el('digitalAuditExport').addEventListener('click', exportAudit);
+    }
     el('digitalSearchForm').addEventListener('submit', event => {
         event.preventDefault(); page = 1; clearAlert(); load();
     });
@@ -323,7 +392,8 @@
         findBooks();
     }
     function clearSensitive() {
-        requestSequence++;
+        requestSequence++; auditSequence++;
+        if (admin) { el('digitalAuditRows').replaceChildren(); el('digitalAuditPage').textContent = ''; }
         for (const request of activeRequests) request.abort();
         activeRequests.clear();
         uploadRequestId = null; editing = null; replacing = null; replaceRequestId = null;
@@ -360,10 +430,10 @@
     window.addEventListener('pageshow', event => {
         if (!currentSession()) clearSensitive();
         else if (event.persisted) {
-            if (admin) findBooks();
+            if (admin) { findBooks(); loadAudit(); }
             load();
         }
     });
-    if (currentSession()) load();
+    if (currentSession()) { load(); if (admin) loadAudit(); }
     else clearSensitive();
 })();

@@ -129,6 +129,36 @@
             <button id="digitalNext" type="button" class="btn btn-sm btn-outline-secondary" disabled>@(bn ? "পরে" : "Next")</button>
         </nav>
     </section>
+    @if (admin)
+    {
+        <section class="content-card mt-3" aria-labelledby="digitalAuditTitle">
+            <div class="content-card-heading d-flex justify-content-between gap-2 flex-wrap">
+                <h3 id="digitalAuditTitle" class="h5">@(bn ? "প্রবেশ ও পরিবর্তনের ইতিহাস" : "Access and change audit")</h3>
+                <button id="digitalAuditExport" type="button" class="btn btn-sm btn-outline-secondary">@(bn ? "CSV (এই পৃষ্ঠা)" : "CSV (current page)")</button>
+            </div>
+            <form id="digitalAuditFilters" class="row g-2 align-items-end mt-2">
+                <div class="col-md-3"><label for="digitalAuditFrom" class="form-label">@(bn ? "শুরু (UTC)" : "From (UTC)")</label><input id="digitalAuditFrom" type="date" class="form-control" required /></div>
+                <div class="col-md-3"><label for="digitalAuditTo" class="form-label">@(bn ? "শেষ (UTC)" : "To (UTC)")</label><input id="digitalAuditTo" type="date" class="form-control" required /></div>
+                <div class="col-md-4"><label for="digitalAuditAction" class="form-label">@(bn ? "ঘটনা" : "Event")</label>
+                    <select id="digitalAuditAction" class="form-select">
+                        <option value="all">@(bn ? "সব" : "All")</option>
+                        <option value="publish">Publish</option><option value="replace">Replace</option>
+                        <option value="update">Update</option><option value="revoke">Revoke</option>
+                        <option value="download">Download</option>
+                    </select></div>
+                <div class="col-md-2"><button type="submit" class="btn btn-outline-primary w-100">@(bn ? "দেখুন" : "Apply")</button></div>
+            </form>
+            <div class="table-responsive mt-3"><table class="table table-sm table-hover align-middle">
+                <thead><tr><th>Resource</th><th>Reference</th><th>Event</th><th>Version</th><th>UTC</th><th>Actor ID</th></tr></thead>
+                <tbody id="digitalAuditRows"></tbody>
+            </table></div>
+            <nav class="d-flex justify-content-end align-items-center gap-2" aria-label="Digital audit pagination">
+                <button id="digitalAuditPrevious" type="button" class="btn btn-sm btn-outline-secondary" disabled>Previous</button>
+                <span id="digitalAuditPage" aria-live="polite"></span>
+                <button id="digitalAuditNext" type="button" class="btn btn-sm btn-outline-secondary" disabled>Next</button>
+            </nav>
+        </section>
+    }
 </section>
 @section Scripts {
     <script src="~/js/library/digital.js" asp-append-version="true"></script>

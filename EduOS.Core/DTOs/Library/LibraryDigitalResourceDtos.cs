@@ -45,3 +45,13 @@ public sealed class LibraryDigitalRevokeRequestDto
 {
     [Required] public string RowVersion { get; set; } = string.Empty;
 }
+
+public sealed class LibraryDigitalAuditDto
+{
+    public Guid ResourceReference { get; set; }
+    public string CurrentTitle { get; set; } = string.Empty;
+    public string Action { get; set; } = string.Empty;
+    public int VersionNo { get; set; }
+    public DateTime OccurredAtUtc { get; set; }
+    public long? ActorUserId { get; set; }
+}

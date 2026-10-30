@@ -29,6 +29,27 @@ public static class LibraryDigitalCsvWriter
         return result;
     }
 
+    public static byte[] WriteAudit(IEnumerable<LibraryDigitalAuditDto> rows, bool bangla)
+    {
+        var csv = new StringBuilder();
+        csv.AppendLine(bangla
+            ? "রিসোর্স,বর্তমান নাম,ঘটনা,সংস্করণ,সময় (UTC),ব্যবহারকারী আইডি"
+            : "Resource,Current title,Event,Version,Occurred UTC,Actor user ID");
+        foreach (var row in rows)
+            csv.AppendLine(string.Join(",", new[] {
+                Cell(row.ResourceReference.ToString("D")), Cell(row.CurrentTitle),
+                Cell(row.Action), Cell(row.VersionNo.ToString(System.Globalization.CultureInfo.InvariantCulture)),
+                Cell(row.OccurredAtUtc.ToString("O")),
+                Cell(row.ActorUserId?.ToString(System.Globalization.CultureInfo.InvariantCulture))
+            }));
+        var bytes = new UTF8Encoding(false).GetBytes(csv.ToString());
+        var bom = new UTF8Encoding(true).GetPreamble();
+        var result = new byte[bom.Length + bytes.Length];
+        Buffer.BlockCopy(bom, 0, result, 0, bom.Length);
+        Buffer.BlockCopy(bytes, 0, result, bom.Length, bytes.Length);
+        return result;
+    }
+
     private static string Cell(string? value)
     {
         var text = value ?? string.Empty;
