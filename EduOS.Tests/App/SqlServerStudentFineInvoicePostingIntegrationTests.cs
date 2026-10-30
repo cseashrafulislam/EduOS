@@ -11,6 +11,8 @@ using EduOS.Persistence.Context;
 using EduOS.Service.Services.Finance;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
+using System.Collections.Concurrent;
 using Xunit;
 
 namespace EduOS.Tests.App;
@@ -24,7 +26,10 @@ public sealed class SqlServerStudentFineInvoicePostingIntegrationTests
     {
         var connection = Environment.GetEnvironmentVariable("EDUOS_SQL_AUTH_TEST_CONNECTION");
         if (string.IsNullOrWhiteSpace(connection)) return;
-        var options = new DbContextOptionsBuilder<EduOSDbContext>().UseSqlServer(connection).Options;
+        var persistenceErrors = new ConcurrentQueue<string>();
+        var options = new DbContextOptionsBuilder<EduOSDbContext>()
+            .UseSqlServer(connection).LogTo(message => persistenceErrors.Enqueue(message), LogLevel.Error)
+            .Options;
         var suffix = Guid.NewGuid().ToString("N")[..10];
         long tenantId, fineId, periodId;
         await using (var setup = new EduOSDbContext(options))
@@ -95,7 +100,8 @@ public sealed class SqlServerStudentFineInvoicePostingIntegrationTests
         var request = new PostStudentFineInvoiceRequestDto { AccountingPeriodId = periodId,
             RowVersion = Convert.ToBase64String(fineRow.RowVersion) };
         var first = await service.PostFineInvoiceAsync(fineId, request);
-        Assert.True(first.Success, first.Message);
+        Assert.True(first.Success, first.Message + " | Persistence evidence: " +
+            string.Join(" | ", persistenceErrors.TakeLast(5)));
         var second = await service.PostFineInvoiceAsync(fineId, request);
         Assert.True(second.Success, second.Message);
         Assert.True(second.Data!.AlreadyPosted);
