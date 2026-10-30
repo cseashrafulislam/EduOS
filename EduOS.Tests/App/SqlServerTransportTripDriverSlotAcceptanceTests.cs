@@ -165,7 +165,7 @@ public sealed partial class SqlServerTransportSeatCapacityIntegrationTests
             x.TenantId == tenant && x.PublicId == second.Reference)
             .Select(x => x.VehicleId).SingleAsync();
         old.IsCurrent = false;
-        old.EffectiveTo = today.AddDays(-1);
+        old.EffectiveTo = today; // Inclusive historical end; never precede EffectiveFrom.
         await db.SaveChangesAsync();
         db.VehicleDriverAssignments.Add(new VehicleDriverAssignment
         {
