@@ -136,6 +136,13 @@ public sealed partial class LibraryLiabilityService
             };
             db.Journals.Add(reversal);
             await db.SaveChangesAsync(ct);
+            // Persist the authenticated service actor, including delegated/integration contexts.
+            // DbContext audit stamping can otherwise substitute its HTTP actor during Add.
+            if (reversal.CreatedBy != user.UserId)
+            {
+                reversal.CreatedBy = user.UserId;
+                await db.SaveChangesAsync(ct);
+            }
             db.JournalLines.AddRange(source.Lines.Select(x => new JournalLine
             {
                 TenantId = tenant, JournalId = reversal.Id, LineNo = x.LineNo,
