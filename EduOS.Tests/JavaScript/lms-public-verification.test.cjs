@@ -35,6 +35,7 @@ test('learner controls require CSRF, session continuity, fresh server status and
 test('anonymous verifier uses URL fragment and POST body, never token in request URL', () => {
     assert.match(student, /url\.hash='token='/);
     assert.match(publicPage, /location\.hash/);
+    assert.match(publicPage, /history\.replaceState/);
     assert.match(publicPage, /method:'POST'/);
     assert.match(publicPage, /credentials:'omit'/);
     assert.match(publicPage, /referrerPolicy:'no-referrer'/);

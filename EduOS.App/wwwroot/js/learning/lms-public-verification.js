@@ -6,6 +6,8 @@ if(!result||!button)return;
 const bn=(navigator.language||'').toLowerCase().startsWith('bn');
 const message=(en,bd)=>bn?bd:en;
 const token=new URLSearchParams(location.hash.slice(1)).get('token')||'';
+// Consume the bearer once; do not leave it in the visible URL or session history.
+if(location.hash)history.replaceState(history.state,'',location.pathname+location.search);
 if(!/^[A-Za-z0-9_-]{43}$/.test(token)){
  button.disabled=true;
  result.textContent=message('Invalid or missing verification link.','যাচাইয়ের লিংকটি সঠিক নয়।');

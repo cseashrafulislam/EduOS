@@ -144,6 +144,11 @@ public sealed partial class SqlServerTransportSeatCapacityIntegrationTests
                 x.TenantId == fixture.TenantId && x.EntityId == certificateId &&
                 x.Action == "LMS.PublicVerificationDisabled"));
         }
+
+        // Exercise actual MVC, CSRF, rate limiting and anonymous bearer privacy
+        // against the disposable SQL certificate produced by this race test.
+        await AssertPublicLmsHttpAcceptanceAsync(
+            fixture.Options, fixture.TenantId, fixture.UserId, certificateReference);
     }
 
     private static LmsPublicCertificateVerificationService PublicVerificationService(

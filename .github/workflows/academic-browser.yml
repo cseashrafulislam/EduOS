@@ -70,3 +70,5 @@ jobs:
         run: node --test tests/browser/lms-contract.cjs tests/browser/lms-quiz-contract.cjs
       - name: Exercise LMS certificate student, guardian and instructor privacy in Chromium
         run: node tests/browser/lms-certificate-lifecycle.cjs
+      - name: Exercise anonymous LMS certificate verification bearer privacy in Chromium
+        run: node tests/browser/lms-public-verification.cjs
