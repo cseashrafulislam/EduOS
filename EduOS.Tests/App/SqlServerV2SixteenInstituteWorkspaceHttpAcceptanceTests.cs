@@ -237,8 +237,9 @@ public sealed partial class SqlServerTransportSeatCapacityIntegrationTests
             using var denied = await WorkspaceHttpGetAsync(
                 client, foreign.Fixture.TenantId, userId, caller.Session);
             Assert.Equal(HttpStatusCode.Unauthorized, denied.StatusCode);
-            Assert.DoesNotContain(foreign.Theme + "\"",
-                await denied.Content.ReadAsStringAsync());
+            var deniedBody = await denied.Content.ReadAsStringAsync();
+            Assert.DoesNotContain("rowVersion", deniedBody, StringComparison.OrdinalIgnoreCase);
+            Assert.DoesNotContain("dashboardPanels", deniedBody, StringComparison.OrdinalIgnoreCase);
         }
 
         // A stale second device, invalid table visibility and revoked session
@@ -291,6 +292,48 @@ public sealed partial class SqlServerTransportSeatCapacityIntegrationTests
             using var response = await WorkspaceHttpGetAsync(
                 client, member.Fixture.TenantId, userId, member.Session);
             Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        }
+
+        // The same institution can also contain two real users with independent
+        // preference documents. A foreign user's valid session in this tenant
+        // never authorizes the first user's saved layout or row version.
+        var first = members[0];
+        var secondUserId = cohort[1].UserId;
+        await using (var db = ScopedContext(first.Fixture.Options,
+            first.Fixture.TenantId, first.Fixture.UserId))
+        {
+            db.TenantMemberships.Add(new TenantMembership
+            {
+                TenantId = first.Fixture.TenantId, UserId = secondUserId,
+                Status = MembershipStatus.Active, JoinedAt = DateTime.UtcNow
+            });
+            await db.SaveChangesAsync();
+            var secondSession = await AuthSessionRegistry.CreateAsync(
+                db, secondUserId, first.Fixture.TenantId, "", "second member", false);
+            Saved(await WorkspaceController(db, first.Fixture.TenantId,
+                secondUserId, secondSession).Save(new SaveWorkspacePreferencesRequestDto
+                {
+                    Theme = "light", Navigation = "right",
+                    TablePreferences = TablePreferenceDto.Defaults()
+                }, default));
+            using var secondResponse = await WorkspaceHttpGetAsync(client,
+                first.Fixture.TenantId, secondUserId, secondSession);
+            Assert.Equal(HttpStatusCode.OK, secondResponse.StatusCode);
+            using var secondJson = JsonDocument.Parse(
+                await secondResponse.Content.ReadAsStringAsync());
+            Assert.Equal("light", secondJson.RootElement.GetProperty("data")
+                .GetProperty("theme").GetString());
+            using var firstResponse = await WorkspaceHttpGetAsync(client,
+                first.Fixture.TenantId, userId, first.Session);
+            Assert.Equal(HttpStatusCode.OK, firstResponse.StatusCode);
+            using var firstJson = JsonDocument.Parse(
+                await firstResponse.Content.ReadAsStringAsync());
+            Assert.Equal(first.Theme, firstJson.RootElement.GetProperty("data")
+                .GetProperty("theme").GetString());
+            Assert.Equal(2, await db.TenantSettings.CountAsync(x =>
+                x.TenantId == first.Fixture.TenantId &&
+                (x.Key == WorkspacePreferencesService.KeyPrefix + userId ||
+                 x.Key == WorkspacePreferencesService.KeyPrefix + secondUserId)));
         }
 
         // SQL ownership and history are intact: exactly one user-scoped row
