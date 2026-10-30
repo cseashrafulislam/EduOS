@@ -54,6 +54,14 @@ public sealed class V3EnterpriseReconciliationRegisterService(
             .Select(x => new { x.Id, x.PublicId, x.MovementNumber, x.MovementAt,
                 x.StateCode, x.FromLocationId, x.ToLocationId }).ToListAsync(ct);
         var ids = pageRows.Select(x => x.Id).ToArray();
+        // Resolve only the at-most 100 location endpoints on this report page.
+        // Missing or soft-deleted locations are historical integrity conflicts.
+        var locationIds = pageRows.SelectMany(x => new[] { x.FromLocationId, x.ToLocationId })
+            .Where(id => id.HasValue).Select(id => id!.Value).Distinct().ToArray();
+        var locationMap = await db.InventoryLocations.IgnoreQueryFilters().AsNoTracking()
+            .Where(x => x.TenantId == user.TenantId && locationIds.Contains(x.Id))
+            .Select(x => new { x.Id, x.CampusId, x.IsDeleted })
+            .ToDictionaryAsync(x => x.Id, ct);
         var values = await db.InventoryMovementLines.IgnoreQueryFilters().AsNoTracking()
             .Where(x => x.TenantId == user.TenantId && ids.Contains(x.InventoryMovementId))
             .GroupBy(x => x.InventoryMovementId)
@@ -67,7 +75,7 @@ public sealed class V3EnterpriseReconciliationRegisterService(
             .Where(x => x.TenantId == user.TenantId && x.SourceType == "InventoryMovement" &&
                 x.SourceId.HasValue && ids.Contains(x.SourceId.Value))
             .OrderBy(x => x.Id).Take(5001)
-            .Select(x => new { x.Id, SourceId = x.SourceId!.Value, x.IsDeleted, x.State })
+            .Select(x => new { x.Id, SourceId = x.SourceId!.Value, x.IsDeleted, x.State, x.CampusId })
             .ToListAsync(ct);
         if (journals.Count > 5000)
             return ApiResponse<V3EnterpriseReconciliationRegisterDto>.ErrorResponse(
@@ -81,7 +89,19 @@ public sealed class V3EnterpriseReconciliationRegisterService(
         {
             valueMap.TryGetValue(m.Id, out var v);
             linkMap.TryGetValue(m.Id, out var link);
-            var status = v?.Deleted == true || v == null ? "EvidenceConflict" :
+            var endpoints = new[] { m.FromLocationId, m.ToLocationId }
+                .Where(id => id.HasValue).Select(id => id!.Value).Distinct().ToArray();
+            var missingLocation = endpoints.Any(id =>
+                !locationMap.TryGetValue(id, out var loc) || loc.IsDeleted);
+            var allowedCampuses = endpoints.Where(id =>
+                locationMap.TryGetValue(id, out var loc) && loc.CampusId.HasValue)
+                .Select(id => locationMap[id].CampusId!.Value).ToHashSet();
+            var foreignCampusJournal = allowedCampuses.Count > 0 && link != null &&
+                link.Any(j => j.CampusId.HasValue &&
+                    !allowedCampuses.Contains(j.CampusId.Value));
+            var status = missingLocation || foreignCampusJournal ||
+                (link?.Length ?? 0) > 100 ||
+                v?.Deleted == true || v == null ? "EvidenceConflict" :
                 link == null ? "NoExplicitReference" :
                 link.Any(j => j.IsDeleted ||
                     (journalTotals.TryGetValue(j.Id, out var t) && t.Deleted))
