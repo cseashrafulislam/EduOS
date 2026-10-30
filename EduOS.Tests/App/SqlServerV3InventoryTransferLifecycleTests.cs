@@ -187,8 +187,8 @@ public sealed class SqlServerV3InventoryTransferLifecycleTests
         var b = Service(second, f).ReceiveTransferAsync(reference,
             new ReceiveInventoryTransferRequestDto { ClientRequestId = Guid.NewGuid() });
         var results = await Task.WhenAll(a, b);
-        Assert.Single(results.Where(x => x.StatusCode == 200));
-        Assert.Single(results.Where(x => x.StatusCode == 409));
+        Assert.Single(results, x => x.StatusCode == 200);
+        Assert.Single(results, x => x.StatusCode == 409);
         await using var verify = Open(f.Options, f.TenantId);
         Assert.Equal(1, await verify.InventoryMovements.CountAsync(x =>
             x.SourceType == "TransferReceipt" && x.SourceId ==

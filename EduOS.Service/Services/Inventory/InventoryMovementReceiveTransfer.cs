@@ -98,5 +98,20 @@ public sealed partial class InventoryMovementService
             logger.LogWarning(ex, "Inventory transfer receipt SQL concurrency conflict");
             return ApiResponse<InventoryMovementDto>.ErrorResponse("Concurrent receipt; reload transfer.", 409);
         }
+        catch (InvalidOperationException ex) when (IsSqlReceiptConflict(ex))
+        {
+            // EF's SQL Server execution strategy can wrap a deadlock victim in an
+            // InvalidOperationException. Never convert unrelated failures to 409.
+            logger.LogWarning(ex, "Inventory transfer receipt wrapped SQL concurrency conflict");
+            return ApiResponse<InventoryMovementDto>.ErrorResponse("Concurrent receipt; reload transfer.", 409);
+        }
+    }
+
+    private static bool IsSqlReceiptConflict(Exception error)
+    {
+        for (Exception? cause = error; cause != null; cause = cause.InnerException)
+            if (cause is SqlException sql && sql.Number is 1205 or 1222 or 2601 or 2627 or 3960)
+                return true;
+        return false;
     }
 }
