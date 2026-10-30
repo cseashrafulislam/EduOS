@@ -190,6 +190,8 @@ public sealed partial class LibraryService
         catch (TransactionAbortedException)
         { return ApiResponse<LibraryCopyConditionDto>.ErrorResponse("Concurrent condition transaction rejected.", 409); }
         catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
+        catch (Exception ex) when (IsConditionSqlConflict(ex))
+        { return ApiResponse<LibraryCopyConditionDto>.ErrorResponse("Concurrent SQL condition operation rejected.", 409); }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Library condition transition failed tenant {TenantId}", tenant);

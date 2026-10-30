@@ -59,7 +59,9 @@ public sealed partial class SqlServerTransportSeatCapacityIntegrationTests
         Assert.True(results.Count(x => x.Success) == 1,
             "Expected one winner: " + string.Join(" | ",
                 results.Select(x => x.StatusCode + ": " + x.Message)));
-        Assert.Single(results.Where(x => x.StatusCode == 409));
+        Assert.True(results.Count(x => x.StatusCode == 409) == 1,
+            "Expected one retryable conflict: " + string.Join(" | ",
+                results.Select(x => x.StatusCode + ": " + x.Message)));
         await using var verify = ScopedContext(fixture.Options, fixture.TenantId, fixture.UserId);
         var state = await verify.BookCopies.AsNoTracking().Where(x =>
             x.TenantId == fixture.TenantId && x.Id == copyId).Select(x => x.State).SingleAsync();
