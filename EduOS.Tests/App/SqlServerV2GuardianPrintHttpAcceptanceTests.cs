@@ -43,6 +43,9 @@ public sealed partial class SqlServerTransportSeatCapacityIntegrationTests
             .ConfigureServices(services =>
             {
                 services.AddLogging();
+                // The production Razor _ViewImports injects IStringLocalizer<SharedResource>.
+                // Match production MVC localization rather than bypassing the real view.
+                services.AddLocalization(options => options.ResourcesPath = "Resources");
                 services.AddRouting();
                 services.AddHttpContextAccessor();
                 services.AddAuthentication("SqlPrivateTest")
@@ -64,6 +67,7 @@ public sealed partial class SqlServerTransportSeatCapacityIntegrationTests
                 services.AddScoped<ILmsCertificateGuardianService, LmsCertificateGuardianService>();
                 services.AddSingleton(TimeProvider.System);
                 services.AddControllersWithViews()
+                    .AddViewLocalization()
                     .AddApplicationPart(typeof(LmsGuardianCertificatesController).Assembly);
             })
             .Configure(app =>
