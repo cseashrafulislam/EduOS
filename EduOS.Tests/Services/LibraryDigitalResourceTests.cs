@@ -417,15 +417,15 @@ public sealed class LibraryDigitalResourceTests
 
 
     [Fact]
-    public async Task Campus_scope_change_requires_explicit_widening_and_rejects_foreign_campus()
+    public async Task Campus_scope_change_requires_explicit_widening_and_rejects_unknown_campus()
     {
         await using var db = Context();
         var reference = Guid.NewGuid();
         var seed = await SeedAsync(db, reference);
         db.DocumentTypeDefinitions.Add(new DocumentTypeDefinition
         { TenantId = 101, Code = "LIBRARY_DIGITAL", Name = "Digital", IsActive = true });
-        var foreign = new Campus { TenantId = 102, Name = "Foreign", Code = "FOREIGN", IsActive = true };
-        db.Campuses.Add(foreign);
+        // Cross-tenant writes are prohibited by DbContext itself. Test an unknown
+        // campus ID here; real cross-tenant SQL FK isolation is covered by the SQL suite.
         await db.SaveChangesAsync();
         var document = new Document
         {
@@ -443,7 +443,7 @@ public sealed class LibraryDigitalResourceTests
             RowVersion = Convert.ToBase64String(document.RowVersion)
         };
         (await admin.UpdateMetadataAsync(reference, Request(null))).StatusCode.Should().Be(409);
-        (await admin.UpdateMetadataAsync(reference, Request(foreign.Id))).StatusCode.Should().Be(400);
+        (await admin.UpdateMetadataAsync(reference, Request(999999))).StatusCode.Should().Be(400);
         document.LibraryCampusId.Should().Be(seed.Enrollment.CampusId);
         (await admin.UpdateMetadataAsync(reference, Request(null, true))).Success.Should().BeTrue();
         document.LibraryCampusId.Should().BeNull();
