@@ -42,5 +42,19 @@ public sealed class InventoryMovementsController : Controller
     }
 
     [HttpGet, ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
+    public async Task<IActionResult> PrintLotAging(long locationId, string? search,
+        int minimumDays = 0, CancellationToken ct = default)
+    {
+        var result = await movements.GetLotAgingAsync(locationId, search, minimumDays, 1, 250, ct);
+        if (!result.Success || result.Data == null)
+            return StatusCode(result.StatusCode);
+        if (result.Data.TotalCount > 250)
+            return UnprocessableEntity("Narrow filters to 250 item/lot groups or fewer.");
+        Response.Headers["Cache-Control"] = "private, no-store";
+        Response.Headers["X-Content-Type-Options"] = "nosniff";
+        return View(result.Data);
+    }
+
+    [HttpGet, ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
     public IActionResult Index() => View();
 }

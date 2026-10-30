@@ -1,0 +1,50 @@
+@model EduOS.Core.Common.PagedResult<EduOS.Core.DTOs.Inventory.InventoryLotAgingRowDto>
+@using System.Globalization
+@{
+    Layout = null;
+    var bn = CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "bn";
+}
+<!doctype html>
+<html lang="@CultureInfo.CurrentUICulture.Name">
+<head>
+    <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex,nofollow" />
+    <title>@(bn ? "লট স্টক ইনবাউন্ড এজিং" : "Lot stock inbound aging")</title>
+    <style>
+        body { font-family: system-ui, sans-serif; margin: 1rem; color: #17212d; }
+        h1 { font-size: 1.15rem; } p { font-size: .78rem; }
+        table { width: 100%; border-collapse: collapse; font-size: .72rem; }
+        th, td { border: 1px solid #bfc8d1; padding: .3rem; text-align: left; overflow-wrap: anywhere; }
+        th { background: #edf1f5; }
+        @@page { size: A4 landscape; margin: 10mm; }
+        @@media print { .actions { display: none; } body { margin: 0; } }
+    </style>
+    <script src="~/js/attendance/print-roster.js" asp-append-version="true" defer></script>
+</head>
+<body>
+    <div class="actions"><button id="printRoster" type="button">@(bn ? "প্রিন্ট" : "Print")</button></div>
+    <h1>@(bn ? "লট স্টক ও সর্বশেষ ইনবাউন্ড" : "Lot stock and last inbound")</h1>
+    <p>@(bn ? "স্টোরের সর্বশেষ ইনবাউন্ডের পর দিন; অবশিষ্ট ইউনিটের FIFO বয়স নয়। রেকর্ডকৃত নেট খরচ আর্থিক মূল্যায়ন নয়।" :
+        "Days since last inbound at this store, not FIFO age of remaining units. Recorded net movement cost is not an approved financial valuation.")</p>
+    <table><thead><tr>
+        <th>@(bn ? "পণ্য" : "Item")</th><th>@(bn ? "লট" : "Lot")</th>
+        <th>@(bn ? "একক" : "Unit")</th><th>@(bn ? "স্টক" : "On hand")</th>
+        <th>@(bn ? "রিজার্ভ" : "Reserved")</th><th>@(bn ? "ব্যবহারযোগ্য" : "Available")</th>
+        <th>@(bn ? "নেট খরচ" : "Net cost")</th><th>@(bn ? "ইনবাউন্ড UTC" : "Inbound UTC")</th>
+        <th>@(bn ? "দিন" : "Days")</th><th>@(bn ? "অবস্থা" : "Status")</th>
+    </tr></thead><tbody>
+    @foreach (var row in Model.Items)
+    {
+        <tr>
+            <td>@row.ItemCode — @row.ItemName</td><td>@(string.IsNullOrEmpty(row.LotOrBatchNo) ? "—" : row.LotOrBatchNo)</td>
+            <td>@row.UnitCode</td><td>@row.QuantityOnHand.ToString(CultureInfo.InvariantCulture)</td>
+            <td>@row.ReservedQuantity.ToString(CultureInfo.InvariantCulture)</td>
+            <td>@row.AvailableQuantity.ToString(CultureInfo.InvariantCulture)</td>
+            <td>@row.RecordedCostBalance.ToString(CultureInfo.InvariantCulture)</td>
+            <td>@(row.LatestInboundUtc?.ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture) ?? "—")</td>
+            <td>@(row.DaysSinceLatestInbound?.ToString(CultureInfo.InvariantCulture) ?? "—")</td>
+            <td>@row.StatusCode</td>
+        </tr>
+    }
+    </tbody></table>
+</body></html>

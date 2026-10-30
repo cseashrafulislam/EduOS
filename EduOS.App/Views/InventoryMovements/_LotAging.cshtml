@@ -1,0 +1,42 @@
+@{
+    var bn = System.Globalization.CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "bn";
+}
+<details class="card mb-3" id="inventoryLotAgingPanel">
+    <summary class="card-header fw-semibold">@(bn ? "লটভিত্তিক স্টক ও সর্বশেষ ইনবাউন্ডের সময়" : "Lot stock & last-inbound aging")</summary>
+    <div class="card-body">
+        <form id="inventoryLotAgingFilter" class="row g-2 mb-3">
+            <div class="col-md-3"><label class="form-label" for="inventoryLotAgingLocation">@(bn ? "স্টোর" : "Store")</label>
+                <select id="inventoryLotAgingLocation" class="form-select" required><option value="">@(bn ? "স্টোর নির্বাচন" : "Select store")</option></select></div>
+            <div class="col-md-3"><label class="form-label" for="inventoryLotAgingSearch">@(bn ? "পণ্য বা লট" : "Item or lot")</label>
+                <input id="inventoryLotAgingSearch" class="form-control" maxlength="100" autocomplete="off" /></div>
+            <div class="col-md-3"><label class="form-label" for="inventoryLotAgingDays">@(bn ? "সর্বশেষ ইনবাউন্ডের পর ন্যূনতম দিন" : "Minimum days since last inbound")</label>
+                <select id="inventoryLotAgingDays" class="form-select">
+                    <option value="0">@(bn ? "সব" : "All")</option><option value="30">30</option>
+                    <option value="90">90</option><option value="180">180</option><option value="365">365</option>
+                </select></div>
+            <div class="col-md-3 d-flex align-items-end flex-wrap gap-2">
+                <button type="submit" class="btn btn-primary">@(bn ? "দেখুন" : "View")</button>
+                <button id="inventoryLotAgingPrint" type="button" class="btn btn-outline-secondary">@(bn ? "প্রিন্ট" : "Print")</button>
+                <button id="inventoryLotAgingExport" type="button" class="btn btn-outline-secondary">CSV</button>
+            </div>
+        </form>
+        <div class="table-responsive"><table class="table table-sm table-striped">
+            <thead><tr>
+                <th scope="col">@(bn ? "পণ্য" : "Item")</th><th scope="col">@(bn ? "লট" : "Lot")</th>
+                <th scope="col">@(bn ? "একক" : "Unit")</th><th scope="col">@(bn ? "স্টক" : "On hand")</th>
+                <th scope="col">@(bn ? "রিজার্ভ" : "Reserved")</th><th scope="col">@(bn ? "ব্যবহারযোগ্য" : "Available")</th>
+                <th scope="col">@(bn ? "রেকর্ডকৃত নেট খরচ" : "Recorded net cost")</th>
+                <th scope="col">@(bn ? "সর্বশেষ ইনবাউন্ড (UTC)" : "Latest inbound (UTC)")</th>
+                <th scope="col">@(bn ? "দিন" : "Days")</th><th scope="col">@(bn ? "অবস্থা" : "Status")</th>
+            </tr></thead><tbody id="inventoryLotAgingRows"></tbody>
+        </table></div>
+        <div class="d-flex gap-2 align-items-center">
+            <button id="inventoryLotAgingPrev" type="button" class="btn btn-outline-secondary btn-sm">@(bn ? "আগের" : "Previous")</button>
+            <span id="inventoryLotAgingPage" aria-live="polite"></span>
+            <button id="inventoryLotAgingNext" type="button" class="btn btn-outline-secondary btn-sm">@(bn ? "পরের" : "Next")</button>
+        </div>
+        <p class="small text-muted mt-2 mb-0">@(bn ?
+            "এই সময়টি স্টোরে সর্বশেষ ইনবাউন্ডের পর কেটেছে; অবশিষ্ট পণ্যের FIFO বয়স, মেয়াদোত্তীর্ণের তারিখ বা অনুমোদিত আর্থিক মূল্য নয়।" :
+            "Days since last inbound at this store—not FIFO age of remaining units, product expiry, or approved financial valuation.")</p>
+    </div>
+</details>

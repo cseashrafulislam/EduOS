@@ -1037,4 +1037,41 @@ public sealed class SqlServerV3InventoryTransferLifecycleTests
             .GetReservationCoverageAsync(f.SourceId, null, false, 1, 25)).StatusCode);
     }
 
+
+    [Fact]
+    public async Task Lot_aging_reconciles_canonical_stock_reservations_and_denies_foreign_scope()
+    {
+        var connection = Environment.GetEnvironmentVariable("EDUOS_SQL_AUTH_TEST_CONNECTION");
+        if (string.IsNullOrWhiteSpace(connection)) return;
+        var f = await SeedAsync(connection);
+        await using var db = Open(f.Options, f.TenantId);
+        var service = Service(db, f);
+        var initial = await service.GetLotAgingAsync(f.SourceId, "PEN-", 0, 1, 25);
+        Assert.Equal(200, initial.StatusCode);
+        var lot = Assert.Single(initial.Data!.Items);
+        Assert.Equal(10m, lot.QuantityOnHand);
+        Assert.Equal(50m, lot.RecordedCostBalance);
+        Assert.Equal(0m, lot.ReservedQuantity);
+        Assert.NotNull(lot.LatestInboundUtc);
+        Assert.Equal("Current", lot.StatusCode);
+        Assert.Equal(0, (await service.GetLotAgingAsync(f.SourceId, null, 90, 1, 25))
+            .Data!.TotalCount);
+
+        var draft = await DraftIssueAsync(db, f, 6m);
+        var reserved = await service.ReserveMovementAsync(draft.Reference,
+            new PostInventoryMovementRequestDto { RowVersion = draft.RowVersion });
+        Assert.Equal(200, reserved.StatusCode);
+        lot = Assert.Single((await service.GetLotAgingAsync(f.SourceId, null, 0, 1, 25)).Data!.Items);
+        Assert.Equal(10m, lot.QuantityOnHand);
+        Assert.Equal(6m, lot.ReservedQuantity);
+        Assert.Equal(4m, lot.AvailableQuantity);
+        Assert.Equal(403, (await Service(db, f, "Student")
+            .GetLotAgingAsync(f.SourceId, null, 0, 1, 25)).StatusCode);
+        Assert.Equal(404, (await service.GetLotAgingAsync(long.MaxValue, null, 0, 1, 25)).StatusCode);
+        Assert.Equal(400, (await service.GetLotAgingAsync(f.SourceId, null, -1, 1, 25)).StatusCode);
+
+        await using var foreign = Open(f.Options, f.TenantId + 999);
+        Assert.Equal(404, (await Service(foreign, f, tenantId: f.TenantId + 999)
+            .GetLotAgingAsync(f.SourceId, null, 0, 1, 25)).StatusCode);
+    }
 }

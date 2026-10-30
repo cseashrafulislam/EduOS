@@ -7,6 +7,7 @@ import { initBalance } from './movements-balance.js';
 import { initReorder } from './movements-reorder.js';
 import { initStockPosition } from './movements-stock-position.js';
 import { initItemHistory } from './movements-item-history.js';
+import { initLotAging } from './movements-lot-aging.js';
 if (root) {
     const refresh = initLedger();
     initReservations().catch(e => notice(e.message));
@@ -15,5 +16,6 @@ if (root) {
     initReorder().catch(e => notice(e.message));
     initStockPosition().catch(e => notice(e.message));
     initItemHistory().catch(e => notice(e.message));
+    initLotAging().catch(e => notice(e.message));
     if (root.dataset.create === 'true') initForm(refresh).catch(e => notice(e.message));
 }
