@@ -78,7 +78,7 @@ async function scenario(browser,lang){
   await page.locator('#lmsGuardianProgressAlert').getByText(
    lang==='bn'?'পাঠ রপ্তানির অনুমতি নেই। পৃষ্ঠা রিফ্রেশ করুন।':'Lesson export access denied. Refresh the page.').waitFor();
   assert.equal(lessonExportRequests,2);
-  assert.equal(await page.locator('#lmsGuardianLessonPanel').isVisible(),false);
+  assert.equal(await page.locator('#lmsGuardianLessonPanel').evaluate(el=>el.classList.contains('d-none')),true);
   await page.locator('#lmsGuardianProgressExport').click();
   await page.locator('#lmsGuardianProgressAlert').getByText(
    lang==='bn'?'রপ্তানির অনুমতি নেই। পৃষ্ঠা রিফ্রেশ করুন।':'Export access denied. Refresh the page.').waitFor();
