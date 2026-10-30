@@ -228,13 +228,19 @@ public sealed partial class SqlServerTransportSeatCapacityIntegrationTests
         Assert.True(history.Data[1].IsCorrection);
         var replay = await CorrectAsync(winner);
         Assert.True(replay.Success);
-        var tripId = await verify.TransportTrips.Where(x => x.PublicId == state.Reference)
+        // The replay used a new HttpContextAccessor/DbContext. Recreate the scoped
+        // verifier after replay so the ambient test principal cannot be invalidated.
+        await using var afterReplay = ScopedContext(
+            state.Fixture.Options, state.Fixture.TenantId, state.Fixture.UserId);
+        var tripId = await afterReplay.TransportTrips.Where(x =>
+            x.TenantId == state.Fixture.TenantId && x.PublicId == state.Reference)
             .Select(x => x.Id).SingleAsync();
-        var riderId = await verify.TransportTripRiders.Where(x => x.TransportTripId == tripId)
+        var riderId = await afterReplay.TransportTripRiders.Where(x =>
+            x.TenantId == state.Fixture.TenantId && x.TransportTripId == tripId)
             .Select(x => x.Id).SingleAsync();
-        Assert.Equal(2, await verify.TransportTripAttendanceEvents.CountAsync(x =>
+        Assert.Equal(2, await afterReplay.TransportTripAttendanceEvents.CountAsync(x =>
             x.TenantId == state.Fixture.TenantId && x.TransportTripRiderId == riderId));
-        var manifest = await TripService(verify, state.Fixture).GetRidersAsync(state.Reference, 1, 25);
+        var manifest = await TripService(afterReplay, state.Fixture).GetRidersAsync(state.Reference, 1, 25);
         Assert.Equal("Dropped", Assert.Single(manifest.Data!.Items).AttendanceState);
     }
 
