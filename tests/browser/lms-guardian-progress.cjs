@@ -81,7 +81,10 @@ async function scenario(browser,lang){
   assert.equal(await page.locator('#lmsGuardianLessonPanel').evaluate(el=>el.classList.contains('d-none')),true);
   await page.locator('#lmsGuardianProgressExport').click();
   await page.locator('#lmsGuardianProgressAlert').getByText(
-   lang==='bn'?'রপ্তানির অনুমতি নেই। পৃষ্ঠা রিফ্রেশ করুন।':'Export access denied. Refresh the page.').waitFor();
+   lang==='bn'?'রপ্তানির অনুমতি নেই। পৃষ্ঠা রিফ্রেশ করুন।':'Export access denied. Refresh the page.',
+   {exact:true}).waitFor();
+  await page.waitForFunction(()=>!document.querySelector('#lmsGuardianProgressRows')
+   .textContent.includes('Private Learner'));
   assert.equal(await page.locator('#lmsGuardianProgressExport').isDisabled(),true);
   assert.equal(await page.locator('#lmsGuardianProgressRows').innerText().then(x=>x.includes('Private Learner')),false);
   assert.equal(exportRequests,2);
