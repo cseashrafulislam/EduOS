@@ -1,6 +1,7 @@
 using EduOS.Core.DTOs.Finance;
 using EduOS.Core.Entities.Accounting;
 using EduOS.Core.Entities.Academic;
+using EduOS.Core.Entities.Auth;
 using EduOS.Core.Entities.Finance;
 using EduOS.Core.Entities.Learners;
 using EduOS.Core.Entities.SaaS;
@@ -31,7 +32,7 @@ public sealed class SqlServerStudentFineInvoicePostingIntegrationTests
             .UseSqlServer(connection).LogTo(message => persistenceErrors.Enqueue(message), LogLevel.Error)
             .Options;
         var suffix = Guid.NewGuid().ToString("N")[..10];
-        long tenantId, fineId, periodId;
+        long tenantId, fineId, periodId, assessorUserId, postingUserId, checkerUserId;
         await using (var setup = new EduOSDbContext(options))
         {
             var tenant = new Tenant { Code = "FINE-" + suffix, Name = "Fine Posting CI",
@@ -41,6 +42,16 @@ public sealed class SqlServerStudentFineInvoicePostingIntegrationTests
             await setup.SaveChangesAsync();
             tenantId = tenant.Id;
             setup.ChangeTracker.Clear();
+            // SQL Server enforces Journals.ApprovedByUserId/PostedByUserId -> AspNetUsers.
+            // Each simulated actor must therefore correspond to a persisted identity row.
+            var assessor = SeedUser("assessor", suffix);
+            var postingOfficer = SeedUser("poster", suffix);
+            var checkerUser = SeedUser("checker", suffix);
+            setup.ApplicationUsers.AddRange(assessor, postingOfficer, checkerUser);
+            await setup.SaveChangesAsync();
+            assessorUserId = assessor.Id;
+            postingUserId = postingOfficer.Id;
+            checkerUserId = checkerUser.Id;
             using (setup.BeginSystemTenantScope(tenantId))
             {
                 var campus = new Campus { TenantId = tenantId, Name = "Main", Code = "MAIN" };
@@ -89,13 +100,13 @@ public sealed class SqlServerStudentFineInvoicePostingIntegrationTests
                 setup.StudentFines.Add(fine);
                 await setup.SaveChangesAsync();
                 fineId = fine.Id;
-                // System seeding has no user claims; simulate a fine assessed by administrator 100.
+                // Simulate the original fine being assessed by a different real user.
                 await setup.StudentFines.Where(x => x.Id == fineId)
-                    .ExecuteUpdateAsync(s => s.SetProperty(x => x.CreatedBy, 100L));
+                    .ExecuteUpdateAsync(s => s.SetProperty(x => x.CreatedBy, assessorUserId));
             }
         }
         await using var db = new EduOSDbContext(options, Accessor(tenantId));
-        var service = new FinanceAdjustmentService(db, new Actor(tenantId, 200), TimeProvider.System);
+        var service = new FinanceAdjustmentService(db, new Actor(tenantId, postingUserId), TimeProvider.System);
         var fineRow = await db.StudentFines.AsNoTracking().SingleAsync(x => x.Id == fineId);
         var request = new PostStudentFineInvoiceRequestDto { AccountingPeriodId = periodId,
             RowVersion = Convert.ToBase64String(fineRow.RowVersion) };
@@ -111,7 +122,7 @@ public sealed class SqlServerStudentFineInvoicePostingIntegrationTests
         var lines = await db.JournalLines.AsNoTracking().Where(x => x.JournalId == journalId).ToListAsync();
         Assert.Equal(75m, lines.Sum(x => x.DebitAmount));
         Assert.Equal(75m, lines.Sum(x => x.CreditAmount));
-        Assert.Equal(403, (await new FinanceAdjustmentService(db, new Actor(tenantId + 1, 200), TimeProvider.System)
+        Assert.Equal(403, (await new FinanceAdjustmentService(db, new Actor(tenantId + 1, postingUserId), TimeProvider.System)
             .PostFineInvoiceAsync(fineId, request)).StatusCode);
 
         // Real SQL Server rowversion, maker/checker and immutable contra journal proof.
@@ -129,7 +140,7 @@ public sealed class SqlServerStudentFineInvoicePostingIntegrationTests
         { Approve = true, RowVersion = proposed.Data.RowVersion };
         Assert.Equal(403, (await service.ReviewFineReversalAsync(fineId,
             proposed.Data.ReversalReference, approval)).StatusCode);
-        var checker = new FinanceAdjustmentService(db, new Actor(tenantId, 300), TimeProvider.System);
+        var checker = new FinanceAdjustmentService(db, new Actor(tenantId, checkerUserId), TimeProvider.System);
         var postedReversal = await checker.ReviewFineReversalAsync(fineId,
             proposed.Data.ReversalReference, approval);
         Assert.True(postedReversal.Success, postedReversal.Message);
@@ -145,11 +156,26 @@ public sealed class SqlServerStudentFineInvoicePostingIntegrationTests
             .Where(x => x.JournalId == reversalId).ToListAsync();
         Assert.Equal(75m, reversalLines.Sum(x => x.DebitAmount));
         Assert.Equal(75m, reversalLines.Sum(x => x.CreditAmount));
-        var reconciled = await new FeeReceivablesAgingService(db, new Actor(tenantId, 300))
+        var reconciled = await new FeeReceivablesAgingService(db, new Actor(tenantId, checkerUserId))
             .GetReconciliationAsync(null, null, 1, 25);
         Assert.True(reconciled.Success, reconciled.Message);
         Assert.Equal("Reversed", Assert.Single(reconciled.Data!.Rows).Status);
         Assert.Equal(0m, Assert.Single(reconciled.Data.Rows).DueAmount);
+    }
+
+    private static ApplicationUser SeedUser(string role, string suffix)
+    {
+        var username = $"fine-{role}-{suffix}";
+        return new ApplicationUser
+        {
+            UserName = username,
+            NormalizedUserName = username.ToUpperInvariant(),
+            Email = username + "@example.test",
+            NormalizedEmail = (username + "@example.test").ToUpperInvariant(),
+            SecurityStamp = Guid.NewGuid().ToString("N"),
+            ConcurrencyStamp = Guid.NewGuid().ToString("N"),
+            FullName = "Fine CI " + role
+        };
     }
 
     private static IHttpContextAccessor Accessor(long tenantId)
