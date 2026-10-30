@@ -35,7 +35,7 @@ export async function initLotAging() {
                 [item.itemCode + ' — ' + item.itemName, item.lotOrBatchNo || '—',
                     item.unitCode, item.quantityOnHand, item.reservedQuantity,
                     item.availableQuantity, item.recordedCostBalance,
-                    item.latestInboundUtc ? new Date(item.latestInboundUtc).toLocaleString() + ' (UTC source)' : '—',
+                    item.latestInboundUtc ? new Date(item.latestInboundUtc).toISOString().replace('T', ' ').slice(0, 16) + ' UTC' : '—',
                     item.daysSinceLatestInbound, item.statusCode].forEach(value => tr.append(td(value)));
                 if (item.hasIntegrityException) tr.classList.add('table-danger');
                 else if (item.statusCode === 'Dormant') tr.classList.add('table-warning');

@@ -20,6 +20,7 @@ test('lot aging is a real server-authorized bilingual paged report with no synth
     assert.match(api, /"=\+-@/);
     assert.match(ui, /FIFO/);
     assert.match(ui, /bn \?/);
+    assert.match(js, /toISOString/);
     assert.match(js, /pagehide/);
     assert.match(js, /textContent/);
     assert.match(js, /noopener,noreferrer/);
