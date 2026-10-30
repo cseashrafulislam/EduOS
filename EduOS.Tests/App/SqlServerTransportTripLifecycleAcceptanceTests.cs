@@ -49,6 +49,124 @@ public sealed partial class SqlServerTransportSeatCapacityIntegrationTests
     }
 
     [Fact]
+    public async Task Competing_dispatch_keys_commit_one_frozen_manifest_and_replay_only_winner()
+    {
+        var connection = Environment.GetEnvironmentVariable("EDUOS_SQL_AUTH_TEST_CONNECTION");
+        if (string.IsNullOrWhiteSpace(connection)) return;
+        var state = await PlannedTripAsync(connection);
+        var keys = new[] { Guid.NewGuid(), Guid.NewGuid() };
+
+        async Task<(bool Success, int Status)> DispatchAsync(Guid key)
+        {
+            await using var db = ScopedContext(state.Fixture.Options, state.Fixture.TenantId, state.Fixture.UserId);
+            var response = await TripService(db, state.Fixture).DispatchAsync(state.Reference,
+                new DispatchTransportTripRequestDto
+                {
+                    ClientRequestId = key, RowVersion = state.RowVersion
+                });
+            return (response.Success, response.StatusCode);
+        }
+
+        var results = await Task.WhenAll(DispatchAsync(keys[0]), DispatchAsync(keys[1]));
+        AssertRetryableTripConflicts(results);
+        var winnerIndex = Array.FindIndex(results, x => x.Success);
+        if (winnerIndex < 0)
+        {
+            var retry = await DispatchAsync(keys[0]);
+            Assert.True(retry.Success, "A fresh dispatch must progress after SQL conflicts: " + retry.Status);
+            winnerIndex = 0;
+        }
+
+        await using var verify = ScopedContext(state.Fixture.Options, state.Fixture.TenantId, state.Fixture.UserId);
+        var trip = await verify.TransportTrips.AsNoTracking().SingleAsync(x =>
+            x.TenantId == state.Fixture.TenantId && x.PublicId == state.Reference);
+        Assert.Equal("Dispatched", trip.State);
+        Assert.Equal(keys[winnerIndex], trip.DispatchRequestId);
+        Assert.Equal(1, trip.RiderCount);
+        var snapshots = await verify.TransportTripRiders.AsNoTracking().Where(x =>
+            x.TenantId == state.Fixture.TenantId && x.TransportTripId == trip.Id).ToListAsync();
+        Assert.Equal(state.StudentCode, Assert.Single(snapshots).StudentCodeSnapshot);
+
+        Assert.True((await DispatchAsync(keys[winnerIndex])).Success,
+            "An idempotent dispatch replay must return the committed trip.");
+        Assert.Equal(409, (await DispatchAsync(keys[1 - winnerIndex])).Status);
+        await using var finalDb = ScopedContext(state.Fixture.Options, state.Fixture.TenantId, state.Fixture.UserId);
+        Assert.Equal(1, await finalDb.TransportTripRiders.CountAsync(x =>
+            x.TenantId == state.Fixture.TenantId && x.TransportTripId == trip.Id));
+    }
+
+    [Fact]
+    public async Task Dispatch_rechecks_overcapacity_after_plan_and_recovers_without_duplicate_riders()
+    {
+        var connection = Environment.GetEnvironmentVariable("EDUOS_SQL_AUTH_TEST_CONNECTION");
+        if (string.IsNullOrWhiteSpace(connection)) return;
+        var state = await PlannedTripAsync(connection);
+        long excessAssignmentId;
+        await using (var setup = ScopedContext(state.Fixture.Options, state.Fixture.TenantId, state.Fixture.UserId))
+        {
+            var existing = await setup.StudentTransports.AsNoTracking().SingleAsync(x =>
+                x.TenantId == state.Fixture.TenantId && x.VehicleId == state.Fixture.VehicleId &&
+                x.State == TransportAssignmentState.Active);
+            var second = await setup.StudentEnrollments.AsNoTracking().SingleAsync(x =>
+                x.TenantId == state.Fixture.TenantId && x.PublicId == state.Fixture.Enrollments[1]);
+            var excess = new StudentTransport
+            {
+                TenantId = state.Fixture.TenantId, ClientRequestId = Guid.NewGuid(),
+                StudentId = second.StudentId, StudentEnrollmentId = second.Id,
+                RouteVehicleAssignmentId = existing.RouteVehicleAssignmentId,
+                RouteId = existing.RouteId, VehicleId = existing.VehicleId,
+                PickupStopId = existing.PickupStopId, DropStopId = existing.DropStopId,
+                StartDate = existing.StartDate, EndDate = existing.EndDate,
+                State = TransportAssignmentState.Active, MonthlyFare = 0m
+            };
+            // Simulate a committed reservation drift after planning: dispatch
+            // must independently revalidate capacity, not trust a preview.
+            setup.StudentTransports.Add(excess);
+            await setup.SaveChangesAsync();
+            excessAssignmentId = excess.Id;
+        }
+
+        var key = Guid.NewGuid();
+        async Task<(bool Success, int Status)> DispatchAsync()
+        {
+            await using var db = ScopedContext(state.Fixture.Options, state.Fixture.TenantId, state.Fixture.UserId);
+            var result = await TripService(db, state.Fixture).DispatchAsync(state.Reference,
+                new DispatchTransportTripRequestDto { ClientRequestId = key, RowVersion = state.RowVersion });
+            return (result.Success, result.StatusCode);
+        }
+
+        var denied = await DispatchAsync();
+        Assert.False(denied.Success);
+        Assert.Equal(409, denied.Status);
+        await using (var check = ScopedContext(state.Fixture.Options, state.Fixture.TenantId, state.Fixture.UserId))
+        {
+            var planned = await check.TransportTrips.AsNoTracking().SingleAsync(x =>
+                x.TenantId == state.Fixture.TenantId && x.PublicId == state.Reference);
+            Assert.Equal("Planned", planned.State);
+            Assert.Equal(0, planned.RiderCount);
+            Assert.Empty(await check.TransportTripRiders.AsNoTracking().Where(x =>
+                x.TenantId == state.Fixture.TenantId && x.TransportTripId == planned.Id).ToListAsync());
+        }
+
+        await using (var reconcile = ScopedContext(state.Fixture.Options, state.Fixture.TenantId, state.Fixture.UserId))
+        {
+            var excess = await reconcile.StudentTransports.SingleAsync(x =>
+                x.TenantId == state.Fixture.TenantId && x.Id == excessAssignmentId);
+            excess.State = TransportAssignmentState.Cancelled;
+            await reconcile.SaveChangesAsync();
+        }
+        var accepted = await DispatchAsync();
+        Assert.True(accepted.Success, "Dispatch must resume after capacity is reconciled: " + accepted.Status);
+        await using var verify = ScopedContext(state.Fixture.Options, state.Fixture.TenantId, state.Fixture.UserId);
+        var trip = await verify.TransportTrips.AsNoTracking().SingleAsync(x =>
+            x.TenantId == state.Fixture.TenantId && x.PublicId == state.Reference);
+        Assert.Equal("Dispatched", trip.State);
+        Assert.Equal(1, trip.RiderCount);
+        Assert.Equal(1, await verify.TransportTripRiders.CountAsync(x =>
+            x.TenantId == state.Fixture.TenantId && x.TransportTripId == trip.Id));
+    }
+
+    [Fact]
     public async Task Trip_dispatch_freezes_one_rider_and_replays_without_duplicate_snapshots()
     {
         var connection = Environment.GetEnvironmentVariable("EDUOS_SQL_AUTH_TEST_CONNECTION");
@@ -286,9 +404,20 @@ public sealed partial class SqlServerTransportSeatCapacityIntegrationTests
             TimeProvider.System, new TripSqlFailureLogger());
 
     private sealed record DispatchedTripFixture(Fixture Fixture, Guid Reference,
-        Guid DispatchKey, string StudentCode);
+        Guid DispatchKey, string StudentCode, string RowVersion);
 
     private static async Task<DispatchedTripFixture> DispatchedTripAsync(string connection)
+    {
+        var state = await PlannedTripAsync(connection);
+        var key = Guid.NewGuid();
+        await using var db = ScopedContext(state.Fixture.Options, state.Fixture.TenantId, state.Fixture.UserId);
+        var dispatched = await TripService(db, state.Fixture).DispatchAsync(state.Reference,
+            new DispatchTransportTripRequestDto { ClientRequestId = key, RowVersion = state.RowVersion });
+        Assert.True(dispatched.Success, dispatched.Message);
+        return state with { DispatchKey = key, RowVersion = dispatched.Data!.RowVersion };
+    }
+
+    private static async Task<DispatchedTripFixture> PlannedTripAsync(string connection)
     {
         var fixture = await SeedAsync(connection);
         var today = DateOnly.FromDateTime(TimeProvider.System.GetLocalNow().DateTime);
@@ -347,16 +476,10 @@ public sealed partial class SqlServerTransportSeatCapacityIntegrationTests
             Direction = "Pickup"
         });
         Assert.True(planned.Success, planned.Message);
-        var dispatchKey = Guid.NewGuid();
-        var dispatched = await service.DispatchAsync(planned.Data!.Reference,
-            new DispatchTransportTripRequestDto
-            {
-                ClientRequestId = dispatchKey, RowVersion = planned.Data.RowVersion
-            });
-        Assert.True(dispatched.Success, dispatched.Message);
         var studentCode = await db.Students.Where(x => x.Id == enrollment.StudentId)
             .Select(x => x.StudentCode).SingleAsync();
-        return new DispatchedTripFixture(fixture, planned.Data.Reference, dispatchKey, studentCode);
+        return new DispatchedTripFixture(fixture, planned.Data!.Reference, Guid.Empty,
+            studentCode, planned.Data.RowVersion);
     }
 
     private sealed class RestrictedTransportManager(long tenant, long user) : ICurrentUserService
