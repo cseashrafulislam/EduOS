@@ -464,6 +464,18 @@ public sealed class HostelController : ControllerBase
     [Authorize(Roles = "TenantAdmin,Principal,HostelWarden")]
     public async Task<IActionResult> Close(long id, [FromBody] CloseStudentHostelAllocationRequestDto request, CancellationToken ct) => ToAction(await _service.CloseAsync(id, request, ct));
 
+    [HttpGet("allocations/{id:long}/occupied-transfer-beds")]
+    [Authorize(Roles = "TenantAdmin,Principal,HostelWarden")]
+    public async Task<IActionResult> OccupiedTransferBeds(long id, [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 25, CancellationToken ct = default) =>
+        ToAction(await _service.GetOccupiedTransferBedOptionsAsync(id, page, pageSize, ct));
+
+    [HttpPost("allocations/{id:long}/occupied-transfer-no-charge")]
+    [Authorize(Roles = "TenantAdmin,Principal,HostelWarden")]
+    public async Task<IActionResult> TransferOccupiedNoCharge(long id,
+        [FromBody] TransferOccupiedHostelRequestDto request, CancellationToken ct) =>
+        ToAction(await _service.TransferOccupiedNoChargeAsync(id, request, ct));
+
     [HttpPost("allocations/{id:long}/cancel")]
     [Authorize(Roles = "TenantAdmin,Principal,HostelWarden")]
     public async Task<IActionResult> CancelUpcomingAllocation(long id,

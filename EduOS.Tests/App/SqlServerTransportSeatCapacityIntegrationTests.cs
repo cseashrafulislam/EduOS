@@ -1577,7 +1577,7 @@ public sealed partial class SqlServerTransportSeatCapacityIntegrationTests
             new ReservationCommandReceiptStore(db, TimeProvider.System),
             new GenericRepository<HostelApplication>(db), new GenericRepository<HostelApplicationEvent>(db),
             new GenericRepository<HostelApplicationAuthority>(db), new GenericRepository<StudentGuardian>(db),
-            new GenericRepository<Guardian>(db));
+            new GenericRepository<Guardian>(db), new GenericRepository<EduOS.Core.Entities.System.AuditLog>(db));
 
     private static async Task<long[]> SeedHostelBedsAsync(Fixture fixture, int capacity, int count)
     {

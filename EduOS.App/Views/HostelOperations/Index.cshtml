@@ -156,6 +156,24 @@
                     <button id="hostelRoomMoveCancel" type="button" class="btn btn-outline-secondary btn-sm">Cancel</button>
                 </div>
             </section>
+            <section id="hostelOccupiedTransferPanel" class="border rounded p-3 mt-3 d-none" aria-labelledby="hostelOccupiedTransferTitle">
+                <h4 id="hostelOccupiedTransferTitle" class="h6">Transfer a currently occupied no-charge stay</h4>
+                <p id="hostelOccupiedTransferContext" class="small text-muted"></p>
+                <p class="small text-muted">Only effective today after at least one occupied day. Rent, deposit and fee-head must all be zero and Finance must have no issued or posted activity. The original allocation and bed history are preserved. Paid transfers remain locked pending Finance approval.</p>
+                <label class="form-label" for="hostelOccupiedTransferBed">Available destination (same campus)</label>
+                <select id="hostelOccupiedTransferBed" class="form-select mb-2" required><option value="">Select a bed</option></select>
+                <p id="hostelOccupiedTransferPage" class="small text-muted" role="status" aria-live="polite"></p>
+                <div class="d-flex gap-2 mb-2">
+                    <button id="hostelOccupiedTransferPrev" type="button" class="btn btn-outline-secondary btn-sm">Previous beds</button>
+                    <button id="hostelOccupiedTransferNext" type="button" class="btn btn-outline-secondary btn-sm">Next beds</button>
+                </div>
+                <label class="form-label" for="hostelOccupiedTransferReason">Reason (required for audit)</label>
+                <textarea id="hostelOccupiedTransferReason" class="form-control mb-2" maxlength="500" rows="2" placeholder="Explain why the resident is moving" required></textarea>
+                <div class="d-flex gap-2">
+                    <button id="hostelOccupiedTransferSave" type="button" class="btn btn-primary btn-sm">Transfer resident today</button>
+                    <button id="hostelOccupiedTransferCancel" type="button" class="btn btn-outline-secondary btn-sm">Cancel</button>
+                </div>
+            </section>
             <div class="d-flex gap-3 justify-content-between align-items-center"><button id="hostelPrev" class="btn btn-outline-secondary btn-sm" type="button">Previous</button><span id="hostelPageInfo" class="small text-muted"></span><button id="hostelNext" class="btn btn-outline-secondary btn-sm" type="button">Next</button></div>
         </div></section>
     }
@@ -388,6 +406,7 @@
     }
     @if (canManage) {
         <script src="~/js/hostel-operations/upcoming-room-change.js" asp-append-version="true"></script>
+        <script src="~/js/hostel-operations/occupied-transfer.js" asp-append-version="true"></script>
         <script src="~/js/hostel-operations/upcoming-start-reschedule.js" asp-append-version="true"></script>
         <script src="~/js/hostel-operations/no-charge-stay-extension.js" asp-append-version="true"></script>
         <script src="~/js/hostel-operations/upcoming-no-charge-shortening.js" asp-append-version="true"></script>

@@ -5,6 +5,7 @@ using EduOS.Core.Entities.Auth;
 using EduOS.Core.Entities.SaaS;
 using EduOS.Core.Entities.Hostel;
 using EduOS.Core.Entities.Students;
+using EduOS.Core.Entities.System;
 using EduOS.Core.Enums.Domain;
 using EduOS.Core.Interfaces;
 using EduOS.Core.Interfaces.IRepositories;
@@ -30,6 +31,7 @@ public sealed partial class HostelService : IHostelService
     private readonly IGenericRepository<HostelApplicationAuthority> _applicationAuthorities;
     private readonly IGenericRepository<StudentGuardian> _studentGuardians;
     private readonly IGenericRepository<Guardian> _guardians;
+    private readonly IGenericRepository<AuditLog> _auditLogs;
     private readonly IUnitOfWork _unitOfWork;
     private readonly IReservationFinancePolicy _reservationFinancePolicy;
     private readonly IReservationCommandReceiptStore _commandReceipts;
@@ -47,7 +49,8 @@ public sealed partial class HostelService : IHostelService
         IGenericRepository<HostelApplication> applications,
         IGenericRepository<HostelApplicationEvent> applicationEvents,
         IGenericRepository<HostelApplicationAuthority> applicationAuthorities,
-        IGenericRepository<StudentGuardian> studentGuardians, IGenericRepository<Guardian> guardians)
+        IGenericRepository<StudentGuardian> studentGuardians, IGenericRepository<Guardian> guardians,
+        IGenericRepository<AuditLog> auditLogs)
     {
         _hostels = hostels; _rooms = rooms; _beds = beds; _allocations = allocations;
         _enrollments = enrollments; _students = students; _campusAccesses = campusAccesses;
@@ -57,6 +60,7 @@ public sealed partial class HostelService : IHostelService
         _commandReceipts = commandReceipts;
         _applications = applications; _applicationEvents = applicationEvents;
         _applicationAuthorities = applicationAuthorities; _studentGuardians = studentGuardians; _guardians = guardians;
+        _auditLogs = auditLogs;
     }
 
 
@@ -477,6 +481,8 @@ public sealed partial class HostelService : IHostelService
             CanShortenNoCharge = x.MonthlyRent == 0m && x.SecurityDeposit == 0m &&
                 !x.FeeHeadId.HasValue && x.StartDate > today && x.EndDate.HasValue &&
                 x.EndDate.Value > x.StartDate,
+            CanTransferNoCharge = x.MonthlyRent == 0m && x.SecurityDeposit == 0m &&
+                !x.FeeHeadId.HasValue && x.StartDate < today,
             RowVersion = Convert.ToBase64String(x.RowVersion)
         }).ToList();
         return ApiResponse<PagedResult<HostelAllocationRowDto>>.SuccessResponse(new PagedResult<HostelAllocationRowDto>

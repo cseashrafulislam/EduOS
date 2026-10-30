@@ -180,6 +180,131 @@ public sealed class HostelApplicationWorkflowTests
         Assert.Equal(403, (await fixture.Service.GetApplicationEventsAsync(submitted.Data.Id)).StatusCode);
     }
 
+    [Fact]
+    public async Task Occupied_no_charge_transfer_splits_canonical_history_and_replays_exactly_once()
+    {
+        await using var fixture = await Fixture.CreateAsync();
+        fixture.ActivateContext(); fixture.User.AsWarden();
+        var (source, destination, request) = await PrepareOccupiedTransferAsync(fixture);
+        var options = await fixture.Service.GetOccupiedTransferBedOptionsAsync(source.Id, 1, 25);
+        Assert.True(options.Success, options.Message);
+        Assert.Equal(destination.Id, Assert.Single(options.Data!.Items).Id);
+        var moved = await fixture.Service.TransferOccupiedNoChargeAsync(source.Id, request);
+        Assert.True(moved.Success, moved.Message);
+        Assert.Equal(source.Id, moved.Data!.SourceAllocationId);
+        var predecessor = await fixture.Db.StudentHostelAllocations.SingleAsync(x => x.Id == source.Id);
+        var successor = await fixture.Db.StudentHostelAllocations.SingleAsync(x => x.PreviousAllocationId == source.Id);
+        Assert.Equal(destination.Id, successor.HostelBedId);
+        Assert.Equal(fixture.Bed.Id, predecessor.HostelBedId);
+        Assert.Equal(HostelAllocationState.Closed, predecessor.State);
+        Assert.Equal(request.EffectiveFrom.AddDays(-1), predecessor.EndDate);
+        Assert.Equal(request.EffectiveFrom, successor.StartDate);
+        Assert.Equal(0m, successor.MonthlyRent);
+        Assert.Equal(0m, successor.SecurityDeposit);
+        Assert.Equal(moved.Data.SuccessorAllocationId, successor.Id);
+        Assert.Equal(source.StudentEnrollmentId, successor.StudentEnrollmentId);
+        Assert.Equal(source.EndDate, request.EffectiveFrom.AddDays(-1));
+        var retry = await fixture.Service.TransferOccupiedNoChargeAsync(source.Id, request);
+        Assert.True(retry.Success, retry.Message);
+        Assert.Equal(moved.Data.SuccessorAllocationId, retry.Data!.SuccessorAllocationId);
+        Assert.Equal(2, await fixture.Db.StudentHostelAllocations.CountAsync());
+        Assert.Single(fixture.Db.IdempotencyRecords.Where(x => x.Scope == "hostel.occupied-transfer"));
+        Assert.Single(fixture.Db.AuditLogs.Where(x => x.Action == "HostelOccupiedTransfer"));
+        request.Reason = "Changed transfer reason";
+        Assert.Equal(409, (await fixture.Service.TransferOccupiedNoChargeAsync(source.Id, request)).StatusCode);
+    }
+
+    [Fact]
+    public async Task Occupied_transfer_blocks_stale_version_charged_terms_and_capacity_collision()
+    {
+        await using var fixture = await Fixture.CreateAsync();
+        fixture.ActivateContext(); fixture.User.AsWarden();
+        var (source, destination, request) = await PrepareOccupiedTransferAsync(fixture);
+        request.SourceRowVersion = Convert.ToBase64String([9, 9, 9]);
+        Assert.Equal(409, (await fixture.Service.TransferOccupiedNoChargeAsync(source.Id, request)).StatusCode);
+        request.SourceRowVersion = Convert.ToBase64String(source.RowVersion);
+        request.DestinationBedRowVersion = Convert.ToBase64String([9, 9, 9]);
+        Assert.Equal(409, (await fixture.Service.TransferOccupiedNoChargeAsync(source.Id, request)).StatusCode);
+        request.DestinationBedRowVersion = Convert.ToBase64String(destination.RowVersion);
+        source.MonthlyRent = 1200m;
+        await fixture.Db.SaveChangesAsync();
+        Assert.Equal(409, (await fixture.Service.TransferOccupiedNoChargeAsync(source.Id, request)).StatusCode);
+        source.MonthlyRent = 0m;
+        await fixture.Db.SaveChangesAsync();
+        var other = new StudentHostelAllocation
+        {
+            TenantId = 101, StudentId = 999, StudentEnrollmentId = 999,
+            HostelBedId = destination.Id, ClientRequestId = Guid.NewGuid(),
+            StartDate = request.EffectiveFrom.AddDays(2), EndDate = request.EffectiveFrom.AddDays(3),
+            State = HostelAllocationState.Active
+        };
+        fixture.Db.Add(other); await fixture.Db.SaveChangesAsync();
+        Assert.Equal(409, (await fixture.Service.TransferOccupiedNoChargeAsync(source.Id, request)).StatusCode);
+        Assert.Null(source.PreviousAllocationId);
+        Assert.Equal(HostelAllocationState.Active, source.State);
+        Assert.DoesNotContain(fixture.Db.StudentHostelAllocations, x => x.PreviousAllocationId == source.Id);
+    }
+
+    [Fact]
+    public void Occupied_transfer_period_guards_today_and_nonzero_predecessor()
+    {
+        var today = new DateOnly(2026, 10, 31);
+        Assert.True(HostelService.CanTransferOccupiedToday(today.AddDays(-1), null, today, today));
+        Assert.True(HostelService.CanTransferOccupiedToday(today.AddDays(-10), today, today, today));
+        Assert.False(HostelService.CanTransferOccupiedToday(today, null, today, today));
+        Assert.False(HostelService.CanTransferOccupiedToday(today.AddDays(-1), null, today.AddDays(1), today));
+        Assert.False(HostelService.CanTransferOccupiedToday(today.AddDays(-3), today.AddDays(-1), today, today));
+    }
+
+    [Fact]
+    public async Task Occupied_transfer_rejects_unauthorized_actor_and_future_or_same_day_effective_dates()
+    {
+        await using var fixture = await Fixture.CreateAsync();
+        fixture.ActivateContext();
+        var (source, _, request) = await PrepareOccupiedTransferAsync(fixture);
+        fixture.User.AsStudent();
+        Assert.Equal(403, (await fixture.Service.TransferOccupiedNoChargeAsync(source.Id, request)).StatusCode);
+        fixture.User.AsWarden();
+        request.EffectiveFrom = request.EffectiveFrom.AddDays(1);
+        Assert.Equal(409, (await fixture.Service.TransferOccupiedNoChargeAsync(source.Id, request)).StatusCode);
+        request.EffectiveFrom = DateOnly.FromDateTime(TimeProvider.System.GetLocalNow().DateTime);
+        request.Reason = " ";
+        Assert.Equal(400, (await fixture.Service.TransferOccupiedNoChargeAsync(source.Id, request)).StatusCode);
+        Assert.Single(fixture.Db.StudentHostelAllocations);
+        Assert.Empty(fixture.Db.IdempotencyRecords.Where(x => x.Scope == "hostel.occupied-transfer"));
+    }
+
+    private static async Task<(StudentHostelAllocation Source, HostelBed Destination, TransferOccupiedHostelRequestDto Request)>
+        PrepareOccupiedTransferAsync(Fixture fixture)
+    {
+        var room = await fixture.Db.HostelRooms.SingleAsync();
+        room.Capacity = 2;
+        var destination = new HostelBed
+        {
+            TenantId = 101, HostelRoomId = room.Id, BedNumber = "B", RowVersion = [5, 6, 7, 8]
+        };
+        fixture.Db.Add(destination);
+        var today = DateOnly.FromDateTime(TimeProvider.System.GetLocalNow().DateTime);
+        var source = new StudentHostelAllocation
+        {
+            TenantId = 101, ClientRequestId = Guid.NewGuid(), StudentId = fixture.Enrollment.StudentId,
+            StudentEnrollmentId = fixture.Enrollment.Id, HostelBedId = fixture.Bed.Id,
+            StartDate = today.AddDays(-3), EndDate = today.AddDays(6),
+            MonthlyRent = 0m, SecurityDeposit = 0m, State = HostelAllocationState.Active,
+            RowVersion = [1, 2, 3, 4]
+        };
+        fixture.Db.Add(source);
+        await fixture.Db.SaveChangesAsync();
+        source.RowVersion = [1, 2, 3, 4]; destination.RowVersion = [5, 6, 7, 8];
+        return (source, destination, new TransferOccupiedHostelRequestDto
+        {
+            ClientRequestId = Guid.NewGuid(), DestinationBedId = destination.Id,
+            EffectiveFrom = today, SourceRowVersion = Convert.ToBase64String(source.RowVersion),
+            DestinationBedRowVersion = Convert.ToBase64String(destination.RowVersion),
+            Reason = "Move resident for safety"
+        });
+    }
+
     private sealed class MutableUser : ICurrentUserService
     {
         public long UserId { get; private set; } = 41;
@@ -276,7 +401,7 @@ public sealed class HostelApplicationWorkflowTests
                 new EduOS.Service.Services.Platform.ReservationCommandReceiptStore(db, TimeProvider.System),
                 new GenericRepository<HostelApplication>(db), new GenericRepository<HostelApplicationEvent>(db),
                 new GenericRepository<HostelApplicationAuthority>(db), new GenericRepository<StudentGuardian>(db),
-                new GenericRepository<Guardian>(db));
+                new GenericRepository<Guardian>(db), new GenericRepository<EduOS.Core.Entities.System.AuditLog>(db));
             return new Fixture { Db = db, Service = service, User = user, Accessor = accessor, Http = http,
                 Enrollment = enrollment, Hostel = hostel, Bed = bed, Guardian = guardian };
         }

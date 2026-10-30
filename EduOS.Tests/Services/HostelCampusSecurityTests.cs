@@ -381,7 +381,7 @@ public sealed class HostelCampusSecurityTests
         new EduOS.Service.Services.Platform.ReservationCommandReceiptStore(db, TimeProvider.System),
         new GenericRepository<HostelApplication>(db), new GenericRepository<HostelApplicationEvent>(db),
         new GenericRepository<HostelApplicationAuthority>(db), new GenericRepository<StudentGuardian>(db),
-        new GenericRepository<Guardian>(db));
+        new GenericRepository<Guardian>(db), new GenericRepository<EduOS.Core.Entities.System.AuditLog>(db));
 
     private sealed class TestUnitOfWork(EduOSDbContext db) : IUnitOfWork
     {

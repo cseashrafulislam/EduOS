@@ -145,6 +145,13 @@
                     extend.addEventListener('click', () => window.hostelNoChargeStayExtension?.begin(item));
                     actions.append(extend);
                 }
+                if (!future && item.canTransferNoCharge) {
+                    const transfer = document.createElement('button');
+                    transfer.type = 'button'; transfer.className = 'btn btn-outline-primary btn-sm ms-2';
+                    transfer.textContent = 'Transfer resident';
+                    transfer.addEventListener('click', () => window.hostelOccupiedTransfer?.begin(item));
+                    actions.append(transfer);
+                }
                 tr.append(actions); body.append(tr);
             }
             if (!info.items?.length) { const tr = document.createElement('tr'), cell = td('No active allocations.'); cell.colSpan = 6; tr.append(cell); body.append(tr); }
@@ -262,6 +269,9 @@
         });
         window.addEventListener('hostel-room-change-completed', () => {
             dismissBedMove(); loadActive(); loadBeds();
+        });
+        window.addEventListener('hostel-occupied-transfer-completed', () => {
+            dismissBedMove(); loadActive(); loadBeds(); loadMine();
         });
         loadStudents(); loadBeds(); loadActive();
     }
