@@ -4,6 +4,7 @@ using EduOS.Core.Entities.Library;
 using EduOS.Core.Entities.System;
 using EduOS.Core.Enums.Domain;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Data.SqlClient;
 using System.Data;
 using System.Text.Json;
 using System.Transactions;
@@ -176,8 +177,15 @@ public sealed partial class LibraryService
         }
         catch (DbUpdateConcurrencyException)
         { return ApiResponse<LibraryCopyConditionDto>.ErrorResponse("Concurrent copy or loan update rejected.", 409); }
-        catch (DbUpdateException)
+        catch (DbUpdateException ex) when (IsConditionSqlConflict(ex))
         { return ApiResponse<LibraryCopyConditionDto>.ErrorResponse("Concurrent condition write rejected.", 409); }
+        catch (SqlException ex) when (IsConditionSqlConflict(ex))
+        { return ApiResponse<LibraryCopyConditionDto>.ErrorResponse("Concurrent condition transaction rejected.", 409); }
+        catch (DbUpdateException ex)
+        {
+            _logger.LogError(ex, "Library condition database failure tenant {TenantId}", tenant);
+            return ApiResponse<LibraryCopyConditionDto>.ErrorResponse("Copy condition could not be recorded.", 500);
+        }
         catch (TransactionAbortedException)
         { return ApiResponse<LibraryCopyConditionDto>.ErrorResponse("Concurrent condition transaction rejected.", 409); }
         catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
@@ -232,6 +240,14 @@ public sealed partial class LibraryService
         return ApiResponse<PagedResult<LibraryCopyConditionHistoryDto>>.SuccessResponse(
             new PagedResult<LibraryCopyConditionHistoryDto>
             { Items = rows, TotalCount = count, Page = page, PageSize = pageSize });
+    }
+
+    private static bool IsConditionSqlConflict(Exception exception)
+    {
+        for (Exception? current = exception; current != null; current = current.InnerException)
+            if (current is SqlException sql && sql.Number is 1205 or 2601 or 2627 or 3960)
+                return true;
+        return false;
     }
 
     private async Task<LibraryCopyConditionDto> ConditionSnapshotAsync(BookCopy copy, CancellationToken ct)
