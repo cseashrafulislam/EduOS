@@ -16,7 +16,7 @@ public sealed partial class InventoryMovementService
             var lot = line.LotOrBatchNo ?? "";
             if (original.FromLocationId.HasValue)
                 Add(Get(balances, line.InventoryItemId, original.FromLocationId.Value, lot), line.Quantity, line.UnitCost);
-            if (original.ToLocationId.HasValue)
+            if (original.ToLocationId.HasValue && original.SourceType != "TransferDispatch")
                 Add(Get(balances, line.InventoryItemId, original.ToLocationId.Value, lot), -line.Quantity, line.UnitCost);
         }
         return Nonnegative(balances.Values) ? (null, lines) : ("Reversal would create negative stock or invalid valuation.", lines);

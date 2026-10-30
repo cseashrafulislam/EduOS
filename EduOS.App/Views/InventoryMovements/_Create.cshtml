@@ -1,7 +1,7 @@
 <div class="card mb-3"><div class="card-body">
     <h3 class="h5">Create stock movement draft</h3>
     <form id="movementForm" class="row g-2">
-        <div class="col-md-2"><label for="movementType" class="form-label">Movement</label><select id="movementType" class="form-select"><option value="Receipt">Receipt</option><option value="Issue">Issue</option><option value="Transfer">Transfer</option></select></div>
+        <div class="col-md-2"><label for="movementType" class="form-label">Movement</label><select id="movementType" class="form-select"><option value="Receipt">Receipt</option><option value="Issue">Issue</option><option value="Transfer">Instant transfer</option><option value="TransferDispatch">Transfer dispatch (in transit)</option></select></div>
         <div class="col-md-3"><label for="movementFrom" class="form-label">From location</label><select id="movementFrom" class="form-select"></select></div>
         <div class="col-md-3"><label for="movementTo" class="form-label">To location</label><select id="movementTo" class="form-select"></select></div>
         <div class="col-md-4"><label for="movementReason" class="form-label">Reason / provenance</label><input id="movementReason" class="form-control" minlength="10" maxlength="1000" required placeholder="Explain the authorized stock operation" /></div>

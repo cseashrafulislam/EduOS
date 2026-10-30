@@ -25,6 +25,9 @@ public sealed partial class InventoryMovementsController
     [HttpPost("{reference:guid}/post"), Authorize(Roles = "TenantAdmin,Principal,InventoryManager")]
     public async Task<IActionResult> Post(Guid reference, [FromBody] PostInventoryMovementRequestDto request, CancellationToken ct)
         => Reply(await service.PostMovementAsync(reference, request, ct));
+    [HttpPost("transfers/{reference:guid}/receive"), Authorize(Roles = "TenantAdmin,Principal,InventoryManager,StoreKeeper")]
+    public async Task<IActionResult> ReceiveTransfer(Guid reference, [FromBody] ReceiveInventoryTransferRequestDto request, CancellationToken ct)
+        => Reply(await service.ReceiveTransferAsync(reference, request, ct));
     [HttpPost("{reference:guid}/reverse"), Authorize(Roles = "TenantAdmin,Principal")]
     public async Task<IActionResult> Reverse(Guid reference, [FromBody] ReverseInventoryMovementRequestDto request, CancellationToken ct)
         => Reply(await service.ReverseMovementAsync(reference, request, ct));

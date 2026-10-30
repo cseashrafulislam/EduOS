@@ -24,8 +24,23 @@ public sealed partial class InventoryMovementService
         var reversed = (await db.InventoryMovements.AsNoTracking().Where(x => x.TenantId == user.TenantId &&
             x.ReversalOfMovementId.HasValue && ids.Contains(x.ReversalOfMovementId.Value) &&
             x.StateCode == "Posted" && !x.IsDeleted).Select(x => x.ReversalOfMovementId!.Value).ToListAsync(ct)).ToHashSet();
+        var dispatchIds = movements.Where(x => x.SourceType == "TransferDispatch").Select(x => x.Id).ToArray();
+        var receipts = await db.InventoryMovements.AsNoTracking()
+            .Where(x => x.TenantId == user.TenantId && x.SourceType == "TransferReceipt" &&
+                x.SourceId.HasValue && dispatchIds.Contains(x.SourceId.Value) && !x.IsDeleted)
+            .Select(x => new { x.Id, DispatchId = x.SourceId!.Value }).ToListAsync(ct);
+        var receiptIds = receipts.Select(x => x.Id).ToArray();
+        var compensatedReceipts = (await db.InventoryMovements.AsNoTracking()
+            .Where(x => x.TenantId == user.TenantId && x.ReversalOfMovementId.HasValue &&
+                receiptIds.Contains(x.ReversalOfMovementId.Value) && x.StateCode == "Posted" && !x.IsDeleted)
+            .Select(x => x.ReversalOfMovementId!.Value).ToListAsync(ct)).ToHashSet();
+        var receiptStates = receipts.ToDictionary(x => x.DispatchId,
+            x => compensatedReceipts.Contains(x.Id) ? "ReceiptReversed" : "Received");
         return ApiResponse<PagedResult<InventoryMovementDto>>.SuccessResponse(new PagedResult<InventoryMovementDto> {
-            Items = movements.Select(x => Map(x, lines.Where(l => l.InventoryMovementId == x.Id), reversed.Contains(x.Id))).ToList(),
+            Items = movements.Select(x => Map(x, lines.Where(l => l.InventoryMovementId == x.Id),
+                reversed.Contains(x.Id), x.SourceType == "TransferDispatch" ?
+                    reversed.Contains(x.Id) ? "Cancelled" :
+                    receiptStates.GetValueOrDefault(x.Id, "InTransit") : null)).ToList(),
             Page = page, PageSize = pageSize, TotalCount = total
         });
     }

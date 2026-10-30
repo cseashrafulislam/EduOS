@@ -50,6 +50,8 @@ public sealed class InventoryMovementDto
     public Guid Reference { get; set; }
     public string MovementNumber { get; set; } = string.Empty;
     public string MovementTypeCode { get; set; } = string.Empty;
+    public string? SourceType { get; set; }
+    public string? TransferState { get; set; }
     public DateTime MovementAt { get; set; }
     public long? FromLocationId { get; set; }
     public long? ToLocationId { get; set; }
@@ -93,6 +95,10 @@ public sealed class ReverseInventoryMovementRequestDto
     public Guid ClientRequestId { get; set; }
     [Required, MaxLength(1000)] public string Reason { get; set; } = string.Empty;
     [Required] public string RowVersion { get; set; } = string.Empty;
+}
+public sealed class ReceiveInventoryTransferRequestDto
+{
+    public Guid ClientRequestId { get; set; }
 }
 public sealed class InventoryBalanceDto
 {

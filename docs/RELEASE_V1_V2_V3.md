@@ -55,3 +55,13 @@ Complete Inventory/Procurement/Store; Asset and Facility lifecycle; Visitor/Camp
 **Architecture:** maintain one existing SQL Server DB and EduOSDbContext and current modular monolith. No current database splitting or mass renaming. App deployment may be separated from SQL hosting when measured operationally appropriate. Any later multi-DB tenant relocation is a separately approved engineering project.
 
 **Task execution:** The currently approved V2 automations own **only LMS, Library, Hostel and Transport**. They must read `AGENTS.md`, this contract and the V1 freeze document, check current `Ashraful` HEAD, avoid duplicate/loop work, and leave V1 modules in maintenance/acceptance rather than generating a new V1 backlog. They must not disable themselves unless the owner says OFF. A promised time target cannot waive tenant isolation, tests or data safety.
+
+## Owner task allocation override — 2026-10-30
+
+The owner explicitly retargeted the five **existing** hourly development tasks to V3,
+superseding historical V2-task allocation sentences above and in AGENTS.md.
+The five owned V3 tracks are Inventory & Store, Procurement, Fixed Assets,
+Facilities & Campus, and Enterprise & QA. This changes task ownership, **not**
+V1/V2 release boundaries or completion claims: preserve V2 LMS/Library/Hostel/
+Transport code and unfinished acceptance, and do not duplicate V1 education,
+finance, HR or V2 domain workflows in V3. Only the owner may turn tasks OFF.

@@ -32,7 +32,8 @@ public sealed partial class InventoryMovementService
             if (movement.MovementTypeCode != "Receipt") line.UnitCost = costs[(line.InventoryItemId, lot)];
             if (movement.FromLocationId.HasValue)
                 Add(Get(balances, line.InventoryItemId, movement.FromLocationId.Value, lot), -line.Quantity, line.UnitCost);
-            if (movement.ToLocationId.HasValue)
+            // Dispatch debits origin only. Its separately authorized receipt credits destination.
+            if (movement.ToLocationId.HasValue && movement.SourceType != "TransferDispatch")
                 Add(Get(balances, line.InventoryItemId, movement.ToLocationId.Value, lot), line.Quantity, line.UnitCost);
         }
         return Nonnegative(balances.Values) ? (null, lines) : ("Posting would create negative stock or invalid valuation.", lines);

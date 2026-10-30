@@ -8,6 +8,16 @@
     <header class="d-flex justify-content-between align-items-center mb-3"><div><h2>Inventory Movements</h2><p class="text-muted">Draft, post and reverse auditable stock receipts, issues and transfers. Posted records are immutable.</p></div><a class="btn btn-outline-secondary" href="/InventoryCatalog/Index">Inventory Catalog</a></header>
     <div id="movementAlert" class="d-none" role="alert"></div>
     @if (canCreate) { @await Html.PartialAsync("_Create") }
+    @if (canCreate) {
+        <div class="card mb-3"><div class="card-body">
+            <h3 class="h5">@(System.Globalization.CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "bn" ? "ট্রান্সফার গ্রহণ" : "Receive in-transit stock")</h3>
+            <form id="transferReceiveForm" class="row g-2">
+                <div class="col-md-8"><label for="transferDispatchReference" class="form-label">@(System.Globalization.CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "bn" ? "ডিসপ্যাচ রেফারেন্স (UUID)" : "Dispatch reference (UUID)")</label>
+                    <input id="transferDispatchReference" class="form-control" required maxlength="36" autocomplete="off" /></div>
+                <div class="col-md-4 d-flex align-items-end"><button class="btn btn-primary" type="submit">@(System.Globalization.CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "bn" ? "স্টক গ্রহণ করুন" : "Receive stock")</button></div>
+            </form>
+        </div></div>
+    }
     @await Html.PartialAsync("_Ledger")
     @await Html.PartialAsync("_Reorder")
     @await Html.PartialAsync("_StockPosition")

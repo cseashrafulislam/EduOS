@@ -28,10 +28,11 @@ export async function initForm(refresh) {
         const type = el('movementType').value, from = Number(el('movementFrom').value) || null;
         const to = Number(el('movementTo').value) || null;
         if (!editor.lines.length || (type !== 'Receipt' && !from) || (type !== 'Issue' && !to) ||
-            (type === 'Transfer' && from === to)) return notice('Check locations and add at least one line.');
-        const body = { clientRequestId: requestId, movementTypeCode: type,
+            ((type === 'Transfer' || type === 'TransferDispatch') && from === to)) return notice('Check locations and add at least one line.');
+        const body = { clientRequestId: requestId, movementTypeCode: type === 'TransferDispatch' ? 'Issue' : type,
             fromLocationId: type === 'Receipt' ? null : from, toLocationId: type === 'Issue' ? null : to,
-            sourceType: type === 'Receipt' ? 'ManualReceipt' : type === 'Issue' ? 'ManualIssue' : 'ManualTransfer',
+            sourceType: type === 'Receipt' ? 'ManualReceipt' : type === 'Issue' ? 'ManualIssue' :
+                type === 'TransferDispatch' ? 'TransferDispatch' : 'ManualTransfer',
             remarks: el('movementReason').value.trim(),
             lines: editor.lines.map(({ label, ...rest }) => rest) };
         try { await api('movements', 'POST', body); requestId = crypto.randomUUID(); editor.clear();

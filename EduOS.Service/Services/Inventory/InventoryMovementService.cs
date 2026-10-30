@@ -72,9 +72,10 @@ public sealed partial class InventoryMovementService : IInventoryMovementService
     private static void Add(Balance balance, decimal quantity, decimal cost) { balance.Quantity += quantity; balance.Value += quantity * cost; }
     private static bool Nonnegative(IEnumerable<Balance> balances) => balances.All(x => x.Quantity >= 0m && x.Value >= 0m &&
         (x.Quantity != 0m || Math.Abs(x.Value) <= 0.01m));
-    private static InventoryMovementDto Map(InventoryMovement m, IEnumerable<InventoryMovementLine> lines, bool reversed = false) => new()
+    private static InventoryMovementDto Map(InventoryMovement m, IEnumerable<InventoryMovementLine> lines, bool reversed = false, string? transferState = null) => new()
     {
         Reference = m.PublicId, MovementNumber = m.MovementNumber, MovementTypeCode = m.MovementTypeCode,
+        SourceType = m.SourceType, TransferState = transferState,
         MovementAt = m.MovementAt, FromLocationId = m.FromLocationId, ToLocationId = m.ToLocationId,
         StateCode = reversed ? "Reversed" : m.StateCode, PostedAt = m.PostedAt,
         RowVersion = Convert.ToBase64String(m.RowVersion),
@@ -88,6 +89,19 @@ public sealed partial class InventoryMovementService : IInventoryMovementService
             x.InventoryMovementId == movement.Id && !x.IsDeleted).OrderBy(x => x.LineNo).ToListAsync(ct);
         var reversed = await db.InventoryMovements.AsNoTracking().AnyAsync(x => x.TenantId == user.TenantId &&
             x.ReversalOfMovementId == movement.Id && x.StateCode == "Posted" && !x.IsDeleted, ct);
-        return Map(movement, lines, reversed);
+        string? transferState = null;
+        if (movement.SourceType == "TransferDispatch")
+        {
+            var receipt = await db.InventoryMovements.AsNoTracking()
+                .Where(x => x.TenantId == user.TenantId && x.SourceType == "TransferReceipt" &&
+                    x.SourceId == movement.Id && !x.IsDeleted)
+                .Select(x => new { x.Id }).FirstOrDefaultAsync(ct);
+            var receiptReversed = receipt != null && await db.InventoryMovements.AsNoTracking()
+                .AnyAsync(x => x.TenantId == user.TenantId && x.ReversalOfMovementId == receipt.Id &&
+                    x.StateCode == "Posted" && !x.IsDeleted, ct);
+            transferState = reversed ? "Cancelled" : receipt == null ? "InTransit" :
+                receiptReversed ? "ReceiptReversed" : "Received";
+        }
+        return Map(movement, lines, reversed, transferState);
     }
 }

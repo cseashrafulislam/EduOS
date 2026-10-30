@@ -30,6 +30,8 @@ public sealed partial class InventoryMovementService
             await tx.CommitAsync(ct);
             return ApiResponse<InventoryMovementDto>.SuccessResponse(Map(m, lines), "Stock posted.");
         }
+        catch (Microsoft.Data.SqlClient.SqlException ex) when (ex.Number is 1205 or 1222 or 3960)
+        { logger.LogWarning(ex, "Inventory post SQL race"); return ApiResponse<InventoryMovementDto>.ErrorResponse("Posting conflict; reload.", 409); }
         catch (DbUpdateException ex) { logger.LogWarning(ex, "Inventory post conflict");
             return ApiResponse<InventoryMovementDto>.ErrorResponse("Posting conflict; reload.", 409); }
     }

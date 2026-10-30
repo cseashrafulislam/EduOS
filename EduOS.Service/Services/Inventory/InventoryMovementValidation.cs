@@ -11,10 +11,14 @@ public sealed partial class InventoryMovementService
         var type = request.MovementTypeCode?.Trim();
         var source = request.SourceType?.Trim();
         var sourceAllowed = (type == "Receipt" && (source == "ManualReceipt" || source == "OpeningBalance")) ||
-            (type == "Issue" && source == "ManualIssue") || (type == "Transfer" && source == "ManualTransfer");
+            (type == "Issue" && (source == "ManualIssue" || source == "TransferDispatch")) ||
+            (type == "Transfer" && source == "ManualTransfer");
         if (!sourceAllowed || request.SourceId.HasValue ||
             (type == "Receipt" && (request.ToLocationId is null or <= 0 || request.FromLocationId.HasValue)) ||
-            (type == "Issue" && (request.FromLocationId is null or <= 0 || request.ToLocationId.HasValue)) ||
+            (type == "Issue" && (request.FromLocationId is null or <= 0 ||
+                (source == "ManualIssue" && request.ToLocationId.HasValue) ||
+                (source == "TransferDispatch" && (request.ToLocationId is null or <= 0 ||
+                    request.ToLocationId == request.FromLocationId)))) ||
             (type == "Transfer" && (request.FromLocationId is null or <= 0 || request.ToLocationId is null or <= 0 ||
                 request.FromLocationId == request.ToLocationId)))
             return "Invalid movement location/source; linked procurement documents require verified integration.";
