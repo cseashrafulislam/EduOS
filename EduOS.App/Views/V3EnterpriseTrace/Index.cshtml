@@ -10,8 +10,15 @@
         </details>
     </header>
     <form id="v3TraceForm" class="row g-2 mb-3">
-        <div class="col-sm-8 col-lg-6">
-            <label class="form-label" for="v3TraceReference">@(bn ? "মুভমেন্ট UUID" : "Movement UUID")</label>
+        <div class="col-sm-4 col-lg-3">
+            <label class="form-label" for="v3TraceKind">@(bn ? "প্রমাণের ধরন" : "Evidence type")</label>
+            <select id="v3TraceKind" class="form-select">
+                <option value="stock">@(bn ? "স্টক মুভমেন্ট" : "Stock movement")</option>
+                <option value="asset">@(bn ? "সম্পদ অবচয় রান" : "Asset depreciation run")</option>
+            </select>
+        </div>
+        <div class="col-sm-8 col-lg-5">
+            <label class="form-label" for="v3TraceReference">@(bn ? "রেফারেন্স UUID" : "Reference UUID")</label>
             <input id="v3TraceReference" class="form-control" required maxlength="36" autocomplete="off" />
         </div>
         <div class="col-sm-4 col-lg-2 d-flex align-items-end">

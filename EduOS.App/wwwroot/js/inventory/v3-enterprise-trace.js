@@ -3,6 +3,7 @@ if (root) {
     const bn = root.dataset.language === 'bn';
     const form = document.getElementById('v3TraceForm');
     const reference = document.getElementById('v3TraceReference');
+    const kind = document.getElementById('v3TraceKind');
     const message = document.getElementById('v3TraceMessage');
     const result = document.getElementById('v3TraceResult');
     const rows = document.getElementById('v3TraceRows');
@@ -32,14 +33,20 @@ if (root) {
         const button = form.querySelector('button[type="submit"]');
         button.disabled = true;
         try {
-            const path = '/api/v3/enterprise/ledger-trace/' + encodeURIComponent(id);
+            const path = '/api/v3/enterprise/ledger-trace/' +
+                (kind.value === 'asset' ? 'asset-depreciation/' : '') + encodeURIComponent(id);
             const response = await fetch(path, { credentials: 'same-origin', cache: 'no-store',
                 headers: { Accept: 'application/json' } });
             const body = await response.json();
             if (!response.ok || !body.success || !body.data)
                 throw new Error(body.message || (bn ? 'ট্রেস পাওয়া যায়নি।' : 'Trace unavailable.'));
             const d = body.data;
-            add([bn ? 'স্টক' : 'Stock', d.movementNumber, d.state, '', '', d.recordedMovementValue]);
+            if (kind.value === 'asset') {
+                add([bn ? 'অবচয়' : 'Depreciation', d.runReference, d.state, '', '', d.runTotalAmount]);
+                add([bn ? 'বিস্তারিত' : 'Lines', d.depreciationLineCount, '', '', '', d.depreciationLinesAmount]);
+            } else {
+                add([bn ? 'স্টক' : 'Stock', d.movementNumber, d.state, '', '', d.recordedMovementValue]);
+            }
             (d.journals || []).forEach(j => add([
                 bn ? 'জার্নাল' : 'Journal', j.number, j.state, j.debit, j.credit, ''
             ]));
