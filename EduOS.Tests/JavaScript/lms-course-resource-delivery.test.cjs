@@ -30,3 +30,22 @@ test('file links use server authorization, never storage keys or raw HTML',()=>{
  assert.match(service,/IsLmsPrivateAsset/);
  assert.match(service,/SHA256.HashData/);
 });
+
+test('course CSV is generated from fresh authorized server read and formula-safe',()=>{
+ assert.match(controller,/HttpGet\("\{courseReference:guid\}\/export"\)/);
+ assert.match(controller,/GetCourseContentAsync\(courseReference, ct\)/);
+ assert.match(controller,/private, no-store/);
+ assert.match(controller,/CsvCell\(data.CourseTitle\)/);
+ assert.match(script,/course-content\/'.*'\/export'/);
+ assert.match(script,/response.blob\(\)/);
+ assert.doesNotMatch(script,/rows.map\(r=>r.map\(quote\)/);
+});
+
+test('course content clears private data after tenant or session transition',()=>{
+ assert.match(script,/authTenantId/);
+ assert.match(script,/authSessionReference/);
+ assert.match(script,/EduOSSessionTransitionPending/);
+ assert.match(script,/MutationObserver/);
+ assert.match(script,/pagehide',clearPrivate/);
+ assert.match(script,/state\.course=null;state\.courses=\[\]/);
+});

@@ -2,6 +2,7 @@ using EduOS.App.Authorization;
 using EduOS.Core.Common;
 using EduOS.Core.DTOs.LMS;
 using EduOS.Core.DTOs.Files;
+using System.Text;
 using EduOS.Core.Interfaces.IServices;
 using EduOS.Service.Services.LMS;
 using Microsoft.AspNetCore.Authorization;
@@ -28,6 +29,49 @@ public sealed class LmsCourseContentController : ControllerBase
     [HttpGet("{courseReference:guid}")]
     public async Task<IActionResult> Course(Guid courseReference, CancellationToken ct) =>
         Reply(await _service.GetCourseContentAsync(courseReference, ct));
+
+    // Export is rebuilt from a fresh tenant/role/enrollment-scoped read, never stale browser rows.
+    [HttpGet("{courseReference:guid}/export")]
+    public async Task<IActionResult> ExportCourse(Guid courseReference, CancellationToken ct)
+    {
+        var result = await _service.GetCourseContentAsync(courseReference, ct);
+        if (!result.Success || result.Data == null) return StatusCode(result.StatusCode, result);
+        var data = result.Data;
+        var csv = new StringBuilder("Course,Section,Lesson,Resource,Resource URL,Status\r\n");
+        void Add(string section, ContentLessonDto lesson)
+        {
+            void Row(string resourceTitle, string url)
+            {
+                csv.Append(CsvCell(data.CourseTitle)).Append(',')
+                    .Append(CsvCell(section)).Append(',')
+                    .Append(CsvCell(lesson.Title)).Append(',')
+                    .Append(CsvCell(resourceTitle)).Append(',')
+                    .Append(CsvCell(url)).Append(',')
+                    .Append(CsvCell(lesson.IsPublished ? "Published" : "Draft"))
+                    .Append("\r\n");
+            }
+            if (lesson.Resources.Count == 0) Row("", "");
+            else foreach (var resource in lesson.Resources)
+                Row(resource.Title ?? resource.FileName ?? "",
+                    resource.ExternalUrl ?? "");
+        }
+        foreach (var section in data.Sections)
+            foreach (var lesson in section.Lessons) Add(section.Title, lesson);
+        foreach (var lesson in data.UnsectionedLessons) Add("Unsectioned", lesson);
+        Response.Headers.CacheControl = "private, no-store";
+        Response.Headers["X-Content-Type-Options"] = "nosniff";
+        return File(Encoding.UTF8.GetBytes("\uFEFF" + csv), "text/csv; charset=utf-8", "lms-course-content.csv");
+    }
+
+    private static string CsvCell(string? input)
+    {
+        var value = input ?? "";
+        var trimmed = value.TrimStart();
+        if ((value.Length > 0 && value[0] is '\t' or '\r' or '\n') ||
+            (trimmed.Length > 0 && "=+-@".Contains(trimmed[0])))
+            value = "'" + value;
+        return "\"" + value.Replace("\"", "\"\"") + "\"";
+    }
 
     [HttpPost("sections")]
     [Authorize(Roles = "TenantAdmin,Principal,Teacher")]

@@ -3,9 +3,15 @@
 const root=document.getElementById('contentApp');if(!root)return;
 const el=id=>document.getElementById('content'+id),author=root.dataset.author==='true',student=root.dataset.student==='true';
 const state={courses:[],page:1,pages:1,course:null,lessons:[],seq:0,includeArchived:false,fileRequestId:null};
+const initialTenant=String(document.body?.dataset.authTenantId||'');
+const initialSession=String(document.body?.dataset.authSessionReference||'');
+const sessionValid=()=>String(document.body?.dataset.authTenantId||'')===initialTenant&&
+ String(document.body?.dataset.authSessionReference||'')===initialSession&&
+ window.EduOSSessionTransitionPending?.()!==true;
 const node=(tag,text)=>{const e=document.createElement(tag);if(text!==undefined)e.textContent=text;return e;};
 const alert=(message,kind='danger')=>{const e=el('Alert');e.className='alert alert-'+kind;e.textContent=message;e.focus();};
 async function api(url,method='GET',body){
+ if(!sessionValid())throw Error('Session changed. Reload before accessing course content.');
  const headers={Accept:'application/json'};
  if(method!=='GET'){
   const token=document.querySelector('meta[name="request-verification-token"]')?.content;
@@ -14,6 +20,7 @@ async function api(url,method='GET',body){
  }
  const response=await fetch(url,{method,headers,credentials:'same-origin',cache:'no-store',...(body===undefined?{}:{body:JSON.stringify(body)})});
  const data=await response.json().catch(()=>null);
+ if(!sessionValid())throw Error('Session changed. Reload before accessing course content.');
  if(!response.ok||!data?.success)throw Error(data?.message||'Request failed.');
  return data.data;
 }
@@ -114,14 +121,14 @@ async function loadCourse(){
  const ref=el('Course').value,seq=++state.seq;
  if(!ref){state.course=null;render();return;}
  try{const data=await api('/api/lms/course-content/'+encodeURIComponent(ref));
-  if(seq!==state.seq)return;state.course=data;render();
+  if(seq!==state.seq||!sessionValid())return;state.course=data;render();
  }catch(error){if(seq!==state.seq)return;state.course=null;render();alert(error.message);}
 }
 async function loadCourses(){
  const old=el('Course').value,seq=++state.seq;
  try{
   const data=await api('/api/lms/courses?page='+state.page+'&pageSize=20'+(student&&state.includeArchived?'&includeArchived=true':''));
-  if(seq!==state.seq)return;
+  if(seq!==state.seq||!sessionValid())return;
   state.courses=data?.items||[];
   state.pages=Math.max(1,data?.totalPages||Math.ceil((data?.totalCount||0)/20));
   fill('Course',state.courses,'Select course',x=>x.title+' — '+x.code+(x.isActive?'':' [Archived]'));
@@ -191,18 +198,30 @@ el('Refresh').onclick=loadCourses;
 el('Prev').onclick=()=>{if(state.page>1){state.page--;loadCourses();}};
 el('Next').onclick=()=>{if(state.page<state.pages){state.page++;loadCourses();}};
 el('Print').onclick=()=>window.print();
-el('Csv').onclick=()=>{
- const data=state.course;if(!data)return alert('Select a course before exporting.');
- const rows=[['Course','Section','Lesson','Resource','Resource URL','Status']];
- const add=(section,lesson)=>{if(!(lesson.resources||[]).length)rows.push([data.courseTitle,section,lesson.title,'','',lesson.isPublished?'Published':'Draft']);
-  else for(const r of lesson.resources)rows.push([data.courseTitle,section,lesson.title,r.title||r.fileName||'',r.externalUrl||'',lesson.isPublished?'Published':'Draft']);};
- for(const s of data.sections||[])for(const l of s.lessons||[])add(s.title,l);
- for(const l of data.unsectionedLessons||[])add('Unsectioned',l);
- const quote=v=>{let x=String(v??'');if(/^[=+\-@]/.test(x))x="'"+x;return '"'+x.replace(/"/g,'""')+'"';};
- const csv='\uFEFF'+rows.map(r=>r.map(quote).join(',')).join('\r\n');
- const url=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));
- const a=node('a');a.href=url;a.download='course-content.csv';document.body.append(a);a.click();a.remove();
- setTimeout(()=>URL.revokeObjectURL(url),1000);
+el('Csv').onclick=async()=>{
+ const ref=el('Course').value,seq=state.seq;
+ if(!ref)return alert('Select a course before exporting.');
+ el('Csv').disabled=true;
+ try{
+  const response=await fetch('/api/lms/course-content/'+encodeURIComponent(ref)+'/export',
+   {headers:{Accept:'text/csv'},credentials:'same-origin',cache:'no-store'});
+  if(!response.ok){const error=await response.json().catch(()=>null);throw Error(error?.message||'Export unavailable.');}
+  const blob=await response.blob();
+  if(seq!==state.seq||ref!==el('Course').value||!sessionValid())return;
+  const url=URL.createObjectURL(blob),a=node('a');
+  a.href=url;a.download='lms-course-content.csv';document.body.append(a);a.click();a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url),1000);
+ }catch(error){if(seq===state.seq)alert(error.message);}
+ finally{el('Csv').disabled=false;}
 };
-loadCourses();
+function clearPrivate(){
+ state.seq++;state.course=null;state.courses=[];state.lessons=[];state.fileRequestId=null;
+ el('Course').replaceChildren(new Option('Select course',''));
+ if(author)el('Author').classList.add('d-none');
+ render();
+}
+const observer=new MutationObserver(()=>{if(!sessionValid()){clearPrivate();observer.disconnect();}});
+observer.observe(document.body,{attributes:true,attributeFilter:['data-auth-session-reference','data-auth-tenant-id']});
+window.addEventListener('pagehide',clearPrivate);
+if(sessionValid())loadCourses();
 })();

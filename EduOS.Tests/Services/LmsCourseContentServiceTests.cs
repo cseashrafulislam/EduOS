@@ -1,4 +1,6 @@
 using EduOS.Core.DTOs.LMS;
+using EduOS.Core.DTOs.Files;
+using EduOS.Core.Common;
 using EduOS.Service.Helpers.Storage;
 using Moq;
 using EduOS.Core.Entities.Academic;
@@ -267,6 +269,39 @@ public sealed class LmsCourseContentServiceTests
         Assert.True((await admin.SaveResourceAsync(null, request)).Success);
     }
 
+
+    [Fact]
+    public async Task Resource_upload_requires_authorized_lesson_and_never_invokes_storage_for_students()
+    {
+        await using var db = Db();
+        var course = new Course { TenantId = 101, Code = "UPLOAD", Title = "Upload access" };
+        db.Add(course); await db.SaveChangesAsync();
+        var lesson = new Lesson { TenantId = 101, CourseId = course.Id, Title = "Author lesson" };
+        db.Add(lesson); await db.SaveChangesAsync();
+        var documents = new Mock<EduOS.Core.Interfaces.IServices.IDocumentFileService>();
+        var file = new PrivateFileUploadDto
+        {
+            FileName = "notes.pdf", ContentType = "application/pdf", Length = 2,
+            Content = new MemoryStream([1, 2])
+        };
+        var id = Guid.NewGuid();
+        var denied = await Service(db, "Student", documents: documents.Object)
+            .UploadResourceFileAsync(lesson.PublicId, id, file);
+        Assert.Equal(403, denied.StatusCode);
+        documents.Verify(x => x.UploadForLmsAsync(It.IsAny<Guid>(), It.IsAny<PrivateFileUploadDto>(),
+            It.IsAny<CancellationToken>()), Times.Never);
+        documents.Setup(x => x.UploadForLmsAsync(id, file, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(ApiResponse<FileAssetDto>.SuccessResponse(new FileAssetDto { Reference = id }));
+        var allowed = await Service(db, "TenantAdmin", documents: documents.Object)
+            .UploadResourceFileAsync(lesson.PublicId, id, file);
+        Assert.True(allowed.Success, allowed.Message);
+        Assert.Equal(id, allowed.Data!.Reference);
+        course.IsActive = false; await db.SaveChangesAsync();
+        Assert.Equal(404, (await Service(db, "TenantAdmin", documents: documents.Object)
+            .UploadResourceFileAsync(lesson.PublicId, Guid.NewGuid(), file)).StatusCode);
+        documents.Verify(x => x.UploadForLmsAsync(id, file, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
     private static EduOSDbContext Db()
     {
         var options = new DbContextOptionsBuilder<EduOSDbContext>()
@@ -275,7 +310,7 @@ public sealed class LmsCourseContentServiceTests
         context.Items["TenantId"] = 101L;
         return new EduOSDbContext(options, new HttpContextAccessor { HttpContext = context });
     }
-    private static LmsCourseContentService Service(EduOSDbContext db, string role, IFileUploadService? storage = null) => new(
+    private static LmsCourseContentService Service(EduOSDbContext db, string role, IFileUploadService? storage = null, EduOS.Core.Interfaces.IServices.IDocumentFileService? documents = null) => new(
         new GenericRepository<Course>(db), new GenericRepository<CourseSection>(db),
         new GenericRepository<Lesson>(db), new GenericRepository<LessonResource>(db),
         new GenericRepository<FileAsset>(db), new GenericRepository<Employee>(db),
@@ -284,7 +319,7 @@ public sealed class LmsCourseContentServiceTests
         new GenericRepository<CurriculumSubject>(db), new GenericRepository<AcademicCurriculum>(db),
         new GenericRepository<AcademicBatch>(db), new GenericRepository<AcademicYear>(db),
         new GenericRepository<AcademicTerm>(db), new GenericRepository<InstructorAssignment>(db), new GenericRepository<EmployeeCampusAssignment>(db),
-        db, new TestUser(role), TimeProvider.System, NullLogger<LmsCourseContentService>.Instance, storage: storage);
+        db, new TestUser(role), TimeProvider.System, NullLogger<LmsCourseContentService>.Instance, storage: storage, documentFiles: documents);
 
     private sealed class TestUser(string role) : ICurrentUserService
     {
