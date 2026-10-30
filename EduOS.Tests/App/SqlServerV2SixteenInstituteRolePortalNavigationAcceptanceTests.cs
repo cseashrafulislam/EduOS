@@ -11,7 +11,7 @@ namespace EduOS.Tests.App;
 /// Live SQL entitlement and role-portal matrix for the release cohort.
 /// One user switches tenant contexts in both directions without shared cache.
 /// </summary>
-public sealed partial class SqlServerTransportSeatCapacityIntegrationTests
+public sealed partial class SqlServerV2SixteenInstituteEntitlementHttpAcceptanceTests
 {
     [Fact]
     public async Task Sixteen_SQL_institutes_scope_bilingual_role_portal_links_to_current_entitlement()
@@ -27,7 +27,6 @@ public sealed partial class SqlServerTransportSeatCapacityIntegrationTests
             ("Librarian", "LIBRARY", "/Library/Circulation"),
             ("Student", "LIBRARY", "/Library/Digital"),
             ("Guardian", "HOSTEL", "/hostel/guardian-stays/print"),
-            ("HostelWarden", "HOSTEL", "/hostel/residents/print"),
             ("Student", "HOSTEL", "/hostel/my-history/print"),
             ("Parent", "TRANSPORT", "/TransportOperations/Family"),
             ("TransportManager", "TRANSPORT", "/TransportOperations/Trips"),

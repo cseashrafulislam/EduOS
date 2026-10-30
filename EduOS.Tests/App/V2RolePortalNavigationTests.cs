@@ -19,7 +19,6 @@ public sealed class V2RolePortalNavigationTests
     [InlineData("Teacher", "/Learning/CourseCompletions", true)]
     [InlineData("Guardian", "/hostel/guardian-stays/print", true)]
     [InlineData("Guardian", "/hostel/residents/print", false)]
-    [InlineData("HostelWarden", "/hostel/residents/print", true)]
     [InlineData("Parent", "/TransportOperations/Family", true)]
     [InlineData("TransportManager", "/TransportOperations/Trips", true)]
     [InlineData("Staff", "/TransportOperations/DriverTrips", true)]

@@ -813,7 +813,6 @@
   <data name="V2DigitalResources" xml:space="preserve"><value>ডিজিটাল রিসোর্স</value></data>
   <data name="V2Hostel" xml:space="preserve"><value>আবাসিক হোস্টেল</value></data>
   <data name="V2GuardianHostelPrint" xml:space="preserve"><value>অভিভাবকের আবাসন প্রিন্ট</value></data>
-  <data name="V2ResidentRosterPrint" xml:space="preserve"><value>আবাসিক তালিকা প্রিন্ট</value></data>
   <data name="V2MyHostelHistory" xml:space="preserve"><value>আমার আবাসনের ইতিহাস</value></data>
   <data name="V2Transport" xml:space="preserve"><value>পরিবহন</value></data>
   <data name="V2FamilyTransport" xml:space="preserve"><value>পরিবারের পরিবহন সূচি</value></data>

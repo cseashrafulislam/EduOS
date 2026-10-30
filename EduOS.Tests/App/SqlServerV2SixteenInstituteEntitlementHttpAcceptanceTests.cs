@@ -41,7 +41,7 @@ namespace EduOS.Tests.App;
 /// The cohort is synthetic; it is not a customer configuration or UAT signoff.
 /// </summary>
 [Collection("SqlServerIntegration")]
-public sealed class SqlServerV2SixteenInstituteEntitlementHttpAcceptanceTests
+public sealed partial class SqlServerV2SixteenInstituteEntitlementHttpAcceptanceTests
 {
     private sealed record Institute(
         string Category, string TypeCode, string Plan, SubscriptionState Subscription,

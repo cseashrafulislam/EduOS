@@ -27,7 +27,6 @@ public static class V2RolePortalNavigation
         Add("LIBRARY", "/Library/Circulation", "V2LibraryCirculation", "TenantAdmin", "Principal", "Librarian");
         Add("LIBRARY", "/Library/Digital", "V2DigitalResources", "TenantAdmin", "Principal", "Librarian", "Student", "Teacher", "Employee", "Staff");
         Add("HOSTEL", "/hostel/guardian-stays/print", "V2GuardianHostelPrint", "Guardian", "Parent");
-        Add("HOSTEL", "/hostel/residents/print", "V2ResidentRosterPrint", "TenantAdmin", "Principal", "HostelWarden");
         Add("HOSTEL", "/hostel/my-history/print", "V2MyHostelHistory", "Student", "Staff");
         Add("TRANSPORT", "/TransportOperations/Family", "V2FamilyTransport", "Student", "Guardian", "Parent");
         Add("TRANSPORT", "/TransportOperations/Trips", "V2TripDispatch", "TenantAdmin", "Principal", "TransportManager");

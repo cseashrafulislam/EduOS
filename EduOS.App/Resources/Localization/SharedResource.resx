@@ -814,7 +814,6 @@
   <data name="V2DigitalResources" xml:space="preserve"><value>Digital Resources</value></data>
   <data name="V2Hostel" xml:space="preserve"><value>Hostel</value></data>
   <data name="V2GuardianHostelPrint" xml:space="preserve"><value>Guardian Stay Print</value></data>
-  <data name="V2ResidentRosterPrint" xml:space="preserve"><value>Resident Roster Print</value></data>
   <data name="V2MyHostelHistory" xml:space="preserve"><value>My Hostel History</value></data>
   <data name="V2Transport" xml:space="preserve"><value>Transport</value></data>
   <data name="V2FamilyTransport" xml:space="preserve"><value>Family Transport Schedule</value></data>
