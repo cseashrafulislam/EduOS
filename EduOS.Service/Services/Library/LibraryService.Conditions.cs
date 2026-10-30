@@ -4,6 +4,7 @@ using EduOS.Core.Entities.Library;
 using EduOS.Core.Entities.System;
 using EduOS.Core.Enums.Domain;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using Microsoft.Data.SqlClient;
 using System.Data;
 using System.Text.Json;
