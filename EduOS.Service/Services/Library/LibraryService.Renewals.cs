@@ -67,14 +67,19 @@ public sealed partial class LibraryService
             var book = await _books.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
                 x.TenantId == tenant && x.Id == copy.BookId && x.IsActive && !x.IsDeleted, ct);
             if (book == null) return Error("Book is unavailable.", 409);
-            var student = await _students.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
-                x.TenantId == tenant && x.Id == issue.StudentId &&
-                x.StatusCode == "Active" && !x.IsDeleted, ct);
-            if (student == null) return Error("Borrower is inactive.", 409);
+            var student = issue.StudentId.HasValue ? await _students.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
+                x.TenantId == tenant && x.Id == issue.StudentId.Value &&
+                x.StatusCode == "Active" && !x.IsDeleted, ct) : null;
+            var employee = issue.EmployeeId.HasValue && _staffEmployees != null
+                ? await _staffEmployees.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
+                    x.TenantId == tenant && x.Id == issue.EmployeeId.Value &&
+                    x.State == EmployeeState.Active && !x.IsDeleted, ct) : null;
+            if (student == null && employee == null) return Error("Borrower is inactive.", 409);
+            var studentId = student?.Id;
             var enrollment = _enrollments.GetQueryable().AsNoTracking().Where(x =>
-                x.TenantId == tenant && x.StudentId == student.Id && x.IsCurrent &&
+                x.TenantId == tenant && x.StudentId == studentId && x.IsCurrent &&
                 x.State == EnrollmentState.Active && !x.IsDeleted);
-            if (!await enrollment.AnyAsync(ct))
+            if (student != null && !await enrollment.AnyAsync(ct))
                 return Error("Current active enrollment required.", 409);
             long? campus = null;
             if (copy.LibraryBranchId.HasValue)
@@ -84,7 +89,14 @@ public sealed partial class LibraryService
                     x.TenantId == tenant && x.Id == copy.LibraryBranchId.Value &&
                     x.IsActive && !x.IsDeleted)
                     .Select(x => (long?)x.CampusId).FirstOrDefaultAsync(ct);
-                if (!campus.HasValue || !await enrollment.AnyAsync(x => x.CampusId == campus.Value, ct))
+                var borrowerOnCampus = student != null
+                    ? await enrollment.AnyAsync(x => x.CampusId == campus, ct)
+                    : employee != null && _staffCampusAssignments != null &&
+                      await _staffCampusAssignments.GetQueryable().AsNoTracking().AnyAsync(a =>
+                          a.TenantId == tenant && a.EmployeeId == employee.Id && !a.IsDeleted &&
+                          a.IsCurrent && a.CampusId == campus && a.EffectiveFrom <= today &&
+                          (!a.EffectiveTo.HasValue || a.EffectiveTo.Value >= today), ct);
+                if (!campus.HasValue || !borrowerOnCampus)
                     return Error("Borrower and copy campus differ.", 409);
             }
             var now = _clock.GetUtcNow().UtcDateTime;
@@ -103,7 +115,7 @@ public sealed partial class LibraryService
             issue.UpdatedAt = now;
             issue.UpdatedBy = _user.UserId;
             await _uow.SaveChangesAsync(ct); // BookIssue audit is persisted atomically.
-            var response = MapIssue(issue, copy, book, student);
+            var response = MapIssue(issue, copy, book, student, employee);
             tx.Complete();
             return ApiResponse<BookIssueDto>.SuccessResponse(response, "Loan renewed.");
         }

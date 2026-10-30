@@ -402,7 +402,8 @@ public sealed partial class LibraryService : ILibraryService
     {
         if (!CanManage()) return Denied<BookIssueDto>();
         if (request == null || request.BookCopyId <= 0 || request.ClientRequestId == Guid.Empty ||
-            request.StudentReference == Guid.Empty) return Error("Book copy, student and request ID are required.");
+            request.StudentReference == Guid.Empty || request.EmployeeReference.HasValue)
+            return Error("A single student, copy and unique request ID are required.");
         var issueDate = request.IssueDate == default ? DateOnly.FromDateTime(_clock.GetUtcNow().UtcDateTime) : request.IssueDate;
         if (request.DueDate < issueDate) return Error("Due date must be on or after the issue date.");
         var tenant = _user.TenantId;
@@ -571,8 +572,12 @@ public sealed partial class LibraryService : ILibraryService
             copy.State = BookCopyState.Available; copy.UpdatedAt = now; copy.UpdatedBy = _user.UserId;
             await _uow.SaveChangesAsync(ct);
             var book = await _books.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x => x.TenantId == tenant && x.Id == copy.BookId, ct);
-            var student = await _students.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x => x.TenantId == tenant && x.Id == issue.StudentId, ct);
-            var response = MapIssue(issue, copy, book, student);
+            var student = issue.StudentId.HasValue ? await _students.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
+                x.TenantId == tenant && x.Id == issue.StudentId.Value, ct) : null;
+            var employee = issue.EmployeeId.HasValue && _staffEmployees != null
+                ? await _staffEmployees.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
+                    x.TenantId == tenant && x.Id == issue.EmployeeId.Value, ct) : null;
+            var response = MapIssue(issue, copy, book, student, employee);
             tx.Complete();
             return ApiResponse<BookIssueDto>.SuccessResponse(response, "Book returned.");
         }
@@ -603,7 +608,7 @@ public sealed partial class LibraryService : ILibraryService
         var studentIds = _students.GetQueryable().AsNoTracking()
             .Where(x => x.TenantId == tenant && x.UserId == _user.UserId).Select(x => x.Id);
         var query = _issues.GetQueryable().AsNoTracking()
-            .Where(x => x.TenantId == tenant && studentIds.Contains(x.StudentId) && !x.IsDeleted);
+            .Where(x => x.TenantId == tenant && x.StudentId.HasValue && studentIds.Contains(x.StudentId.Value) && !x.IsDeleted);
         if (status == "issued") query = query.Where(x => x.State == BookIssueState.Issued);
         if (status == "returned") query = query.Where(x => x.State == BookIssueState.Returned);
         if (status == "overdue")
@@ -622,14 +627,14 @@ public sealed partial class LibraryService : ILibraryService
         var bookIds = copies.Values.Select(x => x.BookId).Distinct().ToArray();
         var books = await _books.GetQueryable().AsNoTracking().Where(x => x.TenantId == tenant &&
             bookIds.Contains(x.Id)).ToDictionaryAsync(x => x.Id, ct);
-        var historyStudentIds = issues.Select(x => x.StudentId).Distinct().ToArray();
+        var historyStudentIds = issues.Where(x => x.StudentId.HasValue).Select(x => x.StudentId!.Value).Distinct().ToArray();
         var students = await _students.GetQueryable().AsNoTracking().Where(x => x.TenantId == tenant &&
             historyStudentIds.Contains(x.Id)).ToDictionaryAsync(x => x.Id, ct);
         var result = issues.Select(x =>
         {
             copies.TryGetValue(x.BookCopyId, out var copy);
             var book = copy == null ? null : books.GetValueOrDefault(copy.BookId);
-            return MapIssue(x, copy, book, students.GetValueOrDefault(x.StudentId));
+            return MapIssue(x, copy, book, x.StudentId.HasValue ? students.GetValueOrDefault(x.StudentId.Value) : null);
         }).ToList();
         return ApiResponse<PagedResult<BookIssueDto>>.SuccessResponse(new PagedResult<BookIssueDto>
         {
@@ -643,16 +648,24 @@ public sealed partial class LibraryService : ILibraryService
         var copy = await _copies.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x => x.TenantId == tenant && x.Id == issue.BookCopyId, ct);
         var book = copy == null ? null : await _books.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x => x.TenantId == tenant &&
             x.Id == copy.BookId, ct);
-        var student = await _students.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x => x.TenantId == tenant &&
-            x.Id == issue.StudentId, ct);
-        return MapIssue(issue, copy, book, student);
+        var student = issue.StudentId.HasValue ? await _students.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
+            x.TenantId == tenant && x.Id == issue.StudentId.Value, ct) : null;
+        var employee = issue.EmployeeId.HasValue && _staffEmployees != null
+            ? await _staffEmployees.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
+                x.TenantId == tenant && x.Id == issue.EmployeeId.Value, ct) : null;
+        return MapIssue(issue, copy, book, student, employee);
     }
 
-    private static BookIssueDto MapIssue(BookIssue issue, BookCopy? copy, Book? book, Student? student) => new()
+    private static BookIssueDto MapIssue(BookIssue issue, BookCopy? copy, Book? book,
+        Student? student, Employee? employee = null) => new()
     {
         Id = issue.Id, Reference = issue.PublicId, BookCopyId = issue.BookCopyId,
         AccessionNumber = copy?.AccessionNumber ?? string.Empty, BookTitle = book?.Title ?? string.Empty,
-        StudentReference = student?.PublicId ?? Guid.Empty, StudentName = student?.FullName ?? string.Empty,
+        StudentReference = student?.PublicId ?? Guid.Empty,
+        StudentName = student?.FullName ?? employee?.FullName ?? string.Empty,
+        EmployeeReference = employee?.PublicId,
+        BorrowerType = issue.EmployeeId.HasValue ? "Employee" : "Student",
+        BorrowerCode = student?.StudentCode ?? employee?.EmployeeCode ?? string.Empty,
         IssueDate = issue.IssueDate, DueDate = issue.DueDate, ReturnDate = issue.ReturnDate,
         State = issue.State, FineAmount = issue.FineAmount, RowVersion = Convert.ToBase64String(issue.RowVersion)
     };

@@ -4,6 +4,8 @@
     const catalogRows = el('catalogRows'), issueRows = el('issueRows'), query = el('libraryQuery');
     if (!catalogRows || !query) return;
     const canManage = !!el('libraryBookForm');
+    const loanEndpoint = el('myLibraryLoans')?.dataset.loanEndpoint === 'my-employee-issues'
+        ? 'my-employee-issues' : 'my-issues';
     let books = [], categories = [], selectedCopyBook = null, copyPage = 1, copyRequest = 0;
     let branchPage = 1, branchRequest = 0;
     const branchLabels = new Map();
@@ -82,7 +84,7 @@
     async function loadIssues() {
         const request = ++issueRequest;
         try {
-            const result = await api('/api/library/my-issues?' + issueQuery());
+            const result = await api('/api/library/' + loanEndpoint + '?' + issueQuery());
             if (request !== issueRequest) return;
             const issues = Array.isArray(result?.items) ? result.items : [];
             issueRows.replaceChildren();
@@ -110,7 +112,7 @@
         try {
             const params = issueQuery();
             params.set('language', document.documentElement.lang?.toLowerCase().startsWith('bn') ? 'bn-BD' : 'en-BD');
-            const response = await fetch('/api/library/my-issues/export?' + params, {
+            const response = await fetch('/api/library/' + loanEndpoint + '/export?' + params, {
                 credentials: 'same-origin', cache: 'no-store', headers: { Accept: 'text/csv' }
             });
             if (!response.ok) {
@@ -120,7 +122,8 @@
             const url = URL.createObjectURL(await response.blob());
             try {
                 const link = document.createElement('a');
-                link.href = url; link.download = 'my-library-loans-page.csv';
+                link.href = url; link.download = loanEndpoint === 'my-issues'
+                    ? 'my-library-loans-page.csv' : 'my-employee-library-loans-page.csv';
                 document.body.append(link); link.click(); link.remove();
             } finally { setTimeout(() => URL.revokeObjectURL(url), 1000); }
         } catch (error) { message(error.message); }

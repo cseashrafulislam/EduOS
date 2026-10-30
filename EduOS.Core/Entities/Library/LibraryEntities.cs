@@ -38,7 +38,10 @@ public class BookIssue : BaseTenantEntity
     public Guid PublicId { get; set; } = Guid.NewGuid();
     public Guid ClientRequestId { get; set; }
     public long BookCopyId { get; set; }
-    public long StudentId { get; set; }
+    // Exactly one tenant-owned borrower; nullable to preserve historical student loans
+    // while allowing employee circulation in the same canonical copy/loan ledger.
+    public long? StudentId { get; set; }
+    public long? EmployeeId { get; set; }
     public DateOnly IssueDate { get; set; }
     public DateOnly DueDate { get; set; }
     public DateOnly? ReturnDate { get; set; }

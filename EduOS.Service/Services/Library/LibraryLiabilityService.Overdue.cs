@@ -128,7 +128,7 @@ public sealed partial class LibraryLiabilityService
                     join book in db.Books.AsNoTracking() on new { copy.TenantId, Id = copy.BookId }
                         equals new { book.TenantId, book.Id }
                     join student in db.Students.AsNoTracking() on new { issue.TenantId, Id = issue.StudentId }
-                        equals new { student.TenantId, student.Id }
+                        equals new { student.TenantId, Id = (long?)student.Id }
                     where issue.TenantId == tenant && !issue.IsDeleted && !copy.IsDeleted &&
                         !branch.IsDeleted && !book.IsDeleted && !student.IsDeleted &&
                         issue.State == BookIssueState.Returned && issue.ReturnDate.HasValue &&

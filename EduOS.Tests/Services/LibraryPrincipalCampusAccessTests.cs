@@ -22,6 +22,64 @@ namespace EduOS.Tests.Services;
 public sealed class LibraryPrincipalCampusAccessTests
 {
     [Fact]
+    public async Task Employee_direct_loan_is_campus_scoped_idempotent_and_visible_only_to_owner()
+    {
+        await using var db = Context();
+        var seed = await SeedAsync(db);
+        var employee = new Employee { TenantId = 101, UserId = 7, PersonId = 301,
+            DesignationId = 1, FullName = "Campus faculty", EmployeeCode = "FAC-01",
+            State = EmployeeState.Active };
+        var outsider = new Employee { TenantId = 101, UserId = 99, PersonId = 302,
+            DesignationId = 1, FullName = "Another faculty", EmployeeCode = "FAC-02",
+            State = EmployeeState.Active };
+        db.AddRange(employee, outsider);
+        await db.SaveChangesAsync();
+        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        db.AddRange(
+            new EmployeeCampusAssignment { TenantId = 101, EmployeeId = employee.Id,
+                CampusId = seed.CampusA.Id, EffectiveFrom = today.AddYears(-1), IsCurrent = true },
+            new EmployeeCampusAssignment { TenantId = 101, EmployeeId = outsider.Id,
+                CampusId = seed.CampusB.Id, EffectiveFrom = today.AddYears(-1), IsCurrent = true });
+        var copy = new BookCopy { TenantId = 101, BookId = seed.Book.Id,
+            LibraryBranchId = seed.BranchA.Id, AccessionNumber = "FAC-A-AVAILABLE",
+            State = BookCopyState.Available };
+        db.BookCopies.Add(copy);
+        await db.SaveChangesAsync();
+        var librarian = Service(db, "TenantAdmin");
+        (await librarian.FindEligibleEmployeesAsync("FAC-01", 1, 20)).Data!.Items
+            .Should().ContainSingle().Which.EmployeeReference.Should().Be(employee.PublicId);
+        (await librarian.GetAvailableCopiesForEmployeeAsync(seed.Book.PublicId,
+            employee.PublicId, 1, 20)).Data!.Items.Select(x => x.Id).Should().Contain(copy.Id);
+        (await librarian.GetAvailableCopiesForEmployeeAsync(seed.Book.PublicId,
+            outsider.PublicId, 1, 20)).Data!.Items.Select(x => x.Id).Should().NotContain(copy.Id);
+        var request = new IssueBookRequestDto { ClientRequestId = Guid.NewGuid(),
+            BookCopyId = copy.Id, EmployeeReference = employee.PublicId,
+            DueDate = today.AddDays(14) };
+        var first = await librarian.IssueEmployeeAsync(request);
+        first.Success.Should().BeTrue(first.Message);
+        first.Data!.BorrowerType.Should().Be("Employee");
+        first.Data.EmployeeReference.Should().Be(employee.PublicId);
+        (await librarian.IssueEmployeeAsync(request)).Success.Should().BeTrue();
+        (await librarian.IssueEmployeeAsync(new IssueBookRequestDto { ClientRequestId = Guid.NewGuid(),
+            BookCopyId = copy.Id, EmployeeReference = outsider.PublicId,
+            DueDate = today.AddDays(14) })).StatusCode.Should().Be(409);
+        (await db.BookIssues.CountAsync(x => x.BookCopyId == copy.Id)).Should().Be(1);
+        (await librarian.GetMyEmployeeIssuesAsync(1, 20, "all")).Data!.Items
+            .Should().ContainSingle().Which.Reference.Should().Be(first.Data.Reference);
+        var register = await librarian.GetCirculationRegisterAsync("FAC-01", "issued", seed.CampusA.Id, 1, 20);
+        register.Data!.Items.Should().ContainSingle().Which.Issue.EmployeeReference.Should().Be(employee.PublicId);
+        // EF InMemory does not generate SQL Server rowversion values automatically.
+        var savedLoan = await db.BookIssues.SingleAsync(x => x.PublicId == first.Data.Reference);
+        savedLoan.RowVersion = [1, 2, 3, 4];
+        await db.SaveChangesAsync();
+        var closed = await librarian.CloseAsync(first.Data.Reference, new ReturnBookRequestDto
+        { RowVersion = Convert.ToBase64String(savedLoan.RowVersion) });
+        closed.Success.Should().BeTrue(closed.Message);
+        (await db.BookCopies.SingleAsync(x => x.Id == copy.Id)).State.Should().Be(BookCopyState.Available);
+        (await librarian.GetMyEmployeeIssuesAsync(1, 20, "returned")).Data!.Items.Should().ContainSingle();
+    }
+
+    [Fact]
     public async Task Principal_branch_copy_catalog_circulation_and_writes_are_grant_scoped()
     {
         await using var db = Context();

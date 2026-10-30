@@ -8,7 +8,7 @@
             <details class="position-relative">
                 <summary class="btn btn-sm btn-outline-secondary" aria-label="Circulation help" title="Circulation help">ⓘ</summary>
                 <div class="card card-body position-absolute shadow-sm mt-1" style="width:min(19rem,85vw);z-index:5">
-                    Issue an available copy for an eligible student. Reservations take priority. Returns update availability. Renewals require an unexpired loan and no waiting reservation. CSV is freshly authorized.
+                    <span data-bn="সক্রিয় শিক্ষার্থী ও ক্যাম্পাসে নিয়োজিত কর্মচারীরা বই ধার নিতে পারবেন। শিক্ষার্থীর বুকিং অগ্রাধিকার পাবে। ফেরত নেওয়ার সঙ্গে বইয়ের প্রাপ্যতা হালনাগাদ হয়; শিক্ষার্থীর পোস্ট করা চার্জ Library Liabilities থেকে পরিচালিত হয়।">Borrowers may be active students or campus-assigned employees. Student reservations take priority. Returns update availability; posted student charges are handled in Library Liabilities.</span>
                 </div>
             </details>
         </div>
@@ -26,12 +26,14 @@
         </div>
         <div class="card-body">
             <div class="row g-2 mb-2">
-                <div class="col-md-7"><label for="directIssueStudentQuery" class="form-label">Active student name or code</label>
+                <div class="col-md-3"><label for="directIssueBorrowerType" class="form-label" data-bn="ঋণগ্রহীতার ধরন">Borrower type</label>
+                    <select id="directIssueBorrowerType" class="form-select"><option value="Student" data-bn="শিক্ষার্থী">Student</option><option value="Employee" data-bn="কর্মচারী">Employee</option></select></div>
+                <div class="col-md-4"><label for="directIssueStudentQuery" class="form-label" data-bn="ঋণগ্রহীতার নাম বা কোড">Borrower name or code</label>
                     <input id="directIssueStudentQuery" type="search" class="form-control" minlength="2" maxlength="100" autocomplete="off" /></div>
-                <div class="col-md-3 d-flex align-items-end"><button id="directIssueStudentSearch" type="button" class="btn btn-outline-secondary w-100">Find students</button></div>
-                <div class="col-md-2 d-flex align-items-end"><button id="directIssueStudentMore" type="button" class="btn btn-outline-secondary w-100" hidden>More students</button></div>
-                <div class="col-12"><label for="directIssueStudent" class="form-label">Student *</label>
-                    <select id="directIssueStudent" class="form-select" required><option value="">Select an eligible student</option></select></div>
+                <div class="col-md-3 d-flex align-items-end"><button id="directIssueStudentSearch" type="button" class="btn btn-outline-secondary w-100" data-bn="ঋণগ্রহীতা খুঁজুন">Find borrowers</button></div>
+                <div class="col-md-2 d-flex align-items-end"><button id="directIssueStudentMore" type="button" class="btn btn-outline-secondary w-100" hidden>More</button></div>
+                <div class="col-12"><label for="directIssueStudent" class="form-label" data-bn="যোগ্য ঋণগ্রহীতা *">Eligible borrower *</label>
+                    <select id="directIssueStudent" class="form-select" required><option value="">Select a borrower</option></select></div>
             </div>
             <div class="row g-2 mb-2">
                 <div class="col-md-7"><label for="directIssueBookQuery" class="form-label">Book title, author or ISBN</label>
@@ -53,7 +55,7 @@
         </div>
     </section>
     <form id="circulationFilters" class="card card-body row g-2 align-items-end mb-3">
-        <div class="col-lg-4"><label for="circulationSearch" class="form-label">Student name/code, book or accession</label>
+        <div class="col-lg-4"><label for="circulationSearch" class="form-label">Borrower name/code, book or accession</label>
             <input id="circulationSearch" class="form-control" maxlength="100" autocomplete="off" /></div>
         <div class="col-lg-2"><label for="circulationStatus" class="form-label">Status</label>
             <select id="circulationStatus" class="form-select">
@@ -84,8 +86,8 @@
                 <button id="circulationPrint" type="button" class="btn btn-sm btn-outline-secondary">Print</button></div>
         </div>
         <div class="table-responsive"><table class="table table-sm table-hover align-middle mb-0">
-            <thead><tr><th>Student</th><th>Book</th><th>Accession</th><th>Campus</th><th>Issued</th><th>Due</th><th>Returned</th><th>Status</th><th>Overdue days</th><th>Action</th></tr></thead>
-            <tbody id="circulationRows"><tr><td colspan="10">Loading…</td></tr></tbody>
+            <thead><tr><th>Type</th><th>Borrower</th><th>Book</th><th>Accession</th><th>Campus</th><th>Issued</th><th>Due</th><th>Returned</th><th>Status</th><th>Overdue days</th><th>Action</th></tr></thead>
+            <tbody id="circulationRows"><tr><td colspan="11">Loading…</td></tr></tbody>
         </table></div>
         <div class="card-footer d-flex justify-content-end align-items-center gap-2">
             <button id="circulationPrevious" type="button" class="btn btn-outline-secondary btn-sm">Previous</button>

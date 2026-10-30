@@ -11836,6 +11836,19 @@ namespace EduOS.Persistence.Migrations
                         .HasMaxLength(1000)
                         .HasColumnType("nvarchar(1000)");
 
+                    b.Property<DateTime?>("ReservationExpiredAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<long?>("ReservationExpiredByUserId")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime?>("ReservationExpiresAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("ReservationExpiryReason")
+                        .HasMaxLength(400)
+                        .HasColumnType("nvarchar(400)");
+
                     b.Property<long?>("ReversalOfMovementId")
                         .HasColumnType("bigint");
 
@@ -11851,19 +11864,6 @@ namespace EduOS.Persistence.Migrations
                     b.Property<string>("SourceType")
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
-
-                    b.Property<DateTime?>("ReservationExpiresAtUtc")
-                        .HasColumnType("datetime2");
-
-                    b.Property<DateTime?>("ReservationExpiredAtUtc")
-                        .HasColumnType("datetime2");
-
-                    b.Property<long?>("ReservationExpiredByUserId")
-                        .HasColumnType("bigint");
-
-                    b.Property<string>("ReservationExpiryReason")
-                        .HasMaxLength(400)
-                        .HasColumnType("nvarchar(400)");
 
                     b.Property<string>("StateCode")
                         .IsRequired()
@@ -11907,10 +11907,12 @@ namespace EduOS.Persistence.Migrations
 
                     b.ToTable("InventoryMovements", t =>
                         {
-                            t.HasCheckConstraint("CK_InventoryMovement_ExpiryEvidence", "([StateCode] <> N'Expired' AND [ReservationExpiredAtUtc] IS NULL AND [ReservationExpiredByUserId] IS NULL AND [ReservationExpiryReason] IS NULL) OR ([StateCode] = N'Expired' AND [ReservationExpiresAtUtc] IS NOT NULL AND [ReservationExpiredAtUtc] IS NOT NULL AND [ReservationExpiredByUserId] IS NOT NULL AND [ReservationExpiryReason] IS NOT NULL)");
-
                             t.HasTrigger("TR_InventoryMovement_ExpiryImmutable");
+
+                            t.HasCheckConstraint("CK_InventoryMovement_ExpiryEvidence", "([StateCode] <> N'Expired' AND [ReservationExpiredAtUtc] IS NULL AND [ReservationExpiredByUserId] IS NULL AND [ReservationExpiryReason] IS NULL) OR ([StateCode] = N'Expired' AND [ReservationExpiresAtUtc] IS NOT NULL AND [ReservationExpiredAtUtc] IS NOT NULL AND [ReservationExpiredByUserId] IS NOT NULL AND [ReservationExpiryReason] IS NOT NULL)");
                         });
+
+                    b.HasAnnotation("SqlServer:UseSqlOutputClause", false);
                 });
 
             modelBuilder.Entity("EduOS.Core.Entities.Inventory.InventoryMovementLine", b =>
@@ -14881,6 +14883,9 @@ namespace EduOS.Persistence.Migrations
                     b.Property<DateOnly>("DueDate")
                         .HasColumnType("date");
 
+                    b.Property<long?>("EmployeeId")
+                        .HasColumnType("bigint");
+
                     b.Property<decimal>("FineAmount")
                         .HasColumnType("decimal(18,2)");
 
@@ -14914,7 +14919,7 @@ namespace EduOS.Persistence.Migrations
                     b.Property<int>("State")
                         .HasColumnType("int");
 
-                    b.Property<long>("StudentId")
+                    b.Property<long?>("StudentId")
                         .HasColumnType("bigint");
 
                     b.Property<long>("TenantId")
@@ -14942,6 +14947,10 @@ namespace EduOS.Persistence.Migrations
 
                     b.HasIndex("TenantId", "StudentId");
 
+                    b.HasIndex("TenantId", "EmployeeId", "State", "Id")
+                        .HasDatabaseName("IX_BookIssues_LibraryEmployeeLoans")
+                        .HasFilter("[EmployeeId] IS NOT NULL AND [IsDeleted] = 0");
+
                     b.HasIndex("TenantId", "State", "DueDate", "Id")
                         .HasDatabaseName("IX_BookIssues_LibraryOverdueCandidates")
                         .HasFilter("[IsDeleted] = 0");
@@ -14949,6 +14958,8 @@ namespace EduOS.Persistence.Migrations
                     b.ToTable("BookIssues", t =>
                         {
                             t.HasCheckConstraint("CK_BookIssue_DateRange", "[DueDate] >= [IssueDate] AND ([ReturnDate] IS NULL OR [ReturnDate] >= [IssueDate])");
+
+                            t.HasCheckConstraint("CK_BookIssue_OneBorrower", "([StudentId] IS NOT NULL AND [EmployeeId] IS NULL) OR ([StudentId] IS NULL AND [EmployeeId] IS NOT NULL)");
                         });
                 });
 
@@ -25105,12 +25116,17 @@ namespace EduOS.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
+                    b.HasOne("EduOS.Core.Entities.HR.Employee", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "EmployeeId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("EduOS.Core.Entities.Students.Student", null)
                         .WithMany()
                         .HasForeignKey("TenantId", "StudentId")
                         .HasPrincipalKey("TenantId", "Id")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
+                        .OnDelete(DeleteBehavior.Restrict);
 
                     b.Navigation("Tenant");
                 });

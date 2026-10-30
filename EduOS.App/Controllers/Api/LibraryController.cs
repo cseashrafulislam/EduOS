@@ -53,6 +53,18 @@ public sealed class LibraryController : ControllerBase
         [FromQuery] int page = 1, [FromQuery] int pageSize = 50, CancellationToken ct = default) =>
         ToAction(await _service.GetAvailableCopiesForStudentAsync(reference, studentReference, page, pageSize, ct));
 
+    [HttpGet("employee-options")]
+    [Authorize(Roles = "TenantAdmin,Principal,Librarian")]
+    public async Task<IActionResult> EmployeeOptions([FromQuery] string search,
+        [FromQuery] int page = 1, [FromQuery] int pageSize = 20, CancellationToken ct = default) =>
+        ToAction(await _service.FindEligibleEmployeesAsync(search, page, pageSize, ct));
+
+    [HttpGet("books/{reference:guid}/employee-copies")]
+    [Authorize(Roles = "TenantAdmin,Principal,Librarian")]
+    public async Task<IActionResult> EmployeeCopies(Guid reference, [FromQuery] Guid employeeReference,
+        [FromQuery] int page = 1, [FromQuery] int pageSize = 50, CancellationToken ct = default) =>
+        ToAction(await _service.GetAvailableCopiesForEmployeeAsync(reference, employeeReference, page, pageSize, ct));
+
     [HttpPost("copies")]
     [Authorize(Roles = "TenantAdmin,Principal,Librarian")]
     public async Task<IActionResult> CreateCopy([FromBody] SaveBookCopyRequestDto request, CancellationToken ct)
@@ -196,6 +208,26 @@ public sealed class LibraryController : ControllerBase
         [FromQuery] string? status = null, CancellationToken ct = default) =>
         ToAction(await _service.GetMyIssuesAsync(page, pageSize, ct, status));
 
+    [HttpGet("my-employee-issues")]
+    public async Task<IActionResult> MyEmployeeIssues([FromQuery] int page = 1,
+        [FromQuery] int pageSize = 20, [FromQuery] string? status = null,
+        CancellationToken ct = default) =>
+        ToAction(await _service.GetMyEmployeeIssuesAsync(page, pageSize, status, ct));
+
+    [HttpGet("my-employee-issues/export")]
+    public async Task<IActionResult> ExportMyEmployeeIssues([FromQuery] int page = 1,
+        [FromQuery] int pageSize = 20, [FromQuery] string? status = null,
+        [FromQuery] string language = "en-BD", CancellationToken ct = default)
+    {
+        if (language is not ("en-BD" or "bn-BD")) return BadRequest("Unsupported report language.");
+        var result = await _service.GetMyEmployeeIssuesAsync(page, pageSize, status, ct);
+        if (!result.Success || result.Data == null) return ToAction(result);
+        Response.Headers.CacheControl = "no-store, private";
+        Response.Headers.Pragma = "no-cache";
+        return File(LibraryMyLoanCsvWriter.Write(result.Data.Items, language == "bn-BD"),
+            "text/csv; charset=utf-8", "my-employee-library-loans-page.csv");
+    }
+
     // Re-query on every download; only the authenticated student's own tenant loans.
     [HttpGet("my-issues/export")]
     [Authorize(Roles = "Student")]
@@ -216,6 +248,11 @@ public sealed class LibraryController : ControllerBase
     [HttpPost("issues")]
     [Authorize(Roles="TenantAdmin,Principal,Librarian")]
     public async Task<IActionResult> Issue([FromBody]IssueBookRequestDto request,CancellationToken ct)=>ToAction(await _service.IssueAsync(request,ct));
+
+    [HttpPost("employee-issues")]
+    [Authorize(Roles = "TenantAdmin,Principal,Librarian")]
+    public async Task<IActionResult> IssueEmployee([FromBody] IssueBookRequestDto request, CancellationToken ct) =>
+        ToAction(await _service.IssueEmployeeAsync(request, ct));
 
     [HttpPost("issues/{reference:guid}/renew")]
     [Authorize(Roles = "TenantAdmin,Principal,Librarian")]

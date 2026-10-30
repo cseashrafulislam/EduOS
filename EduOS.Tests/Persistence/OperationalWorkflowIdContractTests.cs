@@ -7,10 +7,11 @@ namespace EduOS.Tests.Persistence;
 public sealed class OperationalWorkflowIdContractTests
 {
     [Fact]
-    public void Library_issue_uses_canonical_copy_and_student_foreign_keys()
+    public void Library_issue_uses_canonical_copy_and_exactly_one_borrower_foreign_key()
     {
         Assert.Equal(typeof(long), typeof(BookIssue).GetProperty(nameof(BookIssue.BookCopyId))!.PropertyType);
-        Assert.Equal(typeof(long), typeof(BookIssue).GetProperty(nameof(BookIssue.StudentId))!.PropertyType);
+        Assert.Equal(typeof(long?), typeof(BookIssue).GetProperty(nameof(BookIssue.StudentId))!.PropertyType);
+        Assert.Equal(typeof(long?), typeof(BookIssue).GetProperty(nameof(BookIssue.EmployeeId))!.PropertyType);
         Assert.Equal(typeof(long), typeof(BookIssue).GetProperty(nameof(BookIssue.IssuedByUserId))!.PropertyType);
         Assert.Equal(typeof(long?), typeof(BookIssue).GetProperty(nameof(BookIssue.ReturnedByUserId))!.PropertyType);
         Assert.Equal(typeof(long), typeof(BookCopy).GetProperty(nameof(BookCopy.BookId))!.PropertyType);

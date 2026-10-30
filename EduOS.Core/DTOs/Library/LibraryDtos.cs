@@ -83,6 +83,9 @@ public class BookIssueDto
     public string BookTitle { get; set; } = string.Empty;
     public Guid StudentReference { get; set; }
     public string StudentName { get; set; } = string.Empty;
+    public Guid? EmployeeReference { get; set; }
+    public string BorrowerType { get; set; } = "Student";
+    public string BorrowerCode { get; set; } = string.Empty;
     public DateOnly IssueDate { get; set; }
     public DateOnly DueDate { get; set; }
     public DateOnly? ReturnDate { get; set; }
@@ -96,8 +99,16 @@ public class IssueBookRequestDto
     public Guid ClientRequestId { get; set; }
     public long BookCopyId { get; set; }
     public Guid StudentReference { get; set; }
+    public Guid? EmployeeReference { get; set; }
     public DateOnly IssueDate { get; set; }
     public DateOnly DueDate { get; set; }
+}
+
+public sealed class LibraryEmployeeOptionDto
+{
+    public Guid EmployeeReference { get; set; }
+    public string EmployeeCode { get; set; } = string.Empty;
+    public string EmployeeName { get; set; } = string.Empty;
 }
 
 public sealed class RenewBookRequestDto

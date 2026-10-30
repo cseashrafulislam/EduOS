@@ -14,8 +14,8 @@ public static class LibraryCirculationCsvWriter
         if (rows.Count > 100) throw new ArgumentOutOfRangeException(nameof(rows));
         var output = new StringBuilder();
         Append(output, bangla
-            ? ["শিক্ষার্থী", "বই", "অ্যাকসেশন", "ক্যাম্পাস", "ইস্যুর তারিখ", "ফেরতের নির্ধারিত তারিখ", "ফেরতের তারিখ", "অবস্থা", "বিলম্বের দিন"]
-            : ["Student", "Book", "Accession", "Campus", "Issue date", "Due date", "Return date", "Status", "Overdue days"]);
+            ? ["ঋণগ্রহীতার ধরন", "ঋণগ্রহীতা", "বই", "অ্যাকসেশন", "ক্যাম্পাস", "ইস্যুর তারিখ", "ফেরতের নির্ধারিত তারিখ", "ফেরতের তারিখ", "অবস্থা", "বিলম্বের দিন"]
+            : ["Borrower type", "Borrower", "Book", "Accession", "Campus", "Issue date", "Due date", "Return date", "Status", "Overdue days"]);
         foreach (var row in rows)
         {
             var issue = row.Issue;
@@ -28,6 +28,8 @@ public static class LibraryCirculationCsvWriter
                 _ => bangla ? "অন্যান্য" : "Other"
             };
             Append(output, [
+                issue.EmployeeReference.HasValue ? (bangla ? "কর্মচারী" : "Employee") :
+                    (bangla ? "শিক্ষার্থী" : "Student"),
                 issue.StudentName, issue.BookTitle, issue.AccessionNumber,
                 row.CampusId?.ToString(CultureInfo.InvariantCulture) ?? "",
                 issue.IssueDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),

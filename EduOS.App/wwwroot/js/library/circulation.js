@@ -24,7 +24,7 @@ function render(){
  const body=el('circulationRows');body.replaceChildren();
  for(const row of state.rows){
   const i=row.issue,tr=document.createElement('tr');
-  [i.studentName,i.bookTitle,i.accessionNumber,row.campusId,i.issueDate,i.dueDate,i.returnDate,label(i.state),row.daysOverdue].forEach(v=>cell(tr,v));
+  [i.borrowerType||'Student',i.studentName,i.bookTitle,i.accessionNumber,row.campusId,i.issueDate,i.dueDate,i.returnDate,label(i.state),row.daysOverdue].forEach(v=>cell(tr,v));
   const td=cell(tr,'');
   if(i.state===1){
    const b=document.createElement('button');b.type='button';b.className='btn btn-sm btn-outline-primary';
@@ -41,7 +41,7 @@ function render(){
   history.addEventListener('click',()=>openRenewalHistory(i.reference));td.append(history);
   body.append(tr);
  }
- if(!state.rows.length){const tr=document.createElement('tr');cell(tr,'No matching circulation records.').colSpan=10;body.append(tr);}
+ if(!state.rows.length){const tr=document.createElement('tr');cell(tr,'No matching circulation records.').colSpan=11;body.append(tr);}
  el('circulationPage').textContent='Page '+state.page+' / '+state.pages;
  el('circulationPrevious').disabled=state.page<=1;
  el('circulationNext').disabled=state.page>=state.pages;
@@ -174,18 +174,22 @@ function clearIssueCopies(){
  el('directIssueCopyMore').hidden=true;
 }
 async function findIssueStudents(page=1){
- const term=el('directIssueStudentQuery').value.trim();
- if(term.length<2||term.length>100){issueStatus('Enter at least 2 characters to find a student.');return;}
+ const term=el('directIssueStudentQuery').value.trim(),employee=el('directIssueBorrowerType').value==='Employee';
+ if(term.length<2||term.length>100){issueStatus('Enter at least 2 characters to find a borrower.');return;}
  const seq=++direct.studentSeq;
- if(page===1){el('directIssueStudent').replaceChildren(new Option('Select an eligible student',''));direct.studentPage=0;}
+ if(page===1){el('directIssueStudent').replaceChildren(new Option('Select a borrower',''));direct.studentPage=0;}
  el('directIssueStudentMore').hidden=true;
  try{
-  const data=await api('/api/library/reservations/eligible-students?'+new URLSearchParams({search:term,page:String(page),pageSize:'20'}));
-  if(seq!==direct.studentSeq||el('directIssueStudentQuery').value.trim()!==term)return;
-  for(const s of data?.items||[])el('directIssueStudent').add(new Option(s.studentCode+' — '+s.studentName,s.studentReference));
+  const url=employee?'/api/library/employee-options?':'/api/library/reservations/eligible-students?';
+  const data=await api(url+new URLSearchParams({search:term,page:String(page),pageSize:'20'}));
+  if(seq!==direct.studentSeq||el('directIssueStudentQuery').value.trim()!==term||
+   (el('directIssueBorrowerType').value==='Employee')!==employee)return;
+  for(const s of data?.items||[])el('directIssueStudent').add(new Option(
+   (employee?s.employeeCode:s.studentCode)+' — '+(employee?s.employeeName:s.studentName),
+   employee?s.employeeReference:s.studentReference));
   direct.studentPage=page;direct.studentTerm=term;
   el('directIssueStudentMore').hidden=!data?.hasNextPage;
-  issueStatus((data?.totalCount||0)+' eligible student(s) found.');
+  issueStatus((data?.totalCount||0)+' eligible borrower(s) found.');
  }catch(e){if(seq===direct.studentSeq){issueStatus('Student search failed.');message(e.message);}}
 }
 async function findIssueBooks(page=1){
@@ -204,14 +208,17 @@ async function findIssueBooks(page=1){
 }
 async function findIssueCopies(page=1){
  const book=el('directIssueBook').value,student=el('directIssueStudent').value;
- if(!book||!student){clearIssueCopies();issueStatus('Choose an eligible student and book to see campus-available copies.');return;}
+ const employee=el('directIssueBorrowerType').value==='Employee';
+ if(!book||!student){clearIssueCopies();issueStatus('Choose an eligible borrower and book to see campus-available copies.');return;}
  if(page===1){clearIssueCopies();direct.bookReference=book;}
  const seq=++direct.copySeq;
  el('directIssueCopyMore').hidden=true;
  try{
-  const data=await api('/api/library/books/'+encodeURIComponent(book)+'/available-copies?'+
-   new URLSearchParams({studentReference:student,page:String(page),pageSize:'50'}));
-  if(seq!==direct.copySeq||el('directIssueBook').value!==book||el('directIssueStudent').value!==student)return;
+  const route=employee?'/employee-copies?':'/available-copies?';
+  const data=await api('/api/library/books/'+encodeURIComponent(book)+route+
+   new URLSearchParams({[employee?'employeeReference':'studentReference']:student,page:String(page),pageSize:'50'}));
+  if(seq!==direct.copySeq||el('directIssueBook').value!==book||el('directIssueStudent').value!==student||
+   (el('directIssueBorrowerType').value==='Employee')!==employee)return;
   let added=0;
   for(const copy of data?.items||[]){
    if(Number(copy.state)!==1)continue;
@@ -221,7 +228,7 @@ async function findIssueCopies(page=1){
   }
   direct.copyPage=page;
   el('directIssueCopyMore').hidden=!data?.hasNextPage;
-  issueStatus('Available copies on this page: '+added+'. Select the correct campus branch; the server validates student eligibility.');
+  issueStatus('Available copies on this page: '+added+'. The server validates borrower campus eligibility.');
  }catch(e){if(seq===direct.copySeq){issueStatus('Copy lookup failed.');message(e.message);}}
 }
 el('directIssueStudentSearch').addEventListener('click',()=>findIssueStudents(1));
@@ -233,6 +240,12 @@ el('directIssueStudentQuery').addEventListener('input',()=>{
  ++direct.studentSeq;direct.studentPage=0;newIssueKey();
  el('directIssueStudent').replaceChildren(new Option('Select an eligible student',''));
  el('directIssueStudentMore').hidden=true;clearIssueCopies();
+});
+el('directIssueBorrowerType').addEventListener('change',()=>{
+ ++direct.studentSeq;newIssueKey();el('directIssueStudentQuery').value='';
+ el('directIssueStudent').replaceChildren(new Option('Select a borrower',''));
+ el('directIssueStudentMore').hidden=true;clearIssueCopies();
+ issueStatus('Choose an eligible borrower and book.');
 });
 el('directIssueBookQuery').addEventListener('input',()=>{
  ++direct.bookSeq;direct.bookPage=0;newIssueKey();
@@ -249,18 +262,20 @@ el('directIssueDueDate').value=new Date(Date.now()+14*86400000).toISOString().sl
 el('directIssueForm').addEventListener('submit',async e=>{
  e.preventDefault();
  if(direct.busy)return;
- const studentReference=el('directIssueStudent').value,copyValue=Number(el('directIssueCopy').value);
+ const borrowerReference=el('directIssueStudent').value,employee=el('directIssueBorrowerType').value==='Employee';
+ const copyValue=Number(el('directIssueCopy').value);
  const dueDate=el('directIssueDueDate').value;
- if(!studentReference||!Number.isSafeInteger(copyValue)||copyValue<=0||!dueDate){
-  message('Choose an eligible student, an available copy and a due date.');return;
+ if(!borrowerReference||!Number.isSafeInteger(copyValue)||copyValue<=0||!dueDate){
+  message('Choose an eligible borrower, an available copy and a due date.');return;
  }
  if(dueDate<new Date().toISOString().slice(0,10)){
   message('Due date cannot be before the current UTC date.');return;
  }
  direct.busy=true;el('directIssueSubmit').disabled=true;
  try{
-  await api('/api/library/issues','POST',{clientRequestId:direct.key,
-   studentReference,bookCopyId:copyValue,dueDate});
+  await api(employee?'/api/library/employee-issues':'/api/library/issues','POST',{
+   clientRequestId:direct.key,[employee?'employeeReference':'studentReference']:borrowerReference,
+   bookCopyId:copyValue,dueDate});
   newIssueKey();message('Copy issued successfully.',true);
   await Promise.all([findIssueCopies(1),load()]);
  }catch(error){message(error.message);issueStatus('If this book has an active reservation, fulfill it from the reservation queue.');}

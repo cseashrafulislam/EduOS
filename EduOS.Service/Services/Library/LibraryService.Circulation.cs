@@ -22,14 +22,22 @@ public sealed partial class LibraryService
 
         var tenant = _user.TenantId;
         var today = DateOnly.FromDateTime(_clock.GetUtcNow().UtcDateTime);
+        if (_staffEmployees == null)
+            return ApiResponse<PagedResult<LibraryCirculationRowDto>>.ErrorResponse("Employee borrower lookup is unavailable.", 503);
         var query = from issue in _issues.GetQueryable().AsNoTracking()
                     join copy in _copies.GetQueryable().AsNoTracking() on issue.BookCopyId equals copy.Id
                     join book in _books.GetQueryable().AsNoTracking() on copy.BookId equals book.Id
-                    join student in _students.GetQueryable().AsNoTracking() on issue.StudentId equals student.Id
+                    join student in _students.GetQueryable().AsNoTracking()
+                        on issue.StudentId equals (long?)student.Id into studentJoin
+                    from student in studentJoin.DefaultIfEmpty()
+                    join employee in _staffEmployees.GetQueryable().AsNoTracking()
+                        on issue.EmployeeId equals (long?)employee.Id into employeeJoin
+                    from employee in employeeJoin.DefaultIfEmpty()
                     where issue.TenantId == tenant && copy.TenantId == tenant &&
-                          book.TenantId == tenant && student.TenantId == tenant &&
-                          !issue.IsDeleted && !copy.IsDeleted && !book.IsDeleted && !student.IsDeleted
-                    select new { Issue = issue, Copy = copy, Book = book, Student = student };
+                          book.TenantId == tenant && !issue.IsDeleted && !copy.IsDeleted && !book.IsDeleted &&
+                          (student != null && student.TenantId == tenant && !student.IsDeleted ||
+                           employee != null && employee.TenantId == tenant && !employee.IsDeleted)
+                    select new { Issue = issue, Copy = copy, Book = book, Student = student, Employee = employee };
         if (status == "issued") query = query.Where(x => x.Issue.State == BookIssueState.Issued);
         if (status == "returned") query = query.Where(x => x.Issue.State == BookIssueState.Returned);
         if (status == "overdue") query = query.Where(x =>
@@ -37,8 +45,10 @@ public sealed partial class LibraryService
         if (!string.IsNullOrWhiteSpace(search))
         {
             var term = search.Trim();
-            query = query.Where(x => x.Student.FullName.Contains(term) ||
-                x.Student.StudentCode.Contains(term) || x.Book.Title.Contains(term) ||
+            query = query.Where(x => (x.Student != null && (x.Student.FullName.Contains(term) ||
+                x.Student.StudentCode.Contains(term))) ||
+                (x.Employee != null && (x.Employee.FullName.Contains(term) ||
+                 x.Employee.EmployeeCode.Contains(term))) || x.Book.Title.Contains(term) ||
                 x.Copy.AccessionNumber.Contains(term));
         }
         if (IsCampusScopedStaff)
@@ -79,7 +89,7 @@ public sealed partial class LibraryService
             var overdue = x.Issue.State == BookIssueState.Issued && x.Issue.DueDate < today;
             return new LibraryCirculationRowDto
             {
-                Issue = MapIssue(x.Issue, x.Copy, x.Book, x.Student),
+                Issue = MapIssue(x.Issue, x.Copy, x.Book, x.Student, x.Employee),
                 CampusId = x.Copy.LibraryBranchId.HasValue &&
                     branches.TryGetValue(x.Copy.LibraryBranchId.Value, out var campus) ? campus : null,
                 IsOverdue = overdue,

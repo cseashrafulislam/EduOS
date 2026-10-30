@@ -73,7 +73,7 @@ public sealed class LibraryOverdueNoticeService(
                join copy in db.BookCopies.AsNoTracking() on issue.BookCopyId equals copy.Id
                join branch in db.LibraryBranches.AsNoTracking() on copy.LibraryBranchId equals (long?)branch.Id
                join book in db.Books.AsNoTracking() on copy.BookId equals book.Id
-               join student in db.Students.AsNoTracking() on issue.StudentId equals student.Id
+               join student in db.Students.AsNoTracking() on issue.StudentId equals (long?)student.Id
                where issue.TenantId == tenant && copy.TenantId == tenant &&
                    branch.TenantId == tenant && book.TenantId == tenant && student.TenantId == tenant &&
                    !issue.IsDeleted && !copy.IsDeleted && !branch.IsDeleted &&

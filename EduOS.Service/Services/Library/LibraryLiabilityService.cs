@@ -80,7 +80,7 @@ public sealed partial class LibraryLiabilityService(
                     join book in db.Books.AsNoTracking() on new { copy.TenantId, Id = copy.BookId }
                         equals new { book.TenantId, book.Id }
                     join student in db.Students.AsNoTracking() on new { issue.TenantId, Id = issue.StudentId }
-                        equals new { student.TenantId, student.Id }
+                        equals new { student.TenantId, Id = (long?)student.Id }
                     where issue.TenantId == tenant && !issue.IsDeleted && !copy.IsDeleted &&
                         !branch.IsDeleted && !book.IsDeleted && !student.IsDeleted &&
                         ((issue.State == BookIssueState.Lost && copy.State == BookCopyState.Lost) ||
@@ -132,7 +132,7 @@ public sealed partial class LibraryLiabilityService(
                     join book in db.Books.IgnoreQueryFilters().AsNoTracking() on new { copy.TenantId, Id = copy.BookId }
                         equals new { book.TenantId, book.Id }
                     join student in db.Students.IgnoreQueryFilters().AsNoTracking() on new { issue.TenantId, Id = issue.StudentId }
-                        equals new { student.TenantId, student.Id }
+                        equals new { student.TenantId, Id = (long?)student.Id }
                     join invoice in db.StudentInvoices.IgnoreQueryFilters().AsNoTracking() on new { charge.TenantId, Id = charge.StudentInvoiceId }
                         equals new { invoice.TenantId, Id = (long?)invoice.Id } into invoices
                     from invoice in invoices.DefaultIfEmpty()
@@ -191,6 +191,8 @@ public sealed partial class LibraryLiabilityService(
             var issue = await db.BookIssues.FirstOrDefaultAsync(x => x.TenantId == tenant &&
                 x.PublicId == request.IssueReference && !x.IsDeleted, ct);
             if (issue == null) return Error<LibraryLiabilityDto>("Loan incident not found.", 404);
+            if (!issue.StudentId.HasValue || issue.EmployeeId.HasValue)
+                return Error<LibraryLiabilityDto>("Employee loans are excluded from student Finance invoices.", 409);
             var previous = await db.LibraryLiabilities.FirstOrDefaultAsync(x => x.TenantId == tenant &&
                 x.ClientRequestId == request.ClientRequestId, ct);
             if (previous != null)

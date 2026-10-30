@@ -7,7 +7,7 @@ const view = fs.readFileSync(path.join(root, 'Views/Library/Circulation.cshtml')
 const script = fs.readFileSync(path.join(root, 'wwwroot/js/library/circulation.js'), 'utf8');
 const controller = fs.readFileSync(path.join(root, 'Controllers/Api/LibraryController.cs'), 'utf8');
 
-test('staff direct issue workspace selects eligible students, books and paged copies', () => {
+test('staff direct issue workspace selects eligible student/employee, books and paged copies', () => {
     for (const id of ['directIssueStudent', 'directIssueBook', 'directIssueCopy',
         'directIssueDueDate', 'directIssueForm', 'directIssueStudentMore',
         'directIssueBookMore', 'directIssueCopyMore']) {
@@ -16,7 +16,9 @@ test('staff direct issue workspace selects eligible students, books and paged co
     assert.match(script, /\/api\/library\/reservations\/eligible-students\?/);
     assert.match(script, /\/api\/library\/catalog\?/);
     assert.match(script, /\/available-copies\?/);
-    assert.match(script, /studentReference:student/);
+    assert.match(view, /id="directIssueBorrowerType"/);
+    assert.match(script, /employeeReference/);
+    assert.match(script, /employee-copies\?/);
     assert.match(script, /hasNextPage/);
     assert.match(script, /Number\(copy\.state\)!==1/);
 });
@@ -25,8 +27,9 @@ test('direct issue uses CSRF, stable retry key and canonical circulation endpoin
     assert.match(controller, /HttpPost\("issues"\)/);
     assert.match(script, /headers\.RequestVerificationToken=token/);
     assert.match(script, /clientRequestId:direct\.key/);
-    assert.match(script, /studentReference,bookCopyId:copyValue,dueDate/);
-    assert.match(script, /await api\('\/api\/library\/issues','POST'/);
+    assert.match(script, /\[employee\?'employeeReference':'studentReference'\]:borrowerReference/);
+    assert.match(script, /await api\(employee\?'\/api\/library\/employee-issues':'\/api\/library\/issues','POST'/);
+    assert.match(controller, /HttpPost\("employee-issues"\)/);
     assert.match(script, /newIssueKey\(\);message\('Copy issued successfully\.'/);
     assert.match(view, /asp-action="Reservations"/);
 });

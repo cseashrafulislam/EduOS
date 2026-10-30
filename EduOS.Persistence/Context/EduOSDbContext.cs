@@ -1047,6 +1047,7 @@ public class EduOSDbContext :
         TenantReference<BookCopy, LibraryBranch>(modelBuilder, nameof(BookCopy.LibraryBranchId));
         TenantReference<BookIssue, BookCopy>(modelBuilder, nameof(BookIssue.BookCopyId));
         TenantReference<BookIssue, Student>(modelBuilder, nameof(BookIssue.StudentId));
+        TenantReference<BookIssue, Employee>(modelBuilder, nameof(BookIssue.EmployeeId));
         TenantReference<LibraryLiability, BookIssue>(modelBuilder, nameof(LibraryLiability.BookIssueId));
         TenantReference<LibraryLiability, StudentEnrollment>(modelBuilder, nameof(LibraryLiability.StudentEnrollmentId));
         TenantReference<LibraryLiability, Campus>(modelBuilder, nameof(LibraryLiability.CampusId));
@@ -1662,6 +1663,9 @@ public class EduOSDbContext :
         modelBuilder.Entity<BookIssue>().HasIndex(x => new { x.TenantId, x.State, x.DueDate, x.Id })
             .HasDatabaseName("IX_BookIssues_LibraryOverdueCandidates")
             .HasFilter("[IsDeleted] = 0");
+        modelBuilder.Entity<BookIssue>().HasIndex(x => new { x.TenantId, x.EmployeeId, x.State, x.Id })
+            .HasDatabaseName("IX_BookIssues_LibraryEmployeeLoans")
+            .HasFilter("[EmployeeId] IS NOT NULL AND [IsDeleted] = 0");
         UniqueTenant<BookReservation>(modelBuilder, nameof(BookReservation.ClientRequestId));
 
         // Hostel / transport
@@ -1919,7 +1923,10 @@ public class EduOSDbContext :
         modelBuilder.Entity<AssetAssignment>().ToTable(t =>
             t.HasCheckConstraint("CK_AssetAssignment_DateRange", "[ReturnedOn] IS NULL OR [ReturnedOn] >= [AssignedOn]"));
         modelBuilder.Entity<BookIssue>().ToTable(t =>
-            t.HasCheckConstraint("CK_BookIssue_DateRange", "[DueDate] >= [IssueDate] AND ([ReturnDate] IS NULL OR [ReturnDate] >= [IssueDate])"));
+        {
+            t.HasCheckConstraint("CK_BookIssue_DateRange", "[DueDate] >= [IssueDate] AND ([ReturnDate] IS NULL OR [ReturnDate] >= [IssueDate])");
+            t.HasCheckConstraint("CK_BookIssue_OneBorrower", "([StudentId] IS NOT NULL AND [EmployeeId] IS NULL) OR ([StudentId] IS NULL AND [EmployeeId] IS NOT NULL)");
+        });
         modelBuilder.Entity<LibraryLiability>().ToTable(t =>
         {
             t.HasCheckConstraint("CK_LibraryLiability_Amount", "[Amount] > 0 AND [Amount] <= 999999999999.99");

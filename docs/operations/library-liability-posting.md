@@ -26,4 +26,4 @@
 
 ## Remaining release-gate decisions
 
-This adds **loss/damage charge-to-invoice posting**, but does not by itself certify the entire Library V2 module as 100%. Automatic overdue-penalty policy/configuration, separately approved financial correction/reversal for unpaid library invoices, historical price remediation, employee physical borrowing (if required), SQL-backed concurrency/load/UAT and production Windows Defender acceptance need their own completed code/operational sign-off. No such workflow should be inferred as implemented from the presence of a UI button or test name.
+This adds **loss/damage charge-to-invoice posting**, but does not by itself certify the entire Library V2 module as 100%. Subsequent implementation is documented in `../V2_LIBRARY_OVERDUE_REVERSAL_HANDOFF_20261030.md` (overdue policy, approved unpaid reversal) and `../V2_LIBRARY_EMPLOYEE_CIRCULATION_HANDOFF_20261030.md` (campus-scoped employee borrowing). Paid-charge Finance correction, restored-SQL concurrency/load/UAT and production Windows Defender acceptance still require independent approval. No workflow is deemed accepted merely because a UI button or test exists.

@@ -10,8 +10,8 @@ const js=read('EduOS.App/wwwroot/js/library/index.js');
 const view=read('EduOS.App/Views/Library/Index.cshtml');
 
 test('student loan statement uses tenant-owned identity and server-filtered paging',()=>{
- assert.match(service,/studentIds\.Contains\(x\.StudentId\)/);
- assert.match(service,/x\.TenantId == tenant && studentIds\.Contains/);
+ assert.match(service,/x\.StudentId\.HasValue && studentIds\.Contains\(x\.StudentId\.Value\)/);
+ assert.match(service,/x\.TenantId == tenant && x\.StudentId\.HasValue/);
  assert.match(service,/status == "overdue"/);
  assert.match(service,/x\.DueDate < today/);
  assert.match(service,/_user\.IsInRole\("Student"\)/);
@@ -27,7 +27,8 @@ test('borrower page filters loans and exports a fresh authorized page',()=>{
  assert.match(js,/if \(issueRows\) loadIssues\(\)/);
  assert.match(view,/aria-label="Library help"/);
  assert.match(js,/status: el\('issueStatus'\)\.value/);
- assert.match(js,/\/api\/library\/my-issues\/export\?/);
+ assert.match(js,/loanEndpoint \+ '\/export\?'/);
+ assert.match(view,/data-loan-endpoint="@\(isStudentBorrower \? "my-issues" : "my-employee-issues"\)"/);
  assert.match(js,/cache: 'no-store'/);
  assert.match(js,/issueRequest/);
  assert.doesNotMatch(js,/issueRows\.innerHTML\s*=/);
