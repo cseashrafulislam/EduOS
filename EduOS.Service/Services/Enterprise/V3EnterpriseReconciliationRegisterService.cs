@@ -143,11 +143,14 @@ public sealed class V3EnterpriseReconciliationRegisterService(
                 journalMap.TryGetValue(r.ReversalJournalId.Value, out var reversal) &&
                 reversal.ReversalOfJournalId != r.JournalId)
                 journalConflict = true;
+            // Never allow another run on the same page to contaminate this row.
+            var runJournalIds = new[] { r.JournalId, r.ReversalJournalId }
+                .Where(id => id.HasValue).Select(id => id!.Value).Distinct().ToArray();
             var status = journalConflict || v?.Deleted == true ? "EvidenceConflict" :
                 (v?.Amount ?? 0m) != r.TotalAmount ? "RunLineMismatch" :
-                journalIds.Any(id => journalTotals.TryGetValue(id, out var t) && t.Deleted)
+                runJournalIds.Any(id => journalTotals.TryGetValue(id, out var t) && t.Deleted)
                     ? "EvidenceConflict" :
-                journalIds.Any(id => !journalTotals.TryGetValue(id, out var t) ||
+                runJournalIds.Any(id => !journalTotals.TryGetValue(id, out var t) ||
                     t.Debit <= 0m || t.Debit != t.Credit)
                     ? "JournalImbalance" :
                 journals.Any(j => j.State != JournalState.Posted && j.State != JournalState.Reversed)
