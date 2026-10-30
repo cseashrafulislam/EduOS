@@ -7,6 +7,7 @@ using EduOS.Persistence.Context;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
 using Microsoft.Extensions.Logging;
+using System.Text.Json;
 
 namespace EduOS.Service.Services.Inventory;
 
@@ -90,14 +91,26 @@ public sealed class ProcurementRequisitionService : IProcurementRequisitionServi
             .OrderBy(x => x.LineNo).ToListAsync(ct);
         return Map(r, lines);
     }
-    public async Task<ApiResponse<PagedResult<ProcurementRequisitionDto>>> ListAsync(
+    public Task<ApiResponse<PagedResult<ProcurementRequisitionDto>>> ListAsync(
         int page, int pageSize, long? campusId, string? state, string? search, CancellationToken ct = default)
+        => ListCoreAsync(page, pageSize, campusId, state, search, false, ct);
+
+    public Task<ApiResponse<PagedResult<ProcurementRequisitionDto>>> PendingApprovalsAsync(
+        int page, int pageSize, long? campusId, string? search, CancellationToken ct = default)
+        => ListCoreAsync(page, pageSize, campusId, "Submitted", search, true, ct);
+
+    private async Task<ApiResponse<PagedResult<ProcurementRequisitionDto>>> ListCoreAsync(
+        int page, int pageSize, long? campusId, string? state, string? search,
+        bool pendingForChecker, CancellationToken ct)
     {
-        if (!Reader) return Denied<PagedResult<ProcurementRequisitionDto>>();
+        if (!Reader || (pendingForChecker && !Checker)) return Denied<PagedResult<ProcurementRequisitionDto>>();
         if (page < 1 || pageSize is < 1 or > 100 || campusId is <= 0 ||
             search?.Length > 100 || state?.Length > 20)
             return ApiResponse<PagedResult<ProcurementRequisitionDto>>.ErrorResponse("Invalid filters.");
         var query = Visible();
+        // Apply maker exclusion before counting/paging, never as a UI-only filter.
+        if (pendingForChecker)
+            query = query.Where(x => x.StateCode == "Submitted" && x.CreatedBy != user.UserId);
         if (campusId.HasValue) query = query.Where(x => x.CampusId == campusId.Value);
         if (!string.IsNullOrWhiteSpace(state)) query = query.Where(x => x.StateCode == state);
         if (!string.IsNullOrWhiteSpace(search))
@@ -125,6 +138,48 @@ public sealed class ProcurementRequisitionService : IProcurementRequisitionServi
             ? ApiResponse<ProcurementRequisitionDto>.ErrorResponse("Requisition not found.", 404)
             : ApiResponse<ProcurementRequisitionDto>.SuccessResponse(await MapAsync(header, ct));
     }
+    private static string? AuditText(string? json, string field)
+    {
+        if (string.IsNullOrWhiteSpace(json)) return null;
+        try
+        {
+            using var document = JsonDocument.Parse(json);
+            return document.RootElement.ValueKind == JsonValueKind.Object &&
+                document.RootElement.TryGetProperty(field, out var value) &&
+                value.ValueKind == JsonValueKind.String ? value.GetString() : null;
+        }
+        catch (JsonException) { return null; }
+    }
+
+    public async Task<ApiResponse<PagedResult<ProcurementRequisitionHistoryDto>>> HistoryAsync(
+        long id, int page, int pageSize, CancellationToken ct = default)
+    {
+        if (!Reader) return Denied<PagedResult<ProcurementRequisitionHistoryDto>>();
+        if (id <= 0 || page < 1 || pageSize is < 1 or > 50 || (long)(page - 1) * pageSize > int.MaxValue)
+            return ApiResponse<PagedResult<ProcurementRequisitionHistoryDto>>.ErrorResponse("Invalid history page.");
+        if (!await Visible().AnyAsync(x => x.Id == id, ct))
+            return ApiResponse<PagedResult<ProcurementRequisitionHistoryDto>>.ErrorResponse("Requisition not found.", 404);
+        var query = db.AuditLogs.AsNoTracking().Where(x => x.TenantId == user.TenantId &&
+            x.EntityName == nameof(ProcurementRequisition) && x.EntityId == id && x.IsSuccess);
+        var total = await query.CountAsync(ct);
+        var audit = await query.OrderByDescending(x => x.OccurredAt).ThenByDescending(x => x.Id)
+            .Skip((page - 1) * pageSize).Take(pageSize)
+            .Select(x => new { x.Id, x.OccurredAt, x.UserId, x.Action, x.OldValue, x.NewValue })
+            .ToListAsync(ct);
+        return ApiResponse<PagedResult<ProcurementRequisitionHistoryDto>>.SuccessResponse(
+            new PagedResult<ProcurementRequisitionHistoryDto>
+            {
+                TotalCount = total, Page = page, PageSize = pageSize,
+                Items = audit.Select(x => new ProcurementRequisitionHistoryDto
+                {
+                    Id = x.Id, OccurredAt = x.OccurredAt, ActorUserId = x.UserId,
+                    Action = x.Action, PreviousState = AuditText(x.OldValue, "StateCode"),
+                    State = AuditText(x.NewValue, "StateCode"),
+                    Reason = AuditText(x.NewValue, "DecisionReason")
+                }).ToList()
+            });
+    }
+
     public async Task<ApiResponse<ProcurementRequisitionDto>> SaveAsync(
         long? id, SaveProcurementRequisitionRequest request, CancellationToken ct = default)
     {

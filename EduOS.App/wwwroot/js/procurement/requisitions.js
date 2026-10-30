@@ -12,6 +12,7 @@
         save:'Save draft', choose:'Choose inventory item', select:'Select', edit:'Edit', submit:'Submit',
         approve:'Approve', reject:'Reject', withdraw:'Withdraw for revision', cancel:'Cancel', quantity:'Quantity', price:'Estimated price',
         remove:'Remove', empty:'No requisitions found.', reason:'Decision reason', page:'Page', of:'of',
+        pending:'Pending approvals', history:'Decision history', updated:'Updated', actor:'User',
         error:'Request failed. Reload and try again.', saved:'Requisition saved.', confirm:'Confirm action?' };
     const bd = { title:'ক্রয় চাহিদাপত্র', export:'এক্সেল / CSV', new:'নতুন চাহিদাপত্র',
         help:'খসড়া স্বাধীন অনুমোদনের জন্য জমা দিন। অনুমোদন নিজে থেকে স্টক বা হিসাব পোস্ট করে না।',
@@ -22,7 +23,8 @@
         select:'নির্বাচন', edit:'সম্পাদনা', submit:'জমা', approve:'অনুমোদন',
         reject:'প্রত্যাখ্যান', withdraw:'সংশোধনের জন্য ফেরত', cancel:'বাতিল', quantity:'পরিমাণ', price:'আনুমানিক মূল্য',
         remove:'মুছুন', empty:'কোনো চাহিদাপত্র পাওয়া যায়নি।', reason:'সিদ্ধান্তের কারণ',
-        page:'পৃষ্ঠা', of:'এর', error:'অনুরোধ ব্যর্থ। পুনরায় চেষ্টা করুন।',
+        page:'পৃষ্ঠা', of:'এর', pending:'অপেক্ষমাণ অনুমোদন', history:'সিদ্ধান্তের ইতিহাস',
+        updated:'হালনাগাদ', actor:'ব্যবহারকারী', error:'অনুরোধ ব্যর্থ। পুনরায় চেষ্টা করুন।',
         saved:'চাহিদাপত্র সংরক্ষিত।', confirm:'নিশ্চিত করবেন?' };
     const t = key => (bn ? bd : en)[key] || key;
     root.querySelectorAll('[data-i18n]').forEach(el => { el.textContent = t(el.dataset.i18n); });
@@ -32,6 +34,7 @@
     const canCheck = root.dataset.checker === 'true';
     const currentUser = Number(root.dataset.userId);
     let page = 1, totalPages = 1, rows = [], selectedItemLine = null, epoch = 0, busy = false;
+    let pendingOnly = false, historyEpoch = 0, historyPage = 1, historyPages = 1, historyId = null;
     const dialog = $('prDialog'), picker = $('prItemDialog');
     const notice = (message, ok = false) => {
         const box = $('prAlert');
@@ -98,7 +101,7 @@
             search:$('prSearch').value.trim(), state:$('prState').value });
         if ($('prCampus').value) query.set('campusId', $('prCampus').value);
         try {
-            const data = await api('?' + query);
+            const data = await api((pendingOnly ? '/pending-approvals?' : '?') + query);
             if (requestEpoch !== epoch) return;
             rows = data.items || []; totalPages = Math.max(1, data.totalPages || 1); render();
         } catch (err) { if (requestEpoch === epoch) notice(err.message); }
@@ -131,14 +134,19 @@
         $('prSave').hidden = !enabled; $('prAddLine').hidden = !enabled;
     }
     function newDraft() {
+        historyEpoch++; historyId = null; $('prHistory').hidden = true;
+        $('prHistoryButton').hidden = true;
         $('prForm').reset(); $('prId').value = ''; $('prVersion').value = '';
         $('prRequestId').value = crypto.randomUUID();
         $('prFormCampus').value = $('prCampus').value;
         $('prLines').replaceChildren(); addLine(); picker.hidden = true; setEditable(true); dialog.showModal();
     }
     async function openDetail(id) {
+        const currentHistoryEpoch = ++historyEpoch;
+        historyId = null; $('prHistory').hidden = true; $('prHistoryButton').hidden = true;
         try {
             const r = await api('/' + encodeURIComponent(id));
+            if (currentHistoryEpoch !== historyEpoch) return;
             $('prId').value = r.id; $('prVersion').value = r.rowVersion;
             // The original request key is not returned: edits are intentionally unavailable
             // until the same key is exposed by the authorized read contract.
@@ -147,8 +155,35 @@
             $('prLines').replaceChildren(); (r.lines || []).forEach(addLine);
             picker.hidden = true; setEditable(r.stateCode === 'Draft' && canMake && r.createdBy === currentUser &&
                 !!r.clientRequestId);
+            historyId = r.id; historyPage = 1; $('prHistoryButton').hidden = false;
             dialog.showModal();
         } catch (err) { notice(err.message); }
+    }
+    async function loadHistory() {
+        if (!historyId) return;
+        const currentHistoryEpoch = ++historyEpoch, requestedId = historyId;
+        try {
+            const data = await api('/' + encodeURIComponent(requestedId) + '/history?' +
+                new URLSearchParams({ page:String(historyPage), pageSize:'10' }));
+            if (currentHistoryEpoch !== historyEpoch || requestedId !== historyId) return;
+            historyPages = Math.max(1, data.totalPages || 1);
+            const list = $('prHistoryRows'); list.replaceChildren();
+            for (const event of data.items || []) {
+                const li = document.createElement('li');
+                li.className = 'list-group-item';
+                const state = event.state || t('updated');
+                const transition = event.previousState && event.state ?
+                    event.previousState + ' → ' + state : state;
+                const details = [date(event.occurredAt), transition, t('actor') + ': ' +
+                    (event.actorUserId ?? '—'), event.reason || ''].filter(Boolean);
+                li.textContent = details.join(' · ');
+                list.append(li);
+            }
+            $('prHistoryPage').textContent = t('page') + ' ' + historyPage + ' ' + t('of') + ' ' + historyPages;
+            $('prHistoryPrev').disabled = historyPage <= 1;
+            $('prHistoryNext').disabled = historyPage >= historyPages;
+            $('prHistory').hidden = false;
+        } catch (err) { if (currentHistoryEpoch === historyEpoch) notice(err.message); }
     }
     async function save(event) {
         event.preventDefault();
@@ -210,13 +245,29 @@
         if ($('prCampus').value) q.set('campusId', $('prCampus').value);
         window.location.assign(base + '/export?' + q);
     });
+    $('prPending')?.addEventListener('click', () => {
+        pendingOnly = !pendingOnly; page = 1;
+        $('prPending').setAttribute('aria-pressed', String(pendingOnly));
+        $('prState').disabled = pendingOnly; $('prExport').disabled = pendingOnly;
+        load();
+    });
     $('prNew')?.addEventListener('click', newDraft);
+    $('prHistoryButton').addEventListener('click', () => {
+        if (!$('prHistory').hidden) { historyEpoch++; $('prHistory').hidden = true; }
+        else { historyPage = 1; loadHistory(); }
+    });
+    $('prHistoryPrev').addEventListener('click', () => { if (historyPage > 1) { historyPage--; loadHistory(); } });
+    $('prHistoryNext').addEventListener('click', () => { if (historyPage < historyPages) { historyPage++; loadHistory(); } });
     $('prAddLine').addEventListener('click', () => addLine());
     $('prForm').addEventListener('submit', save);
-    $('prClose').addEventListener('click', () => dialog.close());
-    $('prDismiss').addEventListener('click', () => dialog.close());
+    $('prClose').addEventListener('click', () => { historyEpoch++; historyId = null; dialog.close(); });
+    $('prDismiss').addEventListener('click', () => { historyEpoch++; historyId = null; dialog.close(); });
+    dialog.addEventListener('close', () => { historyEpoch++; historyId = null; $('prHistory').hidden = true; });
     $('prItemSearchButton').addEventListener('click', searchItems);
     $('prItemClose').addEventListener('click', () => { picker.hidden = true; });
-    window.addEventListener('pageshow', e => { if (e.persisted) { epoch++; rows = []; render(); load(); } });
+    window.addEventListener('pageshow', e => { if (e.persisted) {
+        epoch++; historyEpoch++; historyId = null; rows = []; render();
+        dialog.close(); $('prHistory').hidden = true; load();
+    } });
     load();
 })();

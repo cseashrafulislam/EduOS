@@ -1,5 +1,6 @@
 using EduOS.Core.DTOs.Inventory;
 using EduOS.Core.Entities.Inventory;
+using EduOS.Core.Entities.Auth;
 using EduOS.Core.Entities.SaaS;
 using EduOS.Core.Interfaces;
 using EduOS.Persistence.Context;
@@ -77,11 +78,29 @@ public sealed class ProcurementRequisitionServiceTests
         Assert.Equal(403, selfApproval.StatusCode);
         var unauthorized = await Service(db, 101, 12, "StoreKeeper").TransitionAsync(header.Id, "approve",
             new ProcurementDecisionRequest { RowVersion = "invalid" });
-        Assert.Equal(403, unauthorized.StatusCode);
+        // No campus grant: hide the record, rather than reveal its existence.
+        Assert.Equal(404, unauthorized.StatusCode);
+        db.UserCampusAccesses.Add(new UserCampusAccess { TenantId = 101, UserId = 12,
+            CampusId = campus.Id, IsActive = true });
+        await db.SaveChangesAsync();
+        var grantedButNotChecker = await Service(db, 101, 12, "StoreKeeper").TransitionAsync(header.Id, "approve",
+            new ProcurementDecisionRequest { RowVersion = "invalid" });
+        Assert.Equal(403, grantedButNotChecker.StatusCode);
+        var pending = await checker.PendingApprovalsAsync(1, 25, campus.Id, null);
+        Assert.True(pending.Success);
+        Assert.Single(pending.Data!.Items);
+        Assert.Empty((await maker.PendingApprovalsAsync(1, 25, campus.Id, null)).Data!.Items);
+        Assert.Equal(403, (await Service(db, 101, 12, "StoreKeeper")
+            .PendingApprovalsAsync(1, 25, campus.Id, null)).StatusCode);
+        var history = await checker.HistoryAsync(header.Id, 1, 25);
+        Assert.True(history.Success);
+        Assert.Contains(history.Data!.Items, x => x.Action == "Create");
         var afterApproval = await maker.SaveAsync(header.Id, input);
         Assert.Equal(409, afterApproval.StatusCode);
         await using var foreign = Open(options, 202);
         Assert.Equal(404, (await Service(foreign, 202, 20, "TenantAdmin").GetAsync(header.Id)).StatusCode);
+        Assert.Equal(404, (await Service(foreign, 202, 20, "TenantAdmin")
+            .HistoryAsync(header.Id, 1, 25)).StatusCode);
     }
     [Fact]
     public async Task Invalid_lines_and_unauthorized_campus_fail_before_persistence()

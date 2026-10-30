@@ -51,3 +51,15 @@ public sealed class ProcurementRequisitionDto
     public decimal EstimatedTotal { get; set; }
     public List<ProcurementRequisitionLineDto> Lines { get; set; } = new();
 }
+
+/// <summary>Bounded, authorized history projection; never returns raw audit JSON.</summary>
+public sealed class ProcurementRequisitionHistoryDto
+{
+    public long Id { get; set; }
+    public DateTime OccurredAt { get; set; }
+    public long? ActorUserId { get; set; }
+    public string Action { get; set; } = string.Empty;
+    public string? PreviousState { get; set; }
+    public string? State { get; set; }
+    public string? Reason { get; set; }
+}

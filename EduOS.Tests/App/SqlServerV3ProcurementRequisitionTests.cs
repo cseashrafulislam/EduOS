@@ -132,6 +132,11 @@ public sealed class SqlServerV3ProcurementRequisitionTests
         var second = Service(secondDb, tenantId, checkerId);
         var snapshot = await first.GetAsync(id);
         var version = snapshot.Data!.RowVersion;
+        var pending = await first.PendingApprovalsAsync(1, 25, campusId, null);
+        Assert.True(pending.Success);
+        Assert.Contains(pending.Data!.Items, x => x.Id == id);
+        var makerPending = await Service(firstDb, tenantId, makerId).PendingApprovalsAsync(1, 25, campusId, null);
+        Assert.DoesNotContain(makerPending.Data!.Items, x => x.Id == id);
         var accepted = await first.TransitionAsync(id, "approve",
             new ProcurementDecisionRequest { RowVersion = version });
         Assert.True(accepted.Success, accepted.Message);
@@ -141,6 +146,11 @@ public sealed class SqlServerV3ProcurementRequisitionTests
         await using var verify = Open(options, tenantId, makerId);
         Assert.Equal("Approved", (await Service(verify, tenantId, makerId).GetAsync(id)).Data!.StateCode);
         Assert.Equal(1, await verify.ProcurementRequisitions.CountAsync(x => x.Id == id));
+        var history = await Service(verify, tenantId, makerId).HistoryAsync(id, 1, 25);
+        Assert.True(history.Success);
+        Assert.Contains(history.Data!.Items, x => x.State == "Approved");
+        Assert.DoesNotContain((await first.PendingApprovalsAsync(1, 25, campusId, null)).Data!.Items,
+            x => x.Id == id);
         Assert.Empty(await verify.InventoryMovements.Where(x => x.SourceType == "ProcurementRequisition").ToListAsync());
     }
 }

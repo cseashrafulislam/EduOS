@@ -35,3 +35,13 @@ test('submitted maker can withdraw with reason and revise while checker remains 
     assert.match(source, /withdraw:'Withdraw for revision'/);
     assert.match(source, /withdraw:'সংশোধনের জন্য ফেরত'/);
 });
+
+test('checker-only server approval queue and scoped audit timeline use safe DOM text', () => {
+    assert.match(source, /pending-approvals/);
+    assert.match(source, /aria-pressed/);
+    assert.match(source, /history\?/);
+    assert.match(source, /li\.textContent = details\.join/);
+    assert.match(source, /historyEpoch/);
+    assert.match(source, /historyId = null/);
+    assert.match(source, /pending:'অপেক্ষমাণ অনুমোদন'/);
+});
