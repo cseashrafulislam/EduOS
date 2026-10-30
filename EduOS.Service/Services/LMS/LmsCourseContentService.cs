@@ -196,16 +196,25 @@ public sealed partial class LmsCourseContentService : ILmsCourseContentService
 
     public async Task<ApiResponse<CourseContentDto>> GetCourseContentAsync(Guid courseReference, CancellationToken ct = default)
     {
+        if (!Authenticated || courseReference == Guid.Empty)
+            return Fail<CourseContentDto>("Course not found.", 404);
+        try
+        {
+            // The same SQL read boundary must cover learner enrollment, lesson
+            // publication and the bounded resource projection used by HTML/CSV.
+            // A withdrawal must not split authorization from private readback.
+            return await _uow.ExecuteInTransactionAsync(async token =>
+            {
         if (!Authenticated || courseReference == Guid.Empty) return Fail<CourseContentDto>("Course not found.", 404);
-        var course = await CourseAsync(courseReference, ct);
-        if (course == null || !await CanViewAsync(course, ct)) return Fail<CourseContentDto>("Course not found.", 404);
-        var edit = await CanEditAsync(course, ct);
+        var course = await CourseAsync(courseReference, token);
+        if (course == null || !await CanViewAsync(course, token)) return Fail<CourseContentDto>("Course not found.", 404);
+        var edit = await CanEditAsync(course, token);
         var sections = await _sections.GetQueryable().AsNoTracking().Where(x =>
             x.TenantId == Tenant && x.CourseId == course.Id && !x.IsDeleted && (edit || x.IsPublished))
-            .OrderBy(x => x.DisplayOrder).ThenBy(x => x.Id).Take(201).ToListAsync(ct);
+            .OrderBy(x => x.DisplayOrder).ThenBy(x => x.Id).Take(201).ToListAsync(token);
         var lessons = await _lessons.GetQueryable().AsNoTracking().Where(x =>
             x.TenantId == Tenant && x.CourseId == course.Id && !x.IsDeleted && (edit || x.IsPublished))
-            .OrderBy(x => x.DisplayOrder).ThenBy(x => x.Id).Take(501).ToListAsync(ct);
+            .OrderBy(x => x.DisplayOrder).ThenBy(x => x.Id).Take(501).ToListAsync(token);
         if (sections.Count > 200 || lessons.Count > 500)
             return Fail<CourseContentDto>("Course content exceeds the 200-section/500-lesson view limit.", 409);
         var visibleSectionIds = sections.Select(x => x.Id).ToHashSet();
@@ -213,12 +222,12 @@ public sealed partial class LmsCourseContentService : ILmsCourseContentService
         var lessonIds = lessons.Select(x => x.Id).ToArray();
         var resources = await _resources.GetQueryable().AsNoTracking().Where(x =>
             x.TenantId == Tenant && lessonIds.Contains(x.LessonId) && !x.IsDeleted)
-            .OrderBy(x => x.DisplayOrder).ThenBy(x => x.Id).Take(1001).ToListAsync(ct);
+            .OrderBy(x => x.DisplayOrder).ThenBy(x => x.Id).Take(1001).ToListAsync(token);
         if (resources.Count > 1000) return Fail<CourseContentDto>("Course resources exceed the 1000-item view limit.", 409);
         var fileIds = resources.Where(x => x.FileAssetId.HasValue).Select(x => x.FileAssetId!.Value).Distinct().ToArray();
         var files = await _files.GetQueryable().AsNoTracking().Where(x =>
             x.TenantId == Tenant && fileIds.Contains(x.Id) && !x.IsDeleted && x.IsVerifiedSafe)
-            .ToDictionaryAsync(x => x.Id, ct);
+            .ToDictionaryAsync(x => x.Id, token);
         files = files.Where(x => IsLmsPrivateAsset(x.Value, Tenant))
             .ToDictionary(x => x.Key, x => x.Value);
         var lessonMap = lessons.ToDictionary(x => x.Id, x => LessonRow(x));
@@ -243,6 +252,13 @@ public sealed partial class LmsCourseContentService : ILmsCourseContentService
             Sections = sectionDtos,
             UnsectionedLessons = lessons.Where(x => !x.CourseSectionId.HasValue).Select(x => lessonMap[x.Id]).ToList()
         });
+            }, IsolationLevel.Serializable, ct);
+        }
+        catch (Microsoft.Data.SqlClient.SqlException ex) when (ex.Number is 1205 or 1222 or 3960)
+        {
+            _logger.LogWarning(ex, "LMS content read SQL conflict for tenant {TenantId}", Tenant);
+            return Fail<CourseContentDto>("Course content changed concurrently. Reload and retry.", 409);
+        }
     }
 
     public async Task<ApiResponse<CourseSectionDto>> SaveSectionAsync(long? sectionId,
