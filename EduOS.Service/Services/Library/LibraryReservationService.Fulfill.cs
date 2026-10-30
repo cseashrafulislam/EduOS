@@ -75,6 +75,7 @@ public sealed partial class LibraryReservationService
                 {
                     TenantId = tenant, ClientRequestId = row.ClientRequestId, BookCopyId = copy.Id,
                     StudentId = student.Id, IssueDate = today, DueDate = today.AddDays(14),
+                    ReplacementPriceSnapshot = book.ReplacementPrice,
                     State = BookIssueState.Issued, IssuedByUserId = _user.UserId,
                     CreatedAt = now, CreatedBy = _user.UserId
                 });

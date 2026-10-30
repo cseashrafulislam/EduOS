@@ -368,6 +368,7 @@ public class EduOSDbContext :
     public DbSet<BookCategory> BookCategories => Set<BookCategory>();
     public DbSet<BookCopy> BookCopies => Set<BookCopy>();
     public DbSet<BookIssue> BookIssues => Set<BookIssue>();
+    public DbSet<LibraryLiability> LibraryLiabilities => Set<LibraryLiability>();
     public DbSet<BookReservation> BookReservations => Set<BookReservation>();
     public DbSet<LibraryBranch> LibraryBranches => Set<LibraryBranch>();
 
@@ -1044,6 +1045,10 @@ public class EduOSDbContext :
         TenantReference<BookCopy, LibraryBranch>(modelBuilder, nameof(BookCopy.LibraryBranchId));
         TenantReference<BookIssue, BookCopy>(modelBuilder, nameof(BookIssue.BookCopyId));
         TenantReference<BookIssue, Student>(modelBuilder, nameof(BookIssue.StudentId));
+        TenantReference<LibraryLiability, BookIssue>(modelBuilder, nameof(LibraryLiability.BookIssueId));
+        TenantReference<LibraryLiability, StudentEnrollment>(modelBuilder, nameof(LibraryLiability.StudentEnrollmentId));
+        TenantReference<LibraryLiability, Campus>(modelBuilder, nameof(LibraryLiability.CampusId));
+        TenantReference<LibraryLiability, StudentInvoice>(modelBuilder, nameof(LibraryLiability.StudentInvoiceId));
         Reference<BookIssue, ApplicationUser>(modelBuilder, nameof(BookIssue.IssuedByUserId));
         Reference<BookIssue, ApplicationUser>(modelBuilder, nameof(BookIssue.ReturnedByUserId));
         TenantReference<BookReservation, Book>(modelBuilder, nameof(BookReservation.BookId));
@@ -1637,6 +1642,13 @@ public class EduOSDbContext :
         UniqueTenant<BookCopy>(modelBuilder, nameof(BookCopy.AccessionNumber));
         UniqueTenant<BookCopy>(modelBuilder, new[] { nameof(BookCopy.Barcode) }, "[Barcode] IS NOT NULL");
         UniqueTenant<BookIssue>(modelBuilder, nameof(BookIssue.ClientRequestId));
+        UniqueTenant<LibraryLiability>(modelBuilder, nameof(LibraryLiability.ClientRequestId));
+        UniqueTenant<LibraryLiability>(modelBuilder, nameof(LibraryLiability.PublicId));
+        UniqueTenant<LibraryLiability>(modelBuilder, nameof(LibraryLiability.BookIssueId));
+        modelBuilder.Entity<LibraryLiability>().HasIndex(x => new { x.TenantId, x.CampusId, x.State, x.AssessmentDate, x.Id });
+        modelBuilder.Entity<LibraryLiability>().HasIndex(x => new { x.TenantId, x.AssessmentDate, x.Id });
+        modelBuilder.Entity<LibraryLiability>().HasIndex(x => new { x.TenantId, x.StudentInvoiceId })
+            .IsUnique().HasFilter("[StudentInvoiceId] IS NOT NULL");
         // Library overdue preview and 50-recipient send use a tenant-leading, active-loan date range.
         modelBuilder.Entity<BookIssue>().HasIndex(x => new { x.TenantId, x.State, x.DueDate, x.Id })
             .HasDatabaseName("IX_BookIssues_LibraryOverdueCandidates")
@@ -1888,6 +1900,12 @@ public class EduOSDbContext :
             t.HasCheckConstraint("CK_AssetAssignment_DateRange", "[ReturnedOn] IS NULL OR [ReturnedOn] >= [AssignedOn]"));
         modelBuilder.Entity<BookIssue>().ToTable(t =>
             t.HasCheckConstraint("CK_BookIssue_DateRange", "[DueDate] >= [IssueDate] AND ([ReturnDate] IS NULL OR [ReturnDate] >= [IssueDate])"));
+        modelBuilder.Entity<LibraryLiability>().ToTable(t =>
+        {
+            t.HasCheckConstraint("CK_LibraryLiability_Amount", "[Amount] > 0 AND [Amount] <= 999999999999.99");
+            t.HasCheckConstraint("CK_LibraryLiability_State",
+                "[Kind] IN (1,2) AND [State] IN (1,2,3) AND (([State] = 3 AND [StudentInvoiceId] IS NOT NULL AND [ReviewedByUserId] IS NOT NULL AND [ReviewedAtUtc] IS NOT NULL) OR ([State] = 2 AND [StudentInvoiceId] IS NULL AND [ReviewedByUserId] IS NOT NULL AND [ReviewedAtUtc] IS NOT NULL) OR ([State] = 1 AND [StudentInvoiceId] IS NULL AND [ReviewedByUserId] IS NULL AND [ReviewedAtUtc] IS NULL))");
+        });
         modelBuilder.Entity<TenantSubscription>().ToTable(t =>
             t.HasCheckConstraint("CK_TenantSubscription_DateRange", "[EndsAt] >= [StartsAt]"));
 

@@ -1,0 +1,111 @@
+@{
+    ViewData["Title"] = "Library Liabilities";
+}
+<section id="libraryLiabilitiesApp" class="container-fluid py-3">
+    <header class="d-flex justify-content-between flex-wrap align-items-center gap-2 mb-3">
+        <div class="d-flex align-items-center gap-2">
+            <h2 class="h4 mb-0" data-bn="লাইব্রেরি দায় ও অর্থায়ন">Library liabilities</h2>
+            <details class="position-relative">
+                <summary class="btn btn-sm btn-outline-secondary" aria-label="Library liability help">ⓘ</summary>
+                <div class="card card-body position-absolute shadow-sm mt-1" style="width:min(21rem,85vw);z-index:5">
+                    Lost/damaged loan incidents require an assessment and a different administrator's approval. Posting creates a student invoice and balanced Finance journal. Payments and reversals are handled in Finance.
+                </div>
+            </details>
+        </div>
+        <a asp-controller="Library" asp-action="Conditions" class="btn btn-sm btn-outline-secondary" data-bn="কপির অবস্থা">Copy conditions</a>
+    </header>
+    <div id="liabilityAlert" class="d-none" role="alert" aria-live="polite"></div>
+    <div class="row g-3">
+        <div class="col-xl-6">
+            <div class="card h-100">
+                <div class="card-header"><h3 class="h6 mb-0" data-bn="ঘটনা থেকে দায় নির্ধারণ">Unassessed incidents</h3></div>
+                <div class="card-body">
+                    <form id="incidentFilters" class="d-flex gap-2 mb-3">
+                        <input id="incidentSearch" class="form-control" maxlength="100" autocomplete="off" placeholder="Accession, book or student" aria-label="Search incidents" />
+                        <button class="btn btn-outline-primary" type="submit" data-bn="খুঁজুন">Search</button>
+                    </form>
+                    <div class="table-responsive"><table class="table table-sm table-hover align-middle">
+                        <thead><tr><th data-bn="বই / কপি">Book / copy</th><th data-bn="শিক্ষার্থী">Student</th><th data-bn="অবস্থা">Condition</th><th data-bn="মূল্য (BDT)">Price (BDT)</th><th data-bn="কার্যক্রম">Action</th></tr></thead>
+                        <tbody id="incidentRows"><tr><td colspan="5">Loading…</td></tr></tbody>
+                    </table></div>
+                    <div class="d-flex justify-content-end align-items-center gap-2">
+                        <button id="incidentPrevious" class="btn btn-sm btn-outline-secondary" type="button" data-bn="পূর্ববর্তী">Previous</button>
+                        <span id="incidentPage" class="small" aria-live="polite"></span>
+                        <button id="incidentNext" class="btn btn-sm btn-outline-secondary" type="button" data-bn="পরবর্তী">Next</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-xl-6">
+            <div class="card h-100">
+                <div class="card-header d-flex justify-content-between align-items-center gap-2"><h3 class="h6 mb-0" data-bn="দায় ও আদায় রেজিস্টার">Liability &amp; collection register</h3>
+                    <button id="liabilityExport" type="button" class="btn btn-sm btn-outline-secondary" data-bn="সিএসভি (পৃষ্ঠা)">CSV (page)</button>
+                </div>
+                <div class="card-body">
+                    <form id="liabilityFilters" class="d-flex gap-2 mb-3">
+                        <select id="liabilityState" class="form-select" aria-label="Liability status">
+                            <option value="all" data-bn="সব">All</option>
+                            <option value="assessed" data-bn="নির্ধারিত">Assessed</option>
+                            <option value="waived" data-bn="মওকুফ">Waived</option>
+                            <option value="posted" data-bn="পোস্ট করা">Posted</option>
+                            <option value="unpaid" data-bn="বকেয়া">Unpaid</option>
+                            <option value="settled" data-bn="আদায়কৃত">Settled</option>
+                        </select>
+                        <button class="btn btn-outline-primary" type="submit" data-bn="প্রয়োগ">Apply</button>
+                    </form>
+                    <div class="table-responsive"><table class="table table-sm table-hover align-middle">
+                        <thead><tr><th data-bn="শিক্ষার্থী / কপি">Student / copy</th><th data-bn="দায় (BDT)">Charge (BDT)</th><th data-bn="অবস্থা">Status</th><th data-bn="বকেয়া (BDT)">Due (BDT)</th><th data-bn="কার্যক্রম">Action</th></tr></thead>
+                        <tbody id="liabilityRows"><tr><td colspan="5">Loading…</td></tr></tbody>
+                    </table></div>
+                    <div class="d-flex justify-content-end align-items-center gap-2">
+                        <button id="liabilityPrevious" class="btn btn-sm btn-outline-secondary" type="button" data-bn="পূর্ববর্তী">Previous</button>
+                        <span id="liabilityPage" class="small" aria-live="polite"></span>
+                        <button id="liabilityNext" class="btn btn-sm btn-outline-secondary" type="button" data-bn="পরবর্তী">Next</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <dialog id="assessmentDialog" class="border-0 rounded shadow p-4" style="width:min(29rem,92vw)" aria-labelledby="assessmentTitle">
+        <h3 id="assessmentTitle" class="h5" data-bn="দায় নির্ধারণ করুন">Assess liability</h3>
+        <form id="assessmentForm">
+            <p id="assessmentContext" class="small fw-semibold"></p>
+            <label class="form-label" for="assessmentAmount" data-bn="টাকার পরিমাণ (BDT)">Amount (BDT)</label>
+            <input class="form-control mb-3" id="assessmentAmount" type="number" min="0.01" max="999999999999.99" step="0.01" required />
+            <label class="form-label" for="assessmentReason" data-bn="কারণ">Reason</label>
+            <textarea class="form-control mb-3" id="assessmentReason" maxlength="500" rows="3" required></textarea>
+            <div class="d-flex justify-content-end gap-2">
+                <button id="assessmentCancel" class="btn btn-outline-secondary" type="button" data-bn="বাতিল">Cancel</button>
+                <button id="assessmentSave" class="btn btn-primary" type="submit" data-bn="দায় নির্ধারণ">Assess</button>
+            </div>
+        </form>
+    </dialog>
+    <dialog id="reviewDialog" class="border-0 rounded shadow p-4" style="width:min(32rem,92vw)" aria-labelledby="reviewTitle">
+        <h3 id="reviewTitle" class="h5" data-bn="দ্বিতীয় অনুমোদন">Second-person approval</h3>
+        <p id="reviewContext" class="small fw-semibold"></p>
+        <form id="reviewForm">
+            <fieldset class="mb-3"><legend class="form-label" data-bn="সিদ্ধান্ত">Decision</legend>
+                <label class="me-3"><input type="radio" name="reviewDecision" value="post" checked /> <span data-bn="ফাইন্যান্সে পোস্ট">Post to Finance</span></label>
+                <label><input type="radio" name="reviewDecision" value="waive" /> <span data-bn="মওকুফ">Waive</span></label>
+            </fieldset>
+            <div id="postingFields">
+                <label class="form-label" for="periodSearch" data-bn="হিসাবকাল খুঁজুন">Find open period</label>
+                <input id="periodSearch" class="form-control form-control-sm mb-1" maxlength="100" autocomplete="off" />
+                <select id="postingPeriod" class="form-select mb-3" aria-label="Accounting period"></select>
+                <label class="form-label" for="headSearch" data-bn="লাইব্রেরি ফি হেড খুঁজুন">Find library fee head</label>
+                <input id="headSearch" class="form-control form-control-sm mb-1" maxlength="100" autocomplete="off" placeholder="LIB-" />
+                <select id="postingHead" class="form-select mb-3" aria-label="Library fee head"></select>
+            </div>
+            <div id="waiverFields" class="d-none">
+                <label class="form-label" for="waiverReason" data-bn="মওকুফের কারণ">Waiver reason</label>
+                <textarea id="waiverReason" class="form-control mb-3" maxlength="500" rows="3"></textarea>
+            </div>
+            <p class="small text-muted" data-bn="পোস্টের পরে পরিবর্তন বা ফেরত ফাইন্যান্সে হবে।">After posting, adjustments and refunds follow Finance reversal controls.</p>
+            <div class="d-flex justify-content-end gap-2">
+                <button id="reviewCancel" class="btn btn-outline-secondary" type="button" data-bn="বাতিল">Cancel</button>
+                <button id="reviewSave" class="btn btn-primary" type="submit" data-bn="নিশ্চিত করুন">Confirm</button>
+            </div>
+        </form>
+    </dialog>
+</section>
+@section Scripts { <script src="~/js/library/liabilities.js" asp-append-version="true"></script> }

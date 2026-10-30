@@ -42,6 +42,8 @@ public class BookIssue : BaseTenantEntity
     public DateOnly IssueDate { get; set; }
     public DateOnly DueDate { get; set; }
     public DateOnly? ReturnDate { get; set; }
+    // Immutable price observed when the loan starts; never reprice historical losses from today's catalogue.
+    [Column(TypeName = "decimal(18,2)")] public decimal? ReplacementPriceSnapshot { get; set; }
     public BookIssueState State { get; set; } = BookIssueState.Issued;
     [Column(TypeName = "decimal(18,2)")] public decimal FineAmount { get; set; }
     public long IssuedByUserId { get; set; }

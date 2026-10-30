@@ -449,7 +449,9 @@ public sealed partial class LibraryService : ILibraryService
                 return Error("The selected copy is not available.", 409);
             if (!await StaffCanManageBranchAsync(copy.LibraryBranchId, ct))
                 return Error("Copy is outside your assigned campus.", 403);
-            if (!await _books.GetQueryable().AsNoTracking().AnyAsync(x => x.TenantId == tenant && x.Id == copy.BookId && x.IsActive && !x.IsDeleted, ct))
+            var issuedBook = await _books.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
+                x.TenantId == tenant && x.Id == copy.BookId && x.IsActive && !x.IsDeleted, ct);
+            if (issuedBook == null)
                 return Error("Book is archived or unavailable.", 409);
             long? issueCampusId = null;
             if (copy.LibraryBranchId.HasValue)
@@ -488,6 +490,7 @@ public sealed partial class LibraryService : ILibraryService
             {
                 TenantId = tenant, ClientRequestId = request.ClientRequestId, BookCopyId = copy.Id,
                 StudentId = student.Id, IssueDate = issueDate, DueDate = request.DueDate,
+                ReplacementPriceSnapshot = issuedBook.ReplacementPrice,
                 State = BookIssueState.Issued, IssuedByUserId = _user.UserId,
                 CreatedAt = now, CreatedBy = _user.UserId
             };
