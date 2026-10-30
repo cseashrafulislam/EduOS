@@ -98,6 +98,29 @@ public sealed class TransportTripsController : ControllerBase
         return StatusCode(result.StatusCode, result);
     }
 
+    [HttpGet("{reference:guid}/audit")]
+    [Authorize(Roles = "TenantAdmin,Principal")]
+    public async Task<IActionResult> Audit(Guid reference,
+        [FromQuery] int page = 1, [FromQuery] int pageSize = 50,
+        CancellationToken ct = default)
+    {
+        var result = await _service.GetAttendanceAuditAsync(reference, page, pageSize, ct);
+        return StatusCode(result.StatusCode, result);
+    }
+
+    [HttpGet("{reference:guid}/audit/export")]
+    [Authorize(Roles = "TenantAdmin,Principal")]
+    public async Task<IActionResult> ExportAudit(Guid reference, CancellationToken ct = default)
+    {
+        var result = await _service.ExportAttendanceAuditCsvAsync(reference, ct);
+        if (!result.Success || result.Data == null)
+            return StatusCode(result.StatusCode, result);
+        Response.Headers["X-Content-Type-Options"] = "nosniff";
+        Response.Headers["Referrer-Policy"] = "no-referrer";
+        return File(Encoding.UTF8.GetBytes(result.Data), "text/csv; charset=utf-8",
+            "transport-trip-attendance-audit.csv");
+    }
+
     [HttpGet("{reference:guid}/export")]
     public async Task<IActionResult> Export(Guid reference, CancellationToken ct = default)
     {

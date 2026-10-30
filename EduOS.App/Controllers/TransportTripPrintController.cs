@@ -32,6 +32,18 @@ public sealed class TransportTripPrintController : Controller
         return RenderReport(result);
     }
 
+    [HttpGet("/transport/trips/{reference:guid}/audit/print")]
+    [Authorize(Roles = "TenantAdmin,Principal")]
+    public async Task<IActionResult> Audit(Guid reference, CancellationToken ct)
+    {
+        var result = await _service.GetAttendanceAuditReportAsync(reference, ct);
+        if (!result.Success || result.Data == null)
+            return StatusCode(result.StatusCode);
+        Response.Headers["X-Content-Type-Options"] = "nosniff";
+        Response.Headers["Referrer-Policy"] = "no-referrer";
+        return View("~/Views/TransportOperations/TripAttendanceAuditPrint.cshtml", result.Data);
+    }
+
     private IActionResult RenderReport(ApiResponse<TransportTripManifestReportDto> result)
     {
         if (!result.Success || result.Data == null)

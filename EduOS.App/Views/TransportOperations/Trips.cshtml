@@ -53,10 +53,31 @@
     </div>
     <section id="tripManifestPanel" hidden aria-labelledby="tripManifestTitle">
         <h2 id="tripManifestTitle" class="h5">Frozen rider manifest / যাত্রী তালিকা</h2>
-        <div class="d-flex gap-2 mb-2"><button id="tripExport" class="btn btn-outline-primary btn-sm" type="button">CSV</button><button id="tripPrint" class="btn btn-outline-secondary btn-sm" type="button">Print full manifest / সম্পূর্ণ প্রিন্ট</button></div>
+        <div class="d-flex gap-2 mb-2"><button id="tripExport" class="btn btn-outline-primary btn-sm" type="button">CSV</button><button id="tripPrint" class="btn btn-outline-secondary btn-sm" type="button">Print full manifest / সম্পূর্ণ প্রিন্ট</button>@if (User.IsInRole("TenantAdmin") || User.IsInRole("Principal")) { <button id="tripAudit" class="btn btn-outline-secondary btn-sm" type="button">Attendance audit / উপস্থিতি নিরীক্ষা</button> }</div>
         <div class="table-responsive"><table class="table table-sm"><thead><tr><th>Student code</th><th>Pickup</th><th>Drop</th><th>Attendance / উপস্থিতি</th><th>Action / কার্যক্রম</th></tr></thead><tbody id="tripManifestRows"></tbody></table></div>
         <div class="d-flex gap-2 align-items-center"><button id="tripRiderPrev" type="button" class="btn btn-outline-secondary btn-sm">Previous</button><span id="tripRiderPage" class="small text-muted"></span><button id="tripRiderNext" type="button" class="btn btn-outline-secondary btn-sm">Next</button></div>
     </section>
+    @if (User.IsInRole("TenantAdmin") || User.IsInRole("Principal"))
+    {
+        <dialog id="tripAuditDialog" class="border rounded shadow p-3" aria-labelledby="tripAuditTitle" style="width:min(96vw,70rem);max-height:90vh">
+            <h2 id="tripAuditTitle" class="h5">Attendance event audit / উপস্থিতির নিরীক্ষা</h2>
+            <p id="tripAuditStatus" class="small text-muted" role="status" aria-live="polite"></p>
+            <div class="d-flex flex-wrap gap-2 mb-2">
+                <button id="tripAuditExport" class="btn btn-outline-primary btn-sm" type="button">Full CSV / সম্পূর্ণ CSV</button>
+                <button id="tripAuditPrint" class="btn btn-outline-secondary btn-sm" type="button">Print full audit / সম্পূর্ণ প্রিন্ট</button>
+                <button id="tripAuditClose" class="btn btn-outline-secondary btn-sm ms-auto" type="button">Close / বন্ধ</button>
+            </div>
+            <div class="table-responsive"><table class="table table-sm">
+                <thead><tr><th>Student</th><th>Seq.</th><th>Event</th><th>Corrected from</th><th>Reason / কারণ</th><th>Recorded UTC</th><th>Actor ID</th></tr></thead>
+                <tbody id="tripAuditRows"></tbody>
+            </table></div>
+            <div class="d-flex justify-content-between align-items-center gap-2">
+                <button id="tripAuditPrev" class="btn btn-outline-secondary btn-sm" type="button">Previous</button>
+                <span id="tripAuditPage" class="small text-muted"></span>
+                <button id="tripAuditNext" class="btn btn-outline-secondary btn-sm" type="button">Next</button>
+            </div>
+        </dialog>
+    }
     <dialog id="tripCorrectionDialog" class="border rounded shadow p-3" aria-labelledby="tripCorrectionTitle" style="width:min(95vw,30rem)">
         <form id="tripCorrectionForm">
             <h2 id="tripCorrectionTitle" class="h5">Correct attendance / উপস্থিতি সংশোধন</h2>

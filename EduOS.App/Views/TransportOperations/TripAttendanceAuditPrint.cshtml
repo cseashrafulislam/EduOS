@@ -1,0 +1,74 @@
+@model EduOS.Core.DTOs.Transport.TransportTripAuditReportDto
+@{
+    Layout = null;
+    ViewData["Title"] = "Transport attendance audit";
+}
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex,nofollow" />
+    <meta name="referrer" content="no-referrer" />
+    <title>Attendance audit / উপস্থিতির নিরীক্ষা</title>
+    <style>
+        body { font-family: system-ui, "Noto Sans Bengali", sans-serif; color: #17212e; max-width: 1100px; margin: 1.5rem auto; padding: 0 1rem; }
+        h1 { font-size: 1.4rem; }
+        .meta { display: flex; flex-wrap: wrap; gap: .4rem 1.2rem; margin: 1rem 0; font-size: .9rem; }
+        table { width: 100%; border-collapse: collapse; font-size: .82rem; }
+        th, td { border: 1px solid #bac3cc; padding: .4rem .5rem; text-align: left; overflow-wrap: anywhere; }
+        th { background: #eaf0f5; }
+        tr { break-inside: avoid; }
+        .muted { color: #53606c; font-size: .8rem; }
+        button { padding: .5rem 1rem; border: 1px solid #617285; background: white; border-radius: .35rem; cursor: pointer; }
+        @@media print {
+            body { max-width: none; margin: 0; padding: 0; }
+            .no-print { display: none; }
+            thead { display: table-header-group; }
+            @@page { size: A4 landscape; margin: 10mm; }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>Trip attendance audit / ট্রিপ উপস্থিতি নিরীক্ষা</h1>
+        <p class="muted">Restricted to principal/tenant administrator. Historical events are never overwritten. / শুধু অনুমোদিত প্রশাসনের জন্য।</p>
+        <button id="manifestPrintAction" type="button" class="no-print">Print / প্রিন্ট</button>
+        <div class="meta">
+            <span>Campus / ক্যাম্পাস: <strong>@Model.Trip.CampusName</strong></span>
+            <span>Route / রুট: <strong>@Model.Trip.RouteName</strong></span>
+            <span>Vehicle / গাড়ি: <strong>@Model.Trip.VehicleNumber</strong></span>
+            <span>Date / তারিখ: <strong>@Model.Trip.OperatingDate.ToString("yyyy-MM-dd")</strong></span>
+            <span>Direction / দিক: <strong>@Model.Trip.Direction</strong></span>
+            <span>State / অবস্থা: <strong>@Model.Trip.State</strong></span>
+            <span>Frozen riders / যাত্রী: <strong>@Model.Trip.RiderCount</strong></span>
+            <span>Events / ঘটনা: <strong>@Model.Events.Count</strong></span>
+        </div>
+    </header>
+    <table>
+        <thead><tr>
+            <th scope="col">Student / শিক্ষার্থী</th>
+            <th scope="col">Seq.</th>
+            <th scope="col">Event / ঘটনা</th>
+            <th scope="col">Corrected from / পূর্বের অবস্থা</th>
+            <th scope="col">Reason / কারণ</th>
+            <th scope="col">Recorded UTC / সময়</th>
+            <th scope="col">Actor ID</th>
+        </tr></thead>
+        <tbody>
+            @foreach (var item in Model.Events)
+            {
+                <tr>
+                    <td>@item.StudentCode</td><td>@item.Sequence</td>
+                    <td>@item.EventType</td><td>@item.CorrectedFrom</td>
+                    <td>@item.CorrectionReason</td>
+                    <td>@item.OccurredAtUtc.ToString("yyyy-MM-dd HH:mm:ss")</td>
+                    <td>@item.RecordedByUserId</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+    <p class="muted">Generated UTC / প্রস্তুত: @Model.GeneratedAtUtc.ToString("yyyy-MM-dd HH:mm:ss")</p>
+    <script src="~/js/transport-operations/manifest-print.js" asp-append-version="true"></script>
+</body>
+</html>

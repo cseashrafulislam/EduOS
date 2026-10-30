@@ -7,6 +7,7 @@
     let scheduleKey = crypto.randomUUID();
     let planKey = crypto.randomUUID(), page = 1, pages = 1, trip = null, tripState = null, riderPage = 1, riderPages = 1;
     let correction = null, calendarPreviewSequence = 0;
+    let auditPage = 1, auditPages = 1, auditReference = null, auditSequence = 0;
     const canCorrect = root.dataset.canCorrect === 'true';
     const guard = window.EduOSTransportSession?.create(() => {
         calendarPreviewSequence++;
@@ -23,6 +24,15 @@
         el('tripCorrectionStudent').textContent = '';
         el('tripCorrectionState').textContent = '';
         if (el('tripCorrectionDialog').open) el('tripCorrectionDialog').close();
+        auditSequence++; auditReference = null;
+        if (canCorrect) {
+            el('tripAuditRows').replaceChildren();
+            el('tripAuditPage').textContent = '';
+            el('tripAuditStatus').textContent = '';
+            for (const id of ['tripAudit','tripAuditPrev','tripAuditNext',
+                'tripAuditExport','tripAuditPrint']) el(id).disabled = true;
+            if (el('tripAuditDialog').open) el('tripAuditDialog').close();
+        }
     });
     if (!guard) return;
     el('tripDate').value = today();
@@ -45,6 +55,86 @@
             const result = await response.json().catch(() => null);
             if (!response.ok || !result?.success) throw new Error(result?.message || 'Transport request failed.');
             return result.data;
+        });
+    }
+    function resetAudit() {
+        auditSequence++; auditReference = null;
+        if (canCorrect && el('tripAuditDialog').open) el('tripAuditDialog').close();
+    }
+    async function loadAudit() {
+        if (!canCorrect || !auditReference) return;
+        const reference = auditReference, sequence = ++auditSequence;
+        el('tripAuditStatus').textContent = 'Loading / লোড হচ্ছে…';
+        try {
+            const data = await api('/api/transport/trips/' + encodeURIComponent(reference) +
+                '/audit?' + new URLSearchParams({page:String(auditPage),pageSize:'50'}));
+            if (sequence !== auditSequence || reference !== auditReference) return;
+            auditPages = data.totalPages || 1;
+            el('tripAuditPage').textContent = auditPage + ' / ' + auditPages +
+                ' · ' + data.totalCount + ' events / ঘটনা';
+            el('tripAuditPrev').disabled = auditPage <= 1;
+            el('tripAuditNext').disabled = auditPage >= auditPages;
+            const body = el('tripAuditRows'); body.replaceChildren();
+            for (const item of data.items || []) {
+                const tr = document.createElement('tr');
+                [item.studentCode,item.sequence,item.eventType,item.correctedFrom,
+                    item.correctionReason,item.occurredAtUtc,item.recordedByUserId]
+                    .forEach(value => tr.append(cell(value)));
+                body.append(tr);
+            }
+            el('tripAuditStatus').textContent = 'Immutable event history / অপরিবর্তনীয় ঘটনার ইতিহাস';
+        } catch (error) {
+            if (sequence === auditSequence) el('tripAuditStatus').textContent = error.message;
+        }
+    }
+    if (canCorrect) {
+        el('tripAudit').addEventListener('click', () => {
+            if (!trip || !guard.valid()) return;
+            auditReference = trip; auditPage = 1;
+            el('tripAuditRows').replaceChildren();
+            el('tripAuditDialog').showModal();
+            loadAudit();
+        });
+        el('tripAuditClose').addEventListener('click', () => el('tripAuditDialog').close());
+        el('tripAuditDialog').addEventListener('close', () => {
+            auditSequence++; auditReference = null;
+            el('tripAuditRows').replaceChildren();
+        });
+        el('tripAuditPrev').addEventListener('click', () => {
+            if (auditPage > 1) { auditPage--; loadAudit(); }
+        });
+        el('tripAuditNext').addEventListener('click', () => {
+            if (auditPage < auditPages) { auditPage++; loadAudit(); }
+        });
+        el('tripAuditPrint').addEventListener('click', () => {
+            if (!auditReference || !guard.valid()) return;
+            window.open('/transport/trips/' + encodeURIComponent(auditReference) +
+                '/audit/print', '_blank', 'noopener,noreferrer');
+        });
+        el('tripAuditExport').addEventListener('click', async () => {
+            if (!auditReference) return;
+            const reference = auditReference, button = el('tripAuditExport');
+            button.disabled = true;
+            try {
+                const blob = await guard.request('/api/transport/trips/' +
+                    encodeURIComponent(reference) + '/audit/export',
+                    { headers: { Accept: 'text/csv' } }, async response => {
+                        if (!response.ok) {
+                            const error = await response.json().catch(() => null);
+                            throw new Error(error?.message || 'Attendance audit export unavailable.');
+                        }
+                        return response.blob();
+                    });
+                guard.assert();
+                if (reference !== auditReference) return;
+                const url = URL.createObjectURL(blob);
+                const link = document.createElement('a');
+                link.href = url; link.download = 'transport-trip-attendance-audit.csv';
+                document.body.append(link); link.click(); link.remove();
+                setTimeout(() => URL.revokeObjectURL(url), 1000);
+            } catch (error) {
+                if (guard.valid()) el('tripAuditStatus').textContent = error.message;
+            } finally { if (guard.valid()) button.disabled = false; }
         });
     }
     function option(select, value, label) { const o = document.createElement('option'); o.value = value; o.textContent = label; select.append(o); }
@@ -104,7 +194,7 @@
                                 {clientRequestId:crypto.randomUUID(),rowVersion:item.rowVersion});
                             status('Trip dispatched / ট্রিপ ডিসপ্যাচ হয়েছে');
                             await load();
-                        } else { trip = item.reference; tripState = item.state; riderPage = 1; await loadRiders(); }
+                        } else { resetAudit(); trip = item.reference; tripState = item.state; riderPage = 1; await loadRiders(); }
                     } catch (e) { status(e.message, true); } finally { button.disabled = false; }
                 });
                 actions.append(button);
@@ -249,7 +339,7 @@
         el(id).addEventListener('change', previewCalendar);
     }
     el('tripReload').addEventListener('click', () => { page=1; load(); });
-    el('tripDate').addEventListener('change', () => { page=1; trip=null; el('tripManifestPanel').hidden=true; tripState=null; load(); previewCalendar(); });
+    el('tripDate').addEventListener('change', () => { resetAudit(); page=1; trip=null; el('tripManifestPanel').hidden=true; tripState=null; load(); previewCalendar(); });
     el('tripPrev').addEventListener('click',()=>{if(page>1){page--;load();}});
     el('tripNext').addEventListener('click',()=>{if(page<pages){page++;load();}});
     el('tripRiderPrev').addEventListener('click',()=>{if(riderPage>1){riderPage--;loadRiders();}});
