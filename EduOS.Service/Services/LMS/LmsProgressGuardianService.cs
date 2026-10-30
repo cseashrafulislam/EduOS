@@ -204,8 +204,29 @@ public sealed class LmsProgressGuardianService(
              !grant.IsDeleted && grant.RevokedAt == null
          select enrollment).Distinct();
 
+    // One serializable read boundary covers consent, relationship, course and progress.
+    // A revocation/deactivation cannot commit between authorization and disclosure.
     public async Task<ApiResponse<PagedResult<LmsGuardianCourseProgressDto>>> SharedAsync(
         int page, int pageSize, CancellationToken ct = default)
+    {
+        if (!Guardian) return Deny<PagedResult<LmsGuardianCourseProgressDto>>();
+        if (page < 1 || pageSize is < 1 or > 20 || ((long)page - 1) * pageSize > int.MaxValue)
+            return Invalid<PagedResult<LmsGuardianCourseProgressDto>>();
+        try
+        {
+            return await db.ExecuteInTransactionAsync(
+                token => SharedCoreAsync(page, pageSize, token), IsolationLevel.Serializable, ct);
+        }
+        catch (Exception ex) when (SqlConflict(ex))
+        {
+            logger.LogWarning(ex, "LMS guardian course read SQL conflict for tenant {TenantId}", user.TenantId);
+            return ApiResponse<PagedResult<LmsGuardianCourseProgressDto>>.ErrorResponse(
+                "Concurrent progress access change. Retry.", 409);
+        }
+    }
+
+    private async Task<ApiResponse<PagedResult<LmsGuardianCourseProgressDto>>> SharedCoreAsync(
+        int page, int pageSize, CancellationToken ct)
     {
         if (!Guardian) return Deny<PagedResult<LmsGuardianCourseProgressDto>>();
         if (page < 1 || pageSize is < 1 or > 20 || ((long)page - 1) * pageSize > int.MaxValue)
@@ -262,6 +283,26 @@ public sealed class LmsProgressGuardianService(
 
     public async Task<ApiResponse<PagedResult<LessonProgressDto>>> LessonsAsync(
         long enrollmentId, int page, int pageSize, CancellationToken ct = default)
+    {
+        if (!Guardian || enrollmentId <= 0) return Deny<PagedResult<LessonProgressDto>>();
+        if (page < 1 || pageSize is < 1 or > 50 || ((long)page - 1) * pageSize > int.MaxValue)
+            return Invalid<PagedResult<LessonProgressDto>>();
+        try
+        {
+            return await db.ExecuteInTransactionAsync(
+                token => LessonsCoreAsync(enrollmentId, page, pageSize, token),
+                IsolationLevel.Serializable, ct);
+        }
+        catch (Exception ex) when (SqlConflict(ex))
+        {
+            logger.LogWarning(ex, "LMS guardian lesson read SQL conflict for tenant {TenantId}", user.TenantId);
+            return ApiResponse<PagedResult<LessonProgressDto>>.ErrorResponse(
+                "Concurrent progress access change. Retry.", 409);
+        }
+    }
+
+    private async Task<ApiResponse<PagedResult<LessonProgressDto>>> LessonsCoreAsync(
+        long enrollmentId, int page, int pageSize, CancellationToken ct)
     {
         if (!Guardian || enrollmentId <= 0) return Deny<PagedResult<LessonProgressDto>>();
         if (page < 1 || pageSize is < 1 or > 50 || ((long)page - 1) * pageSize > int.MaxValue)

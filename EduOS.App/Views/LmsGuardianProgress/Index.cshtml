@@ -32,7 +32,10 @@
     <section class="card mt-3 d-none" id="lmsGuardianLessonPanel">
         <div class="card-header d-flex justify-content-between align-items-center gap-2">
             <h3 class="h6 mb-0" id="lmsGuardianLessonHeading" data-progress-i18n="detail">Lesson progress</h3>
-            <button id="lmsGuardianLessonClose" class="btn btn-sm btn-outline-secondary" type="button" data-progress-i18n="close">Close</button>
+            <div class="d-flex flex-wrap gap-2">
+                <button id="lmsGuardianLessonExport" class="btn btn-sm btn-outline-secondary" type="button" data-progress-i18n="exportLessons" disabled>Export visible lessons</button>
+                <button id="lmsGuardianLessonClose" class="btn btn-sm btn-outline-secondary" type="button" data-progress-i18n="close">Close</button>
+            </div>
         </div>
         <div class="table-responsive"><table class="table table-sm mb-0">
             <thead><tr><th data-progress-i18n="lesson">Lesson</th><th data-progress-i18n="percent">Completion</th><th data-progress-i18n="completed">Completed</th></tr></thead>

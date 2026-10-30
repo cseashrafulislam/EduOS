@@ -52,6 +52,14 @@ test('guardian export reauthorizes server-side rather than exporting stale brows
  assert.match(script,/response\.blob\(\)/);
  assert.doesNotMatch(script,/rows\.map\(x=>\[x\.learnerName/);
 });
+test('guardian lesson export is bounded and reauthorized on the server',()=>{
+ assert.match(controller,/HttpGet\("mine\/\{enrollmentId:long\}\/lessons\/export"\)/);
+ assert.match(controller,/service\.LessonsAsync\(enrollmentId, page, pageSize, ct\)/);
+ assert.match(controller,/CsvCell\(row\.LessonTitle\)/);
+ assert.match(script,/progress-sharing\/mine\/'\+enrollment\+'\/lessons\/export/);
+ assert.match(script,/lmsGuardianLessonRows'\)\.replaceChildren/);
+ assert.match(guardian,/lmsGuardianLessonExport/);
+});
 test('guardian progress labels are translated in Bangla and English',()=>{
  assert.match(script,/data-progress-i18n/);
  assert.match(script,/শেয়ার করা শেখার অগ্রগতি/);

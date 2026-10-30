@@ -21,6 +21,7 @@ const translations={
  lessons:['Lessons','পাঠসমূহ'],percent:['Completion','সম্পন্ন'],
  action:['Action','পদক্ষেপ'],previous:['Previous','আগের'],next:['Next','পরের'],
  detail:['Lesson progress','পাঠের অগ্রগতি'],close:['Close','বন্ধ'],
+ exportLessons:['Export visible lessons','দৃশ্যমান পাঠ রপ্তানি'],
  lesson:['Lesson','পাঠ'],completed:['Completed','সম্পন্ন']
 };
 for(const node of root.querySelectorAll('[data-progress-i18n]')){
@@ -37,6 +38,7 @@ function reset(){
  if($('lmsGuardianLessonPanel'))$('lmsGuardianLessonPanel').classList.add('d-none');
  if($('lmsGuardianLessonHeading'))$('lmsGuardianLessonHeading').textContent='';
  if($('lmsGuardianProgressExport'))$('lmsGuardianProgressExport').disabled=true;
+ if($('lmsGuardianLessonExport'))$('lmsGuardianLessonExport').disabled=true;
  if(alert){alert.textContent='';alert.className='d-none';}
 }
 async function api(path,method='GET',payload){
@@ -127,7 +129,8 @@ function renderCourses(){
   button.textContent=t('Lessons','পাঠসমূহ');
   button.onclick=()=>{selected=row.courseEnrollmentId;lessonPage=1;
    $('lmsGuardianLessonHeading').textContent=row.courseTitle;
-   $('lmsGuardianLessonPanel').classList.remove('d-none');loadLessons();};
+   $('lmsGuardianLessonPanel').classList.remove('d-none');
+   $('lmsGuardianLessonExport').disabled=true;loadLessons();};
   action.append(button);body.append(tr);
  }
  if(!rows.length){const tr=document.createElement('tr'),cell=td(tr,t('No shared courses.','শেয়ার করা কোর্স নেই।'));cell.colSpan=5;body.append(tr);}
@@ -172,6 +175,8 @@ async function exportGuardian(){
 }
 async function loadLessons(){
  const enrollment=selected,seq=++sequence;
+ $('lmsGuardianLessonExport').disabled=true;
+ $('lmsGuardianLessonRows').replaceChildren();
  try{
   const data=await api('/api/lms/progress-sharing/mine/'+enrollment+'/lessons?'+
    new URLSearchParams({page:String(lessonPage),pageSize:'20'}));
@@ -185,7 +190,36 @@ async function loadLessons(){
   $('lmsGuardianLessonPage').textContent=lessonPage+' / '+lessonPages;
   $('lmsGuardianLessonPrev').disabled=lessonPage<=1;
   $('lmsGuardianLessonNext').disabled=lessonPage>=lessonPages;
+  $('lmsGuardianLessonExport').disabled=!(data.items||[]).length;
  }catch(e){if(seq===sequence)warn(e.message);}
+}
+async function exportGuardianLessons(){
+ const enrollment=selected,seq=++sequence;
+ if(!valid()||!enrollment)return;
+ const button=$('lmsGuardianLessonExport');button.disabled=true;
+ const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),15000);
+ try{
+  const response=await fetch('/api/lms/progress-sharing/mine/'+enrollment+'/lessons/export?'+
+   new URLSearchParams({page:String(lessonPage),pageSize:'20'}),{
+    credentials:'same-origin',cache:'no-store',headers:{Accept:'text/csv'},
+    signal:controller.signal
+   });
+  if(!response.ok)throw Error(t('Lesson export access denied. Refresh the page.','পাঠ রপ্তানির অনুমতি নেই। পৃষ্ঠা রিফ্রেশ করুন।'));
+  const blob=await response.blob();
+  if(seq!==sequence||selected!==enrollment||!valid())return;
+  const url=URL.createObjectURL(blob),link=document.createElement('a');
+  link.href=url;link.download='lms-guardian-lessons-visible.csv';link.click();
+  setTimeout(()=>URL.revokeObjectURL(url),1000);
+ }catch(e){
+  if(seq===sequence){
+   $('lmsGuardianLessonRows').replaceChildren();
+   $('lmsGuardianLessonPanel').classList.add('d-none');
+   selected=0;warn(e.message);
+  }
+ }finally{
+  clearTimeout(timer);
+  if(seq===sequence&&valid())button.disabled=selected!==enrollment;
+ }
 }
 if(studentRoot){
  $('lmsProgressConsentEnrollment').onchange=studentGrants;
@@ -200,6 +234,7 @@ if(studentRoot){
  $('lmsGuardianLessonPrev').onclick=()=>{if(lessonPage>1){lessonPage--;loadLessons();}};
  $('lmsGuardianLessonNext').onclick=()=>{if(lessonPage<lessonPages){lessonPage++;loadLessons();}};
  $('lmsGuardianProgressExport').onclick=exportGuardian;
+ $('lmsGuardianLessonExport').onclick=exportGuardianLessons;
  guardianCourses();
 }
 const observer=new MutationObserver(()=>{if(!valid()){reset();observer.disconnect();}});

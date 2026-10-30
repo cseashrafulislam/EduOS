@@ -96,6 +96,33 @@ public sealed class LmsProgressSharingController(ILmsProgressGuardianService ser
         return "\"" + value.Replace("\"", "\"\"") + "\"";
     }
 
+    // Lesson CSV is reauthorized against the current consent and relationship on
+    // each request; no client-supplied learner identity or cached rows are trusted.
+    [HttpGet("mine/{enrollmentId:long}/lessons/export")]
+    [Authorize(Roles = "Guardian,Parent")]
+    public async Task<IActionResult> ExportLessons(long enrollmentId,
+        [FromQuery] int page = 1, [FromQuery] int pageSize = 20,
+        CancellationToken ct = default)
+    {
+        var result = await service.LessonsAsync(enrollmentId, page, pageSize, ct);
+        if (!result.Success || result.Data is null)
+            return StatusCode(result.StatusCode, result);
+        var csv = new StringBuilder("Lesson,Completion (%),Completed,Completed at (UTC)\r\n");
+        foreach (var row in result.Data.Items)
+            csv.Append(CsvCell(row.LessonTitle)).Append(',')
+                .Append(row.ProgressPercent.ToString("0.##", CultureInfo.InvariantCulture)).Append(',')
+                .Append(row.IsCompleted ? "Yes" : "No").Append(',')
+                .Append(row.CompletedAt.HasValue
+                    ? row.CompletedAt.Value.ToUniversalTime().ToString("O", CultureInfo.InvariantCulture)
+                    : string.Empty)
+                .Append("\r\n");
+        Response.Headers["Cache-Control"] = "private, no-store, max-age=0";
+        Response.Headers["Pragma"] = "no-cache";
+        Response.Headers["X-Content-Type-Options"] = "nosniff";
+        return File(Encoding.UTF8.GetBytes("\uFEFF" + csv),
+            "text/csv; charset=utf-8", "lms-guardian-lessons-visible.csv");
+    }
+
     [HttpGet("mine/{enrollmentId:long}/lessons")]
     [Authorize(Roles = "Guardian,Parent")]
     public async Task<IActionResult> Lessons(long enrollmentId, [FromQuery] int page = 1,

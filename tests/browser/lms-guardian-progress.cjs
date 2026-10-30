@@ -20,12 +20,18 @@ function html(lang){
 async function scenario(browser,lang){
  const page=await browser.newPage({viewport:{width:lang==='bn'?390:1280,height:800},
   acceptDownloads:true});
- let revoked=false,exportRequests=0;const errors=[];
+ let revoked=false,exportRequests=0,lessonExportRequests=0;const errors=[];
  page.on('pageerror',e=>errors.push(e.message));
  await page.route('http://localhost/**',route=>{
   const request=route.request(),url=new URL(request.url()),p=url.pathname;
   if(!p.startsWith('/api/'))
    return route.fulfill({contentType:'text/html',body:html(lang)});
+  if(p.endsWith('/lessons/export')){
+   lessonExportRequests++;
+   return route.fulfill({status:revoked?404:200,contentType:revoked?'application/json':'text/csv',
+    body:revoked?JSON.stringify({success:false,message:'Consent revoked'}):
+     'Lesson,Completion (%)\r\nPublished lesson,100\r\n'});
+  }
   if(p==='/api/lms/progress-sharing/mine/export'){
    exportRequests++;
    return route.fulfill({status:revoked?403:200,contentType:revoked?'application/json':'text/csv',
@@ -46,6 +52,11 @@ async function scenario(browser,lang){
   assert.equal(title,lang==='bn'?'শেয়ার করা শেখার অগ্রগতি':'Shared learning progress');
   await page.locator('#lmsGuardianProgressRows button').click();
   await page.locator('#lmsGuardianLessonRows').getByText('Published lesson').waitFor();
+  const lessonDownloadPromise=page.waitForEvent('download');
+  await page.locator('#lmsGuardianLessonExport').click();
+  const lessonDownload=await lessonDownloadPromise;
+  assert.equal(lessonDownload.suggestedFilename(),'lms-guardian-lessons-visible.csv');
+  assert.equal(lessonExportRequests,1,'lesson export must use a fresh server request');
   const downloadPromise=page.waitForEvent('download');
   await page.locator('#lmsGuardianProgressExport').click();
   const download=await downloadPromise;
@@ -60,7 +71,14 @@ async function scenario(browser,lang){
   await page.goto('http://localhost/LmsGuardianProgress');
   await page.addScriptTag({path:script});
   await page.locator('#lmsGuardianProgressRows').getByText('Private Learner').waitFor();
+  await page.locator('#lmsGuardianProgressRows button').click();
+  await page.locator('#lmsGuardianLessonRows').getByText('Published lesson').waitFor();
   revoked=true;
+  await page.locator('#lmsGuardianLessonExport').click();
+  await page.locator('#lmsGuardianProgressAlert').getByText(
+   lang==='bn'?'পাঠ রপ্তানির অনুমতি নেই। পৃষ্ঠা রিফ্রেশ করুন।':'Lesson export access denied. Refresh the page.').waitFor();
+  assert.equal(lessonExportRequests,2);
+  assert.equal(await page.locator('#lmsGuardianLessonPanel').isVisible(),false);
   await page.locator('#lmsGuardianProgressExport').click();
   await page.locator('#lmsGuardianProgressAlert').getByText(
    lang==='bn'?'রপ্তানির অনুমতি নেই। পৃষ্ঠা রিফ্রেশ করুন।':'Export access denied. Refresh the page.').waitFor();

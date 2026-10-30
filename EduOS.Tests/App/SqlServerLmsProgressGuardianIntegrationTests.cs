@@ -177,6 +177,7 @@ public sealed partial class SqlServerTransportSeatCapacityIntegrationTests
         using var server = ProgressGuardianHttpServer(fixture.Options);
         using var client = server.CreateClient();
         const string exportPath = "/api/lms/progress-sharing/mine/export?page=1&pageSize=20";
+        var lessonExportPath = $"/api/lms/progress-sharing/mine/{enrollmentId}/lessons/export?page=1&pageSize=20";
         using (var denied = await ProgressGuardianGetAsync(client, exportPath,
             "Student", fixture.TenantId, fixture.UserId))
             Assert.Equal(HttpStatusCode.Forbidden, denied.StatusCode);
@@ -197,6 +198,14 @@ public sealed partial class SqlServerTransportSeatCapacityIntegrationTests
             Assert.Contains("Progress consent course", await export.Content.ReadAsStringAsync());
         }
 
+        using (var lessonExport = await ProgressGuardianGetAsync(client, lessonExportPath,
+            "Guardian", fixture.TenantId, fixture.UserId))
+        {
+            Assert.Equal(HttpStatusCode.OK, lessonExport.StatusCode);
+            Assert.Contains("Published progress", await lessonExport.Content.ReadAsStringAsync());
+            Assert.Contains("no-store", lessonExport.Headers.CacheControl?.ToString() ?? "",
+                StringComparison.OrdinalIgnoreCase);
+        }
         await using (var db = ScopedContext(fixture.Options, fixture.TenantId, fixture.UserId))
         {
             Assert.Equal(1, await db.LmsProgressGuardianGrants.CountAsync(x =>
@@ -222,6 +231,9 @@ public sealed partial class SqlServerTransportSeatCapacityIntegrationTests
         using (var export = await ProgressGuardianGetAsync(client, exportPath,
             "Parent", fixture.TenantId, fixture.UserId))
             Assert.DoesNotContain("Progress consent course", await export.Content.ReadAsStringAsync());
+        using (var lessonExport = await ProgressGuardianGetAsync(client, lessonExportPath,
+            "Parent", fixture.TenantId, fixture.UserId))
+            Assert.Equal(HttpStatusCode.NotFound, lessonExport.StatusCode);
 
         // A new consent cannot override a retired guardian relationship.
         await using (var db = ScopedContext(fixture.Options, fixture.TenantId, fixture.UserId))
@@ -237,14 +249,26 @@ public sealed partial class SqlServerTransportSeatCapacityIntegrationTests
         using (var export = await ProgressGuardianGetAsync(client, exportPath,
             "Guardian", fixture.TenantId, fixture.UserId))
             Assert.Contains("Progress consent course", await export.Content.ReadAsStringAsync());
+        // Relationship retirement holds an exclusive SQL lock while a lesson CSV
+        // read begins. After the commit the reader must not disclose stale progress.
         await using (var db = ScopedContext(fixture.Options, fixture.TenantId, fixture.UserId))
         {
+            await using var tx = await db.Database.BeginTransactionAsync(System.Data.IsolationLevel.Serializable);
             (await db.StudentGuardians.SingleAsync(x => x.Id == guardianLinkId)).IsDeleted = true;
             await db.SaveChangesAsync();
+            var racingRead = Task.Run(() => ProgressGuardianGetAsync(client, lessonExportPath,
+                "Guardian", fixture.TenantId, fixture.UserId));
+            await Task.Delay(150);
+            await tx.CommitAsync();
+            using var raced = await racingRead.WaitAsync(TimeSpan.FromSeconds(25));
+            Assert.Equal(HttpStatusCode.NotFound, raced.StatusCode);
         }
         using (var export = await ProgressGuardianGetAsync(client, exportPath,
             "Guardian", fixture.TenantId, fixture.UserId))
             Assert.DoesNotContain("Progress consent course", await export.Content.ReadAsStringAsync());
+        using (var lessonExport = await ProgressGuardianGetAsync(client, lessonExportPath,
+            "Guardian", fixture.TenantId, fixture.UserId))
+            Assert.Equal(HttpStatusCode.NotFound, lessonExport.StatusCode);
         await using (var db = ScopedContext(fixture.Options, fixture.TenantId, fixture.UserId))
             Assert.Equal(404, (await ProgressSharing(db, "Guardian", fixture.TenantId, fixture.UserId)
                 .LessonsAsync(enrollmentId, 1, 20)).StatusCode);
