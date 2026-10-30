@@ -44,6 +44,7 @@ public sealed partial class LmsCourseContentService : ILmsCourseContentService
     private readonly TimeProvider _clock;
     private readonly ILogger<LmsCourseContentService> _logger;
     private readonly IFileUploadService? _storage;
+    private readonly IDocumentFileService? _documentFiles;
 
     public LmsCourseContentService(IGenericRepository<Course> courses,
         IGenericRepository<CourseSection> sections, IGenericRepository<Lesson> lessons,
@@ -57,7 +58,8 @@ public sealed partial class LmsCourseContentService : ILmsCourseContentService
         ICurrentUserService user, TimeProvider clock, ILogger<LmsCourseContentService> logger,
         IGenericRepository<Assignment>? assignments = null,
         IGenericRepository<AssignmentAttachment>? attachments = null,
-        IFileUploadService? storage = null)
+        IFileUploadService? storage = null,
+        IDocumentFileService? documentFiles = null)
     {
         _courses = courses; _sections = sections; _lessons = lessons; _resources = resources;
         _assignments = assignments!; _attachments = attachments!; _files = files;
@@ -65,7 +67,7 @@ public sealed partial class LmsCourseContentService : ILmsCourseContentService
         _academicEnrollments = academicEnrollments; _offerings = offerings; _subjects = subjects;
         _curricula = curricula; _batches = batches; _years = years; _instructors = instructors;
         _campuses = campuses; _terms = terms; _uow = uow; _user = user; _clock = clock; _logger = logger;
-        _storage = storage;
+        _storage = storage; _documentFiles = documentFiles;
     }
 
     private long Tenant => _user.TenantId;

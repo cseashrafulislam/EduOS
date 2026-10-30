@@ -21,9 +21,7 @@ namespace EduOS.App.Controllers.Api;
 public sealed class LmsCourseContentController : ControllerBase
 {
     private readonly ILmsCourseContentService _service;
-    private readonly IDocumentFileService _files;
-    public LmsCourseContentController(ILmsCourseContentService implementation, IDocumentFileService files)
-    { _service = implementation; _files = files; }
+    public LmsCourseContentController(ILmsCourseContentService implementation) => _service = implementation;
 
     private IActionResult Reply<T>(ApiResponse<T> response) => StatusCode(response.StatusCode, response);
 
@@ -55,10 +53,8 @@ public sealed class LmsCourseContentController : ControllerBase
     {
         if (file == null || file.Length is < 1 or > 5242880 || requestId == Guid.Empty)
             return BadRequest(new { success = false, message = "Choose a file up to 5 MB." });
-        var access = await _service.CanUploadResourceFileAsync(lessonReference, ct);
-        if (!access.Success) return StatusCode(access.StatusCode, access);
         await using var stream = file.OpenReadStream();
-        var uploaded = await _files.UploadForLmsAsync(requestId, new PrivateFileUploadDto
+        var uploaded = await _service.UploadResourceFileAsync(lessonReference, requestId, new PrivateFileUploadDto
         {
             FileName = file.FileName, ContentType = file.ContentType,
             Length = file.Length, Content = stream

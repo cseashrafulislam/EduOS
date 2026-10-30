@@ -6,6 +6,8 @@ namespace EduOS.Core.Interfaces.IServices;
 
 public interface ILmsCourseContentService
 {
+    Task<ApiResponse<FileAssetDto>> UploadResourceFileAsync(Guid lessonReference, Guid requestId,
+        PrivateFileUploadDto upload, CancellationToken ct = default);
     Task<ApiResponse<bool>> CanUploadResourceFileAsync(Guid lessonReference, CancellationToken ct = default);
     Task<ApiResponse<DocumentFileDownloadDto>> DownloadResourceFileAsync(long resourceId, CancellationToken ct = default);
     Task<ApiResponse<CourseContentDto>> GetCourseContentAsync(Guid courseReference, CancellationToken ct = default);

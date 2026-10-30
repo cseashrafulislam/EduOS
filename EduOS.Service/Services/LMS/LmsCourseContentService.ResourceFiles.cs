@@ -28,6 +28,17 @@ public sealed partial class LmsCourseContentService
             !key.Split('/').Any(segment => segment is "" or "." or "..");
     }
 
+    public async Task<ApiResponse<FileAssetDto>> UploadResourceFileAsync(
+        Guid lessonReference, Guid requestId, PrivateFileUploadDto upload, CancellationToken ct = default)
+    {
+        if (_documentFiles == null)
+            return Fail<FileAssetDto>("Private file upload unavailable.", 503);
+        var access = await CanUploadResourceFileAsync(lessonReference, ct);
+        if (!access.Success)
+            return Fail<FileAssetDto>(access.Message, access.StatusCode);
+        return await _documentFiles.UploadForLmsAsync(requestId, upload, ct);
+    }
+
     public async Task<ApiResponse<bool>> CanUploadResourceFileAsync(
         Guid lessonReference, CancellationToken ct = default)
     {
