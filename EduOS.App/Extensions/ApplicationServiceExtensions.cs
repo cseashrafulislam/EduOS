@@ -145,6 +145,7 @@ namespace EduOS.App.Extensions
             s.AddScoped<IGuardianCommunicationPreferenceService, GuardianCommunicationPreferenceService>();
             s.AddScoped<IHrSetupService, HrSetupService>();
             s.AddScoped<IInventoryCatalogService, InventoryCatalogService>();
+            s.AddScoped<IProcurementRequisitionService, ProcurementRequisitionService>();
             s.AddScoped<IInventoryMovementService, InventoryMovementService>();
             s.AddScoped<ILeaveEntitlementService, LeaveEntitlementService>();
             s.AddScoped<ILibraryBranchService, LibraryBranchService>();

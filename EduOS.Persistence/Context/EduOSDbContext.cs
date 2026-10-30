@@ -427,6 +427,8 @@ public class EduOSDbContext :
     public DbSet<InventoryLocation> InventoryLocations => Set<InventoryLocation>();
     public DbSet<InventoryMovement> InventoryMovements => Set<InventoryMovement>();
     public DbSet<InventoryMovementLine> InventoryMovementLines => Set<InventoryMovementLine>();
+    public DbSet<ProcurementRequisition> ProcurementRequisitions => Set<ProcurementRequisition>();
+    public DbSet<ProcurementRequisitionLine> ProcurementRequisitionLines => Set<ProcurementRequisitionLine>();
 
     // Communication
     public DbSet<CommunicationDelivery> CommunicationDeliveries => Set<CommunicationDelivery>();
@@ -1148,6 +1150,10 @@ public class EduOSDbContext :
         TenantReference<InventoryMovement, InventoryMovement>(modelBuilder, nameof(InventoryMovement.ReversalOfMovementId));
         TenantReference<InventoryMovementLine, InventoryMovement>(modelBuilder, nameof(InventoryMovementLine.InventoryMovementId));
         TenantReference<InventoryMovementLine, InventoryItem>(modelBuilder, nameof(InventoryMovementLine.InventoryItemId));
+        TenantReference<ProcurementRequisition, Campus>(modelBuilder, nameof(ProcurementRequisition.CampusId));
+        Reference<ProcurementRequisition, ApplicationUser>(modelBuilder, nameof(ProcurementRequisition.DecidedByUserId));
+        TenantReference<ProcurementRequisitionLine, ProcurementRequisition>(modelBuilder, nameof(ProcurementRequisitionLine.RequisitionId));
+        TenantReference<ProcurementRequisitionLine, InventoryItem>(modelBuilder, nameof(ProcurementRequisitionLine.InventoryItemId));
         TenantReference<AssetBook, Asset>(modelBuilder, nameof(AssetBook.AssetId));
         TenantReference<AssetBook, Campus>(modelBuilder, nameof(AssetBook.CampusId));
         TenantReference<AssetBook, Account>(modelBuilder, nameof(AssetBook.CostAccountId));
@@ -1759,6 +1765,10 @@ public class EduOSDbContext :
         UniqueTenant<InventoryMovement>(modelBuilder, nameof(InventoryMovement.MovementNumber));
         UniqueTenant<InventoryMovement>(modelBuilder, nameof(InventoryMovement.ClientRequestId));
         UniqueTenant<InventoryMovementLine>(modelBuilder, nameof(InventoryMovementLine.InventoryMovementId), nameof(InventoryMovementLine.LineNo));
+        UniqueTenant<ProcurementRequisition>(modelBuilder, nameof(ProcurementRequisition.ClientRequestId));
+        UniqueTenant<ProcurementRequisition>(modelBuilder, nameof(ProcurementRequisition.RequestNumber));
+        UniqueTenant<ProcurementRequisitionLine>(modelBuilder, nameof(ProcurementRequisitionLine.RequisitionId), nameof(ProcurementRequisitionLine.LineNo));
+        modelBuilder.Entity<ProcurementRequisition>().HasIndex(x => new { x.TenantId, x.CampusId, x.StateCode, x.CreatedAt });
         modelBuilder.Entity<AssetBook>().HasIndex(x => new { x.TenantId, x.AssetId }).IsUnique().HasFilter("[IsDeleted] = 0");
         modelBuilder.Entity<AssetBook>().HasIndex(x => new { x.TenantId, x.CampusId, x.IsActive });
         modelBuilder.Entity<AssetDepreciationRun>().HasIndex(x => new { x.TenantId, x.ClientRequestId }).IsUnique().HasFilter("[IsDeleted] = 0");
@@ -1943,6 +1953,12 @@ public class EduOSDbContext :
                 "[PrincipalAmount] >= 0 AND [OutstandingAmount] >= 0 AND [InstallmentAmount] >= 0 AND [OutstandingAmount] <= [PrincipalAmount]"));
         modelBuilder.Entity<LoanAdvanceRecovery>().ToTable(t =>
             t.HasCheckConstraint("CK_LoanAdvanceRecovery_Amount", "[Amount] > 0"));
+        modelBuilder.Entity<ProcurementRequisition>().ToTable(t =>
+            t.HasCheckConstraint("CK_ProcurementRequisition_State",
+                "[StateCode] IN (N'Draft',N'Submitted',N'Approved',N'Rejected',N'Cancelled')"));
+        modelBuilder.Entity<ProcurementRequisitionLine>().ToTable(t =>
+            t.HasCheckConstraint("CK_ProcurementRequisitionLine_QtyPrice",
+                "[Quantity] > 0 AND [EstimatedUnitPrice] >= 0"));
         modelBuilder.Entity<InventoryMovementLine>().ToTable(t =>
             t.HasCheckConstraint("CK_InventoryMovementLine_QuantityCost", "[Quantity] > 0 AND [UnitCost] >= 0"));
         modelBuilder.Entity<AssetBook>().ToTable(t =>
