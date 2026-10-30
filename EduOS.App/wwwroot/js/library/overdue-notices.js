@@ -12,7 +12,7 @@ const valid = () => /^[0-9A-F]{64}$/.test(initialSession) &&
  document.body?.dataset.authSessionReference === initialSession &&
  document.body?.dataset.authTenantId === initialTenant &&
  window.EduOSSessionTransitionPending?.() !== true;
-let preview = null, requestId = null;
+let preview = null, requestId = null, previewEpoch = 0;
 function message(text, success = false) {
  if (!valid()) return;
  const node = el('libraryNoticeMessage');
@@ -21,7 +21,7 @@ function message(text, success = false) {
 }
 function scrub() {
  for (const controller of active) controller.abort();
- active.clear(); preview = null; requestId = null;
+ active.clear(); previewEpoch++; preview = null; requestId = null;
  el('libraryNoticeRows').replaceChildren();
  el('libraryNoticeCount').textContent = '';
  el('libraryNoticeSend').disabled = true;
@@ -61,9 +61,16 @@ function cell(row, value) {
 }
 async function loadPreview() {
  const id = campus();
+ const epoch = ++previewEpoch;
+ el('libraryNoticeSend').disabled = true;
  const data = await api('/api/library/overdue-notices/preview?campusId=' + encodeURIComponent(id));
- if (!valid() || el('libraryOverdueCampus').value.trim() !== String(id)) return;
- preview = data; requestId = null;
+ if (epoch !== previewEpoch || !valid() ||
+     el('libraryOverdueCampus').value.trim() !== String(id)) return;
+ // A lost send acknowledgement must be retried with the same request ID.
+ // Only a different campus/date or an acknowledged send may reset the key.
+ if (!preview || preview.campusId !== data.campusId || preview.asOfDate !== data.asOfDate)
+  requestId = null;
+ preview = data;
  el('libraryNoticeRows').replaceChildren();
  for (const item of data.nextRecipients || []) {
   const row = document.createElement('tr');

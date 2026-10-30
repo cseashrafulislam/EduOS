@@ -30,3 +30,12 @@ test('overdue notice UI rejects stale campus responses and aborts private reques
     assert.match(ui, /crypto\.randomUUID\(\)/);
     assert.doesNotMatch(ui, /innerHTML\s*=/);
 });
+
+
+test('preview refresh retains unacknowledged send key and rejects stale responses', () => {
+    assert.match(ui, /previewEpoch\s*=\s*0/);
+    assert.match(ui, /epoch\s*!==\s*previewEpoch/);
+    assert.match(ui, /preview\.campusId\s*!==\s*data\.campusId/);
+    assert.match(ui, /preview\.asOfDate\s*!==\s*data\.asOfDate/);
+    assert.doesNotMatch(ui, /preview\s*=\s*data;\s*requestId\s*=\s*null/);
+});

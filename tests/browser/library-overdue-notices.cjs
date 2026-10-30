@@ -102,6 +102,9 @@ async function scenario(browser, language) {
         assert.equal(posts[0].body.campusId, 101);
         assert.ok(/^[0-9a-f-]{36}$/i.test(posts[0].body.clientRequestId));
 
+        // Refresh after lost acknowledgement; retry must preserve the key.
+        await page.locator('#libraryNoticePreview').click();
+        await page.getByText('S-1').waitFor();
         await page.locator('#libraryNoticeSend').click();
         await page.waitForFunction(() =>
             document.getElementById('libraryNoticeCount').textContent.includes('0'));
@@ -128,6 +131,8 @@ async function scenario(browser, language) {
 
         // Tenant/session switch must scrub preview and prevent further mutations.
         holdPreview = false;
+        // Campus 101 has zero pending after successful send; use 202 for scrub.
+        await page.locator('#libraryOverdueCampus').fill('202');
         await page.locator('#libraryNoticePreview').click();
         await page.getByText('S-1').waitFor();
         await page.evaluate(() => { document.body.dataset.authTenantId = '202'; });
