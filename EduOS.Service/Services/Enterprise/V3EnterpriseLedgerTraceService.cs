@@ -25,10 +25,24 @@ public sealed class V3EnterpriseLedgerTraceService(EduOSDbContext db, ICurrentUs
             .Where(x => x.TenantId == user.TenantId && !x.IsDeleted && x.PublicId == reference)
             .Select(x => new {
                 x.Id, x.PublicId, x.MovementNumber, x.MovementTypeCode, x.StateCode,
-                x.PostedAt, x.SourceType, x.SourceId, x.ReversalOfMovementId
+                x.PostedAt, x.SourceType, x.SourceId, x.ReversalOfMovementId,
+                x.FromLocationId, x.ToLocationId
             }).SingleOrDefaultAsync(ct);
         if (movement == null)
             return ApiResponse<V3EnterpriseLedgerTraceDto>.ErrorResponse("Movement not found.", 404);
+
+        // Resolve both endpoints against the authoritative tenant's locations.
+        // Inter-campus transfers may legitimately have two different campuses.
+        var locationIds = new[] { movement.FromLocationId, movement.ToLocationId }
+            .Where(id => id.HasValue).Select(id => id!.Value).Distinct().ToArray();
+        var locations = await db.InventoryLocations.IgnoreQueryFilters().AsNoTracking()
+            .Where(x => x.TenantId == user.TenantId && locationIds.Contains(x.Id))
+            .Select(x => new { x.Id, x.CampusId, x.IsDeleted }).ToListAsync(ct);
+        if (locations.Count != locationIds.Length || locations.Any(x => x.IsDeleted))
+            return ApiResponse<V3EnterpriseLedgerTraceDto>.ErrorResponse(
+                "Missing, deleted or cross-tenant stock location requires reconciliation.", 409);
+        var allowedCampuses = locations.Where(x => x.CampusId.HasValue)
+            .Select(x => x.CampusId!.Value).ToHashSet();
 
         // Historical tombstones are integrity failures, never silently excluded.
         var lines = db.InventoryMovementLines.IgnoreQueryFilters().AsNoTracking()
@@ -39,6 +53,10 @@ public sealed class V3EnterpriseLedgerTraceService(EduOSDbContext db, ICurrentUs
         var amount = await lines.GroupBy(x => 1).Select(g => new {
             Count = g.Count(), Value = g.Sum(x => x.Quantity * x.UnitCost)
         }).FirstOrDefaultAsync(ct);
+
+        if (amount == null && movement.StateCode == "Posted")
+            return ApiResponse<V3EnterpriseLedgerTraceDto>.ErrorResponse(
+                "Posted movement has no line evidence.", 409);
 
         var linked = db.Journals.IgnoreQueryFilters().AsNoTracking()
             .Where(x => x.TenantId == user.TenantId &&
@@ -52,6 +70,10 @@ public sealed class V3EnterpriseLedgerTraceService(EduOSDbContext db, ICurrentUs
         if (journals.Count > 100)
             return ApiResponse<V3EnterpriseLedgerTraceDto>.ErrorResponse(
                 "Too many explicit journal references; investigate before reporting.", 409);
+        if (allowedCampuses.Count > 0 && journals.Any(x => x.CampusId.HasValue &&
+            !allowedCampuses.Contains(x.CampusId.Value)))
+            return ApiResponse<V3EnterpriseLedgerTraceDto>.ErrorResponse(
+                "Journal campus does not match either stock location.", 409);
         var journalIds = journals.Select(x => x.Id).ToArray();
         var journalLines = db.JournalLines.IgnoreQueryFilters().AsNoTracking()
             .Where(x => x.TenantId == user.TenantId && journalIds.Contains(x.JournalId));
