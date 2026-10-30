@@ -514,4 +514,129 @@ public sealed class SqlServerV3InventoryTransferLifecycleTests
                 })).StatusCode);
     }
 
+
+    [Fact]
+    public async Task Reserved_transfer_partial_dispatch_receipt_and_retry_keep_stock_consistent()
+    {
+        var connection = Environment.GetEnvironmentVariable("EDUOS_SQL_AUTH_TEST_CONNECTION");
+        if (string.IsNullOrWhiteSpace(connection)) return;
+        var f = await SeedAsync(connection);
+        await using var db = Open(f.Options, f.TenantId);
+        var service = Service(db, f);
+        var draft = await service.CreateMovementAsync(new CreateInventoryMovementRequestDto
+        {
+            ClientRequestId = Guid.NewGuid(), MovementTypeCode = "Transfer",
+            SourceType = "ManualTransfer", FromLocationId = f.SourceId,
+            ToLocationId = f.DestinationId, Remarks = "Approved partial warehouse transfer",
+            Lines = [new CreateInventoryMovementLineRequestDto
+            { InventoryItemId = f.ItemId, Quantity = 8m, UnitCost = 5m }]
+        });
+        Assert.Equal(200, draft.StatusCode);
+        var held = (await service.ReserveMovementAsync(draft.Data!.Reference,
+            new PostInventoryMovementRequestDto { RowVersion = draft.Data.RowVersion })).Data!;
+        var request = new FulfillInventoryReservedTransferRequestDto
+        {
+            ClientRequestId = Guid.NewGuid(), RowVersion = held.RowVersion,
+            Lines = [new FulfillInventoryReservedIssueLineDto { LineNo = 1, Quantity = 3m }]
+        };
+        var dispatch = await service.FulfillReservedTransferAsync(held.Reference, request);
+        Assert.Equal(200, dispatch.StatusCode);
+        Assert.Equal("TransferDispatch", dispatch.Data!.SourceType);
+        Assert.Equal("Issue", dispatch.Data.MovementTypeCode);
+        Assert.Equal(f.DestinationId, dispatch.Data.ToLocationId);
+        Assert.Equal(dispatch.Data.Reference,
+            (await service.FulfillReservedTransferAsync(held.Reference, request)).Data!.Reference);
+        Assert.Equal(409, (await service.FulfillReservedTransferAsync(held.Reference,
+            new FulfillInventoryReservedTransferRequestDto
+            {
+                ClientRequestId = request.ClientRequestId, RowVersion = request.RowVersion,
+                Lines = [new FulfillInventoryReservedIssueLineDto { LineNo = 1, Quantity = 2m }]
+            })).StatusCode);
+        var source = (await service.GetItemBalanceAsync(f.ItemId, f.SourceId, null)).Data!;
+        Assert.Equal(7m, source.QuantityOnHand);
+        Assert.Equal(5m, source.ReservedQuantity);
+        Assert.Equal(2m, source.AvailableQuantity);
+        Assert.Equal(0m, (await service.GetItemBalanceAsync(f.ItemId, f.DestinationId, null)).Data!.QuantityOnHand);
+        Assert.Equal("InTransit", (await service.GetMovementAsync(dispatch.Data.Reference)).Data!.TransferState);
+        var receiptKey = new ReceiveInventoryTransferRequestDto { ClientRequestId = Guid.NewGuid() };
+        var receipt = await service.ReceiveTransferAsync(dispatch.Data.Reference, receiptKey);
+        Assert.Equal(200, receipt.StatusCode);
+        Assert.Equal(receipt.Data!.Reference,
+            (await service.ReceiveTransferAsync(dispatch.Data.Reference, receiptKey)).Data!.Reference);
+        Assert.Equal(409, (await service.ReceiveTransferAsync(dispatch.Data.Reference,
+            new ReceiveInventoryTransferRequestDto { ClientRequestId = Guid.NewGuid() })).StatusCode);
+        Assert.Equal(3m, (await service.GetItemBalanceAsync(f.ItemId, f.DestinationId, null)).Data!.QuantityOnHand);
+        var remaining = (await service.GetMovementAsync(held.Reference)).Data!;
+        var second = await service.FulfillReservedTransferAsync(held.Reference,
+            new FulfillInventoryReservedTransferRequestDto
+            {
+                ClientRequestId = Guid.NewGuid(), RowVersion = remaining.RowVersion,
+                Lines = [new FulfillInventoryReservedIssueLineDto { LineNo = 1, Quantity = 5m }]
+            });
+        Assert.Equal(200, second.StatusCode);
+        Assert.Equal("Fulfilled", (await service.GetMovementAsync(held.Reference)).Data!.StateCode);
+        Assert.Equal(2m, (await service.GetItemBalanceAsync(f.ItemId, f.SourceId, null)).Data!.QuantityOnHand);
+        Assert.Equal(0m, (await service.GetItemBalanceAsync(f.ItemId, f.SourceId, null)).Data!.ReservedQuantity);
+        Assert.Equal(200, (await service.ReceiveTransferAsync(second.Data!.Reference,
+            new ReceiveInventoryTransferRequestDto { ClientRequestId = Guid.NewGuid() })).StatusCode);
+        Assert.Equal(8m, (await service.GetItemBalanceAsync(f.ItemId, f.DestinationId, null)).Data!.QuantityOnHand);
+    }
+
+    [Fact]
+    public async Task Competing_partial_transfer_dispatches_enforce_rowversion_and_tenant_roles()
+    {
+        var connection = Environment.GetEnvironmentVariable("EDUOS_SQL_AUTH_TEST_CONNECTION");
+        if (string.IsNullOrWhiteSpace(connection)) return;
+        var f = await SeedAsync(connection);
+        InventoryMovementDto held;
+        await using (var setup = Open(f.Options, f.TenantId))
+        {
+            var service = Service(setup, f);
+            var draft = await service.CreateMovementAsync(new CreateInventoryMovementRequestDto
+            {
+                ClientRequestId = Guid.NewGuid(), MovementTypeCode = "Transfer",
+                SourceType = "ManualTransfer", FromLocationId = f.SourceId,
+                ToLocationId = f.DestinationId, Remarks = "Concurrent reserved warehouse transfer",
+                Lines = [new CreateInventoryMovementLineRequestDto
+                { InventoryItemId = f.ItemId, Quantity = 8m, UnitCost = 5m }]
+            });
+            held = (await service.ReserveMovementAsync(draft.Data!.Reference,
+                new PostInventoryMovementRequestDto { RowVersion = draft.Data.RowVersion })).Data!;
+        }
+        await using var first = Open(f.Options, f.TenantId);
+        await using var second = Open(f.Options, f.TenantId);
+        var results = await Task.WhenAll(
+            Service(first, f).FulfillReservedTransferAsync(held.Reference,
+                new FulfillInventoryReservedTransferRequestDto
+                {
+                    ClientRequestId = Guid.NewGuid(), RowVersion = held.RowVersion,
+                    Lines = [new FulfillInventoryReservedIssueLineDto { LineNo = 1, Quantity = 5m }]
+                }),
+            Service(second, f).FulfillReservedTransferAsync(held.Reference,
+                new FulfillInventoryReservedTransferRequestDto
+                {
+                    ClientRequestId = Guid.NewGuid(), RowVersion = held.RowVersion,
+                    Lines = [new FulfillInventoryReservedIssueLineDto { LineNo = 1, Quantity = 5m }]
+                }));
+        Assert.Single(results, x => x.StatusCode == 200);
+        Assert.Single(results, x => x.StatusCode == 409);
+        await using var verify = Open(f.Options, f.TenantId);
+        Assert.Equal(5m, (await Service(verify, f).GetItemBalanceAsync(f.ItemId, f.SourceId, null)).Data!.QuantityOnHand);
+        Assert.Equal(3m, (await Service(verify, f).GetItemBalanceAsync(f.ItemId, f.SourceId, null)).Data!.ReservedQuantity);
+        Assert.Equal(403, (await Service(verify, f, "Student").FulfillReservedTransferAsync(
+            held.Reference, new FulfillInventoryReservedTransferRequestDto
+            {
+                ClientRequestId = Guid.NewGuid(), RowVersion = held.RowVersion,
+                Lines = [new FulfillInventoryReservedIssueLineDto { LineNo = 1, Quantity = 1m }]
+            })).StatusCode);
+        await using var foreign = Open(f.Options, f.TenantId + 999);
+        Assert.Equal(404, (await Service(foreign, f, tenantId: f.TenantId + 999)
+            .FulfillReservedTransferAsync(held.Reference,
+                new FulfillInventoryReservedTransferRequestDto
+                {
+                    ClientRequestId = Guid.NewGuid(), RowVersion = held.RowVersion,
+                    Lines = [new FulfillInventoryReservedIssueLineDto { LineNo = 1, Quantity = 1m }]
+                })).StatusCode);
+    }
+
 }

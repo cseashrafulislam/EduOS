@@ -12,6 +12,7 @@ public interface IInventoryMovementService
     Task<ApiResponse<InventoryMovementDto>> PostMovementAsync(Guid movementReference, PostInventoryMovementRequestDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<InventoryMovementDto>> ReserveMovementAsync(Guid movementReference, PostInventoryMovementRequestDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<InventoryMovementDto>> FulfillReservedIssueAsync(Guid movementReference, FulfillInventoryReservedIssueRequestDto request, CancellationToken cancellationToken = default);
+    Task<ApiResponse<InventoryMovementDto>> FulfillReservedTransferAsync(Guid movementReference, FulfillInventoryReservedTransferRequestDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<InventoryMovementDto>> ReleaseReservationAsync(Guid movementReference, ReleaseInventoryReservationRequestDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<InventoryMovementDto>> ReceiveTransferAsync(Guid dispatchReference, ReceiveInventoryTransferRequestDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<InventoryMovementDto>> ReverseMovementAsync(Guid movementReference, ReverseInventoryMovementRequestDto request, CancellationToken cancellationToken = default);

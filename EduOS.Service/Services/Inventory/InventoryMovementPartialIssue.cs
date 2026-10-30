@@ -15,8 +15,19 @@ namespace EduOS.Service.Services.Inventory;
 /// </summary>
 public sealed partial class InventoryMovementService
 {
-    public async Task<ApiResponse<InventoryMovementDto>> FulfillReservedIssueAsync(
+    public Task<ApiResponse<InventoryMovementDto>> FulfillReservedIssueAsync(
         Guid movementReference, FulfillInventoryReservedIssueRequestDto request, CancellationToken ct = default)
+        => FulfillReservedMovementAsync(movementReference, request, "Issue", "ManualIssue",
+            "ReservationIssueFulfillment", ct);
+
+    public Task<ApiResponse<InventoryMovementDto>> FulfillReservedTransferAsync(
+        Guid movementReference, FulfillInventoryReservedTransferRequestDto request, CancellationToken ct = default)
+        => FulfillReservedMovementAsync(movementReference, request, "Transfer", "ManualTransfer",
+            "TransferDispatch", ct);
+
+    private async Task<ApiResponse<InventoryMovementDto>> FulfillReservedMovementAsync(
+        Guid movementReference, FulfillInventoryReservedIssueRequestDto request,
+        string parentType, string parentSource, string childSource, CancellationToken ct)
     {
         if (!Postable || db.CurrentTenantId != user.TenantId) return Denied<InventoryMovementDto>();
         if (movementReference == Guid.Empty || request == null || request.ClientRequestId == Guid.Empty ||
@@ -42,7 +53,7 @@ public sealed partial class InventoryMovementService
                 x.TenantId == user.TenantId && x.ClientRequestId == request.ClientRequestId, ct);
             if (prior != null)
             {
-                if (prior.SourceType != "ReservationIssueFulfillment" ||
+                if (prior.SourceType != childSource ||
                     prior.SourceId != parent.Id || prior.StateCode != "Posted" || prior.IsDeleted)
                     return ApiResponse<InventoryMovementDto>.ErrorResponse("Request ID belongs to another operation.", 409);
                 if (await db.InventoryMovements.AsNoTracking().AnyAsync(x =>
@@ -60,8 +71,9 @@ public sealed partial class InventoryMovementService
                 return ApiResponse<InventoryMovementDto>.SuccessResponse(await MapAsync(prior, ct), "Existing fulfilment returned.");
             }
 
-            if (parent.StateCode != "Reserved" || parent.MovementTypeCode != "Issue" ||
-                parent.SourceType != "ManualIssue" || !parent.FromLocationId.HasValue ||
+            if (parent.StateCode != "Reserved" || parent.MovementTypeCode != parentType ||
+                parent.SourceType != parentSource || !parent.FromLocationId.HasValue ||
+                (parentType == "Transfer" && !parent.ToLocationId.HasValue) ||
                 !Version(parent.RowVersion, request.RowVersion))
                 return ApiResponse<InventoryMovementDto>.ErrorResponse("Reservation changed or is not a manual issue.", 409);
 
@@ -114,9 +126,11 @@ public sealed partial class InventoryMovementService
                 TenantId = user.TenantId, PublicId = publicId, ClientRequestId = request.ClientRequestId,
                 MovementNumber = "IM-" + publicId.ToString("N").ToUpperInvariant(),
                 MovementTypeCode = "Issue", FromLocationId = origin,
-                SourceType = "ReservationIssueFulfillment", SourceId = parent.Id,
+                ToLocationId = parentType == "Transfer" ? parent.ToLocationId : null,
+                SourceType = childSource, SourceId = parent.Id,
                 MovementAt = now, StateCode = "Posted", PostedAt = now, PostedByUserId = user.UserId,
-                Remarks = "Partial issue from reservation " + parent.MovementNumber,
+                Remarks = (parentType == "Transfer" ? "Partial transfer dispatch from reservation " :
+                    "Partial issue from reservation ") + parent.MovementNumber,
                 CreatedAt = now, CreatedBy = user.UserId
             };
             foreach (var part in request.Lines)
@@ -147,7 +161,7 @@ public sealed partial class InventoryMovementService
             db.InventoryMovementLines.AddRange(copies);
             await db.SaveChangesAsync(ct);
             await tx.CommitAsync(ct);
-            return ApiResponse<InventoryMovementDto>.SuccessResponse(Map(posted, copies), "Reserved issue fulfilled.");
+            return ApiResponse<InventoryMovementDto>.SuccessResponse(Map(posted, copies), parentType == "Transfer" ? "Reserved transfer dispatched." : "Reserved issue fulfilled.");
         }
         catch (DbUpdateException ex)
         {

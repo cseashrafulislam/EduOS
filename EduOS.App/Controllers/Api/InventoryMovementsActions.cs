@@ -28,6 +28,9 @@ public sealed partial class InventoryMovementsController
     [HttpPost("{reference:guid}/fulfill-issue"), Authorize(Roles = "TenantAdmin,Principal,InventoryManager")]
     public async Task<IActionResult> FulfillIssue(Guid reference, [FromBody] FulfillInventoryReservedIssueRequestDto request, CancellationToken ct)
         => Reply(await service.FulfillReservedIssueAsync(reference, request, ct));
+    [HttpPost("{reference:guid}/fulfill-transfer"), Authorize(Roles = "TenantAdmin,Principal,InventoryManager")]
+    public async Task<IActionResult> FulfillTransfer(Guid reference, [FromBody] FulfillInventoryReservedTransferRequestDto request, CancellationToken ct)
+        => Reply(await service.FulfillReservedTransferAsync(reference, request, ct));
     [HttpPost("{reference:guid}/release"), Authorize(Roles = "TenantAdmin,Principal,InventoryManager,StoreKeeper")]
     public async Task<IActionResult> Release(Guid reference, [FromBody] ReleaseInventoryReservationRequestDto request, CancellationToken ct)
         => Reply(await service.ReleaseReservationAsync(reference, request, ct));

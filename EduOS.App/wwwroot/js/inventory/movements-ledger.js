@@ -33,13 +33,16 @@ export function initLedger() {
         if (!lines.length) return notice(bn ? 'অন্তত একটি পরিমাণ দিন।' : 'Enter at least one quantity.');
         fulfilSubmit.disabled = true;
         try {
-            await api('movements/' + fulfilTarget.reference + '/fulfill-issue', 'POST', {
+            await api('movements/' + fulfilTarget.reference +
+                (fulfilTarget.transfer ? '/fulfill-transfer' : '/fulfill-issue'), 'POST', {
                 clientRequestId: fulfilRequestId,
                 rowVersion: fulfilTarget.rowVersion,
                 lines
             });
             fulfilDialog.close();
-            notice(bn ? 'আংশিক ইস্যু পোস্ট হয়েছে।' : 'Reserved issue fulfilment posted.', true);
+            notice(fulfilTarget.transfer
+                ? (bn ? 'আংশিক ট্রান্সফার ডিসপ্যাচ হয়েছে।' : 'Partial transfer dispatched; destination receipt required.')
+                : (bn ? 'আংশিক ইস্যু পোস্ট হয়েছে।' : 'Reserved issue fulfilment posted.'), true);
             await load();
         } catch (error) { notice(error.message); }
         finally { fulfilSubmit.disabled = false; }
@@ -47,7 +50,14 @@ export function initLedger() {
     function openFulfil(row) {
         const remaining = (row.lines || []).filter(line => line.quantity > (line.fulfilledQuantity || 0));
         if (!remaining.length) return;
-        fulfilTarget = { reference: row.reference, rowVersion: row.rowVersion };
+        fulfilTarget = { reference: row.reference, rowVersion: row.rowVersion,
+            transfer: row.movementTypeCode === 'Transfer' };
+        el('inventoryFulfilTitle').textContent = fulfilTarget.transfer
+            ? (bn ? 'রিজার্ভ থেকে আংশিক ট্রান্সফার ডিসপ্যাচ' : 'Dispatch reserved transfer')
+            : (bn ? 'রিজার্ভ থেকে আংশিক ইস্যু' : 'Fulfil reserved issue');
+        fulfilSubmit.textContent = fulfilTarget.transfer
+            ? (bn ? 'ডিসপ্যাচ পোস্ট' : 'Post dispatch')
+            : (bn ? 'ইস্যু পোস্ট' : 'Post issue');
         fulfilRequestId = crypto.randomUUID();
         fulfilRows.replaceChildren();
         for (const line of remaining) {
@@ -160,9 +170,13 @@ export function initLedger() {
                             await load();
                         } catch (e) { notice(e.message); }
                     });
-                if (row.stateCode === 'Reserved' && row.movementTypeCode === 'Issue' &&
-                    row.sourceType === 'ManualIssue' && el('inventoryMovements').dataset.post === 'true')
-                    button(bn ? 'আংশিক ইস্যু' : 'Fulfil part', () => openFulfil(row));
+                if (row.stateCode === 'Reserved' &&
+                    ((row.movementTypeCode === 'Issue' && row.sourceType === 'ManualIssue') ||
+                     (row.movementTypeCode === 'Transfer' && row.sourceType === 'ManualTransfer')) &&
+                    el('inventoryMovements').dataset.post === 'true')
+                    button(row.movementTypeCode === 'Transfer'
+                        ? (bn ? 'আংশিক ডিসপ্যাচ' : 'Dispatch part')
+                        : (bn ? 'আংশিক ইস্যু' : 'Fulfil part'), () => openFulfil(row));
                 if (row.stateCode === 'Reserved' && el('inventoryMovements').dataset.create === 'true')
                     button(bn ? 'ছাড়ুন' : 'Release', () => {
                         releaseTarget = { reference: row.reference, rowVersion: row.rowVersion };

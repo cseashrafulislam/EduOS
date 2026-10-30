@@ -6,7 +6,7 @@ namespace EduOS.Core.DTOs.Inventory;
 /// LineNo refers to the original immutable requested reservation line.
 /// A stable ClientRequestId makes a posted partial issue retry-safe.
 /// </summary>
-public sealed class FulfillInventoryReservedIssueRequestDto
+public class FulfillInventoryReservedIssueRequestDto
 {
     public Guid ClientRequestId { get; set; }
 
@@ -26,3 +26,6 @@ public sealed class FulfillInventoryReservedIssueLineDto
     [Range(typeof(decimal), "0.000001", "999999999999")]
     public decimal Quantity { get; set; }
 }
+
+/// <summary>Transfer dispatch uses the same validated line and rowversion contract.</summary>
+public sealed class FulfillInventoryReservedTransferRequestDto : FulfillInventoryReservedIssueRequestDto { }
