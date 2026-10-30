@@ -11,6 +11,12 @@ public sealed class InventoryReservationRegisterRowDto
     public string? SourceType { get; set; }
     public long? SourceId { get; set; }
     public DateTime HeldSinceUtc { get; set; }
+    public string StateCode { get; set; } = string.Empty;
+    public string RowVersion { get; set; } = string.Empty;
+    public DateTime? ReservationExpiresAtUtc { get; set; }
+    public DateTime? ReservationExpiredAtUtc { get; set; }
+    public string? ReservationExpiryReason { get; set; }
+    public decimal ReleasedQuantity { get; set; }
     public int LineNo { get; set; }
     public long InventoryItemId { get; set; }
     public string ItemCode { get; set; } = string.Empty;

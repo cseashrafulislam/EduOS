@@ -11852,6 +11852,19 @@ namespace EduOS.Persistence.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
 
+                    b.Property<DateTime?>("ReservationExpiresAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("ReservationExpiredAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<long?>("ReservationExpiredByUserId")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("ReservationExpiryReason")
+                        .HasMaxLength(400)
+                        .HasColumnType("nvarchar(400)");
+
                     b.Property<string>("StateCode")
                         .IsRequired()
                         .HasMaxLength(30)
@@ -11890,7 +11903,14 @@ namespace EduOS.Persistence.Migrations
 
                     b.HasIndex("TenantId", "SourceType", "SourceId");
 
-                    b.ToTable("InventoryMovements");
+                    b.HasIndex("TenantId", "StateCode", "ReservationExpiresAtUtc");
+
+                    b.ToTable("InventoryMovements", t =>
+                        {
+                            t.HasCheckConstraint("CK_InventoryMovement_ExpiryEvidence", "([StateCode] <> N'Expired' AND [ReservationExpiredAtUtc] IS NULL AND [ReservationExpiredByUserId] IS NULL AND [ReservationExpiryReason] IS NULL) OR ([StateCode] = N'Expired' AND [ReservationExpiresAtUtc] IS NOT NULL AND [ReservationExpiredAtUtc] IS NOT NULL AND [ReservationExpiredByUserId] IS NOT NULL AND [ReservationExpiryReason] IS NOT NULL)");
+
+                            t.HasTrigger("TR_InventoryMovement_ExpiryImmutable");
+                        });
                 });
 
             modelBuilder.Entity("EduOS.Core.Entities.Inventory.InventoryMovementLine", b =>

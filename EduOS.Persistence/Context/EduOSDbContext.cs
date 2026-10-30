@@ -1799,6 +1799,13 @@ public class EduOSDbContext :
         UniqueTenant<InventoryMovement>(modelBuilder, nameof(InventoryMovement.MovementNumber));
         UniqueTenant<InventoryMovement>(modelBuilder, nameof(InventoryMovement.ClientRequestId));
         modelBuilder.Entity<InventoryMovement>().HasIndex(x => new { x.TenantId, x.SourceType, x.SourceId });
+        modelBuilder.Entity<InventoryMovement>().HasIndex(x => new { x.TenantId, x.StateCode, x.ReservationExpiresAtUtc });
+        modelBuilder.Entity<InventoryMovement>().ToTable(t =>
+        {
+            t.HasCheckConstraint("CK_InventoryMovement_ExpiryEvidence",
+                "([StateCode] <> N'Expired' AND [ReservationExpiredAtUtc] IS NULL AND [ReservationExpiredByUserId] IS NULL AND [ReservationExpiryReason] IS NULL) OR ([StateCode] = N'Expired' AND [ReservationExpiresAtUtc] IS NOT NULL AND [ReservationExpiredAtUtc] IS NOT NULL AND [ReservationExpiredByUserId] IS NOT NULL AND [ReservationExpiryReason] IS NOT NULL)");
+            t.HasTrigger("TR_InventoryMovement_ExpiryImmutable");
+        });
         UniqueTenant<InventoryMovementLine>(modelBuilder, nameof(InventoryMovementLine.InventoryMovementId), nameof(InventoryMovementLine.LineNo));
         UniqueTenant<ProcurementRequisition>(modelBuilder, nameof(ProcurementRequisition.ClientRequestId));
         UniqueTenant<ProcurementRequisition>(modelBuilder, nameof(ProcurementRequisition.RequestNumber));
@@ -2526,6 +2533,11 @@ public class EduOSDbContext :
             {
                 throw new InvalidOperationException("A posted inventory movement is immutable. Create a reversal movement.");
             }
+
+            if (entry.Entity is InventoryMovement &&
+                string.Equals(entry.OriginalValues[nameof(InventoryMovement.StateCode)]?.ToString(),
+                    "Expired", StringComparison.OrdinalIgnoreCase))
+                throw new InvalidOperationException("Expired reservation evidence is immutable.");
 
             if (entry.Entity is StudentPayment && OriginalStateEquals(entry, nameof(StudentPayment.State), "Successful"))
                 throw new InvalidOperationException("A successful student payment is immutable. Use refund/allocation transactions.");

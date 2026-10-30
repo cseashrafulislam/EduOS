@@ -21,6 +21,9 @@ public sealed partial class InventoryMovementService
             if (m.StateCode is not ("Draft" or "Reserved") || !Version(m.RowVersion, request.RowVersion) ||
                 m.MovementTypeCode is not ("Receipt" or "Issue" or "Transfer"))
                 return ApiResponse<InventoryMovementDto>.ErrorResponse("Movement changed or cannot be posted.", 409);
+            if (m.StateCode == "Reserved" && m.ReservationExpiresAtUtc.HasValue &&
+                m.ReservationExpiresAtUtc.Value <= clock.GetUtcNow().UtcDateTime)
+                return ApiResponse<InventoryMovementDto>.ErrorResponse("Reservation deadline passed; expire or release the hold before further posting.", 409);
             var (error, lines) = await CheckPostingAsync(m, ct);
             if (error != null) return ApiResponse<InventoryMovementDto>.ErrorResponse(error, 409);
             var now = clock.GetUtcNow().UtcDateTime;

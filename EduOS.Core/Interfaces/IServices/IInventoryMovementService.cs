@@ -7,12 +7,14 @@ public interface IInventoryMovementService
 {
     Task<ApiResponse<PagedResult<InventoryMovementDto>>> GetMovementsAsync(DateTime? fromUtc, DateTime? toUtc, int page, int pageSize, CancellationToken cancellationToken = default);
     Task<ApiResponse<InventoryMovementDto>> GetMovementAsync(Guid movementReference, CancellationToken cancellationToken = default);
-    Task<ApiResponse<PagedResult<InventoryReservationRegisterRowDto>>> GetReservationRegisterAsync(long? locationId, string? search, int page, int pageSize, CancellationToken cancellationToken = default);
+    Task<ApiResponse<PagedResult<InventoryReservationRegisterRowDto>>> GetReservationRegisterAsync(long? locationId, string? search, int page, int pageSize, CancellationToken cancellationToken = default, bool includeClosed = false);
     Task<ApiResponse<InventoryMovementDto>> CreateMovementAsync(CreateInventoryMovementRequestDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<InventoryMovementDto>> PostMovementAsync(Guid movementReference, PostInventoryMovementRequestDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<InventoryMovementDto>> ReserveMovementAsync(Guid movementReference, PostInventoryMovementRequestDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<InventoryMovementDto>> FulfillReservedIssueAsync(Guid movementReference, FulfillInventoryReservedIssueRequestDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<InventoryMovementDto>> FulfillReservedTransferAsync(Guid movementReference, FulfillInventoryReservedTransferRequestDto request, CancellationToken cancellationToken = default);
+    Task<ApiResponse<InventoryMovementDto>> ScheduleReservationExpiryAsync(Guid movementReference, ScheduleInventoryReservationExpiryRequestDto request, CancellationToken cancellationToken = default);
+    Task<ApiResponse<InventoryMovementDto>> ExpireReservationAsync(Guid movementReference, ExpireInventoryReservationRequestDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<InventoryMovementDto>> ReleaseReservationAsync(Guid movementReference, ReleaseInventoryReservationRequestDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<InventoryMovementDto>> ReceiveTransferAsync(Guid dispatchReference, ReceiveInventoryTransferRequestDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<InventoryMovementDto>> ReverseMovementAsync(Guid movementReference, ReverseInventoryMovementRequestDto request, CancellationToken cancellationToken = default);

@@ -58,6 +58,10 @@ public sealed class InventoryMovementDto
     public long? FromLocationId { get; set; }
     public long? ToLocationId { get; set; }
     public string StateCode { get; set; } = string.Empty;
+    public DateTime? ReservationExpiresAtUtc { get; set; }
+    public DateTime? ReservationExpiredAtUtc { get; set; }
+    public long? ReservationExpiredByUserId { get; set; }
+    public string? ReservationExpiryReason { get; set; }
     public DateTime? PostedAt { get; set; }
     public IReadOnlyList<InventoryMovementLineDto> Lines { get; set; } = Array.Empty<InventoryMovementLineDto>();
     public string RowVersion { get; set; } = string.Empty;
@@ -94,6 +98,16 @@ public sealed class PostInventoryMovementRequestDto
     [Required] public string RowVersion { get; set; } = string.Empty;
 }
 public sealed class ReleaseInventoryReservationRequestDto
+{
+    [Required] public string RowVersion { get; set; } = string.Empty;
+    [Required, MinLength(10), MaxLength(400)] public string Reason { get; set; } = string.Empty;
+}
+public sealed class ScheduleInventoryReservationExpiryRequestDto
+{
+    [Required] public string RowVersion { get; set; } = string.Empty;
+    [Required] public DateTime ExpiresAtUtc { get; set; }
+}
+public sealed class ExpireInventoryReservationRequestDto
 {
     [Required] public string RowVersion { get; set; } = string.Empty;
     [Required, MinLength(10), MaxLength(400)] public string Reason { get; set; } = string.Empty;

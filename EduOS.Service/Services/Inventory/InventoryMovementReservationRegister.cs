@@ -11,7 +11,8 @@ public sealed partial class InventoryMovementService
     /// The stock ledger remains the sole source of posted on-hand quantities.
     /// </summary>
     public async Task<ApiResponse<PagedResult<InventoryReservationRegisterRowDto>>> GetReservationRegisterAsync(
-        long? locationId, string? search, int page, int pageSize, CancellationToken ct = default)
+        long? locationId, string? search, int page, int pageSize, CancellationToken ct = default,
+        bool includeClosed = false)
     {
         if (!Readable || db.CurrentTenantId != user.TenantId)
             return Denied<PagedResult<InventoryReservationRegisterRowDto>>();
@@ -31,7 +32,10 @@ public sealed partial class InventoryMovementService
             join item in db.InventoryItems.AsNoTracking() on line.InventoryItemId equals item.Id
             where line.TenantId == user.TenantId && !line.IsDeleted &&
                   item.TenantId == user.TenantId && !item.IsDeleted &&
-                  movement.StateCode == "Reserved" && line.Quantity > line.FulfilledQuantity &&
+                  (movement.StateCode == "Reserved" ||
+                      (includeClosed && (movement.StateCode == "Expired" ||
+                          movement.StateCode == "Cancelled" || movement.StateCode == "Fulfilled"))) &&
+                  (movement.StateCode != "Reserved" || line.Quantity > line.FulfilledQuantity) &&
                   movement.FromLocationId.HasValue &&
                   (movement.MovementTypeCode == "Issue" || movement.MovementTypeCode == "Transfer")
             select new { line, movement, item };
@@ -61,6 +65,14 @@ public sealed partial class InventoryMovementService
                     SourceType = x.movement.SourceType,
                     SourceId = x.movement.SourceId,
                     HeldSinceUtc = x.movement.UpdatedAt ?? x.movement.CreatedAt,
+                    StateCode = x.movement.StateCode,
+                    RowVersion = Convert.ToBase64String(x.movement.RowVersion),
+                    ReservationExpiresAtUtc = x.movement.ReservationExpiresAtUtc,
+                    ReservationExpiredAtUtc = x.movement.ReservationExpiredAtUtc,
+                    ReservationExpiryReason = x.movement.ReservationExpiryReason,
+                    ReleasedQuantity = x.movement.StateCode == "Expired" ||
+                        x.movement.StateCode == "Cancelled" ?
+                        x.line.Quantity - x.line.FulfilledQuantity : 0m,
                     LineNo = x.line.LineNo,
                     InventoryItemId = x.item.Id,
                     ItemCode = x.item.Code,
@@ -69,7 +81,8 @@ public sealed partial class InventoryMovementService
                     LotOrBatchNo = x.line.LotOrBatchNo,
                     RequestedQuantity = x.line.Quantity,
                     FulfilledQuantity = x.line.FulfilledQuantity,
-                    ReservedQuantity = x.line.Quantity - x.line.FulfilledQuantity
+                    ReservedQuantity = x.movement.StateCode == "Reserved" ?
+                        x.line.Quantity - x.line.FulfilledQuantity : 0m
                 }).ToListAsync(ct);
         return ApiResponse<PagedResult<InventoryReservationRegisterRowDto>>.SuccessResponse(
             new PagedResult<InventoryReservationRegisterRowDto>

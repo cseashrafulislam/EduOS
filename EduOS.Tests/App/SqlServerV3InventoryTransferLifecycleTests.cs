@@ -43,9 +43,14 @@ public sealed class SqlServerV3InventoryTransferLifecycleTests
     }
 
     private static InventoryMovementService Service(EduOSDbContext db, Fixture f,
-        string role = "TenantAdmin", long? tenantId = null) =>
+        string role = "TenantAdmin", long? tenantId = null, TimeProvider? time = null) =>
         new(db, new Actor(tenantId ?? f.TenantId, f.UserId, role),
-            TimeProvider.System, NullLogger<InventoryMovementService>.Instance);
+            time ?? TimeProvider.System, NullLogger<InventoryMovementService>.Instance);
+
+    private sealed class FixedClock(DateTimeOffset now) : TimeProvider
+    {
+        public override DateTimeOffset GetUtcNow() => now;
+    }
 
     private static async Task<Fixture> SeedAsync(string connection)
     {
@@ -637,6 +642,76 @@ public sealed class SqlServerV3InventoryTransferLifecycleTests
                     ClientRequestId = Guid.NewGuid(), RowVersion = held.RowVersion,
                     Lines = [new FulfillInventoryReservedIssueLineDto { LineNo = 1, Quantity = 1m }]
                 })).StatusCode);
+    }
+
+    [Fact]
+    public async Task Scheduled_reservation_expiry_releases_only_remaining_hold_and_preserves_evidence()
+    {
+        var connection = Environment.GetEnvironmentVariable("EDUOS_SQL_AUTH_TEST_CONNECTION");
+        if (string.IsNullOrWhiteSpace(connection)) return;
+        var f = await SeedAsync(connection);
+        await using var db = Open(f.Options, f.TenantId);
+        var service = Service(db, f);
+        var draft = await DraftIssueAsync(db, f, 8m);
+        var held = (await service.ReserveMovementAsync(draft.Reference,
+            new PostInventoryMovementRequestDto { RowVersion = draft.RowVersion })).Data!;
+        var partial = await service.FulfillReservedIssueAsync(held.Reference,
+            new FulfillInventoryReservedIssueRequestDto
+            {
+                ClientRequestId = Guid.NewGuid(), RowVersion = held.RowVersion,
+                Lines = [new FulfillInventoryReservedIssueLineDto { LineNo = 1, Quantity = 3m }]
+            });
+        Assert.Equal(200, partial.StatusCode);
+        var parent = (await service.GetMovementAsync(held.Reference)).Data!;
+        var now = DateTimeOffset.UtcNow;
+        var deadline = now.AddMinutes(30).UtcDateTime;
+        var scheduled = await service.ScheduleReservationExpiryAsync(parent.Reference,
+            new ScheduleInventoryReservationExpiryRequestDto
+            { RowVersion = parent.RowVersion, ExpiresAtUtc = deadline });
+        Assert.Equal(200, scheduled.StatusCode);
+        Assert.Equal(deadline, scheduled.Data!.ReservationExpiresAtUtc);
+        Assert.Equal(200, (await service.ScheduleReservationExpiryAsync(parent.Reference,
+            new ScheduleInventoryReservationExpiryRequestDto
+            { RowVersion = parent.RowVersion, ExpiresAtUtc = deadline })).StatusCode);
+        Assert.Equal(409, (await service.ScheduleReservationExpiryAsync(parent.Reference,
+            new ScheduleInventoryReservationExpiryRequestDto
+            { RowVersion = scheduled.Data.RowVersion, ExpiresAtUtc = deadline.AddHours(1) })).StatusCode);
+        Assert.Equal(403, (await Service(db, f, "Student").ExpireReservationAsync(parent.Reference,
+            new ExpireInventoryReservationRequestDto
+            { RowVersion = scheduled.Data.RowVersion, Reason = "Student cannot expire warehouse hold" })).StatusCode);
+        Assert.Equal(409, (await service.ExpireReservationAsync(parent.Reference,
+            new ExpireInventoryReservationRequestDto
+            { RowVersion = scheduled.Data.RowVersion, Reason = "Approved warehouse reservation deadline" })).StatusCode);
+
+        await using var dueDb = Open(f.Options, f.TenantId);
+        var dueService = Service(dueDb, f, time: new FixedClock(now.AddMinutes(31)));
+        Assert.Equal(409, (await dueService.FulfillReservedIssueAsync(parent.Reference,
+            new FulfillInventoryReservedIssueRequestDto
+            {
+                ClientRequestId = Guid.NewGuid(), RowVersion = scheduled.Data.RowVersion,
+                Lines = [new FulfillInventoryReservedIssueLineDto { LineNo = 1, Quantity = 1m }]
+            })).StatusCode);
+        var expiry = await dueService.ExpireReservationAsync(parent.Reference,
+            new ExpireInventoryReservationRequestDto
+            { RowVersion = scheduled.Data.RowVersion, Reason = "Approved warehouse reservation deadline" });
+        Assert.Equal(200, expiry.StatusCode);
+        Assert.Equal("Expired", expiry.Data!.StateCode);
+        Assert.Equal(f.UserId, expiry.Data.ReservationExpiredByUserId);
+        Assert.Equal(200, (await dueService.ExpireReservationAsync(parent.Reference,
+            new ExpireInventoryReservationRequestDto
+            { RowVersion = scheduled.Data.RowVersion, Reason = "Approved warehouse reservation deadline" })).StatusCode);
+        var balance = (await dueService.GetItemBalanceAsync(f.ItemId, f.SourceId, null)).Data!;
+        Assert.Equal(7m, balance.QuantityOnHand);
+        Assert.Equal(0m, balance.ReservedQuantity);
+        var history = (await dueService.GetReservationRegisterAsync(f.SourceId, null, 1, 25,
+            includeClosed: true)).Data!;
+        Assert.Contains(history.Items, x => x.MovementReference == parent.Reference &&
+            x.StateCode == "Expired" && x.FulfilledQuantity == 3m &&
+            x.ReleasedQuantity == 5m && x.ReservedQuantity == 0m);
+        Assert.Equal(409, (await dueService.PostMovementAsync(parent.Reference,
+            new PostInventoryMovementRequestDto { RowVersion = expiry.Data.RowVersion })).StatusCode);
+        await Assert.ThrowsAnyAsync<Exception>(() => dueDb.Database.ExecuteSqlInterpolatedAsync(
+            $"UPDATE dbo.InventoryMovements SET ReservationExpiryReason = { "Tampered reason" } WHERE PublicId = {parent.Reference}"));
     }
 
 }

@@ -12,11 +12,50 @@ export async function initReservations() {
     const exportButton = el('inventoryReservationExport');
     const locationSelect = el('inventoryReservationLocation');
     const searchInput = el('inventoryReservationSearch');
+    const includeClosed = el('inventoryReservationIncludeClosed');
+    const scheduleDialog = el('inventoryExpiryScheduleDialog');
+    const confirmDialog = el('inventoryExpiryConfirmDialog');
+    let expiryTarget = null;
+    el('inventoryExpiryScheduleCancel')?.addEventListener('click', () => scheduleDialog.close());
+    el('inventoryExpiryConfirmCancel')?.addEventListener('click', () => confirmDialog.close());
+    scheduleDialog?.addEventListener('close', () => { expiryTarget = null; el('inventoryExpiryScheduleForm').reset(); });
+    confirmDialog?.addEventListener('close', () => { expiryTarget = null; el('inventoryExpiryConfirmForm').reset(); });
+    el('inventoryExpiryScheduleForm')?.addEventListener('submit', async event => {
+        event.preventDefault();
+        if (!expiryTarget) return;
+        const deadline = new Date(el('inventoryExpiryDeadline').value);
+        if (!Number.isFinite(deadline.getTime())) return;
+        const submit = el('inventoryExpiryScheduleSubmit');
+        submit.disabled = true;
+        try {
+            await api('movements/' + expiryTarget.movementReference + '/schedule-expiry', 'POST',
+                { rowVersion: expiryTarget.rowVersion, expiresAtUtc: deadline.toISOString() });
+            scheduleDialog.close();
+            notice(bn ? 'মেয়াদ সংরক্ষিত হয়েছে।' : 'Reservation deadline saved.', true);
+            await load();
+        } catch (error) { notice(error.message); }
+        finally { submit.disabled = false; }
+    });
+    el('inventoryExpiryConfirmForm')?.addEventListener('submit', async event => {
+        event.preventDefault();
+        if (!expiryTarget) return;
+        const submit = el('inventoryExpiryConfirmSubmit');
+        submit.disabled = true;
+        try {
+            await api('movements/' + expiryTarget.movementReference + '/expire', 'POST',
+                { rowVersion: expiryTarget.rowVersion, reason: el('inventoryExpiryReason').value.trim() });
+            confirmDialog.close();
+            notice(bn ? 'মেয়াদোত্তীর্ণ রিজার্ভেশন বন্ধ হয়েছে।' : 'Expired reservation closed.', true);
+            await load();
+        } catch (error) { notice(error.message); }
+        finally { submit.disabled = false; }
+    });
 
     const params = () => {
         const q = new URLSearchParams({ page: String(page), pageSize: '25' });
         if (locationSelect.value) q.set('locationId', locationSelect.value);
         if (searchInput.value.trim()) q.set('search', searchInput.value.trim());
+        if (includeClosed.checked) q.set('includeClosed', 'true');
         return q;
     };
     async function load() {
@@ -35,12 +74,36 @@ export async function initReservations() {
                     item.itemCode + ' — ' + item.itemName, item.lotOrBatchNo,
                     item.fromLocationId, item.requestedQuantity + ' / ' + item.fulfilledQuantity +
                         ' / ' + item.reservedQuantity + ' ' + item.unitCode,
-                    new Date(item.heldSinceUtc).toLocaleString()].forEach(value => tr.append(td(value)));
+                    new Date(item.heldSinceUtc).toLocaleString(),
+                    (item.stateCode || '') + (item.reservationExpiresAtUtc ?
+                        ' · ' + new Date(item.reservationExpiresAtUtc).toLocaleString() : '')].forEach(value => tr.append(td(value)));
+                const actions = td('');
+                const allowed = el('inventoryMovements')?.dataset.post === 'true';
+                if (allowed && item.stateCode === 'Reserved') {
+                    const action = (label, callback) => {
+                        const button = document.createElement('button');
+                        button.type = 'button'; button.className = 'btn btn-outline-primary btn-sm me-1';
+                        button.textContent = label;
+                        button.addEventListener('click', callback);
+                        actions.append(button);
+                    };
+                    if (!item.reservationExpiresAtUtc)
+                        action(bn ? 'মেয়াদ দিন' : 'Set deadline', () => {
+                            expiryTarget = item; scheduleDialog.showModal();
+                            el('inventoryExpiryDeadline').focus();
+                        });
+                    else if (new Date(item.reservationExpiresAtUtc).getTime() <= Date.now())
+                        action(bn ? 'মেয়াদ শেষ' : 'Expire', () => {
+                            expiryTarget = item; confirmDialog.showModal();
+                            el('inventoryExpiryReason').focus();
+                        });
+                }
+                tr.append(actions);
                 rows.append(tr);
             }
             if (!data.items?.length) {
                 const tr = document.createElement('tr'), cell = document.createElement('td');
-                cell.colSpan = 7;
+                cell.colSpan = 9;
                 cell.textContent = bn ? 'কোনো সক্রিয় রিজার্ভেশন নেই।' : 'No active reservations.';
                 tr.append(cell); rows.append(tr);
             }
@@ -50,6 +113,7 @@ export async function initReservations() {
     }
 
     form.addEventListener('submit', event => { event.preventDefault(); page = 1; load(); });
+    includeClosed.addEventListener('change', () => { page = 1; load(); });
     prev.addEventListener('click', () => { if (page > 1) { page--; load(); } });
     next.addEventListener('click', () => { if (page < last) { page++; load(); } });
     exportButton.addEventListener('click', async () => {
@@ -68,7 +132,8 @@ export async function initReservations() {
             const url = URL.createObjectURL(blob);
             try {
                 const link = document.createElement('a');
-                link.href = url; link.download = 'inventory-active-reservations.csv';
+                link.href = url; link.download = includeClosed.checked ?
+                    'inventory-reservation-history.csv' : 'inventory-active-reservations.csv';
                 document.body.append(link); link.click(); link.remove();
             } finally { URL.revokeObjectURL(url); }
         } catch (error) { notice(error.message); }

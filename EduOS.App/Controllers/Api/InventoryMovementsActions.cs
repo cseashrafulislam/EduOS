@@ -31,6 +31,12 @@ public sealed partial class InventoryMovementsController
     [HttpPost("{reference:guid}/fulfill-transfer"), Authorize(Roles = "TenantAdmin,Principal,InventoryManager")]
     public async Task<IActionResult> FulfillTransfer(Guid reference, [FromBody] FulfillInventoryReservedTransferRequestDto request, CancellationToken ct)
         => Reply(await service.FulfillReservedTransferAsync(reference, request, ct));
+    [HttpPost("{reference:guid}/schedule-expiry"), Authorize(Roles = "TenantAdmin,Principal,InventoryManager")]
+    public async Task<IActionResult> ScheduleExpiry(Guid reference, [FromBody] ScheduleInventoryReservationExpiryRequestDto request, CancellationToken ct)
+        => Reply(await service.ScheduleReservationExpiryAsync(reference, request, ct));
+    [HttpPost("{reference:guid}/expire"), Authorize(Roles = "TenantAdmin,Principal,InventoryManager")]
+    public async Task<IActionResult> Expire(Guid reference, [FromBody] ExpireInventoryReservationRequestDto request, CancellationToken ct)
+        => Reply(await service.ExpireReservationAsync(reference, request, ct));
     [HttpPost("{reference:guid}/release"), Authorize(Roles = "TenantAdmin,Principal,InventoryManager,StoreKeeper")]
     public async Task<IActionResult> Release(Guid reference, [FromBody] ReleaseInventoryReservationRequestDto request, CancellationToken ct)
         => Reply(await service.ReleaseReservationAsync(reference, request, ct));

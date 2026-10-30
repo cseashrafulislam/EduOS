@@ -77,6 +77,10 @@ public sealed partial class InventoryMovementService
                 !Version(parent.RowVersion, request.RowVersion))
                 return ApiResponse<InventoryMovementDto>.ErrorResponse("Reservation changed or is not a manual issue.", 409);
 
+            if (parent.ReservationExpiresAtUtc.HasValue &&
+                parent.ReservationExpiresAtUtc.Value <= clock.GetUtcNow().UtcDateTime)
+                return ApiResponse<InventoryMovementDto>.ErrorResponse("Reservation deadline passed; remaining stock cannot be fulfilled.", 409);
+
             var lines = await db.InventoryMovementLines.Where(x => x.TenantId == user.TenantId &&
                 x.InventoryMovementId == parent.Id && !x.IsDeleted)
                 .OrderBy(x => x.LineNo).ToListAsync(ct);

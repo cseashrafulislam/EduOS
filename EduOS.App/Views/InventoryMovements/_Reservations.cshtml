@@ -13,6 +13,9 @@
             <button type="button" id="inventoryReservationExport" class="btn btn-outline-secondary">@(bn ? "CSV এক্সপোর্ট" : "Export CSV")</button>
         </div>
     </form>
+    <div class="form-check mb-2"><input id="inventoryReservationIncludeClosed" class="form-check-input" type="checkbox" />
+        <label for="inventoryReservationIncludeClosed" class="form-check-label">@(bn ? "মেয়াদোত্তীর্ণ, বাতিল ও সম্পন্ন রিজার্ভেশন দেখুন" : "Include expired, released and fulfilled reservations")</label>
+    </div>
     <div class="table-responsive"><table class="table table-striped table-sm">
         <thead><tr>
             <th scope="col">@(bn ? "মুভমেন্ট" : "Movement")</th>
@@ -22,6 +25,8 @@
             <th scope="col">@(bn ? "স্টোর" : "Store")</th>
             <th scope="col">@(bn ? "চাহিদা / সরবরাহ / অবশিষ্ট" : "Requested / fulfilled / held")</th>
             <th scope="col">@(bn ? "রিজার্ভের সময়" : "Held since")</th>
+            <th scope="col">@(bn ? "মেয়াদ / অবস্থা" : "Deadline / status")</th>
+            <th scope="col">@(bn ? "কার্যক্রম" : "Actions")</th>
         </tr></thead>
         <tbody id="inventoryReservationRows"></tbody>
     </table></div>
@@ -31,3 +36,26 @@
         <button type="button" id="inventoryReservationNext" class="btn btn-outline-secondary btn-sm">@(bn ? "পরের" : "Next")</button>
     </div>
 </div></div>
+
+<dialog id="inventoryExpiryScheduleDialog" class="border rounded shadow p-3" aria-labelledby="inventoryExpiryScheduleTitle">
+    <form id="inventoryExpiryScheduleForm">
+        <h3 id="inventoryExpiryScheduleTitle" class="h5">@(bn ? "রিজার্ভেশনের মেয়াদ নির্ধারণ" : "Set reservation deadline")</h3>
+        <label for="inventoryExpiryDeadline" class="form-label">@(bn ? "মেয়াদ শেষ হবে" : "Deadline")</label>
+        <input id="inventoryExpiryDeadline" type="datetime-local" class="form-control" required />
+        <div class="d-flex justify-content-end gap-2 mt-3">
+            <button type="button" id="inventoryExpiryScheduleCancel" class="btn btn-outline-secondary">@(bn ? "বাতিল" : "Cancel")</button>
+            <button type="submit" id="inventoryExpiryScheduleSubmit" class="btn btn-primary">@(bn ? "সংরক্ষণ" : "Save deadline")</button>
+        </div>
+    </form>
+</dialog>
+<dialog id="inventoryExpiryConfirmDialog" class="border rounded shadow p-3" aria-labelledby="inventoryExpiryConfirmTitle">
+    <form id="inventoryExpiryConfirmForm">
+        <h3 id="inventoryExpiryConfirmTitle" class="h5">@(bn ? "মেয়াদোত্তীর্ণ রিজার্ভেশন বন্ধ" : "Expire reservation")</h3>
+        <label for="inventoryExpiryReason" class="form-label">@(bn ? "অনুমোদিত কারণ" : "Approved reason")</label>
+        <textarea id="inventoryExpiryReason" class="form-control" rows="3" minlength="10" maxlength="400" required></textarea>
+        <div class="d-flex justify-content-end gap-2 mt-3">
+            <button type="button" id="inventoryExpiryConfirmCancel" class="btn btn-outline-secondary">@(bn ? "বাতিল" : "Cancel")</button>
+            <button type="submit" id="inventoryExpiryConfirmSubmit" class="btn btn-danger">@(bn ? "মেয়াদ শেষ করুন" : "Expire hold")</button>
+        </div>
+    </form>
+</dialog>

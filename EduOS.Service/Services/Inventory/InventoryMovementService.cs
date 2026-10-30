@@ -78,6 +78,10 @@ public sealed partial class InventoryMovementService : IInventoryMovementService
         SourceType = m.SourceType, SourceId = m.SourceId, Remarks = m.Remarks, TransferState = transferState,
         MovementAt = m.MovementAt, FromLocationId = m.FromLocationId, ToLocationId = m.ToLocationId,
         StateCode = reversed ? "Reversed" : m.StateCode, PostedAt = m.PostedAt,
+        ReservationExpiresAtUtc = m.ReservationExpiresAtUtc,
+        ReservationExpiredAtUtc = m.ReservationExpiredAtUtc,
+        ReservationExpiredByUserId = m.ReservationExpiredByUserId,
+        ReservationExpiryReason = m.ReservationExpiryReason,
         RowVersion = Convert.ToBase64String(m.RowVersion),
         Lines = lines.OrderBy(x => x.LineNo).Select(x => new InventoryMovementLineDto {
             InventoryItemId = x.InventoryItemId, LineNo = x.LineNo, Quantity = x.Quantity,
