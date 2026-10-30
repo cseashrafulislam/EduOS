@@ -1,6 +1,7 @@
 using EduOS.Core.Common;
 using EduOS.Core.DTOs.Academic;
 using EduOS.Core.DTOs.LMS;
+using EduOS.Core.DTOs.Files;
 using EduOS.Core.Entities.Academic;
 using EduOS.Core.Entities.Files;
 using EduOS.Core.Entities.HR;
@@ -14,6 +15,7 @@ using EduOS.Core.Interfaces.IRepositories;
 using EduOS.Core.Interfaces.IServices;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using EduOS.Service.Helpers.Storage;
 using System.Data;
 using System.Security.Cryptography;
 
@@ -51,6 +53,8 @@ public sealed partial class LmsWorkflowService : ILmsWorkflowService
     private readonly ICurrentUserService _user;
     private readonly TimeProvider _clock;
     private readonly ILogger<LmsWorkflowService> _logger;
+    private readonly IFileUploadService? _privateStorage;
+    private readonly IDocumentFileService? _documentFiles;
 
     public LmsWorkflowService(IGenericRepository<Course> courses,
         IGenericRepository<CourseEnrollment> enrollments, IGenericRepository<Lesson> lessons,
@@ -72,7 +76,9 @@ public sealed partial class LmsWorkflowService : ILmsWorkflowService
         IGenericRepository<AuditLog>? certificateAudits = null,
         IGenericRepository<Campus>? studentCampuses = null,
         IGenericRepository<LmsLessonRevision>? lessonRevisions = null,
-        IGenericRepository<LessonResource>? lessonResources = null)
+        IGenericRepository<LessonResource>? lessonResources = null,
+        IFileUploadService? privateStorage = null,
+        IDocumentFileService? documentFiles = null)
     {
         _courses = courses; _enrollments = enrollments; _lessons = lessons; _progress = progress;
         _assignments = assignments; _submissions = submissions; _students = students;
@@ -87,6 +93,7 @@ public sealed partial class LmsWorkflowService : ILmsWorkflowService
         _certificateAudits = certificateAudits;
         _studentCampuses = studentCampuses;
         _lessonRevisions = lessonRevisions; _lessonResources = lessonResources;
+        _privateStorage = privateStorage; _documentFiles = documentFiles;
     }
 
     public async Task<ApiResponse<CourseDto>> SaveCourseAsync(Guid? courseReference, SaveCourseRequestDto request,
@@ -505,15 +512,20 @@ public sealed partial class LmsWorkflowService : ILmsWorkflowService
                     return Error<AssignmentSubmissionDto>("Assignment submission window is closed.", 409);
                 if (!await SubmissionAcademicEligibleAsync(course, enrollment, now, token))
                     return Error<AssignmentSubmissionDto>("Academic enrollment, campus, term or curriculum is ineligible.", 409);
-                if (request.FileAssetId.HasValue && !await _files.GetQueryable().AsNoTracking().AnyAsync(x =>
-                    x.TenantId == tenant && x.Id == request.FileAssetId.Value &&
-                    x.UploadedByUserId == _user.UserId && x.IsVerifiedSafe && !x.IsDeleted, token))
-                    return Error<AssignmentSubmissionDto>("Primary submission file is unavailable.", 409);
+                if (request.FileAssetId.HasValue)
+                {
+                    var primary = await _files.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
+                        x.TenantId == tenant && x.Id == request.FileAssetId.Value &&
+                        x.UploadedByUserId == _user.UserId && !x.IsDeleted, token);
+                    if (!IsPrivateSubmissionAsset(primary, tenant))
+                        return Error<AssignmentSubmissionDto>("Primary submission file is unavailable.", 409);
+                }
                 var fileRows = references.Length == 0 ? new List<FileAsset>() :
                     await _files.GetQueryable().AsNoTracking().Where(x =>
                         x.TenantId == tenant && references.Contains(x.PublicId) &&
                         x.UploadedByUserId == _user.UserId && x.IsVerifiedSafe && !x.IsDeleted).ToListAsync(token);
-                if (fileRows.Count != references.Length || fileRows.Any(x => x.Id == request.FileAssetId))
+                if (fileRows.Count != references.Length || fileRows.Any(x =>
+                    x.Id == request.FileAssetId || !IsPrivateSubmissionAsset(x, tenant)))
                     return Error<AssignmentSubmissionDto>("One or more submission files are unavailable or duplicated.", 409);
                 var requestedIds = fileRows.Select(x => x.Id).OrderBy(x => x).ToArray();
                 var existing = await _submissions.GetQueryable().FirstOrDefaultAsync(x =>

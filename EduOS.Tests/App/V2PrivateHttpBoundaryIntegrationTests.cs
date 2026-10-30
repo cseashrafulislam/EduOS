@@ -59,7 +59,8 @@ public sealed class V2PrivateHttpBoundaryIntegrationTests
         bool moduleEnabled,
         Mock<ILibraryDigitalResourceService>? library = null,
         Mock<ILmsWorkflowService>? lms = null,
-        Mock<ILmsCertificateGuardianService>? guardians = null)
+        Mock<ILmsCertificateGuardianService>? guardians = null,
+        Mock<ILmsCourseContentService>? courseContent = null)
     {
         var module = new Mock<ITenantModuleService>();
         module.Setup(x => x.IsCurrentTenantModuleAvailableAsync(It.IsAny<string>()))
@@ -80,6 +81,7 @@ public sealed class V2PrivateHttpBoundaryIntegrationTests
                 services.AddSingleton(module.Object);
                 services.AddSingleton(library?.Object ?? Mock.Of<ILibraryDigitalResourceService>());
                 services.AddSingleton(lms?.Object ?? Mock.Of<ILmsWorkflowService>());
+                services.AddSingleton(courseContent?.Object ?? Mock.Of<ILmsCourseContentService>());
                 services.AddSingleton(guardians?.Object ?? Mock.Of<ILmsCertificateGuardianService>());
                 services.AddAntiforgery();
                 services.AddRateLimiter(options =>
@@ -213,6 +215,92 @@ public sealed class V2PrivateHttpBoundaryIntegrationTests
         }
         lms.Verify(x => x.GetSubmissionFilesAsync(It.IsAny<long>(), It.IsAny<CancellationToken>()),
             Times.Exactly(4));
+    }
+
+    [Fact]
+    public async Task LMS_submission_download_returns_only_authorized_private_bytes_with_attachment_headers()
+    {
+        const long ownSubmission = 1201;
+        var reference = Guid.NewGuid();
+        var bytes = "%PDF-1.4\nStudent assignment evidence"u8.ToArray();
+        var lms = new Mock<ILmsWorkflowService>();
+        lms.Setup(x => x.DownloadSubmissionFileAsync(
+                It.IsAny<long>(), It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+            .Returns((long id, Guid requested, CancellationToken _) => Task.FromResult(
+                id == ownSubmission && requested == reference
+                    ? ApiResponse<DocumentFileDownloadDto>.SuccessResponse(new DocumentFileDownloadDto
+                    {
+                        Content = bytes, ContentType = "application/pdf", FileName = "course-work.pdf"
+                    })
+                    : ApiResponse<DocumentFileDownloadDto>.ErrorResponse("Submission file not found.", 404)));
+
+        using var server = CreateServer(true, lms: lms);
+        using var client = server.CreateClient();
+        var url = $"/api/lms/assignment-work/submissions/{ownSubmission}/files/{reference}/download";
+        using var allowed = await GetAsync(client, url, "Student");
+        Assert.Equal(HttpStatusCode.OK, allowed.StatusCode);
+        Assert.Equal(bytes, await allowed.Content.ReadAsByteArrayAsync());
+        Assert.Equal("application/pdf", allowed.Content.Headers.ContentType?.MediaType);
+        Assert.Contains("attachment", allowed.Content.Headers.ContentDisposition?.ToString() ?? "");
+        AssertPrivateNoStore(allowed);
+        Assert.Equal("nosniff", allowed.Headers.GetValues("X-Content-Type-Options").Single());
+        Assert.Equal("sandbox", allowed.Headers.GetValues("Content-Security-Policy").Single());
+
+        using var guessed = await GetAsync(client,
+            $"/api/lms/assignment-work/submissions/{ownSubmission}/files/{Guid.NewGuid()}/download", "Student");
+        Assert.Equal(HttpStatusCode.NotFound, guessed.StatusCode);
+        AssertPrivateNoStore(guessed);
+        Assert.NotEqual(bytes, await guessed.Content.ReadAsByteArrayAsync());
+        lms.Verify(x => x.DownloadSubmissionFileAsync(It.IsAny<long>(), It.IsAny<Guid>(),
+            It.IsAny<CancellationToken>()), Times.Exactly(2));
+    }
+
+    [Theory]
+    [InlineData(null, true, HttpStatusCode.Unauthorized)]
+    [InlineData("Guardian", true, HttpStatusCode.Forbidden)]
+    [InlineData("Student", false, HttpStatusCode.Forbidden)]
+    public async Task LMS_submission_bytes_are_blocked_before_service_for_denied_role_or_module(
+        string? role, bool moduleEnabled, HttpStatusCode expected)
+    {
+        var lms = new Mock<ILmsWorkflowService>();
+        using var server = CreateServer(moduleEnabled, lms: lms);
+        using var client = server.CreateClient();
+        using var response = await GetAsync(client,
+            $"/api/lms/assignment-work/submissions/1201/files/{Guid.NewGuid()}/download", role);
+        Assert.Equal(expected, response.StatusCode);
+        AssertPrivateNoStore(response);
+        lms.Verify(x => x.DownloadSubmissionFileAsync(It.IsAny<long>(), It.IsAny<Guid>(),
+            It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task LMS_assignment_handout_private_http_download_delivers_only_verified_service_bytes()
+    {
+        var bytes = "%PDF-1.4\nPrivate course handout"u8.ToArray();
+        var content = new Mock<ILmsCourseContentService>();
+        content.Setup(x => x.DownloadAssignmentAttachmentAsync(It.IsAny<long>(),
+                It.IsAny<CancellationToken>()))
+            .Returns((long id, CancellationToken _) => Task.FromResult(id == 81
+                ? ApiResponse<DocumentFileDownloadDto>.SuccessResponse(new DocumentFileDownloadDto
+                {
+                    Content = bytes, ContentType = "application/pdf", FileName = "lesson-guide.pdf"
+                })
+                : ApiResponse<DocumentFileDownloadDto>.ErrorResponse("Attachment not found.", 404)));
+        using var server = CreateServer(true, courseContent: content);
+        using var client = server.CreateClient();
+        using var allowed = await GetAsync(client, "/api/lms/assignment-attachments/81/download", "Student");
+        Assert.Equal(HttpStatusCode.OK, allowed.StatusCode);
+        Assert.Equal(bytes, await allowed.Content.ReadAsByteArrayAsync());
+        Assert.Contains("attachment", allowed.Content.Headers.ContentDisposition?.ToString() ?? "");
+        AssertPrivateNoStore(allowed);
+        Assert.Equal("sandbox", allowed.Headers.GetValues("Content-Security-Policy").Single());
+        using var denied = await GetAsync(client, "/api/lms/assignment-attachments/82/download", "Student");
+        Assert.Equal(HttpStatusCode.NotFound, denied.StatusCode);
+        AssertPrivateNoStore(denied);
+        using var guardian = await GetAsync(client, "/api/lms/assignment-attachments/81/download", "Guardian");
+        Assert.Equal(HttpStatusCode.Forbidden, guardian.StatusCode);
+        content.Verify(x => x.DownloadAssignmentAttachmentAsync(It.IsAny<long>(),
+            It.IsAny<CancellationToken>()), Times.Exactly(2));
     }
 
     [Theory]

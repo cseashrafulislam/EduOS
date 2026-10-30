@@ -64,7 +64,9 @@ public sealed class LmsSubmissionOwnershipTests
         var file = new FileAsset
         {
             TenantId = 101, UploadedByUserId = uploaderId, IsVerifiedSafe = verifiedSafe,
-            StorageProvider = "local", StorageKey = "tenant-101/test.pdf",
+            StorageProvider = "LocalPrivate", StorageKey = "tenant-101/documents/test.pdf",
+            MalwareScanStateCode = verifiedSafe ? "Clean" : "Pending",
+            Visibility = FileVisibility.Private, Sha256 = new string('a', 64),
             OriginalFileName = "homework.pdf", ContentType = "application/pdf", SizeBytes = 100
         };
         db.AddRange(enrollment, assignment, file);

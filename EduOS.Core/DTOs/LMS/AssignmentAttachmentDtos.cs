@@ -8,6 +8,7 @@ public sealed class AssignmentAttachmentDto
     public Guid FileAssetReference { get; set; }
     public string FileName { get; set; } = string.Empty;
     public string? Title { get; set; }
+    public bool FileDownloadable { get; set; }
     public string RowVersion { get; set; } = string.Empty;
 }
 public sealed class SaveAssignmentAttachmentRequestDto

@@ -1,10 +1,12 @@
 using EduOS.Core.Common;
 using EduOS.Core.DTOs.LMS;
+using EduOS.Core.DTOs.Files;
 using EduOS.Core.Entities.Files;
 using EduOS.Core.Entities.LMS;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using System.Data;
+using System.Security.Cryptography;
 
 namespace EduOS.Service.Services.LMS;
 
@@ -15,8 +17,72 @@ public sealed partial class LmsCourseContentService
     {
         Id = row.Id, AssignmentReference = reference, FileAssetReference = file.PublicId,
         FileName = file.OriginalFileName, Title = row.Title,
+        FileDownloadable = IsLmsPrivateAsset(file, row.TenantId),
         RowVersion = Convert.ToBase64String(row.RowVersion)
     };
+
+    public async Task<ApiResponse<FileAssetDto>> UploadAssignmentAttachmentFileAsync(Guid assignmentReference,
+        Guid requestId, PrivateFileUploadDto upload, CancellationToken ct = default)
+    {
+        if (!Author || assignmentReference == Guid.Empty || requestId == Guid.Empty)
+            return Fail<FileAssetDto>("Assignment author permission required.", 403);
+        if (_documentFiles == null) return Fail<FileAssetDto>("Private file upload unavailable.", 503);
+        var assignment = await _assignments.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
+            x.TenantId == Tenant && x.PublicId == assignmentReference && !x.IsDeleted, ct);
+        var course = assignment == null ? null : await _courses.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
+            x.TenantId == Tenant && x.Id == assignment.CourseId && !x.IsDeleted, ct);
+        if (course == null || !course.IsActive || !await CanEditAsync(course, ct))
+            return Fail<FileAssetDto>("Assignment author access denied.", 404);
+        if (assignment!.IsPublished && !await HasOfferingAsync(course, null, null, ct))
+            return Fail<FileAssetDto>("Active curriculum offering required.", 409);
+        if (await CourseCompletionPublicationGuard.IsLockedAsync(_enrollments, Tenant, course.Id, ct))
+            return Fail<FileAssetDto>(CourseCompletionPublicationGuard.Message, 409);
+        if (await _attachments.GetQueryable().AsNoTracking().CountAsync(x =>
+            x.TenantId == Tenant && x.AssignmentId == assignment.Id && !x.IsDeleted, ct) >= 20)
+            return Fail<FileAssetDto>("Maximum 20 attachments per assignment.", 409);
+        // Existing private LMS scan, quota and idempotent upload pipeline.
+        // Saving the link independently revalidates author, tenant and locked state.
+        return await _documentFiles.UploadForLmsAsync(requestId, upload, ct);
+    }
+
+    public async Task<ApiResponse<DocumentFileDownloadDto>> DownloadAssignmentAttachmentAsync(
+        long attachmentId, CancellationToken ct = default)
+    {
+        if (!Authenticated || attachmentId <= 0) return Fail<DocumentFileDownloadDto>("Attachment not found.", 404);
+        if (_storage == null) return Fail<DocumentFileDownloadDto>("Private file storage unavailable.", 503);
+        return await _uow.ExecuteInTransactionAsync(async token =>
+        {
+            var link = await _attachments.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
+                x.TenantId == Tenant && x.Id == attachmentId && !x.IsDeleted, token);
+            var assignment = link == null ? null : await _assignments.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
+                x.TenantId == Tenant && x.Id == link.AssignmentId && !x.IsDeleted, token);
+            var course = assignment == null ? null : await _courses.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
+                x.TenantId == Tenant && x.Id == assignment.CourseId && !x.IsDeleted, token);
+            if (course == null || !await CanViewAsync(course, token))
+                return Fail<DocumentFileDownloadDto>("Attachment not found.", 404);
+            var editor = await CanEditAsync(course, token);
+            if (!editor && (!course.IsActive || !assignment!.IsPublished ||
+                (assignment.OpensAt.HasValue && assignment.OpensAt.Value > Now)))
+                return Fail<DocumentFileDownloadDto>("Attachment not found.", 404);
+            var asset = await _files.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
+                x.TenantId == Tenant && x.Id == link!.FileAssetId && !x.IsDeleted, token);
+            if (!IsLmsPrivateAsset(asset, Tenant))
+                return Fail<DocumentFileDownloadDto>("Attachment not found.", 404);
+            EduOS.Service.Helpers.Storage.FileDownloadResult? stored;
+            try { stored = await _storage.GetPrivateFileAsync(asset!.StorageKey); }
+            catch (IOException) { return Fail<DocumentFileDownloadDto>("Attachment unavailable.", 503); }
+            catch (UnauthorizedAccessException) { return Fail<DocumentFileDownloadDto>("Attachment unavailable.", 503); }
+            if (stored == null || stored.Content.Length != asset!.SizeBytes ||
+                !string.Equals(Convert.ToHexString(SHA256.HashData(stored.Content)), asset.Sha256,
+                    StringComparison.OrdinalIgnoreCase))
+                return Fail<DocumentFileDownloadDto>("Attachment integrity check failed.", 409);
+            return ApiResponse<DocumentFileDownloadDto>.SuccessResponse(new DocumentFileDownloadDto
+            {
+                Content = stored.Content, ContentType = asset.ContentType,
+                FileName = Path.GetFileName(asset.OriginalFileName.Replace('\\', '/'))
+            });
+        }, IsolationLevel.Serializable, ct);
+    }
 
     public async Task<ApiResponse<IReadOnlyList<AssignmentAttachmentDto>>> GetAssignmentAttachmentsAsync(
         Guid assignmentReference, CancellationToken ct = default)
@@ -84,6 +150,10 @@ public sealed partial class LmsCourseContentService
                 var row = id.HasValue ? await _attachments.GetQueryable().FirstOrDefaultAsync(x =>
                     x.TenantId == Tenant && x.Id == id.Value && x.AssignmentId == current.Id && !x.IsDeleted, token) : null;
                 if (id.HasValue && row == null) return Fail<AssignmentAttachmentDto>("Attachment not found.", 404);
+                // Preserve legacy attachment title editing, but never let a new link
+                // repurpose an unrelated private student/document file as an LMS handout.
+                if (!IsLmsPrivateAsset(file, Tenant) && (row == null || row.FileAssetId != file.Id))
+                    return Fail<AssignmentAttachmentDto>("A verified LMS upload is required.", 409);
                 var title = Trim(request.Title);
                 var duplicate = await _attachments.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
                     x.TenantId == Tenant && x.AssignmentId == current.Id && x.FileAssetId == file.Id &&

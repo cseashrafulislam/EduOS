@@ -1,6 +1,7 @@
 using EduOS.Core.Common;
 using EduOS.Core.DTOs.Academic;
 using EduOS.Core.DTOs.LMS;
+using EduOS.Core.DTOs.Files;
 
 namespace EduOS.Core.Interfaces.IServices;
 
@@ -20,6 +21,8 @@ public interface ILmsWorkflowService
     Task<ApiResponse<CourseContentPageDto>> GetCourseContentPageAsync(Guid courseReference, int lessonPage, int assignmentPage, int pageSize, CancellationToken cancellationToken = default);
     Task<ApiResponse<PagedResult<MyAssignmentWorkDto>>> GetMyAssignmentWorkAsync(int page, int pageSize, string? search, CancellationToken cancellationToken = default);
     Task<ApiResponse<IReadOnlyList<AssignmentSubmissionFileDto>>> GetSubmissionFilesAsync(long submissionId, CancellationToken cancellationToken = default);
+    Task<ApiResponse<FileAssetDto>> UploadSubmissionFileAsync(Guid assignmentReference, long courseEnrollmentId, Guid requestId, PrivateFileUploadDto upload, CancellationToken cancellationToken = default);
+    Task<ApiResponse<DocumentFileDownloadDto>> DownloadSubmissionFileAsync(long submissionId, Guid fileReference, CancellationToken cancellationToken = default);
     Task<ApiResponse<AssignmentSubmissionDto>> SubmitAssignmentAsync(SubmitAssignmentRequestDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<PagedResult<AssignmentSubmissionDto>>> GetAssignmentSubmissionsAsync(Guid assignmentReference, int page = 1, int pageSize = 25, CancellationToken cancellationToken = default);
     Task<ApiResponse<AssignmentSubmissionDto>> GradeSubmissionAsync(long submissionId, GradeAssignmentSubmissionRequestDto request, CancellationToken cancellationToken = default);

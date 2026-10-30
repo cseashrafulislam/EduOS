@@ -1,4 +1,5 @@
 using EduOS.Core.DTOs.LMS;
+using EduOS.Core.DTOs.Files;
 using EduOS.Core.Entities.Academic;
 using EduOS.Core.Entities.Files;
 using EduOS.Core.Entities.HR;
@@ -6,6 +7,11 @@ using EduOS.Core.Entities.LMS;
 using EduOS.Core.Entities.Students;
 using EduOS.Core.Enums.Domain;
 using EduOS.Core.Interfaces;
+using EduOS.Core.Interfaces.IServices;
+using EduOS.Core.Common;
+using EduOS.Service.Helpers.Storage;
+using Moq;
+using System.Security.Cryptography;
 using EduOS.Persistence.Context;
 using EduOS.Persistence.Repositories;
 using EduOS.Service.Services.LMS;
@@ -18,6 +24,81 @@ namespace EduOS.Tests.Services;
 
 public sealed class LmsSubmissionFilesServiceTests
 {
+    [Fact]
+    public async Task Student_uploads_scanned_submission_file_only_for_owned_open_assignment()
+    {
+        await using var db = Database();
+        var (assignment, enrollment) = await Seed(db);
+        var documents = new Mock<IDocumentFileService>();
+        var requestId = Guid.NewGuid();
+        var reference = Guid.NewGuid();
+        documents.Setup(x => x.UploadPortalAsync(It.IsAny<Guid>(), requestId,
+                It.IsAny<PrivateFileUploadDto>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(ApiResponse<FileAssetDto>.SuccessResponse(new FileAssetDto { Reference = reference }));
+        var upload = new PrivateFileUploadDto
+        {
+            FileName = "work.pdf", ContentType = "application/pdf", Length = 4,
+            Content = new MemoryStream([1, 2, 3, 4])
+        };
+        var result = await Service(db, documents: documents.Object)
+            .UploadSubmissionFileAsync(assignment.PublicId, enrollment.Id, requestId, upload);
+        Assert.True(result.Success, result.Message);
+        Assert.Equal(reference, result.Data!.Reference);
+        var own = await db.Students.SingleAsync(x => x.UserId == 51);
+        documents.Verify(x => x.UploadPortalAsync(own.PublicId, requestId,
+            It.IsAny<PrivateFileUploadDto>(), It.IsAny<CancellationToken>()), Times.Once);
+        Assert.Equal(404, (await Service(db, 99, documents: documents.Object)
+            .UploadSubmissionFileAsync(assignment.PublicId, enrollment.Id, Guid.NewGuid(), upload)).StatusCode);
+        assignment.IsPublished = false;
+        await db.SaveChangesAsync();
+        Assert.Equal(404, (await Service(db, documents: documents.Object)
+            .UploadSubmissionFileAsync(assignment.PublicId, enrollment.Id, Guid.NewGuid(), upload)).StatusCode);
+        documents.Verify(x => x.UploadPortalAsync(It.IsAny<Guid>(), It.IsAny<Guid>(),
+            It.IsAny<PrivateFileUploadDto>(), It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task Submission_byte_download_requires_scanned_owned_link_and_integrity()
+    {
+        await using var db = Database();
+        var (assignment, enrollment) = await Seed(db);
+        var payload = new byte[] { 1, 2, 3, 4, 5 };
+        var storageKey = "tenant-101/documents/assignment.pdf";
+        var file = new FileAsset
+        {
+            TenantId = 101, PublicId = Guid.NewGuid(), UploadedByUserId = 51,
+            StorageProvider = "LocalPrivate", StorageKey = storageKey,
+            OriginalFileName = "assignment.pdf", ContentType = "application/pdf",
+            SizeBytes = payload.Length, Sha256 = Convert.ToHexString(SHA256.HashData(payload)),
+            IsVerifiedSafe = true, MalwareScanStateCode = "Clean", Visibility = FileVisibility.Private
+        };
+        db.Add(file);await db.SaveChangesAsync();
+        var submitted = await Service(db).SubmitAssignmentAsync(new SubmitAssignmentRequestDto
+        {
+            ClientRequestId = Guid.NewGuid(), AssignmentReference = assignment.PublicId,
+            CourseEnrollmentId = enrollment.Id, FileAssetReferences = [file.PublicId]
+        });
+        Assert.True(submitted.Success, submitted.Message);
+        var storage = new Mock<IFileUploadService>();
+        storage.Setup(x => x.GetPrivateFileAsync(storageKey))
+            .ReturnsAsync(new FileDownloadResult { Content = payload });
+        var service = Service(db, storage: storage.Object);
+        var downloaded = await service.DownloadSubmissionFileAsync(submitted.Data!.Id, file.PublicId);
+        Assert.True(downloaded.Success, downloaded.Message);
+        Assert.Equal(payload, downloaded.Data!.Content);
+        Assert.Equal("assignment.pdf", downloaded.Data.FileName);
+        Assert.Equal(404, (await Service(db, 99, storage: storage.Object)
+            .DownloadSubmissionFileAsync(submitted.Data.Id, file.PublicId)).StatusCode);
+        Assert.Equal(404, (await service.DownloadSubmissionFileAsync(submitted.Data.Id, Guid.NewGuid())).StatusCode);
+        storage.Verify(x => x.GetPrivateFileAsync(storageKey), Times.Once);
+        storage.Setup(x => x.GetPrivateFileAsync(storageKey))
+            .ReturnsAsync(new FileDownloadResult { Content = [9, 9, 9, 9, 9] });
+        Assert.Equal(409, (await service.DownloadSubmissionFileAsync(submitted.Data.Id, file.PublicId)).StatusCode);
+        file.MalwareScanStateCode = "Pending";
+        await db.SaveChangesAsync();
+        Assert.Equal(404, (await service.DownloadSubmissionFileAsync(submitted.Data.Id, file.PublicId)).StatusCode);
+        storage.Verify(x => x.GetPrivateFileAsync(storageKey), Times.Exactly(2));
+    }
     [Fact]
     public async Task Multi_file_submission_is_atomic_and_exact_replay_is_idempotent()
     {
@@ -65,6 +146,29 @@ public sealed class LmsSubmissionFilesServiceTests
         Assert.Empty(await db.Set<AssignmentSubmissionFile>().ToListAsync());
     }
 
+    [Theory]
+    [InlineData("tenant-101/documents/../escape.pdf", "Clean")]
+    [InlineData("tenant-202/documents/foreign.pdf", "Clean")]
+    [InlineData("tenant-101/documents/clean.pdf", "Pending")]
+    [InlineData("tenant-101/public/leak.pdf", "Clean")]
+    public async Task Submission_rejects_unscanned_or_invalid_private_storage_namespace(
+        string key, string scanState)
+    {
+        await using var db = Database();
+        var (assignment, enrollment) = await Seed(db);
+        var file = File(101, 51, true);
+        file.StorageKey = key;
+        file.MalwareScanStateCode = scanState;
+        db.Add(file); await db.SaveChangesAsync();
+        var result = await Service(db).SubmitAssignmentAsync(new SubmitAssignmentRequestDto
+        {
+            ClientRequestId = Guid.NewGuid(), AssignmentReference = assignment.PublicId,
+            CourseEnrollmentId = enrollment.Id, FileAssetReferences = [file.PublicId]
+        });
+        Assert.Equal(409, result.StatusCode);
+        Assert.Empty(await db.Set<AssignmentSubmission>().ToListAsync());
+    }
+
     [Fact]
     public async Task Student_cannot_read_another_students_submission_and_cannot_change_files_after_submit()
     {
@@ -101,8 +205,10 @@ public sealed class LmsSubmissionFilesServiceTests
     private static FileAsset File(long tenant, long uploader, bool safe) => new()
     {
         TenantId = tenant, UploadedByUserId = uploader, IsVerifiedSafe = safe,
-        StorageProvider = "local", StorageKey = Guid.NewGuid().ToString("N"),
-        OriginalFileName = "work.pdf", ContentType = "application/pdf", SizeBytes = 123
+        MalwareScanStateCode = safe ? "Clean" : "Pending", Visibility = FileVisibility.Private,
+        StorageProvider = "LocalPrivate", StorageKey = $"tenant-{tenant}/documents/{Guid.NewGuid():N}",
+        Sha256 = new string('a', 64), OriginalFileName = "work.pdf",
+        ContentType = "application/pdf", SizeBytes = 123
     };
     private static EduOSDbContext Database()
     {
@@ -111,7 +217,8 @@ public sealed class LmsSubmissionFilesServiceTests
         var http = new DefaultHttpContext();http.Items["TenantId"] = 101L;
         return new EduOSDbContext(options, new HttpContextAccessor { HttpContext = http });
     }
-    private static LmsWorkflowService Service(EduOSDbContext db, long userId = 51) => new(
+    private static LmsWorkflowService Service(EduOSDbContext db, long userId = 51,
+        IFileUploadService? storage = null, IDocumentFileService? documents = null) => new(
         new GenericRepository<Course>(db), new GenericRepository<CourseEnrollment>(db),
         new GenericRepository<Lesson>(db), new GenericRepository<LessonProgress>(db),
         new GenericRepository<Assignment>(db), new GenericRepository<AssignmentSubmission>(db),
@@ -120,7 +227,8 @@ public sealed class LmsSubmissionFilesServiceTests
         new GenericRepository<Subject>(db), new GenericRepository<SubjectOffering>(db),
         new GenericRepository<CurriculumSubject>(db), new GenericRepository<FileAsset>(db),
         db, new StudentUser(userId), TimeProvider.System, NullLogger<LmsWorkflowService>.Instance,
-        new GenericRepository<AssignmentSubmissionFile>(db));
+        new GenericRepository<AssignmentSubmissionFile>(db),
+        privateStorage: storage, documentFiles: documents);
     private sealed class StudentUser(long id) : ICurrentUserService
     {
         public bool IsAuthenticated => true;

@@ -4,12 +4,13 @@
 }
 <section class="container-fluid py-3" id="assignmentFilesApp" data-author="@canAuthor.ToString().ToLowerInvariant()">
     <header class="mb-3 d-flex flex-wrap justify-content-between align-items-center gap-2">
-        <div><h1 class="h4 mb-1">Assignment Attachments</h1><p class="text-muted mb-0">Manage verified handouts on existing LMS assignments. Students can see published assignments only.</p></div>
+        <div><h1 class="h4 mb-1">Assignment Handouts</h1><p class="text-muted mb-0">Upload scanned learning materials; students can download published handouts from their enrolled course.</p></div>
         <a class="btn btn-outline-secondary" asp-controller="Learning" asp-action="Index">Back to Learning</a>
     </header>
     <div id="assignmentFilesAlert" class="d-none" role="alert" tabindex="-1" aria-live="polite"></div>
     <div class="card mb-3"><div class="card-body row g-2 align-items-end">
-        <div class="col-md-6"><label class="form-label" for="assignmentFilesCourse">Course</label><select id="assignmentFilesCourse" class="form-select"><option value="">Choose a course</option></select></div>
+        <div class="col-md-6"><label class="form-label" for="assignmentFilesCourse">Course</label><select id="assignmentFilesCourse" class="form-select"><option value="">Choose a course</option></select>
+            <button id="assignmentFilesMoreCourses" type="button" class="btn btn-link btn-sm px-0 mt-1" hidden>Load more courses</button></div>
         <div class="col-md-6"><label class="form-label" for="assignmentFilesAssignment">Assignment</label><select id="assignmentFilesAssignment" class="form-select"><option value="">Choose an assignment</option></select></div>
         <div class="col-12 d-flex gap-2 align-items-center"><button type="button" id="assignmentFilesRefresh" class="btn btn-outline-primary">Refresh</button>
             <button type="button" id="assignmentFilesCsv" class="btn btn-outline-secondary">Export CSV</button>
@@ -18,18 +19,19 @@
     </div></div>
     <div class="card mb-3"><div class="card-header"><h2 class="h6 mb-0">Verified attachments</h2></div>
         <div class="table-responsive"><table class="table table-sm table-hover align-middle mb-0">
-            <thead><tr><th>Title</th><th>File name</th><th>Verified file reference</th>@if(canAuthor){<th>Action</th>}</tr></thead>
+            <thead><tr><th>Title</th><th>File name</th><th>Download</th>@if(canAuthor){<th>Action</th>}</tr></thead>
             <tbody id="assignmentFilesRows"><tr><td colspan="4" class="text-muted p-3">Select an assignment.</td></tr></tbody>
         </table></div>
     </div>
     @if(canAuthor)
     {
-        <form id="assignmentFilesForm" class="card"><div class="card-header"><h2 class="h6 mb-0">Link a verified file</h2></div>
+        <form id="assignmentFilesForm" class="card"><div class="card-header"><h2 class="h6 mb-0">Add a handout</h2></div>
             <div class="card-body row g-2 align-items-end">
-                <div class="col-md-5"><label class="form-label" for="assignmentFilesReference">Verified file reference (GUID)</label><input id="assignmentFilesReference" class="form-control" maxlength="36" required autocomplete="off" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" /></div>
+                <input id="assignmentFilesReference" type="hidden" />
+                <div class="col-md-5"><label class="form-label" for="assignmentFilesUpload">Select file (up to 5 MB)</label><input id="assignmentFilesUpload" type="file" class="form-control" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.webp" required /></div>
                 <div class="col-md-5"><label class="form-label" for="assignmentFilesTitle">Display title</label><input id="assignmentFilesTitle" class="form-control" maxlength="200" /></div>
                 <div class="col-md-2 d-flex gap-2"><button id="assignmentFilesSave" class="btn btn-primary" type="submit">Save</button><button id="assignmentFilesClear" class="btn btn-outline-secondary" type="button">Clear</button></div>
-                <div class="col-12"><p class="small text-muted mb-0">Only files already scanned, marked safe and uploaded by your account can be linked. Maximum 20 files per assignment. No private storage path is exposed.</p></div>
+                <div class="col-12"><p class="small text-muted mb-0">Files are privately scanned before linking. Maximum 20 per assignment; you can change an existing handout's title without uploading it again. No storage path is shown.</p></div>
             </div>
         </form>
     }
