@@ -1,3 +1,4 @@
+using EduOS.App.Authorization;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 
@@ -26,9 +27,17 @@ public static class V2PrivateApiResponseHeadersExtensions
         this IApplicationBuilder app) => app.Use(async (context, next) =>
     {
         var path = context.Request.Path.Value;
-        if (path != null && Prefixes.Any(prefix =>
+        // Endpoint metadata is available after UseRouting even when authentication
+        // short-circuits MVC. Protect conventional Razor/print routes as well as APIs.
+        // This is deliberately scoped to the four V2 modules, not all public pages.
+        var v2ModuleEndpoint = context.GetEndpoint()?.Metadata
+            .GetOrderedMetadata<RequireModuleAttribute>()
+            .Any(attribute => attribute.Policy is
+                "EduOSModule:LMS" or "EduOSModule:LIBRARY" or
+                "EduOSModule:HOSTEL" or "EduOSModule:TRANSPORT") == true;
+        if (v2ModuleEndpoint || (path != null && Prefixes.Any(prefix =>
             path.Equals(prefix, StringComparison.OrdinalIgnoreCase) ||
-            path.StartsWith(prefix + "/", StringComparison.OrdinalIgnoreCase)))
+            path.StartsWith(prefix + "/", StringComparison.OrdinalIgnoreCase))))
         {
             context.Response.OnStarting(() =>
             {

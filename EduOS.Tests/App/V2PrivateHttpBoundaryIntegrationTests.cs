@@ -99,7 +99,11 @@ public sealed class V2PrivateHttpBoundaryIntegrationTests
                 app.UseRateLimiter();
                 app.UseAuthentication();
                 app.UseAuthorization();
-                app.UseEndpoints(endpoints => endpoints.MapControllers());
+                app.UseEndpoints(endpoints =>
+                {
+                    endpoints.MapControllers();
+                    endpoints.MapControllerRoute("v2-private-views", "{controller=Home}/{action=Index}/{id?}");
+                });
             }));
     }
 
@@ -236,6 +240,25 @@ public sealed class V2PrivateHttpBoundaryIntegrationTests
             guardians.Verify(x => x.GetSharedCertificateAsync(
                 It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Once);
         if (expected == HttpStatusCode.NotFound) AssertPrivateNoStore(response);
+    }
+
+    [Theory]
+    [InlineData("/LmsGuardianCertificates/Print?reference=00000000-0000-0000-0000-000000000001", null, true, HttpStatusCode.Unauthorized)]
+    [InlineData("/LmsGuardianCertificates/Print?reference=00000000-0000-0000-0000-000000000001", "Student", true, HttpStatusCode.Forbidden)]
+    [InlineData("/LmsGuardianCertificates/Print?reference=00000000-0000-0000-0000-000000000001", "Guardian", false, HttpStatusCode.Forbidden)]
+    [InlineData("/hostel/guardian-stays/print", null, true, HttpStatusCode.Unauthorized)]
+    [InlineData("/hostel/guardian-stays/print", "Student", true, HttpStatusCode.Forbidden)]
+    [InlineData("/hostel/guardian-stays/print", "Parent", false, HttpStatusCode.Forbidden)]
+    public async Task V2_private_print_denials_cannot_be_cached_even_before_MVC_filters(
+        string path, string? role, bool moduleEnabled, HttpStatusCode expected)
+    {
+        using var server = CreateServer(moduleEnabled);
+        using var client = server.CreateClient();
+        using var response = await GetAsync(client, path, role);
+        Assert.Equal(expected, response.StatusCode);
+        AssertPrivateNoStore(response);
+        Assert.Equal("nosniff", response.Headers.GetValues("X-Content-Type-Options").Single());
+        Assert.Equal("no-referrer", response.Headers.GetValues("Referrer-Policy").Single());
     }
 
 }

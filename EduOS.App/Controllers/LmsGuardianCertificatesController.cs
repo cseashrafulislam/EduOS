@@ -2,11 +2,13 @@ using EduOS.App.Authorization;
 using EduOS.Core.Interfaces.IServices;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace EduOS.App.Controllers;
 
 [Authorize(Roles = "Guardian,Parent")]
 [RequireModule("LMS")]
+[EnableRateLimiting("ApiPolicy")]
 [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
 public sealed class LmsGuardianCertificatesController(ILmsCertificateGuardianService service) : Controller
 {

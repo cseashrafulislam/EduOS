@@ -132,6 +132,10 @@ public sealed partial class SqlServerTransportSeatCapacityIntegrationTests
             var unrelatedRole = CertificateSharingService(verifyDb, "Teacher", fixture.TenantId, fixture.UserId);
             Assert.Equal(404, (await unrelatedRole.GetSharedCertificateAsync(certificateReference)).StatusCode);
         }
+        using var printServer = GuardianCertificateSqlPrintServer(fixture.Options);
+        using var printClient = printServer.CreateClient();
+        await AssertGuardianCertificateSqlPrintAsync(printClient, fixture.TenantId,
+            fixture.UserId, certificateReference, visible: true);
         // Explicit learner consent, not just a guardian relationship, controls
         // historical certificate readback. A stale rowversion must not revoke it.
         await using (var db = ScopedContext(fixture.Options, fixture.TenantId, fixture.UserId))
@@ -160,6 +164,8 @@ public sealed partial class SqlServerTransportSeatCapacityIntegrationTests
             Assert.Equal(404, (await parent.GetSharedCertificateAsync(certificateReference)).StatusCode);
             Assert.Empty((await parent.GetSharedCertificatesAsync(1, 20)).Data!.Items);
         }
+        await AssertGuardianCertificateSqlPrintAsync(printClient, fixture.TenantId,
+            fixture.UserId, certificateReference, visible: false);
         // Regrant with a NEW idempotency key, then revoke the relationship:
         // neither a prior consent revocation nor a stale guardian link may leak.
         await using (var db = ScopedContext(fixture.Options, fixture.TenantId, fixture.UserId))
@@ -179,6 +185,8 @@ public sealed partial class SqlServerTransportSeatCapacityIntegrationTests
             var parent = CertificateSharingService(db, "Parent", fixture.TenantId, fixture.UserId);
             Assert.True((await parent.GetSharedCertificateAsync(certificateReference)).Success);
         }
+        await AssertGuardianCertificateSqlPrintAsync(printClient, fixture.TenantId,
+            fixture.UserId, certificateReference, visible: true);
         await using (var db = ScopedContext(fixture.Options, fixture.TenantId, fixture.UserId))
         {
             var link = await db.StudentGuardians.SingleAsync(x =>
@@ -192,5 +200,7 @@ public sealed partial class SqlServerTransportSeatCapacityIntegrationTests
             Assert.Equal(404, (await parent.GetSharedCertificateAsync(certificateReference)).StatusCode);
             Assert.Empty((await parent.GetSharedCertificatesAsync(1, 20)).Data!.Items);
         }
+        await AssertGuardianCertificateSqlPrintAsync(printClient, fixture.TenantId,
+            fixture.UserId, certificateReference, visible: false);
     }
 }
