@@ -11,6 +11,16 @@ if (root) {
     const csv = document.getElementById('v3TraceCsv');
     const print = document.getElementById('v3TracePrint');
     const guid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    const evidenceLabels = {
+        EvidenceConflict: ['প্রমাণে অসংগতি', 'Evidence conflict'],
+        JournalImbalance: ['জার্নালে ভারসাম্য নেই', 'Journal imbalance'],
+        UnpostedJournal: ['জার্নাল পোস্ট হয়নি', 'Unposted journal'],
+        RunLineMismatch: ['রান ও লাইনের মোট মেলে না', 'Run/line mismatch'],
+        NoExplicitReference: ['সরাসরি জার্নাল রেফারেন্স নেই', 'No explicit journal reference'],
+        ExplicitBalancedReference: ['লিংকযুক্ত জার্নাল সমান', 'Linked journal balanced'],
+        ExplicitReferencePresent: ['সরাসরি রেফারেন্স আছে', 'Explicit reference present']
+    };
+    const evidenceText = code => evidenceLabels[code]?.[bn ? 0 : 1] || String(code || '');
     const add = (values) => {
         const tr = document.createElement('tr');
         values.forEach(value => {
@@ -51,7 +61,7 @@ if (root) {
                 bn ? 'জার্নাল' : 'Journal', j.number, j.state, j.debit, j.credit, ''
             ]));
             status.textContent = (bn ? 'ফাইন্যান্স লিংক: ' : 'Finance evidence: ') +
-                d.financeEvidenceStatus + (d.reversalReference ? ' · Reversal: ' + d.reversalReference : '');
+                evidenceText(d.financeEvidenceStatus) + (d.reversalReference ? ' · Reversal: ' + d.reversalReference : '');
             csv.href = path + '/csv';
             result.hidden = false;
             message.textContent = bn ? 'ট্রেস প্রস্তুত।' : 'Trace ready.';
@@ -126,7 +136,7 @@ if (root) {
             (data.items || []).forEach(item => {
                 const tr = document.createElement('tr');
                 [item.date, item.number, item.state, item.recordedValue,
-                    item.lineCount, item.evidenceStatus].forEach(value => {
+                    item.lineCount, evidenceText(item.evidenceStatus)].forEach(value => {
                     const td = document.createElement('td');
                     td.textContent = String(value ?? '');
                     tr.appendChild(td);

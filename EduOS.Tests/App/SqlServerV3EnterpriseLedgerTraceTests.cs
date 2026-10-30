@@ -124,7 +124,7 @@ public sealed class SqlServerV3EnterpriseLedgerTraceTests
             Assert.Equal(200, listing.StatusCode);
             var row = Assert.Single(listing.Data!.Items.Where(x => x.Reference == movementReference));
             Assert.Equal(60m, row.RecordedValue);
-            Assert.Equal("ExplicitReferencePresent", row.EvidenceStatus);
+            Assert.Equal("ExplicitBalancedReference", row.EvidenceStatus);
             Assert.Equal(400, (await register.GetAsync("stock", today.AddDays(-400), today)).StatusCode);
             Assert.Equal(400, (await register.GetAsync("stock", today, today, pageSize: 100)).StatusCode);
         }
@@ -134,6 +134,13 @@ public sealed class SqlServerV3EnterpriseLedgerTraceTests
             var denied = await new V3EnterpriseLedgerTraceService(foreign, new Actor(foreignId))
                 .GetAsync(movementReference);
             Assert.Equal(404, denied.StatusCode);
+            var foreignRegister = await new V3EnterpriseReconciliationRegisterService(
+                foreign, new Actor(foreignId)).GetAsync("stock",
+                    DateOnly.FromDateTime(DateTime.UtcNow.AddDays(-1)),
+                    DateOnly.FromDateTime(DateTime.UtcNow.AddDays(1)));
+            Assert.Equal(200, foreignRegister.StatusCode);
+            Assert.DoesNotContain(foreignRegister.Data!.Items,
+                x => x.Reference == movementReference);
         }
 
         await using (var db = Open(options, tenantId))
@@ -142,8 +149,24 @@ public sealed class SqlServerV3EnterpriseLedgerTraceTests
             // the V1 SaveChanges guard that correctly forbids edits to posted journals.
             var lineId = await db.JournalLines.Where(x => x.JournalId == journalId)
                 .OrderBy(x => x.Id).Select(x => x.Id).FirstAsync();
+            var creditLineId = await db.JournalLines.Where(x =>
+                x.JournalId == journalId && x.CreditAmount > 0m)
+                .Select(x => x.Id).SingleAsync();
+            await db.JournalLines.Where(x => x.Id == creditLineId)
+                .ExecuteUpdateAsync(s => s.SetProperty(x => x.CreditAmount, 59m));
+            var register = new V3EnterpriseReconciliationRegisterService(db, new Actor(tenantId));
+            var from = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(-1));
+            var to = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(1));
+            var unbalanced = await register.GetAsync("stock", from, to);
+            Assert.Equal("JournalImbalance", Assert.Single(unbalanced.Data!.Items,
+                x => x.Reference == movementReference).EvidenceStatus);
+            await db.JournalLines.Where(x => x.Id == creditLineId)
+                .ExecuteUpdateAsync(s => s.SetProperty(x => x.CreditAmount, 60m));
             await db.JournalLines.Where(x => x.Id == lineId)
                 .ExecuteUpdateAsync(s => s.SetProperty(x => x.IsDeleted, true));
+            Assert.Equal("EvidenceConflict", Assert.Single(
+                (await register.GetAsync("stock", from, to)).Data!.Items,
+                x => x.Reference == movementReference).EvidenceStatus);
             Assert.Equal(409, (await new V3EnterpriseLedgerTraceService(db, new Actor(tenantId))
                 .GetAsync(movementReference)).StatusCode);
         }

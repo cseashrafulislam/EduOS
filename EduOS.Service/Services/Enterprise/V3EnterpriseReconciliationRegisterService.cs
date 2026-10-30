@@ -1,5 +1,6 @@
 using EduOS.Core.Common;
 using EduOS.Core.DTOs.Inventory;
+using EduOS.Core.Enums.Domain;
 using EduOS.Core.Interfaces;
 using EduOS.Persistence.Context;
 using Microsoft.EntityFrameworkCore;
@@ -60,27 +61,42 @@ public sealed class V3EnterpriseReconciliationRegisterService(
                 Amount = g.Sum(x => x.Quantity * x.UnitCost), Deleted = g.Any(x => x.IsDeleted) })
             .ToListAsync(ct);
         var valueMap = values.ToDictionary(x => x.Id);
-        var links = await db.Journals.IgnoreQueryFilters().AsNoTracking()
+        // Read canonical journal rows in one bounded batch, not a per-movement N+1.
+        // A corrupt fan-out must fail closed rather than silently truncate evidence.
+        var journals = await db.Journals.IgnoreQueryFilters().AsNoTracking()
             .Where(x => x.TenantId == user.TenantId && x.SourceType == "InventoryMovement" &&
                 x.SourceId.HasValue && ids.Contains(x.SourceId.Value))
-            .GroupBy(x => x.SourceId!.Value)
-            .Select(g => new { Id = g.Key, Count = g.Count(), Deleted = g.Any(x => x.IsDeleted) })
+            .OrderBy(x => x.Id).Take(5001)
+            .Select(x => new { x.Id, SourceId = x.SourceId!.Value, x.IsDeleted, x.State })
             .ToListAsync(ct);
-        var linkMap = links.ToDictionary(x => x.Id);
+        if (journals.Count > 5000)
+            return ApiResponse<V3EnterpriseReconciliationRegisterDto>.ErrorResponse(
+                "Excessive journal fan-out requires investigation.", 409);
+        var journalTotals = await LoadJournalTotalsAsync(journals.Select(x => x.Id).ToArray(), ct);
+        var linkMap = journals.GroupBy(x => x.SourceId)
+            .ToDictionary(g => g.Key, g => g.ToArray());
         // The register deliberately does not infer a single campus for inter-campus transfers.
         // A campus filter is applied in SQL above; the detail endpoint validates finance evidence.
         var rows = pageRows.Select(m =>
         {
             valueMap.TryGetValue(m.Id, out var v);
             linkMap.TryGetValue(m.Id, out var link);
+            var status = v?.Deleted == true || v == null ? "EvidenceConflict" :
+                link == null ? "NoExplicitReference" :
+                link.Any(j => j.IsDeleted ||
+                    (journalTotals.TryGetValue(j.Id, out var t) && t.Deleted))
+                    ? "EvidenceConflict" :
+                link.Any(j => !journalTotals.TryGetValue(j.Id, out var t) ||
+                    t.Debit <= 0m || t.Debit != t.Credit)
+                    ? "JournalImbalance" :
+                link.Any(j => j.State != JournalState.Posted && j.State != JournalState.Reversed)
+                    ? "UnpostedJournal" : "ExplicitBalancedReference";
             return new V3EnterpriseReconciliationRegisterRowDto
             {
                 Reference = m.PublicId, Number = m.MovementNumber,
                 Date = DateOnly.FromDateTime(m.MovementAt), State = m.StateCode,
                 RecordedValue = v?.Amount ?? 0m, LineCount = v?.Count ?? 0,
-                EvidenceStatus = v?.Deleted == true || v == null || link?.Deleted == true
-                    ? "EvidenceConflict" : link == null ? "NoExplicitReference" :
-                    "ExplicitReferencePresent"
+                EvidenceStatus = status
             };
         }).ToArray();
         return Success("stock", from, to, campusId, page, size, count, rows);
@@ -111,8 +127,10 @@ public sealed class V3EnterpriseReconciliationRegisterService(
             .Where(x => x.HasValue).Select(x => x!.Value).Distinct().ToArray();
         var journals = await db.Journals.IgnoreQueryFilters().AsNoTracking()
             .Where(x => x.TenantId == user.TenantId && journalIds.Contains(x.Id))
-            .Select(x => new { x.Id, x.IsDeleted, x.CampusId }).ToListAsync(ct);
+            .Select(x => new { x.Id, x.IsDeleted, x.CampusId, x.State,
+                x.ReversalOfJournalId }).ToListAsync(ct);
         var journalMap = journals.ToDictionary(x => x.Id);
+        var journalTotals = await LoadJournalTotalsAsync(journalIds, ct);
         var rows = pageRows.Select(r =>
         {
             valueMap.TryGetValue(r.Id, out var v);
@@ -121,17 +139,47 @@ public sealed class V3EnterpriseReconciliationRegisterService(
                 if (id.HasValue && (!journalMap.TryGetValue(id.Value, out var j) ||
                     j.IsDeleted || (j.CampusId.HasValue && j.CampusId != r.CampusId)))
                     journalConflict = true;
+            if (r.ReversalJournalId.HasValue &&
+                journalMap.TryGetValue(r.ReversalJournalId.Value, out var reversal) &&
+                reversal.ReversalOfJournalId != r.JournalId)
+                journalConflict = true;
+            var status = journalConflict || v?.Deleted == true ? "EvidenceConflict" :
+                (v?.Amount ?? 0m) != r.TotalAmount ? "RunLineMismatch" :
+                journalIds.Any(id => journalTotals.TryGetValue(id, out var t) && t.Deleted)
+                    ? "EvidenceConflict" :
+                journalIds.Any(id => !journalTotals.TryGetValue(id, out var t) ||
+                    t.Debit <= 0m || t.Debit != t.Credit)
+                    ? "JournalImbalance" :
+                journals.Any(j => j.State != JournalState.Posted && j.State != JournalState.Reversed)
+                    ? "UnpostedJournal" :
+                r.JournalId.HasValue ? "ExplicitBalancedReference" : "NoExplicitReference";
             return new V3EnterpriseReconciliationRegisterRowDto
             {
                 Reference = r.ClientRequestId, Number = r.ClientRequestId.ToString("D"),
                 Date = r.PeriodEnd, CampusId = r.CampusId, State = r.StateCode,
                 RecordedValue = r.TotalAmount, LineCount = v?.Count ?? 0,
-                EvidenceStatus = journalConflict || v?.Deleted == true ? "EvidenceConflict" :
-                    (v?.Amount ?? 0m) != r.TotalAmount ? "RunLineMismatch" :
-                    r.JournalId.HasValue ? "ExplicitReferencePresent" : "NoExplicitReference"
+                EvidenceStatus = status
             };
         }).ToArray();
         return Success("asset", from, to, campusId, page, size, count, rows);
+    }
+
+    private sealed record JournalLineTotals(decimal Debit, decimal Credit, bool Deleted);
+
+    // One tenant-filtered SQL aggregate for the current page, including tombstones.
+    // Never use the normal soft-delete filter for historical finance evidence.
+    private async Task<Dictionary<long, JournalLineTotals>> LoadJournalTotalsAsync(
+        long[] journalIds, CancellationToken ct)
+    {
+        if (journalIds.Length == 0) return [];
+        var totals = await db.JournalLines.IgnoreQueryFilters().AsNoTracking()
+            .Where(x => x.TenantId == user.TenantId && journalIds.Contains(x.JournalId))
+            .GroupBy(x => x.JournalId)
+            .Select(g => new { Id = g.Key, Debit = g.Sum(x => x.DebitAmount),
+                Credit = g.Sum(x => x.CreditAmount), Deleted = g.Any(x => x.IsDeleted) })
+            .ToListAsync(ct);
+        return totals.ToDictionary(x => x.Id,
+            x => new JournalLineTotals(x.Debit, x.Credit, x.Deleted));
     }
 
     private static ApiResponse<V3EnterpriseReconciliationRegisterDto> Success(

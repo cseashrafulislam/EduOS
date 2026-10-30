@@ -127,7 +127,7 @@ public sealed class SqlServerV3AssetFinanceTraceTests
             Assert.Equal(200, listing.StatusCode);
             var row = Assert.Single(listing.Data!.Items.Where(x => x.Reference == requestId));
             Assert.Equal(25m, row.RecordedValue);
-            Assert.Equal("ExplicitReferencePresent", row.EvidenceStatus);
+            Assert.Equal("ExplicitBalancedReference", row.EvidenceStatus);
             Assert.Equal(404, (await register.GetAsync("asset", new DateOnly(2026, 10, 1),
                 new DateOnly(2026, 10, 31), -99)).StatusCode);
             Assert.Equal(403, (await new V3EnterpriseReconciliationRegisterService(
@@ -140,6 +140,11 @@ public sealed class SqlServerV3AssetFinanceTraceTests
         {
             Assert.Equal(404, (await new V3EnterpriseAssetFinanceTraceService(
                 db, new Actor(foreignId)).GetAsync(requestId)).StatusCode);
+            var foreignRegister = await new V3EnterpriseReconciliationRegisterService(
+                db, new Actor(foreignId)).GetAsync("asset",
+                    new DateOnly(2026, 10, 1), new DateOnly(2026, 10, 31));
+            Assert.Equal(200, foreignRegister.StatusCode);
+            Assert.DoesNotContain(foreignRegister.Data!.Items, x => x.Reference == requestId);
         }
         await using (var db = Open(options, tenantId))
         {
@@ -149,12 +154,21 @@ public sealed class SqlServerV3AssetFinanceTraceTests
             var mismatch = await new V3EnterpriseAssetFinanceTraceService(db, new Actor(tenantId))
                 .GetAsync(requestId);
             Assert.Equal("RunLineMismatch", mismatch.Data!.FinanceEvidenceStatus);
+            var register = new V3EnterpriseReconciliationRegisterService(db, new Actor(tenantId));
+            var from = new DateOnly(2026, 10, 1);
+            var to = new DateOnly(2026, 10, 31);
+            Assert.Equal("RunLineMismatch", Assert.Single(
+                (await register.GetAsync("asset", from, to)).Data!.Items,
+                x => x.Reference == requestId).EvidenceStatus);
             var journalLineId = await db.JournalLines.Where(x => x.JournalId == journalId)
                 .OrderBy(x => x.Id).Select(x => x.Id).FirstAsync();
             await db.JournalLines.Where(x => x.Id == journalLineId)
                 .ExecuteUpdateAsync(s => s.SetProperty(x => x.IsDeleted, true));
             Assert.Equal(409, (await new V3EnterpriseAssetFinanceTraceService(
                 db, new Actor(tenantId)).GetAsync(requestId)).StatusCode);
+            Assert.Equal("EvidenceConflict", Assert.Single(
+                (await register.GetAsync("asset", from, to)).Data!.Items,
+                x => x.Reference == requestId).EvidenceStatus);
         }
     }
 }

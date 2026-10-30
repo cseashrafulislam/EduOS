@@ -1,7 +1,8 @@
 namespace EduOS.Core.DTOs.Inventory;
 
 // A bounded, read-only register of canonical V3 stock/asset evidence.
-// Status "ExplicitReferencePresent" is NOT a declaration of balanced Finance posting.
+// Journal status is computed from bounded canonical Finance lines, not inferred PO/asset linkage.
+// "NoExplicitReference" does not prove that a Finance posting is absent.
 public sealed class V3EnterpriseReconciliationRegisterDto
 {
     public string Kind { get; set; } = "";
