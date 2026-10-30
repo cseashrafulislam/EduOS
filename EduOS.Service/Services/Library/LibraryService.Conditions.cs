@@ -172,7 +172,7 @@ public sealed partial class LibraryService
                 await _uow.SaveChangesAsync(token);
                 return ApiResponse<LibraryCopyConditionDto>.SuccessResponse(
                     await ConditionSnapshotAsync(copy, token), "Copy condition recorded.");
-            }, IsolationLevel.Serializable, ct);
+            }, System.Data.IsolationLevel.Serializable, ct);
         }
         catch (DbUpdateConcurrencyException)
         { return ApiResponse<LibraryCopyConditionDto>.ErrorResponse("Concurrent copy or loan update rejected.", 409); }
