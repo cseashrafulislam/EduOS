@@ -27,8 +27,20 @@ test("pilot and current-tenant entitlement jointly guard all optional module men
     assert.match(nearestConditionalBefore("/HostelOperations/Index"), /^@if \(showHostel\)/);
     assert.match(nearestConditionalBefore("/TransportOperations/Index"), /^@if \(showTransport\)/);
     assert.match(nearestConditionalBefore("/InventoryCatalog/Index"), /^@if \(showInventory && /);
-    assert.match(layout, /href="\/Library\/Circulation"/);
-    assert.match(layout, /href="\/Learning\/CourseCompletions"/);
+    const roleNavigation = fs.readFileSync(path.join(root,
+        "EduOS.App/Authorization/V2RolePortalNavigation.cs"), "utf8");
+    assert.match(layout, /V2RolePortalNavigation\.GetLinks\(availableOptionalModules, User\)/);
+    for (const [module, route] of [
+        ["LIBRARY", "/Library/Circulation"],
+        ["LMS", "/Learning/CourseCompletions"],
+        ["HOSTEL", "/hostel/guardian-stays/print"],
+        ["TRANSPORT", "/TransportOperations/Family"]
+    ]) {
+        assert.ok(roleNavigation.includes('Add("' + module + '", "' + route + '"'),
+            route + " must be role-scoped and entitlement-scoped");
+        assert.ok(layout.includes('v2RoleLinks.Where(x => x.ModuleCode == "' + module + '")'));
+    }
+    assert.ok(layout.includes("@T[link.LabelKey]"));
 });
 
 test("server pilot gate covers all V2 modules and V3 without moving V1 HR", () => {
