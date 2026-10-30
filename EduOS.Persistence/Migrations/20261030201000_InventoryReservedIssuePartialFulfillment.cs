@@ -37,6 +37,13 @@ public sealed class InventoryReservedIssuePartialFulfillment : Migration
 
     protected override void Down(MigrationBuilder migrationBuilder)
     {
+        // A rollback that forgets consumed holds could allow the original reserved
+        // draft to post again. Require an explicitly reconciled zero-consumption
+        // state before dropping the control column.
+        migrationBuilder.Sql(@"IF EXISTS (
+            SELECT 1 FROM dbo.InventoryMovementLines WHERE FulfilledQuantity <> 0
+        ) THROW 51050, 'Partial issue evidence must be reconciled before rollback.', 1;");
+
         migrationBuilder.DropIndex(
             name: "IX_InventoryMovements_TenantId_SourceType_SourceId",
             table: "InventoryMovements");
