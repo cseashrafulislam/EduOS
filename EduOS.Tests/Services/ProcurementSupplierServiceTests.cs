@@ -55,8 +55,9 @@ public sealed class ProcurementSupplierServiceTests
         Assert.Equal(403,(await maker.TransitionAsync(created.Data.Id,"approve",
             new ProcurementSupplierDecisionRequest{RowVersion="invalid"})).StatusCode);
         Assert.Equal(404,(await Service(db,101,12,"StoreKeeper").GetAsync(created.Data.Id)).StatusCode);
+        // HttpContextAccessor is AsyncLocal: verify the original tenant before switching contexts.
+        Assert.Single(await db.ProcurementSuppliers.ToListAsync());
         await using var foreign=Open(options,202);
         Assert.Equal(404,(await Service(foreign,202,20,"TenantAdmin").GetAsync(created.Data.Id)).StatusCode);
-        Assert.Single(await db.ProcurementSuppliers.ToListAsync());
     }
 }
