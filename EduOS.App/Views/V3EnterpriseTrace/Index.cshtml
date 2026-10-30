@@ -62,8 +62,9 @@
             </div>
             <div class="col-6 col-md-2">
                 <label class="form-label" for="v3RegisterCampus">@(bn ? "ক্যাম্পাস আইডি" : "Campus ID")</label>
-                <input id="v3RegisterCampus" type="number" min="1" step="1"
-                    class="form-control" autocomplete="off" />
+                <select id="v3RegisterCampus" class="form-select">
+                    <option value="">@(bn ? "সব ক্যাম্পাস" : "All campuses")</option>
+                </select>
             </div>
             <div class="col-6 col-md-2">
                 <label class="form-label" for="v3RegisterSize">@(bn ? "প্রতি পৃষ্ঠা" : "Page size")</label>

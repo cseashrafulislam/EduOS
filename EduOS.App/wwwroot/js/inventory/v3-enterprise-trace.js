@@ -64,6 +64,24 @@ if (root) {
     print.addEventListener('click', () => window.print());
     // The register reads only bounded server pages. A present journal reference
     // is not presented as balanced until the existing detail endpoint verifies it.
+    // Reuse the canonical tenant-authorized campus catalogue; never ask staff
+    // to guess database IDs or expose a cross-tenant campus list.
+    const campusSelect = document.getElementById('v3RegisterCampus');
+    fetch('/api/institution-onboarding/campus-list', {
+        credentials: 'same-origin', cache: 'no-store', headers: { Accept: 'application/json' }
+    }).then(async response => {
+        const body = await response.json();
+        if (!response.ok || !body.success || !Array.isArray(body.data))
+            throw new Error('Campus list unavailable.');
+        body.data.forEach(campus => {
+            const option = document.createElement('option');
+            option.value = String(campus.id);
+            option.textContent = campus.name + (campus.code ? ' (' + campus.code + ')' : '');
+            campusSelect.appendChild(option);
+        });
+    }).catch(() => {
+        campusSelect.title = bn ? 'ক্যাম্পাস তালিকা পাওয়া যায়নি।' : 'Campus list unavailable.';
+    });
     const registerForm = document.getElementById('v3RegisterForm');
     const registerRows = document.getElementById('v3RegisterRows');
     const registerMessage = document.getElementById('v3RegisterMessage');
