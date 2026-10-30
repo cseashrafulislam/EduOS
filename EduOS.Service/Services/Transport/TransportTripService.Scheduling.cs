@@ -1,5 +1,6 @@
 using EduOS.Core.Common;
 using EduOS.Core.DTOs.Transport;
+using Microsoft.EntityFrameworkCore;
 using System.Security.Cryptography;
 using System.Text;
 
@@ -27,14 +28,52 @@ public sealed partial class TransportTripService
             return ApiResponse<TransportTripScheduleResultDto>.ErrorResponse(
                 "Select a valid route, vehicle, direction and 1–7 dates within the next 30 days.");
 
-        var dates = Enumerable.Range(0, request.EndDate.DayNumber - request.StartDate.DayNumber + 1)
-            .Select(offset => request.StartDate.AddDays(offset))
-            .Where(date => !request.SkipFridaySaturday ||
-                date.DayOfWeek is not (DayOfWeek.Friday or DayOfWeek.Saturday))
+        var selected = Enumerable.Range(0, request.EndDate.DayNumber - request.StartDate.DayNumber + 1)
+            .Select(offset => request.StartDate.AddDays(offset)).ToArray();
+        var calendarClosed = new HashSet<DateOnly>();
+        var existingCalendarKeys = new HashSet<Guid>();
+        if (request.UseAcademicCalendar)
+        {
+            // Explicit opt-in: do not infer school holidays for special transport services.
+            // The calendar read is bounded and tenant/campus authorized; PlanAsync still
+            // independently revalidates each date inside its serializable transaction.
+            var calendar = await GetScheduleCalendarAsync(
+                request.RouteReference, request.StartDate, request.EndDate, ct);
+            if (!calendar.Success || calendar.Data == null)
+                return ApiResponse<TransportTripScheduleResultDto>.ErrorResponse(
+                    calendar.Message, calendar.StatusCode);
+            calendarClosed = calendar.Data.Days.Where(x => !x.IsOperatingDay)
+                .Select(x => x.Date).ToHashSet();
+            if (calendarClosed.Count > 0)
+            {
+                // A calendar edit must not erase or hide an earlier committed batch
+                // date. Replaying its deterministic key returns the historical plan.
+                var closedKeys = calendarClosed
+                    .Select(date => ScheduleDateKey(request.ClientRequestId, date)).ToArray();
+                existingCalendarKeys = (await _db.TransportTrips.AsNoTracking()
+                    .Where(x => x.TenantId == _user.TenantId && !x.IsDeleted &&
+                        closedKeys.Contains(x.ClientRequestId))
+                    .Select(x => x.ClientRequestId).ToListAsync(ct)).ToHashSet();
+            }
+        }
+        var dates = selected.Where(date =>
+            (!request.SkipFridaySaturday ||
+                date.DayOfWeek is not (DayOfWeek.Friday or DayOfWeek.Saturday)) &&
+            (!calendarClosed.Contains(date) ||
+                existingCalendarKeys.Contains(ScheduleDateKey(request.ClientRequestId, date))))
             .ToArray();
+        var skipped = selected.Except(dates).ToArray();
         if (dates.Length == 0)
-            return ApiResponse<TransportTripScheduleResultDto>.ErrorResponse(
-                "No selected operating days.");
+        {
+            if (!request.UseAcademicCalendar)
+                return ApiResponse<TransportTripScheduleResultDto>.ErrorResponse(
+                    "No selected operating days.");
+            return ApiResponse<TransportTripScheduleResultDto>.SuccessResponse(
+                new TransportTripScheduleResultDto
+                {
+                    SelectedDays = 0, SkippedDates = skipped
+                }, "No open service dates; no trips created.");
+        }
 
         var rows = new List<TransportTripRowDto>(dates.Length);
         var created = 0;
@@ -58,7 +97,7 @@ public sealed partial class TransportTripService
                     Data = new TransportTripScheduleResultDto
                     {
                         SelectedDays = dates.Length, NewlyPlanned = created,
-                        AlreadyPlanned = replayed, Trips = rows,
+                        AlreadyPlanned = replayed, SkippedDates = skipped, Trips = rows,
                         FailedDate = date, FailureStatusCode = response.StatusCode,
                         FailureMessage = response.Message
                     }
@@ -71,7 +110,7 @@ public sealed partial class TransportTripService
             new TransportTripScheduleResultDto
             {
                 SelectedDays = dates.Length, NewlyPlanned = created,
-                AlreadyPlanned = replayed, Trips = rows
+                AlreadyPlanned = replayed, SkippedDates = skipped, Trips = rows
             }, "Selected dates planned or safely replayed.");
     }
 

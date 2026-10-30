@@ -34,6 +34,15 @@ public sealed class TransportTripsController : ControllerBase
         return StatusCode(result.StatusCode, result);
     }
 
+    [HttpGet("schedule/calendar")]
+    public async Task<IActionResult> ScheduleCalendar([FromQuery] Guid routeReference,
+        [FromQuery] DateOnly startDate, [FromQuery] DateOnly endDate,
+        CancellationToken ct = default)
+    {
+        var result = await _service.GetScheduleCalendarAsync(routeReference, startDate, endDate, ct);
+        return StatusCode(result.StatusCode, result);
+    }
+
     [HttpPost("schedule")]
     public async Task<IActionResult> Schedule([FromBody] ScheduleTransportTripsRequestDto request, CancellationToken ct)
     {

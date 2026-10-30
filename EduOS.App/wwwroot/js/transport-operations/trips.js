@@ -6,7 +6,7 @@
     const today = () => { const d = new Date(); return [d.getFullYear(), String(d.getMonth()+1).padStart(2,'0'), String(d.getDate()).padStart(2,'0')].join('-'); };
     let scheduleKey = crypto.randomUUID();
     let planKey = crypto.randomUUID(), page = 1, pages = 1, trip = null, tripState = null, riderPage = 1, riderPages = 1;
-    let correction = null;
+    let correction = null, calendarPreviewSequence = 0;
     const canCorrect = root.dataset.canCorrect === 'true';
     el('tripDate').value = today();
     el('tripScheduleEnd').value = today();
@@ -31,6 +31,28 @@
     }
     function option(select, value, label) { const o = document.createElement('option'); o.value = value; o.textContent = label; select.append(o); }
     function cell(value) { const td = document.createElement('td'); td.textContent = value == null || value === '' ? '—' : String(value); return td; }
+    async function previewCalendar() {
+        const sequence = ++calendarPreviewSequence;
+        const target = el('tripCalendarStatus');
+        target.textContent = '';
+        if (!el('tripScheduleAcademicCalendar').checked) return;
+        const routeReference = el('tripRoute').value;
+        const startDate = el('tripDate').value, endDate = el('tripScheduleEnd').value;
+        const days = Math.round((Date.parse(endDate + 'T00:00:00Z') -
+            Date.parse(startDate + 'T00:00:00Z')) / 86400000) + 1;
+        if (!routeReference || !Number.isInteger(days) || days < 1 || days > 7) return;
+        try {
+            const result = await api('/api/transport/trips/schedule/calendar?' +
+                new URLSearchParams({ routeReference, startDate, endDate }));
+            if (sequence !== calendarPreviewSequence) return;
+            const closed = (result.days || []).filter(x => !x.isOperatingDay);
+            target.textContent = (result.days.length - closed.length) +
+                ' open, ' + closed.length + ' closed / খোলা ও বন্ধ দিন' +
+                (closed.length ? ': ' + closed.map(x => x.date + ' (' + x.closureReason + ')').join(', ') : '');
+        } catch (e) {
+            if (sequence === calendarPreviewSequence) target.textContent = e.message;
+        }
+    }
     async function setup() {
         try {
             const [routes, vehicles] = await Promise.all([api('/api/transport/routes'), api('/api/transport/vehicles')]);
@@ -38,6 +60,7 @@
                 const select = el(id); select.replaceChildren(); option(select,'',label);
                 (items || []).forEach(x => option(select,x.reference,id === 'tripRoute' ? x.name : x.vehicleNumber + ' (' + x.capacity + ')'));
             }
+            previewCalendar();
         } catch (e) { status(e.message, true); }
     }
     async function load() {
@@ -188,10 +211,13 @@
             const result = await api('/api/transport/trips/schedule', 'POST', {
                 clientRequestId: scheduleKey, routeReference: el('tripRoute').value,
                 vehicleReference: el('tripVehicle').value, startDate: start, endDate: end,
-                direction: el('tripDirection').value, skipFridaySaturday: el('tripScheduleWeekend').checked
+                direction: el('tripDirection').value, skipFridaySaturday: el('tripScheduleWeekend').checked,
+                useAcademicCalendar: el('tripScheduleAcademicCalendar').checked
             });
+            const skipped = result.skippedDates || [];
             const summary = 'New ' + result.newlyPlanned + ', existing ' + result.alreadyPlanned +
-                ' / নতুন ' + result.newlyPlanned + ', পূর্বের ' + result.alreadyPlanned;
+                ', skipped ' + skipped.length + ' / নতুন ' + result.newlyPlanned +
+                ', পূর্বের ' + result.alreadyPlanned + ', বাদ ' + skipped.length;
             if (result.failedDate) {
                 status(summary + ' — stopped ' + result.failedDate + ': ' + result.failureMessage, true);
             } else {
@@ -201,8 +227,11 @@
         } catch (e) { status(e.message, true); }
         finally { button.disabled = false; }
     });
+    for (const id of ['tripScheduleAcademicCalendar','tripScheduleEnd','tripRoute']) {
+        el(id).addEventListener('change', previewCalendar);
+    }
     el('tripReload').addEventListener('click', () => { page=1; load(); });
-    el('tripDate').addEventListener('change', () => { page=1; trip=null; el('tripManifestPanel').hidden=true; tripState=null; load(); });
+    el('tripDate').addEventListener('change', () => { page=1; trip=null; el('tripManifestPanel').hidden=true; tripState=null; load(); previewCalendar(); });
     el('tripPrev').addEventListener('click',()=>{if(page>1){page--;load();}});
     el('tripNext').addEventListener('click',()=>{if(page<pages){page++;load();}});
     el('tripRiderPrev').addEventListener('click',()=>{if(riderPage>1){riderPage--;loadRiders();}});

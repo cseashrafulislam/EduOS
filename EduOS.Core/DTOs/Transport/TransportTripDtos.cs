@@ -17,12 +17,14 @@ public sealed class ScheduleTransportTripsRequestDto
     public DateOnly EndDate { get; set; }
     [Required, MaxLength(10)] public string Direction { get; set; } = string.Empty;
     public bool SkipFridaySaturday { get; set; }
+    public bool UseAcademicCalendar { get; set; }
 }
 public sealed class TransportTripScheduleResultDto
 {
     public int SelectedDays { get; set; }
     public int NewlyPlanned { get; set; }
     public int AlreadyPlanned { get; set; }
+    public IReadOnlyList<DateOnly> SkippedDates { get; set; } = Array.Empty<DateOnly>();
     public DateOnly? FailedDate { get; set; }
     public int? FailureStatusCode { get; set; }
     public string? FailureMessage { get; set; }
@@ -68,4 +70,17 @@ public sealed class TransportTripManifestReportDto
     public int DroppedCount { get; set; }
     public int NoShowCount { get; set; }
     public DateTime GeneratedAtUtc { get; set; }
+}
+
+public sealed class TransportTripCalendarDayDto
+{
+    public DateOnly Date { get; set; }
+    public bool IsOperatingDay { get; set; }
+    public string? ClosureReason { get; set; }
+}
+public sealed class TransportTripCalendarDto
+{
+    public long CampusId { get; set; }
+    public IReadOnlyList<TransportTripCalendarDayDto> Days { get; set; } =
+        Array.Empty<TransportTripCalendarDayDto>();
 }

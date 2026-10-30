@@ -5,6 +5,7 @@ public interface ITransportTripService
 {
     Task<ApiResponse<TransportTripRowDto>> PlanAsync(PlanTransportTripRequestDto request, CancellationToken ct = default);
     Task<ApiResponse<TransportTripScheduleResultDto>> ScheduleAsync(ScheduleTransportTripsRequestDto request, CancellationToken ct = default);
+    Task<ApiResponse<TransportTripCalendarDto>> GetScheduleCalendarAsync(Guid routeReference, DateOnly startDate, DateOnly endDate, CancellationToken ct = default);
     Task<ApiResponse<TransportTripRowDto>> DispatchAsync(Guid reference, DispatchTransportTripRequestDto request, CancellationToken ct = default);
     Task<ApiResponse<TransportTripRowDto>> CompleteAsync(Guid reference, CompleteTransportTripRequestDto request, CancellationToken ct = default);
     Task<ApiResponse<PagedResult<TransportTripRowDto>>> GetAsync(DateOnly date, long? campusId, int page, int pageSize, CancellationToken ct = default);
