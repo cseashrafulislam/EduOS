@@ -337,4 +337,42 @@ public sealed class SqlServerV3InventoryTransferLifecycleTests
             })).StatusCode);
     }
 
+
+    [Fact]
+    public async Task Reservation_register_is_line_scoped_paged_and_revocation_fresh()
+    {
+        var connection = Environment.GetEnvironmentVariable("EDUOS_SQL_AUTH_TEST_CONNECTION");
+        if (string.IsNullOrWhiteSpace(connection)) return;
+        var f = await SeedAsync(connection);
+        await using var db = Open(f.Options, f.TenantId);
+        var service = Service(db, f);
+        var draft = await DraftIssueAsync(db, f, 4m);
+        var hold = await service.ReserveMovementAsync(draft.Reference,
+            new PostInventoryMovementRequestDto { RowVersion = draft.RowVersion });
+        Assert.Equal(200, hold.StatusCode);
+
+        var report = await service.GetReservationRegisterAsync(f.SourceId, "PEN-", 1, 25);
+        Assert.Equal(200, report.StatusCode);
+        Assert.Equal(1, report.Data!.TotalCount);
+        Assert.Single(report.Data.Items);
+        Assert.Equal(4m, report.Data.Items[0].ReservedQuantity);
+        Assert.Equal(f.ItemId, report.Data.Items[0].InventoryItemId);
+        Assert.Equal(draft.Reference, report.Data.Items[0].MovementReference);
+        Assert.Equal(0, (await service.GetReservationRegisterAsync(f.DestinationId, null, 1, 25)).Data!.TotalCount);
+        Assert.Equal(404, (await service.GetReservationRegisterAsync(long.MaxValue, null, 1, 25)).StatusCode);
+        Assert.Equal(403, (await Service(db, f, "Student").GetReservationRegisterAsync(null, null, 1, 25)).StatusCode);
+
+        await using (var foreign = Open(f.Options, f.TenantId + 999))
+            Assert.Empty((await Service(foreign, f, tenantId: f.TenantId + 999)
+                .GetReservationRegisterAsync(null, null, 1, 25)).Data!.Items);
+
+        var released = await service.ReleaseReservationAsync(draft.Reference,
+            new ReleaseInventoryReservationRequestDto
+            {
+                RowVersion = hold.Data!.RowVersion,
+                Reason = "Approved request was withdrawn"
+            });
+        Assert.Equal(200, released.StatusCode);
+        Assert.Empty((await service.GetReservationRegisterAsync(null, null, 1, 25)).Data!.Items);
+    }
 }
