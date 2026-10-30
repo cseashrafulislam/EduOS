@@ -14,7 +14,7 @@ function html(lang){
  return '<!doctype html><html lang="'+lang+'"><head>'+
   '<meta name="request-verification-token" content="csrf"></head>'+
   '<body data-auth-session-reference="'+SESSION+'" data-auth-tenant-id="41">'+
-  view.replace(/<script[^>]*src="~\\/[^"]*"[^>]*><\\/script>/g,'')+
+  view.replace(/<script[^>]*src="~\/[^"]*"[^>]*><\/script>/g,'')+
   '</body></html>';
 }
 async function scenario(browser,lang){
@@ -30,7 +30,7 @@ async function scenario(browser,lang){
    exportRequests++;
    return route.fulfill({status:revoked?403:200,contentType:revoked?'application/json':'text/csv',
     body:revoked?JSON.stringify({success:false,message:'Consent revoked'}):
-     'Learner,Course\\r\\nPrivate Learner,Protected Course\\r\\n'});
+     'Learner,Course\r\nPrivate Learner,Protected Course\r\n'});
   }
   const data=p.endsWith('/lessons')?
    {items:[{lessonTitle:'Published lesson',progressPercent:100,isCompleted:true}],totalPages:1}:
