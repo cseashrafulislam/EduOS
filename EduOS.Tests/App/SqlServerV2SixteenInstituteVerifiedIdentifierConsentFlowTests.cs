@@ -213,15 +213,6 @@ public sealed partial class SqlServerTransportSeatCapacityIntegrationTests
             Assert.Equal("Approved", approved.Data!.State);
             grantReferences.Add(Assert.IsType<Guid>(approved.Data.GrantReference));
 
-            await using var verify = ScopedContext(member.Tenant.Options,
-                member.Tenant.TenantId, member.Tenant.UserId);
-            var link = await verify.StudentPersonLinks.SingleAsync(x =>
-                x.TenantId == member.Tenant.TenantId && x.StudentId == member.StudentId);
-            Assert.Equal(personId, link.PersonId);
-            var grant = await verify.LearnerDataGrants.SingleAsync(x =>
-                x.TenantId == member.Tenant.TenantId && x.StudentId == member.StudentId);
-            Assert.Equal(grantReferences[^1], grant.PublicId);
-            Assert.Equal(member.Tenant.TenantId, grant.TenantId);
         }
 
         Assert.Equal(15, (await guardianReviewer.GetActiveGrantsAsync()).Data!.Count);
@@ -255,6 +246,13 @@ public sealed partial class SqlServerTransportSeatCapacityIntegrationTests
                 member.Tenant.TenantId, member.Tenant.UserId);
             Assert.Equal(1, await verify.LearnerConsentRequests.CountAsync(x =>
                 x.TenantId == member.Tenant.TenantId && x.PublicId == reference));
+            var link = await verify.StudentPersonLinks.SingleAsync(x =>
+                x.TenantId == member.Tenant.TenantId && x.StudentId == member.StudentId);
+            Assert.Equal(personId, link.PersonId);
+            var grant = await verify.LearnerDataGrants.SingleAsync(x =>
+                x.TenantId == member.Tenant.TenantId && x.StudentId == member.StudentId);
+            Assert.Equal(grantReferences[requests.IndexOf((member, reference))], grant.PublicId);
+            Assert.Equal(member.Tenant.TenantId, grant.TenantId);
             Assert.Equal(1, await verify.LearnerDataGrants.CountAsync(x =>
                 x.TenantId == member.Tenant.TenantId && x.StudentId == member.StudentId));
             Assert.Equal(1, await verify.StudentPersonLinks.CountAsync(x =>
