@@ -1,0 +1,32 @@
+name: Transport Trip Browser Privacy Acceptance
+on:
+  push:
+    branches: [Ashraful]
+    paths:
+      - 'EduOS.App/wwwroot/js/transport-operations/**'
+      - 'EduOS.App/Views/TransportOperations/Trips.cshtml'
+      - 'EduOS.App/Views/TransportOperations/DriverTrips.cshtml'
+      - 'EduOS.App/Views/TransportOperations/Family.cshtml'
+      - 'tests/browser/transport-trip-session.cjs'
+      - '.github/workflows/transport-trip-browser.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: transport-trip-browser-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  chromium-transport-trip:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install pinned Playwright
+        run: npm install --no-save --no-audit --no-fund playwright@1.56.0
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Exercise dispatcher, driver and guardian private-session boundaries
+        run: node tests/browser/transport-trip-session.cjs
