@@ -41,6 +41,12 @@ function render(){
   cell(tr,(elig.passedQuizzes||0)+' / '+(elig.requiredQuizzes||0));
   cell(tr,completed?'Completed':elig.ready?'Ready':(elig.blockers||[]).join(' '));
   const td=cell(tr,'');
+  const lessonButton=document.createElement('button');lessonButton.type='button';
+  lessonButton.className='btn btn-sm btn-outline-secondary me-1';
+  lessonButton.textContent='Lesson progress';
+  lessonButton.addEventListener('click',()=>window.EduOSLmsInstructorProgress?.open(
+   $('lmsCompletionCourse').value,row.enrollmentId,row.studentName+' ('+row.studentCode+')'));
+  td.append(lessonButton);
   if(row.state===1&&elig.ready){
    const btn=document.createElement('button');btn.type='button';btn.className='btn btn-sm btn-primary';
    btn.textContent='Complete';btn.disabled=state.busy;btn.addEventListener('click',()=>complete(row,btn));td.append(btn);
@@ -56,6 +62,7 @@ function render(){
  $('lmsCompletionPrev').disabled=state.page<=1;$('lmsCompletionNext').disabled=state.page>=state.pages;
 }
 async function loadRegister(){
+ window.EduOSLmsInstructorProgress?.close();
  const course=$('lmsCompletionCourse').value,seq=++state.request;
  if(!course){state.rows=[];state.pages=1;render();return;}
  const query=new URLSearchParams({page:String(state.page),pageSize:'20',search:$('lmsCompletionSearch').value.trim()});

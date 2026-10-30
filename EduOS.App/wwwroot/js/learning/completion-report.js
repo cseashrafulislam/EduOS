@@ -80,5 +80,35 @@
         }
         return '\uFEFF' + lines.map(row => row.map(csvCell).join(',')).join('\r\n');
     }
-    return Object.freeze({ PAGE_SIZE, MAX_ROWS, collect, validateSnapshot, toCsv });
+    function validateLessonSnapshot(data, enrollmentId, isCurrent = () => true) {
+        if (!isCurrent()) throw new Error('Course, learner or account changed. Restart the export.');
+        if (!data || !Array.isArray(data.items) || !Number.isSafeInteger(data.totalCount) ||
+            data.totalCount < 0 || data.totalCount > MAX_ROWS || data.page !== 1 ||
+            data.pageSize !== MAX_ROWS || data.items.length !== data.totalCount)
+            throw new Error('The lesson report changed or exceeded 250 rows.');
+        const seen = new Set();
+        for (const row of data.items) {
+            const id = String(row?.lessonReference ?? '');
+            if (!/^[0-9a-f]{8}-[0-9a-f-]{27,}$/i.test(id) ||
+                String(row?.courseEnrollmentId) !== String(enrollmentId) ||
+                seen.has(id) || !Number.isFinite(Number(row.progressPercent)) ||
+                Number(row.progressPercent) < 0 || Number(row.progressPercent) > 100)
+                throw new Error('The lesson report contains invalid or duplicate evidence.');
+            seen.add(id);
+        }
+        if (!isCurrent()) throw new Error('Course, learner or account changed. Restart the export.');
+        return data.items;
+    }
+
+    function toLessonCsv(rows) {
+        const lines = [['Lesson', 'Progress (%)', 'Completed', 'Completed at (UTC)']];
+        for (const row of rows) lines.push([
+            row.lessonTitle, row.progressPercent, row.isCompleted ? 'Yes' : 'No',
+            row.completedAt || ''
+        ]);
+        return '\uFEFF' + lines.map(row => row.map(csvCell).join(',')).join('\r\n');
+    }
+
+    return Object.freeze({ PAGE_SIZE, MAX_ROWS, collect, validateSnapshot, toCsv,
+        validateLessonSnapshot, toLessonCsv });
 });

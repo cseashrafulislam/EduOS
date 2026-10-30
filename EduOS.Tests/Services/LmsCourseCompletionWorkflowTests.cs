@@ -469,6 +469,59 @@ public sealed class LmsCourseCompletionWorkflowTests
             new string('x', 101))).StatusCode);
     }
 
+    [Fact]
+    public async Task Instructor_lesson_progress_is_paged_published_and_bound_to_exact_course_enrollment()
+    {
+        await using var db = Db();
+        var (course, _, enrollment, lesson) = await Seed(db);
+        var second = new Lesson { TenantId = 101, CourseId = course.Id, Title = "Second",
+            IsPublished = true, DisplayOrder = 2 };
+        var draft = new Lesson { TenantId = 101, CourseId = course.Id, Title = "Secret draft",
+            IsPublished = false, DisplayOrder = 3 };
+        db.AddRange(second, draft);
+        await db.SaveChangesAsync();
+        db.AddRange(
+            new LessonProgress { TenantId = 101, CourseEnrollmentId = enrollment.Id,
+                LessonId = lesson.Id, ProgressPercent = 75 },
+            new LessonProgress { TenantId = 101, CourseEnrollmentId = enrollment.Id,
+                LessonId = draft.Id, ProgressPercent = 100, IsCompleted = true });
+        await db.SaveChangesAsync();
+        var service = Service(db);
+        var page = await service.GetInstructorLessonProgressAsync(course.PublicId, enrollment.Id, 1, 1);
+        Assert.True(page.Success, page.Message);
+        Assert.Equal(2, page.Data!.TotalCount);
+        Assert.Equal(75m, Assert.Single(page.Data.Items).ProgressPercent);
+        var next = await service.GetInstructorLessonProgressAsync(course.PublicId, enrollment.Id, 2, 1);
+        Assert.Equal(second.PublicId, Assert.Single(next.Data!.Items).LessonReference);
+        Assert.Equal(0m, next.Data.Items[0].ProgressPercent);
+        var export = await service.GetInstructorLessonProgressExportAsync(course.PublicId, enrollment.Id);
+        Assert.True(export.Success, export.Message);
+        Assert.Equal(2, export.Data!.Items.Count);
+        Assert.Equal(250, export.Data.PageSize);
+        Assert.DoesNotContain(export.Data.Items, x => x.LessonTitle == "Secret draft");
+        Assert.Equal(403, (await Service(db, "Student")
+            .GetInstructorLessonProgressAsync(course.PublicId, enrollment.Id, 1, 20)).StatusCode);
+        Assert.Equal(403, (await Service(db, "Student")
+            .GetInstructorLessonProgressExportAsync(course.PublicId, enrollment.Id)).StatusCode);
+        Assert.Equal(404, (await service.GetInstructorLessonProgressAsync(
+            Guid.NewGuid(), enrollment.Id, 1, 20)).StatusCode);
+        Assert.Equal(404, (await service.GetInstructorLessonProgressAsync(
+            course.PublicId, enrollment.Id + 9999, 1, 20)).StatusCode);
+        Assert.Equal(400, (await service.GetInstructorLessonProgressAsync(
+            course.PublicId, enrollment.Id, int.MaxValue, 50)).StatusCode);
+        Assert.Equal(400, (await service.GetInstructorLessonProgressAsync(
+            course.PublicId, enrollment.Id, 1, 51)).StatusCode);
+
+        course.IsActive = false;
+        await db.SaveChangesAsync();
+        Assert.Equal(404, (await service.GetInstructorLessonProgressAsync(
+            course.PublicId, enrollment.Id, 1, 20)).StatusCode);
+        enrollment.State = EduOS.Core.Enums.Domain.CourseEnrollmentState.Completed;
+        await db.SaveChangesAsync();
+        Assert.True((await service.GetInstructorLessonProgressAsync(
+            course.PublicId, enrollment.Id, 1, 20)).Success);
+    }
+
     private static async Task<(Course Course, Student Student, CourseEnrollment Enrollment, Lesson Lesson)> Seed(EduOSDbContext db)
     {
         var course = new Course { TenantId = 101, Code = "LMS-COMP", Title = "Completion", IsActive = true };

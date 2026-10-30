@@ -14,6 +14,59 @@ namespace EduOS.Tests.App;
 public sealed partial class SqlServerTransportSeatCapacityIntegrationTests
 {
     [Fact]
+    public async Task SQL_LMS_instructor_progress_readback_denies_cross_tenant_and_student_direct_ids()
+    {
+        var connection = Environment.GetEnvironmentVariable("EDUOS_SQL_AUTH_TEST_CONNECTION");
+        if (string.IsNullOrWhiteSpace(connection)) return;
+        var fixture = await SeedAsync(connection);
+        var foreign = await SeedAsync(connection);
+        long enrollmentId;
+        Guid courseReference;
+        await using (var setup = ScopedContext(fixture.Options, fixture.TenantId, fixture.UserId))
+        {
+            var academic = await setup.StudentEnrollments.SingleAsync(x =>
+                x.TenantId == fixture.TenantId && x.PublicId == fixture.Enrollments[0]);
+            var course = new Course { TenantId = fixture.TenantId,
+                Code = "READBACK-" + Guid.NewGuid().ToString("N")[..12],
+                Title = "Private instructor progress", IsActive = true };
+            setup.Courses.Add(course);
+            await setup.SaveChangesAsync();
+            var enrollment = new CourseEnrollment { TenantId = fixture.TenantId,
+                CourseId = course.Id, StudentId = academic.StudentId,
+                ClientRequestId = Guid.NewGuid(), State = CourseEnrollmentState.Active };
+            var lesson = new Lesson { TenantId = fixture.TenantId, CourseId = course.Id,
+                Title = "Published progress", IsPublished = true };
+            var draft = new Lesson { TenantId = fixture.TenantId, CourseId = course.Id,
+                Title = "Hidden draft", IsPublished = false };
+            setup.AddRange(enrollment, lesson, draft);
+            await setup.SaveChangesAsync();
+            setup.LessonProgresses.Add(new LessonProgress { TenantId = fixture.TenantId,
+                CourseEnrollmentId = enrollment.Id, LessonId = lesson.Id, ProgressPercent = 45m });
+            await setup.SaveChangesAsync();
+            enrollmentId = enrollment.Id;courseReference = course.PublicId;
+        }
+        await using (var read = ScopedContext(fixture.Options, fixture.TenantId, fixture.UserId))
+        {
+            var service = SqlCertificateWorkflow(read, fixture.TenantId, fixture.UserId);
+            var result = await service.GetInstructorLessonProgressAsync(courseReference, enrollmentId, 1, 20);
+            Assert.True(result.Success, result.Message);
+            Assert.Equal(1, result.Data!.TotalCount);
+            Assert.Equal(45m, Assert.Single(result.Data.Items).ProgressPercent);
+            Assert.Equal(403, (await SqlCertificateWorkflow(
+                read, fixture.TenantId, fixture.UserId, "Student")
+                .GetInstructorLessonProgressExportAsync(courseReference, enrollmentId)).StatusCode);
+            Assert.Equal(404, (await service.GetInstructorLessonProgressAsync(
+                courseReference, enrollmentId + 1000000, 1, 20)).StatusCode);
+        }
+        await using (var cross = ScopedContext(fixture.Options, foreign.TenantId, foreign.UserId))
+        {
+            var denied = await SqlCertificateWorkflow(cross, foreign.TenantId, foreign.UserId)
+                .GetInstructorLessonProgressAsync(courseReference, enrollmentId, 1, 20);
+            Assert.Equal(404, denied.StatusCode);
+        }
+    }
+
+    [Fact]
     public async Task SQL_LMS_progress_duplicate_writes_remain_monotonic_and_completion_blocks_late_writes()
     {
         var connection = Environment.GetEnvironmentVariable("EDUOS_SQL_AUTH_TEST_CONNECTION");

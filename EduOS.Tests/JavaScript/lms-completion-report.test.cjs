@@ -70,3 +70,19 @@ test('single-request export rejects truncated, oversized, duplicate and stale sn
     assert.throws(() => validateSnapshot({ ...good, items: [rows(1)[0], rows(1)[0]] }), /duplicate/);
     assert.throws(() => validateSnapshot(good, () => false), /account changed/);
 });
+
+test('lesson progress export rejects guessed enrollment, duplicate evidence and stale tenant', () => {
+    const { validateLessonSnapshot, toLessonCsv } =
+        require('../../EduOS.App/wwwroot/js/learning/completion-report.js');
+    const lesson = { courseEnrollmentId: 42, lessonReference: '0a1b2c3d-0000-4000-8000-000000000001',
+        lessonTitle: '\t=SUM(1,2) বাংলা', progressPercent: 100, isCompleted: true,
+        completedAt: '2026-10-30T04:00:00Z' };
+    const data = { page: 1, pageSize: 250, totalCount: 1, items: [lesson] };
+    assert.equal(validateLessonSnapshot(data, 42).length, 1);
+    assert.ok(toLessonCsv([lesson]).includes('"\'\t=SUM(1,2) বাংলা"'));
+    assert.throws(() => validateLessonSnapshot(data, 43), /invalid or duplicate/);
+    assert.throws(() => validateLessonSnapshot({ ...data, totalCount: 2 }), /changed or exceeded/);
+    assert.throws(() => validateLessonSnapshot({ ...data, items: [lesson, lesson], totalCount: 2 }),
+        /invalid or duplicate/);
+    assert.throws(() => validateLessonSnapshot(data, 42, () => false), /account changed/);
+});

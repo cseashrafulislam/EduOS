@@ -158,6 +158,24 @@ public sealed class LmsWorkflowController : ControllerBase
         return StatusCode(result.StatusCode, result);
     }
 
+    [HttpGet("courses/{reference:guid}/enrollments/{enrollmentId:long}/lesson-progress")]
+    [Authorize(Roles = "TenantAdmin,Principal,Teacher")]
+    public async Task<IActionResult> InstructorLessonProgress(Guid reference, long enrollmentId,
+        [FromQuery] int page = 1, [FromQuery] int pageSize = 20, CancellationToken ct = default)
+    {
+        var result = await _service.GetInstructorLessonProgressAsync(reference, enrollmentId, page, pageSize, ct);
+        return StatusCode(result.StatusCode, result);
+    }
+
+    [HttpGet("courses/{reference:guid}/enrollments/{enrollmentId:long}/lesson-progress-export")]
+    [Authorize(Roles = "TenantAdmin,Principal,Teacher")]
+    public async Task<IActionResult> InstructorLessonProgressExport(Guid reference, long enrollmentId,
+        CancellationToken ct = default)
+    {
+        var result = await _service.GetInstructorLessonProgressExportAsync(reference, enrollmentId, ct);
+        return StatusCode(result.StatusCode, result);
+    }
+
     [HttpGet("my-progress")]
     [Authorize(Roles = "Student")]
     public async Task<IActionResult> MyCourseProgress([FromQuery] int page = 1,

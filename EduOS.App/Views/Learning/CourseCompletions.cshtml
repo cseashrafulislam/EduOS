@@ -38,8 +38,28 @@
             <button id="lmsCompletionNext" type="button" class="btn btn-sm btn-outline-secondary">Next</button>
         </div>
     </div>
+    <section id="lmsInstructorLessonPanel" class="card mt-3 d-none" aria-labelledby="lmsInstructorLessonHeading" data-lang="@System.Globalization.CultureInfo.CurrentUICulture.TwoLetterISOLanguageName">
+        <div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-2">
+            <h3 class="h6 mb-0" id="lmsInstructorLessonHeading">Lesson progress</h3>
+            <div class="d-flex gap-2 flex-wrap">
+                <button id="lmsInstructorLessonExport" type="button" class="btn btn-sm btn-outline-secondary">Export lesson CSV (max 250)</button>
+                <button id="lmsInstructorLessonClose" type="button" class="btn btn-sm btn-outline-secondary" aria-label="Close lesson progress">Close</button>
+            </div>
+        </div>
+        <div id="lmsInstructorLessonAlert" class="d-none" role="alert" aria-live="polite"></div>
+        <div class="table-responsive"><table class="table table-sm table-striped mb-0">
+            <thead><tr><th scope="col">Lesson</th><th scope="col">Progress</th><th scope="col">Completed</th><th scope="col">Completed at</th></tr></thead>
+            <tbody id="lmsInstructorLessonRows"><tr><td colspan="4">Select a learner.</td></tr></tbody>
+        </table></div>
+        <div class="card-footer d-flex align-items-center justify-content-end gap-2">
+            <button id="lmsInstructorLessonPrev" type="button" class="btn btn-sm btn-outline-secondary">Previous</button>
+            <span id="lmsInstructorLessonPage" aria-live="polite"></span>
+            <button id="lmsInstructorLessonNext" type="button" class="btn btn-sm btn-outline-secondary">Next</button>
+        </div>
+    </section>
 </section>
 @section Scripts {
     <script src="~/js/learning/completion-report.js" asp-append-version="true"></script>
+    <script src="~/js/learning/instructor-lesson-progress.js" asp-append-version="true"></script>
     <script src="~/js/learning/course-completions.js" asp-append-version="true"></script>
 }
