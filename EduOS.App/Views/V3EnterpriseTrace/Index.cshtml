@@ -1,0 +1,36 @@
+@{
+    var bn = System.Globalization.CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "bn";
+    ViewData["Title"] = bn ? "এন্টারপ্রাইজ লেজার ট্রেস" : "Enterprise Ledger Trace";
+}
+<section class="container-fluid py-3" id="v3LedgerTrace" data-language="@(bn ? "bn" : "en")">
+    <header class="d-flex align-items-start justify-content-between gap-2 mb-3">
+        <h2 class="h4 mb-0">@ViewData["Title"]</h2>
+        <details class="small"><summary class="btn btn-link btn-sm" aria-label="@(bn ? "সহায়তা" : "Help")">ⓘ</summary>
+            <p class="small mb-0">@(bn ? "মুভমেন্ট UUID দিয়ে পোস্টিং, রিভার্সাল এবং স্পষ্টভাবে যুক্ত জার্নাল যাচাই করুন। কোনো লিংক না থাকলে হিসাব পোস্ট হয়নি—এমন সিদ্ধান্ত নয়।" : "Use a movement UUID to inspect posting, reversal and explicitly linked journals. A missing link does not prove that no finance posting exists.")</p>
+        </details>
+    </header>
+    <form id="v3TraceForm" class="row g-2 mb-3">
+        <div class="col-sm-8 col-lg-6">
+            <label class="form-label" for="v3TraceReference">@(bn ? "মুভমেন্ট UUID" : "Movement UUID")</label>
+            <input id="v3TraceReference" class="form-control" required maxlength="36" autocomplete="off" />
+        </div>
+        <div class="col-sm-4 col-lg-2 d-flex align-items-end">
+            <button class="btn btn-primary w-100" type="submit">@(bn ? "ট্রেস দেখুন" : "Trace")</button>
+        </div>
+    </form>
+    <p id="v3TraceMessage" class="small" role="status" aria-live="polite"></p>
+    <div id="v3TraceResult" hidden>
+        <div class="d-flex gap-2 mb-2">
+            <a id="v3TraceCsv" class="btn btn-outline-secondary btn-sm" href="#">@(bn ? "CSV ডাউনলোড" : "Export CSV")</a>
+            <button id="v3TracePrint" class="btn btn-outline-secondary btn-sm" type="button">@(bn ? "প্রিন্ট" : "Print")</button>
+        </div>
+        <div class="table-responsive">
+            <table class="table table-sm table-striped" aria-label="@(bn ? "লেজার প্রমাণ" : "Ledger evidence")">
+                <thead><tr><th>@(bn ? "ধরন" : "Type")</th><th>@(bn ? "নম্বর" : "Number")</th><th>@(bn ? "অবস্থা" : "State")</th><th>@(bn ? "ডেবিট" : "Debit")</th><th>@(bn ? "ক্রেডিট" : "Credit")</th><th>@(bn ? "রেকর্ডকৃত মূল্য" : "Recorded value")</th></tr></thead>
+                <tbody id="v3TraceRows"></tbody>
+            </table>
+        </div>
+        <p id="v3TraceStatus" class="small fw-semibold"></p>
+    </div>
+</section>
+@section Scripts { <script type="module" src="~/js/inventory/v3-enterprise-trace.js" asp-append-version="true"></script> }
