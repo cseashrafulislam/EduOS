@@ -1075,6 +1075,16 @@ public sealed class SqlServerV3InventoryTransferLifecycleTests
             .GetLotAgingAsync(f.SourceId, null, 0, 1, 25)).StatusCode);
     }
 
+
+    private static EduOSDbContext OpenAs(DbContextOptions<EduOSDbContext> options, long tenantId, long actorId)
+    {
+        var http = new DefaultHttpContext();
+        http.Items["TenantId"] = tenantId;
+        http.User = new ClaimsPrincipal(new ClaimsIdentity(
+            [new Claim(ClaimTypes.NameIdentifier, actorId.ToString())], "SqlIntegration"));
+        return new EduOSDbContext(options, new HttpContextAccessor { HttpContext = http });
+    }
+
     [Fact]
     public async Task Adjustment_requires_independent_checker_and_preserves_reservations_and_reversal()
     {
@@ -1103,7 +1113,7 @@ public sealed class SqlServerV3InventoryTransferLifecycleTests
             UnitCost = 0m, Reason = "Verified shelf discrepancy with signed approval"
         };
         InventoryMovementDto draft;
-        await using (var db = Open(f.Options, f.TenantId))
+        await using (var db = OpenAs(f.Options, f.TenantId, f.UserId))
         {
             var maker = Service(db, f, "TenantAdmin");
             var created = await maker.CreateStockAdjustmentAsync(request);
@@ -1111,6 +1121,7 @@ public sealed class SqlServerV3InventoryTransferLifecycleTests
             draft = created.Data!;
             Assert.Equal("ManualAdjustment", draft.SourceType);
             Assert.Equal("Draft", draft.StateCode);
+            Assert.Equal(f.UserId, draft.CreatedByUserId);
             Assert.Equal(draft.Reference, (await maker.CreateStockAdjustmentAsync(request)).Data!.Reference);
             Assert.Equal(409, (await maker.CreateStockAdjustmentAsync(new CreateInventoryStockAdjustmentRequestDto
             {
@@ -1126,7 +1137,7 @@ public sealed class SqlServerV3InventoryTransferLifecycleTests
             var reserved = await Service(db, f).ReserveMovementAsync(hold.Reference,
                 new PostInventoryMovementRequestDto { RowVersion = hold.RowVersion });
             Assert.Equal(200, reserved.StatusCode);
-            await using (var checkerDb = Open(f.Options, f.TenantId))
+            await using (var checkerDb = OpenAs(f.Options, f.TenantId, checkerId))
             {
                 var checker = new InventoryMovementService(checkerDb,
                     new Actor(f.TenantId, checkerId, "TenantAdmin"),
@@ -1141,7 +1152,7 @@ public sealed class SqlServerV3InventoryTransferLifecycleTests
                     Reason = "Signed count adjustment takes precedence"
                 })).StatusCode);
         }
-        await using (var db = Open(f.Options, f.TenantId))
+        await using (var db = OpenAs(f.Options, f.TenantId, checkerId))
         {
             var checker = new InventoryMovementService(db,
                 new Actor(f.TenantId, checkerId, "TenantAdmin"),
@@ -1150,7 +1161,7 @@ public sealed class SqlServerV3InventoryTransferLifecycleTests
                 new PostInventoryMovementRequestDto { RowVersion = draft.RowVersion });
             Assert.Equal(200, posted.StatusCode);
             Assert.Equal(7m, (await checker.GetItemBalanceAsync(f.ItemId, f.SourceId, null)).Data!.QuantityOnHand);
-            var reversed = await Service(db, f).ReverseMovementAsync(draft.Reference,
+            var reversed = await checker.ReverseMovementAsync(draft.Reference,
                 new ReverseInventoryMovementRequestDto
                 {
                     ClientRequestId = Guid.NewGuid(), RowVersion = posted.Data!.RowVersion,
@@ -1173,7 +1184,7 @@ public sealed class SqlServerV3InventoryTransferLifecycleTests
             InventoryItemId = f.ItemId, Direction = "Increase", Quantity = 2m,
             UnitCost = 0m, Reason = "Unexpected surplus stock requires investigation"
         };
-        await using var db = Open(f.Options, f.TenantId);
+        await using var db = OpenAs(f.Options, f.TenantId, f.UserId);
         Assert.Equal(400, (await Service(db, f).CreateStockAdjustmentAsync(request)).StatusCode);
         request.UnitCost = 4m;
         Assert.Equal(403, (await Service(db, f, "Student").CreateStockAdjustmentAsync(request)).StatusCode);
