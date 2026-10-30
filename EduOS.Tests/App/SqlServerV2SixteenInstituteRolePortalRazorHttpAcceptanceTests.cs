@@ -156,9 +156,9 @@ public sealed partial class SqlServerV2SixteenInstituteEntitlementHttpAcceptance
                     html.Contains($"href=\"{path}\"", StringComparison.OrdinalIgnoreCase));
 
             if (culture == "bn-BD" && expectedPaths.Contains("/Learning/MySubmissions"))
-                Assert.Contains("আমার জমা দেওয়া কাজ", html);
+                Assert.Contains("আমার জমা দেওয়া কাজ", WebUtility.HtmlDecode(html));
             if (culture == "bn-BD" && expectedPaths.Contains("/TransportOperations/Family"))
-                Assert.Contains("পরিবারের পরিবহন সূচি", html);
+                Assert.Contains("পরিবারের পরিবহন সূচি", WebUtility.HtmlDecode(html));
         }
 
         // Anonymous identity must not receive the tenant's private role shortcuts.
