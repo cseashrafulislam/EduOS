@@ -1,3 +1,5 @@
+using System.Globalization;
+using System.Text;
 using EduOS.App.Authorization;
 using EduOS.Core.DTOs.LMS;
 using EduOS.Core.Interfaces.IServices;
@@ -58,6 +60,40 @@ public sealed class LmsProgressSharingController(ILmsProgressGuardianService ser
     {
         var result = await service.SharedAsync(page, pageSize, ct);
         return StatusCode(result.StatusCode, result);
+    }
+
+    // Fresh authorization on every download, including after consent withdrawal.
+    [HttpGet("mine/export")]
+    [Authorize(Roles = "Guardian,Parent")]
+    public async Task<IActionResult> Export([FromQuery] int page = 1, [FromQuery] int pageSize = 20,
+        CancellationToken ct = default)
+    {
+        var result = await service.SharedAsync(page, pageSize, ct);
+        if (!result.Success || result.Data is null)
+            return StatusCode(result.StatusCode, result);
+        var csv = new StringBuilder("Learner,Course,Completed lessons,Published lessons,Completion (%)\r\n");
+        foreach (var row in result.Data.Items)
+            csv.Append(CsvCell(row.LearnerName)).Append(',')
+                .Append(CsvCell(row.CourseTitle)).Append(',')
+                .Append(row.CompletedLessons.ToString(CultureInfo.InvariantCulture)).Append(',')
+                .Append(row.PublishedLessons.ToString(CultureInfo.InvariantCulture)).Append(',')
+                .Append(row.LessonCompletionPercent.ToString("0.##", CultureInfo.InvariantCulture))
+                .Append("\r\n");
+        Response.Headers["Cache-Control"] = "private, no-store, max-age=0";
+        Response.Headers["Pragma"] = "no-cache";
+        Response.Headers["X-Content-Type-Options"] = "nosniff";
+        return File(Encoding.UTF8.GetBytes("\uFEFF" + csv),
+            "text/csv; charset=utf-8", "lms-guardian-progress-visible.csv");
+    }
+
+    private static string CsvCell(string? input)
+    {
+        var value = input ?? string.Empty;
+        var trimmed = value.TrimStart();
+        if ((value.Length > 0 && (value[0] is '\t' or '\r' or '\n')) ||
+            (trimmed.Length > 0 && "=+-@".Contains(trimmed[0])))
+            value = "'" + value;
+        return "\"" + value.Replace("\"", "\"\"") + "\"";
     }
 
     [HttpGet("mine/{enrollmentId:long}/lessons")]

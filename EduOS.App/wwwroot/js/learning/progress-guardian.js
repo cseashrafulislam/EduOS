@@ -13,6 +13,20 @@ const valid=()=>/^[0-9a-f]{64}$/i.test(initialSession)&&
  String(document.body?.dataset.authTenantId||'')===initialTenant&&
  window.EduOSSessionTransitionPending?.()!==true;
 let sequence=0,busy=false,page=1,pages=1,rows=[],selected=0,lessonPage=1,lessonPages=1;
+const translations={
+ title:['Shared learning progress','শেয়ার করা শেখার অগ্রগতি'],
+ help:['Only courses explicitly shared by a learner are visible. Access ends when consent or the guardian relationship ends.','শিক্ষার্থীর অনুমতি দেওয়া কোর্সই দেখা যাবে। অনুমতি বা অভিভাবক সম্পর্ক বাতিল হলে প্রবেশাধিকার বন্ধ হবে।'],
+ courses:['Courses','কোর্সসমূহ'],export:['Export visible CSV','দৃশ্যমান CSV রপ্তানি'],
+ learner:['Learner','শিক্ষার্থী'],course:['Course','কোর্স'],
+ lessons:['Lessons','পাঠসমূহ'],percent:['Completion','সম্পন্ন'],
+ action:['Action','পদক্ষেপ'],previous:['Previous','আগের'],next:['Next','পরের'],
+ detail:['Lesson progress','পাঠের অগ্রগতি'],close:['Close','বন্ধ'],
+ lesson:['Lesson','পাঠ'],completed:['Completed','সম্পন্ন']
+};
+for(const node of root.querySelectorAll('[data-progress-i18n]')){
+ const entry=translations[node.dataset.progressI18n];
+ if(entry)node.textContent=entry[bn?1:0];
+}
 const alert=$('lmsGuardianProgressAlert')||$('lmsProgressConsentAlert');
 function warn(message){alert.className='alert alert-danger my-2';alert.textContent=message;}
 function reset(){
@@ -21,6 +35,9 @@ function reset(){
   const node=$(id);if(node)node.replaceChildren();
  }
  if($('lmsGuardianLessonPanel'))$('lmsGuardianLessonPanel').classList.add('d-none');
+ if($('lmsGuardianLessonHeading'))$('lmsGuardianLessonHeading').textContent='';
+ if($('lmsGuardianProgressExport'))$('lmsGuardianProgressExport').disabled=true;
+ if(alert){alert.textContent='';alert.className='d-none';}
 }
 async function api(path,method='GET',payload){
  if(!valid())throw Error(t('Session changed. Sign in again.','সেশন পরিবর্তিত হয়েছে। আবার লগইন করুন।'));
@@ -42,18 +59,6 @@ async function api(path,method='GET',payload){
 }
 function td(tr,value){const cell=document.createElement('td');cell.textContent=String(value??'');tr.append(cell);return cell;}
 function option(value,label){const el=document.createElement('option');el.value=String(value);el.textContent=label;return el;}
-function csvValue(value){
- let text=String(value??'');
- if(/^[\s]*[=+\-@\t\r]/.test(text))text="'"+text;
- return '"'+text.replace(/"/g,'""')+'"';
-}
-function csv(data,name){
- if(!valid())return;
- const content='\uFEFF'+data.map(row=>row.map(csvValue).join(',')).join('\r\n');
- const blob=new Blob([content],{type:'text/csv;charset=utf-8'});
- const url=URL.createObjectURL(blob),a=document.createElement('a');
- a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
-}
 async function studentCourses(){
  const seq=++sequence;
  try{
@@ -130,13 +135,40 @@ function renderCourses(){
  $('lmsGuardianProgressPrev').disabled=page<=1;$('lmsGuardianProgressNext').disabled=page>=pages;
 }
 async function guardianCourses(){
- const seq=++sequence;selected=0;
+ const seq=++sequence;selected=0;rows=[];
  $('lmsGuardianLessonPanel').classList.add('d-none');
+ $('lmsGuardianProgressRows').replaceChildren();
+ $('lmsGuardianProgressExport').disabled=true;
  try{
   const data=await api('/api/lms/progress-sharing/mine?'+new URLSearchParams({page:String(page),pageSize:'20'}));
   if(seq!==sequence||!valid())return;
   rows=data.items||[];pages=Math.max(1,data.totalPages||1);renderCourses();
+  $('lmsGuardianProgressExport').disabled=!rows.length;
  }catch(e){if(seq===sequence)warn(e.message);}
+}
+async function exportGuardian(){
+ if(!valid()||!rows.length)return;
+ const button=$('lmsGuardianProgressExport');button.disabled=true;
+ const seq=++sequence;
+ const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),15000);
+ try{
+  const response=await fetch('/api/lms/progress-sharing/mine/export?'+
+   new URLSearchParams({page:String(page),pageSize:'20'}),{
+    credentials:'same-origin',cache:'no-store',headers:{Accept:'text/csv'},
+    signal:controller.signal
+   });
+  if(!response.ok)throw Error(t('Export access denied. Refresh the page.','রপ্তানির অনুমতি নেই। পৃষ্ঠা রিফ্রেশ করুন।'));
+  const blob=await response.blob();
+  if(seq!==sequence||!valid())return;
+  const url=URL.createObjectURL(blob),link=document.createElement('a');
+  link.href=url;link.download='lms-guardian-progress-visible.csv';link.click();
+  setTimeout(()=>URL.revokeObjectURL(url),1000);
+ }catch(e){
+  if(seq===sequence){rows=[];renderCourses();warn(e.message);}
+ }finally{
+  clearTimeout(timer);
+  if(seq===sequence&&valid())button.disabled=!rows.length;
+ }
 }
 async function loadLessons(){
  const enrollment=selected,seq=++sequence;
@@ -167,10 +199,7 @@ if(studentRoot){
  $('lmsGuardianLessonClose').onclick=()=>{$('lmsGuardianLessonPanel').classList.add('d-none');selected=0;sequence++;};
  $('lmsGuardianLessonPrev').onclick=()=>{if(lessonPage>1){lessonPage--;loadLessons();}};
  $('lmsGuardianLessonNext').onclick=()=>{if(lessonPage<lessonPages){lessonPage++;loadLessons();}};
- $('lmsGuardianProgressExport').onclick=()=>csv([
-  [t('Learner','শিক্ষার্থী'),t('Course','কোর্স'),t('Lessons completed','সম্পন্ন পাঠ'),t('Lessons published','মোট পাঠ'),t('Completion','সম্পন্ন')],
-  ...rows.map(x=>[x.learnerName,x.courseTitle,x.completedLessons,x.publishedLessons,x.lessonCompletionPercent+'%'])
- ],'lms-guardian-progress-visible.csv');
+ $('lmsGuardianProgressExport').onclick=exportGuardian;
  guardianCourses();
 }
 const observer=new MutationObserver(()=>{if(!valid()){reset();observer.disconnect();}});

@@ -42,3 +42,18 @@ test('private enrollment choices and guardian data are scrubbed on tenant transi
  assert.match(script,/pagehide',reset/);
  assert.match(script,/EduOSSessionTransitionPending/);
 });
+
+test('guardian export reauthorizes server-side rather than exporting stale browser rows',()=>{
+ assert.match(controller,/HttpGet\("mine\/export"\)/);
+ assert.match(controller,/service\.SharedAsync\(page, pageSize, ct\)/);
+ assert.match(controller,/CsvCell\(row\.LearnerName\)/);
+ assert.match(controller,/private, no-store/);
+ assert.match(script,/progress-sharing\/mine\/export/);
+ assert.match(script,/response\.blob\(\)/);
+ assert.doesNotMatch(script,/rows\.map\(x=>\[x\.learnerName/);
+});
+test('guardian progress labels are translated in Bangla and English',()=>{
+ assert.match(script,/data-progress-i18n/);
+ assert.match(script,/শেয়ার করা শেখার অগ্রগতি/);
+ assert.match(script,/অভিভাবক সম্পর্ক বাতিল/);
+});
