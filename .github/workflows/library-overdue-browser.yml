@@ -1,0 +1,31 @@
+name: Library Overdue Notice Browser Acceptance
+on:
+  push:
+    branches: [Ashraful]
+    paths:
+      - 'EduOS.App/Views/Library/Overdue.cshtml'
+      - 'EduOS.App/wwwroot/js/library/overdue-notices.js'
+      - 'tests/browser/library-overdue-notices.cjs'
+      - '.github/workflows/library-overdue-browser.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: library-overdue-browser-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  chromium-library-overdue:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install pinned Playwright
+        run: npm install --no-save --no-audit --no-fund playwright@1.56.0
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Exercise bilingual overdue notice retry, CSRF and session privacy
+        run: node tests/browser/library-overdue-notices.cjs
