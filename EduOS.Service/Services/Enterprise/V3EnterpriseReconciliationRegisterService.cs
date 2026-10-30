@@ -114,7 +114,8 @@ public sealed class V3EnterpriseReconciliationRegisterService(
         var pageRows = await query.OrderByDescending(x => x.PeriodEnd).ThenByDescending(x => x.Id)
             .Skip((page - 1) * size).Take(size)
             .Select(x => new { x.Id, x.ClientRequestId, x.CampusId, x.PeriodEnd,
-                x.StateCode, x.TotalAmount, x.JournalId, x.ReversalJournalId }).ToListAsync(ct);
+                x.StateCode, x.TotalAmount, x.AccountingPeriodId,
+                x.JournalId, x.ReversalJournalId }).ToListAsync(ct);
         var ids = pageRows.Select(x => x.Id).ToArray();
         var values = await db.AssetDepreciationLines.IgnoreQueryFilters().AsNoTracking()
             .Where(x => x.TenantId == user.TenantId && ids.Contains(x.AssetDepreciationRunId))
@@ -123,12 +124,27 @@ public sealed class V3EnterpriseReconciliationRegisterService(
                 Amount = g.Sum(x => x.Amount), Deleted = g.Any(x => x.IsDeleted) })
             .ToListAsync(ct);
         var valueMap = values.ToDictionary(x => x.Id);
+        // A balanced journal cannot validate a depreciation line belonging to a
+        // different campus/book or accounting period. Keep this check in SQL:
+        // fetching all depreciation lines for 50 runs would be unbounded.
+        var invalidLineRunIds = await (
+            from line in db.AssetDepreciationLines.IgnoreQueryFilters().AsNoTracking()
+            join run in db.AssetDepreciationRuns.AsNoTracking()
+                on line.AssetDepreciationRunId equals run.Id
+            where line.TenantId == user.TenantId && run.TenantId == user.TenantId &&
+                ids.Contains(line.AssetDepreciationRunId) &&
+                (line.PeriodEnd != run.PeriodEnd ||
+                 !db.AssetBooks.IgnoreQueryFilters().Any(book =>
+                     book.TenantId == user.TenantId && !book.IsDeleted &&
+                     book.Id == line.AssetBookId && book.CampusId == run.CampusId))
+            select line.AssetDepreciationRunId).Distinct().ToListAsync(ct);
+        var invalidLineRuns = invalidLineRunIds.ToHashSet();
         var journalIds = pageRows.SelectMany(x => new[] { x.JournalId, x.ReversalJournalId })
             .Where(x => x.HasValue).Select(x => x!.Value).Distinct().ToArray();
         var journals = await db.Journals.IgnoreQueryFilters().AsNoTracking()
             .Where(x => x.TenantId == user.TenantId && journalIds.Contains(x.Id))
             .Select(x => new { x.Id, x.IsDeleted, x.CampusId, x.State,
-                x.ReversalOfJournalId }).ToListAsync(ct);
+                x.AccountingPeriodId, x.ReversalOfJournalId }).ToListAsync(ct);
         var journalMap = journals.ToDictionary(x => x.Id);
         var journalTotals = await LoadJournalTotalsAsync(journalIds, ct);
         var rows = pageRows.Select(r =>
@@ -139,6 +155,10 @@ public sealed class V3EnterpriseReconciliationRegisterService(
                 if (id.HasValue && (!journalMap.TryGetValue(id.Value, out var j) ||
                     j.IsDeleted || (j.CampusId.HasValue && j.CampusId != r.CampusId)))
                     journalConflict = true;
+            if (r.JournalId.HasValue &&
+                journalMap.TryGetValue(r.JournalId.Value, out var original) &&
+                original.AccountingPeriodId != r.AccountingPeriodId)
+                journalConflict = true;
             if (r.ReversalJournalId.HasValue &&
                 journalMap.TryGetValue(r.ReversalJournalId.Value, out var reversal) &&
                 reversal.ReversalOfJournalId != r.JournalId)
@@ -148,14 +168,16 @@ public sealed class V3EnterpriseReconciliationRegisterService(
                 .Where(id => id.HasValue).Select(id => id!.Value).Distinct().ToArray();
             // Historical tombstones are integrity conflicts even when run totals
             // also differ; do not downgrade the detail endpoint's 409 evidence.
-            var status = journalConflict || v?.Deleted == true ||
+            var status = journalConflict || invalidLineRuns.Contains(r.Id) ||
+                v?.Deleted == true ||
                 runJournalIds.Any(id => journalTotals.TryGetValue(id, out var t) && t.Deleted)
                     ? "EvidenceConflict" :
                 (v?.Amount ?? 0m) != r.TotalAmount ? "RunLineMismatch" :
                 runJournalIds.Any(id => !journalTotals.TryGetValue(id, out var t) ||
                     t.Debit <= 0m || t.Debit != t.Credit)
                     ? "JournalImbalance" :
-                journals.Any(j => j.State != JournalState.Posted && j.State != JournalState.Reversed)
+                runJournalIds.Any(id => journalMap.TryGetValue(id, out var j) &&
+                    j.State != JournalState.Posted && j.State != JournalState.Reversed)
                     ? "UnpostedJournal" :
                 r.JournalId.HasValue ? "ExplicitBalancedReference" : "NoExplicitReference";
             return new V3EnterpriseReconciliationRegisterRowDto

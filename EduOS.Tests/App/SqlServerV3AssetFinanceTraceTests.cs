@@ -167,6 +167,55 @@ public sealed class SqlServerV3AssetFinanceTraceTests
             Assert.Equal("JournalImbalance", Assert.Single(mixedPage.Data.Items,
                 x => x.Reference == otherReference).EvidenceStatus);
 
+            // The other run's unposted journal must not contaminate a balanced
+            // run on the same page (both JSON and CSV consume this read model).
+            await db.JournalLines.Where(x => x.JournalId == otherJournal.Id && x.CreditAmount > 0m)
+                .ExecuteUpdateAsync(set => set.SetProperty(x => x.CreditAmount, 25m));
+            await db.Journals.Where(x => x.Id == otherJournal.Id)
+                .ExecuteUpdateAsync(set => set.SetProperty(x => x.State, JournalState.Draft));
+            var unpostedPage = await register.GetAsync("asset",
+                new DateOnly(2026, 10, 1), new DateOnly(2026, 10, 31));
+            Assert.Equal("ExplicitBalancedReference", Assert.Single(unpostedPage.Data!.Items,
+                x => x.Reference == requestId).EvidenceStatus);
+            Assert.Equal("UnpostedJournal", Assert.Single(unpostedPage.Data.Items,
+                x => x.Reference == otherReference).EvidenceStatus);
+            await db.Journals.Where(x => x.Id == otherJournal.Id)
+                .ExecuteUpdateAsync(set => set.SetProperty(x => x.State, JournalState.Posted));
+
+            // Imported/legacy mismatched depreciation period must fail closed
+            // in both detail and register, even if the monetary totals balance.
+            await db.AssetDepreciationLines.Where(x => x.Id == lineId)
+                .ExecuteUpdateAsync(set => set.SetProperty(x => x.PeriodEnd,
+                    new DateOnly(2026, 10, 30)));
+            Assert.Equal(409, (await service.GetAsync(requestId)).StatusCode);
+            var invalidPeriod = await register.GetAsync("asset",
+                new DateOnly(2026, 10, 1), new DateOnly(2026, 10, 31));
+            Assert.Equal("EvidenceConflict", Assert.Single(invalidPeriod.Data!.Items,
+                x => x.Reference == requestId).EvidenceStatus);
+            Assert.Equal("ExplicitBalancedReference", Assert.Single(invalidPeriod.Data.Items,
+                x => x.Reference == otherReference).EvidenceStatus);
+            await db.AssetDepreciationLines.Where(x => x.Id == lineId)
+                .ExecuteUpdateAsync(set => set.SetProperty(x => x.PeriodEnd,
+                    new DateOnly(2026, 10, 31)));
+
+            var alternatePeriod = new AccountingPeriod { TenantId = tenantId,
+                Name = "Different period " + suffix,
+                StartDate = new DateOnly(2026, 11, 1),
+                EndDate = new DateOnly(2026, 11, 30) };
+            db.AccountingPeriods.Add(alternatePeriod);
+            await db.SaveChangesAsync();
+            // SQL-only legacy corruption: V1 correctly forbids changing posted journals.
+            await db.Journals.Where(x => x.Id == journalId)
+                .ExecuteUpdateAsync(set => set.SetProperty(x => x.AccountingPeriodId,
+                    alternatePeriod.Id));
+            Assert.Equal(409, (await service.GetAsync(requestId)).StatusCode);
+            var wrongJournalPeriod = await register.GetAsync("asset",
+                new DateOnly(2026, 10, 1), new DateOnly(2026, 10, 31));
+            Assert.Equal("EvidenceConflict", Assert.Single(wrongJournalPeriod.Data!.Items,
+                x => x.Reference == requestId).EvidenceStatus);
+            await db.Journals.Where(x => x.Id == journalId)
+                .ExecuteUpdateAsync(set => set.SetProperty(x => x.AccountingPeriodId, periodId));
+
             Assert.Equal(404, (await register.GetAsync("asset", new DateOnly(2026, 10, 1),
                 new DateOnly(2026, 10, 31), -99)).StatusCode);
             Assert.Equal(403, (await new V3EnterpriseReconciliationRegisterService(

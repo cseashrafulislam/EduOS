@@ -143,6 +143,27 @@ public sealed class SqlServerV3EnterpriseLedgerTraceTests
                 x => x.Reference == movementReference);
         }
 
+        // Concurrent read-only replay across two tenant contexts must never
+        // share report rows or reveal the other tenant's journal reference.
+        var parallel = await Task.WhenAll(Enumerable.Range(0, 8).Select(async index =>
+        {
+            var probeTenant = index % 2 == 0 ? tenantId : foreignId;
+            await using var context = Open(options, probeTenant);
+            var trace = await new V3EnterpriseLedgerTraceService(
+                context, new Actor(probeTenant)).GetAsync(movementReference);
+            var register = await new V3EnterpriseReconciliationRegisterService(
+                context, new Actor(probeTenant)).GetAsync("stock",
+                    DateOnly.FromDateTime(DateTime.UtcNow.AddDays(-1)),
+                    DateOnly.FromDateTime(DateTime.UtcNow.AddDays(1)));
+            return (Own: probeTenant == tenantId, Trace: trace.StatusCode,
+                Visible: register.Data!.Items.Any(x => x.Reference == movementReference));
+        }));
+        Assert.All(parallel, probe =>
+        {
+            Assert.Equal(probe.Own ? 200 : 404, probe.Trace);
+            Assert.Equal(probe.Own, probe.Visible);
+        });
+
         await using (var db = Open(options, tenantId))
         {
             // Deliberately simulate a legacy tombstone in disposable SQL, bypassing

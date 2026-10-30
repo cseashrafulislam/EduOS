@@ -24,7 +24,7 @@ public sealed class V3EnterpriseAssetFinanceTraceService(EduOSDbContext db, ICur
             .Where(x => x.TenantId == user.TenantId && !x.IsDeleted && x.ClientRequestId == reference)
             .Select(x => new {
                 x.Id, x.ClientRequestId, x.CampusId, x.PeriodEnd, x.StateCode,
-                x.TotalAmount, x.JournalId, x.ReversalJournalId
+                x.TotalAmount, x.AccountingPeriodId, x.JournalId, x.ReversalJournalId
             }).SingleOrDefaultAsync(ct);
         if (run == null)
             return ApiResponse<V3EnterpriseAssetFinanceTraceDto>.ErrorResponse("Run not found.", 404);
@@ -57,12 +57,17 @@ public sealed class V3EnterpriseAssetFinanceTraceService(EduOSDbContext db, ICur
             .Where(x => x.TenantId == user.TenantId && journalIds.Contains(x.Id))
             .Select(x => new {
                 x.Id, x.PublicId, x.JournalNumber, x.State, x.CampusId,
-                x.IsDeleted, x.ReversalOfJournalId
+                x.IsDeleted, x.AccountingPeriodId, x.ReversalOfJournalId
             }).ToListAsync(ct);
         if (journals.Count != journalIds.Length ||
             journals.Any(x => x.IsDeleted || (x.CampusId.HasValue && x.CampusId != run.CampusId)))
             return ApiResponse<V3EnterpriseAssetFinanceTraceDto>.ErrorResponse(
                 "Missing, deleted or cross-campus journal evidence requires reconciliation.", 409);
+        if (run.JournalId.HasValue &&
+            journals.Any(x => x.Id == run.JournalId.Value &&
+                x.AccountingPeriodId != run.AccountingPeriodId))
+            return ApiResponse<V3EnterpriseAssetFinanceTraceDto>.ErrorResponse(
+                "Original journal accounting period requires reconciliation.", 409);
         if (run.ReversalJournalId.HasValue &&
             journals.Any(x => x.Id == run.ReversalJournalId.Value &&
                 x.ReversalOfJournalId != run.JournalId))
