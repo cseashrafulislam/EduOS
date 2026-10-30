@@ -146,10 +146,12 @@ public sealed class V3EnterpriseReconciliationRegisterService(
             // Never allow another run on the same page to contaminate this row.
             var runJournalIds = new[] { r.JournalId, r.ReversalJournalId }
                 .Where(id => id.HasValue).Select(id => id!.Value).Distinct().ToArray();
-            var status = journalConflict || v?.Deleted == true ? "EvidenceConflict" :
-                (v?.Amount ?? 0m) != r.TotalAmount ? "RunLineMismatch" :
+            // Historical tombstones are integrity conflicts even when run totals
+            // also differ; do not downgrade the detail endpoint's 409 evidence.
+            var status = journalConflict || v?.Deleted == true ||
                 runJournalIds.Any(id => journalTotals.TryGetValue(id, out var t) && t.Deleted)
                     ? "EvidenceConflict" :
+                (v?.Amount ?? 0m) != r.TotalAmount ? "RunLineMismatch" :
                 runJournalIds.Any(id => !journalTotals.TryGetValue(id, out var t) ||
                     t.Debit <= 0m || t.Debit != t.Credit)
                     ? "JournalImbalance" :
