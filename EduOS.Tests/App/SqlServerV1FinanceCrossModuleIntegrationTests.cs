@@ -241,6 +241,26 @@ public sealed class SqlServerV1FinanceCrossModuleIntegrationTests
             Assert.Equal(100m, reconciled.NetAllocatedAmount);
             Assert.Equal("Reconciled", reconciled.Status);
 
+            // Simulate an out-of-band legacy GL corruption in this disposable
+            // SQL database: an equally balanced credit note must NOT pass
+            // reconciliation if income/receivable ledger types are wrong.
+            var creditNoteId = notes.Single(x => x.SourceType == "StudentRefundCreditNote").Id;
+            await db.JournalLines.Where(x => x.JournalId == creditNoteId && x.DebitAmount > 0m)
+                .ExecuteUpdateAsync(s => s.SetProperty(x => x.AccountId, cashId));
+            try
+            {
+                var invalid = await new FeeReceivablesAgingService(db, new Actor(tenantId, payerId))
+                    .GetReconciliationAsync(campusId, null, 1, 25);
+                Assert.True(invalid.Success, invalid.Message);
+                Assert.Equal("Requires review", Assert.Single(invalid.Data!.Rows).Status);
+                Assert.Contains("credit note journal", invalid.Data.Rows[0].Issues);
+            }
+            finally
+            {
+                await db.JournalLines.Where(x => x.JournalId == creditNoteId && x.DebitAmount > 0m)
+                    .ExecuteUpdateAsync(s => s.SetProperty(x => x.AccountId, incomeId));
+            }
+
             var foreign = new FinanceAdjustmentService(db, new Actor(tenantId + 100_000, payerId), TimeProvider.System);
             var denied = await foreign.RecordRefundDisbursementAsync(refundId, request);
             Assert.False(denied.Success);

@@ -21,7 +21,8 @@ internal static class InstitutionalRefundJournalIntegrity
         ILookup<long, Journal> creditNotes,
         ILookup<long, JournalLine> creditLines,
         IReadOnlySet<long> reversedCreditNotes,
-        ILookup<long, RefundAllocation> creditedAllocations)
+        ILookup<long, RefundAllocation> creditedAllocations,
+        IReadOnlyDictionary<long, AccountType> creditAccountTypes)
     {
         public bool Matches(Refund refund, long tenantId, long campusId, long studentId)
         {
@@ -60,6 +61,12 @@ internal static class InstitutionalRefundJournalIntegrity
                 debit.Sum(x=>x.DebitAmount)==credit.Sum(x=>x.CreditAmount) &&
                 debit.Sum(x=>x.DebitAmount)==creditedTotal &&
                 creditedTotal>=requiredPortion && creditedTotal<=refund.Amount &&
+                // A balanced but misclassified journal is not valid revenue
+                // reversal evidence. Retired ledger rows remain readable here.
+                debit.All(x=>creditAccountTypes.TryGetValue(x.AccountId,out var type) &&
+                    type==AccountType.Income) &&
+                credit.All(x=>creditAccountTypes.TryGetValue(x.AccountId,out var type) &&
+                    type==AccountType.Asset) &&
                 entries.Select(x=>x.LineNo).Distinct().Count()==entries.Length &&
                 entries.All(x=>x.TenantId==tenantId && !x.IsDeleted &&
                     x.JournalId==journal.Id && x.StudentId==studentId &&
@@ -112,9 +119,13 @@ internal static class InstitutionalRefundJournalIntegrity
             .Where(x=>x.TenantId==tenantId && refundIds.Contains(x.RefundId) && x.IsCreditNote)
             .Take(20001).ToListAsync(ct);
         if(creditedAllocations.Count>20000) return null;
+        var creditAccountIds=noteLines.Select(x=>x.AccountId).Distinct().ToArray();
+        var creditAccountTypes=await db.Accounts.IgnoreQueryFilters().AsNoTracking()
+            .Where(x=>x.TenantId==tenantId && creditAccountIds.Contains(x.Id))
+            .ToDictionaryAsync(x=>x.Id,x=>x.AccountType,ct);
         return new Evidence(journals,lines.ToLookup(x=>x.JournalId),reversed,owners,
             noteRows.ToLookup(x=>x.SourceId!.Value),noteLines.ToLookup(x=>x.JournalId),
-            reversedNotes,creditedAllocations.ToLookup(x=>x.RefundId));
+            reversedNotes,creditedAllocations.ToLookup(x=>x.RefundId),creditAccountTypes);
     }
 
     private static bool Matches(Journal journal, IReadOnlyCollection<JournalLine> lines,
