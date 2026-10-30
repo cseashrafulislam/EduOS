@@ -185,8 +185,11 @@ export function initLedger() {
                     });
                 if (['Draft', 'Reserved'].includes(row.stateCode) &&
                     !(row.stateCode === 'Reserved' && row.lines?.some(line => line.fulfilledQuantity > 0)) &&
-                    el('inventoryMovements').dataset.post === 'true')
-                    button(bn ? 'পোস্ট' : 'Post', async () => {
+                    el('inventoryMovements').dataset.post === 'true' &&
+                    !(row.sourceType === 'ManualAdjustment' &&
+                        String(row.createdByUserId) === el('inventoryMovements').dataset.userId))
+                    button(row.sourceType === 'ManualAdjustment'
+                        ? (bn ? 'সমন্বয় অনুমোদন' : 'Approve adjustment') : (bn ? 'পোস্ট' : 'Post'), async () => {
                         if (!confirm(bn ? 'স্টক মুভমেন্ট স্থায়ীভাবে পোস্ট করবেন?' :
                             'Post this stock movement permanently?')) return;
                         try {

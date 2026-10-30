@@ -1,0 +1,26 @@
+@{
+    var bn = System.Globalization.CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "bn";
+}
+<div class="card mb-3"><div class="card-body">
+    <h3 class="h5">@(bn ? "স্টক সমন্বয়ের আবেদন" : "Stock adjustment request")</h3>
+    <form id="inventoryAdjustmentForm" class="row g-2">
+        <div class="col-md-3"><label class="form-label" for="adjustmentLocation">@(bn ? "স্টোর" : "Store")</label>
+            <select class="form-select" id="adjustmentLocation" required></select></div>
+        <div class="col-md-3"><label class="form-label" for="adjustmentItemSearch">@(bn ? "পণ্য খুঁজুন" : "Find item")</label>
+            <input class="form-control" id="adjustmentItemSearch" maxlength="100" autocomplete="off" /></div>
+        <div class="col-md-3"><label class="form-label" for="adjustmentItem">@(bn ? "পণ্য" : "Stock item")</label>
+            <select class="form-select" id="adjustmentItem" required></select></div>
+        <div class="col-md-3"><label class="form-label" for="adjustmentDirection">@(bn ? "সমন্বয়" : "Adjustment")</label>
+            <select class="form-select" id="adjustmentDirection"><option value="Decrease">@(bn ? "ঘাটতি / কমানো" : "Shortage / decrease")</option>
+                <option value="Increase">@(bn ? "বাড়তি / বাড়ানো" : "Surplus / increase")</option></select></div>
+        <div class="col-md-3"><label class="form-label" for="adjustmentQuantity">@(bn ? "পরিমাণ" : "Quantity")</label>
+            <input class="form-control" id="adjustmentQuantity" type="number" required min="0.000001" max="999999999999" step="0.000001" /></div>
+        <div class="col-md-3"><label class="form-label" for="adjustmentCost">@(bn ? "বাড়তি স্টকের একক মূল্য" : "Surplus unit cost")</label>
+            <input class="form-control" id="adjustmentCost" type="number" min="0" max="999999999999" step="0.0001" value="0" disabled /></div>
+        <div class="col-md-3"><label class="form-label" for="adjustmentLot">@(bn ? "লট / ব্যাচ" : "Lot / batch")</label>
+            <input class="form-control" id="adjustmentLot" maxlength="100" autocomplete="off" /></div>
+        <div class="col-md-12"><label class="form-label" for="adjustmentReason">@(bn ? "সমন্বয়ের কারণ" : "Adjustment reason")</label>
+            <input class="form-control" id="adjustmentReason" required minlength="10" maxlength="800" autocomplete="off" /></div>
+        <div class="col-12"><button class="btn btn-primary" id="adjustmentSubmit" type="submit">@(bn ? "অনুমোদনের জন্য জমা" : "Submit for approval")</button></div>
+    </form>
+</div></div>

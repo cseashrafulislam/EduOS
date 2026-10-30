@@ -1,5 +1,6 @@
 import { root, notice } from './movements-api.js';
 import { initForm } from './movements-form.js';
+import { initAdjustments } from './movements-adjustments.js';
 import { initLedger } from './movements-ledger.js';
 import { initReservations } from './movements-reservations.js';
 import { initReservationCoverage } from './movements-reservation-coverage.js';
@@ -17,5 +18,8 @@ if (root) {
     initStockPosition().catch(e => notice(e.message));
     initItemHistory().catch(e => notice(e.message));
     initLotAging().catch(e => notice(e.message));
-    if (root.dataset.create === 'true') initForm(refresh).catch(e => notice(e.message));
+    if (root.dataset.create === 'true') {
+        initForm(refresh).catch(e => notice(e.message));
+        initAdjustments(refresh).catch(e => notice(e.message));
+    }
 }

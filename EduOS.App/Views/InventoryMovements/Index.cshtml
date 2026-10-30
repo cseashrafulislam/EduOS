@@ -4,7 +4,7 @@
     var canPost = User.IsInRole("TenantAdmin") || User.IsInRole("Principal") || User.IsInRole("InventoryManager");
     var canReverse = User.IsInRole("TenantAdmin") || User.IsInRole("Principal");
 }
-<section id="inventoryMovements" class="container-fluid py-3" data-create="@canCreate.ToString().ToLowerInvariant()" data-post="@canPost.ToString().ToLowerInvariant()" data-reverse="@canReverse.ToString().ToLowerInvariant()">
+<section id="inventoryMovements" class="container-fluid py-3" data-create="@canCreate.ToString().ToLowerInvariant()" data-post="@canPost.ToString().ToLowerInvariant()" data-reverse="@canReverse.ToString().ToLowerInvariant()" data-user-id="@(User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value)">
     <header class="d-flex justify-content-between align-items-center mb-3 gap-2"><div>
         <h2>@(System.Globalization.CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "bn" ? "স্টক মুভমেন্ট" : "Inventory Movements")</h2>
         <details class="small"><summary class="btn btn-link btn-sm p-0" aria-label="Inventory movement help">ⓘ @(System.Globalization.CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "bn" ? "সহায়তা" : "Help")</summary>
@@ -14,6 +14,7 @@
         </details></div><a class="btn btn-outline-secondary" href="/InventoryCatalog/Index">@(System.Globalization.CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "bn" ? "পণ্যের তালিকা" : "Inventory Catalog")</a></header>
     <div id="movementAlert" class="d-none" role="alert"></div>
     @if (canCreate) { @await Html.PartialAsync("_Create") }
+    @if (canCreate) { @await Html.PartialAsync("_Adjustments") }
     @if (canCreate) {
         <div class="card mb-3"><div class="card-body">
             <h3 class="h5">@(System.Globalization.CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "bn" ? "ট্রান্সফার গ্রহণ" : "Receive in-transit stock")</h3>

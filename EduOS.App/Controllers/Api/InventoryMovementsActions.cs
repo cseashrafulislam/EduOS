@@ -19,6 +19,9 @@ public sealed partial class InventoryMovementsController
     [HttpGet("reorder-alerts"), Authorize(Roles = "TenantAdmin,Principal,InventoryManager,StoreKeeper,Accountant")]
     public async Task<IActionResult> ReorderAlerts(long locationId, CancellationToken ct)
         => Reply(await service.GetReorderAlertsAsync(locationId, ct));
+    [HttpPost("adjustments"), Authorize(Roles = "TenantAdmin,Principal,InventoryManager,StoreKeeper")]
+    public async Task<IActionResult> CreateAdjustment([FromBody] CreateInventoryStockAdjustmentRequestDto request, CancellationToken ct)
+        => Reply(await service.CreateStockAdjustmentAsync(request, ct));
     [HttpPost, Authorize(Roles = "TenantAdmin,Principal,InventoryManager,StoreKeeper")]
     public async Task<IActionResult> Create([FromBody] CreateInventoryMovementRequestDto request, CancellationToken ct)
         => Reply(await service.CreateMovementAsync(request, ct));

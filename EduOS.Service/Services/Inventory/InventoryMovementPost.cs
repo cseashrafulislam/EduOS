@@ -17,6 +17,11 @@ public sealed partial class InventoryMovementService
                 x.PublicId == movementReference && !x.IsDeleted, ct);
             if (m == null || !await LocationsAllowed(m.FromLocationId, m.ToLocationId, ct))
                 return ApiResponse<InventoryMovementDto>.ErrorResponse("Movement not found.", 404);
+            // A manual stock adjustment is always checked by a different authorized user.
+            // The ordinary post route must not bypass maker-checker separation.
+            if (m.SourceType == "ManualAdjustment" &&
+                (!m.CreatedBy.HasValue || m.CreatedBy.Value == user.UserId))
+                return Denied<InventoryMovementDto>();
             if (m.StateCode == "Posted") return ApiResponse<InventoryMovementDto>.SuccessResponse(await MapAsync(m, ct), "Already posted.");
             if (m.StateCode is not ("Draft" or "Reserved") || !Version(m.RowVersion, request.RowVersion) ||
                 m.MovementTypeCode is not ("Receipt" or "Issue" or "Transfer"))

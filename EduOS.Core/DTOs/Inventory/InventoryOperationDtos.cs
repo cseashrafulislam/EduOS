@@ -47,6 +47,7 @@ public sealed class SaveInventoryItemRequestDto
 }
 public sealed class InventoryMovementDto
 {
+    public long? CreatedByUserId { get; set; }
     public Guid Reference { get; set; }
     public string MovementNumber { get; set; } = string.Empty;
     public string MovementTypeCode { get; set; } = string.Empty;

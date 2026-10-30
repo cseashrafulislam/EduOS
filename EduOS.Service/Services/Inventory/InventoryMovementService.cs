@@ -74,7 +74,7 @@ public sealed partial class InventoryMovementService : IInventoryMovementService
         (x.Quantity != 0m || Math.Abs(x.Value) <= 0.01m));
     private static InventoryMovementDto Map(InventoryMovement m, IEnumerable<InventoryMovementLine> lines, bool reversed = false, string? transferState = null) => new()
     {
-        Reference = m.PublicId, MovementNumber = m.MovementNumber, MovementTypeCode = m.MovementTypeCode,
+        Reference = m.PublicId, CreatedByUserId = m.CreatedBy, MovementNumber = m.MovementNumber, MovementTypeCode = m.MovementTypeCode,
         SourceType = m.SourceType, SourceId = m.SourceId, Remarks = m.Remarks, TransferState = transferState,
         MovementAt = m.MovementAt, FromLocationId = m.FromLocationId, ToLocationId = m.ToLocationId,
         StateCode = reversed ? "Reversed" : m.StateCode, PostedAt = m.PostedAt,

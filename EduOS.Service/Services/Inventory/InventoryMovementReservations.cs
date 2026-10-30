@@ -85,6 +85,8 @@ public sealed partial class InventoryMovementService
                 x.PublicId == movementReference && !x.IsDeleted, ct);
             if (movement == null || !await LocationsAllowed(movement.FromLocationId, movement.ToLocationId, ct))
                 return ApiResponse<InventoryMovementDto>.ErrorResponse("Movement not found.", 404);
+            if (movement.SourceType == "ManualAdjustment")
+                return ApiResponse<InventoryMovementDto>.ErrorResponse("Stock adjustments cannot be reserved.", 409);
             if (movement.StateCode == "Reserved")
                 return ApiResponse<InventoryMovementDto>.SuccessResponse(await MapAsync(movement, ct), "Already reserved.");
             if (movement.StateCode != "Draft" ||
