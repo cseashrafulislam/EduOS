@@ -11994,6 +11994,44 @@ namespace EduOS.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("EduOS.Core.Entities.Inventory.ProcurementSupplier", b =>
+                {
+                    b.Property<long>("Id").ValueGeneratedOnAdd().HasColumnType("bigint");
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
+                    b.Property<long>("CampusId").HasColumnType("bigint");
+                    b.Property<Guid>("ClientRequestId").HasColumnType("uniqueidentifier");
+                    b.Property<DateTime>("CreatedAt").HasColumnType("datetime2");
+                    b.Property<long?>("CreatedBy").HasColumnType("bigint");
+                    b.Property<DateTime?>("DecidedAt").HasColumnType("datetime2");
+                    b.Property<long?>("DecidedByUserId").HasColumnType("bigint");
+                    b.Property<string>("DecisionReason").HasMaxLength(500).HasColumnType("nvarchar(500)");
+                    b.Property<DateTime?>("DeletedAt").HasColumnType("datetime2");
+                    b.Property<long?>("DeletedBy").HasColumnType("bigint");
+                    b.Property<string>("Email").HasMaxLength(200).HasColumnType("nvarchar(200)");
+                    b.Property<bool>("IsDeleted").HasColumnType("bit");
+                    b.Property<string>("Name").IsRequired().HasMaxLength(200).HasColumnType("nvarchar(200)");
+                    b.Property<string>("Phone").HasMaxLength(40).HasColumnType("nvarchar(40)");
+                    b.Property<Guid>("PublicId").HasColumnType("uniqueidentifier");
+                    b.Property<byte[]>("RowVersion").IsConcurrencyToken().IsRequired().ValueGeneratedOnAddOrUpdate().HasColumnType("rowversion");
+                    b.Property<string>("StateCode").IsRequired().HasMaxLength(20).HasColumnType("nvarchar(20)");
+                    b.Property<DateTime?>("SubmittedAt").HasColumnType("datetime2");
+                    b.Property<string>("SupplierCode").IsRequired().HasMaxLength(40).HasColumnType("nvarchar(40)");
+                    b.Property<string>("TaxRegistrationNo").HasMaxLength(100).HasColumnType("nvarchar(100)");
+                    b.Property<long>("TenantId").HasColumnType("bigint");
+                    b.Property<DateTime?>("UpdatedAt").HasColumnType("datetime2");
+                    b.Property<long?>("UpdatedBy").HasColumnType("bigint");
+                    b.HasKey("Id");
+                    b.HasIndex("DecidedByUserId");
+                    b.HasIndex("PublicId").IsUnique();
+                    b.HasIndex("TenantId", "ClientRequestId").IsUnique();
+                    b.HasIndex("TenantId", "CampusId", "SupplierCode").IsUnique();
+                    b.HasIndex("TenantId", "CampusId", "StateCode", "Name");
+                    b.ToTable("ProcurementSuppliers", t =>
+                        {
+                            t.HasCheckConstraint("CK_ProcurementSupplier_State", "[StateCode] IN (N'Draft',N'Submitted',N'Approved',N'Rejected',N'Inactive')");
+                        });
+                });
+
             modelBuilder.Entity("EduOS.Core.Entities.Inventory.ProcurementRequisition", b =>
                 {
                     b.Property<long>("Id")
@@ -24176,6 +24214,18 @@ namespace EduOS.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
+                    b.Navigation("Tenant");
+                });
+
+            modelBuilder.Entity("EduOS.Core.Entities.Inventory.ProcurementSupplier", b =>
+                {
+                    b.HasOne("EduOS.Core.Entities.Auth.ApplicationUser", null)
+                        .WithMany().HasForeignKey("DecidedByUserId").OnDelete(DeleteBehavior.Restrict);
+                    b.HasOne("EduOS.Core.Entities.SaaS.Tenant", "Tenant")
+                        .WithMany().HasForeignKey("TenantId").OnDelete(DeleteBehavior.Restrict).IsRequired();
+                    b.HasOne("EduOS.Core.Entities.SaaS.Campus", null)
+                        .WithMany().HasForeignKey("TenantId", "CampusId")
+                        .HasPrincipalKey("TenantId", "Id").OnDelete(DeleteBehavior.Restrict).IsRequired();
                     b.Navigation("Tenant");
                 });
 

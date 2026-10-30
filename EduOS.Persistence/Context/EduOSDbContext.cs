@@ -433,6 +433,7 @@ public class EduOSDbContext :
     public DbSet<InventoryMovementLine> InventoryMovementLines => Set<InventoryMovementLine>();
     public DbSet<ProcurementRequisition> ProcurementRequisitions => Set<ProcurementRequisition>();
     public DbSet<ProcurementRequisitionLine> ProcurementRequisitionLines => Set<ProcurementRequisitionLine>();
+    public DbSet<ProcurementSupplier> ProcurementSuppliers => Set<ProcurementSupplier>();
 
     // Communication
     public DbSet<CommunicationDelivery> CommunicationDeliveries => Set<CommunicationDelivery>();
@@ -1164,6 +1165,8 @@ public class EduOSDbContext :
         TenantReference<InventoryMovementLine, InventoryMovement>(modelBuilder, nameof(InventoryMovementLine.InventoryMovementId));
         TenantReference<InventoryMovementLine, InventoryItem>(modelBuilder, nameof(InventoryMovementLine.InventoryItemId));
         TenantReference<ProcurementRequisition, Campus>(modelBuilder, nameof(ProcurementRequisition.CampusId));
+        TenantReference<ProcurementSupplier, Campus>(modelBuilder, nameof(ProcurementSupplier.CampusId));
+        Reference<ProcurementSupplier, ApplicationUser>(modelBuilder, nameof(ProcurementSupplier.DecidedByUserId));
         Reference<ProcurementRequisition, ApplicationUser>(modelBuilder, nameof(ProcurementRequisition.DecidedByUserId));
         TenantReference<ProcurementRequisitionLine, ProcurementRequisition>(modelBuilder, nameof(ProcurementRequisitionLine.RequisitionId));
         TenantReference<ProcurementRequisitionLine, InventoryItem>(modelBuilder, nameof(ProcurementRequisitionLine.InventoryItemId));
@@ -1807,6 +1810,10 @@ public class EduOSDbContext :
             t.HasTrigger("TR_InventoryMovement_ExpiryImmutable");
         });
         UniqueTenant<InventoryMovementLine>(modelBuilder, nameof(InventoryMovementLine.InventoryMovementId), nameof(InventoryMovementLine.LineNo));
+        UniqueTenant<ProcurementSupplier>(modelBuilder, nameof(ProcurementSupplier.ClientRequestId));
+        modelBuilder.Entity<ProcurementSupplier>().HasIndex(x => x.PublicId).IsUnique();
+        modelBuilder.Entity<ProcurementSupplier>().HasIndex(x => new { x.TenantId, x.CampusId, x.SupplierCode }).IsUnique();
+        modelBuilder.Entity<ProcurementSupplier>().HasIndex(x => new { x.TenantId, x.CampusId, x.StateCode, x.Name });
         UniqueTenant<ProcurementRequisition>(modelBuilder, nameof(ProcurementRequisition.ClientRequestId));
         UniqueTenant<ProcurementRequisition>(modelBuilder, nameof(ProcurementRequisition.RequestNumber));
         UniqueTenant<ProcurementRequisitionLine>(modelBuilder, nameof(ProcurementRequisitionLine.RequisitionId), nameof(ProcurementRequisitionLine.LineNo));
@@ -2005,6 +2012,9 @@ public class EduOSDbContext :
                 "[PrincipalAmount] >= 0 AND [OutstandingAmount] >= 0 AND [InstallmentAmount] >= 0 AND [OutstandingAmount] <= [PrincipalAmount]"));
         modelBuilder.Entity<LoanAdvanceRecovery>().ToTable(t =>
             t.HasCheckConstraint("CK_LoanAdvanceRecovery_Amount", "[Amount] > 0"));
+        modelBuilder.Entity<ProcurementSupplier>().ToTable(t =>
+            t.HasCheckConstraint("CK_ProcurementSupplier_State",
+                "[StateCode] IN (N'Draft',N'Submitted',N'Approved',N'Rejected',N'Inactive')"));
         modelBuilder.Entity<ProcurementRequisition>().ToTable(t =>
             t.HasCheckConstraint("CK_ProcurementRequisition_State",
                 "[StateCode] IN (N'Draft',N'Submitted',N'Approved',N'Rejected',N'Cancelled')"));
