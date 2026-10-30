@@ -35,13 +35,14 @@ function fakeFetch({ leak = false, denyCsv = false, detailCsvMismatch = false,
             const items = (foreign && !leak) || (otherCampus && !campusLeak)
                 ? [] : [{ reference: ref, evidenceStatus: 'ExplicitBalancedReference' }];
             if (isCsv) return csv(200, 'Kind,Reference\n' +
-                (registerCsvMismatch && !foreign ? '33333333-3333-4333-8333-333333333333'
-                    : items.map(x => x.reference).join('\n')));
+                (registerCsvMismatch && !foreign ? kind + ',33333333-3333-4333-8333-333333333333'
+                    : items.map(x => kind + ',' + x.reference).join('\n')));
             return json(200, { page: 1, pageSize: Number(parsed.searchParams.get('pageSize')),
                 totalCount: items.length, items });
         }
         if (foreign && !leak) return isCsv ? csv(404, '') : json(404, null);
         if (isCsv) return csv(denyCsv ? 403 : 200, 'Evidence,Reference\n' +
+            (path.includes('asset-depreciation') ? 'AssetDepreciation,' : 'Stock,') +
             (detailCsvMismatch ? '33333333-3333-4333-8333-333333333333' : reference));
         return json(200, path.includes('asset-depreciation')
             ? { runReference: asset } : { movementReference: stock });
