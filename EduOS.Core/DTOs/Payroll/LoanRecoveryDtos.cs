@@ -28,6 +28,8 @@ public sealed class LoanRecoveryHistoryDto
     public string? Remarks { get; set; }
     public Guid JournalReference { get; set; }
     public string JournalNumber { get; set; } = string.Empty;
+    public bool IsCompensated { get; set; }
+    public string? CompensationJournalNumber { get; set; }
 }
 public sealed class PostLoanRecoveryRequestDto
 {

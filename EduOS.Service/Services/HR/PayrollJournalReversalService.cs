@@ -51,7 +51,8 @@ public sealed partial class PayrollJournalPostingService
             return (run, journal, lines, "Original payroll journal is not a balanced immutable accrual.");
         // Posted successful payments remain immutable. All of them must have their own
         // independently reviewed cash/bank return contra before reversing this accrual.
-        // Pending requests and loan recovery remain hard blockers.
+        // Pending requests remain blockers. Loan recoveries can be compensated
+        // atomically by the independently approved payroll contra.
         var disbursements = await db.PayrollPayments.IgnoreQueryFilters().AsNoTracking()
             .Where(payment => payment.TenantId == tenant &&
                 db.PayrollEmployees.IgnoreQueryFilters().Any(employee =>
@@ -66,9 +67,8 @@ public sealed partial class PayrollJournalPostingService
         foreach (var postedPayment in disbursements.Where(x => x.State == PaymentState.Successful))
             if (!await PayrollPaymentPostingService.HasVerifiedReturnAsync(db, tenant, postedPayment, ct))
                 return (run, journal, lines, "Returned salary requires verified, immutable contra GL before payroll reversal.");
-        if (await db.LoanAdvanceRecoveries.IgnoreQueryFilters().AsNoTracking().AnyAsync(x =>
-            x.TenantId == tenant && x.JournalId == journal.Id, ct))
-            return (run, journal, lines, "Payroll loan recoveries must be compensated before reversal.");
+        var (loanError, _) = await PlanLoanRestorationAsync(run, journal, lines, ct);
+        if (loanError != null) return (run, journal, lines, loanError);
         return (run, journal, lines, null);
     }
 
@@ -243,6 +243,21 @@ public sealed partial class PayrollJournalPostingService
         try
         {
             await using var tx = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable,ct);
+            var replayRun = await db.PayrollRuns.AsNoTracking().FirstOrDefaultAsync(x =>
+                x.TenantId == user.TenantId && x.PublicId == reference && !x.IsDeleted, ct);
+            if (replayRun == null) return Error<PayrollReversalResultDto>("Payroll run not found.",404);
+            var alreadyPosted = await db.Journals.IgnoreQueryFilters().AsNoTracking().FirstOrDefaultAsync(x =>
+                x.TenantId == user.TenantId && x.SourceType == "PayrollRunReversal" &&
+                x.SourceId == replayRun.Id && x.State == JournalState.Posted && !x.IsDeleted, ct);
+            if (alreadyPosted != null)
+            {
+                if (alreadyPosted.ReversalOfJournalId != replayRun.JournalId ||
+                    alreadyPosted.CampusId != replayRun.CampusId ||
+                    alreadyPosted.CurrencyCode != "BDT")
+                    return Error<PayrollReversalResultDto>("Posted contra journal needs reconciliation.",409);
+                return ApiResponse<PayrollReversalResultDto>.SuccessResponse(
+                    ReversalResult(replayRun,alreadyPosted,true),"Already-posted payroll contra journal returned.");
+            }
             var (run, original, sourceLines, error) = await ReversalSourceAsync(reference,ct);
             if (run == null || original == null || error != null)
                 return Error<PayrollReversalResultDto>(error ?? "Original payroll is invalid.",409);
@@ -250,9 +265,6 @@ public sealed partial class PayrollJournalPostingService
                 x.SourceType == "PayrollRunReversal" && x.SourceId == run.Id && !x.IsDeleted &&
                 (x.State == JournalState.Approved || x.State == JournalState.Posted),ct);
             if (reversal == null) return Error<PayrollReversalResultDto>("Approved reversal not found.",404);
-            if (reversal.State == JournalState.Posted)
-                return ApiResponse<PayrollReversalResultDto>.SuccessResponse(ReversalResult(run,reversal,true),
-                    "Already-posted payroll contra journal returned.");
             if (!Version(reversal.RowVersion,request.RowVersion))
                 return Error<PayrollReversalResultDto>("Reversal changed; reload.",409);
             if (reversal.CreatedBy is null or <= 0 || reversal.ApprovedByUserId is null or <= 0 ||
@@ -264,7 +276,21 @@ public sealed partial class PayrollJournalPostingService
                 return Error<PayrollReversalResultDto>("Reversal accounting period closed.",409);
             var invalid = await ReversalMatchesAsync(run,original,sourceLines,reversal,ct);
             if (invalid != null) return Error<PayrollReversalResultDto>(invalid,409);
+            var (loanError, restorations) = await PlanLoanRestorationAsync(run, original, sourceLines, ct);
+            if (loanError != null) return Error<PayrollReversalResultDto>(loanError,409);
             var now = clock.GetUtcNow().UtcDateTime;
+            foreach (var restoration in restorations)
+            {
+                restoration.Loan.OutstandingAmount += restoration.Amount;
+                restoration.Loan.IsClosed = false;
+                restoration.Loan.UpdatedAt = now;
+                restoration.Loan.UpdatedBy = user.UserId;
+                db.AuditLogs.Add(new AuditLog { TenantId = user.TenantId, UserId = user.UserId,
+                    Action = "CompensatePayrollLoanRecovery", EntityName = "LoanAdvance",
+                    EntityId = restoration.Loan.Id, OldValue = (restoration.Loan.OutstandingAmount - restoration.Amount).ToString("F2"),
+                    NewValue = restoration.Loan.OutstandingAmount.ToString("F2") + " by " + reversal.JournalNumber,
+                    OccurredAt = now });
+            }
             reversal.State = JournalState.Posted;reversal.PostedAt = now;reversal.PostedByUserId = user.UserId;
             reversal.UpdatedAt = now;reversal.UpdatedBy = user.UserId;
             db.AuditLogs.Add(new AuditLog { TenantId = user.TenantId,UserId = user.UserId,
@@ -272,7 +298,7 @@ public sealed partial class PayrollJournalPostingService
                 OldValue = "Approved",NewValue = "Posted",OccurredAt = now });
             await db.SaveChangesAsync(ct);await tx.CommitAsync(ct);
             return ApiResponse<PayrollReversalResultDto>.SuccessResponse(ReversalResult(run,reversal),
-                "Independent payroll contra journal posted; original payroll history remains immutable.");
+                "Independent payroll contra posted; loan outstanding restored and original payroll history remains immutable.");
         }
         catch (DbUpdateConcurrencyException) { return Error<PayrollReversalResultDto>("Reversal changed; reload.",409); }
         catch (DbUpdateException) { return Error<PayrollReversalResultDto>("Reversal posting conflict.",409); }

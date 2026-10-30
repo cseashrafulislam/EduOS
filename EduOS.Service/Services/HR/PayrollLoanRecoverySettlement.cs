@@ -47,11 +47,13 @@ public sealed partial class PayrollJournalPostingService
         var disbursements = await db.Journals.AsNoTracking().Where(x => x.TenantId == tenant &&
             !x.IsDeleted && x.SourceType == "LoanAdvance" && x.SourceId.HasValue &&
             loanIds.Contains(x.SourceId.Value)).ToListAsync(ct);
-        var priorRecoveries = await db.LoanAdvanceRecoveries.AsNoTracking().Where(x =>
-            x.TenantId == tenant && !x.IsDeleted && loanIds.Contains(x.LoanAdvanceId))
+        var priorRecoveries = await db.LoanAdvanceRecoveries.IgnoreQueryFilters().AsNoTracking().Where(x =>
+            x.TenantId == tenant && loanIds.Contains(x.LoanAdvanceId))
             .Take(2001).ToListAsync(ct);
         if (priorRecoveries.Count > 2000)
             return ("Loan recovery history exceeds the safe reconciliation limit.", result);
+        var (historyError, history) = await LoanRecoveryJournalHistory.ReadAsync(db, tenant, priorRecoveries, ct);
+        if (historyError != null) return (historyError, result);
         foreach (var snapshot in snapshots)
         {
             var person = personById[snapshot.PayrollEmployeeId];
@@ -85,19 +87,14 @@ public sealed partial class PayrollJournalPostingService
                     sourceLines.Count(x => x.CreditAmount == loan.PrincipalAmount &&
                         x.DebitAmount == 0m) != 1)
                     return ("Selected loan receivable does not match the original disbursement journal.", result);
-                var previous = priorRecoveries.Where(x => x.LoanAdvanceId == loan.Id).ToArray();
-                if (previous.Any(x => x.Amount <= 0m || !x.JournalId.HasValue) ||
-                    loan.PrincipalAmount - previous.Sum(x => x.Amount) != loan.OutstandingAmount)
+                var previous = history.Where(x => x.Recovery.LoanAdvanceId == loan.Id).ToArray();
+                if (loan.PrincipalAmount - LoanRecoveryJournalHistory.NetRecovered(previous) != loan.OutstandingAmount)
                     return ("Loan balance and recovery history do not reconcile.", result);
-                foreach (var recovery in previous)
+                foreach (var entry in previous)
                 {
-                    var priorJournal = await db.Journals.AsNoTracking().SingleOrDefaultAsync(x =>
-                        x.TenantId == tenant && x.Id == recovery.JournalId && !x.IsDeleted, ct);
-                    if (priorJournal == null || priorJournal.State != JournalState.Posted ||
-                        priorJournal.CampusId != run.CampusId ||
-                        await db.Journals.AsNoTracking().AnyAsync(x => x.TenantId == tenant &&
-                            x.ReversalOfJournalId == priorJournal.Id &&
-                            x.State == JournalState.Posted && !x.IsDeleted, ct))
+                    var recovery = entry.Recovery;
+                    var priorJournal = entry.Source;
+                    if (priorJournal.CampusId != run.CampusId)
                         return ("Earlier loan recovery journal needs reconciliation.", result);
                     var priorLines = await db.JournalLines.AsNoTracking().Where(x =>
                         x.TenantId == tenant && x.JournalId == priorJournal.Id && !x.IsDeleted).ToListAsync(ct);
