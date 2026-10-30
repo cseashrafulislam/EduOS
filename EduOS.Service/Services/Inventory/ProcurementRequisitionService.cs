@@ -225,7 +225,7 @@ public sealed class ProcurementRequisitionService : IProcurementRequisitionServi
         long id, string action, ProcurementDecisionRequest request, CancellationToken ct = default)
     {
         if (!Reader) return Denied<ProcurementRequisitionDto>();
-        if (request == null || id <= 0 || action is not ("submit" or "approve" or "reject" or "cancel") ||
+        if (request == null || id <= 0 || action is not ("submit" or "approve" or "reject" or "cancel" or "withdraw") ||
             request.Reason?.Length > 500)
             return ApiResponse<ProcurementRequisitionDto>.ErrorResponse("Invalid decision.");
         var header = await db.ProcurementRequisitions.FirstOrDefaultAsync(x =>
@@ -233,7 +233,7 @@ public sealed class ProcurementRequisitionService : IProcurementRequisitionServi
         if (header == null || !await CampusAllowed(header.CampusId, ct))
             return ApiResponse<ProcurementRequisitionDto>.ErrorResponse("Requisition not found.", 404);
         var isMaker = header.CreatedBy == user.UserId;
-        if ((action is "submit" or "cancel" && (!Maker || !isMaker)) ||
+        if ((action is "submit" or "cancel" or "withdraw" && (!Maker || !isMaker)) ||
             (action is "approve" or "reject" && (!Checker || isMaker)))
             return Denied<ProcurementRequisitionDto>();
         if (!Version(header.RowVersion, request.RowVersion))
@@ -242,17 +242,44 @@ public sealed class ProcurementRequisitionService : IProcurementRequisitionServi
         {
             "submit" => header.StateCode == "Draft",
             "cancel" => header.StateCode is "Draft" or "Submitted",
+            "withdraw" => header.StateCode == "Submitted",
             "approve" or "reject" => header.StateCode == "Submitted",
             _ => false
         };
         if (!allowed) return ApiResponse<ProcurementRequisitionDto>.ErrorResponse("Invalid state transition.", 409);
-        if (action == "reject" && string.IsNullOrWhiteSpace(request.Reason))
-            return ApiResponse<ProcurementRequisitionDto>.ErrorResponse("Rejection reason is required.");
+        if (action is "reject" or "withdraw" && string.IsNullOrWhiteSpace(request.Reason))
+            return ApiResponse<ProcurementRequisitionDto>.ErrorResponse("A reason is required for rejection or withdrawal.");
+        // A saved draft can outlive its campus/item eligibility. Recheck immediately
+        // before submission and checker approval; never authorize an inactive item.
+        if (action is "submit" or "approve")
+        {
+            var lines = await db.ProcurementRequisitionLines.AsNoTracking().Where(x =>
+                x.TenantId == user.TenantId && x.RequisitionId == header.Id && !x.IsDeleted)
+                .Select(x => new { x.InventoryItemId, x.Quantity, x.EstimatedUnitPrice }).Take(101).ToListAsync(ct);
+            if (lines.Count is < 1 or > 100 || lines.Any(x => x.Quantity <= 0 || x.EstimatedUnitPrice < 0) ||
+                lines.Select(x => x.InventoryItemId).Distinct().Count() != lines.Count)
+                return ApiResponse<ProcurementRequisitionDto>.ErrorResponse("Requisition lines require correction.", 409);
+            var ids = lines.Select(x => x.InventoryItemId).ToArray();
+            if (await db.InventoryItems.AsNoTracking().CountAsync(x => x.TenantId == user.TenantId &&
+                ids.Contains(x.Id) && x.IsActive && x.IsStockTracked && !x.IsDeleted, ct) != ids.Length)
+                return ApiResponse<ProcurementRequisitionDto>.ErrorResponse("Requisition contains inactive or missing stock items.", 409);
+        }
         header.StateCode = action switch { "submit" => "Submitted", "approve" => "Approved",
-            "reject" => "Rejected", _ => "Cancelled" };
+            "reject" => "Rejected", "withdraw" => "Draft", _ => "Cancelled" };
         var now = clock.GetUtcNow().UtcDateTime;
-        if (action == "submit") header.SubmittedAt = now;
-        if (action is "approve" or "reject")
+        if (action == "submit")
+        {
+            header.SubmittedAt = now;
+            header.DecidedAt = null; header.DecidedByUserId = null; header.DecisionReason = null;
+        }
+        if (action == "withdraw")
+        {
+            // Existing DbContext audit records the submitted-to-draft correction
+            // and its reason. A new submission receives its own timestamp.
+            header.SubmittedAt = null;
+            header.DecisionReason = request.Reason?.Trim();
+        }
+        if (action is "approve" or "reject" or "cancel")
         { header.DecidedAt = now; header.DecidedByUserId = user.UserId; header.DecisionReason = request.Reason?.Trim(); }
         header.UpdatedAt = now; header.UpdatedBy = user.UserId;
         try

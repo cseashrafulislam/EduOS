@@ -90,9 +90,38 @@ public sealed class SqlServerV3ProcurementRequisitionTests
             id = created.Data!.Id;
             var replay = await maker.SaveAsync(null, request);
             Assert.Equal(id, replay.Data!.Id);
+            // A draft must be revalidated at submit time, not just at creation.
+            var stockItem = await makerDb.InventoryItems.SingleAsync(x => x.Id == itemId);
+            stockItem.IsActive = false;
+            await makerDb.SaveChangesAsync();
+            var blocked = await maker.TransitionAsync(id, "submit",
+                new ProcurementDecisionRequest { RowVersion = created.Data.RowVersion });
+            Assert.Equal(409, blocked.StatusCode);
+            stockItem.IsActive = true;
+            await makerDb.SaveChangesAsync();
             var submitted = await maker.TransitionAsync(id, "submit",
                 new ProcurementDecisionRequest { RowVersion = created.Data.RowVersion });
             Assert.True(submitted.Success, submitted.Message);
+            var withdrawn = await maker.TransitionAsync(id, "withdraw",
+                new ProcurementDecisionRequest { RowVersion = submitted.Data!.RowVersion, Reason = "Correct the requested quantity" });
+            Assert.True(withdrawn.Success, withdrawn.Message);
+            Assert.Equal("Draft", withdrawn.Data!.StateCode);
+            Assert.Null(withdrawn.Data.SubmittedAt);
+            var stale = await maker.TransitionAsync(id, "submit",
+                new ProcurementDecisionRequest { RowVersion = submitted.Data.RowVersion });
+            Assert.Equal(409, stale.StatusCode);
+            var amended = await maker.SaveAsync(id, new SaveProcurementRequisitionRequest
+            {
+                ClientRequestId = request.ClientRequestId, CampusId = campusId,
+                Purpose = request.Purpose, RowVersion = withdrawn.Data.RowVersion,
+                Lines = [new ProcurementRequisitionLineInput { InventoryItemId = itemId,
+                    Quantity = 4, EstimatedUnitPrice = 2 }]
+            });
+            Assert.True(amended.Success, amended.Message);
+            submitted = await maker.TransitionAsync(id, "submit",
+                new ProcurementDecisionRequest { RowVersion = amended.Data!.RowVersion });
+            Assert.True(submitted.Success, submitted.Message);
+            Assert.Null(submitted.Data!.DecisionReason);
             var denied = await maker.TransitionAsync(id, "approve",
                 new ProcurementDecisionRequest { RowVersion = submitted.Data!.RowVersion });
             Assert.Equal(403, denied.StatusCode);

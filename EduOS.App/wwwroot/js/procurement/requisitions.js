@@ -10,7 +10,7 @@
         purpose:'Purpose', total:'Estimated total', created:'Created', actions:'Actions', previous:'Previous',
         next:'Next', details:'Requisition details', items:'Requested items', add:'Add line', close:'Close',
         save:'Save draft', choose:'Choose inventory item', select:'Select', edit:'Edit', submit:'Submit',
-        approve:'Approve', reject:'Reject', cancel:'Cancel', quantity:'Quantity', price:'Estimated price',
+        approve:'Approve', reject:'Reject', withdraw:'Withdraw for revision', cancel:'Cancel', quantity:'Quantity', price:'Estimated price',
         remove:'Remove', empty:'No requisitions found.', reason:'Decision reason', page:'Page', of:'of',
         error:'Request failed. Reload and try again.', saved:'Requisition saved.', confirm:'Confirm action?' };
     const bd = { title:'ক্রয় চাহিদাপত্র', export:'এক্সেল / CSV', new:'নতুন চাহিদাপত্র',
@@ -20,7 +20,7 @@
         previous:'আগের', next:'পরের', details:'চাহিদাপত্রের বিবরণ', items:'প্রয়োজনীয় পণ্য',
         add:'লাইন যোগ', close:'বন্ধ', save:'খসড়া সংরক্ষণ', choose:'পণ্য নির্বাচন',
         select:'নির্বাচন', edit:'সম্পাদনা', submit:'জমা', approve:'অনুমোদন',
-        reject:'প্রত্যাখ্যান', cancel:'বাতিল', quantity:'পরিমাণ', price:'আনুমানিক মূল্য',
+        reject:'প্রত্যাখ্যান', withdraw:'সংশোধনের জন্য ফেরত', cancel:'বাতিল', quantity:'পরিমাণ', price:'আনুমানিক মূল্য',
         remove:'মুছুন', empty:'কোনো চাহিদাপত্র পাওয়া যায়নি।', reason:'সিদ্ধান্তের কারণ',
         page:'পৃষ্ঠা', of:'এর', error:'অনুরোধ ব্যর্থ। পুনরায় চেষ্টা করুন।',
         saved:'চাহিদাপত্র সংরক্ষিত।', confirm:'নিশ্চিত করবেন?' };
@@ -79,6 +79,8 @@
                 actions.append(button('edit', () => openDetail(r.id)));
                 actions.append(button('submit', () => transition(r, 'submit')));
             }
+            if (r.stateCode === 'Submitted' && canMake && owner)
+                actions.append(button('withdraw', () => transition(r, 'withdraw')));
             if (r.stateCode === 'Submitted' && canCheck && !owner) {
                 actions.append(button('approve', () => transition(r, 'approve'), 'outline-success'));
                 actions.append(button('reject', () => transition(r, 'reject'), 'outline-danger'));
@@ -169,7 +171,7 @@
     async function transition(row, action) {
         if (busy) return;
         let reason = '';
-        if (action === 'reject') {
+        if (action === 'reject' || action === 'withdraw') {
             reason = window.prompt(t('reason')) || '';
             if (!reason.trim()) return;
         } else if (!window.confirm(t('confirm'))) return;

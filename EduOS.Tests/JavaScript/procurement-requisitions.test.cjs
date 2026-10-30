@@ -27,3 +27,11 @@ test('procurement UI has working draft and approval actions, item search and exp
     assert.match(source, /crypto.randomUUID\(\)/);
     assert.match(source, /selectedItemLine.value = item.id/);
 });
+
+test('submitted maker can withdraw with reason and revise while checker remains independent', () => {
+    assert.match(source, /stateCode === 'Submitted' && canMake && owner/);
+    assert.match(source, /transition\(r, 'withdraw'\)/);
+    assert.match(source, /action === 'reject' \|\| action === 'withdraw'/);
+    assert.match(source, /withdraw:'Withdraw for revision'/);
+    assert.match(source, /withdraw:'সংশোধনের জন্য ফেরত'/);
+});
