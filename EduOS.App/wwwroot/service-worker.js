@@ -1,5 +1,5 @@
 const CACHE_PREFIX = 'eduos-static-';
-const CACHE_NAME = `${CACHE_PREFIX}v10`;
+const CACHE_NAME = `${CACHE_PREFIX}v11`;
 const OFFLINE_URL = '/offline.html';
 const CORE_ASSETS = [
     OFFLINE_URL,
@@ -12,6 +12,11 @@ const CORE_ASSETS = [
     '/lib/bootstrap/dist/js/bootstrap.bundle.min.js',
     '/lib/jquery/dist/jquery.min.js'
 ];
+
+// Public runtime assets are an optimization, never a source of user/session data.
+// A tenant switch invalidates any fetch started under the old browser session.
+let cacheGeneration = 0;
+const pendingWrites = new Set();
 
 self.addEventListener('install', event => {
     event.waitUntil(
@@ -47,7 +52,7 @@ function isPublicStaticResponse(request, response) {
     const cacheControl = response.headers.get('Cache-Control') || '';
     if (/\b(?:private|no-store|no-cache)\b/i.test(cacheControl)) return false;
     const vary = response.headers.get('Vary') || '';
-    if (/(?:^|,)\s*(?:cookie|authorization)\s*(?:,|$)/i.test(vary)) return false;
+    if (/(?:^|,)\s*(?:cookie|authorization|\*)\s*(?:,|$)/i.test(vary)) return false;
     const contentType = (response.headers.get('Content-Type') || '').toLowerCase();
     const path = new URL(request.url).pathname;
     if (path.endsWith('.css')) return contentType.includes('text/css');
@@ -60,13 +65,19 @@ function isPublicStaticResponse(request, response) {
     return false;
 }
 
-// Logout discards runtime assets without deleting the public offline shell.
+// Logout/institution switch cannot allow a delayed previous-session fetch to
+// repopulate runtime caches after they have been cleared.
 self.addEventListener('message', event => {
     if (event.data?.type !== 'EDUOS_CLEAR_RUNTIME_STATIC') return;
-    event.waitUntil(caches.open(CACHE_NAME).then(cache =>
-        cache.keys().then(requests => Promise.all(requests
+    ++cacheGeneration;
+    event.waitUntil((async () => {
+        await Promise.allSettled([...pendingWrites]);
+        const cache = await caches.open(CACHE_NAME);
+        const requests = await cache.keys();
+        await Promise.all(requests
             .filter(request => !CORE_ASSETS.includes(new URL(request.url).pathname))
-            .map(request => cache.delete(request))))));
+            .map(request => cache.delete(request)));
+    })());
 });
 
 self.addEventListener('fetch', event => {
@@ -83,24 +94,32 @@ self.addEventListener('fetch', event => {
     if (request.mode === 'navigate') {
         event.respondWith(
             fetch(request, { cache: 'no-store' })
-                .catch(() => caches.match(OFFLINE_URL))
+                .catch(() => caches.open(CACHE_NAME).then(cache => cache.match(OFFLINE_URL)))
         );
         return;
     }
 
-    if (!isCacheableStaticPath(url.pathname)) return;
+    // Query strings can carry institution, session or signed-file identifiers.
+    // They must never become persistent CacheStorage keys, even under /js or /images.
+    if (url.search || !isCacheableStaticPath(url.pathname)) return;
 
-    event.respondWith(
-        caches.match(request).then(cached => {
-            if (cached) return cached;
+    const generation = cacheGeneration;
+    event.respondWith((async () => {
+        // Search only our own public cache. caches.match() searches unrelated caches,
+        // which could contain a private response under the same URL.
+        const cache = await caches.open(CACHE_NAME);
+        const cached = await cache.match(request);
+        if (cached && isPublicStaticResponse(request, cached)) return cached;
+        if (cached) await cache.delete(request);
 
-            return fetch(request).then(response => {
-                if (!isPublicStaticResponse(request, response)) return response;
+        const response = await fetch(request);
+        if (!isPublicStaticResponse(request, response) || generation !== cacheGeneration)
+            return response;
 
-                const copy = response.clone();
-                caches.open(CACHE_NAME).then(cache => cache.put(request, copy));
-                return response;
-            });
-        })
-    );
+        const write = cache.put(request, response.clone());
+        pendingWrites.add(write);
+        try { await write; }
+        finally { pendingWrites.delete(write); }
+        return response;
+    })());
 });
