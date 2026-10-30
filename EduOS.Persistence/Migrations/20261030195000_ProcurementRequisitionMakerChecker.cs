@@ -87,8 +87,6 @@ public sealed class ProcurementRequisitionMakerChecker : Migration
                     new[] { "TenantId", "Id" }, onDelete: ReferentialAction.Restrict);
             });
         migrationBuilder.CreateIndex("IX_ProcurementRequisitions_DecidedByUserId", "ProcurementRequisitions", "DecidedByUserId");
-        migrationBuilder.CreateIndex("IX_ProcurementRequisitions_TenantId_CampusId", "ProcurementRequisitions",
-            new[] { "TenantId", "CampusId" });
         migrationBuilder.CreateIndex("IX_ProcurementRequisitions_TenantId_CampusId_StateCode_CreatedAt",
             "ProcurementRequisitions", new[] { "TenantId", "CampusId", "StateCode", "CreatedAt" });
         migrationBuilder.CreateIndex("IX_ProcurementRequisitions_TenantId_ClientRequestId",

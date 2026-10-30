@@ -12050,8 +12050,6 @@ namespace EduOS.Persistence.Migrations
                     b.HasIndex("PublicId")
                         .IsUnique();
 
-                    b.HasIndex("TenantId", "CampusId");
-
                     b.HasIndex("TenantId", "CampusId", "StateCode", "CreatedAt");
 
                     b.HasIndex("TenantId", "ClientRequestId")
