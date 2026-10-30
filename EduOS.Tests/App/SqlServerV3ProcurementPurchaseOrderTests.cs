@@ -103,6 +103,7 @@ public sealed class SqlServerV3ProcurementPurchaseOrderTests
                 ClientRequestId = Guid.NewGuid(), RequisitionId = reqId, SupplierId = supplierId })).StatusCode);
             var amendment = await maker.SaveDraftAsync(id, new SaveProcurementPurchaseOrderDraftRequest {
                 RowVersion = created.Data.RowVersion, Reason = "Negotiated supplier unit price",
+                ExpectedDeliveryDate = input.ExpectedDeliveryDate,
                 Lines = [new ProcurementPurchaseOrderDraftLineInput {
                     RequisitionLineId = created.Data.Lines[0].RequisitionLineId,
                     Quantity = 10m, UnitPrice = 4m }]
