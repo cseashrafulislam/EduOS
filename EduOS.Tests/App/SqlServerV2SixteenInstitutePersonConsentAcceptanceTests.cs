@@ -1,6 +1,7 @@
 using EduOS.Core.DTOs.Learners;
 using EduOS.Core.Entities.Learners;
 using EduOS.Core.Enums;
+using EduOS.Core.Enums.Domain;
 using EduOS.Core.Interfaces;
 using EduOS.Core.Settings;
 using EduOS.Persistence.Context;
