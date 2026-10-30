@@ -659,26 +659,31 @@ public sealed partial class LmsWorkflowService : ILmsWorkflowService
             request.ProgressPercent is < 0 or > 100)
             return Error<LessonProgressDto>("Invalid lesson progress.");
         var tenant = _user.TenantId;
-        var lesson = await _lessons.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
-            x.TenantId == tenant && x.PublicId == request.LessonReference &&
-            x.IsPublished && !x.IsDeleted, ct);
-        if (lesson == null) return Error<LessonProgressDto>("Lesson not found.", 404);
-        var studentId = await OwnStudentIdAsync(ct);
-        if (studentId == 0) return Error<LessonProgressDto>("Student not found.", 404);
-        var enrollment = await _enrollments.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
-            x.TenantId == tenant && x.CourseId == lesson.CourseId && x.StudentId == studentId &&
-            x.State == CourseEnrollmentState.Active && !x.IsDeleted, ct);
-        if (enrollment == null) return Error<LessonProgressDto>("Active course enrollment not found.", 409);
-        var course = await _courses.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
-            x.TenantId == tenant && x.Id == lesson.CourseId && x.IsActive && !x.IsDeleted, ct);
-        if (course == null || !await SubmissionAcademicEligibleAsync(
-                course, enrollment, _clock.GetUtcNow().UtcDateTime, ct))
-            return Error<LessonProgressDto>(
-                "Academic enrollment, campus, term or curriculum is ineligible.", 409);
         try
         {
+            // The published lesson, owning student, active enrollment and academic
+            // eligibility are rechecked in the same serializable transaction as the
+            // progress write. A concurrent completion/withdrawal must not admit a
+            // stale progress update based on a pre-transaction eligibility read.
             return await _uow.ExecuteInTransactionAsync(async token =>
             {
+                var lesson = await _lessons.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
+                    x.TenantId == tenant && x.PublicId == request.LessonReference &&
+                    x.IsPublished && !x.IsDeleted, token);
+                if (lesson == null) return Error<LessonProgressDto>("Lesson not found.", 404);
+                var studentId = await OwnStudentIdAsync(token);
+                if (studentId == 0) return Error<LessonProgressDto>("Student not found.", 404);
+                var enrollment = await _enrollments.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
+                    x.TenantId == tenant && x.CourseId == lesson.CourseId && x.StudentId == studentId &&
+                    x.State == CourseEnrollmentState.Active && !x.IsDeleted, token);
+                if (enrollment == null)
+                    return Error<LessonProgressDto>("Active course enrollment not found.", 409);
+                var course = await _courses.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
+                    x.TenantId == tenant && x.Id == lesson.CourseId && x.IsActive && !x.IsDeleted, token);
+                if (course == null || !await SubmissionAcademicEligibleAsync(
+                        course, enrollment, _clock.GetUtcNow().UtcDateTime, token))
+                    return Error<LessonProgressDto>(
+                        "Academic enrollment, campus, term or curriculum is ineligible.", 409);
                 var row = await _progress.GetQueryable().FirstOrDefaultAsync(x =>
                     x.TenantId == tenant && x.CourseEnrollmentId == enrollment.Id &&
                     x.LessonId == lesson.Id && !x.IsDeleted, token);
@@ -708,10 +713,15 @@ public sealed partial class LmsWorkflowService : ILmsWorkflowService
                     IsCompleted = row.IsCompleted, CompletedAt = row.CompletedAt,
                     ProgressPercent = row.ProgressPercent
                 }, "Lesson progress saved.");
-            }, ct);
+            }, IsolationLevel.Serializable, ct);
         }
-        catch (DbUpdateConcurrencyException) { return Error<LessonProgressDto>("Lesson progress changed concurrently.", 409); }
-        catch (DbUpdateException) { return Error<LessonProgressDto>("Lesson progress conflicts with existing data.", 409); }
+        catch (DbUpdateConcurrencyException)
+        { return Error<LessonProgressDto>("Lesson progress changed concurrently.", 409); }
+        catch (Exception ex) when (IsLmsSqlConflict(ex))
+        {
+            _logger.LogWarning(ex, "LMS lesson progress SQL conflict tenant {TenantId}", tenant);
+            return Error<LessonProgressDto>("Lesson progress conflicts with another request.", 409);
+        }
     }
 
     private async Task<Course?> EditableCourseAsync(Guid reference, CancellationToken ct)

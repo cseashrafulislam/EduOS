@@ -13,7 +13,7 @@ public sealed partial class LmsWorkflowService
     // SQL Server may report a race as a direct SqlException, an EF update error,
     // or an execution-strategy InvalidOperationException. Only known write
     // conflicts become HTTP 409; unrelated database faults must remain visible.
-    private static bool IsCertificateSqlConflict(Exception error)
+    private static bool IsLmsSqlConflict(Exception error)
     {
         for (Exception? current = error; current != null; current = current.InnerException)
             if (current is Microsoft.Data.SqlClient.SqlException sql &&
@@ -137,7 +137,7 @@ public sealed partial class LmsWorkflowService
         }
         catch (DbUpdateConcurrencyException)
         { return Error<LmsCertificateDto>("Certificate changed concurrently.", 409); }
-        catch (Exception ex) when (IsCertificateSqlConflict(ex))
+        catch (Exception ex) when (IsLmsSqlConflict(ex))
         {
             _logger.LogWarning(ex, "LMS certificate issuance SQL conflict tenant {TenantId}", _user.TenantId);
             return Error<LmsCertificateDto>("Certificate issuance conflicts with another request.", 409);
@@ -183,7 +183,7 @@ public sealed partial class LmsWorkflowService
         }
         catch (DbUpdateConcurrencyException)
         { return Error<LmsCertificateDto>("Certificate changed concurrently.", 409); }
-        catch (Exception ex) when (IsCertificateSqlConflict(ex))
+        catch (Exception ex) when (IsLmsSqlConflict(ex))
         {
             _logger.LogWarning(ex, "LMS certificate revocation SQL conflict tenant {TenantId}", _user.TenantId);
             return Error<LmsCertificateDto>("Certificate revocation conflicts with another request.", 409);

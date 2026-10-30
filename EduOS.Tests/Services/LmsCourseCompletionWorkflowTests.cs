@@ -201,6 +201,47 @@ public sealed class LmsCourseCompletionWorkflowTests
     }
 
     [Fact]
+    public async Task Lesson_progress_is_monotonic_and_closed_after_completion_or_publication_withdrawal()
+    {
+        await using var db = Db();
+        var (course, _, enrollment, lesson) = await Seed(db);
+        var service = Service(db, "Student");
+        var first = await service.UpdateLessonProgressAsync(new UpdateLessonProgressRequestDto
+        { LessonReference = lesson.PublicId, ProgressPercent = 40, IsCompleted = false });
+        Assert.True(first.Success, first.Message);
+        var retry = await service.UpdateLessonProgressAsync(new UpdateLessonProgressRequestDto
+        { LessonReference = lesson.PublicId, ProgressPercent = 20, IsCompleted = false });
+        Assert.True(retry.Success, retry.Message);
+        Assert.Equal(40m, retry.Data!.ProgressPercent);
+        var finished = await service.UpdateLessonProgressAsync(new UpdateLessonProgressRequestDto
+        { LessonReference = lesson.PublicId, ProgressPercent = 100, IsCompleted = true });
+        Assert.True(finished.Success, finished.Message);
+        var repeated = await service.UpdateLessonProgressAsync(new UpdateLessonProgressRequestDto
+        { LessonReference = lesson.PublicId, ProgressPercent = 0, IsCompleted = false });
+        Assert.True(repeated.Success, repeated.Message);
+        Assert.True(repeated.Data!.IsCompleted);
+        Assert.Equal(100m, repeated.Data.ProgressPercent);
+        Assert.Equal(finished.Data!.CompletedAt, repeated.Data.CompletedAt);
+        Assert.Single(await db.Set<LessonProgress>().ToListAsync());
+
+        enrollment.State = EduOS.Core.Enums.Domain.CourseEnrollmentState.Completed;
+        await db.SaveChangesAsync();
+        Assert.Equal(409, (await service.UpdateLessonProgressAsync(new UpdateLessonProgressRequestDto
+        { LessonReference = lesson.PublicId, ProgressPercent = 100, IsCompleted = true })).StatusCode);
+        enrollment.State = EduOS.Core.Enums.Domain.CourseEnrollmentState.Active;
+        course.IsActive = false;
+        await db.SaveChangesAsync();
+        Assert.Equal(409, (await service.UpdateLessonProgressAsync(new UpdateLessonProgressRequestDto
+        { LessonReference = lesson.PublicId, ProgressPercent = 100, IsCompleted = true })).StatusCode);
+        course.IsActive = true;
+        lesson.IsPublished = false;
+        await db.SaveChangesAsync();
+        Assert.Equal(404, (await service.UpdateLessonProgressAsync(new UpdateLessonProgressRequestDto
+        { LessonReference = lesson.PublicId, ProgressPercent = 100, IsCompleted = true })).StatusCode);
+        Assert.Single(await db.Set<LessonProgress>().ToListAsync());
+    }
+
+    [Fact]
     public async Task Completion_register_aggregates_published_evidence_by_enrollment_with_search_and_paging()
     {
         await using var db = Db();

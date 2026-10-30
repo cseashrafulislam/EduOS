@@ -45,3 +45,18 @@ test('archived learner progress is explicitly scoped and shown as historical evi
  assert.match(js, /x\.isArchived\?'Yes':'No'/);
  assert.match(view, /Include archived completed courses in courses and progress/);
 });
+
+
+test('historical progress binds the original enrollment and writes revalidate under serializable SQL', () => {
+ assert.match(service, /HistoricalCourseEnrollmentIdsQuery\(studentId\)/);
+ assert.match(service, /historicalEnrollmentIds\.Contains\(x\.Enrollment\.Id\)/);
+ const workflow=read('EduOS.Service/Services/LMS/LmsWorkflowService.cs');
+ const start=workflow.indexOf('public async Task<ApiResponse<LessonProgressDto>> UpdateLessonProgressAsync(');
+ const end=workflow.indexOf('private async Task<Course?> EditableCourseAsync(',start);
+ const method=workflow.slice(start,end);
+ assert.match(method, /ExecuteInTransactionAsync\(async token =>/);
+ assert.match(method, /OwnStudentIdAsync\(token\)/);
+ assert.match(method, /SubmissionAcademicEligibleAsync\([\s\S]*?token\)/);
+ assert.match(method, /IsolationLevel\.Serializable, ct/);
+ assert.match(method, /IsLmsSqlConflict\(ex\)/);
+});

@@ -22,7 +22,9 @@ public sealed partial class LmsWorkflowService
             return ApiResponse<PagedResult<LmsLearnerCourseProgressDto>>.SuccessResponse(
                 EmptyPage<LmsLearnerCourseProgressDto>(page, pageSize));
         var tenant = _user.TenantId;
-        var historicalIds = includeArchived ? HistoricalCourseIdsQuery(studentId) : null;
+        // Archive readback must authorize the exact enrollment, not merely its course.
+        // A later unlinked completion must never borrow an earlier academic entitlement.
+        var historicalEnrollmentIds = includeArchived ? HistoricalCourseEnrollmentIdsQuery(studentId) : null;
         var query = from enrollment in _enrollments.GetQueryable().AsNoTracking()
                     join course in _courses.GetQueryable().AsNoTracking() on enrollment.CourseId equals course.Id
                     where enrollment.TenantId == tenant && course.TenantId == tenant &&
@@ -31,12 +33,12 @@ public sealed partial class LmsWorkflowService
                           (enrollment.State == CourseEnrollmentState.Active ||
                            enrollment.State == CourseEnrollmentState.Completed)
                     select new { Enrollment = enrollment, Course = course };
-        if (historicalIds == null)
+        if (historicalEnrollmentIds == null)
             query = query.Where(x => x.Course.IsActive);
         else
             query = query.Where(x => x.Course.IsActive ||
                 (x.Enrollment.State == CourseEnrollmentState.Completed &&
-                 historicalIds.Contains(x.Course.Id)));
+                 historicalEnrollmentIds.Contains(x.Enrollment.Id)));
         var total = await query.CountAsync(ct);
         var pageRows = await query.OrderByDescending(x => x.Enrollment.EnrolledAt)
             .ThenByDescending(x => x.Enrollment.Id).Skip((int)(((long)page - 1) * pageSize))

@@ -127,6 +127,48 @@ public sealed class LmsHistoricalCourseAccessTests
     }
 
     [Fact]
+    public async Task Archived_dashboard_counts_only_original_academically_authorized_enrollment()
+    {
+        await using var db = Db();
+        var (course, academic, original) = await Seed(db);
+        var lesson = await db.Set<Lesson>().SingleAsync(x => x.IsPublished);
+        var laterUnlinked = new CourseEnrollment
+        {
+            TenantId = 101, CourseId = course.Id, StudentId = original.StudentId,
+            StudentEnrollmentId = null, ClientRequestId = Guid.NewGuid(),
+            State = CourseEnrollmentState.Completed,
+            EnrolledAt = DateTime.UtcNow.AddDays(-2),
+            CompletedAt = DateTime.UtcNow.AddDays(-1)
+        };
+        db.Add(laterUnlinked);
+        await db.SaveChangesAsync();
+        db.AddRange(
+            new LessonProgress { TenantId = 101, CourseEnrollmentId = original.Id,
+                LessonId = lesson.Id, IsCompleted = true, ProgressPercent = 100 },
+            new LessonProgress { TenantId = 101, CourseEnrollmentId = laterUnlinked.Id,
+                LessonId = lesson.Id, IsCompleted = false, ProgressPercent = 20 });
+        await db.SaveChangesAsync();
+
+        var service = Service(db);
+        Assert.Empty((await service.GetMyCourseProgressAsync(1, 20)).Data!.Items);
+        var history = await service.GetMyCourseProgressAsync(1, 20, default, true);
+        Assert.True(history.Success, history.Message);
+        Assert.Equal(1, history.Data!.TotalCount);
+        var row = Assert.Single(history.Data.Items);
+        Assert.Equal(original.Id, row.CourseEnrollmentId);
+        Assert.Equal(1, row.CompletedLessons);
+        Assert.Equal(100m, row.LessonCompletionPercent);
+        var detail = await service.GetMyLessonProgressAsync(course.PublicId, 1, 20);
+        Assert.Equal(original.Id, Assert.Single(detail.Data!.Items).CourseEnrollmentId);
+
+        academic.CampusId = 999;
+        await db.SaveChangesAsync();
+        var denied = await service.GetMyCourseProgressAsync(1, 20, default, true);
+        Assert.Empty(denied.Data!.Items);
+        Assert.Equal(404, (await service.GetMyLessonProgressAsync(course.PublicId, 1, 20)).StatusCode);
+    }
+
+    [Fact]
     public async Task Archived_course_discovery_remains_server_paged_with_many_valid_enrollments()
     {
         await using var db = Db();
