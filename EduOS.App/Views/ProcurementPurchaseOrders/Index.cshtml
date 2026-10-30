@@ -79,6 +79,26 @@
             <div id="poDetailActions" class="d-flex flex-wrap justify-content-end gap-2"></div>
         </div>
     </dialog>
+    <dialog id="poEditDialog" class="border rounded shadow p-0" style="width:min(95vw,760px);max-height:90vh">
+        <form id="poEditForm" class="p-3">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h2 class="h5 mb-0" data-i18n="edit">Amend draft order</h2>
+                <button id="poEditClose" type="button" class="btn-close" aria-label="Close"></button>
+            </div>
+            <label for="poEditExpected" class="form-label" data-i18n="expected">Expected delivery</label>
+            <input id="poEditExpected" type="date" class="form-control mb-2" />
+            <div class="table-responsive"><table class="table table-sm">
+                <thead><tr><th data-i18n="item">Item ID</th><th data-i18n="quantity">Quantity</th><th data-i18n="price">Unit price</th></tr></thead>
+                <tbody id="poEditLines"></tbody>
+            </table></div>
+            <label for="poEditReason" class="form-label" data-i18n="amendReason">Amendment reason</label>
+            <textarea id="poEditReason" class="form-control" minlength="10" maxlength="500" required rows="2"></textarea>
+            <div class="d-flex justify-content-end gap-2 mt-3">
+                <button id="poEditCancel" type="button" class="btn btn-outline-secondary" data-i18n="close">Close</button>
+                <button id="poEditSave" type="submit" class="btn btn-primary" data-i18n="save">Save amendment</button>
+            </div>
+        </form>
+    </dialog>
     <dialog id="poDecisionDialog" class="border rounded shadow p-3" style="width:min(95vw,440px)">
         <form id="poDecisionForm"><h2 id="poDecisionTitle" class="h5"></h2>
             <label for="poReason" class="form-label" data-i18n="reason">Reason</label>

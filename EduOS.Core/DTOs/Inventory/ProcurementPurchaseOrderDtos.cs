@@ -8,6 +8,20 @@ public sealed class CreateProcurementPurchaseOrderRequest
     public DateTime? ExpectedDeliveryDate { get; set; }
 }
 
+public sealed class ProcurementPurchaseOrderDraftLineInput
+{
+    public long RequisitionLineId { get; set; }
+    public decimal Quantity { get; set; }
+    public decimal UnitPrice { get; set; }
+}
+public sealed class SaveProcurementPurchaseOrderDraftRequest
+{
+    public string RowVersion { get; set; } = string.Empty;
+    public DateTime? ExpectedDeliveryDate { get; set; }
+    public string Reason { get; set; } = string.Empty;
+    public List<ProcurementPurchaseOrderDraftLineInput> Lines { get; set; } = new();
+}
+
 public sealed class ProcurementPurchaseOrderDecisionRequest
 {
     public string RowVersion { get; set; } = string.Empty;

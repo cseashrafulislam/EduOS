@@ -11,7 +11,7 @@ using System.Data;
 namespace EduOS.Service.Services.Inventory;
 
 /// <summary>Source-document purchase orders. No inventory or financial posting occurs here.</summary>
-public sealed class ProcurementPurchaseOrderService : IProcurementPurchaseOrderService
+public sealed partial class ProcurementPurchaseOrderService : IProcurementPurchaseOrderService
 {
     private readonly EduOSDbContext db;
     private readonly ICurrentUserService user;

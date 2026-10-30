@@ -25,6 +25,10 @@ public sealed class ProcurementPurchaseOrdersController : ControllerBase
     [HttpPost, Authorize(Roles = "TenantAdmin,Principal,InventoryManager,StoreKeeper")]
     public async Task<IActionResult> Create([FromBody] CreateProcurementPurchaseOrderRequest request, CancellationToken ct)
         => Reply(await service.CreateAsync(request, ct));
+    [HttpPut("{id:long}"), Authorize(Roles = "TenantAdmin,Principal,InventoryManager,StoreKeeper")]
+    public async Task<IActionResult> SaveDraft(long id,
+        [FromBody] SaveProcurementPurchaseOrderDraftRequest request, CancellationToken ct)
+        => Reply(await service.SaveDraftAsync(id, request, ct));
     [HttpPost("{id:long}/{action}"), Authorize(Roles = "TenantAdmin,Principal,InventoryManager,StoreKeeper")]
     public async Task<IActionResult> Transition(long id, string action,
         [FromBody] ProcurementPurchaseOrderDecisionRequest request, CancellationToken ct)

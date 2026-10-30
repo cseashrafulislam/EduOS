@@ -19,13 +19,16 @@ const bd = {title:'ক্রয়াদেশ',requisitions:'ক্রয় চা�
  item:'পণ্য আইডি',quantity:'পরিমাণ',price:'একক মূল্য',reason:'কারণ',confirm:'নিশ্চিত',
  submit:'জমা',approve:'অনুমোদন',reject:'প্রত্যাখ্যান',revise:'সংশোধন',cancel:'বাতিল',view:'দেখুন',
  empty:'ক্রয়াদেশ পাওয়া যায়নি।',failed:'অনুরোধ ব্যর্থ।',saved:'সংরক্ষিত।',page:'পৃষ্ঠা',of:'এর',selected:'নির্বাচিত'};
+en.edit='Amend draft order';en.amendReason='Amendment reason';en.save='Save amendment';
+bd.edit='খসড়া ক্রয়াদেশ সংশোধন';bd.amendReason='সংশোধনের কারণ';bd.save='সংশোধন সংরক্ষণ';
 const t = k => (bn ? bd : en)[k] || k;
 root.querySelectorAll('[data-i18n]').forEach(x => { x.textContent = t(x.dataset.i18n); });
 const base = '/api/procurement/purchase-orders', token = document.querySelector('meta[name="request-verification-token"]')?.content;
 const maker = root.dataset.maker === 'true', checker = root.dataset.checker === 'true';
 const userId = Number(root.dataset.userId);
 let page = 1, totalPages = 1, epoch = 0, detailEpoch = 0, lookupEpoch = 0, busy = false, current = null, pendingAction = null;
-const createDialog = $('poCreateDialog'), detailDialog = $('poDetailDialog'), decisionDialog = $('poDecisionDialog');
+const createDialog = $('poCreateDialog'), detailDialog = $('poDetailDialog'),
+ decisionDialog = $('poDecisionDialog'), editDialog = $('poEditDialog');
 function alert(message, success = false) { $('poAlert').className = 'alert alert-' + (success ? 'success' : 'danger'); $('poAlert').textContent = message; }
 function params(obj) { return '?' + new URLSearchParams(Object.entries(obj).filter(([,v]) => v !== '' && v !== null && v !== undefined)).toString(); }
 async function api(url, method = 'GET', body) {
@@ -72,6 +75,8 @@ $('poCreateClose').addEventListener('click',()=>close(createDialog));
 $('poCreateCancel').addEventListener('click',()=>close(createDialog));
 $('poDetailClose').addEventListener('click',()=>close(detailDialog));
 $('poDecisionCancel').addEventListener('click',()=>close(decisionDialog));
+$('poEditClose').addEventListener('click',()=>close(editDialog));
+$('poEditCancel').addEventListener('click',()=>close(editDialog));
 if (maker) $('poNew')?.addEventListener('click', () => {
  $('poCreateForm').reset();$('poFormCampus').value=$('poCampus').value;
  $('poRequestId').value=crypto.randomUUID();$('poReqId').value='';$('poSupplierId').value='';
@@ -133,7 +138,10 @@ async function showDetail(id) {
   }
   const actions=$('poDetailActions');actions.replaceChildren();
   const mine=row.createdBy===userId;
-  if(maker&&mine&&row.stateCode==='Draft')actions.append(button('submit',()=>decide('submit')));
+  if(maker&&mine&&row.stateCode==='Draft'){
+    actions.append(button('edit',openEdit));
+    actions.append(button('submit',()=>decide('submit')));
+   }
   if(checker&&!mine&&row.stateCode==='Submitted'){
    actions.append(button('approve',()=>decide('approve'),'btn-primary'));
    actions.append(button('reject',()=>decide('reject')));
@@ -143,6 +151,44 @@ async function showDetail(id) {
   detailDialog.showModal();
  }catch(e){if(seq===detailEpoch)alert(e.message);}
 }
+
+function openEdit() {
+ if(!current||current.stateCode!=='Draft')return;
+ $('poEditExpected').value=current.expectedDeliveryDate?.slice(0,10)||'';
+ $('poEditReason').value='';$('poEditLines').replaceChildren();
+ for(const line of current.lines||[]) {
+  const tr=el('tr');tr.dataset.requisitionLineId=String(line.requisitionLineId);
+  tr.append(el('td',line.inventoryItemId));
+  for(const [field,value,step] of [['quantity',line.quantity,'0.000001'],['unitPrice',line.unitPrice,'0.0001']]) {
+   const td=el('td'),input=el('input');
+   input.type='number';input.min=field==='quantity'?'0.000001':'0';
+   input.max='999999999';input.step=step;input.required=true;input.value=String(value);
+   input.dataset.field=field;input.className='form-control form-control-sm';
+   input.setAttribute('aria-label',t(field)+' '+line.inventoryItemId);
+   td.append(input);tr.append(td);
+  }
+  $('poEditLines').append(tr);
+ }
+ close(detailDialog);editDialog.showModal();
+}
+$('poEditForm').addEventListener('submit',async e=>{
+ e.preventDefault();if(busy||!current)return;
+ const reason=$('poEditReason').value.trim();
+ if(reason.length<10||reason.length>500){$('poEditReason').focus();return;}
+ const lines=Array.from($('poEditLines').children).map(tr=>({
+  requisitionLineId:Number(tr.dataset.requisitionLineId),
+  quantity:Number(tr.querySelector('[data-field="quantity"]').value),
+  unitPrice:Number(tr.querySelector('[data-field="unitPrice"]').value)
+ }));
+ const date=$('poEditExpected').value;
+ busy=true;$('poEditSave').disabled=true;
+ try{
+  await api(base+'/'+current.id,'PUT',{rowVersion:current.rowVersion,reason,lines,
+   expectedDeliveryDate:date?date+'T00:00:00':null});
+  close(editDialog);current=null;alert(t('saved'),true);await load();
+ }catch(err){alert(err.message);}
+ finally{busy=false;$('poEditSave').disabled=false;}
+});
 function decide(action) {
  pendingAction=action;$('poDecisionTitle').textContent=t(action);$('poReason').value='';
  close(detailDialog);decisionDialog.showModal();
@@ -159,8 +205,8 @@ $('poDecisionForm').addEventListener('submit',async e=>{
  finally{busy=false;$('poDecisionConfirm').disabled=false;}
 });
 window.addEventListener('pagehide',()=>{++epoch;++detailEpoch;++lookupEpoch;current=null;pendingAction=null;
- for(const dialog of [createDialog,detailDialog,decisionDialog])close(dialog);
- $('poRows').replaceChildren();$('poDetailLines').replaceChildren();$('poReqResults').replaceChildren();$('poSupplierResults').replaceChildren();
+ for(const dialog of [createDialog,detailDialog,decisionDialog,editDialog])close(dialog);
+ $('poRows').replaceChildren();$('poDetailLines').replaceChildren();$('poEditLines').replaceChildren();$('poReqResults').replaceChildren();$('poSupplierResults').replaceChildren();
 });
 load();
 })();

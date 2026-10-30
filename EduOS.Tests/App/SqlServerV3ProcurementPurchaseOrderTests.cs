@@ -100,8 +100,28 @@ public sealed class SqlServerV3ProcurementPurchaseOrderTests
             Assert.Equal(id, (await maker.CreateAsync(input)).Data!.Id);
             Assert.Equal(409, (await maker.CreateAsync(new CreateProcurementPurchaseOrderRequest {
                 ClientRequestId = Guid.NewGuid(), RequisitionId = reqId, SupplierId = supplierId })).StatusCode);
+            var amendment = await maker.SaveDraftAsync(id, new SaveProcurementPurchaseOrderDraftRequest {
+                RowVersion = created.Data.RowVersion, Reason = "Negotiated supplier unit price",
+                Lines = [new ProcurementPurchaseOrderDraftLineInput {
+                    RequisitionLineId = created.Data.Lines[0].RequisitionLineId,
+                    Quantity = 10m, UnitPrice = 4m }]
+            });
+            Assert.True(amendment.Success, amendment.Message);
+            Assert.Equal(40m, amendment.Data!.TotalAmount);
+            Assert.Equal(409, (await maker.SaveDraftAsync(id, new SaveProcurementPurchaseOrderDraftRequest {
+                RowVersion = created.Data.RowVersion, Reason = "Stale supplier negotiation",
+                Lines = [new ProcurementPurchaseOrderDraftLineInput {
+                    RequisitionLineId = created.Data.Lines[0].RequisitionLineId,
+                    Quantity = 10m, UnitPrice = 4m }]
+            })).StatusCode);
+            Assert.Equal(409, (await maker.SaveDraftAsync(id, new SaveProcurementPurchaseOrderDraftRequest {
+                RowVersion = amendment.Data.RowVersion, Reason = "Over approved requisition budget",
+                Lines = [new ProcurementPurchaseOrderDraftLineInput {
+                    RequisitionLineId = created.Data.Lines[0].RequisitionLineId,
+                    Quantity = 12m, UnitPrice = 6m }]
+            })).StatusCode);
             var submitted = await maker.TransitionAsync(id, "submit",
-                new ProcurementPurchaseOrderDecisionRequest { RowVersion = created.Data.RowVersion });
+                new ProcurementPurchaseOrderDecisionRequest { RowVersion = amendment.Data.RowVersion });
             Assert.True(submitted.Success, submitted.Message); version = submitted.Data!.RowVersion;
             Assert.Equal(403, (await maker.TransitionAsync(id, "approve",
                 new ProcurementPurchaseOrderDecisionRequest { RowVersion = version })).StatusCode);
@@ -116,6 +136,13 @@ public sealed class SqlServerV3ProcurementPurchaseOrderTests
         Assert.Equal(409, stale.StatusCode);
         await using var verify = Open(options, tenantId, makerId);
         Assert.Equal("Approved", (await Service(verify, tenantId, makerId).GetAsync(id)).Data!.StateCode);
+        Assert.Equal(40m, (await Service(verify, tenantId, makerId).GetAsync(id)).Data!.TotalAmount);
+        Assert.Equal(409, (await Service(verify, tenantId, makerId).SaveDraftAsync(id,
+            new SaveProcurementPurchaseOrderDraftRequest {
+                RowVersion = approved.Data!.RowVersion, Reason = "Attempt to rewrite approved order",
+                Lines = [new ProcurementPurchaseOrderDraftLineInput {
+                    RequisitionLineId = 1, Quantity = 1m, UnitPrice = 1m }]
+            })).StatusCode);
         Assert.Equal(1, await verify.ProcurementPurchaseOrders.CountAsync(x => x.Id == id));
         Assert.Empty(await verify.InventoryMovements.ToListAsync());
         await using var foreign = Open(options, tenantId + 99999, makerId);

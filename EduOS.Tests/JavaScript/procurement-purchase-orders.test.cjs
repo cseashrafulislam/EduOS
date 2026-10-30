@@ -19,4 +19,9 @@ test('PO workflow is bilingual and has genuine maker-checker transitions', () =>
  assert.match(view,/data-i18n/);
  assert.match(view,/poDecisionDialog/);
  assert.match(script,/ক্রয়াদেশ/);
+ assert.match(script,/requisitionLineId/);
+ assert.match(script,/expectedDeliveryDate/);
+ assert.match(script,/rowVersion:current.rowVersion/);
+ assert.match(view,/poEditDialog/);
+ assert.match(view,/poEditReason/);
 });
