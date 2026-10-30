@@ -35,7 +35,7 @@ public sealed class StudentImportPreviewServiceTests
         var options = Options(); await SeedAsync(options, capacity: 10000);
         await using var db = Context(options, 101);
         var content = Header + string.Concat(Enumerable.Range(1, 5001)
-            .Select(i => $"SRC-IMPORT-{i},STU-IMPORT-{i},Learner {i},10,20,{i},,\n"));
+            .Select(i => $"SRC-IMPORT-{i},STU-IMPORT-{i},Learner {i},10,20,{10000 + i},,\n"));
         using var csv = Csv(content);
         var result = await Service(db, new User(101, true)).PreviewAsync(csv, ".csv", Mapping);
         Assert.True(result.Success, result.Message);

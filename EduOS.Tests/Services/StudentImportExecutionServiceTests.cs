@@ -970,8 +970,11 @@ public sealed class StudentImportExecutionServiceTests
         Assert.Equal(403, (await Service(db, new User(101, false))
             .PreflightCohortAsync(files, mapping)).StatusCode);
         Assert.Equal(400, (await service.PreflightCohortAsync([files[0]], mapping)).StatusCode);
-        Assert.Equal(400, (await service.PreflightCohortAsync(
-            Enumerable.Repeat(files[0], 9).ToArray(), mapping)).StatusCode);
+        var repeated = await service.PreflightCohortAsync(
+            Enumerable.Repeat(files[0], 9).ToArray(), mapping);
+        Assert.True(repeated.Success, repeated.Message);
+        Assert.Equal(9, repeated.Data!.FileCount);
+        Assert.True(repeated.Data.TotalIssues >= 8);
         Assert.Equal(400, (await service.PreflightCohortAsync([
             files[0], new EduOS.Core.DTOs.Students.StudentImportCohortUploadDto
                 { Extension = ".txt", Content = files[1].Content }

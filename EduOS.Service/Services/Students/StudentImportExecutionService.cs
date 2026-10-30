@@ -100,7 +100,8 @@ public sealed partial class StudentImportExecutionService : IStudentImportExecut
             if (buffer.Length is <= 0 or > 6291456)
                 return ApiResponse<StudentImportExecutionDto>.ErrorResponse("File must be at most 6 MB.", 413);
             var bytes = buffer.ToArray();
-            var slice = ReadRows(bytes, extension, mapping, MaxBatchRows, rowOffset);
+            var slice = ReadRows(bytes, extension, mapping, MaxBatchRows, rowOffset,
+                requireWholeFile: false);
             if (slice.Count == 0)
                 return ApiResponse<StudentImportExecutionDto>.ErrorResponse("Offset is beyond the end of the source file.", 400);
             using var csv = new MemoryStream(BuildCsvSlice(slice), writable: false);
@@ -655,7 +656,8 @@ public sealed partial class StudentImportExecutionService : IStudentImportExecut
     }
 
     private static List<ImportRow> ReadRows(byte[] bytes, string extension,
-        IReadOnlyDictionary<string, string> mapping, int maxRows = MaxBatchRows, int startRow = 0)
+        IReadOnlyDictionary<string, string> mapping, int maxRows = MaxBatchRows,
+        int startRow = 0, bool requireWholeFile = true)
     {
         if (startRow < 0 || maxRows < 1 || (long)startRow + maxRows > int.MaxValue)
             throw new FormatException("Invalid source window.");
@@ -671,7 +673,7 @@ public sealed partial class StudentImportExecutionService : IStudentImportExecut
             var sourceIndex = 0;
             while (!parser.EndOfData)
             {
-                if (startRow == 0 && sourceIndex >= maxRows)
+                if (requireWholeFile && sourceIndex >= maxRows)
                     throw new FormatException("Source exceeds the bounded row limit.");
                 var fields = parser.ReadFields() ?? [];
                 if (fields.Length != headers.Length) throw new FormatException("CSV column count mismatch.");
@@ -692,7 +694,7 @@ public sealed partial class StudentImportExecutionService : IStudentImportExecut
                 if (row.RowNumber() == 1) continue;
                 if (row.RowNumber() != sourceIndex + 2)
                     throw new FormatException("Blank or skipped rows are not supported. Remove empty rows from Students.");
-                if (startRow == 0 && sourceIndex >= maxRows)
+                if (requireWholeFile && sourceIndex >= maxRows)
                     throw new FormatException("Source exceeds the bounded row limit.");
                 if (sourceIndex >= startRow && cells.Count < maxRows)
                     cells.Add(row.Cells(1, count).Select(x => SafeCell(x)).ToArray());
