@@ -93,7 +93,7 @@ jobs:
           dotnet ef database update --project EduOS.Persistence --startup-project EduOS.App \
             --context EduOSDbContext --configuration Release --no-build
 
-      - name: Verify real SQL Server auth tenant roles, optimistic concurrency and session revocation
+      - name: Verify V1 auth admission academic finance and payroll SQL acceptance
         shell: bash
         env:
           EDUOS_SQL_AUTH_TEST_CONNECTION: ${{ format('Server=127.0.0.1,14333;Database=EduOS_MigrationSmoke;User Id=sa;Password={0};Encrypt=True;TrustServerCertificate=True;Connect Timeout=30', env.CI_SQL_PASSWORD) }}
@@ -101,8 +101,21 @@ jobs:
           set -euo pipefail
           dotnet restore EduOS.Tests/EduOS.Tests.csproj
           dotnet test EduOS.Tests/EduOS.Tests.csproj --configuration Release --no-restore \
-            --filter "FullyQualifiedName~SqlServerAuthTenantIntegrationTests|FullyQualifiedName~AuthSecurityStampIntegrationTests|FullyQualifiedName~SqlServerMemberAccessHistoryIntegrationTests|FullyQualifiedName~SqlServerLoginActivityIntegrationTests|FullyQualifiedName~SqlServerAcademicSetupIntegrationTests|FullyQualifiedName~SqlServerEnrollmentAllocationIntegrationTests|FullyQualifiedName~SqlServerStudentImportConcurrencyIntegrationTests|FullyQualifiedName~SqlServerStudentImportCohortRehearsalTests|FullyQualifiedName~SqlServerStudentLifecycleIntegrationTests|FullyQualifiedName~SqlServerGuardianContactProfileIntegrationTests|FullyQualifiedName~SqlServerManualPaymentIntegrationTests|FullyQualifiedName~SqlServerStudentFineInvoicePostingIntegrationTests|FullyQualifiedName~SqlServerV1FinanceCrossModuleIntegrationTests|FullyQualifiedName~SqlServerBankReconciliationIntakeIntegrationTests|FullyQualifiedName~SqlServerStudentFeeInstallmentPlanIntegrationTests|FullyQualifiedName~SqlServerAcademicOperationsIntegrationTests|FullyQualifiedName~SqlServerAssessmentMarkReviewIntegrityIntegrationTests|FullyQualifiedName~SqlServerAssessmentMarkReviewLifecycleIntegrationTests|FullyQualifiedName~SqlServerAcademicRoutineCollisionIntegrationTests|FullyQualifiedName~SqlServerTransportIdentityIntegrationTests|FullyQualifiedName~SqlServerTransportConcurrentUniquenessTests|FullyQualifiedName~SqlServerTransportSeatCapacityIntegrationTests|FullyQualifiedName~SqlServerV2SixteenInstituteEntitlementHttpAcceptanceTests|FullyQualifiedName~TransportReservationWindowIndexTests|FullyQualifiedName~HostelOccupiedTransferLineageContractTests|FullyQualifiedName~AssetAccountingPersistenceContractTests" \
-            --logger "trx;LogFileName=sql-auth-tests.trx" --results-directory TestResults
+            --filter "FullyQualifiedName~SqlServerAuthTenantIntegrationTests|FullyQualifiedName~AuthSecurityStampIntegrationTests|FullyQualifiedName~SqlServerMemberAccessHistoryIntegrationTests|FullyQualifiedName~SqlServerLoginActivityIntegrationTests|FullyQualifiedName~SqlServerAcademicSetupIntegrationTests|FullyQualifiedName~SqlServerEnrollmentAllocationIntegrationTests|FullyQualifiedName~SqlServerStudentImportConcurrencyIntegrationTests|FullyQualifiedName~SqlServerStudentImportCohortRehearsalTests|FullyQualifiedName~SqlServerStudentLifecycleIntegrationTests|FullyQualifiedName~SqlServerGuardianContactProfileIntegrationTests|FullyQualifiedName~SqlServerManualPaymentIntegrationTests|FullyQualifiedName~SqlServerStudentFineInvoicePostingIntegrationTests|FullyQualifiedName~SqlServerV1FinanceCrossModuleIntegrationTests|FullyQualifiedName~SqlServerBankReconciliationIntakeIntegrationTests|FullyQualifiedName~SqlServerStudentFeeInstallmentPlanIntegrationTests|FullyQualifiedName~SqlServerAcademicOperationsIntegrationTests|FullyQualifiedName~SqlServerAssessmentMarkReviewIntegrityIntegrationTests|FullyQualifiedName~SqlServerAssessmentMarkReviewLifecycleIntegrationTests|FullyQualifiedName~SqlServerAcademicRoutineCollisionIntegrationTests" \
+            --logger "trx;LogFileName=sql-v1-acceptance.trx" --results-directory TestResults
+
+      # These V2/V3 checks must remain visible without obscuring a passing
+      # independent V1 gate when an unrelated LMS concurrency test is flaky.
+      - name: Verify V2 transport LMS and V3 asset SQL smoke independently
+        if: ${{ always() && steps.migration_repeat.outcome == 'success' }}
+        shell: bash
+        env:
+          EDUOS_SQL_AUTH_TEST_CONNECTION: ${{ format('Server=127.0.0.1,14333;Database=EduOS_MigrationSmoke;User Id=sa;Password={0};Encrypt=True;TrustServerCertificate=True;Connect Timeout=30', env.CI_SQL_PASSWORD) }}
+        run: |
+          set -euo pipefail
+          dotnet test EduOS.Tests/EduOS.Tests.csproj --configuration Release --no-restore \
+            --filter "FullyQualifiedName~SqlServerTransportIdentityIntegrationTests|FullyQualifiedName~SqlServerTransportConcurrentUniquenessTests|FullyQualifiedName~SqlServerTransportSeatCapacityIntegrationTests|FullyQualifiedName~SqlServerV2SixteenInstituteEntitlementHttpAcceptanceTests|FullyQualifiedName~TransportReservationWindowIndexTests|FullyQualifiedName~HostelOccupiedTransferLineageContractTests|FullyQualifiedName~AssetAccountingPersistenceContractTests" \
+            --logger "trx;LogFileName=sql-v2-v3-smoke.trx" --results-directory TestResults
 
       - name: Prove disposable SQL backup restore and financial evidence integrity
         if: ${{ always() && steps.migration_repeat.outcome == 'success' }}
