@@ -12854,6 +12854,49 @@ namespace EduOS.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("EduOS.Core.Entities.LMS.LmsLessonRevision", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
+
+                    b.Property<DateTime>("CapturedAt").HasColumnType("datetime2");
+                    b.Property<long>("CapturedByUserId").HasColumnType("bigint");
+                    b.Property<string>("ChangeKind").IsRequired().HasMaxLength(32).HasColumnType("nvarchar(32)");
+                    b.Property<string>("Content").HasMaxLength(4000).HasColumnType("nvarchar(4000)");
+                    b.Property<string>("ContentUrl").HasMaxLength(500).HasColumnType("nvarchar(500)");
+                    b.Property<long>("CourseId").HasColumnType("bigint");
+                    b.Property<long?>("CourseSectionId").HasColumnType("bigint");
+                    b.Property<DateTime>("CreatedAt").HasColumnType("datetime2");
+                    b.Property<long?>("CreatedBy").HasColumnType("bigint");
+                    b.Property<DateTime?>("DeletedAt").HasColumnType("datetime2");
+                    b.Property<long?>("DeletedBy").HasColumnType("bigint");
+                    b.Property<int>("DisplayOrder").HasColumnType("int");
+                    b.Property<bool>("IsDeleted").HasColumnType("bit");
+                    b.Property<bool>("IsPublished").HasColumnType("bit");
+                    b.Property<long>("LessonId").HasColumnType("bigint");
+                    b.Property<string>("ResourceSnapshotJson").IsRequired().HasColumnType("nvarchar(max)");
+                    b.Property<int>("RevisionNo").HasColumnType("int");
+                    b.Property<byte[]>("RowVersion").IsConcurrencyToken().IsRequired()
+                        .ValueGeneratedOnAddOrUpdate().HasColumnType("rowversion");
+                    b.Property<long>("TenantId").HasColumnType("bigint");
+                    b.Property<string>("Title").IsRequired().HasMaxLength(200).HasColumnType("nvarchar(200)");
+                    b.Property<DateTime?>("UpdatedAt").HasColumnType("datetime2");
+                    b.Property<long?>("UpdatedBy").HasColumnType("bigint");
+
+                    b.HasKey("Id");
+                    b.HasAlternateKey("TenantId", "Id");
+                    b.HasIndex("TenantId", "CourseId", "CapturedAt");
+                    b.HasIndex("TenantId", "LessonId");
+                    b.HasIndex("TenantId", "LessonId", "RevisionNo").IsUnique();
+                    b.ToTable("LmsLessonRevisions", t =>
+                        {
+                            t.HasCheckConstraint("CK_LmsLessonRevisions_PositiveRevision", "[RevisionNo] > 0");
+                        });
+                });
+
             modelBuilder.Entity("EduOS.Core.Entities.LMS.LmsProgressGuardianGrant", b =>
                 {
                     b.Property<long>("Id")
@@ -23594,6 +23637,24 @@ namespace EduOS.Persistence.Migrations
                     b.HasOne("EduOS.Core.Entities.Students.StudentGuardian", null)
                         .WithMany()
                         .HasForeignKey("TenantId", "StudentGuardianId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Tenant");
+                });
+
+            modelBuilder.Entity("EduOS.Core.Entities.LMS.LmsLessonRevision", b =>
+                {
+                    b.HasOne("EduOS.Core.Entities.SaaS.Tenant", "Tenant")
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("EduOS.Core.Entities.LMS.Lesson", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "LessonId")
                         .HasPrincipalKey("TenantId", "Id")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();

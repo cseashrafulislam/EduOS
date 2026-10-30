@@ -24,6 +24,7 @@ public sealed partial class LmsCourseContentService : ILmsCourseContentService
     private readonly IGenericRepository<CourseSection> _sections;
     private readonly IGenericRepository<Lesson> _lessons;
     private readonly IGenericRepository<LessonResource> _resources;
+    private readonly IGenericRepository<LmsLessonRevision>? _revisions;
     private readonly IGenericRepository<Assignment> _assignments;
     private readonly IGenericRepository<AssignmentAttachment> _attachments;
     private readonly IGenericRepository<FileAsset> _files;
@@ -59,7 +60,8 @@ public sealed partial class LmsCourseContentService : ILmsCourseContentService
         IGenericRepository<Assignment>? assignments = null,
         IGenericRepository<AssignmentAttachment>? attachments = null,
         IFileUploadService? storage = null,
-        IDocumentFileService? documentFiles = null)
+        IDocumentFileService? documentFiles = null,
+        IGenericRepository<LmsLessonRevision>? revisions = null)
     {
         _courses = courses; _sections = sections; _lessons = lessons; _resources = resources;
         _assignments = assignments!; _attachments = attachments!; _files = files;
@@ -67,7 +69,7 @@ public sealed partial class LmsCourseContentService : ILmsCourseContentService
         _academicEnrollments = academicEnrollments; _offerings = offerings; _subjects = subjects;
         _curricula = curricula; _batches = batches; _years = years; _instructors = instructors;
         _campuses = campuses; _terms = terms; _uow = uow; _user = user; _clock = clock; _logger = logger;
-        _storage = storage; _documentFiles = documentFiles;
+        _storage = storage; _documentFiles = documentFiles; _revisions = revisions;
     }
 
     private long Tenant => _user.TenantId;
@@ -349,9 +351,11 @@ public sealed partial class LmsCourseContentService : ILmsCourseContentService
                     return Fail<ContentLessonDto>(CourseCompletionPublicationGuard.Message, 409);
                 if (!Version(row.RowVersion, request.RowVersion))
                     return Fail<ContentLessonDto>("Lesson changed. Reload before assigning.", 409);
+                await LmsLessonRevisionWriter.BaselineAsync(_revisions, _lessons, _resources, Tenant, row.Id, _user.UserId, Now, token);
                 row.CourseSectionId = request.CourseSectionId; row.UpdatedAt = Now; row.UpdatedBy = _user.UserId;
                 _lessons.Update(row);
                 await _uow.SaveChangesAsync(token);
+                await LmsLessonRevisionWriter.AppendAsync(_revisions, _lessons, _resources, Tenant, row.Id, "Section", _user.UserId, Now, token);
                 return ApiResponse<ContentLessonDto>.SuccessResponse(LessonRow(row), "Lesson assigned.");
             }, IsolationLevel.Serializable, ct);
         }
@@ -416,6 +420,7 @@ public sealed partial class LmsCourseContentService : ILmsCourseContentService
                 }
                 if (row != null && !Version(row.RowVersion, request.RowVersion))
                     return Fail<LessonResourceDto>("Resource changed. Reload before editing.", 409);
+                await LmsLessonRevisionWriter.BaselineAsync(_revisions, _lessons, _resources, Tenant, lesson.Id, _user.UserId, Now, token);
                 var now = Now;
                 if (row == null)
                 {
@@ -427,6 +432,7 @@ public sealed partial class LmsCourseContentService : ILmsCourseContentService
                 row.Title = title; row.ExternalUrl = url; row.FileAssetId = file?.Id;
                 row.DisplayOrder = request.DisplayOrder;
                 await _uow.SaveChangesAsync(token);
+                await LmsLessonRevisionWriter.AppendAsync(_revisions, _lessons, _resources, Tenant, lesson.Id, "Resource", _user.UserId, Now, token);
                 return ApiResponse<LessonResourceDto>.SuccessResponse(Resource(row, lesson.PublicId, file), "Resource saved.");
             }, IsolationLevel.Serializable, ct);
         }
@@ -457,9 +463,11 @@ public sealed partial class LmsCourseContentService : ILmsCourseContentService
                     return Fail<bool>(CourseCompletionPublicationGuard.Message, 409);
                 if (!Version(row.RowVersion, rowVersion))
                     return Fail<bool>("Resource changed. Reload before removing.", 409);
+                await LmsLessonRevisionWriter.BaselineAsync(_revisions, _lessons, _resources, Tenant, lesson!.Id, _user.UserId, Now, token);
                 row.IsDeleted = true; row.DeletedAt = Now; row.DeletedBy = _user.UserId;
                 row.UpdatedAt = Now; row.UpdatedBy = _user.UserId; _resources.Update(row);
                 await _uow.SaveChangesAsync(token);
+                await LmsLessonRevisionWriter.AppendAsync(_revisions, _lessons, _resources, Tenant, lesson!.Id, "ResourceRemoved", _user.UserId, Now, token);
                 return ApiResponse<bool>.SuccessResponse(true, "Resource removed.");
             }, IsolationLevel.Serializable, ct);
         }

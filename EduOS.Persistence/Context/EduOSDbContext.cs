@@ -404,6 +404,7 @@ public class EduOSDbContext :
     public DbSet<Lesson> Lessons => Set<Lesson>();
     public DbSet<LessonProgress> LessonProgresses => Set<LessonProgress>();
     public DbSet<LessonResource> LessonResources => Set<LessonResource>();
+    public DbSet<LmsLessonRevision> LmsLessonRevisions => Set<LmsLessonRevision>();
     public DbSet<LiveClass> LiveClasses => Set<LiveClass>();
     public DbSet<Quiz> Quizzes => Set<Quiz>();
     public DbSet<QuizAnswer> QuizAnswers => Set<QuizAnswer>();
@@ -482,6 +483,7 @@ public class EduOSDbContext :
         ConfigureRelationships(modelBuilder);
         ConfigureLmsCertificateGuardianGrants(modelBuilder);
         ConfigureLmsProgressGuardianGrants(modelBuilder);
+        ConfigureLmsLessonRevisions(modelBuilder);
         ConfigureIndexes(modelBuilder);
         ConfigureCheckConstraints(modelBuilder);
         ConfigureAuditLog(modelBuilder);
@@ -529,6 +531,21 @@ public class EduOSDbContext :
                 .OnDelete(DeleteBehavior.Restrict);
             entity.HasOne<StudentGuardian>().WithMany()
                 .HasForeignKey(x => new { x.TenantId, x.StudentGuardianId })
+                .HasPrincipalKey(x => new { x.TenantId, x.Id })
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+    }
+
+    private static void ConfigureLmsLessonRevisions(ModelBuilder modelBuilder)
+    {
+        modelBuilder.Entity<LmsLessonRevision>(entity =>
+        {
+            entity.ToTable(t => t.HasCheckConstraint("CK_LmsLessonRevisions_PositiveRevision", "[RevisionNo] > 0"));
+            entity.HasIndex(x => new { x.TenantId, x.LessonId, x.RevisionNo }).IsUnique();
+            entity.HasIndex(x => new { x.TenantId, x.LessonId });
+            entity.HasIndex(x => new { x.TenantId, x.CourseId, x.CapturedAt });
+            entity.HasOne<Lesson>().WithMany()
+                .HasForeignKey(x => new { x.TenantId, x.LessonId })
                 .HasPrincipalKey(x => new { x.TenantId, x.Id })
                 .OnDelete(DeleteBehavior.Restrict);
         });

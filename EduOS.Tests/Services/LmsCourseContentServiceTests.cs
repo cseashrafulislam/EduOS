@@ -310,6 +310,41 @@ public sealed class LmsCourseContentServiceTests
         context.Items["TenantId"] = 101L;
         return new EduOSDbContext(options, new HttpContextAccessor { HttpContext = context });
     }
+    [Fact]
+    public async Task Lesson_resource_revisions_are_author_scoped_and_baselined()
+    {
+        await using var db = Db();
+        var course = new Course { TenantId = 101, Code = "HISTORY", Title = "History", IsActive = true };
+        db.Add(course); await db.SaveChangesAsync();
+        var lesson = new Lesson { TenantId = 101, CourseId = course.Id, Title = "Original lesson", IsPublished = true };
+        db.Add(lesson); await db.SaveChangesAsync();
+        var author = Service(db, "TenantAdmin");
+        var first = await author.SaveResourceAsync(null, new SaveLessonResourceRequestDto
+        {
+            LessonReference = lesson.PublicId, Title = "Handout",
+            ExternalUrl = "https://example.org/first", DisplayOrder = 1
+        });
+        Assert.True(first.Success, first.Message);
+        var second = await author.SaveResourceAsync(first.Data!.Id, new SaveLessonResourceRequestDto
+        {
+            LessonReference = lesson.PublicId, Title = "Updated handout",
+            ExternalUrl = "https://example.org/second", DisplayOrder = 1,
+            RowVersion = first.Data.RowVersion
+        });
+        Assert.True(second.Success, second.Message);
+        var history = await author.GetLessonRevisionsAsync(lesson.PublicId, 1, 20);
+        Assert.True(history.Success, history.Message);
+        Assert.Equal(3, history.Data!.TotalCount);
+        Assert.Equal(new[] { 3, 2, 1 }, history.Data.Items.Select(x => x.RevisionNo));
+        Assert.Equal("Original lesson", history.Data.Items[2].Title);
+        Assert.Empty(history.Data.Items[2].Resources);
+        Assert.Single(history.Data.Items[0].Resources);
+        Assert.Equal("Updated handout", history.Data.Items[0].Resources[0].Title);
+        Assert.Equal(403, (await Service(db, "Student").GetLessonRevisionsAsync(lesson.PublicId, 1, 20)).StatusCode);
+        Assert.Equal(404, (await author.GetLessonRevisionsAsync(Guid.NewGuid(), 1, 20)).StatusCode);
+        Assert.Equal(400, (await author.GetLessonRevisionsAsync(lesson.PublicId, 1, 101)).StatusCode);
+    }
+
     private static LmsCourseContentService Service(EduOSDbContext db, string role, IFileUploadService? storage = null, EduOS.Core.Interfaces.IServices.IDocumentFileService? documents = null) => new(
         new GenericRepository<Course>(db), new GenericRepository<CourseSection>(db),
         new GenericRepository<Lesson>(db), new GenericRepository<LessonResource>(db),
@@ -319,7 +354,8 @@ public sealed class LmsCourseContentServiceTests
         new GenericRepository<CurriculumSubject>(db), new GenericRepository<AcademicCurriculum>(db),
         new GenericRepository<AcademicBatch>(db), new GenericRepository<AcademicYear>(db),
         new GenericRepository<AcademicTerm>(db), new GenericRepository<InstructorAssignment>(db), new GenericRepository<EmployeeCampusAssignment>(db),
-        db, new TestUser(role), TimeProvider.System, NullLogger<LmsCourseContentService>.Instance, storage: storage, documentFiles: documents);
+        db, new TestUser(role), TimeProvider.System, NullLogger<LmsCourseContentService>.Instance, storage: storage, documentFiles: documents,
+        revisions: new GenericRepository<LmsLessonRevision>(db));
 
     private sealed class TestUser(string role) : ICurrentUserService
     {

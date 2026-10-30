@@ -63,6 +63,31 @@
             <tbody id="contentRows"><tr><td colspan="5" class="text-center text-muted p-3">Select a course.</td></tr></tbody>
         </table></div>
     </section>
+    @if (author)
+    {
+        <section id="contentRevisionPanel" class="card mt-3 d-none" aria-labelledby="contentRevisionHeading">
+            <div class="card-header d-flex flex-wrap align-items-center gap-2">
+                <h3 id="contentRevisionHeading" class="h6 mb-0 me-auto">Lesson revision history / পাঠের সংস্করণ ইতিহাস</h3>
+                <button id="contentRevisionExport" type="button" class="btn btn-outline-success btn-sm">Export CSV / CSV</button>
+            </div>
+            <div class="card-body">
+                <div class="row g-2 align-items-end mb-2">
+                    <div class="col-md-8"><label for="contentRevisionLesson" class="form-label">Lesson / পাঠ</label>
+                        <select id="contentRevisionLesson" class="form-select"></select></div>
+                    <div class="col-md-4"><button id="contentRevisionRefresh" type="button" class="btn btn-outline-primary w-100">History / ইতিহাস</button></div>
+                </div>
+                <div class="table-responsive"><table class="table table-sm align-middle">
+                    <thead><tr><th>Version / সংস্করণ</th><th>Changed (UTC) / পরিবর্তন</th><th>Type / ধরন</th><th>Title / শিরোনাম</th><th>State / অবস্থা</th><th>Resources / উপকরণ</th></tr></thead>
+                    <tbody id="contentRevisionRows"><tr><td colspan="6">Select a lesson / পাঠ নির্বাচন করুন</td></tr></tbody>
+                </table></div>
+                <div class="d-flex gap-2 align-items-center">
+                    <button id="contentRevisionPrev" type="button" class="btn btn-outline-secondary btn-sm">Previous / পূর্ববর্তী</button>
+                    <span id="contentRevisionPage" class="small" aria-live="polite">1</span>
+                    <button id="contentRevisionNext" type="button" class="btn btn-outline-secondary btn-sm">Next / পরবর্তী</button>
+                </div>
+            </div>
+        </section>
+    }
 </section>
 <style media="print">#contentAuthor,#contentRefresh,#contentPrev,#contentNext,#contentPrint,#contentCsv,.content-actions,nav,.sidebar{display:none!important}#contentApp{width:100%!important}</style>
 @section Scripts { <script src="~/js/learning/course-content.js" asp-append-version="true"></script> }

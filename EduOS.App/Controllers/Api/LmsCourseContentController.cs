@@ -73,6 +73,32 @@ public sealed class LmsCourseContentController : ControllerBase
         return "\"" + value.Replace("\"", "\"\"") + "\"";
     }
 
+    [HttpGet("lessons/{lessonReference:guid}/revisions")]
+    [Authorize(Roles = "TenantAdmin,Principal,Teacher")]
+    public async Task<IActionResult> Revisions(Guid lessonReference, [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 20, CancellationToken ct = default) =>
+        Reply(await _service.GetLessonRevisionsAsync(lessonReference, page, pageSize, ct));
+
+    [HttpGet("lessons/{lessonReference:guid}/revisions/export")]
+    [Authorize(Roles = "TenantAdmin,Principal,Teacher")]
+    public async Task<IActionResult> ExportRevisions(Guid lessonReference, CancellationToken ct)
+    {
+        var result = await _service.GetLessonRevisionsAsync(lessonReference, 1, 100, ct);
+        if (!result.Success || result.Data == null) return StatusCode(result.StatusCode, result);
+        var csv = new StringBuilder("Revision,Changed UTC,Kind,Title,Published,Resource Count\r\n");
+        foreach (var row in result.Data.Items)
+            csv.Append(row.RevisionNo).Append(',')
+                .Append(CsvCell(row.CapturedAt.ToString("O"))).Append(',')
+                .Append(CsvCell(row.ChangeKind)).Append(',')
+                .Append(CsvCell(row.Title)).Append(',')
+                .Append(row.IsPublished ? "Published" : "Draft").Append(',')
+                .Append(row.Resources.Count).Append("\r\n");
+        Response.Headers.CacheControl = "private, no-store";
+        Response.Headers["X-Content-Type-Options"] = "nosniff";
+        return File(Encoding.UTF8.GetBytes("\uFEFF" + csv),
+            "text/csv; charset=utf-8", "lms-lesson-revisions.csv");
+    }
+
     [HttpPost("sections")]
     [Authorize(Roles = "TenantAdmin,Principal,Teacher")]
     public async Task<IActionResult> CreateSection([FromBody] SaveCourseSectionRequestDto request, CancellationToken ct) =>

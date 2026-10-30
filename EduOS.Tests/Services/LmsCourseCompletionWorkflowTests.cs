@@ -555,7 +555,9 @@ public sealed class LmsCourseCompletionWorkflowTests
         completionAttempts: new GenericRepository<QuizAttempt>(db),
         submissionYears: new GenericRepository<AcademicYear>(db),
         submissionBatches: new GenericRepository<AcademicBatch>(db),
-        submissionCurricula: new GenericRepository<AcademicCurriculum>(db));
+        submissionCurricula: new GenericRepository<AcademicCurriculum>(db),
+        lessonRevisions: new GenericRepository<LmsLessonRevision>(db),
+        lessonResources: new GenericRepository<LessonResource>(db));
 
     private sealed class TestUser(string role) : ICurrentUserService
     {

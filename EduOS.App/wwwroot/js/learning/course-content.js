@@ -2,7 +2,7 @@
 'use strict';
 const root=document.getElementById('contentApp');if(!root)return;
 const el=id=>document.getElementById('content'+id),author=root.dataset.author==='true',student=root.dataset.student==='true';
-const state={courses:[],page:1,pages:1,course:null,lessons:[],seq:0,includeArchived:false,fileRequestId:null};
+const state={courses:[],page:1,pages:1,course:null,lessons:[],seq:0,includeArchived:false,fileRequestId:null,revisionPage:1,revisionTotal:0};
 const initialTenant=String(document.body?.dataset.authTenantId||'');
 const initialSession=String(document.body?.dataset.authSessionReference||'');
 const sessionValid=()=>String(document.body?.dataset.authTenantId||'')===initialTenant&&
@@ -78,6 +78,8 @@ function render(){
  if(author){el('Author').classList.toggle('d-none',!data.canEdit);
   fill('LessonSelect',state.lessons,'Select existing lesson',x=>x.title);
   fill('ResourceLesson',state.lessons,'Select existing lesson',x=>x.title);
+  fill('RevisionLesson',state.lessons,'Select lesson / পাঠ',x=>x.title);
+  el('RevisionPanel').classList.remove('d-none');
   fill('SectionSelect',sections,'Unsectioned',x=>x.displayOrder+' · '+x.title);
  }
  function appendLesson(section,lesson){
@@ -136,7 +138,7 @@ async function loadCourses(){
   else if(state.courses.length)el('Course').value=state.courses[0].reference;
   el('Page').textContent='Page '+state.page+' / '+state.pages;
   el('Prev').disabled=state.page<=1;el('Next').disabled=state.page>=state.pages;
-  if(author){resetSection();resetResource();}await loadCourse();
+  if(author){resetSection();resetResource();state.revisionPage=1;}await loadCourse();
  }catch(error){alert(error.message);}
 }
 async function run(form,action){
@@ -214,8 +216,55 @@ el('Csv').onclick=async()=>{
  }catch(error){if(seq===state.seq)alert(error.message);}
  finally{el('Csv').disabled=false;}
 };
+async function loadRevisions(){
+ if(!author||!sessionValid())return;
+ const ref=el('RevisionLesson').value,seq=state.seq,body=el('RevisionRows');
+ body.replaceChildren();
+ if(!ref){const tr=node('tr'),cell=td('Select a lesson / পাঠ নির্বাচন করুন');cell.colSpan=6;tr.append(cell);body.append(tr);return;}
+ try{
+  const data=await api('/api/lms/course-content/lessons/'+encodeURIComponent(ref)+'/revisions?page='+state.revisionPage+'&pageSize=20');
+  if(seq!==state.seq||ref!==el('RevisionLesson').value||!sessionValid())return;
+  state.revisionTotal=data.totalCount||0;
+  for(const rev of data.items||[]){
+   const tr=node('tr');
+   tr.append(td(rev.revisionNo),td(rev.capturedAt?new Date(rev.capturedAt).toISOString():''),
+    td(rev.changeKind),td(rev.title),td(rev.isPublished?'Published / প্রকাশিত':'Draft / খসড়া'),
+    td((rev.resources||[]).length));
+   body.append(tr);
+  }
+  if(!body.childNodes.length){const tr=node('tr'),cell=td('No revisions / কোনো সংস্করণ নেই');cell.colSpan=6;tr.append(cell);body.append(tr);}
+  el('RevisionPage').textContent=String(state.revisionPage)+' / '+Math.max(1,Math.ceil(state.revisionTotal/20));
+  el('RevisionPrev').disabled=state.revisionPage<=1;
+  el('RevisionNext').disabled=state.revisionPage*20>=state.revisionTotal;
+ }catch(error){if(seq===state.seq)alert(error.message);}
+}
+async function exportRevisions(){
+ const ref=el('RevisionLesson').value,seq=state.seq;
+ if(!ref)return alert('Select a lesson / পাঠ নির্বাচন করুন');
+ el('RevisionExport').disabled=true;
+ try{
+  const response=await fetch('/api/lms/course-content/lessons/'+encodeURIComponent(ref)+'/revisions/export',
+   {credentials:'same-origin',cache:'no-store',headers:{Accept:'text/csv'}});
+  if(!response.ok){const error=await response.json().catch(()=>null);throw Error(error?.message||'Export unavailable');}
+  const blob=await response.blob();
+  if(seq!==state.seq||ref!==el('RevisionLesson').value||!sessionValid())return;
+  const url=URL.createObjectURL(blob),a=node('a');
+  a.href=url;a.download='lms-lesson-revisions.csv';document.body.append(a);a.click();a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url),1000);
+ }catch(error){if(seq===state.seq)alert(error.message);}
+ finally{el('RevisionExport').disabled=false;}
+}
+if(author){
+ el('RevisionLesson').addEventListener('change',()=>{state.revisionPage=1;loadRevisions();});
+ el('RevisionRefresh').onclick=()=>{state.revisionPage=1;loadRevisions();};
+ el('RevisionPrev').onclick=()=>{if(state.revisionPage>1){state.revisionPage--;loadRevisions();}};
+ el('RevisionNext').onclick=()=>{if(state.revisionPage*20<state.revisionTotal){state.revisionPage++;loadRevisions();}};
+ el('RevisionExport').onclick=exportRevisions;
+}
+
 function clearPrivate(){
- state.seq++;state.course=null;state.courses=[];state.lessons=[];state.fileRequestId=null;
+ state.seq++;state.course=null;state.courses=[];state.lessons=[];state.fileRequestId=null;state.revisionTotal=0;state.revisionPage=1;
+ if(author){el('RevisionRows').replaceChildren();el('RevisionPanel').classList.add('d-none');}
  el('Course').replaceChildren(new Option('Select course',''));
  if(author)el('Author').classList.add('d-none');
  render();

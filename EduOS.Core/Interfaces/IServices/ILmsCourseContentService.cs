@@ -11,6 +11,7 @@ public interface ILmsCourseContentService
     Task<ApiResponse<bool>> CanUploadResourceFileAsync(Guid lessonReference, CancellationToken ct = default);
     Task<ApiResponse<DocumentFileDownloadDto>> DownloadResourceFileAsync(long resourceId, CancellationToken ct = default);
     Task<ApiResponse<CourseContentDto>> GetCourseContentAsync(Guid courseReference, CancellationToken ct = default);
+    Task<ApiResponse<LmsLessonRevisionPageDto>> GetLessonRevisionsAsync(Guid lessonReference, int page, int pageSize, CancellationToken ct = default);
     Task<ApiResponse<CourseSectionDto>> SaveSectionAsync(long? sectionId, SaveCourseSectionRequestDto request, CancellationToken ct = default);
     Task<ApiResponse<ContentLessonDto>> AssignLessonSectionAsync(AssignLessonSectionRequestDto request, CancellationToken ct = default);
     Task<ApiResponse<LessonResourceDto>> SaveResourceAsync(long? resourceId, SaveLessonResourceRequestDto request, CancellationToken ct = default);

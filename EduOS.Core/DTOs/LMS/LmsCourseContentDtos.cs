@@ -68,3 +68,31 @@ public sealed class RemoveLessonResourceRequestDto
 {
     [Required] public string RowVersion { get; set; } = string.Empty;
 }
+public sealed class LmsLessonRevisionPageDto
+{
+    public Guid LessonReference { get; set; }
+    public int Page { get; set; }
+    public int PageSize { get; set; }
+    public int TotalCount { get; set; }
+    public IReadOnlyList<LmsLessonRevisionDto> Items { get; set; } = [];
+}
+public sealed class LmsLessonRevisionDto
+{
+    public int RevisionNo { get; set; }
+    public string ChangeKind { get; set; } = string.Empty;
+    public DateTime CapturedAt { get; set; }
+    public string Title { get; set; } = string.Empty;
+    public string? Content { get; set; }
+    public string? ContentUrl { get; set; }
+    public long? CourseSectionId { get; set; }
+    public int DisplayOrder { get; set; }
+    public bool IsPublished { get; set; }
+    public IReadOnlyList<LmsRevisionResourceDto> Resources { get; set; } = [];
+}
+public sealed class LmsRevisionResourceDto
+{
+    public string? Title { get; set; }
+    public string? ExternalUrl { get; set; }
+    public bool HasPrivateFile { get; set; }
+    public int DisplayOrder { get; set; }
+}

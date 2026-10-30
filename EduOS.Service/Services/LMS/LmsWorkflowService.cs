@@ -24,6 +24,8 @@ public sealed partial class LmsWorkflowService : ILmsWorkflowService
     private readonly IGenericRepository<Course> _courses;
     private readonly IGenericRepository<CourseEnrollment> _enrollments;
     private readonly IGenericRepository<Lesson> _lessons;
+    private readonly IGenericRepository<LmsLessonRevision>? _lessonRevisions;
+    private readonly IGenericRepository<LessonResource>? _lessonResources;
     private readonly IGenericRepository<LessonProgress> _progress;
     private readonly IGenericRepository<Assignment> _assignments;
     private readonly IGenericRepository<AssignmentSubmission> _submissions;
@@ -68,7 +70,9 @@ public sealed partial class LmsWorkflowService : ILmsWorkflowService
         IGenericRepository<QuizAttempt>? completionAttempts = null,
         IGenericRepository<LmsCompletionCertificate>? certificates = null,
         IGenericRepository<AuditLog>? certificateAudits = null,
-        IGenericRepository<Campus>? studentCampuses = null)
+        IGenericRepository<Campus>? studentCampuses = null,
+        IGenericRepository<LmsLessonRevision>? lessonRevisions = null,
+        IGenericRepository<LessonResource>? lessonResources = null)
     {
         _courses = courses; _enrollments = enrollments; _lessons = lessons; _progress = progress;
         _assignments = assignments; _submissions = submissions; _students = students;
@@ -82,6 +86,7 @@ public sealed partial class LmsWorkflowService : ILmsWorkflowService
         _certificates = certificates;
         _certificateAudits = certificateAudits;
         _studentCampuses = studentCampuses;
+        _lessonRevisions = lessonRevisions; _lessonResources = lessonResources;
     }
 
     public async Task<ApiResponse<CourseDto>> SaveCourseAsync(Guid? courseReference, SaveCourseRequestDto request,
@@ -188,6 +193,9 @@ public sealed partial class LmsWorkflowService : ILmsWorkflowService
                 if (row != null && !Matches(row.RowVersion, request.RowVersion))
                     return Error<LessonDto>("Lesson changed. Reload and retry.", 409);
                 var now = _clock.GetUtcNow().UtcDateTime;
+                if (row != null)
+                    await LmsLessonRevisionWriter.BaselineAsync(_lessonRevisions, _lessons, _lessonResources,
+                        _user.TenantId, row.Id, _user.UserId, now, token);
                 if (row == null)
                 {
                     row = new Lesson
@@ -205,6 +213,8 @@ public sealed partial class LmsWorkflowService : ILmsWorkflowService
                 row.ContentUrl = Trim(request.ContentUrl); row.DisplayOrder = request.DisplayOrder;
                 row.IsPublished = request.IsPublished;
                 await _uow.SaveChangesAsync(token);
+                await LmsLessonRevisionWriter.AppendAsync(_lessonRevisions, _lessons, _lessonResources,
+                    _user.TenantId, row.Id, "Lesson", _user.UserId, now, token);
                 return ApiResponse<LessonDto>.SuccessResponse(MapLesson(row, course.PublicId), "Lesson saved.");
             }, IsolationLevel.Serializable, ct);
         }
