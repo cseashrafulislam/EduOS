@@ -1,4 +1,6 @@
 using EduOS.Core.DTOs.Transport;
+using EduOS.Core.Entities.Transport;
+using EduOS.Core.Enums.Domain;
 using Microsoft.EntityFrameworkCore;
 using Xunit;
 
@@ -7,6 +9,74 @@ namespace EduOS.Tests.App;
 // Uses the real disposable SQL fixture and tenant-scoped DbContexts.
 public sealed partial class SqlServerTransportSeatCapacityIntegrationTests
 {
+
+    [Fact]
+    public async Task NoShow_batch_closes_only_awaiting_of_two_frozen_riders()
+    {
+        var connection = Environment.GetEnvironmentVariable("EDUOS_SQL_AUTH_TEST_CONNECTION");
+        if (string.IsNullOrWhiteSpace(connection)) return;
+        var state = await PlannedTripAsync(connection);
+        await using (var setup = ScopedContext(state.Fixture.Options, state.Fixture.TenantId, state.Fixture.UserId))
+        {
+            var vehicle = await setup.Vehicles.SingleAsync(x =>
+                x.TenantId == state.Fixture.TenantId && x.Id == state.Fixture.VehicleId);
+            vehicle.Capacity = 2;
+            var first = await setup.StudentTransports.SingleAsync(x =>
+                x.TenantId == state.Fixture.TenantId && x.VehicleId == vehicle.Id &&
+                x.State == TransportAssignmentState.Active);
+            var second = await setup.StudentEnrollments.SingleAsync(x =>
+                x.TenantId == state.Fixture.TenantId &&
+                x.PublicId == state.Fixture.Enrollments[1]);
+            setup.StudentTransports.Add(new StudentTransport
+            {
+                TenantId = state.Fixture.TenantId, ClientRequestId = Guid.NewGuid(),
+                StudentId = second.StudentId, StudentEnrollmentId = second.Id,
+                RouteVehicleAssignmentId = first.RouteVehicleAssignmentId,
+                RouteId = first.RouteId, VehicleId = first.VehicleId,
+                PickupStopId = first.PickupStopId, DropStopId = first.DropStopId,
+                StartDate = first.StartDate, EndDate = first.EndDate,
+                State = TransportAssignmentState.Active, MonthlyFare = 0m
+            });
+            await setup.SaveChangesAsync();
+        }
+        await using var db = ScopedContext(state.Fixture.Options, state.Fixture.TenantId, state.Fixture.UserId);
+        var service = TripService(db, state.Fixture);
+        var dispatched = await service.DispatchAsync(state.Reference,
+            new DispatchTransportTripRequestDto
+            {
+                ClientRequestId = Guid.NewGuid(), RowVersion = state.RowVersion
+            });
+        Assert.True(dispatched.Success, dispatched.Message);
+        Assert.Equal(2, dispatched.Data!.RiderCount);
+        var boarded = await service.RecordAttendanceAsync(state.Reference,
+            new RecordTransportTripAttendanceRequestDto
+            {
+                ClientRequestId = Guid.NewGuid(), StudentCode = state.StudentCode,
+                EventType = "Boarded"
+            });
+        Assert.True(boarded.Success, boarded.Message);
+        var preview = await service.GetNoShowPreviewAsync(state.Reference);
+        Assert.True(preview.Success, preview.Message);
+        Assert.Equal(1, preview.Data!.AwaitingCount);
+        Assert.Equal(1, preview.Data.BoardedCount);
+        var saved = await service.MarkAwaitingNoShowAsync(state.Reference,
+            new MarkTransportTripAwaitingNoShowRequestDto
+            {
+                ClientRequestId = Guid.NewGuid(), ExpectedAwaitingCount = 1
+            });
+        Assert.True(saved.Success, saved.Message);
+        Assert.Equal(1, saved.Data!.RecordedCount);
+        var report = await service.GetManifestReportAsync(state.Reference);
+        Assert.True(report.Success, report.Message);
+        Assert.Equal(1, report.Data!.BoardedCount);
+        Assert.Equal(1, report.Data.NoShowCount);
+        Assert.Equal(0, report.Data.AwaitingCount);
+        Assert.Equal("Boarded", report.Data.Riders.Single(x =>
+            x.StudentCode == state.StudentCode).AttendanceState);
+        Assert.Equal(2, await db.TransportTripAttendanceEvents.AsNoTracking().CountAsync(x =>
+            x.TenantId == state.Fixture.TenantId));
+    }
+
     [Fact]
     public async Task NoShow_batch_is_atomic_replayable_and_completion_safe()
     {
