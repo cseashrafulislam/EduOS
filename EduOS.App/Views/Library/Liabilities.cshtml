@@ -8,7 +8,7 @@
             <details class="position-relative">
                 <summary class="btn btn-sm btn-outline-secondary" aria-label="Library liability help">ⓘ</summary>
                 <div class="card card-body position-absolute shadow-sm mt-1" style="width:min(21rem,85vw);z-index:5">
-                    Lost/damaged loan incidents require an assessment and a different administrator's approval. Posting creates a student invoice and balanced Finance journal. Payments and reversals are handled in Finance.
+                    Lost, damaged and overdue returned loans require a separate assessment and independent approval. Campus fine policies are effective-dated. Fully unpaid posted charges can be reversed through a second-person balanced journal; paid charges require Finance refund/credit-note controls.
                 </div>
             </details>
         </div>
@@ -21,11 +21,15 @@
                 <div class="card-header"><h3 class="h6 mb-0" data-bn="ঘটনা থেকে দায় নির্ধারণ">Unassessed incidents</h3></div>
                 <div class="card-body">
                     <form id="incidentFilters" class="d-flex gap-2 mb-3">
+                        <select id="incidentKind" class="form-select" aria-label="Incident type" style="max-width:11rem">
+                            <option value="physical" data-bn="হারানো / ক্ষতি">Lost / damaged</option>
+                            <option value="overdue" data-bn="বিলম্বে ফেরত">Late return</option>
+                        </select>
                         <input id="incidentSearch" class="form-control" maxlength="100" autocomplete="off" placeholder="Accession, book or student" aria-label="Search incidents" />
                         <button class="btn btn-outline-primary" type="submit" data-bn="খুঁজুন">Search</button>
                     </form>
                     <div class="table-responsive"><table class="table table-sm table-hover align-middle">
-                        <thead><tr><th data-bn="বই / কপি">Book / copy</th><th data-bn="শিক্ষার্থী">Student</th><th data-bn="অবস্থা">Condition</th><th data-bn="মূল্য (BDT)">Price (BDT)</th><th data-bn="কার্যক্রম">Action</th></tr></thead>
+                        <thead><tr><th data-bn="বই / কপি">Book / copy</th><th data-bn="শিক্ষার্থী">Student</th><th data-bn="অবস্থা">Condition</th><th data-bn="চার্জ (BDT)">Charge (BDT)</th><th data-bn="কার্যক্রম">Action</th></tr></thead>
                         <tbody id="incidentRows"><tr><td colspan="5">Loading…</td></tr></tbody>
                     </table></div>
                     <div class="d-flex justify-content-end align-items-center gap-2">
@@ -48,6 +52,7 @@
                             <option value="assessed" data-bn="নির্ধারিত">Assessed</option>
                             <option value="waived" data-bn="মওকুফ">Waived</option>
                             <option value="posted" data-bn="পোস্ট করা">Posted</option>
+                            <option value="reversed" data-bn="বাতিলকৃত">Reversed</option>
                             <option value="unpaid" data-bn="বকেয়া">Unpaid</option>
                             <option value="settled" data-bn="আদায়কৃত">Settled</option>
                         </select>
@@ -100,10 +105,71 @@
                 <label class="form-label" for="waiverReason" data-bn="মওকুফের কারণ">Waiver reason</label>
                 <textarea id="waiverReason" class="form-control mb-3" maxlength="500" rows="3"></textarea>
             </div>
-            <p class="small text-muted" data-bn="পোস্টের পরে পরিবর্তন বা ফেরত ফাইন্যান্সে হবে।">After posting, adjustments and refunds follow Finance reversal controls.</p>
             <div class="d-flex justify-content-end gap-2">
                 <button id="reviewCancel" class="btn btn-outline-secondary" type="button" data-bn="বাতিল">Cancel</button>
                 <button id="reviewSave" class="btn btn-primary" type="submit" data-bn="নিশ্চিত করুন">Confirm</button>
+            </div>
+        </form>
+    </dialog>
+    <div class="card mt-3">
+        <div class="card-header d-flex justify-content-between align-items-center gap-2">
+            <h3 class="h6 mb-0" data-bn="ক্যাম্পাসভিত্তিক বিলম্ব জরিমানার নীতি">Campus overdue fine policies</h3>
+            <button id="policyOpen" class="btn btn-sm btn-primary" type="button" data-bn="নতুন নীতি">New policy</button>
+        </div>
+        <div class="table-responsive"><table class="table table-sm table-hover mb-0 align-middle">
+            <thead><tr><th data-bn="ক্যাম্পাস">Campus</th><th data-bn="কার্যকর">Effective</th><th data-bn="গ্রেস দিন">Grace days</th><th data-bn="প্রতিদিন (BDT)">Per day (BDT)</th><th data-bn="সর্বোচ্চ (BDT)">Maximum (BDT)</th></tr></thead>
+            <tbody id="policyRows"><tr><td colspan="5">Loading…</td></tr></tbody>
+        </table></div>
+        <div class="card-footer d-flex justify-content-end align-items-center gap-2">
+            <button id="policyPrevious" type="button" class="btn btn-sm btn-outline-secondary" data-bn="পূর্ববর্তী">Previous</button>
+            <span id="policyPage" class="small" aria-live="polite"></span>
+            <button id="policyNext" type="button" class="btn btn-sm btn-outline-secondary" data-bn="পরবর্তী">Next</button>
+        </div>
+    </div>
+    <dialog id="policyDialog" class="border-0 rounded shadow p-4" style="width:min(31rem,94vw)" aria-labelledby="policyTitle">
+        <h3 id="policyTitle" class="h5" data-bn="নতুন জরিমানা নীতি">New fine policy</h3>
+        <form id="policyForm">
+            <label for="policyCampus" class="form-label" data-bn="ক্যাম্পাস">Campus</label>
+            <input id="policyCampusSearch" class="form-control form-control-sm mb-1" maxlength="100" autocomplete="off" placeholder="Search campus" aria-label="Search campus" />
+            <select id="policyCampus" class="form-select mb-3" required></select>
+            <div class="row g-2 mb-3">
+                <div class="col-6"><label for="policyDate" class="form-label" data-bn="কার্যকর তারিখ">Effective date</label>
+                    <input id="policyDate" class="form-control" type="date" required /></div>
+                <div class="col-6"><label for="policyGrace" class="form-label" data-bn="গ্রেস দিন">Grace days</label>
+                    <input id="policyGrace" class="form-control" type="number" min="0" max="36500" step="1" value="0" required /></div>
+                <div class="col-6"><label for="policyRate" class="form-label" data-bn="প্রতিদিন (BDT)">Daily rate (BDT)</label>
+                    <input id="policyRate" class="form-control" type="number" min="0" max="999999999999.99" step="0.01" required /></div>
+                <div class="col-6"><label for="policyMax" class="form-label" data-bn="সর্বোচ্চ (BDT)">Maximum (BDT)</label>
+                    <input id="policyMax" class="form-control" type="number" min="0.01" max="999999999999.99" step="0.01" /></div>
+            </div>
+            <div class="d-flex justify-content-end gap-2">
+                <button id="policyCancel" type="button" class="btn btn-outline-secondary" data-bn="বাতিল">Cancel</button>
+                <button id="policySave" type="submit" class="btn btn-primary" data-bn="সংরক্ষণ">Save</button>
+            </div>
+        </form>
+    </dialog>
+    <dialog id="reversalDialog" class="border-0 rounded shadow p-4" style="width:min(32rem,94vw)" aria-labelledby="reversalTitle">
+        <h3 id="reversalTitle" class="h5" data-bn="পোস্টকৃত দায় সংশোধন">Reverse posted charge</h3>
+        <p id="reversalContext" class="small fw-semibold"></p>
+        <form id="reversalForm">
+            <div id="reversalRequestFields">
+                <label for="reversalDate" class="form-label" data-bn="বাতিলের তারিখ">Reversal date</label>
+                <input id="reversalDate" type="date" class="form-control mb-3" required />
+                <label for="reversalPeriod" class="form-label" data-bn="খোলা হিসাবকাল">Open accounting period</label>
+                <select id="reversalPeriod" class="form-select mb-3" required></select>
+                <label for="reversalReason" class="form-label" data-bn="কারণ">Reason</label>
+                <textarea id="reversalReason" class="form-control mb-3" maxlength="1000" required rows="3"></textarea>
+            </div>
+            <div id="reversalReviewFields" class="d-none">
+                <p id="reversalJournal" class="small fw-semibold"></p>
+                <label class="me-3"><input name="reversalDecision" type="radio" value="approve" checked /> <span data-bn="অনুমোদন">Approve</span></label>
+                <label><input name="reversalDecision" type="radio" value="reject" /> <span data-bn="প্রত্যাখ্যান">Reject</span></label>
+                <label for="reversalRejection" class="form-label d-block mt-3" data-bn="প্রত্যাখ্যানের কারণ">Rejection reason</label>
+                <textarea id="reversalRejection" class="form-control mb-3" maxlength="1000" rows="2"></textarea>
+            </div>
+            <div class="d-flex justify-content-end gap-2 mt-3">
+                <button id="reversalCancel" type="button" class="btn btn-outline-secondary" data-bn="বাতিল">Cancel</button>
+                <button id="reversalSave" type="submit" class="btn btn-primary" data-bn="নিশ্চিত করুন">Confirm</button>
             </div>
         </form>
     </dialog>

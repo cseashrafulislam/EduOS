@@ -15,7 +15,7 @@ using System.Data;
 namespace EduOS.Service.Services.Library;
 
 /// <summary>Library damage/loss assessments are never a StudentFine or an automatically posted charge.</summary>
-public sealed class LibraryLiabilityService(
+public sealed partial class LibraryLiabilityService(
     EduOSDbContext db, ICurrentUserService user, TimeProvider clock,
     ILogger<LibraryLiabilityService> logger) : ILibraryLiabilityService
 {
@@ -37,21 +37,27 @@ public sealed class LibraryLiabilityService(
         string? search, int page, int pageSize, CancellationToken ct = default)
     {
         if (!Allowed) return Error<PagedResult<LibraryPostingOptionDto>>("Institution administrator permission required.", 403);
-        if (!PageValid(page, pageSize) || search?.Length > 100 || type is not ("period" or "head"))
+        if (!PageValid(page, pageSize) || search?.Length > 100 || type is not ("period" or "head" or "campus"))
             return Error<PagedResult<LibraryPostingOptionDto>>("Invalid posting option filters.");
         var tenant = user.TenantId;
         var today = DateOnly.FromDateTime(clock.GetUtcNow().UtcDateTime);
         var term = search?.Trim();
-        var query = type == "period"
-            ? db.AccountingPeriods.AsNoTracking().Where(x => x.TenantId == tenant &&
+        IQueryable<LibraryPostingOptionDto> query = type switch
+        {
+            "period" => db.AccountingPeriods.AsNoTracking().Where(x => x.TenantId == tenant &&
                 !x.IsDeleted && !x.IsClosed && x.StartDate <= today && x.EndDate >= today)
                 .Where(x => string.IsNullOrEmpty(term) || x.Name.Contains(term))
-                .Select(x => new LibraryPostingOptionDto { Id = x.Id, Label = x.Name })
-            : db.FeeHeads.AsNoTracking().Where(x => x.TenantId == tenant &&
+                .Select(x => new LibraryPostingOptionDto { Id = x.Id, Label = x.Name }),
+            "head" => db.FeeHeads.AsNoTracking().Where(x => x.TenantId == tenant &&
                 !x.IsDeleted && x.IsActive && x.Code.StartsWith("LIB-") &&
                 x.IncomeAccountId.HasValue && x.ReceivableAccountId.HasValue)
                 .Where(x => string.IsNullOrEmpty(term) || x.Name.Contains(term) || x.Code.Contains(term))
-                .Select(x => new LibraryPostingOptionDto { Id = x.Id, Label = x.Code + " — " + x.Name });
+                .Select(x => new LibraryPostingOptionDto { Id = x.Id, Label = x.Code + " — " + x.Name }),
+            _ => db.Campuses.AsNoTracking().Where(x => x.TenantId == tenant &&
+                !x.IsDeleted && x.IsActive)
+                .Where(x => string.IsNullOrEmpty(term) || x.Name.Contains(term) || x.Code.Contains(term))
+                .Select(x => new LibraryPostingOptionDto { Id = x.Id, Label = x.Code + " — " + x.Name })
+        };
         var count = await query.CountAsync(ct);
         var rows = await query.OrderBy(x => x.Label).ThenBy(x => x.Id)
             .Skip((page - 1) * pageSize).Take(pageSize).ToListAsync(ct);
@@ -115,7 +121,7 @@ public sealed class LibraryLiabilityService(
         if (!Allowed) return Error<PagedResult<LibraryLiabilityDto>>("Institution administrator permission required.", 403);
         status = (status ?? "all").Trim().ToLowerInvariant();
         if (!PageValid(page, pageSize) || campusId is <= 0 ||
-            status is not ("all" or "assessed" or "waived" or "posted" or "settled" or "unpaid"))
+            status is not ("all" or "assessed" or "waived" or "posted" or "reversed" or "settled" or "unpaid"))
             return Error<PagedResult<LibraryLiabilityDto>>("Invalid liability filters.");
         var tenant = user.TenantId;
         var query = from charge in db.LibraryLiabilities.IgnoreQueryFilters().AsNoTracking()
@@ -137,6 +143,7 @@ public sealed class LibraryLiabilityService(
         if (status == "assessed") query = query.Where(x => x.charge.State == LibraryLiabilityState.Assessed);
         if (status == "waived") query = query.Where(x => x.charge.State == LibraryLiabilityState.Waived);
         if (status == "posted") query = query.Where(x => x.charge.State == LibraryLiabilityState.Posted);
+        if (status == "reversed") query = query.Where(x => x.charge.State == LibraryLiabilityState.Reversed);
         if (status == "settled") query = query.Where(x => x.charge.State == LibraryLiabilityState.Posted &&
             x.invoice != null && !x.invoice.IsDeleted && x.invoice.DueAmount == 0m &&
             x.invoice.PaidAmount == x.charge.Amount && x.invoice.State == InvoiceState.Paid);
@@ -154,6 +161,8 @@ public sealed class LibraryLiabilityService(
                 State = x.charge.State, Amount = x.charge.Amount,
                 AssessmentDate = x.charge.AssessmentDate, Reason = x.charge.Reason,
                 ReviewReason = x.charge.ReviewReason,
+                OverdueDays = x.charge.OverdueDaysSnapshot,
+                DailyRate = x.charge.DailyRateSnapshot,
                 InvoiceReference = x.invoice == null ? null : x.invoice.PublicId,
                 InvoiceNumber = x.invoice == null ? null : x.invoice.InvoiceNumber,
                 PaidAmount = x.invoice == null ? null : x.invoice.PaidAmount,
@@ -197,7 +206,8 @@ public sealed class LibraryLiabilityService(
                 BookIssueState.Damaged => LibraryLiabilityKind.Damaged,
                 _ => (LibraryLiabilityKind)0
             };
-            if (kind == 0) return Error<LibraryLiabilityDto>("Only a recorded lost or damaged loan can be assessed.", 409);
+            if (kind == 0 && issue.State != BookIssueState.Returned)
+                return Error<LibraryLiabilityDto>("Only a recorded lost, damaged or overdue returned loan can be assessed.", 409);
             if (await db.LibraryLiabilities.IgnoreQueryFilters().AnyAsync(x => x.TenantId == tenant &&
                 x.BookIssueId == issue.Id, ct))
                 return Error<LibraryLiabilityDto>("This loan already has a financial assessment.", 409);
@@ -209,8 +219,25 @@ public sealed class LibraryLiabilityService(
                 where copy.TenantId == tenant && copy.Id == issue.BookCopyId &&
                     !copy.IsDeleted && !book.IsDeleted && !branch.IsDeleted
                 select new { copy.State, branch.CampusId }).SingleOrDefaultAsync(ct);
-            if (context == null ||
-                context.State != (kind == LibraryLiabilityKind.Lost ? BookCopyState.Lost : BookCopyState.Damaged) ||
+            if (context == null) return Error<LibraryLiabilityDto>("Loan branch requires reconciliation.", 409);
+            LibraryFinePolicy? finePolicy = null;
+            int? overdueDays = null;
+            if (issue.State == BookIssueState.Returned)
+            {
+                kind = LibraryLiabilityKind.Overdue;
+                if (!issue.ReturnDate.HasValue || issue.ReturnDate.Value <= issue.DueDate ||
+                    issue.ReturnDate.Value > DateOnly.FromDateTime(clock.GetUtcNow().UtcDateTime))
+                    return Error<LibraryLiabilityDto>("Only returned overdue loans qualify for a fine.", 409);
+                finePolicy = await db.LibraryFinePolicies.AsNoTracking().Where(x => x.TenantId == tenant &&
+                    x.CampusId == context.CampusId && !x.IsDeleted &&
+                    x.EffectiveFrom <= issue.IssueDate && x.CreatedAt <= issue.CreatedAt)
+                    .OrderByDescending(x => x.EffectiveFrom).ThenByDescending(x => x.Id).FirstOrDefaultAsync(ct);
+                overdueDays = issue.ReturnDate.Value.DayNumber - issue.DueDate.DayNumber;
+                if (finePolicy == null || !Money(CalculateOverdueAmount(finePolicy, overdueDays.Value)) ||
+                    request.Amount != CalculateOverdueAmount(finePolicy, overdueDays.Value))
+                    return Error<LibraryLiabilityDto>("The overdue amount must match the effective issue-date campus policy.", 409);
+            }
+            else if (context.State != (kind == LibraryLiabilityKind.Lost ? BookCopyState.Lost : BookCopyState.Damaged) ||
                 !issue.ReplacementPriceSnapshot.HasValue || !Money(issue.ReplacementPriceSnapshot.Value) ||
                 request.Amount > issue.ReplacementPriceSnapshot.Value ||
                 (kind == LibraryLiabilityKind.Lost && request.Amount != issue.ReplacementPriceSnapshot.Value))
@@ -229,6 +256,8 @@ public sealed class LibraryLiabilityService(
                 TenantId = tenant, ClientRequestId = request.ClientRequestId, BookIssueId = issue.Id,
                 StudentEnrollmentId = enrollment[0].Id, CampusId = context.CampusId,
                 Kind = kind, Amount = request.Amount, Reason = request.Reason.Trim(),
+                LibraryFinePolicyId = finePolicy?.Id, OverdueDaysSnapshot = overdueDays,
+                DailyRateSnapshot = finePolicy?.DailyRate, GraceDaysSnapshot = finePolicy?.GraceDays,
                 AssessmentDate = today, AssessedByUserId = user.UserId,
                 State = LibraryLiabilityState.Assessed, CreatedBy = user.UserId, CreatedAt = now
             };
@@ -275,7 +304,8 @@ public sealed class LibraryLiabilityService(
             var issue = await db.BookIssues.AsNoTracking().FirstOrDefaultAsync(x => x.TenantId == tenant &&
                 x.Id == charge.BookIssueId && !x.IsDeleted, ct);
             if (issue == null || issue.State != (charge.Kind == LibraryLiabilityKind.Lost ?
-                    BookIssueState.Lost : BookIssueState.Damaged))
+                    BookIssueState.Lost : charge.Kind == LibraryLiabilityKind.Damaged ?
+                    BookIssueState.Damaged : BookIssueState.Returned))
                 return Error<LibraryLiabilityDto>("Original incident changed; reconcile before review.", 409);
             var enrollment = await db.StudentEnrollments.AsNoTracking().FirstOrDefaultAsync(x =>
                 x.TenantId == tenant && x.Id == charge.StudentEnrollmentId &&
@@ -289,11 +319,18 @@ public sealed class LibraryLiabilityService(
             }
             else
             {
-                if (!await db.BookCopies.AsNoTracking().AnyAsync(x => x.TenantId == tenant &&
-                    x.Id == issue.BookCopyId && !x.IsDeleted &&
-                    x.State == (charge.Kind == LibraryLiabilityKind.Lost ?
-                        BookCopyState.Lost : BookCopyState.Damaged), ct))
+                if (charge.Kind != LibraryLiabilityKind.Overdue &&
+                    !await db.BookCopies.AsNoTracking().AnyAsync(x => x.TenantId == tenant &&
+                        x.Id == issue.BookCopyId && !x.IsDeleted &&
+                        x.State == (charge.Kind == LibraryLiabilityKind.Lost ?
+                            BookCopyState.Lost : BookCopyState.Damaged), ct))
                     return Error<LibraryLiabilityDto>("Copy has been recovered or changed; waive or reconcile the assessment.", 409);
+                if (charge.Kind == LibraryLiabilityKind.Overdue &&
+                    (!issue.ReturnDate.HasValue || issue.ReturnDate.Value <= issue.DueDate ||
+                     issue.ReturnDate.Value > DateOnly.FromDateTime(clock.GetUtcNow().UtcDateTime) ||
+                     !charge.LibraryFinePolicyId.HasValue || !charge.OverdueDaysSnapshot.HasValue ||
+                     charge.OverdueDaysSnapshot != issue.ReturnDate.Value.DayNumber - issue.DueDate.DayNumber))
+                    return Error<LibraryLiabilityDto>("Overdue loan provenance changed; reconcile before posting.", 409);
                 var today = DateOnly.FromDateTime(now);
                 var period = await db.AccountingPeriods.AsNoTracking().FirstOrDefaultAsync(x =>
                     x.TenantId == tenant && x.Id == request.AccountingPeriodId && !x.IsDeleted &&
@@ -337,8 +374,9 @@ public sealed class LibraryLiabilityService(
                 {
                     TenantId = tenant, StudentInvoiceId = invoice.Id, FeeHeadId = head.Id,
                     FeeHeadCodeSnapshot = head.Code, FeeHeadNameSnapshot = head.Name,
-                    Description = (charge.Kind == LibraryLiabilityKind.Lost ? "Lost" : "Damaged") +
-                        " library copy replacement charge", Amount = charge.Amount,
+                    Description = (charge.Kind == LibraryLiabilityKind.Overdue ? "Overdue" :
+                        charge.Kind == LibraryLiabilityKind.Lost ? "Lost" : "Damaged") +
+                        " library loan charge", Amount = charge.Amount,
                     DiscountAmount = 0m, FineAmount = 0m, NetAmount = charge.Amount,
                     CreatedBy = user.UserId, CreatedAt = now
                 });
@@ -350,7 +388,7 @@ public sealed class LibraryLiabilityService(
                     JournalDate = today, AccountingPeriodId = period.Id, CampusId = charge.CampusId,
                     ReferenceNumber = invoice.InvoiceNumber, CurrencyCode = "BDT",
                     State = JournalState.Posted, SourceType = "StudentInvoice", SourceId = invoice.Id,
-                    Description = "Library loss/damage " + invoice.InvoiceNumber,
+                    Description = "Library loan charge " + invoice.InvoiceNumber,
                     ApprovedByUserId = user.UserId, ApprovedAt = now,
                     PostedByUserId = user.UserId, PostedAt = now,
                     CreatedBy = user.UserId, CreatedAt = now

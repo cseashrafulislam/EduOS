@@ -15,4 +15,15 @@ public interface ILibraryLiabilityService
         CancellationToken ct = default);
     Task<ApiResponse<LibraryLiabilityDto>> ReviewAsync(Guid reference, ReviewLibraryLiabilityRequestDto request,
         CancellationToken ct = default);
+    Task<ApiResponse<PagedResult<LibraryFinePolicyDto>>> FinePoliciesAsync(long? campusId,
+        int page, int pageSize, CancellationToken ct = default);
+    Task<ApiResponse<LibraryFinePolicyDto>> CreateFinePolicyAsync(SaveLibraryFinePolicyDto request,
+        CancellationToken ct = default);
+    Task<ApiResponse<PagedResult<LibraryIncidentDto>>> OverdueCandidatesAsync(string? search, long? campusId,
+        int page, int pageSize, CancellationToken ct = default);
+    Task<ApiResponse<LibraryReversalDto>> CurrentReversalAsync(Guid liabilityReference, CancellationToken ct = default);
+    Task<ApiResponse<LibraryReversalDto>> RequestReversalAsync(Guid reference,
+        RequestLibraryReversalDto request, CancellationToken ct = default);
+    Task<ApiResponse<LibraryReversalDto>> ReviewReversalAsync(Guid reference, Guid reversalReference,
+        ReviewLibraryReversalDto request, CancellationToken ct = default);
 }

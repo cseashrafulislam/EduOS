@@ -15,8 +15,10 @@ const live = () => /^[0-9A-F]{64}$/.test(session) &&
 const active = new Set();
 const incident = { page: 1, pages: 1, seq: 0 };
 const liability = { page: 1, pages: 1, seq: 0 };
+const policy = { page: 1, pages: 1, seq: 0 };
 let pickedIncident = null, pickedLiability = null, requestId = null;
-const optionVersions = { period: 0, head: 0 };
+let reversalRecord = null, policyRequestId = null, reversalRequestId = null;
+const optionVersions = { period: 0, head: 0, campus: 0 };
 const optionTimers = {};
 const price = amount => Number(amount || 0).toLocaleString(bn ? 'bn-BD' : 'en-BD',
     { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -80,19 +82,23 @@ async function loadIncidents() {
     try {
         const q = new URLSearchParams({ search: el('incidentSearch').value.trim(),
             page: String(incident.page), pageSize: '20' });
-        const data = await api('/api/library/liabilities/incidents?' + q);
+        const data = await api('/api/library/liabilities/' +
+            (el('incidentKind').value === 'overdue' ? 'overdue-candidates' : 'incidents') + '?' + q);
         if (seq !== incident.seq) return;
         const rows = el('incidentRows'); rows.replaceChildren();
         for (const item of data?.items || []) {
             const tr = document.createElement('tr');
             td(tr, item.bookTitle + ' · ' + item.accessionNumber);
             td(tr, item.studentName + ' · ' + item.studentCode);
-            td(tr, item.kind === 1 ? t('Lost', 'হারানো') : t('Damaged', 'ক্ষতিগ্রস্ত'));
-            td(tr, item.replacementPrice === null ? '—' : price(item.replacementPrice));
+            td(tr, item.kind === 1 ? t('Lost', 'হারানো') : item.kind === 2 ? t('Damaged', 'ক্ষতিগ্রস্ত') :
+                (item.overdueDays || 0) + ' ' + t('days overdue', 'দিন বিলম্ব'));
+            const quoted = item.kind === 3 ? item.calculatedAmount : item.replacementPrice;
+            td(tr, quoted === null || quoted === undefined ? '—' : price(quoted));
             const actions = td(tr, ''); actions.textContent = '';
-            if (!item.assessed && item.replacementPrice > 0)
+            if (!item.assessed && quoted > 0)
                 actions.append(button(t('Assess', 'দায় নির্ধারণ'), () => openAssess(item)));
-            else actions.textContent = item.assessed ? t('Recorded', 'নথিভুক্ত') : t('Price needed', 'মূল্য প্রয়োজন');
+            else actions.textContent = item.assessed ? t('Recorded', 'নথিভুক্ত') :
+                (item.policyStatus || t('Price needed', 'মূল্য প্রয়োজন'));
             rows.append(tr);
         }
         if (!rows.children.length) blank('incidentRows', t('No incidents.', 'কোনো ঘটনা নেই।'));
@@ -119,13 +125,19 @@ async function loadLiabilities() {
             td(tr, item.studentName + ' · ' + item.accessionNumber);
             td(tr, price(item.amount));
             td(tr, item.state === 1 ? t('Assessed', 'নির্ধারিত') : item.state === 2 ?
-                t('Waived', 'মওকুফ') : item.isSettled ? t('Settled', 'আদায়কৃত') : t('Posted', 'পোস্ট করা'));
+                t('Waived', 'মওকুফ') : item.state === 4 ? t('Reversed', 'বাতিলকৃত') :
+                item.isSettled ? t('Settled', 'আদায়কৃত') : t('Posted', 'পোস্ট করা'));
             td(tr, item.dueAmount === null ? '—' : price(item.dueAmount));
             const actions = td(tr, ''); actions.textContent = '';
             if (item.state === 1) actions.append(button(t('Review', 'অনুমোদন'), () => openReview(item)));
             else if (item.invoiceNumber) {
                 const small = document.createElement('small'); small.className = 'text-muted';
                 small.textContent = item.invoiceNumber; actions.append(small);
+                if (item.state === 3 && Number(item.paidAmount) === 0 &&
+                    Number(item.dueAmount) === Number(item.amount)) {
+                    actions.append(document.createTextNode(' '));
+                    actions.append(button(t('Reverse', 'বাতিল জার্নাল'), () => openReversal(item), true));
+                }
             } else actions.textContent = '—';
             rows.append(tr);
         }
@@ -145,10 +157,11 @@ function openAssess(item) {
     pickedIncident = item; requestId = crypto.randomUUID();
     el('assessmentContext').textContent = item.studentName + ' · ' + item.bookTitle +
         ' · ' + item.accessionNumber;
-    el('assessmentAmount').value = item.replacementPrice;
-    el('assessmentAmount').max = item.replacementPrice;
-    el('assessmentAmount').readOnly = item.kind === 1;
-    el('assessmentReason').value = '';
+    const amount = item.kind === 3 ? item.calculatedAmount : item.replacementPrice;
+    el('assessmentAmount').value = amount;
+    el('assessmentAmount').max = amount;
+    el('assessmentAmount').readOnly = item.kind !== 2;
+    el('assessmentReason').value = item.kind === 3 ? 'Late return: ' + item.overdueDays + ' overdue days' : '';
     el('assessmentDialog').showModal();
 }
 async function saveAssessment(event) {
@@ -219,18 +232,140 @@ async function saveReview(event) {
     } catch (error) { notify(error.message); }
     finally { button.disabled = false; }
 }
+async function loadPolicies() {
+    const seq = ++policy.seq; blank('policyRows', t('Loading…', 'লোড হচ্ছে…'));
+    try {
+        const result = await api('/api/library/liabilities/fine-policies?page=' + policy.page + '&pageSize=20');
+        if (seq !== policy.seq) return;
+        const rows = el('policyRows'); rows.replaceChildren();
+        for (const p of result?.items || []) {
+            const tr = document.createElement('tr');
+            td(tr, p.campusName); td(tr, p.effectiveFrom); td(tr, String(p.graceDays));
+            td(tr, price(p.dailyRate)); td(tr, p.maximumCharge === null ? '—' : price(p.maximumCharge));
+            rows.append(tr);
+        }
+        if (!rows.children.length) blank('policyRows', t('No policies yet.', 'কোনো নীতি নেই।'));
+        policy.pages = Math.max(1, Number(result?.totalPages || 1));
+        el('policyPage').textContent = policy.page + ' / ' + policy.pages;
+        el('policyPrevious').disabled = policy.page <= 1;
+        el('policyNext').disabled = policy.page >= policy.pages;
+    } catch (error) {
+        if (seq === policy.seq && error.name !== 'AbortError') {
+            blank('policyRows', t('Unable to load.', 'লোড করা যায়নি।')); notify(error.message);
+        }
+    }
+}
+async function openPolicy() {
+    if (!live()) return;
+    policyRequestId = crypto.randomUUID(); el('policyForm').reset();
+    el('policyDialog').showModal();
+    el('policyCampusSearch').value = '';
+    await loadPolicyCampuses();
+}
+async function loadPolicyCampuses() {
+    const seq = ++optionVersions.campus;
+    const picker = el('policyCampus');
+    picker.replaceChildren(new Option(t('Loading…', 'লোড হচ্ছে…'), ''));
+    try {
+        const q = new URLSearchParams({ type: 'campus', search: el('policyCampusSearch').value.trim(),
+            page: '1', pageSize: '50' });
+        const result = await api('/api/library/liabilities/posting-options?' + q);
+        if (seq !== optionVersions.campus || !el('policyDialog').open) return;
+        picker.replaceChildren(new Option(t('Select…', 'নির্বাচন করুন…'), ''));
+        for (const item of result?.items || []) picker.add(new Option(item.label, String(item.id)));
+        if (result?.totalCount > (result?.items || []).length)
+            picker.add(new Option(t('More results: search by campus code', 'আরও ক্যাম্পাস: কোড দিয়ে খুঁজুন'), ''));
+    } catch (error) { if (error.name !== 'AbortError') notify(error.message); }
+}
+async function savePolicy(event) {
+    event.preventDefault();
+    if (!policyRequestId || !live() || !el('policyForm').reportValidity()) return;
+    const button = el('policySave'); button.disabled = true;
+    try {
+        await api('/api/library/liabilities/fine-policies', 'POST', {
+            clientRequestId: policyRequestId, campusId: Number(el('policyCampus').value),
+            effectiveFrom: el('policyDate').value, graceDays: Number(el('policyGrace').value),
+            dailyRate: Number(el('policyRate').value),
+            maximumCharge: el('policyMax').value ? Number(el('policyMax').value) : null
+        });
+        el('policyDialog').close();
+        notify(t('Policy revision recorded.', 'নতুন নীতি সংরক্ষিত হয়েছে।'), true);
+        policy.page = 1; await Promise.all([loadPolicies(), loadIncidents()]);
+    } catch (error) { notify(error.message); }
+    finally { button.disabled = false; }
+}
+function reversalDecisionChanged() {
+    const reject = root.querySelector('input[name="reversalDecision"]:checked')?.value === 'reject';
+    el('reversalRejection').required = reject;
+}
+async function openReversal(item) {
+    if (!live()) return;
+    pickedLiability = item; reversalRecord = null; reversalRequestId = crypto.randomUUID();
+    el('reversalForm').reset(); el('reversalContext').textContent =
+        item.studentName + ' · ' + item.invoiceNumber + ' · ' + price(item.amount) + ' BDT';
+    el('reversalDialog').showModal();
+    try {
+        reversalRecord = await api('/api/library/liabilities/' + item.reference + '/reversal');
+        if (!el('reversalDialog').open || !pickedLiability) return;
+        const pending = reversalRecord?.reference && reversalRecord.reference !== '00000000-0000-0000-0000-000000000000' &&
+            reversalRecord.state === 2;
+        el('reversalRequestFields').classList.toggle('d-none', pending);
+        el('reversalReviewFields').classList.toggle('d-none', !pending);
+        for (const id of ['reversalDate', 'reversalPeriod', 'reversalReason']) el(id).required = !pending;
+        if (pending) {
+            el('reversalJournal').textContent = reversalRecord.journalNumber;
+            reversalDecisionChanged();
+        } else {
+            el('reversalRejection').required = false;
+            const periods = await api('/api/library/liabilities/posting-options?type=period&page=1&pageSize=50');
+            const picker = el('reversalPeriod'); picker.replaceChildren(new Option(t('Select…', 'নির্বাচন করুন…'), ''));
+            for (const x of periods?.items || []) picker.add(new Option(x.label, String(x.id)));
+            if (periods?.totalCount > (periods?.items || []).length)
+                picker.add(new Option(t('Narrow via accounting setup', 'হিসাবকালে খুঁজুন'), ''));
+        }
+    } catch (error) { notify(error.message); el('reversalDialog').close(); }
+}
+async function saveReversal(event) {
+    event.preventDefault();
+    if (!pickedLiability || !live() || !el('reversalForm').reportValidity()) return;
+    const button = el('reversalSave'); button.disabled = true;
+    try {
+        const existing = reversalRecord?.reference && reversalRecord.state === 2;
+        if (existing) {
+            const approve = root.querySelector('input[name="reversalDecision"]:checked')?.value === 'approve';
+            await api('/api/library/liabilities/' + pickedLiability.reference + '/reversal/' +
+                reversalRecord.reference + '/review', 'POST', {
+                rowVersion: reversalRecord.rowVersion, approve,
+                rejectionReason: approve ? null : el('reversalRejection').value.trim()
+            });
+        } else {
+            await api('/api/library/liabilities/' + pickedLiability.reference + '/reversal', 'POST', {
+                clientRequestId: reversalRequestId, rowVersion: pickedLiability.rowVersion,
+                reversalDate: el('reversalDate').value,
+                accountingPeriodId: Number(el('reversalPeriod').value), reason: el('reversalReason').value.trim()
+            });
+        }
+        el('reversalDialog').close();
+        notify(t('Reversal workflow updated.', 'বাতিল জার্নালের কার্যক্রম হালনাগাদ হয়েছে।'), true);
+        await loadLiabilities();
+    } catch (error) { notify(error.message); }
+    finally { button.disabled = false; }
+}
 function reset() {
-    incident.seq++; liability.seq++;
-    optionVersions.period++; optionVersions.head++;
+    incident.seq++; liability.seq++; policy.seq++;
+    optionVersions.period++; optionVersions.head++; optionVersions.campus++;
     for (const timer of Object.values(optionTimers)) clearTimeout(timer);
     for (const controller of active) controller.abort(); active.clear();
     pickedIncident = null; pickedLiability = null; requestId = null;
+    reversalRecord = null; reversalRequestId = null; policyRequestId = null;
     blank('incidentRows', ''); blank('liabilityRows', ''); el('liabilityAlert').className = 'd-none';
     for (const id of ['postingPeriod', 'postingHead']) el(id).replaceChildren();
     el('reviewContext').textContent = ''; el('assessmentContext').textContent = '';
-    for (const id of ['assessmentDialog', 'reviewDialog']) if (el(id).open) el(id).close();
+    for (const id of ['assessmentDialog', 'reviewDialog', 'policyDialog', 'reversalDialog'])
+        if (el(id).open) el(id).close();
 }
 el('incidentFilters').addEventListener('submit', e => { e.preventDefault(); incident.page = 1; loadIncidents(); });
+el('incidentKind').addEventListener('change', () => { incident.page = 1; loadIncidents(); });
 el('liabilityFilters').addEventListener('submit', e => { e.preventDefault(); liability.page = 1; loadLiabilities(); });
 el('liabilityExport').addEventListener('click', exportPage);
 for (const [prefix, model, loader] of [['incident', incident, loadIncidents], ['liability', liability, loadLiabilities]]) {
@@ -238,6 +373,23 @@ for (const [prefix, model, loader] of [['incident', incident, loadIncidents], ['
     el(prefix + 'Next').addEventListener('click', () => { if (model.page < model.pages) { model.page++; loader(); } });
 }
 el('assessmentForm').addEventListener('submit', saveAssessment);
+el('policyOpen').addEventListener('click', openPolicy);
+el('policyForm').addEventListener('submit', savePolicy);
+el('policyCampusSearch').addEventListener('input', () => {
+    clearTimeout(optionTimers.campus);
+    optionTimers.campus = setTimeout(() => { if (el('policyDialog').open) loadPolicyCampuses(); }, 300);
+});
+el('policyCancel').addEventListener('click', () => el('policyDialog').close());
+el('policyDialog').addEventListener('close', () => { policyRequestId = null; });
+el('policyPrevious').addEventListener('click', () => { if (policy.page > 1) { policy.page--; loadPolicies(); } });
+el('policyNext').addEventListener('click', () => { if (policy.page < policy.pages) { policy.page++; loadPolicies(); } });
+el('reversalForm').addEventListener('submit', saveReversal);
+el('reversalCancel').addEventListener('click', () => el('reversalDialog').close());
+el('reversalDialog').addEventListener('close', () => {
+    reversalRecord = null; reversalRequestId = null; pickedLiability = null;
+});
+root.querySelectorAll('input[name="reversalDecision"]').forEach(node =>
+    node.addEventListener('change', reversalDecisionChanged));
 el('assessmentCancel').addEventListener('click', () => el('assessmentDialog').close());
 el('reviewForm').addEventListener('submit', saveReview);
 el('reviewCancel').addEventListener('click', () => el('reviewDialog').close());
@@ -255,5 +407,5 @@ observer.observe(document.body, { attributes: true,
     attributeFilter: ['data-auth-session-reference', 'data-auth-tenant-id'] });
 window.addEventListener('pagehide', reset);
 window.addEventListener('focus', () => { if (!live()) reset(); });
-if (live()) Promise.all([loadIncidents(), loadLiabilities()]); else reset();
+if (live()) Promise.all([loadIncidents(), loadLiabilities(), loadPolicies()]); else reset();
 })();

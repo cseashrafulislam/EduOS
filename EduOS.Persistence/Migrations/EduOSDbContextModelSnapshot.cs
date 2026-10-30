@@ -11886,9 +11886,9 @@ namespace EduOS.Persistence.Migrations
 
                     b.HasIndex("TenantId", "ReversalOfMovementId");
 
-                    b.HasIndex("TenantId", "SourceType", "SourceId");
-
                     b.HasIndex("TenantId", "ToLocationId");
+
+                    b.HasIndex("TenantId", "SourceType", "SourceId");
 
                     b.ToTable("InventoryMovements");
                 });
@@ -15031,6 +15031,76 @@ namespace EduOS.Persistence.Migrations
                     b.ToTable("LibraryBranches");
                 });
 
+            modelBuilder.Entity("EduOS.Core.Entities.Library.LibraryFinePolicy", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
+
+                    b.Property<long>("CampusId")
+                        .HasColumnType("bigint");
+
+                    b.Property<Guid>("ClientRequestId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<long?>("CreatedBy")
+                        .HasColumnType("bigint");
+
+                    b.Property<decimal>("DailyRate")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<long?>("DeletedBy")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateOnly>("EffectiveFrom")
+                        .HasColumnType("date");
+
+                    b.Property<int>("GraceDays")
+                        .HasColumnType("int");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
+
+                    b.Property<decimal?>("MaximumCharge")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
+                    b.Property<long>("TenantId")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<long?>("UpdatedBy")
+                        .HasColumnType("bigint");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId", "ClientRequestId")
+                        .IsUnique();
+
+                    b.HasIndex("TenantId", "CampusId", "EffectiveFrom")
+                        .IsUnique();
+
+                    b.ToTable("LibraryFinePolicies", t =>
+                        {
+                            t.HasCheckConstraint("CK_LibraryFinePolicy_Terms", "[GraceDays] BETWEEN 0 AND 36500 AND [DailyRate] >= 0 AND ([MaximumCharge] IS NULL OR [MaximumCharge] > 0)");
+                        });
+                });
+
             modelBuilder.Entity("EduOS.Core.Entities.Library.LibraryLiability", b =>
                 {
                     b.Property<long>("Id")
@@ -15063,16 +15133,28 @@ namespace EduOS.Persistence.Migrations
                     b.Property<long?>("CreatedBy")
                         .HasColumnType("bigint");
 
+                    b.Property<decimal?>("DailyRateSnapshot")
+                        .HasColumnType("decimal(18,2)");
+
                     b.Property<DateTime?>("DeletedAt")
                         .HasColumnType("datetime2");
 
                     b.Property<long?>("DeletedBy")
                         .HasColumnType("bigint");
 
+                    b.Property<int?>("GraceDaysSnapshot")
+                        .HasColumnType("int");
+
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("bit");
 
                     b.Property<int>("Kind")
+                        .HasColumnType("int");
+
+                    b.Property<long?>("LibraryFinePolicyId")
+                        .HasColumnType("bigint");
+
+                    b.Property<int?>("OverdueDaysSnapshot")
                         .HasColumnType("int");
 
                     b.Property<Guid>("PublicId")
@@ -15124,8 +15206,13 @@ namespace EduOS.Persistence.Migrations
                     b.HasIndex("PublicId")
                         .IsUnique();
 
+                    b.HasIndex("TenantId", "BookIssueId")
+                        .IsUnique();
+
                     b.HasIndex("TenantId", "ClientRequestId")
                         .IsUnique();
+
+                    b.HasIndex("TenantId", "LibraryFinePolicyId");
 
                     b.HasIndex("TenantId", "PublicId")
                         .IsUnique();
@@ -15136,18 +15223,17 @@ namespace EduOS.Persistence.Migrations
                         .IsUnique()
                         .HasFilter("[StudentInvoiceId] IS NOT NULL");
 
-                    b.HasIndex("TenantId", "BookIssueId")
-                        .IsUnique();
+                    b.HasIndex("TenantId", "AssessmentDate", "Id");
 
                     b.HasIndex("TenantId", "CampusId", "State", "AssessmentDate", "Id");
-
-                    b.HasIndex("TenantId", "AssessmentDate", "Id");
 
                     b.ToTable("LibraryLiabilities", t =>
                         {
                             t.HasCheckConstraint("CK_LibraryLiability_Amount", "[Amount] > 0 AND [Amount] <= 999999999999.99");
 
-                            t.HasCheckConstraint("CK_LibraryLiability_State", "[Kind] IN (1,2) AND [State] IN (1,2,3) AND (([State] = 3 AND [StudentInvoiceId] IS NOT NULL AND [ReviewedByUserId] IS NOT NULL AND [ReviewedAtUtc] IS NOT NULL) OR ([State] = 2 AND [StudentInvoiceId] IS NULL AND [ReviewedByUserId] IS NOT NULL AND [ReviewedAtUtc] IS NOT NULL) OR ([State] = 1 AND [StudentInvoiceId] IS NULL AND [ReviewedByUserId] IS NULL AND [ReviewedAtUtc] IS NULL))");
+                            t.HasCheckConstraint("CK_LibraryLiability_OverdueSnapshot", "([Kind] <> 3 AND [LibraryFinePolicyId] IS NULL AND [OverdueDaysSnapshot] IS NULL AND [DailyRateSnapshot] IS NULL AND [GraceDaysSnapshot] IS NULL) OR ([Kind] = 3 AND [LibraryFinePolicyId] IS NOT NULL AND [OverdueDaysSnapshot] > 0 AND [DailyRateSnapshot] >= 0 AND [GraceDaysSnapshot] >= 0)");
+
+                            t.HasCheckConstraint("CK_LibraryLiability_State", "[Kind] IN (1,2,3) AND [State] IN (1,2,3,4) AND (([State] IN (3,4) AND [StudentInvoiceId] IS NOT NULL AND [ReviewedByUserId] IS NOT NULL AND [ReviewedAtUtc] IS NOT NULL) OR ([State] = 2 AND [StudentInvoiceId] IS NULL AND [ReviewedByUserId] IS NOT NULL AND [ReviewedAtUtc] IS NOT NULL) OR ([State] = 1 AND [StudentInvoiceId] IS NULL AND [ReviewedByUserId] IS NULL AND [ReviewedAtUtc] IS NULL))");
                         });
                 });
 
@@ -25001,6 +25087,24 @@ namespace EduOS.Persistence.Migrations
                     b.Navigation("Tenant");
                 });
 
+            modelBuilder.Entity("EduOS.Core.Entities.Library.LibraryFinePolicy", b =>
+                {
+                    b.HasOne("EduOS.Core.Entities.SaaS.Tenant", "Tenant")
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("EduOS.Core.Entities.SaaS.Campus", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "CampusId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Tenant");
+                });
+
             modelBuilder.Entity("EduOS.Core.Entities.Library.LibraryLiability", b =>
                 {
                     b.HasOne("EduOS.Core.Entities.SaaS.Tenant", "Tenant")
@@ -25022,6 +25126,12 @@ namespace EduOS.Persistence.Migrations
                         .HasPrincipalKey("TenantId", "Id")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+
+                    b.HasOne("EduOS.Core.Entities.Library.LibraryFinePolicy", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "LibraryFinePolicyId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
 
                     b.HasOne("EduOS.Core.Entities.Academic.StudentEnrollment", null)
                         .WithMany()

@@ -89,4 +89,51 @@ public sealed class LibraryLiabilityReadTests
         Assert.Equal("Laboratory safety", Assert.Single(history.Data!.Items).BookTitle);
         Assert.Empty((await Service(db).RegisterAsync("assessed", 99, 1, 20)).Data!.Items);
     }
+
+    [Fact]
+    public async Task Overdue_candidates_do_not_apply_a_policy_created_after_the_original_loan()
+    {
+        await using var db = Context();
+        var today = new DateOnly(2026, 10, 30);
+        var campus = new LibraryBranch { TenantId = 91, CampusId = 8, Name = "Central", Code = "CENTRAL" };
+        var book = new Book { TenantId = 91, Title = "Algebra" };
+        var student = new Student { TenantId = 91, StudentCode = "S1", FullName = "Borrower" };
+        db.AddRange(campus, book, student); await db.SaveChangesAsync();
+        var copy = new BookCopy { TenantId = 91, BookId = book.Id, LibraryBranchId = campus.Id,
+            AccessionNumber = "BK-100" };
+        db.BookCopies.Add(copy); await db.SaveChangesAsync();
+        var issue = new BookIssue { TenantId = 91, ClientRequestId = Guid.NewGuid(),
+            BookCopyId = copy.Id, StudentId = student.Id,
+            IssueDate = today.AddDays(-25), DueDate = today.AddDays(-15), ReturnDate = today.AddDays(-10),
+            State = BookIssueState.Returned, CreatedAt = today.AddDays(-25).ToDateTime(TimeOnly.MinValue) };
+        db.BookIssues.Add(issue); await db.SaveChangesAsync();
+        var before = await Service(db).OverdueCandidatesAsync(null, 8, 1, 20);
+        Assert.Equal("No issue-date policy", Assert.Single(before.Data!.Items).PolicyStatus);
+        db.LibraryFinePolicies.Add(new LibraryFinePolicy { TenantId = 91, CampusId = 8,
+            EffectiveFrom = today.AddDays(-27), CreatedAt = today.AddDays(-26).ToDateTime(TimeOnly.MinValue),
+            GraceDays = 2, DailyRate = 4.25m, MaximumCharge = 10m });
+        await db.SaveChangesAsync();
+        Assert.False(await db.LibraryFinePolicies.AsNoTracking().AnyAsync(x => x.TenantId == 91 &&
+            x.CampusId == campus.CampusId && x.EffectiveFrom <= issue.IssueDate &&
+            x.CreatedAt <= issue.CreatedAt));
+        var after = await Service(db).OverdueCandidatesAsync("BK-100", 8, 1, 20);
+        Assert.Null(Assert.Single(after.Data!.Items).CalculatedAmount);
+        Assert.Equal("No issue-date policy", Assert.Single(after.Data.Items).PolicyStatus);
+        var secondCopy = new BookCopy { TenantId = 91, BookId = book.Id,
+            LibraryBranchId = campus.Id, AccessionNumber = "BK-101" };
+        db.BookCopies.Add(secondCopy); await db.SaveChangesAsync();
+        var laterIssue = new BookIssue { TenantId = 91, ClientRequestId = Guid.NewGuid(),
+            BookCopyId = secondCopy.Id, StudentId = student.Id,
+            IssueDate = today.AddDays(-25), DueDate = today.AddDays(-15),
+            ReturnDate = today.AddDays(-10), State = BookIssueState.Returned };
+        db.BookIssues.Add(laterIssue); await db.SaveChangesAsync();
+        var billable = await Service(db).OverdueCandidatesAsync("BK-101", 8, 1, 20);
+        Assert.Equal(10m, Assert.Single(billable.Data!.Items).CalculatedAmount);
+        Assert.Equal(5, Assert.Single(after.Data.Items).OverdueDays);
+        Assert.Empty((await Service(db).OverdueCandidatesAsync(null, 9, 1, 20)).Data!.Items);
+        Assert.Equal(403, (await Service(db, role: "Student")
+            .OverdueCandidatesAsync(null, null, 1, 20)).StatusCode);
+        Assert.Equal(403, (await Service(db, tenant: 92)
+            .FinePoliciesAsync(null, 1, 20)).StatusCode);
+    }
 }

@@ -32,6 +32,32 @@ public sealed class LibraryLiabilitiesController(ILibraryLiabilityService servic
         return StatusCode(result.StatusCode, result);
     }
 
+    [HttpGet("overdue-candidates")]
+    public async Task<IActionResult> OverdueCandidates([FromQuery] string? search = null,
+        [FromQuery] long? campusId = null, [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 20, CancellationToken ct = default)
+    {
+        var result = await service.OverdueCandidatesAsync(search, campusId, page, pageSize, ct);
+        return StatusCode(result.StatusCode, result);
+    }
+
+    [HttpGet("fine-policies")]
+    public async Task<IActionResult> FinePolicies([FromQuery] long? campusId = null,
+        [FromQuery] int page = 1, [FromQuery] int pageSize = 20, CancellationToken ct = default)
+    {
+        var result = await service.FinePoliciesAsync(campusId, page, pageSize, ct);
+        return StatusCode(result.StatusCode, result);
+    }
+
+    [HttpPost("fine-policies")]
+    public async Task<IActionResult> CreateFinePolicy([FromBody] SaveLibraryFinePolicyDto request,
+        CancellationToken ct = default)
+    {
+        if (!ModelState.IsValid) return ValidationProblem(ModelState);
+        var result = await service.CreateFinePolicyAsync(request, ct);
+        return StatusCode(result.StatusCode, result);
+    }
+
     [HttpGet]
     public async Task<IActionResult> Register([FromQuery] string? status = "all",
         [FromQuery] long? campusId = null, [FromQuery] int page = 1,
@@ -71,6 +97,31 @@ public sealed class LibraryLiabilitiesController(ILibraryLiabilityService servic
     {
         if (!ModelState.IsValid) return ValidationProblem(ModelState);
         var result = await service.ReviewAsync(reference, request, ct);
+        return StatusCode(result.StatusCode, result);
+    }
+
+    [HttpGet("{reference:guid}/reversal")]
+    public async Task<IActionResult> CurrentReversal(Guid reference, CancellationToken ct = default)
+    {
+        var result = await service.CurrentReversalAsync(reference, ct);
+        return StatusCode(result.StatusCode, result);
+    }
+
+    [HttpPost("{reference:guid}/reversal")]
+    public async Task<IActionResult> RequestReversal(Guid reference,
+        [FromBody] RequestLibraryReversalDto request, CancellationToken ct = default)
+    {
+        if (!ModelState.IsValid) return ValidationProblem(ModelState);
+        var result = await service.RequestReversalAsync(reference, request, ct);
+        return StatusCode(result.StatusCode, result);
+    }
+
+    [HttpPost("{reference:guid}/reversal/{reversalReference:guid}/review")]
+    public async Task<IActionResult> ReviewReversal(Guid reference, Guid reversalReference,
+        [FromBody] ReviewLibraryReversalDto request, CancellationToken ct = default)
+    {
+        if (!ModelState.IsValid) return ValidationProblem(ModelState);
+        var result = await service.ReviewReversalAsync(reference, reversalReference, request, ct);
         return StatusCode(result.StatusCode, result);
     }
 }

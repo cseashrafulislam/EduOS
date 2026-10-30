@@ -369,6 +369,7 @@ public class EduOSDbContext :
     public DbSet<BookCopy> BookCopies => Set<BookCopy>();
     public DbSet<BookIssue> BookIssues => Set<BookIssue>();
     public DbSet<LibraryLiability> LibraryLiabilities => Set<LibraryLiability>();
+    public DbSet<LibraryFinePolicy> LibraryFinePolicies => Set<LibraryFinePolicy>();
     public DbSet<BookReservation> BookReservations => Set<BookReservation>();
     public DbSet<LibraryBranch> LibraryBranches => Set<LibraryBranch>();
 
@@ -1049,6 +1050,8 @@ public class EduOSDbContext :
         TenantReference<LibraryLiability, StudentEnrollment>(modelBuilder, nameof(LibraryLiability.StudentEnrollmentId));
         TenantReference<LibraryLiability, Campus>(modelBuilder, nameof(LibraryLiability.CampusId));
         TenantReference<LibraryLiability, StudentInvoice>(modelBuilder, nameof(LibraryLiability.StudentInvoiceId));
+        TenantReference<LibraryLiability, LibraryFinePolicy>(modelBuilder, nameof(LibraryLiability.LibraryFinePolicyId));
+        TenantReference<LibraryFinePolicy, Campus>(modelBuilder, nameof(LibraryFinePolicy.CampusId));
         Reference<BookIssue, ApplicationUser>(modelBuilder, nameof(BookIssue.IssuedByUserId));
         Reference<BookIssue, ApplicationUser>(modelBuilder, nameof(BookIssue.ReturnedByUserId));
         TenantReference<BookReservation, Book>(modelBuilder, nameof(BookReservation.BookId));
@@ -1645,6 +1648,9 @@ public class EduOSDbContext :
         UniqueTenant<LibraryLiability>(modelBuilder, nameof(LibraryLiability.ClientRequestId));
         UniqueTenant<LibraryLiability>(modelBuilder, nameof(LibraryLiability.PublicId));
         UniqueTenant<LibraryLiability>(modelBuilder, nameof(LibraryLiability.BookIssueId));
+        UniqueTenant<LibraryFinePolicy>(modelBuilder, nameof(LibraryFinePolicy.CampusId), nameof(LibraryFinePolicy.EffectiveFrom));
+        UniqueTenant<LibraryFinePolicy>(modelBuilder, nameof(LibraryFinePolicy.ClientRequestId));
+        modelBuilder.Entity<LibraryFinePolicy>().HasIndex(x => new { x.TenantId, x.CampusId, x.EffectiveFrom });
         modelBuilder.Entity<LibraryLiability>().HasIndex(x => new { x.TenantId, x.CampusId, x.State, x.AssessmentDate, x.Id });
         modelBuilder.Entity<LibraryLiability>().HasIndex(x => new { x.TenantId, x.AssessmentDate, x.Id });
         modelBuilder.Entity<LibraryLiability>().HasIndex(x => new { x.TenantId, x.StudentInvoiceId })
@@ -1904,8 +1910,12 @@ public class EduOSDbContext :
         {
             t.HasCheckConstraint("CK_LibraryLiability_Amount", "[Amount] > 0 AND [Amount] <= 999999999999.99");
             t.HasCheckConstraint("CK_LibraryLiability_State",
-                "[Kind] IN (1,2) AND [State] IN (1,2,3) AND (([State] = 3 AND [StudentInvoiceId] IS NOT NULL AND [ReviewedByUserId] IS NOT NULL AND [ReviewedAtUtc] IS NOT NULL) OR ([State] = 2 AND [StudentInvoiceId] IS NULL AND [ReviewedByUserId] IS NOT NULL AND [ReviewedAtUtc] IS NOT NULL) OR ([State] = 1 AND [StudentInvoiceId] IS NULL AND [ReviewedByUserId] IS NULL AND [ReviewedAtUtc] IS NULL))");
+                "[Kind] IN (1,2,3) AND [State] IN (1,2,3,4) AND (([State] IN (3,4) AND [StudentInvoiceId] IS NOT NULL AND [ReviewedByUserId] IS NOT NULL AND [ReviewedAtUtc] IS NOT NULL) OR ([State] = 2 AND [StudentInvoiceId] IS NULL AND [ReviewedByUserId] IS NOT NULL AND [ReviewedAtUtc] IS NOT NULL) OR ([State] = 1 AND [StudentInvoiceId] IS NULL AND [ReviewedByUserId] IS NULL AND [ReviewedAtUtc] IS NULL))");
+            t.HasCheckConstraint("CK_LibraryLiability_OverdueSnapshot",
+                "([Kind] <> 3 AND [LibraryFinePolicyId] IS NULL AND [OverdueDaysSnapshot] IS NULL AND [DailyRateSnapshot] IS NULL AND [GraceDaysSnapshot] IS NULL) OR ([Kind] = 3 AND [LibraryFinePolicyId] IS NOT NULL AND [OverdueDaysSnapshot] > 0 AND [DailyRateSnapshot] >= 0 AND [GraceDaysSnapshot] >= 0)");
         });
+        modelBuilder.Entity<LibraryFinePolicy>().ToTable(t =>
+            t.HasCheckConstraint("CK_LibraryFinePolicy_Terms", "[GraceDays] BETWEEN 0 AND 36500 AND [DailyRate] >= 0 AND ([MaximumCharge] IS NULL OR [MaximumCharge] > 0)"));
         modelBuilder.Entity<TenantSubscription>().ToTable(t =>
             t.HasCheckConstraint("CK_TenantSubscription_DateRange", "[EndsAt] >= [StartsAt]"));
 

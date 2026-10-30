@@ -128,6 +128,46 @@ public sealed partial class SqlServerTransportSeatCapacityIntegrationTests
             x.JournalId == journal.Id).ToListAsync();
         Assert.Equal(value, lines.Sum(x => x.DebitAmount));
         Assert.Equal(value, lines.Sum(x => x.CreditAmount));
+        var chargeVersion = Convert.ToBase64String(row.RowVersion);
+        Guid contraRef;
+        string contraVersion;
+        await using (var maker = ScopedContext(fixture.Options, fixture.TenantId, fixture.UserId))
+        {
+            var request = await Liabilities(maker, fixture.TenantId, secondId).RequestReversalAsync(
+                chargeRef, new RequestLibraryReversalDto
+                {
+                    ClientRequestId = Guid.NewGuid(), ReversalDate = today, AccountingPeriodId = periodId,
+                    Reason = "Verified replacement charge correction", RowVersion = chargeVersion
+                });
+            Assert.True(request.Success, request.Message);
+            contraRef = request.Data!.Reference;
+            contraVersion = request.Data.RowVersion;
+            var sameMaker = await Liabilities(maker, fixture.TenantId, secondId)
+                .ReviewReversalAsync(chargeRef, contraRef, new ReviewLibraryReversalDto
+                { Approve = true, RowVersion = contraVersion });
+            Assert.Equal(403, sameMaker.StatusCode);
+        }
+        await using (var reviewer = ScopedContext(fixture.Options, fixture.TenantId, fixture.UserId))
+        {
+            var response = await Liabilities(reviewer, fixture.TenantId, fixture.UserId)
+                .ReviewReversalAsync(chargeRef, contraRef, new ReviewLibraryReversalDto
+                { Approve = true, RowVersion = contraVersion });
+            Assert.True(response.Success, response.Message);
+            Assert.Equal((int)JournalState.Posted, response.Data!.State);
+        }
+        await using var reconcile = ScopedContext(fixture.Options, fixture.TenantId, fixture.UserId);
+        var reversedCharge = await reconcile.LibraryLiabilities.AsNoTracking().SingleAsync(x =>
+            x.TenantId == fixture.TenantId && x.PublicId == chargeRef);
+        Assert.Equal(LibraryLiabilityState.Reversed, reversedCharge.State);
+        Assert.Equal(InvoiceState.Cancelled, (await reconcile.StudentInvoices.AsNoTracking()
+            .SingleAsync(x => x.TenantId == fixture.TenantId && x.Id == row.StudentInvoiceId)).State);
+        var contra = await reconcile.Journals.AsNoTracking().SingleAsync(x =>
+            x.TenantId == fixture.TenantId && x.PublicId == contraRef && x.SourceType == "LibraryLiabilityReversal");
+        Assert.Equal(journal.Id, contra.ReversalOfJournalId);
+        var contraLines = await reconcile.JournalLines.AsNoTracking().Where(x =>
+            x.TenantId == fixture.TenantId && x.JournalId == contra.Id).ToArrayAsync();
+        Assert.Equal(value, contraLines.Sum(x => x.DebitAmount));
+        Assert.Equal(value, contraLines.Sum(x => x.CreditAmount));
     }
 
     private static LibraryLiabilityService Liabilities(
