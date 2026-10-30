@@ -11,7 +11,7 @@ const resource = {
     reference: RESOURCE, bookReference: BOOK, bookTitle: 'Private catalogue title',
     title: 'Protected course reader', fileName: 'private-reader.pdf',
     contentType: 'application/pdf', sizeBytes: 32, isActive: true,
-    expiresOn: '2027-12-31', rowVersion: 'AQIDBA=='
+    expiresOn: '2027-12-31', campusId: 41, rowVersion: 'AQIDBA=='
 };
 
 function fixture(admin, language) {
@@ -20,11 +20,13 @@ function fixture(admin, language) {
         '<input id="digitalBookSearch"><button id="digitalBookFind" type="button">Find</button>',
         '<select id="digitalBook" required><option value="">Select</option></select>',
         '<input id="digitalTitle" required><input id="digitalFile" type="file" required>',
-        '<input id="digitalExpiresOn" type="date"><button id="digitalPublish" type="submit">Publish</button></form>',
+        '<input id="digitalExpiresOn" type="date"><select id="digitalCampus" disabled></select>',
+        '<button id="digitalPublish" type="submit">Publish</button></form>',
         '<select id="digitalStatus"><option value="active">Active</option><option value="all">All</option></select>',
         '<button id="digitalExport" type="button">Export</button>',
         '<dialog id="digitalEditDialog"><form id="digitalEditForm">',
         '<input id="digitalEditName" required><input id="digitalEditExpiry" type="date">',
+        '<select id="digitalEditCampus" disabled></select>',
         '<button id="digitalEditSave" type="submit">Save</button>',
         '<button id="digitalEditCancel" type="button">Cancel</button></form></dialog>',
         '<dialog id="digitalReplaceDialog"><form id="digitalReplaceForm">',
@@ -75,6 +77,12 @@ async function scenario(browser, admin, language) {
             return route.fulfill({ contentType: 'application/json',
                 body: JSON.stringify({ success: true, data: { items: [
                     { reference: BOOK, title: 'Private catalogue title' }] } }) });
+        if (url.pathname === '/api/library/digital/campuses')
+            return route.fulfill({ contentType: 'application/json',
+                body: JSON.stringify({ success: true, data: [
+                    { id: 41, name: 'North', code: 'N' },
+                    { id: 42, name: 'South', code: 'S' }
+                ] }) });
         if (url.pathname === '/api/library/digital/audit')
             return route.fulfill({ contentType: 'application/json',
                 body: JSON.stringify({ success: true, data: {
@@ -116,12 +124,15 @@ async function scenario(browser, admin, language) {
         await page.locator('#digitalRows').getByText('Protected course reader').waitFor();
         assert.match(await page.locator('#digitalRows').innerText(), /private-reader.pdf/);
         if (admin) {
+            await page.locator('#digitalCampus option').nth(2).waitFor({ state: 'attached' });
+            assert.equal(await page.locator('#digitalPublish').isDisabled(), false);
             await page.locator('#digitalAuditRows').getByText('Protected course reader').waitFor();
             await page.locator('#digitalRows button').filter({ hasText:
                 language === 'bn-BD' ? 'সম্পাদনা' : 'Edit' }).click();
             assert.equal(await page.locator('#digitalEditDialog').evaluate(el => el.open), true);
             assert.equal(await page.locator('#digitalEditName').inputValue(),
                 'Protected course reader');
+            assert.equal(await page.locator('#digitalEditCampus').inputValue(), '41');
             await page.locator('#digitalBook option').nth(1).waitFor({ state: 'attached' });
             assert.equal(await page.locator('#digitalBook option').count(), 2);
             await page.locator('#digitalEditCancel').click();
@@ -157,6 +168,8 @@ async function scenario(browser, admin, language) {
             assert.equal(await page.locator('#digitalEditDialog').evaluate(el => el.open), false);
             assert.equal(await page.locator('#digitalEditName').inputValue(), '');
             assert.equal(await page.locator('#digitalBook option').count(), 0);
+            assert.equal(await page.locator('#digitalCampus option').count(), 0);
+            assert.equal(await page.locator('#digitalEditCampus option').count(), 0);
         }
         assert.deepEqual(writes, [], 'session transition must not submit a stale mutation');
         assert.deepEqual(errors, []);
