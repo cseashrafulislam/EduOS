@@ -37,8 +37,8 @@ test('lesson progress is read back before allowing completion and exports are CS
 test('archived learner progress is explicitly scoped and shown as historical evidence', () => {
  assert.match(api, /includeArchived = false/);
  assert.match(api, /GetMyCourseProgressAsync\(page, pageSize, ct, includeArchived\)/);
- assert.match(service, /HistoricalCourseIdsQuery\(studentId\)/);
- assert.match(service, /historicalIds\.Contains\(x\.Course\.Id\)/);
+ assert.match(service, /HistoricalCourseEnrollmentIdsQuery\(studentId\)/);
+ assert.match(service, /historicalEnrollmentIds\.Contains\(x\.Enrollment\.Id\)/);
  assert.match(service, /IsArchived = !x\.Course\.IsActive/);
  assert.match(js, /my-progress\?page=.*includeArchived=true/);
  assert.match(js, /state\.myProgressPage=1/);
