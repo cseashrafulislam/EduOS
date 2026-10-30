@@ -129,9 +129,12 @@ public sealed class SqlServerV3EnterpriseLedgerTraceTests
 
         await using (var db = Open(options, tenantId))
         {
-            var journalLine = await db.JournalLines.FirstAsync(x => x.JournalId == journalId);
-            journalLine.IsDeleted = true;
-            await db.SaveChangesAsync();
+            // Deliberately simulate a legacy tombstone in disposable SQL, bypassing
+            // the V1 SaveChanges guard that correctly forbids edits to posted journals.
+            var lineId = await db.JournalLines.Where(x => x.JournalId == journalId)
+                .OrderBy(x => x.Id).Select(x => x.Id).FirstAsync();
+            await db.JournalLines.Where(x => x.Id == lineId)
+                .ExecuteUpdateAsync(s => s.SetProperty(x => x.IsDeleted, true));
             Assert.Equal(409, (await new V3EnterpriseLedgerTraceService(db, new Actor(tenantId))
                 .GetAsync(movementReference)).StatusCode);
         }

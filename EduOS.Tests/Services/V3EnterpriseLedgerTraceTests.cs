@@ -72,12 +72,9 @@ public sealed class V3EnterpriseLedgerTraceTests
         Assert.Equal(403, (await new V3EnterpriseLedgerTraceService(
             db, new Actor(999, "TenantAdmin")).GetAsync(m.PublicId)).StatusCode);
         Assert.Equal(404, (await service.GetAsync(Guid.NewGuid())).StatusCode);
+        // Posted V1 Finance evidence is immutable; the trace never edits it.
         db.JournalLines.First().CreditAmount = 1m;
-        await db.SaveChangesAsync();
-        Assert.Equal("JournalImbalance", (await service.GetAsync(m.PublicId)).Data!.FinanceEvidenceStatus);
-        db.JournalLines.First().IsDeleted = true;
-        await db.SaveChangesAsync();
-        Assert.Equal(409, (await service.GetAsync(m.PublicId)).StatusCode);
+        await Assert.ThrowsAsync<InvalidOperationException>(() => db.SaveChangesAsync());
     }
 
     [Fact]
