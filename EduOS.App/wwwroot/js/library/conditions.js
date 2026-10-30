@@ -6,6 +6,9 @@ const el = id => document.getElementById(id);
 const bn = document.documentElement.lang?.toLowerCase().startsWith('bn');
 const words = (en, bd) => bn ? bd : en;
 const admin = root.dataset.canRetire === 'true';
+if (bn) root.querySelectorAll('[data-bn]').forEach(node => {
+    node.textContent = node.dataset.bn;
+});
 const initialSession = document.body?.dataset.authSessionReference || '';
 const initialTenant = document.body?.dataset.authTenantId || '';
 const currentSession = () => /^[0-9A-F]{64}$/.test(initialSession) &&
