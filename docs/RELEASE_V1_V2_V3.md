@@ -1,6 +1,6 @@
 # EduOS — authoritative V1 / V2 / V3 module-complete release contract
 
-**Owner decisions: 2026-10-29 (HR/Payroll moved from V2 to V1); 2026-10-30 (verified V1 development-baseline freeze).** Supersedes the historic two-version contract at docs/RELEASE_V1_V2.md. Product targets: **one configurable education ERP** for schools/colleges, madrasa, university, training, coaching, online institute and private tutor. **This is release scope, not evidence that implementation is complete or production-approved.** For current engineering status and what may reopen V1, see [V1 development baseline](V1_DEVELOPMENT_BASELINE_20261030.md).
+**Owner decisions: 2026-10-29 (HR/Payroll moved from V2 to V1); 2026-10-30 (verified V1 development-baseline freeze and V2 LMS/Library engineering closure).** Supersedes the historic two-version contract at docs/RELEASE_V1_V2.md. Product targets: **one configurable education ERP** for schools/colleges, madrasa, university, training, coaching, online institute and private tutor. **Release scope is not proof of production approval.** For V1 see [V1 development baseline](V1_DEVELOPMENT_BASELINE_20261030.md); for closed V2 modules see [LMS/Library final development baseline](V2_LMS_LIBRARY_FINAL_BASELINE_20261030.md).
 
 ## Dynamic institution and learner scale; identity
 
@@ -36,6 +36,17 @@ A **named business module is completed entirely in one version**: setup, master 
 | Full Hostel | Buildings/rooms/beds, eligibility/capacity, reservations/allocation/transfer, occupancy/departure, fee and approved finance adjustments, incidents, security, reports |
 | Full Transport | Drivers/vehicles/routes/stops, schedule/capacity, assigned student/reservation/transfer, transport fees and approved finance adjustments, maintenance, permissions, reports |
 
+**V2 development status, owner instruction 2026-10-30:**
+
+| Module | Engineering work allocation | Release qualification |
+| --- | --- | --- |
+| LMS | **Development-complete; baseline frozen; maintenance-only** | Operational/live-class provider checks, pilot UAT, security/load/deployment evidence and sign-off remain separate gates |
+| Library | **Development-complete; baseline frozen; maintenance-only** | Campus fine-policy acceptance, Finance-paid correction workflows, restored-data rehearsal, browser UAT and sign-off remain separate gates |
+| Hostel | **Remaining V2 development scope** | End-to-end acceptance not yet certified |
+| Transport | **Remaining V2 development scope** | End-to-end acceptance not yet certified |
+
+Existing LMS and Library implementations are **authoritative**. Do not assign any of their completed workflows again, create a new “advanced” implementation or let V3 tasks reimplement them. Reopen only for evidenced defects, security/integrity fixes, unavoidable integration or explicit new owner scope; see the baseline's change-control criteria. Green automation alone is not production approval.
+
 **V1 academic, results, finance and HR/Payroll must not be rewritten as “advanced V2”.** Earlier LMS/Library/Hostel/Transport code, data and migrations remain preserved and gated while those V2 modules are completed. Existing HR/Payroll code and data remain intact as **V1**; do not re-create a V2 HR backlog or duplicate V1 payroll functions. Normal cross-module integration and security/bug/statutory maintenance are allowed without changing module ownership.
 
 ## Version 3 — Other complete enterprise modules
@@ -54,7 +65,7 @@ Complete Inventory/Procurement/Store; Asset and Facility lifecycle; Visitor/Camp
 
 **Architecture:** maintain one existing SQL Server DB and EduOSDbContext and current modular monolith. No current database splitting or mass renaming. App deployment may be separated from SQL hosting when measured operationally appropriate. Any later multi-DB tenant relocation is a separately approved engineering project.
 
-**Task execution:** The currently approved V2 automations own **only LMS, Library, Hostel and Transport**. They must read `AGENTS.md`, this contract and the V1 freeze document, check current `Ashraful` HEAD, avoid duplicate/loop work, and leave V1 modules in maintenance/acceptance rather than generating a new V1 backlog. They must not disable themselves unless the owner says OFF. A promised time target cannot waive tenant isolation, tests or data safety.
+**Task execution:** V2 scope belongs only to LMS, Library, Hostel and Transport, but **LMS and Library are now closed to duplicate feature work**. The existing hourly automations are V3-focused under the owner override below. All work reads `AGENTS.md`, this contract, V1 freeze and V2 LMS/Library baseline; checks current `Ashraful` HEAD; avoids duplicate/loop work; and leaves V1 and closed V2 modules in maintenance/acceptance. Tasks are not disabled unless the owner says OFF. A promised time target cannot waive tenant isolation, tests or data safety.
 
 ## Owner task allocation override — 2026-10-30
 
@@ -62,6 +73,6 @@ The owner explicitly retargeted the five **existing** hourly development tasks t
 superseding historical V2-task allocation sentences above and in AGENTS.md.
 The five owned V3 tracks are Inventory & Store, Procurement, Fixed Assets,
 Facilities & Campus, and Enterprise & QA. This changes task ownership, **not**
-V1/V2 release boundaries or completion claims: preserve V2 LMS/Library/Hostel/
-Transport code and unfinished acceptance, and do not duplicate V1 education,
+V1/V2 release boundaries or completion claims: preserve closed V2 LMS/Library
+baselines and remaining Hostel/Transport work, and do not duplicate V1 education,
 finance, HR or V2 domain workflows in V3. Only the owner may turn tasks OFF.
