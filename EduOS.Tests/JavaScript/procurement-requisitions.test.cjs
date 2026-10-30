@@ -45,3 +45,9 @@ test('checker-only server approval queue and scoped audit timeline use safe DOM 
     assert.match(source, /historyId = null/);
     assert.match(source, /pending:'অপেক্ষমাণ অনুমোদন'/);
 });
+
+test('read-only requisitions keep the authorized history dialog operable', () => {
+    for (const id of ['prHistoryButton', 'prHistoryPrev', 'prHistoryNext'])
+        assert.ok(source.includes(id), id);
+    assert.match(source, /'prHistoryButton', 'prHistoryPrev', 'prHistoryNext'\]\.includes/);
+});

@@ -129,7 +129,8 @@
     }
     function setEditable(enabled) {
         $('prForm').querySelectorAll('input,button').forEach(el => {
-            if (!['prClose', 'prDismiss'].includes(el.id)) el.disabled = !enabled;
+            if (!['prClose', 'prDismiss', 'prHistoryButton', 'prHistoryPrev', 'prHistoryNext'].includes(el.id))
+                el.disabled = !enabled;
         });
         $('prSave').hidden = !enabled; $('prAddLine').hidden = !enabled;
     }
