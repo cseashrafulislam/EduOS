@@ -9,6 +9,10 @@ public interface IProcurementPurchaseOrderService
         long? campusId, string? state, string? search, CancellationToken ct = default);
     Task<ApiResponse<ProcurementPurchaseOrderDto>> SaveDraftAsync(
         long id, SaveProcurementPurchaseOrderDraftRequest request, CancellationToken ct = default);
+    Task<ApiResponse<PagedResult<ProcurementPurchaseOrderDto>>> PendingApprovalsAsync(
+        int page, int pageSize, long? campusId, string? search, CancellationToken ct = default);
+    Task<ApiResponse<PagedResult<ProcurementPurchaseOrderHistoryDto>>> HistoryAsync(
+        long id, int page, int pageSize, CancellationToken ct = default);
     Task<ApiResponse<ProcurementPurchaseOrderDto>> GetAsync(long id, CancellationToken ct = default);
     Task<ApiResponse<ProcurementPurchaseOrderDto>> CreateAsync(
         CreateProcurementPurchaseOrderRequest request, CancellationToken ct = default);

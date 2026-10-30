@@ -58,3 +58,15 @@ public sealed class ProcurementPurchaseOrderDto
     public decimal TotalAmount { get; set; }
     public List<ProcurementPurchaseOrderLineDto> Lines { get; set; } = new();
 }
+
+/// <summary>Tenant/campus-scoped, sanitized audit history; never expose raw audit JSON.</summary>
+public sealed class ProcurementPurchaseOrderHistoryDto
+{
+    public long Id { get; set; }
+    public DateTime OccurredAt { get; set; }
+    public long? ActorUserId { get; set; }
+    public string Action { get; set; } = string.Empty;
+    public string? PreviousState { get; set; }
+    public string? State { get; set; }
+    public string? Reason { get; set; }
+}

@@ -20,6 +20,14 @@ public sealed class ProcurementPurchaseOrdersController : ControllerBase
     public async Task<IActionResult> List(int page = 1, int pageSize = 25, long? campusId = null,
         string? state = null, string? search = null, CancellationToken ct = default)
         => Reply(await service.ListAsync(page, pageSize, campusId, state, search, ct));
+    [HttpGet("approvals"), Authorize(Roles = "TenantAdmin,Principal,InventoryManager")]
+    public async Task<IActionResult> PendingApprovals(int page = 1, int pageSize = 25,
+        long? campusId = null, string? search = null, CancellationToken ct = default)
+        => Reply(await service.PendingApprovalsAsync(page, pageSize, campusId, search, ct));
+    [HttpGet("{id:long}/history"), Authorize(Roles = "TenantAdmin,Principal,InventoryManager,StoreKeeper,Accountant")]
+    public async Task<IActionResult> History(long id, int page = 1, int pageSize = 20,
+        CancellationToken ct = default)
+        => Reply(await service.HistoryAsync(id, page, pageSize, ct));
     [HttpGet("{id:long}"), Authorize(Roles = "TenantAdmin,Principal,InventoryManager,StoreKeeper,Accountant")]
     public async Task<IActionResult> Get(long id, CancellationToken ct) => Reply(await service.GetAsync(id, ct));
     [HttpPost, Authorize(Roles = "TenantAdmin,Principal,InventoryManager,StoreKeeper")]

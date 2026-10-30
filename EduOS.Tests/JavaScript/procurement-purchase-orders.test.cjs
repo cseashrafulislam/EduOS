@@ -24,4 +24,12 @@ test('PO workflow is bilingual and has genuine maker-checker transitions', () =>
  assert.match(script,/rowVersion:current.rowVersion/);
  assert.match(view,/poEditDialog/);
  assert.match(view,/poEditReason/);
+ assert.match(view,/poQueueToggle/);
+ assert.match(view,/poHistoryDialog/);
+ assert.match(script,/\/approvals/);
+ assert.match(script,/\/history/);
+ assert.match(script,/historyEpoch/);
+ assert.match(script,/aria-pressed/);
+ assert.match(script,/poExport'\).disabled = queueOnly/);
+ assert.match(script,/সিদ্ধান্তের ইতিহাস/);
 });

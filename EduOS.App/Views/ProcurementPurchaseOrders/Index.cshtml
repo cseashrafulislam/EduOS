@@ -17,6 +17,8 @@
         <div class="d-flex flex-wrap gap-2">
             <a asp-controller="ProcurementRequisitions" asp-action="Index" class="btn btn-outline-secondary btn-sm" data-i18n="requisitions">Requisitions</a>
             <a asp-controller="ProcurementSuppliers" asp-action="Index" class="btn btn-outline-secondary btn-sm" data-i18n="suppliers">Suppliers</a>
+            @if (checker) { <button id="poQueueToggle" type="button" class="btn btn-outline-primary btn-sm"
+                aria-pressed="false" data-i18n="approvalQueue">Approval queue</button> }
             <button id="poExport" type="button" class="btn btn-outline-secondary btn-sm" data-i18n="export">CSV</button>
             @if (maker) { <button id="poNew" type="button" class="btn btn-primary btn-sm" data-i18n="new">New order</button> }
         </div>
@@ -41,6 +43,26 @@
         <span id="poPage" aria-live="polite"></span>
         <button id="poNext" type="button" class="btn btn-outline-secondary btn-sm" data-i18n="next">Next</button>
     </div>
+    <dialog id="poHistoryDialog" class="border rounded shadow p-0" style="width:min(95vw,780px);max-height:90vh"
+            aria-labelledby="poHistoryTitle">
+        <div class="p-3">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+                <h2 id="poHistoryTitle" class="h5 mb-0" data-i18n="history">Decision history</h2>
+                <button id="poHistoryClose" type="button" class="btn-close" aria-label="Close"></button>
+            </div>
+            <div class="table-responsive"><table class="table table-sm">
+                <thead><tr><th data-i18n="occurred">Occurred</th><th data-i18n="actor">Actor ID</th>
+                    <th data-i18n="auditAction">Action</th><th data-i18n="transition">Transition</th>
+                    <th data-i18n="reason">Reason</th></tr></thead>
+                <tbody id="poHistoryRows"></tbody>
+            </table></div>
+            <div class="d-flex align-items-center gap-2">
+                <button id="poHistoryPrev" type="button" class="btn btn-outline-secondary btn-sm" data-i18n="previous">Previous</button>
+                <span id="poHistoryPage" aria-live="polite"></span>
+                <button id="poHistoryNext" type="button" class="btn btn-outline-secondary btn-sm" data-i18n="next">Next</button>
+            </div>
+        </div>
+    </dialog>
     <dialog id="poCreateDialog" class="border rounded shadow p-0" style="width:min(95vw,720px);max-height:90vh">
         <form id="poCreateForm" class="p-3">
             <div class="d-flex justify-content-between align-items-center mb-3"><h2 class="h5 mb-0" data-i18n="new">New order</h2>

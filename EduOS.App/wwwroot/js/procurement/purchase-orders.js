@@ -21,14 +21,18 @@ const bd = {title:'ক্রয়াদেশ',requisitions:'ক্রয় চা�
  empty:'ক্রয়াদেশ পাওয়া যায়নি।',failed:'অনুরোধ ব্যর্থ।',saved:'সংরক্ষিত।',page:'পৃষ্ঠা',of:'এর',selected:'নির্বাচিত'};
 en.edit='Amend draft order';en.amendReason='Amendment reason';en.save='Save amendment';
 bd.edit='খসড়া ক্রয়াদেশ সংশোধন';bd.amendReason='সংশোধনের কারণ';bd.save='সংশোধন সংরক্ষণ';
+Object.assign(en,{approvalQueue:'Approval queue',allOrders:'All orders',history:'Decision history',
+ occurred:'Occurred',actor:'Actor ID',auditAction:'Action',transition:'Transition'});
+Object.assign(bd,{approvalQueue:'অনুমোদনের অপেক্ষায়',allOrders:'সব ক্রয়াদেশ',history:'সিদ্ধান্তের ইতিহাস',
+ occurred:'সময়',actor:'ব্যবহারকারী আইডি',auditAction:'কার্যক্রম',transition:'অবস্থার পরিবর্তন'});
 const t = k => (bn ? bd : en)[k] || k;
 root.querySelectorAll('[data-i18n]').forEach(x => { x.textContent = t(x.dataset.i18n); });
 const base = '/api/procurement/purchase-orders', token = document.querySelector('meta[name="request-verification-token"]')?.content;
 const maker = root.dataset.maker === 'true', checker = root.dataset.checker === 'true';
 const userId = Number(root.dataset.userId);
-let page = 1, totalPages = 1, epoch = 0, detailEpoch = 0, lookupEpoch = 0, busy = false, current = null, pendingAction = null;
+let page = 1, totalPages = 1, epoch = 0, detailEpoch = 0, lookupEpoch = 0, historyEpoch = 0, historyPage = 1, historyPages = 1, historyId = null, queueOnly = false, busy = false, current = null, pendingAction = null;
 const createDialog = $('poCreateDialog'), detailDialog = $('poDetailDialog'),
- decisionDialog = $('poDecisionDialog'), editDialog = $('poEditDialog');
+ decisionDialog = $('poDecisionDialog'), editDialog = $('poEditDialog'), historyDialog = $('poHistoryDialog');
 function alert(message, success = false) { $('poAlert').className = 'alert alert-' + (success ? 'success' : 'danger'); $('poAlert').textContent = message; }
 function params(obj) { return '?' + new URLSearchParams(Object.entries(obj).filter(([,v]) => v !== '' && v !== null && v !== undefined)).toString(); }
 async function api(url, method = 'GET', body) {
@@ -49,8 +53,9 @@ function button(key, handler, css = 'btn-outline-primary') {
 function filters() { return {campusId:$('poCampus').value, state:$('poState').value, search:$('poSearch').value.trim()}; }
 async function load() {
  const seq = ++epoch; const f = filters();
+ if (queueOnly) delete f.state;
  try {
-  const data = await api(base + params({page, pageSize:25, ...f}));
+  const data = await api(base + (queueOnly ? '/approvals' : '') + params({page, pageSize:25, ...f}));
   if (seq !== epoch) return;
   totalPages = data.totalPages || 1; $('poRows').replaceChildren();
   for (const row of data.items || []) {
@@ -64,6 +69,14 @@ async function load() {
  } catch (e) { if (seq === epoch) alert(e.message); }
 }
 $('poFilters').addEventListener('submit', e => {e.preventDefault();page=1;load();});
+if (checker) $('poQueueToggle')?.addEventListener('click', () => {
+ queueOnly = !queueOnly; page = 1;
+ $('poQueueToggle').setAttribute('aria-pressed', String(queueOnly));
+ $('poQueueToggle').textContent = t(queueOnly ? 'allOrders' : 'approvalQueue');
+ $('poState').disabled = queueOnly;
+ $('poExport').disabled = queueOnly;
+ load();
+});
 $('poPrev').addEventListener('click', () => {if(page>1){page--;load();}});
 $('poNext').addEventListener('click', () => {if(page<totalPages){page++;load();}});
 $('poHelp').addEventListener('click', () => {const open=$('poHelpText').classList.toggle('d-none')===false;$('poHelp').setAttribute('aria-expanded',String(open));});
@@ -74,6 +87,9 @@ function close(dialog) {if(dialog.open) dialog.close();}
 $('poCreateClose').addEventListener('click',()=>close(createDialog));
 $('poCreateCancel').addEventListener('click',()=>close(createDialog));
 $('poDetailClose').addEventListener('click',()=>close(detailDialog));
+$('poHistoryClose').addEventListener('click',()=>close(historyDialog));
+$('poHistoryPrev').addEventListener('click',()=>{if(historyPage>1){historyPage--;loadHistory();}});
+$('poHistoryNext').addEventListener('click',()=>{if(historyPage<historyPages){historyPage++;loadHistory();}});
 $('poDecisionCancel').addEventListener('click',()=>close(decisionDialog));
 $('poEditClose').addEventListener('click',()=>close(editDialog));
 $('poEditCancel').addEventListener('click',()=>close(editDialog));
@@ -137,6 +153,7 @@ async function showDetail(id) {
    $('poDetailLines').append(tr);
   }
   const actions=$('poDetailActions');actions.replaceChildren();
+  actions.append(button('history',()=>showHistory(row.id)));
   const mine=row.createdBy===userId;
   if(maker&&mine&&row.stateCode==='Draft'){
     actions.append(button('edit',openEdit));
@@ -152,6 +169,33 @@ async function showDetail(id) {
  }catch(e){if(seq===detailEpoch)alert(e.message);}
 }
 
+async function loadHistory() {
+ const seq = ++historyEpoch, id = historyId;
+ if (!id) return;
+ try {
+  const data = await api(base + '/' + id + '/history' + params({page:historyPage,pageSize:20}));
+  if (seq !== historyEpoch || id !== historyId || !historyDialog.open) return;
+  historyPages = data.totalPages || 1;
+  $('poHistoryRows').replaceChildren();
+  for (const entry of data.items || []) {
+   const tr = el('tr');
+   const transition = [entry.previousState || '—', entry.state || '—'].join(' → ');
+   for (const value of [new Date(entry.occurredAt).toLocaleString(bn?'bn-BD':'en-BD'),
+       entry.actorUserId ?? '—',entry.action,transition,entry.reason || '—']) tr.append(el('td',value));
+   $('poHistoryRows').append(tr);
+  }
+  if (!data.items?.length) {
+   const tr = el('tr'),td = el('td',t('empty'));td.colSpan=5;tr.append(td);$('poHistoryRows').append(tr);
+  }
+  $('poHistoryPage').textContent = t('page')+' '+historyPage+' '+t('of')+' '+historyPages;
+  $('poHistoryPrev').disabled = historyPage <= 1;
+  $('poHistoryNext').disabled = historyPage >= historyPages;
+ } catch(err) { if (seq === historyEpoch) alert(err.message); }
+}
+function showHistory(id) {
+ close(detailDialog); historyId=id;historyPage=1;historyPages=1;
+ $('poHistoryRows').replaceChildren();historyDialog.showModal();loadHistory();
+}
 function openEdit() {
  if(!current||current.stateCode!=='Draft')return;
  $('poEditExpected').value=current.expectedDeliveryDate?.slice(0,10)||'';
@@ -204,9 +248,9 @@ $('poDecisionForm').addEventListener('submit',async e=>{
  }catch(err){alert(err.message);}
  finally{busy=false;$('poDecisionConfirm').disabled=false;}
 });
-window.addEventListener('pagehide',()=>{++epoch;++detailEpoch;++lookupEpoch;current=null;pendingAction=null;
- for(const dialog of [createDialog,detailDialog,decisionDialog,editDialog])close(dialog);
- $('poRows').replaceChildren();$('poDetailLines').replaceChildren();$('poEditLines').replaceChildren();$('poReqResults').replaceChildren();$('poSupplierResults').replaceChildren();
+window.addEventListener('pagehide',()=>{++epoch;++detailEpoch;++lookupEpoch;++historyEpoch;historyId=null;current=null;pendingAction=null;
+ for(const dialog of [createDialog,detailDialog,decisionDialog,editDialog,historyDialog])close(dialog);
+ $('poRows').replaceChildren();$('poHistoryRows').replaceChildren();$('poDetailLines').replaceChildren();$('poEditLines').replaceChildren();$('poReqResults').replaceChildren();$('poSupplierResults').replaceChildren();
 });
 load();
 })();

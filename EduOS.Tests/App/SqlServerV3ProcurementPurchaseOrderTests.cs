@@ -128,6 +128,17 @@ public sealed class SqlServerV3ProcurementPurchaseOrderTests
         }
         await using var checkerDb = Open(options, tenantId, checkerId);
         await using var competingDb = Open(options, tenantId, checkerId);
+        await using (var makerQueueDb = Open(options, tenantId, makerId))
+        {
+            var ownQueue = await Service(makerQueueDb, tenantId, makerId)
+                .PendingApprovalsAsync(1, 20, null, null);
+            Assert.True(ownQueue.Success, ownQueue.Message);
+            Assert.DoesNotContain(ownQueue.Data!.Items, x => x.Id == id);
+        }
+        var checkerQueue = await Service(checkerDb, tenantId, checkerId)
+            .PendingApprovalsAsync(1, 20, null, null);
+        Assert.True(checkerQueue.Success, checkerQueue.Message);
+        Assert.Contains(checkerQueue.Data!.Items, x => x.Id == id);
         var approved = await Service(checkerDb, tenantId, checkerId).TransitionAsync(id, "approve",
             new ProcurementPurchaseOrderDecisionRequest { RowVersion = version });
         Assert.True(approved.Success, approved.Message);
@@ -135,6 +146,13 @@ public sealed class SqlServerV3ProcurementPurchaseOrderTests
             new ProcurementPurchaseOrderDecisionRequest { RowVersion = version, Reason = "Competing" });
         Assert.Equal(409, stale.StatusCode);
         await using var verify = Open(options, tenantId, makerId);
+        var afterApproval = await Service(verify, tenantId, makerId)
+            .PendingApprovalsAsync(1, 20, null, null);
+        Assert.DoesNotContain(afterApproval.Data!.Items, x => x.Id == id);
+        var history = await Service(verify, tenantId, makerId).HistoryAsync(id, 1, 20);
+        Assert.True(history.Success, history.Message);
+        Assert.True(history.Data!.TotalCount >= 1);
+        Assert.All(history.Data.Items, x => Assert.True(x.Reason == null || x.Reason.Length <= 500));
         Assert.Equal("Approved", (await Service(verify, tenantId, makerId).GetAsync(id)).Data!.StateCode);
         Assert.Equal(40m, (await Service(verify, tenantId, makerId).GetAsync(id)).Data!.TotalAmount);
         Assert.Equal(409, (await Service(verify, tenantId, makerId).SaveDraftAsync(id,
@@ -147,5 +165,9 @@ public sealed class SqlServerV3ProcurementPurchaseOrderTests
         Assert.Empty(await verify.InventoryMovements.ToListAsync());
         await using var foreign = Open(options, tenantId + 99999, makerId);
         Assert.Equal(404, (await Service(foreign, tenantId + 99999, makerId).GetAsync(id)).StatusCode);
+        Assert.Equal(404, (await Service(foreign, tenantId + 99999, makerId)
+            .HistoryAsync(id, 1, 20)).StatusCode);
+        Assert.DoesNotContain((await Service(foreign, tenantId + 99999, makerId)
+            .PendingApprovalsAsync(1, 20, null, null)).Data!.Items, x => x.Id == id);
     }
 }
