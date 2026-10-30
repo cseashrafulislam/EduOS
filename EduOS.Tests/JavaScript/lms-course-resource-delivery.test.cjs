@@ -16,7 +16,8 @@ test('lesson file upload uses private multipart and CSRF with bounded size',()=>
  assert.match(script,/selected.size>5242880/);
  assert.match(controller,/\[RequireModule\("LMS"\)\]/);
  assert.match(controller,/\[RequestSizeLimit\(6291456\)\]/);
- assert.match(controller,/UploadForLmsAsync/);
+ assert.match(controller,/UploadResourceFileAsync/);
+ assert.match(service,/UploadForLmsAsync/);
  assert.match(view,/id="contentResourceUpload"/);
 });
 test('file links use server authorization, never storage keys or raw HTML',()=>{
