@@ -60,10 +60,19 @@ public sealed class SqlServerV3EnterpriseLedgerTraceTests
         }
 
         Guid movementReference;
-        long journalId;
+        long journalId, locationId, primaryCampusId, alternateCampusId;
         await using (var db = Open(options, tenantId))
         {
+            var primaryCampus = new Campus { TenantId = tenantId,
+                Code = "TRACE-A-" + suffix, Name = "Trace campus A", IsActive = true };
+            var alternateCampus = new Campus { TenantId = tenantId,
+                Code = "TRACE-B-" + suffix, Name = "Trace campus B", IsActive = true };
+            db.Campuses.AddRange(primaryCampus, alternateCampus);
+            await db.SaveChangesAsync();
+            primaryCampusId = primaryCampus.Id;
+            alternateCampusId = alternateCampus.Id;
             var location = new InventoryLocation { TenantId = tenantId,
+                CampusId = primaryCampusId,
                 Code = "LOC-" + suffix, Name = "Campus store" };
             var item = new InventoryItem { TenantId = tenantId,
                 Code = "ITM-" + suffix, Name = "Laboratory supplies" };
@@ -79,6 +88,7 @@ public sealed class SqlServerV3EnterpriseLedgerTraceTests
             db.AccountingPeriods.Add(period);
             db.Accounts.AddRange(debit, credit);
             await db.SaveChangesAsync();
+            locationId = location.Id;
             var movement = new InventoryMovement { TenantId = tenantId,
                 MovementNumber = "MV-" + suffix, ClientRequestId = Guid.NewGuid(),
                 MovementTypeCode = "Receipt", StateCode = "Posted",
@@ -91,7 +101,8 @@ public sealed class SqlServerV3EnterpriseLedgerTraceTests
                 TenantId = tenantId, InventoryMovementId = movement.Id,
                 InventoryItemId = item.Id, LineNo = 1, Quantity = 3m, UnitCost = 20m
             });
-            var journal = new Journal { TenantId = tenantId, JournalNumber = "JV-" + suffix,
+            var journal = new Journal { TenantId = tenantId, CampusId = primaryCampusId,
+                JournalNumber = "JV-" + suffix,
                 AccountingPeriodId = period.Id, JournalDate = new DateOnly(2026, 10, 30),
                 SourceType = "InventoryMovement", SourceId = movement.Id,
                 State = JournalState.Posted };
@@ -141,6 +152,38 @@ public sealed class SqlServerV3EnterpriseLedgerTraceTests
             Assert.Equal(200, foreignRegister.StatusCode);
             Assert.DoesNotContain(foreignRegister.Data!.Items,
                 x => x.Reference == movementReference);
+        }
+
+        // Disposable SQL legacy-corruption probes: the normal V1 Finance guard
+        // forbids editing posted journals. A balanced cross-campus journal must
+        // not be accepted as valid inventory/finance provenance.
+        await using (var db = Open(options, tenantId))
+        {
+            var register = new V3EnterpriseReconciliationRegisterService(db, new Actor(tenantId));
+            var from = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(-1));
+            var to = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(1));
+            await db.Journals.Where(x => x.Id == journalId).ExecuteUpdateAsync(s =>
+                s.SetProperty(x => x.CampusId, (long?)alternateCampusId));
+            Assert.Equal(409, (await new V3EnterpriseLedgerTraceService(db, new Actor(tenantId))
+                .GetAsync(movementReference)).StatusCode);
+            Assert.Equal("EvidenceConflict", Assert.Single(
+                (await register.GetAsync("stock", from, to)).Data!.Items,
+                x => x.Reference == movementReference).EvidenceStatus);
+            await db.Journals.Where(x => x.Id == journalId).ExecuteUpdateAsync(s =>
+                s.SetProperty(x => x.CampusId, (long?)primaryCampusId));
+
+            await db.InventoryLocations.Where(x => x.Id == locationId).ExecuteUpdateAsync(s =>
+                s.SetProperty(x => x.IsDeleted, true));
+            Assert.Equal(409, (await new V3EnterpriseLedgerTraceService(db, new Actor(tenantId))
+                .GetAsync(movementReference)).StatusCode);
+            Assert.Equal("EvidenceConflict", Assert.Single(
+                (await register.GetAsync("stock", from, to)).Data!.Items,
+                x => x.Reference == movementReference).EvidenceStatus);
+            await db.InventoryLocations.IgnoreQueryFilters().Where(x => x.Id == locationId)
+                .ExecuteUpdateAsync(s => s.SetProperty(x => x.IsDeleted, false));
+            Assert.Equal("ExplicitBalancedReference", Assert.Single(
+                (await register.GetAsync("stock", from, to)).Data!.Items,
+                x => x.Reference == movementReference).EvidenceStatus);
         }
 
         // Concurrent read-only replay across two tenant contexts must never
