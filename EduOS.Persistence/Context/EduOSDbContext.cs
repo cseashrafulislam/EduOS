@@ -1818,6 +1818,8 @@ public class EduOSDbContext :
         modelBuilder.Entity<InventoryMovement>().HasIndex(x => new { x.TenantId, x.StateCode, x.ReservationExpiresAtUtc });
         modelBuilder.Entity<InventoryMovement>().ToTable(t =>
         {
+            t.HasCheckConstraint("CK_InventoryMovement_ScheduleAudit",
+                "([ReservationDeadlineScheduledAtUtc] IS NULL AND [ReservationDeadlineScheduledByUserId] IS NULL) OR ([ReservationDeadlineScheduledAtUtc] IS NOT NULL AND [ReservationDeadlineScheduledByUserId] IS NOT NULL AND [ReservationExpiresAtUtc] IS NOT NULL)");
             t.HasCheckConstraint("CK_InventoryMovement_ExpiryEvidence",
                 "([StateCode] <> N'Expired' AND [ReservationExpiredAtUtc] IS NULL AND [ReservationExpiredByUserId] IS NULL AND [ReservationExpiryReason] IS NULL) OR ([StateCode] = N'Expired' AND [ReservationExpiresAtUtc] IS NOT NULL AND [ReservationExpiredAtUtc] IS NOT NULL AND [ReservationExpiredByUserId] IS NOT NULL AND [ReservationExpiryReason] IS NOT NULL)");
             t.HasTrigger("TR_InventoryMovement_ExpiryImmutable");

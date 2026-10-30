@@ -9,3 +9,6 @@ The line-level reservation register supports an explicit history toggle. The CSV
 **Deployment:** additive migration `20261030223000_InventoryReservationExpiryEvidence`. Reverting it after any reservation has a deadline is deliberately blocked until an approved retention/reconciliation procedure exists. Existing V1/V2 schemas and Procurement source contracts are unchanged.
 
 **Acceptance still required:** exact-SHA Release/EF/SQL concurrency and campus-IDOR tests, browser/mobile localization, migration repeat/rollback rehearsal and real-institute UAT. Automatic expiry remains disabled until the owner approves an explicit institutional policy.
+
+## Hold origin and scheduling accountability
+New holds capture an immutable UTC hold start. A one-time deadline decision also captures the authorized actor and UTC decision instant. The SQL trigger protects these fields against updates and deletes. Historical holds are not silently backfilled: the register marks their creation-time fallback as estimated. The server-filtered overdue view and bounded authorized CSV expose age, source provenance and deadline decision. Overdue holds still protect stock until an authorized explicit expiry or release. Migration: `20261030233000_InventoryReservationHoldAuditAndAging` (rollback blocked after new evidence exists).

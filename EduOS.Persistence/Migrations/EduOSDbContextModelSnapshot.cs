@@ -11836,6 +11836,12 @@ namespace EduOS.Persistence.Migrations
                         .HasMaxLength(1000)
                         .HasColumnType("nvarchar(1000)");
 
+                    b.Property<DateTime?>("ReservationDeadlineScheduledAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<long?>("ReservationDeadlineScheduledByUserId")
+                        .HasColumnType("bigint");
+
                     b.Property<DateTime?>("ReservationExpiredAtUtc")
                         .HasColumnType("datetime2");
 
@@ -11848,6 +11854,9 @@ namespace EduOS.Persistence.Migrations
                     b.Property<string>("ReservationExpiryReason")
                         .HasMaxLength(400)
                         .HasColumnType("nvarchar(400)");
+
+                    b.Property<DateTime?>("ReservationHeldAtUtc")
+                        .HasColumnType("datetime2");
 
                     b.Property<long?>("ReversalOfMovementId")
                         .HasColumnType("bigint");
@@ -11908,6 +11917,8 @@ namespace EduOS.Persistence.Migrations
                     b.ToTable("InventoryMovements", t =>
                         {
                             t.HasTrigger("TR_InventoryMovement_ExpiryImmutable");
+
+                            t.HasCheckConstraint("CK_InventoryMovement_ScheduleAudit", "([ReservationDeadlineScheduledAtUtc] IS NULL AND [ReservationDeadlineScheduledByUserId] IS NULL) OR ([ReservationDeadlineScheduledAtUtc] IS NOT NULL AND [ReservationDeadlineScheduledByUserId] IS NOT NULL AND [ReservationExpiresAtUtc] IS NOT NULL)");
 
                             t.HasCheckConstraint("CK_InventoryMovement_ExpiryEvidence", "([StateCode] <> N'Expired' AND [ReservationExpiredAtUtc] IS NULL AND [ReservationExpiredByUserId] IS NULL AND [ReservationExpiryReason] IS NULL) OR ([StateCode] = N'Expired' AND [ReservationExpiresAtUtc] IS NOT NULL AND [ReservationExpiredAtUtc] IS NOT NULL AND [ReservationExpiredByUserId] IS NOT NULL AND [ReservationExpiryReason] IS NOT NULL)");
                         });

@@ -13,6 +13,7 @@ export async function initReservations() {
     const locationSelect = el('inventoryReservationLocation');
     const searchInput = el('inventoryReservationSearch');
     const includeClosed = el('inventoryReservationIncludeClosed');
+    const overdueOnly = el('inventoryReservationOverdueOnly');
     const scheduleDialog = el('inventoryExpiryScheduleDialog');
     const confirmDialog = el('inventoryExpiryConfirmDialog');
     let expiryTarget = null;
@@ -56,6 +57,7 @@ export async function initReservations() {
         if (locationSelect.value) q.set('locationId', locationSelect.value);
         if (searchInput.value.trim()) q.set('search', searchInput.value.trim());
         if (includeClosed.checked) q.set('includeClosed', 'true');
+        if (overdueOnly.checked) q.set('overdueOnly', 'true');
         return q;
     };
     async function load() {
@@ -74,8 +76,9 @@ export async function initReservations() {
                     item.itemCode + ' — ' + item.itemName, item.lotOrBatchNo,
                     item.fromLocationId, item.requestedQuantity + ' / ' + item.fulfilledQuantity +
                         ' / ' + item.reservedQuantity + ' ' + item.unitCode,
-                    new Date(item.heldSinceUtc).toLocaleString(),
-                    (item.stateCode || '') + (item.reservationExpiresAtUtc ?
+                    (item.holdStartIsEstimated ? '~' : '') + new Date(item.heldSinceUtc).toLocaleString(),
+                    item.holdAgeDays == null ? '—' : String(item.holdAgeDays) + (bn ? ' দিন' : ' days'),
+                    (item.isOverdue ? (bn ? 'মেয়াদ পেরিয়েছে · ' : 'Overdue · ') : '') + (item.stateCode || '') + (item.reservationExpiresAtUtc ?
                         ' · ' + new Date(item.reservationExpiresAtUtc).toLocaleString() : '')].forEach(value => tr.append(td(value)));
                 const actions = td('');
                 const allowed = el('inventoryMovements')?.dataset.post === 'true';
@@ -103,7 +106,7 @@ export async function initReservations() {
             }
             if (!data.items?.length) {
                 const tr = document.createElement('tr'), cell = document.createElement('td');
-                cell.colSpan = 9;
+                cell.colSpan = 10;
                 cell.textContent = bn ? 'কোনো সক্রিয় রিজার্ভেশন নেই।' : 'No active reservations.';
                 tr.append(cell); rows.append(tr);
             }
@@ -114,6 +117,7 @@ export async function initReservations() {
 
     form.addEventListener('submit', event => { event.preventDefault(); page = 1; load(); });
     includeClosed.addEventListener('change', () => { page = 1; load(); });
+    overdueOnly.addEventListener('change', () => { page = 1; load(); });
     prev.addEventListener('click', () => { if (page > 1) { page--; load(); } });
     next.addEventListener('click', () => { if (page < last) { page++; load(); } });
     exportButton.addEventListener('click', async () => {

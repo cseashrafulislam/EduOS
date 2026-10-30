@@ -12,7 +12,7 @@ public sealed partial class InventoryMovementService
     /// </summary>
     public async Task<ApiResponse<PagedResult<InventoryReservationRegisterRowDto>>> GetReservationRegisterAsync(
         long? locationId, string? search, int page, int pageSize, CancellationToken ct = default,
-        bool includeClosed = false)
+        bool includeClosed = false, bool overdueOnly = false)
     {
         if (!Readable || db.CurrentTenantId != user.TenantId)
             return Denied<PagedResult<InventoryReservationRegisterRowDto>>();
@@ -26,6 +26,7 @@ public sealed partial class InventoryMovementService
 
         page = Math.Max(1, page);
         pageSize = Math.Clamp(pageSize, 1, 250);
+        var asOfUtc = clock.GetUtcNow().UtcDateTime;
         var query =
             from line in db.InventoryMovementLines.AsNoTracking()
             join movement in Visible() on line.InventoryMovementId equals movement.Id
@@ -39,6 +40,10 @@ public sealed partial class InventoryMovementService
                   movement.FromLocationId.HasValue &&
                   (movement.MovementTypeCode == "Issue" || movement.MovementTypeCode == "Transfer")
             select new { line, movement, item };
+        if (overdueOnly)
+            query = query.Where(x => x.movement.StateCode == "Reserved" &&
+                x.movement.ReservationExpiresAtUtc.HasValue &&
+                x.movement.ReservationExpiresAtUtc.Value <= asOfUtc);
         if (locationId.HasValue)
             query = query.Where(x => x.movement.FromLocationId == locationId.Value);
         if (!string.IsNullOrWhiteSpace(search))
@@ -64,7 +69,10 @@ public sealed partial class InventoryMovementService
                     ToLocationId = x.movement.ToLocationId,
                     SourceType = x.movement.SourceType,
                     SourceId = x.movement.SourceId,
-                    HeldSinceUtc = x.movement.UpdatedAt ?? x.movement.CreatedAt,
+                    HeldSinceUtc = x.movement.ReservationHeldAtUtc ?? x.movement.CreatedAt,
+                    HoldStartIsEstimated = !x.movement.ReservationHeldAtUtc.HasValue,
+                    ReservationDeadlineScheduledAtUtc = x.movement.ReservationDeadlineScheduledAtUtc,
+                    ReservationDeadlineScheduledByUserId = x.movement.ReservationDeadlineScheduledByUserId,
                     StateCode = x.movement.StateCode,
                     RowVersion = Convert.ToBase64String(x.movement.RowVersion),
                     ReservationExpiresAtUtc = x.movement.ReservationExpiresAtUtc,
@@ -89,6 +97,17 @@ public sealed partial class InventoryMovementService
         foreach (var row in rows)
         {
             row.HeldSinceUtc = DateTime.SpecifyKind(row.HeldSinceUtc, DateTimeKind.Utc);
+            row.IsOverdue = row.StateCode == "Reserved" && row.ReservationExpiresAtUtc.HasValue &&
+                row.ReservationExpiresAtUtc.Value <= asOfUtc;
+            if (row.StateCode == "Reserved" || row.StateCode == "Expired")
+            {
+                var until = row.StateCode == "Expired" && row.ReservationExpiredAtUtc.HasValue
+                    ? row.ReservationExpiredAtUtc.Value : asOfUtc;
+                row.HoldAgeDays = Math.Max(0, (int)Math.Floor((until - row.HeldSinceUtc).TotalDays));
+            }
+            if (row.ReservationDeadlineScheduledAtUtc.HasValue)
+                row.ReservationDeadlineScheduledAtUtc = DateTime.SpecifyKind(
+                    row.ReservationDeadlineScheduledAtUtc.Value, DateTimeKind.Utc);
             if (row.ReservationExpiresAtUtc.HasValue)
                 row.ReservationExpiresAtUtc = DateTime.SpecifyKind(
                     row.ReservationExpiresAtUtc.Value, DateTimeKind.Utc);

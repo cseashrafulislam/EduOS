@@ -95,6 +95,7 @@ public sealed partial class InventoryMovementService
             if (error != null) return ApiResponse<InventoryMovementDto>.ErrorResponse(error, 409);
             var now = clock.GetUtcNow().UtcDateTime;
             movement.StateCode = "Reserved";
+            movement.ReservationHeldAtUtc = now;
             movement.UpdatedAt = now;
             movement.UpdatedBy = user.UserId;
             await db.SaveChangesAsync(ct);

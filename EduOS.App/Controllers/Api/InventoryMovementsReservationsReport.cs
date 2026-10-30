@@ -9,15 +9,15 @@ public sealed partial class InventoryMovementsController
 {
     [HttpGet("reservations"), Authorize(Roles = "TenantAdmin,Principal,InventoryManager,StoreKeeper,Accountant")]
     public async Task<IActionResult> ReservationRegister(long? locationId, string? search,
-        bool includeClosed = false, int page = 1, int pageSize = 25, CancellationToken ct = default)
-        => Reply(await service.GetReservationRegisterAsync(locationId, search, page, pageSize, ct, includeClosed));
+        bool includeClosed = false, bool overdueOnly = false, int page = 1, int pageSize = 25, CancellationToken ct = default)
+        => Reply(await service.GetReservationRegisterAsync(locationId, search, page, pageSize, ct, includeClosed, overdueOnly));
 
     [HttpGet("reservations/export"), Authorize(Roles = "TenantAdmin,Principal,InventoryManager,StoreKeeper,Accountant")]
     public async Task<IActionResult> ExportReservations(long? locationId, string? search,
-        bool includeClosed = false, CancellationToken ct = default)
+        bool includeClosed = false, bool overdueOnly = false, CancellationToken ct = default)
     {
         // Refetch and authorize at export time; never trust a cached browser page.
-        var result = await service.GetReservationRegisterAsync(locationId, search, 1, 250, ct, includeClosed);
+        var result = await service.GetReservationRegisterAsync(locationId, search, 1, 250, ct, includeClosed, overdueOnly);
         if (!result.Success || result.Data == null) return Reply(result);
         if (result.Data.TotalCount > 250)
             return UnprocessableEntity(new { success = false, message = "Narrow the filters to 250 reservation lines or fewer before export." });
@@ -30,13 +30,16 @@ public sealed partial class InventoryMovementsController
             return "\"" + text.Replace("\"", "\"\"") + "\"";
         }
 
-        var csv = new StringBuilder("\uFEFFMovement,Type,State,Source,From,To,Held UTC,Deadline UTC,Expired UTC,Expiry Reason,Line,Item Code,Item,Unit,Lot,Requested Quantity,Fulfilled Quantity,Reserved Quantity,Released Quantity\r\n");
+        var csv = new StringBuilder("\uFEFFMovement,Type,State,Source,From,To,Held UTC,Hold Start Estimated,Age Days,Overdue,Deadline Scheduled UTC,Scheduled By User ID,Deadline UTC,Expired UTC,Expiry Reason,Line,Item Code,Item,Unit,Lot,Requested Quantity,Fulfilled Quantity,Reserved Quantity,Released Quantity\r\n");
         foreach (var row in result.Data.Items)
             csv.AppendJoin(",", new[]
             {
                 Cell(row.MovementNumber), Cell(row.MovementTypeCode), Cell(row.StateCode), Cell(row.SourceType),
                 Cell(row.FromLocationId), Cell(row.ToLocationId),
                 Cell(row.HeldSinceUtc.ToString("O", CultureInfo.InvariantCulture)),
+                Cell(row.HoldStartIsEstimated), Cell(row.HoldAgeDays), Cell(row.IsOverdue),
+                Cell(row.ReservationDeadlineScheduledAtUtc?.ToString("O", CultureInfo.InvariantCulture)),
+                Cell(row.ReservationDeadlineScheduledByUserId),
                 Cell(row.ReservationExpiresAtUtc?.ToString("O", CultureInfo.InvariantCulture)),
                 Cell(row.ReservationExpiredAtUtc?.ToString("O", CultureInfo.InvariantCulture)),
                 Cell(row.ReservationExpiryReason),

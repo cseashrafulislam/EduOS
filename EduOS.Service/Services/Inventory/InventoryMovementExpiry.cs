@@ -39,6 +39,8 @@ public sealed partial class InventoryMovementService
                 !Version(movement.RowVersion, request.RowVersion))
                 return ApiResponse<InventoryMovementDto>.ErrorResponse("Reservation changed or is not active.", 409);
             movement.ReservationExpiresAtUtc = request.ExpiresAtUtc;
+            movement.ReservationDeadlineScheduledAtUtc = now;
+            movement.ReservationDeadlineScheduledByUserId = user.UserId;
             movement.UpdatedAt = now;
             movement.UpdatedBy = user.UserId;
             await db.SaveChangesAsync(ct);

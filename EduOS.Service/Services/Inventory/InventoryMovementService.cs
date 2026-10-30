@@ -78,6 +78,11 @@ public sealed partial class InventoryMovementService : IInventoryMovementService
         SourceType = m.SourceType, SourceId = m.SourceId, Remarks = m.Remarks, TransferState = transferState,
         MovementAt = m.MovementAt, FromLocationId = m.FromLocationId, ToLocationId = m.ToLocationId,
         StateCode = reversed ? "Reversed" : m.StateCode, PostedAt = m.PostedAt,
+        ReservationHeldAtUtc = m.ReservationHeldAtUtc.HasValue
+            ? DateTime.SpecifyKind(m.ReservationHeldAtUtc.Value, DateTimeKind.Utc) : null,
+        ReservationDeadlineScheduledAtUtc = m.ReservationDeadlineScheduledAtUtc.HasValue
+            ? DateTime.SpecifyKind(m.ReservationDeadlineScheduledAtUtc.Value, DateTimeKind.Utc) : null,
+        ReservationDeadlineScheduledByUserId = m.ReservationDeadlineScheduledByUserId,
         ReservationExpiresAtUtc = m.ReservationExpiresAtUtc.HasValue
             ? DateTime.SpecifyKind(m.ReservationExpiresAtUtc.Value, DateTimeKind.Utc) : null,
         ReservationExpiredAtUtc = m.ReservationExpiredAtUtc.HasValue

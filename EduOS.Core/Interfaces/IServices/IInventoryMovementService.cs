@@ -7,7 +7,7 @@ public interface IInventoryMovementService
 {
     Task<ApiResponse<PagedResult<InventoryMovementDto>>> GetMovementsAsync(DateTime? fromUtc, DateTime? toUtc, int page, int pageSize, CancellationToken cancellationToken = default);
     Task<ApiResponse<InventoryMovementDto>> GetMovementAsync(Guid movementReference, CancellationToken cancellationToken = default);
-    Task<ApiResponse<PagedResult<InventoryReservationRegisterRowDto>>> GetReservationRegisterAsync(long? locationId, string? search, int page, int pageSize, CancellationToken cancellationToken = default, bool includeClosed = false);
+    Task<ApiResponse<PagedResult<InventoryReservationRegisterRowDto>>> GetReservationRegisterAsync(long? locationId, string? search, int page, int pageSize, CancellationToken cancellationToken = default, bool includeClosed = false, bool overdueOnly = false);
     Task<ApiResponse<InventoryMovementDto>> CreateMovementAsync(CreateInventoryMovementRequestDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<InventoryMovementDto>> PostMovementAsync(Guid movementReference, PostInventoryMovementRequestDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<InventoryMovementDto>> ReserveMovementAsync(Guid movementReference, PostInventoryMovementRequestDto request, CancellationToken cancellationToken = default);

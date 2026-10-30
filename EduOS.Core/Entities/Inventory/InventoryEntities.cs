@@ -36,6 +36,10 @@ public class InventoryMovement : BaseTenantEntity
     [MaxLength(100)] public string? SourceType { get; set; }
     public long? SourceId { get; set; }
     [Required, MaxLength(30)] public string StateCode { get; set; } = "Draft";
+    // Write-once hold and scheduling evidence; older records remain null.
+    public DateTime? ReservationHeldAtUtc { get; set; }
+    public DateTime? ReservationDeadlineScheduledAtUtc { get; set; }
+    public long? ReservationDeadlineScheduledByUserId { get; set; }
     // A one-time, explicitly approved hold deadline; no automatic expiry worker.
     public DateTime? ReservationExpiresAtUtc { get; set; }
     public DateTime? ReservationExpiredAtUtc { get; set; }

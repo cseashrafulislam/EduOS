@@ -11,6 +11,11 @@ public sealed class InventoryReservationRegisterRowDto
     public string? SourceType { get; set; }
     public long? SourceId { get; set; }
     public DateTime HeldSinceUtc { get; set; }
+    public bool HoldStartIsEstimated { get; set; }
+    public int? HoldAgeDays { get; set; }
+    public bool IsOverdue { get; set; }
+    public DateTime? ReservationDeadlineScheduledAtUtc { get; set; }
+    public long? ReservationDeadlineScheduledByUserId { get; set; }
     public string StateCode { get; set; } = string.Empty;
     public string RowVersion { get; set; } = string.Empty;
     public DateTime? ReservationExpiresAtUtc { get; set; }

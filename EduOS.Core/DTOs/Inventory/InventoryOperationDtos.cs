@@ -58,6 +58,9 @@ public sealed class InventoryMovementDto
     public long? FromLocationId { get; set; }
     public long? ToLocationId { get; set; }
     public string StateCode { get; set; } = string.Empty;
+    public DateTime? ReservationHeldAtUtc { get; set; }
+    public DateTime? ReservationDeadlineScheduledAtUtc { get; set; }
+    public long? ReservationDeadlineScheduledByUserId { get; set; }
     public DateTime? ReservationExpiresAtUtc { get; set; }
     public DateTime? ReservationExpiredAtUtc { get; set; }
     public long? ReservationExpiredByUserId { get; set; }
