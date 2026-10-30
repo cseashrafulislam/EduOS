@@ -62,7 +62,8 @@ async function scenario(browser,lang){
   await page.locator('#lmsGuardianProgressRows').getByText('Private Learner').waitFor();
   revoked=true;
   await page.locator('#lmsGuardianProgressExport').click();
-  await page.locator('#lmsGuardianProgressAlert').getByText('Consent revoked').waitFor();
+  await page.locator('#lmsGuardianProgressAlert').getByText(
+   lang==='bn'?'রপ্তানির অনুমতি নেই। পৃষ্ঠা রিফ্রেশ করুন।':'Export access denied. Refresh the page.').waitFor();
   assert.equal(await page.locator('#lmsGuardianProgressExport').isDisabled(),true);
   assert.equal(await page.locator('#lmsGuardianProgressRows').innerText().then(x=>x.includes('Private Learner')),false);
   assert.equal(exportRequests,2);
