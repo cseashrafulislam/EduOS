@@ -26,6 +26,9 @@ public sealed class StudentFineRegisterRowDto
     public string? Reason { get; set; }
     public bool IsWaived { get; set; }
     public Guid? BilledInvoiceReference { get; set; }
+    public Guid? ReversalReference { get; set; }
+    public JournalState? ReversalState { get; set; }
+    public string? ReversalRowVersion { get; set; }
     public Guid? SourceInvoiceReference { get; set; }
     public int? ChargedOverdueDays { get; set; }
     public long? WaivedByUserId { get; set; }

@@ -72,7 +72,9 @@ async function load() {
             const tr = document.createElement('tr');
             [row.fineDate, row.studentCode + ' — ' + row.studentName, row.campusId,
                 row.ruleName + (row.chargedOverdueDays ? ' · '+row.chargedOverdueDays+' days' : ''),
-                money(row.amount), row.isWaived ? 'Waived' : row.billedInvoiceReference ? 'Posted' : 'Unposted',
+                money(row.amount), Number(row.reversalState) === 4 ? 'Reversed' :
+                    Number(row.reversalState) === 2 ? 'Pending reversal review' :
+                    row.isWaived ? 'Waived' : row.billedInvoiceReference ? 'Posted' : 'Unposted',
                 row.reason || '—'].forEach(value => tr.append(cell(value)));
             const action = cell('');
             const button = document.createElement('button');

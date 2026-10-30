@@ -22,6 +22,7 @@ public sealed class StudentInvoicePostingRowDto
     public decimal TotalAmount { get; set; }
     public string CurrencyCode { get; set; } = string.Empty;
     public bool Posted { get; set; }
+    public InvoiceState State { get; set; }
     public Guid? JournalReference { get; set; }
     public string RowVersion { get; set; } = string.Empty;
 }

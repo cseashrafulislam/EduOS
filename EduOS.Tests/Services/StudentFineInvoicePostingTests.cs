@@ -100,6 +100,139 @@ public sealed class StudentFineInvoicePostingTests
         { AccountingPeriodId = 1, RowVersion = "AQ==" })).StatusCode.Should().Be(403);
     }
 
+    [Fact]
+    public async Task Posted_unpaid_fine_reversal_requires_second_administrator_and_preserves_source_history()
+    {
+        await using var db = Database();
+        var fine = await SeedAsync(db);
+        var periodId = db.AccountingPeriods.Single().Id;
+        var post = new FinanceAdjustmentService(db, new TestUser(20), TimeProvider.System);
+        (await post.PostFineInvoiceAsync(fine.Id, new PostStudentFineInvoiceRequestDto
+        { AccountingPeriodId = periodId, RowVersion = Convert.ToBase64String(fine.RowVersion) })).Success.Should().BeTrue();
+        var invoice = db.StudentInvoices.Single();
+        var original = db.Journals.Single();
+        var request = new RequestStudentFineReversalDto
+        {
+            ClientRequestId = Guid.NewGuid(), AccountingPeriodId = periodId,
+            ReversalDate = new DateOnly(2026, 10, 29),
+            Reason = "Formal administrative fine waiver", RowVersion = Convert.ToBase64String(fine.RowVersion)
+        };
+        var submitted = await post.RequestFineReversalAsync(fine.Id, request);
+        submitted.Success.Should().BeTrue();
+        submitted.Data!.State.Should().Be(JournalState.Submitted);
+        var retried = await post.RequestFineReversalAsync(fine.Id, request);
+        retried.Success.Should().BeTrue();
+        retried.Data!.AlreadyProcessed.Should().BeTrue();
+        db.Journals.Should().HaveCount(2);
+        db.JournalLines.Should().HaveCount(4);
+        invoice.State.Should().Be(InvoiceState.Issued);
+        fine.IsWaived.Should().BeFalse();
+        var reversal = db.Journals.Single(x => x.State == JournalState.Submitted);
+        reversal.RowVersion = new byte[] { 4, 5, 6 };
+        await TestTenantSeeder.SaveAsync(db);
+        var review = new ReviewStudentFineReversalDto
+        { Approve = true, RowVersion = Convert.ToBase64String(reversal.RowVersion) };
+        (await post.ReviewFineReversalAsync(fine.Id, reversal.PublicId, review)).StatusCode.Should().Be(403);
+        var approver = new FinanceAdjustmentService(db, new TestUser(30), TimeProvider.System);
+        var approved = await approver.ReviewFineReversalAsync(fine.Id, reversal.PublicId, review);
+        approved.Success.Should().BeTrue();
+        approved.Data!.State.Should().Be(JournalState.Posted);
+        var replay = await approver.ReviewFineReversalAsync(fine.Id, reversal.PublicId, review);
+        replay.Success.Should().BeTrue();
+        replay.Data!.AlreadyProcessed.Should().BeTrue();
+
+        invoice.State.Should().Be(InvoiceState.Cancelled);
+        invoice.TotalAmount.Should().Be(75m);
+        invoice.DueAmount.Should().Be(75m); // Historical invoice figures stay untouched.
+        original.State.Should().Be(JournalState.Posted);
+        fine.IsWaived.Should().BeTrue();
+        fine.WaivedByUserId.Should().Be(30);
+        reversal.ReversalOfJournalId.Should().Be(original.Id);
+        reversal.ApprovedByUserId.Should().Be(30);
+        db.JournalLines.Where(x => x.JournalId == reversal.Id).Sum(x => x.CreditAmount).Should().Be(75m);
+        db.JournalLines.Where(x => x.JournalId == reversal.Id).Sum(x => x.DebitAmount).Should().Be(75m);
+        db.JournalLines.GroupBy(x => x.AccountId).Select(x =>
+            x.Sum(y => y.DebitAmount - y.CreditAmount)).Should().OnlyContain(x => x == 0m);
+        var register = await approver.GetFineRegisterAsync(new StudentFineRegisterQueryDto());
+        register.Data!.PostedFineTotal.Should().Be(0m);
+        register.Data.WaivedTotal.Should().Be(75m);
+        register.Data.OutstandingAdministrativeTotal.Should().Be(0m);
+        register.Data.Fines.Items.Single().ReversalState.Should().Be(JournalState.Posted);
+        var studentRegister = await approver.GetStudentRegisterAsync(db.StudentEnrollments.Single().PublicId);
+        studentRegister.Data!.Fines.Single().ReversalState.Should().Be(JournalState.Posted);
+        var reconciliation = await new FeeReceivablesAgingService(db, new TestUser(30))
+            .GetReconciliationAsync(null, null, 1, 25);
+        reconciliation.Success.Should().BeTrue();
+        reconciliation.Data!.Rows.Single().Status.Should().Be("Reversed");
+        reconciliation.Data.Rows.Single().DueAmount.Should().Be(0m);
+        (await post.PostFineInvoiceAsync(fine.Id, new PostStudentFineInvoiceRequestDto
+        { AccountingPeriodId = periodId, RowVersion = Convert.ToBase64String(fine.RowVersion) })).StatusCode.Should().Be(409);
+    }
+
+    [Fact]
+    public async Task Fine_reversal_rejects_historical_allocation_and_closed_period_without_mutation()
+    {
+        await using var db = Database();
+        var fine = await SeedAsync(db);
+        var period = db.AccountingPeriods.Single();
+        var service = new FinanceAdjustmentService(db, new TestUser(20), TimeProvider.System);
+        (await service.PostFineInvoiceAsync(fine.Id, new PostStudentFineInvoiceRequestDto
+        { AccountingPeriodId = period.Id, RowVersion = Convert.ToBase64String(fine.RowVersion) })).Success.Should().BeTrue();
+        var request = new RequestStudentFineReversalDto
+        {
+            ClientRequestId = Guid.NewGuid(), AccountingPeriodId = period.Id,
+            ReversalDate = new DateOnly(2026, 10, 29), Reason = "Administrative correction",
+            RowVersion = Convert.ToBase64String(fine.RowVersion)
+        };
+        period.IsClosed = true;
+        await TestTenantSeeder.SaveAsync(db);
+        (await service.RequestFineReversalAsync(fine.Id, request)).StatusCode.Should().Be(409);
+        db.Journals.Should().ContainSingle();
+        period.IsClosed = false;
+        await TestTenantSeeder.SaveAsync(db);
+        var payment = new StudentPayment { TenantId = 11,
+            StudentId = db.Students.Single().Id, Amount = 75m, ReceivedByUserId = 20,
+            PaymentDate = new DateOnly(2026, 10, 29), ReceiptNumber = "RECEIPT-1" };
+        db.StudentPayments.Add(payment);
+        await TestTenantSeeder.SaveAsync(db);
+        db.PaymentAllocations.Add(new PaymentAllocation
+        { TenantId = 11, StudentPaymentId = payment.Id, StudentInvoiceId = db.StudentInvoices.Single().Id, Amount = 75m });
+        await TestTenantSeeder.SaveAsync(db);
+        (await service.RequestFineReversalAsync(fine.Id, request)).StatusCode.Should().Be(409);
+        db.Journals.Should().ContainSingle();
+        db.StudentInvoices.Single().State.Should().Be(InvoiceState.Issued);
+    }
+
+    [Fact]
+    public async Task Rejected_fine_reversal_is_audited_and_can_be_resubmitted_with_a_new_key()
+    {
+        await using var db = Database();
+        var fine = await SeedAsync(db);
+        var periodId = db.AccountingPeriods.Single().Id;
+        var maker = new FinanceAdjustmentService(db, new TestUser(20), TimeProvider.System);
+        (await maker.PostFineInvoiceAsync(fine.Id, new PostStudentFineInvoiceRequestDto
+        { AccountingPeriodId = periodId, RowVersion = Convert.ToBase64String(fine.RowVersion) })).Success.Should().BeTrue();
+        var request = new RequestStudentFineReversalDto
+        { ClientRequestId = Guid.NewGuid(), AccountingPeriodId = periodId,
+            ReversalDate = new DateOnly(2026, 10, 29), Reason = "Disputed fine",
+            RowVersion = Convert.ToBase64String(fine.RowVersion) };
+        var submitted = await maker.RequestFineReversalAsync(fine.Id, request);
+        submitted.Success.Should().BeTrue();
+        var journal = db.Journals.Single(x => x.State == JournalState.Submitted);
+        journal.RowVersion = new byte[] { 4, 5, 6 };
+        await TestTenantSeeder.SaveAsync(db);
+        var reviewer = new FinanceAdjustmentService(db, new TestUser(30), TimeProvider.System);
+        (await reviewer.ReviewFineReversalAsync(fine.Id, journal.PublicId,
+            new ReviewStudentFineReversalDto { Approve = false,
+                RejectionReason = "Insufficient justification", RowVersion = Convert.ToBase64String(journal.RowVersion) })).Success.Should().BeTrue();
+        journal.State.Should().Be(JournalState.Rejected);
+        fine.IsWaived.Should().BeFalse();
+        db.StudentInvoices.Single().State.Should().Be(InvoiceState.Issued);
+        request.ClientRequestId = Guid.NewGuid();
+        (await maker.RequestFineReversalAsync(fine.Id, request)).Success.Should().BeTrue();
+        db.Journals.Count(x => x.SourceType == "StudentFineReversal").Should().Be(2);
+    }
+
     private static EduOSDbContext Database()
     {
         var accessor = new HttpContextAccessor { HttpContext = new DefaultHttpContext() };

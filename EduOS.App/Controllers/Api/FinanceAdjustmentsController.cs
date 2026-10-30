@@ -86,6 +86,12 @@ public sealed class FinanceAdjustmentsController : ControllerBase
     [HttpPost("fines/{id:long}/post-invoice")]
     public async Task<IActionResult> PostFineInvoice(long id,[FromBody] PostStudentFineInvoiceRequestDto request,CancellationToken ct)
         => Reply(await service.PostFineInvoiceAsync(id,request,ct));
+    [HttpPost("fines/{id:long}/reverse/request")]
+    public async Task<IActionResult> RequestFineReversal(long id,[FromBody] RequestStudentFineReversalDto request,CancellationToken ct)
+        => Reply(await service.RequestFineReversalAsync(id,request,ct));
+    [HttpPost("fines/{id:long}/reverse/{reference:guid}/review")]
+    public async Task<IActionResult> ReviewFineReversal(long id,Guid reference,[FromBody] ReviewStudentFineReversalDto request,CancellationToken ct)
+        => Reply(await service.ReviewFineReversalAsync(id,reference,request,ct));
     [HttpGet("refunds")]
     public async Task<IActionResult> Refunds([FromQuery] long? campusId, [FromQuery] int page = 1,
         [FromQuery] int pageSize = 25, CancellationToken ct = default)

@@ -95,10 +95,23 @@ public sealed partial class FeeReceivablesAgingService
             .Where(x => x.TenantId == tenant && journalIds.Contains(x.JournalId))
             .ToListAsync(ct);
         var byJournal = lines.ToLookup(x => x.JournalId);
-        var reversed = (await _db.Journals.IgnoreQueryFilters().AsNoTracking()
+        var postedReversals = await _db.Journals.IgnoreQueryFilters().AsNoTracking()
             .Where(x => x.TenantId == tenant && x.ReversalOfJournalId.HasValue &&
                 journalIds.Contains(x.ReversalOfJournalId.Value) && x.State == JournalState.Posted)
-            .Select(x => x.ReversalOfJournalId!.Value).ToListAsync(ct)).ToHashSet();
+            .ToListAsync(ct);
+        var reversed = postedReversals.Select(x => x.ReversalOfJournalId!.Value).ToHashSet();
+        var fineInvoiceLines = await _db.StudentInvoiceLines.IgnoreQueryFilters().AsNoTracking()
+            .Where(x => x.TenantId == tenant && invoiceIds.Contains(x.StudentInvoiceId) &&
+                x.StudentFineId.HasValue).ToListAsync(ct);
+        var fineIds = fineInvoiceLines.Select(x => x.StudentFineId!.Value).Distinct().ToArray();
+        var fineRecords = await _db.StudentFines.IgnoreQueryFilters().AsNoTracking()
+            .Where(x => x.TenantId == tenant && fineIds.Contains(x.Id))
+            .ToDictionaryAsync(x => x.Id, ct);
+        var reversalIds = postedReversals.Select(x => x.Id).ToArray();
+        var reversalLines = await _db.JournalLines.IgnoreQueryFilters().AsNoTracking()
+            .Where(x => x.TenantId == tenant && reversalIds.Contains(x.JournalId)).ToListAsync(ct);
+        var reversalByJournal = reversalLines.ToLookup(x => x.JournalId);
+        var fineLinesByInvoice = fineInvoiceLines.ToLookup(x => x.StudentInvoiceId);
         var byInvoice = allocations.ToLookup(x => x.StudentInvoiceId);
         var byAllocation = refundAllocations.ToLookup(x => x.PaymentAllocationId);
         var results = new List<FeeReconciliationRowDto>(rows.Count);
@@ -155,9 +168,32 @@ public sealed partial class FeeReceivablesAgingService
             var net = gross - refunded + credited;
             if (net < 0m || net != invoice.PaidAmount)
                 issues.Add("Paid balance differs from receipts less cash refunds plus immutable credit notes");
+            var validFineVoid = false;
+            if (invoice.State == InvoiceState.Cancelled && invoice.JournalId.HasValue &&
+                invoice.PaidAmount == 0m && !byInvoice[invoice.Id].Any())
+            {
+                var sourceLines = byJournal[invoice.JournalId.Value].OrderBy(x => x.LineNo).ToArray();
+                var fineLines = fineLinesByInvoice[invoice.Id].ToArray();
+                validFineVoid = fineLines.Length == 1 && !fineLines[0].IsDeleted &&
+                    fineRecords.TryGetValue(fineLines[0].StudentFineId!.Value, out var fine) &&
+                    !fine.IsDeleted && fine.IsWaived && fine.Amount == invoice.TotalAmount &&
+                    postedReversals.Where(x => x.ReversalOfJournalId == invoice.JournalId &&
+                        x.SourceType == "StudentFineReversal" && x.SourceId == fine.Id && !x.IsDeleted)
+                        .Any(x => {
+                            var contra = reversalByJournal[x.Id].OrderBy(y => y.LineNo).ToArray();
+                            return contra.Length == sourceLines.Length && contra.Length == 2 &&
+                                x.CurrencyCode == invoice.CurrencyCode &&
+                                x.CampusId == invoice.CampusId &&
+                                sourceLines.Where((y, i) => contra[i].IsDeleted ||
+                                    contra[i].LineNo != y.LineNo || contra[i].AccountId != y.AccountId ||
+                                    contra[i].StudentId != y.StudentId || contra[i].CampusId != y.CampusId ||
+                                    contra[i].DebitAmount != y.CreditAmount ||
+                                    contra[i].CreditAmount != y.DebitAmount).Any() == false;
+                        });
+            }
             if (invoice.JournalId.HasValue &&
                 (!journals.TryGetValue(invoice.JournalId.Value, out var journal) ||
-                 reversed.Contains(invoice.JournalId.Value) ||
+                 (reversed.Contains(invoice.JournalId.Value) && !validFineVoid) ||
                  !InstitutionalPostingJournalIntegrity.Matches(journal,
                      byJournal[invoice.JournalId.Value].ToArray(), tenant,
                      "StudentInvoice", invoice.Id, invoice.CampusId,
@@ -169,10 +205,11 @@ public sealed partial class FeeReceivablesAgingService
                 StudentCode = invoice.StudentCode, StudentName = invoice.FullName,
                 CampusName = invoice.CampusName, CurrencyCode = invoice.CurrencyCode,
                 TotalAmount = invoice.TotalAmount, PaidAmount = invoice.PaidAmount,
-                DueAmount = invoice.DueAmount, NetAllocatedAmount = net,
+                // Current payable is zero for an approved void; original invoice amounts stay in history.
+                DueAmount = validFineVoid ? 0m : invoice.DueAmount, NetAllocatedAmount = net,
                 CreditNoteAmount = credited,
                 Status = issues.Count > 0 ? "Requires review" :
-                    invoice.JournalId.HasValue ? "Reconciled" : "Unposted",
+                    validFineVoid ? "Reversed" : invoice.JournalId.HasValue ? "Reconciled" : "Unposted",
                 Issues = string.Join("; ", issues.Distinct())
             });
         }

@@ -277,6 +277,9 @@ public class StudentFineDto
     public bool IsWaived { get; set; }
     public long? WaivedByUserId { get; set; }
     public Guid? BilledInvoiceReference { get; set; }
+    public Guid? ReversalReference { get; set; }
+    public JournalState? ReversalState { get; set; }
+    public string? ReversalRowVersion { get; set; }
     public Guid? SourceInvoiceReference { get; set; }
     public DateOnly? SourceInvoiceDueDate { get; set; }
     public int? ChargedOverdueDays { get; set; }
@@ -307,6 +310,34 @@ public sealed class PostedStudentFineInvoiceDto
     public string JournalNumber { get; set; } = string.Empty;
     public decimal Amount { get; set; }
     public bool AlreadyPosted { get; set; }
+}
+
+public sealed class RequestStudentFineReversalDto
+{
+    public Guid ClientRequestId { get; set; }
+    [Range(1, long.MaxValue)] public long AccountingPeriodId { get; set; }
+    public DateOnly ReversalDate { get; set; }
+    [Required, MaxLength(1000)] public string Reason { get; set; } = string.Empty;
+    [Required] public string RowVersion { get; set; } = string.Empty;
+}
+
+public sealed class ReviewStudentFineReversalDto
+{
+    public bool Approve { get; set; }
+    [Required] public string RowVersion { get; set; } = string.Empty;
+    [MaxLength(1000)] public string? RejectionReason { get; set; }
+}
+
+public sealed class StudentFineReversalDto
+{
+    public long FineId { get; set; }
+    public Guid InvoiceReference { get; set; }
+    public Guid ReversalReference { get; set; }
+    public string JournalNumber { get; set; } = string.Empty;
+    public JournalState State { get; set; }
+    public decimal Amount { get; set; }
+    public bool AlreadyProcessed { get; set; }
+    public string RowVersion { get; set; } = string.Empty;
 }
 
 public class ApplyStudentFineRequestDto

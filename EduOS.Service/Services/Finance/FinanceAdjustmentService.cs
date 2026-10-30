@@ -425,11 +425,24 @@ public sealed partial class FinanceAdjustmentService : IFinanceAdjustmentService
                 studentFineIds.Contains(line.StudentFineId.Value) && !line.IsDeleted && !invoice.IsDeleted &&
                 invoice.JournalId.HasValue
             select new { FineId=line.StudentFineId!.Value,invoice.PublicId }).ToDictionaryAsync(x=>x.FineId,x=>x.PublicId,ct);
+        var reversals=await db.Journals.AsNoTracking().Where(x=>x.TenantId==user.TenantId &&
+            x.SourceType=="StudentFineReversal" && x.SourceId.HasValue &&
+            studentFineIds.Contains(x.SourceId.Value) && !x.IsDeleted)
+            .OrderByDescending(x=>x.Id).Select(x=>new {x.SourceId,x.PublicId,x.State,x.RowVersion})
+            .ToListAsync(ct);
+        var byFine=reversals.GroupBy(x=>x.SourceId!.Value).ToDictionary(x=>x.Key,x=>x.First());
         return ApiResponse<FinanceAdjustmentRegisterDto>.SuccessResponse(new FinanceAdjustmentRegisterDto {
             Discounts=discounts.Select(x=>Map(x,reference,names.GetValueOrDefault(x.DiscountRuleId,"[deleted rule]"))).ToArray(),
-            Fines=fines.Select(x=>Map(x,reference,fineNames.GetValueOrDefault(x.FineRuleId,"[deleted rule]"),
-                linked.TryGetValue(x.Id,out var invoiceRef)?invoiceRef:null,
-                x.SourceInvoiceId.HasValue && sources.TryGetValue(x.SourceInvoiceId.Value,out var sourceRef)?sourceRef:null)).ToArray()
+            Fines=fines.Select(x=>{
+                var row=Map(x,reference,fineNames.GetValueOrDefault(x.FineRuleId,"[deleted rule]"),
+                    linked.TryGetValue(x.Id,out var invoiceRef)?invoiceRef:null,
+                    x.SourceInvoiceId.HasValue && sources.TryGetValue(x.SourceInvoiceId.Value,out var sourceRef)?sourceRef:null);
+                if(byFine.TryGetValue(x.Id,out var reversal)){
+                    row.ReversalReference=reversal.PublicId;row.ReversalState=reversal.State;
+                    row.ReversalRowVersion=Version(reversal.RowVersion);
+                }
+                return row;
+            }).ToArray()
         });
     }
 }

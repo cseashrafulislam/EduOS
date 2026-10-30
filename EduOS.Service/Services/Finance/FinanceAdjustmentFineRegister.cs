@@ -78,6 +78,12 @@ public sealed partial class FinanceAdjustmentService
             .ToDictionaryAsync(x => x.Id, x => x.PublicId, ct);
         var billed = await postedSource.Where(x => rowIds.Contains(x.FineId))
             .ToDictionaryAsync(x => x.FineId, x => x.PublicId, ct);
+        var reversals = await db.Journals.AsNoTracking().Where(x => x.TenantId == tenant &&
+            x.SourceType == "StudentFineReversal" && x.SourceId.HasValue &&
+            rowIds.Contains(x.SourceId.Value) && !x.IsDeleted)
+            .OrderByDescending(x => x.Id).Select(x => new { x.SourceId, x.PublicId, x.State, x.RowVersion })
+            .ToListAsync(ct);
+        var byFine = reversals.GroupBy(x => x.SourceId!.Value).ToDictionary(x => x.Key, x => x.First());
         return ApiResponse<StudentFineRegisterDto>.SuccessResponse(new StudentFineRegisterDto {
             Fines = new PagedResult<StudentFineRegisterRowDto> {
                 Page = request.Page, PageSize = request.PageSize, TotalCount = count,
@@ -87,6 +93,9 @@ public sealed partial class FinanceAdjustmentService
                     FineDate = x.FineDate, Amount = x.Amount, Reason = x.Reason,
                     IsWaived = x.IsWaived, WaivedByUserId = x.WaivedByUserId,
                     BilledInvoiceReference = billed.TryGetValue(x.Id, out var invoiceRef) ? invoiceRef : null,
+                    ReversalReference = byFine.TryGetValue(x.Id, out var reversal) ? reversal.PublicId : null,
+                    ReversalState = byFine.TryGetValue(x.Id, out reversal) ? reversal.State : null,
+                    ReversalRowVersion = byFine.TryGetValue(x.Id, out reversal) ? Convert.ToBase64String(reversal.RowVersion) : null,
                     SourceInvoiceReference = x.SourceInvoiceId.HasValue &&
                         sources.TryGetValue(x.SourceInvoiceId.Value, out var originalRef) ? originalRef : null,
                     ChargedOverdueDays = x.ChargedOverdueDays,

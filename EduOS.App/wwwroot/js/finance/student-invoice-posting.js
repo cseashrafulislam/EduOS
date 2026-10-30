@@ -50,7 +50,8 @@ function render(data) {
         const tr = document.createElement('tr');
         for (const value of [row.invoiceNumber, row.studentCode + ' — ' + row.studentName,
             row.campusId, row.invoiceDate, amount(row.totalAmount, row.currencyCode),
-            row.posted ? 'Posted' : row.journalReference ? 'Reconcile link' : 'Unposted',
+            Number(row.state) === 5 ? 'Cancelled / reversal' :
+                row.posted ? 'Posted' : row.journalReference ? 'Reconcile link' : 'Unposted',
             row.journalReference || '—']) tr.append(cell(value));
         if (canPost) {
             const action = document.createElement('td'), button = document.createElement('button');

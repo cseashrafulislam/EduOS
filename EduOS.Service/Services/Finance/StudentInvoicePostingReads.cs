@@ -49,7 +49,7 @@ public sealed partial class StudentInvoicePostingService
                 x.student.StudentCode, x.student.FullName, x.enrollment.CampusId,
                 x.invoice.InvoiceDate, x.invoice.TotalAmount, x.invoice.CurrencyCode,
                 x.invoice.Id, x.enrollment.StudentId,
-                x.invoice.JournalId, x.invoice.RowVersion }).ToListAsync(ct);
+                x.invoice.JournalId, x.invoice.State, x.invoice.RowVersion }).ToListAsync(ct);
         var journalIds = rows.Where(x => x.JournalId.HasValue).Select(x => x.JournalId!.Value).Distinct().ToArray();
         var journals = await db.Journals.IgnoreQueryFilters().AsNoTracking()
             .Where(x => x.TenantId == tenant && journalIds.Contains(x.Id)).ToListAsync(ct);
@@ -68,6 +68,7 @@ public sealed partial class StudentInvoicePostingService
                 InvoiceReference = x.PublicId, InvoiceNumber = x.InvoiceNumber,
                 StudentCode = x.StudentCode, StudentName = x.FullName, CampusId = x.CampusId,
                 InvoiceDate = x.InvoiceDate, TotalAmount = x.TotalAmount, CurrencyCode = x.CurrencyCode,
+                State = x.State,
                 Posted = x.JournalId.HasValue && byId.TryGetValue(x.JournalId.Value, out var posted) &&
                     !reversedIds.Contains(posted.Id) &&
                     InstitutionalPostingJournalIntegrity.Matches(posted,

@@ -24,6 +24,8 @@ public interface IFinanceAdjustmentService
     Task<ApiResponse<StudentFineDto>> ApplyFineAsync(ApplyStudentFineRequestDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<StudentFineDto>> WaiveFineAsync(long fineId, WaiveStudentFineRequestDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<PostedStudentFineInvoiceDto>> PostFineInvoiceAsync(long fineId, PostStudentFineInvoiceRequestDto request, CancellationToken cancellationToken = default);
+    Task<ApiResponse<StudentFineReversalDto>> RequestFineReversalAsync(long fineId, RequestStudentFineReversalDto request, CancellationToken cancellationToken = default);
+    Task<ApiResponse<StudentFineReversalDto>> ReviewFineReversalAsync(long fineId, Guid reversalReference, ReviewStudentFineReversalDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<RefundOperationsRegisterDto>> GetRefundRegisterAsync(long? campusId, int page = 1, int pageSize = 25, CancellationToken cancellationToken = default);
     Task<ApiResponse<RefundDto>> RequestRefundAsync(CreateRefundRequestDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<RefundDto>> ReviewRefundAsync(long refundId, ReviewRefundRequestDto request, CancellationToken cancellationToken = default);

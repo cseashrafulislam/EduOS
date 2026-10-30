@@ -28,6 +28,8 @@ function fill(id,rows,placeholder,format){const s=el(id),previous=s.value;s.repl
 function number(id){const v=Number(el(id).value);if(!Number.isFinite(v))throw Error('Enter a valid number.');return v;}
 function date(id){return el(id).value||null;}
 function enrollment(){const value=el('Enrollment').value;if(!value)throw Error('Select a student enrollment.');return value;}
+function todayLocal(){const d=new Date();return [d.getFullYear(),String(d.getMonth()+1).padStart(2,'0'),String(d.getDate()).padStart(2,'0')].join('-');}
+function reversalStatus(row){const state=Number(row.reversalState);return state===4?'Reversed':state===2?'Awaiting reversal review':state===5?'Reversal rejected':null;}
 function newDiscount(){el('DiscountRuleForm').reset();el('DrId').value='';el('DrVersion').value='';el('DrActive').checked=true;}
 function newFine(){el('FineRuleForm').reset();el('FrId').value='';el('FrVersion').value='';el('FrGrace').value=0;el('FrActive').checked=true;}
 function renderDiscounts(){
@@ -76,7 +78,7 @@ async function refreshRegister(){
  }
  const f=table('StudentFineRows',result.fines,5);
  for(const row of result.fines){
- const tr=document.createElement('tr');[row.fineRuleName+(row.chargedOverdueDays?' ('+row.chargedOverdueDays+' overdue days)':''),row.fineDate,row.amount,row.isWaived?'Waived':row.billedInvoiceReference?'Posted':'Unposted'].forEach(v=>tr.append(cell(v)));
+ const tr=document.createElement('tr');[row.fineRuleName+(row.chargedOverdueDays?' ('+row.chargedOverdueDays+' overdue days)':''),row.fineDate,row.amount,reversalStatus(row)|| (row.isWaived?'Waived':row.billedInvoiceReference?'Posted':'Unposted')].forEach(v=>tr.append(cell(v)));
  const td=cell('');
  if(!row.isWaived&&!row.billedInvoiceReference){
   td.append(button('Waive',async()=>{const reason=window.prompt('Reason for waiver (required, audited):');if(reason===null)return;if(!reason.trim())return notice('Waiver reason is required.');await run(null,async()=>{await api(base+'/fines/'+row.id+'/waive','POST',{reason:reason.trim(),rowVersion:row.rowVersion});await refreshRegister();});}));
@@ -89,6 +91,37 @@ async function refreshRegister(){
     {accountingPeriodId:period,rowVersion:row.rowVersion});
    await refreshRegister();notice('Posted '+result.invoiceNumber+' / '+result.journalNumber,true);
   })));
+ }
+ if(!row.isWaived&&row.billedInvoiceReference){
+  if(Number(row.reversalState)===2){
+   td.append(button('Approve reversal',()=>run(null,async()=>{
+    if(!confirm('Approve this reversal? The original invoice stays in history, but its debt and fine income are reversed.'))return;
+    await api(base+'/fines/'+row.id+'/reverse/'+row.reversalReference+'/review','POST',
+     {approve:true,rowVersion:row.reversalRowVersion});await refreshRegister();
+   })));
+   td.append(' ');
+   td.append(button('Reject',async()=>{
+    const reason=window.prompt('Reason for rejecting this reversal:');if(reason===null)return;
+    if(!reason.trim())return notice('Rejection reason is required.');
+    await run(null,async()=>{await api(base+'/fines/'+row.id+'/reverse/'+row.reversalReference+'/review','POST',
+     {approve:false,rowVersion:row.reversalRowVersion,rejectionReason:reason.trim()});await refreshRegister();});
+   }));
+  }else if(Number(row.reversalState)!==4){
+   td.append(button('Request reversal',async()=>{
+    const reason=window.prompt('Why should this posted, unpaid fine be reversed?');if(reason===null)return;
+    if(!reason.trim())return notice('Reversal reason is required.');
+    const period=Number(el('FinePeriod').value);
+    if(!Number.isInteger(period)||period<=0)return notice('Select an open accounting period for reversal.');
+    const reversalDate=window.prompt('Reversal date (YYYY-MM-DD):',todayLocal());if(reversalDate===null)return;
+    if(!/^\d{4}-\d{2}-\d{2}$/.test(reversalDate))return notice('Enter a valid reversal date.');
+    await run(null,async()=>{
+     const body={accountingPeriodId:period,reversalDate,reason:reason.trim(),rowVersion:row.rowVersion};
+     body.clientRequestId=stableRequestId('fine-reversal-'+row.id,body);
+     await api(base+'/fines/'+row.id+'/reverse/request','POST',body);
+     clearRequestId('fine-reversal-'+row.id);await refreshRegister();
+    });
+   }));
+  }
  }
  tr.append(td);f.append(tr);
  }
