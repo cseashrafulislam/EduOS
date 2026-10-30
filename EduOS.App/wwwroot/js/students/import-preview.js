@@ -6,6 +6,7 @@
     const inspect = document.getElementById('studentImportInspect');
     const preview = document.getElementById('studentImportPreview');
     const mapping = document.getElementById('studentImportMapping');
+    const advancedMapping = document.getElementById('studentImportAdvancedMapping');
     const alert = document.getElementById('studentImportAlert');
     const results = document.getElementById('studentImportResults');
     const summary = document.getElementById('studentImportSummary');
@@ -84,7 +85,10 @@
         academicRepairSummary.textContent = '';
         alert.classList.add('d-none');
     }
-    fileInput.addEventListener('change', reset);
+    fileInput.addEventListener('change', () => {
+        reset();
+        if (fileInput.files?.length) inspect.click();
+    });
     mapping.addEventListener('change', () => {
         currentJob = null;
         currentFingerprint = null;
@@ -124,6 +128,9 @@
             const data = new FormData();
             data.append('file', selectedFile());
             const headers = await send('/api/student-imports/headers', data);
+            const templateHeaders = fields.map(field => field.dataset.importField);
+            const isTemplate = headers.length === templateHeaders.length &&
+                headers.every((header, index) => header.toLowerCase() === templateHeaders[index].toLowerCase());
             for (const select of fields) {
                 select.replaceChildren();
                 const optional = !required.has(select.dataset.importField);
@@ -134,8 +141,12 @@
             }
             mapping.classList.remove('d-none');
             results.classList.add('d-none');
+            if (advancedMapping) advancedMapping.open = !isTemplate;
             await refreshResume();
-            message('Columns inspected. Review each mapping before validation.', false);
+            message(isTemplate
+                ? 'Excel template recognized. Column mapping is ready; run dry-run validation.'
+                : 'Headers differ from the official template. Use the download above, or review legacy mapping under Advanced.',
+                !isTemplate);
         } catch (error) { message(error.message, true); }
         finally { busy = false; inspect.disabled = false; }
     });
@@ -165,16 +176,27 @@
     }
 
     async function getJobStatus(fp, totalRows) {
-        const query = new URLSearchParams({
-            fileHash: fp.fileHash, mappingHash: fp.mappingHash, totalRows: String(totalRows)
-        });
-        const response = await fetch('/api/student-imports/job-status?' + query, {
-            credentials: 'same-origin', cache: 'no-store', headers: { Accept: 'application/json' }
-        });
-        const body = await response.json().catch(() => null);
-        if (!response.ok || !body?.success)
-            throw new Error(body?.message || 'Server reconciliation failed.');
-        return body.data;
+        const pages = [];
+        let pageOffset = 0;
+        while (pageOffset < totalRows) {
+            const query = new URLSearchParams({
+                fileHash: fp.fileHash, mappingHash: fp.mappingHash,
+                totalRows: String(totalRows), pageOffset: String(pageOffset)
+            });
+            const response = await fetch('/api/student-imports/job-status?' + query, {
+                credentials: 'same-origin', cache: 'no-store', headers: { Accept: 'application/json' }
+            });
+            const body = await response.json().catch(() => null);
+            if (!response.ok || !body?.success)
+                throw new Error(body?.message || 'Server reconciliation failed.');
+            const page = body.data;
+            if (!page || page.pageOffset !== pageOffset ||
+                !Number.isSafeInteger(page.nextPageOffset) || page.nextPageOffset <= pageOffset)
+                throw new Error('Server returned an invalid reconciliation cursor.');
+            pages.push(page);
+            pageOffset = page.nextPageOffset;
+        }
+        return jobTools.combineStatusPages(pages, totalRows);
     }
     function showJobStatus(fp, status) {
         currentFingerprint = fp;
@@ -194,7 +216,7 @@
     async function refreshResume() {
         resume.classList.add('d-none');
         const saved = await matchingCheckpoint();
-        if (saved && saved.totalRows > 0 && saved.totalRows <= 5000)
+        if (saved && Number.isSafeInteger(saved.totalRows) && saved.totalRows > 0)
             showJobStatus(saved, await getJobStatus(saved, saved.totalRows));
     }
     form.addEventListener('submit', async event => {
@@ -211,7 +233,7 @@
             const fp = await jobTools.fingerprint(selectedFile(), lastMapping);
             showJobStatus(fp, await getJobStatus(fp, report.totalRows));
             commit.classList.toggle('d-none', report.invalidRows !== 0 || report.validRows < 1 ||
-                report.validRows > 5000 || currentJob?.requiresReview);
+                currentJob?.requiresReview);
             errors = Array.isArray(report.errors) ? report.errors : [];
             summary.textContent = 'Rows: ' + report.totalRows + ' | Valid: ' + report.validRows +
                 ' | Invalid: ' + report.invalidRows + (report.hasMoreErrors ? ' | More errors not shown' : '');
@@ -272,7 +294,7 @@
             const fp = await jobTools.fingerprint(file, mappingJson);
             const saved = await matchingCheckpoint();
             if (!continuing && (!validated || validated.invalidRows !== 0 ||
-                validated.totalRows < 1 || validated.totalRows > 5000))
+                validated.totalRows < 1))
                 throw new Error('Complete a valid dry-run before starting.');
             // Server-confirmed windows permit recovery even when local storage was cleared.
             // A fresh preview may flag already committed rows as duplicates.
@@ -541,7 +563,7 @@
                 ' rows committed; ' + status.pendingRows + ' pending. ' +
                 status.logItemsVerifiedRows + ' log rows verified; ' +
                 status.logItemReviewWindows + ' windows require review.'
-            : cohortFiles.length + ' / 8 source files selected.';
+            : cohortFiles.length + ' source files selected.';
     }
     cohortInspect.addEventListener('click', async () => {
         if (busy || !cohortStatus || !cohortWindow.value) return;
@@ -635,8 +657,8 @@
     const cohortConflictsExport = document.getElementById('studentImportCohortConflictsExport');
     function cohortUpload() {
         const files = Array.from(cohortSources.files || []);
-        if (files.length < 2 || files.length > 8)
-            throw new Error('Choose two to eight CSV/XLSX files for cross-file validation.');
+        if (files.length < 2)
+            throw new Error('Choose at least two CSV/XLSX files for cross-file validation.');
         if (files.some(file => file.size < 1 || file.size > 6 * 1024 * 1024 ||
             !/\.(csv|xlsx)$/i.test(file.name)) ||
             files.reduce((sum, file) => sum + file.size, 0) > 48 * 1024 * 1024)

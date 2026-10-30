@@ -21,30 +21,30 @@
     }
     function resumeRowCount(checkpoint, preview) {
         const total = checkpoint?.totalRows ?? preview?.totalRows;
-        if (!Number.isInteger(total) || total < 1 || total > 5000)
+        if (!Number.isSafeInteger(total) || total < 1)
             throw new Error('Inspect and preview the source file before resuming.');
         if (checkpoint && preview && checkpoint.totalRows !== preview.totalRows)
             throw new Error('Import row count changed. Re-select and preview the original file.');
         return total;
     }
     function validateCohort(files) {
-        if (!Array.isArray(files) || files.length < 1 || files.length > 8)
-            throw new Error('Select between one and eight source files.');
+        if (!Array.isArray(files) || files.length < 1)
+            throw new Error('Select at least one source file.');
         const seen = new Set();
         let rows = 0;
         const normalized = files.map(file => {
             if (!file || !/^[a-f0-9]{64}$/i.test(file.fileHash || '') ||
                 !/^[a-f0-9]{64}$/i.test(file.mappingHash || '') ||
-                !Number.isInteger(file.totalRows) || file.totalRows < 1 || file.totalRows > 5000)
+                !Number.isSafeInteger(file.totalRows) || file.totalRows < 1)
                 throw new Error('Invalid source fingerprint or row count.');
             const key = file.fileHash.toLowerCase() + ':' + file.mappingHash.toLowerCase();
             if (seen.has(key)) throw new Error('This source file and mapping is already selected.');
             seen.add(key);
             rows += file.totalRows;
+            if (!Number.isSafeInteger(rows)) throw new Error('Source-row total exceeds integer precision.');
             return { fileHash: file.fileHash.toLowerCase(),
                 mappingHash: file.mappingHash.toLowerCase(), totalRows: file.totalRows };
         });
-        if (rows > 40000) throw new Error('Cohort is limited to 40,000 source rows.');
         return normalized;
     }
     function cohortSummaryCsv(status) {
@@ -55,7 +55,7 @@
                 ![file.totalRows, file.committedRows, file.logItemsVerifiedRows,
                     file.logItemReviewWindows, file.missingWindows].every(Number.isSafeInteger) ||
                 file.logItemsVerifiedRows < 0 || file.logItemsVerifiedRows > file.committedRows ||
-                file.logItemReviewWindows < 0 || file.logItemReviewWindows > 50)
+                file.logItemReviewWindows < 0)
                 throw new Error('Invalid reconciliation response.');
             lines.push([file.fileHash, file.mappingHash, file.totalRows,
                 file.committedRows, file.logItemsVerifiedRows, file.logItemReviewWindows,
@@ -67,13 +67,50 @@
     }
     function requireVerifiedRecovery(status) {
         if (!status || !Number.isSafeInteger(status.reviewWindows) ||
-            status.reviewWindows < 0 || status.reviewWindows > 50 ||
+            status.reviewWindows < 0 ||
             status.requiresReview !== (status.reviewWindows > 0) ||
-            !Array.isArray(status.batches) || status.batches.length > 50)
+            !Array.isArray(status.batches))
             throw new Error('Invalid student import recovery response.');
         if (status.requiresReview)
             throw new Error('Committed import audit rows require review. Resume and export are paused.');
         return status;
+    }
+    function combineStatusPages(pages, totalRows) {
+        if (!Array.isArray(pages) || pages.length < 1 ||
+            !Number.isSafeInteger(totalRows) || totalRows < 1)
+            throw new Error('Invalid recovery page collection.');
+        let offset = 0, committedRows = 0, reviewWindows = 0, nextOffset = totalRows;
+        const batches = [];
+        const seen = new Set();
+        for (const page of pages) {
+            if (!page || page.totalRows !== totalRows || page.pageOffset !== offset ||
+                !Number.isSafeInteger(page.nextPageOffset) || page.nextPageOffset <= offset ||
+                page.nextPageOffset > totalRows ||
+                !Number.isSafeInteger(page.committedRows) || page.committedRows < 0 ||
+                page.committedRows > page.nextPageOffset - offset ||
+                !Number.isSafeInteger(page.reviewWindows) || page.reviewWindows < 0 ||
+                !Number.isSafeInteger(page.nextOffset) || page.nextOffset < offset ||
+                page.nextOffset > totalRows || !Array.isArray(page.batches))
+                throw new Error('Invalid or discontinuous recovery page.');
+            for (const batch of page.batches) {
+                if (!Number.isSafeInteger(batch.rowOffset) || batch.rowOffset < offset ||
+                    batch.rowOffset >= page.nextPageOffset || batch.rowOffset % 100 !== 0 ||
+                    seen.has(batch.rowOffset))
+                    throw new Error('Duplicate or invalid recovery window.');
+                seen.add(batch.rowOffset);
+                batches.push(batch);
+            }
+            committedRows += page.committedRows;
+            reviewWindows += page.reviewWindows;
+            nextOffset = Math.min(nextOffset, page.nextOffset);
+            offset = page.nextPageOffset;
+        }
+        if (offset !== totalRows || !Number.isSafeInteger(committedRows))
+            throw new Error('Recovery pages are incomplete.');
+        const isComplete = committedRows === totalRows;
+        return { totalRows, committedRows, reviewWindows, nextOffset, batches,
+            requiresReview: reviewWindows > 0, isComplete,
+            isLogItemReconciled: isComplete && reviewWindows === 0 };
     }
     function integrityCsv(report) {
         if (!report || !Number.isSafeInteger(report.expectedRows) ||
@@ -97,7 +134,8 @@
         }
         return '\uFEFF' + lines.join('\r\n');
     }
-    const api = { fingerprint, requestId, resumeRowCount, validateCohort, cohortSummaryCsv, requireVerifiedRecovery, integrityCsv };
+    const api = { fingerprint, requestId, resumeRowCount, validateCohort, cohortSummaryCsv,
+        requireVerifiedRecovery, combineStatusPages, integrityCsv };
     if (typeof module !== 'undefined' && module.exports) module.exports = api;
     else root.EduOSStudentImportJob = api;
 })(typeof window !== 'undefined' ? window : globalThis);

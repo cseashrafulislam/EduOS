@@ -20,9 +20,9 @@ public sealed partial class StudentImportExecutionService
         if (!CanManage())
             return Task.FromResult(ApiResponse<StudentImportCohortPreflightDto>.ErrorResponse(
                 "Student import access denied.", 403));
-        if (files == null || files.Count is < 2 or > 8 || mapping == null)
+        if (files == null || files.Count < 2 || mapping == null)
             return Task.FromResult(ApiResponse<StudentImportCohortPreflightDto>.ErrorResponse(
-                "Select two to eight source files with one shared column mapping.", 400));
+                "Select at least two source files with one shared column mapping.", 400));
 
         try
         {
@@ -48,14 +48,14 @@ public sealed partial class StudentImportExecutionService
                     return Task.FromResult(ApiResponse<StudentImportCohortPreflightDto>.ErrorResponse(
                         "Combined source size exceeds 48 MB.", 413));
 
-                var rows = ReadRows(file.Content, file.Extension, mapping, 5000);
+                var rows = ReadRows(file.Content, file.Extension, mapping, int.MaxValue);
                 if (rows.Count == 0)
                     return Task.FromResult(ApiResponse<StudentImportCohortPreflightDto>.ErrorResponse(
                         "Every source file must contain student rows.", 400));
-                result.TotalRows += rows.Count;
-                if (result.TotalRows > 40000)
+                if ((long)result.TotalRows + rows.Count > int.MaxValue)
                     return Task.FromResult(ApiResponse<StudentImportCohortPreflightDto>.ErrorResponse(
-                        "Cohort preflight is limited to 40,000 rows.", 400));
+                        "Import total exceeds numeric representation; validate in separate requests.", 400));
+                result.TotalRows += rows.Count;
 
                 var fileNumber = index + 1;
                 foreach (var row in rows)
@@ -101,11 +101,6 @@ public sealed partial class StudentImportExecutionService
                     }
                 }
             }
-            // Bound SQL IN predicates and academic planning for large cohorts.
-            // Operators can split an unusually wide cohort into smaller jobs.
-            if (cohortRows.Select(x => x.Row.BatchId).Where(x => x > 0).Distinct().Take(201).Count() > 200)
-                return Task.FromResult(ApiResponse<StudentImportCohortPreflightDto>.ErrorResponse(
-                    "Cohort preflight supports at most 200 academic batches.", 400));
             result.TotalIssues = result.Issues.Count;
             return ValidateTenantCohortAsync(result, cohortRows, cancellationToken);
         }
@@ -133,17 +128,26 @@ public sealed partial class StudentImportExecutionService
         {
             var tenant = _user.TenantId;
             var batchIds = cohortRows.Select(x => x.Row.BatchId).Where(x => x > 0).Distinct().ToArray();
-            var batches = await _batches.GetQueryable().AsNoTracking()
-                .Where(x => x.TenantId == tenant && !x.IsDeleted && x.IsActive && batchIds.Contains(x.Id))
-                .Select(x => new { x.Id, x.CampusId, x.Capacity })
-                .ToDictionaryAsync(x => x.Id, cancellationToken);
-            var occupancy = await _enrollments.GetQueryable().AsNoTracking()
-                .Where(x => x.TenantId == tenant && !x.IsDeleted && x.IsCurrent &&
-                    x.State == EduOS.Core.Enums.Domain.EnrollmentState.Active &&
-                    batchIds.Contains(x.AcademicBatchId))
-                .GroupBy(x => x.AcademicBatchId)
-                .Select(x => new { BatchId = x.Key, Count = x.Count() })
-                .ToDictionaryAsync(x => x.BatchId, x => x.Count, cancellationToken);
+            var batches = new Dictionary<long, (long CampusId, int Capacity)>();
+            var occupancy = new Dictionary<long, int>();
+            foreach (var chunk in batchIds.Chunk(200))
+            {
+                var foundBatches = await _batches.GetQueryable().AsNoTracking()
+                    .Where(x => x.TenantId == tenant && !x.IsDeleted && x.IsActive && chunk.Contains(x.Id))
+                    .Select(x => new { x.Id, x.CampusId, x.Capacity })
+                    .ToListAsync(cancellationToken);
+                foreach (var batch in foundBatches)
+                    batches.Add(batch.Id, (batch.CampusId, batch.Capacity));
+                var occupied = await _enrollments.GetQueryable().AsNoTracking()
+                    .Where(x => x.TenantId == tenant && !x.IsDeleted && x.IsCurrent &&
+                        x.State == EduOS.Core.Enums.Domain.EnrollmentState.Active &&
+                        chunk.Contains(x.AcademicBatchId))
+                    .GroupBy(x => x.AcademicBatchId)
+                    .Select(x => new { BatchId = x.Key, Count = x.Count() })
+                    .ToListAsync(cancellationToken);
+                foreach (var count in occupied)
+                    occupancy.Add(count.BatchId, count.Count);
+            }
             // Reconcile committed source identities without a global Person lookup.
             // Bounded, tenant-indexed SQL lookups; no private identity values in errors.
             var committedSources = new HashSet<Guid>();
@@ -264,7 +268,7 @@ public sealed partial class StudentImportExecutionService
                     });
             }
             // The same required-subject capacity contract used by transactional
-            // 100-row execution must be visible before a 40K multi-file run.
+            // 100-row execution must be visible before any multi-file run.
             // This is a read-only warning; execution still revalidates under lock.
             await CheckCohortRequiredOfferingsAsync(result, cohortRows, tenant, cancellationToken);
             result.TotalIssues = result.Issues.Count;

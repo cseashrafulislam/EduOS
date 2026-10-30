@@ -20,7 +20,8 @@ test('resume recovers from server-confirmed preview without local storage', () =
     assert.equal(resumeRowCount({ totalRows: 250 }, null), 250);
     assert.throws(() => resumeRowCount(null, null), /preview/);
     assert.throws(() => resumeRowCount({ totalRows: 250 }, { totalRows: 249 }), /changed/);
-    assert.throws(() => resumeRowCount(null, { totalRows: 5001 }), /preview/);
+    assert.equal(resumeRowCount(null, { totalRows: 5001 }), 5001);
+    assert.throws(() => resumeRowCount(null, { totalRows: 0 }), /preview/);
 });
 test('changed file or mapping cannot silently reuse a chunk request', async () => {
     const a = await fingerprint(file('file-A'), '{"SourceKey":"key"}', webcrypto);
@@ -33,15 +34,18 @@ test('changed file or mapping cannot silently reuse a chunk request', async () =
     await assert.rejects(() => requestId(a.fileHash, a.mappingHash, 1, webcrypto));
 });
 
-test('cohort validates eight bounded fingerprints and rejects duplicate or oversized manifests', () => {
+test('cohort source count and row count come from distinct file fingerprints, not fixed business caps', () => {
     const { validateCohort } = require('../../EduOS.App/wwwroot/js/students/import-job.js');
     const one = { fileHash: 'a'.repeat(64), mappingHash: 'b'.repeat(64), totalRows: 5000 };
     assert.deepEqual(validateCohort([one]), [one]);
     assert.throws(() => validateCohort([one, one]), /already selected/);
-    assert.throws(() => validateCohort(Array(9).fill(one)), /between one and eight/);
+    assert.throws(() => validateCohort([]), /at least one/);
     assert.throws(() => validateCohort([{ ...one, fileHash: 'invalid' }]), /Invalid/);
     assert.equal(validateCohort(Array.from({ length: 8 }, (_, i) =>
         ({ ...one, fileHash: i.toString(16).repeat(64) }))).length, 8);
+    const large = Array.from({ length: 12 }, (_, i) =>
+        ({ ...one, fileHash: i.toString(16).padStart(64, '0'), totalRows: 6001 }));
+    assert.equal(validateCohort(large).reduce((sum, source) => sum + source.totalRows, 0), 72012);
 });
 test('cohort summary export includes only bounded hashes and counts', () => {
     const { cohortSummaryCsv } = require('../../EduOS.App/wwwroot/js/students/import-job.js');
@@ -81,7 +85,26 @@ test('unsafe committed recovery is blocked even if counters say complete', () =>
     }), /Invalid/);
     assert.throws(() => requireVerifiedRecovery({
         reviewWindows: 51, requiresReview: true, batches: []
-    }), /Invalid/);
+    }), /require review/);
+});
+
+test('large recovery manifests combine bounded server pages without double-counting windows', () => {
+    const { combineStatusPages } = require('../../EduOS.App/wwwroot/js/students/import-job.js');
+    const first = { totalRows: 250, pageOffset: 0, nextPageOffset: 200,
+        committedRows: 100, reviewWindows: 0, nextOffset: 100,
+        batches: [{ rowOffset: 0, importedRows: 100 }] };
+    const second = { totalRows: 250, pageOffset: 200, nextPageOffset: 250,
+        committedRows: 50, reviewWindows: 0, nextOffset: 250,
+        batches: [{ rowOffset: 200, importedRows: 50 }] };
+    const state = combineStatusPages([first, second], 250);
+    assert.equal(state.committedRows, 150);
+    assert.equal(state.nextOffset, 100);
+    assert.equal(state.isComplete, false);
+    assert.deepEqual(state.batches.map(x => x.rowOffset), [0, 200]);
+    assert.throws(() => combineStatusPages([first], 250), /incomplete/);
+    assert.throws(() => combineStatusPages([first, { ...second, pageOffset: 100 }], 250), /discontinuous/);
+    assert.throws(() => combineStatusPages([first,
+        { ...second, batches: [{ rowOffset: 0 }] }], 250), /Duplicate or invalid/);
 });
 
 test('integrity export is bounded, PII-free and formula-neutralized', () => {

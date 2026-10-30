@@ -9,59 +9,80 @@ namespace EduOS.Service.Services.Students;
 
 public sealed partial class StudentImportExecutionService
 {
+    private const int MaxStatusWindowsPerPage = 400;
     /// <summary>
     /// Recover committed source windows from tenant-scoped idempotency records.
-    /// No uploaded file or learner PII is stored; at most 50 windows are queried.
+    /// No uploaded file or learner PII is stored; windows are queried in bounded SQL chunks.
     /// </summary>
     public async Task<ApiResponse<StudentImportJobStatusDto>> GetJobStatusAsync(
-        string fileHash, string mappingHash, int totalRows, CancellationToken cancellationToken = default)
+        string fileHash, string mappingHash, int totalRows, CancellationToken cancellationToken = default,
+        int pageOffset = 0)
     {
         if (!CanManage())
             return ApiResponse<StudentImportJobStatusDto>.ErrorResponse("Student import access denied.", 403);
-        if (totalRows is < 1 or > 5000 || !IsSha256Hex(fileHash) || !IsSha256Hex(mappingHash))
+        if (totalRows < 1 || !IsSha256Hex(fileHash) || !IsSha256Hex(mappingHash) ||
+            pageOffset < 0 || pageOffset >= totalRows || pageOffset % MaxBatchRows != 0)
             return ApiResponse<StudentImportJobStatusDto>.ErrorResponse("Invalid source fingerprint or row count.", 400);
 
         fileHash = fileHash.ToLowerInvariant();
         mappingHash = mappingHash.ToLowerInvariant();
-        var offsets = Enumerable.Range(0, (totalRows + MaxBatchRows - 1) / MaxBatchRows)
-            .Select(i => i * MaxBatchRows).ToArray();
+        var nextPageOffset = (int)Math.Min(totalRows,
+            (long)pageOffset + (long)MaxStatusWindowsPerPage * MaxBatchRows);
+        var windowCount = (nextPageOffset - pageOffset + MaxBatchRows - 1) / MaxBatchRows;
+        var offsets = Enumerable.Range(0, windowCount)
+            .Select(i => pageOffset + i * MaxBatchRows).ToArray();
         var requests = offsets.Select(offset => new
         {
             Offset = offset, RequestId = JobRequestId(fileHash, mappingHash, offset)
         }).ToArray();
         var ids = requests.Select(x => x.RequestId).ToArray();
         var tenant = _user.TenantId;
-        var keys = await _keys.GetQueryable().AsNoTracking()
-            .Where(x => x.TenantId == tenant && x.Scope == BatchScope && !x.IsDeleted &&
-                x.CompletedAt.HasValue && x.TargetId.HasValue && ids.Contains(x.RequestId))
-            .Select(x => new { x.RequestId, x.TargetId }).ToListAsync(cancellationToken);
+        var keys = new List<(Guid RequestId, long TargetId)>();
+        foreach (var chunk in ids.Chunk(400))
+        {
+            var found = await _keys.GetQueryable().AsNoTracking()
+                .Where(x => x.TenantId == tenant && x.Scope == BatchScope && !x.IsDeleted &&
+                    x.CompletedAt.HasValue && x.TargetId.HasValue && chunk.Contains(x.RequestId))
+                .Select(x => new { x.RequestId, x.TargetId }).ToListAsync(cancellationToken);
+            keys.AddRange(found.Select(x => (x.RequestId, x.TargetId!.Value)));
+        }
         // A replay must not silently select one of several receipts or reuse the
         // same import log for two different source windows.
         if (keys.GroupBy(x => x.RequestId).Any(g => g.Count() != 1) ||
-            keys.GroupBy(x => x.TargetId!.Value).Any(g => g.Count() != 1))
+            keys.GroupBy(x => x.TargetId).Any(g => g.Count() != 1))
             return ApiResponse<StudentImportJobStatusDto>.ErrorResponse(
                 "Import batch receipts are ambiguous. Review committed history before resuming.", 409);
-        var logIds = keys.Select(x => x.TargetId!.Value).Distinct().ToArray();
-        var logs = await _logs.GetQueryable().AsNoTracking()
-            .Where(x => x.TenantId == tenant && !x.IsDeleted && x.ImportType == "Student" &&
-                x.CompletedAt.HasValue && logIds.Contains(x.Id))
-            .Select(x => new { x.Id, x.PublicId, x.TotalRows, x.SuccessRows, x.FailedRows })
-            .ToListAsync(cancellationToken);
+        var logIds = keys.Select(x => x.TargetId).Distinct().ToArray();
+        var logs = new Dictionary<long, (Guid PublicId, int TotalRows, int SuccessRows, int FailedRows)>();
+        foreach (var chunk in logIds.Chunk(400))
+        {
+            var found = await _logs.GetQueryable().AsNoTracking()
+                .Where(x => x.TenantId == tenant && !x.IsDeleted && x.ImportType == "Student" &&
+                    x.CompletedAt.HasValue && chunk.Contains(x.Id))
+                .Select(x => new { x.Id, x.PublicId, x.TotalRows, x.SuccessRows, x.FailedRows })
+                .ToListAsync(cancellationToken);
+            foreach (var log in found)
+                logs.Add(log.Id, (log.PublicId, log.TotalRows, log.SuccessRows, log.FailedRows));
+        }
         // The import-log counters alone are not proof that their physical audit
-        // rows survived. One bounded tenant-scoped aggregate covers <= 50 windows.
-        var itemCounts = await _items.GetQueryable().AsNoTracking()
-            .Where(x => x.TenantId == tenant && !x.IsDeleted && logIds.Contains(x.ImportLogId))
-            .GroupBy(x => x.ImportLogId)
-            .Select(g => new
-            {
-                LogId = g.Key,
-                Rows = g.Count(),
-                Success = g.Count(x => x.IsSuccess),
-                WithSource = g.Count(x => x.BusinessKey != null && x.BusinessKey.Trim() != "")
-            })
-            .ToDictionaryAsync(x => x.LogId, cancellationToken);
-        var byRequest = keys.ToDictionary(x => x.RequestId, x => x.TargetId!.Value);
-        var byLog = logs.ToDictionary(x => x.Id);
+        // rows survived. Process one tenant-scoped aggregate per SQL-safe chunk.
+        var itemCounts = new Dictionary<long, (int Rows, int Success, int WithSource)>();
+        foreach (var chunk in logIds.Chunk(400))
+        {
+            var found = await _items.GetQueryable().AsNoTracking()
+                .Where(x => x.TenantId == tenant && !x.IsDeleted && chunk.Contains(x.ImportLogId))
+                .GroupBy(x => x.ImportLogId)
+                .Select(g => new
+                {
+                    LogId = g.Key, Rows = g.Count(),
+                    Success = g.Count(x => x.IsSuccess),
+                    WithSource = g.Count(x => x.BusinessKey != null && x.BusinessKey.Trim() != "")
+                }).ToListAsync(cancellationToken);
+            foreach (var count in found)
+                itemCounts.Add(count.LogId, (count.Rows, count.Success, count.WithSource));
+        }
+        var byRequest = keys.ToDictionary(x => x.RequestId, x => x.TargetId);
+        var byLog = logs;
         var completed = new List<StudentImportJobBatchDto>();
         var reviewWindows = 0;
         foreach (var request in requests)
@@ -87,7 +108,7 @@ public sealed partial class StudentImportExecutionService
         var completeOffsets = completed.Select(x => x.RowOffset).ToHashSet();
         return ApiResponse<StudentImportJobStatusDto>.SuccessResponse(new StudentImportJobStatusDto
         {
-            TotalRows = totalRows,
+            TotalRows = totalRows, PageOffset = pageOffset, NextPageOffset = nextPageOffset,
             CommittedRows = completed.Sum(x => x.ImportedRows),
             ReviewWindows = reviewWindows,
             NextOffset = offsets.FirstOrDefault(x => !completeOffsets.Contains(x), totalRows),

@@ -59,6 +59,9 @@ public sealed class StudentImportReconciliationItemDto
 public sealed class StudentImportJobStatusDto
 {
     public int TotalRows { get; set; }
+    public int PageOffset { get; set; }
+    public int NextPageOffset { get; set; }
+    public bool HasMorePages => NextPageOffset < TotalRows;
     public int CommittedRows { get; set; }
     public int NextOffset { get; set; }
     public int ReviewWindows { get; set; }

@@ -18,7 +18,8 @@ public interface IStudentImportExecutionService
         IReadOnlyDictionary<string, string> mapping, string mappingJson,
         CancellationToken cancellationToken = default);
     Task<ApiResponse<StudentImportJobStatusDto>> GetJobStatusAsync(
-        string fileHash, string mappingHash, int totalRows, CancellationToken cancellationToken = default);
+        string fileHash, string mappingHash, int totalRows, CancellationToken cancellationToken = default,
+        int pageOffset = 0);
     Task<ApiResponse<StudentImportCohortStatusDto>> GetCohortStatusAsync(
         IReadOnlyList<StudentImportCohortFileRequestDto>? files,
         CancellationToken cancellationToken = default);

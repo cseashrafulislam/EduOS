@@ -1,4 +1,5 @@
 using System.Text;
+using ClosedXML.Excel;
 using EduOS.App.Controllers.Api;
 using EduOS.Core.Common;
 using EduOS.Core.DTOs.Students;
@@ -11,6 +12,31 @@ namespace EduOS.Tests.App;
 
 public sealed class StudentImportAuditExportTests
 {
+    [Fact]
+    public void Template_is_a_blank_excel_sheet_with_the_exact_import_contract()
+    {
+        var controller = new StudentImportsController(
+            new Mock<IStudentImportPreviewService>().Object,
+            new Mock<IStudentImportExecutionService>().Object);
+        var response = Assert.IsType<FileContentResult>(controller.DownloadTemplate());
+        Assert.Equal("eduos-student-import-template.xlsx", response.FileDownloadName);
+        using var stream = new MemoryStream(response.FileContents);
+        using var workbook = new XLWorkbook(stream);
+        var students = workbook.Worksheet(1);
+        Assert.Equal("Students", students.Name);
+        Assert.Equal(EduOS.Core.DTOs.Students.StudentImportColumns.All,
+            Enumerable.Range(1, EduOS.Core.DTOs.Students.StudentImportColumns.All.Length)
+                .Select(column => students.Cell(1, column).GetString()));
+        Assert.Null(students.LastRowUsed()?.RowBelow().CellsUsed().FirstOrDefault());
+        Assert.Equal("@", students.Column(2).Style.NumberFormat.Format);
+        Assert.Equal("@", students.Column(6).Style.NumberFormat.Format);
+        Assert.Equal("@", students.Column(9).Style.NumberFormat.Format);
+        Assert.Equal("Guide", workbook.Worksheet(2).Name);
+        Assert.Equal("ExampleOnly", workbook.Worksheet(3).Name);
+        Assert.Equal("001", workbook.Worksheet(3).Cell(2, 6).GetString());
+        Assert.Equal("01700000000", workbook.Worksheet(3).Cell(2, 9).GetString());
+    }
+
     [Fact]
     public async Task Cohort_export_uses_fresh_authorized_reconciliation_and_never_trusts_browser_counters()
     {

@@ -1,4 +1,5 @@
 using EduOS.Core.DTOs.Students;
+using EduOS.Core.Entities.Academic;
 using EduOS.Core.Enums.Domain;
 using Microsoft.EntityFrameworkCore;
 
@@ -17,22 +18,22 @@ public sealed partial class StudentImportExecutionService
         long tenant, CancellationToken token)
     {
         var batchIds = cohortRows.Select(x => x.Row.BatchId).Where(x => x > 0)
-            .Distinct().ToArray(); // bounded to 200 by the caller
+            .Distinct().ToArray();
         if (batchIds.Length == 0) return;
-        var batches = await _batches.GetQueryable().AsNoTracking()
-            .Where(x => x.TenantId == tenant && !x.IsDeleted && x.IsActive &&
-                batchIds.Contains(x.Id))
-            .Select(x => new { x.Id, x.CampusId, x.AcademicYearId,
-                x.AcademicProgramId, x.AcademicTrackId, x.MediumId, x.AcademicLevelId })
-            .ToListAsync(token);
+        var batches = new List<AcademicBatch>();
+        foreach (var chunk in batchIds.Chunk(200))
+            batches.AddRange(await _batches.GetQueryable().AsNoTracking()
+                .Where(x => x.TenantId == tenant && !x.IsDeleted && x.IsActive &&
+                    chunk.Contains(x.Id)).ToListAsync(token));
         if (batches.Count == 0) return;
+
+        var rowsByBatch = cohortRows.ToLookup(x => x.Row.BatchId);
 
         void Flag(long batchId, string field, string message)
         {
-            foreach (var (fileNumber, row) in cohortRows)
+            foreach (var (fileNumber, row) in rowsByBatch[batchId])
             {
                 token.ThrowIfCancellationRequested();
-                if (row.BatchId != batchId) continue;
                 report.Issues.Add(new StudentImportCohortConflictDto
                 {
                     FileNumber = fileNumber, RowNumber = row.RowNumber,
@@ -40,27 +41,18 @@ public sealed partial class StudentImportExecutionService
                 });
             }
         }
-        void FlagAll(string field, string message)
-        {
-            foreach (var batch in batches) Flag(batch.Id, field, message);
-        }
-
         var today = DateOnly.FromDateTime(DateTime.UtcNow);
         var programIds = batches.Select(x => x.AcademicProgramId).Distinct().ToArray();
         var trackIds = batches.Select(x => x.AcademicTrackId).Distinct().ToArray();
         var mediumIds = batches.Select(x => x.MediumId).Distinct().ToArray();
-        var curricula = await _curricula.GetQueryable().AsNoTracking()
-            .Where(x => x.TenantId == tenant && !x.IsDeleted && x.IsActive &&
-                x.IsCurrent && programIds.Contains(x.AcademicProgramId) &&
-                trackIds.Contains(x.AcademicTrackId) && mediumIds.Contains(x.MediumId) &&
-                x.EffectiveFrom <= today && (!x.EffectiveTo.HasValue || x.EffectiveTo >= today))
-            .Select(x => new { x.Id, x.AcademicProgramId, x.AcademicTrackId, x.MediumId })
-            .Take(2001).ToListAsync(token);
-        if (curricula.Count > 2000)
-        {
-            FlagAll("Curriculum", "Current curriculum lookup exceeds the preflight limit.");
-            return;
-        }
+        var curricula = new List<AcademicCurriculum>();
+        foreach (var chunk in programIds.Chunk(200))
+            curricula.AddRange(await _curricula.GetQueryable().AsNoTracking()
+                .Where(x => x.TenantId == tenant && !x.IsDeleted && x.IsActive &&
+                    x.IsCurrent && chunk.Contains(x.AcademicProgramId) &&
+                    trackIds.Contains(x.AcademicTrackId) && mediumIds.Contains(x.MediumId) &&
+                    x.EffectiveFrom <= today && (!x.EffectiveTo.HasValue || x.EffectiveTo >= today))
+                .ToListAsync(token));
 
         var curriculumByBatch = new Dictionary<long, long>();
         foreach (var batch in batches)
@@ -79,41 +71,43 @@ public sealed partial class StudentImportExecutionService
 
         var curriculumIds = curriculumByBatch.Values.Distinct().ToArray();
         var levelIds = batches.Select(x => x.AcademicLevelId).Distinct().ToArray();
-        var subjects = await _curriculumSubjects.GetQueryable().AsNoTracking()
-            .Where(x => x.TenantId == tenant && !x.IsDeleted && x.IsActive &&
-                !x.IsOptional && curriculumIds.Contains(x.AcademicCurriculumId) &&
-                levelIds.Contains(x.AcademicLevelId))
-            .Select(x => new { x.Id, x.AcademicCurriculumId, x.AcademicLevelId })
-            .Take(2001).ToListAsync(token);
-        if (subjects.Count > 2000)
-        {
-            FlagAll("RequiredOffering", "Required curriculum subject count exceeds the preflight limit.");
-            return;
-        }
+        var subjects = new List<CurriculumSubject>();
+        foreach (var chunk in curriculumIds.Chunk(200))
+            subjects.AddRange(await _curriculumSubjects.GetQueryable().AsNoTracking()
+                .Where(x => x.TenantId == tenant && !x.IsDeleted && x.IsActive &&
+                    !x.IsOptional && chunk.Contains(x.AcademicCurriculumId) &&
+                    levelIds.Contains(x.AcademicLevelId)).ToListAsync(token));
         if (subjects.Count == 0) return;
 
         var subjectIds = subjects.Select(x => x.Id).ToArray();
-        var offerings = await _offerings.GetQueryable().AsNoTracking()
-            .Where(x => x.TenantId == tenant && !x.IsDeleted && x.IsActive &&
-                batchIds.Contains(x.AcademicBatchId) &&
-                subjectIds.Contains(x.CurriculumSubjectId))
-            .Select(x => new { x.Id, x.AcademicBatchId, x.AcademicYearId,
-                x.CurriculumSubjectId, x.Capacity })
-            .Take(4001).ToListAsync(token);
-        if (offerings.Count > 4000)
-        {
-            FlagAll("RequiredOffering", "Required offering count exceeds the preflight limit.");
-            return;
-        }
+        var offerings = new List<SubjectOffering>();
+        foreach (var chunk in batchIds.Chunk(200))
+            offerings.AddRange(await _offerings.GetQueryable().AsNoTracking()
+                .Where(x => x.TenantId == tenant && !x.IsDeleted && x.IsActive &&
+                    chunk.Contains(x.AcademicBatchId) &&
+                    subjectIds.Contains(x.CurriculumSubjectId)).ToListAsync(token));
         var offeringIds = offerings.Select(x => x.Id).ToArray();
-        var reservations = await _registrations.GetQueryable().AsNoTracking()
-            .Where(x => x.TenantId == tenant && !x.IsDeleted &&
-                offeringIds.Contains(x.SubjectOfferingId) &&
-                x.State != SubjectRegistrationState.Rejected &&
-                x.State != SubjectRegistrationState.Dropped)
-            .GroupBy(x => x.SubjectOfferingId)
-            .Select(g => new { Id = g.Key, Count = g.Count() })
-            .ToDictionaryAsync(x => x.Id, x => x.Count, token);
+        var reservations = new Dictionary<long, int>();
+        foreach (var chunk in offeringIds.Chunk(200))
+        {
+            var reserved = await _registrations.GetQueryable().AsNoTracking()
+                .Where(x => x.TenantId == tenant && !x.IsDeleted &&
+                    chunk.Contains(x.SubjectOfferingId) &&
+                    x.State != SubjectRegistrationState.Rejected &&
+                    x.State != SubjectRegistrationState.Dropped)
+                .GroupBy(x => x.SubjectOfferingId)
+                .Select(g => new { Id = g.Key, Count = g.Count() })
+                .ToListAsync(token);
+            foreach (var count in reserved) reservations.Add(count.Id, count.Count);
+        }
+
+        var batchCampus = batches.ToDictionary(x => x.Id, x => x.CampusId);
+        var incomingByBatch = new Dictionary<long, int>();
+        foreach (var (_, row) in cohortRows)
+            if (batchCampus.TryGetValue(row.BatchId, out var campus) &&
+                long.TryParse(row.CampusId, System.Globalization.NumberStyles.None,
+                    System.Globalization.CultureInfo.InvariantCulture, out var parsed) && parsed == campus)
+                incomingByBatch[row.BatchId] = incomingByBatch.GetValueOrDefault(row.BatchId) + 1;
 
         var requiredCountByBatch = new Dictionary<long, int>();
         foreach (var batch in batches)
@@ -129,10 +123,7 @@ public sealed partial class StudentImportExecutionService
             var capacityInsufficient = false;
             // Include all valid-campus source rows across all files; a one-file
             // preview can miss exhaustion caused by subsequent files.
-            var incoming = cohortRows.Count(x => x.Row.BatchId == batch.Id &&
-                long.TryParse(x.Row.CampusId, System.Globalization.NumberStyles.None,
-                    System.Globalization.CultureInfo.InvariantCulture, out var campus) &&
-                campus == batch.CampusId);
+            var incoming = incomingByBatch.GetValueOrDefault(batch.Id);
             foreach (var subject in required)
             {
                 var matching = offerings.Where(x => x.AcademicBatchId == batch.Id &&
