@@ -57,6 +57,13 @@ public sealed partial class InventoryMovementService
             logger.LogWarning(ex, "Inventory expiry policy SQL conflict");
             return ApiResponse<InventoryMovementDto>.ErrorResponse("Deadline conflict; reload.", 409);
         }
+        catch (InvalidOperationException ex) when (IsSqlReceiptConflict(ex))
+        {
+            // EF SQL Server execution strategy wraps a deadlock victim in
+            // InvalidOperationException. Do not mask unrelated exceptions.
+            logger.LogWarning(ex, "Inventory expiry policy wrapped SQL concurrency conflict");
+            return ApiResponse<InventoryMovementDto>.ErrorResponse("Deadline conflict; reload.", 409);
+        }
     }
 
     public async Task<ApiResponse<InventoryMovementDto>> ExpireReservationAsync(
@@ -101,6 +108,11 @@ public sealed partial class InventoryMovementService
         catch (SqlException ex) when (ex.Number is 1205 or 1222 or 2601 or 2627 or 3960 or 51061)
         {
             logger.LogWarning(ex, "Inventory expiry SQL conflict");
+            return ApiResponse<InventoryMovementDto>.ErrorResponse("Expiry conflict; reload.", 409);
+        }
+        catch (InvalidOperationException ex) when (IsSqlReceiptConflict(ex))
+        {
+            logger.LogWarning(ex, "Inventory expiry wrapped SQL concurrency conflict");
             return ApiResponse<InventoryMovementDto>.ErrorResponse("Expiry conflict; reload.", 409);
         }
     }
