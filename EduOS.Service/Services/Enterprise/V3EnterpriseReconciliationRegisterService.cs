@@ -44,15 +44,16 @@ public sealed class V3EnterpriseReconciliationRegisterService(
             .Where(x => x.TenantId == user.TenantId && !x.IsDeleted &&
                 x.MovementAt >= start && x.MovementAt <= endExclusive);
         if (campusId.HasValue)
-            query = query.Where(x => db.InventoryLocations.Any(loc =>
-                loc.TenantId == user.TenantId && !loc.IsDeleted &&
+            query = query.Where(x => db.InventoryLocations.IgnoreQueryFilters().Any(loc =>
+                loc.TenantId == user.TenantId &&
                 loc.CampusId == campusId.Value &&
                 (loc.Id == x.FromLocationId || loc.Id == x.ToLocationId)));
         var count = await query.CountAsync(ct);
         var pageRows = await query.OrderByDescending(x => x.MovementAt).ThenByDescending(x => x.Id)
             .Skip((page - 1) * size).Take(size)
             .Select(x => new { x.Id, x.PublicId, x.MovementNumber, x.MovementAt,
-                x.StateCode, x.FromLocationId, x.ToLocationId }).ToListAsync(ct);
+                x.StateCode, x.MovementTypeCode, x.SourceType, x.SourceId,
+                x.FromLocationId, x.ToLocationId }).ToListAsync(ct);
         var ids = pageRows.Select(x => x.Id).ToArray();
         // Resolve only the at-most 100 location endpoints on this report page.
         // Missing or soft-deleted locations are historical integrity conflicts.
@@ -62,6 +63,13 @@ public sealed class V3EnterpriseReconciliationRegisterService(
             .Where(x => x.TenantId == user.TenantId && locationIds.Contains(x.Id))
             .Select(x => new { x.Id, x.CampusId, x.IsDeleted })
             .ToDictionaryAsync(x => x.Id, ct);
+        var invalidTransferReceipts =
+            await V3EnterpriseTransferEvidenceValidator.InvalidReceiptsAsync(
+                db, user.TenantId,
+                pageRows.Where(x => x.SourceType == "TransferReceipt")
+                    .Select(x => new V3EnterpriseTransferEvidenceValidator.Receipt(
+                        x.Id, x.SourceId, x.ToLocationId, x.StateCode, x.MovementTypeCode))
+                    .ToArray(), ct);
         var values = await db.InventoryMovementLines.IgnoreQueryFilters().AsNoTracking()
             .Where(x => x.TenantId == user.TenantId && ids.Contains(x.InventoryMovementId))
             .GroupBy(x => x.InventoryMovementId)
@@ -100,6 +108,7 @@ public sealed class V3EnterpriseReconciliationRegisterService(
                 link.Any(j => j.CampusId.HasValue &&
                     !allowedCampuses.Contains(j.CampusId.Value));
             var status = missingLocation || foreignCampusJournal ||
+                invalidTransferReceipts.Contains(m.Id) ||
                 (link?.Length ?? 0) > 100 ||
                 v?.Deleted == true || v == null ? "EvidenceConflict" :
                 link == null ? "NoExplicitReference" :
@@ -115,6 +124,7 @@ public sealed class V3EnterpriseReconciliationRegisterService(
             {
                 Reference = m.PublicId, Number = m.MovementNumber,
                 Date = DateOnly.FromDateTime(m.MovementAt), State = m.StateCode,
+                CampusId = allowedCampuses.Count == 1 ? allowedCampuses.Single() : null,
                 RecordedValue = v?.Amount ?? 0m, LineCount = v?.Count ?? 0,
                 EvidenceStatus = status
             };

@@ -44,6 +44,18 @@ public sealed class V3EnterpriseLedgerTraceService(EduOSDbContext db, ICurrentUs
         var allowedCampuses = locations.Where(x => x.CampusId.HasValue)
             .Select(x => x.CampusId!.Value).ToHashSet();
 
+        // Verify the real canonical dispatch and exact line mirror, not an
+        // inferred purchase-order, asset or Finance reference.
+        if (movement.SourceType == "TransferReceipt" &&
+            (await V3EnterpriseTransferEvidenceValidator.InvalidReceiptsAsync(
+                db, user.TenantId,
+                [new V3EnterpriseTransferEvidenceValidator.Receipt(
+                    movement.Id, movement.SourceId, movement.ToLocationId,
+                    movement.StateCode, movement.MovementTypeCode)], ct))
+                .Contains(movement.Id))
+            return ApiResponse<V3EnterpriseLedgerTraceDto>.ErrorResponse(
+                "Transfer dispatch or receipt evidence requires reconciliation.", 409);
+
         // Historical tombstones are integrity failures, never silently excluded.
         var lines = db.InventoryMovementLines.IgnoreQueryFilters().AsNoTracking()
             .Where(x => x.TenantId == user.TenantId && x.InventoryMovementId == movement.Id);

@@ -140,6 +140,83 @@ public sealed class SqlServerV3EnterpriseLedgerTraceTests
             Assert.Equal(400, (await register.GetAsync("stock", today, today, pageSize: 100)).StatusCode);
         }
 
+        // SQL-backed transfer lineage and campus-scoped register acceptance.
+        // These are disposable corruption probes, not production mutations.
+        await using (var db = Open(options, tenantId))
+        {
+            var sourceLocation = new InventoryLocation { TenantId = tenantId,
+                CampusId = primaryCampusId, Code = "SRC-" + suffix,
+                Name = "Transfer source" };
+            db.InventoryLocations.Add(sourceLocation);
+            await db.SaveChangesAsync();
+            var dispatch = new InventoryMovement {
+                TenantId = tenantId, MovementNumber = "DISP-" + suffix,
+                ClientRequestId = Guid.NewGuid(), MovementTypeCode = "Issue",
+                StateCode = "Posted", SourceType = "TransferDispatch",
+                FromLocationId = sourceLocation.Id, ToLocationId = locationId,
+                MovementAt = DateTime.UtcNow, PostedAt = DateTime.UtcNow
+            };
+            db.InventoryMovements.Add(dispatch);
+            await db.SaveChangesAsync();
+            var receiptId = await db.InventoryMovements
+                .Where(x => x.PublicId == movementReference).Select(x => x.Id).SingleAsync();
+            var itemId = await db.InventoryMovementLines
+                .Where(x => x.InventoryMovementId == receiptId)
+                .Select(x => x.InventoryItemId).SingleAsync();
+            db.InventoryMovementLines.Add(new InventoryMovementLine {
+                TenantId = tenantId, InventoryMovementId = dispatch.Id,
+                InventoryItemId = itemId, LineNo = 1, Quantity = 3m, UnitCost = 20m
+            });
+            await db.SaveChangesAsync();
+            await db.InventoryMovements.Where(x => x.Id == receiptId)
+                .ExecuteUpdateAsync(s => s
+                    .SetProperty(x => x.SourceType, "TransferReceipt")
+                    .SetProperty(x => x.SourceId, (long?)dispatch.Id));
+            var trace = new V3EnterpriseLedgerTraceService(db, new Actor(tenantId));
+            var register = new V3EnterpriseReconciliationRegisterService(db, new Actor(tenantId));
+            var from = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(-1));
+            var to = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(1));
+            async Task<string> CampusStatus()
+            {
+                var page = await register.GetAsync("stock", from, to, primaryCampusId);
+                Assert.Equal(200, page.StatusCode);
+                return Assert.Single(page.Data!.Items,
+                    x => x.Reference == movementReference).EvidenceStatus;
+            }
+            Assert.Equal(200, (await trace.GetAsync(movementReference)).StatusCode);
+            Assert.Equal("ExplicitBalancedReference", await CampusStatus());
+
+            await db.InventoryMovementLines.Where(x => x.InventoryMovementId == dispatch.Id)
+                .ExecuteUpdateAsync(s => s.SetProperty(x => x.Quantity, 4m));
+            Assert.Equal(409, (await trace.GetAsync(movementReference)).StatusCode);
+            Assert.Equal("EvidenceConflict", await CampusStatus());
+            await db.InventoryMovementLines.Where(x => x.InventoryMovementId == dispatch.Id)
+                .ExecuteUpdateAsync(s => s.SetProperty(x => x.Quantity, 3m));
+
+            await db.InventoryMovements.Where(x => x.Id == dispatch.Id)
+                .ExecuteUpdateAsync(s => s.SetProperty(x => x.IsDeleted, true));
+            Assert.Equal(409, (await trace.GetAsync(movementReference)).StatusCode);
+            Assert.Equal("EvidenceConflict", await CampusStatus());
+            await db.InventoryMovements.IgnoreQueryFilters().Where(x => x.Id == dispatch.Id)
+                .ExecuteUpdateAsync(s => s.SetProperty(x => x.IsDeleted, false));
+
+            await db.InventoryMovements.Where(x => x.Id == receiptId)
+                .ExecuteUpdateAsync(s => s.SetProperty(x => x.SourceId, (long?)0));
+            Assert.Equal(409, (await trace.GetAsync(movementReference)).StatusCode);
+            Assert.Equal("EvidenceConflict", await CampusStatus());
+
+            await db.InventoryMovements.Where(x => x.Id == receiptId)
+                .ExecuteUpdateAsync(s => s
+                    .SetProperty(x => x.SourceType, "PurchaseReceipt")
+                    .SetProperty(x => x.SourceId, (long?)12345));
+            await db.InventoryLocations.Where(x => x.Id == locationId)
+                .ExecuteUpdateAsync(s => s.SetProperty(x => x.IsDeleted, true));
+            Assert.Equal("EvidenceConflict", await CampusStatus());
+            await db.InventoryLocations.IgnoreQueryFilters().Where(x => x.Id == locationId)
+                .ExecuteUpdateAsync(s => s.SetProperty(x => x.IsDeleted, false));
+            Assert.Equal("ExplicitBalancedReference", await CampusStatus());
+        }
+
         await using (var foreign = Open(options, foreignId))
         {
             var denied = await new V3EnterpriseLedgerTraceService(foreign, new Actor(foreignId))
