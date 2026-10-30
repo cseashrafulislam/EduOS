@@ -366,13 +366,17 @@ public sealed class SqlServerV3InventoryTransferLifecycleTests
             Assert.Empty((await Service(foreign, f, tenantId: f.TenantId + 999)
                 .GetReservationRegisterAsync(null, null, 1, 25)).Data!.Items);
 
-        var released = await service.ReleaseReservationAsync(draft.Reference,
+        // HttpContextAccessor is AsyncLocal; opening a foreign-tenant fixture changes
+        // the ambient test context. Restore the owner context before asserting release.
+        await using var owner = Open(f.Options, f.TenantId);
+        var ownerService = Service(owner, f);
+        var released = await ownerService.ReleaseReservationAsync(draft.Reference,
             new ReleaseInventoryReservationRequestDto
             {
                 RowVersion = hold.Data!.RowVersion,
                 Reason = "Approved request was withdrawn"
             });
         Assert.Equal(200, released.StatusCode);
-        Assert.Empty((await service.GetReservationRegisterAsync(null, null, 1, 25)).Data!.Items);
+        Assert.Empty((await ownerService.GetReservationRegisterAsync(null, null, 1, 25)).Data!.Items);
     }
 }
