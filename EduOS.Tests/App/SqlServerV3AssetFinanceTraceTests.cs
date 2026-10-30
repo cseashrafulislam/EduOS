@@ -128,6 +128,45 @@ public sealed class SqlServerV3AssetFinanceTraceTests
             var row = Assert.Single(listing.Data!.Items.Where(x => x.Reference == requestId));
             Assert.Equal(25m, row.RecordedValue);
             Assert.Equal("ExplicitBalancedReference", row.EvidenceStatus);
+
+            // Two runs share one SQL report page. Corrupting the second journal
+            // must never change the first run's balanced status.
+            var periodId = await db.AccountingPeriods.Select(x => x.Id).SingleAsync();
+            var campusId = await db.Campuses.Select(x => x.Id).SingleAsync();
+            var bookId = await db.AssetBooks.Select(x => x.Id).SingleAsync();
+            var accounts = await db.Accounts.OrderBy(x => x.Id).Select(x => x.Id).ToArrayAsync();
+            var otherJournal = new Journal { TenantId = tenantId, CampusId = campusId,
+                JournalNumber = "AF-JV2-" + Guid.NewGuid().ToString("N")[..12],
+                AccountingPeriodId = periodId, JournalDate = new DateOnly(2026, 10, 30),
+                State = JournalState.Posted };
+            db.Journals.Add(otherJournal);
+            await db.SaveChangesAsync();
+            var otherReference = Guid.NewGuid();
+            var otherRun = new AssetDepreciationRun { TenantId = tenantId, CampusId = campusId,
+                ClientRequestId = otherReference, AccountingPeriodId = periodId,
+                PeriodEnd = new DateOnly(2026, 10, 30), StateCode = "Posted",
+                TotalAmount = 25m, JournalId = otherJournal.Id };
+            db.AssetDepreciationRuns.Add(otherRun);
+            await db.SaveChangesAsync();
+            db.AssetDepreciationLines.Add(new AssetDepreciationLine {
+                TenantId = tenantId, AssetDepreciationRunId = otherRun.Id,
+                AssetBookId = bookId, PeriodEnd = otherRun.PeriodEnd,
+                Amount = 25m, ClosingAccumulated = 25m, ClosingCarryingValue = 975m });
+            db.JournalLines.AddRange(
+                new JournalLine { TenantId = tenantId, JournalId = otherJournal.Id,
+                    LineNo = 1, AccountId = accounts[0], DebitAmount = 25m },
+                new JournalLine { TenantId = tenantId, JournalId = otherJournal.Id,
+                    LineNo = 2, AccountId = accounts[1], CreditAmount = 25m });
+            await db.SaveChangesAsync();
+            await db.JournalLines.Where(x => x.JournalId == otherJournal.Id && x.CreditAmount > 0m)
+                .ExecuteUpdateAsync(set => set.SetProperty(x => x.CreditAmount, 24m));
+            var mixedPage = await register.GetAsync("asset",
+                new DateOnly(2026, 10, 1), new DateOnly(2026, 10, 31));
+            Assert.Equal("ExplicitBalancedReference", Assert.Single(mixedPage.Data!.Items,
+                x => x.Reference == requestId).EvidenceStatus);
+            Assert.Equal("JournalImbalance", Assert.Single(mixedPage.Data.Items,
+                x => x.Reference == otherReference).EvidenceStatus);
+
             Assert.Equal(404, (await register.GetAsync("asset", new DateOnly(2026, 10, 1),
                 new DateOnly(2026, 10, 31), -99)).StatusCode);
             Assert.Equal(403, (await new V3EnterpriseReconciliationRegisterService(
