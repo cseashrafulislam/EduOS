@@ -77,6 +77,45 @@ public sealed class LibraryController : ControllerBase
     [Authorize(Roles="TenantAdmin,Principal,Librarian")]
     public async Task<IActionResult> ArchiveBook(Guid reference,[FromQuery]string rowVersion,CancellationToken ct)=>ToAction(await _service.ArchiveBookAsync(reference,rowVersion,ct));
 
+    [HttpGet("copies/conditions")]
+    [Authorize(Roles = "TenantAdmin,Principal,Librarian")]
+    public async Task<IActionResult> CopyConditions([FromQuery] string? accession = null,
+        [FromQuery] string? state = "all", [FromQuery] long? campusId = null,
+        [FromQuery] int page = 1, [FromQuery] int pageSize = 20, CancellationToken ct = default) =>
+        ToAction(await _service.GetCopyConditionsAsync(accession, state, campusId, page, pageSize, ct));
+
+    [HttpPost("copies/{copyId:long}/condition")]
+    [Authorize(Roles = "TenantAdmin,Principal,Librarian")]
+    public async Task<IActionResult> ChangeCopyCondition(long copyId,
+        [FromBody] ChangeLibraryCopyConditionRequestDto request, CancellationToken ct)
+    {
+        if (!ModelState.IsValid) return ValidationProblem(ModelState);
+        return ToAction(await _service.ChangeCopyConditionAsync(copyId, request, ct));
+    }
+
+    [HttpGet("copies/{copyId:long}/condition-history")]
+    [Authorize(Roles = "TenantAdmin,Principal,Librarian")]
+    public async Task<IActionResult> CopyConditionHistory(long copyId, [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 20, CancellationToken ct = default) =>
+        ToAction(await _service.GetCopyConditionHistoryAsync(copyId, page, pageSize, ct));
+
+    [HttpGet("reports/copy-conditions/export")]
+    [Authorize(Roles = "TenantAdmin,Principal,Librarian")]
+    public async Task<IActionResult> ExportCopyConditions([FromQuery] string? accession = null,
+        [FromQuery] string? state = "all", [FromQuery] long? campusId = null,
+        [FromQuery] int page = 1, [FromQuery] int pageSize = 20,
+        [FromQuery] string language = "en-BD", CancellationToken ct = default)
+    {
+        if (language is not ("en-BD" or "bn-BD"))
+            return BadRequest("Unsupported report language.");
+        var result = await _service.GetCopyConditionsAsync(accession, state, campusId, page, pageSize, ct);
+        if (!result.Success || result.Data == null) return ToAction(result);
+        Response.Headers.CacheControl = "no-store, private";
+        Response.Headers.Pragma = "no-cache";
+        return File(LibraryCopyConditionCsvWriter.Write(result.Data.Items, language == "bn-BD"),
+            "text/csv; charset=utf-8", "library-copy-conditions-page.csv");
+    }
+
     [HttpGet("reports/copy-integrity")]
     [Authorize(Roles = "TenantAdmin,Principal,Librarian")]
     public async Task<IActionResult> CopyIntegrity([FromQuery] string? accession = null,

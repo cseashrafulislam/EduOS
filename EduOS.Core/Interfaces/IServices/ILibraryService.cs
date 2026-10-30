@@ -20,6 +20,12 @@ public interface ILibraryService
     Task<ApiResponse<PagedResult<BookRenewalHistoryDto>>> GetRenewalHistoryAsync(Guid issueReference, int page, int pageSize, CancellationToken cancellationToken = default);
     Task<ApiResponse<BookIssueDto>> CloseAsync(Guid issueReference, ReturnBookRequestDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<PagedResult<BookIssueDto>>> GetMyIssuesAsync(int page, int pageSize, CancellationToken cancellationToken = default, string? status = null);
+    Task<ApiResponse<PagedResult<LibraryCopyConditionDto>>> GetCopyConditionsAsync(
+        string? accession, string? state, long? campusId, int page, int pageSize, CancellationToken cancellationToken = default);
+    Task<ApiResponse<LibraryCopyConditionDto>> ChangeCopyConditionAsync(
+        long copyId, ChangeLibraryCopyConditionRequestDto request, CancellationToken cancellationToken = default);
+    Task<ApiResponse<PagedResult<LibraryCopyConditionHistoryDto>>> GetCopyConditionHistoryAsync(
+        long copyId, int page, int pageSize, CancellationToken cancellationToken = default);
     Task<ApiResponse<PagedResult<LibraryCopyIntegrityDto>>> GetCopyIntegrityAsync(
         string? accession, long? campusId, int page, int pageSize, CancellationToken cancellationToken = default);
     Task<ApiResponse<PagedResult<LibraryOverdueBranchDto>>> GetOverdueBranchesAsync(
