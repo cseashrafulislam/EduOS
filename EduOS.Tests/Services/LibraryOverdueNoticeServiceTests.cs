@@ -1,4 +1,5 @@
 using EduOS.Core.DTOs.Library;
+using EduOS.Core.Entities.Communication;
 using EduOS.Core.Entities.Academic;
 using EduOS.Core.Entities.Auth;
 using EduOS.Core.Entities.Library;
@@ -89,6 +90,19 @@ public sealed class LibraryOverdueNoticeServiceTests
         await db.SaveChangesAsync();
         var principal = Service(db, "Principal");
         (await principal.PreviewAsync(b.Id)).StatusCode.Should().Be(403);
+        // A borrower can opt out of this optional in-app event without
+        // suppressing any legally required finance or account notice.
+        var preference = new NotificationPreference
+        {
+            TenantId = 101, UserId = student.UserId!.Value,
+            Channel = NotificationChannelType.InApp, EventCode = "LIBRARY_OVERDUE",
+            IsEnabled = false
+        };
+        db.NotificationPreferences.Add(preference);
+        await db.SaveChangesAsync();
+        (await principal.PreviewAsync(a.Id)).Data!.PendingCount.Should().Be(0);
+        preference.IsEnabled = true;
+        await db.SaveChangesAsync();
         var preview = await principal.PreviewAsync(a.Id);
         preview.Success.Should().BeTrue(preview.Message);
         preview.Data!.PendingCount.Should().Be(1);

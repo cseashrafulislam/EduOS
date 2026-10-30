@@ -81,6 +81,10 @@ public sealed class LibraryOverdueNoticeService(
                    branch.CampusId == campusId && issue.State == BookIssueState.Issued &&
                    copy.State == BookCopyState.Issued && issue.DueDate < today &&
                    student.StatusCode == "Active" && student.UserId.HasValue &&
+                   !db.NotificationPreferences.Any(p => p.TenantId == tenant &&
+                       p.UserId == student.UserId.Value && !p.IsDeleted &&
+                       p.Channel == NotificationChannelType.InApp &&
+                       p.EventCode == NoticeType && !p.IsEnabled) &&
                    db.StudentEnrollments.Any(e => e.TenantId == tenant &&
                        e.StudentId == student.Id && e.CampusId == campusId &&
                        e.IsCurrent && e.State == EnrollmentState.Active && !e.IsDeleted) &&

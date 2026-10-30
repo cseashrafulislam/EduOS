@@ -62,7 +62,7 @@ function cell(row, value) {
 async function loadPreview() {
  const id = campus();
  const data = await api('/api/library/overdue-notices/preview?campusId=' + encodeURIComponent(id));
- if (!valid()) return;
+ if (!valid() || el('libraryOverdueCampus').value.trim() !== String(id)) return;
  preview = data; requestId = null;
  el('libraryNoticeRows').replaceChildren();
  for (const item of data.nextRecipients || []) {
