@@ -152,7 +152,10 @@ public sealed class SqlServerV3AssetCustodyTransferTests
         await using var foreign = Open(f.Options, f.Tenant + 999);
         Assert.Equal(404, (await Service(foreign, f, tenant: f.Tenant + 999).TransferAssetAsync(
             f.Assignment, Request(f, Guid.NewGuid()))).StatusCode);
-        Assert.Equal("Assigned", (await db.AssetAssignments.AsNoTracking().SingleAsync(
+        // HttpContextAccessor uses an ambient AsyncLocal; restore the original tenant
+        // explicitly after probing a foreign tenant in the same async test flow.
+        await using var verify = Open(f.Options, f.Tenant);
+        Assert.Equal("Assigned", (await verify.AssetAssignments.AsNoTracking().SingleAsync(
             x => x.Id == f.Assignment)).StateCode);
     }
 

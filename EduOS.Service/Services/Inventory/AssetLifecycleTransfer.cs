@@ -109,6 +109,12 @@ public sealed partial class AssetLifecycleService
             _logger.LogWarning(ex, "Asset transfer constraint conflict for tenant {Tenant}", Tenant);
             return ApiResponse<AssetAssignmentDto>.ErrorResponse("Transfer conflict; reload before retrying.", 409);
         }
+        catch (InvalidOperationException ex) when (ex.GetBaseException() is SqlException { Number: 1205 })
+        {
+            // EF can wrap a SQL deadlock in DbUpdateException and then InvalidOperationException.
+            _logger.LogWarning(ex, "Asset transfer EF-wrapped deadlock for tenant {Tenant}", Tenant);
+            return ApiResponse<AssetAssignmentDto>.ErrorResponse("Concurrent transfer; reload and retry.", 409);
+        }
         catch (SqlException ex) when (ex.Number == 1205)
         {
             _logger.LogWarning(ex, "Asset transfer SQL deadlock for tenant {Tenant}", Tenant);
