@@ -59,9 +59,15 @@ public sealed partial class InventoryMovementService
         if (!await db.InventoryItems.AsNoTracking().AnyAsync(x => x.TenantId == user.TenantId && x.Id == itemId && !x.IsDeleted, ct))
             return ApiResponse<InventoryBalanceDto>.ErrorResponse("Item not found.", 404);
         var rows = await Balances(new[] { itemId }, new[] { locationId }, asOfUtc, ct);
+        // Current reservations are not reconstructed for historical as-of dates.
+        var reserved = asOfUtc.HasValue ? 0m :
+            (await ReservedQuantitiesAsync(new[] { itemId }, new[] { locationId }, null, ct))
+                .Values.Sum();
+        var onHand = rows.Values.Sum(x => x.Quantity);
         return ApiResponse<InventoryBalanceDto>.SuccessResponse(new InventoryBalanceDto {
             InventoryItemId = itemId, InventoryLocationId = locationId,
-            QuantityOnHand = rows.Values.Sum(x => x.Quantity), ValuationAmount = rows.Values.Sum(x => x.Value),
+            QuantityOnHand = onHand, ReservedQuantity = reserved, AvailableQuantity = onHand - reserved,
+            AvailabilityIsCurrent = !asOfUtc.HasValue, ValuationAmount = rows.Values.Sum(x => x.Value),
             AsOfUtc = asOfUtc
         });
     }

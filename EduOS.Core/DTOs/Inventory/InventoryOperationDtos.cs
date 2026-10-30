@@ -51,6 +51,7 @@ public sealed class InventoryMovementDto
     public string MovementNumber { get; set; } = string.Empty;
     public string MovementTypeCode { get; set; } = string.Empty;
     public string? SourceType { get; set; }
+    public string? Remarks { get; set; }
     public string? TransferState { get; set; }
     public DateTime MovementAt { get; set; }
     public long? FromLocationId { get; set; }
@@ -90,6 +91,11 @@ public sealed class PostInventoryMovementRequestDto
 {
     [Required] public string RowVersion { get; set; } = string.Empty;
 }
+public sealed class ReleaseInventoryReservationRequestDto
+{
+    [Required] public string RowVersion { get; set; } = string.Empty;
+    [Required, MinLength(10), MaxLength(400)] public string Reason { get; set; } = string.Empty;
+}
 public sealed class ReverseInventoryMovementRequestDto
 {
     public Guid ClientRequestId { get; set; }
@@ -105,6 +111,9 @@ public sealed class InventoryBalanceDto
     public long InventoryItemId { get; set; }
     public long InventoryLocationId { get; set; }
     public decimal QuantityOnHand { get; set; }
+    public decimal ReservedQuantity { get; set; }
+    public decimal AvailableQuantity { get; set; }
+    public bool AvailabilityIsCurrent { get; set; }
     public decimal ValuationAmount { get; set; }
     public DateTime? AsOfUtc { get; set; }
 }

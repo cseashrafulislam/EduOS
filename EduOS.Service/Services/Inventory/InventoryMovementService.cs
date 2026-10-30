@@ -75,7 +75,7 @@ public sealed partial class InventoryMovementService : IInventoryMovementService
     private static InventoryMovementDto Map(InventoryMovement m, IEnumerable<InventoryMovementLine> lines, bool reversed = false, string? transferState = null) => new()
     {
         Reference = m.PublicId, MovementNumber = m.MovementNumber, MovementTypeCode = m.MovementTypeCode,
-        SourceType = m.SourceType, TransferState = transferState,
+        SourceType = m.SourceType, Remarks = m.Remarks, TransferState = transferState,
         MovementAt = m.MovementAt, FromLocationId = m.FromLocationId, ToLocationId = m.ToLocationId,
         StateCode = reversed ? "Reversed" : m.StateCode, PostedAt = m.PostedAt,
         RowVersion = Convert.ToBase64String(m.RowVersion),

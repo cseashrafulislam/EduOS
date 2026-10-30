@@ -5,7 +5,13 @@
     var canReverse = User.IsInRole("TenantAdmin") || User.IsInRole("Principal");
 }
 <section id="inventoryMovements" class="container-fluid py-3" data-create="@canCreate.ToString().ToLowerInvariant()" data-post="@canPost.ToString().ToLowerInvariant()" data-reverse="@canReverse.ToString().ToLowerInvariant()">
-    <header class="d-flex justify-content-between align-items-center mb-3"><div><h2>Inventory Movements</h2><p class="text-muted">Draft, post and reverse auditable stock receipts, issues and transfers. Posted records are immutable.</p></div><a class="btn btn-outline-secondary" href="/InventoryCatalog/Index">Inventory Catalog</a></header>
+    <header class="d-flex justify-content-between align-items-center mb-3 gap-2"><div>
+        <h2>@(System.Globalization.CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "bn" ? "স্টক মুভমেন্ট" : "Inventory Movements")</h2>
+        <details class="small"><summary class="btn btn-link btn-sm p-0" aria-label="Inventory movement help">ⓘ @(System.Globalization.CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "bn" ? "সহায়তা" : "Help")</summary>
+            <div class="small text-muted">@(System.Globalization.CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "bn" ?
+                "ইস্যু বা ট্রান্সফার ড্রাফট রিজার্ভ করুন; অনুমোদিত পোস্টিংয়ে রিজার্ভেশন ব্যবহার হবে। ছাড়তে কারণ দিন। পোস্ট করা লেজার অপরিবর্তনীয়।" :
+                "Reserve issue or transfer drafts before approval; posting consumes their hold. Release requires a reason. Posted ledger entries are immutable.")</div>
+        </details></div><a class="btn btn-outline-secondary" href="/InventoryCatalog/Index">@(System.Globalization.CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "bn" ? "পণ্যের তালিকা" : "Inventory Catalog")</a></header>
     <div id="movementAlert" class="d-none" role="alert"></div>
     @if (canCreate) { @await Html.PartialAsync("_Create") }
     @if (canCreate) {

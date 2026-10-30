@@ -201,4 +201,140 @@ public sealed class SqlServerV3InventoryTransferLifecycleTests
         Assert.Equal(404, (await Service(foreign, f, tenantId: f.TenantId + 999).ReceiveTransferAsync(
             reference, new ReceiveInventoryTransferRequestDto { ClientRequestId = Guid.NewGuid() })).StatusCode);
     }
+
+    private static async Task<InventoryMovementDto> DraftIssueAsync(EduOSDbContext db, Fixture f, decimal quantity)
+    {
+        var draft = await Service(db, f).CreateMovementAsync(new CreateInventoryMovementRequestDto
+        {
+            ClientRequestId = Guid.NewGuid(),
+            MovementTypeCode = "Issue",
+            SourceType = "ManualIssue",
+            FromLocationId = f.SourceId,
+            Remarks = "Authorized issue for inventory reservation",
+            Lines = [new CreateInventoryMovementLineRequestDto
+            {
+                InventoryItemId = f.ItemId, Quantity = quantity, UnitCost = 0m
+            }]
+        });
+        Assert.Equal(200, draft.StatusCode);
+        return draft.Data!;
+    }
+
+    [Fact]
+    public async Task Reserved_stock_blocks_unrelated_post_and_release_restores_available_quantity()
+    {
+        var connection = Environment.GetEnvironmentVariable("EDUOS_SQL_AUTH_TEST_CONNECTION");
+        if (string.IsNullOrWhiteSpace(connection)) return;
+        var f = await SeedAsync(connection);
+        await using var db = Open(f.Options, f.TenantId);
+        var service = Service(db, f);
+        var first = await DraftIssueAsync(db, f, 8m);
+        var reserved = await service.ReserveMovementAsync(first.Reference,
+            new PostInventoryMovementRequestDto { RowVersion = first.RowVersion });
+        Assert.Equal(200, reserved.StatusCode);
+        var balance = (await service.GetItemBalanceAsync(f.ItemId, f.SourceId, null)).Data!;
+        Assert.Equal(10m, balance.QuantityOnHand);
+        Assert.Equal(8m, balance.ReservedQuantity);
+        Assert.Equal(2m, balance.AvailableQuantity);
+
+        var second = await DraftIssueAsync(db, f, 3m);
+        Assert.Equal(409, (await service.PostMovementAsync(second.Reference,
+            new PostInventoryMovementRequestDto { RowVersion = second.RowVersion })).StatusCode);
+        var release = await service.ReleaseReservationAsync(first.Reference,
+            new ReleaseInventoryReservationRequestDto
+            {
+                RowVersion = reserved.Data!.RowVersion,
+                Reason = "Approved issue request was cancelled"
+            });
+        Assert.Equal(200, release.StatusCode);
+        Assert.Equal("Cancelled", release.Data!.StateCode);
+        Assert.Equal(200, (await service.ReleaseReservationAsync(first.Reference,
+            new ReleaseInventoryReservationRequestDto
+            {
+                RowVersion = reserved.Data.RowVersion,
+                Reason = "Approved issue request was cancelled"
+            })).StatusCode);
+        Assert.Equal(200, (await service.PostMovementAsync(second.Reference,
+            new PostInventoryMovementRequestDto { RowVersion = second.RowVersion })).StatusCode);
+        Assert.Equal(7m, (await service.GetItemBalanceAsync(f.ItemId, f.SourceId, null))
+            .Data!.AvailableQuantity);
+        Assert.Equal(409, (await service.ReserveMovementAsync(first.Reference,
+            new PostInventoryMovementRequestDto { RowVersion = first.RowVersion })).StatusCode);
+    }
+
+    [Fact]
+    public async Task Concurrent_reservations_cannot_oversell_and_receipt_reversal_respects_holds()
+    {
+        var connection = Environment.GetEnvironmentVariable("EDUOS_SQL_AUTH_TEST_CONNECTION");
+        if (string.IsNullOrWhiteSpace(connection)) return;
+        var f = await SeedAsync(connection);
+        InventoryMovementDto a, b;
+        await using (var setup = Open(f.Options, f.TenantId))
+        {
+            a = await DraftIssueAsync(setup, f, 7m);
+            b = await DraftIssueAsync(setup, f, 7m);
+        }
+        await using var first = Open(f.Options, f.TenantId);
+        await using var second = Open(f.Options, f.TenantId);
+        var results = await Task.WhenAll(
+            Service(first, f).ReserveMovementAsync(a.Reference,
+                new PostInventoryMovementRequestDto { RowVersion = a.RowVersion }),
+            Service(second, f).ReserveMovementAsync(b.Reference,
+                new PostInventoryMovementRequestDto { RowVersion = b.RowVersion }));
+        Assert.Single(results, x => x.StatusCode == 200);
+        Assert.Single(results, x => x.StatusCode == 409);
+
+        await using var verify = Open(f.Options, f.TenantId);
+        var service = Service(verify, f);
+        var balance = (await service.GetItemBalanceAsync(f.ItemId, f.SourceId, null)).Data!;
+        Assert.Equal(10m, balance.QuantityOnHand);
+        Assert.Equal(7m, balance.ReservedQuantity);
+        Assert.Equal(3m, balance.AvailableQuantity);
+        var opening = await verify.InventoryMovements.AsNoTracking()
+            .SingleAsync(x => x.TenantId == f.TenantId && x.SourceType == "OpeningBalance");
+        Assert.Equal(409, (await service.ReverseMovementAsync(opening.PublicId,
+            new ReverseInventoryMovementRequestDto
+            {
+                ClientRequestId = Guid.NewGuid(),
+                RowVersion = Convert.ToBase64String(opening.RowVersion),
+                Reason = "Attempt to reverse reserved opening stock"
+            })).StatusCode);
+        Assert.Equal(403, (await Service(verify, f, "Student").ReserveMovementAsync(
+            a.Reference, new PostInventoryMovementRequestDto { RowVersion = a.RowVersion })).StatusCode);
+        await using var foreign = Open(f.Options, f.TenantId + 999);
+        Assert.Equal(404, (await Service(foreign, f, tenantId: f.TenantId + 999)
+            .ReserveMovementAsync(a.Reference,
+                new PostInventoryMovementRequestDto { RowVersion = a.RowVersion })).StatusCode);
+    }
+
+    [Fact]
+    public async Task Posting_reserved_issue_consumes_own_hold_without_duplicate_stock_debit()
+    {
+        var connection = Environment.GetEnvironmentVariable("EDUOS_SQL_AUTH_TEST_CONNECTION");
+        if (string.IsNullOrWhiteSpace(connection)) return;
+        var f = await SeedAsync(connection);
+        await using var db = Open(f.Options, f.TenantId);
+        var service = Service(db, f);
+        var draft = await DraftIssueAsync(db, f, 6m);
+        var reserved = await service.ReserveMovementAsync(draft.Reference,
+            new PostInventoryMovementRequestDto { RowVersion = draft.RowVersion });
+        Assert.Equal(200, reserved.StatusCode);
+        Assert.Equal(200, (await service.ReserveMovementAsync(draft.Reference,
+            new PostInventoryMovementRequestDto { RowVersion = draft.RowVersion })).StatusCode);
+        var posted = await service.PostMovementAsync(draft.Reference,
+            new PostInventoryMovementRequestDto { RowVersion = reserved.Data!.RowVersion });
+        Assert.Equal(200, posted.StatusCode);
+        Assert.Equal("Posted", posted.Data!.StateCode);
+        var balance = (await service.GetItemBalanceAsync(f.ItemId, f.SourceId, null)).Data!;
+        Assert.Equal(4m, balance.QuantityOnHand);
+        Assert.Equal(0m, balance.ReservedQuantity);
+        Assert.Equal(4m, balance.AvailableQuantity);
+        Assert.Equal(409, (await service.ReleaseReservationAsync(draft.Reference,
+            new ReleaseInventoryReservationRequestDto
+            {
+                RowVersion = reserved.Data.RowVersion,
+                Reason = "Cannot release already posted issue"
+            })).StatusCode);
+    }
+
 }

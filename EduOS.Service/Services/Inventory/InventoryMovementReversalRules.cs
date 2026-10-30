@@ -19,6 +19,12 @@ public sealed partial class InventoryMovementService
             if (original.ToLocationId.HasValue && original.SourceType != "TransferDispatch")
                 Add(Get(balances, line.InventoryItemId, original.ToLocationId.Value, lot), -line.Quantity, line.UnitCost);
         }
-        return Nonnegative(balances.Values) ? (null, lines) : ("Reversal would create negative stock or invalid valuation.", lines);
+        if (!Nonnegative(balances.Values))
+            return ("Reversal would create negative stock or invalid valuation.", lines);
+        var reserved = await ReservedQuantitiesAsync(items, locations, null, ct);
+        foreach (var (key, quantity) in reserved)
+            if (Get(balances, key.Item, key.Location, key.Lot).Quantity < quantity)
+                return ("Reversal would consume reserved stock.", lines);
+        return (null, lines);
     }
 }

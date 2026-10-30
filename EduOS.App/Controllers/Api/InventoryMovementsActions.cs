@@ -22,6 +22,12 @@ public sealed partial class InventoryMovementsController
     [HttpPost, Authorize(Roles = "TenantAdmin,Principal,InventoryManager,StoreKeeper")]
     public async Task<IActionResult> Create([FromBody] CreateInventoryMovementRequestDto request, CancellationToken ct)
         => Reply(await service.CreateMovementAsync(request, ct));
+    [HttpPost("{reference:guid}/reserve"), Authorize(Roles = "TenantAdmin,Principal,InventoryManager,StoreKeeper")]
+    public async Task<IActionResult> Reserve(Guid reference, [FromBody] PostInventoryMovementRequestDto request, CancellationToken ct)
+        => Reply(await service.ReserveMovementAsync(reference, request, ct));
+    [HttpPost("{reference:guid}/release"), Authorize(Roles = "TenantAdmin,Principal,InventoryManager,StoreKeeper")]
+    public async Task<IActionResult> Release(Guid reference, [FromBody] ReleaseInventoryReservationRequestDto request, CancellationToken ct)
+        => Reply(await service.ReleaseReservationAsync(reference, request, ct));
     [HttpPost("{reference:guid}/post"), Authorize(Roles = "TenantAdmin,Principal,InventoryManager")]
     public async Task<IActionResult> Post(Guid reference, [FromBody] PostInventoryMovementRequestDto request, CancellationToken ct)
         => Reply(await service.PostMovementAsync(reference, request, ct));

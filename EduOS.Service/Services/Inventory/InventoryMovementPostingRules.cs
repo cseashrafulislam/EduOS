@@ -36,6 +36,19 @@ public sealed partial class InventoryMovementService
             if (movement.ToLocationId.HasValue && movement.SourceType != "TransferDispatch")
                 Add(Get(balances, line.InventoryItemId, movement.ToLocationId.Value, lot), line.Quantity, line.UnitCost);
         }
-        return Nonnegative(balances.Values) ? (null, lines) : ("Posting would create negative stock or invalid valuation.", lines);
+        if (!Nonnegative(balances.Values))
+            return ("Posting would create negative stock or invalid valuation.", lines);
+        if (movement.FromLocationId.HasValue)
+        {
+            // A reserved draft consumes its own hold when posted. Every other
+            // reservation remains protected against direct draft posting.
+            var reserved = await ReservedQuantitiesAsync(items,
+                new[] { movement.FromLocationId.Value },
+                movement.StateCode == "Reserved" ? movement.Id : null, ct);
+            foreach (var (key, quantity) in reserved)
+                if (Get(balances, key.Item, key.Location, key.Lot).Quantity < quantity)
+                    return ("Posting would consume stock reserved for another operation.", lines);
+        }
+        return (null, lines);
     }
 }
