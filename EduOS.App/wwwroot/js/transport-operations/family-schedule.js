@@ -28,8 +28,12 @@ async function load() {
  try {
   const query = new URLSearchParams({operatingDate:requested,page:String(page),pageSize:'20'});
   const body = await guard.request('/api/transport/family-schedule?'+query,
-   {headers:{Accept:'application/json'}}, response => response.json().catch(()=>null));
-  if (!response.ok || !body?.success || !body.data) throw Error(body?.message || 'Schedule unavailable.');
+   {headers:{Accept:'application/json'}}, async response => {
+    const result = await response.json().catch(()=>null);
+    if (!response.ok || !result?.success) throw Error(result?.message || 'Schedule unavailable.');
+    return result;
+   });
+  if (!body?.success || !body.data) throw Error(body?.message || 'Schedule unavailable.');
   if (token !== serial || requested !== date.value) return;
   const items = Array.isArray(body.data.items) ? body.data.items : [];
   for (const item of items) {
@@ -67,6 +71,7 @@ exportButton.addEventListener('click',async()=>{
     if(!response.ok){const body=await response.json().catch(()=>null);throw Error(body?.message||'Export unavailable.');}
     return response.blob();
    });
+  guard.assert();
   if (token !== serial || requested !== date.value || loadedDate !== requested)
    throw Error('Date changed; reload before exporting.');
   const url = URL.createObjectURL(blob), a = document.createElement('a');
@@ -95,8 +100,12 @@ async function loadAttendance() {
  try {
   const query = new URLSearchParams({date:requestDate,page:String(attendancePage),pageSize:'20'});
   const body = await guard.request('/api/transport/family-attendance?'+query,
-   {headers:{Accept:'application/json'}},response=>response.json().catch(()=>null));
-  if (!response.ok || !body?.success || !body.data) throw Error(body?.message||'Attendance unavailable.');
+   {headers:{Accept:'application/json'}},async response=>{
+    const result=await response.json().catch(()=>null);
+    if(!response.ok||!result?.success) throw Error(result?.message||'Attendance unavailable.');
+    return result;
+   });
+  if (!body?.success || !body.data) throw Error(body?.message||'Attendance unavailable.');
   if (token !== attendanceSerial || requestDate !== attendanceDate.value) return;
   for (const item of body.data.items || []) {
    const tr = document.createElement('tr');
@@ -112,8 +121,12 @@ async function loadAttendance() {
      const url = '/api/transport/family-attendance/' + encodeURIComponent(item.tripReference) +
       '/history?' + new URLSearchParams({studentCode:item.studentCode});
      const body = await guard.request(url,{headers:{Accept:'application/json'}},
-      response=>response.json().catch(()=>null));
-     if (!response.ok || !body?.success || !Array.isArray(body.data)) throw Error(body?.message||'History unavailable.');
+      async response=>{
+       const result=await response.json().catch(()=>null);
+       if(!response.ok||!result?.success) throw Error(result?.message||'History unavailable.');
+       return result;
+      });
+     if (!body?.success || !Array.isArray(body.data)) throw Error(body?.message||'History unavailable.');
      const list = el('familyAttendanceHistoryRows'); list.replaceChildren();
      el('familyAttendanceHistoryStudent').textContent = item.studentCode;
      for (const event of body.data) {
@@ -124,7 +137,7 @@ async function loadAttendance() {
      }
      if (!body.data.length) { const li=document.createElement('li');li.textContent='No events / রেকর্ড নেই';list.append(li); }
      historyDialog.showModal();
-    } catch (error) { attendanceStatus.textContent = error.message; }
+    } catch (error) { if(guard.valid()) attendanceStatus.textContent = error.message; }
     finally { history.disabled = false; }
    });
    action.append(history); tr.append(action);
@@ -158,6 +171,7 @@ attendanceExport.addEventListener('click',async()=>{
     if(!response.ok){const body=await response.json().catch(()=>null);throw Error(body?.message||'Export unavailable.');}
     return response.blob();
    });
+  guard.assert();
   if(token!==attendanceSerial||requested!==attendanceDate.value||attendanceLoadedDate!==requested)
    throw Error('Date changed; reload before exporting.');
   const url=URL.createObjectURL(blob),link=document.createElement('a');
