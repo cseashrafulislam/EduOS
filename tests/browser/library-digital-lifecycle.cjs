@@ -31,7 +31,15 @@ function fixture(admin, language) {
         '<input id="digitalReplaceTitle" required><input id="digitalReplaceExpiry" type="date">',
         '<input id="digitalReplaceFile" type="file" required>',
         '<button id="digitalReplaceSave" type="submit">Publish version</button>',
-        '<button id="digitalReplaceCancel" type="button">Cancel</button></form></dialog>'
+        '<button id="digitalReplaceCancel" type="button">Cancel</button></form></dialog>',
+        '<form id="digitalAuditFilters"><input id="digitalAuditFrom" type="date">',
+        '<input id="digitalAuditTo" type="date"><select id="digitalAuditAction">',
+        '<option value="all">All</option></select><button type="submit">Apply</button></form>',
+        '<button id="digitalAuditExport" type="button">CSV</button>',
+        '<table><tbody id="digitalAuditRows"></tbody></table>',
+        '<button id="digitalAuditPrevious" type="button"></button>',
+        '<span id="digitalAuditPage"></span>',
+        '<button id="digitalAuditNext" type="button"></button>'
     ].join('') : '';
     return '<!doctype html><html lang="' + language + '"><head>' +
         '<meta name="request-verification-token" content="csrf"></head>' +
@@ -67,6 +75,14 @@ async function scenario(browser, admin, language) {
             return route.fulfill({ contentType: 'application/json',
                 body: JSON.stringify({ success: true, data: { items: [
                     { reference: BOOK, title: 'Private catalogue title' }] } }) });
+        if (url.pathname === '/api/library/digital/audit')
+            return route.fulfill({ contentType: 'application/json',
+                body: JSON.stringify({ success: true, data: {
+                    items: [{ currentTitle: 'Protected course reader', resourceReference: RESOURCE,
+                        action: 'LibraryDigitalResource.Download', versionNo: 1,
+                        occurredAtUtc: '2026-10-30T00:00:00Z', actorUserId: 7 }],
+                    totalCount: 1, totalPages: 1
+                } }) });
         if (url.pathname === '/api/library/digital')
             return route.fulfill({ contentType: 'application/json',
                 body: JSON.stringify({ success: true, data: {
@@ -100,6 +116,7 @@ async function scenario(browser, admin, language) {
         await page.locator('#digitalRows').getByText('Protected course reader').waitFor();
         assert.match(await page.locator('#digitalRows').innerText(), /private-reader.pdf/);
         if (admin) {
+            await page.locator('#digitalAuditRows').getByText('Protected course reader').waitFor();
             await page.locator('#digitalRows button').filter({ hasText:
                 language === 'bn-BD' ? 'সম্পাদনা' : 'Edit' }).click();
             assert.equal(await page.locator('#digitalEditDialog').evaluate(el => el.open), true);
@@ -132,6 +149,7 @@ async function scenario(browser, admin, language) {
         assert.equal(await page.locator('#digitalRows').innerText(), '');
         assert.equal(await page.locator('#digitalCount').innerText(), '');
         assert.equal(await page.locator('#digitalPage').innerText(), '');
+        if (admin) assert.equal(await page.locator('#digitalAuditRows').innerText(), '');
         assert.equal(await page.locator('#digitalPrevious').isDisabled(), true);
         assert.equal(await page.locator('#digitalNext').isDisabled(), true);
         assert.deepEqual(downloads, [], 'old tenant private bytes must never be downloaded');
