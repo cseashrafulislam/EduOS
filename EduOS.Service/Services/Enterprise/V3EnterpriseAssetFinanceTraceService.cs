@@ -55,6 +55,25 @@ public sealed class V3EnterpriseAssetFinanceTraceService(EduOSDbContext db, ICur
 
         var journalIds = new[] { run.JournalId, run.ReversalJournalId }
             .Where(x => x.HasValue).Select(x => x!.Value).Distinct().ToArray();
+        // A single Finance journal must not certify two different depreciation runs,
+        // including historical soft-deleted runs. Never silently double-count it.
+        if (journalIds.Length > 0 && await db.AssetDepreciationRuns.IgnoreQueryFilters()
+            .AsNoTracking().AnyAsync(x => x.TenantId == user.TenantId && x.Id != run.Id &&
+                ((x.JournalId.HasValue && journalIds.Contains(x.JournalId.Value)) ||
+                 (x.ReversalJournalId.HasValue &&
+                    journalIds.Contains(x.ReversalJournalId.Value))), ct))
+            return ApiResponse<V3EnterpriseAssetFinanceTraceDto>.ErrorResponse(
+                "Finance journal is referenced by another depreciation run.", 409);
+
+        // Optional line-level Finance provenance, when recorded, must point to
+        // a live line of this run's own original journal, not an unrelated posting.
+        if (await lines.AnyAsync(x => x.JournalLineId.HasValue &&
+            !db.JournalLines.IgnoreQueryFilters().Any(j =>
+                j.TenantId == user.TenantId && !j.IsDeleted &&
+                j.Id == x.JournalLineId.Value && j.JournalId == run.JournalId), ct))
+            return ApiResponse<V3EnterpriseAssetFinanceTraceDto>.ErrorResponse(
+                "Depreciation line references unrelated or deleted Finance evidence.", 409);
+
         var journals = await db.Journals.IgnoreQueryFilters().AsNoTracking()
             .Where(x => x.TenantId == user.TenantId && journalIds.Contains(x.Id))
             .Select(x => new {

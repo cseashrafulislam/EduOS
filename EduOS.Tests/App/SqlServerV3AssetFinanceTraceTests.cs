@@ -153,6 +153,17 @@ public sealed class SqlServerV3AssetFinanceTraceTests
             await db.JournalLines.Where(x => x.Id == creditLineId)
                 .ExecuteUpdateAsync(set => set.SetProperty(x => x.CreditAmount, 25m));
 
+            // A populated depreciation-line journal reference must match the
+            // original journal. The reference is optional for legacy rows.
+            var validLineJournalId = await db.JournalLines
+                .Where(x => x.JournalId == journalId).OrderBy(x => x.Id)
+                .Select(x => x.Id).FirstAsync();
+            await db.AssetDepreciationLines.Where(x => x.Id == lineId)
+                .ExecuteUpdateAsync(s => s.SetProperty(x => x.JournalLineId,
+                    (long?)validLineJournalId));
+            Assert.Equal("ExplicitBalancedReference",
+                (await service.GetAsync(requestId)).Data!.FinanceEvidenceStatus);
+
             // Two runs share one SQL report page. Corrupting the second journal
             // must never change the first run's balanced status.
             var periodId = await db.AccountingPeriods.Select(x => x.Id).SingleAsync();
@@ -220,6 +231,46 @@ public sealed class SqlServerV3AssetFinanceTraceTests
                 x => x.Reference == otherReference).EvidenceStatus);
             await db.Journals.Where(x => x.Id == otherJournal.Id)
                 .ExecuteUpdateAsync(set => set.SetProperty(x => x.State, JournalState.Posted));
+
+            // SQL-only legacy corruption: a line explicitly linked to another
+            // run's Finance journal must not pass even when both totals balance.
+            var alienLineId = await db.JournalLines
+                .Where(x => x.JournalId == otherJournal.Id).OrderBy(x => x.Id)
+                .Select(x => x.Id).FirstAsync();
+            await db.AssetDepreciationLines.Where(x => x.Id == lineId)
+                .ExecuteUpdateAsync(s => s.SetProperty(x => x.JournalLineId,
+                    (long?)alienLineId));
+            Assert.Equal(409, (await service.GetAsync(requestId)).StatusCode);
+            Assert.Equal("EvidenceConflict", Assert.Single(
+                (await register.GetAsync("asset", new DateOnly(2026, 10, 1),
+                    new DateOnly(2026, 10, 31))).Data!.Items,
+                x => x.Reference == requestId).EvidenceStatus);
+            await db.AssetDepreciationLines.Where(x => x.Id == lineId)
+                .ExecuteUpdateAsync(s => s.SetProperty(x => x.JournalLineId,
+                    (long?)validLineJournalId));
+
+            // A reused original journal must never reconcile two runs, even if
+            // the second run is outside the requested report date range.
+            var shadow = new AssetDepreciationRun {
+                TenantId = tenantId, CampusId = campusId,
+                ClientRequestId = Guid.NewGuid(), AccountingPeriodId = periodId,
+                PeriodEnd = new DateOnly(2026, 10, 28), StateCode = "Draft",
+                TotalAmount = 0m };
+            db.AssetDepreciationRuns.Add(shadow);
+            await db.SaveChangesAsync();
+            await db.AssetDepreciationRuns.Where(x => x.Id == shadow.Id)
+                .ExecuteUpdateAsync(s => s.SetProperty(x => x.JournalId, (long?)journalId));
+            Assert.Equal(409, (await service.GetAsync(requestId)).StatusCode);
+            Assert.Equal("EvidenceConflict", Assert.Single(
+                (await register.GetAsync("asset", new DateOnly(2026, 10, 30),
+                    new DateOnly(2026, 10, 31))).Data!.Items,
+                x => x.Reference == requestId).EvidenceStatus);
+            await db.AssetDepreciationRuns.Where(x => x.Id == shadow.Id)
+                .ExecuteUpdateAsync(s => s.SetProperty(x => x.JournalId, (long?)null));
+            Assert.Equal("ExplicitBalancedReference", Assert.Single(
+                (await register.GetAsync("asset", new DateOnly(2026, 10, 30),
+                    new DateOnly(2026, 10, 31))).Data!.Items,
+                x => x.Reference == requestId).EvidenceStatus);
 
             // Imported/legacy mismatched depreciation period must fail closed
             // in both detail and register, even if the monetary totals balance.

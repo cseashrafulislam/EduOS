@@ -159,11 +159,35 @@ public sealed class V3EnterpriseReconciliationRegisterService(
                      book.Id == line.AssetBookId && book.CampusId == run.CampusId &&
                      db.Assets.IgnoreQueryFilters().Any(asset =>
                          asset.TenantId == user.TenantId && !asset.IsDeleted &&
-                         asset.Id == book.AssetId && asset.CampusId == run.CampusId)))
+                         asset.Id == book.AssetId && asset.CampusId == run.CampusId)) ||
+                 (line.JournalLineId.HasValue &&
+                     !db.JournalLines.IgnoreQueryFilters().Any(j =>
+                         j.TenantId == user.TenantId && !j.IsDeleted &&
+                         j.Id == line.JournalLineId.Value && j.JournalId == run.JournalId)))
             select line.AssetDepreciationRunId).Distinct().ToListAsync(ct);
         var invalidLineRuns = invalidLineRunIds.ToHashSet();
         var journalIds = pageRows.SelectMany(x => new[] { x.JournalId, x.ReversalJournalId })
             .Where(x => x.HasValue).Select(x => x!.Value).Distinct().ToArray();
+        // Resolve journal ownership once for the entire page, including tombstones.
+        // One historical journal cannot be reused to make two runs look reconciled.
+        var owners = await db.AssetDepreciationRuns.IgnoreQueryFilters().AsNoTracking()
+            .Where(x => x.TenantId == user.TenantId &&
+                ((x.JournalId.HasValue && journalIds.Contains(x.JournalId.Value)) ||
+                 (x.ReversalJournalId.HasValue &&
+                    journalIds.Contains(x.ReversalJournalId.Value))))
+            .Select(x => new { x.Id, x.JournalId, x.ReversalJournalId })
+            .Take(5001).ToListAsync(ct);
+        if (owners.Count > 5000)
+            return ApiResponse<V3EnterpriseReconciliationRegisterDto>.ErrorResponse(
+                "Excessive depreciation journal reuse requires investigation.", 409);
+        var reusedJournalIds = owners.SelectMany(x =>
+                new[] { x.JournalId, x.ReversalJournalId }
+                    .Where(id => id.HasValue)
+                    .Select(id => new { x.Id, JournalId = id!.Value }))
+            .GroupBy(x => x.JournalId)
+            .Where(g => g.Select(x => x.Id).Distinct().Skip(1).Any())
+            .Select(g => g.Key).ToHashSet();
+
         var journals = await db.Journals.IgnoreQueryFilters().AsNoTracking()
             .Where(x => x.TenantId == user.TenantId && journalIds.Contains(x.Id))
             .Select(x => new { x.Id, x.IsDeleted, x.CampusId, x.State,
@@ -192,6 +216,7 @@ public sealed class V3EnterpriseReconciliationRegisterService(
             // Historical tombstones are integrity conflicts even when run totals
             // also differ; do not downgrade the detail endpoint's 409 evidence.
             var status = journalConflict || invalidLineRuns.Contains(r.Id) ||
+                runJournalIds.Any(reusedJournalIds.Contains) ||
                 v?.Deleted == true ||
                 runJournalIds.Any(id => journalTotals.TryGetValue(id, out var t) && t.Deleted)
                     ? "EvidenceConflict" :
