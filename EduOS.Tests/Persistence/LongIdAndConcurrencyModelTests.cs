@@ -21,7 +21,8 @@ public class LongIdAndConcurrencyModelTests
         AssertLongProperties<RoutineEntry>(context, nameof(RoutineEntry.SubjectOfferingId), nameof(RoutineEntry.RoutineTimeSlotId));
         AssertLongProperties<StudentTransport>(context, nameof(StudentTransport.StudentId), nameof(StudentTransport.StudentEnrollmentId), nameof(StudentTransport.VehicleId), nameof(StudentTransport.RouteId));
         AssertLongProperties<EmployeeLeaveApplication>(context, nameof(EmployeeLeaveApplication.EmployeeId), nameof(EmployeeLeaveApplication.LeaveTypeId));
-        AssertLongProperties<BookIssue>(context, nameof(BookIssue.BookCopyId), nameof(BookIssue.StudentId), nameof(BookIssue.IssuedByUserId));
+        AssertLongProperties<BookIssue>(context, nameof(BookIssue.BookCopyId), nameof(BookIssue.IssuedByUserId));
+        AssertNullableLongProperties<BookIssue>(context, nameof(BookIssue.StudentId), nameof(BookIssue.EmployeeId));
         AssertLongProperties<Document>(context, nameof(Document.FileAssetId));
         AssertLongProperties<CustomFieldValue>(context, nameof(CustomFieldValue.CustomFieldDefinitionId), nameof(CustomFieldValue.EntityId));
         AssertLongProperties<ImportLogItem>(context, nameof(ImportLogItem.ImportLogId));
@@ -61,6 +62,13 @@ public class LongIdAndConcurrencyModelTests
         var entity = context.Model.FindEntityType(typeof(TEntity))!;
         foreach (var propertyName in propertyNames)
             entity.FindProperty(propertyName)!.ClrType.Should().Be(typeof(long), $"{typeof(TEntity).Name}.{propertyName} must be a long foreign key");
+    }
+
+    private static void AssertNullableLongProperties<TEntity>(EduOSDbContext context, params string[] propertyNames) where TEntity : class
+    {
+        var entity = context.Model.FindEntityType(typeof(TEntity))!;
+        foreach (var propertyName in propertyNames)
+            entity.FindProperty(propertyName)!.ClrType.Should().Be(typeof(long?), $"{typeof(TEntity).Name}.{propertyName} must be an optional long borrower foreign key");
     }
 
     private static void AssertConcurrency<TEntity>(EduOSDbContext context) where TEntity : class =>
