@@ -12273,6 +12273,145 @@ namespace EduOS.Persistence.Migrations
                     b.ToTable("AssignmentAttachments");
                 });
 
+            modelBuilder.Entity("EduOS.Core.Entities.LMS.AssignmentRubricCriterion", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
+
+                    b.Property<long>("AssignmentId")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<long?>("CreatedBy")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<long?>("DeletedBy")
+                        .HasColumnType("bigint");
+
+                    b.Property<int>("DisplayOrder")
+                        .HasColumnType("int");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
+
+                    b.Property<decimal>("MaxMarks")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<Guid>("PublicId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
+                    b.Property<long>("TenantId")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<long?>("UpdatedBy")
+                        .HasColumnType("bigint");
+
+                    b.HasKey("Id");
+
+                    b.HasAlternateKey("TenantId", "Id");
+
+                    b.HasIndex("TenantId", "AssignmentId");
+
+                    b.HasIndex("TenantId", "AssignmentId", "DisplayOrder")
+                        .IsUnique()
+                        .HasFilter("[IsDeleted] = 0");
+
+                    b.HasIndex("TenantId", "PublicId")
+                        .IsUnique();
+
+                    b.ToTable("AssignmentRubricCriteria", t =>
+                        {
+                            t.HasCheckConstraint("CK_AssignmentRubricCriteria_MaxMarks", "[MaxMarks] > 0 AND [MaxMarks] <= 100000");
+                            t.HasCheckConstraint("CK_AssignmentRubricCriteria_Order", "[DisplayOrder] >= 1 AND [DisplayOrder] <= 20");
+                        });
+                });
+
+            modelBuilder.Entity("EduOS.Core.Entities.LMS.AssignmentRubricScore", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
+
+                    b.Property<long>("AssignmentRubricCriterionId")
+                        .HasColumnType("bigint");
+
+                    b.Property<long>("AssignmentSubmissionId")
+                        .HasColumnType("bigint");
+
+                    b.Property<decimal>("AwardedMarks")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<long?>("CreatedBy")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<long?>("DeletedBy")
+                        .HasColumnType("bigint");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
+                    b.Property<long>("TenantId")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<long?>("UpdatedBy")
+                        .HasColumnType("bigint");
+
+                    b.HasKey("Id");
+
+                    b.HasAlternateKey("TenantId", "Id");
+
+                    b.HasIndex("TenantId", "AssignmentRubricCriterionId");
+
+                    b.HasIndex("TenantId", "AssignmentSubmissionId");
+
+                    b.HasIndex("TenantId", "AssignmentSubmissionId", "AssignmentRubricCriterionId")
+                        .IsUnique();
+
+                    b.ToTable("AssignmentRubricScores", t =>
+                        {
+                            t.HasCheckConstraint("CK_AssignmentRubricScores_AwardedMarks", "[AwardedMarks] >= 0");
+                        });
+                });
+
             modelBuilder.Entity("EduOS.Core.Entities.LMS.AssignmentSubmission", b =>
                 {
                     b.Property<long>("Id")
@@ -23593,6 +23732,49 @@ namespace EduOS.Persistence.Migrations
                     b.HasOne("EduOS.Core.Entities.Files.FileAsset", null)
                         .WithMany()
                         .HasForeignKey("TenantId", "FileAssetId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Tenant");
+                });
+
+            modelBuilder.Entity("EduOS.Core.Entities.LMS.AssignmentRubricCriterion", b =>
+                {
+                    b.HasOne("EduOS.Core.Entities.SaaS.Tenant", "Tenant")
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("EduOS.Core.Entities.LMS.Assignment", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "AssignmentId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Tenant");
+                });
+
+            modelBuilder.Entity("EduOS.Core.Entities.LMS.AssignmentRubricScore", b =>
+                {
+                    b.HasOne("EduOS.Core.Entities.SaaS.Tenant", "Tenant")
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("EduOS.Core.Entities.LMS.AssignmentRubricCriterion", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "AssignmentRubricCriterionId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("EduOS.Core.Entities.LMS.AssignmentSubmission", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "AssignmentSubmissionId")
                         .HasPrincipalKey("TenantId", "Id")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
