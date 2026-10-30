@@ -40,7 +40,7 @@ public sealed class ProcurementRequisitionService : IProcurementRequisitionServi
     private static bool Precision(decimal value, int digits) => value == decimal.Round(value, digits);
     private IQueryable<ProcurementRequisition> Visible() => db.ProcurementRequisitions.AsNoTracking()
         .Where(x => x.TenantId == user.TenantId && !x.IsDeleted &&
-            db.Campuses.Any(c => c.TenantId == user.TenantId && c.Id == x.CampusId && c.IsActive && !c.IsDeleted) &&
+            db.Campuses.Any(c => c.TenantId == user.TenantId && c.Id == x.CampusId && !c.IsDeleted) &&
             (AllCampuses || db.UserCampusAccesses.Any(a => a.TenantId == user.TenantId &&
                 a.UserId == user.UserId && a.CampusId == x.CampusId && a.IsActive && !a.IsDeleted)));
     private async Task<bool> CampusAllowed(long campusId, CancellationToken ct)
