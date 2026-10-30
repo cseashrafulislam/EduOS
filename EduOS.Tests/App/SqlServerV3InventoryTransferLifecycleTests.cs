@@ -670,6 +670,7 @@ public sealed class SqlServerV3InventoryTransferLifecycleTests
             { RowVersion = parent.RowVersion, ExpiresAtUtc = deadline });
         Assert.Equal(200, scheduled.StatusCode);
         Assert.Equal(deadline, scheduled.Data!.ReservationExpiresAtUtc);
+        Assert.Equal(DateTimeKind.Utc, scheduled.Data.ReservationExpiresAtUtc!.Value.Kind);
         Assert.Equal(200, (await service.ScheduleReservationExpiryAsync(parent.Reference,
             new ScheduleInventoryReservationExpiryRequestDto
             { RowVersion = parent.RowVersion, ExpiresAtUtc = deadline })).StatusCode);
@@ -697,6 +698,7 @@ public sealed class SqlServerV3InventoryTransferLifecycleTests
         Assert.Equal(200, expiry.StatusCode);
         Assert.Equal("Expired", expiry.Data!.StateCode);
         Assert.Equal(f.UserId, expiry.Data.ReservationExpiredByUserId);
+        Assert.Equal(DateTimeKind.Utc, expiry.Data.ReservationExpiredAtUtc!.Value.Kind);
         Assert.Equal(200, (await dueService.ExpireReservationAsync(parent.Reference,
             new ExpireInventoryReservationRequestDto
             { RowVersion = scheduled.Data.RowVersion, Reason = "Approved warehouse reservation deadline" })).StatusCode);
@@ -707,7 +709,9 @@ public sealed class SqlServerV3InventoryTransferLifecycleTests
             includeClosed: true)).Data!;
         Assert.Contains(history.Items, x => x.MovementReference == parent.Reference &&
             x.StateCode == "Expired" && x.FulfilledQuantity == 3m &&
-            x.ReleasedQuantity == 5m && x.ReservedQuantity == 0m);
+            x.ReleasedQuantity == 5m && x.ReservedQuantity == 0m &&
+            x.ReservationExpiresAtUtc!.Value.Kind == DateTimeKind.Utc &&
+            x.ReservationExpiredAtUtc!.Value.Kind == DateTimeKind.Utc);
         Assert.Equal(409, (await dueService.PostMovementAsync(parent.Reference,
             new PostInventoryMovementRequestDto { RowVersion = expiry.Data.RowVersion })).StatusCode);
         await Assert.ThrowsAnyAsync<Exception>(() => dueDb.Database.ExecuteSqlInterpolatedAsync(

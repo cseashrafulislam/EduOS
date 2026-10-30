@@ -84,6 +84,18 @@ public sealed partial class InventoryMovementService
                     ReservedQuantity = x.movement.StateCode == "Reserved" ?
                         x.line.Quantity - x.line.FulfilledQuantity : 0m
                 }).ToListAsync(ct);
+        // SQL datetime2 does not retain DateTime.Kind. These instants are UTC
+        // by contract; make the wire/CSV representation unambiguous.
+        foreach (var row in rows)
+        {
+            row.HeldSinceUtc = DateTime.SpecifyKind(row.HeldSinceUtc, DateTimeKind.Utc);
+            if (row.ReservationExpiresAtUtc.HasValue)
+                row.ReservationExpiresAtUtc = DateTime.SpecifyKind(
+                    row.ReservationExpiresAtUtc.Value, DateTimeKind.Utc);
+            if (row.ReservationExpiredAtUtc.HasValue)
+                row.ReservationExpiredAtUtc = DateTime.SpecifyKind(
+                    row.ReservationExpiredAtUtc.Value, DateTimeKind.Utc);
+        }
         return ApiResponse<PagedResult<InventoryReservationRegisterRowDto>>.SuccessResponse(
             new PagedResult<InventoryReservationRegisterRowDto>
             {

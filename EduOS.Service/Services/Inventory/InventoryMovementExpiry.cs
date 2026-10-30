@@ -22,8 +22,8 @@ public sealed partial class InventoryMovementService
             request.ExpiresAtUtc.Kind != DateTimeKind.Utc || string.IsNullOrWhiteSpace(request.RowVersion))
             return ApiResponse<InventoryMovementDto>.ErrorResponse("UTC deadline and row version required.", 400);
         var now = clock.GetUtcNow().UtcDateTime;
-        if (request.ExpiresAtUtc <= now || request.ExpiresAtUtc > now.AddDays(365))
-            return ApiResponse<InventoryMovementDto>.ErrorResponse("Deadline must be within the next 365 days.", 422);
+        if (request.ExpiresAtUtc <= now)
+            return ApiResponse<InventoryMovementDto>.ErrorResponse("Deadline must be in the future.", 422);
         try
         {
             await using var tx = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct);
