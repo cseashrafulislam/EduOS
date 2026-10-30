@@ -28,7 +28,13 @@ public sealed class StudentImportAuditExportTests
             Enumerable.Range(1, EduOS.Core.DTOs.Students.StudentImportColumns.All.Length)
                 .Select(column => students.Cell(1, column).GetString()));
         Assert.Null(students.LastRowUsed()?.RowBelow().CellsUsed().FirstOrDefault());
+        Assert.Equal("@", students.Column(2).Style.NumberFormat.Format);
+        Assert.Equal("@", students.Column(6).Style.NumberFormat.Format);
+        Assert.Equal("@", students.Column(9).Style.NumberFormat.Format);
         Assert.Equal("Guide", workbook.Worksheet(2).Name);
+        Assert.Equal("ExampleOnly", workbook.Worksheet(3).Name);
+        Assert.Equal("001", workbook.Worksheet(3).Cell(2, 6).GetString());
+        Assert.Equal("01700000000", workbook.Worksheet(3).Cell(2, 9).GetString());
     }
 
     [Fact]

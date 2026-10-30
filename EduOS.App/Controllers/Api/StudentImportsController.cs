@@ -47,6 +47,9 @@ public sealed class StudentImportsController : ControllerBase
         data.SheetView.FreezeRows(1);
         data.Range(1, 1, 1, StudentImportColumns.All.Length).SetAutoFilter();
         data.Columns(1, StudentImportColumns.All.Length).Width = 19;
+        // Keep student codes, rolls, phone numbers and date strings literal;
+        // Excel's General format silently destroys leading zeroes.
+        data.Columns(1, StudentImportColumns.All.Length).Style.NumberFormat.Format = "@";
         data.Column(3).Width = 30;
 
         var guide = book.Worksheets.Add("Guide");
@@ -58,7 +61,25 @@ public sealed class StudentImportsController : ControllerBase
         guide.Cell(5, 1).Value = "SourceKey must remain unique and stable when retrying an import.";
         guide.Cell(6, 1).Value = "DateOfBirth format: yyyy-MM-dd. Do not use Excel formulas.";
         guide.Cell(7, 1).Value = "Import size is based on uploaded data; processing uses recoverable batches.";
+        guide.Cell(8, 1).Value = "Cells are text-formatted to preserve leading zeroes in codes, roll numbers and phone numbers.";
         guide.Column(1).Width = 95;
+
+        var example = book.Worksheets.Add("ExampleOnly");
+        var sample = new[]
+        {
+            "SOURCE-0001", "STUDENT-0001", "Example Student", "YOUR_CAMPUS_ID",
+            "YOUR_ACADEMIC_BATCH_ID", "001", "2010-01-01", "Example Guardian",
+            "01700000000", "GUARDIAN-0001"
+        };
+        for (var i = 0; i < StudentImportColumns.All.Length; i++)
+        {
+            example.Cell(1, i + 1).Value = StudentImportColumns.All[i];
+            example.Cell(1, i + 1).Style.Font.Bold = true;
+            example.Cell(2, i + 1).Value = sample[i];
+        }
+        example.Columns(1, sample.Length).Width = 23;
+        example.Columns(1, sample.Length).Style.NumberFormat.Format = "@";
+        example.Column(3).Width = 30;
 
         using var stream = new MemoryStream();
         book.SaveAs(stream);

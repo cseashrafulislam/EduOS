@@ -18,7 +18,7 @@
         <div class="card-body">
             <div class="d-flex flex-wrap gap-2 align-items-center mb-2">
                 <label class="form-label mb-0 me-auto" for="studentImportFile">Student source file</label>
-                <a class="btn btn-outline-success btn-sm" href="/api/student-imports/template" download="eduos-student-import-template.xlsx">Download Excel template</a>
+                <a class="btn btn-outline-success btn-sm" href="@Url.Content("~/api/student-imports/template")" download="eduos-student-import-template.xlsx">Download Excel template</a>
             </div>
             <div class="form-text mb-2">Fill the Students worksheet; keep the template's exact column names. Row count is taken from the uploaded file.</div>
             <input id="studentImportFile" class="form-control mb-3" type="file" accept=".csv,.xlsx" required />
