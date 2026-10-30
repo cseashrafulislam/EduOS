@@ -1,0 +1,48 @@
+name: Library Digital Real Windows Defender Acceptance
+on:
+  push:
+    branches: [Ashraful]
+    paths:
+      - 'EduOS.Tests/Services/LibraryDigitalWindowsDefenderAcceptanceTests.cs'
+      - 'EduOS.Service/Helpers/Storage/FileUploadService.cs'
+      - 'EduOS.Service/Services/Documents/DocumentFileService.cs'
+      - 'EduOS.Service/Services/Library/LibraryDigitalResourceService.cs'
+      - '.github/workflows/library-digital-windows-defender.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: library-defender-${{ github.sha }}
+  cancel-in-progress: false
+jobs:
+  windows-defender-real-scan:
+    runs-on: windows-2022
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Require active Microsoft Defender (never silently skip scanner acceptance)
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $status = Get-MpComputerStatus
+          if (-not $status.AMServiceEnabled -or -not $status.AntivirusEnabled) {
+            throw 'Windows runner has no active Microsoft Defender; real scanner acceptance is BLOCKED, not PASS.'
+          }
+          Write-Host 'Defender antivirus and service are enabled.'
+      - name: Restore real Library pipeline acceptance tests
+        run: dotnet restore EduOS.Tests/EduOS.Tests.csproj
+      - name: Test real clean and EICAR synthetic private library uploads
+        env:
+          EDUOS_WINDOWS_DEFENDER_ACCEPTANCE: '1'
+        run: dotnet test EduOS.Tests/EduOS.Tests.csproj --configuration Release --no-restore --filter "FullyQualifiedName~LibraryDigitalWindowsDefenderAcceptanceTests" --logger "trx;LogFileName=library-defender.trx" --results-directory TestResults
+      - name: Preserve exact-commit scanner evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: library-windows-defender-${{ github.sha }}
+          path: TestResults/library-defender.trx
+          if-no-files-found: warn
+          retention-days: 14
