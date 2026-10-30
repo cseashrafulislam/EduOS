@@ -72,3 +72,5 @@ jobs:
         run: node tests/browser/lms-certificate-lifecycle.cjs
       - name: Exercise anonymous LMS certificate verification bearer privacy in Chromium
         run: node tests/browser/lms-public-verification.cjs
+      - name: Render bilingual LMS A4 certificate print/PDF in Chromium
+        run: node tests/browser/lms-certificate-print.cjs
