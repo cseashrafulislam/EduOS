@@ -502,6 +502,23 @@ public sealed class StudentImportExecutionServiceTests
         Assert.Empty(await db.Students.ToListAsync());
     }
 
+    [Fact]
+    public async Task Late_source_window_commits_original_row_number_without_materializing_prior_windows()
+    {
+        var options = Options(); await SeedAsync(options);
+        await using var db = Context(options, 101);
+        var rows = Header + string.Concat(Enumerable.Range(1, 5001)
+            .Select(i => $"LATE-{i},LATE-STU-{i},Learner {i},10,20,{i},,\n"));
+        using var file = Csv(rows);
+        var response = await Service(db, new User(101, true)).ExecuteSliceAsync(
+            file, ".csv", Mapping, Guid.NewGuid(), 5000);
+        Assert.True(response.Success, response.Message);
+        Assert.Equal(1, response.Data!.ImportedRows);
+        var audit = await db.ImportLogItems.SingleAsync();
+        Assert.Equal(5002, audit.RowNumber);
+        Assert.Equal("LATE-5001", audit.BusinessKey);
+    }
+
 
     [Fact]
     public async Task Durable_job_status_recovers_committed_window_without_cross_tenant_disclosure()
@@ -535,6 +552,19 @@ public sealed class StudentImportExecutionServiceTests
         var largeFileStatus = await service.GetJobStatusAsync(fileHash, mappingHash, 5001);
         Assert.True(largeFileStatus.Success, largeFileStatus.Message);
         Assert.Equal(5001, largeFileStatus.Data!.TotalRows);
+        var pagedStatus = await service.GetJobStatusAsync(fileHash, mappingHash, 500001);
+        Assert.True(pagedStatus.Success, pagedStatus.Message);
+        Assert.Equal(0, pagedStatus.Data!.PageOffset);
+        Assert.Equal(40000, pagedStatus.Data.NextPageOffset);
+        Assert.True(pagedStatus.Data.HasMorePages);
+        var nextPage = await service.GetJobStatusAsync(fileHash, mappingHash, 500001,
+            pageOffset: 40000);
+        Assert.True(nextPage.Success);
+        Assert.Equal(40000, nextPage.Data!.PageOffset);
+        Assert.Equal(80000, nextPage.Data.NextPageOffset);
+        Assert.Equal(400, (nextPage.Data.NextPageOffset - nextPage.Data.PageOffset) / 100);
+        Assert.Equal(400, (await service.GetJobStatusAsync(fileHash, mappingHash,
+            500001, pageOffset: 1)).StatusCode);
         Assert.Equal(403, (await Service(db, new User(101, false))
             .GetJobStatusAsync(fileHash, mappingHash, 101)).StatusCode);
         await using var foreign = Context(options, 202);

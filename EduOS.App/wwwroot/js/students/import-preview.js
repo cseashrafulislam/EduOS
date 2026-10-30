@@ -176,16 +176,27 @@
     }
 
     async function getJobStatus(fp, totalRows) {
-        const query = new URLSearchParams({
-            fileHash: fp.fileHash, mappingHash: fp.mappingHash, totalRows: String(totalRows)
-        });
-        const response = await fetch('/api/student-imports/job-status?' + query, {
-            credentials: 'same-origin', cache: 'no-store', headers: { Accept: 'application/json' }
-        });
-        const body = await response.json().catch(() => null);
-        if (!response.ok || !body?.success)
-            throw new Error(body?.message || 'Server reconciliation failed.');
-        return body.data;
+        const pages = [];
+        let pageOffset = 0;
+        while (pageOffset < totalRows) {
+            const query = new URLSearchParams({
+                fileHash: fp.fileHash, mappingHash: fp.mappingHash,
+                totalRows: String(totalRows), pageOffset: String(pageOffset)
+            });
+            const response = await fetch('/api/student-imports/job-status?' + query, {
+                credentials: 'same-origin', cache: 'no-store', headers: { Accept: 'application/json' }
+            });
+            const body = await response.json().catch(() => null);
+            if (!response.ok || !body?.success)
+                throw new Error(body?.message || 'Server reconciliation failed.');
+            const page = body.data;
+            if (!page || page.pageOffset !== pageOffset ||
+                !Number.isSafeInteger(page.nextPageOffset) || page.nextPageOffset <= pageOffset)
+                throw new Error('Server returned an invalid reconciliation cursor.');
+            pages.push(page);
+            pageOffset = page.nextPageOffset;
+        }
+        return jobTools.combineStatusPages(pages, totalRows);
     }
     function showJobStatus(fp, status) {
         currentFingerprint = fp;

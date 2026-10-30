@@ -31,8 +31,13 @@ test('driver attendance is real, CSRF-protected, retry-keyed and never permits d
     assert.match(js, /pendingKeys\.set\(key, crypto\.randomUUID\(\)\)/);
     assert.match(js, /clientRequestId:pendingKeys\.get\(key\)/);
     assert.match(js, /textContent/);
-    assert.match(js, /credentials: 'same-origin'/);
-    assert.match(js, /cache: 'no-store'/);
+    const guard = read('wwwroot/js/transport-operations/session-guard.js');
+    assert.match(js, /guard\.request\(/);
+    assert.match(js, /guard\.assert\(\)/);
+    assert.match(guard, /credentials: 'same-origin'/);
+    assert.match(guard, /cache: 'no-store'/);
+    assert.match(guard, /controller\.abort\(\)/);
+    assert.match(view, /session-guard\.js/);
     assert.match(view, /Html\.AntiForgeryToken/);
     assert.match(view, /driverRiderRows/);
     assert.match(controller, /RecordDriverAttendanceAsync/);

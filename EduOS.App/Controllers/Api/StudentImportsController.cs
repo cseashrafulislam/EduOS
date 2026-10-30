@@ -204,10 +204,11 @@ public sealed class StudentImportsController : ControllerBase
 
     [HttpGet("job-status")]
     public async Task<IActionResult> JobStatus([FromQuery] string fileHash,
-        [FromQuery] string mappingHash, [FromQuery] int totalRows,
+        [FromQuery] string mappingHash, [FromQuery] int totalRows, [FromQuery] int pageOffset = 0,
         CancellationToken cancellationToken = default)
     {
-        var result = await _execution.GetJobStatusAsync(fileHash, mappingHash, totalRows, cancellationToken);
+        var result = await _execution.GetJobStatusAsync(fileHash, mappingHash, totalRows,
+            cancellationToken, pageOffset);
         return StatusCode(result.StatusCode, result);
     }
 

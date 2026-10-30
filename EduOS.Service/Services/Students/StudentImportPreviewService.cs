@@ -423,6 +423,7 @@ public sealed class StudentImportPreviewService : IStudentImportPreviewService
         }
         else if (string.Equals(extension, ".xlsx", StringComparison.OrdinalIgnoreCase))
         {
+            StudentImportWorkbookSafety.Validate(content);
             using var workbook = new XLWorkbook(content);
             var sheet = workbook.Worksheets.FirstOrDefault()
                 ?? throw new FormatException("Workbook has no worksheet.");
@@ -431,11 +432,15 @@ public sealed class StudentImportPreviewService : IStudentImportPreviewService
             headers = sheet.Row(1).Cells(1, Math.Max(1, last)).Select(x => SafeCell(x)).ToArray();
             if (!headersOnly)
             {
-                var lastRow = sheet.LastRowUsed()?.RowNumber() ?? 1;
-                for (var row = 2; row <= lastRow; row++)
+                var nextRow = 2;
+                foreach (var row in sheet.RowsUsed(XLCellsUsedOptions.Contents))
                 {
                     token.ThrowIfCancellationRequested();
-                    rows.Add(sheet.Row(row).Cells(1, last).Select(x => SafeCell(x)).ToArray());
+                    if (row.RowNumber() == 1) continue;
+                    if (row.RowNumber() != nextRow)
+                        throw new FormatException("Blank or skipped rows are not supported. Remove empty rows from Students.");
+                    rows.Add(row.Cells(1, last).Select(x => SafeCell(x)).ToArray());
+                    nextRow++;
                 }
             }
         }

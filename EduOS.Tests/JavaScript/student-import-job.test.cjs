@@ -88,6 +88,25 @@ test('unsafe committed recovery is blocked even if counters say complete', () =>
     }), /require review/);
 });
 
+test('large recovery manifests combine bounded server pages without double-counting windows', () => {
+    const { combineStatusPages } = require('../../EduOS.App/wwwroot/js/students/import-job.js');
+    const first = { totalRows: 250, pageOffset: 0, nextPageOffset: 200,
+        committedRows: 100, reviewWindows: 0, nextOffset: 100,
+        batches: [{ rowOffset: 0, importedRows: 100 }] };
+    const second = { totalRows: 250, pageOffset: 200, nextPageOffset: 250,
+        committedRows: 50, reviewWindows: 0, nextOffset: 250,
+        batches: [{ rowOffset: 200, importedRows: 50 }] };
+    const state = combineStatusPages([first, second], 250);
+    assert.equal(state.committedRows, 150);
+    assert.equal(state.nextOffset, 100);
+    assert.equal(state.isComplete, false);
+    assert.deepEqual(state.batches.map(x => x.rowOffset), [0, 200]);
+    assert.throws(() => combineStatusPages([first], 250), /incomplete/);
+    assert.throws(() => combineStatusPages([first, { ...second, pageOffset: 100 }], 250), /discontinuous/);
+    assert.throws(() => combineStatusPages([first,
+        { ...second, batches: [{ rowOffset: 0 }] }], 250), /Duplicate or invalid/);
+});
+
 test('integrity export is bounded, PII-free and formula-neutralized', () => {
     const { integrityCsv } = require('../../EduOS.App/wwwroot/js/students/import-job.js');
     const csv = integrityCsv({ expectedRows: 100, checkedRows: 100, issues: [

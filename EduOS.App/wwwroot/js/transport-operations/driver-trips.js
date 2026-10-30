@@ -5,7 +5,19 @@
     const el = id => document.getElementById(id);
     let page = 1, pages = 1, riderPage = 1, riderPages = 1, selected = null, selectedState = '';
     const pendingKeys = new Map();
+    const guard = window.EduOSTransportSession?.create(() => {
+        selected = null; selectedState = ''; pendingKeys.clear();
+        el('driverTripRows').replaceChildren(); el('driverRiderRows').replaceChildren();
+        el('driverManifest').hidden = true;
+        el('driverTripPage').textContent = ''; el('driverRiderPage').textContent = '';
+        el('driverTripStatus').textContent = '';
+        for (const id of ['driverTripPrev','driverTripNext','driverRiderPrev',
+            'driverRiderNext','driverTripReload','driverTripPrint','driverTripExport'])
+            el(id).disabled = true;
+    });
+    if (!guard) return;
     const status = (message, error = false) => {
+        if (!guard.valid()) return;
         el('driverTripStatus').textContent = message;
         el('driverTripStatus').className = 'small ' + (error ? 'text-danger' : 'text-muted');
     };
@@ -23,14 +35,15 @@
             headers.RequestVerificationToken = token;
             headers['Content-Type'] = 'application/json';
         }
-        const response = await fetch(url, {
-            method: data === undefined ? 'GET' : 'POST', headers, credentials: 'same-origin',
-            cache: 'no-store', ...(data === undefined ? {} : { body: JSON.stringify(data) })
+        return guard.request(url, {
+            method: data === undefined ? 'GET' : 'POST', headers,
+            ...(data === undefined ? {} : { body: JSON.stringify(data) })
+        }, async response => {
+            const result = await response.json().catch(() => null);
+            if (!response.ok || !result?.success)
+                throw new Error(result?.message || 'Transport request failed.');
+            return result.data;
         });
-        const result = await response.json().catch(() => null);
-        if (!response.ok || !result?.success)
-            throw new Error(result?.message || 'Transport request failed.');
-        return result.data;
     }
     async function loadTrips() {
         try {
@@ -118,7 +131,7 @@
     }
     el('driverTripReload').addEventListener('click', () => { page = 1; loadTrips(); if (selected) loadRiders(); });
     el('driverTripPrint').addEventListener('click', () => {
-        if (!selected) return;
+        if (!selected || !guard.valid()) return;
         window.open('/transport/driver-trips/' + encodeURIComponent(selected) + '/print',
             '_blank', 'noopener,noreferrer');
     });
@@ -126,15 +139,17 @@
         if (!selected) return;
         const button = el('driverTripExport'); button.disabled = true;
         try {
-            const response = await fetch('/api/transport/driver-trips/' +
-                encodeURIComponent(selected) + '/export', {
-                credentials: 'same-origin', cache: 'no-store', headers: { Accept: 'text/csv' }
-            });
-            if (!response.ok) {
-                const error = await response.json().catch(() => null);
-                throw new Error(error?.message || 'Manifest export unavailable.');
-            }
-            const blob = await response.blob(), url = URL.createObjectURL(blob);
+            const blob = await guard.request('/api/transport/driver-trips/' +
+                encodeURIComponent(selected) + '/export', { headers: { Accept: 'text/csv' } },
+                async response => {
+                    if (!response.ok) {
+                        const error = await response.json().catch(() => null);
+                        throw new Error(error?.message || 'Manifest export unavailable.');
+                    }
+                    return response.blob();
+                });
+            guard.assert();
+            const url = URL.createObjectURL(blob);
             const link = document.createElement('a');
             link.href = url; link.download = 'my-transport-trip-riders.csv';
             document.body.append(link); link.click(); link.remove();
@@ -146,5 +161,5 @@
     el('driverTripNext').addEventListener('click', () => { if (page < pages) { page++; loadTrips(); } });
     el('driverRiderPrev').addEventListener('click', () => { if (riderPage > 1) { riderPage--; loadRiders(); } });
     el('driverRiderNext').addEventListener('click', () => { if (riderPage < riderPages) { riderPage++; loadRiders(); } });
-    loadTrips();
+    if (guard.valid()) loadTrips();
 })();

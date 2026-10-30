@@ -39,20 +39,23 @@ public sealed partial class StudentImportExecutionService
             var fileHash = Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant();
             var mappingHash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(mappingJson)))
                 .ToLowerInvariant();
-            var status = await GetJobStatusAsync(fileHash, mappingHash, rows.Count, cancellationToken);
-            if (!status.Success || status.Data == null)
-                return ApiResponse<byte[]>.ErrorResponse(status.Message, status.StatusCode);
-            if (status.Data.RequiresReview)
-                return ApiResponse<byte[]>.ErrorResponse(
-                    "Committed import audit rows require review before exporting pending corrections.", 409);
-            if (status.Data.IsComplete)
-                return ApiResponse<byte[]>.ErrorResponse("Every source row is already committed.", 409);
-
-            var committed = status.Data.Batches.Select(x => x.RowOffset).ToHashSet();
+            var committed = new HashSet<int>();
+            for (var pageOffset = 0; pageOffset < rows.Count;)
+            {
+                var status = await GetJobStatusAsync(fileHash, mappingHash, rows.Count,
+                    cancellationToken, pageOffset);
+                if (!status.Success || status.Data == null)
+                    return ApiResponse<byte[]>.ErrorResponse(status.Message, status.StatusCode);
+                if (status.Data.RequiresReview)
+                    return ApiResponse<byte[]>.ErrorResponse(
+                        "Committed import audit rows require review before exporting pending corrections.", 409);
+                foreach (var batch in status.Data.Batches) committed.Add(batch.RowOffset);
+                pageOffset = status.Data.NextPageOffset;
+            }
             var pending = rows.Where(row => !committed.Contains(
                 ((row.RowNumber - 2) / MaxBatchRows) * MaxBatchRows)).ToList();
             if (pending.Count == 0)
-                return ApiResponse<byte[]>.ErrorResponse("No uncommitted rows remain.", 409);
+                return ApiResponse<byte[]>.ErrorResponse("Every source row is already committed.", 409);
 
             using var workbook = new XLWorkbook();
             var sheet = workbook.Worksheets.Add("Pending corrections");

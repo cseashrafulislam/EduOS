@@ -9,22 +9,28 @@ namespace EduOS.Service.Services.Students;
 
 public sealed partial class StudentImportExecutionService
 {
+    private const int MaxStatusWindowsPerPage = 400;
     /// <summary>
     /// Recover committed source windows from tenant-scoped idempotency records.
     /// No uploaded file or learner PII is stored; windows are queried in bounded SQL chunks.
     /// </summary>
     public async Task<ApiResponse<StudentImportJobStatusDto>> GetJobStatusAsync(
-        string fileHash, string mappingHash, int totalRows, CancellationToken cancellationToken = default)
+        string fileHash, string mappingHash, int totalRows, CancellationToken cancellationToken = default,
+        int pageOffset = 0)
     {
         if (!CanManage())
             return ApiResponse<StudentImportJobStatusDto>.ErrorResponse("Student import access denied.", 403);
-        if (totalRows < 1 || !IsSha256Hex(fileHash) || !IsSha256Hex(mappingHash))
+        if (totalRows < 1 || !IsSha256Hex(fileHash) || !IsSha256Hex(mappingHash) ||
+            pageOffset < 0 || pageOffset >= totalRows || pageOffset % MaxBatchRows != 0)
             return ApiResponse<StudentImportJobStatusDto>.ErrorResponse("Invalid source fingerprint or row count.", 400);
 
         fileHash = fileHash.ToLowerInvariant();
         mappingHash = mappingHash.ToLowerInvariant();
-        var offsets = Enumerable.Range(0, (int)(((long)totalRows + MaxBatchRows - 1) / MaxBatchRows))
-            .Select(i => i * MaxBatchRows).ToArray();
+        var nextPageOffset = (int)Math.Min(totalRows,
+            (long)pageOffset + (long)MaxStatusWindowsPerPage * MaxBatchRows);
+        var windowCount = (nextPageOffset - pageOffset + MaxBatchRows - 1) / MaxBatchRows;
+        var offsets = Enumerable.Range(0, windowCount)
+            .Select(i => pageOffset + i * MaxBatchRows).ToArray();
         var requests = offsets.Select(offset => new
         {
             Offset = offset, RequestId = JobRequestId(fileHash, mappingHash, offset)
@@ -102,7 +108,7 @@ public sealed partial class StudentImportExecutionService
         var completeOffsets = completed.Select(x => x.RowOffset).ToHashSet();
         return ApiResponse<StudentImportJobStatusDto>.SuccessResponse(new StudentImportJobStatusDto
         {
-            TotalRows = totalRows,
+            TotalRows = totalRows, PageOffset = pageOffset, NextPageOffset = nextPageOffset,
             CommittedRows = completed.Sum(x => x.ImportedRows),
             ReviewWindows = reviewWindows,
             NextOffset = offsets.FirstOrDefault(x => !completeOffsets.Contains(x), totalRows),

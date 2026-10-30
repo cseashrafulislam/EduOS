@@ -1,4 +1,5 @@
 using System.Text;
+using System.IO.Compression;
 using ClosedXML.Excel;
 using EduOS.App.Controllers.Api;
 using EduOS.Core.Entities.Academic;
@@ -198,6 +199,43 @@ public sealed class StudentImportPreviewServiceTests
         using var unsafeFile = new MemoryStream();
         book.SaveAs(unsafeFile);
         Assert.Equal(400, (await service.PreviewAsync(unsafeFile, ".xlsx", Mapping)).StatusCode);
+    }
+
+    [Fact]
+    public async Task Compressed_xlsx_expansion_is_rejected_before_workbook_allocation()
+    {
+        var options = Options(); await SeedAsync(options);
+        await using var db = Context(options, 101);
+        using var attack = new MemoryStream();
+        using (var archive = new ZipArchive(attack, ZipArchiveMode.Create, leaveOpen: true))
+        {
+            using var entry = archive.CreateEntry("xl/worksheets/sheet1.xml",
+                CompressionLevel.SmallestSize).Open();
+            var content = new byte[1024 * 1024];
+            Array.Fill(content, (byte)'A');
+            for (var i = 0; i < 65; i++) entry.Write(content);
+        }
+        Assert.True(attack.Length < 6 * 1024 * 1024);
+        var result = await Service(db, new User(101, true)).GetHeadersAsync(attack, ".xlsx");
+        Assert.Equal(400, result.StatusCode);
+        Assert.Contains("expanded-size", result.Message);
+    }
+
+    [Fact]
+    public async Task Sparse_workbook_rows_fail_without_materializing_the_empty_gap()
+    {
+        var options = Options(); await SeedAsync(options);
+        await using var db = Context(options, 101);
+        using var book = new XLWorkbook();
+        var sheet = book.AddWorksheet("Students");
+        var fields = Mapping.Keys.ToArray();
+        for (var i = 0; i < fields.Length; i++) sheet.Cell(1, i + 1).Value = fields[i];
+        sheet.Cell(50002, 1).Value = "SURPRISE";
+        using var file = new MemoryStream();
+        book.SaveAs(file);
+        var result = await Service(db, new User(101, true)).PreviewAsync(file, ".xlsx", Mapping);
+        Assert.Equal(400, result.StatusCode);
+        Assert.Contains("Blank or skipped", result.Message);
     }
 
     [Fact]

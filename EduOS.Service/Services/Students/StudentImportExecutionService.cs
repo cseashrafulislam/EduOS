@@ -100,10 +100,9 @@ public sealed partial class StudentImportExecutionService : IStudentImportExecut
             if (buffer.Length is <= 0 or > 6291456)
                 return ApiResponse<StudentImportExecutionDto>.ErrorResponse("File must be at most 6 MB.", 413);
             var bytes = buffer.ToArray();
-            var allRows = ReadRows(bytes, extension, mapping, int.MaxValue);
-            if (rowOffset >= allRows.Count)
+            var slice = ReadRows(bytes, extension, mapping, MaxBatchRows, rowOffset);
+            if (slice.Count == 0)
                 return ApiResponse<StudentImportExecutionDto>.ErrorResponse("Offset is beyond the end of the source file.", 400);
-            var slice = allRows.Skip(rowOffset).Take(MaxBatchRows).ToArray();
             using var csv = new MemoryStream(BuildCsvSlice(slice), writable: false);
             var originHash = Convert.ToHexString(SHA256.HashData(bytes));
             return await ExecuteInternalAsync(csv, ".csv", CanonicalMapping, clientRequestId,
@@ -655,8 +654,11 @@ public sealed partial class StudentImportExecutionService : IStudentImportExecut
         return new Guid(digest.AsSpan(0, 16));
     }
 
-    private static List<ImportRow> ReadRows(byte[] bytes, string extension, IReadOnlyDictionary<string, string> mapping, int maxRows = MaxBatchRows)
+    private static List<ImportRow> ReadRows(byte[] bytes, string extension,
+        IReadOnlyDictionary<string, string> mapping, int maxRows = MaxBatchRows, int startRow = 0)
     {
+        if (startRow < 0 || maxRows < 1 || (long)startRow + maxRows > int.MaxValue)
+            throw new FormatException("Invalid source window.");
         using var stream = new MemoryStream(bytes, writable: false);
         string[] headers;
         var cells = new List<string[]>();
@@ -666,24 +668,36 @@ public sealed partial class StudentImportExecutionService : IStudentImportExecut
             using var parser = new TextFieldParser(reader) { TextFieldType = FieldType.Delimited, HasFieldsEnclosedInQuotes = true };
             parser.SetDelimiters(",");
             headers = parser.ReadFields() ?? [];
+            var sourceIndex = 0;
             while (!parser.EndOfData)
             {
-                if (cells.Count >= maxRows) throw new FormatException("Source exceeds the bounded row limit.");
+                if (startRow == 0 && sourceIndex >= maxRows)
+                    throw new FormatException("Source exceeds the bounded row limit.");
                 var fields = parser.ReadFields() ?? [];
                 if (fields.Length != headers.Length) throw new FormatException("CSV column count mismatch.");
-                cells.Add(fields);
+                if (sourceIndex >= startRow && cells.Count < maxRows) cells.Add(fields);
+                sourceIndex++;
             }
         }
         else if (extension.Equals(".xlsx", StringComparison.OrdinalIgnoreCase))
         {
+            StudentImportWorkbookSafety.Validate(stream);
             using var workbook = new XLWorkbook(stream);
             var sheet = workbook.Worksheets.FirstOrDefault() ?? throw new FormatException("Workbook has no worksheet.");
             var count = sheet.LastColumnUsed()?.ColumnNumber() ?? 0;
-            var last = sheet.LastRowUsed()?.RowNumber() ?? 1;
-            if ((long)last - 1 > maxRows) throw new FormatException("Source exceeds the bounded row limit.");
             headers = sheet.Row(1).Cells(1, Math.Max(1, count)).Select(x => SafeCell(x)).ToArray();
-            for (var i = 2; i <= last; i++)
-                cells.Add(sheet.Row(i).Cells(1, count).Select(x => SafeCell(x)).ToArray());
+            var sourceIndex = 0;
+            foreach (var row in sheet.RowsUsed(XLCellsUsedOptions.Contents))
+            {
+                if (row.RowNumber() == 1) continue;
+                if (row.RowNumber() != sourceIndex + 2)
+                    throw new FormatException("Blank or skipped rows are not supported. Remove empty rows from Students.");
+                if (startRow == 0 && sourceIndex >= maxRows)
+                    throw new FormatException("Source exceeds the bounded row limit.");
+                if (sourceIndex >= startRow && cells.Count < maxRows)
+                    cells.Add(row.Cells(1, count).Select(x => SafeCell(x)).ToArray());
+                sourceIndex++;
+            }
         }
         else throw new FormatException("Only CSV/XLSX are supported.");
         headers = headers.Select(x => x.Trim().TrimStart('\uFEFF')).ToArray();
@@ -705,7 +719,7 @@ public sealed partial class StudentImportExecutionService : IStudentImportExecut
             throw new FormatException("Mapped columns must be distinct.");
         string Cell(string[] values, string key) => positions.TryGetValue(key, out var i) && i < values.Length
             ? values[i].Trim() : string.Empty;
-        return cells.Select((x, i) => new ImportRow(i + 2, Cell(x, "SourceKey"),
+        return cells.Select((x, i) => new ImportRow(startRow + i + 2, Cell(x, "SourceKey"),
             Cell(x, "StudentCode"), Cell(x, "FullName"), Cell(x, "CampusId"),
             long.TryParse(Cell(x, "AcademicBatchId"), out var batchId) ? batchId : 0,
             Cell(x, "RollNo"), Cell(x, "DateOfBirth"),
