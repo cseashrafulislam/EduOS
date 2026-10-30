@@ -164,6 +164,45 @@ public sealed class LibraryDigitalResourceTests
     }
 
     [Fact]
+    public async Task Campus_licence_filters_list_and_download_and_rechecks_live_membership()
+    {
+        await using var db = Context();
+        var reference = Guid.NewGuid();
+        var seed = await SeedAsync(db, reference);
+        var otherCampus = new Campus { TenantId = 101, Name = "B", Code = "B", IsActive = true };
+        db.Campuses.Add(otherCampus);
+        db.DocumentTypeDefinitions.Add(new DocumentTypeDefinition
+        { TenantId = 101, Code = "LIBRARY_DIGITAL", Name = "Digital", IsActive = true });
+        await db.SaveChangesAsync();
+        db.Documents.Add(new Document
+        {
+            TenantId = 101, PublicId = reference, FileAssetId = seed.Asset.Id,
+            DocumentTypeCode = "LIBRARY_DIGITAL", EntityType = "LibraryBook",
+            EntityId = seed.Book.Id, Title = "Campus B only", IsActive = true,
+            LibraryCampusId = otherCampus.Id
+        });
+        await db.SaveChangesAsync();
+        var storage = new Mock<IFileUploadService>();
+        storage.Setup(x => x.GetPrivateFileAsync(seed.Asset.StorageKey))
+            .ReturnsAsync(new FileDownloadResult { Content = seed.Bytes, ContentType = "application/pdf" });
+        var reader = Service(db, "Student", storage: storage);
+        var admin = Service(db, "TenantAdmin", storage: storage);
+        (await reader.ListAsync(null, null, 1, 20, false)).Data!.Items.Should().BeEmpty();
+        (await reader.DownloadAsync(reference)).StatusCode.Should().Be(404);
+        (await admin.ListAsync(null, null, 1, 20, false)).Data!.Items.Should().ContainSingle();
+        (await admin.GetCampusOptionsAsync()).Data!.Should().HaveCount(2);
+        seed.Enrollment.CampusId = otherCampus.Id;
+        await db.SaveChangesAsync();
+        (await reader.ListAsync(null, null, 1, 20, false)).Data!.Items.Should().ContainSingle();
+        (await reader.DownloadAsync(reference)).Success.Should().BeTrue();
+        otherCampus.IsActive = false;
+        await db.SaveChangesAsync();
+        (await reader.DownloadAsync(reference)).StatusCode.Should().Be(404);
+        (await reader.ListAsync(null, null, 1, 20, false)).StatusCode.Should().Be(403);
+        (await Service(db, "Student").GetCampusOptionsAsync()).StatusCode.Should().Be(403);
+    }
+
+    [Fact]
     public async Task Upload_is_idempotent_and_revocation_keeps_audit_history()
     {
         await using var db = Context();
@@ -176,6 +215,7 @@ public sealed class LibraryDigitalResourceTests
         var service = Service(db, "TenantAdmin", documents: files);
         var request = new LibraryDigitalUploadRequestDto
         { RequestId = requestId, BookReference = seed.Book.PublicId, Title = "Reference PDF",
+          CampusId = seed.Enrollment.CampusId,
           ExpiresOn = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(10)) };
         PrivateFileUploadDto Upload() => new()
         {
@@ -185,9 +225,16 @@ public sealed class LibraryDigitalResourceTests
         var first = await service.UploadAsync(request, Upload());
         first.Success.Should().BeTrue(first.Message);
         first.Data!.ExpiresOn.Should().Be(request.ExpiresOn);
+        first.Data.CampusId.Should().Be(seed.Enrollment.CampusId);
+        (await service.UploadAsync(new LibraryDigitalUploadRequestDto
+        { RequestId = Guid.NewGuid(), BookReference = seed.Book.PublicId,
+          Title = "Wrong campus", CampusId = 999999 }, Upload())).StatusCode.Should().Be(400);
         var replay = await service.UploadAsync(request, Upload());
         replay.Success.Should().BeTrue(replay.Message);
         (await db.Documents.CountAsync(x => x.DocumentTypeCode == "LIBRARY_DIGITAL")).Should().Be(1);
+        (await service.UploadAsync(new LibraryDigitalUploadRequestDto
+        { RequestId = requestId, BookReference = seed.Book.PublicId, Title = "Reference PDF",
+          CampusId = null, ExpiresOn = request.ExpiresOn }, Upload())).StatusCode.Should().Be(409);
         (await service.UploadAsync(new LibraryDigitalUploadRequestDto
         { RequestId = requestId, BookReference = seed.Book.PublicId, Title = "Reference PDF",
           ExpiresOn = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(11)) }, Upload()))
@@ -370,6 +417,41 @@ public sealed class LibraryDigitalResourceTests
 
 
     [Fact]
+    public async Task Campus_scope_change_requires_explicit_widening_and_rejects_foreign_campus()
+    {
+        await using var db = Context();
+        var reference = Guid.NewGuid();
+        var seed = await SeedAsync(db, reference);
+        db.DocumentTypeDefinitions.Add(new DocumentTypeDefinition
+        { TenantId = 101, Code = "LIBRARY_DIGITAL", Name = "Digital", IsActive = true });
+        var foreign = new Campus { TenantId = 102, Name = "Foreign", Code = "FOREIGN", IsActive = true };
+        db.Campuses.Add(foreign);
+        await db.SaveChangesAsync();
+        var document = new Document
+        {
+            TenantId = 101, PublicId = reference, FileAssetId = seed.Asset.Id,
+            DocumentTypeCode = "LIBRARY_DIGITAL", EntityType = "LibraryBook",
+            EntityId = seed.Book.Id, Title = "Campus limited", IsActive = true,
+            LibraryCampusId = seed.Enrollment.CampusId, RowVersion = [1, 2, 3]
+        };
+        db.Documents.Add(document);
+        await db.SaveChangesAsync();
+        var admin = Service(db, "TenantAdmin");
+        LibraryDigitalMetadataRequestDto Request(long? campus, bool confirm = false) => new()
+        {
+            Title = "Campus limited", CampusId = campus, ConfirmTenantWideAccess = confirm,
+            RowVersion = Convert.ToBase64String(document.RowVersion)
+        };
+        (await admin.UpdateMetadataAsync(reference, Request(null))).StatusCode.Should().Be(409);
+        (await admin.UpdateMetadataAsync(reference, Request(foreign.Id))).StatusCode.Should().Be(400);
+        document.LibraryCampusId.Should().Be(seed.Enrollment.CampusId);
+        (await admin.UpdateMetadataAsync(reference, Request(null, true))).Success.Should().BeTrue();
+        document.LibraryCampusId.Should().BeNull();
+        (await db.AuditLogs.CountAsync(x => x.Action == "LibraryDigitalResource.Update"))
+            .Should().Be(1);
+    }
+
+    [Fact]
     public async Task Replacement_supersedes_scanned_resource_atomically_and_replays_without_duplicate_audit()
     {
         await using var db = Context();
@@ -394,6 +476,7 @@ public sealed class LibraryDigitalResourceTests
             TenantId = 101, PublicId = originalId, FileAssetId = seed.Asset.Id,
             DocumentTypeCode = "LIBRARY_DIGITAL", EntityType = "LibraryBook",
             EntityId = seed.Book.Id, Title = "Original", IsActive = true,
+            LibraryCampusId = seed.Enrollment.CampusId,
             VersionNo = 1, RowVersion = [1, 2, 3]
         };
         db.Documents.Add(previous);
@@ -429,6 +512,7 @@ public sealed class LibraryDigitalResourceTests
         var next = await db.Documents.SingleAsync(x => x.PublicId == replacementId);
         next.SupersedesDocumentId.Should().Be(previous.Id);
         next.VersionNo.Should().Be(2);
+        next.LibraryCampusId.Should().Be(seed.Enrollment.CampusId);
         (await db.AuditLogs.CountAsync(x => x.Action == "LibraryDigitalResource.Replace"))
             .Should().Be(1);
         (await Service(db, "Student", storage: storage).DownloadAsync(originalId))

@@ -28,6 +28,14 @@ public sealed class LibraryDigitalResourcesController(ILibraryDigitalResourceSer
         return StatusCode(result.StatusCode, result);
     }
 
+    [HttpGet("campuses")]
+    [Authorize(Roles = "TenantAdmin")]
+    public async Task<IActionResult> Campuses(CancellationToken ct)
+    {
+        var result = await service.GetCampusOptionsAsync(ct);
+        return StatusCode(result.StatusCode, result);
+    }
+
     [HttpGet("export")]
     [Authorize(Roles = "TenantAdmin")]
     public async Task<IActionResult> Export([FromQuery] Guid? bookReference = null,

@@ -257,4 +257,65 @@ public sealed partial class SqlServerTransportSeatCapacityIntegrationTests
             x.TenantId == fixture.TenantId &&
             x.Action == "LibraryDigitalResource.Download"));
     }
+
+    [Fact]
+    public async Task SQL_HTTP_campus_licence_denies_other_campus_and_composite_FK_denies_foreign_tenant()
+    {
+        var connection = Environment.GetEnvironmentVariable("EDUOS_SQL_AUTH_TEST_CONNECTION");
+        if (string.IsNullOrWhiteSpace(connection)) return;
+        var first = await SeedAsync(connection);
+        var second = await SeedAsync(connection);
+        var asset = await SeedDigitalResourceAsync(first);
+        long foreignCampusId;
+        await using (var foreign = ScopedContext(second.Options, second.TenantId, second.UserId))
+            foreignCampusId = await foreign.Campuses.Select(x => x.Id).FirstAsync();
+
+        long restrictedCampusId;
+        await using (var setup = ScopedContext(first.Options, first.TenantId, first.UserId))
+        {
+            var document = await setup.Documents.SingleAsync(x => x.PublicId == asset.Reference);
+            document.LibraryCampusId = foreignCampusId;
+            await Assert.ThrowsAsync<DbUpdateException>(() => setup.SaveChangesAsync());
+            setup.Entry(document).State = EntityState.Unchanged;
+            var campus = new EduOS.Core.Entities.SaaS.Campus
+            {
+                TenantId = first.TenantId, Name = "Restricted digital campus",
+                Code = "DIG-" + Guid.NewGuid().ToString("N")[..12], IsActive = true
+            };
+            setup.Campuses.Add(campus);
+            await setup.SaveChangesAsync();
+            restrictedCampusId = campus.Id;
+            document.LibraryCampusId = restrictedCampusId;
+            await setup.SaveChangesAsync();
+        }
+
+        var storage = DigitalStorage(asset);
+        using var server = PrivateSqlServer(first.Options, storage);
+        using var client = server.CreateClient();
+        using (var denied = await PrivateGetAsync(client, asset.Reference,
+            "Student", first.TenantId, first.UserId))
+            Assert.Equal(HttpStatusCode.NotFound, denied.StatusCode);
+
+        await using (var change = ScopedContext(first.Options, first.TenantId, first.UserId))
+        {
+            var enrollment = await change.StudentEnrollments.SingleAsync(x =>
+                x.PublicId == first.Enrollments[0]);
+            enrollment.CampusId = restrictedCampusId;
+            await change.SaveChangesAsync();
+        }
+        using (var allowed = await PrivateGetAsync(client, asset.Reference,
+            "Student", first.TenantId, first.UserId))
+        {
+            Assert.Equal(HttpStatusCode.OK, allowed.StatusCode);
+            Assert.Equal(asset.Bytes, await allowed.Content.ReadAsByteArrayAsync());
+        }
+        await using (var revoke = ScopedContext(first.Options, first.TenantId, first.UserId))
+        {
+            (await revoke.Campuses.SingleAsync(x => x.Id == restrictedCampusId)).IsActive = false;
+            await revoke.SaveChangesAsync();
+        }
+        using (var denied = await PrivateGetAsync(client, asset.Reference,
+            "Student", first.TenantId, first.UserId))
+            Assert.Equal(HttpStatusCode.NotFound, denied.StatusCode);
+    }
 }

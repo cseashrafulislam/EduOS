@@ -7926,6 +7926,9 @@ namespace EduOS.Persistence.Migrations
                     b.Property<long>("FileAssetId")
                         .HasColumnType("bigint");
 
+                    b.Property<long?>("LibraryCampusId")
+                        .HasColumnType("bigint");
+
                     b.Property<bool>("IsActive")
                         .HasColumnType("bit");
 
@@ -7987,6 +7990,8 @@ namespace EduOS.Persistence.Migrations
                     b.HasIndex("TenantId", "FileAssetId")
                         .IsUnique()
                         .HasFilter("[IsDeleted] = 0");
+
+                    b.HasIndex("TenantId", "LibraryCampusId");
 
                     b.HasIndex("TenantId", "SupersedesDocumentId");
 
@@ -22037,6 +22042,12 @@ namespace EduOS.Persistence.Migrations
                     b.HasOne("EduOS.Core.Entities.Files.Document", null)
                         .WithMany()
                         .HasForeignKey("TenantId", "SupersedesDocumentId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("EduOS.Core.Entities.SaaS.Campus", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "LibraryCampusId")
                         .HasPrincipalKey("TenantId", "Id")
                         .OnDelete(DeleteBehavior.Restrict);
 

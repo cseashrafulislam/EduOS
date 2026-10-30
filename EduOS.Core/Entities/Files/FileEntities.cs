@@ -26,6 +26,8 @@ public class Document : BaseTenantEntity
     [Required, MaxLength(100)] public string DocumentTypeCode { get; set; } = string.Empty;
     public int VersionNo { get; set; } = 1;
     public long? SupersedesDocumentId { get; set; }
+    // Null keeps historical institute-wide digital licences; non-null limits access to one active campus.
+    public long? LibraryCampusId { get; set; }
     [MaxLength(100)] public string? EntityType { get; set; }
     public long? EntityId { get; set; }
     [MaxLength(250)] public string? Title { get; set; }

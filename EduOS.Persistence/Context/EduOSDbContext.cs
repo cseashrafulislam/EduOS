@@ -1116,6 +1116,7 @@ public class EduOSDbContext :
         Reference<FileAsset, ApplicationUser>(modelBuilder, nameof(FileAsset.UploadedByUserId));
         TenantReference<Document, FileAsset>(modelBuilder, nameof(Document.FileAssetId));
         TenantReference<Document, Document>(modelBuilder, nameof(Document.SupersedesDocumentId));
+        TenantReference<Document, Campus>(modelBuilder, nameof(Document.LibraryCampusId));
         // System / Integration
         TenantReference<CustomFieldOption, CustomFieldDefinition>(modelBuilder, nameof(CustomFieldOption.CustomFieldDefinitionId));
         TenantReference<CustomFieldValue, CustomFieldDefinition>(modelBuilder, nameof(CustomFieldValue.CustomFieldDefinitionId));

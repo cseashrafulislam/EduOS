@@ -6,6 +6,7 @@ public sealed class LibraryDigitalResourceDto
 {
     public Guid Reference { get; set; }
     public Guid BookReference { get; set; }
+    public long? CampusId { get; set; }
     public string BookTitle { get; set; } = string.Empty;
     public string Title { get; set; } = string.Empty;
     public string FileName { get; set; } = string.Empty;
@@ -24,6 +25,7 @@ public sealed class LibraryDigitalUploadRequestDto
     [Required] public Guid BookReference { get; set; }
     [Required, MaxLength(250)] public string Title { get; set; } = string.Empty;
     public DateOnly? ExpiresOn { get; set; }
+    public long? CampusId { get; set; }
 }
 
 public sealed class LibraryDigitalReplaceRequestDto
@@ -38,6 +40,8 @@ public sealed class LibraryDigitalMetadataRequestDto
 {
     [Required, MaxLength(250)] public string Title { get; set; } = string.Empty;
     public DateOnly? ExpiresOn { get; set; }
+    public long? CampusId { get; set; }
+    public bool ConfirmTenantWideAccess { get; set; }
     [Required] public string RowVersion { get; set; } = string.Empty;
 }
 

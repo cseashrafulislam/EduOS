@@ -92,3 +92,21 @@ test('digital access audit is tenant-admin-only, bounded, session-safe and not r
     assert.match(ui, /auditSequence\+\+/);
     assert.doesNotMatch(ui, /innerHTML\s*=/);
 });
+
+
+test('campus licences are tenant-bound, inherited by replacement and controlled through bilingual admin UI', () => {
+    const model = read('EduOS.Core/Entities/Files/FileEntities.cs');
+    const context = read('EduOS.Persistence/Context/EduOSDbContext.cs');
+    assert.match(model, /LibraryCampusId/);
+    assert.match(context, /TenantReference<Document, Campus>/);
+    assert.match(service, /campuses\.Contains\(x\.Document\.LibraryCampusId\.Value\)/);
+    assert.match(service, /LibraryCampusId = previous\.LibraryCampusId/);
+    assert.match(service, /ValidCampusScopeAsync/);
+    assert.match(service, /ConfirmTenantWideAccess/);
+    assert.match(api, /HttpGet\("campuses"\)/);
+    assert.match(view, /id="digitalCampus"/);
+    assert.match(view, /id="digitalEditCampus"/);
+    assert.match(ui, /campusOptionsReady/);
+    assert.match(ui, /data\.append\('CampusId'/);
+    assert.match(ui, /confirmTenantWideAccess: widening/);
+});

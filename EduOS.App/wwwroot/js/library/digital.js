@@ -28,7 +28,7 @@
         } finally { activeRequests.delete(controller); }
     }
     let page = 1, requestSequence = 0, uploadRequestId = null, editing = null;
-    let replacing = null, replaceRequestId = null;
+    let replacing = null, replaceRequestId = null, campusOptionsReady = false;
     const pageSize = 20;
     const token = () => document.querySelector('meta[name="request-verification-token"]')?.content ||
         el('digitalUploadForm')?.querySelector('input[name="__RequestVerificationToken"]')?.value;
@@ -116,15 +116,26 @@
         } catch (error) { notify(error.message); button.disabled = false; }
     }
     function edit(resource) {
-        if (!currentSession()) return;
+        if (!currentSession() || !campusOptionsReady) return;
         editing = resource;
         el('digitalEditName').value = resource.title || '';
         el('digitalEditExpiry').value = resource.expiresOn || '';
+        el('digitalEditCampus').value = resource.campusId == null ? '' : String(resource.campusId);
+        if (resource.campusId != null && el('digitalEditCampus').value !== String(resource.campusId)) {
+            const unavailable = new Option(words('Inactive campus ', 'নিষ্ক্রিয় ক্যাম্পাস ') +
+                resource.campusId, String(resource.campusId));
+            unavailable.disabled = true;
+            el('digitalEditCampus').add(unavailable);
+            el('digitalEditCampus').value = String(resource.campusId);
+        }
         el('digitalEditDialog').showModal();
     }
     async function saveEdit(event) {
         event.preventDefault();
-        if (!editing || !el('digitalEditForm').reportValidity()) return;
+        if (!editing || !campusOptionsReady || !el('digitalEditForm').reportValidity()) return;
+        const widening = editing.campusId != null && !el('digitalEditCampus').value;
+        if (widening && !window.confirm(words('Allow every active campus to download this file?',
+            'সব সক্রিয় ক্যাম্পাসকে এই ফাইল ডাউনলোডের অনুমতি দেবেন?'))) return;
         const button = el('digitalEditSave');
         button.disabled = true;
         try {
@@ -133,6 +144,8 @@
                 body: JSON.stringify({
                     title: el('digitalEditName').value.trim(),
                     expiresOn: el('digitalEditExpiry').value || null,
+                    campusId: el('digitalEditCampus').value || null,
+                    confirmTenantWideAccess: widening,
                     rowVersion: editing.rowVersion
                 })
             });
@@ -185,8 +198,11 @@
             const tr = document.createElement('tr');
             const expired = !!resource.expiresOn && resource.expiresOn < new Date().toISOString().slice(0, 10);
             [resource.bookTitle, resource.title, resource.fileName,
-                !resource.isActive ? words('Revoked', 'বাতিল') :
-                    expired ? words('Expired', 'মেয়াদ শেষ') : words('Active', 'সক্রিয়'),
+                (!resource.isActive ? words('Revoked', 'বাতিল') :
+                    expired ? words('Expired', 'মেয়াদ শেষ') : words('Active', 'সক্রিয়')) +
+                    (admin ? ' · ' + (resource.campusId == null ?
+                        words('All campuses', 'সব ক্যাম্পাস') :
+                        words('Campus ', 'ক্যাম্পাস ') + resource.campusId) : ''),
                 resource.expiresOn || '—'].forEach(value => tr.append(td(value)));
             const actions = document.createElement('td');
             if (resource.isActive && !expired) {
@@ -248,10 +264,31 @@
             (data?.items || []).forEach(book => select.add(new Option(book.title, book.reference)));
         } catch (error) { notify(error.message); }
     }
+    async function loadCampuses() {
+        if (!admin || !currentSession()) return;
+        campusOptionsReady = false;
+        el('digitalPublish').disabled = true;
+        el('digitalCampus').disabled = true;
+        el('digitalEditCampus').disabled = true;
+        try {
+            const items = await api('/api/library/digital/campuses');
+            if (!currentSession()) return;
+            for (const id of ['digitalCampus', 'digitalEditCampus']) {
+                const select = el(id), selected = select.value;
+                select.replaceChildren(new Option(words('All active campuses', 'সব সক্রিয় ক্যাম্পাস'), ''));
+                for (const campus of items || [])
+                    select.add(new Option(campus.name + ' (' + campus.code + ')', String(campus.id)));
+                select.value = selected;
+                select.disabled = false;
+            }
+            campusOptionsReady = true;
+            el('digitalPublish').disabled = false;
+        } catch (error) { if (currentSession()) notify(error.message); }
+    }
     async function publish(event) {
         event.preventDefault();
         const form = el('digitalUploadForm');
-        if (!form.reportValidity()) return;
+        if (!campusOptionsReady || !form.reportValidity()) return;
         const file = el('digitalFile').files?.[0];
         if (!file || file.size < 1 || file.size > 5242880)
             return notify(words('Select a file up to 5 MB.', 'সর্বোচ্চ ৫ এমবি ফাইল নির্বাচন করুন।'));
@@ -261,6 +298,7 @@
         data.append('BookReference', el('digitalBook').value);
         data.append('Title', el('digitalTitle').value.trim());
         if (el('digitalExpiresOn').value) data.append('ExpiresOn', el('digitalExpiresOn').value);
+        if (el('digitalCampus').value) data.append('CampusId', el('digitalCampus').value);
         data.append('file', file, file.name);
         const button = el('digitalPublish');
         button.disabled = true;
@@ -375,7 +413,7 @@
     if (admin) {
         el('digitalBookFind').addEventListener('click', findBooks);
         el('digitalUploadForm').addEventListener('submit', publish);
-        ['digitalFile', 'digitalTitle', 'digitalBook', 'digitalExpiresOn'].forEach(id =>
+        ['digitalFile', 'digitalTitle', 'digitalBook', 'digitalExpiresOn', 'digitalCampus'].forEach(id =>
             el(id).addEventListener('change', () => { uploadRequestId = null; }));
         el('digitalExport').addEventListener('click', exportPage);
         el('digitalEditForm').addEventListener('submit', saveEdit);
@@ -390,6 +428,7 @@
         el('digitalEditCancel').addEventListener('click', () => el('digitalEditDialog').close());
         el('digitalEditDialog').addEventListener('close', () => { editing = null; });
         findBooks();
+        loadCampuses();
     }
     function clearSensitive() {
         requestSequence++; auditSequence++;
@@ -397,6 +436,7 @@
         for (const request of activeRequests) request.abort();
         activeRequests.clear();
         uploadRequestId = null; editing = null; replacing = null; replaceRequestId = null;
+        campusOptionsReady = false;
         rows.replaceChildren();
         el('digitalCount').textContent = '';
         el('digitalPage').textContent = '';
@@ -406,6 +446,11 @@
         clearAlert();
         if (admin) {
             el('digitalUploadForm').reset();
+            el('digitalCampus').replaceChildren();
+            el('digitalEditCampus').replaceChildren();
+            el('digitalCampus').disabled = true;
+            el('digitalEditCampus').disabled = true;
+            el('digitalPublish').disabled = true;
             el('digitalBook').replaceChildren();
             el('digitalBookSearch').value = '';
             el('digitalEditForm').reset();
@@ -430,7 +475,7 @@
     window.addEventListener('pageshow', event => {
         if (!currentSession()) clearSensitive();
         else if (event.persisted) {
-            if (admin) { findBooks(); loadAudit(); }
+            if (admin) { findBooks(); loadCampuses(); loadAudit(); }
             load();
         }
     });

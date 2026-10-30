@@ -7,6 +7,7 @@ namespace EduOS.Core.Interfaces.IServices;
 /// <summary>Private, scanned, tenant-wide library resources linked to existing Book and Document records.</summary>
 public interface ILibraryDigitalResourceService
 {
+    Task<ApiResponse<IReadOnlyList<LibraryCampusOptionDto>>> GetCampusOptionsAsync(CancellationToken ct = default);
     Task<ApiResponse<PagedResult<LibraryDigitalResourceDto>>> ListAsync(
         Guid? bookReference, string? search, int page, int pageSize, bool includeInactive,
         CancellationToken ct = default);

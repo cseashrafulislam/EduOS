@@ -10,8 +10,8 @@ public static class LibraryDigitalCsvWriter
     {
         var csv = new StringBuilder();
         csv.AppendLine(bangla
-            ? "বই,রিসোর্স,ফাইল,ধরন,বাইট,অবস্থা,শেষের তারিখ (UTC),প্রকাশের সময়"
-            : "Book,Resource,File,Content type,Bytes,Status,Expires UTC,Published UTC");
+            ? "বই,রিসোর্স,ফাইল,ধরন,বাইট,অবস্থা,শেষের তারিখ (UTC),প্রকাশের সময়,ক্যাম্পাস"
+            : "Book,Resource,File,Content type,Bytes,Status,Expires UTC,Published UTC,Campus");
         foreach (var row in rows)
             csv.AppendLine(string.Join(",", new[]
             {
@@ -19,7 +19,9 @@ public static class LibraryDigitalCsvWriter
                 Cell(row.ContentType), Cell(row.SizeBytes.ToString(System.Globalization.CultureInfo.InvariantCulture)),
                 Cell(row.IsActive ? "Active" : "Revoked"),
                 Cell(row.ExpiresOn?.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture)),
-                Cell(row.CreatedAt.ToString("O"))
+                Cell(row.CreatedAt.ToString("O")),
+                Cell(row.CampusId?.ToString(System.Globalization.CultureInfo.InvariantCulture) ??
+                    (bangla ? "সব ক্যাম্পাস" : "All campuses"))
             }));
         var payload = new UTF8Encoding(false).GetBytes(csv.ToString());
         var bom = new UTF8Encoding(true).GetPreamble();

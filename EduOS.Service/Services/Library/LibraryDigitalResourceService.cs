@@ -37,7 +37,7 @@ public sealed class LibraryDigitalResourceService(
     private bool Authenticated => user.IsAuthenticated && Tenant > 0 && user.UserId > 0;
     // The library-wide licence is controlled by the institution administrator.
     // Campus-scoped staff cannot publish or revoke access for other campuses.
-    private bool CanPublish => Authenticated && user.IsTenantAdmin;
+    private bool CanPublish => Authenticated && user.IsTenantAdmin && db.CurrentTenantId == Tenant;
     private static ApiResponse<T> Fail<T>(string message, int status = 400) =>
         ApiResponse<T>.ErrorResponse(message, status);
 
@@ -80,9 +80,24 @@ public sealed class LibraryDigitalResourceService(
 
     private async Task<bool> CanReadAsync(CancellationToken ct)
     {
-        if (!Authenticated) return false;
+        if (!Authenticated || db.CurrentTenantId != Tenant) return false;
         var campuses = MemberCampusIds();
         return campuses != null && await campuses.AnyAsync(ct);
+    }
+
+    private async Task<bool> ValidCampusScopeAsync(long? campusId, CancellationToken ct) =>
+        !campusId.HasValue || (campusId.Value > 0 && await db.Campuses.AsNoTracking().AnyAsync(x =>
+            x.TenantId == Tenant && x.Id == campusId.Value && x.IsActive && !x.IsDeleted, ct));
+
+    public async Task<ApiResponse<IReadOnlyList<LibraryCampusOptionDto>>> GetCampusOptionsAsync(CancellationToken ct = default)
+    {
+        if (!CanPublish) return Fail<IReadOnlyList<LibraryCampusOptionDto>>("Tenant administrator required.", 403);
+        var campuses = await db.Campuses.AsNoTracking().Where(x =>
+            x.TenantId == Tenant && x.IsActive && !x.IsDeleted)
+            .OrderBy(x => x.Name).ThenBy(x => x.Id).Take(200)
+            .Select(x => new LibraryCampusOptionDto { Id = x.Id, Name = x.Name, Code = x.Code })
+            .ToListAsync(ct);
+        return ApiResponse<IReadOnlyList<LibraryCampusOptionDto>>.SuccessResponse(campuses);
     }
 
     private static bool IsSqlRegistrationConflict(Exception error)
@@ -119,6 +134,7 @@ public sealed class LibraryDigitalResourceService(
         Guid bookReference, string bookTitle) => new()
     {
         Reference = document.PublicId, BookReference = bookReference, BookTitle = bookTitle,
+        CampusId = document.LibraryCampusId,
         Title = document.Title ?? string.Empty, FileName = file.OriginalFileName,
         ContentType = file.ContentType, SizeBytes = file.SizeBytes, IsActive = document.IsActive,
         ExpiresOn = document.ExpiresAt.HasValue ? DateOnly.FromDateTime(document.ExpiresAt.Value) : null,
@@ -128,7 +144,7 @@ public sealed class LibraryDigitalResourceService(
     private IQueryable<LibraryDigitalRow> ResourceQuery()
     {
         // The projection is tenant-filtered on all three source tables before paging.
-        return from document in db.Documents.AsNoTracking()
+        var query = from document in db.Documents.AsNoTracking()
                join book in db.Books.AsNoTracking()
                    on new { document.TenantId, Id = document.EntityId }
                    equals new { book.TenantId, Id = (long?)book.Id }
@@ -149,6 +165,12 @@ public sealed class LibraryDigitalResourceService(
                        other.TenantId == Tenant && !other.IsDeleted &&
                        other.FileAssetId == file.Id && other.Id != document.Id)
                select new LibraryDigitalRow { Document = document, Book = book, File = file };
+        if (CanPublish) return query;
+        var campuses = MemberCampusIds();
+        // A campus licence is never widened by revoked membership or inactive campus.
+        return campuses == null ? query.Where(x => false) : query.Where(x =>
+            !x.Document.LibraryCampusId.HasValue ||
+            campuses.Contains(x.Document.LibraryCampusId.Value));
     }
 
     private sealed class LibraryDigitalRow
@@ -185,7 +207,8 @@ public sealed class LibraryDigitalResourceService(
             .Select(x => new
             {
                 DocumentReference = x.Document.PublicId, x.Document.Title, x.Document.IsActive,
-                x.Document.ExpiresAt, x.Document.CreatedAt, x.Document.RowVersion, x.Document.VersionNo, BookReference = x.Book.PublicId,
+                x.Document.ExpiresAt, x.Document.CreatedAt, x.Document.RowVersion, x.Document.VersionNo,
+                x.Document.LibraryCampusId, BookReference = x.Book.PublicId,
                 BookTitle = x.Book.Title, x.File.OriginalFileName, x.File.ContentType, x.File.SizeBytes
             }).ToListAsync(ct);
         return ApiResponse<PagedResult<LibraryDigitalResourceDto>>.SuccessResponse(
@@ -194,6 +217,7 @@ public sealed class LibraryDigitalResourceService(
                 Items = rows.Select(x => new LibraryDigitalResourceDto
                 {
                     Reference = x.DocumentReference, BookReference = x.BookReference,
+                    CampusId = x.LibraryCampusId,
                     BookTitle = x.BookTitle, Title = x.Title ?? string.Empty,
                     FileName = x.OriginalFileName, ContentType = x.ContentType,
                     SizeBytes = x.SizeBytes, IsActive = x.IsActive,
@@ -279,6 +303,8 @@ public sealed class LibraryDigitalResourceService(
             x.TenantId == Tenant && x.PublicId == request.BookReference &&
             x.IsActive && !x.IsDeleted, ct);
         if (book == null) return Fail<LibraryDigitalResourceDto>("Active book not found.", 404);
+        if (!await ValidCampusScopeAsync(request.CampusId, ct))
+            return Fail<LibraryDigitalResourceDto>("Active campus in this institution required.", 400);
         // The existing document uploader enforces the private tenant namespace, bounded
         // byte stream, quota, malware scan, SHA-256 and idempotent upload receipt.
         var uploaded = await documentFiles.UploadAsync(request.RequestId, file, ct);
@@ -290,6 +316,8 @@ public sealed class LibraryDigitalResourceService(
         {
             return await db.ExecuteInTransactionAsync(async token =>
             {
+                if (!await ValidCampusScopeAsync(request.CampusId, token))
+                    return Fail<LibraryDigitalResourceDto>("Campus licence changed. Reload and retry.", 409);
                 var asset = await db.FileAssets.AsNoTracking().FirstOrDefaultAsync(x =>
                     x.TenantId == Tenant && x.Id == uploaded.Data.Id &&
                     x.PublicId == request.RequestId && x.UploadedByUserId == user.UserId &&
@@ -303,7 +331,8 @@ public sealed class LibraryDigitalResourceService(
                 {
                     if (existing.FileAssetId != asset.Id || existing.EntityId != book.Id ||
                         existing.EntityType != EntityType || existing.DocumentTypeCode != TypeCode ||
-                        existing.Title != title || existing.ExpiresAt != expiry || !existing.IsActive)
+                        existing.Title != title || existing.ExpiresAt != expiry ||
+                        existing.LibraryCampusId != request.CampusId || !existing.IsActive)
                         return Fail<LibraryDigitalResourceDto>("Request ID already used or resource revoked.", 409);
                     return ApiResponse<LibraryDigitalResourceDto>.SuccessResponse(
                         Map(existing, asset, book.PublicId, book.Title));
@@ -331,6 +360,7 @@ public sealed class LibraryDigitalResourceService(
                     TenantId = Tenant, PublicId = request.RequestId, FileAssetId = asset.Id,
                     DocumentTypeCode = TypeCode, EntityType = EntityType, EntityId = book.Id,
                     Title = title, ExpiresAt = expiry, IsActive = true,
+                    LibraryCampusId = request.CampusId,
                     VerificationStatusCode = "NotRequired",
                     CreatedBy = user.UserId, CreatedAt = Now
                 };
@@ -418,8 +448,9 @@ public sealed class LibraryDigitalResourceService(
                         existing.VersionNo != previous.VersionNo + 1 ||
                         existing.EntityId != previous.EntityId || existing.EntityType != EntityType ||
                         existing.DocumentTypeCode != TypeCode || existing.FileAssetId != asset.Id ||
-                        existing.Title != title || existing.ExpiresAt != expiry || !existing.IsActive ||
-                        previous.IsActive)
+                        existing.Title != title || existing.ExpiresAt != expiry ||
+                         existing.LibraryCampusId != previous.LibraryCampusId || !existing.IsActive ||
+                         previous.IsActive)
                         return Fail<LibraryDigitalResourceDto>("Replacement replay differs or was revoked.", 409);
                     return ApiResponse<LibraryDigitalResourceDto>.SuccessResponse(
                         Map(existing, asset, book.PublicId, book.Title));
@@ -443,6 +474,7 @@ public sealed class LibraryDigitalResourceService(
                     EntityType = EntityType, EntityId = previous.EntityId,
                     SupersedesDocumentId = previous.Id, VersionNo = previous.VersionNo + 1,
                     Title = title, ExpiresAt = expiry, IsActive = true,
+                    LibraryCampusId = previous.LibraryCampusId,
                     VerificationStatusCode = "NotRequired",
                     CreatedBy = user.UserId, CreatedAt = Now
                 };
@@ -476,12 +508,16 @@ public sealed class LibraryDigitalResourceService(
             string.IsNullOrWhiteSpace(request.Title) || request.Title.Trim().Length > 250 ||
             string.IsNullOrWhiteSpace(request.RowVersion) || !ValidExpiry(request.ExpiresOn))
             return Fail<LibraryDigitalResourceDto>("Valid title, future expiry and row version required.");
+        if (!await ValidCampusScopeAsync(request.CampusId, ct))
+            return Fail<LibraryDigitalResourceDto>("Active campus in this institution required.", 400);
         var title = request.Title.Trim();
         var expiry = Expiry(request.ExpiresOn);
         try
         {
             return await db.ExecuteInTransactionAsync(async token =>
             {
+                if (!await ValidCampusScopeAsync(request.CampusId, token))
+                    return Fail<LibraryDigitalResourceDto>("Campus licence changed. Reload and retry.", 409);
                 var document = await db.Documents.FirstOrDefaultAsync(x =>
                     x.TenantId == Tenant && x.PublicId == reference && !x.IsDeleted &&
                     x.DocumentTypeCode == TypeCode && x.EntityType == EntityType, token);
@@ -490,6 +526,10 @@ public sealed class LibraryDigitalResourceService(
                     return Fail<LibraryDigitalResourceDto>("Resource changed. Reload and retry.", 409);
                 if (!document.IsActive)
                     return Fail<LibraryDigitalResourceDto>("Revoked resources cannot be edited.", 409);
+                // Old metadata clients must not silently widen a restricted licence.
+                if (document.LibraryCampusId.HasValue && !request.CampusId.HasValue &&
+                    !request.ConfirmTenantWideAccess)
+                    return Fail<LibraryDigitalResourceDto>("Confirm institute-wide access explicitly.", 409);
                 var book = await db.Books.AsNoTracking().FirstOrDefaultAsync(x =>
                     x.TenantId == Tenant && x.Id == document.EntityId && !x.IsDeleted, token);
                 var asset = await db.FileAssets.AsNoTracking().FirstOrDefaultAsync(x =>
@@ -499,17 +539,19 @@ public sealed class LibraryDigitalResourceService(
                 if (book == null || asset == null ||
                     !DocumentFileService.IsTenantDocumentKey(asset.StorageKey, Tenant))
                     return Fail<LibraryDigitalResourceDto>("Verified resource unavailable.", 409);
-                if (document.Title == title && document.ExpiresAt == expiry)
+                if (document.Title == title && document.ExpiresAt == expiry &&
+                    document.LibraryCampusId == request.CampusId)
                     return ApiResponse<LibraryDigitalResourceDto>.SuccessResponse(
                         Map(document, asset, book.PublicId, book.Title));
-                var before = JsonSerializer.Serialize(new { document.Title, document.ExpiresAt });
+                var before = JsonSerializer.Serialize(new { document.Title, document.ExpiresAt, document.LibraryCampusId });
                 document.Title = title;
                 document.ExpiresAt = expiry;
+                document.LibraryCampusId = request.CampusId;
                 document.UpdatedAt = Now;
                 document.UpdatedBy = user.UserId;
                 var audit = Audit("LibraryDigitalResource.Update", document.Id, reference);
                 audit.OldValue = before;
-                audit.NewValue = JsonSerializer.Serialize(new { document.Title, document.ExpiresAt });
+                audit.NewValue = JsonSerializer.Serialize(new { document.Title, document.ExpiresAt, document.LibraryCampusId });
                 db.AuditLogs.Add(audit);
                 await db.SaveChangesAsync(token);
                 return ApiResponse<LibraryDigitalResourceDto>.SuccessResponse(

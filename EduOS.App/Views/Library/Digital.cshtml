@@ -10,7 +10,7 @@
             <details class="position-relative">
                 <summary class="btn btn-sm btn-outline-secondary" aria-label="@(bn ? "সহায়তা" : "Digital library help")" title="@(bn ? "সহায়তা" : "Help")">ⓘ</summary>
                 <div class="card position-absolute p-2 shadow-sm" style="width:min(20rem,80vw);z-index:10;">
-                    @(bn ? "প্রকাশিত রিসোর্স শুধু অনুমোদিত প্রতিষ্ঠানের সক্রিয় সদস্যরা দেখতে পারবেন। ফাইল সর্বোচ্চ ৫ এমবি; প্রকাশের আগে নিরাপত্তা যাচাই বাধ্যতামূলক।" : "Published files are available only to active institute members. Uploads are limited to 5 MB and must pass a security scan.")
+                    @(bn ? "রিসোর্স সব ক্যাম্পাসে অথবা একটি নির্বাচিত ক্যাম্পাসে প্রকাশ করা যায়। নতুন সংস্করণ আগের অনুমতি বজায় রাখে। ফাইল সর্বোচ্চ ৫ এমবি এবং নিরাপত্তা যাচাই বাধ্যতামূলক।" : "Publish to all active campuses or one selected campus. Replacement versions inherit access. Files must pass scanning and are limited to 5 MB.")
                 </div>
             </details>
         </div>
@@ -46,6 +46,12 @@
                     <label for="digitalExpiresOn" class="form-label">@(bn ? "প্রবেশাধিকার শেষের তারিখ (ঐচ্ছিক, UTC)" : "Access expiry date (optional, UTC)")</label>
                     <input id="digitalExpiresOn" class="form-control" type="date" />
                 </div>
+                <div class="col-md-6">
+                    <label for="digitalCampus" class="form-label">@(bn ? "প্রবেশাধিকার" : "Campus access")</label>
+                    <select id="digitalCampus" class="form-select" disabled>
+                        <option value="">@(bn ? "সব সক্রিয় ক্যাম্পাস" : "All active campuses")</option>
+                    </select>
+                </div>
                 <div class="col-12">
                     <button id="digitalPublish" type="submit" class="btn btn-primary">@(bn ? "প্রকাশ করুন" : "Publish")</button>
                 </div>
@@ -65,6 +71,12 @@
                 <div class="col-12">
                     <label for="digitalEditExpiry" class="form-label">@(bn ? "প্রবেশাধিকার শেষের তারিখ (UTC)" : "Access expiry date (UTC)")</label>
                     <input id="digitalEditExpiry" class="form-control" type="date" />
+                </div>
+                <div class="col-12">
+                    <label for="digitalEditCampus" class="form-label">@(bn ? "প্রবেশাধিকার" : "Campus access")</label>
+                    <select id="digitalEditCampus" class="form-select" disabled>
+                        <option value="">@(bn ? "সব সক্রিয় ক্যাম্পাস" : "All active campuses")</option>
+                    </select>
                 </div>
                 <div class="col-12 d-flex justify-content-end gap-2">
                     <button id="digitalEditCancel" type="button" class="btn btn-outline-secondary">@(bn ? "বাতিল" : "Cancel")</button>
