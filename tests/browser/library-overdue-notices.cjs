@@ -107,7 +107,7 @@ async function scenario(browser, language) {
         await page.getByText('S-1').waitFor();
         await page.locator('#libraryNoticeSend').click();
         await page.waitForFunction(() =>
-            document.getElementById('libraryNoticeCount').textContent.includes('0'));
+            /^0\s/.test(document.getElementById('libraryNoticeCount').textContent));
         assert.equal(posts.length, 2);
         assert.equal(posts[0].body.clientRequestId, posts[1].body.clientRequestId,
             'network retry must replay the same idempotency key');
