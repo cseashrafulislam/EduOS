@@ -72,6 +72,9 @@ public sealed partial class SqlServerTransportSeatCapacityIntegrationTests
                 .SingleAsync(x => x.TenantId == tenant.TenantId &&
                     x.StudentCode.StartsWith("CAP-A-"));
             Assert.True(student.PersonId > 0);
+            // Transport's minimal fixture omits DOB; admission identity requires it.
+            student.DateOfBirth = new DateOnly(2010, 1, 2);
+            await db.SaveChangesAsync();
             cohort.Add((tenant, student.Id, student.PersonId, student.PublicId));
         }
         Assert.Equal(16, cohort.Select(x => x.Tenant.TenantId).Distinct().Count());
