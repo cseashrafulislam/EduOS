@@ -74,3 +74,5 @@ jobs:
         run: node tests/browser/lms-public-verification.cjs
       - name: Render bilingual LMS A4 certificate print/PDF in Chromium
         run: node tests/browser/lms-certificate-print.cjs
+      - name: Exercise bilingual LMS guardian progress consent, export and session privacy
+        run: node tests/browser/lms-guardian-progress.cjs
