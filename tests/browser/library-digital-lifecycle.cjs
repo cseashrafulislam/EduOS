@@ -24,6 +24,13 @@ function fixture(admin, language) {
         '<button id="digitalPublish" type="submit">Publish</button></form>',
         '<select id="digitalStatus"><option value="active">Active</option><option value="all">All</option></select>',
         '<button id="digitalExport" type="button">Export</button>',
+        '<dialog id="digitalHistoryDialog"><h3 id="digitalHistoryHeading">Versions</h3>',
+        '<button id="digitalHistoryExport" type="button">CSV</button>',
+        '<table><tbody id="digitalHistoryRows"></tbody></table>',
+        '<button id="digitalHistoryPrevious" type="button"></button>',
+        '<span id="digitalHistoryPage"></span>',
+        '<button id="digitalHistoryNext" type="button"></button>',
+        '<button id="digitalHistoryClose" type="button">Close</button></dialog>',
         '<dialog id="digitalEditDialog"><form id="digitalEditForm">',
         '<input id="digitalEditName" required><input id="digitalEditExpiry" type="date">',
         '<select id="digitalEditCampus" disabled></select>',
@@ -83,6 +90,19 @@ async function scenario(browser, admin, language) {
                     { id: 41, name: 'North', code: 'N' },
                     { id: 42, name: 'South', code: 'S' }
                 ] }) });
+        if (url.pathname === '/api/library/digital/' + RESOURCE + '/versions')
+            return route.fulfill({ contentType: 'application/json',
+                body: JSON.stringify({ success: true, data: {
+                    items: [
+                        { reference: RESOURCE, versionNo: 2, title: 'Protected course reader',
+                            state: 'Active', campusId: 41, expiresOn: '2027-12-31',
+                            publishedAtUtc: '2026-10-30T00:00:00Z' },
+                        { reference: '11111111-2222-4333-8444-555555555550',
+                            versionNo: 1, title: 'Original private reader',
+                            state: 'Superseded', campusId: 41, expiresOn: null,
+                            publishedAtUtc: '2026-10-29T00:00:00Z' }
+                    ], totalCount: 2, totalPages: 1
+                } }) });
         if (url.pathname === '/api/library/digital/audit')
             return route.fulfill({ contentType: 'application/json',
                 body: JSON.stringify({ success: true, data: {
@@ -127,6 +147,13 @@ async function scenario(browser, admin, language) {
             await page.locator('#digitalCampus option').nth(2).waitFor({ state: 'attached' });
             assert.equal(await page.locator('#digitalPublish').isDisabled(), false);
             await page.locator('#digitalAuditRows').getByText('Protected course reader').waitFor();
+            await page.locator('#digitalRows button').filter({ hasText: 'History' }).click();
+            await page.locator('#digitalHistoryRows').getByText('Original private reader').waitFor();
+            assert.equal(await page.locator('#digitalHistoryDialog').evaluate(el => el.open), true);
+            assert.match(await page.locator('#digitalHistoryRows').innerText(), /Superseded/);
+            assert.doesNotMatch(await page.locator('#digitalHistoryRows').innerText(), /StorageKey|tenant-101/);
+            await page.locator('#digitalHistoryClose').click();
+            assert.equal(await page.locator('#digitalHistoryDialog').evaluate(el => el.open), false);
             await page.locator('#digitalRows button').filter({ hasText:
                 language === 'bn-BD' ? 'সম্পাদনা' : 'Edit' }).click();
             assert.equal(await page.locator('#digitalEditDialog').evaluate(el => el.open), true);
@@ -160,7 +187,11 @@ async function scenario(browser, admin, language) {
         assert.equal(await page.locator('#digitalRows').innerText(), '');
         assert.equal(await page.locator('#digitalCount').innerText(), '');
         assert.equal(await page.locator('#digitalPage').innerText(), '');
-        if (admin) assert.equal(await page.locator('#digitalAuditRows').innerText(), '');
+        if (admin) {
+            assert.equal(await page.locator('#digitalAuditRows').innerText(), '');
+            assert.equal(await page.locator('#digitalHistoryRows').innerText(), '');
+            assert.equal(await page.locator('#digitalHistoryDialog').evaluate(el => el.open), false);
+        }
         assert.equal(await page.locator('#digitalPrevious').isDisabled(), true);
         assert.equal(await page.locator('#digitalNext').isDisabled(), true);
         assert.deepEqual(downloads, [], 'old tenant private bytes must never be downloaded');
