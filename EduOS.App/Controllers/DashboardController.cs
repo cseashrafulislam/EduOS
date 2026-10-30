@@ -13,6 +13,7 @@ public class DashboardController : Controller
     }
 
     [HttpGet]
+    [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
     public async Task<IActionResult> Index()
     {
         var vm = await _dashboardService.GetDashboardAsync();
@@ -28,6 +29,7 @@ public class DashboardController : Controller
     }
     [HttpGet]
     [Authorize(Roles = "SuperAdmin")]
+    [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
     public async Task<IActionResult> Admin(CancellationToken cancellationToken)
     {
         var result = await _dashboardService.GetPlatformDashboardAsync(cancellationToken);
