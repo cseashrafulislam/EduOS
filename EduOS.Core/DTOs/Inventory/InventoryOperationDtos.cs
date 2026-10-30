@@ -179,6 +179,16 @@ public sealed class ReturnAssetRequestDto
     public DateOnly ReturnedOn { get; set; }
     [Required] public string RowVersion { get; set; } = string.Empty;
 }
+public sealed class TransferAssetRequestDto
+{
+    public Guid ClientRequestId { get; set; }
+    public DateOnly TransferredOn { get; set; }
+    [Required] public string RowVersion { get; set; } = string.Empty;
+    public Guid? EmployeeReference { get; set; }
+    public Guid? StudentReference { get; set; }
+    public long? OrganizationUnitId { get; set; }
+    [Required, MaxLength(500)] public string Reason { get; set; } = string.Empty;
+}
 public sealed class AssetMaintenanceDto
 {
     public long Id { get; set; }

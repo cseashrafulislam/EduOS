@@ -16,6 +16,23 @@
             <div class="col-md-2"><label for="assetAssignedOn" class="form-label">Date</label><input id="assetAssignedOn" type="date" class="form-control" required /></div>
             <div class="col-md-2 d-flex align-items-end"><button type="submit" class="btn btn-primary">Assign</button></div>
         </form>
+        <form id="assetTransferForm" class="row g-2 mb-3 border rounded p-3 d-none">
+            <input type="hidden" id="assetTransferAssignmentId" />
+            <input type="hidden" id="assetTransferVersion" />
+            <div class="col-12 d-flex justify-content-between align-items-center">
+                <h4 class="h6 mb-0">@(System.Globalization.CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "bn" ? "সম্পদের দায়িত্ব হস্তান্তর" : "Transfer asset custody")</h4>
+                <button type="button" id="assetTransferCancel" class="btn btn-outline-secondary btn-sm">@(System.Globalization.CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "bn" ? "বাতিল" : "Cancel")</button>
+            </div>
+            <div class="col-md-3"><label for="assetTransferType" class="form-label">@(System.Globalization.CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "bn" ? "নতুন দায়িত্বপ্রাপ্তের ধরন" : "New custodian type")</label>
+                <select id="assetTransferType" class="form-select"><option value="employee">Employee</option><option value="student">Student</option><option value="unit">Organization unit</option></select></div>
+            <div class="col-md-4"><label for="assetTransferTarget" class="form-label">@(System.Globalization.CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "bn" ? "নতুন দায়িত্বপ্রাপ্তের রেফারেন্স" : "New custodian reference")</label>
+                <input id="assetTransferTarget" class="form-control" maxlength="80" required /></div>
+            <div class="col-md-2"><label for="assetTransferredOn" class="form-label">@(System.Globalization.CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "bn" ? "হস্তান্তরের তারিখ" : "Transfer date")</label>
+                <input id="assetTransferredOn" type="date" class="form-control" required /></div>
+            <div class="col-md-3"><label for="assetTransferReason" class="form-label">@(System.Globalization.CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "bn" ? "কারণ" : "Reason")</label>
+                <input id="assetTransferReason" class="form-control" maxlength="500" required /></div>
+            <div class="col-12"><button id="assetTransferSubmit" type="submit" class="btn btn-primary">@(System.Globalization.CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "bn" ? "হস্তান্তর নিশ্চিত করুন" : "Confirm transfer")</button></div>
+        </form>
         <form id="assetMaintenanceForm" class="row g-2">
             <h4 class="h6">Record maintenance for selected asset</h4>
             <div class="col-md-3"><label for="assetMaintenanceDate" class="form-label">Date</label><input id="assetMaintenanceDate" type="date" class="form-control" required /></div>

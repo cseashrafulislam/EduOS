@@ -4,6 +4,7 @@ import { loadReferenceCatalogs, editAsset } from './assets-register.js';
 import { bindAssetForm } from './assets-register-form.js';
 import { selectAsset } from './assets-custody.js';
 import { bindAssignmentForm } from './assets-assignment-form.js';
+import { bindTransferForm } from './assets-transfer-form.js';
 import { bindMaintenanceForm } from './assets-maintenance-form.js';
 import { bindMaintenanceHistory } from './assets-maintenance-history.js';
 import { bindMaintenanceDue } from './assets-maintenance-due.js';
@@ -41,6 +42,6 @@ if (root) {
     el('assetPrev').addEventListener('click', () => { if (page > 1) { page--; loadAssets(); } });
     el('assetNext').addEventListener('click', () => { if (page < pages) { page++; loadAssets(); } });
     bindCategories(loadCategories); bindAssetForm(loadAssets);
-    bindAssignmentForm(loadAssets); bindMaintenanceForm(); bindMaintenanceHistory(); bindMaintenanceDue();
+    bindAssignmentForm(loadAssets); bindTransferForm(loadAssets); bindMaintenanceForm(); bindMaintenanceHistory(); bindMaintenanceDue();
     Promise.all([loadCategories(), loadReferenceCatalogs()]).then(loadAssets).catch(error => notice(error.message));
 }
