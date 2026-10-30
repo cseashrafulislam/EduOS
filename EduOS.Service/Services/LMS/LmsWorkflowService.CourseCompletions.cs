@@ -155,6 +155,13 @@ public sealed partial class LmsWorkflowService
             _logger.LogWarning(ex, "LMS completion conflict tenant {TenantId}", _user.TenantId);
             return Error<CourseCompletionRegisterRowDto>("Course completion conflicts with another request.", 409);
         }
+        catch (Exception ex) when (IsLmsSqlConflict(ex))
+        {
+            // Serializable completion may deadlock against a concurrent lesson progress
+            // update. Report a retryable conflict; do not mask unrelated SQL failures.
+            _logger.LogWarning(ex, "LMS completion SQL concurrency conflict tenant {TenantId}", _user.TenantId);
+            return Error<CourseCompletionRegisterRowDto>("Course completion changed concurrently. Reload and retry.", 409);
+        }
     }
 
     private async Task<string?> CompletionAcademicScopeErrorAsync(CourseEnrollment enrollment, Course course, CancellationToken ct)
