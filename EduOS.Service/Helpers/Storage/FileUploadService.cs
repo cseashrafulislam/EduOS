@@ -256,6 +256,71 @@ namespace EduOS.Service.Helpers.Storage
         /// scan. A missing/unavailable scanner or changed file fails closed (null).
         /// Do not mark a file as verified based on a file signature alone.
         /// </summary>
+        // MpCmdRun exit code zero can also indicate successful remediation.
+        // A clean decision needs a completed, explicit no-threat result for this file.
+        public static bool IsConfirmedCleanDefenderResult(int exitCode, string? output, string filePath)
+        {
+            if (exitCode != 0 || string.IsNullOrWhiteSpace(output) || string.IsNullOrWhiteSpace(filePath))
+                return false;
+            var lines = output.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            return lines.Any(line => line.Equals("Scan finished.", StringComparison.OrdinalIgnoreCase)) &&
+                lines.Any(line => line.Equals($"Scanning {filePath} found no threats.",
+                    StringComparison.OrdinalIgnoreCase));
+        }
+
+        // Never treat the mere presence of MpCmdRun.exe as proof of an active engine.
+        // Missing status, passive mode, disabled protection and stale definitions fail closed.
+        private static async Task<bool> HasReadyDefenderEngineAsync(CancellationToken cancellationToken)
+        {
+            var powershell = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.System),
+                "WindowsPowerShell", "v1.0", "powershell.exe");
+            if (!File.Exists(powershell)) return false;
+            var start = new ProcessStartInfo(powershell)
+            {
+                UseShellExecute = false, CreateNoWindow = true,
+                RedirectStandardOutput = true, RedirectStandardError = true
+            };
+            start.ArgumentList.Add("-NoProfile");
+            start.ArgumentList.Add("-NonInteractive");
+            start.ArgumentList.Add("-Command");
+            start.ArgumentList.Add(
+                "$s = Get-MpComputerStatus -ErrorAction Stop; " +
+                "if ($s.AMServiceEnabled -and $s.AntivirusEnabled -and $s.RealTimeProtectionEnabled " +
+                "-and $s.AMRunningMode -eq 'Normal' -and -not $s.DefenderSignaturesOutOfDate " +
+                "-and $null -ne $s.AntivirusSignatureAge -and $s.AntivirusSignatureAge -ge 0 " +
+                "-and $s.AntivirusSignatureAge -le 3 " +
+                "-and -not [string]::IsNullOrWhiteSpace($s.AntivirusSignatureVersion)) " +
+                "{ [Console]::Out.Write('READY'); exit 0 }; exit 1");
+            using var process = new Process { StartInfo = start };
+            if (!process.Start()) return false;
+            using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            timeout.CancelAfter(TimeSpan.FromSeconds(15));
+            var stdout = process.StandardOutput.ReadToEndAsync(timeout.Token);
+            var stderr = process.StandardError.ReadToEndAsync(timeout.Token);
+            try
+            {
+                await process.WaitForExitAsync(timeout.Token);
+                var output = await stdout;
+                var errors = await stderr;
+                return process.ExitCode == 0 && string.IsNullOrWhiteSpace(errors) &&
+                    output.Trim().Equals("READY", StringComparison.Ordinal);
+            }
+            catch (OperationCanceledException)
+            {
+                if (!process.HasExited)
+                {
+                    try { process.Kill(entireProcessTree: true); }
+                    catch (InvalidOperationException) { }
+                }
+                if (cancellationToken.IsCancellationRequested) throw;
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// Return the scanned SHA-256 only when a ready Defender engine explicitly
+        /// clears the exact private file. Unavailable/inconclusive scans fail closed.
+        /// </summary>
         public async Task<string?> ScanPrivateForMalwareAsync(string storageKey, CancellationToken cancellationToken = default)
         {
             if (!TryResolvePath(_settings.PrivateBasePath, storageKey, out var fullPath) ||
@@ -265,6 +330,11 @@ namespace EduOS.Service.Helpers.Storage
             {
                 var info = new FileInfo(fullPath);
                 if (info.Length <= 0 || info.Length > 5L * 1024 * 1024) return null;
+                if (!await HasReadyDefenderEngineAsync(cancellationToken))
+                {
+                    _logger.LogError("Microsoft Defender is inactive, stale or unavailable; private receipt remains unverified.");
+                    return null;
+                }
                 var programFiles = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles);
                 var programData = Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData);
                 var defender = Path.Combine(programFiles, "Windows Defender", "MpCmdRun.exe");
@@ -277,28 +347,47 @@ namespace EduOS.Service.Helpers.Storage
                 }
                 if (!File.Exists(defender))
                 {
-                    _logger.LogError("Microsoft Defender command line scanner is unavailable. Private receipt remains quarantined.");
+                    _logger.LogError("Microsoft Defender scanner executable is unavailable; private receipt remains unverified.");
                     return null;
                 }
                 string before;
                 await using (var input = new FileStream(fullPath, FileMode.Open, FileAccess.Read, FileShare.Read))
                     before = Convert.ToHexString(await SHA256.HashDataAsync(input, cancellationToken));
-                var start = new ProcessStartInfo(defender) { UseShellExecute = false, CreateNoWindow = true };
+                var start = new ProcessStartInfo(defender)
+                {
+                    UseShellExecute = false, CreateNoWindow = true,
+                    RedirectStandardOutput = true, RedirectStandardError = true
+                };
                 foreach (var arg in new[] { "-Scan", "-ScanType", "3", "-File", fullPath }) start.ArgumentList.Add(arg);
                 using var process = new Process { StartInfo = start };
                 if (!process.Start()) return null;
                 using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
                 timeout.CancelAfter(TimeSpan.FromMinutes(2));
-                try { await process.WaitForExitAsync(timeout.Token); }
+                var stdout = process.StandardOutput.ReadToEndAsync(timeout.Token);
+                var stderr = process.StandardError.ReadToEndAsync(timeout.Token);
+                try
+                {
+                    await process.WaitForExitAsync(timeout.Token);
+                    var output = await stdout;
+                    var errors = await stderr;
+                    if (!string.IsNullOrWhiteSpace(errors) ||
+                        !IsConfirmedCleanDefenderResult(process.ExitCode, output, fullPath) ||
+                        !File.Exists(fullPath))
+                    {
+                        _logger.LogWarning("Defender did not explicitly clear private receipt; exit code {ExitCode}.",
+                            process.ExitCode);
+                        return null;
+                    }
+                }
                 catch (OperationCanceledException)
                 {
-                    if (!process.HasExited) process.Kill(entireProcessTree: true);
-                    _logger.LogWarning("Private receipt malware scan timed out or was cancelled.");
-                    return null;
-                }
-                if (process.ExitCode != 0 || !File.Exists(fullPath))
-                {
-                    _logger.LogWarning("Microsoft Defender did not clear private receipt; scan exit code {ExitCode}.", process.ExitCode);
+                    if (!process.HasExited)
+                    {
+                        try { process.Kill(entireProcessTree: true); }
+                        catch (InvalidOperationException) { }
+                    }
+                    if (cancellationToken.IsCancellationRequested) throw;
+                    _logger.LogWarning("Private receipt malware scan timed out.");
                     return null;
                 }
                 await using var check = new FileStream(fullPath, FileMode.Open, FileAccess.Read, FileShare.Read);

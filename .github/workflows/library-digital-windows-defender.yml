@@ -28,10 +28,20 @@ jobs:
         run: |
           $ErrorActionPreference = 'Stop'
           $status = Get-MpComputerStatus
-          if (-not $status.AMServiceEnabled -or -not $status.AntivirusEnabled) {
-            throw 'Windows runner has no active Microsoft Defender; real scanner acceptance is BLOCKED, not PASS.'
+          Write-Host ("Defender mode={0}; service={1}; AV={2}; real-time={3}; signature age={4}; signatures stale={5}" -f $status.AMRunningMode, $status.AMServiceEnabled, $status.AntivirusEnabled, $status.RealTimeProtectionEnabled, $status.AntivirusSignatureAge, $status.DefenderSignaturesOutOfDate)
+          if ($status.DefenderSignaturesOutOfDate -or $status.AntivirusSignatureAge -gt 3) {
+            Write-Host 'Refreshing security intelligence on isolated Windows CI runner.'
+            Update-MpSignature -ErrorAction Stop
+            $status = Get-MpComputerStatus -ErrorAction Stop
           }
-          Write-Host 'Defender antivirus and service are enabled.'
+          if (-not $status.AMServiceEnabled -or -not $status.AntivirusEnabled -or
+              -not $status.RealTimeProtectionEnabled -or $status.AMRunningMode -ne 'Normal' -or
+              $status.DefenderSignaturesOutOfDate -or $null -eq $status.AntivirusSignatureAge -or
+              $status.AntivirusSignatureAge -gt 3 -or
+              [string]::IsNullOrWhiteSpace($status.AntivirusSignatureVersion)) {
+            throw 'Windows runner lacks an active Defender engine with current signatures; scanner acceptance is BLOCKED, not PASS.'
+          }
+          Write-Host 'Defender active-mode and current-signature preflight passed.'
       - name: Restore real Library pipeline acceptance tests
         run: dotnet restore EduOS.Tests/EduOS.Tests.csproj
       - name: Test real clean and EICAR synthetic private library uploads

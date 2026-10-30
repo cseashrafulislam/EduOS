@@ -73,6 +73,22 @@ public class FileUploadSecurityTests
         service.ValidateFile(file).Should().BeFalse();
     }
 
+    [Fact]
+    public void Defender_clean_verdict_requires_finished_scan_and_exact_private_path()
+    {
+        const string path = @"C:\Private\tenant-701\documents\receipt.pdf";
+        var clean = $"Scan starting...\r\nScan finished.\r\nScanning {path} found no threats.\r\n";
+        FileUploadService.IsConfirmedCleanDefenderResult(0, clean, path).Should().BeTrue();
+        FileUploadService.IsConfirmedCleanDefenderResult(2, clean, path).Should().BeFalse();
+        FileUploadService.IsConfirmedCleanDefenderResult(0, "Scan finished.", path).Should().BeFalse();
+        FileUploadService.IsConfirmedCleanDefenderResult(0,
+            $"Scan finished.\nScanning {path} found threats.", path).Should().BeFalse();
+        FileUploadService.IsConfirmedCleanDefenderResult(0,
+            "Scan finished.\nScanning C:\\Other\\receipt.pdf found no threats.", path).Should().BeFalse();
+        FileUploadService.IsConfirmedCleanDefenderResult(0,
+            $"Scanning {path} found no threats.", path).Should().BeFalse();
+    }
+
     private sealed class TestCurrentUser : ICurrentUserService
     {
         public bool IsAuthenticated => true;
