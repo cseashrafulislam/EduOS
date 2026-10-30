@@ -12,8 +12,8 @@ using System.Text;
 
 namespace EduOS.Service.Services.HR;
 
-/// <summary>Cash-only recovery of a previously disbursed institutional employee loan.
-/// Payroll withholding is deliberately excluded until per-loan payroll allocation is implemented.</summary>
+/// <summary>Cash recovery of a disbursed institutional employee loan, reconciled with
+/// immutable payroll recoveries and any posted payroll contra compensations.</summary>
 public sealed class LoanRecoveryService : ILoanRecoveryService
 {
     private readonly EduOSDbContext db;
@@ -121,7 +121,15 @@ public sealed class LoanRecoveryService : ILoanRecoveryService
             orderby r.RecoveryDate descending, r.Id descending
             select new LoanRecoveryHistoryDto
             { RecoveryId = r.Id, RecoveryDate = r.RecoveryDate, Amount = r.Amount,
-                Remarks = r.Remarks, JournalReference = j.PublicId, JournalNumber = j.JournalNumber })
+                Remarks = r.Remarks, JournalReference = j.PublicId, JournalNumber = j.JournalNumber,
+                IsCompensated = db.Journals.AsNoTracking().Any(x => x.TenantId == tenant &&
+                    !x.IsDeleted && x.ReversalOfJournalId == j.Id &&
+                    x.State == JournalState.Posted && x.SourceType == "PayrollRunReversal" &&
+                    x.SourceId == j.SourceId),
+                CompensationJournalNumber = db.Journals.AsNoTracking().Where(x =>
+                    x.TenantId == tenant && !x.IsDeleted && x.ReversalOfJournalId == j.Id &&
+                    x.State == JournalState.Posted && x.SourceType == "PayrollRunReversal" &&
+                    x.SourceId == j.SourceId).Select(x => x.JournalNumber).FirstOrDefault() })
             .Take(501).ToListAsync(ct);
         if (records.Count > 500)
             return Error<IReadOnlyList<LoanRecoveryHistoryDto>>("Recovery history exceeds safe display limit.", 409);
@@ -270,23 +278,19 @@ public sealed class LoanRecoveryService : ILoanRecoveryService
                     return Error<PostLoanRecoveryResultDto>(
                         "Payroll loan withholding is not fully settled per loan; reconcile payroll first.", 409);
             }
-            var previous = await db.LoanAdvanceRecoveries.AsNoTracking().Where(x =>
-                x.TenantId == tenant && x.LoanAdvanceId == loanId && !x.IsDeleted)
+            var previous = await db.LoanAdvanceRecoveries.IgnoreQueryFilters().AsNoTracking().Where(x =>
+                x.TenantId == tenant && x.LoanAdvanceId == loanId)
                 .OrderBy(x => x.Id).Take(501).ToListAsync(ct);
-            if (previous.Count > 500 || previous.Any(x => !Money(x.Amount) || !x.JournalId.HasValue) ||
-                loan.PrincipalAmount - previous.Sum(x => x.Amount) != loan.OutstandingAmount)
+            if (previous.Count > 500)
+                return Error<PostLoanRecoveryResultDto>("Loan recovery history exceeds the safe reconciliation limit.", 409);
+            var (historyError, history) = await LoanRecoveryJournalHistory.ReadAsync(db, tenant, previous, ct);
+            if (historyError != null || loan.PrincipalAmount - LoanRecoveryJournalHistory.NetRecovered(history) != loan.OutstandingAmount)
                 return Error<PostLoanRecoveryResultDto>("Loan outstanding and recovery history do not reconcile.", 409);
-            foreach (var prior in previous)
+            foreach (var entry in history)
             {
-                var journal = await db.Journals.AsNoTracking().SingleOrDefaultAsync(x =>
-                    x.TenantId == tenant && x.Id == prior.JournalId && !x.IsDeleted, ct);
-                if (journal == null || journal.State != JournalState.Posted ||
-                    (prior.PayrollEmployeeId.HasValue ?
-                        journal.SourceType != "PayrollRun" :
-                        journal.SourceType != "LoanAdvanceRecovery" || journal.SourceId != prior.Id) ||
-                    journal.CampusId != disbursement.CampusId ||
-                    await db.Journals.AsNoTracking().AnyAsync(x => x.TenantId == tenant &&
-                        x.ReversalOfJournalId == journal.Id && x.State == JournalState.Posted && !x.IsDeleted, ct))
+                var prior = entry.Recovery;
+                var journal = entry.Source;
+                if (journal.CampusId != disbursement.CampusId)
                     return Error<PostLoanRecoveryResultDto>("Earlier recovery journal needs reconciliation.", 409);
                 var priorLines = await db.JournalLines.AsNoTracking().Where(x => x.TenantId == tenant &&
                     x.JournalId == journal.Id && !x.IsDeleted).ToListAsync(ct);

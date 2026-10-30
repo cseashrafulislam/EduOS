@@ -53,10 +53,11 @@ async function history(row) {
         el('recoveryHistoryLoan').textContent = row.employeeName + ' · Loan #' + row.loanId;
         for (const record of records) {
             const tr = document.createElement('tr');
-            for (const value of [record.recoveryDate, money(record.amount), record.journalNumber, record.remarks]) tr.append(cell(value));
+            const status = record.isCompensated ? 'Compensated by ' + (record.compensationJournalNumber || 'payroll reversal') : 'Effective';
+            for (const value of [record.recoveryDate, money(record.amount), record.journalNumber, status, record.remarks]) tr.append(cell(value));
             body.append(tr);
         }
-        if (!records.length) { const tr = document.createElement('tr'), td = cell('No posted recoveries.'); td.colSpan = 4; tr.append(td); body.append(tr); }
+        if (!records.length) { const tr = document.createElement('tr'), td = cell('No posted recoveries.'); td.colSpan = 5; tr.append(td); body.append(tr); }
         el('recoveryHistoryPanel').classList.remove('d-none');
     } catch (err) { notice(err.message, true); }
 }

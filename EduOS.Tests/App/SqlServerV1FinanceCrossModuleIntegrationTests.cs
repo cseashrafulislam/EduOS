@@ -435,6 +435,148 @@ public sealed class SqlServerV1FinanceCrossModuleIntegrationTests
         Assert.False(denied.Success);
     }
 
+    [Fact]
+    public async Task Posted_payroll_loan_reversal_restores_receivable_once_on_sql_server_and_cash_can_follow()
+    {
+        var connection = Environment.GetEnvironmentVariable("EDUOS_SQL_AUTH_TEST_CONNECTION");
+        if (string.IsNullOrWhiteSpace(connection)) return;
+        var options = new DbContextOptionsBuilder<EduOSDbContext>().UseSqlServer(connection).Options;
+        var suffix = Guid.NewGuid().ToString("N")[..10];
+        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        var payrollDate = today.AddDays(-1);
+        var issueDate = today.AddDays(-10);
+        long tenantId, makerId, approverId, posterId, loanId, periodId, cashId;
+        Guid runReference;
+        await using (var setup = new EduOSDbContext(options))
+        {
+            var tenant = new Tenant { Code = "V1LRC-" + suffix, Name = "V1 Loan Reversal SQL CI",
+                Email = "v1lrc-" + suffix + "@example.test", State = TenantState.Active };
+            var person = new Person { FullName = "Loan Recovery SQL Employee" };
+            setup.AddRange(tenant, person);
+            await setup.SaveChangesAsync();
+            tenantId = tenant.Id;
+            var maker = User("loan-maker", suffix);
+            var checker = User("loan-checker", suffix);
+            var poster = User("loan-poster", suffix);
+            setup.ApplicationUsers.AddRange(maker, checker, poster);
+            await setup.SaveChangesAsync();
+            makerId = maker.Id; approverId = checker.Id; posterId = poster.Id;
+            using (setup.BeginSystemTenantScope(tenantId))
+            {
+                var campus = new Campus { TenantId = tenantId, Name = "Main", Code = "MAIN" };
+                var designation = new Designation { TenantId = tenantId, Name = "Teacher", Code = "TCH" };
+                var salaryExpense = new Account { TenantId = tenantId, Code = "SAL-EXP",
+                    Name = "Salary expense", AccountType = AccountType.Expense };
+                var salaryPayable = new Account { TenantId = tenantId, Code = "SAL-PAY",
+                    Name = "Salary payable", AccountType = AccountType.Liability };
+                var receivable = new Account { TenantId = tenantId, Code = "LOAN-AR",
+                    Name = "Employee loan receivable", AccountType = AccountType.Asset };
+                var cash = new Account { TenantId = tenantId, Code = "CASH-HAND",
+                    Name = "Cash in hand", AccountType = AccountType.Asset };
+                var period = new AccountingPeriod { TenantId = tenantId, Name = "Payroll reversal CI",
+                    StartDate = today.AddDays(-30), EndDate = today.AddDays(1) };
+                var component = new SalaryComponent { TenantId = tenantId, Code = "LOAN_RECOVERY",
+                    Name = "Loan recovery", Type = SalaryComponentType.Deduction };
+                setup.AddRange(campus, designation, salaryExpense, salaryPayable,
+                    receivable, cash, period, component);
+                await setup.SaveChangesAsync();
+                periodId = period.Id; cashId = cash.Id;
+
+                var employee = new Employee { TenantId = tenantId, PersonId = person.Id,
+                    DesignationId = designation.Id, EmployeeCode = "V1LRC-" + suffix,
+                    FullName = person.FullName, JoiningDate = issueDate.AddDays(-30) };
+                setup.Employees.Add(employee);
+                await setup.SaveChangesAsync();
+                setup.EmployeeCampusAssignments.Add(new EmployeeCampusAssignment
+                { TenantId = tenantId, EmployeeId = employee.Id, CampusId = campus.Id,
+                    IsPrimary = true, EffectiveFrom = issueDate.AddDays(-30) });
+                var loan = new LoanAdvance { TenantId = tenantId, EmployeeId = employee.Id,
+                    IssueDate = issueDate, PrincipalAmount = 100m, OutstandingAmount = 75m,
+                    InstallmentAmount = 25m };
+                var run = new PayrollRun { TenantId = tenantId, RunNumber = "V1LRC-RUN-" + suffix,
+                    ClientRequestId = Guid.NewGuid(), CampusId = campus.Id, Year = payrollDate.Year,
+                    Month = payrollDate.Month, PeriodStart = new DateOnly(payrollDate.Year, payrollDate.Month, 1),
+                    PeriodEnd = payrollDate, State = PayrollRunState.Draft,
+                    ApprovedByUserId = approverId, ApprovedAt = DateTime.UtcNow,
+                    PostedAt = DateTime.UtcNow };
+                setup.AddRange(loan, run);
+                await setup.SaveChangesAsync();
+                loanId = loan.Id; runReference = run.PublicId;
+                var pe = new PayrollEmployee { TenantId = tenantId, PayrollRunId = run.Id,
+                    EmployeeId = employee.Id, GrossAmount = 100m, DeductionAmount = 25m,
+                    NetAmount = 75m };
+                setup.PayrollEmployees.Add(pe);
+                await setup.SaveChangesAsync();
+                setup.PayrollLines.Add(new PayrollLine { TenantId = tenantId,
+                    PayrollEmployeeId = pe.Id, SalaryComponentId = component.Id,
+                    Amount = 25m, Description = "Scheduled loan recovery" });
+                var disbursement = PostedJournal(tenantId, period.Id, campus.Id, loan.Id,
+                    "LoanAdvance", "V1LRC-DIS-" + suffix, issueDate, approverId, makerId);
+                var accrual = PostedJournal(tenantId, period.Id, campus.Id, run.Id,
+                    "PayrollRun", "V1LRC-ACC-" + suffix, payrollDate, approverId, makerId);
+                setup.Journals.AddRange(disbursement, accrual);
+                await setup.SaveChangesAsync();
+                run.JournalId = accrual.Id;
+                run.State = PayrollRunState.Posted;
+                setup.JournalLines.AddRange(
+                    PayrollLine(tenantId, disbursement.Id, 1, receivable.Id, campus.Id,
+                        employee.Id, 100m, 0m, "Loan disbursement receivable"),
+                    PayrollLine(tenantId, disbursement.Id, 2, cash.Id, campus.Id,
+                        employee.Id, 0m, 100m, "Loan disbursement cash"),
+                    PayrollLine(tenantId, accrual.Id, 1, salaryExpense.Id, campus.Id,
+                        employee.Id, 100m, 0m, "Salary expense"),
+                    PayrollLine(tenantId, accrual.Id, 2, receivable.Id, campus.Id,
+                        employee.Id, 0m, 25m, "Payroll loan recovery " + loan.Id),
+                    PayrollLine(tenantId, accrual.Id, 3, salaryPayable.Id, campus.Id,
+                        employee.Id, 0m, 75m, "Payroll net payable"));
+                setup.LoanAdvanceRecoveries.Add(new LoanAdvanceRecovery { TenantId = tenantId,
+                    ClientRequestId = Guid.NewGuid(), LoanAdvanceId = loan.Id,
+                    PayrollEmployeeId = pe.Id, JournalId = accrual.Id,
+                    RecoveryDate = payrollDate, Amount = 25m });
+                await setup.SaveChangesAsync();
+            }
+        }
+        await using var db = new EduOSDbContext(options, Accessor(tenantId));
+        var runVersion = (await db.PayrollRuns.AsNoTracking().SingleAsync(x => x.PublicId == runReference))
+            .RowVersion;
+        Assert.NotEmpty(runVersion);
+        var makerService = new PayrollJournalPostingService(db,
+            new Actor(tenantId, makerId), TimeProvider.System);
+        var proposed = await makerService.RequestReversalAsync(runReference, new RequestPayrollReversalDto
+        { ClientRequestId = Guid.NewGuid(), AccountingPeriodId = periodId,
+            ReversalDate = today, Reason = "Correct loan payroll accrual",
+            RowVersion = Convert.ToBase64String(runVersion) });
+        Assert.True(proposed.Success, proposed.Message);
+        Assert.Equal(75m, (await db.LoanAdvances.AsNoTracking().SingleAsync(x => x.Id == loanId)).OutstandingAmount);
+        var checker = new PayrollJournalPostingService(db,
+            new Actor(tenantId, approverId), TimeProvider.System);
+        var approved = await checker.ReviewReversalAsync(runReference, new ReviewPayrollReversalDto
+        { Approve = true, RowVersion = proposed.Data!.RowVersion });
+        Assert.True(approved.Success, approved.Message);
+        var poster = new PayrollJournalPostingService(db,
+            new Actor(tenantId, posterId), TimeProvider.System);
+        var postRequest = new PostPayrollReversalDto { RowVersion = approved.Data!.RowVersion };
+        var posted = await poster.PostReversalAsync(runReference, postRequest);
+        Assert.True(posted.Success, posted.Message);
+        Assert.Equal(JournalState.Posted, posted.Data!.State);
+        var replay = await poster.PostReversalAsync(runReference, postRequest);
+        Assert.True(replay.Success, replay.Message);
+        Assert.True(replay.Data!.AlreadyProcessed);
+        var restored = await db.LoanAdvances.AsNoTracking().SingleAsync(x => x.Id == loanId);
+        Assert.Equal(100m, restored.OutstandingAmount);
+        Assert.False(restored.IsClosed);
+        Assert.Single(await db.LoanAdvanceRecoveries.AsNoTracking().Where(x => x.LoanAdvanceId == loanId)
+            .ToListAsync());
+        var recoveries = new LoanRecoveryService(db, new Actor(tenantId, makerId), TimeProvider.System);
+        var cashResult = await recoveries.PostAsync(loanId, new PostLoanRecoveryRequestDto
+        { ClientRequestId = Guid.NewGuid(), RecoveryDate = today, Amount = 10m,
+            AccountingPeriodId = periodId, CashAccountId = cashId,
+            RowVersion = Convert.ToBase64String(restored.RowVersion) });
+        Assert.True(cashResult.Success, cashResult.Message);
+        Assert.Equal(90m, (await db.LoanAdvances.AsNoTracking().SingleAsync(x => x.Id == loanId)).OutstandingAmount);
+        Assert.Equal(2, await db.LoanAdvanceRecoveries.CountAsync(x => x.LoanAdvanceId == loanId));
+    }
+
     private static JournalLine PayrollLine(long tenantId, long journalId, int lineNo,
         long accountId, long campusId, long employeeId, decimal debit, decimal credit,
         string description) => new() { TenantId = tenantId, JournalId = journalId,

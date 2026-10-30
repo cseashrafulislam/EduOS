@@ -108,6 +108,135 @@ public sealed class PayrollLoanRecoverySettlementTests
         (await db.LoanAdvanceRecoveries.CountAsync()).Should().Be(0);
     }
 
+    [Fact]
+    public async Task Approved_payroll_reversal_restores_loan_once_and_allows_later_cash_recovery()
+    {
+        await using var db = Seed();
+        var run = await db.PayrollRuns.SingleAsync();
+        var posting = new PayrollJournalPostingService(db, new TestUser(), TimeProvider.System);
+        (await posting.PostAsync(run.PublicId, Request(run))).StatusCode.Should().Be(200);
+        var original = await db.Journals.SingleAsync(x => x.SourceType == "PayrollRun");
+        var recovery = await db.LoanAdvanceRecoveries.SingleAsync();
+        var loan = await db.LoanAdvances.SingleAsync();
+        loan.OutstandingAmount.Should().Be(75m);
+
+        var requested = await new PayrollJournalPostingService(db, new TestUser(11), TimeProvider.System)
+            .RequestReversalAsync(run.PublicId, ReversalRequest(run));
+        Assert.Equal(200, requested.StatusCode);
+        loan.OutstandingAmount.Should().Be(75m);
+        var contra = await db.Journals.SingleAsync(x => x.ReversalOfJournalId == original.Id);
+        contra.RowVersion = [2];
+        (await new PayrollJournalPostingService(db, new TestUser(22), TimeProvider.System)
+            .ReviewReversalAsync(run.PublicId, new ReviewPayrollReversalDto
+            { Approve = true, RowVersion = "Ag==" })).StatusCode.Should().Be(200);
+        loan.OutstandingAmount.Should().Be(75m);
+        var poster = new PayrollJournalPostingService(db, new TestUser(33), TimeProvider.System);
+        var reversed = await poster.PostReversalAsync(run.PublicId, new PostPayrollReversalDto { RowVersion = "Ag==" });
+        Assert.Equal(200, reversed.StatusCode);
+        loan.OutstandingAmount.Should().Be(100m);
+        loan.IsClosed.Should().BeFalse();
+        (await poster.PostReversalAsync(run.PublicId, new PostPayrollReversalDto { RowVersion = "Ag==" }))
+            .Data!.AlreadyProcessed.Should().BeTrue();
+        loan.OutstandingAmount.Should().Be(100m);
+        (await db.LoanAdvanceRecoveries.SingleAsync()).Id.Should().Be(recovery.Id);
+        (await db.Journals.SingleAsync(x => x.Id == original.Id)).State.Should().Be(JournalState.Posted);
+        var all = await db.JournalLines.ToListAsync();
+        all.Sum(x => x.DebitAmount).Should().Be(all.Sum(x => x.CreditAmount));
+
+        var cash = new LoanRecoveryService(db, new TestUser(), TimeProvider.System);
+        var history = await cash.GetHistoryAsync(loan.Id);
+        history.StatusCode.Should().Be(200);
+        history.Data!.Should().ContainSingle(x => x.IsCompensated &&
+            x.CompensationJournalNumber == contra.JournalNumber);
+        var cashResult = await cash.PostAsync(loan.Id, new PostLoanRecoveryRequestDto
+        {
+            ClientRequestId = Guid.NewGuid(), RecoveryDate = new DateOnly(2026, 10, 22),
+            Amount = 10m, AccountingPeriodId = 1, CashAccountId = 4,
+            RowVersion = Convert.ToBase64String(loan.RowVersion)
+        });
+        Assert.Equal(200, cashResult.StatusCode);
+        loan.OutstandingAmount.Should().Be(90m);
+        (await db.LoanAdvanceRecoveries.CountAsync()).Should().Be(2);
+    }
+
+    [Fact]
+    public async Task Payroll_reversal_reopens_a_fully_recovered_loan()
+    {
+        await using var db = Seed();
+        var loan = await db.LoanAdvances.SingleAsync();
+        loan.PrincipalAmount = 25m;
+        loan.OutstandingAmount = 25m;
+        var disbursement = await db.Journals.SingleAsync(x => x.SourceType == "LoanAdvance");
+        (await db.JournalLines.SingleAsync(x => x.JournalId == disbursement.Id && x.DebitAmount > 0m))
+            .DebitAmount = 25m;
+        (await db.JournalLines.SingleAsync(x => x.JournalId == disbursement.Id && x.CreditAmount > 0m))
+            .CreditAmount = 25m;
+        await db.SaveChangesAsync();
+        var run = await db.PayrollRuns.SingleAsync();
+        (await new PayrollJournalPostingService(db, new TestUser(), TimeProvider.System)
+            .PostAsync(run.PublicId, Request(run))).StatusCode.Should().Be(200);
+        loan.IsClosed.Should().BeTrue();
+        (await new PayrollJournalPostingService(db, new TestUser(11), TimeProvider.System)
+            .RequestReversalAsync(run.PublicId, ReversalRequest(run))).StatusCode.Should().Be(200);
+        (await db.Journals.SingleAsync(x => x.SourceType == "PayrollRunReversal")).RowVersion = [2];
+        (await new PayrollJournalPostingService(db, new TestUser(22), TimeProvider.System)
+            .ReviewReversalAsync(run.PublicId, new ReviewPayrollReversalDto
+            { Approve = true, RowVersion = "Ag==" })).StatusCode.Should().Be(200);
+        (await new PayrollJournalPostingService(db, new TestUser(33), TimeProvider.System)
+            .PostReversalAsync(run.PublicId, new PostPayrollReversalDto { RowVersion = "Ag==" }))
+            .StatusCode.Should().Be(200);
+        loan.OutstandingAmount.Should().Be(25m);
+        loan.IsClosed.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task Missing_loan_or_tampered_outstanding_blocks_reversal_without_posting_contra()
+    {
+        await using var db = Seed();
+        var run = await db.PayrollRuns.SingleAsync();
+        (await new PayrollJournalPostingService(db, new TestUser(), TimeProvider.System)
+            .PostAsync(run.PublicId, Request(run))).StatusCode.Should().Be(200);
+        var loan = await db.LoanAdvances.SingleAsync();
+        loan.OutstandingAmount = 70m;
+        (await new PayrollJournalPostingService(db, new TestUser(11), TimeProvider.System)
+            .RequestReversalAsync(run.PublicId, ReversalRequest(run))).StatusCode.Should().Be(409);
+        (await db.Journals.CountAsync(x => x.SourceType == "PayrollRunReversal")).Should().Be(0);
+        loan.OutstandingAmount = 75m;
+        loan.IsDeleted = true;
+        (await new PayrollJournalPostingService(db, new TestUser(11), TimeProvider.System)
+            .RequestReversalAsync(run.PublicId, ReversalRequest(run))).StatusCode.Should().Be(409);
+    }
+
+    [Fact]
+    public async Task Post_revalidates_loan_after_approval_and_leaves_approved_contra_unposted_on_mismatch()
+    {
+        await using var db = Seed();
+        var run = await db.PayrollRuns.SingleAsync();
+        (await new PayrollJournalPostingService(db, new TestUser(), TimeProvider.System)
+            .PostAsync(run.PublicId, Request(run))).StatusCode.Should().Be(200);
+        (await new PayrollJournalPostingService(db, new TestUser(11), TimeProvider.System)
+            .RequestReversalAsync(run.PublicId, ReversalRequest(run))).StatusCode.Should().Be(200);
+        var contra = await db.Journals.SingleAsync(x => x.SourceType == "PayrollRunReversal");
+        contra.RowVersion = [2];
+        (await new PayrollJournalPostingService(db, new TestUser(22), TimeProvider.System)
+            .ReviewReversalAsync(run.PublicId, new ReviewPayrollReversalDto
+            { Approve = true, RowVersion = "Ag==" })).StatusCode.Should().Be(200);
+        var loan = await db.LoanAdvances.SingleAsync();
+        loan.OutstandingAmount = 60m;
+        (await new PayrollJournalPostingService(db, new TestUser(33), TimeProvider.System)
+            .PostReversalAsync(run.PublicId, new PostPayrollReversalDto
+            { RowVersion = "Ag==" })).StatusCode.Should().Be(409);
+        contra.State.Should().Be(JournalState.Approved);
+        loan.OutstandingAmount.Should().Be(60m);
+    }
+
+    private static RequestPayrollReversalDto ReversalRequest(PayrollRun run) => new()
+    {
+        ClientRequestId = Guid.NewGuid(), AccountingPeriodId = 1,
+        ReversalDate = new DateOnly(2026, 10, 21), Reason = "Correct loan withholding",
+        RowVersion = Convert.ToBase64String(run.RowVersion)
+    };
+
     private static PostPayrollJournalRequestDto Request(PayrollRun run) => new()
     {
         AccountingPeriodId = 1, SalaryPayableAccountId = 2,
@@ -185,10 +314,10 @@ public sealed class PayrollLoanRecoverySettlementTests
         return db;
     }
 
-    private sealed class TestUser : ICurrentUserService
+    private sealed class TestUser(long id = 9) : ICurrentUserService
     {
         public bool IsAuthenticated => true;
-        public long UserId => 9;
+        public long UserId => id;
         public long TenantId => 41;
         public string? FullName => null;
         public string? Email => null;
