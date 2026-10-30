@@ -33,10 +33,12 @@ function fakeFetch({ leak = false, denyCsv = false, detailCsvMismatch = false,
             const ref = kind === 'asset' ? asset : stock;
             const otherCampus = parsed.searchParams.get('campusId') === '20';
             const items = (foreign && !leak) || (otherCampus && !campusLeak)
-                ? [] : [{ reference: ref, evidenceStatus: 'ExplicitBalancedReference' }];
-            if (isCsv) return csv(200, 'Kind,Reference\n' +
-                (registerCsvMismatch && !foreign ? kind + ',33333333-3333-4333-8333-333333333333'
-                    : items.map(x => kind + ',' + x.reference).join('\n')));
+                ? [] : [{ reference: ref, evidenceStatus: 'ExplicitBalancedReference',
+                    state: 'Posted', lineCount: 1, date: '2026-10-31' }];
+            if (isCsv) return csv(200, 'Kind,Reference,State,Lines,EvidenceStatus\n' +
+                (registerCsvMismatch && !foreign ? kind + ',33333333-3333-4333-8333-333333333333,Posted,1,ExplicitBalancedReference'
+                    : items.map(x => [kind, x.reference, x.state, x.lineCount,
+                        x.evidenceStatus].join(',')).join('\n')));
             return json(200, { page: 1, pageSize: Number(parsed.searchParams.get('pageSize')),
                 totalCount: items.length, items });
         }
@@ -147,4 +149,17 @@ test('concurrent foreign-register disclosure fails even when initial 50-row page
             ? leaking(url, options) : baseline(url, options);
     await assert.rejects(runAcceptance({ ...config, iterations: 25 }, fetcher),
         /Concurrent cross-tenant register disclosed/);
+});
+
+test('opt-in bounded multi-page audit integrates with enterprise acceptance', async () => {
+    const { runAcceptance, validateConfig } = await import(source);
+    const report = await runAcceptance({ ...config, pagedAudit: true }, fakeFetch());
+    assert.deepEqual(report.registerCounts, [{ kind: 'stock', count: 1, pagesAudited: 1 },
+        { kind: 'asset', count: 1, pagesAudited: 1 }]);
+    assert.ok(report.checks.includes('bounded all-page JSON/CSV parity and cross-tenant isolation'));
+    const env = { BASE_URL: 'http://localhost:3000/', TENANT_A_COOKIE: 'a-session',
+        TENANT_B_COOKIE: 'b-session', STOCK_REFERENCE: stock, ASSET_REFERENCE: asset,
+        FROM: config.from, TO: config.to, AUDIT_ALL_PAGES: '1' };
+    assert.equal(validateConfig(env).pagedAudit, true);
+    assert.throws(() => validateConfig({ ...env, AUDIT_MAX_PAGES: '21' }), /AUDIT_MAX_PAGES/);
 });

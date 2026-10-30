@@ -2,6 +2,7 @@
 // Read-only V3 enterprise reconciliation acceptance against a disposable/staging
 // EduOS instance. Never use production credentials or a live customer database.
 import { performance } from 'node:perf_hooks';
+import { auditRegisterPages } from './v3-enterprise-paged-audit.mjs';
 import { pathToFileURL } from 'node:url';
 
 const API = '/api/v3/enterprise/ledger-trace';
@@ -85,6 +86,11 @@ export function validateConfig(env) {
     if (campusA) check(/^[1-9]\d*$/.test(campusA) &&
         /^[1-9]\d*$/.test(campusOther) && campusA !== campusOther,
         'Asset campus IDs must be distinct positive integers.');
+    check(!env.AUDIT_ALL_PAGES || ['0', '1'].includes(env.AUDIT_ALL_PAGES),
+        'AUDIT_ALL_PAGES must be 0 or 1.');
+    const auditPages = Number(env.AUDIT_MAX_PAGES || 10);
+    check(Number.isInteger(auditPages) && auditPages >= 1 && auditPages <= 20,
+        'AUDIT_MAX_PAGES must be 1..20.');
     const iterations = Number(env.ITERATIONS || 24);
     const concurrency = Number(env.CONCURRENCY || 4);
     check(Number.isInteger(iterations) && iterations >= 1 && iterations <= 500,
@@ -95,7 +101,8 @@ export function validateConfig(env) {
         stock: env.STOCK_REFERENCE, asset: env.ASSET_REFERENCE,
         from: env.FROM, to: env.TO, iterations, concurrency,
         restricted: env.RESTRICTED_COOKIE || null,
-        assetCampus: campusA || null, otherCampus: campusOther || null };
+        assetCampus: campusA || null, otherCampus: campusOther || null,
+        pagedAudit: env.AUDIT_ALL_PAGES === '1', auditPages };
 }
 
 export async function request(base, cookie, path, fetcher = fetch) {
@@ -120,7 +127,7 @@ export async function request(base, cookie, path, fetcher = fetch) {
 
 export async function runAcceptance(config, fetcher = fetch) {
     const { base, a, b, stock, asset, from, to, iterations, concurrency,
-        restricted, assetCampus, otherCampus } = config;
+        restricted, assetCampus, otherCampus, pagedAudit = false, auditPages = 10 } = config;
     const noStore = result => check(result.cache.includes('no-store') ||
         result.cache.includes('no-cache'), 'Private response must not be cached.');
     const references = csv => {
@@ -157,6 +164,12 @@ export async function runAcceptance(config, fetcher = fetch) {
         'Asset reference mismatch.');
     const registers = [];
     for (const [kind, reference] of [['stock', stock], ['asset', asset]]) {
+        if (pagedAudit) {
+            const result = await auditRegisterPages({ read, parseCsv, api: API, kind, reference,
+                from, to, tenantA: a, tenantB: b, maxPages: auditPages });
+            registers.push({ kind, count: result.count, pagesAudited: result.pagesAudited });
+            continue;
+        }
         const query = new URLSearchParams({ kind, from, to, page: '1', pageSize: '50' });
         const path = API + '/register?' + query;
         const own = await read(a, path);
@@ -251,7 +264,8 @@ export async function runAcceptance(config, fetcher = fetch) {
             'register JSON/CSV exact-page parity and cache isolation',
             'bounded paging', 'mixed-tenant concurrent replay',
             ...(restricted ? ['restricted-role authorization'] : []),
-            ...(assetCampus ? ['asset campus isolation'] : [])],
+            ...(assetCampus ? ['asset campus isolation'] : []),
+            ...(pagedAudit ? ['bounded all-page JSON/CSV parity and cross-tenant isolation'] : [])],
         registerCounts: registers,
         measuredHttpOnly: true, samples: samples.length,
         latencyMs: { p50: percentile(samples, 50), p95: percentile(samples, 95),
