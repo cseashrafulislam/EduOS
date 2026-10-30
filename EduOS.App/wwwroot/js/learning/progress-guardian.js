@@ -17,7 +17,7 @@ const alert=$('lmsGuardianProgressAlert')||$('lmsProgressConsentAlert');
 function warn(message){alert.className='alert alert-danger my-2';alert.textContent=message;}
 function reset(){
  sequence++;rows=[];selected=0;page=1;pages=1;lessonPage=1;
- for(const id of ['lmsGuardianProgressRows','lmsGuardianLessonRows','lmsProgressConsentGrants','lmsProgressConsentGuardian']){
+ for(const id of ['lmsGuardianProgressRows','lmsGuardianLessonRows','lmsProgressConsentGrants','lmsProgressConsentGuardian','lmsProgressConsentEnrollment']){
   const node=$(id);if(node)node.replaceChildren();
  }
  if($('lmsGuardianLessonPanel'))$('lmsGuardianLessonPanel').classList.add('d-none');

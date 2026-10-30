@@ -35,3 +35,10 @@ test('guardian access is separately authorized and bounded',()=>{
  assert.match(script,/cache:'no-store'/);
  assert.match(script,/credentials:'same-origin'/);
 });
+
+test('private enrollment choices and guardian data are scrubbed on tenant transition',()=>{
+ assert.match(script,/lmsProgressConsentEnrollment'.*\]/);
+ assert.match(script,/MutationObserver/);
+ assert.match(script,/pagehide',reset/);
+ assert.match(script,/EduOSSessionTransitionPending/);
+});
