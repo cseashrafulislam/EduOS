@@ -19,9 +19,12 @@ public sealed partial class SqlServerTransportSeatCapacityIntegrationTests
         long studentId;
         await using (var setup = ScopedContext(state.Fixture.Options, state.Fixture.TenantId, state.Fixture.UserId))
         {
+            var tripId = await setup.TransportTrips.AsNoTracking().Where(x =>
+                x.TenantId == state.Fixture.TenantId && x.PublicId == state.Reference)
+                .Select(x => x.Id).SingleAsync();
             var rider = await setup.TransportTripRiders.AsNoTracking().SingleAsync(x =>
                 x.TenantId == state.Fixture.TenantId && x.StudentCodeSnapshot == state.StudentCode &&
-                x.TransportTrip.PublicId == state.Reference);
+                x.TransportTripId == tripId);
             studentId = rider.StudentId;
             var student = await setup.Students.SingleAsync(x =>
                 x.TenantId == state.Fixture.TenantId && x.Id == studentId);
