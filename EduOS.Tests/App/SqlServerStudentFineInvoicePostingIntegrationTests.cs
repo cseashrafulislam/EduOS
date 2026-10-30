@@ -107,6 +107,43 @@ public sealed class SqlServerStudentFineInvoicePostingIntegrationTests
         Assert.Equal(75m, lines.Sum(x => x.CreditAmount));
         Assert.Equal(403, (await new FinanceAdjustmentService(db, new Actor(tenantId + 1, 200), TimeProvider.System)
             .PostFineInvoiceAsync(fineId, request)).StatusCode);
+
+        // Real SQL Server rowversion, maker/checker and immutable contra journal proof.
+        var reversalRequest = new RequestStudentFineReversalDto
+        {
+            ClientRequestId = Guid.NewGuid(), AccountingPeriodId = periodId,
+            ReversalDate = new DateOnly(2026, 10, 29), Reason = "Approved historical correction",
+            RowVersion = Convert.ToBase64String(fineRow.RowVersion)
+        };
+        var proposed = await service.RequestFineReversalAsync(fineId, reversalRequest);
+        Assert.True(proposed.Success, proposed.Message);
+        Assert.NotEmpty(proposed.Data!.RowVersion);
+        Assert.Equal(JournalState.Submitted, proposed.Data.State);
+        var approval = new ReviewStudentFineReversalDto
+        { Approve = true, RowVersion = proposed.Data.RowVersion };
+        Assert.Equal(403, (await service.ReviewFineReversalAsync(fineId,
+            proposed.Data.ReversalReference, approval)).StatusCode);
+        var checker = new FinanceAdjustmentService(db, new Actor(tenantId, 300), TimeProvider.System);
+        var postedReversal = await checker.ReviewFineReversalAsync(fineId,
+            proposed.Data.ReversalReference, approval);
+        Assert.True(postedReversal.Success, postedReversal.Message);
+        Assert.Equal(JournalState.Posted, postedReversal.Data!.State);
+        Assert.Equal(InvoiceState.Cancelled, (await db.StudentInvoices.AsNoTracking()
+            .SingleAsync(x => x.PublicId == first.Data.InvoiceReference)).State);
+        Assert.True((await db.StudentFines.AsNoTracking().SingleAsync(x => x.Id == fineId)).IsWaived);
+        Assert.Equal(2, await db.Journals.CountAsync(x => x.TenantId == tenantId &&
+            (x.SourceType == "StudentInvoice" || x.SourceType == "StudentFineReversal")));
+        var reversalId = (await db.Journals.AsNoTracking()
+            .SingleAsync(x => x.PublicId == proposed.Data.ReversalReference)).Id;
+        var reversalLines = await db.JournalLines.AsNoTracking()
+            .Where(x => x.JournalId == reversalId).ToListAsync();
+        Assert.Equal(75m, reversalLines.Sum(x => x.DebitAmount));
+        Assert.Equal(75m, reversalLines.Sum(x => x.CreditAmount));
+        var reconciled = await new FeeReceivablesAgingService(db, new Actor(tenantId, 300))
+            .GetReconciliationAsync(null, null, 1, 25);
+        Assert.True(reconciled.Success, reconciled.Message);
+        Assert.Equal("Reversed", Assert.Single(reconciled.Data!.Rows).Status);
+        Assert.Equal(0m, Assert.Single(reconciled.Data.Rows).DueAmount);
     }
 
     private static IHttpContextAccessor Accessor(long tenantId)
