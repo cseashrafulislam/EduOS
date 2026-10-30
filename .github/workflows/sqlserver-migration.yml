@@ -104,6 +104,18 @@ jobs:
             --filter "FullyQualifiedName~SqlServerAuthTenantIntegrationTests|FullyQualifiedName~AuthSecurityStampIntegrationTests|FullyQualifiedName~SqlServerMemberAccessHistoryIntegrationTests|FullyQualifiedName~SqlServerLoginActivityIntegrationTests|FullyQualifiedName~SqlServerAcademicSetupIntegrationTests|FullyQualifiedName~SqlServerEnrollmentAllocationIntegrationTests|FullyQualifiedName~SqlServerStudentImportConcurrencyIntegrationTests|FullyQualifiedName~SqlServerStudentImportCohortRehearsalTests|FullyQualifiedName~SqlServerStudentLifecycleIntegrationTests|FullyQualifiedName~SqlServerGuardianContactProfileIntegrationTests|FullyQualifiedName~SqlServerManualPaymentIntegrationTests|FullyQualifiedName~SqlServerStudentFineInvoicePostingIntegrationTests|FullyQualifiedName~SqlServerV1FinanceCrossModuleIntegrationTests|FullyQualifiedName~SqlServerBankReconciliationIntakeIntegrationTests|FullyQualifiedName~SqlServerStudentFeeInstallmentPlanIntegrationTests|FullyQualifiedName~SqlServerAcademicOperationsIntegrationTests|FullyQualifiedName~SqlServerAssessmentMarkReviewIntegrityIntegrationTests|FullyQualifiedName~SqlServerAssessmentMarkReviewLifecycleIntegrationTests|FullyQualifiedName~SqlServerAcademicRoutineCollisionIntegrationTests|FullyQualifiedName~SqlServerTransportIdentityIntegrationTests|FullyQualifiedName~SqlServerTransportConcurrentUniquenessTests|FullyQualifiedName~SqlServerTransportSeatCapacityIntegrationTests|FullyQualifiedName~SqlServerV2SixteenInstituteEntitlementHttpAcceptanceTests|FullyQualifiedName~TransportReservationWindowIndexTests|FullyQualifiedName~HostelOccupiedTransferLineageContractTests|FullyQualifiedName~AssetAccountingPersistenceContractTests" \
             --logger "trx;LogFileName=sql-auth-tests.trx" --results-directory TestResults
 
+      - name: Prove disposable SQL backup restore and financial evidence integrity
+        if: ${{ always() && steps.migration_repeat.outcome == 'success' }}
+        shell: bash
+        env:
+          EDUOS_SQL_AUTH_TEST_CONNECTION: ${{ format('Server=127.0.0.1,14333;Database=EduOS_MigrationSmoke;User Id=sa;Password={0};Encrypt=True;TrustServerCertificate=True;Connect Timeout=30', env.CI_SQL_PASSWORD) }}
+          EDUOS_SQL_BACKUP_RESTORE_DRILL: '1'
+        run: |
+          set -euo pipefail
+          dotnet test EduOS.Tests/EduOS.Tests.csproj --configuration Release \
+            --filter "FullyQualifiedName~SqlServerBackupRestoreDrillIntegrationTests" \
+            --logger "trx;LogFileName=sql-backup-restore-drill.trx" --results-directory TestResults
+
       # One-shot push marker permits a verified, exact-commit rehearsal when workflow
       # dispatch is unavailable; ordinary parallel pushes retain the short smoke.
       - name: Rehearse 40K synthetic Student Import with restart and tenant isolation
