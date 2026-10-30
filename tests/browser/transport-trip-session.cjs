@@ -7,7 +7,7 @@ const trip = '11111111-2222-4333-8444-555555555555';
 const code = '<img src=x onerror=alert(1)> STUDENT-PRIVATE';
 const date = new Date().toISOString().slice(0, 10);
 const btn = id => '<button id="' + id + '" type="button"></button>';
-const inp = id => '<input id="' + id + '">';
+const inp = id => '<input type="date" id="' + id + '">';
 const body = (role, lang) => {
     let inner = '';
     if (role === 'driver') inner =
@@ -111,7 +111,21 @@ async function scenario(browser, role, lang) {
             'trips.js' : role === 'driver' ? 'driver-trips.js' : 'family-schedule.js') });
         const table = role === 'dispatcher' ? '#tripRows' :
             role === 'driver' ? '#driverTripRows' : '#familyAttendanceRows';
-        await page.locator(table + ' tr').first().waitFor({ timeout: 10000 });
+        await page.locator(table + ' tr').first().waitFor({ timeout: 10000 })
+            .catch(async error => {
+                const diagnostic = {
+                    role, language: lang, errors,
+                    scheduleStatus: await page.locator('#transportFamilyStatus').count() ?
+                        await page.locator('#transportFamilyStatus').innerText() : '',
+                    attendanceStatus: await page.locator('#familyAttendanceStatus').count() ?
+                        await page.locator('#familyAttendanceStatus').innerText() : '',
+                    attendanceDate: await page.locator('#familyAttendanceDate').count() ?
+                        await page.locator('#familyAttendanceDate').inputValue() : '',
+                    rows: await page.locator(table).innerText()
+                };
+                throw new Error('Transport browser initial rows missing: ' +
+                    JSON.stringify(diagnostic), { cause: error });
+            });
         if (role === 'dispatcher') {
             await page.locator('#tripRows button').first().click();
             await page.locator('#tripManifestRows').getByText(code).waitFor();
