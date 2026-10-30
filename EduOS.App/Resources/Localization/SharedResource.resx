@@ -806,4 +806,19 @@
   <data name="StudentExportFailed" xml:space="preserve">
     <value>Unable to export this student page. Retry after refreshing the list.</value>
   </data>
+  <data name="V2LearningManagement" xml:space="preserve"><value>Learning Management</value></data>
+  <data name="V2CourseCompletions" xml:space="preserve"><value>Course Completions</value></data>
+  <data name="V2MySubmissions" xml:space="preserve"><value>My Submissions</value></data>
+  <data name="V2Library" xml:space="preserve"><value>Library</value></data>
+  <data name="V2LibraryCirculation" xml:space="preserve"><value>Library Circulation</value></data>
+  <data name="V2DigitalResources" xml:space="preserve"><value>Digital Resources</value></data>
+  <data name="V2Hostel" xml:space="preserve"><value>Hostel</value></data>
+  <data name="V2GuardianHostelPrint" xml:space="preserve"><value>Guardian Stay Print</value></data>
+  <data name="V2ResidentRosterPrint" xml:space="preserve"><value>Resident Roster Print</value></data>
+  <data name="V2MyHostelHistory" xml:space="preserve"><value>My Hostel History</value></data>
+  <data name="V2Transport" xml:space="preserve"><value>Transport</value></data>
+  <data name="V2FamilyTransport" xml:space="preserve"><value>Family Transport Schedule</value></data>
+  <data name="V2TripDispatch" xml:space="preserve"><value>Trip Dispatch</value></data>
+  <data name="V2MyDriverTrips" xml:space="preserve"><value>My Driver Trips</value></data>
+  <data name="V2OperationsInsights" xml:space="preserve"><value>Operations Insights</value></data>
 </root>

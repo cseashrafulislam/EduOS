@@ -805,4 +805,19 @@
   <data name="StudentExportFailed" xml:space="preserve">
     <value>শিক্ষার্থীদের এই পৃষ্ঠা এক্সপোর্ট করা যায়নি। তালিকা রিফ্রেশ করে আবার চেষ্টা করুন।</value>
   </data>
+  <data name="V2LearningManagement" xml:space="preserve"><value>শিখন ব্যবস্থাপনা</value></data>
+  <data name="V2CourseCompletions" xml:space="preserve"><value>কোর্স সম্পন্নের তালিকা</value></data>
+  <data name="V2MySubmissions" xml:space="preserve"><value>আমার জমা দেওয়া কাজ</value></data>
+  <data name="V2Library" xml:space="preserve"><value>গ্রন্থাগার</value></data>
+  <data name="V2LibraryCirculation" xml:space="preserve"><value>বই ইস্যু ও ফেরত</value></data>
+  <data name="V2DigitalResources" xml:space="preserve"><value>ডিজিটাল রিসোর্স</value></data>
+  <data name="V2Hostel" xml:space="preserve"><value>আবাসিক হোস্টেল</value></data>
+  <data name="V2GuardianHostelPrint" xml:space="preserve"><value>অভিভাবকের আবাসন প্রিন্ট</value></data>
+  <data name="V2ResidentRosterPrint" xml:space="preserve"><value>আবাসিক তালিকা প্রিন্ট</value></data>
+  <data name="V2MyHostelHistory" xml:space="preserve"><value>আমার আবাসনের ইতিহাস</value></data>
+  <data name="V2Transport" xml:space="preserve"><value>পরিবহন</value></data>
+  <data name="V2FamilyTransport" xml:space="preserve"><value>পরিবারের পরিবহন সূচি</value></data>
+  <data name="V2TripDispatch" xml:space="preserve"><value>ট্রিপ পরিচালনা</value></data>
+  <data name="V2MyDriverTrips" xml:space="preserve"><value>আমার ড্রাইভার ট্রিপ</value></data>
+  <data name="V2OperationsInsights" xml:space="preserve"><value>কার্যক্রম বিশ্লেষণ</value></data>
 </root>

@@ -12,6 +12,7 @@
     var showHostel = availableOptionalModules.Contains("HOSTEL");
     var showTransport = availableOptionalModules.Contains("TRANSPORT");
     var showInventory = availableOptionalModules.Contains("INVENTORY");
+    var v2RoleLinks = EduOS.App.Authorization.V2RolePortalNavigation.GetLinks(availableOptionalModules, User);
     var titleKey = ViewData["Title"]?.ToString() ?? "Dashboard";
     var localizedTitle = T[titleKey];
     var pageTitle = localizedTitle.ResourceNotFound ? titleKey : localizedTitle.Value;
@@ -255,14 +256,13 @@
                 {
                     <a class="nav-link @ActiveFor("/Learning") href="/Learning/Index">
                         <svg class="edu-icon"><use href="/images/eduos-icons.svg#book" /></svg>
-                        <span>Learning Management</span>
+                        <span>@T["V2LearningManagement"]</span>
                     </a>
-                    @if (User?.IsInRole("TenantAdmin") == true || User?.IsInRole("Principal") == true ||
-                         User?.IsInRole("Teacher") == true)
+                    @foreach (var link in v2RoleLinks.Where(x => x.ModuleCode == "LMS"))
                     {
-                        <a class="nav-link @ActiveFor("/Learning/CourseCompletions")" href="/Learning/CourseCompletions">
+                        <a class="nav-link @ActiveFor(link.Path)" href="@link.Path">
                             <svg class="edu-icon"><use href="/images/eduos-icons.svg#book" /></svg>
-                            <span>LMS Course Completions</span>
+                            <span>@T[link.LabelKey]</span>
                         </a>
                     }
                 }
@@ -418,15 +418,29 @@
                 {
                 <a class="nav-link @ActiveFor("/HostelOperations")" href="/HostelOperations/Index">
                     <svg class="edu-icon"><use href="/images/eduos-icons.svg#campus" /></svg>
-                    <span>Hostel</span>
+                    <span>@T["V2Hostel"]</span>
                 </a>
+                @foreach (var link in v2RoleLinks.Where(x => x.ModuleCode == "HOSTEL"))
+                {
+                    <a class="nav-link @ActiveFor(link.Path)" href="@link.Path">
+                        <svg class="edu-icon"><use href="/images/eduos-icons.svg#campus" /></svg>
+                        <span>@T[link.LabelKey]</span>
+                    </a>
+                }
                 }
                 @if (showTransport)
                 {
                 <a class="nav-link @ActiveFor("/TransportOperations")" href="/TransportOperations/Index">
                     <svg class="edu-icon"><use href="/images/eduos-icons.svg#campus" /></svg>
-                    <span>Transport</span>
+                    <span>@T["V2Transport"]</span>
                 </a>
+                @foreach (var link in v2RoleLinks.Where(x => x.ModuleCode == "TRANSPORT"))
+                {
+                    <a class="nav-link @ActiveFor(link.Path)" href="@link.Path">
+                        <svg class="edu-icon"><use href="/images/eduos-icons.svg#campus" /></svg>
+                        <span>@T[link.LabelKey]</span>
+                    </a>
+                }
                 }
                 @if (User?.IsInRole("TenantAdmin") == true || User?.IsInRole("Principal") == true)
                 {
@@ -434,7 +448,7 @@
                     {
                     <a class="nav-link @ActiveFor("/OperationsInsights")" href="/OperationsInsights/Index">
                         <svg class="edu-icon"><use href="/images/eduos-icons.svg#reports" /></svg>
-                        <span>Operations Insights</span>
+                        <span>@T["V2OperationsInsights"]</span>
                     </a>
                     }
                     <a class="nav-link @ActiveFor("/AuditLogs")" href="/AuditLogs/Index">
@@ -475,13 +489,13 @@
                 {
                     <a class="nav-link @ActiveFor("/Library/Index")" href="/Library/Index">
                         <svg class="edu-icon"><use href="/images/eduos-icons.svg#book" /></svg>
-                        <span>Library</span>
+                        <span>@T["V2Library"]</span>
                     </a>
-                    @if (User?.IsInRole("TenantAdmin") == true || User?.IsInRole("Principal") == true || User?.IsInRole("Librarian") == true)
+                    @foreach (var link in v2RoleLinks.Where(x => x.ModuleCode == "LIBRARY"))
                     {
-                        <a class="nav-link @ActiveFor("/Library/Circulation")" href="/Library/Circulation">
+                        <a class="nav-link @ActiveFor(link.Path)" href="@link.Path">
                             <svg class="edu-icon"><use href="/images/eduos-icons.svg#book" /></svg>
-                            <span>Library Circulation</span>
+                            <span>@T[link.LabelKey]</span>
                         </a>
                     }
                 }
