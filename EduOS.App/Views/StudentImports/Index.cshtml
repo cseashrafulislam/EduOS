@@ -7,7 +7,7 @@
         <div class="d-flex align-items-center gap-2">
             <h2 id="studentImportTitle" class="h4 mb-0">Student Import</h2>
             <details class="small"><summary class="btn btn-sm btn-outline-secondary" aria-label="Import help">ⓘ</summary>
-                <div class="border rounded p-2 mt-2">Map columns, preview up to 5,000 rows, then commit in atomic 100-row windows. Re-select the same file to resume. Global learner identities are never auto-merged.</div>
+                <div class="border rounded p-2 mt-2">Download the fixed-column Excel template and keep its headers unchanged. Preview before committing in recoverable 100-row transactions. Source files determine the number of students; existing global identities are never auto-merged.</div>
             </details>
         </div>
         <a class="btn btn-outline-secondary btn-sm" asp-controller="Students" asp-action="Index">Back to Student Directory</a>
@@ -16,18 +16,26 @@
     <form id="studentImportForm" class="card mb-3" enctype="multipart/form-data">
         @Html.AntiForgeryToken()
         <div class="card-body">
-            <label class="form-label" for="studentImportFile">Student source file</label>
+            <div class="d-flex flex-wrap gap-2 align-items-center mb-2">
+                <label class="form-label mb-0 me-auto" for="studentImportFile">Student source file</label>
+                <a class="btn btn-outline-success btn-sm" href="/api/student-imports/template" download="eduos-student-import-template.xlsx">Download Excel template</a>
+            </div>
+            <div class="form-text mb-2">Fill the Students worksheet; keep the template's exact column names. Row count is taken from the uploaded file.</div>
             <input id="studentImportFile" class="form-control mb-3" type="file" accept=".csv,.xlsx" required />
-            <button id="studentImportInspect" class="btn btn-outline-primary" type="button">Inspect columns</button>
+            <button id="studentImportInspect" class="btn btn-outline-primary" type="button">Validate template headers</button>
             <div id="studentImportMapping" class="row g-3 mt-2 d-none" aria-label="Map source columns">
-                <div class="col-12"></div>
-                @foreach (var field in new[] { "SourceKey", "StudentCode", "FullName", "CampusId", "AcademicBatchId", "RollNo", "DateOfBirth", "GuardianName", "GuardianPhone", "GuardianSourceKey" })
-                {
-                    <div class="col-md-4">
-                        <label class="form-label" for="map-@field">@field @(new[] { "SourceKey", "StudentCode", "FullName", "CampusId", "AcademicBatchId", "RollNo" }.Contains(field) ? "*" : "(optional)")</label>
-                        <select class="form-select" id="map-@field" data-import-field="@field"></select>
+                <details id="studentImportAdvancedMapping" class="col-12">
+                    <summary class="text-secondary small">Advanced: legacy column mapping</summary>
+                    <div class="row g-2 mt-1">
+                    @foreach (var field in EduOS.Core.DTOs.Students.StudentImportColumns.All)
+                    {
+                        <div class="col-md-4">
+                            <label class="form-label" for="map-@field">@field @(EduOS.Core.DTOs.Students.StudentImportColumns.Required.Contains(field) ? "*" : "(optional)")</label>
+                            <select class="form-select" id="map-@field" data-import-field="@field"></select>
+                        </div>
+                    }
                     </div>
-                }
+                </details>
                 <div class="col-12">
                     <button id="studentImportPreview" class="btn btn-primary" type="submit">Run dry-run validation</button>
                     <button id="studentImportResume" class="btn btn-outline-primary d-none" type="button">Resume previous import</button>

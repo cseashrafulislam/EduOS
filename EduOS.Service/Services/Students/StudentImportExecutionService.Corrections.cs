@@ -31,7 +31,7 @@ public sealed partial class StudentImportExecutionService
             if (buffer.Length is <= 0 or > 6291456)
                 return ApiResponse<byte[]>.ErrorResponse("Source file must be at most 6 MB.", 413);
             var bytes = buffer.ToArray();
-            var rows = ReadRows(bytes, extension, mapping, 5000);
+            var rows = ReadRows(bytes, extension, mapping, int.MaxValue);
             if (rows.Count == 0)
                 return ApiResponse<byte[]>.ErrorResponse("Source file has no student rows.", 400);
 

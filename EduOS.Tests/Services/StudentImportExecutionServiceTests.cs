@@ -532,7 +532,9 @@ public sealed class StudentImportExecutionServiceTests
         Assert.Equal(100, batch.RowOffset);
         Assert.True((await service.GetAsync(batch.ImportReference, 1, 100)).Success);
         Assert.Equal(400, (await service.GetJobStatusAsync("bad", mappingHash, 101)).StatusCode);
-        Assert.Equal(400, (await service.GetJobStatusAsync(fileHash, mappingHash, 5001)).StatusCode);
+        var largeFileStatus = await service.GetJobStatusAsync(fileHash, mappingHash, 5001);
+        Assert.True(largeFileStatus.Success, largeFileStatus.Message);
+        Assert.Equal(5001, largeFileStatus.Data!.TotalRows);
         Assert.Equal(403, (await Service(db, new User(101, false))
             .GetJobStatusAsync(fileHash, mappingHash, 101)).StatusCode);
         await using var foreign = Context(options, 202);
@@ -786,7 +788,7 @@ public sealed class StudentImportExecutionServiceTests
     }
 
     [Fact]
-    public async Task Cohort_reconciliation_rejects_duplicate_fingerprints_invalid_counts_and_unbounded_files()
+    public async Task Cohort_reconciliation_uses_file_supplied_counts_and_rejects_invalid_fingerprints()
     {
         var options = Options(); await SeedAsync(options);
         await using var db = Context(options, 101);
@@ -801,8 +803,22 @@ public sealed class StudentImportExecutionServiceTests
             Enumerable.Repeat(file, 9).ToArray())).StatusCode);
         Assert.Equal(400, (await service.GetCohortStatusAsync([
             new EduOS.Core.DTOs.Students.StudentImportCohortFileRequestDto
+                { FileHash = file.FileHash, MappingHash = file.MappingHash, TotalRows = 0 }
+        ])).StatusCode);
+        Assert.Equal(400, (await service.GetCohortStatusAsync([
+            new EduOS.Core.DTOs.Students.StudentImportCohortFileRequestDto
                 { FileHash = "bad", MappingHash = file.MappingHash, TotalRows = 1 }
         ])).StatusCode);
+        var dynamicFiles = Enumerable.Range(1, 10).Select(i =>
+            new EduOS.Core.DTOs.Students.StudentImportCohortFileRequestDto
+            {
+                FileHash = i.ToString("x64"), MappingHash = file.MappingHash, TotalRows = 6001
+            }).ToArray();
+        var dynamicStatus = await service.GetCohortStatusAsync(dynamicFiles);
+        Assert.True(dynamicStatus.Success, dynamicStatus.Message);
+        Assert.Equal(60010, dynamicStatus.Data!.ExpectedRows);
+        Assert.Equal(10, dynamicStatus.Data.Files.Count);
+        Assert.Equal(60010, dynamicStatus.Data.PendingRows);
         Assert.Empty(await db.Students.ToListAsync());
     }
 

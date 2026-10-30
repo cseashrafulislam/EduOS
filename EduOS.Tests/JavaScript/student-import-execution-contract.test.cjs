@@ -22,7 +22,9 @@ test('student import execution is an authorized atomic bounded workflow', () => 
     const job = read('EduOS.Service/Services/Students/StudentImportExecutionService.JobStatus.cs');
     assert.match(job, /GetJobStatusAsync/);
     assert.match(job, /x\.TenantId == tenant/);
-    assert.match(job, /ids\.Contains\(x\.RequestId\)/);
+    assert.match(job, /ids\.Chunk\(400\)/);
+    assert.match(job, /chunk\.Contains\(x\.RequestId\)/);
+    assert.match(job, /logIds\.Chunk\(400\)/);
     assert.match(service, /BuildCsvSlice/);
     assert.match(service, /sourceRowOffset/);
     assert.match(api, /\[HttpGet\("\{reference:guid\}"\)\]/);

@@ -79,7 +79,7 @@ public sealed partial class StudentImportExecutionService : IStudentImportExecut
         => ExecuteInternalAsync(content, extension, mapping, clientRequestId, 0, null, cancellationToken);
 
     /// <summary>
-    /// Execute one 100-row window from a validated, at-most-5,000-row CSV/XLSX.
+    /// Execute one 100-row window from a validated CSV/XLSX source.
     /// The entire original file hash is part of the idempotency contract: changing
     /// any row after a partial import cannot silently resume an old request.
     /// No file or raw learner information is persisted between HTTP requests.
@@ -90,7 +90,7 @@ public sealed partial class StudentImportExecutionService : IStudentImportExecut
     {
         if (!CanManage()) return ApiResponse<StudentImportExecutionDto>.ErrorResponse("Student import access denied.", 403);
         if (clientRequestId == Guid.Empty || mapping == null || content == null || !content.CanRead || !content.CanSeek ||
-            rowOffset < 0 || rowOffset >= 5000 || rowOffset % MaxBatchRows != 0)
+            rowOffset < 0 || rowOffset % MaxBatchRows != 0)
             return ApiResponse<StudentImportExecutionDto>.ErrorResponse("Invalid file, mapping, request ID or 100-row offset.", 400);
         try
         {
@@ -100,7 +100,7 @@ public sealed partial class StudentImportExecutionService : IStudentImportExecut
             if (buffer.Length is <= 0 or > 6291456)
                 return ApiResponse<StudentImportExecutionDto>.ErrorResponse("File must be at most 6 MB.", 413);
             var bytes = buffer.ToArray();
-            var allRows = ReadRows(bytes, extension, mapping, 5000);
+            var allRows = ReadRows(bytes, extension, mapping, int.MaxValue);
             if (rowOffset >= allRows.Count)
                 return ApiResponse<StudentImportExecutionDto>.ErrorResponse("Offset is beyond the end of the source file.", 400);
             var slice = allRows.Skip(rowOffset).Take(MaxBatchRows).ToArray();
@@ -121,9 +121,7 @@ public sealed partial class StudentImportExecutionService : IStudentImportExecut
         }
     }
 
-    private static readonly string[] CanonicalFields =
-        ["SourceKey", "StudentCode", "FullName", "CampusId", "AcademicBatchId", "RollNo",
-         "DateOfBirth", "GuardianName", "GuardianPhone", "GuardianSourceKey"];
+    private static readonly string[] CanonicalFields = StudentImportColumns.All;
     private static readonly IReadOnlyDictionary<string, string> CanonicalMapping =
         CanonicalFields.ToDictionary(x => x, x => x, StringComparer.OrdinalIgnoreCase);
 
@@ -682,7 +680,7 @@ public sealed partial class StudentImportExecutionService : IStudentImportExecut
             var sheet = workbook.Worksheets.FirstOrDefault() ?? throw new FormatException("Workbook has no worksheet.");
             var count = sheet.LastColumnUsed()?.ColumnNumber() ?? 0;
             var last = sheet.LastRowUsed()?.RowNumber() ?? 1;
-            if (last > maxRows + 1) throw new FormatException("Source exceeds the bounded row limit.");
+            if ((long)last - 1 > maxRows) throw new FormatException("Source exceeds the bounded row limit.");
             headers = sheet.Row(1).Cells(1, Math.Max(1, count)).Select(x => SafeCell(x)).ToArray();
             for (var i = 2; i <= last; i++)
                 cells.Add(sheet.Row(i).Cells(1, count).Select(x => SafeCell(x)).ToArray());

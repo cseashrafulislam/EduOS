@@ -1,5 +1,6 @@
 using System.Text;
 using System.Text.Json;
+using ClosedXML.Excel;
 using EduOS.App.Authorization;
 using EduOS.Core.DTOs.Students;
 using EduOS.Core.Interfaces.IServices;
@@ -25,6 +26,46 @@ public sealed class StudentImportsController : ControllerBase
 
     public StudentImportsController(IStudentImportPreviewService service, IStudentImportExecutionService execution)
     { _service = service; _execution = execution; }
+
+    /// <summary>
+    /// Empty, version-stable XLSX template. The example is on a separate worksheet,
+    /// so it can never be accidentally imported as a real student.
+    /// </summary>
+    [HttpGet("template")]
+    public IActionResult DownloadTemplate()
+    {
+        using var book = new XLWorkbook();
+        var data = book.Worksheets.Add("Students");
+        for (var i = 0; i < StudentImportColumns.All.Length; i++)
+        {
+            var cell = data.Cell(1, i + 1);
+            cell.Value = StudentImportColumns.All[i];
+            cell.Style.Font.Bold = true;
+            cell.Style.Fill.BackgroundColor = i < StudentImportColumns.Required.Length
+                ? XLColor.LightBlue : XLColor.LightGreen;
+        }
+        data.SheetView.FreezeRows(1);
+        data.Range(1, 1, 1, StudentImportColumns.All.Length).SetAutoFilter();
+        data.Columns(1, StudentImportColumns.All.Length).Width = 19;
+        data.Column(3).Width = 30;
+
+        var guide = book.Worksheets.Add("Guide");
+        guide.Cell(1, 1).Value = "Student Import: fixed columns";
+        guide.Cell(1, 1).Style.Font.Bold = true;
+        guide.Cell(2, 1).Value = "Enter real students on the Students worksheet. Keep row 1 unchanged.";
+        guide.Cell(3, 1).Value = "Blue headers are required; green headers are optional.";
+        guide.Cell(4, 1).Value = "CampusId and AcademicBatchId must already exist in your institution.";
+        guide.Cell(5, 1).Value = "SourceKey must remain unique and stable when retrying an import.";
+        guide.Cell(6, 1).Value = "DateOfBirth format: yyyy-MM-dd. Do not use Excel formulas.";
+        guide.Cell(7, 1).Value = "Import size is based on uploaded data; processing uses recoverable batches.";
+        guide.Column(1).Width = 95;
+
+        using var stream = new MemoryStream();
+        book.SaveAs(stream);
+        return File(stream.ToArray(),
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            "eduos-student-import-template.xlsx");
+    }
 
     [HttpPost("headers")]
     public async Task<IActionResult> Headers([FromForm] IFormFile? file, CancellationToken cancellationToken)
@@ -149,7 +190,7 @@ public sealed class StudentImportsController : ControllerBase
         return StatusCode(result.StatusCode, result);
     }
 
-    /// <summary>Reconcile up to eight independently committed source files without learner PII.</summary>
+    /// <summary>Reconcile selected independently committed source files without learner PII.</summary>
     [HttpPost("cohort-status")]
     public async Task<IActionResult> CohortStatus(
         [FromBody] List<StudentImportCohortFileRequestDto>? files,
@@ -166,10 +207,10 @@ public sealed class StudentImportsController : ControllerBase
         [FromForm] List<IFormFile>? files, [FromForm] string? mappingJson,
         [FromQuery] bool export = false, CancellationToken cancellationToken = default)
     {
-        if (files == null || files.Count is < 2 or > 8 ||
+        if (files == null || files.Count < 2 ||
             files.Any(file => ValidateFile(file) != null) ||
             files.Sum(file => file.Length) > 8L * MaxFileSize)
-            return BadRequest("Select two to eight CSV/XLSX files, each at most 6 MB (48 MB total).");
+            return BadRequest("Select two or more CSV/XLSX files, each at most 6 MB (48 MB per request).");
         Dictionary<string, string>? mapping;
         try { mapping = JsonSerializer.Deserialize<Dictionary<string, string>>(mappingJson ?? ""); }
         catch (JsonException) { return BadRequest("Invalid column mapping."); }
@@ -223,7 +264,7 @@ public sealed class StudentImportsController : ControllerBase
         if (!result.Success || result.Data == null)
             return StatusCode(result.StatusCode, result);
         var report = result.Data;
-        if (report.ExpectedRows is < 1 or > 40000 || report.Files.Count is < 1 or > 8)
+        if (report.ExpectedRows < 1 || report.Files.Count < 1)
             return StatusCode(409, "Cohort reconciliation exceeds export limits.");
 
         var csv = new StringBuilder(

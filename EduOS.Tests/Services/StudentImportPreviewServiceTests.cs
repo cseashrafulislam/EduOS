@@ -28,6 +28,21 @@ public sealed class StudentImportPreviewServiceTests
     };
     private const string Header = "SourceKey,StudentCode,FullName,CampusId,AcademicBatchId,RollNo,GuardianName,GuardianPhone\n";
 
+    [Fact]
+    public async Task Csv_preview_counts_all_source_rows_beyond_the_old_5000_row_limit()
+    {
+        var options = Options(); await SeedAsync(options, capacity: 10000);
+        await using var db = Context(options, 101);
+        var content = Header + string.Concat(Enumerable.Range(1, 5001)
+            .Select(i => $"SRC-IMPORT-{i},STU-IMPORT-{i},Learner {i},10,20,{i},,\n"));
+        using var csv = Csv(content);
+        var result = await Service(db, new User(101, true)).PreviewAsync(csv, ".csv", Mapping);
+        Assert.True(result.Success, result.Message);
+        Assert.Equal(5001, result.Data!.TotalRows);
+        Assert.Equal(5001, result.Data.ValidRows);
+        Assert.Empty(await db.ImportLogs.ToListAsync());
+    }
+
 
     [Fact]
     public async Task Preview_reports_required_offering_capacity_and_missing_offerings_without_writes()
