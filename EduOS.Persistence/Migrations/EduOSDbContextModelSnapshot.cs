@@ -11996,6 +11996,77 @@ namespace EduOS.Persistence.Migrations
                         });
                 });
 
+
+            modelBuilder.Entity("EduOS.Core.Entities.Inventory.ProcurementPurchaseOrder", b =>
+                {
+                    b.Property<long>("Id").ValueGeneratedOnAdd().HasColumnType("bigint");
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
+                    b.Property<long>("CampusId").HasColumnType("bigint");
+                    b.Property<Guid>("ClientRequestId").HasColumnType("uniqueidentifier");
+                    b.Property<DateTime>("CreatedAt").HasColumnType("datetime2");
+                    b.Property<long?>("CreatedBy").HasColumnType("bigint");
+                    b.Property<string>("CurrencyCode").IsRequired().HasMaxLength(3).HasColumnType("nvarchar(3)");
+                    b.Property<DateTime?>("DecidedAt").HasColumnType("datetime2");
+                    b.Property<long?>("DecidedByUserId").HasColumnType("bigint");
+                    b.Property<string>("DecisionReason").HasMaxLength(500).HasColumnType("nvarchar(500)");
+                    b.Property<DateTime?>("DeletedAt").HasColumnType("datetime2");
+                    b.Property<long?>("DeletedBy").HasColumnType("bigint");
+                    b.Property<DateTime?>("ExpectedDeliveryDate").HasColumnType("datetime2");
+                    b.Property<bool>("IsDeleted").HasColumnType("bit");
+                    b.Property<string>("OrderNumber").IsRequired().HasMaxLength(50).HasColumnType("nvarchar(50)");
+                    b.Property<Guid>("PublicId").HasColumnType("uniqueidentifier");
+                    b.Property<long>("RequisitionId").HasColumnType("bigint");
+                    b.Property<byte[]>("RowVersion").IsConcurrencyToken().IsRequired().ValueGeneratedOnAddOrUpdate().HasColumnType("rowversion");
+                    b.Property<string>("StateCode").IsRequired().HasMaxLength(20).HasColumnType("nvarchar(20)");
+                    b.Property<DateTime?>("SubmittedAt").HasColumnType("datetime2");
+                    b.Property<long>("SupplierId").HasColumnType("bigint");
+                    b.Property<long>("TenantId").HasColumnType("bigint");
+                    b.Property<DateTime?>("UpdatedAt").HasColumnType("datetime2");
+                    b.Property<long?>("UpdatedBy").HasColumnType("bigint");
+                    b.HasKey("Id");
+                    b.HasIndex("DecidedByUserId");
+                    b.HasIndex("PublicId").IsUnique();
+                    b.HasIndex("TenantId", "ClientRequestId").IsUnique();
+                    b.HasIndex("TenantId", "OrderNumber").IsUnique();
+                    b.HasIndex("TenantId", "RequisitionId").IsUnique();
+                    b.HasIndex("TenantId", "CampusId", "StateCode", "CreatedAt");
+                    b.HasIndex("TenantId", "SupplierId");
+                    b.ToTable("ProcurementPurchaseOrders", t =>
+                        {
+                            t.HasCheckConstraint("CK_ProcurementPurchaseOrder_State", "[StateCode] IN (N'Draft',N'Submitted',N'Approved',N'Rejected',N'Cancelled')");
+                            t.HasCheckConstraint("CK_ProcurementPurchaseOrder_Currency", "[CurrencyCode] = N'BDT'");
+                        });
+                });
+
+            modelBuilder.Entity("EduOS.Core.Entities.Inventory.ProcurementPurchaseOrderLine", b =>
+                {
+                    b.Property<long>("Id").ValueGeneratedOnAdd().HasColumnType("bigint");
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
+                    b.Property<DateTime>("CreatedAt").HasColumnType("datetime2");
+                    b.Property<long?>("CreatedBy").HasColumnType("bigint");
+                    b.Property<DateTime?>("DeletedAt").HasColumnType("datetime2");
+                    b.Property<long?>("DeletedBy").HasColumnType("bigint");
+                    b.Property<long>("InventoryItemId").HasColumnType("bigint");
+                    b.Property<bool>("IsDeleted").HasColumnType("bit");
+                    b.Property<int>("LineNo").HasColumnType("int");
+                    b.Property<long>("PurchaseOrderId").HasColumnType("bigint");
+                    b.Property<decimal>("Quantity").HasColumnType("decimal(18,6)");
+                    b.Property<long>("RequisitionLineId").HasColumnType("bigint");
+                    b.Property<byte[]>("RowVersion").IsConcurrencyToken().IsRequired().ValueGeneratedOnAddOrUpdate().HasColumnType("rowversion");
+                    b.Property<long>("TenantId").HasColumnType("bigint");
+                    b.Property<decimal>("UnitPrice").HasColumnType("decimal(18,4)");
+                    b.Property<DateTime?>("UpdatedAt").HasColumnType("datetime2");
+                    b.Property<long?>("UpdatedBy").HasColumnType("bigint");
+                    b.HasKey("Id");
+                    b.HasIndex("TenantId", "InventoryItemId");
+                    b.HasIndex("TenantId", "PurchaseOrderId", "LineNo").IsUnique();
+                    b.HasIndex("TenantId", "RequisitionLineId").IsUnique();
+                    b.ToTable("ProcurementPurchaseOrderLines", t =>
+                        {
+                            t.HasCheckConstraint("CK_ProcurementPurchaseOrderLine_QtyPrice", "[Quantity] > 0 AND [UnitPrice] >= 0");
+                        });
+                });
+
             modelBuilder.Entity("EduOS.Core.Entities.Inventory.ProcurementSupplier", b =>
                 {
                     b.Property<long>("Id").ValueGeneratedOnAdd().HasColumnType("bigint");
@@ -24226,6 +24297,41 @@ namespace EduOS.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
+                    b.Navigation("Tenant");
+                });
+
+
+            modelBuilder.Entity("EduOS.Core.Entities.Inventory.ProcurementPurchaseOrder", b =>
+                {
+                    b.HasOne("EduOS.Core.Entities.Auth.ApplicationUser", null)
+                        .WithMany().HasForeignKey("DecidedByUserId").OnDelete(DeleteBehavior.Restrict);
+                    b.HasOne("EduOS.Core.Entities.SaaS.Tenant", "Tenant")
+                        .WithMany().HasForeignKey("TenantId").OnDelete(DeleteBehavior.Restrict).IsRequired();
+                    b.HasOne("EduOS.Core.Entities.SaaS.Campus", null)
+                        .WithMany().HasForeignKey("TenantId", "CampusId")
+                        .HasPrincipalKey("TenantId", "Id").OnDelete(DeleteBehavior.Restrict).IsRequired();
+                    b.HasOne("EduOS.Core.Entities.Inventory.ProcurementRequisition", null)
+                        .WithMany().HasForeignKey("TenantId", "RequisitionId")
+                        .HasPrincipalKey("TenantId", "Id").OnDelete(DeleteBehavior.Restrict).IsRequired();
+                    b.HasOne("EduOS.Core.Entities.Inventory.ProcurementSupplier", null)
+                        .WithMany().HasForeignKey("TenantId", "SupplierId")
+                        .HasPrincipalKey("TenantId", "Id").OnDelete(DeleteBehavior.Restrict).IsRequired();
+                    b.Navigation("Tenant");
+                });
+
+            modelBuilder.Entity("EduOS.Core.Entities.Inventory.ProcurementPurchaseOrderLine", b =>
+                {
+                    b.HasOne("EduOS.Core.Entities.SaaS.Tenant", "Tenant")
+                        .WithMany().HasForeignKey("TenantId").OnDelete(DeleteBehavior.Restrict).IsRequired();
+                    b.HasOne("EduOS.Core.Entities.Inventory.ProcurementPurchaseOrder", null)
+                        .WithMany().HasForeignKey("TenantId", "PurchaseOrderId")
+                        .HasPrincipalKey("TenantId", "Id").OnDelete(DeleteBehavior.Restrict).IsRequired();
+                    b.HasOne("EduOS.Core.Entities.Inventory.ProcurementRequisitionLine", null)
+                        .WithMany().HasForeignKey("TenantId", "RequisitionLineId")
+                        .HasPrincipalKey("TenantId", "Id").OnDelete(DeleteBehavior.Restrict).IsRequired();
+                    b.HasOne("EduOS.Core.Entities.Inventory.InventoryItem", null)
+                        .WithMany().HasForeignKey("TenantId", "InventoryItemId")
+                        .HasPrincipalKey("TenantId", "Id").OnDelete(DeleteBehavior.Restrict).IsRequired();
                     b.Navigation("Tenant");
                 });
 

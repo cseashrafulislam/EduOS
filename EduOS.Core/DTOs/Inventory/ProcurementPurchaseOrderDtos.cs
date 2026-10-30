@@ -1,0 +1,46 @@
+namespace EduOS.Core.DTOs.Inventory;
+
+public sealed class CreateProcurementPurchaseOrderRequest
+{
+    public Guid ClientRequestId { get; set; }
+    public long RequisitionId { get; set; }
+    public long SupplierId { get; set; }
+    public DateTime? ExpectedDeliveryDate { get; set; }
+}
+
+public sealed class ProcurementPurchaseOrderDecisionRequest
+{
+    public string RowVersion { get; set; } = string.Empty;
+    public string? Reason { get; set; }
+}
+
+public sealed class ProcurementPurchaseOrderLineDto
+{
+    public int LineNo { get; set; }
+    public long RequisitionLineId { get; set; }
+    public long InventoryItemId { get; set; }
+    public decimal Quantity { get; set; }
+    public decimal UnitPrice { get; set; }
+}
+
+public sealed class ProcurementPurchaseOrderDto
+{
+    public long Id { get; set; }
+    public Guid ClientRequestId { get; set; }
+    public string OrderNumber { get; set; } = string.Empty;
+    public long CampusId { get; set; }
+    public long RequisitionId { get; set; }
+    public long SupplierId { get; set; }
+    public string CurrencyCode { get; set; } = "BDT";
+    public string StateCode { get; set; } = string.Empty;
+    public DateTime? ExpectedDeliveryDate { get; set; }
+    public DateTime? SubmittedAt { get; set; }
+    public DateTime? DecidedAt { get; set; }
+    public long? DecidedByUserId { get; set; }
+    public string? DecisionReason { get; set; }
+    public long? CreatedBy { get; set; }
+    public DateTime CreatedAt { get; set; }
+    public string RowVersion { get; set; } = string.Empty;
+    public decimal TotalAmount { get; set; }
+    public List<ProcurementPurchaseOrderLineDto> Lines { get; set; } = new();
+}

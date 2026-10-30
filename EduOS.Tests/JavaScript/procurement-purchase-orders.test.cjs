@@ -1,0 +1,22 @@
+const {test} = require('node:test');
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
+const root = path.resolve(__dirname, '../../EduOS.App');
+const script = fs.readFileSync(path.join(root,'wwwroot/js/procurement/purchase-orders.js'),'utf8');
+const view = fs.readFileSync(path.join(root,'Views/ProcurementPurchaseOrders/Index.cshtml'),'utf8');
+test('PO workflow is bilingual and has genuine maker-checker transitions', () => {
+ for (const action of ['submit','approve','reject','revise','cancel']) assert.match(script,new RegExp(action));
+ assert.match(script,/rowVersion:current.rowVersion/);
+ assert.match(script,/clientRequestId:/);
+ assert.match(script,/credentials:'same-origin'/);
+ assert.match(script,/cache:'no-store'/);
+ assert.match(script,/RequestVerificationToken/);
+ assert.match(script,/textContent/);
+ assert.match(script,/pagehide/);
+ assert.match(view,/data-maker/);
+ assert.match(view,/data-checker/);
+ assert.match(view,/data-i18n/);
+ assert.match(view,/poDecisionDialog/);
+ assert.match(script,/ক্রয়াদেশ/);
+});

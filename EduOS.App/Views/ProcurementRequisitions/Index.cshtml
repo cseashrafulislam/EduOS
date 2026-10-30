@@ -15,6 +15,7 @@
         <div class="d-flex gap-2">
             @if(checker) { <button class="btn btn-outline-primary btn-sm" type="button" id="prPending" aria-pressed="false" data-i18n="pending">Pending approvals</button> }
             <a asp-controller="ProcurementSuppliers" asp-action="Index" class="btn btn-outline-secondary btn-sm">Suppliers / সরবরাহকারী</a>
+            <a asp-controller="ProcurementPurchaseOrders" asp-action="Index" class="btn btn-outline-secondary btn-sm">Purchase orders / ক্রয়াদেশ</a>
             <button class="btn btn-outline-secondary btn-sm" type="button" id="prExport" data-i18n="export">Excel / CSV</button>
             @if(maker) { <button class="btn btn-primary btn-sm" type="button" id="prNew" data-i18n="new">New requisition</button> }
         </div>
