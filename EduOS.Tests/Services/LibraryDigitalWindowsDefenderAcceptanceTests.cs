@@ -11,6 +11,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
+using System.IO.Compression;
 using System.Security.Claims;
 using System.Text;
 using Xunit;
@@ -85,14 +86,41 @@ public sealed class LibraryDigitalWindowsDefenderAcceptanceTests
                 NullLogger<DocumentFileService>.Instance, null!);
             var library = new LibraryDigitalResourceService(db, admin, documentFiles, storage,
                 TimeProvider.System, NullLogger<LibraryDigitalResourceService>.Instance);
+            var fileName = infected ? "acceptance.docx" : "acceptance.pdf";
+            var contentType = infected
+                ? "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                : "application/pdf";
             var bytes = Encoding.ASCII.GetBytes("%PDF-1.4\nSynthetic private library test\n");
             if (infected)
             {
-                // Harmless EICAR standard antivirus test signature, assembled only at runtime.
-                // No real malware, live tenant content or external scanner service is involved.
+                // A genuine ZIP-based DOCX containing a standalone EICAR test entry.
+                // Defender can inspect the archived test file; appending EICAR after a
+                // PDF trailer is not a reliable standard antivirus test fixture.
                 var signature = "X5O!P%@AP[4" + "\\PZX54(P^)7CC)7}$" +
                     "EICAR-STANDARD-ANTIVIRUS-TEST-FILE!$H+H*";
-                bytes = [.. bytes, .. Encoding.ASCII.GetBytes(signature)];
+                using var zipStream = new MemoryStream();
+                using (var archive = new ZipArchive(zipStream, ZipArchiveMode.Create, leaveOpen: true))
+                {
+                    static void AddText(ZipArchive archive, string path, string content)
+                    {
+                        using var writer = new StreamWriter(archive.CreateEntry(path).Open());
+                        writer.Write(content);
+                    }
+                    AddText(archive, "[Content_Types].xml",
+                        "<Types xmlns=\"http://schemas.openxmlformats.org/package/2006/content-types\">" +
+                        "<Default Extension=\"rels\" ContentType=\"application/vnd.openxmlformats-package.relationships+xml\"/>" +
+                        "<Default Extension=\"xml\" ContentType=\"application/xml\"/>" +
+                        "<Override PartName=\"/word/document.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml\"/>" +
+                        "</Types>");
+                    AddText(archive, "_rels/.rels",
+                        "<Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\">" +
+                        "<Relationship Id=\"rId1\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument\" Target=\"word/document.xml\"/>" +
+                        "</Relationships>");
+                    AddText(archive, "word/document.xml",
+                        "<w:document xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\"><w:body><w:p/></w:body></w:document>");
+                    AddText(archive, "word/embeddings/eicar.com", signature);
+                }
+                bytes = zipStream.ToArray();
             }
             var requestId = Guid.NewGuid();
             var response = await library.UploadAsync(new LibraryDigitalUploadRequestDto
@@ -101,7 +129,7 @@ public sealed class LibraryDigitalWindowsDefenderAcceptanceTests
                 Title = "Scanned synthetic PDF"
             }, new PrivateFileUploadDto
             {
-                FileName = "acceptance.pdf", ContentType = "application/pdf",
+                FileName = fileName, ContentType = contentType,
                 Length = bytes.Length, Content = new MemoryStream(bytes)
             });
             if (infected)
