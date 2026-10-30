@@ -8,13 +8,15 @@ const asset = '22222222-2222-4222-8222-222222222222';
 const config = { base: 'http://localhost:3000', a: 'a-session', b: 'b-session', stock, asset,
     from: '2026-10-01', to: '2026-10-31', iterations: 12, concurrency: 3 };
 
-function fakeFetch({ leak = false, denyCsv = false } = {}) {
+function fakeFetch({ leak = false, denyCsv = false, detailCsvMismatch = false,
+    registerCsvMismatch = false, campusLeak = false } = {}) {
     return async (url, options) => {
         assert.equal(options.method, 'GET');
         assert.equal(options.redirect, 'manual');
         const parsed = new URL(url);
         const path = parsed.pathname;
         const foreign = options.headers.Cookie === 'b-session';
+        const restricted = options.headers.Cookie === 'restricted-session';
         const reference = path.includes('asset-depreciation') ? asset : stock;
         const isCsv = path.endsWith('/csv');
         const isRegister = path.includes('/register');
@@ -23,17 +25,24 @@ function fakeFetch({ leak = false, denyCsv = false } = {}) {
         });
         const csv = (status, body) => new Response(body, { status,
             headers: { 'content-type': 'text/csv', 'cache-control': 'no-store' } });
+        if (restricted) return json(403, null);
         if (isRegister) {
             if (Number(parsed.searchParams.get('pageSize')) > 50) return json(400, null);
+            if (foreign && parsed.searchParams.has('campusId')) return json(404, null);
             const kind = parsed.searchParams.get('kind');
             const ref = kind === 'asset' ? asset : stock;
-            const items = foreign && !leak ? [] : [{ reference: ref, evidenceStatus: 'ExplicitReferencePresent' }];
-            if (isCsv) return csv(200, 'Kind,Reference\n' + items.map(x => x.reference).join('\n'));
+            const otherCampus = parsed.searchParams.get('campusId') === '20';
+            const items = (foreign && !leak) || (otherCampus && !campusLeak)
+                ? [] : [{ reference: ref, evidenceStatus: 'ExplicitBalancedReference' }];
+            if (isCsv) return csv(200, 'Kind,Reference\n' +
+                (registerCsvMismatch && !foreign ? '33333333-3333-4333-8333-333333333333'
+                    : items.map(x => x.reference).join('\n')));
             return json(200, { page: 1, pageSize: Number(parsed.searchParams.get('pageSize')),
                 totalCount: items.length, items });
         }
         if (foreign && !leak) return isCsv ? csv(404, '') : json(404, null);
-        if (isCsv) return csv(denyCsv ? 403 : 200, 'Evidence,Reference\n' + reference);
+        if (isCsv) return csv(denyCsv ? 403 : 200, 'Evidence,Reference\n' +
+            (detailCsvMismatch ? '33333333-3333-4333-8333-333333333333' : reference));
         return json(200, path.includes('asset-depreciation')
             ? { runReference: asset } : { movementReference: stock });
     };
@@ -81,4 +90,60 @@ test('cross-tenant register disclosure is rejected', async () => {
     };
     await assert.rejects(runAcceptance(config, wrapped), /Foreign register leaked/);
     assert.equal(registerOnlyLeak, true);
+});
+
+test('CSV parser enforces BOM, quoted fields, row shape and exact evidence', async () => {
+    const { parseCsv } = await import(source);
+    const parsed = parseCsv('\uFEFFEvidence,Reference\r\n"Stock","a""b"\r\n');
+    assert.equal(parsed.rows[0][1], 'a"b');
+    assert.equal(parsed.referenceIndex, 1);
+    assert.throws(() => parseCsv('Kind,Reference\n"Stock","unterminated'), /Unterminated/);
+    assert.throws(() => parseCsv('Kind,Reference\n"Stock"'), /width/);
+    assert.throws(() => parseCsv('Kind,Reference\n"Stock","a"garbage'), /Malformed/);
+});
+
+test('configuration rejects invalid calendar days, excessive range and partial campus setup', async () => {
+    const { validateConfig } = await import(source);
+    const env = { BASE_URL: 'http://localhost:3000/', TENANT_A_COOKIE: 'a-session',
+        TENANT_B_COOKIE: 'b-session', STOCK_REFERENCE: stock, ASSET_REFERENCE: asset,
+        FROM: config.from, TO: config.to };
+    assert.throws(() => validateConfig({ ...env, FROM: '2026-02-30' }), /date range/);
+    assert.throws(() => validateConfig({ ...env, FROM: '2025-01-01' }), /date range/);
+    assert.throws(() => validateConfig({ ...env, ASSET_CAMPUS_ID: '10' }), /Both asset campus/);
+    assert.throws(() => validateConfig({ ...env, ASSET_CAMPUS_ID: '10',
+        OTHER_CAMPUS_ID: '10' }), /distinct/);
+    assert.throws(() => validateConfig({ ...env,
+        RESTRICTED_COOKIE: 'a-session' }), /distinct/);
+});
+
+test('JSON and CSV mismatches are rejected, not counted as successful reconciliation', async () => {
+    const { runAcceptance } = await import(source);
+    await assert.rejects(runAcceptance(config, fakeFetch({ detailCsvMismatch: true })),
+        /Detail CSV and JSON evidence disagree/);
+    await assert.rejects(runAcceptance(config, fakeFetch({ registerCsvMismatch: true })),
+        /Register CSV does not match/);
+});
+
+test('restricted role, two-campus asset isolation and mixed-tenant replay pass', async () => {
+    const { runAcceptance } = await import(source);
+    const extended = { ...config, restricted: 'restricted-session',
+        assetCampus: '10', otherCampus: '20', iterations: 25 };
+    const report = await runAcceptance(extended, fakeFetch());
+    assert.equal(report.samples, 25);
+    assert.ok(report.checks.includes('restricted-role authorization'));
+    assert.ok(report.checks.includes('asset campus isolation'));
+    await assert.rejects(runAcceptance(extended, fakeFetch({ campusLeak: true })),
+        /Asset campus filter exposed/);
+});
+
+test('concurrent foreign-register disclosure fails even when initial 50-row page is safe', async () => {
+    const { runAcceptance } = await import(source);
+    const baseline = fakeFetch();
+    const leaking = fakeFetch({ leak: true });
+    const fetcher = (url, options) =>
+        url.includes('/register?') && url.includes('pageSize=25') &&
+        options.headers.Cookie === 'b-session'
+            ? leaking(url, options) : baseline(url, options);
+    await assert.rejects(runAcceptance({ ...config, iterations: 25 }, fetcher),
+        /Concurrent cross-tenant register disclosed/);
 });
