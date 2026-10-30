@@ -1,0 +1,113 @@
+@{
+    var canManage = User.IsInRole("TenantAdmin") || User.IsInRole("Principal") || User.IsInRole("HostelWarden");
+    var isGuardian = User.IsInRole("Guardian") || User.IsInRole("Parent");
+    var canGrantAuthority = User.IsInRole("TenantAdmin") || User.IsInRole("Principal");
+}
+    <section class="card mb-3" id="hostelApplicationSelf" aria-labelledby="hostelApplicationTitle">
+        <div class="card-body">
+            <h3 class="h5" id="hostelApplicationTitle" data-hostel-i18n="requestTitle">My hostel applications</h3>
+            <form id="hostelApplicationSubmit" class="row g-2 mb-3">
+                <div class="col-lg-5"><label class="form-label" for="hostelApplicationOption" data-hostel-i18n="chooseHostel">Eligible hostel</label>
+                    <select class="form-select" id="hostelApplicationOption" required><option value="">Loading…</option></select></div>
+                <div class="col-lg-2"><label class="form-label" for="hostelApplicationStart" data-hostel-i18n="start">Arrival</label>
+                    <input class="form-control" type="date" id="hostelApplicationStart" required /></div>
+                <div class="col-lg-2"><label class="form-label" for="hostelApplicationEnd" data-hostel-i18n="end">Checkout (optional)</label>
+                    <input class="form-control" type="date" id="hostelApplicationEnd" /></div>
+                <div class="col-lg-3"><label class="form-label" for="hostelApplicationNote" data-hostel-i18n="note">Request note (optional)</label>
+                    <input class="form-control" id="hostelApplicationNote" maxlength="500" /></div>
+                <div class="col-12 d-flex justify-content-between align-items-center gap-2 flex-wrap">
+                    <span id="hostelApplicationStatus" role="status" aria-live="polite" class="small text-muted"></span>
+                    <button class="btn btn-primary btn-sm" type="submit" id="hostelApplicationSubmitButton" data-hostel-i18n="submit">Submit application</button>
+                </div>
+            </form>
+            <div class="table-responsive"><table class="table table-sm table-hover align-middle">
+                <thead><tr><th data-hostel-i18n="hostel">Hostel</th><th data-hostel-i18n="period">Period</th><th data-hostel-i18n="state">Status</th><th data-hostel-i18n="offerExpiry">Offer expires (UTC)</th><th data-hostel-i18n="actions">Actions</th></tr></thead>
+                <tbody id="hostelApplicationMineRows"></tbody>
+            </table></div>
+            <div class="d-flex gap-2 justify-content-end align-items-center">
+                <button type="button" id="hostelApplicationMinePrev" class="btn btn-outline-secondary btn-sm" data-hostel-i18n="previous">Previous</button>
+                <span id="hostelApplicationMinePage" class="small text-muted"></span>
+                <button type="button" id="hostelApplicationMineNext" class="btn btn-outline-secondary btn-sm" data-hostel-i18n="next">Next</button>
+            </div>
+        </div>
+    </section>
+@if (canManage)
+{
+    <section class="card mb-3" id="hostelApplicationQueue" aria-labelledby="hostelApplicationQueueTitle">
+        <div class="card-body">
+            <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-2">
+                <h3 class="h5 mb-0" id="hostelApplicationQueueTitle" data-hostel-i18n="queueTitle">Application &amp; waitlist queue</h3>
+                <button type="button" class="btn btn-outline-secondary btn-sm" id="hostelApplicationCsv" data-hostel-i18n="exportPage">Export current page</button>
+            </div>
+            <form id="hostelApplicationQueueFilter" class="row g-2 mb-2">
+                <div class="col-md-5"><label class="visually-hidden" for="hostelApplicationSearch">Search</label>
+                    <input class="form-control" id="hostelApplicationSearch" maxlength="100" placeholder="Student code, name or hostel" /></div>
+                <div class="col-md-3"><label class="visually-hidden" for="hostelApplicationState">Status</label>
+                    <select id="hostelApplicationState" class="form-select">
+                        <option value="">All statuses</option><option value="Submitted">Submitted</option>
+                        <option value="Waitlisted">Waitlisted</option><option value="Offered">Offered</option>
+                        <option value="Accepted">Accepted</option><option value="Rejected">Rejected</option>
+                        <option value="Withdrawn">Withdrawn</option><option value="Expired">Expired</option>
+                    </select></div>
+                <div class="col-md-4"><button class="btn btn-outline-primary" type="submit" data-hostel-i18n="search">Search</button></div>
+            </form>
+            <div id="hostelApplicationQueueStatus" class="small text-muted" role="status" aria-live="polite"></div>
+            <div class="table-responsive"><table class="table table-sm table-hover align-middle">
+                <thead><tr><th data-hostel-i18n="student">Student</th><th data-hostel-i18n="hostel">Hostel</th><th data-hostel-i18n="period">Period</th><th data-hostel-i18n="state">Status</th><th data-hostel-i18n="submitted">Submitted UTC</th><th data-hostel-i18n="actions">Actions</th></tr></thead>
+                <tbody id="hostelApplicationQueueRows"></tbody>
+            </table></div>
+            <div class="d-flex gap-2 justify-content-end align-items-center mb-3">
+                <button type="button" id="hostelApplicationQueuePrev" class="btn btn-outline-secondary btn-sm" data-hostel-i18n="previous">Previous</button>
+                <span id="hostelApplicationQueuePage" class="small text-muted"></span>
+                <button type="button" id="hostelApplicationQueueNext" class="btn btn-outline-secondary btn-sm" data-hostel-i18n="next">Next</button>
+            </div>
+            <form id="hostelApplicationDecision" class="row g-2 border rounded p-2 d-none" aria-labelledby="hostelApplicationDecisionTitle">
+                <h4 class="h6" id="hostelApplicationDecisionTitle">Decision</h4>
+                <div class="col-md-5"><label class="form-label" for="hostelApplicationOfferedBed" data-hostel-i18n="offeredBed">Bed for non-binding offer</label>
+                    <select class="form-select" id="hostelApplicationOfferedBed"><option value="">Choose an available bed</option></select></div>
+                <div class="col-md-2"><label class="form-label" for="hostelApplicationOfferHours" data-hostel-i18n="hours">Valid hours</label>
+                    <input class="form-control" id="hostelApplicationOfferHours" type="number" min="1" max="168" value="48" /></div>
+                <div class="col-md-5"><label class="form-label" for="hostelApplicationReason" data-hostel-i18n="decisionReason">Decision reason</label>
+                    <input class="form-control" id="hostelApplicationReason" maxlength="500" /></div>
+                <div class="col-12 d-flex gap-2 justify-content-end">
+                    <button class="btn btn-outline-secondary btn-sm" id="hostelApplicationDecisionCancel" type="button" data-hostel-i18n="cancel">Cancel</button>
+                    <button class="btn btn-primary btn-sm" id="hostelApplicationDecisionSave" type="submit" data-hostel-i18n="confirm">Confirm decision</button>
+                </div>
+            </form>
+        </div>
+    </section>
+}
+@if (canGrantAuthority)
+{
+    <section class="card mb-3" id="hostelAuthorityPanel" aria-labelledby="hostelAuthorityTitle">
+        <div class="card-body">
+            <h3 class="h5" id="hostelAuthorityTitle">Verified guardian application authority</h3>
+            <form class="row g-2 mb-3" id="hostelAuthorityForm">
+                <div class="col-md-4"><label for="hostelAuthoritySearch" class="form-label">Find enrolled student</label>
+                    <div class="input-group"><input id="hostelAuthoritySearch" class="form-control" maxlength="100" placeholder="Student name/code" />
+                        <button id="hostelAuthorityFindStudent" class="btn btn-outline-primary" type="button">Find</button></div></div>
+                <div class="col-md-4"><label for="hostelAuthorityEnrollment" class="form-label">Enrollment</label>
+                    <select id="hostelAuthorityEnrollment" class="form-select" required><option value="">Choose student</option></select></div>
+                <div class="col-md-4"><label for="hostelAuthorityGuardian" class="form-label">Verified guardian account</label>
+                    <select id="hostelAuthorityGuardian" class="form-select" required><option value="">Choose guardian</option></select></div>
+                <div class="col-md-5"><label for="hostelAuthorityEvidence" class="form-label">Verification record/reference</label>
+                    <input id="hostelAuthorityEvidence" class="form-control" maxlength="150" required /></div>
+                <div class="col-md-3"><label for="hostelAuthorityExpiry" class="form-label">Authority expires</label>
+                    <input type="date" id="hostelAuthorityExpiry" class="form-control" required /></div>
+                <div class="col-md-4 d-flex align-items-end"><button type="submit" id="hostelAuthorityGrant" class="btn btn-primary btn-sm">Grant time-limited authority</button></div>
+            </form>
+            <div id="hostelAuthorityStatus" class="small text-muted" role="status" aria-live="polite"></div>
+            <div class="table-responsive"><table class="table table-sm table-hover align-middle">
+                <thead><tr><th>Student</th><th>Guardian</th><th>Expiry (UTC)</th><th>State</th><th>Action</th></tr></thead>
+                <tbody id="hostelAuthorityRows"></tbody>
+            </table></div>
+            <div class="d-flex flex-wrap gap-2 align-items-center justify-content-end">
+                <label for="hostelAuthorityRevokeReason" class="visually-hidden">Revocation reason</label>
+                <input id="hostelAuthorityRevokeReason" class="form-control form-control-sm w-auto" maxlength="500" placeholder="Reason required to revoke" />
+                <button type="button" id="hostelAuthorityPrev" class="btn btn-outline-secondary btn-sm">Previous</button>
+                <span id="hostelAuthorityPage" class="small text-muted"></span>
+                <button type="button" id="hostelAuthorityNext" class="btn btn-outline-secondary btn-sm">Next</button>
+            </div>
+        </div>
+    </section>
+}

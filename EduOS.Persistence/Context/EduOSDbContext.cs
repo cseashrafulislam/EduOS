@@ -391,6 +391,9 @@ public class EduOSDbContext :
     public DbSet<HostelBed> HostelBeds => Set<HostelBed>();
     public DbSet<HostelRoom> HostelRooms => Set<HostelRoom>();
     public DbSet<StudentHostelAllocation> StudentHostelAllocations => Set<StudentHostelAllocation>();
+    public DbSet<HostelApplication> HostelApplications => Set<HostelApplication>();
+    public DbSet<HostelApplicationEvent> HostelApplicationEvents => Set<HostelApplicationEvent>();
+    public DbSet<HostelApplicationAuthority> HostelApplicationAuthorities => Set<HostelApplicationAuthority>();
 
     // LMS
     public DbSet<Assignment> Assignments => Set<Assignment>();
@@ -1085,6 +1088,17 @@ public class EduOSDbContext :
         TenantReference<StudentHostelAllocation, StudentEnrollment>(modelBuilder, nameof(StudentHostelAllocation.StudentEnrollmentId));
         TenantReference<StudentHostelAllocation, HostelBed>(modelBuilder, nameof(StudentHostelAllocation.HostelBedId));
         TenantReference<StudentHostelAllocation, FeeHead>(modelBuilder, nameof(StudentHostelAllocation.FeeHeadId));
+        TenantReference<HostelApplication, Student>(modelBuilder, nameof(HostelApplication.StudentId));
+        TenantReference<HostelApplication, StudentEnrollment>(modelBuilder, nameof(HostelApplication.StudentEnrollmentId));
+        TenantReference<HostelApplication, Campus>(modelBuilder, nameof(HostelApplication.CampusId));
+        TenantReference<HostelApplication, Hostel>(modelBuilder, nameof(HostelApplication.HostelId));
+        TenantReference<HostelApplication, HostelBed>(modelBuilder, nameof(HostelApplication.OfferedBedId));
+        TenantReference<HostelApplication, StudentHostelAllocation>(modelBuilder, nameof(HostelApplication.AllocationId));
+        TenantReference<HostelApplicationEvent, HostelApplication>(modelBuilder, nameof(HostelApplicationEvent.HostelApplicationId));
+        TenantReference<HostelApplicationAuthority, StudentGuardian>(modelBuilder, nameof(HostelApplicationAuthority.StudentGuardianId));
+        TenantReference<HostelApplicationAuthority, Student>(modelBuilder, nameof(HostelApplicationAuthority.StudentId));
+        TenantReference<HostelApplicationAuthority, Guardian>(modelBuilder, nameof(HostelApplicationAuthority.GuardianId));
+        TenantReference<HostelApplicationAuthority, Campus>(modelBuilder, nameof(HostelApplicationAuthority.CampusId));
         // LMS
         TenantReference<Course, AcademicProgram>(modelBuilder, nameof(Course.AcademicProgramId));
         TenantReference<Course, Subject>(modelBuilder, nameof(Course.SubjectId));
@@ -1682,6 +1696,23 @@ public class EduOSDbContext :
         UniqueTenant<HostelRoom>(modelBuilder, nameof(HostelRoom.HostelId), nameof(HostelRoom.RoomNumber));
         UniqueTenant<HostelBed>(modelBuilder, nameof(HostelBed.HostelRoomId), nameof(HostelBed.BedNumber));
         UniqueTenant<StudentHostelAllocation>(modelBuilder, nameof(StudentHostelAllocation.ClientRequestId));
+        UniqueTenant<HostelApplication>(modelBuilder, nameof(HostelApplication.ClientRequestId));
+        UniqueTenant<HostelApplication>(modelBuilder, nameof(HostelApplication.AllocationRequestId));
+        modelBuilder.Entity<HostelApplication>().HasIndex(x => new { x.TenantId, x.CampusId, x.HostelId, x.State, x.SubmittedAtUtc, x.Id });
+        modelBuilder.Entity<HostelApplication>().HasIndex(x => new { x.TenantId, x.StudentEnrollmentId, x.State, x.StartDate });
+        modelBuilder.Entity<HostelApplication>().HasIndex(x => new { x.TenantId, x.AllocationId })
+            .IsUnique().HasFilter("[AllocationId] IS NOT NULL");
+        modelBuilder.Entity<HostelApplicationEvent>().HasIndex(x => new { x.TenantId, x.HostelApplicationId, x.OccurredAtUtc, x.Id });
+        UniqueTenant<HostelApplicationAuthority>(modelBuilder, nameof(HostelApplicationAuthority.ClientRequestId));
+        modelBuilder.Entity<HostelApplicationAuthority>().HasIndex(x => new { x.TenantId, x.StudentGuardianId, x.RevokedAtUtc, x.ExpiresAtUtc });
+        modelBuilder.Entity<HostelApplicationAuthority>().HasIndex(x => new { x.TenantId, x.GuardianId, x.StudentId, x.ExpiresAtUtc });
+        modelBuilder.Entity<HostelApplicationAuthority>().ToTable(t =>
+            t.HasCheckConstraint("CK_HostelAuthority_Expiry", "[ExpiresAtUtc] > [GrantedAtUtc]"));
+        modelBuilder.Entity<HostelApplication>().ToTable(t =>
+        {
+            t.HasCheckConstraint("CK_HostelApplication_Period", "[EndDate] IS NULL OR [EndDate] >= [StartDate]");
+            t.HasCheckConstraint("CK_HostelApplication_Offer", "[State] <> 3 OR ([OfferedBedId] IS NOT NULL AND [OfferExpiresAtUtc] IS NOT NULL)");
+        });
         // One successor per source stay, including soft-deleted history. Tenant-composite FK
         // rejects cross-tenant lineage; no backfill guesses for legacy allocations.
         modelBuilder.Entity<StudentHostelAllocation>()

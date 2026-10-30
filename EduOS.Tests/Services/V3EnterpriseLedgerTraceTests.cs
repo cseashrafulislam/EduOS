@@ -106,6 +106,13 @@ public sealed class V3EnterpriseLedgerTraceTests
             MovementTypeCode = "Issue", StateCode = "Posted", PostedAt = DateTime.UtcNow };
         db.InventoryMovements.Add(m);
         await db.SaveChangesAsync();
+        // The trace correctly rejects a posted movement without stock-line evidence.
+        // This test isolates missing Finance linkage, so provide a valid posted line.
+        db.InventoryMovementLines.Add(new InventoryMovementLine {
+            TenantId = 101, InventoryMovementId = m.Id, InventoryItemId = 12,
+            LineNo = 1, Quantity = 1m, UnitCost = 20m
+        });
+        await db.SaveChangesAsync();
         var result = await new V3EnterpriseLedgerTraceService(
             db, new Actor(101, "TenantAdmin")).GetAsync(m.PublicId);
         Assert.Equal(200, result.StatusCode);

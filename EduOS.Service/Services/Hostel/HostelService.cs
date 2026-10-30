@@ -25,6 +25,11 @@ public sealed partial class HostelService : IHostelService
     private readonly IGenericRepository<Student> _students;
     private readonly IGenericRepository<UserCampusAccess> _campusAccesses;
     private readonly IGenericRepository<Campus> _campuses;
+    private readonly IGenericRepository<HostelApplication> _applications;
+    private readonly IGenericRepository<HostelApplicationEvent> _applicationEvents;
+    private readonly IGenericRepository<HostelApplicationAuthority> _applicationAuthorities;
+    private readonly IGenericRepository<StudentGuardian> _studentGuardians;
+    private readonly IGenericRepository<Guardian> _guardians;
     private readonly IUnitOfWork _unitOfWork;
     private readonly IReservationFinancePolicy _reservationFinancePolicy;
     private readonly IReservationCommandReceiptStore _commandReceipts;
@@ -38,7 +43,11 @@ public sealed partial class HostelService : IHostelService
         IGenericRepository<UserCampusAccess> campusAccesses, IGenericRepository<Campus> campuses,
         IUnitOfWork unitOfWork, ICurrentUserService currentUser, TimeProvider clock,
         ILogger<HostelService> logger, IReservationFinancePolicy reservationFinancePolicy,
-        IReservationCommandReceiptStore commandReceipts)
+        IReservationCommandReceiptStore commandReceipts,
+        IGenericRepository<HostelApplication> applications,
+        IGenericRepository<HostelApplicationEvent> applicationEvents,
+        IGenericRepository<HostelApplicationAuthority> applicationAuthorities,
+        IGenericRepository<StudentGuardian> studentGuardians, IGenericRepository<Guardian> guardians)
     {
         _hostels = hostels; _rooms = rooms; _beds = beds; _allocations = allocations;
         _enrollments = enrollments; _students = students; _campusAccesses = campusAccesses;
@@ -46,6 +55,8 @@ public sealed partial class HostelService : IHostelService
         _currentUser = currentUser; _clock = clock; _logger = logger;
         _reservationFinancePolicy = reservationFinancePolicy;
         _commandReceipts = commandReceipts;
+        _applications = applications; _applicationEvents = applicationEvents;
+        _applicationAuthorities = applicationAuthorities; _studentGuardians = studentGuardians; _guardians = guardians;
     }
 
 
@@ -490,9 +501,14 @@ public sealed partial class HostelService : IHostelService
         return ApiResponse<StudentHostelAllocationDto?>.SuccessResponse(row == null ? null : await MapAsync(row, cancellationToken));
     }
 
-    public async Task<ApiResponse<StudentHostelAllocationDto>> AllocateAsync(AllocateStudentHostelRequestDto request, CancellationToken cancellationToken = default)
+    public Task<ApiResponse<StudentHostelAllocationDto>> AllocateAsync(AllocateStudentHostelRequestDto request, CancellationToken cancellationToken = default) =>
+        AllocateValidatedAsync(request, false, cancellationToken);
+
+    // Used by an accepted offer inside the caller's SERIALIZABLE unit of work. Never a second writer.
+    private async Task<ApiResponse<StudentHostelAllocationDto>> AllocateValidatedAsync(
+        AllocateStudentHostelRequestDto request, bool approvedOffer, CancellationToken cancellationToken)
     {
-        if (!CanManage()) return Denied<StudentHostelAllocationDto>();
+        if (!CanManage() && !approvedOffer) return Denied<StudentHostelAllocationDto>();
         if (request == null || request.ClientRequestId == Guid.Empty || request.StudentEnrollmentReference == Guid.Empty ||
             request.HostelBedId <= 0) return Error("Enrollment, bed and client request references are required.");
         if (request.MonthlyRent.HasValue && request.MonthlyRent < 0) return Error("Monthly rent cannot be negative.");
@@ -509,7 +525,12 @@ public sealed partial class HostelService : IHostelService
                 x.ClientRequestId == request.ClientRequestId, ct);
             if (existing != null)
             {
-                if (!_currentUser.IsTenantAdmin)
+                if (approvedOffer)
+                {
+                    var ownsStay = await CanApplyForStudentAsync(existing.StudentId, tenant, ct);
+                    if (!ownsStay) return Denied<StudentHostelAllocationDto>();
+                }
+                else if (!_currentUser.IsTenantAdmin)
                 {
                     var enrollmentCampus = await _enrollments.GetQueryable().AsNoTracking()
                         .Where(x => x.TenantId == tenant && x.Id == existing.StudentEnrollmentId &&
@@ -542,11 +563,13 @@ public sealed partial class HostelService : IHostelService
             if (!await _campuses.GetQueryable().AsNoTracking().AnyAsync(x => x.TenantId == tenant &&
                 x.Id == enrollment.CampusId && x.IsActive, ct))
                 return Error("Enrollment campus is inactive.", 409);
-            if (!await CanManageCampusAsync(enrollment.CampusId, tenant, ct))
+            if (!approvedOffer && !await CanManageCampusAsync(enrollment.CampusId, tenant, ct))
                 return Denied<StudentHostelAllocationDto>();
             var student = await _students.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x => x.TenantId == tenant &&
                 x.Id == enrollment.StudentId && x.StatusCode == "Active", ct);
             if (student == null) return Error("Active student not found.", 404);
+            if (approvedOffer && !await CanApplyForStudentAsync(student.Id, tenant, ct))
+                return Denied<StudentHostelAllocationDto>();
             var selection = await (from bed in _beds.GetQueryable().AsNoTracking()
                 join room in _rooms.GetQueryable().AsNoTracking() on bed.HostelRoomId equals room.Id
                 join hostel in _hostels.GetQueryable().AsNoTracking() on room.HostelId equals hostel.Id

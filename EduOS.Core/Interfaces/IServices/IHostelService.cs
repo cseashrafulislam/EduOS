@@ -1,11 +1,24 @@
 using EduOS.Core.Common;
 using EduOS.Core.DTOs.Hostel;
 using EduOS.Core.Enums.Domain;
+using EduOS.Core.Entities.Hostel;
 
 namespace EduOS.Core.Interfaces.IServices;
 
 public interface IHostelService
 {
+    Task<ApiResponse<HostelApplicationAuthorityDto>> GrantApplicationAuthorityAsync(GrantHostelApplicationAuthorityRequestDto request, CancellationToken ct = default);
+    Task<ApiResponse<HostelApplicationAuthorityDto>> RevokeApplicationAuthorityAsync(long id, RevokeHostelApplicationAuthorityRequestDto request, CancellationToken ct = default);
+    Task<ApiResponse<PagedResult<HostelApplicationAuthorityDto>>> GetApplicationAuthoritiesAsync(long? campusId, int page, int pageSize, CancellationToken ct = default);
+    Task<ApiResponse<PagedResult<HostelAuthorityGuardianOptionDto>>> GetAuthorityGuardianOptionsAsync(Guid enrollmentReference, int page, int pageSize, CancellationToken ct = default);
+    Task<ApiResponse<PagedResult<HostelApplicationOptionDto>>> GetMyApplicationOptionsAsync(int page, int pageSize, CancellationToken ct = default);
+    Task<ApiResponse<HostelApplicationRowDto>> SubmitApplicationAsync(SubmitHostelApplicationRequestDto request, CancellationToken ct = default);
+    Task<ApiResponse<PagedResult<HostelApplicationRowDto>>> GetApplicationQueueAsync(long? campusId, HostelApplicationState? state, int page, int pageSize, string? search, CancellationToken ct = default);
+    Task<ApiResponse<PagedResult<HostelApplicationRowDto>>> GetMyApplicationsAsync(int page, int pageSize, CancellationToken ct = default);
+    Task<ApiResponse<IReadOnlyList<HostelApplicationEventDto>>> GetApplicationEventsAsync(long id, CancellationToken ct = default);
+    Task<ApiResponse<HostelApplicationRowDto>> TransitionApplicationAsync(long id, string action, HostelApplicationDecisionRequestDto request, CancellationToken ct = default);
+    Task<ApiResponse<HostelApplicationRowDto>> AcceptApplicationOfferAsync(long id, HostelApplicationDecisionRequestDto request, CancellationToken ct = default);
+    Task<ApiResponse<string>> ExportApplicationQueueCsvAsync(long? campusId, HostelApplicationState? state, string? search, int page, CancellationToken ct = default);
     Task<ApiResponse<PagedResult<HostelBedAvailabilityRowDto>>> GetBedAvailabilityAsync(long? campusId, DateOnly fromDate, DateOnly toDate, int page, int pageSize, string? search, CancellationToken cancellationToken = default);
     Task<ApiResponse<string>> ExportBedAvailabilityCsvAsync(long? campusId, DateOnly fromDate, DateOnly toDate, string? search, CancellationToken cancellationToken = default);
     Task<ApiResponse<PagedResult<HostelCheckoutFollowUpRowDto>>> GetCheckoutFollowUpsAsync(long? campusId, int page, int pageSize, string? search, int daysAhead, bool overdueOnly, CancellationToken cancellationToken = default);

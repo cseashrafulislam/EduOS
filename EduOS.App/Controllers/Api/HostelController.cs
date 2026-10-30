@@ -1,5 +1,6 @@
 using EduOS.App.Authorization;
 using EduOS.Core.DTOs.Hostel;
+using EduOS.Core.Entities.Hostel;
 using EduOS.Core.Interfaces.IServices;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -18,6 +19,79 @@ public sealed class HostelController : ControllerBase
 {
     private readonly IHostelService _service;
     public HostelController(IHostelService service) => _service = service;
+
+    [HttpGet("applications/authority/guardians")]
+    [Authorize(Roles = "TenantAdmin,Principal")]
+    public async Task<IActionResult> AuthorityGuardianOptions([FromQuery] Guid enrollmentReference,
+        [FromQuery] int page = 1, [FromQuery] int pageSize = 25, CancellationToken ct = default) =>
+        ToAction(await _service.GetAuthorityGuardianOptionsAsync(enrollmentReference, page, pageSize, ct));
+
+    [HttpGet("applications/authority")]
+    [Authorize(Roles = "TenantAdmin,Principal")]
+    public async Task<IActionResult> ApplicationAuthorities([FromQuery] long? campusId = null,
+        [FromQuery] int page = 1, [FromQuery] int pageSize = 25, CancellationToken ct = default) =>
+        ToAction(await _service.GetApplicationAuthoritiesAsync(campusId, page, pageSize, ct));
+
+    [HttpPost("applications/authority")]
+    [Authorize(Roles = "TenantAdmin,Principal")]
+    public async Task<IActionResult> GrantApplicationAuthority(
+        [FromBody] GrantHostelApplicationAuthorityRequestDto request, CancellationToken ct) =>
+        ToAction(await _service.GrantApplicationAuthorityAsync(request, ct));
+
+    [HttpPost("applications/authority/{id:long}/revoke")]
+    [Authorize(Roles = "TenantAdmin,Principal")]
+    public async Task<IActionResult> RevokeApplicationAuthority(long id,
+        [FromBody] RevokeHostelApplicationAuthorityRequestDto request, CancellationToken ct) =>
+        ToAction(await _service.RevokeApplicationAuthorityAsync(id, request, ct));
+
+    [HttpGet("applications/options")]
+    public async Task<IActionResult> MyApplicationOptions([FromQuery] int page = 1,
+        [FromQuery] int pageSize = 25, CancellationToken ct = default) =>
+        ToAction(await _service.GetMyApplicationOptionsAsync(page, pageSize, ct));
+
+    [HttpPost("applications")]
+    public async Task<IActionResult> SubmitApplication([FromBody] SubmitHostelApplicationRequestDto request, CancellationToken ct) =>
+        ToAction(await _service.SubmitApplicationAsync(request, ct));
+
+    [HttpGet("applications/my")]
+    public async Task<IActionResult> MyApplications([FromQuery] int page = 1, [FromQuery] int pageSize = 20,
+        CancellationToken ct = default) => ToAction(await _service.GetMyApplicationsAsync(page, pageSize, ct));
+
+    [HttpGet("applications/queue")]
+    [Authorize(Roles = "TenantAdmin,Principal,HostelWarden")]
+    public async Task<IActionResult> ApplicationQueue([FromQuery] long? campusId = null,
+        [FromQuery] HostelApplicationState? state = null, [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 25, [FromQuery] string? search = null, CancellationToken ct = default) =>
+        ToAction(await _service.GetApplicationQueueAsync(campusId, state, page, pageSize, search, ct));
+
+    [HttpGet("applications/queue/export")]
+    [Authorize(Roles = "TenantAdmin,Principal,HostelWarden")]
+    public async Task<IActionResult> ApplicationQueueExport([FromQuery] long? campusId = null,
+        [FromQuery] HostelApplicationState? state = null, [FromQuery] int page = 1,
+        [FromQuery] string? search = null, CancellationToken ct = default)
+    {
+        var result = await _service.ExportApplicationQueueCsvAsync(campusId, state, search, page, ct);
+        if (!result.Success || result.Data == null) return StatusCode(result.StatusCode, result);
+        Response.Headers["Cache-Control"] = "no-store";
+        Response.Headers["X-Content-Type-Options"] = "nosniff";
+        return File(System.Text.Encoding.UTF8.GetPreamble().Concat(
+            System.Text.Encoding.UTF8.GetBytes(result.Data)).ToArray(),
+            "text/csv; charset=utf-8", "hostel-applications-page.csv");
+    }
+
+    [HttpGet("applications/{id:long}/events")]
+    public async Task<IActionResult> ApplicationEvents(long id, CancellationToken ct) =>
+        ToAction(await _service.GetApplicationEventsAsync(id, ct));
+
+    [HttpPost("applications/{id:long}/{decision:regex(^(waitlist|offer|reject|withdraw)$)}")]
+    public async Task<IActionResult> TransitionApplication(long id, string decision,
+        [FromBody] HostelApplicationDecisionRequestDto request, CancellationToken ct) =>
+        ToAction(await _service.TransitionApplicationAsync(id, decision, request, ct));
+
+    [HttpPost("applications/{id:long}/accept")]
+    public async Task<IActionResult> AcceptApplication(long id,
+        [FromBody] HostelApplicationDecisionRequestDto request, CancellationToken ct) =>
+        ToAction(await _service.AcceptApplicationOfferAsync(id, request, ct));
 
     [HttpGet("facility-campuses")]
     [Authorize(Roles = "TenantAdmin,Principal,HostelWarden")]

@@ -389,7 +389,10 @@ public sealed class HostelCanonicalEligibilityTests
         new GenericRepository<UserCampusAccess>(db), new GenericRepository<Campus>(db),
         new UnitOfWork(db), new CurrentUser(canManage, role), TimeProvider.System,
         NullLogger<HostelService>.Instance, new EduOS.Service.Services.Finance.ReservationFinancePolicy(db),
-        new EduOS.Service.Services.Platform.ReservationCommandReceiptStore(db, TimeProvider.System));
+        new EduOS.Service.Services.Platform.ReservationCommandReceiptStore(db, TimeProvider.System),
+        new GenericRepository<HostelApplication>(db), new GenericRepository<HostelApplicationEvent>(db),
+        new GenericRepository<HostelApplicationAuthority>(db), new GenericRepository<StudentGuardian>(db),
+        new GenericRepository<Guardian>(db));
 
     private static EduOSDbContext Context(long tenant, DbContextOptions<EduOSDbContext> options)
     {

@@ -119,7 +119,10 @@ public sealed class HostelMyHistoryIsolationTests
             new TestUnitOfWork(db), new StudentUser(), TimeProvider.System,
             NullLogger<HostelService>.Instance,
             new EduOS.Service.Services.Finance.ReservationFinancePolicy(db),
-            new EduOS.Service.Services.Platform.ReservationCommandReceiptStore(db, TimeProvider.System));
+            new EduOS.Service.Services.Platform.ReservationCommandReceiptStore(db, TimeProvider.System),
+            new GenericRepository<HostelApplication>(db), new GenericRepository<HostelApplicationEvent>(db),
+            new GenericRepository<HostelApplicationAuthority>(db), new GenericRepository<StudentGuardian>(db),
+            new GenericRepository<Guardian>(db));
         var result = await service.GetMyAllocationHistoryAsync(1, 20, null);
         Assert.True(result.Success, result.Message);
         var own = Assert.Single(result.Data!.Items);
