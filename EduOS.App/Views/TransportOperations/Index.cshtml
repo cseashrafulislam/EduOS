@@ -12,6 +12,10 @@
     {
         <div class="mb-3"><a class="btn btn-outline-primary" asp-controller="TransportOperations" asp-action="Trips">Trip dispatch / ট্রিপ পরিচালনা</a></div>
     }
+    @if (User.IsInRole("Staff"))
+    {
+        <div class="mb-3"><a class="btn btn-outline-primary" asp-controller="TransportOperations" asp-action="DriverTrips">My driver trips / আমার ড্রাইভার ট্রিপ</a></div>
+    }
     <div id="transportAlert" class="d-none" role="alert" tabindex="-1"></div>
     <section class="card mb-3"><div class="card-body">
         <h3 class="h5">My current assignment</h3><div id="transportMine" class="text-muted">Loading…</div>
