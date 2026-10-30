@@ -34,6 +34,13 @@ public sealed class TransportTripsController : ControllerBase
         return StatusCode(result.StatusCode, result);
     }
 
+    [HttpPost("schedule")]
+    public async Task<IActionResult> Schedule([FromBody] ScheduleTransportTripsRequestDto request, CancellationToken ct)
+    {
+        var result = await _service.ScheduleAsync(request, ct);
+        return StatusCode(result.StatusCode, result);
+    }
+
     [HttpPost("{reference:guid}/dispatch")]
     public async Task<IActionResult> Dispatch(Guid reference,
         [FromBody] DispatchTransportTripRequestDto request, CancellationToken ct)

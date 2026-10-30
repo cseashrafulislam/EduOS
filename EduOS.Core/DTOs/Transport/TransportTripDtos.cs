@@ -8,6 +8,26 @@ public sealed class PlanTransportTripRequestDto
     public DateOnly OperatingDate { get; set; }
     [Required, MaxLength(10)] public string Direction { get; set; } = string.Empty;
 }
+public sealed class ScheduleTransportTripsRequestDto
+{
+    public Guid ClientRequestId { get; set; }
+    public Guid RouteReference { get; set; }
+    public Guid VehicleReference { get; set; }
+    public DateOnly StartDate { get; set; }
+    public DateOnly EndDate { get; set; }
+    [Required, MaxLength(10)] public string Direction { get; set; } = string.Empty;
+    public bool SkipFridaySaturday { get; set; }
+}
+public sealed class TransportTripScheduleResultDto
+{
+    public int SelectedDays { get; set; }
+    public int NewlyPlanned { get; set; }
+    public int AlreadyPlanned { get; set; }
+    public DateOnly? FailedDate { get; set; }
+    public int? FailureStatusCode { get; set; }
+    public string? FailureMessage { get; set; }
+    public IReadOnlyList<TransportTripRowDto> Trips { get; set; } = Array.Empty<TransportTripRowDto>();
+}
 public sealed class DispatchTransportTripRequestDto
 {
     public Guid ClientRequestId { get; set; }

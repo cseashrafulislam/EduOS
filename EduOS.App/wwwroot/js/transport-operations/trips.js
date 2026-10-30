@@ -4,10 +4,15 @@
     if (!root) return;
     const el = id => document.getElementById(id);
     const today = () => { const d = new Date(); return [d.getFullYear(), String(d.getMonth()+1).padStart(2,'0'), String(d.getDate()).padStart(2,'0')].join('-'); };
+    let scheduleKey = crypto.randomUUID();
     let planKey = crypto.randomUUID(), page = 1, pages = 1, trip = null, tripState = null, riderPage = 1, riderPages = 1;
     let correction = null;
     const canCorrect = root.dataset.canCorrect === 'true';
     el('tripDate').value = today();
+    el('tripScheduleEnd').value = today();
+    el('tripScheduleEnd').min = today();
+    { const max = new Date(); max.setDate(max.getDate() + 30);
+      el('tripScheduleEnd').max = [max.getFullYear(), String(max.getMonth()+1).padStart(2,'0'), String(max.getDate()).padStart(2,'0')].join('-'); }
     const status = (message, error = false) => { el('tripStatus').textContent = message; el('tripStatus').className = 'small ' + (error ? 'text-danger' : 'text-muted'); };
     async function api(url, method = 'GET', data) {
         const headers = { Accept: 'application/json' };
@@ -170,6 +175,31 @@
                 vehicleReference:el('tripVehicle').value,operatingDate:el('tripDate').value,direction:el('tripDirection').value});
             planKey = crypto.randomUUID(); page = 1; status('Trip planned / ট্রিপ পরিকল্পিত'); await load();
         } catch (err) { status(err.message, true); } finally { button.disabled = false; }
+    });
+    el('tripSchedule').addEventListener('click', async () => {
+        if (!el('tripPlanForm').reportValidity() || !el('tripScheduleEnd').reportValidity()) return;
+        const start = el('tripDate').value, end = el('tripScheduleEnd').value;
+        const days = Math.round((Date.parse(end + 'T00:00:00Z') - Date.parse(start + 'T00:00:00Z')) / 86400000) + 1;
+        if (!Number.isInteger(days) || days < 1 || days > 7) {
+            status('Select 1–7 consecutive days / ১–৭ দিন নির্বাচন করুন', true); return;
+        }
+        const button = el('tripSchedule'); button.disabled = true;
+        try {
+            const result = await api('/api/transport/trips/schedule', 'POST', {
+                clientRequestId: scheduleKey, routeReference: el('tripRoute').value,
+                vehicleReference: el('tripVehicle').value, startDate: start, endDate: end,
+                direction: el('tripDirection').value, skipFridaySaturday: el('tripScheduleWeekend').checked
+            });
+            const summary = 'New ' + result.newlyPlanned + ', existing ' + result.alreadyPlanned +
+                ' / নতুন ' + result.newlyPlanned + ', পূর্বের ' + result.alreadyPlanned;
+            if (result.failedDate) {
+                status(summary + ' — stopped ' + result.failedDate + ': ' + result.failureMessage, true);
+            } else {
+                scheduleKey = crypto.randomUUID();
+                status(summary); page = 1; await load();
+            }
+        } catch (e) { status(e.message, true); }
+        finally { button.disabled = false; }
     });
     el('tripReload').addEventListener('click', () => { page=1; load(); });
     el('tripDate').addEventListener('change', () => { page=1; trip=null; el('tripManifestPanel').hidden=true; tripState=null; load(); });
