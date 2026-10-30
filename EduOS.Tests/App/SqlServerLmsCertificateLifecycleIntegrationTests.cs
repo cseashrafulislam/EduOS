@@ -144,6 +144,11 @@ public sealed partial class SqlServerTransportSeatCapacityIntegrationTests
             Assert.Equal(404, foreignIssue.StatusCode);
         }
 
+        using var printServer = LearnerCertificateSqlPrintServer(fixture.Options);
+        using var printClient = printServer.CreateClient();
+        await AssertLearnerCertificateSqlPrintAsync(printClient, fixture.TenantId,
+            fixture.UserId, certificateReference, visible: true);
+
         var revokeRequest = new RevokeLmsCertificateRequestDto
         {
             Reason = "Verified SQL lifecycle correction", RowVersion = initialVersion
@@ -178,6 +183,9 @@ public sealed partial class SqlServerTransportSeatCapacityIntegrationTests
             course.Title = "Changed course title after issuance";
             await verify.SaveChangesAsync();
         }
+
+        await AssertLearnerCertificateSqlPrintAsync(printClient, fixture.TenantId,
+            fixture.UserId, certificateReference, visible: false);
 
         await using (var dbA = ScopedContext(fixture.Options, fixture.TenantId, fixture.UserId))
         await using (var dbB = ScopedContext(fixture.Options, fixture.TenantId, fixture.UserId))
@@ -215,6 +223,10 @@ public sealed partial class SqlServerTransportSeatCapacityIntegrationTests
                  x.Action == "LMS.CertificateRevoked" ||
                  x.Action == "LMS.CertificateReissued") &&
                 (x.EntityId == rows[0].Id || x.EntityId == rows[1].Id)));
+            await AssertLearnerCertificateSqlPrintAsync(printClient, fixture.TenantId,
+                fixture.UserId, rows[1].PublicId, visible: true);
+            await AssertLearnerCertificateSqlPrintAsync(printClient, fixture.TenantId,
+                fixture.UserId, rows[0].PublicId, visible: false);
             var current = await SqlCertificateWorkflow(verify, fixture.TenantId, fixture.UserId)
                 .VerifyCertificateAsync(rows[1].PublicId);
             Assert.True(current.Success);

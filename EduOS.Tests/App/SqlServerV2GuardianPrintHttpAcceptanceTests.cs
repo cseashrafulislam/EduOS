@@ -116,6 +116,9 @@ public sealed partial class SqlServerTransportSeatCapacityIntegrationTests
                 Assert.Equal("text/html", response.Content.Headers.ContentType?.MediaType);
                 Assert.Contains(reference.ToString("D"), html, StringComparison.OrdinalIgnoreCase);
                 Assert.Contains("SQL completion", html);
+                Assert.Equal("DENY", response.Headers.GetValues("X-Frame-Options").Single());
+                Assert.Contains("frame-ancestors 'none'",
+                    response.Headers.GetValues("Content-Security-Policy").Single());
             }
             else
             {
