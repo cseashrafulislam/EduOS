@@ -88,7 +88,8 @@ public sealed class SqlServerV3ProcurementPurchaseOrderTests
             await seed.SaveChangesAsync();
         }
         var input = new CreateProcurementPurchaseOrderRequest {
-            ClientRequestId = Guid.NewGuid(), RequisitionId = reqId, SupplierId = supplierId };
+            ClientRequestId = Guid.NewGuid(), RequisitionId = reqId, SupplierId = supplierId,
+            ExpectedDeliveryDate = DateTime.UtcNow.Date.AddDays(7) };
         long id; string version;
         await using (var makerDb = Open(options, tenantId, makerId))
         {
@@ -200,10 +201,15 @@ public sealed class SqlServerV3ProcurementPurchaseOrderTests
         Assert.Equal(id, row.Id);
         Assert.Equal(40m, row.ApprovedAmount);
         Assert.Equal(1, row.LineCount);
-        Assert.Equal("Unscheduled", row.DeliverySchedule);
+        Assert.Equal("Upcoming", row.DeliverySchedule);
         Assert.Equal(0, row.DaysOverdue);
         Assert.Empty((await Service(verify, tenantId, makerId)
             .CommitmentsAsync(1, 25, null, null, DateTime.UtcNow.Date, true, null)).Data!.Items);
+        var overdue = await Service(verify, tenantId, makerId)
+            .CommitmentsAsync(1, 25, null, supplierId, input.ExpectedDeliveryDate!.Value.AddDays(2), true, null);
+        Assert.True(overdue.Success, overdue.Message);
+        Assert.Equal(2, Assert.Single(overdue.Data!.Items).DaysOverdue);
+        Assert.Equal("Overdue", Assert.Single(overdue.Data.Items).DeliverySchedule);
         Assert.Equal(400, (await Service(verify, tenantId, makerId)
             .CommitmentsAsync(0, 25, null, null, null, false, null)).StatusCode);
         Assert.Equal(40m, (await Service(verify, tenantId, makerId).GetAsync(id)).Data!.TotalAmount);

@@ -21,5 +21,5 @@ test('approved commitments use a bilingual bounded read-only register, not stock
  assert.match(api,/HttpGet\("commitments"\)/);
  assert.match(api,/HttpGet\("commitments\/export"\)/);
  assert.match(api,/TotalCount > 500/);
- assert.match(api,/=\\+-@/);
+ assert.match(api,/=\+-@/);
 });
