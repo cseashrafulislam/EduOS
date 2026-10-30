@@ -55,16 +55,18 @@ public sealed partial class SqlServerTransportSeatCapacityIntegrationTests
             lessonReference = lesson.PublicId;
         }
 
-        await using (var dbA = ScopedContext(fixture.Options, fixture.TenantId, fixture.UserId))
-        await using (var dbB = ScopedContext(fixture.Options, fixture.TenantId, fixture.UserId))
         {
-            var a = SqlCertificateWorkflow(dbA, fixture.TenantId, fixture.UserId, "Student");
-            var b = SqlCertificateWorkflow(dbB, fixture.TenantId, fixture.UserId, "Student");
+            // HttpContextAccessor uses an AsyncLocal holder: create each scoped
+            // context inside its task, not in the parent before Task.Run.
+            async Task<EduOS.Core.Common.ApiResponse<LessonProgressDto>> WriteAsync(decimal percent)
+            {
+                await using var db = ScopedContext(fixture.Options, fixture.TenantId, fixture.UserId);
+                return await SqlCertificateWorkflow(db, fixture.TenantId, fixture.UserId, "Student")
+                    .UpdateLessonProgressAsync(new UpdateLessonProgressRequestDto
+                    { LessonReference = lessonReference, ProgressPercent = percent });
+            }
             var attempts = await Task.WhenAll(
-                Task.Run(() => a.UpdateLessonProgressAsync(new UpdateLessonProgressRequestDto
-                    { LessonReference = lessonReference, ProgressPercent = 30m })),
-                Task.Run(() => b.UpdateLessonProgressAsync(new UpdateLessonProgressRequestDto
-                    { LessonReference = lessonReference, ProgressPercent = 80m })));
+                Task.Run(() => WriteAsync(30m)), Task.Run(() => WriteAsync(80m)));
             Assert.Contains(attempts, x => x.Success);
             Assert.All(attempts, x => Assert.True(x.Success || x.StatusCode == 409, x.Message));
         }
@@ -98,21 +100,28 @@ public sealed partial class SqlServerTransportSeatCapacityIntegrationTests
                 x.TenantId == fixture.TenantId && x.Id == enrollmentId);
             rowVersion = Convert.ToBase64String(enrollment.RowVersion);
         }
-        await using (var dbA = ScopedContext(fixture.Options, fixture.TenantId, fixture.UserId))
-        await using (var dbB = ScopedContext(fixture.Options, fixture.TenantId, fixture.UserId))
         {
-            var principal = SqlCertificateWorkflow(dbA, fixture.TenantId, fixture.UserId);
-            var learner = SqlCertificateWorkflow(dbB, fixture.TenantId, fixture.UserId, "Student");
-            var completionTask = Task.Run(() => principal.CompleteCourseEnrollmentAsync(
-                enrollmentId, new CompleteCourseEnrollmentRequestDto { RowVersion = rowVersion }));
-            var progressTask = Task.Run(() => learner.UpdateLessonProgressAsync(
-                new UpdateLessonProgressRequestDto
-                { LessonReference = lessonReference, ProgressPercent = 10m }));
+            async Task<EduOS.Core.Common.ApiResponse<CourseCompletionRegisterRowDto>> CompleteAsync()
+            {
+                await using var db = ScopedContext(fixture.Options, fixture.TenantId, fixture.UserId);
+                return await SqlCertificateWorkflow(db, fixture.TenantId, fixture.UserId)
+                    .CompleteCourseEnrollmentAsync(enrollmentId,
+                        new CompleteCourseEnrollmentRequestDto { RowVersion = rowVersion });
+            }
+            async Task<EduOS.Core.Common.ApiResponse<LessonProgressDto>> ProgressAsync()
+            {
+                await using var db = ScopedContext(fixture.Options, fixture.TenantId, fixture.UserId);
+                return await SqlCertificateWorkflow(db, fixture.TenantId, fixture.UserId, "Student")
+                    .UpdateLessonProgressAsync(new UpdateLessonProgressRequestDto
+                    { LessonReference = lessonReference, ProgressPercent = 10m });
+            }
+            var completionTask = Task.Run(CompleteAsync);
+            var progressTask = Task.Run(ProgressAsync);
             await Task.WhenAll(completionTask, progressTask);
-            Assert.True(completionTask.Result.Success || completionTask.Result.StatusCode == 409,
-                completionTask.Result.Message);
-            Assert.True(progressTask.Result.Success || progressTask.Result.StatusCode == 409,
-                progressTask.Result.Message);
+            var completion = await completionTask;
+            var progress = await progressTask;
+            Assert.True(completion.Success || completion.StatusCode == 409, completion.Message);
+            Assert.True(progress.Success || progress.StatusCode == 409, progress.Message);
         }
 
         await using (var verify = ScopedContext(fixture.Options, fixture.TenantId, fixture.UserId))
@@ -187,17 +196,19 @@ public sealed partial class SqlServerTransportSeatCapacityIntegrationTests
         // Keep the cancellation's exclusive SQL row lock until the progress request
         // is in flight; the service must recheck the state inside its transaction.
         await using (var cancelDb = ScopedContext(fixture.Options, fixture.TenantId, fixture.UserId))
-        await using (var progressDb = ScopedContext(fixture.Options, fixture.TenantId, fixture.UserId))
         {
             await using var tx = await cancelDb.Database.BeginTransactionAsync(IsolationLevel.Serializable);
             var enrollment = await cancelDb.CourseEnrollments.SingleAsync(x =>
                 x.TenantId == fixture.TenantId && x.Id == enrollmentId);
             enrollment.State = CourseEnrollmentState.Cancelled;
             await cancelDb.SaveChangesAsync();
-            var progressTask = Task.Run(() =>
-                SqlCertificateWorkflow(progressDb, fixture.TenantId, fixture.UserId, "Student")
+            var progressTask = Task.Run(async () =>
+            {
+                await using var progressDb = ScopedContext(fixture.Options, fixture.TenantId, fixture.UserId);
+                return await SqlCertificateWorkflow(progressDb, fixture.TenantId, fixture.UserId, "Student")
                     .UpdateLessonProgressAsync(new UpdateLessonProgressRequestDto
-                    { LessonReference = lessonReference, ProgressPercent = 100m, IsCompleted = true }));
+                    { LessonReference = lessonReference, ProgressPercent = 100m, IsCompleted = true });
+            });
             await Task.Delay(150);
             await tx.CommitAsync();
             var progress = await progressTask;
