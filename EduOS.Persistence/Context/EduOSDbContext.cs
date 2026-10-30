@@ -1780,6 +1780,7 @@ public class EduOSDbContext :
         modelBuilder.Entity<InventoryMovement>().HasIndex(x => x.PublicId).IsUnique();
         UniqueTenant<InventoryMovement>(modelBuilder, nameof(InventoryMovement.MovementNumber));
         UniqueTenant<InventoryMovement>(modelBuilder, nameof(InventoryMovement.ClientRequestId));
+        modelBuilder.Entity<InventoryMovement>().HasIndex(x => new { x.TenantId, x.SourceType, x.SourceId });
         UniqueTenant<InventoryMovementLine>(modelBuilder, nameof(InventoryMovementLine.InventoryMovementId), nameof(InventoryMovementLine.LineNo));
         UniqueTenant<ProcurementRequisition>(modelBuilder, nameof(ProcurementRequisition.ClientRequestId));
         UniqueTenant<ProcurementRequisition>(modelBuilder, nameof(ProcurementRequisition.RequestNumber));
@@ -1976,7 +1977,11 @@ public class EduOSDbContext :
             t.HasCheckConstraint("CK_ProcurementRequisitionLine_QtyPrice",
                 "[Quantity] > 0 AND [EstimatedUnitPrice] >= 0"));
         modelBuilder.Entity<InventoryMovementLine>().ToTable(t =>
-            t.HasCheckConstraint("CK_InventoryMovementLine_QuantityCost", "[Quantity] > 0 AND [UnitCost] >= 0"));
+        {
+            t.HasCheckConstraint("CK_InventoryMovementLine_QuantityCost", "[Quantity] > 0 AND [UnitCost] >= 0");
+            t.HasCheckConstraint("CK_InventoryMovementLine_FulfilledQuantity",
+                "[FulfilledQuantity] >= 0 AND [FulfilledQuantity] <= [Quantity]");
+        });
         modelBuilder.Entity<AssetBook>().ToTable(t =>
             t.HasCheckConstraint("CK_AssetBook_Policy", "[UsefulLifeMonths] > 0 AND [PolicyVersion] >= 1 AND [CostBasis] >= 0 AND [SalvageValue] >= 0 AND [SalvageValue] <= [CostBasis]"));
         modelBuilder.Entity<AssetDepreciationRun>().ToTable(t =>

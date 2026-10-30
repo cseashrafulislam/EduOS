@@ -39,3 +39,14 @@
         </div>
     </form>
 </dialog>
+
+<dialog id="inventoryFulfilDialog" class="border rounded shadow p-3" aria-labelledby="inventoryFulfilTitle">
+    <form id="inventoryFulfilForm">
+        <h3 id="inventoryFulfilTitle" class="h5">@(bn ? "রিজার্ভ থেকে আংশিক ইস্যু" : "Fulfil reserved issue")</h3>
+        <div id="inventoryFulfilLines"></div>
+        <div class="d-flex justify-content-end gap-2 mt-3">
+            <button id="inventoryFulfilCancel" type="button" class="btn btn-outline-secondary">@(bn ? "বাতিল" : "Cancel")</button>
+            <button id="inventoryFulfilSubmit" type="submit" class="btn btn-primary">@(bn ? "ইস্যু পোস্ট" : "Post issue")</button>
+        </div>
+    </form>
+</dialog>

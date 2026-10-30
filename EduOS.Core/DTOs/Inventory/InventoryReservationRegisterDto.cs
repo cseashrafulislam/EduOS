@@ -17,5 +17,7 @@ public sealed class InventoryReservationRegisterRowDto
     public string ItemName { get; set; } = string.Empty;
     public string UnitCode { get; set; } = string.Empty;
     public string? LotOrBatchNo { get; set; }
+    public decimal RequestedQuantity { get; set; }
+    public decimal FulfilledQuantity { get; set; }
     public decimal ReservedQuantity { get; set; }
 }

@@ -51,6 +51,7 @@ public sealed class InventoryMovementDto
     public string MovementNumber { get; set; } = string.Empty;
     public string MovementTypeCode { get; set; } = string.Empty;
     public string? SourceType { get; set; }
+    public long? SourceId { get; set; }
     public string? Remarks { get; set; }
     public string? TransferState { get; set; }
     public DateTime MovementAt { get; set; }
@@ -66,6 +67,7 @@ public sealed class InventoryMovementLineDto
     public long InventoryItemId { get; set; }
     public int LineNo { get; set; }
     public decimal Quantity { get; set; }
+    public decimal FulfilledQuantity { get; set; }
     public decimal UnitCost { get; set; }
     public string? LotOrBatchNo { get; set; }
 }

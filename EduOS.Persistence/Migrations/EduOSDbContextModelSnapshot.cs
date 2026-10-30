@@ -11885,6 +11885,8 @@ namespace EduOS.Persistence.Migrations
 
                     b.HasIndex("TenantId", "ReversalOfMovementId");
 
+                    b.HasIndex("TenantId", "SourceType", "SourceId");
+
                     b.HasIndex("TenantId", "ToLocationId");
 
                     b.ToTable("InventoryMovements");
@@ -11909,6 +11911,9 @@ namespace EduOS.Persistence.Migrations
 
                     b.Property<long?>("DeletedBy")
                         .HasColumnType("bigint");
+
+                    b.Property<decimal>("FulfilledQuantity")
+                        .HasColumnType("decimal(18,6)");
 
                     b.Property<long>("InventoryItemId")
                         .HasColumnType("bigint");
@@ -11962,6 +11967,8 @@ namespace EduOS.Persistence.Migrations
 
                     b.ToTable("InventoryMovementLines", t =>
                         {
+                            t.HasCheckConstraint("CK_InventoryMovementLine_FulfilledQuantity", "[FulfilledQuantity] >= 0 AND [FulfilledQuantity] <= [Quantity]");
+
                             t.HasCheckConstraint("CK_InventoryMovementLine_QuantityCost", "[Quantity] > 0 AND [UnitCost] >= 0");
                         });
                 });

@@ -1,12 +1,80 @@
 import { el, api, notice, td } from './movements-api.js';
 
 export function initLedger() {
-    let page = 1, last = 1, releaseTarget = null;
+    let page = 1, last = 1, releaseTarget = null, fulfilTarget = null, fulfilRequestId = null;
     const pendingReversals = new Map(), pendingReceipts = new Map();
     const bn = document.documentElement.lang?.toLowerCase().startsWith('bn');
     const releaseDialog = el('inventoryReleaseDialog');
     const releaseForm = el('inventoryReleaseForm');
     const releaseSubmit = el('inventoryReleaseSubmit');
+    const fulfilDialog = el('inventoryFulfilDialog');
+    const fulfilForm = el('inventoryFulfilForm');
+    const fulfilRows = el('inventoryFulfilLines');
+    const fulfilSubmit = el('inventoryFulfilSubmit');
+
+    el('inventoryFulfilCancel')?.addEventListener('click', () => fulfilDialog.close());
+    fulfilDialog?.addEventListener('close', () => {
+        fulfilTarget = null;
+        fulfilRequestId = null;
+        fulfilRows.replaceChildren();
+    });
+    fulfilForm?.addEventListener('submit', async event => {
+        event.preventDefault();
+        if (!fulfilTarget || !fulfilForm.reportValidity()) return;
+        const lines = [];
+        for (const input of fulfilRows.querySelectorAll('input[data-line-no]')) {
+            const quantity = Number(input.value);
+            if (!Number.isFinite(quantity) || quantity < 0 ||
+                quantity > Number(input.max) || !Number.isSafeInteger(Math.round(quantity * 1000000))) {
+                return notice(bn ? 'সঠিক ছয় দশমিক পর্যন্ত পরিমাণ দিন।' : 'Enter valid quantities with at most six decimals.');
+            }
+            if (quantity > 0) lines.push({ lineNo: Number(input.dataset.lineNo), quantity });
+        }
+        if (!lines.length) return notice(bn ? 'অন্তত একটি পরিমাণ দিন।' : 'Enter at least one quantity.');
+        fulfilSubmit.disabled = true;
+        try {
+            await api('movements/' + fulfilTarget.reference + '/fulfill-issue', 'POST', {
+                clientRequestId: fulfilRequestId,
+                rowVersion: fulfilTarget.rowVersion,
+                lines
+            });
+            fulfilDialog.close();
+            notice(bn ? 'আংশিক ইস্যু পোস্ট হয়েছে।' : 'Reserved issue fulfilment posted.', true);
+            await load();
+        } catch (error) { notice(error.message); }
+        finally { fulfilSubmit.disabled = false; }
+    });
+    function openFulfil(row) {
+        const remaining = (row.lines || []).filter(line => line.quantity > (line.fulfilledQuantity || 0));
+        if (!remaining.length) return;
+        fulfilTarget = { reference: row.reference, rowVersion: row.rowVersion };
+        fulfilRequestId = crypto.randomUUID();
+        fulfilRows.replaceChildren();
+        for (const line of remaining) {
+            const wrapper = document.createElement('div');
+            wrapper.className = 'mb-2';
+            const label = document.createElement('label');
+            const input = document.createElement('input');
+            input.id = 'fulfilLine' + line.lineNo;
+            input.type = 'number';
+            input.className = 'form-control';
+            input.min = '0';
+            input.step = '0.000001';
+            input.max = String(line.quantity - (line.fulfilledQuantity || 0));
+            input.value = '0';
+            input.required = true;
+            input.dataset.lineNo = String(line.lineNo);
+            label.className = 'form-label';
+            label.htmlFor = input.id;
+            label.textContent = (bn ? 'লাইন ' : 'Line ') + line.lineNo +
+                ' · ' + line.inventoryItemId + (line.lotOrBatchNo ? ' · ' + line.lotOrBatchNo : '') +
+                ' · ' + (bn ? 'অবশিষ্ট ' : 'Remaining ') + input.max;
+            wrapper.append(label, input);
+            fulfilRows.append(wrapper);
+        }
+        fulfilDialog.showModal();
+        fulfilRows.querySelector('input')?.focus();
+    }
 
     el('inventoryReleaseCancel')?.addEventListener('click', () => releaseDialog.close());
     releaseDialog?.addEventListener('close', () => {
@@ -92,6 +160,9 @@ export function initLedger() {
                             await load();
                         } catch (e) { notice(e.message); }
                     });
+                if (row.stateCode === 'Reserved' && row.movementTypeCode === 'Issue' &&
+                    row.sourceType === 'ManualIssue' && el('inventoryMovements').dataset.post === 'true')
+                    button(bn ? 'আংশিক ইস্যু' : 'Fulfil part', () => openFulfil(row));
                 if (row.stateCode === 'Reserved' && el('inventoryMovements').dataset.create === 'true')
                     button(bn ? 'ছাড়ুন' : 'Release', () => {
                         releaseTarget = { reference: row.reference, rowVersion: row.rowVersion };
@@ -99,6 +170,7 @@ export function initLedger() {
                         el('inventoryReleaseReason').focus();
                     });
                 if (['Draft', 'Reserved'].includes(row.stateCode) &&
+                    !(row.stateCode === 'Reserved' && row.lines?.some(line => line.fulfilledQuantity > 0)) &&
                     el('inventoryMovements').dataset.post === 'true')
                     button(bn ? 'পোস্ট' : 'Post', async () => {
                         if (!confirm(bn ? 'স্টক মুভমেন্ট স্থায়ীভাবে পোস্ট করবেন?' :

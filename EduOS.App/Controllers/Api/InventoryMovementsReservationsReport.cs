@@ -29,7 +29,7 @@ public sealed partial class InventoryMovementsController
             return "\"" + text.Replace("\"", "\"\"") + "\"";
         }
 
-        var csv = new StringBuilder("\uFEFFMovement,Type,Source,From,To,Held UTC,Line,Item Code,Item,Unit,Lot,Reserved Quantity\r\n");
+        var csv = new StringBuilder("\uFEFFMovement,Type,Source,From,To,Held UTC,Line,Item Code,Item,Unit,Lot,Requested Quantity,Fulfilled Quantity,Reserved Quantity\r\n");
         foreach (var row in result.Data.Items)
             csv.AppendJoin(",", new[]
             {
@@ -37,7 +37,8 @@ public sealed partial class InventoryMovementsController
                 Cell(row.FromLocationId), Cell(row.ToLocationId),
                 Cell(row.HeldSinceUtc.ToString("O", CultureInfo.InvariantCulture)),
                 Cell(row.LineNo), Cell(row.ItemCode), Cell(row.ItemName),
-                Cell(row.UnitCode), Cell(row.LotOrBatchNo), Cell(row.ReservedQuantity)
+                Cell(row.UnitCode), Cell(row.LotOrBatchNo), Cell(row.RequestedQuantity),
+                Cell(row.FulfilledQuantity), Cell(row.ReservedQuantity)
             }).Append("\r\n");
         Response.Headers["Cache-Control"] = "private, no-store";
         Response.Headers["X-Content-Type-Options"] = "nosniff";

@@ -1,0 +1,33 @@
+'use strict';
+const fs = require('node:fs');
+const path = require('node:path');
+const assert = require('node:assert/strict');
+const root = path.resolve(__dirname, '../..');
+const read = p => fs.readFileSync(path.join(root, p), 'utf8');
+
+const service = read('EduOS.Service/Services/Inventory/InventoryMovementPartialIssue.cs');
+const holds = read('EduOS.Service/Services/Inventory/InventoryMovementReservations.cs');
+const post = read('EduOS.Service/Services/Inventory/InventoryMovementPostingRules.cs');
+const controller = read('EduOS.App/Controllers/Api/InventoryMovementsActions.cs');
+const js = read('EduOS.App/wwwroot/js/inventory/movements-ledger.js');
+const view = read('EduOS.App/Views/InventoryMovements/_Ledger.cshtml');
+const register = read('EduOS.Service/Services/Inventory/InventoryMovementReservationRegister.cs');
+
+assert.match(service, /IsolationLevel\.Serializable/);
+assert.match(service, /ClientRequestId == request\.ClientRequestId/);
+assert.match(service, /Version\(parent\.RowVersion, request\.RowVersion\)/);
+assert.match(service, /SourceType = "ReservationIssueFulfillment"/);
+assert.match(service, /FulfilledQuantity \+= part\.Quantity/);
+assert.match(service, /await tx\.CommitAsync\(ct\)/);
+assert.match(service, /LocationsAllowed\(parent\.FromLocationId, parent\.ToLocationId, ct\)/);
+assert.match(holds, /groupRows\.Sum\(x => x\.Quantity - x\.FulfilledQuantity\)/);
+assert.match(post, /lines\.Any\(x => x\.FulfilledQuantity != 0m\)/);
+assert.match(register, /line\.Quantity > line\.FulfilledQuantity/);
+assert.match(controller, /Authorize\(Roles = "TenantAdmin,Principal,InventoryManager"\)/);
+assert.match(controller, /fulfill-issue/);
+assert.match(js, /crypto\.randomUUID\(\)/);
+assert.match(js, /fulfill-issue/);
+assert.match(js, /inventoryFulfilDialog/);
+assert.match(view, /inventoryFulfilForm/);
+assert.match(view, /inventoryFulfilLines/);
+console.log('Inventory partial issue ledger, authorization and bilingual UI contracts: PASS');

@@ -379,4 +379,139 @@ public sealed class SqlServerV3InventoryTransferLifecycleTests
         Assert.Equal(200, released.StatusCode);
         Assert.Empty((await ownerService.GetReservationRegisterAsync(null, null, 1, 25)).Data!.Items);
     }
+
+    [Fact]
+    public async Task Partial_reserved_issue_posts_immutable_children_and_preserves_remaining_hold()
+    {
+        var connection = Environment.GetEnvironmentVariable("EDUOS_SQL_AUTH_TEST_CONNECTION");
+        if (string.IsNullOrWhiteSpace(connection)) return;
+        var f = await SeedAsync(connection);
+        await using var db = Open(f.Options, f.TenantId);
+        var service = Service(db, f);
+        var draft = await DraftIssueAsync(db, f, 8m);
+        var held = await service.ReserveMovementAsync(draft.Reference,
+            new PostInventoryMovementRequestDto { RowVersion = draft.RowVersion });
+        Assert.Equal(200, held.StatusCode);
+
+        var request = new FulfillInventoryReservedIssueRequestDto
+        {
+            ClientRequestId = Guid.NewGuid(), RowVersion = held.Data!.RowVersion,
+            Lines = [new FulfillInventoryReservedIssueLineDto { LineNo = 1, Quantity = 3m }]
+        };
+        var first = await service.FulfillReservedIssueAsync(draft.Reference, request);
+        Assert.Equal(200, first.StatusCode);
+        Assert.Equal("Posted", first.Data!.StateCode);
+        Assert.Equal("ReservationIssueFulfillment", first.Data.SourceType);
+        Assert.Equal(3m, first.Data.Lines.Single().Quantity);
+        Assert.Equal(first.Data.Reference,
+            (await service.FulfillReservedIssueAsync(draft.Reference, request)).Data!.Reference);
+        Assert.Equal(409, (await service.FulfillReservedIssueAsync(draft.Reference,
+            new FulfillInventoryReservedIssueRequestDto
+            {
+                ClientRequestId = request.ClientRequestId, RowVersion = request.RowVersion,
+                Lines = [new FulfillInventoryReservedIssueLineDto { LineNo = 1, Quantity = 2m }]
+            })).StatusCode);
+
+        var remaining = (await service.GetMovementAsync(draft.Reference)).Data!;
+        Assert.Equal("Reserved", remaining.StateCode);
+        Assert.Equal(8m, remaining.Lines.Single().Quantity);
+        Assert.Equal(3m, remaining.Lines.Single().FulfilledQuantity);
+        var balance = (await service.GetItemBalanceAsync(f.ItemId, f.SourceId, null)).Data!;
+        Assert.Equal(7m, balance.QuantityOnHand);
+        Assert.Equal(5m, balance.ReservedQuantity);
+        Assert.Equal(2m, balance.AvailableQuantity);
+        var report = (await service.GetReservationRegisterAsync(f.SourceId, null, 1, 25)).Data!;
+        Assert.Single(report.Items);
+        Assert.Equal(8m, report.Items[0].RequestedQuantity);
+        Assert.Equal(3m, report.Items[0].FulfilledQuantity);
+        Assert.Equal(5m, report.Items[0].ReservedQuantity);
+        Assert.Equal(409, (await service.PostMovementAsync(draft.Reference,
+            new PostInventoryMovementRequestDto { RowVersion = remaining.RowVersion })).StatusCode);
+
+        var competing = await DraftIssueAsync(db, f, 3m);
+        Assert.Equal(409, (await service.PostMovementAsync(competing.Reference,
+            new PostInventoryMovementRequestDto { RowVersion = competing.RowVersion })).StatusCode);
+
+        var final = await service.FulfillReservedIssueAsync(draft.Reference,
+            new FulfillInventoryReservedIssueRequestDto
+            {
+                ClientRequestId = Guid.NewGuid(), RowVersion = remaining.RowVersion,
+                Lines = [new FulfillInventoryReservedIssueLineDto { LineNo = 1, Quantity = 5m }]
+            });
+        Assert.Equal(200, final.StatusCode);
+        var completed = (await service.GetMovementAsync(draft.Reference)).Data!;
+        Assert.Equal("Fulfilled", completed.StateCode);
+        Assert.Equal(8m, completed.Lines.Single().FulfilledQuantity);
+        Assert.Empty((await service.GetReservationRegisterAsync(f.SourceId, null, 1, 25)).Data!.Items);
+        balance = (await service.GetItemBalanceAsync(f.ItemId, f.SourceId, null)).Data!;
+        Assert.Equal(2m, balance.QuantityOnHand);
+        Assert.Equal(0m, balance.ReservedQuantity);
+        Assert.Equal(409, (await service.FulfillReservedIssueAsync(draft.Reference,
+            new FulfillInventoryReservedIssueRequestDto
+            {
+                ClientRequestId = Guid.NewGuid(), RowVersion = completed.RowVersion,
+                Lines = [new FulfillInventoryReservedIssueLineDto { LineNo = 1, Quantity = 1m }]
+            })).StatusCode);
+        Assert.Equal(200, (await service.ReverseMovementAsync(first.Data.Reference,
+            new ReverseInventoryMovementRequestDto
+            {
+                ClientRequestId = Guid.NewGuid(), RowVersion = first.Data.RowVersion,
+                Reason = "Correct the previously posted partial issue"
+            })).StatusCode);
+        balance = (await service.GetItemBalanceAsync(f.ItemId, f.SourceId, null)).Data!;
+        Assert.Equal(5m, balance.QuantityOnHand);
+        Assert.Equal(0m, balance.ReservedQuantity);
+    }
+
+    [Fact]
+    public async Task Concurrent_partial_issue_commands_cannot_overfulfil_or_cross_tenant()
+    {
+        var connection = Environment.GetEnvironmentVariable("EDUOS_SQL_AUTH_TEST_CONNECTION");
+        if (string.IsNullOrWhiteSpace(connection)) return;
+        var f = await SeedAsync(connection);
+        InventoryMovementDto held;
+        await using (var setup = Open(f.Options, f.TenantId))
+        {
+            var draft = await DraftIssueAsync(setup, f, 8m);
+            held = (await Service(setup, f).ReserveMovementAsync(draft.Reference,
+                new PostInventoryMovementRequestDto { RowVersion = draft.RowVersion })).Data!;
+        }
+        await using var first = Open(f.Options, f.TenantId);
+        await using var second = Open(f.Options, f.TenantId);
+        var results = await Task.WhenAll(
+            Service(first, f).FulfillReservedIssueAsync(held.Reference,
+                new FulfillInventoryReservedIssueRequestDto
+                {
+                    ClientRequestId = Guid.NewGuid(), RowVersion = held.RowVersion,
+                    Lines = [new FulfillInventoryReservedIssueLineDto { LineNo = 1, Quantity = 5m }]
+                }),
+            Service(second, f).FulfillReservedIssueAsync(held.Reference,
+                new FulfillInventoryReservedIssueRequestDto
+                {
+                    ClientRequestId = Guid.NewGuid(), RowVersion = held.RowVersion,
+                    Lines = [new FulfillInventoryReservedIssueLineDto { LineNo = 1, Quantity = 5m }]
+                }));
+        Assert.Single(results, x => x.StatusCode == 200);
+        Assert.Single(results, x => x.StatusCode == 409);
+        await using var verify = Open(f.Options, f.TenantId);
+        var service = Service(verify, f);
+        Assert.Equal(5m, (await service.GetMovementAsync(held.Reference)).Data!.Lines.Single().FulfilledQuantity);
+        Assert.Equal(5m, (await service.GetItemBalanceAsync(f.ItemId, f.SourceId, null)).Data!.QuantityOnHand);
+        Assert.Equal(3m, (await service.GetItemBalanceAsync(f.ItemId, f.SourceId, null)).Data!.ReservedQuantity);
+        Assert.Equal(403, (await Service(verify, f, "Student").FulfillReservedIssueAsync(held.Reference,
+            new FulfillInventoryReservedIssueRequestDto
+            {
+                ClientRequestId = Guid.NewGuid(), RowVersion = held.RowVersion,
+                Lines = [new FulfillInventoryReservedIssueLineDto { LineNo = 1, Quantity = 1m }]
+            })).StatusCode);
+        await using var foreign = Open(f.Options, f.TenantId + 999);
+        Assert.Equal(404, (await Service(foreign, f, tenantId: f.TenantId + 999)
+            .FulfillReservedIssueAsync(held.Reference,
+                new FulfillInventoryReservedIssueRequestDto
+                {
+                    ClientRequestId = Guid.NewGuid(), RowVersion = held.RowVersion,
+                    Lines = [new FulfillInventoryReservedIssueLineDto { LineNo = 1, Quantity = 1m }]
+                })).StatusCode);
+    }
+
 }

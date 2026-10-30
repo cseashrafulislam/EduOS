@@ -75,13 +75,13 @@ public sealed partial class InventoryMovementService : IInventoryMovementService
     private static InventoryMovementDto Map(InventoryMovement m, IEnumerable<InventoryMovementLine> lines, bool reversed = false, string? transferState = null) => new()
     {
         Reference = m.PublicId, MovementNumber = m.MovementNumber, MovementTypeCode = m.MovementTypeCode,
-        SourceType = m.SourceType, Remarks = m.Remarks, TransferState = transferState,
+        SourceType = m.SourceType, SourceId = m.SourceId, Remarks = m.Remarks, TransferState = transferState,
         MovementAt = m.MovementAt, FromLocationId = m.FromLocationId, ToLocationId = m.ToLocationId,
         StateCode = reversed ? "Reversed" : m.StateCode, PostedAt = m.PostedAt,
         RowVersion = Convert.ToBase64String(m.RowVersion),
         Lines = lines.OrderBy(x => x.LineNo).Select(x => new InventoryMovementLineDto {
             InventoryItemId = x.InventoryItemId, LineNo = x.LineNo, Quantity = x.Quantity,
-            UnitCost = x.UnitCost, LotOrBatchNo = x.LotOrBatchNo }).ToArray()
+            FulfilledQuantity = x.FulfilledQuantity, UnitCost = x.UnitCost, LotOrBatchNo = x.LotOrBatchNo }).ToArray()
     };
     private async Task<InventoryMovementDto> MapAsync(InventoryMovement movement, CancellationToken ct)
     {

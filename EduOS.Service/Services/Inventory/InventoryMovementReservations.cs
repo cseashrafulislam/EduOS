@@ -39,7 +39,7 @@ public sealed partial class InventoryMovementService
             select new
             {
                 groupRows.Key.Item, groupRows.Key.Location, groupRows.Key.Lot,
-                Quantity = groupRows.Sum(x => x.Quantity)
+                Quantity = groupRows.Sum(x => x.Quantity - x.FulfilledQuantity)
             }).ToListAsync(ct);
         return rows.ToDictionary(x => (x.Item, x.Location, x.Lot), x => x.Quantity);
     }

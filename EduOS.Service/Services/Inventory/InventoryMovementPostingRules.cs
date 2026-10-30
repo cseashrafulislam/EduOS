@@ -8,6 +8,8 @@ public sealed partial class InventoryMovementService
         var lines = await db.InventoryMovementLines.Where(x => x.TenantId == user.TenantId &&
             x.InventoryMovementId == movement.Id && !x.IsDeleted).OrderBy(x => x.LineNo).ToListAsync(ct);
         if (lines.Count is < 1 or > 100) return ("Invalid movement lines.", lines);
+        if (lines.Any(x => x.FulfilledQuantity != 0m))
+            return ("Partially fulfilled reservations must use the remaining-issue workflow.", lines);
         var items = lines.Select(x => x.InventoryItemId).Distinct().ToArray();
         if (await db.InventoryItems.CountAsync(x => x.TenantId == user.TenantId && items.Contains(x.Id) &&
             x.IsActive && x.IsStockTracked && !x.IsDeleted, ct) != items.Length)

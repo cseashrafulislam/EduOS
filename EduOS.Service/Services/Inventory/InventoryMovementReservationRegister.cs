@@ -31,7 +31,7 @@ public sealed partial class InventoryMovementService
             join item in db.InventoryItems.AsNoTracking() on line.InventoryItemId equals item.Id
             where line.TenantId == user.TenantId && !line.IsDeleted &&
                   item.TenantId == user.TenantId && !item.IsDeleted &&
-                  movement.StateCode == "Reserved" &&
+                  movement.StateCode == "Reserved" && line.Quantity > line.FulfilledQuantity &&
                   movement.FromLocationId.HasValue &&
                   (movement.MovementTypeCode == "Issue" || movement.MovementTypeCode == "Transfer")
             select new { line, movement, item };
@@ -67,7 +67,9 @@ public sealed partial class InventoryMovementService
                     ItemName = x.item.Name,
                     UnitCode = x.item.UnitCode,
                     LotOrBatchNo = x.line.LotOrBatchNo,
-                    ReservedQuantity = x.line.Quantity
+                    RequestedQuantity = x.line.Quantity,
+                    FulfilledQuantity = x.line.FulfilledQuantity,
+                    ReservedQuantity = x.line.Quantity - x.line.FulfilledQuantity
                 }).ToListAsync(ct);
         return ApiResponse<PagedResult<InventoryReservationRegisterRowDto>>.SuccessResponse(
             new PagedResult<InventoryReservationRegisterRowDto>

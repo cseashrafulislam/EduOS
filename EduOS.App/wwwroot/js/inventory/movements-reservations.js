@@ -33,7 +33,8 @@ export async function initReservations() {
                 const tr = document.createElement('tr');
                 [item.movementNumber, item.movementTypeCode,
                     item.itemCode + ' — ' + item.itemName, item.lotOrBatchNo,
-                    item.fromLocationId, item.reservedQuantity + ' ' + item.unitCode,
+                    item.fromLocationId, item.requestedQuantity + ' / ' + item.fulfilledQuantity +
+                        ' / ' + item.reservedQuantity + ' ' + item.unitCode,
                     new Date(item.heldSinceUtc).toLocaleString()].forEach(value => tr.append(td(value)));
                 rows.append(tr);
             }

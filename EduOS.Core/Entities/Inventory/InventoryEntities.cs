@@ -46,6 +46,8 @@ public class InventoryMovementLine : BaseTenantEntity
 {
     public long InventoryMovementId { get; set; }
     public int LineNo { get; set; }
+    // Reserved draft control; posted issue evidence remains in canonical movements.
+    [Column(TypeName = "decimal(18,6)")] public decimal FulfilledQuantity { get; set; }
     public long InventoryItemId { get; set; }
     [Column(TypeName = "decimal(18,6)")] public decimal Quantity { get; set; }
     [Column(TypeName = "decimal(18,4)")] public decimal UnitCost { get; set; }
