@@ -82,4 +82,44 @@ public sealed class V3EnterpriseLedgerTraceController(EduOSDbContext db, ICurren
             "v3-asset-finance-trace-" + reference.ToString("N") + ".csv");
     }
 
+    // Only the requested page is exported. Detail is the authority for complete
+    // journal balancing, reversal and historical tombstone reconciliation.
+    [HttpGet("register")]
+    public async Task<IActionResult> Register(
+        [FromQuery] string kind, [FromQuery] DateOnly from, [FromQuery] DateOnly to,
+        [FromQuery] long? campusId = null, [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 25, CancellationToken ct = default)
+    {
+        var response = await new V3EnterpriseReconciliationRegisterService(db, user)
+            .GetAsync(kind, from, to, campusId, page, pageSize, ct);
+        return StatusCode(response.StatusCode, response);
+    }
+
+    [HttpGet("register/csv")]
+    public async Task<IActionResult> RegisterCsv(
+        [FromQuery] string kind, [FromQuery] DateOnly from, [FromQuery] DateOnly to,
+        [FromQuery] long? campusId = null, [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 25, CancellationToken ct = default)
+    {
+        var response = await new V3EnterpriseReconciliationRegisterService(db, user)
+            .GetAsync(kind, from, to, campusId, page, pageSize, ct);
+        if (!response.Success || response.Data == null)
+            return StatusCode(response.StatusCode, response);
+        static string Cell(object? value)
+        {
+            var s = Convert.ToString(value, CultureInfo.InvariantCulture) ?? "";
+            if (s.Length > 0 && "=+-@\t\r".Contains(s[0])) s = "'" + s;
+            return "\"" + s.Replace("\"", "\"\"") + "\"";
+        }
+        var csv = new StringBuilder("Kind,Reference,Number,Date,Campus,State,RecordedValue,Lines,EvidenceStatus\r\n");
+        foreach (var row in response.Data.Items)
+            csv.AppendJoin(",", new[] { Cell(response.Data.Kind), Cell(row.Reference), Cell(row.Number),
+                Cell(row.Date), Cell(row.CampusId), Cell(row.State), Cell(row.RecordedValue),
+                Cell(row.LineCount), Cell(row.EvidenceStatus) }).Append("\r\n");
+        Response.Headers["X-Content-Type-Options"] = "nosniff";
+        return File(new UTF8Encoding(true).GetBytes(csv.ToString()), "text/csv; charset=utf-8",
+            "v3-reconciliation-register-" + response.Data.Kind + "-page-" +
+            response.Data.Page.ToString(CultureInfo.InvariantCulture) + ".csv");
+    }
+
 }

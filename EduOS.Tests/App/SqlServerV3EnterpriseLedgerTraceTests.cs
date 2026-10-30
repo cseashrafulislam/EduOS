@@ -118,6 +118,15 @@ public sealed class SqlServerV3EnterpriseLedgerTraceTests
             var replay = await service.GetAsync(movementReference);
             Assert.Equal(first.Data.Journals[0].Reference, replay.Data!.Journals[0].Reference);
             Assert.Equal(404, (await service.GetAsync(Guid.NewGuid())).StatusCode);
+            var register = new V3EnterpriseReconciliationRegisterService(db, new Actor(tenantId));
+            var today = DateOnly.FromDateTime(DateTime.UtcNow);
+            var listing = await register.GetAsync("stock", today.AddDays(-1), today.AddDays(1));
+            Assert.Equal(200, listing.StatusCode);
+            var row = Assert.Single(listing.Data!.Items.Where(x => x.Reference == movementReference));
+            Assert.Equal(60m, row.RecordedValue);
+            Assert.Equal("ExplicitReferencePresent", row.EvidenceStatus);
+            Assert.Equal(400, (await register.GetAsync("stock", today.AddDays(-400), today)).StatusCode);
+            Assert.Equal(400, (await register.GetAsync("stock", today, today, pageSize: 100)).StatusCode);
         }
 
         await using (var foreign = Open(options, foreignId))

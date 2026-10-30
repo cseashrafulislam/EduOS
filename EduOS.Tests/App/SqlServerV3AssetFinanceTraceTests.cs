@@ -121,6 +121,18 @@ public sealed class SqlServerV3AssetFinanceTraceTests
             Assert.True(result.Data.Journals[0].Balanced);
             Assert.Equal(result.Data.Journals[0].Reference,
                 (await service.GetAsync(requestId)).Data!.Journals[0].Reference);
+            var register = new V3EnterpriseReconciliationRegisterService(db, new Actor(tenantId));
+            var listing = await register.GetAsync("asset", new DateOnly(2026, 10, 1),
+                new DateOnly(2026, 10, 31));
+            Assert.Equal(200, listing.StatusCode);
+            var row = Assert.Single(listing.Data!.Items.Where(x => x.Reference == requestId));
+            Assert.Equal(25m, row.RecordedValue);
+            Assert.Equal("ExplicitReferencePresent", row.EvidenceStatus);
+            Assert.Equal(404, (await register.GetAsync("asset", new DateOnly(2026, 10, 1),
+                new DateOnly(2026, 10, 31), -99)).StatusCode);
+            Assert.Equal(403, (await new V3EnterpriseReconciliationRegisterService(
+                db, new Actor(tenantId, false)).GetAsync("asset",
+                    new DateOnly(2026, 10, 1), new DateOnly(2026, 10, 31))).StatusCode);
             Assert.Equal(403, (await new V3EnterpriseAssetFinanceTraceService(
                 db, new Actor(tenantId, false)).GetAsync(requestId)).StatusCode);
         }

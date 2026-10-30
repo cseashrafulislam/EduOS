@@ -39,5 +39,67 @@
         </div>
         <p id="v3TraceStatus" class="small fw-semibold"></p>
     </div>
+
+    <section class="mt-4" id="v3Register">
+        <h3 class="h5 mb-2">@(bn ? "প্রমাণ রেজিস্টার" : "Evidence register")</h3>
+        <form id="v3RegisterForm" class="row g-2 align-items-end mb-3">
+            <div class="col-6 col-md-2">
+                <label class="form-label" for="v3RegisterKind">@(bn ? "ধরন" : "Type")</label>
+                <select id="v3RegisterKind" class="form-select">
+                    <option value="stock">@(bn ? "স্টক" : "Stock")</option>
+                    <option value="asset">@(bn ? "অবচয়" : "Depreciation")</option>
+                </select>
+            </div>
+            <div class="col-6 col-md-2">
+                <label class="form-label" for="v3RegisterFrom">@(bn ? "শুরু" : "From")</label>
+                <input id="v3RegisterFrom" type="date" class="form-control" required
+                    value="@DateTime.UtcNow.AddDays(-30).ToString("yyyy-MM-dd")" />
+            </div>
+            <div class="col-6 col-md-2">
+                <label class="form-label" for="v3RegisterTo">@(bn ? "শেষ" : "To")</label>
+                <input id="v3RegisterTo" type="date" class="form-control" required
+                    value="@DateTime.UtcNow.ToString("yyyy-MM-dd")" />
+            </div>
+            <div class="col-6 col-md-2">
+                <label class="form-label" for="v3RegisterCampus">@(bn ? "ক্যাম্পাস আইডি" : "Campus ID")</label>
+                <input id="v3RegisterCampus" type="number" min="1" step="1"
+                    class="form-control" autocomplete="off" />
+            </div>
+            <div class="col-6 col-md-2">
+                <label class="form-label" for="v3RegisterSize">@(bn ? "প্রতি পৃষ্ঠা" : "Page size")</label>
+                <select id="v3RegisterSize" class="form-select">
+                    <option value="25">25</option><option value="50">50</option>
+                </select>
+            </div>
+            <div class="col-6 col-md-2">
+                <button class="btn btn-primary w-100" type="submit">@(bn ? "খুঁজুন" : "Search")</button>
+            </div>
+        </form>
+        <p id="v3RegisterMessage" role="status" aria-live="polite" class="small"></p>
+        <div id="v3RegisterResult" hidden>
+            <div class="d-flex justify-content-between align-items-center gap-2 mb-2">
+                <span id="v3RegisterCount" class="small"></span>
+                <a id="v3RegisterCsv" class="btn btn-outline-secondary btn-sm" href="#">
+                    @(bn ? "এই পৃষ্ঠার CSV" : "Export current page CSV")</a>
+            </div>
+            <div class="table-responsive">
+                <table class="table table-sm table-striped">
+                    <thead><tr>
+                        <th>@(bn ? "তারিখ" : "Date")</th><th>@(bn ? "রেফারেন্স" : "Reference")</th>
+                        <th>@(bn ? "অবস্থা" : "State")</th><th>@(bn ? "মূল্য" : "Value")</th>
+                        <th>@(bn ? "লাইন" : "Lines")</th><th>@(bn ? "প্রমাণ" : "Evidence")</th>
+                    </tr></thead>
+                    <tbody id="v3RegisterRows"></tbody>
+                </table>
+            </div>
+            <nav class="d-flex justify-content-between align-items-center" aria-label="@(bn ? "পৃষ্ঠা" : "Pages")">
+                <button id="v3RegisterPrevious" type="button" class="btn btn-outline-secondary btn-sm">
+                    @(bn ? "আগের" : "Previous")</button>
+                <span id="v3RegisterPage" class="small"></span>
+                <button id="v3RegisterNext" type="button" class="btn btn-outline-secondary btn-sm">
+                    @(bn ? "পরের" : "Next")</button>
+            </nav>
+        </div>
+    </section>
 </section>
 @section Scripts { <script type="module" src="~/js/inventory/v3-enterprise-trace.js" asp-append-version="true"></script> }

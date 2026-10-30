@@ -62,4 +62,96 @@ if (root) {
         }
     });
     print.addEventListener('click', () => window.print());
+    // The register reads only bounded server pages. A present journal reference
+    // is not presented as balanced until the existing detail endpoint verifies it.
+    const registerForm = document.getElementById('v3RegisterForm');
+    const registerRows = document.getElementById('v3RegisterRows');
+    const registerMessage = document.getElementById('v3RegisterMessage');
+    const registerResult = document.getElementById('v3RegisterResult');
+    const registerCount = document.getElementById('v3RegisterCount');
+    const registerPage = document.getElementById('v3RegisterPage');
+    const registerCsv = document.getElementById('v3RegisterCsv');
+    const registerPrevious = document.getElementById('v3RegisterPrevious');
+    const registerNext = document.getElementById('v3RegisterNext');
+    let currentPage = 1;
+    let activeRequest;
+    const registerQuery = () => {
+        const q = new URLSearchParams({
+            kind: document.getElementById('v3RegisterKind').value,
+            from: document.getElementById('v3RegisterFrom').value,
+            to: document.getElementById('v3RegisterTo').value,
+            page: String(currentPage),
+            pageSize: document.getElementById('v3RegisterSize').value
+        });
+        const campus = document.getElementById('v3RegisterCampus').value.trim();
+        if (campus) q.set('campusId', campus);
+        return q;
+    };
+    const loadRegister = async () => {
+        if (!registerForm.reportValidity()) return;
+        if (activeRequest) activeRequest.abort();
+        activeRequest = new AbortController();
+        const request = activeRequest;
+        registerResult.hidden = true;
+        registerMessage.textContent = bn ? 'যাচাই হচ্ছে…' : 'Loading…';
+        try {
+            const q = registerQuery();
+            const response = await fetch('/api/v3/enterprise/ledger-trace/register?' + q,
+                { credentials: 'same-origin', cache: 'no-store', signal: request.signal,
+                    headers: { Accept: 'application/json' } });
+            const body = await response.json();
+            if (!response.ok || !body.success || !body.data)
+                throw new Error(body.message || (bn ? 'রেজিস্টার পাওয়া যায়নি।' : 'Register unavailable.'));
+            if (activeRequest !== request) return;
+            const data = body.data;
+            registerRows.replaceChildren();
+            (data.items || []).forEach(item => {
+                const tr = document.createElement('tr');
+                [item.date, item.number, item.state, item.recordedValue,
+                    item.lineCount, item.evidenceStatus].forEach(value => {
+                    const td = document.createElement('td');
+                    td.textContent = String(value ?? '');
+                    tr.appendChild(td);
+                });
+                tr.tabIndex = 0;
+                tr.title = bn ? 'বিস্তারিত দেখতে Enter চাপুন' : 'Press Enter for details';
+                const open = () => {
+                    document.getElementById('v3TraceKind').value =
+                        data.kind === 'asset' ? 'asset' : 'stock';
+                    reference.value = item.reference;
+                    form.requestSubmit();
+                    reference.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                };
+                tr.addEventListener('click', open);
+                tr.addEventListener('keydown', e => {
+                    if (e.key === 'Enter') { e.preventDefault(); open(); }
+                });
+                registerRows.appendChild(tr);
+            });
+            registerCount.textContent = (bn ? 'মোট: ' : 'Total: ') + data.totalCount;
+            registerPage.textContent = (bn ? 'পৃষ্ঠা ' : 'Page ') + data.page;
+            registerPrevious.disabled = data.page <= 1;
+            registerNext.disabled = data.page * data.pageSize >= data.totalCount;
+            registerCsv.href = '/api/v3/enterprise/ledger-trace/register/csv?' + q;
+            registerResult.hidden = false;
+            registerMessage.textContent = data.totalCount === 0
+                ? (bn ? 'কোনো তথ্য নেই।' : 'No records found.') : '';
+        } catch (error) {
+            if (error.name !== 'AbortError')
+                registerMessage.textContent = error.message ||
+                    (bn ? 'অনুরোধ ব্যর্থ।' : 'Request failed.');
+        } finally {
+            if (activeRequest === request) activeRequest = undefined;
+        }
+    };
+    registerForm.addEventListener('submit', e => {
+        e.preventDefault(); currentPage = 1; loadRegister();
+    });
+    registerPrevious.addEventListener('click', () => {
+        if (currentPage > 1) { currentPage--; loadRegister(); }
+    });
+    registerNext.addEventListener('click', () => {
+        currentPage++; loadRegister();
+    });
+
 }

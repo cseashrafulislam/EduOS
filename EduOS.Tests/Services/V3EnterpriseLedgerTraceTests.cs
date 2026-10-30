@@ -78,6 +78,27 @@ public sealed class V3EnterpriseLedgerTraceTests
     }
 
     [Fact]
+    public async Task Reconciliation_register_denies_cross_tenant_context_and_unbounded_inputs()
+    {
+        await using var db = Open(101);
+        var denied = await new V3EnterpriseReconciliationRegisterService(
+            db, new Actor(101, "Student")).GetAsync("stock",
+                new DateOnly(2026, 10, 1), new DateOnly(2026, 10, 31));
+        Assert.Equal(403, denied.StatusCode);
+        var mismatch = await new V3EnterpriseReconciliationRegisterService(
+            db, new Actor(102, "TenantAdmin")).GetAsync("stock",
+                new DateOnly(2026, 10, 1), new DateOnly(2026, 10, 31));
+        Assert.Equal(403, mismatch.StatusCode);
+        var service = new V3EnterpriseReconciliationRegisterService(db, new Actor(101, "TenantAdmin"));
+        Assert.Equal(400, (await service.GetAsync("facility",
+            new DateOnly(2026, 10, 1), new DateOnly(2026, 10, 31))).StatusCode);
+        Assert.Equal(400, (await service.GetAsync("stock",
+            new DateOnly(2026, 11, 1), new DateOnly(2026, 10, 1))).StatusCode);
+        Assert.Equal(400, (await service.GetAsync("asset",
+            new DateOnly(2026, 10, 1), new DateOnly(2026, 10, 31), page: 0)).StatusCode);
+    }
+
+    [Fact]
     public async Task Unlinked_movement_is_not_misrepresented_as_unposted_finance()
     {
         await using var db = Open(101);
