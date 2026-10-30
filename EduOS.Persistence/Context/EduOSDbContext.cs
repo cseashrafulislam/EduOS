@@ -1608,6 +1608,10 @@ public class EduOSDbContext :
         UniqueTenant<BookCopy>(modelBuilder, nameof(BookCopy.AccessionNumber));
         UniqueTenant<BookCopy>(modelBuilder, new[] { nameof(BookCopy.Barcode) }, "[Barcode] IS NOT NULL");
         UniqueTenant<BookIssue>(modelBuilder, nameof(BookIssue.ClientRequestId));
+        // Library overdue preview and 50-recipient send use a tenant-leading, active-loan date range.
+        modelBuilder.Entity<BookIssue>().HasIndex(x => new { x.TenantId, x.State, x.DueDate, x.Id })
+            .HasDatabaseName("IX_BookIssues_LibraryOverdueCandidates")
+            .HasFilter("[IsDeleted] = 0");
         UniqueTenant<BookReservation>(modelBuilder, nameof(BookReservation.ClientRequestId));
 
         // Hostel / transport
@@ -1709,6 +1713,10 @@ public class EduOSDbContext :
         UniqueTenant<NoticeAudience>(modelBuilder, nameof(NoticeAudience.NoticeId), nameof(NoticeAudience.AudienceTypeCode), nameof(NoticeAudience.CampusId), nameof(NoticeAudience.AcademicProgramId), nameof(NoticeAudience.AcademicBatchId), nameof(NoticeAudience.UserId));
         UniqueTenant<MessageThreadParticipant>(modelBuilder, nameof(MessageThreadParticipant.MessageThreadId), nameof(MessageThreadParticipant.UserId));
         UniqueTenant<NotificationPreference>(modelBuilder, nameof(NotificationPreference.UserId), nameof(NotificationPreference.Channel), nameof(NotificationPreference.EventCode));
+        // Same-loan/day notice suppression must seek inside the current tenant and source.
+        modelBuilder.Entity<Notification>().HasIndex(x => new { x.TenantId, x.SourceType, x.SourceId, x.TypeCode, x.CreatedAt })
+            .HasDatabaseName("IX_Notifications_LibraryOverdueSourceDay")
+            .HasFilter("[IsDeleted] = 0 AND [SourceId] IS NOT NULL");
         UniqueTenant<CommunicationDelivery>(modelBuilder, nameof(CommunicationDelivery.IdempotencyKey));
         modelBuilder.Entity<FileAsset>().HasIndex(x => x.PublicId).IsUnique();
         UniqueTenant<FileAsset>(modelBuilder, nameof(FileAsset.StorageProvider), nameof(FileAsset.StorageKey));

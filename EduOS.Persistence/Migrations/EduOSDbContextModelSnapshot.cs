@@ -7817,6 +7817,10 @@ namespace EduOS.Persistence.Migrations
 
                     b.HasIndex("UserId");
 
+                    b.HasIndex("TenantId", "SourceType", "SourceId", "TypeCode", "CreatedAt")
+                        .HasDatabaseName("IX_Notifications_LibraryOverdueSourceDay")
+                        .HasFilter("[IsDeleted] = 0 AND [SourceId] IS NOT NULL");
+
                     b.ToTable("Notifications");
                 });
 
@@ -14458,6 +14462,10 @@ namespace EduOS.Persistence.Migrations
                         .IsUnique();
 
                     b.HasIndex("TenantId", "StudentId");
+
+                    b.HasIndex("TenantId", "State", "DueDate", "Id")
+                        .HasDatabaseName("IX_BookIssues_LibraryOverdueCandidates")
+                        .HasFilter("[IsDeleted] = 0");
 
                     b.ToTable("BookIssues", t =>
                         {

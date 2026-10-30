@@ -151,4 +151,49 @@ public sealed partial class SqlServerTransportSeatCapacityIntegrationTests
             x.TenantId == fixture.TenantId && x.SourceType == "BookIssue" &&
             x.SourceId == loanId && x.TypeCode == "LIBRARY_OVERDUE"));
     }
+    [Fact]
+    public async Task V2_library_sql_overdue_candidate_and_notice_dedup_indexes_are_tenant_leading()
+    {
+        var connection = Environment.GetEnvironmentVariable("EDUOS_SQL_AUTH_TEST_CONNECTION");
+        if (string.IsNullOrWhiteSpace(connection)) return;
+        var fixture = await SeedAsync(connection);
+        await using var db = ScopedContext(fixture.Options, fixture.TenantId, fixture.UserId);
+        await db.Database.OpenConnectionAsync();
+        await using var command = db.Database.GetDbConnection().CreateCommand();
+        command.CommandText = """
+            SELECT i.name, c.name, i.filter_definition
+            FROM sys.indexes i
+            JOIN sys.tables t ON t.object_id = i.object_id
+            JOIN sys.index_columns ic ON ic.object_id = i.object_id AND ic.index_id = i.index_id
+            JOIN sys.columns c ON c.object_id = i.object_id AND c.column_id = ic.column_id
+            WHERE ((t.name = 'BookIssues' AND i.name = 'IX_BookIssues_LibraryOverdueCandidates')
+                OR (t.name = 'Notifications' AND i.name = 'IX_Notifications_LibraryOverdueSourceDay'))
+                AND ic.key_ordinal > 0
+            ORDER BY i.name, ic.key_ordinal
+            """;
+        var keys = new Dictionary<string, List<string>>(StringComparer.Ordinal);
+        var filters = new Dictionary<string, string>(StringComparer.Ordinal);
+        await using (var reader = await command.ExecuteReaderAsync())
+        {
+            while (await reader.ReadAsync())
+            {
+                var name = reader.GetString(0);
+                if (!keys.TryGetValue(name, out var columns))
+                {
+                    columns = [];
+                    keys.Add(name, columns);
+                }
+                columns.Add(reader.GetString(1));
+                filters[name] = reader.GetString(2);
+            }
+        }
+        Assert.Equal(new[] { "TenantId", "State", "DueDate", "Id" },
+            keys["IX_BookIssues_LibraryOverdueCandidates"]);
+        Assert.Equal("[IsDeleted] = 0", filters["IX_BookIssues_LibraryOverdueCandidates"]);
+        Assert.Equal(new[] { "TenantId", "SourceType", "SourceId", "TypeCode", "CreatedAt" },
+            keys["IX_Notifications_LibraryOverdueSourceDay"]);
+        Assert.Equal("[IsDeleted] = 0 AND [SourceId] IS NOT NULL",
+            filters["IX_Notifications_LibraryOverdueSourceDay"]);
+    }
+
 }
