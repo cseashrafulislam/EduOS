@@ -56,7 +56,9 @@ public sealed partial class SqlServerTransportSeatCapacityIntegrationTests
                 });
         }
         var results = await Task.WhenAll(Change(BookCopyState.Lost), Change(BookCopyState.Damaged));
-        Assert.Single(results.Where(x => x.Success));
+        Assert.True(results.Count(x => x.Success) == 1,
+            "Expected one winner: " + string.Join(" | ",
+                results.Select(x => x.StatusCode + ": " + x.Message)));
         Assert.Single(results.Where(x => x.StatusCode == 409));
         await using var verify = ScopedContext(fixture.Options, fixture.TenantId, fixture.UserId);
         var state = await verify.BookCopies.AsNoTracking().Where(x =>
