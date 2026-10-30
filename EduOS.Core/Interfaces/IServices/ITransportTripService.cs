@@ -10,6 +10,12 @@ public interface ITransportTripService
     Task<ApiResponse<TransportTripRowDto>> CompleteAsync(Guid reference, CompleteTransportTripRequestDto request, CancellationToken ct = default);
     Task<ApiResponse<PagedResult<TransportTripRowDto>>> GetAsync(DateOnly date, long? campusId, int page, int pageSize, CancellationToken ct = default);
     Task<ApiResponse<PagedResult<TransportTripRiderDto>>> GetRidersAsync(Guid reference, int page, int pageSize, CancellationToken ct = default);
+    Task<ApiResponse<TransportTripNoShowPreviewDto>> GetNoShowPreviewAsync(Guid reference, CancellationToken ct = default);
+    Task<ApiResponse<TransportTripNoShowPreviewDto>> GetDriverNoShowPreviewAsync(Guid reference, CancellationToken ct = default);
+    Task<ApiResponse<TransportTripNoShowBatchResultDto>> MarkAwaitingNoShowAsync(Guid reference,
+        MarkTransportTripAwaitingNoShowRequestDto request, CancellationToken ct = default);
+    Task<ApiResponse<TransportTripNoShowBatchResultDto>> MarkDriverAwaitingNoShowAsync(Guid reference,
+        MarkTransportTripAwaitingNoShowRequestDto request, CancellationToken ct = default);
     Task<ApiResponse<TransportTripAttendanceDto>> RecordAttendanceAsync(Guid reference, RecordTransportTripAttendanceRequestDto request, CancellationToken ct = default);
     Task<ApiResponse<TransportTripAttendanceDto>> CorrectAttendanceAsync(Guid reference, CorrectTransportTripAttendanceRequestDto request, CancellationToken ct = default);
     Task<ApiResponse<IReadOnlyList<TransportTripAttendanceHistoryDto>>> GetAttendanceHistoryAsync(Guid reference, string studentCode, CancellationToken ct = default);

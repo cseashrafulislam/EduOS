@@ -66,6 +66,21 @@ public sealed class TransportTripsController : ControllerBase
         return StatusCode(result.StatusCode, result);
     }
 
+    [HttpGet("{reference:guid}/no-show/preview")]
+    public async Task<IActionResult> NoShowPreview(Guid reference, CancellationToken ct = default)
+    {
+        var result = await _service.GetNoShowPreviewAsync(reference, ct);
+        return StatusCode(result.StatusCode, result);
+    }
+
+    [HttpPost("{reference:guid}/no-show")]
+    public async Task<IActionResult> MarkAwaitingNoShow(Guid reference,
+        [FromBody] MarkTransportTripAwaitingNoShowRequestDto request, CancellationToken ct)
+    {
+        var result = await _service.MarkAwaitingNoShowAsync(reference, request, ct);
+        return StatusCode(result.StatusCode, result);
+    }
+
     [HttpPost("{reference:guid}/attendance")]
     public async Task<IActionResult> Attendance(Guid reference,
         [FromBody] RecordTransportTripAttendanceRequestDto request, CancellationToken ct)

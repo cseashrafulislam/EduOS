@@ -5,8 +5,10 @@
     const el = id => document.getElementById(id);
     let page = 1, pages = 1, riderPage = 1, riderPages = 1, selected = null, selectedState = '';
     const pendingKeys = new Map();
+    let pendingNoShow = null;
     const guard = window.EduOSTransportSession?.create(() => {
-        selected = null; selectedState = ''; pendingKeys.clear();
+        selected = null; selectedState = ''; pendingKeys.clear(); pendingNoShow = null;
+        el('driverMarkRemainingNoShow').hidden = true;
         el('driverTripRows').replaceChildren(); el('driverRiderRows').replaceChildren();
         el('driverManifest').hidden = true;
         el('driverTripPage').textContent = ''; el('driverRiderPage').textContent = '';
@@ -40,8 +42,11 @@
             ...(data === undefined ? {} : { body: JSON.stringify(data) })
         }, async response => {
             const result = await response.json().catch(() => null);
-            if (!response.ok || !result?.success)
-                throw new Error(result?.message || 'Transport request failed.');
+            if (!response.ok || !result?.success) {
+                const error = new Error(result?.message || 'Transport request failed.');
+                error.status = response.status;
+                throw error;
+            }
             return result.data;
         });
     }
@@ -63,7 +68,7 @@
                 button.type = 'button'; button.className = 'btn btn-outline-primary btn-sm';
                 button.textContent = 'Riders / যাত্রী';
                 button.addEventListener('click', () => {
-                    selected = item.reference; selectedState = item.state; riderPage = 1;
+                    selected = item.reference; selectedState = item.state; pendingNoShow = null; riderPage = 1;
                     loadRiders();
                 });
                 action.append(button); tr.append(action); body.append(tr);
@@ -85,6 +90,7 @@
             if (reference !== selected) return;
             riderPages = data.totalPages || 1;
             el('driverManifest').hidden = false;
+            el('driverMarkRemainingNoShow').hidden = selectedState !== 'Dispatched';
             el('driverRiderPage').textContent = riderPage + ' / ' + riderPages;
             el('driverRiderPrev').disabled = riderPage <= 1;
             el('driverRiderNext').disabled = riderPage >= riderPages;
@@ -129,6 +135,37 @@
             status(e.message, true);
         }
     }
+    el('driverMarkRemainingNoShow').addEventListener('click', async () => {
+        if (!selected || selectedState !== 'Dispatched' || !guard.valid()) return;
+        const reference = selected, button = el('driverMarkRemainingNoShow');
+        button.disabled = true;
+        try {
+            if (!pendingNoShow || pendingNoShow.reference !== reference) {
+                const preview = await api('/api/transport/driver-trips/' +
+                    encodeURIComponent(reference) + '/no-show/preview');
+                if (reference !== selected) return;
+                if (!preview.awaitingCount) {
+                    status('No awaiting riders / অপেক্ষমাণ যাত্রী নেই'); await loadRiders(); return;
+                }
+                pendingNoShow = { reference, expectedAwaitingCount: preview.awaitingCount,
+                    clientRequestId: crypto.randomUUID() };
+            }
+            if (!confirm('Mark all ' + pendingNoShow.expectedAwaitingCount +
+                ' awaiting riders NoShow? / অপেক্ষমাণ সবাইকে অনুপস্থিত করবেন?')) return;
+            const result = await api('/api/transport/driver-trips/' +
+                encodeURIComponent(reference) + '/no-show', {
+                clientRequestId: pendingNoShow.clientRequestId,
+                expectedAwaitingCount: pendingNoShow.expectedAwaitingCount
+            });
+            if (reference !== selected) return;
+            pendingNoShow = null;
+            status('NoShow recorded: ' + (result.recordedCount || 0) + ' / অনুপস্থিত সংরক্ষিত');
+            await loadRiders();
+        } catch (error) {
+            if (error.status === 409) pendingNoShow = null;
+            status(error.message, true);
+        } finally { if (guard.valid()) button.disabled = false; }
+    });
     el('driverTripReload').addEventListener('click', () => { page = 1; loadTrips(); if (selected) loadRiders(); });
     el('driverTripPrint').addEventListener('click', () => {
         if (!selected || !guard.valid()) return;

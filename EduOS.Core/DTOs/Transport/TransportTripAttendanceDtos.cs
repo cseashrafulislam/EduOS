@@ -39,3 +39,25 @@ public sealed class TransportTripAttendanceHistoryDto
     public bool IsCorrection { get; set; }
     public string? CorrectionReason { get; set; }
 }
+
+// Atomic, explicitly confirmed closure of remaining unrecorded riders.
+public sealed class MarkTransportTripAwaitingNoShowRequestDto
+{
+    public Guid ClientRequestId { get; set; }
+    [Range(1, 500)] public int ExpectedAwaitingCount { get; set; }
+}
+public sealed class TransportTripNoShowPreviewDto
+{
+    public int RiderCount { get; set; }
+    public int AwaitingCount { get; set; }
+    public int BoardedCount { get; set; }
+    public int DroppedCount { get; set; }
+    public int NoShowCount { get; set; }
+}
+public sealed class TransportTripNoShowBatchResultDto
+{
+    public Guid TripReference { get; set; }
+    public int RecordedCount { get; set; }
+    public bool AlreadyRecorded { get; set; }
+    public int RemainingAwaiting { get; set; }
+}

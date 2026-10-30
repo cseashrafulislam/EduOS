@@ -7,11 +7,13 @@
     let scheduleKey = crypto.randomUUID();
     let planKey = crypto.randomUUID(), page = 1, pages = 1, trip = null, tripState = null, riderPage = 1, riderPages = 1;
     let correction = null, calendarPreviewSequence = 0;
+    let pendingNoShow = null;
     let auditPage = 1, auditPages = 1, auditReference = null, auditSequence = 0;
     const canCorrect = root.dataset.canCorrect === 'true';
     const guard = window.EduOSTransportSession?.create(() => {
         calendarPreviewSequence++;
-        trip = null; tripState = null; correction = null;
+        trip = null; tripState = null; correction = null; pendingNoShow = null;
+        el('tripMarkRemainingNoShow').hidden = true;
         planKey = crypto.randomUUID(); scheduleKey = crypto.randomUUID();
         el('tripRows').replaceChildren(); el('tripManifestRows').replaceChildren();
         el('tripRoute').replaceChildren(); el('tripVehicle').replaceChildren();
@@ -53,7 +55,11 @@
         return guard.request(url, { method, headers,
             ...(data !== undefined ? { body: JSON.stringify(data) } : {}) }, async response => {
             const result = await response.json().catch(() => null);
-            if (!response.ok || !result?.success) throw new Error(result?.message || 'Transport request failed.');
+            if (!response.ok || !result?.success) {
+                const error = new Error(result?.message || 'Transport request failed.');
+                error.status = response.status;
+                throw error;
+            }
             return result.data;
         });
     }
@@ -194,7 +200,7 @@
                                 {clientRequestId:crypto.randomUUID(),rowVersion:item.rowVersion});
                             status('Trip dispatched / ট্রিপ ডিসপ্যাচ হয়েছে');
                             await load();
-                        } else { resetAudit(); trip = item.reference; tripState = item.state; riderPage = 1; await loadRiders(); }
+                        } else { resetAudit(); pendingNoShow = null; trip = item.reference; tripState = item.state; riderPage = 1; await loadRiders(); }
                     } catch (e) { status(e.message, true); } finally { button.disabled = false; }
                 });
                 actions.append(button);
@@ -226,6 +232,7 @@
             const data = await api('/api/transport/trips/' + encodeURIComponent(trip) + '/riders?' + new URLSearchParams({page:String(riderPage),pageSize:'25'}));
             riderPages = data.totalPages || 1;
             el('tripManifestPanel').hidden = false;
+            el('tripMarkRemainingNoShow').hidden = tripState !== 'Dispatched';
             el('tripRiderPage').textContent = riderPage + ' / ' + riderPages;
             el('tripRiderPrev').disabled = riderPage <= 1; el('tripRiderNext').disabled = riderPage >= riderPages;
             const body = el('tripManifestRows'); body.replaceChildren();
@@ -284,6 +291,37 @@
             }
         } catch (e) { status(e.message, true); }
     }
+    el('tripMarkRemainingNoShow').addEventListener('click', async () => {
+        if (!trip || tripState !== 'Dispatched' || !guard.valid()) return;
+        const reference = trip, button = el('tripMarkRemainingNoShow');
+        button.disabled = true;
+        try {
+            if (!pendingNoShow || pendingNoShow.reference !== reference) {
+                const preview = await api('/api/transport/trips/' +
+                    encodeURIComponent(reference) + '/no-show/preview');
+                if (reference !== trip) return;
+                if (!preview.awaitingCount) {
+                    status('No awaiting riders / অপেক্ষমাণ যাত্রী নেই'); await loadRiders(); return;
+                }
+                pendingNoShow = { reference, expectedAwaitingCount: preview.awaitingCount,
+                    clientRequestId: crypto.randomUUID() };
+            }
+            if (!confirm('Mark all ' + pendingNoShow.expectedAwaitingCount +
+                ' currently awaiting riders NoShow? This requires an audited correction to change later. / অবশিষ্ট সবাইকে অনুপস্থিত করবেন?')) return;
+            const result = await api('/api/transport/trips/' +
+                encodeURIComponent(reference) + '/no-show', 'POST', {
+                clientRequestId: pendingNoShow.clientRequestId,
+                expectedAwaitingCount: pendingNoShow.expectedAwaitingCount
+            });
+            if (reference !== trip) return;
+            pendingNoShow = null;
+            status('NoShow recorded: ' + (result.recordedCount || 0) + ' / অনুপস্থিত সংরক্ষিত');
+            await loadRiders();
+        } catch (error) {
+            if (error.status === 409) pendingNoShow = null;
+            status(error.message, true);
+        } finally { if (guard.valid()) button.disabled = false; }
+    });
     el('tripCorrectionCancel').addEventListener('click', () => el('tripCorrectionDialog').close());
     el('tripCorrectionForm').addEventListener('submit', async e => {
         e.preventDefault();
@@ -339,7 +377,7 @@
         el(id).addEventListener('change', previewCalendar);
     }
     el('tripReload').addEventListener('click', () => { page=1; load(); });
-    el('tripDate').addEventListener('change', () => { resetAudit(); page=1; trip=null; el('tripManifestPanel').hidden=true; tripState=null; load(); previewCalendar(); });
+    el('tripDate').addEventListener('change', () => { resetAudit(); page=1; trip=null; pendingNoShow=null; el('tripManifestPanel').hidden=true; tripState=null; load(); previewCalendar(); });
     el('tripPrev').addEventListener('click',()=>{if(page>1){page--;load();}});
     el('tripNext').addEventListener('click',()=>{if(page<pages){page++;load();}});
     el('tripRiderPrev').addEventListener('click',()=>{if(riderPage>1){riderPage--;loadRiders();}});
