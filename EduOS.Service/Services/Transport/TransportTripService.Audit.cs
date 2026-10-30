@@ -75,7 +75,7 @@ public sealed partial class TransportTripService
         if (!trip.Success)
             return ApiResponse<PagedResult<TransportTripAuditRowDto>>.ErrorResponse(
                 trip.Message, trip.StatusCode);
-        var events = AuditEvents(trip.Data.Id, _user.TenantId);
+        var events = AuditEvents(trip.Data!.Id, _user.TenantId);
         var count = await events.CountAsync(ct);
         if (count > 6000)
             return ApiResponse<PagedResult<TransportTripAuditRowDto>>.ErrorResponse(
@@ -94,7 +94,7 @@ public sealed partial class TransportTripService
         if (!trip.Success)
             return ApiResponse<TransportTripAuditReportDto>.ErrorResponse(
                 trip.Message, trip.StatusCode);
-        var events = await AuditEvents(trip.Data.Id, _user.TenantId)
+        var events = await AuditEvents(trip.Data!.Id, _user.TenantId)
             .OrderBy(x => x.StudentCode).ThenBy(x => x.Sequence)
             .Take(6001).ToListAsync(ct);
         if (events.Count > 6000 ||
@@ -109,7 +109,7 @@ public sealed partial class TransportTripService
         return ApiResponse<TransportTripAuditReportDto>.SuccessResponse(
             new TransportTripAuditReportDto
             {
-                Trip = trip.Data.Header, Events = events,
+                Trip = trip.Data!.Header, Events = events,
                 GeneratedAtUtc = _clock.GetUtcNow().UtcDateTime
             });
     }

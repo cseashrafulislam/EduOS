@@ -29,10 +29,14 @@ const body = (role, lang) => {
         '<input id="tripScheduleAcademicCalendar" type="checkbox">' +
         '<span id="tripCalendarStatus"></span><span id="tripPage"></span>' +
         '<span id="tripRiderPage"></span>' +
-        ['tripSchedule','tripReload','tripPrev','tripNext','tripPrint','tripExport',
+        ['tripSchedule','tripReload','tripPrev','tripNext','tripPrint','tripExport','tripAudit',
          'tripRiderPrev','tripRiderNext'].map(btn).join('') +
         '<table><tbody id="tripRows"></tbody></table><section id="tripManifestPanel" hidden>' +
         '<table><tbody id="tripManifestRows"></tbody></table></section>' +
+        '<dialog id="tripAuditDialog"><span id="tripAuditStatus"></span>' +
+        '<span id="tripAuditPage"></span><table><tbody id="tripAuditRows"></tbody></table>' +
+        ['tripAuditClose','tripAuditPrev','tripAuditNext','tripAuditExport','tripAuditPrint']
+            .map(btn).join('') + '</dialog>' +
         '<dialog id="tripCorrectionDialog"><form id="tripCorrectionForm">' +
         '<span id="tripCorrectionStudent"></span><span id="tripCorrectionState"></span>' +
         '<textarea id="tripCorrectionReason" required></textarea>' +
@@ -89,6 +93,11 @@ async function scenario(browser, role, lang) {
             return route.fulfill(ok({ items: [{ reference: trip, campusName: 'Private campus',
                 routeName: 'Private route', vehicleNumber: 'PRIVATE', operatingDate: date,
                 direction: 'Pickup', state: 'Dispatched', riderCount: 1 }], totalPages: 1 }));
+        if (url.pathname.endsWith('/audit'))
+            return route.fulfill(ok({ items: [{ studentCode: code, sequence: 1,
+                eventType: 'Boarded', correctedFrom: null, correctionReason: null,
+                occurredAtUtc: date + 'T08:00:00Z', recordedByUserId: 9 }],
+                totalCount: 1, totalPages: 1 }));
         if (url.pathname.endsWith('/riders'))
             return route.fulfill(ok({ items: [{ studentCode: code, pickupStop: 'Secret pickup',
                 dropStop: 'Secret drop', attendanceState: 'Awaiting' }], totalPages: 1 }));
@@ -130,6 +139,10 @@ async function scenario(browser, role, lang) {
             await page.locator('#tripRows button').first().click();
             await page.locator('#tripManifestRows').getByText(code).waitFor();
             assert.equal(await page.locator('#tripManifestRows img').count(), 0);
+            await page.locator('#tripAudit').click();
+            await page.locator('#tripAuditRows').getByText(code).waitFor();
+            assert.equal(await page.locator('#tripAuditRows img').count(), 0);
+            await page.locator('#tripAuditClose').click();
             await page.locator('#tripExport').click();
         } else if (role === 'driver') {
             await page.locator('#driverTripRows button').first().click();
