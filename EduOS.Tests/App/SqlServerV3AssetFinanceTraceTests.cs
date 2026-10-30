@@ -186,7 +186,7 @@ public sealed class SqlServerV3AssetFinanceTraceTests
             // in both detail and register, even if the monetary totals balance.
             await db.AssetDepreciationLines.Where(x => x.Id == lineId)
                 .ExecuteUpdateAsync(set => set.SetProperty(x => x.PeriodEnd,
-                    new DateOnly(2026, 10, 30)));
+                    new DateOnly(2026, 10, 29)));
             Assert.Equal(409, (await service.GetAsync(requestId)).StatusCode);
             var invalidPeriod = await register.GetAsync("asset",
                 new DateOnly(2026, 10, 1), new DateOnly(2026, 10, 31));
