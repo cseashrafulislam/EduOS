@@ -11,10 +11,15 @@ namespace EduOS.Service.Services.Transport;
 
 public sealed partial class TransportTripService
 {
-    public async Task<ApiResponse<TransportTripAttendanceDto>> RecordAttendanceAsync(
-        Guid reference, RecordTransportTripAttendanceRequestDto request, CancellationToken ct = default)
+    public Task<ApiResponse<TransportTripAttendanceDto>> RecordAttendanceAsync(
+        Guid reference, RecordTransportTripAttendanceRequestDto request, CancellationToken ct = default) =>
+        RecordAttendanceCoreAsync(reference, request, driverOnly: false, ct);
+
+    private async Task<ApiResponse<TransportTripAttendanceDto>> RecordAttendanceCoreAsync(
+        Guid reference, RecordTransportTripAttendanceRequestDto request, bool driverOnly, CancellationToken ct)
     {
-        if (!CanManage) return ApiResponse<TransportTripAttendanceDto>.ErrorResponse("Transport permission required.", 403);
+        if (driverOnly ? !CanDrive : !CanManage)
+            return ApiResponse<TransportTripAttendanceDto>.ErrorResponse("Transport permission required.", 403);
         if (reference == Guid.Empty || request == null || request.ClientRequestId == Guid.Empty ||
             string.IsNullOrWhiteSpace(request.StudentCode) || request.StudentCode.Length > 60 ||
             request.EventType is not ("Boarded" or "Dropped" or "NoShow"))
@@ -29,8 +34,8 @@ public sealed partial class TransportTripService
                     x.TenantId == tenant && !x.IsDeleted && x.PublicId == reference)
                     .Select(x => new { x.Id, x.CampusId, x.State, x.OperatingDate }).FirstOrDefaultAsync(token);
                 if (trip == null) return ApiResponse<TransportTripAttendanceDto>.ErrorResponse("Trip not found.", 404);
-                if (!await HasCampusAsync(trip.CampusId, token))
-                    return ApiResponse<TransportTripAttendanceDto>.ErrorResponse("Campus access required.", 403);
+                if (driverOnly ? !await CanDriveTripAsync(trip.Id, token) : !await HasCampusAsync(trip.CampusId, token))
+                    return ApiResponse<TransportTripAttendanceDto>.ErrorResponse("Trip assignment or campus access required.", 403);
                 if (trip.State != "Dispatched" || trip.OperatingDate != today)
                     return ApiResponse<TransportTripAttendanceDto>.ErrorResponse("Only today's dispatched trip accepts attendance.", 409);
                 var rider = await _db.TransportTripRiders.AsNoTracking().Where(x =>

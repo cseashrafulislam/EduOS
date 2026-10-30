@@ -313,10 +313,15 @@ public sealed partial class TransportTripService : ITransportTripService
             { Items = rows, TotalCount = count, Page = page, PageSize = pageSize });
     }
 
-    public async Task<ApiResponse<PagedResult<TransportTripRiderDto>>> GetRidersAsync(
-        Guid reference, int page, int pageSize, CancellationToken ct = default)
+    public Task<ApiResponse<PagedResult<TransportTripRiderDto>>> GetRidersAsync(
+        Guid reference, int page, int pageSize, CancellationToken ct = default) =>
+        GetRidersCoreAsync(reference, page, pageSize, driverOnly: false, ct);
+
+    private async Task<ApiResponse<PagedResult<TransportTripRiderDto>>> GetRidersCoreAsync(
+        Guid reference, int page, int pageSize, bool driverOnly, CancellationToken ct)
     {
-        if (!CanManage) return ApiResponse<PagedResult<TransportTripRiderDto>>.ErrorResponse("Transport permission required.", 403);
+        if (driverOnly ? !CanDrive : !CanManage)
+            return ApiResponse<PagedResult<TransportTripRiderDto>>.ErrorResponse("Transport permission required.", 403);
         if (reference == Guid.Empty || page < 1 || pageSize is < 1 or > 100 ||
             (long)(page - 1) * pageSize > int.MaxValue)
             return ApiResponse<PagedResult<TransportTripRiderDto>>.ErrorResponse("Invalid trip or paging.");
@@ -325,8 +330,8 @@ public sealed partial class TransportTripService : ITransportTripService
             x.TenantId == tenant && !x.IsDeleted && x.PublicId == reference && (x.State == "Dispatched" || x.State == "Completed"))
             .Select(x => new { x.Id, x.CampusId, x.RiderCount }).FirstOrDefaultAsync(ct);
         if (trip == null) return ApiResponse<PagedResult<TransportTripRiderDto>>.ErrorResponse("Dispatched trip not found.", 404);
-        if (!await HasCampusAsync(trip.CampusId, ct))
-            return ApiResponse<PagedResult<TransportTripRiderDto>>.ErrorResponse("Campus access required.", 403);
+        if (driverOnly ? !await CanDriveTripAsync(trip.Id, ct) : !await HasCampusAsync(trip.CampusId, ct))
+            return ApiResponse<PagedResult<TransportTripRiderDto>>.ErrorResponse("Trip assignment or campus access required.", 403);
         var query = _db.TransportTripRiders.AsNoTracking().Where(x =>
             x.TenantId == tenant && !x.IsDeleted && x.TransportTripId == trip.Id);
         var count = await query.CountAsync(ct);

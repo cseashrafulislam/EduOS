@@ -1,0 +1,46 @@
+@{
+    ViewData["Title"] = "My transport trips";
+}
+<section class="container-fluid py-3" id="driverTrips" aria-labelledby="driverTripsTitle">
+    <header class="d-flex align-items-center gap-2 mb-3">
+        <h1 id="driverTripsTitle" class="h4 mb-0">My trips / আমার ট্রিপ</h1>
+        <details class="ms-auto">
+            <summary class="btn btn-sm btn-outline-secondary" aria-label="Driver trip guidance">i</summary>
+            <div class="small mt-2" style="max-width:20rem">Only today's trips dispatched to your verified employee/driver account appear. Record each rider as Boarded, Dropped or NoShow. / শুধু নিজের অনুমোদিত ট্রিপে উপস্থিতি দিন।</div>
+        </details>
+    </header>
+    @Html.AntiForgeryToken()
+    <p id="driverTripStatus" class="small text-muted" role="status" aria-live="polite"></p>
+    <div class="d-flex gap-2 mb-2">
+        <button id="driverTripReload" class="btn btn-outline-primary btn-sm" type="button">Refresh / রিফ্রেশ</button>
+        <button id="driverTripPrint" class="btn btn-outline-secondary btn-sm" type="button">Print / প্রিন্ট</button>
+    </div>
+    <div class="table-responsive">
+        <table class="table table-sm table-hover align-middle">
+            <thead><tr><th>Route / রুট</th><th>Vehicle / গাড়ি</th><th>Direction / দিক</th><th>Status / অবস্থা</th><th>Riders / যাত্রী</th><th>Action / কার্যক্রম</th></tr></thead>
+            <tbody id="driverTripRows"></tbody>
+        </table>
+    </div>
+    <div class="d-flex justify-content-between align-items-center mb-3 gap-2">
+        <button id="driverTripPrev" type="button" class="btn btn-outline-secondary btn-sm">Previous</button>
+        <span id="driverTripPage" class="small text-muted"></span>
+        <button id="driverTripNext" type="button" class="btn btn-outline-secondary btn-sm">Next</button>
+    </div>
+    <section id="driverManifest" hidden aria-labelledby="driverManifestTitle">
+        <h2 id="driverManifestTitle" class="h5">Assigned riders / নির্ধারিত যাত্রী</h2>
+        <div class="table-responsive">
+            <table class="table table-sm table-hover align-middle">
+                <thead><tr><th>Student / শিক্ষার্থী</th><th>Pickup / উঠবে</th><th>Drop / নামবে</th><th>Attendance / উপস্থিতি</th><th>Action / কার্যক্রম</th></tr></thead>
+                <tbody id="driverRiderRows"></tbody>
+            </table>
+        </div>
+        <div class="d-flex justify-content-between align-items-center gap-2">
+            <button id="driverRiderPrev" type="button" class="btn btn-outline-secondary btn-sm">Previous</button>
+            <span id="driverRiderPage" class="small text-muted"></span>
+            <button id="driverRiderNext" type="button" class="btn btn-outline-secondary btn-sm">Next</button>
+        </div>
+    </section>
+</section>
+@section Scripts {
+    <script src="~/js/transport-operations/driver-trips.js" asp-append-version="true"></script>
+}

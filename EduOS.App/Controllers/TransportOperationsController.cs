@@ -23,6 +23,11 @@ public sealed class TransportOperationsController : Controller
     public IActionResult Trips() => View();
 
     [HttpGet]
+    [Authorize(Roles = "Staff")]
+    [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
+    public IActionResult DriverTrips() => View();
+
+    [HttpGet]
     [Authorize(Roles = "TenantAdmin,Principal,TransportManager")]
     [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
     public IActionResult EditStops(Guid reference)
