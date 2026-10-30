@@ -46,6 +46,7 @@ public sealed partial class ProcurementPurchaseOrderService
                 x.CurrencyCode, x.ExpectedDeliveryDate, x.DecidedAt }).ToListAsync(ct);
         var ids = headers.Select(x => x.Id).ToArray();
         var supplierIds = headers.Select(x => x.SupplierId).Distinct().ToArray();
+        var campusIds = headers.Select(x => x.CampusId).Distinct().ToArray();
         var amounts = await db.ProcurementPurchaseOrderLines.AsNoTracking()
             .Where(x => x.TenantId == user.TenantId && ids.Contains(x.PurchaseOrderId) &&
                 !x.IsDeleted)
@@ -53,10 +54,12 @@ public sealed partial class ProcurementPurchaseOrderService
             .Select(g => new { OrderId = g.Key, LineCount = g.Count(),
                 Amount = g.Sum(x => x.Quantity * x.UnitPrice) }).ToListAsync(ct);
         var amountById = amounts.ToDictionary(x => x.OrderId);
-        var supplierNames = await db.ProcurementSuppliers.AsNoTracking()
-            .Where(x => x.TenantId == user.TenantId && supplierIds.Contains(x.Id) && !x.IsDeleted)
-            .Select(x => new { x.Id, x.Name })
-            .ToDictionaryAsync(x => x.Id, x => x.Name, ct);
+        // Supplier display data must match the authorized PO's campus, not merely its tenant.
+        var supplierRows = await db.ProcurementSuppliers.AsNoTracking()
+            .Where(x => x.TenantId == user.TenantId && supplierIds.Contains(x.Id) &&
+                campusIds.Contains(x.CampusId) && !x.IsDeleted)
+            .Select(x => new { x.Id, x.CampusId, x.Name }).ToListAsync(ct);
+        var supplierNames = supplierRows.ToDictionary(x => (x.Id, x.CampusId), x => x.Name);
         var items = headers.Select(x =>
         {
             var due = x.ExpectedDeliveryDate?.Date;
@@ -66,7 +69,7 @@ public sealed partial class ProcurementPurchaseOrderService
             {
                 Id = x.Id, OrderNumber = x.OrderNumber, CampusId = x.CampusId,
                 SupplierId = x.SupplierId,
-                SupplierName = supplierNames.GetValueOrDefault(x.SupplierId) ?? "",
+                SupplierName = supplierNames.GetValueOrDefault((x.SupplierId, x.CampusId)) ?? "",
                 CurrencyCode = x.CurrencyCode, ExpectedDeliveryDate = x.ExpectedDeliveryDate,
                 ApprovedAt = x.DecidedAt, AgingDate = asOf,
                 DaysOverdue = overdue ? (asOf - due!.Value).Days : 0,
