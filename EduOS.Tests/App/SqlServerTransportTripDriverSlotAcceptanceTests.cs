@@ -8,76 +8,57 @@ using Xunit;
 namespace EduOS.Tests.App;
 
 /// <summary>
-/// Real SQL Server acceptance for the same driver competing across different
-/// vehicles. Independent DbContexts are required; a planning preview cannot
-/// establish that a physical driver has only one dispatch slot.
+/// Real SQL Server acceptance of unique current-driver ownership, safe handover
+/// and historical trip-slot immutability across different vehicles.
 /// </summary>
 public sealed partial class SqlServerTransportSeatCapacityIntegrationTests
 {
     [Fact]
-    public async Task Concurrent_vehicles_sharing_one_driver_cannot_both_dispatch_same_direction()
+    public async Task SQL_unique_current_driver_assignment_prevents_two_vehicle_claims()
     {
         var connection = Environment.GetEnvironmentVariable("EDUOS_SQL_AUTH_TEST_CONNECTION");
         if (string.IsNullOrWhiteSpace(connection)) return;
 
         var first = await PlannedTripAsync(connection);
         var second = await PlanSecondVehicleForSameDriverAsync(first);
-        var attempts = new[]
+        long secondVehicleId;
+        long driverId;
+        await using (var setup = ScopedContext(first.Fixture.Options,
+            first.Fixture.TenantId, first.Fixture.UserId))
         {
-            (Reference: first.Reference, Version: first.RowVersion),
-            (Reference: second.Reference, Version: second.RowVersion)
-        };
-
-        async Task<(bool Success, int Status)> DispatchAsync(int index)
-        {
-            await using var db = ScopedContext(first.Fixture.Options,
-                first.Fixture.TenantId, first.Fixture.UserId);
-            var response = await TripService(db, first.Fixture).DispatchAsync(
-                attempts[index].Reference,
-                new DispatchTransportTripRequestDto
-                {
-                    ClientRequestId = Guid.NewGuid(),
-                    RowVersion = attempts[index].Version
-                });
-            return (response.Success, response.StatusCode);
-        }
-
-        var responses = await Task.WhenAll(DispatchAsync(0), DispatchAsync(1));
-        Assert.True(responses.Count(x => x.Success) <= 1,
-            "Two vehicles must never freeze two trips for one driver/date/direction.");
-        Assert.All(responses.Where(x => !x.Success), x => Assert.Equal(409, x.Status));
-
-        if (!responses.Any(x => x.Success))
-        {
-            var retry = await DispatchAsync(0);
-            Assert.True(retry.Success, "A fresh request must progress after competing SQL conflicts: " + retry.Status);
+            secondVehicleId = await setup.TransportTrips.AsNoTracking()
+                .Where(x => x.TenantId == first.Fixture.TenantId && x.PublicId == second.Reference)
+                .Select(x => x.VehicleId).SingleAsync();
+            driverId = await setup.VehicleDriverAssignments.AsNoTracking()
+                .Where(x => x.TenantId == first.Fixture.TenantId &&
+                    x.VehicleId == first.Fixture.VehicleId && x.IsCurrent && !x.IsDeleted)
+                .Select(x => x.TransportDriverId).SingleAsync();
+            setup.VehicleDriverAssignments.Add(new VehicleDriverAssignment
+            {
+                TenantId = first.Fixture.TenantId, VehicleId = secondVehicleId,
+                TransportDriverId = driverId, EffectiveFrom = DateOnly.FromDateTime(
+                    TimeProvider.System.GetLocalNow().DateTime), IsCurrent = true
+            });
+            await Assert.ThrowsAsync<DbUpdateException>(() => setup.SaveChangesAsync());
         }
 
         await using var verify = ScopedContext(first.Fixture.Options,
             first.Fixture.TenantId, first.Fixture.UserId);
-        var tripRows = await verify.TransportTrips.AsNoTracking()
-            .Where(x => x.TenantId == first.Fixture.TenantId &&
-                (x.PublicId == first.Reference || x.PublicId == second.Reference))
-            .ToListAsync();
-        Assert.Equal(2, tripRows.Count);
-        var winner = Assert.Single(tripRows.Where(x => x.State == "Dispatched"));
-        var loser = Assert.Single(tripRows.Where(x => x.State == "Planned"));
-        Assert.NotNull(winner.TransportDriverId);
-        Assert.Equal(1, winner.RiderCount);
-        Assert.Null(loser.TransportDriverId);
-        Assert.Equal(0, loser.RiderCount);
-        Assert.Equal(1, await verify.TransportTripRiders.AsNoTracking().CountAsync(x =>
-            x.TenantId == first.Fixture.TenantId && x.TransportTripId == winner.Id));
-        Assert.Equal(0, await verify.TransportTripRiders.AsNoTracking().CountAsync(x =>
-            x.TenantId == first.Fixture.TenantId && x.TransportTripId == loser.Id));
-
-        var denied = await DispatchAsync(loser.PublicId == first.Reference ? 0 : 1);
+        Assert.Equal(1, await verify.VehicleDriverAssignments.AsNoTracking().CountAsync(x =>
+            x.TenantId == first.Fixture.TenantId && x.TransportDriverId == driverId &&
+            x.IsCurrent && !x.IsDeleted));
+        var denied = await TripService(verify, first.Fixture).DispatchAsync(
+            second.Reference, new DispatchTransportTripRequestDto
+            {
+                ClientRequestId = Guid.NewGuid(), RowVersion = second.RowVersion
+            });
         Assert.False(denied.Success);
-        Assert.Equal(409, denied.Status);
+        Assert.Equal(409, denied.StatusCode);
+        await AssertPlannedAndEmptyAsync(second);
     }
 
     [Fact]
-    public async Task Completed_driver_slot_remains_reserved_against_a_second_vehicle_dispatch()
+    public async Task Completed_driver_slot_remains_reserved_after_driver_handover()
     {
         var connection = Environment.GetEnvironmentVariable("EDUOS_SQL_AUTH_TEST_CONNECTION");
         if (string.IsNullOrWhiteSpace(connection)) return;
@@ -113,6 +94,8 @@ public sealed partial class SqlServerTransportSeatCapacityIntegrationTests
             Assert.True(completed.Success, completed.Message);
         }
 
+        await HandoverDriverToSecondVehicleAsync(first, second);
+
         await using var contenderDb = ScopedContext(first.Fixture.Options,
             first.Fixture.TenantId, first.Fixture.UserId);
         var denied = await TripService(contenderDb, first.Fixture).DispatchAsync(
@@ -123,6 +106,73 @@ public sealed partial class SqlServerTransportSeatCapacityIntegrationTests
         Assert.False(denied.Success);
         Assert.Equal(409, denied.StatusCode);
         await AssertPlannedAndEmptyAsync(second);
+    }
+
+    [Fact]
+    public async Task Driver_handover_between_planned_vehicles_blocks_old_dispatch_and_allows_new()
+    {
+        var connection = Environment.GetEnvironmentVariable("EDUOS_SQL_AUTH_TEST_CONNECTION");
+        if (string.IsNullOrWhiteSpace(connection)) return;
+
+        var first = await PlannedTripAsync(connection);
+        var second = await PlanSecondVehicleForSameDriverAsync(first);
+        await HandoverDriverToSecondVehicleAsync(first, second);
+
+        await using (var oldDb = ScopedContext(first.Fixture.Options,
+            first.Fixture.TenantId, first.Fixture.UserId))
+        {
+            var denied = await TripService(oldDb, first.Fixture).DispatchAsync(
+                first.Reference, new DispatchTransportTripRequestDto
+                {
+                    ClientRequestId = Guid.NewGuid(), RowVersion = first.RowVersion
+                });
+            Assert.False(denied.Success);
+            Assert.Equal(409, denied.StatusCode);
+        }
+        await AssertPlannedAndEmptyAsync(first);
+
+        await using (var newDb = ScopedContext(first.Fixture.Options,
+            first.Fixture.TenantId, first.Fixture.UserId))
+        {
+            var accepted = await TripService(newDb, first.Fixture).DispatchAsync(
+                second.Reference, new DispatchTransportTripRequestDto
+                {
+                    ClientRequestId = Guid.NewGuid(), RowVersion = second.RowVersion
+                });
+            Assert.True(accepted.Success, accepted.Message);
+        }
+        await using var verify = ScopedContext(first.Fixture.Options,
+            first.Fixture.TenantId, first.Fixture.UserId);
+        var trip = await verify.TransportTrips.AsNoTracking().SingleAsync(x =>
+            x.TenantId == first.Fixture.TenantId && x.PublicId == second.Reference);
+        Assert.Equal("Dispatched", trip.State);
+        Assert.Equal(1, trip.RiderCount);
+        Assert.Equal(1, await verify.TransportTripRiders.AsNoTracking().CountAsync(x =>
+            x.TenantId == first.Fixture.TenantId && x.TransportTripId == trip.Id));
+    }
+
+    private static async Task HandoverDriverToSecondVehicleAsync(
+        DispatchedTripFixture first, DispatchedTripFixture second)
+    {
+        var tenant = first.Fixture.TenantId;
+        var today = DateOnly.FromDateTime(TimeProvider.System.GetLocalNow().DateTime);
+        await using var db = ScopedContext(first.Fixture.Options, tenant, first.Fixture.UserId);
+        var old = await db.VehicleDriverAssignments.SingleAsync(x =>
+            x.TenantId == tenant && x.VehicleId == first.Fixture.VehicleId &&
+            x.IsCurrent && !x.IsDeleted);
+        var driverId = old.TransportDriverId;
+        var newVehicleId = await db.TransportTrips.AsNoTracking().Where(x =>
+            x.TenantId == tenant && x.PublicId == second.Reference)
+            .Select(x => x.VehicleId).SingleAsync();
+        old.IsCurrent = false;
+        old.EffectiveTo = today.AddDays(-1);
+        await db.SaveChangesAsync();
+        db.VehicleDriverAssignments.Add(new VehicleDriverAssignment
+        {
+            TenantId = tenant, VehicleId = newVehicleId, TransportDriverId = driverId,
+            EffectiveFrom = today, EffectiveTo = today.AddDays(1), IsCurrent = true
+        });
+        await db.SaveChangesAsync();
     }
 
     private static async Task<DispatchedTripFixture> PlanSecondVehicleForSameDriverAsync(
@@ -138,10 +188,6 @@ public sealed partial class SqlServerTransportSeatCapacityIntegrationTests
         var originalLink = await db.RouteVehicleAssignments.AsNoTracking()
             .SingleAsync(x => x.TenantId == tenant && x.RouteId == route.Id &&
                 x.VehicleId == originalVehicle.Id && x.IsCurrent && !x.IsDeleted);
-        var driverId = await db.VehicleDriverAssignments.AsNoTracking()
-            .Where(x => x.TenantId == tenant && x.VehicleId == originalVehicle.Id &&
-                x.IsCurrent && !x.IsDeleted)
-            .Select(x => x.TransportDriverId).SingleAsync();
         var existingRider = await db.StudentTransports.AsNoTracking()
             .SingleAsync(x => x.TenantId == tenant && x.VehicleId == originalVehicle.Id &&
                 x.State == TransportAssignmentState.Active);
@@ -163,11 +209,6 @@ public sealed partial class SqlServerTransportSeatCapacityIntegrationTests
             EffectiveFrom = today, EffectiveTo = today.AddDays(1), IsCurrent = true
         };
         db.RouteVehicleAssignments.Add(routeLink);
-        db.VehicleDriverAssignments.Add(new VehicleDriverAssignment
-        {
-            TenantId = tenant, VehicleId = vehicle.Id, TransportDriverId = driverId,
-            EffectiveFrom = today, EffectiveTo = today.AddDays(1), IsCurrent = true
-        });
         await db.SaveChangesAsync();
 
         db.StudentTransports.Add(new StudentTransport
