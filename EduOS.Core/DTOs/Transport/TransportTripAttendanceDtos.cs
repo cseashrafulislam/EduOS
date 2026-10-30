@@ -15,6 +15,7 @@ public sealed class TransportTripAttendanceDto
 }
 public sealed class TransportFamilyAttendanceDto
 {
+    public Guid TripReference { get; set; }
     public string StudentCode { get; set; } = string.Empty;
     public string RouteName { get; set; } = string.Empty;
     public DateOnly OperatingDate { get; set; }

@@ -85,11 +85,14 @@ load();
 const attendanceDate = el('familyAttendanceDate'), attendanceRows = el('familyAttendanceRows');
 const attendanceStatus = el('familyAttendanceStatus');
 const attendancePrev = el('familyAttendancePrev'), attendanceNext = el('familyAttendanceNext');
-let attendancePage = 1, attendancePages = 1, attendanceSerial = 0;
+let attendancePage = 1, attendancePages = 1, attendanceSerial = 0, attendanceLoadedDate = null;
+const attendanceExport = el('familyAttendanceExport');
+const historyDialog = el('familyAttendanceHistoryDialog');
 const earliest = new Date(now.getFullYear(),now.getMonth(),now.getDate()-30);
 attendanceDate.min = localDate(earliest); attendanceDate.max = localDate(now); attendanceDate.value = attendanceDate.max;
 async function loadAttendance() {
  const requestDate = attendanceDate.value, token = ++attendanceSerial;
+ attendanceLoadedDate = null; attendanceExport.disabled = true;
  attendanceRows.replaceChildren(); attendanceStatus.textContent = 'Loading / লোড হচ্ছে…';
  if (!requestDate || requestDate < attendanceDate.min || requestDate > attendanceDate.max) {
   attendanceStatus.textContent = 'Choose a date in the last 30 days / গত ৩০ দিনের তারিখ দিন'; return;
@@ -107,20 +110,69 @@ async function loadAttendance() {
    [item.studentCode,item.routeName,item.operatingDate,item.direction,
     item.attendanceState,item.lastEventAt ? new Date(item.lastEventAt+'Z').toLocaleString() : '—'
    ].forEach(x=>tr.append(cell(x)));
+   const action = document.createElement('td'), history = document.createElement('button');
+   history.type = 'button'; history.className = 'btn btn-outline-secondary btn-sm';
+   history.textContent = 'History / ইতিহাস';
+   history.addEventListener('click', async () => {
+    history.disabled = true;
+    try {
+     const url = '/api/transport/family-attendance/' + encodeURIComponent(item.tripReference) +
+      '/history?' + new URLSearchParams({studentCode:item.studentCode});
+     const response = await fetch(url, {credentials:'same-origin',cache:'no-store',headers:{Accept:'application/json'}});
+     const body = await response.json().catch(()=>null);
+     if (!response.ok || !body?.success || !Array.isArray(body.data)) throw Error(body?.message||'History unavailable.');
+     const list = el('familyAttendanceHistoryRows'); list.replaceChildren();
+     el('familyAttendanceHistoryStudent').textContent = item.studentCode;
+     for (const event of body.data) {
+      const li = document.createElement('li');
+      li.textContent = event.eventType + ' · ' + new Date(event.occurredAt + (event.occurredAt.endsWith('Z') ? '' : 'Z')).toLocaleString() +
+       (event.isCorrection ? ' · Corrected / সংশোধিত' : '');
+      list.append(li);
+     }
+     if (!body.data.length) { const li=document.createElement('li');li.textContent='No events / রেকর্ড নেই';list.append(li); }
+     historyDialog.showModal();
+    } catch (error) { attendanceStatus.textContent = error.message; }
+    finally { history.disabled = false; }
+   });
+   action.append(history); tr.append(action);
    attendanceRows.append(tr);
   }
   if (!body.data.items?.length) {
    const tr=document.createElement('tr'),td=cell('No dispatched trip / কোনো ডিসপ্যাচকৃত ট্রিপ নেই');
-   td.colSpan=6;tr.append(td);attendanceRows.append(tr);
+   td.colSpan=7;tr.append(td);attendanceRows.append(tr);
   }
   attendancePages=Math.max(1,Math.ceil((Number(body.data.totalCount)||0)/20));
   el('familyAttendancePage').textContent=attendancePage+' / '+attendancePages;
   attendancePrev.disabled=attendancePage<=1;attendanceNext.disabled=attendancePage>=attendancePages;
+  attendanceLoadedDate = requestDate;
+  attendanceExport.disabled = !body.data.items?.length;
   attendanceStatus.textContent='Recorded attendance only; not live tracking / রেকর্ডকৃত উপস্থিতি';
  } catch(e) { if(token===attendanceSerial) attendanceStatus.textContent=e.message; }
 }
 el('familyAttendanceFilters').addEventListener('submit',e=>{e.preventDefault();attendancePage=1;loadAttendance();});
-attendanceDate.addEventListener('change',()=>{attendanceSerial++;attendancePage=1;attendanceRows.replaceChildren();});
+attendanceDate.addEventListener('change',()=>{
+ attendanceSerial++;attendancePage=1;attendanceLoadedDate=null;attendanceExport.disabled=true;
+ attendanceRows.replaceChildren();
+});
+el('familyAttendanceHistoryClose').addEventListener('click',()=>historyDialog.close());
+attendanceExport.addEventListener('click',async()=>{
+ const requested=attendanceDate.value, token=attendanceSerial;
+ if (attendanceLoadedDate!==requested) return;
+ attendanceExport.disabled=true;
+ try {
+  const response=await fetch('/api/transport/family-attendance/export?'+new URLSearchParams({date:requested}),{
+   credentials:'same-origin',cache:'no-store',headers:{Accept:'text/csv'}
+  });
+  if(!response.ok){const body=await response.json().catch(()=>null);throw Error(body?.message||'Export unavailable.');}
+  const blob=await response.blob();
+  if(token!==attendanceSerial||requested!==attendanceDate.value||attendanceLoadedDate!==requested)
+   throw Error('Date changed; reload before exporting.');
+  const url=URL.createObjectURL(blob),link=document.createElement('a');
+  link.href=url;link.download='my-transport-attendance.csv';document.body.append(link);link.click();link.remove();
+  setTimeout(()=>URL.revokeObjectURL(url),1000);
+ }catch(error){attendanceStatus.textContent=error.message;}
+ finally{attendanceExport.disabled=attendanceLoadedDate!==attendanceDate.value;}
+});
 attendancePrev.addEventListener('click',()=>{if(attendancePage>1){attendancePage--;loadAttendance();}});
 attendanceNext.addEventListener('click',()=>{if(attendancePage<attendancePages){attendancePage++;loadAttendance();}});
 loadAttendance();

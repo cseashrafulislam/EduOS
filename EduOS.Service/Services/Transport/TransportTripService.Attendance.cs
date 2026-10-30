@@ -100,25 +100,14 @@ public sealed partial class TransportTripService
     public async Task<ApiResponse<PagedResult<TransportFamilyAttendanceDto>>> GetFamilyAttendanceAsync(
         DateOnly date, int page, int pageSize, CancellationToken ct = default)
     {
-        if (!_user.IsAuthenticated || _user.UserId <= 0 || _user.TenantId <= 0 ||
-            !(_user.IsInRole("Student") || _user.IsInRole("Guardian") || _user.IsInRole("Parent")))
+        if (!CanReadFamily)
             return ApiResponse<PagedResult<TransportFamilyAttendanceDto>>.ErrorResponse("Family access required.", 403);
         var today = DateOnly.FromDateTime(_clock.GetLocalNow().DateTime);
         if (date < today.AddDays(-30) || date > today || page < 1 || pageSize is < 1 or > 50 ||
             (long)(page - 1) * pageSize > int.MaxValue)
             return ApiResponse<PagedResult<TransportFamilyAttendanceDto>>.ErrorResponse("Invalid date or paging.");
         var tenant = _user.TenantId;
-        var ownStudents = _db.Students.AsNoTracking().Where(x => x.TenantId == tenant &&
-            !x.IsDeleted && x.UserId == _user.UserId).Select(x => x.Id);
-        var linkedStudents = from link in _db.StudentGuardians.AsNoTracking()
-            join guardian in _db.Guardians.AsNoTracking() on link.GuardianId equals guardian.Id
-            where link.TenantId == tenant && !link.IsDeleted && link.IsAuthorizedPickup &&
-                guardian.TenantId == tenant && !guardian.IsDeleted && guardian.IsActive &&
-                guardian.UserId == _user.UserId
-            select link.StudentId;
-        IQueryable<long> visible = _user.IsInRole("Student")
-            ? (_user.IsInRole("Guardian") || _user.IsInRole("Parent") ? ownStudents.Union(linkedStudents) : ownStudents)
-            : linkedStudents;
+        var visible = FamilyVisibleStudents();
         var query = from rider in _db.TransportTripRiders.AsNoTracking()
             join trip in _db.TransportTrips.AsNoTracking() on rider.TransportTripId equals trip.Id
             join route in _db.Routes.AsNoTracking() on trip.RouteId equals route.Id
@@ -128,7 +117,7 @@ public sealed partial class TransportTripService
                 trip.OperatingDate == date && route.TenantId == tenant
             select new
             {
-                rider.Id, rider.StudentCodeSnapshot, trip.OperatingDate, trip.Direction,
+                rider.Id, rider.StudentCodeSnapshot, trip.PublicId, trip.OperatingDate, trip.Direction,
                 RouteName = route.Name,
                 LastType = _db.TransportTripAttendanceEvents.AsNoTracking()
                     .Where(e => e.TenantId == tenant && !e.IsDeleted && e.TransportTripRiderId == rider.Id)
@@ -145,7 +134,7 @@ public sealed partial class TransportTripService
             {
                 Items = rows.Select(x => new TransportFamilyAttendanceDto
                 {
-                    StudentCode = x.StudentCodeSnapshot, RouteName = x.RouteName,
+                    TripReference = x.PublicId, StudentCode = x.StudentCodeSnapshot, RouteName = x.RouteName,
                     OperatingDate = x.OperatingDate, Direction = x.Direction,
                     AttendanceState = x.LastType ?? "Awaiting", LastEventAt = x.LastAt
                 }).ToList(),

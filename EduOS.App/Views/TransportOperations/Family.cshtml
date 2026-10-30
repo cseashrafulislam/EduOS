@@ -41,10 +41,11 @@
         <form id="familyAttendanceFilters" class="row g-2 mb-2">
             <div class="col-sm-4 col-md-3"><label class="form-label" for="familyAttendanceDate">Trip date / তারিখ</label><input id="familyAttendanceDate" class="form-control" type="date" required /></div>
             <div class="col-auto align-self-end"><button class="btn btn-outline-primary" type="submit">View / দেখুন</button></div>
+            <div class="col-auto align-self-end"><button id="familyAttendanceExport" class="btn btn-outline-secondary" type="button" disabled>CSV / এক্সপোর্ট</button></div>
         </form>
         <p id="familyAttendanceStatus" class="small text-muted" role="status" aria-live="polite"></p>
         <div class="table-responsive"><table class="table table-sm table-hover align-middle">
-            <thead><tr><th>Student</th><th>Route</th><th>Date</th><th>Direction</th><th>Recorded state</th><th>Recorded at (UTC)</th></tr></thead>
+            <thead><tr><th>Student</th><th>Route</th><th>Date</th><th>Direction</th><th>Recorded state</th><th>Recorded at (UTC)</th><th>History / ইতিহাস</th></tr></thead>
             <tbody id="familyAttendanceRows"></tbody>
         </table></div>
         <div class="d-flex gap-2 align-items-center">
@@ -53,6 +54,14 @@
             <button id="familyAttendanceNext" class="btn btn-outline-secondary btn-sm" type="button">Next</button>
         </div>
     </section>
+    <dialog id="familyAttendanceHistoryDialog" class="border rounded shadow p-3" aria-labelledby="familyAttendanceHistoryTitle" style="width:min(95vw,34rem)">
+        <h2 id="familyAttendanceHistoryTitle" class="h5">Attendance history / উপস্থিতির ইতিহাস</h2>
+        <p id="familyAttendanceHistoryStudent" class="small fw-semibold"></p>
+        <ol id="familyAttendanceHistoryRows" class="small"></ol>
+        <div class="d-flex justify-content-end">
+            <button id="familyAttendanceHistoryClose" class="btn btn-outline-secondary" type="button">Close / বন্ধ</button>
+        </div>
+    </dialog>
 </section>
 @section Scripts {
     <script src="~/js/transport-operations/family-schedule.js" asp-append-version="true"></script>

@@ -81,6 +81,71 @@ public sealed class TransportTripAttendanceTests
             .StatusCode.Should().Be(403);
     }
 
+
+    [Fact]
+    public async Task Family_history_and_csv_recheck_live_guardian_link_and_redact_staff_correction_reason()
+    {
+        await using var db = Context(101);
+        var (trip, rider) = await SeedAsync(db);
+        db.Students.Add(new Student
+        {
+            Id = rider.StudentId, TenantId = 101, UserId = 70,
+            StudentCode = rider.StudentCodeSnapshot, FullName = "Linked learner"
+        });
+        db.Guardians.Add(new Guardian { Id = 80, TenantId = 101, UserId = 42, FullName = "Linked guardian" });
+        db.StudentGuardians.Add(new StudentGuardian
+        {
+            TenantId = 101, StudentId = rider.StudentId, GuardianId = 80,
+            RelationCode = "Parent", IsAuthorizedPickup = true
+        });
+        var board = new TransportTripAttendanceEvent
+        {
+            TenantId = 101, TransportTripRiderId = rider.Id, ClientRequestId = Guid.NewGuid(),
+            Sequence = 1, EventType = "Boarded", OccurredAt = DateTime.UtcNow
+        };
+        db.TransportTripAttendanceEvents.Add(board);
+        await db.SaveChangesAsync();
+        db.TransportTripAttendanceEvents.Add(new TransportTripAttendanceEvent
+        {
+            TenantId = 101, TransportTripRiderId = rider.Id, ClientRequestId = Guid.NewGuid(),
+            Sequence = 2, EventType = "NoShow", OccurredAt = DateTime.UtcNow,
+            CorrectsEventId = board.Id, CorrectionReason = "Internal sensitive staff-only explanation"
+        });
+        await db.SaveChangesAsync();
+
+        var guardian = Service(db, new User(101, "Guardian"));
+        var history = await guardian.GetFamilyAttendanceHistoryAsync(trip.PublicId, rider.StudentCodeSnapshot);
+        history.Success.Should().BeTrue(history.Message);
+        history.Data!.Count.Should().Be(2);
+        history.Data.Last().IsCorrection.Should().BeTrue();
+        history.Data.Last().CorrectionReason.Should().BeNull();
+        var list = await guardian.GetFamilyAttendanceAsync(trip.OperatingDate, 1, 20);
+        list.Data!.Items.Single().TripReference.Should().Be(trip.PublicId);
+        list.Data.Items.Single().AttendanceState.Should().Be("NoShow");
+        var csv = await guardian.ExportFamilyAttendanceCsvAsync(trip.OperatingDate);
+        csv.Success.Should().BeTrue(csv.Message);
+        csv.Data.Should().Contain(rider.StudentCodeSnapshot).And.Contain("NoShow");
+        csv.Data.Should().NotContain("Internal sensitive");
+
+        (await guardian.GetFamilyAttendanceHistoryAsync(Guid.NewGuid(), rider.StudentCodeSnapshot))
+            .StatusCode.Should().Be(404);
+        (await guardian.GetFamilyAttendanceHistoryAsync(trip.PublicId, "UNKNOWN"))
+            .StatusCode.Should().Be(404);
+        (await Service(db, new User(202, "Guardian"))
+            .GetFamilyAttendanceHistoryAsync(trip.PublicId, rider.StudentCodeSnapshot))
+            .StatusCode.Should().Be(404);
+        (await Service(db, new User(101, "TransportManager"))
+            .ExportFamilyAttendanceCsvAsync(trip.OperatingDate)).StatusCode.Should().Be(403);
+
+        var link = await db.StudentGuardians.SingleAsync();
+        link.IsAuthorizedPickup = false;
+        await db.SaveChangesAsync();
+        (await guardian.GetFamilyAttendanceHistoryAsync(trip.PublicId, rider.StudentCodeSnapshot))
+            .StatusCode.Should().Be(404);
+        (await guardian.ExportFamilyAttendanceCsvAsync(trip.OperatingDate))
+            .Data.Should().NotContain(rider.StudentCodeSnapshot);
+    }
+
     [Fact]
     public void Attendance_model_has_tenant_composite_fk_and_unique_sequence_and_request()
     {
