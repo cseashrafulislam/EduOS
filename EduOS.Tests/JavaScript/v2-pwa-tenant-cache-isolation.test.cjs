@@ -257,3 +257,35 @@ test('unrelated service-worker messages do not clear public runtime assets', asy
     await w.message({ type: 'ANOTHER_MESSAGE' });
     assert.equal((await w.store('eduos-static-v11').match(req)).body, 'public');
 });
+
+test('sixteen institution switches never reuse previous runtime assets or intercept private V2 files', async () => {
+    const w = worker();
+    await w.install();
+    const banner = request('/images/campus-banner.jpg');
+    const privateFile = request('/api/library/digital/00000000-0000-0000-0000-000000000001/download');
+
+    for (let institute = 0; institute < 16; institute++) {
+        // The application explicitly clears public runtime assets when the
+        // authenticated institution changes. Core offline shell stays public.
+        await w.clear();
+        assert.equal(await w.store('eduos-static-v11').match(banner), undefined);
+        assert.ok(await w.store('eduos-static-v11').match(request('/offline.html')));
+
+        const expected = 'PUBLIC_CAMPUS_' + institute;
+        w.queued.push(response(expected, { contentType: 'image/jpeg' }));
+        assert.equal((await w.doFetch(banner)).body, expected);
+        assert.equal((await w.doFetch(banner)).body, expected);
+        assert.equal((await w.store('eduos-static-v11').match(banner)).body, expected);
+
+        // Private downloads, authenticated APIs and tenant-tagged static URLs
+        // must bypass the service worker rather than inheriting the old cache.
+        assert.equal(await w.doFetch(privateFile), undefined);
+        assert.equal(await w.doFetch(request('/api/hostel/guardian/export?tenant=' + institute)), undefined);
+        assert.equal(await w.doFetch(request('/images/tenant-logo.png?tenant=' + institute)), undefined);
+    }
+
+    await w.clear();
+    assert.equal(await w.store('eduos-static-v11').match(banner), undefined);
+    assert.equal(w.network.length, 16);
+    assert.equal(w.stores.size, 1);
+});
