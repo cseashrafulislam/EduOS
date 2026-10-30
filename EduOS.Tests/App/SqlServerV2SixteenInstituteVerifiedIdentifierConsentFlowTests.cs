@@ -62,7 +62,9 @@ public sealed partial class SqlServerTransportSeatCapacityIntegrationTests
         var connection = Environment.GetEnvironmentVariable("EDUOS_SQL_AUTH_TEST_CONNECTION");
         if (string.IsNullOrWhiteSpace(connection)) return;
 
-        const string syntheticBirthRegistration = "20012692510000123";
+        var syntheticBirthRegistration = "2001" +
+            string.Concat(Guid.NewGuid().ToString("N").Where(char.IsDigit))
+                .PadRight(13, '0')[..13];
         var members = new List<VerifiedIdentityMember>(16);
         foreach (var i in Enumerable.Range(0, 16))
         {
@@ -101,7 +103,8 @@ public sealed partial class SqlServerTransportSeatCapacityIntegrationTests
             Assert.Equal(201, created.StatusCode);
             Assert.Equal("Created", created.Data!.State);
 
-            var identifier = await db.PersonIdentifiers.SingleAsync();
+            var createdStudent = await db.Students.SingleAsync(x => x.Id == origin.StudentId);
+            var identifier = await db.PersonIdentifiers.SingleAsync(x => x.PersonId == createdStudent.PersonId);
             personId = identifier.PersonId;
             Assert.False(identifier.IsVerified);
             Assert.DoesNotContain(syntheticBirthRegistration, identifier.ProtectedValue);
