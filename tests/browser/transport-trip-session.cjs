@@ -14,7 +14,7 @@ const body = (role, lang) => {
         '<section id="driverTrips"><input name="__RequestVerificationToken" value="csrf">' +
         '<p id="driverTripStatus"></p>' +
         ['driverTripReload','driverTripPrev','driverTripNext','driverTripPrint','driverTripExport',
-         'driverRiderPrev','driverRiderNext'].map(btn).join('') +
+         'driverRiderPrev','driverRiderNext','driverMarkRemainingNoShow'].map(btn).join('') +
         '<span id="driverTripPage"></span><span id="driverRiderPage"></span>' +
         '<table><tbody id="driverTripRows"></tbody></table>' +
         '<section id="driverManifest" hidden><table><tbody id="driverRiderRows"></tbody></table></section></section>';
@@ -30,7 +30,7 @@ const body = (role, lang) => {
         '<span id="tripCalendarStatus"></span><span id="tripPage"></span>' +
         '<span id="tripRiderPage"></span>' +
         ['tripSchedule','tripReload','tripPrev','tripNext','tripPrint','tripExport','tripAudit',
-         'tripRiderPrev','tripRiderNext'].map(btn).join('') +
+         'tripRiderPrev','tripRiderNext','tripMarkRemainingNoShow'].map(btn).join('') +
         '<table><tbody id="tripRows"></tbody></table><section id="tripManifestPanel" hidden>' +
         '<table><tbody id="tripManifestRows"></tbody></table></section>' +
         '<dialog id="tripAuditDialog"><span id="tripAuditStatus"></span>' +
