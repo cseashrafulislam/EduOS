@@ -15,7 +15,7 @@ using System.Text;
 namespace EduOS.Service.Services.HR;
 
 /// <summary>Settles verified institutional payroll requests against posted salary payable, not platform billing.</summary>
-public sealed class PayrollPaymentPostingService : IPayrollPaymentPostingService
+public sealed partial class PayrollPaymentPostingService : IPayrollPaymentPostingService
 {
     private readonly EduOSDbContext db;
     private readonly ICurrentUserService user;
@@ -70,7 +70,8 @@ public sealed class PayrollPaymentPostingService : IPayrollPaymentPostingService
                     where payment.TenantId == tenant && !payment.IsDeleted && !employee.IsDeleted &&
                         !run.IsDeleted && run.State == PayrollRunState.Posted && run.JournalId.HasValue &&
                         (pendingOnly ? payment.State == PaymentState.AwaitingVerification :
-                            (payment.State == PaymentState.AwaitingVerification || payment.State == PaymentState.Successful))
+                            (payment.State == PaymentState.AwaitingVerification || payment.State == PaymentState.Successful ||
+                             payment.State == PaymentState.Refunded))
                     select new { Payment = payment, Employee = employee, Run = run };
         if (runReference.HasValue)
             query = query.Where(x => x.Run.PublicId == runReference.Value);
@@ -81,6 +82,7 @@ public sealed class PayrollPaymentPostingService : IPayrollPaymentPostingService
         var total = await query.CountAsync(ct);
         var records = await query.OrderByDescending(x => x.Payment.PaymentDate)
             .ThenByDescending(x => x.Payment.Id).Skip((page - 1) * pageSize).Take(pageSize).ToListAsync(ct);
+        var ids = records.Select(x => x.Payment.Id).ToArray();
         var bankIds = records.Where(x => x.Payment.BankAccountId.HasValue)
             .Select(x => x.Payment.BankAccountId!.Value).Distinct().ToArray();
         var banks = await db.BankAccounts.AsNoTracking().Where(x => x.TenantId == tenant &&
@@ -89,7 +91,14 @@ public sealed class PayrollPaymentPostingService : IPayrollPaymentPostingService
             .Select(x => x.Payment.JournalId!.Value).Distinct().ToArray();
         var journals = await db.Journals.AsNoTracking().Where(x => x.TenantId == tenant &&
             journalIds.Contains(x.Id) && !x.IsDeleted).ToDictionaryAsync(x => x.Id, ct);
-
+        var returnRows = await db.Journals.IgnoreQueryFilters().AsNoTracking().Where(x =>
+            x.TenantId == tenant && x.SourceType == "PayrollPaymentReturn" &&
+            x.SourceId.HasValue && ids.Contains(x.SourceId.Value))
+            .OrderByDescending(x => x.Id).Take(101).ToListAsync(ct);
+        if (returnRows.Count > 100)
+            return Error<PayrollPaymentPostingRegisterDto>("Payment return history exceeds reconciliation limit.", 409);
+        var latestReturns = returnRows.Where(x => !x.IsDeleted && x.State != JournalState.Rejected)
+            .GroupBy(x => x.SourceId!.Value).ToDictionary(x => x.Key, x => x.First());
         // Reconcile the complete successful settlement history for employees on this page.
         // Deleted historical postings are deliberately included: they cannot silently free payable.
         var employeeIds = records.Select(x => x.Employee.Id).Distinct().ToArray();
@@ -99,9 +108,25 @@ public sealed class PayrollPaymentPostingService : IPayrollPaymentPostingService
             .Take(501).ToListAsync(ct);
         if (successfulHistory.Count > 500)
             return Error<PayrollPaymentPostingRegisterDto>("Payroll settlement history exceeds the safe reconciliation limit.", 409);
+        var historyIds = successfulHistory.Select(x => x.Id).ToArray();
+        var postedReturns = await db.Journals.IgnoreQueryFilters().AsNoTracking()
+            .Where(x => x.TenantId == tenant && x.SourceType == "PayrollPaymentReturn" &&
+                x.SourceId.HasValue && historyIds.Contains(x.SourceId.Value) &&
+                x.State == JournalState.Posted)
+            .Select(x => x.SourceId!.Value).Distinct().Take(501).ToListAsync(ct);
+        if (postedReturns.Count > 500)
+            return Error<PayrollPaymentPostingRegisterDto>("Salary return history requires reconciliation.", 409);
+        var verifiedReturns = new HashSet<long>();
+        var invalidReturns = new HashSet<long>();
+        var returnedIds = postedReturns.ToHashSet();
+        foreach (var paid in successfulHistory.Where(x => returnedIds.Contains(x.Id)))
+        {
+            if (await HasVerifiedReturnAsync(db, tenant, paid, ct)) verifiedReturns.Add(paid.Id);
+            else invalidReturns.Add(paid.Id);
+        }
         var settlementJournalIds = successfulHistory.Where(x => x.JournalId.HasValue)
             .Select(x => x.JournalId!.Value).Distinct().ToArray();
-        var relatedJournalIds = settlementJournalIds.Concat(records
+        var relatedJournalIds = settlementJournalIds.Concat(journalIds).Concat(records
             .Where(x => x.Run.JournalId.HasValue).Select(x => x.Run.JournalId!.Value))
             .Distinct().ToArray();
         var relatedJournals = await db.Journals.IgnoreQueryFilters().AsNoTracking()
@@ -156,7 +181,7 @@ public sealed class PayrollPaymentPostingService : IPayrollPaymentPostingService
             Payments = records.Select(x =>
             {
                 var history = historyByEmployee[x.Employee.Id].ToArray();
-                var settled = history.Sum(p => p.Amount);
+                var settled = history.Where(p => !verifiedReturns.Contains(p.Id)).Sum(p => p.Amount);
                 var remaining = x.Employee.NetAmount - settled;
                 string? issue = null;
                 var accrual = x.Run.JournalId.HasValue
@@ -181,12 +206,17 @@ public sealed class PayrollPaymentPostingService : IPayrollPaymentPostingService
                     issue = "Payroll accrual or salary payable provenance needs reconciliation.";
                 else if (history.Any(p => p.IsDeleted || !Money(p.Amount) || p.Amount <= 0m))
                     issue = "Deleted or invalid successful payment history requires reconciliation.";
+                else if (history.Any(p => invalidReturns.Contains(p.Id)))
+                    issue = "A posted salary return has missing or inconsistent contra GL evidence.";
                 else if (settled > x.Employee.NetAmount)
                     issue = "Successful settlements exceed the employee net salary.";
                 else
                 {
                     foreach (var paid in history)
                     {
+                        // Posted disbursement is immutable. A verified independent contra
+                        // neutralizes its balance without changing its historical state.
+                        if (verifiedReturns.Contains(paid.Id)) continue;
                         var posted = paid.JournalId.HasValue
                             ? relatedJournals.GetValueOrDefault(paid.JournalId.Value) : null;
                         var entries = posted == null ? Array.Empty<JournalLine>() :
@@ -218,6 +248,8 @@ public sealed class PayrollPaymentPostingService : IPayrollPaymentPostingService
                     (x.Payment.JournalId.HasValue || !Money(x.Payment.Amount) ||
                         x.Payment.Amount <= 0m || x.Payment.Amount > remaining))
                     issue = "Pending payment exceeds remaining salary or has invalid posting state.";
+                if (issue == null && x.Payment.State == PaymentState.Refunded)
+                    issue = "Legacy refunded payment state needs immutable GL reconciliation.";
                 return new PayrollPaymentPostingRowDto
                 {
                     Reference = x.Payment.PublicId, RunReference = x.Run.PublicId,
@@ -228,13 +260,27 @@ public sealed class PayrollPaymentPostingService : IPayrollPaymentPostingService
                     Amount = x.Payment.Amount, NetSalaryAmount = x.Employee.NetAmount,
                     SettledAmount = settled, RemainingAmount = remaining,
                     ReconciliationStatus = issue != null ? "RequiresReview" :
-                        x.Payment.State == PaymentState.Successful ? "Reconciled" : "Pending",
+                        verifiedReturns.Contains(x.Payment.Id) ? "Returned" :
+                        x.Payment.State == PaymentState.Successful ? "Reconciled" :
+                        x.Payment.State == PaymentState.Refunded ? "Returned" : "Pending",
                     ReconciliationIssue = issue,
                     BankAccountId = x.Payment.BankAccountId,
                     BankLedgerId = x.Payment.BankAccountId.HasValue &&
                         banks.TryGetValue(x.Payment.BankAccountId.Value, out var bank) ? bank.AccountId : null,
                     JournalReference = x.Payment.JournalId.HasValue &&
                         journals.TryGetValue(x.Payment.JournalId.Value, out var journal) ? journal.PublicId : null,
+                    ReturnReference = latestReturns.TryGetValue(x.Payment.Id, out var returnJournal)
+                        ? returnJournal.PublicId : null,
+                    ReturnState = latestReturns.TryGetValue(x.Payment.Id, out var returnState)
+                        ? returnState.State : null,
+                    ReturnRowVersion = latestReturns.TryGetValue(x.Payment.Id, out var returnVersion)
+                        ? Convert.ToBase64String(returnVersion.RowVersion) : null,
+                    ReturnEvidenceReference = latestReturns.TryGetValue(x.Payment.Id, out var returnEvidence)
+                        ? returnEvidence.ReferenceNumber : null,
+                    ReturnReason = latestReturns.TryGetValue(x.Payment.Id, out var returnReason)
+                        ? returnReason.Description : null,
+                    ReturnMakerUserId = latestReturns.TryGetValue(x.Payment.Id, out var returnMaker)
+                        ? returnMaker.CreatedBy : null,
                     RowVersion = Convert.ToBase64String(x.Payment.RowVersion)
                 };
             }).ToArray()
@@ -479,9 +525,40 @@ public sealed class PayrollPaymentPostingService : IPayrollPaymentPostingService
             }
             var posted = await db.PayrollPayments.AsNoTracking().Where(x => x.TenantId == tenant &&
                 x.PayrollEmployeeId == employee.Id && x.Id != payment.Id &&
-                x.State == PaymentState.Successful).IgnoreQueryFilters().ToListAsync(ct);
-            if (posted.Any(x => x.IsDeleted || !x.JournalId.HasValue) || posted.Sum(x => x.Amount) + payment.Amount > employee.NetAmount)
-                return Error<PostPayrollPaymentJournalResultDto>("Settlement exceeds remaining net salary or prior payment needs reconciliation.", 409);
+                x.State == PaymentState.Successful).IgnoreQueryFilters().Take(501).ToListAsync(ct);
+            if (posted.Count > 500 || posted.Any(x => x.IsDeleted || !x.JournalId.HasValue ||
+                !Money(x.Amount) || x.Amount <= 0m))
+                return Error<PostPayrollPaymentJournalResultDto>("Prior settlement history needs reconciliation.", 409);
+            // Do not rely on a payment state and amount alone. Every prior successful
+            // payment must still match a posted, balanced salary settlement journal.
+            foreach (var previous in posted)
+                if (await GetReturnSourceAsync(previous.PublicId, ct) is null)
+                    return Error<PostPayrollPaymentJournalResultDto>("Prior payroll payment GL evidence is invalid.", 409);
+            var previousIds = posted.Select(x => x.Id).ToArray();
+            var postedReturnIds = (await db.Journals.IgnoreQueryFilters().AsNoTracking().Where(x =>
+                x.TenantId == tenant && x.SourceType == "PayrollPaymentReturn" &&
+                x.SourceId.HasValue && previousIds.Contains(x.SourceId.Value) &&
+                x.State == JournalState.Posted).Select(x => x.SourceId!.Value)
+                .Distinct().Take(501).ToListAsync(ct)).ToHashSet();
+            var verifiedReturnIds = new HashSet<long>();
+            foreach (var previous in posted.Where(x => postedReturnIds.Contains(x.Id)))
+            {
+                if (!await HasVerifiedReturnAsync(db, tenant, previous, ct))
+                    return Error<PostPayrollPaymentJournalResultDto>("Previous salary return lacks valid contra GL proof.", 409);
+                verifiedReturnIds.Add(previous.Id);
+            }
+            foreach (var previous in posted.Where(x => !verifiedReturnIds.Contains(x.Id)))
+                if (await PayrollPostingHistoryIntegrity.HasPostedReversalAsync(
+                    db, tenant, previous.JournalId!.Value, ct))
+                    return Error<PostPayrollPaymentJournalResultDto>("An unverified reversal of a prior payment requires reconciliation.", 409);
+            if (posted.Where(x => !verifiedReturnIds.Contains(x.Id)).Sum(x => x.Amount) +
+                payment.Amount > employee.NetAmount)
+                return Error<PostPayrollPaymentJournalResultDto>("Settlement exceeds remaining net salary.", 409);
+            var legacyRefundHistory = await db.PayrollPayments.IgnoreQueryFilters().AsNoTracking().Where(x =>
+                x.TenantId == tenant && x.PayrollEmployeeId == employee.Id &&
+                x.State == PaymentState.Refunded).Take(1).ToListAsync(ct);
+            if (legacyRefundHistory.Count > 0)
+                return Error<PostPayrollPaymentJournalResultDto>("Legacy refunded payment history requires reconciliation.", 409);
             if (await db.Journals.IgnoreQueryFilters().AsNoTracking().AnyAsync(x => x.TenantId == tenant &&
                 ((x.SourceType == "PayrollPayment" && x.SourceId == payment.Id) ||
                 x.IdempotencyKey == PostingKey(tenant, payment.PublicId)), ct))

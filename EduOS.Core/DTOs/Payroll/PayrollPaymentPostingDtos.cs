@@ -21,6 +21,12 @@ public sealed class PayrollPaymentPostingRowDto
     public long? BankLedgerId { get; set; }
     public string RowVersion { get; set; } = string.Empty;
     public Guid? JournalReference { get; set; }
+    public Guid? ReturnReference { get; set; }
+    public JournalState? ReturnState { get; set; }
+    public string? ReturnRowVersion { get; set; }
+    public string? ReturnEvidenceReference { get; set; }
+    public string? ReturnReason { get; set; }
+    public long? ReturnMakerUserId { get; set; }
 }
 public sealed class PayrollBankReviewExportDto
 {
@@ -50,4 +56,32 @@ public sealed class PostPayrollPaymentJournalResultDto
     public string JournalNumber { get; set; } = string.Empty;
     public decimal Amount { get; set; }
     public bool AlreadyPosted { get; set; }
+}
+
+public sealed class RequestPayrollPaymentReturnDto
+{
+    public Guid ClientRequestId { get; set; }
+    public long AccountingPeriodId { get; set; }
+    public DateOnly ReturnDate { get; set; }
+    public string EvidenceReference { get; set; } = string.Empty;
+    public string Reason { get; set; } = string.Empty;
+    public string RowVersion { get; set; } = string.Empty;
+}
+
+public sealed class ReviewPayrollPaymentReturnDto
+{
+    public bool Approve { get; set; }
+    public string RowVersion { get; set; } = string.Empty;
+    public string? RejectionReason { get; set; }
+}
+
+public sealed class PayrollPaymentReturnResultDto
+{
+    public Guid PaymentReference { get; set; }
+    public Guid ReturnReference { get; set; }
+    public string JournalNumber { get; set; } = string.Empty;
+    public JournalState State { get; set; }
+    public decimal Amount { get; set; }
+    public string RowVersion { get; set; } = string.Empty;
+    public bool AlreadyProcessed { get; set; }
 }

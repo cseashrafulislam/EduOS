@@ -63,16 +63,22 @@ public sealed class PayrollReconciliationService : IPayrollReconciliationService
         // Include soft-deleted financial history: deleting a payment must not erase an anomaly.
         var payments = await db.PayrollPayments.IgnoreQueryFilters().AsNoTracking()
             .Where(x => x.TenantId == tenant && employeeIds.Contains(x.PayrollEmployeeId))
-            .OrderBy(x => x.Id).Take(4001)
-            .Select(x => new
-            {
-                x.Id, x.PayrollEmployeeId, x.JournalId, x.State,
-                x.Amount, x.IsDeleted, x.CurrencyCode, x.BankAccountId,
-                x.EmployeeBankAccountId, x.ExternalReference, x.PaymentMethod,
-                x.PaymentDate
-            }).ToListAsync(ct);
+            .OrderBy(x => x.Id).Take(4001).ToListAsync(ct);
         if (payments.Count > 4000)
             return Error<PagedResult<PayrollReconciliationRowDto>>("Payment history exceeds report safety limit.", 409);
+        var paidIds = payments.Where(x => x.State == PaymentState.Successful)
+            .Select(x => x.Id).ToArray();
+        var postedReturnIds = (await db.Journals.IgnoreQueryFilters().AsNoTracking()
+            .Where(x => x.TenantId == tenant && x.SourceType == "PayrollPaymentReturn" &&
+                x.SourceId.HasValue && paidIds.Contains(x.SourceId.Value) &&
+                x.State == JournalState.Posted)
+            .Select(x => x.SourceId!.Value).Distinct().Take(4001).ToListAsync(ct)).ToHashSet();
+        if (postedReturnIds.Count > 4000)
+            return Error<PagedResult<PayrollReconciliationRowDto>>("Salary return history exceeds report safety limit.", 409);
+        var verifiedReturns = new HashSet<long>();
+        foreach (var payment in payments.Where(x => postedReturnIds.Contains(x.Id)))
+            if (await PayrollPaymentPostingService.HasVerifiedReturnAsync(db, tenant, payment, ct))
+                verifiedReturns.Add(payment.Id);
         var payJournalIds = payments.Where(x => x.JournalId.HasValue)
             .Select(x => x.JournalId!.Value).Distinct().ToArray();
         var journalIds = accrualIds.Concat(payJournalIds).Distinct().ToArray();
@@ -109,13 +115,15 @@ public sealed class PayrollReconciliationService : IPayrollReconciliationService
             .Select(x => new { RunId = x.Key, Net = x.Sum(y => y.NetAmount) })
             .ToDictionaryAsync(x => x.RunId, x => x.Net, ct);
 
-        bool BaseJournal(long? id, string type, long sourceId, long? campusId, DateOnly date)
+        bool BaseJournal(long? id, string type, long sourceId, long? campusId, DateOnly date,
+            bool verifiedReturn = false)
         {
             return id.HasValue && journals.TryGetValue(id.Value, out var j) &&
                 !j.IsDeleted && !j.ReversalOfJournalId.HasValue &&
                 j.State == JournalState.Posted && j.SourceType == type &&
                 j.SourceId == sourceId && j.CurrencyCode == "BDT" &&
-                j.CampusId == campusId && j.JournalDate == date && !reversed.Contains(j.Id);
+                j.CampusId == campusId && j.JournalDate == date &&
+                (!reversed.Contains(j.Id) || verifiedReturn);
         }
         bool AccrualValid(long? id, long sourceId, long? campusId, DateOnly periodEnd)
         {
@@ -134,9 +142,9 @@ public sealed class PayrollReconciliationService : IPayrollReconciliationService
         bool PaymentValid(long? id, long sourceId, decimal amount, long? accrualJournalId,
             long? campusId, long employeeSourceId, DateOnly paymentDate,
             PaymentMethodType method, long? bankAccountId, long? employeeBankAccountId,
-            string? externalReference)
+            string? externalReference, bool verifiedReturn = false)
         {
-            if (!BaseJournal(id, "PayrollPayment", sourceId, campusId, paymentDate) ||
+            if (!BaseJournal(id, "PayrollPayment", sourceId, campusId, paymentDate, verifiedReturn) ||
                 !accrualJournalId.HasValue || amount <= 0m ||
                 method is not (PaymentMethodType.Cash or PaymentMethodType.BankTransfer) ||
                 (method == PaymentMethodType.Cash &&
@@ -187,13 +195,15 @@ public sealed class PayrollReconciliationService : IPayrollReconciliationService
                 }
                 else if (p.State == PaymentState.Successful)
                 {
+                    var returned = verifiedReturns.Contains(p.Id);
                     if (p.IsDeleted || p.CurrencyCode != "BDT" || p.Amount <= 0m ||
+                        (postedReturnIds.Contains(p.Id) && !returned) ||
                         !PaymentValid(p.JournalId, p.Id, p.Amount, r.JournalId,
                             r.CampusId, r.EmployeeSourceId, p.PaymentDate,
                             p.PaymentMethod, p.BankAccountId, p.EmployeeBankAccountId,
-                            p.ExternalReference) || p.PaymentDate < r.PeriodEnd)
+                            p.ExternalReference, returned) || p.PaymentDate < r.PeriodEnd)
                         discrepancy = true;
-                    else paid += p.Amount;
+                    else if (!returned) paid += p.Amount;
                 }
                 else if (p.JournalId.HasValue)
                 {

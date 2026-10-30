@@ -11,4 +11,9 @@ public interface IPayrollPaymentPostingService
         Guid runReference, CancellationToken ct = default);
     Task<ApiResponse<PostPayrollPaymentJournalResultDto>> PostAsync(
         Guid paymentReference, PostPayrollPaymentJournalRequestDto request, CancellationToken ct = default);
+    Task<ApiResponse<PayrollPaymentReturnResultDto>> RequestReturnAsync(
+        Guid paymentReference, RequestPayrollPaymentReturnDto request, CancellationToken ct = default);
+    Task<ApiResponse<PayrollPaymentReturnResultDto>> ReviewReturnAsync(
+        Guid paymentReference, Guid returnReference, ReviewPayrollPaymentReturnDto request,
+        CancellationToken ct = default);
 }

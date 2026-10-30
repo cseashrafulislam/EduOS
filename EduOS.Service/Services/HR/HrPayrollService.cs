@@ -9,6 +9,7 @@ using EduOS.Core.Enums.Domain;
 using EduOS.Core.Interfaces;
 using EduOS.Core.Interfaces.IRepositories;
 using EduOS.Core.Interfaces.IServices;
+using EduOS.Persistence.Context;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using System.Security.Cryptography;
@@ -1024,11 +1025,36 @@ public sealed class HrPayrollService : IPayrollAdministrationService
                         x.CurrencyCode == "BDT", token))
                         return Error<PayrollPaymentDto>("Active BDT employee bank destination is unavailable.", 409);
                 }
-                var pending = await _payments.GetQueryable().AsNoTracking().Where(x =>
-                    x.TenantId == tenant && x.PayrollEmployeeId == employee.Id &&
-                    !x.IsDeleted && x.State != PaymentState.Failed &&
-                    x.State != PaymentState.Cancelled && x.State != PaymentState.Refunded)
-                    .SumAsync(x => (decimal?)x.Amount, token) ?? 0m;
+                // A returned successful payment remains an immutable historical row.
+                // It frees available salary only after a second administrator posts an
+                // exact verified contra journal. Pending requests still reserve capacity.
+                var paymentHistory = await _payments.GetQueryable().IgnoreQueryFilters().AsNoTracking()
+                    .Where(x => x.TenantId == tenant && x.PayrollEmployeeId == employee.Id &&
+                        x.State != PaymentState.Failed && x.State != PaymentState.Cancelled)
+                    .Take(501).ToListAsync(token);
+                if (paymentHistory.Count > 500 || paymentHistory.Any(x => x.IsDeleted ||
+                    x.State == PaymentState.Refunded || x.Amount <= 0m))
+                    return Error<PayrollPaymentDto>("Historical payroll payments need reconciliation before a new request.", 409);
+                var returned = new HashSet<long>();
+                if (_uow is EduOSDbContext payrollDb)
+                {
+                    var paidIds = paymentHistory.Where(x => x.State == PaymentState.Successful)
+                        .Select(x => x.Id).ToArray();
+                    var returnedIds = (await payrollDb.Journals.IgnoreQueryFilters().AsNoTracking()
+                        .Where(x => x.TenantId == tenant && x.SourceType == "PayrollPaymentReturn" &&
+                            x.SourceId.HasValue && paidIds.Contains(x.SourceId.Value) &&
+                            x.State == JournalState.Posted)
+                        .Select(x => x.SourceId!.Value).Distinct().Take(501).ToListAsync(token)).ToHashSet();
+                    foreach (var prior in paymentHistory.Where(x => returnedIds.Contains(x.Id)))
+                    {
+                        if (!await PayrollPaymentPostingService.HasVerifiedReturnAsync(
+                            payrollDb, tenant, prior, token))
+                            return Error<PayrollPaymentDto>("A prior returned salary lacks verified contra GL evidence.", 409);
+                        returned.Add(prior.Id);
+                    }
+                }
+                var pending = paymentHistory.Where(x => !returned.Contains(x.Id))
+                    .Sum(x => x.Amount);
                 if (Round(request.Amount) > employee.NetAmount - pending)
                     return Error<PayrollPaymentDto>("Payment exceeds the outstanding net salary.", 409);
                 var now = _clock.GetUtcNow().UtcDateTime;
@@ -1045,8 +1071,8 @@ public sealed class HrPayrollService : IPayrollAdministrationService
                     CreatedBy = _user.UserId
                 };
                 await _payments.AddAsync(row);
-                employee.UpdatedAt = now; employee.UpdatedBy = _user.UserId;
-                _payrollEmployees.Update(employee);
+                // PayrollEmployee belongs to a posted immutable run. Recording a separate
+                // payment request must never rewrite its salary snapshot or rowversion.
                 await _uow.SaveChangesAsync(token);
                 return ApiResponse<PayrollPaymentDto>.SuccessResponse(MapPayment(row),
                     "Payment request recorded pending verification and accounting reconciliation.");

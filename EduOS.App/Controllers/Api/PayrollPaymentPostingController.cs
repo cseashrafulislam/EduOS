@@ -39,4 +39,14 @@ public sealed class PayrollPaymentPostingController : ControllerBase
     public async Task<IActionResult> Post(Guid reference,
         [FromBody] PostPayrollPaymentJournalRequestDto request, CancellationToken ct) =>
         Reply(await service.PostAsync(reference, request, ct));
+
+    [HttpPost("{reference:guid}/returns"), Authorize(Roles = "TenantAdmin")]
+    public async Task<IActionResult> RequestReturn(Guid reference,
+        [FromBody] RequestPayrollPaymentReturnDto request, CancellationToken ct) =>
+        Reply(await service.RequestReturnAsync(reference, request, ct));
+
+    [HttpPost("{reference:guid}/returns/{returnReference:guid}/review"), Authorize(Roles = "TenantAdmin")]
+    public async Task<IActionResult> ReviewReturn(Guid reference, Guid returnReference,
+        [FromBody] ReviewPayrollPaymentReturnDto request, CancellationToken ct) =>
+        Reply(await service.ReviewReturnAsync(reference, returnReference, request, ct));
 }

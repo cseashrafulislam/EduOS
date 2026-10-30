@@ -44,6 +44,19 @@
                 <button type="button" class="btn btn-outline-secondary" id="payrollPaymentCancel">Cancel</button>
             </div>
         </section>
+        <section class="card card-body mt-3 d-none" id="payrollReturnPanel">
+            <h3 class="h6">Record verified salary returned by employee</h3>
+            <p id="payrollReturnSelected"></p>
+            <div class="row g-2">
+                <div class="col-md-3"><label for="payrollReturnDate" class="form-label">Actual return date</label><input id="payrollReturnDate" type="date" class="form-control" required /></div>
+                <div class="col-md-4"><label for="payrollReturnEvidence" class="form-label">Cash/bank return receipt reference</label><input id="payrollReturnEvidence" class="form-control" maxlength="100" required /></div>
+                <div class="col-md-5"><label for="payrollReturnReason" class="form-label">Correction reason</label><input id="payrollReturnReason" class="form-control" maxlength="1000" required /></div>
+            </div>
+            <div class="d-flex gap-2 mt-3">
+                <button type="button" class="btn btn-primary" id="payrollReturnSubmit">Submit for independent review</button>
+                <button type="button" class="btn btn-outline-secondary" id="payrollReturnCancel">Cancel</button>
+            </div>
+        </section>
     }
 </section>
 @section Scripts { <script src="~/js/finance/payroll-payment-posting.js" asp-append-version="true"></script> }

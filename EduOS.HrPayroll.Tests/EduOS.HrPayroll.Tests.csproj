@@ -33,6 +33,9 @@
     <Compile Include="../EduOS.Tests/Services/PayrollStatutoryCoverageTests.cs" Link="PayrollStatutoryCoverageTests.cs" />
     <Compile Include="../EduOS.Tests/Services/PayrollStatutoryCalculationTests.cs" Link="PayrollStatutoryCalculationTests.cs" />
     <Compile Include="../EduOS.Tests/Services/PayrollPaymentPostingServiceTests.cs" Link="PayrollPaymentPostingServiceTests.cs" />
+    <Compile Include="../EduOS.Tests/Services/PayrollPaymentReturnTests.cs" Link="PayrollPaymentReturnTests.cs" />
+    <Compile Include="../EduOS.Tests/Services/PayrollJournalReversalWorkflowTests.cs" Link="PayrollJournalReversalWorkflowTests.cs" />
+    <Compile Include="../EduOS.Tests/Services/PayrollReconciliationJournalEvidenceTests.cs" Link="PayrollReconciliationJournalEvidenceTests.cs" />
     <Compile Include="../EduOS.Tests/Services/PayrollPostingHistoricalIntegrityTests.cs" Link="PayrollPostingHistoricalIntegrityTests.cs" />
     <Compile Include="../EduOS.Tests/Services/PayrollJournalPostingServiceTests.cs" Link="PayrollJournalPostingServiceTests.cs" />
     <Compile Include="../EduOS.Tests/Services/PayrollLoanRecoverySettlementTests.cs" Link="PayrollLoanRecoverySettlementTests.cs" />

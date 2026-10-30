@@ -49,16 +49,23 @@ public sealed partial class PayrollJournalPostingService
             lines.Sum(x => x.DebitAmount) <= 0m ||
             lines.Sum(x => x.DebitAmount) != lines.Sum(x => x.CreditAmount))
             return (run, journal, lines, "Original payroll journal is not a balanced immutable accrual.");
-        // Pending salary disbursement requests, successful/linked payment history and loan
-        // recoveries must be cleared before reversing the accrual. Never strand a request.
-        if (await db.PayrollPayments.IgnoreQueryFilters().AsNoTracking().AnyAsync(payment =>
-            payment.TenantId == tenant &&
-            (payment.State == PaymentState.Initiated || payment.State == PaymentState.AwaitingVerification ||
-             payment.State == PaymentState.Successful || payment.JournalId.HasValue) &&
-            db.PayrollEmployees.IgnoreQueryFilters().Any(employee =>
-                employee.TenantId == tenant && employee.PayrollRunId == run.Id &&
-                employee.Id == payment.PayrollEmployeeId), ct))
+        // Posted successful payments remain immutable. All of them must have their own
+        // independently reviewed cash/bank return contra before reversing this accrual.
+        // Pending requests and loan recovery remain hard blockers.
+        var disbursements = await db.PayrollPayments.IgnoreQueryFilters().AsNoTracking()
+            .Where(payment => payment.TenantId == tenant &&
+                db.PayrollEmployees.IgnoreQueryFilters().Any(employee =>
+                    employee.TenantId == tenant && employee.PayrollRunId == run.Id &&
+                    employee.Id == payment.PayrollEmployeeId))
+            .Take(1001).ToListAsync(ct);
+        if (disbursements.Count > 1000 || disbursements.Any(payment =>
+                payment.IsDeleted || payment.State is PaymentState.Initiated or
+                    PaymentState.AwaitingVerification or PaymentState.Refunded ||
+                (payment.JournalId.HasValue && payment.State != PaymentState.Successful)))
             return (run, journal, lines, "Payroll has pending or posted payment history; reconcile disbursements before reversal.");
+        foreach (var postedPayment in disbursements.Where(x => x.State == PaymentState.Successful))
+            if (!await PayrollPaymentPostingService.HasVerifiedReturnAsync(db, tenant, postedPayment, ct))
+                return (run, journal, lines, "Returned salary requires verified, immutable contra GL before payroll reversal.");
         if (await db.LoanAdvanceRecoveries.IgnoreQueryFilters().AsNoTracking().AnyAsync(x =>
             x.TenantId == tenant && x.JournalId == journal.Id, ct))
             return (run, journal, lines, "Payroll loan recoveries must be compensated before reversal.");

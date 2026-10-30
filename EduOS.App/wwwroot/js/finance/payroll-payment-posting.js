@@ -4,7 +4,8 @@ const root = document.getElementById('payrollPaymentPosting'); if (!root) return
 const el = id => document.getElementById(id);
 const token = root.querySelector('input[name="__RequestVerificationToken"]')?.value;
 const canPost = root.dataset.post === 'true', endpoint = '/api/finance/payroll-payments';
-let page = 1, totalPages = 1, selected = null, accounts = [];
+let page = 1, totalPages = 1, selected = null, returnSelected = null,
+    returnRequestId = null, returnFingerprint = null, accounts = [];
 function notice(message, error = false) {
     const box = el('payrollPaymentNotice'); box.textContent = message;
     box.className = 'alert ' + (error ? 'alert-danger' : 'alert-success');
@@ -65,6 +66,44 @@ function choose(row) {
     if (bankTransfer && !available.length) notice('Bank account is not mapped to an active BDT asset ledger.', true);
     el('payrollPaymentConfirmPanel').scrollIntoView({behavior:'smooth', block:'start'});
 }
+function chooseReturn(row) {
+    returnSelected = row;
+    returnRequestId = null;
+    returnFingerprint = null;
+    el('payrollReturnSelected').textContent = row.employeeName + ' · ' + row.runNumber +
+        ' · ' + money(row.amount) + ' · ' + row.paymentDate;
+    el('payrollReturnDate').value = '';
+    el('payrollReturnEvidence').value = '';
+    el('payrollReturnReason').value = '';
+    el('payrollReturnPanel').classList.remove('d-none');
+    el('payrollReturnPanel').scrollIntoView({behavior:'smooth', block:'start'});
+}
+async function reviewReturn(row, approve, button) {
+    if (!row.returnReference || !row.returnRowVersion || !row.returnEvidenceReference) {
+        notice('Return receipt or version is unavailable; reload.', true); return;
+    }
+    const evidence = row.returnEvidenceReference;
+    const reason = row.returnReason || '';
+    let rejectionReason = null;
+    if (approve) {
+        if (!confirm('Confirm the actual returned salary receipt against independent bank/cash evidence?\n' +
+            'Employee: ' + row.employeeName + '\nAmount: ' + money(row.amount) +
+            '\nReceipt: ' + evidence + '\nReason: ' + reason +
+            '\n\nThis will post an immutable contra journal and reopen salary payable.')) return;
+    } else {
+        rejectionReason = prompt('Why is this return receipt rejected?');
+        if (!rejectionReason?.trim()) return;
+    }
+    button.disabled = true;
+    try {
+        const result = await api(endpoint + '/' + encodeURIComponent(row.reference) +
+            '/returns/' + encodeURIComponent(row.returnReference) + '/review', 'POST',
+            {approve, rowVersion:row.returnRowVersion, rejectionReason});
+        notice((approve ? 'Salary return posted: ' : 'Return rejected: ') + result.journalNumber);
+        await load();
+    } catch (error) { notice(error.message, true); }
+    finally { button.disabled = false; }
+}
 function render(data) {
     accounts = data.accounts || [];
     const periods = el('payrollPaymentPeriod'), old = periods.value;
@@ -78,7 +117,9 @@ function render(data) {
         for (const value of [row.runNumber, row.employeeName, row.campusId ?? 'Institution-wide',
             row.paymentDate, method, money(row.amount), money(row.netSalaryAmount),
             money(row.settledAmount), money(row.remainingAmount),
-            row.journalReference ? 'Posted · ' + row.journalReference : 'Awaiting verification',
+            row.returnState === 4 || row.returnState === 'Posted' ?
+                'Returned · ' + row.returnReference :
+                row.journalReference ? 'Posted · ' + row.journalReference : 'Awaiting verification',
             row.reconciliationIssue || row.reconciliationStatus || 'Not checked']) tr.append(cell(value));
         const action = document.createElement('td'), button = document.createElement('button');
         button.type = 'button'; button.className = 'btn btn-sm btn-primary';
@@ -87,6 +128,25 @@ function render(data) {
         button.disabled = !canPost || !pending || !!row.journalReference ||
             row.reconciliationStatus !== 'Pending';
         button.addEventListener('click', () => choose(row)); action.append(button);
+        const paid = Number(row.state) === 3 || row.state === 'Successful';
+        const reviewable = Number(row.returnState) === 2 || row.returnState === 'Submitted';
+        if (canPost && paid && !row.returnReference && row.journalReference &&
+            row.reconciliationStatus === 'Reconciled') {
+            const returnButton = document.createElement('button'); returnButton.type = 'button';
+            returnButton.className = 'btn btn-sm btn-outline-warning ms-1';
+            returnButton.textContent = 'Record return';
+            returnButton.addEventListener('click', () => chooseReturn(row)); action.append(returnButton);
+        }
+        if (canPost && reviewable) {
+            for (const [approve, label, klass] of [[true, 'Approve return', 'btn-outline-success'],
+                [false, 'Reject', 'btn-outline-danger']]) {
+                const reviewButton = document.createElement('button'); reviewButton.type = 'button';
+                reviewButton.className = 'btn btn-sm ' + klass + ' ms-1';
+                reviewButton.textContent = label;
+                reviewButton.addEventListener('click', () => reviewReturn(row, approve, reviewButton));
+                action.append(reviewButton);
+            }
+        }
         if (canPost && method === 'Bank transfer' && pending && row.runReference) {
             const exportButton = document.createElement('button'); exportButton.type = 'button';
             exportButton.className = 'btn btn-sm btn-outline-secondary ms-1';
@@ -114,6 +174,41 @@ el('payrollPaymentFilter').addEventListener('submit', e => { e.preventDefault();
 el('payrollPaymentPrev').addEventListener('click', () => { if (page > 1) { page--; load(); } });
 el('payrollPaymentNext').addEventListener('click', () => { if (page < totalPages) { page++; load(); } });
 if (canPost) {
+    el('payrollReturnCancel').addEventListener('click', () => {
+        returnSelected = null;
+        returnRequestId = null;
+        el('payrollReturnPanel').classList.add('d-none');
+    });
+    el('payrollReturnSubmit').addEventListener('click', async event => {
+        if (!returnSelected) return;
+        const period = Number(el('payrollPaymentPeriod').value);
+        const date = el('payrollReturnDate').value;
+        const evidence = el('payrollReturnEvidence').value.trim();
+        const reason = el('payrollReturnReason').value.trim();
+        if (!Number.isSafeInteger(period) || period <= 0 || !date ||
+            !evidence || evidence.length > 100 || !reason || reason.length > 1000) {
+            notice('Select an open period, actual return date, receipt reference and reason.', true); return;
+        }
+        const fingerprint = [returnSelected.reference, period, date, evidence, reason].join('|');
+        if (fingerprint !== returnFingerprint) {
+            returnFingerprint = fingerprint;
+            returnRequestId = crypto.randomUUID();
+        }
+        if (!confirm('Submit this recorded return of salary for another administrator to verify? No financial entry will post until approved.')) return;
+        event.currentTarget.disabled = true;
+        try {
+            const result = await api(endpoint + '/' + encodeURIComponent(returnSelected.reference) +
+                '/returns', 'POST', {clientRequestId:returnRequestId,
+                accountingPeriodId:period, returnDate:date, evidenceReference:evidence,
+                reason, rowVersion:returnSelected.rowVersion});
+            notice('Return submitted for independent review: ' + result.journalNumber);
+            returnSelected = null;
+            el('payrollReturnPanel').classList.add('d-none');
+            el('payrollPaymentPending').checked = false;
+            await load();
+        } catch (error) { notice(error.message, true); }
+        finally { event.currentTarget.disabled = false; }
+    });
     el('payrollPaymentCancel').addEventListener('click', () => {
         selected = null; el('payrollPaymentConfirmPanel').classList.add('d-none');
     });

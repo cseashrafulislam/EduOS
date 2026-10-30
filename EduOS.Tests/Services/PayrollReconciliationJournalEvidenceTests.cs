@@ -6,6 +6,7 @@ using EduOS.Persistence.Context;
 using EduOS.Service.Services.HR;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
+using System.Security.Claims;
 using Xunit;
 
 namespace EduOS.Tests.Services;
@@ -31,6 +32,40 @@ public sealed class PayrollReconciliationJournalEvidenceTests
         Assert.Equal("Partial", row.SettlementStatus);
         Assert.Equal(40m, row.VerifiedPaid);
         Assert.Equal(60m, row.Outstanding);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Independently_posted_salary_return_reopens_outstanding_without_rewriting_payment(bool corrupt)
+    {
+        await using var db = Database();
+        Seed(db);
+        var now = new DateTime(2026, 11, 2, 0, 0, 0, DateTimeKind.Utc);
+        db.Journals.Add(new Journal { Id = 3, TenantId = 41,
+            PublicId = Guid.NewGuid(), JournalNumber = "PAY-RETURN-1", AccountingPeriodId = 1,
+            SourceType = "PayrollPaymentReturn", SourceId = 1, ReversalOfJournalId = 2,
+            State = JournalState.Posted, CurrencyCode = "BDT", CampusId = 7,
+            JournalDate = PaymentDate.AddDays(1), ReferenceNumber = "ACTUAL-CASH-RECEIPT",
+            CreatedBy = 9, ApprovedByUserId = 10, ApprovedAt = now,
+            PostedByUserId = 10, PostedAt = now });
+        db.JournalLines.AddRange(
+            new JournalLine { Id = 5, TenantId = 41, JournalId = 3, LineNo = 1,
+                AccountId = 1, CampusId = 7, EmployeeId = 101,
+                CreditAmount = corrupt ? 39m : 40m, Description = "Salary payable settlement" },
+            new JournalLine { Id = 6, TenantId = 41, JournalId = 3, LineNo = 2,
+                AccountId = 2, CampusId = 7, EmployeeId = 101,
+                DebitAmount = 40m, Description = "Cash/bank payroll disbursement" });
+        await db.SaveChangesAsync();
+
+        var result = await new PayrollReconciliationService(db, new User())
+            .GetAsync(2026, 10, 7, 1, 10);
+        Assert.Equal(200, result.StatusCode);
+        var row = Assert.Single(result.Data!.Items);
+        Assert.Equal(0m, row.VerifiedPaid);
+        Assert.Equal(100m, row.Outstanding);
+        Assert.Equal(corrupt ? "NeedsReview" : "Outstanding", row.SettlementStatus);
+        Assert.Equal(PaymentState.Successful, (await db.PayrollPayments.SingleAsync()).State);
     }
 
     [Theory]
@@ -154,6 +189,8 @@ public sealed class PayrollReconciliationJournalEvidenceTests
     {
         var accessor = new HttpContextAccessor { HttpContext = new DefaultHttpContext() };
         accessor.HttpContext.Items["TenantId"] = 41L;
+        accessor.HttpContext.User = new ClaimsPrincipal(new ClaimsIdentity(
+            [new Claim(ClaimTypes.NameIdentifier, "9")], "Test"));
         return new EduOSDbContext(new DbContextOptionsBuilder<EduOSDbContext>()
             .UseInMemoryDatabase("payroll-reconciliation-evidence-" + Guid.NewGuid().ToString("N"))
             .Options, accessor);
