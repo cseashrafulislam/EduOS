@@ -18,7 +18,7 @@ assert.match(service, /row\.ShortfallQuantity/);
 assert.match(service, /Locations\(\)\.AnyAsync/);
 assert.match(controller, /Authorize\(Roles = "TenantAdmin,Principal,InventoryManager,StoreKeeper,Accountant"\)/);
 assert.match(controller, /250/);
-assert.match(controller, /"=+-@\\t"/);
+assert.match(controller, /"=\+-@\\t"/);
 assert.match(page, /inventoryCoverageRows/);
 assert.match(js, /pagehide/);
 assert.match(js, /reservations\/coverage\/export/);
