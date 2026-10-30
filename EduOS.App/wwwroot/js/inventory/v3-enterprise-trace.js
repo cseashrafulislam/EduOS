@@ -14,6 +14,7 @@ if (root) {
     const evidenceLabels = {
         EvidenceConflict: ['প্রমাণে অসংগতি', 'Evidence conflict'],
         JournalImbalance: ['জার্নালে ভারসাম্য নেই', 'Journal imbalance'],
+        JournalAmountMismatch: ['অবচয় ও জার্নালের অঙ্ক মেলে না', 'Depreciation/journal amount mismatch'],
         UnpostedJournal: ['জার্নাল পোস্ট হয়নি', 'Unposted journal'],
         RunLineMismatch: ['রান ও লাইনের মোট মেলে না', 'Run/line mismatch'],
         NoExplicitReference: ['সরাসরি জার্নাল রেফারেন্স নেই', 'No explicit journal reference'],

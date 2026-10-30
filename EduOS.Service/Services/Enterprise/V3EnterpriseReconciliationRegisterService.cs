@@ -156,7 +156,10 @@ public sealed class V3EnterpriseReconciliationRegisterService(
                 (line.PeriodEnd != run.PeriodEnd ||
                  !db.AssetBooks.IgnoreQueryFilters().Any(book =>
                      book.TenantId == user.TenantId && !book.IsDeleted &&
-                     book.Id == line.AssetBookId && book.CampusId == run.CampusId))
+                     book.Id == line.AssetBookId && book.CampusId == run.CampusId &&
+                     db.Assets.IgnoreQueryFilters().Any(asset =>
+                         asset.TenantId == user.TenantId && !asset.IsDeleted &&
+                         asset.Id == book.AssetId && asset.CampusId == run.CampusId)))
             select line.AssetDepreciationRunId).Distinct().ToListAsync(ct);
         var invalidLineRuns = invalidLineRunIds.ToHashSet();
         var journalIds = pageRows.SelectMany(x => new[] { x.JournalId, x.ReversalJournalId })
@@ -199,6 +202,9 @@ public sealed class V3EnterpriseReconciliationRegisterService(
                 runJournalIds.Any(id => journalMap.TryGetValue(id, out var j) &&
                     j.State != JournalState.Posted && j.State != JournalState.Reversed)
                     ? "UnpostedJournal" :
+                (r.JournalId.HasValue &&
+                 journalTotals.TryGetValue(r.JournalId.Value, out var originalTotal) &&
+                 originalTotal.Debit != r.TotalAmount) ? "JournalAmountMismatch" :
                 r.JournalId.HasValue ? "ExplicitBalancedReference" : "NoExplicitReference";
             return new V3EnterpriseReconciliationRegisterRowDto
             {

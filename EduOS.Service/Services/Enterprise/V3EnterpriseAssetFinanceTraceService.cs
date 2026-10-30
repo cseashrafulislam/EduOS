@@ -39,7 +39,9 @@ public sealed class V3EnterpriseAssetFinanceTraceService(EduOSDbContext db, ICur
         // a different period, even when all rows share the same tenant.
         if (await lines.AnyAsync(x => x.PeriodEnd != run.PeriodEnd ||
             !db.AssetBooks.IgnoreQueryFilters().Any(b => b.TenantId == user.TenantId &&
-                b.Id == x.AssetBookId && !b.IsDeleted && b.CampusId == run.CampusId), ct))
+                b.Id == x.AssetBookId && !b.IsDeleted && b.CampusId == run.CampusId &&
+                db.Assets.IgnoreQueryFilters().Any(a => a.TenantId == user.TenantId &&
+                    a.Id == b.AssetId && !a.IsDeleted && a.CampusId == run.CampusId)), ct))
             return ApiResponse<V3EnterpriseAssetFinanceTraceDto>.ErrorResponse(
                 "Asset book, campus or period evidence requires reconciliation.", 409);
 
@@ -94,11 +96,17 @@ public sealed class V3EnterpriseAssetFinanceTraceService(EduOSDbContext db, ICur
             };
         }).ToArray();
 
+        // A balanced original journal with the wrong debit total is not a
+        // reconciled depreciation posting. Reversal dates may legitimately differ.
+        var originalAmountMismatch = run.JournalId.HasValue &&
+            byId.TryGetValue(run.JournalId.Value, out var originalTotal) &&
+            originalTotal.Debit != run.TotalAmount;
         var status = aggregate?.Amount != run.TotalAmount ? "RunLineMismatch" :
             evidence.Length == 0 ? "NoExplicitReference" :
             evidence.Any(x => !x.Balanced) ? "JournalImbalance" :
             journals.Any(x => x.State != JournalState.Posted && x.State != JournalState.Reversed)
-                ? "UnpostedJournal" : "ExplicitBalancedReference";
+                ? "UnpostedJournal" :
+            originalAmountMismatch ? "JournalAmountMismatch" : "ExplicitBalancedReference";
 
         return ApiResponse<V3EnterpriseAssetFinanceTraceDto>.SuccessResponse(
             new V3EnterpriseAssetFinanceTraceDto {

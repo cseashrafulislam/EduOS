@@ -43,7 +43,7 @@ public sealed class SqlServerV3AssetFinanceTraceTests
         if (string.IsNullOrWhiteSpace(connection)) return;
         var options = new DbContextOptionsBuilder<EduOSDbContext>().UseSqlServer(connection).Options;
         var suffix = Guid.NewGuid().ToString("N")[..12];
-        long tenantId, foreignId, journalId, lineId;
+        long tenantId, foreignId, journalId, lineId, assetId;
         var requestId = Guid.NewGuid();
 
         await using (var root = new EduOSDbContext(options))
@@ -79,6 +79,7 @@ public sealed class SqlServerV3AssetFinanceTraceTests
                 Name = "Laboratory equipment", PurchaseCost = 1000m };
             db.Assets.Add(asset);
             await db.SaveChangesAsync();
+            assetId = asset.Id;
             var book = new AssetBook { TenantId = tenantId, CampusId = campus.Id,
                 AssetId = asset.Id, InServiceDate = new DateOnly(2026, 1, 1),
                 MethodCode = "StraightLine", UsefulLifeMonths = 36,
@@ -129,10 +130,48 @@ public sealed class SqlServerV3AssetFinanceTraceTests
             Assert.Equal(25m, row.RecordedValue);
             Assert.Equal("ExplicitBalancedReference", row.EvidenceStatus);
 
+            // A balanced but incorrectly valued historical journal must be
+            // flagged in both detail and paged report; do not edit V1 posting.
+            var debitLineId = await db.JournalLines
+                .Where(x => x.JournalId == journalId && x.DebitAmount > 0m)
+                .Select(x => x.Id).SingleAsync();
+            var creditLineId = await db.JournalLines
+                .Where(x => x.JournalId == journalId && x.CreditAmount > 0m)
+                .Select(x => x.Id).SingleAsync();
+            await db.JournalLines.Where(x => x.Id == debitLineId)
+                .ExecuteUpdateAsync(set => set.SetProperty(x => x.DebitAmount, 26m));
+            await db.JournalLines.Where(x => x.Id == creditLineId)
+                .ExecuteUpdateAsync(set => set.SetProperty(x => x.CreditAmount, 26m));
+            Assert.Equal("JournalAmountMismatch",
+                (await service.GetAsync(requestId)).Data!.FinanceEvidenceStatus);
+            Assert.Equal("JournalAmountMismatch", Assert.Single(
+                (await register.GetAsync("asset", new DateOnly(2026, 10, 1),
+                    new DateOnly(2026, 10, 31))).Data!.Items,
+                x => x.Reference == requestId).EvidenceStatus);
+            await db.JournalLines.Where(x => x.Id == debitLineId)
+                .ExecuteUpdateAsync(set => set.SetProperty(x => x.DebitAmount, 25m));
+            await db.JournalLines.Where(x => x.Id == creditLineId)
+                .ExecuteUpdateAsync(set => set.SetProperty(x => x.CreditAmount, 25m));
+
             // Two runs share one SQL report page. Corrupting the second journal
             // must never change the first run's balanced status.
             var periodId = await db.AccountingPeriods.Select(x => x.Id).SingleAsync();
             var campusId = await db.Campuses.Select(x => x.Id).SingleAsync();
+            // A matching AssetBook campus cannot hide a mismatched physical
+            // asset campus. This is disposable SQL legacy-corruption evidence.
+            var alienCampus = new Campus { TenantId = tenantId,
+                Code = "AF-X-" + suffix, Name = "Mismatched asset campus", IsActive = true };
+            db.Campuses.Add(alienCampus);
+            await db.SaveChangesAsync();
+            await db.Assets.Where(x => x.Id == assetId)
+                .ExecuteUpdateAsync(set => set.SetProperty(x => x.CampusId, alienCampus.Id));
+            Assert.Equal(409, (await service.GetAsync(requestId)).StatusCode);
+            Assert.Equal("EvidenceConflict", Assert.Single(
+                (await register.GetAsync("asset", new DateOnly(2026, 10, 1),
+                    new DateOnly(2026, 10, 31))).Data!.Items,
+                x => x.Reference == requestId).EvidenceStatus);
+            await db.Assets.Where(x => x.Id == assetId)
+                .ExecuteUpdateAsync(set => set.SetProperty(x => x.CampusId, campusId));
             var bookId = await db.AssetBooks.Select(x => x.Id).SingleAsync();
             var accounts = await db.Accounts.OrderBy(x => x.Id).Select(x => x.Id).ToArrayAsync();
             var otherJournal = new Journal { TenantId = tenantId, CampusId = campusId,
