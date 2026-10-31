@@ -538,7 +538,11 @@ public sealed partial class SqlServerV3ProcurementPurchaseOrderTests
             Assert.True(releasedTrace.Success,releasedTrace.Message);
             Assert.Equal(0m,releasedTrace.Data!.SettlementReservedAmount);
             Assert.Equal("Rejected",Assert.Single(releasedTrace.Data.SettlementInstructions).State);
-            var replacement=await service.RequestSettlementAsync(second.Reference,
+            // Reset the test's ambient HttpContext after nested checker contexts:
+            // DbContext audit stamping reads the active HTTP identity, not the service Actor.
+            await using var makerAuditContext=Open(options,tenantId,makerId);
+            var makerSettlementService=Invoices(makerAuditContext,tenantId,makerId);
+            var replacement=await makerSettlementService.RequestSettlementAsync(second.Reference,
                 new CreateSupplierSettlementInstructionRequest {
                     ClientRequestId=Guid.NewGuid(),InvoiceRowVersion=current.RowVersion,Amount=18m,
                     BankAccountId=bankId,AccountingPeriodId=periodId,PlannedDate=date,
@@ -552,16 +556,13 @@ public sealed partial class SqlServerV3ProcurementPurchaseOrderTests
                 ClientRequestId=Guid.NewGuid(),RowVersion=replacement.Data.RowVersion,
                 Reason="Supplier changed the proposed settlement date before approval"
             };
-            await using (var otherMaker=Open(options,tenantId,checkerId))
-                Assert.Equal(403,(await Invoices(otherMaker,tenantId,checkerId)
-                    .WithdrawSettlementAsync(second.Reference,replacement.Data.Reference,withdrawal)).StatusCode);
-            var withdrawn=await service.WithdrawSettlementAsync(
+            var withdrawn=await makerSettlementService.WithdrawSettlementAsync(
                 second.Reference,replacement.Data.Reference,withdrawal);
             Assert.True(withdrawn.Success,withdrawn.Message);
             Assert.Equal("Rejected",withdrawn.Data!.State);
-            Assert.Equal(withdrawn.Data.Reference,(await service.WithdrawSettlementAsync(
+            Assert.Equal(withdrawn.Data.Reference,(await makerSettlementService.WithdrawSettlementAsync(
                 second.Reference,replacement.Data.Reference,withdrawal)).Data!.Reference);
-            Assert.Equal(409,(await service.WithdrawSettlementAsync(
+            Assert.Equal(409,(await makerSettlementService.WithdrawSettlementAsync(
                 second.Reference,replacement.Data.Reference,
                 new WithdrawSupplierSettlementInstructionRequest {
                     ClientRequestId=withdrawal.ClientRequestId,RowVersion=withdrawal.RowVersion,
@@ -591,6 +592,11 @@ public sealed partial class SqlServerV3ProcurementPurchaseOrderTests
                 x.State==JournalState.Posted));
             Assert.Single(await verify.InventoryMovements.AsNoTracking()
                 .Where(x=>x.SourceType=="ProcurementGoodsReceipt").ToListAsync());
+            // Run non-maker denial only after the maker's writes; a new test
+            // HttpContext would otherwise poison subsequent audit stamping.
+            await using (var otherMaker=Open(options,tenantId,checkerId))
+                Assert.Equal(403,(await Invoices(otherMaker,tenantId,checkerId)
+                    .WithdrawSettlementAsync(second.Reference,replacement.Data.Reference,withdrawal)).StatusCode);
             Assert.Equal(1,await verify.Journals.CountAsync(x=>
                 x.SourceType=="ProcurementSupplierInvoice" && x.SourceId==settlement.SourceId &&
                 x.State==JournalState.Posted));
