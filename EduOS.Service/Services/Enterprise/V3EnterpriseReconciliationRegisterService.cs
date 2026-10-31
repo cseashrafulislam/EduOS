@@ -86,6 +86,11 @@ public sealed class V3EnterpriseReconciliationRegisterService(
                 Amount = g.Sum(x => x.Quantity * x.UnitCost), Deleted = g.Any(x => x.IsDeleted) })
             .ToListAsync(ct);
         var valueMap = values.ToDictionary(x => x.Id);
+        // Do not hide forged foreign-tenant lines behind the normal tenant filter.
+        var foreignMovementIds = (await db.InventoryMovementLines.IgnoreQueryFilters()
+            .AsNoTracking().Where(x => ids.Contains(x.InventoryMovementId) &&
+                x.TenantId != user.TenantId)
+            .Select(x => x.InventoryMovementId).Distinct().ToListAsync(ct)).ToHashSet();
         // Read canonical journal rows in one bounded batch, not a per-movement N+1.
         // A corrupt fan-out must fail closed rather than silently truncate evidence.
         var journals = await db.Journals.IgnoreQueryFilters().AsNoTracking()
@@ -114,9 +119,10 @@ public sealed class V3EnterpriseReconciliationRegisterService(
                 locationMap.TryGetValue(id, out var loc) && loc.CampusId.HasValue)
                 .Select(id => locationMap[id].CampusId!.Value).ToHashSet();
             var foreignCampusJournal = allowedCampuses.Count > 0 && link != null &&
-                link.Any(j => j.CampusId.HasValue &&
+                link.Any(j => !j.CampusId.HasValue ||
                     !allowedCampuses.Contains(j.CampusId.Value));
             var status = missingLocation || foreignCampusJournal ||
+                foreignMovementIds.Contains(m.Id) ||
                 invalidTransferReceipts.Contains(m.Id) ||
                 procurementReceipts.Invalid.Contains(m.Id) ||
                 (link?.Length ?? 0) > 100 ||
@@ -276,8 +282,13 @@ public sealed class V3EnterpriseReconciliationRegisterService(
             .Select(g => new { Id = g.Key, Debit = g.Sum(x => x.DebitAmount),
                 Credit = g.Sum(x => x.CreditAmount), Deleted = g.Any(x => x.IsDeleted) })
             .ToListAsync(ct);
+        var foreignJournalIds = (await db.JournalLines.IgnoreQueryFilters().AsNoTracking()
+            .Where(x => journalIds.Contains(x.JournalId) &&
+                x.TenantId != user.TenantId)
+            .Select(x => x.JournalId).Distinct().ToListAsync(ct)).ToHashSet();
         return totals.ToDictionary(x => x.Id,
-            x => new JournalLineTotals(x.Debit, x.Credit, x.Deleted));
+            x => new JournalLineTotals(x.Debit, x.Credit,
+                x.Deleted || foreignJournalIds.Contains(x.Id)));
     }
 
     private static ApiResponse<V3EnterpriseReconciliationRegisterDto> Success(

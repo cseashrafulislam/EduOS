@@ -249,6 +249,49 @@ public sealed class SqlServerV3EnterpriseLedgerTraceTests
             await db.Journals.Where(x => x.Id == journalId).ExecuteUpdateAsync(s =>
                 s.SetProperty(x => x.CampusId, (long?)primaryCampusId));
 
+            // Historical corruption is isolated in disposable SQL transactions.
+            // Each rollback must restore the canonical Finance/stock source.
+            async Task AssertConflict()
+            {
+                Assert.Equal(409, (await new V3EnterpriseLedgerTraceService(
+                    db, new Actor(tenantId)).GetAsync(movementReference)).StatusCode);
+                var page = await register.GetAsync("stock", from, to);
+                Assert.Equal("EvidenceConflict", Assert.Single(page.Data!.Items,
+                    x => x.Reference == movementReference).EvidenceStatus);
+            }
+            await using (var transaction = await db.Database.BeginTransactionAsync())
+            {
+                await db.Journals.Where(x => x.Id == journalId).ExecuteUpdateAsync(s =>
+                    s.SetProperty(x => x.CampusId, (long?)null));
+                await AssertConflict();
+                await transaction.RollbackAsync();
+            }
+            var movementId = await db.InventoryMovements.Where(x =>
+                x.PublicId == movementReference).Select(x => x.Id).SingleAsync();
+            await using (var transaction = await db.Database.BeginTransactionAsync())
+            {
+                await db.InventoryMovementLines.Where(x =>
+                    x.InventoryMovementId == movementId).ExecuteUpdateAsync(s =>
+                        s.SetProperty(x => x.TenantId, foreignId));
+                await AssertConflict();
+                await transaction.RollbackAsync();
+            }
+            var journalLineId = await db.JournalLines.Where(x =>
+                x.JournalId == journalId).OrderBy(x => x.Id)
+                .Select(x => x.Id).FirstAsync();
+            await using (var transaction = await db.Database.BeginTransactionAsync())
+            {
+                await db.JournalLines.Where(x => x.Id == journalLineId)
+                    .ExecuteUpdateAsync(s => s.SetProperty(x => x.TenantId, foreignId));
+                await AssertConflict();
+                await transaction.RollbackAsync();
+            }
+            Assert.Equal(200, (await new V3EnterpriseLedgerTraceService(
+                db, new Actor(tenantId)).GetAsync(movementReference)).StatusCode);
+            Assert.Equal("ExplicitBalancedReference", Assert.Single(
+                (await register.GetAsync("stock", from, to)).Data!.Items,
+                x => x.Reference == movementReference).EvidenceStatus);
+
             await db.InventoryLocations.Where(x => x.Id == locationId).ExecuteUpdateAsync(s =>
                 s.SetProperty(x => x.IsDeleted, true));
             Assert.Equal(409, (await new V3EnterpriseLedgerTraceService(db, new Actor(tenantId))

@@ -72,6 +72,12 @@ public sealed class V3EnterpriseLedgerTraceService(EduOSDbContext db, ICurrentUs
         // Historical tombstones are integrity failures, never silently excluded.
         var lines = db.InventoryMovementLines.IgnoreQueryFilters().AsNoTracking()
             .Where(x => x.TenantId == user.TenantId && x.InventoryMovementId == movement.Id);
+        // Foreign-tenant lines linked to this movement are corruption, not absent evidence.
+        if (await db.InventoryMovementLines.IgnoreQueryFilters().AsNoTracking()
+            .AnyAsync(x => x.InventoryMovementId == movement.Id &&
+                x.TenantId != user.TenantId, ct))
+            return ApiResponse<V3EnterpriseLedgerTraceDto>.ErrorResponse(
+                "Cross-tenant stock line evidence requires reconciliation.", 409);
         if (await lines.AnyAsync(x => x.IsDeleted, ct))
             return ApiResponse<V3EnterpriseLedgerTraceDto>.ErrorResponse(
                 "Deleted stock evidence requires reconciliation.", 409);
@@ -95,13 +101,18 @@ public sealed class V3EnterpriseLedgerTraceService(EduOSDbContext db, ICurrentUs
         if (journals.Count > 100)
             return ApiResponse<V3EnterpriseLedgerTraceDto>.ErrorResponse(
                 "Too many explicit journal references; investigate before reporting.", 409);
-        if (allowedCampuses.Count > 0 && journals.Any(x => x.CampusId.HasValue &&
-            !allowedCampuses.Contains(x.CampusId.Value)))
+        if (allowedCampuses.Count > 0 && journals.Any(x =>
+            !x.CampusId.HasValue || !allowedCampuses.Contains(x.CampusId.Value)))
             return ApiResponse<V3EnterpriseLedgerTraceDto>.ErrorResponse(
                 "Journal campus does not match either stock location.", 409);
         var journalIds = journals.Select(x => x.Id).ToArray();
         var journalLines = db.JournalLines.IgnoreQueryFilters().AsNoTracking()
             .Where(x => x.TenantId == user.TenantId && journalIds.Contains(x.JournalId));
+        if (await db.JournalLines.IgnoreQueryFilters().AsNoTracking()
+            .AnyAsync(x => journalIds.Contains(x.JournalId) &&
+                x.TenantId != user.TenantId, ct))
+            return ApiResponse<V3EnterpriseLedgerTraceDto>.ErrorResponse(
+                "Cross-tenant journal line evidence requires reconciliation.", 409);
         if (await journalLines.AnyAsync(x => x.IsDeleted, ct))
             return ApiResponse<V3EnterpriseLedgerTraceDto>.ErrorResponse(
                 "Deleted journal line requires reconciliation.", 409);
