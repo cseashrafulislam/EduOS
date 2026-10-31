@@ -58,9 +58,16 @@
             <div class="col-md-6"><label class="form-label" for="hfReviewOverrideReason">Reason for changed amounts</label><input id="hfReviewOverrideReason" maxlength="1000" class="form-control" /></div>
             <div class="col-md-4"><label class="form-label" for="hfReviewJournal">Verified posted journal ID (nonzero adjustment)</label><input id="hfReviewJournal" type="number" min="1" class="form-control" /></div>
             <div class="col-md-8 d-flex align-items-end"><label><input id="hfNoAdjustment" type="checkbox" /> Explicitly attest no GL change required (amounts must be zero)</label></div>
-            <div class="col-12"><label><input id="hfAutoInvoice" type="checkbox" /> Automatically issue invoice and balanced GL for an additional positive period charge</label></div>
+            <div class="col-12"><label><input id="hfAutoInvoice" type="checkbox" /> Prepare automatic signed Finance posting (positive invoice / negative original-invoice credit note)</label></div>
             <div class="col-md-6"><label class="form-label" for="hfAutoPeriod">Open accounting period</label><select id="hfAutoPeriod" class="form-select" disabled><option value="">Choose a period</option></select></div>
-            <div class="col-md-6"><label class="form-label" for="hfAutoHead">Charge fee head</label><select id="hfAutoHead" class="form-select" disabled><option value="">Choose a fee head</option></select></div>
+            <div class="col-md-6" id="hfAutoHeadWrap"><label class="form-label" for="hfAutoHead">Additional charge fee head</label><select id="hfAutoHead" class="form-select" disabled><option value="">Choose a fee head</option></select></div>
+            <div class="col-12 row g-2 d-none" id="hfCreditOptions">
+                <div class="col-md-6"><label class="form-label" for="hfCreditInvoiceSearch">Original invoice search</label><input id="hfCreditInvoiceSearch" class="form-control" maxlength="100" placeholder="Invoice number" /></div>
+                <div class="col-md-6"><label class="form-label" for="hfCreditLiabilitySearch">Student-credit liability search</label><input id="hfCreditLiabilitySearch" class="form-control" maxlength="100" placeholder="Account code or name" /></div>
+                <div class="col-md-6"><label class="form-label" for="hfCreditSource">Posted original invoice</label><select id="hfCreditSource" class="form-select"><option value="">Select source invoice</option></select></div>
+                <div class="col-md-6"><label class="form-label" for="hfCreditLiability">Liability ledger (if paid credit)</label><select id="hfCreditLiability" class="form-select"><option value="">Choose if credit exceeds unpaid due</option></select></div>
+                <div class="col-12"><button type="button" id="hfLoadCreditOptions" class="btn btn-sm btn-outline-secondary">Find invoices / accounts</button></div>
+            </div>
             <div class="col-12"><label class="form-label" for="hfReviewNote">Independent reconciliation evidence and approval note (20+ chars)</label><textarea id="hfReviewNote" class="form-control" minlength="20" maxlength="1000" rows="2" required></textarea></div>
             <div class="col-12 d-flex gap-2"><button id="hfApprove" class="btn btn-success" type="submit">Approve clearance</button><button id="hfReject" class="btn btn-outline-danger" type="button">Reject</button><button id="hfReviewCancel" class="btn btn-outline-secondary" type="button">Cancel review</button></div>
         </form>

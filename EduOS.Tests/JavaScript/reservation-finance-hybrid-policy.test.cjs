@@ -14,8 +14,13 @@ for (const kind of ['hostel', 'transport']) {
         assert.match(js, /manualAdjustmentDelta/);
         assert.match(js, /'hybrid'/);
         assert.match(js, /togglePeriodInput/);
-        assert.match(js, /selectedAmount <= 0/);
+        assert.match(js, /selectedAmount === 0/);
         assert.match(js, /autoPostInvoice: auto/);
+        assert.match(js, /reservations\/credit-options/);
+        assert.match(js, /originalInvoiceReference: auto && selectedAmount < 0/);
+        assert.match(js, /studentCreditLiabilityAccountId: auto && selectedAmount < 0/);
+        assert.match(view, /CreditSource/);
+        assert.match(view, /CreditLiability/);
         assert.match(view, /value="auto"/);
         assert.match(view, /value="manual"/);
         assert.match(view, /value="hybrid"/);

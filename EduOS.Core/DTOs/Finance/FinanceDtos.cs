@@ -100,6 +100,10 @@ public class StudentInvoiceDto
     public decimal TotalAmount { get; set; }
     public decimal PaidAmount { get; set; }
     public decimal DueAmount { get; set; }
+    // DueAmount is the live collectible balance; gross invoice history remains immutable.
+    public decimal GrossDueAmount { get; set; }
+    public decimal ReservationCreditAmount { get; set; }
+    public decimal StudentCreditPayable { get; set; }
     public string CurrencyCode { get; set; } = "BDT";
     public InvoiceState State { get; set; }
     public DateTime? PaidAt { get; set; }

@@ -40,19 +40,23 @@ public sealed partial class FeeReceivablesAgingService
         var campusOptions = await campuses.OrderBy(c => c.Name).ThenBy(c => c.Id)
             .Take(500).Select(c => new FeeReceivablesCampusDto
                 { Id = c.Id, Name = c.Name }).ToListAsync(ct);
+        var postedCredits = ReservationCreditNoteBalances.Posted(_db, tenant);
         var invoices =
             from i in _db.StudentInvoices.AsNoTracking()
             join e in _db.StudentEnrollments.AsNoTracking() on i.StudentEnrollmentId equals e.Id
             join s in _db.Students.AsNoTracking() on e.StudentId equals s.Id
             join c in campuses on e.CampusId equals c.Id
+            let applied = postedCredits.Where(x => x.InvoiceId == i.Id)
+                .Select(x => (decimal?)x.UnpaidReduction).FirstOrDefault()
+            let due = i.DueAmount - (applied ?? 0m)
             where i.TenantId == tenant && e.TenantId == tenant && s.TenantId == tenant &&
                 !i.IsDeleted && !e.IsDeleted && !s.IsDeleted &&
                 (i.State == InvoiceState.Issued || i.State == InvoiceState.PartiallyPaid) &&
-                i.DueAmount > 0m && i.DueDate >= request.FromDate && i.DueDate <= request.ToDate
+                due > 0m && i.DueDate >= request.FromDate && i.DueDate <= request.ToDate
             select new
             {
                 i.Id, i.PublicId, i.InvoiceNumber, i.DueDate, i.CurrencyCode,
-                i.TotalAmount, i.PaidAmount, i.DueAmount,
+                i.TotalAmount, i.PaidAmount, DueAmount = due,
                 StudentReference = s.PublicId, s.StudentCode, StudentName = s.FullName,
                 CampusId = c.Id, CampusName = c.Name
             };
@@ -65,7 +69,7 @@ public sealed partial class FeeReceivablesAgingService
 
         // Fail closed instead of showing an apparently valid financial total from inconsistent rows.
         if (await invoices.AnyAsync(x => x.TotalAmount < 0m || x.PaidAmount < 0m ||
-            x.DueAmount != x.TotalAmount - x.PaidAmount, ct))
+            x.DueAmount < 0m || x.DueAmount > x.TotalAmount - x.PaidAmount, ct))
             return ApiResponse<FeeDueCalendarReportDto>.ErrorResponse(
                 "Invoice totals do not reconcile; review the affected financial records.", 409);
 

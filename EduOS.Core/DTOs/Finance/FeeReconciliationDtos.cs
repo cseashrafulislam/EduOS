@@ -14,6 +14,8 @@ public sealed class FeeReconciliationRowDto
     public decimal DueAmount { get; set; }
     public decimal NetAllocatedAmount { get; set; }
     public decimal CreditNoteAmount { get; set; }
+    public decimal ReservationCreditAmount { get; set; }
+    public decimal StudentCreditPayable { get; set; }
     public string Status { get; set; } = string.Empty;
     public string Issues { get; set; } = string.Empty;
 }

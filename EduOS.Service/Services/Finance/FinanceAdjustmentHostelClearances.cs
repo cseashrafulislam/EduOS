@@ -331,20 +331,41 @@ public sealed partial class FinanceAdjustmentService
                         return Error<HostelClearanceDto>("Invalid signed period adjustment.");
                     if (request.AutoPostInvoice)
                     {
-                        if (net <= 0m || request.NoAdjustmentRequired || request.SettlementJournalId.HasValue ||
+                        if (net == 0m || request.NoAdjustmentRequired || request.SettlementJournalId.HasValue ||
                             source.FeeHeadId.HasValue && request.AutoFeeHeadId.HasValue &&
                             source.FeeHeadId.Value != request.AutoFeeHeadId.Value)
-                            return Error<HostelClearanceDto>("Automatic invoicing requires a positive amount, no existing journal and matching hostel fee head.", 409);
-                        var (posting, error) = await ReservationAutomaticInvoicePosting.PrepareAsync(
-                            db, user.TenantId, user.UserId, row.RequestedByUserId,
-                            "HOSTEL", id, row.CampusId,
-                            row.StudentEnrollmentId, row.StudentId, net,
-                            source.FeeHeadId ?? request.AutoFeeHeadId, request.AccountingPeriodId,
-                            DateOnly.FromDateTime(clock.GetLocalNow().DateTime), clock.GetUtcNow().UtcDateTime, ct);
-                        if (posting == null)
-                            return Error<HostelClearanceDto>(error ?? "Automatic invoice posting failed.", 409);
+                            return Error<HostelClearanceDto>("Automatic settlement requires a nonzero amount and no existing journal.", 409);
+                        long? journalId;
+                        string? error;
+                        if (net > 0m)
+                        {
+                            if (request.OriginalInvoiceReference.HasValue || request.StudentCreditLiabilityAccountId.HasValue)
+                                return Error<HostelClearanceDto>("Additional charge cannot select original credit sources.");
+                            var result = await ReservationAutomaticInvoicePosting.PrepareAsync(
+                                db, user.TenantId, user.UserId, row.RequestedByUserId,
+                                "HOSTEL", id, row.CampusId, row.StudentEnrollmentId, row.StudentId,
+                                net, source.FeeHeadId ?? request.AutoFeeHeadId, request.AccountingPeriodId,
+                                DateOnly.FromDateTime(clock.GetLocalNow().DateTime), clock.GetUtcNow().UtcDateTime, ct);
+                            journalId = result.Posting?.JournalId;
+                            error = result.Error;
+                        }
+                        else
+                        {
+                            if (request.AutoFeeHeadId.HasValue)
+                                return Error<HostelClearanceDto>("Credit note uses the original posted fee head.");
+                            var result = await ReservationAutomaticCreditNote.PrepareAsync(
+                                db, user.TenantId, user.UserId, row.RequestedByUserId,
+                                "HOSTEL", id, row.CampusId, row.StudentId, row.StudentEnrollmentId,
+                                net, request.OriginalInvoiceReference, request.StudentCreditLiabilityAccountId,
+                                request.AccountingPeriodId, DateOnly.FromDateTime(clock.GetLocalNow().DateTime),
+                                clock.GetUtcNow().UtcDateTime, ct);
+                            journalId = result.JournalId;
+                            error = result.Error;
+                        }
+                        if (!journalId.HasValue)
+                            return Error<HostelClearanceDto>(error ?? "Automatic Finance posting failed.", 409);
                         row.NoAdjustmentRequired = false;
-                        row.SettlementJournalId = posting.JournalId;
+                        row.SettlementJournalId = journalId;
                         // The new invoice is part of the approved exposure; capture that
                         // snapshot so Operations does not reject our own atomic posting.
                         row.FinanceSnapshotHash = await new ReservationFinancePolicy(db)

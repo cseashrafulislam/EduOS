@@ -172,11 +172,39 @@
     }
     function toggleAutoInvoice() {
         const active = el('tfAutoInvoice').checked;
+        const negative = active && reviewedNet() < 0;
+        const creditWasHidden = el('tfCreditOptions').classList.contains('d-none');
         el('tfAutoPeriod').disabled = !active;
-        el('tfAutoHead').disabled = !active;
+        el('tfAutoHead').disabled = !active || negative;
+        el('tfAutoHeadWrap').classList.toggle('d-none', negative);
+        el('tfCreditOptions').classList.toggle('d-none', !negative);
         el('tfReviewJournal').disabled = active;
         el('tfNoAdjustment').disabled = active;
         if (active) { el('tfNoAdjustment').checked = false; el('tfReviewJournal').value = ''; }
+        if (negative && creditWasHidden && review) run(loadCreditOptions);
+    }
+    function reviewedNet() {
+        if (!review) return 0;
+        const mode = el('tfReviewMode').value;
+        const text = el('tfReviewNet').value.trim();
+        const manual = text ? Number(text) : null;
+        return mode === 'auto' || manual == null ? Number(review.approvedNetAdjustment) :
+            mode === 'hybrid' ? Number(review.suggestedNetAdjustment) + manual : manual;
+    }
+    async function loadCreditOptions() {
+        if (!review || review.operation !== 3) return;
+        const qs = new URLSearchParams({ kind: 'transport', clearanceId: String(review.id),
+            invoiceSearch: el('tfCreditInvoiceSearch').value.trim(),
+            accountSearch: el('tfCreditLiabilitySearch').value.trim() });
+        const data = await api('/api/finance/adjustments/reservations/credit-options?' + qs);
+        el('tfCreditSource').replaceChildren(new Option('Choose posted original invoice', ''));
+        el('tfCreditLiability').replaceChildren(new Option('Choose if paid credit exists', ''));
+        for (const x of data.invoices || [])
+            el('tfCreditSource').append(new Option(`${x.invoiceNumber} · billed ${amount(x.originalTotal)} · paid ${amount(x.grossPaid)} · due ${amount(x.grossDue)}`, x.invoiceReference));
+        for (const x of data.liabilityAccounts || [])
+            el('tfCreditLiability').append(new Option(`${x.code} · ${x.name}`, String(x.id)));
+        if (data.moreInvoices || data.moreAccounts)
+            notice('More records exist. Search by invoice number or liability account code/name.');
     }
     async function loadAutoInvoiceOptions() {
         const [periods, billing] = await Promise.all([
@@ -197,9 +225,10 @@
         const manualInput = review.operation === 3 && reviewMode !== 'auto' ? signed('tfReviewNet') : null;
         const selectedAmount = manualInput == null ? Number(review.approvedNetAdjustment) :
             reviewMode === 'hybrid' ? Number(review.suggestedNetAdjustment) + Number(manualInput) : Number(manualInput);
-        if (auto && (!num('tfAutoPeriod') || !num('tfAutoHead') ||
-            selectedAmount <= 0))
-            throw Error('Automatic invoice requires a positive charge, open accounting period and fee head.');
+        if (auto && (!num('tfAutoPeriod') || selectedAmount === 0 ||
+            (selectedAmount > 0 && !num('tfAutoHead')) ||
+            (selectedAmount < 0 && !el('tfCreditSource').value)))
+            throw Error('Automatic posting needs an open period and either a charge fee head or original posted credit invoice.');
         if (!confirm(`${approve ? 'Approve' : 'Reject'} Transport clearance #${review.id}?`)) return;
         busy = true;
         try {
@@ -207,12 +236,14 @@
                 rowVersion: review.rowVersion, approve, noAdjustmentRequired: el('tfNoAdjustment').checked,
                 settlementJournalId: num('tfReviewJournal'), manualFareCredit: num('tfReviewFare'),
                 autoPostInvoice: auto, accountingPeriodId: auto ? num('tfAutoPeriod') : null,
-                autoFeeHeadId: auto ? num('tfAutoHead') : null,
+                autoFeeHeadId: auto && selectedAmount > 0 ? num('tfAutoHead') : null,
+                originalInvoiceReference: auto && selectedAmount < 0 ? el('tfCreditSource').value : null,
+                studentCreditLiabilityAccountId: auto && selectedAmount < 0 ? num('tfCreditLiability') : null,
                 manualNetAdjustment: review.operation === 3 && reviewMode === 'manual' ? manualInput : null,
                 manualAdjustmentDelta: review.operation === 3 && reviewMode === 'hybrid' ? manualInput : null,
                 overrideReason: el('tfReviewOverrideReason').value.trim() || null, reconciliationNote: note
             });
-            notice(`Transport clearance #${review.id} ${approve ? auto ? 'approved; draft invoice prepared (posting occurs with successful Operations change)' : 'approved' : 'rejected'}. No cash payout was performed.`, true);
+            notice(`Transport clearance #${review.id} ${approve ? auto ? selectedAmount < 0 ? 'approved; credit-note journal prepared' : 'approved; draft invoice prepared' : 'approved' : 'rejected'}. Posting occurs with successful Operations change. No cash payout was performed.`, true);
             review = null; el('tfReviewForm').classList.add('d-none'); await listClearances();
         } finally { busy = false; }
     }
@@ -227,7 +258,10 @@
     el('tfReviewMode').addEventListener('change', () => {
         togglePeriodInput('tfReviewMode', 'tfReviewNet', Boolean(review && review.operation === 3));
         if (el('tfReviewMode').value !== 'auto') el('tfNoAdjustment').checked = false;
+        toggleAutoInvoice();
     });
+    el('tfReviewNet').addEventListener('input', toggleAutoInvoice);
+    el('tfLoadCreditOptions').addEventListener('click', () => run(loadCreditOptions));
     el('tfEffective').addEventListener('change', () => run(loadVehicles));
     el('tfRequestForm').addEventListener('submit', e => { e.preventDefault(); run(requestClearance); });
     el('tfRefresh').addEventListener('click', () => run(listClearances));

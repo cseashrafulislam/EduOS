@@ -95,6 +95,32 @@ public sealed partial class FeeReceivablesAgingService
             .Where(x => x.TenantId == tenant && journalIds.Contains(x.JournalId))
             .ToListAsync(ct);
         var byJournal = lines.ToLookup(x => x.JournalId);
+        var creditNotes = await _db.Journals.IgnoreQueryFilters().AsNoTracking()
+            .Where(x => x.TenantId == tenant && x.SourceType == ReservationAutomaticCreditNote.SourceType &&
+                x.SourceId.HasValue && invoiceIds.Contains(x.SourceId.Value))
+            .Take(2001).ToListAsync(ct);
+        if (creditNotes.Count > 2000)
+            return ApiResponse<FeeReconciliationRegisterDto>.ErrorResponse(
+                "Too many reservation credit journals on this page; narrow the filters.", 409);
+        var creditJournalIds = creditNotes.Select(x => x.Id).ToArray();
+        var creditLines = await _db.JournalLines.IgnoreQueryFilters().AsNoTracking()
+            .Where(x => x.TenantId == tenant && creditJournalIds.Contains(x.JournalId))
+            .Take(5001).ToListAsync(ct);
+        if (creditLines.Count > 5000)
+            return ApiResponse<FeeReconciliationRegisterDto>.ErrorResponse(
+                "Too many reservation credit lines on this page; narrow the filters.", 409);
+        var creditAccountIds = creditLines.Select(x => x.AccountId).Distinct().ToArray();
+        var creditAccounts = await _db.Accounts.IgnoreQueryFilters().AsNoTracking()
+            .Where(x => x.TenantId == tenant &&
+                creditAccountIds.Contains(x.Id))
+            .ToDictionaryAsync(x => x.Id, ct);
+        var creditByInvoice = creditNotes.ToLookup(x => x.SourceId!.Value);
+        var creditLinesByJournal = creditLines.ToLookup(x => x.JournalId);
+        var creditReversals = await _db.Journals.IgnoreQueryFilters().AsNoTracking()
+            .Where(x => x.TenantId == tenant && x.State == JournalState.Posted &&
+                x.ReversalOfJournalId.HasValue && creditJournalIds.Contains(x.ReversalOfJournalId.Value))
+            .Select(x => x.ReversalOfJournalId!.Value).ToListAsync(ct);
+        var reversedCredits = creditReversals.ToHashSet();
         var postedReversals = await _db.Journals.IgnoreQueryFilters().AsNoTracking()
             .Where(x => x.TenantId == tenant && x.ReversalOfJournalId.HasValue &&
                 journalIds.Contains(x.ReversalOfJournalId.Value) && x.State == JournalState.Posted)
@@ -168,6 +194,55 @@ public sealed partial class FeeReceivablesAgingService
             var net = gross - refunded + credited;
             if (net < 0m || net != invoice.PaidAmount)
                 issues.Add("Paid balance differs from receipts less cash refunds plus immutable credit notes");
+            decimal reservationCredit = 0m, unpaidReduction = 0m, studentCreditPayable = 0m;
+            var sourceEntries = invoice.JournalId.HasValue
+                ? byJournal[invoice.JournalId.Value].ToArray() : Array.Empty<EduOS.Core.Entities.Accounting.JournalLine>();
+            var sourceReceivable = sourceEntries.FirstOrDefault(x =>
+                x.DebitAmount == invoice.TotalAmount && x.CreditAmount == 0m);
+            var sourceIncome = sourceEntries.FirstOrDefault(x =>
+                x.CreditAmount == invoice.TotalAmount && x.DebitAmount == 0m);
+            foreach (var credit in creditByInvoice[invoice.Id])
+            {
+                if (credit.IsDeleted || reversedCredits.Contains(credit.Id) ||
+                    credit.CampusId != invoice.CampusId || credit.CurrencyCode != "BDT" ||
+                    credit.State is not (JournalState.Approved or JournalState.Posted))
+                {
+                    issues.Add("Reservation credit lifecycle or tenant/campus scope requires reconciliation");
+                    continue;
+                }
+                if (credit.State != JournalState.Posted) continue;
+                var entries = creditLinesByJournal[credit.Id].ToArray();
+                var debits = entries.Sum(x => x.DebitAmount);
+                var receivableCredit = entries.Where(x => x.AccountId == sourceReceivable?.AccountId)
+                    .Sum(x => x.CreditAmount);
+                var payableCredit = entries.Where(x => x.CreditAmount > 0m &&
+                    x.AccountId != sourceReceivable?.AccountId).Sum(x => x.CreditAmount);
+                if (sourceReceivable == null || sourceIncome == null ||
+                    entries.Length is < 2 or > 3 || debits <= 0m ||
+                    decimal.Round(debits, 2) != debits ||
+                    entries.Sum(x => x.CreditAmount) != debits ||
+                    entries.Count(x => x.AccountId == sourceIncome.AccountId &&
+                        x.DebitAmount == debits && x.CreditAmount == 0m) != 1 ||
+                    entries.Count(x => x.DebitAmount > 0m) != 1 ||
+                    entries.Any(x => x.IsDeleted || x.StudentId != invoice.StudentId ||
+                        x.CampusId != invoice.CampusId || x.DebitAmount < 0m ||
+                        x.CreditAmount < 0m || !creditAccounts.TryGetValue(x.AccountId, out var a) ||
+                        a.IsDeleted || a.CurrencyCode != "BDT" ||
+                        (x.CreditAmount > 0m && a.AccountType !=
+                            (x.AccountId == sourceReceivable.AccountId ? AccountType.Asset : AccountType.Liability))) ||
+                    receivableCredit < 0m || payableCredit < 0m ||
+                    receivableCredit + payableCredit != debits)
+                {
+                    issues.Add("Reservation credit note GL is not balanced against original receivable/income and liability");
+                    continue;
+                }
+                reservationCredit += debits;
+                unpaidReduction += receivableCredit;
+                studentCreditPayable += payableCredit;
+            }
+            if (reservationCredit > invoice.TotalAmount || unpaidReduction > invoice.DueAmount ||
+                unpaidReduction < 0m || studentCreditPayable < 0m)
+                issues.Add("Reservation credit exceeds original invoice or unpaid capacity");
             var validFineVoid = false;
             if (invoice.State == InvoiceState.Cancelled && invoice.JournalId.HasValue &&
                 invoice.PaidAmount == 0m && !byInvoice[invoice.Id].Any())
@@ -206,8 +281,11 @@ public sealed partial class FeeReceivablesAgingService
                 CampusName = invoice.CampusName, CurrencyCode = invoice.CurrencyCode,
                 TotalAmount = invoice.TotalAmount, PaidAmount = invoice.PaidAmount,
                 // Current payable is zero for an approved void; original invoice amounts stay in history.
-                DueAmount = validFineVoid ? 0m : invoice.DueAmount, NetAllocatedAmount = net,
-                CreditNoteAmount = credited,
+                DueAmount = validFineVoid ? 0m : invoice.DueAmount - unpaidReduction,
+                NetAllocatedAmount = net,
+                CreditNoteAmount = credited + reservationCredit,
+                ReservationCreditAmount = reservationCredit,
+                StudentCreditPayable = studentCreditPayable,
                 Status = issues.Count > 0 ? "Requires review" :
                     validFineVoid ? "Reversed" : invoice.JournalId.HasValue ? "Reconciled" : "Unposted",
                 Issues = string.Join("; ", issues.Distinct())

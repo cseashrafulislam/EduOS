@@ -85,8 +85,11 @@ function render(data) {
     el('feeDueRows').replaceChildren();
     const p = data.invoices;
     for (const x of p.items || []) {
-        if (cents(x.totalAmount) - cents(x.paidAmount) !== cents(x.dueAmount))
-            throw Error('Invoice amount mismatch; export blocked.');
+        // Posted reservation credits reduce effective receivable without editing
+        // the immutable gross invoice or cash-paid amount.
+        if (cents(x.dueAmount) < 0n ||
+            cents(x.totalAmount) - cents(x.paidAmount) < cents(x.dueAmount))
+            throw Error('Invoice effective receivable mismatch; export blocked.');
         const tr = document.createElement('tr');
         for (const v of [String(x.dueDate).slice(0,10), x.invoiceNumber,
             x.studentCode + ' — ' + x.studentName, x.campusName, x.currencyCode,

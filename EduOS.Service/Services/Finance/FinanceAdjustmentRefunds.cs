@@ -30,6 +30,14 @@ public sealed partial class FinanceAdjustmentService
             allocations.Select(x=>x.StudentInvoiceId).Distinct().Count()!=allocations.Count)
             return false;
         var invoiceIds=allocations.Select(x=>x.StudentInvoiceId).ToArray();
+        // The reservation credit already reverses income and allocates the paid
+        // share to a liability. Legacy cash-refund credit notes cannot be issued
+        // against the same original invoices without double reversing income.
+        if(await db.Journals.IgnoreQueryFilters().AsNoTracking().AnyAsync(x=>
+            x.TenantId==tenant && x.SourceType==ReservationAutomaticCreditNote.SourceType &&
+            x.SourceId.HasValue && invoiceIds.Contains(x.SourceId.Value) &&
+            (x.State==JournalState.Approved || x.State==JournalState.Posted),ct))
+            return false;
         var invoices=await db.StudentInvoices.IgnoreQueryFilters().AsNoTracking()
             .Where(x=>x.TenantId==tenant && invoiceIds.Contains(x.Id))
             .Select(x=>new { x.Id,x.IsDeleted,x.State,x.TotalAmount,x.PaidAmount,x.DueAmount })
@@ -338,6 +346,11 @@ public sealed partial class FinanceAdjustmentService
             var priorTotals=prior.GroupBy(x=>x.PaymentAllocationId)
                 .ToDictionary(x=>x.Key,x=>x.Sum(y=>y.Amount));
             var invoiceIds=allocations.Select(x=>x.StudentInvoiceId).ToArray();
+            if(await db.Journals.IgnoreQueryFilters().AsNoTracking().AnyAsync(x=>
+                x.TenantId==tenant && x.SourceType==ReservationAutomaticCreditNote.SourceType &&
+                x.SourceId.HasValue && invoiceIds.Contains(x.SourceId.Value) &&
+                (x.State==JournalState.Approved || x.State==JournalState.Posted),ct))
+                return Error<RefundDto>("Reservation credit exists; reconcile student liability before cash refund.",409);
             var invoices=await db.StudentInvoices.Where(x=>x.TenantId==tenant &&
                 invoiceIds.Contains(x.Id) && !x.IsDeleted).ToListAsync(ct);
             if(invoices.Count!=invoiceIds.Length) return Error<RefundDto>("Invoice allocation missing.",409);

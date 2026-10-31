@@ -186,11 +186,40 @@
     }
     function toggleAutoInvoice() {
         const active = el('hfAutoInvoice').checked;
+        const negative = active && reviewedNet() < 0;
+        const creditWasHidden = el('hfCreditOptions').classList.contains('d-none');
         el('hfAutoPeriod').disabled = !active;
-        el('hfAutoHead').disabled = !active;
+        el('hfAutoHead').disabled = !active || negative;
+        el('hfAutoHeadWrap').classList.toggle('d-none', negative);
+        el('hfCreditOptions').classList.toggle('d-none', !negative);
         el('hfReviewJournal').disabled = active;
         el('hfNoAdjustment').disabled = active;
         if (active) { el('hfNoAdjustment').checked = false; el('hfReviewJournal').value = ''; }
+        if (negative && creditWasHidden && review) run(loadCreditOptions);
+    }
+    function reviewedNet() {
+        if (!review) return 0;
+        const mode = el('hfReviewMode').value;
+        const text = el('hfReviewNet').value.trim();
+        const manuallyChosen = text ? Number(text) : null;
+        return mode === 'auto' || manuallyChosen == null ? Number(review.approvedNetAdjustment) :
+            mode === 'hybrid' ? Number(review.suggestedNetAdjustment) + manuallyChosen : manuallyChosen;
+    }
+    async function loadCreditOptions() {
+        if (!review || review.operation !== 3) return;
+        const qs = new URLSearchParams({ kind: 'hostel', clearanceId: String(review.id),
+            invoiceSearch: el('hfCreditInvoiceSearch').value.trim(),
+            accountSearch: el('hfCreditLiabilitySearch').value.trim() });
+        const data = await api('/api/finance/adjustments/reservations/credit-options?' + qs);
+        const invoices = el('hfCreditSource'), liability = el('hfCreditLiability');
+        invoices.replaceChildren(new Option('Choose posted original invoice', ''));
+        liability.replaceChildren(new Option('Choose if paid credit exists', ''));
+        for (const x of data.invoices || []) option(invoices,
+            `${x.invoiceNumber} · billed ${money(x.originalTotal)} · paid ${money(x.grossPaid)} · due ${money(x.grossDue)}`,
+            x.invoiceReference);
+        for (const x of data.liabilityAccounts || []) option(liability, `${x.code} · ${x.name}`, String(x.id));
+        if (data.moreInvoices || data.moreAccounts)
+            notice('More records exist. Search by invoice number or liability account code/name.');
     }
     async function loadAutoInvoiceOptions(periodId, headId) {
         const [periods, billing] = await Promise.all([
@@ -212,9 +241,10 @@
         const manualInput = review.operation === 3 && reviewMode !== 'auto' ? signed('hfReviewNet') : null;
         const selectedAmount = manualInput == null ? Number(review.approvedNetAdjustment) :
             reviewMode === 'hybrid' ? Number(review.suggestedNetAdjustment) + Number(manualInput) : Number(manualInput);
-        if (auto && (!numeric('hfAutoPeriod') || !numeric('hfAutoHead') ||
-            selectedAmount <= 0))
-            throw Error('Automatic invoice requires a positive charge, open accounting period and fee head.');
+        if (auto && (!numeric('hfAutoPeriod') || selectedAmount === 0 ||
+            (selectedAmount > 0 && !numeric('hfAutoHead')) ||
+            (selectedAmount < 0 && !el('hfCreditSource').value)))
+            throw Error('Automatic posting needs an open period and either a charge fee head or original posted credit invoice.');
         if (!confirm(`${approve ? 'Approve' : 'Reject'} clearance #${review.id}? This decision is audited.`)) return;
         working = true;
         try {
@@ -223,14 +253,16 @@
                 noAdjustmentRequired: el('hfNoAdjustment').checked,
                 settlementJournalId: numeric('hfReviewJournal'),
                 autoPostInvoice: auto, accountingPeriodId: auto ? numeric('hfAutoPeriod') : null,
-                autoFeeHeadId: auto ? numeric('hfAutoHead') : null,
+                autoFeeHeadId: auto && selectedAmount > 0 ? numeric('hfAutoHead') : null,
+                originalInvoiceReference: auto && selectedAmount < 0 ? el('hfCreditSource').value : null,
+                studentCreditLiabilityAccountId: auto && selectedAmount < 0 ? numeric('hfCreditLiability') : null,
                 manualRentCredit: numeric('hfReviewRent'), manualDepositRefund: numeric('hfReviewDeposit'),
                 manualNetAdjustment: review.operation === 3 && reviewMode === 'manual' ? manualInput : null,
                 manualAdjustmentDelta: review.operation === 3 && reviewMode === 'hybrid' ? manualInput : null,
                 overrideReason: el('hfReviewOverrideReason').value.trim() || null,
                 reconciliationNote: note
             });
-            notice(`Clearance #${review.id} ${approve ? auto ? 'approved; draft invoice prepared (posting occurs with successful Operations change)' : 'approved' : 'rejected'}. Cash payout is not automatic.`, true);
+            notice(`Clearance #${review.id} ${approve ? auto ? selectedAmount < 0 ? 'approved; credit-note journal prepared' : 'approved; draft invoice prepared' : 'approved' : 'rejected'}. Posting occurs with successful Operations change. No cash payout was made.`, true);
             review = null; el('hfReviewForm').classList.add('d-none'); await loadClearances();
         } finally { working = false; }
     }
@@ -245,7 +277,10 @@
     el('hfReviewMode').addEventListener('change', () => {
         togglePeriodInput('hfReviewMode', 'hfReviewNet', Boolean(review && review.operation === 3));
         if (el('hfReviewMode').value !== 'auto') el('hfNoAdjustment').checked = false;
+        toggleAutoInvoice();
     });
+    el('hfReviewNet').addEventListener('input', toggleAutoInvoice);
+    el('hfLoadCreditOptions').addEventListener('click', () => run(loadCreditOptions));
     el('hfRequestForm').addEventListener('submit', e => { e.preventDefault(); run(() => requestClearance(e)); });
     el('hfRefresh').addEventListener('click', () => run(loadClearances));
     el('hfPrevious').addEventListener('click', () => run(() => { if (clearancePage > 1) { clearancePage--; return loadClearances(); } }));

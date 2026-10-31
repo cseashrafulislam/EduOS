@@ -591,11 +591,17 @@ public sealed partial class FeeBillingService : IFeeBillingService
                     select campus.Id).AnyAsync(token))
                 return Error<StudentPaymentDto>(
                     "Cash allocations must belong to one student, one active campus and BDT.", 409);
+            if (_uow is not EduOSDbContext financeContext || financeContext.CurrentTenantId != tenant)
+                return Error<StudentPaymentDto>("Finance context unavailable.", 403);
+            var existingCredits = await ReservationCreditNoteBalances.ForInvoicesAsync(financeContext,
+                tenant, invoiceRows.Select(x => x.invoice.Id).ToArray(), token);
             foreach (var allocation in request.Allocations)
             {
                 var invoice = invoiceRows.First(x => x.invoice.PublicId == allocation.InvoiceReference).invoice;
+                var applied = existingCredits.GetValueOrDefault(invoice.Id)?.UnpaidReduction ?? 0m;
                 if (invoice.State is not (InvoiceState.Issued or InvoiceState.PartiallyPaid) ||
-                    invoice.DueAmount < allocation.Amount ||
+                    applied < 0m || applied > invoice.DueAmount ||
+                    invoice.DueAmount - applied < allocation.Amount ||
                     invoice.TotalAmount != invoice.PaidAmount + invoice.DueAmount)
                     return Error<StudentPaymentDto>("Invoice is closed, inconsistent or has insufficient due.", 409);
             }
@@ -670,14 +676,27 @@ public sealed partial class FeeBillingService : IFeeBillingService
                         reversal.ReversalOfJournalId==j.Id &&
                         reversal.State==JournalState.Posted && !reversal.IsDeleted))
             select (decimal?)ra.Amount).SumAsync(ct)??0m;
+        var reservationCredits = await (from balance in ReservationCreditNoteBalances.Posted(context, _user.TenantId)
+            join invoice in context.StudentInvoices.AsNoTracking()
+                on balance.InvoiceId equals invoice.Id
+            where invoice.TenantId == _user.TenantId && !invoice.IsDeleted &&
+                enrollmentIds.Contains(invoice.StudentEnrollmentId) &&
+                invoice.State != InvoiceState.Cancelled && invoice.State != InvoiceState.Refunded
+            group balance by invoice.TenantId into g
+            select new { Unpaid = g.Sum(x => x.UnpaidReduction),
+                Liability = g.Sum(x => x.StudentCreditPayable) }).FirstOrDefaultAsync(ct);
         var billed=totals?.Billed??0m;
         var paid=totals?.Paid??0m;
+        var unpaidCredit=reservationCredits?.Unpaid??0m;
+        var payableCredit=reservationCredits?.Liability??0m;
         return ApiResponse<StudentLedgerDto>.SuccessResponse(new StudentLedgerDto
         {
             StudentReference = student.PublicId, StudentCode = student.StudentCode,
             StudentName = student.FullName, TotalBilled = billed,
-            TotalPaid = paid, TotalDue = totals?.Due ?? 0m,
-            TotalCreditNotes = credited,NetBilled = billed-credited,NetPaid = paid-credited
+            TotalPaid = paid, TotalDue = (totals?.Due ?? 0m) - unpaidCredit,
+            TotalCreditNotes = credited + unpaidCredit + payableCredit,
+            NetBilled = billed-credited-unpaidCredit-payableCredit,
+            NetPaid = paid-credited-payableCredit
         });
     }
 
@@ -750,6 +769,10 @@ public sealed partial class FeeBillingService : IFeeBillingService
                 Amount = line.Amount, DiscountAmount = line.DiscountAmount,
                 FineAmount = line.FineAmount, NetAmount = line.NetAmount
             }).ToList());
+        if (_uow is not EduOSDbContext financeContext || financeContext.CurrentTenantId != tenant)
+            throw new InvalidOperationException("Tenant Finance context unavailable.");
+        var creditBalances = await ReservationCreditNoteBalances.ForInvoicesAsync(
+            financeContext, tenant, ids, ct);
         var byId = rows.ToDictionary(x => x.invoice.Id, x => new StudentInvoiceDto
         {
             Id = x.invoice.Id, Reference = x.invoice.PublicId,
@@ -759,7 +782,15 @@ public sealed partial class FeeBillingService : IFeeBillingService
             DueDate = x.invoice.DueDate, Subtotal = x.invoice.Subtotal,
             DiscountAmount = x.invoice.DiscountAmount, FineAmount = x.invoice.FineAmount,
             TotalAmount = x.invoice.TotalAmount, PaidAmount = x.invoice.PaidAmount,
-            DueAmount = x.invoice.DueAmount, CurrencyCode = x.invoice.CurrencyCode,
+            DueAmount = x.invoice.DueAmount -
+                (creditBalances.GetValueOrDefault(x.invoice.Id)?.UnpaidReduction ?? 0m),
+            GrossDueAmount = x.invoice.DueAmount,
+            ReservationCreditAmount =
+                (creditBalances.GetValueOrDefault(x.invoice.Id)?.UnpaidReduction ?? 0m) +
+                (creditBalances.GetValueOrDefault(x.invoice.Id)?.StudentCreditPayable ?? 0m),
+            StudentCreditPayable =
+                creditBalances.GetValueOrDefault(x.invoice.Id)?.StudentCreditPayable ?? 0m,
+            CurrencyCode = x.invoice.CurrencyCode,
             State = x.invoice.State, PaidAt = x.invoice.PaidAt,
             Lines = byInvoice.GetValueOrDefault(x.invoice.Id) ?? [],
             RowVersion = Version(x.invoice.RowVersion)

@@ -35,6 +35,7 @@ public sealed partial class TransportService
              row.ApprovedFareCredit != 0m))
             return (null, "Approved period adjustment is invalid.");
         var autoCharge = false;
+        var autoCredit = false;
         if (row.NoAdjustmentRequired)
         {
             if (row.ApprovedFareCredit != 0 || row.SettlementJournalId.HasValue ||
@@ -52,7 +53,13 @@ public sealed partial class TransportService
                     "TRANSPORT", row.Id, row.SettlementJournalId.Value,
                     campusId, source.StudentId, source.StudentEnrollmentId,
                     row.ApprovedNetAdjustment, ct);
-            if (!autoCharge && !await _reservationFinancePolicy.HasValidPostedSettlementJournalAsync(
+            autoCredit = operation == TransportClearanceOperation.UpcomingRiderExtension &&
+                row.ApprovedNetAdjustment < 0m &&
+                await _reservationFinancePolicy.HasValidAutomaticCreditAsync(tenant,
+                    "TRANSPORT", row.Id, row.SettlementJournalId.Value,
+                    campusId, source.StudentId, source.StudentEnrollmentId,
+                    row.ApprovedNetAdjustment, ct);
+            if (!autoCharge && !autoCredit && !await _reservationFinancePolicy.HasValidPostedSettlementJournalAsync(
                     tenant, row.SettlementJournalId.Value, ct))
                 return (null, "Finance journal missing, reversed, or no longer independently approved.");
         }
@@ -65,6 +72,11 @@ public sealed partial class TransportService
                 source.StudentId, source.StudentEnrollmentId, row.ApprovedNetAdjustment,
                 _currentUser.UserId, _clock.GetUtcNow().UtcDateTime, ct))
             return (null, "Reviewed automatic invoice could not be posted with the operation.");
+        if (autoCredit && !await _reservationFinancePolicy.FinalizeAutomaticCreditAsync(tenant,
+                "TRANSPORT", row.Id, row.SettlementJournalId!.Value, campusId,
+                source.StudentId, source.StudentEnrollmentId, row.ApprovedNetAdjustment,
+                _currentUser.UserId, _clock.GetUtcNow().UtcDateTime, ct))
+            return (null, "Reviewed credit note could not be posted with the operation.");
         row.State = TransportClearanceState.Consumed;
         row.ConsumedByUserId = _currentUser.UserId;
         row.ConsumedAtUtc = _clock.GetUtcNow().UtcDateTime;

@@ -35,6 +35,18 @@ public sealed class ReservationFinancePolicy : IReservationFinancePolicy
         ReservationAutomaticInvoicePosting.FinalizeAsync(_db, tenantId, kind, clearanceId,
             journalId, campusId, studentId, enrollmentId, amount, postedByUserId, nowUtc, ct);
 
+    public Task<bool> HasValidAutomaticCreditAsync(long tenantId, string kind, long clearanceId,
+        long journalId, long campusId, long studentId, long enrollmentId, decimal signedAmount,
+        CancellationToken ct = default) => ReservationAutomaticCreditNote.PreparedAsync(_db,
+            tenantId, kind, clearanceId, journalId, campusId, studentId, enrollmentId,
+            signedAmount, ct);
+
+    public Task<bool> FinalizeAutomaticCreditAsync(long tenantId, string kind, long clearanceId,
+        long journalId, long campusId, long studentId, long enrollmentId, decimal signedAmount,
+        long postedByUserId, DateTime nowUtc, CancellationToken ct = default) =>
+        ReservationAutomaticCreditNote.FinalizeAsync(_db, tenantId, kind, clearanceId,
+            journalId, campusId, studentId, enrollmentId, signedAmount, postedByUserId, nowUtc, ct);
+
     /// <summary>
     /// Chargeable reservation terms require Finance approval even before an invoice
     /// is issued. This is a pure eligibility rule, not approval or proration.
@@ -96,7 +108,26 @@ public sealed class ReservationFinancePolicy : IReservationFinancePolicy
             .Select(x => new { x.Id, x.StudentPaymentId, x.IsDeleted, x.State,
                 x.Amount, x.ReversalJournalId }).ToListAsync(ct);
         if (lines.Count > 5000 || refunds.Count > 2000) return null;
-        var json = JsonSerializer.Serialize(new { invoices, payments, lines, refunds });
+        var credits = await _db.Journals.IgnoreQueryFilters().AsNoTracking()
+            .Where(x => x.TenantId == tenantId && x.SourceType == ReservationAutomaticCreditNote.SourceType &&
+                x.SourceId.HasValue && invoiceIds.Contains(x.SourceId.Value))
+            .OrderBy(x => x.Id).Take(2001)
+            .Select(x => new { x.Id, x.SourceId, x.IsDeleted, x.State, x.IdempotencyKey,
+                x.AccountingPeriodId, x.JournalDate, x.ReversalOfJournalId }).ToListAsync(ct);
+        var creditIds = credits.Select(x => x.Id).ToArray();
+        var creditLines = await _db.JournalLines.IgnoreQueryFilters().AsNoTracking()
+            .Where(x => x.TenantId == tenantId && creditIds.Contains(x.JournalId))
+            .OrderBy(x => x.Id).Take(5001)
+            .Select(x => new { x.Id, x.JournalId, x.IsDeleted, x.AccountId,
+                x.DebitAmount, x.CreditAmount }).ToListAsync(ct);
+        var allocations = await _db.PaymentAllocations.IgnoreQueryFilters().AsNoTracking()
+            .Where(x => x.TenantId == tenantId && invoiceIds.Contains(x.StudentInvoiceId))
+            .OrderBy(x => x.Id).Take(5001)
+            .Select(x => new { x.Id, x.IsDeleted, x.StudentPaymentId,
+                x.StudentInvoiceId, x.Amount }).ToListAsync(ct);
+        if (credits.Count > 2000 || creditLines.Count > 5000 || allocations.Count > 5000) return null;
+        var json = JsonSerializer.Serialize(new { invoices, payments, lines, refunds,
+            credits, creditLines, allocations });
         return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(json))).ToLowerInvariant();
     }
 

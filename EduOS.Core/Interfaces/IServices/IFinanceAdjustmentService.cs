@@ -20,6 +20,8 @@ public interface IFinanceAdjustmentService
     Task<ApiResponse<ReservationFinanceChangeReviewDto>> ReviewReservationChangeAsync(ReservationFinanceChangeReviewRequestDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<ReservationFinanceWorklistDto>> GetReservationFinanceWorklistAsync(ReservationFinanceWorklistQueryDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<ReservationFinanceEvidenceDto>> GetReservationFinanceEvidenceAsync(ReservationFinanceEvidenceQueryDto request, CancellationToken cancellationToken = default);
+    Task<ApiResponse<ReservationCreditOptionsDto>> GetReservationCreditOptionsAsync(string kind,
+        long clearanceId, string? invoiceSearch, string? accountSearch, CancellationToken cancellationToken = default);
     Task<ApiResponse<ReservationFinancePreflightDto>> GetReservationFinancePreflightAsync(string kind, long id, CancellationToken cancellationToken = default);
     Task<ApiResponse<IReadOnlyList<FinanceEnrollmentOptionDto>>> SearchEnrollmentsAsync(string search, CancellationToken cancellationToken = default);
     Task<ApiResponse<FinanceAdjustmentRegisterDto>> GetStudentRegisterAsync(Guid reference, CancellationToken cancellationToken = default);

@@ -77,6 +77,13 @@ public sealed class FinanceAdjustmentsController : ControllerBase
     public async Task<IActionResult> ReservationEvidence([FromQuery] ReservationFinanceEvidenceQueryDto request, CancellationToken ct)
         => Reply(await service.GetReservationFinanceEvidenceAsync(request, ct));
 
+    [HttpGet("reservations/credit-options")]
+    public async Task<IActionResult> ReservationCreditOptions([FromQuery] string kind,
+        [FromQuery] long clearanceId, [FromQuery] string? invoiceSearch,
+        [FromQuery] string? accountSearch, CancellationToken ct)
+        => Reply(await service.GetReservationCreditOptionsAsync(kind, clearanceId,
+            invoiceSearch, accountSearch, ct));
+
     [HttpGet("reservations/preflight")]
     public async Task<IActionResult> ReservationPreflight([FromQuery] string kind, [FromQuery] long id, CancellationToken ct)
         => Reply(await service.GetReservationFinancePreflightAsync(kind, id, ct));

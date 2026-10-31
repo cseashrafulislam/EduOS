@@ -320,18 +320,39 @@ public sealed partial class FinanceAdjustmentService
                         return Error<TransportClearanceDto>("Invalid signed period adjustment.");
                     if (request.AutoPostInvoice)
                     {
-                        if (net <= 0m || request.NoAdjustmentRequired || request.SettlementJournalId.HasValue)
-                            return Error<TransportClearanceDto>("Automatic invoice requires a positive amount and no existing journal.", 409);
-                        var (posting, error) = await ReservationAutomaticInvoicePosting.PrepareAsync(
-                            db, user.TenantId, user.UserId, row.RequestedByUserId,
-                            "TRANSPORT", id, row.CampusId,
-                            row.StudentEnrollmentId, row.StudentId, net,
-                            request.AutoFeeHeadId, request.AccountingPeriodId,
-                            DateOnly.FromDateTime(clock.GetLocalNow().DateTime), clock.GetUtcNow().UtcDateTime, ct);
-                        if (posting == null)
-                            return Error<TransportClearanceDto>(error ?? "Automatic invoice posting failed.", 409);
+                        if (net == 0m || request.NoAdjustmentRequired || request.SettlementJournalId.HasValue)
+                            return Error<TransportClearanceDto>("Automatic settlement requires a nonzero amount and no existing journal.", 409);
+                        long? journalId;
+                        string? error;
+                        if (net > 0m)
+                        {
+                            if (request.OriginalInvoiceReference.HasValue || request.StudentCreditLiabilityAccountId.HasValue)
+                                return Error<TransportClearanceDto>("Additional charge cannot select original credit sources.");
+                            var result = await ReservationAutomaticInvoicePosting.PrepareAsync(
+                                db, user.TenantId, user.UserId, row.RequestedByUserId,
+                                "TRANSPORT", id, row.CampusId, row.StudentEnrollmentId, row.StudentId,
+                                net, request.AutoFeeHeadId, request.AccountingPeriodId,
+                                DateOnly.FromDateTime(clock.GetLocalNow().DateTime), clock.GetUtcNow().UtcDateTime, ct);
+                            journalId = result.Posting?.JournalId;
+                            error = result.Error;
+                        }
+                        else
+                        {
+                            if (request.AutoFeeHeadId.HasValue)
+                                return Error<TransportClearanceDto>("Credit note uses the original posted fee head.");
+                            var result = await ReservationAutomaticCreditNote.PrepareAsync(
+                                db, user.TenantId, user.UserId, row.RequestedByUserId,
+                                "TRANSPORT", id, row.CampusId, row.StudentId, row.StudentEnrollmentId,
+                                net, request.OriginalInvoiceReference, request.StudentCreditLiabilityAccountId,
+                                request.AccountingPeriodId, DateOnly.FromDateTime(clock.GetLocalNow().DateTime),
+                                clock.GetUtcNow().UtcDateTime, ct);
+                            journalId = result.JournalId;
+                            error = result.Error;
+                        }
+                        if (!journalId.HasValue)
+                            return Error<TransportClearanceDto>(error ?? "Automatic Finance posting failed.", 409);
                         row.NoAdjustmentRequired = false;
-                        row.SettlementJournalId = posting.JournalId;
+                        row.SettlementJournalId = journalId;
                         row.FinanceSnapshotHash = await new ReservationFinancePolicy(db)
                             .GetExposureHashAsync(user.TenantId, row.StudentId, row.StudentEnrollmentId, ct)
                             ?? string.Empty;

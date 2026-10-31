@@ -23,4 +23,12 @@ public interface IReservationFinancePolicy
     Task<bool> FinalizeAutomaticChargeAsync(long tenantId, string kind, long clearanceId,
         long journalId, long campusId, long studentId, long enrollmentId, decimal amount,
         long postedByUserId, DateTime nowUtc, CancellationToken cancellationToken = default) => Task.FromResult(false);
+    /// <summary>Exact original-invoice-linked, approved-but-unposted credit note.</summary>
+    Task<bool> HasValidAutomaticCreditAsync(long tenantId, string kind, long clearanceId,
+        long journalId, long campusId, long studentId, long enrollmentId, decimal signedAmount,
+        CancellationToken cancellationToken = default) => Task.FromResult(false);
+    /// <summary>Post the independently reviewed contra journal with the reservation mutation.</summary>
+    Task<bool> FinalizeAutomaticCreditAsync(long tenantId, string kind, long clearanceId,
+        long journalId, long campusId, long studentId, long enrollmentId, decimal signedAmount,
+        long postedByUserId, DateTime nowUtc, CancellationToken cancellationToken = default) => Task.FromResult(false);
 }

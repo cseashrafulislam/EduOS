@@ -17,6 +17,8 @@
 
 ## Not completed: do not claim 100% Finance or start phase 2 as if this is resolved
 
+**Later increment:** See [V2 reservation negative credit-note contract](V2_FINANCE_RESERVATION_CREDIT_NOTES_20261031.md) for the subsequent code-level implementation, limits and exact-commit QA requirements. The statements below document what was outstanding *at the historical verified commit* `aff7a72c`.
+
 1. **Automatic negative credit note and original-invoice settlement** are not implemented. Existing V1 Finance credit notes are tied to an independently approved cash refund, and posted paid invoices are immutable. A new automatic credit requires explicit original invoice links, prior credit capacity checks and safe behavior for paid-versus-unpaid amounts. Do **not** create a parallel ad-hoc credit ledger or silently modify a posted invoice.
 2. **Automatic cash refund is not permitted** by this integration. Continue to require the existing Finance refund request, independent approval, actual payout evidence and appropriate credit-note journal.
 3. Broader institute-owned UAT, real restored-data checks and user sign-off remain outside this code-level acceptance. These are phase 3, not grounds to reimplement accepted LMS/Library functionality.

@@ -42,6 +42,7 @@ public sealed partial class HostelService
              clearance.ApprovedRentCredit != 0m || clearance.ApprovedDepositRefund != 0m))
             return (null, "Approved period adjustment is invalid.");
         var autoCharge = false;
+        var autoCredit = false;
         if (clearance.NoAdjustmentRequired)
         {
             if (clearance.SettlementJournalId.HasValue ||
@@ -60,7 +61,13 @@ public sealed partial class HostelService
                     "HOSTEL", clearance.Id, clearance.SettlementJournalId.Value,
                     campusId, source.StudentId, source.StudentEnrollmentId,
                     clearance.ApprovedNetAdjustment, ct);
-            if (!autoCharge && !await _reservationFinancePolicy.HasValidPostedSettlementJournalAsync(
+            autoCredit = operation == HostelClearanceOperation.UpcomingStartReschedule &&
+                clearance.ApprovedNetAdjustment < 0m &&
+                await _reservationFinancePolicy.HasValidAutomaticCreditAsync(tenant,
+                    "HOSTEL", clearance.Id, clearance.SettlementJournalId.Value,
+                    campusId, source.StudentId, source.StudentEnrollmentId,
+                    clearance.ApprovedNetAdjustment, ct);
+            if (!autoCharge && !autoCredit && !await _reservationFinancePolicy.HasValidPostedSettlementJournalAsync(
                     tenant, clearance.SettlementJournalId.Value, ct))
                 return (null, "Finance settlement journal is missing, reversed or no longer posted.");
         }
@@ -73,6 +80,11 @@ public sealed partial class HostelService
                 source.StudentId, source.StudentEnrollmentId, clearance.ApprovedNetAdjustment,
                 _currentUser.UserId, _clock.GetUtcNow().UtcDateTime, ct))
             return (null, "Reviewed automatic invoice could not be posted with the operation.");
+        if (autoCredit && !await _reservationFinancePolicy.FinalizeAutomaticCreditAsync(tenant,
+                "HOSTEL", clearance.Id, clearance.SettlementJournalId!.Value, campusId,
+                source.StudentId, source.StudentEnrollmentId, clearance.ApprovedNetAdjustment,
+                _currentUser.UserId, _clock.GetUtcNow().UtcDateTime, ct))
+            return (null, "Reviewed credit note could not be posted with the operation.");
         clearance.State = HostelClearanceState.Consumed;
         clearance.ConsumedByUserId = _currentUser.UserId;
         clearance.ConsumedAtUtc = _clock.GetUtcNow().UtcDateTime;
