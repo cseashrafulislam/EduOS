@@ -36,12 +36,6 @@
             <p class="dashboard-eyebrow">@T["Students"]</p>
             <div class="d-flex align-items-center gap-2">
                 <h2 id="studentDirectoryTitle">@T["StudentDirectory"]</h2>
-                <button id="studentDirectoryHelp" type="button" class="btn btn-sm btn-link"
-                        data-bs-toggle="popover" data-bs-trigger="focus" data-bs-placement="bottom"
-                        data-bs-content="@T["StudentDirectoryHelp"]"
-                        title="@T["StudentDirectoryHelp"]" aria-label="@T["StudentDirectoryHelp"]">
-                    <span aria-hidden="true">ⓘ</span>
-                </button>
             </div>
         </div>
         @if (User.IsInRole("TenantAdmin"))

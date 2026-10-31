@@ -566,13 +566,10 @@
                             <kbd>Ctrl K</kbd>
                         </button>
                     }
-                    <details class="page-context-help" id="pageContextHelp">
-                        <summary class="icon-button" aria-label="@(currentCulture == "bn-BD" ? "এই পৃষ্ঠার সাহায্য" : "Help for this page")" title="@(currentCulture == "bn-BD" ? "সাহায্য" : "Help")">ⓘ</summary>
-                        <div class="page-context-help-popover" role="note" lang="@currentCulture">
-                            <strong>@(currentCulture == "bn-BD" ? "এই পৃষ্ঠা" : "This page")</strong>
-                            <p class="mb-0" data-page-context-help-text></p>
-                        </div>
-                    </details>
+                    <button class="icon-button page-help-trigger" id="pageContextHelp" type="button"
+                            aria-haspopup="dialog" aria-controls="pageHelpDrawer"
+                            aria-label="@(currentCulture == "bn-BD" ? "এই পৃষ্ঠার সম্পূর্ণ নির্দেশিকা" : "Full user manual for this page")"
+                            title="@(currentCulture == "bn-BD" ? "পৃষ্ঠার নির্দেশিকা" : "Page user manual")">ⓘ</button>
                     <button class="install-button" type="button" data-install-app hidden>
                         <svg class="edu-icon"><use href="/images/eduos-icons.svg#download" /></svg>
                         <span>@T["InstallApp"]</span>
@@ -640,6 +637,15 @@
                     <div class="feature-search-results" id="featureSearchResults" aria-live="polite"></div>
                 </dialog>
             }
+
+            <dialog class="page-help-drawer" id="pageHelpDrawer" aria-labelledby="pageHelpTitle" aria-modal="true" lang="@currentCulture">
+                <div class="page-help-heading">
+                    <h2 id="pageHelpTitle">@(currentCulture == "bn-BD" ? "পৃষ্ঠার নির্দেশিকা" : "Page user manual")</h2>
+                    <button type="button" id="pageHelpClose" class="icon-button"
+                            aria-label="@(currentCulture == "bn-BD" ? "নির্দেশিকা বন্ধ করুন" : "Close user manual")">×</button>
+                </div>
+                <div id="pageHelpContent" class="page-help-content"></div>
+            </dialog>
 
             <div class="connectivity-notice" data-connectivity-notice hidden role="status" aria-live="polite">
                 @(currentCulture == "bn-BD"
