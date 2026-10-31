@@ -217,6 +217,80 @@ public sealed class V3EnterpriseSupplierPayableTraceService(
                 contra.State != JournalState.Posted)) ||
             (invoice.StateCode == "Posted" && contra?.State == JournalState.Posted))
             return Conflict("Supplier invoice lifecycle and Finance journal disagree.");
+
+        // Canonical Finance instructions are UNPOSTED; they are neither paid
+        // invoices nor GL disbursements. Validate source IDs and reserved legs.
+        var instructions = await db.Journals.IgnoreQueryFilters().AsNoTracking()
+            .Where(x => x.TenantId == user.TenantId &&
+                x.SourceType == "ProcurementSupplierPayment" && x.SourceId == invoice.Id)
+            .OrderBy(x => x.Id).Take(101).ToListAsync(ct);
+        if (instructions.Count > 100 || (instructions.Count > 0 && !invoice.JournalId.HasValue))
+            return Conflict("Supplier settlement instruction source or fan-out conflicts.");
+        var settlementEvidence = new List<V3EnterpriseSettlementInstructionEvidenceDto>();
+        decimal reservedSettlement = 0m;
+        if (instructions.Count > 0)
+        {
+            var payableAccounts = byJournal[original[0].Id]
+                .Where(x => x.CreditAmount == invoice.TotalAmount && x.DebitAmount == 0m)
+                .Select(x => x.AccountId).ToArray();
+            if (payableAccounts.Length != 1)
+                return Conflict("Canonical supplier payable leg is ambiguous.");
+            var ids = instructions.Select(x => x.Id).ToArray();
+            var legs = await db.JournalLines.IgnoreQueryFilters().AsNoTracking()
+                .Where(x => x.TenantId == user.TenantId && ids.Contains(x.JournalId))
+                .OrderBy(x => x.JournalId).ThenBy(x => x.LineNo).Take(201).ToListAsync(ct);
+            if (legs.Count > 200 || legs.Any(x => x.IsDeleted || x.CampusId != invoice.CampusId))
+                return Conflict("Deleted, excessive or cross-campus settlement lines.");
+            var groups = legs.GroupBy(x => x.JournalId).ToDictionary(x => x.Key, x => x.ToArray());
+            var bankAccounts = legs.Where(x => x.LineNo == 2).Select(x => x.AccountId).Distinct().ToArray();
+            var banks = await (from b in db.BankAccounts.IgnoreQueryFilters().AsNoTracking()
+                join a in db.Accounts.IgnoreQueryFilters().AsNoTracking() on b.AccountId equals a.Id
+                where b.TenantId == user.TenantId && a.TenantId == user.TenantId &&
+                    bankAccounts.Contains(b.AccountId) && !b.IsDeleted && !a.IsDeleted &&
+                    b.CurrencyCode == "BDT" && a.CurrencyCode == "BDT" &&
+                    a.AccountType == AccountType.Asset &&
+                    (b.CampusId == null || b.CampusId == invoice.CampusId)
+                select new { b.AccountId, b.Id }).ToListAsync(ct);
+            var periodIds = instructions.Select(x => x.AccountingPeriodId).Distinct().ToArray();
+            var periods = await db.AccountingPeriods.IgnoreQueryFilters().AsNoTracking()
+                .Where(x => x.TenantId == user.TenantId && periodIds.Contains(x.Id) && !x.IsDeleted)
+                .Select(x => new { x.Id, x.StartDate, x.EndDate }).ToListAsync(ct);
+            foreach (var j in instructions)
+            {
+                if (j.IsDeleted || j.CampusId != invoice.CampusId || j.CurrencyCode != "BDT" ||
+                    j.ReferenceNumber != invoice.SupplierInvoiceNumber ||
+                    j.JournalDate < invoice.InvoiceDate || j.ReversalOfJournalId.HasValue ||
+                    j.PostedAt.HasValue || j.PostedByUserId.HasValue ||
+                    j.CreatedBy is null or <= 0 ||
+                    !periods.Any(p => p.Id == j.AccountingPeriodId &&
+                        p.StartDate <= j.JournalDate && p.EndDate >= j.JournalDate) ||
+                    !groups.TryGetValue(j.Id, out var pair) || pair.Length != 2 ||
+                    pair[0].LineNo != 1 || pair[1].LineNo != 2 ||
+                    pair[0].AccountId != payableAccounts[0] || pair[0].DebitAmount <= 0m ||
+                    pair[0].CreditAmount != 0m || pair[1].DebitAmount != 0m ||
+                    pair[1].CreditAmount != pair[0].DebitAmount ||
+                    banks.Count(b => b.AccountId == pair[1].AccountId) != 1)
+                    return Conflict("Settlement bank, campus or balanced instruction evidence conflicts.");
+                if (j.State == JournalState.Approved)
+                {
+                    if (j.ApprovedByUserId is null or <= 0 ||
+                        j.ApprovedByUserId == j.CreatedBy ||
+                        j.ApprovedByUserId == invoice.CreatedBy || !j.ApprovedAt.HasValue)
+                        return Conflict("Settlement independent reviewer evidence conflicts.");
+                }
+                else if (j.State != JournalState.Submitted && j.State != JournalState.Rejected)
+                    return Conflict("A settlement instruction must not be presented as payment.");
+                if (j.State is JournalState.Submitted or JournalState.Approved)
+                    reservedSettlement += pair[0].DebitAmount;
+                settlementEvidence.Add(new V3EnterpriseSettlementInstructionEvidenceDto
+                {
+                    Reference = j.PublicId, State = j.State.ToString(),
+                    PlannedDate = j.JournalDate, Amount = pair[0].DebitAmount
+                });
+            }
+            if (reservedSettlement > invoice.TotalAmount)
+                return Conflict("Supplier settlement reservations exceed posted payable.");
+        }
         var evidence = linked.Where(x => journalIds.Contains(x.Id)).Select(j =>
         {
             var group = byJournal[j.Id];
@@ -238,7 +312,9 @@ public sealed class V3EnterpriseSupplierPayableTraceService(
                 FinanceEvidenceStatus = invoice.StateCode == "Reversed" ? "ExplicitReversedReference" :
                     contra != null ? "ReversalPending" :
                     invoice.JournalId.HasValue ? "ExplicitBalancedReference" : "NoExplicitReference",
-                Journals = evidence
+                Journals = evidence,
+                SettlementReservedAmount = reservedSettlement,
+                SettlementInstructions = settlementEvidence
             });
     }
 }

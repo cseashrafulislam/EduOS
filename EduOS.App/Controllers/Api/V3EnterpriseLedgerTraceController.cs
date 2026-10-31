@@ -152,6 +152,13 @@ public sealed class V3EnterpriseLedgerTraceController(EduOSDbContext db, ICurren
         foreach (var receipt in d.GoodsReceiptReferences)
             csv.AppendJoin(",", new[] { Cell("GoodsReceipt"), Cell(receipt),
                 Cell(""), Cell("Posted"), Cell(""), Cell(""), Cell(""), Cell(d.CampusId), Cell("") }).Append("\r\n");
+        foreach (var instruction in d.SettlementInstructions)
+            csv.AppendJoin(",", new[] { Cell("SettlementInstruction"), Cell(instruction.Reference),
+                Cell(""), Cell(instruction.State), Cell(""), Cell(""), Cell(instruction.Amount),
+                Cell(d.CampusId), Cell("UNPOSTED - NOT PAID") }).Append("\r\n");
+        csv.AppendJoin(",", new[] { Cell("ActiveSettlementReservation"), Cell(d.InvoiceReference),
+            Cell(""), Cell("UNPOSTED"), Cell(""), Cell(""), Cell(d.SettlementReservedAmount),
+            Cell(d.CampusId), Cell("NOT A GL PAYMENT") }).Append("\r\n");
         foreach (var j in d.Journals)
             csv.AppendJoin(",", new[] { Cell("Journal"), Cell(j.Reference),
                 Cell(j.Number), Cell(j.State), Cell(j.Debit), Cell(j.Credit),

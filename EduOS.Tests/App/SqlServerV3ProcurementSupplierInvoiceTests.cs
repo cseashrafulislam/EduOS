@@ -478,6 +478,32 @@ public sealed partial class SqlServerV3ProcurementPurchaseOrderTests
             Assert.Equal(2,lines.Count);
             Assert.Equal(10m,lines.Sum(x=>x.DebitAmount));
             Assert.Equal(10m,lines.Sum(x=>x.CreditAmount));
+            var traceService = new V3EnterpriseSupplierPayableTraceService(
+                verify,new Actor(tenantId,makerId));
+            var settlementTrace = await traceService.GetAsync(second.Reference);
+            Assert.True(settlementTrace.Success,settlementTrace.Message);
+            Assert.Equal(10m,settlementTrace.Data!.SettlementReservedAmount);
+            var evidence = Assert.Single(settlementTrace.Data.SettlementInstructions);
+            Assert.Equal(instructionReference,evidence.Reference);
+            Assert.Equal("Approved",evidence.State);
+            Assert.Equal(10m,evidence.Amount);
+            // Disposable SQL rollback: an unbalanced UNPOSTED instruction is
+            // a conflict, even though the original payable GL is balanced.
+            await using (var tamper = await verify.Database.BeginTransactionAsync())
+            {
+                await verify.JournalLines.Where(x=>x.JournalId==settlement.Id && x.LineNo==2)
+                    .ExecuteUpdateAsync(s=>s.SetProperty(x=>x.CreditAmount,9m));
+                Assert.Equal(409,(await traceService.GetAsync(second.Reference)).StatusCode);
+                await tamper.RollbackAsync();
+            }
+            var restored = await traceService.GetAsync(second.Reference);
+            Assert.True(restored.Success,restored.Message);
+            Assert.Equal(10m,restored.Data!.SettlementReservedAmount);
+            await using (var foreign = Open(options,tenantId+999999,checkerId))
+                Assert.Equal(404,(await new V3EnterpriseSupplierPayableTraceService(
+                    foreign,new Actor(tenantId+999999,checkerId)).GetAsync(second.Reference)).StatusCode);
+            Assert.Equal(403,(await new V3EnterpriseSupplierPayableTraceService(
+                verify,new ReadOnlyActor(tenantId,makerId)).GetAsync(second.Reference)).StatusCode);
             var service=Invoices(verify,tenantId,makerId);
             var current=(await service.GetAsync(second.Reference)).Data!;
             Assert.Equal(409,(await service.RequestReversalAsync(second.Reference,
