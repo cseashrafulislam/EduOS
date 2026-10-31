@@ -61,6 +61,47 @@ public class LearnerConsentServiceTests
         log.ReasonCode.Should().Be("CONSENT_APPROVED");
     }
 
+    [Theory]
+    [InlineData("inactive")]
+    [InlineData("deleted")]
+    [InlineData("foreign")]
+    public async Task Consent_approval_cannot_grant_for_stale_or_foreign_destination_student(string condition)
+    {
+        var options = CreateOptions();
+        var scenario = await SeedScenarioAsync(options);
+        await using (var destination = CreateContext(options, 202, 2, "AdmissionOfficer"))
+        {
+            if (condition == "foreign")
+            {
+                var foreignStudent = await destination.Students.IgnoreQueryFilters().AsNoTracking()
+                    .SingleAsync(x => x.TenantId == 101);
+                var request = await destination.LearnerConsentRequests.SingleAsync();
+                request.RequestedStudentId = foreignStudent.Id;
+            }
+            else
+            {
+                var student = await destination.Students.SingleAsync(x => x.Id == scenario.TargetStudentId);
+                if (condition == "deleted") student.IsDeleted = true;
+                else student.StatusCode = "Transferred";
+            }
+            await destination.SaveChangesAsync();
+        }
+
+        await using var origin = CreateContext(options, 101, 77, "Parent");
+        var service = CreateService(origin, new TestCurrentUser(101, 77, "Parent"));
+        var result = await service.ResolveAsync(scenario.RequestReference,
+            new ResolveLearnerIdentityConsentRequestDto { Decision = LearnerConsentDecision.Approve });
+
+        result.StatusCode.Should().Be(409);
+        (await origin.LearnerConsentRequests.IgnoreQueryFilters().SingleAsync()).State
+            .Should().Be(ConsentState.Pending);
+        (await origin.LearnerDataGrants.IgnoreQueryFilters().CountAsync()).Should().Be(0);
+        (await origin.StudentPersonLinks.IgnoreQueryFilters()
+            .CountAsync(x => x.TenantId == 202)).Should().Be(0);
+        (await origin.LearnerIdentityAccessLogs.IgnoreQueryFilters().SingleAsync()).ReasonCode
+            .Should().Be("TARGET_STUDENT_UNAVAILABLE");
+    }
+
     [Fact]
     public async Task Linked_guardian_role_can_review_and_approve_learner_consent()
     {

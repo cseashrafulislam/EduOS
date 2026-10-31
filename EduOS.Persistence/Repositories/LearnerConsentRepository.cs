@@ -176,6 +176,21 @@ public sealed class LearnerConsentRepository : ILearnerConsentRepository
             return new LearnerConsentMutationResult(LearnerConsentMutationState.Conflict);
         }
 
+        // The request was authorized when it was created, but its destination
+        // student may have since been transferred, deleted or reassigned. In
+        // particular, the request FK alone does not prove tenant ownership.
+        // Never materialize a cross-tenant StudentPersonLink or data grant.
+        var destinationActive = await _context.Students.IgnoreQueryFilters().AsNoTracking()
+            .AnyAsync(x => x.Id == request.RequestedStudentId
+                && x.TenantId == request.TenantId
+                && !x.IsDeleted && x.StatusCode == "Active", cancellationToken);
+        if (!destinationActive)
+        {
+            AddLog(request, userId, "ResolveConsent", "Conflict", "TARGET_STUDENT_UNAVAILABLE", ipAddress, userAgent);
+            await SaveDecisionAsync(request, userId, cancellationToken);
+            return new LearnerConsentMutationResult(LearnerConsentMutationState.Conflict);
+        }
+
         var currentLink = await _context.StudentPersonLinks.IgnoreQueryFilters()
             .FirstOrDefaultAsync(x => !x.IsDeleted
                 && x.TenantId == request.TenantId
