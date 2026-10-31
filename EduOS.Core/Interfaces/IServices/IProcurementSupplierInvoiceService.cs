@@ -13,5 +13,7 @@ public interface IProcurementSupplierInvoiceService
     Task<ApiResponse<ProcurementSupplierInvoiceDto>> ReviewAsync(Guid reference, ReviewProcurementSupplierInvoiceRequest request, CancellationToken ct = default);
     Task<ApiResponse<ProcurementSupplierInvoiceDto>> RequestReversalAsync(Guid reference, RequestProcurementSupplierInvoiceReversal request, CancellationToken ct = default);
     Task<ApiResponse<ProcurementSupplierInvoiceDto>> ReviewReversalAsync(Guid reference, ReviewProcurementSupplierInvoiceReversal request, CancellationToken ct = default);
+    Task<ApiResponse<PagedResult<ProcurementSupplierPayableAgingRowDto>>> AgingAsync(DateOnly? dueDateReference,
+        long? supplierId, bool overdueOnly, int page, int pageSize, CancellationToken ct = default);
     Task<ApiResponse<ProcurementInvoicePostingOptionsDto>> PostingOptionsAsync(CancellationToken ct = default);
 }

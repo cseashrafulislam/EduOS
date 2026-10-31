@@ -31,6 +31,26 @@
         <span id="simPage" aria-live="polite"></span>
         <button type="button" id="simNext" class="btn btn-outline-secondary btn-sm">Next</button>
     </nav>
+    <section id="supplierPayableAging" class="border rounded p-3 mb-4" aria-labelledby="paTitle">
+        <h2 id="paTitle" class="h6" data-en="Supplier payable aging (gross posted AP)" data-bn="সরবরাহকারীর দায়ের বয়স (পোস্টকৃত মোট দায়)">Supplier payable aging (gross posted AP)</h2>
+        <p class="small text-muted" data-en="Current posted supplier liabilities aged by due date. Unlinked manual or bank payments are NOT deducted; this is not a reconciled unpaid balance."
+           data-bn="পোস্টকৃত দায় নির্ধারিত তারিখ অনুযায়ী দেখানো হয়েছে। উৎসবিহীন নগদ বা ব্যাংক পরিশোধ বাদ দেওয়া হয়নি; এটি মিলকৃত বকেয়া নয়।">Current posted supplier liabilities aged by due date. Unlinked manual or bank payments are NOT deducted; this is not a reconciled unpaid balance.</p>
+        <form id="paForm" class="row g-2 align-items-end mb-2">
+            <div class="col-12 col-sm-4"><label for="paDate" class="form-label" data-en="Due-date reference" data-bn="নির্ধারিত তারিখের ভিত্তি">Due-date reference</label><input id="paDate" type="date" class="form-control" required /></div>
+            <div class="col-12 col-sm-3"><label class="form-check-label d-flex gap-2 align-items-center pb-2"><input id="paOverdue" type="checkbox" class="form-check-input"/><span data-en="Overdue only" data-bn="শুধু মেয়াদোত্তীর্ণ">Overdue only</span></label></div>
+            <div class="col-6 col-sm-2"><button class="btn btn-outline-primary w-100" type="submit" data-en="Apply" data-bn="প্রয়োগ">Apply</button></div>
+            <div class="col-6 col-sm-2"><button id="paExport" class="btn btn-outline-secondary w-100" type="button">CSV</button></div>
+        </form>
+        <p id="paStatus" role="status" aria-live="polite" class="small"></p>
+        <div class="table-responsive"><table class="table table-sm table-striped"><thead><tr>
+            <th>Invoice</th><th>PO</th><th>Supplier</th><th>Campus</th><th>Due</th><th>Days</th><th>Bucket</th><th>Gross BDT</th><th>Reversal</th>
+        </tr></thead><tbody id="paRows"></tbody></table></div>
+        <nav class="d-flex align-items-center gap-2" aria-label="Payable aging pages">
+            <button id="paPrev" type="button" class="btn btn-outline-secondary btn-sm">Previous</button>
+            <span id="paPage" aria-live="polite"></span>
+            <button id="paNext" type="button" class="btn btn-outline-secondary btn-sm">Next</button>
+        </nav>
+    </section>
     <form id="simSearchForm" class="row g-2 align-items-end mb-3">
         <div class="col-9 col-md-5"><label for="simSearch" class="form-label" data-en="Approved purchase order" data-bn="অনুমোদিত ক্রয়াদেশ">Approved purchase order</label>
             <input id="simSearch" class="form-control" maxlength="100" autocomplete="off" placeholder="Order number / ক্রয়াদেশ" /></div>
@@ -130,4 +150,4 @@
         </form>
     </dialog>
 </section>
-@section Scripts { <script src="~/js/procurement/supplier-invoice-matching.js" asp-append-version="true"></script> }
+@section Scripts { <script src="~/js/procurement/supplier-invoice-matching.js" asp-append-version="true"></script><script src="~/js/procurement/supplier-payable-aging.js" asp-append-version="true"></script> }

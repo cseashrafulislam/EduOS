@@ -193,6 +193,12 @@ public sealed partial class SqlServerV3ProcurementPurchaseOrderTests
             Assert.True(secondPosted.Success,secondPosted.Message);
             Assert.Equal(18m,secondPosted.Data!.TotalAmount);
             Assert.Equal(-2m,secondPosted.Data.PriceVariance);
+            var aged=await service.AgingAsync(date.AddDays(20),null,true,1,25);
+            Assert.True(aged.Success,aged.Message);
+            Assert.Equal(2,aged.Data!.TotalCount);
+            Assert.Equal(38m,aged.Data.Items.Sum(x=>x.GrossPostedAmount));
+            Assert.All(aged.Data.Items,x=>Assert.Equal(5,x.DaysOverdue));
+            Assert.Empty((await service.AgingAsync(date,null,true,1,25)).Data!.Items);
         }
         await using (var verify=Open(options,tenantId,makerId))
         {
@@ -230,6 +236,10 @@ public sealed partial class SqlServerV3ProcurementPurchaseOrderTests
             Assert.True(reversed.Success,reversed.Message);
             Assert.Equal("Reversed",reversed.Data!.StateCode);
             Assert.NotNull(reversed.Data.ReversalJournalReference);
+            var aged=await service.AgingAsync(date.AddDays(20),null,true,1,25);
+            Assert.True(aged.Success,aged.Message);
+            Assert.Single(aged.Data!.Items);
+            Assert.Equal(18m,aged.Data.Items[0].GrossPostedAmount);
         }
         await using (var verify=Open(options,tenantId,makerId))
         {

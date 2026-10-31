@@ -46,6 +46,41 @@ public sealed class ProcurementSupplierInvoicesController(IProcurementSupplierIn
     public async Task<IActionResult> ReviewReversal(Guid reference,[FromBody] ReviewProcurementSupplierInvoiceReversal request,
         CancellationToken ct) => Reply(await service.ReviewReversalAsync(reference,request,ct));
 
+    [HttpGet("aging"), Authorize(Roles="TenantAdmin,Principal,Accountant")]
+    public async Task<IActionResult> Aging(DateOnly? dueDateReference,long? supplierId,bool overdueOnly=false,
+        int page=1,int pageSize=25,CancellationToken ct=default)
+        => Reply(await service.AgingAsync(dueDateReference,supplierId,overdueOnly,page,pageSize,ct));
+
+    [HttpGet("aging/export"), Authorize(Roles="TenantAdmin,Principal,Accountant")]
+    public async Task<IActionResult> AgingExport(DateOnly? dueDateReference,long? supplierId,
+        bool overdueOnly=false,CancellationToken ct=default)
+    {
+        var first=await service.AgingAsync(dueDateReference,supplierId,overdueOnly,1,100,ct);
+        if(!first.Success || first.Data==null)return Reply(first);
+        if(first.Data.TotalCount>500)return StatusCode(413,new{message="Filter to 500 or fewer supplier payables."});
+        var rows=new List<ProcurementSupplierPayableAgingRowDto>(first.Data.Items);
+        for(var p=2;p<=first.Data.TotalPages;p++)
+        {
+            var next=await service.AgingAsync(dueDateReference,supplierId,overdueOnly,p,100,ct);
+            if(!next.Success || next.Data==null)return Reply(next);
+            rows.AddRange(next.Data.Items);
+        }
+        static string Csv(object? v)
+        {
+            var s=Convert.ToString(v,System.Globalization.CultureInfo.InvariantCulture)??"";
+            if(s.TrimStart().Length>0 && "=+-@".Contains(s.TrimStart()[0]))s="'"+s;
+            return "\"" + s.Replace("\"","\"\"") + "\"";
+        }
+        var csv=new StringBuilder("Invoice,PO,Supplier,Campus,DueDate,DaysOverdue,Bucket,GrossPostedAP_BDT,ReversalPending,Journal,SettlementVerified\r\n");
+        foreach(var x in rows)
+            csv.AppendJoin(',',Csv(x.SupplierInvoiceNumber),Csv(x.OrderNumber),Csv(x.SupplierId),
+                Csv(x.CampusId),Csv(x.DueDate),Csv(x.DaysOverdue),Csv(x.AgingBucket),
+                Csv(x.GrossPostedAmount),Csv(x.ReversalPending),Csv(x.JournalReference),Csv("NO"))
+                .Append("\r\n");
+        return File(new UTF8Encoding(true).GetBytes(csv.ToString()),"text/csv; charset=utf-8",
+            "supplier-gross-payable-aging.csv");
+    }
+
     [HttpGet("export"), Authorize(Roles="TenantAdmin,Principal,Accountant")]
     public async Task<IActionResult> Export(long? purchaseOrderId, string? state, CancellationToken ct)
     {
