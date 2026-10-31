@@ -11,6 +11,11 @@ public sealed class V3EnterpriseProcurementTraceDto
     public Guid RequisitionReference { get; set; }
     public Guid SupplierReference { get; set; }
     public decimal TotalAmount { get; set; }
+    // Requisition-approved ceiling and negotiated difference, not a payable
+    // or remaining-to-receive balance. Both values are in the PO currency.
+    public decimal ApprovedBudget { get; set; }
+    public decimal BudgetVariance { get; set; }
+    public string CurrencyCode { get; set; } = "BDT";
     public int LineCount { get; set; }
     public string EvidenceStatus { get; set; } = "";
     public IReadOnlyList<V3EnterpriseProcurementTraceLineDto> Lines { get; set; } =

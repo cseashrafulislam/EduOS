@@ -20,6 +20,12 @@ public sealed class V3EnterpriseProcurementTraceService(
         public Guid PublicId { get; set; }
         public string OrderNumber { get; set; } = "";
         public string StateCode { get; set; } = "";
+        public string CurrencyCode { get; set; } = "";
+        public long? CreatedBy { get; set; }
+        public DateTime? SubmittedAt { get; set; }
+        public DateTime? DecidedAt { get; set; }
+        public long? DecidedByUserId { get; set; }
+        public string? DecisionReason { get; set; }
         public long CampusId { get; set; }
         public long RequisitionId { get; set; }
         public long SupplierId { get; set; }
@@ -32,6 +38,7 @@ public sealed class V3EnterpriseProcurementTraceService(
         public Guid RequisitionReference { get; set; }
         public Guid SupplierReference { get; set; }
         public decimal Total { get; set; }
+        public decimal ApprovedBudget { get; set; }
         public V3EnterpriseProcurementTraceLineDto[] Lines { get; set; } = [];
     }
 
@@ -43,9 +50,12 @@ public sealed class V3EnterpriseProcurementTraceService(
             .Where(x => x.TenantId == user.TenantId && !x.IsDeleted)
             .Select(x => new Header {
                 Id = x.Id, PublicId = x.PublicId, OrderNumber = x.OrderNumber,
-                StateCode = x.StateCode, CampusId = x.CampusId,
-                RequisitionId = x.RequisitionId, SupplierId = x.SupplierId,
-                CreatedAt = x.CreatedAt
+                StateCode = x.StateCode, CurrencyCode = x.CurrencyCode,
+                CampusId = x.CampusId, RequisitionId = x.RequisitionId,
+                SupplierId = x.SupplierId, CreatedAt = x.CreatedAt,
+                CreatedBy = x.CreatedBy, SubmittedAt = x.SubmittedAt,
+                DecidedAt = x.DecidedAt, DecidedByUserId = x.DecidedByUserId,
+                DecisionReason = x.DecisionReason
             });
 
     public async Task<ApiResponse<V3EnterpriseProcurementTraceDto>> GetAsync(
@@ -72,7 +82,9 @@ public sealed class V3EnterpriseProcurementTraceService(
                 State = order.StateCode, CampusId = order.CampusId,
                 RequisitionReference = evidence.RequisitionReference,
                 SupplierReference = evidence.SupplierReference,
-                TotalAmount = evidence.Total, LineCount = evidence.Lines.Length,
+                TotalAmount = evidence.Total, ApprovedBudget = evidence.ApprovedBudget,
+                BudgetVariance = evidence.ApprovedBudget - evidence.Total,
+                CurrencyCode = order.CurrencyCode, LineCount = evidence.Lines.Length,
                 EvidenceStatus = evidence.Status, Lines = evidence.Lines
             });
     }
@@ -154,7 +166,7 @@ public sealed class V3EnterpriseProcurementTraceService(
             .ToDictionaryAsync(x => x.Id, ct);
         var suppliers = await db.ProcurementSuppliers.IgnoreQueryFilters()
             .AsNoTracking().Where(x => x.TenantId == user.TenantId && supplierIds.Contains(x.Id))
-            .Select(x => new { x.Id, x.PublicId, x.CampusId, x.IsDeleted })
+            .Select(x => new { x.Id, x.PublicId, x.CampusId, x.StateCode, x.IsDeleted })
             .ToDictionaryAsync(x => x.Id, ct);
         var campuses = await db.Campuses.IgnoreQueryFilters().AsNoTracking()
             .Where(x => x.TenantId == user.TenantId && campusIds.Contains(x.Id))
@@ -182,6 +194,7 @@ public sealed class V3EnterpriseProcurementTraceService(
                 Quantity = x.Quantity, UnitPrice = x.UnitPrice
             }).ToArray();
             inspected.Total = inspected.Lines.Sum(x => x.Amount);
+            inspected.ApprovedBudget = source.Sum(x => x.Quantity * x.EstimatedUnitPrice);
             if (requisitions.TryGetValue(order.RequisitionId, out var req))
                 inspected.RequisitionReference = req.PublicId;
             if (suppliers.TryGetValue(order.SupplierId, out var supplier))
@@ -189,10 +202,28 @@ public sealed class V3EnterpriseProcurementTraceService(
 
             var sourceById = source.GroupBy(x => x.Id)
                 .ToDictionary(g => g.Key, g => g.First());
-            var invalid = !campuses.TryGetValue(order.CampusId, out var campus) ||
+            // An approved or cancellation-pending commitment must retain its
+            // independent maker/checker decision. A forged status must not
+            // appear as a valid purchase commitment in JSON, CSV or registers.
+            var approvalInvalid = order.StateCode is "Approved" or "CancelRequested" or "Rejected" &&
+                (!order.CreatedBy.HasValue || !order.DecidedByUserId.HasValue ||
+                 order.CreatedBy == order.DecidedByUserId ||
+                 !order.SubmittedAt.HasValue || !order.DecidedAt.HasValue ||
+                 order.SubmittedAt.Value < order.CreatedAt ||
+                 order.DecidedAt.Value < order.SubmittedAt.Value);
+            var invalid = approvalInvalid ||
+                order.StateCode is not ("Draft" or "Submitted" or "Approved" or
+                    "CancelRequested" or "Rejected" or "Cancelled") ||
+                order.CurrencyCode != "BDT" ||
+                (order.StateCode == "CancelRequested" &&
+                 (order.DecisionReason == null ||
+                  order.DecisionReason.Trim().Length is < 10 or > 500)) ||
+                !campuses.TryGetValue(order.CampusId, out var campus) ||
                 campus.IsDeleted || req == null || req.IsDeleted ||
                 req.CampusId != order.CampusId || req.StateCode != "Approved" ||
                 supplier == null || supplier.IsDeleted || supplier.CampusId != order.CampusId ||
+                (order.StateCode is "Approved" or "CancelRequested" or "Submitted" &&
+                 supplier.StateCode != "Approved") ||
                 lines.Length is < 1 or > 100 || source.Length != lines.Length ||
                 source.Length is < 1 or > 100 ||
                 lines.Any(x => x.IsDeleted || x.Quantity <= 0m || x.UnitPrice < 0m ||
@@ -202,10 +233,20 @@ public sealed class V3EnterpriseProcurementTraceService(
                     original.InventoryItemId != x.InventoryItemId ||
                     original.LineNo != x.LineNo || x.Quantity > original.Quantity) ||
                 lines.Select(x => x.RequisitionLineId).Distinct().Count() != lines.Length ||
+                lines.Select(x => x.LineNo).Distinct().Count() != lines.Length ||
+                source.Select(x => x.LineNo).Distinct().Count() != source.Length ||
                 source.Any(x => x.IsDeleted || x.Quantity <= 0m || x.EstimatedUnitPrice < 0m) ||
-                inspected.Total > source.Sum(x => x.Quantity * x.EstimatedUnitPrice);
-            inspected.Status = invalid ? "EvidenceConflict" :
-                order.StateCode == "Approved" ? "ApprovedCommitment" : "PendingApproval";
+                inspected.Total > inspected.ApprovedBudget;
+            inspected.Status = invalid ? "EvidenceConflict" : order.StateCode switch
+            {
+                "Approved" => "ApprovedCommitment",
+                "CancelRequested" => "CancellationPending",
+                "Cancelled" => "CancelledCommitment",
+                "Rejected" => "RejectedCommitment",
+                "Draft" => "DraftCommitment",
+                "Submitted" => "PendingApproval",
+                _ => "EvidenceConflict"
+            };
         }
         return output;
     }

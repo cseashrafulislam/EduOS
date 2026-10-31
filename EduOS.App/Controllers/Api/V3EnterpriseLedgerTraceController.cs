@@ -102,17 +102,18 @@ public sealed class V3EnterpriseLedgerTraceController(EduOSDbContext db, ICurren
             if (s.Length > 0 && "=+-@\t\r".Contains(s[0])) s = "'" + s;
             return "\"" + s.Replace("\"", "\"\"") + "\"";
         }
-        var csv = new StringBuilder("Evidence,Reference,State,ItemId,Quantity,UnitPrice,Amount\r\n");
+        var csv = new StringBuilder("Evidence,Reference,State,ItemId,Quantity,UnitPrice,Amount,ApprovedBudget,BudgetVariance,Currency\r\n");
         csv.AppendJoin(",", new[] { Cell("PurchaseOrder"), Cell(d.OrderReference),
-            Cell(d.State), Cell(""), Cell(""), Cell(""), Cell(d.TotalAmount) }).Append("\r\n");
+            Cell(d.State), Cell(""), Cell(""), Cell(""), Cell(d.TotalAmount),
+            Cell(d.ApprovedBudget), Cell(d.BudgetVariance), Cell(d.CurrencyCode) }).Append("\r\n");
         csv.AppendJoin(",", new[] { Cell("Requisition"), Cell(d.RequisitionReference),
-            Cell("Approved"), Cell(""), Cell(""), Cell(""), Cell("") }).Append("\r\n");
+            Cell("Approved"), Cell(""), Cell(""), Cell(""), Cell(""), Cell(""), Cell(""), Cell("") }).Append("\r\n");
         csv.AppendJoin(",", new[] { Cell("Supplier"), Cell(d.SupplierReference),
-            Cell(""), Cell(""), Cell(""), Cell(""), Cell("") }).Append("\r\n");
+            Cell(""), Cell(""), Cell(""), Cell(""), Cell(""), Cell(""), Cell(""), Cell("") }).Append("\r\n");
         foreach (var line in d.Lines)
             csv.AppendJoin(",", new[] { Cell("PurchaseOrderLine"), Cell(line.LineNo),
                 Cell(""), Cell(line.InventoryItemId), Cell(line.Quantity),
-                Cell(line.UnitPrice), Cell(line.Amount) }).Append("\r\n");
+                Cell(line.UnitPrice), Cell(line.Amount), Cell(""), Cell(""), Cell("") }).Append("\r\n");
         Response.Headers["X-Content-Type-Options"] = "nosniff";
         return File(new UTF8Encoding(true).GetBytes(csv.ToString()), "text/csv; charset=utf-8",
             "v3-procurement-commitment-" + reference.ToString("N") + ".csv");

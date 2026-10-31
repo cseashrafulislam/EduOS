@@ -58,7 +58,7 @@ public sealed class SqlServerV3EnterpriseProcurementTraceTests
         }
 
         Guid reference;
-        long requisitionLineId;
+        long requisitionLineId, orderId, supplierId, purchaseOrderLineId;
         await using (var seed = Open(options, tenantA))
         {
             var campus = new Campus { TenantId = tenantA,
@@ -89,7 +89,9 @@ public sealed class SqlServerV3EnterpriseProcurementTraceTests
                 PublicId = Guid.NewGuid(), ClientRequestId = Guid.NewGuid(),
                 OrderNumber = "EPT-PO-" + suffix, CampusId = campus.Id,
                 RequisitionId = req.Id, SupplierId = supplier.Id,
-                StateCode = "Approved", CreatedAt = DateTime.UtcNow };
+                StateCode = "Approved", CreatedAt = DateTime.UtcNow.AddMinutes(-5),
+                CreatedBy = 101, SubmittedAt = DateTime.UtcNow.AddMinutes(-3),
+                DecidedAt = DateTime.UtcNow.AddMinutes(-1), DecidedByUserId = 202 };
             seed.ProcurementPurchaseOrders.Add(po);
             await seed.SaveChangesAsync();
             var poLine = new ProcurementPurchaseOrderLine { TenantId = tenantA,
@@ -100,6 +102,9 @@ public sealed class SqlServerV3EnterpriseProcurementTraceTests
             await seed.SaveChangesAsync();
             reference = po.PublicId;
             requisitionLineId = reqLine.Id;
+            orderId = po.Id;
+            supplierId = supplier.Id;
+            purchaseOrderLineId = poLine.Id;
         }
 
         var from = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(-1));
@@ -111,6 +116,9 @@ public sealed class SqlServerV3EnterpriseProcurementTraceTests
             Assert.True(detail.Success, detail.Message);
             Assert.Equal("ApprovedCommitment", detail.Data!.EvidenceStatus);
             Assert.Equal(24m, detail.Data.TotalAmount);
+            Assert.Equal(50m, detail.Data.ApprovedBudget);
+            Assert.Equal(26m, detail.Data.BudgetVariance);
+            Assert.Equal("BDT", detail.Data.CurrencyCode);
             Assert.Equal(1, detail.Data.LineCount);
             Assert.NotEqual(Guid.Empty, detail.Data.RequisitionReference);
             Assert.NotEqual(Guid.Empty, detail.Data.SupplierReference);
@@ -128,6 +136,65 @@ public sealed class SqlServerV3EnterpriseProcurementTraceTests
             Assert.True(report.Success, report.Message);
             Assert.DoesNotContain(report.Data!.Items, x => x.Reference == reference);
         }
+        // The register must classify the *actual* maker/checker cancellation
+        // lifecycle, not mislabel cancelled or pending-cancellation POs as
+        // unapproved. Cancellation requests remain active commitments.
+        await using (var lifecycle = Open(options, tenantA))
+        {
+            var trace = new V3EnterpriseProcurementTraceService(lifecycle, new Actor(tenantA));
+            foreach (var (state, expected) in new[] {
+                ("CancelRequested", "CancellationPending"),
+                ("Cancelled", "CancelledCommitment"),
+                ("Rejected", "RejectedCommitment"),
+                ("Draft", "DraftCommitment"),
+                ("Approved", "ApprovedCommitment")
+            })
+            {
+                await lifecycle.ProcurementPurchaseOrders
+                    .Where(x => x.TenantId == tenantA && x.Id == orderId)
+                    .ExecuteUpdateAsync(x => x
+                        .SetProperty(y => y.StateCode, state)
+                        .SetProperty(y => y.DecisionReason, "Owner requested cancellation review"));
+                var detail = await trace.GetAsync(reference);
+                Assert.True(detail.Success, detail.Message);
+                Assert.Equal(expected, detail.Data!.EvidenceStatus);
+                var page = await trace.RegisterAsync(from, to, null, 1, 25);
+                Assert.True(page.Success, page.Message);
+                Assert.Equal(expected, Assert.Single(page.Data!.Items
+                    .Where(x => x.Reference == reference)).EvidenceStatus);
+            }
+
+            // A forged same-person approval, revoked supplier or budget
+            // overrun must fail closed in both detail and register exports.
+            await lifecycle.ProcurementPurchaseOrders
+                .Where(x => x.TenantId == tenantA && x.Id == orderId)
+                .ExecuteUpdateAsync(x => x.SetProperty(y => y.DecidedByUserId, (long?)101));
+            Assert.Equal(409, (await trace.GetAsync(reference)).StatusCode);
+            await lifecycle.ProcurementPurchaseOrders
+                .Where(x => x.TenantId == tenantA && x.Id == orderId)
+                .ExecuteUpdateAsync(x => x.SetProperty(y => y.DecidedByUserId, (long?)202));
+
+            await lifecycle.ProcurementSuppliers
+                .Where(x => x.TenantId == tenantA && x.Id == supplierId)
+                .ExecuteUpdateAsync(x => x.SetProperty(y => y.StateCode, "Draft"));
+            Assert.Equal(409, (await trace.GetAsync(reference)).StatusCode);
+            var supplierConflict = await trace.RegisterAsync(from, to, null, 1, 25);
+            Assert.Equal("EvidenceConflict", Assert.Single(supplierConflict.Data!.Items
+                .Where(x => x.Reference == reference)).EvidenceStatus);
+            await lifecycle.ProcurementSuppliers
+                .Where(x => x.TenantId == tenantA && x.Id == supplierId)
+                .ExecuteUpdateAsync(x => x.SetProperty(y => y.StateCode, "Approved"));
+
+            await lifecycle.ProcurementPurchaseOrderLines
+                .Where(x => x.TenantId == tenantA && x.Id == purchaseOrderLineId)
+                .ExecuteUpdateAsync(x => x.SetProperty(y => y.UnitPrice, 13m));
+            Assert.Equal(409, (await trace.GetAsync(reference)).StatusCode);
+            await lifecycle.ProcurementPurchaseOrderLines
+                .Where(x => x.TenantId == tenantA && x.Id == purchaseOrderLineId)
+                .ExecuteUpdateAsync(x => x.SetProperty(y => y.UnitPrice, 6m));
+            Assert.Equal("ApprovedCommitment", (await trace.GetAsync(reference)).Data!.EvidenceStatus);
+        }
+
         // Disposable SQL-only historical corruption simulation: a purchase order
         // referencing a soft-deleted approved requisition line must fail closed.
         await using (var corrupt = Open(options, tenantA))

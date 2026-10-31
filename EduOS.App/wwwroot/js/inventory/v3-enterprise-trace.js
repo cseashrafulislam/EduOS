@@ -21,7 +21,11 @@ if (root) {
         ExplicitBalancedReference: ['লিংকযুক্ত জার্নাল সমান', 'Linked journal balanced'],
         ExplicitReferencePresent: ['সরাসরি রেফারেন্স আছে', 'Explicit reference present'],
         ApprovedCommitment: ['অনুমোদিত ক্রয় প্রতিশ্রুতি যাচাইকৃত', 'Approved purchase commitment verified'],
-        PendingApproval: ['ক্রয় আদেশের অনুমোদন অপেক্ষমাণ', 'Purchase order approval pending']
+        PendingApproval: ['ক্রয় আদেশের অনুমোদন অপেক্ষমাণ', 'Purchase order approval pending'],
+        CancellationPending: ['বাতিলের অনুমোদন অপেক্ষমাণ—প্রতিশ্রুতি বহাল', 'Cancellation pending; commitment active'],
+        CancelledCommitment: ['বাতিলকৃত ক্রয় প্রতিশ্রুতি', 'Cancelled purchase commitment'],
+        RejectedCommitment: ['প্রত্যাখ্যাত ক্রয় আদেশ', 'Rejected purchase order'],
+        DraftCommitment: ['খসড়া ক্রয় আদেশ', 'Draft purchase order']
     };
     const evidenceText = code => evidenceLabels[code]?.[bn ? 0 : 1] || String(code || '');
     const add = (values) => {
@@ -58,6 +62,8 @@ if (root) {
             const d = body.data;
             if (selectedKind === 'procurement') {
                 add([bn ? 'ক্রয় আদেশ' : 'Purchase order', d.orderNumber, d.state, '', '', d.totalAmount]);
+                add([bn ? 'অনুমোদিত বাজেট' : 'Approved budget', d.currencyCode, '', '', '', d.approvedBudget]);
+                add([bn ? 'দর-সাশ্রয়' : 'Negotiated variance', d.currencyCode, '', '', '', d.budgetVariance]);
                 add([bn ? 'চাহিদাপত্র' : 'Requisition', d.requisitionReference, '', '', '', '']);
                 add([bn ? 'সরবরাহকারী' : 'Supplier', d.supplierReference, '', '', '', '']);
                 (d.lines || []).forEach(line => add([

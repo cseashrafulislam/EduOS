@@ -27,8 +27,11 @@ test('reconciliation checks historical source tombstones and negotiated quantity
     assert.match(service, /ProcurementRequisitionLines\.IgnoreQueryFilters\(\)/);
     assert.match(service, /original\.IsDeleted/);
     assert.match(service, /x\.Quantity > original\.Quantity/);
-    assert.match(service, /inspected\.Total > source\.Sum/);
+    assert.match(service, /inspected\.Total > inspected\.ApprovedBudget/);
     assert.match(service, /Take\(5001\)/);
+    assert.match(service, /supplier\.StateCode != "Approved"/);
+    assert.match(service, /order\.CreatedBy == order\.DecidedByUserId/);
+    assert.match(service, /source\.Select\(x => x\.LineNo\)\.Distinct\(\)\.Count\(\)/);
     assert.match(register, /kind != "procurement"/);
     assert.match(register, /V3EnterpriseProcurementTraceService/);
 });
@@ -41,5 +44,10 @@ test('bilingual office UI distinguishes PO commitment from stock and Finance pos
     assert.match(ui, /d\.evidenceStatus/);
     assert.match(ui, /ApprovedCommitment/);
     assert.match(ui, /PendingApproval/);
+    assert.match(ui, /CancellationPending/);
+    assert.match(ui, /CancelledCommitment/);
+    assert.match(ui, /d\.approvedBudget/);
+    assert.match(ui, /d\.budgetVariance/);
+    assert.match(api, /ApprovedBudget,BudgetVariance,Currency/);
     assert.doesNotMatch(service, /JournalId|InventoryMovementId|AssetBookId/);
 });
