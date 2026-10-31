@@ -204,6 +204,27 @@ public sealed class SqlServerAlumniConsentIntegrationTests
         var campusRestricted = await admin.DirectoryAsync(new AlumniDirectoryQueryDto());
         Assert.True(campusRestricted.Success, campusRestricted.Message);
         Assert.Empty(campusRestricted.Data!.Items);
+        var restrictedEvents = await admin.EventsAsync(new AlumniEventQueryDto());
+        Assert.True(restrictedEvents.Success, restrictedEvents.Message);
+        Assert.DoesNotContain(restrictedEvents.Data!.Items,
+            e => e.Reference == draft.Data.Reference);
+        var restrictedCancel = await admin.ChangeEventStatusAsync(draft.Data.Reference,
+            new AlumniEventActionDto { RowVersion = published.Data.RowVersion }, false);
+        Assert.False(restrictedCancel.Success);
+        Assert.Equal(404, restrictedCancel.StatusCode);
+
+        var foreignEvents = await Service(db, otherTenantId, userId, true)
+            .EventsAsync(new AlumniEventQueryDto());
+        Assert.True(foreignEvents.Success, foreignEvents.Message);
+        Assert.Empty(foreignEvents.Data!.Items);
+        var foreignRsvp = await Service(db, otherTenantId, userId, false)
+            .RsvpAsync(new AlumniEventRsvpDto
+            {
+                ClientRequestId = Guid.NewGuid(), EventReference = draft.Data.Reference,
+                StudentReference = studentReference, Response = 1
+            });
+        Assert.False(foreignRsvp.Success);
+        Assert.Equal(404, foreignRsvp.StatusCode);
 
         var foreign = await Service(db, otherTenantId, userId, true)
             .DirectoryAsync(new AlumniDirectoryQueryDto());
