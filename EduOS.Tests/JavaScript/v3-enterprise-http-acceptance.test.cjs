@@ -163,3 +163,16 @@ test('opt-in bounded multi-page audit integrates with enterprise acceptance', as
     assert.equal(validateConfig(env).pagedAudit, true);
     assert.throws(() => validateConfig({ ...env, AUDIT_MAX_PAGES: '21' }), /AUDIT_MAX_PAGES/);
 });
+
+test('procurement audit opt-in validates UUID and preserves stock/asset-only default', async () => {
+    const { validateConfig } = await import(source);
+    const env = { BASE_URL: 'http://localhost:3000/', TENANT_A_COOKIE: 'a-session',
+        TENANT_B_COOKIE: 'b-session', STOCK_REFERENCE: stock, ASSET_REFERENCE: asset,
+        FROM: config.from, TO: config.to };
+    assert.equal(validateConfig(env).procurement, null);
+    assert.equal(validateConfig({ ...env,
+        PROCUREMENT_REFERENCE: '44444444-4444-4444-8444-444444444444' }).procurement,
+        '44444444-4444-4444-8444-444444444444');
+    assert.throws(() => validateConfig({ ...env,
+        PROCUREMENT_REFERENCE: 'forged' }), /procurement reference UUID/);
+});
