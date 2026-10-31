@@ -2,6 +2,7 @@ using System.Data;
 using EduOS.Core.Common;
 using EduOS.Core.DTOs.Inventory;
 using EduOS.Core.Entities.Accounting;
+using EduOS.Core.Entities.Inventory;
 using EduOS.Core.Enums.Domain;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
@@ -45,15 +46,14 @@ public sealed partial class ProcurementSupplierInvoiceService
             (invoice, original, 0, "Exactly one canonical payable credit line is required.");
     }
 
-    private Task<decimal> ReservedSettlementAsync(long invoiceId, long payableAccountId, CancellationToken ct) =>
-        db.JournalLines.AsNoTracking().Where(l => l.TenantId == user.TenantId && !l.IsDeleted &&
+    private async Task<decimal> ReservedSettlementAsync(long invoiceId, long payableAccountId, CancellationToken ct) =>
+        await db.JournalLines.AsNoTracking().Where(l => l.TenantId == user.TenantId && !l.IsDeleted &&
             l.AccountId == payableAccountId && l.CreditAmount == 0m &&
             db.Journals.Any(j => j.TenantId == user.TenantId && !j.IsDeleted &&
                 j.Id == l.JournalId && j.SourceType == SettlementSource && j.SourceId == invoiceId &&
                 (j.State == JournalState.Submitted || j.State == JournalState.Approved ||
                  j.State == JournalState.Posted)))
-            .SumAsync(l => (decimal?)l.DebitAmount, ct).ContinueWith(t => t.GetAwaiter().GetResult() ?? 0m,
-                ct, TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
+            .SumAsync(l => (decimal?)l.DebitAmount, ct) ?? 0m;
 
     private async Task<SupplierSettlementInstructionDto> SettlementMapAsync(Journal journal, CancellationToken ct)
     {
