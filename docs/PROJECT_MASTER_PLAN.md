@@ -64,6 +64,12 @@ This is a structural/dependency/source-control audit with targeted behavior veri
 - **Consent replay regression (pending exact-SHA CI/SQL):** an old consent/revocation idempotency key must return 409 once a newer privacy command supersedes it, rather than falsely acknowledging the old state. Existing command identity/order and current private contact state are checked without changing the schema or delivery policy.
 - **Still open in this domain:** consent-based outbound invitation policy (no delivery until authorized), explicit campus-grant acceptance, genuinely absent Career/Placement, Research/Ethics/Grants and Accreditation evidence workflows. Real browser, representative load, restored-data/live-institute UAT and owner go/no-go **NOT RUN**.
 
+### 2026-11-01 Alumni engagement command-replay integrity — exact-SHA QA
+
+- **Verified code SHA:** [`4ed0567`](https://github.com/cseashrafulislam/EduOS/commit/4ed05675822ce83817376ffa2e845a09027c423e). Reproduced stale idempotency acknowledgement after an RSVP **Going → Declined → Going** or attendance **Check-in → Undo → Check-in** round trip: the original request key previously returned success merely because the current value matched. The existing tenant/event/profile-scoped command identity now rejects a superseded key with **409 Conflict** while preserving immediate retries of the latest command. No migration, financial/stock write, new communication delivery or cross-domain source change.
+- [Exact-SHA CI #41234515718](https://github.com/cseashrafulislam/EduOS/actions/runs/41234515718) **PASS**: Release build, C#/JS contracts, EF snapshot, idempotent SQL script and publish. [Exact-SHA disposable SQL #41234515829](https://github.com/cseashrafulislam/EduOS/actions/runs/41234515829) **PASS**: fresh/repeat migrations, focused real-SQL Alumni RSVP/attendance replay, tenant/campus/consent regressions and the shared SQL/backup-restore gates. Synthetic 40K import rehearsal was skipped by workflow configuration and is not a production capacity claim.
+- **Remaining education-owned work:** communication consent/delivery policy approval (no outbound send without it), campus policy/institute acceptance, and missing employer/job/application/placement, research ethics/project/grant and accreditation evidence workflows. Real browser institute UAT, representative load/security and owner go/no-go remain **NOT RUN**.
+
 ## 4. Single active backlog, ordered by risk and dependencies
 
 | Priority | Owner track | Required end-to-end acceptance / evidence |
