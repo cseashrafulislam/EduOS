@@ -332,7 +332,7 @@ public sealed class FacilityWorkflowService(
                     string.IsNullOrWhiteSpace(note) || note.Length is < 10 or > 500)
                     return ApiResponse<FacilityRequestDto>.ErrorResponse(
                         "Release any schedule first; cancellation requires a reason (10-500 characters).", 409);
-                order.StateCode = "CancellationPending";
+                order!.StateCode = "CancellationPending";
                 break;
             case "cancelapprove":
             case "cancelreject":
@@ -340,7 +340,7 @@ public sealed class FacilityWorkflowService(
                     string.IsNullOrWhiteSpace(note) || note.Length is < 10 or > 500)
                     return ApiResponse<FacilityRequestDto>.ErrorResponse(
                         "Pending cancellation and independent decision reason (10-500 characters) required.", 409);
-                order.StateCode = action == "cancelapprove" ? "Cancelled" : "Approved";
+                order!.StateCode = action == "cancelapprove" ? "Cancelled" : "Approved";
                 break;
             case "schedule":
                 if (note?.Length > 500)
