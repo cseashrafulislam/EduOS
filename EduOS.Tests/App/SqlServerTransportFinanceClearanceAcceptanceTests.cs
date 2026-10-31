@@ -17,6 +17,94 @@ namespace EduOS.Tests.App;
 public sealed partial class SqlServerTransportSeatCapacityIntegrationTests
 {
     [Fact]
+    public async Task Upcoming_paid_rider_extension_consumes_only_approved_single_use_finance_clearance()
+    {
+        var connection = Environment.GetEnvironmentVariable("EDUOS_SQL_AUTH_TEST_CONNECTION");
+        if (string.IsNullOrWhiteSpace(connection)) return;
+        var fixture = await SeedAsync(connection);
+        var assignment = Request(fixture, 0, fixture.Start, fixture.Start.AddDays(12));
+        assignment.MonthlyFare = 2500m;
+        var booked = await AssignAsync(fixture, assignment);
+        Assert.True(booked.Success, booked.Message);
+        var source = booked.Data!;
+        var proposedEnd = source.EndDate!.Value.AddDays(10);
+        var checker = await CreateFinanceCheckerAsync(fixture);
+        var mutation = new ExtendUpcomingTransportAssignmentRequestDto
+        {
+            ClientRequestId = Guid.NewGuid(), EndDate = proposedEnd,
+            RowVersion = source.RowVersion
+        };
+        await using (var db = ScopedContext(fixture.Options, fixture.TenantId, fixture.UserId))
+        {
+            var blocked = await Service(db, fixture.TenantId, fixture.UserId)
+                .ExtendUpcomingRiderAsync(source.Reference, mutation);
+            Assert.Equal(409, blocked.StatusCode);
+        }
+        long id;
+        await using (var db = ScopedContext(fixture.Options, fixture.TenantId, fixture.UserId))
+        {
+            var quote = await Finance(db, fixture.TenantId, fixture.UserId)
+                .RequestTransportClearanceAsync(new RequestTransportClearanceDto
+                {
+                    ClientRequestId = Guid.NewGuid(), SourceAssignmentReference = source.Reference,
+                    SourceRowVersion = source.RowVersion,
+                    Operation = TransportClearanceOperation.UpcomingRiderExtension,
+                    EffectiveDate = proposedEnd, ManualNetAdjustment = 0m,
+                    OverrideReason = "An authorized institution fare waiver for this extension",
+                    Reason = "Finance-reviewed upcoming charged rider extension"
+                });
+            Assert.True(quote.Success, quote.Message);
+            id = quote.Data!.Id;
+            Assert.Equal(TransportClearanceState.Pending, quote.Data.State);
+            Assert.Equal(0m, quote.Data.ApprovedNetAdjustment);
+            mutation.FinanceClearanceId = id;
+            Assert.Equal(409, (await Service(db, fixture.TenantId, fixture.UserId)
+                .ExtendUpcomingRiderAsync(source.Reference, mutation)).StatusCode);
+            Assert.Equal(403, (await Finance(db, fixture.TenantId, fixture.UserId)
+                .ReviewTransportClearanceAsync(id, new ReviewTransportClearanceDto
+                {
+                    RowVersion = quote.Data.RowVersion, Approve = true,
+                    NoAdjustmentRequired = true,
+                    ReconciliationNote = "Self-approval must not bypass independent Finance review."
+                })).StatusCode);
+        }
+        await using (var db = ScopedContext(fixture.Options, fixture.TenantId, checker))
+        {
+            var row = await db.TransportFinanceClearances.AsNoTracking().SingleAsync(x => x.Id == id);
+            var approved = await Finance(db, fixture.TenantId, checker)
+                .ReviewTransportClearanceAsync(id, new ReviewTransportClearanceDto
+                {
+                    RowVersion = Convert.ToBase64String(row.RowVersion), Approve = true,
+                    NoAdjustmentRequired = true,
+                    ReconciliationNote = "Independent waiver approved, no accounting adjustment required."
+                });
+            Assert.True(approved.Success, approved.Message);
+        }
+        await using (var db = ScopedContext(fixture.Options, fixture.TenantId, fixture.UserId))
+        {
+            var service = Service(db, fixture.TenantId, fixture.UserId);
+            var extended = await service.ExtendUpcomingRiderAsync(source.Reference, mutation);
+            Assert.True(extended.Success, extended.Message);
+            Assert.Equal(proposedEnd, extended.Data!.EndDate);
+            var replay = await service.ExtendUpcomingRiderAsync(source.Reference, mutation);
+            Assert.True(replay.Success, replay.Message);
+            Assert.Equal(proposedEnd, replay.Data!.EndDate);
+        }
+        await using (var db = ScopedContext(fixture.Options, fixture.TenantId, fixture.UserId))
+        {
+            var state = await db.TransportFinanceClearances.AsNoTracking().SingleAsync(x => x.Id == id);
+            Assert.Equal(TransportClearanceState.Consumed, state.State);
+            mutation.ClientRequestId = Guid.NewGuid();
+            var same = await Service(db, fixture.TenantId, fixture.UserId)
+                .ExtendUpcomingRiderAsync(source.Reference, mutation);
+            Assert.True(same.Success, same.Message);
+            Assert.Equal(proposedEnd, same.Data!.EndDate);
+            Assert.Single(await db.StudentTransports.AsNoTracking().Where(x =>
+                x.TenantId == fixture.TenantId && x.PublicId == source.Reference).ToListAsync());
+        }
+    }
+
+    [Fact]
     public async Task Finance_approved_transport_transfer_is_single_use_tenant_scoped_and_preserves_lineage()
     {
         var connection = Environment.GetEnvironmentVariable("EDUOS_SQL_AUTH_TEST_CONNECTION");
