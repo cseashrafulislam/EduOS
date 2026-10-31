@@ -5,6 +5,7 @@ using EduOS.Core.Entities.Accounting;
 using EduOS.Core.Enums.Domain;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
 namespace EduOS.Service.Services.Inventory;
 

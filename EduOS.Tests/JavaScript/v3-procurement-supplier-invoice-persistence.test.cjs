@@ -44,3 +44,11 @@ test('SQL provenance is tenant-scoped and immutable; reversal mirrors the journa
   'CreditAmount = x.DebitAmount','OriginalPayableAsync','sourceLines.Where'])
   assert.ok(contra.includes(token), 'missing reversal protection: ' + token);
 });
+
+test('Canonical inventory reversal cannot orphan a reserved or posted Procurement payable', () => {
+ const stock = read('EduOS.Service/Services/Inventory/InventoryMovementReversalIdempotency.cs');
+ for (const token of ['original.SourceType == "ProcurementGoodsReceipt"',
+  'db.ProcurementSupplierInvoices.Any', 'h.StateCode == "Submitted"',
+  'h.StateCode == "Posted"','reverse the payable first'])
+  assert.ok(stock.includes(token), 'missing stock/Finance reversal handshake: ' + token);
+});

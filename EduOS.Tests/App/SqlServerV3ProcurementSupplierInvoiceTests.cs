@@ -149,6 +149,18 @@ public sealed partial class SqlServerV3ProcurementPurchaseOrderTests
         }
         var second=await Submit(Draft("INV2-"+suffix,2m,"AutoPlusManual",-1m,
             "Documented supplier discount reduces final unit price"));
+        await using (var stockReview=Open(options,tenantId,checkerId))
+        {
+            var postedMovement=await stockReview.InventoryMovements.AsNoTracking()
+                .SingleAsync(x=>x.SourceType=="ProcurementGoodsReceipt" && x.StateCode=="Posted");
+            var blocked=await Goods(stockReview,tenantId,checkerId).ReverseMovementAsync(
+                postedMovement.PublicId,new ReverseInventoryMovementRequestDto
+                {
+                    ClientRequestId=Guid.NewGuid(),RowVersion=Convert.ToBase64String(postedMovement.RowVersion),
+                    Reason="Cannot reverse goods accepted against submitted supplier bills"
+                });
+            Assert.Equal(409,blocked.StatusCode);
+        }
         await using (var over=Open(options,tenantId,makerId))
         {
             var proposed=await Invoices(over,tenantId,makerId).CreateAsync(Draft("INV3-"+suffix,1m));

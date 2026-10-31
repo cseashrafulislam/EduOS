@@ -21,6 +21,22 @@ public sealed partial class InventoryMovementService
                 !db.InventoryMovements.Any(v => v.TenantId == user.TenantId &&
                     v.ReversalOfMovementId == r.Id && v.StateCode == "Posted" && !v.IsDeleted), ct))
             return ApiResponse<InventoryMovementDto>.ErrorResponse("Reverse the transfer receipt before cancelling dispatch.", 409);
+        // A stock reversal cannot orphan a submitted or posted supplier bill. Undo
+        // the payable through Finance's reviewed contra before reversing stock.
+        if (original.SourceType == "ProcurementGoodsReceipt")
+        {
+            var receiptIds = db.ProcurementGoodsReceipts.AsNoTracking().Where(x =>
+                x.TenantId == user.TenantId && x.PostedMovementId == original.Id).Select(x => x.Id);
+            var receiptLineIds = db.ProcurementGoodsReceiptLines.AsNoTracking().Where(x =>
+                x.TenantId == user.TenantId && receiptIds.Contains(x.GoodsReceiptId)).Select(x => x.Id);
+            if (await db.ProcurementSupplierInvoiceLines.AsNoTracking().AnyAsync(x =>
+                x.TenantId == user.TenantId && receiptLineIds.Contains(x.GoodsReceiptLineId) && !x.IsDeleted &&
+                db.ProcurementSupplierInvoices.Any(h => h.TenantId == user.TenantId &&
+                    h.Id == x.SupplierInvoiceId && !h.IsDeleted &&
+                    (h.StateCode == "Submitted" || h.StateCode == "Posted")), ct))
+                return ApiResponse<InventoryMovementDto>.ErrorResponse(
+                    "Submitted/posted supplier invoices reserve this goods receipt; reverse the payable first.", 409);
+        }
         if (original.StateCode != "Posted" || original.ReversalOfMovementId.HasValue ||
             original.MovementTypeCode is not ("Receipt" or "Issue" or "Transfer") ||
             !Version(original.RowVersion, request.RowVersion) ||

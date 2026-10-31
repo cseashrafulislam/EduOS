@@ -4,6 +4,7 @@ using EduOS.Core.DTOs.Inventory;
 using EduOS.Core.Entities.Inventory;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
 namespace EduOS.Service.Services.Inventory;
 
