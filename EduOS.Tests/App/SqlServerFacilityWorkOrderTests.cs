@@ -376,6 +376,40 @@ public sealed class SqlServerFacilityWorkOrderTests
             Assert.Empty((await service.ListAsync(null, null, 1, 25)).Data!.Items);
             Assert.Equal(404, (await service.HistoryAsync(submitted.Id, 1, 25)).StatusCode);
         }
+
+        // Concurrent retries from independent request contexts must converge on one
+        // durable row and Create event, with payload mismatch still rejected.
+        var parallelId = Guid.NewGuid();
+        async Task<FacilityRequestDto> SubmitParallelAsync()
+        {
+            await using var parallelDb = Db(options, tenantId, requesterId, "FacilitiesRequester");
+            var result = await Service(parallelDb, tenantId, requesterId, "FacilitiesRequester")
+                .CreateAsync(new CreateFacilityRequestDto
+                {
+                    ClientRequestId = parallelId, CampusId = campusId, FacilitySpaceId = spaceId,
+                    CategoryCode = "ELECTRICAL", PriorityCode = "Normal",
+                    Summary = "Concurrent hallway repair request"
+                });
+            Assert.True(result.Success, result.Message);
+            return result.Data!;
+        }
+        var parallel = await Task.WhenAll(SubmitParallelAsync(), SubmitParallelAsync());
+        Assert.Equal(parallel[0].Id, parallel[1].Id);
+        await using (var db = Db(options, tenantId, requesterId, "FacilitiesRequester"))
+        {
+            Assert.Equal(1, await db.Set<FacilityServiceRequest>().CountAsync(x =>
+                x.TenantId == tenantId && x.ClientRequestId == parallelId));
+            Assert.Equal(1, await db.Set<FacilityWorkflowEvent>().CountAsync(x =>
+                x.TenantId == tenantId && x.ClientCommandId == parallelId && x.ActionCode == "Create"));
+            var mismatch = await Service(db, tenantId, requesterId, "FacilitiesRequester")
+                .CreateAsync(new CreateFacilityRequestDto
+                {
+                    ClientRequestId = parallelId, CampusId = campusId, FacilitySpaceId = spaceId,
+                    CategoryCode = "ELECTRICAL", PriorityCode = "Normal",
+                    Summary = "Different payload with same command ID"
+                });
+            Assert.Equal(409, mismatch.StatusCode);
+        }
     }
 
     private static EduOSDbContext Db(DbContextOptions<EduOSDbContext> options,

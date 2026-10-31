@@ -131,7 +131,25 @@ public sealed class FacilityWorkflowService(
         }
         catch (DbUpdateException ex)
         {
-            if (transaction != null) await transaction.RollbackAsync(ct);
+            if (transaction != null)
+            {
+                await transaction.RollbackAsync(ct);
+                // Release the failed SQL transaction before reading the winning request.
+                await transaction.DisposeAsync();
+            }
+            // A parallel retry may have won the unique tenant/command constraint.
+            // A mismatched owner or payload must never be acknowledged.
+            var committed = await db.Set<FacilityServiceRequest>().AsNoTracking().FirstOrDefaultAsync(
+                x => x.TenantId == user.TenantId && x.ClientRequestId == input.ClientRequestId, ct);
+            if (committed != null)
+                return committed.RequesterUserId == user.UserId && committed.CampusId == input.CampusId &&
+                       committed.FacilitySpaceId == input.FacilitySpaceId && committed.CategoryCode == category &&
+                       committed.PriorityCode == priority && committed.Summary == summary &&
+                       committed.Description == description
+                    ? ApiResponse<FacilityRequestDto>.SuccessResponse(
+                        await ReadAsync(committed, ct), "Existing request returned.")
+                    : ApiResponse<FacilityRequestDto>.ErrorResponse(
+                        "Request ID reused with different details.", 409);
             logger.LogWarning(ex, "Facility request constraint conflict for tenant {TenantId}", user.TenantId);
             return ApiResponse<FacilityRequestDto>.ErrorResponse("Duplicate request or invalid campus.", 409);
         }

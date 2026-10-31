@@ -45,3 +45,8 @@ Never mark the entire Facilities module production-ready from a passing CI run a
 - A non-requesting Facilities manager may escalate an overdue approved work order with a 10–500-character reason. This records an append-only event and advances the work-order rowversion, rejecting racing closure/stale commands; same-command retries do not duplicate events.
 - Bilingual mobile UI offers the action only when eligible and hides other technicians' and makers' restricted actions. No invented automatic SLA policy, Inventory posting or V1 Finance mutation.
 - Focused disposable SQL test uses an advanced clock without editing stored SLA, tests requester denial, queue, replay, stale version and closed-order exclusion. Real browser/UAT/load remain separate gates.
+
+## Concurrent create retry integrity
+
+- A SQL Server unique-key race for the same tenant/request command now rolls back the losing transaction, re-reads the committed winner and acknowledges a retry only for the same requester and normalized payload. A mismatched payload remains 409; unrelated constraint failures remain rejected. No schema, Inventory or Finance change.
+- Disposable SQL regression submits the same command in parallel independent contexts and asserts one request and one Create audit event; real multi-worker/browser/UAT remain separate gates.
