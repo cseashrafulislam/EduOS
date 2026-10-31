@@ -7,6 +7,7 @@ using EduOS.Core.Interfaces;
 using EduOS.Persistence.Context;
 using EduOS.Service.Services.Enterprise;
 using Microsoft.AspNetCore.Http;
+using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Xunit;
 
@@ -268,22 +269,28 @@ public sealed class SqlServerV3EnterpriseLedgerTraceTests
             }
             var movementId = await db.InventoryMovements.Where(x =>
                 x.PublicId == movementReference).Select(x => x.Id).SingleAsync();
+            // The canonical composite tenant FKs must reject this forged line
+            // before a trace can observe it. This is stronger than an orphaned
+            // row corruption probe, which SQL Server cannot persist.
             await using (var transaction = await db.Database.BeginTransactionAsync())
             {
-                await db.InventoryMovementLines.Where(x =>
-                    x.InventoryMovementId == movementId).ExecuteUpdateAsync(s =>
-                        s.SetProperty(x => x.TenantId, foreignId));
-                await AssertConflict();
+                var error = await Assert.ThrowsAsync<SqlException>(async () =>
+                    await db.InventoryMovementLines.Where(x =>
+                        x.InventoryMovementId == movementId).ExecuteUpdateAsync(s =>
+                            s.SetProperty(x => x.TenantId, foreignId)));
+                Assert.Equal(547, error.Number); // FK violation
                 await transaction.RollbackAsync();
             }
             var journalLineId = await db.JournalLines.Where(x =>
                 x.JournalId == journalId).OrderBy(x => x.Id)
                 .Select(x => x.Id).FirstAsync();
+            // Finance journal lines have the same tenant-keyed FK defense.
             await using (var transaction = await db.Database.BeginTransactionAsync())
             {
-                await db.JournalLines.Where(x => x.Id == journalLineId)
-                    .ExecuteUpdateAsync(s => s.SetProperty(x => x.TenantId, foreignId));
-                await AssertConflict();
+                var error = await Assert.ThrowsAsync<SqlException>(async () =>
+                    await db.JournalLines.Where(x => x.Id == journalLineId)
+                        .ExecuteUpdateAsync(s => s.SetProperty(x => x.TenantId, foreignId)));
+                Assert.Equal(547, error.Number); // FK violation
                 await transaction.RollbackAsync();
             }
             Assert.Equal(200, (await new V3EnterpriseLedgerTraceService(
