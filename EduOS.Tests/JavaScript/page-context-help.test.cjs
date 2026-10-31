@@ -9,10 +9,10 @@ const css = read('EduOS.App/wwwroot/css/site.css');
 const js = read('EduOS.App/wwwroot/js/platform/page-context-help.js');
 const { guideFor, coverage, normalizeRoute, validateGuide } =
     require('../../EduOS.App/wwwroot/js/platform/page-context-help.js');
-const routes = ['/FeeOperations/Index', '/Students/Index', '/Attendance/Index', '/PayrollOperations/Index', '/FacilityWorkOrders/Index'];
+const routes = ['/FeeOperations/Index', '/Students/Index', '/Attendance/Index', '/PayrollOperations/Index', '/FacilityWorkOrders/Index', '/Admissions/Index', '/StudentInvoicePosting/Index'];
 
 test('all reviewed route manuals have full bilingual structure, matching steps and examples', () => {
-    assert.deepEqual(coverage(), { routes: 5, en: 5, bn: 5 });
+    assert.deepEqual(coverage(), { routes: 7, en: 7, bn: 7 });
     for (const route of routes) {
         const en = guideFor(route, 'en-BD');
         const bn = guideFor(route, 'bn-BD');
@@ -109,4 +109,46 @@ test('facilities manual follows actual independent return, correction and non-po
     assert.match(en.rules, /does not issue spare parts or post Finance GL/);
     assert.match(en.recovery, /409/);
     assert.deepEqual(en.related.map(x => x.path), ['/FacilitySpaces/Index']);
+});
+
+test('admission manual matches published intake, review, verified offer and enrollment source actions', () => {
+    const view = read('EduOS.App/Views/Admissions/Index.cshtml');
+    const code = read('EduOS.App/wwwroot/js/admissions/index.js');
+    const controller = read('EduOS.App/Controllers/AdmissionsController.cs');
+    const api = read('EduOS.App/Controllers/Api/AdmissionApplicationsController.cs');
+    assert.match(controller, /Authorize\(Roles = "TenantAdmin,AdmissionOfficer"\)/);
+    assert.match(controller, /RequireModule\("ADMISSION"\)/);
+    for (const id of ['admissionFormReference', 'submitApplicationButton', 'applicationList', 'reviewStatus',
+        'saveDecisionButton', 'admitApplicantButton', 'completeEnrollmentButton'])
+        assert.ok(view.includes('id="' + id + '"'), 'missing admission control ' + id);
+    for (const action of ['selectAdmissionForm', 'submitApplication', 'saveDecision', 'prepareEnrollment', 'completeEnrollment'])
+        assert.ok(code.includes('function ' + action), 'missing workflow ' + action);
+    assert.match(api, /offer\/verified-acceptance/);
+    assert.match(api, /\[HttpPost\("\{reference:guid\}\/admit"\)\]/);
+    const en = guideFor('/Admissions/Index', 'en-BD');
+    const bn = guideFor('/Admissions/Index', 'bn-BD');
+    assert.match(en.steps.join(' '), /Published intake/);
+    assert.match(en.rules, /request identifier/);
+    assert.match(bn.steps.join(' '), /অভিভাবকের/);
+});
+test('invoice posting manual reflects view-only Accountant and authorized canonical GL post', () => {
+    const view = read('EduOS.App/Views/StudentInvoicePosting/Index.cshtml');
+    const js = read('EduOS.App/wwwroot/js/finance/student-invoice-posting.js');
+    const controller = read('EduOS.App/Controllers/Api/StudentInvoicePostingController.cs');
+    const service = read('EduOS.Service/Services/Finance/StudentInvoicePostingService.cs');
+    assert.match(controller, /Authorize\(Roles = "TenantAdmin,Principal,Accountant"\)/);
+    assert.match(controller, /Authorize\(Roles = "TenantAdmin,Principal"\)/);
+    assert.match(controller, /RequireModule\("FINANCE"\)/);
+    assert.match(controller, /AutoValidateAntiforgeryToken/);
+    for (const id of ['invoicePostingPeriod', 'invoicePostingUnposted', 'invoicePostingRows', 'invoicePostingNotice'])
+        assert.ok(view.includes('id="' + id + '"'), 'missing posting control ' + id);
+    assert.match(js, /periodCovers\(row, periodId\)/);
+    assert.match(js, /button\.textContent = 'Post GL'/);
+    assert.match(service, /private bool CanPost/);
+    assert.match(service, /PostingKey\(long tenantId, Guid invoice\)/);
+    const en = guideFor('/StudentInvoicePosting/Index', 'en-BD');
+    const bn = guideFor('/StudentInvoicePosting/Index', 'bn-BD');
+    assert.match(en.rules, /Accountants can inspect but cannot Post GL/);
+    assert.match(en.example, /No cash receipt is created/);
+    assert.match(bn.recovery, /রিলোড/);
 });
