@@ -130,6 +130,15 @@ jobs:
             --filter "FullyQualifiedName~Finance_approved_transport_transfer_is_single_use_tenant_scoped_and_preserves_lineage|FullyQualifiedName~Concurrent_transport_clearance_consumption_creates_exactly_one_successor|FullyQualifiedName~Charged_transport_closure_rejects_unposted_settlement_and_requires_independent_zero_attestation" \
             --logger "trx;LogFileName=sql-v2-transport-finance-acceptance.trx" --results-directory TestResults
 
+      - name: Preserve V2 SQL acceptance diagnostics
+        if: ${{ always() && steps.migration_repeat.outcome == 'success' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: sql-v2-v3-smoke-${{ github.sha }}
+          path: TestResults/sql-v2-v3-smoke.trx
+          if-no-files-found: warn
+          retention-days: 7
+
       - name: Prove disposable SQL backup restore and financial evidence integrity
         if: ${{ always() && steps.migration_repeat.outcome == 'success' }}
         shell: bash
