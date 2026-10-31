@@ -556,6 +556,16 @@
                 </div>
 
                 <div class="topbar-right">
+                    @if (User?.Identity?.IsAuthenticated == true)
+                    {
+                        <button class="feature-search-trigger" id="featureSearchOpen" type="button"
+                                aria-haspopup="dialog" aria-controls="featureSearchDialog"
+                                aria-label="@(currentCulture == "bn-BD" ? "অনুমোদিত ফিচার খুঁজুন" : "Find an available feature")">
+                            <span aria-hidden="true">⌕</span>
+                            <span class="feature-search-trigger-label">@(currentCulture == "bn-BD" ? "ফিচার খুঁজুন" : "Find feature")</span>
+                            <kbd>Ctrl K</kbd>
+                        </button>
+                    }
                     <details class="page-context-help" id="pageContextHelp">
                         <summary class="icon-button" aria-label="@(currentCulture == "bn-BD" ? "এই পৃষ্ঠার সাহায্য" : "Help for this page")" title="@(currentCulture == "bn-BD" ? "সাহায্য" : "Help")">ⓘ</summary>
                         <div class="page-context-help-popover" role="note" lang="@currentCulture">
@@ -615,6 +625,21 @@
                     }
                 </div>
             </header>
+
+            @if (User?.Identity?.IsAuthenticated == true)
+            {
+                <dialog class="feature-search-dialog" id="featureSearchDialog" aria-labelledby="featureSearchTitle">
+                    <div class="feature-search-heading">
+                        <h2 id="featureSearchTitle">@(currentCulture == "bn-BD" ? "ফিচার খুঁজুন" : "Find a feature")</h2>
+                        <button type="button" class="feature-search-close" id="featureSearchClose"
+                                aria-label="@(currentCulture == "bn-BD" ? "বন্ধ করুন" : "Close")">×</button>
+                    </div>
+                    <label class="visually-hidden" for="featureSearchInput">@(currentCulture == "bn-BD" ? "ফিচারের নাম" : "Feature name")</label>
+                    <input class="form-control" type="search" id="featureSearchInput" maxlength="80"
+                           autocomplete="off" placeholder="@(currentCulture == "bn-BD" ? "নাম বা বিভাগ লিখুন" : "Search by feature or group")" />
+                    <div class="feature-search-results" id="featureSearchResults" aria-live="polite"></div>
+                </dialog>
+            }
 
             <div class="connectivity-notice" data-connectivity-notice hidden role="status" aria-live="polite">
                 @(currentCulture == "bn-BD"
@@ -676,6 +701,7 @@
     <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js" asp-append-version="true"></script>
     <script src="~/js/site.js" asp-append-version="true"></script>
     <script src="~/js/sidebar-navigation.js" asp-append-version="true"></script>
+    <script src="~/js/platform/feature-discovery.js" asp-append-version="true"></script>
     <script src="~/js/platform/session-context-guard.js" asp-append-version="true"></script>
     <script src="~/js/platform/institution-switch.js" asp-append-version="true"></script>
     <script src="~/js/platform/page-context-help.js" asp-append-version="true"></script>
