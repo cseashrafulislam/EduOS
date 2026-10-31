@@ -146,11 +146,24 @@ public sealed class SqlServerV3AssetCustodyTransferTests
             InventoryItemId = item.Id, Quantity = 1m, UnitPrice = 120m };
         db.ProcurementPurchaseOrderLines.Add(orderLine);
         await db.SaveChangesAsync();
+        var reviewer = new ApplicationUser {
+            UserName = "cap-review-" + suffix,
+            NormalizedUserName = ("cap-review-" + suffix).ToUpperInvariant(),
+            Email = "cap-review-" + suffix + "@example.test",
+            NormalizedEmail = ("cap-review-" + suffix + "@example.test").ToUpperInvariant(),
+            FullName = "Independent GR reviewer" };
+        db.ApplicationUsers.Add(reviewer);
+        await db.SaveChangesAsync();
+        var reviewedAt = DateTime.UtcNow;
         var receipt = new ProcurementGoodsReceipt { TenantId = f.Tenant,
             ClientRequestId = Guid.NewGuid(), PurchaseOrderId = order.Id,
             CampusId = campusId, LocationId = location.Id, StateCode = "Posted",
-            Reason = "Independently reviewed delivery", ReviewedAtUtc = DateTime.UtcNow,
-            ReviewedByUserId = f.User, ValuationMode = "Automatic",
+            Reason = "Independently reviewed delivery", CreatedBy = f.User,
+            SubmitRequestId = Guid.NewGuid(), SubmittedAtUtc = reviewedAt.AddMinutes(-1),
+            SubmittedByUserId = f.User, ReviewRequestId = Guid.NewGuid(),
+            ReviewReason = "Independently approved delivery",
+            ReviewedAtUtc = reviewedAt, ReviewedByUserId = reviewer.Id,
+            ValuationMode = "Automatic",
             CreateFingerprint = new string('A', 64) };
         db.ProcurementGoodsReceipts.Add(receipt);
         await db.SaveChangesAsync();
@@ -158,7 +171,7 @@ public sealed class SqlServerV3AssetCustodyTransferTests
             ClientRequestId = Guid.NewGuid(), MovementNumber = "CAP-M-" + suffix,
             MovementTypeCode = "Receipt", StateCode = "Posted", ToLocationId = location.Id,
             SourceType = "ProcurementGoodsReceipt", SourceId = receipt.Id,
-            PostedAt = DateTime.UtcNow, PostedByUserId = f.User };
+            PostedAt = reviewedAt, PostedByUserId = reviewer.Id };
         db.InventoryMovements.Add(movement);
         await db.SaveChangesAsync();
         db.ProcurementGoodsReceiptLines.Add(new ProcurementGoodsReceiptLine {
@@ -187,6 +200,28 @@ public sealed class SqlServerV3AssetCustodyTransferTests
         Assert.Equal("ReviewRequired", valid.StatusCode);
         Assert.Equal(movement.PublicId, Assert.Single(valid.Candidates).PostedMovementReference);
         Assert.Equal(1, valid.CandidateLineCount);
+        // Posted labels with missing approval or forged maker/checker are excluded.
+        await db.ProcurementGoodsReceipts.Where(x => x.Id == receipt.Id)
+            .ExecuteUpdateAsync(s => s.SetProperty(x => x.ReviewedByUserId, (long?)f.User));
+        Assert.Empty((await Read()).Candidates);
+        await db.ProcurementGoodsReceipts.Where(x => x.Id == receipt.Id)
+            .ExecuteUpdateAsync(s => s.SetProperty(x => x.ReviewedByUserId, (long?)reviewer.Id));
+        await db.ProcurementGoodsReceipts.Where(x => x.Id == receipt.Id)
+            .ExecuteUpdateAsync(s => s.SetProperty(x => x.ValuationMode, "Unapproved"));
+        Assert.Equal("NoPostedReceiptEvidence", (await Read()).StatusCode);
+        await db.ProcurementGoodsReceipts.Where(x => x.Id == receipt.Id)
+            .ExecuteUpdateAsync(s => s.SetProperty(x => x.ValuationMode, "Automatic"));
+        await db.ProcurementGoodsReceipts.Where(x => x.Id == receipt.Id)
+            .ExecuteUpdateAsync(s => s.SetProperty(x => x.ReviewRequestId, (Guid?)null));
+        Assert.Empty((await Read()).Candidates);
+        await db.ProcurementGoodsReceipts.Where(x => x.Id == receipt.Id)
+            .ExecuteUpdateAsync(s => s.SetProperty(x => x.ReviewRequestId, (Guid?)Guid.NewGuid()));
+        await db.InventoryMovements.Where(x => x.Id == movement.Id)
+            .ExecuteUpdateAsync(s => s.SetProperty(x => x.PostedByUserId, (long?)f.User));
+        Assert.Empty((await Read()).Candidates);
+        await db.InventoryMovements.Where(x => x.Id == movement.Id)
+            .ExecuteUpdateAsync(s => s.SetProperty(x => x.PostedByUserId, (long?)reviewer.Id));
+        Assert.Single((await Read()).Candidates);
 
         await db.InventoryMovementLines.Where(x => x.Id == stockLine.Id)
             .ExecuteUpdateAsync(s => s.SetProperty(x => x.UnitCost, 121m));

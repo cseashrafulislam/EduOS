@@ -60,6 +60,20 @@ public sealed partial class AssetLifecycleService
                     !movement.IsDeleted && receipt.CampusId == asset.CampusId.Value &&
                     line.InventoryItemId == asset.InventoryItemId!.Value &&
                     receipt.StateCode == "Posted" && movement.StateCode == "Posted" &&
+                    // A Posted header alone does not prove independent approval.
+                    receipt.CreatedBy.HasValue && receipt.SubmittedByUserId.HasValue &&
+                    receipt.ReviewedByUserId.HasValue && receipt.SubmitRequestId.HasValue &&
+                    receipt.ReviewRequestId.HasValue && receipt.SubmittedAtUtc.HasValue &&
+                    receipt.ReviewedAtUtc.HasValue &&
+                    receipt.SubmittedAtUtc <= receipt.ReviewedAtUtc &&
+                    receipt.ReviewedByUserId != receipt.CreatedBy &&
+                    receipt.ReviewedByUserId != receipt.SubmittedByUserId &&
+                    receipt.ReviewReason != null && receipt.ReviewReason.Length >= 10 &&
+                    (receipt.ValuationMode == "Automatic" ||
+                     receipt.ValuationMode == "ManualFinal" ||
+                     receipt.ValuationMode == "AutoPlusManual") &&
+                    movement.PostedByUserId == receipt.ReviewedByUserId &&
+                    movement.PostedAt.HasValue &&
                     movement.SourceType == "ProcurementGoodsReceipt" &&
                     movement.SourceId == receipt.Id && movement.MovementTypeCode == "Receipt" &&
                     movement.ToLocationId == receipt.LocationId &&

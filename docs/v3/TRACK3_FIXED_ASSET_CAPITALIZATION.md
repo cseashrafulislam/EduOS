@@ -50,3 +50,13 @@ This fails closed for missing or altered stock lines, while preserving the exist
 no-posting boundary. A focused disposable SQL regression covers correct evidence,
 tampered unit cost, lot, location and cross-tenant IDOR. No Inventory posting,
 asset book or Finance GL write path was modified.
+
+## Independent GR approval provenance (31 October 2026)
+
+Capitalization candidates now fail closed without recorded GR submission, distinct
+maker/submitter and checker, independent review request and reason, chronological
+submission/review timestamps, approved Automatic/ManualFinal/AutoPlusManual
+valuation policy and a canonical posted stock movement by the checker.
+SQL tampering regression covers reviewer, valuation, review request and posting actor.
+This is not unique receipt-unit allocation, AssetBook capitalization or Finance posting;
+no Procurement/Inventory posting implementation, stock ledger or GL was modified.
