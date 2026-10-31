@@ -30,3 +30,11 @@ test('cancellation requests remain visible commitments with explicit status',()=
  assert.match(view,/approvalStatus/);
  assert.match(api,/Csv\(x.StateCode\)/);
 });
+
+test('confirmed supplier evidence is displayed separately from original PO aging',()=>{
+ assert.match(script,/supplierPromisedDeliveryDate/);
+ assert.match(script,/supplierConfirmationReference/);
+ assert.match(view,/supplierPromised/);
+ assert.match(view,/supplierReference/);
+ assert.match(api,/Supplier Confirmed UTC/);
+});

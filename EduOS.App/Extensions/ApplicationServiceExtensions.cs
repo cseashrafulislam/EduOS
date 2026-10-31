@@ -149,6 +149,7 @@ namespace EduOS.App.Extensions
             s.AddScoped<IProcurementRequisitionService, ProcurementRequisitionService>();
             s.AddScoped<IProcurementSupplierService, ProcurementSupplierService>();
             s.AddScoped<IProcurementPurchaseOrderService, ProcurementPurchaseOrderService>();
+            s.AddScoped<IProcurementSupplierAcknowledgementService, ProcurementSupplierAcknowledgementService>();
             s.AddScoped<IInventoryMovementService, InventoryMovementService>();
             s.AddScoped<ILeaveEntitlementService, LeaveEntitlementService>();
             s.AddScoped<ILibraryBranchService, LibraryBranchService>();

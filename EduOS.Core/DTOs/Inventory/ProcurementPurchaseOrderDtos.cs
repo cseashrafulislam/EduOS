@@ -87,4 +87,7 @@ public sealed class ProcurementPurchaseOrderCommitmentDto
     public string DeliverySchedule { get; set; } = string.Empty;
     public int LineCount { get; set; }
     public decimal ApprovedAmount { get; set; }
+    public DateTime? SupplierConfirmedAt { get; set; }
+    public DateTime? SupplierPromisedDeliveryDate { get; set; }
+    public string? SupplierConfirmationReference { get; set; }
 }

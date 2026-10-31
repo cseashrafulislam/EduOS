@@ -9,6 +9,7 @@ const en={title:'Approved supplier commitments',orders:'Purchase orders',print:'
  filter:'Filter',number:'Order',supplier:'Supplier',approved:'Approved UTC',expected:'Expected',
  schedule:'Schedule',days:'Days overdue',lines:'Lines',amount:'Approved commitment',
  approvalStatus:'Approval status',Approved:'Approved',CancelRequested:'Cancellation requested',
+ supplierPromised:'Supplier promised',supplierReference:'Confirmation reference',
  previous:'Previous',next:'Next',page:'Page',of:'of',empty:'No approved commitments.',
  failed:'Unable to load commitments.',Unscheduled:'Unscheduled',Overdue:'Overdue',
  DueToday:'Due today',Upcoming:'Upcoming'};
@@ -19,6 +20,7 @@ const bd={title:'অনুমোদিত সরবরাহ প্রতিশ�
  approved:'অনুমোদনের সময় (UTC)',expected:'প্রত্যাশিত তারিখ',schedule:'অবস্থা',
  days:'বিলম্বের দিন',lines:'লাইন',amount:'অনুমোদিত মূল্য',previous:'আগের',next:'পরের',
  approvalStatus:'অনুমোদনের অবস্থা',Approved:'অনুমোদিত',CancelRequested:'বাতিলের আবেদন চলমান',
+ supplierPromised:'সরবরাহকারীর প্রতিশ্রুত তারিখ',supplierReference:'নিশ্চিতকরণ রেফারেন্স',
  page:'পৃষ্ঠা',of:'এর',empty:'কোনো অনুমোদিত ক্রয়াদেশ নেই।',failed:'ক্রয়াদেশ পাওয়া যায়নি।',
  Unscheduled:'তারিখ নেই',Overdue:'বিলম্বিত',DueToday:'আজ নির্ধারিত',Upcoming:'আসন্ন'};
 const t=k=>(bn?bd:en)[k]||k;
@@ -46,11 +48,12 @@ async function load(){
    for(const v of [x.orderNumber,x.supplierName||x.supplierId,x.campusId,
     t(x.stateCode),date(x.approvedAt),date(x.expectedDeliveryDate),t(x.deliverySchedule),
     x.daysOverdue,x.lineCount,Number(x.approvedAmount).toLocaleString(bn?'bn-BD':'en-BD',
-      {minimumFractionDigits:2,maximumFractionDigits:2})+' '+x.currencyCode])cell(tr,v);
+      {minimumFractionDigits:2,maximumFractionDigits:2})+' '+x.currencyCode,
+    date(x.supplierPromisedDeliveryDate),x.supplierConfirmationReference||'—'])cell(tr,v);
    $('poCommitRows').append(tr);
   }
   if(!data.items?.length){const tr=document.createElement('tr'),td=document.createElement('td');
-   td.colSpan=10;td.textContent=t('empty');tr.append(td);$('poCommitRows').append(tr);}
+   td.colSpan=12;td.textContent=t('empty');tr.append(td);$('poCommitRows').append(tr);}
   $('poCommitPage').textContent=t('page')+' '+page+' '+t('of')+' '+pages;
   $('poCommitPrev').disabled=page<=1;$('poCommitNext').disabled=page>=pages;
   $('poCommitScope').textContent=t('title')+' · '+(f.agingDate||new Date().toISOString().slice(0,10))+

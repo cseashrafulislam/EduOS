@@ -439,6 +439,7 @@ public class EduOSDbContext :
     public DbSet<ProcurementSupplier> ProcurementSuppliers => Set<ProcurementSupplier>();
     public DbSet<ProcurementPurchaseOrder> ProcurementPurchaseOrders => Set<ProcurementPurchaseOrder>();
     public DbSet<ProcurementPurchaseOrderLine> ProcurementPurchaseOrderLines => Set<ProcurementPurchaseOrderLine>();
+    public DbSet<ProcurementSupplierAcknowledgement> ProcurementSupplierAcknowledgements => Set<ProcurementSupplierAcknowledgement>();
 
     // Communication
     public DbSet<CommunicationDelivery> CommunicationDeliveries => Set<CommunicationDelivery>();
@@ -1194,6 +1195,10 @@ public class EduOSDbContext :
         TenantReference<ProcurementPurchaseOrderLine, ProcurementPurchaseOrder>(modelBuilder, nameof(ProcurementPurchaseOrderLine.PurchaseOrderId));
         TenantReference<ProcurementPurchaseOrderLine, ProcurementRequisitionLine>(modelBuilder, nameof(ProcurementPurchaseOrderLine.RequisitionLineId));
         TenantReference<ProcurementPurchaseOrderLine, InventoryItem>(modelBuilder, nameof(ProcurementPurchaseOrderLine.InventoryItemId));
+        TenantReference<ProcurementSupplierAcknowledgement, Campus>(modelBuilder, nameof(ProcurementSupplierAcknowledgement.CampusId));
+        TenantReference<ProcurementSupplierAcknowledgement, ProcurementPurchaseOrder>(modelBuilder, nameof(ProcurementSupplierAcknowledgement.PurchaseOrderId));
+        TenantReference<ProcurementSupplierAcknowledgement, ProcurementSupplier>(modelBuilder, nameof(ProcurementSupplierAcknowledgement.SupplierId));
+        Reference<ProcurementSupplierAcknowledgement, ApplicationUser>(modelBuilder, nameof(ProcurementSupplierAcknowledgement.DecidedByUserId));
         TenantReference<AssetBook, Asset>(modelBuilder, nameof(AssetBook.AssetId));
         TenantReference<AssetBook, Campus>(modelBuilder, nameof(AssetBook.CampusId));
         TenantReference<AssetBook, Account>(modelBuilder, nameof(AssetBook.CostAccountId));
@@ -1873,6 +1878,11 @@ public class EduOSDbContext :
         UniqueTenant<ProcurementPurchaseOrderLine>(modelBuilder, nameof(ProcurementPurchaseOrderLine.PurchaseOrderId), nameof(ProcurementPurchaseOrderLine.LineNo));
         UniqueTenant<ProcurementPurchaseOrderLine>(modelBuilder, nameof(ProcurementPurchaseOrderLine.RequisitionLineId));
         modelBuilder.Entity<ProcurementPurchaseOrderLine>().HasIndex(x => new { x.TenantId, x.InventoryItemId });
+        modelBuilder.Entity<ProcurementSupplierAcknowledgement>().HasAlternateKey(x => new { x.TenantId, x.Id });
+        UniqueTenant<ProcurementSupplierAcknowledgement>(modelBuilder, nameof(ProcurementSupplierAcknowledgement.ClientRequestId));
+        UniqueTenant<ProcurementSupplierAcknowledgement>(modelBuilder, nameof(ProcurementSupplierAcknowledgement.PurchaseOrderId));
+        modelBuilder.Entity<ProcurementSupplierAcknowledgement>().HasIndex(x => new { x.TenantId, x.SupplierId });
+        modelBuilder.Entity<ProcurementSupplierAcknowledgement>().HasIndex(x => new { x.TenantId, x.CampusId, x.StateCode, x.CreatedAt });
         modelBuilder.Entity<AssetBook>().HasIndex(x => new { x.TenantId, x.AssetId }).IsUnique().HasFilter("[IsDeleted] = 0");
         modelBuilder.Entity<AssetBook>().HasIndex(x => new { x.TenantId, x.CampusId, x.IsActive });
         modelBuilder.Entity<AssetDepreciationRun>().HasIndex(x => new { x.TenantId, x.ClientRequestId }).IsUnique().HasFilter("[IsDeleted] = 0");
@@ -2085,6 +2095,13 @@ public class EduOSDbContext :
         modelBuilder.Entity<ProcurementPurchaseOrderLine>().ToTable(t =>
             t.HasCheckConstraint("CK_ProcurementPurchaseOrderLine_QtyPrice",
                 "[Quantity] > 0 AND [UnitPrice] >= 0"));
+        modelBuilder.Entity<ProcurementSupplierAcknowledgement>().ToTable(t =>
+        {
+            t.HasCheckConstraint("CK_ProcurementSupplierAcknowledgement_State",
+                "[StateCode] IN (N'Draft',N'Submitted',N'Confirmed',N'Rejected')");
+            t.HasCheckConstraint("CK_ProcurementSupplierAcknowledgement_Dates",
+                "[PromisedDeliveryDate] >= [ResponseDate]");
+        });
         modelBuilder.Entity<ProcurementRequisitionLine>().ToTable(t =>
             t.HasCheckConstraint("CK_ProcurementRequisitionLine_QtyPrice",
                 "[Quantity] > 0 AND [EstimatedUnitPrice] >= 0"));

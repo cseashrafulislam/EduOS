@@ -1,0 +1,104 @@
+@{
+    ViewData["Title"] = "Supplier confirmations";
+    var maker = User.IsInRole("TenantAdmin") || User.IsInRole("Principal") ||
+        User.IsInRole("InventoryManager") || User.IsInRole("StoreKeeper");
+    var checker = User.IsInRole("TenantAdmin") || User.IsInRole("Principal") ||
+        User.IsInRole("InventoryManager");
+}
+<section class="container-fluid py-3" id="ackWorkspace"
+         data-maker="@maker.ToString().ToLowerInvariant()"
+         data-checker="@checker.ToString().ToLowerInvariant()"
+         data-user-id="@(User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value)">
+    <header class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+        <div class="d-flex align-items-center gap-2">
+            <h1 class="h4 mb-0" data-i18n="title">Supplier confirmations</h1>
+            <button type="button" class="btn btn-outline-secondary btn-sm" id="ackHelp"
+                    aria-label="Page help" aria-controls="ackHelpText" aria-expanded="false">ⓘ</button>
+        </div>
+        <div class="d-flex flex-wrap gap-2">
+            <a asp-controller="ProcurementPurchaseOrders" asp-action="Index"
+               class="btn btn-outline-secondary btn-sm" data-i18n="orders">Purchase orders</a>
+            <button type="button" id="ackPrint" class="btn btn-outline-secondary btn-sm" data-i18n="print">Print</button>
+            <button type="button" id="ackExport" class="btn btn-outline-secondary btn-sm" data-i18n="export">CSV</button>
+            @if (maker) { <button type="button" id="ackNew" class="btn btn-primary btn-sm" data-i18n="new">Record response</button> }
+        </div>
+    </header>
+    <div id="ackHelpText" class="alert alert-light border d-none" role="note" data-i18n="help">
+        Record supplier confirmation against an approved purchase order; an independent checker verifies evidence. No stock or payment is posted.
+    </div>
+    <div id="ackAlert" class="d-none" role="status" aria-live="polite"></div>
+    <form id="ackFilters" class="row g-2 mb-3">
+        <div class="col-6 col-md-4"><label for="ackCampus" class="form-label" data-i18n="campus">Campus ID</label>
+            <input id="ackCampus" type="number" min="1" class="form-control" /></div>
+        <div class="col-6 col-md-4"><label for="ackState" class="form-label" data-i18n="state">State</label>
+            <select id="ackState" class="form-select"><option value="" data-i18n="all">All</option>
+                <option>Draft</option><option>Submitted</option><option>Confirmed</option><option>Rejected</option>
+            </select></div>
+        <div class="col-12 col-md-4 d-flex align-items-end"><button class="btn btn-outline-primary w-100"
+            type="submit" data-i18n="filter">Filter</button></div>
+    </form>
+    <div class="table-responsive"><table class="table table-striped table-hover table-sm" id="ackTable">
+        <thead><tr><th data-i18n="order">Order</th><th data-i18n="supplier">Supplier</th>
+            <th data-i18n="reference">Supplier reference</th><th data-i18n="response">Response date</th>
+            <th data-i18n="promised">Promised delivery</th><th data-i18n="state">State</th>
+            <th class="ackNoPrint" data-i18n="actions">Actions</th></tr></thead>
+        <tbody id="ackRows"></tbody>
+    </table></div>
+    <div class="d-flex align-items-center gap-2 ackNoPrint">
+        <button type="button" id="ackPrev" class="btn btn-outline-secondary btn-sm" data-i18n="previous">Previous</button>
+        <span id="ackPage" aria-live="polite"></span>
+        <button type="button" id="ackNext" class="btn btn-outline-secondary btn-sm" data-i18n="next">Next</button>
+    </div>
+    <dialog id="ackDialog" class="border rounded shadow p-0" style="width:min(94vw,680px);max-height:90vh">
+        <form id="ackForm" class="p-3">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h2 class="h5 mb-0" data-i18n="details">Supplier response</h2>
+                <button type="button" id="ackClose" class="btn-close" aria-label="Close"></button>
+            </div>
+            <input id="ackId" type="hidden" /><input id="ackRequest" type="hidden" />
+            <input id="ackVersion" type="hidden" />
+            <div class="row g-2">
+                <div class="col-12"><label for="ackOrderSearch" class="form-label" data-i18n="order">Order</label>
+                    <div class="input-group"><input id="ackOrderSearch" class="form-control" maxlength="100"
+                        placeholder="Search approved PO number" /><button type="button" id="ackFindOrder"
+                        class="btn btn-outline-primary" data-i18n="find">Find</button></div>
+                    <div id="ackOrderResults" class="list-group mt-1"></div>
+                    <div id="ackOrderSelected" class="small mt-1" aria-live="polite"></div>
+                    <input id="ackOrderId" type="hidden" required />
+                </div>
+                <div class="col-12 col-md-6"><label for="ackReference" class="form-label" data-i18n="reference">Supplier reference</label>
+                    <input id="ackReference" class="form-control" minlength="3" maxlength="80" required /></div>
+                <div class="col-6 col-md-3"><label for="ackResponseDate" class="form-label" data-i18n="response">Response date</label>
+                    <input id="ackResponseDate" type="date" class="form-control" required /></div>
+                <div class="col-6 col-md-3"><label for="ackPromisedDate" class="form-label" data-i18n="promised">Promised delivery</label>
+                    <input id="ackPromisedDate" type="date" class="form-control" required /></div>
+            </div>
+            <div class="d-flex justify-content-end gap-2 mt-3">
+                <button type="button" id="ackCancel" class="btn btn-outline-secondary" data-i18n="close">Close</button>
+                <button type="submit" id="ackSave" class="btn btn-primary" data-i18n="save">Save draft</button>
+            </div>
+        </form>
+    </dialog>
+    <dialog id="ackDecisionDialog" class="border rounded shadow p-3" style="width:min(92vw,440px)">
+        <form id="ackDecisionForm">
+            <h2 class="h5" data-i18n="decision">Decision</h2>
+            <label for="ackReason" class="form-label" data-i18n="reason">Reason</label>
+            <textarea id="ackReason" class="form-control" maxlength="500" rows="3"></textarea>
+            <div class="d-flex justify-content-end gap-2 mt-3">
+                <button type="button" id="ackDecisionClose" class="btn btn-outline-secondary" data-i18n="close">Close</button>
+                <button type="submit" id="ackConfirm" class="btn btn-primary" data-i18n="confirm">Confirm</button>
+            </div>
+        </form>
+    </dialog>
+</section>
+<style>
+@@media print {
+    .ackNoPrint, #ackFilters, #ackHelp, #ackHelpText, #ackAlert, dialog,
+    #ackWorkspace header a, #ackWorkspace header button { display:none!important; }
+    #ackWorkspace {padding:0!important}
+    #ackTable {font-size:10pt}
+}
+</style>
+@section Scripts {
+    <script src="~/js/procurement/supplier-confirmations.js" asp-append-version="true"></script>
+}

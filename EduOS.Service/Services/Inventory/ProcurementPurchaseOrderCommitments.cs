@@ -56,6 +56,14 @@ public sealed partial class ProcurementPurchaseOrderService
             .Select(g => new { OrderId = g.Key, LineCount = g.Count(),
                 Amount = g.Sum(x => x.Quantity * x.UnitPrice) }).ToListAsync(ct);
         var amountById = amounts.ToDictionary(x => x.OrderId);
+        // Supplier acknowledgement is separate staff-recorded, checker-confirmed evidence.
+        // It never changes the approved PO date, stock balance or financial commitment.
+        var confirmations = await db.ProcurementSupplierAcknowledgements.AsNoTracking()
+            .Where(x => x.TenantId == user.TenantId && ids.Contains(x.PurchaseOrderId) &&
+                x.StateCode == "Confirmed" && !x.IsDeleted)
+            .Select(x => new { x.PurchaseOrderId, x.CampusId, x.SupplierId,
+                x.PromisedDeliveryDate, x.DecidedAt, x.SupplierReference }).ToListAsync(ct);
+        var confirmedByOrder = confirmations.ToDictionary(x => x.PurchaseOrderId);
         // Supplier display data must match the authorized PO's campus, not merely its tenant.
         var supplierRows = await db.ProcurementSuppliers.AsNoTracking()
             .Where(x => x.TenantId == user.TenantId && supplierIds.Contains(x.Id) &&
@@ -67,6 +75,10 @@ public sealed partial class ProcurementPurchaseOrderService
             var due = x.ExpectedDeliveryDate?.Date;
             var overdue = due.HasValue && due.Value < asOf;
             amountById.TryGetValue(x.Id, out var sum);
+            confirmedByOrder.TryGetValue(x.Id, out var confirmation);
+            if (confirmation != null &&
+                (confirmation.CampusId != x.CampusId || confirmation.SupplierId != x.SupplierId))
+                confirmation = null;
             return new ProcurementPurchaseOrderCommitmentDto
             {
                 Id = x.Id, OrderNumber = x.OrderNumber, CampusId = x.CampusId,
@@ -78,7 +90,10 @@ public sealed partial class ProcurementPurchaseOrderService
                 DaysOverdue = overdue ? (asOf - due!.Value).Days : 0,
                 DeliverySchedule = !due.HasValue ? "Unscheduled" :
                     overdue ? "Overdue" : due.Value == asOf ? "DueToday" : "Upcoming",
-                LineCount = sum?.LineCount ?? 0, ApprovedAmount = sum?.Amount ?? 0m
+                LineCount = sum?.LineCount ?? 0, ApprovedAmount = sum?.Amount ?? 0m,
+                SupplierConfirmedAt = confirmation?.DecidedAt,
+                SupplierPromisedDeliveryDate = confirmation?.PromisedDeliveryDate,
+                SupplierConfirmationReference = confirmation?.SupplierReference
             };
         }).ToList();
         return ApiResponse<PagedResult<ProcurementPurchaseOrderCommitmentDto>>.SuccessResponse(
