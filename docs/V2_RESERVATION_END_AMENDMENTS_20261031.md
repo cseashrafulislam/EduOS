@@ -21,6 +21,6 @@ LMS, Library, V1 and V3 feature baselines are unchanged.
 ## Verification and acceptance boundary
 
 - JavaScript static/browser-contract regression suite: **316 passed, 0 failed**, including the new end-date Finance and idempotency checks.
-- SQL Server test added for charged upcoming Transport shortening, exact-date rejection, independent zero-waiver and single-use consumption. It runs with the disposable SQL acceptance connection in CI.
+- SQL Server tests added for charged upcoming Transport shortening: exact-date rejection, independent zero-waiver and single-use consumption; also automatic negative credit-note posting against an immutable original invoice with effective unpaid reduction. They run with the disposable SQL acceptance connection in CI.
 - Same-commit .NET Release build, full .NET regression, migration smoke, SQL acceptance and CI must be checked on the resulting pushed SHA before marking this increment verified.
 - **Not certified by code alone:** institute-specific real-data/reconciliation, vendor/device configuration, staged migration/rollback, p95/p99 load/security/browser-mobile checks, wardens/operators/Finance UAT and owner go/no-go. Open-ended stays and renewals beyond the established fixed-term booking limit are not silently extended.

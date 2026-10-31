@@ -1,5 +1,7 @@
 # EduOS — mandatory engineering instructions for every coding agent
 
+**Later V2 Finance/Operations correction (2026-10-31):** Before treating the historical V2 gap descriptions below as current, read the [Finance credit-note handoff](docs/V2_FINANCE_RESERVATION_CREDIT_NOTES_20261031.md) and the [reservation end-change handoff](docs/V2_RESERVATION_END_AMENDMENTS_20261031.md). The original automatic invoice and negative paid/unpaid credit-note flow has passed same-commit CI/SQL; Hostel end changes and Transport shortening have newer code pending their exact-commit verification. Do not recreate these workflows or claim full production acceptance without a real institution's sign-off.
+
 **Current owner decisions (2026-10-29 release ownership; 2026-10-30 V1 development-baseline freeze and V2 LMS/Library engineering closure; 2026-10-31 verified V2 CI baseline and remaining Finance integration gaps).** This file is the first read for **every new chat, coding task, automated run, review and module-completion request** in EduOS. It applies whether the user says only “what remains in Exam/HR/Hostel?” or gives detailed steps. Do not make the owner repeat architecture, security, UI or release requirements. **A document describes requirements, not proof that its functionality is implemented.**
 
 ## Source of truth and precedence

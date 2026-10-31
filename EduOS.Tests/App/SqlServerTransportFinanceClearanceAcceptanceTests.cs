@@ -580,6 +580,129 @@ public sealed partial class SqlServerTransportSeatCapacityIntegrationTests
         }
     }
 
+    [Fact]
+    public async Task Upcoming_rider_shortening_posts_approved_original_invoice_credit_without_mutating_invoice()
+    {
+        var connection = Environment.GetEnvironmentVariable("EDUOS_SQL_AUTH_TEST_CONNECTION");
+        if (string.IsNullOrWhiteSpace(connection)) return;
+        var fixture = await SeedAsync(connection);
+        var request = Request(fixture, 0, fixture.Start, fixture.Start.AddDays(25));
+        request.MonthlyFare = 2500m;
+        var booking = await AssignAsync(fixture, request);
+        Assert.True(booking.Success, booking.Message);
+        var source = booking.Data!;
+        var checker = await CreateFinanceCheckerAsync(fixture);
+        var shortenedEnd = source.EndDate!.Value.AddDays(-8);
+        var now = DateOnly.FromDateTime(DateTime.UtcNow);
+        long campusId, studentId, enrollmentId, periodId, invoiceId;
+        Guid originalReference;
+
+        await using (var db = ScopedContext(fixture.Options, fixture.TenantId, checker))
+        {
+            var assignment = await db.StudentTransports.AsNoTracking().SingleAsync(x =>
+                x.TenantId == fixture.TenantId && x.PublicId == source.Reference);
+            studentId = assignment.StudentId;
+            enrollmentId = assignment.StudentEnrollmentId;
+            campusId = await db.StudentEnrollments.AsNoTracking()
+                .Where(x => x.Id == enrollmentId).Select(x => x.CampusId).SingleAsync();
+            var suffix = Guid.NewGuid().ToString("N")[..10];
+            var receivable = new Account { TenantId = fixture.TenantId, Code = "AR-END-" + suffix,
+                Name = "End change receivables", AccountType = AccountType.Asset,
+                IsActive = true, AllowsPosting = true };
+            var income = new Account { TenantId = fixture.TenantId, Code = "REV-END-" + suffix,
+                Name = "End change fare revenue", AccountType = AccountType.Income,
+                IsActive = true, AllowsPosting = true };
+            db.Accounts.AddRange(receivable, income);
+            await db.SaveChangesAsync();
+            var period = new AccountingPeriod { TenantId = fixture.TenantId,
+                Name = "End credit period " + suffix,
+                StartDate = now.AddDays(-3), EndDate = now.AddDays(35) };
+            var feeHead = new FeeHead { TenantId = fixture.TenantId,
+                Name = "End change fare " + suffix, Code = "TEND-" + suffix,
+                IncomeAccountId = income.Id, ReceivableAccountId = receivable.Id, IsActive = true };
+            db.AddRange(period, feeHead);
+            await db.SaveChangesAsync();
+            periodId = period.Id;
+            await using var tx = await db.Database.BeginTransactionAsync(System.Data.IsolationLevel.Serializable);
+            var (posting, problem) = await ReservationAutomaticInvoicePosting.PrepareAsync(
+                db, fixture.TenantId, checker, fixture.UserId, "TRANSPORT", 19000101,
+                campusId, enrollmentId, studentId, 200m, feeHead.Id, periodId,
+                now, DateTime.UtcNow, default);
+            Assert.Null(problem);
+            Assert.NotNull(posting);
+            Assert.True(await ReservationAutomaticInvoicePosting.FinalizeAsync(
+                db, fixture.TenantId, "TRANSPORT", 19000101, posting!.JournalId,
+                campusId, studentId, enrollmentId, 200m, fixture.UserId,
+                DateTime.UtcNow, default));
+            invoiceId = posting.InvoiceId;
+            originalReference = (await db.StudentInvoices.AsNoTracking()
+                .SingleAsync(x => x.Id == invoiceId)).PublicId;
+            await tx.CommitAsync();
+        }
+
+        long clearanceId, creditJournalId;
+        await using (var db = ScopedContext(fixture.Options, fixture.TenantId, fixture.UserId))
+        {
+            var requested = await Finance(db, fixture.TenantId, fixture.UserId)
+                .RequestTransportClearanceAsync(new RequestTransportClearanceDto
+                {
+                    ClientRequestId = Guid.NewGuid(), SourceAssignmentReference = source.Reference,
+                    SourceRowVersion = source.RowVersion,
+                    Operation = TransportClearanceOperation.UpcomingRiderShortening,
+                    EffectiveDate = shortenedEnd,
+                    Reason = "Return unused transport reservation days to the student",
+                    ManualNetAdjustment = -100m,
+                    OverrideReason = "Reconciled actual original fare billing for unused service days."
+                });
+            Assert.True(requested.Success, requested.Message);
+            clearanceId = requested.Data!.Id;
+        }
+        await using (var db = ScopedContext(fixture.Options, fixture.TenantId, checker))
+        {
+            var version = await db.TransportFinanceClearances.AsNoTracking()
+                .Where(x => x.Id == clearanceId).Select(x => x.RowVersion).SingleAsync();
+            var approved = await Finance(db, fixture.TenantId, checker)
+                .ReviewTransportClearanceAsync(clearanceId, new ReviewTransportClearanceDto
+                {
+                    RowVersion = Convert.ToBase64String(version), Approve = true,
+                    AutoPostInvoice = true, AccountingPeriodId = periodId,
+                    OriginalInvoiceReference = originalReference,
+                    ReconciliationNote = "Independent original invoice reconciliation approves the exact credit."
+                });
+            Assert.True(approved.Success, approved.Message);
+            creditJournalId = approved.Data!.SettlementJournalId!.Value;
+            Assert.Equal(JournalState.Approved,
+                (await db.Journals.AsNoTracking().SingleAsync(x => x.Id == creditJournalId)).State);
+        }
+        await using (var db = ScopedContext(fixture.Options, fixture.TenantId, fixture.UserId))
+        {
+            var service = Service(db, fixture.TenantId, fixture.UserId);
+            var mutation = new ShortenUpcomingNoChargeTransportRequestDto
+            {
+                ClientRequestId = Guid.NewGuid(), EndDate = shortenedEnd,
+                RowVersion = source.RowVersion, FinanceClearanceId = clearanceId
+            };
+            var committed = await service.ShortenUpcomingNoChargeRiderAsync(source.Reference, mutation);
+            Assert.True(committed.Success, committed.Message);
+            Assert.True((await service.ShortenUpcomingNoChargeRiderAsync(source.Reference, mutation)).Success);
+        }
+        await using (var db = ScopedContext(fixture.Options, fixture.TenantId, fixture.UserId))
+        {
+            var invoice = await db.StudentInvoices.AsNoTracking().SingleAsync(x => x.Id == invoiceId);
+            Assert.Equal(200m, invoice.TotalAmount);
+            Assert.Equal(200m, invoice.DueAmount);
+            Assert.Equal(0m, invoice.PaidAmount);
+            Assert.Equal(JournalState.Posted,
+                (await db.Journals.AsNoTracking().SingleAsync(x => x.Id == creditJournalId)).State);
+            var credit = (await ReservationCreditNoteBalances.ForInvoicesAsync(
+                db, fixture.TenantId, [invoiceId], default))[invoiceId];
+            Assert.Equal(100m, credit.UnpaidReduction);
+            Assert.Equal(0m, credit.StudentCreditPayable);
+            Assert.Equal(shortenedEnd, (await db.StudentTransports.AsNoTracking()
+                .SingleAsync(x => x.PublicId == source.Reference)).EndDate);
+        }
+    }
+
     private static FinanceAdjustmentService Finance(EduOSDbContext db, long tenant, long user) =>
         new(db, new TenantAdmin(tenant, user), TimeProvider.System);
 
