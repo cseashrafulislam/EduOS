@@ -12,6 +12,7 @@
     var showHostel = availableOptionalModules.Contains("HOSTEL");
     var showTransport = availableOptionalModules.Contains("TRANSPORT");
     var showInventory = availableOptionalModules.Contains("INVENTORY");
+    var showAlumni = availableOptionalModules.Contains("ALUMNI");
     var v2RoleLinks = EduOS.App.Authorization.V2RolePortalNavigation.GetLinks(availableOptionalModules, User);
     var titleKey = ViewData["Title"]?.ToString() ?? "Dashboard";
     var localizedTitle = T[titleKey];
@@ -238,6 +239,13 @@
                     <svg class="edu-icon"><use href="/images/eduos-icons.svg#students" /></svg>
                     <span>@T["Students"]</span>
                 </a>
+                @if (showAlumni && (User?.IsInRole("TenantAdmin") == true || User?.IsInRole("Student") == true))
+                {
+                    <a class="nav-link @ActiveFor("/Alumni")" href="/Alumni/Index">
+                        <svg class="edu-icon"><use href="/images/eduos-icons.svg#graduation" /></svg>
+                        <span>Alumni / প্রাক্তন শিক্ষার্থী</span>
+                    </a>
+                }
                 @if (User?.IsInRole("TenantAdmin") == true || User?.IsInRole("AdmissionOfficer") == true)
                 {
                     <a class="nav-link @ActiveFor("/LearnerIdentities")" href="/LearnerIdentities/Index">

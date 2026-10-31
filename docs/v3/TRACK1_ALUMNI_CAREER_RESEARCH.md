@@ -1,0 +1,27 @@
+# EduOS V3 Track 1 — Alumni, Career, Research & Accreditation
+
+Owner path: `Ashraful` only. The V1/V2 development baselines and V3 Inventory & Store baseline are frozen. Do not recreate their models, finance entries or stock records.
+
+## Verified preflight (2026-10-31)
+
+Starting owner baseline: `ea8c2a9a2953f7757f4e8f8d31003fd5d6822c6b`; first-run inspected HEAD: `5b9401a16346243fb63e1c56f5712871047e721b`. Targeted App/Core/Persistence/Service trees had no named Alumni, Career, Research or Accreditation implementation. V1 `StudentExitRecord` with `ExitType.Completed`, `FeesCleared`, `StudentEnrollment.State.Completed`, and `Student.UserId` is the canonical proof of completion and self-service ownership.
+
+## Batch A — verified alumni consent and restricted directory
+
+- [x] Dedicated `ALUMNI` product module and feature with explicit subscription/tenant enablement; excluded from V1 pilot. No blanket automatic opt-in or changed pricing policy.
+- [x] Graduates self-register against the completed V1 exit and enrollment, without modifying V1 academic identity or creating a cross-tenant global Person directory.
+- [x] Consent defaults private; revocation clears alumni contact data. Optimistic rowversion, idempotent client request, serializable transaction and privacy-safe immutable action audit.
+- [x] Tenant-admin-only, campus-restricted, consent-filtered paged directory and current-page CSV; spreadsheet formula injection protected.
+- [x] Responsive accessible bilingual self-service and directory view; entitlement-gated navigation.
+- [x] Focused C# contract, SQL integration and Node JS tests added.
+- [ ] Exact-commit Release build, SQL fresh/repeat migration, SQL integration, JS/browser and CI evidence — verify after commit; do not claim PASS without results.
+- [ ] Alumni events, invitations, RSVP/engagement, privacy-safe engagement reporting and institutional consent policy/UAT.
+- [ ] Re-evaluate campus access policy for institution-wide TenantAdmin accounts with no explicit campus grants before real-institute acceptance.
+
+## Queue (do not duplicate other tracks)
+
+B. Employer verification, internships/jobs, student applications and placements with outcome audit/report.
+C. Research proposal/ethics, grants, projects and permissioned outputs.
+D. Accreditation standards, outcome mapping, controlled evidence and export.
+
+Next-run rule: start from this track's last pushed SHA recorded in run history; compare changed OWNED paths and relevant cross-contracts only. Finish outstanding Alumni engagement work before opening Career. All production deployment, pilot UAT, load testing, financial/legal policy approval and real-customer writes remain out of scope.

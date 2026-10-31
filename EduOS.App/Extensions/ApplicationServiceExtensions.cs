@@ -8,6 +8,7 @@ using EduOS.Service.Helpers;
 using EduOS.Service.Services;
 using EduOS.Service.Services.Accounting;
 using EduOS.Service.Services.Inventory;
+using EduOS.Service.Services.Alumni;
 using EduOS.Service.Services.Facilities;
 using EduOS.Service.Helpers.Payment;
 using EduOS.Service.Helpers.Storage;using EduOS.Service.Mappings;using EduOS.Service.Services.Academic;using EduOS.Service.Services.Auth;using EduOS.Service.Services.Admission;using EduOS.Service.Services.Attendance;using EduOS.Service.Services.AssessmentAdministration;using EduOS.Service.Services.Finance;using EduOS.Service.Services.HR;using EduOS.Service.Services.Hostel;using EduOS.Service.Services.Library;using EduOS.Service.Services.Learners;using EduOS.Service.Services.LMS;using EduOS.Service.Services.Portals;using EduOS.Service.Services.SaaS;using EduOS.Service.Services.Students;using EduOS.Service.Services.Tenants;using EduOS.Service.Services.Communication;using EduOS.Service.Services.Platform;using EduOS.Service.Services.Transport;using EduOS.Service.Services.Documents;using Microsoft.Extensions.Configuration;using Microsoft.Extensions.DependencyInjection;using Microsoft.AspNetCore.Authorization;
@@ -94,6 +95,7 @@ namespace EduOS.App.Extensions
             s.AddScoped<IStudentLifecycleTimelineService, StudentLifecycleTimelineService>();
             s.AddScoped<IStudentPromotionService, StudentPromotionService>();
             s.AddScoped<IStudentExitService, StudentExitService>();
+            s.AddScoped<IAlumniService, AlumniService>();
             s.AddScoped<IStudentReadmissionService, StudentReadmissionService>();
             s.AddScoped<IStudentDocumentService, StudentDocumentService>();
             s.AddScoped<IAcademicSetupService, AcademicSetupService>();

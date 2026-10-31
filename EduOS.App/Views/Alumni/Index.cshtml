@@ -1,0 +1,60 @@
+@{
+    ViewData["Title"] = "Alumni / প্রাক্তন শিক্ষার্থী";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+}
+<div id="alumniWorkspace" class="container-fluid py-4" data-admin="@(User.IsInRole("TenantAdmin") ? "true" : "false")">
+    @Html.AntiForgeryToken()
+    <header class="mb-3">
+        <h1 class="h4 fw-bold" data-i18n="heading">Alumni &amp; Graduate Directory</h1>
+        <p class="text-muted" data-i18n="intro">Only verified graduates can register. Directory sharing is voluntary and can be revoked at any time.</p>
+    </header>
+    <div id="alumniNotice" class="alert d-none" role="status" aria-live="polite"></div>
+    <div class="row g-3">
+        <section class="col-lg-5" aria-labelledby="alumniPrivacyHeading">
+            <div class="card shadow-sm border-0"><div class="card-body">
+                <h2 id="alumniPrivacyHeading" class="h5" data-i18n="privacy">My alumni privacy preferences</h2>
+                <form id="alumniConsentForm">
+                    <label for="alumniGraduate" class="form-label" data-i18n="graduate">Verified graduation</label>
+                    <select id="alumniGraduate" class="form-select mb-3" required></select>
+                    <label for="alumniEmail" class="form-label" data-i18n="email">Contact email (optional)</label>
+                    <input id="alumniEmail" type="email" class="form-control mb-3" maxlength="200" autocomplete="email" />
+                    <label for="alumniPhone" class="form-label" data-i18n="phone">Contact phone (optional)</label>
+                    <input id="alumniPhone" type="tel" class="form-control mb-3" maxlength="30" autocomplete="tel" />
+                    <div class="form-check mb-3">
+                        <input id="alumniOptIn" type="checkbox" class="form-check-input" />
+                        <label for="alumniOptIn" class="form-check-label" data-i18n="optin">I consent to show my name and contact details in my institution's restricted alumni directory.</label>
+                    </div>
+                    <p class="small text-muted" data-i18n="privacyNote">Unchecking and saving revokes directory access and clears stored alumni contact details. Your verified graduation record is retained.</p>
+                    <button id="alumniSave" type="submit" class="btn btn-primary" data-i18n="save">Save preferences</button>
+                </form>
+            </div></div>
+        </section>
+        @if (User.IsInRole("TenantAdmin"))
+        {
+            <section class="col-lg-7" aria-labelledby="alumniDirectoryHeading">
+                <div class="card shadow-sm border-0"><div class="card-body">
+                    <h2 id="alumniDirectoryHeading" class="h5" data-i18n="directory">Opted-in alumni directory</h2>
+                    <form id="alumniSearchForm" class="d-flex flex-wrap gap-2 mb-3">
+                        <input id="alumniSearch" class="form-control flex-grow-1" style="max-width:340px" maxlength="100" aria-label="Search alumni" placeholder="Name or student code" />
+                        <button type="submit" class="btn btn-outline-primary" data-i18n="search">Search</button>
+                        <a id="alumniExport" class="btn btn-outline-secondary" href="#" data-i18n="export">Export current page CSV</a>
+                    </form>
+                    <div class="table-responsive">
+                        <table class="table table-striped table-sm align-middle">
+                            <thead><tr><th data-i18n="name">Name</th><th data-i18n="code">Code</th><th data-i18n="contact">Contact</th><th data-i18n="completed">Completed</th></tr></thead>
+                            <tbody id="alumniRows"><tr><td colspan="4" data-i18n="loading">Loading…</td></tr></tbody>
+                        </table>
+                    </div>
+                    <div class="d-flex justify-content-between align-items-center">
+                        <button id="alumniPrev" type="button" class="btn btn-sm btn-outline-secondary" data-i18n="previous">Previous</button>
+                        <span id="alumniPage" class="small" aria-live="polite"></span>
+                        <button id="alumniNext" type="button" class="btn btn-sm btn-outline-secondary" data-i18n="next">Next</button>
+                    </div>
+                </div></div>
+            </section>
+        }
+    </div>
+</div>
+@section Scripts {
+    <script src="~/js/alumni/index.js" asp-append-version="true"></script>
+}
