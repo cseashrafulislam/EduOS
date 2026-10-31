@@ -214,11 +214,15 @@ public sealed class SqlServerV3AssetCustodyTransferTests
         Assert.Equal(1, valid.CandidateLineCount);
         // A posted stock line alone is insufficient: verify the approved PO source
         // and immutable line-cost/quantity snapshot before suggesting capitalization.
-        await db.ProcurementGoodsReceiptLines.Where(x => x.GoodsReceiptId == receipt.Id)
-            .ExecuteUpdateAsync(s => s.SetProperty(x => x.ApprovedPoUnitPrice, 999m));
-        Assert.Equal("NoPostedReceiptEvidence", (await Read()).StatusCode);
-        await db.ProcurementGoodsReceiptLines.Where(x => x.GoodsReceiptId == receipt.Id)
-            .ExecuteUpdateAsync(s => s.SetProperty(x => x.ApprovedPoUnitPrice, 120m));
+        // The canonical SQL trigger protects the GR source snapshot; never
+        // disable it just to fabricate a mismatched receipt.
+        var immutable = await Assert.ThrowsAsync<Microsoft.Data.SqlClient.SqlException>(async () =>
+        {
+            await db.ProcurementGoodsReceiptLines.Where(x => x.GoodsReceiptId == receipt.Id)
+                .ExecuteUpdateAsync(s => s.SetProperty(x => x.ApprovedPoUnitPrice, 999m));
+        });
+        Assert.Equal(51121, immutable.Number);
+        Assert.Single((await Read()).Candidates);
         await db.ProcurementPurchaseOrderLines.Where(x => x.Id == orderLine.Id)
             .ExecuteUpdateAsync(s => s.SetProperty(x => x.UnitPrice, 121m));
         Assert.Empty((await Read()).Candidates);
