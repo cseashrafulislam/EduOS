@@ -176,3 +176,29 @@ test('procurement audit opt-in validates UUID and preserves stock/asset-only def
     assert.throws(() => validateConfig({ ...env,
         PROCUREMENT_REFERENCE: 'forged' }), /procurement reference UUID/);
 });
+
+
+test('supplier acceptance opt-in is bounded and cannot target arbitrary URLs', async () => {
+    const { validateConfig, request } = await import(source);
+    const env = { BASE_URL: 'http://localhost:3000/', TENANT_A_COOKIE: 'a-session',
+        TENANT_B_COOKIE: 'b-session', STOCK_REFERENCE: stock, ASSET_REFERENCE: asset,
+        FROM: config.from, TO: config.to };
+    assert.equal(validateConfig(env).supplierConfirmation, null);
+    assert.throws(() => validateConfig({ ...env,
+        SUPPLIER_CONFIRMATION_ID: '71' }), /requires procurement UUID/);
+    assert.throws(() => validateConfig({ ...env,
+        PROCUREMENT_REFERENCE: stock, SUPPLIER_CONFIRMATION_ID: '0' }), /positive safe integer/);
+    assert.throws(() => validateConfig({ ...env,
+        PROCUREMENT_REFERENCE: stock, SUPPLIER_CONFIRMATION_ID: '9007199254740993' }),
+    /positive safe integer/);
+    assert.equal(validateConfig({ ...env,
+        PROCUREMENT_REFERENCE: stock, SUPPLIER_CONFIRMATION_ID: '71' })
+        .supplierConfirmation, 71);
+    await assert.rejects(request('http://localhost:3000', 'a-session',
+        '/api/procurement/../admin', async () => { throw new Error('unexpected fetch'); }),
+    /Invalid API path/);
+    await assert.rejects(request('http://localhost:3000', 'a-session',
+        '//evil.example/api/procurement/purchase-orders', async () => {
+            throw new Error('unexpected fetch');
+        }), /Invalid API path/);
+});
