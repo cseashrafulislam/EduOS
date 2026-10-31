@@ -230,5 +230,79 @@ public sealed class SqlServerV3ProcurementPurchaseOrderTests
             .PendingApprovalsAsync(1, 20, null, null)).Data!.Items, x => x.Id == id);
         Assert.Empty((await Service(foreign, tenantId + 99999, makerId)
             .CommitmentsAsync(1, 25, null, null, null, false, null)).Data!.Items);
+        // A cancellation request remains an open approved commitment until independent review.
+        string requestedVersion;
+        await using (var cancellationMakerDb = Open(options, tenantId, makerId))
+        {
+            var cancellationMaker = Service(cancellationMakerDb, tenantId, makerId);
+            var original = (await cancellationMaker.GetAsync(id)).Data!;
+            var requested = await cancellationMaker.TransitionAsync(id, "request-cancel",
+                new ProcurementPurchaseOrderDecisionRequest {
+                    RowVersion = original.RowVersion,
+                    Reason = "Supplier cannot fulfill the negotiated delivery date" });
+            Assert.True(requested.Success, requested.Message);
+            Assert.Equal("CancelRequested", requested.Data!.StateCode);
+            Assert.Equal(original.DecidedAt, requested.Data.DecidedAt);
+            requestedVersion = requested.Data.RowVersion;
+            Assert.Equal(403, (await cancellationMaker.TransitionAsync(id, "confirm-cancel",
+                new ProcurementPurchaseOrderDecisionRequest {
+                    RowVersion = requestedVersion, Reason = "Maker cannot check own cancellation" })).StatusCode);
+            Assert.Equal(409, (await cancellationMaker.TransitionAsync(id, "request-cancel",
+                new ProcurementPurchaseOrderDecisionRequest {
+                    RowVersion = original.RowVersion, Reason = "Stale duplicate cancellation request" })).StatusCode);
+        }
+        await using (var cancellationCheckerDb = Open(options, tenantId, checkerId))
+        {
+            var cancellationChecker = Service(cancellationCheckerDb, tenantId, checkerId);
+            Assert.Contains((await cancellationChecker.PendingApprovalsAsync(1, 25, null, null))
+                .Data!.Items, x => x.Id == id && x.StateCode == "CancelRequested");
+            var pending = Assert.Single((await cancellationChecker.CommitmentsAsync(
+                1, 25, null, supplierId, null, false, null)).Data!.Items);
+            Assert.Equal("CancelRequested", pending.StateCode);
+            Assert.Equal(40m, pending.ApprovedAmount);
+            var denied = await cancellationChecker.TransitionAsync(id, "deny-cancel",
+                new ProcurementPurchaseOrderDecisionRequest {
+                    RowVersion = requestedVersion,
+                    Reason = "Supplier confirmed the original delivery commitment" });
+            Assert.True(denied.Success, denied.Message);
+            Assert.Equal("Approved", denied.Data!.StateCode);
+            Assert.Equal(approved.Data!.DecidedAt, denied.Data.DecidedAt);
+        }
+        await using (var retryMakerDb = Open(options, tenantId, makerId))
+        {
+            var retryMaker = Service(retryMakerDb, tenantId, makerId);
+            var current = (await retryMaker.GetAsync(id)).Data!;
+            Assert.Equal(403, (await retryMaker.TransitionAsync(id, "confirm-cancel",
+                new ProcurementPurchaseOrderDecisionRequest {
+                    RowVersion = current.RowVersion, Reason = "Cannot bypass independent checker" })).StatusCode);
+            var again = await retryMaker.TransitionAsync(id, "request-cancel",
+                new ProcurementPurchaseOrderDecisionRequest {
+                    RowVersion = current.RowVersion,
+                    Reason = "Supplier subsequently withdrew the confirmed delivery" });
+            Assert.True(again.Success, again.Message);
+            requestedVersion = again.Data!.RowVersion;
+        }
+        await using (var finalCheckerDb = Open(options, tenantId, checkerId))
+        {
+            var finalChecker = Service(finalCheckerDb, tenantId, checkerId);
+            var confirmed = await finalChecker.TransitionAsync(id, "confirm-cancel",
+                new ProcurementPurchaseOrderDecisionRequest {
+                    RowVersion = requestedVersion,
+                    Reason = "Approved cancellation after independent supplier review" });
+            Assert.True(confirmed.Success, confirmed.Message);
+            Assert.Equal("Cancelled", confirmed.Data!.StateCode);
+            Assert.Equal(409, (await finalChecker.TransitionAsync(id, "confirm-cancel",
+                new ProcurementPurchaseOrderDecisionRequest {
+                    RowVersion = requestedVersion, Reason = "Competing stale cancellation confirmation" })).StatusCode);
+            Assert.Empty((await finalChecker.CommitmentsAsync(1, 25, null, supplierId,
+                null, false, null)).Data!.Items);
+            Assert.DoesNotContain((await finalChecker.PendingApprovalsAsync(1, 25, null, null))
+                .Data!.Items, x => x.Id == id);
+            var audit = await finalChecker.HistoryAsync(id, 1, 50);
+            Assert.True(audit.Success, audit.Message);
+            Assert.Contains(audit.Data!.Items, x => x.State == "CancelRequested");
+            Assert.Contains(audit.Data.Items, x => x.State == "Cancelled");
+            Assert.Empty(await finalCheckerDb.InventoryMovements.ToListAsync());
+        }
     }
 }

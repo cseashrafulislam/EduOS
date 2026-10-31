@@ -4,7 +4,7 @@ const root = document.getElementById('poWorkspace'); if (!root) return;
 const $ = id => document.getElementById(id);
 const bn = (document.documentElement.lang || '').toLowerCase().startsWith('bn');
 const en = {title:'Purchase orders',requisitions:'Requisitions',suppliers:'Suppliers',export:'CSV',new:'New order',
- help:'Create from an approved requisition and approved campus supplier. A separate checker must approve the order.',
+ help:'Create from an approved requisition and supplier. An independent checker approves orders and approved-order cancellation requests. No supplier notification or stock movement is sent.',
  campus:'Campus ID',status:'Status',all:'All',search:'Search',filter:'Filter',number:'Order',supplier:'Supplier',
  total:'Total BDT',actions:'Actions',previous:'Previous',next:'Next',expected:'Expected delivery',
  requisition:'Approved requisition',find:'Find',close:'Close',create:'Create draft',details:'Order details',
@@ -12,7 +12,7 @@ const en = {title:'Purchase orders',requisitions:'Requisitions',suppliers:'Suppl
  submit:'Submit',approve:'Approve',reject:'Reject',revise:'Revise',cancel:'Cancel',view:'View',
  empty:'No orders found.',failed:'Request failed.',saved:'Saved.',page:'Page',of:'of',selected:'Selected'};
 const bd = {title:'ক্রয়াদেশ',requisitions:'ক্রয় চাহিদাপত্র',suppliers:'সরবরাহকারী',export:'CSV',new:'নতুন ক্রয়াদেশ',
- help:'অনুমোদিত চাহিদাপত্র ও ক্যাম্পাস সরবরাহকারী থেকে ক্রয়াদেশ তৈরি করুন। পৃথক অনুমোদনকারী প্রয়োজন।',
+ help:'অনুমোদিত চাহিদাপত্র ও সরবরাহকারী থেকে ক্রয়াদেশ তৈরি করুন। পৃথক অনুমোদনকারী ক্রয়াদেশ ও বাতিলের আবেদন অনুমোদন করেন। এখানে সরবরাহকারীকে বার্তা বা স্টক পরিবর্তন করা হয় না।',
  campus:'ক্যাম্পাস',status:'অবস্থা',all:'সব',search:'খুঁজুন',filter:'ফিল্টার',number:'ক্রয়াদেশ',supplier:'সরবরাহকারী',
  total:'মোট টাকা',actions:'কার্যক্রম',previous:'আগের',next:'পরের',expected:'প্রত্যাশিত সরবরাহ',
  requisition:'অনুমোদিত চাহিদাপত্র',find:'খুঁজুন',close:'বন্ধ',create:'খসড়া তৈরি',details:'ক্রয়াদেশের বিবরণ',
@@ -20,6 +20,12 @@ const bd = {title:'ক্রয়াদেশ',requisitions:'ক্রয় চা�
  submit:'জমা',approve:'অনুমোদন',reject:'প্রত্যাখ্যান',revise:'সংশোধন',cancel:'বাতিল',view:'দেখুন',
  empty:'ক্রয়াদেশ পাওয়া যায়নি।',failed:'অনুরোধ ব্যর্থ।',saved:'সংরক্ষিত।',page:'পৃষ্ঠা',of:'এর',selected:'নির্বাচিত'};
 en.commitments='Commitments';bd.commitments='ক্রয় প্রতিশ্রুতি';
+Object.assign(en,{ 'request-cancel':'Request cancellation', 'confirm-cancel':'Confirm cancellation',
+ 'deny-cancel':'Decline cancellation', CancelRequested:'Cancellation requested',
+ Approved:'Approved',Draft:'Draft',Submitted:'Submitted',Rejected:'Rejected',Cancelled:'Cancelled'});
+Object.assign(bd,{ 'request-cancel':'বাতিলের আবেদন', 'confirm-cancel':'বাতিল অনুমোদন',
+ 'deny-cancel':'বাতিলের আবেদন প্রত্যাখ্যান', CancelRequested:'বাতিলের আবেদন চলমান',
+ Approved:'অনুমোদিত',Draft:'খসড়া',Submitted:'জমা',Rejected:'প্রত্যাখ্যাত',Cancelled:'বাতিল'});
 en.edit='Amend draft order';en.amendReason='Amendment reason';en.save='Save amendment';
 bd.edit='খসড়া ক্রয়াদেশ সংশোধন';bd.amendReason='সংশোধনের কারণ';bd.save='সংশোধন সংরক্ষণ';
 Object.assign(en,{approvalQueue:'Approval queue',allOrders:'All orders',history:'Decision history',
@@ -61,7 +67,7 @@ async function load() {
   totalPages = data.totalPages || 1; $('poRows').replaceChildren();
   for (const row of data.items || []) {
    const tr = el('tr');
-   for (const v of [row.orderNumber,row.campusId,row.supplierId,row.stateCode,Number(row.totalAmount).toFixed(2)]) tr.append(el('td',v));
+   for (const v of [row.orderNumber,row.campusId,row.supplierId,t(row.stateCode),Number(row.totalAmount).toFixed(2)]) tr.append(el('td',v));
    const action = el('td'); action.append(button('view', () => showDetail(row.id))); tr.append(action); $('poRows').append(tr);
   }
   if (!data.items?.length) { const tr=el('tr'),td=el('td',t('empty'));td.colSpan=6;tr.append(td);$('poRows').append(tr); }
@@ -146,7 +152,7 @@ async function showDetail(id) {
  try {
   const row=await api(base+'/'+id);if(seq!==detailEpoch)return;
   current=row;$('poDetailSummary').replaceChildren();
-  const summary=el('p',row.orderNumber+' · '+row.stateCode+' · '+t('total')+': '+Number(row.totalAmount).toFixed(2));
+  const summary=el('p',row.orderNumber+' · '+t(row.stateCode)+' · '+t('total')+': '+Number(row.totalAmount).toFixed(2));
   $('poDetailSummary').append(summary);$('poDetailLines').replaceChildren();
   for(const line of row.lines||[]) {
    const tr=el('tr');
@@ -166,6 +172,12 @@ async function showDetail(id) {
   }
   if(maker&&mine&&row.stateCode==='Rejected')actions.append(button('revise',()=>decide('revise')));
   if(maker&&mine&&['Draft','Submitted','Rejected'].includes(row.stateCode))actions.append(button('cancel',()=>decide('cancel')));
+  if(maker&&mine&&row.stateCode==='Approved')
+   actions.append(button('request-cancel',()=>decide('request-cancel')));
+  if(checker&&!mine&&row.stateCode==='CancelRequested'){
+   actions.append(button('confirm-cancel',()=>decide('confirm-cancel'),'btn-outline-danger'));
+   actions.append(button('deny-cancel',()=>decide('deny-cancel')));
+  }
   detailDialog.showModal();
  }catch(e){if(seq===detailEpoch)alert(e.message);}
 }
@@ -242,6 +254,8 @@ $('poDecisionForm').addEventListener('submit',async e=>{
  e.preventDefault();if(busy||!current||!pendingAction)return;
  const reason=$('poReason').value.trim();
  if(['reject','cancel'].includes(pendingAction)&&!reason){$('poReason').focus();return;}
+ if(['request-cancel','confirm-cancel','deny-cancel'].includes(pendingAction)&&
+   (reason.length<10||reason.length>500)){$('poReason').focus();return;}
  busy=true;$('poDecisionConfirm').disabled=true;
  try {
   await api(base+'/'+current.id+'/'+pendingAction,'POST',{rowVersion:current.rowVersion,reason});

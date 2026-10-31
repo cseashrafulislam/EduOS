@@ -24,13 +24,13 @@
             @if (maker) { <button id="poNew" type="button" class="btn btn-primary btn-sm" data-i18n="new">New order</button> }
         </div>
     </header>
-    <div id="poHelpText" class="alert alert-light border d-none" role="note" data-i18n="help">Create from an approved requisition and approved campus supplier. A separate checker must approve the order.</div>
+    <div id="poHelpText" class="alert alert-light border d-none" role="note" data-i18n="help">Create from an approved requisition and supplier. An independent checker approves orders and approved-order cancellation requests. No supplier notification or stock movement is sent.</div>
     <div id="poAlert" class="d-none" role="status" aria-live="polite"></div>
     <form id="poFilters" class="row g-2 mb-3">
         <div class="col-12 col-md-3"><label class="form-label" for="poCampus" data-i18n="campus">Campus ID</label>
             <input id="poCampus" class="form-control" type="number" min="1" /></div>
         <div class="col-6 col-md-3"><label class="form-label" for="poState" data-i18n="status">Status</label>
-            <select id="poState" class="form-select"><option value="" data-i18n="all">All</option><option>Draft</option><option>Submitted</option><option>Approved</option><option>Rejected</option><option>Cancelled</option></select></div>
+            <select id="poState" class="form-select"><option value="" data-i18n="all">All</option><option>Draft</option><option>Submitted</option><option>Approved</option><option>CancelRequested</option><option>Rejected</option><option>Cancelled</option></select></div>
         <div class="col-6 col-md-4"><label class="form-label" for="poSearch" data-i18n="search">Search</label>
             <input id="poSearch" class="form-control" maxlength="100" /></div>
         <div class="col-12 col-md-2 d-flex align-items-end"><button type="submit" class="btn btn-outline-primary w-100" data-i18n="filter">Filter</button></div>

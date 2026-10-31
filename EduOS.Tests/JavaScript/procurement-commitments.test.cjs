@@ -23,3 +23,10 @@ test('approved commitments use a bilingual bounded read-only register, not stock
  assert.match(api,/TotalCount > 500/);
  assert.match(api,/=\+-@/);
 });
+
+test('cancellation requests remain visible commitments with explicit status',()=>{
+ assert.match(script,/CancelRequested/);
+ assert.match(script,/t\(x.stateCode\)/);
+ assert.match(view,/approvalStatus/);
+ assert.match(api,/Csv\(x.StateCode\)/);
+});

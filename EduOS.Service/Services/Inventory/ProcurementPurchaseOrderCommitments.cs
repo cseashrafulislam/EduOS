@@ -24,7 +24,9 @@ public sealed partial class ProcurementPurchaseOrderService
 
         // Aging date is NOT a historical as-of snapshot; only current approved POs are shown.
         var asOf = agingDate?.Date ?? clock.GetUtcNow().UtcDateTime.Date;
-        var query = Visible().Where(x => x.StateCode == "Approved");
+        // A pending cancellation remains an approved supplier commitment until checker confirmation.
+        var query = Visible().Where(x => x.StateCode == "Approved" ||
+            x.StateCode == "CancelRequested");
         if (campusId.HasValue) query = query.Where(x => x.CampusId == campusId.Value);
         if (supplierId.HasValue) query = query.Where(x => x.SupplierId == supplierId.Value);
         if (overdueOnly)
@@ -43,7 +45,7 @@ public sealed partial class ProcurementPurchaseOrderService
             .ThenBy(x => x.ExpectedDeliveryDate).ThenBy(x => x.Id)
             .Skip((page - 1) * pageSize).Take(pageSize)
             .Select(x => new { x.Id, x.OrderNumber, x.CampusId, x.SupplierId,
-                x.CurrencyCode, x.ExpectedDeliveryDate, x.DecidedAt }).ToListAsync(ct);
+                x.CurrencyCode, x.StateCode, x.ExpectedDeliveryDate, x.DecidedAt }).ToListAsync(ct);
         var ids = headers.Select(x => x.Id).ToArray();
         var supplierIds = headers.Select(x => x.SupplierId).Distinct().ToArray();
         var campusIds = headers.Select(x => x.CampusId).Distinct().ToArray();
@@ -70,7 +72,8 @@ public sealed partial class ProcurementPurchaseOrderService
                 Id = x.Id, OrderNumber = x.OrderNumber, CampusId = x.CampusId,
                 SupplierId = x.SupplierId,
                 SupplierName = supplierNames.GetValueOrDefault((x.SupplierId, x.CampusId)) ?? "",
-                CurrencyCode = x.CurrencyCode, ExpectedDeliveryDate = x.ExpectedDeliveryDate,
+                CurrencyCode = x.CurrencyCode, StateCode = x.StateCode,
+                ExpectedDeliveryDate = x.ExpectedDeliveryDate,
                 ApprovedAt = x.DecidedAt, AgingDate = asOf,
                 DaysOverdue = overdue ? (asOf - due!.Value).Days : 0,
                 DeliverySchedule = !due.HasValue ? "Unscheduled" :

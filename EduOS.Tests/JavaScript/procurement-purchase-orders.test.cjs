@@ -33,3 +33,14 @@ test('PO workflow is bilingual and has genuine maker-checker transitions', () =>
  assert.match(script,/poExport'\).disabled = queueOnly/);
  assert.match(script,/সিদ্ধান্তের ইতিহাস/);
 });
+
+test('approved-order cancellation requires separate checker, reason and stale-safe request', () => {
+ for(const action of ['request-cancel','confirm-cancel','deny-cancel'])
+  assert.match(script,new RegExp(action));
+ assert.match(script,/row.stateCode==='Approved'/);
+ assert.match(script,/row.stateCode==='CancelRequested'/);
+ assert.match(script,/checker&&!mine/);
+ assert.match(script,/reason.length<10/);
+ assert.match(script,/বাতিলের আবেদন/);
+ assert.match(view,/CancelRequested/);
+});

@@ -55,10 +55,10 @@ public sealed class ProcurementPurchaseOrdersController : ControllerBase
             if (s.TrimStart().Length > 0 && "=+-@".Contains(s.TrimStart()[0])) s = "'" + s;
             return "\"" + s.Replace("\"", "\"\"") + "\"";
         }
-        var csv = new StringBuilder("Order,Campus ID,Supplier ID,Supplier,Approved UTC,Expected Delivery,Aging Date,Schedule,Days Overdue,Lines,Currency,Approved Commitment\r\n");
+        var csv = new StringBuilder("Order,Campus ID,Supplier ID,Supplier,Approval Status,Approved UTC,Expected Delivery,Aging Date,Schedule,Days Overdue,Lines,Currency,Approved Commitment\r\n");
         foreach (var x in records)
             csv.AppendJoin(',', Csv(x.OrderNumber), Csv(x.CampusId), Csv(x.SupplierId),
-                Csv(x.SupplierName), Csv(x.ApprovedAt?.ToString("O")),
+                Csv(x.SupplierName), Csv(x.StateCode), Csv(x.ApprovedAt?.ToString("O")),
                 Csv(x.ExpectedDeliveryDate?.ToString("yyyy-MM-dd")),
                 Csv(x.AgingDate.ToString("yyyy-MM-dd")), Csv(x.DeliverySchedule),
                 Csv(x.DaysOverdue), Csv(x.LineCount), Csv(x.CurrencyCode),

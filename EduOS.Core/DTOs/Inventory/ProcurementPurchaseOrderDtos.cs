@@ -74,6 +74,7 @@ public sealed class ProcurementPurchaseOrderHistoryDto
 public sealed class ProcurementPurchaseOrderCommitmentDto
 {
     public long Id { get; set; }
+    public string StateCode { get; set; } = string.Empty;
     public string OrderNumber { get; set; } = string.Empty;
     public long CampusId { get; set; }
     public long SupplierId { get; set; }

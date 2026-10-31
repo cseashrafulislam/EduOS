@@ -200,7 +200,7 @@ public sealed partial class ProcurementPurchaseOrderService : IProcurementPurcha
         ProcurementPurchaseOrderDecisionRequest request, CancellationToken ct = default)
     {
         if (!Reader) return Denied<ProcurementPurchaseOrderDto>();
-        if (id <= 0 || request == null || action is not ("submit" or "approve" or "reject" or "revise" or "cancel") ||
+        if (id <= 0 || request == null || action is not ("submit" or "approve" or "reject" or "revise" or "cancel" or "request-cancel" or "confirm-cancel" or "deny-cancel") ||
             request.Reason?.Length > 500)
             return ApiResponse<ProcurementPurchaseOrderDto>.ErrorResponse("Invalid decision.");
         // Serialize the source approval check and the PO decision. No inventory or Finance posting occurs.
@@ -213,8 +213,8 @@ public sealed partial class ProcurementPurchaseOrderService : IProcurementPurcha
             if (order == null || !await CampusAllowed(order.CampusId, ct))
                 return ApiResponse<ProcurementPurchaseOrderDto>.ErrorResponse("Order not found.", 404);
             var owner = order.CreatedBy == user.UserId;
-            if ((action is "submit" or "revise" or "cancel" && (!Maker || !owner)) ||
-                (action is "approve" or "reject" && (!Checker || owner)))
+            if (((action is "submit" or "revise" or "cancel" or "request-cancel") && (!Maker || !owner)) ||
+                ((action is "approve" or "reject" or "confirm-cancel" or "deny-cancel") && (!Checker || owner)))
                 return Denied<ProcurementPurchaseOrderDto>();
             if (!Version(order.RowVersion, request.RowVersion))
                 return ApiResponse<ProcurementPurchaseOrderDto>.ErrorResponse("Order changed; reload.", 409);
@@ -224,11 +224,20 @@ public sealed partial class ProcurementPurchaseOrderService : IProcurementPurcha
                 "approve" or "reject" => order.StateCode == "Submitted",
                 "revise" => order.StateCode == "Rejected",
                 "cancel" => order.StateCode is "Draft" or "Submitted" or "Rejected",
+                "request-cancel" => order.StateCode == "Approved",
+                "confirm-cancel" or "deny-cancel" => order.StateCode == "CancelRequested",
                 _ => false
             };
             if (!valid) return ApiResponse<ProcurementPurchaseOrderDto>.ErrorResponse("Invalid state transition.", 409);
-            if (action is "reject" or "cancel" && string.IsNullOrWhiteSpace(request.Reason))
+            if ((action is "reject" or "cancel") && string.IsNullOrWhiteSpace(request.Reason))
                 return ApiResponse<ProcurementPurchaseOrderDto>.ErrorResponse("Reason required.");
+            // Approved supplier commitments cannot be silently cancelled by their maker.
+            // An independent checker decides; retain the original approval timestamp
+            // until cancellation is confirmed. Audit preserves all reasons and states.
+            if ((action is "request-cancel" or "confirm-cancel" or "deny-cancel") &&
+                (request.Reason == null || request.Reason.Trim().Length is < 10 or > 500))
+                return ApiResponse<ProcurementPurchaseOrderDto>.ErrorResponse(
+                    "Cancellation decision requires a 10–500 character reason.");
             // Never approve a stale or tampered supplier commitment: recheck every source line,
             // active stock item, approved requisition budget and campus supplier under the lock.
             if (action is "submit" or "approve" && !await CommitmentValidAsync(order, ct))
@@ -238,14 +247,17 @@ public sealed partial class ProcurementPurchaseOrderService : IProcurementPurcha
             order.StateCode = action switch
             {
                 "submit" => "Submitted", "approve" => "Approved", "reject" => "Rejected",
-                "revise" => "Draft", _ => "Cancelled"
+                "revise" => "Draft", "request-cancel" => "CancelRequested",
+                "deny-cancel" => "Approved", _ => "Cancelled"
             };
             if (action == "submit")
             { order.SubmittedAt = now; order.DecidedAt = null; order.DecidedByUserId = null; order.DecisionReason = null; }
             if (action == "revise")
             { order.SubmittedAt = null; order.DecidedAt = null; order.DecidedByUserId = null; order.DecisionReason = null; }
-            if (action is "approve" or "reject" or "cancel")
+            if (action is "approve" or "reject" or "cancel" or "confirm-cancel")
             { order.DecidedAt = now; order.DecidedByUserId = user.UserId; order.DecisionReason = request.Reason?.Trim(); }
+            if (action is "request-cancel" or "deny-cancel")
+            { order.DecisionReason = request.Reason?.Trim(); }
             order.UpdatedAt = now; order.UpdatedBy = user.UserId;
             await db.SaveChangesAsync(ct);
             if (tx != null) await tx.CommitAsync(ct);

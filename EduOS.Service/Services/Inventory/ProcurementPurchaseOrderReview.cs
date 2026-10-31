@@ -17,7 +17,8 @@ public sealed partial class ProcurementPurchaseOrderService
             (long)(page - 1) * pageSize > int.MaxValue || campusId is <= 0 || search?.Length > 100)
             return ApiResponse<PagedResult<ProcurementPurchaseOrderDto>>.ErrorResponse("Invalid approval filters.");
         // SQL applies tenant/campus and maker exclusion before counting or pagination.
-        var query = Visible().Where(x => x.StateCode == "Submitted" &&
+        var query = Visible().Where(x =>
+            (x.StateCode == "Submitted" || x.StateCode == "CancelRequested") &&
             x.CreatedBy.HasValue && x.CreatedBy != user.UserId);
         if (campusId.HasValue) query = query.Where(x => x.CampusId == campusId.Value);
         if (!string.IsNullOrWhiteSpace(search))
