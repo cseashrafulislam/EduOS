@@ -1,6 +1,6 @@
 # Procurement V3 — persistent supplier invoice and canonical AP handoff
 
-Date: 2026-10-31. Branch: `Ashraful`. Engineering code awaiting exact-commit CI and disposable SQL acceptance, representative browser/production UAT and owner go/no-go. **This is not a 100% Procurement closure certificate.**
+Date: 2026-10-31. Branch: `Ashraful`. The supplier-invoice/AP **engineering slice passed both exact-commit checks** at [`ea8c2a9`](https://github.com/cseashrafulislam/EduOS/commit/ea8c2a9a2953f7757f4e8f8d31003fd5d6822c6b): [full CI](https://github.com/cseashrafulislam/EduOS/actions/runs/41203617372) **SUCCESS** (build, Node/.NET tests, EF model-drift, SQL script and publish) and [disposable SQL Server migration/acceptance](https://github.com/cseashrafulislam/EduOS/actions/runs/41203617295) **SUCCESS** (fresh/repeated migrations, source-link tests, financial evidence and backup/restore). Representative browser/production UAT and owner go/no-go remain separate. **This is not a 100% Procurement closure certificate.**
 
 ## Ownership and workflow
 
