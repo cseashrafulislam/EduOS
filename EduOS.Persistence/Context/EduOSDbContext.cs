@@ -1203,6 +1203,8 @@ public class EduOSDbContext :
         TenantReference<ImportLog, FileAsset>(modelBuilder, nameof(ImportLog.FileAssetId));
         TenantReference<ImportLogItem, ImportLog>(modelBuilder, nameof(ImportLogItem.ImportLogId));
         TenantReference<WebhookDelivery, WebhookEndpoint>(modelBuilder, nameof(WebhookDelivery.WebhookEndpointId));
+        // Facilities
+        TenantReference<FacilitySpace, Campus>(modelBuilder, nameof(FacilitySpace.CampusId));
         // Inventory / Assets
         TenantReference<InventoryLocation, Campus>(modelBuilder, nameof(InventoryLocation.CampusId));
         TenantReference<InventoryMovement, InventoryLocation>(modelBuilder, nameof(InventoryMovement.FromLocationId));
@@ -1938,8 +1940,6 @@ public class EduOSDbContext :
         modelBuilder.Entity<FacilitySpace>().ToTable(t => t.HasCheckConstraint("CK_FacilitySpaces_Code",
             "LEN(LTRIM(RTRIM([Code]))) > 0 AND LEN(LTRIM(RTRIM([Name]))) > 0"));
 
-        // Facilities
-        TenantReference<FacilitySpace, Campus>(modelBuilder, nameof(FacilitySpace.CampusId));
         // Inventory / asset
         UniqueTenant<InventoryLocation>(modelBuilder, nameof(InventoryLocation.Code));
         UniqueTenant<InventoryItem>(modelBuilder, nameof(InventoryItem.Code));

@@ -12566,7 +12566,7 @@ namespace EduOS.Persistence.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("TenantId", "CampusId");
+                    b.HasAlternateKey("TenantId", "Id");
 
                     b.HasIndex("TenantId", "CampusId", "IsActive", "Name");
 
@@ -26368,7 +26368,8 @@ namespace EduOS.Persistence.Migrations
                         .WithMany()
                         .HasForeignKey("TenantId", "CampusId")
                         .HasPrincipalKey("TenantId", "Id")
-                        .OnDelete(DeleteBehavior.Restrict);
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
 
                     b.Navigation("Tenant");
                 });
