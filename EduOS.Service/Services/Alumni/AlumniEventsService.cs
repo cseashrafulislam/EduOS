@@ -99,9 +99,9 @@ public sealed partial class AlumniService
                 var existing = await _db.Database.SqlQueryRaw<AlumniEventIdentityRow>(
                     @"SELECT Id, PublicId AS Reference, CampusId, CreatedByUserId, RequestHash,
                         CAST(Status AS int) AS Status, StartsAtUtc, RowVersion
-                      FROM dbo.AlumniEvents e WHERE e.TenantId = {0} AND e.CreateRequestId = {1}
+                      FROM dbo.AlumniEvents e WHERE e.TenantId = {0} AND e.CreateRequestId = {2}
                         AND " + CampusGrantSql,
-                    tenant, request.ClientRequestId).ToListAsync(token);
+                    tenant, actor, request.ClientRequestId).ToListAsync(token);
                 if (existing.Count != 0)
                 {
                     if (existing[0].CreatedByUserId != actor || existing[0].RequestHash != hash)
