@@ -60,6 +60,8 @@ test('global feature search reuses server-rendered entitlement and role gated si
     assert.match(layout, /OptionalModuleNavigation\.GetAvailableAsync/);
     assert.match(layout, /V2RolePortalNavigation\.GetLinks/);
     assert.match(script, /sidebar\.querySelectorAll\('nav\[data-sidebar-section\] a\.nav-link'\)/);
+    assert.match(layout, /data-feature-discovery-link[^>]+href="\/workspace"/);
+    assert.match(script, /document\.querySelectorAll\('a\[data-feature-discovery-link\]'\)/);
     assert.match(layout, /id="featureSearchOpen"/);
     assert.match(layout, /id="featureSearchDialog"/);
     assert.match(layout, /id="featureSearchInput"/);
