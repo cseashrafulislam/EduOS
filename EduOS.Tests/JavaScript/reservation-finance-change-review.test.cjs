@@ -8,6 +8,8 @@ test('Finance proposed change review remains read-only and cannot approve change
         '../../EduOS.App/wwwroot/js/finance/reservation-finance-change-review.js'), 'utf8');
     const view = fs.readFileSync(path.join(__dirname,
         '../../EduOS.App/Views/FinanceAdjustments/ReservationPreflight.cshtml'), 'utf8');
+    const controller = fs.readFileSync(path.join(__dirname,
+        '../../EduOS.App/Controllers/Api/FinanceAdjustmentsController.cs'), 'utf8');
     assert.match(script, /reservations\/change-review/);
     assert.match(script, /reservationFinancePreflightLoaded/);
     assert.match(script, /credentials:'same-origin'/);
@@ -34,4 +36,5 @@ test('Finance proposed change review remains read-only and cannot approve change
     assert.match(view, /reservationFinanceChangeReviewManualAmount/);
     assert.match(view, /reservationFinanceChangeReviewManualReason/);
     assert.match(view, /reservation-finance-change-review\.js/);
+    assert.match(controller, /request\.ManualAdjustmentDelta\.HasValue/);
 });

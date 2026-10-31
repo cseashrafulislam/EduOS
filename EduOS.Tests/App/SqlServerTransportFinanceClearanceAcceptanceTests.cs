@@ -62,10 +62,14 @@ public sealed partial class SqlServerTransportSeatCapacityIntegrationTests
                     ClientRequestId = Guid.NewGuid(), SourceAssignmentReference = source.Reference,
                     SourceRowVersion = source.RowVersion,
                     Operation = TransportClearanceOperation.UpcomingRiderExtension,
-                    EffectiveDate = proposedEnd, Reason = "Additional future bus service charge"
+                    EffectiveDate = proposedEnd, Reason = "Additional future bus service charge",
+                    ManualAdjustmentDelta = 100m,
+                    OverrideReason = "Approved school-specific supplemental route charge."
                 });
             Assert.True(requested.Success, requested.Message);
             Assert.True(requested.Data!.ApprovedNetAdjustment > 0m);
+            Assert.Equal(requested.Data.SuggestedNetAdjustment + 100m,
+                requested.Data.ApprovedNetAdjustment);
             id = requested.Data.Id;
         }
         long invoiceId, journalId;
