@@ -601,10 +601,10 @@
                             </button>
 
                             <ul class="dropdown-menu dropdown-menu-end shadow border-0 rounded-4 p-2">
-                                <li><a class="dropdown-item rounded-3" href="/Account/Profile">@T["Profile"]</a></li>
+                                <li><a class="dropdown-item rounded-3" data-feature-discovery-link data-feature-discovery-section="@(currentCulture == "bn-BD" ? "অ্যাকাউন্ট" : "Account")" href="/Account/Profile">@T["Profile"]</a></li>
                                 @if (User?.IsInRole("SuperAdmin") != true)
                                 {
-                                    <li><a class="dropdown-item rounded-3" href="/workspace">@(currentCulture == "bn-BD" ? "ওয়ার্কস্পেস ডিজাইন" : "Workspace Appearance")</a></li>
+                                    <li><a class="dropdown-item rounded-3" data-feature-discovery-link data-feature-discovery-section="@(currentCulture == "bn-BD" ? "সেটিংস" : "Settings")" href="/workspace">@(currentCulture == "bn-BD" ? "ওয়ার্কস্পেস ডিজাইন" : "Workspace Appearance")</a></li>
                                      <li><button type="button" class="dropdown-item rounded-3" data-bs-toggle="modal" data-bs-target="#institutionSwitchModal">@(currentCulture == "bn-BD" ? "প্রতিষ্ঠান পরিবর্তন" : "Switch institution")</button></li>
                                 }
                                 <li><a class="dropdown-item rounded-3" href="/LoginActivity/Index">Sign-in activity</a></li>
