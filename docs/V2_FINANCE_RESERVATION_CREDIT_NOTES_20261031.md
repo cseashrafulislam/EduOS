@@ -1,5 +1,7 @@
 # V2 Finance — reservation negative credit-note contract (2026-10-31)
 
+> **Final code verification:** The implemented original-invoice negative credit-note settlement and its paid/unpaid reconciliation are included in [`ce0bb2e`](https://github.com/cseashrafulislam/EduOS/commit/ce0bb2e055f566616d81249e40af4b1d3a9b22e4), with [CI](https://github.com/cseashrafulislam/EduOS/actions/runs/41187500922) and disposable [SQL acceptance](https://github.com/cseashrafulislam/EduOS/actions/runs/41187500912) both successful. See the [V2 Final Development Baseline](V2_FINAL_DEVELOPMENT_BASELINE_20261031.md). The original production-signoff restrictions below still apply.
+
 **Scope:** `Ashraful` only. This increment extends the existing V2 hostel upcoming-start reschedule and transport upcoming-rider extension Finance approval. No V1 schema or LMS/Library baseline changes.
 
 ## Signed Finance approval

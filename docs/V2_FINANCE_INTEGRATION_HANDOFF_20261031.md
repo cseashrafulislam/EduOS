@@ -1,5 +1,7 @@
 # V2 Finance integration — exact-code QA handoff (2026-10-31)
 
+> **Historical phase checkpoint, superseded:** The negative original-invoice credit-note and paid/unpaid Finance settlement described as missing below were completed after `aff7a72c`, alongside Hostel/Transport period operations. See the [V2 Final Development Baseline](V2_FINAL_DEVELOPMENT_BASELINE_20261031.md): `ce0bb2e` passed same-commit [CI](https://github.com/cseashrafulislam/EduOS/actions/runs/41187500922) and [SQL](https://github.com/cseashrafulislam/EduOS/actions/runs/41187500912). Do not reopen this implementation merely because the older handoff records its previous gaps; real-institute acceptance remains separate.
+
 **Branch:** `Ashraful`  
 **Verified code commit:** [`aff7a72c2365d579f22271ffd1794761b6850b92`](https://github.com/cseashrafulislam/EduOS/commit/aff7a72c2365d579f22271ffd1794761b6850b92)  
 **CI:** [SUCCESS, run 41175721344](https://github.com/cseashrafulislam/EduOS/actions/runs/41175721344)  

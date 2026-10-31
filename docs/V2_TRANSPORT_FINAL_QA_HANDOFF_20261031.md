@@ -1,5 +1,7 @@
 # EduOS V2 Transport — final code QA handoff (2026-10-31)
 
+> **Historical QA handoff:** Paid upcoming rider extension and shortening now use Finance-signed, independently approved, transactionally consumed settlements, including original-invoice negative credit notes. The older “full development not yet verified” label below is superseded by the exact-commit [V2 Final Development Baseline](V2_FINAL_DEVELOPMENT_BASELINE_20261031.md); final `ce0bb2e` CI/SQL are green. Pilot/browser/load/operational sign-offs are still pending.
+
 **Branch:** `Ashraful`. **Scope:** existing Transport operations + existing Hostel/Transport Finance handoff. **Ownership:** V2 only; V1, LMS/Library frozen baselines and independently running V3 automation are unchanged.
 
 ## What the code already supports

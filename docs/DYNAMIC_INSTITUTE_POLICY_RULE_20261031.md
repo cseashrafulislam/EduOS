@@ -12,11 +12,12 @@ Applies to all future EduOS V1 maintenance, V2 integrations and V3 features. It 
 6. **Professional UI.** A compact selection labelled Automatic / Manual Final / Auto + Manual, one conditional signed input and one conditional explanation. Display calculated amount, chosen amount, currency and basis; preserve server validation errors, access restrictions, bilingual/theme/accessibility standards. Don't expose raw entity IDs as the primary user selection where a safe record picker already exists.
 7. **Release sequencing:** first finish the Finance-owned V2 settlement integration, then only remaining Hostel/Transport Operations work, then Final Acceptance. Do not redo completed LMS/Library or frozen V1 workflows.
 
-## Current implemented V2 Finance increment
+## Current verified V2 Finance integration (2026-10-31)
 
 - Existing campus `DailyProrated` / `FixedMonthly` / `Manual` and `AllowManualOverride` settings remain authoritative.
 - `ReservationQuoteSelection` accepts an optional `manualDelta` with signed-cent validation, checked sum, policy/permission gate and audit reason. It returns `Automatic`, `ManualOverride`, `AutoPlusManual` or `ManualRequired` as appropriate.
 - Finance preflight, Hostel and Transport request/review APIs and screens use this selection, including the original automatic basis and a separately editable correction.
-- For positive finance-cleared period adjustments, the existing automatically prepared invoice/journal flow is preserved; negative changes continue through manual posted-journal settlement pending the original-invoice credit-note architecture.
+- For positive finance-cleared period adjustments, the Finance reviewer can prepare an automatic StudentInvoice and approved journal; the authorized Hostel/Transport mutation finalizes posting atomically.
+- For negative adjustments, an independent Finance reviewer can select a posted, eligible original invoice and approve an automatic **original-invoice credit note** with immutable paid/unpaid split and optional student-credit liability for already-paid amounts; Operations posts it only alongside a successful single-use reservation change. Existing independent manual journal settlement is also supported. No automatic cash refund or credit redemption is inferred.
 
-**Status:** Automatic/manual/hybrid calculation selection is implemented; it does **not** independently certify fully automated paid/unpaid credit settlement or all EduOS modules as complete.
+**Status:** Automatic/manual/hybrid selection **and** the required V2 automatic positive/negative Finance settlement paths passed exact-commit [`ce0bb2e`](https://github.com/cseashrafulislam/EduOS/commit/ce0bb2e055f566616d81249e40af4b1d3a9b22e4) [CI](https://github.com/cseashrafulislam/EduOS/actions/runs/41187500922) and [SQL acceptance](https://github.com/cseashrafulislam/EduOS/actions/runs/41187500912). See the [V2 final baseline](V2_FINAL_DEVELOPMENT_BASELINE_20261031.md). This is code-scope verification; it does not prove production approval or that every unrelated V1/V3 policy uses the same configuration.

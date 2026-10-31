@@ -1,5 +1,7 @@
 # EDUOS V2 Hostel + Transport — Finance release and QA handoff (2026-10-31)
 
+> **Historical release handoff:** Later Hostel/Transport period amendment, Finance automatic invoice and original-invoice credit-note code passed exact-commit CI/SQL. The current development-complete status and outstanding *operational* acceptance are documented in the [V2 Final Development Baseline](V2_FINAL_DEVELOPMENT_BASELINE_20261031.md) at `ce0bb2e`. Manual-only settlement language and the old QA-pending status below apply to the earlier stage of implementation.
+
 ## Scope and authoritative ownership
 
 - Existing Hostel application, eligibility, waitlist, offer, guardian authority, bed allocation, resident, occupancy and reporting flows remain authoritative. Existing Transport fleet, route, stops, driver, student, trip, attendance, security and reporting flows remain authoritative. This release extends their operations; it does not replace them or create duplicate finance ledgers.
