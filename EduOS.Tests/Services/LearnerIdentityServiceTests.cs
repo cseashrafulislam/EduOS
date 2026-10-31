@@ -215,8 +215,10 @@ public class LearnerIdentityServiceTests
             .Should().Be(localPerson.Id);
         (await destination.StudentPersonLinks.SingleAsync()).PersonId.Should().Be(localPerson.Id);
         (await destination.LearnerConsentRequests.CountAsync()).Should().Be(verified ? 1 : 0);
+        // PersonIdentifier is intentionally global: the verified origin row is
+        // visible to this query, but consent must not create a duplicate.
         (await destination.PersonIdentifiers.CountAsync(x => x.PersonId == foreignPersonId))
-            .Should().Be(0);
+            .Should().Be(1);
         if (verified)
         {
             response.Data!.State.Should().Be("ConsentRequired");
