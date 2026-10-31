@@ -285,13 +285,13 @@ public sealed partial class SqlServerV3ProcurementPurchaseOrderTests
                 .FirstAsync(x=>x.SupplierInvoiceId==reversedTraceDb.ProcurementSupplierInvoices
                     .Where(y=>y.PublicId==first.Reference).Select(y=>y.Id).First());
             var original=invoiceLine.StockValue;
-            // Disposable SQL-only legacy corruption probe: never use normal
-            // mutation APIs to alter posted immutable invoice evidence.
-            await reversedTraceDb.ProcurementSupplierInvoiceLines.Where(x=>x.Id==invoiceLine.Id)
-                .ExecuteUpdateAsync(s=>s.SetProperty(x=>x.StockValue,original+1m));
-            Assert.Equal(409,(await trace.GetAsync(first.Reference)).StatusCode);
-            await reversedTraceDb.ProcurementSupplierInvoiceLines.Where(x=>x.Id==invoiceLine.Id)
-                .ExecuteUpdateAsync(s=>s.SetProperty(x=>x.StockValue,original));
+            // Canonical SQL trigger protects posted invoice evidence even against
+            // direct ExecuteUpdate; assert denial rather than bypassing immutability.
+            var immutable=await Assert.ThrowsAsync<Microsoft.Data.SqlClient.SqlException>(
+                async () => await reversedTraceDb.ProcurementSupplierInvoiceLines
+                    .Where(x=>x.Id==invoiceLine.Id)
+                    .ExecuteUpdateAsync(s=>s.SetProperty(x=>x.StockValue,original+1m)));
+            Assert.Contains("Immutable invoice receipt-line evidence",immutable.Message);
             Assert.True((await trace.GetAsync(first.Reference)).Success);
         }
         ProcurementSupplierInvoiceDto rejectedRequest;
