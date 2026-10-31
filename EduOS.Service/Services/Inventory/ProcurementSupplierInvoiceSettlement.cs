@@ -17,9 +17,6 @@ namespace EduOS.Service.Services.Inventory;
 public sealed partial class ProcurementSupplierInvoiceService
 {
     private const string SettlementSource = "ProcurementSupplierPayment";
-    private static bool ActiveSettlement(JournalState state) =>
-        state is JournalState.Submitted or JournalState.Approved or JournalState.Posted;
-
     private async Task<(ProcurementSupplierInvoice? Invoice, Journal? Original, long PayableId, string? Error)>
         SettlementSourceAsync(Guid reference, CancellationToken ct)
     {
@@ -167,6 +164,10 @@ public sealed partial class ProcurementSupplierInvoiceService
                 select new { b.AccountId }).FirstOrDefaultAsync(ct);
             if (bank == null || bank.AccountId == payableId)
                 return Err<SupplierSettlementInstructionDto>("Active campus-eligible BDT bank ledger required.", 409);
+            if (await db.BankAccounts.AsNoTracking().CountAsync(x => x.TenantId == user.TenantId &&
+                !x.IsDeleted && x.IsActive && x.AccountId == bank.AccountId &&
+                (x.CampusId == null || x.CampusId == invoice.CampusId), ct) != 1)
+                return Err<SupplierSettlementInstructionDto>("Bank ledger must resolve to exactly one eligible bank account.", 409);
             var reserved = await ReservedSettlementAsync(invoice.Id, payableId, ct);
             if (reserved < 0m || reserved > invoice.TotalAmount ||
                 request.Amount > invoice.TotalAmount - reserved)
@@ -225,6 +226,9 @@ public sealed partial class ProcurementSupplierInvoiceService
                 return Err<SupplierSettlementInstructionDto>("Independent maker-checker separation required.", 403);
             if (journal.State != JournalState.Submitted || !Version(journal.RowVersion, request.RowVersion))
                 return Err<SupplierSettlementInstructionDto>("Instruction already reviewed or stale.", 409);
+            if (journal.CurrencyCode != "BDT" || journal.JournalDate < invoice.InvoiceDate ||
+                journal.ReversalOfJournalId.HasValue || journal.AccountingPeriodId <= 0)
+                return Err<SupplierSettlementInstructionDto>("Instruction source or accounting period invalid.", 409);
             var lines = await db.JournalLines.AsNoTracking().Where(x => x.TenantId == user.TenantId &&
                 x.JournalId == journal.Id && !x.IsDeleted).OrderBy(x => x.LineNo).Take(3).ToListAsync(ct);
             if (lines.Count != 2 || lines[0].LineNo != 1 || lines[1].LineNo != 2 ||
