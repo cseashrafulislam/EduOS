@@ -1,0 +1,31 @@
+name: Inventory Physical Count Browser Acceptance
+on:
+  push:
+    branches: [Ashraful]
+    paths:
+      - 'EduOS.App/wwwroot/js/inventory/movements-physical-counts.js'
+      - 'EduOS.App/Views/InventoryMovements/_PhysicalCounts.cshtml'
+      - 'EduOS.App/Views/InventoryMovements/PrintPhysicalCount.cshtml'
+      - 'tests/browser/inventory-physical-count.cjs'
+      - '.github/workflows/inventory-physical-browser.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: inventory-physical-browser-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  chromium-inventory-physical:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install pinned Playwright
+        run: npm install --no-save --no-audit --no-fund playwright@1.56.0
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Exercise blind draft maker and bilingual mobile checker workflows
+        run: node tests/browser/inventory-physical-count.cjs

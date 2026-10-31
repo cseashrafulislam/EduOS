@@ -11,6 +11,20 @@ public sealed class InventoryMovementsController : Controller
     public InventoryMovementsController(IInventoryMovementService movements) => this.movements = movements;
 
     [HttpGet, ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
+    public async Task<IActionResult> PrintPhysicalCount(Guid reference, CancellationToken ct = default)
+    {
+        if (reference == Guid.Empty) return BadRequest();
+        // Always resolve through the authorized tenant/campus service. In particular,
+        // a blind Draft must never materialize its hidden book values in print HTML.
+        var result = await movements.GetPhysicalCountAsync(reference, ct);
+        if (!result.Success || result.Data == null)
+            return StatusCode(result.StatusCode);
+        Response.Headers["Cache-Control"] = "private, no-store";
+        Response.Headers["X-Content-Type-Options"] = "nosniff";
+        return View(result.Data);
+    }
+
+    [HttpGet, ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
     public async Task<IActionResult> PrintReservations(long? locationId, string? search,
         bool includeClosed = false, bool overdueOnly = false, CancellationToken ct = default)
     {

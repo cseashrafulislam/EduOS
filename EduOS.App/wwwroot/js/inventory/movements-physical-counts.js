@@ -53,6 +53,10 @@ export async function initPhysicalCounts(refreshLedger = () => {}) {
     const locations = await activeLocations();
     locations.forEach(location => locationNames.set(location.id, location.code + ' — ' + location.name));
     fill(el('countLocationFilter'), locations, bn ? 'সব স্টোর' : 'All stores');
+    el('countHelp')?.addEventListener('click', () => {
+        const opened = el('countHelpText').classList.toggle('d-none') === false;
+        el('countHelp').setAttribute('aria-expanded', String(opened));
+    });
 
     async function load(preferredReference = null) {
         const generation = ++loadSequence;
@@ -157,6 +161,11 @@ export async function initPhysicalCounts(refreshLedger = () => {}) {
     }
 
     el('countExportCsv').addEventListener('click', () => { if (selected) exportCountCsv(selected); });
+    el('countPrint').addEventListener('click', () => {
+        if (!selected) return;
+        window.open('/InventoryMovements/PrintPhysicalCount?reference=' + encodeURIComponent(selected.reference),
+            '_blank', 'noopener,noreferrer');
+    });
     el('countReload').addEventListener('click', () => load().catch(error => notice(error.message)));
     el('countPrevious').addEventListener('click', () => { if (page > 1) { page--; load().catch(error => notice(error.message)); } });
     el('countNext').addEventListener('click', () => { if (page < last) { page++; load().catch(error => notice(error.message)); } });

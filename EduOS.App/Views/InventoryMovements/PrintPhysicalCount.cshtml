@@ -1,0 +1,94 @@
+@model EduOS.Core.DTOs.Inventory.InventoryPhysicalCountDto
+@using System.Globalization
+@{
+    Layout = null;
+    var bn = CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "bn";
+    var draft = Model.StateCode == "Draft";
+    var blindDraft = draft && Model.Blind;
+}
+<!doctype html>
+<html lang="@CultureInfo.CurrentUICulture.Name">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex,nofollow" />
+    <title>@(bn ? "ফিজিক্যাল স্টক গণনা শিট" : "Physical stock count sheet")</title>
+    <style>
+        body { font-family: system-ui, sans-serif; margin: 1rem; color: #17212d; }
+        h1 { font-size: 1.25rem; margin: 0 0 .55rem; }
+        .meta { display: flex; flex-wrap: wrap; gap: .3rem 1.1rem; margin-bottom: .7rem; font-size: .82rem; }
+        .meta span { overflow-wrap: anywhere; }
+        table { border-collapse: collapse; width: 100%; font-size: .78rem; }
+        th, td { border: 1px solid #bfc8d1; padding: .38rem; text-align: left; overflow-wrap: anywhere; }
+        th { background: #edf1f5; }
+        .actions { margin-bottom: .8rem; }
+        .note { font-size: .8rem; margin: .6rem 0; }
+        .signatures { display: flex; gap: 2rem; margin-top: 2rem; }
+        .signatures span { flex: 1; border-top: 1px solid #667789; padding-top: .3rem; font-size: .8rem; }
+        @@page { size: A4 landscape; margin: 10mm; }
+        @@media screen and (max-width: 700px) { body { margin: .5rem; } .report { overflow-x: auto; } table { min-width: 720px; } }
+        @@media print { .actions { display: none; } body { margin: 0; } .report { overflow: visible; } thead { display: table-header-group; } tr { break-inside: avoid; } }
+    </style>
+    <script src="~/js/attendance/print-roster.js" asp-append-version="true" defer></script>
+</head>
+<body>
+    <div class="actions"><button id="printRoster" type="button">@(bn ? "প্রিন্ট করুন" : "Print")</button></div>
+    <h1>@(bn ? "ফিজিক্যাল স্টক গণনা ও পার্থক্য রিপোর্ট" : "Physical stock count and variance report")</h1>
+    <div class="meta">
+        <span>@(bn ? "রেফারেন্স" : "Reference"): @Model.Reference</span>
+        <span>@(bn ? "স্টোর" : "Store"): @Model.LocationId</span>
+        <span>@(bn ? "অবস্থা" : "Status"): @Model.StateCode</span>
+        <span>@(bn ? "স্ন্যাপশট UTC" : "Snapshot UTC"): @Model.SnapshotAtUtc.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture)</span>
+        <span>@(bn ? "গণনা পদ্ধতি" : "Method"): @(Model.Blind ? (bn ? "গোপন" : "Blind") : (bn ? "প্রকাশ্য" : "Open"))</span>
+        <span>@(bn ? "প্রস্তুতকারী" : "Maker"): @(Model.CreatedByUserId?.ToString(CultureInfo.InvariantCulture) ?? "—")</span>
+        <span>@(bn ? "যাচাইকারী" : "Checker"): @(Model.ReviewedByUserId?.ToString(CultureInfo.InvariantCulture) ?? "—")</span>
+        @if (Model.SubmittedAtUtc.HasValue) { <span>@(bn ? "জমা UTC" : "Submitted UTC"): @Model.SubmittedAtUtc.Value.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture)</span> }
+        @if (Model.ReviewedAtUtc.HasValue) { <span>@(bn ? "পর্যালোচনা UTC" : "Reviewed UTC"): @Model.ReviewedAtUtc.Value.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture)</span> }
+        @if (!string.IsNullOrWhiteSpace(Model.VarianceMode)) { <span>@(bn ? "পার্থক্য নীতি" : "Variance policy"): @Model.VarianceMode</span> }
+    </div>
+    <p class="note">@(bn ? "গণনার কারণ" : "Count reason"): @Model.Reason</p>
+    @if (!string.IsNullOrWhiteSpace(Model.ReviewReason))
+    {
+        <p class="note">@(bn ? "সিদ্ধান্তের কারণ" : "Review reason"): @Model.ReviewReason</p>
+    }
+    @if (blindDraft)
+    {
+        <p class="note">@(bn ? "গোপন খসড়া: বইয়ের স্টক/মূল্য/পার্থক্য প্রকাশ করা হয়নি। এই শিটে হাতে গণনা লিখুন।" : "Blind draft: book stock, valuation and variances are not disclosed. Record the measured quantity on this sheet.")</p>
+    }
+    <div class="report"><table>
+        <thead><tr>
+            <th>@(bn ? "লাইন" : "Line")</th>
+            <th>@(bn ? "পণ্য আইডি" : "Item ID")</th>
+            <th>@(bn ? "লট/ব্যাচ" : "Lot/Batch")</th>
+            <th>@(bn ? "বই" : "Book qty")</th>
+            <th>@(bn ? "রিজার্ভ" : "Reserved qty")</th>
+            <th>@(bn ? "গণনা" : "Counted qty")</th>
+            <th>@(bn ? "প্রস্তাবিত পার্থক্য" : "Suggested variance")</th>
+            <th>@(bn ? "পোস্ট পার্থক্য" : "Posted variance")</th>
+            <th>@(bn ? "একক মূল্য" : "Posted unit cost")</th>
+            <th>@(bn ? "সংশোধনের কারণ" : "Correction reason")</th>
+            <th>@(bn ? "মুভমেন্ট UUID" : "Movement UUID")</th>
+        </tr></thead>
+        <tbody>
+        @foreach (var line in Model.Lines)
+        {
+            <tr>
+                <td>@line.LineNo</td>
+                <td>@line.InventoryItemId</td>
+                <td>@(string.IsNullOrWhiteSpace(line.LotOrBatchNo) ? "—" : line.LotOrBatchNo)</td>
+                <td>@(line.BookQuantity?.ToString(CultureInfo.InvariantCulture) ?? "—")</td>
+                <td>@(line.ReservedQuantity?.ToString(CultureInfo.InvariantCulture) ?? "—")</td>
+                <td>@(line.CountedQuantity?.ToString(CultureInfo.InvariantCulture) ?? (draft ? "________________" : "—"))</td>
+                <td>@(line.SuggestedVariance?.ToString(CultureInfo.InvariantCulture) ?? "—")</td>
+                <td>@(line.PostedVariance?.ToString(CultureInfo.InvariantCulture) ?? "—")</td>
+                <td>@(line.PostedUnitCost?.ToString(CultureInfo.InvariantCulture) ?? "—")</td>
+                <td>@(string.IsNullOrWhiteSpace(line.CorrectionReason) ? "—" : line.CorrectionReason)</td>
+                <td>@(line.PostedMovementReference?.ToString() ?? "—")</td>
+            </tr>
+        }
+        </tbody>
+    </table></div>
+    <p class="note">@(bn ? "পরিমাণ প্রতিটি পণ্যের নিজস্ব এককে; বিভিন্ন একক যোগ করবেন না।" : "Quantities use each item's own unit; do not aggregate unlike units.")</p>
+    <div class="signatures"><span>@(bn ? "গণনাকারীর স্বাক্ষর" : "Counter signature")</span><span>@(bn ? "স্বতন্ত্র যাচাইকারীর স্বাক্ষর" : "Independent checker signature")</span></div>
+</body>
+</html>

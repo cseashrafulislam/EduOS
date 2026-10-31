@@ -7,9 +7,12 @@
     <div class="card-body">
         <div class="d-flex flex-wrap justify-content-between gap-2 align-items-center mb-2">
             <h3 class="h5 mb-0">@(bn ? "ফিজিক্যাল স্টক গণনা ও পার্থক্য অনুমোদন" : "Physical stock counts & variance approval")</h3>
-            <button class="btn btn-outline-secondary btn-sm" id="countReload" type="button">@(bn ? "তালিকা রিফ্রেশ" : "Refresh counts")</button>
+            <div class="d-flex align-items-center gap-2">
+                <button id="countHelp" class="btn btn-outline-secondary btn-sm" type="button" aria-expanded="false" aria-controls="countHelpText" aria-label="@(bn ? "গণনা ব্যবহারের নির্দেশনা" : "Physical count help")">ⓘ</button>
+                <button class="btn btn-outline-secondary btn-sm" id="countReload" type="button">@(bn ? "তালিকা রিফ্রেশ" : "Refresh counts")</button>
+            </div>
         </div>
-        <p class="small text-muted">@(bn ? "Blind count-এ জমা দেওয়ার আগে বইয়ের হিসাব গোপন থাকে। স্বতন্ত্র অনুমোদনে পার্থক্য স্টক লেজারে পোস্ট হয়।" : "Blind counts conceal book quantities until submission. An independent reviewer posts approved differences to the canonical stock ledger.")</p>
+        <p class="small text-muted d-none" id="countHelpText" role="note">@(bn ? "Blind count-এ জমা দেওয়ার আগে বইয়ের হিসাব গোপন থাকে। স্টোর ও পণ্য/লট বেছে গণনা শুরু করুন; খসড়া প্রিন্ট করে হাতে গণনা করা যায়। জমার পর স্বতন্ত্র অনুমোদনে পার্থক্য স্টক লেজারে পোস্ট হয়।" : "Blind counts conceal book quantities until submission. Select a store and item/lot; print a draft sheet for manual counting. Independent approval posts differences to the stock ledger.")</p>
         @if (canCreate)
         {
             <form id="countStartForm" class="border rounded p-2 mb-3">
@@ -34,7 +37,9 @@
         <div class="table-responsive"><table class="table table-sm table-striped"><thead><tr><th>@(bn ? "তারিখ" : "Date")</th><th>@(bn ? "স্টোর" : "Store")</th><th>@(bn ? "অবস্থা" : "Status")</th><th>@(bn ? "লাইন" : "Lines")</th><th>@(bn ? "বিস্তারিত" : "Details")</th></tr></thead><tbody id="countRegister"></tbody></table></div>
         <div class="d-flex align-items-center gap-2 mb-3"><button class="btn btn-outline-secondary btn-sm" id="countPrevious" type="button">@(bn ? "আগের" : "Previous")</button><span class="small" id="countPageLabel"></span><button class="btn btn-outline-secondary btn-sm" id="countNext" type="button">@(bn ? "পরের" : "Next")</button></div>
         <article id="countDetail" class="border rounded p-3 d-none" aria-live="polite">
-            <div class="d-flex justify-content-between flex-wrap gap-2 mb-2"><h4 class="h6 mb-0" id="countDetailHeading"></h4><button class="btn btn-outline-secondary btn-sm" id="countExportCsv" type="button">@(bn ? "CSV রিপোর্ট" : "Export CSV report")</button></div>
+            <div class="d-flex justify-content-between flex-wrap gap-2 mb-2"><h4 class="h6 mb-0" id="countDetailHeading"></h4>
+                <div class="d-flex gap-2"><button class="btn btn-outline-secondary btn-sm" id="countPrint" type="button">@(bn ? "গণনা শিট প্রিন্ট" : "Print count sheet")</button>
+                    <button class="btn btn-outline-secondary btn-sm" id="countExportCsv" type="button">@(bn ? "CSV রিপোর্ট" : "Export CSV report")</button></div></div>
             <p class="small text-muted" id="countDetailMetadata"></p>
             <form id="countSubmitForm" class="d-none">
                 <div class="table-responsive"><table class="table table-sm"><thead><tr><th>@(bn ? "আইটেম/লট" : "Item / lot")</th><th>@(bn ? "বইয়ের পরিমাণ" : "Book qty")</th><th>@(bn ? "গণনা করা পরিমাণ" : "Counted qty")</th></tr></thead><tbody id="countDraftLines"></tbody></table></div>
