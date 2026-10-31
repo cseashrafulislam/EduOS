@@ -229,7 +229,8 @@ public sealed partial class SqlServerV3ProcurementPurchaseOrderTests
             var discounted=await trace.GetAsync(second.Reference);
             Assert.True(discounted.Success,discounted.Message);
             Assert.Equal(-2m,discounted.Data!.PriceVariance);
-            Assert.Equal(18m,discounted.Data.Journals[0].Credit);
+            Assert.Equal(20m,discounted.Data.Journals[0].Credit); // 18 payable + 2 variance credit; total balanced at 20.
+            Assert.Equal(20m,discounted.Data.Journals[0].Debit);
         }
         await using (var foreignTrace=Open(options,tenantId+999999,checkerId))
             Assert.Equal(404,(await new V3EnterpriseSupplierPayableTraceService(
