@@ -206,6 +206,46 @@ public sealed class SqlServerFacilityWorkOrderTests
             var rows = await service.ListAsync(campusId, null, 1, 25);
             Assert.Equal("Approved", rows.Data!.Items.Single(x => x.Id == second.Id).WorkOrderState);
         }
+        // Manager releases a not-started schedule with an immutable snapshot; stale and
+        // unauthorized attempts cannot silently remove another worker's assignment.
+        await using (var db = Db(options, tenantId, techId, "FacilitiesTechnician"))
+        {
+            var forbidden = await Service(db, tenantId, techId, "FacilitiesTechnician")
+                .TransitionAsync(submitted.Id, "unschedule", new FacilityTransitionDto
+                { ClientCommandId = Guid.NewGuid(), RowVersion = scheduled.WorkOrderRowVersion!,
+                  Note = "Technician may not release assignment." });
+            Assert.Equal(403, forbidden.StatusCode);
+        }
+        await using (var db = Db(options, tenantId, managerId, "FacilitiesManager"))
+        {
+            var service = Service(db, tenantId, managerId, "FacilitiesManager");
+            var releaseId = Guid.NewGuid();
+            var released = await service.TransitionAsync(submitted.Id, "unschedule", new FacilityTransitionDto
+            { ClientCommandId = releaseId, RowVersion = scheduled.WorkOrderRowVersion!,
+              Note = "Schedule changed at campus request." });
+            Assert.True(released.Success, released.Message);
+            Assert.Equal("Approved", released.Data!.WorkOrderState);
+            Assert.Null(released.Data.TechnicianUserId);
+            Assert.Null(released.Data.ScheduledStartUtc);
+            Assert.Null(released.Data.ScheduledEndUtc);
+            var retry = await service.TransitionAsync(submitted.Id, "unschedule", new FacilityTransitionDto
+            { ClientCommandId = releaseId, RowVersion = scheduled.WorkOrderRowVersion!,
+              Note = "Schedule changed at campus request." });
+            Assert.True(retry.Success, retry.Message);
+            var stale = await service.TransitionAsync(submitted.Id, "unschedule", new FacilityTransitionDto
+            { ClientCommandId = Guid.NewGuid(), RowVersion = scheduled.WorkOrderRowVersion!,
+              Note = "Attempt to release stale schedule." });
+            Assert.Equal(409, stale.StatusCode);
+            var history = await service.HistoryAsync(submitted.Id, 1, 25);
+            Assert.Contains(history.Data!.Items, x => x.ActionCode == "unschedule" &&
+                x.Note!.Contains("Released technician=") && x.Note.Contains("reason="));
+            var rescheduled = await service.TransitionAsync(submitted.Id, "schedule", new FacilityTransitionDto
+            { ClientCommandId = Guid.NewGuid(), RowVersion = released.Data.WorkOrderRowVersion!,
+              TechnicianUserId = techId, ScheduledStartUtc = DateTime.UtcNow.AddMinutes(15),
+              ScheduledEndUtc = DateTime.UtcNow.AddHours(2) });
+            Assert.True(rescheduled.Success, rescheduled.Message);
+            scheduled = rescheduled.Data!;
+        }
         await using (var db = Db(options, tenantId, techId, "FacilitiesTechnician"))
         {
             var service = Service(db, tenantId, techId, "FacilitiesTechnician");
@@ -247,7 +287,7 @@ public sealed class SqlServerFacilityWorkOrderTests
             Assert.Equal("Closed", result.Data!.WorkOrderState);
             Assert.NotNull(result.Data.VerifiedAtUtc);
             var history = await service.HistoryAsync(submitted.Id, 1, 25);
-            Assert.Equal(7, history.Data!.TotalCount);
+            Assert.Equal(9, history.Data!.TotalCount);
             Assert.Equal("verify", history.Data.Items.Last().ActionCode);
             Assert.Single(await db.FacilityWorkOrders.Where(x => x.FacilityServiceRequestId == submitted.Id).ToListAsync());
         }

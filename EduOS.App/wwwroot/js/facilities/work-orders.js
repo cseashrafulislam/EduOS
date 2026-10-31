@@ -44,8 +44,13 @@
         if (row.stateCode === 'Triaged' && approver) return ['approve', 'reject'];
         if (row.stateCode !== 'Approved') return [];
         const state = row.workOrderState;
-        if ((state === 'Approved' || state === 'Scheduled') && manager) return ['schedule'];
-        if (state === 'Scheduled' && technician) return ['start'];
+        if (state === 'Approved' && manager) return ['schedule'];
+        if (state === 'Scheduled') {
+            const options = [];
+            if (manager) options.push('schedule', 'unschedule');
+            if (technician && row.technicianUserId) options.push('start');
+            return options;
+        }
         if (state === 'InProgress' && technician) return ['pause', 'complete'];
         if (state === 'Paused' && technician) return ['resume'];
         if (state === 'PendingVerification' && approver) return ['verify'];
@@ -66,7 +71,9 @@
         selectAction.replaceChildren();
         for (const action of options) {
             const option = document.createElement('option');
-            option.value = action; option.textContent = action;
+            option.value = action;
+            option.textContent = action === 'unschedule'
+                ? t('Release schedule', 'সময়সূচি বাতিল') : action;
             selectAction.append(option);
         }
         form.classList.toggle('d-none', options.length === 0);
@@ -93,7 +100,9 @@
             input.disabled = !enabled; input.required = enabled;
             input.closest('.col-12, .col-sm-6')?.classList.toggle('d-none', !enabled);
         }
-        el('wfNote').required = ['reject', 'pause', 'complete', 'verify'].includes(action);
+        el('wfNote').required = ['reject', 'pause', 'complete', 'verify', 'unschedule'].includes(action);
+        el('wfNote').minLength = action === 'unschedule' ? 5 : 0;
+        el('wfNote').maxLength = ['schedule', 'unschedule'].includes(action) ? 500 : 1000;
     }
     async function dashboard() {
         const q = new URLSearchParams();

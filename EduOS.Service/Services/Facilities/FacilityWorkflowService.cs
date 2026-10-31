@@ -206,7 +206,7 @@ public sealed class FacilityWorkflowService(
             return ApiResponse<FacilityRequestDto>.ErrorResponse("Command ID, row version and valid details required.");
         action = (action ?? "").Trim().ToLowerInvariant();
         if (action is not ("triage" or "approve" or "reject" or "schedule" or "start" or
-                           "pause" or "resume" or "complete" or "verify"))
+                           "pause" or "resume" or "complete" or "verify" or "unschedule"))
             return ApiResponse<FacilityRequestDto>.ErrorResponse("Unsupported transition.", 404);
         var request = await db.Set<FacilityServiceRequest>().FirstOrDefaultAsync(
             x => x.Id == id && x.TenantId == user.TenantId && !x.IsDeleted, ct);
@@ -220,7 +220,7 @@ public sealed class FacilityWorkflowService(
             "triage" => Manager && user.UserId != request.RequesterUserId,
             "approve" or "reject" => Approver && user.UserId != request.RequesterUserId &&
                                       user.UserId != request.TriagedByUserId,
-            "schedule" => Manager && user.UserId != request.RequesterUserId,
+            "schedule" or "unschedule" => Manager && user.UserId != request.RequesterUserId,
             "start" or "pause" or "resume" or "complete" => isWorker,
             "verify" => Approver && user.UserId != request.RequesterUserId &&
                         user.UserId != request.TriagedByUserId &&
@@ -247,6 +247,7 @@ public sealed class FacilityWorkflowService(
             ? await db.Database.BeginTransactionAsync(ct) : null;
         var before = requestAction ? request.StateCode : order?.StateCode ?? "None";
         var note = command.Note?.Trim();
+        string? auditNote = note;
         var now = Now;
         switch (action)
         {
@@ -276,6 +277,8 @@ public sealed class FacilityWorkflowService(
                 request.StateCode = "Rejected"; request.DecisionReason = note[..Math.Min(500, note.Length)];
                 break;
             case "schedule":
+                if (note?.Length > 500)
+                    return ApiResponse<FacilityRequestDto>.ErrorResponse("Scheduling note must be at most 500 characters.");
                 if (order?.StateCode is not ("Approved" or "Scheduled") ||
                     command.TechnicianUserId is not > 0 ||
                     command.ScheduledStartUtc is not DateTime start || start.Kind != DateTimeKind.Utc ||
@@ -312,9 +315,21 @@ public sealed class FacilityWorkflowService(
                     x.ScheduledStartUtc < end && x.ScheduledEndUtc > start, ct);
                 if (overlaps)
                     return ApiResponse<FacilityRequestDto>.ErrorResponse("Technician has an overlapping active work order.", 409);
+                auditNote = $"Previous technician={order.AssignedTechnicianUserId?.ToString() ?? "none"}, start={order.ScheduledStartUtc:O}, end={order.ScheduledEndUtc:O}; new technician={tech}, start={start:O}, end={end:O}" +
+                    (string.IsNullOrWhiteSpace(note) ? "" : $"; reason={note}");
                 order.AssignedTechnicianUserId = tech;
                 order.ScheduledStartUtc = start; order.ScheduledEndUtc = end;
                 order.StateCode = "Scheduled";
+                break;
+            case "unschedule":
+                if (order?.StateCode != "Scheduled" || string.IsNullOrWhiteSpace(note) ||
+                    note.Length is < 5 or > 500)
+                    return ApiResponse<FacilityRequestDto>.ErrorResponse("A scheduled work order and reason (5-500 characters) are required.", 409);
+                auditNote = $"Released technician={order.AssignedTechnicianUserId}, start={order.ScheduledStartUtc:O}, end={order.ScheduledEndUtc:O}; reason={note}";
+                order.AssignedTechnicianUserId = null;
+                order.ScheduledStartUtc = null;
+                order.ScheduledEndUtc = null;
+                order.StateCode = "Approved";
                 break;
             case "start":
                 if (order?.StateCode != "Scheduled")
@@ -354,7 +369,7 @@ public sealed class FacilityWorkflowService(
             ClientCommandId = command.ClientCommandId, ActorUserId = user.UserId,
             ActionCode = action, FromState = before,
             ToState = requestAction ? request.StateCode : order!.StateCode,
-            Note = note, CreatedAt = now, CreatedBy = user.UserId
+            Note = auditNote, CreatedAt = now, CreatedBy = user.UserId
         });
         try
         {

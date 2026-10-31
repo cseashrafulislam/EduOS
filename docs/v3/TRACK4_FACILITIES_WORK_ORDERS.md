@@ -31,3 +31,9 @@ Never mark the entire Facilities module production-ready from a passing CI run a
 
 - Scheduling/rescheduling an approved work order validates overlapping UTC windows against active Scheduled/InProgress/Paused work for the same tenant technician, excluding the current order. SQL Server obtains a tenant+technician transaction-owned application lock before conflict query and retains it through the work-order update and append-only audit; duplicate concurrent scheduling cannot silently double-book. Busy/overlap returns HTTP 409 and preserves the existing schedule. No schema or Inventory changes.
 - Dedicated disposable SQL acceptance includes an overlapping second approved work order and verifies it stays unassigned. Real parallel-worker contention and browser/UAT remain separate acceptance gates.
+
+## Schedule release / reschedule correction (2026-10-31)
+
+- A campus-authorized manager can release an **unstarted Scheduled** work order to Approved with a required 5–500-character reason. The technician and UTC window are cleared atomically with an append-only event capturing the previous assignment and time window; no completed/in-progress/paused order can be silently cancelled.
+- Release uses the existing rowversion and idempotent command contract; the technician cannot release their own assignment. Manager may then reschedule with overlap locking and a history snapshot of old/new assignment. UI exposes the action in bn-BD/en-BD, preserving CSRF and request ownership checks.
+- Focused disposable SQL regression covers denied technician release, manager release, idempotent replay, stale-version 409, audit and reschedule. Inventory/Finance remain untouched. Real parallel-worker and browser acceptance are separately pending.
