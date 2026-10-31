@@ -16,7 +16,11 @@ const routes = [
     ['/Students/Index', 'Students', 'STUDENT', 'TenantAdmin,AdmissionOfficer'],
     ['/Attendance/Index', 'Attendance', 'ATTENDANCE', 'TenantAdmin,Principal,VicePrincipal,Teacher'],
     ['/PayrollOperations/Index', 'PayrollOperations', 'PAYROLL', 'TenantAdmin,Principal,HR,Accountant,Staff,Teacher'],
-    ['/FacilityWorkOrders/Index', 'FacilityWorkOrders', 'FACILITIES', 'TenantAdmin,Principal,FacilitiesManager,FacilitiesApprover,FacilitiesTechnician,FacilitiesRequester']
+    ['/FacilityWorkOrders/Index', 'FacilityWorkOrders', 'FACILITIES', 'TenantAdmin,Principal,FacilitiesManager,FacilitiesApprover,FacilitiesTechnician,FacilitiesRequester'],
+    ['/FeeReceivablesAging/Index', 'FeeReceivablesAging', 'FINANCE', 'TenantAdmin,Principal,Accountant'],
+    ['/PayrollJournalPosting/Index', 'PayrollJournalPosting', 'FINANCE,PAYROLL', 'TenantAdmin,Principal,Accountant'],
+    ['/PayrollSalaryStatement/Index', 'PayrollSalaryStatement', 'PAYROLL', 'TenantAdmin'],
+    ['/Alumni/Index', 'Alumni', 'ALUMNI', null]
 ];
 function browser(route, lang, authorized = [], native = true) {
     const doc = { activeElement: null, documentElement: { lang } };
@@ -69,11 +73,18 @@ test('reviewed Page Information routes match actual controller role/module gates
     assert.equal(counts.bn, counts.routes);
     for (const [route, controller, module, expectedRoles] of routes) {
         const code = read('EduOS.App/Controllers/' + controller + 'Controller.cs');
-        const match = code.match(/\[Authorize\(Roles\s*=\s*"([^"]+)"\)/);
-        assert.ok(match, 'missing role gate ' + route);
-        assert.deepEqual(match[1].split(',').sort(), expectedRoles.split(',').sort(), route);
-        assert.ok(code.includes('RequireModule("' + module + '")'), 'missing module gate ' + route);
-        assert.match(code, /public IActionResult Index\(\)\s*=>\s*View\(\)/);
+        if (expectedRoles === null) {
+            // Alumni self-service is authenticated; directory and export APIs are TenantAdmin-only.
+            assert.match(code, /^\[Authorize\]$/m, 'missing authenticated route gate ' + route);
+        } else {
+            const match = code.match(/\[Authorize\(Roles\s*=\s*"([^"]+)"\)/);
+            assert.ok(match, 'missing role gate ' + route);
+            assert.deepEqual(match[1].split(',').sort(), expectedRoles.split(',').sort(), route);
+        }
+        for (const required of module.split(','))
+            assert.ok(code.includes('RequireModule("' + required + '")'), 'missing module gate ' + route + ': ' + required);
+        assert.match(code, /public IActionResult Index\(\)/);
+        assert.match(code, /\bView\(\)/);
         for (const lang of ['en-BD', 'bn-BD']) {
             const manual = guideFor(route, lang);
             assert.ok(manual && manual.steps.length >= 3 && manual.example && manual.recovery && manual.rules,
@@ -171,4 +182,43 @@ test('new admission and invoice GL guides expose only navigation-authorized rela
             assert.equal(b.doc.activeElement, b.trigger);
         }
     }
+});
+
+test('newly reviewed finance, payroll and alumni manuals expose only server-authorized related links', () => {
+    const cases = [
+        ['/FeeReceivablesAging/Index', '/FeeOperations/Index'],
+        ['/PayrollJournalPosting/Index', '/PayrollOperations/Index'],
+        ['/PayrollSalaryStatement/Index', '/PayrollOperations/Index'],
+        ['/Alumni/Index', '/Students/Index']
+    ];
+    for (const [route, allowed] of cases) {
+        for (const lang of ['en-BD', 'bn-BD']) {
+            const b = browser(route, lang, [allowed, '/PrivateFinance/Index', '//evil.example']);
+            b.trigger.fire('click');
+            assert.equal(b.dialog.open, true);
+            assert.equal(b.descendants(b.content, 'section').length, 8, route);
+            const links = b.descendants(b.content, 'a');
+            assert.deepEqual(links.map(x => x.getAttribute('href')), [allowed], route + ' ' + lang);
+            assert.equal(links[0].textContent, guideFor(route, lang).related[0].label);
+            b.close.fire('click');
+            assert.equal(b.doc.activeElement, b.trigger);
+            const denied = browser(route, lang, []);
+            denied.trigger.fire('click');
+            assert.equal(denied.descendants(denied.content, 'a').length, 0, route + ' leaked an ungranted link');
+        }
+    }
+});
+test('manual access matrix preserves sensitive API role, CSRF and bounded-export contracts', () => {
+    const payroll = read('EduOS.App/Controllers/Api/PayrollJournalPostingController.cs');
+    const alumni = read('EduOS.App/Controllers/Api/AlumniApiController.cs');
+    const salary = read('EduOS.App/Controllers/Api/PayrollSalaryStatementController.cs');
+    assert.match(payroll, /\[Authorize\(Roles = "TenantAdmin,Principal,Accountant"\), RequireModule\("FINANCE"\), RequireModule\("PAYROLL"\)\]/);
+    assert.match(payroll, /\[AutoValidateAntiforgeryToken/);
+    for (const action of ['post', 'reverse/request', 'reverse/review', 'reverse/post'])
+        assert.ok(payroll.includes('}/' + action + '"), Authorize(Roles = "TenantAdmin")'), action);
+    assert.match(alumni, /\[Authorize\]\s*\[RequireModule\("ALUMNI"\)\]\s*\[AutoValidateAntiforgeryToken\]/);
+    for (const action of ['directory.csv', 'events/report.csv'])
+        assert.ok(alumni.includes('[HttpGet("' + action + '")]\n    [Authorize(Roles = "TenantAdmin")]'), action);
+    assert.match(salary, /\[Authorize\(Roles = "TenantAdmin"\)\]/);
+    assert.match(salary, /GetAsync\(year, month, campusId, 1, 1000, ct\)/);
 });
