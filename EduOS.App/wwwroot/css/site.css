@@ -3504,3 +3504,18 @@ select,
 @media (prefers-reduced-motion: reduce) {
     .feature-search-dialog, .feature-search-row { scroll-behavior: auto; }
 }
+/* Keep shortcut hints and favorite controls legible on dark surfaces. */
+:root[data-workspace-theme="dark"] .feature-search-trigger kbd {
+    background: #243349; color: #e2e8f0; border-color: #475569;
+}
+:root[data-workspace-theme="dark"] .feature-search-star:hover {
+    background: #1e3a5f; color: #bfdbfe;
+}
+@media (prefers-color-scheme: dark) {
+    :root[data-workspace-theme="system"] .feature-search-trigger kbd {
+        background: #243349; color: #e2e8f0; border-color: #475569;
+    }
+    :root[data-workspace-theme="system"] .feature-search-star:hover {
+        background: #1e3a5f; color: #bfdbfe;
+    }
+}
