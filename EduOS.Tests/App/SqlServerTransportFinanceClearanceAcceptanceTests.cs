@@ -108,6 +108,28 @@ public sealed partial class SqlServerTransportSeatCapacityIntegrationTests
         }
         await using (var db = ScopedContext(fixture.Options, fixture.TenantId, fixture.UserId))
         {
+            var period = await db.AccountingPeriods.SingleAsync(x => x.Id == periodId);
+            period.IsClosed = true;
+            await db.SaveChangesAsync();
+        }
+        await using (var db = ScopedContext(fixture.Options, fixture.TenantId, fixture.UserId))
+        {
+            var blocked = await Service(db, fixture.TenantId, fixture.UserId)
+                .ExtendUpcomingRiderAsync(source.Reference, mutation);
+            Assert.Equal(409, blocked.StatusCode);
+            Assert.Equal(InvoiceState.Draft, (await db.StudentInvoices.AsNoTracking()
+                .SingleAsync(x => x.Id == invoiceId)).State);
+            Assert.Equal(JournalState.Approved, (await db.Journals.AsNoTracking()
+                .SingleAsync(x => x.Id == journalId)).State);
+        }
+        await using (var db = ScopedContext(fixture.Options, fixture.TenantId, fixture.UserId))
+        {
+            var period = await db.AccountingPeriods.SingleAsync(x => x.Id == periodId);
+            period.IsClosed = false;
+            await db.SaveChangesAsync();
+        }
+        await using (var db = ScopedContext(fixture.Options, fixture.TenantId, fixture.UserId))
+        {
             var extended = await Service(db, fixture.TenantId, fixture.UserId)
                 .ExtendUpcomingRiderAsync(source.Reference, mutation);
             Assert.True(extended.Success, extended.Message);
@@ -124,7 +146,9 @@ public sealed partial class SqlServerTransportSeatCapacityIntegrationTests
             Assert.Equal(JournalState.Posted, journal.State);
             Assert.Equal("StudentInvoice", journal.SourceType);
             Assert.Equal(invoice.Id, journal.SourceId);
+            Assert.Equal(fixture.UserId, journal.CreatedBy);
             Assert.Equal(checker, journal.ApprovedByUserId);
+            Assert.NotEqual(journal.CreatedBy, journal.ApprovedByUserId);
             Assert.Equal(fixture.UserId, journal.PostedByUserId);
             Assert.Equal(2, lines.Length);
             Assert.Equal(invoice.TotalAmount, lines.Sum(x => x.DebitAmount));

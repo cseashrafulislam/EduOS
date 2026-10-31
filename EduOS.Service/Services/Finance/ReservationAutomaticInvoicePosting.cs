@@ -28,12 +28,14 @@ public static class ReservationAutomaticInvoicePosting
     public sealed record Result(long JournalId, long InvoiceId, string InvoiceNumber);
 
     public static async Task<(Result? Posting, string? Error)> PrepareAsync(
-        EduOSDbContext db, long tenantId, long userId, string kind, long clearanceId,
+        EduOSDbContext db, long tenantId, long userId, long requestingUserId,
+        string kind, long clearanceId,
         long campusId, long enrollmentId, long studentId, decimal amount,
         long? feeHeadId, long? accountingPeriodId, DateOnly invoiceDate,
         DateTime nowUtc, CancellationToken ct)
     {
         if (db.CurrentTenantId != tenantId || tenantId <= 0 || userId <= 0 ||
+            requestingUserId <= 0 || requestingUserId == userId ||
             campusId <= 0 || enrollmentId <= 0 || studentId <= 0 ||
             !feeHeadId.HasValue || feeHeadId <= 0 ||
             !accountingPeriodId.HasValue || accountingPeriodId <= 0 ||
@@ -102,7 +104,8 @@ public static class ReservationAutomaticInvoicePosting
             SourceType = "StudentInvoice", SourceId = invoice.Id,
             Description = $"{kind} clearance #{clearanceId} invoice {invoice.InvoiceNumber}",
             ApprovedByUserId = userId, ApprovedAt = nowUtc,
-            CreatedAt = nowUtc, CreatedBy = userId
+            // The reservation requester is the maker; Finance is the independent checker.
+            CreatedAt = nowUtc, CreatedBy = requestingUserId
         };
         db.Journals.Add(journal);
         await db.SaveChangesAsync(ct);
@@ -141,12 +144,19 @@ public static class ReservationAutomaticInvoicePosting
             x.IdempotencyKey == key && x.State == JournalState.Approved &&
             x.SourceType == "StudentInvoice" && x.CampusId == campusId &&
             x.CurrencyCode == "BDT" && x.PostedByUserId == null &&
-            x.ApprovedByUserId.HasValue, ct);
+            x.ApprovedByUserId.HasValue && x.CreatedBy != x.ApprovedByUserId, ct);
         if (invoice == null || journal == null || journal.SourceId != invoice.Id ||
             journal.ReferenceNumber != invoice.InvoiceNumber ||
             await db.Journals.IgnoreQueryFilters().AsNoTracking().AnyAsync(x =>
                 x.TenantId == tenantId && x.State == JournalState.Posted &&
                 x.ReversalOfJournalId == journalId, ct)) return false;
+        // Finance may approve today but Operations may consume days later. Never
+        // post into an accounting period closed between the two transactions.
+        if (!await db.AccountingPeriods.AsNoTracking().AnyAsync(x =>
+                x.TenantId == tenantId && x.Id == journal.AccountingPeriodId &&
+                !x.IsDeleted && !x.IsClosed && x.StartDate <= journal.JournalDate &&
+                x.EndDate >= journal.JournalDate, ct) ||
+            invoice.InvoiceDate != journal.JournalDate) return false;
         var lines = await db.JournalLines.IgnoreQueryFilters().AsNoTracking().Where(x =>
             x.TenantId == tenantId && x.JournalId == journalId).Take(101).ToArrayAsync(ct);
         if (lines.Length != 2 || lines.Any(x => x.IsDeleted || x.TenantId != tenantId ||

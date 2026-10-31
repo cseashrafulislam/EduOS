@@ -329,7 +329,8 @@ public sealed partial class FinanceAdjustmentService
                             source.FeeHeadId.Value != request.AutoFeeHeadId.Value)
                             return Error<HostelClearanceDto>("Automatic invoicing requires a positive amount, no existing journal and matching hostel fee head.", 409);
                         var (posting, error) = await ReservationAutomaticInvoicePosting.PrepareAsync(
-                            db, user.TenantId, user.UserId, "HOSTEL", id, row.CampusId,
+                            db, user.TenantId, user.UserId, row.RequestedByUserId,
+                            "HOSTEL", id, row.CampusId,
                             row.StudentEnrollmentId, row.StudentId, net,
                             source.FeeHeadId ?? request.AutoFeeHeadId, request.AccountingPeriodId,
                             DateOnly.FromDateTime(clock.GetLocalNow().DateTime), clock.GetUtcNow().UtcDateTime, ct);

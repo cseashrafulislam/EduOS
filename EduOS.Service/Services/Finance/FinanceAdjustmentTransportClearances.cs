@@ -316,7 +316,8 @@ public sealed partial class FinanceAdjustmentService
                         if (net <= 0m || request.NoAdjustmentRequired || request.SettlementJournalId.HasValue)
                             return Error<TransportClearanceDto>("Automatic invoice requires a positive amount and no existing journal.", 409);
                         var (posting, error) = await ReservationAutomaticInvoicePosting.PrepareAsync(
-                            db, user.TenantId, user.UserId, "TRANSPORT", id, row.CampusId,
+                            db, user.TenantId, user.UserId, row.RequestedByUserId,
+                            "TRANSPORT", id, row.CampusId,
                             row.StudentEnrollmentId, row.StudentId, net,
                             request.AutoFeeHeadId, request.AccountingPeriodId,
                             DateOnly.FromDateTime(clock.GetLocalNow().DateTime), clock.GetUtcNow().UtcDateTime, ct);
