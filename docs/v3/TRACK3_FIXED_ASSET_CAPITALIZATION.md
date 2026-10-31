@@ -67,8 +67,8 @@ The read-only capitalization candidate now also requires the canonical approved 
 purchase order, its same-tenant receipt-linked PO line, matching campus and receiving
 location campus, tracked item, approved PO quantity and original unit-price snapshot.
 This prevents a valid posted stock line from masking a tampered or mismatched purchase
-order source. Disposable SQL regression mutates the receipt's PO price snapshot,
-PO line price and PO approval state, verifies candidates fail closed, and restores
-all values. Historical posted stock, AssetBook and Finance journals are unchanged.
+order source. Disposable SQL regression verifies that SQL trigger 51121 rejects changes to the
+receipt's immutable PO price snapshot, then changes/restores the approved PO
+line price and PO state in disposable SQL to verify candidates fail closed. Historical posted stock, AssetBook and Finance journals are unchanged.
 **This remains preflight only:** no unique serialized receipt-unit binding, cost
 approval, capitalization journal or depreciation posting has been implemented.
