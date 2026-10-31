@@ -5,7 +5,6 @@ on:
     branches: [Ashraful]
     paths:
       - '.github/workflows/hr-payroll-v1.yml'
-      - 'EduOS.HrPayroll.Tests/**'
       - 'EduOS.App/Controllers/Api/EmployeeContractsApiController.cs'
       - 'EduOS.App/Controllers/Api/PayrollPaymentPostingController.cs'
       - 'EduOS.App/Views/EmployeeContracts/**'
@@ -27,12 +26,16 @@ on:
       - 'EduOS.Tests/Services/PayrollStatutoryCoverageTests.cs'
       - 'EduOS.Tests/Services/PayrollStatutoryCalculationTests.cs'
       - 'EduOS.Tests/Services/PayrollJournalPostingServiceTests.cs'
+      - 'EduOS.Tests/Services/PayrollPaymentPostingServiceTests.cs'
+      - 'EduOS.Tests/Services/PayrollPaymentReturnTests.cs'
+      - 'EduOS.Tests/Services/PayrollJournalReversalWorkflowTests.cs'
+      - 'EduOS.Tests/Services/PayrollReconciliationJournalEvidenceTests.cs'
+      - 'EduOS.Tests/Services/PayrollPostingHistoricalIntegrityTests.cs'
       - 'EduOS.Tests/Services/PayrollLoanRecoverySettlementTests.cs'
   pull_request:
     branches: [Ashraful]
     paths:
       - '.github/workflows/hr-payroll-v1.yml'
-      - 'EduOS.HrPayroll.Tests/**'
       - 'EduOS.App/Controllers/Api/EmployeeContractsApiController.cs'
       - 'EduOS.App/Controllers/Api/PayrollPaymentPostingController.cs'
       - 'EduOS.App/Views/EmployeeContracts/**'
@@ -54,6 +57,11 @@ on:
       - 'EduOS.Tests/Services/PayrollStatutoryCoverageTests.cs'
       - 'EduOS.Tests/Services/PayrollStatutoryCalculationTests.cs'
       - 'EduOS.Tests/Services/PayrollJournalPostingServiceTests.cs'
+      - 'EduOS.Tests/Services/PayrollPaymentPostingServiceTests.cs'
+      - 'EduOS.Tests/Services/PayrollPaymentReturnTests.cs'
+      - 'EduOS.Tests/Services/PayrollJournalReversalWorkflowTests.cs'
+      - 'EduOS.Tests/Services/PayrollReconciliationJournalEvidenceTests.cs'
+      - 'EduOS.Tests/Services/PayrollPostingHistoricalIntegrityTests.cs'
       - 'EduOS.Tests/Services/PayrollLoanRecoverySettlementTests.cs'
   workflow_dispatch:
 
@@ -71,12 +79,12 @@ jobs:
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '10.0.x'
-      - name: Restore isolated HR test project
-        run: dotnet restore EduOS.HrPayroll.Tests/EduOS.HrPayroll.Tests.csproj
-      - name: Build HR application and isolated regression suite
-        run: dotnet build EduOS.HrPayroll.Tests/EduOS.HrPayroll.Tests.csproj --configuration Release --no-restore
-      - name: HR/Payroll independent regression tests
-        run: dotnet test EduOS.HrPayroll.Tests/EduOS.HrPayroll.Tests.csproj --configuration Release --no-build
+      - name: Restore canonical EduOS.Tests project
+        run: dotnet restore EduOS.Tests/EduOS.Tests.csproj
+      - name: Build canonical HR regression assembly
+        run: dotnet build EduOS.Tests/EduOS.Tests.csproj --configuration Release --no-restore
+      - name: HR/Payroll focused regressions from EduOS.Tests
+        run: dotnet test EduOS.Tests/EduOS.Tests.csproj --configuration Release --no-build --filter "FullyQualifiedName~EmployeeContractSignedPdfTests|FullyQualifiedName~PayrollBankReviewExportTests|FullyQualifiedName~PayrollStatutoryCoverageTests|FullyQualifiedName~PayrollStatutoryCalculationTests|FullyQualifiedName~PayrollPaymentPostingServiceTests|FullyQualifiedName~PayrollPaymentReturnTests|FullyQualifiedName~PayrollJournalReversalWorkflowTests|FullyQualifiedName~PayrollReconciliationJournalEvidenceTests|FullyQualifiedName~PayrollPostingHistoricalIntegrityTests|FullyQualifiedName~PayrollJournalPostingServiceTests|FullyQualifiedName~PayrollLoanRecoverySettlementTests"
       - name: HR/Payroll UI syntax
         run: |
           node --check EduOS.App/wwwroot/js/hr/employee-contracts.js
