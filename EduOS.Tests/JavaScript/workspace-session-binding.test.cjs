@@ -156,7 +156,8 @@ test('editor locks stale sessions and bounds network operations', () => {
     const editor = read('EduOS.App/wwwroot/js/platform/workspace-preferences.js');
     assert.match(editor, /sessionInvalidated = true;/);
     assert.match(editor, /if \(busy \|\| sessionInvalidated\) return;/);
-    assert.match(editor, /const disabled = value \|\| sessionInvalidated;/);
+    assert.match(editor, /const disabled = value \|\| sessionInvalidated \|\| !loaded;/);
+    assert.match(editor, /discard\.disabled = disabled \|\| !dirty;/);
     assert.match(editor, /if \(next && !sessionInvalidated\) window\.EduOSApplyWorkspacePreferences/);
     assert.match(editor, /const next = values\(\)/);
     assert.match(editor, /const controller = new AbortController\(\);/);
