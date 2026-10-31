@@ -38,6 +38,8 @@ public sealed class AlumniEventsContractTests
         Assert.Contains("s.PublicId = {3}", source);
         Assert.Contains("e.StartsAtUtc <= {4} AND e.EndsAtUtc >= {4}", source);
         Assert.Contains("CheckInReversed", source);
+        Assert.Contains("later.Id > c.Id", source);
+        Assert.Contains("!prior[0].IsLatest", source);
         Assert.Contains("CryptographicOperations.FixedTimeEquals", source);
         Assert.Contains("IsolationLevel.Serializable", source);
         var migration = Read("EduOS.Persistence", "Migrations",
@@ -60,6 +62,8 @@ public sealed class AlumniEventsContractTests
         Assert.Contains("CryptographicOperations.FixedTimeEquals", source);
         Assert.Contains("AlumniEventCommands", source);
         Assert.Contains("replay == null || replay.MyResponse != request.Response", source);
+        Assert.Contains("later.Id > c.Id", source);
+        Assert.Contains("!previous[0].IsLatest", source);
         Assert.Contains("EligibleEventRsvpFrom", source);
         Assert.Contains("p.CampusId = e.CampusId", source);
         Assert.Contains("x.FeesCleared = 1", source);

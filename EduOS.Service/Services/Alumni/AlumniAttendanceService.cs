@@ -100,13 +100,21 @@ public sealed partial class AlumniService
                         "Active event or consented attendee not found.", 404);
 
                 var prior = await _db.Database.SqlQueryRaw<AlumniEventCommandRow>(
-                    @"SELECT RequestHash, ActorUserId FROM dbo.AlumniEventCommands
-                      WHERE TenantId = {0} AND ClientRequestId = {1}",
+                    @"SELECT c.RequestHash, c.ActorUserId,
+                        CAST(CASE WHEN EXISTS (
+                            SELECT 1 FROM dbo.AlumniEventCommands later
+                            WHERE later.TenantId = c.TenantId
+                              AND later.EventId = c.EventId
+                              AND later.AlumniProfileId = c.AlumniProfileId
+                              AND later.Id > c.Id
+                        ) THEN 0 ELSE 1 END AS bit) AS IsLatest
+                      FROM dbo.AlumniEventCommands c
+                      WHERE c.TenantId = {0} AND c.ClientRequestId = {1}",
                     tenant, request.ClientRequestId).ToListAsync(token);
                 if (prior.Count > 0)
                 {
                     if (prior[0].ActorUserId != actor || prior[0].RequestHash != hash ||
-                        current.CheckedInAtUtc.HasValue != request.Present)
+                        !prior[0].IsLatest || current.CheckedInAtUtc.HasValue != request.Present)
                         return ApiResponse<AlumniEventAttendanceItemDto>.ErrorResponse(
                             "Attendance request was changed; submit a new request.", 409);
                     return ApiResponse<AlumniEventAttendanceItemDto>.SuccessResponse(

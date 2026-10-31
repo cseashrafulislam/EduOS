@@ -302,13 +302,23 @@ public sealed partial class AlumniService
                     return ApiResponse<AlumniEventItemDto>.ErrorResponse("Event unavailable or alumni consent required.", 404);
 
                 var previous = await _db.Database.SqlQueryRaw<AlumniEventCommandRow>(
-                    @"SELECT RequestHash, ActorUserId FROM dbo.AlumniEventCommands
-                      WHERE TenantId = {0} AND ClientRequestId = {1}",
+                    @"SELECT c.RequestHash, c.ActorUserId,
+                        CAST(CASE WHEN EXISTS (
+                            SELECT 1 FROM dbo.AlumniEventCommands later
+                            WHERE later.TenantId = c.TenantId
+                              AND later.EventId = c.EventId
+                              AND later.AlumniProfileId = c.AlumniProfileId
+                              AND later.Id > c.Id
+                        ) THEN 0 ELSE 1 END AS bit) AS IsLatest
+                      FROM dbo.AlumniEventCommands c
+                      WHERE c.TenantId = {0} AND c.ClientRequestId = {1}",
                     tenant, request.ClientRequestId).ToListAsync(token);
                 if (previous.Count != 0)
                 {
-                    if (previous[0].ActorUserId != actor || previous[0].RequestHash != hash)
-                        return ApiResponse<AlumniEventItemDto>.ErrorResponse("Request reference is already used.", 409);
+                    if (previous[0].ActorUserId != actor || previous[0].RequestHash != hash ||
+                        !previous[0].IsLatest)
+                        return ApiResponse<AlumniEventItemDto>.ErrorResponse(
+                            "RSVP request was superseded; submit a new request.", 409);
                     var replay = await ReadEventAsync(tenant, target.EventId, target.ProfileId, token);
                     // Consent revocation removes the RSVP but intentionally retains its audit command.
                     // An old idempotency key must never report success for a cleared or changed RSVP.
@@ -461,6 +471,7 @@ public sealed class AlumniEventCommandRow
 {
     public string RequestHash { get; set; } = "";
     public long ActorUserId { get; set; }
+    public bool IsLatest { get; set; }
 }
 public sealed class AlumniRsvpSqlRow
 {

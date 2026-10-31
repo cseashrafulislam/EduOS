@@ -179,6 +179,25 @@ public sealed class SqlServerAlumniConsentIntegrationTests
         Assert.Equal(1, rsvp.Data!.MyResponse);
         var rsvpReplay = await graduate.RsvpAsync(rsvpRequest);
         Assert.True(rsvpReplay.Success, rsvpReplay.Message);
+        // The first Going command is no longer idempotently valid after a
+        // Declined -> Going round trip, even though the final response matches.
+        var declined = await graduate.RsvpAsync(new AlumniEventRsvpDto
+        {
+            ClientRequestId = Guid.NewGuid(), EventReference = draft.Data.Reference,
+            StudentReference = studentReference, Response = 2,
+            RowVersion = rsvp.Data.MyRowVersion
+        });
+        Assert.True(declined.Success, declined.Message);
+        var goingAgain = await graduate.RsvpAsync(new AlumniEventRsvpDto
+        {
+            ClientRequestId = Guid.NewGuid(), EventReference = draft.Data.Reference,
+            StudentReference = studentReference, Response = 1,
+            RowVersion = declined.Data!.MyRowVersion
+        });
+        Assert.True(goingAgain.Success, goingAgain.Message);
+        var supersededRsvp = await graduate.RsvpAsync(rsvpRequest);
+        Assert.False(supersededRsvp.Success);
+        Assert.Equal(409, supersededRsvp.StatusCode);
         var staleRsvp = await graduate.RsvpAsync(new AlumniEventRsvpDto
         {
             ClientRequestId = Guid.NewGuid(), EventReference = draft.Data.Reference,
@@ -414,6 +433,10 @@ public sealed class SqlServerAlumniConsentIntegrationTests
                 Present = true, RowVersion = reversed.Data.RowVersion
             });
         Assert.True(checkedAgain.Success, checkedAgain.Message);
+        // The original check-in key must not be accepted after undo + check-in.
+        var supersededCheckIn = await publisherService.CheckInAsync(draft.Data.Reference, request);
+        Assert.False(supersededCheckIn.Success);
+        Assert.Equal(409, supersededCheckIn.StatusCode);
 
         // A subsequently invalidated V1 completion must disappear immediately from
         // aggregated engagement reporting and the attendance roster, even if an RSVP
