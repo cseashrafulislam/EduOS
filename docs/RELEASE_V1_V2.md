@@ -1,4 +1,4 @@
-> **SUPERSEDED — HISTORICAL CONTRACT ONLY (updated 2026-10-29).** The owner replaced this two-version scope with the [authoritative V1/V2/V3 release contract](RELEASE_V1_V2_V3.md). **Current ownership: HR/Payroll is entirely V1, LMS/Library/Hostel/Transport are V2, and Inventory/Assets are V3.** Do not use older assignments below to override this decision. This file is retained only to preserve historical decisions and links.
+> **ARCHIVED — HISTORICAL CONTRACT ONLY (owner decision 2026-10-31).** The current scope is **one EduOS project with one backlog**: [Unified Project Master Plan](PROJECT_MASTER_PLAN.md). This file and the intermediate [three-release contract](RELEASE_V1_V2_V3.md) are retained for historical decisions, test links and audit; neither partitions current development or controls scheduled tasks.
 
 # EduOS — Version 1.0 and Version 2.0 Release Contract
 

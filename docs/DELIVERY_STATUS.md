@@ -1,6 +1,8 @@
 # EduOS delivery status
 
-This document is the concise implementation status for the `codex/phase-0-security-foundation` delivery branch. It complements the product vision in the root README and should be updated when a workflow moves between planned, foundation, operational, or production-ready states.
+> **HISTORICAL BRANCH SNAPSHOT ONLY.** The current whole-project backlog, verified gaps and acceptance rules are in the [Unified Project Master Plan](PROJECT_MASTER_PLAN.md). Status claims below concern the old `codex/phase-0-security-foundation` branch and must not override current `Ashraful` source, CI or owner decisions.
+
+This document preserves the implementation status from the `codex/phase-0-security-foundation` delivery branch; it is **not** the current running roadmap or a production-readiness certificate.
 
 ## Current delivery state
 

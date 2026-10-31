@@ -37,7 +37,8 @@ test('scheduled work can be released by manager with a reason and rowversion', (
     assert.match(script, /options\.push\('schedule', 'unschedule'\)/);
     assert.match(script, /Release schedule/);
     assert.match(script, /সময়সূচি বাতিল/);
-    assert.match(script, /'unschedule'\]\.includes\(action\)/);
+    assert.match(script, /el\('wfNote'\)\.required = \['reject', 'pause', 'complete', 'verify', 'unschedule', 'escalate'\]\.includes\(action\)/);
+    assert.match(script, /action === 'unschedule' \? 5 : 0/);
     assert.match(script, /selected\.workOrderRowVersion/);
 });
 

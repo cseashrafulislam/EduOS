@@ -1,5 +1,7 @@
 # EduOS V2 — final verified development baseline (2026-10-31)
 
+> **HISTORICAL EXACT-COMMIT ENGINEERING EVIDENCE.** From the owner's 2026-10-31 decision, all remaining work follows the [Unified Project Master Plan](PROJECT_MASTER_PLAN.md), not a separate V2 release. Keep the tested Finance/LMS/Library/Hostel/Transport code and this signed-off development evidence; institutional UAT remains separate.
+
 **Decision: V2 DEVELOPMENT COMPLETE for the agreed implemented scope; defined automated CI/SQL release gates PASS. Production/UAT approval is NOT granted.**
 
 **Repository:** `cseashrafulislam/EduOS` · **Branch:** `Ashraful` only · **Exact audited remote HEAD:** [`ce0bb2e055f566616d81249e40af4b1d3a9b22e4`](https://github.com/cseashrafulislam/EduOS/commit/ce0bb2e055f566616d81249e40af4b1d3a9b22e4). `master` was not changed as part of this V2 closure.

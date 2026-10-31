@@ -1,5 +1,7 @@
 # EduOS V1 — verified development baseline and maintenance-only freeze
 
+> **HISTORICAL EXACT-COMMIT ENGINEERING EVIDENCE.** From the owner's 2026-10-31 decision, all development is organized as [one EduOS project](PROJECT_MASTER_PLAN.md), not separate version releases. Keep this acceptance evidence and preserved code; do not treat its old release/task rules as active.
+
 **Effective:** 2026-10-30. **Target:** `Ashraful`. **Decision:** stop repetitive V1 feature-development sprints; preserve the integrated baseline and its regression gates while V2 advances. This document is the current **engineering change-control status**, not a production-ready certificate or a substitute for the [module-complete release contract](RELEASE_V1_V2_V3.md).
 
 ## 1. Exact baseline and verification

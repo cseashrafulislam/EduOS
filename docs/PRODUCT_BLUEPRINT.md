@@ -1,6 +1,6 @@
 # EduOS — Product Blueprint and Delivery Contract
 
-**Decision baseline:** 2026-10-27 | **Working branch:** `Ashraful` | **Status:** approved product direction, not a claim of implemented features.
+**Decision baseline:** 2026-10-27; **unified owner delivery decision:** 2026-10-31 | **Working branch:** `Ashraful` | **Status:** approved product direction, not a claim of implemented features. The [Unified Project Master Plan](PROJECT_MASTER_PLAN.md) is the only active backlog; former release partitions are history.
 
 ## 1. Product identity
 
@@ -38,16 +38,16 @@ Cross-cutting capabilities: privacy and tenant isolation; bilingual `bn-BD`/`en-
 
 Visibility in a menu is **not** authorization. Tenant + campus + membership + feature entitlement + role + ownership/sensitivity must be checked for API, pages, exports, files, background work and reports.
 
-## 4. Version 1 / Version 2 / Version 3 release ownership
+## 4. Unified EduOS project and module ownership
 
-**Authoritative scope:** [V1/V2/V3 complete-module contract](RELEASE_V1_V2_V3.md) and root [AGENTS.md](../AGENTS.md). The older two-version specification is historical and superseded.
+**Authoritative active scope:** [Unified Project Master Plan](PROJECT_MASTER_PLAN.md) and [AGENTS.md](../AGENTS.md). Historic [three-release contract](RELEASE_V1_V2_V3.md) and [two-release contract](RELEASE_V1_V2.md) are retained for attribution and QA evidence, **not** as current development partitions.
 
-- **V1: complete Education, Finance & HR/Payroll.** SaaS/security/multi-institute identity and configuration; admission, student and guardian lifecycle/import; academic/routine/attendance; **entire** examination/results/credentials lifecycle; fees, collections and **entire** accounts/finance lifecycle; **entire HR and payroll lifecycle, statutory review, approvals, payments and reporting**; required portals, reports, clean bilingual customizable responsive UI/PWA. Pending HR sign-off and pilot UAT remain V1 obligations.
-- **V2: complete LMS, Library, Hostel and Transport only.** Each is fully accepted before being turned on. Earlier implementations stay preserved but gated; no V1 “advanced Results/Finance/HR” deferral or V2 HR reimplementation.
-- **V3: complete Inventory/Procurement, Assets/Facilities, Visitor/Campus and separately approved enterprise/analytics/integration modules.**
-- Institute and student totals are **dynamic, not fixed to a pilot cohort**; fixed-header Excel templates and server-enforced import batches use actual uploaded records. Some persons have several institution memberships with separate private records. Full online-only LMS operation cannot be certified until V2. No new institution-specific model names.
-- **Module complete** means setup, workflow, permissions, transaction integrity, correction/reversal, history, reports/exports, UI/PWA, tests, load/migration evidence and relevant institute UAT are complete in its owning version. Security and bug-fix maintenance may continue after release; deliberate incomplete advanced tiers may not.
-- Existing work is not deleted because its version changed; incomplete menus/actions are gated as Under Construction. These docs do not certify current production readiness or change background-task schedules.
+- **One project, all institution workflows:** SaaS/security/identity, admission/student/guardian, academic/examination/results, Fees/Finance, HR/Payroll, LMS, Library, Hostel, Transport, Inventory/Procurement, Assets/Facilities/Visitors and approved enterprise engagement/integration capabilities.
+- **Preserve verified modules:** previously established Platform/Education/Finance/HR, LMS/Library/Hostel/Transport and Inventory source paths remain authoritative. Do not create duplicate models, independent payroll, a second stock ledger, a shadow GL, a new LMS/Library or repeated forms merely to change an obsolete release label.
+- **Work only on verified remaining gaps:** supplier AP settlement and credits, asset capitalization/depreciation/disposal, Facilities spare-part accounting and Visitor lifecycle, Career/Research/Accreditation, whole-system integration/security/performance proof; fix proven bugs across completed domains as needed. Assign a clear **domain owner**, not a version number.
+- Institute and student totals are **dynamic, not fixed to a pilot cohort**; fixed-header Excel templates and server-enforced import batches use actual uploaded records. Some people have several institution memberships with separate private records. No institution-specific model names or permanent code forks.
+- **Development Final OK** means real persisted behavior plus all defined automated CI/SQL/security/applicable browser tests for the agreed scope. **Production Ready** requires distinct real-institute UAT, deployment/recovery, load and compliance evidence plus owner go/no-go. Do not use passing tests alone as institutional certification.
+- Existing work/data is never deleted because its planning version changed; incomplete or unsafe actions are gated as Under Construction. Historic EF migrations, release-specific tests and evidence reports remain intact.
 
 ## 5. Status honesty and source of truth
 
@@ -79,5 +79,5 @@ Use these statuses **per end-to-end workflow**, not per folder or model:
 - **No database/schema or feature-code rewrite authorized by this documentation update.** Existing source names remain domain-based rather than being renamed for the first pilot market.
 - Keep a simple modular monolith. Do not introduce speculative microservices, distributed queues/caches or extra layers because of a hypothetical user count.
 - UX customization is a constrained, secure and fast product capability; it cannot bypass permissions, validations or tenant branding boundaries.
-- The five owner-approved V1 scheduled tasks remain governed by their current schedules and the anti-loop policy in AGENTS.md; this document itself does not alter schedules.
+- The five owner-approved hourly development tasks are assigned to **whole-project functional domains** in [the unified plan](PROJECT_MASTER_PLAN.md), preserve their staggered schedules and follow anti-loop/QA rules. Their temporary cleanup pause and subsequent reactivation are managed by the automation scheduler, not by editing this document.
 

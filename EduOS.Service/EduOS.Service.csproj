@@ -7,12 +7,6 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <Compile Remove="Configurations\**" />
-    <EmbeddedResource Remove="Configurations\**" />
-    <None Remove="Configurations\**" />
-  </ItemGroup>
-
-  <ItemGroup>
 	<PackageReference Include="AutoMapper" Version="16.2.0" />
     <PackageReference Include="ClosedXML" Version="0.105.1" />
     <PackageReference Include="EPPlus" Version="8.7.1" />

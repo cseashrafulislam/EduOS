@@ -334,4 +334,6 @@ MigrationBackup/
 
 # Fody
 FodyWeavers.xsd
-/EduOS.App/App_Data/private-uploads/tenant-2/deposit-slips/2026/10
+
+# Uploaded customer documents must live in private persistent storage, never Git.
+/EduOS.App/App_Data/private-uploads/

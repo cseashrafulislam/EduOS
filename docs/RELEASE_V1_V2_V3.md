@@ -1,4 +1,6 @@
-# EduOS — authoritative V1 / V2 / V3 module-complete release contract
+# EduOS — historic V1 / V2 / V3 module-complete release contract
+
+> **ARCHIVED / NOT THE ACTIVE BACKLOG (owner decision 2026-10-31).** EduOS is now one complete project; use the [Unified Project Master Plan](PROJECT_MASTER_PLAN.md) and [AGENTS.md](../AGENTS.md) for all new work, ownership and automation prompts. This historic release contract, migration identifiers and verified baseline links remain for audit. Prior task-allocation instructions further below are **superseded**; do not schedule work by V1/V2/V3.
 
 **Owner decisions: 2026-10-29 (HR/Payroll moved from V2 to V1); 2026-10-30 (verified V1 development-baseline freeze and V2 LMS/Library engineering closure); 2026-10-31 (V2 Finance, Hostel/Transport end changes and exact-commit CI/SQL closure).** Supersedes the historic two-version contract at docs/RELEASE_V1_V2.md. Product targets: **one configurable education ERP** for schools/colleges, madrasa, university, training, coaching, online institute and private tutor. **Release scope is not proof of production approval.** For V1 see [V1 development baseline](V1_DEVELOPMENT_BASELINE_20261030.md); for V2's authoritative current status see [V2 Final Development Baseline](V2_FINAL_DEVELOPMENT_BASELINE_20261031.md); for closed LMS/Library see [their baseline](V2_LMS_LIBRARY_FINAL_BASELINE_20261030.md). The [earlier V2 QA checkpoints](V2_VERIFIED_ENGINEERING_QA_STATUS_20261031.md) are preserved as history, not current missing-feature evidence.
 
@@ -75,14 +77,14 @@ Complete Inventory/Procurement/Store; Asset and Facility lifecycle; Visitor/Camp
 
 **Architecture:** maintain one existing SQL Server DB and EduOSDbContext and current modular monolith. No current database splitting or mass renaming. App deployment may be separated from SQL hosting when measured operationally appropriate. Any later multi-DB tenant relocation is a separately approved engineering project.
 
-**Task execution:** V2 scope belongs only to LMS, Library, Hostel and Transport, and **all four are now closed to duplicate feature work**. The existing hourly automations are V3-focused under the owner override below. All work reads `AGENTS.md`, this contract, V1 freeze and the current V2 final baseline; checks current `Ashraful` HEAD; avoids duplicate/loop work; and leaves V1 and closed V2 modules in maintenance/acceptance. Tasks are not disabled unless the owner says OFF. A promised time target cannot waive tenant isolation, tests or data safety.
+**Archived task-execution policy (superseded 2026-10-31):** The former V2 module freeze and V3-focused hourly automation allocation below are **historical only**. The current five scheduled tasks follow the whole-project domain ownership in the [unified master plan](PROJECT_MASTER_PLAN.md); previously verified LMS/Library/Hostel/Transport and all other modules remain protected against duplicate work. A time target cannot waive tenant isolation, tests or data safety.
 
-## Owner task allocation override — 2026-10-30
+## Historic owner task allocation override — 2026-10-30 (superseded 2026-10-31)
 
-The owner explicitly retargeted the five **existing** hourly development tasks to V3,
+At that earlier date, the owner retargeted the five **existing** hourly development tasks to V3,
 superseding historical V2-task allocation sentences above and in AGENTS.md.
 The five owned V3 tracks are Inventory & Store, Procurement, Fixed Assets,
 Facilities & Campus, and Enterprise & QA. This changes task ownership, **not**
 V1/V2 release boundaries or completion claims: preserve closed V2 LMS/Library
 baselines and only evidenced V2 maintenance/operational acceptance, and do not duplicate V1 education,
-finance, HR or V2 domain workflows in V3. Only the owner may turn tasks OFF.
+finance, HR or V2 domain workflows in V3. **This allocation is no longer current; see the unified plan.**

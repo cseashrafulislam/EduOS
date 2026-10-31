@@ -1,5 +1,7 @@
 # EduOS production-hardening roadmap status
 
+> **HISTORICAL BRANCH SNAPSHOT ONLY.** For EduOS as **one project** use the [Unified Project Master Plan](PROJECT_MASTER_PLAN.md). This record preserves past exact-commit engineering findings; old milestones and 40K synthetic load experiments are not active requirements unless the owner reauthorizes them.
+
 This file tracks the production-readiness hardening work on `codex/phase-0-security-foundation`. It does **not** redefine planned product features in `README.md` as implemented; production-ready here means the currently implemented scope has no known critical/high-severity blocker found by this hardening review.
 
 ## Final verified baseline

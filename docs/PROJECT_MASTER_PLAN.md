@@ -1,0 +1,64 @@
+# EduOS — unified project scope, engineering inventory and remaining work
+
+**Owner decision: 2026-10-31.** EduOS is **one product and one active development backlog**. The former V1/V2/V3 names are historical delivery milestones, **not** active release partitions, sprint names, reasons to defer a workflow, or reasons to rebuild an already working module. This is the authoritative active scope and backlog for people, coding agents, GitHub issues and the five existing scheduled development tasks. Follow [AGENTS.md](../AGENTS.md) for engineering/security rules and [PRODUCT_BLUEPRINT.md](PRODUCT_BLUEPRINT.md) for the product catalogue.
+
+## 1. Current source of truth and safety boundaries
+
+1. Latest explicit owner instruction > root `AGENTS.md` > **this file** > current `Ashraful` source/schema/tests/CI and current GitHub issue state > domain contracts. The current source and CI evidence always decide whether a claim is true.
+2. Historical release contracts, module handoffs and dated test reports remain in Git for **audit evidence** and external links. They do not create separate backlogs or override this document. Version-prefixed C# identifiers, migrations, test names, CI workflow filenames and stored data **must not be renamed/deleted** merely to remove a former planning label.
+3. Make source changes on owner branch **`Ashraful` only**; preserve `master`, installed tenant data, posted Finance journal entries, stock movements, payroll, bookings, transcripts, audit trails, public API contracts and previously applied EF migrations. No history rewrite, forced push, tenant-wide re-seed or speculative framework conversion.
+4. One modular .NET monolith; **one existing SQL Server database, one `EduOSDbContext`**; one authoritative stock ledger and canonical Finance GL. Tenant/campus/entitlement/role/ownership protection and maker-checker approvals apply across all modules. Financial and inventory adjustments use approved immutable corrections/reversals, never hidden deletes or duplicate posting.
+5. **Development Final OK** requires real end-to-end code and the defined applicable automated CI, SQL, security, integration and browser checks. **Production Ready** additionally requires restored/representative data, load and threat validation, external integrations, real institute UAT and owner go/no-go. These gates must not be conflated. The removed 40K rehearsal is **not** an active acceptance obligation without new owner direction.
+
+## 2. Repository-wide structural and cleanup audit
+
+Snapshot inspected: `Ashraful` [`e2a1a878`](https://github.com/cseashrafulislam/EduOS/commit/e2a1a878a131f6fabe4622d234560bfd93a586b4) (2026-10-31), **prior to this cleanup**. The repo had **3,397 Git-tracked paths**, one `EduOS.slnx`, and seven referenced .NET projects: `EduOS.App`, `EduOS.Core`, `EduOS.Service`, `EduOS.Persistence`, `EduOS.AI`, `EduOS.BackgroundJobs`, and consolidated `EduOS.Tests`. **No `EduOS.HrPayroll.Tests` project remains**; the HR tests and their dedicated CI workflow use `EduOS.Tests`. The GitHub repository had **four open issues**: [#55](https://github.com/cseashrafulislam/EduOS/issues/55), [#56](https://github.com/cseashrafulislam/EduOS/issues/56), [#107](https://github.com/cseashrafulislam/EduOS/issues/107), [#108](https://github.com/cseashrafulislam/EduOS/issues/108). An open-issue count is not a test or evidence of completion.
+
+| Audit finding | Verified cleanup / preservation rule |
+| --- | --- |
+| Three tracked 0-byte unreferenced C# files (`PermissionHelper.cs`, `SessionHelper.cs`, `AutoMapperProfile.cs`) | Remove; no C# declarations or references to preserve. |
+| Two inert `.csproj` exclusion blocks referencing an absent temporary API filename and absent `EduOS.Service/Configurations` folder | Remove dead build metadata; retain both live projects and all references. |
+| One 2.2 MB tenant deposit-slip PNG accidentally tracked beneath `EduOS.App/App_Data/private-uploads/` | Remove **from source control**, but preserve the local copy and Git history; ignore the **whole runtime-private upload tree** to prevent subsequent accidental commits. Private customer uploads belong in separately backed-up secure storage, not the deployable source tree. Source-control removal **does not purge earlier Git objects** and cannot replace secure privacy remediation or production-storage backup. |
+| Vendor Bootstrap/jQuery distribution and source maps, 10 dedicated CI workflows, 327 JavaScript UI contract test files, EF migrations/snapshot, historical dated docs | Keep; generated/vendor support and historical verification cannot be safely declared unused by filename/age alone. Never delete actual migrations or retired test coverage just to reduce file count. |
+| Facilities schedule-release JS test asserted an obsolete exact string even though the real UI required a reason, 5-character minimum and rowversion | Correct only its stale assertion to verify the actual required-reason contract; do not change working production UI. |
+
+This is a structural/dependency/source-control audit with targeted behavior verification, **not a claim that every business flow in 3,397 files has passed end-to-end QA**. Later cleanup is evidence-driven: search references/DI/routing/migrations/tests and check CI before deleting anything. Uncertain live or historical code stays.
+
+## 3. Unified product status — do not reimplement completed features
+
+| Domain group | Current engineering evidence and boundary |
+| --- | --- |
+| Platform, multi-institute security, admission/import, student/academic/exam/results, core Fees/Finance, HR/Payroll | Previously verified development baselines; maintain compatibility and fix **reproducible** defects/security/integration issues only. See [first historic baseline](V1_DEVELOPMENT_BASELINE_20261030.md). Not an unconditional claim that production security, institutional or statutory gates passed. |
+| LMS, Library, Hostel, Transport and existing Finance links | Agreed development scope was previously verified; preserve shared canonical Finance and booking state. See [second historic baseline](V2_FINAL_DEVELOPMENT_BASELINE_20261031.md). External institute UAT and production acceptance are separate. |
+| Inventory & Store | Earlier defined engineering acceptance passed exact-commit full CI, SQL and Chromium checks at [`522d6fa`](https://github.com/cseashrafulislam/EduOS/commit/522d6fafbcb6c4fffc7286b66d58167ef722daa2); preserve its stock ledger, state machine, approvals and history. No duplicate inventory module. |
+| Procurement & Supplier AP | Supplier/requisition/PO, goods receipt, invoice snapshot/maker-checker, balanced posted AP and read-only aging have substantive implementation. **Net source-linked AP settlement, credit/returns, reconciliation and exception approval remain unproved/incomplete.** [#55](https://github.com/cseashrafulislam/EduOS/issues/55). |
+| Asset register, custody, accounting | Register, custody and accounting-persistence foundation plus read-only capitalization preflight exist. **Unique approved receipt-to-unit capitalization, balanced GL postings, depreciation, impairment/disposal and reversal** remain incomplete. [#56](https://github.com/cseashrafulislam/EduOS/issues/56). |
+| Facilities & Visitors | Space registry and request → independent approval → work order → schedule/technician → independent closure, audit/SLA have partial real workflows. **Approved stock spare-parts issue/cost/GL bridge, vendor controls and visitor check-in/out/retention** remain. [#107](https://github.com/cseashrafulislam/EduOS/issues/107). |
+| Alumni, Career, Research & Accreditation | Alumni consent/directory, event RSVP and attendance slices exist. **Employer/job/application/placement, research ethics/project/grant and accreditation evidence workflows** are not demonstrated as real end-to-end modules. See [historical implementation log](v3/TRACK1_ALUMNI_CAREER_RESEARCH.md). |
+| Cross-module integration, security and acceptance | Some read-only source traces and tenant fail-closed guards exist. **Posted end-to-end stock → asset → facilities → Finance lineage, independent approval/reversal, race/rollback/IDOR and load evidence** remain. [#108](https://github.com/cseashrafulislam/EduOS/issues/108). |
+
+**Current quality blocker at pre-cleanup SHA:** [full CI run `41223373764`](https://github.com/cseashrafulislam/EduOS/actions/runs/41223373764) failed at the JavaScript UI contract phase (stale Facilities assertion). SQL run [`41223373837`](https://github.com/cseashrafulislam/EduOS/actions/runs/41223373837) was still running when inspected; the preceding [`41222359851`](https://github.com/cseashrafulislam/EduOS/actions/runs/41222359851) failed in the transport/LMS/asset integration test step. **Do not claim latest-HEAD full CI/SQL green until both exact-SHA runs actually pass.** The cleanup fixes the verified JS test assertion but does not claim to fix an uninvestigated SQL business invariant.
+
+## 4. Single active backlog, ordered by risk and dependencies
+
+| Priority | Owner track | Required end-to-end acceptance / evidence |
+| --- | --- | --- |
+| **P0** | Whole-project integration, security & QA | Restore exact-SHA CI and disposable SQL green; triage any failing canonical asset/transport/LMS tests by reproducible root cause. Check migration/snapshot, source-controlled secrets/uploads, auth/IDOR, cross-tenant/campus access, finance/stock reconciliation, rollback/retry/concurrency. Do not weaken genuine business assertions to make tests green. |
+| **P1** | Procurement & supplier finance | Maker-checker source-linked settlement, bank/cash journal provenance and idempotent reversal; invoice returns/credit notes/net payable aging, quantity/price variance and payment/reconciliation in canonical GL, with SQL isolation/rollback/real browser tests. No shadow AP balance. |
+| **P1** | Assets & accounting | Immutable receipt-line→serialized asset/unit binding and acquisition cost; independently approved capitalization/GL reclassification, depreciation/impairment/disposal and reversals, period locks, audit, tenant/campus and SQL concurrency. No false posting from read-only preflight. |
+| **P1** | Facilities & visitor operations | Authorized work-order material issue through existing Inventory ledger and approved canonical cost/Finance link, vendor/reschedule/exception policy and visitor preregistration, host approval, secure check-in/out and bounded retention/export. No hidden spare-parts accounting. |
+| **P2** | Education experience, Alumni/Career/Research | Maintain completed education/LMS/Library/Hostel/Transport/HR only on evidenced regressions. Finish opt-in Alumni communication safely; build verified employer/job/placement, research/ethics/grant and accreditation evidence vertical slices only where genuinely missing, with existing institute ownership and privacy. |
+| **P2** | Full-system proof (shared QA track) | Trace purchase→receipt→stock→asset→facility→GL in a disposable SQL transaction suite; independent maker/checker and reversal/idempotent retry; browser bilingual/mobile and p95/p99 for representative tenant data. Record per-workflow evidence and gaps, not a project-wide percentage by issue count. |
+| **External gate** | Institution operations / owner | Staging, restored-data migration and rollback, real institute UAT, external bank/provid­er compliance, privacy/security penetration, capacity/load, and explicit go/no-go remain separate from Development Final OK. |
+
+## 5. Five recurring tasks — whole-project ownership, not separate releases
+
+Retain the **same five existing** staggered schedules; owner explicitly authorized temporary pause for this cleanup and reactivation afterwards. Assign non-overlapping ownership:
+
+1. **Education Experience & Alumni/Career/Research:** evidence-driven missing education/enterprise engagement slices; maintain stable completed domains, no duplication.
+2. **Procurement & Supplier Finance:** issue #55 and source-linked invoice settlement/returns.
+3. **Assets & Canonical Accounting:** issue #56, posted capitalization, depreciation and disposal.
+4. **Facilities & Visitor Operations:** issue #107, stock/Finance-backed service and visitor privacy lifecycle.
+5. **Whole-System Integration, Security & QA:** issue #108, CI/SQL blocker triage and cross-domain proof; coordinates with domain owners, does not silently take over their edits.
+
+Every run rechecks `Ashraful` HEAD, open issue acceptance, the latest completed CI/SQL, and **this unified master plan**; executes a small coherent and verifiable delta; never retries an identical blocker endlessly; never modifies `master` or force-pushes; reports exact test evidence and outstanding work. Previous version-named release documents are historical read-only references. Task cadence is managed in the automation scheduler, **not** by committing schedules to this file.
