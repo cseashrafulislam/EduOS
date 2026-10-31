@@ -98,7 +98,8 @@ public sealed partial class AssetLifecycleService
                     Quantity = line.Quantity,
                     PostedUnitCost = line.PostedUnitCost,
                     LotOrBatchNo = line.LotOrBatchNo,
-                    ReviewedAtUtc = receipt.ReviewedAtUtc
+                    ReviewedAtUtc = receipt.ReviewedAtUtc,
+                    ValuationMode = receipt.ValuationMode ?? string.Empty
                 };
 
             result.CandidateLineCount = await candidates.CountAsync(ct);

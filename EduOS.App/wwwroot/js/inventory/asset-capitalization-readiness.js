@@ -30,12 +30,12 @@ export async function showCapitalizationReadiness(reference) {
         for (const x of data.candidates || []) {
             const tr = document.createElement('tr');
             [x.receiptReference, x.postedMovementReference, x.purchaseOrderId, x.lineNo, x.quantity,
-                x.postedUnitCost, x.lotOrBatchNo, x.reviewedAtUtc].forEach(value => tr.append(td(value)));
+                x.postedUnitCost, x.valuationMode, x.lotOrBatchNo, x.reviewedAtUtc].forEach(value => tr.append(td(value)));
             body.append(tr);
         }
         if (!data.candidates?.length) {
             const tr = document.createElement('tr'), cell = td('No matching evidence / কোনো মিল পাওয়া যায়নি');
-            cell.colSpan = 8; tr.append(cell); body.append(tr);
+            cell.colSpan = 9; tr.append(cell); body.append(tr);
         }
         el('assetCapitalizationExport').disabled = false;
     } catch (error) {

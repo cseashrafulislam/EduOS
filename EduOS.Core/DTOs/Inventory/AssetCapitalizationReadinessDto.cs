@@ -28,4 +28,5 @@ public sealed class AssetCapitalizationReceiptCandidateDto
     public decimal? PostedUnitCost { get; set; }
     public string LotOrBatchNo { get; set; } = string.Empty;
     public DateTime? ReviewedAtUtc { get; set; }
+    public string ValuationMode { get; set; } = string.Empty;
 }

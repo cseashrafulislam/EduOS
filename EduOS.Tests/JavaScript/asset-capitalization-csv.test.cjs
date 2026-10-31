@@ -11,7 +11,8 @@ test('bounded bilingual capitalization evidence CSV is safe for spreadsheet impo
         candidates: Array.from({ length: 30 }, (_, i) => ({
             receiptReference: 'receipt-' + i, postedMovementReference: 'movement-' + i,
             purchaseOrderId: 4, lineNo: i + 1,
-            quantity: 1, postedUnitCost: 120, lotOrBatchNo: i === 0 ? '+SUM(1,1)' : 'lot',
+            quantity: 1, postedUnitCost: 120, valuationMode: 'AutoPlusManual',
+            lotOrBatchNo: i === 0 ? '+SUM(1,1)' : 'lot',
             reviewedAtUtc: '2026-10-31T00:00:00Z'
         }))
     });
@@ -20,6 +21,8 @@ test('bounded bilingual capitalization evidence CSV is safe for spreadsheet impo
     assert.ok(csv.includes("'=HYPERLINK"));
     assert.ok(csv.includes("'+SUM"));
     assert.ok(csv.includes('Posted stock movement'));
+    assert.ok(csv.includes('Valuation policy'));
+    assert.ok(csv.includes('AutoPlusManual'));
     assert.ok(csv.includes('movement-0'));
     assert.ok(!csv.includes('receipt-29'));
     assert.ok(!csv.includes('movement-29'));
