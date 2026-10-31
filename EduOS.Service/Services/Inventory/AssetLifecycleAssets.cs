@@ -24,11 +24,18 @@ public sealed partial class AssetLifecycleService
                 if (!await CampusAllowedAsync(existing.CampusId, ct)) return Denied<AssetDto>();
                 if (!Version(existing.RowVersion, request.RowVersion))
                     return ApiResponse<AssetDto>.ErrorResponse("Asset changed; reload.", 409);
-                var history = await _db.AssetAssignments.AnyAsync(x => x.TenantId == Tenant && x.AssetId == existing.Id && !x.IsDeleted, ct);
-                if (history && (existing.AssetTag != tag || existing.CampusId != request.CampusId ||
+                // A book may be activated before the asset has ever been assigned.
+                // Lock source identity and registered valuation in either case; a
+                // future approved valuation correction must be a separate audited flow.
+                var history = await _db.AssetAssignments.AsNoTracking().AnyAsync(x =>
+                    x.TenantId == Tenant && x.AssetId == existing.Id && !x.IsDeleted, ct);
+                var hasBook = await _db.AssetBooks.AsNoTracking().AnyAsync(x =>
+                    x.TenantId == Tenant && x.AssetId == existing.Id && !x.IsDeleted, ct);
+                if ((history || hasBook) && (existing.AssetTag != tag || existing.CampusId != request.CampusId ||
                     existing.AssetCategoryId != request.AssetCategoryId || existing.InventoryItemId != request.InventoryItemId ||
-                    existing.InventoryLocationId != request.InventoryLocationId || existing.PurchaseCost != request.PurchaseCost))
-                    return ApiResponse<AssetDto>.ErrorResponse("Asset identity and valuation are locked after assignment.", 409);
+                    existing.InventoryLocationId != request.InventoryLocationId || existing.PurchaseDate != request.PurchaseDate ||
+                    existing.PurchaseCost != request.PurchaseCost))
+                    return ApiResponse<AssetDto>.ErrorResponse("Asset source identity and valuation are locked after custody or accounting activation.", 409);
                 if (!request.IsActive && existing.StateCode == "Assigned")
                     return ApiResponse<AssetDto>.ErrorResponse("Return assigned asset before deactivation.", 409);
                 entity = existing; entity.UpdatedAt = Now; entity.UpdatedBy = _user.UserId;

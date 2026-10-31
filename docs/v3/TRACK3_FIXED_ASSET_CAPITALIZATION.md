@@ -27,3 +27,14 @@ no matching goods receipt. The status deliberately remains ReviewRequired even w
 
 Existing AssetBook, depreciation run/line, impairment and disposal persistence is **not**
 evidence that those workflows have been completed. Issue #56 remains open.
+
+## Accounting integrity safeguard (subsequent Track 3 delta)
+
+An asset with any non-deleted AssetBook now locks its source tag, campus,
+category, tracked item, location, purchase date and registered purchase cost,
+**even without custody history**. A prior custody assignment also retains this
+lock. Name/serial metadata remains editable with rowversion; unassigned assets
+without a book retain normal editability. A disposable SQL regression covers
+both paths and rejects protected edits with HTTP 409. This safeguard does **not**
+create an AssetBook, capitalize an acquisition, change a GL balance, or define a
+valuation-correction policy.

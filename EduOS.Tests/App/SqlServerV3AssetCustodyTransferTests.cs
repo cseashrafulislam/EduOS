@@ -177,4 +177,108 @@ public sealed class SqlServerV3AssetCustodyTransferTests
         Assert.Equal(1, await verify.AssetAssignments.CountAsync(x =>
             x.AssetId == assetId && !x.IsDeleted && x.ReturnedOn == null));
     }
+    [Fact]
+    public async Task Unassigned_booked_asset_freezes_source_identity_and_valuation_without_blocking_metadata()
+    {
+        var connection = Environment.GetEnvironmentVariable("EDUOS_SQL_AUTH_TEST_CONNECTION");
+        if (string.IsNullOrWhiteSpace(connection)) return;
+        var f = await SeedAsync(connection);
+        var suffix = Guid.NewGuid().ToString("N")[..12];
+        Guid bookedRef, unbookedRef;
+        long otherCategoryId, otherCampusId;
+
+        await using (var seed = Open(f.Options, f.Tenant))
+        {
+            var original = await seed.Assets.AsNoTracking()
+                .SingleAsync(x => x.PublicId == f.AssetReference);
+            var campusId = original.CampusId!.Value;
+            otherCampusId = (await seed.OrganizationUnits.AsNoTracking()
+                .SingleAsync(x => x.Id == f.OtherCampusUnit)).CampusId!.Value;
+            var category = new AssetCategory { TenantId = f.Tenant,
+                Code = "BOOK-C-" + suffix, Name = "Other asset category" };
+            var item = new InventoryItem { TenantId = f.Tenant,
+                Code = "BOOK-I-" + suffix, Name = "Capitalized equipment", IsAssetTracked = true };
+            var location = new InventoryLocation { TenantId = f.Tenant,
+                CampusId = campusId, Code = "BOOK-L-" + suffix, Name = "Asset storage" };
+            seed.AssetCategories.Add(category);
+            seed.InventoryItems.Add(item);
+            seed.InventoryLocations.Add(location);
+            await seed.SaveChangesAsync();
+            otherCategoryId = category.Id;
+            var booked = new Asset { TenantId = f.Tenant, CampusId = campusId,
+                AssetCategoryId = original.AssetCategoryId, InventoryItemId = item.Id,
+                InventoryLocationId = location.Id, AssetTag = "BOOKED-" + suffix,
+                Name = "Capitalized microscope", PurchaseDate = new DateOnly(2026, 10, 1),
+                PurchaseCost = 1000m };
+            var unbooked = new Asset { TenantId = f.Tenant, CampusId = campusId,
+                AssetCategoryId = original.AssetCategoryId, InventoryItemId = item.Id,
+                InventoryLocationId = location.Id, AssetTag = "UNBOOKED-" + suffix,
+                Name = "Unbooked microscope", PurchaseDate = new DateOnly(2026, 10, 1),
+                PurchaseCost = 1000m };
+            seed.Assets.AddRange(booked, unbooked);
+            await seed.SaveChangesAsync();
+            bookedRef = booked.PublicId;
+            unbookedRef = unbooked.PublicId;
+            seed.AssetBooks.Add(new AssetBook { TenantId = f.Tenant, AssetId = booked.Id,
+                CampusId = campusId, InServiceDate = new DateOnly(2026, 10, 1),
+                MethodCode = "StraightLine", UsefulLifeMonths = 36, CostBasis = 1000m,
+                SalvageValue = 100m, PolicyVersion = 1, IsActive = true });
+            await seed.SaveChangesAsync();
+            Assert.False(await seed.AssetAssignments.AnyAsync(x => x.AssetId == booked.Id));
+        }
+
+        await using (var db = Open(f.Options, f.Tenant))
+        {
+            var service = Service(db, f);
+            var booked = await db.Assets.AsNoTracking()
+                .SingleAsync(x => x.PublicId == bookedRef);
+            SaveAssetRequestDto Request(Asset a) => new()
+            {
+                AssetCategoryId = a.AssetCategoryId, CampusId = a.CampusId,
+                InventoryItemId = a.InventoryItemId, InventoryLocationId = a.InventoryLocationId,
+                AssetTag = a.AssetTag, Name = a.Name, SerialNumber = a.SerialNumber,
+                PurchaseDate = a.PurchaseDate, PurchaseCost = a.PurchaseCost,
+                IsActive = a.IsActive, RowVersion = Convert.ToBase64String(a.RowVersion)
+            };
+
+            // Display metadata remains editable; the SQL rowversion advances.
+            var metadata = Request(booked);
+            metadata.Name = "Microscope — renamed";
+            var renamed = await service.SaveAssetAsync(bookedRef, metadata);
+            Assert.Equal(200, renamed.StatusCode);
+            booked = await db.Assets.AsNoTracking().SingleAsync(x => x.PublicId == bookedRef);
+            Action<SaveAssetRequestDto>[] forbidden =
+            [
+                x => x.PurchaseCost = 1500m,
+                x => x.PurchaseDate = new DateOnly(2026, 10, 2),
+                x => x.AssetTag = "RETAG-" + suffix,
+                x => x.AssetCategoryId = otherCategoryId,
+                x => x.InventoryItemId = null,
+                x => x.InventoryLocationId = null,
+                x => { x.CampusId = otherCampusId; x.InventoryLocationId = null; }
+            ];
+            foreach (var edit in forbidden)
+            {
+                var request = Request(booked);
+                edit(request);
+                Assert.Equal(409, (await service.SaveAssetAsync(bookedRef, request)).StatusCode);
+            }
+            var after = await db.Assets.AsNoTracking().SingleAsync(x => x.PublicId == bookedRef);
+            Assert.Equal(1000m, after.PurchaseCost);
+            Assert.Equal(booked.CampusId, after.CampusId);
+            Assert.Equal(booked.AssetTag, after.AssetTag);
+            Assert.Equal(booked.PurchaseDate, after.PurchaseDate);
+            Assert.Equal(1000m, (await db.AssetBooks.AsNoTracking()
+                .SingleAsync(x => x.AssetId == booked.Id)).CostBasis);
+
+            // An unassigned asset with no book retains the normal draft edit path.
+            var draft = await db.Assets.AsNoTracking().SingleAsync(x => x.PublicId == unbookedRef);
+            var draftChange = Request(draft);
+            draftChange.PurchaseCost = 1200m;
+            Assert.Equal(200, (await service.SaveAssetAsync(unbookedRef, draftChange)).StatusCode);
+            Assert.Equal(1200m, (await db.Assets.AsNoTracking()
+                .SingleAsync(x => x.PublicId == unbookedRef)).PurchaseCost);
+        }
+    }
+
 }
