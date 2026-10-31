@@ -3,6 +3,7 @@
 // EduOS instance. Never use production credentials or a live customer database.
 import { performance } from 'node:perf_hooks';
 import { auditRegisterPages } from './v3-enterprise-paged-audit.mjs';
+import { auditProcurement } from './v3-enterprise-procurement-http-audit.mjs';
 import { pathToFileURL } from 'node:url';
 
 const API = '/api/v3/enterprise/ledger-trace';
@@ -67,6 +68,8 @@ export function validateConfig(env) {
     check(env.TENANT_A_COOKIE !== env.TENANT_B_COOKIE, 'Two distinct tenant sessions required.');
     const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
     check(uuid.test(env.STOCK_REFERENCE) && uuid.test(env.ASSET_REFERENCE), 'Invalid reference UUID.');
+    check(!env.PROCUREMENT_REFERENCE || uuid.test(env.PROCUREMENT_REFERENCE),
+        'Invalid procurement reference UUID.');
     const date = /^\d{4}-\d{2}-\d{2}$/;
     const validDate = value => {
         if (!date.test(value)) return false;
@@ -99,6 +102,7 @@ export function validateConfig(env) {
         'Concurrency must be 1..16.');
     return { base: base.origin, a: env.TENANT_A_COOKIE, b: env.TENANT_B_COOKIE,
         stock: env.STOCK_REFERENCE, asset: env.ASSET_REFERENCE,
+        procurement: env.PROCUREMENT_REFERENCE || null,
         from: env.FROM, to: env.TO, iterations, concurrency,
         restricted: env.RESTRICTED_COOKIE || null,
         assetCampus: campusA || null, otherCampus: campusOther || null,
@@ -126,7 +130,7 @@ export async function request(base, cookie, path, fetcher = fetch) {
 }
 
 export async function runAcceptance(config, fetcher = fetch) {
-    const { base, a, b, stock, asset, from, to, iterations, concurrency,
+    const { base, a, b, stock, asset, procurement = null, from, to, iterations, concurrency,
         restricted, assetCampus, otherCampus, pagedAudit = false, auditPages = 10 } = config;
     const noStore = result => check(result.cache.includes('no-store') ||
         result.cache.includes('no-cache'), 'Private response must not be cached.');
@@ -162,7 +166,20 @@ export async function runAcceptance(config, fetcher = fetch) {
         'Stock reference mismatch.');
     check(assetData.runReference?.toLowerCase() === asset.toLowerCase(),
         'Asset reference mismatch.');
+    const procurementResult = procurement ? await auditProcurement({
+        read, parseCsv, api: API, reference: procurement, from, to,
+        tenantA: a, tenantB: b, restricted
+    }) : null;
     const registers = [];
+    if (procurementResult) {
+        if (pagedAudit) {
+            const result = await auditRegisterPages({ read, parseCsv, api: API,
+                kind: 'procurement', reference: procurement, from, to,
+                tenantA: a, tenantB: b, maxPages: auditPages });
+            registers.push({ kind: 'procurement', count: result.count,
+                pagesAudited: result.pagesAudited });
+        } else registers.push({ kind: 'procurement', count: procurementResult.reportCount });
+    }
     for (const [kind, reference] of [['stock', stock], ['asset', asset]]) {
         if (pagedAudit) {
             const result = await auditRegisterPages({ read, parseCsv, api: API, kind, reference,
@@ -240,6 +257,11 @@ export async function runAcceptance(config, fetcher = fetch) {
         { cookie: b, path: API + '/register?' + new URLSearchParams({
             kind: 'asset', from, to, page: '1', pageSize: '25' }), foreignRegister: true }
     ];
+    if (procurement) {
+        paths.push({ cookie: a, path: API + '/procurement/' + procurement, own: true });
+        paths.push({ cookie: b, path: API + '/procurement/' + procurement,
+            foreignDetail: true });
+    }
     let cursor = 0;
     const worker = async () => {
         while (cursor < iterations) {
@@ -265,6 +287,7 @@ export async function runAcceptance(config, fetcher = fetch) {
             'bounded paging', 'mixed-tenant concurrent replay',
             ...(restricted ? ['restricted-role authorization'] : []),
             ...(assetCampus ? ['asset campus isolation'] : []),
+            ...(procurement ? ['procurement source/CSV/register integrity and tenant IDOR'] : []),
             ...(pagedAudit ? ['bounded all-page JSON/CSV parity and cross-tenant isolation'] : [])],
         registerCounts: registers,
         measuredHttpOnly: true, samples: samples.length,
