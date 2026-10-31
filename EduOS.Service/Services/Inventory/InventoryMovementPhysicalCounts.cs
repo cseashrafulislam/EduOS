@@ -168,6 +168,8 @@ public sealed partial class InventoryMovementService
         catch (DbUpdateException ex) { logger.LogWarning(ex, "Physical count create race"); return CountConflict("Count create conflict; reload."); }
         catch (SqlException ex) when (ex.Number is 1205 or 1222 or 2601 or 2627 or 3960)
         { logger.LogWarning(ex, "Physical count create SQL race"); return CountConflict("Count create conflict; reload."); }
+        catch (InvalidOperationException ex) when (IsSqlReceiptConflict(ex))
+        { logger.LogWarning(ex, "Physical count create wrapped SQL race"); return CountConflict("Count create conflict; reload."); }
     }
 
     private static ApiResponse<InventoryPhysicalCountDto> CountConflict(string message) =>
@@ -211,6 +213,8 @@ public sealed partial class InventoryMovementService
         catch (DbUpdateException ex) { logger.LogWarning(ex, "Physical count submit race"); return CountConflict("Count submit conflict; reload."); }
         catch (SqlException ex) when (ex.Number is 1205 or 1222 or 2601 or 2627 or 3960)
         { logger.LogWarning(ex, "Physical count submit SQL race"); return CountConflict("Count submit conflict; reload."); }
+        catch (InvalidOperationException ex) when (IsSqlReceiptConflict(ex))
+        { logger.LogWarning(ex, "Physical count submit wrapped SQL race"); return CountConflict("Count submit conflict; reload."); }
     }
 
     public async Task<ApiResponse<InventoryPhysicalCountDto>> ReviewPhysicalCountAsync(
@@ -348,5 +352,7 @@ public sealed partial class InventoryMovementService
         catch (DbUpdateException ex) { logger.LogWarning(ex, "Physical count review race"); return CountConflict("Count review conflict; reload."); }
         catch (SqlException ex) when (ex.Number is 1205 or 1222 or 2601 or 2627 or 3960)
         { logger.LogWarning(ex, "Physical count review SQL race"); return CountConflict("Count review conflict; reload."); }
+        catch (InvalidOperationException ex) when (IsSqlReceiptConflict(ex))
+        { logger.LogWarning(ex, "Physical count review wrapped SQL race"); return CountConflict("Count review conflict; reload."); }
     }
 }

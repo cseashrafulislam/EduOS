@@ -261,14 +261,16 @@ public sealed partial class SqlServerV3InventoryTransferLifecycleTests
         var start = CountRequest(f);
         await using var makerDb = OpenAs(f.Options, f.TenantId, f.UserId);
         var maker = Service(makerDb, f);
-        Assert.Equal(200, (await maker.StartPhysicalCountAsync(start)).StatusCode);
+        var created = await maker.StartPhysicalCountAsync(start);
+        Assert.Equal(200, created.StatusCode);
+        var reference = created.Data!.Reference;
         Assert.Equal(200, (await maker.StartPhysicalCountAsync(start)).StatusCode);
         start.Reason = "Different request data with same idempotency key";
         Assert.Equal(409, (await maker.StartPhysicalCountAsync(start)).StatusCode);
         Assert.Equal(403, (await Service(makerDb, f, "Student").GetPhysicalCountsAsync(null, null, 1, 25)).StatusCode);
         await using var foreign = Open(f.Options, f.TenantId + 888);
         Assert.Equal(404, (await Service(foreign, f, tenantId: f.TenantId + 888)
-            .GetPhysicalCountAsync((await maker.GetPhysicalCountsAsync(null, null, 1, 25)).Data!.Items[0].Reference)).StatusCode);
+            .GetPhysicalCountAsync(reference)).StatusCode);
         Assert.Equal(403, (await Service(foreign, f, tenantId: f.TenantId + 888)
             .StartPhysicalCountAsync(CountRequest(f))).StatusCode);
     }
