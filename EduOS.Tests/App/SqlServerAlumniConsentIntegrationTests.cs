@@ -159,8 +159,8 @@ public sealed class SqlServerAlumniConsentIntegrationTests
         Assert.False(selfApproval.Success);
         Assert.Equal(403, selfApproval.StatusCode);
 
-        var approver = Service(db, tenantId, publisherId, true);
-        var published = await approver.ChangeEventStatusAsync(draft.Data.Reference,
+        var publisherService = Service(db, tenantId, publisherId, true);
+        var published = await publisherService.ChangeEventStatusAsync(draft.Data.Reference,
             new AlumniEventActionDto { RowVersion = draft.Data.RowVersion }, true);
         Assert.True(published.Success, published.Message);
         Assert.Equal(2, published.Data!.Status);
@@ -217,7 +217,7 @@ public sealed class SqlServerAlumniConsentIntegrationTests
         });
         Assert.True(revoked.Success, revoked.Message);
         Assert.Null(revoked.Data!.ContactEmail);
-        var clearedEngagement = await approver.EventsAsync(new AlumniEventQueryDto());
+        var clearedEngagement = await publisherService.EventsAsync(new AlumniEventQueryDto());
         Assert.True(clearedEngagement.Success, clearedEngagement.Message);
         Assert.Equal(0, Assert.Single(clearedEngagement.Data!.Items.Where(e =>
             e.Reference == draft.Data.Reference)).GoingCount);
