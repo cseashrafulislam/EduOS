@@ -21,6 +21,7 @@ public sealed class AssetCapitalizationReadinessDto
 public sealed class AssetCapitalizationReceiptCandidateDto
 {
     public Guid ReceiptReference { get; set; }
+    public Guid PostedMovementReference { get; set; }
     public long PurchaseOrderId { get; set; }
     public int LineNo { get; set; }
     public decimal Quantity { get; set; }

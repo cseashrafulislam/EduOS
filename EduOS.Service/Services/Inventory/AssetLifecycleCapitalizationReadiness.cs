@@ -61,13 +61,24 @@ public sealed partial class AssetLifecycleService
                     line.InventoryItemId == asset.InventoryItemId!.Value &&
                     receipt.StateCode == "Posted" && movement.StateCode == "Posted" &&
                     movement.SourceType == "ProcurementGoodsReceipt" &&
-                    movement.SourceId == receipt.Id &&
+                    movement.SourceId == receipt.Id && movement.MovementTypeCode == "Receipt" &&
+                    movement.ToLocationId == receipt.LocationId &&
+                    line.Quantity > 0m && line.PostedUnitCost.HasValue && line.PostedUnitCost > 0m &&
+                    _db.InventoryMovementLines.Any(stockLine =>
+                        stockLine.TenantId == Tenant && !stockLine.IsDeleted &&
+                        stockLine.InventoryMovementId == movement.Id &&
+                        stockLine.LineNo == line.LineNo &&
+                        stockLine.InventoryItemId == line.InventoryItemId &&
+                        stockLine.Quantity == line.Quantity &&
+                        stockLine.UnitCost == line.PostedUnitCost.Value &&
+                        (stockLine.LotOrBatchNo ?? "") == line.LotOrBatchNo) &&
                     !_db.InventoryMovements.Any(reversal => reversal.TenantId == Tenant &&
                         !reversal.IsDeleted && reversal.StateCode == "Posted" &&
                         reversal.ReversalOfMovementId == movement.Id)
                 select new AssetCapitalizationReceiptCandidateDto
                 {
                     ReceiptReference = receipt.PublicId,
+                    PostedMovementReference = movement.PublicId,
                     PurchaseOrderId = receipt.PurchaseOrderId,
                     LineNo = line.LineNo,
                     Quantity = line.Quantity,

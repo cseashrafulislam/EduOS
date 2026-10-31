@@ -110,6 +110,106 @@ public sealed class SqlServerV3AssetCustodyTransferTests
         Reason = "Approved custodian change"
     };
 
+
+    [Fact]
+    public async Task Capitalization_preflight_requires_exact_posted_receipt_stock_line_and_is_tenant_scoped()
+    {
+        var connection = Environment.GetEnvironmentVariable("EDUOS_SQL_AUTH_TEST_CONNECTION");
+        if (string.IsNullOrWhiteSpace(connection)) return;
+        var f = await SeedAsync(connection);
+        var suffix = Guid.NewGuid().ToString("N")[..12];
+        await using var db = Open(f.Options, f.Tenant);
+        var asset = await db.Assets.SingleAsync(x => x.PublicId == f.AssetReference);
+        var campusId = asset.CampusId!.Value;
+        var item = new InventoryItem { TenantId = f.Tenant, Code = "CAP-I-" + suffix,
+            Name = "Tracked microscope", IsActive = true, IsStockTracked = true, IsAssetTracked = true };
+        var location = new InventoryLocation { TenantId = f.Tenant, CampusId = campusId,
+            Code = "CAP-L-" + suffix, Name = "Receiving store", IsActive = true };
+        var supplier = new ProcurementSupplier { TenantId = f.Tenant, CampusId = campusId,
+            ClientRequestId = Guid.NewGuid(), SupplierCode = "CAP-S-" + suffix,
+            Name = "Supplier", StateCode = "Approved" };
+        var requisition = new ProcurementRequisition { TenantId = f.Tenant, CampusId = campusId,
+            ClientRequestId = Guid.NewGuid(), RequestNumber = "CAP-R-" + suffix,
+            Purpose = "Laboratory capital equipment", StateCode = "Approved" };
+        db.AddRange(item, location, supplier, requisition);
+        await db.SaveChangesAsync();
+        var requisitionLine = new ProcurementRequisitionLine { TenantId = f.Tenant,
+            RequisitionId = requisition.Id, LineNo = 1, InventoryItemId = item.Id,
+            Quantity = 1m, EstimatedUnitPrice = 120m };
+        var order = new ProcurementPurchaseOrder { TenantId = f.Tenant, CampusId = campusId,
+            ClientRequestId = Guid.NewGuid(), OrderNumber = "CAP-PO-" + suffix,
+            RequisitionId = requisition.Id, SupplierId = supplier.Id, StateCode = "Approved" };
+        db.AddRange(requisitionLine, order);
+        await db.SaveChangesAsync();
+        var orderLine = new ProcurementPurchaseOrderLine { TenantId = f.Tenant,
+            PurchaseOrderId = order.Id, RequisitionLineId = requisitionLine.Id, LineNo = 1,
+            InventoryItemId = item.Id, Quantity = 1m, UnitPrice = 120m };
+        db.ProcurementPurchaseOrderLines.Add(orderLine);
+        await db.SaveChangesAsync();
+        var receipt = new ProcurementGoodsReceipt { TenantId = f.Tenant,
+            ClientRequestId = Guid.NewGuid(), PurchaseOrderId = order.Id,
+            CampusId = campusId, LocationId = location.Id, StateCode = "Posted",
+            Reason = "Independently reviewed delivery", ReviewedAtUtc = DateTime.UtcNow,
+            ReviewedByUserId = f.User, ValuationMode = "Automatic",
+            CreateFingerprint = new string('A', 64) };
+        db.ProcurementGoodsReceipts.Add(receipt);
+        await db.SaveChangesAsync();
+        var movement = new InventoryMovement { TenantId = f.Tenant,
+            ClientRequestId = Guid.NewGuid(), MovementNumber = "CAP-M-" + suffix,
+            MovementTypeCode = "Receipt", StateCode = "Posted", ToLocationId = location.Id,
+            SourceType = "ProcurementGoodsReceipt", SourceId = receipt.Id,
+            PostedAt = DateTime.UtcNow, PostedByUserId = f.User };
+        db.InventoryMovements.Add(movement);
+        await db.SaveChangesAsync();
+        db.ProcurementGoodsReceiptLines.Add(new ProcurementGoodsReceiptLine {
+            TenantId = f.Tenant, GoodsReceiptId = receipt.Id, LineNo = 1,
+            PurchaseOrderLineId = orderLine.Id, InventoryItemId = item.Id,
+            LotOrBatchNo = "CAP-LOT", Quantity = 1m, ApprovedPoQuantity = 1m,
+            ApprovedPoUnitPrice = 120m, PostedUnitCost = 120m });
+        var stockLine = new InventoryMovementLine { TenantId = f.Tenant,
+            InventoryMovementId = movement.Id, LineNo = 1, InventoryItemId = item.Id,
+            LotOrBatchNo = "CAP-LOT", Quantity = 1m, UnitCost = 120m };
+        db.InventoryMovementLines.Add(stockLine);
+        receipt.PostedMovementId = movement.Id;
+        asset.InventoryItemId = item.Id;
+        asset.InventoryLocationId = location.Id;
+        asset.PurchaseCost = 120m;
+        await db.SaveChangesAsync();
+
+        var service = Service(db, f);
+        async Task<AssetCapitalizationReadinessDto> Read()
+        {
+            var response = await service.GetCapitalizationReadinessAsync(f.AssetReference);
+            Assert.Equal(200, response.StatusCode);
+            return response.Data!;
+        }
+        var valid = await Read();
+        Assert.Equal("ReviewRequired", valid.StatusCode);
+        Assert.Equal(movement.PublicId, Assert.Single(valid.Candidates).PostedMovementReference);
+        Assert.Equal(1, valid.CandidateLineCount);
+
+        await db.InventoryMovementLines.Where(x => x.Id == stockLine.Id)
+            .ExecuteUpdateAsync(s => s.SetProperty(x => x.UnitCost, 121m));
+        Assert.Empty((await Read()).Candidates);
+        await db.InventoryMovementLines.Where(x => x.Id == stockLine.Id)
+            .ExecuteUpdateAsync(s => s.SetProperty(x => x.UnitCost, 120m));
+        await db.InventoryMovementLines.Where(x => x.Id == stockLine.Id)
+            .ExecuteUpdateAsync(s => s.SetProperty(x => x.LotOrBatchNo, "WRONG-LOT"));
+        Assert.Equal("NoPostedReceiptEvidence", (await Read()).StatusCode);
+        await db.InventoryMovementLines.Where(x => x.Id == stockLine.Id)
+            .ExecuteUpdateAsync(s => s.SetProperty(x => x.LotOrBatchNo, "CAP-LOT"));
+        await db.InventoryMovements.Where(x => x.Id == movement.Id)
+            .ExecuteUpdateAsync(s => s.SetProperty(x => x.ToLocationId, (long?)null));
+        Assert.Equal(0, (await Read()).CandidateLineCount);
+        await db.InventoryMovements.Where(x => x.Id == movement.Id)
+            .ExecuteUpdateAsync(s => s.SetProperty(x => x.ToLocationId, (long?)location.Id));
+        Assert.Equal(1, (await Read()).CandidateLineCount);
+
+        await using var foreign = Open(f.Options, f.Tenant + 999);
+        Assert.Equal(404, (await Service(foreign, f, tenant: f.Tenant + 999)
+            .GetCapitalizationReadinessAsync(f.AssetReference)).StatusCode);
+    }
+
     [Fact]
     public async Task Transfer_is_atomic_idempotent_and_preserves_both_custodians()
     {

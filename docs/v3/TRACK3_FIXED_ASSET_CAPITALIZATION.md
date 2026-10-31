@@ -38,3 +38,15 @@ without a book retain normal editability. A disposable SQL regression covers
 both paths and rejects protected edits with HTTP 409. This safeguard does **not**
 create an AssetBook, capitalize an acquisition, change a GL balance, or define a
 valuation-correction policy.
+
+## Track 3 source-provenance hardening (31 October 2026)
+
+A receipt header alone is no longer sufficient for a capitalization candidate. The
+preflight now requires the matching **posted canonical InventoryMovementLine** (same
+tenant, receipt-linked movement, receiving location, line number, tracked item,
+quantity, lot/batch and reviewed unit cost). The posted stock movement reference is
+shown in the bilingual evidence table and bounded CSV for follow-up audit.
+This fails closed for missing or altered stock lines, while preserving the existing
+no-posting boundary. A focused disposable SQL regression covers correct evidence,
+tampered unit cost, lot, location and cross-tenant IDOR. No Inventory posting,
+asset book or Finance GL write path was modified.

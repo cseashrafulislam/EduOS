@@ -6,12 +6,12 @@ export function capitalizationCsv(data) {
         return '"' + s.replaceAll('"', '""') + '"';
     };
     const header = ['Asset tag', 'Campus ID', 'Status', 'Receipt reference',
-        'Purchase order ID', 'Line', 'Quantity', 'Posted unit cost', 'Lot/batch', 'Reviewed UTC'];
+        'Posted stock movement', 'Purchase order ID', 'Line', 'Quantity', 'Posted unit cost', 'Lot/batch', 'Reviewed UTC'];
     const rows = (data.candidates || []).slice(0, 25).map(x => [
         data.assetTag, data.campusId, data.statusCode, x.receiptReference,
-        x.purchaseOrderId, x.lineNo, x.quantity, x.postedUnitCost,
+        x.postedMovementReference, x.purchaseOrderId, x.lineNo, x.quantity, x.postedUnitCost,
         x.lotOrBatchNo, x.reviewedAtUtc
     ]);
-    if (!rows.length) rows.push([data.assetTag, data.campusId, data.statusCode, '', '', '', '', '', '', '']);
+    if (!rows.length) rows.push([data.assetTag, data.campusId, data.statusCode, '', '', '', '', '', '', '', '']);
     return '\uFEFF' + [header, ...rows].map(row => row.map(escape).join(',')).join('\r\n') + '\r\n';
 }
