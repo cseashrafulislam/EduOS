@@ -52,6 +52,37 @@ public sealed class AlumniConsentContractTests
         Assert.Contains("RowVersion", source);
     }
 
+
+    [Theory]
+    [InlineData(" =1+1")]
+    [InlineData("\t=1+1")]
+    [InlineData("\r\n@HYPERLINK(\"https://example.invalid\",\"x\")")]
+    [InlineData("\u00A0+SUM(1,2)")]
+    [InlineData("\uFEFF@SUM(1,2)")]
+    [InlineData("\u200B-1+1")]
+    public void Alumni_csv_exports_force_text_for_formulas_after_invisible_prefix(string input)
+    {
+        var csv = InvokeCsv(input);
+        Assert.Equal("\"'" + input.Replace("\"", "\"\"") + "\"", csv);
+    }
+
+    [Theory]
+    [InlineData("Alice", "\"Alice\"")]
+    [InlineData("A \"quoted\" name", "\"A \"\"quoted\"\" name\"")]
+    [InlineData(null, "\"\"")]
+    public void Alumni_csv_exports_preserve_ordinary_quoted_values(string? input, string expected)
+    {
+        Assert.Equal(expected, InvokeCsv(input));
+    }
+
+    private static string InvokeCsv(string? input)
+    {
+        var method = typeof(AlumniApiController).GetMethod("Csv",
+            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
+        Assert.NotNull(method);
+        return Assert.IsType<string>(method!.Invoke(null, new object?[] { input }));
+    }
+
     private static string Read(params string[] segments)
     {
         var directory = new DirectoryInfo(AppContext.BaseDirectory);

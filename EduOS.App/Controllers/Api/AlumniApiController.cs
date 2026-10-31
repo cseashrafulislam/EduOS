@@ -167,7 +167,13 @@ public sealed class AlumniApiController : ControllerBase
     private static string Csv(string? value)
     {
         var text = value ?? "";
-        if (text.Length > 0 && (text[0] is '=' or '+' or '-' or '@' or '\t' or '\r' or '\n'))
+        // Spreadsheet importers may ignore leading whitespace/BOM before evaluating a formula.
+        // Preserve the original cell value, but force text mode before CSV quoting.
+        var firstVisible = 0;
+        while (firstVisible < text.Length &&
+               (char.IsWhiteSpace(text[firstVisible]) || text[firstVisible] is '\uFEFF' or '\u200B'))
+            firstVisible++;
+        if (firstVisible < text.Length && (text[firstVisible] is '=' or '+' or '-' or '@'))
             text = "'" + text;
         return "\"" + text.Replace("\"", "\"\"") + "\"";
     }
