@@ -41,3 +41,36 @@ test('event list follows selected graduate and ignores stale responses on identi
     assert.match(script, /state\.rsvpRequests\.clear\(\)/);
     assert.match(script, /studentReference, response,/);
 });
+
+test('detached RSVP actions cannot submit for a different selected graduate or revoked consent', async () => {
+    const start = script.indexOf('async function saveRsvp(');
+    const end = script.indexOf('async function createEvent(', start);
+    assert.ok(start > 0 && end > start);
+    const source = script.slice(start, end);
+    const state = {
+        eventBusy: false, selected: { studentReference: 'graduate-B', directoryOptIn: true },
+        rsvpRequests: new Map()
+    };
+    const requests = [];
+    const saveRsvp = new Function('state', 'api', 'notice', 'eventLabel', 'loadEvents', 'crypto',
+        source + '; return saveRsvp;')(
+        state, async (url, options) => { requests.push({ url, options }); return {}; },
+        () => {}, (en) => en, async () => {}, { randomUUID: () => 'request-1' });
+    const card = { reference: 'event-1', myRowVersion: null };
+    await saveRsvp(card, 1, 'graduate-A');
+    assert.equal(requests.length, 0);
+    assert.equal(state.rsvpRequests.size, 0);
+    await saveRsvp(card, 1, 'graduate-B');
+    assert.equal(requests.length, 1);
+    assert.equal(JSON.parse(requests[0].options.body).studentReference, 'graduate-B');
+    state.selected.directoryOptIn = false;
+    await saveRsvp(card, 1, 'graduate-B');
+    assert.equal(requests.length, 1);
+});
+
+test('graduate selection invalidates old RSVP cards, pagination and in-flight results', () => {
+    assert.match(script, /state\.eventRequestSerial\+\+;[\s\S]*?state\.eventPage = 1;[\s\S]*?el\('alumniEventCards'\)\.replaceChildren\(\)/);
+    assert.match(script, /\(\) => saveRsvp\(item, 1, selectedReference\)/);
+    assert.match(script, /\(\) => saveRsvp\(item, 2, selectedReference\)/);
+    assert.match(script, /state\.selected\.studentReference !== cardGraduateReference/);
+});

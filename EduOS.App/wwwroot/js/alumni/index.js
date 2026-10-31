@@ -63,6 +63,12 @@
         // Retry keys and in-flight event pages belong to a single graduate identity.
         state.rsvpRequests.clear();
         state.eventRequestSerial++;
+        // Old graduate cards must not remain actionable during an identity switch.
+        state.eventPage = 1;
+        el('alumniEventCards').replaceChildren();
+        el('alumniEventPage').textContent = '';
+        el('alumniEventPrev').disabled = true;
+        el('alumniEventNext').disabled = true;
         const item = state.selected;
         el('alumniOptIn').checked = Boolean(item?.directoryOptIn);
         el('alumniEmail').value = item?.contactEmail || '';
@@ -229,9 +235,9 @@
             if (!eventAdmin && item.status === 2 && new Date(item.startsAtUtc) > new Date()
                 && state.selected?.directoryOptIn) {
                 actions.append(eventButton(eventLabel('Going', 'আসব'), 'btn-outline-success',
-                    () => saveRsvp(item, 1)));
+                    () => saveRsvp(item, 1, selectedReference)));
                 actions.append(eventButton(eventLabel('Not going', 'আসব না'), 'btn-outline-secondary',
-                    () => saveRsvp(item, 2)));
+                    () => saveRsvp(item, 2, selectedReference)));
             }
             const attendanceHost = document.createElement('div');
             if (eventAdmin && item.status === 2) {
@@ -331,8 +337,10 @@
         } catch (error) { notice(error.message, true); }
         finally { state.eventBusy = false; }
     }
-    async function saveRsvp(item, response) {
-        if (state.eventBusy || !state.selected) return;
+    async function saveRsvp(item, response, cardGraduateReference) {
+        // A detached card cannot submit another graduate's RSVP/rowversion.
+        if (state.eventBusy || !state.selected || !state.selected.directoryOptIn ||
+            state.selected.studentReference !== cardGraduateReference) return;
         state.eventBusy = true;
         const studentReference = state.selected.studentReference;
         const key = item.reference + ':' + studentReference + ':' + response;
