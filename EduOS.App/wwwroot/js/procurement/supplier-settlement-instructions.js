@@ -33,9 +33,20 @@
     const tr=document.createElement('tr');
     for(const value of [x.reference.slice(0,8),x.state,money(x.amount),x.plannedDate,x.makerId])tr.append(cell(value));
     const action=cell('');
-    if(reviewer&&x.state==='Submitted'&&Number(x.makerId)!==Number(document.getElementById('supplierInvoiceMatch')?.dataset.userId)){
+    if(reviewer&&(x.state==='Submitted'||x.state==='Approved')&&
+       Number(x.makerId)!==Number(document.getElementById('supplierInvoiceMatch')?.dataset.userId)){
+     const revoking=x.state==='Approved';
      const b=document.createElement('button');b.type='button';b.className='btn btn-outline-primary btn-sm';
-     b.textContent=t('Review','যাচাই');b.addEventListener('click',()=>{review=x;$('ssReviewReason').value='';$('ssReviewDialog').showModal();});action.append(b);
+     b.textContent=revoking?t('Revoke approval','অনুমোদন প্রত্যাহার'):t('Review','যাচাই');
+     b.addEventListener('click',()=>{
+      review=x;$('ssReviewReason').value='';
+      $('ssDecision').value=revoking?'Reject':'Approve';
+      $('ssDecision').disabled=revoking;
+      $('ssReviewTitle').textContent=revoking?
+       t('Revoke approved, unposted instruction','অনুমোদিত, পোস্টবিহীন নির্দেশনা প্রত্যাহার'):
+       t('Independent Finance decision','স্বতন্ত্র ফাইন্যান্স সিদ্ধান্ত');
+      $('ssReviewDialog').showModal();
+     });action.append(b);
     }
     tr.append(action);$('ssRows').append(tr);
    }

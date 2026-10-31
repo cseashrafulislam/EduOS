@@ -224,8 +224,17 @@ public sealed partial class ProcurementSupplierInvoiceService
             if (journal.CreatedBy is null or <= 0 || journal.CreatedBy == user.UserId ||
                 invoice.CreatedBy == user.UserId || invoice.SubmittedByUserId == user.UserId)
                 return Err<SupplierSettlementInstructionDto>("Independent maker-checker separation required.", 403);
-            if (journal.State != JournalState.Submitted || !Version(journal.RowVersion, request.RowVersion))
-                return Err<SupplierSettlementInstructionDto>("Instruction already reviewed or stale.", 409);
+            // Independently rescind an approved but still UNPOSTED instruction;
+            // this only releases the payable reservation, never moves money.
+            var revokingApproval = journal.State == JournalState.Approved && !request.Approve;
+            if (journal.State != JournalState.Submitted && !revokingApproval)
+                return Err<SupplierSettlementInstructionDto>("Only submitted decisions or approved-instruction revocation are allowed.", 409);
+            if (!Version(journal.RowVersion, request.RowVersion))
+                return Err<SupplierSettlementInstructionDto>("Instruction version changed; reload.", 409);
+            if (revokingApproval && (journal.ApprovedByUserId is null or <= 0 ||
+                !journal.ApprovedAt.HasValue || journal.PostedAt.HasValue ||
+                journal.PostedByUserId.HasValue))
+                return Err<SupplierSettlementInstructionDto>("Approved instruction audit or unposted state invalid.", 409);
             if (journal.CurrencyCode != "BDT" || journal.JournalDate < invoice.InvoiceDate ||
                 journal.ReversalOfJournalId.HasValue || journal.AccountingPeriodId <= 0)
                 return Err<SupplierSettlementInstructionDto>("Instruction source or accounting period invalid.", 409);
@@ -257,14 +266,23 @@ public sealed partial class ProcurementSupplierInvoiceService
             }
             var now = clock.GetUtcNow().UtcDateTime;
             journal.State = request.Approve ? JournalState.Approved : JournalState.Rejected;
-            journal.ApprovedByUserId = request.Approve ? user.UserId : null;
-            journal.ApprovedAt = request.Approve ? now : null;
-            journal.Description = (journal.Description + " | Finance decision: " + request.Reason.Trim())[..Math.Min(
-                (journal.Description + " | Finance decision: " + request.Reason.Trim()).Length, 1000)];
+            // Retain the first approval actor/time as immutable audit evidence on revocation.
+            if (request.Approve)
+            {
+                journal.ApprovedByUserId = user.UserId;
+                journal.ApprovedAt = now;
+            }
+            var decisionNote = " | Finance decision: " +
+                (revokingApproval ? "Approved instruction revoked: " : "") + request.Reason.Trim();
+            var history = journal.Description ?? "";
+            if (history.Length + decisionNote.Length > 1000)
+                return Err<SupplierSettlementInstructionDto>("Finance decision audit exceeds journal capacity; use a shorter reason.", 409);
+            journal.Description = history + decisionNote;
             journal.UpdatedAt = now; journal.UpdatedBy = user.UserId;
             await db.SaveChangesAsync(ct); await tx.CommitAsync(ct);
             return ApiResponse<SupplierSettlementInstructionDto>.SuccessResponse(await SettlementMapAsync(journal, ct),
                 request.Approve ? "Instruction approved but UNPOSTED; no money moved." :
+                    revokingApproval ? "Approved instruction revoked; reservation released, GL and bank unchanged." :
                     "Instruction rejected; reserved amount released.");
         }
         catch (DbUpdateConcurrencyException) { return Err<SupplierSettlementInstructionDto>("Concurrent review conflict.", 409); }

@@ -68,3 +68,19 @@ test('Supplier settlement instructions use canonical unposted Finance journals a
  for(const token of ['credentials:\'same-origin\'','RequestVerificationToken','textContent','rowVersion',
   'procurement-settlement-select'])assert.ok(ui.includes(token), 'missing UI safety: '+token);
 });
+
+test('Independent reviewer can revoke approved unposted supplier settlement and release reservation', () => {
+ const service=read('EduOS.Service/Services/Inventory/ProcurementSupplierInvoiceSettlement.cs');
+ const ui=read('EduOS.App/wwwroot/js/procurement/supplier-settlement-instructions.js');
+ const sql=read('EduOS.Tests/App/SqlServerV3ProcurementSupplierInvoiceTests.cs');
+ for(const token of ['revokingApproval','JournalState.Approved && !request.Approve',
+  'journal.PostedAt.HasValue','Approved instruction revoked','journal.ApprovedByUserId = user.UserId',
+  'Finance decision audit exceeds journal capacity'])
+  assert.ok(service.includes(token),'missing safe revocation control: '+token);
+ for(const token of ['Revoke approval','ssDecision','revoking','ssReviewTitle'])
+  assert.ok(ui.includes(token),'missing bilingual reviewer action: '+token);
+ for(const token of ['checkerRevoke','released.ReservedAmount','releasedTrace',
+  'Replacement source-linked instruction','recorded.ApprovedByUserId'])
+  assert.ok(sql.includes(token),'missing SQL revocation regression: '+token);
+ assert.doesNotMatch(service,/db\.InventoryMovements\.(Add|Update)/);
+});

@@ -507,6 +507,49 @@ public sealed partial class SqlServerV3ProcurementPurchaseOrderTests
                 new RequestProcurementSupplierInvoiceReversal {ClientRequestId=Guid.NewGuid(),
                     RowVersion=current.RowVersion,ReversalDate=date,AccountingPeriodId=periodId,
                     Reason="Reversal must refuse an approved linked supplier payment"})).StatusCode);
+            // Approval revocation must be independent, versioned, auditable and
+            // release the reservation without touching the posted payable or stock.
+            var revokeRequest=new ReviewSupplierSettlementInstructionRequest {
+                RowVersion=Convert.ToBase64String(settlement.RowVersion),Approve=false,
+                Reason="Independent Finance rescinds an unposted supplier settlement approval"
+            };
+            Assert.Equal(403,(await service.ReviewSettlementAsync(
+                second.Reference,instructionReference,revokeRequest)).StatusCode);
+            await using (var checkerRevoke=Open(options,tenantId,checkerId))
+            {
+                var revokeService=Invoices(checkerRevoke,tenantId,checkerId);
+                var revoked=await revokeService.ReviewSettlementAsync(
+                    second.Reference,instructionReference,revokeRequest);
+                Assert.True(revoked.Success,revoked.Message);
+                Assert.Equal("Rejected",revoked.Data!.State);
+                Assert.Equal(409,(await revokeService.ReviewSettlementAsync(
+                    second.Reference,instructionReference,revokeRequest)).StatusCode);
+            }
+            var recorded=await verify.Journals.AsNoTracking().SingleAsync(x=>x.PublicId==instructionReference);
+            Assert.Equal(JournalState.Rejected,recorded.State);
+            Assert.Equal(checkerId,recorded.ApprovedByUserId);
+            Assert.NotNull(recorded.ApprovedAt);
+            Assert.Null(recorded.PostedAt);
+            Assert.Contains("Approved instruction revoked",recorded.Description);
+            var released=(await service.SettlementOptionsAsync(second.Reference)).Data!;
+            Assert.Equal(0m,released.ReservedAmount);
+            Assert.Equal(18m,released.AvailableAmount);
+            var releasedTrace=await traceService.GetAsync(second.Reference);
+            Assert.True(releasedTrace.Success,releasedTrace.Message);
+            Assert.Equal(0m,releasedTrace.Data!.SettlementReservedAmount);
+            Assert.Equal("Rejected",Assert.Single(releasedTrace.Data.SettlementInstructions).State);
+            var replacement=await service.RequestSettlementAsync(second.Reference,
+                new CreateSupplierSettlementInstructionRequest {
+                    ClientRequestId=Guid.NewGuid(),InvoiceRowVersion=current.RowVersion,Amount=18m,
+                    BankAccountId=bankId,AccountingPeriodId=periodId,PlannedDate=date,
+                    Reason="Replacement source-linked instruction after approval revocation"
+                });
+            Assert.True(replacement.Success,replacement.Message);
+            Assert.Equal("Submitted",replacement.Data!.State);
+            Assert.Equal(18m,(await service.SettlementOptionsAsync(second.Reference)).Data!.ReservedAmount);
+            Assert.Equal(1,await verify.Journals.CountAsync(x=>
+                x.SourceType=="ProcurementSupplierInvoice" && x.SourceId==settlement.SourceId &&
+                x.State==JournalState.Posted));
             Assert.Equal(403,(await new V3EnterpriseSupplierPayableTraceService(
                 verify,new ReadOnlyActor(tenantId,makerId)).GetAsync(second.Reference)).StatusCode);
             // Run the foreign-tenant request LAST: the test fixture uses ambient

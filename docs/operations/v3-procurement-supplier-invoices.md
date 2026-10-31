@@ -30,3 +30,17 @@ Date: 2026-10-31. Branch: `Ashraful`. The supplier-invoice/AP **engineering slic
 - Browser/mobile Bangla/English, keyboard dialogs, CSRF failures, campus authorization and safe CSV export.
 - Reconcile supplier cash payments, bank disbursement and already-paid invoice corrections through a separately approved *source-linked* canonical Finance settlement path. This implementation records the supplier payable but **does not create or send a supplier payment**. An unrelated/manual Finance payment is not sufficient provenance to certify automatic reversal eligibility; until linked settlement is available, review payable settlements out-of-band and disable reversal operationally on paid invoices.
 - Representative institute UAT, reconciliation of migrated real records, load, backup/restore, security approval and production go/no-go remain separately required.
+
+## Approved-but-unposted settlement approval revocation (2026-10-31)
+
+A separate Finance reviewer can rescind an **Approved**, still **unposted**
+settlement instruction through the existing `/settlements/{instruction}/review`
+endpoint (`approve=false`), using its current rowversion and a documented
+reason. The canonical Journal transitions to `Rejected`, releasing its reserved
+payable amount without posting GL or executing any bank transfer. Original
+approval actor/time are retained, and the rescinding reviewer and reason are
+recorded in `UpdatedBy/UpdatedAt` and the bounded Journal description.
+Maker self-revocation and stale repeated decisions fail closed. The existing
+Enterprise trace recognizes rejected instructions and excludes their amounts
+from reserved exposure; a new source-linked instruction can be submitted.
+This is NOT settlement payment execution or reconciled net payable acceptance.
