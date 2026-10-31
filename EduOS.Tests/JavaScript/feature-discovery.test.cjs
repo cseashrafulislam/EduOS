@@ -1,0 +1,87 @@
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
+
+const root = path.resolve(__dirname, '../..');
+const read = relative => fs.readFileSync(path.join(root, relative), 'utf8');
+const layout = read('EduOS.App/Views/Shared/_Layout.cshtml');
+const styles = read('EduOS.App/wwwroot/css/site.css');
+const script = read('EduOS.App/wwwroot/js/platform/feature-discovery.js');
+const { safeDestination, makeCatalog, filterCatalog, scopedState, remember } =
+    require('../../EduOS.App/wwwroot/js/platform/feature-discovery.js');
+
+const catalog = makeCatalog([
+    { href: '/Admissions/Index', label: 'Admissions', section: 'Academics', group: 'Students' },
+    { href: '/Students/Index', label: 'Students', section: 'Academics', group: 'Students' },
+    { href: '/FeeOperations/Index', label: 'Fee collection', section: 'Management', group: 'Finance' },
+    { href: '/Attendance/Index', label: 'Attendance', section: 'Academics', group: 'Classes' },
+    { href: '/Admissions/Index', label: 'Duplicate link', section: 'Other' },
+    { href: '//evil.example/phish', label: 'External', section: 'Other' },
+    { href: '/Students/Index?private=123', label: 'Private query', section: 'Other' }
+]);
+
+test('feature catalog is deduplicated and built only from safe relative authorized links', () => {
+    assert.equal(catalog.length, 4);
+    assert.deepEqual(catalog.map(item => item.href),
+        ['/Admissions/Index', '/Students/Index', '/FeeOperations/Index', '/Attendance/Index']);
+    assert.equal(safeDestination('/StudentPortal/Index#learnerConsents'),
+        '/StudentPortal/Index#learnerConsents');
+    for (const bad of ['//evil.example', 'https://evil.example', '/?tenant=7',
+        '/Students/Index?student=1', '/\\evil', '/Students/\nIndex', '/', '#fragment']) {
+        assert.equal(safeDestination(bad), null, bad);
+    }
+});
+
+test('search matches feature and module group with a stable bounded result set', () => {
+    assert.deepEqual(filterCatalog(catalog, 'fee').map(x => x.href), ['/FeeOperations/Index']);
+    assert.deepEqual(filterCatalog(catalog, 'finance').map(x => x.href), ['/FeeOperations/Index']);
+    assert.deepEqual(filterCatalog(catalog, 'academics students').map(x => x.href),
+        ['/Admissions/Index', '/Students/Index']);
+    assert.equal(filterCatalog(catalog, 'unknown').length, 0);
+    assert.equal(filterCatalog(catalog, '', 2).length, 2);
+});
+
+test('favorite and recent shortcuts never cross session, tenant or current permissions', () => {
+    const saved = { version: 1, tenant: '22', session: 'session-a',
+        favorites: ['/Admissions/Index', '/Admissions/Index', '/Secret/Index', '/FeeOperations/Index'],
+        recent: ['/Students/Index', '/Secret/Index'] };
+    const current = scopedState(saved, '22', 'session-a', catalog);
+    assert.deepEqual(current.favorites, ['/Admissions/Index', '/FeeOperations/Index']);
+    assert.deepEqual(current.recent, ['/Students/Index']);
+    assert.deepEqual(scopedState(saved, '23', 'session-a', catalog).favorites, []);
+    assert.deepEqual(scopedState(saved, '22', 'session-b', catalog).recent, []);
+    assert.deepEqual(scopedState(saved, '', 'session-a', catalog).favorites, []);
+    assert.deepEqual(remember(current.favorites, '/FeeOperations/Index'),
+        ['/FeeOperations/Index', '/Admissions/Index']);
+});
+
+test('global feature search reuses server-rendered entitlement and role gated sidebar', () => {
+    assert.match(layout, /OptionalModuleNavigation\.GetAvailableAsync/);
+    assert.match(layout, /V2RolePortalNavigation\.GetLinks/);
+    assert.match(script, /sidebar\.querySelectorAll\('nav\[data-sidebar-section\] a\.nav-link'\)/);
+    assert.match(layout, /id="featureSearchOpen"/);
+    assert.match(layout, /id="featureSearchDialog"/);
+    assert.match(layout, /id="featureSearchInput"/);
+    assert.match(layout, /feature-discovery\.js" asp-append-version="true"/);
+    assert.match(layout, /aria-haspopup="dialog"/);
+    assert.match(layout, /type="search"/);
+    assert.match(layout, /@if \(User\?\.Identity\?\.IsAuthenticated == true\)/);
+    assert.doesNotMatch(script, /innerHTML|eval\(|localStorage|fetch\(/);
+});
+
+test('discovery supports bilingual mobile, keyboard, safe text and theme-aware presentation', () => {
+    assert.match(script, /'পছন্দের ফিচার'/);
+    assert.match(script, /'Favorites'/);
+    assert.match(script, /event\.ctrlKey \|\| event\.metaKey/);
+    assert.match(script, /dialog\.showModal\(\)/);
+    assert.match(script, /textContent = entry\.label/);
+    assert.match(script, /results\.replaceChildren\(\)/);
+    assert.match(script, /aria-pressed/);
+    assert.match(script, /sessionStorage\.setItem\(key/);
+    assert.match(styles, /\.feature-search-dialog::backdrop/);
+    assert.match(styles, /data-workspace-theme="dark"\] \.feature-search-dialog/);
+    assert.match(styles, /prefers-color-scheme: dark/);
+    assert.match(styles, /max-width: 767\.98px/);
+    assert.match(styles, /\.feature-search-row:focus-within/);
+});
