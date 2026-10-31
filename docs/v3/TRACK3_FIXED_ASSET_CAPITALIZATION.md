@@ -60,3 +60,15 @@ valuation policy and a canonical posted stock movement by the checker.
 SQL tampering regression covers reviewer, valuation, review request and posting actor.
 This is not unique receipt-unit allocation, AssetBook capitalization or Finance posting;
 no Procurement/Inventory posting implementation, stock ledger or GL was modified.
+
+## Approved purchase-order provenance guard (1 November 2026)
+
+The read-only capitalization candidate now also requires the canonical approved BDT
+purchase order, its same-tenant receipt-linked PO line, matching campus and receiving
+location campus, tracked item, approved PO quantity and original unit-price snapshot.
+This prevents a valid posted stock line from masking a tampered or mismatched purchase
+order source. Disposable SQL regression mutates the receipt's PO price snapshot,
+PO line price and PO approval state, verifies candidates fail closed, and restores
+all values. Historical posted stock, AssetBook and Finance journals are unchanged.
+**This remains preflight only:** no unique serialized receipt-unit binding, cost
+approval, capitalization journal or depreciation posting has been implemented.

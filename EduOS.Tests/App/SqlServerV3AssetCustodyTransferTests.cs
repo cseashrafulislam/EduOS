@@ -212,6 +212,24 @@ public sealed class SqlServerV3AssetCustodyTransferTests
         Assert.Equal("ReviewRequired", valid.StatusCode);
         Assert.Equal(movement.PublicId, Assert.Single(valid.Candidates).PostedMovementReference);
         Assert.Equal(1, valid.CandidateLineCount);
+        // A posted stock line alone is insufficient: verify the approved PO source
+        // and immutable line-cost/quantity snapshot before suggesting capitalization.
+        await db.ProcurementGoodsReceiptLines.Where(x => x.GoodsReceiptId == receipt.Id)
+            .ExecuteUpdateAsync(s => s.SetProperty(x => x.ApprovedPoUnitPrice, 999m));
+        Assert.Equal("NoPostedReceiptEvidence", (await Read()).StatusCode);
+        await db.ProcurementGoodsReceiptLines.Where(x => x.GoodsReceiptId == receipt.Id)
+            .ExecuteUpdateAsync(s => s.SetProperty(x => x.ApprovedPoUnitPrice, 120m));
+        await db.ProcurementPurchaseOrderLines.Where(x => x.Id == orderLine.Id)
+            .ExecuteUpdateAsync(s => s.SetProperty(x => x.UnitPrice, 121m));
+        Assert.Empty((await Read()).Candidates);
+        await db.ProcurementPurchaseOrderLines.Where(x => x.Id == orderLine.Id)
+            .ExecuteUpdateAsync(s => s.SetProperty(x => x.UnitPrice, 120m));
+        await db.ProcurementPurchaseOrders.Where(x => x.Id == order.Id)
+            .ExecuteUpdateAsync(s => s.SetProperty(x => x.StateCode, "Draft"));
+        Assert.Empty((await Read()).Candidates);
+        await db.ProcurementPurchaseOrders.Where(x => x.Id == order.Id)
+            .ExecuteUpdateAsync(s => s.SetProperty(x => x.StateCode, "Approved"));
+        Assert.Single((await Read()).Candidates);
         // Posted labels with missing approval or forged maker/checker are excluded.
         await db.ProcurementGoodsReceipts.Where(x => x.Id == receipt.Id)
             .ExecuteUpdateAsync(s => s.SetProperty(x => x.ReviewedByUserId, (long?)f.User));

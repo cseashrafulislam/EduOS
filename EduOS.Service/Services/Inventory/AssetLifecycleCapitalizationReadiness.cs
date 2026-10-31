@@ -52,12 +52,30 @@ public sealed partial class AssetLifecycleService
                 join receipt in _db.ProcurementGoodsReceipts.AsNoTracking()
                     on new { line.TenantId, Id = line.GoodsReceiptId }
                     equals new { receipt.TenantId, receipt.Id }
+                join order in _db.ProcurementPurchaseOrders.AsNoTracking()
+                    on new { receipt.TenantId, Id = receipt.PurchaseOrderId }
+                    equals new { order.TenantId, order.Id }
+                join poLine in _db.ProcurementPurchaseOrderLines.AsNoTracking()
+                    on new { line.TenantId, Id = line.PurchaseOrderLineId }
+                    equals new { poLine.TenantId, poLine.Id }
+                join location in _db.InventoryLocations.AsNoTracking()
+                    on new { receipt.TenantId, Id = receipt.LocationId }
+                    equals new { location.TenantId, location.Id }
                 join movement in _db.InventoryMovements.AsNoTracking()
                     on new { receipt.TenantId, Id = receipt.PostedMovementId }
                     equals new { movement.TenantId, Id = (long?)movement.Id }
                 where line.TenantId == Tenant && receipt.TenantId == Tenant &&
                     movement.TenantId == Tenant && !line.IsDeleted && !receipt.IsDeleted &&
-                    !movement.IsDeleted && receipt.CampusId == asset.CampusId.Value &&
+                    !order.IsDeleted && !poLine.IsDeleted && !movement.IsDeleted &&
+                    order.StateCode == "Approved" && order.CurrencyCode == "BDT" &&
+                    order.CampusId == receipt.CampusId &&
+                    poLine.PurchaseOrderId == order.Id &&
+                    poLine.InventoryItemId == line.InventoryItemId &&
+                    poLine.Quantity == line.ApprovedPoQuantity &&
+                    poLine.UnitPrice == line.ApprovedPoUnitPrice &&
+                    line.Quantity <= poLine.Quantity &&
+                    location.CampusId == receipt.CampusId &&
+                    receipt.CampusId == asset.CampusId.Value &&
                     line.InventoryItemId == asset.InventoryItemId!.Value &&
                     receipt.StateCode == "Posted" && movement.StateCode == "Posted" &&
                     // A Posted header alone does not prove independent approval.
