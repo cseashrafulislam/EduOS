@@ -9,10 +9,10 @@ const css = read('EduOS.App/wwwroot/css/site.css');
 const js = read('EduOS.App/wwwroot/js/platform/page-context-help.js');
 const { guideFor, coverage, normalizeRoute, validateGuide } =
     require('../../EduOS.App/wwwroot/js/platform/page-context-help.js');
-const routes = ['/FeeOperations/Index', '/Students/Index', '/Attendance/Index', '/PayrollOperations/Index'];
+const routes = ['/FeeOperations/Index', '/Students/Index', '/Attendance/Index', '/PayrollOperations/Index', '/FacilityWorkOrders/Index'];
 
 test('all reviewed route manuals have full bilingual structure, matching steps and examples', () => {
-    assert.deepEqual(coverage(), { routes: 4, en: 4, bn: 4 });
+    assert.deepEqual(coverage(), { routes: 5, en: 5, bn: 5 });
     for (const route of routes) {
         const en = guideFor(route, 'en-BD');
         const bn = guideFor(route, 'bn-BD');
@@ -98,4 +98,15 @@ test('language switch posts antiforgery and returns to the current local route',
     assert.match(cookie, /bn-BD/);
     assert.match(cookie, /en-BD/);
     assert.match(js, /document\.documentElement\.lang/);
+});
+
+test('facilities manual follows actual independent return, correction and non-posting contract', () => {
+    const en = guideFor('/FacilityWorkOrders/Index', 'en-BD');
+    const bn = guideFor('/FacilityWorkOrders/Index', 'bn-BD');
+    assert.ok(en && bn);
+    assert.match(en.steps.join(' '), /Return for correction/);
+    assert.match(bn.steps.join(' '), /সংশোধনের জন্য ফেরত/);
+    assert.match(en.rules, /does not issue spare parts or post Finance GL/);
+    assert.match(en.recovery, /409/);
+    assert.deepEqual(en.related.map(x => x.path), ['/FacilitySpaces/Index']);
 });

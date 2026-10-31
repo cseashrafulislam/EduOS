@@ -350,6 +350,54 @@ public sealed class SqlServerFacilityWorkOrderTests
             Assert.True(result.Success, result.Message);
             completed = result.Data!;
         }
+        // Independent verifier may return unsafe completion for correction without
+        // falsifying the prior evidence or marking an unfinished job as complete.
+        await using (var db = Db(options, tenantId, requesterId, "FacilitiesRequester"))
+        {
+            var denied = await Service(db, tenantId, requesterId, "FacilitiesRequester")
+                .TransitionAsync(submitted.Id, "return", new FacilityTransitionDto
+                { ClientCommandId = Guid.NewGuid(), RowVersion = completed.WorkOrderRowVersion!,
+                  Note = "Requester must not return their own completion." });
+            Assert.Equal(403, denied.StatusCode);
+        }
+        var returnCommandId = Guid.NewGuid();
+        await using (var db = Db(options, tenantId, approverId, "FacilitiesApprover"))
+        {
+            var service = Service(db, tenantId, approverId, "FacilitiesApprover");
+            var returned = await service.TransitionAsync(submitted.Id, "return", new FacilityTransitionDto
+            { ClientCommandId = returnCommandId, RowVersion = completed.WorkOrderRowVersion!,
+              Note = "Inspection found unsafe wiring; replace the connector." });
+            Assert.True(returned.Success, returned.Message);
+            Assert.Equal("InProgress", returned.Data!.WorkOrderState);
+            Assert.Null(returned.Data.CompletedAtUtc);
+            Assert.Null(returned.Data.CompletionEvidence);
+            var replay = await service.TransitionAsync(submitted.Id, "return", new FacilityTransitionDto
+            { ClientCommandId = returnCommandId, RowVersion = completed.WorkOrderRowVersion!,
+              Note = "Inspection found unsafe wiring; replace the connector." });
+            Assert.True(replay.Success, replay.Message);
+            var alteredReplay = await service.TransitionAsync(submitted.Id, "return", new FacilityTransitionDto
+            { ClientCommandId = returnCommandId, RowVersion = completed.WorkOrderRowVersion!,
+              Note = "Different return reason should be rejected." });
+            Assert.Equal(409, alteredReplay.StatusCode);
+            var staleVerify = await service.TransitionAsync(submitted.Id, "verify", new FacilityTransitionDto
+            { ClientCommandId = Guid.NewGuid(), RowVersion = completed.WorkOrderRowVersion!,
+              Note = "Stale verifier must not close the returned job." });
+            Assert.Equal(409, staleVerify.StatusCode);
+            var events = (await service.HistoryAsync(submitted.Id, 1, 25)).Data!.Items;
+            Assert.Contains(events, x => x.ActionCode == "complete" &&
+                x.Note!.Contains("Replaced the hallway light"));
+            Assert.Single(events.Where(x => x.ActionCode == "return"));
+            completed = returned.Data;
+        }
+        await using (var db = Db(options, tenantId, techId, "FacilitiesTechnician"))
+        {
+            var result = await Service(db, tenantId, techId, "FacilitiesTechnician")
+                .TransitionAsync(submitted.Id, "complete", new FacilityTransitionDto
+                { ClientCommandId = Guid.NewGuid(), RowVersion = completed.WorkOrderRowVersion!,
+                  Note = "Replaced unsafe connector and retested the hallway circuit." });
+            Assert.True(result.Success, result.Message);
+            completed = result.Data!;
+        }
         await using (var db = Db(options, tenantId, approverId, "FacilitiesApprover"))
         {
             var service = Service(db, tenantId, approverId, "FacilitiesApprover");
@@ -362,7 +410,7 @@ public sealed class SqlServerFacilityWorkOrderTests
             Assert.Equal("Closed", result.Data!.WorkOrderState);
             Assert.NotNull(result.Data.VerifiedAtUtc);
             var history = await service.HistoryAsync(submitted.Id, 1, 25);
-            Assert.Equal(10, history.Data!.TotalCount);
+            Assert.Equal(12, history.Data!.TotalCount);
             var overdue = await Service(db, tenantId, approverId, "FacilitiesApprover",
                 new ShiftedClock(TimeSpan.FromHours(6)))
                 .ListAsync(campusId, null, 1, 25, default, true);

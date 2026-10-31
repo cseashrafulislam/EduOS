@@ -232,7 +232,7 @@ public sealed class FacilityWorkflowService(
             return ApiResponse<FacilityRequestDto>.ErrorResponse("Command ID, row version and valid details required.");
         action = (action ?? "").Trim().ToLowerInvariant();
         if (action is not ("triage" or "approve" or "reject" or "schedule" or "start" or
-                           "pause" or "resume" or "complete" or "verify" or "unschedule" or "escalate"))
+                           "pause" or "resume" or "complete" or "verify" or "return" or "unschedule" or "escalate"))
             return ApiResponse<FacilityRequestDto>.ErrorResponse("Unsupported transition.", 404);
         var request = await db.Set<FacilityServiceRequest>().FirstOrDefaultAsync(
             x => x.Id == id && x.TenantId == user.TenantId && !x.IsDeleted, ct);
@@ -248,7 +248,7 @@ public sealed class FacilityWorkflowService(
                                       user.UserId != request.TriagedByUserId,
             "schedule" or "unschedule" or "escalate" => Manager && user.UserId != request.RequesterUserId,
             "start" or "pause" or "resume" or "complete" => isWorker,
-            "verify" => Approver && user.UserId != request.RequesterUserId &&
+            "verify" or "return" => Approver && user.UserId != request.RequesterUserId &&
                         user.UserId != request.TriagedByUserId &&
                         user.UserId != order?.AssignedTechnicianUserId,
             _ => false
@@ -260,7 +260,8 @@ public sealed class FacilityWorkflowService(
         if (replay != null)
             return replay.FacilityServiceRequestId == id &&
                    replay.ActorUserId == user.UserId &&
-                   string.Equals(replay.ActionCode, action, StringComparison.OrdinalIgnoreCase)
+                   string.Equals(replay.ActionCode, action, StringComparison.OrdinalIgnoreCase) &&
+                   (action != "return" || string.Equals(replay.Note, command.Note?.Trim(), StringComparison.Ordinal))
                 ? ApiResponse<FacilityRequestDto>.SuccessResponse(await ReadAsync(request, ct), "Already applied.")
                 : ApiResponse<FacilityRequestDto>.ErrorResponse("Command ID reused.", 409);
 
@@ -405,6 +406,16 @@ public sealed class FacilityWorkflowService(
                     return ApiResponse<FacilityRequestDto>.ErrorResponse("Completion evidence (10+ characters) required.");
                 order.CompletionEvidence = note;
                 order.CompletedAtUtc = now; order.StateCode = "PendingVerification";
+                break;
+            case "return":
+                if (order?.StateCode != "PendingVerification" || string.IsNullOrWhiteSpace(note) ||
+                    note.Length is < 10 or > 500)
+                    return ApiResponse<FacilityRequestDto>.ErrorResponse("Return requires pending verification and reason (10-500 characters).", 409);
+                // The prior completion evidence remains in the immutable complete event.
+                // Clear only the current projection so a returned job cannot count as complete.
+                order.CompletedAtUtc = null;
+                order.CompletionEvidence = null;
+                order.StateCode = "InProgress";
                 break;
             case "verify":
                 if (order?.StateCode != "PendingVerification" || string.IsNullOrWhiteSpace(note))

@@ -11,7 +11,7 @@ public static class OptionalModuleNavigation
 {
     private static readonly HashSet<string> OptionalCodes = new(StringComparer.OrdinalIgnoreCase)
     {
-        "LMS", "LIBRARY", "HOSTEL", "TRANSPORT", "INVENTORY", "ALUMNI"
+        "LMS", "LIBRARY", "HOSTEL", "TRANSPORT", "INVENTORY", "FACILITIES", "ALUMNI"
     };
 
     public static async Task<IReadOnlySet<string>> GetAvailableAsync(

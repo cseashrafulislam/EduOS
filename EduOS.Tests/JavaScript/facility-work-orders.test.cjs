@@ -37,7 +37,7 @@ test('scheduled work can be released by manager with a reason and rowversion', (
     assert.match(script, /options\.push\('schedule', 'unschedule'\)/);
     assert.match(script, /Release schedule/);
     assert.match(script, /সময়সূচি বাতিল/);
-    assert.match(script, /el\('wfNote'\)\.required = \['reject', 'pause', 'complete', 'verify', 'unschedule', 'escalate'\]\.includes\(action\)/);
+    assert.match(script, /el\('wfNote'\)\.required = \['reject', 'pause', 'complete', 'verify', 'return', 'unschedule', 'escalate'\]\.includes\(action\)/);
     assert.match(script, /action === 'unschedule' \? 5 : 0/);
     assert.match(script, /selected\.workOrderRowVersion/);
 });
@@ -49,5 +49,15 @@ test('overdue SLA queue and manual escalation are scoped and bilingual', () => {
     assert.match(script, /বিলম্বিত কাজ এস্কেলেট করুন/);
     assert.match(script, /row\.requesterUserId !== currentUserId/);
     assert.match(script, /row\.technicianUserId === currentUserId/);
+    assert.match(script, /selected\.workOrderRowVersion/);
+});
+
+test('independent verifier can return unsafe completion for correction, with bilingual action and reason', () => {
+    assert.match(script, /options\.push\('verify', 'return'\)/);
+    assert.match(script, /Return for correction/);
+    assert.match(script, /সংশোধনের জন্য ফেরত/);
+    assert.match(script, /\['return', 'escalate'\]\.includes\(action\) \? 10/);
+    assert.match(script, /'escalate', 'return'\]\.includes\(action\) \? 500/);
+    assert.match(script, /actionLabels\[event\.actionCode\]/);
     assert.match(script, /selected\.workOrderRowVersion/);
 });

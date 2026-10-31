@@ -12,6 +12,7 @@
     var showHostel = availableOptionalModules.Contains("HOSTEL");
     var showTransport = availableOptionalModules.Contains("TRANSPORT");
     var showInventory = availableOptionalModules.Contains("INVENTORY");
+    var showFacilities = availableOptionalModules.Contains("FACILITIES");
     var showAlumni = availableOptionalModules.Contains("ALUMNI");
     var v2RoleLinks = EduOS.App.Authorization.V2RolePortalNavigation.GetLinks(availableOptionalModules, User);
     var titleKey = ViewData["Title"]?.ToString() ?? "Dashboard";
@@ -438,6 +439,19 @@
                     <a class="nav-link @ActiveFor("/AssetLifecycle")" href="/AssetLifecycle/Index">
                         <svg class="edu-icon"><use href="/images/eduos-icons.svg#reports" /></svg>
                         <span>Fixed Assets &amp; Maintenance</span>
+                    </a>
+                }
+                @if (showFacilities && (User?.IsInRole("TenantAdmin") == true || User?.IsInRole("Principal") == true ||
+                     User?.IsInRole("FacilitiesManager") == true || User?.IsInRole("FacilitiesApprover") == true ||
+                     User?.IsInRole("FacilitiesTechnician") == true || User?.IsInRole("FacilitiesRequester") == true))
+                {
+                    <a class="nav-link @ActiveFor("/FacilityWorkOrders")" href="/FacilityWorkOrders/Index">
+                        <svg class="edu-icon"><use href="/images/eduos-icons.svg#campus" /></svg>
+                        <span>@(currentCulture.StartsWith("bn", StringComparison.OrdinalIgnoreCase) ? "ক্যাম্পাস সার্ভিস ও ওয়ার্ক অর্ডার" : "Campus Service & Work Orders")</span>
+                    </a>
+                    <a class="nav-link @ActiveFor("/FacilitySpaces")" href="/FacilitySpaces/Index">
+                        <svg class="edu-icon"><use href="/images/eduos-icons.svg#campus" /></svg>
+                        <span>@(currentCulture.StartsWith("bn", StringComparison.OrdinalIgnoreCase) ? "ক্যাম্পাস সুবিধা স্থান" : "Facility Spaces")</span>
                     </a>
                 }
                 @if (showHostel)

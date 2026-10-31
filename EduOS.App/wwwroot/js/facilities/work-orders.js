@@ -9,6 +9,20 @@
     const currentUserId = Number(root.dataset.userId);
     const el = id => document.getElementById(id);
     const t = (en, bd) => bn ? bd : en;
+    const actionLabels = {
+        triage: ['Triage request', 'অনুরোধ যাচাই'],
+        approve: ['Approve request', 'অনুরোধ অনুমোদন'],
+        reject: ['Reject request', 'অনুরোধ প্রত্যাখ্যান'],
+        schedule: ['Assign schedule', 'সময়সূচি নির্ধারণ'],
+        unschedule: ['Release schedule', 'সময়সূচি বাতিল'],
+        start: ['Start work', 'কাজ শুরু'],
+        pause: ['Pause work', 'কাজ বিরতি'],
+        resume: ['Resume work', 'কাজ পুনরায় শুরু'],
+        complete: ['Submit completion', 'সমাপ্তির প্রমাণ জমা'],
+        verify: ['Verify closure', 'সমাপ্তি যাচাই'],
+        return: ['Return for correction', 'সংশোধনের জন্য ফেরত'],
+        escalate: ['Escalate overdue SLA', 'বিলম্বিত কাজ এস্কেলেট করুন']
+    };
     const token = document.querySelector('meta[name="request-verification-token"]')?.content;
     const base = '/api/facilities/work-orders';
     let page = 1, pages = 1, selected = null, historyPage = 1, historyPages = 1;
@@ -60,7 +74,7 @@
         if (state === 'PendingVerification' && approver &&
             row.requesterUserId !== currentUserId &&
             row.triagedByUserId !== currentUserId &&
-            row.technicianUserId !== currentUserId) options.push('verify');
+            row.technicianUserId !== currentUserId) options.push('verify', 'return');
         if (canManage && state && state !== 'Closed' && row.slaDueAtUtc &&
             Date.parse(row.slaDueAtUtc) < Date.now()) options.push('escalate');
         return options;
@@ -81,9 +95,7 @@
         for (const action of options) {
             const option = document.createElement('option');
             option.value = action;
-            option.textContent = action === 'unschedule'
-                ? t('Release schedule', 'সময়সূচি বাতিল') : action;
-            if (action === 'escalate') option.textContent = t('Escalate overdue SLA', 'বিলম্বিত কাজ এস্কেলেট করুন');
+            option.textContent = actionLabels[action] ? t(...actionLabels[action]) : action;
             selectAction.append(option);
         }
         form.classList.toggle('d-none', options.length === 0);
@@ -110,9 +122,9 @@
             input.disabled = !enabled; input.required = enabled;
             input.closest('.col-12, .col-sm-6')?.classList.toggle('d-none', !enabled);
         }
-        el('wfNote').required = ['reject', 'pause', 'complete', 'verify', 'unschedule', 'escalate'].includes(action);
-        el('wfNote').minLength = action === 'escalate' ? 10 : action === 'unschedule' ? 5 : 0;
-        el('wfNote').maxLength = ['schedule', 'unschedule', 'escalate'].includes(action) ? 500 : 1000;
+        el('wfNote').required = ['reject', 'pause', 'complete', 'verify', 'return', 'unschedule', 'escalate'].includes(action);
+        el('wfNote').minLength = ['return', 'escalate'].includes(action) ? 10 : action === 'unschedule' ? 5 : 0;
+        el('wfNote').maxLength = ['schedule', 'unschedule', 'escalate', 'return'].includes(action) ? 500 : 1000;
     }
     async function dashboard() {
         const q = new URLSearchParams();
@@ -183,7 +195,7 @@
             for (const event of data.items || []) {
                 const item = document.createElement('li');
                 item.className = 'list-group-item py-1';
-                item.textContent = event.actionCode + ': ' + event.fromState + ' → ' +
+                item.textContent = (actionLabels[event.actionCode]?.[bn ? 1 : 0] || event.actionCode) + ': ' + event.fromState + ' → ' +
                     event.toState + ' | ' + event.actorUserId + ' | ' + event.occurredAtUtc +
                     (event.note ? ' | ' + event.note : '');
                 list.append(item);

@@ -23,12 +23,14 @@ public sealed class OptionalModuleNavigationTests
             Module("HOSTEL", true, false),
             Module("transport", true, true),
             Module("INVENTORY", true, true),
+            Module("FACILITIES", true, true),
             Module("HR", true, true));
         var available = await OptionalModuleNavigation.GetAvailableAsync(service.Object, false, true);
-        Assert.Equal(3, available.Count);
+        Assert.Equal(4, available.Count);
         Assert.True(available.Contains("LMS"));
         Assert.True(available.Contains("TRANSPORT"));
         Assert.True(available.Contains("INVENTORY"));
+        Assert.True(available.Contains("FACILITIES"));
         Assert.DoesNotContain("LIBRARY", available);
         Assert.DoesNotContain("HOSTEL", available);
         Assert.DoesNotContain("HR", available);
@@ -132,10 +134,13 @@ public sealed class OptionalModuleNavigationTests
     public void Shared_layout_guards_all_optional_navigation_and_preserves_hr()
     {
         var view = File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "TestAssets", "_Layout.cshtml"));
-        foreach (var guard in new[] { "showLms", "showLibrary", "showHostel", "showTransport", "showInventory" })
+        foreach (var guard in new[] { "showLms", "showLibrary", "showHostel", "showTransport", "showInventory", "showFacilities" })
             Assert.Contains("availableOptionalModules.Contains", view);
         Assert.Contains("@if (showLms &&", view);
         Assert.Contains("@if (showInventory &&", view);
+        Assert.Contains("@if (showFacilities &&", view);
+        Assert.Contains("href=\"/FacilityWorkOrders/Index\"", view);
+        Assert.Contains("href=\"/FacilitySpaces/Index\"", view);
         Assert.Contains("@if (showLibrary)", view);
         Assert.Contains("@if (showHostel)", view);
         Assert.Contains("@if (showTransport)", view);
