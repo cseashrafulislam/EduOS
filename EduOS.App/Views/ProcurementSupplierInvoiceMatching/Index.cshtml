@@ -1,0 +1,46 @@
+@{
+    ViewData["Title"] = "Supplier Invoice Matching Preview";
+}
+<section id="supplierInvoiceMatch" class="container-fluid py-3">
+    <header class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+        <h1 class="h4 mb-0" data-en="Supplier invoice matching" data-bn="সরবরাহকারী ইনভয়েস মিল যাচাই">Supplier invoice matching</h1>
+        <div class="d-flex gap-2 align-items-center">
+            <button id="simHelp" type="button" class="btn btn-outline-secondary btn-sm" aria-controls="simGuidance" aria-expanded="false" aria-label="Matching help / সহায়তা">ⓘ</button>
+            <a asp-controller="ProcurementGoodsReceipts" asp-action="Index" class="btn btn-outline-secondary btn-sm" data-en="Goods receipts" data-bn="পণ্য গ্রহণ">Goods receipts</a>
+        </div>
+    </header>
+    <div id="simGuidance" class="alert alert-secondary small d-none" role="note">
+        <span data-en="Select an approved order and posted deliveries, then preview the supplier's proposed quantities and price. This preview does not save an invoice, book a payable, check prior invoices, or authorize payment. Variances need independent Finance review."
+              data-bn="অনুমোদিত ক্রয়াদেশ ও পোস্টকৃত পণ্য গ্রহণ বেছে প্রস্তাবিত পরিমাণ ও মূল্য যাচাই করুন। এই প্রিভিউ ইনভয়েস সংরক্ষণ, দায় পোস্ট, পূর্বের ইনভয়েস পরীক্ষা বা পেমেন্ট অনুমোদন করে না। মূল্যপার্থক্যে স্বতন্ত্র ফাইন্যান্স অনুমোদন লাগবে।">Select an approved order and posted deliveries, then preview the supplier's proposed quantities and price. This preview does not save an invoice, book a payable, check prior invoices, or authorize payment. Variances need independent Finance review.</span>
+    </div>
+    <div id="simStatus" role="status" aria-live="polite" class="d-none"></div>
+    <form id="simSearchForm" class="row g-2 align-items-end mb-3">
+        <div class="col-9 col-md-5"><label for="simSearch" class="form-label" data-en="Approved purchase order" data-bn="অনুমোদিত ক্রয়াদেশ">Approved purchase order</label>
+            <input id="simSearch" class="form-control" maxlength="100" autocomplete="off" placeholder="Order number / ক্রয়াদেশ" /></div>
+        <div class="col-3 col-md-2"><button type="submit" class="btn btn-outline-primary w-100" data-en="Find" data-bn="খুঁজুন">Find</button></div>
+    </form>
+    <div id="simOrderResults" class="list-group mb-3" aria-live="polite"></div>
+    <form id="simPreviewForm" class="d-none">
+        <h2 id="simOrderTitle" class="h6 mb-3"></h2>
+        <div class="row g-2 mb-3"><div class="col-sm-6 col-lg-4">
+            <label for="simMode" class="form-label" data-en="Invoice price policy" data-bn="ইনভয়েসের মূল্যনীতি">Invoice price policy</label>
+            <select id="simMode" class="form-select"><option value="Automatic">Automatic / স্বয়ংক্রিয় (PO price)</option>
+                <option value="ManualFinal">Manual Final / চূড়ান্ত মূল্য</option>
+                <option value="AutoPlusManual">Auto + Manual Correction / সংশোধন</option></select>
+        </div></div>
+        <div class="table-responsive"><table class="table table-sm table-striped align-middle">
+            <thead><tr><th scope="col">Receipt / গ্রহণ</th><th scope="col">Item / পণ্য</th><th scope="col">Lot / ব্যাচ</th>
+                <th scope="col">Received / গৃহীত</th><th scope="col">PO price</th><th scope="col">Posted cost</th>
+                <th scope="col">Invoice Qty / পরিমাণ</th><th scope="col" id="simAmountTitle">Price / correction</th><th scope="col">Variance reason / কারণ</th></tr></thead>
+            <tbody id="simRows"></tbody>
+        </table></div>
+        <div class="d-flex justify-content-end mb-3"><button type="submit" id="simRun" class="btn btn-primary" data-en="Preview matching" data-bn="মিল যাচাই করুন">Preview matching</button></div>
+    </form>
+    <div id="simResult" class="d-none" aria-live="polite">
+        <h2 class="h6" data-en="Read-only comparison" data-bn="শুধু-পাঠযোগ্য তুলনা">Read-only comparison</h2>
+        <p id="simSummary" class="small fw-semibold"></p>
+        <div class="table-responsive"><table class="table table-sm"><thead><tr><th>Receipt</th><th>Item</th><th>Qty</th><th>Invoice Price</th><th>Invoice Amount (BDT)</th><th>Stock Value Difference (BDT)</th></tr></thead>
+            <tbody id="simResultLines"></tbody></table></div>
+    </div>
+</section>
+@section Scripts { <script src="~/js/procurement/supplier-invoice-matching.js" asp-append-version="true"></script> }

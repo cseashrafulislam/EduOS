@@ -10,6 +10,7 @@ public interface IInventoryMovementService
     Task<ApiResponse<ProcurementGoodsReceiptDto>> CreateGoodsReceiptAsync(CreateProcurementGoodsReceiptRequest request, CancellationToken cancellationToken = default);
     Task<ApiResponse<ProcurementGoodsReceiptDto>> SubmitGoodsReceiptAsync(Guid reference, SubmitProcurementGoodsReceiptRequest request, CancellationToken cancellationToken = default);
     Task<ApiResponse<ProcurementGoodsReceiptDto>> ReviewGoodsReceiptAsync(Guid reference, ReviewProcurementGoodsReceiptRequest request, CancellationToken cancellationToken = default);
+    Task<ApiResponse<PreviewProcurementInvoiceDto>> PreviewSupplierInvoiceMatchAsync(PreviewProcurementInvoiceRequest request, CancellationToken cancellationToken = default);
     Task<ApiResponse<PagedResult<InventoryPhysicalCountDto>>> GetPhysicalCountsAsync(long? locationId, string? state, int page, int pageSize, CancellationToken cancellationToken = default);
     Task<ApiResponse<InventoryPhysicalCountDto>> GetPhysicalCountAsync(Guid reference, CancellationToken cancellationToken = default);
     Task<ApiResponse<InventoryPhysicalCountDto>> StartPhysicalCountAsync(StartInventoryPhysicalCountRequestDto request, CancellationToken cancellationToken = default);
