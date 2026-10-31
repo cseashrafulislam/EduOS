@@ -35,11 +35,20 @@ public sealed partial class SqlServerV3InventoryTransferLifecycleTests
     private sealed record Fixture(DbContextOptions<EduOSDbContext> Options, long TenantId,
         long UserId, long SourceId, long DestinationId, long ItemId);
 
+    // Parallel SQL acceptance contexts must not share HttpContextAccessor's
+    // static AsyncLocal holder: another concurrent fixture can replace/clear it.
+    // Keep each context's tenant identity stable throughout its transaction.
+    private sealed class FixedHttpContextAccessor(HttpContext context) : IHttpContextAccessor
+    {
+        public HttpContext? HttpContext { get; set; } = context;
+    }
+
     private static EduOSDbContext Open(DbContextOptions<EduOSDbContext> options, long tenantId)
     {
         var http = new DefaultHttpContext();
         http.Items["TenantId"] = tenantId;
-        return new EduOSDbContext(options, new HttpContextAccessor { HttpContext = http });
+        http.User = new ClaimsPrincipal(new ClaimsIdentity());
+        return new EduOSDbContext(options, new FixedHttpContextAccessor(http));
     }
 
     private static InventoryMovementService Service(EduOSDbContext db, Fixture f,
