@@ -499,17 +499,21 @@ public sealed partial class SqlServerV3ProcurementPurchaseOrderTests
             var restored = await traceService.GetAsync(second.Reference);
             Assert.True(restored.Success,restored.Message);
             Assert.Equal(10m,restored.Data!.SettlementReservedAmount);
-            await using (var foreign = Open(options,tenantId+999999,checkerId))
-                Assert.Equal(404,(await new V3EnterpriseSupplierPayableTraceService(
-                    foreign,new Actor(tenantId+999999,checkerId)).GetAsync(second.Reference)).StatusCode);
-            Assert.Equal(403,(await new V3EnterpriseSupplierPayableTraceService(
-                verify,new ReadOnlyActor(tenantId,makerId)).GetAsync(second.Reference)).StatusCode);
             var service=Invoices(verify,tenantId,makerId);
-            var current=(await service.GetAsync(second.Reference)).Data!;
+            var currentResponse=await service.GetAsync(second.Reference);
+            Assert.True(currentResponse.Success,currentResponse.Message);
+            var current=currentResponse.Data!;
             Assert.Equal(409,(await service.RequestReversalAsync(second.Reference,
                 new RequestProcurementSupplierInvoiceReversal {ClientRequestId=Guid.NewGuid(),
                     RowVersion=current.RowVersion,ReversalDate=date,AccountingPeriodId=periodId,
                     Reason="Reversal must refuse an approved linked supplier payment"})).StatusCode);
+            Assert.Equal(403,(await new V3EnterpriseSupplierPayableTraceService(
+                verify,new ReadOnlyActor(tenantId,makerId)).GetAsync(second.Reference)).StatusCode);
+            // Run the foreign-tenant request LAST: the test fixture uses ambient
+            // tenant identity and must not poison the original maker context.
+            await using (var foreign = Open(options,tenantId+999999,checkerId))
+                Assert.Equal(404,(await new V3EnterpriseSupplierPayableTraceService(
+                    foreign,new Actor(tenantId+999999,checkerId)).GetAsync(second.Reference)).StatusCode);
         }
 
     }
