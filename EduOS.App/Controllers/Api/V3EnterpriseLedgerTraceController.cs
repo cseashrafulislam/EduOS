@@ -82,6 +82,42 @@ public sealed class V3EnterpriseLedgerTraceController(EduOSDbContext db, ICurren
             "v3-asset-finance-trace-" + reference.ToString("N") + ".csv");
     }
 
+    [HttpGet("procurement/{reference:guid}")]
+    public async Task<IActionResult> Procurement(Guid reference, CancellationToken ct)
+    {
+        var response = await new V3EnterpriseProcurementTraceService(db, user).GetAsync(reference, ct);
+        return StatusCode(response.StatusCode, response);
+    }
+
+    [HttpGet("procurement/{reference:guid}/csv")]
+    public async Task<IActionResult> ProcurementCsv(Guid reference, CancellationToken ct)
+    {
+        var response = await new V3EnterpriseProcurementTraceService(db, user).GetAsync(reference, ct);
+        if (!response.Success || response.Data == null)
+            return StatusCode(response.StatusCode, response);
+        var d = response.Data;
+        static string Cell(object? value)
+        {
+            var s = Convert.ToString(value, CultureInfo.InvariantCulture) ?? "";
+            if (s.Length > 0 && "=+-@\t\r".Contains(s[0])) s = "'" + s;
+            return "\"" + s.Replace("\"", "\"\"") + "\"";
+        }
+        var csv = new StringBuilder("Evidence,Reference,State,ItemId,Quantity,UnitPrice,Amount\r\n");
+        csv.AppendJoin(",", new[] { Cell("PurchaseOrder"), Cell(d.OrderReference),
+            Cell(d.State), Cell(""), Cell(""), Cell(""), Cell(d.TotalAmount) }).Append("\r\n");
+        csv.AppendJoin(",", new[] { Cell("Requisition"), Cell(d.RequisitionReference),
+            Cell("Approved"), Cell(""), Cell(""), Cell(""), Cell("") }).Append("\r\n");
+        csv.AppendJoin(",", new[] { Cell("Supplier"), Cell(d.SupplierReference),
+            Cell(""), Cell(""), Cell(""), Cell(""), Cell("") }).Append("\r\n");
+        foreach (var line in d.Lines)
+            csv.AppendJoin(",", new[] { Cell("PurchaseOrderLine"), Cell(line.LineNo),
+                Cell(""), Cell(line.InventoryItemId), Cell(line.Quantity),
+                Cell(line.UnitPrice), Cell(line.Amount) }).Append("\r\n");
+        Response.Headers["X-Content-Type-Options"] = "nosniff";
+        return File(new UTF8Encoding(true).GetBytes(csv.ToString()), "text/csv; charset=utf-8",
+            "v3-procurement-commitment-" + reference.ToString("N") + ".csv");
+    }
+
     // Only the requested page is exported. Detail is the authority for complete
     // journal balancing, reversal and historical tombstone reconciliation.
     [HttpGet("register")]

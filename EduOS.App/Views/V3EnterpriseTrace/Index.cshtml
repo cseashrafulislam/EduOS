@@ -6,7 +6,7 @@
     <header class="d-flex align-items-start justify-content-between gap-2 mb-3">
         <h2 class="h4 mb-0">@ViewData["Title"]</h2>
         <details class="small"><summary class="btn btn-link btn-sm" aria-label="@(bn ? "সহায়তা" : "Help")">ⓘ</summary>
-            <p class="small mb-0">@(bn ? "মুভমেন্ট UUID দিয়ে পোস্টিং, রিভার্সাল এবং স্পষ্টভাবে যুক্ত জার্নাল যাচাই করুন। কোনো লিংক না থাকলে হিসাব পোস্ট হয়নি—এমন সিদ্ধান্ত নয়।" : "Use a movement UUID to inspect posting, reversal and explicitly linked journals. A missing link does not prove that no finance posting exists.")</p>
+            <p class="small mb-0">@(bn ? "স্টক ও অবচয়ের জার্নাল এবং ক্রয় আদেশের অনুমোদিত উৎস যাচাই করুন। ক্রয় আদেশ থেকে স্টক বা জার্নাল পোস্টিং অনুমান করা হয় না।" : "Inspect stock/depreciation journals or approved purchase-order provenance. Purchase orders do not imply stock receipt or Finance posting.")</p>
         </details>
     </header>
     <form id="v3TraceForm" class="row g-2 mb-3">
@@ -15,6 +15,7 @@
             <select id="v3TraceKind" class="form-select">
                 <option value="stock">@(bn ? "স্টক মুভমেন্ট" : "Stock movement")</option>
                 <option value="asset">@(bn ? "সম্পদ অবচয় রান" : "Asset depreciation run")</option>
+                <option value="procurement">@(bn ? "ক্রয় আদেশের প্রমাণ" : "Purchase order commitment")</option>
             </select>
         </div>
         <div class="col-sm-8 col-lg-5">
@@ -48,6 +49,7 @@
                 <select id="v3RegisterKind" class="form-select">
                     <option value="stock">@(bn ? "স্টক" : "Stock")</option>
                     <option value="asset">@(bn ? "অবচয়" : "Depreciation")</option>
+                    <option value="procurement">@(bn ? "ক্রয় আদেশ" : "Purchase orders")</option>
                 </select>
             </div>
             <div class="col-6 col-md-2">

@@ -19,7 +19,7 @@ public sealed class V3EnterpriseReconciliationRegisterService(
         if (!user.IsAuthenticated || !user.IsTenantAdmin || user.TenantId <= 0 ||
             db.CurrentTenantId != user.TenantId)
             return ApiResponse<V3EnterpriseReconciliationRegisterDto>.ErrorResponse("Access denied.", 403);
-        if (kind != "stock" && kind != "asset")
+        if (kind != "stock" && kind != "asset" && kind != "procurement")
             return ApiResponse<V3EnterpriseReconciliationRegisterDto>.ErrorResponse("Invalid evidence type.", 400);
         if (from > to || to.DayNumber - from.DayNumber > 366 ||
             page < 1 || page > 10000 || pageSize < 1 || pageSize > 50)
@@ -32,7 +32,10 @@ public sealed class V3EnterpriseReconciliationRegisterService(
 
         return kind == "stock"
             ? await StockAsync(from, to, campusId, page, pageSize, ct)
-            : await AssetAsync(from, to, campusId, page, pageSize, ct);
+            : kind == "asset"
+                ? await AssetAsync(from, to, campusId, page, pageSize, ct)
+                : await new V3EnterpriseProcurementTraceService(db, user)
+                    .RegisterAsync(from, to, campusId, page, pageSize, ct);
     }
 
     private async Task<ApiResponse<V3EnterpriseReconciliationRegisterDto>> StockAsync(

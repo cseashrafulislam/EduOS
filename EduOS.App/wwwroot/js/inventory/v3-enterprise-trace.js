@@ -19,7 +19,9 @@ if (root) {
         RunLineMismatch: ['রান ও লাইনের মোট মেলে না', 'Run/line mismatch'],
         NoExplicitReference: ['সরাসরি জার্নাল রেফারেন্স নেই', 'No explicit journal reference'],
         ExplicitBalancedReference: ['লিংকযুক্ত জার্নাল সমান', 'Linked journal balanced'],
-        ExplicitReferencePresent: ['সরাসরি রেফারেন্স আছে', 'Explicit reference present']
+        ExplicitReferencePresent: ['সরাসরি রেফারেন্স আছে', 'Explicit reference present'],
+        ApprovedCommitment: ['অনুমোদিত ক্রয় প্রতিশ্রুতি যাচাইকৃত', 'Approved purchase commitment verified'],
+        PendingApproval: ['ক্রয় আদেশের অনুমোদন অপেক্ষমাণ', 'Purchase order approval pending']
     };
     const evidenceText = code => evidenceLabels[code]?.[bn ? 0 : 1] || String(code || '');
     const add = (values) => {
@@ -44,15 +46,25 @@ if (root) {
         const button = form.querySelector('button[type="submit"]');
         button.disabled = true;
         try {
-            const path = '/api/v3/enterprise/ledger-trace/' +
-                (kind.value === 'asset' ? 'asset-depreciation/' : '') + encodeURIComponent(id);
+            const selectedKind = kind.value;
+            const route = selectedKind === 'asset' ? 'asset-depreciation/' :
+                selectedKind === 'procurement' ? 'procurement/' : '';
+            const path = '/api/v3/enterprise/ledger-trace/' + route + encodeURIComponent(id);
             const response = await fetch(path, { credentials: 'same-origin', cache: 'no-store',
                 headers: { Accept: 'application/json' } });
             const body = await response.json();
             if (!response.ok || !body.success || !body.data)
                 throw new Error(body.message || (bn ? 'ট্রেস পাওয়া যায়নি।' : 'Trace unavailable.'));
             const d = body.data;
-            if (kind.value === 'asset') {
+            if (selectedKind === 'procurement') {
+                add([bn ? 'ক্রয় আদেশ' : 'Purchase order', d.orderNumber, d.state, '', '', d.totalAmount]);
+                add([bn ? 'চাহিদাপত্র' : 'Requisition', d.requisitionReference, '', '', '', '']);
+                add([bn ? 'সরবরাহকারী' : 'Supplier', d.supplierReference, '', '', '', '']);
+                (d.lines || []).forEach(line => add([
+                    bn ? 'ক্রয় লাইন' : 'PO line', line.lineNo + ' · Item ' + line.inventoryItemId,
+                    line.quantity + ' × ' + line.unitPrice, '', '', line.amount
+                ]));
+            } else if (selectedKind === 'asset') {
                 add([bn ? 'অবচয়' : 'Depreciation', d.runReference, d.state, '', '', d.runTotalAmount]);
                 add([bn ? 'বিস্তারিত' : 'Lines', d.depreciationLineCount, '', '', '', d.depreciationLinesAmount]);
             } else {
@@ -61,8 +73,12 @@ if (root) {
             (d.journals || []).forEach(j => add([
                 bn ? 'জার্নাল' : 'Journal', j.number, j.state, j.debit, j.credit, ''
             ]));
-            status.textContent = (bn ? 'ফাইন্যান্স লিংক: ' : 'Finance evidence: ') +
-                evidenceText(d.financeEvidenceStatus) + (d.reversalReference ? ' · Reversal: ' + d.reversalReference : '');
+            status.textContent = selectedKind === 'procurement'
+                ? (bn ? 'ক্রয় প্রতিশ্রুতির প্রমাণ: ' : 'Commitment evidence: ') +
+                    evidenceText(d.evidenceStatus)
+                : (bn ? 'ফাইন্যান্স লিংক: ' : 'Finance evidence: ') +
+                    evidenceText(d.financeEvidenceStatus) +
+                    (d.reversalReference ? ' · Reversal: ' + d.reversalReference : '');
             csv.href = path + '/csv';
             result.hidden = false;
             message.textContent = bn ? 'ট্রেস প্রস্তুত।' : 'Trace ready.';
@@ -146,7 +162,8 @@ if (root) {
                 tr.title = bn ? 'বিস্তারিত দেখতে Enter চাপুন' : 'Press Enter for details';
                 const open = () => {
                     document.getElementById('v3TraceKind').value =
-                        data.kind === 'asset' ? 'asset' : 'stock';
+                        data.kind === 'asset' ? 'asset' :
+                        data.kind === 'procurement' ? 'procurement' : 'stock';
                     reference.value = item.reference;
                     form.requestSubmit();
                     reference.scrollIntoView({ behavior: 'smooth', block: 'center' });
