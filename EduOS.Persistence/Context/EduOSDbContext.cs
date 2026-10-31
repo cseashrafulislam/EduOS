@@ -7,6 +7,7 @@ using EduOS.Core.Entities.Auth;
 using EduOS.Core.Entities.Base;
 using EduOS.Core.Entities.Communication;
 using EduOS.Core.Entities.Files;
+using EduOS.Core.Entities.Facilities;
 using EduOS.Core.Entities.Finance;
 using EduOS.Core.Entities.HR;
 using EduOS.Core.Entities.Hostel;
@@ -435,6 +436,7 @@ public class EduOSDbContext :
     public DbSet<AssetCategory> AssetCategories => Set<AssetCategory>();
     public DbSet<AssetMaintenance> AssetMaintenances => Set<AssetMaintenance>();
     public DbSet<InventoryItem> InventoryItems => Set<InventoryItem>();
+    public DbSet<FacilitySpace> FacilitySpaces => Set<FacilitySpace>();
     public DbSet<InventoryLocation> InventoryLocations => Set<InventoryLocation>();
     public DbSet<InventoryMovement> InventoryMovements => Set<InventoryMovement>();
     public DbSet<InventoryMovementLine> InventoryMovementLines => Set<InventoryMovementLine>();
@@ -1930,6 +1932,14 @@ public class EduOSDbContext :
         UniqueTenant<ApiCredential>(modelBuilder, nameof(ApiCredential.KeyPrefix));
         modelBuilder.Entity<WebhookDelivery>().HasIndex(x => new { x.TenantId, x.State, x.NextAttemptAt });
 
+        // Facilities (independent campus operational spaces)
+        UniqueTenant<FacilitySpace>(modelBuilder, nameof(FacilitySpace.CampusId), nameof(FacilitySpace.Code));
+        modelBuilder.Entity<FacilitySpace>().HasIndex(x => new { x.TenantId, x.CampusId, x.IsActive, x.Name });
+        modelBuilder.Entity<FacilitySpace>().ToTable(t => t.HasCheckConstraint("CK_FacilitySpaces_Code",
+            "LEN(LTRIM(RTRIM([Code]))) > 0 AND LEN(LTRIM(RTRIM([Name]))) > 0"));
+
+        // Facilities
+        TenantReference<FacilitySpace, Campus>(modelBuilder, nameof(FacilitySpace.CampusId));
         // Inventory / asset
         UniqueTenant<InventoryLocation>(modelBuilder, nameof(InventoryLocation.Code));
         UniqueTenant<InventoryItem>(modelBuilder, nameof(InventoryItem.Code));

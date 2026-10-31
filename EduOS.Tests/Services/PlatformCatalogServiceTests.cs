@@ -26,7 +26,7 @@ public class PlatformCatalogServiceTests
         institutionTypes.Data.Should().HaveCount(13);
         institutionTypes.Data!.Select(x => x.DisplayOrder).Should().BeInAscendingOrder();
         modules.Success.Should().BeTrue();
-        modules.Data.Should().HaveCount(20);
+        modules.Data.Should().HaveCount(21);
         modules.Data!.Select(x => x.DisplayOrder).Should().BeInAscendingOrder();
     }
 

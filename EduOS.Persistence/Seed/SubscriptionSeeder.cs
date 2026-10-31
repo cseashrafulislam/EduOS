@@ -47,6 +47,7 @@ public static class SubscriptionSeeder
             new FeatureSeed("TRANSPORT", "Transport", "Routes, vehicles and assignments."),
             new FeatureSeed("HOSTEL", "Hostel", "Hostel room and bed allocation."),
             new FeatureSeed("INVENTORY", "Inventory", "Inventory and asset operations."),
+            new FeatureSeed("FACILITIES", "Facilities", "Campus maintenance and service operations; explicit opt-in only."),
             new FeatureSeed("MULTI_CAMPUS", "Multi-campus", "Multiple campus operations."),
             new FeatureSeed("MOBILE_APP", "Mobile App", "Mobile application access."),
             new FeatureSeed("API_ACCESS", "API Access", "API and integration access."),

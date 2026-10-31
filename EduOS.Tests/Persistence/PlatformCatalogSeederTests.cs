@@ -17,9 +17,9 @@ public sealed class PlatformCatalogSeederTests
         await PlatformCatalogSeeder.SeedAsync(db);
         await PlatformCatalogSeeder.SeedAsync(db);
         (await db.InstitutionTypeDefinitions.CountAsync()).Should().Be(13);
-        (await db.ProductModules.CountAsync()).Should().Be(20);
+        (await db.ProductModules.CountAsync()).Should().Be(21);
         (await db.InstitutionTypeModules.CountAsync()).Should().Be(212);
-        (await db.ProductModuleFeatures.CountAsync()).Should().Be(32);
+        (await db.ProductModuleFeatures.CountAsync()).Should().Be(33);
         var university = await db.InstitutionTypeDefinitions.SingleAsync(x => x.Code == "UNIVERSITY");
         var modules = await (from selected in db.InstitutionTypeModules
             join module in db.ProductModules on selected.ProductModuleId equals module.Id
@@ -62,7 +62,7 @@ public sealed class PlatformCatalogSeederTests
         plan.Name = "Custom Basic Plan";
         await db.SaveChangesAsync();
         await SubscriptionSeeder.SeedAsync(db);
-        (await db.Features.CountAsync()).Should().Be(30);
+        (await db.Features.CountAsync()).Should().Be(31);
         (await db.SubscriptionPlans.CountAsync()).Should().Be(4);
         feature.Name.Should().Be("Custom Student Label");
         feature.Description.Should().NotBeNullOrWhiteSpace();

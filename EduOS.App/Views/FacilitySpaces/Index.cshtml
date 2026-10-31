@@ -1,0 +1,42 @@
+@using System.Globalization
+@{
+    var bn = CultureInfo.CurrentUICulture.Name.StartsWith("bn", StringComparison.OrdinalIgnoreCase);
+    ViewData["Title"] = bn ? "ক্যাম্পাস সুবিধা ও স্থান" : "Campus Facility Spaces";
+    var manage = User.IsInRole("TenantAdmin") || User.IsInRole("Principal") || User.IsInRole("FacilitiesManager");
+}
+<section class="container-fluid py-3" id="facilitySpaces" data-bn="@bn.ToString().ToLowerInvariant()" data-manage="@manage.ToString().ToLowerInvariant()">
+    <header class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
+        <div><h2 class="h4 mb-1">@(bn ? "ক্যাম্পাস সুবিধা ও স্থান" : "Campus Facility Spaces")</h2>
+        <p class="small text-muted mb-0">@(bn ? "এটি একাডেমিক রুম, হোস্টেল বেড বা ইনভেন্টরি স্টোর নয়।" : "Operational spaces, separate from academic rooms, hostel beds and inventory stores.")</p></div>
+        <button type="button" class="btn btn-outline-secondary btn-sm" onclick="window.print()">@(bn ? "প্রিন্ট" : "Print")</button>
+    </header>
+    <div id="facilityAlert" class="d-none" role="alert" aria-live="polite"></div>
+    <div class="card mb-3"><div class="card-body">
+        <form id="facilitySearchForm" class="row g-2 align-items-end">
+            <div class="col-sm-3"><label class="form-label" for="facilityCampusFilter">@(bn ? "ক্যাম্পাস আইডি (ঐচ্ছিক)" : "Campus ID (optional)")</label><input id="facilityCampusFilter" type="number" min="1" class="form-control" /></div>
+            <div class="col-sm-6"><label class="form-label" for="facilitySearch">@(bn ? "কোড বা নাম" : "Code or name")</label><input id="facilitySearch" maxlength="100" class="form-control" /></div>
+            <div class="col-sm-3"><button class="btn btn-primary w-100" type="submit">@(bn ? "খুঁজুন" : "Search")</button></div>
+        </form>
+        <div class="table-responsive mt-3"><table class="table table-striped table-sm align-middle">
+            <thead><tr><th>@(bn ? "ক্যাম্পাস" : "Campus")</th><th>@(bn ? "কোড" : "Code")</th><th>@(bn ? "নাম" : "Name")</th><th>@(bn ? "ঠিকানা" : "Address")</th><th>@(bn ? "অবস্থা" : "Status")</th>@if(manage){<th>@(bn ? "সম্পাদনা" : "Edit")</th>}</tr></thead>
+            <tbody id="facilityRows"></tbody>
+        </table></div>
+        <div class="d-flex gap-2 align-items-center"><button id="facilityPrev" type="button" class="btn btn-outline-secondary btn-sm">@(bn ? "পূর্ববর্তী" : "Previous")</button>
+            <span id="facilityPage" class="small" aria-live="polite"></span><button id="facilityNext" type="button" class="btn btn-outline-secondary btn-sm">@(bn ? "পরবর্তী" : "Next")</button></div>
+    </div></div>
+    @if(manage)
+    {
+        <div class="card"><div class="card-body"><h3 class="h6">@(bn ? "স্থান যোগ বা সম্পাদনা" : "Create or edit space")</h3>
+            <form id="facilityForm" class="row g-2">
+                <input type="hidden" id="facilityId" /><input type="hidden" id="facilityVersion" />
+                <div class="col-sm-3"><label class="form-label" for="facilityCampus">@(bn ? "ক্যাম্পাস আইডি" : "Campus ID")</label><input id="facilityCampus" class="form-control" type="number" min="1" required /></div>
+                <div class="col-sm-3"><label class="form-label" for="facilityCode">@(bn ? "কোড" : "Code")</label><input id="facilityCode" class="form-control" maxlength="50" pattern="[A-Za-z0-9_.-]+" required /></div>
+                <div class="col-sm-6"><label class="form-label" for="facilityName">@(bn ? "নাম" : "Name")</label><input id="facilityName" class="form-control" maxlength="150" required /></div>
+                <div class="col-sm-9"><label class="form-label" for="facilityAddress">@(bn ? "অবস্থান/বিবরণ" : "Location / address")</label><input id="facilityAddress" class="form-control" maxlength="500" /></div>
+                <div class="col-sm-3 d-flex align-items-end"><label class="form-check"><input id="facilityActive" type="checkbox" class="form-check-input" checked /><span class="form-check-label">@(bn ? "সক্রিয়" : "Active")</span></label></div>
+                <div class="col-12 d-flex gap-2"><button class="btn btn-success" type="submit">@(bn ? "সংরক্ষণ" : "Save")</button><button id="facilityReset" class="btn btn-outline-secondary" type="button">@(bn ? "নতুন" : "New")</button></div>
+            </form>
+        </div></div>
+    }
+</section>
+@section Scripts { <script src="~/js/facilities/spaces.js" asp-append-version="true"></script> }
