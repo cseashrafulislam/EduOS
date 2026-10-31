@@ -191,7 +191,8 @@ public sealed class LearnerIdentityService : ILearnerIdentityService
                 : null;
 
             if (currentPerson != null)
-                return await HandleExistingPersonAsync(student, currentPerson, matchingIdentifier, identifierKind, protectedValue, digest, purpose.Value, cancellationToken);
+                return await HandleExistingPersonAsync(student, currentPerson, matchingIdentifier, identifierKind,
+                    protectedValue, digest, purpose.Value, request.RequestedScopes, cancellationToken);
 
             if (student.PersonId > 0)
                 return await DenyKnownStudentAsync(student, purpose.Value, "PERSON_INTEGRITY_FAILURE",
@@ -262,11 +263,32 @@ public sealed class LearnerIdentityService : ILearnerIdentityService
         string protectedValue,
         string lookupDigest,
         LearnerIdentityPurpose purpose,
+        LearnerDataScope requestedScopes,
         CancellationToken cancellationToken)
     {
         if (matchingIdentifier != null && matchingIdentifier.PersonId != person.Id)
-            return await DenyWithAuditAsync(person.Id, student.Id, purpose, "IDENTIFIER_PERSON_CONFLICT",
-                "The supplied identifier conflicts with the student's current identity.", 409, cancellationToken);
+        {
+            // A tenant's canonical Student.PersonId is never replaced by a
+            // foreign global Person. An independently verified identifier may
+            // start a scoped, learner-controlled consent request instead.
+            if (!matchingIdentifier.IsVerified)
+                return await DenyWithAuditAsync(person.Id, student.Id, purpose,
+                    "IDENTIFIER_VERIFICATION_REQUIRED", "Identity review is required before linking.",
+                    409, cancellationToken);
+
+            var linkedToAnotherStudent = await _links.GetQueryable().AsNoTracking()
+                .AnyAsync(x => x.TenantId == _currentUser.TenantId &&
+                               x.PersonId == matchingIdentifier.PersonId &&
+                               x.StudentId != student.Id && x.UnlinkedAt == null && !x.IsDeleted,
+                    cancellationToken);
+            if (linkedToAnotherStudent)
+                return await DenyWithAuditAsync(person.Id, student.Id, purpose,
+                    "TENANT_STUDENT_CONFLICT", "Identity review is required before linking.",
+                    409, cancellationToken);
+
+            return await CreateOrReuseConsentRequestAsync(matchingIdentifier.PersonId, student.Id,
+                purpose, requestedScopes, cancellationToken);
+        }
 
         return await _unitOfWork.ExecuteInTransactionAsync(async token =>
         {

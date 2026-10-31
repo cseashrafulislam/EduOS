@@ -2,6 +2,7 @@ using EduOS.Core.DTOs.Learners;
 using EduOS.Core.Entities.Learners;
 using EduOS.Core.Entities.Students;
 using EduOS.Core.Enums;
+using EduOS.Core.Enums.Domain;
 using EduOS.Core.Interfaces.IRepositories;
 using EduOS.Core.Settings;
 using EduOS.Persistence.Context;
@@ -17,13 +18,10 @@ using Xunit;
 namespace EduOS.Tests.App;
 
 /// <summary>
-/// SQL-backed boundary regression across the 16-institute cohort. The real SQL
-/// schema requires Student.PersonId to reference an existing Person, whereas
-/// LearnerIdentityService's consent-request path currently expects an unlinked
-/// Student (PersonId == 0). Until the V1 identity owner reconciles that contract,
-/// a verified identifier belonging to another Person must fail closed: never
-/// replace the tenant's canonical Student.PersonId or silently create a grant.
-/// This is a NEGATIVE security gate, not a completed verified-consent lifecycle.
+/// SQL-backed 16-institute verified-identifier/consent lifecycle. Every
+/// destination has an independently created canonical Student.PersonId: consent
+/// may create only a secondary StudentPersonLink and a scoped grant, never merge
+/// Person records or overwrite the local Student's identity/history.
 /// </summary>
 public sealed partial class SqlServerTransportSeatCapacityIntegrationTests
 {
@@ -54,7 +52,7 @@ public sealed partial class SqlServerTransportSeatCapacityIntegrationTests
     }
 
     [Fact]
-    public async Task Sixteen_SQL_institutes_never_replace_an_existing_person_when_foreign_identifier_is_verified()
+    public async Task Sixteen_SQL_institutes_link_verified_foreign_identity_only_after_scoped_consent()
     {
         var connection = Environment.GetEnvironmentVariable("EDUOS_SQL_AUTH_TEST_CONNECTION");
         if (string.IsNullOrWhiteSpace(connection)) return;
@@ -74,6 +72,7 @@ public sealed partial class SqlServerTransportSeatCapacityIntegrationTests
             Assert.True(student.PersonId > 0);
             // Transport's minimal fixture omits DOB; admission identity requires it.
             student.DateOfBirth = new DateOnly(2010, 1, 2);
+            if (i == 0) student.UserId = tenant.UserId; // Authorized learner consent reviewer.
             await db.SaveChangesAsync();
             cohort.Add((tenant, student.Id, student.PersonId, student.PublicId));
         }
@@ -116,6 +115,7 @@ public sealed partial class SqlServerTransportSeatCapacityIntegrationTests
             await db.SaveChangesAsync();
         }
 
+        var pending = new List<(long TenantId, Guid Reference)>();
         foreach (var member in cohort.Skip(1))
         {
             await using var db = ScopedContext(member.Tenant.Options,
@@ -131,21 +131,26 @@ public sealed partial class SqlServerTransportSeatCapacityIntegrationTests
                     RequestedScopes = LearnerDataScope.BasicIdentity
                 });
 
-            Assert.False(response.Success);
-            Assert.Equal(409, response.StatusCode);
-            Assert.Null(response.Data);
+            Assert.True(response.Success, response.Message);
+            Assert.Equal(202, response.StatusCode);
+            Assert.Equal("ConsentRequired", response.Data!.State);
+            Assert.Null(response.Data.PersonReference);
+            pending.Add((member.Tenant.TenantId, Assert.IsType<Guid>(response.Data.ConsentRequestReference)));
             Assert.DoesNotContain(identifierValue, response.Message);
             Assert.Equal(member.PersonId, await db.Students
                 .Where(x => x.Id == member.StudentId)
                 .Select(x => x.PersonId).SingleAsync());
             Assert.Equal(0, await db.StudentPersonLinks.CountAsync(x =>
-                x.TenantId == member.Tenant.TenantId && x.StudentId == member.StudentId));
-            Assert.Equal(0, await db.LearnerConsentRequests.CountAsync());
+                x.TenantId == member.Tenant.TenantId && x.StudentId == member.StudentId &&
+                x.PersonId == origin.PersonId && x.UnlinkedAt == null));
+            Assert.Equal(1, await db.LearnerConsentRequests.CountAsync(x =>
+                x.PersonId == origin.PersonId && x.RequestedStudentId == member.StudentId &&
+                x.State == ConsentState.Pending));
             Assert.Equal(0, await db.LearnerDataGrants.CountAsync());
             Assert.Contains(await db.LearnerIdentityAccessLogs
                 .Where(x => x.StudentId == member.StudentId)
                 .Select(x => x.ReasonCode).ToListAsync(),
-                x => x == "IDENTIFIER_PERSON_CONFLICT");
+                x => x == "CONSENT_REQUEST_CREATED");
 
             // An opaque Student reference from a different institute is never
             // a valid selector, even for an otherwise authorized tenant admin.
@@ -164,11 +169,61 @@ public sealed partial class SqlServerTransportSeatCapacityIntegrationTests
         await using (var db = ScopedContext(origin.Tenant.Options,
             origin.Tenant.TenantId, origin.Tenant.UserId))
         {
+            var reviewer = CohortConsentService(db, origin.Tenant.TenantId,
+                origin.Tenant.UserId, "Student");
+            var awaiting = await reviewer.GetPendingAsync();
+            Assert.True(awaiting.Success, awaiting.Message);
+            Assert.Equal(15, awaiting.Data!.Count);
+
+            var outsider = CohortConsentService(db, origin.Tenant.TenantId,
+                origin.Tenant.UserId + 1000000, "Student");
+            Assert.Equal(404, (await outsider.ResolveAsync(pending[0].Reference,
+                new ResolveLearnerIdentityConsentRequestDto
+                { Decision = LearnerConsentDecision.Approve })).StatusCode);
+
+            var grants = new List<Guid>();
+            foreach (var item in pending)
+            {
+                var approved = await reviewer.ResolveAsync(item.Reference,
+                    new ResolveLearnerIdentityConsentRequestDto
+                    { Decision = LearnerConsentDecision.Approve });
+                Assert.True(approved.Success, approved.Message);
+                Assert.Equal("Approved", approved.Data!.State);
+                grants.Add(Assert.IsType<Guid>(approved.Data.GrantReference));
+
+                var replay = await reviewer.ResolveAsync(item.Reference,
+                    new ResolveLearnerIdentityConsentRequestDto
+                    { Decision = LearnerConsentDecision.Approve });
+                Assert.True(replay.Success, replay.Message);
+                Assert.True(replay.Data!.AlreadyProcessed);
+            }
+            Assert.Empty((await reviewer.GetPendingAsync()).Data!);
+            Assert.Equal(15, (await reviewer.GetActiveGrantsAsync()).Data!.Count);
+
+            var revoked = await reviewer.RevokeAsync(grants[0]);
+            Assert.True(revoked.Success, revoked.Message);
+            Assert.Equal("Revoked", revoked.Data!.State);
+            Assert.Equal(14, (await reviewer.GetActiveGrantsAsync()).Data!.Count);
+
             Assert.Equal(1, await db.PersonIdentifiers.CountAsync(x => x.PersonId == origin.PersonId));
-            Assert.Equal(0, await db.LearnerConsentRequests.CountAsync());
-            Assert.Equal(0, await db.LearnerDataGrants.CountAsync());
             Assert.Equal(origin.PersonId, await db.Students.Where(x => x.Id == origin.StudentId)
                 .Select(x => x.PersonId).SingleAsync());
+        }
+
+        foreach (var member in cohort.Skip(1))
+        {
+            await using var db = ScopedContext(member.Tenant.Options,
+                member.Tenant.TenantId, member.Tenant.UserId);
+            Assert.Equal(member.PersonId, await db.Students
+                .Where(x => x.Id == member.StudentId).Select(x => x.PersonId).SingleAsync());
+            Assert.Equal(1, await db.StudentPersonLinks.CountAsync(x =>
+                x.TenantId == member.Tenant.TenantId && x.StudentId == member.StudentId &&
+                x.PersonId == origin.PersonId && !x.IsPrimary && x.UnlinkedAt == null));
+            Assert.Equal(1, await db.LearnerDataGrants.CountAsync(x =>
+                x.TenantId == member.Tenant.TenantId && x.StudentId == member.StudentId &&
+                x.PersonId == origin.PersonId && x.GrantedScopes == "1"));
+            Assert.Equal(1, await db.LearnerIdentityAccessLogs.CountAsync(x =>
+                x.StudentId == member.StudentId && x.ReasonCode == "CONSENT_APPROVED"));
         }
     }
 }

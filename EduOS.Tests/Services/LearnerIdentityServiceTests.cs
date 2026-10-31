@@ -169,6 +169,66 @@ public class LearnerIdentityServiceTests
         log.ReasonCode.Should().NotContain(identifier);
     }
 
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task Existing_local_person_is_preserved_and_only_verified_foreign_identifier_can_request_consent(
+        bool verified)
+    {
+        var options = CreateOptions();
+        const string identifier = "20012692510000123";
+        long foreignPersonId;
+        await using (var origin = CreateContext(options, 101))
+        {
+            var student = await AddStudentAsync(origin, 101, "Private Origin Learner");
+            (await CreateService(origin, new TestCurrentUser(101), LookupKey)
+                .RegisterOrRequestAsync(Request(student.Id, PersonIdentifierType.BirthRegistration,
+                    identifier))).Success.Should().BeTrue();
+            var source = await origin.PersonIdentifiers.SingleAsync();
+            source.IsVerified = verified;
+            source.VerifiedAt = verified ? DateTime.UtcNow : null;
+            foreignPersonId = source.PersonId;
+            await origin.SaveChangesAsync();
+        }
+
+        await using var destination = CreateContext(options, 202);
+        var localPerson = new Person { FullName = "Tenant-local identity" };
+        destination.Persons.Add(localPerson);
+        await destination.SaveChangesAsync();
+        var student2 = await AddStudentAsync(destination, 202, "Applicant Provided Name");
+        student2.PersonId = localPerson.Id;
+        destination.StudentPersonLinks.Add(new StudentPersonLink
+        {
+            TenantId = 202, StudentId = student2.Id, PersonId = localPerson.Id,
+            IsPrimary = true, LinkedAt = DateTime.UtcNow
+        });
+        await destination.SaveChangesAsync();
+
+        var response = await CreateService(destination, new TestCurrentUser(202), LookupKey)
+            .RegisterOrRequestAsync(Request(student2.Id, PersonIdentifierType.BirthRegistration,
+                identifier));
+
+        response.Success.Should().Be(verified);
+        response.StatusCode.Should().Be(verified ? 202 : 409);
+        response.Data?.PersonReference.Should().BeNull();
+        (await destination.Students.SingleAsync(x => x.Id == student2.Id)).PersonId
+            .Should().Be(localPerson.Id);
+        (await destination.StudentPersonLinks.SingleAsync()).PersonId.Should().Be(localPerson.Id);
+        (await destination.LearnerConsentRequests.CountAsync()).Should().Be(verified ? 1 : 0);
+        (await destination.PersonIdentifiers.CountAsync(x => x.PersonId == foreignPersonId))
+            .Should().Be(0);
+        if (verified)
+        {
+            response.Data!.State.Should().Be("ConsentRequired");
+            response.Data.ConsentRequestReference.Should().NotBeNull();
+            (await destination.LearnerConsentRequests.SingleAsync()).PersonId
+                .Should().Be(foreignPersonId);
+        }
+        else
+            (await destination.LearnerIdentityAccessLogs.SingleAsync()).ReasonCode
+                .Should().Be("IDENTIFIER_VERIFICATION_REQUIRED");
+    }
+
     [Fact]
     public async Task Unverified_identifier_never_creates_cross_tenant_consent_request()
     {

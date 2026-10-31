@@ -61,6 +61,78 @@ public class LearnerConsentServiceTests
         log.ReasonCode.Should().Be("CONSENT_APPROVED");
     }
 
+    [Fact]
+    public async Task Consent_adds_secondary_foreign_link_without_replacing_local_primary_person()
+    {
+        var options = CreateOptions();
+        var scenario = await SeedScenarioAsync(options);
+        long localPersonId;
+        await using (var destination = CreateContext(options, 202, 2, "AdmissionOfficer"))
+        {
+            var localPerson = new Person { FullName = "Independent tenant identity" };
+            destination.Persons.Add(localPerson);
+            await destination.SaveChangesAsync();
+            localPersonId = localPerson.Id;
+            var student = await destination.Students.SingleAsync(x => x.Id == scenario.TargetStudentId);
+            student.PersonId = localPersonId;
+            destination.StudentPersonLinks.Add(new StudentPersonLink
+            {
+                TenantId = 202, StudentId = student.Id, PersonId = localPersonId,
+                IsPrimary = true, LinkedAt = Now.UtcDateTime
+            });
+            await destination.SaveChangesAsync();
+        }
+
+        await using var origin = CreateContext(options, 101, 77, "Parent");
+        var result = await CreateService(origin, new TestCurrentUser(101, 77, "Parent"))
+            .ResolveAsync(scenario.RequestReference,
+                new ResolveLearnerIdentityConsentRequestDto { Decision = LearnerConsentDecision.Approve });
+
+        result.Success.Should().BeTrue();
+        (await origin.Students.IgnoreQueryFilters().SingleAsync(x => x.Id == scenario.TargetStudentId))
+            .PersonId.Should().Be(localPersonId);
+        var links = await origin.StudentPersonLinks.IgnoreQueryFilters()
+            .Where(x => x.TenantId == 202 && x.StudentId == scenario.TargetStudentId)
+            .ToListAsync();
+        links.Should().HaveCount(2);
+        links.Should().ContainSingle(x => x.PersonId == localPersonId && x.IsPrimary);
+        links.Should().ContainSingle(x => x.PersonId == scenario.PersonId && !x.IsPrimary);
+        (await origin.LearnerDataGrants.IgnoreQueryFilters().SingleAsync())
+            .PersonId.Should().Be(scenario.PersonId);
+    }
+
+    [Fact]
+    public async Task Consent_cannot_link_a_foreign_person_to_two_students_in_one_institute()
+    {
+        var options = CreateOptions();
+        var scenario = await SeedScenarioAsync(options);
+        await using (var destination = CreateContext(options, 202, 2, "AdmissionOfficer"))
+        {
+            var otherStudent = Student(202, "Other destination student");
+            destination.Students.Add(otherStudent);
+            await destination.SaveChangesAsync();
+            destination.StudentPersonLinks.Add(new StudentPersonLink
+            {
+                TenantId = 202, StudentId = otherStudent.Id,
+                PersonId = scenario.PersonId, IsPrimary = false,
+                LinkedAt = Now.UtcDateTime
+            });
+            await destination.SaveChangesAsync();
+        }
+
+        await using var origin = CreateContext(options, 101, 77, "Parent");
+        var result = await CreateService(origin, new TestCurrentUser(101, 77, "Parent"))
+            .ResolveAsync(scenario.RequestReference,
+                new ResolveLearnerIdentityConsentRequestDto { Decision = LearnerConsentDecision.Approve });
+
+        result.StatusCode.Should().Be(409);
+        (await origin.LearnerDataGrants.IgnoreQueryFilters().CountAsync()).Should().Be(0);
+        (await origin.LearnerConsentRequests.IgnoreQueryFilters().SingleAsync())
+            .State.Should().Be(ConsentState.Pending);
+        (await origin.LearnerIdentityAccessLogs.IgnoreQueryFilters().SingleAsync())
+            .ReasonCode.Should().Be("TARGET_STUDENT_LINK_CONFLICT");
+    }
+
     [Theory]
     [InlineData("inactive")]
     [InlineData("deleted")]

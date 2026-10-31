@@ -180,23 +180,34 @@ public sealed class LearnerConsentRepository : ILearnerConsentRepository
         // student may have since been transferred, deleted or reassigned. In
         // particular, the request FK alone does not prove tenant ownership.
         // Never materialize a cross-tenant StudentPersonLink or data grant.
-        var destinationActive = await _context.Students.IgnoreQueryFilters().AsNoTracking()
-            .AnyAsync(x => x.Id == request.RequestedStudentId
+        var destination = await _context.Students.IgnoreQueryFilters().AsNoTracking()
+            .Where(x => x.Id == request.RequestedStudentId
                 && x.TenantId == request.TenantId
-                && !x.IsDeleted && x.StatusCode == "Active", cancellationToken);
-        if (!destinationActive)
+                && !x.IsDeleted && x.StatusCode == "Active")
+            .Select(x => new { x.PersonId })
+            .FirstOrDefaultAsync(cancellationToken);
+        if (destination == null)
         {
             AddLog(request, userId, "ResolveConsent", "Conflict", "TARGET_STUDENT_UNAVAILABLE", ipAddress, userAgent);
             await SaveDecisionAsync(request, userId, cancellationToken);
             return new LearnerConsentMutationResult(LearnerConsentMutationState.Conflict);
         }
 
+        // A destination may already have its own canonical Person and primary
+        // link. Consent adds a SECONDARY association to the foreign Person;
+        // it must never replace Student.PersonId or its primary link.
         var currentLink = await _context.StudentPersonLinks.IgnoreQueryFilters()
             .FirstOrDefaultAsync(x => !x.IsDeleted
                 && x.TenantId == request.TenantId
                 && x.StudentId == request.RequestedStudentId
+                && x.PersonId == request.PersonId
                 && x.UnlinkedAt == null, cancellationToken);
-        if (currentLink != null && currentLink.PersonId != request.PersonId)
+        var linkedElsewhere = await _context.StudentPersonLinks.IgnoreQueryFilters().AsNoTracking()
+            .AnyAsync(x => !x.IsDeleted && x.TenantId == request.TenantId
+                && x.PersonId == request.PersonId
+                && x.StudentId != request.RequestedStudentId
+                && x.UnlinkedAt == null, cancellationToken);
+        if (linkedElsewhere)
         {
             AddLog(request, userId, "ResolveConsent", "Conflict", "TARGET_STUDENT_LINK_CONFLICT", ipAddress, userAgent);
             await SaveDecisionAsync(request, userId, cancellationToken);
@@ -216,7 +227,7 @@ public sealed class LearnerConsentRepository : ILearnerConsentRepository
                 TenantId = request.TenantId,
                 StudentId = request.RequestedStudentId,
                 PersonId = request.PersonId,
-                IsPrimary = true,
+                IsPrimary = destination.PersonId == request.PersonId,
                 LinkedAt = utcNow,
                 LinkedByUserId = userId,
                 LinkReason = "Approved learner identity consent"
