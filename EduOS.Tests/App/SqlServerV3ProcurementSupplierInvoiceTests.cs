@@ -5,7 +5,7 @@ using EduOS.Core.Entities.Inventory;
 using EduOS.Core.Entities.SaaS;
 using EduOS.Core.Enums.Domain;
 using EduOS.Persistence.Context;
-using EduOS.Service.Services.Inventory;
+using EduOS.Service.Services.Inventory;\nusing EduOS.Service.Services.Enterprise;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
@@ -211,6 +211,28 @@ public sealed partial class SqlServerV3ProcurementPurchaseOrderTests
             Assert.Equal(entries.Sum(x=>x.DebitAmount),entries.Sum(x=>x.CreditAmount));
             Assert.Single(await verify.InventoryMovements.Where(x=>x.SourceType=="ProcurementGoodsReceipt").ToListAsync());
         }
+        await using (var traceDb=Open(options,tenantId,makerId))
+        {
+            var trace=new V3EnterpriseSupplierPayableTraceService(traceDb,new Actor(tenantId,makerId));
+            var result=await trace.GetAsync(first.Reference);
+            Assert.True(result.Success,result.Message);
+            Assert.Equal("ExplicitBalancedReference",result.Data!.FinanceEvidenceStatus);
+            Assert.Equal(20m,result.Data.TotalAmount);
+            Assert.Equal(20m,result.Data.StockValue);
+            Assert.Equal(1,result.Data.LineCount);
+            Assert.Single(result.Data.GoodsReceiptReferences);
+            Assert.Equal(receiptReference,result.Data.GoodsReceiptReferences[0]);
+            Assert.Single(result.Data.Journals);
+            Assert.Equal(20m,result.Data.Journals[0].Debit);
+            Assert.Equal(20m,result.Data.Journals[0].Credit);
+            var discounted=await trace.GetAsync(second.Reference);
+            Assert.True(discounted.Success,discounted.Message);
+            Assert.Equal(-2m,discounted.Data!.PriceVariance);
+            Assert.Equal(18m,discounted.Data.Journals[0].Credit);
+        }
+        await using (var foreignTrace=Open(options,tenantId+999999,checkerId))
+            Assert.Equal(404,(await new V3EnterpriseSupplierPayableTraceService(
+                foreignTrace,new Actor(tenantId+999999,checkerId)).GetAsync(first.Reference)).StatusCode);
         await using (var foreign=Open(options,tenantId+999999,checkerId))
             Assert.Equal(404,(await Invoices(foreign,tenantId+999999,checkerId).GetAsync(first.Reference)).StatusCode);
         ProcurementSupplierInvoiceDto afterRequest;
@@ -248,6 +270,27 @@ public sealed partial class SqlServerV3ProcurementPurchaseOrderTests
             var invoiceIds=await verify.ProcurementSupplierInvoices.Select(x=>x.Id).ToListAsync();
             Assert.Equal(3,invoiceIds.Count);
             Assert.Single(await verify.InventoryMovements.Where(x=>x.SourceType=="ProcurementGoodsReceipt").ToListAsync());
+        }
+        await using (var reversedTraceDb=Open(options,tenantId,makerId))
+        {
+            var trace=new V3EnterpriseSupplierPayableTraceService(reversedTraceDb,new Actor(tenantId,makerId));
+            var reversedTrace=await trace.GetAsync(first.Reference);
+            Assert.True(reversedTrace.Success,reversedTrace.Message);
+            Assert.Equal("ExplicitReversedReference",reversedTrace.Data!.FinanceEvidenceStatus);
+            Assert.Equal(2,reversedTrace.Data.Journals.Count);
+            Assert.All(reversedTrace.Data.Journals,j=>Assert.True(j.Balanced));
+            var invoiceLine=await reversedTraceDb.ProcurementSupplierInvoiceLines
+                .FirstAsync(x=>x.SupplierInvoiceId==reversedTraceDb.ProcurementSupplierInvoices
+                    .Where(y=>y.PublicId==first.Reference).Select(y=>y.Id).First());
+            var original=invoiceLine.StockValue;
+            // Disposable SQL-only legacy corruption probe: never use normal
+            // mutation APIs to alter posted immutable invoice evidence.
+            await reversedTraceDb.ProcurementSupplierInvoiceLines.Where(x=>x.Id==invoiceLine.Id)
+                .ExecuteUpdateAsync(s=>s.SetProperty(x=>x.StockValue,original+1m));
+            Assert.Equal(409,(await trace.GetAsync(first.Reference)).StatusCode);
+            await reversedTraceDb.ProcurementSupplierInvoiceLines.Where(x=>x.Id==invoiceLine.Id)
+                .ExecuteUpdateAsync(s=>s.SetProperty(x=>x.StockValue,original));
+            Assert.True((await trace.GetAsync(first.Reference)).Success);
         }
         ProcurementSupplierInvoiceDto rejectedRequest;
         await using (var maker=Open(options,tenantId,makerId))

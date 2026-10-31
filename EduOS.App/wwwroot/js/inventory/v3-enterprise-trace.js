@@ -26,7 +26,7 @@ if (root) {
         CancelledCommitment: ['বাতিলকৃত ক্রয় প্রতিশ্রুতি', 'Cancelled purchase commitment'],
         RejectedCommitment: ['প্রত্যাখ্যাত ক্রয় আদেশ', 'Rejected purchase order'],
         DraftCommitment: ['খসড়া ক্রয় আদেশ', 'Draft purchase order'],
-        VerifiedProcurementReceipt: ['ক্রয় আদেশ, পণ্য গ্রহণ ও স্টক প্রমাণ যাচাইকৃত', 'PO, goods receipt and stock evidence verified']
+        VerifiedProcurementReceipt: ['ক্রয় আদেশ, পণ্য গ্রহণ ও স্টক প্রমাণ যাচাইকৃত', 'PO, goods receipt and stock evidence verified'],\n        ExplicitReversedReference: ['মূল ও বিপরীত জার্নাল যাচাইকৃত', 'Original and contra journals verified'],\n        ReversalPending: ['বিপরীত জার্নাল অনুমোদনের অপেক্ষায়', 'Contra journal pending approval']
     };
     const evidenceText = code => evidenceLabels[code]?.[bn ? 0 : 1] || String(code || '');
     const add = (values) => {
@@ -53,7 +53,7 @@ if (root) {
         try {
             const selectedKind = kind.value;
             const route = selectedKind === 'asset' ? 'asset-depreciation/' :
-                selectedKind === 'procurement' ? 'procurement/' : '';
+                selectedKind === 'procurement' ? 'procurement/' :\n                selectedKind === 'supplier-payable' ? 'supplier-payable/' : '';
             const path = '/api/v3/enterprise/ledger-trace/' + route + encodeURIComponent(id);
             const response = await fetch(path, { credentials: 'same-origin', cache: 'no-store',
                 headers: { Accept: 'application/json' } });
@@ -71,7 +71,7 @@ if (root) {
                     bn ? 'ক্রয় লাইন' : 'PO line', line.lineNo + ' · Item ' + line.inventoryItemId,
                     line.quantity + ' × ' + line.unitPrice, '', '', line.amount
                 ]));
-            } else if (selectedKind === 'asset') {
+            } else if (selectedKind === 'supplier-payable') {\n                add([bn ? 'সরবরাহকারী বিল' : 'Supplier invoice', d.invoiceNumber, d.state, '', '', d.totalAmount]);\n                add([bn ? 'স্টক মূল্য' : 'Stock value', d.purchaseOrderReference, '', '', '', d.stockValue]);\n                add([bn ? 'মূল্য পার্থক্য' : 'Price variance', d.supplierReference, '', '', '', d.priceVariance]);\n                (d.goodsReceiptReferences || []).forEach(r => add([bn ? 'পণ্য গ্রহণ' : 'Goods receipt', r, 'Posted', '', '', '']));\n            } else if (selectedKind === 'asset') {
                 add([bn ? 'অবচয়' : 'Depreciation', d.runReference, d.state, '', '', d.runTotalAmount]);
                 add([bn ? 'বিস্তারিত' : 'Lines', d.depreciationLineCount, '', '', '', d.depreciationLinesAmount]);
             } else {
