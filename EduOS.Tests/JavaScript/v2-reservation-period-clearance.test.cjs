@@ -12,7 +12,8 @@ test('Finance clearance screens expose upcoming charged period operations and si
     assert.match(transport, /value="3">Upcoming rider extension/);
     for (const [view, marker] of [[hostel, 'hfManualNet'], [transport, 'tfManualNet']]) {
         assert.match(view, new RegExp(`id="${marker}"`));
-        assert.match(view, /Manual signed period adjustment/);
+        assert.match(view, /Final \/ correction \(BDT\)/);
+        assert.match(view, /value="hybrid"/);
     }
 });
 

@@ -34,7 +34,8 @@ public sealed partial class FinanceAdjustmentService
         {
             x.SourceAllocationId, x.Operation, x.DestinationBedId, x.EffectiveDate,
             x.SourceRowVersion, x.DestinationBedRowVersion,
-            Reason = x.Reason.Trim(), x.ManualRentCredit, x.ManualDepositRefund, x.ManualNetAdjustment,
+            Reason = x.Reason.Trim(), x.ManualRentCredit, x.ManualDepositRefund,
+            x.ManualNetAdjustment, x.ManualAdjustmentDelta,
             OverrideReason = x.OverrideReason?.Trim()
         }))));
 
@@ -123,7 +124,8 @@ public sealed partial class FinanceAdjustmentService
             (request.ManualDepositRefund.HasValue && !Money(request.ManualDepositRefund.Value)) ||
             (request.Operation == HostelClearanceOperation.UpcomingStartReschedule &&
                 (request.ManualRentCredit.HasValue || request.ManualDepositRefund.HasValue)) ||
-            (request.Operation != HostelClearanceOperation.UpcomingStartReschedule && request.ManualNetAdjustment.HasValue))
+            (request.Operation != HostelClearanceOperation.UpcomingStartReschedule &&
+                (request.ManualNetAdjustment.HasValue || request.ManualAdjustmentDelta.HasValue)))
             return Error<HostelClearanceDto>("Invalid clearance request, versions or monetary amounts.");
         var hash = Fingerprint(request);
         try
@@ -189,7 +191,8 @@ public sealed partial class FinanceAdjustmentService
                 {
                     selected = ReservationQuoteSelection.Select(periodQuote!.NetAdjustment,
                         mode == HostelBillingCalculationMode.Manual, policy?.AllowManualOverride ?? true,
-                        request.ManualNetAdjustment, request.OverrideReason);
+                        request.ManualNetAdjustment, request.OverrideReason,
+                        request.ManualAdjustmentDelta);
                 }
                 catch (ArgumentException ex) { return Error<HostelClearanceDto>(ex.Message); }
                 catch (InvalidOperationException ex) { return Error<HostelClearanceDto>(ex.Message, 409); }
@@ -239,7 +242,8 @@ public sealed partial class FinanceAdjustmentService
                 new { row.SourceAllocationId, row.Operation, row.DestinationBedId, row.EffectiveDate,
                     row.CalculationMode, row.SuggestedRentCredit, row.SuggestedDepositRefund,
                     row.ApprovedRentCredit, row.ApprovedDepositRefund, row.SuggestedNetAdjustment,
-                    row.ApprovedNetAdjustment, row.OverrideReason });
+                    row.ApprovedNetAdjustment, row.OverrideReason,
+                    SelectionMode = selected?.Mode ?? (manual ? "ManualOverride" : "Automatic") });
             await db.SaveChangesAsync(ct);
             await tx.CommitAsync(ct);
             return ApiResponse<HostelClearanceDto>.SuccessResponse(Map(row), "Finance clearance requested. No GL posting has occurred.");
@@ -272,6 +276,7 @@ public sealed partial class FinanceAdjustmentService
                 return Error<HostelClearanceDto>("Requester cannot approve their own clearance.", 403);
             var previous = new { row.State, row.ApprovedRentCredit, row.ApprovedDepositRefund,
                 row.ApprovedNetAdjustment, row.OverrideReason, row.NoAdjustmentRequired, row.SettlementJournalId };
+            var reviewSelectionMode = "KeepRequested";
             if (request.Approve)
             {
                 var source = await db.StudentHostelAllocations.AsNoTracking().FirstOrDefaultAsync(x =>
@@ -299,7 +304,7 @@ public sealed partial class FinanceAdjustmentService
                         source.EndDate.HasValue && row.EffectiveDate > source.EndDate.Value)
                         return Error<HostelClearanceDto>("Upcoming period or adjustment parameters are no longer eligible.", 409);
                     decimal net = row.ApprovedNetAdjustment;
-                    if (request.ManualNetAdjustment.HasValue)
+                    if (request.ManualNetAdjustment.HasValue || request.ManualAdjustmentDelta.HasValue)
                     {
                         var policy = await db.HostelBillingPolicies.AsNoTracking().FirstOrDefaultAsync(x =>
                             x.TenantId == user.TenantId && x.CampusId == row.CampusId && !x.IsDeleted, ct);
@@ -308,8 +313,10 @@ public sealed partial class FinanceAdjustmentService
                             var selection = ReservationQuoteSelection.Select(row.SuggestedNetAdjustment,
                                 row.CalculationMode == HostelBillingCalculationMode.Manual,
                                 policy?.AllowManualOverride ?? true,
-                                request.ManualNetAdjustment, request.OverrideReason);
+                                request.ManualNetAdjustment, request.OverrideReason,
+                                request.ManualAdjustmentDelta);
                             net = selection.SelectedAmount!.Value;
+                            reviewSelectionMode = selection.Mode;
                         }
                         catch (ArgumentException ex) { return Error<HostelClearanceDto>(ex.Message); }
                         catch (InvalidOperationException ex) { return Error<HostelClearanceDto>(ex.Message, 409); }
@@ -366,7 +373,8 @@ public sealed partial class FinanceAdjustmentService
                 }
                 else
                 {
-                if (request.ManualNetAdjustment.HasValue || request.AutoPostInvoice)
+                if (request.ManualNetAdjustment.HasValue || request.ManualAdjustmentDelta.HasValue ||
+                    request.AutoPostInvoice)
                     return Error<HostelClearanceDto>("Signed period amount is only valid for upcoming reschedules.");
                 var manual = request.ManualRentCredit.HasValue || request.ManualDepositRefund.HasValue;
                 if (manual && (string.IsNullOrWhiteSpace(request.OverrideReason) ||
@@ -424,7 +432,7 @@ public sealed partial class FinanceAdjustmentService
             AuditReservationFinance("HostelClearanceReviewed", nameof(HostelFinanceClearance), row.Id,
                 previous, new { row.State, row.ApprovedRentCredit, row.ApprovedDepositRefund, row.ApprovedNetAdjustment,
                     row.OverrideReason, row.NoAdjustmentRequired, row.SettlementJournalId,
-                    row.ReconciliationNote, row.ReviewedByUserId });
+                    row.ReconciliationNote, row.ReviewedByUserId, reviewSelectionMode });
             await db.SaveChangesAsync(ct);
             await tx.CommitAsync(ct);
             return ApiResponse<HostelClearanceDto>.SuccessResponse(Map(row),

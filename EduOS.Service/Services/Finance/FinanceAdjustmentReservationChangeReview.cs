@@ -74,7 +74,8 @@ public sealed partial class FinanceAdjustmentService
         try
         {
             selection = ReservationQuoteSelection.Select(quote.NetAdjustment, mode == 3,
-                manualAllowed, request.ManualNetAdjustment, request.ManualOverrideReason);
+                manualAllowed, request.ManualNetAdjustment, request.ManualOverrideReason,
+                request.ManualAdjustmentDelta);
         }
         catch (ArgumentException ex)
         {

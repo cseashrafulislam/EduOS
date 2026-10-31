@@ -27,7 +27,8 @@
                 <div class="col-md-4"><label for="tfEffective" class="form-label">Effective date</label><input id="tfEffective" type="date" class="form-control" required /></div>
                 <div class="col-md-4"><label for="tfTarget" class="form-label">Destination vehicle</label><select id="tfTarget" class="form-select" required><option value="">Select rider</option></select></div>
                 <div class="col-md-6"><label for="tfManualFare" class="form-label">Manual fare credit (BDT; optional)</label><input id="tfManualFare" type="number" min="0" step="0.01" class="form-control" placeholder="Auto if blank" /></div>
-                <div class="col-md-6"><label for="tfManualNet" class="form-label">Manual signed period adjustment (BDT)</label><input id="tfManualNet" type="number" step="0.01" class="form-control" placeholder="Auto if blank; + charge / − credit" /></div>
+                <div class="col-md-3"><label for="tfPeriodMode" class="form-label">Period calculation</label><select id="tfPeriodMode" class="form-select"><option value="auto">Automatic</option><option value="manual">Manual final</option><option value="hybrid">Auto + Manual</option></select></div>
+                <div class="col-md-3"><label for="tfManualNet" class="form-label">Final / correction (BDT)</label><input id="tfManualNet" type="number" step="0.01" class="form-control" disabled placeholder="+ charge / − credit" /></div>
                 <div class="col-md-6"><label for="tfOverrideReason" class="form-label">Manual override reason (20+ characters)</label><input id="tfOverrideReason" maxlength="1000" class="form-control" /></div>
                 <div class="col-12"><label for="tfReason" class="form-label">Operational reason (5–500 characters)</label><input id="tfReason" minlength="5" maxlength="500" class="form-control" required /></div>
                 <div class="col-12"><button class="btn btn-primary" type="submit">Request Finance clearance</button></div>
@@ -43,7 +44,8 @@
         <form id="tfReviewForm" class="row g-2 border rounded p-3 mt-3 d-none">
             <h4 class="h6">Independent review <span id="tfReviewTitle"></span></h4>
             <div class="col-md-4"><label for="tfReviewFare" class="form-label">Reviewer credit override (optional)</label><input id="tfReviewFare" type="number" min="0" step="0.01" class="form-control" /></div>
-            <div class="col-md-4"><label for="tfReviewNet" class="form-label">Reviewer signed period adjustment (optional)</label><input id="tfReviewNet" type="number" step="0.01" class="form-control" /></div>
+            <div class="col-md-4"><label for="tfReviewMode" class="form-label">Review calculation</label><select id="tfReviewMode" class="form-select"><option value="auto">Keep proposed amount</option><option value="manual">Manual final</option><option value="hybrid">Auto + Manual</option></select></div>
+            <div class="col-md-4"><label for="tfReviewNet" class="form-label">Final / correction (BDT)</label><input id="tfReviewNet" type="number" step="0.01" class="form-control" disabled /></div>
             <div class="col-md-8"><label for="tfReviewOverrideReason" class="form-label">Reviewer amount-change reason</label><input id="tfReviewOverrideReason" maxlength="1000" class="form-control" /></div>
             <div class="col-md-4"><label for="tfReviewJournal" class="form-label">Verified posted journal ID (nonzero credit)</label><input id="tfReviewJournal" type="number" min="1" class="form-control" /></div>
             <div class="col-md-8 align-self-end"><label><input id="tfNoAdjustment" type="checkbox" /> Attest zero credit; no GL change required</label></div>

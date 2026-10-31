@@ -15,6 +15,8 @@ test('Finance proposed change review remains read-only and cannot approve change
     assert.match(script, /data\.calculationMode/);
     assert.match(script, /data\.suggestedNetAdjustment/);
     assert.match(script, /manualNetAdjustment/);
+    assert.match(script, /manualAdjustmentDelta/);
+    assert.match(script, /selection\.value === 'hybrid'/);
     assert.match(script, /manualOverrideReason/);
     assert.match(script, /data\.selectedNetAdjustment/);
     assert.match(script, /data\.manualOverrideAllowed/);
@@ -28,6 +30,7 @@ test('Finance proposed change review remains read-only and cannot approve change
     assert.match(view, /reservationFinanceChangeReviewForm/);
     assert.match(view, /AntiForgeryToken/);
     assert.match(view, /reservationFinanceChangeReviewSelection/);
+    assert.match(view, /Auto \+ Manual correction/);
     assert.match(view, /reservationFinanceChangeReviewManualAmount/);
     assert.match(view, /reservationFinanceChangeReviewManualReason/);
     assert.match(view, /reservation-finance-change-review\.js/);

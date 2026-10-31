@@ -47,7 +47,7 @@ root.addEventListener('reservationFinancePreflightLoaded', event => {
     manualReason.disabled = true;
 });
 selection.addEventListener('change', () => {
-    const manual = selection.value === 'manual';
+    const manual = selection.value !== 'auto';
     manualAmount.disabled = !manual;
     manualReason.disabled = !manual;
     manualAmount.required = manual;
@@ -71,13 +71,13 @@ form.addEventListener('submit', async event => {
     if (!proposed) { message('Choose the proposed date.', true); return; }
     const proposal = {kind:scope.kind, reservationId:scope.id, change:action.value};
     proposal[isStart ? 'proposedStartDate' : 'proposedEndDate'] = proposed;
-    if (selection.value === 'manual') {
+    if (selection.value !== 'auto') {
         if (!/^-?\d+(\.\d{1,2})?$/.test(manualAmount.value) ||
             manualReason.value.trim().length < 20) {
             message('Enter a signed amount (up to 2 decimal places) and a reason of at least 20 characters.', true);
             return;
         }
-        proposal.manualNetAdjustment = manualAmount.value;
+        proposal[selection.value === 'hybrid' ? 'manualAdjustmentDelta' : 'manualNetAdjustment'] = manualAmount.value;
         proposal.manualOverrideReason = manualReason.value.trim();
     }
     const token = form.querySelector('input[name="__RequestVerificationToken"]')?.value;

@@ -13,6 +13,9 @@ public sealed class ReservationFinanceChangeReviewRequestDto
     /// <summary>Optional signed Finance quote; positive is a charge, negative is a possible credit.</summary>
     [JsonNumberHandling(JsonNumberHandling.AllowReadingFromString)]
     public decimal? ManualNetAdjustment { get; set; }
+    /// <summary>Signed correction added to the automatic proposal (exclusive with ManualNetAdjustment).</summary>
+    [JsonNumberHandling(JsonNumberHandling.AllowReadingFromString)]
+    public decimal? ManualAdjustmentDelta { get; set; }
     /// <summary>Required for a manual override; the preview itself never approves or posts money.</summary>
     public string? ManualOverrideReason { get; set; }
 }

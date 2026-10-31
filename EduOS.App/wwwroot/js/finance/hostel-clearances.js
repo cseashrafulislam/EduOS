@@ -42,6 +42,11 @@
         const data = await api(`${apiRoot}/billing-policy/${campusId}`);
         el('hfMode').value = String(data.calculationMode);
         el('hfOverrideAllowed').checked = data.allowManualOverride;
+        const permitManual = Number(data.calculationMode) === 3 || data.allowManualOverride;
+        el('hfPeriodMode').querySelector('option[value="manual"]').disabled = !permitManual;
+        el('hfPeriodMode').querySelector('option[value="hybrid"]').disabled = !data.allowManualOverride || Number(data.calculationMode) === 3;
+        el('hfPeriodMode').value = Number(data.calculationMode) === 3 ? 'manual' : 'auto';
+        togglePeriodInput('hfPeriodMode', 'hfManualNet', el('hfOperation').value === '3');
         policyVersion = data.rowVersion;
     }
     async function savePolicy(event) {
@@ -80,7 +85,8 @@
         const transfer = el('hfOperation').value === '1';
         const period = el('hfOperation').value === '3';
         el('hfManualRent').disabled = period; el('hfManualDeposit').disabled = period;
-        el('hfManualNet').disabled = !period;
+        el('hfPeriodMode').disabled = !period;
+        togglePeriodInput('hfPeriodMode', 'hfManualNet', period);
         const box = el('hfTarget'); box.disabled = !transfer;
         beds.clear(); box.replaceChildren(new Option(transfer ? 'Select destination' : 'Not needed', ''));
         if (!transfer || !selected) return;
@@ -91,10 +97,22 @@
         }
         if (Number(data.totalPages) > 1) el('hfRequestInfo').textContent += ' Only first 50 available beds shown; narrow availability in Hostel Operations if needed.';
     }
+    function togglePeriodInput(modeId, amountId, enabled) {
+        const amount = el(amountId);
+        const manual = enabled && el(modeId).value !== 'auto';
+        amount.disabled = !manual;
+        amount.required = manual;
+        if (!manual) {
+            amount.value = '';
+            if (enabled) el(amountId === 'hfManualNet' ? 'hfOverrideReason' : 'hfReviewOverrideReason').value = '';
+        }
+    }
     async function requestClearance(event) {
         event.preventDefault();
         if (!selected) throw Error('Choose an active stay.');
         const transfer = el('hfOperation').value === '1';
+        const period = el('hfOperation').value === '3';
+        const mode = el('hfPeriodMode').value;
         const target = beds.get(el('hfTarget').value);
         if (transfer && !target) throw Error('Choose a valid destination bed.');
         const input = {
@@ -105,7 +123,8 @@
             sourceRowVersion: selected.rowVersion, reason: el('hfReason').value.trim(),
             manualRentCredit: transfer || el('hfOperation').value === '2' ? numeric('hfManualRent') : null,
             manualDepositRefund: transfer || el('hfOperation').value === '2' ? numeric('hfManualDeposit') : null,
-            manualNetAdjustment: el('hfOperation').value === '3' ? signed('hfManualNet') : null,
+            manualNetAdjustment: period && mode === 'manual' ? signed('hfManualNet') : null,
+            manualAdjustmentDelta: period && mode === 'hybrid' ? signed('hfManualNet') : null,
             overrideReason: el('hfOverrideReason').value.trim() || null
         };
         const fingerprint = JSON.stringify(input);
@@ -149,9 +168,11 @@
         el('hfReviewTitle').textContent = `#${entry.id} · ${entry.operation === 1 ? 'transfer' : entry.operation === 3 ? 'upcoming reschedule' : 'checkout'}`;
         el('hfReviewRent').value = ''; el('hfReviewDeposit').value = '';
         el('hfReviewNet').value = '';
+        el('hfReviewMode').value = 'auto';
+        el('hfReviewMode').disabled = entry.operation !== 3;
         el('hfReviewRent').disabled = entry.operation === 3;
         el('hfReviewDeposit').disabled = entry.operation === 3;
-        el('hfReviewNet').disabled = entry.operation !== 3;
+        togglePeriodInput('hfReviewMode', 'hfReviewNet', entry.operation === 3);
         el('hfReviewOverrideReason').value = ''; el('hfReviewJournal').value = '';
         el('hfNoAdjustment').checked = entry.operation === 3 ?
             Number(entry.approvedNetAdjustment) === 0 : entry.approvedRentCredit + entry.approvedDepositRefund === 0;
@@ -187,8 +208,12 @@
         const note = el('hfReviewNote').value.trim();
         if (note.length < 20 || note.length > 1000) throw Error('Enter independently verified reconciliation evidence (20–1000 characters).');
         const auto = approve && el('hfAutoInvoice').checked;
+        const reviewMode = el('hfReviewMode').value;
+        const manualInput = review.operation === 3 && reviewMode !== 'auto' ? signed('hfReviewNet') : null;
+        const selectedAmount = manualInput == null ? Number(review.approvedNetAdjustment) :
+            reviewMode === 'hybrid' ? Number(review.suggestedNetAdjustment) + Number(manualInput) : Number(manualInput);
         if (auto && (!numeric('hfAutoPeriod') || !numeric('hfAutoHead') ||
-            Number(el('hfReviewNet').value || review.approvedNetAdjustment) <= 0))
+            selectedAmount <= 0))
             throw Error('Automatic invoice requires a positive charge, open accounting period and fee head.');
         if (!confirm(`${approve ? 'Approve' : 'Reject'} clearance #${review.id}? This decision is audited.`)) return;
         working = true;
@@ -200,7 +225,8 @@
                 autoPostInvoice: auto, accountingPeriodId: auto ? numeric('hfAutoPeriod') : null,
                 autoFeeHeadId: auto ? numeric('hfAutoHead') : null,
                 manualRentCredit: numeric('hfReviewRent'), manualDepositRefund: numeric('hfReviewDeposit'),
-                manualNetAdjustment: review.operation === 3 ? signed('hfReviewNet') : null,
+                manualNetAdjustment: review.operation === 3 && reviewMode === 'manual' ? manualInput : null,
+                manualAdjustmentDelta: review.operation === 3 && reviewMode === 'hybrid' ? manualInput : null,
                 overrideReason: el('hfReviewOverrideReason').value.trim() || null,
                 reconciliationNote: note
             });
@@ -215,6 +241,11 @@
     el('hfLoadStays').addEventListener('click', () => run(loadStays));
     el('hfSource').addEventListener('change', () => run(chooseStay));
     el('hfOperation').addEventListener('change', () => run(updateTarget));
+    el('hfPeriodMode').addEventListener('change', () => togglePeriodInput('hfPeriodMode', 'hfManualNet', el('hfOperation').value === '3'));
+    el('hfReviewMode').addEventListener('change', () => {
+        togglePeriodInput('hfReviewMode', 'hfReviewNet', Boolean(review && review.operation === 3));
+        if (el('hfReviewMode').value !== 'auto') el('hfNoAdjustment').checked = false;
+    });
     el('hfRequestForm').addEventListener('submit', e => { e.preventDefault(); run(() => requestClearance(e)); });
     el('hfRefresh').addEventListener('click', () => run(loadClearances));
     el('hfPrevious').addEventListener('click', () => run(() => { if (clearancePage > 1) { clearancePage--; return loadClearances(); } }));

@@ -17,6 +17,9 @@ public sealed class RequestHostelClearanceDto
     public decimal? ManualDepositRefund { get; set; }
     [JsonNumberHandling(JsonNumberHandling.AllowReadingFromString)]
     public decimal? ManualNetAdjustment { get; set; }
+    /// <summary>Optional signed amount added to the calculated amount (mutually exclusive with manual final).</summary>
+    [JsonNumberHandling(JsonNumberHandling.AllowReadingFromString)]
+    public decimal? ManualAdjustmentDelta { get; set; }
     [MaxLength(1000)] public string? OverrideReason { get; set; }
 }
 
@@ -42,6 +45,8 @@ public sealed class ReviewHostelClearanceDto
     public decimal? ManualDepositRefund { get; set; }
     [JsonNumberHandling(JsonNumberHandling.AllowReadingFromString)]
     public decimal? ManualNetAdjustment { get; set; }
+    [JsonNumberHandling(JsonNumberHandling.AllowReadingFromString)]
+    public decimal? ManualAdjustmentDelta { get; set; }
     [MaxLength(1000)] public string? OverrideReason { get; set; }
     [Required, StringLength(1000, MinimumLength = 20)] public string ReconciliationNote { get; set; } = string.Empty;
 }

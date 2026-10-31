@@ -74,4 +74,51 @@ public sealed class ReservationQuoteSelectionTests
         var action = () => ReservationQuoteSelection.Select(10m, false, true, null, Reason);
         action.Should().Throw<ArgumentException>();
     }
+
+    [Theory]
+    [InlineData(300, 25, 325)]
+    [InlineData(300, -30, 270)]
+    [InlineData(-200, 80, -120)]
+    [InlineData(0, 5, 5)]
+    public void Authorized_auto_plus_manual_applies_signed_correction_without_discarding_the_quote(
+        decimal automaticAmount, decimal correction, decimal expected)
+    {
+        var result = ReservationQuoteSelection.Select(automaticAmount, false, true,
+            null, Reason, correction);
+        result.SelectedAmount.Should().Be(expected);
+        result.IsManual.Should().BeTrue();
+        result.Mode.Should().Be("AutoPlusManual");
+    }
+
+    [Fact]
+    public void Hybrid_rejects_conflicting_total_and_delta_or_missing_automatic_basis()
+    {
+        var both = () => ReservationQuoteSelection.Select(100m, false, true,
+            70m, Reason, -30m);
+        both.Should().Throw<ArgumentException>();
+
+        var noAuto = () => ReservationQuoteSelection.Select(null, true, true,
+            null, Reason, 15m);
+        noAuto.Should().Throw<InvalidOperationException>();
+    }
+
+    [Fact]
+    public void Hybrid_respects_campus_policy_precision_range_and_audit_reason()
+    {
+        Action forbidden = () => ReservationQuoteSelection.Select(100m, false, false,
+            null, Reason, 10m);
+        forbidden.Should().Throw<InvalidOperationException>();
+
+        Action precision = () => ReservationQuoteSelection.Select(100m, false, true,
+            null, Reason, 0.001m);
+        precision.Should().Throw<ArgumentOutOfRangeException>();
+
+        Action outsideTotal = () => ReservationQuoteSelection.Select(999999999999.99m,
+            false, true, null, Reason, 0.01m);
+        outsideTotal.Should().Throw<ArgumentOutOfRangeException>();
+
+        Action missingReason = () => ReservationQuoteSelection.Select(100m, false, true,
+            null, null, 15m);
+        missingReason.Should().Throw<ArgumentException>();
+    }
 }

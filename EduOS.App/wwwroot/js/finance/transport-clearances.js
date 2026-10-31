@@ -36,6 +36,11 @@
         const policy = await api(`${root}/billing-policy/${campusId}`);
         el('tfMode').value = String(policy.calculationMode);
         el('tfOverrideAllowed').checked = policy.allowManualOverride;
+        const permitManual = Number(policy.calculationMode) === 3 || policy.allowManualOverride;
+        el('tfPeriodMode').querySelector('option[value="manual"]').disabled = !permitManual;
+        el('tfPeriodMode').querySelector('option[value="hybrid"]').disabled = !policy.allowManualOverride || Number(policy.calculationMode) === 3;
+        el('tfPeriodMode').value = Number(policy.calculationMode) === 3 ? 'manual' : 'auto';
+        togglePeriodInput('tfPeriodMode', 'tfManualNet', el('tfOperation').value === '3');
         policyVersion = policy.rowVersion;
     }
     async function savePolicy() {
@@ -73,7 +78,8 @@
         const isTransfer = el('tfOperation').value === '1';
         const period = el('tfOperation').value === '3';
         el('tfManualFare').disabled = period;
-        el('tfManualNet').disabled = !period;
+        el('tfPeriodMode').disabled = !period;
+        togglePeriodInput('tfPeriodMode', 'tfManualNet', period);
         const box = el('tfTarget'); box.required = isTransfer; box.disabled = !isTransfer;
         box.replaceChildren(new Option(isTransfer ? 'Choose eligible destination' : 'Not required', ''));
         vehicles.clear();
@@ -88,9 +94,20 @@
         }
         if (Number(result.totalCount || 0) > 50) el('tfRequestInfo').textContent += ' Only first 50 candidate vehicles displayed.';
     }
+    function togglePeriodInput(modeId, amountId, enabled) {
+        const amount = el(amountId), manual = enabled && el(modeId).value !== 'auto';
+        amount.disabled = !manual;
+        amount.required = manual;
+        if (!manual) {
+            amount.value = '';
+            if (enabled) el(amountId === 'tfManualNet' ? 'tfOverrideReason' : 'tfReviewOverrideReason').value = '';
+        }
+    }
     async function requestClearance() {
         if (!selected) throw Error('Select an active assignment first.');
         const transfer = el('tfOperation').value === '1';
+        const period = el('tfOperation').value === '3';
+        const mode = el('tfPeriodMode').value;
         const destination = el('tfTarget').value;
         if (transfer && !vehicles.has(destination)) throw Error('Choose an eligible destination vehicle.');
         const request = {
@@ -98,7 +115,8 @@
             operation: Number(el('tfOperation').value), destinationVehicleReference: transfer ? destination : null,
             effectiveDate: el('tfEffective').value, reason: el('tfReason').value.trim(),
             manualFareCredit: transfer || el('tfOperation').value === '2' ? num('tfManualFare') : null,
-            manualNetAdjustment: el('tfOperation').value === '3' ? signed('tfManualNet') : null,
+            manualNetAdjustment: period && mode === 'manual' ? signed('tfManualNet') : null,
+            manualAdjustmentDelta: period && mode === 'hybrid' ? signed('tfManualNet') : null,
             overrideReason: el('tfOverrideReason').value.trim() || null
         };
         const fingerprint = JSON.stringify(request);
@@ -139,8 +157,10 @@
         el('tfReviewTitle').textContent = `#${record.id} · ${record.operation === 1 ? 'vehicle transfer' : record.operation === 3 ? 'upcoming extension' : 'closure'}`;
         el('tfReviewFare').value = ''; el('tfReviewOverrideReason').value = '';
         el('tfReviewNet').value = '';
+        el('tfReviewMode').value = 'auto';
+        el('tfReviewMode').disabled = record.operation !== 3;
         el('tfReviewFare').disabled = record.operation === 3;
-        el('tfReviewNet').disabled = record.operation !== 3;
+        togglePeriodInput('tfReviewMode', 'tfReviewNet', record.operation === 3);
         el('tfReviewJournal').value = ''; el('tfReviewNote').value = '';
         el('tfNoAdjustment').checked = Number(record.operation === 3 ? record.approvedNetAdjustment : record.approvedFareCredit) === 0;
         el('tfAutoInvoice').checked = false;
@@ -173,8 +193,12 @@
         const note = el('tfReviewNote').value.trim();
         if (note.length < 20 || note.length > 1000) throw Error('Supply independent reconciliation evidence (20–1000 characters).');
         const auto = approve && el('tfAutoInvoice').checked;
+        const reviewMode = el('tfReviewMode').value;
+        const manualInput = review.operation === 3 && reviewMode !== 'auto' ? signed('tfReviewNet') : null;
+        const selectedAmount = manualInput == null ? Number(review.approvedNetAdjustment) :
+            reviewMode === 'hybrid' ? Number(review.suggestedNetAdjustment) + Number(manualInput) : Number(manualInput);
         if (auto && (!num('tfAutoPeriod') || !num('tfAutoHead') ||
-            Number(el('tfReviewNet').value || review.approvedNetAdjustment) <= 0))
+            selectedAmount <= 0))
             throw Error('Automatic invoice requires a positive charge, open accounting period and fee head.');
         if (!confirm(`${approve ? 'Approve' : 'Reject'} Transport clearance #${review.id}?`)) return;
         busy = true;
@@ -184,7 +208,8 @@
                 settlementJournalId: num('tfReviewJournal'), manualFareCredit: num('tfReviewFare'),
                 autoPostInvoice: auto, accountingPeriodId: auto ? num('tfAutoPeriod') : null,
                 autoFeeHeadId: auto ? num('tfAutoHead') : null,
-                manualNetAdjustment: review.operation === 3 ? signed('tfReviewNet') : null,
+                manualNetAdjustment: review.operation === 3 && reviewMode === 'manual' ? manualInput : null,
+                manualAdjustmentDelta: review.operation === 3 && reviewMode === 'hybrid' ? manualInput : null,
                 overrideReason: el('tfReviewOverrideReason').value.trim() || null, reconciliationNote: note
             });
             notice(`Transport clearance #${review.id} ${approve ? auto ? 'approved; draft invoice prepared (posting occurs with successful Operations change)' : 'approved' : 'rejected'}. No cash payout was performed.`, true);
@@ -198,6 +223,11 @@
     el('tfLoadRiders').addEventListener('click', () => run(loadRiders));
     el('tfSource').addEventListener('change', () => run(chooseRider));
     el('tfOperation').addEventListener('change', () => run(loadVehicles));
+    el('tfPeriodMode').addEventListener('change', () => togglePeriodInput('tfPeriodMode', 'tfManualNet', el('tfOperation').value === '3'));
+    el('tfReviewMode').addEventListener('change', () => {
+        togglePeriodInput('tfReviewMode', 'tfReviewNet', Boolean(review && review.operation === 3));
+        if (el('tfReviewMode').value !== 'auto') el('tfNoAdjustment').checked = false;
+    });
     el('tfEffective').addEventListener('change', () => run(loadVehicles));
     el('tfRequestForm').addEventListener('submit', e => { e.preventDefault(); run(requestClearance); });
     el('tfRefresh').addEventListener('click', () => run(listClearances));
