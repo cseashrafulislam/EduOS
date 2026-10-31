@@ -123,7 +123,7 @@ BEGIN
     SET NOCOUNT ON;
     IF EXISTS (SELECT 1 FROM inserted i INNER JOIN deleted d ON i.Id = d.Id
         WHERE i.TenantId <> d.TenantId OR i.InventoryPhysicalCountId <> d.InventoryPhysicalCountId
-            OR i.LineNo <> d.LineNo OR i.InventoryItemId <> d.InventoryItemId
+            OR i.[LineNo] <> d.[LineNo] OR i.InventoryItemId <> d.InventoryItemId
             OR i.LotOrBatchNo <> d.LotOrBatchNo OR i.BookQuantity <> d.BookQuantity
             OR i.BookValue <> d.BookValue OR i.ReservedQuantity <> d.ReservedQuantity)
         THROW 51112, 'Physical count line book snapshot is immutable.', 1;
