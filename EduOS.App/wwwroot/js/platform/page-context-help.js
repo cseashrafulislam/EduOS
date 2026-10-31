@@ -4,6 +4,204 @@
 (() => {
     'use strict';
     const manuals = {
+        "/feereceivablesaging/index": {
+          "version": 1,
+          "reviewed": true,
+          "title": [
+            "Student Fee Aging and Reconciliation",
+            "শিক্ষার্থী ফি বকেয়া ও সমন্বয়"
+          ],
+          "purpose": [
+            "Inspect current unpaid institutional invoices, aging buckets, receipt reconciliation and daily cash collections without posting Finance records.",
+            "প্রতিষ্ঠানের বর্তমান অপরিশোধিত ইনভয়েস, বকেয়ার সময়ভাগ, রসিদ সমন্বয় ও দৈনিক নগদ সংগ্রহ দেখুন; Finance রেকর্ড পোস্ট হয় না।"
+          ],
+          "before": [
+            "FINANCE module; TenantAdmin, Principal or Accountant role; valid reference date and authorized campus. This is a current-balance report, not a historical as-of snapshot.",
+            "FINANCE মডিউল; TenantAdmin, Principal বা Accountant ভূমিকা; বৈধ রেফারেন্স তারিখ ও অনুমোদিত ক্যাম্পাস। এটি বর্তমান বকেয়ার প্রতিবেদন, অতীতের নির্দিষ্ট দিনের স্ন্যাপশট নয়।"
+          ],
+          "steps": [
+            [
+              "Choose Reference date, accessible Campus, optional invoice/student search and Rows (25, 50 or 100).",
+              "Reference date, অনুমোদিত Campus, প্রয়োজনীয় ইনভয়েস/শিক্ষার্থী খোঁজ ও Rows (২৫, ৫০ বা ১০০) বাছুন।"
+            ],
+            [
+              "Select Run report and review currency totals, overdue buckets and outstanding invoice rows.",
+              "Run report চাপুন; মুদ্রাভিত্তিক মোট, মেয়াদোত্তীর্ণ ভাগ ও বকেয়া ইনভয়েস দেখুন।"
+            ],
+            [
+              "Use Previous/Next and Export current page CSV; only the visible invoice page is exported.",
+              "Previous/Next এবং Export current page CSV ব্যবহার করুন; শুধু দৃশ্যমান ইনভয়েস পৃষ্ঠা রপ্তানি হয়।"
+            ],
+            [
+              "Choose Check current filters in invoice/receipt and receipt/allocation reconciliation to inspect separate exception lists.",
+              "ইনভয়েস/রসিদ ও রসিদ/বরাদ্দ সমন্বয়ে Check current filters দিয়ে আলাদা অসংগতি তালিকা দেখুন।"
+            ],
+            [
+              "For Daily cash collection register select From, To and Campus, Run report and optionally Export visible page CSV.",
+              "Daily cash collection register-এ From, To ও Campus দিয়ে Run report চাপুন; প্রয়োজনে Export visible page CSV নিন।"
+            ]
+          ],
+          "example": [
+            "Fictional example: on 8 November 2026 search ST-1042 at an authorized campus, review its unpaid aging bucket, check receipt exceptions, then export the current page; no payment is created.",
+            "কাল্পনিক উদাহরণ: ৮ নভেম্বর ২০২৬ অনুমোদিত ক্যাম্পাসে ST-1042 খুঁজে বকেয়ার সময়ভাগ ও রসিদের অসংগতি দেখে বর্তমান পৃষ্ঠা CSV নিন; কোনো পেমেন্ট তৈরি হয় না।"
+          ],
+          "result": [
+            "Current matching unpaid totals and separate reconciliation/cash pages appear read-only; exports are page-bounded.",
+            "বর্তমান মিল পাওয়া বকেয়া মোট ও আলাদা সমন্বয়/নগদ তালিকা শুধু দেখার জন্য আসে; CSV পৃষ্ঠাভিত্তিক সীমিত।"
+          ],
+          "rules": [
+            "Reference date groups current balances; it does not reconstruct historical balances or certify GL. Refunds, allocations and reservation credits need separate reconciliation. Cash shows gross eligible receipts; a GL link is not verification. No posting or reversal occurs here.",
+            "রেফারেন্স তারিখ বর্তমান বকেয়া ভাগ করে; অতীতের বকেয়া বা GL প্রত্যয়ন নয়। রিফান্ড, বরাদ্দ ও রিজার্ভেশন ক্রেডিট আলাদা যাচাই প্রয়োজন। নগদ তালিকায় যোগ্য মোট রসিদ থাকে; GL সংযোগ মানেই যাচাই নয়। এখানে পোস্ট বা রিভার্স হয় না।"
+          ],
+          "recovery": [
+            "For empty results check date, campus, search and tenant. Invalid precision/date or 403 requires corrected filters or role. Investigate reconciliation exceptions in the authorized Finance workflow, not by editing this report.",
+            "তালিকা ফাঁকা হলে তারিখ, ক্যাম্পাস, খোঁজ ও প্রতিষ্ঠান দেখুন। ভুল দশমিক/তারিখ বা ৪০৩ হলে ফিল্টার বা অনুমতি ঠিক করুন। অসংগতি থাকলে প্রতিবেদন না বদলে অনুমোদিত Finance কাজে মূল তথ্য যাচাই করুন।"
+          ],
+          "related": [
+            [
+              "/FeeOperations/Index",
+              "Fees and billing",
+              "ফি ও বিলিং"
+            ],
+            [
+              "/StudentInvoicePosting/Index",
+              "Invoice GL posting",
+              "ইনভয়েস GL পোস্টিং"
+            ]
+          ]
+        },
+        "/payrolljournalposting/index": {
+          "version": 1,
+          "reviewed": true,
+          "title": [
+            "Institutional Payroll GL Posting",
+            "প্রতিষ্ঠানের বেতন GL পোস্টিং"
+          ],
+          "purpose": [
+            "Review payroll runs, independently approve calculated payroll, map components to canonical accounts, post balanced accruals and request audited contra-journal reversals.",
+            "বেতন রান যাচাই, স্বতন্ত্র অনুমোদন, মূল হিসাবের সঙ্গে উপাদান সংযোগ, ভারসাম্যপূর্ণ জার্নাল পোস্ট ও নিরীক্ষিত বিপরীত জার্নাল রিভার্সাল অনুরোধ করুন।"
+          ],
+          "before": [
+            "FINANCE and PAYROLL modules; TenantAdmin, Principal or Accountant may view. Only TenantAdmin can approve/post/reverse here. Posting needs independent payroll approval, active BDT accounts, open period and current row version.",
+            "FINANCE ও PAYROLL মডিউল; TenantAdmin, Principal বা Accountant দেখতে পারেন। এখানে অনুমোদন/পোস্ট/রিভার্স শুধু TenantAdmin। পোস্টিংয়ে স্বতন্ত্র বেতন অনুমোদন, সক্রিয় BDT হিসাব, খোলা কাল ও বর্তমান row version প্রয়োজন।"
+          ],
+          "steps": [
+            [
+              "Choose Open accounting period and Net salary payable liability, set Unposted only as needed, then Load payroll.",
+              "Open accounting period ও Net salary payable liability বেছে প্রয়োজনমতো Unposted only দিয়ে Load payroll চাপুন।"
+            ],
+            [
+              "TenantAdmin: for a Calculated run select Approve payroll only when the run creator is a different authorized administrator; approval is not payment.",
+              "TenantAdmin: Calculated রানে Approve payroll চাপুন, তবে রান তৈরিকারী আলাদা অনুমোদিত প্রশাসক হতে হবে; অনুমোদন মানে পরিশোধ নয়।"
+            ],
+            [
+              "For Approved unposted runs choose Map & post. Map earnings to expense, withholding to liability, LOAN_RECOVERY to original loan receivable asset, and employer contributions to expense plus liability.",
+              "Approved কিন্তু পোস্ট হয়নি এমন রানে Map & post চাপুন। আয়-উপাদান expense, কর্তন liability, LOAN_RECOVERY মূল ঋণপ্রাপ্য asset এবং নিয়োগকর্তার অবদান expense ও liability-তে যুক্ত করুন।"
+            ],
+            [
+              "Verify period covers payroll end, complete every mapping, then Post balanced payroll GL and inspect the debit/credit and journal reference.",
+              "বেতন শেষের তারিখ হিসাবকালে আছে ও সব হিসাব যুক্ত হয়েছে দেখে Post balanced payroll GL চাপুন; debit/credit ও জার্নাল রেফারেন্স যাচাই করুন।"
+            ],
+            [
+              "For posted payroll select Request reversal, open period, reversal date and audit reason. A different administrator reviews the request before Post reversal creates a separate contra journal.",
+              "পোস্ট করা বেতনে Request reversal দিয়ে খোলা কাল, রিভার্সালের তারিখ ও কারণ দিন। আলাদা প্রশাসক যাচাইয়ের পর Post reversal আলাদা বিপরীত জার্নাল তৈরি করে।"
+            ],
+            [
+              "Review posted and reversal states in the register or authorized Journal register; original posted history remains intact.",
+              "তালিকা বা অনুমোদিত Journal register-এ পোস্ট ও রিভার্সাল অবস্থা দেখুন; মূল পোস্টিং ইতিহাস অক্ষত থাকে।"
+            ]
+          ],
+          "example": [
+            "Fictional example: a second administrator approves November 2026 payroll, TenantAdmin maps salary expense and withholding, posts a balanced journal, then verifies its number. Later correction needs a separately approved contra journal.",
+            "কাল্পনিক উদাহরণ: অন্য প্রশাসক নভেম্বর ২০২৬-এর বেতন অনুমোদন করেন। TenantAdmin বেতন ব্যয় ও কর্তনের হিসাব যুক্ত করে ভারসাম্যপূর্ণ জার্নাল পোস্ট ও নম্বর যাচাই করেন। পরের সংশোধনে আলাদা অনুমোদিত বিপরীত জার্নাল লাগে।"
+          ],
+          "result": [
+            "Approved payroll links to one canonical institutional Finance journal; reversal creates a linked contra journal without deleting the original. No bank salary payment occurs on this page.",
+            "অনুমোদিত বেতন প্রতিষ্ঠানের একটি মূল Finance জার্নালের সঙ্গে যুক্ত হয়; রিভার্সালে মূলটি না মুছে সংযুক্ত বিপরীত জার্নাল হয়। এখানে ব্যাংকে বেতন দেওয়া হয় না।"
+          ],
+          "rules": [
+            "Principal/Accountant may inspect, not post. Maker and approver must differ, as must reversal requester and reviewer. Period lock, campus, loan disbursement/recovery, rowversion, mapping and retry are server-checked. Never double-post or edit immutable journals.",
+            "Principal/Accountant দেখতে পারেন, পোস্ট নয়। প্রস্তুতকারী ও অনুমোদনকারী এবং রিভার্সাল আবেদনকারী ও যাচাইকারী আলাদা। হিসাবকাল লক, ক্যাম্পাস, ঋণ বিতরণ/কিস্তি, rowversion, হিসাব-সংযোগ ও পুনঃচেষ্টা সার্ভারে যাচাই হয়। দ্বৈত পোস্ট বা অপরিবর্তনীয় জার্নাল সম্পাদনা নয়।"
+          ],
+          "recovery": [
+            "If Map & post is unavailable check Approved state and existing journal. Missing accounts or closed period need authorized Finance setup. On 403/409, stale version, campus or loan conflict reload and inspect the original journal before retrying.",
+            "Map & post না এলে Approved অবস্থা ও আগের জার্নাল দেখুন। হিসাব বা খোলা কাল না থাকলে Finance সেটআপ ঠিক করুন। ৪০৩/৪০৯, পুরোনো সংস্করণ, ক্যাম্পাস বা ঋণ সংঘাতে রিলোড করে পুনঃচেষ্টার আগে মূল জার্নাল যাচাই করুন।"
+          ],
+          "related": [
+            [
+              "/PayrollOperations/Index",
+              "Payroll operations",
+              "বেতন ব্যবস্থাপনা"
+            ],
+            [
+              "/AccountingJournals/Index",
+              "Journal register",
+              "জার্নাল তালিকা"
+            ]
+          ]
+        },
+        "/payrollsalarystatement/index": {
+          "version": 1,
+          "reviewed": true,
+          "title": [
+            "Payroll Salary Statement",
+            "বেতন বিবরণী"
+          ],
+          "purpose": [
+            "Review stored employee payroll snapshots by month and campus, then print or export a bounded report without recalculating payroll.",
+            "মাস ও ক্যাম্পাস অনুযায়ী সংরক্ষিত কর্মী-বেতনের স্ন্যাপশট দেখে পুনর্গণনা ছাড়াই সীমিত প্রতিবেদন প্রিন্ট বা এক্সপোর্ট করুন।"
+          ],
+          "before": [
+            "PAYROLL module and TenantAdmin role; valid year 2000–2200, month and optional permitted campus. Draft and Cancelled runs are excluded.",
+            "PAYROLL মডিউল ও TenantAdmin ভূমিকা; বৈধ বছর ২০০০–২২০০, মাস ও প্রয়োজনে অনুমোদিত ক্যাম্পাস। Draft ও Cancelled রান বাদ থাকে।"
+          ],
+          "steps": [
+            [
+              "Choose Year, Month and optionally an active Campus (or All campuses within the permitted institution).",
+              "Year, Month ও প্রয়োজনে সক্রিয় Campus (অথবা অনুমোদিত প্রতিষ্ঠানের All campuses) বাছুন।"
+            ],
+            [
+              "Select Load statement to view run, employee, period, status, gross, deductions and net.",
+              "Load statement চাপলে রান, কর্মী, সময়কাল, অবস্থা, মোট বেতন, কর্তন ও নিট দেখা যায়।"
+            ],
+            [
+              "Use Previous/Next; Current page totals cover only the visible 25-row page, not the full month.",
+              "Previous/Next ব্যবহার করুন; Current page totals শুধু দৃশ্যমান ২৫ সারির, পুরো মাসের নয়।"
+            ],
+            [
+              "Choose CSV export for the selected month, maximum 1,000 matching rows, or Print page for the current browser view.",
+              "নির্বাচিত মাসের সর্বোচ্চ ১,০০০ মিল পাওয়া সারির CSV export নিন অথবা বর্তমান ব্রাউজার পৃষ্ঠা Print page করুন।"
+            ]
+          ],
+          "example": [
+            "Fictional example: select November 2026 and an authorized campus, review the current page net total and export if the month has at most 1,000 rows. No salary or journal changes.",
+            "কাল্পনিক উদাহরণ: নভেম্বর ২০২৬ ও অনুমোদিত ক্যাম্পাস বেছে বর্তমান পৃষ্ঠার নিট মোট দেখুন; মাসে সর্বোচ্চ ১,০০০ সারি থাকলে CSV নিন। বেতন বা জার্নাল বদলায় না।"
+          ],
+          "result": [
+            "Read-only payroll employee snapshots show Calculated/Approved/Posted status; CSV covers the bounded selected month and print uses the current browser page.",
+            "শুধু দেখার স্ন্যাপশটে Calculated/Approved/Posted অবস্থা থাকে; CSV নির্বাচিত মাসের সীমিত সারি এবং প্রিন্টে বর্তমান ব্রাউজার পৃষ্ঠা আসে।"
+          ],
+          "rules": [
+            "Amounts are historical payroll snapshots, not current salary structures. A statement does not approve, post, pay or reverse payroll. Interactive pages show 25 rows; CSV requires a single month and refuses more than 1,000 rows.",
+            "পরিমাণ অতীতের বেতন স্ন্যাপশট, বর্তমান বেতন কাঠামো নয়। বিবরণী অনুমোদন, পোস্ট, পরিশোধ বা রিভার্স করে না। সাধারণ পৃষ্ঠায় ২৫ সারি; CSV-তে এক মাস লাগে এবং ১,০০০-এর বেশি সারি গ্রহণ করে না।"
+          ],
+          "recovery": [
+            "If no rows appear check year, month, campus and run state. For invalid period or 403 correct filters or role. If CSV exceeds 1,000 rows narrow by campus; do not bypass tenant access.",
+            "সারি না এলে বছর, মাস, ক্যাম্পাস ও রানের অবস্থা দেখুন। ভুল সময়কাল বা ৪০৩ হলে ফিল্টার বা ভূমিকা ঠিক করুন। CSV-তে ১,০০০-এর বেশি হলে ক্যাম্পাস দিয়ে সীমিত করুন; প্রতিষ্ঠান অনুমতি এড়াবেন না।"
+          ],
+          "related": [
+            [
+              "/PayrollOperations/Index",
+              "Payroll operations",
+              "বেতন ব্যবস্থাপনা"
+            ],
+            [
+              "/PayrollJournalPosting/Index",
+              "Payroll GL posting",
+              "বেতন GL পোস্টিং"
+            ]
+          ]
+        },
         '/alumni/index': {
                   "version": 1,
                   "reviewed": true,

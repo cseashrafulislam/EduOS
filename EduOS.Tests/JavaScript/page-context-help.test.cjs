@@ -9,10 +9,10 @@ const css = read('EduOS.App/wwwroot/css/site.css');
 const js = read('EduOS.App/wwwroot/js/platform/page-context-help.js');
 const { guideFor, coverage, normalizeRoute, validateGuide } =
     require('../../EduOS.App/wwwroot/js/platform/page-context-help.js');
-const routes = ['/Alumni/Index', '/FeeOperations/Index', '/Students/Index', '/Attendance/Index', '/PayrollOperations/Index', '/FacilityWorkOrders/Index', '/Admissions/Index', '/StudentInvoicePosting/Index'];
+const routes = ['/FeeReceivablesAging/Index', '/PayrollJournalPosting/Index', '/PayrollSalaryStatement/Index', '/Alumni/Index', '/FeeOperations/Index', '/Students/Index', '/Attendance/Index', '/PayrollOperations/Index', '/FacilityWorkOrders/Index', '/Admissions/Index', '/StudentInvoicePosting/Index'];
 
 test('all reviewed route manuals have full bilingual structure, matching steps and examples', () => {
-    assert.deepEqual(coverage(), { routes: 8, en: 8, bn: 8 });
+    assert.deepEqual(coverage(), { routes: 11, en: 11, bn: 11 });
     for (const route of routes) {
         const en = guideFor(route, 'en-BD');
         const bn = guideFor(route, 'bn-BD');
@@ -184,4 +184,53 @@ test('alumni manual follows verified consent, event approval, RSVP and attendanc
     assert.match(bn.rules, /প্রত্যাহারে সক্রিয় RSVP/);
     assert.match(en.recovery, /403\/409/);
     assert.deepEqual(en.related.map(x => x.path), ['/Students/Index']);
+});
+
+test('aging manual matches authorized read-only reports and bounded CSV', () => {
+ const view=read('EduOS.App/Views/FeeReceivablesAging/Index.cshtml');
+ const page=read('EduOS.App/Controllers/FeeReceivablesAgingController.cs');
+ const api=read('EduOS.App/Controllers/Api/FeeReceivablesAgingController.cs');
+ assert.match(page, /Authorize\\(Roles = "TenantAdmin,Principal,Accountant"\\)/);
+ assert.match(page, /RequireModule\\("FINANCE"\\)/);
+ for(const route of ['reconciliation','payment-reconciliation','daily-cash-collections'])
+   assert.ok(api.includes('[HttpGet("'+route+'")]'),route);
+ for(const id of ['agingRun','agingExport','reconcileRun','paymentReconcileRun','dailyCashRun','dailyCashExport'])
+   assert.ok(view.includes('id="'+id+'"'),id);
+ assert.match(guideFor('/FeeReceivablesAging/Index','en-BD').rules,/does not reconstruct historical balances/);
+ assert.match(guideFor('/FeeReceivablesAging/Index','bn-BD').steps.join(' '),/নগদ/);
+ assert.doesNotMatch(view,/aria-label="Cash collection report help"/);
+});
+test('payroll journal manual matches independent approval, canonical GL and reversal', () => {
+ const page=read('EduOS.App/Controllers/PayrollJournalPostingController.cs');
+ const api=read('EduOS.App/Controllers/Api/PayrollJournalPostingController.cs');
+ const view=read('EduOS.App/Views/PayrollJournalPosting/Index.cshtml');
+ const service=read('EduOS.Service/Services/HR/PayrollJournalPostingService.cs');
+ assert.match(page,/Authorize\\(Roles = "TenantAdmin,Principal,Accountant"\\)/);
+ assert.match(page,/RequireModule\\("FINANCE"\\), RequireModule\\("PAYROLL"\\)/);
+ assert.match(api,/AutoValidateAntiforgeryToken/);
+ assert.match(api,/Authorize\\(Roles = "TenantAdmin"\\)/);
+ for(const route of ['reverse/request','reverse/review','reverse/post'])assert.ok(api.includes(route),route);
+ for(const id of ['payrollPostingMappings','payrollPostingConfirm','payrollReversalForm'])
+   assert.ok(view.includes('id="'+id+'"'),id);
+ assert.match(service,/Payroll must be independently approved before GL posting/);
+ assert.match(guideFor('/PayrollJournalPosting/Index','en-BD').rules,/Maker and approver must differ/);
+ assert.match(guideFor('/PayrollJournalPosting/Index','bn-BD').steps.join(' '),/বিপরীত জার্নাল/);
+});
+test('salary statement manual matches snapshot report and bounded export without duplicate Info', () => {
+ const view=read('EduOS.App/Views/PayrollSalaryStatement/Index.cshtml');
+ const page=read('EduOS.App/Controllers/PayrollSalaryStatementController.cs');
+ const api=read('EduOS.App/Controllers/Api/PayrollSalaryStatementController.cs');
+ const service=read('EduOS.Service/Services/HR/PayrollSalaryStatementService.cs');
+ const client=read('EduOS.App/wwwroot/js/payroll/salary-statement.js');
+ assert.match(page,/Authorize\\(Roles = "TenantAdmin"\\)/);
+ assert.match(page,/RequireModule\\("PAYROLL"\\)/);
+ assert.match(api,/\\[HttpGet\\("csv"\\)\\]/);
+ assert.match(api,/GetAsync\\(year, month, campusId, 1, 1000, ct\\)/);
+ assert.match(service,/pageSize > 50 && count > 1000/);
+ assert.match(client,/pageSize:'25'/);
+ for(const id of ['statementYear','statementMonth','statementCampus','statementCsv','statementPrint'])
+   assert.ok(view.includes('id="'+id+'"'),id);
+ assert.doesNotMatch(view,/aria-label="Statement help"/);
+ assert.match(guideFor('/PayrollSalaryStatement/Index','en-BD').rules,/not current salary structures/);
+ assert.match(guideFor('/PayrollSalaryStatement/Index','bn-BD').steps.join(' '),/২৫/);
 });
