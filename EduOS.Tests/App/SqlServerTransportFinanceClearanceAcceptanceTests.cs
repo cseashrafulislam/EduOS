@@ -494,6 +494,92 @@ public sealed partial class SqlServerTransportSeatCapacityIntegrationTests
         Assert.Null(clearance.SuccessorAssignmentId);
     }
 
+    [Fact]
+    public async Task Charged_future_rider_shortening_requires_single_use_exact_date_finance_clearance()
+    {
+        var connection = Environment.GetEnvironmentVariable("EDUOS_SQL_AUTH_TEST_CONNECTION");
+        if (string.IsNullOrWhiteSpace(connection)) return;
+        var fixture = await SeedAsync(connection);
+        var request = Request(fixture, 0, fixture.Start, fixture.Start.AddDays(25));
+        request.MonthlyFare = 2500m;
+        var booking = await AssignAsync(fixture, request);
+        Assert.True(booking.Success, booking.Message);
+        var original = booking.Data!;
+        var shortenedEnd = original.EndDate!.Value.AddDays(-8);
+        var checker = await CreateFinanceCheckerAsync(fixture);
+        var mutation = new ShortenUpcomingNoChargeTransportRequestDto
+        {
+            ClientRequestId = Guid.NewGuid(), EndDate = shortenedEnd,
+            RowVersion = original.RowVersion
+        };
+        await using (var db = ScopedContext(fixture.Options, fixture.TenantId, fixture.UserId))
+        {
+            var blocked = await Service(db, fixture.TenantId, fixture.UserId)
+                .ShortenUpcomingNoChargeRiderAsync(original.Reference, mutation);
+            Assert.Equal(409, blocked.StatusCode);
+        }
+
+        long clearanceId;
+        await using (var db = ScopedContext(fixture.Options, fixture.TenantId, fixture.UserId))
+        {
+            var requested = await Finance(db, fixture.TenantId, fixture.UserId)
+                .RequestTransportClearanceAsync(new RequestTransportClearanceDto
+                {
+                    ClientRequestId = Guid.NewGuid(), SourceAssignmentReference = original.Reference,
+                    SourceRowVersion = original.RowVersion,
+                    Operation = TransportClearanceOperation.UpcomingRiderShortening,
+                    EffectiveDate = shortenedEnd, Reason = "Advance end date for future reserved transport seat",
+                    ManualNetAdjustment = 0m,
+                    OverrideReason = "Institution-approved free period correction; no student fare credit owed."
+                });
+            Assert.True(requested.Success, requested.Message);
+            Assert.True(requested.Data!.SuggestedNetAdjustment < 0m);
+            Assert.Equal(0m, requested.Data.ApprovedNetAdjustment);
+            clearanceId = requested.Data.Id;
+            mutation.FinanceClearanceId = clearanceId;
+            Assert.Equal(409, (await Service(db, fixture.TenantId, fixture.UserId)
+                .ShortenUpcomingNoChargeRiderAsync(original.Reference, mutation)).StatusCode);
+        }
+        await using (var db = ScopedContext(fixture.Options, fixture.TenantId, checker))
+        {
+            var version = await db.TransportFinanceClearances.AsNoTracking()
+                .Where(x => x.Id == clearanceId).Select(x => x.RowVersion).SingleAsync();
+            var approved = await Finance(db, fixture.TenantId, checker)
+                .ReviewTransportClearanceAsync(clearanceId, new ReviewTransportClearanceDto
+                {
+                    RowVersion = Convert.ToBase64String(version), Approve = true,
+                    NoAdjustmentRequired = true,
+                    ReconciliationNote = "Independent Finance checked fare history and approved zero delta waiver."
+                });
+            Assert.True(approved.Success, approved.Message);
+        }
+        await using (var db = ScopedContext(fixture.Options, fixture.TenantId, fixture.UserId))
+        {
+            var service = Service(db, fixture.TenantId, fixture.UserId);
+            var wrongDate = await service.ShortenUpcomingNoChargeRiderAsync(original.Reference,
+                new ShortenUpcomingNoChargeTransportRequestDto
+                {
+                    ClientRequestId = Guid.NewGuid(), RowVersion = original.RowVersion,
+                    EndDate = shortenedEnd.AddDays(-1), FinanceClearanceId = clearanceId
+                });
+            Assert.Equal(409, wrongDate.StatusCode);
+            var committed = await service.ShortenUpcomingNoChargeRiderAsync(original.Reference, mutation);
+            Assert.True(committed.Success, committed.Message);
+            Assert.Equal(shortenedEnd, committed.Data!.EndDate);
+            var replay = await service.ShortenUpcomingNoChargeRiderAsync(original.Reference, mutation);
+            Assert.True(replay.Success, replay.Message);
+        }
+        await using (var db = ScopedContext(fixture.Options, fixture.TenantId, fixture.UserId))
+        {
+            var approval = await db.TransportFinanceClearances.AsNoTracking()
+                .SingleAsync(x => x.Id == clearanceId);
+            Assert.Equal(TransportClearanceState.Consumed, approval.State);
+            Assert.Equal(shortenedEnd, (await db.StudentTransports.AsNoTracking()
+                .SingleAsync(x => x.PublicId == original.Reference)).EndDate);
+            Assert.Null(approval.SettlementJournalId);
+        }
+    }
+
     private static FinanceAdjustmentService Finance(EduOSDbContext db, long tenant, long user) =>
         new(db, new TenantAdmin(tenant, user), TimeProvider.System);
 

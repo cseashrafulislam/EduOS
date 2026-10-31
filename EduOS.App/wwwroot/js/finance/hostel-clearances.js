@@ -35,6 +35,7 @@
         if (s && !/^-?\d{1,12}(\.\d{1,2})?$/.test(s)) throw Error('Signed adjustment must have at most 2 decimal places.');
         return s || null; };
     const money = value => Number(value || 0).toFixed(2);
+    const isPeriod = operation => Number(operation) === 3 || Number(operation) === 4;
     function option(select, label, value) { select.append(new Option(label, value)); }
     async function loadPolicy() {
         const campusId = numeric('hfCampus');
@@ -46,7 +47,7 @@
         el('hfPeriodMode').querySelector('option[value="manual"]').disabled = !permitManual;
         el('hfPeriodMode').querySelector('option[value="hybrid"]').disabled = !data.allowManualOverride || Number(data.calculationMode) === 3;
         el('hfPeriodMode').value = Number(data.calculationMode) === 3 ? 'manual' : 'auto';
-        togglePeriodInput('hfPeriodMode', 'hfManualNet', el('hfOperation').value === '3');
+        togglePeriodInput('hfPeriodMode', 'hfManualNet', isPeriod(el('hfOperation').value));
         policyVersion = data.rowVersion;
     }
     async function savePolicy(event) {
@@ -83,7 +84,7 @@
     }
     async function updateTarget() {
         const transfer = el('hfOperation').value === '1';
-        const period = el('hfOperation').value === '3';
+        const period = isPeriod(el('hfOperation').value);
         el('hfManualRent').disabled = period; el('hfManualDeposit').disabled = period;
         el('hfPeriodMode').disabled = !period;
         togglePeriodInput('hfPeriodMode', 'hfManualNet', period);
@@ -111,7 +112,7 @@
         event.preventDefault();
         if (!selected) throw Error('Choose an active stay.');
         const transfer = el('hfOperation').value === '1';
-        const period = el('hfOperation').value === '3';
+        const period = isPeriod(el('hfOperation').value);
         const mode = el('hfPeriodMode').value;
         const target = beds.get(el('hfTarget').value);
         if (transfer && !target) throw Error('Choose a valid destination bed.');
@@ -130,7 +131,7 @@
         const fingerprint = JSON.stringify(input);
         if (lastPayload !== fingerprint) { lastPayload = fingerprint; lastRequestId = crypto.randomUUID(); }
         const result = await api(`${apiRoot}/clearances`, 'POST', { clientRequestId: lastRequestId, ...input });
-        notice(result.operation === 3
+        notice(isPeriod(result.operation)
             ? `Clearance #${result.id} requested. Selected signed period adjustment ${money(result.approvedNetAdjustment)} BDT. Awaiting independent Finance approval.`
             : `Clearance #${result.id} requested. Proposed rent credit ${money(result.suggestedRentCredit)} BDT; deposit refund ${money(result.suggestedDepositRefund)} BDT. Awaiting independent Finance approval.`, true);
         clearancePage = 1; await loadClearances();
@@ -145,10 +146,10 @@
         const body = el('hfRows'); body.replaceChildren();
         for (const entry of data.items || []) {
             const tr = document.createElement('tr');
-            [ `#${entry.id} / ${entry.sourceAllocationId}`, `${entry.operation === 1 ? 'Transfer → bed ' + entry.destinationBedId : entry.operation === 3 ? 'Upcoming reschedule' : 'Checkout'} / ${entry.effectiveDate}`,
+            [ `#${entry.id} / ${entry.sourceAllocationId}`, `${entry.operation === 1 ? 'Transfer → bed ' + entry.destinationBedId : entry.operation === 3 ? 'Upcoming reschedule' : entry.operation === 4 ? 'Stay end change' : 'Checkout'} / ${entry.effectiveDate}`,
                 ['?', 'Daily prorated', 'Fixed monthly', 'Manual'][entry.calculationMode] || 'Unknown',
-                entry.operation === 3 ? money(entry.suggestedNetAdjustment) : `${money(entry.suggestedRentCredit)} / ${money(entry.suggestedDepositRefund)}`,
-                entry.operation === 3 ? money(entry.approvedNetAdjustment) : `${money(entry.approvedRentCredit)} / ${money(entry.approvedDepositRefund)}`,
+                isPeriod(entry.operation) ? money(entry.suggestedNetAdjustment) : `${money(entry.suggestedRentCredit)} / ${money(entry.suggestedDepositRefund)}`,
+                isPeriod(entry.operation) ? money(entry.approvedNetAdjustment) : `${money(entry.approvedRentCredit)} / ${money(entry.approvedDepositRefund)}`,
                 ['?', 'Pending', 'Approved', 'Rejected', 'Consumed'][entry.state] || 'Unknown'
             ].forEach(v => tr.append(td(v)));
             const action = document.createElement('td');
@@ -165,21 +166,21 @@
     }
     function beginReview(entry) {
         review = entry;
-        el('hfReviewTitle').textContent = `#${entry.id} · ${entry.operation === 1 ? 'transfer' : entry.operation === 3 ? 'upcoming reschedule' : 'checkout'}`;
+        el('hfReviewTitle').textContent = `#${entry.id} · ${entry.operation === 1 ? 'transfer' : entry.operation === 3 ? 'upcoming reschedule' : entry.operation === 4 ? 'stay end change' : 'checkout'}`;
         el('hfReviewRent').value = ''; el('hfReviewDeposit').value = '';
         el('hfReviewNet').value = '';
         el('hfReviewMode').value = 'auto';
-        el('hfReviewMode').disabled = entry.operation !== 3;
-        el('hfReviewRent').disabled = entry.operation === 3;
-        el('hfReviewDeposit').disabled = entry.operation === 3;
-        togglePeriodInput('hfReviewMode', 'hfReviewNet', entry.operation === 3);
+        el('hfReviewMode').disabled = !isPeriod(entry.operation);
+        el('hfReviewRent').disabled = isPeriod(entry.operation);
+        el('hfReviewDeposit').disabled = isPeriod(entry.operation);
+        togglePeriodInput('hfReviewMode', 'hfReviewNet', isPeriod(entry.operation));
         el('hfReviewOverrideReason').value = ''; el('hfReviewJournal').value = '';
-        el('hfNoAdjustment').checked = entry.operation === 3 ?
+        el('hfNoAdjustment').checked = isPeriod(entry.operation) ?
             Number(entry.approvedNetAdjustment) === 0 : entry.approvedRentCredit + entry.approvedDepositRefund === 0;
         el('hfAutoInvoice').checked = false;
-        el('hfAutoInvoice').disabled = entry.operation !== 3;
+        el('hfAutoInvoice').disabled = !isPeriod(entry.operation);
         toggleAutoInvoice();
-        if (entry.operation === 3) run(() => loadAutoInvoiceOptions('hfAutoPeriod', 'hfAutoHead'));
+        if (isPeriod(entry.operation)) run(() => loadAutoInvoiceOptions('hfAutoPeriod', 'hfAutoHead'));
         el('hfReviewNote').value = '';
         el('hfReviewForm').classList.remove('d-none');
         el('hfReviewForm').scrollIntoView({ block: 'nearest', behavior: 'smooth' });
@@ -206,7 +207,7 @@
             mode === 'hybrid' ? Number(review.suggestedNetAdjustment) + manuallyChosen : manuallyChosen;
     }
     async function loadCreditOptions() {
-        if (!review || review.operation !== 3) return;
+        if (!review || !isPeriod(review.operation)) return;
         const qs = new URLSearchParams({ kind: 'hostel', clearanceId: String(review.id),
             invoiceSearch: el('hfCreditInvoiceSearch').value.trim(),
             accountSearch: el('hfCreditLiabilitySearch').value.trim() });
@@ -238,7 +239,7 @@
         if (note.length < 20 || note.length > 1000) throw Error('Enter independently verified reconciliation evidence (20–1000 characters).');
         const auto = approve && el('hfAutoInvoice').checked;
         const reviewMode = el('hfReviewMode').value;
-        const manualInput = review.operation === 3 && reviewMode !== 'auto' ? signed('hfReviewNet') : null;
+        const manualInput = isPeriod(review.operation) && reviewMode !== 'auto' ? signed('hfReviewNet') : null;
         const selectedAmount = manualInput == null ? Number(review.approvedNetAdjustment) :
             reviewMode === 'hybrid' ? Number(review.suggestedNetAdjustment) + Number(manualInput) : Number(manualInput);
         if (auto && (!numeric('hfAutoPeriod') || selectedAmount === 0 ||
@@ -257,8 +258,8 @@
                 originalInvoiceReference: auto && selectedAmount < 0 ? el('hfCreditSource').value : null,
                 studentCreditLiabilityAccountId: auto && selectedAmount < 0 ? numeric('hfCreditLiability') : null,
                 manualRentCredit: numeric('hfReviewRent'), manualDepositRefund: numeric('hfReviewDeposit'),
-                manualNetAdjustment: review.operation === 3 && reviewMode === 'manual' ? manualInput : null,
-                manualAdjustmentDelta: review.operation === 3 && reviewMode === 'hybrid' ? manualInput : null,
+                manualNetAdjustment: isPeriod(review.operation) && reviewMode === 'manual' ? manualInput : null,
+                manualAdjustmentDelta: isPeriod(review.operation) && reviewMode === 'hybrid' ? manualInput : null,
                 overrideReason: el('hfReviewOverrideReason').value.trim() || null,
                 reconciliationNote: note
             });
@@ -273,9 +274,9 @@
     el('hfLoadStays').addEventListener('click', () => run(loadStays));
     el('hfSource').addEventListener('change', () => run(chooseStay));
     el('hfOperation').addEventListener('change', () => run(updateTarget));
-    el('hfPeriodMode').addEventListener('change', () => togglePeriodInput('hfPeriodMode', 'hfManualNet', el('hfOperation').value === '3'));
+    el('hfPeriodMode').addEventListener('change', () => togglePeriodInput('hfPeriodMode', 'hfManualNet', isPeriod(el('hfOperation').value)));
     el('hfReviewMode').addEventListener('change', () => {
-        togglePeriodInput('hfReviewMode', 'hfReviewNet', Boolean(review && review.operation === 3));
+        togglePeriodInput('hfReviewMode', 'hfReviewNet', Boolean(review && isPeriod(review.operation)));
         if (el('hfReviewMode').value !== 'auto') el('hfNoAdjustment').checked = false;
         toggleAutoInvoice();
     });

@@ -37,7 +37,9 @@ public sealed partial class HostelService
             clearance.ApprovedRentCredit < 0 || clearance.ApprovedDepositRefund < 0 ||
             clearance.ApprovedDepositRefund > clearance.DepositAtRequest)
             return (null, "Finance approval or settlement amounts are invalid.");
-        if (operation == HostelClearanceOperation.UpcomingStartReschedule &&
+        var periodChange = operation is HostelClearanceOperation.UpcomingStartReschedule
+            or HostelClearanceOperation.UpcomingEndChange;
+        if (periodChange &&
             (!ReservationPeriodSettlement.ValidAmount(clearance.ApprovedNetAdjustment) ||
              clearance.ApprovedRentCredit != 0m || clearance.ApprovedDepositRefund != 0m))
             return (null, "Approved period adjustment is invalid.");
@@ -47,7 +49,7 @@ public sealed partial class HostelService
         {
             if (clearance.SettlementJournalId.HasValue ||
                 clearance.ApprovedRentCredit != 0 || clearance.ApprovedDepositRefund != 0 ||
-                operation == HostelClearanceOperation.UpcomingStartReschedule &&
+                periodChange &&
                 clearance.ApprovedNetAdjustment != 0)
                 return (null, "Zero-adjustment attestation contradicts settlement amounts.");
         }
@@ -55,13 +57,13 @@ public sealed partial class HostelService
         {
             if (!clearance.SettlementJournalId.HasValue)
                 return (null, "Finance settlement journal is missing, reversed or no longer posted.");
-            autoCharge = operation == HostelClearanceOperation.UpcomingStartReschedule &&
+            autoCharge = periodChange &&
                 clearance.ApprovedNetAdjustment > 0m &&
                 await _reservationFinancePolicy.HasValidAutomaticChargeAsync(tenant,
                     "HOSTEL", clearance.Id, clearance.SettlementJournalId.Value,
                     campusId, source.StudentId, source.StudentEnrollmentId,
                     clearance.ApprovedNetAdjustment, ct);
-            autoCredit = operation == HostelClearanceOperation.UpcomingStartReschedule &&
+            autoCredit = periodChange &&
                 clearance.ApprovedNetAdjustment < 0m &&
                 await _reservationFinancePolicy.HasValidAutomaticCreditAsync(tenant,
                     "HOSTEL", clearance.Id, clearance.SettlementJournalId.Value,

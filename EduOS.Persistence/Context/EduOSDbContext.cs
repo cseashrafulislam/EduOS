@@ -1738,9 +1738,9 @@ public class EduOSDbContext :
             .IsUnique().HasFilter("[SettlementJournalId] IS NOT NULL");
         modelBuilder.Entity<TransportFinanceClearance>().ToTable(t =>
         {
-            t.HasCheckConstraint("CK_TransportFinanceClearance_Operation", "[Operation] IN (1,2,3)");
+            t.HasCheckConstraint("CK_TransportFinanceClearance_Operation", "[Operation] IN (1,2,3,4)");
             t.HasCheckConstraint("CK_TransportFinanceClearance_State", "[State] IN (1,2,3,4)");
-            t.HasCheckConstraint("CK_TransportFinanceClearance_Target", "([Operation] = 1 AND [DestinationVehicleId] IS NOT NULL AND [DestinationVersion] IS NOT NULL) OR ([Operation] IN (2,3) AND [DestinationVehicleId] IS NULL AND [DestinationVersion] IS NULL)");
+            t.HasCheckConstraint("CK_TransportFinanceClearance_Target", "([Operation] = 1 AND [DestinationVehicleId] IS NOT NULL AND [DestinationVersion] IS NOT NULL) OR ([Operation] IN (2,3,4) AND [DestinationVehicleId] IS NULL AND [DestinationVersion] IS NULL)");
             t.HasCheckConstraint("CK_TransportFinanceClearance_Amounts", "[MonthlyFareAtRequest] >= 0 AND [SuggestedFareCredit] >= 0 AND [ApprovedFareCredit] >= 0 AND [CalculationMode] IN (1,2,3)");
             t.HasCheckConstraint("CK_TransportFinanceClearance_Settlement", "[SettlementJournalId] IS NULL OR [NoAdjustmentRequired] = 0");
         });
@@ -1752,9 +1752,9 @@ public class EduOSDbContext :
             .IsUnique().HasFilter("[SettlementJournalId] IS NOT NULL");
         modelBuilder.Entity<HostelFinanceClearance>().ToTable(t =>
         {
-            t.HasCheckConstraint("CK_HostelFinanceClearance_Operation", "[Operation] IN (1,2,3)");
+            t.HasCheckConstraint("CK_HostelFinanceClearance_Operation", "[Operation] IN (1,2,3,4)");
             t.HasCheckConstraint("CK_HostelFinanceClearance_State", "[State] IN (1,2,3,4)");
-            t.HasCheckConstraint("CK_HostelFinanceClearance_Target", "([Operation] = 1 AND [DestinationBedId] IS NOT NULL AND [DestinationVersion] IS NOT NULL) OR ([Operation] IN (2,3) AND [DestinationBedId] IS NULL AND [DestinationVersion] IS NULL)");
+            t.HasCheckConstraint("CK_HostelFinanceClearance_Target", "([Operation] = 1 AND [DestinationBedId] IS NOT NULL AND [DestinationVersion] IS NOT NULL) OR ([Operation] IN (2,3,4) AND [DestinationBedId] IS NULL AND [DestinationVersion] IS NULL)");
             t.HasCheckConstraint("CK_HostelFinanceClearance_Settlement", "[SettlementJournalId] IS NULL OR [NoAdjustmentRequired] = 0");
             t.HasCheckConstraint("CK_HostelFinanceClearance_Amounts", "[SuggestedRentCredit] >= 0 AND [SuggestedDepositRefund] >= 0 AND [ApprovedRentCredit] >= 0 AND [ApprovedDepositRefund] >= 0 AND [ApprovedDepositRefund] <= [DepositAtRequest] AND [CalculationMode] IN (1,2,3)");
         });

@@ -130,17 +130,19 @@
             <p class="small text-muted mt-2 mb-0">Future, finite reservations only. Route, vehicle, stops and monthly fare stay unchanged; campus, route pairing, enrollment and seat capacity are revalidated.</p>
         </div></section>
         <section id="transportNoChargeShorteningPanel" class="card mt-3" hidden><div class="card-body">
-            <h3 class="h5">Shorten scheduled no-charge rider reservation</h3>
+            <h3 class="h5">Shorten scheduled rider reservation</h3>
             <p id="transportNoChargeShorteningDetails" class="text-muted small"></p>
             <form id="transportNoChargeShorteningForm" class="row g-2">
                 <div class="col-md-6"><label for="transportNoChargeShorteningDate" class="form-label">New reservation end date</label>
                     <input id="transportNoChargeShorteningDate" type="date" class="form-control" required /></div>
+                <div class="col-md-6"><label for="transportNoChargeShorteningClearance" class="form-label">Approved Finance clearance ID (if charged / invoiced)</label>
+                    <input id="transportNoChargeShorteningClearance" type="number" min="1" step="1" class="form-control" /></div>
                 <div class="col-md-6 d-flex align-items-end gap-2">
                     <button id="transportNoChargeShorteningSave" type="submit" class="btn btn-primary">Shorten scheduled end</button>
                     <button id="transportNoChargeShorteningCancel" type="button" class="btn btn-outline-secondary">Cancel</button>
                 </div>
             </form>
-            <p class="small text-muted mt-2 mb-0">Future, zero-fare, finite reservations only. Shortening releases seat-days. Charged changes require Finance approval.</p>
+            <p class="small text-muted mt-2 mb-0">Future finite reservations only. Shortening releases seat-days. Charged or posted changes require independent Finance approval.</p>
         </div></section>
         <section id="transportRiderExtensionPanel" class="card mt-3" hidden><div class="card-body">
             <h3 class="h5">Extend operating rider reservation</h3>

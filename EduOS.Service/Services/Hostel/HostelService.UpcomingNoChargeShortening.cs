@@ -1,5 +1,6 @@
 using EduOS.Core.Common;
 using EduOS.Core.DTOs.Hostel;
+using EduOS.Core.Entities.Finance;
 using EduOS.Core.Enums.Domain;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -14,19 +15,21 @@ public sealed partial class HostelService
         start > today && currentEnd.HasValue && currentEnd.Value >= start &&
         requestedEnd >= start && requestedEnd < currentEnd.Value;
 
-    /// <summary>Only future, zero-rent, zero-deposit, fee-head-free stays can release reserved days without Finance.</summary>
+    /// <summary>Shorten future stays; charged/posted amendments consume Finance approval atomically.</summary>
     public async Task<ApiResponse<StudentHostelAllocationDto>> ShortenUpcomingNoChargeStayAsync(
         long id, ShortenUpcomingNoChargeHostelStayRequestDto request,
         CancellationToken cancellationToken = default)
     {
         if (!CanManage()) return Denied<StudentHostelAllocationDto>();
         if (id <= 0 || request == null || request.EndDate == default ||
+            request.FinanceClearanceId is <= 0 ||
             !TryDecodeVersion(request.RowVersion, out var version))
             return Error("Reservation, checkout date and row version are required.");
         var tenant = _currentUser.TenantId;
         const string operation = "hostel.upcoming-no-charge-shortening";
         var requestHash = HostelCommandFingerprint(operation, id,
-            request.EndDate.ToString("yyyy-MM-dd"), Convert.ToBase64String(version));
+            request.EndDate.ToString("yyyy-MM-dd"), Convert.ToBase64String(version),
+            request.FinanceClearanceId?.ToString() ?? "none");
         var requestId = request.ClientRequestId == Guid.Empty
             ? DeriveHostelCommandRequestId(tenant, _currentUser.UserId, operation, id, requestHash)
             : request.ClientRequestId;
@@ -63,9 +66,6 @@ public sealed partial class HostelService
                 if (replay.Found) return replay.Response!;
                 if (allocation.State != HostelAllocationState.Active || !allocation.EndDate.HasValue)
                     return Error("Only active fixed-term reservations can be shortened.", 409);
-                if (allocation.MonthlyRent != 0m || allocation.SecurityDeposit != 0m ||
-                    allocation.FeeHeadId.HasValue)
-                    return Error("Charged reservations require Finance billing integration.", 409);
                 var today = DateOnly.FromDateTime(_clock.GetLocalNow().DateTime);
                 if (allocation.StartDate <= today || allocation.EndDate.Value < allocation.StartDate)
                     return Error("Only valid, unstarted reservations can be shortened.", 409);
@@ -83,19 +83,29 @@ public sealed partial class HostelService
                     return Error("New checkout must be on or after arrival and before the current checkout.", 409);
                 if (!allocation.RowVersion.AsSpan().SequenceEqual(version))
                     return Error("Reservation changed. Reload and retry.", 409);
-                if (await _reservationFinancePolicy.HasPostedActivityAsync(tenant,
-                    allocation.StudentId, allocation.StudentEnrollmentId, ct))
-                    return Error("Posted finance activity requires an approved Finance adjustment before shortening.", 409);
+                var financeExposure = await _reservationFinancePolicy.HasPostedActivityAsync(tenant,
+                    allocation.StudentId, allocation.StudentEnrollmentId, ct);
+                if ((financeExposure || allocation.MonthlyRent != 0m ||
+                     allocation.SecurityDeposit != 0m || allocation.FeeHeadId.HasValue) &&
+                    !request.FinanceClearanceId.HasValue)
+                    return Error("Charged or invoiced stay requires Finance-approved period settlement.", 409);
+                if (request.FinanceClearanceId.HasValue)
+                {
+                    var approval = await ConsumeHostelFinanceClearanceAsync(request.FinanceClearanceId.Value,
+                        allocation, source.Hostel.CampusId, HostelClearanceOperation.UpcomingEndChange,
+                        request.EndDate, null, null, ct);
+                    if (approval.Error != null) return Error(approval.Error, 409);
+                }
                 var previous = allocation.EndDate.Value;
                 allocation.EndDate = request.EndDate;
                 allocation.UpdatedAt = _clock.GetUtcNow().UtcDateTime;
                 allocation.UpdatedBy = _currentUser.UserId;
                 await _unitOfWork.SaveChangesAsync(ct);
                 _logger.LogInformation(
-                    "Upcoming no-charge hostel checkout shortened for tenant {TenantId}, allocation {AllocationId}, {OldEnd} to {NewEnd}",
+                    "Upcoming hostel checkout shortened for tenant {TenantId}, allocation {AllocationId}, {OldEnd} to {NewEnd}",
                     tenant, allocation.Id, previous, request.EndDate);
                 var success = ApiResponse<StudentHostelAllocationDto>.SuccessResponse(
-                    await MapAsync(allocation, ct), "Upcoming no-charge checkout shortened.");
+                    await MapAsync(allocation, ct), "Upcoming hostel checkout shortened.");
                 await _commandReceipts.RecordAsync(tenant, _currentUser.UserId, operation,
                     requestId, id, requestHash, success, ct);
                 await _unitOfWork.SaveChangesAsync(ct);

@@ -129,19 +129,19 @@
                     reschedule.addEventListener('click', () => window.hostelUpcomingStartReschedule?.begin(item));
                     actions.append(reschedule);
                 }
-                if (future && item.canShortenNoCharge) {
+                if (future && item.endDate && item.endDate > item.startDate) {
                     const shorten = document.createElement('button');
                     shorten.type = 'button';
                     shorten.className = 'btn btn-outline-info btn-sm ms-2';
-                    shorten.textContent = 'Shorten no-charge checkout';
+                    shorten.textContent = 'Shorten checkout';
                     shorten.addEventListener('click', () => window.hostelUpcomingNoChargeShortening?.begin(item));
                     actions.append(shorten);
                 }
-                if (item.canExtendNoCharge) {
+                if (item.endDate && item.endDate >= today()) {
                     const extend = document.createElement('button');
                     extend.type = 'button';
                     extend.className = 'btn btn-outline-success btn-sm ms-2';
-                    extend.textContent = 'Extend no-charge stay';
+                    extend.textContent = 'Extend stay';
                     extend.addEventListener('click', () => window.hostelNoChargeStayExtension?.begin(item));
                     actions.append(extend);
                 }

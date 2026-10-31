@@ -24,7 +24,8 @@ public sealed partial class FinanceAdjustmentService
             var row = await db.HostelFinanceClearances.AsNoTracking().FirstOrDefaultAsync(x =>
                 x.TenantId == tenant && x.Id == clearanceId && !x.IsDeleted &&
                 x.State == HostelClearanceState.Pending &&
-                x.Operation == HostelClearanceOperation.UpcomingStartReschedule &&
+                (x.Operation == HostelClearanceOperation.UpcomingStartReschedule ||
+                 x.Operation == HostelClearanceOperation.UpcomingEndChange) &&
                 x.RequestedByUserId != user.UserId, ct);
             if (row == null) return Error<ReservationCreditOptionsDto>("Clearance unavailable.", 404);
             enrollmentId = row.StudentEnrollmentId;
@@ -35,7 +36,8 @@ public sealed partial class FinanceAdjustmentService
             var row = await db.TransportFinanceClearances.AsNoTracking().FirstOrDefaultAsync(x =>
                 x.TenantId == tenant && x.Id == clearanceId && !x.IsDeleted &&
                 x.State == TransportClearanceState.Pending &&
-                x.Operation == TransportClearanceOperation.UpcomingRiderExtension &&
+                (x.Operation == TransportClearanceOperation.UpcomingRiderExtension ||
+                 x.Operation == TransportClearanceOperation.UpcomingRiderShortening) &&
                 x.RequestedByUserId != user.UserId, ct);
             if (row == null) return Error<ReservationCreditOptionsDto>("Clearance unavailable.", 404);
             enrollmentId = row.StudentEnrollmentId;

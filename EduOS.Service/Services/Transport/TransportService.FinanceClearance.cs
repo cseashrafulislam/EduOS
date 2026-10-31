@@ -30,7 +30,9 @@ public sealed partial class TransportService
             row.ApprovedFareCredit < 0 ||
             row.Operation == TransportClearanceOperation.VehicleTransfer && row.ApprovedFareCredit != 0)
             return (null, "Finance approval or fare amount invalid.");
-        if (operation == TransportClearanceOperation.UpcomingRiderExtension &&
+        var periodChange = operation is TransportClearanceOperation.UpcomingRiderExtension
+            or TransportClearanceOperation.UpcomingRiderShortening;
+        if (periodChange &&
             (!ReservationPeriodSettlement.ValidAmount(row.ApprovedNetAdjustment) ||
              row.ApprovedFareCredit != 0m))
             return (null, "Approved period adjustment is invalid.");
@@ -39,7 +41,7 @@ public sealed partial class TransportService
         if (row.NoAdjustmentRequired)
         {
             if (row.ApprovedFareCredit != 0 || row.SettlementJournalId.HasValue ||
-                operation == TransportClearanceOperation.UpcomingRiderExtension &&
+                periodChange &&
                 row.ApprovedNetAdjustment != 0)
                 return (null, "Zero-adjustment Finance attestation contradicts settlement.");
         }
@@ -47,13 +49,13 @@ public sealed partial class TransportService
         {
             if (!row.SettlementJournalId.HasValue)
                 return (null, "Finance journal missing, reversed, or no longer independently approved.");
-            autoCharge = operation == TransportClearanceOperation.UpcomingRiderExtension &&
+            autoCharge = periodChange &&
                 row.ApprovedNetAdjustment > 0m &&
                 await _reservationFinancePolicy.HasValidAutomaticChargeAsync(tenant,
                     "TRANSPORT", row.Id, row.SettlementJournalId.Value,
                     campusId, source.StudentId, source.StudentEnrollmentId,
                     row.ApprovedNetAdjustment, ct);
-            autoCredit = operation == TransportClearanceOperation.UpcomingRiderExtension &&
+            autoCredit = periodChange &&
                 row.ApprovedNetAdjustment < 0m &&
                 await _reservationFinancePolicy.HasValidAutomaticCreditAsync(tenant,
                     "TRANSPORT", row.Id, row.SettlementJournalId.Value,

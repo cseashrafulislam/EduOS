@@ -101,6 +101,7 @@ public sealed class TransportController : ControllerBase
         ToAction(await _service.ExtendUpcomingRiderAsync(reference, request, ct));
 
     [HttpPost("assignments/{reference:guid}/shorten-upcoming-no-charge")]
+    [HttpPost("assignments/{reference:guid}/shorten-upcoming")]
     [Authorize(Roles = "TenantAdmin,Principal,TransportManager")]
     public async Task<IActionResult> ShortenUpcomingNoChargeRider(Guid reference,
         [FromBody] ShortenUpcomingNoChargeTransportRequestDto request, CancellationToken ct) =>

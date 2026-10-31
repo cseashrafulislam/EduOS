@@ -27,7 +27,7 @@
             <form id="hfRequestForm" class="row g-2">
                 <div class="col-md-8"><label class="form-label" for="hfSource">Active stay</label><select id="hfSource" class="form-select" required><option value="">Load active stays</option></select></div>
                 <div class="col-md-4 align-self-end"><button id="hfLoadStays" type="button" class="btn btn-outline-primary w-100">Load next 50 stays</button></div>
-                <div class="col-md-4"><label class="form-label" for="hfOperation">Operation</label><select id="hfOperation" class="form-select"><option value="2">Checkout</option><option value="1">Occupied transfer</option><option value="3">Upcoming start reschedule</option></select></div>
+                <div class="col-md-4"><label class="form-label" for="hfOperation">Operation</label><select id="hfOperation" class="form-select"><option value="2">Checkout</option><option value="1">Occupied transfer</option><option value="3">Upcoming start reschedule</option><option value="4">Stay end change (extend / shorten)</option></select></div>
                 <div class="col-md-4"><label class="form-label" for="hfEffective">Effective date</label><input id="hfEffective" type="date" class="form-control" required /></div>
                 <div class="col-md-4"><label class="form-label" for="hfTarget">Destination (transfer only)</label><select id="hfTarget" class="form-select" disabled><option value="">Choose stay first</option></select></div>
                 <div class="col-md-6"><label class="form-label" for="hfManualRent">Manual rent credit (BDT; optional)</label><input id="hfManualRent" type="number" step="0.01" min="0" class="form-control" placeholder="Auto if blank" /></div>

@@ -28,6 +28,7 @@ for (const command of commands) {
             addEventListener(name, callback) { this.click = callback; } });
         const elements = Object.fromEntries([
             command.prefix + 'Panel', command.prefix + 'End', command.prefix + 'Context',
+            command.prefix + 'Clearance',
             command.prefix + 'Save', command.prefix + 'Cancel', 'hostelAlert'
         ].map(id => [id, element()]));
         Object.defineProperty(elements.hostelAlert, 'textContent', { set(value) { notices.push(value); } });
@@ -57,5 +58,13 @@ for (const command of commands) {
         assert.equal(requests[0].clientRequestId, requests[1].clientRequestId);
         assert.equal(requests[0].rowVersion, 'rowversion');
         assert.ok(notices.some(message => message.includes('timeout')));
+        window[command.operation].begin({ id: 81, startDate: date(command.start),
+            endDate: date(command.end), rowVersion: 'rowversion',
+            studentName: 'Student', hostelName: 'Hostel', roomNumber: '1', bedNumber: 'A',
+            [command.capability]: true });
+        elements[command.prefix + 'Clearance'].value = '47';
+        await elements[command.prefix + 'Save'].click();
+        assert.equal(requests[2].financeClearanceId, 47);
+        assert.notEqual(requests[2].clientRequestId, requests[1].clientRequestId);
     });
 }

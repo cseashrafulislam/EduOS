@@ -2,7 +2,7 @@ using EduOS.Core.Entities.Base;
 
 namespace EduOS.Core.Entities.Finance;
 
-public enum TransportClearanceOperation { VehicleTransfer = 1, Closure = 2, UpcomingRiderExtension = 3 }
+public enum TransportClearanceOperation { VehicleTransfer = 1, Closure = 2, UpcomingRiderExtension = 3, UpcomingRiderShortening = 4 }
 public enum TransportClearanceState { Pending = 1, Approved = 2, Rejected = 3, Consumed = 4 }
 public enum TransportBillingCalculationMode { DailyProrated = 1, FixedMonthly = 2, Manual = 3 }
 

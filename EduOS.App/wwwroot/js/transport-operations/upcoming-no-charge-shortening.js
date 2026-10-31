@@ -2,6 +2,7 @@
     'use strict';
     const el = id => document.getElementById(id);
     const panel = el('transportNoChargeShorteningPanel');
+    const clearance = el('transportNoChargeShorteningClearance');
     if (!panel) return;
     let pending = null, busy = false, requestKey = null, requestSignature = null;
     function localDate() {
@@ -24,13 +25,14 @@
         node.className = 'alert alert-' + (success ? 'success' : 'danger');
         node.textContent = message; node.focus();
     }
-    function dismiss() { pending = null; panel.hidden = true; requestKey = null; requestSignature = null; }
+    function dismiss() { pending = null; panel.hidden = true; requestKey = null; requestSignature = null; clearance.value = ''; }
     function begin(item) {
-        if (!item || !item.canShortenNoCharge || !item.endDate ||
+        if (!item || !item.endDate ||
             item.startDate <= localDate() || item.endDate <= item.startDate) {
-            notify('Only future finite no-charge reservations can be shortened.'); return;
+            notify('Only future finite reservations can be shortened.'); return;
         }
         pending = item; requestKey = null; requestSignature = null;
+        clearance.value = '';
         el('transportNoChargeShorteningDetails').textContent =
             item.studentName + ' · ' + item.routeName + ' · current end ' + item.endDate;
         const input = el('transportNoChargeShorteningDate');
@@ -45,9 +47,17 @@
             endDate >= pending.endDate || pending.startDate <= localDate()) {
             notify('Choose a date from start through the day before the current end.'); return;
         }
+        const raw = clearance.value.trim();
+        const financeClearanceId = raw ? Number(raw) : null;
+        if (raw && (!Number.isSafeInteger(financeClearanceId) || financeClearanceId <= 0)) {
+            notify('Enter a valid Finance clearance ID.'); return;
+        }
+        if (!pending.canShortenNoCharge && !financeClearanceId) {
+            notify('Charged riders require an approved Finance period clearance.'); return;
+        }
         if (!window.confirm('Release seat-days after ' + endDate + ' for ' + pending.studentName + '?')) return;
         if (!window.crypto?.randomUUID) { notify('Secure browser context required.'); return; }
-        const signature = [pending.reference, endDate, pending.rowVersion].join('|');
+        const signature = [pending.reference, endDate, pending.rowVersion, financeClearanceId ?? 'none'].join('|');
         if (signature !== requestSignature) { requestSignature = signature; requestKey = window.crypto.randomUUID(); }
         const button = el('transportNoChargeShorteningSave');
         busy = true; button.disabled = true;
@@ -55,16 +65,17 @@
             const token = document.querySelector('meta[name="request-verification-token"]')?.content;
             if (!token) throw new Error('Security token missing. Reload the page.');
             const response = await fetch('/api/transport/assignments/' +
-                encodeURIComponent(pending.reference) + '/shorten-upcoming-no-charge', {
+                encodeURIComponent(pending.reference) + '/shorten-upcoming', {
                 method: 'POST', credentials: 'same-origin', cache: 'no-store',
                 headers: { Accept: 'application/json', 'Content-Type': 'application/json',
                     RequestVerificationToken: token },
-                body: JSON.stringify({ clientRequestId: requestKey, endDate, rowVersion: pending.rowVersion })
+                body: JSON.stringify({ clientRequestId: requestKey, endDate,
+                    rowVersion: pending.rowVersion, financeClearanceId })
             });
             const result = await response.json().catch(() => null);
             if (!response.ok || !result?.success)
                 throw new Error(result?.message || 'Unable to shorten this reservation.');
-            dismiss(); notify('Scheduled no-charge reservation shortened.', true);
+            dismiss(); notify('Scheduled rider reservation shortened.', true);
             window.dispatchEvent(new Event('transport:refresh-assignments'));
         } catch (error) { notify(error.message); }
         finally { busy = false; button.disabled = false; }

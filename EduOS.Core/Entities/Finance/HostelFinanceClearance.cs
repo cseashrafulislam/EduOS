@@ -2,7 +2,7 @@ using EduOS.Core.Entities.Base;
 
 namespace EduOS.Core.Entities.Finance;
 
-public enum HostelClearanceOperation { Transfer = 1, Checkout = 2, UpcomingStartReschedule = 3 }
+public enum HostelClearanceOperation { Transfer = 1, Checkout = 2, UpcomingStartReschedule = 3, UpcomingEndChange = 4 }
 public enum HostelClearanceState { Pending = 1, Approved = 2, Rejected = 3, Consumed = 4 }
 public enum HostelBillingCalculationMode { DailyProrated = 1, FixedMonthly = 2, Manual = 3 }
 

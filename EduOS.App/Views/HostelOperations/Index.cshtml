@@ -96,22 +96,26 @@
             <div class="table-responsive mt-3"><table class="table table-hover align-middle"><thead><tr><th>Student</th><th>Hostel</th><th>Room / Bed</th><th>Start</th><th>End</th><th>Action</th></tr></thead>
                 <tbody id="hostelActiveRows"><tr><td colspan="6">Loading…</td></tr></tbody></table></div>
             <section id="hostelNoChargeExtensionPanel" class="border rounded p-3 mt-3 d-none" aria-labelledby="hostelNoChargeExtensionTitle">
-                <h4 id="hostelNoChargeExtensionTitle" class="h6">Extend a no-charge fixed-term stay</h4>
+                <h4 id="hostelNoChargeExtensionTitle" class="h6">Extend a fixed-term stay</h4>
                 <p id="hostelNoChargeExtensionContext" class="small text-muted"></p>
-                <p class="small text-muted">Only zero-rent, zero-deposit stays without a fee head are eligible. Charged stays require Finance integration. The original 90-day booking limit remains.</p>
+                <p class="small text-muted">Charged or invoiced stays require an approved Finance period adjustment. The 90-day booking limit remains.</p>
                 <label for="hostelNoChargeExtensionEnd" class="form-label">New checkout date</label>
                 <input id="hostelNoChargeExtensionEnd" type="date" class="form-control mb-2" required />
+                <label for="hostelNoChargeExtensionClearance" class="form-label">Approved Finance clearance ID (if charged / invoiced)</label>
+                <input id="hostelNoChargeExtensionClearance" type="number" min="1" step="1" class="form-control mb-2" />
                 <div class="d-flex gap-2">
                     <button id="hostelNoChargeExtensionSave" type="button" class="btn btn-primary btn-sm">Extend stay</button>
                     <button id="hostelNoChargeExtensionCancel" type="button" class="btn btn-outline-secondary btn-sm">Cancel</button>
                 </div>
             </section>
             <section id="hostelNoChargeShorteningPanel" class="border rounded p-3 mt-3 d-none" aria-labelledby="hostelNoChargeShorteningTitle">
-                <h4 id="hostelNoChargeShorteningTitle" class="h6">Shorten a future no-charge reservation</h4>
+                <h4 id="hostelNoChargeShorteningTitle" class="h6">Shorten a future reservation</h4>
                 <p id="hostelNoChargeShorteningContext" class="small text-muted"></p>
-                <p class="small text-muted">Only future, zero-rent, zero-deposit reservations without a fee head are eligible. This releases unused reserved days without changing student, bed or financial records.</p>
+                <p class="small text-muted">Unused bed-days are released. Charged or posted reservations require independent Finance approval and an immutable invoice adjustment.</p>
                 <label for="hostelNoChargeShorteningEnd" class="form-label">Earlier checkout date</label>
                 <input id="hostelNoChargeShorteningEnd" type="date" class="form-control mb-2" required />
+                <label for="hostelNoChargeShorteningClearance" class="form-label">Approved Finance clearance ID (if charged / invoiced)</label>
+                <input id="hostelNoChargeShorteningClearance" type="number" min="1" step="1" class="form-control mb-2" />
                 <div class="d-flex gap-2">
                     <button id="hostelNoChargeShorteningSave" type="button" class="btn btn-primary btn-sm">Shorten checkout</button>
                     <button id="hostelNoChargeShorteningCancel" type="button" class="btn btn-outline-secondary btn-sm">Cancel</button>

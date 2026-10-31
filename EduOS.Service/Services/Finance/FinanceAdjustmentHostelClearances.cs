@@ -3,6 +3,7 @@ using EduOS.Core.DTOs.Finance;
 using EduOS.Core.Entities.Finance;
 using EduOS.Core.Entities.System;
 using EduOS.Core.Enums.Domain;
+using EduOS.Service.Services.Hostel;
 using Microsoft.EntityFrameworkCore;
 using System.Data;
 using System.Security.Cryptography;
@@ -13,6 +14,11 @@ namespace EduOS.Service.Services.Finance;
 
 public sealed partial class FinanceAdjustmentService
 {
+    private static bool HostelEndChangeAllowed(DateOnly start, DateOnly? oldEnd,
+        DateOnly newEnd, DateOnly today) =>
+        HostelService.CanExtendNoChargeStay(start, oldEnd, newEnd, today) ||
+        HostelService.CanShortenUpcomingNoChargeStay(start, oldEnd, newEnd, today);
+
     private static HostelClearanceDto Map(HostelFinanceClearance x) => new()
     {
         Id = x.Id, SourceAllocationId = x.SourceAllocationId, CampusId = x.CampusId,
@@ -122,9 +128,9 @@ public sealed partial class FinanceAdjustmentService
                 (request.DestinationBedId.HasValue || request.DestinationBedRowVersion != null)) ||
             (request.ManualRentCredit.HasValue && !Money(request.ManualRentCredit.Value)) ||
             (request.ManualDepositRefund.HasValue && !Money(request.ManualDepositRefund.Value)) ||
-            (request.Operation == HostelClearanceOperation.UpcomingStartReschedule &&
+            (request.Operation is HostelClearanceOperation.UpcomingStartReschedule or HostelClearanceOperation.UpcomingEndChange &&
                 (request.ManualRentCredit.HasValue || request.ManualDepositRefund.HasValue)) ||
-            (request.Operation != HostelClearanceOperation.UpcomingStartReschedule &&
+            (request.Operation is not (HostelClearanceOperation.UpcomingStartReschedule or HostelClearanceOperation.UpcomingEndChange) &&
                 (request.ManualNetAdjustment.HasValue || request.ManualAdjustmentDelta.HasValue)))
             return Error<HostelClearanceDto>("Invalid clearance request, versions or monetary amounts.");
         var hash = Fingerprint(request);
@@ -163,7 +169,9 @@ public sealed partial class FinanceAdjustmentService
                     request.EffectiveDate == source.StartDate ||
                     request.EffectiveDate > today.AddYears(2) ||
                     source.EndDate.HasValue && request.EffectiveDate > source.EndDate.Value ||
-                    source.EndDate.HasValue && source.EndDate.Value.DayNumber - request.EffectiveDate.DayNumber > 89))
+                    source.EndDate.HasValue && source.EndDate.Value.DayNumber - request.EffectiveDate.DayNumber > 89) ||
+                request.Operation == HostelClearanceOperation.UpcomingEndChange &&
+                !HostelEndChangeAllowed(source.StartDate, source.EndDate, request.EffectiveDate, today))
                 return Error<HostelClearanceDto>("Effective date is not eligible for this operation.", 409);
             if (request.Operation == HostelClearanceOperation.Transfer)
             {
@@ -180,9 +188,12 @@ public sealed partial class FinanceAdjustmentService
             var policy = await db.HostelBillingPolicies.AsNoTracking().FirstOrDefaultAsync(x =>
                 x.TenantId == user.TenantId && x.CampusId == campusId && !x.IsDeleted, ct);
             var mode = policy?.CalculationMode ?? HostelBillingCalculationMode.DailyProrated;
-            var periodAmendment = request.Operation == HostelClearanceOperation.UpcomingStartReschedule;
+            var periodAmendment = request.Operation is HostelClearanceOperation.UpcomingStartReschedule
+                or HostelClearanceOperation.UpcomingEndChange;
             var periodQuote = periodAmendment ? ReservationTermQuoteCalculator.Calculate(
-                source.StartDate, source.EndDate, request.EffectiveDate, source.EndDate,
+                source.StartDate, source.EndDate,
+                request.Operation == HostelClearanceOperation.UpcomingStartReschedule ? request.EffectiveDate : source.StartDate,
+                request.Operation == HostelClearanceOperation.UpcomingEndChange ? request.EffectiveDate : source.EndDate,
                 source.MonthlyRent, (int)mode) : null;
             ReservationQuoteSelection.Result? selected = null;
             if (periodAmendment)
@@ -295,13 +306,17 @@ public sealed partial class FinanceAdjustmentService
                     row.StudentId, row.StudentEnrollmentId, ct);
                 if (exposure == null || exposure != row.FinanceSnapshotHash)
                     return Error<HostelClearanceDto>("Finance exposure changed. Create a new clearance.", 409);
-                if (row.Operation == HostelClearanceOperation.UpcomingStartReschedule)
+                if (row.Operation is HostelClearanceOperation.UpcomingStartReschedule or HostelClearanceOperation.UpcomingEndChange)
                 {
                     if (request.ManualRentCredit.HasValue || request.ManualDepositRefund.HasValue ||
-                        source.StartDate <= DateOnly.FromDateTime(clock.GetLocalNow().DateTime) ||
-                        row.EffectiveDate <= DateOnly.FromDateTime(clock.GetLocalNow().DateTime) ||
-                        source.StartDate == row.EffectiveDate ||
-                        source.EndDate.HasValue && row.EffectiveDate > source.EndDate.Value)
+                        (row.Operation == HostelClearanceOperation.UpcomingStartReschedule &&
+                            (source.StartDate <= DateOnly.FromDateTime(clock.GetLocalNow().DateTime) ||
+                             row.EffectiveDate <= DateOnly.FromDateTime(clock.GetLocalNow().DateTime) ||
+                             source.StartDate == row.EffectiveDate ||
+                             source.EndDate.HasValue && row.EffectiveDate > source.EndDate.Value)) ||
+                        (row.Operation == HostelClearanceOperation.UpcomingEndChange &&
+                            !HostelEndChangeAllowed(source.StartDate, source.EndDate,
+                                row.EffectiveDate, DateOnly.FromDateTime(clock.GetLocalNow().DateTime))))
                         return Error<HostelClearanceDto>("Upcoming period or adjustment parameters are no longer eligible.", 409);
                     decimal net = row.ApprovedNetAdjustment;
                     if (request.ManualNetAdjustment.HasValue || request.ManualAdjustmentDelta.HasValue)
@@ -396,7 +411,7 @@ public sealed partial class FinanceAdjustmentService
                 {
                 if (request.ManualNetAdjustment.HasValue || request.ManualAdjustmentDelta.HasValue ||
                     request.AutoPostInvoice)
-                    return Error<HostelClearanceDto>("Signed period amount is only valid for upcoming reschedules.");
+                    return Error<HostelClearanceDto>("Signed period amount is only valid for approved reservation amendments.");
                 var manual = request.ManualRentCredit.HasValue || request.ManualDepositRefund.HasValue;
                 if (manual && (string.IsNullOrWhiteSpace(request.OverrideReason) ||
                     request.OverrideReason.Trim().Length is < 20 or > 1000))

@@ -3,6 +3,8 @@ using EduOS.Core.DTOs.Hostel;
 using EduOS.Core.DTOs.Transport;
 using EduOS.Core.Entities.Finance;
 using EduOS.Service.Services.Finance;
+using EduOS.Service.Services.Hostel;
+using EduOS.Service.Services.Transport;
 using System.Text.Json;
 using Xunit;
 
@@ -54,6 +56,8 @@ public sealed class ReservationPeriodSettlementTests
     {
         Assert.Equal(3, (int)HostelClearanceOperation.UpcomingStartReschedule);
         Assert.Equal(3, (int)TransportClearanceOperation.UpcomingRiderExtension);
+        Assert.Equal(4, (int)HostelClearanceOperation.UpcomingEndChange);
+        Assert.Equal(4, (int)TransportClearanceOperation.UpcomingRiderShortening);
         Assert.Equal(2, (int)HostelClearanceOperation.Checkout);
         Assert.Equal(2, (int)TransportClearanceOperation.Closure);
     }
@@ -81,5 +85,29 @@ public sealed class ReservationPeriodSettlementTests
     {
         Assert.Null(new RescheduleUpcomingHostelStartRequestDto().FinanceClearanceId);
         Assert.Null(new ExtendUpcomingTransportAssignmentRequestDto().FinanceClearanceId);
+        Assert.Null(new ExtendNoChargeHostelStayRequestDto().FinanceClearanceId);
+        Assert.Null(new ShortenUpcomingNoChargeHostelStayRequestDto().FinanceClearanceId);
+        Assert.Null(new ShortenUpcomingNoChargeTransportRequestDto().FinanceClearanceId);
+    }
+
+    [Fact]
+    public void Both_directions_of_end_date_change_have_signed_dynamic_period_quotes()
+    {
+        var start = new DateOnly(2026, 11, 10);
+        var originalEnd = new DateOnly(2026, 11, 30);
+        var shorterEnd = new DateOnly(2026, 11, 19);
+        var longerEnd = new DateOnly(2026, 12, 9);
+        var shortened = ReservationTermQuoteCalculator.Calculate(
+            start, originalEnd, start, shorterEnd, 3000m, 1);
+        var extended = ReservationTermQuoteCalculator.Calculate(
+            start, originalEnd, start, longerEnd, 3000m, 1);
+        Assert.Equal(-1100m, shortened.NetAdjustment);
+        Assert.True(extended.NetAdjustment > 0m);
+        Assert.True(TransportService.CanShortenUpcomingNoChargeRiderDates(
+            start, originalEnd, shorterEnd, start.AddDays(-1)));
+        Assert.True(HostelService.CanShortenUpcomingNoChargeStay(
+            start, originalEnd, shorterEnd, start.AddDays(-1)));
+        Assert.True(HostelService.CanExtendNoChargeStay(
+            start, originalEnd, longerEnd, start.AddDays(-1)));
     }
 }

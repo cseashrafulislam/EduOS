@@ -2,6 +2,7 @@ using EduOS.Core.Common;
 using EduOS.Core.DTOs.Finance;
 using EduOS.Core.Entities.Finance;
 using EduOS.Core.Enums.Domain;
+using EduOS.Service.Services.Transport;
 using Microsoft.EntityFrameworkCore;
 using System.Data;
 using System.Security.Cryptography;
@@ -116,8 +117,9 @@ public sealed partial class FinanceAdjustmentService
                 (request.DestinationVehicleReference == null || request.DestinationVehicleReference == Guid.Empty) ||
             request.Operation != TransportClearanceOperation.VehicleTransfer && request.DestinationVehicleReference.HasValue ||
             request.ManualFareCredit.HasValue && !Money(request.ManualFareCredit.Value) ||
-            request.Operation == TransportClearanceOperation.UpcomingRiderExtension && request.ManualFareCredit.HasValue ||
-            request.Operation != TransportClearanceOperation.UpcomingRiderExtension &&
+            request.Operation is TransportClearanceOperation.UpcomingRiderExtension or TransportClearanceOperation.UpcomingRiderShortening &&
+                request.ManualFareCredit.HasValue ||
+            request.Operation is not (TransportClearanceOperation.UpcomingRiderExtension or TransportClearanceOperation.UpcomingRiderShortening) &&
                 (request.ManualNetAdjustment.HasValue || request.ManualAdjustmentDelta.HasValue))
             return Error<TransportClearanceDto>("Invalid transport clearance request.");
         var fingerprint = TransportHash(request);
@@ -157,7 +159,10 @@ public sealed partial class FinanceAdjustmentService
                  request.EffectiveDate > today || source.EndDate < request.EffectiveDate) ||
                 request.Operation == TransportClearanceOperation.UpcomingRiderExtension &&
                 (source.StartDate <= today || !source.EndDate.HasValue ||
-                 request.EffectiveDate <= source.EndDate.Value))
+                 request.EffectiveDate <= source.EndDate.Value) ||
+                request.Operation == TransportClearanceOperation.UpcomingRiderShortening &&
+                !TransportService.CanShortenUpcomingNoChargeRiderDates(
+                    source.StartDate, source.EndDate, request.EffectiveDate, today))
                 return Error<TransportClearanceDto>("Transport effective date is outside eligible service period.", 409);
             long? targetId = null;
             string? targetVersion = null;
@@ -180,7 +185,8 @@ public sealed partial class FinanceAdjustmentService
             var policy = await db.TransportBillingPolicies.AsNoTracking().FirstOrDefaultAsync(x =>
                 x.TenantId == user.TenantId && x.CampusId == campus && !x.IsDeleted, ct);
             var mode = policy?.CalculationMode ?? TransportBillingCalculationMode.DailyProrated;
-            var periodAmendment = request.Operation == TransportClearanceOperation.UpcomingRiderExtension;
+            var periodAmendment = request.Operation is TransportClearanceOperation.UpcomingRiderExtension
+                or TransportClearanceOperation.UpcomingRiderShortening;
             var periodQuote = periodAmendment ? ReservationTermQuoteCalculator.Calculate(
                 source.StartDate, source.EndDate, source.StartDate, request.EffectiveDate,
                 source.MonthlyFare, (int)mode) : null;
@@ -197,7 +203,7 @@ public sealed partial class FinanceAdjustmentService
                 catch (ArgumentException ex) { return Error<TransportClearanceDto>(ex.Message); }
                 catch (InvalidOperationException ex) { return Error<TransportClearanceDto>(ex.Message, 409); }
                 if (!selected.SelectedAmount.HasValue)
-                    return Error<TransportClearanceDto>("Finance amount and reason required for a manually priced extension.", 409);
+                    return Error<TransportClearanceDto>("Finance amount and reason required for a manually priced reservation amendment.", 409);
             }
             var suggested = request.Operation == TransportClearanceOperation.Closure &&
                 mode == TransportBillingCalculationMode.DailyProrated
@@ -286,12 +292,17 @@ public sealed partial class FinanceAdjustmentService
                     row.StudentId, row.StudentEnrollmentId, ct);
                 if (exposure == null || exposure != row.FinanceSnapshotHash)
                     return Error<TransportClearanceDto>("Finance exposure changed; request a new clearance.", 409);
-                if (row.Operation == TransportClearanceOperation.UpcomingRiderExtension)
+                if (row.Operation is TransportClearanceOperation.UpcomingRiderExtension or TransportClearanceOperation.UpcomingRiderShortening)
                 {
                     if (request.ManualFareCredit.HasValue || !source.EndDate.HasValue ||
-                        source.StartDate <= DateOnly.FromDateTime(clock.GetLocalNow().DateTime) ||
-                        row.EffectiveDate <= source.EndDate.Value)
-                        return Error<TransportClearanceDto>("Upcoming rider extension is no longer eligible.", 409);
+                        (row.Operation == TransportClearanceOperation.UpcomingRiderExtension &&
+                            (source.StartDate <= DateOnly.FromDateTime(clock.GetLocalNow().DateTime) ||
+                             row.EffectiveDate <= source.EndDate.Value)) ||
+                        (row.Operation == TransportClearanceOperation.UpcomingRiderShortening &&
+                            !TransportService.CanShortenUpcomingNoChargeRiderDates(
+                                source.StartDate, source.EndDate, row.EffectiveDate,
+                                DateOnly.FromDateTime(clock.GetLocalNow().DateTime))))
+                        return Error<TransportClearanceDto>("Upcoming rider period amendment is no longer eligible.", 409);
                     decimal net = row.ApprovedNetAdjustment;
                     if (request.ManualNetAdjustment.HasValue || request.ManualAdjustmentDelta.HasValue)
                     {
@@ -362,7 +373,7 @@ public sealed partial class FinanceAdjustmentService
                     else if (request.NoAdjustmentRequired)
                     {
                         if (net != 0m || request.SettlementJournalId.HasValue)
-                            return Error<TransportClearanceDto>("Nonzero extension adjustment needs a reconciled journal.", 409);
+                            return Error<TransportClearanceDto>("Nonzero period adjustment needs a reconciled journal.", 409);
                     }
                     else if (!await ReservationPeriodSettlement.HasPostedMatchingJournalAsync(db,
                         user.TenantId, row.CampusId, row.StudentId, net,
@@ -381,7 +392,7 @@ public sealed partial class FinanceAdjustmentService
                 {
                 if (request.ManualNetAdjustment.HasValue || request.ManualAdjustmentDelta.HasValue ||
                     request.AutoPostInvoice)
-                    return Error<TransportClearanceDto>("Signed amount only applies to upcoming rider extensions.");
+                    return Error<TransportClearanceDto>("Signed amount only applies to upcoming rider period amendments.");
                 var manual = request.ManualFareCredit.HasValue;
                 if (manual && (string.IsNullOrWhiteSpace(request.OverrideReason) ||
                     request.OverrideReason.Trim().Length is < 20 or > 1000))

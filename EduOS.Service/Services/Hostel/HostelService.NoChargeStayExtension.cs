@@ -1,5 +1,6 @@
 using EduOS.Core.Common;
 using EduOS.Core.DTOs.Hostel;
+using EduOS.Core.Entities.Finance;
 using EduOS.Core.Enums.Domain;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -14,18 +15,20 @@ public sealed partial class HostelService
         requestedEnd > currentEnd.Value && requestedEnd <= today.AddDays(365) &&
         requestedEnd.DayNumber - start.DayNumber <= 89;
 
-    /// <summary>Only zero-rent, zero-deposit, fee-head-free stays can extend without Finance integration.</summary>
+    /// <summary>Extend within the fixed-term booking limit; charged stays consume independently approved Finance posting.</summary>
     public async Task<ApiResponse<StudentHostelAllocationDto>> ExtendNoChargeStayAsync(
         long id, ExtendNoChargeHostelStayRequestDto request, CancellationToken cancellationToken = default)
     {
         if (!CanManage()) return Denied<StudentHostelAllocationDto>();
         if (id <= 0 || request == null || request.EndDate == default ||
+            request.FinanceClearanceId is <= 0 ||
             !TryDecodeVersion(request.RowVersion, out var version))
             return Error("Reservation, checkout date and row version are required.");
         var tenant = _currentUser.TenantId;
         const string operation = "hostel.no-charge-stay-extension";
         var requestHash = HostelCommandFingerprint(operation, id,
-            request.EndDate.ToString("yyyy-MM-dd"), Convert.ToBase64String(version));
+            request.EndDate.ToString("yyyy-MM-dd"), Convert.ToBase64String(version),
+            request.FinanceClearanceId?.ToString() ?? "none");
         var requestId = request.ClientRequestId == Guid.Empty
             ? DeriveHostelCommandRequestId(tenant, _currentUser.UserId, operation, id, requestHash)
             : request.ClientRequestId;
@@ -58,8 +61,6 @@ public sealed partial class HostelService
                 if (replay.Found) return replay.Response!;
                 if (allocation.State != HostelAllocationState.Active || !allocation.EndDate.HasValue)
                     return Error("Only active fixed-term stays can be extended.", 409);
-                if (allocation.MonthlyRent != 0m || allocation.SecurityDeposit != 0m || allocation.FeeHeadId.HasValue)
-                    return Error("Charged stays require Finance billing integration.", 409);
                 var today = DateOnly.FromDateTime(_clock.GetLocalNow().DateTime);
                 if (allocation.EndDate.Value == request.EndDate && allocation.EndDate.Value >= today)
                 {
@@ -74,9 +75,12 @@ public sealed partial class HostelService
                     return Error("Extend before checkout within the original 90-day booking window.", 409);
                 if (!allocation.RowVersion.AsSpan().SequenceEqual(version))
                     return Error("Reservation changed. Reload and retry.", 409);
-                if (await _reservationFinancePolicy.HasPostedActivityAsync(tenant,
-                    allocation.StudentId, allocation.StudentEnrollmentId, ct))
-                    return Error("Posted finance activity requires an approved Finance adjustment before extension.", 409);
+                var financeExposure = await _reservationFinancePolicy.HasPostedActivityAsync(tenant,
+                    allocation.StudentId, allocation.StudentEnrollmentId, ct);
+                if ((financeExposure || allocation.MonthlyRent != 0m ||
+                     allocation.SecurityDeposit != 0m || allocation.FeeHeadId.HasValue) &&
+                    !request.FinanceClearanceId.HasValue)
+                    return Error("Charged or invoiced stay requires Finance-approved period settlement.", 409);
                 if (!source.Bed.IsActive || !source.Room.IsActive || !source.Hostel.IsActive ||
                     source.Room.Capacity < 1)
                     return Error("Hostel accommodation is unavailable.", 409);
@@ -105,15 +109,22 @@ public sealed partial class HostelService
                 if (PeakConcurrentStays(extensionStart, request.EndDate,
                     others.Select(x => (x.StartDate, x.EndDate))) > source.Room.Capacity)
                     return Error("Room capacity would be exceeded.", 409);
+                if (request.FinanceClearanceId.HasValue)
+                {
+                    var approval = await ConsumeHostelFinanceClearanceAsync(request.FinanceClearanceId.Value,
+                        allocation, source.Hostel.CampusId, HostelClearanceOperation.UpcomingEndChange,
+                        request.EndDate, null, null, ct);
+                    if (approval.Error != null) return Error(approval.Error, 409);
+                }
                 var previous = allocation.EndDate.Value;
                 allocation.EndDate = request.EndDate;
                 allocation.UpdatedAt = _clock.GetUtcNow().UtcDateTime;
                 allocation.UpdatedBy = _currentUser.UserId;
                 await _unitOfWork.SaveChangesAsync(ct);
-                _logger.LogInformation("No-charge hostel extension tenant {TenantId}, allocation {AllocationId}, {OldEnd} to {NewEnd}",
+                _logger.LogInformation("Hostel stay extension tenant {TenantId}, allocation {AllocationId}, {OldEnd} to {NewEnd}",
                     tenant, allocation.Id, previous, request.EndDate);
                 var success = ApiResponse<StudentHostelAllocationDto>.SuccessResponse(
-                    await MapAsync(allocation, ct), "No-charge stay extended.");
+                    await MapAsync(allocation, ct), "Hostel stay extended.");
                 await _commandReceipts.RecordAsync(tenant, _currentUser.UserId, operation,
                     requestId, id, requestHash, success, ct);
                 await _unitOfWork.SaveChangesAsync(ct);
