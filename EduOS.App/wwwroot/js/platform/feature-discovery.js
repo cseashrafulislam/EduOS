@@ -1,4 +1,4 @@
-/* Feature discovery is a view over the server-authorized sidebar, never a route/permission registry.
+/* Feature discovery is a view over the server-authorized navigation, never a route/permission registry.
  * No tenant records or query strings are cached. Navigation stays server-authorized. */
 (() => {
     'use strict';
@@ -88,7 +88,10 @@
         '/workspace': 'ওয়ার্কস্পেস ডিজাইন'
     } : {};
 
-    const rawLinks = [...sidebar.querySelectorAll('nav[data-sidebar-section] a.nav-link')];
+    const rawLinks = [
+        ...sidebar.querySelectorAll('nav[data-sidebar-section] a.nav-link'),
+        ...document.querySelectorAll('a[data-feature-discovery-link]')
+    ];
     const catalog = makeCatalog(rawLinks.map(link => {
         const nav = link.closest('nav[data-sidebar-section]');
         const group = link.closest('.sidebar-group')?.querySelector('.sidebar-group-label')?.textContent || '';
@@ -97,7 +100,7 @@
             href: link.getAttribute('href'),
             label: translated[path?.toLowerCase()] || link.textContent || link.getAttribute('aria-label'),
             section: nav?.previousElementSibling?.classList.contains('menu-title')
-                ? nav.previousElementSibling.textContent : '',
+                ? nav.previousElementSibling.textContent : (link.dataset.featureDiscoverySection || ''),
             group
         };
     }));
