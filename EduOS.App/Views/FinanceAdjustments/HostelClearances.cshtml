@@ -56,6 +56,9 @@
             <div class="col-md-6"><label class="form-label" for="hfReviewOverrideReason">Reason for changed amounts</label><input id="hfReviewOverrideReason" maxlength="1000" class="form-control" /></div>
             <div class="col-md-4"><label class="form-label" for="hfReviewJournal">Verified posted journal ID (nonzero adjustment)</label><input id="hfReviewJournal" type="number" min="1" class="form-control" /></div>
             <div class="col-md-8 d-flex align-items-end"><label><input id="hfNoAdjustment" type="checkbox" /> Explicitly attest no GL change required (amounts must be zero)</label></div>
+            <div class="col-12"><label><input id="hfAutoInvoice" type="checkbox" /> Automatically issue invoice and balanced GL for an additional positive period charge</label></div>
+            <div class="col-md-6"><label class="form-label" for="hfAutoPeriod">Open accounting period</label><select id="hfAutoPeriod" class="form-select" disabled><option value="">Choose a period</option></select></div>
+            <div class="col-md-6"><label class="form-label" for="hfAutoHead">Charge fee head</label><select id="hfAutoHead" class="form-select" disabled><option value="">Choose a fee head</option></select></div>
             <div class="col-12"><label class="form-label" for="hfReviewNote">Independent reconciliation evidence and approval note (20+ chars)</label><textarea id="hfReviewNote" class="form-control" minlength="20" maxlength="1000" rows="2" required></textarea></div>
             <div class="col-12 d-flex gap-2"><button id="hfApprove" class="btn btn-success" type="submit">Approve clearance</button><button id="hfReject" class="btn btn-outline-danger" type="button">Reject</button><button id="hfReviewCancel" class="btn btn-outline-secondary" type="button">Cancel review</button></div>
         </form>

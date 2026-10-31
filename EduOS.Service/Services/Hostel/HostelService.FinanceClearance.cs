@@ -41,6 +41,7 @@ public sealed partial class HostelService
             (!ReservationPeriodSettlement.ValidAmount(clearance.ApprovedNetAdjustment) ||
              clearance.ApprovedRentCredit != 0m || clearance.ApprovedDepositRefund != 0m))
             return (null, "Approved period adjustment is invalid.");
+        var autoCharge = false;
         if (clearance.NoAdjustmentRequired)
         {
             if (clearance.SettlementJournalId.HasValue ||
@@ -51,15 +52,27 @@ public sealed partial class HostelService
         }
         else
         {
-            if (!clearance.SettlementJournalId.HasValue ||
-                !await _reservationFinancePolicy.HasValidPostedSettlementJournalAsync(tenant,
-                    clearance.SettlementJournalId.Value, ct))
+            if (!clearance.SettlementJournalId.HasValue)
+                return (null, "Finance settlement journal is missing, reversed or no longer posted.");
+            autoCharge = operation == HostelClearanceOperation.UpcomingStartReschedule &&
+                clearance.ApprovedNetAdjustment > 0m &&
+                await _reservationFinancePolicy.HasValidAutomaticChargeAsync(tenant,
+                    "HOSTEL", clearance.Id, clearance.SettlementJournalId.Value,
+                    campusId, source.StudentId, source.StudentEnrollmentId,
+                    clearance.ApprovedNetAdjustment, ct);
+            if (!autoCharge && !await _reservationFinancePolicy.HasValidPostedSettlementJournalAsync(
+                    tenant, clearance.SettlementJournalId.Value, ct))
                 return (null, "Finance settlement journal is missing, reversed or no longer posted.");
         }
         var exposure = await _reservationFinancePolicy.GetExposureHashAsync(tenant,
             source.StudentId, source.StudentEnrollmentId, ct);
         if (exposure == null || exposure != clearance.FinanceSnapshotHash)
             return (null, "Finance invoice/payment exposure changed after approval; reconcile again.");
+        if (autoCharge && !await _reservationFinancePolicy.FinalizeAutomaticChargeAsync(tenant,
+                "HOSTEL", clearance.Id, clearance.SettlementJournalId!.Value, campusId,
+                source.StudentId, source.StudentEnrollmentId, clearance.ApprovedNetAdjustment,
+                _currentUser.UserId, _clock.GetUtcNow().UtcDateTime, ct))
+            return (null, "Reviewed automatic invoice could not be posted with the operation.");
         clearance.State = HostelClearanceState.Consumed;
         clearance.ConsumedByUserId = _currentUser.UserId;
         clearance.ConsumedAtUtc = _clock.GetUtcNow().UtcDateTime;

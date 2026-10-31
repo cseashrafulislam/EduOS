@@ -155,14 +155,41 @@
         el('hfReviewOverrideReason').value = ''; el('hfReviewJournal').value = '';
         el('hfNoAdjustment').checked = entry.operation === 3 ?
             Number(entry.approvedNetAdjustment) === 0 : entry.approvedRentCredit + entry.approvedDepositRefund === 0;
+        el('hfAutoInvoice').checked = false;
+        el('hfAutoInvoice').disabled = entry.operation !== 3;
+        toggleAutoInvoice();
+        if (entry.operation === 3) run(() => loadAutoInvoiceOptions('hfAutoPeriod', 'hfAutoHead'));
         el('hfReviewNote').value = '';
         el('hfReviewForm').classList.remove('d-none');
         el('hfReviewForm').scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    }
+    function toggleAutoInvoice() {
+        const active = el('hfAutoInvoice').checked;
+        el('hfAutoPeriod').disabled = !active;
+        el('hfAutoHead').disabled = !active;
+        el('hfReviewJournal').disabled = active;
+        el('hfNoAdjustment').disabled = active;
+        if (active) { el('hfNoAdjustment').checked = false; el('hfReviewJournal').value = ''; }
+    }
+    async function loadAutoInvoiceOptions(periodId, headId) {
+        const [periods, billing] = await Promise.all([
+            api('/api/finance/invoice-posting?unpostedOnly=true&pageSize=1'),
+            api('/api/finance/fees/options')
+        ]);
+        const periodBox = el(periodId), headBox = el(headId);
+        periodBox.replaceChildren(new Option('Choose open period', ''));
+        headBox.replaceChildren(new Option('Choose configured fee head', ''));
+        for (const item of periods.openPeriods || []) option(periodBox, item.name, String(item.id));
+        for (const item of billing.feeHeads || []) option(headBox, item.name, String(item.id));
     }
     async function finishReview(approve) {
         if (!review || working) return;
         const note = el('hfReviewNote').value.trim();
         if (note.length < 20 || note.length > 1000) throw Error('Enter independently verified reconciliation evidence (20–1000 characters).');
+        const auto = approve && el('hfAutoInvoice').checked;
+        if (auto && (!numeric('hfAutoPeriod') || !numeric('hfAutoHead') ||
+            Number(el('hfReviewNet').value || review.approvedNetAdjustment) <= 0))
+            throw Error('Automatic invoice requires a positive charge, open accounting period and fee head.');
         if (!confirm(`${approve ? 'Approve' : 'Reject'} clearance #${review.id}? This decision is audited.`)) return;
         working = true;
         try {
@@ -170,12 +197,14 @@
                 rowVersion: review.rowVersion, approve,
                 noAdjustmentRequired: el('hfNoAdjustment').checked,
                 settlementJournalId: numeric('hfReviewJournal'),
+                autoPostInvoice: auto, accountingPeriodId: auto ? numeric('hfAutoPeriod') : null,
+                autoFeeHeadId: auto ? numeric('hfAutoHead') : null,
                 manualRentCredit: numeric('hfReviewRent'), manualDepositRefund: numeric('hfReviewDeposit'),
                 manualNetAdjustment: review.operation === 3 ? signed('hfReviewNet') : null,
                 overrideReason: el('hfReviewOverrideReason').value.trim() || null,
                 reconciliationNote: note
             });
-            notice(`Clearance #${review.id} ${approve ? 'approved' : 'rejected'}. Financial payout is not automatic.`, true);
+            notice(`Clearance #${review.id} ${approve ? auto ? 'approved; draft invoice prepared (posting occurs with successful Operations change)' : 'approved' : 'rejected'}. Cash payout is not automatic.`, true);
             review = null; el('hfReviewForm').classList.add('d-none'); await loadClearances();
         } finally { working = false; }
     }
@@ -191,6 +220,7 @@
     el('hfPrevious').addEventListener('click', () => run(() => { if (clearancePage > 1) { clearancePage--; return loadClearances(); } }));
     el('hfNext').addEventListener('click', () => run(() => { if (clearancePage < clearancePages) { clearancePage++; return loadClearances(); } }));
     el('hfReviewForm').addEventListener('submit', e => { e.preventDefault(); run(() => finishReview(true)); });
+    el('hfAutoInvoice').addEventListener('change', toggleAutoInvoice);
     el('hfReject').addEventListener('click', () => run(() => finishReview(false)));
     el('hfReviewCancel').addEventListener('click', () => { review = null; el('hfReviewForm').classList.add('d-none'); });
     run(async () => { await Promise.all([loadStays(), loadClearances()]); });

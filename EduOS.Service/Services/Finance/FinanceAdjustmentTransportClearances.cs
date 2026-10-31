@@ -311,7 +311,26 @@ public sealed partial class FinanceAdjustmentService
                         return Error<TransportClearanceDto>("Campus manual override policy changed. Request new approval.", 409);
                     if (!ReservationPeriodSettlement.ValidAmount(net))
                         return Error<TransportClearanceDto>("Invalid signed period adjustment.");
-                    if (request.NoAdjustmentRequired)
+                    if (request.AutoPostInvoice)
+                    {
+                        if (net <= 0m || request.NoAdjustmentRequired || request.SettlementJournalId.HasValue)
+                            return Error<TransportClearanceDto>("Automatic invoice requires a positive amount and no existing journal.", 409);
+                        var (posting, error) = await ReservationAutomaticInvoicePosting.PrepareAsync(
+                            db, user.TenantId, user.UserId, "TRANSPORT", id, row.CampusId,
+                            row.StudentEnrollmentId, row.StudentId, net,
+                            request.AutoFeeHeadId, request.AccountingPeriodId,
+                            DateOnly.FromDateTime(clock.GetLocalNow().DateTime), clock.GetUtcNow().UtcDateTime, ct);
+                        if (posting == null)
+                            return Error<TransportClearanceDto>(error ?? "Automatic invoice posting failed.", 409);
+                        row.NoAdjustmentRequired = false;
+                        row.SettlementJournalId = posting.JournalId;
+                        row.FinanceSnapshotHash = await new ReservationFinancePolicy(db)
+                            .GetExposureHashAsync(user.TenantId, row.StudentId, row.StudentEnrollmentId, ct)
+                            ?? string.Empty;
+                        if (row.FinanceSnapshotHash.Length != 64)
+                            return Error<TransportClearanceDto>("Finance exposure is too large to approve safely.", 409);
+                    }
+                    else if (request.NoAdjustmentRequired)
                     {
                         if (net != 0m || request.SettlementJournalId.HasValue)
                             return Error<TransportClearanceDto>("Nonzero extension adjustment needs a reconciled journal.", 409);
@@ -323,12 +342,15 @@ public sealed partial class FinanceAdjustmentService
                             x.TenantId == user.TenantId && x.SettlementJournalId == request.SettlementJournalId, ct))
                         return Error<TransportClearanceDto>("Posted, uniquely linked, independent and signed student adjustment journal required.", 409);
                     row.ApprovedNetAdjustment = net;
-                    row.NoAdjustmentRequired = request.NoAdjustmentRequired;
-                    row.SettlementJournalId = request.SettlementJournalId;
+                    if (!request.AutoPostInvoice)
+                    {
+                        row.NoAdjustmentRequired = request.NoAdjustmentRequired;
+                        row.SettlementJournalId = request.SettlementJournalId;
+                    }
                 }
                 else
                 {
-                if (request.ManualNetAdjustment.HasValue)
+                if (request.ManualNetAdjustment.HasValue || request.AutoPostInvoice)
                     return Error<TransportClearanceDto>("Signed amount only applies to upcoming rider extensions.");
                 var manual = request.ManualFareCredit.HasValue;
                 if (manual && (string.IsNullOrWhiteSpace(request.OverrideReason) ||

@@ -34,6 +34,10 @@ public sealed class ReviewHostelClearanceDto
     public bool Approve { get; set; }
     public bool NoAdjustmentRequired { get; set; }
     public long? SettlementJournalId { get; set; }
+    /// <summary>Finance may issue a new student invoice and post its GL for a positive period delta.</summary>
+    public bool AutoPostInvoice { get; set; }
+    public long? AccountingPeriodId { get; set; }
+    public long? AutoFeeHeadId { get; set; }
     public decimal? ManualRentCredit { get; set; }
     public decimal? ManualDepositRefund { get; set; }
     [JsonNumberHandling(JsonNumberHandling.AllowReadingFromString)]

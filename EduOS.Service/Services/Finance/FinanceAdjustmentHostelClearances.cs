@@ -322,7 +322,30 @@ public sealed partial class FinanceAdjustmentService
                         return Error<HostelClearanceDto>("Campus manual override policy changed. Request new approval.", 409);
                     if (!ReservationPeriodSettlement.ValidAmount(net))
                         return Error<HostelClearanceDto>("Invalid signed period adjustment.");
-                    if (request.NoAdjustmentRequired)
+                    if (request.AutoPostInvoice)
+                    {
+                        if (net <= 0m || request.NoAdjustmentRequired || request.SettlementJournalId.HasValue ||
+                            source.FeeHeadId.HasValue && request.AutoFeeHeadId.HasValue &&
+                            source.FeeHeadId.Value != request.AutoFeeHeadId.Value)
+                            return Error<HostelClearanceDto>("Automatic invoicing requires a positive amount, no existing journal and matching hostel fee head.", 409);
+                        var (posting, error) = await ReservationAutomaticInvoicePosting.PrepareAsync(
+                            db, user.TenantId, user.UserId, "HOSTEL", id, row.CampusId,
+                            row.StudentEnrollmentId, row.StudentId, net,
+                            source.FeeHeadId ?? request.AutoFeeHeadId, request.AccountingPeriodId,
+                            DateOnly.FromDateTime(clock.GetLocalNow().DateTime), clock.GetUtcNow().UtcDateTime, ct);
+                        if (posting == null)
+                            return Error<HostelClearanceDto>(error ?? "Automatic invoice posting failed.", 409);
+                        row.NoAdjustmentRequired = false;
+                        row.SettlementJournalId = posting.JournalId;
+                        // The new invoice is part of the approved exposure; capture that
+                        // snapshot so Operations does not reject our own atomic posting.
+                        row.FinanceSnapshotHash = await new ReservationFinancePolicy(db)
+                            .GetExposureHashAsync(user.TenantId, row.StudentId, row.StudentEnrollmentId, ct)
+                            ?? string.Empty;
+                        if (row.FinanceSnapshotHash.Length != 64)
+                            return Error<HostelClearanceDto>("Finance exposure is too large to approve safely.", 409);
+                    }
+                    else if (request.NoAdjustmentRequired)
                     {
                         if (net != 0m || request.SettlementJournalId.HasValue)
                             return Error<HostelClearanceDto>("A nonzero period change requires a reconciled journal.", 409);
@@ -334,12 +357,15 @@ public sealed partial class FinanceAdjustmentService
                             x.TenantId == user.TenantId && x.SettlementJournalId == request.SettlementJournalId, ct))
                         return Error<HostelClearanceDto>("Finance journal must be posted, single-use, independent and match the signed student adjustment.", 409);
                     row.ApprovedNetAdjustment = net;
-                    row.NoAdjustmentRequired = request.NoAdjustmentRequired;
-                    row.SettlementJournalId = request.SettlementJournalId;
+                    if (!request.AutoPostInvoice)
+                    {
+                        row.NoAdjustmentRequired = request.NoAdjustmentRequired;
+                        row.SettlementJournalId = request.SettlementJournalId;
+                    }
                 }
                 else
                 {
-                if (request.ManualNetAdjustment.HasValue)
+                if (request.ManualNetAdjustment.HasValue || request.AutoPostInvoice)
                     return Error<HostelClearanceDto>("Signed period amount is only valid for upcoming reschedules.");
                 var manual = request.ManualRentCredit.HasValue || request.ManualDepositRefund.HasValue;
                 if (manual && (string.IsNullOrWhiteSpace(request.OverrideReason) ||

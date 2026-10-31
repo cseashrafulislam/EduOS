@@ -32,6 +32,10 @@ public sealed class ReviewTransportClearanceDto
     public bool Approve { get; set; }
     public bool NoAdjustmentRequired { get; set; }
     public long? SettlementJournalId { get; set; }
+    /// <summary>Finance may issue a new student invoice and post its GL for a positive period delta.</summary>
+    public bool AutoPostInvoice { get; set; }
+    public long? AccountingPeriodId { get; set; }
+    public long? AutoFeeHeadId { get; set; }
     public decimal? ManualFareCredit { get; set; }
     [JsonNumberHandling(JsonNumberHandling.AllowReadingFromString)]
     public decimal? ManualNetAdjustment { get; set; }

@@ -47,6 +47,9 @@
             <div class="col-md-8"><label for="tfReviewOverrideReason" class="form-label">Reviewer amount-change reason</label><input id="tfReviewOverrideReason" maxlength="1000" class="form-control" /></div>
             <div class="col-md-4"><label for="tfReviewJournal" class="form-label">Verified posted journal ID (nonzero credit)</label><input id="tfReviewJournal" type="number" min="1" class="form-control" /></div>
             <div class="col-md-8 align-self-end"><label><input id="tfNoAdjustment" type="checkbox" /> Attest zero credit; no GL change required</label></div>
+            <div class="col-12"><label><input id="tfAutoInvoice" type="checkbox" /> Automatically issue invoice and balanced GL for an additional positive period charge</label></div>
+            <div class="col-md-6"><label for="tfAutoPeriod" class="form-label">Open accounting period</label><select id="tfAutoPeriod" class="form-select" disabled><option value="">Choose a period</option></select></div>
+            <div class="col-md-6"><label for="tfAutoHead" class="form-label">Charge fee head</label><select id="tfAutoHead" class="form-select" disabled><option value="">Choose a fee head</option></select></div>
             <div class="col-12"><label for="tfReviewNote" class="form-label">Verified reconciliation evidence (20–1000 characters)</label><textarea id="tfReviewNote" minlength="20" maxlength="1000" rows="2" class="form-control" required></textarea></div>
             <div class="col-12 d-flex gap-2"><button class="btn btn-success" type="submit">Approve clearance</button><button id="tfReject" type="button" class="btn btn-outline-danger">Reject</button><button id="tfReviewCancel" type="button" class="btn btn-outline-secondary">Cancel</button></div>
         </form>

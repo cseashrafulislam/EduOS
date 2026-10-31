@@ -143,23 +143,51 @@
         el('tfReviewNet').disabled = record.operation !== 3;
         el('tfReviewJournal').value = ''; el('tfReviewNote').value = '';
         el('tfNoAdjustment').checked = Number(record.operation === 3 ? record.approvedNetAdjustment : record.approvedFareCredit) === 0;
+        el('tfAutoInvoice').checked = false;
+        el('tfAutoInvoice').disabled = record.operation !== 3;
+        toggleAutoInvoice();
+        if (record.operation === 3) run(loadAutoInvoiceOptions);
         el('tfReviewForm').classList.remove('d-none');
         el('tfReviewForm').scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    }
+    function toggleAutoInvoice() {
+        const active = el('tfAutoInvoice').checked;
+        el('tfAutoPeriod').disabled = !active;
+        el('tfAutoHead').disabled = !active;
+        el('tfReviewJournal').disabled = active;
+        el('tfNoAdjustment').disabled = active;
+        if (active) { el('tfNoAdjustment').checked = false; el('tfReviewJournal').value = ''; }
+    }
+    async function loadAutoInvoiceOptions() {
+        const [periods, billing] = await Promise.all([
+            api('/api/finance/invoice-posting?unpostedOnly=true&pageSize=1'),
+            api('/api/finance/fees/options')
+        ]);
+        el('tfAutoPeriod').replaceChildren(new Option('Choose open period', ''));
+        el('tfAutoHead').replaceChildren(new Option('Choose configured fee head', ''));
+        for (const item of periods.openPeriods || []) el('tfAutoPeriod').append(new Option(item.name, String(item.id)));
+        for (const item of billing.feeHeads || []) el('tfAutoHead').append(new Option(item.name, String(item.id)));
     }
     async function decide(approve) {
         if (!review || busy) return;
         const note = el('tfReviewNote').value.trim();
         if (note.length < 20 || note.length > 1000) throw Error('Supply independent reconciliation evidence (20–1000 characters).');
+        const auto = approve && el('tfAutoInvoice').checked;
+        if (auto && (!num('tfAutoPeriod') || !num('tfAutoHead') ||
+            Number(el('tfReviewNet').value || review.approvedNetAdjustment) <= 0))
+            throw Error('Automatic invoice requires a positive charge, open accounting period and fee head.');
         if (!confirm(`${approve ? 'Approve' : 'Reject'} Transport clearance #${review.id}?`)) return;
         busy = true;
         try {
             await api(`${root}/clearances/${review.id}/review`, 'POST', {
                 rowVersion: review.rowVersion, approve, noAdjustmentRequired: el('tfNoAdjustment').checked,
                 settlementJournalId: num('tfReviewJournal'), manualFareCredit: num('tfReviewFare'),
+                autoPostInvoice: auto, accountingPeriodId: auto ? num('tfAutoPeriod') : null,
+                autoFeeHeadId: auto ? num('tfAutoHead') : null,
                 manualNetAdjustment: review.operation === 3 ? signed('tfReviewNet') : null,
                 overrideReason: el('tfReviewOverrideReason').value.trim() || null, reconciliationNote: note
             });
-            notice(`Transport clearance #${review.id} ${approve ? 'approved' : 'rejected'}. No refund or journal posting was performed.`, true);
+            notice(`Transport clearance #${review.id} ${approve ? auto ? 'approved; draft invoice prepared (posting occurs with successful Operations change)' : 'approved' : 'rejected'}. No cash payout was performed.`, true);
             review = null; el('tfReviewForm').classList.add('d-none'); await listClearances();
         } finally { busy = false; }
     }
@@ -176,6 +204,7 @@
     el('tfPrevious').addEventListener('click', () => run(() => { if (page > 1) { page--; return listClearances(); } }));
     el('tfNext').addEventListener('click', () => run(() => { if (page < pages) { page++; return listClearances(); } }));
     el('tfReviewForm').addEventListener('submit', e => { e.preventDefault(); run(() => decide(true)); });
+    el('tfAutoInvoice').addEventListener('change', toggleAutoInvoice);
     el('tfReject').addEventListener('click', () => run(() => decide(false)));
     el('tfReviewCancel').addEventListener('click', () => { review = null; el('tfReviewForm').classList.add('d-none'); });
     run(async () => { await Promise.all([loadRiders(), listClearances()]); });

@@ -24,6 +24,17 @@ public sealed class ReservationFinancePolicy : IReservationFinancePolicy
 
     public ReservationFinancePolicy(EduOSDbContext db) => _db = db;
 
+    public Task<bool> HasValidAutomaticChargeAsync(long tenantId, string kind, long clearanceId,
+        long journalId, long campusId, long studentId, long enrollmentId, decimal amount,
+        CancellationToken ct = default) => ReservationAutomaticInvoicePosting.PreparedAsync(
+            _db, tenantId, kind, clearanceId, journalId, campusId, studentId, enrollmentId, amount, ct);
+
+    public Task<bool> FinalizeAutomaticChargeAsync(long tenantId, string kind, long clearanceId,
+        long journalId, long campusId, long studentId, long enrollmentId, decimal amount,
+        long postedByUserId, DateTime nowUtc, CancellationToken ct = default) =>
+        ReservationAutomaticInvoicePosting.FinalizeAsync(_db, tenantId, kind, clearanceId,
+            journalId, campusId, studentId, enrollmentId, amount, postedByUserId, nowUtc, ct);
+
     /// <summary>
     /// Chargeable reservation terms require Finance approval even before an invoice
     /// is issued. This is a pure eligibility rule, not approval or proration.

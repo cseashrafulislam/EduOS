@@ -15,4 +15,12 @@ public interface IReservationFinancePolicy
         long studentEnrollmentId, CancellationToken cancellationToken = default);
     Task<bool> HasValidPostedSettlementJournalAsync(long tenantId, long journalId,
         CancellationToken cancellationToken = default);
+    /// <summary>Exact clearance-bound draft invoice and independently reviewed journal.</summary>
+    Task<bool> HasValidAutomaticChargeAsync(long tenantId, string kind, long clearanceId,
+        long journalId, long campusId, long studentId, long enrollmentId, decimal amount,
+        CancellationToken cancellationToken = default) => Task.FromResult(false);
+    /// <summary>Post the reviewed invoice and journal atomically with Operations consumption.</summary>
+    Task<bool> FinalizeAutomaticChargeAsync(long tenantId, string kind, long clearanceId,
+        long journalId, long campusId, long studentId, long enrollmentId, decimal amount,
+        long postedByUserId, DateTime nowUtc, CancellationToken cancellationToken = default) => Task.FromResult(false);
 }

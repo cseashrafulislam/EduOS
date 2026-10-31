@@ -2,6 +2,7 @@ using EduOS.Core.Common;
 using EduOS.Core.DTOs.Finance;
 using EduOS.Core.DTOs.Transport;
 using EduOS.Core.Entities.Auth;
+using EduOS.Core.Entities.Accounting;
 using EduOS.Core.Entities.Finance;
 using EduOS.Core.Entities.Transport;
 using EduOS.Core.Enums.Domain;
@@ -16,6 +17,123 @@ namespace EduOS.Tests.App;
 // indexes, tenant query filters, FKs and independent DbContexts are essential here.
 public sealed partial class SqlServerTransportSeatCapacityIntegrationTests
 {
+    [Fact]
+    public async Task Approved_auto_extension_invoice_posts_only_with_successful_operating_change()
+    {
+        var connection = Environment.GetEnvironmentVariable("EDUOS_SQL_AUTH_TEST_CONNECTION");
+        if (string.IsNullOrWhiteSpace(connection)) return;
+        var fixture = await SeedAsync(connection);
+        var assignment = Request(fixture, 0, fixture.Start, fixture.Start.AddDays(12));
+        assignment.MonthlyFare = 2500m;
+        var booked = await AssignAsync(fixture, assignment);
+        Assert.True(booked.Success, booked.Message);
+        var source = booked.Data!;
+        var proposedEnd = source.EndDate!.Value.AddDays(10);
+        var checker = await CreateFinanceCheckerAsync(fixture);
+        long periodId, headId;
+        await using (var db = ScopedContext(fixture.Options, fixture.TenantId, fixture.UserId))
+        {
+            var suffix = Guid.NewGuid().ToString("N")[..10];
+            var receivable = new Account { TenantId = fixture.TenantId, Code = "AR-" + suffix,
+                Name = "Reservation student receivable", AccountType = AccountType.Asset,
+                IsActive = true, AllowsPosting = true };
+            var income = new Account { TenantId = fixture.TenantId, Code = "INC-" + suffix,
+                Name = "Transport reservation income", AccountType = AccountType.Income,
+                IsActive = true, AllowsPosting = true };
+            db.Accounts.AddRange(receivable, income);
+            await db.SaveChangesAsync();
+            var today = DateOnly.FromDateTime(DateTime.UtcNow);
+            var period = new AccountingPeriod { TenantId = fixture.TenantId,
+                Name = "Transport posting period " + suffix,
+                StartDate = today.AddDays(-2), EndDate = today.AddDays(30) };
+            var head = new FeeHead { TenantId = fixture.TenantId, Name = "Transport extension " + suffix,
+                Code = "TR-" + suffix, IncomeAccountId = income.Id,
+                ReceivableAccountId = receivable.Id, IsActive = true };
+            db.AddRange(period, head);
+            await db.SaveChangesAsync();
+            periodId = period.Id; headId = head.Id;
+        }
+        long id;
+        await using (var db = ScopedContext(fixture.Options, fixture.TenantId, fixture.UserId))
+        {
+            var requested = await Finance(db, fixture.TenantId, fixture.UserId)
+                .RequestTransportClearanceAsync(new RequestTransportClearanceDto
+                {
+                    ClientRequestId = Guid.NewGuid(), SourceAssignmentReference = source.Reference,
+                    SourceRowVersion = source.RowVersion,
+                    Operation = TransportClearanceOperation.UpcomingRiderExtension,
+                    EffectiveDate = proposedEnd, Reason = "Additional future bus service charge"
+                });
+            Assert.True(requested.Success, requested.Message);
+            Assert.True(requested.Data!.ApprovedNetAdjustment > 0m);
+            id = requested.Data.Id;
+        }
+        long invoiceId, journalId;
+        await using (var db = ScopedContext(fixture.Options, fixture.TenantId, checker))
+        {
+            var row = await db.TransportFinanceClearances.AsNoTracking().SingleAsync(x => x.Id == id);
+            var approved = await Finance(db, fixture.TenantId, checker)
+                .ReviewTransportClearanceAsync(id, new ReviewTransportClearanceDto
+                {
+                    RowVersion = Convert.ToBase64String(row.RowVersion), Approve = true,
+                    AutoPostInvoice = true, AccountingPeriodId = periodId, AutoFeeHeadId = headId,
+                    ReconciliationNote = "Independent Finance reviewer approved the exact additional charge."
+                });
+            Assert.True(approved.Success, approved.Message);
+            journalId = approved.Data!.SettlementJournalId!.Value;
+            var invoice = await db.StudentInvoices.SingleAsync(x => x.JournalId == journalId);
+            invoiceId = invoice.Id;
+            Assert.Equal(InvoiceState.Draft, invoice.State);
+            Assert.Equal(JournalState.Approved, (await db.Journals.SingleAsync(x => x.Id == journalId)).State);
+        }
+        var mutation = new ExtendUpcomingTransportAssignmentRequestDto
+        {
+            ClientRequestId = Guid.NewGuid(), EndDate = proposedEnd,
+            RowVersion = source.RowVersion, FinanceClearanceId = id
+        };
+        await using (var db = ScopedContext(fixture.Options, fixture.TenantId, fixture.UserId))
+        {
+            var rejected = await Service(db, fixture.TenantId, fixture.UserId)
+                .ExtendUpcomingRiderAsync(source.Reference, new ExtendUpcomingTransportAssignmentRequestDto
+                {
+                    ClientRequestId = Guid.NewGuid(), EndDate = proposedEnd,
+                    RowVersion = Convert.ToBase64String(new byte[] { 1, 2, 3, 4 }),
+                    FinanceClearanceId = id
+                });
+            Assert.Equal(409, rejected.StatusCode);
+            Assert.Equal(InvoiceState.Draft, (await db.StudentInvoices.AsNoTracking()
+                .SingleAsync(x => x.Id == invoiceId)).State);
+            Assert.Equal(JournalState.Approved, (await db.Journals.AsNoTracking()
+                .SingleAsync(x => x.Id == journalId)).State);
+        }
+        await using (var db = ScopedContext(fixture.Options, fixture.TenantId, fixture.UserId))
+        {
+            var extended = await Service(db, fixture.TenantId, fixture.UserId)
+                .ExtendUpcomingRiderAsync(source.Reference, mutation);
+            Assert.True(extended.Success, extended.Message);
+            var replay = await Service(db, fixture.TenantId, fixture.UserId)
+                .ExtendUpcomingRiderAsync(source.Reference, mutation);
+            Assert.True(replay.Success, replay.Message);
+        }
+        await using (var db = ScopedContext(fixture.Options, fixture.TenantId, fixture.UserId))
+        {
+            var invoice = await db.StudentInvoices.SingleAsync(x => x.Id == invoiceId);
+            var journal = await db.Journals.SingleAsync(x => x.Id == journalId);
+            var lines = await db.JournalLines.Where(x => x.JournalId == journalId).ToArrayAsync();
+            Assert.Equal(InvoiceState.Issued, invoice.State);
+            Assert.Equal(JournalState.Posted, journal.State);
+            Assert.Equal("StudentInvoice", journal.SourceType);
+            Assert.Equal(invoice.Id, journal.SourceId);
+            Assert.Equal(checker, journal.ApprovedByUserId);
+            Assert.Equal(fixture.UserId, journal.PostedByUserId);
+            Assert.Equal(2, lines.Length);
+            Assert.Equal(invoice.TotalAmount, lines.Sum(x => x.DebitAmount));
+            Assert.Equal(invoice.TotalAmount, lines.Sum(x => x.CreditAmount));
+            Assert.Equal(1, await db.StudentInvoices.CountAsync(x => x.ClientRequestId ==
+                ReservationAutomaticInvoicePosting.InvoiceKey(fixture.TenantId, "TRANSPORT", id)));
+        }
+    }
+
     [Fact]
     public async Task Upcoming_paid_rider_extension_consumes_only_approved_single_use_finance_clearance()
     {

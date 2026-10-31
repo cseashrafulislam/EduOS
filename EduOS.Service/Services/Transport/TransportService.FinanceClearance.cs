@@ -34,6 +34,7 @@ public sealed partial class TransportService
             (!ReservationPeriodSettlement.ValidAmount(row.ApprovedNetAdjustment) ||
              row.ApprovedFareCredit != 0m))
             return (null, "Approved period adjustment is invalid.");
+        var autoCharge = false;
         if (row.NoAdjustmentRequired)
         {
             if (row.ApprovedFareCredit != 0 || row.SettlementJournalId.HasValue ||
@@ -43,15 +44,27 @@ public sealed partial class TransportService
         }
         else
         {
-            if (!row.SettlementJournalId.HasValue ||
-                !await _reservationFinancePolicy.HasValidPostedSettlementJournalAsync(tenant,
-                    row.SettlementJournalId.Value, ct))
+            if (!row.SettlementJournalId.HasValue)
+                return (null, "Finance journal missing, reversed, or no longer independently approved.");
+            autoCharge = operation == TransportClearanceOperation.UpcomingRiderExtension &&
+                row.ApprovedNetAdjustment > 0m &&
+                await _reservationFinancePolicy.HasValidAutomaticChargeAsync(tenant,
+                    "TRANSPORT", row.Id, row.SettlementJournalId.Value,
+                    campusId, source.StudentId, source.StudentEnrollmentId,
+                    row.ApprovedNetAdjustment, ct);
+            if (!autoCharge && !await _reservationFinancePolicy.HasValidPostedSettlementJournalAsync(
+                    tenant, row.SettlementJournalId.Value, ct))
                 return (null, "Finance journal missing, reversed, or no longer independently approved.");
         }
         var exposure = await _reservationFinancePolicy.GetExposureHashAsync(tenant,
             source.StudentId, source.StudentEnrollmentId, ct);
         if (exposure == null || exposure != row.FinanceSnapshotHash)
             return (null, "Finance invoice/payment exposure changed after approval.");
+        if (autoCharge && !await _reservationFinancePolicy.FinalizeAutomaticChargeAsync(tenant,
+                "TRANSPORT", row.Id, row.SettlementJournalId!.Value, campusId,
+                source.StudentId, source.StudentEnrollmentId, row.ApprovedNetAdjustment,
+                _currentUser.UserId, _clock.GetUtcNow().UtcDateTime, ct))
+            return (null, "Reviewed automatic invoice could not be posted with the operation.");
         row.State = TransportClearanceState.Consumed;
         row.ConsumedByUserId = _currentUser.UserId;
         row.ConsumedAtUtc = _clock.GetUtcNow().UtcDateTime;
