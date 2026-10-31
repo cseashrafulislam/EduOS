@@ -55,6 +55,8 @@ Complete Inventory/Procurement/Store; Asset and Facility lifecycle; Visitor/Camp
 
 **Inventory & Store Physical Stock Count V3 delivery (2026-10-31):** tenant/campus-scoped immutable book snapshots, blind and zero-quantity counts, maker submission/independent checker review, Automatic/Manual Final/Auto + Manual variance policies, atomic canonical receipt/issue posting, retry protection, linked audit/CSV reports and additive SQL migration are implemented on `Ashraful`. See [Physical Stock Count acceptance contract](operations/inventory-physical-stock-count.md). This is **code delivered pending exact-commit CI/SQL smoke and institutional UAT**, not a declaration that every V3 module or the production rollout is complete.
 
+**Procurement → Inventory Goods Receipt V3 delivery (2026-10-31):** approved supplier PO, tenant/campus-scoped partial deliveries, immutable receipt/line evidence, maker submit and separate checker accept/reject, serialized cumulative PO quantity cap, replay/concurrency safety, Automatic/Manual Final/Auto + Manual unit-cost policy, atomically posted canonical Inventory receipt, linked CSV reporting and additive SQL migration are implemented as a discrete V3 integration slice. See [Goods Receipt acceptance and accounting boundary](operations/v3-procurement-goods-receipts.md). **Supplier invoices, PO/receipt/invoice three-way matching and Finance payable creation are not part of this slice** and remain pending. Exact-commit CI/SQL acceptance and institutional UAT are separate gates; the whole V3 is not complete.
+
 ## Shared acceptance gate for every version/module
 
 1. End-to-end workflows are real: persistence, invariant, role-scope, status transitions, rollback, corrections and reports; no stub UI/API or dead actions.

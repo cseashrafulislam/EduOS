@@ -30,6 +30,7 @@ public sealed class ProcurementPurchaseOrderDecisionRequest
 
 public sealed class ProcurementPurchaseOrderLineDto
 {
+    public long Id { get; set; }
     public int LineNo { get; set; }
     public long RequisitionLineId { get; set; }
     public long InventoryItemId { get; set; }

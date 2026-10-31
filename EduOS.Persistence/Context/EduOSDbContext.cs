@@ -440,6 +440,8 @@ public class EduOSDbContext :
     public DbSet<InventoryMovementLine> InventoryMovementLines => Set<InventoryMovementLine>();
     public DbSet<InventoryPhysicalCount> InventoryPhysicalCounts => Set<InventoryPhysicalCount>();
     public DbSet<InventoryPhysicalCountLine> InventoryPhysicalCountLines => Set<InventoryPhysicalCountLine>();
+    public DbSet<ProcurementGoodsReceipt> ProcurementGoodsReceipts => Set<ProcurementGoodsReceipt>();
+    public DbSet<ProcurementGoodsReceiptLine> ProcurementGoodsReceiptLines => Set<ProcurementGoodsReceiptLine>();
     public DbSet<ProcurementRequisition> ProcurementRequisitions => Set<ProcurementRequisition>();
     public DbSet<ProcurementRequisitionLine> ProcurementRequisitionLines => Set<ProcurementRequisitionLine>();
     public DbSet<ProcurementSupplier> ProcurementSuppliers => Set<ProcurementSupplier>();
@@ -1222,6 +1224,13 @@ public class EduOSDbContext :
         TenantReference<ProcurementPurchaseOrderLine, ProcurementPurchaseOrder>(modelBuilder, nameof(ProcurementPurchaseOrderLine.PurchaseOrderId));
         TenantReference<ProcurementPurchaseOrderLine, ProcurementRequisitionLine>(modelBuilder, nameof(ProcurementPurchaseOrderLine.RequisitionLineId));
         TenantReference<ProcurementPurchaseOrderLine, InventoryItem>(modelBuilder, nameof(ProcurementPurchaseOrderLine.InventoryItemId));
+        TenantReference<ProcurementGoodsReceipt, ProcurementPurchaseOrder>(modelBuilder, nameof(ProcurementGoodsReceipt.PurchaseOrderId));
+        TenantReference<ProcurementGoodsReceipt, Campus>(modelBuilder, nameof(ProcurementGoodsReceipt.CampusId));
+        TenantReference<ProcurementGoodsReceipt, InventoryLocation>(modelBuilder, nameof(ProcurementGoodsReceipt.LocationId));
+        TenantReference<ProcurementGoodsReceipt, InventoryMovement>(modelBuilder, nameof(ProcurementGoodsReceipt.PostedMovementId));
+        TenantReference<ProcurementGoodsReceiptLine, ProcurementGoodsReceipt>(modelBuilder, nameof(ProcurementGoodsReceiptLine.GoodsReceiptId));
+        TenantReference<ProcurementGoodsReceiptLine, ProcurementPurchaseOrderLine>(modelBuilder, nameof(ProcurementGoodsReceiptLine.PurchaseOrderLineId));
+        TenantReference<ProcurementGoodsReceiptLine, InventoryItem>(modelBuilder, nameof(ProcurementGoodsReceiptLine.InventoryItemId));
         TenantReference<ProcurementSupplierAcknowledgement, Campus>(modelBuilder, nameof(ProcurementSupplierAcknowledgement.CampusId));
         TenantReference<ProcurementSupplierAcknowledgement, ProcurementPurchaseOrder>(modelBuilder, nameof(ProcurementSupplierAcknowledgement.PurchaseOrderId));
         TenantReference<ProcurementSupplierAcknowledgement, ProcurementSupplier>(modelBuilder, nameof(ProcurementSupplierAcknowledgement.SupplierId));
@@ -1914,6 +1923,9 @@ public class EduOSDbContext :
         UniqueTenant<InventoryMovement>(modelBuilder, nameof(InventoryMovement.MovementNumber));
         UniqueTenant<InventoryMovement>(modelBuilder, nameof(InventoryMovement.ClientRequestId));
         modelBuilder.Entity<InventoryMovement>().HasIndex(x => new { x.TenantId, x.SourceType, x.SourceId });
+        modelBuilder.Entity<InventoryMovement>().HasIndex(x => new { x.TenantId, x.SourceId })
+            .HasDatabaseName("UX_InventoryMovements_ProcurementGoodsReceipt")
+            .IsUnique().HasFilter("[SourceType] = N'ProcurementGoodsReceipt' AND [SourceId] IS NOT NULL");
         modelBuilder.Entity<InventoryMovement>().HasIndex(x => new { x.TenantId, x.StateCode, x.ReservationExpiresAtUtc });
         modelBuilder.Entity<InventoryMovement>().ToTable(t =>
         {
@@ -1957,6 +1969,23 @@ public class EduOSDbContext :
         modelBuilder.Entity<ProcurementPurchaseOrder>().HasIndex(x => new { x.TenantId, x.SupplierId });
         UniqueTenant<ProcurementPurchaseOrderLine>(modelBuilder, nameof(ProcurementPurchaseOrderLine.PurchaseOrderId), nameof(ProcurementPurchaseOrderLine.LineNo));
         UniqueTenant<ProcurementPurchaseOrderLine>(modelBuilder, nameof(ProcurementPurchaseOrderLine.RequisitionLineId));
+        modelBuilder.Entity<ProcurementGoodsReceipt>().HasIndex(x => x.PublicId).IsUnique();
+        UniqueTenant<ProcurementGoodsReceipt>(modelBuilder, nameof(ProcurementGoodsReceipt.ClientRequestId));
+        UniqueTenant<ProcurementGoodsReceipt>(modelBuilder, [nameof(ProcurementGoodsReceipt.PostedMovementId)], "[PostedMovementId] IS NOT NULL");
+        modelBuilder.Entity<ProcurementGoodsReceipt>().HasIndex(x => new { x.TenantId, x.PurchaseOrderId, x.StateCode, x.CreatedAt });
+        UniqueTenant<ProcurementGoodsReceiptLine>(modelBuilder, nameof(ProcurementGoodsReceiptLine.GoodsReceiptId), nameof(ProcurementGoodsReceiptLine.LineNo));
+        UniqueTenant<ProcurementGoodsReceiptLine>(modelBuilder, nameof(ProcurementGoodsReceiptLine.GoodsReceiptId), nameof(ProcurementGoodsReceiptLine.PurchaseOrderLineId), nameof(ProcurementGoodsReceiptLine.LotOrBatchNo));
+        modelBuilder.Entity<ProcurementGoodsReceipt>().ToTable(t =>
+        {
+            t.HasTrigger("TR_ProcurementGoodsReceipt_SnapshotImmutable");
+            t.HasCheckConstraint("CK_ProcurementGoodsReceipt_State", "[StateCode] IN (N'Draft',N'Submitted',N'Posted',N'Rejected')");
+            t.HasCheckConstraint("CK_ProcurementGoodsReceipt_Review", "([StateCode] IN (N'Draft',N'Submitted') AND [ReviewedAtUtc] IS NULL AND [ReviewedByUserId] IS NULL) OR ([StateCode] IN (N'Posted',N'Rejected') AND [ReviewedAtUtc] IS NOT NULL AND [ReviewedByUserId] IS NOT NULL)");
+        });
+        modelBuilder.Entity<ProcurementGoodsReceiptLine>().ToTable(t =>
+        {
+            t.HasTrigger("TR_ProcurementGoodsReceiptLine_SnapshotImmutable");
+            t.HasCheckConstraint("CK_ProcurementGoodsReceiptLine_QuantityPrice", "[LineNo] > 0 AND [Quantity] > 0 AND [ApprovedPoQuantity] > 0 AND [ApprovedPoUnitPrice] >= 0 AND ([PostedUnitCost] IS NULL OR [PostedUnitCost] > 0)");
+        });
         modelBuilder.Entity<ProcurementPurchaseOrderLine>().HasIndex(x => new { x.TenantId, x.InventoryItemId });
         modelBuilder.Entity<ProcurementSupplierAcknowledgement>().HasAlternateKey(x => new { x.TenantId, x.Id });
         UniqueTenant<ProcurementSupplierAcknowledgement>(modelBuilder, nameof(ProcurementSupplierAcknowledgement.ClientRequestId));
@@ -2932,6 +2961,8 @@ public class EduOSDbContext :
             or InventoryMovementLine
             or InventoryPhysicalCount
             or InventoryPhysicalCountLine
+            or ProcurementGoodsReceipt
+            or ProcurementGoodsReceiptLine
             or StudentAttendanceAdjustment
             or EmployeeAttendanceAdjustment
             or StudentResultSummary;

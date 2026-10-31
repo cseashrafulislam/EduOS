@@ -14,7 +14,7 @@ using Xunit;
 namespace EduOS.Tests.App;
 
 [Collection("SqlServerIntegration")]
-public sealed class SqlServerV3ProcurementPurchaseOrderTests
+public sealed partial class SqlServerV3ProcurementPurchaseOrderTests
 {
     private sealed class Actor(long tenant, long id) : ICurrentUserService
     {

@@ -54,7 +54,7 @@ public sealed partial class ProcurementPurchaseOrderService : IProcurementPurcha
     {
         var mapped = lines.OrderBy(x => x.LineNo).Select(x => new ProcurementPurchaseOrderLineDto
         {
-            LineNo = x.LineNo, RequisitionLineId = x.RequisitionLineId,
+            Id = x.Id, LineNo = x.LineNo, RequisitionLineId = x.RequisitionLineId,
             InventoryItemId = x.InventoryItemId, Quantity = x.Quantity, UnitPrice = x.UnitPrice
         }).ToList();
         return new ProcurementPurchaseOrderDto
@@ -238,6 +238,14 @@ public sealed partial class ProcurementPurchaseOrderService : IProcurementPurcha
                 (request.Reason == null || request.Reason.Trim().Length is < 10 or > 500))
                 return ApiResponse<ProcurementPurchaseOrderDto>.ErrorResponse(
                     "Cancellation decision requires a 10–500 character reason.");
+            // A signed delivery is a real stock fact. Cancelling its PO must not
+            // orphan an accepted receipt or an in-flight checker approval.
+            if ((action is "request-cancel" or "confirm-cancel") &&
+                await db.ProcurementGoodsReceipts.AsNoTracking().AnyAsync(x =>
+                    x.TenantId == user.TenantId && x.PurchaseOrderId == order.Id && !x.IsDeleted &&
+                    (x.StateCode == "Submitted" || x.StateCode == "Posted"), ct))
+                return ApiResponse<ProcurementPurchaseOrderDto>.ErrorResponse(
+                    "Purchase order has pending or posted goods receipts; resolve deliveries before cancellation.", 409);
             // Never approve a stale or tampered supplier commitment: recheck every source line,
             // active stock item, approved requisition budget and campus supplier under the lock.
             if (action is "submit" or "approve" && !await CommitmentValidAsync(order, ct))

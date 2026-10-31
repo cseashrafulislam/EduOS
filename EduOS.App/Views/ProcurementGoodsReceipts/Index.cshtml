@@ -1,0 +1,94 @@
+@{
+    ViewData["Title"] = "Procurement Goods Receipts";
+    var maker = User.IsInRole("TenantAdmin") || User.IsInRole("Principal") ||
+        User.IsInRole("InventoryManager") || User.IsInRole("StoreKeeper");
+    var checker = User.IsInRole("TenantAdmin") || User.IsInRole("Principal") || User.IsInRole("InventoryManager");
+}
+<section id="goodsWorkspace" class="container-fluid py-3"
+         data-maker="@maker.ToString().ToLowerInvariant()" data-checker="@checker.ToString().ToLowerInvariant()"
+         data-user-id="@(User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value)">
+    <header class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+        <div>
+            <h1 class="h4 mb-1" data-en="Goods receipts" data-bn="পণ্য গ্রহণ">Goods receipts</h1>
+            <p class="text-muted small mb-0" data-en="Partial supplier deliveries · independent stock acceptance · source-linked inventory ledger" data-bn="আংশিক পণ্য সরবরাহ · স্বতন্ত্র অনুমোদন · ইনভেন্টরি লেজার">Partial supplier deliveries · independent stock acceptance · source-linked inventory ledger</p>
+        </div>
+        <div class="d-flex flex-wrap gap-2">
+            <a asp-controller="ProcurementPurchaseOrders" asp-action="Index" class="btn btn-outline-secondary btn-sm">Purchase orders / ক্রয়াদেশ</a>
+            <button type="button" id="grExport" class="btn btn-outline-secondary btn-sm">CSV</button>
+            @if (maker) { <button type="button" id="grNew" class="btn btn-primary btn-sm">New delivery / নতুন সরবরাহ</button> }
+        </div>
+    </header>
+    <div class="alert alert-info py-2 small">Stock increases only after an independent checker approves. Automatic uses the approved PO price; Manual Final replaces it; Auto + Manual Correction adjusts it. No supplier invoice or Finance payable is created here.</div>
+    <div id="grAlert" role="status" aria-live="polite" class="d-none"></div>
+    <form id="grFilters" class="row g-2 align-items-end mb-3">
+        <div class="col-7 col-md-4"><label class="form-label" for="grState">Status / অবস্থা</label>
+            <select id="grState" class="form-select"><option value="">All / সব</option><option>Draft</option><option>Submitted</option><option>Posted</option><option>Rejected</option></select></div>
+        <div class="col-5 col-md-3"><button class="btn btn-outline-primary w-100" type="submit">Filter / ফিল্টার</button></div>
+    </form>
+    <div class="table-responsive"><table class="table table-striped table-hover align-middle">
+        <thead><tr><th>PO / ক্রয়াদেশ</th><th>Reference</th><th>Store</th><th>Status</th><th>Submitted UTC</th><th>Actions</th></tr></thead>
+        <tbody id="grRows"></tbody>
+    </table></div>
+    <nav class="d-flex align-items-center gap-2" aria-label="Goods receipt pages">
+        <button id="grPrev" type="button" class="btn btn-outline-secondary btn-sm">Previous</button>
+        <span id="grPage" aria-live="polite"></span>
+        <button id="grNext" type="button" class="btn btn-outline-secondary btn-sm">Next</button>
+    </nav>
+
+    <dialog id="grCreateDialog" aria-labelledby="grCreateTitle" class="border rounded shadow p-0" style="width:min(96vw,890px);max-height:90vh">
+        <form id="grCreateForm" class="p-3">
+            <div class="d-flex justify-content-between align-items-center mb-3"><h2 id="grCreateTitle" class="h5 mb-0">New delivery / নতুন সরবরাহ</h2>
+                <button type="button" id="grCreateClose" class="btn-close" aria-label="Close"></button></div>
+            <label for="grPoSearch" class="form-label">Approved purchase order / অনুমোদিত ক্রয়াদেশ</label>
+            <div class="input-group mb-2"><input id="grPoSearch" maxlength="100" class="form-control" placeholder="Order number" />
+                <button type="button" id="grFindPo" class="btn btn-outline-primary">Find / খুঁজুন</button></div>
+            <div id="grPoResults" class="list-group mb-2" aria-live="polite"></div>
+            <p id="grPoSelected" class="small fw-semibold"></p>
+            <label for="grLocation" class="form-label">Campus store / ক্যাম্পাস স্টোর</label>
+            <select id="grLocation" class="form-select mb-3" required><option value="">Select approved order first</option></select>
+            <div class="table-responsive"><table class="table table-sm">
+                <thead><tr><th>Item</th><th>Approved Qty</th><th>PO Unit Price</th><th>Delivered Qty / পরিমাণ</th><th>Lot / ব্যাচ</th></tr></thead>
+                <tbody id="grCreateLines"></tbody>
+            </table></div>
+            <label for="grReason" class="form-label">Delivery evidence / গ্রহণের বিবরণ (10–800 characters)</label>
+            <textarea id="grReason" required minlength="10" maxlength="800" rows="2" class="form-control"></textarea>
+            <div class="d-flex justify-content-end gap-2 mt-3"><button type="button" id="grCreateCancel" class="btn btn-outline-secondary">Close</button>
+                <button type="submit" id="grCreateSave" class="btn btn-primary">Save draft / খসড়া</button></div>
+        </form>
+    </dialog>
+
+    <dialog id="grDetailDialog" aria-labelledby="grDetailTitle" class="border rounded shadow p-0" style="width:min(96vw,920px);max-height:90vh">
+        <div class="p-3"><div class="d-flex justify-content-between align-items-center mb-2">
+            <h2 id="grDetailTitle" class="h5 mb-0">Receipt details / বিবরণ</h2>
+            <button type="button" id="grDetailClose" class="btn-close" aria-label="Close"></button></div>
+            <div id="grDetailSummary" class="mb-3 small"></div>
+            <div class="table-responsive"><table class="table table-sm">
+                <thead><tr><th>Item</th><th>Lot</th><th>Received</th><th>PO Qty</th><th>PO Price</th><th>Posted Cost</th></tr></thead>
+                <tbody id="grDetailLines"></tbody>
+            </table></div>
+            <div id="grDetailActions" class="d-flex justify-content-end gap-2 flex-wrap"></div>
+        </div>
+    </dialog>
+
+    <dialog id="grReviewDialog" aria-labelledby="grReviewTitle" class="border rounded shadow p-0" style="width:min(96vw,850px);max-height:90vh">
+        <form id="grReviewForm" class="p-3">
+            <div class="d-flex justify-content-between align-items-center mb-2"><h2 id="grReviewTitle" class="h5 mb-0">Checker review / অনুমোদন</h2>
+                <button id="grReviewClose" type="button" class="btn-close" aria-label="Close"></button></div>
+            <label for="grDecision" class="form-label">Decision / সিদ্ধান্ত</label>
+            <select id="grDecision" class="form-select mb-2"><option value="Approve">Approve &amp; post stock</option><option value="Reject">Reject without stock posting</option></select>
+            <label for="grMode" class="form-label">Costing policy / মূল্য নির্ধারণ</label>
+            <select id="grMode" class="form-select mb-2"><option value="Automatic">Automatic — approved PO price</option>
+                <option value="ManualFinal">Manual Final — checker enters each final unit cost</option>
+                <option value="AutoPlusManual">Auto + Manual Correction — signed unit price delta</option></select>
+            <div class="table-responsive" id="grValuationPanel"><table class="table table-sm">
+                <thead><tr><th>Item / line</th><th>PO price</th><th id="grCostTitle">Unit cost / delta</th><th>Override reason (10–800)</th></tr></thead>
+                <tbody id="grValuationLines"></tbody>
+            </table></div>
+            <label for="grReviewReason" class="form-label">Checker evidence / সিদ্ধান্তের কারণ (10–800 characters)</label>
+            <textarea id="grReviewReason" required minlength="10" maxlength="800" rows="2" class="form-control"></textarea>
+            <div class="d-flex justify-content-end gap-2 mt-3"><button type="button" id="grReviewCancel" class="btn btn-outline-secondary">Close</button>
+                <button type="submit" id="grReviewSave" class="btn btn-primary">Confirm decision / নিশ্চিত</button></div>
+        </form>
+    </dialog>
+</section>
+@section Scripts { <script src="~/js/procurement/goods-receipts.js" asp-append-version="true"></script> }
