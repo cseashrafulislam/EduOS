@@ -58,6 +58,10 @@ public sealed class AlumniEventsContractTests
         Assert.Contains("CryptographicOperations.FixedTimeEquals", source);
         Assert.Contains("AlumniEventCommands", source);
         Assert.Contains("replay == null || replay.MyResponse != request.Response", source);
+        Assert.Contains("EligibleEventRsvpFrom", source);
+        Assert.Contains("p.CampusId = e.CampusId", source);
+        Assert.Contains("x.FeesCleared = 1", source);
+        Assert.Contains("r.CheckedInAtUtc IS NOT NULL", source);
         Assert.Contains("AlumniEventAudits", source);
         Assert.DoesNotContain("IgnoreQueryFilters", source);
     }
