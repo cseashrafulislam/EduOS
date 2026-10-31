@@ -18,18 +18,32 @@ public sealed partial class AlumniService
             WHERE ca.TenantId = {0} AND ca.UserId = {1}
               AND ca.CampusId = e.CampusId AND ca.IsActive = 1 AND ca.IsDeleted = 0))";
 
+    // Every engagement count uses the same current consent and verified V1 completion
+    // requirements as the attendance roster. Historical RSVPs must not expose revoked
+    // or subsequently invalidated graduates in campus-level reporting.
+    private const string EligibleEventRsvpFrom = @"
+        FROM dbo.AlumniEventRsvps r
+        JOIN dbo.AlumniProfiles p ON p.TenantId = r.TenantId
+            AND p.Id = r.AlumniProfileId AND p.CampusId = e.CampusId
+            AND p.DirectoryOptIn = 1
+        JOIN dbo.Students s ON s.TenantId = p.TenantId AND s.Id = p.StudentId
+            AND s.IsDeleted = 0
+        JOIN dbo.StudentExitRecords x ON x.TenantId = p.TenantId
+            AND x.Id = p.StudentExitRecordId AND x.StudentId = s.Id
+            AND x.ExitType = 2 AND x.FeesCleared = 1 AND x.IsDeleted = 0
+        JOIN dbo.StudentEnrollments en ON en.TenantId = p.TenantId
+            AND en.Id = x.StudentEnrollmentId AND en.StudentId = s.Id
+            AND en.State = 2 AND en.CampusId = p.CampusId AND en.IsDeleted = 0
+        WHERE r.TenantId = e.TenantId AND r.EventId = e.Id";
+
     private const string EventColumns = @"
         SELECT e.PublicId AS Reference, e.CampusId, e.Title, e.Description,
             e.StartsAtUtc, e.EndsAtUtc, CAST(e.Status AS int) AS Status,
             e.RowVersion, e.CreatedByUserId,
-            (SELECT COUNT(*) FROM dbo.AlumniEventRsvps r
-                WHERE r.TenantId = e.TenantId AND r.EventId = e.Id AND r.Response = 1) AS GoingCount,
-            (SELECT COUNT(*) FROM dbo.AlumniEventRsvps r
-                WHERE r.TenantId = e.TenantId AND r.EventId = e.Id AND r.Response = 2) AS DeclinedCount,
-            (SELECT COUNT(*) FROM dbo.AlumniEventRsvps r
-                JOIN dbo.AlumniProfiles p ON p.TenantId = r.TenantId AND p.Id = r.AlumniProfileId
-                WHERE r.TenantId = e.TenantId AND r.EventId = e.Id AND r.Response = 1
-                    AND p.DirectoryOptIn = 1 AND r.CheckedInAtUtc IS NOT NULL) AS CheckedInCount,";
+            (SELECT COUNT(*) " + EligibleEventRsvpFrom + @" AND r.Response = 1) AS GoingCount,
+            (SELECT COUNT(*) " + EligibleEventRsvpFrom + @" AND r.Response = 2) AS DeclinedCount,
+            (SELECT COUNT(*) " + EligibleEventRsvpFrom + @"
+                AND r.Response = 1 AND r.CheckedInAtUtc IS NOT NULL) AS CheckedInCount,";
 
     private const string GraduateEventFrom = @"
         FROM dbo.AlumniEvents e
