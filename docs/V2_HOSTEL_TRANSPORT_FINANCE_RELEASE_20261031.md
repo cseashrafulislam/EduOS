@@ -33,11 +33,11 @@ Both `Up` methods are additive. There is no rewriting of historical invoice, acc
 
 ## Final QA and rollout decision
 
-**2026-10-31 Transport hardening follow-up:** See [the Transport final QA handoff](V2_TRANSPORT_FINAL_QA_HANDOFF_20261031.md) for SQL concurrency response corrections, three new disposable-SQL Finance/maker-checker/single-consumption acceptance cases, the independent GitHub Actions gate and the remaining institution-owned go-live approvals. The evidence below belongs to the **earlier merged release**, not to any later final-QA commit.
+**2026-10-31 verified follow-up:** See [the Transport final QA handoff](V2_TRANSPORT_FINAL_QA_HANDOFF_20261031.md) and the [authoritative V2 development/QA checkpoint](V2_VERIFIED_ENGINEERING_QA_STATUS_20261031.md). The later `0f49e207` Transport-hardening commit passed the independent GitHub CI and disposable SQL Server finance/maker-checker/lineage gates; its descendant `23842bb7` also passed both exact-commit workflows. The evidence below belongs to the **earlier merged release** and remains a historical checkpoint, not the complete final QA matrix.
 
 **Local merged-release evidence (2026-10-31, before GitHub CI):** Release solution build passed with 0 compilation errors (121 existing/remaining warnings); `.NET` xUnit **3,015 passed / 0 failed / 0 skipped**; Node.js contract suite **305 passed / 0 failed**; `dotnet-ef migrations has-pending-model-changes` reported no changes; `git diff --check` passed. Verification included the current fetched `Ashraful` V3 code, preserving the other automation-owned changes. These are local automated checks, not GitHub CI or production certification.
 
-These are separate gates, not items to mark green without evidence:
+These are separate **operational/acceptance gates** and broader scenarios, not items to mark green solely because the fresh disposable CI SQL tests passed:
 
 - Compile whole solution and execute the .NET xUnit and Node.js contract suites; run EF `has-pending-model-changes` and inspect generated migrations for destructive operations.
 - On a real restored SQL Server copy, run all concurrency/race and financial posting/reversal integration tests, confirm that a second worker cannot consume the same clearance, and reconcile journals/invoices to the historical snapshots.
@@ -45,3 +45,5 @@ These are separate gates, not items to mark green without evidence:
 - Complete Hostel and Transport staff/warden/guardian/mobile browser UAT, Finance maker/checker reconciliation, cash/refund bank handling (if applicable), backup/restore, rollback and deployment sign-off.
 
 **Approval boundary:** code/build/unit/contract tests establish an engineering baseline only. Until restored-SQL rehearsal, real journal reconciliation and operational UAT sign-offs are collected, neither module nor the overall V2 release is certified as 100% production-ready. Do not reopen LMS/Library or V1 work solely to repeat closed development.
+
+**Full-development boundary:** successful Finance-approved checkout/occupied transfer/closure does not yet cover charged Hostel pre-arrival reschedule or charged Transport upcoming-rider extension. Both operations are explicitly blocked pending a Finance billing/adjustment contract. Keep them in the V2 residual engineering scope; do not represent the entire module as 100% functionally complete, and do not create another Finance ledger.

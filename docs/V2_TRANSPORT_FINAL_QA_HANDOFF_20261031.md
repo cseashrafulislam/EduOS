@@ -18,7 +18,7 @@ Existing code is authoritative: do not create a second Transport subsystem, dupl
 3. Three disposable-SQL acceptance cases now exercise: request idempotency and replay mismatch; denial of self-approval and tenant IDOR; independently approved and consumed vehicle transfer with immutable predecessor/successor and no fabricated journal; competing transfer requests against the same Finance clearance; and charged-closure rejection of an unposted journal with separately attested zero-adjustment completion.
 4. A separate `SQL Server Migration Smoke` CI step runs those cases on the **same new commit** after applying the full EF migration chain, with `sql-v2-transport-finance-acceptance.trx` evidence. Routine full-solution .NET, JavaScript and existing SQL smoke gates remain enabled.
 
-## Engineering gate — collect evidence on the final commit
+## Engineering gate — verified evidence and remaining coverage
 
 | Gate | Required result | Evidence/owner |
 | --- | --- | --- |
@@ -28,7 +28,7 @@ Existing code is authoritative: do not create a second Transport subsystem, dupl
 | Disposable SQL migrations + new Transport Finance race tests | all green, including unique lineage and tenant rejection | `.github/workflows/sqlserver-migration.yml`, `sql-v2-transport-finance-acceptance.trx` |
 | Existing Transport/Hostel, LMS/Library and V1 Finance regression | all green | same-commit CI + existing SQL tests |
 
-**These checks must not be marked passed merely because they are defined.** A GitHub push or locally green .NET/JavaScript suite does not constitute a SQL Server or production UAT pass.
+**2026-10-31 verification:** exact Transport release commit `0f49e207b486ce60ff1a950b37ea56beb0646451` has **successful** [CI 41166857406](https://github.com/cseashrafulislam/EduOS/actions/runs/41166857406) and [SQL Server Migration Smoke 41166857374](https://github.com/cseashrafulislam/EduOS/actions/runs/41166857374). The inspected later `Ashraful` code commit `23842bb7050babcdb5acf9029d70ed89a0fd5985` also has **successful** [CI 41167936868](https://github.com/cseashrafulislam/EduOS/actions/runs/41167936868) and [SQL Server Migration Smoke 41167936834](https://github.com/cseashrafulislam/EduOS/actions/runs/41167936834). Local Release build (0 errors), V2-targeted .NET tests (818/818) and JavaScript contracts (313/313) passed on the inspected code. These results establish the **defined automated gate baseline**, not universal scenario coverage or real-institute UAT. See the [authoritative V2 status checkpoint](V2_VERIFIED_ENGINEERING_QA_STATUS_20261031.md).
 
 ## Release acceptance still required from an institution
 
@@ -38,4 +38,4 @@ Existing code is authoritative: do not create a second Transport subsystem, dupl
 - Run representative peak-volume traffic, seat-capacity race, SQL waits/IO, report pagination and p95/p99 checks; security review, backup/restore, monitoring and a rollback/incident rehearsal.
 - Record named institutional approvers, dates and an explicit go/no-go before calling **V2 100% production accepted**.
 
-**Release label:** `V2 Transport — implementation consolidated, final code gate pending exact-commit CI; production acceptance open`. Once the three SQL cases and complete same-commit CI pass, update the engineering-gate evidence without reopening frozen LMS/Library.
+**Release label:** `V2 Transport — implemented automated CI/SQL gates PASS; full development NOT yet verified because charged upcoming extension/period adjustment is blocked; comprehensive QA and production acceptance OPEN`. Keep the successful SQL finance-clearance cases as release evidence; they do not implement the separate, still-unresolved charge-bearing extension Finance contract.
