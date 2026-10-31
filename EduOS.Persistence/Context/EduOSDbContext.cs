@@ -2079,7 +2079,7 @@ public class EduOSDbContext :
         modelBuilder.Entity<ProcurementPurchaseOrder>().ToTable(t =>
         {
             t.HasCheckConstraint("CK_ProcurementPurchaseOrder_State",
-                "[StateCode] IN (N'Draft',N'Submitted',N'Approved',N'Rejected',N'Cancelled')");
+                "[StateCode] IN (N'Draft',N'Submitted',N'Approved',N'CancelRequested',N'Rejected',N'Cancelled')");
             t.HasCheckConstraint("CK_ProcurementPurchaseOrder_Currency", "[CurrencyCode] = N'BDT'");
         });
         modelBuilder.Entity<ProcurementPurchaseOrderLine>().ToTable(t =>

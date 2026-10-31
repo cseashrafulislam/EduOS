@@ -12418,7 +12418,7 @@ namespace EduOS.Persistence.Migrations
                         {
                             t.HasCheckConstraint("CK_ProcurementPurchaseOrder_Currency", "[CurrencyCode] = N'BDT'");
 
-                            t.HasCheckConstraint("CK_ProcurementPurchaseOrder_State", "[StateCode] IN (N'Draft',N'Submitted',N'Approved',N'Rejected',N'Cancelled')");
+                            t.HasCheckConstraint("CK_ProcurementPurchaseOrder_State", "[StateCode] IN (N'Draft',N'Submitted',N'Approved',N'CancelRequested',N'Rejected',N'Cancelled')");
                         });
                 });
 
