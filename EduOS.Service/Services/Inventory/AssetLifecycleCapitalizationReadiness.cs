@@ -86,7 +86,7 @@ public sealed partial class AssetLifecycleService
                     receipt.SubmittedAtUtc <= receipt.ReviewedAtUtc &&
                     receipt.ReviewedByUserId != receipt.CreatedBy &&
                     receipt.ReviewedByUserId != receipt.SubmittedByUserId &&
-                    receipt.ReviewReason != null && receipt.ReviewReason.Length >= 10 &&
+                    receipt.ReviewReason != null && receipt.ReviewReason!.Length >= 10 &&
                     (receipt.ValuationMode == "Automatic" ||
                      receipt.ValuationMode == "ManualFinal" ||
                      receipt.ValuationMode == "AutoPlusManual") &&
