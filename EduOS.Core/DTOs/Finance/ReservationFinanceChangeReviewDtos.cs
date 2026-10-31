@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace EduOS.Core.DTOs.Finance;
 
 /// <summary>Read-only review of a proposed date/term amendment. Never a financial approval.</summary>
@@ -8,6 +10,11 @@ public sealed class ReservationFinanceChangeReviewRequestDto
     public string Change { get; set; } = string.Empty;
     public DateOnly? ProposedStartDate { get; set; }
     public DateOnly? ProposedEndDate { get; set; }
+    /// <summary>Optional signed Finance quote; positive is a charge, negative is a possible credit.</summary>
+    [JsonNumberHandling(JsonNumberHandling.AllowReadingFromString)]
+    public decimal? ManualNetAdjustment { get; set; }
+    /// <summary>Required for a manual override; the preview itself never approves or posts money.</summary>
+    public string? ManualOverrideReason { get; set; }
 }
 
 public sealed class ReservationFinanceChangeReviewDto
@@ -28,6 +35,11 @@ public sealed class ReservationFinanceChangeReviewDto
     public decimal? ProposedPeriodEstimate { get; set; }
     /// <summary>Positive means extra charge, negative means possible credit, not a payable/refund.</summary>
     public decimal? SuggestedNetAdjustment { get; set; }
+    /// <summary>Chosen estimate for Finance review only; no monetary mutation is authorized.</summary>
+    public decimal? SelectedNetAdjustment { get; set; }
+    public bool ManualOverrideAllowed { get; set; }
+    public bool ManualOverrideApplied { get; set; }
+    public string AdjustmentSelectionMode { get; set; } = string.Empty;
     public bool QuoteNeedsManualReview { get; set; }
     public string QuoteBasis { get; set; } = string.Empty;
     public bool HasPostedInvoiceActivity { get; set; }

@@ -57,17 +57,33 @@ public sealed partial class FinanceAdjustmentService
         if (current.Kind == "Hostel" && end.HasValue && end.Value.DayNumber - start.DayNumber > 89)
             return Error<ReservationFinanceChangeReviewDto>("Hostel fixed-term occupancy cannot exceed 90 inclusive days.");
 
-        var mode = current.Kind == "Hostel"
-            ? (int)(await db.HostelBillingPolicies.AsNoTracking().Where(x =>
-                x.TenantId == user.TenantId && x.CampusId == current.CampusId && !x.IsDeleted)
-                .Select(x => (HostelBillingCalculationMode?)x.CalculationMode)
-                .FirstOrDefaultAsync(ct) ?? HostelBillingCalculationMode.DailyProrated)
-            : (int)(await db.TransportBillingPolicies.AsNoTracking().Where(x =>
-                x.TenantId == user.TenantId && x.CampusId == current.CampusId && !x.IsDeleted)
-                .Select(x => (TransportBillingCalculationMode?)x.CalculationMode)
-                .FirstOrDefaultAsync(ct) ?? TransportBillingCalculationMode.DailyProrated);
+        var hostelPolicy = current.Kind == "Hostel" ? await db.HostelBillingPolicies.AsNoTracking()
+            .Where(x => x.TenantId == user.TenantId && x.CampusId == current.CampusId && !x.IsDeleted)
+            .Select(x => new { Mode = (int)x.CalculationMode, x.AllowManualOverride })
+            .FirstOrDefaultAsync(ct) : null;
+        var transportPolicy = current.Kind == "Transport" ? await db.TransportBillingPolicies.AsNoTracking()
+            .Where(x => x.TenantId == user.TenantId && x.CampusId == current.CampusId && !x.IsDeleted)
+            .Select(x => new { Mode = (int)x.CalculationMode, x.AllowManualOverride })
+            .FirstOrDefaultAsync(ct) : null;
+        var mode = hostelPolicy?.Mode ?? transportPolicy?.Mode ?? 1;
+        var manualAllowed = mode == 3 || (hostelPolicy?.AllowManualOverride ??
+            transportPolicy?.AllowManualOverride ?? true);
         var quote = ReservationTermQuoteCalculator.Calculate(current.StartDate, current.EndDate,
             start, end, current.MonthlyCharge, mode);
+        ReservationQuoteSelection.Result selection;
+        try
+        {
+            selection = ReservationQuoteSelection.Select(quote.NetAdjustment, mode == 3,
+                manualAllowed, request.ManualNetAdjustment, request.ManualOverrideReason);
+        }
+        catch (ArgumentException ex)
+        {
+            return Error<ReservationFinanceChangeReviewDto>(ex.Message);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return Error<ReservationFinanceChangeReviewDto>(ex.Message, 409);
+        }
 
         var posted = current.HasPostedInvoiceActivity || current.HasPostedPaymentActivity;
         var issued = current.HasUnpostedIssuedInvoice;
@@ -100,6 +116,10 @@ public sealed partial class FinanceAdjustmentService
                 OriginalPeriodEstimate = quote.OriginalAmount,
                 ProposedPeriodEstimate = quote.ProposedAmount,
                 SuggestedNetAdjustment = quote.NetAdjustment,
+                SelectedNetAdjustment = selection.SelectedAmount,
+                ManualOverrideAllowed = manualAllowed,
+                ManualOverrideApplied = selection.IsManual,
+                AdjustmentSelectionMode = selection.Mode,
                 QuoteNeedsManualReview = quote.NeedsManualReview,
                 QuoteBasis = quote.Basis,
                 HasPostedInvoiceActivity = current.HasPostedInvoiceActivity,

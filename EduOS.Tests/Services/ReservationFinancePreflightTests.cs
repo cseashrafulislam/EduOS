@@ -256,6 +256,59 @@ public sealed class ReservationFinancePreflightTests
     }
 
     [Fact]
+    public async Task Campus_can_allow_manual_signed_quote_without_approving_or_posting()
+    {
+        await using var db = Database();
+        var stay = await SeedHostel(db, 41, 7);
+        stay.MonthlyRent = 1200m;
+        stay.EndDate = new DateOnly(2026, 11, 30);
+        db.HostelBillingPolicies.Add(new HostelBillingPolicy {
+            TenantId = 41, CampusId = 7,
+            CalculationMode = HostelBillingCalculationMode.DailyProrated,
+            AllowManualOverride = true
+        });
+        await db.SaveChangesAsync();
+        var result = await new FinanceAdjustmentService(db, new TestUser(true), TimeProvider.System)
+            .ReviewReservationChangeAsync(new() {
+                Kind = "hostel", ReservationId = stay.Id, Change = "shorten-end",
+                ProposedEndDate = new DateOnly(2026, 11, 20), ManualNetAdjustment = -125m,
+                ManualOverrideReason = "Authorized future-billing adjustment after inspecting contract terms."
+            });
+        result.Success.Should().BeTrue();
+        result.Data!.SuggestedNetAdjustment.Should().Be(-400m);
+        result.Data.SelectedNetAdjustment.Should().Be(-125m);
+        result.Data.ManualOverrideAllowed.Should().BeTrue();
+        result.Data.ManualOverrideApplied.Should().BeTrue();
+        result.Data.AdjustmentSelectionMode.Should().Be("ManualOverride");
+        result.Data.FinancialMutationApproved.Should().BeFalse();
+        db.Journals.Should().BeEmpty();
+        (await db.StudentHostelAllocations.SingleAsync()).EndDate.Should().Be(new DateOnly(2026, 11, 30));
+    }
+
+    [Fact]
+    public async Task Campus_disallows_manual_quote_override_server_side()
+    {
+        await using var db = Database();
+        var stay = await SeedHostel(db, 41, 7);
+        stay.MonthlyRent = 1200m;
+        stay.EndDate = new DateOnly(2026, 11, 30);
+        db.HostelBillingPolicies.Add(new HostelBillingPolicy {
+            TenantId = 41, CampusId = 7,
+            CalculationMode = HostelBillingCalculationMode.FixedMonthly,
+            AllowManualOverride = false
+        });
+        await db.SaveChangesAsync();
+        var result = await new FinanceAdjustmentService(db, new TestUser(true), TimeProvider.System)
+            .ReviewReservationChangeAsync(new() {
+                Kind = "hostel", ReservationId = stay.Id, Change = "reschedule-start",
+                ProposedStartDate = new DateOnly(2026, 11, 5), ManualNetAdjustment = 0m,
+                ManualOverrideReason = "Manual price change not permitted for this campus."
+            });
+        result.StatusCode.Should().Be(409);
+        db.Journals.Should().BeEmpty();
+    }
+
+    [Fact]
     public async Task No_charge_proposal_is_informational_and_never_grants_approval()
     {
         await using var db = Database();

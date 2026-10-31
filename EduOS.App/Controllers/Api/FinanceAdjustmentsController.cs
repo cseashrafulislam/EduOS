@@ -60,6 +60,12 @@ public sealed class FinanceAdjustmentsController : ControllerBase
 
     [HttpGet("reservations/change-review")]
     public async Task<IActionResult> ReservationChangeReview([FromQuery] ReservationFinanceChangeReviewRequestDto request, CancellationToken ct)
+        => request.ManualNetAdjustment.HasValue || !string.IsNullOrWhiteSpace(request.ManualOverrideReason)
+            ? BadRequest("Manual adjustment quotations must use the antiforgery-protected POST endpoint.")
+            : Reply(await service.ReviewReservationChangeAsync(request, ct));
+
+    [HttpPost("reservations/change-review")]
+    public async Task<IActionResult> ReservationChangeReviewPost([FromBody] ReservationFinanceChangeReviewRequestDto request, CancellationToken ct)
         => Reply(await service.ReviewReservationChangeAsync(request, ct));
 
     [HttpGet("reservations/worklist")]

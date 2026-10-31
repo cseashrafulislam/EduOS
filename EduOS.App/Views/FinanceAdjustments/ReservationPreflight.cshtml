@@ -7,7 +7,7 @@
         <p class="text-muted">Read-only institutional Finance review for reservation start-date, fixed-term, renewal, extension and occupied-transfer requests. This screen never approves or posts a monetary adjustment.</p>
         <a href="/FinanceAdjustments/Index" class="btn btn-outline-secondary btn-sm">Back to Finance Adjustments</a>
     </header>
-    <div class="alert alert-warning">After any posted invoice or payment, financially effective reservation changes must remain blocked until an approved, tenant-scoped, idempotent Finance adjustment contract exists. No automatic proration, rent, deposit, invoice or ledger changes are performed here.</div>
+    <div class="alert alert-warning">This screen can estimate automatic proration or a permitted manual override; it never changes rent, deposit, invoices, payments or journals. Charged reservation amendments still require an approved Finance adjustment before Operations can save them.</div>
     <section class="card mb-3" aria-label="Reservation Finance review queue">
         <div class="card-body">
             <h3 class="h5">Reservation Finance review queue</h3>
@@ -44,6 +44,7 @@
             <h3 class="h5">Review proposed start or end date</h3>
             <p class="small text-muted">First inspect the canonical reservation above. Finance evaluates proposed date boundaries against current invoice/payment exposure. No approval, proration or posting is performed.</p>
             <form id="reservationFinanceChangeReviewForm" class="row g-2 align-items-end">
+                @Html.AntiForgeryToken()
                 <div class="col-md-4"><label for="reservationFinanceChangeReviewAction" class="form-label">Proposed change</label>
                     <select id="reservationFinanceChangeReviewAction" class="form-select">
                         <option value="reschedule-start">Reschedule start</option>
@@ -58,6 +59,15 @@
                     <input type="date" id="reservationFinanceChangeReviewEnd" class="form-control" disabled />
                 </div>
                 <div class="col-md-2"><button type="submit" class="btn btn-outline-primary w-100" disabled>Review only</button></div>
+                <div class="col-md-3"><label for="reservationFinanceChangeReviewSelection" class="form-label">Quotation selection</label>
+                    <select id="reservationFinanceChangeReviewSelection" class="form-select"><option value="auto">Automatic</option><option value="manual">Manual override</option></select>
+                </div>
+                <div class="col-md-3"><label for="reservationFinanceChangeReviewManualAmount" class="form-label">Signed adjustment (BDT)</label>
+                    <input id="reservationFinanceChangeReviewManualAmount" type="number" min="-999999999999.99" max="999999999999.99" step="0.01" class="form-control" disabled />
+                </div>
+                <div class="col-md-6"><label for="reservationFinanceChangeReviewManualReason" class="form-label">Manual adjustment reason</label>
+                    <input id="reservationFinanceChangeReviewManualReason" type="text" minlength="20" maxlength="1000" class="form-control" disabled />
+                </div>
             </form>
             <div id="reservationFinanceChangeReviewAlert" class="alert d-none mt-3" role="status" aria-live="polite"></div>
             <dl id="reservationFinanceChangeReviewDetails" class="row mt-3 mb-0"></dl>
