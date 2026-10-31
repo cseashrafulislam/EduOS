@@ -21,6 +21,11 @@ using System.Globalization;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// A public demonstration deployment is still internet-facing, even if its
+// ASPNETCORE_ENVIRONMENT is Staging. Require all Production security settings.
+var requireDeploymentSafety = builder.Environment.IsProduction() ||
+    (builder.Environment.IsStaging() && builder.Configuration.GetValue<bool>("DemoData:Enabled"));
+
 // =============================================================================
 // 1. CONFIGURATION
 // =============================================================================
@@ -31,14 +36,14 @@ builder.Services.Configure<EmailSettings>(
 var dataProtectionKeysPath =
     builder.Configuration["DataProtection:KeysPath"];
 
-if (builder.Environment.IsProduction() &&
+if (requireDeploymentSafety &&
     string.IsNullOrWhiteSpace(dataProtectionKeysPath))
 {
     throw new InvalidOperationException(
         "DataProtection:KeysPath is required in Production and must point to durable protected storage.");
 }
 
-if (builder.Environment.IsProduction())
+if (requireDeploymentSafety)
 {
     ProductionStoragePathPolicy.Validate(
         builder.Environment.ContentRootPath,
@@ -49,7 +54,7 @@ if (builder.Environment.IsProduction())
         dataProtectionKeysPath);
 }
 
-if (builder.Environment.IsProduction())
+if (requireDeploymentSafety)
 {
     var connectionString =
         builder.Configuration.GetConnectionString("DefaultConnection");
@@ -112,7 +117,7 @@ if (builder.Environment.IsProduction())
     }
 }
 
-if (builder.Environment.IsProduction() &&
+if (requireDeploymentSafety &&
     (builder.Configuration.GetValue<bool>(
          "DatabaseInitialization:Enabled") ||
      builder.Configuration.GetValue<bool>(

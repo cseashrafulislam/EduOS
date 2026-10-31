@@ -20,6 +20,9 @@ customer data. Never paste the SQL into a live institution database.
    or application log. This password is **intentionally disclosed to visitors
    on the demo login page** when enabled. The database and host must contain
    no real student, employee, bank, academic, health or financial data.
+   When demo mode is enabled, EduOS enforces the same protected storage,
+   Data Protection, HTTPS-origin/CORS, trusted host, JWT-secret and disabled
+   auto-migration requirements as a Production deployment.
 
 4. Start EduOS. The opt-in Identity bootstrap creates `EDUOS-DEMO`, a default
    campus, and 13 tenant-scoped demo roles and users, using `UserManager` to

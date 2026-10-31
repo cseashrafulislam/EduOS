@@ -15,6 +15,8 @@ const sql = read('scripts/demo/01-seed-academic-demo.sql');
 test('public demo login requires Staging and explicit opt-in, never platform admin', () => {
     assert.match(program, /DemoData:Enabled/);
     assert.match(program, /!app\.Environment\.IsStaging\(\)/);
+    assert.match(program, /var requireDeploymentSafety = builder\.Environment\.IsProduction\(\) \|\|/);
+    assert.match(program, /requireDeploymentSafety &&/);
     assert.match(login, /DemoHost\.EnvironmentName.*"Staging"/);
     assert.match(login, /DemoData:Enabled/);
     assert.match(login, /DemoInstitutionSeeder\.Roles/);
