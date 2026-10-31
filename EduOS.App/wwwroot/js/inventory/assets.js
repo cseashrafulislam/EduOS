@@ -8,6 +8,7 @@ import { bindTransferForm } from './assets-transfer-form.js';
 import { bindMaintenanceForm } from './assets-maintenance-form.js';
 import { bindMaintenanceHistory } from './assets-maintenance-history.js';
 import { bindMaintenanceDue } from './assets-maintenance-due.js';
+import { bindCapitalizationReadiness, showCapitalizationReadiness } from './asset-capitalization-readiness.js';
 if (root) {
     let categories = [], page = 1, pages = 1;
     async function loadCategories() {
@@ -30,6 +31,7 @@ if (root) {
                     row.isActive ? 'Active' : 'Inactive'].forEach(x => tr.append(td(x)));
                 const cell = document.createElement('td');
                 addButton(cell, 'Custody', () => selectAsset(row).catch(error => notice(error.message)));
+                addButton(cell, 'Capitalization / মূলধনীকরণ', () => showCapitalizationReadiness(row.reference));
                 if (canManage) addButton(cell, 'Edit', () => editAsset(row));
                 tr.append(cell); target.append(tr);
             }
@@ -42,6 +44,6 @@ if (root) {
     el('assetPrev').addEventListener('click', () => { if (page > 1) { page--; loadAssets(); } });
     el('assetNext').addEventListener('click', () => { if (page < pages) { page++; loadAssets(); } });
     bindCategories(loadCategories); bindAssetForm(loadAssets);
-    bindAssignmentForm(loadAssets); bindTransferForm(loadAssets); bindMaintenanceForm(); bindMaintenanceHistory(); bindMaintenanceDue();
+    bindAssignmentForm(loadAssets); bindTransferForm(loadAssets); bindMaintenanceForm(); bindMaintenanceHistory(); bindMaintenanceDue(); bindCapitalizationReadiness();
     Promise.all([loadCategories(), loadReferenceCatalogs()]).then(loadAssets).catch(error => notice(error.message));
 }

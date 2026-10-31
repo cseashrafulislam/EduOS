@@ -5,6 +5,7 @@ namespace EduOS.Core.Interfaces.IServices;
 
 public interface IAssetLifecycleService
 {
+    Task<ApiResponse<AssetCapitalizationReadinessDto>> GetCapitalizationReadinessAsync(Guid assetReference, CancellationToken cancellationToken = default);
     Task<ApiResponse<IReadOnlyList<AssetCategoryDto>>> GetCategoriesAsync(CancellationToken cancellationToken = default);
     Task<ApiResponse<AssetCategoryDto>> SaveCategoryAsync(long? categoryId, SaveAssetCategoryRequestDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<PagedResult<AssetDto>>> GetAssetsAsync(int page, int pageSize, string? search, CancellationToken cancellationToken = default);
