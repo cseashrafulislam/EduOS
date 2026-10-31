@@ -442,6 +442,8 @@ public class EduOSDbContext :
     public DbSet<InventoryPhysicalCountLine> InventoryPhysicalCountLines => Set<InventoryPhysicalCountLine>();
     public DbSet<ProcurementGoodsReceipt> ProcurementGoodsReceipts => Set<ProcurementGoodsReceipt>();
     public DbSet<ProcurementGoodsReceiptLine> ProcurementGoodsReceiptLines => Set<ProcurementGoodsReceiptLine>();
+    public DbSet<ProcurementSupplierInvoice> ProcurementSupplierInvoices => Set<ProcurementSupplierInvoice>();
+    public DbSet<ProcurementSupplierInvoiceLine> ProcurementSupplierInvoiceLines => Set<ProcurementSupplierInvoiceLine>();
     public DbSet<ProcurementRequisition> ProcurementRequisitions => Set<ProcurementRequisition>();
     public DbSet<ProcurementRequisitionLine> ProcurementRequisitionLines => Set<ProcurementRequisitionLine>();
     public DbSet<ProcurementSupplier> ProcurementSuppliers => Set<ProcurementSupplier>();
@@ -1231,6 +1233,15 @@ public class EduOSDbContext :
         TenantReference<ProcurementGoodsReceiptLine, ProcurementGoodsReceipt>(modelBuilder, nameof(ProcurementGoodsReceiptLine.GoodsReceiptId));
         TenantReference<ProcurementGoodsReceiptLine, ProcurementPurchaseOrderLine>(modelBuilder, nameof(ProcurementGoodsReceiptLine.PurchaseOrderLineId));
         TenantReference<ProcurementGoodsReceiptLine, InventoryItem>(modelBuilder, nameof(ProcurementGoodsReceiptLine.InventoryItemId));
+        TenantReference<ProcurementSupplierInvoice, ProcurementPurchaseOrder>(modelBuilder, nameof(ProcurementSupplierInvoice.PurchaseOrderId));
+        TenantReference<ProcurementSupplierInvoice, ProcurementSupplier>(modelBuilder, nameof(ProcurementSupplierInvoice.SupplierId));
+        TenantReference<ProcurementSupplierInvoice, Campus>(modelBuilder, nameof(ProcurementSupplierInvoice.CampusId));
+        TenantReference<ProcurementSupplierInvoice, Journal>(modelBuilder, nameof(ProcurementSupplierInvoice.JournalId));
+        TenantReference<ProcurementSupplierInvoice, Journal>(modelBuilder, nameof(ProcurementSupplierInvoice.ReversalJournalId));
+        TenantReference<ProcurementSupplierInvoiceLine, ProcurementSupplierInvoice>(modelBuilder, nameof(ProcurementSupplierInvoiceLine.SupplierInvoiceId));
+        TenantReference<ProcurementSupplierInvoiceLine, ProcurementGoodsReceiptLine>(modelBuilder, nameof(ProcurementSupplierInvoiceLine.GoodsReceiptLineId));
+        TenantReference<ProcurementSupplierInvoiceLine, ProcurementPurchaseOrderLine>(modelBuilder, nameof(ProcurementSupplierInvoiceLine.PurchaseOrderLineId));
+        TenantReference<ProcurementSupplierInvoiceLine, InventoryItem>(modelBuilder, nameof(ProcurementSupplierInvoiceLine.InventoryItemId));
         TenantReference<ProcurementSupplierAcknowledgement, Campus>(modelBuilder, nameof(ProcurementSupplierAcknowledgement.CampusId));
         TenantReference<ProcurementSupplierAcknowledgement, ProcurementPurchaseOrder>(modelBuilder, nameof(ProcurementSupplierAcknowledgement.PurchaseOrderId));
         TenantReference<ProcurementSupplierAcknowledgement, ProcurementSupplier>(modelBuilder, nameof(ProcurementSupplierAcknowledgement.SupplierId));
@@ -1652,6 +1663,9 @@ public class EduOSDbContext :
         modelBuilder.Entity<Journal>().HasIndex(x => new { x.TenantId, x.JournalDate, x.State });
         modelBuilder.Entity<Journal>().HasIndex(x => new { x.TenantId, x.SourceType, x.SourceId })
             .HasDatabaseName("IX_Journals_Tenant_SourceType_SourceId");
+        modelBuilder.Entity<Journal>().HasIndex(x => new { x.TenantId, x.SourceId })
+            .HasDatabaseName("UX_Journals_ProcurementSupplierInvoice").IsUnique()
+            .HasFilter("[SourceType] = N'ProcurementSupplierInvoice' AND [SourceId] IS NOT NULL");
         modelBuilder.Entity<AccountingPeriod>().HasIndex(x => new { x.TenantId, x.StartDate, x.EndDate });
         modelBuilder.Entity<BankReconciliationBatch>().HasIndex(x => new { x.TenantId, x.ClientRequestId })
             .HasDatabaseName("UX_BankReconciliationBatches_Tenant_Request").IsUnique();
@@ -1985,6 +1999,27 @@ public class EduOSDbContext :
         {
             t.HasTrigger("TR_ProcurementGoodsReceiptLine_SnapshotImmutable");
             t.HasCheckConstraint("CK_ProcurementGoodsReceiptLine_QuantityPrice", "[LineNo] > 0 AND [Quantity] > 0 AND [ApprovedPoQuantity] > 0 AND [ApprovedPoUnitPrice] >= 0 AND ([PostedUnitCost] IS NULL OR [PostedUnitCost] > 0)");
+        });
+        modelBuilder.Entity<ProcurementSupplierInvoice>().HasIndex(x => x.PublicId).IsUnique();
+        UniqueTenant<ProcurementSupplierInvoice>(modelBuilder, nameof(ProcurementSupplierInvoice.ClientRequestId));
+        UniqueTenant<ProcurementSupplierInvoice>(modelBuilder, nameof(ProcurementSupplierInvoice.SupplierId), nameof(ProcurementSupplierInvoice.NormalizedSupplierInvoiceNumber));
+        UniqueTenant<ProcurementSupplierInvoice>(modelBuilder, [nameof(ProcurementSupplierInvoice.JournalId)], "[JournalId] IS NOT NULL");
+        UniqueTenant<ProcurementSupplierInvoice>(modelBuilder, [nameof(ProcurementSupplierInvoice.ReversalJournalId)], "[ReversalJournalId] IS NOT NULL");
+        modelBuilder.Entity<ProcurementSupplierInvoice>().HasIndex(x => new { x.TenantId, x.CampusId, x.StateCode, x.InvoiceDate });
+        modelBuilder.Entity<ProcurementSupplierInvoice>().HasIndex(x => new { x.TenantId, x.PurchaseOrderId, x.StateCode });
+        UniqueTenant<ProcurementSupplierInvoiceLine>(modelBuilder, nameof(ProcurementSupplierInvoiceLine.SupplierInvoiceId), nameof(ProcurementSupplierInvoiceLine.LineNo));
+        UniqueTenant<ProcurementSupplierInvoiceLine>(modelBuilder, nameof(ProcurementSupplierInvoiceLine.SupplierInvoiceId), nameof(ProcurementSupplierInvoiceLine.GoodsReceiptLineId));
+        modelBuilder.Entity<ProcurementSupplierInvoiceLine>().HasIndex(x => new { x.TenantId, x.GoodsReceiptLineId });
+        modelBuilder.Entity<ProcurementSupplierInvoice>().ToTable(t =>
+        {
+            t.HasTrigger("TR_ProcurementSupplierInvoice_SourceImmutable");
+            t.HasCheckConstraint("CK_ProcurementSupplierInvoice_State", "[StateCode] IN (N'Draft',N'Submitted',N'Posted',N'Rejected',N'Reversed')");
+            t.HasCheckConstraint("CK_ProcurementSupplierInvoice_Totals", "[TotalAmount] >= 0 AND [StockValue] >= 0 AND [PriceVariance] = [TotalAmount] - [StockValue] AND [DueDate] >= [InvoiceDate]");
+        });
+        modelBuilder.Entity<ProcurementSupplierInvoiceLine>().ToTable(t =>
+        {
+            t.HasTrigger("TR_ProcurementSupplierInvoiceLine_SourceImmutable");
+            t.HasCheckConstraint("CK_ProcurementSupplierInvoiceLine_Values", "[LineNo] > 0 AND [Quantity] > 0 AND [Quantity] <= [ReceivedQuantitySnapshot] AND [PoUnitPriceSnapshot] >= 0 AND [StockUnitCostSnapshot] > 0 AND [InvoiceUnitPrice] > 0 AND [InvoiceAmount] >= 0 AND [StockValue] >= 0");
         });
         modelBuilder.Entity<ProcurementPurchaseOrderLine>().HasIndex(x => new { x.TenantId, x.InventoryItemId });
         modelBuilder.Entity<ProcurementSupplierAcknowledgement>().HasAlternateKey(x => new { x.TenantId, x.Id });

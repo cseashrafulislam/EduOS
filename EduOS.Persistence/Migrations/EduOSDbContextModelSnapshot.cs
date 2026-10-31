@@ -2821,6 +2821,11 @@ namespace EduOS.Persistence.Migrations
                     b.HasIndex("TenantId", "SourceType", "SourceId")
                         .HasDatabaseName("IX_Journals_Tenant_SourceType_SourceId");
 
+                    b.HasIndex("TenantId", "SourceId")
+                        .IsUnique()
+                        .HasDatabaseName("UX_Journals_ProcurementSupplierInvoice")
+                        .HasFilter("[SourceType] = N'ProcurementSupplierInvoice' AND [SourceId] IS NOT NULL");
+
                     b.ToTable("Journals");
                 });
 
@@ -13256,6 +13261,246 @@ namespace EduOS.Persistence.Migrations
                             t.HasTrigger("TR_ProcurementGoodsReceiptLine_SnapshotImmutable");
 
                             t.HasCheckConstraint("CK_ProcurementGoodsReceiptLine_QuantityPrice", "[LineNo] > 0 AND [Quantity] > 0 AND [ApprovedPoQuantity] > 0 AND [ApprovedPoUnitPrice] >= 0 AND ([PostedUnitCost] IS NULL OR [PostedUnitCost] > 0)");
+                        });
+
+                    b.HasAnnotation("SqlServer:UseSqlOutputClause", false);
+                });
+
+            modelBuilder.Entity("EduOS.Core.Entities.Inventory.ProcurementSupplierInvoice", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
+
+                    b.Property<long>("CampusId")
+                        .HasColumnType("bigint");
+
+                    b.Property<Guid>("ClientRequestId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("CreateFingerprint")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<long?>("CreatedBy")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<long?>("DeletedBy")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateOnly>("DueDate")
+                        .HasColumnType("date");
+
+                    b.Property<DateOnly>("InvoiceDate")
+                        .HasColumnType("date");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
+
+                    b.Property<long?>("JournalId")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("NormalizedSupplierInvoiceNumber")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("PriceMode")
+                        .IsRequired()
+                        .HasMaxLength(25)
+                        .HasColumnType("nvarchar(25)");
+
+                    b.Property<decimal>("PriceVariance")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<Guid>("PublicId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<long>("PurchaseOrderId")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasMaxLength(800)
+                        .HasColumnType("nvarchar(800)");
+
+                    b.Property<long?>("ReversalJournalId")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("ReviewFingerprint")
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<string>("ReviewReason")
+                        .HasMaxLength(800)
+                        .HasColumnType("nvarchar(800)");
+
+                    b.Property<Guid?>("ReviewRequestId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("ReviewedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<long?>("ReviewedByUserId")
+                        .HasColumnType("bigint");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
+                    b.Property<string>("StateCode")
+                        .IsRequired()
+                        .HasMaxLength(25)
+                        .HasColumnType("nvarchar(25)");
+
+                    b.Property<decimal>("StockValue")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<Guid?>("SubmitRequestId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("SubmittedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<long?>("SubmittedByUserId")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("SupplierInvoiceNumber")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<long>("SupplierId")
+                        .HasColumnType("bigint");
+
+                    b.Property<long>("TenantId")
+                        .HasColumnType("bigint");
+
+                    b.Property<decimal>("TotalAmount")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<long?>("UpdatedBy")
+                        .HasColumnType("bigint");
+
+                    b.HasKey("Id");
+
+                    b.HasAlternateKey("TenantId", "Id");
+
+                    b.HasIndex("PublicId").IsUnique();
+
+                    b.HasIndex("TenantId", "ClientRequestId").IsUnique();
+
+                    b.HasIndex("TenantId", "JournalId").IsUnique().HasFilter("[JournalId] IS NOT NULL");
+
+                    b.HasIndex("TenantId", "ReversalJournalId").IsUnique().HasFilter("[ReversalJournalId] IS NOT NULL");
+
+                    b.HasIndex("TenantId", "PurchaseOrderId", "StateCode");
+
+                    b.HasIndex("TenantId", "SupplierId", "NormalizedSupplierInvoiceNumber").IsUnique();
+
+                    b.HasIndex("TenantId", "CampusId", "StateCode", "InvoiceDate");
+
+                    b.ToTable("ProcurementSupplierInvoices", t =>
+                        {
+                            t.HasTrigger("TR_ProcurementSupplierInvoice_SourceImmutable");
+
+                            t.HasCheckConstraint("CK_ProcurementSupplierInvoice_State", "[StateCode] IN (N'Draft',N'Submitted',N'Posted',N'Rejected',N'Reversed')");
+
+                            t.HasCheckConstraint("CK_ProcurementSupplierInvoice_Totals", "[TotalAmount] >= 0 AND [StockValue] >= 0 AND [PriceVariance] = [TotalAmount] - [StockValue] AND [DueDate] >= [InvoiceDate]");
+                        });
+
+                    b.HasAnnotation("SqlServer:UseSqlOutputClause", false);
+                });
+
+            modelBuilder.Entity("EduOS.Core.Entities.Inventory.ProcurementSupplierInvoiceLine", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
+
+                    b.Property<DateTime>("CreatedAt").HasColumnType("datetime2");
+
+                    b.Property<long?>("CreatedBy").HasColumnType("bigint");
+
+                    b.Property<DateTime?>("DeletedAt").HasColumnType("datetime2");
+
+                    b.Property<long?>("DeletedBy").HasColumnType("bigint");
+
+                    b.Property<long>("GoodsReceiptLineId").HasColumnType("bigint");
+
+                    b.Property<decimal>("InvoiceAmount").HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("InvoiceUnitPrice").HasColumnType("decimal(18,4)");
+
+                    b.Property<long>("InventoryItemId").HasColumnType("bigint");
+
+                    b.Property<bool>("IsDeleted").HasColumnType("bit");
+
+                    b.Property<int>("LineNo").HasColumnType("int");
+
+                    b.Property<string>("LotOrBatchNo")
+                        .IsRequired().HasMaxLength(100).HasColumnType("nvarchar(100)");
+
+                    b.Property<decimal>("PoUnitPriceSnapshot").HasColumnType("decimal(18,4)");
+
+                    b.Property<long>("PurchaseOrderLineId").HasColumnType("bigint");
+
+                    b.Property<decimal>("Quantity").HasColumnType("decimal(18,6)");
+
+                    b.Property<decimal>("ReceivedQuantitySnapshot").HasColumnType("decimal(18,6)");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken().IsRequired().ValueGeneratedOnAddOrUpdate().HasColumnType("rowversion");
+
+                    b.Property<decimal>("StockUnitCostSnapshot").HasColumnType("decimal(18,4)");
+
+                    b.Property<decimal>("StockValue").HasColumnType("decimal(18,2)");
+
+                    b.Property<long>("SupplierInvoiceId").HasColumnType("bigint");
+
+                    b.Property<long>("TenantId").HasColumnType("bigint");
+
+                    b.Property<DateTime?>("UpdatedAt").HasColumnType("datetime2");
+
+                    b.Property<long?>("UpdatedBy").HasColumnType("bigint");
+
+                    b.Property<string>("VarianceReason").HasMaxLength(800).HasColumnType("nvarchar(800)");
+
+                    b.HasKey("Id");
+
+                    b.HasAlternateKey("TenantId", "Id");
+
+                    b.HasIndex("TenantId", "GoodsReceiptLineId");
+
+                    b.HasIndex("TenantId", "InventoryItemId");
+
+                    b.HasIndex("TenantId", "PurchaseOrderLineId");
+
+                    b.HasIndex("TenantId", "SupplierInvoiceId", "LineNo").IsUnique();
+
+                    b.HasIndex("TenantId", "SupplierInvoiceId", "GoodsReceiptLineId").IsUnique();
+
+                    b.ToTable("ProcurementSupplierInvoiceLines", t =>
+                        {
+                            t.HasTrigger("TR_ProcurementSupplierInvoiceLine_SourceImmutable");
+
+                            t.HasCheckConstraint("CK_ProcurementSupplierInvoiceLine_Values", "[LineNo] > 0 AND [Quantity] > 0 AND [Quantity] <= [ReceivedQuantitySnapshot] AND [PoUnitPriceSnapshot] >= 0 AND [StockUnitCostSnapshot] > 0 AND [InvoiceUnitPrice] > 0 AND [InvoiceAmount] >= 0 AND [StockValue] >= 0");
                         });
 
                     b.HasAnnotation("SqlServer:UseSqlOutputClause", false);
@@ -26229,6 +26474,89 @@ namespace EduOS.Persistence.Migrations
                     b.HasOne("EduOS.Core.Entities.Inventory.ProcurementPurchaseOrderLine", null)
                         .WithMany()
                         .HasForeignKey("TenantId", "PurchaseOrderLineId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Tenant");
+                });
+
+            modelBuilder.Entity("EduOS.Core.Entities.Inventory.ProcurementSupplierInvoice", b =>
+                {
+                    b.HasOne("EduOS.Core.Entities.SaaS.Tenant", "Tenant")
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("EduOS.Core.Entities.SaaS.Campus", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "CampusId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("EduOS.Core.Entities.Inventory.ProcurementPurchaseOrder", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "PurchaseOrderId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("EduOS.Core.Entities.Inventory.ProcurementSupplier", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "SupplierId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("EduOS.Core.Entities.Accounting.Journal", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "JournalId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("EduOS.Core.Entities.Accounting.Journal", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "ReversalJournalId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("Tenant");
+                });
+
+            modelBuilder.Entity("EduOS.Core.Entities.Inventory.ProcurementSupplierInvoiceLine", b =>
+                {
+                    b.HasOne("EduOS.Core.Entities.SaaS.Tenant", "Tenant")
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("EduOS.Core.Entities.Inventory.ProcurementSupplierInvoice", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "SupplierInvoiceId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("EduOS.Core.Entities.Inventory.ProcurementGoodsReceiptLine", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "GoodsReceiptLineId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("EduOS.Core.Entities.Inventory.ProcurementPurchaseOrderLine", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "PurchaseOrderLineId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("EduOS.Core.Entities.Inventory.InventoryItem", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "InventoryItemId")
                         .HasPrincipalKey("TenantId", "Id")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();

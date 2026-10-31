@@ -1,19 +1,36 @@
 @{
-    ViewData["Title"] = "Supplier Invoice Matching Preview";
+    ViewData["Title"] = "Supplier Invoices & Matching";
+    var maker = User.IsInRole("TenantAdmin") || User.IsInRole("Accountant");
+    var reviewer = User.IsInRole("TenantAdmin") || User.IsInRole("Principal") || User.IsInRole("Accountant");
 }
-<section id="supplierInvoiceMatch" class="container-fluid py-3">
+<section id="supplierInvoiceMatch" class="container-fluid py-3"
+         data-maker="@maker.ToString().ToLowerInvariant()" data-reviewer="@reviewer.ToString().ToLowerInvariant()"
+         data-user-id="@(User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value)">
     <header class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
-        <h1 class="h4 mb-0" data-en="Supplier invoice matching" data-bn="সরবরাহকারী ইনভয়েস মিল যাচাই">Supplier invoice matching</h1>
+        <h1 class="h4 mb-0" data-en="Supplier invoices &amp; matching" data-bn="সরবরাহকারী ইনভয়েস ও মিল যাচাই">Supplier invoices &amp; matching</h1>
         <div class="d-flex gap-2 align-items-center">
             <button id="simHelp" type="button" class="btn btn-outline-secondary btn-sm" aria-controls="simGuidance" aria-expanded="false" aria-label="Matching help / সহায়তা">ⓘ</button>
             <a asp-controller="ProcurementGoodsReceipts" asp-action="Index" class="btn btn-outline-secondary btn-sm" data-en="Goods receipts" data-bn="পণ্য গ্রহণ">Goods receipts</a>
         </div>
     </header>
     <div id="simGuidance" class="alert alert-secondary small d-none" role="note">
-        <span data-en="Select an approved order and posted deliveries, then preview the supplier's proposed quantities and price. This preview does not save an invoice, book a payable, check prior invoices, or authorize payment. Variances need independent Finance review."
-              data-bn="অনুমোদিত ক্রয়াদেশ ও পোস্টকৃত পণ্য গ্রহণ বেছে প্রস্তাবিত পরিমাণ ও মূল্য যাচাই করুন। এই প্রিভিউ ইনভয়েস সংরক্ষণ, দায় পোস্ট, পূর্বের ইনভয়েস পরীক্ষা বা পেমেন্ট অনুমোদন করে না। মূল্যপার্থক্যে স্বতন্ত্র ফাইন্যান্স অনুমোদন লাগবে।">Select an approved order and posted deliveries, then preview the supplier's proposed quantities and price. This preview does not save an invoice, book a payable, check prior invoices, or authorize payment. Variances need independent Finance review.</span>
+        <span data-en="Match an approved PO to posted receipts; the preview never books a payable. Save a supplier invoice, submit it for a separate Finance reviewer, then post it to the existing GL in an open period. Corrections use an independently approved reversal; no supplier cash payment is sent here."
+              data-bn="অনুমোদিত ক্রয়াদেশ ও গৃহীত পণ্য মিলিয়ে প্রিভিউ করুন। খসড়া ইনভয়েস সংরক্ষণ ও জমার পর আলাদা ফাইন্যান্স রিভিউয়ার খোলা মেয়াদে বিদ্যমান GL-এ পোস্ট করবেন। সংশোধনে আলাদা রিভার্সাল অনুমোদন লাগবে; এখানে টাকা পাঠানো হয় না।">Match an approved PO to posted receipts; the preview never books a payable. Save a supplier invoice, submit it for a separate Finance reviewer, then post it to the existing GL in an open period. Corrections use an independently approved reversal; no supplier cash payment is sent here.</span>
     </div>
     <div id="simStatus" role="status" aria-live="polite" class="d-none"></div>
+    <form id="simInvoiceFilters" class="row g-2 align-items-end mb-3">
+        <div class="col-7 col-sm-4"><label for="simState" class="form-label" data-en="Supplier invoices" data-bn="সরবরাহকারী ইনভয়েস">Supplier invoices</label>
+            <select id="simState" class="form-select"><option value="">All / সব</option><option>Draft</option><option>Submitted</option><option>Posted</option><option>Rejected</option><option>Reversed</option></select></div>
+        <div class="col-5 col-sm-3"><button type="submit" class="btn btn-outline-primary w-100">Filter / ফিল্টার</button></div>
+        <div class="col-12 col-sm-3"><button id="simExport" type="button" class="btn btn-outline-secondary w-100">CSV</button></div>
+    </form>
+    <div class="table-responsive mb-2"><table class="table table-sm table-striped"><thead><tr><th>Invoice</th><th>PO</th><th>Status</th><th>Amount BDT</th><th>Journal</th><th>Actions</th></tr></thead>
+        <tbody id="simInvoiceRows"></tbody></table></div>
+    <nav class="d-flex align-items-center gap-2 mb-4" aria-label="Supplier invoice pages">
+        <button type="button" id="simPrev" class="btn btn-outline-secondary btn-sm">Previous</button>
+        <span id="simPage" aria-live="polite"></span>
+        <button type="button" id="simNext" class="btn btn-outline-secondary btn-sm">Next</button>
+    </nav>
     <form id="simSearchForm" class="row g-2 align-items-end mb-3">
         <div class="col-9 col-md-5"><label for="simSearch" class="form-label" data-en="Approved purchase order" data-bn="অনুমোদিত ক্রয়াদেশ">Approved purchase order</label>
             <input id="simSearch" class="form-control" maxlength="100" autocomplete="off" placeholder="Order number / ক্রয়াদেশ" /></div>
@@ -28,13 +45,32 @@
                 <option value="ManualFinal">Manual Final / চূড়ান্ত মূল্য</option>
                 <option value="AutoPlusManual">Auto + Manual Correction / সংশোধন</option></select>
         </div></div>
+        @if (maker)
+        {
+            <div class="row g-2 mb-3">
+                <div class="col-sm-4"><label for="simInvoiceNo" class="form-label">Supplier Invoice No / নম্বর</label>
+                    <input id="simInvoiceNo" maxlength="100" class="form-control" autocomplete="off" /></div>
+                <div class="col-sm-4"><label for="simInvoiceDate" class="form-label">Invoice Date / তারিখ</label>
+                    <input type="date" id="simInvoiceDate" class="form-control" /></div>
+                <div class="col-sm-4"><label for="simDueDate" class="form-label">Due Date / শেষ তারিখ</label>
+                    <input type="date" id="simDueDate" class="form-control" /></div>
+            </div>
+        }
         <div class="table-responsive"><table class="table table-sm table-striped align-middle">
             <thead><tr><th scope="col">Receipt / গ্রহণ</th><th scope="col">Item / পণ্য</th><th scope="col">Lot / ব্যাচ</th>
                 <th scope="col">Received / গৃহীত</th><th scope="col">PO price</th><th scope="col">Posted cost</th>
                 <th scope="col">Invoice Qty / পরিমাণ</th><th scope="col" id="simAmountTitle">Price / correction</th><th scope="col">Variance reason / কারণ</th></tr></thead>
             <tbody id="simRows"></tbody>
         </table></div>
-        <div class="d-flex justify-content-end mb-3"><button type="submit" id="simRun" class="btn btn-primary" data-en="Preview matching" data-bn="মিল যাচাই করুন">Preview matching</button></div>
+        @if (maker)
+        {
+            <label for="simReason" class="form-label">Invoice evidence / ইনভয়েস বিবরণ (10–800)</label>
+            <textarea id="simReason" class="form-control mb-3" rows="2" minlength="10" maxlength="800"></textarea>
+        }
+        <div class="d-flex justify-content-end gap-2 mb-3 flex-wrap">
+            <button type="submit" id="simRun" class="btn btn-outline-primary" data-en="Preview matching" data-bn="মিল যাচাই করুন">Preview matching</button>
+            @if (maker) { <button type="button" id="simSave" class="btn btn-primary">Save invoice draft / খসড়া সংরক্ষণ</button> }
+        </div>
     </form>
     <div id="simResult" class="d-none" aria-live="polite">
         <h2 class="h6" data-en="Read-only comparison" data-bn="শুধু-পাঠযোগ্য তুলনা">Read-only comparison</h2>
@@ -42,5 +78,56 @@
         <div class="table-responsive"><table class="table table-sm"><thead><tr><th>Receipt</th><th>Item</th><th>Qty</th><th>Invoice Price</th><th>Invoice Amount (BDT)</th><th>Stock Value Difference (BDT)</th></tr></thead>
             <tbody id="simResultLines"></tbody></table></div>
     </div>
+    <dialog id="simDetailDialog" aria-labelledby="simDetailTitle" class="border rounded shadow p-0" style="width:min(96vw,850px);max-height:90vh">
+        <div class="p-3"><div class="d-flex justify-content-between align-items-center mb-2">
+            <h2 id="simDetailTitle" class="h5 mb-0">Supplier invoice / ইনভয়েস</h2>
+            <button type="button" id="simDetailClose" class="btn-close" aria-label="Close"></button></div>
+            <p id="simDetailSummary" class="small"></p>
+            <div class="table-responsive"><table class="table table-sm"><thead><tr><th>Item</th><th>Quantity</th><th>PO Price</th><th>Stock Cost</th><th>Invoice Price</th><th>Amount</th></tr></thead><tbody id="simDetailLines"></tbody></table></div>
+            <div id="simDetailActions" class="d-flex justify-content-end gap-2 flex-wrap"></div>
+        </div>
+    </dialog>
+    <dialog id="simReviewDialog" aria-labelledby="simReviewTitle" class="border rounded shadow p-0" style="width:min(96vw,670px);max-height:90vh">
+        <form id="simReviewForm" class="p-3"><div class="d-flex justify-content-between align-items-center mb-3">
+            <h2 id="simReviewTitle" class="h5 mb-0">Independent Finance approval / যাচাই</h2>
+            <button type="button" id="simReviewClose" class="btn-close" aria-label="Close"></button></div>
+            <label for="simDecision" class="form-label">Decision / সিদ্ধান্ত</label>
+            <select id="simDecision" class="form-select mb-2"><option value="Approve">Approve &amp; post payable</option><option value="Reject">Reject</option></select>
+            <div id="simAccountPanel" class="row g-2 mb-2">
+                <div class="col-12"><label for="simPeriod" class="form-label">Open period / হিসাবকাল</label><select id="simPeriod" class="form-select"></select></div>
+                <div class="col-12"><label for="simAssetAccount" class="form-label">Inventory asset debit / সম্পদ ডেবিট</label><select id="simAssetAccount" class="form-select"></select></div>
+                <div class="col-12"><label for="simPayableAccount" class="form-label">Supplier payable credit / দায় ক্রেডিট</label><select id="simPayableAccount" class="form-select"></select></div>
+                <div class="col-12"><label for="simVarianceAccount" class="form-label">Price variance expense (if any) / মূল্যপার্থক্য</label><select id="simVarianceAccount" class="form-select"></select></div>
+            </div>
+            <label for="simReviewReason" class="form-label">Finance evidence / সিদ্ধান্তের কারণ (10–800)</label>
+            <textarea id="simReviewReason" class="form-control" rows="2" minlength="10" maxlength="800" required></textarea>
+            <div class="d-flex justify-content-end gap-2 mt-3"><button type="button" id="simReviewCancel" class="btn btn-outline-secondary">Cancel</button>
+                <button type="submit" id="simReviewSubmit" class="btn btn-primary">Confirm / নিশ্চিত</button></div>
+        </form>
+    </dialog>
+    <dialog id="simReversalDialog" aria-labelledby="simReversalTitle" class="border rounded shadow p-0" style="width:min(96vw,600px);max-height:90vh">
+        <form id="simReversalForm" class="p-3"><div class="d-flex justify-content-between align-items-center mb-3">
+            <h2 id="simReversalTitle" class="h5 mb-0">Request payable reversal / দায় রিভার্স</h2>
+            <button type="button" id="simReversalClose" class="btn-close" aria-label="Close"></button></div>
+            <label for="simReversalDate" class="form-label">Reversal date / তারিখ</label><input type="date" required id="simReversalDate" class="form-control mb-2" />
+            <label for="simReversalPeriod" class="form-label">Open period / হিসাবকাল</label><select id="simReversalPeriod" class="form-select mb-2"></select>
+            <label for="simReversalReason" class="form-label">Reason / কারণ (10–800)</label><textarea id="simReversalReason" required minlength="10" maxlength="800" rows="2" class="form-control"></textarea>
+            <div class="d-flex justify-content-end gap-2 mt-3"><button type="button" id="simReversalCancel" class="btn btn-outline-secondary">Cancel</button>
+                <button type="submit" id="simReversalSubmit" class="btn btn-primary">Request contra / অনুরোধ</button></div>
+        </form>
+    </dialog>
+    <dialog id="simContraReviewDialog" aria-labelledby="simContraReviewTitle" class="border rounded shadow p-0" style="width:min(96vw,600px);max-height:90vh">
+        <form id="simContraReviewForm" class="p-3"><div class="d-flex justify-content-between align-items-center mb-3">
+            <h2 id="simContraReviewTitle" class="h5 mb-0">Independent reversal decision / রিভার্সাল যাচাই</h2>
+            <button type="button" id="simContraReviewClose" class="btn-close" aria-label="Close"></button></div>
+            <p class="small text-muted">Approval posts an exact compensating GL entry. Rejection leaves the original payable posted.</p>
+            <label for="simContraDecision" class="form-label">Decision / সিদ্ধান্ত</label>
+            <select id="simContraDecision" class="form-select mb-2"><option value="Approve">Approve contra posting</option><option value="Reject">Reject reversal request</option></select>
+            <label for="simContraReason" class="form-label">Independent Finance evidence / কারণ (10–800)</label>
+            <textarea id="simContraReason" required minlength="10" maxlength="800" rows="2" class="form-control"></textarea>
+            <div class="d-flex justify-content-end gap-2 mt-3"><button type="button" id="simContraReviewCancel" class="btn btn-outline-secondary">Cancel</button>
+                <button type="submit" id="simContraReviewSubmit" class="btn btn-primary">Confirm / নিশ্চিত</button></div>
+        </form>
+    </dialog>
 </section>
 @section Scripts { <script src="~/js/procurement/supplier-invoice-matching.js" asp-append-version="true"></script> }

@@ -25,15 +25,20 @@ test('Invoice preview requires posted canonical receipt and refuses reversal and
  assert.doesNotMatch(s, /db\.Journals\.Add|db\.StudentInvoices\.Add|db\.ProcurementSupplierInvoices\.Add/);
 });
 
-test('Bilingual invoice matching UI does not silently issue a payable and encodes API results', () => {
+test('Bilingual invoice matching UI distinguishes preview, saved invoice and independent payable approval', () => {
  const html = read('EduOS.App/Views/ProcurementSupplierInvoiceMatching/Index.cshtml');
  const js = read('EduOS.App/wwwroot/js/procurement/supplier-invoice-matching.js');
  assert.match(html, /data-bn=/);
  assert.match(html, /aria-expanded="false"/);
- assert.match(html, /does not save an invoice, book a payable/);
+ assert.match(html, /preview never books a payable/);
+ for (const action of ['simSave','simReviewDialog','simReversalDialog','simContraReviewDialog'])
+  assert.match(html, new RegExp('id="' + action + '"'));
  assert.match(js, /credentials:'same-origin'/);
  assert.match(js, /RequestVerificationToken/);
  assert.match(js, /textContent/);
  assert.doesNotMatch(js, /innerHTML|insertAdjacentHTML|\.html\(/);
  assert.match(js, /Preview only: no payable or invoice created/);
+ assert.match(js, /\/api\/procurement\/supplier-invoices/);
+ assert.match(js, /reversal\/review/);
+ assert.doesNotMatch(js, /window\.(?:confirm|prompt)/);
 });
