@@ -87,6 +87,10 @@ public sealed partial class FinanceAdjustmentService
         }
         catch (DbUpdateConcurrencyException) { return Error<TransportBillingPolicyDto>("Policy changed. Reload.", 409); }
         catch (DbUpdateException) { return Error<TransportBillingPolicyDto>("Conflicting policy.", 409); }
+        catch (Microsoft.Data.SqlClient.SqlException ex) when (TransportClearanceSqlConflict(ex))
+        { return Error<TransportBillingPolicyDto>("Policy conflicts with another update. Reload.", 409); }
+        catch (InvalidOperationException ex) when (TransportClearanceSqlConflict(ex))
+        { return Error<TransportBillingPolicyDto>("Policy conflicts with another update. Reload.", 409); }
     }
 
     private async Task<TransportClearanceDto> TransportMapAsync(TransportFinanceClearance x, CancellationToken ct)
@@ -206,6 +210,10 @@ public sealed partial class FinanceAdjustmentService
         }
         catch (DbUpdateConcurrencyException) { return Error<TransportClearanceDto>("Assignment changed.", 409); }
         catch (DbUpdateException) { return Error<TransportClearanceDto>("Conflicting or duplicate clearance.", 409); }
+        catch (Microsoft.Data.SqlClient.SqlException ex) when (TransportClearanceSqlConflict(ex))
+        { return Error<TransportClearanceDto>("Finance request conflicts with another update. Reload.", 409); }
+        catch (InvalidOperationException ex) when (TransportClearanceSqlConflict(ex))
+        { return Error<TransportClearanceDto>("Finance request conflicts with another update. Reload.", 409); }
     }
 
     public async Task<ApiResponse<TransportClearanceDto>> ReviewTransportClearanceAsync(long id, ReviewTransportClearanceDto request, CancellationToken ct = default)
@@ -301,6 +309,18 @@ public sealed partial class FinanceAdjustmentService
         }
         catch (DbUpdateConcurrencyException) { return Error<TransportClearanceDto>("Clearance changed.", 409); }
         catch (DbUpdateException) { return Error<TransportClearanceDto>("Conflicting clearance or journal.", 409); }
+        catch (Microsoft.Data.SqlClient.SqlException ex) when (TransportClearanceSqlConflict(ex))
+        { return Error<TransportClearanceDto>("Finance review conflicts with another update. Reload.", 409); }
+        catch (InvalidOperationException ex) when (TransportClearanceSqlConflict(ex))
+        { return Error<TransportClearanceDto>("Finance review conflicts with another update. Reload.", 409); }
+    }
+
+    private static bool TransportClearanceSqlConflict(Exception exception)
+    {
+        for (Exception? current = exception; current != null; current = current.InnerException)
+            if (current is Microsoft.Data.SqlClient.SqlException { Number: 1205 or 1222 or 3960 or 2601 or 2627 })
+                return true;
+        return false;
     }
 
     public async Task<ApiResponse<PagedResult<TransportClearanceDto>>> GetTransportClearancesAsync(long? campusId, int page, int pageSize, CancellationToken ct = default)

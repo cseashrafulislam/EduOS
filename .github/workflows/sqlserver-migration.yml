@@ -117,6 +117,19 @@ jobs:
             --filter "FullyQualifiedName~SqlServerTransportIdentityIntegrationTests|FullyQualifiedName~SqlServerTransportConcurrentUniquenessTests|FullyQualifiedName~SqlServerTransportSeatCapacityIntegrationTests|FullyQualifiedName~SqlServerV2SixteenInstituteEntitlementHttpAcceptanceTests|FullyQualifiedName~TransportReservationWindowIndexTests|FullyQualifiedName~HostelOccupiedTransferLineageContractTests|FullyQualifiedName~AssetAccountingPersistenceContractTests|FullyQualifiedName~SqlServerV3InventoryTransferLifecycleTests|FullyQualifiedName~SqlServerV3ProcurementRequisitionTests|FullyQualifiedName~SqlServerV3ProcurementSupplierTests|FullyQualifiedName~SqlServerV3ProcurementPurchaseOrderTests|FullyQualifiedName~SqlServerV3ProcurementSupplierAcknowledgementTests|FullyQualifiedName~SqlServerV3AssetCustodyTransferTests|FullyQualifiedName~SqlServerV3EnterpriseLedgerTraceTests|FullyQualifiedName~SqlServerV3AssetFinanceTraceTests|FullyQualifiedName~SqlServerV3EnterpriseProcurementTraceTests" \
             --logger "trx;LogFileName=sql-v2-v3-smoke.trx" --results-directory TestResults
 
+      # Separate release gate: failure must identify the new finance/operation
+      # handoff, instead of being buried in the shared V2/V3 SQL smoke output.
+      - name: Verify V2 Transport Finance clearance, maker-checker and lineage on real SQL
+        if: ${{ always() && steps.migration_repeat.outcome == 'success' }}
+        shell: bash
+        env:
+          EDUOS_SQL_AUTH_TEST_CONNECTION: ${{ format('Server=127.0.0.1,14333;Database=EduOS_MigrationSmoke;User Id=sa;Password={0};Encrypt=True;TrustServerCertificate=True;Connect Timeout=30', env.CI_SQL_PASSWORD) }}
+        run: |
+          set -euo pipefail
+          dotnet test EduOS.Tests/EduOS.Tests.csproj --configuration Release --no-restore \
+            --filter "FullyQualifiedName~Finance_approved_transport_transfer_is_single_use_tenant_scoped_and_preserves_lineage|FullyQualifiedName~Concurrent_transport_clearance_consumption_creates_exactly_one_successor|FullyQualifiedName~Charged_transport_closure_rejects_unposted_settlement_and_requires_independent_zero_attestation" \
+            --logger "trx;LogFileName=sql-v2-transport-finance-acceptance.trx" --results-directory TestResults
+
       - name: Prove disposable SQL backup restore and financial evidence integrity
         if: ${{ always() && steps.migration_repeat.outcome == 'success' }}
         shell: bash

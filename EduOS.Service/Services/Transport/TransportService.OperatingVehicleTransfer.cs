@@ -129,7 +129,7 @@ public sealed partial class TransportService
                         previous.RouteId == source.RouteId && previous.VehicleId == vehicle.Id &&
                         previous.StartDate == request.EffectiveDate &&
                         source.EndDate == request.EffectiveDate.AddDays(-1) &&
-                        (previous.PreviousAssignmentId == null || previous.PreviousAssignmentId == source.Id) &&
+                        previous.PreviousAssignmentId == source.Id &&
                         previous.PickupStopId == source.PickupStopId &&
                         previous.DropStopId == source.DropStopId && previous.MonthlyFare == source.MonthlyFare)
                         return ApiResponse<StudentTransportDto>.SuccessResponse(
@@ -239,6 +239,16 @@ public sealed partial class TransportService
         catch (TransactionAbortedException ex)
         {
             _logger.LogWarning(ex, "Operating transport transfer transaction aborted for tenant {TenantId}", tenant);
+            return Error("Vehicle transfer conflicts with another update.", 409);
+        }
+        catch (Microsoft.Data.SqlClient.SqlException ex) when (ex.Number is 1205 or 1222 or 3960 or 2601 or 2627)
+        {
+            _logger.LogWarning(ex, "Operating transport transfer SQL conflict for tenant {TenantId}", tenant);
+            return Error("Vehicle transfer conflicts with another update.", 409);
+        }
+        catch (InvalidOperationException ex) when (HasSqlSerializationConflict(ex))
+        {
+            _logger.LogWarning(ex, "Operating transport transfer serialization conflict for tenant {TenantId}", tenant);
             return Error("Vehicle transfer conflicts with another update.", 409);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)

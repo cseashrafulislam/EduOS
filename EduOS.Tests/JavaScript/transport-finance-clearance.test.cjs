@@ -36,4 +36,18 @@ test('Transport settlement cannot be reused and old assignment is linked to succ
     assert.match(guard, /row\.State = TransportClearanceState\.Consumed/);
     assert.match(guard, /GetExposureHashAsync/);
     assert.match(close, /TransportClearanceOperation\.Closure/);
+    assert.match(service, /previous\.PreviousAssignmentId == source\.Id/);
+    assert.match(service, /HasSqlSerializationConflict\(ex\)/);
+});
+
+test('V2 SQL release gate exercises maker-checker, transfer lineage and concurrent clearance consumption', () => {
+    const tests = read('EduOS.Tests/App/SqlServerTransportFinanceClearanceAcceptanceTests.cs');
+    const workflow = read('.github/workflows/sqlserver-migration.yml');
+    assert.match(tests, /Finance_approved_transport_transfer_is_single_use_tenant_scoped_and_preserves_lineage/);
+    assert.match(tests, /Concurrent_transport_clearance_consumption_creates_exactly_one_successor/);
+    assert.match(tests, /Charged_transport_closure_rejects_unposted_settlement_and_requires_independent_zero_attestation/);
+    assert.match(tests, /ScopedContext\(fixture\.Options, fixture\.TenantId \+ 10_000/);
+    assert.match(tests, /Assert\.Equal\(TransportClearanceState\.Consumed/);
+    assert.match(workflow, /sql-v2-transport-finance-acceptance\.trx/);
+    assert.match(workflow, /Concurrent_transport_clearance_consumption_creates_exactly_one_successor/);
 });

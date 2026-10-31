@@ -33,6 +33,8 @@ Both `Up` methods are additive. There is no rewriting of historical invoice, acc
 
 ## Final QA and rollout decision
 
+**2026-10-31 Transport hardening follow-up:** See [the Transport final QA handoff](V2_TRANSPORT_FINAL_QA_HANDOFF_20261031.md) for SQL concurrency response corrections, three new disposable-SQL Finance/maker-checker/single-consumption acceptance cases, the independent GitHub Actions gate and the remaining institution-owned go-live approvals. The evidence below belongs to the **earlier merged release**, not to any later final-QA commit.
+
 **Local merged-release evidence (2026-10-31, before GitHub CI):** Release solution build passed with 0 compilation errors (121 existing/remaining warnings); `.NET` xUnit **3,015 passed / 0 failed / 0 skipped**; Node.js contract suite **305 passed / 0 failed**; `dotnet-ef migrations has-pending-model-changes` reported no changes; `git diff --check` passed. Verification included the current fetched `Ashraful` V3 code, preserving the other automation-owned changes. These are local automated checks, not GitHub CI or production certification.
 
 These are separate gates, not items to mark green without evidence:
