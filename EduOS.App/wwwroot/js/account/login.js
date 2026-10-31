@@ -11,6 +11,26 @@
         const identifierParameter = parameters.get('userNameOrEmail');
         if (identifierField && identifierParameter) identifierField.value = identifierParameter;
 
+        // Offered only by the server on an explicitly isolated Staging demo.
+        // Credentials always pass through the normal rate-limited login/MFA API.
+        const demoToggle = form.querySelector('[data-demo-toggle]');
+        const demoPanel = document.getElementById('demoLoginPanel');
+        demoToggle?.addEventListener('click', () => {
+            if (!demoPanel) return;
+            demoPanel.hidden = !demoPanel.hidden;
+            demoToggle.setAttribute('aria-expanded', String(!demoPanel.hidden));
+            if (!demoPanel.hidden) document.getElementById('demoRole')?.focus();
+        });
+        form.querySelector('[data-demo-login]')?.addEventListener('click', () => {
+            const roleSelector = document.getElementById('demoRole');
+            const passwordField = document.getElementById('password');
+            if (!demoPanel || !identifierField || !passwordField || !roleSelector?.value ||
+                !demoPanel.dataset.demoPassword) return;
+            identifierField.value = roleSelector.value;
+            passwordField.value = demoPanel.dataset.demoPassword;
+            form.requestSubmit(submitButton);
+        });
+
         if (parameters.get('status') === 'password-reset') {
             showAlert('success', submitButton.dataset.resetSuccess || '');
         }

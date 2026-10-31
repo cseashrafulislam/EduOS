@@ -1,6 +1,10 @@
+@inject Microsoft.AspNetCore.Hosting.IWebHostEnvironment DemoHost
+@inject Microsoft.Extensions.Configuration.IConfiguration DemoConfiguration
 @{
     ViewData["Title"] = "Login";
     Layout = "_PublicLayout";
+    var demoEnabled = string.Equals(DemoHost.EnvironmentName, "Staging", StringComparison.OrdinalIgnoreCase)
+        && string.Equals(DemoConfiguration["DemoData:Enabled"], "true", StringComparison.OrdinalIgnoreCase);
 }
 
 <section class="auth-card" aria-labelledby="loginTitle">
@@ -50,6 +54,28 @@
                                data-password-changed-success="@T["PasswordChangedSignInAgain"]">
             @T["SignIn"]
         </button>
+
+        @if (demoEnabled)
+        {
+            <div class="mt-3 border rounded-3 p-3" aria-label="Demo role sign in">
+                <button type="button" class="btn btn-outline-primary w-100" data-demo-toggle
+                        aria-expanded="false" aria-controls="demoLoginPanel">
+                    Demo Login / ডেমো লগইন
+                </button>
+                <div id="demoLoginPanel" class="mt-3" data-demo-password="@DemoConfiguration["DemoData:SharedPassword"]" hidden>
+                    <label class="form-label" for="demoRole">Choose demo role / রোল নির্বাচন</label>
+                    <select id="demoRole" class="form-select mb-2">
+                        @foreach (var role in EduOS.Persistence.Seed.DemoInstitutionSeeder.Roles)
+                        {
+                            <option value="@EduOS.Persistence.Seed.DemoInstitutionSeeder.EmailFor(role)">@role</option>
+                        }
+                    </select>
+                    <button class="btn btn-outline-primary w-100" type="button" data-demo-login>
+                        Sign in with selected role
+                    </button>
+                </div>
+            </div>
+        }
 
         <p class="auth-meta text-center mt-3 mb-0">
             @T["NoAccount"]

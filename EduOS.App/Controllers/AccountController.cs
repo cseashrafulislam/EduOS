@@ -29,6 +29,7 @@ namespace EduOS.App.Controllers
 
         [AllowAnonymous]
         [HttpGet]
+        [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
         public IActionResult Login() => View();
 
         [AllowAnonymous]

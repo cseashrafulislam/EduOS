@@ -321,6 +321,16 @@ else
         "Automatic database initialization is disabled. Run controlled migrations before deployment.");
 }
 
+// Public demo identities are strictly opt-in and forbidden in Production.
+// The seeder also refuses a DB not named EduOS_Demo_* or containing real tenants.
+if (app.Configuration.GetValue<bool>("DemoData:Enabled"))
+{
+    if (!app.Environment.IsStaging())
+        throw new InvalidOperationException("DemoData can only be enabled in the Staging environment.");
+    await DemoInstitutionSeeder.SeedAsync(app.Services,
+        app.Configuration["DemoData:SharedPassword"]);
+}
+
 // =============================================================================
 // 12. MIDDLEWARE PIPELINE
 // =============================================================================
