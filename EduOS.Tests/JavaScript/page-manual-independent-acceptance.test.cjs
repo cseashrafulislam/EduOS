@@ -222,3 +222,48 @@ test('manual access matrix preserves sensitive API role, CSRF and bounded-export
     assert.match(salary, /\[Authorize\(Roles = "TenantAdmin"\)\]/);
     assert.match(salary, /GetAsync\(year, month, campusId, 1, 1000, ct\)/);
 });
+
+test('appearance studio is the twelfth independently reviewed bilingual manual with tenant-safe boundaries', () => {
+    const route = '/workspace';
+    const controller = read('EduOS.App/Controllers/WorkspacePreferencesController.cs');
+    const service = read('EduOS.Service/Services/Tenants/WorkspacePreferencesService.cs');
+    const view = read('EduOS.App/Views/WorkspacePreferences/Index.cshtml');
+    const editor = read('EduOS.App/wwwroot/js/platform/workspace-preferences.js');
+    assert.match(controller, /^\[Authorize\]$/m);
+    assert.match(controller, /^\[AutoValidateAntiforgeryToken\]$/m);
+    assert.match(controller, /public IActionResult Index\(\) => View\(\)/);
+    assert.match(controller, /X-EduOS-Session-Reference/);
+    assert.match(controller, /X-EduOS-Tenant-Id/);
+    assert.match(controller, /SessionStillValidAsync\(\)/);
+    assert.match(controller, /IsolationLevel\.Serializable/);
+    assert.match(service, /x\.TenantId == _user\.TenantId && x\.Key == UserKey\(\)/);
+    assert.match(service, /KeyPrefix \+ _user\.UserId/);
+    assert.match(view, /@if \(User\.IsInRole\("TenantAdmin"\)\)/);
+    assert.match(view, /@Html\.AntiForgeryToken\(\)/);
+    assert.match(view, /workspaceAdvancedColors/);
+    assert.match(editor, /RequestVerificationToken/);
+    assert.match(editor, /requireCurrentSession\(response\)/);
+    assert.ok(coverage().routes >= 12);
+    for (const lang of ['en-BD', 'bn-BD']) {
+        const guide = guideFor(route, lang);
+        assert.ok(guide && guide.steps.length >= 3 && guide.example && guide.recovery && guide.rules);
+        assert.ok(guide.related.some(x => x.path === '/Account/Profile'));
+        const authorized = browser(route, lang, ['/Account/Profile', '/PrivateFinance/Index', '//evil.example']);
+        assert.equal(authorized.dialog.open, false);
+        authorized.trigger.fire('click');
+        assert.equal(authorized.dialog.open, true);
+        assert.equal(authorized.doc.activeElement, authorized.close);
+        assert.equal(authorized.title.textContent, guide.title);
+        assert.equal(authorized.descendants(authorized.content, 'section').length, 8);
+        assert.deepEqual(authorized.descendants(authorized.content, 'a').map(x => x.getAttribute('href')),
+            ['/Account/Profile']);
+        authorized.close.fire('click');
+        assert.equal(authorized.doc.activeElement, authorized.trigger);
+        const denied = browser(route, lang, []);
+        denied.trigger.fire('click');
+        assert.equal(denied.descendants(denied.content, 'a').length, 0);
+        denied.close.fire('click');
+    }
+    assert.notEqual(guideFor(route, 'en-BD').example, guideFor(route, 'bn-BD').example);
+    // This is an independent source/DOM contract, not a real authenticated tenant-switch browser run.
+});
