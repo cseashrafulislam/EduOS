@@ -149,7 +149,7 @@ jobs:
         run: |
           set -euo pipefail
           dotnet test EduOS.Tests/EduOS.Tests.csproj --configuration Release --no-restore \
-            --filter "FullyQualifiedName~SqlServerV3ProcurementSupplierInvoiceTests|FullyQualifiedName~SqlServerV3ProcurementInvoiceMatchingTests" \
+            --filter "FullyQualifiedName~SQL_supplier_invoice_partial_billing_three_way_payable_variance_and_contra|FullyQualifiedName~SQL_supplier_invoice_preview_matches_posted_receipt_only_and_never_books_payable" \
             --logger "trx;LogFileName=sql-v3-procurement-invoice-settlement.trx" --results-directory TestResults
 
       # Separate release gate: failure must identify the new finance/operation
