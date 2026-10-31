@@ -44,7 +44,7 @@ public sealed class SqlServerV3EnterpriseProcurementTraceTests
         var options = new DbContextOptionsBuilder<EduOSDbContext>()
             .UseSqlServer(connection).Options;
         var suffix = Guid.NewGuid().ToString("N")[..12];
-        long tenantA, tenantB;
+        long tenantA, tenantB, makerId, checkerId;
         await using (var root = new EduOSDbContext(options))
         {
             var a = new Tenant { Code = "EPT-A-" + suffix, Name = "Enterprise A",
@@ -52,9 +52,24 @@ public sealed class SqlServerV3EnterpriseProcurementTraceTests
             var b = new Tenant { Code = "EPT-B-" + suffix, Name = "Enterprise B",
                 Email = "ept-b-" + suffix + "@example.test", State = TenantState.Active };
             root.Tenants.AddRange(a, b);
+            // Real identity principals are required by the PO checker FK.
+            // Never bypass the FK or manufacture guessed user IDs in SQL fixtures.
+            var maker = new ApplicationUser {
+                UserName = "ept-maker-" + suffix,
+                NormalizedUserName = ("EPT-MAKER-" + suffix).ToUpperInvariant(),
+                Email = "maker-" + suffix + "@example.test"
+            };
+            var checker = new ApplicationUser {
+                UserName = "ept-checker-" + suffix,
+                NormalizedUserName = ("EPT-CHECKER-" + suffix).ToUpperInvariant(),
+                Email = "checker-" + suffix + "@example.test"
+            };
+            root.Users.AddRange(maker, checker);
             await root.SaveChangesAsync();
             tenantA = a.Id;
             tenantB = b.Id;
+            makerId = maker.Id;
+            checkerId = checker.Id;
         }
 
         Guid reference;
@@ -90,8 +105,8 @@ public sealed class SqlServerV3EnterpriseProcurementTraceTests
                 OrderNumber = "EPT-PO-" + suffix, CampusId = campus.Id,
                 RequisitionId = req.Id, SupplierId = supplier.Id,
                 StateCode = "Approved", CreatedAt = DateTime.UtcNow.AddMinutes(-5),
-                CreatedBy = 101, SubmittedAt = DateTime.UtcNow.AddMinutes(-3),
-                DecidedAt = DateTime.UtcNow.AddMinutes(-1), DecidedByUserId = 202 };
+                CreatedBy = makerId, SubmittedAt = DateTime.UtcNow.AddMinutes(-3),
+                DecidedAt = DateTime.UtcNow.AddMinutes(-1), DecidedByUserId = checkerId };
             seed.ProcurementPurchaseOrders.Add(po);
             await seed.SaveChangesAsync();
             var poLine = new ProcurementPurchaseOrderLine { TenantId = tenantA,
@@ -168,11 +183,11 @@ public sealed class SqlServerV3EnterpriseProcurementTraceTests
             // overrun must fail closed in both detail and register exports.
             await lifecycle.ProcurementPurchaseOrders
                 .Where(x => x.TenantId == tenantA && x.Id == orderId)
-                .ExecuteUpdateAsync(x => x.SetProperty(y => y.DecidedByUserId, (long?)101));
+                .ExecuteUpdateAsync(x => x.SetProperty(y => y.DecidedByUserId, (long?)makerId));
             Assert.Equal(409, (await trace.GetAsync(reference)).StatusCode);
             await lifecycle.ProcurementPurchaseOrders
                 .Where(x => x.TenantId == tenantA && x.Id == orderId)
-                .ExecuteUpdateAsync(x => x.SetProperty(y => y.DecidedByUserId, (long?)202));
+                .ExecuteUpdateAsync(x => x.SetProperty(y => y.DecidedByUserId, (long?)checkerId));
 
             await lifecycle.ProcurementSuppliers
                 .Where(x => x.TenantId == tenantA && x.Id == supplierId)
