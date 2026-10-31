@@ -131,7 +131,7 @@ END;");
 BEGIN
  SET NOCOUNT ON;
  IF EXISTS (SELECT 1 FROM inserted i JOIN deleted d ON i.Id=d.Id WHERE
-     i.TenantId<>d.TenantId OR i.SupplierInvoiceId<>d.SupplierInvoiceId OR i.LineNo<>d.LineNo OR
+     i.TenantId<>d.TenantId OR i.SupplierInvoiceId<>d.SupplierInvoiceId OR i.[LineNo]<>d.[LineNo] OR
      i.GoodsReceiptLineId<>d.GoodsReceiptLineId OR i.PurchaseOrderLineId<>d.PurchaseOrderLineId OR
      i.InventoryItemId<>d.InventoryItemId OR i.LotOrBatchNo<>d.LotOrBatchNo OR
      i.Quantity<>d.Quantity OR i.ReceivedQuantitySnapshot<>d.ReceivedQuantitySnapshot OR
