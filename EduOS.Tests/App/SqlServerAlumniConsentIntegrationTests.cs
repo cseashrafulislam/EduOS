@@ -225,6 +225,29 @@ public sealed class SqlServerAlumniConsentIntegrationTests
         Assert.Empty(hiddenEvents.Data!.Items);
         var after = await admin.DirectoryAsync(new AlumniDirectoryQueryDto());
         Assert.Empty(after.Data!.Items);
+
+        // Revocation deletes the RSVP but preserves its privacy-safe audit command.
+        // Re-consenting must not make the old request key appear to have restored attendance.
+        var reOpted = await graduate.SaveConsentAsync(new AlumniConsentRequestDto
+        {
+            StudentReference = studentReference, ClientRequestId = Guid.NewGuid(),
+            DirectoryOptIn = true, RowVersion = revoked.Data.RowVersion
+        });
+        Assert.True(reOpted.Success, reOpted.Message);
+        var revokedReplay = await graduate.RsvpAsync(rsvpRequest);
+        Assert.False(revokedReplay.Success);
+        Assert.Equal(409, revokedReplay.StatusCode);
+        var afterReplay = await publisherService.EventsAsync(new AlumniEventQueryDto());
+        Assert.Equal(0, Assert.Single(afterReplay.Data!.Items.Where(e =>
+            e.Reference == draft.Data.Reference)).GoingCount);
+
+        var freshRsvp = await graduate.RsvpAsync(new AlumniEventRsvpDto
+        {
+            ClientRequestId = Guid.NewGuid(), EventReference = draft.Data.Reference,
+            StudentReference = studentReference, Response = 1
+        });
+        Assert.True(freshRsvp.Success, freshRsvp.Message);
+        Assert.Equal(1, freshRsvp.Data!.MyResponse);
     }
 
     private static EduOSDbContext TenantDb(DbContextOptions<EduOSDbContext> options, long tenantId)

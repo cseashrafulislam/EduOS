@@ -282,7 +282,12 @@ public sealed partial class AlumniService
                     if (previous[0].ActorUserId != actor || previous[0].RequestHash != hash)
                         return ApiResponse<AlumniEventItemDto>.ErrorResponse("Request reference is already used.", 409);
                     var replay = await ReadEventAsync(tenant, target.EventId, target.ProfileId, token);
-                    return ApiResponse<AlumniEventItemDto>.SuccessResponse(ToEvent(replay!, false), "RSVP already processed.");
+                    // Consent revocation removes the RSVP but intentionally retains its audit command.
+                    // An old idempotency key must never report success for a cleared or changed RSVP.
+                    if (replay?.MyResponse != request.Response)
+                        return ApiResponse<AlumniEventItemDto>.ErrorResponse(
+                            "RSVP was changed or revoked; submit a new request.", 409);
+                    return ApiResponse<AlumniEventItemDto>.SuccessResponse(ToEvent(replay, false), "RSVP already processed.");
                 }
 
                 var existing = await _db.Database.SqlQueryRaw<AlumniRsvpSqlRow>(

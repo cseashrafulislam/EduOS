@@ -31,6 +31,7 @@ public sealed class AlumniEventsContractTests
         Assert.Contains("IsolationLevel.Serializable", source);
         Assert.Contains("CryptographicOperations.FixedTimeEquals", source);
         Assert.Contains("AlumniEventCommands", source);
+        Assert.Contains("replay?.MyResponse != request.Response", source);
         Assert.Contains("AlumniEventAudits", source);
         Assert.DoesNotContain("IgnoreQueryFilters", source);
     }
