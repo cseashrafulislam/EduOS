@@ -68,3 +68,34 @@ test('the pilot removes duplicate header Info controls but preserves workflow op
     assert.match(payroll, /id="payrollGenerate"/);
     assert.match(layout, /data-language-selector/);
 });
+
+
+test('shared localization catalogue has exact en/bn key parity and pilot Razor keys resolve', () => {
+    const en = read('EduOS.App/Resources/Localization/SharedResource.resx');
+    const bn = read('EduOS.App/Resources/Localization/SharedResource.bn-BD.resx');
+    const keys = xml => new Set([...xml.matchAll(/<data\s+name="([^"]+)"/g)].map(x => x[1]));
+    const enKeys = keys(en), bnKeys = keys(bn);
+    assert.ok(enKeys.size >= 800, 'unexpectedly small resource catalogue');
+    assert.deepEqual([...enKeys].sort(), [...bnKeys].sort(), 'raw translation keys would leak in one language');
+    for (const page of ['EduOS.App/Views/Shared/_Layout.cshtml',
+        'EduOS.App/Views/Students/Index.cshtml', 'EduOS.App/Views/Admissions/Index.cshtml']) {
+        for (const match of read(page).matchAll(/@T\["([^"]+)"\]/g))
+            assert.ok(enKeys.has(match[1]), page + ': ' + match[1]);
+    }
+});
+test('language switch posts antiforgery and returns to the current local route', () => {
+    const controller = read('EduOS.App/Controllers/LocalizationController.cs');
+    const cookie = read('EduOS.App/Localization/PreferredCultureCookie.cs');
+    assert.match(layout, /<html lang="@currentCulture"/);
+    assert.match(layout, /<form asp-controller="Localization" asp-action="SetLanguage" method="post"/);
+    assert.match(layout, /name="returnUrl" value="@returnUrl"/);
+    assert.match(layout, /value="en-BD"/);
+    assert.match(layout, /value="bn-BD"/);
+    assert.match(controller, /\[ValidateAntiForgeryToken\]/);
+    assert.match(controller, /PreferredCultureCookie\.TryNormalize/);
+    assert.match(controller, /PreferredCultureCookie\.Write/);
+    assert.match(controller, /Url\.IsLocalUrl\(returnUrl\)/);
+    assert.match(cookie, /bn-BD/);
+    assert.match(cookie, /en-BD/);
+    assert.match(js, /document\.documentElement\.lang/);
+});
