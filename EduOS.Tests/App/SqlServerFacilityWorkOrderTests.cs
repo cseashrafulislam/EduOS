@@ -246,6 +246,46 @@ public sealed class SqlServerFacilityWorkOrderTests
             Assert.True(rescheduled.Success, rescheduled.Message);
             scheduled = rescheduled.Data!;
         }
+        // Advance a test clock, not stored SLA: queue, role denial, retry and concurrency.
+        await using (var db = Db(options, tenantId, requesterId, "FacilitiesRequester"))
+        {
+            var denied = await Service(db, tenantId, requesterId, "FacilitiesRequester",
+                new ShiftedClock(TimeSpan.FromHours(6))).TransitionAsync(submitted.Id, "escalate",
+                new FacilityTransitionDto { ClientCommandId = Guid.NewGuid(),
+                    RowVersion = scheduled.WorkOrderRowVersion!,
+                    Note = "Requester cannot escalate their own work order." });
+            Assert.Equal(403, denied.StatusCode);
+        }
+        await using (var db = Db(options, tenantId, managerId, "FacilitiesManager"))
+        {
+            var service = Service(db, tenantId, managerId, "FacilitiesManager",
+                new ShiftedClock(TimeSpan.FromHours(6)));
+            var queue = await service.ListAsync(campusId, null, 1, 25, default, true);
+            Assert.Contains(queue.Data!.Items, x => x.Id == submitted.Id);
+            Assert.DoesNotContain(queue.Data.Items, x => x.Id == privateRequestId);
+            var commandId = Guid.NewGuid();
+            var escalated = await service.TransitionAsync(submitted.Id, "escalate",
+                new FacilityTransitionDto { ClientCommandId = commandId,
+                    RowVersion = scheduled.WorkOrderRowVersion!,
+                    Note = "Overdue hallway repair requires immediate manager follow-up." });
+            Assert.True(escalated.Success, escalated.Message);
+            Assert.Equal("Scheduled", escalated.Data!.WorkOrderState);
+            Assert.NotEqual(scheduled.WorkOrderRowVersion, escalated.Data.WorkOrderRowVersion);
+            var retry = await service.TransitionAsync(submitted.Id, "escalate",
+                new FacilityTransitionDto { ClientCommandId = commandId,
+                    RowVersion = scheduled.WorkOrderRowVersion!,
+                    Note = "Overdue hallway repair requires immediate manager follow-up." });
+            Assert.True(retry.Success, retry.Message);
+            var stale = await service.TransitionAsync(submitted.Id, "escalate",
+                new FacilityTransitionDto { ClientCommandId = Guid.NewGuid(),
+                    RowVersion = scheduled.WorkOrderRowVersion!,
+                    Note = "Attempt to escalate a stale work order version." });
+            Assert.Equal(409, stale.StatusCode);
+            Assert.Contains((await service.HistoryAsync(submitted.Id, 1, 25)).Data!.Items,
+                x => x.ActionCode == "escalate" && x.FromState == x.ToState &&
+                     x.Note!.Contains("Manual overdue SLA escalation"));
+            scheduled = escalated.Data;
+        }
         await using (var db = Db(options, tenantId, techId, "FacilitiesTechnician"))
         {
             var service = Service(db, tenantId, techId, "FacilitiesTechnician");
@@ -287,7 +327,11 @@ public sealed class SqlServerFacilityWorkOrderTests
             Assert.Equal("Closed", result.Data!.WorkOrderState);
             Assert.NotNull(result.Data.VerifiedAtUtc);
             var history = await service.HistoryAsync(submitted.Id, 1, 25);
-            Assert.Equal(9, history.Data!.TotalCount);
+            Assert.Equal(10, history.Data!.TotalCount);
+            var overdue = await Service(db, tenantId, approverId, "FacilitiesApprover",
+                new ShiftedClock(TimeSpan.FromHours(6)))
+                .ListAsync(campusId, null, 1, 25, default, true);
+            Assert.DoesNotContain(overdue.Data!.Items, x => x.Id == submitted.Id);
             Assert.Equal("verify", history.Data.Items.Last().ActionCode);
             Assert.Single(await db.FacilityWorkOrders.Where(x => x.FacilityServiceRequestId == submitted.Id).ToListAsync());
         }
@@ -312,9 +356,15 @@ public sealed class SqlServerFacilityWorkOrderTests
         return new EduOSDbContext(options, new HttpContextAccessor { HttpContext = http });
     }
 
-    private static FacilityWorkflowService Service(EduOSDbContext db, long tenantId, long userId, string role) =>
-        new(db, new Principal(tenantId, userId, role), TimeProvider.System,
+    private static FacilityWorkflowService Service(EduOSDbContext db, long tenantId, long userId,
+        string role, TimeProvider? time = null) =>
+        new(db, new Principal(tenantId, userId, role), time ?? TimeProvider.System,
             NullLogger<FacilityWorkflowService>.Instance);
+
+    private sealed class ShiftedClock(TimeSpan offset) : TimeProvider
+    {
+        public override DateTimeOffset GetUtcNow() => DateTimeOffset.UtcNow.Add(offset);
+    }
 
     private sealed class Principal(long tenant, long id, string role) : ICurrentUserService
     {

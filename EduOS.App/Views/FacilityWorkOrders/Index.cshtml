@@ -8,7 +8,8 @@
 }
 <section class="container-fluid py-3" id="facilityWorkflow" data-bn="@bn.ToString().ToLowerInvariant()"
          data-manager="@manager.ToString().ToLowerInvariant()" data-approver="@approver.ToString().ToLowerInvariant()"
-         data-technician="@technician.ToString().ToLowerInvariant()">
+         data-technician="@technician.ToString().ToLowerInvariant()"
+         data-user-id="@(User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value)">
     <header class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
         <div><h2 class="h4 mb-1">@(bn ? "ক্যাম্পাস সার্ভিস অনুরোধ ও ওয়ার্ক অর্ডার" : "Campus Service Requests & Work Orders")</h2>
             <p class="small text-muted mb-0">@(bn ? "স্বতন্ত্র অনুমোদন, টেকনিশিয়ান কাজ ও যাচাইকৃত সমাপ্তি। স্টক ইস্যু ও ফাইন্যান্স পোস্টিং এখানে করা হয় না।" : "Independent approval, technician workflow and verified closure. Parts and Finance posting are not enabled here.")</p></div>
@@ -26,6 +27,10 @@
                     <div class="col-sm-4"><label class="form-label" for="wfCampusFilter">@(bn ? "ক্যাম্পাস আইডি" : "Campus ID")</label><input id="wfCampusFilter" class="form-control" type="number" min="1" /></div>
                     <div class="col-sm-5"><label class="form-label" for="wfStateFilter">@(bn ? "অনুরোধের অবস্থা" : "Request status")</label>
                         <select id="wfStateFilter" class="form-select"><option value="">@(bn ? "সব" : "All")</option><option>Submitted</option><option>Triaged</option><option>Approved</option><option>Rejected</option></select></div>
+                    <div class="col-12"><div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="wfOverdueOnly" />
+                        <label class="form-check-label" for="wfOverdueOnly">@(bn ? "শুধু SLA সময় পেরোনো খোলা কাজ" : "Only overdue open work orders")</label>
+                    </div></div>
                     <div class="col-sm-3"><button class="btn btn-primary w-100" type="submit">@(bn ? "খুঁজুন" : "Search")</button></div>
                 </form>
                 <div class="table-responsive mt-3"><table class="table table-sm table-striped align-middle">

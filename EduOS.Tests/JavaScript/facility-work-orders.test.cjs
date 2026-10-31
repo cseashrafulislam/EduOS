@@ -40,3 +40,13 @@ test('scheduled work can be released by manager with a reason and rowversion', (
     assert.match(script, /'unschedule'\]\.includes\(action\)/);
     assert.match(script, /selected\.workOrderRowVersion/);
 });
+
+test('overdue SLA queue and manual escalation are scoped and bilingual', () => {
+    assert.match(view, /id="wfOverdueOnly"/);
+    assert.match(script, /q\.set\('overdueOnly', 'true'\)/);
+    assert.match(script, /Escalate overdue SLA/);
+    assert.match(script, /বিলম্বিত কাজ এস্কেলেট করুন/);
+    assert.match(script, /row\.requesterUserId !== currentUserId/);
+    assert.match(script, /row\.technicianUserId === currentUserId/);
+    assert.match(script, /selected\.workOrderRowVersion/);
+});

@@ -138,7 +138,7 @@ public sealed class FacilityWorkflowService(
     }
 
     public async Task<ApiResponse<PagedResult<FacilityRequestDto>>> ListAsync(
-        long? campusId, string? state, int page, int pageSize, CancellationToken ct = default)
+        long? campusId, string? state, int page, int pageSize, CancellationToken ct = default, bool overdueOnly = false)
     {
         if (!ValidTenant || !Reader) return Denied<PagedResult<FacilityRequestDto>>();
         if (page is < 1 or > 100000 || pageSize is < 1 or > 100 || campusId is <= 0 ||
@@ -149,6 +149,14 @@ public sealed class FacilityWorkflowService(
         var query = VisibleRequests();
         if (campusId.HasValue) query = query.Where(x => x.CampusId == campusId.Value);
         if (!string.IsNullOrWhiteSpace(state)) query = query.Where(x => x.StateCode == state.Trim());
+        if (overdueOnly)
+        {
+            var now = Now;
+            query = query.Where(x => x.SlaDueAtUtc != null && x.SlaDueAtUtc < now &&
+                db.Set<FacilityWorkOrder>().Any(w => w.TenantId == user.TenantId &&
+                    !w.IsDeleted && w.FacilityServiceRequestId == x.Id &&
+                    w.StateCode != "Closed"));
+        }
         var count = await query.CountAsync(ct);
         var requests = await query.OrderByDescending(x => x.CreatedAt).ThenByDescending(x => x.Id)
             .Skip((page - 1) * pageSize).Take(pageSize).ToListAsync(ct);
@@ -206,7 +214,7 @@ public sealed class FacilityWorkflowService(
             return ApiResponse<FacilityRequestDto>.ErrorResponse("Command ID, row version and valid details required.");
         action = (action ?? "").Trim().ToLowerInvariant();
         if (action is not ("triage" or "approve" or "reject" or "schedule" or "start" or
-                           "pause" or "resume" or "complete" or "verify" or "unschedule"))
+                           "pause" or "resume" or "complete" or "verify" or "unschedule" or "escalate"))
             return ApiResponse<FacilityRequestDto>.ErrorResponse("Unsupported transition.", 404);
         var request = await db.Set<FacilityServiceRequest>().FirstOrDefaultAsync(
             x => x.Id == id && x.TenantId == user.TenantId && !x.IsDeleted, ct);
@@ -220,7 +228,7 @@ public sealed class FacilityWorkflowService(
             "triage" => Manager && user.UserId != request.RequesterUserId,
             "approve" or "reject" => Approver && user.UserId != request.RequesterUserId &&
                                       user.UserId != request.TriagedByUserId,
-            "schedule" or "unschedule" => Manager && user.UserId != request.RequesterUserId,
+            "schedule" or "unschedule" or "escalate" => Manager && user.UserId != request.RequesterUserId,
             "start" or "pause" or "resume" or "complete" => isWorker,
             "verify" => Approver && user.UserId != request.RequesterUserId &&
                         user.UserId != request.TriagedByUserId &&
@@ -330,6 +338,17 @@ public sealed class FacilityWorkflowService(
                 order.ScheduledStartUtc = null;
                 order.ScheduledEndUtc = null;
                 order.StateCode = "Approved";
+                break;
+            case "escalate":
+                // Manual evidence only; the work-order rowversion serializes escalation
+                // with concurrent closure. No automatic SLA policy or GL mutation.
+                if (order?.StateCode is not ("Approved" or "Scheduled" or "InProgress" or
+                    "Paused" or "PendingVerification") ||
+                    request.SlaDueAtUtc is not DateTime slaDue || slaDue >= now ||
+                    string.IsNullOrWhiteSpace(note) || note.Length is < 10 or > 500)
+                    return ApiResponse<FacilityRequestDto>.ErrorResponse(
+                        "Overdue open work order and escalation reason (10-500 characters) required.", 409);
+                auditNote = "Manual overdue SLA escalation: " + note;
                 break;
             case "start":
                 if (order?.StateCode != "Scheduled")

@@ -17,9 +17,9 @@ public sealed class FacilityWorkOrdersApiController(IFacilityWorkflowService ser
     private IActionResult Reply<T>(ApiResponse<T> response) => StatusCode(response.StatusCode, response);
 
     [HttpGet, Authorize(Roles = "TenantAdmin,Principal,FacilitiesManager,FacilitiesApprover,FacilitiesTechnician,FacilitiesRequester")]
-    public async Task<IActionResult> List(long? campusId, string? state, int page = 1,
-        int pageSize = 25, CancellationToken ct = default) =>
-        Reply(await service.ListAsync(campusId, state, page, pageSize, ct));
+    public async Task<IActionResult> List(long? campusId, string? state, bool overdueOnly = false,
+        int page = 1, int pageSize = 25, CancellationToken ct = default) =>
+        Reply(await service.ListAsync(campusId, state, page, pageSize, ct, overdueOnly));
 
     [HttpGet("dashboard"), Authorize(Roles = "TenantAdmin,Principal,FacilitiesManager,FacilitiesApprover,FacilitiesTechnician,FacilitiesRequester")]
     public async Task<IActionResult> Dashboard(long? campusId, CancellationToken ct) =>
@@ -39,16 +39,17 @@ public sealed class FacilityWorkOrdersApiController(IFacilityWorkflowService ser
         CancellationToken ct = default) => Reply(await service.HistoryAsync(id, page, pageSize, ct));
 
     [HttpGet("export"), Authorize(Roles = "TenantAdmin,Principal,FacilitiesManager,FacilitiesApprover,FacilitiesTechnician,FacilitiesRequester")]
-    public async Task<IActionResult> Export(long? campusId, string? state, CancellationToken ct)
+    public async Task<IActionResult> Export(long? campusId, string? state, bool overdueOnly = false,
+        CancellationToken ct = default)
     {
-        var first = await service.ListAsync(campusId, state, 1, 100, ct);
+        var first = await service.ListAsync(campusId, state, 1, 100, ct, overdueOnly);
         if (!first.Success || first.Data == null) return Reply(first);
         if (first.Data.TotalCount > 500)
             return StatusCode(413, new { message = "Narrow filters to at most 500 rows." });
         var rows = new List<FacilityRequestDto>(first.Data.Items);
         for (var page = 2; page <= first.Data.TotalPages; page++)
         {
-            var next = await service.ListAsync(campusId, state, page, 100, ct);
+            var next = await service.ListAsync(campusId, state, page, 100, ct, overdueOnly);
             if (!next.Success || next.Data == null) return Reply(next);
             rows.AddRange(next.Data.Items);
         }

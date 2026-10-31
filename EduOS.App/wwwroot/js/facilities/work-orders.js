@@ -6,6 +6,7 @@
     const manager = root.dataset.manager === 'true';
     const approver = root.dataset.approver === 'true';
     const technician = root.dataset.technician === 'true';
+    const currentUserId = Number(root.dataset.userId);
     const el = id => document.getElementById(id);
     const t = (en, bd) => bn ? bd : en;
     const token = document.querySelector('meta[name="request-verification-token"]')?.content;
@@ -40,21 +41,29 @@
         return td;
     };
     function actions(row) {
-        if (row.stateCode === 'Submitted' && manager) return ['triage'];
-        if (row.stateCode === 'Triaged' && approver) return ['approve', 'reject'];
+        if (row.stateCode === 'Submitted')
+            return manager && row.requesterUserId !== currentUserId ? ['triage'] : [];
+        if (row.stateCode === 'Triaged')
+            return approver && row.requesterUserId !== currentUserId &&
+                row.triagedByUserId !== currentUserId ? ['approve', 'reject'] : [];
         if (row.stateCode !== 'Approved') return [];
-        const state = row.workOrderState;
-        if (state === 'Approved' && manager) return ['schedule'];
+        const state = row.workOrderState, options = [];
+        const canManage = manager && row.requesterUserId !== currentUserId;
+        const assigned = technician && row.technicianUserId === currentUserId;
+        if (state === 'Approved' && canManage) options.push('schedule');
         if (state === 'Scheduled') {
-            const options = [];
-            if (manager) options.push('schedule', 'unschedule');
-            if (technician && row.technicianUserId) options.push('start');
-            return options;
+            if (canManage) options.push('schedule', 'unschedule');
+            if (assigned) options.push('start');
         }
-        if (state === 'InProgress' && technician) return ['pause', 'complete'];
-        if (state === 'Paused' && technician) return ['resume'];
-        if (state === 'PendingVerification' && approver) return ['verify'];
-        return [];
+        if (state === 'InProgress' && assigned) options.push('pause', 'complete');
+        if (state === 'Paused' && assigned) options.push('resume');
+        if (state === 'PendingVerification' && approver &&
+            row.requesterUserId !== currentUserId &&
+            row.triagedByUserId !== currentUserId &&
+            row.technicianUserId !== currentUserId) options.push('verify');
+        if (canManage && state && state !== 'Closed' && row.slaDueAtUtc &&
+            Date.parse(row.slaDueAtUtc) < Date.now()) options.push('escalate');
+        return options;
     }
     function select(row) {
         selected = row;
@@ -74,6 +83,7 @@
             option.value = action;
             option.textContent = action === 'unschedule'
                 ? t('Release schedule', 'সময়সূচি বাতিল') : action;
+            if (action === 'escalate') option.textContent = t('Escalate overdue SLA', 'বিলম্বিত কাজ এস্কেলেট করুন');
             selectAction.append(option);
         }
         form.classList.toggle('d-none', options.length === 0);
@@ -100,9 +110,9 @@
             input.disabled = !enabled; input.required = enabled;
             input.closest('.col-12, .col-sm-6')?.classList.toggle('d-none', !enabled);
         }
-        el('wfNote').required = ['reject', 'pause', 'complete', 'verify', 'unschedule'].includes(action);
-        el('wfNote').minLength = action === 'unschedule' ? 5 : 0;
-        el('wfNote').maxLength = ['schedule', 'unschedule'].includes(action) ? 500 : 1000;
+        el('wfNote').required = ['reject', 'pause', 'complete', 'verify', 'unschedule', 'escalate'].includes(action);
+        el('wfNote').minLength = action === 'escalate' ? 10 : action === 'unschedule' ? 5 : 0;
+        el('wfNote').maxLength = ['schedule', 'unschedule', 'escalate'].includes(action) ? 500 : 1000;
     }
     async function dashboard() {
         const q = new URLSearchParams();
@@ -138,6 +148,7 @@
             const q = new URLSearchParams({ page: String(page), pageSize: '25' });
             if (el('wfCampusFilter').value) q.set('campusId', el('wfCampusFilter').value);
             if (el('wfStateFilter').value) q.set('state', el('wfStateFilter').value);
+            if (el('wfOverdueOnly').checked) q.set('overdueOnly', 'true');
             const data = await api('?' + q);
             const tbody = el('wfRows'); tbody.replaceChildren();
             pages = Math.max(1, data.totalPages || 1);
@@ -194,6 +205,7 @@
         const q = new URLSearchParams();
         if (el('wfCampusFilter').value) q.set('campusId', el('wfCampusFilter').value);
         if (el('wfStateFilter').value) q.set('state', el('wfStateFilter').value);
+        if (el('wfOverdueOnly').checked) q.set('overdueOnly', 'true');
         window.location.assign(base + '/export?' + q);
     });
     el('wfAction').addEventListener('change', toggleFields);

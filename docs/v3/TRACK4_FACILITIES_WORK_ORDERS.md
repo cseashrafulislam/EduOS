@@ -37,3 +37,10 @@ Never mark the entire Facilities module production-ready from a passing CI run a
 - A campus-authorized manager can release an **unstarted Scheduled** work order to Approved with a required 5–500-character reason. The technician and UTC window are cleared atomically with an append-only event capturing the previous assignment and time window; no completed/in-progress/paused order can be silently cancelled.
 - Release uses the existing rowversion and idempotent command contract; the technician cannot release their own assignment. Manager may then reschedule with overlap locking and a history snapshot of old/new assignment. UI exposes the action in bn-BD/en-BD, preserving CSRF and request ownership checks.
 - Focused disposable SQL regression covers denied technician release, manager release, idempotent replay, stale-version 409, audit and reschedule. Inventory/Finance remain untouched. Real parallel-worker and browser acceptance are separately pending.
+
+## Overdue queue and evidenced manual escalation (2026-10-31)
+
+- Campus/ownership-scoped SQL list and CSV can filter to overdue **open** work orders, excluding verified Closed records. Existing dashboard remains canonical; there is no client-only data exposure.
+- A non-requesting Facilities manager may escalate an overdue approved work order with a 10–500-character reason. This records an append-only event and advances the work-order rowversion, rejecting racing closure/stale commands; same-command retries do not duplicate events.
+- Bilingual mobile UI offers the action only when eligible and hides other technicians' and makers' restricted actions. No invented automatic SLA policy, Inventory posting or V1 Finance mutation.
+- Focused disposable SQL test uses an advanced clock without editing stored SLA, tests requester denial, queue, replay, stale version and closed-order exclusion. Real browser/UAT/load remain separate gates.
