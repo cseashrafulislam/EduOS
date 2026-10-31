@@ -326,6 +326,38 @@ public sealed class SqlServerAlumniConsentIntegrationTests
                 Present = true, RowVersion = reversed.Data.RowVersion
             });
         Assert.True(checkedAgain.Success, checkedAgain.Message);
+
+        // A subsequently invalidated V1 completion must disappear immediately from
+        // aggregated engagement reporting and the attendance roster, even if an RSVP
+        // and check-in still physically exist. This modifies synthetic CI data only.
+        await db.Database.ExecuteSqlInterpolatedAsync($@"
+            UPDATE dbo.StudentExitRecords SET FeesCleared = {false}
+            WHERE TenantId = {tenantId} AND StudentId IN
+                (SELECT Id FROM dbo.Students WHERE TenantId = {tenantId}
+                    AND PublicId = {studentReference})");
+        var invalidatedReport = await publisherService.EventsAsync(new AlumniEventQueryDto());
+        Assert.True(invalidatedReport.Success, invalidatedReport.Message);
+        var invalidatedEvent = Assert.Single(invalidatedReport.Data!.Items.Where(e =>
+            e.Reference == draft.Data.Reference));
+        Assert.Equal(0, invalidatedEvent.GoingCount);
+        Assert.Equal(0, invalidatedEvent.DeclinedCount);
+        Assert.Equal(0, invalidatedEvent.CheckedInCount);
+        var invalidatedRoster = await publisherService.AttendanceAsync(draft.Data.Reference,
+            new AlumniEventAttendanceQueryDto());
+        Assert.True(invalidatedRoster.Success, invalidatedRoster.Message);
+        Assert.Empty(invalidatedRoster.Data!.Items);
+        await db.Database.ExecuteSqlInterpolatedAsync($@"
+            UPDATE dbo.StudentExitRecords SET FeesCleared = {true}
+            WHERE TenantId = {tenantId} AND StudentId IN
+                (SELECT Id FROM dbo.Students WHERE TenantId = {tenantId}
+                    AND PublicId = {studentReference})");
+        var restoredReport = await publisherService.EventsAsync(new AlumniEventQueryDto());
+        Assert.True(restoredReport.Success, restoredReport.Message);
+        var restoredEvent = Assert.Single(restoredReport.Data!.Items.Where(e =>
+            e.Reference == draft.Data.Reference));
+        Assert.Equal(1, restoredEvent.GoingCount);
+        Assert.Equal(1, restoredEvent.CheckedInCount);
+
         var finalRevoke = await graduate.SaveConsentAsync(new AlumniConsentRequestDto
         {
             StudentReference = studentReference, ClientRequestId = Guid.NewGuid(),
