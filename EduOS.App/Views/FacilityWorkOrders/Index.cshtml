@@ -1,0 +1,64 @@
+@using System.Globalization
+@{
+    var bn = CultureInfo.CurrentUICulture.Name.StartsWith("bn", StringComparison.OrdinalIgnoreCase);
+    ViewData["Title"] = bn ? "ক্যাম্পাস রক্ষণাবেক্ষণ" : "Campus Maintenance";
+    var manager = User.IsInRole("TenantAdmin") || User.IsInRole("Principal") || User.IsInRole("FacilitiesManager");
+    var approver = User.IsInRole("TenantAdmin") || User.IsInRole("Principal") || User.IsInRole("FacilitiesApprover");
+    var technician = User.IsInRole("FacilitiesTechnician");
+}
+<section class="container-fluid py-3" id="facilityWorkflow" data-bn="@bn.ToString().ToLowerInvariant()"
+         data-manager="@manager.ToString().ToLowerInvariant()" data-approver="@approver.ToString().ToLowerInvariant()"
+         data-technician="@technician.ToString().ToLowerInvariant()">
+    <header class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
+        <div><h2 class="h4 mb-1">@(bn ? "ক্যাম্পাস সার্ভিস অনুরোধ ও ওয়ার্ক অর্ডার" : "Campus Service Requests & Work Orders")</h2>
+            <p class="small text-muted mb-0">@(bn ? "স্বতন্ত্র অনুমোদন, টেকনিশিয়ান কাজ ও যাচাইকৃত সমাপ্তি। স্টক ইস্যু ও ফাইন্যান্স পোস্টিং এখানে করা হয় না।" : "Independent approval, technician workflow and verified closure. Parts and Finance posting are not enabled here.")</p></div>
+        <div class="d-flex flex-wrap gap-2"><a class="btn btn-outline-secondary btn-sm" asp-controller="FacilitySpaces" asp-action="Index">@(bn ? "স্থানসমূহ" : "Spaces")</a>
+            <button class="btn btn-outline-secondary btn-sm" id="facilityExport" type="button">CSV</button>
+            <button class="btn btn-outline-secondary btn-sm" type="button" onclick="window.print()">@(bn ? "প্রিন্ট" : "Print")</button></div>
+    </header>
+    <div id="workflowAlert" class="d-none" role="alert" aria-live="polite"></div>
+    <div class="row g-3">
+        <div class="col-12 col-xl-7">
+            <div class="card mb-3"><div class="card-body">
+                <form id="workflowSearch" class="row g-2 align-items-end">
+                    <div class="col-sm-4"><label class="form-label" for="wfCampusFilter">@(bn ? "ক্যাম্পাস আইডি" : "Campus ID")</label><input id="wfCampusFilter" class="form-control" type="number" min="1" /></div>
+                    <div class="col-sm-5"><label class="form-label" for="wfStateFilter">@(bn ? "অনুরোধের অবস্থা" : "Request status")</label>
+                        <select id="wfStateFilter" class="form-select"><option value="">@(bn ? "সব" : "All")</option><option>Submitted</option><option>Triaged</option><option>Approved</option><option>Rejected</option></select></div>
+                    <div class="col-sm-3"><button class="btn btn-primary w-100" type="submit">@(bn ? "খুঁজুন" : "Search")</button></div>
+                </form>
+                <div class="table-responsive mt-3"><table class="table table-sm table-striped align-middle">
+                    <thead><tr><th>ID</th><th>@(bn ? "স্থান" : "Space")</th><th>@(bn ? "সমস্যা" : "Issue")</th><th>@(bn ? "অগ্রাধিকার" : "Priority")</th><th>@(bn ? "অবস্থা" : "State")</th><th>@(bn ? "নির্বাচন" : "Open")</th></tr></thead>
+                    <tbody id="wfRows"></tbody></table></div>
+                <div class="d-flex align-items-center gap-2"><button type="button" id="wfPrev" class="btn btn-outline-secondary btn-sm">@(bn ? "পূর্ববর্তী" : "Previous")</button><span id="wfPage" class="small" aria-live="polite"></span><button type="button" id="wfNext" class="btn btn-outline-secondary btn-sm">@(bn ? "পরবর্তী" : "Next")</button></div>
+            </div></div>
+            <div class="card"><div class="card-body">
+                <h3 class="h6">@(bn ? "নতুন সার্ভিস অনুরোধ" : "New service request")</h3>
+                <form id="wfCreate" class="row g-2">
+                    <div class="col-sm-6"><label class="form-label" for="wfCampus">@(bn ? "ক্যাম্পাস আইডি" : "Campus ID")</label><input id="wfCampus" type="number" min="1" required class="form-control" /></div>
+                    <div class="col-sm-6"><label class="form-label" for="wfSpace">@(bn ? "সুবিধা স্থানের আইডি" : "Facility space ID")</label><input id="wfSpace" type="number" min="1" required class="form-control" /></div>
+                    <div class="col-sm-6"><label class="form-label" for="wfCategory">@(bn ? "বিভাগ কোড" : "Category code")</label><input id="wfCategory" class="form-control" required maxlength="40" pattern="[A-Za-z0-9_]+" placeholder="ELECTRICAL" /></div>
+                    <div class="col-sm-6"><label class="form-label" for="wfPriority">@(bn ? "অগ্রাধিকার" : "Priority")</label><select id="wfPriority" class="form-select"><option>Normal</option><option>Low</option><option>High</option><option>Urgent</option></select></div>
+                    <div class="col-12"><label class="form-label" for="wfSummary">@(bn ? "সমস্যার সারাংশ" : "Issue summary")</label><input id="wfSummary" class="form-control" required minlength="5" maxlength="200" /></div>
+                    <div class="col-12"><label class="form-label" for="wfDescription">@(bn ? "বিস্তারিত" : "Description")</label><textarea id="wfDescription" class="form-control" maxlength="2000" rows="2"></textarea></div>
+                    <div class="col-12"><button type="submit" class="btn btn-success">@(bn ? "অনুরোধ জমা দিন" : "Submit request")</button></div>
+                </form>
+            </div></div>
+        </div>
+        <div class="col-12 col-xl-5"><div class="card"><div class="card-body">
+            <h3 class="h6" id="wfSelected">@(bn ? "কাজ নির্বাচন করুন" : "Select a request")</h3>
+            <p class="small text-muted" id="wfDetails" aria-live="polite"></p>
+            <form id="wfTransition" class="row g-2 d-none">
+                <div class="col-12"><label class="form-label" for="wfAction">@(bn ? "পরবর্তী পদক্ষেপ" : "Next action")</label><select id="wfAction" class="form-select" required></select></div>
+                <div class="col-12"><label class="form-label" for="wfNote">@(bn ? "কারণ / প্রমাণ / যাচাই নোট" : "Reason / evidence / verification note")</label><textarea id="wfNote" class="form-control" rows="3" maxlength="1000"></textarea></div>
+                <div class="col-12"><label class="form-label" for="wfDue">@(bn ? "SLA শেষ সময় (ট্রায়াজের জন্য)" : "SLA due (triage)")</label><input id="wfDue" class="form-control" type="datetime-local" /></div>
+                <div class="col-12"><label class="form-label" for="wfTech">@(bn ? "টেকনিশিয়ান ইউজার আইডি" : "Technician user ID")</label><input id="wfTech" class="form-control" type="number" min="1" /></div>
+                <div class="col-sm-6"><label class="form-label" for="wfStart">@(bn ? "কাজ শুরু" : "Scheduled start")</label><input id="wfStart" class="form-control" type="datetime-local" /></div>
+                <div class="col-sm-6"><label class="form-label" for="wfEnd">@(bn ? "কাজ শেষ" : "Scheduled end")</label><input id="wfEnd" class="form-control" type="datetime-local" /></div>
+                <div class="col-12"><button type="submit" class="btn btn-primary">@(bn ? "পরিবর্তন সংরক্ষণ" : "Apply transition")</button></div>
+            </form>
+            <hr /><h4 class="h6">@(bn ? "পরিবর্তনের ইতিহাস" : "Transition history")</h4>
+            <div id="wfHistory" class="small" aria-live="polite"></div>
+        </div></div></div>
+    </div>
+</section>
+@section Scripts { <script src="~/js/facilities/work-orders.js" asp-append-version="true"></script> }

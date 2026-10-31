@@ -437,6 +437,9 @@ public class EduOSDbContext :
     public DbSet<AssetMaintenance> AssetMaintenances => Set<AssetMaintenance>();
     public DbSet<InventoryItem> InventoryItems => Set<InventoryItem>();
     public DbSet<FacilitySpace> FacilitySpaces => Set<FacilitySpace>();
+    public DbSet<FacilityServiceRequest> FacilityServiceRequests => Set<FacilityServiceRequest>();
+    public DbSet<FacilityWorkOrder> FacilityWorkOrders => Set<FacilityWorkOrder>();
+    public DbSet<FacilityWorkflowEvent> FacilityWorkflowEvents => Set<FacilityWorkflowEvent>();
     public DbSet<InventoryLocation> InventoryLocations => Set<InventoryLocation>();
     public DbSet<InventoryMovement> InventoryMovements => Set<InventoryMovement>();
     public DbSet<InventoryMovementLine> InventoryMovementLines => Set<InventoryMovementLine>();
@@ -1205,6 +1208,10 @@ public class EduOSDbContext :
         TenantReference<WebhookDelivery, WebhookEndpoint>(modelBuilder, nameof(WebhookDelivery.WebhookEndpointId));
         // Facilities
         TenantReference<FacilitySpace, Campus>(modelBuilder, nameof(FacilitySpace.CampusId));
+        TenantReference<FacilityServiceRequest, Campus>(modelBuilder, nameof(FacilityServiceRequest.CampusId));
+        TenantReference<FacilityServiceRequest, FacilitySpace>(modelBuilder, nameof(FacilityServiceRequest.FacilitySpaceId));
+        TenantReference<FacilityWorkOrder, FacilityServiceRequest>(modelBuilder, nameof(FacilityWorkOrder.FacilityServiceRequestId));
+        TenantReference<FacilityWorkflowEvent, FacilityServiceRequest>(modelBuilder, nameof(FacilityWorkflowEvent.FacilityServiceRequestId));
         // Inventory / Assets
         TenantReference<InventoryLocation, Campus>(modelBuilder, nameof(InventoryLocation.CampusId));
         TenantReference<InventoryMovement, InventoryLocation>(modelBuilder, nameof(InventoryMovement.FromLocationId));
@@ -1936,6 +1943,13 @@ public class EduOSDbContext :
 
         // Facilities (independent campus operational spaces)
         UniqueTenant<FacilitySpace>(modelBuilder, nameof(FacilitySpace.CampusId), nameof(FacilitySpace.Code));
+        modelBuilder.Entity<FacilityServiceRequest>().HasIndex(x => new { x.TenantId, x.ClientRequestId }).IsUnique();
+        modelBuilder.Entity<FacilityServiceRequest>().HasIndex(x => new { x.TenantId, x.CampusId, x.StateCode, x.CreatedAt });
+        modelBuilder.Entity<FacilityServiceRequest>().HasIndex(x => new { x.TenantId, x.FacilitySpaceId });
+        modelBuilder.Entity<FacilityWorkOrder>().HasIndex(x => new { x.TenantId, x.FacilityServiceRequestId }).IsUnique();
+        modelBuilder.Entity<FacilityWorkOrder>().HasIndex(x => new { x.TenantId, x.StateCode, x.ScheduledStartUtc });
+        modelBuilder.Entity<FacilityWorkflowEvent>().HasIndex(x => new { x.TenantId, x.ClientCommandId }).IsUnique();
+        modelBuilder.Entity<FacilityWorkflowEvent>().HasIndex(x => new { x.TenantId, x.FacilityServiceRequestId, x.CreatedAt });
         modelBuilder.Entity<FacilitySpace>().HasIndex(x => new { x.TenantId, x.CampusId, x.IsActive, x.Name });
         modelBuilder.Entity<FacilitySpace>().ToTable(t => t.HasCheckConstraint("CK_FacilitySpaces_Code",
             "LEN(LTRIM(RTRIM([Code]))) > 0 AND LEN(LTRIM(RTRIM([Name]))) > 0"));

@@ -150,6 +150,7 @@ namespace EduOS.App.Extensions
             s.AddScoped<IHrSetupService, HrSetupService>();
             s.AddScoped<IInventoryCatalogService, InventoryCatalogService>();
             s.AddScoped<IFacilitySpaceService, FacilitySpaceService>();
+            s.AddScoped<IFacilityWorkflowService, FacilityWorkflowService>();
             s.AddScoped<IProcurementRequisitionService, ProcurementRequisitionService>();
             s.AddScoped<IProcurementSupplierService, ProcurementSupplierService>();
             s.AddScoped<IProcurementPurchaseOrderService, ProcurementPurchaseOrderService>();

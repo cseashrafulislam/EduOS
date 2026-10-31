@@ -8,6 +8,7 @@
     <header class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
         <div><h2 class="h4 mb-1">@(bn ? "ক্যাম্পাস সুবিধা ও স্থান" : "Campus Facility Spaces")</h2>
         <p class="small text-muted mb-0">@(bn ? "এটি একাডেমিক রুম, হোস্টেল বেড বা ইনভেন্টরি স্টোর নয়।" : "Operational spaces, separate from academic rooms, hostel beds and inventory stores.")</p></div>
+        <a class="btn btn-outline-primary btn-sm" asp-controller="FacilityWorkOrders" asp-action="Index">@(bn ? "সার্ভিস অনুরোধ" : "Service requests")</a>
         <button type="button" class="btn btn-outline-secondary btn-sm" onclick="window.print()">@(bn ? "প্রিন্ট" : "Print")</button>
     </header>
     <div id="facilityAlert" class="d-none" role="alert" aria-live="polite"></div>
