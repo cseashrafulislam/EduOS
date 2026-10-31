@@ -568,7 +568,7 @@ public sealed partial class SqlServerV3ProcurementPurchaseOrderTests
                     ClientRequestId=withdrawal.ClientRequestId,RowVersion=withdrawal.RowVersion,
                     Reason="A different reason must not reuse an existing withdrawal key"
                 })).StatusCode);
-            Assert.Equal(409,(await service.ReviewSettlementAsync(
+            Assert.Equal(403,(await service.ReviewSettlementAsync(
                 second.Reference,replacement.Data.Reference,
                 new ReviewSupplierSettlementInstructionRequest {
                     RowVersion=replacement.Data.RowVersion,Approve=true,
@@ -595,8 +595,17 @@ public sealed partial class SqlServerV3ProcurementPurchaseOrderTests
             // Run non-maker denial only after the maker's writes; a new test
             // HttpContext would otherwise poison subsequent audit stamping.
             await using (var otherMaker=Open(options,tenantId,checkerId))
-                Assert.Equal(403,(await Invoices(otherMaker,tenantId,checkerId)
-                    .WithdrawSettlementAsync(second.Reference,replacement.Data.Reference,withdrawal)).StatusCode);
+            {
+                var checkerService=Invoices(otherMaker,tenantId,checkerId);
+                Assert.Equal(403,(await checkerService.WithdrawSettlementAsync(
+                    second.Reference,replacement.Data.Reference,withdrawal)).StatusCode);
+                Assert.Equal(409,(await checkerService.ReviewSettlementAsync(
+                    second.Reference,replacement.Data.Reference,
+                    new ReviewSupplierSettlementInstructionRequest {
+                        RowVersion=replacement.Data.RowVersion,Approve=true,
+                        Reason="Independent checker cannot approve withdrawn instruction"
+                    })).StatusCode);
+            }
             Assert.Equal(1,await verify.Journals.CountAsync(x=>
                 x.SourceType=="ProcurementSupplierInvoice" && x.SourceId==settlement.SourceId &&
                 x.State==JournalState.Posted));
