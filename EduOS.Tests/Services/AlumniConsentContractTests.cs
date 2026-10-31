@@ -1,3 +1,4 @@
+using System.Reflection;
 using EduOS.App.Authorization;
 using EduOS.App.Controllers.Api;
 using Microsoft.AspNetCore.Authorization;
@@ -73,6 +74,39 @@ public sealed class AlumniConsentContractTests
     public void Alumni_csv_exports_preserve_ordinary_quoted_values(string? input, string expected)
     {
         Assert.Equal(expected, InvokeCsv(input));
+    }
+
+    [Fact]
+    public void Alumni_csv_headers_and_event_statuses_follow_selected_language_without_changing_utc_values()
+    {
+        Assert.Equal("\uFEFFStudent code,Name,Email,Phone,Completed (UTC),Campus ID\r\n",
+            InvokePrivate("DirectoryHeader", false));
+        Assert.Equal("\uFEFFশিক্ষার্থী কোড,নাম,ইমেইল,ফোন,সম্পন্ন (UTC),ক্যাম্পাস আইডি\r\n",
+            InvokePrivate("DirectoryHeader", true));
+        Assert.Equal("\uFEFFEvent,Campus ID,Starts (UTC),Status,Going,Declined,Checked in\r\n",
+            InvokePrivate("EngagementHeader", false));
+        Assert.Equal("\uFEFFঅনুষ্ঠান,ক্যাম্পাস আইডি,শুরু (UTC),অবস্থা,আসবেন,আসবেন না,উপস্থিত\r\n",
+            InvokePrivate("EngagementHeader", true));
+        Assert.Equal("Draft", InvokePrivate("EventStatusLabel", 1, false));
+        Assert.Equal("Published", InvokePrivate("EventStatusLabel", 2, false));
+        Assert.Equal("Cancelled", InvokePrivate("EventStatusLabel", 3, false));
+        Assert.Equal("খসড়া", InvokePrivate("EventStatusLabel", 1, true));
+        Assert.Equal("প্রকাশিত", InvokePrivate("EventStatusLabel", 2, true));
+        Assert.Equal("বাতিল", InvokePrivate("EventStatusLabel", 3, true));
+        var source = Read("EduOS.App", "Controllers", "Api", "AlumniApiController.cs");
+        Assert.Equal(2, source.Split("CultureInfo.CurrentUICulture.TwoLetterISOLanguageName").Length - 1);
+        Assert.Contains("Csv(EventStatusLabel(item.Status, bengali))", source);
+        Assert.Contains("DirectoryAsync(query, ct)", source);
+        Assert.Contains("EventsAsync(query, ct)", source);
+        Assert.Contains("[Authorize(Roles = \"TenantAdmin\")]", source);
+    }
+
+    private static string InvokePrivate(string name, params object[] arguments)
+    {
+        var method = typeof(AlumniApiController).GetMethod(name,
+            BindingFlags.NonPublic | BindingFlags.Static);
+        Assert.NotNull(method);
+        return Assert.IsType<string>(method!.Invoke(null, arguments));
     }
 
     private static string InvokeCsv(string? input)

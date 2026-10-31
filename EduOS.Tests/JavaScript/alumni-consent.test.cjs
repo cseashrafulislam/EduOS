@@ -26,3 +26,19 @@ test('alumni directory is bounded, accessible, bilingual and uses safe text sink
     assert.match(view, /table-responsive/);
     assert.match(view, /id="alumniExport"/);
 });
+
+test('alumni CSV links retain server-selected bilingual headings and scoped report endpoints', () => {
+    const controller = fs.readFileSync(path.join(__dirname,
+        '../../EduOS.App/Controllers/Api/AlumniApiController.cs'), 'utf8');
+    const manual = fs.readFileSync(path.join(__dirname,
+        '../../EduOS.App/wwwroot/js/platform/page-context-help.js'), 'utf8');
+    assert.match(script, /\/api\/alumni\/directory\.csv\?/);
+    assert.match(script, /\/api\/alumni\/events\/report\.csv\?/);
+    assert.match(controller, /CultureInfo\.CurrentUICulture\.TwoLetterISOLanguageName == "bn"/);
+    assert.match(controller, /DirectoryHeader\(bengali\)/);
+    assert.match(controller, /EngagementHeader\(bengali\)/);
+    assert.match(controller, /Csv\(EventStatusLabel\(item\.Status, bengali\)\)/);
+    assert.match(controller, /\[Authorize\(Roles = "TenantAdmin"\)\]/);
+    assert.match(manual, /CSV headings and event status labels follow the selected language/);
+    assert.match(manual, /CSV শিরোনাম ও অনুষ্ঠানের অবস্থা নির্বাচিত ভাষায় থাকে/);
+});

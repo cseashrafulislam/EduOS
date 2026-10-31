@@ -248,8 +248,8 @@
                             "কাল্পনিক উদাহরণ: উত্তীর্ণ শিক্ষার্থী আমিনা নিজের যাচাইকৃত রেকর্ডে সম্মতি দিয়ে ৮ নভেম্বর ২০২৬-এর পুনর্মিলনীতে Going দিলেন। একজন প্রশাসক খসড়া, অন্যজন প্রকাশ এবং অনুমোদিত কর্মী অনুষ্ঠানে তাঁর উপস্থিতি নিলেন।"
                   ],
                   "result": [
-                            "Consent determines restricted directory visibility. Valid RSVP and attendance appear in authorized event views; CSV exports are limited to eligible current-page data.",
-                            "সম্মতি সীমিত তালিকায় তথ্য দেখানো নিয়ন্ত্রণ করে। বৈধ RSVP ও উপস্থিতি অনুমোদিত অনুষ্ঠান পৃষ্ঠায় দেখা যায়; CSV-তে শুধু যোগ্য বর্তমান পৃষ্ঠার তথ্য থাকে।"
+                            "Consent determines restricted directory visibility. Valid RSVP and attendance appear in authorized event views; CSV exports are limited to eligible current-page data. CSV headings and event status labels follow the selected language; timestamps remain ISO-8601 UTC.",
+                            "সম্মতি সীমিত তালিকায় তথ্য দেখানো নিয়ন্ত্রণ করে। বৈধ RSVP ও উপস্থিতি অনুমোদিত অনুষ্ঠান পৃষ্ঠায় দেখা যায়; CSV-তে শুধু যোগ্য বর্তমান পৃষ্ঠার তথ্য থাকে। CSV শিরোনাম ও অনুষ্ঠানের অবস্থা নির্বাচিত ভাষায় থাকে; সময় ISO-8601 UTC-তে থাকে।"
                   ],
                   "rules": [
                             "Only verified completed exits qualify. Consent is optional and revocable; revocation clears active RSVPs. Publication needs a different administrator. Idempotency keys and row versions reject stale/duplicate writes; no outbound email/SMS invitation or Finance/stock posting occurs here.",

@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text;
 using EduOS.App.Authorization;
 using EduOS.Core.DTOs.Alumni;
@@ -52,7 +53,8 @@ public sealed class AlumniApiController : ControllerBase
         if (!ModelState.IsValid) return ValidationProblem(ModelState);
         var result = await _service.DirectoryAsync(query, ct);
         if (!result.Success || result.Data == null) return StatusCode(result.StatusCode, result);
-        var csv = new StringBuilder("\uFEFFStudent code,Name,Email,Phone,Completed (UTC),Campus ID\r\n");
+        var bengali = CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "bn";
+        var csv = new StringBuilder(DirectoryHeader(bengali));
         foreach (var item in result.Data.Items)
         {
             csv.Append(Csv(item.StudentCode)).Append(',')
@@ -151,18 +153,40 @@ public sealed class AlumniApiController : ControllerBase
         if (!ModelState.IsValid) return ValidationProblem(ModelState);
         var result = await _service.EventsAsync(query, ct);
         if (!result.Success || result.Data == null) return StatusCode(result.StatusCode, result);
-        var csv = new StringBuilder("\uFEFFEvent,Campus ID,Starts (UTC),Status,Going,Declined,Checked in\r\n");
+        var bengali = CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "bn";
+        var csv = new StringBuilder(EngagementHeader(bengali));
         foreach (var item in result.Data.Items)
         {
             csv.Append(Csv(item.Title)).Append(',').Append(item.CampusId).Append(',')
                 .Append(Csv(item.StartsAtUtc.ToString("O"))).Append(',')
-                .Append(item.Status).Append(',').Append(item.GoingCount).Append(',')
+                .Append(Csv(EventStatusLabel(item.Status, bengali))).Append(',').Append(item.GoingCount).Append(',')
                 .Append(item.DeclinedCount).Append(',').Append(item.CheckedInCount).Append("\r\n");
         }
         Response.Headers["X-Content-Type-Options"] = "nosniff";
         return File(Encoding.UTF8.GetBytes(csv.ToString()), "text/csv; charset=utf-8",
             $"alumni-engagement-page-{query.Page}.csv");
     }
+
+    // Export headings follow the already resolved tenant/user UI culture. ISO-8601 UTC values
+    // and API status codes stay canonical; only presentation labels are localized.
+    private static string DirectoryHeader(bool bengali) => bengali
+        ? "\uFEFFশিক্ষার্থী কোড,নাম,ইমেইল,ফোন,সম্পন্ন (UTC),ক্যাম্পাস আইডি\r\n"
+        : "\uFEFFStudent code,Name,Email,Phone,Completed (UTC),Campus ID\r\n";
+
+    private static string EngagementHeader(bool bengali) => bengali
+        ? "\uFEFFঅনুষ্ঠান,ক্যাম্পাস আইডি,শুরু (UTC),অবস্থা,আসবেন,আসবেন না,উপস্থিত\r\n"
+        : "\uFEFFEvent,Campus ID,Starts (UTC),Status,Going,Declined,Checked in\r\n";
+
+    private static string EventStatusLabel(int status, bool bengali) => (status, bengali) switch
+    {
+        (1, true) => "খসড়া",
+        (2, true) => "প্রকাশিত",
+        (3, true) => "বাতিল",
+        (1, false) => "Draft",
+        (2, false) => "Published",
+        (3, false) => "Cancelled",
+        _ => bengali ? "অজানা" : "Unknown"
+    };
 
     private static string Csv(string? value)
     {
