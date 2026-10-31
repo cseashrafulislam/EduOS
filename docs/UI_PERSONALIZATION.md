@@ -51,7 +51,7 @@ entitlement. Additional sidebar actions in the future must follow the same rule.
 | Surface | Controlled, supported choices |
 | --- | --- |
 | Navigation | Left/sidebar, right/sidebar or top navigation; collapsed/expanded; favorites and allowed-menu ordering |
-| Theme | Light, dark, system default, supported color palettes and branded accents |
+| Theme | Light, dark, system default, optional professional presets **and unrestricted validated HEX/RGB custom color selection** for supported semantic tokens; never rely on a fixed list of colors |
 | Typography | Approved font families, bounded text size and spacing/density presets; readable Bangla and English |
 | Workspace | Dashboard widget show/hide/rearrange within authorized widgets and responsive grid limits |
 | Tables | Column visibility/order, density, safe page-size and default sorts; export only authorized columns/data |
@@ -76,7 +76,7 @@ Implementation design when explicitly approved:
 - Missing/invalid/retired preferences fall back to a documented safe theme and preserve the ability to reset; no broken page or infinite migration loop.
 - Maintain consistent API/DOM contract across UI options; database/API/report names remain invariant when the display language or menu arrangement changes.
 
-**Current decision:** this is a future feature requirement. Do **not** modify the database schema or introduce a new preference model solely from this documentation commit. Audit the current reusable shell and configuration primitives before an implementation proposal.
+**Owner approval (2026-11-01):** UI/UX modernization and Theme & Appearance Studio are approved for scoped implementation. First inspect the current shared shell, navigation, localization, preferences, Razor/JS/CSS and tests; reuse working code. A persistence change is allowed only when actually needed, through an additive, tenant-safe, audited migration. Do not create a parallel theme engine or overwrite existing preferences. This document is the canonical UI contract for both existing and newly created pages.
 
 ## 4. Localization and tenant terminology
 
@@ -109,3 +109,59 @@ Implementation design when explicitly approved:
 6. Adversarial payloads, stale-version updates, tenant switching and unauthorized widget IDs fail safely.
 7. Load tests show customization overhead remains bounded and causes no cross-user/cross-tenant cache leakage.
 
+
+## 8. Owner-approved unified UI/UX modernization workstream (2026-11-01)
+
+**Single UI owner:** EduOS Full Project Task 3/5 owns shared layout, discoverability, reusable components, theme/preferences, visual and form interaction refinements, localization presentation and UI regression. Domain owners (Tasks 1, 2 and 4) keep their actual business entities, APIs, transactional rules, reporting amounts and workflows; Task 5 owns independent whole-system integration, security and QA. A cross-domain API or schema fix requires evidence and owner coordination, not a second implementation. Development work is **not** complete merely because these requirements are documented.
+
+### 8.1. Route and page inventory before redesign
+
+- Build an evidence-backed route/page/menu map from the **current Ashraful HEAD**: route, controller/view/API, module, user action, role/module-entitlement, tenant/campus scope, current entrypoint, existing tests, mobile/localization/print dependencies, and observed issue. Mark verified existing, defect, missing navigation, needs workflow split, duplicate link or unverified; do not infer a missing feature from a screenshot.
+- Preserve previously implemented collapsible server-authorized navigation and its existing left/right/top modes. Do not recreate it. Audit links embedded in page-top button rows; route discoverable authorized destinations through the sidebar or global feature search. Do not add every Add/Edit/Details action as a permanent menu item.
+- Prefer **Module → Operations / Reports / Settings → Feature**, with up to three navigational levels. Omit a category when it only adds a useless click; keep module Overview as a direct destination. Use short bilingual labels, current-page highlighting, breadcrumb or context heading where useful, role-aware feature search, favorites/recent pages and stable deep links. Menu search is a discovery tool, **never** an authorization mechanism.
+- Maintain one authoritative route/menu metadata source shared by navigation/search/breadcrumbs where practical, referencing existing server-side role/entitlement checks. No duplicate menu destinations, unauthorized deep-link access, or changes to route/API identity without a compatibility plan.
+
+### 8.2. Task-focused page patterns — not one enormous form or one page per field
+
+| Pattern | Required behavior |
+| --- | --- |
+| Overview/landing | Small summary and direct actions; no unrelated entry forms or giant link-button forest. |
+| Master list + editor | Server-filtered list and Add/Edit (appropriate drawer or separate page), with edit/return context retained. |
+| Transaction | One principal action, sensible grouped inputs, review/post/confirm where materially risky, idempotent server processing and meaningful completion action. |
+| Profile/detail | One record context with related tabs/sections and explicit permission boundaries. |
+| Reports | Scoped filters, SQL-backed paging/sorting where growing, accurate totals, authorized export/print and readable empty results. |
+| Settings | Coherent policy/configuration sections; don't mix business setup with daily transaction forms. |
+
+**Fees & Billing exemplar:** Fee Structures (register + editor), Monthly Invoice Generation, Student Ledger, Fee Collection, Discounts/GL Setup and Collection/Due/Aging Reports are separate discoverable workflows. Keep existing financial endpoint semantics, preview/idempotency, posting and reversal contracts. Do not invent a duplicate fee ledger or GL.
+
+### 8.3. Appearance Studio without hardcoded color choices
+
+- Provide **Basic** (preset theme, Light/Dark/System, primary brand color, sidebar/header mode, density) and **Advanced** sections (color tokens, layout/typography/accessibility and authorized institute branding) without cluttering ordinary operational pages.
+- A custom color picker must accept user-selected valid colors rather than only fixed preset swatches. Expose semantic groups: sidebar background/text/icon/active/hover, header background/text/icon/border, page/card/table surfaces and text, primary/secondary button, form border/focus and status colors. Preserve contrast-compliant success/warning/error meaning; do not let cosmetic overrides falsely communicate financial status.
+- Normalize/validate allowed RGB or HEX values, calculate or suggest readable foreground/hover states, preview light/dark and representative forms/tables/dialogs and block unsafe contrast combinations. Semantic design tokens are authoritative; no arbitrary CSS/JS/HTML uploads or unlimited per-control CSS persisted.
+- Preview is transient and not globally published; user Save persists scoped preferences; institute default publication requires authorized admin, version check, audit and safe reset/restore. Resolve effective values from safe product defaults, institute settings, user override and accessibility constraint without tenant/user bleed. Existing print/PDF templates and official invoice identity must not accidentally inherit personal visual themes.
+- Honor existing density, layout, typography, localization, reduced motion and mobile controls. Do not add duplicate theme/settings tables if existing storage can be extended safely.
+
+### 8.4. Efficient data entry and lists
+
+- Searchable, tenant-scoped selects and dependent campus/academic/student lookup; retain known record context and reduce duplicate typing **without silent financial or historical auto-entry**.
+- Standardize keyboard/touch focus, inline field and summary validation, Save/Save & New when appropriate, unsaved-change warning, stable request loading/error state, field feedback and quiet success.
+- Don't use complex nested modals or auto-show tutorials. Large forms may use a clear section index/wizard only when it materially reduces errors; short forms stay on one view.
+- Tables: bounded server-side filter/sort/page/projection, consistent row actions, useful empty/loading/error states, authorized column visibility and export, mobile behavior; never fetch unbounded tenant data merely to power a rich grid.
+- Role-targeted dashboards show useful work/alerts and authorized figures, not placeholder KPIs. Preserve business-date, currency and bilingual formatting and report-source accuracy.
+
+### 8.5. New-page Definition of Ready / Done (mandatory, all future tracks)
+
+**Before coding:** inspect the relevant shared UI component and the current route/menu registry; classify the page as Operation, Report, Settings or record detail; identify permissions, tenant/campus and module entitlement, localization keys, existing endpoint/reuse and required list/report state. The domain owner must not create a disconnected one-off UI.
+
+**Before claiming done:** (1) proper discoverability via navigation/search or contextual parent link; (2) consistent tokens/forms/buttons/tables/help; (3) bilingual display labels (no raw enum/entity key such as academicBatches); (4) keyboard/touch and mobile layout; (5) readable empty/loading/error/permission-denied states; (6) safe theme and density behavior; (7) server authorization, CSRF, validation and duplicate-save protection; (8) related list/edit/back filters and print/report permissions; (9) targeted component/browser/API-contract/security regressions; (10) updated route inventory and master-plan evidence. All checks must be recorded as **tested**, **not run** or **blocked**, never assumed passed.
+
+### 8.6. High-throughput, low-duplication execution sequence
+
+1. Inventory existing route/sidebar/theme/form assets and reproduce high-impact problems; take a small baseline of representative screens, roles and devices.
+2. Repair shared navigation/search and the design token/component foundation **once**, with regression tests and compatibility.
+3. Pilot with frequent flows (Admission, Student, Fees/Collection, Attendance, Payroll), including the currently overloaded Fees & Billing screen, then reuse the proven patterns across remaining modules in bounded coherent batches.
+4. Extend Theme & Appearance Studio only after checking existing preference handling; verify personal/institute scope, color safety, reset and mobile/bilingual.
+5. Continue module-by-module and finish independent role/tenant, accessibility, mobile, report and performance acceptance. Never claim a screenshot-only polish as business-flow completion.
+
+**Acceptance reporting per run:** exact old/new Ashraful SHA; audit finding and owned route/template; files and explicit behavior changed; tests/CI status for that SHA; unverified UI/browser or institute acceptance gates; next high-value non-duplicate slice. Respect owner-visible task scheduling; this spec does not reschedule automations.
