@@ -137,13 +137,23 @@ public sealed class SqlServerFacilityWorkOrderTests
         await using (var db = Db(options, tenantId, managerId, "FacilitiesManager"))
         {
             var service = Service(db, tenantId, managerId, "FacilitiesManager");
-            var result = await service.TransitionAsync(submitted.Id, "triage", new FacilityTransitionDto
+            var triageId = Guid.NewGuid();
+            var due = DateTime.UtcNow.AddHours(4);
+            FacilityTransitionDto Triage(DateTime deadline, string? reason = null) => new()
             {
-                ClientCommandId = Guid.NewGuid(), RowVersion = submitted.RowVersion,
-                SlaDueAtUtc = DateTime.UtcNow.AddHours(4)
-            });
+                ClientCommandId = triageId, RowVersion = submitted.RowVersion,
+                SlaDueAtUtc = deadline, Note = reason
+            };
+            var result = await service.TransitionAsync(submitted.Id, "triage", Triage(due));
             Assert.True(result.Success, result.Message);
             triaged = result.Data!;
+            Assert.True((await service.TransitionAsync(submitted.Id, "triage", Triage(due))).Success);
+            Assert.Equal(409, (await service.TransitionAsync(
+                submitted.Id, "triage", Triage(due.AddMinutes(30)))).StatusCode);
+            Assert.Equal(409, (await service.TransitionAsync(
+                submitted.Id, "triage", Triage(due, "Altered deadline reason"))).StatusCode);
+            Assert.Single((await service.HistoryAsync(submitted.Id, 1, 25)).Data!.Items
+                .Where(x => x.ActionCode == "triage"));
         }
         FacilityRequestDto approved;
         var approvalId = Guid.NewGuid();
@@ -371,6 +381,10 @@ public sealed class SqlServerFacilityWorkOrderTests
             { ClientCommandId = releaseId, RowVersion = scheduled.WorkOrderRowVersion!,
               Note = "Schedule changed at campus request." });
             Assert.True(retry.Success, retry.Message);
+            Assert.Equal(409, (await service.TransitionAsync(submitted.Id, "unschedule",
+                new FacilityTransitionDto { ClientCommandId = releaseId,
+                    RowVersion = scheduled.WorkOrderRowVersion!,
+                    Note = "Different schedule release reason." })).StatusCode);
             var stale = await service.TransitionAsync(submitted.Id, "unschedule", new FacilityTransitionDto
             { ClientCommandId = Guid.NewGuid(), RowVersion = scheduled.WorkOrderRowVersion!,
               Note = "Attempt to release stale schedule." });
@@ -415,6 +429,10 @@ public sealed class SqlServerFacilityWorkOrderTests
                     RowVersion = scheduled.WorkOrderRowVersion!,
                     Note = "Overdue hallway repair requires immediate manager follow-up." });
             Assert.True(retry.Success, retry.Message);
+            Assert.Equal(409, (await service.TransitionAsync(submitted.Id, "escalate",
+                new FacilityTransitionDto { ClientCommandId = commandId,
+                    RowVersion = scheduled.WorkOrderRowVersion!,
+                    Note = "Changed escalation reason must not be acknowledged." })).StatusCode);
             var stale = await service.TransitionAsync(submitted.Id, "escalate",
                 new FacilityTransitionDto { ClientCommandId = Guid.NewGuid(),
                     RowVersion = scheduled.WorkOrderRowVersion!,
@@ -445,14 +463,23 @@ public sealed class SqlServerFacilityWorkOrderTests
         FacilityRequestDto completed;
         await using (var db = Db(options, tenantId, techId, "FacilitiesTechnician"))
         {
-            var result = await Service(db, tenantId, techId, "FacilitiesTechnician").TransitionAsync(
-                submitted.Id, "complete", new FacilityTransitionDto
-                {
-                    ClientCommandId = Guid.NewGuid(), RowVersion = started.WorkOrderRowVersion!,
-                    Note = "Replaced the hallway light and verified the circuit."
-                });
+            var service = Service(db, tenantId, techId, "FacilitiesTechnician");
+            var completionId = Guid.NewGuid();
+            FacilityTransitionDto Completion(string evidence) => new()
+            {
+                ClientCommandId = completionId, RowVersion = started.WorkOrderRowVersion!,
+                Note = evidence
+            };
+            var result = await service.TransitionAsync(submitted.Id, "complete",
+                Completion("Replaced the hallway light and verified the circuit."));
             Assert.True(result.Success, result.Message);
             completed = result.Data!;
+            Assert.True((await service.TransitionAsync(submitted.Id, "complete",
+                Completion("Replaced the hallway light and verified the circuit."))).Success);
+            Assert.Equal(409, (await service.TransitionAsync(submitted.Id, "complete",
+                Completion("Changed completion evidence must not be accepted."))).StatusCode);
+            Assert.Single((await service.HistoryAsync(submitted.Id, 1, 25)).Data!.Items
+                .Where(x => x.ActionCode == "complete"));
         }
         // Independent verifier may return unsafe completion for correction without
         // falsifying the prior evidence or marking an unfinished job as complete.
@@ -505,12 +532,19 @@ public sealed class SqlServerFacilityWorkOrderTests
         await using (var db = Db(options, tenantId, approverId, "FacilitiesApprover"))
         {
             var service = Service(db, tenantId, approverId, "FacilitiesApprover");
-            var result = await service.TransitionAsync(submitted.Id, "verify", new FacilityTransitionDto
+            var verificationId = Guid.NewGuid();
+            FacilityTransitionDto Verification(string reason) => new()
             {
-                ClientCommandId = Guid.NewGuid(), RowVersion = completed.WorkOrderRowVersion!,
-                Note = "Inspected working light on site."
-            });
+                ClientCommandId = verificationId, RowVersion = completed.WorkOrderRowVersion!,
+                Note = reason
+            };
+            var result = await service.TransitionAsync(submitted.Id, "verify",
+                Verification("Inspected working light on site."));
             Assert.True(result.Success, result.Message);
+            Assert.True((await service.TransitionAsync(submitted.Id, "verify",
+                Verification("Inspected working light on site."))).Success);
+            Assert.Equal(409, (await service.TransitionAsync(submitted.Id, "verify",
+                Verification("Different verification outcome."))).StatusCode);
             Assert.Equal("Closed", result.Data!.WorkOrderState);
             Assert.NotNull(result.Data.VerifiedAtUtc);
             var history = await service.HistoryAsync(submitted.Id, 1, 25);

@@ -48,6 +48,36 @@ public sealed class FacilityWorkflowService(
         try { return current.AsSpan().SequenceEqual(Convert.FromBase64String(supplied)); }
         catch (FormatException) { return false; }
     }
+    // The command ID identifies one immutable payload, not merely an action name.
+    // Legacy triage events did not store the deadline; their committed request
+    // deadline is checked so exact pre-upgrade retries still work fail-closed.
+    private static bool ReplayPayloadMatches(FacilityWorkflowEvent replay, string action,
+        FacilityTransitionDto command, FacilityServiceRequest request)
+    {
+        var note = command.Note?.Trim();
+        return action switch
+        {
+            "schedule" => command.TechnicianUserId is > 0 &&
+                command.ScheduledStartUtc is DateTime start && start.Kind == DateTimeKind.Utc &&
+                command.ScheduledEndUtc is DateTime end && end.Kind == DateTimeKind.Utc &&
+                replay.Note?.EndsWith(
+                    $"new technician={command.TechnicianUserId}, start={start:O}, end={end:O}" +
+                    (string.IsNullOrWhiteSpace(note) ? "" : $"; reason={note}"),
+                    StringComparison.Ordinal) == true,
+            "triage" => command.SlaDueAtUtc is DateTime due && due.Kind == DateTimeKind.Utc &&
+                (string.Equals(replay.Note,
+                    $"SLA due UTC={due:O}" + (string.IsNullOrWhiteSpace(note) ? "" : $"; note={note}"),
+                    StringComparison.Ordinal) ||
+                 (request.SlaDueAtUtc == due && string.Equals(replay.Note, note, StringComparison.Ordinal))),
+            "unschedule" => !string.IsNullOrWhiteSpace(note) &&
+                replay.Note?.EndsWith($"; reason={note}", StringComparison.Ordinal) == true,
+            "escalate" => !string.IsNullOrWhiteSpace(note) &&
+                string.Equals(replay.Note, "Manual overdue SLA escalation: " + note,
+                    StringComparison.Ordinal),
+            _ => string.Equals(replay.Note, note, StringComparison.Ordinal)
+        };
+    }
+
     private static FacilityRequestDto Map(FacilityServiceRequest request, FacilityWorkOrder? order)
         => new()
         {
@@ -238,6 +268,13 @@ public sealed class FacilityWorkflowService(
                            "pause" or "resume" or "complete" or "verify" or "return" or "unschedule" or "escalate" or
                             "cancelrequest" or "cancelapprove" or "cancelreject"))
             return ApiResponse<FacilityRequestDto>.ErrorResponse("Unsupported transition.", 404);
+        // Ignore neither a changed business deadline nor an unrelated assignment
+        // payload on retry: non-applicable fields cannot be silently accepted.
+        if ((action != "triage" && command.SlaDueAtUtc.HasValue) ||
+            (action != "schedule" && (command.TechnicianUserId.HasValue ||
+                command.ScheduledStartUtc.HasValue || command.ScheduledEndUtc.HasValue)))
+            return ApiResponse<FacilityRequestDto>.ErrorResponse(
+                "Unexpected transition fields.", 400);
         var request = await db.Set<FacilityServiceRequest>().FirstOrDefaultAsync(
             x => x.Id == id && x.TenantId == user.TenantId && !x.IsDeleted, ct);
         if (request == null) return ApiResponse<FacilityRequestDto>.ErrorResponse("Request not found.", 404);
@@ -280,19 +317,7 @@ public sealed class FacilityWorkflowService(
             return replay.FacilityServiceRequestId == id &&
                    replay.ActorUserId == user.UserId &&
                    string.Equals(replay.ActionCode, action, StringComparison.OrdinalIgnoreCase) &&
-                   (action != "schedule" ||
-                    // A retry may acknowledge only the exact scheduled technician, UTC
-                    // window and reason. Reusing the command ID with changed assignment
-                    // details must never be reported as an applied change.
-                    (command.TechnicianUserId is > 0 &&
-                     command.ScheduledStartUtc is DateTime replayStart && replayStart.Kind == DateTimeKind.Utc &&
-                     command.ScheduledEndUtc is DateTime replayEnd && replayEnd.Kind == DateTimeKind.Utc &&
-                     replay.Note?.EndsWith(
-                         $"new technician={command.TechnicianUserId}, start={replayStart:O}, end={replayEnd:O}" +
-                         (string.IsNullOrWhiteSpace(command.Note) ? "" : $"; reason={command.Note.Trim()}"),
-                         StringComparison.Ordinal) == true)) &&
-                   (action is not ("return" or "cancelrequest" or "cancelapprove" or "cancelreject") ||
-                     string.Equals(replay.Note, command.Note?.Trim(), StringComparison.Ordinal))
+                   ReplayPayloadMatches(replay, action, command, request)
                 ? ApiResponse<FacilityRequestDto>.SuccessResponse(await ReadAsync(request, ct), "Already applied.")
                 : ApiResponse<FacilityRequestDto>.ErrorResponse("Command ID reused.", 409);
 
@@ -313,6 +338,11 @@ public sealed class FacilityWorkflowService(
                 if (request.StateCode != "Submitted" || command.SlaDueAtUtc is not DateTime due ||
                     due.Kind != DateTimeKind.Utc || due <= now)
                     return ApiResponse<FacilityRequestDto>.ErrorResponse("Triage needs a future UTC SLA deadline.");
+                if (note?.Length > 500)
+                    return ApiResponse<FacilityRequestDto>.ErrorResponse(
+                        "Triage note must be at most 500 characters.");
+                auditNote = $"SLA due UTC={due:O}" +
+                    (string.IsNullOrWhiteSpace(note) ? "" : $"; note={note}");
                 request.SlaDueAtUtc = due;
                 request.TriagedByUserId = user.UserId;
                 request.StateCode = "Triaged";
