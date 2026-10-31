@@ -4,6 +4,7 @@
 import { performance } from 'node:perf_hooks';
 import { auditRegisterPages } from './v3-enterprise-paged-audit.mjs';
 import { auditProcurement } from './v3-enterprise-procurement-http-audit.mjs';
+import { auditSupplierCommitment } from './v3-enterprise-supplier-commitment-audit.mjs';
 import { pathToFileURL } from 'node:url';
 
 const API = '/api/v3/enterprise/ledger-trace';
@@ -70,6 +71,10 @@ export function validateConfig(env) {
     check(uuid.test(env.STOCK_REFERENCE) && uuid.test(env.ASSET_REFERENCE), 'Invalid reference UUID.');
     check(!env.PROCUREMENT_REFERENCE || uuid.test(env.PROCUREMENT_REFERENCE),
         'Invalid procurement reference UUID.');
+    check(!env.SUPPLIER_CONFIRMATION_ID || (env.PROCUREMENT_REFERENCE &&
+        /^[1-9]\d*$/.test(env.SUPPLIER_CONFIRMATION_ID) &&
+        Number.isSafeInteger(Number(env.SUPPLIER_CONFIRMATION_ID))),
+        'Supplier confirmation ID requires procurement UUID and positive safe integer.');
     const date = /^\d{4}-\d{2}-\d{2}$/;
     const validDate = value => {
         if (!date.test(value)) return false;
@@ -103,6 +108,8 @@ export function validateConfig(env) {
     return { base: base.origin, a: env.TENANT_A_COOKIE, b: env.TENANT_B_COOKIE,
         stock: env.STOCK_REFERENCE, asset: env.ASSET_REFERENCE,
         procurement: env.PROCUREMENT_REFERENCE || null,
+        supplierConfirmation: env.SUPPLIER_CONFIRMATION_ID ?
+            Number(env.SUPPLIER_CONFIRMATION_ID) : null,
         from: env.FROM, to: env.TO, iterations, concurrency,
         restricted: env.RESTRICTED_COOKIE || null,
         assetCampus: campusA || null, otherCampus: campusOther || null,
@@ -110,7 +117,12 @@ export function validateConfig(env) {
 }
 
 export async function request(base, cookie, path, fetcher = fetch) {
-    check(path.startsWith(API + '/') && !path.startsWith('//'), 'Invalid API path.');
+    const procurementApi = ['/api/procurement/supplier-confirmations',
+        '/api/procurement/purchase-orders'];
+    check(!path.startsWith('//') && !path.includes('..') && !path.includes('\\') &&
+        (path.startsWith(API + '/') || procurementApi.some(prefix =>
+            path === prefix || path.startsWith(prefix + '/') || path.startsWith(prefix + '?'))),
+        'Invalid API path.');
     const started = performance.now();
     const response = await fetcher(base + path, {
         method: 'GET', redirect: 'manual', cache: 'no-store',
@@ -130,8 +142,11 @@ export async function request(base, cookie, path, fetcher = fetch) {
 }
 
 export async function runAcceptance(config, fetcher = fetch) {
-    const { base, a, b, stock, asset, procurement = null, from, to, iterations, concurrency,
+    const { base, a, b, stock, asset, procurement = null, supplierConfirmation = null,
+        from, to, iterations, concurrency,
         restricted, assetCampus, otherCampus, pagedAudit = false, auditPages = 10 } = config;
+    check(!supplierConfirmation || procurement,
+        'Supplier confirmation requires canonical procurement reference.');
     const noStore = result => check(result.cache.includes('no-store') ||
         result.cache.includes('no-cache'), 'Private response must not be cached.');
     const references = csv => {
@@ -169,6 +184,10 @@ export async function runAcceptance(config, fetcher = fetch) {
     const procurementResult = procurement ? await auditProcurement({
         read, parseCsv, api: API, reference: procurement, from, to,
         tenantA: a, tenantB: b, restricted
+    }) : null;
+    const supplierResult = supplierConfirmation ? await auditSupplierCommitment({
+        read, parseCsv, api: API, reference: procurement,
+        confirmationId: supplierConfirmation, tenantA: a, tenantB: b, restricted
     }) : null;
     const registers = [];
     if (procurementResult) {
@@ -262,6 +281,11 @@ export async function runAcceptance(config, fetcher = fetch) {
         paths.push({ cookie: b, path: API + '/procurement/' + procurement,
             foreignDetail: true });
     }
+    if (supplierResult) {
+        const path = '/api/procurement/supplier-confirmations/' + supplierConfirmation;
+        paths.push({ cookie: a, path, own: true });
+        paths.push({ cookie: b, path, foreignDetail: true });
+    }
     let cursor = 0;
     const worker = async () => {
         while (cursor < iterations) {
@@ -288,6 +312,7 @@ export async function runAcceptance(config, fetcher = fetch) {
             ...(restricted ? ['restricted-role authorization'] : []),
             ...(assetCampus ? ['asset campus isolation'] : []),
             ...(procurement ? ['procurement source/CSV/register integrity and tenant IDOR'] : []),
+            ...(supplierResult ? ['supplier confirmation to PO/enterprise/commitment/export integrity'] : []),
             ...(pagedAudit ? ['bounded all-page JSON/CSV parity and cross-tenant isolation'] : [])],
         registerCounts: registers,
         measuredHttpOnly: true, samples: samples.length,
