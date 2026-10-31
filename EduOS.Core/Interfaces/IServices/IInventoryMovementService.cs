@@ -5,6 +5,11 @@ namespace EduOS.Core.Interfaces.IServices;
 
 public interface IInventoryMovementService
 {
+    Task<ApiResponse<PagedResult<InventoryPhysicalCountDto>>> GetPhysicalCountsAsync(long? locationId, string? state, int page, int pageSize, CancellationToken cancellationToken = default);
+    Task<ApiResponse<InventoryPhysicalCountDto>> GetPhysicalCountAsync(Guid reference, CancellationToken cancellationToken = default);
+    Task<ApiResponse<InventoryPhysicalCountDto>> StartPhysicalCountAsync(StartInventoryPhysicalCountRequestDto request, CancellationToken cancellationToken = default);
+    Task<ApiResponse<InventoryPhysicalCountDto>> SubmitPhysicalCountAsync(Guid reference, SubmitInventoryPhysicalCountRequestDto request, CancellationToken cancellationToken = default);
+    Task<ApiResponse<InventoryPhysicalCountDto>> ReviewPhysicalCountAsync(Guid reference, ReviewInventoryPhysicalCountRequestDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<PagedResult<InventoryMovementDto>>> GetMovementsAsync(DateTime? fromUtc, DateTime? toUtc, int page, int pageSize, CancellationToken cancellationToken = default);
     Task<ApiResponse<InventoryMovementDto>> GetMovementAsync(Guid movementReference, CancellationToken cancellationToken = default);
     Task<ApiResponse<PagedResult<InventoryReservationCoverageRowDto>>> GetReservationCoverageAsync(long locationId, string? search, bool overdueOnly, int page, int pageSize, CancellationToken cancellationToken = default);

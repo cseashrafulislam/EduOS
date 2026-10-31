@@ -15,6 +15,7 @@
     <div id="movementAlert" class="d-none" role="alert"></div>
     @if (canCreate) { @await Html.PartialAsync("_Create") }
     @if (canCreate) { @await Html.PartialAsync("_Adjustments") }
+    @await Html.PartialAsync("_PhysicalCounts")
     @if (canCreate) {
         <div class="card mb-3"><div class="card-body">
             <h3 class="h5">@(System.Globalization.CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "bn" ? "ট্রান্সফার গ্রহণ" : "Receive in-transit stock")</h3>

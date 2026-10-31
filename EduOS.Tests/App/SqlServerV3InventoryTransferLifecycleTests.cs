@@ -15,7 +15,7 @@ using Xunit;
 namespace EduOS.Tests.App;
 
 [Collection("SqlServerIntegration")]
-public sealed class SqlServerV3InventoryTransferLifecycleTests
+public sealed partial class SqlServerV3InventoryTransferLifecycleTests
 {
     private sealed class Actor(long tenantId, long userId, string role) : ICurrentUserService
     {

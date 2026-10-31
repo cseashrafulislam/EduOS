@@ -9,6 +9,7 @@ import { initReorder } from './movements-reorder.js';
 import { initStockPosition } from './movements-stock-position.js';
 import { initItemHistory } from './movements-item-history.js';
 import { initLotAging } from './movements-lot-aging.js';
+import { initPhysicalCounts } from './movements-physical-counts.js';
 if (root) {
     const refresh = initLedger();
     initReservations().catch(e => notice(e.message));
@@ -18,6 +19,7 @@ if (root) {
     initStockPosition().catch(e => notice(e.message));
     initItemHistory().catch(e => notice(e.message));
     initLotAging().catch(e => notice(e.message));
+    initPhysicalCounts(refresh).catch(e => notice(e.message));
     if (root.dataset.create === 'true') {
         initForm(refresh).catch(e => notice(e.message));
         initAdjustments(refresh).catch(e => notice(e.message));

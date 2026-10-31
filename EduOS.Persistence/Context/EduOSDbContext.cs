@@ -438,6 +438,8 @@ public class EduOSDbContext :
     public DbSet<InventoryLocation> InventoryLocations => Set<InventoryLocation>();
     public DbSet<InventoryMovement> InventoryMovements => Set<InventoryMovement>();
     public DbSet<InventoryMovementLine> InventoryMovementLines => Set<InventoryMovementLine>();
+    public DbSet<InventoryPhysicalCount> InventoryPhysicalCounts => Set<InventoryPhysicalCount>();
+    public DbSet<InventoryPhysicalCountLine> InventoryPhysicalCountLines => Set<InventoryPhysicalCountLine>();
     public DbSet<ProcurementRequisition> ProcurementRequisitions => Set<ProcurementRequisition>();
     public DbSet<ProcurementRequisitionLine> ProcurementRequisitionLines => Set<ProcurementRequisitionLine>();
     public DbSet<ProcurementSupplier> ProcurementSuppliers => Set<ProcurementSupplier>();
@@ -1203,6 +1205,10 @@ public class EduOSDbContext :
         TenantReference<InventoryMovement, InventoryMovement>(modelBuilder, nameof(InventoryMovement.ReversalOfMovementId));
         TenantReference<InventoryMovementLine, InventoryMovement>(modelBuilder, nameof(InventoryMovementLine.InventoryMovementId));
         TenantReference<InventoryMovementLine, InventoryItem>(modelBuilder, nameof(InventoryMovementLine.InventoryItemId));
+        TenantReference<InventoryPhysicalCount, InventoryLocation>(modelBuilder, nameof(InventoryPhysicalCount.LocationId));
+        TenantReference<InventoryPhysicalCountLine, InventoryPhysicalCount>(modelBuilder, nameof(InventoryPhysicalCountLine.InventoryPhysicalCountId));
+        TenantReference<InventoryPhysicalCountLine, InventoryItem>(modelBuilder, nameof(InventoryPhysicalCountLine.InventoryItemId));
+        TenantReference<InventoryPhysicalCountLine, InventoryMovement>(modelBuilder, nameof(InventoryPhysicalCountLine.PostedMovementId));
         TenantReference<ProcurementRequisition, Campus>(modelBuilder, nameof(ProcurementRequisition.CampusId));
         TenantReference<ProcurementSupplier, Campus>(modelBuilder, nameof(ProcurementSupplier.CampusId));
         Reference<ProcurementSupplier, ApplicationUser>(modelBuilder, nameof(ProcurementSupplier.DecidedByUserId));
@@ -1918,6 +1924,23 @@ public class EduOSDbContext :
             t.HasTrigger("TR_InventoryMovement_ExpiryImmutable");
         });
         UniqueTenant<InventoryMovementLine>(modelBuilder, nameof(InventoryMovementLine.InventoryMovementId), nameof(InventoryMovementLine.LineNo));
+        modelBuilder.Entity<InventoryPhysicalCount>().HasIndex(x => x.PublicId).IsUnique();
+        UniqueTenant<InventoryPhysicalCount>(modelBuilder, nameof(InventoryPhysicalCount.ClientRequestId));
+        modelBuilder.Entity<InventoryPhysicalCount>().HasIndex(x => new { x.TenantId, x.LocationId, x.StateCode, x.CreatedAt });
+        modelBuilder.Entity<InventoryPhysicalCount>().ToTable(t =>
+        {
+            t.HasTrigger("TR_InventoryPhysicalCount_SnapshotImmutable");
+            t.HasCheckConstraint("CK_InventoryPhysicalCounts_State", "[StateCode] IN (N'Draft',N'Submitted',N'Posted',N'Rejected')");
+            t.HasCheckConstraint("CK_InventoryPhysicalCounts_Review", "([StateCode] IN (N'Draft',N'Submitted') AND [ReviewedAtUtc] IS NULL AND [ReviewedByUserId] IS NULL) OR ([StateCode] IN (N'Posted',N'Rejected') AND [ReviewedAtUtc] IS NOT NULL AND [ReviewedByUserId] IS NOT NULL)");
+        });
+        UniqueTenant<InventoryPhysicalCountLine>(modelBuilder, nameof(InventoryPhysicalCountLine.InventoryPhysicalCountId), nameof(InventoryPhysicalCountLine.LineNo));
+        UniqueTenant<InventoryPhysicalCountLine>(modelBuilder, nameof(InventoryPhysicalCountLine.InventoryPhysicalCountId), nameof(InventoryPhysicalCountLine.InventoryItemId), nameof(InventoryPhysicalCountLine.LotOrBatchNo));
+        UniqueTenant<InventoryPhysicalCountLine>(modelBuilder, [nameof(InventoryPhysicalCountLine.PostedMovementId)], "[PostedMovementId] IS NOT NULL");
+        modelBuilder.Entity<InventoryPhysicalCountLine>().ToTable(t =>
+        {
+            t.HasTrigger("TR_InventoryPhysicalCountLine_SnapshotImmutable");
+            t.HasCheckConstraint("CK_InventoryPhysicalCountLines_Quantities", "[LineNo] > 0 AND [BookQuantity] >= 0 AND [BookValue] >= 0 AND [ReservedQuantity] >= 0 AND ([CountedQuantity] IS NULL OR [CountedQuantity] >= 0) AND ([PostedUnitCost] IS NULL OR [PostedUnitCost] >= 0)");
+        });
         UniqueTenant<ProcurementSupplier>(modelBuilder, nameof(ProcurementSupplier.ClientRequestId));
         modelBuilder.Entity<ProcurementSupplier>().HasIndex(x => x.PublicId).IsUnique();
         modelBuilder.Entity<ProcurementSupplier>().HasIndex(x => new { x.TenantId, x.CampusId, x.SupplierCode }).IsUnique();
@@ -2907,6 +2930,8 @@ public class EduOSDbContext :
             or LoanAdvanceRecovery
             or InventoryMovement
             or InventoryMovementLine
+            or InventoryPhysicalCount
+            or InventoryPhysicalCountLine
             or StudentAttendanceAdjustment
             or EmployeeAttendanceAdjustment
             or StudentResultSummary;

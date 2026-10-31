@@ -53,6 +53,8 @@ A **named business module is completed entirely in one version**: setup, master 
 
 Complete Inventory/Procurement/Store; Asset and Facility lifecycle; Visitor/Campus operations; optional Career, Alumni, Research, Accreditation, advanced enterprise analytics and approved integrations—each scoped, delivered and accepted as a complete module. Reuse existing source-of-truth Finance, identity and stock flows; no duplicate financial or inventory facts.
 
+**Inventory & Store Physical Stock Count V3 delivery (2026-10-31):** tenant/campus-scoped immutable book snapshots, blind and zero-quantity counts, maker submission/independent checker review, Automatic/Manual Final/Auto + Manual variance policies, atomic canonical receipt/issue posting, retry protection, linked audit/CSV reports and additive SQL migration are implemented on `Ashraful`. See [Physical Stock Count acceptance contract](operations/inventory-physical-stock-count.md). This is **code delivered pending exact-commit CI/SQL smoke and institutional UAT**, not a declaration that every V3 module or the production rollout is complete.
+
 ## Shared acceptance gate for every version/module
 
 1. End-to-end workflows are real: persistence, invariant, role-scope, status transitions, rollback, corrections and reports; no stub UI/API or dead actions.

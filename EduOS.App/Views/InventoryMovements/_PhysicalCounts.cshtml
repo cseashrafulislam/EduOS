@@ -1,0 +1,61 @@
+@{
+    var bn = System.Globalization.CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "bn";
+    var canCreate = User.IsInRole("TenantAdmin") || User.IsInRole("Principal") || User.IsInRole("InventoryManager") || User.IsInRole("StoreKeeper");
+    var canApprove = User.IsInRole("TenantAdmin") || User.IsInRole("Principal") || User.IsInRole("InventoryManager");
+}
+<section class="card mb-3" id="physicalCounts" aria-label="@(bn ? "ফিজিক্যাল স্টক গণনা" : "Physical stock count")">
+    <div class="card-body">
+        <div class="d-flex flex-wrap justify-content-between gap-2 align-items-center mb-2">
+            <h3 class="h5 mb-0">@(bn ? "ফিজিক্যাল স্টক গণনা ও পার্থক্য অনুমোদন" : "Physical stock counts & variance approval")</h3>
+            <button class="btn btn-outline-secondary btn-sm" id="countReload" type="button">@(bn ? "তালিকা রিফ্রেশ" : "Refresh counts")</button>
+        </div>
+        <p class="small text-muted">@(bn ? "Blind count-এ জমা দেওয়ার আগে বইয়ের হিসাব গোপন থাকে। স্বতন্ত্র অনুমোদনে পার্থক্য স্টক লেজারে পোস্ট হয়।" : "Blind counts conceal book quantities until submission. An independent reviewer posts approved differences to the canonical stock ledger.")</p>
+        @if (canCreate)
+        {
+            <form id="countStartForm" class="border rounded p-2 mb-3">
+                <h4 class="h6">@(bn ? "নতুন গণনা খুলুন" : "Open a new count")</h4>
+                <div class="row g-2">
+                    <div class="col-md-3"><label class="form-label" for="countLocation">@(bn ? "স্টোর" : "Store")</label><select class="form-select" id="countLocation" required></select></div>
+                    <div class="col-md-3"><label class="form-label" for="countItemSearch">@(bn ? "পণ্য খুঁজুন" : "Search item")</label><input class="form-control" id="countItemSearch" maxlength="100" autocomplete="off" /></div>
+                    <div class="col-md-3"><label class="form-label" for="countItem">@(bn ? "পণ্য" : "Item")</label><select class="form-select" id="countItem" required></select></div>
+                    <div class="col-md-3"><label class="form-label" for="countLot">@(bn ? "লট / ব্যাচ" : "Lot / batch")</label><input class="form-control" id="countLot" maxlength="100" autocomplete="off" /></div>
+                    <div class="col-12"><button class="btn btn-outline-primary btn-sm" type="button" id="countAddLine">@(bn ? "পণ্য যুক্ত" : "Add item/lot")</button></div>
+                    <div class="col-12"><ul id="countSelectedLines" class="list-group small" aria-live="polite"></ul></div>
+                    <div class="col-md-8"><label class="form-label" for="countStartReason">@(bn ? "কারণ" : "Count reason")</label><input class="form-control" id="countStartReason" minlength="10" maxlength="800" required /></div>
+                    <div class="col-md-2"><label class="form-label d-block" for="countBlind">@(bn ? "গণনার ধরন" : "Count method")</label><label class="form-check-label"><input type="checkbox" class="form-check-input" id="countBlind" checked /> @(bn ? "Blind" : "Blind")</label></div>
+                    <div class="col-md-2 d-flex align-items-end"><button class="btn btn-primary" type="submit" id="countStart">@(bn ? "গণনা শুরু" : "Start count")</button></div>
+                </div>
+            </form>
+        }
+        <div class="row g-2 mb-2">
+            <div class="col-md-3"><label class="form-label" for="countStateFilter">@(bn ? "অবস্থা" : "Status")</label><select class="form-select" id="countStateFilter"><option value="">@(bn ? "সব" : "All")</option><option>Draft</option><option>Submitted</option><option>Posted</option><option>Rejected</option></select></div>
+            <div class="col-md-5"><label class="form-label" for="countLocationFilter">@(bn ? "স্টোর ফিল্টার" : "Filter store")</label><select class="form-select" id="countLocationFilter"></select></div>
+        </div>
+        <div class="table-responsive"><table class="table table-sm table-striped"><thead><tr><th>@(bn ? "তারিখ" : "Date")</th><th>@(bn ? "স্টোর" : "Store")</th><th>@(bn ? "অবস্থা" : "Status")</th><th>@(bn ? "লাইন" : "Lines")</th><th>@(bn ? "বিস্তারিত" : "Details")</th></tr></thead><tbody id="countRegister"></tbody></table></div>
+        <div class="d-flex align-items-center gap-2 mb-3"><button class="btn btn-outline-secondary btn-sm" id="countPrevious" type="button">@(bn ? "আগের" : "Previous")</button><span class="small" id="countPageLabel"></span><button class="btn btn-outline-secondary btn-sm" id="countNext" type="button">@(bn ? "পরের" : "Next")</button></div>
+        <article id="countDetail" class="border rounded p-3 d-none" aria-live="polite">
+            <div class="d-flex justify-content-between flex-wrap gap-2 mb-2"><h4 class="h6 mb-0" id="countDetailHeading"></h4><button class="btn btn-outline-secondary btn-sm" id="countExportCsv" type="button">@(bn ? "CSV রিপোর্ট" : "Export CSV report")</button></div>
+            <p class="small text-muted" id="countDetailMetadata"></p>
+            <form id="countSubmitForm" class="d-none">
+                <div class="table-responsive"><table class="table table-sm"><thead><tr><th>@(bn ? "আইটেম/লট" : "Item / lot")</th><th>@(bn ? "বইয়ের পরিমাণ" : "Book qty")</th><th>@(bn ? "গণনা করা পরিমাণ" : "Counted qty")</th></tr></thead><tbody id="countDraftLines"></tbody></table></div>
+                <button class="btn btn-primary btn-sm" id="countSubmit" type="submit">@(bn ? "গণনা জমা" : "Submit count")</button>
+            </form>
+            <div id="countAuditPanel" class="d-none">
+                <div class="table-responsive"><table class="table table-sm"><thead><tr><th>@(bn ? "আইটেম/লট" : "Item / lot")</th><th>@(bn ? "বই" : "Book")</th><th>@(bn ? "গণনা" : "Counted")</th><th>@(bn ? "স্বয়ংক্রিয় পার্থক্য" : "Suggested")</th><th>@(bn ? "পোস্ট" : "Posted")</th><th>@(bn ? "মুভমেন্ট UUID" : "Movement UUID")</th></tr></thead><tbody id="countAuditLines"></tbody></table></div>
+                @if (canApprove)
+                {
+                    <form id="countReviewForm" class="d-none border rounded p-2">
+                        <h5 class="h6">@(bn ? "স্বতন্ত্র অনুমোদন" : "Independent review")</h5>
+                        <div class="row g-2 mb-2">
+                            <div class="col-md-4"><label class="form-label" for="countDecision">@(bn ? "সিদ্ধান্ত" : "Decision")</label><select class="form-select" id="countDecision"><option value="Approve">@(bn ? "অনুমোদন" : "Approve")</option><option value="Reject">@(bn ? "বাতিল" : "Reject")</option></select></div>
+                            <div class="col-md-4"><label class="form-label" for="countVarianceMode">@(bn ? "পার্থক্য নীতি" : "Variance policy")</label><select class="form-select" id="countVarianceMode"><option value="Automatic">Automatic</option><option value="ManualFinal">Manual Final</option><option value="AutoPlusManual">Auto + Manual</option></select></div>
+                            <div class="col-12" id="countCorrectionsContainer"><p class="small text-muted">@(bn ? "Manual Final-এ চূড়ান্ত পার্থক্য, Auto + Manual-এ যোগ/বিয়োগ সংশোধন দিন। ০ হলে পরিবর্তন নেই। নতুন স্টকের জন্য একক মূল্য প্রয়োজন।" : "Manual Final uses the final signed variance; Auto + Manual adds a signed correction. Zero means no correction. New surplus stock needs a unit cost.")</p><div id="countCorrections"></div></div>
+                            <div class="col-12"><label class="form-label" for="countReviewReason">@(bn ? "সিদ্ধান্তের কারণ" : "Review reason")</label><input class="form-control" id="countReviewReason" required minlength="10" maxlength="800" /></div>
+                        </div>
+                        <button class="btn btn-primary btn-sm" id="countReviewSubmit" type="submit">@(bn ? "সিদ্ধান্ত জমা" : "Record decision")</button>
+                    </form>
+                }
+            </div>
+        </article>
+    </div>
+</section>
