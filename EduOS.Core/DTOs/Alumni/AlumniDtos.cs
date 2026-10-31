@@ -7,10 +7,10 @@ public sealed class AlumniConsentRequestDto
     [Required] public Guid ClientRequestId { get; set; }
     [Required] public Guid StudentReference { get; set; }
     public bool DirectoryOptIn { get; set; }
-    [EmailAddress, StringLength(200)] public string? ContactEmail { get; set; }
+    [StringLength(200)] public string? ContactEmail { get; set; }
     [StringLength(30)] public string? ContactPhone { get; set; }
     // Empty only on first registration. Required for updates, including revocation.
-    public string? RowVersion { get; set; }
+    [StringLength(100)] public string? RowVersion { get; set; }
 }
 
 public sealed class AlumniSelfDto

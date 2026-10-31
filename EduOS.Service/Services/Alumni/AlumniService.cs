@@ -155,7 +155,8 @@ public sealed class AlumniService : IAlumniService
                         !CryptographicOperations.FixedTimeEquals(supplied, profile.RowVersion))
                         return ApiResponse<AlumniSelfDto>.ErrorResponse("Profile changed. Reload and retry.", 409);
                     var updated = await _db.Database.ExecuteSqlInterpolatedAsync($@"
-                        UPDATE dbo.AlumniProfiles SET DirectoryOptIn = {request.DirectoryOptIn},
+                        UPDATE dbo.AlumniProfiles SET StudentExitRecordId = {completion.ExitId},
+                            CampusId = {completion.CampusId}, DirectoryOptIn = {request.DirectoryOptIn},
                             ContactEmail = {email}, ContactPhone = {phone},
                             ConsentRecordedAtUtc = {now}, UpdatedAtUtc = {now},
                             UpdatedByUserId = {userId}
@@ -224,7 +225,7 @@ public sealed class AlumniService : IAlumniService
                     AND en.IsDeleted = 0 AND en.State = 2 AND p.CampusId = en.CampusId
                     AND (NOT EXISTS (
                         SELECT 1 FROM dbo.UserCampusAccesses ca
-                        WHERE ca.TenantId = {0} AND ca.UserId = {1} AND ca.IsActive = 1 AND ca.IsDeleted = 0)
+                        WHERE ca.TenantId = {0} AND ca.UserId = {1})
                       OR EXISTS (
                         SELECT 1 FROM dbo.UserCampusAccesses ca
                         WHERE ca.TenantId = {0} AND ca.UserId = {1} AND ca.CampusId = p.CampusId

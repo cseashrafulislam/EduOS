@@ -54,6 +54,12 @@
         el('alumniEmail').value = item?.contactEmail || '';
         el('alumniPhone').value = item?.contactPhone || '';
         el('alumniSave').disabled = !item;
+        syncContactInputs();
+    }
+    function syncContactInputs() {
+        const sharing = el('alumniOptIn').checked;
+        el('alumniEmail').disabled = !sharing;
+        el('alumniPhone').disabled = !sharing;
     }
     async function loadMine() {
         const graduates = await api('/api/alumni/me');
@@ -117,6 +123,7 @@
         el('alumniExport').href = '/api/alumni/directory.csv?' + query;
     }
     el('alumniGraduate').addEventListener('change', showSelected);
+    el('alumniOptIn').addEventListener('change', syncContactInputs);
     el('alumniConsentForm').addEventListener('submit', save);
     if (root.dataset.admin === 'true') {
         el('alumniSearchForm').addEventListener('submit', event => {

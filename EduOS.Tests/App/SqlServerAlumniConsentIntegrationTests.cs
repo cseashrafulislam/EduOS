@@ -96,7 +96,7 @@ public sealed class SqlServerAlumniConsentIntegrationTests
         var first = await graduate.SaveConsentAsync(new AlumniConsentRequestDto
         {
             StudentReference = studentReference, ClientRequestId = Guid.NewGuid(),
-            DirectoryOptIn = false, ContactEmail = "ignored@example.test"
+            DirectoryOptIn = false, ContactEmail = "invalid-contact-is-ignored"
         });
         Assert.True(first.Success, first.Message);
         Assert.False(first.Data!.DirectoryOptIn);
@@ -129,6 +129,19 @@ public sealed class SqlServerAlumniConsentIntegrationTests
         Assert.True(directory.Success, directory.Message);
         Assert.Single(directory.Data!.Items);
         Assert.Equal("graduate@example.test", directory.Data.Items[0].ContactEmail);
+
+        // A campus-restricted administrator must not see graduates from another campus.
+        var otherCampus = new Campus { TenantId = tenantId, Code = "SECOND", Name = "Second Campus" };
+        db.Campuses.Add(otherCampus);
+        await db.SaveChangesAsync();
+        db.UserCampusAccesses.Add(new UserCampusAccess
+        {
+            TenantId = tenantId, UserId = userId, CampusId = otherCampus.Id, IsActive = true
+        });
+        await db.SaveChangesAsync();
+        var campusRestricted = await admin.DirectoryAsync(new AlumniDirectoryQueryDto());
+        Assert.True(campusRestricted.Success, campusRestricted.Message);
+        Assert.Empty(campusRestricted.Data!.Items);
 
         var foreign = await Service(db, otherTenantId, userId, true)
             .DirectoryAsync(new AlumniDirectoryQueryDto());
