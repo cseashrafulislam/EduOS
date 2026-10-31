@@ -5,7 +5,7 @@
     const el = id => document.getElementById(id);
     const token = root.querySelector('input[name="__RequestVerificationToken"]')?.value || '';
     const canReview = root.dataset.canReview === 'true';
-    const state = { page: 1, pageSize: 30, total: 0, review: null, busy: false, requestId: null };
+    const state = { page: 1, pageSize: 30, total: 0, review: null, busy: false, pendingRequest: null };
     const labels = { 1: 'Submitted', 2: 'Rejected', 3: 'Approved' };
     const history = { cursors: [null], page: 0, items: [], hasMore: false, next: null, sequence: 0 };
     function resetHistory() {
@@ -20,14 +20,28 @@
         box.textContent = text;
     };
     async function api(path, method = 'GET', body) {
-        const response = await fetch(path, {
-            method, credentials: 'same-origin', cache: 'no-store',
-            headers: { Accept: 'application/json',
-                ...(method === 'GET' ? {} : { RequestVerificationToken: token }),
-                ...(body === undefined ? {} : { 'Content-Type': 'application/json' }) },
-            ...(body === undefined ? {} : { body: JSON.stringify(body) })
-        });
-        const data = await response.json().catch(() => null);
+        let response;
+        try {
+            response = await fetch(path, {
+                method, credentials: 'same-origin', cache: 'no-store',
+                headers: { Accept: 'application/json',
+                    ...(method === 'GET' ? {} : { RequestVerificationToken: token }),
+                    ...(body === undefined ? {} : { 'Content-Type': 'application/json' }) },
+                ...(body === undefined ? {} : { body: JSON.stringify(body) })
+            });
+        } catch {
+            const error = new Error('Connection interrupted. Retry the same action.');
+            error.transportFailure = true;
+            throw error;
+        }
+        let data;
+        try { data = await response.json(); }
+        catch {
+            const error = new Error('The server response could not be read.');
+            // A successful POST may have committed before its acknowledgement was lost.
+            error.transportFailure = response.ok;
+            throw error;
+        }
         if (!response.ok || data?.success !== true) throw new Error(data?.message || 'Request failed.');
         return data.data;
     }
@@ -106,6 +120,8 @@
         resetHistory();
         state.review = null; render();
         const id = el('markReviewSubject').value;
+        if (state.pendingRequest && state.pendingRequest.subjectId !== id)
+            state.pendingRequest = null;
         if (!id) return;
         try {
             const review = await api('/api/assessment-administration/marks/reviews/' + encodeURIComponent(id));
@@ -118,29 +134,40 @@
     async function decide(decision) {
         const review = state.review;
         if (!review || state.busy || (decision === 1 ? !review.canSubmit : !review.canReview)) return;
-        let reason = '';
-        if (decision === 2) {
-            const input = window.prompt('Reason for rejecting these marks (required):', '');
-            if (input === null) return;
-            reason = input.trim();
-            if (!reason || reason.length > 500) { notice('Provide a rejection reason of 1–500 characters.', true); return; }
-        } else if (!window.confirm((decision === 1 ? 'Submit' : 'Approve') +
-            ' this subject marks version?')) return;
+        const id = el('markReviewSubject').value;
+        let request = state.pendingRequest;
+        if (!request || request.subjectId !== id || request.decision !== decision ||
+            request.assessmentRowVersion !== review.assessmentRowVersion) {
+            let reason = '';
+            if (decision === 2) {
+                const input = window.prompt('Reason for rejecting these marks (required):', '');
+                if (input === null) return;
+                reason = input.trim();
+                if (!reason || reason.length > 500) { notice('Provide a rejection reason of 1–500 characters.', true); return; }
+            } else if (!window.confirm((decision === 1 ? 'Submit' : 'Approve') +
+                ' this subject marks version?')) return;
+            request = { subjectId: id, decision, assessmentRowVersion: review.assessmentRowVersion,
+                reason, clientRequestId: crypto.randomUUID() };
+            state.pendingRequest = request;
+        }
         state.busy = true; controls();
-        state.requestId ||= crypto.randomUUID();
         try {
-            const id = el('markReviewSubject').value;
             state.review = await api('/api/assessment-administration/marks/reviews/' +
                 encodeURIComponent(id) + '/decision', 'POST', {
-                    clientRequestId: state.requestId, assessmentRowVersion: review.assessmentRowVersion,
-                    decision, reason: reason || null
+                    clientRequestId: request.clientRequestId, assessmentRowVersion: request.assessmentRowVersion,
+                    decision, reason: request.reason || null
                 });
-            state.requestId = null; notice('Review decision recorded.'); render();
+            state.pendingRequest = null; notice('Review decision recorded.'); render();
             await loadHistory(true); if (canReview) loadQueue();
         } catch (error) {
-            notice(error.message + ' Refresh before retrying a conflicting decision.', true);
-            await loadReview();
-            state.requestId = null;
+            if (error.transportFailure) {
+                // Keep the exact key, version and reason so a lost acknowledgement replays safely.
+                notice(error.message + ' Retry this decision with the same request key.', true);
+            } else {
+                state.pendingRequest = null;
+                notice(error.message + ' Refresh before retrying a conflicting decision.', true);
+                await loadReview();
+            }
         } finally { state.busy = false; controls(); }
     }
     function csv() {
