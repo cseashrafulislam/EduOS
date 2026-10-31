@@ -4,6 +4,71 @@
 (() => {
     'use strict';
     const manuals = {
+        '/alumni/index': {
+                  "version": 1,
+                  "reviewed": true,
+                  "title": [
+                            "Alumni & Graduate Directory",
+                            "প্রাক্তন শিক্ষার্থী ও স্নাতক তালিকা"
+                  ],
+                  "purpose": [
+                            "Manage voluntary alumni directory consent, future event RSVPs and authorized attendance without editing the original graduation record.",
+                            "মূল উত্তীর্ণ হওয়ার রেকর্ড না বদলে ঐচ্ছিক প্রাক্তন শিক্ষার্থী তালিকার সম্মতি, ভবিষ্যৎ অনুষ্ঠানের উত্তর ও অনুমোদিত উপস্থিতি পরিচালনা করুন।"
+                  ],
+                  "before": [
+                            "An authenticated account in an ALUMNI-enabled institution with a verified completed exit is required for personal consent and RSVP. TenantAdmin manages permitted campuses; a different TenantAdmin must publish drafts.",
+                            "ALUMNI চালু থাকা প্রতিষ্ঠানের অনুমোদিত অ্যাকাউন্ট ও যাচাইকৃত সম্পন্ন ছাড়পত্র থাকলে নিজের সম্মতি ও RSVP দেওয়া যায়। TenantAdmin অনুমোদিত ক্যাম্পাস পরিচালনা করেন; খসড়া প্রকাশে অন্য TenantAdmin প্রয়োজন।"
+                  ],
+                  "steps": [
+                            [
+                                      "Choose Verified graduation, select directory consent, optionally enter contact email/phone and Save preferences.",
+                                      "Verified graduation বেছে তালিকায় তথ্য প্রকাশের সম্মতি দিন, চাইলে ইমেইল/ফোন লিখে Save preferences চাপুন।"
+                            ],
+                            [
+                                      "To revoke sharing, uncheck consent and Save preferences; this clears alumni contact details and active RSVPs but retains graduation evidence.",
+                                      "তথ্য প্রকাশ বন্ধ করতে সম্মতির টিক তুলে Save preferences চাপুন; এতে যোগাযোগের তথ্য ও সক্রিয় RSVP মুছে যায়, উত্তীর্ণ হওয়ার প্রমাণ থাকে।"
+                            ],
+                            [
+                                      "For a published future event choose Going or Not going; reload before retrying a conflicting response.",
+                                      "প্রকাশিত ভবিষ্যৎ অনুষ্ঠানে Going বা Not going বেছে নিন; সংঘাত হলে নতুন উত্তর দেওয়ার আগে রিলোড করুন।"
+                            ],
+                            [
+                                      "TenantAdmin: choose an authorized Campus, title and local start/end times, then Create draft for approval. A different administrator selects Publish; authorized staff can Cancel.",
+                                      "TenantAdmin: অনুমোদিত Campus, শিরোনাম ও স্থানীয় শুরু/শেষের সময় দিয়ে Create draft for approval চাপুন। অন্য প্রশাসক Publish করবেন; অনুমোদিত কর্মী Cancel করতে পারেন।"
+                            ],
+                            [
+                                      "TenantAdmin: during a published event open Attendance, Check in consenting attendees or Undo a check-in, and page through the roster.",
+                                      "TenantAdmin: প্রকাশিত অনুষ্ঠান চলাকালে Attendance খুলে সম্মতিপ্রাপ্ত অংশগ্রহণকারীর Check in বা Undo করুন এবং তালিকার পৃষ্ঠা দেখুন।"
+                            ],
+                            [
+                                      "TenantAdmin: Search the opted-in directory and Export current page CSV; Export page engagement CSV contains aggregate event counts, not attendee contacts.",
+                                      "TenantAdmin: সম্মতিপ্রাপ্ত তালিকায় Search করে Export current page CSV নিন; Export page engagement CSV-তে অংশগ্রহণকারীর যোগাযোগ নয়, অনুষ্ঠানের মোট সংখ্যা থাকে।"
+                            ]
+                  ],
+                  "example": [
+                            "Fictional example: graduate Amina opts in for her verified record and selects Going for an 8 November 2026 reunion. One administrator drafts the event, another publishes it, and authorized staff check her in during the event.",
+                            "কাল্পনিক উদাহরণ: উত্তীর্ণ শিক্ষার্থী আমিনা নিজের যাচাইকৃত রেকর্ডে সম্মতি দিয়ে ৮ নভেম্বর ২০২৬-এর পুনর্মিলনীতে Going দিলেন। একজন প্রশাসক খসড়া, অন্যজন প্রকাশ এবং অনুমোদিত কর্মী অনুষ্ঠানে তাঁর উপস্থিতি নিলেন।"
+                  ],
+                  "result": [
+                            "Consent determines restricted directory visibility. Valid RSVP and attendance appear in authorized event views; CSV exports are limited to eligible current-page data.",
+                            "সম্মতি সীমিত তালিকায় তথ্য দেখানো নিয়ন্ত্রণ করে। বৈধ RSVP ও উপস্থিতি অনুমোদিত অনুষ্ঠান পৃষ্ঠায় দেখা যায়; CSV-তে শুধু যোগ্য বর্তমান পৃষ্ঠার তথ্য থাকে।"
+                  ],
+                  "rules": [
+                            "Only verified completed exits qualify. Consent is optional and revocable; revocation clears active RSVPs. Publication needs a different administrator. Idempotency keys and row versions reject stale/duplicate writes; no outbound email/SMS invitation or Finance/stock posting occurs here.",
+                            "শুধু যাচাইকৃত সম্পন্ন ছাড়পত্র যোগ্য। সম্মতি ঐচ্ছিক ও প্রত্যাহারযোগ্য; প্রত্যাহারে সক্রিয় RSVP মুছে যায়। প্রকাশে আলাদা প্রশাসক প্রয়োজন। Request ID ও row version পুরোনো/দ্বৈত পরিবর্তন প্রতিরোধ করে; এখান থেকে ইমেইল/SMS আমন্ত্রণ বা Finance/স্টক পোস্টিং হয় না।"
+                  ],
+                  "recovery": [
+                            "If no graduate appears, ask an authorized administrator to verify the completed exit and account link. For missing campus/events check entitlement, campus access, consent and timing. For 403/409 reload; never guess another record ID or reuse an obsolete request.",
+                            "শিক্ষার্থী না এলে অনুমোদিত প্রশাসকের কাছে সম্পন্ন ছাড়পত্র ও অ্যাকাউন্ট সংযোগ যাচাই করুন। ক্যাম্পাস/অনুষ্ঠান না এলে মডিউল, ক্যাম্পাস অনুমতি, সম্মতি ও সময় দেখুন। 403/409 হলে রিলোড করুন; অন্য ID অনুমান বা পুরোনো অনুরোধ ব্যবহার নয়।"
+                  ],
+                  "related": [
+                            [
+                                      "/Students/Index",
+                                      "Student directory (authorized staff only)",
+                                      "শিক্ষার্থী তালিকা (শুধু অনুমোদিত কর্মী)"
+                            ]
+                  ]
+        },
         '/feeoperations/index': {
             version: 1, reviewed: true,
             title: ['Student Fees & Billing', 'শিক্ষার্থী ফি ও বিলিং'],

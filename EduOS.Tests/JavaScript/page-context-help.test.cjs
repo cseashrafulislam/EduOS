@@ -9,10 +9,10 @@ const css = read('EduOS.App/wwwroot/css/site.css');
 const js = read('EduOS.App/wwwroot/js/platform/page-context-help.js');
 const { guideFor, coverage, normalizeRoute, validateGuide } =
     require('../../EduOS.App/wwwroot/js/platform/page-context-help.js');
-const routes = ['/FeeOperations/Index', '/Students/Index', '/Attendance/Index', '/PayrollOperations/Index', '/FacilityWorkOrders/Index', '/Admissions/Index', '/StudentInvoicePosting/Index'];
+const routes = ['/Alumni/Index', '/FeeOperations/Index', '/Students/Index', '/Attendance/Index', '/PayrollOperations/Index', '/FacilityWorkOrders/Index', '/Admissions/Index', '/StudentInvoicePosting/Index'];
 
 test('all reviewed route manuals have full bilingual structure, matching steps and examples', () => {
-    assert.deepEqual(coverage(), { routes: 7, en: 7, bn: 7 });
+    assert.deepEqual(coverage(), { routes: 8, en: 8, bn: 8 });
     for (const route of routes) {
         const en = guideFor(route, 'en-BD');
         const bn = guideFor(route, 'bn-BD');
@@ -151,4 +151,37 @@ test('invoice posting manual reflects view-only Accountant and authorized canoni
     assert.match(en.rules, /Accountants can inspect but cannot Post GL/);
     assert.match(en.example, /No cash receipt is created/);
     assert.match(bn.recovery, /রিলোড/);
+});
+
+test('alumni manual follows verified consent, event approval, RSVP and attendance source contracts', () => {
+    const controller = read('EduOS.App/Controllers/AlumniController.cs');
+    const api = read('EduOS.App/Controllers/Api/AlumniApiController.cs');
+    const view = read('EduOS.App/Views/Alumni/Index.cshtml');
+    const client = read('EduOS.App/wwwroot/js/alumni/index.js');
+    const consent = read('EduOS.Service/Services/Alumni/AlumniService.cs');
+    const events = read('EduOS.Service/Services/Alumni/AlumniEventsService.cs');
+    const attendance = read('EduOS.Service/Services/Alumni/AlumniAttendanceService.cs');
+    assert.match(controller, /RequireModule\("ALUMNI"\)/);
+    assert.match(api, /AutoValidateAntiforgeryToken/);
+    assert.match(api, /Authorize\(Roles = "TenantAdmin"\)/);
+    for (const id of ['alumniGraduate', 'alumniOptIn', 'alumniSave', 'alumniEventForm',
+        'alumniEventCards', 'alumniEventsExport', 'alumniRows', 'alumniExport'])
+        assert.ok(view.includes('id="' + id + '"'), 'missing alumni control ' + id);
+    for (const route of ['consent', 'directory.csv', 'events/rsvp', 'events/report.csv'])
+        assert.ok(api.includes('"' + route + '"'), 'missing alumni API ' + route);
+    for (const action of ['saveRsvp', 'createEvent', 'markAttendance', 'loadDirectory'])
+        assert.ok(client.includes('function ' + action), 'missing alumni workflow ' + action);
+    assert.match(consent, /DELETE FROM dbo\.AlumniEventRsvps/);
+    assert.match(consent, /StudentExitType\.Completed/);
+    assert.match(events, /current\.CreatedByUserId == actor/);
+    assert.match(attendance, /CheckedInAtUtc/);
+    const en = guideFor('/Alumni/Index', 'en-BD');
+    const bn = guideFor('/Alumni/Index', 'bn-BD');
+    assert.equal(en.steps.length, 6);
+    assert.equal(bn.steps.length, 6);
+    assert.match(en.rules, /outbound email\/SMS invitation/);
+    assert.match(en.rules, /different administrator/);
+    assert.match(bn.rules, /প্রত্যাহারে সক্রিয় RSVP/);
+    assert.match(en.recovery, /403\/409/);
+    assert.deepEqual(en.related.map(x => x.path), ['/Students/Index']);
 });
