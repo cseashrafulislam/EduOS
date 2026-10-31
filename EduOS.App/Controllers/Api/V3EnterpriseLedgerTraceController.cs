@@ -138,24 +138,24 @@ public sealed class V3EnterpriseLedgerTraceController(EduOSDbContext db, ICurren
         static string Cell(object? value)
         {
             var s = Convert.ToString(value, CultureInfo.InvariantCulture) ?? "";
-            if (s.Length > 0 && "=+-@\\t\\r".Contains(s[0])) s = "'" + s;
+            if (s.Length > 0 && "=+-@\t\r".Contains(s[0])) s = "'" + s;
             return "\"" + s.Replace("\"", "\"\"") + "\"";
         }
-        var csv = new StringBuilder("Evidence,Reference,Number,State,Debit,Credit,Amount,Campus,FinanceStatus\\r\\n");
+        var csv = new StringBuilder("Evidence,Reference,Number,State,Debit,Credit,Amount,Campus,FinanceStatus\r\n");
         csv.AppendJoin(",", new[] { Cell("SupplierInvoice"), Cell(d.InvoiceReference),
             Cell(d.InvoiceNumber), Cell(d.State), Cell(""), Cell(""), Cell(d.TotalAmount),
-            Cell(d.CampusId), Cell(d.FinanceEvidenceStatus) }).Append("\\r\\n");
+            Cell(d.CampusId), Cell(d.FinanceEvidenceStatus) }).Append("\r\n");
         csv.AppendJoin(",", new[] { Cell("PurchaseOrder"), Cell(d.PurchaseOrderReference),
-            Cell(""), Cell(""), Cell(""), Cell(""), Cell(""), Cell(d.CampusId), Cell("") }).Append("\\r\\n");
+            Cell(""), Cell(""), Cell(""), Cell(""), Cell(""), Cell(d.CampusId), Cell("") }).Append("\r\n");
         csv.AppendJoin(",", new[] { Cell("Supplier"), Cell(d.SupplierReference),
-            Cell(""), Cell(""), Cell(""), Cell(""), Cell(""), Cell(d.CampusId), Cell("") }).Append("\\r\\n");
+            Cell(""), Cell(""), Cell(""), Cell(""), Cell(""), Cell(d.CampusId), Cell("") }).Append("\r\n");
         foreach (var receipt in d.GoodsReceiptReferences)
             csv.AppendJoin(",", new[] { Cell("GoodsReceipt"), Cell(receipt),
-                Cell(""), Cell("Posted"), Cell(""), Cell(""), Cell(""), Cell(d.CampusId), Cell("") }).Append("\\r\\n");
+                Cell(""), Cell("Posted"), Cell(""), Cell(""), Cell(""), Cell(d.CampusId), Cell("") }).Append("\r\n");
         foreach (var j in d.Journals)
             csv.AppendJoin(",", new[] { Cell("Journal"), Cell(j.Reference),
                 Cell(j.Number), Cell(j.State), Cell(j.Debit), Cell(j.Credit),
-                Cell(""), Cell(j.CampusId), Cell("") }).Append("\\r\\n");
+                Cell(""), Cell(j.CampusId), Cell("") }).Append("\r\n");
         Response.Headers["X-Content-Type-Options"] = "nosniff";
         return File(new UTF8Encoding(true).GetBytes(csv.ToString()), "text/csv; charset=utf-8",
             "v3-supplier-payable-" + reference.ToString("N") + ".csv");
