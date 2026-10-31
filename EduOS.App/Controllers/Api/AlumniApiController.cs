@@ -123,6 +123,26 @@ public sealed class AlumniApiController : ControllerBase
         return StatusCode(result.StatusCode, result);
     }
 
+    // Consent-filtered, campus-scoped roster; no contact details.
+    [HttpGet("events/{reference:guid}/attendance")]
+    [Authorize(Roles = "TenantAdmin")]
+    public async Task<IActionResult> Attendance(Guid reference, [FromQuery] AlumniEventAttendanceQueryDto query, CancellationToken ct)
+    {
+        if (!ModelState.IsValid) return ValidationProblem(ModelState);
+        var result = await _service.AttendanceAsync(reference, query, ct);
+        return StatusCode(result.StatusCode, result);
+    }
+
+    [HttpPost("events/{reference:guid}/attendance")]
+    [Authorize(Roles = "TenantAdmin")]
+    [EnableRateLimiting("ApiPolicy")]
+    public async Task<IActionResult> CheckIn(Guid reference, [FromBody] AlumniEventCheckInDto request, CancellationToken ct)
+    {
+        if (!ModelState.IsValid) return ValidationProblem(ModelState);
+        var result = await _service.CheckInAsync(reference, request, ct);
+        return StatusCode(result.StatusCode, result);
+    }
+
     // Aggregated engagement only. Never export attendee identities or contact details.
     [HttpGet("events/report.csv")]
     [Authorize(Roles = "TenantAdmin")]
@@ -131,13 +151,13 @@ public sealed class AlumniApiController : ControllerBase
         if (!ModelState.IsValid) return ValidationProblem(ModelState);
         var result = await _service.EventsAsync(query, ct);
         if (!result.Success || result.Data == null) return StatusCode(result.StatusCode, result);
-        var csv = new StringBuilder("\uFEFFEvent,Campus ID,Starts (UTC),Status,Going,Declined\r\n");
+        var csv = new StringBuilder("\uFEFFEvent,Campus ID,Starts (UTC),Status,Going,Declined,Checked in\r\n");
         foreach (var item in result.Data.Items)
         {
             csv.Append(Csv(item.Title)).Append(',').Append(item.CampusId).Append(',')
                 .Append(Csv(item.StartsAtUtc.ToString("O"))).Append(',')
                 .Append(item.Status).Append(',').Append(item.GoingCount).Append(',')
-                .Append(item.DeclinedCount).Append("\r\n");
+                .Append(item.DeclinedCount).Append(',').Append(item.CheckedInCount).Append("\r\n");
         }
         Response.Headers["X-Content-Type-Options"] = "nosniff";
         return File(Encoding.UTF8.GetBytes(csv.ToString()), "text/csv; charset=utf-8",

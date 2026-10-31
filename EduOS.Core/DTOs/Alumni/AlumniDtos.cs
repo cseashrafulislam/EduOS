@@ -86,11 +86,32 @@ public sealed class AlumniEventItemDto
     public string RowVersion { get; set; } = "";
     public int GoingCount { get; set; }
     public int DeclinedCount { get; set; }
+    public int CheckedInCount { get; set; }
     public int? MyResponse { get; set; }
     public string? MyRowVersion { get; set; }
     public bool CanManage { get; set; }
 }
 
+public sealed class AlumniEventAttendanceQueryDto
+{
+    [Range(1, int.MaxValue)] public int Page { get; set; } = 1;
+    [Range(1, 50)] public int PageSize { get; set; } = 20;
+}
+public sealed class AlumniEventAttendanceItemDto
+{
+    public Guid StudentReference { get; set; }
+    public string StudentCode { get; set; } = "";
+    public string FullName { get; set; } = "";
+    public DateTime? CheckedInAtUtc { get; set; }
+    public string RowVersion { get; set; } = "";
+}
+public sealed class AlumniEventCheckInDto
+{
+    [Required] public Guid ClientRequestId { get; set; }
+    [Required] public Guid StudentReference { get; set; }
+    public bool Present { get; set; }
+    [Required] public string RowVersion { get; set; } = "";
+}
 public sealed class AlumniEventCampusDto
 {
     public long Id { get; set; }

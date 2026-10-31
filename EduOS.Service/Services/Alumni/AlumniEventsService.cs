@@ -25,7 +25,11 @@ public sealed partial class AlumniService
             (SELECT COUNT(*) FROM dbo.AlumniEventRsvps r
                 WHERE r.TenantId = e.TenantId AND r.EventId = e.Id AND r.Response = 1) AS GoingCount,
             (SELECT COUNT(*) FROM dbo.AlumniEventRsvps r
-                WHERE r.TenantId = e.TenantId AND r.EventId = e.Id AND r.Response = 2) AS DeclinedCount,";
+                WHERE r.TenantId = e.TenantId AND r.EventId = e.Id AND r.Response = 2) AS DeclinedCount,
+            (SELECT COUNT(*) FROM dbo.AlumniEventRsvps r
+                JOIN dbo.AlumniProfiles p ON p.TenantId = r.TenantId AND p.Id = r.AlumniProfileId
+                WHERE r.TenantId = e.TenantId AND r.EventId = e.Id AND r.Response = 1
+                    AND p.DirectoryOptIn = 1 AND r.CheckedInAtUtc IS NOT NULL) AS CheckedInCount,";
 
     private const string GraduateEventFrom = @"
         FROM dbo.AlumniEvents e
@@ -379,6 +383,7 @@ public sealed partial class AlumniService
         Status = row.Status, RowVersion = admin ? Convert.ToBase64String(row.RowVersion) : "",
         GoingCount = admin ? row.GoingCount : 0,
         DeclinedCount = admin ? row.DeclinedCount : 0,
+        CheckedInCount = admin ? row.CheckedInCount : 0,
         MyResponse = row.MyResponse,
         MyRowVersion = row.MyRowVersion == null ? null : Convert.ToBase64String(row.MyRowVersion),
         CanManage = admin
@@ -408,6 +413,7 @@ public sealed class AlumniEventSqlRow
     public long CreatedByUserId { get; set; }
     public int GoingCount { get; set; }
     public int DeclinedCount { get; set; }
+    public int CheckedInCount { get; set; }
     public int? MyResponse { get; set; }
     public byte[]? MyRowVersion { get; set; }
 }

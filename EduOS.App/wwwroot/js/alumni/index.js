@@ -27,7 +27,8 @@
         eventEnd: ['Ends (local time)', 'শেষ (স্থানীয় সময়)'],
         eventDescription: ['Details (optional)', 'বিবরণ (ঐচ্ছিক)'],
         createDraft: ['Create draft for approval', 'অনুমোদনের জন্য খসড়া তৈরি'],
-        makerChecker: ['A different administrator must publish the draft.', 'অন্য একজন প্রশাসক প্রকাশের অনুমোদন দেবেন।']
+        makerChecker: ['A different administrator must publish the draft.', 'অন্য একজন প্রশাসক প্রকাশের অনুমোদন দেবেন।'],
+        attendanceNote: ['During a published event, authorized staff can check in consenting attendees. No contact details are shown.', 'প্রকাশিত অনুষ্ঠান চলাকালে অনুমোদিত প্রশাসক সম্মতিপ্রাপ্ত অংশগ্রহণকারীদের উপস্থিতি নিবন্ধন করবেন। যোগাযোগের তথ্য দেখানো হবে না।']
     };
     for (const node of root.querySelectorAll('[data-i18n]')) {
         const values = strings[node.dataset.i18n];
@@ -204,7 +205,7 @@
             status.className = 'small mb-0';
             status.textContent = eventStatus(item.status) + (eventAdmin
                 ? ' · ' + eventLabel('Going', 'আসবেন') + ': ' + item.goingCount +
-                  ' · ' + eventLabel('Declined', 'আসবেন না') + ': ' + item.declinedCount
+                  ' · ' + eventLabel('Declined', 'আসবেন না') + ': ' + item.declinedCount + ' · ' + eventLabel('Checked in', 'উপস্থিত') + ': ' + item.checkedInCount
                 : item.myResponse ? ' · ' + (item.myResponse === 1
                     ? eventLabel('Going', 'আসবেন') : eventLabel('Not going', 'আসবেন না')) : '');
             const actions = document.createElement('div');
@@ -224,7 +225,12 @@
                 actions.append(eventButton(eventLabel('Not going', 'আসব না'), 'btn-outline-secondary',
                     () => saveRsvp(item, 2)));
             }
-            card.append(title, date, description, status, actions);
+            const attendanceHost = document.createElement('div');
+            if (eventAdmin && item.status === 2) {
+                actions.append(eventButton(eventLabel('Attendance', 'উপস্থিতি'), 'btn-outline-info',
+                    () => loadAttendance(item, attendanceHost, 1).catch(e => notice(e.message, true))));
+            }
+            card.append(title, date, description, status, actions, attendanceHost);
             col.append(card);
             target.append(col);
         }
@@ -233,6 +239,78 @@
         el('alumniEventPrev').disabled = state.eventPage <= 1;
         el('alumniEventNext').disabled = state.eventPage * 20 >= state.eventTotal;
         if (eventAdmin) el('alumniEventsExport').href = '/api/alumni/events/report.csv?' + query;
+    }
+
+    // No contacts, no unbounded export, and no unsafe HTML.
+    async function loadAttendance(item, host, page) {
+        const query = new URLSearchParams({ page, pageSize: 20 });
+        const data = await api('/api/alumni/events/' + encodeURIComponent(item.reference) +
+            '/attendance?' + query);
+        host.replaceChildren();
+        const heading = document.createElement('p');
+        heading.className = 'small fw-semibold';
+        heading.textContent = eventLabel('Consented attendees', 'সম্মতিপ্রাপ্ত অংশগ্রহণকারী') +
+            ' · ' + data.totalCount;
+        host.append(heading);
+        const wrapper = document.createElement('div');
+        wrapper.className = 'table-responsive';
+        const table = document.createElement('table');
+        table.className = 'table table-sm align-middle';
+        const header = table.createTHead().insertRow();
+        for (const title of [eventLabel('Graduate', 'উত্তীর্ণ শিক্ষার্থী'),
+            eventLabel('Status', 'অবস্থা'), eventLabel('Action', 'করণীয়')]) {
+            const th = document.createElement('th');
+            th.scope = 'col'; th.textContent = title; header.append(th);
+        }
+        const body = table.createTBody();
+        const active = item.status === 2 && new Date(item.startsAtUtc) <= new Date() &&
+            new Date(item.endsAtUtc) >= new Date();
+        for (const attendee of data.items) {
+            const row = body.insertRow();
+            row.insertCell().textContent = attendee.fullName + ' · ' + attendee.studentCode;
+            row.insertCell().textContent = attendee.checkedInAtUtc
+                ? eventLabel('Present', 'উপস্থিত') + ' · ' + localDate(attendee.checkedInAtUtc)
+                : eventLabel('Not checked in', 'উপস্থিতি হয়নি');
+            const action = row.insertCell();
+            if (active) action.append(eventButton(attendee.checkedInAtUtc
+                ? eventLabel('Undo', 'বাতিল করুন') : eventLabel('Check in', 'উপস্থিতি নিন'),
+                attendee.checkedInAtUtc ? 'btn-outline-secondary' : 'btn-outline-success',
+                () => markAttendance(item, attendee, !attendee.checkedInAtUtc)));
+        }
+        if (!data.items.length) {
+            const cell = body.insertRow().insertCell();
+            cell.colSpan = 3;
+            cell.textContent = eventLabel('No consenting attendees marked as going.',
+                'সম্মতিপ্রাপ্ত অংশগ্রহণকারী পাওয়া যায়নি।');
+        }
+        wrapper.append(table); host.append(wrapper);
+        const pager = document.createElement('div');
+        pager.className = 'd-flex justify-content-between align-items-center gap-2';
+        const previous = eventButton(eventLabel('Previous', 'আগের'), 'btn-outline-secondary',
+            () => loadAttendance(item, host, page - 1).catch(e => notice(e.message, true)));
+        previous.disabled = page <= 1;
+        const indicator = document.createElement('span');
+        indicator.className = 'small'; indicator.setAttribute('aria-live', 'polite');
+        indicator.textContent = page + ' / ' + Math.max(1, Math.ceil(data.totalCount / 20));
+        const next = eventButton(eventLabel('Next', 'পরের'), 'btn-outline-secondary',
+            () => loadAttendance(item, host, page + 1).catch(e => notice(e.message, true)));
+        next.disabled = page * 20 >= data.totalCount;
+        pager.append(previous, indicator, next); host.append(pager);
+    }
+    async function markAttendance(item, attendee, present) {
+        if (state.eventBusy) return;
+        state.eventBusy = true;
+        try {
+            await api('/api/alumni/events/' + encodeURIComponent(item.reference) + '/attendance',
+                { method: 'POST', body: JSON.stringify({
+                    clientRequestId: crypto.randomUUID(),
+                    studentReference: attendee.studentReference, present,
+                    rowVersion: attendee.rowVersion
+                }) });
+            notice(eventLabel('Attendance updated.', 'উপস্থিতি হালনাগাদ হয়েছে।'));
+            await loadEvents();
+        } catch (error) { notice(error.message, true); }
+        finally { state.eventBusy = false; }
     }
     async function changeEventStatus(item, action) {
         if (state.eventBusy) return;

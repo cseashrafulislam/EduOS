@@ -269,6 +269,76 @@ public sealed class SqlServerAlumniConsentIntegrationTests
         });
         Assert.True(freshRsvp.Success, freshRsvp.Message);
         Assert.Equal(1, freshRsvp.Data!.MyResponse);
+
+        var roster = await publisherService.AttendanceAsync(draft.Data.Reference,
+            new AlumniEventAttendanceQueryDto());
+        Assert.True(roster.Success, roster.Message);
+        var attendee = Assert.Single(roster.Data!.Items);
+        Assert.Equal(studentReference, attendee.StudentReference);
+        var tooEarly = await publisherService.CheckInAsync(draft.Data.Reference, new AlumniEventCheckInDto
+        {
+            ClientRequestId = Guid.NewGuid(), StudentReference = studentReference,
+            Present = true, RowVersion = attendee.RowVersion
+        });
+        Assert.Equal(404, tooEarly.StatusCode);
+        // Synthetic CI event only; no customer or production writes.
+        await db.Database.ExecuteSqlInterpolatedAsync($@"
+            UPDATE dbo.AlumniEvents SET StartsAtUtc = {DateTime.UtcNow.AddMinutes(-15)},
+                EndsAtUtc = {DateTime.UtcNow.AddHours(2)}
+            WHERE TenantId = {tenantId} AND PublicId = {draft.Data.Reference}");
+        var request = new AlumniEventCheckInDto
+        {
+            ClientRequestId = Guid.NewGuid(), StudentReference = studentReference,
+            Present = true, RowVersion = attendee.RowVersion
+        };
+        var checkedIn = await publisherService.CheckInAsync(draft.Data.Reference, request);
+        Assert.True(checkedIn.Success, checkedIn.Message);
+        Assert.NotNull(checkedIn.Data!.CheckedInAtUtc);
+        Assert.True((await publisherService.CheckInAsync(draft.Data.Reference, request)).Success);
+        var staleCheckIn = await publisherService.CheckInAsync(draft.Data.Reference,
+            new AlumniEventCheckInDto
+            {
+                ClientRequestId = Guid.NewGuid(), StudentReference = studentReference,
+                Present = false, RowVersion = attendee.RowVersion
+            });
+        Assert.Equal(409, staleCheckIn.StatusCode);
+        var crossTenantRoster = await Service(db, otherTenantId, publisherId, true)
+            .AttendanceAsync(draft.Data.Reference, new AlumniEventAttendanceQueryDto());
+        Assert.Equal(404, crossTenantRoster.StatusCode);
+        var restrictedRoster = await admin.AttendanceAsync(draft.Data.Reference,
+            new AlumniEventAttendanceQueryDto());
+        Assert.Equal(404, restrictedRoster.StatusCode);
+        var engagementWithAttendance = await publisherService.EventsAsync(new AlumniEventQueryDto());
+        Assert.Equal(1, Assert.Single(engagementWithAttendance.Data!.Items.Where(e =>
+            e.Reference == draft.Data.Reference)).CheckedInCount);
+        var reversed = await publisherService.CheckInAsync(draft.Data.Reference,
+            new AlumniEventCheckInDto
+            {
+                ClientRequestId = Guid.NewGuid(), StudentReference = studentReference,
+                Present = false, RowVersion = checkedIn.Data.RowVersion
+            });
+        Assert.True(reversed.Success, reversed.Message);
+        Assert.Null(reversed.Data!.CheckedInAtUtc);
+        var checkedAgain = await publisherService.CheckInAsync(draft.Data.Reference,
+            new AlumniEventCheckInDto
+            {
+                ClientRequestId = Guid.NewGuid(), StudentReference = studentReference,
+                Present = true, RowVersion = reversed.Data.RowVersion
+            });
+        Assert.True(checkedAgain.Success, checkedAgain.Message);
+        var finalRevoke = await graduate.SaveConsentAsync(new AlumniConsentRequestDto
+        {
+            StudentReference = studentReference, ClientRequestId = Guid.NewGuid(),
+            DirectoryOptIn = false, RowVersion = reOpted.Data!.RowVersion
+        });
+        Assert.True(finalRevoke.Success, finalRevoke.Message);
+        var emptyRoster = await publisherService.AttendanceAsync(draft.Data.Reference,
+            new AlumniEventAttendanceQueryDto());
+        Assert.True(emptyRoster.Success, emptyRoster.Message);
+        Assert.Empty(emptyRoster.Data!.Items);
+        var clearedAttendance = await publisherService.EventsAsync(new AlumniEventQueryDto());
+        Assert.Equal(0, Assert.Single(clearedAttendance.Data!.Items.Where(e =>
+            e.Reference == draft.Data.Reference)).CheckedInCount);
     }
 
     private static EduOSDbContext TenantDb(DbContextOptions<EduOSDbContext> options, long tenantId)

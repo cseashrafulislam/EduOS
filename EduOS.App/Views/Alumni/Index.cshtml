@@ -60,6 +60,10 @@
                 <div>
                     <h2 id="alumniEventsHeading" class="h5 mb-1" data-i18n="events">Alumni events &amp; engagement</h2>
                     <p class="text-muted small mb-0" data-i18n="eventsPrivacy">RSVP is available only with active directory consent. Revoking consent clears active RSVPs.</p>
+                    @if (User.IsInRole("TenantAdmin"))
+                    {
+                        <p class="text-muted small mb-0" data-i18n="attendanceNote">During a published event, authorized staff can check in consenting attendees. No contact details are shown.</p>
+                    }
                 </div>
                 @if (User.IsInRole("TenantAdmin"))
                 {

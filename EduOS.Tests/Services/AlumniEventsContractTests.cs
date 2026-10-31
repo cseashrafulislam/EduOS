@@ -19,6 +19,32 @@ public sealed class AlumniEventsContractTests
             attribute => ((AuthorizeAttribute)attribute).Roles == "TenantAdmin");
     }
 
+    [Theory]
+    [InlineData(nameof(AlumniApiController.Attendance))]
+    [InlineData(nameof(AlumniApiController.CheckIn))]
+    public void Attendance_requires_tenant_admin(string method)
+    {
+        Assert.Contains(typeof(AlumniApiController).GetMethod(method)!
+            .GetCustomAttributes(typeof(AuthorizeAttribute), true),
+            attribute => ((AuthorizeAttribute)attribute).Roles == "TenantAdmin");
+    }
+
+    [Fact]
+    public void Attendance_checks_consent_campus_rowversion_and_audit()
+    {
+        var source = Read("EduOS.Service", "Services", "Alumni", "AlumniAttendanceService.cs");
+        Assert.Contains("p.DirectoryOptIn = 1", source);
+        Assert.Contains("CampusGrantSql", source);
+        Assert.Contains("s.PublicId = {3}", source);
+        Assert.Contains("e.StartsAtUtc <= {4} AND e.EndsAtUtc >= {4}", source);
+        Assert.Contains("CheckInReversed", source);
+        Assert.Contains("CryptographicOperations.FixedTimeEquals", source);
+        Assert.Contains("IsolationLevel.Serializable", source);
+        var migration = Read("EduOS.Persistence", "Migrations",
+            "20261101073000_V3AlumniAttendanceCheckIn.cs");
+        Assert.Contains("CK_AlumniRsvp_CheckIn", migration);
+    }
+
     [Fact]
     public void Events_enforce_maker_checker_tenant_campus_and_graduate_ownership()
     {

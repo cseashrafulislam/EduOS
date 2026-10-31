@@ -16,9 +16,11 @@ Starting owner baseline: `ea8c2a9a2953f7757f4e8f8d31003fd5d6822c6b`; first-run i
 - [x] Focused C# contract, SQL integration and Node JS tests added.
 - [x] Initial consent slice exact-SHA CI (3,116 tests), JS, focused Alumni SQL and fresh/repeat migrations verified in runs 41207222682 / 41207090083; shared SQL smoke failures were unrelated V2/Inventory tests.
 - [x] Event draft creation, separate-admin publish approval, cancellation, campus-restricted event listings, verified alumni RSVP, idempotency/rowversion, consent-revocation RSVP clearing, aggregated engagement CSV and bilingual mobile UI — implementation prepared 2026-10-31; exact-SHA CI and SQL verification pending.
-- [ ] Invitations/notification delivery (requires opt-in communication policy), event attendance check-in, and real-institute consent policy/UAT.
+- [x] Consent-safe attendance check-in/undo: paged campus-restricted verified-going roster without contact details, published-event time window, idempotency, rowversion, audit, aggregate checked-in report/CSV, bilingual responsive UI and focused tests (implementation prepared 2026-10-31; exact-SHA verification pending).
+- [ ] Invitations/notification delivery (requires opt-in communication policy) and real-institute consent policy/UAT.
 - [x] Reject stale RSVP idempotency replay after consent revocation or superseding response (prior audit commands retained); regression added to real SQL integration and C# contract tests at `d301c4a7`.
-- [ ] Event batch exact-SHA Release build, fresh/repeat SQL, SQL integration and browser/JS evidence — report only verified results.
+- [x] RSVP hardening at 14f673d: SQL smoke 41212957560 PASS; CI 41212957597 CANCELLED by subsequent pushes. Latest shared a36ea8ac exact-SHA CI 41214255559 and SQL 41214255467 PASS.
+- [ ] Attendance exact-SHA Release build, fresh/repeat SQL, SQL integration and browser/JS evidence — report only verified results.
 - [ ] Re-evaluate campus access policy for institution-wide TenantAdmin accounts with no explicit campus grants before real-institute acceptance.
 
 ## Queue (do not duplicate other tracks)
