@@ -24,6 +24,9 @@ test('workflow posts antiforgery and retries the same idempotency command', () =
     assert.match(script, /rowVersion:/);
     assert.match(script, /\/history\?page=/);
     assert.match(script, /facilityExport/);
+    assert.match(script, /\/dashboard\?/);
+    assert.match(script, /wfDashboard/);
+    assert.match(view, /Service dashboard/);
 });
 
 test('the UI never claims to post Inventory or Finance', () => {

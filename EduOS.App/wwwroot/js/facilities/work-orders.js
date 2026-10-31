@@ -95,6 +95,35 @@
         }
         el('wfNote').required = ['reject', 'pause', 'complete', 'verify'].includes(action);
     }
+    async function dashboard() {
+        const q = new URLSearchParams();
+        if (el('wfCampusFilter').value) q.set('campusId', el('wfCampusFilter').value);
+        const summary = await api('/dashboard?' + q);
+        const cards = [
+            ['totalRequests', t('Total requests', 'মোট অনুরোধ')],
+            ['submitted', t('Awaiting triage', 'ট্রায়াজ অপেক্ষায়')],
+            ['awaitingApproval', t('Awaiting approval', 'অনুমোদন অপেক্ষায়')],
+            ['approvedUnscheduled', t('Not scheduled', 'সময়সূচি হয়নি')],
+            ['scheduled', t('Scheduled', 'নির্ধারিত')],
+            ['inProgress', t('Active work', 'চলমান কাজ')],
+            ['pendingVerification', t('Verify closure', 'সমাপ্তি যাচাই')],
+            ['overdueOpen', t('Overdue open', 'সময় পেরিয়েছে')],
+            ['closed', t('Closed', 'সমাপ্ত')],
+            ['closedLate', t('Closed late', 'বিলম্বে সমাপ্ত')]
+        ];
+        const box = el('wfDashboard'); box.replaceChildren();
+        for (const [field, label] of cards) {
+            const column = document.createElement('div');
+            column.className = 'col-6 col-md-4 col-xl';
+            const card = document.createElement('div');
+            card.className = 'border rounded p-2 h-100 bg-body';
+            const value = document.createElement('strong');
+            value.className = 'd-block fs-5'; value.textContent = String(summary[field] ?? 0);
+            const caption = document.createElement('span');
+            caption.className = 'small text-muted'; caption.textContent = label;
+            card.append(value, caption); column.append(card); box.append(column);
+        }
+    }
     async function load() {
         try {
             const q = new URLSearchParams({ page: String(page), pageSize: '25' });
@@ -120,6 +149,7 @@
             }
             el('wfPage').textContent = page + ' / ' + pages;
             el('wfPrev').disabled = page <= 1; el('wfNext').disabled = page >= pages;
+            await dashboard();
         } catch (error) { notice(error.message); }
     }
     async function history() {

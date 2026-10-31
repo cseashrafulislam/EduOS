@@ -17,6 +17,8 @@
             <button class="btn btn-outline-secondary btn-sm" type="button" onclick="window.print()">@(bn ? "প্রিন্ট" : "Print")</button></div>
     </header>
     <div id="workflowAlert" class="d-none" role="alert" aria-live="polite"></div>
+    <div id="wfDashboard" class="row g-2 mb-3" role="status" aria-live="polite"
+         aria-label="@(bn ? "সার্ভিস সারাংশ" : "Service dashboard")"></div>
     <div class="row g-3">
         <div class="col-12 col-xl-7">
             <div class="card mb-3"><div class="card-body">

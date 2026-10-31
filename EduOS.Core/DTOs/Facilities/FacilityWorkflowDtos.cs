@@ -62,3 +62,19 @@ public sealed class FacilityEventDto
     public DateTime OccurredAtUtc { get; set; }
     public string? Note { get; set; }
 }
+
+/// <summary>Aggregates only the caller's authorized campus and request scope.</summary>
+public sealed class FacilityDashboardDto
+{
+    public int TotalRequests { get; set; }
+    public int Submitted { get; set; }
+    public int AwaitingApproval { get; set; }
+    public int Rejected { get; set; }
+    public int ApprovedUnscheduled { get; set; }
+    public int Scheduled { get; set; }
+    public int InProgress { get; set; }
+    public int PendingVerification { get; set; }
+    public int Closed { get; set; }
+    public int OverdueOpen { get; set; }
+    public int ClosedLate { get; set; }
+}

@@ -20,3 +20,9 @@ Owner: Facilities & Visitors; canonical branch: Ashraful. Scope: independent cam
 - Visitor preregistration, host approval, privacy-minimizing check-in/out, incident/retention/export workflow.
 
 Never mark the entire Facilities module production-ready from a passing CI run alone.
+
+## Request ownership and SLA dashboard delta (2026-10-31)
+
+- Requesters see only their own requests and history; assigned technicians see their own requests and assigned work orders. Managers and independent approvers see authorized-campus requests. SQL scopes list, event history, dashboard counts and bounded CSV export before pagination or aggregation.
+- Responsive bilingual operational cards report persisted triage, approvals, scheduled/active work, overdue-open and closed-late, without estimating or posting stock/Finance costs.
+- Dedicated SQL integration regression checks same-campus cross-request IDOR and requester/technician/manager dashboard visibility. This slice needs no EF migration and does not alter V1/V2 or Inventory source contracts.

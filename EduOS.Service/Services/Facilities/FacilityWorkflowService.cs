@@ -33,6 +33,15 @@ public sealed class FacilityWorkflowService(
                 a.UserId == user.UserId && a.CampusId == c.Id && a.IsActive && !a.IsDeleted)))
         .Select(c => c.Id);
 
+    // Request visibility is scoped by ownership, assignment and authorized campus.
+    private IQueryable<FacilityServiceRequest> VisibleRequests() =>
+        db.Set<FacilityServiceRequest>().AsNoTracking().Where(x =>
+            x.TenantId == user.TenantId && !x.IsDeleted && AllowedCampuses().Contains(x.CampusId) &&
+            (Manager || Approver || x.RequesterUserId == user.UserId ||
+             (Technician && db.Set<FacilityWorkOrder>().Any(w =>
+                 w.TenantId == user.TenantId && !w.IsDeleted &&
+                 w.FacilityServiceRequestId == x.Id && w.AssignedTechnicianUserId == user.UserId))));
+
     private static bool VersionMatches(byte[] current, string? supplied)
     {
         if (string.IsNullOrWhiteSpace(supplied)) return false;
@@ -137,8 +146,7 @@ public sealed class FacilityWorkflowService(
         var allowed = AllowedCampuses();
         if (campusId.HasValue && !await allowed.ContainsAsync(campusId.Value, ct))
             return Denied<PagedResult<FacilityRequestDto>>();
-        var query = db.Set<FacilityServiceRequest>().AsNoTracking().Where(x =>
-            x.TenantId == user.TenantId && !x.IsDeleted && allowed.Contains(x.CampusId));
+        var query = VisibleRequests();
         if (campusId.HasValue) query = query.Where(x => x.CampusId == campusId.Value);
         if (!string.IsNullOrWhiteSpace(state)) query = query.Where(x => x.StateCode == state.Trim());
         var count = await query.CountAsync(ct);
@@ -153,6 +161,40 @@ public sealed class FacilityWorkflowService(
             Page = page, PageSize = pageSize, TotalCount = count,
             Items = requests.Select(x => Map(x, orders.GetValueOrDefault(x.Id))).ToList()
         });
+    }
+
+    public async Task<ApiResponse<FacilityDashboardDto>> DashboardAsync(
+        long? campusId, CancellationToken ct = default)
+    {
+        if (!ValidTenant || !Reader) return Denied<FacilityDashboardDto>();
+        if (campusId is <= 0) return ApiResponse<FacilityDashboardDto>.ErrorResponse("Invalid campus.");
+        if (campusId.HasValue && !await AllowedCampuses().ContainsAsync(campusId.Value, ct))
+            return Denied<FacilityDashboardDto>();
+        var requests = VisibleRequests();
+        if (campusId.HasValue) requests = requests.Where(x => x.CampusId == campusId.Value);
+        var orders = from o in db.Set<FacilityWorkOrder>().AsNoTracking()
+                     join r in requests on o.FacilityServiceRequestId equals r.Id
+                     where o.TenantId == user.TenantId && !o.IsDeleted
+                     select new { Order = o, Request = r };
+        var now = Now;
+        var data = new FacilityDashboardDto
+        {
+            TotalRequests = await requests.CountAsync(ct),
+            Submitted = await requests.CountAsync(x => x.StateCode == "Submitted", ct),
+            AwaitingApproval = await requests.CountAsync(x => x.StateCode == "Triaged", ct),
+            Rejected = await requests.CountAsync(x => x.StateCode == "Rejected", ct),
+            ApprovedUnscheduled = await orders.CountAsync(x => x.Order.StateCode == "Approved", ct),
+            Scheduled = await orders.CountAsync(x => x.Order.StateCode == "Scheduled", ct),
+            InProgress = await orders.CountAsync(x => x.Order.StateCode == "InProgress" ||
+                x.Order.StateCode == "Paused", ct),
+            PendingVerification = await orders.CountAsync(x => x.Order.StateCode == "PendingVerification", ct),
+            Closed = await orders.CountAsync(x => x.Order.StateCode == "Closed", ct),
+            OverdueOpen = await orders.CountAsync(x => x.Request.SlaDueAtUtc != null &&
+                x.Request.SlaDueAtUtc < now && x.Order.StateCode != "Closed", ct),
+            ClosedLate = await orders.CountAsync(x => x.Order.StateCode == "Closed" &&
+                x.Request.SlaDueAtUtc != null && x.Order.CompletedAtUtc > x.Request.SlaDueAtUtc, ct)
+        };
+        return ApiResponse<FacilityDashboardDto>.SuccessResponse(data);
     }
 
     public async Task<ApiResponse<FacilityRequestDto>> TransitionAsync(
@@ -311,11 +353,8 @@ public sealed class FacilityWorkflowService(
         if (!ValidTenant || !Reader) return Denied<PagedResult<FacilityEventDto>>();
         if (id <= 0 || page is < 1 or > 100000 || pageSize is < 1 or > 50)
             return ApiResponse<PagedResult<FacilityEventDto>>.ErrorResponse("Invalid page.");
-        var request = await db.Set<FacilityServiceRequest>().AsNoTracking().FirstOrDefaultAsync(
-            x => x.TenantId == user.TenantId && x.Id == id && !x.IsDeleted, ct);
-        if (request == null) return ApiResponse<PagedResult<FacilityEventDto>>.ErrorResponse("Request not found.", 404);
-        if (!await AllowedCampuses().ContainsAsync(request.CampusId, ct))
-            return Denied<PagedResult<FacilityEventDto>>();
+        if (!await VisibleRequests().AnyAsync(x => x.Id == id, ct))
+            return ApiResponse<PagedResult<FacilityEventDto>>.ErrorResponse("Request not found.", 404);
         var query = db.Set<FacilityWorkflowEvent>().AsNoTracking()
             .Where(x => x.TenantId == user.TenantId && x.FacilityServiceRequestId == id && !x.IsDeleted);
         var count = await query.CountAsync(ct);

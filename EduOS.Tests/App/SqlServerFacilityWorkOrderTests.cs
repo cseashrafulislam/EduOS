@@ -65,6 +65,26 @@ public sealed class SqlServerFacilityWorkOrderTests
                 spaceId = space.Id;
             }
         }
+        // Same-campus membership must not expose a different requester's details.
+        long privateRequestId;
+        await using (var db = Db(options, tenantId, managerId, "FacilitiesManager"))
+        {
+            var created = await Service(db, tenantId, managerId, "FacilitiesManager")
+                .CreateAsync(new CreateFacilityRequestDto
+                {
+                    ClientRequestId = Guid.NewGuid(), CampusId = campusId, FacilitySpaceId = spaceId,
+                    CategoryCode = "PLUMBING", PriorityCode = "Normal", Summary = "Private manager repair"
+                });
+            Assert.True(created.Success, created.Message);
+            privateRequestId = created.Data!.Id;
+        }
+        await using (var db = Db(options, tenantId, requesterId, "FacilitiesRequester"))
+        {
+            var service = Service(db, tenantId, requesterId, "FacilitiesRequester");
+            Assert.Empty((await service.ListAsync(null, null, 1, 25)).Data!.Items);
+            Assert.Equal(404, (await service.HistoryAsync(privateRequestId, 1, 25)).StatusCode);
+            Assert.Equal(0, (await service.DashboardAsync(null)).Data!.TotalRequests);
+        }
         var clientId = Guid.NewGuid();
         FacilityRequestDto submitted;
         await using (var db = Db(options, tenantId, requesterId, "FacilitiesRequester"))
@@ -83,6 +103,20 @@ public sealed class SqlServerFacilityWorkOrderTests
                 CategoryCode = "ELECTRICAL", PriorityCode = "High", Summary = "Broken hallway light"
             });
             Assert.Equal(submitted.Id, replay.Data!.Id);
+        }
+        await using (var db = Db(options, tenantId, requesterId, "FacilitiesRequester"))
+        {
+            var service = Service(db, tenantId, requesterId, "FacilitiesRequester");
+            var visible = await service.ListAsync(null, null, 1, 25);
+            Assert.Single(visible.Data!.Items);
+            Assert.Equal(submitted.Id, visible.Data.Items[0].Id);
+            Assert.Equal(1, (await service.DashboardAsync(null)).Data!.TotalRequests);
+            Assert.Equal(404, (await service.HistoryAsync(privateRequestId, 1, 25)).StatusCode);
+        }
+        await using (var db = Db(options, tenantId, managerId, "FacilitiesManager"))
+        {
+            Assert.Equal(2, (await Service(db, tenantId, managerId, "FacilitiesManager")
+                .DashboardAsync(null)).Data!.TotalRequests);
         }
         FacilityRequestDto triaged;
         await using (var db = Db(options, tenantId, managerId, "FacilitiesManager"))
@@ -126,6 +160,14 @@ public sealed class SqlServerFacilityWorkOrderTests
                 });
             Assert.True(result.Success, result.Message);
             scheduled = result.Data!;
+        }
+        await using (var db = Db(options, tenantId, techId, "FacilitiesTechnician"))
+        {
+            var service = Service(db, tenantId, techId, "FacilitiesTechnician");
+            var visible = await service.ListAsync(null, null, 1, 25);
+            Assert.Single(visible.Data!.Items);
+            Assert.Equal(submitted.Id, visible.Data.Items[0].Id);
+            Assert.Equal(404, (await service.HistoryAsync(privateRequestId, 1, 25)).StatusCode);
         }
         FacilityRequestDto started;
         await using (var db = Db(options, tenantId, techId, "FacilitiesTechnician"))
