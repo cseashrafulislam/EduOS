@@ -12687,6 +12687,8 @@ namespace EduOS.Persistence.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasAlternateKey("TenantId", "Id");
+
                     b.HasIndex("TenantId", "FacilityServiceRequestId")
                         .IsUnique();
 
@@ -12762,6 +12764,8 @@ namespace EduOS.Persistence.Migrations
                         .HasColumnType("bigint");
 
                     b.HasKey("Id");
+
+                    b.HasAlternateKey("TenantId", "Id");
 
                     b.HasIndex("TenantId", "ClientCommandId")
                         .IsUnique();

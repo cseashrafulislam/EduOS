@@ -84,6 +84,7 @@ public sealed class V3FacilityWorkOrders : Migration
         }, constraints: t =>
         {
             t.PrimaryKey("PK_FacilityWorkOrders", x => x.Id);
+            t.UniqueConstraint("AK_FacilityWorkOrders_TenantId_Id", x => new { x.TenantId, x.Id });
             t.ForeignKey("FK_FacilityWorkOrders_Tenants_TenantId", x => x.TenantId,
                 "Tenants", "Id", onDelete: ReferentialAction.Restrict);
             t.ForeignKey("FK_FacilityWorkOrders_FacilityServiceRequests_TenantId_FacilityServiceRequestId",
@@ -118,6 +119,7 @@ public sealed class V3FacilityWorkOrders : Migration
         }, constraints: t =>
         {
             t.PrimaryKey("PK_FacilityWorkflowEvents", x => x.Id);
+            t.UniqueConstraint("AK_FacilityWorkflowEvents_TenantId_Id", x => new { x.TenantId, x.Id });
             t.ForeignKey("FK_FacilityWorkflowEvents_Tenants_TenantId", x => x.TenantId,
                 "Tenants", "Id", onDelete: ReferentialAction.Restrict);
             t.ForeignKey("FK_FacilityWorkflowEvents_FacilityServiceRequests_TenantId_FacilityServiceRequestId",
