@@ -65,7 +65,8 @@ function mock(options = {}) {
                 path === api + '/procurement/' + reference))
             return { status: 404, body: { success: false }, cache: 'no-store' };
         let body;
-        const visible = !foreign || options.foreignLeak;
+        const visible = !foreign || options.foreignLeak ||
+            (isCsv && options.foreignExportLeak) || (!isCsv && options.foreignListLeak);
         if (path === confirm + '/71') body = { success: true, data: ownConfirmation };
         else if (path === orders + '/21') body = { success: true, data: ownPo };
         else if (path === api + '/procurement/' + reference)
@@ -134,4 +135,12 @@ test('invalid reference or confirmation ID never starts an HTTP audit', async ()
     await assert.rejects(auditSupplierCommitment({ ...options,
         confirmationId: -1, read: m.read }), /positive confirmation ID/);
     assert.equal(m.requests.length, 0);
+});
+
+test('foreign list and CSV export leaks are detected independently of detail IDOR', async () => {
+    const { auditSupplierCommitment } = await import(moduleUrl);
+    await assert.rejects(auditSupplierCommitment({ ...options,
+        read: mock({ foreignListLeak: true }).read }), /Foreign commitments list/);
+    await assert.rejects(auditSupplierCommitment({ ...options,
+        read: mock({ foreignExportLeak: true }).read }), /Foreign commitments export/);
 });
