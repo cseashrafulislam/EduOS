@@ -60,3 +60,74 @@ test('fails closed on unbounded scans rather than accepting partial tenant evide
     await assert.rejects(audit({ ...args(fakeRead(rows(101, 55), [])),
         maxPages: 2 }), /exceeds bounded audit pages/);
 });
+
+const procurementRow = (index, wanted = false) => ({
+    reference: wanted ? stock : reference(5000 + index),
+    number: 'PO-' + index, date: '2026-10-31', campusId: 7,
+    state: 'Approved', lineCount: 1, recordedValue: '24.0000000000',
+    evidenceStatus: 'ApprovedCommitment'
+});
+const procurementCsv = items => 'Kind,Reference,Number,Date,Campus,State,RecordedValue,Lines,EvidenceStatus\n' +
+    items.map(x => ['procurement', x.reference, x.number, x.date, x.campusId,
+        x.state, x.recordedValue, x.lineCount, x.evidenceStatus].join(',')).join('\n');
+function procurementRead(options = {}) {
+    const a = Array.from({ length: 63 }, (_, i) => procurementRow(i, i === 54));
+    const b = Array.from({ length: 55 }, (_, i) => ({
+        ...procurementRow(i + 1000), reference: reference(9000 + i)
+    }));
+    return async (cookie, path) => {
+        const url = new URL('http://localhost' + path);
+        const page = Number(url.searchParams.get('page'));
+        const source = cookie === 'a' ? a : b;
+        const items = source.slice((page - 1) * 50, page * 50).map(x => ({ ...x }));
+        if (options.foreignLeak && cookie === 'b' && page === 2 && items.length)
+            items[0].reference = stock;
+        if (options.amountMismatch && cookie === 'a' && page === 2 && items.length)
+            items[0].recordedValue = '999.00';
+        if (options.campusMismatch && cookie === 'a' && page === 2 && items.length)
+            items[0].campusId = 999;
+        if (path.includes('/csv?')) {
+            const original = source.slice((page - 1) * 50, page * 50);
+            return response(200, procurementCsv(options.amountMismatch ||
+                options.campusMismatch ? original : items), 'text/csv');
+        }
+        return response(200, { success: true, data: { kind: 'procurement',
+            page, pageSize: 50, totalCount: source.length, items } });
+    };
+}
+const procurementArgs = read => ({ ...args(read), kind: 'procurement' });
+test('procurement multi-page trace finds PO on page two with full CSV/tenant parity', async () => {
+    const result = await audit(procurementArgs(procurementRead()));
+    assert.deepEqual(result, { kind: 'procurement', count: 63, pagesAudited: 2 });
+});
+test('procurement later-page foreign disclosure, campus and decimal mismatches fail closed', async () => {
+    for (const [key, expected] of [
+        ['foreignLeak', /Foreign register leaked/],
+        ['amountMismatch', /amount or campus mismatch/],
+        ['campusMismatch', /amount or campus mismatch/]
+    ]) await assert.rejects(audit(procurementArgs(
+        procurementRead({ [key]: true }))), expected);
+});
+
+test('procurement later-page JSON and CSV may agree but must also match canonical PO detail', async () => {
+    const read = procurementRead();
+    const corrupted = async (cookie, path) => {
+        const result = await read(cookie, path);
+        const url = new URL('http://localhost' + path);
+        if (cookie === 'a' && Number(url.searchParams.get('page')) === 2) {
+            if (path.includes('/csv?')) {
+                const lines = result.body.split('\n');
+                lines[5] = lines[5].replace('24.0000000000', '25.0000000000');
+                result.body = lines.join('\n');
+            }
+            else if (result.body?.data?.items)
+                result.body.data.items[4].recordedValue = '25.0000000000';
+        }
+        return result;
+    };
+    await assert.rejects(audit({
+        ...procurementArgs(corrupted),
+        expectedEvidence: { state: 'Approved', lineCount: 1,
+            campusId: 7, totalAmount: '24.0000000000' }
+    }), /detail and later-page register evidence/);
+});

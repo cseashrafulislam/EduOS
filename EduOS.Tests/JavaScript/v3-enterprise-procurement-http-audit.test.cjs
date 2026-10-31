@@ -100,3 +100,26 @@ test('forged source IDs and invalid money rejected', async () => {
     };
     await assert.rejects(auditProcurement({ ...config, read, parseCsv }), /Invalid monetary/);
 });
+
+test('procurement first-page audit can defer reference proof only to bounded all-page audit', async () => {
+    const { auditProcurement } = await import(moduleUrl);
+    const original = mock();
+    const read = async (cookie, path) => {
+        const result = await original.read(cookie, path);
+        if (path.includes('/register?') && cookie === 'a' && result.status === 200) {
+            result.body.data.totalCount = 65;
+            result.body.data.items = [{ ...registerRow,
+                reference: '99999999-9999-4999-8999-999999999999' }];
+        }
+        if (path.includes('/register/csv?') && cookie === 'a' && result.status === 200)
+            result.body = reportCsv({ ...registerRow,
+                reference: '99999999-9999-4999-8999-999999999999' });
+        return result;
+    };
+    await assert.rejects(auditProcurement({ ...config, read, parseCsv }),
+        /detail and register evidence/);
+    const result = await auditProcurement({ ...config, read, parseCsv,
+        allowReferenceBeyondFirstPage: true });
+    assert.equal(result.firstPageReferenceFound, false);
+    assert.equal(result.reportCount, 65);
+});

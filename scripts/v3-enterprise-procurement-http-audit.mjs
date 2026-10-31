@@ -21,7 +21,8 @@ const states = new Map([
 ]);
 
 export async function auditProcurement({ read, parseCsv, api, reference, from, to,
-    tenantA, tenantB, restricted = null, campusId = null }) {
+    tenantA, tenantB, restricted = null, campusId = null,
+    allowReferenceBeyondFirstPage = false }) {
     ensure(id(reference), 'Procurement reference must be a UUID.');
     const path = api + '/procurement/' + reference;
     const own = await read(tenantA, path);
@@ -100,11 +101,14 @@ export async function auditProcurement({ read, parseCsv, api, reference, from, t
         Number.isSafeInteger(r.totalCount) && r.totalCount >= r.items?.length &&
         r.items.length <= 50, 'Procurement register bounds invalid.');
     const match = r.items.filter(x => id(x.reference) === id(reference));
-    ensure(match.length === 1 && match[0].state === d.state &&
-        match[0].evidenceStatus === d.evidenceStatus &&
-        match[0].lineCount === d.lineCount &&
-        match[0].campusId === d.campusId &&
-        amount(match[0].recordedValue) === sum,
+    ensure(match.length <= 1 &&
+        (match.length === 1 || (allowReferenceBeyondFirstPage &&
+            r.totalCount > r.items.length)) &&
+        (match.length === 0 || (match[0].state === d.state &&
+            match[0].evidenceStatus === d.evidenceStatus &&
+            match[0].lineCount === d.lineCount &&
+            match[0].campusId === d.campusId &&
+            amount(match[0].recordedValue) === sum)),
         'Procurement detail and register evidence disagree.');
     const registerCsv = await read(tenantA, api + '/register/csv?' + query);
     ensure(registerCsv.status === 200 && registerCsv.type.includes('text/csv'),
@@ -137,7 +141,8 @@ export async function auditProcurement({ read, parseCsv, api, reference, from, t
         }
     }
     return { reference: id(reference), state: d.state, lineCount: d.lineCount,
-        reportCount: r.totalCount, checked: ['detail and CSV parity',
+        reportCount: r.totalCount, firstPageReferenceFound: match.length === 1,
+        campusId: d.campusId, totalAmount: d.totalAmount, checked: ['detail and CSV parity',
             'line and budget arithmetic', 'tenant and role IDOR',
             'register JSON/CSV parity', 'source references'] };
 }

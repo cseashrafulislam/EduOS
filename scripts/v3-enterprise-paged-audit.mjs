@@ -4,10 +4,20 @@ const requireEvidence = (ok, message) => { if (!ok) throw new Error(message); };
 const safeValue = value => String(value ?? '');
 const normalizeReference = value => safeValue(value).toLowerCase();
 const MAX_PAGE_SIZE = 50;
+const scaledDecimal = value => {
+    const s = String(value);
+    requireEvidence(/^-?\d+(?:\.\d{1,10})?$/.test(s),
+        'Invalid register monetary evidence.');
+    const negative = s.startsWith('-');
+    const [whole, fraction = ''] = (negative ? s.slice(1) : s).split('.');
+    const scaled = BigInt(whole) * 10000000000n +
+        BigInt(fraction.padEnd(10, '0'));
+    return negative ? -scaled : scaled;
+};
 
 export async function auditRegisterPages({ read, parseCsv, api, kind, reference,
-    from, to, tenantA, tenantB, maxPages = 10 }) {
-    requireEvidence(['stock', 'asset'].includes(kind), 'Invalid register kind.');
+    from, to, tenantA, tenantB, maxPages = 10, expectedEvidence = null }) {
+    requireEvidence(['stock', 'asset', 'procurement'].includes(kind), 'Invalid register kind.');
     requireEvidence(Number.isInteger(maxPages) && maxPages >= 1 && maxPages <= 20,
         'Invalid audit page limit.');
     const wanted = normalizeReference(reference);
@@ -56,6 +66,19 @@ export async function auditRegisterPages({ read, parseCsv, api, kind, reference,
             requireEvidence(typeof row.date === 'string' &&
                 row.date >= from && row.date <= to,
                 'Register row outside requested date window.');
+            if (kind === 'procurement') {
+                for (const name of ['Number', 'Date', 'Campus', 'RecordedValue'])
+                    requireEvidence(col(name) >= 0,
+                        'Procurement CSV column missing: ' + name);
+                requireEvidence(
+                    csvRow[col('Number')] === safeValue(row.number) &&
+                    csvRow[col('Date')] === row.date &&
+                    csvRow[col('Campus')] === safeValue(row.campusId) &&
+                    Number.isSafeInteger(row.campusId) && row.campusId > 0 &&
+                    scaledDecimal(csvRow[col('RecordedValue')]) ===
+                        scaledDecimal(row.recordedValue),
+                    'Procurement register CSV/source amount or campus mismatch.');
+            }
         }
         return data;
     };
@@ -81,7 +104,16 @@ export async function auditRegisterPages({ read, parseCsv, api, kind, reference,
                 requireEvidence(lastDate === null || row.date <= lastDate,
                     'Register date order changed across pages.');
                 lastDate = row.date;
-                if (ref === wanted) found = true;
+                if (ref === wanted) {
+                    found = true;
+                    if (!foreign && kind === 'procurement' && expectedEvidence)
+                        requireEvidence(row.state === expectedEvidence.state &&
+                            row.lineCount === expectedEvidence.lineCount &&
+                            row.campusId === expectedEvidence.campusId &&
+                            scaledDecimal(row.recordedValue) ===
+                                scaledDecimal(expectedEvidence.totalAmount),
+                            'Procurement detail and later-page register evidence disagree.');
+                }
                 if (foreign) requireEvidence(ref !== wanted,
                     'Foreign register leaked tenant A evidence.');
             }

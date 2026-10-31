@@ -183,7 +183,8 @@ export async function runAcceptance(config, fetcher = fetch) {
         'Asset reference mismatch.');
     const procurementResult = procurement ? await auditProcurement({
         read, parseCsv, api: API, reference: procurement, from, to,
-        tenantA: a, tenantB: b, restricted
+        tenantA: a, tenantB: b, restricted,
+        allowReferenceBeyondFirstPage: pagedAudit
     }) : null;
     const supplierResult = supplierConfirmation ? await auditSupplierCommitment({
         read, parseCsv, api: API, reference: procurement,
@@ -194,7 +195,8 @@ export async function runAcceptance(config, fetcher = fetch) {
         if (pagedAudit) {
             const result = await auditRegisterPages({ read, parseCsv, api: API,
                 kind: 'procurement', reference: procurement, from, to,
-                tenantA: a, tenantB: b, maxPages: auditPages });
+                tenantA: a, tenantB: b, maxPages: auditPages,
+                expectedEvidence: procurementResult });
             registers.push({ kind: 'procurement', count: result.count,
                 pagesAudited: result.pagesAudited });
         } else registers.push({ kind: 'procurement', count: procurementResult.reportCount });
