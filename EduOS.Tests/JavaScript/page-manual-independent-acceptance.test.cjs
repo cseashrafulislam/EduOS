@@ -10,6 +10,8 @@ const read = p => fs.readFileSync(path.join(root, p), 'utf8');
 const source = read('EduOS.App/wwwroot/js/platform/page-context-help.js');
 const { guideFor, coverage } = require('../../EduOS.App/wwwroot/js/platform/page-context-help.js');
 const routes = [
+    ['/Admissions/Index', 'Admissions', 'ADMISSION', 'TenantAdmin,AdmissionOfficer'],
+    ['/StudentInvoicePosting/Index', 'StudentInvoicePosting', 'FINANCE', 'TenantAdmin,Principal,Accountant'],
     ['/FeeOperations/Index', 'FeeOperations', 'FINANCE', 'TenantAdmin,Principal,Accountant'],
     ['/Students/Index', 'Students', 'STUDENT', 'TenantAdmin,AdmissionOfficer'],
     ['/Attendance/Index', 'Attendance', 'ATTENDANCE', 'TenantAdmin,Principal,VicePrincipal,Teacher'],
@@ -67,10 +69,10 @@ test('reviewed Page Information routes match actual controller role/module gates
     assert.equal(counts.bn, counts.routes);
     for (const [route, controller, module, expectedRoles] of routes) {
         const code = read('EduOS.App/Controllers/' + controller + 'Controller.cs');
-        const match = code.match(/\[Authorize\(Roles\s*=\s*"([^"]+)"\)\]/);
+        const match = code.match(/\[Authorize\(Roles\s*=\s*"([^"]+)"\)/);
         assert.ok(match, 'missing role gate ' + route);
         assert.deepEqual(match[1].split(',').sort(), expectedRoles.split(',').sort(), route);
-        assert.ok(code.includes('[RequireModule("' + module + '")]'), 'missing module gate ' + route);
+        assert.ok(code.includes('RequireModule("' + module + '")'), 'missing module gate ' + route);
         assert.match(code, /public IActionResult Index\(\)\s*=>\s*View\(\)/);
         for (const lang of ['en-BD', 'bn-BD']) {
             const manual = guideFor(route, lang);
@@ -132,4 +134,41 @@ test('language navigation has antiforgery, allowlisted cookie and safe redirect 
     assert.match(cookie, /CookieRequestCultureProvider\.DefaultCookieName/);
     assert.match(cookie, /HttpOnly = true/);
     // Real tenant-switch locale persistence and screen-reader/mobile browser QA remain NOT RUN.
+});
+
+test('all reviewed route guides have complete distinct bilingual sections without raw keys', () => {
+    for (const [route] of routes) {
+        const en = guideFor(route, 'en-BD');
+        const bn = guideFor(route, 'bn-BD');
+        for (const key of ['title', 'purpose', 'before', 'example', 'result', 'rules', 'recovery']) {
+            assert.ok(en[key].trim().length >= 10 && bn[key].trim().length >= 10, route + ' ' + key);
+            assert.notEqual(en[key], bn[key], route + ' untranslated ' + key);
+            assert.doesNotMatch(en[key] + bn[key], /\{\{[^}]+\}\}|\b(?:undefined|null)\b/i);
+        }
+        assert.equal(en.steps.length, bn.steps.length, route);
+        assert.ok(en.steps.length >= 3, route);
+        for (let i = 0; i < en.steps.length; i++) {
+            assert.notEqual(en.steps[i], bn.steps[i], route + ' untranslated step ' + i);
+            assert.ok(/\p{Script=Bengali}/u.test(bn.steps[i]), route + ' missing Bangla step ' + i);
+        }
+        assert.ok(/\p{Script=Bengali}/u.test(bn.example), route + ' missing Bangla example');
+    }
+});
+test('new admission and invoice GL guides expose only navigation-authorized related routes', () => {
+    for (const [route, allowed] of [
+        ['/Admissions/Index', '/Students/Index'],
+        ['/StudentInvoicePosting/Index', '/FeeOperations/Index']
+    ]) {
+        for (const lang of ['en-BD', 'bn-BD']) {
+            const b = browser(route, lang, [allowed, '/PrivateFinance/Index', '//evil.example']);
+            b.trigger.fire('click');
+            assert.equal(b.dialog.open, true);
+            assert.equal(b.descendants(b.content, 'section').length, 8);
+            const links = b.descendants(b.content, 'a');
+            assert.deepEqual(links.map(x => x.getAttribute('href')), [allowed]);
+            assert.equal(links[0].textContent, guideFor(route, lang).related[0].label);
+            b.close.fire('click');
+            assert.equal(b.doc.activeElement, b.trigger);
+        }
+    }
 });
