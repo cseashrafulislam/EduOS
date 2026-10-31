@@ -51,6 +51,14 @@ public sealed class FacilityWorkflowService(
     // The command ID identifies one immutable payload, not merely an action name.
     // Legacy triage events did not store the deadline; their committed request
     // deadline is checked so exact pre-upgrade retries still work fail-closed.
+    // Compare the entire controlled audit suffix from its FIRST delimiter.
+    // EndsWith alone could accept a changed note containing another delimiter.
+    private static bool ReplayTailMatches(string? audit, string marker, string expected)
+    {
+        var index = audit?.IndexOf(marker, StringComparison.Ordinal) ?? -1;
+        return index >= 0 && string.Equals(audit![index..], expected, StringComparison.Ordinal);
+    }
+
     private static bool ReplayPayloadMatches(FacilityWorkflowEvent replay, string action,
         FacilityTransitionDto command, FacilityServiceRequest request)
     {
@@ -60,17 +68,17 @@ public sealed class FacilityWorkflowService(
             "schedule" => command.TechnicianUserId is > 0 &&
                 command.ScheduledStartUtc is DateTime start && start.Kind == DateTimeKind.Utc &&
                 command.ScheduledEndUtc is DateTime end && end.Kind == DateTimeKind.Utc &&
-                replay.Note?.EndsWith(
-                    $"new technician={command.TechnicianUserId}, start={start:O}, end={end:O}" +
-                    (string.IsNullOrWhiteSpace(note) ? "" : $"; reason={note}"),
-                    StringComparison.Ordinal) == true,
+                ReplayTailMatches(replay.Note, "; new technician=",
+                    $"; new technician={command.TechnicianUserId}, start={start:O}, end={end:O}" +
+                    (string.IsNullOrWhiteSpace(note) ? "" : $"; reason={note}")),
             "triage" => command.SlaDueAtUtc is DateTime due && due.Kind == DateTimeKind.Utc &&
                 (string.Equals(replay.Note,
                     $"SLA due UTC={due:O}" + (string.IsNullOrWhiteSpace(note) ? "" : $"; note={note}"),
                     StringComparison.Ordinal) ||
-                 (request.SlaDueAtUtc == due && string.Equals(replay.Note, note, StringComparison.Ordinal))),
+                 (replay.Note?.StartsWith("SLA due UTC=", StringComparison.Ordinal) != true &&
+                  request.SlaDueAtUtc == due && string.Equals(replay.Note, note, StringComparison.Ordinal))),
             "unschedule" => !string.IsNullOrWhiteSpace(note) &&
-                replay.Note?.EndsWith($"; reason={note}", StringComparison.Ordinal) == true,
+                ReplayTailMatches(replay.Note, "; reason=", $"; reason={note}"),
             "escalate" => !string.IsNullOrWhiteSpace(note) &&
                 string.Equals(replay.Note, "Manual overdue SLA escalation: " + note,
                     StringComparison.Ordinal),

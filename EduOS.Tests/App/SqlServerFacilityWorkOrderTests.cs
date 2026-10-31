@@ -152,6 +152,8 @@ public sealed class SqlServerFacilityWorkOrderTests
                 submitted.Id, "triage", Triage(due.AddMinutes(30)))).StatusCode);
             Assert.Equal(409, (await service.TransitionAsync(
                 submitted.Id, "triage", Triage(due, "Altered deadline reason"))).StatusCode);
+            Assert.Equal(409, (await service.TransitionAsync(submitted.Id, "triage",
+                Triage(due, $"SLA due UTC={due:O}"))).StatusCode);
             Assert.Single((await service.HistoryAsync(submitted.Id, 1, 25)).Data!.Items
                 .Where(x => x.ActionCode == "triage"));
         }
@@ -207,12 +209,13 @@ public sealed class SqlServerFacilityWorkOrderTests
                     TechnicianUserId = technician, ScheduledStartUtc = start, ScheduledEndUtc = end,
                     Note = note
                 };
+            var originalScheduleNote = "Campus reschedule; reason=embedded";
             var result = await service.TransitionAsync(
-                submitted.Id, "schedule", ScheduleRetry(techId, scheduleStart, scheduleEnd));
+                submitted.Id, "schedule", ScheduleRetry(techId, scheduleStart, scheduleEnd, originalScheduleNote));
             Assert.True(result.Success, result.Message);
             scheduled = result.Data!;
             var exactRetry = await service.TransitionAsync(
-                submitted.Id, "schedule", ScheduleRetry(techId, scheduleStart, scheduleEnd));
+                submitted.Id, "schedule", ScheduleRetry(techId, scheduleStart, scheduleEnd, originalScheduleNote));
             Assert.True(exactRetry.Success, exactRetry.Message);
             Assert.Equal(scheduled.WorkOrderId, exactRetry.Data!.WorkOrderId);
             Assert.Equal(409, (await service.TransitionAsync(
@@ -220,7 +223,7 @@ public sealed class SqlServerFacilityWorkOrderTests
             Assert.Equal(409, (await service.TransitionAsync(
                 submitted.Id, "schedule", ScheduleRetry(techId, scheduleStart, scheduleEnd.AddMinutes(15)))).StatusCode);
             Assert.Equal(409, (await service.TransitionAsync(
-                submitted.Id, "schedule", ScheduleRetry(techId, scheduleStart, scheduleEnd, "Changed reason"))).StatusCode);
+                submitted.Id, "schedule", ScheduleRetry(techId, scheduleStart, scheduleEnd, "embedded"))).StatusCode);
             Assert.Single((await service.HistoryAsync(submitted.Id, 1, 25)).Data!.Items
                 .Where(x => x.ActionCode == "schedule"));
         }
@@ -371,7 +374,7 @@ public sealed class SqlServerFacilityWorkOrderTests
             var releaseId = Guid.NewGuid();
             var released = await service.TransitionAsync(submitted.Id, "unschedule", new FacilityTransitionDto
             { ClientCommandId = releaseId, RowVersion = scheduled.WorkOrderRowVersion!,
-              Note = "Schedule changed at campus request." });
+              Note = "Schedule changed; reason=embedded" });
             Assert.True(released.Success, released.Message);
             Assert.Equal("Approved", released.Data!.WorkOrderState);
             Assert.Null(released.Data.TechnicianUserId);
@@ -379,12 +382,12 @@ public sealed class SqlServerFacilityWorkOrderTests
             Assert.Null(released.Data.ScheduledEndUtc);
             var retry = await service.TransitionAsync(submitted.Id, "unschedule", new FacilityTransitionDto
             { ClientCommandId = releaseId, RowVersion = scheduled.WorkOrderRowVersion!,
-              Note = "Schedule changed at campus request." });
+              Note = "Schedule changed; reason=embedded" });
             Assert.True(retry.Success, retry.Message);
             Assert.Equal(409, (await service.TransitionAsync(submitted.Id, "unschedule",
                 new FacilityTransitionDto { ClientCommandId = releaseId,
                     RowVersion = scheduled.WorkOrderRowVersion!,
-                    Note = "Different schedule release reason." })).StatusCode);
+                    Note = "embedded" })).StatusCode);
             var stale = await service.TransitionAsync(submitted.Id, "unschedule", new FacilityTransitionDto
             { ClientCommandId = Guid.NewGuid(), RowVersion = scheduled.WorkOrderRowVersion!,
               Note = "Attempt to release stale schedule." });
