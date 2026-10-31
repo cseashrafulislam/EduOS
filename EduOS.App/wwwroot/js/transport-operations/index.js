@@ -255,10 +255,16 @@
         const date = prompt('End date (YYYY-MM-DD)', localDate());
         if (!date) return;
         if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || date < item.startDate || date > localDate()) { notify('Choose a valid end date on or after the start.'); return; }
+        const clearanceText = prompt('Approved Finance clearance ID (leave blank ONLY for zero-fare assignments without billing):', '');
+        if (clearanceText === null) return;
+        const financeClearanceId = clearanceText.trim() ? Number(clearanceText.trim()) : null;
+        if (financeClearanceId !== null && (!Number.isSafeInteger(financeClearanceId) || financeClearanceId <= 0)) {
+            notify('Enter a valid Finance clearance ID.'); return;
+        }
         button.disabled = true;
         try {
             await api('/api/transport/assignments/' + encodeURIComponent(item.reference) + '/close', 'POST',
-                { endDate: date, rowVersion: item.rowVersion });
+                { endDate: date, rowVersion: item.rowVersion, financeClearanceId });
             notify('Transport assignment closed.', true);
             await Promise.all([loadActive(), loadStudents(), loadStatic()]);
         } catch (err) { notify(err.message); } finally { button.disabled = false; }

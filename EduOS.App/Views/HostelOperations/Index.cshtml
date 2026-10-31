@@ -157,9 +157,9 @@
                 </div>
             </section>
             <section id="hostelOccupiedTransferPanel" class="border rounded p-3 mt-3 d-none" aria-labelledby="hostelOccupiedTransferTitle">
-                <h4 id="hostelOccupiedTransferTitle" class="h6">Transfer a currently occupied no-charge stay</h4>
+                <h4 id="hostelOccupiedTransferTitle" class="h6">Transfer a currently occupied stay</h4>
                 <p id="hostelOccupiedTransferContext" class="small text-muted"></p>
-                <p class="small text-muted">Only effective today after at least one occupied day. Rent, deposit and fee-head must all be zero and Finance must have no issued or posted activity. The original allocation and bed history are preserved. Paid transfers remain locked pending Finance approval.</p>
+                <p class="small text-muted">Same-day movement after at least one occupied day. No-charge and Finance-clear stays transfer normally. Charged or billed stays require a valid, independently approved Finance clearance for this exact source, destination and date. <a href="/FinanceAdjustments/HostelClearances">Finance clearance worklist</a>.</p>
                 <label class="form-label" for="hostelOccupiedTransferBed">Available destination (same campus)</label>
                 <select id="hostelOccupiedTransferBed" class="form-select mb-2" required><option value="">Select a bed</option></select>
                 <p id="hostelOccupiedTransferPage" class="small text-muted" role="status" aria-live="polite"></p>
@@ -169,6 +169,8 @@
                 </div>
                 <label class="form-label" for="hostelOccupiedTransferReason">Reason (required for audit)</label>
                 <textarea id="hostelOccupiedTransferReason" class="form-control mb-2" maxlength="500" rows="2" placeholder="Explain why the resident is moving" required></textarea>
+                <label class="form-label" for="hostelOccupiedTransferClearance">Approved Finance clearance ID (required for charged/paid stays)</label>
+                <input id="hostelOccupiedTransferClearance" type="number" min="1" class="form-control mb-2" placeholder="Optional for Finance-clear no-charge stays" />
                 <div class="d-flex gap-2">
                     <button id="hostelOccupiedTransferSave" type="button" class="btn btn-primary btn-sm">Transfer resident today</button>
                     <button id="hostelOccupiedTransferCancel" type="button" class="btn btn-outline-secondary btn-sm">Cancel</button>

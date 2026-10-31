@@ -1,0 +1,55 @@
+@{
+    ViewData["Title"] = "Transport Finance Clearance";
+}
+<section class="container-fluid py-3" id="transportFinanceRoot">
+    <header class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+        <div><h2>Transport Finance clearance</h2><p class="text-muted mb-0">Configurable auto calculation with audited manual override, maker-checker review, and single-use approval.</p></div>
+        <a href="/FinanceAdjustments/Index" class="btn btn-outline-secondary">Finance Adjustments</a>
+    </header>
+    <div id="tfAlert" class="alert d-none" role="alert" tabindex="-1"></div>
+    <div class="alert alert-warning">A suggested credit is an estimate, not evidence of a payment or refund. Verify Finance invoices and collections before approval. A nonzero credit requires an independently approved, posted manual journal referencing <code>TRANSPORT-CLEARANCE-{ID}</code>. No money moves automatically.</div>
+    <div class="row g-3 mb-3">
+        <div class="col-xl-5"><div class="card h-100"><div class="card-body">
+            <h3 class="h5">Campus fare policy</h3>
+            <form id="tfPolicyForm" class="row g-2">
+                <div class="col-md-4"><label for="tfCampus" class="form-label">Campus ID</label><input id="tfCampus" type="number" min="1" class="form-control" required /></div>
+                <div class="col-md-8"><label for="tfMode" class="form-label">Calculation</label><select id="tfMode" class="form-select"><option value="1">Auto · unused days of month</option><option value="2">Auto · fixed monthly (zero default credit)</option><option value="3">Manual · enter credit</option></select></div>
+                <div class="col-12"><label><input id="tfOverrideAllowed" type="checkbox" checked /> Allow authorized manual override (reason mandatory)</label></div>
+                <div class="col-12 d-flex gap-2"><button id="tfPolicyLoad" type="button" class="btn btn-outline-primary">Load policy</button><button class="btn btn-primary" type="submit">Save policy</button></div>
+            </form>
+        </div></div></div>
+        <div class="col-xl-7"><div class="card h-100"><div class="card-body">
+            <h3 class="h5">Request an operational clearance</h3>
+            <form id="tfRequestForm" class="row g-2">
+                <div class="col-md-8"><label for="tfSource" class="form-label">Active student transport assignment</label><select id="tfSource" class="form-select" required><option value="">Load active riders</option></select></div>
+                <div class="col-md-4 align-self-end"><button id="tfLoadRiders" class="btn btn-outline-primary w-100" type="button">Load next 50 riders</button></div>
+                <div class="col-md-4"><label for="tfOperation" class="form-label">Operation</label><select id="tfOperation" class="form-select"><option value="1">Vehicle transfer</option><option value="2">Closure</option></select></div>
+                <div class="col-md-4"><label for="tfEffective" class="form-label">Effective date</label><input id="tfEffective" type="date" class="form-control" required /></div>
+                <div class="col-md-4"><label for="tfTarget" class="form-label">Destination vehicle</label><select id="tfTarget" class="form-select" required><option value="">Select rider</option></select></div>
+                <div class="col-md-6"><label for="tfManualFare" class="form-label">Manual fare credit (BDT; optional)</label><input id="tfManualFare" type="number" min="0" step="0.01" class="form-control" placeholder="Auto if blank" /></div>
+                <div class="col-md-6"><label for="tfOverrideReason" class="form-label">Manual override reason (20+ characters)</label><input id="tfOverrideReason" maxlength="1000" class="form-control" /></div>
+                <div class="col-12"><label for="tfReason" class="form-label">Operational reason (5–500 characters)</label><input id="tfReason" minlength="5" maxlength="500" class="form-control" required /></div>
+                <div class="col-12"><button class="btn btn-primary" type="submit">Request Finance clearance</button></div>
+            </form>
+            <div id="tfRequestInfo" class="small text-muted mt-2" role="status"></div>
+        </div></div></div>
+    </div>
+    <div class="card"><div class="card-body">
+        <h3 class="h5">Finance review &amp; reconciliation register</h3>
+        <p class="small text-muted">The requester cannot approve. Give Operations the approved ID for the exact vehicle/date or closure. Finance evidence and assignment row versions are revalidated when consumed.</p>
+        <div class="d-flex align-items-center gap-2 mb-2"><button id="tfRefresh" class="btn btn-outline-primary btn-sm" type="button">Refresh</button><button id="tfPrevious" class="btn btn-outline-secondary btn-sm" type="button">Previous</button><span id="tfPageInfo"></span><button id="tfNext" class="btn btn-outline-secondary btn-sm" type="button">Next</button></div>
+        <div class="table-responsive"><table class="table table-sm table-striped align-middle"><thead><tr><th>Clearance / rider</th><th>Operation / date</th><th>Policy</th><th>Suggested credit</th><th>Approved credit</th><th>Status</th><th>Review</th></tr></thead><tbody id="tfRows"><tr><td colspan="7">Load register.</td></tr></tbody></table></div>
+        <form id="tfReviewForm" class="row g-2 border rounded p-3 mt-3 d-none">
+            <h4 class="h6">Independent review <span id="tfReviewTitle"></span></h4>
+            <div class="col-md-4"><label for="tfReviewFare" class="form-label">Reviewer credit override (optional)</label><input id="tfReviewFare" type="number" min="0" step="0.01" class="form-control" /></div>
+            <div class="col-md-8"><label for="tfReviewOverrideReason" class="form-label">Reviewer amount-change reason</label><input id="tfReviewOverrideReason" maxlength="1000" class="form-control" /></div>
+            <div class="col-md-4"><label for="tfReviewJournal" class="form-label">Verified posted journal ID (nonzero credit)</label><input id="tfReviewJournal" type="number" min="1" class="form-control" /></div>
+            <div class="col-md-8 align-self-end"><label><input id="tfNoAdjustment" type="checkbox" /> Attest zero credit; no GL change required</label></div>
+            <div class="col-12"><label for="tfReviewNote" class="form-label">Verified reconciliation evidence (20–1000 characters)</label><textarea id="tfReviewNote" minlength="20" maxlength="1000" rows="2" class="form-control" required></textarea></div>
+            <div class="col-12 d-flex gap-2"><button class="btn btn-success" type="submit">Approve clearance</button><button id="tfReject" type="button" class="btn btn-outline-danger">Reject</button><button id="tfReviewCancel" type="button" class="btn btn-outline-secondary">Cancel</button></div>
+        </form>
+    </div></div>
+</section>
+@section Scripts {
+    <script src="~/js/finance/transport-clearances.js" asp-append-version="true"></script>
+}

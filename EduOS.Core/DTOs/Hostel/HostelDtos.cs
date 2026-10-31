@@ -120,6 +120,7 @@ public class CloseStudentHostelAllocationRequestDto
 {
     public DateOnly EndDate { get; set; }
     [Required] public string RowVersion { get; set; } = string.Empty;
+    public long? FinanceClearanceId { get; set; }
 }
 
 /// <summary>Moves a currently occupied no-charge stay today, preserving prior bed history.</summary>
@@ -131,6 +132,7 @@ public sealed class TransferOccupiedHostelRequestDto
     [Required] public string SourceRowVersion { get; set; } = string.Empty;
     [Required] public string DestinationBedRowVersion { get; set; } = string.Empty;
     [Required, StringLength(500, MinimumLength = 5)] public string Reason { get; set; } = string.Empty;
+    public long? FinanceClearanceId { get; set; }
 }
 
 public sealed class TransferOccupiedHostelResultDto
@@ -140,7 +142,6 @@ public sealed class TransferOccupiedHostelResultDto
     public string SourceRowVersion { get; set; } = string.Empty;
     public string SuccessorRowVersion { get; set; } = string.Empty;
 }
-
 
 public sealed class HostelStudentOptionDto
 {

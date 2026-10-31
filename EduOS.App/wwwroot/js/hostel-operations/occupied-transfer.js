@@ -32,6 +32,7 @@
         el('hostelOccupiedTransferPanel').classList.add('d-none');
         el('hostelOccupiedTransferBed').replaceChildren();
         el('hostelOccupiedTransferReason').value = '';
+        el('hostelOccupiedTransferClearance').value = '';
     }
     async function load() {
         if (!pending) return;
@@ -59,8 +60,8 @@
         } catch (error) { if (current === generation) notify(error.message); }
     }
     function begin(item) {
-        if (!item || !item.canTransferNoCharge || item.startDate >= today()) {
-            notify('Only an occupied no-charge stay that began before today can transfer.'); return;
+        if (!item || item.startDate >= today()) {
+            notify('Only a currently occupied stay that began before today can transfer.'); return;
         }
         pending = item; page = 1; totalPages = 1; requestId = crypto.randomUUID();
         el('hostelOccupiedTransferContext').textContent = item.studentName + ' · ' + item.hostelName +
@@ -74,6 +75,12 @@
         const destinationBedId = Number(el('hostelOccupiedTransferBed').value);
         const destinationBedRowVersion = options.get(String(destinationBedId));
         const reason = el('hostelOccupiedTransferReason').value.trim();
+        const clearanceText = el('hostelOccupiedTransferClearance').value.trim();
+        const financeClearanceId = clearanceText ? Number(clearanceText) : null;
+        if ((!pending.canTransferNoCharge && !financeClearanceId) ||
+            (financeClearanceId !== null && (!Number.isSafeInteger(financeClearanceId) || financeClearanceId <= 0))) {
+            notify('This stay needs a valid approved Finance clearance ID.'); return;
+        }
         if (!Number.isSafeInteger(destinationBedId) || destinationBedId <= 0 || !destinationBedRowVersion) {
             notify('Select an available destination bed.'); return;
         }
@@ -83,9 +90,9 @@
         if (!confirm('Transfer the resident today? The previous stay will close yesterday and a new stay will start today.')) return;
         busy = true; el('hostelOccupiedTransferSave').disabled = true;
         try {
-            await api('/api/hostel/allocations/' + encodeURIComponent(pending.id) + '/occupied-transfer-no-charge',
+            await api('/api/hostel/allocations/' + encodeURIComponent(pending.id) + '/occupied-transfer',
                 'POST', { clientRequestId: requestId, destinationBedId, effectiveFrom: today(),
-                    sourceRowVersion: pending.rowVersion, destinationBedRowVersion, reason });
+                    sourceRowVersion: pending.rowVersion, destinationBedRowVersion, reason, financeClearanceId });
             dismiss(); notify('Resident transferred. Both stays are available in allocation history.', true);
             window.dispatchEvent(new Event('hostel-occupied-transfer-completed'));
         } catch (error) { notify(error.message); }

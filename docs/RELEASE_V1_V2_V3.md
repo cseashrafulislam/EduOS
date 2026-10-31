@@ -42,8 +42,8 @@ A **named business module is completed entirely in one version**: setup, master 
 | --- | --- | --- |
 | LMS | **Development-complete; baseline frozen; maintenance-only** | Operational/live-class provider checks, pilot UAT, security/load/deployment evidence and sign-off remain separate gates |
 | Library | **Development-complete; baseline frozen; maintenance-only** | Campus fine-policy acceptance, Finance-paid correction workflows, restored-data rehearsal, browser UAT and sign-off remain separate gates |
-| Hostel | **Remaining V2 development scope** | End-to-end acceptance not yet certified |
-| Transport | **Remaining V2 development scope** | End-to-end acceptance not yet certified |
+| Hostel | **Finance-controlled checkout/occupied transfer implementation added; engineering release candidate under final QA** | Restored-SQL migration and journal reconciliation, UAT and sign-off are required; see [V2 Hostel/Transport Finance release](V2_HOSTEL_TRANSPORT_FINANCE_RELEASE_20261031.md) |
+| Transport | **Finance-controlled closure/vehicle transfer and historical lineage added; engineering release candidate under final QA** | SQL concurrency/capacity, Finance UAT and sign-off are required; see [V2 Hostel/Transport Finance release](V2_HOSTEL_TRANSPORT_FINANCE_RELEASE_20261031.md) |
 
 Existing LMS and Library implementations are **authoritative**. Do not assign any of their completed workflows again, create a new “advanced” implementation or let V3 tasks reimplement them. Reopen only for evidenced defects, security/integrity fixes, unavoidable integration or explicit new owner scope; see the baseline's change-control criteria. Green automation alone is not production approval.
 

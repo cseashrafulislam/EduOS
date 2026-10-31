@@ -5,6 +5,7 @@ using EduOS.Core.Entities.Hostel;
 using EduOS.Service.Services.Hostel;
 using EduOS.Core.Entities.Academic;
 using EduOS.Core.Entities.Auth;
+using EduOS.Core.Entities.Finance;
 using EduOS.Core.Entities.Learners;
 using EduOS.Core.Entities.SaaS;
 using EduOS.Core.Entities.Students;
@@ -1577,7 +1578,8 @@ public sealed partial class SqlServerTransportSeatCapacityIntegrationTests
             new ReservationCommandReceiptStore(db, TimeProvider.System),
             new GenericRepository<HostelApplication>(db), new GenericRepository<HostelApplicationEvent>(db),
             new GenericRepository<HostelApplicationAuthority>(db), new GenericRepository<StudentGuardian>(db),
-            new GenericRepository<Guardian>(db), new GenericRepository<EduOS.Core.Entities.System.AuditLog>(db));
+            new GenericRepository<Guardian>(db), new GenericRepository<EduOS.Core.Entities.System.AuditLog>(db),
+            new GenericRepository<EduOS.Core.Entities.Finance.HostelFinanceClearance>(db));
 
     private static async Task<long[]> SeedHostelBedsAsync(Fixture fixture, int capacity, int count)
     {
@@ -1658,7 +1660,8 @@ public sealed partial class SqlServerTransportSeatCapacityIntegrationTests
         new GenericRepository<VehicleDriverAssignment>(db),
         new GenericRepository<TransportVehicleCase>(db),
         new ReservationFinancePolicy(db),
-        new ReservationCommandReceiptStore(db, TimeProvider.System));
+        new ReservationCommandReceiptStore(db, TimeProvider.System),
+        new GenericRepository<TransportFinanceClearance>(db));
 
     private static TransportService Service(EduOSDbContext db, long tenant, long user) => new(
         new GenericRepository<TransportRoute>(db),
@@ -1675,7 +1678,8 @@ public sealed partial class SqlServerTransportSeatCapacityIntegrationTests
         TimeProvider.System,
         new CaptureLogger(),
         new ReservationFinancePolicy(db),
-        new ReservationCommandReceiptStore(db, TimeProvider.System));
+        new ReservationCommandReceiptStore(db, TimeProvider.System),
+        new GenericRepository<TransportFinanceClearance>(db));
 
     private static async Task<Fixture> SeedAsync(string connection)
     {

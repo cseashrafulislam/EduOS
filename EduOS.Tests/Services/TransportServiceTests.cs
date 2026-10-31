@@ -1,4 +1,5 @@
 using EduOS.Core.DTOs.Transport;
+using EduOS.Core.DTOs.Finance;
 using EduOS.Core.Entities.Academic;
 using EduOS.Core.Entities.Auth;
 using EduOS.Core.Entities.Finance;
@@ -16,6 +17,7 @@ using FluentAssertions;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Logging.Abstractions;
 using System.Security.Claims;
 using Xunit;
@@ -1000,6 +1002,75 @@ public class TransportServiceTests
         (await db.IdempotencyRecords.CountAsync()).Should().Be(0);
     }
 
+    [Fact]
+    public async Task Charged_transport_transfer_requires_independent_single_use_finance_approval_and_preserves_history()
+    {
+        await using var db = CreateContext(CreateOptions(), 101);
+        var rider = await SeedAssignmentAsync(db, 101, true, [1,2,3,4,5,6,7,8]);
+        var today = DateOnly.FromDateTime(TimeProvider.System.GetLocalNow().DateTime);
+        var target = new Vehicle
+        {
+            TenantId = 101, PublicId = Guid.NewGuid(), VehicleNumber = "BUS-CLEARED",
+            Capacity = 20, VehicleType = "Bus", IsActive = true, RowVersion = [8,7,6,5,4,3,2,1]
+        };
+        db.Vehicles.Add(target);
+        await db.SaveChangesAsync();
+        db.RouteVehicleAssignments.Add(new RouteVehicleAssignment
+        {
+            TenantId = 101, RouteId = rider.RouteId, VehicleId = target.Id,
+            EffectiveFrom = today.AddDays(-20), IsCurrent = true
+        });
+        await db.SaveChangesAsync();
+        var requester = new FinanceAdjustmentService(db, new TestCurrentUser(101, true, null), TimeProvider.System);
+        var request = new RequestTransportClearanceDto
+        {
+            ClientRequestId = Guid.NewGuid(), SourceAssignmentReference = rider.PublicId,
+            SourceRowVersion = Convert.ToBase64String(rider.RowVersion),
+            Operation = TransportClearanceOperation.VehicleTransfer,
+            DestinationVehicleReference = target.PublicId, EffectiveDate = today,
+            Reason = "A documented bus maintenance switch"
+        };
+        var created = await requester.RequestTransportClearanceAsync(request);
+        Assert.True(created.Success, created.Message);
+        Assert.Equal(0m, created.Data!.ApprovedFareCredit);
+        Assert.Equal(created.Data.Id, (await requester.RequestTransportClearanceAsync(request)).Data!.Id);
+        // EF InMemory does not generate SQL Server rowversion; supply a test token.
+        var pending = await db.TransportFinanceClearances.SingleAsync();
+        pending.RowVersion = [5,4,3,2,1,9,8,7];
+        await db.SaveChangesAsync();
+        // A separate user must independently attest the zero-adjustment outcome.
+        var review = new ReviewTransportClearanceDto
+        {
+            RowVersion = Convert.ToBase64String(pending.RowVersion), Approve = true, NoAdjustmentRequired = true,
+            ReconciliationNote = "Finance evidence independently checked; no fare credit arises from this vehicle-only change."
+        };
+        Assert.Equal(403, (await requester.ReviewTransportClearanceAsync(created.Data.Id, review)).StatusCode);
+        var checker = new FinanceAdjustmentService(db, new TestCurrentUser(101, true, null, 8), TimeProvider.System);
+        var reviewed = await checker.ReviewTransportClearanceAsync(created.Data.Id, review);
+        Assert.True(reviewed.Success, reviewed.Message);
+        var service = CreateService(db, 101);
+        var transfer = new TransferOperatingTransportVehicleRequestDto
+        {
+            ClientRequestId = Guid.NewGuid(), VehicleReference = target.PublicId, EffectiveDate = today,
+            RowVersion = Convert.ToBase64String(rider.RowVersion), FinanceClearanceId = created.Data.Id
+        };
+        var moved = await service.TransferOperatingRiderAsync(rider.PublicId, transfer);
+        Assert.True(moved.Success, moved.Message);
+        var successor = await db.StudentTransports.SingleAsync(x => x.PreviousAssignmentId == rider.Id);
+        Assert.Equal(rider.MonthlyFare, successor.MonthlyFare);
+        Assert.Equal(today.AddDays(-1), rider.EndDate);
+        Assert.Equal(TransportClearanceState.Consumed,
+            (await db.TransportFinanceClearances.SingleAsync()).State);
+        Assert.True((await service.TransferOperatingRiderAsync(rider.PublicId, transfer)).Success);
+        Assert.Equal(2, await db.StudentTransports.CountAsync());
+        transfer.ClientRequestId = Guid.NewGuid();
+        Assert.Equal(409, (await service.TransferOperatingRiderAsync(rider.PublicId, transfer)).StatusCode);
+        Assert.Single((await checker.GetTransportClearancesAsync(null, 1, 25)).Data!.Items);
+        Assert.Equal(403, (await new FinanceAdjustmentService(db,
+            new TestCurrentUser(202, true, null), TimeProvider.System)
+            .GetTransportClearancesAsync(null, 1, 25)).StatusCode);
+    }
+
 
     [Theory]
     [InlineData(false, false)]
@@ -1147,7 +1218,8 @@ public class TransportServiceTests
         new GenericRepository<VehicleDriverAssignment>(context),
         new GenericRepository<TransportVehicleCase>(context),
         new ReservationFinancePolicy(context),
-        new EduOS.Service.Services.Platform.ReservationCommandReceiptStore(context, TimeProvider.System));
+        new EduOS.Service.Services.Platform.ReservationCommandReceiptStore(context, TimeProvider.System),
+        new GenericRepository<TransportFinanceClearance>(context));
 
     private static async Task<StudentTransport> SeedAssignmentAsync(EduOSDbContext context, long tenant, bool active, byte[] rowVersion)
     {
@@ -1198,7 +1270,8 @@ public class TransportServiceTests
 
     private static DbContextOptions<EduOSDbContext> CreateOptions() =>
         new DbContextOptionsBuilder<EduOSDbContext>()
-            .UseInMemoryDatabase("transport-service-" + Guid.NewGuid().ToString("N")).Options;
+            .UseInMemoryDatabase("transport-service-" + Guid.NewGuid().ToString("N"))
+            .ConfigureWarnings(x => x.Ignore(InMemoryEventId.TransactionIgnoredWarning)).Options;
 
     private static EduOSDbContext CreateContext(DbContextOptions<EduOSDbContext> options, long tenant)
     {
@@ -1228,10 +1301,10 @@ public class TransportServiceTests
         public void Dispose() { }
     }
 
-    private sealed class TestCurrentUser(long tenant, bool canManage, string? role) : ICurrentUserService
+    private sealed class TestCurrentUser(long tenant, bool canManage, string? role, long userId = 7) : ICurrentUserService
     {
         public bool IsAuthenticated => true;
-        public long UserId => 7;
+        public long UserId => userId;
         public long TenantId => tenant;
         public string? FullName => "Transport User";
         public string? Email => "transport@example.test";

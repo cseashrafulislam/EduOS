@@ -1,9 +1,12 @@
 using EduOS.Core.Common;
 using EduOS.Core.DTOs.Hostel;
+using EduOS.Core.Entities.Finance;
+using EduOS.Core.Entities.System;
 using EduOS.Core.Enums.Domain;
 using EduOS.Service.Services.Finance;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using System.Text.Json;
 using System.Transactions;
 
 namespace EduOS.Service.Services.Hostel;
@@ -61,6 +64,11 @@ public sealed partial class HostelService
                 // Exact retries preserve the original row version and audit fields.
                 if (allocation.State == HostelAllocationState.Closed)
                 {
+                    if (request.FinanceClearanceId.HasValue && !await _hostelClearances.GetQueryable().AsNoTracking()
+                        .AnyAsync(x => x.TenantId == tenant && x.Id == request.FinanceClearanceId.Value &&
+                            x.SourceAllocationId == id && x.Operation == HostelClearanceOperation.Checkout &&
+                            x.State == HostelClearanceState.Consumed && x.EffectiveDate == end, ct))
+                        return Error("Provided Finance clearance was not used for this checkout.", 409);
                     if (allocation.EndDate.HasValue &&
                         (request.EndDate == default || allocation.EndDate.Value == end))
                         return ApiResponse<StudentHostelAllocationDto>.SuccessResponse(
@@ -73,17 +81,36 @@ public sealed partial class HostelService
                     return Error("Checkout must be between the stay start and today. Cancel future reservations.", 409);
                 if (!allocation.RowVersion.AsSpan().SequenceEqual(version))
                     return Error("Hostel allocation changed. Reload and retry.", 409);
-                if (await _reservationFinancePolicy.HasPostedActivityAsync(tenant,
-                    allocation.StudentId, allocation.StudentEnrollmentId, ct))
-                    return Error("Posted finance activity requires an approved Finance adjustment before checkout.", 409);
-                if (ReservationFinancePolicy.HasChargeableTerms(allocation.MonthlyRent, allocation.SecurityDeposit,
-                    allocation.FeeHeadId.HasValue))
-                    return Error("Charged Hostel reservation changes require an approved Finance billing adjustment.", 409);
+                if (request.FinanceClearanceId.HasValue)
+                {
+                    var approved = await ConsumeHostelFinanceClearanceAsync(request.FinanceClearanceId.Value,
+                        allocation, enrollmentCampus.Value, HostelClearanceOperation.Checkout, end,
+                        null, null, ct);
+                    if (approved.Error != null) return Error(approved.Error, 409);
+                }
+                else
+                {
+                    if (await _reservationFinancePolicy.HasPostedActivityAsync(tenant,
+                        allocation.StudentId, allocation.StudentEnrollmentId, ct))
+                        return Error("Posted finance activity requires an approved Finance adjustment before checkout.", 409);
+                    if (ReservationFinancePolicy.HasChargeableTerms(allocation.MonthlyRent, allocation.SecurityDeposit,
+                        allocation.FeeHeadId.HasValue))
+                        return Error("Charged Hostel reservation changes require an approved Finance billing adjustment.", 409);
+                }
 
                 allocation.EndDate = end;
                 allocation.State = HostelAllocationState.Closed;
                 allocation.UpdatedAt = _clock.GetUtcNow().UtcDateTime;
                 allocation.UpdatedBy = _currentUser.UserId;
+                await _auditLogs.AddAsync(new AuditLog
+                {
+                    TenantId = tenant, UserId = _currentUser.UserId,
+                    Action = "HostelCheckout", EntityName = "StudentHostelAllocation",
+                    EntityId = allocation.Id, OccurredAt = allocation.UpdatedAt.Value,
+                    CreatedAt = allocation.UpdatedAt.Value, CreatedBy = _currentUser.UserId,
+                    NewValue = JsonSerializer.Serialize(new
+                    { EndDate = end, FinanceClearanceId = request.FinanceClearanceId })
+                });
                 await _unitOfWork.SaveChangesAsync(ct);
                 _logger.LogInformation("Hostel checkout: tenant {TenantId}, allocation {AllocationId}, end {EndDate}",
                     tenant, allocation.Id, end);

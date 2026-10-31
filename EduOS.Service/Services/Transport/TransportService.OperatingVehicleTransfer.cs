@@ -1,6 +1,7 @@
 using EduOS.Core.Common;
 using EduOS.Core.DTOs.Transport;
 using EduOS.Core.Entities.Transport;
+using EduOS.Core.Entities.Finance;
 using EduOS.Core.Enums.Domain;
 using EduOS.Service.Services.Finance;
 using Microsoft.EntityFrameworkCore;
@@ -118,11 +119,17 @@ public sealed partial class TransportService
                     x.TenantId == tenant && !x.IsDeleted && x.ClientRequestId == request.ClientRequestId, ct);
                 if (previous != null)
                 {
+                    var used = await _financeClearances.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
+                        x.TenantId == tenant && x.SuccessorAssignmentId == previous.Id &&
+                        x.State == TransportClearanceState.Consumed, ct);
+                    if (used?.Id != request.FinanceClearanceId)
+                        return Error("Retry Finance clearance does not match the original transfer.", 409);
                     if (previous.StudentId == source.StudentId &&
                         previous.StudentEnrollmentId == source.StudentEnrollmentId &&
                         previous.RouteId == source.RouteId && previous.VehicleId == vehicle.Id &&
                         previous.StartDate == request.EffectiveDate &&
                         source.EndDate == request.EffectiveDate.AddDays(-1) &&
+                        (previous.PreviousAssignmentId == null || previous.PreviousAssignmentId == source.Id) &&
                         previous.PickupStopId == source.PickupStopId &&
                         previous.DropStopId == source.DropStopId && previous.MonthlyFare == source.MonthlyFare)
                         return ApiResponse<StudentTransportDto>.SuccessResponse(
@@ -135,11 +142,14 @@ public sealed partial class TransportService
                     return Error("Transfer date must be within a currently operating reservation and after its start.", 409);
                 if (!source.RowVersion.AsSpan().SequenceEqual(version))
                     return Error("Source reservation changed. Reload and retry.", 409);
-                if (await _reservationFinancePolicy.HasPostedActivityAsync(tenant,
-                    source.StudentId, source.StudentEnrollmentId, ct))
-                    return Error("Posted finance activity requires an approved Finance adjustment before transfer.", 409);
-                if (ReservationFinancePolicy.HasChargeableTerms(source.MonthlyFare))
-                    return Error("Charged Transport transfers require an approved Finance billing adjustment.", 409);
+                if (!request.FinanceClearanceId.HasValue)
+                {
+                    if (await _reservationFinancePolicy.HasPostedActivityAsync(tenant,
+                        source.StudentId, source.StudentEnrollmentId, ct))
+                        return Error("Posted finance activity requires approved Finance clearance before transfer.", 409);
+                    if (ReservationFinancePolicy.HasChargeableTerms(source.MonthlyFare))
+                        return Error("Charged Transport transfers require approved Finance clearance.", 409);
+                }
                 if (!await _students.GetQueryable().AsNoTracking().AnyAsync(x =>
                     x.TenantId == tenant && !x.IsDeleted && x.Id == source.StudentId && x.StatusCode == "Active", ct))
                     return Error("Student is unavailable.", 409);
@@ -177,10 +187,23 @@ public sealed partial class TransportService
                 if (PeakReservedSeats(overlapping.Select(x => (x.StartDate, x.EndDate)),
                     request.EffectiveDate, end).Peak >= vehicle.Capacity)
                     return Error("Destination vehicle has no seat available during the transfer period.", 409);
+                if (await _assignments.GetQueryable().IgnoreQueryFilters().AnyAsync(x =>
+                    x.TenantId == tenant && x.PreviousAssignmentId == source.Id, ct))
+                    return Error("Source assignment already has a transfer successor.", 409);
+                TransportFinanceClearance? clearance = null;
+                if (request.FinanceClearanceId.HasValue)
+                {
+                    var approved = await ConsumeTransportFinanceClearanceAsync(request.FinanceClearanceId.Value,
+                        source, enrollment.CampusId, TransportClearanceOperation.VehicleTransfer,
+                        request.EffectiveDate, vehicle.Id, vehicle.RowVersion, ct);
+                    if (approved.Error != null) return Error(approved.Error, 409);
+                    clearance = approved.Clearance;
+                }
                 var now = _clock.GetUtcNow().UtcDateTime;
                 var successor = new StudentTransport
                 {
                     TenantId = tenant, PublicId = Guid.NewGuid(), ClientRequestId = request.ClientRequestId,
+                    PreviousAssignmentId = source.Id,
                     StudentId = source.StudentId, StudentEnrollmentId = source.StudentEnrollmentId,
                     RouteId = source.RouteId, VehicleId = vehicle.Id, RouteVehicleAssignmentId = pairing.Id,
                     PickupStopId = source.PickupStopId, DropStopId = source.DropStopId,
@@ -196,6 +219,11 @@ public sealed partial class TransportService
                 await _unitOfWork.SaveChangesAsync(ct);
                 await _assignments.AddAsync(successor);
                 await _unitOfWork.SaveChangesAsync(ct);
+                if (clearance != null)
+                {
+                    clearance.SuccessorAssignmentId = successor.Id;
+                    await _unitOfWork.SaveChangesAsync(ct);
+                }
                 _logger.LogInformation("Transport operating vehicle transfer: tenant {TenantId}, campus {CampusId}, source {SourceId}, successor {SuccessorId}",
                     tenant, enrollment.CampusId, source.Id, successor.Id);
                 return ApiResponse<StudentTransportDto>.SuccessResponse(

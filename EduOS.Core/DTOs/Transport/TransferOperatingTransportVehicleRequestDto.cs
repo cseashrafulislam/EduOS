@@ -7,4 +7,5 @@ public sealed class TransferOperatingTransportVehicleRequestDto
     [Required] public Guid VehicleReference { get; set; }
     [Required] public DateOnly EffectiveDate { get; set; }
     [Required] public string RowVersion { get; set; } = string.Empty;
+    public long? FinanceClearanceId { get; set; }
 }

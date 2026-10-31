@@ -171,6 +171,8 @@
                     <input id="transportOperatingTransferDate" type="date" class="form-control" required /></div>
                 <div class="col-md-5"><label for="transportOperatingTransferVehicle" class="form-label">Available destination vehicle</label>
                     <select id="transportOperatingTransferVehicle" class="form-select" required></select></div>
+                <div class="col-md-3"><label for="transportOperatingTransferClearance" class="form-label">Finance clearance ID</label>
+                    <input id="transportOperatingTransferClearance" type="number" min="1" class="form-control" placeholder="Required if billed" /></div>
                 <div class="col-md-3 d-flex align-items-end gap-2">
                     <button id="transportOperatingTransferSave" type="submit" class="btn btn-primary">Transfer</button>
                     <button id="transportOperatingTransferCancel" type="button" class="btn btn-outline-secondary">Cancel</button>
@@ -181,7 +183,7 @@
                 <span id="transportOperatingTransferPageInfo" class="small text-muted"></span>
                 <button id="transportOperatingTransferNext" type="button" class="btn btn-outline-secondary btn-sm">Next</button>
             </div>
-            <p class="small text-muted mt-2 mb-0">Only zero-fare reservations without issued or posted Finance activity may transfer here. The predecessor ends the day before the successor starts; charged transfers require Finance-approved adjustment. No ledger writes.</p>
+            <p class="small text-muted mt-2 mb-0">Zero-fare, Finance-clear reservations can transfer without a clearance. Charged/billed transfers require an approved, single-use <a href="/FinanceAdjustments/TransportClearances">Transport Finance clearance</a> for this vehicle and effective date. Previous assignment history and fare are preserved. No automatic ledger writes.</p>
         </div></section>
         <section id="transportVehicleChangePanel" class="card mt-3" hidden><div class="card-body">
             <h3 class="h5">Change vehicle for upcoming rider</h3>

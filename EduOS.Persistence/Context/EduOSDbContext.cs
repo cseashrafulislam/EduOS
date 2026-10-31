@@ -391,6 +391,10 @@ public class EduOSDbContext :
     public DbSet<HostelBed> HostelBeds => Set<HostelBed>();
     public DbSet<HostelRoom> HostelRooms => Set<HostelRoom>();
     public DbSet<StudentHostelAllocation> StudentHostelAllocations => Set<StudentHostelAllocation>();
+    public DbSet<HostelFinanceClearance> HostelFinanceClearances => Set<HostelFinanceClearance>();
+    public DbSet<HostelBillingPolicy> HostelBillingPolicies => Set<HostelBillingPolicy>();
+    public DbSet<TransportFinanceClearance> TransportFinanceClearances => Set<TransportFinanceClearance>();
+    public DbSet<TransportBillingPolicy> TransportBillingPolicies => Set<TransportBillingPolicy>();
     public DbSet<HostelApplication> HostelApplications => Set<HostelApplication>();
     public DbSet<HostelApplicationEvent> HostelApplicationEvents => Set<HostelApplicationEvent>();
     public DbSet<HostelApplicationAuthority> HostelApplicationAuthorities => Set<HostelApplicationAuthority>();
@@ -1099,6 +1103,23 @@ public class EduOSDbContext :
         TenantReference<HostelApplicationAuthority, StudentGuardian>(modelBuilder, nameof(HostelApplicationAuthority.StudentGuardianId));
         TenantReference<HostelApplicationAuthority, Student>(modelBuilder, nameof(HostelApplicationAuthority.StudentId));
         TenantReference<HostelApplicationAuthority, Guardian>(modelBuilder, nameof(HostelApplicationAuthority.GuardianId));
+        TenantReference<HostelFinanceClearance, StudentHostelAllocation>(modelBuilder, nameof(HostelFinanceClearance.SourceAllocationId));
+        TenantReference<HostelFinanceClearance, StudentHostelAllocation>(modelBuilder, nameof(HostelFinanceClearance.SuccessorAllocationId));
+        TenantReference<HostelFinanceClearance, Campus>(modelBuilder, nameof(HostelFinanceClearance.CampusId));
+        TenantReference<HostelFinanceClearance, Student>(modelBuilder, nameof(HostelFinanceClearance.StudentId));
+        TenantReference<HostelFinanceClearance, StudentEnrollment>(modelBuilder, nameof(HostelFinanceClearance.StudentEnrollmentId));
+        TenantReference<HostelFinanceClearance, HostelBed>(modelBuilder, nameof(HostelFinanceClearance.DestinationBedId));
+        TenantReference<HostelFinanceClearance, Journal>(modelBuilder, nameof(HostelFinanceClearance.SettlementJournalId));
+        TenantReference<HostelBillingPolicy, Campus>(modelBuilder, nameof(HostelBillingPolicy.CampusId));
+        TenantReference<TransportFinanceClearance, StudentTransport>(modelBuilder, nameof(TransportFinanceClearance.SourceAssignmentId));
+        TenantReference<StudentTransport, StudentTransport>(modelBuilder, nameof(StudentTransport.PreviousAssignmentId));
+        TenantReference<TransportFinanceClearance, StudentTransport>(modelBuilder, nameof(TransportFinanceClearance.SuccessorAssignmentId));
+        TenantReference<TransportFinanceClearance, Campus>(modelBuilder, nameof(TransportFinanceClearance.CampusId));
+        TenantReference<TransportFinanceClearance, Student>(modelBuilder, nameof(TransportFinanceClearance.StudentId));
+        TenantReference<TransportFinanceClearance, StudentEnrollment>(modelBuilder, nameof(TransportFinanceClearance.StudentEnrollmentId));
+        TenantReference<TransportFinanceClearance, Vehicle>(modelBuilder, nameof(TransportFinanceClearance.DestinationVehicleId));
+        TenantReference<TransportFinanceClearance, Journal>(modelBuilder, nameof(TransportFinanceClearance.SettlementJournalId));
+        TenantReference<TransportBillingPolicy, Campus>(modelBuilder, nameof(TransportBillingPolicy.CampusId));
         TenantReference<HostelApplicationAuthority, Campus>(modelBuilder, nameof(HostelApplicationAuthority.CampusId));
         // LMS
         TenantReference<Course, AcademicProgram>(modelBuilder, nameof(Course.AcademicProgramId));
@@ -1701,6 +1722,42 @@ public class EduOSDbContext :
         UniqueTenant<HostelRoom>(modelBuilder, nameof(HostelRoom.HostelId), nameof(HostelRoom.RoomNumber));
         UniqueTenant<HostelBed>(modelBuilder, nameof(HostelBed.HostelRoomId), nameof(HostelBed.BedNumber));
         UniqueTenant<StudentHostelAllocation>(modelBuilder, nameof(StudentHostelAllocation.ClientRequestId));
+        UniqueTenant<HostelFinanceClearance>(modelBuilder, nameof(HostelFinanceClearance.ClientRequestId));
+        UniqueTenant<HostelBillingPolicy>(modelBuilder, nameof(HostelBillingPolicy.CampusId));
+        UniqueTenant<TransportFinanceClearance>(modelBuilder, nameof(TransportFinanceClearance.ClientRequestId));
+        modelBuilder.Entity<StudentTransport>().HasIndex(x => new { x.TenantId, x.PreviousAssignmentId })
+            .IsUnique().HasFilter("[PreviousAssignmentId] IS NOT NULL");
+        modelBuilder.Entity<StudentTransport>().ToTable(t => t.HasCheckConstraint(
+            "CK_StudentTransport_Predecessor", "[PreviousAssignmentId] IS NULL OR [PreviousAssignmentId] <> [Id]"));
+        UniqueTenant<TransportBillingPolicy>(modelBuilder, nameof(TransportBillingPolicy.CampusId));
+        modelBuilder.Entity<TransportBillingPolicy>().ToTable(t => t.HasCheckConstraint(
+            "CK_TransportBillingPolicy_Mode", "[CalculationMode] IN (1,2,3)"));
+        modelBuilder.Entity<TransportFinanceClearance>().HasIndex(x => new { x.TenantId, x.State, x.CampusId, x.Id });
+        modelBuilder.Entity<TransportFinanceClearance>().HasIndex(x => new { x.TenantId, x.SourceAssignmentId, x.Operation, x.State });
+        modelBuilder.Entity<TransportFinanceClearance>().HasIndex(x => new { x.TenantId, x.SettlementJournalId })
+            .IsUnique().HasFilter("[SettlementJournalId] IS NOT NULL");
+        modelBuilder.Entity<TransportFinanceClearance>().ToTable(t =>
+        {
+            t.HasCheckConstraint("CK_TransportFinanceClearance_Operation", "[Operation] IN (1,2)");
+            t.HasCheckConstraint("CK_TransportFinanceClearance_State", "[State] IN (1,2,3,4)");
+            t.HasCheckConstraint("CK_TransportFinanceClearance_Target", "([Operation] = 1 AND [DestinationVehicleId] IS NOT NULL AND [DestinationVersion] IS NOT NULL) OR ([Operation] = 2 AND [DestinationVehicleId] IS NULL AND [DestinationVersion] IS NULL)");
+            t.HasCheckConstraint("CK_TransportFinanceClearance_Amounts", "[MonthlyFareAtRequest] >= 0 AND [SuggestedFareCredit] >= 0 AND [ApprovedFareCredit] >= 0 AND [CalculationMode] IN (1,2,3)");
+            t.HasCheckConstraint("CK_TransportFinanceClearance_Settlement", "[SettlementJournalId] IS NULL OR [NoAdjustmentRequired] = 0");
+        });
+        modelBuilder.Entity<HostelBillingPolicy>().ToTable(t => t.HasCheckConstraint(
+            "CK_HostelBillingPolicy_Mode", "[CalculationMode] IN (1,2,3)"));
+        modelBuilder.Entity<HostelFinanceClearance>().HasIndex(x => new { x.TenantId, x.State, x.CampusId, x.Id });
+        modelBuilder.Entity<HostelFinanceClearance>().HasIndex(x => new { x.TenantId, x.SourceAllocationId, x.Operation, x.State });
+        modelBuilder.Entity<HostelFinanceClearance>().HasIndex(x => new { x.TenantId, x.SettlementJournalId })
+            .IsUnique().HasFilter("[SettlementJournalId] IS NOT NULL");
+        modelBuilder.Entity<HostelFinanceClearance>().ToTable(t =>
+        {
+            t.HasCheckConstraint("CK_HostelFinanceClearance_Operation", "[Operation] IN (1,2)");
+            t.HasCheckConstraint("CK_HostelFinanceClearance_State", "[State] IN (1,2,3,4)");
+            t.HasCheckConstraint("CK_HostelFinanceClearance_Target", "([Operation] = 1 AND [DestinationBedId] IS NOT NULL AND [DestinationVersion] IS NOT NULL) OR ([Operation] = 2 AND [DestinationBedId] IS NULL AND [DestinationVersion] IS NULL)");
+            t.HasCheckConstraint("CK_HostelFinanceClearance_Settlement", "[SettlementJournalId] IS NULL OR [NoAdjustmentRequired] = 0");
+            t.HasCheckConstraint("CK_HostelFinanceClearance_Amounts", "[SuggestedRentCredit] >= 0 AND [SuggestedDepositRefund] >= 0 AND [ApprovedRentCredit] >= 0 AND [ApprovedDepositRefund] >= 0 AND [ApprovedDepositRefund] <= [DepositAtRequest] AND [CalculationMode] IN (1,2,3)");
+        });
         UniqueTenant<HostelApplication>(modelBuilder, nameof(HostelApplication.ClientRequestId));
         UniqueTenant<HostelApplication>(modelBuilder, nameof(HostelApplication.AllocationRequestId));
         modelBuilder.Entity<HostelApplication>().HasIndex(x => new { x.TenantId, x.CampusId, x.HostelId, x.State, x.SubmittedAtUtc, x.Id });

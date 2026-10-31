@@ -2,6 +2,9 @@ using EduOS.Core.Enums.Domain;
 using EduOS.Core.Interfaces.IServices;
 using EduOS.Persistence.Context;
 using Microsoft.EntityFrameworkCore;
+using System.Security.Cryptography;
+using System.Text;
+using System.Text.Json;
 
 namespace EduOS.Service.Services.Finance;
 
@@ -48,5 +51,63 @@ public sealed class ReservationFinancePolicy : IReservationFinancePolicy
             x.TenantId == tenantId && x.StudentId == studentId &&
             (x.JournalId.HasValue || x.State == PaymentState.Successful ||
              x.State == PaymentState.Refunded), cancellationToken);
+    }
+
+    public async Task<string?> GetExposureHashAsync(long tenantId, long studentId,
+        long studentEnrollmentId, CancellationToken ct = default)
+    {
+        if (tenantId <= 0 || studentId <= 0 || studentEnrollmentId <= 0 || _db.CurrentTenantId != tenantId)
+            return null;
+        // Hash the full known source exposure (including archived historical postings).
+        // A bounded failure is safer than approving based on an incomplete page.
+        var invoices = await _db.StudentInvoices.IgnoreQueryFilters().AsNoTracking()
+            .Where(x => x.TenantId == tenantId && x.StudentEnrollmentId == studentEnrollmentId)
+            .OrderBy(x => x.Id).Take(2001)
+            .Select(x => new { x.Id, x.IsDeleted, x.State, x.TotalAmount,
+                x.PaidAmount, x.DueAmount, x.JournalId, x.CurrencyCode })
+            .ToListAsync(ct);
+        var payments = await _db.StudentPayments.IgnoreQueryFilters().AsNoTracking()
+            .Where(x => x.TenantId == tenantId && x.StudentId == studentId)
+            .OrderBy(x => x.Id).Take(2001)
+            .Select(x => new { x.Id, x.IsDeleted, x.State, x.Amount,
+                x.JournalId, x.CurrencyCode }).ToListAsync(ct);
+        if (invoices.Count > 2000 || payments.Count > 2000) return null;
+        var invoiceIds = invoices.Select(x => x.Id).ToArray();
+        var paymentIds = payments.Select(x => x.Id).ToArray();
+        var lines = await _db.StudentInvoiceLines.IgnoreQueryFilters().AsNoTracking()
+            .Where(x => x.TenantId == tenantId && invoiceIds.Contains(x.StudentInvoiceId))
+            .OrderBy(x => x.Id).Take(5001)
+            .Select(x => new { x.Id, x.StudentInvoiceId, x.IsDeleted,
+                x.FeeHeadId, x.NetAmount }).ToListAsync(ct);
+        var refunds = await _db.Refunds.IgnoreQueryFilters().AsNoTracking()
+            .Where(x => x.TenantId == tenantId && paymentIds.Contains(x.StudentPaymentId))
+            .OrderBy(x => x.Id).Take(2001)
+            .Select(x => new { x.Id, x.StudentPaymentId, x.IsDeleted, x.State,
+                x.Amount, x.ReversalJournalId }).ToListAsync(ct);
+        if (lines.Count > 5000 || refunds.Count > 2000) return null;
+        var json = JsonSerializer.Serialize(new { invoices, payments, lines, refunds });
+        return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(json))).ToLowerInvariant();
+    }
+
+    public async Task<bool> HasValidPostedSettlementJournalAsync(long tenantId, long journalId,
+        CancellationToken ct = default)
+    {
+        if (tenantId <= 0 || journalId <= 0 || _db.CurrentTenantId != tenantId) return false;
+        var journal = await _db.Journals.AsNoTracking().FirstOrDefaultAsync(x =>
+            x.TenantId == tenantId && x.Id == journalId && !x.IsDeleted &&
+            x.SourceType == "Manual" && x.State == JournalState.Posted &&
+            x.ApprovedByUserId.HasValue && x.PostedByUserId.HasValue &&
+            x.ApprovedByUserId != x.CreatedBy, ct);
+        if (journal == null || await _db.Journals.IgnoreQueryFilters().AsNoTracking().AnyAsync(x =>
+            x.TenantId == tenantId && x.State == JournalState.Posted &&
+            x.ReversalOfJournalId == journalId, ct)) return false;
+        var lines = await _db.JournalLines.AsNoTracking().Where(x =>
+            x.TenantId == tenantId && x.JournalId == journalId && !x.IsDeleted)
+            .Select(x => new { x.DebitAmount, x.CreditAmount }).Take(101).ToListAsync(ct);
+        return lines.Count is >= 2 and <= 100 &&
+            lines.All(x => x.DebitAmount >= 0m && x.CreditAmount >= 0m &&
+                (x.DebitAmount == 0m || x.CreditAmount == 0m)) &&
+            lines.Sum(x => x.DebitAmount) > 0m &&
+            lines.Sum(x => x.DebitAmount) == lines.Sum(x => x.CreditAmount);
     }
 }

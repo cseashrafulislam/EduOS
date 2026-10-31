@@ -10,4 +10,9 @@ public interface IReservationFinancePolicy
 {
     Task<bool> HasPostedActivityAsync(long tenantId, long studentId,
         long studentEnrollmentId, CancellationToken cancellationToken = default);
+    /// <summary>Stable hash of Finance exposure, or null when evidence cannot be bounded/verified.</summary>
+    Task<string?> GetExposureHashAsync(long tenantId, long studentId,
+        long studentEnrollmentId, CancellationToken cancellationToken = default);
+    Task<bool> HasValidPostedSettlementJournalAsync(long tenantId, long journalId,
+        CancellationToken cancellationToken = default);
 }

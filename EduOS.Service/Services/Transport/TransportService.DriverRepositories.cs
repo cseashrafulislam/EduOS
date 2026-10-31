@@ -1,5 +1,6 @@
 using EduOS.Core.Entities.Academic;
 using EduOS.Core.Entities.Auth;
+using EduOS.Core.Entities.Finance;
 using EduOS.Core.Entities.SaaS;
 using EduOS.Core.Entities.Students;
 using EduOS.Core.Entities.Transport;
@@ -27,9 +28,10 @@ public sealed partial class TransportService
         TimeProvider clock, ILogger<TransportService> logger,
         IGenericRepository<TransportDriver> drivers, IGenericRepository<VehicleDriverAssignment> driverLinks,
         IReservationFinancePolicy reservationFinancePolicy,
-        IReservationCommandReceiptStore commandReceipts)
+        IReservationCommandReceiptStore commandReceipts,
+        IGenericRepository<TransportFinanceClearance> financeClearances)
         : this(routes, stops, vehicles, vehicleRoutes, assignments, enrollments, students,
-            campusAccesses, campuses, unitOfWork, currentUser, clock, logger, reservationFinancePolicy, commandReceipts)
+            campusAccesses, campuses, unitOfWork, currentUser, clock, logger, reservationFinancePolicy, commandReceipts, financeClearances)
     {
         _drivers = drivers;
         _driverLinks = driverLinks;
@@ -45,10 +47,11 @@ public sealed partial class TransportService
         IGenericRepository<TransportDriver> drivers, IGenericRepository<VehicleDriverAssignment> driverLinks,
         IGenericRepository<TransportVehicleCase> vehicleCases,
         IReservationFinancePolicy reservationFinancePolicy,
-        IReservationCommandReceiptStore commandReceipts)
+        IReservationCommandReceiptStore commandReceipts,
+        IGenericRepository<TransportFinanceClearance> financeClearances)
         : this(routes, stops, vehicles, vehicleRoutes, assignments, enrollments, students,
             campusAccesses, campuses, unitOfWork, currentUser, clock, logger,
-            drivers, driverLinks, reservationFinancePolicy, commandReceipts)
+            drivers, driverLinks, reservationFinancePolicy, commandReceipts, financeClearances)
     {
         _vehicleCases = vehicleCases;
     }

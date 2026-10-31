@@ -48,6 +48,7 @@ window.addEventListener('transport:transfer-operating-vehicle', async event => {
         notify('Only currently operating reservations can be transferred.'); return;
     }
     pending = item; requestId = crypto.randomUUID(); page = 1;
+    el('transportOperatingTransferClearance').value = '';
     el('transportOperatingTransferDetails').textContent = item.studentName + ' · ' + item.routeName + ' · current ' + item.vehicleNumber;
     const date = el('transportOperatingTransferDate');
     const start = item.startDate >= today ? localDate(1) : today;
@@ -65,6 +66,11 @@ el('transportOperatingTransferForm').addEventListener('submit', async event => {
     if (!pending) return;
     const effectiveDate = el('transportOperatingTransferDate').value;
     const vehicleReference = el('transportOperatingTransferVehicle').value;
+    const rawClearance = el('transportOperatingTransferClearance').value.trim();
+    const financeClearanceId = rawClearance ? Number(rawClearance) : null;
+    if (financeClearanceId !== null && (!Number.isSafeInteger(financeClearanceId) || financeClearanceId <= 0)) {
+        notify('Enter a valid approved Finance clearance ID.'); return;
+    }
     if (!vehicleReference || effectiveDate < localDate() || effectiveDate <= pending.startDate ||
         (pending.endDate && effectiveDate > pending.endDate)) {
         notify('Choose a valid transfer date and an available destination vehicle.'); return;
@@ -73,7 +79,8 @@ el('transportOperatingTransferForm').addEventListener('submit', async event => {
     const save = el('transportOperatingTransferSave'); save.disabled = true;
     try {
         await api('/api/transport/assignments/' + encodeURIComponent(pending.reference) + '/transfer-vehicle',
-            'POST', { clientRequestId: requestId, vehicleReference, effectiveDate, rowVersion: pending.rowVersion });
+            'POST', { clientRequestId: requestId, vehicleReference, effectiveDate,
+                rowVersion: pending.rowVersion, financeClearanceId });
         pending = null; requestId = null; el('transportOperatingTransferPanel').hidden = true;
         notify('Operating vehicle transfer saved.', true);
         window.dispatchEvent(new Event('transport:refresh-assignments'));

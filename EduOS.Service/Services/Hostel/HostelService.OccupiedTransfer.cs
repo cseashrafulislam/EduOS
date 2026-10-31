@@ -1,6 +1,7 @@
 using EduOS.Core.Common;
 using EduOS.Core.DTOs.Hostel;
 using EduOS.Core.Entities.Hostel;
+using EduOS.Core.Entities.Finance;
 using EduOS.Core.Entities.System;
 using EduOS.Core.Enums.Domain;
 using EduOS.Service.Services.Finance;
@@ -46,11 +47,9 @@ public sealed partial class HostelService
             return Denied<PagedResult<HostelBedInventoryDto>>();
         var today = DateOnly.FromDateTime(_clock.GetLocalNow().DateTime);
         if (source.State != HostelAllocationState.Active ||
-            !CanTransferOccupiedToday(source.StartDate, source.EndDate, today, today) ||
-            ReservationFinancePolicy.HasChargeableTerms(source.MonthlyRent, source.SecurityDeposit, source.FeeHeadId.HasValue) ||
-            await _reservationFinancePolicy.HasPostedActivityAsync(tenant, source.StudentId, source.StudentEnrollmentId, ct))
+            !CanTransferOccupiedToday(source.StartDate, source.EndDate, today, today))
             return ApiResponse<PagedResult<HostelBedInventoryDto>>.ErrorResponse(
-                "Only currently occupied, Finance-clear no-charge stays can transfer today.", 409);
+                "Only currently occupied stays that began before today can transfer today.", 409);
         var end = source.EndDate ?? DateOnly.MaxValue;
         var options = from bed in _beds.GetQueryable().AsNoTracking()
             join room in _rooms.GetQueryable().AsNoTracking() on bed.HostelRoomId equals room.Id
@@ -79,7 +78,7 @@ public sealed partial class HostelService
         });
     }
 
-    /// <summary>Same-day split; strictly no-charge and no issued/posted Finance activity.</summary>
+    /// <summary>Same-day split; charged/billed stays additionally require exact single-use Finance clearance.</summary>
     public async Task<ApiResponse<TransferOccupiedHostelResultDto>> TransferOccupiedNoChargeAsync(
         long id, TransferOccupiedHostelRequestDto request, CancellationToken cancellationToken = default)
     {
@@ -96,7 +95,7 @@ public sealed partial class HostelService
         var reason = request.Reason.Trim();
         var requestHash = HostelCommandFingerprint(operation, id, request.DestinationBedId,
             request.EffectiveFrom.ToString("yyyy-MM-dd"), Convert.ToBase64String(sourceVersion),
-            Convert.ToBase64String(bedVersion), reason);
+            Convert.ToBase64String(bedVersion), reason, request.FinanceClearanceId?.ToString() ?? "none");
         try
         {
             return await _unitOfWork.ExecuteInTransactionAsync(async ct =>
@@ -153,12 +152,15 @@ public sealed partial class HostelService
                 if (await _allocations.GetQueryable().IgnoreQueryFilters().AnyAsync(x =>
                     x.TenantId == tenant && x.PreviousAllocationId == id, ct))
                     return TransferError("This stay already has a transfer successor.", 409);
-                if (ReservationFinancePolicy.HasChargeableTerms(source.MonthlyRent, source.SecurityDeposit,
-                    source.FeeHeadId.HasValue))
-                    return TransferError("Charged transfers require an approved Finance proration/deposit policy.", 409);
-                if (await _reservationFinancePolicy.HasPostedActivityAsync(tenant,
-                    source.StudentId, source.StudentEnrollmentId, ct))
-                    return TransferError("Issued/posted Finance activity must be reconciled before transfer.", 409);
+                if (!request.FinanceClearanceId.HasValue)
+                {
+                    if (ReservationFinancePolicy.HasChargeableTerms(source.MonthlyRent, source.SecurityDeposit,
+                        source.FeeHeadId.HasValue))
+                        return TransferError("Charged transfers require approved Finance clearance.", 409);
+                    if (await _reservationFinancePolicy.HasPostedActivityAsync(tenant,
+                        source.StudentId, source.StudentEnrollmentId, ct))
+                        return TransferError("Issued/posted Finance activity must be reconciled before transfer.", 409);
+                }
 
                 var end = source.EndDate ?? DateOnly.MaxValue;
                 if (await _allocations.GetQueryable().AsNoTracking().AnyAsync(x =>
@@ -183,6 +185,16 @@ public sealed partial class HostelService
                     concurrent.Select(x => (x.StartDate, x.EndDate))) > target.Room.Capacity)
                     return TransferError("Destination room would exceed its capacity.", 409);
 
+                HostelFinanceClearance? approvedClearance = null;
+                if (request.FinanceClearanceId.HasValue)
+                {
+                    var approved = await ConsumeHostelFinanceClearanceAsync(request.FinanceClearanceId.Value,
+                        source, enrollment.CampusId, HostelClearanceOperation.Transfer,
+                        request.EffectiveFrom, request.DestinationBedId, target.Bed.RowVersion, ct);
+                    if (approved.Error != null) return TransferError(approved.Error, 409);
+                    approvedClearance = approved.Clearance;
+                }
+
                 var previousEnd = source.EndDate;
                 var now = _clock.GetUtcNow().UtcDateTime;
                 source.EndDate = today.AddDays(-1);
@@ -201,6 +213,7 @@ public sealed partial class HostelService
                 };
                 await _allocations.AddAsync(successor);
                 await _unitOfWork.SaveChangesAsync(ct);
+                if (approvedClearance != null) approvedClearance.SuccessorAllocationId = successor.Id;
                 await _auditLogs.AddAsync(new AuditLog
                 {
                     TenantId = tenant, UserId = _currentUser.UserId,
@@ -211,7 +224,8 @@ public sealed partial class HostelService
                     {
                         SourceAllocationId = source.Id, SuccessorAllocationId = successor.Id,
                         SourceBedId = old.Bed.Id, DestinationBedId = target.Bed.Id,
-                        EffectiveFrom = today, Reason = reason, ClientRequestId = request.ClientRequestId
+                        EffectiveFrom = today, Reason = reason, ClientRequestId = request.ClientRequestId,
+                        FinanceClearanceId = request.FinanceClearanceId
                     })
                 });
                 var success = ApiResponse<TransferOccupiedHostelResultDto>.SuccessResponse(
@@ -220,7 +234,7 @@ public sealed partial class HostelService
                         SourceAllocationId = source.Id, SuccessorAllocationId = successor.Id,
                         SourceRowVersion = Convert.ToBase64String(source.RowVersion),
                         SuccessorRowVersion = Convert.ToBase64String(successor.RowVersion)
-                    }, "No-charge occupied stay transferred with its history preserved.");
+                    }, "Occupied stay transferred with its history and Finance clearance preserved.");
                 await _commandReceipts.RecordAsync(tenant, _currentUser.UserId, operation,
                     request.ClientRequestId, id, requestHash, success, ct);
                 await _unitOfWork.SaveChangesAsync(ct);

@@ -1,0 +1,64 @@
+@{
+    ViewData["Title"] = "Hostel Finance Clearance";
+}
+<section class="container-fluid py-3" id="hostelFinanceRoot">
+    <header class="d-flex align-items-center justify-content-between gap-2 flex-wrap mb-3">
+        <div><h2>Hostel Finance clearance</h2><p class="text-muted mb-0">Auto-calculated suggestions, manual override and independent Finance approval.</p></div>
+        <a class="btn btn-outline-secondary" href="/FinanceAdjustments/Index">Finance Adjustments</a>
+    </header>
+    <div id="hfAlert" class="alert d-none" role="alert" tabindex="-1"></div>
+    <div class="alert alert-warning">
+        Suggestions are not proof of payment or refund entitlement. Verify invoices, collections, deposits and open accounting periods independently.
+        This workflow does not issue a cash refund or silently edit posted invoices. A nonzero adjustment requires a posted,
+        independently approved manual journal whose reference is <code>HOSTEL-CLEARANCE-{ID}</code>.
+    </div>
+    <div class="row g-3 mb-3">
+        <div class="col-xl-5"><div class="card h-100"><div class="card-body">
+            <h3 class="h5">Campus calculation policy</h3>
+            <form id="hfPolicyForm" class="row g-2">
+                <div class="col-md-4"><label class="form-label" for="hfCampus">Campus ID</label><input id="hfCampus" type="number" min="1" class="form-control" required /></div>
+                <div class="col-md-8"><label class="form-label" for="hfMode">Calculation mode</label><select id="hfMode" class="form-select"><option value="1">Auto · daily prorated estimate</option><option value="2">Auto · fixed monthly</option><option value="3">Manual · enter settlement</option></select></div>
+                <div class="col-12"><label><input id="hfOverrideAllowed" type="checkbox" checked /> Allow authorized manual override with mandatory reason</label></div>
+                <div class="col-12 d-flex gap-2"><button type="button" id="hfPolicyLoad" class="btn btn-outline-primary">Load policy</button><button type="submit" class="btn btn-primary">Save policy</button></div>
+            </form>
+        </div></div></div>
+        <div class="col-xl-7"><div class="card h-100"><div class="card-body">
+            <h3 class="h5">Request a clearance</h3>
+            <form id="hfRequestForm" class="row g-2">
+                <div class="col-md-8"><label class="form-label" for="hfSource">Active stay</label><select id="hfSource" class="form-select" required><option value="">Load active stays</option></select></div>
+                <div class="col-md-4 align-self-end"><button id="hfLoadStays" type="button" class="btn btn-outline-primary w-100">Load next 50 stays</button></div>
+                <div class="col-md-4"><label class="form-label" for="hfOperation">Operation</label><select id="hfOperation" class="form-select"><option value="2">Checkout</option><option value="1">Occupied transfer</option></select></div>
+                <div class="col-md-4"><label class="form-label" for="hfEffective">Effective date</label><input id="hfEffective" type="date" class="form-control" required /></div>
+                <div class="col-md-4"><label class="form-label" for="hfTarget">Destination (transfer only)</label><select id="hfTarget" class="form-select" disabled><option value="">Choose stay first</option></select></div>
+                <div class="col-md-6"><label class="form-label" for="hfManualRent">Manual rent credit (BDT; optional)</label><input id="hfManualRent" type="number" step="0.01" min="0" class="form-control" placeholder="Auto if blank" /></div>
+                <div class="col-md-6"><label class="form-label" for="hfManualDeposit">Manual deposit refund (BDT; optional)</label><input id="hfManualDeposit" type="number" step="0.01" min="0" class="form-control" placeholder="Auto if blank" /></div>
+                <div class="col-12"><label class="form-label" for="hfOverrideReason">Reason for manual override (at least 20 characters)</label><input id="hfOverrideReason" maxlength="1000" class="form-control" /></div>
+                <div class="col-12"><label class="form-label" for="hfReason">Operational reason</label><input id="hfReason" minlength="5" maxlength="500" class="form-control" required /></div>
+                <div class="col-12"><button class="btn btn-primary" type="submit">Request Finance clearance</button></div>
+            </form>
+            <div id="hfRequestInfo" role="status" class="small text-muted mt-2"></div>
+        </div></div></div>
+    </div>
+    <div class="card"><div class="card-body">
+        <h3 class="h5">Finance review &amp; reconciliation register</h3>
+        <p class="small text-muted">A second administrator must verify and approve. To apply the approval, give Operations its clearance ID; the ID is bound to the original stay, versions, effective date and destination. It can be used once.</p>
+        <div class="d-flex gap-2 align-items-center mb-2"><button id="hfRefresh" type="button" class="btn btn-outline-primary btn-sm">Refresh register</button><button id="hfPrevious" type="button" class="btn btn-outline-secondary btn-sm">Previous</button><span id="hfPageInfo"></span><button id="hfNext" type="button" class="btn btn-outline-secondary btn-sm">Next</button></div>
+        <div class="table-responsive"><table class="table table-sm table-striped align-middle">
+            <thead><tr><th>ID / source</th><th>Operation / date</th><th>Mode</th><th>Auto suggested</th><th>Selected amounts</th><th>Status</th><th>Action</th></tr></thead>
+            <tbody id="hfRows"><tr><td colspan="7">Load clearances.</td></tr></tbody>
+        </table></div>
+        <form id="hfReviewForm" class="row g-2 border rounded p-3 mt-3 d-none">
+            <h4 class="h6">Review clearance <span id="hfReviewTitle"></span></h4>
+            <div class="col-md-3"><label class="form-label" for="hfReviewRent">Override rent credit (BDT; optional)</label><input id="hfReviewRent" type="number" min="0" step="0.01" class="form-control" /></div>
+            <div class="col-md-3"><label class="form-label" for="hfReviewDeposit">Override deposit refund (BDT; optional)</label><input id="hfReviewDeposit" type="number" min="0" step="0.01" class="form-control" /></div>
+            <div class="col-md-6"><label class="form-label" for="hfReviewOverrideReason">Reason for changed amounts</label><input id="hfReviewOverrideReason" maxlength="1000" class="form-control" /></div>
+            <div class="col-md-4"><label class="form-label" for="hfReviewJournal">Verified posted journal ID (nonzero adjustment)</label><input id="hfReviewJournal" type="number" min="1" class="form-control" /></div>
+            <div class="col-md-8 d-flex align-items-end"><label><input id="hfNoAdjustment" type="checkbox" /> Explicitly attest no GL change required (amounts must be zero)</label></div>
+            <div class="col-12"><label class="form-label" for="hfReviewNote">Independent reconciliation evidence and approval note (20+ chars)</label><textarea id="hfReviewNote" class="form-control" minlength="20" maxlength="1000" rows="2" required></textarea></div>
+            <div class="col-12 d-flex gap-2"><button id="hfApprove" class="btn btn-success" type="submit">Approve clearance</button><button id="hfReject" class="btn btn-outline-danger" type="button">Reject</button><button id="hfReviewCancel" class="btn btn-outline-secondary" type="button">Cancel review</button></div>
+        </form>
+    </div></div>
+</section>
+@section Scripts {
+    <script src="~/js/finance/hostel-clearances.js" asp-append-version="true"></script>
+}

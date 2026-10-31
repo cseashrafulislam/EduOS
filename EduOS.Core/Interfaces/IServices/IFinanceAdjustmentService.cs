@@ -5,6 +5,16 @@ namespace EduOS.Core.Interfaces.IServices;
 
 public interface IFinanceAdjustmentService
 {
+    Task<ApiResponse<TransportBillingPolicyDto>> GetTransportBillingPolicyAsync(long campusId, CancellationToken ct = default);
+    Task<ApiResponse<TransportBillingPolicyDto>> SaveTransportBillingPolicyAsync(TransportBillingPolicyDto request, CancellationToken ct = default);
+    Task<ApiResponse<TransportClearanceDto>> RequestTransportClearanceAsync(RequestTransportClearanceDto request, CancellationToken ct = default);
+    Task<ApiResponse<TransportClearanceDto>> ReviewTransportClearanceAsync(long id, ReviewTransportClearanceDto request, CancellationToken ct = default);
+    Task<ApiResponse<PagedResult<TransportClearanceDto>>> GetTransportClearancesAsync(long? campusId, int page, int pageSize, CancellationToken ct = default);
+    Task<ApiResponse<HostelBillingPolicyDto>> GetHostelBillingPolicyAsync(long campusId, CancellationToken ct = default);
+    Task<ApiResponse<HostelBillingPolicyDto>> SaveHostelBillingPolicyAsync(HostelBillingPolicyDto request, CancellationToken ct = default);
+    Task<ApiResponse<HostelClearanceDto>> RequestHostelClearanceAsync(RequestHostelClearanceDto request, CancellationToken ct = default);
+    Task<ApiResponse<HostelClearanceDto>> ReviewHostelClearanceAsync(long id, ReviewHostelClearanceDto request, CancellationToken ct = default);
+    Task<ApiResponse<PagedResult<HostelClearanceDto>>> GetHostelClearancesAsync(long? campusId, int page, int pageSize, CancellationToken ct = default);
     Task<ApiResponse<DiscountAwardRegisterDto>> GetDiscountAwardRegisterAsync(long? campusId, long? ruleId, bool? active, string? search, int page = 1, int pageSize = 25, CancellationToken cancellationToken = default);
     Task<ApiResponse<HostelOccupiedTransferFinanceReviewDto>> ReviewHostelOccupiedTransferAsync(HostelOccupiedTransferFinanceReviewRequestDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<ReservationFinanceChangeReviewDto>> ReviewReservationChangeAsync(ReservationFinanceChangeReviewRequestDto request, CancellationToken cancellationToken = default);

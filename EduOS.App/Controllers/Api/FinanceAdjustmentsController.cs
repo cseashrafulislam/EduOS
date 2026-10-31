@@ -22,6 +22,38 @@ public sealed class FinanceAdjustmentsController : ControllerBase
     private readonly IFinanceAdjustmentService service;
     public FinanceAdjustmentsController(IFinanceAdjustmentService implementation) => service = implementation;
     private IActionResult Reply<T>(EduOS.Core.Common.ApiResponse<T> result) => StatusCode(result.StatusCode,result);
+    [HttpGet("transport/billing-policy/{campusId:long}")]
+    public async Task<IActionResult> TransportBillingPolicy(long campusId,CancellationToken ct)
+        => Reply(await service.GetTransportBillingPolicyAsync(campusId,ct));
+    [HttpPut("transport/billing-policy")]
+    public async Task<IActionResult> SaveTransportBillingPolicy([FromBody] TransportBillingPolicyDto request,CancellationToken ct)
+        => Reply(await service.SaveTransportBillingPolicyAsync(request,ct));
+    [HttpPost("transport/clearances")]
+    public async Task<IActionResult> RequestTransportClearance([FromBody] RequestTransportClearanceDto request,CancellationToken ct)
+        => Reply(await service.RequestTransportClearanceAsync(request,ct));
+    [HttpPost("transport/clearances/{id:long}/review")]
+    public async Task<IActionResult> ReviewTransportClearance(long id,[FromBody] ReviewTransportClearanceDto request,CancellationToken ct)
+        => Reply(await service.ReviewTransportClearanceAsync(id,request,ct));
+    [HttpGet("transport/clearances")]
+    public async Task<IActionResult> TransportClearances([FromQuery] long? campusId=null,[FromQuery] int page=1,
+        [FromQuery] int pageSize=25,CancellationToken ct=default)
+        => Reply(await service.GetTransportClearancesAsync(campusId,page,pageSize,ct));
+    [HttpGet("hostel/billing-policy/{campusId:long}")]
+    public async Task<IActionResult> HostelBillingPolicy(long campusId,CancellationToken ct)
+        => Reply(await service.GetHostelBillingPolicyAsync(campusId,ct));
+    [HttpPut("hostel/billing-policy")]
+    public async Task<IActionResult> SaveHostelBillingPolicy([FromBody] HostelBillingPolicyDto request,CancellationToken ct)
+        => Reply(await service.SaveHostelBillingPolicyAsync(request,ct));
+    [HttpPost("hostel/clearances")]
+    public async Task<IActionResult> RequestHostelClearance([FromBody] RequestHostelClearanceDto request, CancellationToken ct)
+        => Reply(await service.RequestHostelClearanceAsync(request,ct));
+    [HttpPost("hostel/clearances/{id:long}/review")]
+    public async Task<IActionResult> ReviewHostelClearance(long id,[FromBody] ReviewHostelClearanceDto request,CancellationToken ct)
+        => Reply(await service.ReviewHostelClearanceAsync(id,request,ct));
+    [HttpGet("hostel/clearances")]
+    public async Task<IActionResult> HostelClearances([FromQuery] long? campusId=null,[FromQuery] int page=1,
+        [FromQuery] int pageSize=25,CancellationToken ct=default)
+        => Reply(await service.GetHostelClearancesAsync(campusId,page,pageSize,ct));
     [HttpGet("reservations/hostel-transfer-review")]
     public async Task<IActionResult> HostelTransferReview([FromQuery] HostelOccupiedTransferFinanceReviewRequestDto request, CancellationToken ct)
         => Reply(await service.ReviewHostelOccupiedTransferAsync(request, ct));

@@ -5,6 +5,7 @@ using EduOS.Core.Entities.Auth;
 using EduOS.Core.Entities.SaaS;
 using EduOS.Core.Entities.Students;
 using EduOS.Core.Entities.Transport;
+using EduOS.Core.Entities.Finance;
 using EduOS.Core.Enums.Domain;
 using EduOS.Core.Interfaces;
 using EduOS.Core.Interfaces.IRepositories;
@@ -31,6 +32,7 @@ public sealed partial class TransportService : ITransportService
     private readonly IUnitOfWork _unitOfWork;
     private readonly IReservationFinancePolicy _reservationFinancePolicy;
     private readonly IReservationCommandReceiptStore _commandReceipts;
+    private readonly IGenericRepository<TransportFinanceClearance> _financeClearances;
     private readonly ICurrentUserService _currentUser;
     private readonly TimeProvider _clock;
     private readonly ILogger<TransportService> _logger;
@@ -42,7 +44,8 @@ public sealed partial class TransportService : ITransportService
         IGenericRepository<Campus> campuses, IUnitOfWork unitOfWork, ICurrentUserService currentUser,
         TimeProvider clock, ILogger<TransportService> logger,
         IReservationFinancePolicy reservationFinancePolicy,
-        IReservationCommandReceiptStore commandReceipts)
+        IReservationCommandReceiptStore commandReceipts,
+        IGenericRepository<TransportFinanceClearance> financeClearances)
     {
         _routes = routes;
         _stops = stops;
@@ -59,6 +62,7 @@ public sealed partial class TransportService : ITransportService
         _logger = logger;
         _reservationFinancePolicy = reservationFinancePolicy;
         _commandReceipts = commandReceipts;
+        _financeClearances = financeClearances;
     }
 
     public async Task<ApiResponse<IReadOnlyList<RouteDto>>> GetRoutesAsync(CancellationToken cancellationToken = default)
@@ -207,6 +211,7 @@ public sealed partial class TransportService : ITransportService
             .Skip((page - 1) * pageSize).Take(pageSize).ToListAsync(cancellationToken);
         var items = records.Select(x => new TransportAssignmentRowDto
         {
+            CampusId = x.CampusId,
             Reference = x.PublicId, RouteReference = x.RouteReference, VehicleReference = x.VehicleReference,
             CanShortenNoCharge = IsNoChargeRiderFare(x.MonthlyFare),
             PickupStopId = x.PickupStopId, DropStopId = x.DropStopId,
@@ -422,6 +427,11 @@ public sealed partial class TransportService : ITransportService
                 var endDate = request.EndDate == default ? today : request.EndDate;
                 if (entity.State == TransportAssignmentState.Closed)
                 {
+                    if (request.FinanceClearanceId.HasValue && !await _financeClearances.GetQueryable().AsNoTracking()
+                        .AnyAsync(x => x.TenantId == tenant && x.Id == request.FinanceClearanceId.Value &&
+                            x.SourceAssignmentId == entity.Id && x.Operation == TransportClearanceOperation.Closure &&
+                            x.State == TransportClearanceState.Consumed && x.EffectiveDate == endDate, ct))
+                        return Error("Finance clearance was not used for this closure.", 409);
                     if (entity.EndDate.HasValue &&
                         (request.EndDate == default || entity.EndDate.Value == endDate))
                         return ApiResponse<StudentTransportDto>.SuccessResponse(
@@ -434,11 +444,21 @@ public sealed partial class TransportService : ITransportService
                     return Error("Closure must be between assignment start and today. Cancel future reservations.", 409);
                 if (!entity.RowVersion.AsSpan().SequenceEqual(version))
                     return Error("Assignment changed. Reload and retry.", 409);
-                if (await _reservationFinancePolicy.HasPostedActivityAsync(tenant,
-                    entity.StudentId, entity.StudentEnrollmentId, ct))
-                    return Error("Posted finance activity requires an approved Finance adjustment before closure.", 409);
-                if (ReservationFinancePolicy.HasChargeableTerms(entity.MonthlyFare))
-                    return Error("Charged Transport reservation changes require an approved Finance billing adjustment.", 409);
+                if (request.FinanceClearanceId.HasValue)
+                {
+                    var approved = await ConsumeTransportFinanceClearanceAsync(request.FinanceClearanceId.Value,
+                        entity, enrollmentCampus.Value, TransportClearanceOperation.Closure,
+                        endDate, null, null, ct);
+                    if (approved.Error != null) return Error(approved.Error, 409);
+                }
+                else
+                {
+                    if (await _reservationFinancePolicy.HasPostedActivityAsync(tenant,
+                        entity.StudentId, entity.StudentEnrollmentId, ct))
+                        return Error("Posted finance activity requires approved Finance clearance before closure.", 409);
+                    if (ReservationFinancePolicy.HasChargeableTerms(entity.MonthlyFare))
+                        return Error("Charged Transport closure requires approved Finance clearance.", 409);
+                }
                 entity.EndDate = endDate;
                 entity.State = TransportAssignmentState.Closed;
                 entity.UpdatedAt = _clock.GetUtcNow().UtcDateTime;

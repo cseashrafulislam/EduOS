@@ -4,6 +4,7 @@ using EduOS.Core.Entities.Academic;
 using EduOS.Core.Entities.Auth;
 using EduOS.Core.Entities.SaaS;
 using EduOS.Core.Entities.Hostel;
+using EduOS.Core.Entities.Finance;
 using EduOS.Core.Entities.Students;
 using EduOS.Core.Entities.System;
 using EduOS.Core.Enums.Domain;
@@ -32,6 +33,7 @@ public sealed partial class HostelService : IHostelService
     private readonly IGenericRepository<StudentGuardian> _studentGuardians;
     private readonly IGenericRepository<Guardian> _guardians;
     private readonly IGenericRepository<AuditLog> _auditLogs;
+    private readonly IGenericRepository<HostelFinanceClearance> _hostelClearances;
     private readonly IUnitOfWork _unitOfWork;
     private readonly IReservationFinancePolicy _reservationFinancePolicy;
     private readonly IReservationCommandReceiptStore _commandReceipts;
@@ -50,7 +52,8 @@ public sealed partial class HostelService : IHostelService
         IGenericRepository<HostelApplicationEvent> applicationEvents,
         IGenericRepository<HostelApplicationAuthority> applicationAuthorities,
         IGenericRepository<StudentGuardian> studentGuardians, IGenericRepository<Guardian> guardians,
-        IGenericRepository<AuditLog> auditLogs)
+        IGenericRepository<AuditLog> auditLogs,
+        IGenericRepository<HostelFinanceClearance> hostelClearances)
     {
         _hostels = hostels; _rooms = rooms; _beds = beds; _allocations = allocations;
         _enrollments = enrollments; _students = students; _campusAccesses = campusAccesses;
@@ -61,6 +64,7 @@ public sealed partial class HostelService : IHostelService
         _applications = applications; _applicationEvents = applicationEvents;
         _applicationAuthorities = applicationAuthorities; _studentGuardians = studentGuardians; _guardians = guardians;
         _auditLogs = auditLogs;
+        _hostelClearances = hostelClearances;
     }
 
 

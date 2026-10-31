@@ -35,6 +35,8 @@ public class StudentTransport : BaseTenantEntity
 {
     public Guid PublicId { get; set; } = Guid.NewGuid();
     public Guid ClientRequestId { get; set; }
+    /// <summary>Immutable lineage for a split operating rider transfer; legacy rows remain null.</summary>
+    public long? PreviousAssignmentId { get; set; }
     public long StudentId { get; set; }
     public long StudentEnrollmentId { get; set; }
     public long? RouteVehicleAssignmentId { get; set; }

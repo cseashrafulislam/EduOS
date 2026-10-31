@@ -25,6 +25,6 @@ for (const [file, chargeTerms, mutation] of cases) {
 const hostel = read('EduOS.App/Views/HostelOperations/Index.cshtml');
 const transport = read('EduOS.App/Views/TransportOperations/Index.cshtml');
 assert.match(hostel, /Charged stays require Finance-approved adjustment/);
-assert.match(transport, /charged transfers require Finance-approved adjustment/i);
+assert.match(transport, /Charged\/billed transfers require an approved, single-use/);
 assert.match(transport, /Charged changes require Finance-approved adjustment/);
 console.log('Hostel and Transport reservation mutation Finance gates: PASS');

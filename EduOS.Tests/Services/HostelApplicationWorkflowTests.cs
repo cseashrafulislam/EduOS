@@ -1,4 +1,6 @@
 using EduOS.Core.DTOs.Hostel;
+using EduOS.Core.DTOs.Finance;
+using EduOS.Core.Entities.Finance;
 using EduOS.Core.Entities.Academic;
 using EduOS.Core.Entities.Auth;
 using EduOS.Core.Entities.Hostel;
@@ -9,8 +11,10 @@ using EduOS.Core.Interfaces;
 using EduOS.Persistence.Context;
 using EduOS.Persistence.Repositories;
 using EduOS.Service.Services.Hostel;
+using EduOS.Service.Services.Finance;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Logging.Abstractions;
 using System.Security.Claims;
 using Xunit;
@@ -305,6 +309,105 @@ public sealed class HostelApplicationWorkflowTests
         });
     }
 
+    [Fact]
+    public async Task Charged_occupied_transfer_requires_exact_approved_clearance_and_consumes_it_once()
+    {
+        await using var fixture = await Fixture.CreateAsync();
+        fixture.ActivateContext(); fixture.User.AsWarden();
+        var (source, destination, move) = await PrepareOccupiedTransferAsync(fixture);
+        source.MonthlyRent = 1200m;
+        source.SecurityDeposit = 200m;
+        await fixture.Db.SaveChangesAsync();
+        var admin = new FinanceAdmin();
+        var finance = new FinanceAdjustmentService(fixture.Db, admin, TimeProvider.System);
+        var request = new RequestHostelClearanceDto
+        {
+            ClientRequestId = Guid.NewGuid(), SourceAllocationId = source.Id,
+            Operation = HostelClearanceOperation.Transfer,
+            DestinationBedId = destination.Id, DestinationBedRowVersion = move.DestinationBedRowVersion,
+            SourceRowVersion = move.SourceRowVersion, EffectiveDate = move.EffectiveFrom,
+            Reason = "Move to a more accessible lower bunk"
+        };
+        var requested = await finance.RequestHostelClearanceAsync(request);
+        Assert.True(requested.Success, requested.Message);
+        Assert.Equal(0m, requested.Data!.SuggestedRentCredit);
+        Assert.Equal(0m, requested.Data.SuggestedDepositRefund);
+        Assert.Equal(409, (await fixture.Service.TransferOccupiedNoChargeAsync(source.Id, move)).StatusCode);
+        var row = await fixture.Db.HostelFinanceClearances.SingleAsync();
+        row.RowVersion = [3, 4, 5, 6];
+        await fixture.Db.SaveChangesAsync();
+        var review = new ReviewHostelClearanceDto
+        {
+            RowVersion = Convert.ToBase64String(row.RowVersion), Approve = true,
+            NoAdjustmentRequired = true,
+            ReconciliationNote = "Finance verified no adjustment was required; deposit carries forward."
+        };
+        Assert.Equal(403, (await finance.ReviewHostelClearanceAsync(row.Id, review)).StatusCode);
+        admin.UserId = 97;
+        var approved = await finance.ReviewHostelClearanceAsync(row.Id, review);
+        Assert.True(approved.Success, approved.Message);
+        move.FinanceClearanceId = row.Id;
+        var done = await fixture.Service.TransferOccupiedNoChargeAsync(source.Id, move);
+        Assert.True(done.Success, done.Message);
+        Assert.Equal(HostelClearanceState.Consumed, row.State);
+        Assert.Equal(done.Data!.SuccessorAllocationId, row.SuccessorAllocationId);
+        Assert.Equal(1200m, (await fixture.Db.StudentHostelAllocations.SingleAsync(x => x.PreviousAllocationId == source.Id)).MonthlyRent);
+        var retry = await fixture.Service.TransferOccupiedNoChargeAsync(source.Id, move);
+        Assert.True(retry.Success, retry.Message);
+        Assert.Equal(done.Data.SuccessorAllocationId, retry.Data!.SuccessorAllocationId);
+        Assert.Equal(2, await fixture.Db.StudentHostelAllocations.CountAsync());
+    }
+
+    [Fact]
+    public async Task Campus_policy_supports_manual_override_and_requires_reason()
+    {
+        await using var fixture = await Fixture.CreateAsync();
+        fixture.ActivateContext(); fixture.User.AsWarden();
+        var (source, _, move) = await PrepareOccupiedTransferAsync(fixture);
+        source.MonthlyRent = 3100m; source.SecurityDeposit = 300m;
+        await fixture.Db.SaveChangesAsync();
+        var admin = new FinanceAdmin();
+        var finance = new FinanceAdjustmentService(fixture.Db, admin, TimeProvider.System);
+        var setting = await finance.SaveHostelBillingPolicyAsync(new HostelBillingPolicyDto
+        { CampusId = fixture.Hostel.CampusId, CalculationMode = HostelBillingCalculationMode.DailyProrated,
+            AllowManualOverride = true });
+        Assert.True(setting.Success, setting.Message);
+        var changed = new RequestHostelClearanceDto
+        {
+            ClientRequestId = Guid.NewGuid(), SourceAllocationId = source.Id,
+            Operation = HostelClearanceOperation.Checkout, EffectiveDate = move.EffectiveFrom,
+            SourceRowVersion = move.SourceRowVersion, Reason = "Early checkout requested",
+            ManualRentCredit = 120m, ManualDepositRefund = 100m
+        };
+        Assert.Equal(400, (await finance.RequestHostelClearanceAsync(changed)).StatusCode);
+        changed.OverrideReason = "Finance explicitly authorized a partial verified deposit liability.";
+        var created = await finance.RequestHostelClearanceAsync(changed);
+        Assert.True(created.Success, created.Message);
+        Assert.Equal(120m, created.Data!.ApprovedRentCredit);
+        Assert.Equal(100m, created.Data.ApprovedDepositRefund);
+        Assert.Equal(300m, created.Data.DepositAtRequest);
+        var repeat = await finance.RequestHostelClearanceAsync(changed);
+        Assert.True(repeat.Success);
+        Assert.Equal(created.Data.Id, repeat.Data!.Id);
+        changed.ManualRentCredit = 130m;
+        Assert.Equal(409, (await finance.RequestHostelClearanceAsync(changed)).StatusCode);
+    }
+
+    private sealed class FinanceAdmin : ICurrentUserService
+    {
+        public long UserId { get; set; } = 96;
+        public bool IsAuthenticated => true;
+        public long TenantId => 101;
+        public string? FullName => null;
+        public string? Email => null;
+        public bool IsSuperAdmin => false;
+        public bool IsTenantAdmin => true;
+        public IReadOnlyList<string> Roles => ["TenantAdmin"];
+        public bool IsInRole(string role) => role == "TenantAdmin";
+        public string? IpAddress => null;
+        public string? UserAgent => null;
+    }
+
     private sealed class MutableUser : ICurrentUserService
     {
         public long UserId { get; private set; } = 41;
@@ -354,7 +457,8 @@ public sealed class HostelApplicationWorkflowTests
         public static async Task<Fixture> CreateAsync()
         {
             var options = new DbContextOptionsBuilder<EduOSDbContext>()
-                .UseInMemoryDatabase("hostel-application-" + Guid.NewGuid().ToString("N")).Options;
+                .UseInMemoryDatabase("hostel-application-" + Guid.NewGuid().ToString("N"))
+                .ConfigureWarnings(w => w.Ignore(InMemoryEventId.TransactionIgnoredWarning)).Options;
             var http = new DefaultHttpContext
             {
                 User = new ClaimsPrincipal(new ClaimsIdentity([
@@ -401,7 +505,8 @@ public sealed class HostelApplicationWorkflowTests
                 new EduOS.Service.Services.Platform.ReservationCommandReceiptStore(db, TimeProvider.System),
                 new GenericRepository<HostelApplication>(db), new GenericRepository<HostelApplicationEvent>(db),
                 new GenericRepository<HostelApplicationAuthority>(db), new GenericRepository<StudentGuardian>(db),
-                new GenericRepository<Guardian>(db), new GenericRepository<EduOS.Core.Entities.System.AuditLog>(db));
+                new GenericRepository<Guardian>(db), new GenericRepository<EduOS.Core.Entities.System.AuditLog>(db),
+                new GenericRepository<EduOS.Core.Entities.Finance.HostelFinanceClearance>(db));
             return new Fixture { Db = db, Service = service, User = user, Accessor = accessor, Http = http,
                 Enrollment = enrollment, Hostel = hostel, Bed = bed, Guardian = guardian };
         }

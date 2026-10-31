@@ -14,6 +14,14 @@ public sealed class FinanceAdjustmentsController : Controller
 
     [HttpGet]
     [ResponseCache(NoStore=true,Location=ResponseCacheLocation.None)]
+    public IActionResult HostelClearances()=>View();
+
+    [HttpGet]
+    [ResponseCache(NoStore=true,Location=ResponseCacheLocation.None)]
+    public IActionResult TransportClearances()=>View();
+
+    [HttpGet]
+    [ResponseCache(NoStore=true,Location=ResponseCacheLocation.None)]
     public IActionResult ReservationPreflight()=>View();
 
     [HttpGet]

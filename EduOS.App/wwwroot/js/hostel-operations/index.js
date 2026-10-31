@@ -145,7 +145,7 @@
                     extend.addEventListener('click', () => window.hostelNoChargeStayExtension?.begin(item));
                     actions.append(extend);
                 }
-                if (!future && item.canTransferNoCharge) {
+                if (!future && item.startDate < today()) {
                     const transfer = document.createElement('button');
                     transfer.type = 'button'; transfer.className = 'btn btn-outline-primary btn-sm ms-2';
                     transfer.textContent = 'Transfer resident';
@@ -229,10 +229,16 @@
         if (!/^\d{4}-\d{2}-\d{2}$/.test(endDate) || endDate < item.startDate || endDate > today()) {
             notify('Enter an end date from the start date through today.'); return;
         }
+        const clearanceInput = prompt('Approved Finance clearance ID (leave blank ONLY for no-charge stays without billing):', '');
+        if (clearanceInput === null) return;
+        const clearanceId = clearanceInput.trim() ? Number(clearanceInput.trim()) : null;
+        if (clearanceId !== null && (!Number.isSafeInteger(clearanceId) || clearanceId <= 0)) {
+            notify('Enter a valid positive Finance clearance ID.'); return;
+        }
         button.disabled = true;
         try {
             await api('/api/hostel/allocations/' + encodeURIComponent(item.id) + '/close', 'POST',
-                { endDate, rowVersion: item.rowVersion });
+                { endDate, rowVersion: item.rowVersion, financeClearanceId: clearanceId });
             notify('Hostel allocation closed.', true);
             await Promise.all([loadActive(), loadStudents(), loadBeds()]);
         } catch (error) { notify(error.message); } finally { button.disabled = false; }

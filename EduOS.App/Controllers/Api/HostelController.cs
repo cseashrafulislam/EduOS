@@ -470,6 +470,7 @@ public sealed class HostelController : ControllerBase
         [FromQuery] int pageSize = 25, CancellationToken ct = default) =>
         ToAction(await _service.GetOccupiedTransferBedOptionsAsync(id, page, pageSize, ct));
 
+    [HttpPost("allocations/{id:long}/occupied-transfer")]
     [HttpPost("allocations/{id:long}/occupied-transfer-no-charge")]
     [Authorize(Roles = "TenantAdmin,Principal,HostelWarden")]
     public async Task<IActionResult> TransferOccupiedNoCharge(long id,
