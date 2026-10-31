@@ -101,17 +101,22 @@ public sealed partial class SqlServerTransportSeatCapacityIntegrationTests
         {
             CourseEnrollmentId = courseEnrollmentId, ClientRequestId = requestId
         };
-        await using (var dbA = ScopedContext(fixture.Options, fixture.TenantId, fixture.UserId))
-        await using (var dbB = ScopedContext(fixture.Options, fixture.TenantId, fixture.UserId))
+        // Each concurrent worker must establish its own HttpContext alongside its own
+        // DbContext. Creating both contexts on the parent test thread leaves both
+        // workers with the same ambient HttpContextAccessor value; concurrent lazy
+        // feature initialization corrupts the fake request's FeatureCollection.
+        async Task<EduOS.Core.Common.ApiResponse<LmsCertificateDto>> IssueInIsolatedRequestAsync(
+            IssueLmsCertificateRequestDto request)
         {
-            var a = SqlCertificateWorkflow(dbA, fixture.TenantId, fixture.UserId);
-            var b = SqlCertificateWorkflow(dbB, fixture.TenantId, fixture.UserId);
-            var attempts = await Task.WhenAll(
-                Task.Run(() => a.IssueCertificateAsync(issueRequest)),
-                Task.Run(() => b.IssueCertificateAsync(issueRequest)));
-            Assert.Contains(attempts, x => x.Success);
-            Assert.All(attempts, x => Assert.True(x.Success || x.StatusCode == 409, x.Message));
+            await using var db = ScopedContext(fixture.Options, fixture.TenantId, fixture.UserId);
+            return await SqlCertificateWorkflow(db, fixture.TenantId, fixture.UserId)
+                .IssueCertificateAsync(request);
         }
+        var firstIssueAttempts = await Task.WhenAll(
+            Task.Run(() => IssueInIsolatedRequestAsync(issueRequest)),
+            Task.Run(() => IssueInIsolatedRequestAsync(issueRequest)));
+        Assert.Contains(firstIssueAttempts, x => x.Success);
+        Assert.All(firstIssueAttempts, x => Assert.True(x.Success || x.StatusCode == 409, x.Message));
 
         string initialVersion;
         string originalCourseTitle;
@@ -153,17 +158,16 @@ public sealed partial class SqlServerTransportSeatCapacityIntegrationTests
         {
             Reason = "Verified SQL lifecycle correction", RowVersion = initialVersion
         };
-        await using (var dbA = ScopedContext(fixture.Options, fixture.TenantId, fixture.UserId))
-        await using (var dbB = ScopedContext(fixture.Options, fixture.TenantId, fixture.UserId))
+        async Task<EduOS.Core.Common.ApiResponse<LmsCertificateDto>> RevokeInIsolatedRequestAsync()
         {
-            var a = SqlCertificateWorkflow(dbA, fixture.TenantId, fixture.UserId);
-            var b = SqlCertificateWorkflow(dbB, fixture.TenantId, fixture.UserId);
-            var attempts = await Task.WhenAll(
-                Task.Run(() => a.RevokeCertificateAsync(certificateReference, revokeRequest)),
-                Task.Run(() => b.RevokeCertificateAsync(certificateReference, revokeRequest)));
-            Assert.Contains(attempts, x => x.Success);
-            Assert.All(attempts, x => Assert.True(x.Success || x.StatusCode == 409, x.Message));
+            await using var db = ScopedContext(fixture.Options, fixture.TenantId, fixture.UserId);
+            return await SqlCertificateWorkflow(db, fixture.TenantId, fixture.UserId)
+                .RevokeCertificateAsync(certificateReference, revokeRequest);
         }
+        var revokeAttempts = await Task.WhenAll(
+            Task.Run(RevokeInIsolatedRequestAsync), Task.Run(RevokeInIsolatedRequestAsync));
+        Assert.Contains(revokeAttempts, x => x.Success);
+        Assert.All(revokeAttempts, x => Assert.True(x.Success || x.StatusCode == 409, x.Message));
 
         await using (var verify = ScopedContext(fixture.Options, fixture.TenantId, fixture.UserId))
         {
@@ -187,23 +191,17 @@ public sealed partial class SqlServerTransportSeatCapacityIntegrationTests
         await AssertLearnerCertificateSqlPrintAsync(printClient, fixture.TenantId,
             fixture.UserId, certificateReference, visible: false);
 
-        await using (var dbA = ScopedContext(fixture.Options, fixture.TenantId, fixture.UserId))
-        await using (var dbB = ScopedContext(fixture.Options, fixture.TenantId, fixture.UserId))
-        {
-            var a = SqlCertificateWorkflow(dbA, fixture.TenantId, fixture.UserId);
-            var b = SqlCertificateWorkflow(dbB, fixture.TenantId, fixture.UserId);
-            var attempts = await Task.WhenAll(
-                Task.Run(() => a.IssueCertificateAsync(new IssueLmsCertificateRequestDto
-                {
-                    CourseEnrollmentId = courseEnrollmentId, ClientRequestId = Guid.NewGuid()
-                })),
-                Task.Run(() => b.IssueCertificateAsync(new IssueLmsCertificateRequestDto
-                {
-                    CourseEnrollmentId = courseEnrollmentId, ClientRequestId = Guid.NewGuid()
-                })));
-            Assert.Contains(attempts, x => x.Success);
-            Assert.All(attempts, x => Assert.True(x.Success || x.StatusCode == 409, x.Message));
-        }
+        var reissueAttempts = await Task.WhenAll(
+            Task.Run(() => IssueInIsolatedRequestAsync(new IssueLmsCertificateRequestDto
+            {
+                CourseEnrollmentId = courseEnrollmentId, ClientRequestId = Guid.NewGuid()
+            })),
+            Task.Run(() => IssueInIsolatedRequestAsync(new IssueLmsCertificateRequestDto
+            {
+                CourseEnrollmentId = courseEnrollmentId, ClientRequestId = Guid.NewGuid()
+            })));
+        Assert.Contains(reissueAttempts, x => x.Success);
+        Assert.All(reissueAttempts, x => Assert.True(x.Success || x.StatusCode == 409, x.Message));
 
         await using (var verify = ScopedContext(fixture.Options, fixture.TenantId, fixture.UserId))
         {
