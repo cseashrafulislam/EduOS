@@ -125,3 +125,33 @@ test('advanced appearance preserves tenant-scoped versioning and allowlisted col
  }
  assert.doesNotMatch(editor,/\.innerHTML|localStorage|sessionStorage/);
 });
+
+test('appearance preview can be discarded, warns before leaving and never saves after failed load', () => {
+    const vm = require('node:vm');
+    const editor = read('EduOS.App/wwwroot/js/platform/workspace-preferences.js');
+    const view = read('EduOS.App/Views/WorkspacePreferences/Index.cshtml');
+    const guide = read('EduOS.App/wwwroot/js/platform/page-context-help.js');
+    assert.match(view, /id="workspaceDiscard" disabled/);
+    assert.match(editor, /discard\.addEventListener\('click'/);
+    assert.match(editor, /fill\(persisted\);\s*preview\(\);\s*message\('Unsaved preview discarded/);
+    assert.match(editor, /window\.addEventListener\('beforeunload'/);
+    assert.match(editor, /if \(!dirty \|\| sessionInvalidated\) return/);
+    assert.match(editor, /const disabled = value \|\| sessionInvalidated \|\| !loaded/);
+    assert.match(editor, /savedSignature = JSON\.stringify\(values\(\)\)/);
+    assert.match(editor, /updateMoveButtons\(\);\s*preview\(\)/);
+    assert.match(editor, /updateTableButtons\(\);\s*preview\(\)/);
+    assert.match(editor, /window\.EduOSApplyWorkspacePreferences\?\.\(defaults\)/);
+    assert.match(guide, /Discard preview to restore the last saved design/);
+    assert.match(guide, /প্রিভিউ বাতিল/);
+    const fn = editor.match(/    function isUnsavedPreview\(current, signature\) \{[\s\S]*?\n    \}/);
+    assert.ok(fn, 'same saved-state comparison must be executable');
+    const changed = vm.runInNewContext('(' + fn[0].trim() + ')');
+    const original = { theme: 'light', customColors: { sidebar: '#123456' },
+        dashboardPanels: [{ id: 'capacity', visible: true }, { id: 'quick-actions', visible: true }] };
+    const signature = JSON.stringify(original);
+    assert.equal(changed(original, signature), false);
+    assert.equal(changed({ ...original, theme: 'dark' }, signature), true);
+    assert.equal(changed({ ...original, customColors: { sidebar: '#654321' } }, signature), true);
+    assert.equal(changed({ ...original, dashboardPanels: [...original.dashboardPanels].reverse() }, signature), true);
+    assert.equal(changed(null, signature), true);
+});

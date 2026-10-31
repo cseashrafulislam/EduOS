@@ -188,6 +188,7 @@
                 }
                 <div class="d-flex flex-wrap gap-2 mt-3">
                     <button class="btn btn-primary" type="submit" id="workspaceSave">@(bn ? "ডিজাইন সংরক্ষণ" : "Save appearance")</button>
+                    <button class="btn btn-outline-primary" type="button" id="workspaceDiscard" disabled>@(bn ? "প্রিভিউ বাতিল" : "Discard preview")</button>
                     <button class="btn btn-outline-secondary" type="button" id="workspaceReset">@(bn ? "ডিফল্টে ফিরুন" : "Reset to defaults")</button>
                 </div>
                 <p class="mt-3 mb-0" id="workspaceStatus" role="status" aria-live="polite"></p>

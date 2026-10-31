@@ -91,15 +91,20 @@
     const status = document.getElementById('workspaceStatus');
     const save = document.getElementById('workspaceSave');
     const reset = document.getElementById('workspaceReset');
+    const discard = document.getElementById('workspaceDiscard');
     const bangla = document.documentElement.lang === 'bn-BD';
     let rowVersion = '';
     let persisted = { ...defaults };
     let busy = false;
     let sessionInvalidated = false;
-    function message(english, bengali, error = false) {
+    let loaded = false;
+    let dirty = false;
+    let savedSignature = '';
+    function message(english, bengali, error = false, pending = false) {
         status.textContent = bangla ? bengali : english;
         status.classList.toggle('text-danger', error);
-        status.classList.toggle('text-success', !error);
+        status.classList.toggle('text-warning', pending);
+        status.classList.toggle('text-success', !error && !pending);
     }
     function fillColors(colors) {
         colorRows.forEach(row => {
@@ -136,16 +141,23 @@
         const customColors = readColors();
         return customColors === null ? null : { ...Object.fromEntries(fields.map(name => [name, form.elements.namedItem(name).value])), customColors, dashboardPanels: readPanels(), tablePreferences: readTables() };
     }
+    function isUnsavedPreview(current, signature) {
+        return current === null || JSON.stringify(current) !== signature;
+    }
     function preview() {
         const next = values();
         if (next && !sessionInvalidated) window.EduOSApplyWorkspacePreferences?.(next);
-        else if (!next) message('Use a valid HEX or RGB color.', 'বৈধ HEX বা RGB রঙ দিন।', true);
+        dirty = loaded && isUnsavedPreview(next, savedSignature);
+        discard.disabled = busy || sessionInvalidated || !dirty;
+        if (!next) message('Use a valid HEX or RGB color.', 'বৈধ HEX বা RGB রঙ দিন।', true);
+        else if (dirty && !busy) message('Unsaved preview — Save appearance or Discard preview.', 'প্রিভিউ সংরক্ষিত নয় — ডিজাইন সংরক্ষণ করুন বা প্রিভিউ বাতিল করুন।', false, true);
     }
     function setBusy(value) {
         busy = value;
-        const disabled = value || sessionInvalidated;
+        const disabled = value || sessionInvalidated || !loaded;
         save.disabled = disabled;
         reset.disabled = disabled;
+        discard.disabled = disabled || !dirty;
         fields.forEach(name => { form.elements.namedItem(name).disabled = disabled; });
         colorRows.forEach(row => row.querySelectorAll('input,button').forEach(input => { input.disabled = disabled; }));
         panelRows().forEach(row => { row.querySelector('input[type="checkbox"]').disabled = disabled; });
@@ -158,6 +170,9 @@
     function requireCurrentSession(response) {
         if (!sessionInvalidated && window.EduOSWorkspaceResponseMatchesSession?.(response)) return;
         sessionInvalidated = true;
+        loaded = false;
+        dirty = false;
+        window.EduOSApplyWorkspacePreferences?.(defaults);
         setBusy(true);
         window.EduOSVerifySessionContext?.();
         const error = new Error('Institution session changed.');
@@ -196,6 +211,8 @@
             persisted = { ...defaults, ...data };
             rowVersion = data.rowVersion || '';
             fill(persisted);
+            loaded = true;
+            savedSignature = JSON.stringify(values());
             preview();
             message('Appearance loaded.', 'ডিজাইন লোড হয়েছে।');
         } catch (error) {
@@ -203,6 +220,8 @@
                 message('Institution session changed. Reload this page.', 'প্রতিষ্ঠানের সেশন পরিবর্তিত হয়েছে। পেজটি আবার লোড করুন।', true);
                 return;
             }
+            loaded = false;
+            savedSignature = '';
             fill(defaults);
             preview();
             message('Could not load saved appearance. Try refreshing.', 'সংরক্ষিত ডিজাইন লোড হয়নি। আবার চেষ্টা করুন।', true);
@@ -216,6 +235,8 @@
             persisted = { ...defaults, ...data };
             rowVersion = data.rowVersion || '';
             fill(persisted);
+            loaded = true;
+            savedSignature = JSON.stringify(values());
             preview();
             message('Appearance saved for this institution.', 'এই প্রতিষ্ঠানের জন্য ডিজাইন সংরক্ষিত হয়েছে।');
         } catch (error) {
@@ -259,6 +280,7 @@
         else if (button.dataset.panelMove === 'down' && index < rows.length - 1)
             panelList.insertBefore(rows[index + 1], row);
         updateMoveButtons();
+        preview();
         button.focus();
     });
     tableLists.forEach(list => list.addEventListener('click', event => {
@@ -273,6 +295,7 @@
         else if (button.dataset.columnMove === 'down' && index < rows.length - 1)
             columns.insertBefore(rows[index + 1], row);
         updateTableButtons();
+        preview();
         button.focus();
     }));
     form.addEventListener('submit', event => {
@@ -280,6 +303,17 @@
         const next = values();
         if (!next) return message('Correct invalid colors before saving.', 'সংরক্ষণের আগে ভুল রঙ ঠিক করুন।', true);
         commit('/api/workspace-preferences', { schemaVersion: 1, ...next, rowVersion });
+    });
+    discard.addEventListener('click', () => {
+        if (busy || sessionInvalidated || !loaded) return;
+        fill(persisted);
+        preview();
+        message('Unsaved preview discarded; saved appearance restored.', 'সংরক্ষণ না করা প্রিভিউ বাতিল হয়েছে; সংরক্ষিত ডিজাইন ফিরেছে।');
+    });
+    window.addEventListener('beforeunload', event => {
+        if (!dirty || sessionInvalidated) return;
+        event.preventDefault();
+        event.returnValue = '';
     });
     reset.addEventListener('click', () => commit('/api/workspace-preferences/reset', { rowVersion }));
     load();
