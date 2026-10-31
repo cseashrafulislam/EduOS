@@ -38,7 +38,7 @@
             ],
             [
               "For Daily cash collection register select From, To and Campus, Run report and optionally Export visible page CSV.",
-              "Daily cash collection register-এ From, To ও Campus দিয়ে Run report চাপুন; প্রয়োজনে Export visible page CSV নিন।"
+              "দৈনিক নগদ সংগ্রহ (Daily cash collection register)-এ From, To ও Campus দিয়ে Run report চাপুন; প্রয়োজনে Export visible page CSV নিন।"
             ]
           ],
           "example": [
