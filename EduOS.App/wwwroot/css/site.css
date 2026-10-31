@@ -193,6 +193,59 @@ select,
     box-shadow: inset .2rem 0 0 #38bdf8;
 }
 
+/* Compact, accessible two-level sidebar. Only server-approved links are grouped. */
+.sidebar nav[hidden],
+.sidebar .menu-title[hidden],
+.sidebar .sidebar-divider[hidden] { display: none !important; }
+
+.sidebar .sidebar-nav-grouped { gap: .2rem; }
+.sidebar-group { min-width: 0; width: 100%; }
+.sidebar-group-toggle {
+    display: flex; align-items: center; gap: .6rem;
+    min-height: 2.65rem; padding: .6rem .8rem;
+    border-radius: .75rem; cursor: pointer; list-style: none;
+    font-size: .89rem; font-weight: 700; line-height: 1.35;
+    color: rgba(255, 255, 255, .88);
+    transition: background-color .18s ease, color .18s ease;
+}
+.sidebar-group-toggle::-webkit-details-marker { display: none; }
+.sidebar-group-toggle::before {
+    content: ''; flex: 0 0 .4rem; width: .4rem; height: .4rem;
+    border-right: 2px solid currentColor; border-bottom: 2px solid currentColor;
+    transform: rotate(-45deg); transition: transform .18s ease;
+    opacity: .75;
+}
+.sidebar-group[open] > .sidebar-group-toggle::before { transform: rotate(45deg); }
+.sidebar-group-toggle:hover,
+.sidebar-group[open] > .sidebar-group-toggle,
+.sidebar-group.has-current > .sidebar-group-toggle {
+    color: #fff; background: rgba(255, 255, 255, .09);
+}
+.sidebar-group.has-current > .sidebar-group-toggle { box-shadow: inset .18rem 0 0 #38bdf8; }
+.sidebar-group-toggle:focus-visible,
+.sidebar .nav-link:focus-visible { outline: 2px solid #7dd3fc; outline-offset: 2px; }
+.sidebar-group-label { flex: 1; min-width: 0; }
+.sidebar-group-count {
+    padding: .08rem .42rem; border-radius: .45rem;
+    color: rgba(255, 255, 255, .68); background: rgba(255, 255, 255, .08);
+    font-size: .7rem; font-variant-numeric: tabular-nums;
+}
+.sidebar-submenu {
+    margin: .15rem .15rem .4rem .8rem; padding-left: .6rem;
+    border-left: 1px solid rgba(255, 255, 255, .18);
+}
+.sidebar .sidebar-submenu .nav-link {
+    min-height: 2.3rem; margin-bottom: .1rem;
+    padding: .47rem .6rem; border-radius: .55rem;
+    font-size: .84rem; font-weight: 500; line-height: 1.3;
+}
+.sidebar .sidebar-submenu .nav-link .edu-icon { width: 1rem; height: 1rem; }
+.sidebar .sidebar-submenu .nav-link.active {
+    background: rgba(56, 189, 248, .2); box-shadow: inset .2rem 0 0 #7dd3fc;
+    font-weight: 700;
+}
+.sidebar .sidebar-dashboard-link { margin-bottom: .5rem; }
+
 .sidebar-divider {
     margin: 1rem .45rem;
     border: 0;
@@ -3281,17 +3334,30 @@ select,
     :root[data-workspace-navigation="right"] .main-area { margin-left: 0; margin-right: var(--edu-sidebar-width); }
     :root[data-workspace-navigation="top"] .app-shell { display: block; }
     :root[data-workspace-navigation="top"] .sidebar {
-        position: relative; inset: auto; display: flex; align-items: center; width: 100%;
-        height: auto; min-height: 0; max-height: 9rem; gap: .75rem;
-        padding: .6rem 1rem; overflow-x: auto; overflow-y: hidden;
+        position: relative; inset: auto; display: flex; align-items: center; flex-wrap: wrap; width: 100%;
+        height: auto; min-height: 0; max-height: none; gap: .35rem .75rem;
+        padding: .6rem 1rem; overflow: visible;
     }
     :root[data-workspace-navigation="top"] .sidebar .brand-box { flex: 0 0 auto; margin: 0; }
     :root[data-workspace-navigation="top"] .sidebar .menu-title,
     :root[data-workspace-navigation="top"] .sidebar .sidebar-divider { display: none; }
     :root[data-workspace-navigation="top"] .sidebar nav {
-        display: flex; flex: 0 0 auto; flex-direction: row !important; flex-wrap: nowrap;
+        display: flex; flex: 0 1 auto; flex-direction: row !important; flex-wrap: wrap; align-items: center;
     }
     :root[data-workspace-navigation="top"] .sidebar .nav-link { white-space: nowrap; }
+    :root[data-workspace-navigation="top"] .sidebar-group { position: relative; width: auto; }
+    :root[data-workspace-navigation="top"] .sidebar-group-toggle { min-height: 2.4rem; white-space: nowrap; }
+    :root[data-workspace-navigation="top"] .sidebar .sidebar-submenu {
+        position: absolute; z-index: 1050; top: calc(100% + .3rem); left: 0;
+        width: max-content; min-width: 15rem; max-width: min(24rem, calc(100vw - 2rem));
+        max-height: min(60vh, 30rem); overflow-y: auto;
+        margin: 0; padding: .45rem; border: 1px solid rgba(255, 255, 255, .2);
+        border-radius: .8rem; background: #1e293b;
+        box-shadow: 0 .85rem 2rem rgba(2, 6, 23, .3);
+    }
+    :root[data-workspace-navigation="top"] .sidebar .sidebar-submenu .nav-link {
+        white-space: normal;
+    }
     :root[data-workspace-navigation="top"] .main-area { width: 100%; margin: 0; }
 }
 

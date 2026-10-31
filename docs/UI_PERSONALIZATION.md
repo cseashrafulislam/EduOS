@@ -34,6 +34,20 @@
 All of the above reuse the same design system for admin, teacher, student and parent portals; changing role, institute, language, theme or device must not produce a visibly disconnected application. Quality review includes dashboard, create/edit/view, approval dialog, print/PDF, export, and error states—not only the default form screenshot.
 ## 2. Supported user controls
 
+### Sidebar navigation implementation (2026-10-31)
+
+The shared Razor sidebar now presents the existing **server-authorized** destinations as
+compact, collapsible main/sub-menu groups, with Bangla/English group labels. The
+current page's most-specific link is highlighted and its group expanded in left/right
+navigation. A tab-only, non-sensitive `sessionStorage` entry remembers sidebar scroll
+position and the last expanded group across page loads; neither permissions nor menu
+destinations are persisted there. The mobile drawer retains native keyboard/summary
+interaction, while top navigation uses scroll-limited overlay submenus.
+
+The server remains the sole source of module-entitlement and role visibility, and
+controllers continue enforcing actual access. Menu grouping never grants an
+entitlement. Additional sidebar actions in the future must follow the same rule.
+
 | Surface | Controlled, supported choices |
 | --- | --- |
 | Navigation | Left/sidebar, right/sidebar or top navigation; collapsed/expanded; favorites and allowed-menu ordering |

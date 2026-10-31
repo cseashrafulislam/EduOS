@@ -74,7 +74,7 @@
             @if (User?.IsInRole("SuperAdmin") == true)
             {
                 <div class="menu-title">Platform Administration</div>
-                <nav class="nav flex-column">
+                <nav class="nav flex-column" data-sidebar-section="platform">
                     <a class="nav-link @ActiveFor("/Dashboard/Admin")" href="/Dashboard/Admin">
                         <svg class="edu-icon"><use href="/images/eduos-icons.svg#dashboard" /></svg>
                         <span>@T["Dashboard"]</span>
@@ -97,7 +97,7 @@
             else
             {
             <div class="menu-title">@T["Main"]</div>
-            <nav class="nav flex-column">
+            <nav class="nav flex-column" data-sidebar-section="setup">
                 <a class="nav-link @ActiveFor("/Dashboard")" href="/Dashboard/Index">
                     <svg class="edu-icon"><use href="/images/eduos-icons.svg#dashboard" /></svg>
                     <span>@T["Dashboard"]</span>
@@ -157,14 +157,17 @@
                         <span>Integration Administration</span>
                     </a>
                 }
-                <a class="nav-link @ActiveFor("/Account/InstitutionProfile")" href="/Account/InstitutionProfile">
-                    <svg class="edu-icon"><use href="/images/eduos-icons.svg#institution" /></svg>
-                    <span>@T["InstitutionSetup"]</span>
-                </a>
-                <a class="nav-link @ActiveFor("/Account/CampusSetup")" href="/Account/CampusSetup">
-                    <svg class="edu-icon"><use href="/images/eduos-icons.svg#campus" /></svg>
-                    <span>@T["Campus"]</span>
-                </a>
+                @if (User?.IsInRole("TenantAdmin") == true)
+                {
+                    <a class="nav-link @ActiveFor("/Account/InstitutionProfile")" href="/Account/InstitutionProfile">
+                        <svg class="edu-icon"><use href="/images/eduos-icons.svg#institution" /></svg>
+                        <span>@T["InstitutionSetup"]</span>
+                    </a>
+                    <a class="nav-link @ActiveFor("/Account/CampusSetup")" href="/Account/CampusSetup">
+                        <svg class="edu-icon"><use href="/images/eduos-icons.svg#campus" /></svg>
+                        <span>@T["Campus"]</span>
+                    </a>
+                }
                 @if (User?.IsInRole("TenantAdmin") == true)
                 {
                     <a class="nav-link @ActiveFor("/StudentLifecycle")" href="/StudentLifecycle/Index">
@@ -198,19 +201,22 @@
                         <span>Academic Setup &amp; Management</span>
                     </a>
                 }
-                <a class="nav-link @ActiveFor("/Account/AcademicSetup")" href="/Account/AcademicSetup">
-                    <svg class="edu-icon"><use href="/images/eduos-icons.svg#calendar" /></svg>
-                    <span>@T["AcademicYear"]</span>
-                </a>
-                <a class="nav-link @ActiveFor("/Account/ModuleSetup")" href="/Account/ModuleSetup">
-                    <svg class="edu-icon"><use href="/images/eduos-icons.svg#reports" /></svg>
-                    <span>@T["Modules"]</span>
-                </a>
+                @if (User?.IsInRole("TenantAdmin") == true)
+                {
+                    <a class="nav-link @ActiveFor("/Account/AcademicSetup")" href="/Account/AcademicSetup">
+                        <svg class="edu-icon"><use href="/images/eduos-icons.svg#calendar" /></svg>
+                        <span>@T["AcademicYear"]</span>
+                    </a>
+                    <a class="nav-link @ActiveFor("/Account/ModuleSetup")" href="/Account/ModuleSetup">
+                        <svg class="edu-icon"><use href="/images/eduos-icons.svg#reports" /></svg>
+                        <span>@T["Modules"]</span>
+                    </a>
+                }
             </nav>
 
             <hr class="sidebar-divider" />
             <div class="menu-title">@T["Academics"]</div>
-            <nav class="nav flex-column">
+            <nav class="nav flex-column" data-sidebar-section="academics">
                 @if (User?.IsInRole("Student") == true || User?.IsInRole("Guardian") == true || User?.IsInRole("Parent") == true)
                 {
                     <a class="nav-link @ActiveFor("/StudentPortal")" href="/StudentPortal/Index">
@@ -231,14 +237,17 @@
                         <span>Optional Subject Requests</span>
                     </a>
                 }
-                <a class="nav-link @ActiveFor("/Admissions")" href="/Admissions/Index">
-                    <svg class="edu-icon"><use href="/images/eduos-icons.svg#institution" /></svg>
-                    <span>@T["AdmissionApplications"]</span>
-                </a>
-                <a class="nav-link @ActiveFor("/Students")" href="/Students/Index">
-                    <svg class="edu-icon"><use href="/images/eduos-icons.svg#students" /></svg>
-                    <span>@T["Students"]</span>
-                </a>
+                @if (User?.IsInRole("TenantAdmin") == true || User?.IsInRole("AdmissionOfficer") == true)
+                {
+                    <a class="nav-link @ActiveFor("/Admissions")" href="/Admissions/Index">
+                        <svg class="edu-icon"><use href="/images/eduos-icons.svg#institution" /></svg>
+                        <span>@T["AdmissionApplications"]</span>
+                    </a>
+                    <a class="nav-link @ActiveFor("/Students")" href="/Students/Index">
+                        <svg class="edu-icon"><use href="/images/eduos-icons.svg#students" /></svg>
+                        <span>@T["Students"]</span>
+                    </a>
+                }
                 @if (showAlumni && (User?.IsInRole("TenantAdmin") == true || User?.IsInRole("Student") == true))
                 {
                     <a class="nav-link @ActiveFor("/Alumni")" href="/Alumni/Index">
@@ -274,10 +283,15 @@
                         </a>
                     }
                 }
-                <a class="nav-link @ActiveFor("/AssessmentAdministration")" href="/AssessmentAdministration/Index">
-                    <svg class="edu-icon"><use href="/images/eduos-icons.svg#reports" /></svg>
-                    <span>Exam Marks &amp; Results</span>
-                </a>
+                @if (User?.IsInRole("TenantAdmin") == true || User?.IsInRole("Principal") == true ||
+                     User?.IsInRole("VicePrincipal") == true || User?.IsInRole("ExamController") == true ||
+                     User?.IsInRole("Teacher") == true)
+                {
+                    <a class="nav-link @ActiveFor("/AssessmentAdministration")" href="/AssessmentAdministration/Index">
+                        <svg class="edu-icon"><use href="/images/eduos-icons.svg#reports" /></svg>
+                        <span>Exam Marks &amp; Results</span>
+                    </a>
+                }
                 @if (User?.IsInRole("TenantAdmin") == true || User?.IsInRole("Principal") == true ||
                      User?.IsInRole("VicePrincipal") == true || User?.IsInRole("ExamController") == true ||
                      User?.IsInRole("Teacher") == true)
@@ -319,34 +333,38 @@
                         <span>Transcript Issue Register</span>
                     </a>
                 }
-                <a class="nav-link @ActiveFor("/AcademicRoutines")" href="/AcademicRoutines/Index">
-                    <svg class="edu-icon"><use href="/images/eduos-icons.svg#calendar" /></svg>
-                    <span>Class Routines</span>
-                </a>
-                <a class="nav-link @ActiveFor("/AcademicInstruction")" href="/AcademicInstruction/Index">
-                    <svg class="edu-icon"><use href="/images/eduos-icons.svg#book" /></svg>
-                    <span>Lesson Plans &amp; Substitutions</span>
-                </a>
-                <a class="nav-link @ActiveFor("/AcademicCalendar")" href="/AcademicCalendar/Index">
-                    <svg class="edu-icon"><use href="/images/eduos-icons.svg#calendar" /></svg>
-                    <span>Academic Calendar</span>
-                </a>
-                @if (User?.IsInRole("TenantAdmin") == true)
+                @if (User?.IsInRole("TenantAdmin") == true || User?.IsInRole("Principal") == true ||
+                     User?.IsInRole("VicePrincipal") == true || User?.IsInRole("Teacher") == true)
                 {
-                    <a class="nav-link @ActiveFor("/StudentLeaves")" href="/StudentLeaves/Index">
-                        <span>Student Leave Management</span>
+                    <a class="nav-link @ActiveFor("/AcademicRoutines")" href="/AcademicRoutines/Index">
+                        <svg class="edu-icon"><use href="/images/eduos-icons.svg#calendar" /></svg>
+                        <span>Class Routines</span>
+                    </a>
+                    <a class="nav-link @ActiveFor("/AcademicInstruction")" href="/AcademicInstruction/Index">
+                        <svg class="edu-icon"><use href="/images/eduos-icons.svg#book" /></svg>
+                        <span>Lesson Plans &amp; Substitutions</span>
+                    </a>
+                    <a class="nav-link @ActiveFor("/AcademicCalendar")" href="/AcademicCalendar/Index">
+                        <svg class="edu-icon"><use href="/images/eduos-icons.svg#calendar" /></svg>
+                        <span>Academic Calendar</span>
+                    </a>
+                    @if (User?.IsInRole("TenantAdmin") == true)
+                    {
+                        <a class="nav-link @ActiveFor("/StudentLeaves")" href="/StudentLeaves/Index">
+                            <span>Student Leave Management</span>
+                        </a>
+                    }
+                    <a class="nav-link @ActiveFor("/Attendance")" href="/Attendance/Index">
+                        <svg class="edu-icon"><use href="/images/eduos-icons.svg#attendance" /></svg>
+                        <span>@T["Attendance"]</span>
                     </a>
                 }
-                <a class="nav-link @ActiveFor("/Attendance")" href="/Attendance/Index">
-                    <svg class="edu-icon"><use href="/images/eduos-icons.svg#attendance" /></svg>
-                    <span>@T["Attendance"]</span>
-                </a>
 
             </nav>
 
             <hr class="sidebar-divider" />
             <div class="menu-title">@T["Management"]</div>
-            <nav class="nav flex-column">
+            <nav class="nav flex-column" data-sidebar-section="management">
                 @if (User?.IsInRole("TenantAdmin") == true || User?.IsInRole("Principal") == true || User?.IsInRole("HR") == true)
                 {
                     <a class="nav-link @ActiveFor("/HR")" href="/HR/Index">
@@ -657,6 +675,7 @@
     <script src="~/lib/jquery/dist/jquery.min.js" asp-append-version="true"></script>
     <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js" asp-append-version="true"></script>
     <script src="~/js/site.js" asp-append-version="true"></script>
+    <script src="~/js/sidebar-navigation.js" asp-append-version="true"></script>
     <script src="~/js/platform/session-context-guard.js" asp-append-version="true"></script>
     <script src="~/js/platform/institution-switch.js" asp-append-version="true"></script>
     <script src="~/js/platform/page-context-help.js" asp-append-version="true"></script>
