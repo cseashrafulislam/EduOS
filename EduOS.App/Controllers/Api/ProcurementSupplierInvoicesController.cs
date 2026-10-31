@@ -59,6 +59,11 @@ public sealed class ProcurementSupplierInvoicesController(IProcurementSupplierIn
     public async Task<IActionResult> RequestSettlement(Guid reference, [FromBody] CreateSupplierSettlementInstructionRequest request, CancellationToken ct)
         => Reply(await service.RequestSettlementAsync(reference, request, ct));
 
+    [HttpPost("{reference:guid}/settlements/{instruction:guid}/withdraw"), RequireModule("FINANCE"), Authorize(Roles="TenantAdmin,Accountant")]
+    public async Task<IActionResult> WithdrawSettlement(Guid reference, Guid instruction,
+        [FromBody] WithdrawSupplierSettlementInstructionRequest request, CancellationToken ct)
+        => Reply(await service.WithdrawSettlementAsync(reference, instruction, request, ct));
+
     [HttpPost("{reference:guid}/settlements/{instruction:guid}/review"), RequireModule("FINANCE"), Authorize(Roles="TenantAdmin,Principal,Accountant")]
     public async Task<IActionResult> ReviewSettlement(Guid reference, Guid instruction,
         [FromBody] ReviewSupplierSettlementInstructionRequest request, CancellationToken ct)

@@ -204,6 +204,67 @@ public sealed partial class ProcurementSupplierInvoiceService
         catch (InvalidOperationException ex) when (ConflictSql(ex)) { return Err<SupplierSettlementInstructionDto>("Concurrent settlement conflict.", 409); }
     }
 
+    /// <summary>
+    /// Original maker can withdraw a submitted, UNPOSTED instruction. Rejected journal
+    /// remains as immutable source-linked audit; reserved AP is released automatically.
+    /// Retried requests must present the exact original withdrawal key and reason.
+    /// </summary>
+    public async Task<ApiResponse<SupplierSettlementInstructionDto>> WithdrawSettlementAsync(Guid reference,
+        Guid instructionReference, WithdrawSupplierSettlementInstructionRequest request, CancellationToken ct = default)
+    {
+        if (!CanMake) return Err<SupplierSettlementInstructionDto>("Finance settlement maker denied.", 403);
+        if (reference == Guid.Empty || instructionReference == Guid.Empty || request == null ||
+            request.ClientRequestId == Guid.Empty || string.IsNullOrWhiteSpace(request.Reason) ||
+            request.Reason.Trim().Length is < 10 or > 400)
+            return Err<SupplierSettlementInstructionDto>("Withdrawal key and documented reason (10–400) required.");
+        try
+        {
+            await using var tx = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct);
+            var (invoice, _, payableId, error) = await SettlementSourceAsync(reference, ct);
+            if (error != null || invoice == null)
+                return Err<SupplierSettlementInstructionDto>(error ?? "Invoice unavailable.", 409);
+            var journal = await db.Journals.FirstOrDefaultAsync(x => x.TenantId == user.TenantId &&
+                x.PublicId == instructionReference && x.SourceType == SettlementSource &&
+                x.SourceId == invoice.Id && x.CampusId == invoice.CampusId && !x.IsDeleted, ct);
+            if (journal == null) return Err<SupplierSettlementInstructionDto>("Instruction not found.", 404);
+            if (journal.CreatedBy != user.UserId)
+                return Err<SupplierSettlementInstructionDto>("Only the original instruction maker may withdraw.", 403);
+            var marker = " | Maker withdrawal (" + request.ClientRequestId.ToString("N") + "): " + request.Reason.Trim();
+            if (journal.State == JournalState.Rejected &&
+                (journal.Description ?? "").EndsWith(marker, StringComparison.Ordinal))
+                return ApiResponse<SupplierSettlementInstructionDto>.SuccessResponse(
+                    await SettlementMapAsync(journal, ct), "Existing withdrawal returned; no payment executed.");
+            if (journal.State != JournalState.Submitted || journal.ApprovedByUserId.HasValue ||
+                journal.PostedAt.HasValue || journal.PostedByUserId.HasValue)
+                return Err<SupplierSettlementInstructionDto>("Only submitted, unapproved, unposted instructions may be withdrawn.", 409);
+            if (!Version(journal.RowVersion, request.RowVersion))
+                return Err<SupplierSettlementInstructionDto>("Instruction version changed; reload.", 409);
+            var lines = await db.JournalLines.AsNoTracking().Where(x => x.TenantId == user.TenantId &&
+                x.JournalId == journal.Id && !x.IsDeleted).OrderBy(x => x.LineNo).Take(3).ToListAsync(ct);
+            if (lines.Count != 2 || lines[0].LineNo != 1 || lines[1].LineNo != 2 ||
+                lines[0].AccountId != payableId || lines[0].CampusId != invoice.CampusId ||
+                lines[1].CampusId != invoice.CampusId || lines[0].DebitAmount <= 0m ||
+                !Money(lines[0].DebitAmount) || lines[0].CreditAmount != 0m ||
+                lines[1].DebitAmount != 0m || lines[1].CreditAmount != lines[0].DebitAmount)
+                return Err<SupplierSettlementInstructionDto>("Instruction journal lines are inconsistent.", 409);
+            if ((journal.Description ?? "").Length + marker.Length > 1000)
+                return Err<SupplierSettlementInstructionDto>("Withdrawal audit exceeds journal capacity; shorten reason.", 409);
+            journal.State = JournalState.Rejected;
+            journal.Description = (journal.Description ?? "") + marker;
+            journal.UpdatedAt = clock.GetUtcNow().UtcDateTime;
+            journal.UpdatedBy = user.UserId;
+            await db.SaveChangesAsync(ct);
+            await tx.CommitAsync(ct);
+            return ApiResponse<SupplierSettlementInstructionDto>.SuccessResponse(
+                await SettlementMapAsync(journal, ct),
+                "Submitted instruction withdrawn; payable reservation released, GL and bank unchanged.");
+        }
+        catch (DbUpdateConcurrencyException) { return Err<SupplierSettlementInstructionDto>("Concurrent withdrawal conflict.", 409); }
+        catch (DbUpdateException ex) { logger.LogWarning(ex, "Settlement withdrawal write conflict"); return Err<SupplierSettlementInstructionDto>("Settlement withdrawal conflict.", 409); }
+        catch (SqlException ex) when (ConflictSql(ex)) { return Err<SupplierSettlementInstructionDto>("Concurrent settlement SQL conflict.", 409); }
+        catch (InvalidOperationException ex) when (ConflictSql(ex)) { return Err<SupplierSettlementInstructionDto>("Concurrent settlement conflict.", 409); }
+    }
+
     public async Task<ApiResponse<SupplierSettlementInstructionDto>> ReviewSettlementAsync(Guid reference,
         Guid instructionReference, ReviewSupplierSettlementInstructionRequest request, CancellationToken ct = default)
     {

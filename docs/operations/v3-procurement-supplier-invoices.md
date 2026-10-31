@@ -44,3 +44,23 @@ Maker self-revocation and stale repeated decisions fail closed. The existing
 Enterprise trace recognizes rejected instructions and excludes their amounts
 from reserved exposure; a new source-linked instruction can be submitted.
 This is NOT settlement payment execution or reconciled net payable acceptance.
+
+## Maker withdrawal of submitted settlement instruction (2026-10-31)
+
+An original instruction maker may withdraw their own **Submitted**, not-yet-approved
+and unposted supplier settlement instruction using
+`POST /api/procurement/supplier-invoices/{invoice}/settlements/{instruction}/withdraw`.
+The action requires Finance/Inventory entitlements, Accountant/TenantAdmin maker
+access, matching tenant/campus/source, a rowversion, a nonempty idempotency UUID,
+and a documented 10–400-character reason. Serializable transaction and
+canonical Journal state/line validation protect competing review and withdrawal.
+Exact retries return the same rejected instruction; a changed reason or key
+cannot replay the withdrawal. The original instruction remains in the Journal
+audit trail with actor, timestamp, reason and request key; the payable reservation
+is released because rejected instructions do not count as active commitments.
+No AP, stock, GL cash or bank transfer is posted. Approved instructions can
+only be rescinded by the independent checker via the existing review contract.
+SQL regression covers non-maker denial, exact retry, mismatched replay,
+stale checker approval, released reservation and unchanged posted payable/stock.
+The bilingual responsive workspace exposes a maker-only withdrawal dialog.
+This is **not** payment settlement or a reconciled unpaid balance.

@@ -49,6 +49,19 @@
         </form>}
         <div class="table-responsive mt-3"><table class="table table-sm table-striped"><thead><tr><th>Reference</th><th>State</th><th>Amount BDT</th><th>Planned</th><th>Maker</th><th>Action</th></tr></thead><tbody id="ssRows"></tbody></table></div>
         <nav class="d-flex gap-2 align-items-center"><button id="ssPrev" class="btn btn-outline-secondary btn-sm" type="button">Previous</button><span id="ssPage"></span><button id="ssNext" class="btn btn-outline-secondary btn-sm" type="button">Next</button></nav>
+        <dialog id="ssWithdrawDialog" class="border rounded shadow p-0" aria-labelledby="ssWithdrawTitle" style="width:min(96vw,520px)">
+            <form id="ssWithdrawForm" class="p-3">
+                <h3 id="ssWithdrawTitle" class="h6" data-en="Withdraw submitted settlement instruction" data-bn="জমা দেওয়া পরিশোধ নির্দেশনা প্রত্যাহার">Withdraw submitted settlement instruction</h3>
+                <p class="small text-muted" data-en="Only the original maker may withdraw before independent approval. The audit remains; no GL or bank transaction occurs."
+                   data-bn="স্বতন্ত্র অনুমোদনের আগে শুধু মূল প্রস্তুতকারী প্রত্যাহার করতে পারবেন। অডিট থাকবে; GL বা ব্যাংক লেনদেন হবে না।">Only the original maker may withdraw before independent approval. The audit remains; no GL or bank transaction occurs.</p>
+                <label for="ssWithdrawReason" class="form-label" data-en="Withdrawal reason (10–400)" data-bn="প্রত্যাহারের কারণ (১০–৪০০)">Withdrawal reason (10–400)</label>
+                <textarea id="ssWithdrawReason" class="form-control" minlength="10" maxlength="400" rows="3" required></textarea>
+                <div class="d-flex justify-content-end gap-2 mt-3">
+                    <button type="button" id="ssWithdrawClose" class="btn btn-outline-secondary" data-en="Keep instruction" data-bn="নির্দেশনা রাখুন">Keep instruction</button>
+                    <button id="ssWithdrawSubmit" type="submit" class="btn btn-outline-danger" data-en="Confirm withdrawal" data-bn="প্রত্যাহার নিশ্চিত করুন">Confirm withdrawal</button>
+                </div>
+            </form>
+        </dialog>
         <dialog id="ssReviewDialog" class="border rounded shadow p-0" aria-labelledby="ssReviewTitle" style="width:min(96vw,520px)">
             <form id="ssReviewForm" class="p-3">
                 <h3 id="ssReviewTitle" class="h6">Independent Finance decision / স্বতন্ত্র সিদ্ধান্ত</h3>

@@ -17,6 +17,13 @@ public sealed class ReviewSupplierSettlementInstructionRequest
     public bool Approve { get; set; }
     public string Reason { get; set; } = "";
 }
+/// <summary>Maker withdrawal of a submitted, unposted settlement reservation; no GL or bank posting.</summary>
+public sealed class WithdrawSupplierSettlementInstructionRequest
+{
+    public Guid ClientRequestId { get; set; }
+    public string RowVersion { get; set; } = "";
+    public string Reason { get; set; } = "";
+}
 public sealed class SupplierSettlementInstructionDto
 {
     public Guid Reference { get; set; }

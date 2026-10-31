@@ -6,7 +6,7 @@
  if(bn)root.querySelectorAll('[data-bn]').forEach(x=>{x.textContent=x.dataset.bn;});
  const token=document.querySelector('meta[name="request-verification-token"]')?.content;
  const maker=root.dataset.maker==='true',reviewer=root.dataset.reviewer==='true';
- let invoice=null,page=1,pages=1,seq=0,busy=false,requestKey=null,review=null;
+ let invoice=null,page=1,pages=1,seq=0,selectionSeq=0,busy=false,requestKey=null,review=null,withdraw=null,withdrawKey=null;
  const base='/api/procurement/supplier-invoices/';
  const money=x=>Number(x).toLocaleString(bn?'bn-BD':'en-BD',{minimumFractionDigits:2,maximumFractionDigits:2});
  const cell=x=>{const td=document.createElement('td');td.textContent=String(x??'');return td;};
@@ -33,6 +33,14 @@
     const tr=document.createElement('tr');
     for(const value of [x.reference.slice(0,8),x.state,money(x.amount),x.plannedDate,x.makerId])tr.append(cell(value));
     const action=cell('');
+    if(maker&&x.state==='Submitted'&&
+       Number(x.makerId)===Number(document.getElementById('supplierInvoiceMatch')?.dataset.userId)){
+     const b=document.createElement('button');b.type='button';b.className='btn btn-outline-danger btn-sm';
+     b.textContent=t('Withdraw','প্রত্যাহার');
+     b.addEventListener('click',()=>{
+      withdraw=x;withdrawKey=null;$('ssWithdrawReason').value='';$('ssWithdrawDialog').showModal();
+     });action.append(b);
+    }
     if(reviewer&&(x.state==='Submitted'||x.state==='Approved')&&
        Number(x.makerId)!==Number(document.getElementById('supplierInvoiceMatch')?.dataset.userId)){
      const revoking=x.state==='Approved';
@@ -55,11 +63,15 @@
   }catch(e){if(n===seq)status(e.message,true);}
  }
  async function selectInvoice(x){
+  const chosen=++selectionSeq;
+  if($('ssWithdrawDialog')?.open)$('ssWithdrawDialog').close();
+  withdraw=null;withdrawKey=null;
   invoice=x;requestKey=null;page=1;seq++;
   $('ssSelected').textContent=x.invoiceNumber+' · '+x.reference;
   $('ssRows').replaceChildren();$('ssForm')?.classList.add('d-none');
   try{
    const data=await api(base+x.reference+'/settlements/options');
+   if(chosen!==selectionSeq)return;
    status(t('Unreserved BDT ','অসংরক্ষিত ৳')+money(data.availableAmount)+t(' · No payment executed',' · পরিশোধ হয়নি'));
    if(maker&&$('ssForm')){
     options($('ssBank'),data.banks);options($('ssPeriod'),data.periods);
@@ -85,6 +97,24 @@
   }catch(e){status(e.message,true);}finally{busy=false;$('ssSubmit').disabled=false;}
  });
  for(const id of ['ssAmount','ssDate','ssBank','ssPeriod','ssReason'])$(id)?.addEventListener('input',()=>{requestKey=null;});
+ $('ssWithdrawClose').addEventListener('click',()=>$('ssWithdrawDialog').close());
+ $('ssWithdrawReason').addEventListener('input',()=>{withdrawKey=null;});
+ $('ssWithdrawForm').addEventListener('submit',async e=>{
+  e.preventDefault();if(!withdraw||!invoice||busy||$('ssWithdrawDialog').open===false)return;
+  busy=true;$('ssWithdrawSubmit').disabled=true;
+  const selected=invoice.reference,selectedInstruction=withdraw;
+  try{
+   withdrawKey ||= crypto.randomUUID();
+   await api(base+selected+'/settlements/'+selectedInstruction.reference+'/withdraw','POST',{
+    clientRequestId:withdrawKey,rowVersion:selectedInstruction.rowVersion,
+    reason:$('ssWithdrawReason').value.trim()});
+   withdrawKey=null;withdraw=null;$('ssWithdrawDialog').close();
+   if(invoice?.reference===selected){
+    status(t('Instruction withdrawn; GL and bank unchanged','নির্দেশনা প্রত্যাহার; GL ও ব্যাংক অপরিবর্তিত'));
+    await selectInvoice(invoice);
+   }
+  }catch(e){status(e.message,true);}finally{busy=false;$('ssWithdrawSubmit').disabled=false;}
+ });
  $('ssClose').addEventListener('click',()=>$('ssReviewDialog').close());
  $('ssReviewForm').addEventListener('submit',async e=>{
   e.preventDefault();if(!review||!invoice||busy)return;busy=true;$('ssReviewSubmit').disabled=true;

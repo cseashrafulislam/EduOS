@@ -84,3 +84,30 @@ test('Independent reviewer can revoke approved unposted supplier settlement and 
   assert.ok(sql.includes(token),'missing SQL revocation regression: '+token);
  assert.doesNotMatch(service,/db\.InventoryMovements\.(Add|Update)/);
 });
+
+test('Maker withdrawal of unapproved settlement is source-linked, idempotent and releases only the reservation', () => {
+ const service=read('EduOS.Service/Services/Inventory/ProcurementSupplierInvoiceSettlement.cs');
+ const api=read('EduOS.App/Controllers/Api/ProcurementSupplierInvoicesController.cs');
+ const ui=read('EduOS.App/wwwroot/js/procurement/supplier-settlement-instructions.js');
+ const view=read('EduOS.App/Views/ProcurementSupplierInvoiceMatching/Index.cshtml');
+ const sql=read('EduOS.Tests/App/SqlServerV3ProcurementSupplierInvoiceTests.cs');
+ for(const token of ['WithdrawSettlementAsync','journal.CreatedBy != user.UserId',
+  'journal.State != JournalState.Submitted','Version(journal.RowVersion, request.RowVersion)',
+  'Maker withdrawal (','EndsWith(marker, StringComparison.Ordinal)',
+  'JournalState.Rejected','IsolationLevel.Serializable','journal.UpdatedBy = user.UserId'])
+  assert.ok(service.includes(token),'missing maker withdrawal safety: '+token);
+ assert.match(api,/settlements\/\{instruction:guid\}\/withdraw/);
+ assert.match(api,/WithdrawSupplierSettlementInstructionRequest/);
+ for(const token of ['ssWithdrawDialog','ssWithdrawForm','ssWithdrawReason',
+  'ssWithdrawSubmit','Confirm withdrawal','প্রত্যাহার নিশ্চিত করুন'])
+  assert.ok(view.includes(token),'missing bilingual withdrawal dialog: '+token);
+ for(const token of ['withdrawKey ||= crypto.randomUUID()',
+  'clientRequestId:withdrawKey','selectedInstruction.rowVersion',
+  'Number(x.makerId)===Number','chosen!==selectionSeq',
+  'RequestVerificationToken',"credentials:'same-origin'"])
+  assert.ok(ui.includes(token),'missing safe maker UI: '+token);
+ for(const token of ['WithdrawSettlementAsync','withdrawal.ClientRequestId',
+  'afterWithdrawal.Data!.SettlementReservedAmount','withdrawnJournal.PostedAt'])
+  assert.ok(sql.includes(token),'missing real SQL withdrawal regression: '+token);
+ assert.doesNotMatch(service,/db\.InventoryMovements\.(Add|Update)/);
+});

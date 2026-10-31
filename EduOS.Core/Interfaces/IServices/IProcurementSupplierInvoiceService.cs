@@ -18,6 +18,7 @@ public interface IProcurementSupplierInvoiceService
     Task<ApiResponse<SupplierSettlementOptionsDto>> SettlementOptionsAsync(Guid reference, CancellationToken ct = default);
     Task<ApiResponse<PagedResult<SupplierSettlementInstructionDto>>> SettlementInstructionsAsync(Guid reference, int page, int pageSize, CancellationToken ct = default);
     Task<ApiResponse<SupplierSettlementInstructionDto>> RequestSettlementAsync(Guid reference, CreateSupplierSettlementInstructionRequest request, CancellationToken ct = default);
+    Task<ApiResponse<SupplierSettlementInstructionDto>> WithdrawSettlementAsync(Guid reference, Guid instructionReference, WithdrawSupplierSettlementInstructionRequest request, CancellationToken ct = default);
     Task<ApiResponse<SupplierSettlementInstructionDto>> ReviewSettlementAsync(Guid reference, Guid instructionReference, ReviewSupplierSettlementInstructionRequest request, CancellationToken ct = default);
     Task<ApiResponse<ProcurementInvoicePostingOptionsDto>> PostingOptionsAsync(CancellationToken ct = default);
 }

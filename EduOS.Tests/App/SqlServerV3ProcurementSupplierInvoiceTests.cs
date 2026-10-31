@@ -547,6 +547,50 @@ public sealed partial class SqlServerV3ProcurementPurchaseOrderTests
             Assert.True(replacement.Success,replacement.Message);
             Assert.Equal("Submitted",replacement.Data!.State);
             Assert.Equal(18m,(await service.SettlementOptionsAsync(second.Reference)).Data!.ReservedAmount);
+            // Maker withdrawal of a submitted instruction never books cash or GL.
+            var withdrawal = new WithdrawSupplierSettlementInstructionRequest {
+                ClientRequestId=Guid.NewGuid(),RowVersion=replacement.Data.RowVersion,
+                Reason="Supplier changed the proposed settlement date before approval"
+            };
+            await using (var otherMaker=Open(options,tenantId,checkerId))
+                Assert.Equal(403,(await Invoices(otherMaker,tenantId,checkerId)
+                    .WithdrawSettlementAsync(second.Reference,replacement.Data.Reference,withdrawal)).StatusCode);
+            var withdrawn=await service.WithdrawSettlementAsync(
+                second.Reference,replacement.Data.Reference,withdrawal);
+            Assert.True(withdrawn.Success,withdrawn.Message);
+            Assert.Equal("Rejected",withdrawn.Data!.State);
+            Assert.Equal(withdrawn.Data.Reference,(await service.WithdrawSettlementAsync(
+                second.Reference,replacement.Data.Reference,withdrawal)).Data!.Reference);
+            Assert.Equal(409,(await service.WithdrawSettlementAsync(
+                second.Reference,replacement.Data.Reference,
+                new WithdrawSupplierSettlementInstructionRequest {
+                    ClientRequestId=withdrawal.ClientRequestId,RowVersion=withdrawal.RowVersion,
+                    Reason="A different reason must not reuse an existing withdrawal key"
+                })).StatusCode);
+            Assert.Equal(409,(await service.ReviewSettlementAsync(
+                second.Reference,replacement.Data.Reference,
+                new ReviewSupplierSettlementInstructionRequest {
+                    RowVersion=replacement.Data.RowVersion,Approve=true,
+                    Reason="Cannot approve a maker-withdrawn supplier instruction"
+                })).StatusCode);
+            Assert.Equal(0m,(await service.SettlementOptionsAsync(second.Reference)).Data!.ReservedAmount);
+            var withdrawnJournal=await verify.Journals.AsNoTracking().SingleAsync(
+                x=>x.PublicId==replacement.Data.Reference);
+            Assert.Equal(JournalState.Rejected,withdrawnJournal.State);
+            Assert.Equal(makerId,withdrawnJournal.UpdatedBy);
+            Assert.Null(withdrawnJournal.PostedAt);
+            Assert.Null(withdrawnJournal.ApprovedByUserId);
+            Assert.Contains(withdrawal.ClientRequestId.ToString("N"),withdrawnJournal.Description);
+            var afterWithdrawal=await traceService.GetAsync(second.Reference);
+            Assert.True(afterWithdrawal.Success,afterWithdrawal.Message);
+            Assert.Equal(0m,afterWithdrawal.Data!.SettlementReservedAmount);
+            Assert.All(afterWithdrawal.Data.SettlementInstructions,
+                x=>Assert.Equal("Rejected",x.State));
+            Assert.Equal(1,await verify.Journals.CountAsync(x=>
+                x.SourceType=="ProcurementSupplierInvoice" && x.SourceId==settlement.SourceId &&
+                x.State==JournalState.Posted));
+            Assert.Single(await verify.InventoryMovements.AsNoTracking()
+                .Where(x=>x.SourceType=="ProcurementGoodsReceipt").ToListAsync());
             Assert.Equal(1,await verify.Journals.CountAsync(x=>
                 x.SourceType=="ProcurementSupplierInvoice" && x.SourceId==settlement.SourceId &&
                 x.State==JournalState.Posted));
