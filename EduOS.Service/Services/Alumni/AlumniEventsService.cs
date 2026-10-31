@@ -284,7 +284,7 @@ public sealed partial class AlumniService
                     var replay = await ReadEventAsync(tenant, target.EventId, target.ProfileId, token);
                     // Consent revocation removes the RSVP but intentionally retains its audit command.
                     // An old idempotency key must never report success for a cleared or changed RSVP.
-                    if (replay?.MyResponse != request.Response)
+                    if (replay == null || replay.MyResponse != request.Response)
                         return ApiResponse<AlumniEventItemDto>.ErrorResponse(
                             "RSVP was changed or revoked; submit a new request.", 409);
                     return ApiResponse<AlumniEventItemDto>.SuccessResponse(ToEvent(replay, false), "RSVP already processed.");
