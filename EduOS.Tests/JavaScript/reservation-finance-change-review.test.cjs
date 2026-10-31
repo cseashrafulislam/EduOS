@@ -12,6 +12,11 @@ test('Finance proposed change review remains read-only and cannot approve change
     assert.match(script, /reservationFinancePreflightLoaded/);
     assert.match(script, /credentials:'same-origin'/);
     assert.match(script, /textContent/);
+    assert.match(script, /data\.calculationMode/);
+    assert.match(script, /data\.suggestedNetAdjustment/);
+    assert.match(script, /additional charge/);
+    assert.match(script, /potential credit/);
+    assert.match(script, /Finance approval', 'NOT GRANTED'/);
     assert.doesNotMatch(script, /innerHTML|method:\s*['"]POST['"]/);
     assert.match(view, /reservationFinanceChangeReviewForm/);
     assert.match(view, /reservation-finance-change-review\.js/);

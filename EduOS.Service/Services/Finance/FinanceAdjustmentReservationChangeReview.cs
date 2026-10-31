@@ -1,5 +1,7 @@
 using EduOS.Core.Common;
 using EduOS.Core.DTOs.Finance;
+using EduOS.Core.Entities.Finance;
+using Microsoft.EntityFrameworkCore;
 
 namespace EduOS.Service.Services.Finance;
 
@@ -8,7 +10,7 @@ public sealed partial class FinanceAdjustmentService
     /// <summary>
     /// Finance-owned proposal review for #47/#48/#51. Reuses the canonical
     /// preflight's tenant/campus/resource checks and conservative billing evidence.
-    /// This endpoint cannot approve a change or calculate unapproved proration.
+    /// Quotes reflect campus policy but never approve a change or post money.
     /// </summary>
     public async Task<ApiResponse<ReservationFinanceChangeReviewDto>> ReviewReservationChangeAsync(
         ReservationFinanceChangeReviewRequestDto request, CancellationToken ct = default)
@@ -55,6 +57,18 @@ public sealed partial class FinanceAdjustmentService
         if (current.Kind == "Hostel" && end.HasValue && end.Value.DayNumber - start.DayNumber > 89)
             return Error<ReservationFinanceChangeReviewDto>("Hostel fixed-term occupancy cannot exceed 90 inclusive days.");
 
+        var mode = current.Kind == "Hostel"
+            ? (int)(await db.HostelBillingPolicies.AsNoTracking().Where(x =>
+                x.TenantId == user.TenantId && x.CampusId == current.CampusId && !x.IsDeleted)
+                .Select(x => (HostelBillingCalculationMode?)x.CalculationMode)
+                .FirstOrDefaultAsync(ct) ?? HostelBillingCalculationMode.DailyProrated)
+            : (int)(await db.TransportBillingPolicies.AsNoTracking().Where(x =>
+                x.TenantId == user.TenantId && x.CampusId == current.CampusId && !x.IsDeleted)
+                .Select(x => (TransportBillingCalculationMode?)x.CalculationMode)
+                .FirstOrDefaultAsync(ct) ?? TransportBillingCalculationMode.DailyProrated);
+        var quote = ReservationTermQuoteCalculator.Calculate(current.StartDate, current.EndDate,
+            start, end, current.MonthlyCharge, mode);
+
         var posted = current.HasPostedInvoiceActivity || current.HasPostedPaymentActivity;
         var issued = current.HasUnpostedIssuedInvoice;
         var charged = current.MonthlyCharge != 0m || current.SecurityDeposit != 0m || current.HasFeeHead;
@@ -82,6 +96,12 @@ public sealed partial class FinanceAdjustmentService
                 ProposedEndDate = end,
                 MonthlyCharge = current.MonthlyCharge,
                 SecurityDeposit = current.SecurityDeposit,
+                CalculationMode = mode == 1 ? "DailyProrated" : mode == 2 ? "FixedMonthly" : "Manual",
+                OriginalPeriodEstimate = quote.OriginalAmount,
+                ProposedPeriodEstimate = quote.ProposedAmount,
+                SuggestedNetAdjustment = quote.NetAdjustment,
+                QuoteNeedsManualReview = quote.NeedsManualReview,
+                QuoteBasis = quote.Basis,
                 HasPostedInvoiceActivity = current.HasPostedInvoiceActivity,
                 HasPostedPaymentActivity = current.HasPostedPaymentActivity,
                 HasUnpostedIssuedInvoice = issued,

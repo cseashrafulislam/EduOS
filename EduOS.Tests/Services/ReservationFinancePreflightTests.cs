@@ -225,7 +225,34 @@ public sealed class ReservationFinancePreflightTests
         response.Success.Should().BeTrue();
         response.Data!.Status.Should().Be("BLOCKED_CHARGED_TERMS");
         response.Data.MonthlyCharge.Should().Be(1200m);
+        response.Data.CalculationMode.Should().Be("DailyProrated");
+        response.Data.SuggestedNetAdjustment.Should().Be(-400m);
         response.Data.FinancialMutationApproved.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task Campus_fixed_monthly_quote_is_dynamic_but_does_not_approve_charged_reschedule()
+    {
+        await using var db = Database();
+        var stay = await SeedHostel(db, 41, 7);
+        stay.MonthlyRent = 1200m;
+        stay.EndDate = new DateOnly(2026, 11, 30);
+        db.HostelBillingPolicies.Add(new HostelBillingPolicy {
+            TenantId = 41, CampusId = 7, CalculationMode = HostelBillingCalculationMode.FixedMonthly
+        });
+        await db.SaveChangesAsync();
+        var response = await new FinanceAdjustmentService(db, new TestUser(true), TimeProvider.System)
+            .ReviewReservationChangeAsync(new() { Kind = "hostel", ReservationId = stay.Id,
+                Change = "reschedule-start", ProposedStartDate = new DateOnly(2026, 11, 10) });
+        response.Success.Should().BeTrue();
+        response.Data!.CalculationMode.Should().Be("FixedMonthly");
+        response.Data.OriginalPeriodEstimate.Should().Be(1200m);
+        response.Data.ProposedPeriodEstimate.Should().Be(1200m);
+        response.Data.SuggestedNetAdjustment.Should().Be(0m);
+        response.Data.Status.Should().Be("BLOCKED_CHARGED_TERMS");
+        response.Data.FinancialMutationApproved.Should().BeFalse();
+        (await db.StudentHostelAllocations.SingleAsync()).StartDate.Should().Be(new DateOnly(2026, 11, 1));
+        db.Journals.Should().BeEmpty();
     }
 
     [Fact]

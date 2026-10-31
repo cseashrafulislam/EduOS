@@ -69,6 +69,13 @@ form.addEventListener('submit', async event => {
         cell('Proposed change', data.change);
         cell('Current dates', data.currentStartDate + ' to ' + (data.currentEndDate || 'Open-ended'));
         cell('Proposed dates', data.proposedStartDate + ' to ' + (data.proposedEndDate || 'Open-ended'));
+        cell('Billing policy', data.calculationMode || 'Manual review');
+        if (data.suggestedNetAdjustment !== null && data.suggestedNetAdjustment !== undefined) {
+            const net = Number(data.suggestedNetAdjustment);
+            cell('Estimated period change', Math.abs(net).toFixed(2) +
+                (net > 0 ? ' additional charge' : net < 0 ? ' potential credit' : ' no period difference'));
+        } else cell('Estimated period change', 'Requires Finance calculation');
+        cell('Quotation basis', data.quoteBasis || 'Not available');
         cell('Finance status', data.status);
         cell('Posted invoice', data.hasPostedInvoiceActivity ? 'YES' : 'No');
         cell('Posted payment', data.hasPostedPaymentActivity ? 'YES' : 'No');
