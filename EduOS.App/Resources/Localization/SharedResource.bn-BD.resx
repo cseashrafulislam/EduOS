@@ -819,4 +819,5 @@
   <data name="V2TripDispatch" xml:space="preserve"><value>ট্রিপ পরিচালনা</value></data>
   <data name="V2MyDriverTrips" xml:space="preserve"><value>আমার ড্রাইভার ট্রিপ</value></data>
   <data name="V2OperationsInsights" xml:space="preserve"><value>কার্যক্রম বিশ্লেষণ</value></data>
+  <data name="AcademicUnit" xml:space="preserve"><value>একাডেমিক ইউনিট</value></data>
 </root>

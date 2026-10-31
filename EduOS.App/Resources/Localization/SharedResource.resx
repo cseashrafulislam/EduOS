@@ -820,4 +820,5 @@
   <data name="V2TripDispatch" xml:space="preserve"><value>Trip Dispatch</value></data>
   <data name="V2MyDriverTrips" xml:space="preserve"><value>My Driver Trips</value></data>
   <data name="V2OperationsInsights" xml:space="preserve"><value>Operations Insights</value></data>
+  <data name="AcademicUnit" xml:space="preserve"><value>Academic unit</value></data>
 </root>
