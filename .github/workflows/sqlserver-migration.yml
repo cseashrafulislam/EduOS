@@ -127,15 +127,18 @@ jobs:
         run: |
           set -euo pipefail
           dotnet test EduOS.Tests/EduOS.Tests.csproj --configuration Release --no-restore \
-            --filter "FullyQualifiedName~Finance_approved_transport_transfer_is_single_use_tenant_scoped_and_preserves_lineage|FullyQualifiedName~Concurrent_transport_clearance_consumption_creates_exactly_one_successor|FullyQualifiedName~Charged_transport_closure_rejects_unposted_settlement_and_requires_independent_zero_attestation" \
+            --filter "FullyQualifiedName~Finance_approved_transport_transfer_is_single_use_tenant_scoped_and_preserves_lineage|FullyQualifiedName~Concurrent_transport_clearance_consumption_creates_exactly_one_successor|FullyQualifiedName~Charged_transport_closure_rejects_unposted_settlement_and_requires_independent_zero_attestation|FullyQualifiedName~Posted_original_invoice_paid_and_unpaid_credit_is_atomic_and_queryable_in_sql_server" \
             --logger "trx;LogFileName=sql-v2-transport-finance-acceptance.trx" --results-directory TestResults
 
-      - name: Preserve V2 SQL acceptance diagnostics
+      - name: Preserve SQL acceptance diagnostics
         if: ${{ always() && steps.migration_repeat.outcome == 'success' }}
         uses: actions/upload-artifact@v4
         with:
-          name: sql-v2-v3-smoke-${{ github.sha }}
-          path: TestResults/sql-v2-v3-smoke.trx
+          name: sql-acceptance-diagnostics-${{ github.sha }}
+          path: |
+            TestResults/sql-v1-acceptance.trx
+            TestResults/sql-v2-v3-smoke.trx
+            TestResults/sql-v2-transport-finance-acceptance.trx
           if-no-files-found: warn
           retention-days: 7
 

@@ -67,7 +67,7 @@ public sealed partial class SqlServerTransportSeatCapacityIntegrationTests
             var payment = new StudentPayment { TenantId = fixture.TenantId,
                 StudentId = studentId, ReceiptNumber = "CN-REC-" + suffix,
                 PaymentDate = date, PaymentMethod = PaymentMethodType.Cash,
-                Amount = 80m, State = PaymentState.Successful,
+                Amount = 80m, State = PaymentState.Initiated,
                 ReceivedByUserId = fixture.UserId };
             db.StudentPayments.Add(payment);
             await db.SaveChangesAsync();
@@ -86,6 +86,7 @@ public sealed partial class SqlServerTransportSeatCapacityIntegrationTests
                     LineNo = 2, AccountId = ar.Id, StudentId = studentId,
                     CampusId = campusId, CreditAmount = 80m });
             payment.JournalId = receipt.Id;
+            payment.State = PaymentState.Successful;
             invoice.State = InvoiceState.PartiallyPaid;
             invoice.PaidAmount = 80m;
             invoice.DueAmount = 120m;
