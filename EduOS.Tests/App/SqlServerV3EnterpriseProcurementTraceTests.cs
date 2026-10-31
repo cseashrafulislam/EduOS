@@ -109,6 +109,15 @@ public sealed class SqlServerV3EnterpriseProcurementTraceTests
                 DecidedAt = DateTime.UtcNow.AddMinutes(-1), DecidedByUserId = checkerId };
             seed.ProcurementPurchaseOrders.Add(po);
             await seed.SaveChangesAsync();
+            // EduOSDbContext stamps BaseEntity.CreatedBy/CreatedAt from the
+            // trusted request context, intentionally ignoring fixture values.
+            // Reconstruct an approved historical decision with real identity
+            // actors in this disposable SQL-only evidence test.
+            await seed.ProcurementPurchaseOrders
+                .Where(x => x.TenantId == tenantA && x.Id == po.Id)
+                .ExecuteUpdateAsync(x => x
+                    .SetProperty(y => y.CreatedBy, (long?)makerId)
+                    .SetProperty(y => y.CreatedAt, DateTime.UtcNow.AddMinutes(-5)));
             var poLine = new ProcurementPurchaseOrderLine { TenantId = tenantA,
                 PurchaseOrderId = po.Id, RequisitionLineId = reqLine.Id,
                 LineNo = 1, InventoryItemId = item.Id,
