@@ -207,12 +207,12 @@ public sealed class SqlServerV3AssetCustodyTransferTests
             otherCategoryId = category.Id;
             var booked = new Asset { TenantId = f.Tenant, CampusId = campusId,
                 AssetCategoryId = original.AssetCategoryId, InventoryItemId = item.Id,
-                InventoryLocationId = location.Id, AssetTag = "BOOKED-" + suffix,
+                InventoryLocationId = location.Id, AssetTag = ("BOOKED-" + suffix).ToUpperInvariant(),
                 Name = "Capitalized microscope", PurchaseDate = new DateOnly(2026, 10, 1),
                 PurchaseCost = 1000m };
             var unbooked = new Asset { TenantId = f.Tenant, CampusId = campusId,
                 AssetCategoryId = original.AssetCategoryId, InventoryItemId = item.Id,
-                InventoryLocationId = location.Id, AssetTag = "UNBOOKED-" + suffix,
+                InventoryLocationId = location.Id, AssetTag = ("UNBOOKED-" + suffix).ToUpperInvariant(),
                 Name = "Unbooked microscope", PurchaseDate = new DateOnly(2026, 10, 1),
                 PurchaseCost = 1000m };
             seed.Assets.AddRange(booked, unbooked);
@@ -245,7 +245,7 @@ public sealed class SqlServerV3AssetCustodyTransferTests
             var metadata = Request(booked);
             metadata.Name = "Microscope — renamed";
             var renamed = await service.SaveAssetAsync(bookedRef, metadata);
-            Assert.Equal(200, renamed.StatusCode);
+            Assert.True(renamed.StatusCode == 200, $"Metadata edit failed: {renamed.StatusCode} {renamed.Message}");
             booked = await db.Assets.AsNoTracking().SingleAsync(x => x.PublicId == bookedRef);
             Action<SaveAssetRequestDto>[] forbidden =
             [
