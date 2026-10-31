@@ -302,6 +302,22 @@ public sealed class FacilityWorkflowService(
                         x.TenantId == user.TenantId && x.UserId == tech &&
                         x.CampusId == request.CampusId && x.IsActive && !x.IsDeleted, ct);
                 if (!eligible) return Denied<FacilityRequestDto>();
+                // Campus access and membership alone cannot authorize an assignment.
+                // Match the tenant role resolver's scoped and single-institution rules.
+                var activeInstitutions = await db.TenantMemberships.IgnoreQueryFilters().AsNoTracking()
+                    .Where(x => x.UserId == tech && !x.IsDeleted &&
+                        x.Status == MembershipStatus.Active)
+                    .Select(x => x.TenantId).Distinct().Take(2).CountAsync(ct);
+                var hasTechnicianRole = await (
+                    from assignment in db.UserRoles.AsNoTracking()
+                    join role in db.Roles.IgnoreQueryFilters().AsNoTracking()
+                        on assignment.RoleId equals role.Id
+                    where assignment.UserId == tech && role.IsActive && !role.IsDeleted &&
+                        role.NormalizedName == "FACILITIESTECHNICIAN" &&
+                        (role.TenantId == user.TenantId ||
+                         (activeInstitutions == 1 && role.TenantId == null && !role.IsSystemRole))
+                    select role.Id).AnyAsync(ct);
+                if (!hasTechnicianRole) return Denied<FacilityRequestDto>();
                 if (scheduleTransaction != null)
                 {
                     var resource = $"FacilitySchedule:{user.TenantId}:{tech}";

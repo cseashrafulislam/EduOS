@@ -31,6 +31,7 @@ Never mark the entire Facilities module production-ready from a passing CI run a
 
 - Scheduling/rescheduling an approved work order validates overlapping UTC windows against active Scheduled/InProgress/Paused work for the same tenant technician, excluding the current order. SQL Server obtains a tenant+technician transaction-owned application lock before conflict query and retains it through the work-order update and append-only audit; duplicate concurrent scheduling cannot silently double-book. Busy/overlap returns HTTP 409 and preserves the existing schedule. No schema or Inventory changes.
 - Dedicated disposable SQL acceptance includes an overlapping second approved work order and verifies it stays unassigned. Real parallel-worker contention and browser/UAT remain separate acceptance gates.
+- **Role-validated scheduling:** an active campus grant and membership are insufficient without an active FacilitiesTechnician role. The canonical tenant-role scope rule (tenant role, or non-system global role for a single active institution) is enforced before scheduling, with a SQL regression proving unauthorized assignment causes no order or audit mutation. No migration or Inventory/Finance changes.
 
 ## Schedule release / reschedule correction (2026-10-31)
 

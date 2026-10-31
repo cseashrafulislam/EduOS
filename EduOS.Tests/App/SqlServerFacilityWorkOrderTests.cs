@@ -7,6 +7,7 @@ using EduOS.Core.Interfaces;
 using EduOS.Persistence.Context;
 using EduOS.Service.Services.Facilities;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using System.Security.Claims;
@@ -59,8 +60,22 @@ public sealed class SqlServerFacilityWorkOrderTests
                 foreach (var id in new[] { requesterId, managerId, approverId, techId })
                     setup.UserCampusAccesses.Add(new UserCampusAccess
                     { TenantId = tenantId, CampusId = campusId, UserId = id, IsActive = true });
-                setup.TenantMemberships.Add(new TenantMembership
-                { TenantId = tenantId, UserId = techId, Status = MembershipStatus.Active });
+                // A campus-granted active member without the technician role must
+                // not be assignable, even by a Facilities manager.
+                setup.TenantMemberships.AddRange(
+                    new TenantMembership
+                    { TenantId = tenantId, UserId = techId, Status = MembershipStatus.Active },
+                    new TenantMembership
+                    { TenantId = tenantId, UserId = managerId, Status = MembershipStatus.Active });
+                var technicianRole = new ApplicationRole
+                {
+                    TenantId = tenantId, Name = "FacilitiesTechnician",
+                    NormalizedName = "FACILITIESTECHNICIAN", IsActive = true
+                };
+                setup.Roles.Add(technicianRole);
+                await setup.SaveChangesAsync();
+                setup.UserRoles.Add(new IdentityUserRole<long>
+                { UserId = techId, RoleId = technicianRole.Id });
                 await setup.SaveChangesAsync();
                 spaceId = space.Id;
             }
@@ -147,6 +162,26 @@ public sealed class SqlServerFacilityWorkOrderTests
             var stale = await service.TransitionAsync(submitted.Id, "approve", new FacilityTransitionDto
             { ClientCommandId = Guid.NewGuid(), RowVersion = triaged.RowVersion });
             Assert.Equal(409, stale.StatusCode);
+        }
+        // A campus member without the technician role cannot receive a work order.
+        // Denial leaves both order state and immutable history unchanged.
+        await using (var db = Db(options, tenantId, managerId, "FacilitiesManager"))
+        {
+            var service = Service(db, tenantId, managerId, "FacilitiesManager");
+            var unauthorized = await service.TransitionAsync(submitted.Id, "schedule",
+                new FacilityTransitionDto
+                {
+                    ClientCommandId = Guid.NewGuid(), RowVersion = approved.WorkOrderRowVersion!,
+                    TechnicianUserId = managerId, ScheduledStartUtc = DateTime.UtcNow.AddMinutes(15),
+                    ScheduledEndUtc = DateTime.UtcNow.AddHours(2)
+                });
+            Assert.Equal(403, unauthorized.StatusCode);
+            Assert.DoesNotContain((await service.HistoryAsync(submitted.Id, 1, 25)).Data!.Items,
+                x => x.ActionCode == "schedule");
+            var unchanged = (await service.ListAsync(campusId, null, 1, 25)).Data!.Items
+                .Single(x => x.Id == submitted.Id);
+            Assert.Equal("Approved", unchanged.WorkOrderState);
+            Assert.Null(unchanged.TechnicianUserId);
         }
         FacilityRequestDto scheduled;
         await using (var db = Db(options, tenantId, managerId, "FacilitiesManager"))
