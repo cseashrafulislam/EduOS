@@ -186,7 +186,7 @@ public sealed class WorkspacePreferencesService : IWorkspacePreferencesService
         if (Regex.IsMatch(value, @"^#[0-9a-fA-F]{6}$")) return value.ToUpperInvariant();
         if (Regex.IsMatch(value, @"^#[0-9a-fA-F]{3}$"))
             return "#" + string.Concat(value.Skip(1).Select(c => new string(char.ToUpperInvariant(c), 2)));
-        var rgb = Regex.Match(value, @"^rgb\(\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})\s*\)$",
+        var rgb = Regex.Match(value, @"^rgb\(\s*([0-9]{1,3})\s*,\s*([0-9]{1,3})\s*,\s*([0-9]{1,3})\s*\)$",
             RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
         if (!rgb.Success) return null;
         var c = rgb.Groups.Cast<Group>().Skip(1).Select(x => int.Parse(x.Value, CultureInfo.InvariantCulture)).ToArray();

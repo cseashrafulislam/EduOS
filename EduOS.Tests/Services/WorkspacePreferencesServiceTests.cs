@@ -517,7 +517,8 @@ public sealed class WorkspacePreferencesServiceTests
             new Dictionary<string,string> { ["unknown"] = "#123456" },
             new Dictionary<string,string> { ["sidebar"] = "var(--evil)" },
             new Dictionary<string,string> { ["button"] = "url(https://evil.test)" },
-            new Dictionary<string,string> { ["form"] = "rgb(256,1,1)" }
+            new Dictionary<string,string> { ["form"] = "rgb(256,1,1)" },
+            new Dictionary<string,string> { ["form"] = "rgb(১২,1,1)" }
         })
             Assert.Equal(400, (await owner.SaveAsync(new SaveWorkspacePreferencesRequestDto { CustomColors = bad })).StatusCode);
         Assert.Empty(await test.Db.TenantSettings.ToListAsync());

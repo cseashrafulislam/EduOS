@@ -16,7 +16,15 @@ function boot(headers, options = {}) {
     const fragment = site.slice(start, site.lastIndexOf('})();'));
     const document = {
         body: { dataset: { workspacePreferences: 'enabled', authSessionReference: reference, authTenantId: '12' } },
-        documentElement: { dataset: {} },
+        documentElement: {
+            dataset: {},
+            style: {
+                values: new Map(),
+                setProperty(name, value) { this.values.set(name, value); },
+                removeProperty(name) { this.values.delete(name); },
+                getPropertyValue(name) { return this.values.get(name) || ''; }
+            }
+        },
         getElementById(id) { return options.editor && id === 'workspacePreferencesForm' ? {} : null; }
     };
     let verified = 0, events = 0, fetches = 0, resolveJson;
@@ -28,7 +36,7 @@ function boot(headers, options = {}) {
         ok: true, headers: { get(name) { return headers[name] ?? null; } },
         json: options.delayedJson
             ? () => new Promise(resolve => { resolveJson = resolve; })
-            : async () => ({ success: true, data: { theme: 'dark', palette: 'teal' } })
+            : async () => ({ success: true, data: { theme: 'dark', palette: 'teal', customColors: options.colors || {} } })
     };
     vm.runInNewContext('(() => {' + fragment + '})();', {
         window, document, fetch: async () => { fetches++; return response; }, CustomEvent: class {
@@ -39,7 +47,7 @@ function boot(headers, options = {}) {
         window, document,
         finishJson() {
             assert.ok(resolveJson, 'response body should have started parsing');
-            resolveJson({ success: true, data: { theme: 'dark', palette: 'teal' } });
+            resolveJson({ success: true, data: { theme: 'dark', palette: 'teal', customColors: options.colors || {} } });
         },
         get fetches() { return fetches; },
         get verified() { return verified; },
@@ -81,8 +89,13 @@ test('controller binds read, save and reset to a server-issued session reference
     assert.ok(source.includes('WriteInCurrentSessionAsync(ct => service.SaveAsync(request, ct)'));
     assert.ok(source.includes('WriteInCurrentSessionAsync(ct => service.ResetAsync(request, ct)'));
     const page = read('EduOS.App/Views/WorkspacePreferences/Index.cshtml');
-    assert.match(page, /workspaceHelp/);
-    assert.match(page, /page-header-help-panel/);
+    assert.match(page, /workspaceAdvancedColors/);
+    assert.doesNotMatch(page, /id="workspaceHelp"/);
+    const guide = read('EduOS.App/wwwroot/js/platform/page-context-help.js');
+    assert.match(guide, /"\/workspace\/index"/);
+    const layout = read('EduOS.App/Views/Shared/_Layout.cshtml');
+    assert.match(layout, /id="pageContextHelp"/);
+    assert.match(layout, /id="pageHelpDrawer"/);
     const editor = read('EduOS.App/wwwroot/js/platform/workspace-preferences.js');
     assert.match(editor, /EduOSWorkspaceResponseMatchesSession/);
     assert.match(editor, /error\.sessionChanged/);
@@ -144,8 +157,25 @@ test('editor locks stale sessions and bounds network operations', () => {
     assert.match(editor, /sessionInvalidated = true;/);
     assert.match(editor, /if \(busy \|\| sessionInvalidated\) return;/);
     assert.match(editor, /const disabled = value \|\| sessionInvalidated;/);
-    assert.match(editor, /if \(!sessionInvalidated\) window\.EduOSApplyWorkspacePreferences/);
+    assert.match(editor, /if \(next && !sessionInvalidated\) window\.EduOSApplyWorkspacePreferences/);
+    assert.match(editor, /const next = values\(\)/);
     assert.match(editor, /const controller = new AbortController\(\);/);
     assert.match(editor, /window\.setTimeout\(\(\) => controller\.abort\(\), 10000\)/);
     assert.match(editor, /window\.clearTimeout\(timeout\)/);
+});
+
+test('custom colors are readable, allowlisted and cleared on a new scoped preference document', async () => {
+    const b = boot({ 'X-EduOS-Session-Reference': reference, 'X-EduOS-Tenant-Id': '12' },
+        { colors: { sidebar: '#abc', button: 'rgb(12,34,56)', unknown: '#123456' } });
+    await flush(); await flush();
+    const root = b.document.documentElement;
+    assert.equal(root.dataset.workspaceCustomSidebar, 'true');
+    assert.equal(root.style.getPropertyValue('--edu-custom-sidebar-bg'), '#AABBCC');
+    assert.equal(root.style.getPropertyValue('--edu-custom-sidebar-fg'), '#000000');
+    assert.equal(root.style.getPropertyValue('--edu-custom-button-bg'), '#0C2238');
+    assert.equal(root.dataset.workspaceCustomUnknown, undefined);
+    b.window.EduOSApplyWorkspacePreferences({ customColors: { sidebar: 'url(https://evil.test)' } });
+    assert.equal(root.dataset.workspaceCustomSidebar, undefined);
+    assert.equal(root.style.getPropertyValue('--edu-custom-sidebar-bg'), '');
+    assert.equal(root.style.getPropertyValue('--edu-custom-button-bg'), '');
 });
