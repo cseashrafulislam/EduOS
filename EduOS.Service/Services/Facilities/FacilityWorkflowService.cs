@@ -280,6 +280,17 @@ public sealed class FacilityWorkflowService(
             return replay.FacilityServiceRequestId == id &&
                    replay.ActorUserId == user.UserId &&
                    string.Equals(replay.ActionCode, action, StringComparison.OrdinalIgnoreCase) &&
+                   (action != "schedule" ||
+                    // A retry may acknowledge only the exact scheduled technician, UTC
+                    // window and reason. Reusing the command ID with changed assignment
+                    // details must never be reported as an applied change.
+                    (command.TechnicianUserId is > 0 &&
+                     command.ScheduledStartUtc is DateTime replayStart && replayStart.Kind == DateTimeKind.Utc &&
+                     command.ScheduledEndUtc is DateTime replayEnd && replayEnd.Kind == DateTimeKind.Utc &&
+                     replay.Note?.EndsWith(
+                         $"new technician={command.TechnicianUserId}, start={replayStart:O}, end={replayEnd:O}" +
+                         (string.IsNullOrWhiteSpace(command.Note) ? "" : $"; reason={command.Note.Trim()}"),
+                         StringComparison.Ordinal) == true)) &&
                    (action is not ("return" or "cancelrequest" or "cancelapprove" or "cancelreject") ||
                      string.Equals(replay.Note, command.Note?.Trim(), StringComparison.Ordinal))
                 ? ApiResponse<FacilityRequestDto>.SuccessResponse(await ReadAsync(request, ct), "Already applied.")

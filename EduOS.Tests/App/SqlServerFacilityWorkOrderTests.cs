@@ -184,17 +184,35 @@ public sealed class SqlServerFacilityWorkOrderTests
             Assert.Null(unchanged.TechnicianUserId);
         }
         FacilityRequestDto scheduled;
+        var scheduleCommandId = Guid.NewGuid();
+        var scheduleStart = DateTime.UtcNow.AddMinutes(15);
+        var scheduleEnd = DateTime.UtcNow.AddHours(2);
         await using (var db = Db(options, tenantId, managerId, "FacilitiesManager"))
         {
-            var result = await Service(db, tenantId, managerId, "FacilitiesManager").TransitionAsync(
-                submitted.Id, "schedule", new FacilityTransitionDto
+            var service = Service(db, tenantId, managerId, "FacilitiesManager");
+            FacilityTransitionDto ScheduleRetry(long technician, DateTime start, DateTime end, string? note = null)
+                => new()
                 {
-                    ClientCommandId = Guid.NewGuid(), RowVersion = approved.WorkOrderRowVersion!,
-                    TechnicianUserId = techId, ScheduledStartUtc = DateTime.UtcNow.AddMinutes(15),
-                    ScheduledEndUtc = DateTime.UtcNow.AddHours(2)
-                });
+                    ClientCommandId = scheduleCommandId, RowVersion = approved.WorkOrderRowVersion!,
+                    TechnicianUserId = technician, ScheduledStartUtc = start, ScheduledEndUtc = end,
+                    Note = note
+                };
+            var result = await service.TransitionAsync(
+                submitted.Id, "schedule", ScheduleRetry(techId, scheduleStart, scheduleEnd));
             Assert.True(result.Success, result.Message);
             scheduled = result.Data!;
+            var exactRetry = await service.TransitionAsync(
+                submitted.Id, "schedule", ScheduleRetry(techId, scheduleStart, scheduleEnd));
+            Assert.True(exactRetry.Success, exactRetry.Message);
+            Assert.Equal(scheduled.WorkOrderId, exactRetry.Data!.WorkOrderId);
+            Assert.Equal(409, (await service.TransitionAsync(
+                submitted.Id, "schedule", ScheduleRetry(managerId, scheduleStart, scheduleEnd))).StatusCode);
+            Assert.Equal(409, (await service.TransitionAsync(
+                submitted.Id, "schedule", ScheduleRetry(techId, scheduleStart, scheduleEnd.AddMinutes(15)))).StatusCode);
+            Assert.Equal(409, (await service.TransitionAsync(
+                submitted.Id, "schedule", ScheduleRetry(techId, scheduleStart, scheduleEnd, "Changed reason"))).StatusCode);
+            Assert.Single((await service.HistoryAsync(submitted.Id, 1, 25)).Data!.Items
+                .Where(x => x.ActionCode == "schedule"));
         }
         // A second approved request cannot double-book the same technician.
         FacilityRequestDto second;
