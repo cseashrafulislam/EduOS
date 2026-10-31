@@ -158,7 +158,7 @@ public sealed class SqlServerV3AssetCustodyTransferTests
         var receipt = new ProcurementGoodsReceipt { TenantId = f.Tenant,
             ClientRequestId = Guid.NewGuid(), PurchaseOrderId = order.Id,
             CampusId = campusId, LocationId = location.Id, StateCode = "Posted",
-            Reason = "Independently reviewed delivery", CreatedBy = f.User,
+            Reason = "Independently reviewed delivery",
             SubmitRequestId = Guid.NewGuid(), SubmittedAtUtc = reviewedAt.AddMinutes(-1),
             SubmittedByUserId = f.User, ReviewRequestId = Guid.NewGuid(),
             ReviewReason = "Independently approved delivery",
@@ -167,6 +167,14 @@ public sealed class SqlServerV3AssetCustodyTransferTests
             CreateFingerprint = new string('A', 64) };
         db.ProcurementGoodsReceipts.Add(receipt);
         await db.SaveChangesAsync();
+        // The disposable test context has no authenticated principal. SaveChanges
+        // stamps CreatedBy from that context, so an initializer value is discarded.
+        // Persist the historical GR maker explicitly; the independent checker
+        // and stock-posting evidence remain subject to the real service guard.
+        await db.ProcurementGoodsReceipts.Where(x => x.Id == receipt.Id)
+            .ExecuteUpdateAsync(s => s.SetProperty(x => x.CreatedBy, (long?)f.User));
+        Assert.Equal((long?)f.User, await db.ProcurementGoodsReceipts.AsNoTracking()
+            .Where(x => x.Id == receipt.Id).Select(x => x.CreatedBy).SingleAsync());
         var movement = new InventoryMovement { TenantId = f.Tenant,
             ClientRequestId = Guid.NewGuid(), MovementNumber = "CAP-M-" + suffix,
             MovementTypeCode = "Receipt", StateCode = "Posted", ToLocationId = location.Id,
