@@ -9,6 +9,7 @@ public sealed class WorkspacePreferencesDto
     public string Navigation { get; set; } = "left";
     public string Density { get; set; } = "comfortable";
     public string FontScale { get; set; } = "normal";
+    public Dictionary<string, string> CustomColors { get; set; } = [];
     public List<DashboardPanelPreferenceDto> DashboardPanels { get; set; } = DashboardPanelPreferenceDto.Defaults();
     public List<TablePreferenceDto> TablePreferences { get; set; } = TablePreferenceDto.Defaults();
     public string RowVersion { get; set; } = string.Empty;
@@ -22,6 +23,8 @@ public sealed class SaveWorkspacePreferencesRequestDto
     public string Navigation { get; set; } = "left";
     public string Density { get; set; } = "comfortable";
     public string FontScale { get; set; } = "normal";
+    // Null indicates an older client; keep existing custom colors.
+    public Dictionary<string, string>? CustomColors { get; set; }
     public List<DashboardPanelPreferenceDto> DashboardPanels { get; set; } = DashboardPanelPreferenceDto.Defaults();
     // Null means a pre-upgrade client did not send this field; preserve its saved layout.
     public List<TablePreferenceDto>? TablePreferences { get; set; }

@@ -164,6 +164,25 @@
             id: table.id, columns: table.columns.map(column => ({ id: column.id, visible: column.visible }))
         }));
     }
+    const workspaceColorTokens = ['sidebar','header','page','card','button','form','table'];
+    function normalizeWorkspaceColor(value) {
+        if (typeof value !== 'string' || value.length > 32) return null;
+        const raw = value.trim();
+        const hex = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(raw);
+        if (hex) return ('#' + (hex[1].length === 3 ? [...hex[1]].map(c => c+c).join('') : hex[1])).toUpperCase();
+        const rgb = /^rgb\(\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})\s*\)$/i.exec(raw);
+        if (!rgb) return null;
+        const c = rgb.slice(1).map(Number);
+        return c.some(x => x > 255) ? null : '#' + c.map(x => x.toString(16).padStart(2,'0')).join('').toUpperCase();
+    }
+    function readableWorkspaceText(hex) {
+        const c = [1,3,5].map(i => parseInt(hex.slice(i,i+2),16)/255)
+            .map(x => x <= .04045 ? x/12.92 : ((x+.055)/1.055)**2.4);
+        const L = .2126*c[0] + .7152*c[1] + .0722*c[2];
+        return (L+.05)/.05 >= 4.5 ? '#000000' : '#FFFFFF';
+    }
+    window.EduOSNormalizeWorkspaceColor = normalizeWorkspaceColor;
+    window.EduOSWorkspaceReadableText = readableWorkspaceText;
     window.EduOSApplyWorkspacePreferences = preferences => {
         const html = document.documentElement;
         for (const [name, allowed] of Object.entries(workspaceChoices)) {
@@ -171,6 +190,23 @@
             const safe = allowed.has(value) ? value : [...allowed][0];
             const attr = name === 'fontScale' ? 'workspaceFontScale' : 'workspace' + name[0].toUpperCase() + name.slice(1);
             html.dataset[attr] = safe;
+        }
+        // Always clear stale preview/tenant colors before applying the next scoped document.
+        for (const token of workspaceColorTokens) {
+            const raw = preferences?.customColors?.[token];
+            const value = normalizeWorkspaceColor(raw);
+            const flag = 'workspaceCustom' + token[0].toUpperCase() + token.slice(1);
+            const bg = '--edu-custom-' + token + '-bg';
+            const fg = '--edu-custom-' + token + '-fg';
+            if (value) {
+                html.style.setProperty(bg,value);
+                html.style.setProperty(fg,readableWorkspaceText(value));
+                html.dataset[flag] = 'true';
+            } else {
+                html.style.removeProperty(bg);
+                html.style.removeProperty(fg);
+                delete html.dataset[flag];
+            }
         }
         // Ephemeral page-only state: never persist or share across institution sessions.
         const detail = {

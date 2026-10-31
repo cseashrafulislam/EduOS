@@ -4,6 +4,7 @@
     if (!form) return;
     const fields = ['theme', 'palette', 'navigation', 'density', 'fontScale'];
     const panelIds = ['capacity', 'quick-actions', 'setup-checklist'];
+    const colorRows = [...form.querySelectorAll('[data-custom-color]')];
     const panelList = document.getElementById('workspaceDashboardPanels');
     const tableDefinitions = {
         'institution-users': { ids: ['user', 'membership', 'roles', 'action'], required: ['user', 'action'] },
@@ -61,7 +62,7 @@
         updateTableButtons();
     }
     const defaultPanels = () => panelIds.map(id => ({ id, visible: true }));
-    const defaults = { theme: 'system', palette: 'blue', navigation: 'left', density: 'comfortable', fontScale: 'normal', dashboardPanels: defaultPanels(), tablePreferences: defaultTables() };
+    const defaults = { theme: 'system', palette: 'blue', navigation: 'left', density: 'comfortable', fontScale: 'normal', customColors: {}, dashboardPanels: defaultPanels(), tablePreferences: defaultTables() };
     function validPanels(panels) {
         return Array.isArray(panels) && panels.length === panelIds.length
             && panels.every(p => p && panelIds.includes(p.id) && typeof p.visible === 'boolean')
@@ -100,20 +101,45 @@
         status.classList.toggle('text-danger', error);
         status.classList.toggle('text-success', !error);
     }
+    function fillColors(colors) {
+        colorRows.forEach(row => {
+            const raw = colors?.[row.dataset.customColor] || '';
+            row.querySelector('[data-custom-color-text]').value = raw;
+            row.querySelector('[data-custom-color-picker]').value = window.EduOSNormalizeWorkspaceColor?.(raw) || '#1D4ED8';
+            row.querySelector('[data-custom-color-text]').removeAttribute('aria-invalid');
+        });
+    }
+    function readColors() {
+        const colors = {};
+        let valid = true;
+        colorRows.forEach(row => {
+            const input = row.querySelector('[data-custom-color-text]');
+            const raw = input.value.trim();
+            const normalized = raw ? window.EduOSNormalizeWorkspaceColor?.(raw) : null;
+            input.setAttribute('aria-invalid', String(!!raw && !normalized));
+            if (raw && !normalized) valid = false;
+            else if (normalized) colors[row.dataset.customColor] = normalized;
+        });
+        return valid ? colors : null;
+    }
     function fill(preferences) {
         fields.forEach(name => {
             const select = form.elements.namedItem(name);
             const candidate = preferences?.[name] ?? defaults[name];
             select.value = [...select.options].some(option => option.value === candidate) ? candidate : defaults[name];
         });
+        fillColors(preferences?.customColors);
         fillPanels(preferences?.dashboardPanels);
         fillTables(preferences?.tablePreferences);
     }
     function values() {
-        return { ...Object.fromEntries(fields.map(name => [name, form.elements.namedItem(name).value])), dashboardPanels: readPanels(), tablePreferences: readTables() };
+        const customColors = readColors();
+        return customColors === null ? null : { ...Object.fromEntries(fields.map(name => [name, form.elements.namedItem(name).value])), customColors, dashboardPanels: readPanels(), tablePreferences: readTables() };
     }
     function preview() {
-        if (!sessionInvalidated) window.EduOSApplyWorkspacePreferences?.(values());
+        const next = values();
+        if (next && !sessionInvalidated) window.EduOSApplyWorkspacePreferences?.(next);
+        else if (!next) message('Use a valid HEX or RGB color.', 'বৈধ HEX বা RGB রঙ দিন।', true);
     }
     function setBusy(value) {
         busy = value;
@@ -121,6 +147,7 @@
         save.disabled = disabled;
         reset.disabled = disabled;
         fields.forEach(name => { form.elements.namedItem(name).disabled = disabled; });
+        colorRows.forEach(row => row.querySelectorAll('input,button').forEach(input => { input.disabled = disabled; }));
         panelRows().forEach(row => { row.querySelector('input[type="checkbox"]').disabled = disabled; });
         tableLists.forEach(list => tableColumnRows(list).forEach(row => {
             row.querySelector('input[type="checkbox"]').disabled = disabled || row.dataset.columnRequired === 'true';
@@ -204,15 +231,21 @@
             }
         } finally { setBusy(false); }
     }
-    const help = document.getElementById('workspaceHelp');
-    help?.addEventListener('keydown', event => {
-        if (event.key === 'Escape') {
-            help.open = false;
-            help.querySelector('summary')?.focus();
-        }
+    // One shared header Info drawer owns the full manual.
+    colorRows.forEach(row => {
+        const text = row.querySelector('[data-custom-color-text]');
+        row.querySelector('[data-custom-color-picker]').addEventListener('input', event => {
+            text.value = event.target.value.toUpperCase();
+            preview();
+        });
+        row.querySelector('[data-custom-color-clear]').addEventListener('click', () => {
+            text.value = '';
+            preview();
+            text.focus();
+        });
     });
-    document.addEventListener('pointerdown', event => {
-        if (help?.open && !help.contains(event.target)) help.open = false;
+    form.addEventListener('input', event => {
+        if (event.target.matches('[data-custom-color-text]')) preview();
     });
     form.addEventListener('change', preview);
     panelList.addEventListener('click', event => {
@@ -244,7 +277,9 @@
     }));
     form.addEventListener('submit', event => {
         event.preventDefault();
-        commit('/api/workspace-preferences', { schemaVersion: 1, ...values(), rowVersion });
+        const next = values();
+        if (!next) return message('Correct invalid colors before saving.', 'সংরক্ষণের আগে ভুল রঙ ঠিক করুন।', true);
+        commit('/api/workspace-preferences', { schemaVersion: 1, ...next, rowVersion });
     });
     reset.addEventListener('click', () => commit('/api/workspace-preferences/reset', { rowVersion }));
     load();

@@ -3544,3 +3544,18 @@ select,
         background: #1e3a5f; color: #bfdbfe;
     }
 }
+
+/* Only validated per-user color literals, screen UI; never invoice/print templates. */
+@media screen {
+ :root[data-workspace-custom-sidebar="true"] .sidebar,
+ :root[data-workspace-custom-sidebar="true"] .sidebar .sidebar-submenu { background:var(--edu-custom-sidebar-bg); color:var(--edu-custom-sidebar-fg); }
+ :root[data-workspace-custom-sidebar="true"] .sidebar :is(.brand-link,.brand-subtitle,.menu-title,.sidebar-group-toggle,.nav-link,.sidebar-group-count) { color:var(--edu-custom-sidebar-fg); }
+ :root[data-workspace-custom-sidebar="true"] .sidebar :is(.nav-link:hover,.nav-link.active,.sidebar-group-toggle:hover) { color:var(--edu-custom-sidebar-fg); background:color-mix(in srgb,var(--edu-custom-sidebar-fg) 12%,transparent); }
+ :root[data-workspace-custom-header="true"] .topbar { background:var(--edu-custom-header-bg); color:var(--edu-custom-header-fg); }
+ :root[data-workspace-custom-header="true"] .topbar :is(.icon-button,.page-heading,.user-info) { color:var(--edu-custom-header-fg); }
+ :root[data-workspace-custom-page="true"] .page-body { background:var(--edu-custom-page-bg); color:var(--edu-custom-page-fg); }
+ :root[data-workspace-custom-card="true"] :is(.card,.edu-card) { --bs-card-bg:var(--edu-custom-card-bg); --bs-card-color:var(--edu-custom-card-fg); background:var(--edu-custom-card-bg); color:var(--edu-custom-card-fg); }
+ :root[data-workspace-custom-button="true"] .btn-primary { --bs-btn-bg:var(--edu-custom-button-bg); --bs-btn-color:var(--edu-custom-button-fg); --bs-btn-border-color:var(--edu-custom-button-bg); --bs-btn-hover-bg:var(--edu-custom-button-bg); --bs-btn-hover-color:var(--edu-custom-button-fg); --bs-btn-hover-border-color:var(--edu-custom-button-bg); --bs-btn-active-bg:var(--edu-custom-button-bg); --bs-btn-active-color:var(--edu-custom-button-fg); }
+ :root[data-workspace-custom-form="true"] :is(.form-control,.form-select) { background-color:var(--edu-custom-form-bg); color:var(--edu-custom-form-fg); }
+ :root[data-workspace-custom-table="true"] .table { --bs-table-bg:var(--edu-custom-table-bg); --bs-table-color:var(--edu-custom-table-fg); background-color:var(--edu-custom-table-bg); color:var(--edu-custom-table-fg); }
+}

@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Text.RegularExpressions;
 using EduOS.Core.Common;
 using EduOS.Core.DTOs.SaaS;
 using EduOS.Core.Entities.SaaS;
@@ -20,6 +21,8 @@ public sealed class WorkspacePreferencesService : IWorkspacePreferencesService
 {
     public const string KeyPrefix = "Workspace.User.";
     private const string Category = "UserWorkspace";
+    private static readonly HashSet<string> ColorTokens = new(StringComparer.Ordinal)
+    { "sidebar", "header", "page", "card", "button", "form", "table" };
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
         DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
@@ -81,6 +84,7 @@ public sealed class WorkspacePreferencesService : IWorkspacePreferencesService
                 request.TablePreferences.Count < TablePreferenceDto.Defaults().Count
                     ? MergeTables(currentTables, request.TablePreferences)
                     : request.TablePreferences;
+            var colors = request.CustomColors ?? ToDto(row).CustomColors;
             var stored = new StoredPreferences
             {
                 SchemaVersion = 1,
@@ -89,6 +93,7 @@ public sealed class WorkspacePreferencesService : IWorkspacePreferencesService
                 Navigation = request.Navigation == "left" ? null : request.Navigation,
                 Density = request.Density == "comfortable" ? null : request.Density,
                 FontScale = request.FontScale == "normal" ? null : request.FontScale,
+                CustomColors = colors.Count == 0 ? null : colors.ToDictionary(x => x.Key, x => NormalizeColor(x.Value)!, StringComparer.Ordinal),
                 DashboardPanels = request.DashboardPanels.Select(x => new DashboardPanelPreferenceDto
                 {
                     Id = x.Id, Visible = x.Visible
@@ -145,7 +150,8 @@ public sealed class WorkspacePreferencesService : IWorkspacePreferencesService
         SaveAsync(new SaveWorkspacePreferencesRequestDto
         {
             RowVersion = request?.RowVersion,
-            TablePreferences = TablePreferenceDto.Defaults()
+            TablePreferences = TablePreferenceDto.Defaults(),
+            CustomColors = []
         }, cancellationToken);
 
     private bool HasTenantMembership() => _user.IsAuthenticated && _user.TenantId > 0 && _user.UserId > 0;
@@ -166,8 +172,26 @@ public sealed class WorkspacePreferencesService : IWorkspacePreferencesService
         IsOneOf(request.Navigation, "left", "right", "top") &&
         IsOneOf(request.Density, "comfortable", "compact") &&
         IsOneOf(request.FontScale, "normal", "large") &&
-        (request.RowVersion?.Length ?? 0) <= 100 && ValidPanels(request.DashboardPanels) &&
+        (request.RowVersion?.Length ?? 0) <= 100 && ValidColors(request.CustomColors) && ValidPanels(request.DashboardPanels) &&
         (request.TablePreferences == null || ValidTables(request.TablePreferences));
+
+    private static bool ValidColors(Dictionary<string, string>? colors) =>
+        colors == null || (colors.Count <= ColorTokens.Count &&
+            colors.All(x => ColorTokens.Contains(x.Key) && NormalizeColor(x.Value) != null));
+
+    private static string? NormalizeColor(string? input)
+    {
+        if (input == null || input.Length > 32) return null;
+        var value = input.Trim();
+        if (Regex.IsMatch(value, @"^#[0-9a-fA-F]{6}$")) return value.ToUpperInvariant();
+        if (Regex.IsMatch(value, @"^#[0-9a-fA-F]{3}$"))
+            return "#" + string.Concat(value.Skip(1).Select(c => new string(char.ToUpperInvariant(c), 2)));
+        var rgb = Regex.Match(value, @"^rgb\(\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})\s*\)$",
+            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+        if (!rgb.Success) return null;
+        var c = rgb.Groups.Cast<Group>().Skip(1).Select(x => int.Parse(x.Value, CultureInfo.InvariantCulture)).ToArray();
+        return c.Any(x => x > 255) ? null : $"#{c[0]:X2}{c[1]:X2}{c[2]:X2}";
+    }
 
     private static bool ValidPanels(List<DashboardPanelPreferenceDto>? panels) =>
         panels is { Count: 3 } &&
@@ -241,6 +265,8 @@ public sealed class WorkspacePreferencesService : IWorkspacePreferencesService
             result.Navigation = IsOneOf(stored.Navigation, "right", "top") ? stored.Navigation! : "left";
             result.Density = stored.Density == "compact" ? "compact" : "comfortable";
             result.FontScale = stored.FontScale == "large" ? "large" : "normal";
+            if (stored.CustomColors != null && ValidColors(stored.CustomColors))
+                result.CustomColors = stored.CustomColors.ToDictionary(x => x.Key, x => NormalizeColor(x.Value)!, StringComparer.Ordinal);
             if (ValidPanels(stored.DashboardPanels))
                 result.DashboardPanels = stored.DashboardPanels!.Select(x => new DashboardPanelPreferenceDto
                 {
@@ -269,6 +295,7 @@ public sealed class WorkspacePreferencesService : IWorkspacePreferencesService
         public string? Navigation { get; set; }
         public string? Density { get; set; }
         public string? FontScale { get; set; }
+        public Dictionary<string, string>? CustomColors { get; set; }
         public List<DashboardPanelPreferenceDto>? DashboardPanels { get; set; }
         public List<TablePreferenceDto>? TablePreferences { get; set; }
     }

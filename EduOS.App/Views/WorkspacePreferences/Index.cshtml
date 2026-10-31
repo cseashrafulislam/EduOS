@@ -6,13 +6,6 @@
 <section class="container-fluid py-3" id="workspacePreferencesPage" aria-labelledby="workspaceTitle">
     <div class="d-flex justify-content-between align-items-center gap-2 mb-3">
         <h2 class="h4 mb-0" id="workspaceTitle">@(bn ? "আপনার ওয়ার্কস্পেস" : "Your Workspace")</h2>
-        <details id="workspaceHelp" class="position-relative">
-            <summary class="btn btn-outline-secondary btn-sm" aria-label="@(bn ? "ওয়ার্কস্পেস সহায়তা" : "Workspace help")" title="@(bn ? "সহায়তা" : "Help")">ⓘ</summary>
-            <div class="dropdown-menu show end-0 mt-1 p-3 shadow-sm page-header-help-panel" role="note">
-                <p class="small mb-2">@(bn ? "থিম, রঙ, নেভিগেশন ও লেখার আকার এই প্রতিষ্ঠানের জন্য আলাদাভাবে সংরক্ষিত হয়।" : "Theme, color, navigation and text size are saved separately for this institution.")</p>
-                <p class="small mb-0">@(bn ? "প্যানেল বা অনুমোদিত তালিকার কলাম সাজিয়ে সংরক্ষণ করুন। অন্য ডিভাইসে পরিবর্তন হলে বর্তমান সেটিং আবার লোড হবে।" : "Arrange panels or allowed table columns, then save. Changes from another device require a reload.")</p>
-            </div>
-        </details>
     </div>
     <div class="card shadow-sm">
         <div class="card-body">
@@ -48,6 +41,35 @@
                             <option value="large">@(bn ? "বড়" : "Large")</option>
                         </select></div>
                 </div>
+                <details class="mt-4" id="workspaceAdvancedColors">
+                    <summary class="fw-bold py-2">@(bn ? "অ্যাডভান্সড রঙ ও লাইভ প্রিভিউ" : "Advanced colors and live preview")</summary>
+                    <fieldset class="row g-3 mt-1" aria-describedby="workspaceColorHint">
+                        <legend class="fs-6">@(bn ? "নিজের পছন্দের রঙ" : "Custom semantic colors")</legend>
+                        <p class="small text-muted mb-0" id="workspaceColorHint">@(bn ? "HEX (#123ABC) বা RGB (rgb(18,52,86)) দিন। ফাঁকা থাকলে ডিফল্ট রঙ থাকবে।" : "Enter HEX (#123ABC) or RGB (rgb(18,52,86)); blank keeps the preset.")</p>
+                        @foreach (var color in new[] {
+                            (Key: "sidebar", En: "Sidebar", Bn: "সাইডবার"),
+                            (Key: "header", En: "Header", Bn: "হেডার"),
+                            (Key: "page", En: "Page", Bn: "পৃষ্ঠা"),
+                            (Key: "card", En: "Card", Bn: "কার্ড"),
+                            (Key: "button", En: "Primary button", Bn: "প্রধান বাটন"),
+                            (Key: "form", En: "Form fields", Bn: "ফর্মের ঘর"),
+                            (Key: "table", En: "Table", Bn: "তালিকা")
+                        })
+                        {
+                            <div class="col-12 col-md-6 col-xl-4" data-custom-color="@color.Key">
+                                <label class="form-label" for="workspaceColor_@color.Key">@(bn ? color.Bn : color.En)</label>
+                                <div class="input-group">
+                                    <input class="form-control" id="workspaceColor_@color.Key" data-custom-color-text maxlength="32"
+                                           autocomplete="off" spellcheck="false" placeholder="#123ABC" aria-describedby="workspaceColorHint" />
+                                    <input class="form-control form-control-color" type="color" data-custom-color-picker value="#1D4ED8"
+                                           aria-label="@(bn ? color.Bn + " রঙ বাছুন" : "Pick " + color.En + " color")" />
+                                    <button class="btn btn-outline-secondary" type="button" data-custom-color-clear
+                                            aria-label="@(bn ? color.Bn + " ডিফল্ট করুন" : "Clear " + color.En + " override")">×</button>
+                                </div>
+                            </div>
+                        }
+                    </fieldset>
+                </details>
                 <fieldset class="mt-4" aria-labelledby="workspacePanelsTitle">
                     <legend class="fs-6 fw-bold mb-2" id="workspacePanelsTitle">@(bn ? "ড্যাশবোর্ড প্যানেল" : "Dashboard panels")</legend>
                     <div class="list-group" id="workspaceDashboardPanels">

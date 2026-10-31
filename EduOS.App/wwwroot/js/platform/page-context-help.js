@@ -4,6 +4,23 @@
 (() => {
     'use strict';
     const manuals = {
+        "/workspace/index": {
+            version: 1, reviewed: true,
+            title: ["Workspace Appearance Studio", "ওয়ার্কস্পেস অ্যাপিয়ারেন্স স্টুডিও"],
+            purpose: ["Customize personal institution-scoped appearance, navigation, panels and table layouts without changing business records.", "ব্যবসায়িক রেকর্ড না বদলে নিজের প্রতিষ্ঠানভিত্তিক ডিজাইন, নেভিগেশন, প্যানেল ও তালিকা সাজান।"],
+            before: ["An active institution session is required. Table-column controls are available only to TenantAdmin.", "সক্রিয় প্রতিষ্ঠানের সেশন প্রয়োজন। তালিকার কলাম নিয়ন্ত্রণ শুধু TenantAdmin-এর জন্য।"],
+            steps: [
+                ["Choose System, Light or Dark, a preset palette, navigation position, spacing and text size.", "System, Light বা Dark, প্রস্তুত প্যালেট, নেভিগেশন অবস্থান, স্পেসিং ও লেখার আকার বাছুন।"],
+                ["Expand Advanced colors; enter valid HEX/RGB or use the picker for any of seven supported surfaces. Blank keeps the preset.", "Advanced colors খুলে সাতটি অংশের জন্য বৈধ HEX/RGB লিখুন বা রঙ বাছুন। ফাঁকা রাখলে প্রস্তুত রঙ থাকবে।"],
+                ["Review the live preview, arrange optional dashboard panels and, if TenantAdmin, allowed table columns.", "লাইভ প্রিভিউ দেখে ঐচ্ছিক ড্যাশবোর্ড প্যানেল এবং TenantAdmin হলে অনুমোদিত তালিকার কলাম সাজান।"],
+                ["Save appearance; reload to verify. Reset to defaults removes personal overrides.", "Save appearance চাপুন; রিলোড করে যাচাই করুন। Reset to defaults ব্যক্তিগত পরিবর্তন সরায়।"]
+            ],
+            example: ["Fictional example: Institute A uses Dark, Compact and #174A68 sidebar; Institute B retains a separate appearance.", "কাল্পনিক উদাহরণ: প্রতিষ্ঠান A-তে Dark, Compact ও #174A68 সাইডবার; প্রতিষ্ঠান B-তে আলাদা ডিজাইন থাকবে।"],
+            result: ["Saved versioned appearance applies to this user and institution only, with no Finance, stock or invoice change.", "সংরক্ষিত সংস্করণযুক্ত ডিজাইন শুধু এই ব্যবহারকারী ও প্রতিষ্ঠানে প্রযোজ্য; Finance, স্টক বা ইনভয়েস বদলায় না।"],
+            rules: ["Only allowlisted HEX/RGB colors are accepted; readable foreground is computed. Save is required after preview. Another-device edits require a version refresh.", "শুধু অনুমোদিত HEX/RGB রঙ গ্রহণযোগ্য; পাঠযোগ্য লেখার রঙ স্বয়ংক্রিয়ভাবে নির্ধারিত হয়। প্রিভিউর পর Save প্রয়োজন। অন্য ডিভাইসের পরিবর্তনে নতুন সংস্করণ লোড করুন।"],
+            recovery: ["Invalid color: use #123ABC or rgb(18,52,86). For 409 reload current preferences; after institution switch reload and sign in. Failed loads retain safe defaults.", "ভুল রঙে #123ABC বা rgb(18,52,86) দিন। ৪০৯ হলে নতুন সেটিং লোড করুন; প্রতিষ্ঠান বদলালে রিলোড করে সাইন ইন করুন। লোড ব্যর্থ হলে নিরাপদ ডিফল্ট থাকে।"],
+            related: [["/Account/Profile", "My profile", "আমার প্রোফাইল"]]
+        },
         "/feereceivablesaging/index": {
           "version": 1,
           "reviewed": true,

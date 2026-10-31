@@ -478,6 +478,51 @@ public sealed class WorkspacePreferencesServiceTests
         Assert.Empty(await test.Db.TenantSettings.ToListAsync());
     }
 
+    [Fact]
+    public async Task Custom_colors_normalize_and_preserve_legacy_and_tenant_boundaries()
+    {
+        await using var test = Create();
+        var owner = Service(test.Db, 101, 71);
+        var saved = await owner.SaveAsync(new SaveWorkspacePreferencesRequestDto {
+            CustomColors = new Dictionary<string, string> { ["sidebar"] = "#abc", ["header"] = "rgb(12,34,56)" }
+        });
+        Assert.True(saved.Success, saved.Message);
+        Assert.Equal("#AABBCC", saved.Data!.CustomColors["sidebar"]);
+        Assert.Equal("#0C2238", saved.Data.CustomColors["header"]);
+        Assert.Empty((await Service(test.Db, 101, 72).GetAsync()).Data!.CustomColors);
+        Assert.Empty((await Service(test.Db, 202, 71).GetAsync()).Data!.CustomColors);
+        var row = await test.Db.TenantSettings.SingleAsync();
+        row.RowVersion = [1,2,3,4,5,6,7,8];
+        await test.Db.SaveChangesAsync();
+        var legacy = await owner.SaveAsync(new SaveWorkspacePreferencesRequestDto {
+            Theme = "dark", RowVersion = Convert.ToBase64String(row.RowVersion)
+        });
+        Assert.True(legacy.Success, legacy.Message);
+        Assert.Equal("#AABBCC", legacy.Data!.CustomColors["sidebar"]);
+        row.RowVersion = [8,7,6,5,4,3,2,1];
+        await test.Db.SaveChangesAsync();
+        var reset = await owner.ResetAsync(new ResetWorkspacePreferencesRequestDto {
+            RowVersion = Convert.ToBase64String(row.RowVersion)
+        });
+        Assert.True(reset.Success, reset.Message);
+        Assert.Empty(reset.Data!.CustomColors);
+    }
+
+    [Fact]
+    public async Task Custom_colors_reject_unknown_or_injected_CSS_without_writes()
+    {
+        await using var test = Create();
+        var owner = Service(test.Db, 101, 71);
+        foreach (var bad in new[] {
+            new Dictionary<string,string> { ["unknown"] = "#123456" },
+            new Dictionary<string,string> { ["sidebar"] = "var(--evil)" },
+            new Dictionary<string,string> { ["button"] = "url(https://evil.test)" },
+            new Dictionary<string,string> { ["form"] = "rgb(256,1,1)" }
+        })
+            Assert.Equal(400, (await owner.SaveAsync(new SaveWorkspacePreferencesRequestDto { CustomColors = bad })).StatusCode);
+        Assert.Empty(await test.Db.TenantSettings.ToListAsync());
+    }
+
     private static TestSetup Create()
     {
         var http = new DefaultHttpContext();

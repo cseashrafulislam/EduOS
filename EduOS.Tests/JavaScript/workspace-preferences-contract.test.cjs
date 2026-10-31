@@ -104,3 +104,24 @@ test('institution administration table columns use private versioned allowlists 
     assert.match(view, /__RequestVerificationToken|AntiForgeryToken/);
     assert.match(read('EduOS.App/wwwroot/js/platform/workspace-preferences.js'), /RequestVerificationToken/);
 });
+
+test('advanced appearance preserves tenant-scoped versioning and allowlisted color surfaces', () => {
+ const dto=read('EduOS.Core/DTOs/SaaS/WorkspacePreferencesDtos.cs');
+ const svc=read('EduOS.Service/Services/Tenants/WorkspacePreferencesService.cs');
+ const shell=read('EduOS.App/wwwroot/js/site.js');
+ const editor=read('EduOS.App/wwwroot/js/platform/workspace-preferences.js');
+ const view=read('EduOS.App/Views/WorkspacePreferences/Index.cshtml');
+ const css=read('EduOS.App/wwwroot/css/site.css');
+ assert.match(dto,/CustomColors/);
+ assert.match(svc,/ValidColors\(request\.CustomColors\)/);
+ assert.match(svc,/request\.CustomColors \?\? ToDto\(row\)\.CustomColors/);
+ assert.match(shell,/EduOSNormalizeWorkspaceColor/);
+ assert.match(shell,/html\.style\.removeProperty\(bg\)/);
+ assert.match(editor,/data-custom-color-text/);
+ assert.match(view,/workspaceAdvancedColors/);
+ for(const token of ['sidebar','header','page','card','button','form','table']){
+   assert.match(view,new RegExp('Key: "'+token+'"'));
+   assert.match(css,new RegExp('data-workspace-custom-'+token+'="true"'));
+ }
+ assert.doesNotMatch(editor,/\.innerHTML|localStorage|sessionStorage/);
+});
