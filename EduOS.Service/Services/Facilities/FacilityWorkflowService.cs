@@ -173,7 +173,7 @@ public sealed class FacilityWorkflowService(
             query = query.Where(x => x.SlaDueAtUtc != null && x.SlaDueAtUtc < now &&
                 db.Set<FacilityWorkOrder>().Any(w => w.TenantId == user.TenantId &&
                     !w.IsDeleted && w.FacilityServiceRequestId == x.Id &&
-                    w.StateCode != "Closed"));
+                    w.StateCode != "Closed" && w.StateCode != "Cancelled"));
         }
         var count = await query.CountAsync(ct);
         var requests = await query.OrderByDescending(x => x.CreatedAt).ThenByDescending(x => x.Id)
@@ -210,13 +210,16 @@ public sealed class FacilityWorkflowService(
             AwaitingApproval = await requests.CountAsync(x => x.StateCode == "Triaged", ct),
             Rejected = await requests.CountAsync(x => x.StateCode == "Rejected", ct),
             ApprovedUnscheduled = await orders.CountAsync(x => x.Order.StateCode == "Approved", ct),
+            CancellationPending = await orders.CountAsync(x => x.Order.StateCode == "CancellationPending", ct),
+            Cancelled = await orders.CountAsync(x => x.Order.StateCode == "Cancelled", ct),
             Scheduled = await orders.CountAsync(x => x.Order.StateCode == "Scheduled", ct),
             InProgress = await orders.CountAsync(x => x.Order.StateCode == "InProgress" ||
                 x.Order.StateCode == "Paused", ct),
             PendingVerification = await orders.CountAsync(x => x.Order.StateCode == "PendingVerification", ct),
             Closed = await orders.CountAsync(x => x.Order.StateCode == "Closed", ct),
             OverdueOpen = await orders.CountAsync(x => x.Request.SlaDueAtUtc != null &&
-                x.Request.SlaDueAtUtc < now && x.Order.StateCode != "Closed", ct),
+                x.Request.SlaDueAtUtc < now && x.Order.StateCode != "Closed" &&
+                x.Order.StateCode != "Cancelled", ct),
             ClosedLate = await orders.CountAsync(x => x.Order.StateCode == "Closed" &&
                 x.Request.SlaDueAtUtc != null && x.Order.CompletedAtUtc > x.Request.SlaDueAtUtc, ct)
         };
@@ -232,7 +235,8 @@ public sealed class FacilityWorkflowService(
             return ApiResponse<FacilityRequestDto>.ErrorResponse("Command ID, row version and valid details required.");
         action = (action ?? "").Trim().ToLowerInvariant();
         if (action is not ("triage" or "approve" or "reject" or "schedule" or "start" or
-                           "pause" or "resume" or "complete" or "verify" or "return" or "unschedule" or "escalate"))
+                           "pause" or "resume" or "complete" or "verify" or "return" or "unschedule" or "escalate" or
+                            "cancelrequest" or "cancelapprove" or "cancelreject"))
             return ApiResponse<FacilityRequestDto>.ErrorResponse("Unsupported transition.", 404);
         var request = await db.Set<FacilityServiceRequest>().FirstOrDefaultAsync(
             x => x.Id == id && x.TenantId == user.TenantId && !x.IsDeleted, ct);
@@ -241,12 +245,27 @@ public sealed class FacilityWorkflowService(
         var order = await db.Set<FacilityWorkOrder>().FirstOrDefaultAsync(
             x => x.TenantId == user.TenantId && x.FacilityServiceRequestId == id && !x.IsDeleted, ct);
         var isWorker = order?.AssignedTechnicianUserId == user.UserId && Technician;
+        // The immutable cancellation-request event is the maker identity. No new
+        // mutable shadow approver field or independent cancellation ledger.
+        long? cancellationMaker = action is "cancelapprove" or "cancelreject"
+            ? await db.Set<FacilityWorkflowEvent>().AsNoTracking()
+                .Where(x => x.TenantId == user.TenantId &&
+                    x.FacilityServiceRequestId == id && !x.IsDeleted &&
+                    x.ActionCode == "cancelrequest")
+                .OrderByDescending(x => x.Id).Select(x => (long?)x.ActorUserId)
+                .FirstOrDefaultAsync(ct)
+            : null;
         var allowed = action switch
         {
             "triage" => Manager && user.UserId != request.RequesterUserId,
             "approve" or "reject" => Approver && user.UserId != request.RequesterUserId &&
                                       user.UserId != request.TriagedByUserId,
-            "schedule" or "unschedule" or "escalate" => Manager && user.UserId != request.RequesterUserId,
+            "schedule" or "unschedule" or "escalate" or "cancelrequest" =>
+                Manager && user.UserId != request.RequesterUserId,
+            "cancelapprove" or "cancelreject" => Approver &&
+                user.UserId != request.RequesterUserId &&
+                user.UserId != request.TriagedByUserId &&
+                cancellationMaker.HasValue && cancellationMaker.Value != user.UserId,
             "start" or "pause" or "resume" or "complete" => isWorker,
             "verify" or "return" => Approver && user.UserId != request.RequesterUserId &&
                         user.UserId != request.TriagedByUserId &&
@@ -261,7 +280,8 @@ public sealed class FacilityWorkflowService(
             return replay.FacilityServiceRequestId == id &&
                    replay.ActorUserId == user.UserId &&
                    string.Equals(replay.ActionCode, action, StringComparison.OrdinalIgnoreCase) &&
-                   (action != "return" || string.Equals(replay.Note, command.Note?.Trim(), StringComparison.Ordinal))
+                   (action is not ("return" or "cancelrequest" or "cancelapprove" or "cancelreject") ||
+                     string.Equals(replay.Note, command.Note?.Trim(), StringComparison.Ordinal))
                 ? ApiResponse<FacilityRequestDto>.SuccessResponse(await ReadAsync(request, ct), "Already applied.")
                 : ApiResponse<FacilityRequestDto>.ErrorResponse("Command ID reused.", 409);
 
@@ -302,6 +322,25 @@ public sealed class FacilityWorkflowService(
                 if (request.StateCode != "Triaged" || string.IsNullOrWhiteSpace(note))
                     return ApiResponse<FacilityRequestDto>.ErrorResponse("A triaged request and rejection reason are required.");
                 request.StateCode = "Rejected"; request.DecisionReason = note[..Math.Min(500, note.Length)];
+                break;
+            case "cancelrequest":
+                // Unstarted and unassigned only. A scheduled order must first use
+                // the existing audited schedule-release action.
+                if (order?.StateCode != "Approved" ||
+                    order?.AssignedTechnicianUserId != null ||
+                    order?.ScheduledStartUtc != null || order?.ScheduledEndUtc != null ||
+                    string.IsNullOrWhiteSpace(note) || note.Length is < 10 or > 500)
+                    return ApiResponse<FacilityRequestDto>.ErrorResponse(
+                        "Release any schedule first; cancellation requires a reason (10-500 characters).", 409);
+                order.StateCode = "CancellationPending";
+                break;
+            case "cancelapprove":
+            case "cancelreject":
+                if (order?.StateCode != "CancellationPending" ||
+                    string.IsNullOrWhiteSpace(note) || note.Length is < 10 or > 500)
+                    return ApiResponse<FacilityRequestDto>.ErrorResponse(
+                        "Pending cancellation and independent decision reason (10-500 characters) required.", 409);
+                order.StateCode = action == "cancelapprove" ? "Cancelled" : "Approved";
                 break;
             case "schedule":
                 if (note?.Length > 500)

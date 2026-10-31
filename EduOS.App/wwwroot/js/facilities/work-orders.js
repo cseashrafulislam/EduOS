@@ -21,7 +21,10 @@
         complete: ['Submit completion', 'সমাপ্তির প্রমাণ জমা'],
         verify: ['Verify closure', 'সমাপ্তি যাচাই'],
         return: ['Return for correction', 'সংশোধনের জন্য ফেরত'],
-        escalate: ['Escalate overdue SLA', 'বিলম্বিত কাজ এস্কেলেট করুন']
+        escalate: ['Escalate overdue SLA', 'বিলম্বিত কাজ এস্কেলেট করুন'],
+        cancelrequest: ['Request cancellation', 'বাতিলের আবেদন'],
+        cancelapprove: ['Approve cancellation', 'বাতিল অনুমোদন'],
+        cancelreject: ['Reject cancellation', 'বাতিল আবেদন প্রত্যাখ্যান']
     };
     const token = document.querySelector('meta[name="request-verification-token"]')?.content;
     const base = '/api/facilities/work-orders';
@@ -64,7 +67,10 @@
         const state = row.workOrderState, options = [];
         const canManage = manager && row.requesterUserId !== currentUserId;
         const assigned = technician && row.technicianUserId === currentUserId;
-        if (state === 'Approved' && canManage) options.push('schedule');
+        if (state === 'Approved' && canManage) options.push('schedule', 'cancelrequest');
+        if (state === 'CancellationPending' && approver &&
+            row.requesterUserId !== currentUserId &&
+            row.triagedByUserId !== currentUserId) options.push('cancelapprove', 'cancelreject');
         if (state === 'Scheduled') {
             if (canManage) options.push('schedule', 'unschedule');
             if (assigned) options.push('start');
@@ -122,9 +128,9 @@
             input.disabled = !enabled; input.required = enabled;
             input.closest('.col-12, .col-sm-6')?.classList.toggle('d-none', !enabled);
         }
-        el('wfNote').required = ['reject', 'pause', 'complete', 'verify', 'return', 'unschedule', 'escalate'].includes(action);
-        el('wfNote').minLength = ['return', 'escalate'].includes(action) ? 10 : action === 'unschedule' ? 5 : 0;
-        el('wfNote').maxLength = ['schedule', 'unschedule', 'escalate', 'return'].includes(action) ? 500 : 1000;
+        el('wfNote').required = ['reject', 'pause', 'complete', 'verify', 'return', 'unschedule', 'escalate', 'cancelrequest', 'cancelapprove', 'cancelreject'].includes(action);
+        el('wfNote').minLength = ['return', 'escalate', 'cancelrequest', 'cancelapprove', 'cancelreject'].includes(action) ? 10 : action === 'unschedule' ? 5 : 0;
+        el('wfNote').maxLength = ['schedule', 'unschedule', 'escalate', 'return', 'cancelrequest', 'cancelapprove', 'cancelreject'].includes(action) ? 500 : 1000;
     }
     async function dashboard() {
         const q = new URLSearchParams();
@@ -135,6 +141,8 @@
             ['submitted', t('Awaiting triage', 'ট্রায়াজ অপেক্ষায়')],
             ['awaitingApproval', t('Awaiting approval', 'অনুমোদন অপেক্ষায়')],
             ['approvedUnscheduled', t('Not scheduled', 'সময়সূচি হয়নি')],
+            ['cancellationPending', t('Cancellation review', 'বাতিল অনুমোদন অপেক্ষায়')],
+            ['cancelled', t('Cancelled', 'বাতিল হয়েছে')],
             ['scheduled', t('Scheduled', 'নির্ধারিত')],
             ['inProgress', t('Active work', 'চলমান কাজ')],
             ['pendingVerification', t('Verify closure', 'সমাপ্তি যাচাই')],

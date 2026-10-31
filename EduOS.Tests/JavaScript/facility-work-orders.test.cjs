@@ -29,6 +29,16 @@ test('workflow posts antiforgery and retries the same idempotency command', () =
     assert.match(view, /Service dashboard/);
 });
 
+test('independent cancellation is bilingual, reasoned and terminal, without stock posting', () => {
+    for (const action of ['cancelrequest', 'cancelapprove', 'cancelreject'])
+        assert.match(script, new RegExp(action));
+    assert.match(script, /Request cancellation/);
+    assert.match(script, /বাতিলের আবেদন/);
+    assert.match(script, /CancellationPending/);
+    assert.match(script, /cancellationPending/);
+    assert.match(script, /cancelled/);
+});
+
 test('the UI never claims to post Inventory or Finance', () => {
     assert.match(view, /Parts and Finance posting are not enabled here/);
     assert.doesNotMatch(script, /\/api\/inventory\/movements\/post/);
@@ -37,7 +47,7 @@ test('scheduled work can be released by manager with a reason and rowversion', (
     assert.match(script, /options\.push\('schedule', 'unschedule'\)/);
     assert.match(script, /Release schedule/);
     assert.match(script, /সময়সূচি বাতিল/);
-    assert.match(script, /el\('wfNote'\)\.required = \['reject', 'pause', 'complete', 'verify', 'return', 'unschedule', 'escalate'\]\.includes\(action\)/);
+    assert.match(script, /el\('wfNote'\)\.required = \['reject', 'pause', 'complete', 'verify', 'return', 'unschedule', 'escalate', 'cancelrequest', 'cancelapprove', 'cancelreject'\]\.includes\(action\)/);
     assert.match(script, /action === 'unschedule' \? 5 : 0/);
     assert.match(script, /selected\.workOrderRowVersion/);
 });
@@ -56,8 +66,8 @@ test('independent verifier can return unsafe completion for correction, with bil
     assert.match(script, /options\.push\('verify', 'return'\)/);
     assert.match(script, /Return for correction/);
     assert.match(script, /সংশোধনের জন্য ফেরত/);
-    assert.match(script, /\['return', 'escalate'\]\.includes\(action\) \? 10/);
-    assert.match(script, /'escalate', 'return'\]\.includes\(action\) \? 500/);
+    assert.match(script, /\['return', 'escalate', 'cancelrequest', 'cancelapprove', 'cancelreject'\]\.includes\(action\) \? 10/);
+    assert.match(script, /'escalate', 'return', 'cancelrequest', 'cancelapprove', 'cancelreject'\]\.includes\(action\) \? 500/);
     assert.match(script, /actionLabels\[event\.actionCode\]/);
     assert.match(script, /selected\.workOrderRowVersion/);
 });

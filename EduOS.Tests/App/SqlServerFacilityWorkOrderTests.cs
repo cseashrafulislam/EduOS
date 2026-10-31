@@ -241,6 +241,92 @@ public sealed class SqlServerFacilityWorkOrderTests
             var rows = await service.ListAsync(campusId, null, 1, 25);
             Assert.Equal("Approved", rows.Data!.Items.Single(x => x.Id == second.Id).WorkOrderState);
         }
+        // An unassigned approved work order has an independent, reasoned cancellation
+        // decision. It cannot silently bypass technician scheduling or become Closed.
+        await using (var db = Db(options, tenantId, requesterId, "FacilitiesRequester"))
+        {
+            var denied = await Service(db, tenantId, requesterId, "FacilitiesRequester")
+                .TransitionAsync(second.Id, "cancelrequest", new FacilityTransitionDto
+                { ClientCommandId = Guid.NewGuid(), RowVersion = second.WorkOrderRowVersion!,
+                  Note = "Requester must not cancel their own approved order." });
+            Assert.Equal(403, denied.StatusCode);
+        }
+        FacilityRequestDto cancellationPending;
+        await using (var db = Db(options, tenantId, managerId, "FacilitiesManager"))
+        {
+            var service = Service(db, tenantId, managerId, "FacilitiesManager");
+            var commandId = Guid.NewGuid();
+            var proposed = await service.TransitionAsync(second.Id, "cancelrequest",
+                new FacilityTransitionDto { ClientCommandId = commandId,
+                    RowVersion = second.WorkOrderRowVersion!,
+                    Note = "Duplicate repair request; no technician has been assigned." });
+            Assert.True(proposed.Success, proposed.Message);
+            cancellationPending = proposed.Data!;
+            Assert.Equal("CancellationPending", cancellationPending.WorkOrderState);
+            var replay = await service.TransitionAsync(second.Id, "cancelrequest",
+                new FacilityTransitionDto { ClientCommandId = commandId,
+                    RowVersion = second.WorkOrderRowVersion!,
+                    Note = "Duplicate repair request; no technician has been assigned." });
+            Assert.True(replay.Success, replay.Message);
+            var altered = await service.TransitionAsync(second.Id, "cancelrequest",
+                new FacilityTransitionDto { ClientCommandId = commandId,
+                    RowVersion = second.WorkOrderRowVersion!,
+                    Note = "Different cancellation reason must be rejected." });
+            Assert.Equal(409, altered.StatusCode);
+        }
+        await using (var db = Db(options, tenantId, managerId, "TenantAdmin"))
+        {
+            var makerCannotCheck = await Service(db, tenantId, managerId, "TenantAdmin")
+                .TransitionAsync(second.Id, "cancelapprove", new FacilityTransitionDto
+                { ClientCommandId = Guid.NewGuid(), RowVersion = cancellationPending.WorkOrderRowVersion!,
+                  Note = "The cancellation maker cannot approve their own decision." });
+            Assert.Equal(403, makerCannotCheck.StatusCode);
+        }
+        await using (var db = Db(options, tenantId, approverId, "FacilitiesApprover"))
+        {
+            var service = Service(db, tenantId, approverId, "FacilitiesApprover");
+            var rejected = await service.TransitionAsync(second.Id, "cancelreject",
+                new FacilityTransitionDto { ClientCommandId = Guid.NewGuid(),
+                    RowVersion = cancellationPending.WorkOrderRowVersion!,
+                    Note = "Keep this approved repair request available for reassignment." });
+            Assert.True(rejected.Success, rejected.Message);
+            Assert.Equal("Approved", rejected.Data!.WorkOrderState);
+            second = rejected.Data;
+        }
+        await using (var db = Db(options, tenantId, managerId, "FacilitiesManager"))
+        {
+            var proposed = await Service(db, tenantId, managerId, "FacilitiesManager")
+                .TransitionAsync(second.Id, "cancelrequest", new FacilityTransitionDto
+                { ClientCommandId = Guid.NewGuid(), RowVersion = second.WorkOrderRowVersion!,
+                  Note = "Campus confirmed that the second repair is unnecessary." });
+            Assert.True(proposed.Success, proposed.Message);
+            cancellationPending = proposed.Data!;
+        }
+        await using (var db = Db(options, tenantId, approverId, "FacilitiesApprover"))
+        {
+            var service = Service(db, tenantId, approverId, "FacilitiesApprover");
+            var approvedCancel = await service.TransitionAsync(second.Id, "cancelapprove",
+                new FacilityTransitionDto { ClientCommandId = Guid.NewGuid(),
+                    RowVersion = cancellationPending.WorkOrderRowVersion!,
+                    Note = "Verified duplicate service request; cancellation is authorized." });
+            Assert.True(approvedCancel.Success, approvedCancel.Message);
+            Assert.Equal("Cancelled", approvedCancel.Data!.WorkOrderState);
+            Assert.Null(approvedCancel.Data.VerifiedAtUtc);
+            Assert.Equal(1, (await service.DashboardAsync(campusId)).Data!.Cancelled);
+            var stale = await service.TransitionAsync(second.Id, "cancelreject",
+                new FacilityTransitionDto { ClientCommandId = Guid.NewGuid(),
+                    RowVersion = cancellationPending.WorkOrderRowVersion!,
+                    Note = "Stale cancellation decision must not restore the work order." });
+            Assert.Equal(409, stale.StatusCode);
+            var overdue = await Service(db, tenantId, approverId, "FacilitiesApprover",
+                new ShiftedClock(TimeSpan.FromHours(6)))
+                .ListAsync(campusId, null, 1, 25, default, true);
+            Assert.DoesNotContain(overdue.Data!.Items, x => x.Id == second.Id);
+            var history = (await service.HistoryAsync(second.Id, 1, 25)).Data!;
+            Assert.Equal(4, history.Items.Count(x => x.ActionCode.StartsWith("cancel")));
+            Assert.Equal(1, await db.FacilityWorkOrders.CountAsync(x =>
+                x.TenantId == tenantId && x.FacilityServiceRequestId == second.Id));
+        }
         // Manager releases a not-started schedule with an immutable snapshot; stale and
         // unauthorized attempts cannot silently remove another worker's assignment.
         await using (var db = Db(options, tenantId, techId, "FacilitiesTechnician"))

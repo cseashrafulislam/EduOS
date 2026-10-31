@@ -71,6 +71,8 @@ public sealed class FacilityDashboardDto
     public int AwaitingApproval { get; set; }
     public int Rejected { get; set; }
     public int ApprovedUnscheduled { get; set; }
+    public int CancellationPending { get; set; }
+    public int Cancelled { get; set; }
     public int Scheduled { get; set; }
     public int InProgress { get; set; }
     public int PendingVerification { get; set; }
