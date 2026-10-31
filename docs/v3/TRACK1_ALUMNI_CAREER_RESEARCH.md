@@ -20,7 +20,8 @@ Starting owner baseline: `ea8c2a9a2953f7757f4e8f8d31003fd5d6822c6b`; first-run i
 - [ ] Invitations/notification delivery (requires opt-in communication policy) and real-institute consent policy/UAT.
 - [x] Reject stale RSVP idempotency replay after consent revocation or superseding response (prior audit commands retained); regression added to real SQL integration and C# contract tests at `d301c4a7`.
 - [x] RSVP hardening at 14f673d: SQL smoke 41212957560 PASS; CI 41212957597 CANCELLED by subsequent pushes. Latest shared a36ea8ac exact-SHA CI 41214255559 and SQL 41214255467 PASS.
-- [ ] Attendance exact-SHA Release build, fresh/repeat SQL, SQL integration and browser/JS evidence — report only verified results.
+- [x] Attendance code SHA `d1f6f407dbd63f1108ef8e78061b200942d8a715`: exact-SHA CI [41215838998](https://github.com/cseashrafulislam/EduOS/actions/runs/41215838998) PASS (Release build, EF snapshot, idempotent SQL script, C#/JS, publish). SQL smoke [41215839032](https://github.com/cseashrafulislam/EduOS/actions/runs/41215839032): fresh/repeat migrations and focused real-SQL Alumni attendance/consent/IDOR acceptance PASS (1/1); overall FAIL due separate Track 2 ProcurementSupplierAcknowledgement audit NullReferenceException (1 failed/172 in combined cross-track suite). No Track 1 edit to Procurement.
+- [ ] Real browser/manual UAT, live-campus access policy, load and production acceptance — NOT RUN.
 - [ ] Re-evaluate campus access policy for institution-wide TenantAdmin accounts with no explicit campus grants before real-institute acceptance.
 
 ## Queue (do not duplicate other tracks)
