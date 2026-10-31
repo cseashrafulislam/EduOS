@@ -26,3 +26,8 @@ Never mark the entire Facilities module production-ready from a passing CI run a
 - Requesters see only their own requests and history; assigned technicians see their own requests and assigned work orders. Managers and independent approvers see authorized-campus requests. SQL scopes list, event history, dashboard counts and bounded CSV export before pagination or aggregation.
 - Responsive bilingual operational cards report persisted triage, approvals, scheduled/active work, overdue-open and closed-late, without estimating or posting stock/Finance costs.
 - Dedicated SQL integration regression checks same-campus cross-request IDOR and requester/technician/manager dashboard visibility. This slice needs no EF migration and does not alter V1/V2 or Inventory source contracts.
+
+## Technician scheduling conflict control
+
+- Scheduling/rescheduling an approved work order validates overlapping UTC windows against active Scheduled/InProgress/Paused work for the same tenant technician, excluding the current order. SQL Server obtains a tenant+technician transaction-owned application lock before conflict query and retains it through the work-order update and append-only audit; duplicate concurrent scheduling cannot silently double-book. Busy/overlap returns HTTP 409 and preserves the existing schedule. No schema or Inventory changes.
+- Dedicated disposable SQL acceptance includes an overlapping second approved work order and verifies it stays unassigned. Real parallel-worker contention and browser/UAT remain separate acceptance gates.

@@ -161,6 +161,51 @@ public sealed class SqlServerFacilityWorkOrderTests
             Assert.True(result.Success, result.Message);
             scheduled = result.Data!;
         }
+        // A second approved request cannot double-book the same technician.
+        FacilityRequestDto second;
+        await using (var db = Db(options, tenantId, requesterId, "FacilitiesRequester"))
+        {
+            var result = await Service(db, tenantId, requesterId, "FacilitiesRequester")
+                .CreateAsync(new CreateFacilityRequestDto
+                {
+                    ClientRequestId = Guid.NewGuid(), CampusId = campusId, FacilitySpaceId = spaceId,
+                    CategoryCode = "ELECTRICAL", PriorityCode = "Normal", Summary = "Second hallway repair"
+                });
+            Assert.True(result.Success, result.Message);
+            second = result.Data!;
+        }
+        await using (var db = Db(options, tenantId, managerId, "FacilitiesManager"))
+        {
+            var result = await Service(db, tenantId, managerId, "FacilitiesManager")
+                .TransitionAsync(second.Id, "triage", new FacilityTransitionDto
+                {
+                    ClientCommandId = Guid.NewGuid(), RowVersion = second.RowVersion,
+                    SlaDueAtUtc = DateTime.UtcNow.AddHours(5)
+                });
+            Assert.True(result.Success, result.Message);
+            second = result.Data!;
+        }
+        await using (var db = Db(options, tenantId, approverId, "FacilitiesApprover"))
+        {
+            var result = await Service(db, tenantId, approverId, "FacilitiesApprover")
+                .TransitionAsync(second.Id, "approve", new FacilityTransitionDto
+                { ClientCommandId = Guid.NewGuid(), RowVersion = second.RowVersion });
+            Assert.True(result.Success, result.Message);
+            second = result.Data!;
+        }
+        await using (var db = Db(options, tenantId, managerId, "FacilitiesManager"))
+        {
+            var service = Service(db, tenantId, managerId, "FacilitiesManager");
+            var result = await service.TransitionAsync(second.Id, "schedule", new FacilityTransitionDto
+            {
+                ClientCommandId = Guid.NewGuid(), RowVersion = second.WorkOrderRowVersion!,
+                TechnicianUserId = techId, ScheduledStartUtc = DateTime.UtcNow.AddMinutes(30),
+                ScheduledEndUtc = DateTime.UtcNow.AddHours(1)
+            });
+            Assert.Equal(409, result.StatusCode);
+            var rows = await service.ListAsync(campusId, null, 1, 25);
+            Assert.Equal("Approved", rows.Data!.Items.Single(x => x.Id == second.Id).WorkOrderState);
+        }
         await using (var db = Db(options, tenantId, techId, "FacilitiesTechnician"))
         {
             var service = Service(db, tenantId, techId, "FacilitiesTechnician");

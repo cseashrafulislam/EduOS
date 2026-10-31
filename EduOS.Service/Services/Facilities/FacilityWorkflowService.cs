@@ -241,6 +241,10 @@ public sealed class FacilityWorkflowService(
         var requestAction = action is "triage" or "approve" or "reject";
         if (!VersionMatches(requestAction ? request.RowVersion : order?.RowVersion ?? [], command.RowVersion))
             return ApiResponse<FacilityRequestDto>.ErrorResponse("Record changed; reload.", 409);
+        // SQL Server application lock serializes scheduling for the same tenant/technician.
+        // It is held through the work-order update and audit SaveChanges/commit.
+        await using var scheduleTransaction = action == "schedule" && db.Database.IsSqlServer()
+            ? await db.Database.BeginTransactionAsync(ct) : null;
         var before = requestAction ? request.StateCode : order?.StateCode ?? "None";
         var note = command.Note?.Trim();
         var now = Now;
@@ -287,6 +291,27 @@ public sealed class FacilityWorkflowService(
                         x.TenantId == user.TenantId && x.UserId == tech &&
                         x.CampusId == request.CampusId && x.IsActive && !x.IsDeleted, ct);
                 if (!eligible) return Denied<FacilityRequestDto>();
+                if (scheduleTransaction != null)
+                {
+                    var resource = $"FacilitySchedule:{user.TenantId}:{tech}";
+                    try
+                    {
+                        await db.Database.ExecuteSqlInterpolatedAsync(
+                            $"DECLARE @result int; EXEC @result = sys.sp_getapplock @Resource={resource}, @LockMode='Exclusive', @LockOwner='Transaction', @LockTimeout=5000; IF @result < 0 THROW 51000, 'Technician schedule busy', 1;", ct);
+                    }
+                    catch (Microsoft.Data.SqlClient.SqlException ex) when (ex.Number is 51000 or 1205 or 1222)
+                    {
+                        logger.LogWarning(ex, "Facility technician schedule contention for tenant {TenantId}", user.TenantId);
+                        return ApiResponse<FacilityRequestDto>.ErrorResponse("Technician schedule busy; retry.", 409);
+                    }
+                }
+                var overlaps = await db.Set<FacilityWorkOrder>().AsNoTracking().AnyAsync(x =>
+                    x.TenantId == user.TenantId && !x.IsDeleted && x.Id != order.Id &&
+                    x.AssignedTechnicianUserId == tech &&
+                    (x.StateCode == "Scheduled" || x.StateCode == "InProgress" || x.StateCode == "Paused") &&
+                    x.ScheduledStartUtc < end && x.ScheduledEndUtc > start, ct);
+                if (overlaps)
+                    return ApiResponse<FacilityRequestDto>.ErrorResponse("Technician has an overlapping active work order.", 409);
                 order.AssignedTechnicianUserId = tech;
                 order.ScheduledStartUtc = start; order.ScheduledEndUtc = end;
                 order.StateCode = "Scheduled";
@@ -334,6 +359,7 @@ public sealed class FacilityWorkflowService(
         try
         {
             await db.SaveChangesAsync(ct);
+            if (scheduleTransaction != null) await scheduleTransaction.CommitAsync(ct);
             return ApiResponse<FacilityRequestDto>.SuccessResponse(await ReadAsync(request, ct), "Transition recorded.");
         }
         catch (DbUpdateConcurrencyException)
