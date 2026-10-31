@@ -203,6 +203,15 @@ public sealed partial class SqlServerV3ProcurementPurchaseOrderTests
                     (await Service(check, tenantId, makerId).GetAsync(poId)).Data!.RowVersion,
                     Reason = "Should not cancel after posted inventory stock" })).StatusCode);
         }
+        Guid firstMovementReference;
+        await using (var owned = Open(options, tenantId, makerId))
+        {
+            var movementId = await owned.ProcurementGoodsReceipts
+                .Where(x => x.PublicId == first.Reference)
+                .Select(x => x.PostedMovementId).SingleAsync();
+            firstMovementReference = await owned.InventoryMovements
+                .Where(x => x.Id == movementId).Select(x => x.PublicId).SingleAsync();
+        }
         await using (var otherTenant = Open(options, tenantId + 99999, makerId))
         {
             Assert.Equal(404, (await Goods(otherTenant, tenantId + 99999, makerId)
@@ -211,7 +220,7 @@ public sealed partial class SqlServerV3ProcurementPurchaseOrderTests
                 .GetGoodsReceiptsAsync(null, null, 1, 25)).Data!.Items);
             Assert.Equal(404, (await new V3EnterpriseLedgerTraceService(
                 otherTenant, new Actor(tenantId + 99999, makerId))
-                .GetAsync(first.PostedMovementReference!.Value)).StatusCode);
+                .GetAsync(firstMovementReference)).StatusCode);
         }
         // A forged same-tenant source pointer must not pass read-only enterprise
         // reconciliation, even though the generic stock row itself is posted.
