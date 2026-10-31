@@ -31,6 +31,34 @@
         <span id="simPage" aria-live="polite"></span>
         <button type="button" id="simNext" class="btn btn-outline-secondary btn-sm">Next</button>
     </nav>
+    <section id="supplierSettlement" class="border rounded p-3 mb-4" aria-labelledby="ssTitle"
+             data-maker="@maker.ToString().ToLowerInvariant()" data-reviewer="@reviewer.ToString().ToLowerInvariant()">
+        <h2 id="ssTitle" class="h6" data-en="Supplier settlement instructions" data-bn="সরবরাহকারী পরিশোধ নির্দেশনা">Supplier settlement instructions</h2>
+        <p class="small text-muted" data-en="Source-linked approval instructions only. Approved does NOT mean paid; no GL posting or bank transfer occurs."
+           data-bn="শুধু উৎস-সংযুক্ত অনুমোদন নির্দেশনা। অনুমোদিত মানে পরিশোধিত নয়; GL পোস্ট বা ব্যাংক ট্রান্সফার হয় না।">Source-linked approval instructions only. Approved does NOT mean paid; no GL posting or bank transfer occurs.</p>
+        <p id="ssSelected" class="small fw-semibold" role="status" aria-live="polite" data-en="Open a posted supplier invoice and select Settlement." data-bn="পোস্টকৃত ইনভয়েস খুলে Settlement নির্বাচন করুন।">Open a posted supplier invoice and select Settlement.</p>
+        <p id="ssStatus" class="small" role="status" aria-live="polite"></p>
+        @if (maker) {
+        <form id="ssForm" class="row g-2 align-items-end d-none">
+            <div class="col-sm-3"><label for="ssAmount" class="form-label" data-en="Amount BDT" data-bn="টাকার পরিমাণ">Amount BDT</label><input id="ssAmount" type="number" min="0.01" step="0.01" class="form-control" required /></div>
+            <div class="col-sm-3"><label for="ssDate" class="form-label" data-en="Planned date" data-bn="পরিকল্পিত তারিখ">Planned date</label><input id="ssDate" type="date" class="form-control" required /></div>
+            <div class="col-sm-3"><label for="ssPeriod" class="form-label" data-en="Open period" data-bn="খোলা হিসাবকাল">Open period</label><select id="ssPeriod" class="form-select" required></select></div>
+            <div class="col-sm-3"><label for="ssBank" class="form-label" data-en="Bank account" data-bn="ব্যাংক হিসাব">Bank account</label><select id="ssBank" class="form-select" required></select></div>
+            <div class="col-12"><label for="ssReason" class="form-label" data-en="Documented reason (10–500)" data-bn="কারণ (১০–৫০০)">Documented reason (10–500)</label><textarea id="ssReason" class="form-control" minlength="10" maxlength="500" rows="2" required></textarea></div>
+            <div class="col-12"><button id="ssSubmit" type="submit" class="btn btn-primary" data-en="Submit instruction (no payment)" data-bn="নির্দেশনা জমা (পরিশোধ নয়)">Submit instruction (no payment)</button></div>
+        </form>}
+        <div class="table-responsive mt-3"><table class="table table-sm table-striped"><thead><tr><th>Reference</th><th>State</th><th>Amount BDT</th><th>Planned</th><th>Maker</th><th>Action</th></tr></thead><tbody id="ssRows"></tbody></table></div>
+        <nav class="d-flex gap-2 align-items-center"><button id="ssPrev" class="btn btn-outline-secondary btn-sm" type="button">Previous</button><span id="ssPage"></span><button id="ssNext" class="btn btn-outline-secondary btn-sm" type="button">Next</button></nav>
+        <dialog id="ssReviewDialog" class="border rounded shadow p-0" aria-labelledby="ssReviewTitle" style="width:min(96vw,520px)">
+            <form id="ssReviewForm" class="p-3">
+                <h3 id="ssReviewTitle" class="h6">Independent Finance decision / স্বতন্ত্র সিদ্ধান্ত</h3>
+                <p class="small text-muted">Approval does not post a journal or execute payment.</p>
+                <label for="ssDecision" class="form-label">Decision / সিদ্ধান্ত</label><select id="ssDecision" class="form-select"><option value="Approve">Approve instruction</option><option value="Reject">Reject</option></select>
+                <label for="ssReviewReason" class="form-label mt-2">Evidence / কারণ (10–400)</label><textarea id="ssReviewReason" class="form-control" minlength="10" maxlength="400" rows="2" required></textarea>
+                <div class="d-flex justify-content-end gap-2 mt-3"><button type="button" id="ssClose" class="btn btn-outline-secondary">Cancel</button><button id="ssReviewSubmit" type="submit" class="btn btn-primary">Confirm</button></div>
+            </form>
+        </dialog>
+    </section>
     <section id="supplierPayableAging" class="border rounded p-3 mb-4" aria-labelledby="paTitle">
         <h2 id="paTitle" class="h6" data-en="Supplier payable aging (gross posted AP)" data-bn="সরবরাহকারীর দায়ের বয়স (পোস্টকৃত মোট দায়)">Supplier payable aging (gross posted AP)</h2>
         <p class="small text-muted" data-en="Current posted supplier liabilities aged by due date. Unlinked manual or bank payments are NOT deducted; this is not a reconciled unpaid balance."
@@ -150,4 +178,4 @@
         </form>
     </dialog>
 </section>
-@section Scripts { <script src="~/js/procurement/supplier-invoice-matching.js" asp-append-version="true"></script><script src="~/js/procurement/supplier-payable-aging.js" asp-append-version="true"></script> }
+@section Scripts { <script src="~/js/procurement/supplier-invoice-matching.js" asp-append-version="true"></script><script src="~/js/procurement/supplier-payable-aging.js" asp-append-version="true"></script><script src="~/js/procurement/supplier-settlement-instructions.js" asp-append-version="true"></script> }

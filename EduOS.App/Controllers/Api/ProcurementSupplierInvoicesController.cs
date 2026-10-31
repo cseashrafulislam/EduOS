@@ -46,6 +46,24 @@ public sealed class ProcurementSupplierInvoicesController(IProcurementSupplierIn
     public async Task<IActionResult> ReviewReversal(Guid reference,[FromBody] ReviewProcurementSupplierInvoiceReversal request,
         CancellationToken ct) => Reply(await service.ReviewReversalAsync(reference,request,ct));
 
+    // Canonical Finance Journal instructions only. No bank transfer and no GL posting endpoint.
+    [HttpGet("{reference:guid}/settlements/options"), RequireModule("FINANCE"), Authorize(Roles="TenantAdmin,Principal,Accountant")]
+    public async Task<IActionResult> SettlementOptions(Guid reference, CancellationToken ct)
+        => Reply(await service.SettlementOptionsAsync(reference, ct));
+
+    [HttpGet("{reference:guid}/settlements"), RequireModule("FINANCE"), Authorize(Roles="TenantAdmin,Principal,Accountant")]
+    public async Task<IActionResult> Settlements(Guid reference, int page=1, int pageSize=25, CancellationToken ct=default)
+        => Reply(await service.SettlementInstructionsAsync(reference, page, pageSize, ct));
+
+    [HttpPost("{reference:guid}/settlements"), RequireModule("FINANCE"), Authorize(Roles="TenantAdmin,Accountant")]
+    public async Task<IActionResult> RequestSettlement(Guid reference, [FromBody] CreateSupplierSettlementInstructionRequest request, CancellationToken ct)
+        => Reply(await service.RequestSettlementAsync(reference, request, ct));
+
+    [HttpPost("{reference:guid}/settlements/{instruction:guid}/review"), RequireModule("FINANCE"), Authorize(Roles="TenantAdmin,Principal,Accountant")]
+    public async Task<IActionResult> ReviewSettlement(Guid reference, Guid instruction,
+        [FromBody] ReviewSupplierSettlementInstructionRequest request, CancellationToken ct)
+        => Reply(await service.ReviewSettlementAsync(reference, instruction, request, ct));
+
     [HttpGet("aging"), Authorize(Roles="TenantAdmin,Principal,Accountant")]
     public async Task<IActionResult> Aging(DateOnly? dueDateReference,long? supplierId,bool overdueOnly=false,
         int page=1,int pageSize=25,CancellationToken ct=default)

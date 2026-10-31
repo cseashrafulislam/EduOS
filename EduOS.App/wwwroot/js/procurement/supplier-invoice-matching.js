@@ -216,6 +216,11 @@
     actions.append(action('Request reversal / রিভার্স',openReversal));
    if (canReview && x.stateCode==='Posted' && x.reversalJournalReference && x.reversalJournalRowVersion && !own)
     actions.append(action('Review contra / রিভার্স যাচাই',()=>openContraReview()));
+   if (x.stateCode==='Posted') actions.append(action('Settlement / পরিশোধ নির্দেশনা',()=>{
+    close(detailDialog);window.dispatchEvent(new CustomEvent('procurement-settlement-select',{detail:{reference:x.reference,
+     invoiceNumber:x.supplierInvoiceNumber,rowVersion:x.rowVersion}}));
+    $('supplierSettlement')?.scrollIntoView({block:'start',behavior:'smooth'});
+   }));
    if (x.journalReference) actions.append(el('small','GL: '+x.journalReference));
    detailDialog.showModal();
   } catch (err) {status(err.message);}

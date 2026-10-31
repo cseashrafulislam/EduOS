@@ -52,3 +52,19 @@ test('Canonical inventory reversal cannot orphan a reserved or posted Procuremen
   'h.StateCode == "Posted"','reverse the payable first'])
   assert.ok(stock.includes(token), 'missing stock/Finance reversal handshake: ' + token);
 });
+
+test('Supplier settlement instructions use canonical unposted Finance journals and separate maker/checker', () => {
+ const service=read('EduOS.Service/Services/Inventory/ProcurementSupplierInvoiceSettlement.cs');
+ const api=read('EduOS.App/Controllers/Api/ProcurementSupplierInvoicesController.cs');
+ const ui=read('EduOS.App/wwwroot/js/procurement/supplier-settlement-instructions.js');
+ for(const token of ['IsolationLevel.Serializable','SettlementSource = "ProcurementSupplierPayment"',
+  'JournalState.Submitted','JournalState.Approved','ReservedSettlementAsync','InvoiceRowVersion',
+  'BankAccounts','AccountType.Asset','AccountType.Liability','journal.CreatedBy == user.UserId',
+  'SourceId = invoice.Id','IdempotencyKey = request.ClientRequestId'])
+  assert.ok(service.includes(token), 'missing settlement protection: '+token);
+ assert.doesNotMatch(service,/JournalState.Posted\s*[,;}]/);
+ for(const token of ['RequireModule("FINANCE")','/settlements','ReviewSettlement','RequestSettlement'])
+  assert.ok(api.includes(token), 'missing Finance API protection: '+token);
+ for(const token of ['credentials:\'same-origin\'','RequestVerificationToken','textContent','rowVersion',
+  'procurement-settlement-select'])assert.ok(ui.includes(token), 'missing UI safety: '+token);
+});

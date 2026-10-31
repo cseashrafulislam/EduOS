@@ -416,5 +416,75 @@ public sealed partial class SqlServerV3ProcurementPurchaseOrderTests
                 x.SourceType=="ProcurementSupplierInvoiceReversal" &&
                 x.State==JournalState.Rejected));
         }
+        // Settlement instruction is source-linked to the canonical Finance Journal, but never posts cash/GL.
+        await using (var settlementSetup = Open(options,tenantId,makerId))
+        {
+            var bankLedger = new Account { TenantId=tenantId,Code="SI-BANK-"+suffix,
+                Name="Approved bank asset",AccountType=AccountType.Asset,IsActive=true,AllowsPosting=true };
+            settlementSetup.Accounts.Add(bankLedger);await settlementSetup.SaveChangesAsync();
+            settlementSetup.BankAccounts.Add(new BankAccount {TenantId=tenantId,AccountId=bankLedger.Id,
+                BankName="SQL fixture bank",AccountName="Supplier settlement",AccountNumber="TEST-"+suffix,
+                CurrencyCode="BDT",IsActive=true});
+            await settlementSetup.SaveChangesAsync();
+        }
+        long bankId;
+        await using (var bankDb=Open(options,tenantId,makerId))
+            bankId=await bankDb.BankAccounts.Where(x=>x.BankName=="SQL fixture bank").Select(x=>x.Id).SingleAsync();
+        Guid instructionReference;
+        string instructionVersion;
+        await using (var maker=Open(options,tenantId,makerId))
+        {
+            var service=Invoices(maker,tenantId,makerId);
+            var invoice=(await service.GetAsync(second.Reference)).Data!;
+            var instruction=new CreateSupplierSettlementInstructionRequest {
+                ClientRequestId=Guid.NewGuid(),InvoiceRowVersion=invoice.RowVersion,Amount=10m,
+                BankAccountId=bankId,AccountingPeriodId=periodId,PlannedDate=date,
+                Reason="Payable settlement instruction subject to independent review"
+            };
+            var created=await service.RequestSettlementAsync(second.Reference,instruction);
+            Assert.True(created.Success,created.Message);
+            instructionReference=created.Data!.Reference;instructionVersion=created.Data.RowVersion;
+            Assert.Equal("Submitted",created.Data.State);
+            Assert.Equal(instructionReference,(await service.RequestSettlementAsync(second.Reference,instruction)).Data!.Reference);
+            Assert.Equal(409,(await service.RequestSettlementAsync(second.Reference,
+                new CreateSupplierSettlementInstructionRequest {
+                    ClientRequestId=Guid.NewGuid(),InvoiceRowVersion=invoice.RowVersion,Amount=9m,
+                    BankAccountId=bankId,AccountingPeriodId=periodId,PlannedDate=date,
+                    Reason="Second instruction would exceed remaining supplier liability"
+                })).StatusCode);
+            Assert.Equal(403,(await service.ReviewSettlementAsync(second.Reference,instructionReference,
+                new ReviewSupplierSettlementInstructionRequest {RowVersion=instructionVersion,Approve=true,
+                    Reason="Maker cannot independently approve this disbursement instruction"})).StatusCode);
+        }
+        await using (var checker=Open(options,tenantId,checkerId))
+        {
+            var service=Invoices(checker,tenantId,checkerId);
+            var approved=await service.ReviewSettlementAsync(second.Reference,instructionReference,
+                new ReviewSupplierSettlementInstructionRequest {RowVersion=instructionVersion,Approve=true,
+                    Reason="Independent reviewer approves an unposted bank instruction"});
+            Assert.True(approved.Success,approved.Message);
+            Assert.Equal("Approved",approved.Data!.State);
+            Assert.Equal(409,(await service.ReviewSettlementAsync(second.Reference,instructionReference,
+                new ReviewSupplierSettlementInstructionRequest {RowVersion=instructionVersion,Approve=true,
+                    Reason="Duplicate checker action must fail with stale version"})).StatusCode);
+        }
+        await using (var verify=Open(options,tenantId,makerId))
+        {
+            var settlement=await verify.Journals.SingleAsync(x=>x.PublicId==instructionReference);
+            Assert.Equal(JournalState.Approved,settlement.State);
+            Assert.Null(settlement.PostedAt);
+            Assert.Null(settlement.PostedByUserId);
+            var lines=await verify.JournalLines.Where(x=>x.JournalId==settlement.Id).OrderBy(x=>x.LineNo).ToListAsync();
+            Assert.Equal(2,lines.Count);
+            Assert.Equal(10m,lines.Sum(x=>x.DebitAmount));
+            Assert.Equal(10m,lines.Sum(x=>x.CreditAmount));
+            var service=Invoices(verify,tenantId,makerId);
+            var current=(await service.GetAsync(second.Reference)).Data!;
+            Assert.Equal(409,(await service.RequestReversalAsync(second.Reference,
+                new RequestProcurementSupplierInvoiceReversal {ClientRequestId=Guid.NewGuid(),
+                    RowVersion=current.RowVersion,ReversalDate=date,AccountingPeriodId=periodId,
+                    Reason="Reversal must refuse an approved linked supplier payment"})).StatusCode);
+        }
+
     }
 }

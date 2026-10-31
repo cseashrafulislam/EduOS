@@ -15,5 +15,9 @@ public interface IProcurementSupplierInvoiceService
     Task<ApiResponse<ProcurementSupplierInvoiceDto>> ReviewReversalAsync(Guid reference, ReviewProcurementSupplierInvoiceReversal request, CancellationToken ct = default);
     Task<ApiResponse<PagedResult<ProcurementSupplierPayableAgingRowDto>>> AgingAsync(DateOnly? dueDateReference,
         long? supplierId, bool overdueOnly, int page, int pageSize, CancellationToken ct = default);
+    Task<ApiResponse<SupplierSettlementOptionsDto>> SettlementOptionsAsync(Guid reference, CancellationToken ct = default);
+    Task<ApiResponse<PagedResult<SupplierSettlementInstructionDto>>> SettlementInstructionsAsync(Guid reference, int page, int pageSize, CancellationToken ct = default);
+    Task<ApiResponse<SupplierSettlementInstructionDto>> RequestSettlementAsync(Guid reference, CreateSupplierSettlementInstructionRequest request, CancellationToken ct = default);
+    Task<ApiResponse<SupplierSettlementInstructionDto>> ReviewSettlementAsync(Guid reference, Guid instructionReference, ReviewSupplierSettlementInstructionRequest request, CancellationToken ct = default);
     Task<ApiResponse<ProcurementInvoicePostingOptionsDto>> PostingOptionsAsync(CancellationToken ct = default);
 }
