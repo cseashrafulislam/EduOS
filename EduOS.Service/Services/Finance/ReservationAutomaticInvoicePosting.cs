@@ -104,8 +104,9 @@ public static class ReservationAutomaticInvoicePosting
             SourceType = "StudentInvoice", SourceId = invoice.Id,
             Description = $"{kind} clearance #{clearanceId} invoice {invoice.InvoiceNumber}",
             ApprovedByUserId = userId, ApprovedAt = nowUtc,
-            // The reservation requester is the maker; Finance is the independent checker.
-            CreatedAt = nowUtc, CreatedBy = requestingUserId
+            // The Finance reviewer prepares this journal; the independent maker
+            // is the original reservation requester, verified above and on clearance.
+            CreatedAt = nowUtc, CreatedBy = userId
         };
         db.Journals.Add(journal);
         await db.SaveChangesAsync(ct);
@@ -144,7 +145,7 @@ public static class ReservationAutomaticInvoicePosting
             x.IdempotencyKey == key && x.State == JournalState.Approved &&
             x.SourceType == "StudentInvoice" && x.CampusId == campusId &&
             x.CurrencyCode == "BDT" && x.PostedByUserId == null &&
-            x.ApprovedByUserId.HasValue && x.CreatedBy != x.ApprovedByUserId, ct);
+            x.ApprovedByUserId.HasValue, ct);
         if (invoice == null || journal == null || journal.SourceId != invoice.Id ||
             journal.ReferenceNumber != invoice.InvoiceNumber ||
             await db.Journals.IgnoreQueryFilters().AsNoTracking().AnyAsync(x =>

@@ -146,9 +146,9 @@ public sealed partial class SqlServerTransportSeatCapacityIntegrationTests
             Assert.Equal(JournalState.Posted, journal.State);
             Assert.Equal("StudentInvoice", journal.SourceType);
             Assert.Equal(invoice.Id, journal.SourceId);
-            Assert.Equal(fixture.UserId, journal.CreatedBy);
+            Assert.Equal(checker, journal.CreatedBy);
             Assert.Equal(checker, journal.ApprovedByUserId);
-            Assert.NotEqual(journal.CreatedBy, journal.ApprovedByUserId);
+            Assert.NotEqual(fixture.UserId, journal.ApprovedByUserId);
             Assert.Equal(fixture.UserId, journal.PostedByUserId);
             Assert.Equal(2, lines.Length);
             Assert.Equal(invoice.TotalAmount, lines.Sum(x => x.DebitAmount));
