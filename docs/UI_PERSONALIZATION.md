@@ -14,7 +14,7 @@
 
 - Every operational page has at most **one small page-header info/help entry** for normal guidance. Never fill the form with repeated hints, instructional paragraphs, footnotes or decorative banners. Labels, required markers, genuine validation errors and legally essential explanations remain visible when necessary.
 - Help is **user-initiated**, not an automatic overlay: desktop hover after a modest delay or explicit click; mobile tap; keyboard Enter/Space. It closes naturally on mouse leave, outside click, Escape or navigation and never reopens itself after every visit/save/field focus.
-- Content is a compact page-specific field/action map: concise title, what the important controls mean, any genuinely surprising rule, and a short example only when helpful. It should fit a small popover or scroll-limited panel, never force a long full-screen manual or interrupt a task.
+- **Page Information is the page's built-in user manual, not merely a tooltip.** Desktop hover/focus may show a short summary; explicit click (or keyboard activation/mobile tap) opens a responsive, scrollable **Help Drawer** with the complete localized page guide defined in §9. Keep the single compact header icon; never dump the manual below forms, interrupt entry automatically, or use nested modal chains. Long content belongs inside the on-demand drawer, not a forced full-screen takeover.
 - Use ordinary inline validation *only when input is invalid*; guide text is not a substitute for useful field labels, correct defaults, server-side checks or safe error feedback.
 - Optional first-run tours, if ever added, are strictly opt-in/dismissible and remember the dismissal. Avoid repeated auto tooltips, forced tutorials, sound, motion, flashing elements and confirmation popups for ordinary success.
 
@@ -103,7 +103,7 @@ Implementation design when explicitly approved:
 
 1. User can select and save theme/navigation/density preferences, refresh or sign in on another device and get the same authorized experience.
 2. Two users in the same institute may have different designs; the same person in two institutes has independently scoped preferences.
-3. Changing Bangla/English updates shell, pages, validation and supported reports consistently; institution terminology remains correct.
+3. Changing Bangla/English updates the entire authorized experience, including login, sidebar/navigation/search, headers, actions, forms, validation/toasts, reports/exports, and every Page Information user-manual section and example. Locale parity is verified; untranslated content is a tracked defect, not hidden by a false completed flag.
 4. The page-header help icon works via mouse, keyboard and mobile tap; forms remain uncluttered.
 5. Narrow phones and large desktops support admission, attendance, result, payment and LMS workflows without horizontal form breakage.
 6. Adversarial payloads, stale-version updates, tenant switching and unauthorized widget IDs fail safely.
@@ -154,7 +154,7 @@ Implementation design when explicitly approved:
 
 **Before coding:** inspect the relevant shared UI component and the current route/menu registry; classify the page as Operation, Report, Settings or record detail; identify permissions, tenant/campus and module entitlement, localization keys, existing endpoint/reuse and required list/report state. The domain owner must not create a disconnected one-off UI.
 
-**Before claiming done:** (1) proper discoverability via navigation/search or contextual parent link; (2) consistent tokens/forms/buttons/tables/help; (3) bilingual display labels (no raw enum/entity key such as academicBatches); (4) keyboard/touch and mobile layout; (5) readable empty/loading/error/permission-denied states; (6) safe theme and density behavior; (7) server authorization, CSRF, validation and duplicate-save protection; (8) related list/edit/back filters and print/report permissions; (9) targeted component/browser/API-contract/security regressions; (10) updated route inventory and master-plan evidence. All checks must be recorded as **tested**, **not run** or **blocked**, never assumed passed.
+**Before claiming done:** (1) proper discoverability via navigation/search or contextual parent link; (2) consistent tokens/forms/buttons/tables and **the bilingual, example-backed Page Information manual from §9**; (3) bilingual display labels (no raw enum/entity key such as academicBatches); (4) keyboard/touch and mobile layout; (5) readable empty/loading/error/permission-denied states; (6) safe theme and density behavior; (7) server authorization, CSRF, validation and duplicate-save protection; (8) related list/edit/back filters and print/report permissions; (9) targeted component/browser/API-contract/security regressions; (10) updated route inventory and master-plan evidence. All checks must be recorded as **tested**, **not run** or **blocked**, never assumed passed.
 
 ### 8.6. High-throughput, low-duplication execution sequence
 
@@ -165,3 +165,40 @@ Implementation design when explicitly approved:
 5. Continue module-by-module and finish independent role/tenant, accessibility, mobile, report and performance acceptance. Never claim a screenshot-only polish as business-flow completion.
 
 **Acceptance reporting per run:** exact old/new Ashraful SHA; audit finding and owned route/template; files and explicit behavior changed; tests/CI status for that SHA; unverified UI/browser or institute acceptance gates; next high-value non-duplicate slice. Respect owner-visible task scheduling; this spec does not reschedule automations.
+
+## 9. Page Information as a complete, bilingual, embedded user manual (owner change 2026-11-01)
+
+The one small **Info** icon at each page header is the *entry point* to that page's complete operational guide. It must actually explain how to finish the work, with examples, rather than displaying a generic one-line purpose or listing field names. This replaces the previous short-only guidance requirement **inside the opened panel**, while preserving uncluttered screens and user-initiated help. The goal is that ordinary institute users can complete their daily work without needing a separate PDF/manual.
+
+### 9.1. Interaction and content contract
+
+- Desktop: hover/focus may show a **one- or two-sentence quick summary**; click, Enter or Space opens the full Help Drawer. Mobile: tap opens the same accessible drawer. Support Escape/close, focus return, a visible heading, scroll, correct RTL/LTR-neutral Bangla/English layout, readable width and no obstruction to Save/Cancel. Never auto-open after every page visit, tenant switch or save.
+- Each page guide has stable **page/route identity**, title, purpose (what this page actually does), when to use it, permitted roles/required setup, step-by-step instructions in the **same order as the real UI**, field/action explanations for non-obvious controls, **one realistic fictional worked example**, expected result/where to verify it, important business rules/approvals and common error/recovery cases. Add related-page links only if actually authorized and route-resolved.
+- Distinguish **Create/Edit/Approve/Cancel/Post/Reverse/Export** operations and high-risk consequences where the page supports them. Do not claim a button exists or an invoice/payment was posted unless verified from actual route, controller and current state. Guidance must not promise absent or Under Construction behavior.
+- Reuse a **single centrally maintained, localized help-content contract** keyed to real routes/features with versioning/review status; no copied hardcoded long HTML inside each view and no generic AI-generated text published without verification. Use the existing localization infrastructure when possible; do not invent a second localization or markdown renderer merely for help.
+- Each substantive UI/business workflow change must update its affected guide and both language variants in the same reviewed change. Unsupported/new features are clearly flagged, and missing translation keys are tested; manual content is versioned with the feature, not a detached stale document.
+- Keep page text concise. The longer instructions and examples are **on demand inside Help Drawer**. Real validation, safety disclosures and mandatory instructions remain visible at the point of action, so help is not used to hide critical information.
+
+### 9.2. Standard manual structure for every operational page
+
+1. **Page overview / পেজ পরিচিতি:** task and outcome in plain language.
+2. **Before you start / শুরুর আগে:** required permissions, setup, dependencies and safe prerequisites.
+3. **How to use / কীভাবে করবেন:** numbered accurate steps matching buttons and screen order, including Edit/Cancel/Approval where supported.
+4. **Example / উদাহরণ:** fictional but representative values, calculation/context and expected output; never expose actual student/guardian/finance personal information.
+5. **Important rules / গুরুত্বপূর্ণ নিয়ম:** permission, immutable postings, duplicate prevention, cutoff, retries and what can be corrected/reversed.
+6. **If something goes wrong / সমস্যা হলে:** known validation messages, missing setup, permission denied and safe recovery.
+7. **Related workflows / সংশ্লিষ্ট কাজ:** links only to existing, authorized routes.
+
+**Example — Generate Monthly Student Invoices (illustrative, not a claim about live data):** select the permitted Campus and Batch, choose November 2026 and an active fee structure, preview eligible students and totals, review exemptions/existing invoices, then confirm Generate. Expected result: created invoices appear in the authorized student ledger; repeated requests must not create duplicates. Explain why the Generate action may be disabled (no active fee structure, permission/period validation or conflicting invoice). The English and Bangla guides cover the same behavior with localized field/button names.
+
+### 9.3. Entire-product bilingual parity — not just a page toggle
+
+- The global language choice **bn-BD / en-BD** must apply coherently to login/auth/error pages, header, user menu, module/submenu/sub-submenu, global feature search and breadcrumbs, page headings/help/manual/examples, tabs, filters, form labels/placeholders/actions, validation, toasts/dialogs, empty/loading/error states, notification text and supported reports/exports/print headings. Changing language should update the current view immediately where safely supported, otherwise preserve choice and switch consistently on navigation; do not silently reset on a new route.
+- Keep canonical API field names, IDs, status codes and SQL data unchanged. Map user-facing labels/enum descriptions through one translation catalogue and approved institute terminology (Class/Level/Semester etc.) so bilingual output is readable and consistent. No raw technical keys (e.g. academicBatches) or mixed-language leftovers marked complete.
+- A selected language follows the authenticated user/institute preference across pages and sessions; tenant switching respects scoped preferences. Avoid shared-cache leakage, unauthorized menu discovery and stale language after login/logout. Guest/login surfaces can use a safe locale choice without exposing private preferences.
+- Reports, A4/PDF/Excel: localize titles, column headings, legends and messages where supported while preserving financial amounts, business dates, source filters, schema, signed approvals and official document identity. Font rendering must actually support Bangla and English; track unsupported formats explicitly.
+- Build **automated translation-key coverage + representative UI/browser assertions** for each major page type and role: route, menu and help key exist in both languages; toggle persists; no forbidden raw keys; unauthorized user cannot retrieve a private guide/route; no XSS from manual examples. Test mobile keyboard/focus and text overflow in both languages.
+
+### 9.4. Delivery and status
+
+Task 3 owns shared Help Drawer component, localization catalogue/parity tooling and systematic retrofit of existing page guides. Each business-domain owner supplies the verified steps, preconditions, approval/financial rules and worked examples for its newly created/changed pages; Task 3 integrates the common UI and no other task creates a parallel guide component. Task 5 independently checks bilingual/help completeness and authorization. Start with highest-usage Admissions, Students, Fee Collection/Invoice Generation, Attendance and Payroll, then inventory and complete remaining routes in reviewable batches. Record **verified guide coverage by route and language**, not estimated “all pages done” claims.
