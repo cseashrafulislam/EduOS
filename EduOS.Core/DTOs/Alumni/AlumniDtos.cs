@@ -43,3 +43,56 @@ public sealed class AlumniDirectoryQueryDto
     [Range(1, 50)] public int PageSize { get; set; } = 20;
     [StringLength(100)] public string? Search { get; set; }
 }
+
+public sealed class AlumniEventDraftDto
+{
+    [Required] public Guid ClientRequestId { get; set; }
+    [Range(1, long.MaxValue)] public long CampusId { get; set; }
+    [Required, StringLength(160, MinimumLength = 3)] public string Title { get; set; } = "";
+    [StringLength(1500)] public string? Description { get; set; }
+    public DateTime StartsAtUtc { get; set; }
+    public DateTime EndsAtUtc { get; set; }
+}
+
+public sealed class AlumniEventActionDto
+{
+    [Required] public string RowVersion { get; set; } = "";
+}
+
+public sealed class AlumniEventRsvpDto
+{
+    [Required] public Guid ClientRequestId { get; set; }
+    [Required] public Guid EventReference { get; set; }
+    [Required] public Guid StudentReference { get; set; }
+    [Range(1, 2)] public int Response { get; set; }
+    public string? RowVersion { get; set; }
+}
+
+public sealed class AlumniEventQueryDto
+{
+    [Range(1, int.MaxValue)] public int Page { get; set; } = 1;
+    [Range(1, 50)] public int PageSize { get; set; } = 20;
+}
+
+public sealed class AlumniEventItemDto
+{
+    public Guid Reference { get; set; }
+    public long CampusId { get; set; }
+    public string Title { get; set; } = "";
+    public string? Description { get; set; }
+    public DateTime StartsAtUtc { get; set; }
+    public DateTime EndsAtUtc { get; set; }
+    public int Status { get; set; }
+    public string RowVersion { get; set; } = "";
+    public int GoingCount { get; set; }
+    public int DeclinedCount { get; set; }
+    public int? MyResponse { get; set; }
+    public string? MyRowVersion { get; set; }
+    public bool CanManage { get; set; }
+}
+
+public sealed class AlumniEventCampusDto
+{
+    public long Id { get; set; }
+    public string Name { get; set; } = "";
+}

@@ -18,14 +18,24 @@
         search: ['Search', 'খুঁজুন'], export: ['Export current page CSV', 'বর্তমান পৃষ্ঠা CSV'],
         name: ['Name', 'নাম'], code: ['Code', 'কোড'], contact: ['Contact', 'যোগাযোগ'],
         completed: ['Completed', 'উত্তীর্ণ'], loading: ['Loading…', 'লোড হচ্ছে…'],
-        previous: ['Previous', 'আগের'], next: ['Next', 'পরের']
+        previous: ['Previous', 'আগের'], next: ['Next', 'পরের'],
+        events: ['Alumni events & engagement', 'প্রাক্তন শিক্ষার্থীদের অনুষ্ঠান ও অংশগ্রহণ'],
+        eventsPrivacy: ['RSVP requires active directory consent. Revoking consent clears active RSVPs.', 'অংশগ্রহণ জানাতে তথ্য প্রকাশের সম্মতি প্রয়োজন। সম্মতি প্রত্যাহার করলে অংশগ্রহণের তথ্য মুছে যাবে।'],
+        eventsCsv: ['Export page engagement CSV', 'অংশগ্রহণের CSV রপ্তানি'],
+        eventCampus: ['Campus', 'ক্যাম্পাস'], eventTitle: ['Event title', 'অনুষ্ঠানের শিরোনাম'],
+        eventStart: ['Starts (local time)', 'শুরু (স্থানীয় সময়)'],
+        eventEnd: ['Ends (local time)', 'শেষ (স্থানীয় সময়)'],
+        eventDescription: ['Details (optional)', 'বিবরণ (ঐচ্ছিক)'],
+        createDraft: ['Create draft for approval', 'অনুমোদনের জন্য খসড়া তৈরি'],
+        makerChecker: ['A different administrator must publish the draft.', 'অন্য একজন প্রশাসক প্রকাশের অনুমোদন দেবেন।']
     };
     for (const node of root.querySelectorAll('[data-i18n]')) {
         const values = strings[node.dataset.i18n];
         if (values) node.textContent = values[bn ? 1 : 0];
     }
     const token = root.querySelector('input[name="__RequestVerificationToken"]')?.value || '';
-    const state = { graduates: [], selected: null, page: 1, total: 0, busy: false, requestId: null };
+    const state = { graduates: [], selected: null, page: 1, total: 0, busy: false, requestId: null,
+        eventPage: 1, eventTotal: 0, eventBusy: false, eventCreateRequest: null, rsvpRequests: new Map() };
     const notice = (message, error = false) => {
         const box = el('alumniNotice');
         box.className = 'alert ' + (error ? 'alert-danger' : 'alert-success');
@@ -93,6 +103,7 @@
             state.requestId = null; showSelected();
             notice(bn ? 'গোপনীয়তার পছন্দ সংরক্ষিত হয়েছে।' : 'Privacy preferences saved.');
             if (root.dataset.admin === 'true') await loadDirectory();
+            await loadEvents();
         } catch (error) {
             notice(error.message, true);
         } finally { state.busy = false; el('alumniSave').disabled = !state.selected; }
@@ -122,7 +133,10 @@
         el('alumniNext').disabled = state.page * 20 >= state.total;
         el('alumniExport').href = '/api/alumni/directory.csv?' + query;
     }
-    el('alumniGraduate').addEventListener('change', showSelected);
+    el('alumniGraduate').addEventListener('change', () => {
+        showSelected();
+        loadEvents().catch(e => notice(e.message, true));
+    });
     el('alumniOptIn').addEventListener('change', syncContactInputs);
     el('alumniConsentForm').addEventListener('submit', save);
     if (root.dataset.admin === 'true') {
@@ -136,6 +150,155 @@
             if (state.page * 20 < state.total) { state.page++; loadDirectory().catch(e => notice(e.message, true)); }
         });
     }
-    loadMine().catch(e => notice(e.message, true));
+
+    const eventAdmin = root.dataset.admin === 'true';
+    const eventLabel = (english, bangla) => bn ? bangla : english;
+    const localDate = value => new Date(value).toLocaleString(bn ? 'bn-BD' : 'en-BD',
+        { dateStyle: 'medium', timeStyle: 'short' });
+    const eventStatus = value => value === 1 ? eventLabel('Draft', 'খসড়া')
+        : value === 2 ? eventLabel('Published', 'প্রকাশিত') : eventLabel('Cancelled', 'বাতিল');
+
+    function eventButton(label, style, onClick) {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'btn btn-sm ' + style;
+        button.textContent = label;
+        button.addEventListener('click', onClick);
+        return button;
+    }
+    async function loadEventCampuses() {
+        if (!eventAdmin) return;
+        const campuses = await api('/api/alumni/event-campuses');
+        const select = el('alumniEventCampus');
+        select.replaceChildren();
+        select.add(new Option(eventLabel('Choose campus', 'ক্যাম্পাস নির্বাচন'), ''));
+        for (const campus of campuses) select.add(new Option(campus.name, campus.id));
+    }
+    async function loadEvents() {
+        const query = new URLSearchParams({ page: state.eventPage, pageSize: 20 });
+        const page = await api('/api/alumni/events?' + query);
+        state.eventTotal = page.totalCount;
+        const target = el('alumniEventCards');
+        target.replaceChildren();
+        if (!page.items.length) {
+            const empty = document.createElement('p');
+            empty.className = 'text-muted';
+            empty.textContent = eventLabel('No events available.', 'কোনো অনুষ্ঠান পাওয়া যায়নি।');
+            target.append(empty);
+        }
+        for (const item of page.items) {
+            const col = document.createElement('div');
+            col.className = 'col-md-6 col-xl-4';
+            const card = document.createElement('article');
+            card.className = 'border rounded p-3 h-100 d-flex flex-column gap-2';
+            const title = document.createElement('h3');
+            title.className = 'h6 fw-semibold mb-0';
+            title.textContent = item.title;
+            const date = document.createElement('p');
+            date.className = 'small text-muted mb-0';
+            date.textContent = localDate(item.startsAtUtc) + ' — ' + localDate(item.endsAtUtc);
+            const description = document.createElement('p');
+            description.className = 'small mb-0';
+            description.textContent = item.description || '';
+            const status = document.createElement('p');
+            status.className = 'small mb-0';
+            status.textContent = eventStatus(item.status) + (eventAdmin
+                ? ' · ' + eventLabel('Going', 'আসবেন') + ': ' + item.goingCount +
+                  ' · ' + eventLabel('Declined', 'আসবেন না') + ': ' + item.declinedCount
+                : item.myResponse ? ' · ' + (item.myResponse === 1
+                    ? eventLabel('Going', 'আসবেন') : eventLabel('Not going', 'আসবেন না')) : '');
+            const actions = document.createElement('div');
+            actions.className = 'd-flex flex-wrap gap-2 mt-auto';
+            if (eventAdmin && item.status === 1) {
+                actions.append(eventButton(eventLabel('Publish', 'প্রকাশ'), 'btn-outline-primary',
+                    () => changeEventStatus(item, 'publish')));
+            }
+            if (eventAdmin && item.status !== 3) {
+                actions.append(eventButton(eventLabel('Cancel', 'বাতিল'), 'btn-outline-danger',
+                    () => changeEventStatus(item, 'cancel')));
+            }
+            if (!eventAdmin && item.status === 2 && new Date(item.startsAtUtc) > new Date()
+                && state.selected?.directoryOptIn) {
+                actions.append(eventButton(eventLabel('Going', 'আসব'), 'btn-outline-success',
+                    () => saveRsvp(item, 1)));
+                actions.append(eventButton(eventLabel('Not going', 'আসব না'), 'btn-outline-secondary',
+                    () => saveRsvp(item, 2)));
+            }
+            card.append(title, date, description, status, actions);
+            col.append(card);
+            target.append(col);
+        }
+        el('alumniEventPage').textContent = state.eventPage + ' / ' +
+            Math.max(1, Math.ceil(state.eventTotal / 20));
+        el('alumniEventPrev').disabled = state.eventPage <= 1;
+        el('alumniEventNext').disabled = state.eventPage * 20 >= state.eventTotal;
+        if (eventAdmin) el('alumniEventsExport').href = '/api/alumni/events/report.csv?' + query;
+    }
+    async function changeEventStatus(item, action) {
+        if (state.eventBusy) return;
+        state.eventBusy = true;
+        try {
+            await api('/api/alumni/events/' + encodeURIComponent(item.reference) + '/' + action,
+                { method: 'POST', body: JSON.stringify({ rowVersion: item.rowVersion }) });
+            notice(eventLabel('Event updated.', 'অনুষ্ঠান হালনাগাদ হয়েছে।'));
+            await loadEvents();
+        } catch (error) { notice(error.message, true); }
+        finally { state.eventBusy = false; }
+    }
+    async function saveRsvp(item, response) {
+        if (state.eventBusy || !state.selected) return;
+        state.eventBusy = true;
+        const key = item.reference + ':' + response;
+        if (!state.rsvpRequests.has(key)) state.rsvpRequests.set(key, crypto.randomUUID());
+        try {
+            await api('/api/alumni/events/rsvp', { method: 'POST', body: JSON.stringify({
+                clientRequestId: state.rsvpRequests.get(key), eventReference: item.reference,
+                studentReference: state.selected.studentReference, response,
+                rowVersion: item.myRowVersion || null
+            }) });
+            state.rsvpRequests.delete(key);
+            notice(eventLabel('RSVP saved.', 'অংশগ্রহণের উত্তর সংরক্ষিত হয়েছে।'));
+            await loadEvents();
+        } catch (error) { notice(error.message, true); }
+        finally { state.eventBusy = false; }
+    }
+    async function createEvent(event) {
+        event.preventDefault();
+        if (state.eventBusy) return;
+        state.eventBusy = true;
+        el('alumniEventCreate').disabled = true;
+        if (!state.eventCreateRequest) state.eventCreateRequest = crypto.randomUUID();
+        try {
+            await api('/api/alumni/events', { method: 'POST', body: JSON.stringify({
+                clientRequestId: state.eventCreateRequest,
+                campusId: Number(el('alumniEventCampus').value),
+                title: el('alumniEventTitle').value.trim(),
+                description: el('alumniEventDescription').value.trim() || null,
+                startsAtUtc: new Date(el('alumniEventStart').value).toISOString(),
+                endsAtUtc: new Date(el('alumniEventEnd').value).toISOString()
+            }) });
+            state.eventCreateRequest = null;
+            el('alumniEventForm').reset();
+            notice(eventLabel('Draft created. Another administrator must publish it.',
+                'খসড়া তৈরি হয়েছে। অন্য প্রশাসক প্রকাশ করবেন।'));
+            state.eventPage = 1;
+            await loadEvents();
+        } catch (error) { notice(error.message, true); }
+        finally { state.eventBusy = false; el('alumniEventCreate').disabled = false; }
+    }
+    el('alumniEventPrev').addEventListener('click', () => {
+        if (state.eventPage > 1) { state.eventPage--; loadEvents().catch(e => notice(e.message, true)); }
+    });
+    el('alumniEventNext').addEventListener('click', () => {
+        if (state.eventPage * 20 < state.eventTotal) {
+            state.eventPage++; loadEvents().catch(e => notice(e.message, true));
+        }
+    });
+    if (eventAdmin) {
+        el('alumniEventForm').addEventListener('submit', createEvent);
+        loadEventCampuses().catch(e => notice(e.message, true));
+    }
+
+    loadMine().then(loadEvents).catch(e => notice(e.message, true));
     loadDirectory().catch(e => notice(e.message, true));
 })();

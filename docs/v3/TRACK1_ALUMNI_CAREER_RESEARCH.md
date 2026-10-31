@@ -14,8 +14,10 @@ Starting owner baseline: `ea8c2a9a2953f7757f4e8f8d31003fd5d6822c6b`; first-run i
 - [x] Tenant-admin-only, campus-restricted, consent-filtered paged directory and current-page CSV; spreadsheet formula injection protected.
 - [x] Responsive accessible bilingual self-service and directory view; entitlement-gated navigation.
 - [x] Focused C# contract, SQL integration and Node JS tests added.
-- [ ] Exact-commit Release build, SQL fresh/repeat migration, SQL integration, JS/browser and CI evidence — verify after commit; do not claim PASS without results.
-- [ ] Alumni events, invitations, RSVP/engagement, privacy-safe engagement reporting and institutional consent policy/UAT.
+- [x] Initial consent slice exact-SHA CI (3,116 tests), JS, focused Alumni SQL and fresh/repeat migrations verified in runs 41207222682 / 41207090083; shared SQL smoke failures were unrelated V2/Inventory tests.
+- [x] Event draft creation, separate-admin publish approval, cancellation, campus-restricted event listings, verified alumni RSVP, idempotency/rowversion, consent-revocation RSVP clearing, aggregated engagement CSV and bilingual mobile UI — implementation prepared 2026-10-31; exact-SHA CI and SQL verification pending.
+- [ ] Invitations/notification delivery (requires opt-in communication policy), event attendance check-in, and real-institute consent policy/UAT.
+- [ ] Event batch exact-SHA Release build, fresh/repeat SQL, SQL integration and browser/JS evidence — report only verified results.
 - [ ] Re-evaluate campus access policy for institution-wide TenantAdmin accounts with no explicit campus grants before real-institute acceptance.
 
 ## Queue (do not duplicate other tracks)

@@ -67,6 +67,83 @@ public sealed class AlumniApiController : ControllerBase
             $"alumni-directory-page-{query.Page}.csv");
     }
 
+
+    [HttpGet("event-campuses")]
+    [Authorize(Roles = "TenantAdmin")]
+    public async Task<IActionResult> EventCampuses(CancellationToken ct)
+    {
+        var result = await _service.EventCampusesAsync(ct);
+        return StatusCode(result.StatusCode, result);
+    }
+
+    [HttpGet("events")]
+    public async Task<IActionResult> Events([FromQuery] AlumniEventQueryDto query, CancellationToken ct)
+    {
+        if (!ModelState.IsValid) return ValidationProblem(ModelState);
+        var result = await _service.EventsAsync(query, ct);
+        return StatusCode(result.StatusCode, result);
+    }
+
+    [HttpPost("events")]
+    [Authorize(Roles = "TenantAdmin")]
+    [EnableRateLimiting("ApiPolicy")]
+    public async Task<IActionResult> CreateEvent([FromBody] AlumniEventDraftDto request, CancellationToken ct)
+    {
+        if (!ModelState.IsValid) return ValidationProblem(ModelState);
+        var result = await _service.CreateEventAsync(request, ct);
+        return StatusCode(result.StatusCode, result);
+    }
+
+    [HttpPost("events/{reference:guid}/publish")]
+    [Authorize(Roles = "TenantAdmin")]
+    [EnableRateLimiting("ApiPolicy")]
+    public async Task<IActionResult> PublishEvent(Guid reference, [FromBody] AlumniEventActionDto request, CancellationToken ct)
+    {
+        if (!ModelState.IsValid) return ValidationProblem(ModelState);
+        var result = await _service.ChangeEventStatusAsync(reference, request, true, ct);
+        return StatusCode(result.StatusCode, result);
+    }
+
+    [HttpPost("events/{reference:guid}/cancel")]
+    [Authorize(Roles = "TenantAdmin")]
+    [EnableRateLimiting("ApiPolicy")]
+    public async Task<IActionResult> CancelEvent(Guid reference, [FromBody] AlumniEventActionDto request, CancellationToken ct)
+    {
+        if (!ModelState.IsValid) return ValidationProblem(ModelState);
+        var result = await _service.ChangeEventStatusAsync(reference, request, false, ct);
+        return StatusCode(result.StatusCode, result);
+    }
+
+    [HttpPost("events/rsvp")]
+    [EnableRateLimiting("ApiPolicy")]
+    public async Task<IActionResult> Rsvp([FromBody] AlumniEventRsvpDto request, CancellationToken ct)
+    {
+        if (!ModelState.IsValid) return ValidationProblem(ModelState);
+        var result = await _service.RsvpAsync(request, ct);
+        return StatusCode(result.StatusCode, result);
+    }
+
+    // Aggregated engagement only. Never export attendee identities or contact details.
+    [HttpGet("events/report.csv")]
+    [Authorize(Roles = "TenantAdmin")]
+    public async Task<IActionResult> EventReport([FromQuery] AlumniEventQueryDto query, CancellationToken ct)
+    {
+        if (!ModelState.IsValid) return ValidationProblem(ModelState);
+        var result = await _service.EventsAsync(query, ct);
+        if (!result.Success || result.Data == null) return StatusCode(result.StatusCode, result);
+        var csv = new StringBuilder("\uFEFFEvent,Campus ID,Starts (UTC),Status,Going,Declined\r\n");
+        foreach (var item in result.Data.Items)
+        {
+            csv.Append(Csv(item.Title)).Append(',').Append(item.CampusId).Append(',')
+                .Append(Csv(item.StartsAtUtc.ToString("O"))).Append(',')
+                .Append(item.Status).Append(',').Append(item.GoingCount).Append(',')
+                .Append(item.DeclinedCount).Append("\r\n");
+        }
+        Response.Headers["X-Content-Type-Options"] = "nosniff";
+        return File(Encoding.UTF8.GetBytes(csv.ToString()), "text/csv; charset=utf-8",
+            $"alumni-engagement-page-{query.Page}.csv");
+    }
+
     private static string Csv(string? value)
     {
         var text = value ?? "";

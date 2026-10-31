@@ -25,7 +25,7 @@ public sealed class SqlServerAlumniConsentIntegrationTests
         if (string.IsNullOrWhiteSpace(connection)) return;
         var options = new DbContextOptionsBuilder<EduOSDbContext>().UseSqlServer(connection).Options;
         var suffix = Guid.NewGuid().ToString("N")[..10];
-        long tenantId, userId, otherTenantId;
+        long tenantId, userId, publisherId, otherTenantId, campusId;
         Guid studentReference;
 
         await using (var setup = new EduOSDbContext(options))
@@ -42,10 +42,18 @@ public sealed class SqlServerAlumniConsentIntegrationTests
                 FullName = "Verified Graduate", EmailConfirmed = true, IsActive = true,
                 SecurityStamp = Guid.NewGuid().ToString(), ConcurrencyStamp = Guid.NewGuid().ToString()
             };
+            var approverName = "alumni-approver-" + suffix + "@example.test";
+            var approver = new ApplicationUser
+            {
+                UserName = approverName, NormalizedUserName = approverName.ToUpperInvariant(),
+                Email = approverName, NormalizedEmail = approverName.ToUpperInvariant(),
+                FullName = "Second Alumni Administrator", EmailConfirmed = true, IsActive = true,
+                SecurityStamp = Guid.NewGuid().ToString(), ConcurrencyStamp = Guid.NewGuid().ToString()
+            };
             var person = new Person { FullName = "Verified Graduate" };
-            setup.AddRange(tenant, other, user, person);
+            setup.AddRange(tenant, other, user, approver, person);
             await setup.SaveChangesAsync();
-            tenantId = tenant.Id; otherTenantId = other.Id; userId = user.Id;
+            tenantId = tenant.Id; otherTenantId = other.Id; userId = user.Id; publisherId = approver.Id;
             setup.ChangeTracker.Clear();
             using (setup.BeginSystemTenantScope(tenantId))
             {
@@ -58,7 +66,7 @@ public sealed class SqlServerAlumniConsentIntegrationTests
                     AdmissionDate = new DateOnly(2026, 1, 1), StatusCode = "Passed" };
                 setup.AddRange(campus, year, program, student);
                 await setup.SaveChangesAsync();
-                studentReference = student.PublicId;
+                studentReference = student.PublicId; campusId = campus.Id;
                 var level = new AcademicLevel { TenantId = tenantId, AcademicProgramId = program.Id,
                     Name = "Final", Code = "FINAL", LevelNo = 12 };
                 var curriculum = new AcademicCurriculum { TenantId = tenantId,
@@ -130,6 +138,60 @@ public sealed class SqlServerAlumniConsentIntegrationTests
         Assert.Single(directory.Data!.Items);
         Assert.Equal("graduate@example.test", directory.Data.Items[0].ContactEmail);
 
+
+        var eventDraftRequest = new AlumniEventDraftDto
+        {
+            ClientRequestId = Guid.NewGuid(), CampusId = campusId,
+            Title = "Verified alumni reunion",
+            Description = "Alumni engagement integration test",
+            StartsAtUtc = DateTime.UtcNow.AddDays(3),
+            EndsAtUtc = DateTime.UtcNow.AddDays(3).AddHours(2)
+        };
+        var draft = await admin.CreateEventAsync(eventDraftRequest);
+        Assert.True(draft.Success, draft.Message);
+        Assert.Equal(1, draft.Data!.Status);
+        var draftReplay = await admin.CreateEventAsync(eventDraftRequest);
+        Assert.True(draftReplay.Success, draftReplay.Message);
+        Assert.Equal(draft.Data.Reference, draftReplay.Data!.Reference);
+
+        var selfApproval = await admin.ChangeEventStatusAsync(draft.Data.Reference,
+            new AlumniEventActionDto { RowVersion = draft.Data.RowVersion }, true);
+        Assert.False(selfApproval.Success);
+        Assert.Equal(403, selfApproval.StatusCode);
+
+        var approver = Service(db, tenantId, publisherId, true);
+        var published = await approver.ChangeEventStatusAsync(draft.Data.Reference,
+            new AlumniEventActionDto { RowVersion = draft.Data.RowVersion }, true);
+        Assert.True(published.Success, published.Message);
+        Assert.Equal(2, published.Data!.Status);
+
+        var eventPage = await graduate.EventsAsync(new AlumniEventQueryDto());
+        Assert.True(eventPage.Success, eventPage.Message);
+        Assert.Contains(eventPage.Data!.Items, e => e.Reference == draft.Data.Reference);
+
+        var rsvpRequest = new AlumniEventRsvpDto
+        {
+            ClientRequestId = Guid.NewGuid(), EventReference = draft.Data.Reference,
+            StudentReference = studentReference, Response = 1
+        };
+        var rsvp = await graduate.RsvpAsync(rsvpRequest);
+        Assert.True(rsvp.Success, rsvp.Message);
+        Assert.Equal(1, rsvp.Data!.MyResponse);
+        var rsvpReplay = await graduate.RsvpAsync(rsvpRequest);
+        Assert.True(rsvpReplay.Success, rsvpReplay.Message);
+        var staleRsvp = await graduate.RsvpAsync(new AlumniEventRsvpDto
+        {
+            ClientRequestId = Guid.NewGuid(), EventReference = draft.Data.Reference,
+            StudentReference = studentReference, Response = 2
+        });
+        Assert.False(staleRsvp.Success);
+        Assert.Equal(409, staleRsvp.StatusCode);
+
+        var engagement = await admin.EventsAsync(new AlumniEventQueryDto());
+        Assert.True(engagement.Success, engagement.Message);
+        Assert.Equal(1, Assert.Single(engagement.Data!.Items.Where(e =>
+            e.Reference == draft.Data.Reference)).GoingCount);
+
         // A campus-restricted administrator must not see graduates from another campus.
         var otherCampus = new Campus { TenantId = tenantId, Code = "SECOND", Name = "Second Campus" };
         db.Campuses.Add(otherCampus);
@@ -155,6 +217,12 @@ public sealed class SqlServerAlumniConsentIntegrationTests
         });
         Assert.True(revoked.Success, revoked.Message);
         Assert.Null(revoked.Data!.ContactEmail);
+        var clearedEngagement = await approver.EventsAsync(new AlumniEventQueryDto());
+        Assert.True(clearedEngagement.Success, clearedEngagement.Message);
+        Assert.Equal(0, Assert.Single(clearedEngagement.Data!.Items.Where(e =>
+            e.Reference == draft.Data.Reference)).GoingCount);
+        var hiddenEvents = await graduate.EventsAsync(new AlumniEventQueryDto());
+        Assert.Empty(hiddenEvents.Data!.Items);
         var after = await admin.DirectoryAsync(new AlumniDirectoryQueryDto());
         Assert.Empty(after.Data!.Items);
     }

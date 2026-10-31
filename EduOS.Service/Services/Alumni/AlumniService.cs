@@ -21,7 +21,7 @@ namespace EduOS.Service.Services.Alumni;
 /// The alumni tables are managed by an explicit SQL migration and queried via the canonical
 /// EduOSDbContext; they are intentionally not duplicate EF entities or a second database.
 /// </summary>
-public sealed class AlumniService : IAlumniService
+public sealed partial class AlumniService : IAlumniService
 {
     private readonly EduOSDbContext _db;
     private readonly ICurrentUserService _user;
@@ -164,6 +164,10 @@ public sealed class AlumniService : IAlumniService
                             AND RowVersion = {supplied}", token);
                     if (updated != 1)
                         return ApiResponse<AlumniSelfDto>.ErrorResponse("Profile changed. Reload and retry.", 409);
+                    if (profile.DirectoryOptIn && !request.DirectoryOptIn)
+                        await _db.Database.ExecuteSqlInterpolatedAsync($@"
+                            DELETE FROM dbo.AlumniEventRsvps
+                            WHERE TenantId = {tenantId} AND AlumniProfileId = {profile.Id}", token);
                     action = profile.DirectoryOptIn && !request.DirectoryOptIn ? "ConsentRevoked"
                         : !profile.DirectoryOptIn && request.DirectoryOptIn ? "ConsentGranted" : "ConsentUpdated";
                 }
