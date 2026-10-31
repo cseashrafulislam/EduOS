@@ -36,7 +36,7 @@
     }
     const token = root.querySelector('input[name="__RequestVerificationToken"]')?.value || '';
     const state = { graduates: [], selected: null, page: 1, total: 0, busy: false, requestId: null,
-        eventPage: 1, eventTotal: 0, eventBusy: false, eventCreateRequest: null, rsvpRequests: new Map() };
+        eventPage: 1, eventTotal: 0, eventBusy: false, eventCreateRequest: null, rsvpRequests: new Map(), eventRequestSerial: 0 };
     const notice = (message, error = false) => {
         const box = el('alumniNotice');
         box.className = 'alert ' + (error ? 'alert-danger' : 'alert-success');
@@ -60,6 +60,9 @@
     function showSelected() {
         state.selected = selectedGraduate();
         state.requestId = null;
+        // Retry keys and in-flight event pages belong to a single graduate identity.
+        state.rsvpRequests.clear();
+        state.eventRequestSerial++;
         const item = state.selected;
         el('alumniOptIn').checked = Boolean(item?.directoryOptIn);
         el('alumniEmail').value = item?.contactEmail || '';
@@ -176,8 +179,13 @@
         for (const campus of campuses) select.add(new Option(campus.name, campus.id));
     }
     async function loadEvents() {
+        const serial = ++state.eventRequestSerial;
+        const selectedReference = state.selected?.studentReference || null;
         const query = new URLSearchParams({ page: state.eventPage, pageSize: 20 });
+        if (!eventAdmin && selectedReference) query.set('studentReference', selectedReference);
         const page = await api('/api/alumni/events?' + query);
+        if (serial !== state.eventRequestSerial ||
+            (!eventAdmin && (state.selected?.studentReference || null) !== selectedReference)) return;
         state.eventTotal = page.totalCount;
         const target = el('alumniEventCards');
         target.replaceChildren();
@@ -326,12 +334,13 @@
     async function saveRsvp(item, response) {
         if (state.eventBusy || !state.selected) return;
         state.eventBusy = true;
-        const key = item.reference + ':' + response;
+        const studentReference = state.selected.studentReference;
+        const key = item.reference + ':' + studentReference + ':' + response;
         if (!state.rsvpRequests.has(key)) state.rsvpRequests.set(key, crypto.randomUUID());
         try {
             await api('/api/alumni/events/rsvp', { method: 'POST', body: JSON.stringify({
                 clientRequestId: state.rsvpRequests.get(key), eventReference: item.reference,
-                studentReference: state.selected.studentReference, response,
+                studentReference, response,
                 rowVersion: item.myRowVersion || null
             }) });
             state.rsvpRequests.delete(key);

@@ -53,6 +53,7 @@ public sealed partial class AlumniService
             FROM dbo.AlumniProfiles p
             INNER JOIN dbo.Students s ON s.TenantId = p.TenantId AND s.Id = p.StudentId
                 AND s.UserId = {1} AND s.IsDeleted = 0
+                AND ({4} = '00000000-0000-0000-0000-000000000000' OR s.PublicId = {4})
             INNER JOIN dbo.StudentExitRecords x ON x.Id = p.StudentExitRecordId
                 AND x.TenantId = p.TenantId AND x.StudentId = s.Id
                 AND x.ExitType = 2 AND x.FeesCleared = 1 AND x.IsDeleted = 0
@@ -226,8 +227,9 @@ public sealed partial class AlumniService
         AlumniEventQueryDto query, CancellationToken ct = default)
     {
         if (!CanRead()) return ApiResponse<PagedResult<AlumniEventItemDto>>.ErrorResponse("Institution membership required.", 403);
-        if (query == null || query.Page < 1 || query.PageSize is < 1 or > 50)
-            return ApiResponse<PagedResult<AlumniEventItemDto>>.ErrorResponse("Invalid event page.");
+        if (query == null || query.Page < 1 || query.PageSize is < 1 or > 50 ||
+            query.StudentReference == Guid.Empty)
+            return ApiResponse<PagedResult<AlumniEventItemDto>>.ErrorResponse("Invalid event page or graduate.");
         var tenant = _user.TenantId;
         var actor = _user.UserId;
         var admin = _user.IsTenantAdmin;
@@ -237,13 +239,21 @@ public sealed partial class AlumniService
             : " mine.MyResponse, mine.MyRowVersion ";
         try
         {
+            // The list and count use the same selected-graduate predicate. Keep the
+            // legacy no-reference query compatible, but never mix two graduate RSVPs.
+            var selected = query.StudentReference ?? Guid.Empty;
+            var countFrom = admin ? from : from.Replace("{4}", "{2}", StringComparison.Ordinal);
+            var countArgs = admin ? new object[] { tenant, actor } : new object[] { tenant, actor, selected };
             var total = await _db.Database.SqlQueryRaw<int>(
-                "SELECT COUNT(*) AS Value " + from, tenant, actor).ToListAsync(ct);
+                "SELECT COUNT(*) AS Value " + countFrom, countArgs).ToListAsync(ct);
             var offset = (int)Math.Min((long)(query.Page - 1) * query.PageSize, int.MaxValue);
+            var pageArgs = admin
+                ? new object[] { tenant, actor, offset, query.PageSize }
+                : new object[] { tenant, actor, offset, query.PageSize, selected };
             var rows = await _db.Database.SqlQueryRaw<AlumniEventSqlRow>(
                 EventColumns + mineColumns + from +
                 " ORDER BY e.StartsAtUtc DESC, e.Id DESC OFFSET {2} ROWS FETCH NEXT {3} ROWS ONLY",
-                tenant, actor, offset, query.PageSize).ToListAsync(ct);
+                pageArgs).ToListAsync(ct);
             return ApiResponse<PagedResult<AlumniEventItemDto>>.SuccessResponse(
                 new PagedResult<AlumniEventItemDto> {
                     Items = rows.Select(x => ToEvent(x, admin)).ToList(),

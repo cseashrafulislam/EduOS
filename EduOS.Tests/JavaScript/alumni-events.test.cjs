@@ -9,6 +9,7 @@ test('alumni events require CSRF, idempotent RSVP and maker-checker publish', ()
     assert.match(script, /RequestVerificationToken: token/);
     assert.match(script, /eventCreateRequest = crypto.randomUUID\(\)/);
     assert.match(script, /rsvpRequests\.set\(key, crypto.randomUUID\(\)\)/);
+    assert.match(script, /const key = item\.reference \+ ':' \+ studentReference \+ ':' \+ response/);
     assert.match(script, /rowVersion: item\.rowVersion/);
     assert.match(script, /rowVersion: item\.myRowVersion/);
     assert.match(view, /A different administrator must publish/);
@@ -32,4 +33,11 @@ test('attendance roster is paged, bilingual, text-safe and uses versioned CSRF w
     assert.match(script, /table-responsive/);
     assert.match(view, /attendanceNote/);
     assert.doesNotMatch(script, /innerHTML/);
+});
+
+test('event list follows selected graduate and ignores stale responses on identity switch', () => {
+    assert.match(script, /query\.set\('studentReference', selectedReference\)/);
+    assert.match(script, /serial !== state\.eventRequestSerial/);
+    assert.match(script, /state\.rsvpRequests\.clear\(\)/);
+    assert.match(script, /studentReference, response,/);
 });

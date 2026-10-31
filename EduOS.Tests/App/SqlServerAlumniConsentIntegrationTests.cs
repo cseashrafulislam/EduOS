@@ -187,6 +187,78 @@ public sealed class SqlServerAlumniConsentIntegrationTests
         Assert.False(staleRsvp.Success);
         Assert.Equal(409, staleRsvp.StatusCode);
 
+        // A login may own multiple completed student records. The selected graduate
+        // must own the displayed RSVP/version; another identity must not bleed in.
+        var originalStudent = await db.Students.SingleAsync(x => x.PublicId == studentReference);
+        var originalEnrollment = await db.StudentEnrollments.SingleAsync(x => x.StudentId == originalStudent.Id);
+        var alternatePerson = new Person { FullName = "Alternate Verified Graduate" };
+        db.Add(alternatePerson);
+        await db.SaveChangesAsync();
+        var alternateStudent = new Student
+        {
+            TenantId = tenantId, PersonId = alternatePerson.Id, UserId = userId,
+            FullName = "Alternate Verified Graduate", StudentCode = "AL-ALT-" + suffix,
+            AdmissionDate = new DateOnly(2026, 1, 1), StatusCode = "Passed"
+        };
+        db.Add(alternateStudent);
+        await db.SaveChangesAsync();
+        var alternateEnrollment = new StudentEnrollment
+        {
+            TenantId = tenantId, StudentId = alternateStudent.Id,
+            AcademicYearId = originalEnrollment.AcademicYearId,
+            CampusId = originalEnrollment.CampusId,
+            AcademicProgramId = originalEnrollment.AcademicProgramId,
+            AcademicLevelId = originalEnrollment.AcademicLevelId,
+            AcademicBatchId = originalEnrollment.AcademicBatchId,
+            AcademicCurriculumId = originalEnrollment.AcademicCurriculumId,
+            RollNo = "12", EnrollmentDate = new DateOnly(2026, 1, 1),
+            State = EnrollmentState.Completed, IsCurrent = false,
+            ClientRequestId = Guid.NewGuid()
+        };
+        db.Add(alternateEnrollment);
+        await db.SaveChangesAsync();
+        db.Add(new StudentExitRecord
+        {
+            TenantId = tenantId, StudentId = alternateStudent.Id,
+            StudentEnrollmentId = alternateEnrollment.Id, ExitType = StudentExitType.Completed,
+            FeesCleared = true, ProcessedByUserId = userId, ClientRequestId = Guid.NewGuid()
+        });
+        await db.SaveChangesAsync();
+        var alternateConsent = await graduate.SaveConsentAsync(new AlumniConsentRequestDto
+        {
+            StudentReference = alternateStudent.PublicId, ClientRequestId = Guid.NewGuid(),
+            DirectoryOptIn = true
+        });
+        Assert.True(alternateConsent.Success, alternateConsent.Message);
+        var alternateRsvp = await graduate.RsvpAsync(new AlumniEventRsvpDto
+        {
+            ClientRequestId = Guid.NewGuid(), EventReference = draft.Data.Reference,
+            StudentReference = alternateStudent.PublicId, Response = 2
+        });
+        Assert.True(alternateRsvp.Success, alternateRsvp.Message);
+        var firstSelection = await graduate.EventsAsync(new AlumniEventQueryDto
+        {
+            StudentReference = studentReference
+        });
+        Assert.True(firstSelection.Success, firstSelection.Message);
+        Assert.Equal(1, Assert.Single(firstSelection.Data!.Items).MyResponse);
+        var alternateSelection = await graduate.EventsAsync(new AlumniEventQueryDto
+        {
+            StudentReference = alternateStudent.PublicId
+        });
+        Assert.True(alternateSelection.Success, alternateSelection.Message);
+        Assert.Equal(2, Assert.Single(alternateSelection.Data!.Items).MyResponse);
+        var guessedSelection = await graduate.EventsAsync(new AlumniEventQueryDto
+        {
+            StudentReference = Guid.NewGuid()
+        });
+        Assert.True(guessedSelection.Success, guessedSelection.Message);
+        Assert.Empty(guessedSelection.Data!.Items);
+        var otherTenantSelection = await Service(db, otherTenantId, userId, false)
+            .EventsAsync(new AlumniEventQueryDto { StudentReference = studentReference });
+        Assert.True(otherTenantSelection.Success, otherTenantSelection.Message);
+        Assert.Empty(otherTenantSelection.Data!.Items);
+
         var engagement = await admin.EventsAsync(new AlumniEventQueryDto());
         Assert.True(engagement.Success, engagement.Message);
         Assert.Equal(1, Assert.Single(engagement.Data!.Items.Where(e =>
@@ -242,7 +314,10 @@ public sealed class SqlServerAlumniConsentIntegrationTests
         Assert.True(clearedEngagement.Success, clearedEngagement.Message);
         Assert.Equal(0, Assert.Single(clearedEngagement.Data!.Items.Where(e =>
             e.Reference == draft.Data.Reference)).GoingCount);
-        var hiddenEvents = await graduate.EventsAsync(new AlumniEventQueryDto());
+        var hiddenEvents = await graduate.EventsAsync(new AlumniEventQueryDto
+        {
+            StudentReference = studentReference
+        });
         Assert.Empty(hiddenEvents.Data!.Items);
         var after = await admin.DirectoryAsync(new AlumniDirectoryQueryDto());
         Assert.Empty(after.Data!.Items);
@@ -340,7 +415,7 @@ public sealed class SqlServerAlumniConsentIntegrationTests
         var invalidatedEvent = Assert.Single(invalidatedReport.Data!.Items.Where(e =>
             e.Reference == draft.Data.Reference));
         Assert.Equal(0, invalidatedEvent.GoingCount);
-        Assert.Equal(0, invalidatedEvent.DeclinedCount);
+        Assert.Equal(1, invalidatedEvent.DeclinedCount); // Alternate eligible graduate remains.
         Assert.Equal(0, invalidatedEvent.CheckedInCount);
         var invalidatedRoster = await publisherService.AttendanceAsync(draft.Data.Reference,
             new AlumniEventAttendanceQueryDto());

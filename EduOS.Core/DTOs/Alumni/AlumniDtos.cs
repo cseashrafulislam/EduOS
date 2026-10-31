@@ -72,6 +72,9 @@ public sealed class AlumniEventQueryDto
 {
     [Range(1, int.MaxValue)] public int Page { get; set; } = 1;
     [Range(1, 50)] public int PageSize { get; set; } = 20;
+    // Optional for legacy clients; the alumni UI always supplies its selected graduate.
+    // Admin reporting ignores this value and remains tenant/campus scoped.
+    public Guid? StudentReference { get; set; }
 }
 
 public sealed class AlumniEventItemDto

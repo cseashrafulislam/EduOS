@@ -51,6 +51,8 @@ public sealed class AlumniEventsContractTests
         var source = Read("EduOS.Service", "Services", "Alumni", "AlumniEventsService.cs");
         Assert.Contains("current.CreatedByUserId == actor", source);
         Assert.Contains("s.UserId = {1}", source);
+        Assert.Contains("s.PublicId = {4}", source);
+        Assert.Contains("query.StudentReference ?? Guid.Empty", source);
         Assert.Contains("s.PublicId = {2}", source);
         Assert.Contains("p.DirectoryOptIn = 1", source);
         Assert.Contains("UserCampusAccesses", source);
