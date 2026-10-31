@@ -21,6 +21,8 @@ Other production-specific settings, such as allowed hosts, portal domain, paymen
 
 For IIS, use a protected deployment configuration or secret-management facility that does not place plaintext secrets inside the published application directory or Git repository. Restrict permission to the application identity. Do not store credentials in public `wwwroot` paths.
 
+**Storage/keyring hardening retained from the SaaS security handoff:** both the private-file root and Data Protection key-ring location must be outside the public webroot; apply least-privilege filesystem ACLs and separately backed-up durable key storage. On a single Windows Server instance, machine-scoped DPAPI encryption of the persisted key ring is the documented deployment option; multi-machine hosting requires a separately reviewed shared key-protection design. Never infer this protection is already configured in production from source alone.
+
 ## Administrator bootstrap
 
 When `SuperAdmin__Email` is empty, `SuperAdminSeeder` skips bootstrapping. On a first installation, provision both `SuperAdmin__Email` and `SuperAdmin__Password` through the secret store before running the controlled initialization. Configure email verification/sending separately.
