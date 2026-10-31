@@ -4,6 +4,7 @@ using EduOS.Core.Entities.Auth;
 using EduOS.Core.Entities.Inventory;
 using EduOS.Core.Entities.SaaS;
 using EduOS.Core.Enums.Domain;
+using EduOS.Core.Interfaces;
 using EduOS.Persistence.Context;
 using EduOS.Service.Services.Inventory;
 using EduOS.Service.Services.Enterprise;
@@ -15,6 +16,21 @@ namespace EduOS.Tests.App;
 
 public sealed partial class SqlServerV3ProcurementPurchaseOrderTests
 {
+    // Exercise the trace's own fail-closed authorization, independently of HTTP role filters.
+    private sealed class ReadOnlyActor(long tenantId, long userId) : ICurrentUserService
+    {
+        public bool IsAuthenticated => true;
+        public long TenantId => tenantId;
+        public long UserId => userId;
+        public string? FullName => null;
+        public string? Email => null;
+        public bool IsSuperAdmin => false;
+        public bool IsTenantAdmin => false;
+        public IReadOnlyList<string> Roles => ["Viewer"];
+        public bool IsInRole(string role) => role == "Viewer";
+        public string? IpAddress => null;
+        public string? UserAgent => null;
+    }
     private static ProcurementSupplierInvoiceService Invoices(EduOSDbContext ctx, long tenantId, long userId) =>
         new(ctx, new Actor(tenantId,userId), Goods(ctx,tenantId,userId), TimeProvider.System,
             NullLogger<ProcurementSupplierInvoiceService>.Instance);
@@ -231,7 +247,21 @@ public sealed partial class SqlServerV3ProcurementPurchaseOrderTests
             Assert.Equal(-2m,discounted.Data!.PriceVariance);
             Assert.Equal(20m,discounted.Data.Journals[0].Credit); // 18 payable + 2 variance credit; total balanced at 20.
             Assert.Equal(20m,discounted.Data.Journals[0].Debit);
+            Assert.Equal(403,(await new V3EnterpriseSupplierPayableTraceService(
+                traceDb,new ReadOnlyActor(tenantId,makerId)).GetAsync(first.Reference)).StatusCode);
         }
+        // Concurrent read-only replay must never cross tenant boundaries or alter payable evidence.
+        var replayStatuses=await Task.WhenAll(Enumerable.Range(0,8).Select(async index =>
+        {
+            var selectedTenant=index%2==0 ? tenantId : tenantId+999999;
+            await using var scoped=Open(options,selectedTenant,makerId);
+            return (await new V3EnterpriseSupplierPayableTraceService(
+                scoped,new Actor(selectedTenant,makerId)).GetAsync(first.Reference)).StatusCode;
+        }));
+        Assert.Equal(new[] {200,404,200,404,200,404,200,404},replayStatuses);
+        await using (var mismatched=Open(options,tenantId+999999,makerId))
+            Assert.Equal(403,(await new V3EnterpriseSupplierPayableTraceService(
+                mismatched,new Actor(tenantId,makerId)).GetAsync(first.Reference)).StatusCode);
         await using (var foreignTrace=Open(options,tenantId+999999,checkerId))
             Assert.Equal(404,(await new V3EnterpriseSupplierPayableTraceService(
                 foreignTrace,new Actor(tenantId+999999,checkerId)).GetAsync(first.Reference)).StatusCode);
@@ -250,6 +280,16 @@ public sealed partial class SqlServerV3ProcurementPurchaseOrderTests
             Assert.True(reversed.Success,reversed.Message);
             Assert.Equal("Posted",reversed.Data!.StateCode); // Contra is only submitted, not posted.
             afterRequest=reversed.Data;
+        }
+        await using (var pendingTraceDb=Open(options,tenantId,makerId))
+        {
+            var pending=await new V3EnterpriseSupplierPayableTraceService(
+                pendingTraceDb,new Actor(tenantId,makerId)).GetAsync(first.Reference);
+            Assert.True(pending.Success,pending.Message);
+            Assert.Equal("ReversalPending",pending.Data!.FinanceEvidenceStatus);
+            Assert.Equal("Posted",pending.Data.State);
+            Assert.Equal(2,pending.Data.Journals.Count);
+            Assert.Contains(pending.Data.Journals,x=>x.State==JournalState.Submitted.ToString());
         }
         await using (var checker=Open(options,tenantId,checkerId))
         {
@@ -317,6 +357,19 @@ public sealed partial class SqlServerV3ProcurementPurchaseOrderTests
             Assert.True(rejected.Success,rejected.Message);
             Assert.Equal("Posted",rejected.Data!.StateCode);
             Assert.Null(rejected.Data.ReversalJournalReference);
+        }
+        await using (var rejectedTraceDb=Open(options,tenantId,makerId))
+        {
+            var rejected=await new V3EnterpriseSupplierPayableTraceService(
+                rejectedTraceDb,new Actor(tenantId,makerId)).GetAsync(second.Reference);
+            Assert.True(rejected.Success,rejected.Message);
+            Assert.Equal("ExplicitBalancedReference",rejected.Data!.FinanceEvidenceStatus);
+            Assert.Equal("Posted",rejected.Data.State);
+            Assert.Single(rejected.Data.Journals); // Rejected contra is immutable audit, not a posted reversal.
+            Assert.Equal(18m,rejected.Data.TotalAmount);
+            Assert.Equal(1,await rejectedTraceDb.Journals.CountAsync(x=>
+                x.SourceType=="ProcurementSupplierInvoiceReversal" &&
+                x.State==JournalState.Rejected));
         }
     }
 }
