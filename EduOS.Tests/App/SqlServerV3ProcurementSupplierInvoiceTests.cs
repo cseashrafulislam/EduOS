@@ -250,6 +250,51 @@ public sealed partial class SqlServerV3ProcurementPurchaseOrderTests
             Assert.Equal(403,(await new V3EnterpriseSupplierPayableTraceService(
                 traceDb,new ReadOnlyActor(tenantId,makerId)).GetAsync(first.Reference)).StatusCode);
         }
+        // Disposable SQL historical-corruption probes: Finance/Procurement commands
+        // cannot create these states, but a legacy import or privileged SQL repair
+        // could. Both probes must fail closed, and transaction rollback must restore
+        // the exact immutable source evidence without touching canonical balances.
+        await using (var probeDb = Open(options, tenantId, makerId))
+        {
+            var originalJournalId = await probeDb.ProcurementSupplierInvoices.AsNoTracking()
+                .Where(x => x.PublicId == first.Reference)
+                .Select(x => x.JournalId).SingleAsync();
+            Assert.True(originalJournalId.HasValue);
+            var trace = new V3EnterpriseSupplierPayableTraceService(
+                probeDb, new Actor(tenantId, makerId));
+            Assert.Equal(200, (await trace.GetAsync(first.Reference)).StatusCode);
+
+            await using (var transaction = await probeDb.Database.BeginTransactionAsync())
+            {
+                // A balanced Finance journal from the wrong campus is NOT valid
+                // invoice-to-GL evidence, even with the correct journal ID.
+                await probeDb.Journals.Where(x => x.Id == originalJournalId.Value)
+                    .ExecuteUpdateAsync(s => s.SetProperty(x => x.CampusId, (long?)null));
+                Assert.Equal(409, (await trace.GetAsync(first.Reference)).StatusCode);
+                await transaction.RollbackAsync();
+            }
+            Assert.Equal(200, (await trace.GetAsync(first.Reference)).StatusCode);
+
+            await using (var transaction = await probeDb.Database.BeginTransactionAsync())
+            {
+                // An otherwise balanced journal with a forged SourceId must not
+                // be accepted merely because the invoice retains its JournalId.
+                await probeDb.Journals.Where(x => x.Id == originalJournalId.Value)
+                    .ExecuteUpdateAsync(s => s.SetProperty(x => x.SourceId, (long?)0));
+                Assert.Equal(409, (await trace.GetAsync(first.Reference)).StatusCode);
+                await transaction.RollbackAsync();
+            }
+            var restored = await trace.GetAsync(first.Reference);
+            Assert.Equal(200, restored.StatusCode);
+            Assert.Equal("ExplicitBalancedReference", restored.Data!.FinanceEvidenceStatus);
+            Assert.Single(restored.Data.Journals);
+            Assert.Equal(20m, restored.Data.Journals[0].Debit);
+            Assert.Equal(20m, restored.Data.Journals[0].Credit);
+            Assert.Equal(originalJournalId.Value, await probeDb.ProcurementSupplierInvoices
+                .Where(x => x.PublicId == first.Reference)
+                .Select(x => x.JournalId!.Value).SingleAsync());
+        }
+
         // Concurrent read-only replay must never cross tenant boundaries or alter payable evidence.
         var replayStatuses=await Task.WhenAll(Enumerable.Range(0,8).Select(async index =>
         {
