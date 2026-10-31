@@ -3,6 +3,7 @@
     const panel = document.getElementById('hostelStartReschedulePanel');
     if (!panel) return;
     const field = document.getElementById('hostelRescheduleStart');
+    const clearance = document.getElementById('hostelRescheduleFinanceClearance');
     const context = document.getElementById('hostelRescheduleContext');
     const save = document.getElementById('hostelRescheduleSave');
     const cancel = document.getElementById('hostelRescheduleCancel');
@@ -19,17 +20,16 @@
     };
     const dismiss = () => {
         pending = null; requestKey = null; requestSignature = null;
-        panel.classList.add('d-none'); field.value = '';
+        panel.classList.add('d-none'); field.value = ''; clearance.value = '';
     };
     window.hostelUpcomingStartReschedule = {
         begin(item) {
             if (!item || item.startDate <= dateString(new Date())) {
                 notify('Only upcoming hostel reservations can be rescheduled.'); return;
             }
-            if (Number(item.monthlyRent) !== 0) {
-                notify('Charged stays need the approved Finance adjustment workflow.'); return;
-            }
             pending = item;
+            clearance.value = '';
+            requestKey = null; requestSignature = null;
             context.textContent = item.studentName + ' · ' + item.hostelName +
                 ' · Room ' + item.roomNumber + ' / Bed ' + item.bedNumber;
             field.min = tomorrow(); field.max = limit(); field.value = item.startDate;
@@ -45,9 +45,17 @@
             notify('Choose a future start date within two years.'); return;
         }
         if (startDate === pending.startDate) { dismiss(); return; }
-        if (!confirm('Reschedule this no-charge hostel reservation?')) return;
+        const raw = clearance.value.trim();
+        const financeClearanceId = raw ? Number(raw) : null;
+        if (raw && (!Number.isSafeInteger(financeClearanceId) || financeClearanceId <= 0)) {
+            notify('Use a valid approved Finance clearance ID.'); return;
+        }
+        if (Number(pending.monthlyRent) !== 0 && !financeClearanceId) {
+            notify('Charged stays require approved Finance clearance.'); return;
+        }
+        if (!confirm('Reschedule this upcoming hostel reservation?')) return;
         if (!window.crypto?.randomUUID) { notify('Secure browser context required.'); return; }
-        const signature = [pending.id, startDate, pending.rowVersion].join('|');
+        const signature = [pending.id, startDate, pending.rowVersion, financeClearanceId ?? 'none'].join('|');
         if (signature !== requestSignature) {
             requestSignature = signature; requestKey = window.crypto.randomUUID();
         }
@@ -58,7 +66,8 @@
             const response = await fetch('/api/hostel/allocations/' + encodeURIComponent(pending.id) + '/reschedule-start', {
                 method: 'POST', credentials: 'same-origin', cache: 'no-store',
                 headers: { Accept: 'application/json', 'Content-Type': 'application/json', RequestVerificationToken: token },
-                body: JSON.stringify({ clientRequestId: requestKey, startDate, rowVersion: pending.rowVersion })
+                body: JSON.stringify({ clientRequestId: requestKey, startDate,
+                    rowVersion: pending.rowVersion, financeClearanceId })
             });
             const result = await response.json().catch(() => null);
             if (!response.ok || !result?.success) throw new Error(result?.message || 'Reschedule failed.');

@@ -22,6 +22,7 @@ public sealed partial class FinanceAdjustmentService
         MonthlyRentAtRequest = x.MonthlyRentAtRequest, DepositAtRequest = x.DepositAtRequest,
         SuggestedRentCredit = x.SuggestedRentCredit, SuggestedDepositRefund = x.SuggestedDepositRefund,
         ApprovedRentCredit = x.ApprovedRentCredit, ApprovedDepositRefund = x.ApprovedDepositRefund,
+        SuggestedNetAdjustment = x.SuggestedNetAdjustment, ApprovedNetAdjustment = x.ApprovedNetAdjustment,
         OverrideReason = x.OverrideReason, NoAdjustmentRequired = x.NoAdjustmentRequired,
         SettlementJournalId = x.SettlementJournalId, ReconciliationNote = x.ReconciliationNote,
         ReviewedByUserId = x.ReviewedByUserId, SuccessorAllocationId = x.SuccessorAllocationId,
@@ -33,7 +34,7 @@ public sealed partial class FinanceAdjustmentService
         {
             x.SourceAllocationId, x.Operation, x.DestinationBedId, x.EffectiveDate,
             x.SourceRowVersion, x.DestinationBedRowVersion,
-            Reason = x.Reason.Trim(), x.ManualRentCredit, x.ManualDepositRefund,
+            Reason = x.Reason.Trim(), x.ManualRentCredit, x.ManualDepositRefund, x.ManualNetAdjustment,
             OverrideReason = x.OverrideReason?.Trim()
         }))));
 
@@ -116,10 +117,13 @@ public sealed partial class FinanceAdjustmentService
             !MatchesVersionFormat(request.SourceRowVersion) ||
             (request.Operation == HostelClearanceOperation.Transfer && (request.DestinationBedId is null or <= 0 ||
                 !MatchesVersionFormat(request.DestinationBedRowVersion))) ||
-            (request.Operation == HostelClearanceOperation.Checkout &&
+            (request.Operation != HostelClearanceOperation.Transfer &&
                 (request.DestinationBedId.HasValue || request.DestinationBedRowVersion != null)) ||
             (request.ManualRentCredit.HasValue && !Money(request.ManualRentCredit.Value)) ||
-            (request.ManualDepositRefund.HasValue && !Money(request.ManualDepositRefund.Value)))
+            (request.ManualDepositRefund.HasValue && !Money(request.ManualDepositRefund.Value)) ||
+            (request.Operation == HostelClearanceOperation.UpcomingStartReschedule &&
+                (request.ManualRentCredit.HasValue || request.ManualDepositRefund.HasValue)) ||
+            (request.Operation != HostelClearanceOperation.UpcomingStartReschedule && request.ManualNetAdjustment.HasValue))
             return Error<HostelClearanceDto>("Invalid clearance request, versions or monetary amounts.");
         var hash = Fingerprint(request);
         try
@@ -151,7 +155,13 @@ public sealed partial class FinanceAdjustmentService
             if (request.Operation == HostelClearanceOperation.Transfer &&
                 (source.StartDate >= today || request.EffectiveDate != today || source.EndDate < today) ||
                 request.Operation == HostelClearanceOperation.Checkout &&
-                (request.EffectiveDate < source.StartDate || request.EffectiveDate > today || source.StartDate > today))
+                (request.EffectiveDate < source.StartDate || request.EffectiveDate > today || source.StartDate > today) ||
+                request.Operation == HostelClearanceOperation.UpcomingStartReschedule &&
+                (source.StartDate <= today || request.EffectiveDate <= today ||
+                    request.EffectiveDate == source.StartDate ||
+                    request.EffectiveDate > today.AddYears(2) ||
+                    source.EndDate.HasValue && request.EffectiveDate > source.EndDate.Value ||
+                    source.EndDate.HasValue && source.EndDate.Value.DayNumber - request.EffectiveDate.DayNumber > 89))
                 return Error<HostelClearanceDto>("Effective date is not eligible for this operation.", 409);
             if (request.Operation == HostelClearanceOperation.Transfer)
             {
@@ -168,16 +178,36 @@ public sealed partial class FinanceAdjustmentService
             var policy = await db.HostelBillingPolicies.AsNoTracking().FirstOrDefaultAsync(x =>
                 x.TenantId == user.TenantId && x.CampusId == campusId && !x.IsDeleted, ct);
             var mode = policy?.CalculationMode ?? HostelBillingCalculationMode.DailyProrated;
-            var suggestion = HostelBillingCalculator.Suggest(request.Operation, mode, source.MonthlyRent,
-                source.SecurityDeposit, request.EffectiveDate, source.EndDate);
+            var periodAmendment = request.Operation == HostelClearanceOperation.UpcomingStartReschedule;
+            var periodQuote = periodAmendment ? ReservationTermQuoteCalculator.Calculate(
+                source.StartDate, source.EndDate, request.EffectiveDate, source.EndDate,
+                source.MonthlyRent, (int)mode) : null;
+            ReservationQuoteSelection.Result? selected = null;
+            if (periodAmendment)
+            {
+                try
+                {
+                    selected = ReservationQuoteSelection.Select(periodQuote!.NetAdjustment,
+                        mode == HostelBillingCalculationMode.Manual, policy?.AllowManualOverride ?? true,
+                        request.ManualNetAdjustment, request.OverrideReason);
+                }
+                catch (ArgumentException ex) { return Error<HostelClearanceDto>(ex.Message); }
+                catch (InvalidOperationException ex) { return Error<HostelClearanceDto>(ex.Message, 409); }
+                if (!selected.SelectedAmount.HasValue)
+                    return Error<HostelClearanceDto>("Open-ended or manual reservations need an explicit Finance amount and reason.", 409);
+            }
+            var suggestion = periodAmendment ? (RentCredit: 0m, DepositRefund: 0m) :
+                HostelBillingCalculator.Suggest(request.Operation, mode, source.MonthlyRent,
+                    source.SecurityDeposit, request.EffectiveDate, source.EndDate);
             var manual = request.ManualRentCredit.HasValue || request.ManualDepositRefund.HasValue;
-            if (mode == HostelBillingCalculationMode.Manual && !manual || manual && policy?.AllowManualOverride == false && mode != HostelBillingCalculationMode.Manual)
+            if (!periodAmendment && (mode == HostelBillingCalculationMode.Manual && !manual ||
+                manual && policy?.AllowManualOverride == false && mode != HostelBillingCalculationMode.Manual))
                 return Error<HostelClearanceDto>("Manual amounts are required or manual overrides are disabled.", 409);
             var rent = request.ManualRentCredit ?? suggestion.RentCredit;
             var refund = request.ManualDepositRefund ?? suggestion.DepositRefund;
             if (!Money(rent) || !Money(refund) || refund > source.SecurityDeposit ||
                 request.Operation == HostelClearanceOperation.Transfer && (rent != 0 || refund != 0) ||
-                manual && (string.IsNullOrWhiteSpace(request.OverrideReason) ||
+                !periodAmendment && manual && (string.IsNullOrWhiteSpace(request.OverrideReason) ||
                     request.OverrideReason.Trim().Length is < 20 or > 1000))
                 return Error<HostelClearanceDto>("Invalid override: provide 20-1000 character reason; cannot refund more than deposit or credit a transfer.");
             var exposure = await new ReservationFinancePolicy(db).GetExposureHashAsync(user.TenantId,
@@ -197,7 +227,10 @@ public sealed partial class FinanceAdjustmentService
                 DepositAtRequest = source.SecurityDeposit,
                 SuggestedRentCredit = suggestion.RentCredit, SuggestedDepositRefund = suggestion.DepositRefund,
                 ApprovedRentCredit = rent, ApprovedDepositRefund = refund,
-                OverrideReason = manual ? request.OverrideReason?.Trim() : null,
+                SuggestedNetAdjustment = periodQuote?.NetAdjustment ?? 0m,
+                ApprovedNetAdjustment = selected?.SelectedAmount ?? 0m,
+                OverrideReason = periodAmendment ? selected?.IsManual == true ? request.OverrideReason?.Trim() : null :
+                    manual ? request.OverrideReason?.Trim() : null,
                 CreatedBy = user.UserId, CreatedAt = now
             };
             db.HostelFinanceClearances.Add(row);
@@ -205,7 +238,8 @@ public sealed partial class FinanceAdjustmentService
             AuditReservationFinance("HostelClearanceRequested", nameof(HostelFinanceClearance), row.Id, null,
                 new { row.SourceAllocationId, row.Operation, row.DestinationBedId, row.EffectiveDate,
                     row.CalculationMode, row.SuggestedRentCredit, row.SuggestedDepositRefund,
-                    row.ApprovedRentCredit, row.ApprovedDepositRefund, row.OverrideReason });
+                    row.ApprovedRentCredit, row.ApprovedDepositRefund, row.SuggestedNetAdjustment,
+                    row.ApprovedNetAdjustment, row.OverrideReason });
             await db.SaveChangesAsync(ct);
             await tx.CommitAsync(ct);
             return ApiResponse<HostelClearanceDto>.SuccessResponse(Map(row), "Finance clearance requested. No GL posting has occurred.");
@@ -237,7 +271,7 @@ public sealed partial class FinanceAdjustmentService
             if (row.RequestedByUserId == user.UserId)
                 return Error<HostelClearanceDto>("Requester cannot approve their own clearance.", 403);
             var previous = new { row.State, row.ApprovedRentCredit, row.ApprovedDepositRefund,
-                row.OverrideReason, row.NoAdjustmentRequired, row.SettlementJournalId };
+                row.ApprovedNetAdjustment, row.OverrideReason, row.NoAdjustmentRequired, row.SettlementJournalId };
             if (request.Approve)
             {
                 var source = await db.StudentHostelAllocations.AsNoTracking().FirstOrDefaultAsync(x =>
@@ -256,6 +290,57 @@ public sealed partial class FinanceAdjustmentService
                     row.StudentId, row.StudentEnrollmentId, ct);
                 if (exposure == null || exposure != row.FinanceSnapshotHash)
                     return Error<HostelClearanceDto>("Finance exposure changed. Create a new clearance.", 409);
+                if (row.Operation == HostelClearanceOperation.UpcomingStartReschedule)
+                {
+                    if (request.ManualRentCredit.HasValue || request.ManualDepositRefund.HasValue ||
+                        source.StartDate <= DateOnly.FromDateTime(clock.GetLocalNow().DateTime) ||
+                        row.EffectiveDate <= DateOnly.FromDateTime(clock.GetLocalNow().DateTime) ||
+                        source.StartDate == row.EffectiveDate ||
+                        source.EndDate.HasValue && row.EffectiveDate > source.EndDate.Value)
+                        return Error<HostelClearanceDto>("Upcoming period or adjustment parameters are no longer eligible.", 409);
+                    decimal net = row.ApprovedNetAdjustment;
+                    if (request.ManualNetAdjustment.HasValue)
+                    {
+                        var policy = await db.HostelBillingPolicies.AsNoTracking().FirstOrDefaultAsync(x =>
+                            x.TenantId == user.TenantId && x.CampusId == row.CampusId && !x.IsDeleted, ct);
+                        try
+                        {
+                            var selection = ReservationQuoteSelection.Select(row.SuggestedNetAdjustment,
+                                row.CalculationMode == HostelBillingCalculationMode.Manual,
+                                policy?.AllowManualOverride ?? true,
+                                request.ManualNetAdjustment, request.OverrideReason);
+                            net = selection.SelectedAmount!.Value;
+                        }
+                        catch (ArgumentException ex) { return Error<HostelClearanceDto>(ex.Message); }
+                        catch (InvalidOperationException ex) { return Error<HostelClearanceDto>(ex.Message, 409); }
+                        row.OverrideReason = request.OverrideReason?.Trim();
+                    }
+                    else if (row.OverrideReason != null && row.CalculationMode != HostelBillingCalculationMode.Manual &&
+                        await db.HostelBillingPolicies.AsNoTracking().AnyAsync(x =>
+                            x.TenantId == user.TenantId && x.CampusId == row.CampusId && !x.IsDeleted &&
+                            !x.AllowManualOverride, ct))
+                        return Error<HostelClearanceDto>("Campus manual override policy changed. Request new approval.", 409);
+                    if (!ReservationPeriodSettlement.ValidAmount(net))
+                        return Error<HostelClearanceDto>("Invalid signed period adjustment.");
+                    if (request.NoAdjustmentRequired)
+                    {
+                        if (net != 0m || request.SettlementJournalId.HasValue)
+                            return Error<HostelClearanceDto>("A nonzero period change requires a reconciled journal.", 409);
+                    }
+                    else if (!await ReservationPeriodSettlement.HasPostedMatchingJournalAsync(db,
+                        user.TenantId, row.CampusId, row.StudentId, net,
+                        request.SettlementJournalId, $"HOSTEL-CLEARANCE-{id}", ct) ||
+                        await db.TransportFinanceClearances.AsNoTracking().AnyAsync(x =>
+                            x.TenantId == user.TenantId && x.SettlementJournalId == request.SettlementJournalId, ct))
+                        return Error<HostelClearanceDto>("Finance journal must be posted, single-use, independent and match the signed student adjustment.", 409);
+                    row.ApprovedNetAdjustment = net;
+                    row.NoAdjustmentRequired = request.NoAdjustmentRequired;
+                    row.SettlementJournalId = request.SettlementJournalId;
+                }
+                else
+                {
+                if (request.ManualNetAdjustment.HasValue)
+                    return Error<HostelClearanceDto>("Signed period amount is only valid for upcoming reschedules.");
                 var manual = request.ManualRentCredit.HasValue || request.ManualDepositRefund.HasValue;
                 if (manual && (string.IsNullOrWhiteSpace(request.OverrideReason) ||
                     request.OverrideReason.Trim().Length is < 20 or > 1000))
@@ -301,6 +386,7 @@ public sealed partial class FinanceAdjustmentService
                 if (manual) row.OverrideReason = request.OverrideReason?.Trim();
                 row.NoAdjustmentRequired = request.NoAdjustmentRequired;
                 row.SettlementJournalId = request.SettlementJournalId;
+                }
                 row.State = HostelClearanceState.Approved;
             }
             else row.State = HostelClearanceState.Rejected;
@@ -309,7 +395,7 @@ public sealed partial class FinanceAdjustmentService
             row.ReviewedAtUtc = clock.GetUtcNow().UtcDateTime;
             row.UpdatedAt = row.ReviewedAtUtc; row.UpdatedBy = user.UserId;
             AuditReservationFinance("HostelClearanceReviewed", nameof(HostelFinanceClearance), row.Id,
-                previous, new { row.State, row.ApprovedRentCredit, row.ApprovedDepositRefund,
+                previous, new { row.State, row.ApprovedRentCredit, row.ApprovedDepositRefund, row.ApprovedNetAdjustment,
                     row.OverrideReason, row.NoAdjustmentRequired, row.SettlementJournalId,
                     row.ReconciliationNote, row.ReviewedByUserId });
             await db.SaveChangesAsync(ct);

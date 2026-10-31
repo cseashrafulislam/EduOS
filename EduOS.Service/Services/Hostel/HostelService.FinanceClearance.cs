@@ -1,5 +1,6 @@
 using EduOS.Core.Entities.Finance;
 using EduOS.Core.Entities.Hostel;
+using EduOS.Service.Services.Finance;
 using Microsoft.EntityFrameworkCore;
 
 namespace EduOS.Service.Services.Hostel;
@@ -36,10 +37,16 @@ public sealed partial class HostelService
             clearance.ApprovedRentCredit < 0 || clearance.ApprovedDepositRefund < 0 ||
             clearance.ApprovedDepositRefund > clearance.DepositAtRequest)
             return (null, "Finance approval or settlement amounts are invalid.");
+        if (operation == HostelClearanceOperation.UpcomingStartReschedule &&
+            (!ReservationPeriodSettlement.ValidAmount(clearance.ApprovedNetAdjustment) ||
+             clearance.ApprovedRentCredit != 0m || clearance.ApprovedDepositRefund != 0m))
+            return (null, "Approved period adjustment is invalid.");
         if (clearance.NoAdjustmentRequired)
         {
             if (clearance.SettlementJournalId.HasValue ||
-                clearance.ApprovedRentCredit != 0 || clearance.ApprovedDepositRefund != 0)
+                clearance.ApprovedRentCredit != 0 || clearance.ApprovedDepositRefund != 0 ||
+                operation == HostelClearanceOperation.UpcomingStartReschedule &&
+                clearance.ApprovedNetAdjustment != 0)
                 return (null, "Zero-adjustment attestation contradicts settlement amounts.");
         }
         else

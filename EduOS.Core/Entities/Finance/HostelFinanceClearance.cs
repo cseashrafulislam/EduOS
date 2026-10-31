@@ -2,7 +2,7 @@ using EduOS.Core.Entities.Base;
 
 namespace EduOS.Core.Entities.Finance;
 
-public enum HostelClearanceOperation { Transfer = 1, Checkout = 2 }
+public enum HostelClearanceOperation { Transfer = 1, Checkout = 2, UpcomingStartReschedule = 3 }
 public enum HostelClearanceState { Pending = 1, Approved = 2, Rejected = 3, Consumed = 4 }
 public enum HostelBillingCalculationMode { DailyProrated = 1, FixedMonthly = 2, Manual = 3 }
 
@@ -41,6 +41,9 @@ public sealed class HostelFinanceClearance : BaseTenantEntity
     [Column(TypeName = "decimal(18,2)")] public decimal SuggestedDepositRefund { get; set; }
     [Column(TypeName = "decimal(18,2)")] public decimal ApprovedRentCredit { get; set; }
     [Column(TypeName = "decimal(18,2)")] public decimal ApprovedDepositRefund { get; set; }
+    /// <summary>Signed period difference; positive is additional rent, negative is possible credit.</summary>
+    [Column(TypeName = "decimal(18,2)")] public decimal SuggestedNetAdjustment { get; set; }
+    [Column(TypeName = "decimal(18,2)")] public decimal ApprovedNetAdjustment { get; set; }
     [MaxLength(1000)] public string? OverrideReason { get; set; }
     public HostelClearanceState State { get; set; } = HostelClearanceState.Pending;
     /// <summary>Finance's explicit assertion that no GL change is needed for this operation.</summary>

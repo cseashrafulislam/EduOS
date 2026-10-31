@@ -8,4 +8,6 @@ public sealed class RescheduleUpcomingHostelStartRequestDto
     public Guid ClientRequestId { get; set; }
     [Required] public DateOnly StartDate { get; set; }
     [Required] public string RowVersion { get; set; } = string.Empty;
+    /// <summary>Single-use Finance approval for a charge-bearing period amendment.</summary>
+    public long? FinanceClearanceId { get; set; }
 }

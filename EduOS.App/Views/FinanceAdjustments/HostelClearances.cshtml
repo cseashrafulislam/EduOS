@@ -27,11 +27,12 @@
             <form id="hfRequestForm" class="row g-2">
                 <div class="col-md-8"><label class="form-label" for="hfSource">Active stay</label><select id="hfSource" class="form-select" required><option value="">Load active stays</option></select></div>
                 <div class="col-md-4 align-self-end"><button id="hfLoadStays" type="button" class="btn btn-outline-primary w-100">Load next 50 stays</button></div>
-                <div class="col-md-4"><label class="form-label" for="hfOperation">Operation</label><select id="hfOperation" class="form-select"><option value="2">Checkout</option><option value="1">Occupied transfer</option></select></div>
+                <div class="col-md-4"><label class="form-label" for="hfOperation">Operation</label><select id="hfOperation" class="form-select"><option value="2">Checkout</option><option value="1">Occupied transfer</option><option value="3">Upcoming start reschedule</option></select></div>
                 <div class="col-md-4"><label class="form-label" for="hfEffective">Effective date</label><input id="hfEffective" type="date" class="form-control" required /></div>
                 <div class="col-md-4"><label class="form-label" for="hfTarget">Destination (transfer only)</label><select id="hfTarget" class="form-select" disabled><option value="">Choose stay first</option></select></div>
                 <div class="col-md-6"><label class="form-label" for="hfManualRent">Manual rent credit (BDT; optional)</label><input id="hfManualRent" type="number" step="0.01" min="0" class="form-control" placeholder="Auto if blank" /></div>
                 <div class="col-md-6"><label class="form-label" for="hfManualDeposit">Manual deposit refund (BDT; optional)</label><input id="hfManualDeposit" type="number" step="0.01" min="0" class="form-control" placeholder="Auto if blank" /></div>
+                <div class="col-md-6"><label class="form-label" for="hfManualNet">Manual signed period adjustment (BDT)</label><input id="hfManualNet" type="number" step="0.01" class="form-control" placeholder="Auto if blank; + charge / − credit" /></div>
                 <div class="col-12"><label class="form-label" for="hfOverrideReason">Reason for manual override (at least 20 characters)</label><input id="hfOverrideReason" maxlength="1000" class="form-control" /></div>
                 <div class="col-12"><label class="form-label" for="hfReason">Operational reason</label><input id="hfReason" minlength="5" maxlength="500" class="form-control" required /></div>
                 <div class="col-12"><button class="btn btn-primary" type="submit">Request Finance clearance</button></div>
@@ -51,6 +52,7 @@
             <h4 class="h6">Review clearance <span id="hfReviewTitle"></span></h4>
             <div class="col-md-3"><label class="form-label" for="hfReviewRent">Override rent credit (BDT; optional)</label><input id="hfReviewRent" type="number" min="0" step="0.01" class="form-control" /></div>
             <div class="col-md-3"><label class="form-label" for="hfReviewDeposit">Override deposit refund (BDT; optional)</label><input id="hfReviewDeposit" type="number" min="0" step="0.01" class="form-control" /></div>
+            <div class="col-md-3"><label class="form-label" for="hfReviewNet">Override signed period adjustment (BDT)</label><input id="hfReviewNet" type="number" step="0.01" class="form-control" /></div>
             <div class="col-md-6"><label class="form-label" for="hfReviewOverrideReason">Reason for changed amounts</label><input id="hfReviewOverrideReason" maxlength="1000" class="form-control" /></div>
             <div class="col-md-4"><label class="form-label" for="hfReviewJournal">Verified posted journal ID (nonzero adjustment)</label><input id="hfReviewJournal" type="number" min="1" class="form-control" /></div>
             <div class="col-md-8 d-flex align-items-end"><label><input id="hfNoAdjustment" type="checkbox" /> Explicitly attest no GL change required (amounts must be zero)</label></div>

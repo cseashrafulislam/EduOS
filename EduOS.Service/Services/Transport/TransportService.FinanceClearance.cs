@@ -1,5 +1,6 @@
 using EduOS.Core.Entities.Finance;
 using EduOS.Core.Entities.Transport;
+using EduOS.Service.Services.Finance;
 using Microsoft.EntityFrameworkCore;
 
 namespace EduOS.Service.Services.Transport;
@@ -29,9 +30,15 @@ public sealed partial class TransportService
             row.ApprovedFareCredit < 0 ||
             row.Operation == TransportClearanceOperation.VehicleTransfer && row.ApprovedFareCredit != 0)
             return (null, "Finance approval or fare amount invalid.");
+        if (operation == TransportClearanceOperation.UpcomingRiderExtension &&
+            (!ReservationPeriodSettlement.ValidAmount(row.ApprovedNetAdjustment) ||
+             row.ApprovedFareCredit != 0m))
+            return (null, "Approved period adjustment is invalid.");
         if (row.NoAdjustmentRequired)
         {
-            if (row.ApprovedFareCredit != 0 || row.SettlementJournalId.HasValue)
+            if (row.ApprovedFareCredit != 0 || row.SettlementJournalId.HasValue ||
+                operation == TransportClearanceOperation.UpcomingRiderExtension &&
+                row.ApprovedNetAdjustment != 0)
                 return (null, "Zero-adjustment Finance attestation contradicts settlement.");
         }
         else

@@ -1,4 +1,5 @@
 using EduOS.Core.Entities.Finance;
+using System.Text.Json.Serialization;
 
 namespace EduOS.Core.DTOs.Finance;
 
@@ -20,6 +21,8 @@ public sealed class RequestTransportClearanceDto
     [Required] public string SourceRowVersion { get; set; } = string.Empty;
     [Required, StringLength(500, MinimumLength = 5)] public string Reason { get; set; } = string.Empty;
     public decimal? ManualFareCredit { get; set; }
+    [JsonNumberHandling(JsonNumberHandling.AllowReadingFromString)]
+    public decimal? ManualNetAdjustment { get; set; }
     [MaxLength(1000)] public string? OverrideReason { get; set; }
 }
 
@@ -30,6 +33,8 @@ public sealed class ReviewTransportClearanceDto
     public bool NoAdjustmentRequired { get; set; }
     public long? SettlementJournalId { get; set; }
     public decimal? ManualFareCredit { get; set; }
+    [JsonNumberHandling(JsonNumberHandling.AllowReadingFromString)]
+    public decimal? ManualNetAdjustment { get; set; }
     [MaxLength(1000)] public string? OverrideReason { get; set; }
     [Required, StringLength(1000, MinimumLength = 20)] public string ReconciliationNote { get; set; } = string.Empty;
 }
@@ -47,6 +52,8 @@ public sealed class TransportClearanceDto
     public decimal MonthlyFareAtRequest { get; set; }
     public decimal SuggestedFareCredit { get; set; }
     public decimal ApprovedFareCredit { get; set; }
+    public decimal SuggestedNetAdjustment { get; set; }
+    public decimal ApprovedNetAdjustment { get; set; }
     public string? OverrideReason { get; set; }
     public string RequestReason { get; set; } = string.Empty;
     public long RequestedByUserId { get; set; }

@@ -24,7 +24,7 @@ function harness() {
     });
     const elements = Object.fromEntries([
         'hostelStartReschedulePanel', 'hostelRescheduleStart', 'hostelRescheduleContext',
-        'hostelRescheduleSave', 'hostelRescheduleCancel', 'hostelAlert'
+        'hostelRescheduleFinanceClearance', 'hostelRescheduleSave', 'hostelRescheduleCancel', 'hostelAlert'
     ].map(id => [id, element(id)]));
     Object.defineProperty(elements.hostelAlert, 'textContent', { set(value) { messages.push(value); } });
     const window = {
@@ -65,12 +65,18 @@ test('hostel start reschedule preserves one request key across a failed network 
     assert.ok(h.messages.some(message => message.includes('rescheduled')));
 });
 
-test('chargeable reservation is not offered an unsafe pre-arrival date change', () => {
+test('chargeable reservation requires approved Finance clearance before any mutation', async () => {
     const h = harness();
     h.window.hostelUpcomingStartReschedule.begin({
         id: 8, startDate: date(30), monthlyRent: 1500,
         studentName: 'Student', hostelName: 'Hostel', roomNumber: '1', bedNumber: 'A', rowVersion: 'old-version'
     });
-    assert.ok(h.messages.some(message => message.includes('Finance adjustment')));
+    h.elements.hostelRescheduleStart.value = date(25);
+    await h.events['hostelRescheduleSave:click']();
+    assert.ok(h.messages.some(message => message.includes('approved Finance clearance')));
     assert.equal(h.sent.length, 0);
+    h.elements.hostelRescheduleFinanceClearance.value = '127';
+    await h.events['hostelRescheduleSave:click']();
+    assert.equal(h.sent.length, 1);
+    assert.equal(h.sent[0].financeClearanceId, 127);
 });

@@ -120,6 +120,8 @@
             <form id="transportUpcomingRiderExtensionForm" class="row g-2">
                 <div class="col-md-6"><label for="transportUpcomingRiderExtensionDate" class="form-label">New reservation end date</label>
                     <input id="transportUpcomingRiderExtensionDate" type="date" class="form-control" required /></div>
+                <div class="col-md-6"><label for="transportUpcomingRiderFinanceClearance" class="form-label">Approved Finance clearance ID (charged / invoiced rider)</label>
+                    <input id="transportUpcomingRiderFinanceClearance" type="number" min="1" step="1" class="form-control" /></div>
                 <div class="col-md-6 d-flex align-items-end gap-2">
                     <button id="transportUpcomingRiderExtensionSave" type="submit" class="btn btn-primary">Extend scheduled end</button>
                     <button id="transportUpcomingRiderExtensionCancel" type="button" class="btn btn-outline-secondary">Cancel</button>

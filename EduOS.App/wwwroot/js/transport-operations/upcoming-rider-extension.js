@@ -20,7 +20,8 @@
         node.textContent = message;
         node.focus();
     }
-    function dismiss() { pending = null; panel.hidden = true; requestKey = null; requestSignature = null; }
+    function dismiss() { pending = null; panel.hidden = true; requestKey = null; requestSignature = null;
+        el('transportUpcomingRiderFinanceClearance').value = ''; }
     function begin(item) {
         if (!item || !item.endDate || item.startDate <= localDate() ||
             item.endDate < item.startDate) {
@@ -28,6 +29,7 @@
             return;
         }
         pending = item; requestKey = null; requestSignature = null;
+        el('transportUpcomingRiderFinanceClearance').value = '';
         el('transportUpcomingRiderExtensionDetails').textContent =
             item.studentName + ' · ' + item.routeName + ' · ' + item.vehicleNumber +
             ' · current end ' + item.endDate;
@@ -41,6 +43,11 @@
         event.preventDefault();
         if (!pending || busy) return;
         const endDate = el('transportUpcomingRiderExtensionDate').value;
+        const raw = el('transportUpcomingRiderFinanceClearance').value.trim();
+        const financeClearanceId = raw ? Number(raw) : null;
+        if (raw && (!Number.isSafeInteger(financeClearanceId) || financeClearanceId <= 0)) {
+            notify('Enter a valid approved Finance clearance ID.'); return;
+        }
         if (!validDate(endDate) || endDate <= pending.endDate ||
             pending.startDate <= localDate()) {
             notify('Choose a valid date after the scheduled reservation end.');
@@ -49,7 +56,7 @@
         if (!window.confirm('Extend the scheduled reservation for ' +
             pending.studentName + ' through ' + endDate + '?')) return;
         if (!window.crypto?.randomUUID) { notify('Secure browser context required.'); return; }
-        const signature = [pending.reference, endDate, pending.rowVersion].join('|');
+        const signature = [pending.reference, endDate, pending.rowVersion, financeClearanceId ?? 'none'].join('|');
         if (signature !== requestSignature) { requestSignature = signature; requestKey = window.crypto.randomUUID(); }
         const button = el('transportUpcomingRiderExtensionSave');
         busy = true; button.disabled = true;
@@ -61,7 +68,8 @@
                 method: 'POST', credentials: 'same-origin', cache: 'no-store',
                 headers: { Accept: 'application/json', 'Content-Type': 'application/json',
                     RequestVerificationToken: token },
-                body: JSON.stringify({ clientRequestId: requestKey, endDate, rowVersion: pending.rowVersion })
+                body: JSON.stringify({ clientRequestId: requestKey, endDate,
+                    rowVersion: pending.rowVersion, financeClearanceId })
             });
             const result = await response.json().catch(() => null);
             if (!response.ok || !result?.success)

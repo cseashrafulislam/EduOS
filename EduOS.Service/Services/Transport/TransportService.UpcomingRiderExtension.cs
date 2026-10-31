@@ -1,5 +1,6 @@
 using EduOS.Core.Common;
 using EduOS.Core.DTOs.Transport;
+using EduOS.Core.Entities.Finance;
 using EduOS.Core.Enums.Domain;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -28,7 +29,8 @@ public sealed partial class TransportService
         var today = DateOnly.FromDateTime(_clock.GetLocalNow().DateTime);
         const string operation = "transport.rider-extend-upcoming";
         var requestHash = CommandFingerprint(operation, 0, reference,
-            request.EndDate.ToString("yyyy-MM-dd"), Convert.ToBase64String(version));
+            request.EndDate.ToString("yyyy-MM-dd"), Convert.ToBase64String(version),
+            request.FinanceClearanceId?.ToString() ?? "none");
         try
         {
             return await _unitOfWork.ExecuteInTransactionAsync(async ct =>
@@ -70,13 +72,11 @@ public sealed partial class TransportService
                 }
                 if (!assignment.RowVersion.AsSpan().SequenceEqual(version))
                     return Error("Assignment changed. Reload and retry.", 409);
-                if (await _reservationFinancePolicy.HasPostedActivityAsync(tenant,
-                    assignment.StudentId, assignment.StudentEnrollmentId, ct))
-                    return Error("Posted finance activity requires an approved Finance adjustment before extension.", 409);
-                // There is no finance-owned recurring transport billing/adjustment contract yet.
-                // Never extend a chargeable period without reconciling its monetary obligation.
-                if (assignment.MonthlyFare != 0m)
-                    return Error("Charged reservation extension requires the Finance billing and adjustment workflow.", 409);
+                var financeExposure = await _reservationFinancePolicy.HasPostedActivityAsync(tenant,
+                    assignment.StudentId, assignment.StudentEnrollmentId, ct);
+                if ((financeExposure || assignment.MonthlyFare != 0m) &&
+                    !request.FinanceClearanceId.HasValue)
+                    return Error("Charged or invoiced extension requires Finance-approved period settlement.", 409);
                 if (assignment.State != TransportAssignmentState.Active ||
                     !CanExtendUpcomingRiderDates(assignment.StartDate, assignment.EndDate,
                         request.EndDate, today))
@@ -120,6 +120,14 @@ public sealed partial class TransportService
                     extensionStart, request.EndDate).Peak;
                 if (peak >= vehicle.Capacity)
                     return Error("Vehicle has no seat available for the extended period.", 409);
+                if (request.FinanceClearanceId.HasValue)
+                {
+                    var approval = await ConsumeTransportFinanceClearanceAsync(request.FinanceClearanceId.Value,
+                        assignment, enrollment.CampusId, TransportClearanceOperation.UpcomingRiderExtension,
+                        request.EndDate, null, null, ct);
+                    if (approval.Error != null)
+                        return Error(approval.Error, 409);
+                }
                 assignment.EndDate = request.EndDate;
                 assignment.UpdatedAt = _clock.GetUtcNow().UtcDateTime;
                 assignment.UpdatedBy = _currentUser.UserId;

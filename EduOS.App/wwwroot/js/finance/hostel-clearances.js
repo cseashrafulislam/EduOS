@@ -31,6 +31,9 @@
         return result.data;
     }
     const numeric = id => { const s = el(id).value.trim(); return s ? Number(s) : null; };
+    const signed = id => { const s = el(id).value.trim();
+        if (s && !/^-?\d{1,12}(\.\d{1,2})?$/.test(s)) throw Error('Signed adjustment must have at most 2 decimal places.');
+        return s || null; };
     const money = value => Number(value || 0).toFixed(2);
     function option(select, label, value) { select.append(new Option(label, value)); }
     async function loadPolicy() {
@@ -75,6 +78,9 @@
     }
     async function updateTarget() {
         const transfer = el('hfOperation').value === '1';
+        const period = el('hfOperation').value === '3';
+        el('hfManualRent').disabled = period; el('hfManualDeposit').disabled = period;
+        el('hfManualNet').disabled = !period;
         const box = el('hfTarget'); box.disabled = !transfer;
         beds.clear(); box.replaceChildren(new Option(transfer ? 'Select destination' : 'Not needed', ''));
         if (!transfer || !selected) return;
@@ -97,13 +103,17 @@
             destinationBedRowVersion: transfer ? target.rowVersion : null,
             effectiveDate: el('hfEffective').value,
             sourceRowVersion: selected.rowVersion, reason: el('hfReason').value.trim(),
-            manualRentCredit: numeric('hfManualRent'), manualDepositRefund: numeric('hfManualDeposit'),
+            manualRentCredit: transfer || el('hfOperation').value === '2' ? numeric('hfManualRent') : null,
+            manualDepositRefund: transfer || el('hfOperation').value === '2' ? numeric('hfManualDeposit') : null,
+            manualNetAdjustment: el('hfOperation').value === '3' ? signed('hfManualNet') : null,
             overrideReason: el('hfOverrideReason').value.trim() || null
         };
         const fingerprint = JSON.stringify(input);
         if (lastPayload !== fingerprint) { lastPayload = fingerprint; lastRequestId = crypto.randomUUID(); }
         const result = await api(`${apiRoot}/clearances`, 'POST', { clientRequestId: lastRequestId, ...input });
-        notice(`Clearance #${result.id} requested. Proposed rent credit ${money(result.suggestedRentCredit)} BDT; deposit refund ${money(result.suggestedDepositRefund)} BDT. Awaiting independent Finance approval.`, true);
+        notice(result.operation === 3
+            ? `Clearance #${result.id} requested. Selected signed period adjustment ${money(result.approvedNetAdjustment)} BDT. Awaiting independent Finance approval.`
+            : `Clearance #${result.id} requested. Proposed rent credit ${money(result.suggestedRentCredit)} BDT; deposit refund ${money(result.suggestedDepositRefund)} BDT. Awaiting independent Finance approval.`, true);
         clearancePage = 1; await loadClearances();
     }
     function td(value) { const node = document.createElement('td'); node.textContent = value == null ? '' : String(value); return node; }
@@ -116,10 +126,10 @@
         const body = el('hfRows'); body.replaceChildren();
         for (const entry of data.items || []) {
             const tr = document.createElement('tr');
-            [ `#${entry.id} / ${entry.sourceAllocationId}`, `${entry.operation === 1 ? 'Transfer → bed ' + entry.destinationBedId : 'Checkout'} / ${entry.effectiveDate}`,
+            [ `#${entry.id} / ${entry.sourceAllocationId}`, `${entry.operation === 1 ? 'Transfer → bed ' + entry.destinationBedId : entry.operation === 3 ? 'Upcoming reschedule' : 'Checkout'} / ${entry.effectiveDate}`,
                 ['?', 'Daily prorated', 'Fixed monthly', 'Manual'][entry.calculationMode] || 'Unknown',
-                `${money(entry.suggestedRentCredit)} / ${money(entry.suggestedDepositRefund)}`,
-                `${money(entry.approvedRentCredit)} / ${money(entry.approvedDepositRefund)}`,
+                entry.operation === 3 ? money(entry.suggestedNetAdjustment) : `${money(entry.suggestedRentCredit)} / ${money(entry.suggestedDepositRefund)}`,
+                entry.operation === 3 ? money(entry.approvedNetAdjustment) : `${money(entry.approvedRentCredit)} / ${money(entry.approvedDepositRefund)}`,
                 ['?', 'Pending', 'Approved', 'Rejected', 'Consumed'][entry.state] || 'Unknown'
             ].forEach(v => tr.append(td(v)));
             const action = document.createElement('td');
@@ -136,10 +146,15 @@
     }
     function beginReview(entry) {
         review = entry;
-        el('hfReviewTitle').textContent = `#${entry.id} · ${entry.operation === 1 ? 'transfer' : 'checkout'}`;
+        el('hfReviewTitle').textContent = `#${entry.id} · ${entry.operation === 1 ? 'transfer' : entry.operation === 3 ? 'upcoming reschedule' : 'checkout'}`;
         el('hfReviewRent').value = ''; el('hfReviewDeposit').value = '';
+        el('hfReviewNet').value = '';
+        el('hfReviewRent').disabled = entry.operation === 3;
+        el('hfReviewDeposit').disabled = entry.operation === 3;
+        el('hfReviewNet').disabled = entry.operation !== 3;
         el('hfReviewOverrideReason').value = ''; el('hfReviewJournal').value = '';
-        el('hfNoAdjustment').checked = entry.approvedRentCredit + entry.approvedDepositRefund === 0;
+        el('hfNoAdjustment').checked = entry.operation === 3 ?
+            Number(entry.approvedNetAdjustment) === 0 : entry.approvedRentCredit + entry.approvedDepositRefund === 0;
         el('hfReviewNote').value = '';
         el('hfReviewForm').classList.remove('d-none');
         el('hfReviewForm').scrollIntoView({ block: 'nearest', behavior: 'smooth' });
@@ -156,6 +171,7 @@
                 noAdjustmentRequired: el('hfNoAdjustment').checked,
                 settlementJournalId: numeric('hfReviewJournal'),
                 manualRentCredit: numeric('hfReviewRent'), manualDepositRefund: numeric('hfReviewDeposit'),
+                manualNetAdjustment: review.operation === 3 ? signed('hfReviewNet') : null,
                 overrideReason: el('hfReviewOverrideReason').value.trim() || null,
                 reconciliationNote: note
             });

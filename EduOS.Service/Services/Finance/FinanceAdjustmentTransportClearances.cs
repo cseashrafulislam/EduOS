@@ -27,6 +27,7 @@ public sealed partial class FinanceAdjustmentService
         EffectiveDate = x.EffectiveDate, CalculationMode = x.CalculationMode,
         MonthlyFareAtRequest = x.MonthlyFareAtRequest,
         SuggestedFareCredit = x.SuggestedFareCredit, ApprovedFareCredit = x.ApprovedFareCredit,
+        SuggestedNetAdjustment = x.SuggestedNetAdjustment, ApprovedNetAdjustment = x.ApprovedNetAdjustment,
         OverrideReason = x.OverrideReason, RequestReason = x.RequestReason,
         RequestedByUserId = x.RequestedByUserId, NoAdjustmentRequired = x.NoAdjustmentRequired,
         SettlementJournalId = x.SettlementJournalId, ReconciliationNote = x.ReconciliationNote,
@@ -39,7 +40,7 @@ public sealed partial class FinanceAdjustmentService
         {
             x.SourceAssignmentReference, x.Operation, x.DestinationVehicleReference,
             x.EffectiveDate, x.SourceRowVersion, Reason = x.Reason.Trim(),
-            x.ManualFareCredit, OverrideReason = x.OverrideReason?.Trim()
+            x.ManualFareCredit, x.ManualNetAdjustment, OverrideReason = x.OverrideReason?.Trim()
         }))));
 
     public async Task<ApiResponse<TransportBillingPolicyDto>> GetTransportBillingPolicyAsync(long campusId, CancellationToken ct = default)
@@ -112,8 +113,10 @@ public sealed partial class FinanceAdjustmentService
             request.Reason.Trim().Length is < 5 or > 500 ||
             request.Operation == TransportClearanceOperation.VehicleTransfer &&
                 (request.DestinationVehicleReference == null || request.DestinationVehicleReference == Guid.Empty) ||
-            request.Operation == TransportClearanceOperation.Closure && request.DestinationVehicleReference.HasValue ||
-            request.ManualFareCredit.HasValue && !Money(request.ManualFareCredit.Value))
+            request.Operation != TransportClearanceOperation.VehicleTransfer && request.DestinationVehicleReference.HasValue ||
+            request.ManualFareCredit.HasValue && !Money(request.ManualFareCredit.Value) ||
+            request.Operation == TransportClearanceOperation.UpcomingRiderExtension && request.ManualFareCredit.HasValue ||
+            request.Operation != TransportClearanceOperation.UpcomingRiderExtension && request.ManualNetAdjustment.HasValue)
             return Error<TransportClearanceDto>("Invalid transport clearance request.");
         var fingerprint = TransportHash(request);
         try
@@ -149,7 +152,10 @@ public sealed partial class FinanceAdjustmentService
                  request.EffectiveDate < today || source.EndDate < request.EffectiveDate) ||
                 request.Operation == TransportClearanceOperation.Closure &&
                 (source.StartDate > today || request.EffectiveDate < source.StartDate ||
-                 request.EffectiveDate > today || source.EndDate < request.EffectiveDate))
+                 request.EffectiveDate > today || source.EndDate < request.EffectiveDate) ||
+                request.Operation == TransportClearanceOperation.UpcomingRiderExtension &&
+                (source.StartDate <= today || !source.EndDate.HasValue ||
+                 request.EffectiveDate <= source.EndDate.Value))
                 return Error<TransportClearanceDto>("Transport effective date is outside eligible service period.", 409);
             long? targetId = null;
             string? targetVersion = null;
@@ -172,16 +178,34 @@ public sealed partial class FinanceAdjustmentService
             var policy = await db.TransportBillingPolicies.AsNoTracking().FirstOrDefaultAsync(x =>
                 x.TenantId == user.TenantId && x.CampusId == campus && !x.IsDeleted, ct);
             var mode = policy?.CalculationMode ?? TransportBillingCalculationMode.DailyProrated;
+            var periodAmendment = request.Operation == TransportClearanceOperation.UpcomingRiderExtension;
+            var periodQuote = periodAmendment ? ReservationTermQuoteCalculator.Calculate(
+                source.StartDate, source.EndDate, source.StartDate, request.EffectiveDate,
+                source.MonthlyFare, (int)mode) : null;
+            ReservationQuoteSelection.Result? selected = null;
+            if (periodAmendment)
+            {
+                try
+                {
+                    selected = ReservationQuoteSelection.Select(periodQuote!.NetAdjustment,
+                        mode == TransportBillingCalculationMode.Manual, policy?.AllowManualOverride ?? true,
+                        request.ManualNetAdjustment, request.OverrideReason);
+                }
+                catch (ArgumentException ex) { return Error<TransportClearanceDto>(ex.Message); }
+                catch (InvalidOperationException ex) { return Error<TransportClearanceDto>(ex.Message, 409); }
+                if (!selected.SelectedAmount.HasValue)
+                    return Error<TransportClearanceDto>("Finance amount and reason required for a manually priced extension.", 409);
+            }
             var suggested = request.Operation == TransportClearanceOperation.Closure &&
                 mode == TransportBillingCalculationMode.DailyProrated
                 ? HostelBillingCalculator.ProrateUnusedMonth(source.MonthlyFare, request.EffectiveDate, source.EndDate) : 0m;
             var manual = request.ManualFareCredit.HasValue;
-            if (mode == TransportBillingCalculationMode.Manual && !manual ||
-                manual && policy?.AllowManualOverride == false && mode != TransportBillingCalculationMode.Manual)
+            if (!periodAmendment && (mode == TransportBillingCalculationMode.Manual && !manual ||
+                manual && policy?.AllowManualOverride == false && mode != TransportBillingCalculationMode.Manual))
                 return Error<TransportClearanceDto>("Manual amount required or campus overrides disabled.", 409);
             var amount = request.ManualFareCredit ?? suggested;
             if (!Money(amount) || request.Operation == TransportClearanceOperation.VehicleTransfer && amount != 0m ||
-                manual && (string.IsNullOrWhiteSpace(request.OverrideReason) || request.OverrideReason.Trim().Length is < 20 or > 1000))
+                !periodAmendment && manual && (string.IsNullOrWhiteSpace(request.OverrideReason) || request.OverrideReason.Trim().Length is < 20 or > 1000))
                 return Error<TransportClearanceDto>("Invalid fare credit or missing manual override reason.");
             var exposure = await new ReservationFinancePolicy(db).GetExposureHashAsync(user.TenantId,
                 source.StudentId, source.StudentEnrollmentId, ct);
@@ -197,13 +221,18 @@ public sealed partial class FinanceAdjustmentService
                 FinanceSnapshotHash = exposure, RequestReason = request.Reason.Trim(),
                 RequestedByUserId = user.UserId, CalculationMode = mode,
                 MonthlyFareAtRequest = source.MonthlyFare, SuggestedFareCredit = suggested,
-                ApprovedFareCredit = amount, OverrideReason = manual ? request.OverrideReason?.Trim() : null,
+                ApprovedFareCredit = amount, OverrideReason = periodAmendment
+                    ? selected?.IsManual == true ? request.OverrideReason?.Trim() : null
+                    : manual ? request.OverrideReason?.Trim() : null,
+                SuggestedNetAdjustment = periodQuote?.NetAdjustment ?? 0m,
+                ApprovedNetAdjustment = selected?.SelectedAmount ?? 0m,
                 CreatedAt = now, CreatedBy = user.UserId
             };
             db.TransportFinanceClearances.Add(row); await db.SaveChangesAsync(ct);
             AuditReservationFinance("TransportClearanceRequested", nameof(TransportFinanceClearance), row.Id, null,
                 new { row.SourceAssignmentId, row.DestinationVehicleId, row.Operation, row.EffectiveDate,
-                    row.SuggestedFareCredit, row.ApprovedFareCredit, row.OverrideReason });
+                    row.SuggestedFareCredit, row.ApprovedFareCredit, row.SuggestedNetAdjustment,
+                    row.ApprovedNetAdjustment, row.OverrideReason });
             await db.SaveChangesAsync(ct); await tx.CommitAsync(ct);
             return ApiResponse<TransportClearanceDto>.SuccessResponse(
                 Map(row, source.PublicId, request.DestinationVehicleReference), "Transport clearance requested; no GL posting.");
@@ -232,7 +261,8 @@ public sealed partial class FinanceAdjustmentService
                 return Error<TransportClearanceDto>("Clearance changed. Reload.", 409);
             if (row.RequestedByUserId == user.UserId)
                 return Error<TransportClearanceDto>("Requester cannot approve their own clearance.", 403);
-            var before = new { row.State, row.ApprovedFareCredit, row.OverrideReason, row.NoAdjustmentRequired, row.SettlementJournalId };
+            var before = new { row.State, row.ApprovedFareCredit, row.ApprovedNetAdjustment,
+                row.OverrideReason, row.NoAdjustmentRequired, row.SettlementJournalId };
             if (request.Approve)
             {
                 var source = await db.StudentTransports.AsNoTracking().FirstOrDefaultAsync(x =>
@@ -251,6 +281,55 @@ public sealed partial class FinanceAdjustmentService
                     row.StudentId, row.StudentEnrollmentId, ct);
                 if (exposure == null || exposure != row.FinanceSnapshotHash)
                     return Error<TransportClearanceDto>("Finance exposure changed; request a new clearance.", 409);
+                if (row.Operation == TransportClearanceOperation.UpcomingRiderExtension)
+                {
+                    if (request.ManualFareCredit.HasValue || !source.EndDate.HasValue ||
+                        source.StartDate <= DateOnly.FromDateTime(clock.GetLocalNow().DateTime) ||
+                        row.EffectiveDate <= source.EndDate.Value)
+                        return Error<TransportClearanceDto>("Upcoming rider extension is no longer eligible.", 409);
+                    decimal net = row.ApprovedNetAdjustment;
+                    if (request.ManualNetAdjustment.HasValue)
+                    {
+                        var policy = await db.TransportBillingPolicies.AsNoTracking().FirstOrDefaultAsync(x =>
+                            x.TenantId == user.TenantId && x.CampusId == row.CampusId && !x.IsDeleted, ct);
+                        try
+                        {
+                            var selection = ReservationQuoteSelection.Select(row.SuggestedNetAdjustment,
+                                row.CalculationMode == TransportBillingCalculationMode.Manual,
+                                policy?.AllowManualOverride ?? true,
+                                request.ManualNetAdjustment, request.OverrideReason);
+                            net = selection.SelectedAmount!.Value;
+                        }
+                        catch (ArgumentException ex) { return Error<TransportClearanceDto>(ex.Message); }
+                        catch (InvalidOperationException ex) { return Error<TransportClearanceDto>(ex.Message, 409); }
+                        row.OverrideReason = request.OverrideReason?.Trim();
+                    }
+                    else if (row.OverrideReason != null && row.CalculationMode != TransportBillingCalculationMode.Manual &&
+                        await db.TransportBillingPolicies.AsNoTracking().AnyAsync(x =>
+                            x.TenantId == user.TenantId && x.CampusId == row.CampusId && !x.IsDeleted &&
+                            !x.AllowManualOverride, ct))
+                        return Error<TransportClearanceDto>("Campus manual override policy changed. Request new approval.", 409);
+                    if (!ReservationPeriodSettlement.ValidAmount(net))
+                        return Error<TransportClearanceDto>("Invalid signed period adjustment.");
+                    if (request.NoAdjustmentRequired)
+                    {
+                        if (net != 0m || request.SettlementJournalId.HasValue)
+                            return Error<TransportClearanceDto>("Nonzero extension adjustment needs a reconciled journal.", 409);
+                    }
+                    else if (!await ReservationPeriodSettlement.HasPostedMatchingJournalAsync(db,
+                        user.TenantId, row.CampusId, row.StudentId, net,
+                        request.SettlementJournalId, $"TRANSPORT-CLEARANCE-{id}", ct) ||
+                        await db.HostelFinanceClearances.AsNoTracking().AnyAsync(x =>
+                            x.TenantId == user.TenantId && x.SettlementJournalId == request.SettlementJournalId, ct))
+                        return Error<TransportClearanceDto>("Posted, uniquely linked, independent and signed student adjustment journal required.", 409);
+                    row.ApprovedNetAdjustment = net;
+                    row.NoAdjustmentRequired = request.NoAdjustmentRequired;
+                    row.SettlementJournalId = request.SettlementJournalId;
+                }
+                else
+                {
+                if (request.ManualNetAdjustment.HasValue)
+                    return Error<TransportClearanceDto>("Signed amount only applies to upcoming rider extensions.");
                 var manual = request.ManualFareCredit.HasValue;
                 if (manual && (string.IsNullOrWhiteSpace(request.OverrideReason) ||
                     request.OverrideReason.Trim().Length is < 20 or > 1000))
@@ -293,6 +372,7 @@ public sealed partial class FinanceAdjustmentService
                 if (manual) row.OverrideReason = request.OverrideReason?.Trim();
                 row.NoAdjustmentRequired = request.NoAdjustmentRequired;
                 row.SettlementJournalId = request.SettlementJournalId;
+                }
                 row.State = TransportClearanceState.Approved;
             }
             else row.State = TransportClearanceState.Rejected;
@@ -301,7 +381,8 @@ public sealed partial class FinanceAdjustmentService
             row.ReviewedAtUtc = clock.GetUtcNow().UtcDateTime;
             row.UpdatedAt = row.ReviewedAtUtc; row.UpdatedBy = user.UserId;
             AuditReservationFinance("TransportClearanceReviewed", nameof(TransportFinanceClearance), row.Id, before,
-                new { row.State, row.ApprovedFareCredit, row.OverrideReason, row.NoAdjustmentRequired,
+                new { row.State, row.ApprovedFareCredit, row.ApprovedNetAdjustment,
+                    row.OverrideReason, row.NoAdjustmentRequired,
                     row.SettlementJournalId, row.ReconciliationNote, row.ReviewedByUserId });
             await db.SaveChangesAsync(ct); await tx.CommitAsync(ct);
             return ApiResponse<TransportClearanceDto>.SuccessResponse(await TransportMapAsync(row, ct),

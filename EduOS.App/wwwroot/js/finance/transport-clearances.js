@@ -8,6 +8,9 @@
     let selected = null, review = null, lastPayload = null, lastKey = null, busy = false;
     const today = () => { const d = new Date(); return [d.getFullYear(), String(d.getMonth() + 1).padStart(2, '0'), String(d.getDate()).padStart(2, '0')].join('-'); };
     const num = id => { const s = el(id).value.trim(); return s ? Number(s) : null; };
+    const signed = id => { const s = el(id).value.trim();
+        if (s && !/^-?\d{1,12}(\.\d{1,2})?$/.test(s)) throw Error('Signed adjustment must have at most 2 decimal places.');
+        return s || null; };
     const amount = n => Number(n || 0).toFixed(2);
     function notice(message, success = false) {
         const box = el('tfAlert'); box.className = 'alert alert-' + (success ? 'success' : 'danger');
@@ -68,6 +71,9 @@
     }
     async function loadVehicles() {
         const isTransfer = el('tfOperation').value === '1';
+        const period = el('tfOperation').value === '3';
+        el('tfManualFare').disabled = period;
+        el('tfManualNet').disabled = !period;
         const box = el('tfTarget'); box.required = isTransfer; box.disabled = !isTransfer;
         box.replaceChildren(new Option(isTransfer ? 'Choose eligible destination' : 'Not required', ''));
         vehicles.clear();
@@ -91,12 +97,16 @@
             sourceAssignmentReference: selected.reference, sourceRowVersion: selected.rowVersion,
             operation: Number(el('tfOperation').value), destinationVehicleReference: transfer ? destination : null,
             effectiveDate: el('tfEffective').value, reason: el('tfReason').value.trim(),
-            manualFareCredit: num('tfManualFare'), overrideReason: el('tfOverrideReason').value.trim() || null
+            manualFareCredit: transfer || el('tfOperation').value === '2' ? num('tfManualFare') : null,
+            manualNetAdjustment: el('tfOperation').value === '3' ? signed('tfManualNet') : null,
+            overrideReason: el('tfOverrideReason').value.trim() || null
         };
         const fingerprint = JSON.stringify(request);
         if (lastPayload !== fingerprint) { lastPayload = fingerprint; lastKey = crypto.randomUUID(); }
         const result = await api(root + '/clearances', 'POST', { clientRequestId: lastKey, ...request });
-        notice(`Transport clearance #${result.id} requested. Suggested credit ${amount(result.suggestedFareCredit)} BDT, selected credit ${amount(result.approvedFareCredit)} BDT. Awaiting independent review.`, true);
+        notice(result.operation === 3
+            ? `Transport clearance #${result.id} requested. Signed period adjustment ${amount(result.approvedNetAdjustment)} BDT. Awaiting independent review.`
+            : `Transport clearance #${result.id} requested. Suggested credit ${amount(result.suggestedFareCredit)} BDT, selected credit ${amount(result.approvedFareCredit)} BDT. Awaiting independent review.`, true);
         page = 1; await listClearances();
     }
     function td(value) { const cell = document.createElement('td'); cell.textContent = value == null ? '' : String(value); return cell; }
@@ -109,9 +119,10 @@
         const box = el('tfRows'); box.replaceChildren();
         for (const record of data.items || []) {
             const row = document.createElement('tr');
-            [`#${record.id} / ${record.sourceAssignmentReference}`, `${record.operation === 1 ? 'Transfer' : 'Closure'} / ${record.effectiveDate}`,
+            [`#${record.id} / ${record.sourceAssignmentReference}`, `${record.operation === 1 ? 'Transfer' : record.operation === 3 ? 'Upcoming extension' : 'Closure'} / ${record.effectiveDate}`,
                 ['—', 'Daily prorated', 'Fixed monthly', 'Manual'][record.calculationMode] || 'Unknown',
-                amount(record.suggestedFareCredit), amount(record.approvedFareCredit),
+                amount(record.operation === 3 ? record.suggestedNetAdjustment : record.suggestedFareCredit),
+                amount(record.operation === 3 ? record.approvedNetAdjustment : record.approvedFareCredit),
                 ['—', 'Pending', 'Approved', 'Rejected', 'Consumed'][record.state] || 'Unknown'
             ].forEach(v => row.append(td(v)));
             const cell = document.createElement('td');
@@ -125,10 +136,13 @@
     }
     function openReview(record) {
         review = record;
-        el('tfReviewTitle').textContent = `#${record.id} · ${record.operation === 1 ? 'vehicle transfer' : 'closure'}`;
+        el('tfReviewTitle').textContent = `#${record.id} · ${record.operation === 1 ? 'vehicle transfer' : record.operation === 3 ? 'upcoming extension' : 'closure'}`;
         el('tfReviewFare').value = ''; el('tfReviewOverrideReason').value = '';
+        el('tfReviewNet').value = '';
+        el('tfReviewFare').disabled = record.operation === 3;
+        el('tfReviewNet').disabled = record.operation !== 3;
         el('tfReviewJournal').value = ''; el('tfReviewNote').value = '';
-        el('tfNoAdjustment').checked = Number(record.approvedFareCredit) === 0;
+        el('tfNoAdjustment').checked = Number(record.operation === 3 ? record.approvedNetAdjustment : record.approvedFareCredit) === 0;
         el('tfReviewForm').classList.remove('d-none');
         el('tfReviewForm').scrollIntoView({ block: 'nearest', behavior: 'smooth' });
     }
@@ -142,6 +156,7 @@
             await api(`${root}/clearances/${review.id}/review`, 'POST', {
                 rowVersion: review.rowVersion, approve, noAdjustmentRequired: el('tfNoAdjustment').checked,
                 settlementJournalId: num('tfReviewJournal'), manualFareCredit: num('tfReviewFare'),
+                manualNetAdjustment: review.operation === 3 ? signed('tfReviewNet') : null,
                 overrideReason: el('tfReviewOverrideReason').value.trim() || null, reconciliationNote: note
             });
             notice(`Transport clearance #${review.id} ${approve ? 'approved' : 'rejected'}. No refund or journal posting was performed.`, true);

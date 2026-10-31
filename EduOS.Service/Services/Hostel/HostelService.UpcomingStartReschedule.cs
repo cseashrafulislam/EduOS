@@ -1,5 +1,6 @@
 using EduOS.Core.Common;
 using EduOS.Core.DTOs.Hostel;
+using EduOS.Core.Entities.Finance;
 using EduOS.Core.Enums.Domain;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -50,7 +51,8 @@ public sealed partial class HostelService
         var tenant = _currentUser.TenantId;
         const string operation = "hostel.upcoming-start-reschedule";
         var requestHash = HostelCommandFingerprint(operation, id,
-            request.StartDate.ToString("yyyy-MM-dd"), Convert.ToBase64String(version));
+            request.StartDate.ToString("yyyy-MM-dd"), Convert.ToBase64String(version),
+            request.FinanceClearanceId?.ToString() ?? "none");
         var requestId = request.ClientRequestId == Guid.Empty
             ? DeriveHostelCommandRequestId(tenant, _currentUser.UserId, operation, id, requestHash)
             : request.ClientRequestId;
@@ -103,11 +105,12 @@ public sealed partial class HostelService
                 }
                 if (!allocation.RowVersion.AsSpan().SequenceEqual(version))
                     return Error("Reservation changed. Reload and retry.", 409);
-                if (await _reservationFinancePolicy.HasPostedActivityAsync(tenant,
-                    allocation.StudentId, allocation.StudentEnrollmentId, ct))
-                    return Error("Posted finance activity requires an approved Finance adjustment before rescheduling.", 409);
-                if (allocation.MonthlyRent != 0m || allocation.SecurityDeposit != 0m || allocation.FeeHeadId.HasValue)
-                    return Error("Charged stays require the Finance billing and adjustment workflow before rescheduling.", 409);
+                var financeExposure = await _reservationFinancePolicy.HasPostedActivityAsync(tenant,
+                    allocation.StudentId, allocation.StudentEnrollmentId, ct);
+                if ((financeExposure || allocation.MonthlyRent != 0m ||
+                     allocation.SecurityDeposit != 0m || allocation.FeeHeadId.HasValue) &&
+                    !request.FinanceClearanceId.HasValue)
+                    return Error("Charged or invoiced stays require Finance-approved period settlement.", 409);
                 if (allocation.EndDate.HasValue &&
                     allocation.EndDate.Value.DayNumber - request.StartDate.DayNumber > 89)
                     return Error("Fixed-term stays cannot exceed 90 inclusive days.", 409);
@@ -140,6 +143,14 @@ public sealed partial class HostelService
                 if (PeakConcurrentStays(request.StartDate, allocation.EndDate,
                     roomStays.Select(x => (x.StartDate, x.EndDate))) > source.Room.Capacity)
                     return Error("Room capacity would be exceeded during the requested stay.", 409);
+                if (request.FinanceClearanceId.HasValue)
+                {
+                    var approval = await ConsumeHostelFinanceClearanceAsync(request.FinanceClearanceId.Value,
+                        allocation, source.Hostel.CampusId, HostelClearanceOperation.UpcomingStartReschedule,
+                        request.StartDate, null, null, ct);
+                    if (approval.Error != null)
+                        return Error(approval.Error, 409);
+                }
                 var previous = allocation.StartDate;
                 allocation.StartDate = request.StartDate;
                 allocation.UpdatedAt = _clock.GetUtcNow().UtcDateTime;
