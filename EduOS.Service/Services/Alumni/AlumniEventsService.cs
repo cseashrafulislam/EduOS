@@ -5,6 +5,7 @@ using EduOS.Core.Common;
 using EduOS.Core.DTOs.Alumni;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
 namespace EduOS.Service.Services.Alumni;
 
@@ -355,7 +356,7 @@ public sealed partial class AlumniService
                 FROM dbo.AlumniEvents e
                 LEFT JOIN dbo.AlumniEventRsvps r ON r.TenantId = e.TenantId
                     AND r.EventId = e.Id AND r.AlumniProfileId = {2}
-                WHERE e.TenantId = {0} AND e.Id = {1}", tenant, id, profileId).ToListAsync(ct);
+                WHERE e.TenantId = {0} AND e.Id = {1}", tenant, id, profileId ?? 0L).ToListAsync(ct);
         return rows.FirstOrDefault();
     }
 
