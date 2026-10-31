@@ -56,6 +56,19 @@ public sealed class V3EnterpriseLedgerTraceService(EduOSDbContext db, ICurrentUs
             return ApiResponse<V3EnterpriseLedgerTraceDto>.ErrorResponse(
                 "Transfer dispatch or receipt evidence requires reconciliation.", 409);
 
+        V3EnterpriseProcurementReceiptEvidenceValidator.Source? procurementSource = null;
+        if (movement.SourceType == "ProcurementGoodsReceipt")
+        {
+            var receiptEvidence = await V3EnterpriseProcurementReceiptEvidenceValidator.InspectAsync(
+                db, user.TenantId,
+                [new V3EnterpriseProcurementReceiptEvidenceValidator.Movement(
+                    movement.Id, movement.SourceId, movement.FromLocationId,
+                    movement.ToLocationId, movement.StateCode, movement.MovementTypeCode)], ct);
+            if (!receiptEvidence.Verified.TryGetValue(movement.Id, out procurementSource))
+                return ApiResponse<V3EnterpriseLedgerTraceDto>.ErrorResponse(
+                    "Canonical procurement receipt, purchase order or posted stock evidence requires reconciliation.", 409);
+        }
+
         // Historical tombstones are integrity failures, never silently excluded.
         var lines = db.InventoryMovementLines.IgnoreQueryFilters().AsNoTracking()
             .Where(x => x.TenantId == user.TenantId && x.InventoryMovementId == movement.Id);
@@ -133,7 +146,11 @@ public sealed class V3EnterpriseLedgerTraceService(EduOSDbContext db, ICurrentUs
             PostedAtUtc = movement.PostedAt, SourceType = movement.SourceType, SourceId = movement.SourceId,
             TransferDispatchReference = dispatch, ReversalReference = reversal,
             RecordedMovementValue = amount?.Value ?? 0m, MovementLineCount = amount?.Count ?? 0,
-            FinanceEvidenceStatus = financeStatus, Journals = evidence
+            FinanceEvidenceStatus = financeStatus,
+            SourceEvidenceStatus = procurementSource == null ? "NotApplicable" : "VerifiedProcurementReceipt",
+            ProcurementGoodsReceiptReference = procurementSource?.GoodsReceiptReference,
+            ProcurementPurchaseOrderReference = procurementSource?.PurchaseOrderReference,
+            Journals = evidence
         });
     }
 }

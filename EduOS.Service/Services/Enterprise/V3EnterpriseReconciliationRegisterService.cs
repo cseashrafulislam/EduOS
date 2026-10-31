@@ -73,6 +73,12 @@ public sealed class V3EnterpriseReconciliationRegisterService(
                     .Select(x => new V3EnterpriseTransferEvidenceValidator.Receipt(
                         x.Id, x.SourceId, x.ToLocationId, x.StateCode, x.MovementTypeCode))
                     .ToArray(), ct);
+        var procurementReceipts = await V3EnterpriseProcurementReceiptEvidenceValidator.InspectAsync(
+            db, user.TenantId,
+            pageRows.Where(x => x.SourceType == "ProcurementGoodsReceipt")
+                .Select(x => new V3EnterpriseProcurementReceiptEvidenceValidator.Movement(
+                    x.Id, x.SourceId, x.FromLocationId, x.ToLocationId,
+                    x.StateCode, x.MovementTypeCode)).ToArray(), ct);
         var values = await db.InventoryMovementLines.IgnoreQueryFilters().AsNoTracking()
             .Where(x => x.TenantId == user.TenantId && ids.Contains(x.InventoryMovementId))
             .GroupBy(x => x.InventoryMovementId)
@@ -112,6 +118,7 @@ public sealed class V3EnterpriseReconciliationRegisterService(
                     !allowedCampuses.Contains(j.CampusId.Value));
             var status = missingLocation || foreignCampusJournal ||
                 invalidTransferReceipts.Contains(m.Id) ||
+                procurementReceipts.Invalid.Contains(m.Id) ||
                 (link?.Length ?? 0) > 100 ||
                 v?.Deleted == true || v == null ? "EvidenceConflict" :
                 link == null ? "NoExplicitReference" :

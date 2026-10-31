@@ -6,7 +6,7 @@
     <header class="d-flex align-items-start justify-content-between gap-2 mb-3">
         <h2 class="h4 mb-0">@ViewData["Title"]</h2>
         <details class="small"><summary class="btn btn-link btn-sm" aria-label="@(bn ? "সহায়তা" : "Help")">ⓘ</summary>
-            <p class="small mb-0">@(bn ? "স্টক ও অবচয়ের জার্নাল এবং ক্রয় আদেশের অনুমোদিত উৎস যাচাই করুন। ক্রয় আদেশ থেকে স্টক বা জার্নাল পোস্টিং অনুমান করা হয় না।" : "Inspect stock/depreciation journals or approved purchase-order provenance. Purchase orders do not imply stock receipt or Finance posting.")</p>
+            <p class="small mb-0">@(bn ? "স্টক ও অবচয়ের জার্নাল এবং ক্রয় আদেশের অনুমোদিত উৎস যাচাই করুন। শুধু সরাসরি সংযুক্ত ও স্বতন্ত্রভাবে অনুমোদিত পণ্য গ্রহণ থেকে ক্রয় আদেশ-স্টক সম্পর্ক যাচাই হয়। ফাইন্যান্স পোস্টিং অনুমান করা হয় না।" : "Inspect stock/depreciation journals or approved purchase-order provenance. Only explicitly linked, independently checked goods receipts prove PO-to-stock lineage. No Finance posting is inferred.")</p>
         </details>
     </header>
     <form id="v3TraceForm" class="row g-2 mb-3">

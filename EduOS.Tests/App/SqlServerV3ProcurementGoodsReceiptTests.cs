@@ -5,6 +5,7 @@ using EduOS.Core.Entities.SaaS;
 using EduOS.Core.Enums.Domain;
 using EduOS.Persistence.Context;
 using EduOS.Service.Services.Inventory;
+using EduOS.Service.Services.Enterprise;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
@@ -153,6 +154,22 @@ public sealed partial class SqlServerV3ProcurementPurchaseOrderTests
             Assert.Equal(7m, await check.InventoryMovementLines
                 .Where(x => movements.Select(m => m.Id).Contains(x.InventoryMovementId)).SumAsync(x => x.Quantity));
             Assert.Equal(409, (await Goods(check, tenantId, checkerId).CreateGoodsReceiptAsync(Create(4m))).StatusCode);
+            var trace = new V3EnterpriseLedgerTraceService(check, new Actor(tenantId, checkerId));
+            var register = new V3EnterpriseReconciliationRegisterService(check, new Actor(tenantId, checkerId));
+            var today = DateOnly.FromDateTime(DateTime.UtcNow);
+            var listing = await register.GetAsync("stock", today.AddDays(-1), today.AddDays(1));
+            Assert.Equal(200, listing.StatusCode);
+            foreach (var movement in movements)
+            {
+                var evidence = await trace.GetAsync(movement.PublicId);
+                Assert.Equal(200, evidence.StatusCode);
+                Assert.Equal("VerifiedProcurementReceipt", evidence.Data!.SourceEvidenceStatus);
+                Assert.NotNull(evidence.Data.ProcurementGoodsReceiptReference);
+                Assert.NotNull(evidence.Data.ProcurementPurchaseOrderReference);
+                Assert.Equal("NoExplicitReference", evidence.Data.FinanceEvidenceStatus);
+                Assert.Contains(listing.Data!.Items, x =>
+                    x.Reference == movement.PublicId && x.EvidenceStatus == "NoExplicitReference");
+            }
         }
         // A rejected delivery frees its held remaining quantity; no additional stock entry.
         var reject = await Submit(3m, "LOT-C");
@@ -192,6 +209,38 @@ public sealed partial class SqlServerV3ProcurementPurchaseOrderTests
                 .GetGoodsReceiptAsync(first.Reference)).StatusCode);
             Assert.Empty((await Goods(otherTenant, tenantId + 99999, makerId)
                 .GetGoodsReceiptsAsync(null, null, 1, 25)).Data!.Items);
+            Assert.Equal(404, (await new V3EnterpriseLedgerTraceService(
+                otherTenant, new Actor(tenantId + 99999, makerId))
+                .GetAsync(first.PostedMovementReference!.Value)).StatusCode);
+        }
+        // A forged same-tenant source pointer must not pass read-only enterprise
+        // reconciliation, even though the generic stock row itself is posted.
+        await using (var check = Open(options, tenantId, checkerId))
+        {
+            var itemId = await check.ProcurementPurchaseOrderLines
+                .Where(x => x.Id == poLineId).Select(x => x.InventoryItemId).SingleAsync();
+            var forged = new InventoryMovement {
+                TenantId = tenantId, MovementNumber = "GR-FORGED-" + suffix,
+                ClientRequestId = Guid.NewGuid(), MovementTypeCode = "Receipt",
+                StateCode = "Posted", SourceType = "ProcurementGoodsReceipt",
+                SourceId = long.MaxValue, ToLocationId = storeId,
+                MovementAt = DateTime.UtcNow, PostedAt = DateTime.UtcNow
+            };
+            check.InventoryMovements.Add(forged);
+            await check.SaveChangesAsync();
+            check.InventoryMovementLines.Add(new InventoryMovementLine {
+                TenantId = tenantId, InventoryMovementId = forged.Id, LineNo = 1,
+                InventoryItemId = itemId, Quantity = 1m, UnitCost = 4m
+            });
+            await check.SaveChangesAsync();
+            var trace = new V3EnterpriseLedgerTraceService(check, new Actor(tenantId, checkerId));
+            Assert.Equal(409, (await trace.GetAsync(forged.PublicId)).StatusCode);
+            var today = DateOnly.FromDateTime(DateTime.UtcNow);
+            var register = await new V3EnterpriseReconciliationRegisterService(
+                check, new Actor(tenantId, checkerId)).GetAsync("stock", today.AddDays(-1), today.AddDays(1));
+            Assert.Equal(200, register.StatusCode);
+            Assert.Contains(register.Data!.Items, x =>
+                x.Reference == forged.PublicId && x.EvidenceStatus == "EvidenceConflict");
         }
         Assert.True(campusId > 0);
     }

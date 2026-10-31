@@ -38,13 +38,15 @@ public sealed class V3EnterpriseLedgerTraceController(EduOSDbContext db, ICurren
             if (s.Length > 0 && ("=+-@\t\r".Contains(s[0]))) s = "'" + s;
             return "\"" + s.Replace("\"", "\"\"") + "\"";
         }
-        var csv = new StringBuilder("Evidence,Reference,Number,State,Debit,Credit,RecordedValue,SourceType,SourceId\r\n");
+        var csv = new StringBuilder("Evidence,Reference,Number,State,Debit,Credit,RecordedValue,SourceType,SourceId,GoodsReceiptReference,PurchaseOrderReference,SourceEvidenceStatus\r\n");
         csv.AppendJoin(",", new[] { Cell("Stock"), Cell(d.MovementReference), Cell(d.MovementNumber),
             Cell(d.State), Cell(""), Cell(""), Cell(d.RecordedMovementValue),
-            Cell(d.SourceType), Cell(d.SourceId) }).Append("\r\n");
+            Cell(d.SourceType), Cell(d.SourceId), Cell(d.ProcurementGoodsReceiptReference),
+            Cell(d.ProcurementPurchaseOrderReference), Cell(d.SourceEvidenceStatus) }).Append("\r\n");
         foreach (var j in d.Journals)
             csv.AppendJoin(",", new[] { Cell("Journal"), Cell(j.Reference), Cell(j.Number),
-                Cell(j.State), Cell(j.Debit), Cell(j.Credit), Cell(""), Cell(""), Cell("") }).Append("\r\n");
+                Cell(j.State), Cell(j.Debit), Cell(j.Credit), Cell(""), Cell(""), Cell(""),
+                Cell(""), Cell(""), Cell("") }).Append("\r\n");
         Response.Headers["X-Content-Type-Options"] = "nosniff";
         return File(new UTF8Encoding(true).GetBytes(csv.ToString()), "text/csv; charset=utf-8",
             "v3-ledger-trace-" + reference.ToString("N") + ".csv");

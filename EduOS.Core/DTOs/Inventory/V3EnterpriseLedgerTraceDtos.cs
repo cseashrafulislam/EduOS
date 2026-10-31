@@ -15,6 +15,10 @@ public sealed class V3EnterpriseLedgerTraceDto
     public decimal RecordedMovementValue { get; set; }
     public int MovementLineCount { get; set; }
     public string FinanceEvidenceStatus { get; set; } = "NoExplicitReference";
+    // Set only after exact tenant/campus/PO/receipt/stock-line verification.
+    public string SourceEvidenceStatus { get; set; } = "NotApplicable";
+    public Guid? ProcurementGoodsReceiptReference { get; set; }
+    public Guid? ProcurementPurchaseOrderReference { get; set; }
     public IReadOnlyList<V3EnterpriseJournalEvidenceDto> Journals { get; set; } =
         Array.Empty<V3EnterpriseJournalEvidenceDto>();
 }

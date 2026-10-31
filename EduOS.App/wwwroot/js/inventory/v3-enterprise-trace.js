@@ -25,7 +25,8 @@ if (root) {
         CancellationPending: ['বাতিলের অনুমোদন অপেক্ষমাণ—প্রতিশ্রুতি বহাল', 'Cancellation pending; commitment active'],
         CancelledCommitment: ['বাতিলকৃত ক্রয় প্রতিশ্রুতি', 'Cancelled purchase commitment'],
         RejectedCommitment: ['প্রত্যাখ্যাত ক্রয় আদেশ', 'Rejected purchase order'],
-        DraftCommitment: ['খসড়া ক্রয় আদেশ', 'Draft purchase order']
+        DraftCommitment: ['খসড়া ক্রয় আদেশ', 'Draft purchase order'],
+        VerifiedProcurementReceipt: ['ক্রয় আদেশ, পণ্য গ্রহণ ও স্টক প্রমাণ যাচাইকৃত', 'PO, goods receipt and stock evidence verified']
     };
     const evidenceText = code => evidenceLabels[code]?.[bn ? 0 : 1] || String(code || '');
     const add = (values) => {
@@ -75,6 +76,12 @@ if (root) {
                 add([bn ? 'বিস্তারিত' : 'Lines', d.depreciationLineCount, '', '', '', d.depreciationLinesAmount]);
             } else {
                 add([bn ? 'স্টক' : 'Stock', d.movementNumber, d.state, '', '', d.recordedMovementValue]);
+                if (d.procurementGoodsReceiptReference) {
+                    add([bn ? 'পণ্য গ্রহণ' : 'Goods receipt', d.procurementGoodsReceiptReference,
+                        bn ? 'পোস্টকৃত' : 'Posted', '', '', '']);
+                    add([bn ? 'ক্রয় আদেশ' : 'Purchase order', d.procurementPurchaseOrderReference,
+                        bn ? 'যাচাইকৃত উৎস' : 'Verified source', '', '', '']);
+                }
             }
             (d.journals || []).forEach(j => add([
                 bn ? 'জার্নাল' : 'Journal', j.number, j.state, j.debit, j.credit, ''
@@ -84,7 +91,9 @@ if (root) {
                     evidenceText(d.evidenceStatus)
                 : (bn ? 'ফাইন্যান্স লিংক: ' : 'Finance evidence: ') +
                     evidenceText(d.financeEvidenceStatus) +
-                    (d.reversalReference ? ' · Reversal: ' + d.reversalReference : '');
+                    (d.reversalReference ? ' · Reversal: ' + d.reversalReference : '') +
+                    (d.sourceEvidenceStatus === 'VerifiedProcurementReceipt'
+                        ? ' · ' + evidenceText(d.sourceEvidenceStatus) : '');
             csv.href = path + '/csv';
             result.hidden = false;
             message.textContent = bn ? 'ট্রেস প্রস্তুত।' : 'Trace ready.';
