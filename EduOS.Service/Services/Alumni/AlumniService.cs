@@ -117,14 +117,31 @@ public sealed partial class AlumniService : IAlumniService
                     return ApiResponse<AlumniSelfDto>.ErrorResponse("Verified completion for this account was not found.", 404);
 
                 var prior = await _db.Database.SqlQueryRaw<AlumniCommandSqlRow>(
-                    "SELECT RequestHash FROM dbo.AlumniConsentCommands WHERE TenantId = {0} AND ClientRequestId = {1}",
+                    @"SELECT c.RequestHash, c.ActorUserId, c.AlumniProfileId,
+                        CAST(CASE WHEN EXISTS (
+                            SELECT 1 FROM dbo.AlumniConsentCommands later
+                            WHERE later.TenantId = c.TenantId
+                              AND later.AlumniProfileId = c.AlumniProfileId
+                              AND later.Id > c.Id
+                        ) THEN 0 ELSE 1 END AS bit) AS IsLatest
+                      FROM dbo.AlumniConsentCommands c
+                      WHERE c.TenantId = {0} AND c.ClientRequestId = {1}",
                     tenantId, request.ClientRequestId).ToListAsync(token);
                 if (prior.Count > 0)
                 {
-                    if (!string.Equals(prior[0].RequestHash, fingerprint, StringComparison.Ordinal))
+                    if (prior[0].ActorUserId != userId ||
+                        !string.Equals(prior[0].RequestHash, fingerprint, StringComparison.Ordinal))
                         return ApiResponse<AlumniSelfDto>.ErrorResponse("Request reference belongs to another operation.", 409);
                     var replay = await ReadProfileAsync(tenantId, completion.Id, token);
-                    if (replay == null) return ApiResponse<AlumniSelfDto>.ErrorResponse("Consent record is unavailable.", 409);
+                    // A retry is safe only while this is the most recent consent command
+                    // and its persisted privacy state still matches the original request.
+                    // An old revoke must not report success after a later opt-in.
+                    if (replay == null || replay.Id != prior[0].AlumniProfileId ||
+                        !prior[0].IsLatest || replay.DirectoryOptIn != request.DirectoryOptIn ||
+                        !string.Equals(replay.ContactEmail, email, StringComparison.Ordinal) ||
+                        !string.Equals(replay.ContactPhone, phone, StringComparison.Ordinal))
+                        return ApiResponse<AlumniSelfDto>.ErrorResponse(
+                            "Consent changed since this request; submit a new request.", 409);
                     return ApiResponse<AlumniSelfDto>.SuccessResponse(ToSelf(completion.StudentCode,
                         completion.FullName, request.StudentReference, completion.ProcessedAt, replay), "Request already processed.");
                 }
@@ -294,4 +311,7 @@ public sealed class AlumniProfileSqlRow
 public sealed class AlumniCommandSqlRow
 {
     public string RequestHash { get; set; } = string.Empty;
+    public long ActorUserId { get; set; }
+    public long AlumniProfileId { get; set; }
+    public bool IsLatest { get; set; }
 }

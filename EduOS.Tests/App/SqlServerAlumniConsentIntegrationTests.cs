@@ -303,13 +303,18 @@ public sealed class SqlServerAlumniConsentIntegrationTests
         Assert.True(foreign.Success, foreign.Message);
         Assert.Empty(foreign.Data!.Items);
 
-        var revoked = await graduate.SaveConsentAsync(new AlumniConsentRequestDto
+        var revokeRequest = new AlumniConsentRequestDto
         {
             StudentReference = studentReference, ClientRequestId = Guid.NewGuid(),
             DirectoryOptIn = false, RowVersion = opted.Data!.RowVersion
-        });
+        };
+        var revoked = await graduate.SaveConsentAsync(revokeRequest);
         Assert.True(revoked.Success, revoked.Message);
         Assert.Null(revoked.Data!.ContactEmail);
+        // Replaying an old grant after revocation must not report a successful opt-in.
+        var staleGrantReplay = await graduate.SaveConsentAsync(optInRequest);
+        Assert.False(staleGrantReplay.Success);
+        Assert.Equal(409, staleGrantReplay.StatusCode);
         var clearedEngagement = await publisherService.EventsAsync(new AlumniEventQueryDto());
         Assert.True(clearedEngagement.Success, clearedEngagement.Message);
         Assert.Equal(0, Assert.Single(clearedEngagement.Data!.Items.Where(e =>
@@ -330,6 +335,14 @@ public sealed class SqlServerAlumniConsentIntegrationTests
             DirectoryOptIn = true, RowVersion = revoked.Data.RowVersion
         });
         Assert.True(reOpted.Success, reOpted.Message);
+        // An old revoke retry must not claim that the newer opt-in was withdrawn.
+        var staleRevokeReplay = await graduate.SaveConsentAsync(revokeRequest);
+        Assert.False(staleRevokeReplay.Success);
+        Assert.Equal(409, staleRevokeReplay.StatusCode);
+        var currentConsent = await graduate.MineAsync();
+        Assert.True(currentConsent.Success, currentConsent.Message);
+        Assert.True(Assert.Single(currentConsent.Data!.Where(x =>
+            x.StudentReference == studentReference)).DirectoryOptIn);
         var revokedReplay = await graduate.RsvpAsync(rsvpRequest);
         Assert.False(revokedReplay.Success);
         Assert.Equal(409, revokedReplay.StatusCode);
