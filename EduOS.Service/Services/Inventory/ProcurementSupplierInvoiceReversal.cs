@@ -2,6 +2,7 @@ using System.Data;
 using EduOS.Core.Common;
 using EduOS.Core.DTOs.Inventory;
 using EduOS.Core.Entities.Accounting;
+using EduOS.Core.Entities.Inventory;
 using EduOS.Core.Enums.Domain;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
@@ -159,7 +160,17 @@ public sealed partial class ProcurementSupplierInvoiceService
             contra.PostedByUserId = request.Approve ? user.UserId : null;
             contra.PostedAt = request.Approve ? now : null;
             contra.UpdatedAt = now; contra.UpdatedBy = user.UserId;
-            if (request.Approve) { invoice.StateCode = "Reversed"; invoice.UpdatedAt = now; invoice.UpdatedBy = user.UserId; }
+            if (request.Approve)
+            {
+                invoice.StateCode = "Reversed";
+            }
+            else
+            {
+                // Retain the rejected contra as immutable Journal audit history while
+                // unlocking a newly documented reversal request on this payable.
+                invoice.ReversalJournalId = null;
+            }
+            invoice.UpdatedAt = now; invoice.UpdatedBy = user.UserId;
             await db.SaveChangesAsync(ct); await tx.CommitAsync(ct);
             return ApiResponse<ProcurementSupplierInvoiceDto>.SuccessResponse(await MapAsync(invoice,ct),
                 request.Approve ? "Original payable retained; compensating GL contra posted." : "Contra rejected; original payable unchanged.");

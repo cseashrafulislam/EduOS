@@ -227,5 +227,29 @@ public sealed partial class SqlServerV3ProcurementPurchaseOrderTests
             Assert.Equal(3,invoiceIds.Count);
             Assert.Single(await verify.InventoryMovements.Where(x=>x.SourceType=="ProcurementGoodsReceipt").ToListAsync());
         }
+        ProcurementSupplierInvoiceDto rejectedRequest;
+        await using (var maker=Open(options,tenantId,makerId))
+        {
+            var service=Invoices(maker,tenantId,makerId);
+            var current=(await service.GetAsync(second.Reference)).Data!;
+            var requested=await service.RequestReversalAsync(second.Reference,new RequestProcurementSupplierInvoiceReversal
+            {
+                ClientRequestId=Guid.NewGuid(),RowVersion=current.RowVersion,ReversalDate=date,
+                AccountingPeriodId=periodId,Reason="Prepare second bill reversal pending independent review"
+            });
+            Assert.True(requested.Success,requested.Message);rejectedRequest=requested.Data!;
+        }
+        await using (var checker=Open(options,tenantId,checkerId))
+        {
+            var rejected=await Invoices(checker,tenantId,checkerId).ReviewReversalAsync(second.Reference,
+                new ReviewProcurementSupplierInvoiceReversal
+                {
+                    RowVersion=rejectedRequest.ReversalJournalRowVersion!,Approve=false,
+                    Reason="Supplier did not approve requested reversal; keep liability"
+                });
+            Assert.True(rejected.Success,rejected.Message);
+            Assert.Equal("Posted",rejected.Data!.StateCode);
+            Assert.Null(rejected.Data.ReversalJournalReference);
+        }
     }
 }
