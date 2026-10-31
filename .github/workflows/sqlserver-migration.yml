@@ -159,6 +159,7 @@ jobs:
           name: sql-acceptance-diagnostics-${{ github.sha }}
           path: |
             TestResults/sql-v1-acceptance.trx
+            TestResults/sql-v3-alumni-acceptance.trx
             TestResults/sql-v2-v3-smoke.trx
             TestResults/sql-v2-transport-finance-acceptance.trx
           if-no-files-found: warn
