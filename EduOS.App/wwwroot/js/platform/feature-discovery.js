@@ -147,16 +147,23 @@
         const star = document.createElement('button');
         star.type = 'button';
         star.className = 'feature-search-star';
+        star.dataset.href = entry.href;
         const selected = state.favorites.includes(entry.href);
         star.textContent = selected ? '★' : '☆';
         star.setAttribute('aria-pressed', String(selected));
         star.setAttribute('aria-label', selected ? labels.unstar + ': ' + entry.label : labels.star + ': ' + entry.label);
         star.addEventListener('click', () => {
+            const restoreFocus = document.activeElement === star;
             state.favorites = selected
                 ? state.favorites.filter(href => href !== entry.href)
                 : remember(state.favorites, entry.href);
             persist();
             render();
+            if (restoreFocus) {
+                const replacement = [...results.querySelectorAll('.feature-search-star')]
+                    .find(button => button.dataset.href === entry.href);
+                (replacement || input).focus();
+            }
         });
         item.append(link, star);
         return item;
@@ -210,6 +217,7 @@
     }
     trigger.addEventListener('click', open);
     close?.addEventListener('click', dismiss);
+    dialog.addEventListener('close', () => trigger.focus());
     input.addEventListener('input', render);
     dialog.addEventListener('click', event => {
         if (event.target === dialog) dismiss();
