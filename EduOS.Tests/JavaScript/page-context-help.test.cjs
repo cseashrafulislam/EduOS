@@ -190,8 +190,8 @@ test('aging manual matches authorized read-only reports and bounded CSV', () => 
  const view=read('EduOS.App/Views/FeeReceivablesAging/Index.cshtml');
  const page=read('EduOS.App/Controllers/FeeReceivablesAgingController.cs');
  const api=read('EduOS.App/Controllers/Api/FeeReceivablesAgingController.cs');
- assert.match(page, /Authorize\\(Roles = "TenantAdmin,Principal,Accountant"\\)/);
- assert.match(page, /RequireModule\\("FINANCE"\\)/);
+ assert.match(page, /Authorize\(Roles = "TenantAdmin,Principal,Accountant"\)/);
+ assert.match(page, /RequireModule\("FINANCE"\)/);
  for(const route of ['reconciliation','payment-reconciliation','daily-cash-collections'])
    assert.ok(api.includes('[HttpGet("'+route+'")]'),route);
  for(const id of ['agingRun','agingExport','reconcileRun','paymentReconcileRun','dailyCashRun','dailyCashExport'])
@@ -205,10 +205,10 @@ test('payroll journal manual matches independent approval, canonical GL and reve
  const api=read('EduOS.App/Controllers/Api/PayrollJournalPostingController.cs');
  const view=read('EduOS.App/Views/PayrollJournalPosting/Index.cshtml');
  const service=read('EduOS.Service/Services/HR/PayrollJournalPostingService.cs');
- assert.match(page,/Authorize\\(Roles = "TenantAdmin,Principal,Accountant"\\)/);
- assert.match(page,/RequireModule\\("FINANCE"\\), RequireModule\\("PAYROLL"\\)/);
+ assert.match(page,/Authorize\(Roles = "TenantAdmin,Principal,Accountant"\)/);
+ assert.match(page,/RequireModule\("FINANCE"\), RequireModule\("PAYROLL"\)/);
  assert.match(api,/AutoValidateAntiforgeryToken/);
- assert.match(api,/Authorize\\(Roles = "TenantAdmin"\\)/);
+ assert.match(api,/Authorize\(Roles = "TenantAdmin"\)/);
  for(const route of ['reverse/request','reverse/review','reverse/post'])assert.ok(api.includes(route),route);
  for(const id of ['payrollPostingMappings','payrollPostingConfirm','payrollReversalForm'])
    assert.ok(view.includes('id="'+id+'"'),id);
@@ -222,10 +222,10 @@ test('salary statement manual matches snapshot report and bounded export without
  const api=read('EduOS.App/Controllers/Api/PayrollSalaryStatementController.cs');
  const service=read('EduOS.Service/Services/HR/PayrollSalaryStatementService.cs');
  const client=read('EduOS.App/wwwroot/js/payroll/salary-statement.js');
- assert.match(page,/Authorize\\(Roles = "TenantAdmin"\\)/);
- assert.match(page,/RequireModule\\("PAYROLL"\\)/);
- assert.match(api,/\\[HttpGet\\("csv"\\)\\]/);
- assert.match(api,/GetAsync\\(year, month, campusId, 1, 1000, ct\\)/);
+ assert.match(page,/Authorize\(Roles = "TenantAdmin"\)/);
+ assert.match(page,/RequireModule\("PAYROLL"\)/);
+ assert.match(api,/\[HttpGet\("csv"\)\]/);
+ assert.match(api,/GetAsync\(year, month, campusId, 1, 1000, ct\)/);
  assert.match(service,/pageSize > 50 && count > 1000/);
  assert.match(client,/pageSize:'25'/);
  for(const id of ['statementYear','statementMonth','statementCampus','statementCsv','statementPrint'])
