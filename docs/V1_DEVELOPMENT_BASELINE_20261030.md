@@ -2,7 +2,7 @@
 
 > **HISTORICAL EXACT-COMMIT ENGINEERING EVIDENCE.** From the owner's 2026-10-31 decision, all development is organized as [one EduOS project](PROJECT_MASTER_PLAN.md), not separate version releases. Keep this acceptance evidence and preserved code; do not treat its old release/task rules as active.
 
-**Effective:** 2026-10-30. **Target:** `Ashraful`. **Decision:** stop repetitive V1 feature-development sprints; preserve the integrated baseline and its regression gates while V2 advances. This document is the current **engineering change-control status**, not a production-ready certificate or a substitute for the [module-complete release contract](RELEASE_V1_V2_V3.md).
+**Effective historical baseline:** 2026-10-30. **Target:** `Ashraful`. **Decision at that checkpoint:** stop repetitive feature-development sprints and preserve the integrated baseline and regression gates. This is exact-commit **historical engineering evidence**, not a production-ready certificate or substitute for the [current unified project plan](PROJECT_MASTER_PLAN.md).
 
 ## 1. Exact baseline and verification
 
@@ -43,7 +43,7 @@ For each exception: link the issue/test evidence and affected V1 contract, inspe
 
 - **Current engineering checkpoint:** integrated V1-related code is on `Ashraful`; the exact baseline passed the CI and disposable SQL Server suites above. No broad V1 rewrite is authorized by a prior status percentage.
 - **Not established by these tests:** exhaustive functional checklist sign-off for every promised V1 scenario; institution-led UAT and statutory/bank/provider review; real-data migration and rollback rehearsal; representative multi-tenant peak-load, privacy/penetration, monitoring and operations approval; final owner go/no-go. These are tracked as **release acceptance/operations**, not V2 feature requests.
-- **Historical records:** [V1 code-only gate of 2026-10-29](V1_CODE_ONLY_GATE_20261029.md), [Admission/Student handoff](ADMISSION_STUDENT_V1_CODE_GATE.md) and other dated documents are snapshots. Do not convert their old blockers into current work without checking later commits and tests.
+- **Historical records:** The superseded 2026-10-29 code-only checkpoint is accessible in Git history; the retained [Admission/Student handoff](ADMISSION_STUDENT_V1_CODE_GATE.md) contains the narrow import-repair contract. Do not convert old blockers into current work without checking later commits and tests.
 - **Dynamic product rule:** no number such as a pilot institute/student count is a coded product limit. File-upload resource budgets (file size, validation and transactional batch size) and real configured subscription quotas remain valid operational protections.
 
 ## 5. Instructions for V2 agents, CI and future chats

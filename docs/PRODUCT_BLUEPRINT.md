@@ -40,7 +40,7 @@ Visibility in a menu is **not** authorization. Tenant + campus + membership + fe
 
 ## 4. Unified EduOS project and module ownership
 
-**Authoritative active scope:** [Unified Project Master Plan](PROJECT_MASTER_PLAN.md) and [AGENTS.md](../AGENTS.md). Historic [three-release contract](RELEASE_V1_V2_V3.md) and [two-release contract](RELEASE_V1_V2.md) are retained for attribution and QA evidence, **not** as current development partitions.
+**Authoritative active scope:** [Unified Project Master Plan](PROJECT_MASTER_PLAN.md) and [AGENTS.md](../AGENTS.md). Superseded two-/three-release contracts were retired from the current docs tree; their historic text is preserved in Git history for audit, **not** as active development partitions.
 
 - **One project, all institution workflows:** SaaS/security/identity, admission/student/guardian, academic/examination/results, Fees/Finance, HR/Payroll, LMS, Library, Hostel, Transport, Inventory/Procurement, Assets/Facilities/Visitors and approved enterprise engagement/integration capabilities.
 - **Preserve verified modules:** previously established Platform/Education/Finance/HR, LMS/Library/Hostel/Transport and Inventory source paths remain authoritative. Do not create duplicate models, independent payroll, a second stock ledger, a shadow GL, a new LMS/Library or repeated forms merely to change an obsolete release label.
@@ -60,7 +60,7 @@ Use these statuses **per end-to-end workflow**, not per folder or model:
 | Planned | Specified capability with no verified operational implementation |
 | Production Ready | Implemented + migration/deployment review, security testing, production-like load, backup/restore, external-provider and user acceptance evidence |
 
-`README.md` provides the broad product catalogue. `docs/DELIVERY_STATUS.md` and `docs/ROADMAP_STATUS.md` contain **historical, branch/baseline-specific verification**, not proof that today's `Ashraful` HEAD or all of EduOS is production-ready. `docs/deployment/SCHOOL_PILOT_STAGING_RELEASE.md` describes a guarded **staging pilot**, not general-release readiness. Re-read the current code and CI before making status claims. Never infer operational status from a checklist alone.
+`README.md` provides the broad product catalogue. Superseded early delivery/roadmap snapshots are retained in **Git history**, not as current documentation. `docs/deployment/SCHOOL_PILOT_STAGING_RELEASE.md` describes a guarded **staging pilot**, not general-release readiness. Re-read current `Ashraful` code and CI before making status claims. Never infer operational status from a checklist alone.
 
 ## 6. Acceptance rules for every new module
 

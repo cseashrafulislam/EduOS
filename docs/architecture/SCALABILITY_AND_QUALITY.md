@@ -12,7 +12,7 @@
 
 ## 2. What 'millions of learners' actually means
 
-**Dynamic onboarding and import:** No initial institute count, student count, number of import files or data-row total is a fixed business limit. Institutional configuration and fixed-header Excel templates support file-driven, tenant-validated, bounded, retryable uploads; an effective subscription may enforce its actual configured plan limits. See [V1 / V2 / V3 Release Contract](../RELEASE_V1_V2_V3.md). Validate duplicate prevention, tenant isolation and bounded/reconciled import before live use. Do not infer concurrent-user capacity from record counts.
+**Dynamic onboarding and import:** No initial institute count, student count, number of import files or data-row total is a fixed business limit. Institutional configuration and fixed-header Excel templates support file-driven, tenant-validated, bounded, retryable uploads; an effective subscription may enforce its actual configured plan limits. See the [unified project and acceptance plan](../PROJECT_MASTER_PLAN.md). Validate duplicate prevention, tenant isolation and bounded/reconciled import before live use. Do not infer concurrent-user capacity from record counts.
 
 Scale is a **target and design constraint**, not a current performance claim. The important dimensions are distinct: total accounts, active institutes, students per institute, concurrent logged-in users, peak requests/sec, rows per tenant/year, file volume and report/export concurrency. Do not equate one million registered students with one million simultaneous requests.
 
@@ -69,7 +69,7 @@ Pilot is **not** a production certification. See `docs/deployment/SCHOOL_PILOT_S
 
 ## 6. Change approval and documentation discipline
 
-- Maintain `README.md` as navigation/product catalogue, `docs/PRODUCT_BLUEPRINT.md` as product identity, `docs/RELEASE_V1_V2_V3.md` as the binding **module-complete version/release contract**, `docs/UI_PERSONALIZATION.md` as UX contract, this file as architecture/quality contract, and existing module-specific documents as detailed implementation evidence.
+- Maintain `README.md` as navigation/product catalogue, `docs/PRODUCT_BLUEPRINT.md` as product identity, `docs/PROJECT_MASTER_PLAN.md` as the **single active whole-project backlog and acceptance policy**, `docs/UI_PERSONALIZATION.md` as UX contract, this file as architecture/quality contract, and the retained module-specific documents as technical evidence.
 - Document each future architecture reversal as a short decision: observed problem, alternatives, impact on tenants/history/APIs, migration, testing and rollback. Never silently overwrite a prior decision's rationale.
-- Don't schedule development tasks, modify source, migrate databases or activate features because these specifications exist. Implementation requires a prioritized approved task and exact branch scope.
+- Don't schedule development tasks, modify source, migrate databases or activate features merely because these specifications exist. Implementation requires a prioritized whole-project domain task, `Ashraful` branch scope and exact acceptance evidence.
 

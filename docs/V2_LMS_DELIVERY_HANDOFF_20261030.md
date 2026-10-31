@@ -1,6 +1,6 @@
 # EduOS V2 LMS — development handoff (2026-10-30)
 
-Ownership: **V2 LMS**. V1 Student/Academic/Finance/HR and the five active V3 tasks are not part of this change. The release gate in `AGENTS.md` and `RELEASE_V1_V2_V3.md` remains authoritative; a green development suite alone is **not** production/pilot acceptance.
+**Historical LMS handoff:** This page records the original module implementation and rubric migration contract, **not** active V2 ownership. Student/Academic/Finance/HR and other established services remain canonical; current unified development decisions are in [AGENTS.md](../AGENTS.md) and [the project master plan](PROJECT_MASTER_PLAN.md). A green development suite alone is **not** production/pilot acceptance.
 
 ## Delivered workflows
 

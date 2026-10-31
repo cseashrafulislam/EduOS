@@ -29,9 +29,9 @@ EduOS is a configurable, multi-tenant SaaS platform for the Bangladesh education
 4. [UI Personalization, localization and PWA specification](docs/UI_PERSONALIZATION.md) — common clean UI, compact header help and saved user/institute design.
 5. [Scalability and engineering quality standard](docs/architecture/SCALABILITY_AND_QUALITY.md) — one database now, privacy boundaries, scalable queries, measured performance and operational evidence.
 6. [Pilot staging checklist](docs/deployment/SCHOOL_PILOT_STAGING_RELEASE.md) — staging-only operational gates, **not** production certification.
-7. [Historical release contracts and verified baselines](docs/RELEASE_V1_V2_V3.md) — preserve past decisions/test evidence, **never plan new version-specific sprints from them**.
+7. [Historical verified development baselines](docs/V1_DEVELOPMENT_BASELINE_20261030.md) and [LMS/Library/Hostel/Transport evidence](docs/V2_FINAL_DEVELOPMENT_BASELINE_20261031.md) — exact-commit engineering history, **not** separate active releases.
 
-**Status discipline:** The detailed module catalogue below and dated `docs/DELIVERY_STATUS.md` / `docs/ROADMAP_STATUS.md` contain historical snapshots; they are not verification of current `Ashraful` HEAD. Use the unified master plan, current code and exact-SHA CI/SQL evidence. The cleanup removes only confirmed dead files/source-control hygiene violations and one stale test assertion; it does **not** rewrite application business logic or migrate live databases.
+**Status discipline:** The detailed module catalogue below includes historical implementation snapshots, not verification of current `Ashraful` HEAD. Superseded old-branch delivery/roadmap documents have been removed from the working docs tree but remain available in Git history. Use the unified master plan, current code and exact-SHA CI/SQL evidence. Documentation cleanup does **not** rewrite application business logic or migrate live databases.
 
 ---
 
@@ -1097,17 +1097,15 @@ Acceptance:
 
 ---
 
-## 19. Production release strategy — complete V1, then V2 and V3
+## 19. Production readiness — one EduOS project
 
-**The launch cohort is 16 real institutes**: 2 primary-through-college, 3 madrasa, 2 training, 1 coaching, 3 online LMS, 3 university and 2 private teachers. Approximately 40,000 student records require validated, reconciled, resumable per-tenant bulk import. One verified global learner may have separate tenant-owned student/enrolment history in two or three institutes; private records never become cross-tenant-visible merely because a person matches.
+**No fixed launch cohort or 40K import obligation.** Institutes, campuses, users, student records and source files are driven by actual configuration and validated data. A verified person may have different tenant-owned student/enrolment records in several institutions; private histories never cross tenants without consent and authorization.
 
-**Version 1.0 must be 100% of its frozen module scope before real-user release:** complete SaaS, identity/roles/privacy, institute configuration, academic/admission/student, routines/attendance, exam/result/certification, fees/finance/accounts, **full HR and Payroll**, relevant portals/reports, bilingual professionally polished UI, safe customizable PWA, import/reconciliation and operational/security release gates. Every V1-covered institute workflow must pass its applicable end-to-end acceptance journey. **HR payroll statutory review, pilot UAT and owner go/no-go are still V1 acceptance requirements, even when automated tests pass.** Full online LMS operations await V2. No placeholder, fake dashboard, unfinished button or Basic-only V1 module is production complete.
+There is **one whole-project completion and deployment decision**, not a V1 → V2 → V3 sequence. Existing Platform, Admissions/Academic/Examination, Finance/HR, LMS/Library/Hostel/Transport and Inventory code remains authoritative. The [unified remaining-work backlog](docs/PROJECT_MASTER_PLAN.md) tracks Procurement/AP, Asset accounting, Facilities/Visitors, Career/Research/Accreditation and whole-system integration/security QA; a partial feature is not silently represented as complete.
 
-**Version 2.0 starts only four complete new modules:** LMS, Library, Hostel and Transport. **No HR/Payroll implementation, redesign, duplication, second phase or V2 HR backlog is authorized.** V1 Results, Accounts, HR/Payroll, Reports and V1 UX remain owned by V1; maintenance, statutory/security fixes and justified V2 integration may still touch their existing code without reassigning scope. **V3** separately owns Inventory/Procurement, Assets/Facilities, Visitor/Campus and approved enterprise modules.
+Use the **existing modular monolith, single SQL Server database and `EduOSDbContext`**. Do not split tenant/student/stock/Finance history into duplicate sources of truth. Apply additive migrations with verified rollback, canonical Finance reconciliation, approvals and tenant/campus privacy; use isolated non-live data for staging/browser tests.
 
-Use a **single codebase and one default production SQL Server database**. Upgrade real institution records safely from V1 to V2. Any preview/staging link uses an isolated test database and non-live/anonymized data. Separate simultaneous production databases for the same institute would create conflicting financial and student history and are not the approved design.
-
-Full preproduction scope, acceptance, migration, finance/payroll reconciliation, tenancy, backups/restore, concurrency, performance, actual institutional sign-off and go/no-go criteria: [RELEASE_V1_V2_V3.md](docs/RELEASE_V1_V2_V3.md). The older [school/college staging checklist](docs/deployment/SCHOOL_PILOT_STAGING_RELEASE.md) documents a narrower staging-only switch and is not the new V1 production scope.
+**Development Final OK** requires the defined real implementation and automated CI/SQL/security/applicable browser checks at an exact commit. Production additionally requires representative/restored-data migrations and rollback, load/penetration evidence, relevant provider/statutory review, real-institute UAT and an explicit owner go/no-go. See [deployment staging](docs/deployment/SCHOOL_PILOT_STAGING_RELEASE.md), [architecture/quality](docs/architecture/SCALABILITY_AND_QUALITY.md) and [unified master plan](docs/PROJECT_MASTER_PLAN.md). Historic release contracts are available through Git history, not the current docs tree.
 
 ---
 ## 20. Repository map

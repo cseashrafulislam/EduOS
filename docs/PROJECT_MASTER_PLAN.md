@@ -5,7 +5,7 @@
 ## 1. Current source of truth and safety boundaries
 
 1. Latest explicit owner instruction > root `AGENTS.md` > **this file** > current `Ashraful` source/schema/tests/CI and current GitHub issue state > domain contracts. The current source and CI evidence always decide whether a claim is true.
-2. Historical release contracts, module handoffs and dated test reports remain in Git for **audit evidence** and external links. They do not create separate backlogs or override this document. Version-prefixed C# identifiers, migrations, test names, CI workflow filenames and stored data **must not be renamed/deleted** merely to remove a former planning label.
+2. Historical release contracts, module handoffs and dated test reports remain recoverable from **Git history for audit evidence**; superseded standalone snapshots are removed from the *current docs tree* when their final conclusions already exist here or in the retained baselines. They do not create separate backlogs or override this document. Version-prefixed C# identifiers, migrations, test names, CI workflow filenames and stored data **must not be renamed/deleted** merely to remove a former planning label.
 3. Make source changes on owner branch **`Ashraful` only**; preserve `master`, installed tenant data, posted Finance journal entries, stock movements, payroll, bookings, transcripts, audit trails, public API contracts and previously applied EF migrations. No history rewrite, forced push, tenant-wide re-seed or speculative framework conversion.
 4. One modular .NET monolith; **one existing SQL Server database, one `EduOSDbContext`**; one authoritative stock ledger and canonical Finance GL. Tenant/campus/entitlement/role/ownership protection and maker-checker approvals apply across all modules. Financial and inventory adjustments use approved immutable corrections/reversals, never hidden deletes or duplicate posting.
 5. **Development Final OK** requires real end-to-end code and the defined applicable automated CI, SQL, security, integration and browser checks. **Production Ready** additionally requires restored/representative data, load and threat validation, external integrations, real institute UAT and owner go/no-go. These gates must not be conflated. The removed 40K rehearsal is **not** an active acceptance obligation without new owner direction.
@@ -23,6 +23,12 @@ Snapshot inspected: `Ashraful` [`e2a1a878`](https://github.com/cseashrafulislam/
 | Facilities schedule-release JS test asserted an obsolete exact string even though the real UI required a reason, 5-character minimum and rowversion | Correct only its stale assertion to verify the actual required-reason contract; do not change working production UI. |
 
 This is a structural/dependency/source-control audit with targeted behavior verification, **not a claim that every business flow in 3,397 files has passed end-to-end QA**. Later cleanup is evidence-driven: search references/DI/routing/migrations/tests and check CI before deleting anything. Uncertain live or historical code stays.
+
+### Documentation retention and pruning (2026-10-31)
+
+**Retired from the live docs tree:** both superseded release-split contracts, the obsolete early-branch Delivery/Roadmap snapshots, the intermediate code-only V1 and V2 QA status snapshots, and two superseded Finance/Hostel/Transport stage handoffs. Their text and old test links remain recoverable at pre-pruning Git commits. Keep exact-commit final development baselines, the Admission import repair and LMS rubric/Transport QA evidence, domain-specific Finance/security/architecture/HR/Inventory/Procurement/Asset/Facilities contracts, UI specifications and deployment/operations checklists; an unlinked doc is **not automatically unnecessary**.
+
+**Canonical navigation:** [README](../README.md) → [this unified master plan](PROJECT_MASTER_PLAN.md) → [Product Blueprint](PRODUCT_BLUEPRINT.md) → [Architecture & Quality](architecture/SCALABILITY_AND_QUALITY.md), [UI/PWA](UI_PERSONALIZATION.md) and [Pilot staging](deployment/SCHOOL_PILOT_STAGING_RELEASE.md). Add/update one authoritative domain contract as work changes; avoid new dated sprint handoff/status files for every small commit.
 
 ## 3. Unified product status — do not reimplement completed features
 
