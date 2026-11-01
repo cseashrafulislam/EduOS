@@ -1,4 +1,5 @@
 using System.Text;
+using System.Globalization;
 using EduOS.App.Authorization;
 using EduOS.Core.Common;
 using EduOS.Core.DTOs.Facilities;
@@ -44,22 +45,41 @@ public sealed class FacilityWorkOrdersApiController(IFacilityWorkflowService ser
     {
         var first = await service.ListAsync(campusId, state, 1, 100, ct, overdueOnly);
         if (!first.Success || first.Data == null) return Reply(first);
+        var bangla = CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "bn";
         if (first.Data.TotalCount > 500)
-            return StatusCode(413, new { message = "Narrow filters to at most 500 rows." });
+            return StatusCode(413, new { message = bangla
+                ? "সর্বোচ্চ ৫০০টি সারির মধ্যে আনতে ফিল্টার সংকুচিত করুন।"
+                : "Narrow filters to at most 500 rows." });
+        // Offset paging can change during a concurrent edit. Fail closed on
+        // observable count/identity drift instead of exporting duplicate or
+        // silently incomplete maintenance records as an authoritative report.
+        var expectedCount = first.Data.TotalCount;
         var rows = new List<FacilityRequestDto>(first.Data.Items);
-        for (var page = 2; page <= first.Data.TotalPages; page++)
+        var seen = new HashSet<long>();
+        var inconsistent = rows.Count > expectedCount || rows.Any(x => !seen.Add(x.Id));
+        for (var page = 2; !inconsistent && page <= first.Data.TotalPages; page++)
         {
             var next = await service.ListAsync(campusId, state, page, 100, ct, overdueOnly);
             if (!next.Success || next.Data == null) return Reply(next);
-            rows.AddRange(next.Data.Items);
+            inconsistent = next.Data.TotalCount != expectedCount ||
+                next.Data.Page != page || next.Data.PageSize != 100 ||
+                rows.Count + next.Data.Items.Count > 500 ||
+                next.Data.Items.Any(x => !seen.Add(x.Id));
+            if (!inconsistent) rows.AddRange(next.Data.Items);
         }
+        if (inconsistent || rows.Count != expectedCount)
+            return StatusCode(409, new { message = bangla
+                ? "রিপোর্ট তৈরির সময় তথ্য পরিবর্তিত হয়েছে। আবার চেষ্টা করুন।"
+                : "Records changed during export; retry." });
         static string Csv(object? value)
         {
             var s = Convert.ToString(value, System.Globalization.CultureInfo.InvariantCulture) ?? "";
             if (s.TrimStart().Length > 0 && "=+-@".Contains(s.TrimStart()[0])) s = "'" + s;
             return "\"" + s.Replace("\"", "\"\"") + "\"";
         }
-        var csv = new StringBuilder("Request,Campus,Space,Category,Priority,Summary,RequestState,WorkOrder,WorkState,Technician,SlaDueUtc,CompletedUtc,SlaBreached\r\n");
+        var csv = new StringBuilder(bangla
+            ? "অনুরোধ,ক্যাম্পাস,স্থাপনা,বিভাগ,অগ্রাধিকার,সারাংশ,অনুরোধের অবস্থা,কাজের আদেশ,কাজের অবস্থা,টেকনিশিয়ান,এসএলএ সময়সীমা (UTC),সম্পন্নের সময় (UTC),এসএলএ লঙ্ঘন\r\n"
+            : "Request,Campus,Space,Category,Priority,Summary,RequestState,WorkOrder,WorkState,Technician,SlaDueUtc,CompletedUtc,SlaBreached\r\n");
         foreach (var row in rows)
             csv.AppendJoin(',', Csv(row.Id), Csv(row.CampusId), Csv(row.FacilitySpaceId),
                 Csv(row.CategoryCode), Csv(row.PriorityCode), Csv(row.Summary),
