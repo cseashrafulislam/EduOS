@@ -267,3 +267,45 @@ test('appearance studio is the twelfth independently reviewed bilingual manual w
     assert.notEqual(guideFor(route, 'en-BD').example, guideFor(route, 'bn-BD').example);
     // This is an independent source/DOM contract, not a real authenticated tenant-switch browser run.
 });
+
+
+test('branding onboarding is the thirteenth independently reviewed bilingual manual with TenantAdmin and session guards', () => {
+    const route = '/Account/BrandingSetup';
+    const controller = read('EduOS.App/Controllers/AccountController.cs');
+    const view = read('EduOS.App/Views/Account/BrandingSetup.cshtml');
+    const layout = read('EduOS.App/Views/Account/_OnboardingLayout.cshtml');
+    const editor = read('EduOS.App/wwwroot/js/account/branding-setup.js');
+    assert.match(controller, /\[Authorize\(Roles = "TenantAdmin"\)\]\s*\[HttpGet\]\s*public IActionResult BrandingSetup\(\) => View\(\)/);
+    assert.match(view, /Layout = "_OnboardingLayout"/);
+    assert.match(layout, /Layout = "_Layout"/);
+    assert.match(view, /id="brandingForm"[\s\S]*?@Html\.AntiForgeryToken\(\)/);
+    assert.match(editor, /function mutationHeaders\(headers = \{\}\)/);
+    assert.match(editor, /if \(!token\) throw new Error/);
+    assert.match(editor, /RequestVerificationToken: token/);
+    assert.match(editor, /const disabled = !ready \|\| saving \|\| invalidSession/);
+    assert.match(editor, /await verifySession\(\)/);
+    assert.match(editor, /partialSaveRecovery/);
+    assert.ok(coverage().routes >= 13);
+    for (const lang of ['en-BD', 'bn-BD']) {
+        const guide = guideFor(route, lang);
+        assert.ok(guide && guide.steps.length >= 3 && guide.example && guide.recovery && guide.rules);
+        assert.ok(guide.related.some(x => x.path === '/workspace'));
+        const b = browser(route, lang, ['/workspace', '/PrivateFinance/Index', '//evil.example']);
+        assert.equal(b.dialog.open, false);
+        assert.equal(b.content.children.length, 0);
+        b.trigger.fire('click');
+        assert.equal(b.dialog.open, true);
+        assert.equal(b.doc.activeElement, b.close);
+        assert.equal(b.title.textContent, guide.title);
+        assert.equal(b.descendants(b.content, 'section').length, 8);
+        assert.deepEqual(b.descendants(b.content, 'a').map(x => x.getAttribute('href')), ['/workspace']);
+        b.close.fire('click');
+        assert.equal(b.doc.activeElement, b.trigger);
+        const denied = browser(route, lang, []);
+        denied.trigger.fire('click');
+        assert.equal(denied.descendants(denied.content, 'a').length, 0);
+        denied.close.fire('click');
+    }
+    assert.notEqual(guideFor(route, 'en-BD').example, guideFor(route, 'bn-BD').example);
+    // Source and simulated DOM acceptance only: no authenticated browser/tenant-switch UAT claim.
+});
