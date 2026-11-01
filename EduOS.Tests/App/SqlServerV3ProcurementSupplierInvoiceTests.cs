@@ -956,10 +956,10 @@ public sealed partial class SqlServerV3ProcurementPurchaseOrderTests
                 var journal=Assert.Single(await assetChecker.Journals.AsNoTracking()
                     .Where(x=>x.SourceType=="AssetCapitalization" &&
                         x.State==JournalState.Posted).ToListAsync());
-                var lines=await assetChecker.JournalLines.AsNoTracking()
+                var capitalizationJournalLines=await assetChecker.JournalLines.AsNoTracking()
                     .Where(x=>x.JournalId==journal.Id).ToListAsync();
-                Assert.Equal(10m,lines.Sum(x=>x.DebitAmount));
-                Assert.Equal(10m,lines.Sum(x=>x.CreditAmount));
+                Assert.Equal(10m,capitalizationJournalLines.Sum(x=>x.DebitAmount));
+                Assert.Equal(10m,capitalizationJournalLines.Sum(x=>x.CreditAmount));
                 Assert.Equal(409,(await AssetFinance(assetChecker,tenantId,checkerId)
                     .ReviewCapitalizationAsync(capitalizationReference,
                         new ReviewAssetCapitalizationRequest {RowVersion=capitalizationVersion,
