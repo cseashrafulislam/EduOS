@@ -88,15 +88,17 @@
  $('ssForm')?.addEventListener('submit',async e=>{
   e.preventDefault();if(!invoice||busy)return;
   busy=true;$('ssSubmit').disabled=true;
+  const selected=invoice.reference,chosen=selectionSeq;
   try{
    requestKey ||= crypto.randomUUID();
-   await api(base+invoice.reference+'/settlements','POST',{
+   await api(base+selected+'/settlements','POST',{
     clientRequestId:requestKey,invoiceRowVersion:invoice.rowVersion,
     bankAccountId:Number($('ssBank').value),accountingPeriodId:Number($('ssPeriod').value),
     plannedDate:$('ssDate').value,amount:Number($('ssAmount').value),reason:$('ssReason').value.trim()});
+   if(chosen!==selectionSeq||invoice?.reference!==selected)return;
    requestKey=null;status(t('Instruction submitted; GL and bank unchanged','নির্দেশনা জমা; GL ও ব্যাংক অপরিবর্তিত'));
    await selectInvoice(invoice);
-  }catch(e){status(e.message,true);}finally{busy=false;$('ssSubmit').disabled=false;}
+  }catch(e){if(chosen===selectionSeq&&invoice?.reference===selected)status(e.message,true);}finally{busy=false;$('ssSubmit').disabled=false;}
  });
  for(const id of ['ssAmount','ssDate','ssBank','ssPeriod','ssReason'])$(id)?.addEventListener('input',()=>{requestKey=null;});
  $('ssWithdrawClose').addEventListener('click',()=>$('ssWithdrawDialog').close());
@@ -104,31 +106,31 @@
  $('ssWithdrawForm').addEventListener('submit',async e=>{
   e.preventDefault();if(!withdraw||!invoice||busy||$('ssWithdrawDialog').open===false)return;
   busy=true;$('ssWithdrawSubmit').disabled=true;
-  const selected=invoice.reference,selectedInstruction=withdraw;
+  const selected=invoice.reference,selectedInstruction=withdraw,chosen=selectionSeq;
   try{
    withdrawKey ||= crypto.randomUUID();
    await api(base+selected+'/settlements/'+selectedInstruction.reference+'/withdraw','POST',{
     clientRequestId:withdrawKey,rowVersion:selectedInstruction.rowVersion,
     reason:$('ssWithdrawReason').value.trim()});
-   withdrawKey=null;withdraw=null;$('ssWithdrawDialog').close();
-   if(invoice?.reference===selected){
+   if(chosen===selectionSeq&&invoice?.reference===selected&&withdraw?.reference===selectedInstruction.reference){
+    withdrawKey=null;withdraw=null;$('ssWithdrawDialog').close();
     status(t('Instruction withdrawn; GL and bank unchanged','নির্দেশনা প্রত্যাহার; GL ও ব্যাংক অপরিবর্তিত'));
     await selectInvoice(invoice);
    }
-  }catch(e){status(e.message,true);}finally{busy=false;$('ssWithdrawSubmit').disabled=false;}
+  }catch(e){if(chosen===selectionSeq&&invoice?.reference===selected)status(e.message,true);}finally{busy=false;$('ssWithdrawSubmit').disabled=false;}
  });
  $('ssClose').addEventListener('click',()=>$('ssReviewDialog').close());
  $('ssReviewForm').addEventListener('submit',async e=>{
   e.preventDefault();if(!review||!invoice||busy)return;busy=true;$('ssReviewSubmit').disabled=true;
-  const selected=invoice.reference,selectedReview=review;
+  const selected=invoice.reference,selectedReview=review,chosen=selectionSeq;
   try{
    await api(base+selected+'/settlements/'+selectedReview.reference+'/review','POST',{
     rowVersion:selectedReview.rowVersion,approve:$('ssDecision').value==='Approve',reason:$('ssReviewReason').value.trim()});
-   if(invoice?.reference===selected){
+   if(chosen===selectionSeq&&invoice?.reference===selected&&review?.reference===selectedReview.reference){
     $('ssReviewDialog').close();status(t('Decision saved; no disbursement executed','সিদ্ধান্ত সংরক্ষিত; পরিশোধ হয়নি'));
     await selectInvoice(invoice);
    }
-  }catch(e){if(invoice?.reference===selected)status(e.message,true);}finally{busy=false;$('ssReviewSubmit').disabled=false;}
+  }catch(e){if(chosen===selectionSeq&&invoice?.reference===selected)status(e.message,true);}finally{busy=false;$('ssReviewSubmit').disabled=false;}
  });
  $('ssPrev').addEventListener('click',()=>{if(page>1){page--;load();}});
  $('ssNext').addEventListener('click',()=>{if(page<pages){page++;load();}});
