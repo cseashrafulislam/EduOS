@@ -79,14 +79,14 @@ public sealed class FacilityWorkOrdersApiController(IFacilityWorkflowService ser
             return "\"" + s.Replace("\"", "\"\"") + "\"";
         }
         var csv = new StringBuilder(bangla
-            ? "অনুরোধ,ক্যাম্পাস,স্থাপনা,বিভাগ,অগ্রাধিকার,সারাংশ,অনুরোধের অবস্থা,কাজের আদেশ,কাজের অবস্থা,টেকনিশিয়ান,এসএলএ সময়সীমা (UTC),সম্পন্নের সময় (UTC),এসএলএ লঙ্ঘন\r\n"
-            : "Request,Campus,Space,Category,Priority,Summary,RequestState,WorkOrder,WorkState,Technician,SlaDueUtc,CompletedUtc,SlaBreached\r\n");
+            ? "অনুরোধ,ক্যাম্পাস,স্থাপনা,বিভাগ,অগ্রাধিকার,সারাংশ,অনুরোধের অবস্থা,কাজের আদেশ,কাজের অবস্থা,টেকনিশিয়ান,এসএলএ সময়সীমা (UTC),সম্পন্নের সময় (UTC),এসএলএ লঙ্ঘন,যাচাইকৃত বন্ধের সময় (UTC)\r\n"
+            : "Request,Campus,Space,Category,Priority,Summary,RequestState,WorkOrder,WorkState,Technician,SlaDueUtc,CompletedUtc,SlaBreached,VerifiedClosedUtc\r\n");
         foreach (var row in rows)
             csv.AppendJoin(',', Csv(row.Id), Csv(row.CampusId), Csv(row.FacilitySpaceId),
                 Csv(row.CategoryCode), Csv(row.PriorityCode), Csv(row.Summary),
                 Csv(row.StateCode), Csv(row.WorkOrderId), Csv(row.WorkOrderState),
                 Csv(row.TechnicianUserId), Csv(row.SlaDueAtUtc), Csv(row.CompletedAtUtc),
-                Csv(row.SlaBreached)).Append("\r\n");
+                Csv(row.SlaBreached), Csv(row.VerifiedAtUtc)).Append("\r\n");
         return File(new UTF8Encoding(true).GetBytes(csv.ToString()), "text/csv; charset=utf-8",
             "facilities-work-orders.csv");
     }

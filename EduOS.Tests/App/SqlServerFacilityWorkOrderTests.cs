@@ -507,6 +507,8 @@ public sealed class SqlServerFacilityWorkOrderTests
                 Completion("Replaced the hallway light and verified the circuit."));
             Assert.True(result.Success, result.Message);
             completed = result.Data!;
+            Assert.Null(completed.SlaBreached);
+            Assert.True(completed.CompletedAtUtc < completed.SlaDueAtUtc);
             Assert.True((await service.TransitionAsync(submitted.Id, "complete",
                 Completion("Replaced the hallway light and verified the circuit."))).Success);
             Assert.Equal(409, (await service.TransitionAsync(submitted.Id, "complete",
@@ -564,7 +566,12 @@ public sealed class SqlServerFacilityWorkOrderTests
         }
         await using (var db = Db(options, tenantId, approverId, "FacilitiesApprover"))
         {
-            var service = Service(db, tenantId, approverId, "FacilitiesApprover");
+            var service = Service(db, tenantId, approverId, "FacilitiesApprover",
+                new ShiftedClock(TimeSpan.FromHours(6)));
+            // The technician finished before SLA, but independent closure is late.
+            // PendingVerification remains overdue until the verifier closes it.
+            var pendingOverdue = await service.ListAsync(campusId, null, 1, 25, default, true);
+            Assert.Contains(pendingOverdue.Data!.Items, x => x.Id == submitted.Id);
             var verificationId = Guid.NewGuid();
             FacilityTransitionDto Verification(string reason) => new()
             {
@@ -580,6 +587,11 @@ public sealed class SqlServerFacilityWorkOrderTests
                 Verification("Different verification outcome."))).StatusCode);
             Assert.Equal("Closed", result.Data!.WorkOrderState);
             Assert.NotNull(result.Data.VerifiedAtUtc);
+            Assert.True(result.Data.CompletedAtUtc < result.Data.SlaDueAtUtc);
+            Assert.True(result.Data.VerifiedAtUtc > result.Data.SlaDueAtUtc);
+            Assert.Equal<bool?>(true, result.Data.SlaBreached);
+            var dashboard = await service.DashboardAsync(campusId);
+            Assert.Equal(1, dashboard.Data!.ClosedLate);
             var history = await service.HistoryAsync(submitted.Id, 1, 25);
             Assert.Equal(12, history.Data!.TotalCount);
             var overdue = await Service(db, tenantId, approverId, "FacilitiesApprover",

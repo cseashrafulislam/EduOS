@@ -102,7 +102,7 @@ public sealed class FacilityWorkflowService(
             CompletedAtUtc = order?.CompletedAtUtc, VerifiedAtUtc = order?.VerifiedAtUtc,
             CompletionEvidence = order?.CompletionEvidence,
             SlaBreached = order?.VerifiedAtUtc == null || request.SlaDueAtUtc == null
-                ? null : order.CompletedAtUtc > request.SlaDueAtUtc
+                ? null : order.VerifiedAtUtc > request.SlaDueAtUtc
         };
     private async Task<FacilityRequestDto> ReadAsync(FacilityServiceRequest request, CancellationToken ct)
     {
@@ -259,7 +259,8 @@ public sealed class FacilityWorkflowService(
                 x.Request.SlaDueAtUtc < now && x.Order.StateCode != "Closed" &&
                 x.Order.StateCode != "Cancelled", ct),
             ClosedLate = await orders.CountAsync(x => x.Order.StateCode == "Closed" &&
-                x.Request.SlaDueAtUtc != null && x.Order.CompletedAtUtc > x.Request.SlaDueAtUtc, ct)
+                x.Request.SlaDueAtUtc != null && x.Order.VerifiedAtUtc != null &&
+                x.Order.VerifiedAtUtc > x.Request.SlaDueAtUtc, ct)
         };
         return ApiResponse<FacilityDashboardDto>.SuccessResponse(data);
     }

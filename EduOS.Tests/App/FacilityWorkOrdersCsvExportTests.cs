@@ -13,10 +13,10 @@ namespace EduOS.Tests.App;
 public sealed class FacilityWorkOrdersCsvExportTests
 {
     [Theory]
-    [InlineData("en-BD", "Request,Campus,Space")]
-    [InlineData("bn-BD", "অনুরোধ,ক্যাম্পাস,স্থাপনা")]
+    [InlineData("en-BD", "Request,Campus,Space", "VerifiedClosedUtc")]
+    [InlineData("bn-BD", "অনুরোধ,ক্যাম্পাস,স্থাপনা", "যাচাইকৃত বন্ধের সময় (UTC)")]
     public async Task Export_uses_current_locale_and_preserves_formula_safe_canonical_values(
-        string culture, string heading)
+        string culture, string heading, string verificationHeading)
     {
         var service = new Mock<IFacilityWorkflowService>();
         service.Setup(x => x.ListAsync(null, null, 1, 100, It.IsAny<CancellationToken>(), false))
@@ -25,7 +25,9 @@ public sealed class FacilityWorkOrdersCsvExportTests
                 Id = 17, CampusId = 9, FacilitySpaceId = 3,
                 CategoryCode = "ELECTRICAL", PriorityCode = "High",
                 Summary = "=SUM(1,1)", StateCode = "Approved",
-                WorkOrderState = "Scheduled"
+                WorkOrderState = "Closed", SlaBreached = true,
+                CompletedAtUtc = new DateTime(2026, 11, 1, 9, 0, 0, DateTimeKind.Utc),
+                VerifiedAtUtc = new DateTime(2026, 11, 1, 12, 0, 0, DateTimeKind.Utc)
             }));
         var original = CultureInfo.CurrentUICulture;
         try
@@ -36,9 +38,12 @@ public sealed class FacilityWorkOrdersCsvExportTests
                     .Export(null, null, false, CancellationToken.None));
             var csv = Encoding.UTF8.GetString(file.FileContents);
             Assert.StartsWith("\uFEFF" + heading, csv);
+            Assert.Contains(verificationHeading, csv.Split("\r\n")[0]);
+            Assert.Contains("\"True\"", csv);
+            Assert.Contains("2026", csv);
             Assert.Contains("\"'=SUM(1,1)\"", csv);
             Assert.Contains("\"ELECTRICAL\"", csv);
-            Assert.Contains("\"Scheduled\"", csv);
+            Assert.Contains("\"Closed\"", csv);
             Assert.Equal("text/csv; charset=utf-8", file.ContentType);
         }
         finally
