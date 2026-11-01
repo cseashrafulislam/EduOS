@@ -31,8 +31,13 @@ public sealed class CanonicalAssessmentLayerTests
         var views = Path.Combine(root, "EduOS.App", "Views", "AssessmentAdministration");
         Directory.Exists(scripts).Should().BeTrue();
         Directory.Exists(views).Should().BeTrue();
-        File.ReadAllText(Path.Combine(root, "EduOS.App", "Views", "Shared", "_Layout.cshtml"))
-            .Should().Contain("/AssessmentAdministration/Index");
+        // Legacy Index remains a working deep link, but the sidebar now
+        // advertises separate marks, publication and history tasks.
+        var navigation = File.ReadAllText(Path.Combine(root, "EduOS.App", "Views", "Shared", "_Layout.cshtml"));
+        foreach (var action in new[] { "Marks", "Results", "Publications" })
+            navigation.Should().Contain($"Action: \"{action}\"");
+        File.ReadAllText(Path.Combine(root, "EduOS.App", "Controllers", "AssessmentAdministrationController.cs"))
+            .Should().Contain("IActionResult Index() => View()");
         foreach (var script in Directory.GetFiles(scripts, "*.js", SearchOption.TopDirectoryOnly))
             File.ReadAllText(script).Should().Contain("/" + route + "/");
     }

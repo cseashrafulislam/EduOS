@@ -26,7 +26,13 @@ public class AdmissionApplicationContractTests
         var view = File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "TestAssets", "AdmissionsIndex.cshtml"));
         var script = File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "TestAssets", "admissions-index.js"));
 
-        view.Should().Contain("@T[\"AdmissionApplications\"]");
+        // One shared legacy view now serves three localized focused intake
+        // tasks. The fallback title still resolves through the translation
+        // resource, while focused headings follow the active culture.
+        view.Should().Contain("CultureInfo.CurrentUICulture.Name");
+        view.Should().Contain("var focusedTitle = admissionFeature switch");
+        view.Should().Contain("T[\"AdmissionApplications\"].Value");
+        view.Should().Contain("id=\"admissionTitle\">@focusedTitle");
         view.Should().Contain("aria-live=\"polite\"");
         view.Should().Contain("autocomplete=\"tel\"");
         view.Should().NotContain("onclick=");

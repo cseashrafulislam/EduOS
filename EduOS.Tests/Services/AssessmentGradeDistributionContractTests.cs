@@ -59,6 +59,12 @@ public sealed class AssessmentGradeDistributionContractTests
         view.Should().Contain("gradeReportTitle");
         view.Should().Contain("gradeScope");
         view.Should().Contain("gradeVersion");
-        view.Should().Contain("Grade distribution help");
+        // The shared Page Information drawer replaced inline mini-help.
+        // The report still has its own reviewed bilingual, route-bound manual.
+        view.Should().Contain("id=\"gradeDistributionWorkspace\"");
+        Read("EduOS.App/wwwroot/js/platform/page-context-help.js")
+            .Should().Contain("'/assessmentadministration/gradedistribution/index'");
+        Read("EduOS.App/Views/Shared/_Layout.cshtml")
+            .Should().Contain("id=\"pageContextHelp\"");
     }
 }
