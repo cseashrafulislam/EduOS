@@ -347,15 +347,15 @@ test('student final-exit page bilingual labels and reviewed manual preserve API/
     const api = read('EduOS.App/Controllers/Api/StudentExitController.cs');
     const service = read('EduOS.Service/Services/Students/StudentExitService.cs');
     const { statusLabel, localizedError } = require('../../EduOS.App/wwwroot/js/students/lifecycle.js');
-    assert.match(page, /Authorize\\(Roles = "TenantAdmin"\\)/);
-    assert.match(page, /RequireModule\\("STUDENT"\\)/);
+    assert.ok(page.includes('[Authorize(Roles = "TenantAdmin")]'));
+    assert.ok(page.includes('[RequireModule("STUDENT")]'));
     assert.match(api, /AutoValidateAntiforgeryToken/);
-    assert.match(view, /data-bn="@bn\\.ToString\\(\\)\\.ToLowerInvariant\\(\\)"/);
+    assert.ok(view.includes('data-bn="@bn.ToString().ToLowerInvariant()"'));
     for (const id of ['lifecycleStudentSearch', 'lifecycleExitType', 'lifecycleReason', 'lifecycleSubmit', 'lifecycleHistory'])
         assert.ok(view.includes('id="' + id + '"'));
     for (const type of ['Transfer', 'Completed', 'Dropout']) assert.ok(view.includes('value="' + type + '"'));
     assert.match(client, /RequestVerificationToken: token/);
-    assert.match(client, /clientRequestId: requestId\\(\\)/);
+    assert.ok(client.includes('clientRequestId: requestId()'));
     assert.match(service, /Outstanding fees must be settled/);
     assert.equal(statusLabel('Active', true), 'সক্রিয়');
     assert.equal(statusLabel('TC', true), 'স্থানান্তরিত');
