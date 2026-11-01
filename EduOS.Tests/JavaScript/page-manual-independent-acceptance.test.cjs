@@ -23,7 +23,8 @@ const routes = [
     ['/Alumni/Index', 'Alumni', 'ALUMNI', null]
 ];
 function browser(route, lang, authorized = [], native = true) {
-    const doc = { activeElement: null, documentElement: { lang } };
+    const doc = { activeElement: null, documentElement: { lang }, body: { dataset: {} },
+        addEventListener() {} };
     function node(tag = 'div') {
         return {
             tag, children: [], handlers: {}, attrs: {}, hidden: false, open: false, textContent: '',
@@ -60,7 +61,8 @@ function browser(route, lang, authorized = [], native = true) {
         assert.equal(selector, 'nav[data-sidebar-section] a.nav-link, a[data-feature-discovery-link]');
         return authorized.map(href => ({ getAttribute: k => k === 'href' ? href : null }));
     };
-    vm.runInNewContext(source, { document: doc, window: { location: { pathname: route } }, module: { exports: {} } },
+    vm.runInNewContext(source, { document: doc,
+        window: { location: { pathname: route }, addEventListener() {} }, module: { exports: {} } },
         { timeout: 1000 });
     const descendants = (element, tag) =>
         [...(element.tag === tag ? [element] : []), ...element.children.flatMap(x => descendants(x, tag))];
