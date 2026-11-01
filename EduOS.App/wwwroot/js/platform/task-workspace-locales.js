@@ -5,7 +5,7 @@
 (() => {
     'use strict';
     if (!(document.documentElement.lang || '').toLowerCase().startsWith('bn')) return;
-    const root = document.querySelector('#hostelWorkspace, #transportWorkspace, #inventoryMovements');
+    const root = document.querySelector('#hostelWorkspace, #transportWorkspace, #inventoryMovements, #feeApp');
     if (!root) return;
     const labels = {
         'Find student': 'শিক্ষার্থী খুঁজুন',
@@ -98,10 +98,87 @@
         'Reason': 'কারণ',
         'Receive in-transit stock': 'পথের স্টক গ্রহণ',
         'Receive stock': 'স্টক গ্রহণ করুন',
-        'Dispatch number or UUID': 'ডিসপ্যাচ নম্বর বা UUID'
+        'Dispatch number or UUID': 'ডিসপ্যাচ নম্বর বা UUID',
+        // Finance's three task routes reuse the one protected Fees API/client.
+        'Fee structure': 'ফি কাঠামো',
+        'Fee heads (BDT)': 'ফি খাত (টাকা)',
+        'Academic year': 'শিক্ষাবর্ষ',
+        'Academic level': 'শিক্ষার স্তর',
+        'Batch scope (optional)': 'ব্যাচের পরিসর (ঐচ্ছিক)',
+        'Structure name': 'কাঠামোর নাম',
+        'Effective from': 'কার্যকর শুরুর তারিখ',
+        'Effective to (optional)': 'কার্যকর শেষের তারিখ (ঐচ্ছিক)',
+        'Fee head': 'ফি খাত',
+        'Frequency': 'পুনরাবৃত্তি',
+        'Amount': 'পরিমাণ',
+        'Due day': 'পরিশোধের দিন',
+        'Mandatory': 'বাধ্যতামূলক',
+        'Add fee head': 'ফি খাত যোগ করুন',
+        'Save fee structure': 'ফি কাঠামো সংরক্ষণ',
+        'New structure': 'নতুন কাঠামো',
+        'Fee structure register and amendments': 'ফি কাঠামোর তালিকা ও সংশোধন',
+        'All campuses': 'সব ক্যাম্পাস',
+        'Final effective date': 'চূড়ান্ত কার্যকর তারিখ',
+        'Selected structure': 'নির্বাচিত কাঠামো',
+        'Close future billing': 'ভবিষ্যৎ বিলিং বন্ধ করুন',
+        'Generate monthly invoices': 'মাসিক ইনভয়েস তৈরি',
+        'Active batch': 'সক্রিয় ব্যাচ',
+        'Applicable fee structure': 'প্রযোজ্য ফি কাঠামো',
+        'Month': 'মাস',
+        'Year': 'বছর',
+        'Due date': 'শেষ পরিশোধের তারিখ',
+        'Preview billing': 'বিলিংয়ের পূর্বদর্শন',
+        'Generate invoices': 'ইনভয়েস তৈরি',
+        'Export preview CSV': 'পূর্বদর্শন CSV রপ্তানি',
+        'Student code': 'শিক্ষার্থী কোড',
+        'Existing invoice': 'বিদ্যমান ইনভয়েস',
+        'Subtotal': 'উপমোট',
+        'Discount': 'ছাড়',
+        'Net BDT': 'নিট টাকা',
+        'Student ledger and cash collection': 'শিক্ষার্থী লেজার ও নগদ সংগ্রহ',
+        'Search student by name/code': 'নাম/কোড দিয়ে শিক্ষার্থী খুঁজুন',
+        'Select student': 'শিক্ষার্থী বাছুন',
+        'View ledger': 'লেজার দেখুন',
+        'Invoice': 'ইনভয়েস',
+        'Paid': 'পরিশোধিত',
+        'Outstanding': 'বকেয়া',
+        'Collect cash payment': 'নগদ টাকা গ্রহণ',
+        'Payment date': 'পরিশোধের তারিখ',
+        'Selected invoice': 'নির্বাচিত ইনভয়েস',
+        'Cash amount': 'নগদ পরিমাণ',
+        'Record cash receipt': 'নগদ রসিদ নথিভুক্ত করুন',
+        'Receipt history': 'রসিদের ইতিহাস',
+        'Receipt': 'রসিদ',
+        'Method': 'পদ্ধতি',
+        'Allocation': 'বণ্টন',
+        'Document': 'নথি',
+        'Invoice receipt allocation audit': 'ইনভয়েস রসিদ-বণ্টনের নিরীক্ষা',
+        'Export displayed page (CSV)': 'দৃশ্যমান পৃষ্ঠা CSV রপ্তানি',
+        'Payment state': 'পরিশোধের অবস্থা',
+        'GL journal': 'জিএল জার্নাল',
+        'Choose campus': 'ক্যাম্পাস বাছুন',
+        'Choose academic year': 'শিক্ষাবর্ষ বাছুন',
+        'Choose academic level': 'শিক্ষার স্তর বাছুন',
+        'Choose active batch': 'সক্রিয় ব্যাচ বাছুন',
+        'Choose fee head': 'ফি খাত বাছুন',
+        'Choose fee structure': 'ফি কাঠামো বাছুন',
+        'Select batch and period': 'ব্যাচ ও সময়কাল বাছুন',
+        'All batches': 'সব ব্যাচ',
+        'Choose student': 'শিক্ষার্থী বাছুন',
+        'One time': 'একবার',
+        'Monthly': 'মাসিক',
+        'Quarterly': 'ত্রৈমাসিক',
+        'Half yearly': 'ষাণ্মাসিক',
+        'Yearly': 'বার্ষিক',
+        'Per term': 'প্রতি টার্ম',
+        'Retained': 'সংরক্ষিত',
+        'Remove': 'সরান'
     };
     const safe = value => Object.prototype.hasOwnProperty.call(labels, value) ? labels[value] : null;
-    for (const node of root.querySelectorAll('label, h3, h4, th, button, option')) {
+    // Explicitly opted-in task clients can translate known UI labels created
+    // after an asynchronous request. Never translate server-owned record names.
+    globalThis.eduTaskStaticLabel = value => safe(value) || value;
+    for (const node of root.querySelectorAll('label, h3, h4, th, button, option, strong')) {
         // Never replace markup, child controls, interactive button icons or
         // dynamically generated records; exact static strings only.
         if (node.children.length) continue;

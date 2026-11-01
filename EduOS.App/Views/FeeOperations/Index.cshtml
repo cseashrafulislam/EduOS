@@ -18,8 +18,12 @@
         </div>
     </header>
     <div class="d-none" tabindex="-1" id="feeAlert" role="alert" aria-live="polite"></div>
+    @if (feature is "structures" or "billing")
+    {
     <div class="row g-3 mb-3">
-        <div class="col-12 @(feature == "structures" ? "" : "d-none")"><section class="card h-100">
+        @if (feature == "structures")
+        {
+        <div class="col-12"><section class="card h-100">
             <div class="card-header"><h3 class="h6 m-0">Fee structure</h3></div>
             <form id="feeStructureForm" class="card-body row g-2 align-items-end">
                 <div class="col-md-6"><label for="feeCampus" class="form-label">Campus</label><select id="feeCampus" class="form-select" required></select></div>
@@ -35,14 +39,17 @@
                 <div class="col-12"><p id="feeStructureMode" class="small text-muted mb-2">Creating a new fee structure.</p><button id="feeSaveStructure" class="btn btn-primary" type="submit">Save fee structure</button> <button id="feeStructureReset" class="btn btn-outline-secondary" type="button">New structure</button></div>
             </form>
         </section></div>
-        <div class="col-12 @(feature == "billing" ? "" : "d-none")"><section class="card h-100">
+        }
+        @if (feature == "billing")
+        {
+        <div class="col-12"><section class="card h-100">
             <div class="card-header"><h3 class="h6 m-0">Generate monthly invoices</h3></div>
             <form id="feeInvoiceForm" class="card-body row g-2 align-items-end">
                 <div class="col-12"><label for="feeBatch" class="form-label">Active batch</label><select id="feeBatch" class="form-select" required></select></div>
                 <div class="col-12"><label for="feeInvoiceStructure" class="form-label">Applicable fee structure</label><select id="feeInvoiceStructure" class="form-select" required></select></div>
-                <div class="col-4"><label for="feeMonth" class="form-label">Month</label><select id="feeMonth" class="form-select">@for(var m=1;m<=12;m++){<option value="@m">@System.Globalization.CultureInfo.InvariantCulture.DateTimeFormat.GetMonthName(m)</option>}</select></div>
-                <div class="col-4"><label for="feeBillingYear" class="form-label">Year</label><input id="feeBillingYear" type="number" min="2000" max="2200" class="form-control" required /></div>
-                <div class="col-4"><label for="feeDueDate" class="form-label">Due date</label><input id="feeDueDate" type="date" class="form-control" required /></div>
+                <div class="col-12 col-sm-4"><label for="feeMonth" class="form-label">Month</label><select id="feeMonth" class="form-select">@for(var m=1;m<=12;m++){<option value="@m">@CultureInfo.CurrentUICulture.DateTimeFormat.GetMonthName(m)</option>}</select></div>
+                <div class="col-12 col-sm-4"><label for="feeBillingYear" class="form-label">Year</label><input id="feeBillingYear" type="number" min="2000" max="2200" class="form-control" required /></div>
+                <div class="col-12 col-sm-4"><label for="feeDueDate" class="form-label">Due date</label><input id="feeDueDate" type="date" class="form-control" required /></div>
                 <div class="col-12 d-flex flex-wrap gap-2">
                     <button id="feePreview" class="btn btn-outline-primary" type="button">Preview billing</button>
                     <button id="feeGenerate" class="btn btn-primary" type="submit" disabled>Generate invoices</button>
@@ -57,10 +64,12 @@
                 <p id="feeGenerationInfo" class="text-muted small mb-0">Existing invoices will not be duplicated for the same request.</p>
             </form>
         </section></div>
+        }
     </div>
-    @if (User.IsInRole("TenantAdmin"))
+    }
+    @if (feature == "structures" && User.IsInRole("TenantAdmin"))
     {
-        <section class="card mb-3 @(feature == "structures" ? "" : "d-none")" id="feeStructureRegister">
+        <section class="card mb-3" id="feeStructureRegister">
             <div class="card-header"><h3 class="h6 m-0">Fee structure register and amendments</h3></div>
             <div class="card-body row g-2 align-items-end">
                 <div class="col-md-5"><label for="feeRegisterCampus" class="form-label">Campus</label><select id="feeRegisterCampus" class="form-select"><option value="">All campuses</option></select></div>
@@ -79,7 +88,9 @@
             <div class="card-footer d-flex gap-2 align-items-center"><button id="feeRegisterPrev" type="button" class="btn btn-outline-secondary btn-sm" disabled>Previous</button><span id="feeRegisterPage" class="small">—</span><button id="feeRegisterNext" type="button" class="btn btn-outline-secondary btn-sm" disabled>Next</button></div>
         </section>
     }
-    <section class="card mb-3 @(feature == "ledger" ? "" : "d-none")">
+    @if (feature == "ledger")
+    {
+    <section class="card mb-3">
         <div class="card-header"><h3 class="h6 m-0">Student ledger and cash collection</h3></div>
         <div class="card-body">
             <div class="row g-2 align-items-end">
@@ -123,9 +134,13 @@
             <div class="col-md-3"><button id="feeCollect" type="submit" class="btn btn-primary w-100">Record cash receipt</button></div>
         </form>
     </section>
-    <section class="card mb-3 @(feature == "ledger" ? "" : "d-none")"><div class="card-header"><h3 class="h6 m-0">Receipt history</h3></div>
+    <section class="card mb-3"><div class="card-header"><h3 class="h6 m-0">Receipt history</h3></div>
         <div class="table-responsive"><table class="table table-sm"><thead><tr><th>Receipt</th><th>Date</th><th>Amount</th><th>Method</th><th>Allocation</th><th>Document</th></tr></thead><tbody id="feeReceipts"><tr><td colspan="6">Select a student.</td></tr></tbody></table></div>
         <div class="card-footer d-flex gap-2 align-items-center"><button type="button" id="feeReceiptPrev" class="btn btn-outline-secondary btn-sm" disabled>Previous</button><span id="feeReceiptPage" class="small text-muted">—</span><button type="button" id="feeReceiptNext" class="btn btn-outline-secondary btn-sm" disabled>Next</button></div>
     </section>
+    }
 </section>
-@section Scripts { <script src="~/js/finance/fees.js" asp-append-version="true"></script> }
+@section Scripts {
+    <script src="~/js/platform/task-workspace-locales.js" asp-append-version="true"></script>
+    <script src="~/js/finance/fees.js" asp-append-version="true"></script>
+}

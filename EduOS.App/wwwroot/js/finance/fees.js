@@ -3,6 +3,7 @@
 if (!document.getElementById('feeApp')) return;
 const e=id=>document.getElementById(id),base='/api/finance/fees';
 const activeFeature=e('feeApp').dataset.activeFeature||'structures';
+const uiLabel=value=>globalThis.eduTaskStaticLabel?.(value)||value;
 const token=document.querySelector('meta[name="request-verification-token"]')?.content;
 const state={options:null,student:null,invoice:null,invoicePage:1,receiptPage:1,invoicePages:1,receiptPages:1,createKey:null,createId:null,generateKey:null,generateId:null,paymentKey:null,paymentId:null,editingStructure:null,structurePage:1,structurePages:1,auditInvoice:null,auditPage:1,auditPages:1,auditData:null};
 const today=()=>{const d=new Date();return [d.getFullYear(),String(d.getMonth()+1).padStart(2,'0'),String(d.getDate()).padStart(2,'0')].join('-');};
@@ -17,21 +18,21 @@ async function api(path,method='GET',data){
  const r=await fetch(base+path,{method,credentials:'same-origin',cache:'no-store',headers,...(data===undefined?{}:{body:JSON.stringify(data)})});
  const x=await r.json().catch(()=>null);if(!r.ok||!x?.success)throw Error(x?.message||'Request failed ('+r.status+').');return x.data;
 }
-function fill(id,rows,label){const s=e(id),prev=s.value;s.replaceChildren(option('',label));for(const x of rows)s.append(option(x.id,x.name));if(rows.some(x=>String(x.id)===prev))s.value=prev;}
+function fill(id,rows,label){const s=e(id),prev=s.value;s.replaceChildren(option('',uiLabel(label)));for(const x of rows)s.append(option(x.id,x.name));if(rows.some(x=>String(x.id)===prev))s.value=prev;}
 function line(source=null){
  const tr=document.createElement('tr'),h=document.createElement('select'),f=document.createElement('select'),a=document.createElement('input'),d=document.createElement('input'),m=document.createElement('input'),b=document.createElement('button');
  tr.dataset.lineId=source?.id||'';tr.dataset.rowVersion=source?.rowVersion||'';
- h.className='form-select fee-line-head';h.required=true;h.append(option('','Choose fee head'));
+ h.className='form-select fee-line-head';h.required=true;h.append(option('',uiLabel('Choose fee head')));
  for(const x of state.options?.feeHeads||[])h.append(option(x.id,x.name));
  if(source&&!Array.from(h.options).some(x=>x.value===String(source.feeHeadId)))h.append(option(source.feeHeadId,source.feeHeadName+' (inactive)'));
  h.value=source?.feeHeadId||'';
  f.className='form-select fee-line-frequency';
- for(const [id,name] of [[1,'One time'],[2,'Monthly'],[3,'Quarterly'],[4,'Half yearly'],[5,'Yearly'],[6,'Per term']])f.append(option(id,name));
+ for(const [id,name] of [[1,'One time'],[2,'Monthly'],[3,'Quarterly'],[4,'Half yearly'],[5,'Yearly'],[6,'Per term']])f.append(option(id,uiLabel(name)));
  f.value=String(source?.frequency||2);
  a.className='form-control fee-line-amount';a.type='number';a.min='.01';a.step='.01';a.required=true;a.value=source?.amount??'';
  d.className='form-control fee-line-due';d.type='number';d.min='1';d.max='31';d.placeholder='—';d.value=source?.dueDayOfMonth??'';
  m.className='form-check-input fee-line-mandatory';m.type='checkbox';m.checked=source?.isMandatory??true;
- b.type='button';b.className='btn btn-sm btn-outline-danger';b.textContent=source?.id?'Retained':'Remove';b.disabled=!!source?.id;
+ b.type='button';b.className='btn btn-sm btn-outline-danger';b.textContent=uiLabel(source?.id?'Retained':'Remove');b.disabled=!!source?.id;
  b.onclick=()=>{if(e('feeLineRows').children.length>1)tr.remove();};
  for(const x of [h,f,a,d,m,b]){const td=document.createElement('td');td.append(x);tr.append(td);}e('feeLineRows').append(tr);
 }
@@ -50,8 +51,18 @@ function structures(){
 }
 async function options(){
  state.options=await api('/options');
- for(const [id,prop] of [['feeCampus','campuses'],['feeYear','academicYears'],['feeLevel','academicLevels'],['feeBatch','academicBatches']])fill(id,state.options[prop]||[],'Choose '+prop);
- e('feeLineRows').replaceChildren();line();batches();structures();if(e('feeStructureRegister') && activeFeature==='structures'){fill('feeRegisterCampus',state.options.campuses||[],'All campuses');await register();}
+ if(activeFeature==='structures'){
+  for(const [id,prop,label] of [
+   ['feeCampus','campuses','Choose campus'],
+   ['feeYear','academicYears','Choose academic year'],
+   ['feeLevel','academicLevels','Choose academic level']
+  ])fill(id,state.options[prop]||[],label);
+  e('feeLineRows').replaceChildren();line();batches();
+  if(e('feeStructureRegister')){fill('feeRegisterCampus',state.options.campuses||[],'All campuses');await register();}
+ }
+ if(activeFeature==='billing'){
+  fill('feeBatch',state.options.academicBatches||[],'Choose active batch');structures();
+ }
 }
 function stable(prefix,key){if(state[prefix+'Key']!==key){state[prefix+'Key']=key;state[prefix+'Id']=crypto.randomUUID();}return state[prefix+'Id'];}
 function clear(prefix){state[prefix+'Key']=null;state[prefix+'Id']=null;}
@@ -325,29 +336,51 @@ if(e('feeStructureCloseForm')){
   }finally{e('feeCloseSubmit').disabled=false;}
  })().catch(err=>alert('danger',err.message));});
 }
-e('feeAddLine').addEventListener('click',()=>line());e('feeStructureReset').addEventListener('click',resetStructureForm);
-if(e('feeStructureRegister')){e('feeRegisterCampus').addEventListener('change',()=>{state.structurePage=1;register().catch(err=>alert('danger',err.message));});for(const [id,delta] of [['feeRegisterPrev',-1],['feeRegisterNext',1]])e(id).addEventListener('click',()=>{const p=state.structurePage+delta;if(p<1||p>state.structurePages)return;state.structurePage=p;register().catch(err=>alert('danger',err.message));});}e('feeStructureForm').addEventListener('submit',save);e('feeInvoiceForm').addEventListener('submit',generate);
-e('feeFindStudent').addEventListener('click',findStudent);e('feeLoadLedger').addEventListener('click',ledger);e('feePaymentForm').addEventListener('submit',collect);
-for(const id of ['feeCampus','feeYear','feeLevel'])e(id).addEventListener('change',batches);
-for(const id of ['feeBatch','feeMonth','feeBillingYear'])e(id).addEventListener('change',structures);
-if(e('feeAllocationAudit')){
- e('feeAuditClose').addEventListener('click',()=>e('feeAllocationAudit').classList.add('d-none'));
- e('feeAuditCsv').addEventListener('click',exportAudit);
- for(const [id,delta] of [['feeAuditPrev',-1],['feeAuditNext',1]])
-  e(id).addEventListener('click',()=>{const next=state.auditPage+delta;
-   if(next<1||next>state.auditPages||!state.auditInvoice)return;
-   state.auditPage=next;openAudit(state.auditInvoice).catch(err=>alert('danger',err.message));});
+// One scoped entry view owns one workflow. The legacy ledger route remains
+// valid, but never mounts or initializes unrelated billing/structure editors.
+if(activeFeature==='structures' && e('feeStructureForm')){
+ e('feeAddLine').addEventListener('click',()=>line());
+ e('feeStructureReset').addEventListener('click',resetStructureForm);
+ e('feeStructureForm').addEventListener('submit',save);
+ for(const id of ['feeCampus','feeYear','feeLevel'])e(id).addEventListener('change',batches);
+ if(e('feeStructureRegister')){
+  e('feeRegisterCampus').addEventListener('change',()=>{state.structurePage=1;register().catch(err=>alert('danger',err.message));});
+  for(const [id,delta] of [['feeRegisterPrev',-1],['feeRegisterNext',1]])
+   e(id).addEventListener('click',()=>{const p=state.structurePage+delta;if(p<1||p>state.structurePages)return;state.structurePage=p;register().catch(err=>alert('danger',err.message));});
+ }
+ e('feeEffectiveFrom').value=today();
+ options().catch(err=>alert('danger',err.message));
 }
-e('feeInvoicePrev').addEventListener('click',()=>page('invoice',-1));e('feeInvoiceNext').addEventListener('click',()=>page('invoice',1));
-e('feeReceiptPrev').addEventListener('click',()=>page('receipt',-1));e('feeReceiptNext').addEventListener('click',()=>page('receipt',1));
-const now=new Date();e('feeMonth').value=String(now.getMonth()+1);e('feeBillingYear').value=String(now.getFullYear());e('feePaymentDate').value=today();e('feeEffectiveFrom').value=today();
-options().catch(err=>alert('danger',err.message));
-// A preview is advisory and becomes invalid on every invoice-scope edit.
-for(const id of ['feeBatch','feeInvoiceStructure','feeMonth','feeBillingYear','feeDueDate']){
- const field=e(id);
- if(field){field.addEventListener('change',invalidateInvoicePreview);
-  field.addEventListener('input',invalidateInvoicePreview);}
+if(activeFeature==='billing' && e('feeInvoiceForm')){
+ e('feeInvoiceForm').addEventListener('submit',generate);
+ for(const id of ['feeBatch','feeMonth','feeBillingYear'])e(id).addEventListener('change',structures);
+ const now=new Date();e('feeMonth').value=String(now.getMonth()+1);
+ e('feeBillingYear').value=String(now.getFullYear());
+ options().catch(err=>alert('danger',err.message));
+ // A preview is advisory and becomes invalid on every invoice-scope edit.
+ for(const id of ['feeBatch','feeInvoiceStructure','feeMonth','feeBillingYear','feeDueDate']){
+  const field=e(id);field.addEventListener('change',invalidateInvoicePreview);
+  field.addEventListener('input',invalidateInvoicePreview);
+ }
+ e('feePreview').addEventListener('click',previewInvoices);
+ e('feePreviewCsv').addEventListener('click',invoicePreviewCsv);
 }
-e('feePreview').addEventListener('click',previewInvoices);
-e('feePreviewCsv').addEventListener('click',invoicePreviewCsv);
+if(activeFeature==='ledger' && e('feeStudent')){
+ e('feeFindStudent').addEventListener('click',findStudent);
+ e('feeLoadLedger').addEventListener('click',ledger);
+ e('feePaymentForm').addEventListener('submit',collect);
+ if(e('feeAllocationAudit')){
+  e('feeAuditClose').addEventListener('click',()=>e('feeAllocationAudit').classList.add('d-none'));
+  e('feeAuditCsv').addEventListener('click',exportAudit);
+  for(const [id,delta] of [['feeAuditPrev',-1],['feeAuditNext',1]])
+   e(id).addEventListener('click',()=>{const next=state.auditPage+delta;
+    if(next<1||next>state.auditPages||!state.auditInvoice)return;
+    state.auditPage=next;openAudit(state.auditInvoice).catch(err=>alert('danger',err.message));});
+ }
+ e('feeInvoicePrev').addEventListener('click',()=>page('invoice',-1));
+ e('feeInvoiceNext').addEventListener('click',()=>page('invoice',1));
+ e('feeReceiptPrev').addEventListener('click',()=>page('receipt',-1));
+ e('feeReceiptNext').addEventListener('click',()=>page('receipt',1));
+ e('feePaymentDate').value=today();
+}
 })();

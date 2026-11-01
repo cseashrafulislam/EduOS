@@ -2,6 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
+const vm = require('node:vm');
 
 const root = path.resolve(__dirname, '../..');
 const read = file => fs.readFileSync(path.join(root, file), 'utf8');
@@ -47,4 +48,58 @@ test('existing protected finance entry forms and preview/cash safeguards are pre
         assert.match(layout, new RegExp(`Path: "/${action}/Index"`));
         assert.equal(groupFor('management', '/' + action + '/Index'), 'finance');
     }
+});
+
+test('scoped Finance Razor renders one task and leaves unrelated forms unmounted', () => {
+    assert.match(view, /@if \(feature is "structures" or "billing"\)/);
+    assert.match(view, /@if \(feature == "structures"\)/);
+    assert.match(view, /@if \(feature == "billing"\)/);
+    assert.match(view, /@if \(feature == "ledger"\)/);
+    assert.match(view, /@if \(feature == "structures" && User\.IsInRole\("TenantAdmin"\)\)/);
+    assert.doesNotMatch(view, /feature == "structures" \? "" : "d-none"/);
+    assert.doesNotMatch(view, /feature == "billing" \? "" : "d-none"/);
+    assert.doesNotMatch(view, /feature == "ledger" \? "" : "d-none"/);
+    for (const id of ['feeMonth','feeBillingYear','feeDueDate'])
+        assert.match(view, new RegExp(`class="col-12 col-sm-4"[^>]*>[\\s\\S]*?id="${id}"`));
+    assert.match(financeJs, /if\(activeFeature==='structures' && e\('feeStructureForm'\)\)/);
+    assert.match(financeJs, /if\(activeFeature==='billing' && e\('feeInvoiceForm'\)\)/);
+    assert.match(financeJs, /if\(activeFeature==='ledger' && e\('feeStudent'\)\)/);
+});
+
+test('Finance entry handlers and initial API calls stay within their own task scope', () => {
+    const scopes = [
+        ['structures', ['feeStructureForm','feeAddLine','feeStructureReset','feeCampus','feeYear','feeLevel','feeEffectiveFrom'],
+            ['feeStructureForm','feeAddLine','feeStructureReset','feeCampus','feeYear','feeLevel'], 1],
+        ['billing', ['feeInvoiceForm','feeBatch','feeInvoiceStructure','feeMonth','feeBillingYear','feeDueDate','feePreview','feePreviewCsv'],
+            ['feeInvoiceForm','feeBatch','feeMonth','feeBillingYear','feeDueDate','feeInvoiceStructure','feePreview','feePreviewCsv'], 1],
+        ['ledger', ['feeStudent','feeFindStudent','feeLoadLedger','feePaymentForm','feeInvoicePrev','feeInvoiceNext','feeReceiptPrev','feeReceiptNext','feePaymentDate'],
+            ['feeFindStudent','feeLoadLedger','feePaymentForm','feeInvoicePrev','feeInvoiceNext','feeReceiptPrev','feeReceiptNext'], 0]
+    ];
+    for (const [feature, visible, bound, expectedQueries] of scopes) {
+        const events = new Map(), requests = [];
+        const nodes = new Map(visible.map(id => [id, {
+            value: '', addEventListener(event) { events.set(id, [...(events.get(id) || []), event]); }
+        }]));
+        nodes.set('feeApp', { dataset: { activeFeature: feature } });
+        const document = {
+            getElementById(id) { return nodes.get(id) || null; },
+            querySelector() { return { content: 'test-antiforgery-token' }; }
+        };
+        vm.runInNewContext(financeJs, { document, fetch(url) { requests.push(url); return new Promise(() => {}); }, Date });
+        assert.deepEqual([...events.keys()].sort(), [...bound].sort(), feature);
+        assert.equal(requests.length, expectedQueries, `${feature}: unnecessary options fetch`);
+        if (requests.length) assert.equal(requests[0], '/api/finance/fees/options');
+    }
+});
+
+test('Finance task labels and async placeholder vocabulary follow the selected Bangla locale', () => {
+    const source = read('EduOS.App/wwwroot/js/platform/task-workspace-locales.js');
+    const node = { textContent: 'Fee structure', children: [], getAttribute() { return null; } };
+    const rootElement = { querySelectorAll() { return [node]; } };
+    const context = { document: { documentElement: { lang: 'bn-BD' }, querySelector() { return rootElement; } } };
+    vm.runInNewContext(source, context);
+    assert.equal(node.textContent, 'ফি কাঠামো');
+    assert.equal(context.eduTaskStaticLabel('Choose active batch'), 'সক্রিয় ব্যাচ বাছুন');
+    assert.equal(context.eduTaskStaticLabel('Monthly'), 'মাসিক');
+    assert.equal(context.eduTaskStaticLabel('Example Campus Ltd.'), 'Example Campus Ltd.');
 });
