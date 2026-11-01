@@ -18,6 +18,34 @@ public sealed class AttendanceController(IStudentAttendanceReportService reportS
     [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
     public IActionResult Index() => View();
 
+    // Keep the original all-in-one route for existing deep links; new GET routes
+    // select only the register, administrator reports or correction audit panel.
+    [HttpGet]
+    [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
+    public IActionResult Register()
+    {
+        ViewData["AttendanceFeature"] = "register";
+        return View("Index");
+    }
+
+    [Authorize(Roles = "TenantAdmin,Principal,VicePrincipal")]
+    [HttpGet]
+    [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
+    public IActionResult Reports()
+    {
+        ViewData["AttendanceFeature"] = "reports";
+        return View("Index");
+    }
+
+    [Authorize(Roles = "TenantAdmin,Principal,VicePrincipal")]
+    [HttpGet]
+    [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
+    public IActionResult Corrections()
+    {
+        ViewData["AttendanceFeature"] = "corrections";
+        return View("Index");
+    }
+
     // Reauthorize on every download; never export cached browser data or an unbounded roster.
     [HttpGet("attendance/sessions/{sessionId:long}/export.csv")]
     [Authorize(Roles = "TenantAdmin,Principal,VicePrincipal")]

@@ -1,68 +1,76 @@
 @{
     var bn = System.Globalization.CultureInfo.CurrentUICulture.Name == "bn-BD";
-    ViewData["Title"] = bn ? "প্রতিষ্ঠান ও ক্যাম্পাস ব্যবস্থাপনা" : "Institution & Campus Management";
+    var feature = ViewData["InstitutionFeature"]?.ToString() ?? "all";
+    ViewData["Title"] = feature switch
+    {
+        "profile" => bn ? "প্রতিষ্ঠানের প্রোফাইল ও সেটিংস" : "Institution Profile & Settings",
+        "regional" => bn ? "ভাষা, মুদ্রা ও সময় অঞ্চল" : "Regional Settings",
+        "branding" => bn ? "প্রতিষ্ঠানের ব্র্যান্ডিং" : "Institution Branding",
+        "subdomain" => bn ? "পোর্টালের সাবডোমেইন" : "Portal Subdomain",
+        "history" => bn ? "প্রতিষ্ঠানের পরিবর্তনের ইতিহাস" : "Institution Change History",
+        "campuses" => bn ? "ক্যাম্পাস পরিচালনা" : "Campus Management",
+        _ => bn ? "প্রতিষ্ঠান ও ক্যাম্পাস ব্যবস্থাপনা" : "Institution & Campus Management"
+    };
     Layout = "~/Views/Shared/_Layout.cshtml";
 }
-<div class="container-fluid py-4" id="institutionManagementApp">
+<div class="container-fluid py-4" id="institutionManagementApp" data-institution-feature="@feature">
     @Html.AntiForgeryToken()
     <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-4">
         <div>
-            <h1 class="h4 fw-bold mb-1">Institution &amp; Campus Management</h1>
-            <p class="text-muted mb-0">Manage the current institution without restarting onboarding.</p>
+            <h1 class="h4 fw-bold mb-1">@ViewData["Title"]</h1>
         </div>
-        <button type="button" id="reloadInstitution" class="btn btn-outline-secondary">Refresh</button>
+        <button type="button" id="reloadInstitution" class="btn btn-outline-secondary">@(bn ? "রিফ্রেশ" : "Refresh")</button>
     </div>
     <div id="institutionMessage" role="alert" aria-live="polite" class="alert d-none"></div>
-    <ul class="nav nav-tabs mb-3" role="tablist" aria-label="Institution management sections">
-        <li class="nav-item"><button type="button" id="institutionProfileTab" class="nav-link active">Institution Profile</button></li>
-        <li class="nav-item"><button type="button" id="institutionCampusTab" class="nav-link">Campuses</button></li>
+    <ul class="nav nav-tabs mb-3 @(feature == "all" ? "" : "d-none")" role="tablist" aria-label="Institution management sections">
+        <li class="nav-item"><button type="button" id="institutionProfileTab" class="nav-link active">@(bn ? "প্রতিষ্ঠানের প্রোফাইল" : "Institution Profile")</button></li>
+        <li class="nav-item"><button type="button" id="institutionCampusTab" class="nav-link">@(bn ? "ক্যাম্পাস" : "Campuses")</button></li>
     </ul>
-    <section id="institutionProfileSection">
-        <div class="card border-0 shadow-sm mb-3">
+    <section id="institutionProfileSection" class="@(feature == "campuses" ? "d-none" : "")">
+        <div class="card border-0 shadow-sm mb-3 @(feature == "all" || feature == "profile" ? "" : "d-none")" id="institutionDetailsPanel">
             <div class="card-body">
-                <h2 class="h5">Institution details</h2>
+                <h2 class="h5">@(bn ? "প্রতিষ্ঠানের তথ্য" : "Institution details")</h2>
                 <form id="institutionProfileForm" class="row g-3">
                     <div class="col-md-6">
-                        <label for="institutionName" class="form-label">Institution name *</label>
+                        <label for="institutionName" class="form-label">@(bn ? "প্রতিষ্ঠানের নাম" : "Institution name") *</label>
                         <input id="institutionName" maxlength="200" required class="form-control" autocomplete="organization" />
                     </div>
                     <div class="col-md-6">
-                        <label for="institutionEmail" class="form-label">Verified institution email</label>
+                        <label for="institutionEmail" class="form-label">@(bn ? "যাচাইকৃত প্রতিষ্ঠানের ইমেইল" : "Verified institution email")</label>
                         <input id="institutionEmail" class="form-control" readonly />
-                        <small class="text-muted">Email changes require a separate verified workflow.</small>
                     </div>
                     <div class="col-md-6">
-                        <label for="institutionPhone" class="form-label">Phone</label>
+                        <label for="institutionPhone" class="form-label">@(bn ? "ফোন" : "Phone")</label>
                         <input id="institutionPhone" maxlength="30" class="form-control" type="tel" />
                     </div>
                     <div class="col-md-6">
-                        <label for="institutionCountry" class="form-label">Country code *</label>
+                        <label for="institutionCountry" class="form-label">@(bn ? "দেশের কোড" : "Country code") *</label>
                         <input id="institutionCountry" maxlength="10" required class="form-control" />
                     </div>
                     <div class="col-12">
-                        <label for="institutionAddress" class="form-label">Address</label>
+                        <label for="institutionAddress" class="form-label">@(bn ? "ঠিকানা" : "Address")</label>
                         <textarea id="institutionAddress" maxlength="500" rows="2" class="form-control"></textarea>
                     </div>
                     <div class="col-12">
-                        <button type="submit" class="btn btn-primary">Save profile</button>
+                        <button type="submit" class="btn btn-primary">@(bn ? "প্রোফাইল সংরক্ষণ" : "Save profile")</button>
                     </div>
                 </form>
             </div>
         </div>
-        <div class="card border-0 shadow-sm mb-3">
+        <div class="card border-0 shadow-sm mb-3 @(feature == "all" || feature == "regional" ? "" : "d-none")" id="institutionRegionalPanel">
             <div class="card-body">
-                <h2 class="h5">Regional settings</h2>
+                <h2 class="h5">@(bn ? "আঞ্চলিক সেটিংস" : "Regional settings")</h2>
                 <form id="institutionRegionForm" class="row g-3">
                     <div class="col-md-4">
-                        <label for="institutionCurrency" class="form-label">Currency (ISO 4217)</label>
+                        <label for="institutionCurrency" class="form-label">@(bn ? "মুদ্রা (ISO 4217)" : "Currency (ISO 4217)")</label>
                         <input id="institutionCurrency" maxlength="3" required class="form-control" placeholder="BDT" />
                     </div>
                     <div class="col-md-4">
-                        <label for="institutionTimezone" class="form-label">Time zone</label>
+                        <label for="institutionTimezone" class="form-label">@(bn ? "সময় অঞ্চল" : "Time zone")</label>
                         <input id="institutionTimezone" maxlength="100" required class="form-control" placeholder="Asia/Dhaka" />
                     </div>
                     <div class="col-md-4">
-                        <label for="institutionDateFormat" class="form-label">Date format</label>
+                        <label for="institutionDateFormat" class="form-label">@(bn ? "তারিখের ধরন" : "Date format")</label>
                         <select id="institutionDateFormat" class="form-select" required>
                             <option value="dd-MM-yyyy">DD-MM-YYYY</option>
                             <option value="dd/MM/yyyy">DD/MM/YYYY</option>
@@ -71,7 +79,7 @@
                         </select>
                     </div>
                     <div class="col-md-4">
-                        <label for="institutionLanguage" class="form-label">Default language</label>
+                        <label for="institutionLanguage" class="form-label">@(bn ? "ডিফল্ট ভাষা" : "Default language")</label>
                         <select id="institutionLanguage" class="form-select">
                             <option value="bn-BD">বাংলা (Bangladesh)</option>
                             <option value="en">English</option>
@@ -79,14 +87,14 @@
                         </select>
                     </div>
                     <div class="col-12">
-                        <button class="btn btn-primary" type="submit">Save regional settings</button>
+                        <button class="btn btn-primary" type="submit">@(bn ? "আঞ্চলিক সেটিংস সংরক্ষণ" : "Save regional settings")</button>
                     </div>
                 </form>
             </div>
         </div>
-        <div class="card border-0 shadow-sm mb-3">
+        <div class="card border-0 shadow-sm mb-3 @(feature == "all" || feature == "branding" ? "" : "d-none")" id="institutionBrandingPanel">
             <div class="card-body">
-                <h2 class="h5">Institution branding</h2>
+                <h2 class="h5">@(bn ? "প্রতিষ্ঠানের ব্র্যান্ডিং" : "Institution branding")</h2>
                 <p class="text-muted small">Only PNG, JPEG or WebP for logo; favicon supports PNG/JPEG. Maximum 5 MB per image.</p>
                 <div class="row g-3">
                     <div class="col-md-6">
@@ -96,8 +104,8 @@
                             <input id="institutionLogoFile" type="file" class="form-control" accept="image/png,image/jpeg,image/webp" />
                         </div>
                         <div class="d-flex gap-2">
-                            <button id="uploadInstitutionLogo" type="button" class="btn btn-outline-primary btn-sm">Upload logo</button>
-                            <button id="removeInstitutionLogo" type="button" class="btn btn-outline-danger btn-sm">Remove logo</button>
+                            <button id="uploadInstitutionLogo" type="button" class="btn btn-outline-primary btn-sm">@(bn ? "লোগো আপলোড" : "Upload logo")</button>
+                            <button id="removeInstitutionLogo" type="button" class="btn btn-outline-danger btn-sm">@(bn ? "লোগো সরান" : "Remove logo")</button>
                         </div>
                     </div>
                     <div class="col-md-6">
@@ -107,37 +115,36 @@
                             <input id="institutionFaviconFile" type="file" class="form-control" accept="image/png,image/jpeg" />
                         </div>
                         <div class="d-flex gap-2">
-                            <button id="uploadInstitutionFavicon" type="button" class="btn btn-outline-primary btn-sm">Upload favicon</button>
-                            <button id="removeInstitutionFavicon" type="button" class="btn btn-outline-danger btn-sm">Remove favicon</button>
+                            <button id="uploadInstitutionFavicon" type="button" class="btn btn-outline-primary btn-sm">@(bn ? "ফেভিকন আপলোড" : "Upload favicon")</button>
+                            <button id="removeInstitutionFavicon" type="button" class="btn btn-outline-danger btn-sm">@(bn ? "ফেভিকন সরান" : "Remove favicon")</button>
                         </div>
                     </div>
                 </div>
             </div>
         </div>
-        <div class="card border-0 shadow-sm">
+        <div class="card border-0 shadow-sm @(feature == "all" || feature == "subdomain" ? "" : "d-none")" id="institutionSubdomainPanel">
             <div class="card-body">
-                <h2 class="h5">Institution subdomain</h2>
+                <h2 class="h5">@(bn ? "প্রতিষ্ঠানের সাবডোমেইন" : "Institution subdomain")</h2>
                 <form id="institutionDomainForm" class="row g-2">
                     <div class="col-md-8">
-                        <label for="institutionSubdomain" class="form-label">Subdomain prefix</label>
+                        <label for="institutionSubdomain" class="form-label">@(bn ? "সাবডোমেইন প্রিফিক্স" : "Subdomain prefix")</label>
                         <input id="institutionSubdomain" class="form-control" pattern="[a-z0-9]+(-[a-z0-9]+)*" maxlength="100" required />
                     </div>
                     <div class="col-md-4 d-flex align-items-end">
-                        <button type="submit" class="btn btn-outline-primary">Check &amp; save subdomain</button>
+                        <button type="submit" class="btn btn-outline-primary">@(bn ? "যাচাই করে সাবডোমেইন সংরক্ষণ" : "Check & save subdomain")</button>
                     </div>
                     <div class="col-12 small text-muted">Renaming a subdomain may affect existing bookmarks and integrations.</div>
                 </form>
             </div>
         </div>
 
-        <section class="card border-0 shadow-sm mt-3" aria-labelledby="institutionHistoryTitle">
+        <section class="card border-0 shadow-sm mt-3 @(feature == "all" || feature == "history" ? "" : "d-none")" aria-labelledby="institutionHistoryTitle">
             <div class="card-body">
                 <div class="d-flex justify-content-between align-items-center gap-2 mb-3">
                     <div>
-                        <h2 class="h5 mb-1" id="institutionHistoryTitle">Institution change history</h2>
-                        <p class="text-muted small mb-0">Profile, regional settings, subdomain and branding changes. Private values are not stored in this history.</p>
+                        <h2 class="h5 mb-1" id="institutionHistoryTitle">@(bn ? "প্রতিষ্ঠানের পরিবর্তনের ইতিহাস" : "Institution change history")</h2>
                     </div>
-                    <button type="button" class="btn btn-outline-secondary btn-sm" id="refreshInstitutionHistory">Refresh history</button>
+                    <button type="button" class="btn btn-outline-secondary btn-sm" id="refreshInstitutionHistory">@(bn ? "ইতিহাস রিফ্রেশ" : "Refresh history")</button>
                 </div>
                 <div class="table-responsive">
                     <table class="table table-sm table-striped align-middle" data-workspace-table="institution-change-history">
@@ -153,7 +160,7 @@
             </div>
         </section>
     </section>
-    <section id="institutionCampusSection" class="d-none">
+    <section id="institutionCampusSection" class="@(feature == "campuses" ? "" : "d-none")">
         <div class="card border-0 shadow-sm mb-3">
             <div class="card-body">
                 <div class="d-flex justify-content-between flex-wrap align-items-center gap-2 mb-3">

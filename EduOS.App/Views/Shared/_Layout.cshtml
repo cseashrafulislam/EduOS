@@ -116,10 +116,20 @@
                 }
                 @if (User?.IsInRole("TenantAdmin") == true)
                 {
-                    <a class="nav-link @ActiveFor("/InstitutionManagement")" href="/InstitutionManagement/Index">
-                        <svg class="edu-icon"><use href="/images/eduos-icons.svg#institution" /></svg>
-                        <span>Institution &amp; Campuses</span>
-                    </a>
+                    @foreach (var institutionTask in new[] {
+                        (Path: "/InstitutionManagement/Profile", En: "Institution Profile", Bn: "প্রতিষ্ঠানের প্রোফাইল"),
+                        (Path: "/InstitutionManagement/Campuses", En: "Campus Management", Bn: "ক্যাম্পাস পরিচালনা"),
+                        (Path: "/InstitutionManagement/Regional", En: "Language & Region", Bn: "ভাষা ও আঞ্চলিক সেটিংস"),
+                        (Path: "/InstitutionManagement/Branding", En: "Institution Branding", Bn: "প্রতিষ্ঠানের ব্র্যান্ডিং"),
+                        (Path: "/InstitutionManagement/Subdomain", En: "Portal Subdomain", Bn: "পোর্টাল সাবডোমেইন"),
+                        (Path: "/InstitutionManagement/History", En: "Change History", Bn: "পরিবর্তনের ইতিহাস")
+                    })
+                    {
+                        <a class="nav-link @ActiveFor(institutionTask.Path)" href="@institutionTask.Path">
+                            <svg class="edu-icon"><use href="/images/eduos-icons.svg#institution" /></svg>
+                            <span>@(currentCulture == "bn-BD" ? institutionTask.Bn : institutionTask.En)</span>
+                        </a>
+                    }
                 }
                 @if (User?.IsInRole("TenantAdmin") == true)
                 {
@@ -185,6 +195,17 @@
                         <svg class="edu-icon"><use href="/images/eduos-icons.svg#students" /></svg>
                         <span>Student Enrollment</span>
                     </a>
+                    @foreach (var studentAction in new[] {
+                        (Path: "/StudentImports/Index", En: "Student Import", Bn: "শিক্ষার্থী আমদানি"),
+                        (Path: "/StudentReadmissions/Index", En: "Student Readmission", Bn: "শিক্ষার্থী পুনঃভর্তি"),
+                        (Path: "/StudentProgressions/Index", En: "Promotion & Repeat", Bn: "উত্তরণ ও শ্রেণি পুনরাবৃত্তি")
+                    })
+                    {
+                        <a class="nav-link @ActiveFor(studentAction.Path)" href="@studentAction.Path">
+                            <svg class="edu-icon"><use href="/images/eduos-icons.svg#students" /></svg>
+                            <span>@(currentCulture == "bn-BD" ? studentAction.Bn : studentAction.En)</span>
+                        </a>
+                    }
                 }
                 @if (User?.IsInRole("TenantAdmin") == true)
                 {
@@ -233,10 +254,32 @@
                 }
                 @if (User?.IsInRole("TenantAdmin") == true || User?.IsInRole("AdmissionOfficer") == true)
                 {
-                    <a class="nav-link @ActiveFor("/Admissions")" href="/Admissions/Index">
-                        <svg class="edu-icon"><use href="/images/eduos-icons.svg#institution" /></svg>
-                        <span>@T["AdmissionApplications"]</span>
-                    </a>
+                    @if (User?.IsInRole("TenantAdmin") == true)
+                    {
+                        <a class="nav-link @ActiveFor("/Admissions/Forms")" href="/Admissions/Forms">
+                            <svg class="edu-icon"><use href="/images/eduos-icons.svg#institution" /></svg>
+                            <span>@(currentCulture == "bn-BD" ? "ভর্তি ফরম সেটআপ" : "Admission Form Setup")</span>
+                        </a>
+                    }
+                    @foreach (var admissionTask in new[] {
+                        (Path: "/Admissions/NewApplication", En: "New Application", Bn: "নতুন ভর্তি আবেদন"),
+                        (Path: "/Admissions/Applications", En: "Application Review", Bn: "আবেদন যাচাই"),
+                        (Path: "/Admissions/AssessmentSetup", En: "Assessment Setup", Bn: "ভর্তি পরীক্ষা সেটআপ"),
+                        (Path: "/Admissions/Merit", En: "Marks & Merit", Bn: "নম্বর ও মেধাতালিকা")
+                    })
+                    {
+                        <a class="nav-link @ActiveFor(admissionTask.Path)" href="@admissionTask.Path">
+                            <svg class="edu-icon"><use href="/images/eduos-icons.svg#institution" /></svg>
+                            <span>@(currentCulture == "bn-BD" ? admissionTask.Bn : admissionTask.En)</span>
+                        </a>
+                    }
+                    @if (User?.IsInRole("TenantAdmin") == true)
+                    {
+                        <a class="nav-link @ActiveFor("/Admissions/Offers")" href="/Admissions/Offers">
+                            <svg class="edu-icon"><use href="/images/eduos-icons.svg#institution" /></svg>
+                            <span>@(currentCulture == "bn-BD" ? "ভর্তির অফার" : "Admission Offers")</span>
+                        </a>
+                    }
                     <a class="nav-link @ActiveFor("/Students")" href="/Students/Index">
                         <svg class="edu-icon"><use href="/images/eduos-icons.svg#students" /></svg>
                         <span>@T["Students"]</span>
@@ -372,10 +415,21 @@
                             <span>Student Leave Management</span>
                         </a>
                     }
-                    <a class="nav-link @ActiveFor("/Attendance")" href="/Attendance/Index">
+                    <a class="nav-link @ActiveFor("/Attendance/Register")" href="/Attendance/Register">
                         <svg class="edu-icon"><use href="/images/eduos-icons.svg#attendance" /></svg>
-                        <span>@T["Attendance"]</span>
+                        <span>@(currentCulture == "bn-BD" ? "উপস্থিতি এন্ট্রি" : "Attendance Register")</span>
                     </a>
+                    @if (User?.IsInRole("TenantAdmin") == true || User?.IsInRole("Principal") == true || User?.IsInRole("VicePrincipal") == true)
+                    {
+                        <a class="nav-link @ActiveFor("/Attendance/Reports")" href="/Attendance/Reports">
+                            <svg class="edu-icon"><use href="/images/eduos-icons.svg#reports" /></svg>
+                            <span>@(currentCulture == "bn-BD" ? "উপস্থিতির রিপোর্ট" : "Attendance Reports")</span>
+                        </a>
+                        <a class="nav-link @ActiveFor("/Attendance/Corrections")" href="/Attendance/Corrections">
+                            <svg class="edu-icon"><use href="/images/eduos-icons.svg#reports" /></svg>
+                            <span>@(currentCulture == "bn-BD" ? "উপস্থিতি সংশোধনের নিরীক্ষা" : "Attendance Correction Audit")</span>
+                        </a>
+                    }
                 }
 
             </nav>

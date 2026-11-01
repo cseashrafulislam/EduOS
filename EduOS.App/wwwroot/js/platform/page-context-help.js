@@ -336,9 +336,281 @@
             related: [['/AcademicManagement/Sections', 'Sections', 'শাখা'], ['/AcademicManagement/Curricula', 'Curriculum', 'পাঠ্যক্রম']]
         }
     };
+    // Source-reviewed guides for focused admission, attendance and institution
+    // workspaces. Keep them route-specific: a route without verified guidance
+    // must continue to show the missing-guide notice, never a guessed manual.
+    const taskWorkspaceManuals = {
+        '/admissions/forms/index': {
+            version: 1, reviewed: true,
+            title: ['Public Admission Form Setup', 'পাবলিক ভর্তি ফরম সেটআপ'],
+            purpose: ['Configure and publish an intake form with permitted academic scope, questions, document requirements and application dates.', 'অনুমোদিত শিক্ষাবর্ষ, প্রশ্ন, কাগজপত্র ও সময়সীমাসহ ভর্তি ফরম তৈরি ও প্রকাশ করুন।'],
+            before: ['TenantAdmin and ADMISSION module access; academic year, campus, class/level and intake window must be available.', 'TenantAdmin ও ADMISSION মডিউল অনুমতি; শিক্ষাবর্ষ, ক্যাম্পাস, শ্রেণি/স্তর ও আবেদন সময়সীমা প্রস্তুত থাকতে হবে।'],
+            steps: [
+                ['Select New Form and enter code, title, academic year, campus, class/level and opening/closing times.', 'New Form চেপে কোড, শিরোনাম, শিক্ষাবর্ষ, ক্যাম্পাস, শ্রেণি/স্তর ও আবেদন শুরুর/শেষের সময় দিন।'],
+                ['Set the application fee and currency, then add any custom fields and required documents.', 'আবেদন ফি ও মুদ্রা দিন, প্রয়োজনে অতিরিক্ত প্রশ্ন ও আবশ্যিক কাগজপত্র যোগ করুন।'],
+                ['Save the draft, review it in the Public Admission Forms register, then Publish when the details are correct.', 'খসড়া সংরক্ষণ করে পাবলিক ফরম তালিকায় যাচাই করুন; সঠিক হলে Publish করুন।'],
+                ['Reopen the form register to confirm the published status and application window.', 'ফরম তালিকা আবার খুলে প্রকাশের অবস্থা ও সময়সীমা যাচাই করুন।']
+            ],
+            example: ['Fictional example: prepare a 2027 Grade 6 intake for the approved main campus, with a guardian phone field and required certificate, then publish it.', 'কাল্পনিক উদাহরণ: অনুমোদিত মূল ক্যাম্পাসে ২০২৭ সালের ষষ্ঠ শ্রেণির ফরমে অভিভাবকের ফোন ও প্রয়োজনীয় সনদ যোগ করে প্রকাশ করুন।'],
+            result: ['A published form becomes available within its configured window; a saved draft alone does not accept new applications.', 'নির্ধারিত সময়ে প্রকাশিত ফরমে আবেদন নেওয়া যায়; শুধু খসড়া দিয়ে আবেদন জমা হয় না।'],
+            rules: ['Do not collect unnecessary private documents. Changing intake scope after submissions can affect applicants; the server remains authoritative for publication and validation.', 'অপ্রয়োজনীয় ব্যক্তিগত নথি সংগ্রহ করবেন না। আবেদন জমার পর ফরমের পরিসর বদলালে আবেদনকারী প্রভাবিত হতে পারেন; প্রকাশ ও যাচাই সার্ভার নিয়ন্ত্রণ করে।'],
+            recovery: ['If Publish or Save fails, check dates, required academic selections and permissions. Reload existing forms before retrying to avoid a duplicate draft.', 'Save বা Publish ব্যর্থ হলে সময়, শিক্ষাবর্ষ নির্বাচন ও অনুমতি যাচাই করুন। দ্বৈত খসড়া এড়াতে আবার দেওয়ার আগে তালিকা রিফ্রেশ করুন।'],
+            related: [['/Admissions/NewApplication', 'New application', 'নতুন আবেদন'], ['/Admissions/Applications', 'Application review', 'আবেদন যাচাই']]
+        },
+        '/admissions/newapplication/index': {
+            version: 1, reviewed: true,
+            title: ['New Admission Application', 'নতুন ভর্তি আবেদন'],
+            purpose: ['Submit an applicant to a published intake with accurate contact, guardian and custom-form answers.', 'প্রকাশিত ভর্তি ফরমে সঠিক যোগাযোগ, অভিভাবক ও অতিরিক্ত তথ্যসহ নতুন আবেদন জমা দিন।'],
+            before: ['TenantAdmin or AdmissionOfficer with ADMISSION access; an open published intake and required guardian details for a minor.', 'ADMISSION অনুমতিসহ TenantAdmin বা AdmissionOfficer; খোলা প্রকাশিত ফরম ও অপ্রাপ্তবয়স্কের প্রয়োজনীয় অভিভাবক তথ্য থাকতে হবে।'],
+            steps: [
+                ['Choose Published intake; confirm its permitted year, term, campus and class/level.', 'Published intake বেছে শিক্ষাবর্ষ, টার্ম, ক্যাম্পাস ও শ্রেণি/স্তর যাচাই করুন।'],
+                ['Enter applicant name, date of birth, gender, phone and optional email/address.', 'আবেদনকারীর নাম, জন্মতারিখ, লিঙ্গ, ফোন ও প্রয়োজনমতো ইমেইল/ঠিকানা দিন।'],
+                ['Complete the guardian fields for a minor and any additional questions required by the intake.', 'অপ্রাপ্তবয়স্কের অভিভাবক তথ্য এবং ফরমে চাওয়া অতিরিক্ত উত্তর দিন।'],
+                ['Submit application once and locate the new record in Application Review.', 'Submit application একবার চাপুন; Application Review-তে নতুন রেকর্ড খুঁজুন।']
+            ],
+            example: ['Fictional example: enter applicant Rina under the 2027 Grade 6 published intake, add her guardian phone and submit.', 'কাল্পনিক উদাহরণ: ২০২৭ সালের ষষ্ঠ শ্রেণির প্রকাশিত ফরমে রিনার তথ্য ও অভিভাবকের ফোন দিয়ে আবেদন জমা দিন।'],
+            result: ['A successful submission produces an applicant record for review; it does not automatically enroll a student.', 'সফল জমায় যাচাইযোগ্য আবেদন তৈরি হয়; শিক্ষার্থী স্বয়ংক্রিয়ভাবে ভর্তি হয় না।'],
+            rules: ['The chosen intake controls permitted academic fields. A request identifier protects against duplicate retries; later review and verified offer acceptance are separate actions.', 'নির্বাচিত ফরম শিক্ষাবর্ষের তথ্য নিয়ন্ত্রণ করে। request identifier একই আবেদন পুনরায় তৈরি হওয়া আটকায়; যাচাই ও অফার গ্রহণ আলাদা কাজ।'],
+            recovery: ['If the intake is unavailable, confirm publishing dates and campus. Fix required guardian or custom answers before resubmitting; check the application list after a timeout.', 'ফরম না পেলে প্রকাশের সময় ও ক্যাম্পাস দেখুন। অভিভাবক বা অতিরিক্ত তথ্যের ত্রুটি ঠিক করুন; সময় শেষ হলে আবার দেওয়ার আগে তালিকা দেখুন।'],
+            related: [['/Admissions/Applications', 'Application review', 'আবেদন যাচাই'], ['/Admissions/Forms', 'Admission forms', 'ভর্তি ফরম']]
+        },
+        '/admissions/applications/index': {
+            version: 1, reviewed: true,
+            title: ['Application Review & Enrollment', 'আবেদন যাচাই ও ভর্তি'],
+            purpose: ['Find submitted applications, inspect documents, record permitted decisions and complete eligible enrollment.', 'জমা আবেদন খোঁজা, কাগজপত্র যাচাই, অনুমোদিত সিদ্ধান্ত ও যোগ্য ভর্তি সম্পন্ন করুন।'],
+            before: ['TenantAdmin or AdmissionOfficer and ADMISSION entitlement; existing application and necessary review documents.', 'TenantAdmin বা AdmissionOfficer ও ADMISSION মডিউল; জমা আবেদন এবং প্রয়োজনীয় যাচাইয়ের নথি থাকতে হবে।'],
+            steps: [
+                ['Search the Application list by name or reference and filter by the correct status.', 'Application list-এ নাম বা রেফারেন্স দিয়ে খুঁজুন এবং সঠিক অবস্থা বাছুন।'],
+                ['Choose Review, inspect the applicant details and document evidence, then select an allowed new status.', 'Review খুলে আবেদন ও নথি যাচাই করে অনুমোদিত নতুন অবস্থা নির্বাচন করুন।'],
+                ['Enter a decision note when required, Save decision and confirm the refreshed status.', 'প্রয়োজনীয় সিদ্ধান্তের মন্তব্য দিয়ে Save decision করুন; নতুন অবস্থা যাচাই করুন।'],
+                ['After the separate verified offer/acceptance process, use Admit applicant and Complete enrollment only for an eligible batch and roll.', 'আলাদা যাচাইকৃত অফার/গ্রহণের পর যোগ্য ব্যাচ ও রোল দিয়ে Admit applicant এবং Complete enrollment করুন।']
+            ],
+            example: ['Fictional example: search applicant Rina, review required identity documents, record a permitted decision and continue to enrollment only after verified acceptance.', 'কাল্পনিক উদাহরণ: রিনাকে খুঁজে পরিচয়পত্র যাচাই, অনুমোদিত সিদ্ধান্ত দিন; যাচাইকৃত গ্রহণের পরেই ভর্তি সম্পন্ন করুন।'],
+            result: ['A saved review updates the applicant status. Successful separate enrollment returns a student record/code for the Student Directory.', 'যাচাই সংরক্ষণে আবেদন অবস্থা বদলায়। আলাদা ভর্তি সফল হলে Student Directory-তে শিক্ষার্থী কোড/রেকর্ড পাওয়া যায়।'],
+            rules: ['Review does not equal admission. Document permission and verified acceptance are independently enforced; rowversion conflicts must be resolved before another decision.', 'যাচাই মানেই ভর্তি নয়। নথির অনুমতি ও যাচাইকৃত গ্রহণ আলাদাভাবে নিয়ন্ত্রিত; নতুন সিদ্ধান্তের আগে rowversion সংঘাত সমাধান করুন।'],
+            recovery: ['On a stale review, reload the application and confirm current status. After uncertain enrollment failure, search Student Directory before retrying.', 'পুরোনো যাচাই সংঘাতে আবেদন রিলোড করে বর্তমান অবস্থা দেখুন। ভর্তি অনিশ্চিত হলে পুনরায় দেওয়ার আগে Student Directory দেখুন।'],
+            related: [['/Admissions/Offers', 'Admission offers', 'ভর্তির অফার'], ['/Students/Index', 'Student directory', 'শিক্ষার্থী তালিকা']]
+        },
+        '/admissions/assessments/index': {
+            version: 1, reviewed: true,
+            title: ['Admission Assessment & Merit', 'ভর্তি পরীক্ষা ও মেধাতালিকা'],
+            purpose: ['Create an intake assessment, record applicant marks, preview the merit list and publish it when verified.', 'ভর্তি পরীক্ষা তৈরি, আবেদনকারীর নম্বর এন্ট্রি, মেধাতালিকা যাচাই ও প্রকাশ করুন।'],
+            before: ['TenantAdmin or AdmissionOfficer with ADMISSION access; an authorized intake and eligible applicants.', 'ADMISSION অনুমতিসহ TenantAdmin বা AdmissionOfficer; অনুমোদিত ফরম ও যোগ্য আবেদনকারী থাকতে হবে।'],
+            steps: [
+                ['Choose Admission intake and enter assessment name, date, total/pass marks and duration; select Create assessment.', 'Admission intake বেছে পরীক্ষার নাম, তারিখ, মোট/পাস নম্বর ও সময় দিয়ে Create assessment চাপুন।'],
+                ['Select the assessment, search applicants and enter marks on the visible roster page.', 'পরীক্ষা বেছে আবেদনকারী খুঁজুন এবং দৃশ্যমান তালিকায় নম্বর দিন।'],
+                ['Save page marks before moving between roster pages, then select View merit to inspect the calculated order.', 'পৃষ্ঠা বদলানোর আগে Save page marks করুন; View merit দিয়ে হিসাব করা মেধাক্রম দেখুন।'],
+                ['Publish merit only after verifying the eligible candidate marks and preview.', 'যোগ্য প্রার্থীদের নম্বর ও প্রিভিউ যাচাই করার পরেই Publish merit করুন।']
+            ],
+            example: ['Fictional example: create a Grade 6 admission assessment with total 100 and pass 40, save all eligible marks and inspect merit before publication.', 'কাল্পনিক উদাহরণ: ষষ্ঠ শ্রেণির ভর্তি পরীক্ষায় মোট ১০০ ও পাস ৪০ দিয়ে পরীক্ষা তৈরি, নম্বর সংরক্ষণ ও প্রকাশের আগে মেধা যাচাই করুন।'],
+            result: ['Assessment marks and authorized merit publication become available for the intake; an applicant is not enrolled by publishing merit.', 'ফরমের জন্য পরীক্ষার নম্বর ও অনুমোদিত মেধা প্রকাশ হয়; মেধা প্রকাশে শিক্ষার্থী ভর্তি হয় না।'],
+            rules: ['Marks entry and merit publication are distinct actions. Do not publish until all eligible page marks and calculated merit have been reviewed.', 'নম্বর এন্ট্রি ও মেধা প্রকাশ আলাদা কাজ। সব যোগ্য পৃষ্ঠার নম্বর ও মেধা যাচাই ছাড়া প্রকাশ করবেন না।'],
+            recovery: ['If a candidate is missing, confirm intake and status. On a save timeout reload the roster before writing again; never assume a failed response meant marks were saved.', 'প্রার্থী না পেলে ফরম ও অবস্থা দেখুন। Save-এর ফল অনিশ্চিত হলে আবার লেখার আগে রোস্টার রিলোড করুন।'],
+            related: [['/Admissions/Applications', 'Application review', 'আবেদন যাচাই'], ['/Admissions/Offers', 'Admission offers', 'ভর্তির অফার']]
+        },
+        '/admissions/assessmentsetup/index': {
+            version: 1, reviewed: true,
+            title: ['Admission Assessment Setup', 'ভর্তি পরীক্ষা সেটআপ'],
+            purpose: ['Configure a dated admission assessment for a permitted published intake.', 'অনুমোদিত প্রকাশিত ভর্তি ফরমের জন্য তারিখসহ পরীক্ষা নির্ধারণ করুন।'],
+            before: ['TenantAdmin or AdmissionOfficer with ADMISSION access; the admission intake and its academic scope must exist.', 'ADMISSION অনুমতিসহ TenantAdmin বা AdmissionOfficer; ভর্তি ফরম ও শিক্ষাবর্ষের পরিসর আগে থাকতে হবে।'],
+            steps: [
+                ['Select the Admission intake for which the assessment will be held.', 'যে Admission intake-এর পরীক্ষা হবে সেটি বেছে নিন।'],
+                ['Enter assessment name, date, total marks, pass marks and duration; add venue if relevant.', 'পরীক্ষার নাম, তারিখ, মোট নম্বর, পাস নম্বর ও সময় দিন; প্রয়োজনে কেন্দ্রের নাম দিন।'],
+                ['Choose Create assessment, then open Marks & Merit to select the created assessment.', 'Create assessment করে Marks & Merit পেজে তৈরি পরীক্ষা নির্বাচন করুন।']
+            ],
+            example: ['Fictional example: create a 2027 Grade 6 entry test with 100 total marks, 40 pass marks and a 60-minute duration.', 'কাল্পনিক উদাহরণ: ২০২৭ সালের ষষ্ঠ শ্রেণির ভর্তি পরীক্ষায় মোট ১০০, পাস ৪০ ও সময় ৬০ মিনিট দিন।'],
+            result: ['A new eligible assessment is ready for applicant marks; this setup does not publish merit.', 'যোগ্য পরীক্ষা নম্বর এন্ট্রির জন্য প্রস্তুত হয়; এখানে মেধাতালিকা প্রকাশ হয় না।'],
+            rules: ['Pass marks must be compatible with total marks. Save does not enroll an applicant or publish results.', 'পাস নম্বর মোট নম্বরের সঙ্গে সামঞ্জস্যপূর্ণ হতে হবে। Save-এ আবেদনকারী ভর্তি বা ফলাফল প্রকাশ হয় না।'],
+            recovery: ['If the intake is missing, check its scope and permissions. Resolve date/mark validation and inspect existing assessments before retrying.', 'ফরম না পেলে পরিসর ও অনুমতি দেখুন। তারিখ/নম্বরের ত্রুটি ঠিক করে পুনরায় দেওয়ার আগে বিদ্যমান পরীক্ষা যাচাই করুন।'],
+            related: [['/Admissions/Merit', 'Marks and merit', 'নম্বর ও মেধাতালিকা'], ['/Admissions/Forms', 'Admission forms', 'ভর্তি ফরম']]
+        },
+        '/admissions/merit/index': {
+            version: 1, reviewed: true,
+            title: ['Admission Marks & Merit', 'ভর্তির নম্বর ও মেধাতালিকা'],
+            purpose: ['Record assessment marks for applicants, preview the computed merit list and publish it after verification.', 'আবেদনকারীর পরীক্ষার নম্বর দিয়ে হিসাব করা মেধাতালিকা দেখে যাচাই শেষে প্রকাশ করুন।'],
+            before: ['TenantAdmin or AdmissionOfficer with ADMISSION access; a configured admission assessment and eligible applicants.', 'ADMISSION অনুমতিসহ TenantAdmin বা AdmissionOfficer; আগে তৈরি পরীক্ষা ও যোগ্য আবেদনকারী থাকতে হবে।'],
+            steps: [
+                ['Choose Assessment and optionally Search applicant to locate eligible candidates.', 'Assessment বেছে প্রয়োজনে Search applicant দিয়ে যোগ্য প্রার্থী খুঁজুন।'],
+                ['Enter applicant marks and Save page marks before moving between roster pages.', 'আবেদনকারীর নম্বর দিয়ে পৃষ্ঠা বদলানোর আগে Save page marks করুন।'],
+                ['Select View merit and verify ranking, grades and any missing or invalid marks.', 'View merit দিয়ে মেধাক্রম, গ্রেড ও অসম্পূর্ণ বা ভুল নম্বর যাচাই করুন।'],
+                ['Only after reviewing the draft, select Publish merit and verify the displayed result.', 'খসড়া যাচাই শেষে Publish merit করে প্রকাশিত ফল দেখুন।']
+            ],
+            example: ['Fictional example: enter 78 and 64 for two eligible Grade 6 candidates, save their pages and verify the draft merit order before publishing.', 'কাল্পনিক উদাহরণ: ষষ্ঠ শ্রেণির দুই যোগ্য প্রার্থীকে ৭৮ ও ৬৪ নম্বর দিয়ে পৃষ্ঠা সংরক্ষণ করে মেধাক্রম যাচাই করুন।'],
+            result: ['Saved marks and authorized merit appear for the selected assessment; no automatic student enrollment is performed.', 'নির্বাচিত পরীক্ষার নম্বর ও অনুমোদিত মেধা দেখা যায়; স্বয়ংক্রিয় শিক্ষার্থী ভর্তি হয় না।'],
+            rules: ['Publishing merit is distinct from verified offer acceptance or enrollment. Check all applicant pages and the preview before publishing.', 'মেধা প্রকাশ অফার গ্রহণ বা ভর্তি নয়। প্রকাশের আগে সব প্রার্থীর পৃষ্ঠা ও প্রিভিউ যাচাই করুন।'],
+            recovery: ['If a candidate or mark is missing, check assessment and filters, then reload the roster after any uncertain save before retrying.', 'প্রার্থী বা নম্বর না পেলে পরীক্ষা/ফিল্টার দেখুন; Save অনিশ্চিত হলে পুনরায় দেওয়ার আগে রোস্টার রিলোড করুন।'],
+            related: [['/Admissions/AssessmentSetup', 'Assessment setup', 'পরীক্ষা সেটআপ'], ['/Admissions/Offers', 'Admission offers', 'ভর্তির অফার']]
+        },
+        '/admissions/offers/index': {
+            version: 1, reviewed: true,
+            title: ['Offer, Verified Acceptance & Enrollment', 'অফার, যাচাইকৃত গ্রহণ ও ভর্তি'],
+            purpose: ['Issue eligible admission offers, verify signed acceptance evidence and convert an authorized applicant into a student.', 'যোগ্য ভর্তির অফার দিন, স্বাক্ষরিত গ্রহণের প্রমাণ যাচাই করুন এবং অনুমোদিত আবেদনকারীকে শিক্ষার্থী হিসেবে ভর্তি করুন।'],
+            before: ['TenantAdmin with ADMISSION access; a qualified applicant and verifiable offer-acceptance evidence.', 'ADMISSION অনুমতিসহ TenantAdmin; যোগ্য আবেদনকারী ও যাচাইযোগ্য অফার গ্রহণের প্রমাণ থাকতে হবে।'],
+            steps: [
+                ['Search applicants or enter an exact applicant reference; select Load.', 'আবেদনকারী খুঁজুন বা সঠিক আবেদন রেফারেন্স দিয়ে Load চাপুন।'],
+                ['Choose Academic batch and Offer expiry; select Issue offer for an eligible applicant.', 'যোগ্য আবেদনকারীর Academic batch ও Offer expiry দিয়ে Issue offer চাপুন।'],
+                ['Choose a verified OFFER_ACCEPTANCE document and signer, confirm the identity check and Record verified acceptance.', 'যাচাইকৃত OFFER_ACCEPTANCE নথি ও স্বাক্ষরকারী বেছে পরিচয় যাচাই নিশ্চিত করে Record verified acceptance চাপুন।'],
+                ['Enter a valid Roll and optional Academic track, then Convert to student & enroll; confirm in Student Directory.', 'সঠিক Roll ও প্রয়োজনে Academic track দিয়ে Convert to student & enroll করুন; Student Directory-তে নিশ্চিত করুন।']
+            ],
+            example: ['Fictional example: issue a dated offer for qualified applicant Rina, verify the signed acceptance and enroll her with an eligible Grade 6 roll.', 'কাল্পনিক উদাহরণ: যোগ্য রিনাকে মেয়াদসহ অফার দিন, স্বাক্ষরিত গ্রহণ যাচাই করে ষষ্ঠ শ্রেণিতে উপযুক্ত রোল দিয়ে ভর্তি করুন।'],
+            result: ['The verified offer and acceptance are retained; successful conversion creates a student enrollment.', 'যাচাইকৃত অফার ও গ্রহণ সংরক্ষিত হয়; সফল রূপান্তরে শিক্ষার্থী ভর্তি তৈরি হয়।'],
+            rules: ['An offer alone is not acceptance. Do not bypass identity/document checks or manually create a second student if conversion status is uncertain.', 'শুধু অফার মানে গ্রহণ নয়। পরিচয়/নথি যাচাই এড়াবেন না; রূপান্তর অনিশ্চিত হলে দ্বিতীয় শিক্ষার্থী তৈরি করবেন না।'],
+            recovery: ['Refresh status and evidence after a conflict. If conversion times out, search Student Directory and applicant status before retrying.', 'সংঘাতে অবস্থা ও প্রমাণ রিফ্রেশ করুন। রূপান্তরে সময় শেষ হলে পুনরায় দেওয়ার আগে শিক্ষার্থী ও আবেদন অবস্থা দেখুন।'],
+            related: [['/Admissions/Applications', 'Application review', 'আবেদন যাচাই'], ['/Students/Index', 'Student directory', 'শিক্ষার্থী তালিকা']]
+        },
+        '/attendance/register/index': {
+            version: 1, reviewed: true,
+            title: ['Daily Attendance Register', 'দৈনিক উপস্থিতি রেজিস্টার'],
+            purpose: ['Record eligible daily or subject attendance and finalize a complete roster when authorized.', 'অনুমোদিত দৈনিক বা বিষয়ভিত্তিক উপস্থিতি নথিভুক্ত করুন এবং অনুমতি থাকলে সম্পূর্ণ রোস্টার চূড়ান্ত করুন।'],
+            before: ['ATTENDANCE access for Teacher, Principal, VicePrincipal or TenantAdmin; permitted academic batch/date and optional subject.', 'ATTENDANCE অনুমতিসহ Teacher, Principal, VicePrincipal বা TenantAdmin; অনুমোদিত ব্যাচ/তারিখ ও প্রয়োজনে বিষয় লাগবে।'],
+            steps: [
+                ['Select Date, find the authorized academic batch and optionally choose Subject offering.', 'তারিখ ও অনুমোদিত ব্যাচ খুঁজে প্রয়োজনে Subject offering বেছে নিন।'],
+                ['Select Load roster, record each student and use Mark all present only when appropriate.', 'Load roster দিয়ে প্রতিটি শিক্ষার্থীর উপস্থিতি দিন; উপযুক্ত হলে Mark all present ব্যবহার করুন।'],
+                ['Save attendance for the visible roster page before navigating to another page.', 'পরের পৃষ্ঠায় যাওয়ার আগে দৃশ্যমান রোস্টারের Save attendance করুন।'],
+                ['Authorized administrators may Finalize register only after completing all eligible marks.', 'অনুমোদিত প্রশাসক সব যোগ্য উপস্থিতি সম্পন্ন করে Finalize register করতে পারেন।']
+            ],
+            example: ['Fictional example: load the authorized 3 November Grade 6 A roster, save marks on every page and finalize after review.', 'কাল্পনিক উদাহরণ: ৩ নভেম্বর ষষ্ঠ শ্রেণি A-এর রোস্টার এনে প্রতিটি পৃষ্ঠা সংরক্ষণ করে যাচাই শেষে চূড়ান্ত করুন।'],
+            result: ['Saved attendance can be reviewed in the roster; finalized changes require audited correction.', 'সংরক্ষিত উপস্থিতি রোস্টারে দেখা যায়; চূড়ান্ত রেকর্ড বদলাতে নিরীক্ষিত সংশোধন লাগে।'],
+            rules: ['Teachers cannot finalize or correct privileged records. Mark all present does not replace approved leave; every correction needs an authorized reason.', 'শিক্ষক প্রশাসক-নির্দিষ্ট চূড়ান্ত/সংশোধন করতে পারবেন না। Mark all present অনুমোদিত ছুটি বদলায় না; সংশোধনে অনুমোদিত কারণ লাগে।'],
+            recovery: ['If loading fails, verify batch, date, role and subject. Save current-page changes before navigating; reload after a conflict.', 'লোড ব্যর্থ হলে ব্যাচ, তারিখ, ভূমিকা ও বিষয় দেখুন। পৃষ্ঠা বদলানোর আগে সংরক্ষণ করুন; সংঘাতে রিলোড করুন।'],
+            related: [['/Attendance/Reports', 'Attendance reports', 'উপস্থিতির রিপোর্ট'], ['/Attendance/Corrections', 'Correction audit', 'সংশোধনের নিরীক্ষা']]
+        },
+        '/attendance/reports/index': {
+            version: 1, reviewed: true,
+            title: ['Finalized Attendance Reports', 'চূড়ান্ত উপস্থিতির রিপোর্ট'],
+            purpose: ['Review authorized finalized attendance summaries, risk, subject coverage and session/daily registers.', 'অনুমোদিত চূড়ান্ত উপস্থিতির সারাংশ, ঝুঁকি, বিষয় কভারেজ ও সেশন/দৈনিক রেজিস্টার দেখুন।'],
+            before: ['TenantAdmin, Principal or VicePrincipal and ATTENDANCE access; historical batch/date interval and authorized subject if needed.', 'ATTENDANCE অনুমতিসহ TenantAdmin, Principal বা VicePrincipal; ঐতিহাসিক ব্যাচ, তারিখের পরিসর ও প্রয়োজনে বিষয় লাগবে।'],
+            steps: [
+                ['Find historical batch and optional Subject offering; choose From/To dates (at most 30 days).', 'ঐতিহাসিক ব্যাচ ও প্রয়োজনে বিষয় বেছে From/To তারিখ দিন (সর্বোচ্চ ৩০ দিন)।'],
+                ['Choose filters such as Attendance risk, Minimum marks and Order by; select Load report.', 'Attendance risk, Minimum marks ও Order by বেছে Load report চাপুন।'],
+                ['Inspect risk summary, subject coverage, session register and daily finalized attendance.', 'ঝুঁকির সারাংশ, বিষয় কভারেজ, সেশন রেজিস্টার ও দৈনিক চূড়ান্ত উপস্থিতি দেখুন।'],
+                ['Export only the currently authorized visible page CSV, or use the session print action where available.', 'শুধু অনুমোদিত দৃশ্যমান পৃষ্ঠার CSV নিন বা উপলব্ধ সেশন প্রিন্ট ব্যবহার করুন।']
+            ],
+            example: ['Fictional example: inspect a 7-day Grade 6 A attendance report, filter learners below 75% and export the visible page.', 'কাল্পনিক উদাহরণ: ষষ্ঠ শ্রেণি A-এর সাত দিনের রিপোর্টে ৭৫%-এর নিচে শিক্ষার্থী দেখে দৃশ্যমান পৃষ্ঠা CSV নিন।'],
+            result: ['Scoped finalized report totals and bounded rows are displayed; no attendance marks are edited.', 'অনুমোদিত চূড়ান্ত সারাংশ ও সীমিত সারি দেখা যায়; উপস্থিতি সম্পাদিত হয় না।'],
+            rules: ['Export is page-bounded. Historical totals are tied to the selected batch, subject, status and time interval; stale exports are not current evidence.', 'CSV পৃষ্ঠাভিত্তিক। ঐতিহাসিক মোট নির্বাচিত ব্যাচ, বিষয়, অবস্থা ও সময়সীমার; পুরোনো CSV বর্তমান প্রমাণ নয়।'],
+            recovery: ['If no rows appear, check batch and date filters. Reduce an interval above 30 days and reload after recent finalization.', 'সারি না এলে ব্যাচ ও তারিখ যাচাই করুন। ৩০ দিনের বেশি সময় কমান; নতুন চূড়ান্তকরণের পর রিফ্রেশ করুন।'],
+            related: [['/Attendance/Register', 'Attendance register', 'উপস্থিতি এন্ট্রি'], ['/Attendance/Corrections', 'Correction audit', 'সংশোধনের নিরীক্ষা']]
+        },
+        '/attendance/corrections/index': {
+            version: 1, reviewed: true,
+            title: ['Attendance Correction Audit', 'উপস্থিতি সংশোধনের নিরীক্ষা'],
+            purpose: ['Inspect reasoned amendments to finalized attendance without changing the historical audit ledger.', 'চূড়ান্ত উপস্থিতির কারণসহ সংশোধন ইতিহাস দেখুন; নিরীক্ষার রেকর্ড পরিবর্তন হয় না।'],
+            before: ['TenantAdmin, Principal or VicePrincipal with ATTENDANCE access; existing finalized register or correction records.', 'ATTENDANCE অনুমতিসহ TenantAdmin, Principal বা VicePrincipal; পূর্বের চূড়ান্ত বা সংশোধিত রেজিস্টার থাকতে হবে।'],
+            steps: [
+                ['Optionally enter Find student and Changed by user ID.', 'প্রয়োজনে Find student এবং Changed by user ID দিন।'],
+                ['Choose Previous status and New status if a specific change is needed.', 'নির্দিষ্ট পরিবর্তন দেখতে Previous status ও New status বেছে নিন।'],
+                ['Select Load corrections for report filters and inspect the reason, time and changed-by columns.', 'Load corrections for report filters চেপে কারণ, সময় ও পরিবর্তনকারীর তথ্য দেখুন।'],
+                ['Use Export current page CSV or Print current page for authorized records.', 'অনুমোদিত রেকর্ডে Export current page CSV বা Print current page ব্যবহার করুন।']
+            ],
+            example: ['Fictional example: find a student whose finalized status changed from Absent to Present and inspect the recorded reason and actor.', 'কাল্পনিক উদাহরণ: Absent থেকে Present হওয়া শিক্ষার্থী খুঁজে কারণ ও পরিবর্তনকারীর তথ্য যাচাই করুন।'],
+            result: ['A paginated audit register displays authorized corrections; this page does not create a new correction.', 'পৃষ্ঠাভিত্তিক নিরীক্ষা তালিকায় অনুমোদিত সংশোধন দেখা যায়; এই পৃষ্ঠায় নতুন সংশোধন তৈরি হয় না।'],
+            rules: ['Corrections require a separate authorized roster action and reason. Audit history must not be rewritten; exports are scoped to the displayed page.', 'সংশোধনে আলাদা অনুমোদিত রোস্টার কাজ ও কারণ লাগে। নিরীক্ষার ইতিহাস বদলানো যাবে না; CSV দৃশ্যমান পৃষ্ঠাভিত্তিক।'],
+            recovery: ['If no changes appear, clear filters and confirm the attendance date. To correct a roster, return to Attendance Register with permission.', 'সংশোধন না পেলে ফিল্টার সরিয়ে উপস্থিতির তারিখ দেখুন। নতুন সংশোধনে অনুমতিসহ Attendance Register-এ যান।'],
+            related: [['/Attendance/Register', 'Attendance register', 'উপস্থিতি এন্ট্রি'], ['/Attendance/Reports', 'Finalized reports', 'চূড়ান্ত রিপোর্ট']]
+        },
+        '/institutionmanagement/profile/index': {
+            version: 1, reviewed: true,
+            title: ['Institution Profile', 'প্রতিষ্ঠানের প্রোফাইল'],
+            purpose: ['Maintain the institution name, verified contact and address without changing campus or billing records.', 'ক্যাম্পাস বা বিলিং রেকর্ড না বদলে প্রতিষ্ঠানের নাম, যাচাইকৃত যোগাযোগ ও ঠিকানা পরিচালনা করুন।'],
+            before: ['TenantAdmin for the current institution; review the existing profile before editing.', 'বর্তমান প্রতিষ্ঠানের TenantAdmin; সম্পাদনার আগে প্রোফাইল যাচাই করুন।'],
+            steps: [
+                ['Review the current institution name, phone, country and address.', 'বর্তমান প্রতিষ্ঠানের নাম, ফোন, দেশ ও ঠিকানা দেখুন।'],
+                ['Edit permitted fields; the verified institution email is read-only.', 'অনুমোদিত তথ্য বদলান; যাচাইকৃত ইমেইল শুধু দেখা যাবে।'],
+                ['Select Save profile, then Refresh to confirm the persisted values.', 'Save profile করে Refresh দিয়ে সংরক্ষিত তথ্য যাচাই করুন।']
+            ],
+            example: ['Fictional example: correct the institution phone number and mailing address, save, then reload the profile.', 'কাল্পনিক উদাহরণ: প্রতিষ্ঠানের ফোন ও চিঠি পাঠানোর ঠিকানা ঠিক করে সংরক্ষণ ও রিফ্রেশ করুন।'],
+            result: ['Authorized profile changes persist independently; the verified email cannot be changed here.', 'অনুমোদিত প্রোফাইল পরিবর্তন আলাদাভাবে সংরক্ষিত হয়; এখানে যাচাইকৃত ইমেইল বদলানো যায় না।'],
+            rules: ['Email changes require a separate verified workflow. Regional settings, branding, portal subdomain and campuses are distinct pages.', 'ইমেইল পরিবর্তনে আলাদা যাচাই লাগে। আঞ্চলিক সেটিংস, ব্র্যান্ডিং, সাবডোমেইন ও ক্যাম্পাস আলাদা পেজ।'],
+            recovery: ['On a version conflict Refresh the current profile before editing again. A failed save must not be assumed successful.', 'সংস্করণ সংঘাতে আবার সম্পাদনার আগে বর্তমান প্রোফাইল রিফ্রেশ করুন। Save ব্যর্থ হলে সফল ধরে নেবেন না।'],
+            related: [['/InstitutionManagement/Campuses', 'Campus management', 'ক্যাম্পাস পরিচালনা'], ['/InstitutionManagement/History', 'Change history', 'পরিবর্তনের ইতিহাস']]
+        },
+        '/institutionmanagement/campuses/index': {
+            version: 1, reviewed: true,
+            title: ['Campus Directory & Management', 'ক্যাম্পাস তালিকা ও পরিচালনা'],
+            purpose: ['Review authorized campuses, create or edit campus details and maintain a valid head-office designation.', 'অনুমোদিত ক্যাম্পাস দেখুন, ক্যাম্পাসের তথ্য তৈরি/সম্পাদনা করুন ও প্রধান ক্যাম্পাস নির্ধারণ করুন।'],
+            before: ['TenantAdmin for the current institution; unique campus code and required campus details.', 'বর্তমান প্রতিষ্ঠানের TenantAdmin; স্বতন্ত্র ক্যাম্পাস কোড ও প্রয়োজনীয় তথ্য লাগবে।'],
+            steps: [
+                ['Review the Campus directory and select Add campus to open the editor.', 'Campus directory দেখে Add campus দিয়ে এডিটর খুলুন।'],
+                ['Enter campus name, code, contact and address; choose head-office/online options as appropriate.', 'ক্যাম্পাসের নাম, কোড, যোগাযোগ ও ঠিকানা দিয়ে প্রয়োজনমতো প্রধান/অনলাইন অবস্থা বাছুন।'],
+                ['Select Save campus and verify the updated directory record.', 'Save campus করে তালিকায় পরিবর্তিত রেকর্ড যাচাই করুন।'],
+                ['When editing or archiving an existing campus, review current dependencies and refresh the directory.', 'আগের ক্যাম্পাস সম্পাদনা বা আর্কাইভের সময় সংযুক্ত নির্ভরতা দেখে তালিকা রিফ্রেশ করুন।']
+            ],
+            example: ['Fictional example: add a second training campus with a unique code, phone and address; confirm it appears in the directory.', 'কাল্পনিক উদাহরণ: স্বতন্ত্র কোড, ফোন ও ঠিকানাসহ দ্বিতীয় প্রশিক্ষণ ক্যাম্পাস যোগ করে তালিকায় যাচাই করুন।'],
+            result: ['The authorized campus directory reflects saved changes; there can be only one head-office designation.', 'অনুমোদিত ক্যাম্পাস তালিকায় পরিবর্তন দেখা যায়; একটিমাত্র প্রধান ক্যাম্পাস থাকতে পারে।'],
+            rules: ['Archiving is blocked when a campus has linked users, academic history or active dependencies. Changes must not silently remove campus records used in transactions.', 'ক্যাম্পাসে ব্যবহারকারী, শিক্ষাবর্ষের ইতিহাস বা সক্রিয় নির্ভরতা থাকলে আর্কাইভ বন্ধ থাকে। পূর্বের লেনদেনের ক্যাম্পাস মুছে ফেলা যাবে না।'],
+            recovery: ['For duplicate code or archive dependency errors, check the displayed campus and current records; Cancel discards editor changes.', 'একই কোড বা আর্কাইভে বাধা এলে বর্তমান ক্যাম্পাস ও সংযুক্ত রেকর্ড দেখুন; Cancel এডিটরের পরিবর্তন বাতিল করে।'],
+            related: [['/InstitutionManagement/Profile', 'Institution profile', 'প্রতিষ্ঠানের প্রোফাইল'], ['/AcademicManagement/Years', 'Academic years', 'শিক্ষাবর্ষ']]
+        },
+        '/institutionmanagement/regional/index': {
+            version: 1, reviewed: true,
+            title: ['Institution Regional Settings', 'প্রতিষ্ঠানের আঞ্চলিক সেটিংস'],
+            purpose: ['Set currency, time zone, date format and default institution language.', 'প্রতিষ্ঠানের মুদ্রা, সময় অঞ্চল, তারিখের ধরন ও ডিফল্ট ভাষা নির্ধারণ করুন।'],
+            before: ['TenantAdmin for the current institution; confirm the institution policy for currency and time zone.', 'বর্তমান প্রতিষ্ঠানের TenantAdmin; মুদ্রা ও সময় অঞ্চল সম্পর্কে প্রতিষ্ঠানের নীতি নিশ্চিত করুন।'],
+            steps: [
+                ['Check the three-letter Currency code and Time zone identifier.', 'তিন অক্ষরের Currency code ও Time zone শনাক্তকারী দেখুন।'],
+                ['Choose Date format and Default language for the institution.', 'প্রতিষ্ঠানের Date format ও Default language বেছে নিন।'],
+                ['Select Save regional settings, then Refresh to verify persisted values.', 'Save regional settings করে Refresh দিয়ে সংরক্ষিত মান দেখুন।']
+            ],
+            example: ['Fictional example: set BDT, Asia/Dhaka, DD-MM-YYYY and Bangla for the institution default.', 'কাল্পনিক উদাহরণ: প্রতিষ্ঠানের জন্য BDT, Asia/Dhaka, DD-MM-YYYY ও বাংলা ডিফল্ট করুন।'],
+            result: ['The server saves the selected regional preferences; they do not rewrite historical Finance or attendance records.', 'সার্ভার আঞ্চলিক পছন্দ সংরক্ষণ করে; পুরোনো হিসাব বা উপস্থিতির রেকর্ড বদলায় না।'],
+            rules: ['The personal user language selector remains independent of the institution default. Financial currency is not converted by changing its display code.', 'ব্যবহারকারীর ভাষা নির্বাচন প্রতিষ্ঠানের ডিফল্ট থেকে আলাদা। মুদ্রার কোড বদলালেই আগের টাকার রূপান্তর হয় না।'],
+            recovery: ['If a code or time zone is rejected, use a valid identifier and Refresh before retrying.', 'কোড বা সময় অঞ্চল প্রত্যাখ্যাত হলে সঠিক শনাক্তকারী দিন, রিফ্রেশ করে আবার চেষ্টা করুন।'],
+            related: [['/InstitutionManagement/Profile', 'Institution profile', 'প্রতিষ্ঠানের প্রোফাইল'], ['/InstitutionManagement/History', 'Change history', 'পরিবর্তনের ইতিহাস']]
+        },
+        '/institutionmanagement/branding/index': {
+            version: 1, reviewed: true,
+            title: ['Institution Branding', 'প্রতিষ্ঠানের ব্র্যান্ডিং'],
+            purpose: ['Upload or remove the institution logo and favicon used in supported branded surfaces.', 'প্রতিষ্ঠানের লোগো ও ফেভিকন সমর্থিত ব্র্যান্ডিং স্থানে ব্যবহার করতে আপলোড বা সরান।'],
+            before: ['TenantAdmin, a supported PNG/JPEG logo or PNG/JPEG favicon (WebP allowed for logo), each at most 5 MB.', 'TenantAdmin; সর্বোচ্চ ৫ এমবি PNG/JPEG লোগো বা ফেভিকন (লোগোতে WebP-ও সমর্থিত)।'],
+            steps: [
+                ['Inspect the currently displayed Logo and Favicon previews.', 'বর্তমান Logo ও Favicon প্রিভিউ দেখুন।'],
+                ['Choose a supported file in the relevant field and select Upload logo or Upload favicon.', 'সংশ্লিষ্ট ফাইলে সমর্থিত ছবি দিয়ে Upload logo অথবা Upload favicon চাপুন।'],
+                ['Refresh to verify the saved preview; if authorized, use Remove logo/favicon to delete an old asset.', 'রিফ্রেশ করে সংরক্ষিত প্রিভিউ যাচাই করুন; প্রয়োজন হলে Remove logo/favicon দিয়ে পুরোনো ছবি সরান।']
+            ],
+            example: ['Fictional example: upload a 120 KB PNG institution logo and confirm it appears in the preview.', 'কাল্পনিক উদাহরণ: ১২০ KB PNG লোগো আপলোড করে প্রিভিউতে দেখা যাচ্ছে কিনা নিশ্চিত করুন।'],
+            result: ['Uploaded image assets change independently of the institution name and personal Workspace theme colors.', 'ছবি আলাদাভাবে বদলায়; প্রতিষ্ঠানের নাম বা ব্যক্তিগত Workspace রং পরিবর্তিত হয় না।'],
+            rules: ['Use only allowed image types and sizes. Institute branding is distinct from the seven personal Appearance Studio semantic colors.', 'অনুমোদিত ছবি ও আকার ব্যবহার করুন। প্রতিষ্ঠানের ব্র্যান্ডিং ও ব্যক্তিগত Appearance Studio-র সাতটি রং আলাদা।'],
+            recovery: ['On an unsupported file or upload conflict choose an allowed image, Refresh the current profile and retry once.', 'ছবির ধরন ভুল বা আপলোড সংঘাতে সমর্থিত ছবি বেছে প্রোফাইল রিফ্রেশ করে পুনরায় চেষ্টা করুন।'],
+            related: [['/InstitutionManagement/Profile', 'Institution profile', 'প্রতিষ্ঠানের প্রোফাইল'], ['/InstitutionManagement/History', 'Change history', 'পরিবর্তনের ইতিহাস']]
+        },
+        '/institutionmanagement/subdomain/index': {
+            version: 1, reviewed: true,
+            title: ['Portal Subdomain', 'পোর্টালের সাবডোমেইন'],
+            purpose: ['Check and save the institution portal subdomain prefix.', 'প্রতিষ্ঠানের পোর্টাল সাবডোমেইন প্রিফিক্স যাচাই করে সংরক্ষণ করুন।'],
+            before: ['TenantAdmin and an approved subdomain name with lowercase letters, digits or internal hyphens.', 'TenantAdmin এবং ছোট হাতের অক্ষর, সংখ্যা বা মাঝখানে হাইফেনযুক্ত গ্রহণযোগ্য সাবডোমেইন নাম লাগবে।'],
+            steps: [
+                ['Inspect the current Subdomain prefix.', 'বর্তমান Subdomain prefix দেখুন।'],
+                ['Enter an allowed prefix and choose Check & save subdomain.', 'গ্রহণযোগ্য প্রিফিক্স দিয়ে Check & save subdomain চাপুন।'],
+                ['Refresh and verify the saved value before sharing the portal URL.', 'রিফ্রেশ করে সংরক্ষিত মান যাচাই করুন, তারপর পোর্টালের লিংক শেয়ার করুন।']
+            ],
+            example: ['Fictional example: change an available training portal prefix from campus-old to campus-central after confirming its use.', 'কাল্পনিক উদাহরণ: প্রয়োজন নিশ্চিত করে উপলব্ধ campus-old প্রিফিক্স বদলে campus-central করুন।'],
+            result: ['The authorized portal prefix is updated only after server validation.', 'সার্ভার যাচাই সফল হলেই পোর্টালের প্রিফিক্স বদলায়।'],
+            rules: ['Changing a subdomain can break bookmarks and external integrations. Check ownership and communications before a live rename.', 'সাবডোমেইন পরিবর্তনে বুকমার্ক ও বাইরের ইন্টিগ্রেশন ভাঙতে পারে। চলমান পোর্টাল বদলানোর আগে সংশ্লিষ্টদের জানান।'],
+            recovery: ['If unavailable or invalid, choose another prefix and Refresh; do not assume the old portal address automatically redirects.', 'নাম পাওয়া না গেলে অন্য প্রিফিক্স বেছে রিফ্রেশ করুন; পুরোনো লিংক স্বয়ংক্রিয়ভাবে কাজ করবে ধরে নেবেন না।'],
+            related: [['/InstitutionManagement/Profile', 'Institution profile', 'প্রতিষ্ঠানের প্রোফাইল'], ['/InstitutionManagement/History', 'Change history', 'পরিবর্তনের ইতিহাস']]
+        },
+        '/institutionmanagement/history/index': {
+            version: 1, reviewed: true,
+            title: ['Institution Change History', 'প্রতিষ্ঠানের পরিবর্তনের ইতিহাস'],
+            purpose: ['Review bounded audit entries for profile, regional, branding and subdomain changes.', 'প্রোফাইল, আঞ্চলিক, ব্র্যান্ডিং ও সাবডোমেইন পরিবর্তনের সীমিত নিরীক্ষার রেকর্ড দেখুন।'],
+            before: ['TenantAdmin for the current institution; changes may not exist for a newly created profile.', 'বর্তমান প্রতিষ্ঠানের TenantAdmin; নতুন প্রতিষ্ঠানে পরিবর্তনের ইতিহাস নাও থাকতে পারে।'],
+            steps: [
+                ['Open the Institution change history register.', 'Institution change history তালিকা খুলুন।'],
+                ['Choose Refresh history to load current records.', 'Refresh history দিয়ে নতুন রেকর্ড আনুন।'],
+                ['Use Previous and Next to inspect time, action, changed fields and actor.', 'Previous ও Next দিয়ে সময়, কাজ, পরিবর্তিত ক্ষেত্র ও পরিবর্তনকারী দেখুন।']
+            ],
+            example: ['Fictional example: verify the latest phone correction and the responsible editor without exposing old private values.', 'কাল্পনিক উদাহরণ: পুরোনো ব্যক্তিগত মান প্রকাশ না করে শেষ ফোন সংশোধন ও পরিবর্তনকারী যাচাই করুন।'],
+            result: ['Authorized audit metadata appears without stored private before/after values.', 'ব্যক্তিগত আগের/পরের মান ছাড়া অনুমোদিত নিরীক্ষা তথ্য দেখা যায়।'],
+            rules: ['History is read-only; this view does not reverse or approve configuration edits.', 'ইতিহাস শুধু পড়ার জন্য; এখানে পরিবর্তন রিভার্স বা অনুমোদন করা যায় না।'],
+            recovery: ['If no rows appear, Refresh and confirm the institution; do not seek another institute’s audit records.', 'রেকর্ড না এলে রিফ্রেশ ও প্রতিষ্ঠান যাচাই করুন; অন্য প্রতিষ্ঠানের ইতিহাস খোঁজবেন না।'],
+            related: [['/InstitutionManagement/Profile', 'Institution profile', 'প্রতিষ্ঠানের প্রোফাইল'], ['/InstitutionManagement/Branding', 'Branding', 'ব্র্যান্ডিং']]
+        }
+    };
     const manuals = {
         ...academicManuals,
         ...examManuals,
+        ...taskWorkspaceManuals,
         "/studentlifecycle/index": {
             version: 1, reviewed: true,
             title: ["Student Exit and Transfer Certificate", "শিক্ষার্থী প্রস্থান ও স্থানান্তর সনদ"],

@@ -107,11 +107,15 @@ test('active page selection matches full segments and prefers exact child or has
 });
 
 test('restricted links remain gated in Razor rather than client-side role filtering', () => {
-    assert.match(layout, /@if \(User\?\.IsInRole\("TenantAdmin"\) == true\)\s*\{\s*<a class="nav-link @ActiveFor\("\/InstitutionManagement"\)/);
+    assert.match(layout, /@if \(User\?\.IsInRole\("TenantAdmin"\) == true\)\s*\{\s*@foreach \(var institutionTask in new\[\] \{/);
+    assert.match(layout, /\(Path: "\/InstitutionManagement\/Profile"/);
+    assert.match(layout, /\(Path: "\/InstitutionManagement\/Campuses"/);
     assert.match(layout, /@foreach \(var academicLink in new\[\] \{/);
     assert.doesNotMatch(layout, /href="\/Account\/(InstitutionProfile|CampusSetup|AcademicSetup|ModuleSetup)"/);
     assert.doesNotMatch(layout, /href="\/StudentPortal\/Index#learnerConsents"/);
-    assert.match(layout, /@if \(User\?\.IsInRole\("TenantAdmin"\) == true \|\| User\?\.IsInRole\("AdmissionOfficer"\) == true\)\s*\{\s*<a class="nav-link @ActiveFor\("\/Admissions"\)/);
+    assert.match(layout, /@if \(User\?\.IsInRole\("TenantAdmin"\) == true \|\| User\?\.IsInRole\("AdmissionOfficer"\) == true\)\s*\{\s*@if \(User\?\.IsInRole\("TenantAdmin"\) == true\)/);
+    assert.match(layout, /\(Path: "\/Admissions\/NewApplication"/);
+    assert.match(layout, /href="\/Admissions\/Forms"/);
     assert.match(layout, /@if \(User\?\.IsInRole\("TenantAdmin"\) == true \|\| User\?\.IsInRole\("Principal"\) == true \|\|\s*User\?\.IsInRole\("VicePrincipal"\) == true \|\| User\?\.IsInRole\("Teacher"\) == true\)\s*\{\s*<a class="nav-link @ActiveFor\("\/AcademicRoutines"\)/);
     assert.match(script, /sidebar\.scrollTop = state\.scroll/);
     assert.match(script, /selected\?\.closest\('\.sidebar-group'\)/);

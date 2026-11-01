@@ -2,23 +2,25 @@
     'use strict';
 
     const i18n = JSON.parse(document.getElementById('admissionStrings')?.textContent || '{}');
+    const bangla = document.documentElement.lang?.toLowerCase().startsWith('bn') === true;
     const state = { page: 1, pageSize: 20, totalPages: 1, options: null, intakeForms: [], currentApplication: null, pendingRequestId: createRequestId(), pendingFingerprint: null, submitting: false };
     // Canonical AdmissionApplicantState (FinalDomainEnums), not the retired 1-7 UI status map.
     const statuses = {
-        1: 'Draft / খসড়া',
+        1: bangla ? 'খসড়া' : 'Draft',
         2: i18n.submitted,
         3: i18n.underReview,
-        4: 'Documents pending / কাগজপত্র যাচাই বাকি',
-        5: 'Assessment pending / পরীক্ষা বাকি',
-        6: 'Qualified / যোগ্য',
+        4: bangla ? 'কাগজপত্র যাচাই বাকি' : 'Documents pending',
+        5: bangla ? 'পরীক্ষা বাকি' : 'Assessment pending',
+        6: bangla ? 'যোগ্য' : 'Qualified',
         7: i18n.rejected,
         8: i18n.admitted,
-        9: 'Withdrawn / প্রত্যাহার'
+        9: bangla ? 'প্রত্যাহার' : 'Withdrawn'
     };
 
     document.addEventListener('DOMContentLoaded', async () => {
         const form = document.getElementById('admissionForm');
         if (!form) return;
+        const feature = document.querySelector('section[data-admission-feature]')?.dataset.admissionFeature || 'all';
         form.addEventListener('submit', submitApplication);
         document.getElementById('admissionFilters')?.addEventListener('submit', applyFilters);
         document.getElementById('academicYearId')?.addEventListener('change', refreshTerms);
@@ -40,8 +42,8 @@
         document.getElementById('previousPage')?.addEventListener('click', () => changePage(-1));
         document.getElementById('nextPage')?.addEventListener('click', () => changePage(1));
         await loadOptions();
-        await loadIntakeForms();
-        await loadApplications();
+        if (feature === 'all' || feature === 'forms') await loadIntakeForms();
+        if (feature === 'all' || feature === 'applications') await loadApplications();
     }, { once: true });
 
     async function loadOptions() {

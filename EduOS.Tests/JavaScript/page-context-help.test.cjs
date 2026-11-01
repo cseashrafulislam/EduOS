@@ -15,10 +15,13 @@ const routes = ['/FeeReceivablesAging/Index', '/PayrollJournalPosting/Index', '/
     ...['Structures','Billing','Ledger'].map(action => '/FeeOperations/' + action), '/HR/Directory', '/HR/Leaves',
     ...['Policies','StudentAdjustments','FineRegister','Refunds'].map(action => '/FinanceAdjustments/' + action),
     ...['Marks','Results','Publications','Setup','MarkReviews','Attempts','ResultRescrutiny',
-        'ResultFollowUp','GradeDistribution','AdmitCards'].map(action => '/AssessmentAdministration/' + action)];
+        'ResultFollowUp','GradeDistribution','AdmitCards'].map(action => '/AssessmentAdministration/' + action),
+    ...['Forms','NewApplication','Applications','Assessments','AssessmentSetup','Merit','Offers'].map(action => '/Admissions/' + action),
+    ...['Register','Reports','Corrections'].map(action => '/Attendance/' + action),
+    ...['Profile','Campuses','Regional','Branding','Subdomain','History'].map(action => '/InstitutionManagement/' + action)];
 
 test('all reviewed route manuals have full bilingual structure, matching steps and examples', () => {
-    assert.deepEqual(coverage(), { routes: 43, en: 43, bn: 43 });
+    assert.deepEqual(coverage(), { routes: 59, en: 59, bn: 59 });
     for (const route of routes) {
         const en = guideFor(route, 'en-BD');
         const bn = guideFor(route, 'bn-BD');

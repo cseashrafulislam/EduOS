@@ -10,7 +10,9 @@ const script = read('EduOS.App/wwwroot/js/admissions/index.js');
 
 test('staff intake uses persisted contact address and configurable custom fields', () => {
     assert.doesNotMatch(view, /id="permanentAddress"|id="sameAddress"|id="previousInstitution"/);
-    assert.match(view, /institution-configured intake custom fields/);
+    assert.match(view, /id="admissionCustomFields"/);
+    // The long field-level explanatory paragraph moved into on-demand Page Information.
+    assert.doesNotMatch(view, /institution-configured intake custom fields/);
     assert.match(script, /presentAddress: valueOf\('presentAddress'\) \|\| null/);
     assert.match(script, /permanentAddress: null/);
     assert.match(script, /previousInstitution: null/);

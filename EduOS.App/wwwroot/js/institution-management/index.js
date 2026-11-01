@@ -305,6 +305,9 @@
         el('institutionCampusTab').classList.toggle('active', campuses);
     }
 
+    // Focused URLs select an initial workspace; the old Index keeps its tabs.
+    showTab(document.getElementById('institutionManagementApp')?.dataset.institutionFeature === 'campuses');
+
     el('institutionProfileTab').addEventListener('click', () => showTab(false));
     el('institutionCampusTab').addEventListener('click', () => showTab(true));
     el('newCampus').addEventListener('click', () => editCampus());

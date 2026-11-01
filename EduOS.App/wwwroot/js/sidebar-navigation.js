@@ -14,7 +14,7 @@
         setup: [
             ['access', 'Users & Access', 'ব্যবহারকারী ও অনুমতি', ['/TenantUsers', '/TenantPermissionOverrides']],
             ['institution', 'Institution & Settings', 'প্রতিষ্ঠান ও সেটিংস', ['/InstitutionManagement', '/TenantDomains', '/TenantTerminology', '/TenantSettings', '/NumberSeries', '/TenantModules', '/SubscriptionBilling', '/IntegrationAdministration']],
-            ['enrollment', 'Student Administration', 'শিক্ষার্থী ব্যবস্থাপনা', ['/StudentLifecycle', '/StudentDocuments', '/StudentGuardians', '/StudentTransferRequests', '/EnrollmentManagement']],
+            ['enrollment', 'Student Administration', 'শিক্ষার্থী ব্যবস্থাপনা', ['/StudentLifecycle', '/StudentDocuments', '/StudentGuardians', '/StudentTransferRequests', '/EnrollmentManagement', '/StudentImports', '/StudentReadmissions', '/StudentProgressions']],
             ['academic-setup', 'Academic Management', 'একাডেমিক ব্যবস্থাপনা', ['/AcademicManagement']]
         ],
         academics: [
@@ -43,8 +43,18 @@
             ['operations', 'Operations', 'কার্যক্রম', ['/AcademicManagement/Offerings']]
         ],
         'setup:institution': [
-            ['settings', 'Settings', 'সেটিংস', ['/InstitutionManagement', '/TenantDomains', '/TenantTerminology', '/TenantSettings', '/NumberSeries', '/TenantModules']],
-            ['operations', 'Operations', 'কার্যক্রম', ['/SubscriptionBilling', '/IntegrationAdministration']]
+            ['settings', 'Settings', 'সেটিংস', ['/InstitutionManagement/Profile', '/InstitutionManagement/Regional', '/InstitutionManagement/Branding', '/InstitutionManagement/Subdomain', '/InstitutionManagement/Index', '/TenantDomains', '/TenantTerminology', '/TenantSettings', '/NumberSeries', '/TenantModules']],
+            ['operations', 'Operations', 'কার্যক্রম', ['/InstitutionManagement/Campuses', '/SubscriptionBilling', '/IntegrationAdministration']],
+            ['reports', 'Reports', 'রিপোর্ট', ['/InstitutionManagement/History']]
+        ],
+        'setup:enrollment': [
+            ['settings', 'Settings', 'সেটিংস', ['/StudentGuardians', '/StudentDocuments']],
+            ['operations', 'Operations', 'কার্যক্রম', ['/EnrollmentManagement', '/StudentImports', '/StudentReadmissions', '/StudentProgressions', '/StudentLifecycle', '/StudentTransferRequests']]
+        ],
+        'academics:learners': [
+            ['settings', 'Settings', 'সেটিংস', ['/Admissions/Forms', '/Admissions/AssessmentSetup']],
+            ['operations', 'Operations', 'কার্যক্রম', ['/Admissions/NewApplication', '/Admissions/Applications', '/Admissions/Merit', '/Admissions/Assessments', '/Admissions/Offers', '/Admissions/Index', '/Students', '/LearnerIdentities/Index']],
+            ['reports', 'Reports', 'রিপোর্ট', ['/LearnerIdentities/AccessHistory']]
         ],
         'management:finance': [
             ['settings', 'Settings', 'সেটিংস', ['/FeeOperations/Structures', '/FeeDiscountRules', '/FeeHeadAccounting', '/AccountingSetup', '/FinanceAdjustments/Policies']],
@@ -58,7 +68,8 @@
         ],
         'academics:operations': [
             ['settings', 'Settings', 'সেটিংস', ['/AcademicCalendar']],
-            ['operations', 'Operations', 'কার্যক্রম', ['/AcademicRoutines', '/AcademicInstruction', '/StudentLeaves', '/Attendance']]
+            ['operations', 'Operations', 'কার্যক্রম', ['/AcademicRoutines', '/AcademicInstruction', '/StudentLeaves', '/Attendance/Register', '/Attendance/Index']],
+            ['reports', 'Reports', 'রিপোর্ট', ['/Attendance/Reports', '/Attendance/Corrections']]
         ],
         'management:people': [
             ['settings', 'Settings', 'সেটিংস', ['/HR/ShiftAssignments', '/HR/CampusAssignments', '/HR/BankAccounts', '/HR', '/HrEmployeeRecords', '/LeaveEntitlements', '/EmployeeContracts', '/Recruitment', '/PayrollSalaryStructures', '/PayrollSalaryComponents']],
@@ -94,6 +105,12 @@
         '/tenantusers/index': 'ব্যবহারকারী ও ভূমিকা',
         '/tenantpermissionoverrides/index': 'সদস্যের বিশেষ অনুমতি',
         '/institutionmanagement/index': 'প্রতিষ্ঠান ও ক্যাম্পাস',
+        '/institutionmanagement/profile': 'প্রতিষ্ঠানের প্রোফাইল',
+        '/institutionmanagement/campuses': 'ক্যাম্পাস পরিচালনা',
+        '/institutionmanagement/regional': 'ভাষা ও আঞ্চলিক সেটিংস',
+        '/institutionmanagement/branding': 'প্রতিষ্ঠানের ব্র্যান্ডিং',
+        '/institutionmanagement/subdomain': 'পোর্টাল সাবডোমেইন',
+        '/institutionmanagement/history': 'পরিবর্তনের ইতিহাস',
         '/tenantdomains/index': 'নিজস্ব ডোমেইন',
         '/tenantterminology/index': 'প্রতিষ্ঠানের পরিভাষা',
         '/tenantsettings/index': 'প্রতিষ্ঠানের সেটিংস',
@@ -105,9 +122,19 @@
         '/studentguardians/index': 'শিক্ষার্থীর অভিভাবক',
         '/studenttransferrequests/index': 'স্থানান্তর আবেদন ও ইনবক্স',
         '/enrollmentmanagement/index': 'শিক্ষার্থী ভর্তি',
+        '/studentimports/index': 'শিক্ষার্থী আমদানি',
+        '/studentreadmissions/index': 'শিক্ষার্থী পুনঃভর্তি',
+        '/studentprogressions/index': 'উত্তরণ ও শ্রেণি পুনরাবৃত্তি',
         '/studentportal/index': 'শিক্ষার্থী ও অভিভাবক পোর্টাল',
         '/studentsubjects/index': 'ঐচ্ছিক বিষয়ের আবেদন',
         '/admissions/index': 'ভর্তির আবেদন',
+        '/admissions/forms': 'ভর্তি ফরম সেটআপ',
+        '/admissions/newapplication': 'নতুন ভর্তি আবেদন',
+        '/admissions/applications': 'আবেদন যাচাই',
+        '/admissions/assessments': 'ভর্তি পরীক্ষা ও মেধা',
+        '/admissions/assessmentsetup': 'ভর্তি পরীক্ষা সেটআপ',
+        '/admissions/merit': 'নম্বর ও মেধাতালিকা',
+        '/admissions/offers': 'ভর্তির অফার',
         '/students/index': 'শিক্ষার্থী তালিকা',
         '/alumni/index': 'প্রাক্তন শিক্ষার্থী',
         '/learneridentities/index': 'শিক্ষার্থী পরিচয়',
@@ -137,6 +164,9 @@
         '/academiccalendar/index': 'একাডেমিক ক্যালেন্ডার',
         '/studentleaves/index': 'শিক্ষার্থীর ছুটি',
         '/attendance/index': 'উপস্থিতি',
+        '/attendance/register': 'উপস্থিতি এন্ট্রি',
+        '/attendance/reports': 'উপস্থিতির রিপোর্ট',
+        '/attendance/corrections': 'উপস্থিতি সংশোধনের নিরীক্ষা',
         '/hr/index': 'এইচআর প্রশাসন',
         '/hr/directory': 'কর্মী তালিকা',
         '/hr/leaves': 'কর্মীর ছুটির আবেদন',

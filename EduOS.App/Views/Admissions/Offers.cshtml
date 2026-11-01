@@ -1,14 +1,13 @@
 @{
-    ViewData["Title"] = "Admission offers & enrollment";
+    var bn = CultureInfo.CurrentUICulture.Name == "bn-BD";
+    ViewData["Title"] = bn ? "ভর্তির অফার ও গ্রহণ" : "Admission Offers & Enrollment";
 }
 <section class="content-card" aria-labelledby="admissionOfferTitle">
     <header class="content-header-card mb-3">
         <div>
-            <p class="dashboard-eyebrow">Admissions / ভর্তি</p>
-            <h2 id="admissionOfferTitle">Offer, Verified Acceptance &amp; Enrollment</h2>
-            <p class="text-muted">Tenant administrators only. Signed evidence must be verified before accepting an offer.</p>
+            <p class="dashboard-eyebrow">@(bn ? "ভর্তি" : "Admissions")</p>
+            <h2 id="admissionOfferTitle">@ViewData["Title"]</h2>
         </div>
-        <a class="btn btn-outline-secondary" asp-controller="Admissions" asp-action="Index">Applications / আবেদন</a>
     </header>
     @Html.AntiForgeryToken()
     <div id="offerNotice" class="alert alert-info" role="status" aria-live="polite">Search for an applicant or enter an exact reference.</div>

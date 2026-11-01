@@ -1,17 +1,21 @@
 @{
-    ViewData["Title"] = "Admission assessments";
+    var feature = ViewData["AdmissionAssessmentFeature"]?.ToString() ?? "all";
+    var bn = CultureInfo.CurrentUICulture.Name == "bn-BD";
+    ViewData["Title"] = feature switch
+    {
+        "setup" => bn ? "ভর্তি পরীক্ষা সেটআপ" : "Admission Assessment Setup",
+        "merit" => bn ? "নম্বর এন্ট্রি ও মেধাতালিকা" : "Admission Marks & Merit",
+        _ => bn ? "ভর্তি পরীক্ষা ও মেধাতালিকা" : "Admission Assessment & Merit"
+    };
 }
 <section class="admission-page" aria-labelledby="assessmentTitle">
     <header class="content-header-card">
-        <div><p class="dashboard-eyebrow">Admissions / ভর্তি</p><h2 id="assessmentTitle">Assessment &amp; Merit / ভর্তি পরীক্ষা ও মেধাতালিকা</h2>
-        <p>Manage intake assessments, record marks and publish results.</p></div>
-        <a class="btn btn-outline-secondary" asp-controller="Admissions" asp-action="Index">Applications</a>
-        <a class="btn btn-outline-primary" asp-controller="Admissions" asp-action="Offers">Offers &amp; enrollment</a>
+        <div><p class="dashboard-eyebrow">@(bn ? "ভর্তি" : "Admissions")</p><h2 id="assessmentTitle">@ViewData["Title"]</h2></div>
     </header>
     @Html.AntiForgeryToken()
     <div id="assessmentAlert" class="d-none" role="alert" tabindex="-1"></div>
-    <section class="content-card mb-3" aria-labelledby="createAssessmentTitle">
-        <div class="content-card-heading"><h3 id="createAssessmentTitle">Create assessment</h3></div>
+    <section class="content-card mb-3 @(feature == "all" || feature == "setup" ? "" : "d-none")" aria-labelledby="createAssessmentTitle">
+        <div class="content-card-heading"><h3 id="createAssessmentTitle">@(bn ? "ভর্তি পরীক্ষা তৈরি" : "Create assessment")</h3></div>
         <form id="assessmentCreateForm" class="row g-3">
             <div class="col-md-6"><label for="assessmentForm" class="form-label">Admission intake *</label><select id="assessmentForm" class="form-select" required></select></div>
             <div class="col-md-6"><label for="assessmentName" class="form-label">Assessment name *</label><input id="assessmentName" class="form-control" maxlength="150" required /></div>
@@ -23,8 +27,8 @@
             <div class="col-12"><button id="assessmentCreateButton" class="btn btn-primary" type="submit">Create assessment</button></div>
         </form>
     </section>
-    <section class="content-card mb-3" aria-labelledby="marksTitle">
-        <div class="content-card-heading"><h3 id="marksTitle">Applicant marks</h3></div>
+    <section class="content-card mb-3 @(feature == "all" || feature == "merit" ? "" : "d-none")" aria-labelledby="marksTitle">
+        <div class="content-card-heading"><h3 id="marksTitle">@(bn ? "আবেদনকারীর নম্বর" : "Applicant marks")</h3></div>
         <div class="row g-2 mb-3">
             <div class="col-md-6"><label for="assessmentSelect" class="form-label">Assessment</label><select id="assessmentSelect" class="form-select"></select></div>
             <div class="col-md-4"><label for="assessmentSearch" class="form-label">Search applicant</label><input id="assessmentSearch" class="form-control" maxlength="100" /></div>
@@ -43,8 +47,8 @@
             <button id="assessmentPublish" class="btn btn-danger" type="button">Publish merit</button>
         </div>
     </section>
-    <section class="content-card" aria-labelledby="meritTitle">
-        <div class="content-card-heading"><h3 id="meritTitle">Merit preview / মেধাতালিকা</h3></div>
+    <section class="content-card @(feature == "all" || feature == "merit" ? "" : "d-none")" aria-labelledby="meritTitle">
+        <div class="content-card-heading"><h3 id="meritTitle">@(bn ? "মেধাতালিকার প্রিভিউ" : "Merit preview")</h3></div>
         <div id="assessmentMeritList" aria-live="polite"></div>
     </section>
 </section>

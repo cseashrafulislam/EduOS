@@ -1,26 +1,34 @@
 @{
-    ViewData["Title"] = "Student Attendance";
+    var feature = ViewData["AttendanceFeature"]?.ToString() ?? "all";
+    var showRegister = feature == "all" || feature == "register";
+    var showReports = feature == "all" || feature == "reports";
+    var showCorrections = feature == "all" || feature == "corrections";
+    var bn = CultureInfo.CurrentUICulture.Name == "bn-BD";
+    ViewData["Title"] = feature switch
+    {
+        "reports" => bn ? "উপস্থিতির রিপোর্ট" : "Attendance Reports",
+        "corrections" => bn ? "উপস্থিতি সংশোধনের নিরীক্ষা" : "Attendance Correction Audit",
+        _ => bn ? "শিক্ষার্থীর উপস্থিতি" : "Student Attendance"
+    };
 }
 
 @Html.AntiForgeryToken()
-<section class="admission-page" aria-labelledby="attendanceTitle" data-can-correct="@((User.IsInRole("TenantAdmin") || User.IsInRole("Principal") || User.IsInRole("VicePrincipal")).ToString().ToLowerInvariant())">
-    <header class="content-header-card">
-        <div>
-            <p class="dashboard-eyebrow">Academic Operations</p>
-            <h2 id="attendanceTitle">Student Attendance</h2>
-        </div>
-    </header>
+<header class="content-header-card"><div>
+    <p class="dashboard-eyebrow">@(bn ? "একাডেমিক কার্যক্রম" : "Academic Operations")</p>
+    <h2 id="attendanceTitle">@ViewData["Title"]</h2>
+</div><button id="returnToAttendanceReports" type="button" class="btn btn-outline-primary d-none">@(bn ? "রিপোর্টে ফিরুন" : "Back to reports")</button></header>
+<section class="admission-page @(showRegister ? "" : "d-none")" aria-labelledby="attendanceFilterTitle" data-attendance-feature="@feature" data-can-correct="@((User.IsInRole("TenantAdmin") || User.IsInRole("Principal") || User.IsInRole("VicePrincipal")).ToString().ToLowerInvariant())">
 
     <div id="attendanceAlert" class="d-none" role="alert" tabindex="-1"></div>
 
     <section class="content-card" aria-labelledby="attendanceFilterTitle">
-        <div class="content-card-heading"><h3 id="attendanceFilterTitle">Attendance register</h3></div>
+        <div class="content-card-heading"><h3 id="attendanceFilterTitle">@(bn ? "উপস্থিতি রেজিস্টার" : "Attendance register")</h3></div>
         <form id="attendanceFilters" class="row g-3 align-items-end">
-            <div class="col-md-3"><label class="form-label" for="attendanceDate">Date</label><input id="attendanceDate" class="form-control" type="date" required /></div>
-            <div class="col-md-3"><label class="form-label" for="attendanceBatchSearch">Find academic batch</label>
+            <div class="col-md-3"><label class="form-label" for="attendanceDate">@(bn ? "তারিখ" : "Date")</label><input id="attendanceDate" class="form-control" type="date" required /></div>
+            <div class="col-md-3"><label class="form-label" for="attendanceBatchSearch">@(bn ? "ব্যাচ খুঁজুন" : "Find academic batch")</label>
                 <div class="input-group"><input id="attendanceBatchSearch" class="form-control" maxlength="100" placeholder="Name, code, year or level" />
-                    <button id="attendanceBatchFind" class="btn btn-outline-secondary" type="button">Search</button></div></div>
-            <div class="col-md-4"><label class="form-label" for="sectionId">Academic batch / section</label>
+                    <button id="attendanceBatchFind" class="btn btn-outline-secondary" type="button">@(bn ? "খুঁজুন" : "Search")</button></div></div>
+            <div class="col-md-4"><label class="form-label" for="sectionId">@(bn ? "একাডেমিক ব্যাচ / শাখা" : "Academic batch / section")</label>
                 <select id="sectionId" class="form-select" required disabled><option value="">Loading authorized batches…</option></select>
                 <div class="d-flex justify-content-between align-items-center mt-1">
                     <button id="attendanceBatchPrevious" class="btn btn-sm btn-outline-secondary" type="button" disabled>Previous</button>
@@ -29,10 +37,10 @@
                 </div></div>
 
             <div class="col-md-4">
-                <label class="form-label" for="attendanceSubjectSearch">Subject offering</label>
+                <label class="form-label" for="attendanceSubjectSearch">@(bn ? "বিষয় অফার" : "Subject offering")</label>
                 <div class="input-group">
                     <input id="attendanceSubjectSearch" class="form-control" maxlength="100" placeholder="Subject name or code" />
-                    <button id="attendanceSubjectFind" class="btn btn-outline-secondary" type="button">Search</button>
+                    <button id="attendanceSubjectFind" class="btn btn-outline-secondary" type="button">@(bn ? "খুঁজুন" : "Search")</button>
                 </div>
                 <select id="attendanceSubject" class="form-select mt-2" disabled>
                     <option value="">All subjects (batch register)</option>
@@ -44,12 +52,12 @@
                 </div>
             </div>
             <div class="col-12 d-flex gap-2 flex-wrap">
-                <button class="btn btn-primary" type="submit">Load roster</button>
-                <button id="markAllPresent" class="btn btn-outline-success" type="button" disabled>Mark all present</button>
-                <button id="saveAttendance" class="btn btn-success" type="button" disabled>Save attendance</button>
+                <button class="btn btn-primary" type="submit">@(bn ? "শিক্ষার্থী তালিকা আনুন" : "Load roster")</button>
+                <button id="markAllPresent" class="btn btn-outline-success" type="button" disabled>@(bn ? "সবাই উপস্থিত" : "Mark all present")</button>
+                <button id="saveAttendance" class="btn btn-success" type="button" disabled>@(bn ? "উপস্থিতি সংরক্ষণ" : "Save attendance")</button>
                 @if (User.IsInRole("TenantAdmin") || User.IsInRole("Principal") || User.IsInRole("VicePrincipal"))
                 {
-                    <button id="finalizeAttendance" class="btn btn-outline-danger" type="button" disabled>Finalize register</button>
+                    <button id="finalizeAttendance" class="btn btn-outline-danger" type="button" disabled>@(bn ? "রেজিস্টার চূড়ান্ত করুন" : "Finalize register")</button>
                 }
             </div>
         </form>
@@ -57,7 +65,7 @@
 
     <section class="content-card mt-3" aria-labelledby="attendanceRosterTitle">
         <div class="content-card-heading d-flex justify-content-between align-items-center gap-3 flex-wrap">
-            <h3 id="attendanceRosterTitle">Roster</h3>
+            <h3 id="attendanceRosterTitle">@(bn ? "শিক্ষার্থী তালিকা" : "Roster")</h3>
             <div id="attendanceSummary" class="small text-muted" aria-live="polite"></div>
             @if (User.IsInRole("TenantAdmin") || User.IsInRole("Principal") || User.IsInRole("VicePrincipal"))
             {
@@ -107,20 +115,20 @@
 
 @if (User.IsInRole("TenantAdmin") || User.IsInRole("Principal") || User.IsInRole("VicePrincipal"))
 {
-    <section class="content-card mt-3" aria-labelledby="attendanceReportTitle">
-        <div class="content-card-heading"><h3 id="attendanceReportTitle">Finalized attendance report</h3></div>
+    <section class="content-card mt-3 @(showReports || showCorrections ? "" : "d-none")" aria-labelledby="attendanceReportTitle">
+        <div class="content-card-heading"><h3 id="attendanceReportTitle">@(showCorrections && !showReports ? (bn ? "সংশোধন নিরীক্ষার সময় ও ব্যাচ" : "Audit scope: batch and dates") : (bn ? "চূড়ান্ত উপস্থিতির রিপোর্ট" : "Finalized attendance report"))</h3></div>
         <form id="attendanceReportFilters" class="row g-3 align-items-end">
-            <div class="col-md-4"><label for="attendanceReportBatchSearch" class="form-label">Find historical batch</label>
+            <div class="col-md-4"><label for="attendanceReportBatchSearch" class="form-label">@(bn ? "ঐতিহাসিক ব্যাচ খুঁজুন" : "Find historical batch")</label>
                 <div class="input-group"><input id="attendanceReportBatchSearch" class="form-control" maxlength="100" placeholder="Batch, year or level" />
                     <button id="attendanceReportBatchFind" class="btn btn-outline-secondary" type="button">Search</button></div>
-                <label for="attendanceReportBatch" class="form-label mt-2">Academic batch</label>
+                <label for="attendanceReportBatch" class="form-label mt-2">@(bn ? "একাডেমিক ব্যাচ" : "Academic batch")</label>
                 <select id="attendanceReportBatch" class="form-select" required disabled><option value="">Loading authorized batches…</option></select>
                 <div class="d-flex justify-content-between align-items-center mt-1">
                     <button id="attendanceReportBatchPrevious" class="btn btn-sm btn-outline-secondary" type="button" disabled>Previous</button>
                     <span id="attendanceReportBatchPage" class="small text-muted" aria-live="polite"></span>
                     <button id="attendanceReportBatchNext" class="btn btn-sm btn-outline-secondary" type="button" disabled>Next</button>
                 </div></div>
-            <div class="col-md-4"><label for="attendanceReportSubjectSearch" class="form-label">Subject offering</label>
+            <div class="col-md-4"><label for="attendanceReportSubjectSearch" class="form-label">@(bn ? "বিষয় অফার" : "Subject offering")</label>
                 <div class="input-group">
                     <input id="attendanceReportSubjectSearch" class="form-control" maxlength="100" placeholder="Subject name or code" />
                     <button id="attendanceReportSubjectFind" class="btn btn-outline-secondary" type="button">Search</button>
@@ -134,27 +142,28 @@
                     <button id="attendanceReportSubjectNext" class="btn btn-sm btn-outline-secondary" type="button" disabled>Next</button>
                 </div>
             </div>
-            <div class="col-md-3"><label for="attendanceReportFrom" class="form-label">From</label>
+            <div class="col-md-3"><label for="attendanceReportFrom" class="form-label">@(bn ? "শুরুর তারিখ" : "From")</label>
                 <input id="attendanceReportFrom" class="form-control" type="date" required /></div>
-            <div class="col-md-3"><label for="attendanceReportTo" class="form-label">To</label>
+            <div class="col-md-3"><label for="attendanceReportTo" class="form-label">@(bn ? "শেষের তারিখ" : "To")</label>
                 <input id="attendanceReportTo" class="form-control" type="date" required /></div>
-            <div class="col-md-2"><label for="attendanceReportRisk" class="form-label">Attendance risk</label>
+            <div class="col-md-2 @(showReports ? "" : "d-none")"><label for="attendanceReportRisk" class="form-label">@(bn ? "উপস্থিতির ঝুঁকি" : "Attendance risk")</label>
                 <select id="attendanceReportRisk" class="form-select">
                     <option value="">All percentages</option>
                     <option value="75">Below 75%</option>
                     <option value="90">Below 90%</option>
                     <option value="100">Below 100%</option>
                 </select></div>
-            <div class="col-md-2"><label for="attendanceReportMinSessions" class="form-label">Minimum marks</label>
+            <div class="col-md-2 @(showReports ? "" : "d-none")"><label for="attendanceReportMinSessions" class="form-label">@(bn ? "সর্বনিম্ন চিহ্নিত সেশন" : "Minimum marked sessions")</label>
                 <input id="attendanceReportMinSessions" type="number" class="form-control" min="1" max="1000" value="1" required /></div>
-            <div class="col-md-2"><label for="attendanceReportSort" class="form-label">Order by</label>
+            <div class="col-md-2 @(showReports ? "" : "d-none")"><label for="attendanceReportSort" class="form-label">@(bn ? "ক্রম অনুসারে" : "Order by")</label>
                 <select id="attendanceReportSort" class="form-select">
                     <option value="roll">Roll</option>
                     <option value="lowest">Lowest attendance</option>
                     <option value="absent">Most absences</option>
                 </select></div>
-            <div class="col-md-2"><button type="submit" class="btn btn-primary w-100">Load report</button></div>
+            <div class="col-md-2 @(showReports ? "" : "d-none")"><button type="submit" class="btn btn-primary w-100">@(bn ? "রিপোর্ট দেখুন" : "Load report")</button></div>
         </form>
+        <div class="@(showReports ? "" : "d-none")">
         <p id="attendanceReportStatus" class="small text-muted mt-3" role="status" aria-live="polite">Select filters to load the report.</p>
         <div id="attendanceRiskSummary" class="small fw-semibold mb-2" role="status" aria-live="polite"></div>
         <div class="d-flex gap-2 mb-2">
@@ -173,7 +182,7 @@
         </div>
         <section class="mt-3 pt-3 border-top" aria-labelledby="attendanceCoverageTitle">
             <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
-                <h4 id="attendanceCoverageTitle" class="h6 mb-0">Subject attendance coverage</h4>
+                <h4 id="attendanceCoverageTitle" class="h6 mb-0">@(bn ? "বিষয়ভিত্তিক উপস্থিতির আওতা" : "Subject attendance coverage")</h4>
                 <button id="attendanceCoverageCsv" type="button" class="btn btn-sm btn-outline-secondary" disabled>Export visible page CSV</button>
             </div>
             <div class="row g-2 align-items-end mb-2">
@@ -208,7 +217,7 @@
         </section>
         <section class="mt-3 pt-3 border-top" aria-labelledby="attendanceSessionsTitle">
             <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
-                <h4 id="attendanceSessionsTitle" class="h6 mb-0">Attendance session register</h4>
+                <h4 id="attendanceSessionsTitle" class="h6 mb-0">@(bn ? "উপস্থিতি সেশন রেজিস্টার" : "Attendance session register")</h4>
                 <button id="attendanceSessionsCsv" type="button" class="btn btn-sm btn-outline-secondary" disabled>Export authorized page CSV</button>
                 <button id="attendanceSessionsPrint" type="button" class="btn btn-sm btn-outline-secondary" disabled>Print authorized page</button>
             </div>
@@ -244,7 +253,7 @@
         </section>
         <div class="mt-3 pt-3 border-top">
             <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
-                <h4 class="h6 mb-0">Daily finalized attendance</h4>
+                <h4 class="h6 mb-0">@(bn ? "দৈনিক চূড়ান্ত উপস্থিতি" : "Daily finalized attendance")</h4>
                 <button id="attendanceDailyCsv" type="button" class="btn btn-sm btn-outline-secondary" disabled>Export daily CSV</button>
             </div>
             <div id="attendanceDailyStatus" class="small text-muted mb-2" role="status" aria-live="polite"></div>
@@ -255,17 +264,18 @@
                 </table>
             </div>
         </div>
+        </div>
     </section>
 }
 
 
 @if (User.IsInRole("TenantAdmin") || User.IsInRole("Principal") || User.IsInRole("VicePrincipal"))
 {
-    <section class="content-card mt-3" aria-labelledby="attendanceCorrectionAuditTitle">
-        <div class="content-card-heading"><h3 id="attendanceCorrectionAuditTitle">Attendance correction audit</h3></div>
+    <section class="content-card mt-3 @(showCorrections ? "" : "d-none")" aria-labelledby="attendanceCorrectionAuditTitle">
+        <div class="content-card-heading"><h3 id="attendanceCorrectionAuditTitle">@(bn ? "উপস্থিতি সংশোধনের নিরীক্ষা" : "Attendance correction audit")</h3></div>
         <div class="row g-2 mb-2 align-items-end">
             <div class="col-md-4">
-                <label for="attendanceCorrectionAuditStudent" class="form-label">Find student</label>
+                <label for="attendanceCorrectionAuditStudent" class="form-label">@(bn ? "শিক্ষার্থী খুঁজুন" : "Find student")</label>
                 <input id="attendanceCorrectionAuditStudent" class="form-control form-control-sm"
                        maxlength="100" autocomplete="off" placeholder="Roll, code or name prefix" />
             </div>
@@ -294,9 +304,9 @@
             </div>
         </div>
         <div class="d-flex flex-wrap gap-2 mb-2">
-            <button id="attendanceCorrectionAuditLoad" type="button" class="btn btn-sm btn-primary">Load corrections for report filters</button>
-            <button id="attendanceCorrectionAuditCsv" type="button" class="btn btn-sm btn-outline-primary" disabled>Export current page CSV</button>
-            <button id="attendanceCorrectionAuditPrint" type="button" class="btn btn-sm btn-outline-secondary" disabled>Print current page</button>
+            <button id="attendanceCorrectionAuditLoad" type="button" class="btn btn-sm btn-primary">@(bn ? "নির্বাচিত পরিসরের সংশোধন দেখুন" : "Load corrections for report filters")</button>
+            <button id="attendanceCorrectionAuditCsv" type="button" class="btn btn-sm btn-outline-primary" disabled>@(bn ? "এই পৃষ্ঠার CSV" : "Export current page CSV")</button>
+            <button id="attendanceCorrectionAuditPrint" type="button" class="btn btn-sm btn-outline-secondary" disabled>@(bn ? "এই পৃষ্ঠা প্রিন্ট" : "Print current page")</button>
         </div>
         <div id="attendanceCorrectionAuditStatus" class="small text-muted" role="status" aria-live="polite"></div>
         <div class="table-responsive">
@@ -379,12 +389,24 @@
 }
 
 @section Scripts {
-    <script src="~/js/attendance/index.js" asp-append-version="true"></script>
-    @if (User.IsInRole("TenantAdmin") || User.IsInRole("Principal") || User.IsInRole("VicePrincipal"))
+    @if (showRegister || showReports)
+    {
+        <script src="~/js/attendance/index.js" asp-append-version="true"></script>
+    }
+    @if ((showRegister || showReports) && (User.IsInRole("TenantAdmin") || User.IsInRole("Principal") || User.IsInRole("VicePrincipal")))
     {
         <script src="~/js/attendance/correction-history.js" asp-append-version="true"></script>
+    }
+    @if ((showReports || showCorrections) && (User.IsInRole("TenantAdmin") || User.IsInRole("Principal") || User.IsInRole("VicePrincipal")))
+    {
         <script src="~/js/attendance/report.js" asp-append-version="true"></script>
+    }
+    @if (showReports && (User.IsInRole("TenantAdmin") || User.IsInRole("Principal") || User.IsInRole("VicePrincipal")))
+    {
         <script src="~/js/attendance/session-register.js" asp-append-version="true"></script>
+    }
+    @if (showCorrections && (User.IsInRole("TenantAdmin") || User.IsInRole("Principal") || User.IsInRole("VicePrincipal")))
+    {
         <script src="~/js/attendance/correction-report.js" asp-append-version="true"></script>
     }
 }

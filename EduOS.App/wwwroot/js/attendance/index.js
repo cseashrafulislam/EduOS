@@ -492,6 +492,17 @@
             (offeringId !== null && (!Number.isSafeInteger(offeringId) || offeringId <= 0)) ||
             !/^\d{4}-\d{2}-\d{2}$/.test(selectedDate)) return;
         if (dirty && !confirm('Discard unsaved changes before opening this session?')) return;
+        // The administrator's Reports URL normally hides the register. A
+        // session drill-down reveals only the selected roster, not both huge
+        // workspaces at once, and keeps API authorization on every load.
+        const focusedRegister = document.querySelector('section[data-attendance-feature="reports"]');
+        if (focusedRegister) {
+            focusedRegister.classList.remove('d-none');
+            document.getElementById('attendanceReportTitle')?.closest('section.content-card')?.classList.add('d-none');
+            document.getElementById('returnToAttendanceReports')?.classList.remove('d-none');
+            document.getElementById('attendanceTitle').textContent =
+                document.documentElement.lang.toLowerCase().startsWith('bn') ? 'উপস্থিতির রোস্টার' : 'Attendance roster';
+        }
         dirty = false;
         historicalSessionId = detail.isFinalized === true ? sessionId : null;
         resetHistoricalQuery();
@@ -514,6 +525,16 @@
         await loadRoster(null, sessionId);
         if (roster?.attendanceSessionId === sessionId)
             el('attendanceRosterTitle')?.scrollIntoView({ block: 'start', behavior: 'auto' });
+    });
+    document.getElementById('returnToAttendanceReports')?.addEventListener('click', () => {
+        const focusedRegister = document.querySelector('section[data-attendance-feature="reports"]');
+        if (!focusedRegister) return;
+        if (dirty && !confirm('Return to reports with unsaved roster changes?')) return;
+        focusedRegister.classList.add('d-none');
+        document.getElementById('attendanceReportTitle')?.closest('section.content-card')?.classList.remove('d-none');
+        document.getElementById('returnToAttendanceReports').classList.add('d-none');
+        document.getElementById('attendanceTitle').textContent =
+            document.documentElement.lang.toLowerCase().startsWith('bn') ? 'উপস্থিতির রিপোর্ট' : 'Attendance Reports';
     });
     rows.addEventListener('change', () => { dirty = true; updateSummary(); });
     rows.addEventListener('input', () => { dirty = true; updateSummary(); });

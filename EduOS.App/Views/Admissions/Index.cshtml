@@ -58,46 +58,51 @@
     };
     var pageJson = System.Text.Json.JsonSerializer.Serialize(pageStrings);
     var maximumBirthDate = DateTime.UtcNow.ToString("yyyy-MM-dd");
+    var admissionFeature = ViewData["AdmissionFeature"]?.ToString() ?? "all";
+    var showIntake = admissionFeature == "all" || admissionFeature == "forms";
+    var showNew = admissionFeature == "all" || admissionFeature == "new";
+    var showList = admissionFeature == "all" || admissionFeature == "applications";
+    var bn = CultureInfo.CurrentUICulture.Name == "bn-BD";
+    var focusedTitle = admissionFeature switch
+    {
+        "forms" => bn ? "পাবলিক ভর্তি ফরম" : "Public Admission Forms",
+        "new" => bn ? "নতুন ভর্তি আবেদন" : "New Admission Application",
+        "applications" => bn ? "আবেদন যাচাই ও ভর্তি" : "Admission Review & Enrollment",
+        _ => T["AdmissionApplications"].Value
+    };
 }
 
-<section class="admission-page" aria-labelledby="admissionTitle">
+<section class="admission-page" aria-labelledby="admissionTitle" data-admission-feature="@admissionFeature">
     @Html.AntiForgeryToken()
     <header class="content-header-card">
         <div>
             <p class="dashboard-eyebrow">@T["Admission"]</p>
-            <h2 id="admissionTitle">@T["AdmissionApplications"]</h2>
-            <p>@T["AdmissionApplicationsHelp"]</p>
+            <h2 id="admissionTitle">@focusedTitle</h2>
         </div>
-        <a class="btn btn-outline-primary" asp-controller="Admissions" asp-action="Assessments">
-            Assessment &amp; Merit / ভর্তি পরীক্ষা ও মেধাতালিকা
-        </a>
     </header>
 
     <div id="admissionAlert" class="d-none" role="alert" tabindex="-1"></div>
 
-    <section class="content-card" aria-labelledby="intakeFormsTitle">
+    <section class="content-card @(showIntake ? "" : "d-none")" aria-labelledby="intakeFormsTitle">
         <div class="content-card-heading admission-heading-actions">
             <div>
-                <h3 id="intakeFormsTitle">Public Admission Forms / পাবলিক ভর্তি ফরম</h3>
-                <p>Configure form windows, custom questions and private document requirements.</p>
+                <h3 id="intakeFormsTitle">@(bn ? "পাবলিক ভর্তি ফরম" : "Public Admission Forms")</h3>
             </div>
-            <button id="newIntakeFormButton" class="btn btn-outline-primary" type="button">New Form / নতুন ফরম</button>
+            <button id="newIntakeFormButton" class="btn btn-outline-primary" type="button">@(bn ? "নতুন ফরম" : "New Form")</button>
         </div>
         <div id="intakeFormList" class="intake-form-list" aria-live="polite" aria-busy="true"></div>
     </section>
 
-    <div class="admission-grid">
-        <section class="content-card" aria-labelledby="newApplicationTitle">
+    <div class="@(admissionFeature == "all" ? "admission-grid" : "")">
+        <section class="content-card @(showNew ? "" : "d-none")" aria-labelledby="newApplicationTitle">
             <div class="content-card-heading">
                 <h3 id="newApplicationTitle">@T["NewApplication"]</h3>
-                <p>@T["AdmissionPrivacyHelp"]</p>
             </div>
 
             <form id="admissionForm" class="row g-3" novalidate>
                 <div class="col-12">
-                    <label class="form-label" for="admissionFormReference">Published intake / প্রকাশিত ভর্তি ফরম *</label>
+                    <label class="form-label" for="admissionFormReference">@(bn ? "প্রকাশিত ভর্তি ফরম" : "Published intake") *</label>
                     <select class="form-select" id="admissionFormReference" required></select>
-                    <small class="text-muted">Year, campus, level and term follow the selected intake.</small>
                 </div>
                 <div class="col-md-6">
                     <label class="form-label" for="academicYearId">@T["AcademicYear"] *</label>
@@ -160,9 +165,8 @@
                 </div>
 
                 <div class="col-12">
-                    <label class="form-label" for="presentAddress">Contact Address / যোগাযোগের ঠিকানা</label>
+                    <label class="form-label" for="presentAddress">@(bn ? "যোগাযোগের ঠিকানা" : "Contact address")</label>
                     <textarea class="form-control" id="presentAddress" maxlength="1000" rows="2" autocomplete="street-address"></textarea>
-                    <small class="text-muted">Previous institution and additional addresses can be collected using institution-configured intake custom fields. Only one contact address is stored in the canonical applicant record.</small>
                 </div>
                 <div class="col-md-4">
                     <label class="form-label" for="preferredLanguage">@T["PreferredLanguage"]</label>
@@ -181,7 +185,7 @@
             </form>
         </section>
 
-        <section class="content-card admission-list-panel" aria-labelledby="applicationListTitle">
+        <section class="content-card admission-list-panel @(showList ? "" : "d-none")" aria-labelledby="applicationListTitle">
             <div class="content-card-heading">
                 <h3 id="applicationListTitle">@T["ApplicationList"]</h3>
             </div>
@@ -193,12 +197,12 @@
                     <option value="">@T["AllStatuses"]</option>
                     <option value="2">@T["AdmissionStatusSubmitted"]</option>
                     <option value="3">@T["AdmissionStatusUnderReview"]</option>
-                    <option value="4">Documents pending / কাগজপত্র যাচাই বাকি</option>
-                    <option value="5">Assessment pending / পরীক্ষা বাকি</option>
-                    <option value="6">Qualified / যোগ্য</option>
+                    <option value="4">@(bn ? "কাগজপত্র যাচাই বাকি" : "Documents pending")</option>
+                    <option value="5">@(bn ? "পরীক্ষা বাকি" : "Assessment pending")</option>
+                    <option value="6">@(bn ? "যোগ্য" : "Qualified")</option>
                     <option value="7">@T["AdmissionStatusRejected"]</option>
                     <option value="8">@T["AdmissionStatusAdmitted"]</option>
-                    <option value="9">Withdrawn / প্রত্যাহার</option>
+                    <option value="9">@(bn ? "প্রত্যাহার" : "Withdrawn")</option>
                 </select>
                 <button class="btn btn-outline-primary" type="submit">@T["Search"]</button>
             </form>
