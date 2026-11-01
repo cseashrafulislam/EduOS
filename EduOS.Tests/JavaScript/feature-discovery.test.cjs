@@ -8,7 +8,7 @@ const read = relative => fs.readFileSync(path.join(root, relative), 'utf8');
 const layout = read('EduOS.App/Views/Shared/_Layout.cshtml');
 const styles = read('EduOS.App/wwwroot/css/site.css');
 const script = read('EduOS.App/wwwroot/js/platform/feature-discovery.js');
-const { safeDestination, makeCatalog, filterCatalog, scopedState, remember } =
+const { safeDestination, makeCatalog, filterCatalog, scopedState, remember, contextStatus } =
     require('../../EduOS.App/wwwroot/js/platform/feature-discovery.js');
 
 const catalog = makeCatalog([
@@ -86,4 +86,18 @@ test('discovery supports bilingual mobile, keyboard, safe text and theme-aware p
     assert.match(styles, /prefers-color-scheme: dark/);
     assert.match(styles, /max-width: 767\.98px/);
     assert.match(styles, /\.feature-search-row:focus-within/);
+});
+
+test('feature discovery fails closed on tenant/session change and temporary session shield', () => {
+    assert.equal(contextStatus('22', 'A', '22', 'A', false, false), 'ready');
+    assert.equal(contextStatus('22', 'A', '23', 'A', false, false), 'changed');
+    assert.equal(contextStatus('22', 'A', '22', 'B', false, false), 'changed');
+    assert.equal(contextStatus('22', 'A', '22', 'A', true, false), 'changed');
+    assert.equal(contextStatus('22', 'A', '22', 'A', false, true), 'verifying');
+    assert.match(script, /await verifiedContext\(\)/);
+    assert.match(script, /window\.location\.assign\(entry\.href\)/);
+    assert.match(script, /sessionStorage\.removeItem\(key\)/);
+    assert.match(script, /trigger\.disabled = true/);
+    assert.match(script, /document\.addEventListener\('visibilitychange'/);
+    assert.doesNotMatch(script, /window\.location\.replace\(entry\.href\)/);
 });

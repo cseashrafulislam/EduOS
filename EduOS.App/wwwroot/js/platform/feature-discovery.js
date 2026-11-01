@@ -58,8 +58,15 @@
         return [href, ...list.filter(value => value !== href)].slice(0, 8);
     }
 
+    // The catalogue is server-authorized at render time. A changed session or
+    // tenant must not leave its stale links, favorites or search dialog usable.
+    function contextStatus(tenant, session, currentTenant, currentSession, transitioning, shieldVisible) {
+        if (tenant !== currentTenant || session !== currentSession || transitioning) return 'changed';
+        return shieldVisible ? 'verifying' : 'ready';
+    }
+
     if (typeof module !== 'undefined' && module.exports) {
-        module.exports = { safeDestination, makeCatalog, filterCatalog, scopedState, remember };
+        module.exports = { safeDestination, makeCatalog, filterCatalog, scopedState, remember, contextStatus };
     }
     if (typeof document === 'undefined') return;
 
@@ -116,6 +123,42 @@
         return scopedState(saved, tenant, session, catalog);
     }
     let state = load();
+    const shield = document.getElementById('eduosSessionShield');
+    let invalidated = false;
+    function status() {
+        if (invalidated) return 'changed';
+        return contextStatus(tenant, session,
+            document.body.dataset.authTenantId || '',
+            document.body.dataset.authSessionReference || '',
+            typeof window.EduOSSessionTransitionPending === 'function' &&
+                window.EduOSSessionTransitionPending(),
+            !!shield && !shield.hidden);
+    }
+    function currentContext() {
+        const current = status();
+        if (current === 'ready') return true;
+        input.value = '';
+        results.replaceChildren();
+        if (dialog.open) {
+            if (typeof dialog.close === 'function') dialog.close();
+            else dialog.removeAttribute('open');
+        }
+        if (current === 'changed') {
+            invalidated = true;
+            state = scopedState(null, tenant, session, catalog);
+            trigger.disabled = true;
+            try { sessionStorage.removeItem(key); } catch { /* Optional storage. */ }
+        }
+        return false;
+    }
+    async function verifiedContext() {
+        if (!currentContext()) return false;
+        if (typeof window.EduOSVerifySessionContext === 'function') {
+            try { await window.EduOSVerifySessionContext(); }
+            catch { return false; }
+        }
+        return currentContext();
+    }
     function persist() {
         if (!tenant || !session) return;
         try { sessionStorage.setItem(key, JSON.stringify(state)); } catch { /* Optional storage. */ }
@@ -140,9 +183,14 @@
         const context = document.createElement('small');
         context.textContent = [entry.section, entry.group].filter(Boolean).join(' › ');
         link.append(title, context);
-        link.addEventListener('click', () => {
+        link.addEventListener('click', async event => {
+            event.preventDefault();
+            if (!await verifiedContext() || !byHref.has(entry.href)) return;
             state.recent = remember(state.recent, entry.href);
             persist();
+            // Preserve normal Back/Refresh history; never navigate before a
+            // fresh session check has completed successfully.
+            window.location.assign(entry.href);
         });
         const star = document.createElement('button');
         star.type = 'button';
@@ -153,6 +201,7 @@
         star.setAttribute('aria-pressed', String(selected));
         star.setAttribute('aria-label', selected ? labels.unstar + ': ' + entry.label : labels.star + ': ' + entry.label);
         star.addEventListener('click', () => {
+            if (!currentContext()) return;
             const restoreFocus = document.activeElement === star;
             state.favorites = selected
                 ? state.favorites.filter(href => href !== entry.href)
@@ -182,6 +231,7 @@
     }
 
     function render() {
+        if (!currentContext()) return;
         results.replaceChildren();
         const query = input.value.trim();
         if (query) {
@@ -203,7 +253,8 @@
         if (!favorites.length && !recent.length) section(labels.available, catalog.slice(0, 12));
     }
 
-    function open() {
+    async function open() {
+        if (!await verifiedContext()) return;
         input.value = '';
         render();
         if (typeof dialog.showModal === 'function') dialog.showModal();
@@ -215,10 +266,17 @@
         else dialog.removeAttribute('open');
         trigger.focus();
     }
-    trigger.addEventListener('click', open);
+    trigger.addEventListener('click', () => { void open(); });
     close?.addEventListener('click', dismiss);
-    dialog.addEventListener('close', () => trigger.focus());
+    dialog.addEventListener('close', () => {
+        if (status() === 'ready') trigger.focus();
+    });
     input.addEventListener('input', render);
+    window.addEventListener('pageshow', () => { if (dialog.open) currentContext(); });
+    window.addEventListener('focus', () => { if (dialog.open) currentContext(); });
+    document.addEventListener('visibilitychange', () => {
+        if (dialog.open && document.visibilityState === 'visible') currentContext();
+    });
     dialog.addEventListener('click', event => {
         if (event.target === dialog) dismiss();
     });
@@ -226,7 +284,7 @@
         if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k' &&
             !event.altKey && !event.shiftKey) {
             event.preventDefault();
-            if (!dialog.open) open();
+            if (!dialog.open) void open();
             else input.focus();
         }
     });
