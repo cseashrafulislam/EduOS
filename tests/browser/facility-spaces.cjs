@@ -12,7 +12,7 @@ function html(bn,manage){
  const a=view.indexOf('<section class="container-fluid py-3" id="facilitySpaces"'),b=view.indexOf('@section Scripts',a);
  assert(a>=0&&b>a,'FacilitySpaces view contract changed');
  let h=view.slice(a,b);
- h=h.replace(/@\(\s*bn \? "([^"]*)" : "([^"]*)"\s*\)/g,(_,en,bd)=>bn?bd:en);
+ h=h.replace(/@\(\s*bn \? "([^"]*)" : "([^"]*)"\s*\)/g,(_,bd,en)=>bn?bd:en);
  h=h.replace(/@if\(manage\)\{(<th>[\s\S]*?<\/th>)\}/g,(_,s)=>manage?s:'');
  h=h.replace(/@if\(manage\)\s*\{([\s\S]*?)\n    \}/g,(_,s)=>manage?s:'');
  h=h.replace('@bn.ToString().ToLowerInvariant()',String(bn)).replace('@manage.ToString().ToLowerInvariant()',String(manage));
