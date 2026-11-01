@@ -17,6 +17,22 @@ test('alumni consent is opt-in, revocable and CSRF protected', () => {
     assert.match(view, /@Html\.AntiForgeryToken\(\)/);
 });
 
+test('event invitation opt-ins are separate, off unless selected and require each channel destination', () => {
+    for (const [id, field] of [
+        ['alumniEmailInvites', 'invitationEmailOptIn'], ['alumniSmsInvites', 'invitationSmsOptIn']
+    ]) {
+        assert.match(view, new RegExp(`id="${id}" type="checkbox"`));
+        assert.match(script, new RegExp(`${field}: el\\('${id}'\\)\\.checked`));
+        assert.match(script, new RegExp(`el\\('${id}'\\)\\.checked = Boolean\\(item\\?\\.${field}\\)`));
+    }
+    assert.match(script, /el\('alumniEmail'\)\.required = el\('alumniEmailInvites'\)\.checked/);
+    assert.match(script, /el\('alumniPhone'\)\.required = el\('alumniSmsInvites'\)\.checked/);
+    assert.match(script, /directory \|\| el\('alumniEmailInvites'\)\.checked/);
+    assert.match(script, /directory \|\| el\('alumniSmsInvites'\)\.checked/);
+    assert.match(script, /emailInvites: \[/);
+    assert.match(script, /smsInvites: \[/);
+});
+
 test('alumni directory is bounded, accessible, bilingual and uses safe text sinks', () => {
     assert.match(script, /pageSize: 20/);
     assert.match(script, /\.textContent = value/);

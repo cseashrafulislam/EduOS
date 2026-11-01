@@ -11,12 +11,12 @@ namespace EduOS.Service.Services.Alumni;
 
 public sealed partial class AlumniService
 {
+    // Explicit-grant policy: no campus grants means no Alumni admin campus access.
+    // Graduate self-service continues to use verified ownership, not admin grants.
     private const string CampusGrantSql = @"
-        (NOT EXISTS (SELECT 1 FROM dbo.UserCampusAccesses ca
-            WHERE ca.TenantId = {0} AND ca.UserId = {1})
-         OR EXISTS (SELECT 1 FROM dbo.UserCampusAccesses ca
+        EXISTS (SELECT 1 FROM dbo.UserCampusAccesses ca
             WHERE ca.TenantId = {0} AND ca.UserId = {1}
-              AND ca.CampusId = e.CampusId AND ca.IsActive = 1 AND ca.IsDeleted = 0))";
+              AND ca.CampusId = e.CampusId AND ca.IsActive = 1 AND ca.IsDeleted = 0)";
 
     // Every engagement count uses the same current consent and verified V1 completion
     // requirements as the attendance roster. Historical RSVPs must not expose revoked
@@ -132,12 +132,8 @@ public sealed partial class AlumniService
                 var authorized = await _db.Database.SqlQueryRaw<int>(
                     @"SELECT COUNT(*) AS Value FROM dbo.Campuses e
                       WHERE e.TenantId = {0} AND e.Id = {2} AND e.IsDeleted = 0
-                        AND e.IsActive = 1 AND
-                        (NOT EXISTS (SELECT 1 FROM dbo.UserCampusAccesses ca
-                            WHERE ca.TenantId = {0} AND ca.UserId = {1})
-                         OR EXISTS (SELECT 1 FROM dbo.UserCampusAccesses ca
-                            WHERE ca.TenantId = {0} AND ca.UserId = {1}
-                              AND ca.CampusId = e.Id AND ca.IsActive = 1 AND ca.IsDeleted = 0))",
+                        AND e.IsActive = 1 AND " +
+                    CampusGrantSql.Replace("ca.CampusId = e.CampusId", "ca.CampusId = e.Id"),
                     tenant, actor, request.CampusId).ToListAsync(token);
                 if (authorized.FirstOrDefault() != 1)
                     return ApiResponse<AlumniEventItemDto>.ErrorResponse("Campus access denied.", 403);

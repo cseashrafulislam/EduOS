@@ -12,7 +12,9 @@
         email: ['Contact email (optional)', 'যোগাযোগের ইমেইল (ঐচ্ছিক)'],
         phone: ['Contact phone (optional)', 'যোগাযোগের ফোন (ঐচ্ছিক)'],
         optin: ['I consent to show my name and contact details in my institution\'s restricted alumni directory.', 'আমি আমার প্রতিষ্ঠানের সীমিত প্রাক্তন শিক্ষার্থী তালিকায় নাম ও যোগাযোগের তথ্য প্রকাশে সম্মতি দিচ্ছি।'],
-        privacyNote: ['Unchecking and saving revokes directory access and clears alumni contact details. Graduation evidence is retained.', 'টিক তুলে সংরক্ষণ করলে তালিকা থেকে তথ্য সরবে এবং যোগাযোগের তথ্য মুছে যাবে। উত্তীর্ণ হওয়ার প্রমাণ সংরক্ষিত থাকবে।'],
+        emailInvites: ['I separately agree to receive alumni event invitations by email.', 'আমি আলাদাভাবে ইমেইলে প্রাক্তন শিক্ষার্থীদের অনুষ্ঠানের আমন্ত্রণ পেতে সম্মতি দিচ্ছি।'],
+        smsInvites: ['I separately agree to receive alumni event invitations by SMS.', 'আমি আলাদাভাবে SMS-এ প্রাক্তন শিক্ষার্থীদের অনুষ্ঠানের আমন্ত্রণ পেতে সম্মতি দিচ্ছি।'],
+        privacyNote: ['Each consent can be revoked separately. Unneeded contact data is erased; graduation evidence stays.', 'প্রতিটি সম্মতি আলাদাভাবে প্রত্যাহার করা যায়। অপ্রয়োজনীয় যোগাযোগের তথ্য মুছে যাবে; উত্তীর্ণ হওয়ার প্রমাণ থাকবে।'],
         save: ['Save preferences', 'পছন্দ সংরক্ষণ'],
         directory: ['Opted-in alumni directory', 'সম্মতিপ্রাপ্ত প্রাক্তন শিক্ষার্থী'],
         search: ['Search', 'খুঁজুন'], export: ['Export current page CSV', 'বর্তমান পৃষ্ঠা CSV'],
@@ -72,15 +74,19 @@
         el('alumniEventNext').disabled = true;
         const item = state.selected;
         el('alumniOptIn').checked = Boolean(item?.directoryOptIn);
+        el('alumniEmailInvites').checked = Boolean(item?.invitationEmailOptIn);
+        el('alumniSmsInvites').checked = Boolean(item?.invitationSmsOptIn);
         el('alumniEmail').value = item?.contactEmail || '';
         el('alumniPhone').value = item?.contactPhone || '';
         el('alumniSave').disabled = !item;
         syncContactInputs();
     }
     function syncContactInputs() {
-        const sharing = el('alumniOptIn').checked;
-        el('alumniEmail').disabled = !sharing;
-        el('alumniPhone').disabled = !sharing;
+        const directory = el('alumniOptIn').checked;
+        el('alumniEmail').disabled = !(directory || el('alumniEmailInvites').checked);
+        el('alumniPhone').disabled = !(directory || el('alumniSmsInvites').checked);
+        el('alumniEmail').required = el('alumniEmailInvites').checked;
+        el('alumniPhone').required = el('alumniSmsInvites').checked;
     }
     async function loadMine() {
         const graduates = await api('/api/alumni/me');
@@ -106,6 +112,8 @@
                 clientRequestId: state.requestId,
                 studentReference: state.selected.studentReference,
                 directoryOptIn: el('alumniOptIn').checked,
+                invitationEmailOptIn: el('alumniEmailInvites').checked,
+                invitationSmsOptIn: el('alumniSmsInvites').checked,
                 contactEmail: el('alumniEmail').value.trim() || null,
                 contactPhone: el('alumniPhone').value.trim() || null,
                 rowVersion: state.selected.rowVersion || null
@@ -173,6 +181,8 @@
         loadEvents().catch(e => notice(e.message, true));
     });
     el('alumniOptIn').addEventListener('change', syncContactInputs);
+    el('alumniEmailInvites').addEventListener('change', syncContactInputs);
+    el('alumniSmsInvites').addEventListener('change', syncContactInputs);
     el('alumniConsentForm').addEventListener('submit', save);
     if (root.dataset.admin === 'true') {
         el('alumniSearchForm').addEventListener('submit', event => {
@@ -206,8 +216,11 @@
         const campuses = await api('/api/alumni/event-campuses');
         const select = el('alumniEventCampus');
         select.replaceChildren();
-        select.add(new Option(eventLabel('Choose campus', 'ক্যাম্পাস নির্বাচন'), ''));
+        select.add(new Option(campuses.length
+            ? eventLabel('Choose campus', 'ক্যাম্পাস নির্বাচন')
+            : eventLabel('No campus grant — ask your institution administrator', 'ক্যাম্পাসের অনুমতি নেই — প্রতিষ্ঠানের প্রশাসকের কাছে অনুমতি নিন'), ''));
         for (const campus of campuses) select.add(new Option(campus.name, campus.id));
+        el('alumniEventCreate').disabled = campuses.length === 0;
     }
     async function loadEvents() {
         const serial = ++state.eventRequestSerial;

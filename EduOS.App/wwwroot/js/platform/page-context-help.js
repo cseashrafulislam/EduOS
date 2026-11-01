@@ -1468,21 +1468,21 @@
                             "প্রাক্তন শিক্ষার্থী ও স্নাতক তালিকা"
                   ],
                   "purpose": [
-                            "Manage voluntary alumni directory consent, future event RSVPs and authorized attendance without editing the original graduation record.",
-                            "মূল উত্তীর্ণ হওয়ার রেকর্ড না বদলে ঐচ্ছিক প্রাক্তন শিক্ষার্থী তালিকার সম্মতি, ভবিষ্যৎ অনুষ্ঠানের উত্তর ও অনুমোদিত উপস্থিতি পরিচালনা করুন।"
+                            "Manage independent directory-sharing and private invitation consents, event RSVPs and authorized attendance without changing graduation evidence.",
+                            "উত্তীর্ণ হওয়ার প্রমাণ না বদলে তালিকায় তথ্য প্রকাশ ও ব্যক্তিগত আমন্ত্রণের পৃথক সম্মতি, RSVP ও অনুমোদিত উপস্থিতি পরিচালনা করুন।"
                   ],
                   "before": [
-                            "An authenticated account in an ALUMNI-enabled institution with a verified completed exit is required for personal consent and RSVP. TenantAdmin manages permitted campuses; a different TenantAdmin must publish drafts.",
-                            "ALUMNI চালু থাকা প্রতিষ্ঠানের অনুমোদিত অ্যাকাউন্ট ও যাচাইকৃত সম্পন্ন ছাড়পত্র থাকলে নিজের সম্মতি ও RSVP দেওয়া যায়। TenantAdmin অনুমোদিত ক্যাম্পাস পরিচালনা করেন; খসড়া প্রকাশে অন্য TenantAdmin প্রয়োজন।"
+                            "An authenticated account in an ALUMNI-enabled institution with a verified completed exit is required. TenantAdmin must have an explicit active grant for each managed campus; another authorized administrator publishes event drafts.",
+                            "ALUMNI চালু থাকা প্রতিষ্ঠান ও যাচাইকৃত উত্তীর্ণ রেকর্ড প্রয়োজন। পরিচালিত প্রত্যেক ক্যাম্পাসে TenantAdmin-এর সক্রিয় অনুমতি থাকতে হবে; অনুষ্ঠান খসড়া প্রকাশে আলাদা অনুমোদিত প্রশাসক প্রয়োজন।"
                   ],
                   "steps": [
                             [
-                                      "Choose Verified graduation, select directory consent, optionally enter contact email/phone and Save preferences.",
-                                      "Verified graduation বেছে তালিকায় তথ্য প্রকাশের সম্মতি দিন, চাইলে ইমেইল/ফোন লিখে Save preferences চাপুন।"
+                                      "Choose Verified graduation. Independently select directory sharing, email invitation and/or SMS invitation consent; supply the required contact address for any selected invitation channel, then Save preferences.",
+                                      "Verified graduation বেছে তালিকায় প্রকাশ, ইমেইল আমন্ত্রণ ও/অথবা SMS আমন্ত্রণের পৃথক সম্মতি দিন; বাছা মাধ্যমে প্রয়োজনীয় যোগাযোগ তথ্য লিখে Save preferences চাপুন।"
                             ],
                             [
-                                      "To revoke sharing, uncheck consent and Save preferences; this clears alumni contact details and active RSVPs but retains graduation evidence.",
-                                      "তথ্য প্রকাশ বন্ধ করতে সম্মতির টিক তুলে Save preferences চাপুন; এতে যোগাযোগের তথ্য ও সক্রিয় RSVP মুছে যায়, উত্তীর্ণ হওয়ার প্রমাণ থাকে।"
+                                      "To revoke a purpose, uncheck only its consent and save. Revoking directory sharing clears RSVPs; contact details are erased when no remaining purpose needs them. Verified completion remains.",
+                                      "কোনো ব্যবহারের সম্মতি তুলতে শুধু তার টিক তুলে সংরক্ষণ করুন। তালিকার সম্মতি প্রত্যাহারে RSVP মুছে যায়; অন্য সম্মতিতে প্রয়োজন না থাকলে যোগাযোগের তথ্য মুছে যাবে। উত্তীর্ণ হওয়ার প্রমাণ থাকবে।"
                             ],
                             [
                                       "For a published future event choose Going or Not going; reload before retrying a conflicting response.",
@@ -1510,8 +1510,8 @@
                             "সম্মতি সীমিত তালিকায় তথ্য দেখানো নিয়ন্ত্রণ করে। বৈধ RSVP ও উপস্থিতি অনুমোদিত অনুষ্ঠান পৃষ্ঠায় দেখা যায়; CSV-তে শুধু যোগ্য বর্তমান পৃষ্ঠার তথ্য থাকে। CSV শিরোনাম ও অনুষ্ঠানের অবস্থা নির্বাচিত ভাষায় থাকে; সময় ISO-8601 UTC-তে থাকে।"
                   ],
                   "rules": [
-                            "Only verified completed exits qualify. Consent is optional and revocable; revocation clears active RSVPs. Publication needs a different administrator. Idempotency keys and row versions reject stale/duplicate writes; no outbound email/SMS invitation or Finance/stock posting occurs here.",
-                            "শুধু যাচাইকৃত সম্পন্ন ছাড়পত্র যোগ্য। সম্মতি ঐচ্ছিক ও প্রত্যাহারযোগ্য; প্রত্যাহারে সক্রিয় RSVP মুছে যায়। প্রকাশে আলাদা প্রশাসক প্রয়োজন। Request ID ও row version পুরোনো/দ্বৈত পরিবর্তন প্রতিরোধ করে; এখান থেকে ইমেইল/SMS আমন্ত্রণ বা Finance/স্টক পোস্টিং হয় না।"
+                            "Directory consent does not authorize Email/SMS. Both invitation channels start OFF and require distinct affirmative consent; consent alone does not send messages. Admin campus access requires explicit grants. Event publishing remains maker-checker; no Finance/stock posting happens here.",
+                            "তালিকার সম্মতি ইমেইল/SMS অনুমতি নয়। আমন্ত্রণের দুই মাধ্যম শুরুতে বন্ধ; আলাদা সম্মতি লাগে, তাতেও নিজে বার্তা পাঠানো হয় না। প্রশাসকের ক্যাম্পাস অনুমতি স্পষ্ট হতে হবে। অনুষ্ঠান প্রকাশে পৃথক অনুমোদন লাগে; Finance/স্টক পোস্ট হয় না।"
                   ],
                   "recovery": [
                             "If no graduate appears, ask an authorized administrator to verify the completed exit and account link. For missing campus/events check entitlement, campus access, consent and timing. If Attendance Check in/Undo times out, retry the same action; its request identifier is retained until confirmed success. For 403/409 reload; never guess another record ID or reuse an obsolete request.",

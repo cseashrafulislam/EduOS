@@ -1,6 +1,7 @@
 using System.Data;
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.RegularExpressions;
 using EduOS.Core.Common;
 using EduOS.Core.DTOs.Alumni;
 using EduOS.Core.Entities.Academic;
@@ -70,7 +71,7 @@ public sealed partial class AlumniService : IAlumniService
                 var placeholders = string.Join(", ", Enumerable.Range(1, candidates.Count)
                     .Select(i => "{" + i + "}"));
                 var profiles = await _db.Database.SqlQueryRaw<AlumniProfileSqlRow>(
-                    "SELECT Id, StudentId, DirectoryOptIn, ContactEmail, ContactPhone, RowVersion " +
+                    "SELECT Id, StudentId, DirectoryOptIn, InvitationEmailOptIn, InvitationSmsOptIn, ContactEmail, ContactPhone, RowVersion " +
                     "FROM dbo.AlumniProfiles WHERE TenantId = {0} AND StudentId IN (" + placeholders + ")",
                     parameters).ToListAsync(ct);
                 profilesByStudent = profiles.ToDictionary(x => x.StudentId);
@@ -88,6 +89,8 @@ public sealed partial class AlumniService : IAlumniService
                     CompletedAtUtc = candidate.ProcessedAt,
                     Registered = profile != null,
                     DirectoryOptIn = profile?.DirectoryOptIn == true,
+                    InvitationEmailOptIn = profile?.InvitationEmailOptIn == true,
+                    InvitationSmsOptIn = profile?.InvitationSmsOptIn == true,
                     ContactEmail = profile?.ContactEmail,
                     ContactPhone = profile?.ContactPhone,
                     RowVersion = profile == null ? null : Convert.ToBase64String(profile.RowVersion)
@@ -108,17 +111,27 @@ public sealed partial class AlumniService : IAlumniService
         if (request == null || request.StudentReference == Guid.Empty || request.ClientRequestId == Guid.Empty)
             return ApiResponse<AlumniSelfDto>.ErrorResponse("Student and unique request references are required.");
 
-        var email = request.DirectoryOptIn ? Normalize(request.ContactEmail)?.ToLowerInvariant() : null;
-        var phone = request.DirectoryOptIn ? Normalize(request.ContactPhone) : null;
+        // Public directory consent and private invitations are separate decisions.
+        var email = request.DirectoryOptIn || request.InvitationEmailOptIn
+            ? Normalize(request.ContactEmail)?.ToLowerInvariant() : null;
+        var phone = request.DirectoryOptIn || request.InvitationSmsOptIn
+            ? Normalize(request.ContactPhone) : null;
         if (email?.Length > 200 || phone?.Length > 30)
             return ApiResponse<AlumniSelfDto>.ErrorResponse("Contact information exceeds the permitted length.");
         if (email != null && !new System.ComponentModel.DataAnnotations.EmailAddressAttribute().IsValid(email))
             return ApiResponse<AlumniSelfDto>.ErrorResponse("A valid email address is required.");
+        if ((request.InvitationEmailOptIn && email == null) ||
+            (request.InvitationSmsOptIn && (phone == null ||
+                !Regex.IsMatch(phone, @"^\+?[0-9]{9,15}$", RegexOptions.CultureInvariant))))
+            return ApiResponse<AlumniSelfDto>.ErrorResponse("Invitation consent requires a valid destination for each selected channel.");
 
         var tenantId = _user.TenantId;
         var userId = _user.UserId;
-        var fingerprint = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(
-            $"{request.StudentReference:D}|{request.DirectoryOptIn}|{email}|{phone}")));
+        // Preserve fingerprints for pre-migration requests with both invitation channels off.
+        var requestSignature = $"{request.StudentReference:D}|{request.DirectoryOptIn}|{email}|{phone}";
+        if (request.InvitationEmailOptIn || request.InvitationSmsOptIn)
+            requestSignature += $"|{request.InvitationEmailOptIn}|{request.InvitationSmsOptIn}";
+        var fingerprint = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(requestSignature)));
         try
         {
             return await _db.ExecuteInTransactionAsync(async token =>
@@ -161,6 +174,8 @@ public sealed partial class AlumniService : IAlumniService
                     // An old revoke must not report success after a later opt-in.
                     if (replay == null || replay.Id != prior[0].AlumniProfileId ||
                         !prior[0].IsLatest || replay.DirectoryOptIn != request.DirectoryOptIn ||
+                        replay.InvitationEmailOptIn != request.InvitationEmailOptIn ||
+                        replay.InvitationSmsOptIn != request.InvitationSmsOptIn ||
                         !string.Equals(replay.ContactEmail, email, StringComparison.Ordinal) ||
                         !string.Equals(replay.ContactPhone, phone, StringComparison.Ordinal))
                         return ApiResponse<AlumniSelfDto>.ErrorResponse(
@@ -179,12 +194,14 @@ public sealed partial class AlumniService : IAlumniService
                     await _db.Database.ExecuteSqlInterpolatedAsync($@"
                         INSERT INTO dbo.AlumniProfiles
                         (TenantId, PublicId, StudentId, StudentExitRecordId, CampusId,
-                         DirectoryOptIn, ContactEmail, ContactPhone, ConsentRecordedAtUtc,
+                         DirectoryOptIn, InvitationEmailOptIn, InvitationSmsOptIn, ContactEmail, ContactPhone, ConsentRecordedAtUtc,
                          CreatedAtUtc, UpdatedAtUtc, UpdatedByUserId)
                         VALUES ({tenantId}, {Guid.NewGuid()}, {completion.Id}, {completion.ExitId},
-                                {completion.CampusId}, {request.DirectoryOptIn}, {email}, {phone},
+                                {completion.CampusId}, {request.DirectoryOptIn},
+                                {request.InvitationEmailOptIn}, {request.InvitationSmsOptIn}, {email}, {phone},
                                 {now}, {now}, {now}, {userId})", token);
-                    action = request.DirectoryOptIn ? "RegisteredOptIn" : "RegisteredPrivate";
+                    action = request.DirectoryOptIn ? "RegisteredOptIn" :
+                        request.InvitationEmailOptIn || request.InvitationSmsOptIn ? "RegisteredInvitationsOnly" : "RegisteredPrivate";
                 }
                 else
                 {
@@ -197,6 +214,8 @@ public sealed partial class AlumniService : IAlumniService
                     var updated = await _db.Database.ExecuteSqlInterpolatedAsync($@"
                         UPDATE dbo.AlumniProfiles SET StudentExitRecordId = {completion.ExitId},
                             CampusId = {completion.CampusId}, DirectoryOptIn = {request.DirectoryOptIn},
+                            InvitationEmailOptIn = {request.InvitationEmailOptIn},
+                            InvitationSmsOptIn = {request.InvitationSmsOptIn},
                             ContactEmail = {email}, ContactPhone = {phone},
                             ConsentRecordedAtUtc = {now}, UpdatedAtUtc = {now},
                             UpdatedByUserId = {userId}
@@ -267,13 +286,10 @@ public sealed partial class AlumniService : IAlumniService
                     AND p.ConsentRecordedAtUtc IS NOT NULL AND s.IsDeleted = 0
                     AND e.IsDeleted = 0 AND e.ExitType = 2 AND e.FeesCleared = 1
                     AND en.IsDeleted = 0 AND en.State = 2 AND p.CampusId = en.CampusId
-                    AND (NOT EXISTS (
-                        SELECT 1 FROM dbo.UserCampusAccesses ca
-                        WHERE ca.TenantId = {0} AND ca.UserId = {1})
-                      OR EXISTS (
+                    AND EXISTS (
                         SELECT 1 FROM dbo.UserCampusAccesses ca
                         WHERE ca.TenantId = {0} AND ca.UserId = {1} AND ca.CampusId = p.CampusId
-                            AND ca.IsActive = 1 AND ca.IsDeleted = 0))
+                            AND ca.IsActive = 1 AND ca.IsDeleted = 0)
                     AND ({2} = N'' OR s.FullName LIKE {3} ESCAPE N'~'
                         OR s.StudentCode LIKE {3} ESCAPE N'~')";
             var count = await _db.Database.SqlQueryRaw<int>(
@@ -303,7 +319,7 @@ public sealed partial class AlumniService : IAlumniService
     private async Task<AlumniProfileSqlRow?> ReadProfileAsync(long tenantId, long studentId, CancellationToken ct)
     {
         var rows = await _db.Database.SqlQueryRaw<AlumniProfileSqlRow>(
-            @"SELECT Id, StudentId, DirectoryOptIn, ContactEmail, ContactPhone, RowVersion
+            @"SELECT Id, StudentId, DirectoryOptIn, InvitationEmailOptIn, InvitationSmsOptIn, ContactEmail, ContactPhone, RowVersion
               FROM dbo.AlumniProfiles WHERE TenantId = {0} AND StudentId = {1}",
             tenantId, studentId).ToListAsync(ct);
         return rows.FirstOrDefault();
@@ -314,7 +330,10 @@ public sealed partial class AlumniService : IAlumniService
     {
         StudentReference = reference, StudentCode = code, FullName = name,
         CompletedAtUtc = completed, Registered = true,
-        DirectoryOptIn = profile.DirectoryOptIn, ContactEmail = profile.ContactEmail,
+        DirectoryOptIn = profile.DirectoryOptIn,
+        InvitationEmailOptIn = profile.InvitationEmailOptIn,
+        InvitationSmsOptIn = profile.InvitationSmsOptIn,
+        ContactEmail = profile.ContactEmail,
         ContactPhone = profile.ContactPhone, RowVersion = Convert.ToBase64String(profile.RowVersion)
     };
 
@@ -327,6 +346,8 @@ public sealed class AlumniProfileSqlRow
     public long Id { get; set; }
     public long StudentId { get; set; }
     public bool DirectoryOptIn { get; set; }
+    public bool InvitationEmailOptIn { get; set; }
+    public bool InvitationSmsOptIn { get; set; }
     public string? ContactEmail { get; set; }
     public string? ContactPhone { get; set; }
     public byte[] RowVersion { get; set; } = Array.Empty<byte>();

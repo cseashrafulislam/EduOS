@@ -286,9 +286,11 @@ test('alumni manual follows verified consent, event approval, RSVP and attendanc
     const bn = guideFor('/Alumni/Index', 'bn-BD');
     assert.equal(en.steps.length, 6);
     assert.equal(bn.steps.length, 6);
-    assert.match(en.rules, /outbound email\/SMS invitation/);
-    assert.match(en.rules, /different administrator/);
-    assert.match(bn.rules, /প্রত্যাহারে সক্রিয় RSVP/);
+    assert.match(en.rules, /Both invitation channels start OFF/);
+    assert.match(en.rules, /separate|distinct affirmative consent/);
+    assert.match(en.rules, /explicit grants/);
+    assert.match(en.rules, /maker-checker/);
+    assert.match(bn.rules, /আলাদা সম্মতি/);
     assert.match(en.recovery, /403\/409/);
     assert.deepEqual(en.related.map(x => x.path), ['/Students/Index']);
 });

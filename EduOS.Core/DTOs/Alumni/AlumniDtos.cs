@@ -7,6 +7,9 @@ public sealed class AlumniConsentRequestDto
     [Required] public Guid ClientRequestId { get; set; }
     [Required] public Guid StudentReference { get; set; }
     public bool DirectoryOptIn { get; set; }
+    // Independent permission: directory visibility never implies outbound messaging.
+    public bool InvitationEmailOptIn { get; set; }
+    public bool InvitationSmsOptIn { get; set; }
     [StringLength(200)] public string? ContactEmail { get; set; }
     [StringLength(30)] public string? ContactPhone { get; set; }
     // Empty only on first registration. Required for updates, including revocation.
@@ -21,6 +24,8 @@ public sealed class AlumniSelfDto
     public DateTime CompletedAtUtc { get; set; }
     public bool Registered { get; set; }
     public bool DirectoryOptIn { get; set; }
+    public bool InvitationEmailOptIn { get; set; }
+    public bool InvitationSmsOptIn { get; set; }
     public string? ContactEmail { get; set; }
     public string? ContactPhone { get; set; }
     public string? RowVersion { get; set; }

@@ -66,6 +66,25 @@ public sealed class AlumniConsentContractTests
         Assert.Contains("RowVersion", source);
     }
 
+    [Fact]
+    public void Invitation_channel_consent_is_independent_and_alumni_administration_requires_explicit_campus_grants()
+    {
+        var dto = Read("EduOS.Core", "DTOs", "Alumni", "AlumniDtos.cs");
+        var service = Read("EduOS.Service", "Services", "Alumni", "AlumniService.cs");
+        var events = Read("EduOS.Service", "Services", "Alumni", "AlumniEventsService.cs");
+        var migration = Read("EduOS.Persistence", "Migrations", "20261101150000_AlumniInvitationChannelConsent.cs");
+        Assert.Contains("InvitationEmailOptIn", dto);
+        Assert.Contains("InvitationSmsOptIn", dto);
+        Assert.Contains("InvitationEmailOptIn = {request.InvitationEmailOptIn}", service);
+        Assert.Contains("InvitationSmsOptIn = {request.InvitationSmsOptIn}", service);
+        Assert.Contains("DirectoryOptIn = 1 OR InvitationEmailOptIn = 1", migration);
+        Assert.Contains("DirectoryOptIn = 1 OR InvitationSmsOptIn = 1", migration);
+        Assert.Contains("defaultValue: false", migration);
+        Assert.DoesNotContain("NOT EXISTS (SELECT 1 FROM dbo.UserCampusAccesses", service);
+        Assert.DoesNotContain("NOT EXISTS (SELECT 1 FROM dbo.UserCampusAccesses", events);
+        Assert.Contains("CampusGrantSql", events);
+    }
+
 
     [Theory]
     [InlineData(" =1+1")]

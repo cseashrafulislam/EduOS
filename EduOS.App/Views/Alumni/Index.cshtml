@@ -24,7 +24,15 @@
                         <input id="alumniOptIn" type="checkbox" class="form-check-input" />
                         <label for="alumniOptIn" class="form-check-label" data-i18n="optin">I consent to show my name and contact details in my institution's restricted alumni directory.</label>
                     </div>
-                    <p class="small text-muted" data-i18n="privacyNote">Unchecking and saving revokes directory access and clears stored alumni contact details. Your verified graduation record is retained.</p>
+                    <div class="form-check mb-2">
+                        <input id="alumniEmailInvites" type="checkbox" class="form-check-input" />
+                        <label for="alumniEmailInvites" class="form-check-label" data-i18n="emailInvites">I separately agree to receive alumni event invitations by email.</label>
+                    </div>
+                    <div class="form-check mb-3">
+                        <input id="alumniSmsInvites" type="checkbox" class="form-check-input" />
+                        <label for="alumniSmsInvites" class="form-check-label" data-i18n="smsInvites">I separately agree to receive alumni event invitations by SMS.</label>
+                    </div>
+                    <p class="small text-muted" data-i18n="privacyNote">Each consent can be revoked separately. Contact details are erased when no selected purpose needs them; graduation evidence remains.</p>
                     <button id="alumniSave" type="submit" class="btn btn-primary" data-i18n="save">Save preferences</button>
                 </form>
             </div></div>

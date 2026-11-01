@@ -67,6 +67,13 @@ public sealed class SqlServerAlumniConsentIntegrationTests
                 setup.AddRange(campus, year, program, student);
                 await setup.SaveChangesAsync();
                 studentReference = student.PublicId; campusId = campus.Id;
+                // Strict Alumni admin policy requires an explicit active campus grant.
+                setup.UserCampusAccesses.AddRange(
+                    new UserCampusAccess { TenantId = tenantId, UserId = userId,
+                        CampusId = campus.Id, IsActive = true },
+                    new UserCampusAccess { TenantId = tenantId, UserId = publisherId,
+                        CampusId = campus.Id, IsActive = true });
+                await setup.SaveChangesAsync();
                 var level = new AcademicLevel { TenantId = tenantId, AcademicProgramId = program.Id,
                     Name = "Final", Code = "FINAL", LevelNo = 12 };
                 var curriculum = new AcademicCurriculum { TenantId = tenantId,
@@ -287,6 +294,13 @@ public sealed class SqlServerAlumniConsentIntegrationTests
         var otherCampus = new Campus { TenantId = tenantId, Code = "SECOND", Name = "Second Campus" };
         db.Campuses.Add(otherCampus);
         await db.SaveChangesAsync();
+        var originalGrant = await db.UserCampusAccesses.SingleAsync(x =>
+            x.TenantId == tenantId && x.UserId == userId && x.CampusId == campusId);
+        originalGrant.IsActive = false;
+        await db.SaveChangesAsync();
+        var withoutGrant = await admin.EventCampusesAsync();
+        Assert.True(withoutGrant.Success, withoutGrant.Message);
+        Assert.Empty(withoutGrant.Data!);
         db.UserCampusAccesses.Add(new UserCampusAccess
         {
             TenantId = tenantId, UserId = userId, CampusId = otherCampus.Id, IsActive = true
@@ -482,6 +496,35 @@ public sealed class SqlServerAlumniConsentIntegrationTests
         var clearedAttendance = await publisherService.EventsAsync(new AlumniEventQueryDto());
         Assert.Equal(0, Assert.Single(clearedAttendance.Data!.Items.Where(e =>
             e.Reference == draft.Data.Reference)).CheckedInCount);
+
+        // Invitation consent is independent of publicly visible directory consent.
+        var invalidInvitation = await graduate.SaveConsentAsync(new AlumniConsentRequestDto
+        {
+            StudentReference = studentReference, ClientRequestId = Guid.NewGuid(),
+            InvitationEmailOptIn = true, RowVersion = finalRevoke.Data!.RowVersion
+        });
+        Assert.False(invalidInvitation.Success);
+        var inviteOnly = await graduate.SaveConsentAsync(new AlumniConsentRequestDto
+        {
+            StudentReference = studentReference, ClientRequestId = Guid.NewGuid(),
+            DirectoryOptIn = false, InvitationEmailOptIn = true,
+            ContactEmail = "private-invites@example.test", RowVersion = finalRevoke.Data.RowVersion
+        });
+        Assert.True(inviteOnly.Success, inviteOnly.Message);
+        Assert.False(inviteOnly.Data!.DirectoryOptIn);
+        Assert.True(inviteOnly.Data.InvitationEmailOptIn);
+        Assert.False(inviteOnly.Data.InvitationSmsOptIn);
+        Assert.Equal("private-invites@example.test", inviteOnly.Data.ContactEmail);
+        var inviteHidden = await publisherService.DirectoryAsync(new AlumniDirectoryQueryDto());
+        Assert.Empty(inviteHidden.Data!.Items);
+        var inviteRevoked = await graduate.SaveConsentAsync(new AlumniConsentRequestDto
+        {
+            StudentReference = studentReference, ClientRequestId = Guid.NewGuid(),
+            DirectoryOptIn = false, RowVersion = inviteOnly.Data.RowVersion
+        });
+        Assert.True(inviteRevoked.Success, inviteRevoked.Message);
+        Assert.False(inviteRevoked.Data!.InvitationEmailOptIn);
+        Assert.Null(inviteRevoked.Data.ContactEmail);
 
         // Regression: the old Take(100) before GroupBy discarded a second eligible
         // graduate when the first student had 100+ completed-exit history rows.
