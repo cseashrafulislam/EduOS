@@ -40,27 +40,102 @@ if (root) {
         });
         rows.appendChild(tr);
     };
+    // The server remains the authorization boundary. This shield prevents
+    // previously authorized evidence from surviving a tenant/session transition.
+    const session = {
+        reference: document.body?.dataset.authSessionReference || '',
+        tenant: document.body?.dataset.authTenantId || ''
+    };
+    const shield = document.getElementById('eduosSessionShield');
+    let locked = false, detailGeneration = 0, detailController, activeRequest;
+    const sessionCurrent = () => !locked && !!session.reference && !!session.tenant &&
+        !window.EduOSSessionTransitionPending?.() &&
+        document.body?.dataset.authSessionReference === session.reference &&
+        document.body?.dataset.authTenantId === session.tenant;
+    function lockPage() {
+        if (locked) return;
+        locked = true;
+        detailGeneration++;
+        detailController?.abort();
+        activeRequest?.abort();
+        for (const id of ['v3TraceRows', 'v3RegisterRows'])
+            document.getElementById(id).replaceChildren();
+        for (const id of ['v3TraceResult', 'v3RegisterResult'])
+            document.getElementById(id).hidden = true;
+        for (const id of ['v3TraceCsv', 'v3RegisterCsv']) {
+            const link = document.getElementById(id);
+            link.removeAttribute('href');
+            link.setAttribute('aria-disabled', 'true');
+            link.tabIndex = -1;
+        }
+        for (const id of ['v3TraceForm', 'v3RegisterForm'])
+            for (const control of document.getElementById(id).querySelectorAll('input, select, button'))
+                control.disabled = true;
+        for (const id of ['v3RegisterPrevious', 'v3RegisterNext', 'v3TracePrint'])
+            document.getElementById(id).disabled = true;
+        const warning = bn ? 'প্রতিষ্ঠানের সেশন পরিবর্তিত হয়েছে। পেজটি আবার লোড করুন।' :
+            'Institution session changed. Reload this page.';
+        message.textContent = warning;
+        document.getElementById('v3RegisterMessage').textContent = warning;
+    }
+    async function verifySession() {
+        if (!sessionCurrent() || !shield || !window.EduOSVerifySessionContext) {
+            lockPage();
+            throw new Error('session-changed');
+        }
+        try { await window.EduOSVerifySessionContext(); }
+        catch { lockPage(); throw new Error('session-changed'); }
+        if (!sessionCurrent() || shield.hidden !== true) {
+            lockPage();
+            throw new Error('session-changed');
+        }
+    }
+    const exportLink = link => link.addEventListener('click', async event => {
+        event.preventDefault();
+        const href = link.getAttribute('href');
+        if (!href || !href.startsWith('/api/v3/enterprise/ledger-trace/')) return;
+        try {
+            await verifySession();
+            if (sessionCurrent()) window.location.assign(href);
+        } catch { /* The privacy shield has invalidated stale export links. */ }
+    });
+    exportLink(csv);
     form.addEventListener('submit', async event => {
         event.preventDefault();
+        const generation = ++detailGeneration;
+        detailController?.abort();
+        detailController = new AbortController();
+        const request = detailController;
+        const button = form.querySelector('button[type="submit"]');
+        button.disabled = false;
         result.hidden = true;
         rows.replaceChildren();
+        csv.removeAttribute('href');
+        if (!sessionCurrent()) { lockPage(); return; }
         const id = reference.value.trim();
         if (!guid.test(id)) {
             message.textContent = bn ? 'সঠিক UUID দিন।' : 'Enter a valid UUID.';
             return;
         }
         message.textContent = bn ? 'যাচাই হচ্ছে…' : 'Checking…';
-        const button = form.querySelector('button[type="submit"]');
         button.disabled = true;
         try {
+            await verifySession();
+            if (generation !== detailGeneration) return;
             const selectedKind = kind.value;
             const route = selectedKind === 'asset' ? 'asset-depreciation/' :
                 selectedKind === 'procurement' ? 'procurement/' :
                 selectedKind === 'supplier-payable' ? 'supplier-payable/' : '';
             const path = '/api/v3/enterprise/ledger-trace/' + route + encodeURIComponent(id);
             const response = await fetch(path, { credentials: 'same-origin', cache: 'no-store',
-                headers: { Accept: 'application/json' } });
+                signal: request.signal, headers: { Accept: 'application/json' } });
             const body = await response.json();
+            await verifySession();
+            if (generation !== detailGeneration) return;
+            if (response.status === 401 || response.status === 403) {
+                lockPage();
+                return;
+            }
             if (!response.ok || !body.success || !body.data)
                 throw new Error(body.message || (bn ? 'ট্রেস পাওয়া যায়নি।' : 'Trace unavailable.'));
             const d = body.data;
@@ -116,16 +191,26 @@ if (root) {
                     (d.reversalReference ? ' · Reversal: ' + d.reversalReference : '') +
                     (d.sourceEvidenceStatus === 'VerifiedProcurementReceipt'
                         ? ' · ' + evidenceText(d.sourceEvidenceStatus) : '');
-            csv.href = path + '/csv';
+            csv.setAttribute('href', path + '/csv');
+            csv.removeAttribute('aria-disabled');
+            csv.tabIndex = 0;
             result.hidden = false;
             message.textContent = bn ? 'ট্রেস প্রস্তুত।' : 'Trace ready.';
         } catch (error) {
+            if (generation !== detailGeneration || locked || error.name === 'AbortError') return;
             message.textContent = error.message || (bn ? 'অনুরোধ ব্যর্থ।' : 'Request failed.');
         } finally {
-            button.disabled = false;
+            if (generation === detailGeneration && !locked) {
+                button.disabled = false;
+                detailController = undefined;
+            }
         }
     });
-    print.addEventListener('click', () => window.print());
+    print.addEventListener('click', async () => {
+        if (result.hidden) return;
+        try { await verifySession(); if (sessionCurrent()) window.print(); }
+        catch { /* Session changed; never print stale tenant evidence. */ }
+    });
     // The register reads only bounded server pages. A present journal reference
     // is not presented as balanced until the existing detail endpoint verifies it.
     // Reuse the canonical tenant-authorized campus catalogue; never ask staff
@@ -135,6 +220,11 @@ if (root) {
         credentials: 'same-origin', cache: 'no-store', headers: { Accept: 'application/json' }
     }).then(async response => {
         const body = await response.json();
+        await verifySession();
+        if (response.status === 401 || response.status === 403) {
+            lockPage();
+            return;
+        }
         if (!response.ok || !body.success || !Array.isArray(body.data))
             throw new Error('Campus list unavailable.');
         body.data.forEach(campus => {
@@ -153,10 +243,10 @@ if (root) {
     const registerCount = document.getElementById('v3RegisterCount');
     const registerPage = document.getElementById('v3RegisterPage');
     const registerCsv = document.getElementById('v3RegisterCsv');
+    exportLink(registerCsv);
     const registerPrevious = document.getElementById('v3RegisterPrevious');
     const registerNext = document.getElementById('v3RegisterNext');
     let currentPage = 1;
-    let activeRequest;
     const registerQuery = () => {
         const q = new URLSearchParams({
             kind: document.getElementById('v3RegisterKind').value,
@@ -170,21 +260,31 @@ if (root) {
         return q;
     };
     const loadRegister = async () => {
+        if (!sessionCurrent()) { lockPage(); return; }
         if (!registerForm.reportValidity()) return;
         if (activeRequest) activeRequest.abort();
         activeRequest = new AbortController();
         const request = activeRequest;
         registerResult.hidden = true;
+        registerRows.replaceChildren();
+        registerCsv.removeAttribute('href');
         registerMessage.textContent = bn ? 'যাচাই হচ্ছে…' : 'Loading…';
         try {
+            await verifySession();
+            if (activeRequest !== request) return;
             const q = registerQuery();
             const response = await fetch('/api/v3/enterprise/ledger-trace/register?' + q,
                 { credentials: 'same-origin', cache: 'no-store', signal: request.signal,
                     headers: { Accept: 'application/json' } });
             const body = await response.json();
+            await verifySession();
+            if (activeRequest !== request) return;
+            if (response.status === 401 || response.status === 403) {
+                lockPage();
+                return;
+            }
             if (!response.ok || !body.success || !body.data)
                 throw new Error(body.message || (bn ? 'রেজিস্টার পাওয়া যায়নি।' : 'Register unavailable.'));
-            if (activeRequest !== request) return;
             const data = body.data;
             registerRows.replaceChildren();
             (data.items || []).forEach(item => {
@@ -198,6 +298,7 @@ if (root) {
                 tr.tabIndex = 0;
                 tr.title = bn ? 'বিস্তারিত দেখতে Enter চাপুন' : 'Press Enter for details';
                 const open = () => {
+                    if (!sessionCurrent()) { lockPage(); return; }
                     document.getElementById('v3TraceKind').value =
                         data.kind === 'asset' ? 'asset' :
                         data.kind === 'procurement' ? 'procurement' : 'stock';
@@ -215,12 +316,14 @@ if (root) {
             registerPage.textContent = (bn ? 'পৃষ্ঠা ' : 'Page ') + data.page;
             registerPrevious.disabled = data.page <= 1;
             registerNext.disabled = data.page * data.pageSize >= data.totalCount;
-            registerCsv.href = '/api/v3/enterprise/ledger-trace/register/csv?' + q;
+            registerCsv.setAttribute('href', '/api/v3/enterprise/ledger-trace/register/csv?' + q);
+            registerCsv.removeAttribute('aria-disabled');
+            registerCsv.tabIndex = 0;
             registerResult.hidden = false;
             registerMessage.textContent = data.totalCount === 0
                 ? (bn ? 'কোনো তথ্য নেই।' : 'No records found.') : '';
         } catch (error) {
-            if (error.name !== 'AbortError')
+            if (!locked && activeRequest === request && error.name !== 'AbortError')
                 registerMessage.textContent = error.message ||
                     (bn ? 'অনুরোধ ব্যর্থ।' : 'Request failed.');
         } finally {

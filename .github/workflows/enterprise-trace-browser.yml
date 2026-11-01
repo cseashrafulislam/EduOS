@@ -1,0 +1,30 @@
+name: Enterprise Trace Chromium Privacy Acceptance
+on:
+  push:
+    branches: [Ashraful]
+    paths:
+      - 'EduOS.App/wwwroot/js/inventory/v3-enterprise-trace.js'
+      - 'EduOS.App/Views/V3EnterpriseTrace/Index.cshtml'
+      - 'tests/browser/enterprise-trace.cjs'
+      - '.github/workflows/enterprise-trace-browser.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: enterprise-trace-browser-Ashraful
+  cancel-in-progress: true
+jobs:
+  chromium-enterprise-trace:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install pinned Playwright
+        run: npm install --no-save --no-audit --no-fund playwright@1.56.0
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Exercise production enterprise trace JavaScript in Chromium
+        run: node tests/browser/enterprise-trace.cjs
