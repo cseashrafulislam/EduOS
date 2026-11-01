@@ -64,3 +64,31 @@ test('history workflow uses read-only complete checkout and never persists crede
   assert.match(source, /audit_git_exposure\.py --self-test/);
   assert.match(source, /run: python3 scripts\/security\/audit_git_exposure\.py\s*$/m);
 });
+
+
+test('private history triage refuses CI/noninteractive invocation and cannot write a report', () => {
+  const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'eduos-private-triage-'));
+  try {
+    git(cwd, 'init', '-q', '--initial-branch=fixture');
+    fs.writeFileSync(path.join(cwd, '.env.production'), 'synthetic=yes\n');
+    commit(cwd, 'private history synthetic fixture');
+    const output = path.join(cwd, 'must-not-exist.json');
+    const run = spawnSync('python3', [scanner, '--local-report', output], {
+      cwd, encoding: 'utf8',
+      env: { ...process.env, EDUOS_PRIVATE_TRIAGE: 'I_ACKNOWLEDGE_LOCAL_ONLY', GITHUB_ACTIONS: 'true' }
+    });
+    assert.equal(run.status, 5);
+    assert.equal(fs.existsSync(output), false);
+    assert.doesNotMatch(run.stdout + run.stderr, /\.env\.production|synthetic=yes/);
+  } finally {
+    fs.rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
+test('private history triage requires explicit owner acknowledgement and terminal', () => {
+  const run = spawnSync('python3', [scanner, '--local-report', '/tmp/eduos-should-not-exist.json'], {
+    encoding: 'utf8', env: { ...process.env, EDUOS_PRIVATE_TRIAGE: '' }
+  });
+  assert.equal(run.status, 5);
+  assert.doesNotMatch(run.stdout + run.stderr, /ghp_[A-Za-z0-9_]+/);
+});

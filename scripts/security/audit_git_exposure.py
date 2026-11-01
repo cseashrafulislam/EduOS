@@ -24,6 +24,8 @@ SECRETS = [
     rb'sk_live_[A-Za-z0-9]{20,}',
 ]
 PATTERNS = [re.compile(p) for p in SECRETS]
+PATTERN_KINDS = ('github_classic', 'github_fine_grained', 'aws_access_key_id',
+                 'private_key_header', 'slack_token', 'live_payment_key')
 
 
 def unsafe_path(value):
@@ -53,7 +55,7 @@ def read_exact(stream, size):
     return b''.join(chunks)
 
 
-def consume_blob(stream, size, inspect):
+def consume_blob(stream, size, inspect, match_kinds=None):
     """Consume exactly size bytes; inspect with constant memory across chunk boundaries."""
     tail = b''
     matched = False
@@ -63,14 +65,20 @@ def consume_blob(stream, size, inspect):
         if not chunk:
             raise RuntimeError('Truncated Git object stream')
         remaining -= len(chunk)
-        if inspect and not matched:
+        if inspect and (not matched or match_kinds is not None):
             window = tail + chunk
-            matched = any(pattern.search(window) for pattern in PATTERNS)
+            if match_kinds is None:
+                matched = any(pattern.search(window) for pattern in PATTERNS)
+            else:
+                for kind, pattern in zip(PATTERN_KINDS, PATTERNS):
+                    if pattern.search(window):
+                        matched = True
+                        match_kinds.add(kind)
             tail = window[-SCAN_OVERLAP:]
     return matched
 
 
-def scan(cwd=None):
+def scan(cwd=None, private_findings=None):
     if git('rev-parse', '--is-shallow-repository', cwd=cwd).strip() != b'false':
         raise RuntimeError('Shallow Git history')
     paths = [x.decode('utf-8', 'replace') for x in git('ls-files', '-z', cwd=cwd).split(b'\0') if x]
@@ -93,12 +101,12 @@ def scan(cwd=None):
                 forbidden_paths.add(name)
         if len(oid) in (40, 64) and oid not in seen:
             seen.add(oid)
-            objects.append(oid)
+            objects.append((oid, path))
     proc = subprocess.Popen(('git', 'cat-file', '--batch'), cwd=cwd, stdin=subprocess.PIPE,
                             stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, bufsize=0)
     checked = large_checked = skipped = matches = inspected_bytes = 0
     try:
-        for oid in objects:
+        for oid, path in objects:
             proc.stdin.write(oid + b'\n')
             header = proc.stdout.readline().split()
             if len(header) != 3 or header[0] != oid:
@@ -112,13 +120,23 @@ def scan(cwd=None):
                     large_checked += size > LARGE_BLOB
                 else:
                     skipped += 1
-            matches += consume_blob(proc.stdout, size, inspect)
+            kinds = set() if private_findings is not None and inspect else None
+            hit = consume_blob(proc.stdout, size, inspect, kinds)
+            matches += hit
+            if hit and private_findings is not None:
+                private_findings.setdefault('secret_blob_indicators', []).append({
+                    'object_id': oid.decode('ascii'),
+                    'path_hint': path.decode('utf-8', 'replace'),
+                    'signature_kinds': sorted(kinds)})
             if read_exact(proc.stdout, 1) != b'\n':
                 raise RuntimeError('Malformed Git object boundary')
     finally:
         proc.stdin.close()
         proc.stdout.close()
         proc.wait(timeout=30)
+    if private_findings is not None:
+        private_findings['current_sensitive_paths'] = sorted(p for p in paths if unsafe_path(p))
+        private_findings['historical_sensitive_paths'] = sorted(forbidden_paths)
     return dict(tracked_files=len(paths), current_forbidden_paths=sum(map(unsafe_path, paths)),
                 historical_forbidden_path_objects=old_path_objects,
                 historical_forbidden_unique_paths=len(forbidden_paths),
@@ -152,7 +170,11 @@ def self_test():
         os.unlink(Path(temp, '.env.production'))
         Path(temp, 'safe.txt').write_bytes(boundary)
         commit('synthetic large boundary marker')
-        result = scan(temp)
+        private = {}
+        result = scan(temp, private_findings=private)
+        assert '.env.production' in private['historical_sensitive_paths']
+        assert any('github_classic' in row['signature_kinds'] for row in private['secret_blob_indicators'])
+        assert marker.decode() not in json.dumps(private)
         assert result['current_forbidden_paths'] == 0
         assert result['historical_forbidden_unique_paths'] >= 1
         assert result['history_large_blobs_scanned'] >= 1
@@ -162,7 +184,48 @@ def self_test():
     print('Detector synthetic history/large-blob/boundary/privacy self-test: PASS')
 
 
+def local_private_report(destination):
+    """Explicit offline-only triage. Report paths/object IDs, NEVER secret values."""
+    if (os.environ.get('GITHUB_ACTIONS') or
+            os.environ.get('EDUOS_PRIVATE_TRIAGE') != 'I_ACKNOWLEDGE_LOCAL_ONLY' or
+            not sys.stdin.isatty()):
+        print('Private triage requires an interactive trusted workstation and explicit opt-in.', file=sys.stderr)
+        return 5
+    try:
+        root = Path(git('rev-parse', '--show-toplevel').decode().strip()).resolve()
+        target = Path(destination).expanduser()
+        if not target.is_absolute():
+            raise ValueError('Private report destination must be absolute')
+        parent = target.parent.resolve(strict=True)
+        if parent == root or root in parent.parents:
+            raise ValueError('Private report must be outside the repository')
+        if parent.stat().st_mode & 0o077:
+            raise ValueError('Private report directory must be owner-only (0700)')
+        if target.is_symlink() or target.exists():
+            raise ValueError('Private report destination must not exist')
+        details = {}
+        aggregate = scan(private_findings=details)
+        flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL
+        if hasattr(os, 'O_NOFOLLOW'):
+            flags |= os.O_NOFOLLOW
+        fd = os.open(str(target), flags, 0o600)
+        with os.fdopen(fd, 'w', encoding='utf-8') as handle:
+            json.dump({'aggregate': aggregate, 'local_only_indicators': details},
+                      handle, sort_keys=True, indent=2)
+            handle.write('\n')
+        print('Private local report written. No credential values were recorded.')
+        return 0
+    except (OSError, RuntimeError, ValueError, subprocess.CalledProcessError) as exc:
+        print('Private triage not completed:', type(exc).__name__, file=sys.stderr)
+        return 5
+
+
 def main():
+    if '--local-report' in sys.argv:
+        if len(sys.argv) != 3 or sys.argv[1] != '--local-report':
+            print('Usage: --local-report ABSOLUTE_PRIVATE_PATH', file=sys.stderr)
+            return 5
+        return local_private_report(sys.argv[2])
     if '--self-test' in sys.argv:
         self_test()
         return 0
