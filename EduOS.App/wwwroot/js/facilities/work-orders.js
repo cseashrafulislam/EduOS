@@ -59,7 +59,11 @@
             ...(body === undefined ? {} : { body: JSON.stringify(body) })
         });
         const data = await response.json().catch(() => null);
-        if (!response.ok || !data?.success) throw new Error(data?.message || t('Request failed.', 'অনুরোধ ব্যর্থ।'));
+        if (!response.ok || !data?.success) {
+            const error = new Error(data?.message || t('Request failed.', 'অনুরোধ ব্যর্থ।'));
+            error.status = response.status;
+            throw error;
+        }
         return data.data;
     }
     const cell = value => {
@@ -254,7 +258,12 @@
             pending.delete(key);
             el('wfCreate').reset(); notice(t('Request submitted.', 'অনুরোধ জমা হয়েছে।'), true);
             page = 1; await load();
-        } catch (error) { notice(error.message); }
+        } catch (error) {
+            // A confirmed validation rejection did not commit; corrected details
+            // may use a new ID. Network/5xx/409 outcomes require safe replay.
+            if (error.status === 400 || error.status === 422) pending.delete(key);
+            notice(error.message);
+        }
     });
     el('wfTransition').addEventListener('submit', async e => {
         e.preventDefault();
@@ -276,7 +285,10 @@
             pending.delete(key);
             notice(t('Transition recorded.', 'পরিবর্তন সংরক্ষিত হয়েছে।'), true);
             select(result); await load();
-        } catch (error) { notice(error.message); }
+        } catch (error) {
+            if (error.status === 400 || error.status === 422) pending.delete(key);
+            notice(error.message);
+        }
     });
     load();
 })();
