@@ -52,9 +52,9 @@
             ['reports', 'Reports', 'রিপোর্ট', ['/FeeReceivablesAging', '/AccountingReports', '/FinanceAdjustments/FineRegister', '/FeeDueCalendar', '/FeeInstallmentProjection', '/FeeInvoiceCoverage', '/FeeDiscountAttributionReview']]
         ],
         'academics:assessments': [
-            ['settings', 'Settings', 'সেটিংস', ['/AssessmentAdministration/AssessmentComponents', '/AssessmentAdministration/AssessmentSchedules', '/AssessmentAdministration/GradeSchemes', '/AssessmentAdministration/CertificateTemplates']],
-            ['operations', 'Operations', 'কার্যক্রম', ['/AssessmentAdministration/Index', '/AssessmentAdministration/ComponentMarks', '/AssessmentAdministration/SubjectCompletions']],
-            ['reports', 'Reports', 'রিপোর্ট', ['/AssessmentAdministration/Certificates', '/AssessmentAdministration/Transcripts']]
+            ['settings', 'Settings', 'সেটিংস', ['/AssessmentAdministration/Setup', '/AssessmentAdministration/AssessmentComponents', '/AssessmentAdministration/AssessmentSchedules', '/AssessmentAdministration/GradeSchemes', '/AssessmentAdministration/CertificateTemplates']],
+            ['operations', 'Operations', 'কার্যক্রম', ['/AssessmentAdministration/Marks', '/AssessmentAdministration/Results', '/AssessmentAdministration/Index', '/AssessmentAdministration/MarkReviews', '/AssessmentAdministration/ComponentMarks', '/AssessmentAdministration/SubjectCompletions', '/AssessmentAdministration/Attempts', '/AssessmentAdministration/ResultRescrutiny', '/AssessmentAdministration/AdmitCards']],
+            ['reports', 'Reports', 'রিপোর্ট', ['/AssessmentAdministration/Publications', '/AssessmentAdministration/GradeDistribution', '/AssessmentAdministration/ResultFollowUp', '/AssessmentAdministration/Certificates', '/AssessmentAdministration/Transcripts']]
         ],
         'academics:operations': [
             ['settings', 'Settings', 'সেটিংস', ['/AcademicCalendar']],
@@ -114,6 +114,16 @@
         '/learneridentities/accesshistory': 'পরিচয় তথ্য দেখার ইতিহাস',
         '/learning/index': 'শিক্ষা ও কোর্স',
         '/assessmentadministration/index': 'পরীক্ষা ও ফলাফল',
+        '/assessmentadministration/marks': 'নম্বর এন্ট্রি',
+        '/assessmentadministration/results': 'ফলাফল যাচাই ও প্রকাশ',
+        '/assessmentadministration/publications': 'প্রকাশিত ফলাফল ও ইতিহাস',
+        '/assessmentadministration/markreviews': 'নম্বর জমা ও যাচাই',
+        '/assessmentadministration/setup': 'মূল্যায়ন সেটআপ',
+        '/assessmentadministration/attempts': 'পুনঃপরীক্ষা ও উন্নয়ন',
+        '/assessmentadministration/resultrescrutiny': 'ফলাফল পুনর্নিরীক্ষণ',
+        '/assessmentadministration/resultfollowup': 'ফলাফল পরবর্তী পর্যালোচনা',
+        '/assessmentadministration/gradedistribution': 'গ্রেড বণ্টন',
+        '/assessmentadministration/admitcards': 'পরীক্ষার প্রবেশপত্র',
         '/assessmentadministration/componentmarks': 'মূল্যায়নের নম্বর',
         '/assessmentadministration/subjectcompletions': 'বিষয় সম্পন্নের অবস্থা',
         '/assessmentadministration/assessmentcomponents': 'মূল্যায়নের উপাদান',

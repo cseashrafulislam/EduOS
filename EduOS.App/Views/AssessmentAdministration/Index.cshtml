@@ -1,51 +1,51 @@
 @{
-    ViewData["Title"] = "Exam Marks & Results";
+    var bn = System.Globalization.CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "bn";
+    var feature = ViewData["ExamFeature"] as string ?? "all";
+    var title = feature switch
+    {
+        "marks" => bn ? "নম্বর এন্ট্রি" : "Marks Entry",
+        "results" => bn ? "ফলাফল যাচাই ও প্রকাশ" : "Result Review & Publication",
+        "publications" => bn ? "প্রকাশিত ফলাফল ও ইতিহাস" : "Published Results & History",
+        _ => bn ? "পরীক্ষার নম্বর ও ফলাফল" : "Exam Marks & Results"
+    };
+    ViewData["Title"] = title;
     var canPublish = User.IsInRole("TenantAdmin") || User.IsInRole("Principal") || User.IsInRole("VicePrincipal") || User.IsInRole("ExamController");
 }
-<section class="container-fluid py-3" id="examWorkflow" data-can-publish="@canPublish.ToString().ToLowerInvariant()">
+<section class="container-fluid py-3" id="examWorkflow" data-active-feature="@feature" data-can-publish="@canPublish.ToString().ToLowerInvariant()">
     @Html.AntiForgeryToken()
-    <header class="mb-3 d-flex flex-wrap align-items-start gap-2">
-        <h2 class="h4 mb-0">Exam Marks & Results</h2>
-        <a class="btn btn-sm btn-outline-primary" asp-controller="AssessmentAdministration" asp-action="MarkReviews">Marks review</a>
-        @if (canPublish) { <a class="btn btn-sm btn-outline-primary" asp-controller="AssessmentAdministration" asp-action="GradeDistribution">Grade distribution</a> }
-        @if (canPublish) { <a class="btn btn-sm btn-outline-primary" asp-controller="AssessmentAdministration" asp-action="ResultRescrutiny">Result re-scrutiny</a> }
-        @if (canPublish) { <a class="btn btn-sm btn-outline-primary" asp-controller="AssessmentAdministration" asp-action="ResultFollowUp">Result follow-up</a> }
-        <details class="ms-auto small">
-            <summary class="btn btn-sm btn-outline-secondary" aria-label="Exam workflow help">ⓘ</summary>
-            <div class="border rounded p-2 mt-1" style="max-width: 22rem" role="note">
-                Enter marks while open. Controllers verify every batch before locking; locked results are read-only.
-            </div>
-        </details>
+    <header class="mb-3">
+        <p class="small text-muted mb-1">@(bn ? "পরীক্ষা ও ফলাফল" : "Exams & Results") <span aria-hidden="true">/</span> @(feature == "publications" ? (bn ? "রিপোর্ট" : "Reports") : (bn ? "কার্যক্রম" : "Operations"))</p>
+        <h2 class="h4 mb-0">@title</h2>
     </header>
     <div id="examAlert" class="d-none" tabindex="-1" role="alert" aria-live="polite"></div>
     <form id="examScopeSearch" class="card card-body mb-2" role="search">
         <div class="row g-2 align-items-end">
-            <div class="col-md-6"><label for="examScopeTerm" class="form-label">Find assessment, batch or subject</label><input id="examScopeTerm" class="form-control" type="search" maxlength="100" placeholder="Search authorized assessment scopes" /></div>
-            <div class="col-md-auto"><button id="examScopeApply" class="btn btn-outline-primary" type="submit">Search</button></div>
-            <div class="col-md-auto d-flex gap-2 align-items-center"><button id="examScopePrev" class="btn btn-outline-secondary" type="button" disabled>Previous</button><button id="examScopeNext" class="btn btn-outline-secondary" type="button" disabled>Next</button></div>
+            <div class="col-md-6"><label for="examScopeTerm" class="form-label">@(bn ? "মূল্যায়ন, ব্যাচ বা বিষয় খুঁজুন" : "Find assessment, batch or subject")</label><input id="examScopeTerm" class="form-control" type="search" maxlength="100" placeholder="@(bn ? "অনুমোদিত মূল্যায়ন খুঁজুন" : "Search authorized assessment scopes")" /></div>
+            <div class="col-md-auto"><button id="examScopeApply" class="btn btn-outline-primary" type="submit">@(bn ? "খুঁজুন" : "Search")</button></div>
+            <div class="col-md-auto d-flex gap-2 align-items-center"><button id="examScopePrev" class="btn btn-outline-secondary" type="button" disabled>@(bn ? "আগের" : "Previous")</button><button id="examScopeNext" class="btn btn-outline-secondary" type="button" disabled>@(bn ? "পরের" : "Next")</button></div>
             <div class="col-md-auto"><span id="examScopePageInfo" class="small text-muted" role="status" aria-live="polite">Loading scopes…</span></div>
         </div>
     </form>
     <form id="examFilters" class="card card-body mb-3">
         <div class="row g-3 align-items-end">
-            <div class="col-lg-4"><label for="examExam" class="form-label">Assessment</label><select id="examExam" class="form-select" required><option value="">Loading assessments…</option></select></div>
-            <div class="col-lg-4"><label for="examBatch" class="form-label">Batch / Section</label><select id="examBatch" class="form-select" required><option value="">Select assessment first</option></select></div>
-            <div class="col-lg-4"><label for="examSubject" class="form-label">Subject</label><select id="examSubject" class="form-select" required><option value="">Select batch first</option></select></div>
-            <div class="col-12 d-flex flex-wrap gap-2"><button id="examLoadRoster" type="submit" class="btn btn-primary">Load marks register</button>@if (canPublish) { <button id="examLoadResults" type="button" class="btn btn-outline-primary" disabled>View published results</button> }</div>
+            <div class="col-lg-4"><label for="examExam" class="form-label">@(bn ? "মূল্যায়ন" : "Assessment")</label><select id="examExam" class="form-select" required><option value="">@(bn ? "মূল্যায়ন লোড হচ্ছে…" : "Loading assessments…")</option></select></div>
+            <div class="col-lg-4"><label for="examBatch" class="form-label">@(bn ? "ব্যাচ / শাখা" : "Batch / Section")</label><select id="examBatch" class="form-select" required><option value="">@(bn ? "প্রথমে মূল্যায়ন বাছুন" : "Select assessment first")</option></select></div>
+            <div class="col-lg-4"><label for="examSubject" class="form-label">@(bn ? "বিষয়" : "Subject")</label><select id="examSubject" class="form-select" required><option value="">@(bn ? "প্রথমে ব্যাচ বাছুন" : "Select batch first")</option></select></div>
+            <div class="col-12 d-flex flex-wrap gap-2"><button id="examLoadRoster" type="submit" class="btn btn-primary">@(feature == "all" || feature == "marks" ? (bn ? "নম্বর তালিকা দেখুন" : "Load marks register") : (bn ? "মূল্যায়ন লোড করুন" : "Load assessment"))</button>@if (canPublish) { <button id="examLoadResults" type="button" class="btn btn-outline-primary @(feature == "all" || feature == "results" ? "" : "d-none")" disabled>@(bn ? "প্রকাশিত ফলাফল দেখুন" : "View published results")</button> }</div>
         </div>
     </form>
     @if (canPublish)
     {
-        <section class="card mb-3" aria-labelledby="examStateHeading">
+        <section class="card mb-3 @(feature == "all" || feature == "results" ? "" : "d-none")" aria-labelledby="examStateHeading">
             <div class="card-body d-flex flex-wrap align-items-center gap-2">
-                <h3 id="examStateHeading" class="h6 mb-0">Assessment approval &amp; lock</h3>
+                <h3 id="examStateHeading" class="h6 mb-0">@(bn ? "মূল্যায়ন অনুমোদন ও লক" : "Assessment approval & lock")</h3>
                 <span id="examStateCurrent" class="badge text-bg-secondary" role="status" aria-live="polite">Select an assessment</span>
                 <button id="examStateAdvance" type="button" class="btn btn-sm btn-outline-primary ms-auto" disabled>Next stage</button>
             </div>
         </section>
-        <section class="card mb-3" aria-labelledby="examCreditHeading">
+        <section class="card mb-3 @(feature == "all" || feature == "results" ? "" : "d-none")" aria-labelledby="examCreditHeading">
             <div class="card-body d-flex flex-wrap align-items-center gap-2">
-                <h3 id="examCreditHeading" class="h6 mb-0">Transcript credit &amp; attempt policy</h3>
+                <h3 id="examCreditHeading" class="h6 mb-0">@(bn ? "ক্রেডিট ও পরীক্ষার প্রচেষ্টা নীতি" : "Transcript credit & attempt policy")</h3>
                 <label for="examAttemptMode" class="small">Attempt</label>
                 <select id="examAttemptMode" class="form-select form-select-sm w-auto" disabled>
                     <option value="0">Regular</option><option value="1">Retake (failed course)</option>
@@ -54,15 +54,13 @@
                 <div class="form-check ms-2"><input id="examCountsTowardCgpa" class="form-check-input" type="checkbox" disabled />
                     <label for="examCountsTowardCgpa" class="form-check-label">Include this final exam in cumulative GPA</label></div>
                 <button id="examSaveCreditPolicy" class="btn btn-sm btn-outline-primary ms-auto" type="button" disabled>Save draft setting</button>
-                <a class="btn btn-sm btn-outline-secondary" asp-controller="AssessmentAdministration" asp-action="Attempts">Retake / Improvement approvals</a>
-                <a class="btn btn-sm btn-outline-secondary" asp-controller="AssessmentAdministration" asp-action="Setup">Assessment setup</a>
                 <span id="examCreditInfo" class="small text-muted" role="status" aria-live="polite">Choose a draft assessment.</span>
             </div>
         </section>
     }
-    <section class="card mb-3" aria-labelledby="examRosterHeading">
+    <section class="card mb-3 @(feature == "all" || feature == "marks" ? "" : "d-none")" aria-labelledby="examRosterHeading">
         <div class="card-header d-flex flex-wrap align-items-center justify-content-between gap-2">
-            <h3 id="examRosterHeading" class="h6 m-0">Subject marks register</h3><div class="d-flex flex-wrap gap-2 align-items-center"><span id="examRosterInfo" class="small text-muted" role="status" aria-live="polite"></span><button id="examMarksCsv" type="button" class="btn btn-sm btn-outline-secondary" disabled>Page CSV</button></div>
+            <h3 id="examRosterHeading" class="h6 m-0">@(bn ? "বিষয়ভিত্তিক নম্বর তালিকা" : "Subject marks register")</h3><div class="d-flex flex-wrap gap-2 align-items-center"><span id="examRosterInfo" class="small text-muted" role="status" aria-live="polite"></span><button id="examMarksCsv" type="button" class="btn btn-sm btn-outline-secondary" disabled>@(bn ? "পৃষ্ঠার CSV" : "Page CSV")</button></div>
         </div>
         <form id="examRosterSearchForm" class="card-body py-2 d-flex flex-wrap gap-2 align-items-end" role="search">
             <div><label for="examRosterSearch" class="form-label mb-1">Roll, student code or name</label>
@@ -81,14 +79,14 @@
                 <span id="examRosterPageInfo" class="small text-muted" role="status" aria-live="polite"></span>
                 <button id="examRosterNext" class="btn btn-sm btn-outline-secondary" type="button" disabled>Next</button>
             </div>
-            <button id="examSaveMarks" class="btn btn-primary" disabled type="button">Save changed marks</button>
+            <button id="examSaveMarks" class="btn btn-primary" disabled type="button">@(bn ? "পরিবর্তিত নম্বর সংরক্ষণ" : "Save changed marks")</button>
         </div>
     </section>
     @if (canPublish)
     {
-        <section class="card mb-3" aria-labelledby="examReadinessHeading">
+        <section class="card mb-3 @(feature == "all" || feature == "results" ? "" : "d-none")" aria-labelledby="examReadinessHeading">
             <div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-2">
-                <h3 id="examReadinessHeading" class="h6 m-0">Pre-publication evidence review</h3>
+                <h3 id="examReadinessHeading" class="h6 m-0">@(bn ? "প্রকাশের আগে প্রমাণ যাচাই" : "Pre-publication evidence review")</h3>
                 <div class="d-flex gap-2"><button id="examReadinessLoad" class="btn btn-sm btn-outline-primary" type="button">Check batch</button><button id="examReadinessCsv" class="btn btn-sm btn-outline-secondary" type="button" disabled>Page CSV</button></div>
             </div>
             <div class="card-body">
@@ -97,9 +95,9 @@
                 <div class="d-flex flex-wrap justify-content-between gap-2"><span id="examReadinessInfo" role="status" aria-live="polite" class="small text-muted"></span><div class="d-flex gap-2"><button id="examReadinessPrev" class="btn btn-sm btn-outline-secondary" type="button" disabled>Previous</button><button id="examReadinessNext" class="btn btn-sm btn-outline-secondary" type="button" disabled>Next</button></div></div>
             </div>
         </section>
-        <section class="card mb-3" id="examMarkChanges" aria-labelledby="examMarkChangesHeading">
+        <section class="card mb-3 @(feature == "all" || feature == "marks" ? "" : "d-none")" id="examMarkChanges" aria-labelledby="examMarkChangesHeading">
             <div class="card-header d-flex flex-wrap align-items-center gap-2">
-                <h3 id="examMarkChangesHeading" class="h6 m-0">Marks change register</h3>
+                <h3 id="examMarkChangesHeading" class="h6 m-0">@(bn ? "নম্বর পরিবর্তনের ইতিহাস" : "Marks change register")</h3>
                 <button id="examMarkChangesLoad" class="btn btn-sm btn-outline-primary ms-auto" type="button">Load changes</button>
                 <button id="examMarkChangesCsv" class="btn btn-sm btn-outline-secondary" type="button" disabled>Page CSV</button>
             </div>
@@ -115,16 +113,16 @@
                 </div>
             </div>
         </section>
-        <section class="card mb-3" aria-labelledby="examResultsHeading">
-            <div class="card-header d-flex justify-content-between flex-wrap align-items-center gap-2"><h3 class="h6 m-0" id="examResultsHeading">Result sheet</h3><div class="d-flex flex-wrap gap-2"><button id="examGenerate" type="button" class="btn btn-outline-primary" disabled>Preview draft</button><button id="examResultsCsv" type="button" class="btn btn-outline-secondary">Results CSV</button><button id="examPublish" type="button" class="btn btn-danger" disabled>Publish results</button></div></div>
+        <section class="card mb-3 @(feature == "all" || feature == "results" ? "" : "d-none")" aria-labelledby="examResultsHeading">
+            <div class="card-header d-flex justify-content-between flex-wrap align-items-center gap-2"><h3 class="h6 m-0" id="examResultsHeading">@(bn ? "ফলাফল তালিকা" : "Result sheet")</h3><div class="d-flex flex-wrap gap-2"><button id="examGenerate" type="button" class="btn btn-outline-primary" disabled>@(bn ? "খসড়া প্রিভিউ" : "Preview draft")</button><button id="examResultsCsv" type="button" class="btn btn-outline-secondary">@(bn ? "ফলাফলের CSV" : "Results CSV")</button><button id="examPublish" type="button" class="btn btn-danger" disabled>@(bn ? "ফলাফল প্রকাশ করুন" : "Publish results")</button></div></div>
             <div class="card-body"><p id="examResultSummary" class="small text-muted mb-2">Choose a batch to preview draft results or view a published snapshot.</p>
                 <div class="row g-2 mb-3"><div class="col-auto form-check ms-2"><input id="examVisibleStudent" type="checkbox" class="form-check-input" checked /><label for="examVisibleStudent" class="form-check-label">Visible to students</label></div><div class="col-auto form-check ms-2"><input id="examVisibleGuardian" type="checkbox" class="form-check-input" checked /><label for="examVisibleGuardian" class="form-check-label">Visible to guardians</label></div><div class="col-md-5"><label for="examPublishNote" class="form-label">Publication note (optional)</label><input id="examPublishNote" class="form-control" maxlength="1000" /></div></div>
                 <div class="table-responsive"><table class="table table-sm table-hover"><thead><tr><th>Position</th><th>Roll</th><th>Student</th><th>Marks</th><th>Percentage</th><th>Credits</th><th>GPA</th><th>CGPA</th><th>Grade</th><th>Status</th></tr></thead><tbody id="examResults"></tbody></table></div>
             </div>
         </section>
-        <section class="card mb-3" id="examPublicationRegister" aria-labelledby="examPublicationHeading">
+        <section class="card mb-3 @(feature == "all" || feature == "publications" ? "" : "d-none")" id="examPublicationRegister" aria-labelledby="examPublicationHeading">
             <div class="card-header d-flex flex-wrap justify-content-between gap-2 align-items-center">
-                <h3 class="h6 m-0" id="examPublicationHeading">Publication history &amp; tabulation</h3>
+                <h3 class="h6 m-0" id="examPublicationHeading">@(bn ? "প্রকাশনার ইতিহাস ও ট্যাবুলেশন" : "Publication history & tabulation")</h3>
                 <span class="small text-muted">Authorized examination administration only</span>
             </div>
             <div class="card-body">
@@ -198,7 +196,7 @@
             </div>
         </section>
     }
-    <div class="d-flex justify-content-end mb-3"><button id="examPrint" type="button" class="btn btn-outline-secondary">Print current register</button></div>
+    <div class="d-flex justify-content-end mb-3 @(feature == "all" || feature == "marks" ? "" : "d-none")"><button id="examPrint" type="button" class="btn btn-outline-secondary">Print current register</button></div>
 </section>
 <style>
 @@media print {

@@ -6,12 +6,6 @@
 <section class="container-fluid py-3" id="resultFollowUpWorkspace" data-lang="@(bn ? "bn" : "en")">
     <header class="d-flex flex-wrap align-items-center gap-2 mb-3">
         <h1 class="h4 mb-0">@(bn ? "ফলাফল পরবর্তী পর্যালোচনা" : "Result follow-up register")</h1>
-        <details class="ms-auto small">
-            <summary class="btn btn-sm btn-outline-secondary" aria-label="@(bn ? "সহায়তা" : "Help")">ⓘ</summary>
-            <div class="border rounded p-2 mt-1" style="max-width:23rem" role="note">
-                @(bn ? "প্রকাশিত সংস্করণের অনুত্তীর্ণ ও স্থগিত ফলাফল দেখুন। এটি পুনঃপরীক্ষা বা উন্নয়ন পরীক্ষার স্বয়ংক্রিয় অনুমোদন নয়।" : "Review failed and withheld results from a saved version. This is not an automatic retake or improvement approval.")
-            </div>
-        </details>
     </header>
     <div id="followUpNotice" class="d-none" role="alert" aria-live="polite"></div>
     <form id="followUpScopeForm" class="card card-body mb-3" role="search">

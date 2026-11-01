@@ -5,12 +5,6 @@
     @Html.AntiForgeryToken()
     <header class="d-flex flex-wrap align-items-center gap-2 mb-3 admit-controls">
         <h1 class="h4 mb-0">Exam admit cards</h1>
-        <details class="ms-auto small">
-            <summary class="btn btn-sm btn-outline-secondary" aria-label="Admit card help">ⓘ</summary>
-            <div class="border rounded p-2 mt-1" style="max-width:22rem" role="note">
-                Select an authorized scheduled assessment and batch. Only enrolled candidates with approved subjects and complete exam schedules can be printed.
-            </div>
-        </details>
     </header>
     <div id="admitAlert" class="alert d-none admit-controls" role="alert" aria-live="polite"></div>
     <form id="admitFilters" class="card card-body mb-3 admit-controls">

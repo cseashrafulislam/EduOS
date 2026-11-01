@@ -281,10 +281,17 @@
                      User?.IsInRole("VicePrincipal") == true || User?.IsInRole("ExamController") == true ||
                      User?.IsInRole("Teacher") == true)
                 {
-                    <a class="nav-link @ActiveFor("/AssessmentAdministration")" href="/AssessmentAdministration/Index">
-                        <svg class="edu-icon"><use href="/images/eduos-icons.svg#reports" /></svg>
-                        <span>Exam Marks &amp; Results</span>
-                    </a>
+                    @foreach (var examTask in new[] {
+                        (Action: "Marks", En: "Marks Entry", Bn: "নম্বর এন্ট্রি"),
+                        (Action: "MarkReviews", En: "Marks Submission & Review", Bn: "নম্বর জমা ও যাচাই")
+                    })
+                    {
+                        var examTaskPath = "/AssessmentAdministration/" + examTask.Action;
+                        <a class="nav-link @ActiveFor(examTaskPath)" href="@examTaskPath">
+                            <svg class="edu-icon"><use href="/images/eduos-icons.svg#reports" /></svg>
+                            <span>@(currentCulture == "bn-BD" ? examTask.Bn : examTask.En)</span>
+                        </a>
+                    }
                 }
                 @if (User?.IsInRole("TenantAdmin") == true || User?.IsInRole("Principal") == true ||
                      User?.IsInRole("VicePrincipal") == true || User?.IsInRole("ExamController") == true ||
@@ -298,6 +305,23 @@
                 @if (User?.IsInRole("TenantAdmin") == true || User?.IsInRole("Principal") == true ||
                      User?.IsInRole("VicePrincipal") == true || User?.IsInRole("ExamController") == true)
                 {
+                    @foreach (var examAdmin in new[] {
+                        (Action: "Results", En: "Result Review & Publication", Bn: "ফলাফল যাচাই ও প্রকাশ"),
+                        (Action: "Publications", En: "Published Results & History", Bn: "প্রকাশিত ফলাফল ও ইতিহাস"),
+                        (Action: "Setup", En: "Assessment Setup", Bn: "মূল্যায়ন সেটআপ"),
+                        (Action: "Attempts", En: "Retake & Improvement", Bn: "পুনঃপরীক্ষা ও উন্নয়ন"),
+                        (Action: "ResultRescrutiny", En: "Result Re-scrutiny", Bn: "ফলাফল পুনর্নিরীক্ষণ"),
+                        (Action: "ResultFollowUp", En: "Result Follow-up", Bn: "ফলাফল পরবর্তী পর্যালোচনা"),
+                        (Action: "GradeDistribution", En: "Grade Distribution", Bn: "গ্রেড বণ্টন"),
+                        (Action: "AdmitCards", En: "Exam Admit Cards", Bn: "পরীক্ষার প্রবেশপত্র")
+                    })
+                    {
+                        var examAdminPath = "/AssessmentAdministration/" + examAdmin.Action;
+                        <a class="nav-link @ActiveFor(examAdminPath)" href="@examAdminPath">
+                            <svg class="edu-icon"><use href="/images/eduos-icons.svg#reports" /></svg>
+                            <span>@(currentCulture == "bn-BD" ? examAdmin.Bn : examAdmin.En)</span>
+                        </a>
+                    }
                     <a class="nav-link @ActiveFor("/AssessmentAdministration/SubjectCompletions")" href="/AssessmentAdministration/SubjectCompletions">
                         <svg class="edu-icon"><use href="/images/eduos-icons.svg#reports" /></svg>
                         <span>Subject Completion Register</span>

@@ -16,6 +16,24 @@ public sealed class AssessmentAdministrationController : Controller
     [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
     public IActionResult Index() => View();
 
+    // Keep Index for existing bookmarks; the sidebar uses task-specific routes.
+    private IActionResult Workflow(string feature)
+    {
+        ViewData["ExamFeature"] = feature;
+        return View("Index");
+    }
+
+    [HttpGet, ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
+    public IActionResult Marks() => Workflow("marks");
+
+    [HttpGet, Authorize(Roles = "TenantAdmin,Principal,VicePrincipal,ExamController")]
+    [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
+    public IActionResult Results() => Workflow("results");
+
+    [HttpGet, Authorize(Roles = "TenantAdmin,Principal,VicePrincipal,ExamController")]
+    [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
+    public IActionResult Publications() => Workflow("publications");
+
     [HttpGet]
     [Authorize(Roles = "TenantAdmin,Principal,VicePrincipal,ExamController")]
     [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]

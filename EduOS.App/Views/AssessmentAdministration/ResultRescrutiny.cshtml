@@ -7,12 +7,6 @@
     @Html.AntiForgeryToken()
     <header class="d-flex flex-wrap align-items-center gap-2 mb-3">
         <h1 class="h4 mb-0">@(bn ? "ফলাফল পুনর্নিরীক্ষণ" : "Result re-scrutiny")</h1>
-        <details class="ms-auto small">
-            <summary class="btn btn-sm btn-outline-secondary" aria-label="@(bn ? "পুনর্নিরীক্ষণ সহায়তা" : "Re-scrutiny help")">ⓘ</summary>
-            <div class="border rounded p-2 mt-1" role="note" style="max-width:23rem">
-                @(bn ? "প্রকাশিত সংস্করণ ও শিক্ষার্থী নির্বাচন করুন। আবেদনকারী নিজে সিদ্ধান্ত দিতে পারবেন না। অনুমোদন ফলাফল পরিবর্তন করে না; পৃথক নিরীক্ষিত সংশোধন প্রয়োজন।" : "Choose a published version and student. A different reviewer must decide. Acceptance does not change marks; audited correction is a separate workflow.")
-            </div>
-        </details>
     </header>
     <div id="rescrutinyNotice" class="d-none" role="alert" aria-live="polite"></div>
     <section class="card mb-3">

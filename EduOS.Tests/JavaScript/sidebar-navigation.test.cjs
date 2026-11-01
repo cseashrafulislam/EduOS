@@ -59,6 +59,11 @@ test('section-specific categories include dynamic role portals and privileged ad
     assert.equal(categoryFor('management', 'finance', '/FeeDueCalendar/Index'), 'reports');
     assert.equal(categoryFor('academics', 'assessments', '/AssessmentAdministration/GradeSchemes'), 'settings');
     assert.equal(categoryFor('academics', 'assessments', '/AssessmentAdministration/Certificates'), 'reports');
+    assert.equal(categoryFor('academics', 'assessments', '/AssessmentAdministration/Marks'), 'operations');
+    assert.equal(categoryFor('academics', 'assessments', '/AssessmentAdministration/Results'), 'operations');
+    assert.equal(categoryFor('academics', 'assessments', '/AssessmentAdministration/Publications'), 'reports');
+    assert.equal(categoryFor('academics', 'assessments', '/AssessmentAdministration/Setup'), 'settings');
+    assert.equal(categoryFor('academics', 'assessments', '/AssessmentAdministration/AdmitCards'), 'operations');
     assert.equal(categoryFor('management', 'people', '/PayrollOperations/Index'), 'operations');
     assert.equal(categoryFor('management', 'people', '/HR/Directory'), 'operations');
     assert.equal(categoryFor('management', 'people', '/HR/Leaves'), 'operations');
@@ -77,6 +82,7 @@ test('shared sidebar leaf labels follow the global Bengali/English locale withou
         ['/StudentPortal/Index', 'শিক্ষার্থী ও অভিভাবক পোর্টাল'],
         ['/FeeReceivablesAging/Index', 'ফি বকেয়ার প্রতিবেদন'],
         ['/AssessmentAdministration/Certificates', 'সনদ'],
+        ['/AssessmentAdministration/Results', 'ফলাফল যাচাই ও প্রকাশ'],
         ['/TransportOperations/Index', 'পরিবহন পরিচালনা'],
         ['/HR/Leaves', 'কর্মীর ছুটির আবেদন']
     ]) {

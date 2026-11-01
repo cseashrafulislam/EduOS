@@ -6,6 +6,8 @@ const vm = require('node:vm');
 const root = path.resolve(__dirname, '../..');
 const script = fs.readFileSync(path.join(root, 'EduOS.App/wwwroot/js/assessment/mark-reviews.js'), 'utf8');
 const view = fs.readFileSync(path.join(root, 'EduOS.App/Views/AssessmentAdministration/MarkReviews.cshtml'), 'utf8');
+const layout = fs.readFileSync(path.join(root, 'EduOS.App/Views/Shared/_Layout.cshtml'), 'utf8');
+const { guideFor } = require('../../EduOS.App/wwwroot/js/platform/page-context-help.js');
 
 test('marks review uses authorized scoped selector, rowversion and anti-forgery', () => {
     assert.match(script, /scopes\/page/);
@@ -26,7 +28,9 @@ test('lost acknowledgement preserves the same review key and frozen decision pay
     assert.match(script, /state\.pendingRequest = null; notice\('Review decision recorded\.'\)/);
 });
 test('review screen has contextual help and safe history rendering', () => {
-    assert.match(view, /aria-label="Marks review help"/);
+    assert.doesNotMatch(view, /aria-label="Marks review help"/);
+    assert.match(layout, /id="pageContextHelp"/);
+    assert.match(guideFor('/AssessmentAdministration/MarkReviews', 'en-BD').rules, /Submitter and reviewer must differ/);
     assert.match(script, /td\.textContent =/);
     assert.match(script, /replaceChildren\(\)/);
     assert.match(script, /history\.items/);

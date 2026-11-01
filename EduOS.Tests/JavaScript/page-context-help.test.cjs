@@ -13,10 +13,12 @@ const { guideFor, coverage, normalizeRoute, validateGuide } =
 const routes = ['/FeeReceivablesAging/Index', '/PayrollJournalPosting/Index', '/PayrollSalaryStatement/Index', '/Alumni/Index', '/FeeOperations/Index', '/Students/Index', '/Attendance/Index', '/PayrollOperations/Index', '/FacilityWorkOrders/Index', '/Admissions/Index', '/StudentInvoicePosting/Index', '/workspace', '/Account/BrandingSetup', '/StudentLifecycle/Index',
     ...['Years','Terms','Departments','Classes','Sections','Rooms','Subjects','Curricula','Prerequisites','Offerings'].map(action => '/AcademicManagement/' + action),
     ...['Structures','Billing','Ledger'].map(action => '/FeeOperations/' + action), '/HR/Directory', '/HR/Leaves',
-    ...['Policies','StudentAdjustments','FineRegister','Refunds'].map(action => '/FinanceAdjustments/' + action)];
+    ...['Policies','StudentAdjustments','FineRegister','Refunds'].map(action => '/FinanceAdjustments/' + action),
+    ...['Marks','Results','Publications','Setup','MarkReviews','Attempts','ResultRescrutiny',
+        'ResultFollowUp','GradeDistribution','AdmitCards'].map(action => '/AssessmentAdministration/' + action)];
 
 test('all reviewed route manuals have full bilingual structure, matching steps and examples', () => {
-    assert.deepEqual(coverage(), { routes: 33, en: 33, bn: 33 });
+    assert.deepEqual(coverage(), { routes: 43, en: 43, bn: 43 });
     for (const route of routes) {
         const en = guideFor(route, 'en-BD');
         const bn = guideFor(route, 'bn-BD');

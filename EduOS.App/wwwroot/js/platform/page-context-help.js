@@ -3,6 +3,175 @@
  * in the currently rendered, server-authorized navigation. No remote guide API/cache. */
 (() => {
     'use strict';
+    // The examination module has distinct setup, marks, review, publishing
+    // and historical-report workflows. Every guide below follows an actual
+    // existing authorized page; no new result or grade engine is implied.
+    const examManuals = {
+        '/assessmentadministration/marks/index': {
+            version: 1, reviewed: true,
+            title: ['Marks Entry', 'নম্বর এন্ট্রি'],
+            purpose: ['Find an authorized assessment subject and enter or correct permitted student marks before the assessment is locked.', 'অনুমোদিত মূল্যায়নের বিষয় খুঁজে লক হওয়ার আগে শিক্ষার্থীর নম্বর লিখুন বা সংশোধন করুন।'],
+            before: ['EXAM module and TenantAdmin, Principal, VicePrincipal, Teacher or ExamController access; the assessment must permit marks entry.', 'EXAM মডিউল এবং TenantAdmin, Principal, VicePrincipal, Teacher বা ExamController অনুমতি; মূল্যায়নে নম্বর এন্ট্রি খোলা থাকতে হবে।'],
+            steps: [
+                ['Search for the assessment, batch or subject, then select Assessment, Batch/Section and Subject.', 'মূল্যায়ন, ব্যাচ বা বিষয় খুঁজে Assessment, Batch/Section ও Subject বেছে নিন।'],
+                ['Select Load marks register, search or page through enrolled students and enter allowed marks or attendance states.', 'Load marks register চাপুন, শিক্ষার্থীদের খুঁজুন বা পৃষ্ঠা বদলান এবং অনুমোদিত নম্বর বা অনুপস্থিতির অবস্থা দিন।'],
+                ['Select Save changed marks, check the confirmation and use Marks Submission & Review for the separate review process.', 'Save changed marks দিয়ে নিশ্চিতকরণ দেখুন; আলাদা যাচাইয়ের জন্য Marks Submission & Review খুলুন।']
+            ],
+            example: ['Fictional example: choose the Grade 9 A Mathematics assessment, record verified marks for the shown students and save changes while entry is open.', 'কাল্পনিক উদাহরণ: নবম শ্রেণি A-এর গণিত মূল্যায়ন বেছে দেখানো শিক্ষার্থীদের যাচাইকৃত নম্বর লিখে এন্ট্রি খোলা থাকতে সংরক্ষণ করুন।'],
+            result: ['Updated eligible marks appear in the subject roster; review and publication remain separate authorized steps.', 'অনুমোদিত পরিবর্তিত নম্বর বিষয় তালিকায় দেখা যায়; যাচাই ও ফলাফল প্রকাশ আলাদা ধাপ।'],
+            rules: ['Locked or approved marks cannot be silently edited; roster and page CSV are bounded to the authorized scope. Saving marks does not publish results.', 'লক বা অনুমোদিত নম্বর নীরবে বদলানো যায় না; তালিকা ও CSV অনুমোদিত সীমায় থাকে। নম্বর সংরক্ষণে ফলাফল প্রকাশ হয় না।'],
+            recovery: ['If the roster is missing, verify the assessment state and subject. On a stale or failed save, reload before editing; do not bypass the review lock.', 'তালিকা না পেলে মূল্যায়নের অবস্থা ও বিষয় দেখুন। পুরোনো সংস্করণ বা ব্যর্থ সংরক্ষণে আবার সম্পাদনার আগে রিলোড করুন; যাচাইয়ের লক এড়াবেন না।'],
+            related: [['/AssessmentAdministration/MarkReviews', 'Marks submission and review', 'নম্বর জমা ও যাচাই'], ['/AssessmentAdministration/ComponentMarks', 'Component marks', 'উপাদানভিত্তিক নম্বর']]
+        },
+        '/assessmentadministration/results/index': {
+            version: 1, reviewed: true,
+            title: ['Result Review & Publication', 'ফলাফল যাচাই ও প্রকাশ'],
+            purpose: ['Verify batch readiness, lock an eligible assessment, preview calculated results and publish an immutable snapshot.', 'ব্যাচের প্রস্তুতি যাচাই, উপযুক্ত মূল্যায়ন লক, হিসাব করা ফলাফলের প্রিভিউ ও অপরিবর্তনীয় সংস্করণ প্রকাশ করুন।'],
+            before: ['EXAM module and TenantAdmin, Principal, VicePrincipal or ExamController role; complete and reviewed marks for the intended batch.', 'EXAM মডিউল ও TenantAdmin, Principal, VicePrincipal বা ExamController ভূমিকা; নির্দিষ্ট ব্যাচের নম্বর সম্পূর্ণ ও যাচাইকৃত হতে হবে।'],
+            steps: [
+                ['Search and select assessment, batch and subject, then Load assessment.', 'মূল্যায়ন, ব্যাচ ও বিষয় নির্বাচন করে Load assessment চাপুন।'],
+                ['Check the assessment state, attempt/credit policy and batch readiness issues; resolve missing evidence before locking.', 'মূল্যায়নের অবস্থা, প্রচেষ্টার/ক্রেডিট নীতি ও ব্যাচ প্রস্তুতির ত্রুটি দেখুন; লক করার আগে ঘাটতি ঠিক করুন।'],
+                ['Use the authorized Next stage control to verify and lock as allowed; select Preview draft and inspect calculated results and visibility settings.', 'অনুমতি অনুযায়ী Next stage দিয়ে যাচাই ও লক করুন; Preview draft দিয়ে ফলাফল ও দৃশ্যমানতার সেটিংস দেখুন।'],
+                ['When the locked preview is correct, choose Publish results and type PUBLISH to confirm. Inspect the saved publication separately.', 'লক করা প্রিভিউ সঠিক হলে Publish results চাপুন এবং PUBLISH লিখে নিশ্চিত করুন। সংরক্ষিত সংস্করণ আলাদা পাতায় দেখুন।']
+            ],
+            example: ['Fictional example: check the Grade 9 A final assessment for missing marks, lock after review, preview calculated grades and publish the verified batch snapshot.', 'কাল্পনিক উদাহরণ: নবম শ্রেণি A-এর চূড়ান্ত মূল্যায়নে অসম্পূর্ণ নম্বর দেখুন, যাচাই করে লক করুন, গ্রেড প্রিভিউ করে ব্যাচের ফলাফল প্রকাশ করুন।'],
+            result: ['A successful publication creates a saved immutable result snapshot; published history and withdrawal are managed separately.', 'সফল প্রকাশে অপরিবর্তনীয় ফলাফল সংস্করণ সংরক্ষিত হয়; ইতিহাস ও প্রত্যাহার আলাদা কাজ।'],
+            rules: ['The readiness list is only page-level evidence, not global approval. Published results are immutable, require a locked eligible assessment and an explicit confirmation; this is not permission to rewrite historical results.', 'প্রস্তুতির তালিকা শুধু দৃশ্যমান পৃষ্ঠার প্রমাণ, সামগ্রিক অনুমোদন নয়। প্রকাশিত ফল অপরিবর্তনীয়; উপযুক্ত লক ও স্পষ্ট নিশ্চিতকরণ দরকার। পুরোনো ফল বদলানোর অনুমতি নয়।'],
+            recovery: ['If publication times out, inspect the saved snapshot/history before retrying the same request. Resolve readiness, state and permission errors at their source.', 'প্রকাশে সময় শেষ হলে একই অনুরোধ আবার দেওয়ার আগে সংরক্ষিত ফলাফল/ইতিহাস দেখুন। প্রস্তুতি, অবস্থা ও অনুমতির ত্রুটি মূল জায়গায় ঠিক করুন।'],
+            related: [['/AssessmentAdministration/Marks', 'Marks entry', 'নম্বর এন্ট্রি'], ['/AssessmentAdministration/Publications', 'Publication history', 'প্রকাশনার ইতিহাস']]
+        },
+        '/assessmentadministration/publications/index': {
+            version: 1, reviewed: true,
+            title: ['Published Results & History', 'প্রকাশিত ফলাফল ও ইতিহাস'],
+            purpose: ['Inspect saved publication versions, verify snapshot integrity, compare history and export bounded tabulations.', 'সংরক্ষিত ফলাফলের সংস্করণ, স্ন্যাপশট যাচাই, ঐতিহাসিক তুলনা ও সীমিত ট্যাবুলেশন রপ্তানি করুন।'],
+            before: ['EXAM module and TenantAdmin, Principal, VicePrincipal or ExamController permission; a previously published assessment and batch.', 'EXAM মডিউল এবং TenantAdmin, Principal, VicePrincipal বা ExamController অনুমতি; আগে প্রকাশিত মূল্যায়ন ও ব্যাচ প্রয়োজন।'],
+            steps: [
+                ['Find the assessment/batch and select Load assessment, then Load publication versions.', 'মূল্যায়ন/ব্যাচ খুঁজে Load assessment, তারপর Load publication versions চাপুন।'],
+                ['Select a saved or withdrawn version and inspect its integrity, historical comparison and publication details.', 'সংরক্ষিত বা প্রত্যাহার করা সংস্করণ বেছে সততা যাচাই, আগের ফলের তুলনা ও বিবরণ দেখুন।'],
+                ['For a reconciled version, load saved tabulation; page, search, export the current page CSV or print.', 'সমন্বিত সংস্করণে ট্যাবুলেশন দেখুন; পৃষ্ঠা বদলান, খুঁজুন, বর্তমান পৃষ্ঠার CSV নিন বা প্রিন্ট করুন।'],
+                ['Only when authorized and necessary, provide a withdrawal reason and type WITHDRAW; verify the refreshed history.', 'শুধু অনুমোদিত প্রয়োজন হলে প্রত্যাহারের কারণ দিয়ে WITHDRAW লিখুন এবং রিফ্রেশ হওয়া ইতিহাস যাচাই করুন।']
+            ],
+            example: ['Fictional example: compare Version 2 of a published 2026 final assessment with its earlier version, check reconciled tabulation and export the visible page.', 'কাল্পনিক উদাহরণ: ২০২৬-এর প্রকাশিত চূড়ান্ত মূল্যায়নের Version 2 আগেরটির সঙ্গে মিলিয়ে ট্যাবুলেশন যাচাই করে দৃশ্যমান পৃষ্ঠা CSV নিন।'],
+            result: ['Authorized historical versions, comparisons and tabulations appear; a withdrawal hides a published version but preserves its audited record.', 'অনুমোদিত পুরোনো সংস্করণ, তুলনা ও ট্যাবুলেশন দেখা যায়; প্রত্যাহারে প্রকাশ আড়াল হয়, নিরীক্ষার রেকর্ড থাকে।'],
+            rules: ['Unreconciled versions cannot be used for tabulation/export. Exports are page-bounded; historical marks remain snapshots and current directory names may differ.', 'অসমন্বিত সংস্করণ থেকে ট্যাবুলেশন/এক্সপোর্ট হয় না। CSV পৃষ্ঠাভিত্তিক; পুরোনো নম্বর স্ন্যাপশট, বর্তমান নামের সঙ্গে পার্থক্য থাকতে পারে।'],
+            recovery: ['Reload versions after a conflict or uncertain withdrawal; verify state before retrying. If tabulation is blocked, resolve the recorded integrity issue.', 'সংঘাত বা অনিশ্চিত প্রত্যাহারে সংস্করণ রিফ্রেশ করে অবস্থা দেখে আবার চেষ্টা করুন। ট্যাবুলেশন আটকে গেলে সততার ত্রুটি সমাধান করুন।'],
+            related: [['/AssessmentAdministration/Results', 'Result review and publication', 'ফলাফল যাচাই ও প্রকাশ'], ['/AssessmentAdministration/GradeDistribution', 'Grade distribution', 'গ্রেড বণ্টন']]
+        },
+        '/assessmentadministration/setup/index': {
+            version: 1, reviewed: true,
+            title: ['Assessment Setup', 'মূল্যায়ন সেটআপ'],
+            purpose: ['Create and edit assessment definitions and assign subjects before marks entry.', 'নম্বর এন্ট্রির আগে মূল্যায়নের সংজ্ঞা তৈরি/সংশোধন ও বিষয় নির্ধারণ করুন।'],
+            before: ['EXAM module and examination-administrator access; an existing campus, academic year and grade scheme.', 'EXAM মডিউল ও পরীক্ষা প্রশাসনের অনুমতি; আগে ক্যাম্পাস, শিক্ষাবর্ষ ও গ্রেডিং নিয়ম থাকতে হবে।'],
+            steps: [
+                ['Search existing assessments and inspect the register before choosing New.', 'নতুন করার আগে বিদ্যমান মূল্যায়ন খুঁজে তালিকা দেখুন।'],
+                ['Enter assessment name, code, type, campus, year, optional term, grade scheme and dates.', 'নাম, কোড, ধরন, ক্যাম্পাস, শিক্ষাবর্ষ, ঐচ্ছিক টার্ম, গ্রেডিং নিয়ম ও তারিখ দিন।'],
+                ['Save the assessment definition, then assign eligible subjects in the page’s subject section.', 'মূল্যায়নের সংজ্ঞা সংরক্ষণ করে সংশ্লিষ্ট বিষয় অংশে উপযুক্ত বিষয় যুক্ত করুন।']
+            ],
+            example: ['Fictional example: define Final 2026 for Campus 1 and its actual academic year, then attach the applicable Grade 9 subjects.', 'কাল্পনিক উদাহরণ: Campus 1 ও প্রকৃত শিক্ষাবর্ষের জন্য Final 2026 তৈরি করে নবম শ্রেণির উপযুক্ত বিষয় যুক্ত করুন।'],
+            result: ['Saved eligible assessments become available for scheduling and marks workflows.', 'সংরক্ষিত মূল্যায়ন সময়সূচি ও নম্বর এন্ট্রির কাজে পাওয়া যায়।'],
+            rules: ['Setup is not marks approval or result publication. Existing scheduled/used assessments may restrict edits; do not recreate to avoid a conflict.', 'সেটআপ মানে নম্বর অনুমোদন বা ফলাফল প্রকাশ নয়। নির্ধারিত/ব্যবহৃত মূল্যায়নের পরিবর্তন সীমিত হতে পারে; সংঘাত এড়াতে আবার তৈরি করবেন না।'],
+            recovery: ['Check campus, year, code uniqueness and dates, then reload the saved definition before retrying an update.', 'ক্যাম্পাস, শিক্ষাবর্ষ, কোডের স্বতন্ত্রতা ও তারিখ যাচাই করে সম্পাদনার আগে সংরক্ষিত তথ্য রিফ্রেশ করুন।'],
+            related: [['/AssessmentAdministration/AssessmentSchedules', 'Exam schedules', 'পরীক্ষার সময়সূচি'], ['/AssessmentAdministration/Marks', 'Marks entry', 'নম্বর এন্ট্রি']]
+        },
+        '/assessmentadministration/markreviews/index': {
+            version: 1, reviewed: true,
+            title: ['Marks Submission & Review', 'নম্বর জমা ও যাচাই'],
+            purpose: ['Submit completed subject marks and independently approve or reject them with recorded decision history.', 'সম্পন্ন বিষয়ের নম্বর জমা দিন এবং ভিন্ন অনুমোদিত ব্যক্তি দিয়ে ইতিহাসসহ যাচাই বা প্রত্যাখ্যান করুন।'],
+            before: ['EXAM module; submitters require an authorized subject, and decision controls require examination-administrator permission.', 'EXAM মডিউল; জমা দিতে অনুমোদিত বিষয়, সিদ্ধান্ত দিতে পরীক্ষা প্রশাসকের অনুমতি প্রয়োজন।'],
+            steps: [
+                ['Search assessment/batch/subject and select the authorized subject.', 'মূল্যায়ন/ব্যাচ/বিষয় খুঁজে অনুমোদিত বিষয় নির্বাচন করুন।'],
+                ['After completing the subject marks, select Submit marks and inspect the submission status.', 'বিষয়ের নম্বর সম্পূর্ণ করে Submit marks চাপুন ও অবস্থা দেখুন।'],
+                ['An independent authorized reviewer filters the decision queue, selects a submission and Approves or Rejects with its required reason.', 'স্বাধীন অনুমোদিত যাচাইকারী সিদ্ধান্তের তালিকা ফিল্টার করে আবেদন বেছে প্রয়োজনীয় কারণসহ Approve বা Reject করেন।'],
+                ['Inspect paged decision history; if rejected, correct eligible marks and resubmit.', 'পৃষ্ঠাভিত্তিক সিদ্ধান্তের ইতিহাস দেখুন; প্রত্যাখ্যান হলে অনুমোদিত নম্বর ঠিক করে আবার জমা দিন।']
+            ],
+            example: ['Fictional example: a teacher submits Grade 9 Mathematics marks; a different ExamController reviews the queue and approves the complete subject.', 'কাল্পনিক উদাহরণ: শিক্ষক নবম শ্রেণির গণিতের নম্বর জমা দেন; ভিন্ন ExamController তালিকা যাচাই করে সম্পূর্ণ বিষয় অনুমোদন করেন।'],
+            result: ['The submission status and audit history change; approved subject marks are locked from ordinary changes.', 'জমার অবস্থা ও নিরীক্ষার ইতিহাস বদলায়; অনুমোদিত বিষয়ের নম্বর সাধারণ সম্পাদনা থেকে লক হয়।'],
+            rules: ['Submitter and reviewer must differ; a rejected submission may return to correction. Approval is not result publication.', 'জমাদাতা ও যাচাইকারী আলাদা হতে হবে; প্রত্যাখ্যানে সংশোধন করা যায়। অনুমোদন মানে ফলাফল প্রকাশ নয়।'],
+            recovery: ['If the queue or status looks stale, reload its current decision/version before retrying; do not bypass review by saving new marks elsewhere.', 'তালিকা বা অবস্থা পুরোনো মনে হলে পুনরায় চেষ্টার আগে বর্তমান সিদ্ধান্ত/সংস্করণ রিফ্রেশ করুন; অন্যত্র নতুন নম্বর দিয়ে যাচাই এড়াবেন না।'],
+            related: [['/AssessmentAdministration/Marks', 'Marks entry', 'নম্বর এন্ট্রি'], ['/AssessmentAdministration/Results', 'Result publication', 'ফলাফল প্রকাশ']]
+        },
+        '/assessmentadministration/attempts/index': {
+            version: 1, reviewed: true,
+            title: ['Retake & Improvement', 'পুনঃপরীক্ষা ও উন্নয়ন'],
+            purpose: ['Review authorized student-specific retake or grade-improvement requests against earlier published course results.', 'আগে প্রকাশিত কোর্স ফলাফলের ভিত্তিতে শিক্ষার্থীভিত্তিক পুনঃপরীক্ষা বা গ্রেড উন্নয়নের আবেদন যাচাই করুন।'],
+            before: ['EXAM module and examination-administrator role; a historical published result and eligible assessment subject.', 'EXAM মডিউল ও পরীক্ষা প্রশাসকের অনুমতি; পূর্বপ্রকাশিত ফলাফল ও উপযুক্ত বিষয় প্রয়োজন।'],
+            steps: [
+                ['Search and select assessment, batch and subject in Assessment subject.', 'Assessment subject-এ মূল্যায়ন, ব্যাচ ও বিষয় বাছুন।'],
+                ['Find eligible students, review their earlier published evidence and enter an approval/request reason.', 'যোগ্য শিক্ষার্থী খুঁজে আগের প্রকাশিত ফলাফলের প্রমাণ ও আবেদনের কারণ যাচাই করুন।'],
+                ['Use the displayed request and approval queue to record the permitted decision; inspect history.', 'দেখানো আবেদন ও অনুমোদনের তালিকা থেকে অনুমোদিত সিদ্ধান্ত নথিভুক্ত করে ইতিহাস দেখুন।']
+            ],
+            example: ['Fictional example: review a failed Mathematics course result for an eligible student before authorizing a retake attempt.', 'কাল্পনিক উদাহরণ: একজন উপযুক্ত শিক্ষার্থীর গণিতে আগের অনুত্তীর্ণ ফল যাচাই করে পুনঃপরীক্ষার অনুমতি দিন।'],
+            result: ['An authorized attempt request and decision are recorded; the original published result remains unchanged.', 'অনুমোদিত প্রচেষ্টার আবেদন ও সিদ্ধান্ত থাকে; মূল প্রকাশিত ফল অপরিবর্তিত থাকে।'],
+            rules: ['Retake and improvement have different eligibility. Approval does not rewrite old marks, publish a result or override later assessment validation.', 'পুনঃপরীক্ষা ও উন্নয়নের যোগ্যতা আলাদা। অনুমোদনে পুরোনো নম্বর বদলায় না, নতুন ফল প্রকাশ হয় না।'],
+            recovery: ['If a student is not eligible or the request conflicts, inspect the previous published record and current request history before retrying.', 'শিক্ষার্থী অযোগ্য বা আবেদনে সংঘাত হলে আবার চেষ্টা করার আগে পুরোনো ফল ও বর্তমান আবেদন ইতিহাস দেখুন।'],
+            related: [['/AssessmentAdministration/Publications', 'Published results', 'প্রকাশিত ফলাফল'], ['/AssessmentAdministration/Results', 'Result publication', 'ফলাফল প্রকাশ']]
+        },
+        '/assessmentadministration/resultrescrutiny/index': {
+            version: 1, reviewed: true,
+            title: ['Result Re-scrutiny', 'ফলাফল পুনর্নিরীক্ষণ'],
+            purpose: ['Record and independently decide applications to recheck a saved published result without changing its original marks.', 'প্রকাশিত ফলাফল পুনরায় যাচাইয়ের আবেদন ও স্বাধীন সিদ্ধান্ত নথিভুক্ত করুন, মূল নম্বর পরিবর্তন ছাড়াই।'],
+            before: ['EXAM module and examination-administrator role; an authorized assessment, published version and affected student.', 'EXAM মডিউল ও পরীক্ষা প্রশাসকের অনুমতি; অনুমোদিত মূল্যায়ন, প্রকাশিত সংস্করণ ও সংশ্লিষ্ট শিক্ষার্থী প্রয়োজন।'],
+            steps: [
+                ['Find the assessment/batch and choose the relevant Published version.', 'মূল্যায়ন/ব্যাচ খুঁজে সংশ্লিষ্ট Published version বাছুন।'],
+                ['Search and select the correct student, enter Reason for re-scrutiny and Submit application.', 'সঠিক শিক্ষার্থী খুঁজে Reason for re-scrutiny লিখে Submit application চাপুন।'],
+                ['Use Applications and decisions to review the request through the permitted independent reviewer controls.', 'Applications and decisions থেকে অনুমোদিত স্বাধীন যাচাইকারীর মাধ্যমে আবেদন যাচাই করুন।'],
+                ['Review the refreshed decision history before any separate audited marks-correction action.', 'আলাদা নিরীক্ষাযোগ্য নম্বর সংশোধনের আগে রিফ্রেশ হওয়া সিদ্ধান্তের ইতিহাস যাচাই করুন।']
+            ],
+            example: ['Fictional example: submit a request to recheck a published 2026 Mathematics result for ST-1042 and have a different reviewer decide it.', 'কাল্পনিক উদাহরণ: ST-1042-এর ২০২৬ সালের প্রকাশিত গণিতের ফল পুনর্নিরীক্ষণের আবেদন দিয়ে ভিন্ন যাচাইকারী দিয়ে সিদ্ধান্ত নিন।'],
+            result: ['The request and decision are recorded; acceptance itself does not rewrite the original saved grade or publication.', 'আবেদন ও সিদ্ধান্ত নথিভুক্ত হয়; গ্রহণ করলেই মূল গ্রেড বা প্রকাশিত ফল বদলায় না।'],
+            rules: ['The requester cannot decide their own case. The existing historical snapshot stays immutable; an approved separate correction workflow is required for marks changes.', 'আবেদনকারী নিজের আবেদন সিদ্ধান্ত দিতে পারেন না। আগের স্ন্যাপশট অপরিবর্তনীয়; নম্বর পরিবর্তনে আলাদা অনুমোদিত সংশোধন দরকার।'],
+            recovery: ['If selection or review conflicts, refresh the published version and request status, then follow the displayed validation; do not submit duplicates.', 'নির্বাচন বা সিদ্ধান্তে সংঘাত হলে প্রকাশিত সংস্করণ ও আবেদনের অবস্থা রিফ্রেশ করুন; একাধিক আবেদন তৈরি করবেন না।'],
+            related: [['/AssessmentAdministration/Publications', 'Publication history', 'প্রকাশনার ইতিহাস'], ['/AssessmentAdministration/ResultFollowUp', 'Result follow-up', 'ফলাফল পরবর্তী পর্যালোচনা']]
+        },
+        '/assessmentadministration/resultfollowup/index': {
+            version: 1, reviewed: true,
+            title: ['Result Follow-up', 'ফলাফল পরবর্তী পর্যালোচনা'],
+            purpose: ['Review failed and withheld outcomes from a finalized result version to plan authorized follow-up.', 'চূড়ান্ত ফলাফলের সংস্করণ থেকে অনুত্তীর্ণ ও স্থগিত ফল দেখে অনুমোদিত পরবর্তী ব্যবস্থা পরিকল্পনা করুন।'],
+            before: ['EXAM module and examination-administrator access; a finalized, authorized assessment/batch publication.', 'EXAM মডিউল ও পরীক্ষা প্রশাসকের অনুমতি; চূড়ান্ত অনুমোদিত মূল্যায়ন/ব্যাচ প্রকাশনা প্রয়োজন।'],
+            steps: [
+                ['Search and select assessment/batch, then the Finalized version.', 'মূল্যায়ন/ব্যাচ খুঁজে Finalized version বেছে নিন।'],
+                ['Filter Outcome and optional roll, student code or name, then Load register.', 'Outcome ও প্রয়োজনীয় রোল, কোড বা নাম দিয়ে Load register চাপুন।'],
+                ['Inspect the bounded result rows; Export CSV (up to 500) or Print page if authorized.', 'সীমিত ফলাফলের তালিকা দেখুন; অনুমতি থাকলে সর্বোচ্চ ৫০০ CSV রপ্তানি বা প্রিন্ট করুন।']
+            ],
+            example: ['Fictional example: filter the saved Grade 9 final publication for failed students and export an authorized follow-up list.', 'কাল্পনিক উদাহরণ: নবম শ্রেণির প্রকাশিত চূড়ান্ত ফলের অনুত্তীর্ণ শিক্ষার্থী খুঁজে অনুমোদিত পরবর্তী ব্যবস্থা তালিকা CSV নিন।'],
+            result: ['Matching failed/withheld results appear for administrative review; no eligibility or retake approval is created.', 'মিল পাওয়া অনুত্তীর্ণ/স্থগিত ফল দেখা যায়; এতে পুনঃপরীক্ষার যোগ্যতা বা অনুমোদন তৈরি হয় না।'],
+            rules: ['A read-only follow-up register is not an automatic retake/improvement authorization. Exports respect the page’s scope and limits.', 'এটি শুধু পড়ার রিপোর্ট; স্বয়ংক্রিয় পুনঃপরীক্ষা/উন্নয়নের অনুমতি নয়। CSV-এর পরিসর ও সীমা মানতে হবে।'],
+            recovery: ['If the report is empty, verify selected version and filters. Reload after a withdrawn or changed publication and avoid reusing stale exports.', 'রিপোর্ট ফাঁকা হলে সংস্করণ ও ফিল্টার দেখুন। প্রকাশনা বদলালে রিফ্রেশ করুন; পুরোনো CSV-কে বর্তমান ভাববেন না।'],
+            related: [['/AssessmentAdministration/Attempts', 'Retake approvals', 'পুনঃপরীক্ষার অনুমোদন'], ['/AssessmentAdministration/Publications', 'Published results', 'প্রকাশিত ফলাফল']]
+        },
+        '/assessmentadministration/gradedistribution/index': {
+            version: 1, reviewed: true,
+            title: ['Historical Grade Distribution', 'ঐতিহাসিক গ্রেড বণ্টন'],
+            purpose: ['Report saved grade counts by finalized publication version and optionally compare an earlier version.', 'চূড়ান্ত প্রকাশিত সংস্করণ অনুযায়ী গ্রেডের সংখ্যা ও প্রয়োজনে পুরোনো সংস্করণের তুলনা দেখুন।'],
+            before: ['EXAM module and examination-administrator permission; at least one finalized publication for the chosen assessment/batch.', 'EXAM মডিউল ও পরীক্ষা প্রশাসকের অনুমতি; নির্বাচিত মূল্যায়ন/ব্যাচের অন্তত একটি চূড়ান্ত প্রকাশিত সংস্করণ থাকতে হবে।'],
+            steps: [
+                ['Search an authorized assessment/batch and select the Finalized publication version.', 'অনুমোদিত মূল্যায়ন/ব্যাচ খুঁজে Finalized publication version বাছুন।'],
+                ['Optionally choose Compare with earlier version and select Load distribution.', 'প্রয়োজনে আগের সংস্করণ তুলনায় বেছে Load distribution চাপুন।'],
+                ['Read current grade distribution and historical differences; use scoped CSV or Print.', 'বর্তমান গ্রেড বণ্টন ও পুরোনো পার্থক্য দেখুন; পরিসর অনুযায়ী CSV নিন বা প্রিন্ট করুন।']
+            ],
+            example: ['Fictional example: compare final exam Grade A/B/C counts from Version 2 against Version 1 for an authorized batch.', 'কাল্পনিক উদাহরণ: অনুমোদিত ব্যাচের চূড়ান্ত পরীক্ষায় Version 2-এর A/B/C গ্রেডের সংখ্যা Version 1-এর সঙ্গে মিলিয়ে দেখুন।'],
+            result: ['Grade category totals and selected historical differences appear without recalculating students’ old marks.', 'শিক্ষার্থীর পুরোনো নম্বর আবার হিসাব না করেই গ্রেডভিত্তিক মোট ও ঐতিহাসিক পার্থক্য দেখা যায়।'],
+            rules: ['Withdrawn versions remain historical evidence, not a current result; this report cannot edit the published snapshot.', 'প্রত্যাহার করা সংস্করণ ইতিহাস হিসেবে থাকে, বর্তমান ফল নয়; এই রিপোর্টে প্রকাশিত স্ন্যাপশট সম্পাদনা হয় না।'],
+            recovery: ['If no distribution is available, check finalized version choice and authorization; reload after a publication change.', 'রিপোর্ট না পেলে চূড়ান্ত সংস্করণ ও অনুমতি দেখুন; প্রকাশনা বদলালে রিফ্রেশ করুন।'],
+            related: [['/AssessmentAdministration/Publications', 'Publication history', 'প্রকাশনার ইতিহাস']]
+        },
+        '/assessmentadministration/admitcards/index': {
+            version: 1, reviewed: true,
+            title: ['Exam Admit Cards', 'পরীক্ষার প্রবেশপত্র'],
+            purpose: ['Prepare bounded printable admit-card lists for eligible enrolled examination candidates.', 'যোগ্য ভর্তি পরীক্ষার্থীদের জন্য সীমিত পরিসরে প্রিন্টযোগ্য প্রবেশপত্রের তালিকা তৈরি করুন।'],
+            before: ['EXAM module and examination-administrator access; an authorized scheduled assessment, approved subjects and complete candidate schedule.', 'EXAM মডিউল ও পরীক্ষা প্রশাসকের অনুমতি; নির্ধারিত মূল্যায়ন, অনুমোদিত বিষয় ও সম্পূর্ণ পরীক্ষার সময়সূচি প্রয়োজন।'],
+            steps: [
+                ['Find assessment/batch, select the authorized scope and optional candidate search.', 'মূল্যায়ন/ব্যাচ খুঁজে অনুমোদিত পরিসর ও প্রয়োজনীয় পরীক্ষার্থী খোঁজ বাছুন।'],
+                ['Select Load candidates; review eligibility and any missing schedule or subject information.', 'Load candidates চাপুন; যোগ্যতা এবং সময়সূচি/বিষয়ের ঘাটতি দেখুন।'],
+                ['Page through candidates, export Page CSV or Print page / Save PDF for eligible results.', 'পৃষ্ঠাভিত্তিক তালিকা দেখুন; যোগ্য ফলাফলের Page CSV নিন বা Print page / Save PDF করুন।']
+            ],
+            example: ['Fictional example: select the published schedule for Grade 9 A final assessment and print eligible student admit cards from its authorized page.', 'কাল্পনিক উদাহরণ: নবম শ্রেণি A-এর চূড়ান্ত পরীক্ষার নির্ধারিত সময়সূচি বেছে অনুমোদিত পৃষ্ঠার যোগ্য শিক্ষার্থীর প্রবেশপত্র প্রিন্ট করুন।'],
+            result: ['Eligible candidates appear in the page-bounded printable view; no enrollment, room booking or examination result is changed.', 'যোগ্য পরীক্ষার্থী সীমিত প্রিন্টযোগ্য তালিকায় দেখা যায়; ভর্তি, কক্ষ বরাদ্দ বা ফলাফল বদলায় না।'],
+            rules: ['Only properly enrolled candidates with approved subjects and complete exam schedules are printable; verify privacy and distribution before sharing PDFs.', 'শুধু সঠিকভাবে ভর্তি, অনুমোদিত বিষয় ও সম্পূর্ণ সময়সূচিযুক্ত পরীক্ষার্থীর প্রবেশপত্র প্রিন্টযোগ্য; PDF শেয়ার করার আগে গোপনীয়তা যাচাই করুন।'],
+            recovery: ['If candidates do not appear, verify assessment status, subject approvals and schedule; refresh filters rather than fabricating manual cards.', 'পরীক্ষার্থী না পেলে মূল্যায়নের অবস্থা, বিষয় অনুমোদন ও সময়সূচি দেখুন; হাতে কৃত্রিম প্রবেশপত্র তৈরি না করে ফিল্টার রিফ্রেশ করুন।'],
+            related: [['/AssessmentAdministration/AssessmentSchedules', 'Assessment schedules', 'পরীক্ষার সময়সূচি'], ['/AssessmentAdministration/Setup', 'Assessment setup', 'মূল্যায়ন সেটআপ']]
+        },
+    };
     // Canonical academic workspaces share the existing secured academic APIs,
     // but each has its own focused route and user manual.
     const academicManuals = {
@@ -169,6 +338,7 @@
     };
     const manuals = {
         ...academicManuals,
+        ...examManuals,
         "/studentlifecycle/index": {
             version: 1, reviewed: true,
             title: ["Student Exit and Transfer Certificate", "শিক্ষার্থী প্রস্থান ও স্থানান্তর সনদ"],
