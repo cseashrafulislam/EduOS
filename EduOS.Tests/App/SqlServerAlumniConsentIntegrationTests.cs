@@ -506,7 +506,7 @@ public sealed class SqlServerAlumniConsentIntegrationTests
             AcademicLevelId = originalEnrollment.AcademicLevelId,
             AcademicBatchId = originalEnrollment.AcademicBatchId,
             AcademicCurriculumId = originalEnrollment.AcademicCurriculumId,
-            RollNo = "12", EnrollmentDate = new DateOnly(2026, 1, 1),
+            RollNo = "13", EnrollmentDate = new DateOnly(2026, 1, 1),
             State = EnrollmentState.Completed, IsCurrent = false,
             ClientRequestId = Guid.NewGuid()
         };
