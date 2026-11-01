@@ -220,11 +220,9 @@
     }
     window.eduosAcademicManagement = { state, el, field, idOf, enabled, find, findYear,
         notice, api, reload, options, checked };
-    root.querySelectorAll('button[data-panel]').forEach(btn => btn.addEventListener('click', () => {
-        root.querySelectorAll('button[data-panel]').forEach(x => x.classList.toggle('active', x === btn));
-        root.querySelectorAll('section[data-section]').forEach(x =>
-            x.classList.toggle('d-none', x.dataset.section !== btn.dataset.panel));
-    }));
+    // The server selects one coherent feature surface per authorized route.
+    // Do not let a client-side tab switch expose a different editor without
+    // navigating to its canonical, bookmarkable feature URL.
     el('sectionProgram').addEventListener('change', levelsForSection);
     el('sectionYear').addEventListener('change', termsForSection);
     el('curriculumSelection').addEventListener('change', levelsForCurriculum);

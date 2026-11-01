@@ -3,7 +3,172 @@
  * in the currently rendered, server-authorized navigation. No remote guide API/cache. */
 (() => {
     'use strict';
+    // Canonical academic workspaces share the existing secured academic APIs,
+    // but each has its own focused route and user manual.
+    const academicManuals = {
+        '/academicmanagement/years/index': {
+            version: 1, reviewed: true,
+            title: ['Academic Years', 'শিক্ষাবর্ষ'],
+            purpose: ['Create and maintain the institution\'s academic-year calendar and current-year selection.', 'প্রতিষ্ঠানের শিক্ষাবর্ষের সময়সীমা ও বর্তমান শিক্ষাবর্ষ নির্ধারণ ও পরিচালনা করুন।'],
+            before: ['TenantAdmin access; confirm the institution and campus and know the actual academic dates.', 'TenantAdmin অনুমতি থাকতে হবে; প্রতিষ্ঠান, ক্যাম্পাস ও শিক্ষাবর্ষের প্রকৃত তারিখ যাচাই করুন।'],
+            steps: [
+                ['Enter year name, unique code, campus scope and start/end dates.', 'শিক্ষাবর্ষের নাম, স্বতন্ত্র কোড, ক্যাম্পাস এবং শুরু ও শেষের তারিখ লিখুন।'],
+                ['Select cycle and Current year if applicable, then Save Year.', 'প্রযোজ্য চক্র ও Current year বেছে Save Year চাপুন।'],
+                ['Review the year register; choose Edit to correct permitted fields or Archive only when safe.', 'শিক্ষাবর্ষের তালিকা দেখুন; অনুমোদিত তথ্য বদলাতে Edit অথবা নিরাপদ হলে Archive বাছুন।']
+            ],
+            example: ['Example: create Academic 2026 (code 2026), with the verified school dates, and mark it current.', 'উদাহরণ: যাচাইকৃত তারিখ দিয়ে Academic 2026 (কোড 2026) তৈরি করে বর্তমান শিক্ষাবর্ষ করুন।'],
+            result: ['The year appears in the register and can be selected by terms and sections.', 'শিক্ষাবর্ষ তালিকায় আসে এবং টার্ম ও শাখার ফর্মে নির্বাচন করা যায়।'],
+            rules: ['Existing linked academic records may prevent archival. Campus and date scope must agree with the institution\'s setup; this page does not enroll students.', 'সংযুক্ত একাডেমিক রেকর্ড থাকলে আর্কাইভ আটকাতে পারে। ক্যাম্পাস ও তারিখ প্রতিষ্ঠানের সেটআপের সঙ্গে মিলতে হবে; এখানে শিক্ষার্থী ভর্তি হয় না।'],
+            recovery: ['If saving fails, review required dates/code and the displayed error; reload before retrying a changed record.', 'সংরক্ষণ ব্যর্থ হলে তারিখ, কোড ও দেখানো ত্রুটি যাচাই করুন; পরিবর্তিত রেকর্ডে আবার চেষ্টা করার আগে রিফ্রেশ করুন।'],
+            related: [['/AcademicManagement/Terms', 'Terms / Semesters', 'টার্ম / সেমিস্টার'], ['/AcademicManagement/Sections', 'Sections', 'শাখা']]
+        },
+        '/academicmanagement/terms/index': {
+            version: 1, reviewed: true,
+            title: ['Terms / Semesters', 'টার্ম / সেমিস্টার'],
+            purpose: ['Define term or semester dates within an existing academic year.', 'বিদ্যমান শিক্ষাবর্ষের ভেতরে টার্ম বা সেমিস্টারের সময় নির্ধারণ করুন।'],
+            before: ['TenantAdmin access and at least one saved academic year.', 'TenantAdmin অনুমতি ও অন্তত একটি সংরক্ষিত শিক্ষাবর্ষ প্রয়োজন।'],
+            steps: [
+                ['Select the parent academic year.', 'সংশ্লিষ্ট শিক্ষাবর্ষ নির্বাচন করুন।'],
+                ['Enter term name, optional code and date range; mark Current term if appropriate.', 'টার্মের নাম, ঐচ্ছিক কোড ও তারিখ দিন; প্রযোজ্য হলে Current term নির্বাচন করুন।'],
+                ['Save Term and review the register; use Edit or Archive only after checking dependencies.', 'Save Term চাপুন ও তালিকা দেখুন; নির্ভরশীল রেকর্ড যাচাই করে Edit বা Archive করুন।']
+            ],
+            example: ['Example: assign Term 1 to Academic 2026 with its actual teaching dates.', 'উদাহরণ: Academic 2026-এর অধীনে প্রকৃত পাঠদানের তারিখ দিয়ে Term 1 তৈরি করুন।'],
+            result: ['The term is available to related academic-section workflows.', 'টার্মটি সংশ্লিষ্ট একাডেমিক শাখার কাজে নির্বাচনযোগ্য হয়।'],
+            rules: ['Terms belong to a specific year; linked records can block archival. Do not recreate a term to bypass an edit conflict.', 'প্রতিটি টার্ম নির্দিষ্ট শিক্ষাবর্ষের অধীনে; সংযুক্ত রেকর্ড আর্কাইভ আটকাতে পারে। সম্পাদনার সংঘাত এড়াতে একই টার্ম পুনরায় তৈরি করবেন না।'],
+            recovery: ['Check parent year, date range and current version; reload after a conflict or failed update.', 'শিক্ষাবর্ষ, তারিখ ও বর্তমান সংস্করণ দেখুন; সংঘাত বা ব্যর্থ আপডেটের পরে রিফ্রেশ করুন।'],
+            related: [['/AcademicManagement/Years', 'Academic Years', 'শিক্ষাবর্ষ']]
+        },
+        '/academicmanagement/departments/index': {
+            version: 1, reviewed: true,
+            title: ['Academic Departments', 'একাডেমিক বিভাগ'],
+            purpose: ['Organize academic programmes into named departments.', 'একাডেমিক প্রোগ্রামগুলোকে বিভাগ অনুযায়ী সাজান।'],
+            before: ['TenantAdmin access; decide a stable department code and name.', 'TenantAdmin অনুমতি থাকতে হবে; বিভাগের স্থায়ী কোড ও নাম ঠিক করুন।'],
+            steps: [
+                ['Enter department name, code and optional description; set Active as appropriate.', 'বিভাগের নাম, কোড ও ঐচ্ছিক বিবরণ লিখুন; প্রয়োজনমতো Active দিন।'],
+                ['Select Create Department; use the name/code prefix search to find records.', 'Create Department চাপুন; নাম বা কোডের শুরু দিয়ে তালিকায় খুঁজুন।'],
+                ['Review the paged register; edit available metadata or export the visible page.', 'পৃষ্ঠাভিত্তিক তালিকা দেখুন; অনুমোদিত তথ্য সম্পাদনা বা দৃশ্যমান পৃষ্ঠা রপ্তানি করুন।']
+            ],
+            example: ['Example: create Science (SCI) and assign programmes later from Programmes.', 'উদাহরণ: Science (SCI) বিভাগ তৈরি করে পরে Programmes থেকে প্রোগ্রাম যুক্ত করুন।'],
+            result: ['The department becomes selectable for compatible programmes.', 'সামঞ্জস্যপূর্ণ প্রোগ্রামের জন্য বিভাগটি নির্বাচনযোগ্য হয়।'],
+            rules: ['Department codes do not change; programmes that still depend on a department may prevent deactivation.', 'বিভাগের কোড অপরিবর্তনীয়; নির্ভরশীল সক্রিয় প্রোগ্রাম থাকলে বিভাগ নিষ্ক্রিয় করা যাবে না।'],
+            recovery: ['Search by a shorter prefix, correct duplicate/invalid codes and refresh after a version conflict.', 'কম অক্ষরের শুরু দিয়ে খুঁজুন, ভুল বা পুনরাবৃত্ত কোড ঠিক করুন এবং সংস্করণ-সংঘাতে রিফ্রেশ করুন।'],
+            related: [['/AcademicManagement/Classes', 'Programmes and Classes', 'প্রোগ্রাম ও শ্রেণি']]
+        },
+        '/academicmanagement/classes/index': {
+            version: 1, reviewed: true,
+            title: ['Programmes, Classes & Grades', 'প্রোগ্রাম, শ্রেণি ও গ্রেড'],
+            purpose: ['Manage academic programmes, their class levels, streams and campus availability.', 'একাডেমিক প্রোগ্রাম, শ্রেণির স্তর, শাখা ও ক্যাম্পাসের প্রাপ্যতা পরিচালনা করুন।'],
+            before: ['TenantAdmin access; prepare programme, department and permitted campus details.', 'TenantAdmin অনুমতি নিয়ে প্রোগ্রাম, বিভাগ ও অনুমোদিত ক্যাম্পাসের তথ্য প্রস্তুত রাখুন।'],
+            steps: [
+                ['Create a programme with name/code and allowed campuses, then review its register.', 'নাম, কোড ও অনুমোদিত ক্যাম্পাস দিয়ে প্রোগ্রাম তৈরি করে তালিকায় দেখুন।'],
+                ['Use Manage campuses for allocation and Edit metadata for permitted programme changes.', 'ক্যাম্পাস বরাদ্দে Manage campuses এবং অনুমোদিত প্রোগ্রাম পরিবর্তনে Edit metadata ব্যবহার করুন।'],
+                ['Add class/grade levels and tracks under the correct programme; inspect their registers.', 'সঠিক প্রোগ্রামের অধীনে শ্রেণি/গ্রেড ও ট্র্যাক যোগ করে তালিকা যাচাই করুন।']
+            ],
+            example: ['Example: create Secondary (SEC), then Class 9 and a Science track.', 'উদাহরণ: Secondary (SEC) প্রোগ্রাম, এরপর Class 9 এবং Science ট্র্যাক তৈরি করুন।'],
+            result: ['The programme and its levels become available for sections and curriculum setup.', 'প্রোগ্রাম ও শ্রেণির স্তর শাখা ও পাঠ্যক্রম তৈরিতে ব্যবহারযোগ্য হয়।'],
+            rules: ['Campus assignment and programme metadata are separate operations. Active dependencies may block deactivation and certain metadata changes.', 'ক্যাম্পাস বরাদ্দ ও প্রোগ্রামের তথ্য সম্পাদনা আলাদা কাজ। সক্রিয় নির্ভরশীল রেকর্ড থাকলে কিছু পরিবর্তন বা নিষ্ক্রিয়করণ আটকে যায়।'],
+            recovery: ['Check existing programme codes, parent selection and campus scope; reload the current version after a conflict.', 'আগের প্রোগ্রাম কোড, মূল প্রোগ্রাম নির্বাচন ও ক্যাম্পাস যাচাই করুন; সংঘাতে বর্তমান সংস্করণ রিফ্রেশ করুন।'],
+            related: [['/AcademicManagement/Departments', 'Departments', 'বিভাগ'], ['/AcademicManagement/Sections', 'Sections', 'শাখা']]
+        },
+        '/academicmanagement/sections/index': {
+            version: 1, reviewed: true,
+            title: ['Sections / Cohorts', 'শাখা / ব্যাচ'],
+            purpose: ['Create academic batches tied to a campus, year, programme and grade.', 'ক্যাম্পাস, শিক্ষাবর্ষ, প্রোগ্রাম ও গ্রেডের সঙ্গে যুক্ত শাখা/ব্যাচ তৈরি করুন।'],
+            before: ['TenantAdmin access and completed campus, year and programme/level setup.', 'TenantAdmin অনুমতি এবং ক্যাম্পাস, শিক্ষাবর্ষ, প্রোগ্রাম ও শ্রেণির সেটআপ সম্পন্ন থাকতে হবে।'],
+            steps: [
+                ['Select campus, year, programme, class and optional term.', 'ক্যাম্পাস, শিক্ষাবর্ষ, প্রোগ্রাম, শ্রেণি এবং প্রযোজ্য টার্ম বাছুন।'],
+                ['Enter section name/code, capacity and dates; select Add Section.', 'শাখার নাম, কোড, আসনসংখ্যা ও তারিখ লিখে Add Section চাপুন।'],
+                ['Search the section register and edit only the permitted name, capacity increase or display order.', 'শাখার তালিকায় খুঁজুন; শুধু অনুমোদিত নাম, আসন বৃদ্ধি বা প্রদর্শনক্রম বদলান।']
+            ],
+            example: ['Example: add Grade 9 A at Campus 1 for Academic 2026 with capacity 40.', 'উদাহরণ: Campus 1-এ Academic 2026-এর Grade 9 A শাখা ৪০ আসনসহ তৈরি করুন।'],
+            result: ['The section becomes an available academic batch for later student/subject workflows.', 'শাখাটি পরবর্তী শিক্ষার্থী ও বিষয় ব্যবস্থাপনায় একাডেমিক ব্যাচ হিসেবে পাওয়া যায়।'],
+            rules: ['Campus, year, programme, class, dates and code cannot be edited here; reducing capacity or closing a used section needs separate enrollment-safe reconciliation.', 'এখানে ক্যাম্পাস, শিক্ষাবর্ষ, প্রোগ্রাম, শ্রেণি, তারিখ ও কোড বদলানো যায় না; আসন কমানো বা ব্যবহৃত শাখা বন্ধে আলাদা ভর্তি-নিরাপদ সমন্বয় প্রয়োজন।'],
+            recovery: ['Check required parent selections and dates; review the register before retrying a save after network uncertainty.', 'প্রয়োজনীয় মূল নির্বাচন ও তারিখ দেখুন; নেটওয়ার্কে ফল অনিশ্চিত হলে আবার সংরক্ষণের আগে তালিকা যাচাই করুন।'],
+            related: [['/AcademicManagement/Years', 'Academic Years', 'শিক্ষাবর্ষ'], ['/AcademicManagement/Offerings', 'Subject Offerings', 'বিষয় অফার']]
+        },
+        '/academicmanagement/rooms/index': {
+            version: 1, reviewed: true,
+            title: ['Academic Rooms', 'একাডেমিক কক্ষ'],
+            purpose: ['Maintain campus-specific classrooms and timetable room capacity.', 'ক্যাম্পাসভিত্তিক শ্রেণিকক্ষ ও রুটিনে ব্যবহৃত কক্ষের ধারণক্ষমতা পরিচালনা করুন।'],
+            before: ['TenantAdmin access and a configured campus.', 'TenantAdmin অনুমতি ও সেটআপ করা ক্যাম্পাস প্রয়োজন।'],
+            steps: [
+                ['Select campus and enter room name, stable code, capacity and optional type.', 'ক্যাম্পাস নির্বাচন করে কক্ষের নাম, স্থায়ী কোড, ধারণক্ষমতা ও ঐচ্ছিক ধরন দিন।'],
+                ['Select Add and search by room name/code or campus to inspect the register.', 'Add চাপুন; নাম, কোড বা ক্যাম্পাস দিয়ে তালিকায় খুঁজুন।'],
+                ['Use Edit to update supported metadata and export the visible room rows if needed.', 'Edit দিয়ে অনুমোদিত তথ্য বদলান; প্রয়োজনে দৃশ্যমান কক্ষের তালিকা রপ্তানি করুন।']
+            ],
+            example: ['Example: add Room 204, code C1-204, capacity 40 to Campus 1.', 'উদাহরণ: Campus 1-এ Room 204, কোড C1-204, ধারণক্ষমতা ৪০ তৈরি করুন।'],
+            result: ['The room is listed for timetable-related use.', 'রুটিন-সংশ্লিষ্ট কাজে ব্যবহারের জন্য কক্ষটি তালিকায় আসে।'],
+            rules: ['Room campus and code are immutable; capacity decreases and deactivation are not available in this editor because timetable reconciliation is required.', 'কক্ষের ক্যাম্পাস ও কোড অপরিবর্তনীয়; রুটিন সমন্বয়ের প্রয়োজন হওয়ায় এখানে ধারণক্ষমতা কমানো বা নিষ্ক্রিয় করা যায় না।'],
+            recovery: ['Check campus, code and capacity; on a rejected update reload the current room before editing again.', 'ক্যাম্পাস, কোড ও ধারণক্ষমতা দেখুন; আপডেট বাতিল হলে আবার সম্পাদনার আগে বর্তমান কক্ষ রিফ্রেশ করুন।'],
+            related: [['/AcademicRoutines/Index', 'Class Routines', 'ক্লাস রুটিন']]
+        },
+        '/academicmanagement/subjects/index': {
+            version: 1, reviewed: true,
+            title: ['Subjects', 'বিষয়'],
+            purpose: ['Maintain the institution-wide subject catalogue and default credits.', 'প্রতিষ্ঠানের বিষয় তালিকা ও ডিফল্ট ক্রেডিট পরিচালনা করুন।'],
+            before: ['TenantAdmin access and a unique subject code.', 'TenantAdmin অনুমতি ও স্বতন্ত্র বিষয় কোড প্রয়োজন।'],
+            steps: [
+                ['Enter subject name, code and default credits; select Add Subject.', 'বিষয়ের নাম, কোড ও ডিফল্ট ক্রেডিট লিখে Add Subject চাপুন।'],
+                ['Use prefix search and paging to find active or inactive subjects.', 'নাম বা কোডের শুরু দিয়ে খুঁজে পৃষ্ঠাভিত্তিক সক্রিয়/নিষ্ক্রিয় বিষয় দেখুন।'],
+                ['Select Edit for permitted metadata changes and review the saved status.', 'অনুমোদিত তথ্য বদলাতে Edit বেছে সংরক্ষিত অবস্থা দেখুন।']
+            ],
+            example: ['Example: add Mathematics (MATH) with the verified default credits.', 'উদাহরণ: যাচাইকৃত ডিফল্ট ক্রেডিট দিয়ে Mathematics (MATH) বিষয় যোগ করুন।'],
+            result: ['The subject is available for curriculum mapping.', 'পাঠ্যক্রমে বিষয় ম্যাপ করার জন্য বিষয়টি পাওয়া যায়।'],
+            rules: ['Codes remain fixed; linked curriculum history may block deactivation. Changing defaults does not rewrite past curriculum credits or marks.', 'কোড অপরিবর্তনীয়; আগের পাঠ্যক্রমে সংযোগ থাকলে নিষ্ক্রিয় করা যায় না। ডিফল্ট বদলালে আগের পাঠ্যক্রমের ক্রেডিট বা নম্বর বদলায় না।'],
+            recovery: ['Check code uniqueness and numeric credits; reload and inspect the current row after an edit conflict.', 'কোডের স্বতন্ত্রতা ও সংখ্যাগত ক্রেডিট যাচাই করুন; সম্পাদনা সংঘাতে বর্তমান রেকর্ড রিফ্রেশ করুন।'],
+            related: [['/AcademicManagement/Curricula', 'Curriculum', 'পাঠ্যক্রম']]
+        },
+        '/academicmanagement/curricula/index': {
+            version: 1, reviewed: true,
+            title: ['Curriculum Versions and Subject Mapping', 'পাঠ্যক্রমের সংস্করণ ও বিষয় ম্যাপিং'],
+            purpose: ['Create versioned curricula and map approved subjects to class levels.', 'সংস্করণভিত্তিক পাঠ্যক্রম তৈরি করে শ্রেণির সঙ্গে অনুমোদিত বিষয় যুক্ত করুন।'],
+            before: ['TenantAdmin access; the programme, class levels and subjects must already exist.', 'TenantAdmin অনুমতি থাকতে হবে; প্রোগ্রাম, শ্রেণি ও বিষয় আগে থেকে তৈরি থাকতে হবে।'],
+            steps: [
+                ['Select programme, name, code, version and effective date to create a curriculum.', 'প্রোগ্রাম, নাম, কোড, সংস্করণ ও কার্যকর তারিখ বেছে পাঠ্যক্রম তৈরি করুন।'],
+                ['Select an existing eligible curriculum, class and subject; set marks/pass marks and Add Mapping.', 'যোগ্য পাঠ্যক্রম, শ্রেণি ও বিষয় বেছে মোট/পাস নম্বর দিয়ে Add Mapping চাপুন।'],
+                ['Search versions and inspect the register; open the prerequisites workspace if needed.', 'সংস্করণ খুঁজে তালিকা যাচাই করুন; প্রয়োজন হলে বিষয়ের পূর্বশর্ত পৃষ্ঠা খুলুন।']
+            ],
+            example: ['Example: create Secondary 2026 v1 and map Mathematics to Grade 9 with verified marks.', 'উদাহরণ: Secondary 2026 v1 তৈরি করে যাচাইকৃত নম্বরসহ Grade 9-এ Mathematics যুক্ত করুন।'],
+            result: ['The curriculum and eligible subject mappings are available for subsequent batch offerings.', 'পাঠ্যক্রম ও উপযুক্ত বিষয় ম্যাপিং পরবর্তী ব্যাচের বিষয় অফারে ব্যবহারযোগ্য হয়।'],
+            rules: ['History is versioned; do not overwrite existing assigned curricula. The server checks mapping eligibility and effective dates.', 'ইতিহাস সংস্করণভিত্তিক; আগের বরাদ্দকৃত পাঠ্যক্রম বদলে লিখবেন না। সার্ভার ম্যাপিংয়ের যোগ্যতা ও কার্যকর তারিখ যাচাই করে।'],
+            recovery: ['If mapping is disabled, choose an eligible curriculum and level; check existing versions, dates and the displayed error.', 'ম্যাপিং বন্ধ থাকলে যোগ্য পাঠ্যক্রম ও শ্রেণি বাছুন; সংস্করণ, তারিখ ও দেখানো ত্রুটি যাচাই করুন।'],
+            related: [['/AcademicManagement/Subjects', 'Subjects', 'বিষয়'], ['/AcademicManagement/Offerings', 'Subject Offerings', 'বিষয় অফার']]
+        },
+        '/academicmanagement/prerequisites/index': {
+            version: 1, reviewed: true,
+            title: ['Subject Prerequisites', 'বিষয়ের পূর্বশর্ত'],
+            purpose: ['Define required prior subjects for an eligible curriculum version.', 'উপযুক্ত পাঠ্যক্রমের জন্য আগে পাস/সম্পন্ন করতে হবে এমন বিষয় নির্ধারণ করুন।'],
+            before: ['TenantAdmin access; select a curriculum with the relevant subjects already mapped.', 'TenantAdmin অনুমতি থাকতে হবে; সংশ্লিষ্ট বিষয়গুলো আগে থেকে ম্যাপ করা পাঠ্যক্রম নির্বাচন করুন।'],
+            steps: [
+                ['Search and select a curriculum version; load its prerequisite catalogue.', 'পাঠ্যক্রমের সংস্করণ খুঁজে নির্বাচন করে পূর্বশর্তের তালিকা লোড করুন।'],
+                ['Choose the subject and its required prior subject; set Mandatory if needed and select Add link.', 'বিষয় ও তার পূর্বশর্তের বিষয় বেছে প্রয়োজনমতো Mandatory দিয়ে Add link চাপুন।'],
+                ['Review the paged prerequisite register; search, export the visible page or print if necessary.', 'পৃষ্ঠাভিত্তিক পূর্বশর্তের তালিকা দেখুন; খুঁজুন, দৃশ্যমান পৃষ্ঠা রপ্তানি বা প্রিন্ট করুন।']
+            ],
+            example: ['Example: for an editable Secondary curriculum, require Mathematics I before Mathematics II.', 'উদাহরণ: সম্পাদনাযোগ্য Secondary পাঠ্যক্রমে Mathematics II-এর আগে Mathematics I বাধ্যতামূলক করুন।'],
+            result: ['An eligible prerequisite link is recorded for that curriculum version.', 'সেই পাঠ্যক্রমের সংস্করণে যোগ্য পূর্বশর্ত সংযোগ সংরক্ষিত হয়।'],
+            rules: ['Both subjects must belong to the selected curriculum. Circular dependencies are rejected and curricula already in use are immutable.', 'দুই বিষয়ই নির্বাচিত পাঠ্যক্রমে থাকতে হবে। চক্রাকার নির্ভরতা বাতিল হয়; ব্যবহৃত পাঠ্যক্রম অপরিবর্তনীয়।'],
+            recovery: ['If linking is denied, check curriculum eligibility, mapped subjects and dependency cycles; refresh before retrying.', 'সংযোগ বাতিল হলে পাঠ্যক্রমের যোগ্যতা, ম্যাপ করা বিষয় ও চক্রাকার নির্ভরতা দেখুন; পুনরায় চেষ্টা করার আগে রিফ্রেশ করুন।'],
+            related: [['/AcademicManagement/Curricula', 'Curriculum', 'পাঠ্যক্রম'], ['/AcademicManagement/Subjects', 'Subjects', 'বিষয়']]
+        },
+        '/academicmanagement/offerings/index': {
+            version: 1, reviewed: true,
+            title: ['Batch Subject Offerings', 'ব্যাচের বিষয় অফার'],
+            purpose: ['Publish curriculum subjects to academic batches before students register.', 'শিক্ষার্থী নিবন্ধনের আগে একাডেমিক ব্যাচে পাঠ্যক্রমের বিষয় অফার করুন।'],
+            before: ['TenantAdmin access, an academic batch and a compatible published curriculum subject.', 'TenantAdmin অনুমতি, একাডেমিক ব্যাচ ও সামঞ্জস্যপূর্ণ প্রকাশিত পাঠ্যক্রমের বিষয় প্রয়োজন।'],
+            steps: [
+                ['Select an academic batch and search existing offerings to avoid duplicates.', 'একাডেমিক ব্যাচ বেছে আগে থেকে থাকা অফার খুঁজে পুনরাবৃত্তি এড়ান।'],
+                ['Select curriculum subject, offering code, capacity and delivery mode; set Active as needed.', 'পাঠ্যক্রমের বিষয়, অফার কোড, আসনসংখ্যা ও পাঠদান পদ্ধতি বেছে প্রয়োজনমতো Active দিন।'],
+                ['Select Create Offering, then check pending, allocated, reserved and available seats in the register.', 'Create Offering চাপুন; পরে তালিকায় অপেক্ষমাণ, বরাদ্দ, সংরক্ষিত ও খালি আসন দেখুন।']
+            ],
+            example: ['Example: offer Grade 9 Mathematics at Campus 1 with capacity 40 and On campus delivery.', 'উদাহরণ: Campus 1-এর Grade 9 Mathematics বিষয়ে ৪০ আসন ও On campus পদ্ধতিতে অফার তৈরি করুন।'],
+            result: ['A compatible batch offering becomes visible with seat utilization counters.', 'সামঞ্জস্যপূর্ণ ব্যাচ অফার ও আসন ব্যবহারের হিসাব তালিকায় আসে।'],
+            rules: ['The server checks campus, curriculum version and academic dates. Pending reservations and approved/completed registrations use seats; rejected/dropped registrations release them.', 'সার্ভার ক্যাম্পাস, পাঠ্যক্রমের সংস্করণ ও একাডেমিক তারিখ যাচাই করে। অপেক্ষমাণ সংরক্ষণ এবং অনুমোদিত/সম্পন্ন নিবন্ধনে আসন ব্যবহৃত হয়; বাতিল/বাদ দেওয়া নিবন্ধনে আসন খালি হয়।'],
+            recovery: ['If no eligible subjects appear, verify batch and curriculum prerequisites; search existing offerings before retrying after a network error.', 'যোগ্য বিষয় না এলে ব্যাচ ও পাঠ্যক্রমের পূর্বশর্ত দেখুন; নেটওয়ার্কে ত্রুটির পরে আবার চেষ্টা করার আগে বিদ্যমান অফার খুঁজুন।'],
+            related: [['/AcademicManagement/Sections', 'Sections', 'শাখা'], ['/AcademicManagement/Curricula', 'Curriculum', 'পাঠ্যক্রম']]
+        }
+    };
     const manuals = {
+        ...academicManuals,
         "/studentlifecycle/index": {
             version: 1, reviewed: true,
             title: ["Student Exit and Transfer Certificate", "শিক্ষার্থী প্রস্থান ও স্থানান্তর সনদ"],

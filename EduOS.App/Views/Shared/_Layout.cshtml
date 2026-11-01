@@ -158,17 +158,8 @@
                         <span>Integration Administration</span>
                     </a>
                 }
-                @if (User?.IsInRole("TenantAdmin") == true)
-                {
-                    <a class="nav-link @ActiveFor("/Account/InstitutionProfile")" href="/Account/InstitutionProfile">
-                        <svg class="edu-icon"><use href="/images/eduos-icons.svg#institution" /></svg>
-                        <span>@T["InstitutionSetup"]</span>
-                    </a>
-                    <a class="nav-link @ActiveFor("/Account/CampusSetup")" href="/Account/CampusSetup">
-                        <svg class="edu-icon"><use href="/images/eduos-icons.svg#campus" /></svg>
-                        <span>@T["Campus"]</span>
-                    </a>
-                }
+                @* The Account/InstitutionProfile and Account/CampusSetup routes belong to the
+                   onboarding wizard. The post-onboarding institution workspace is canonical here. *@
                 @if (User?.IsInRole("TenantAdmin") == true)
                 {
                     <a class="nav-link @ActiveFor("/StudentLifecycle")" href="/StudentLifecycle/Index">
@@ -197,21 +188,27 @@
                 }
                 @if (User?.IsInRole("TenantAdmin") == true)
                 {
-                    <a class="nav-link @ActiveFor("/AcademicManagement")" href="/AcademicManagement/Index">
-                        <svg class="edu-icon"><use href="/images/eduos-icons.svg#calendar" /></svg>
-                        <span>Academic Setup &amp; Management</span>
-                    </a>
-                }
-                @if (User?.IsInRole("TenantAdmin") == true)
-                {
-                    <a class="nav-link @ActiveFor("/Account/AcademicSetup")" href="/Account/AcademicSetup">
-                        <svg class="edu-icon"><use href="/images/eduos-icons.svg#calendar" /></svg>
-                        <span>@T["AcademicYear"]</span>
-                    </a>
-                    <a class="nav-link @ActiveFor("/Account/ModuleSetup")" href="/Account/ModuleSetup">
-                        <svg class="edu-icon"><use href="/images/eduos-icons.svg#reports" /></svg>
-                        <span>@T["Modules"]</span>
-                    </a>
+                    @* Onboarding Account/AcademicSetup and Account/ModuleSetup remain valid
+                       wizard URLs, but are not duplicate daily-management sidebar entries. *@
+                    @foreach (var academicLink in new[] {
+                        (Action: "Years", En: "Academic Years", Bn: "শিক্ষাবর্ষ"),
+                        (Action: "Terms", En: "Terms / Semesters", Bn: "টার্ম / সেমিস্টার"),
+                        (Action: "Departments", En: "Departments", Bn: "বিভাগ"),
+                        (Action: "Classes", En: "Programmes, Classes & Grades", Bn: "প্রোগ্রাম, শ্রেণি ও গ্রেড"),
+                        (Action: "Sections", En: "Sections / Cohorts", Bn: "শাখা / ব্যাচ"),
+                        (Action: "Rooms", En: "Rooms", Bn: "কক্ষ"),
+                        (Action: "Subjects", En: "Subjects", Bn: "বিষয়"),
+                        (Action: "Curricula", En: "Curriculum", Bn: "পাঠ্যক্রম"),
+                        (Action: "Prerequisites", En: "Subject Prerequisites", Bn: "বিষয়ের পূর্বশর্ত"),
+                        (Action: "Offerings", En: "Subject Offerings", Bn: "ব্যাচের বিষয় অফার")
+                    })
+                    {
+                        var academicPath = "/AcademicManagement/" + academicLink.Action;
+                        <a class="nav-link @ActiveFor(academicPath)" href="@academicPath">
+                            <svg class="edu-icon"><use href="/images/eduos-icons.svg#calendar" /></svg>
+                            <span>@(currentCulture == "bn-BD" ? academicLink.Bn : academicLink.En)</span>
+                        </a>
+                    }
                 }
             </nav>
 
@@ -223,10 +220,6 @@
                     <a class="nav-link @ActiveFor("/StudentPortal")" href="/StudentPortal/Index">
                         <svg class="edu-icon"><use href="/images/eduos-icons.svg#students" /></svg>
                         <span>Student / Guardian Portal</span>
-                    </a>
-                    <a class="nav-link" href="/StudentPortal/Index#learnerConsents">
-                        <svg class="edu-icon"><use href="/images/eduos-icons.svg#students" /></svg>
-                        <span>Learner Data Consent</span>
                     </a>
                 }
                 @if (User?.IsInRole("TenantAdmin") == true || User?.IsInRole("Principal") == true ||

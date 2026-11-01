@@ -13,9 +13,9 @@
         ],
         setup: [
             ['access', 'Users & Access', 'ব্যবহারকারী ও অনুমতি', ['/TenantUsers', '/TenantPermissionOverrides']],
-            ['institution', 'Institution & Settings', 'প্রতিষ্ঠান ও সেটিংস', ['/InstitutionManagement', '/TenantDomains', '/TenantTerminology', '/TenantSettings', '/NumberSeries', '/TenantModules', '/SubscriptionBilling', '/IntegrationAdministration', '/Account/InstitutionProfile', '/Account/CampusSetup', '/Account/ModuleSetup']],
+            ['institution', 'Institution & Settings', 'প্রতিষ্ঠান ও সেটিংস', ['/InstitutionManagement', '/TenantDomains', '/TenantTerminology', '/TenantSettings', '/NumberSeries', '/TenantModules', '/SubscriptionBilling', '/IntegrationAdministration']],
             ['enrollment', 'Student Administration', 'শিক্ষার্থী ব্যবস্থাপনা', ['/StudentLifecycle', '/StudentDocuments', '/StudentGuardians', '/StudentTransferRequests', '/EnrollmentManagement']],
-            ['academic-setup', 'Academic Setup', 'একাডেমিক সেটআপ', ['/AcademicManagement', '/Account/AcademicSetup']]
+            ['academic-setup', 'Academic Management', 'একাডেমিক ব্যবস্থাপনা', ['/AcademicManagement']]
         ],
         academics: [
             ['portal', 'My Learning Portal', 'আমার লার্নিং পোর্টাল', ['/StudentPortal', '/StudentSubjects', '/Alumni']],
@@ -32,6 +32,24 @@
             ['library', 'Library', 'গ্রন্থাগার', ['/Library']],
             ['communication', 'Communication & Documents', 'যোগাযোগ ও ডকুমেন্ট', ['/CommunicationWorkspace', '/CommunicationAdministration', '/CustomFields', '/DocumentAdministration']],
             ['governance', 'Audit & Reporting', 'অডিট ও রিপোর্ট', ['/AuditLogs', '/ImportHistory']]
+        ]
+    };
+
+    // Optional third level: Module > Settings/Operations/Reports > feature.
+    // Only categorize links that Razor has already authorized and emitted.
+    const categories = {
+        'setup:academic-setup': [
+            ['settings', 'Settings', 'সেটিংস', ['/AcademicManagement']],
+            ['operations', 'Operations', 'কার্যক্রম', ['/AcademicManagement/Offerings']]
+        ],
+        'setup:institution': [
+            ['settings', 'Settings', 'সেটিংস', ['/InstitutionManagement', '/TenantDomains', '/TenantTerminology', '/TenantSettings', '/NumberSeries', '/TenantModules']],
+            ['operations', 'Operations', 'কার্যক্রম', ['/SubscriptionBilling', '/IntegrationAdministration']]
+        ],
+        'management:finance': [
+            ['settings', 'Settings', 'সেটিংস', ['/FeeDiscountRules', '/FeeHeadAccounting', '/AccountingSetup']],
+            ['operations', 'Operations', 'কার্যক্রম', ['/FeeOperations', '/AdmissionCashReceipts', '/FinanceAdjustments', '/AccountingJournals']],
+            ['reports', 'Reports', 'রিপোর্ট', ['/FeeReceivablesAging', '/AccountingReports']]
         ]
     };
 
@@ -54,6 +72,14 @@
         return definition ? definition[0] : 'other';
     }
 
+    function categoryFor(section, group, href) {
+        const path = normalizedPath(href);
+        // More-specific prefixes take priority (Offerings before AcademicManagement).
+        const matches = (categories[`${section}:${group}`] || []).flatMap(([key, , , prefixes]) =>
+            prefixes.filter(prefix => matchesPrefix(path, prefix)).map(prefix => ({ key, size: prefix.length })));
+        return matches.sort((a, b) => b.size - a.size)[0]?.key || 'other';
+    }
+
     function scoreActive(href, pathname, hash = '') {
         if (typeof href !== 'string' || !href.startsWith('/')) return -1;
         const [pathPart, linkHash = ''] = href.split('#', 2);
@@ -69,7 +95,7 @@
     }
 
     if (typeof module !== 'undefined' && module.exports) {
-        module.exports = { groupFor, scoreActive, normalizedPath };
+        module.exports = { groupFor, categoryFor, scoreActive, normalizedPath };
     }
     if (typeof document === 'undefined') return;
 
@@ -85,9 +111,10 @@
             const state = JSON.parse(sessionStorage.getItem(storageKey) || '{}');
             return {
                 scroll: Number.isFinite(state.scroll) && state.scroll >= 0 ? state.scroll : 0,
-                group: typeof state.group === 'string' ? state.group : ''
+                group: typeof state.group === 'string' ? state.group : '',
+                category: typeof state.category === 'string' ? state.category : ''
             };
-        } catch { return { scroll: 0, group: '' }; }
+        } catch { return { scroll: 0, group: '', category: '' }; }
     }
     let state = readState();
     function saveState() {
@@ -96,6 +123,7 @@
 
     const allLinks = [];
     const allDetails = [];
+    const allCategories = [];
     for (const nav of navs) {
         const section = nav.dataset.sidebarSection;
         const definitions = groups[section] || [];
@@ -137,7 +165,39 @@
             summary.append(label, count);
             const submenu = document.createElement('div');
             submenu.className = 'sidebar-submenu';
-            for (const child of children) submenu.append(child);
+            const definitionsForGroup = categories[`${section}:${key}`];
+            if (definitionsForGroup) {
+                const byCategory = new Map();
+                for (const child of children) {
+                    const category = categoryFor(section, key, child.getAttribute('href') || '');
+                    if (!byCategory.has(category)) byCategory.set(category, []);
+                    byCategory.get(category).push(child);
+                }
+                for (const [categoryKey, en, bn] of [...definitionsForGroup, ['other', 'Other', 'অন্যান্য', []]]) {
+                    const sublinks = byCategory.get(categoryKey);
+                    if (!sublinks?.length) continue;
+                    const subDetails = document.createElement('details');
+                    subDetails.className = 'sidebar-category';
+                    subDetails.dataset.sidebarCategory = `${section}:${key}:${categoryKey}`;
+                    const subToggle = document.createElement('summary');
+                    subToggle.className = 'sidebar-category-toggle';
+                    const subLabel = document.createElement('span');
+                    subLabel.textContent = bangla ? bn : en;
+                    const subCount = document.createElement('span');
+                    subCount.className = 'sidebar-category-count';
+                    subCount.textContent = String(sublinks.length);
+                    subCount.setAttribute('aria-hidden', 'true');
+                    subToggle.append(subLabel, subCount);
+                    const categoryLinks = document.createElement('div');
+                    categoryLinks.className = 'sidebar-category-links';
+                    for (const link of sublinks) categoryLinks.append(link);
+                    subDetails.append(subToggle, categoryLinks);
+                    submenu.append(subDetails);
+                    allCategories.push(subDetails);
+                }
+            } else {
+                for (const child of children) submenu.append(child);
+            }
             details.append(summary, submenu);
             container.append(details);
             allDetails.push(details);
@@ -171,6 +231,9 @@
         for (const details of allDetails) {
             details.classList.toggle('has-current', details.contains(selectedLink));
         }
+        for (const details of allCategories) {
+            details.classList.toggle('has-current', details.contains(selectedLink));
+        }
         return selectedLink;
     }
 
@@ -183,6 +246,12 @@
         const toOpen = isTop() ? null : (activeGroup ||
             allDetails.find(details => details.dataset.sidebarGroup === state.group));
         for (const details of allDetails) details.open = details === toOpen;
+        if (!isTop()) {
+            const selectedCategory = selected?.closest('.sidebar-category');
+            const toOpenCategory = selectedCategory ||
+                allCategories.find(details => details.dataset.sidebarCategory === state.category && toOpen?.contains(details));
+            for (const details of allCategories) details.open = details === toOpenCategory;
+        }
     }
     restoreOpenGroup();
 
@@ -191,6 +260,16 @@
             if (!details.open) return;
             for (const other of allDetails) if (other !== details) other.open = false;
             state.group = details.dataset.sidebarGroup;
+            saveState();
+        });
+    }
+    for (const details of allCategories) {
+        details.addEventListener('toggle', () => {
+            if (!details.open) return;
+            for (const other of allCategories) {
+                if (other !== details && other.parentElement === details.parentElement) other.open = false;
+            }
+            state.category = details.dataset.sidebarCategory;
             saveState();
         });
     }
@@ -208,6 +287,7 @@
     for (const link of allLinks) link.addEventListener('click', () => {
         state.scroll = sidebar.scrollTop;
         state.group = link.closest('.sidebar-group')?.dataset.sidebarGroup || state.group;
+        state.category = link.closest('.sidebar-category')?.dataset.sidebarCategory || state.category;
         saveState();
     });
     window.addEventListener('pagehide', () => {
@@ -237,6 +317,7 @@
     window.addEventListener('eduos:workspace-preferences', () => {
         if (isTop()) {
             allDetails.forEach(details => { details.open = false; });
+            allCategories.forEach(details => { details.open = false; });
         } else {
             restoreOpenGroup();
             window.requestAnimationFrame(showActiveAndRestoreScroll);
@@ -246,6 +327,7 @@
     document.addEventListener('pointerdown', event => {
         if (!isTop() || sidebar.contains(event.target)) return;
         for (const details of allDetails) details.open = false;
+        for (const details of allCategories) details.open = false;
     });
     document.addEventListener('keydown', event => {
         if (event.key !== 'Escape' || !isTop()) return;

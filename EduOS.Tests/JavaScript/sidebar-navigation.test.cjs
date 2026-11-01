@@ -7,7 +7,7 @@ const root = path.resolve(__dirname, '../..');
 const layout = fs.readFileSync(path.join(root, 'EduOS.App/Views/Shared/_Layout.cshtml'), 'utf8');
 const styles = fs.readFileSync(path.join(root, 'EduOS.App/wwwroot/css/site.css'), 'utf8');
 const script = fs.readFileSync(path.join(root, 'EduOS.App/wwwroot/js/sidebar-navigation.js'), 'utf8');
-const { groupFor, scoreActive, normalizedPath } = require('../../EduOS.App/wwwroot/js/sidebar-navigation.js');
+const { groupFor, categoryFor, scoreActive, normalizedPath } = require('../../EduOS.App/wwwroot/js/sidebar-navigation.js');
 
 test('every sidebar section is grouped without replacing role and module gated Razor links', () => {
     for (const section of ['platform', 'setup', 'academics', 'management']) {
@@ -25,7 +25,8 @@ test('section-specific categories include dynamic role portals and privileged ad
         ['platform', '/PlatformInstitutionModulePresets/Index', 'features'],
         ['platform', '/Account/PaymentVerification', 'subscriptions'],
         ['setup', '/TenantPermissionOverrides/Index', 'access'],
-        ['setup', '/Account/AcademicSetup', 'academic-setup'],
+        ['setup', '/AcademicManagement/Years', 'academic-setup'],
+        ['setup', '/AcademicManagement/Offerings', 'academic-setup'],
         ['setup', '/StudentTransferRequests/Index#destinationInbox', 'enrollment'],
         ['academics', '/StudentPortal/Index#learnerConsents', 'portal'],
         ['academics', '/LearnerIdentities/AccessHistory', 'learners'],
@@ -43,6 +44,12 @@ test('section-specific categories include dynamic role portals and privileged ad
         assert.equal(groupFor(section, href), expected, `${section}: ${href}`);
     }
     assert.equal(groupFor('management', '/NewFeature/Index'), 'other');
+    assert.equal(groupFor('setup', '/Account/AcademicSetup'), 'other');
+    assert.equal(categoryFor('setup', 'academic-setup', '/AcademicManagement/Years'), 'settings');
+    assert.equal(categoryFor('setup', 'academic-setup', '/AcademicManagement/Offerings'), 'operations');
+    assert.equal(categoryFor('management', 'finance', '/FeeReceivablesAging/Index'), 'reports');
+    assert.equal(categoryFor('management', 'finance', '/FeeOperations/Index'), 'operations');
+    assert.equal(categoryFor('management', 'finance', '/AccountingSetup/Index'), 'settings');
     assert.equal(normalizedPath('/Attendance/Index/?q=1'), '/attendance/index');
 });
 
@@ -59,12 +66,17 @@ test('active page selection matches full segments and prefers exact child or has
 });
 
 test('restricted links remain gated in Razor rather than client-side role filtering', () => {
-    assert.match(layout, /@if \(User\?\.IsInRole\("TenantAdmin"\) == true\)\s*\{\s*<a class="nav-link @ActiveFor\("\/Account\/InstitutionProfile"\)/);
+    assert.match(layout, /@if \(User\?\.IsInRole\("TenantAdmin"\) == true\)\s*\{\s*<a class="nav-link @ActiveFor\("\/InstitutionManagement"\)/);
+    assert.match(layout, /@foreach \(var academicLink in new\[\] \{/);
+    assert.doesNotMatch(layout, /href="\/Account\/(InstitutionProfile|CampusSetup|AcademicSetup|ModuleSetup)"/);
+    assert.doesNotMatch(layout, /href="\/StudentPortal\/Index#learnerConsents"/);
     assert.match(layout, /@if \(User\?\.IsInRole\("TenantAdmin"\) == true \|\| User\?\.IsInRole\("AdmissionOfficer"\) == true\)\s*\{\s*<a class="nav-link @ActiveFor\("\/Admissions"\)/);
     assert.match(layout, /@if \(User\?\.IsInRole\("TenantAdmin"\) == true \|\| User\?\.IsInRole\("Principal"\) == true \|\|\s*User\?\.IsInRole\("VicePrincipal"\) == true \|\| User\?\.IsInRole\("Teacher"\) == true\)\s*\{\s*<a class="nav-link @ActiveFor\("\/AcademicRoutines"\)/);
     assert.match(script, /sidebar\.scrollTop = state\.scroll/);
     assert.match(script, /selected\?\.closest\('\.sidebar-group'\)/);
     assert.match(script, /aria-current/);
     assert.match(styles, /\.sidebar-group-toggle:focus-visible/);
+    assert.match(styles, /\.sidebar-category-toggle:focus-visible/);
     assert.match(styles, /data-workspace-navigation="top"\] \.sidebar \.sidebar-submenu/);
+    assert.match(script, /allCategories\.push\(subDetails\)/);
 });

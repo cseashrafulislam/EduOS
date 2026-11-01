@@ -1,29 +1,33 @@
+@using System.Globalization
 @{
-    ViewData["Title"] = "Academic Setup & Management";
     Layout = "~/Views/Shared/_Layout.cshtml";
+    var bn = CultureInfo.CurrentUICulture.Name == "bn-BD";
+    var section = ViewData["AcademicSection"] as string ?? "years";
+    var feature = section switch
+    {
+        "departments" => (En: "Departments", Bn: "বিভাগ"),
+        "terms" => (En: "Terms / Semesters", Bn: "টার্ম / সেমিস্টার"),
+        "classes" => (En: "Programmes, Classes & Grades", Bn: "প্রোগ্রাম, শ্রেণি ও গ্রেড"),
+        "sections" => (En: "Sections / Cohorts", Bn: "শাখা / ব্যাচ"),
+        "rooms" => (En: "Rooms", Bn: "কক্ষ"),
+        "subjects" => (En: "Subjects", Bn: "বিষয়"),
+        "curricula" => (En: "Curriculum", Bn: "পাঠ্যক্রম"),
+        "offerings" => (En: "Subject Offerings", Bn: "ব্যাচের বিষয় অফার"),
+        _ => (En: "Academic Years", Bn: "শিক্ষাবর্ষ")
+    };
+    ViewData["Title"] = bn ? feature.Bn : feature.En;
 }
-<div id="academicManagement" class="container-fluid py-4">
+<div id="academicManagement" class="container-fluid py-4" data-active-feature="@(section)">
     @Html.AntiForgeryToken()
     <div class="d-flex flex-wrap gap-2 align-items-center justify-content-between mb-3">
         <div>
-            <h1 class="h4 fw-bold mb-1">Academic Setup &amp; Management</h1>
-            <p class="text-muted mb-0">Years, terms, class programmes, class levels, sections, subjects and curriculum.</p>
+            <p class="small text-muted mb-1">@(bn ? "একাডেমিক ব্যবস্থাপনা" : "Academic Management") <span aria-hidden="true">/</span> @(section == "offerings" ? (bn ? "কার্যক্রম" : "Operations") : (bn ? "সেটিংস" : "Settings"))</p>
+            <h1 class="h4 fw-bold mb-0">@(bn ? feature.Bn : feature.En)</h1>
         </div>
-        <button id="academicRefresh" type="button" class="btn btn-outline-secondary">Refresh</button>
+        <button id="academicRefresh" type="button" class="btn btn-outline-secondary">@(bn ? "রিফ্রেশ" : "Refresh")</button>
     </div>
     <div id="academicNotice" class="alert d-none" role="alert" aria-live="polite"></div>
-    <ul class="nav nav-tabs flex-wrap mb-3" role="tablist" aria-label="Academic setup">
-        <li class="nav-item"><button data-panel="departments" class="nav-link" type="button">Departments</button></li>
-        <li class="nav-item"><button data-panel="years" class="nav-link active" type="button">Academic Years</button></li>
-        <li class="nav-item"><button data-panel="terms" class="nav-link" type="button">Terms</button></li>
-        <li class="nav-item"><button data-panel="classes" class="nav-link" type="button">Classes / Grades</button></li>
-        <li class="nav-item"><button data-panel="sections" class="nav-link" type="button">Sections</button></li>
-        <li class="nav-item"><button data-panel="rooms" class="nav-link" type="button">Rooms</button></li>
-        <li class="nav-item"><button data-panel="subjects" class="nav-link" type="button">Subjects</button></li>
-        <li class="nav-item"><button data-panel="curricula" class="nav-link" type="button">Curriculum</button></li>
-        <li class="nav-item"><button data-panel="offerings" class="nav-link" type="button">Subject Offerings</button></li>
-    </ul>
-    <section data-section="departments" class="card border-0 shadow-sm d-none">
+    <section data-section="departments" class="card border-0 shadow-sm @(section == "departments" ? "" : "d-none")">
         <div class="card-body">
             <h2 class="h5">Academic departments</h2>
             <p class="small text-muted">Organize programmes by department. Active programmes prevent department deactivation. Codes are immutable.</p>
@@ -43,7 +47,7 @@
             <div class="d-flex gap-2 align-items-center"><button id="departmentPrev" type="button" class="btn btn-sm btn-outline-secondary">Previous</button><span id="departmentPage" class="small text-muted"></span><button id="departmentNext" type="button" class="btn btn-sm btn-outline-secondary">Next</button><button id="departmentCsv" type="button" class="btn btn-sm btn-outline-primary ms-auto">Export visible CSV</button></div>
         </div>
     </section>
-    <section data-section="years" class="card border-0 shadow-sm">
+    <section data-section="years" class="card border-0 shadow-sm @(section == "years" ? "" : "d-none")">
         <div class="card-body">
             <h2 class="h5">Academic years</h2>
             <form id="yearForm" class="row g-3 mb-3">
@@ -60,7 +64,7 @@
             <div class="table-responsive"><table class="table table-hover align-middle"><thead><tr><th>Year</th><th>Code</th><th>Campus</th><th>Dates</th><th>Current</th><th>Actions</th></tr></thead><tbody id="yearRows"></tbody></table></div>
         </div>
     </section>
-    <section data-section="terms" class="card border-0 shadow-sm d-none">
+    <section data-section="terms" class="card border-0 shadow-sm @(section == "terms" ? "" : "d-none")">
         <div class="card-body">
             <h2 class="h5">Terms / Semesters</h2>
             <form id="termForm" class="row g-3 mb-3">
@@ -76,7 +80,7 @@
             <div class="table-responsive"><table class="table table-hover"><thead><tr><th>Term</th><th>Year</th><th>Code</th><th>Dates</th><th>Current</th><th>Actions</th></tr></thead><tbody id="termRows"></tbody></table></div>
         </div>
     </section>
-    <section data-section="classes" class="card border-0 shadow-sm d-none">
+    <section data-section="classes" class="card border-0 shadow-sm @(section == "classes" ? "" : "d-none")">
         <div class="card-body">
             <h2 class="h5">Class programmes and grades</h2>
             <p class="text-muted small">Programme = academic stream (e.g. Secondary); Level = Class/Grade within that programme. Do not duplicate records per section.</p>
@@ -212,7 +216,7 @@
             </div>
         </div>
     </section>
-    <section data-section="rooms" class="card border-0 shadow-sm d-none">
+    <section data-section="rooms" class="card border-0 shadow-sm @(section == "rooms" ? "" : "d-none")">
         <div class="card-body">
             <h2 class="h5">Academic rooms</h2>
             <p class="text-muted small">Campus-scoped timetable rooms. Codes and campuses are immutable. Capacity decreases and deactivation require timetable reconciliation and are not available here.</p>
@@ -241,7 +245,7 @@
             </form>
         </div>
     </section>
-    <section data-section="sections" class="card border-0 shadow-sm d-none">
+    <section data-section="sections" class="card border-0 shadow-sm @(section == "sections" ? "" : "d-none")">
         <div class="card-body">
             <h2 class="h5">Sections / Cohorts</h2>
             <p class="small text-muted">Section is recorded as an Academic Batch and remains tied to campus, year, programme and class.</p>
@@ -288,7 +292,7 @@
             </form>
         </div>
     </section>
-    <section data-section="subjects" class="card border-0 shadow-sm d-none">
+    <section data-section="subjects" class="card border-0 shadow-sm @(section == "subjects" ? "" : "d-none")">
         <div class="card-body">
             <h2 class="h5">Subjects</h2>
             <p class="small text-muted">Manage tenant-wide subjects. Codes are immutable; linked curriculum history prevents deactivation. Existing curriculum credits and marks are not changed by editing defaults.</p>
@@ -321,7 +325,7 @@
             </form>
         </div>
     </section>
-    <section data-section="curricula" class="card border-0 shadow-sm d-none">
+    <section data-section="curricula" class="card border-0 shadow-sm @(section == "curricula" ? "" : "d-none")">
         <div class="card-body">
             <h2 class="h5">Curriculum versions &amp; subject mapping</h2>
             <p class="small text-muted">Create a new curriculum version for historical changes. Existing curriculum assignments are not silently overwritten.</p>
@@ -356,7 +360,7 @@
             <div id="curriculumDetails" class="border rounded p-3 d-none" aria-live="polite"></div>
         </div>
     </section>
-    <section data-section="offerings" class="card border-0 shadow-sm d-none">
+    <section data-section="offerings" class="card border-0 shadow-sm @(section == "offerings" ? "" : "d-none")">
         <div class="card-body">
             <h2 class="h5">Batch subject offerings</h2>
             <p class="text-muted small">Publish curriculum subjects to a batch before student enrollment. Campus, curriculum version and academic dates are validated by the server. Only tenant administrators can change offerings. Seat utilization counts pending reservations and approved/completed registrations; rejected/dropped registrations release seats.</p>
@@ -379,18 +383,38 @@
             <div class="d-flex align-items-center gap-2"><button id="offeringPrevious" type="button" class="btn btn-sm btn-outline-secondary">Previous</button><span id="offeringPage" class="small text-muted"></span><button id="offeringNext" type="button" class="btn btn-sm btn-outline-secondary">Next</button><button id="offeringCsv" type="button" class="btn btn-sm btn-outline-primary ms-auto">Export visible CSV</button></div>
         </div>
     </section>
-    <p class="small text-muted mt-3">Lists are bounded for responsiveness. Use an exact prefix search in the API catalog for larger institutions.</p>
 </div>
 @section Scripts {
     <script src="~/js/academic/management.js" asp-append-version="true"></script>
     <script src="~/js/academic/management-forms.js" asp-append-version="true"></script>
-    <script src="~/js/academic/subject-offerings.js" asp-append-version="true"></script>
-    <script src="~/js/academic/departments.js" asp-append-version="true"></script>
-    <script src="~/js/academic/programmes.js" asp-append-version="true"></script>
-    <script src="~/js/academic/batches.js" asp-append-version="true"></script>
-    <script src="~/js/academic/rooms.js" asp-append-version="true"></script>
-    <script src="~/js/academic/levels.js" asp-append-version="true"></script>
-    <script src="~/js/academic/tracks.js" asp-append-version="true"></script>
-    <script src="~/js/academic/subjects.js" asp-append-version="true"></script>
-    <script src="~/js/academic/curricula.js" asp-append-version="true"></script>
+    @if (section is "departments" or "classes")
+    {
+        <script src="~/js/academic/departments.js" asp-append-version="true"></script>
+    }
+    @if (section == "classes")
+    {
+        <script src="~/js/academic/programmes.js" asp-append-version="true"></script>
+        <script src="~/js/academic/levels.js" asp-append-version="true"></script>
+        <script src="~/js/academic/tracks.js" asp-append-version="true"></script>
+    }
+    @if (section == "sections")
+    {
+        <script src="~/js/academic/batches.js" asp-append-version="true"></script>
+    }
+    @if (section == "rooms")
+    {
+        <script src="~/js/academic/rooms.js" asp-append-version="true"></script>
+    }
+    @if (section == "subjects")
+    {
+        <script src="~/js/academic/subjects.js" asp-append-version="true"></script>
+    }
+    @if (section == "curricula")
+    {
+        <script src="~/js/academic/curricula.js" asp-append-version="true"></script>
+    }
+    @if (section == "offerings")
+    {
+        <script src="~/js/academic/subject-offerings.js" asp-append-version="true"></script>
+    }
 }

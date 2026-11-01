@@ -1,12 +1,14 @@
+@using System.Globalization
 @{
-    ViewData["Title"] = "Curriculum Prerequisites";
+    var bn = CultureInfo.CurrentUICulture.Name == "bn-BD";
+    ViewData["Title"] = bn ? "বিষয়ের পূর্বশর্ত" : "Subject Prerequisites";
     Layout = "~/Views/Shared/_Layout.cshtml";
 }
 <div class="container-fluid py-4" id="prerequisiteWorkspace">
     @Html.AntiForgeryToken()
     <div class="d-flex flex-wrap align-items-center justify-content-between mb-3">
-        <div><h1 class="h4 mb-1">Curriculum prerequisites</h1><p class="text-muted mb-0">Define required prior subjects for a curriculum version. Used curricula are immutable.</p></div>
-        <a class="btn btn-outline-secondary" asp-controller="AcademicManagement" asp-action="Index">Back to Academic Setup</a>
+        <div><p class="small text-muted mb-1">@(bn ? "একাডেমিক ব্যবস্থাপনা / সেটিংস" : "Academic Management / Settings")</p><h1 class="h4 mb-0">@(bn ? "বিষয়ের পূর্বশর্ত" : "Subject prerequisites")</h1></div>
+        <a class="btn btn-outline-secondary" asp-controller="AcademicManagement" asp-action="Curricula">@(bn ? "পাঠ্যক্রমে ফিরুন" : "Back to Curriculum")</a>
     </div>
     <div id="prerequisiteNotice" class="alert d-none" role="alert" aria-live="polite"></div>
     <div class="card border-0 shadow-sm mb-3"><div class="card-body">
