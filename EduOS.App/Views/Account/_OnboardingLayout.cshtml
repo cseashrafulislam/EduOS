@@ -1,5 +1,6 @@
 @{
     Layout = "_Layout";
+    var onboardingBangla = CultureInfo.CurrentUICulture.Name == "bn-BD";
 
     var onboardingStrings = new
     {
@@ -9,6 +10,12 @@
         loadFailed = T["OnboardingLoadFailed"].Value,
         retry = T["Retry"].Value,
         stepsCompletedTemplate = T["StepsCompletedTemplate"].Value,
+        phases = new[]
+        {
+            new { name = onboardingBangla ? "পরিচয় ও পরিকল্পনা" : "Identity & plan", description = onboardingBangla ? "ইমেইল, প্রতিষ্ঠান, প্ল্যান ও পেমেন্ট" : "Email, institution, plan and payment" },
+            new { name = onboardingBangla ? "শিক্ষার ভিত্তি" : "Academic essentials", description = onboardingBangla ? "ক্যাম্পাস, শিক্ষাবর্ষ ও মডিউল" : "Campus, academic year and modules" },
+            new { name = onboardingBangla ? "প্রকাশের প্রস্তুতি" : "Finish setup", description = onboardingBangla ? "ব্র্যান্ডিং, সাধারণ সেটিং ও গেটওয়ে" : "Branding, general settings and gateway" }
+        },
         steps = new Dictionary<string, object>
         {
             ["EmailVerification"] = new { name = T["Onboarding_EmailVerification_Name"].Value, description = T["Onboarding_EmailVerification_Description"].Value },
@@ -31,6 +38,7 @@
         <div class="col-lg-4 col-xl-3">
             <aside class="onboarding-sidebar" aria-labelledby="setupWizardTitle">
                 <h2 class="h5 mb-3" id="setupWizardTitle">@T["SetupWizard"]</h2>
+                <p class="small text-muted mb-3">@(onboardingBangla ? "তিনটি সহজ ভাগে সেটআপ করুন। বর্তমান ধাপ খোলা থাকবে; আগের ধাপও প্রয়োজন হলে দেখতে পারবেন।" : "Follow three short groups. Your current step stays open; revisit earlier steps when needed.")</p>
 
                 <div class="onboarding-progress">
                     <div class="d-flex justify-content-between mb-2">
@@ -44,6 +52,7 @@
                     <div class="mt-2 small text-muted" id="completedSummary">
                         @T["StepsCompleted", 0, 0]
                     </div>
+                    <a id="onboardingContinue" class="btn btn-primary btn-sm w-100 mt-3 d-none" href="#">@(onboardingBangla ? "বর্তমান ধাপে যান" : "Continue current step")</a>
                 </div>
 
                 <nav id="stepsList" aria-label="@T["SetupWizard"]">
@@ -153,14 +162,73 @@
             return link;
         }
 
+        function phaseIndex(stage) {
+            const index = Number(stage);
+            return index <= 4 ? 0 : index <= 7 ? 1 : 2;
+        }
+
+        function createPhase(steps, index, shouldOpen) {
+            const phase = i18n.phases[index];
+            const completed = steps.filter(step => step.isCompleted).length;
+            const details = document.createElement('details');
+            details.className = 'onboarding-phase';
+            details.open = shouldOpen;
+            if (completed === steps.length) details.classList.add('complete');
+
+            const summary = document.createElement('summary');
+            summary.className = 'onboarding-phase-toggle';
+
+            const title = document.createElement('span');
+            title.className = 'onboarding-phase-heading';
+            const name = document.createElement('span');
+            name.className = 'onboarding-phase-name';
+            name.textContent = `${(index + 1).toLocaleString(i18n.culture)}. ${phase.name}`;
+            const description = document.createElement('span');
+            description.className = 'onboarding-phase-description';
+            description.textContent = phase.description;
+            title.append(name, description);
+
+            const count = document.createElement('span');
+            count.className = 'onboarding-phase-count';
+            count.textContent = `${completed.toLocaleString(i18n.culture)}/${steps.length.toLocaleString(i18n.culture)}`;
+            summary.append(title, count);
+
+            const links = document.createElement('div');
+            links.className = 'onboarding-phase-links';
+            links.replaceChildren(...steps.map(createStepLink));
+            details.append(summary, links);
+            return details;
+        }
+
         function renderSidebar(status) {
             updateProgress(status);
             const list = document.getElementById('stepsList');
-            list.replaceChildren(...(Array.isArray(status.stages) ? status.stages.map(createStepLink) : []));
+            const steps = Array.isArray(status.stages) ? status.stages : [];
+            if (!steps.length) { showLoadError(); return; }
+            const groups = [[], [], []];
+            steps.forEach(step => groups[phaseIndex(step.stage)].push(step));
+            const current = steps.find(step => step.isCurrent) || steps.find(step => !step.isCompleted);
+            const openIndex = current ? phaseIndex(current.stage) : 2;
+            list.replaceChildren(...groups.flatMap((group, index) =>
+                group.length ? [createPhase(group, index, index === openIndex)] : []));
+            const next = steps.find(step => step.isCurrent && !step.isLocked) ||
+                steps.find(step => !step.isCompleted && !step.isLocked);
+            const continueLink = document.getElementById('onboardingContinue');
+            const nextPath = next ? stageUrl(next.stage) : '';
+            if (nextPath && window.location.pathname.toLowerCase() !== nextPath.toLowerCase()) {
+                continueLink.href = nextPath;
+                continueLink.classList.remove('d-none');
+            } else {
+                continueLink.removeAttribute('href');
+                continueLink.classList.add('d-none');
+            }
         }
 
         function showLoadError() {
             const list = document.getElementById('stepsList');
+            const continueLink = document.getElementById('onboardingContinue');
+            continueLink.removeAttribute('href');
+            continueLink.classList.add('d-none');
             const error = document.createElement('div');
             error.className = 'onboarding-error';
             error.setAttribute('role', 'alert');

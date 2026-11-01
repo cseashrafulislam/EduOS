@@ -1160,6 +1160,39 @@ select,
     font-weight: 700;
 }
 
+/* Keep the ten server-controlled steps, but present only three small groups.
+   Native details retains keyboard navigation and does not bypass stage locks. */
+#stepsList { display: grid; gap: .55rem; }
+.onboarding-phase {
+    min-width: 0; border: 1px solid var(--edu-border); border-radius: .75rem;
+    background: #fff; overflow: hidden;
+}
+.onboarding-phase-toggle {
+    display: flex; align-items: center; justify-content: space-between; gap: .65rem;
+    padding: .72rem .75rem; list-style: none; cursor: pointer;
+    color: #334155;
+}
+.onboarding-phase-toggle::-webkit-details-marker { display: none; }
+.onboarding-phase-toggle::after {
+    content: ''; flex: 0 0 .42rem; width: .42rem; height: .42rem;
+    border-right: 2px solid currentColor; border-bottom: 2px solid currentColor;
+    transform: rotate(45deg); transition: transform .2s ease;
+}
+.onboarding-phase[open] > .onboarding-phase-toggle::after { transform: rotate(225deg); }
+.onboarding-phase-toggle:focus-visible { outline: 2px solid var(--edu-primary); outline-offset: -2px; }
+.onboarding-phase-heading { display: grid; gap: .15rem; min-width: 0; flex: 1; }
+.onboarding-phase-name { font-size: .84rem; font-weight: 750; }
+.onboarding-phase-description { font-size: .71rem; color: var(--edu-muted); line-height: 1.3; }
+.onboarding-phase-count {
+    padding: .2rem .45rem; border-radius: .5rem; background: #f1f5f9;
+    color: #475569; font-size: .74rem; font-weight: 700; white-space: nowrap;
+}
+.onboarding-phase.complete .onboarding-phase-count { background: #dcfce7; color: #166534; }
+.onboarding-phase-links { padding: .2rem .35rem .45rem; border-top: 1px solid var(--edu-border); }
+.onboarding-phase .step-item { margin-bottom: 0; min-height: 2.8rem; padding: .45rem .5rem; }
+.onboarding-phase .step-item:not(.current) .step-desc { display: none; }
+.onboarding-phase .step-item.current .step-desc { display: block; }
+
 .onboarding-content {
     width: 100%;
     max-width: 62rem;
@@ -2940,17 +2973,13 @@ select,
 
     #stepsList {
         display: grid;
-        grid-auto-columns: minmax(13rem, 75vw);
-        grid-auto-flow: column;
-        gap: .35rem;
-        overflow-x: auto;
-        overscroll-behavior-inline: contain;
-        scrollbar-width: thin;
-        scroll-snap-type: inline mandatory;
+        grid-auto-flow: row;
+        gap: .5rem;
+        overflow-x: visible;
     }
 
     .step-item {
-        scroll-snap-align: start;
+        scroll-snap-align: none;
     }
 }
 
@@ -3335,6 +3364,12 @@ select,
 :root[data-workspace-theme="dark"] .language-form select { background: #101b2d; color: #e2e8f0; border-color: #475569; }
 :root[data-workspace-theme="dark"] .table { --bs-table-bg: #172235; --bs-table-color: #e2e8f0; --bs-table-border-color: #334155; }
 :root[data-workspace-theme="dark"] .dropdown-item { color: #e2e8f0; }
+:root[data-workspace-theme="dark"] :is(.onboarding-wrapper,.onboarding-sidebar,.onboarding-progress,.onboarding-phase) {
+    background: #172235; color: #e2e8f0; border-color: #334155;
+}
+:root[data-workspace-theme="dark"] .onboarding-phase-toggle { color: #e2e8f0; }
+:root[data-workspace-theme="dark"] .onboarding-phase-count { background: #334155; color: #e2e8f0; }
+:root[data-workspace-theme="dark"] .onboarding-phase.complete .onboarding-phase-count { background: #14532d; color: #dcfce7; }
 @media (prefers-color-scheme: dark) {
     :root[data-workspace-theme="system"] { color-scheme: dark; --edu-text: #e2e8f0; --edu-muted: #94a3b8; --edu-border: #334155; }
     :root[data-workspace-theme="system"] body,
@@ -3349,6 +3384,12 @@ select,
     :root[data-workspace-theme="system"] .form-control,
     :root[data-workspace-theme="system"] .form-select,
     :root[data-workspace-theme="system"] .language-form select { background: #101b2d; color: #e2e8f0; border-color: #475569; }
+    :root[data-workspace-theme="system"] :is(.onboarding-wrapper,.onboarding-sidebar,.onboarding-progress,.onboarding-phase) {
+        background: #172235; color: #e2e8f0; border-color: #334155;
+    }
+    :root[data-workspace-theme="system"] .onboarding-phase-toggle { color: #e2e8f0; }
+    :root[data-workspace-theme="system"] .onboarding-phase-count { background: #334155; color: #e2e8f0; }
+    :root[data-workspace-theme="system"] .onboarding-phase.complete .onboarding-phase-count { background: #14532d; color: #dcfce7; }
 }
 @media (min-width: 992px) {
     :root[data-workspace-navigation="right"] .sidebar { left: auto; right: 0; }
