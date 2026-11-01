@@ -212,6 +212,50 @@ public sealed partial class SqlServerV3ProcurementPurchaseOrderTests
             firstMovementReference = await owned.InventoryMovements
                 .Where(x => x.Id == movementId).Select(x => x.PublicId).SingleAsync();
         }
+        // Independent whole-project historical-integrity probe: even when a
+        // tampered posted receipt line and its canonical stock line still agree,
+        // delivered quantity must not exceed the approved PO line. Roll back
+        // the disposable corruption before continuing the original workflow.
+        await using (var corrupt = Open(options, tenantId, checkerId))
+        {
+            await using var transaction = await corrupt.Database.BeginTransactionAsync();
+            var receipt = await corrupt.ProcurementGoodsReceipts
+                .Where(x => x.PublicId == first.Reference)
+                .Select(x => new { x.Id, x.PostedMovementId }).SingleAsync();
+            Assert.True(receipt.PostedMovementId.HasValue);
+            var receiptLineId = await corrupt.ProcurementGoodsReceiptLines
+                .Where(x => x.GoodsReceiptId == receipt.Id).Select(x => x.Id).SingleAsync();
+            var stockLineId = await corrupt.InventoryMovementLines
+                .Where(x => x.InventoryMovementId == receipt.PostedMovementId.Value)
+                .Select(x => x.Id).SingleAsync();
+            await corrupt.ProcurementGoodsReceiptLines.Where(x => x.Id == receiptLineId)
+                .ExecuteUpdateAsync(x => x.SetProperty(y => y.Quantity, 11m));
+            await corrupt.InventoryMovementLines.Where(x => x.Id == stockLineId)
+                .ExecuteUpdateAsync(x => x.SetProperty(y => y.Quantity, 11m));
+
+            var trace = new V3EnterpriseLedgerTraceService(corrupt, new Actor(tenantId, checkerId));
+            Assert.Equal(409, (await trace.GetAsync(firstMovementReference)).StatusCode);
+            var today = DateOnly.FromDateTime(DateTime.UtcNow);
+            var report = await new V3EnterpriseReconciliationRegisterService(
+                corrupt, new Actor(tenantId, checkerId))
+                .GetAsync("stock", today.AddDays(-1), today.AddDays(1));
+            Assert.Equal(200, report.StatusCode);
+            Assert.Equal("EvidenceConflict", Assert.Single(report.Data!.Items,
+                x => x.Reference == firstMovementReference).EvidenceStatus);
+            await transaction.RollbackAsync();
+        }
+        await using (var restored = Open(options, tenantId, checkerId))
+        {
+            var trace = await new V3EnterpriseLedgerTraceService(
+                restored, new Actor(tenantId, checkerId)).GetAsync(firstMovementReference);
+            Assert.Equal(200, trace.StatusCode);
+            Assert.Equal("VerifiedProcurementReceipt", trace.Data!.SourceEvidenceStatus);
+            var originalReceiptId = await restored.ProcurementGoodsReceipts
+                .Where(x => x.PublicId == first.Reference).Select(x => x.Id).SingleAsync();
+            Assert.Equal(4m, await restored.ProcurementGoodsReceiptLines
+                .Where(x => x.GoodsReceiptId == originalReceiptId)
+                .Select(x => x.Quantity).SingleAsync());
+        }
         await using (var otherTenant = Open(options, tenantId + 99999, makerId))
         {
             Assert.Equal(404, (await Goods(otherTenant, tenantId + 99999, makerId)

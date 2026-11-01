@@ -115,6 +115,9 @@ public static class V3EnterpriseProcurementReceiptEvidenceValidator
                     poLine.IsDeleted || poLine.PurchaseOrderId != receipt.PurchaseOrderId ||
                     poLine.InventoryItemId != x.InventoryItemId ||
                     poLine.Quantity != x.ApprovedPoQuantity ||
+                    // A forged stock line matching a forged receipt must not
+                    // certify delivery above the immutable approved PO quantity.
+                    x.Quantity > poLine.Quantity ||
                     poLine.UnitPrice != x.ApprovedPoUnitPrice) ||
                 posted.Any(x => x.IsDeleted || x.Quantity <= 0m || x.UnitCost < 0m))
             {
