@@ -33,13 +33,21 @@ function fakeFetch({ leak = false, denyCsv = false, detailCsvMismatch = false,
             const ref = kind === 'asset' ? asset : stock;
             const otherCampus = parsed.searchParams.get('campusId') === '20';
             const items = (foreign && !leak) || (otherCampus && !campusLeak)
-                ? [] : [{ reference: ref, evidenceStatus: 'ExplicitBalancedReference',
-                    state: 'Posted', lineCount: 1, date: '2026-10-31' }];
-            if (isCsv) return csv(200, 'Kind,Reference,State,Lines,EvidenceStatus\n' +
-                (registerCsvMismatch && !foreign ? kind + ',33333333-3333-4333-8333-333333333333,Posted,1,ExplicitBalancedReference'
-                    : items.map(x => [kind, x.reference, x.state, x.lineCount,
-                        x.evidenceStatus].join(',')).join('\n')));
-            return json(200, { page: 1, pageSize: Number(parsed.searchParams.get('pageSize')),
+                ? [] : [{ reference: ref, number: kind === 'asset' ? 'DEPR-1' : 'STOCK-1',
+                    date: '2026-10-31', campusId: kind === 'asset' ? 10 : null,
+                    recordedValue: '25.0000000000',
+                    evidenceStatus: 'ExplicitBalancedReference',
+                    state: 'Posted', lineCount: 1 }];
+            if (isCsv) return csv(200,
+                'Kind,Reference,Number,Date,Campus,State,RecordedValue,Lines,EvidenceStatus\n' +
+                items.map(x => [kind,
+                    registerCsvMismatch && !foreign
+                        ? '33333333-3333-4333-8333-333333333333' : x.reference,
+                    x.number, x.date, x.campusId ?? '', x.state, x.recordedValue,
+                    x.lineCount, x.evidenceStatus].join(',')).join('\n'));
+            return json(200, { kind, from: parsed.searchParams.get('from'),
+                to: parsed.searchParams.get('to'),
+                page: 1, pageSize: Number(parsed.searchParams.get('pageSize')),
                 totalCount: items.length, items });
         }
         if (foreign && !leak) return isCsv ? csv(404, '') : json(404, null);
