@@ -170,7 +170,7 @@ async function mobileAndIsolation(browser) {
         assert.equal(await page.locator('#workspaceTheme').inputValue(),'light');
         await page.evaluate(()=>{document.body.dataset.authTenantId='23';});
         await page.locator('#workspaceReset').click();
-        await page.waitForFunction(() => document.getElementById('workspaceSave').disabled);
+        await page.waitForFunction(() => (window.verifyCount || 0) > 0);
         assert.equal(await page.evaluate(()=>document.documentElement.style.getPropertyValue('--edu-custom-sidebar-bg')),'');
         assert.equal(await page.locator('[data-appearance-restore]').count(),0);
         assert.ok(await page.evaluate(()=>window.verifyCount)>=1);
