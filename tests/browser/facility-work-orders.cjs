@@ -37,7 +37,7 @@ async function setup(browser, bn = false, manager = true, mobile = false) {
     const context = await browser.newContext({ viewport: mobile ? { width: 390, height: 844 } : { width: 1280, height: 800 } });
     const page = await context.newPage();
     const state = { calls: [], errors: [], delayed: null, started: null,
-        revoked: false, emptyAfterPost: false, empty: false };
+        revoked: false, emptyAfterPost: false, empty: false, locationDelayed: null, locationStarted: null };
     page.on('pageerror', error => state.errors.push(error.message));
     await page.addInitScript(() => {
         window.EduOSSessionTransitionPending = () => false;
@@ -52,7 +52,8 @@ async function setup(browser, bn = false, manager = true, mobile = false) {
         const request = route.request(), url = new URL(request.url());
         if (!url.pathname.startsWith('/api/'))
             return route.fulfill({ contentType: 'text/html', body: html(bn, manager) });
-        state.calls.push({ url: url.pathname + url.search, method: request.method() });
+        state.calls.push({ url: url.pathname + url.search, method: request.method(),
+            body: request.method() === 'POST' ? request.postDataJSON() : null });
         assert(url.pathname.startsWith('/api/facilities/work-orders'), 'Unexpected endpoint ' + url.pathname);
         const reply = payload => route.fulfill({ contentType: 'application/json', body: JSON.stringify(ok(payload)) });
         if (state.revoked) return route.fulfill({ status: 403, contentType: 'application/json',
@@ -60,6 +61,18 @@ async function setup(browser, bn = false, manager = true, mobile = false) {
         if (request.method() !== 'GET') {
             if (state.emptyAfterPost) state.empty = true;
             return reply(record);
+        }
+        if (url.pathname.endsWith('/locations')) {
+            if (state.locationDelayed && url.searchParams.get('search') === 'old') {
+                state.locationStarted.resolve();
+                await state.locationDelayed.promise;
+                return reply({ items: [{ campusId: 99, facilitySpaceId: 999,
+                    campusName: 'Old campus', campusCode: 'OLD',
+                    spaceName: 'Old space', spaceCode: 'OLD' }], totalPages: 1 });
+            }
+            return reply({ items: [{ campusId: 12, facilitySpaceId: 5,
+                campusName: 'Facilities Campus', campusCode: 'FAC',
+                spaceName: 'Building A', spaceCode: 'BLDG-A' }], totalPages: 1 });
         }
         if (url.pathname.endsWith('/dashboard')) return reply({});
         if (url.pathname.endsWith('/history')) return reply({ items: [], totalPages: 1 });
@@ -120,6 +133,38 @@ async function mobileBangla(browser) {
         assert.deepEqual(state.errors, []);
     } finally { await context.close(); }
 }
+async function requesterLocationPicker(browser) {
+    const { context, page, state } = await setup(browser, true, false, true);
+    try {
+        await page.locator('#wfLocationSelect option[value="12:5"]').waitFor();
+        assert.equal(await page.locator('#wfCreate button[type="submit"]').isDisabled(), true);
+        state.locationDelayed = deferred();
+        state.locationStarted = deferred();
+        await page.locator('#wfLocationSearch').fill('old');
+        await page.locator('#wfLocationFind').click();
+        await state.locationStarted.promise;
+        await page.locator('#wfLocationSearch').fill('Building');
+        await page.locator('#wfLocationFind').click();
+        await page.locator('#wfLocationSelect option[value="12:5"]').waitFor();
+        state.locationDelayed.resolve();
+        await page.waitForTimeout(50);
+        assert.equal(await page.locator('#wfLocationSelect option[value="99:999"]').count(), 0);
+        await page.locator('#wfLocationSelect').selectOption('12:5');
+        assert.equal(await page.locator('#wfCampus').inputValue(), '12');
+        assert.equal(await page.locator('#wfSpace').inputValue(), '5');
+        await page.locator('#wfCategory').fill('ELECTRICAL');
+        await page.locator('#wfSummary').fill('Broken corridor light');
+        await page.locator('#wfCreate button[type="submit"]').click();
+        await page.locator('#workflowAlert').filter({ hasText: 'অনুরোধ জমা হয়েছে' }).waitFor();
+        const posted = state.calls.find(x => x.method === 'POST');
+        assert.ok(posted, 'requester POST must reach the existing workflow');
+        assert.equal(posted.body.campusId, 12);
+        assert.equal(posted.body.facilitySpaceId, 5);
+        assert.ok(posted.body.clientRequestId, 'existing idempotency key preserved');
+        assert.equal(await page.locator('#wfCreate button[type="submit"]').isDisabled(), true);
+        assert.deepEqual(state.errors, []);
+    } finally { state.locationDelayed?.resolve(); await context.close(); }
+}
 async function fillSchedule(page) {
     await page.locator('#wfRows button').click();
     // Empty history still renders an attached <ol>, but it has no visible box.
@@ -164,8 +209,9 @@ async function selectionAfterTransition(browser) {
         await managerAndSession(browser);
         await delayedRead(browser);
         await mobileBangla(browser);
+        await requesterLocationPicker(browser);
         await revokedCampus(browser);
         await selectionAfterTransition(browser);
-        console.log('Facility Work Orders Chromium PASS: bilingual mobile/desktop, revocation and stale selection; synthetic API/session only.');
+        console.log('Facility Work Orders Chromium PASS: bilingual mobile/desktop, authorized location picker, stale search, revocation and stale selection; synthetic API/session only.');
     } finally { await browser.close(); }
 })().catch(error => { console.error(error); process.exitCode = 1; });

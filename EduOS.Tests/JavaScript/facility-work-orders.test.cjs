@@ -329,3 +329,21 @@ test('Facilities refresh clears off-list selection and old actions after a faile
     assert.equal(el('wfTransition').classList.last, 'd-none');
     assert.equal(errors, 1);
 });
+
+test('requesters use bounded authorized location discovery instead of guessed IDs', () => {
+    const api = fs.readFileSync(path.join(__dirname,
+        '../../EduOS.App/Controllers/Api/FacilityWorkOrdersApiController.cs'), 'utf8');
+    const service = fs.readFileSync(path.join(__dirname,
+        '../../EduOS.Service/Services/Facilities/FacilityWorkflowService.cs'), 'utf8');
+    assert.match(api, /HttpGet\("locations"\)/);
+    assert.match(api, /FacilitiesRequester/);
+    assert.match(service, /AllowedCampuses\(\)\.Contains\(space\.CampusId\)/);
+    assert.match(service, /space\.IsActive/);
+    assert.match(service, /pageSize is < 1 or > 50/);
+    assert.match(view, /id="wfLocationSelect"/);
+    assert.match(view, /id="wfCampus"[^>]+readonly/);
+    assert.match(view, /id="wfSpace"[^>]+readonly/);
+    assert.match(script, /locationGeneration/);
+    assert.match(script, /chosenLocation = locationChoices\.get/);
+    assert.match(script, /Select an authorized active campus space first/);
+});

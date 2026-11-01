@@ -41,13 +41,30 @@
             <div class="card"><div class="card-body">
                 <h3 class="h6">@(bn ? "নতুন সার্ভিস অনুরোধ" : "New service request")</h3>
                 <form id="wfCreate" class="row g-2">
-                    <div class="col-sm-6"><label class="form-label" for="wfCampus">@(bn ? "ক্যাম্পাস আইডি" : "Campus ID")</label><input id="wfCampus" type="number" min="1" required class="form-control" /></div>
-                    <div class="col-sm-6"><label class="form-label" for="wfSpace">@(bn ? "সুবিধা স্থানের আইডি" : "Facility space ID")</label><input id="wfSpace" type="number" min="1" required class="form-control" /></div>
+                    <div class="col-12">
+                        <label class="form-label" for="wfLocationSearch">@(bn ? "অনুমোদিত ক্যাম্পাস বা স্থানের নাম/কোড খুঁজুন" : "Find authorized campus or space by name/code")</label>
+                        <div class="input-group">
+                            <input id="wfLocationSearch" class="form-control" maxlength="100" autocomplete="off"
+                                   placeholder="@(bn ? "ক্যাম্পাস বা স্থানের নাম" : "Campus or space name")" />
+                            <button id="wfLocationFind" class="btn btn-outline-primary" type="button">@(bn ? "স্থান খুঁজুন" : "Find spaces")</button>
+                        </div>
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label" for="wfLocationSelect">@(bn ? "অনুমোদিত সক্রিয় স্থান নির্বাচন" : "Select an authorized active space")</label>
+                        <select id="wfLocationSelect" class="form-select" required disabled></select>
+                        <div class="d-flex align-items-center gap-2 mt-1">
+                            <button id="wfLocationPrev" class="btn btn-outline-secondary btn-sm" type="button" disabled>@(bn ? "আগের স্থান" : "Previous spaces")</button>
+                            <span id="wfLocationPage" class="small" aria-live="polite"></span>
+                            <button id="wfLocationNext" class="btn btn-outline-secondary btn-sm" type="button" disabled>@(bn ? "পরের স্থান" : "Next spaces")</button>
+                        </div>
+                    </div>
+                    <div class="col-sm-6"><label class="form-label" for="wfCampus">@(bn ? "ক্যাম্পাস আইডি" : "Campus ID")</label><input id="wfCampus" type="number" min="1" required readonly class="form-control" /></div>
+                    <div class="col-sm-6"><label class="form-label" for="wfSpace">@(bn ? "সুবিধা স্থানের আইডি" : "Facility space ID")</label><input id="wfSpace" type="number" min="1" required readonly class="form-control" /></div>
                     <div class="col-sm-6"><label class="form-label" for="wfCategory">@(bn ? "বিভাগ কোড" : "Category code")</label><input id="wfCategory" class="form-control" required maxlength="40" pattern="[A-Za-z0-9_]+" placeholder="ELECTRICAL" /></div>
                     <div class="col-sm-6"><label class="form-label" for="wfPriority">@(bn ? "অগ্রাধিকার" : "Priority")</label><select id="wfPriority" class="form-select"><option>Normal</option><option>Low</option><option>High</option><option>Urgent</option></select></div>
                     <div class="col-12"><label class="form-label" for="wfSummary">@(bn ? "সমস্যার সারাংশ" : "Issue summary")</label><input id="wfSummary" class="form-control" required minlength="5" maxlength="200" /></div>
                     <div class="col-12"><label class="form-label" for="wfDescription">@(bn ? "বিস্তারিত" : "Description")</label><textarea id="wfDescription" class="form-control" maxlength="2000" rows="2"></textarea></div>
-                    <div class="col-12"><button type="submit" class="btn btn-success">@(bn ? "অনুরোধ জমা দিন" : "Submit request")</button></div>
+                    <div class="col-12"><button type="submit" class="btn btn-success" disabled>@(bn ? "অনুরোধ জমা দিন" : "Submit request")</button></div>
                 </form>
             </div></div>
         </div>

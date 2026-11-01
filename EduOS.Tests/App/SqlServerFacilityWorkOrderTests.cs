@@ -57,6 +57,15 @@ public sealed class SqlServerFacilityWorkOrderTests
                 var space = new FacilitySpace { TenantId = tenantId, CampusId = campusId,
                     Code = "BLDG-A", Name = "Building A" };
                 setup.FacilitySpaces.Add(space);
+                // An active same-tenant campus without a grant must not be
+                // discoverable by a requester, even through the location picker.
+                var ungrantedCampus = new Campus { TenantId = tenantId,
+                    Code = "PRIVATE", Name = "Restricted Campus" };
+                setup.Campuses.Add(ungrantedCampus);
+                await setup.SaveChangesAsync();
+                setup.FacilitySpaces.Add(new FacilitySpace { TenantId = tenantId,
+                    CampusId = ungrantedCampus.Id, Code = "SECRET",
+                    Name = "Restricted Storage" });
                 foreach (var id in new[] { requesterId, managerId, approverId, techId })
                     setup.UserCampusAccesses.Add(new UserCampusAccess
                     { TenantId = tenantId, CampusId = campusId, UserId = id, IsActive = true });
@@ -79,6 +88,31 @@ public sealed class SqlServerFacilityWorkOrderTests
                 await setup.SaveChangesAsync();
                 spaceId = space.Id;
             }
+        }
+        // Requesters can discover only their authorized active campus spaces,
+        // while a TenantAdmin can inspect all active spaces in the same tenant.
+        await using (var db = Db(options, tenantId, requesterId, "FacilitiesRequester"))
+        {
+            var service = Service(db, tenantId, requesterId, "FacilitiesRequester");
+            var locations = await service.LocationsAsync(null, 1, 25);
+            Assert.True(locations.Success, locations.Message);
+            Assert.Single(locations.Data!.Items);
+            Assert.Equal(campusId, locations.Data.Items[0].CampusId);
+            Assert.Equal(spaceId, locations.Data.Items[0].FacilitySpaceId);
+            Assert.Empty((await service.LocationsAsync("Restricted", 1, 25)).Data!.Items);
+            Assert.Single((await service.LocationsAsync("Building", 1, 25)).Data!.Items);
+            Assert.Equal(400, (await service.LocationsAsync(new string('X', 101), 1, 25)).StatusCode);
+        }
+        await using (var db = Db(options, tenantId, requesterId, "TenantAdmin"))
+        {
+            var locations = await Service(db, tenantId, requesterId, "TenantAdmin")
+                .LocationsAsync(null, 1, 25);
+            Assert.Equal(2, locations.Data!.TotalCount);
+        }
+        await using (var db = Db(options, otherTenantId, requesterId, "FacilitiesRequester"))
+        {
+            Assert.Empty((await Service(db, otherTenantId, requesterId, "FacilitiesRequester")
+                .LocationsAsync(null, 1, 25)).Data!.Items);
         }
         // Same-campus membership must not expose a different requester's details.
         long privateRequestId;

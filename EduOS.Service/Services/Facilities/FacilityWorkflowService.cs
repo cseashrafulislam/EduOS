@@ -111,6 +111,44 @@ public sealed class FacilityWorkflowService(
         return Map(request, order);
     }
 
+    /// <summary>
+    /// Requesters can discover only active campus spaces within their current grants.
+    /// This is a bounded read-only lookup; CreateAsync revalidates the selected IDs.
+    /// </summary>
+    public async Task<ApiResponse<PagedResult<FacilityLocationOptionDto>>> LocationsAsync(
+        string? search, int page, int pageSize, CancellationToken ct = default)
+    {
+        if (!ValidTenant || !Reader) return Denied<PagedResult<FacilityLocationOptionDto>>();
+        if (page is < 1 or > 100000 || pageSize is < 1 or > 50 || search?.Length > 100)
+            return ApiResponse<PagedResult<FacilityLocationOptionDto>>.ErrorResponse("Invalid location search.");
+
+        var query = from space in db.FacilitySpaces.AsNoTracking()
+                    join campus in db.Campuses.AsNoTracking()
+                        on new { space.TenantId, Id = space.CampusId }
+                        equals new { campus.TenantId, campus.Id }
+                    where space.TenantId == user.TenantId && !space.IsDeleted && space.IsActive &&
+                          campus.IsActive && !campus.IsDeleted &&
+                          AllowedCampuses().Contains(space.CampusId)
+                    select new { space, campus };
+        var term = search?.Trim();
+        if (!string.IsNullOrWhiteSpace(term))
+            query = query.Where(x => x.space.Code.Contains(term) || x.space.Name.Contains(term) ||
+                                     x.campus.Code.Contains(term) || x.campus.Name.Contains(term));
+        var total = await query.CountAsync(ct);
+        var items = await query.OrderBy(x => x.campus.Name).ThenBy(x => x.space.Code)
+            .ThenBy(x => x.space.Id).Skip((page - 1) * pageSize).Take(pageSize)
+            .Select(x => new FacilityLocationOptionDto
+            {
+                CampusId = x.campus.Id, CampusCode = x.campus.Code,
+                CampusName = x.campus.Name, FacilitySpaceId = x.space.Id,
+                SpaceCode = x.space.Code, SpaceName = x.space.Name
+            }).ToListAsync(ct);
+        return ApiResponse<PagedResult<FacilityLocationOptionDto>>.SuccessResponse(new()
+        {
+            Page = page, PageSize = pageSize, TotalCount = total, Items = items
+        });
+    }
+
     public async Task<ApiResponse<FacilityRequestDto>> CreateAsync(
         CreateFacilityRequestDto input, CancellationToken ct = default)
     {

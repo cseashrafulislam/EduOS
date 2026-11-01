@@ -35,7 +35,9 @@
     const shield = el('eduosSessionShield');
     let blocked = false, creating = false, transitioning = false;
     let page = 1, pages = 1, selected = null, historyPage = 1, historyPages = 1;
-    let listGeneration = 0, historyGeneration = 0;
+    let listGeneration = 0, historyGeneration = 0, locationGeneration = 0;
+    let locationPage = 1, locationPages = 1, chosenLocation = null;
+    let locationChoices = new Map();
     const pending = new Map();
     // A retry may reuse an ID only for the exact original payload. After an
     // uncertain network outcome, edited details require a reload/status check
@@ -58,6 +60,9 @@
         blocked = true;
         listGeneration++;
         historyGeneration++;
+        locationGeneration++;
+        chosenLocation = null;
+        locationChoices.clear();
         selected = null;
         pending.clear();
         for (const id of ['wfRows', 'wfDashboard', 'wfHistory']) el(id).replaceChildren();
@@ -208,6 +213,61 @@
         el('wfNote').minLength = ['return', 'escalate', 'cancelrequest', 'cancelapprove', 'cancelreject'].includes(action) ? 10 : action === 'unschedule' ? 5 : 0;
         el('wfNote').maxLength = ['schedule', 'unschedule', 'escalate', 'return', 'cancelrequest', 'cancelapprove', 'cancelreject'].includes(action) ? 500 : 1000;
     }
+    // Active, granted campus spaces are supplied by the Facilities workflow
+    // endpoint, not guessed from IDs or the privileged space-management API.
+    function clearLocation() {
+        chosenLocation = null;
+        el('wfCampus').value = '';
+        el('wfSpace').value = '';
+        el('wfLocationSelect').value = '';
+        const submit = el('wfCreate').querySelector('button[type="submit"]');
+        if (submit && !creating) submit.disabled = true;
+    }
+    async function loadLocations() {
+        if (blocked) return;
+        const generation = ++locationGeneration;
+        clearLocation();
+        locationChoices = new Map();
+        const picker = el('wfLocationSelect');
+        picker.disabled = true;
+        picker.replaceChildren();
+        el('wfLocationPage').textContent = t('Loading spaces…', 'স্থান লোড হচ্ছে…');
+        el('wfLocationPrev').disabled = true;
+        el('wfLocationNext').disabled = true;
+        try {
+            const q = new URLSearchParams({ page: String(locationPage), pageSize: '25' });
+            const search = el('wfLocationSearch').value.trim();
+            if (search) q.set('search', search);
+            const data = await api('/locations?' + q);
+            if (generation !== locationGeneration || blocked) return;
+            locationPages = Math.max(1, data.totalPages || 1);
+            const placeholder = document.createElement('option');
+            placeholder.value = '';
+            placeholder.textContent = t('Choose campus / space', 'ক্যাম্পাস / স্থান নির্বাচন করুন');
+            picker.append(placeholder);
+            for (const row of data.items || []) {
+                const key = row.campusId + ':' + row.facilitySpaceId;
+                const option = document.createElement('option');
+                option.value = key;
+                option.textContent = row.campusName + ' (' + row.campusCode + ') / ' +
+                    row.spaceName + ' (' + row.spaceCode + ')';
+                locationChoices.set(key, row);
+                picker.append(option);
+            }
+            picker.value = '';
+            picker.disabled = locationChoices.size === 0;
+            el('wfLocationPage').textContent = locationPage + ' / ' + locationPages +
+                (locationChoices.size ? '' : t(' — no active spaces', ' — সক্রিয় স্থান নেই'));
+            el('wfLocationPrev').disabled = locationPage <= 1;
+            el('wfLocationNext').disabled = locationPage >= locationPages;
+        } catch (error) {
+            if (generation !== locationGeneration || blocked || error.message === 'session-changed') return;
+            picker.replaceChildren();
+            picker.disabled = true;
+            el('wfLocationPage').textContent = t('Unable to load spaces. Retry search.', 'স্থান লোড হয়নি। আবার খুঁজুন।');
+            notice(error.message);
+        }
+    }
     async function dashboard(generation, campusId) {
         const q = new URLSearchParams();
         if (campusId) q.set('campusId', campusId);
@@ -336,6 +396,28 @@
         el('wfTransition').classList.add('d-none');
         el('wfHistory').replaceChildren();
     }
+    el('wfLocationFind').addEventListener('click', () => {
+        if (blocked) return;
+        locationPage = 1;
+        loadLocations();
+    });
+    el('wfLocationSearch').addEventListener('keydown', e => {
+        if (e.key === 'Enter') { e.preventDefault(); locationPage = 1; loadLocations(); }
+    });
+    el('wfLocationPrev').addEventListener('click', () => {
+        if (!blocked && locationPage > 1) { locationPage--; loadLocations(); }
+    });
+    el('wfLocationNext').addEventListener('click', () => {
+        if (!blocked && locationPage < locationPages) { locationPage++; loadLocations(); }
+    });
+    el('wfLocationSelect').addEventListener('change', () => {
+        if (!sessionCurrent()) { lockPage(); return; }
+        chosenLocation = locationChoices.get(el('wfLocationSelect').value) || null;
+        el('wfCampus').value = chosenLocation?.campusId ?? '';
+        el('wfSpace').value = chosenLocation?.facilitySpaceId ?? '';
+        const submit = el('wfCreate').querySelector('button[type="submit"]');
+        if (submit) submit.disabled = !chosenLocation || creating;
+    });
     el('workflowSearch').addEventListener('submit', e => { e.preventDefault(); page = 1; clearSelection(); load(); });
     el('wfPrev').addEventListener('click', () => { if (page > 1) { page--; clearSelection(); load(); } });
     el('wfNext').addEventListener('click', () => { if (page < pages) { page++; clearSelection(); load(); } });
@@ -353,6 +435,13 @@
     el('wfCreate').addEventListener('submit', async e => {
         e.preventDefault();
         if (blocked || creating) return;
+        if (!chosenLocation ||
+            Number(el('wfCampus').value) !== chosenLocation.campusId ||
+            Number(el('wfSpace').value) !== chosenLocation.facilitySpaceId) {
+            notice(t('Select an authorized active campus space first.',
+                'আগে অনুমোদিত সক্রিয় ক্যাম্পাস স্থান নির্বাচন করুন।'));
+            return;
+        }
         creating = true;
         const submit = el('wfCreate').querySelector('button[type="submit"]');
         if (submit) submit.disabled = true;
@@ -367,7 +456,7 @@
             body.clientRequestId = commandId(key, body);
             await api('', 'POST', body);
             pending.delete(key);
-            el('wfCreate').reset(); notice(t('Request submitted.', 'অনুরোধ জমা হয়েছে।'), true);
+            el('wfCreate').reset(); clearLocation(); notice(t('Request submitted.', 'অনুরোধ জমা হয়েছে।'), true);
             page = 1; await load();
         } catch (error) {
             // A confirmed validation rejection did not commit; corrected details
@@ -376,7 +465,7 @@
             if (!blocked) notice(error.message);
         } finally {
             creating = false;
-            if (!blocked && submit) submit.disabled = false;
+            if (!blocked && submit) submit.disabled = !chosenLocation;
         }
     });
     el('wfTransition').addEventListener('submit', async e => {
@@ -413,4 +502,5 @@
         }
     });
     load();
+    loadLocations();
 })();

@@ -52,6 +52,17 @@ public sealed class FacilityRequestDto
     public bool? SlaBreached { get; set; }
 }
 
+/// <summary>Authorized active campus-space choice; IDs are canonical server values.</summary>
+public sealed class FacilityLocationOptionDto
+{
+    public long CampusId { get; set; }
+    public string CampusCode { get; set; } = string.Empty;
+    public string CampusName { get; set; } = string.Empty;
+    public long FacilitySpaceId { get; set; }
+    public string SpaceCode { get; set; } = string.Empty;
+    public string SpaceName { get; set; } = string.Empty;
+}
+
 public sealed class FacilityEventDto
 {
     public long Id { get; set; }
