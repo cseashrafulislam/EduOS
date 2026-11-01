@@ -1208,26 +1208,39 @@ public sealed class SqlServerAssessmentMarkReviewLifecycleIntegrationTests
             Assert.Equal(409, prematureLock.StatusCode);
         }
 
-        await using (var firstDb = TenantDb(options, seeded.TenantId))
-        await using (var secondDb = TenantDb(options, seeded.TenantId))
+        // Each concurrent request must create its own ambient HttpContext and
+        // DbContext inside the Task.Run flow. Constructing both contexts before
+        // Task.WhenAll shares HttpContextAccessor's AsyncLocal test context and
+        // can fail audit creation with a synthetic NullReferenceException.
+        var ready = new[]
         {
-            var first = Service(firstDb, reviewer);
-            var second = Service(secondDb, reviewer);
-            var firstView = await first.GetMarkReviewAsync(seeded.AssessmentSubjectId);
-            var secondView = await second.GetMarkReviewAsync(seeded.AssessmentSubjectId);
-            Assert.True(firstView.Data!.CanReview);
-            Assert.True(secondView.Data!.CanReview);
-
-            var outcomes = await Task.WhenAll(
-                first.DecideMarkReviewAsync(seeded.AssessmentSubjectId,
-                    Decision(Guid.NewGuid(), firstView.Data.AssessmentRowVersion,
-                        AssessmentMarkReviewDecision.Approved)),
-                second.DecideMarkReviewAsync(seeded.AssessmentSubjectId,
-                    Decision(Guid.NewGuid(), secondView.Data.AssessmentRowVersion,
-                        AssessmentMarkReviewDecision.Approved)));
-            Assert.Single(outcomes.Where(x => x.Success));
-            Assert.Single(outcomes.Where(x => x.StatusCode == 409));
+            new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously),
+            new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously)
+        };
+        var release = new TaskCompletionSource<bool>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        async Task<(bool Success, int StatusCode)> AttemptApprovalAsync(int index)
+        {
+            await using var db = TenantDb(options, seeded.TenantId);
+            var service = Service(db, reviewer);
+            var view = await service.GetMarkReviewAsync(seeded.AssessmentSubjectId);
+            Assert.True(view.Success, view.Message);
+            Assert.True(view.Data!.CanReview);
+            ready[index].TrySetResult(true);
+            await release.Task.WaitAsync(TimeSpan.FromSeconds(20));
+            var result = await service.DecideMarkReviewAsync(seeded.AssessmentSubjectId,
+                Decision(Guid.NewGuid(), view.Data.AssessmentRowVersion,
+                    AssessmentMarkReviewDecision.Approved));
+            return (result.Success, result.StatusCode);
         }
+
+        var firstAttempt = Task.Run(() => AttemptApprovalAsync(0));
+        var secondAttempt = Task.Run(() => AttemptApprovalAsync(1));
+        await Task.WhenAll(ready.Select(x => x.Task)).WaitAsync(TimeSpan.FromSeconds(20));
+        release.TrySetResult(true);
+        var outcomes = await Task.WhenAll(firstAttempt, secondAttempt);
+        Assert.Single(outcomes.Where(x => x.Success));
+        Assert.Single(outcomes.Where(x => x.StatusCode == 409));
 
         await using (var db = TenantDb(options, seeded.TenantId))
         {
