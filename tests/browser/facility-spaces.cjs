@@ -17,7 +17,7 @@ function html(bn,manage){
  h=h.replace(/@if\(manage\)\s*\{([\s\S]*?)\n    \}/g,(_,s)=>manage?s:'');
  h=h.replace('@bn.ToString().ToLowerInvariant()',String(bn)).replace('@manage.ToString().ToLowerInvariant()',String(manage));
  assert(!/@if\(manage\)|@\(\s*bn \?/.test(h),'Unprocessed Razor branch');
- return '<!doctype html><html lang="'+(bn?'bn-BD':'en-BD')+'"><head><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="request-verification-token" content="facility-csrf"></head><body data-auth-session-reference="'+ 'A'.repeat(64)+'" data-auth-tenant-id="12"><div id="eduosSessionShield" hidden></div>'+h+'</body></html>';
+ return '<!doctype html><html lang="'+(bn?'bn-BD':'en-BD')+'"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="request-verification-token" content="facility-csrf"></head><body data-auth-session-reference="'+ 'A'.repeat(64)+'" data-auth-tenant-id="12"><div id="eduosSessionShield" hidden></div>'+h+'</body></html>';
 }
 const deferred=()=>{let resolve;const promise=new Promise(r=>resolve=r);return {promise,resolve};};
 async function setup(browser,bn=false,manage=true,mobile=false){
