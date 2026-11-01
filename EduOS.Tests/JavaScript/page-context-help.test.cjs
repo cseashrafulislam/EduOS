@@ -10,10 +10,10 @@ const css = read('EduOS.App/wwwroot/css/site.css');
 const js = read('EduOS.App/wwwroot/js/platform/page-context-help.js');
 const { guideFor, coverage, normalizeRoute, validateGuide } =
     require('../../EduOS.App/wwwroot/js/platform/page-context-help.js');
-const routes = ['/FeeReceivablesAging/Index', '/PayrollJournalPosting/Index', '/PayrollSalaryStatement/Index', '/Alumni/Index', '/FeeOperations/Index', '/Students/Index', '/Attendance/Index', '/PayrollOperations/Index', '/FacilityWorkOrders/Index', '/Admissions/Index', '/StudentInvoicePosting/Index', '/workspace', '/Account/BrandingSetup'];
+const routes = ['/FeeReceivablesAging/Index', '/PayrollJournalPosting/Index', '/PayrollSalaryStatement/Index', '/Alumni/Index', '/FeeOperations/Index', '/Students/Index', '/Attendance/Index', '/PayrollOperations/Index', '/FacilityWorkOrders/Index', '/Admissions/Index', '/StudentInvoicePosting/Index', '/workspace', '/Account/BrandingSetup', '/StudentLifecycle/Index'];
 
 test('all reviewed route manuals have full bilingual structure, matching steps and examples', () => {
-    assert.deepEqual(coverage(), { routes: 13, en: 13, bn: 13 });
+    assert.deepEqual(coverage(), { routes: 14, en: 14, bn: 14 });
     for (const route of routes) {
         const en = guideFor(route, 'en-BD');
         const bn = guideFor(route, 'bn-BD');
@@ -338,4 +338,36 @@ test('branding color saves carry CSRF; missing token and invalid colors fail bef
     assert.equal(writes.length, 3);
     assert.ok(writes.every(x => x.options.headers.RequestVerificationToken === 'token-1'));
     assert.ok(valid.calls.some(x => x.redirect === '/Dashboard/Index'));
+});
+
+test('student final-exit page bilingual labels and reviewed manual preserve API/security contracts', () => {
+    const view = read('EduOS.App/Views/StudentLifecycle/Index.cshtml');
+    const client = read('EduOS.App/wwwroot/js/students/lifecycle.js');
+    const page = read('EduOS.App/Controllers/StudentLifecycleController.cs');
+    const api = read('EduOS.App/Controllers/Api/StudentExitController.cs');
+    const service = read('EduOS.Service/Services/Students/StudentExitService.cs');
+    const { statusLabel, localizedError } = require('../../EduOS.App/wwwroot/js/students/lifecycle.js');
+    assert.match(page, /Authorize\\(Roles = "TenantAdmin"\\)/);
+    assert.match(page, /RequireModule\\("STUDENT"\\)/);
+    assert.match(api, /AutoValidateAntiforgeryToken/);
+    assert.match(view, /data-bn="@bn\\.ToString\\(\\)\\.ToLowerInvariant\\(\\)"/);
+    for (const id of ['lifecycleStudentSearch', 'lifecycleExitType', 'lifecycleReason', 'lifecycleSubmit', 'lifecycleHistory'])
+        assert.ok(view.includes('id="' + id + '"'));
+    for (const type of ['Transfer', 'Completed', 'Dropout']) assert.ok(view.includes('value="' + type + '"'));
+    assert.match(client, /RequestVerificationToken: token/);
+    assert.match(client, /clientRequestId: requestId\\(\\)/);
+    assert.match(service, /Outstanding fees must be settled/);
+    assert.equal(statusLabel('Active', true), 'সক্রিয়');
+    assert.equal(statusLabel('TC', true), 'স্থানান্তরিত');
+    assert.equal(statusLabel('Active', false), 'Active');
+    assert.equal(localizedError('Outstanding fees must be settled.', 409, true), 'আগে সব বকেয়া ফি পরিশোধ করুন।');
+    assert.equal(localizedError('Unexpected error', 409, true), 'তথ্যে সংঘাত হয়েছে। বর্তমান অবস্থা যাচাই করে রিলোড করুন।');
+    assert.equal(localizedError('Server error', 503, false), 'Server error');
+    const en = guideFor('/StudentLifecycle/Index', 'en-BD');
+    const bn = guideFor('/StudentLifecycle/Index', 'bn-BD');
+    assert.equal(en.steps.length, 5);
+    assert.equal(bn.steps.length, 5);
+    assert.match(en.rules, /Dropout can record an outstanding due/);
+    assert.match(bn.rules, /বকেয়া/);
+    assert.deepEqual(en.related.map(x => x.path), ['/Students/Index', '/StudentTransferRequests/Index']);
 });

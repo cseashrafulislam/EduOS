@@ -1,33 +1,35 @@
+@using System.Globalization
 @{
-    ViewData["Title"] = "Student Lifecycle & Transfer Certificate";
+    var bn = CultureInfo.CurrentUICulture.Name.StartsWith("bn", StringComparison.OrdinalIgnoreCase);
+    ViewData["Title"] = bn ? "শিক্ষার্থী প্রস্থান ও স্থানান্তর সনদ" : "Student Lifecycle & Transfer Certificate";
     Layout = "~/Views/Shared/_Layout.cshtml";
 }
-<div id="studentLifecycle" class="container-fluid py-4">
+<div id="studentLifecycle" data-bn="@bn.ToString().ToLowerInvariant()" class="container-fluid py-4">
     @Html.AntiForgeryToken()
     <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
         <div>
-            <h1 class="h4 fw-bold mb-1">Student Exit &amp; Transfer Certificate</h1>
-            <p class="text-muted mb-0">Controlled final transitions: Transfer, Completed or Dropout. Historical enrollments are retained.</p>
+            <h1 class="h4 fw-bold mb-1">@(bn ? "শিক্ষার্থী প্রস্থান ও স্থানান্তর সনদ" : "Student Exit & Transfer Certificate")</h1>
+            <p class="text-muted mb-0">@(bn ? "স্থানান্তর, শিক্ষা সমাপ্তি বা পড়াশোনা ত্যাগের চূড়ান্ত সিদ্ধান্ত; আগের ভর্তির ইতিহাস অক্ষত থাকে।" : "Controlled final transitions: Transfer, Completed or Dropout. Historical enrollments are retained.")</p>
         </div>
-        <div class="d-flex gap-2"><a href="/StudentTransferRequests/Index" class="btn btn-outline-primary">Transfer Requests</a><a href="/Students/Index" class="btn btn-outline-secondary">Student Directory</a></div>
+        <div class="d-flex gap-2"><a href="/StudentTransferRequests/Index" class="btn btn-outline-primary">@(bn ? "স্থানান্তর আবেদন" : "Transfer Requests")</a><a href="/Students/Index" class="btn btn-outline-secondary">@(bn ? "শিক্ষার্থী তালিকা" : "Student Directory")</a></div>
     </div>
     <div id="lifecycleAlert" class="alert d-none" role="alert" aria-live="polite"></div>
     <div class="row g-3">
         <div class="col-xl-5">
             <div class="card border-0 shadow-sm">
                 <div class="card-body">
-                    <h2 class="h5">Find student</h2>
+                    <h2 class="h5">@(bn ? "শিক্ষার্থী খুঁজুন" : "Find student")</h2>
                     <form id="lifecycleStudentSearch" class="input-group mb-3">
-                        <input id="lifecycleSearchText" class="form-control" maxlength="100" placeholder="Student name or code" aria-label="Student search" />
-                        <button class="btn btn-outline-primary" type="submit">Search</button>
+                        <input id="lifecycleSearchText" class="form-control" maxlength="100" placeholder="@(bn ? "শিক্ষার্থীর নাম বা কোড" : "Student name or code")" aria-label="@(bn ? "শিক্ষার্থী খোঁজা" : "Student search")" />
+                        <button class="btn btn-outline-primary" type="submit">@(bn ? "খুঁজুন" : "Search")</button>
                     </form>
-                    <div id="lifecycleMatches" class="list-group mb-3">Search for a student to process.</div>
+                    <div id="lifecycleMatches" class="list-group mb-3">@(bn ? "প্রক্রিয়ার জন্য একজন শিক্ষার্থী খুঁজুন।" : "Search for a student to process.")</div>
                     <div id="lifecycleStudent" class="border rounded p-3 d-none">
                         <div class="fw-semibold" id="lifecycleName"></div>
                         <div class="small text-muted" id="lifecycleCode"></div>
-                        <div class="mt-2"><strong>Status:</strong> <span id="lifecycleStatus"></span></div>
+                        <div class="mt-2"><strong>@(bn ? "অবস্থা:" : "Status:")</strong> <span id="lifecycleStatus"></span></div>
                         <div id="lifecycleCurrent" class="small text-muted mt-1"></div>
-                        <p class="small text-muted mt-2 mb-0">All fee settlement, active-enrollment and final-status rules are rechecked on the server.</p>
+                        <p class="small text-muted mt-2 mb-0">@(bn ? "বকেয়া ফি, সক্রিয় ভর্তি ও চূড়ান্ত অবস্থার নিয়ম সার্ভারে পুনরায় যাচাই করা হয়।" : "All fee settlement, active-enrollment and final-status rules are rechecked on the server.")</p>
                     </div>
                 </div>
             </div>
@@ -35,38 +37,38 @@
         <div class="col-xl-7">
             <div class="card border-0 shadow-sm mb-3">
                 <div class="card-body">
-                    <h2 class="h5">Process final student exit</h2>
+                    <h2 class="h5">@(bn ? "চূড়ান্ত শিক্ষার্থী প্রস্থান" : "Process final student exit")</h2>
                     <form id="lifecycleExitForm" class="row g-3">
                         <div class="col-md-6">
-                            <label for="lifecycleExitType" class="form-label">Exit type *</label>
+                            <label for="lifecycleExitType" class="form-label">@(bn ? "প্রস্থানের ধরন *" : "Exit type *")</label>
                             <select id="lifecycleExitType" class="form-select" required>
-                                <option value="Transfer">Transfer — Issue TC</option>
-                                <option value="Completed">Completed / Graduated</option>
-                                <option value="Dropout">Dropout</option>
+                                <option value="Transfer">@(bn ? "স্থানান্তর — TC প্রদান" : "Transfer — Issue TC")</option>
+                                <option value="Completed">@(bn ? "শিক্ষা সমাপ্ত / উত্তীর্ণ" : "Completed / Graduated")</option>
+                                <option value="Dropout">@(bn ? "পড়াশোনা ত্যাগ" : "Dropout")</option>
                             </select>
                         </div>
                         <div class="col-12">
-                            <label for="lifecycleReason" class="form-label">Reason *</label>
+                            <label for="lifecycleReason" class="form-label">@(bn ? "কারণ *" : "Reason *")</label>
                             <textarea id="lifecycleReason" class="form-control" rows="3" maxlength="1000" required></textarea>
                         </div>
                         <div class="col-12">
-                            <label for="lifecycleConduct" class="form-label">Conduct remark (optional)</label>
+                            <label for="lifecycleConduct" class="form-label">@(bn ? "আচরণ সম্পর্কে মন্তব্য (ঐচ্ছিক)" : "Conduct remark (optional)")</label>
                             <textarea id="lifecycleConduct" class="form-control" rows="2" maxlength="500"></textarea>
                         </div>
                         <div class="col-12">
-                            <button id="lifecycleSubmit" class="btn btn-danger" type="submit" disabled>Confirm Final Exit</button>
-                            <p class="small text-muted mt-2 mb-0">This operation closes the current enrollment. Transfer and completion require all outstanding fees to be settled. A submitted exit is not edited/deleted.</p>
+                            <button id="lifecycleSubmit" class="btn btn-danger" type="submit" disabled>@(bn ? "চূড়ান্ত প্রস্থান নিশ্চিত করুন" : "Confirm Final Exit")</button>
+                            <p class="small text-muted mt-2 mb-0">@(bn ? "এই কাজ বর্তমান ভর্তি বন্ধ করে। স্থানান্তর বা শিক্ষা সমাপ্তির আগে সব বকেয়া ফি পরিশোধ করতে হবে। জমা দেওয়া চূড়ান্ত প্রস্থান সম্পাদনা বা মুছে ফেলা যায় না।" : "This operation closes the current enrollment. Transfer and completion require all outstanding fees to be settled. A submitted exit is not edited/deleted.")</p>
                         </div>
                     </form>
                 </div>
             </div>
             <div class="card border-0 shadow-sm">
                 <div class="card-body">
-                    <h2 class="h5">Exit and certificate history</h2>
+                    <h2 class="h5">@(bn ? "প্রস্থান ও সনদের ইতিহাস" : "Exit and certificate history")</h2>
                     <div class="table-responsive">
                         <table class="table table-sm align-middle">
-                            <thead><tr><th>Processed (UTC)</th><th>Type</th><th>Final status</th><th>Certificate no.</th><th>Due at exit</th></tr></thead>
-                            <tbody id="lifecycleHistory"><tr><td colspan="5">Select a student.</td></tr></tbody>
+                            <thead><tr><th>@(bn ? "প্রক্রিয়ার সময় (UTC)" : "Processed (UTC)")</th><th>@(bn ? "ধরন" : "Type")</th><th>@(bn ? "চূড়ান্ত অবস্থা" : "Final status")</th><th>@(bn ? "সনদ নম্বর" : "Certificate no.")</th><th>@(bn ? "প্রস্থানের সময় বকেয়া" : "Due at exit")</th></tr></thead>
+                            <tbody id="lifecycleHistory"><tr><td colspan="5">@(bn ? "শিক্ষার্থী নির্বাচন করুন।" : "Select a student.")</td></tr></tbody>
                         </table>
                     </div>
                 </div>

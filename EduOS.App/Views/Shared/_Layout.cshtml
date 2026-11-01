@@ -173,7 +173,7 @@
                 {
                     <a class="nav-link @ActiveFor("/StudentLifecycle")" href="/StudentLifecycle/Index">
                         <svg class="edu-icon"><use href="/images/eduos-icons.svg#students" /></svg>
-                        <span>Student Transfer / Exit</span>
+                        <span>@(currentCulture == "bn-BD" ? "শিক্ষার্থী স্থানান্তর / প্রস্থান" : "Student Transfer / Exit")</span>
                     </a>
                     <a class="nav-link @ActiveFor("/StudentDocuments")" href="/StudentDocuments/Index">
                         <svg class="edu-icon"><use href="/images/eduos-icons.svg#students" /></svg>

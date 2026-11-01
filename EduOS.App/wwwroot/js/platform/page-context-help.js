@@ -4,6 +4,24 @@
 (() => {
     'use strict';
     const manuals = {
+        "/studentlifecycle/index": {
+            version: 1, reviewed: true,
+            title: ["Student Exit and Transfer Certificate", "শিক্ষার্থী প্রস্থান ও স্থানান্তর সনদ"],
+            purpose: ["Process an active student's final Transfer, Completed or Dropout status and inspect retained exit/certificate history.", "সক্রিয় শিক্ষার্থীর স্থানান্তর, শিক্ষা সমাপ্তি বা পড়াশোনা ত্যাগ চূড়ান্ত করুন এবং প্রস্থান ও সনদের ইতিহাস দেখুন।"],
+            before: ["Sign in as TenantAdmin with STUDENT access. Verify the institution, active student and current enrollment. Transfer or Completed requires all outstanding fees to be settled.", "STUDENT অনুমতিসহ TenantAdmin হিসেবে সাইন ইন করুন। প্রতিষ্ঠান, সক্রিয় শিক্ষার্থী ও বর্তমান ভর্তি যাচাই করুন। স্থানান্তর বা শিক্ষা সমাপ্তির আগে সব বকেয়া ফি পরিশোধ করতে হবে।"],
+            steps: [
+                ["Search by at least two characters of student name or code and select the correct result.", "শিক্ষার্থীর নাম বা কোডের অন্তত দুই অক্ষর দিয়ে খুঁজে সঠিক ফল নির্বাচন করুন।"],
+                ["Review status, enrollment count and any prior exit/certificate history.", "অবস্থা, ভর্তির সংখ্যা ও আগের প্রস্থান বা সনদের ইতিহাস যাচাই করুন।"],
+                ["Choose Transfer (issues TC), Completed or Dropout; enter the reason and optional conduct remark.", "স্থানান্তর (TC প্রদান), শিক্ষা সমাপ্তি বা পড়াশোনা ত্যাগ বাছুন; কারণ ও ঐচ্ছিক আচরণ মন্তব্য লিখুন।"],
+                ["Select Confirm Final Exit, review the confirmation and submit once.", "চূড়ান্ত প্রস্থান নিশ্চিত করুন চাপুন, নিশ্চিতকরণ দেখে একবার জমা দিন।"],
+                ["Review the history row; for Transfer only, open the certificate link to view or print the TC.", "ইতিহাস দেখুন; শুধু স্থানান্তরে সনদের লিংক খুলে TC দেখুন বা প্রিন্ট করুন।"]
+            ],
+            example: ["Fictional example: active student ST-1042 has no unpaid fees. TenantAdmin chooses Transfer, records the reason, confirms and prints the issued TC from history.", "কাল্পনিক উদাহরণ: সক্রিয় শিক্ষার্থী ST-1042-এর বকেয়া নেই। TenantAdmin স্থানান্তর ও কারণ লিখে নিশ্চিত করেন এবং ইতিহাস থেকে TC প্রিন্ট করেন।"],
+            result: ["The current enrollment closes and an immutable exit record remains. Transfer issues a TC; Completed sets Passed; Dropout does not issue a TC.", "বর্তমান ভর্তি বন্ধ হয় ও অপরিবর্তনীয় প্রস্থান রেকর্ড থাকে। স্থানান্তরে TC তৈরি হয়; শিক্ষা সমাপ্তিতে Passed অবস্থা হয়; পড়াশোনা ত্যাগে TC হয় না।"],
+            rules: ["TenantAdmin-only server authorization checks tenant, current enrollment, student rowversion and idempotent request ID. Transfer and Completed require settled fees; Dropout can record an outstanding due. Final exits are not edited or deleted and do not post Finance GL or collect payments.", "শুধু TenantAdmin-এর জন্য সার্ভার প্রতিষ্ঠান, বর্তমান ভর্তি, শিক্ষার্থীর সংস্করণ ও পুনরাবৃত্ত অনুরোধ নম্বর যাচাই করে। স্থানান্তর ও শিক্ষা সমাপ্তিতে বকেয়া শূন্য হতে হবে; পড়াশোনা ত্যাগে বকেয়া রেকর্ড হতে পারে। চূড়ান্ত প্রস্থান সম্পাদনা বা মুছে ফেলা যায় না; এখানে Finance GL পোস্ট বা পেমেন্ট সংগ্রহ হয় না।"],
+            recovery: ["For failed search, check the name/code. A 403 needs authorized access; 409 or changed student requires reload and review. After an uncertain network response inspect exit history before retrying; do not submit a different exit to bypass a conflict. Confirm the institution and certificate number if a TC link fails.", "খোঁজা ব্যর্থ হলে নাম বা কোড যাচাই করুন। ৪০৩ হলে অনুমতি প্রয়োজন; ৪০৯ বা তথ্য বদলালে রিলোড করুন। নেটওয়ার্কে ফল অনিশ্চিত হলে পুনরায় চেষ্টার আগে প্রস্থানের ইতিহাস দেখুন; সংঘাত এড়াতে অন্য প্রস্থান জমা দেবেন না। TC লিংক ব্যর্থ হলে প্রতিষ্ঠান ও সনদ নম্বর যাচাই করুন।"],
+            related: [["/Students/Index", "Student Directory", "শিক্ষার্থী তালিকা"], ["/StudentTransferRequests/Index", "Transfer Requests", "স্থানান্তর আবেদন"]]
+        },
         "/account/brandingsetup/index": {
             version: 2, reviewed: true,
             title: ["Institution Branding Setup", "প্রতিষ্ঠানের ব্র্যান্ডিং সেটআপ"],
