@@ -42,3 +42,61 @@ test('alumni CSV links retain server-selected bilingual headings and scoped repo
     assert.match(manual, /CSV headings and event status labels follow the selected language/);
     assert.match(manual, /CSV শিরোনাম ও অনুষ্ঠানের অবস্থা নির্বাচিত ভাষায় থাকে/);
 });
+
+
+test('directory search/page races cannot restore stale contacts or CSV scope', async () => {
+    const start = script.indexOf('async function loadDirectory()');
+    const end = script.indexOf("el('alumniGraduate').addEventListener", start);
+    assert.ok(start > 0 && end > start);
+    const rows = {
+        data: [],
+        replaceChildren() { this.data = []; },
+        insertRow() {
+            const row = { cells: [], insertCell() {
+                const cell = { textContent: '', colSpan: 1 };
+                this.cells.push(cell); return cell;
+            } };
+            this.data.push(row); return row;
+        }
+    };
+    const elements = {
+        alumniSearch: { value: 'old' }, alumniRows: rows, alumniPage: { textContent: '' },
+        alumniPrev: { disabled: false }, alumniNext: { disabled: false },
+        alumniExport: { href: '/stale', removeAttribute(name) {
+            if (name === 'href') this.href = null;
+        } }
+    };
+    const state = { page: 1, total: 0, directoryRequestSerial: 0 };
+    const pending = [];
+    const api = url => new Promise((resolve, reject) => pending.push({ url, resolve, reject }));
+    const loadDirectory = new Function('state', 'root', 'el', 'api', 'bn', 'URLSearchParams',
+        script.slice(start, end) + '; return loadDirectory;')(
+        state, { dataset: { admin: 'true' } }, id => elements[id], api, false, URLSearchParams);
+    const oldPage = loadDirectory();
+    assert.equal(elements.alumniExport.href, null, 'old CSV must be disabled while loading');
+    assert.equal(elements.alumniPrev.disabled, true);
+    state.page = 2;
+    elements.alumniSearch.value = 'new';
+    const newPage = loadDirectory();
+    pending[1].resolve({ totalCount: 21, items: [{
+        fullName: 'New', studentCode: 'N', contactEmail: 'new@example.org',
+        completedAtUtc: '2026-10-01T00:00:00Z'
+    }] });
+    await newPage;
+    pending[0].resolve({ totalCount: 1, items: [{
+        fullName: 'Old', studentCode: 'O', contactEmail: 'old@example.org',
+        completedAtUtc: '2026-10-01T00:00:00Z'
+    }] });
+    await oldPage;
+    assert.equal(rows.data[0].cells[0].textContent, 'New');
+    assert.match(elements.alumniExport.href, /page=2/);
+    assert.match(elements.alumniExport.href, /search=new/);
+    assert.equal(state.total, 21);
+    state.page = 3;
+    const failedPage = loadDirectory();
+    pending[2].reject(new Error('network'));
+    await assert.rejects(failedPage, /network/);
+    assert.equal(elements.alumniExport.href, null);
+    assert.match(rows.data[0].cells[0].textContent, /retry/);
+    assert.equal(elements.alumniNext.disabled, true);
+});

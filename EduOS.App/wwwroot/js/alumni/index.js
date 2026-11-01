@@ -36,7 +36,8 @@
     }
     const token = root.querySelector('input[name="__RequestVerificationToken"]')?.value || '';
     const state = { graduates: [], selected: null, page: 1, total: 0, busy: false, requestId: null,
-        eventPage: 1, eventTotal: 0, eventBusy: false, eventCreateRequest: null, rsvpRequests: new Map(), eventRequestSerial: 0 };
+        eventPage: 1, eventTotal: 0, eventBusy: false, eventCreateRequest: null, rsvpRequests: new Map(), eventRequestSerial: 0,
+        directoryRequestSerial: 0 };
     const notice = (message, error = false) => {
         const box = el('alumniNotice');
         box.className = 'alert ' + (error ? 'alert-danger' : 'alert-success');
@@ -120,28 +121,52 @@
     }
     async function loadDirectory() {
         if (root.dataset.admin !== 'true') return;
-        const query = new URLSearchParams({ page: state.page, pageSize: 20, search: el('alumniSearch').value.trim() });
-        const page = await api('/api/alumni/directory?' + query);
-        state.total = page.totalCount;
+        // A newer search, page or consent refresh owns the visible contacts and CSV link.
+        const serial = ++state.directoryRequestSerial;
+        const pageNumber = state.page;
+        const query = new URLSearchParams({ page: pageNumber, pageSize: 20,
+            search: el('alumniSearch').value.trim() });
         const rows = el('alumniRows');
         rows.replaceChildren();
-        if (!page.items.length) {
-            const row = rows.insertRow();
-            const cell = row.insertCell(); cell.colSpan = 4;
-            cell.textContent = bn ? 'কোনো তথ্য পাওয়া যায়নি' : 'No opted-in graduates found.';
-        }
-        for (const item of page.items) {
-            const row = rows.insertRow();
-            for (const value of [item.fullName, item.studentCode,
-                [item.contactEmail, item.contactPhone].filter(Boolean).join(' / '),
-                new Date(item.completedAtUtc).toLocaleDateString(bn ? 'bn-BD' : 'en-BD')]) {
-                row.insertCell().textContent = value || '—';
+        const loadingCell = rows.insertRow().insertCell();
+        loadingCell.colSpan = 4;
+        loadingCell.textContent = bn ? 'লোড হচ্ছে…' : 'Loading…';
+        el('alumniPage').textContent = loadingCell.textContent;
+        el('alumniPrev').disabled = true;
+        el('alumniNext').disabled = true;
+        el('alumniExport').removeAttribute('href');
+        try {
+            const page = await api('/api/alumni/directory?' + query);
+            if (serial !== state.directoryRequestSerial) return;
+            state.total = page.totalCount;
+            rows.replaceChildren();
+            if (!page.items.length) {
+                const row = rows.insertRow();
+                const cell = row.insertCell(); cell.colSpan = 4;
+                cell.textContent = bn ? 'কোনো তথ্য পাওয়া যায়নি' : 'No opted-in graduates found.';
             }
+            for (const item of page.items) {
+                const row = rows.insertRow();
+                for (const value of [item.fullName, item.studentCode,
+                    [item.contactEmail, item.contactPhone].filter(Boolean).join(' / '),
+                    new Date(item.completedAtUtc).toLocaleDateString(bn ? 'bn-BD' : 'en-BD')]) {
+                    row.insertCell().textContent = value || '—';
+                }
+            }
+            el('alumniPage').textContent = pageNumber + ' / ' + Math.max(1, Math.ceil(state.total / 20));
+            el('alumniPrev').disabled = pageNumber <= 1;
+            el('alumniNext').disabled = pageNumber * 20 >= state.total;
+            el('alumniExport').href = '/api/alumni/directory.csv?' + query;
+        } catch (error) {
+            if (serial !== state.directoryRequestSerial) return;
+            rows.replaceChildren();
+            const cell = rows.insertRow().insertCell();
+            cell.colSpan = 4;
+            cell.textContent = bn ? 'তালিকা লোড হয়নি। আবার চেষ্টা করুন।' :
+                'Directory could not be loaded. Please retry.';
+            el('alumniPage').textContent = '';
+            throw error;
         }
-        el('alumniPage').textContent = state.page + ' / ' + Math.max(1, Math.ceil(state.total / 20));
-        el('alumniPrev').disabled = state.page <= 1;
-        el('alumniNext').disabled = state.page * 20 >= state.total;
-        el('alumniExport').href = '/api/alumni/directory.csv?' + query;
     }
     el('alumniGraduate').addEventListener('change', () => {
         showSelected();
