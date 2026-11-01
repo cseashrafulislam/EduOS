@@ -10,6 +10,7 @@
  let post=null,postKey=null,reverse=null,reverseKey=null,contra=null,availablePeriods=[];
  const base='/api/procurement/supplier-invoices/';
  const money=x=>Number(x).toLocaleString(bn?'bn-BD':'en-BD',{minimumFractionDigits:2,maximumFractionDigits:2});
+ const localDate=()=>{const day=new Date();return [day.getFullYear(),String(day.getMonth()+1).padStart(2,'0'),String(day.getDate()).padStart(2,'0')].join('-');};
  const cell=x=>{const td=document.createElement('td');td.textContent=String(x??'');return td;};
  function status(message,error=false){$('ssStatus').className='small '+(error?'text-danger':'text-muted');$('ssStatus').textContent=message;}
  async function api(url,method='GET',payload){
@@ -71,7 +72,7 @@
      const b=document.createElement('button');b.type='button';b.className='btn btn-outline-danger btn-sm ms-1';
      b.textContent=t('Request GL reversal','GL রিভার্সালের আবেদন');
      b.addEventListener('click',()=>{reverse=x;reverseKey=null;options($('ssReversePeriod'),availablePeriods);
-      $('ssReverseDate').value=new Date().toISOString().slice(0,10);$('ssReverseReason').value='';
+      $('ssReverseDate').value=localDate();$('ssReverseReason').value='';
       $('ssReverseDialog').showModal();});action.append(b);
     }
     if(reviewer&&x.reversalState==='Submitted'&&x.reversalReference){
@@ -105,8 +106,7 @@
    if(maker&&$('ssForm')){
     options($('ssBank'),data.banks);options($('ssPeriod'),data.periods);
     $('ssAmount').max=String(data.availableAmount);$('ssAmount').value='';
-    const today=new Date();
-    $('ssDate').value=[today.getFullYear(),String(today.getMonth()+1).padStart(2,'0'),String(today.getDate()).padStart(2,'0')].join('-');
+    $('ssDate').value=localDate();
     $('ssForm').classList.remove('d-none');
    }
    await load();

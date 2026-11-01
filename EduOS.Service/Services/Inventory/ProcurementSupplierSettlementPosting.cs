@@ -20,6 +20,31 @@ public sealed partial class ProcurementSupplierInvoiceService
     private static bool BankReference(string value) => value.Length is >= 6 and <= 100 &&
         Regex.IsMatch(value, @"\A[A-Za-z0-9][A-Za-z0-9./:_-]{5,99}\z", RegexOptions.CultureInvariant);
 
+    // Business dates follow the source campus, inheriting the institution time zone.
+    // An absent/invalid zone is a posting conflict, never an implicit UTC fallback.
+    private async Task<DateOnly?> SettlementLocalDayAsync(long campusId, CancellationToken ct)
+    {
+        var scope = await (from campus in db.Campuses.AsNoTracking()
+            join tenant in db.Tenants.AsNoTracking() on campus.TenantId equals tenant.Id
+            where campus.TenantId == user.TenantId && campus.Id == campusId &&
+                campus.IsActive && !campus.IsDeleted &&
+                tenant.Id == user.TenantId && !tenant.IsDeleted
+            select new { CampusZone = campus.TimeZoneId, InstitutionZone = tenant.TimeZoneId })
+            .SingleOrDefaultAsync(ct);
+        if (scope == null) return null;
+        var zoneId = string.IsNullOrWhiteSpace(scope.CampusZone) ? scope.InstitutionZone : scope.CampusZone;
+        if (string.IsNullOrWhiteSpace(zoneId)) return null;
+        try
+        {
+            var local = TimeZoneInfo.ConvertTime(clock.GetUtcNow(),
+                TimeZoneInfo.FindSystemTimeZoneById(zoneId));
+            return DateOnly.FromDateTime(local.DateTime);
+        }
+        catch (TimeZoneNotFoundException) { return null; }
+        catch (InvalidTimeZoneException) { return null; }
+        catch (ArgumentException) { return null; }
+    }
+
     private async Task<(List<JournalLine> Lines, string? Error)> CheckedSettlementLinesAsync(
         Journal journal, long payableId, long campusId, CancellationToken ct)
     {
@@ -80,8 +105,11 @@ public sealed partial class ProcurementSupplierInvoiceService
                 return Err<SupplierSettlementInstructionDto>("Only independently approved, unposted Finance instructions may be confirmed.", 409);
             if (!Version(journal.RowVersion, request.RowVersion))
                 return Err<SupplierSettlementInstructionDto>("Settlement changed; reload.", 409);
+            var businessDay = await SettlementLocalDayAsync(invoice.CampusId, ct);
+            if (!businessDay.HasValue)
+                return Err<SupplierSettlementInstructionDto>("Institution/campus business time zone unavailable.", 409);
             if (request.ExecutedDate != journal.JournalDate || request.ExecutedDate < invoice.InvoiceDate ||
-                request.ExecutedDate > DateOnly.FromDateTime(clock.GetUtcNow().UtcDateTime) ||
+                request.ExecutedDate > businessDay.Value ||
                 !await db.AccountingPeriods.AsNoTracking().AnyAsync(x => x.TenantId == user.TenantId &&
                     x.Id == journal.AccountingPeriodId && !x.IsDeleted && !x.IsClosed &&
                     x.StartDate <= request.ExecutedDate && x.EndDate >= request.ExecutedDate, ct))
@@ -149,8 +177,11 @@ public sealed partial class ProcurementSupplierInvoiceService
                 source.PostedByUserId is null or <= 0 || source.ApprovedByUserId is null or <= 0 ||
                 !Version(source.RowVersion, request.OriginalRowVersion))
                 return Err<SupplierSettlementInstructionDto>("Only a posted, unchanged settlement may be reversed.", 409);
+            var businessDay = await SettlementLocalDayAsync(invoice.CampusId, ct);
+            if (!businessDay.HasValue)
+                return Err<SupplierSettlementInstructionDto>("Institution/campus business time zone unavailable.", 409);
             if (request.ReversalDate < source.JournalDate ||
-                request.ReversalDate > DateOnly.FromDateTime(clock.GetUtcNow().UtcDateTime) ||
+                request.ReversalDate > businessDay.Value ||
                 !await db.AccountingPeriods.AsNoTracking().AnyAsync(x => x.TenantId == user.TenantId &&
                     x.Id == request.AccountingPeriodId && !x.IsDeleted && !x.IsClosed &&
                     x.StartDate <= request.ReversalDate && x.EndDate >= request.ReversalDate, ct))

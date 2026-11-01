@@ -31,8 +31,13 @@ public sealed partial class SqlServerV3ProcurementPurchaseOrderTests
         public string? IpAddress => null;
         public string? UserAgent => null;
     }
-    private static ProcurementSupplierInvoiceService Invoices(EduOSDbContext ctx, long tenantId, long userId) =>
-        new(ctx, new Actor(tenantId,userId), Goods(ctx,tenantId,userId), TimeProvider.System,
+    private sealed class FrozenClock(DateTimeOffset instant) : TimeProvider
+    {
+        public override DateTimeOffset GetUtcNow() => instant;
+    }
+    private static ProcurementSupplierInvoiceService Invoices(EduOSDbContext ctx, long tenantId, long userId,
+        TimeProvider? clock = null) =>
+        new(ctx, new Actor(tenantId,userId), Goods(ctx,tenantId,userId), clock ?? TimeProvider.System,
             NullLogger<ProcurementSupplierInvoiceService>.Instance);
 
     [Fact]
@@ -681,6 +686,15 @@ public sealed partial class SqlServerV3ProcurementPurchaseOrderTests
                 verify,new ReadOnlyActor(tenantId,makerId)).GetAsync(second.Reference)).StatusCode);
             // Source-linked actual GL settlement: an independent reviewer first approves,
             // then an externally confirmed bank transaction posts the same canonical journal.
+            // The source campus inherits Asia/Dhaka from its institution. At 17:59 UTC
+            // the next business date is still future; at 18:40 UTC it is already today.
+            // This exercises persisted GL posting and contra, not a mocked DOM contract.
+            var simulatedUtcDay = date.AddDays(1);
+            var postedDate = simulatedUtcDay.AddDays(1);
+            var beforeCampusMidnight = new FrozenClock(new DateTimeOffset(
+                simulatedUtcDay.ToDateTime(new TimeOnly(17, 59), DateTimeKind.Utc)));
+            var atCampusMidnight = new FrozenClock(new DateTimeOffset(
+                simulatedUtcDay.ToDateTime(new TimeOnly(18, 40), DateTimeKind.Utc)));
             Guid postedReference;
             string postedVersion;
             await using (var settlementMaker = Open(options,tenantId,makerId))
@@ -690,25 +704,44 @@ public sealed partial class SqlServerV3ProcurementPurchaseOrderTests
                 var draftPayment=await paymentMakerService.RequestSettlementAsync(second.Reference,
                     new CreateSupplierSettlementInstructionRequest {
                         ClientRequestId=Guid.NewGuid(),InvoiceRowVersion=currentInvoice.RowVersion,
-                        BankAccountId=bankId,AccountingPeriodId=periodId,PlannedDate=date,Amount=6m,
+                        BankAccountId=bankId,AccountingPeriodId=periodId,PlannedDate=postedDate,Amount=6m,
                         Reason="Pay six units of posted payable after bank confirmation" });
                 Assert.True(draftPayment.Success,draftPayment.Message);
                 postedReference=draftPayment.Data!.Reference;
                 postedVersion=draftPayment.Data.RowVersion;
                 Assert.Equal(409,(await paymentMakerService.PostSettlementAsync(second.Reference,postedReference,
                     new PostSupplierSettlementRequest {ClientRequestId=Guid.NewGuid(),RowVersion=postedVersion,
-                        ExecutedDate=date,BankTransactionReference="BANK-SQL-"+suffix})).StatusCode);
+                        ExecutedDate=postedDate,BankTransactionReference="BANK-SQL-"+suffix})).StatusCode);
             }
             await using (var settlementChecker=Open(options,tenantId,checkerId))
             {
-                var paymentCheckerService=Invoices(settlementChecker,tenantId,checkerId);
+                var paymentCheckerService=Invoices(settlementChecker,tenantId,checkerId,atCampusMidnight);
                 var approved=await paymentCheckerService.ReviewSettlementAsync(second.Reference,postedReference,
                     new ReviewSupplierSettlementInstructionRequest {RowVersion=postedVersion,Approve=true,
                         Reason="Independent approval against confirmed payable and bank account"});
                 Assert.True(approved.Success,approved.Message);
                 var confirmation=new PostSupplierSettlementRequest {
                     ClientRequestId=Guid.NewGuid(),RowVersion=approved.Data!.RowVersion,
-                    ExecutedDate=date,BankTransactionReference="BANK-SQL-"+suffix };
+                    ExecutedDate=postedDate,BankTransactionReference="BANK-SQL-"+suffix };
+                var premature=await Invoices(settlementChecker,tenantId,checkerId,beforeCampusMidnight)
+                    .PostSettlementAsync(second.Reference,postedReference,confirmation);
+                Assert.Equal(409,premature.StatusCode);
+                Assert.Equal(JournalState.Approved,(await settlementChecker.Journals.AsNoTracking()
+                    .SingleAsync(x=>x.PublicId==postedReference)).State);
+                // A campus override takes precedence over the institution zone, and a
+                // malformed configured zone fails closed without creating a bank/GL posting.
+                var sourceCampusId=await settlementChecker.ProcurementSupplierInvoices.AsNoTracking()
+                    .Where(x=>x.PublicId==second.Reference).Select(x=>x.CampusId).SingleAsync();
+                await settlementChecker.Campuses.Where(x=>x.Id==sourceCampusId)
+                    .ExecuteUpdateAsync(x=>x.SetProperty(c=>c.TimeZoneId,"UTC"));
+                Assert.Equal(409,(await paymentCheckerService.PostSettlementAsync(
+                    second.Reference,postedReference,confirmation)).StatusCode);
+                await settlementChecker.Campuses.Where(x=>x.Id==sourceCampusId)
+                    .ExecuteUpdateAsync(x=>x.SetProperty(c=>c.TimeZoneId,"Invalid/EduOS"));
+                Assert.Equal(409,(await paymentCheckerService.PostSettlementAsync(
+                    second.Reference,postedReference,confirmation)).StatusCode);
+                await settlementChecker.Campuses.Where(x=>x.Id==sourceCampusId)
+                    .ExecuteUpdateAsync(x=>x.SetProperty(c=>c.TimeZoneId,(string?)null));
                 var posted=await paymentCheckerService.PostSettlementAsync(second.Reference,postedReference,confirmation);
                 Assert.True(posted.Success,posted.Message);
                 Assert.Equal("Posted",posted.Data!.State);
@@ -716,12 +749,12 @@ public sealed partial class SqlServerV3ProcurementPurchaseOrderTests
                     second.Reference,postedReference,confirmation)).Data!.Reference);
                 Assert.Equal(409,(await paymentCheckerService.PostSettlementAsync(second.Reference,postedReference,
                     new PostSupplierSettlementRequest {ClientRequestId=Guid.NewGuid(),RowVersion=approved.Data.RowVersion,
-                        ExecutedDate=date,BankTransactionReference="DIFFERENT-BANK-"+suffix})).StatusCode);
+                        ExecutedDate=postedDate,BankTransactionReference="DIFFERENT-BANK-"+suffix})).StatusCode);
                 postedVersion=posted.Data.RowVersion;
             }
             await using (var reconciler=Open(options,tenantId,makerId))
             {
-                var paymentReportService=Invoices(reconciler,tenantId,makerId);
+                var paymentReportService=Invoices(reconciler,tenantId,makerId,atCampusMidnight);
                 var report=(await paymentReportService.AgingAsync(date,null,false,1,100)).Data!;
                 var row=Assert.Single(report.Items,x=>x.InvoiceReference==second.Reference);
                 Assert.Equal(18m,row.GrossPostedAmount);
@@ -736,13 +769,13 @@ public sealed partial class SqlServerV3ProcurementPurchaseOrderTests
                 var contra=await paymentReportService.RequestSettlementReversalAsync(second.Reference,postedReference,
                     new RequestSupplierSettlementReversal {ClientRequestId=Guid.NewGuid(),
                         OriginalRowVersion=postedVersion,AccountingPeriodId=periodId,
-                        ReversalDate=date,Reason="Incorrect bank instruction requires full accounting contra" });
+                        ReversalDate=postedDate,Reason="Incorrect bank instruction requires full accounting contra" });
                 Assert.True(contra.Success,contra.Message);
                 Assert.Equal("Submitted",contra.Data!.ReversalState);
                 Assert.Equal(409,(await paymentReportService.RequestSettlementReversalAsync(second.Reference,postedReference,
                     new RequestSupplierSettlementReversal {ClientRequestId=Guid.NewGuid(),
                         OriginalRowVersion=postedVersion,AccountingPeriodId=periodId,
-                        ReversalDate=date,Reason="Duplicate pending contra must not be recorded"})).StatusCode);
+                        ReversalDate=postedDate,Reason="Duplicate pending contra must not be recorded"})).StatusCode);
                 await using var reversalChecker=Open(options,tenantId,checkerId);
                 var decision=await Invoices(reversalChecker,tenantId,checkerId)
                     .ReviewSettlementReversalAsync(second.Reference,postedReference,

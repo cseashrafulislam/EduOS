@@ -4,7 +4,7 @@ const fs = require('node:fs');
 const vm = require('node:vm');
 const path = require('node:path');
 
-function harness(kind) {
+function harness(kind, DateCtor = Date) {
  const source = fs.readFileSync(path.resolve(__dirname,
   '../../EduOS.App/wwwroot/js/procurement/supplier-settlement-instructions.js'), 'utf8');
  class Element {
@@ -36,13 +36,13 @@ function harness(kind) {
   const invoice=url.match(/supplier-invoices\/([^/]+)\/settlements/)?.[1];
   const data=url.endsWith('/options')?{availableAmount:50,banks:[],periods:[]}:
    url.includes('?page=')?{totalPages:1,items:[{
-    reference:invoice+'-instruction',state:'Submitted',amount:25,
+    reference:invoice+'-instruction',state:kind==='reverse'?'Posted':'Submitted',amount:25,
     plannedDate:'2026-11-01',makerId:kind==='review'?200:100,rowVersion:'abc'
    }]}:{};
   return {ok:true,json:async()=>({success:true,data})};
  };
  vm.runInNewContext(source,{document,window,fetch,URLSearchParams,
-  crypto:{randomUUID:()=> 'test-request-key'},Date,
+  crypto:{randomUUID:()=> 'test-request-key'},Date:DateCtor,
   Option:class {constructor(name,value){this.name=name;this.value=value;}}});
  const flush=async()=>{for(let i=0;i<30;i++)await Promise.resolve();};
  const select=async reference=>{
@@ -103,4 +103,18 @@ test('old reviewer completion cannot close a new dialog after A to B to A',async
  await h.flush();
  assert.equal(h.get('ssReviewDialog').open,true);
  assert.equal(h.get('ssStatus').textContent,before);
+});
+
+test('supplier GL reversal defaults to browser-local date, not previous UTC day',async()=>{
+ class DhakaMidnight extends Date {
+  constructor(...args){super(...(args.length?args:['2026-11-01T18:15:00Z']));}
+  getFullYear(){return 2026;}
+  getMonth(){return 10;}
+  getDate(){return 2;}
+ }
+ const h=harness('reverse',DhakaMidnight);
+ await h.select('A');
+ h.action();
+ assert.equal(h.get('ssReverseDialog').open,true);
+ assert.equal(h.get('ssReverseDate').value,'2026-11-02');
 });
