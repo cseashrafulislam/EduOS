@@ -1460,6 +1460,57 @@
             ]
           ]
         },
+        '/careeropportunities/index': {
+            version: 1, reviewed: true,
+            title: ['Career Opportunities & Applications', 'চাকরি ও ইন্টার্নশিপ আবেদন'],
+            purpose: ['Create and independently publish approved employer opportunities; verified students can apply and review their own applications.', 'যাচাইকৃত নিয়োগদাতার সুযোগ তৈরি ও স্বতন্ত্রভাবে প্রকাশ করুন; যাচাইকৃত শিক্ষার্থী আবেদন ও নিজের আবেদন দেখতে পারবেন।'],
+            before: ['The ALUMNI module must be enabled. TenantAdmin requires explicit campus permission, a verified employer and a separate publisher. Students require a linked active enrollment or verified completed exit in that campus.', 'ALUMNI মডিউল চালু থাকতে হবে। TenantAdmin-এর ক্যাম্পাস অনুমতি, যাচাইকৃত নিয়োগদাতা ও আলাদা প্রকাশক লাগবে। শিক্ষার্থীর সংশ্লিষ্ট ক্যাম্পাসে সক্রিয় ভর্তি বা যাচাইকৃত সমাপ্তি থাকতে হবে।'],
+            steps: [
+                ['TenantAdmin: search and select a verified employer, enter the title, type, deadline and optional description, then Save draft.', 'TenantAdmin: যাচাইকৃত নিয়োগদাতা খুঁজে বাছুন, পদের নাম, ধরন, শেষ সময় ও চাইলে বিবরণ দিয়ে Save draft চাপুন।'],
+                ['A different TenantAdmin reviews the draft and selects Publish. Authorized staff may later select Close to stop applications.', 'অন্য TenantAdmin খসড়া দেখে Publish করবেন। পরে অনুমোদিত কর্মী Close দিয়ে আবেদন বন্ধ করতে পারবেন।'],
+                ['Student: review a published open opportunity and select Apply against your matching verified campus identity.', 'শিক্ষার্থী: প্রকাশিত সক্রিয় সুযোগ দেখে নিজের সংশ্লিষ্ট ক্যাম্পাস পরিচয়ে Apply দিন।'],
+                ['Student: inspect My applications; a pending application can be Withdrawn but cannot be applied to twice.', 'শিক্ষার্থী: My applications-এ অবস্থা দেখুন; বিচারাধীন আবেদন Withdraw করা যায় কিন্তু একই পদের জন্য দুইবার আবেদন করা যায় না।']
+            ],
+            example: ['Fictional: Example Engineering Ltd is verified for Main Campus; Rahim saves a Software Internship draft and Nila publishes it. Active student Mina applies before the deadline and sees Pending in My applications.', 'কাল্পনিক: Main Campus-এর Example Engineering Ltd যাচাইকৃত; রহিম Software Internship খসড়া করেন ও নীলা প্রকাশ করেন। সক্রিয় শিক্ষার্থী মিনা নির্ধারিত সময়ের আগে আবেদন করে My applications-এ বিচারাধীন দেখেন।'],
+            result: ['The opportunity and application are recorded within the institution and campus with durable request identities. Publishing and applying do not declare a placement or affect Finance.', 'প্রতিষ্ঠান ও ক্যাম্পাসভিত্তিক সুযোগ ও আবেদন নিরাপদ অনুরোধ পরিচয়সহ সংরক্ষিত হয়। প্রকাশ বা আবেদন প্লেসমেন্ট নিশ্চিত করে না, Finance-এ পরিবর্তন আনে না।'],
+            rules: ['The creator cannot publish their own draft. An employer must already be verified. Applications require authenticated linked students and are unique per opportunity/student. Deadlines, campus ownership and statuses are server-enforced.', 'খসড়া তৈরিকারী নিজে প্রকাশ করতে পারবেন না। নিয়োগদাতা আগে যাচাইকৃত হতে হবে। লগইন করা সংশ্লিষ্ট শিক্ষার্থী প্রতি পদে একবারই আবেদন করতে পারবেন। সময়সীমা, ক্যাম্পাস ও অবস্থা সার্ভার যাচাই করে।'],
+            recovery: ['If no verified employer appears, check its verification and campus grant. On 403/409 refresh and use an authorized reviewer. On uncertain network response retry the same action without changing its inputs.', 'যাচাইকৃত নিয়োগদাতা না এলে যাচাই ও ক্যাম্পাস অনুমতি দেখুন। ৪০৩/৪০৯ এলে রিফ্রেশ করে অনুমোদিত পর্যালোচক নিন। নেটওয়ার্ক সমস্যা হলে একই তথ্য রেখে আবার চেষ্টা করুন।'],
+            related: [['/CareerEmployers/Index', 'Employer verification', 'নিয়োগদাতা যাচাই'], ['/CareerPlacements/Index', 'Placement review', 'প্লেসমেন্ট পর্যালোচনা']]
+        },
+        '/careerplacements/index': {
+            version: 1, reviewed: true,
+            title: ['Placement Decisions & Reports', 'প্লেসমেন্ট সিদ্ধান্ত ও রিপোর্ট'],
+            purpose: ['Review institution-owned applications, propose outcomes, independently approve decisions and report final placement counts.', 'প্রতিষ্ঠানের আবেদন যাচাই, ফলাফল প্রস্তাব, স্বতন্ত্র অনুমোদন এবং চূড়ান্ত প্লেসমেন্টের সংখ্যা দেখুন।'],
+            before: ['Sign in as a TenantAdmin with ALUMNI entitlement and explicit campus grant. A separate TenantAdmin must approve a proposed placement outcome.', 'ALUMNI অনুমতি ও সরাসরি ক্যাম্পাস অধিকারসহ TenantAdmin হিসেবে প্রবেশ করুন। প্রস্তাবিত প্লেসমেন্ট ফলাফল ভিন্ন TenantAdmin অনুমোদন করবেন।'],
+            steps: [
+                ['Filter Applications by status and review the opportunity and linked student identity.', 'অবস্থা দিয়ে আবেদন খুঁজে পদ ও সংশ্লিষ্ট শিক্ষার্থীর পরিচয় যাচাই করুন।'],
+                ['For a pending application choose Propose placed or Propose rejected. This alone does not finalize the outcome.', 'বিচারাধীন আবেদন থেকে Propose placed অথবা Propose rejected দিন। এতে ফলাফল চূড়ান্ত হয় না।'],
+                ['A different administrator reviews the proposed outcome and selects Approve outcome.', 'অন্য প্রশাসক প্রস্তাব দেখে Approve outcome চাপবেন।'],
+                ['Review Placement outcome report and Export page CSV to reconcile aggregate final counts; navigate pages for more records.', 'Placement outcome report দেখে মোট চূড়ান্ত সংখ্যা মিলিয়ে Export page CSV নিন; বেশি রেকর্ডে পৃষ্ঠা বদলান।']
+            ],
+            example: ['Fictional: Mina applies for the Software Internship. Rahim proposes Placed; Nila independently approves. The report then increases Placed by one, while an unapproved proposal remains Pending.', 'কাল্পনিক: মিনা Software Internship-এ আবেদন করেন। রহিম Placed প্রস্তাব করেন; নীলা স্বতন্ত্র অনুমোদন দেন। রিপোর্টে Placed এক বাড়ে, কিন্তু অননুমোদিত প্রস্তাব Pending-এই থাকে।'],
+            result: ['Approved application outcomes, proposal and approval audit commands persist. Reports count only final statuses and omit student contact information.', 'অনুমোদিত ফলাফল, প্রস্তাব ও অনুমোদনের ইতিহাস সংরক্ষিত হয়। রিপোর্টে শুধু চূড়ান্ত অবস্থা গণনা হয়, শিক্ষার্থীর যোগাযোগ প্রকাশ হয় না।'],
+            rules: ['Maker and checker must be different, and row versions prevent stale decisions. A withdrawn application cannot be decided. Reports and CSV are tenant/campus scoped and page-bounded; no payroll or accounting posting occurs.', 'প্রস্তাবক ও অনুমোদনকারী আলাদা হতে হবে; row version পুরোনো সিদ্ধান্ত আটকায়। প্রত্যাহৃত আবেদনে সিদ্ধান্ত হয় না। রিপোর্ট ও CSV ক্যাম্পাস সীমিত এবং পৃষ্ঠাভিত্তিক; Payroll বা Accounts পোস্ট হয় না।'],
+            recovery: ['If approval is unavailable, ask a different authorized administrator. On 403 check campus grants; on 409 refresh to inspect latest state before a new command. Missing report rows require authorized scope and existing opportunities.', 'অনুমোদন না পাওয়া গেলে অন্য অনুমোদিত প্রশাসককে বলুন। ৪০৩ হলে ক্যাম্পাস অধিকার দেখুন; ৪০৯ হলে নতুন অবস্থা দেখে আবার কাজ করুন। রিপোর্ট খালি হলে অনুমোদিত পরিসর ও সুযোগ যাচাই করুন।'],
+            related: [['/CareerOpportunities/Index', 'Jobs and internships', 'চাকরি ও ইন্টার্নশিপ'], ['/CareerEmployers/Index', 'Employer verification', 'নিয়োগদাতা যাচাই']]
+        },
+        '/careeremployers/index': {
+            version: 1, reviewed: true,
+            title: ['Career Employer Verification', 'ক্যারিয়ার নিয়োগদাতা যাচাই'],
+            purpose: ['Register campus-owned employers and independently verify their identity for the Alumni career network. This page does not publish jobs or accept applications.', 'প্রাক্তন শিক্ষার্থীদের ক্যারিয়ার নেটওয়ার্কের জন্য ক্যাম্পাসভিত্তিক নিয়োগদাতা নিবন্ধন ও স্বাধীনভাবে যাচাই করুন। এখানে চাকরি প্রকাশ বা আবেদন গ্রহণ হয় না।'],
+            before: ['Sign in as TenantAdmin in an ALUMNI-enabled institution. An authorized active campus and a second distinct TenantAdmin are required. Verify employer details outside the system before approving.', 'ALUMNI চালু প্রতিষ্ঠানে TenantAdmin হিসেবে প্রবেশ করুন। সক্রিয় অনুমোদিত ক্যাম্পাস এবং আলাদা দ্বিতীয় TenantAdmin প্রয়োজন। অনুমোদনের আগে প্রতিষ্ঠানের তথ্য স্বাধীনভাবে যাচাই করুন।'],
+            steps: [
+                ['Select an authorized Campus, enter Employer name (3–160 characters) and an optional HTTPS website.', 'অনুমোদিত Campus বেছে Employer name (৩–১৬০ অক্ষর) এবং চাইলে HTTPS ওয়েবসাইট লিখুন।'],
+                ['Select Save draft. The employer appears as Awaiting verification; duplicate names within one campus are rejected.', 'Save draft চাপুন। নিয়োগদাতা Awaiting verification অবস্থায় দেখাবে; একই ক্যাম্পাসে একই নাম আবার দেওয়া যাবে না।'],
+                ['A different TenantAdmin selects Refresh, reviews the employer and selects Verify. The creator cannot approve their own draft.', 'অন্য TenantAdmin Refresh করে নিয়োগদাতা পর্যালোচনা করে Verify চাপবেন। খসড়া তৈরিকারী নিজে অনুমোদন করতে পারবেন না।'],
+                ['Choose Verified from Status to see the approved list; Export verified page CSV exports only the current verified page.', 'Status থেকে Verified বেছে অনুমোদিত তালিকা দেখুন; Export verified page CSV শুধু বর্তমান যাচাইকৃত পৃষ্ঠা রপ্তানি করে।']
+            ],
+            example: ['Fictional example: administrator Rahim drafts Example Engineering Ltd for Main Campus with https://example.org. Administrator Nila independently checks the employer and selects Verify. The verified entry appears in the filtered CSV.', 'কাল্পনিক উদাহরণ: প্রশাসক রহিম Main Campus-এ Example Engineering Ltd এবং https://example.org দিয়ে খসড়া করেন। প্রশাসক নীলা আলাদাভাবে যাচাই করে Verify দেন। যাচাইকৃত নিয়োগদাতা CSV তালিকায় আসে।'],
+            result: ['Verified employers are recorded with an immutable decision command and can be listed or exported by authorized TenantAdmins. No student contacts, applications, notifications, invoices or stock movements are created.', 'যাচাইকৃত নিয়োগদাতা সিদ্ধান্তের রেকর্ডসহ সংরক্ষিত হয় এবং অনুমোদিত TenantAdmin তালিকা/CSV দেখতে পারেন। শিক্ষার্থীর যোগাযোগ, আবেদন, বিজ্ঞপ্তি, ইনভয়েস বা স্টক পরিবর্তন হয় না।'],
+            rules: ['Verification requires a second administrator and the current row version. A repeated identical request is idempotent; a stale or reused request returns 409. This initial workflow has no edit, rejection or job-publication action. Finance and Inventory remain untouched.', 'যাচাইয়ে আলাদা প্রশাসক ও বর্তমান row version লাগে। একই অনুরোধ পুনরায় নিরাপদ; পুরোনো বা অন্য কাজে ব্যবহৃত অনুরোধে ৪০৯ আসে। এই পর্যায়ে Edit, Reject বা চাকরি প্রকাশের ব্যবস্থা নেই। Finance ও Inventory অপরিবর্তিত।'],
+            recovery: ['If Campus is empty, check ALUMNI entitlement and campus access. If a duplicate is reported, review the existing draft. After a timeout retry the same action; on 403/409 refresh and request another authorized approver. Incorrect drafts must not be verified; await the correction workflow.', 'Campus না এলে ALUMNI অনুমতি ও ক্যাম্পাস অধিকার দেখুন। ডুপ্লিকেট হলে আগের খসড়া যাচাই করুন। টাইমআউট হলে একই কাজ পুনরায় দিন; ৪০৩/৪০৯ হলে Refresh করে অন্য অনুমোদিত যাচাইকারীর সাহায্য নিন। ভুল খসড়া যাচাই করবেন না; সংশোধনের ব্যবস্থা আসা পর্যন্ত অপেক্ষা করুন।'],
+            related: [['/Alumni/Index', 'Alumni directory and engagement', 'প্রাক্তন শিক্ষার্থী তালিকা ও অনুষ্ঠান']]
+        },
         '/alumni/index': {
                   "version": 1,
                   "reviewed": true,

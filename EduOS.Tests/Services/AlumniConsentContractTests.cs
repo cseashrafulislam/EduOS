@@ -126,7 +126,8 @@ public sealed class AlumniConsentContractTests
         Assert.Equal("প্রকাশিত", InvokePrivate("EventStatusLabel", 2, true));
         Assert.Equal("বাতিল", InvokePrivate("EventStatusLabel", 3, true));
         var source = Read("EduOS.App", "Controllers", "Api", "AlumniApiController.cs");
-        Assert.Equal(2, source.Split("CultureInfo.CurrentUICulture.TwoLetterISOLanguageName").Length - 1);
+        // Directory, engagement and campus-scoped verified-employer CSV each resolve the user's UI culture.
+        Assert.Equal(3, source.Split("CultureInfo.CurrentUICulture.TwoLetterISOLanguageName").Length - 1);
         Assert.Contains("Csv(EventStatusLabel(item.Status, bengali))", source);
         Assert.Contains("DirectoryAsync(query, ct)", source);
         Assert.Contains("EventsAsync(query, ct)", source);

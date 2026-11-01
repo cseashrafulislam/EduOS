@@ -1,0 +1,44 @@
+@{
+    ViewData["Title"] = System.Globalization.CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "bn"
+        ? "প্লেসমেন্ট সিদ্ধান্ত ও রিপোর্ট" : "Placement Decisions & Reports";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+}
+<div id="careerPlacementWorkspace" class="container-fluid py-4">
+    @Html.AntiForgeryToken()
+    <header class="mb-3"><h1 class="h4 fw-bold" data-i18n="heading">Placement decisions and reports</h1></header>
+    <div id="careerPlacementNotice" class="alert d-none" role="status" aria-live="polite"></div>
+    <section class="card shadow-sm border-0 mb-3">
+        <div class="card-body">
+            <div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
+                <h2 class="h5 mb-0" data-i18n="applications">Applications and independent approvals</h2>
+                <div class="d-flex flex-wrap gap-2">
+                    <select id="careerPlacementFilter" class="form-select form-select-sm" aria-label="Application status">
+                        <option value="0" data-i18n="all">All</option><option value="1" data-i18n="pending">Pending</option>
+                        <option value="2" data-i18n="rejected">Rejected</option><option value="3" data-i18n="placed">Placed</option>
+                        <option value="4" data-i18n="withdrawn">Withdrawn</option>
+                    </select>
+                    <button id="careerPlacementRefresh" type="button" class="btn btn-sm btn-outline-secondary" data-i18n="refresh">Refresh</button>
+                </div>
+            </div>
+            <div class="table-responsive"><table class="table table-striped table-sm align-middle">
+                <thead><tr><th data-i18n="title">Opportunity</th><th data-i18n="student">Student</th><th data-i18n="campus">Campus</th><th data-i18n="status">Status</th><th data-i18n="proposed">Proposed</th><th data-i18n="actions">Actions</th></tr></thead>
+                <tbody id="careerPlacementRows"></tbody>
+            </table></div>
+            <div class="d-flex justify-content-between"><button id="careerPlacementPrev" class="btn btn-sm btn-outline-secondary" type="button" data-i18n="previous">Previous</button><span id="careerPlacementPage"></span><button id="careerPlacementNext" class="btn btn-sm btn-outline-secondary" type="button" data-i18n="next">Next</button></div>
+        </div>
+    </section>
+    <section class="card shadow-sm border-0" aria-labelledby="careerReportHeading">
+        <div class="card-body">
+            <div class="d-flex justify-content-between align-items-center gap-2 mb-3">
+                <h2 id="careerReportHeading" class="h5 mb-0" data-i18n="report">Placement outcome report</h2>
+                <div class="d-flex gap-2"><button id="careerReportRefresh" class="btn btn-sm btn-outline-secondary" type="button" data-i18n="refresh">Refresh</button><a id="careerReportCsv" class="btn btn-sm btn-outline-primary disabled" aria-disabled="true" data-i18n="export">Export page CSV</a></div>
+            </div>
+            <div class="table-responsive"><table class="table table-striped table-sm align-middle">
+                <thead><tr><th data-i18n="employer">Employer</th><th data-i18n="title">Opportunity</th><th data-i18n="campus">Campus</th><th data-i18n="total">Applications</th><th data-i18n="pending">Pending</th><th data-i18n="rejected">Rejected</th><th data-i18n="placed">Placed</th><th data-i18n="withdrawn">Withdrawn</th></tr></thead>
+                <tbody id="careerReportRows"></tbody>
+            </table></div>
+            <div class="d-flex justify-content-between"><button id="careerReportPrev" class="btn btn-sm btn-outline-secondary" type="button" data-i18n="previous">Previous</button><span id="careerReportPage"></span><button id="careerReportNext" class="btn btn-sm btn-outline-secondary" type="button" data-i18n="next">Next</button></div>
+        </div>
+    </section>
+</div>
+@section Scripts { <script src="~/js/alumni/career-placements.js" asp-append-version="true"></script> }

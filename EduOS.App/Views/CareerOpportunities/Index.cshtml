@@ -1,0 +1,78 @@
+@{
+    var bn = System.Globalization.CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "bn";
+    var admin = (bool)(ViewData["CareerAdmin"] ?? false);
+    ViewData["Title"] = bn ? "ক্যারিয়ার ও চাকরির সুযোগ" : "Career Opportunities & Applications";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+}
+<div id="careerOpportunityWorkspace" class="container-fluid py-4" data-admin="@(admin ? "true" : "false")">
+    @Html.AntiForgeryToken()
+    <header class="mb-3"><h1 class="h4 fw-bold" data-i18n="heading">Career opportunities</h1></header>
+    <div id="careerOpportunityNotice" class="alert d-none" role="status" aria-live="polite"></div>
+    @if (admin)
+    {
+        <section class="card shadow-sm border-0 mb-3" aria-labelledby="careerPostHeading">
+            <div class="card-body">
+                <h2 id="careerPostHeading" class="h5" data-i18n="create">Create opportunity draft</h2>
+                <form id="careerOpportunityForm" class="row g-3">
+                    <div class="col-lg-5">
+                        <label class="form-label" for="careerEmployerSearch" data-i18n="employerSearch">Find verified employer</label>
+                        <input class="form-control mb-2" id="careerEmployerSearch" maxlength="100" autocomplete="off" />
+                        <select class="form-select" id="careerEmployer" required aria-label="Verified employer"></select>
+                    </div>
+                    <div class="col-lg-7">
+                        <label class="form-label" for="careerOpportunityTitle" data-i18n="title">Opportunity title</label>
+                        <input class="form-control" id="careerOpportunityTitle" maxlength="160" minlength="3" required />
+                    </div>
+                    <div class="col-lg-3">
+                        <label class="form-label" for="careerOpportunityKind" data-i18n="kind">Type</label>
+                        <select class="form-select" id="careerOpportunityKind"><option value="1" data-i18n="job">Job</option><option value="2" data-i18n="internship">Internship</option></select>
+                    </div>
+                    <div class="col-lg-4">
+                        <label class="form-label" for="careerOpportunityDeadline" data-i18n="deadline">Apply until (local time)</label>
+                        <input class="form-control" id="careerOpportunityDeadline" type="datetime-local" required />
+                    </div>
+                    <div class="col-lg-5">
+                        <label class="form-label" for="careerOpportunityDescription" data-i18n="description">Description</label>
+                        <textarea class="form-control" id="careerOpportunityDescription" rows="2" maxlength="2000"></textarea>
+                    </div>
+                    <div class="col-12"><button id="careerOpportunitySave" type="submit" class="btn btn-primary" data-i18n="save">Save draft</button></div>
+                </form>
+            </div>
+        </section>
+    }
+    <section class="card shadow-sm border-0 mb-3" aria-labelledby="careerOpportunityListHeading">
+        <div class="card-body">
+            <div class="d-flex flex-wrap gap-2 align-items-center justify-content-between mb-3">
+                <h2 id="careerOpportunityListHeading" class="h5 mb-0" data-i18n="list">Opportunities</h2>
+                <div class="d-flex gap-2">
+                    @if (admin)
+                    {
+                        <select id="careerOpportunityStatus" class="form-select form-select-sm" aria-label="Status">
+                            <option value="0" data-i18n="all">All</option><option value="1" data-i18n="draft">Draft</option>
+                            <option value="2" data-i18n="published">Published</option><option value="3" data-i18n="closed">Closed</option>
+                        </select>
+                    }
+                    <button type="button" class="btn btn-sm btn-outline-secondary" id="careerOpportunityRefresh" data-i18n="refresh">Refresh</button>
+                </div>
+            </div>
+            <div class="table-responsive">
+                <table class="table table-striped table-sm align-middle">
+                    <thead><tr><th data-i18n="title">Title</th><th data-i18n="employer">Employer</th><th data-i18n="kind">Type</th><th data-i18n="deadline">Deadline</th><th data-i18n="status">Status</th><th data-i18n="actions">Actions</th></tr></thead>
+                    <tbody id="careerOpportunityRows"></tbody>
+                </table>
+            </div>
+            <div class="d-flex justify-content-between align-items-center"><button id="careerOpportunityPrev" class="btn btn-sm btn-outline-secondary" type="button" data-i18n="previous">Previous</button><span id="careerOpportunityPage" aria-live="polite"></span><button id="careerOpportunityNext" class="btn btn-sm btn-outline-secondary" type="button" data-i18n="next">Next</button></div>
+        </div>
+    </section>
+    @if (!admin)
+    {
+        <section class="card shadow-sm border-0" aria-labelledby="careerMyApplicationsHeading">
+            <div class="card-body">
+                <div class="d-flex justify-content-between mb-3"><h2 id="careerMyApplicationsHeading" class="h5 mb-0" data-i18n="myApplications">My applications</h2><button id="careerMyRefresh" class="btn btn-sm btn-outline-secondary" type="button" data-i18n="refresh">Refresh</button></div>
+                <div class="table-responsive"><table class="table table-striped table-sm"><thead><tr><th data-i18n="title">Title</th><th data-i18n="status">Status</th><th data-i18n="actions">Actions</th></tr></thead><tbody id="careerMyRows"></tbody></table></div>
+                <div class="d-flex justify-content-between"><button id="careerMyPrev" class="btn btn-sm btn-outline-secondary" type="button" data-i18n="previous">Previous</button><span id="careerMyPage"></span><button id="careerMyNext" class="btn btn-sm btn-outline-secondary" type="button" data-i18n="next">Next</button></div>
+            </div>
+        </section>
+    }
+</div>
+@section Scripts { <script src="~/js/alumni/career-opportunities.js" asp-append-version="true"></script> }
