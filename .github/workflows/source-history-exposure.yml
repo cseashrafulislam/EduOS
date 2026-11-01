@@ -1,0 +1,34 @@
+name: Source History Exposure Audit
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ Ashraful ]
+    paths:
+      - scripts/security/audit_git_exposure.py
+      - .github/workflows/source-history-exposure.yml
+      - .github/workflows/ci.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: source-history-${{ github.sha }}
+  cancel-in-progress: false
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout complete history without persisted credentials
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Verify detector on synthetic examples
+        run: python3 scripts/security/audit_git_exposure.py --self-test
+
+      - name: Audit tracked paths and historical Git objects (aggregate-only output)
+        run: python3 scripts/security/audit_git_exposure.py
