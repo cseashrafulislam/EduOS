@@ -47,9 +47,9 @@
             ['operations', 'Operations', 'কার্যক্রম', ['/SubscriptionBilling', '/IntegrationAdministration']]
         ],
         'management:finance': [
-            ['settings', 'Settings', 'সেটিংস', ['/FeeOperations/Structures', '/FeeDiscountRules', '/FeeHeadAccounting', '/AccountingSetup']],
-            ['operations', 'Operations', 'কার্যক্রম', ['/FeeOperations/Billing', '/FeeOperations/Ledger', '/FeeOperations', '/AdmissionCashReceipts', '/FinanceAdjustments', '/AccountingJournals', '/StudentInvoicePosting', '/StudentPaymentPosting', '/FeeInstallmentPlans']],
-            ['reports', 'Reports', 'রিপোর্ট', ['/FeeReceivablesAging', '/AccountingReports', '/FeeDueCalendar', '/FeeInstallmentProjection', '/FeeInvoiceCoverage', '/FeeDiscountAttributionReview']]
+            ['settings', 'Settings', 'সেটিংস', ['/FeeOperations/Structures', '/FeeDiscountRules', '/FeeHeadAccounting', '/AccountingSetup', '/FinanceAdjustments/Policies']],
+            ['operations', 'Operations', 'কার্যক্রম', ['/FeeOperations/Billing', '/FeeOperations/Ledger', '/FeeOperations', '/AdmissionCashReceipts', '/FinanceAdjustments/StudentAdjustments', '/FinanceAdjustments/Refunds', '/FinanceAdjustments/HostelClearances', '/FinanceAdjustments/TransportClearances', '/FinanceAdjustments/ReservationPreflight', '/FinanceAdjustments/DiscountAwards', '/FinanceAdjustments', '/AccountingJournals', '/StudentInvoicePosting', '/StudentPaymentPosting', '/FeeInstallmentPlans']],
+            ['reports', 'Reports', 'রিপোর্ট', ['/FeeReceivablesAging', '/AccountingReports', '/FinanceAdjustments/FineRegister', '/FeeDueCalendar', '/FeeInstallmentProjection', '/FeeInvoiceCoverage', '/FeeDiscountAttributionReview']]
         ],
         'academics:assessments': [
             ['settings', 'Settings', 'সেটিংস', ['/AssessmentAdministration/AssessmentComponents', '/AssessmentAdministration/AssessmentSchedules', '/AssessmentAdministration/GradeSchemes', '/AssessmentAdministration/CertificateTemplates']],
@@ -153,6 +153,14 @@
         '/admissioncashreceipts/index': 'ভর্তির নগদ রসিদ',
         '/feereceivablesaging/index': 'ফি বকেয়ার প্রতিবেদন',
         '/financeadjustments/index': 'আর্থিক সমন্বয়',
+        '/financeadjustments/policies': 'ছাড় ও জরিমানার নিয়ম',
+        '/financeadjustments/studentadjustments': 'শিক্ষার্থীর আর্থিক সমন্বয়',
+        '/financeadjustments/fineregister': 'জরিমানার রেজিস্টার',
+        '/financeadjustments/refunds': 'নগদ ফেরত ও নিষ্পত্তি',
+        '/financeadjustments/hostelclearances': 'হোস্টেল নিষ্পত্তি',
+        '/financeadjustments/transportclearances': 'পরিবহন নিষ্পত্তি',
+        '/financeadjustments/reservationpreflight': 'রিজার্ভেশনের আর্থিক যাচাই',
+        '/financeadjustments/discountawards': 'ছাড় অনুমোদনের রেজিস্টার',
         '/feeheadaccounting/index': 'ফি খাত ও GL ম্যাপিং',
         '/accountingsetup/index': 'হিসাবের খাত ও সময়কাল',
         '/accountingjournals/index': 'জার্নাল পোস্ট ও রিভার্সাল',

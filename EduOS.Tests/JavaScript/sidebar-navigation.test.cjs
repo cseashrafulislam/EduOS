@@ -52,6 +52,10 @@ test('section-specific categories include dynamic role portals and privileged ad
     assert.equal(categoryFor('management', 'finance', '/FeeOperations/Structures'), 'settings');
     assert.equal(categoryFor('management', 'finance', '/FeeOperations/Billing'), 'operations');
     assert.equal(categoryFor('management', 'finance', '/FeeOperations/Ledger'), 'operations');
+    assert.equal(categoryFor('management', 'finance', '/FinanceAdjustments/Policies'), 'settings');
+    assert.equal(categoryFor('management', 'finance', '/FinanceAdjustments/StudentAdjustments'), 'operations');
+    assert.equal(categoryFor('management', 'finance', '/FinanceAdjustments/FineRegister'), 'reports');
+    assert.equal(categoryFor('management', 'finance', '/FinanceAdjustments/Refunds'), 'operations');
     assert.equal(categoryFor('management', 'finance', '/FeeDueCalendar/Index'), 'reports');
     assert.equal(categoryFor('academics', 'assessments', '/AssessmentAdministration/GradeSchemes'), 'settings');
     assert.equal(categoryFor('academics', 'assessments', '/AssessmentAdministration/Certificates'), 'reports');

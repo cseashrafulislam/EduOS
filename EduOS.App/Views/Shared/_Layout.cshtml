@@ -476,7 +476,22 @@
                     </a>
                     @if (User?.IsInRole("TenantAdmin") == true)
                     {
-                        <a class="nav-link @ActiveFor("/FinanceAdjustments")" href="/FinanceAdjustments/Index">Finance Adjustments</a>
+                        @foreach (var adjustment in new[] {
+                            (Path: "/FinanceAdjustments/Policies", En: "Discount & Fine Rules", Bn: "ছাড় ও জরিমানার নিয়ম"),
+                            (Path: "/FinanceAdjustments/StudentAdjustments", En: "Student Finance Adjustments", Bn: "শিক্ষার্থীর আর্থিক সমন্বয়"),
+                            (Path: "/FinanceAdjustments/FineRegister", En: "Fine Register", Bn: "জরিমানার রেজিস্টার"),
+                            (Path: "/FinanceAdjustments/Refunds", En: "Cash Refunds & Settlement", Bn: "নগদ ফেরত ও নিষ্পত্তি"),
+                            (Path: "/FinanceAdjustments/HostelClearances", En: "Hostel Settlements", Bn: "হোস্টেল নিষ্পত্তি"),
+                            (Path: "/FinanceAdjustments/TransportClearances", En: "Transport Settlements", Bn: "পরিবহন নিষ্পত্তি"),
+                            (Path: "/FinanceAdjustments/ReservationPreflight", En: "Reservation Finance Preflight", Bn: "রিজার্ভেশনের আর্থিক যাচাই"),
+                            (Path: "/FinanceAdjustments/DiscountAwards", En: "Discount Award Register", Bn: "ছাড় অনুমোদনের রেজিস্টার")
+                        })
+                        {
+                            <a class="nav-link @ActiveFor(adjustment.Path)" href="@adjustment.Path">
+                                <svg class="edu-icon"><use href="/images/eduos-icons.svg#reports" /></svg>
+                                <span>@(currentCulture == "bn-BD" ? adjustment.Bn : adjustment.En)</span>
+                            </a>
+                        }
                     }
                     <a class="nav-link @ActiveFor("/FeeHeadAccounting")" href="/FeeHeadAccounting/Index">
                         <svg class="edu-icon"><use href="/images/eduos-icons.svg#reports" /></svg>

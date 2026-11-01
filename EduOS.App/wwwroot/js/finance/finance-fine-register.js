@@ -2,6 +2,8 @@
 'use strict';
 const root = document.getElementById('fineRegisterRoot');
 if (!root) return;
+const activeFeature = document.getElementById('adjustRoot')?.dataset.activeFeature || 'all';
+if (activeFeature !== 'all' && activeFeature !== 'fines') return;
 const el = id => document.getElementById(id);
 const token = document.querySelector('meta[name="request-verification-token"]')?.content;
 let page = 1, total = 0, loading = false;
@@ -49,6 +51,9 @@ async function api(url, method = 'GET', body) {
 function inspect(row) {
     const select = el('adjustEnrollment');
     if (!select) return notice('Enrollment selector unavailable.', true);
+    // The student drill-down is normally hidden on the focused Fine Register URL.
+    // Reveal just its search and adjustment history, not unrelated write forms.
+    document.querySelectorAll('[data-adjust-inspect-context]').forEach(panel => panel.classList.remove('d-none'));
     if (![...select.options].some(option => option.value === row.enrollmentReference))
         select.add(new Option(row.studentCode + ' — ' + row.studentName, row.enrollmentReference));
     select.value = row.enrollmentReference;

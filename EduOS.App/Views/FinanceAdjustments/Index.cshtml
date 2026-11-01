@@ -1,13 +1,22 @@
 @{
-    ViewData["Title"]="Finance Adjustments";
+    var bn = System.Globalization.CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "bn";
+    var feature = ViewData["AdjustmentFeature"] as string ?? "all";
+    var title = feature switch
+    {
+        "policies" => bn ? "ছাড় ও জরিমানার নিয়ম" : "Discount & Fine Rules",
+        "students" => bn ? "শিক্ষার্থীর আর্থিক সমন্বয়" : "Student Finance Adjustments",
+        "fines" => bn ? "জরিমানার রেজিস্টার" : "Fine Register",
+        "refunds" => bn ? "নগদ ফেরত ও নিষ্পত্তি" : "Cash Refunds & Settlement",
+        _ => bn ? "আর্থিক সমন্বয়" : "Finance Adjustments"
+    };
+    ViewData["Title"] = title;
 }
-<section class="container-fluid py-3" id="adjustRoot">
+<section class="container-fluid py-3" id="adjustRoot" data-active-feature="@feature">
     <header class="d-flex justify-content-between align-items-center flex-wrap mb-3">
-        <div><h2>Institutional Finance Adjustments</h2></div>
-        <div class="d-flex gap-2 flex-wrap"><a class="btn btn-outline-success" href="/FinanceAdjustments/HostelClearances">Hostel settlements &amp; approvals</a><a class="btn btn-outline-success" href="/FinanceAdjustments/TransportClearances">Transport settlements &amp; approvals</a><a class="btn btn-outline-warning" href="/FinanceAdjustments/ReservationPreflight">Hostel / Transport finance preflight</a><a class="btn btn-outline-secondary" href="/FeeOperations/Index">Fees &amp; Billing</a><a class="btn btn-outline-primary" href="/FinanceAdjustments/DiscountAwards">Award register</a></div>
+        <div><p class="small text-muted mb-1">@(bn ? "ফি ও হিসাব" : "Fees & Accounting") <span aria-hidden="true">/</span> @(feature == "policies" ? (bn ? "সেটিংস" : "Settings") : feature == "fines" ? (bn ? "রিপোর্ট" : "Reports") : (bn ? "কার্যক্রম" : "Operations"))</p><h2>@title</h2></div>
     </header>
     <div id="adjustAlert" class="d-none" role="alert" tabindex="-1"></div>
-    <div class="row g-3 mb-3">
+    <div class="row g-3 mb-3 @(feature == "all" || feature == "policies" ? "" : "d-none")">
         <div class="col-xl-6"><div class="card h-100"><div class="card-body">
             <h3 class="h5">Discount rules</h3>
             <form id="adjustDiscountRuleForm" class="row g-2">
@@ -38,7 +47,7 @@
             <div class="table-responsive mt-3"><table class="table table-sm"><thead><tr><th>Name</th><th>Amount</th><th>Active</th><th></th></tr></thead><tbody id="adjustFineRuleRows"></tbody></table></div>
         </div></div></div>
     </div>
-    <div class="card mb-3"><div class="card-body">
+    <div class="card mb-3 @(feature == "all" || feature == "students" ? "" : "d-none")" data-adjust-inspect-context><div class="card-body">
         <h3 class="h5">Select student enrollment</h3>
         <div class="row g-2 align-items-end">
             <div class="col-md-5"><label for="adjustStudentSearch" class="form-label">Student code or name (at least 2 characters)</label><input id="adjustStudentSearch" class="form-control" maxlength="100" /></div>
@@ -46,7 +55,7 @@
             <div class="col-md-5"><label for="adjustEnrollment" class="form-label">Enrollment</label><select id="adjustEnrollment" class="form-select"><option value="">Select enrollment</option></select></div>
         </div>
     </div></div>
-    <div class="row g-3 mb-3">
+    <div class="row g-3 mb-3 @(feature == "all" || feature == "students" ? "" : "d-none")">
         <div class="col-xl-6"><div class="card h-100"><div class="card-body">
             <h3 class="h5">Assign discount</h3>
             <form id="adjustAssignForm" class="row g-2">
@@ -68,7 +77,7 @@
             </form>
         </div></div></div>
     </div>
-    <section class="card mb-3" id="fineRegisterRoot" aria-labelledby="fineRegisterHeading">
+    <section class="card mb-3 @(feature == "all" || feature == "fines" ? "" : "d-none")" id="fineRegisterRoot" aria-labelledby="fineRegisterHeading">
         <div class="card-body">
             <h3 class="h5" id="fineRegisterHeading">Institution-wide fine register</h3>
             <div id="fineRegisterAlert" class="alert d-none" role="status" aria-live="polite"></div>
@@ -97,7 +106,7 @@
             <p class="small text-muted mt-2">Inspect opens the selected student's fine register. Posting requires a separate administrator, a dedicated fine fee head and an open accounting period.</p>
         </div>
     </section>
-    <div class="card mb-3" id="adjustRefundSection"><div class="card-body">
+    <div class="card mb-3 @(feature == "all" || feature == "refunds" ? "" : "d-none")" id="adjustRefundSection"><div class="card-body">
         <h3 class="h5">Student cash refund review &amp; GL payout recording</h3>
         <p class="small text-warning">Record payout only after independently verified cash disbursement. This screen does not send money. Posted receipts and fully paid invoices remain immutable. A paid-invoice refund creates an additional income credit-note journal; partially paid invoices use a receivable contra journal. Every payout is independently approved and audited.</p>
         <div class="row g-2 mb-2 align-items-end">
@@ -120,7 +129,7 @@
         <h4 class="h6">Refund requests for displayed receipts</h4>
         <div class="table-responsive"><table class="table table-sm"><thead><tr><th>Receipt</th><th>Amount</th><th>Status</th><th>Credit note journal</th><th>Requested by</th><th>Actions</th></tr></thead><tbody id="adjustRefundRows"></tbody></table></div>
     </div></div>
-    <div class="card"><div class="card-body">
+    <div class="card @(feature == "all" || feature == "students" ? "" : "d-none")" data-adjust-inspect-context><div class="card-body">
         <h3 class="h5">Enrollment adjustment register</h3>
         <button id="adjustRefresh" type="button" class="btn btn-sm btn-outline-secondary mb-3">Refresh register</button>
         <h4 class="h6">Discount assignments</h4>

@@ -487,6 +487,72 @@
                             ]
                   ]
         },
+        '/financeadjustments/policies/index': {
+            version: 1, reviewed: true,
+            title: ['Discount & Fine Rules', 'ছাড় ও জরিমানার নিয়ম'],
+            purpose: ['Maintain the Finance adjustment policy registers for student discount assignments and assessed fines.', 'শিক্ষার্থীর ছাড় বরাদ্দ ও জরিমানা নির্ধারণে ব্যবহৃত Finance সমন্বয়ের নিয়ম পরিচালনা করুন।'],
+            before: ['TenantAdmin and FINANCE access; know the approved fee head, dates and required policy amounts. This is separate from the general Fee Discount Rules screen.', 'TenantAdmin ও FINANCE অনুমতি এবং অনুমোদিত ফি খাত, তারিখ ও টাকার নিয়ম জানতে হবে। এটি সাধারণ Fee Discount Rules পৃষ্ঠা থেকে আলাদা।'],
+            steps: [
+                ['Under Discount rules enter name, value, percent/fixed setting, fee head, dates and Active, then Save discount rule.', 'Discount rules-এ নাম, মান, শতাংশ/নির্দিষ্ট টাকা, ফি খাত, তারিখ ও Active দিয়ে Save discount rule চাপুন।'],
+                ['Under Fine rules enter name, amount, grace days, per-overdue-day option and fee head, then Save fine rule.', 'Fine rules-এ নাম, টাকা, ছাড়ের দিন, প্রতিদিনের জরিমানা ও ফি খাত দিয়ে Save fine rule চাপুন।'],
+                ['Review each rule register; choose Edit to load the saved version, or New to clear an editor.', 'প্রতিটি নিয়মের তালিকা যাচাই করুন; সংরক্ষিত সংস্করণ খুলতে Edit, নতুন নিয়মে যেতে New চাপুন।']
+            ],
+            example: ['Fictional example: configure a fixed BDT 100 student adjustment discount and a separate BDT 20 fine rule; verify both registers before assigning either to a student.', 'কাল্পনিক উদাহরণ: BDT ১০০ নির্দিষ্ট ছাড় ও আলাদা BDT ২০ জরিমানার নিয়ম তৈরি করে শিক্ষার্থীকে দেওয়ার আগে দুই তালিকা যাচাই করুন।'],
+            result: ['Active rules become selectable in the separate Student Finance Adjustments workflow; merely saving a rule does not create an invoice or cash payment.', 'সক্রিয় নিয়ম Student Finance Adjustments পৃষ্ঠায় নির্বাচনযোগ্য হয়; শুধু নিয়ম সংরক্ষণে ইনভয়েস বা নগদ লেনদেন হয় না।'],
+            rules: ['Rules and individual assignments are different records. An issued invoice and its posted journal cannot be rewritten by editing a rule.', 'নিয়ম ও শিক্ষার্থীর বরাদ্দ আলাদা রেকর্ড। নিয়ম সম্পাদনায় ইস্যু করা ইনভয়েস বা পোস্ট করা জার্নাল বদলানো যায় না।'],
+            recovery: ['If saving fails, inspect the amount, fee head and effective range; refresh the register and current version before editing again.', 'সংরক্ষণ ব্যর্থ হলে টাকা, ফি খাত ও কার্যকর তারিখ দেখুন; আবার সম্পাদনার আগে তালিকা ও বর্তমান সংস্করণ রিফ্রেশ করুন।'],
+            related: [['/FinanceAdjustments/StudentAdjustments', 'Student adjustments', 'শিক্ষার্থীর সমন্বয়'], ['/FeeHeadAccounting/Index', 'Fee head accounting', 'ফি খাতের হিসাব']]
+        },
+        '/financeadjustments/studentadjustments/index': {
+            version: 1, reviewed: true,
+            title: ['Student Finance Adjustments', 'শিক্ষার্থীর আর্থিক সমন্বয়'],
+            purpose: ['Assign a permitted discount, assess a fine and inspect an enrollment’s adjustment history.', 'অনুমোদিত ছাড় বরাদ্দ, জরিমানা নির্ধারণ ও শিক্ষার্থী ভর্তির সমন্বয়ের ইতিহাস দেখুন।'],
+            before: ['TenantAdmin and FINANCE access; verify the student enrollment, applicable active rule, period and approval reason.', 'TenantAdmin ও FINANCE অনুমতি; শিক্ষার্থীর ভর্তি, সক্রিয় নিয়ম, সময়কাল ও অনুমোদনের কারণ যাচাই করুন।'],
+            steps: [
+                ['Search student name/code (at least two characters), select the correct Enrollment and inspect its existing adjustments.', 'অন্তত দুই অক্ষরে শিক্ষার্থী খুঁজে সঠিক Enrollment বেছে আগের সমন্বয় দেখুন।'],
+                ['For a discount choose Active discount rule, effective dates and Approval reason, then Assign.', 'ছাড় দিতে Active discount rule, কার্যকর তারিখ ও Approval reason দিয়ে Assign চাপুন।'],
+                ['For a fine choose Active fine rule, date, reason and an original unpaid invoice when per-day policy requires it; select Record fine.', 'জরিমানায় Active fine rule, তারিখ, কারণ এবং প্রতিদিনের নিয়মে প্রয়োজন হলে মূল বকেয়া ইনভয়েস বেছে Record fine চাপুন।'],
+                ['Review the enrollment register; where permitted, use a valid open accounting period and separate approved posting or reversal controls.', 'ভর্তির সমন্বয় তালিকা দেখুন; অনুমতি অনুযায়ী খোলা হিসাবকাল বেছে আলাদা অনুমোদিত পোস্টিং বা রিভার্সাল করুন।']
+            ],
+            example: ['Fictional example: find ST-1042, assign an approved BDT 100 adjustment for the verified period, then inspect its saved assignment before any later billing.', 'কাল্পনিক উদাহরণ: ST-1042 খুঁজে যাচাইকৃত সময়ের জন্য অনুমোদিত BDT ১০০ ছাড় দিন এবং পরবর্তী বিলিংয়ের আগে বরাদ্দটি দেখুন।'],
+            result: ['The enrollment adjustment register updates with the recorded rule or fine; posted invoices and GL journals remain separate authorized actions.', 'ভর্তির সমন্বয় তালিকায় বরাদ্দ বা জরিমানা দেখা যায়; ইনভয়েস ও GL পোস্টিং আলাদা অনুমোদিত কাজ।'],
+            rules: ['Assessors cannot approve their own fine posting. Posted invoice changes require the existing audited reversal process; never recreate an adjustment to bypass a concurrency error.', 'জরিমানা নির্ধারণকারী নিজের পোস্টিং অনুমোদন করতে পারেন না। পোস্ট করা ইনভয়েসে নিরীক্ষাযোগ্য রিভার্সাল প্রয়োজন; সংস্করণ-সংঘাত এড়াতে নতুন সমন্বয় তৈরি করবেন না।'],
+            recovery: ['If a student/rule does not appear, verify the enrollment and active policy. After an uncertain request, reload its register and posted status before retrying.', 'শিক্ষার্থী বা নিয়ম না পেলে ভর্তি ও সক্রিয় নীতি দেখুন। অনিশ্চিত অনুরোধের পরে পুনরায় চেষ্টা করার আগে তালিকা ও পোস্টিং অবস্থা রিফ্রেশ করুন।'],
+            related: [['/FinanceAdjustments/Policies', 'Discount and fine rules', 'ছাড় ও জরিমানার নিয়ম'], ['/FinanceAdjustments/FineRegister', 'Fine register', 'জরিমানার রেজিস্টার']]
+        },
+        '/financeadjustments/fineregister/index': {
+            version: 1, reviewed: true,
+            title: ['Fine Register', 'জরিমানার রেজিস্টার'],
+            purpose: ['Review institution fine assessments by campus, date and waiver state, with separate assessed, waived, posted and unposted totals.', 'ক্যাম্পাস, তারিখ ও মওকুফের অবস্থা দিয়ে জরিমানা এবং নির্ধারিত, মওকুফ, পোস্ট ও অপোস্ট মোট দেখুন।'],
+            before: ['TenantAdmin and FINANCE access; select an authorized campus ID if filtering and a meaningful fine date range.', 'TenantAdmin ও FINANCE অনুমতি; ফিল্টার করলে অনুমোদিত ক্যাম্পাস ID ও উপযুক্ত জরিমানার তারিখ দিন।'],
+            steps: [
+                ['Choose optional Campus ID, Fine from/to dates and Status, then Load fines.', 'ঐচ্ছিক Campus ID, Fine from/to তারিখ ও Status দিয়ে Load fines চাপুন।'],
+                ['Review the four BDT totals and the 25-row paged list; use Previous and Next for additional results.', 'চারটি BDT মোট ও ২৫টি করে তালিকা দেখুন; আরও ফল পেতে Previous ও Next চাপুন।'],
+                ['Select Inspect on a row to open that enrollment’s adjustment history below; this expands a context panel, not an independent posting.', 'কোনো সারিতে Inspect চাপলে নিচে সেই শিক্ষার্থীর সমন্বয়ের ইতিহাস খুলবে; এতে নিজে কোনো পোস্টিং হয় না।']
+            ],
+            example: ['Fictional example: filter the October 2026 fine register for an authorized campus, compare Posted and Unposted totals, then Inspect ST-1042.', 'কাল্পনিক উদাহরণ: অনুমোদিত ক্যাম্পাসে অক্টোবর ২০২৬-এর জরিমানা বেছে Posted ও Unposted মোট মিলিয়ে ST-1042 Inspect করুন।'],
+            result: ['Current matching totals and fine rows are shown; Inspect exposes the related enrollment context for permitted follow-up.', 'মিল পাওয়া বর্তমান জরিমানা ও মোট দেখা যায়; Inspect-এ পরবর্তী অনুমোদিত কাজের জন্য শিক্ষার্থীর তথ্য খুলবে।'],
+            rules: ['The register is a report, not proof of GL settlement. Posting and reversal require separate period and independent-approval checks.', 'রেজিস্টার একটি প্রতিবেদন, GL নিষ্পত্তির প্রমাণ নয়। পোস্টিং ও রিভার্সালে আলাদা হিসাবকাল ও স্বাধীন অনুমোদন লাগে।'],
+            recovery: ['Correct invalid campus/date filters; on a load failure refresh and rerun the report. Check the student adjustment register for a disputed fine.', 'ভুল ক্যাম্পাস/তারিখ ফিল্টার ঠিক করুন; লোড ব্যর্থ হলে রিফ্রেশ করে আবার চালান। প্রশ্ন থাকা জরিমানায় শিক্ষার্থীর সমন্বয় তালিকা দেখুন।'],
+            related: [['/FinanceAdjustments/StudentAdjustments', 'Student adjustments', 'শিক্ষার্থীর সমন্বয়']]
+        },
+        '/financeadjustments/refunds/index': {
+            version: 1, reviewed: true,
+            title: ['Cash Refunds & Settlement', 'নগদ ফেরত ও নিষ্পত্তি'],
+            purpose: ['Request, independently review and record verified payout of a student cash refund with the original receipt lineage.', 'শিক্ষার্থীর মূল নগদ রসিদের সঙ্গে যুক্ত ফেরতের আবেদন, স্বাধীন যাচাই ও প্রকৃত পরিশোধ নথিভুক্ত করুন।'],
+            before: ['TenantAdmin and FINANCE access; verify the original posted receipt, refundable amount, disbursement evidence and open accounting period.', 'TenantAdmin ও FINANCE অনুমতি; মূল পোস্ট করা রসিদ, ফেরতযোগ্য টাকা, পরিশোধের প্রমাণ ও খোলা হিসাবকাল যাচাই করুন।'],
+            steps: [
+                ['Filter authorized campus and Load cash receipts; select the original posted cash receipt.', 'অনুমোদিত ক্যাম্পাস দিয়ে Load cash receipts চাপুন; মূল পোস্ট করা নগদ রসিদ বাছুন।'],
+                ['Enter amount and reason, then Request refund once and inspect the requests list.', 'টাকা ও কারণ দিয়ে Request refund একবার চাপুন এবং আবেদন তালিকা দেখুন।'],
+                ['A different authorized administrator reviews the request and uses Approve or Reject, recording a rejection reason when needed.', 'ভিন্ন অনুমোদিত প্রশাসক আবেদন যাচাই করে Approve বা Reject করবেন; প্রত্যাখ্যানে কারণ লিখবেন।'],
+                ['Only after real independently verified cash payment, select the open period, actual payout date and voucher reference; use Record verified payout.', 'প্রকৃত নগদ পরিশোধ স্বাধীনভাবে যাচাইয়ের পরে খোলা হিসাবকাল, আসল তারিখ ও ভাউচার নম্বর দিয়ে Record verified payout চাপুন।']
+            ],
+            example: ['Fictional example: request BDT 500 against a verified posted receipt, obtain independent approval, pay cash separately, then record its actual voucher and date.', 'কাল্পনিক উদাহরণ: যাচাইকৃত পোস্ট করা রসিদে BDT ৫০০ ফেরত চেয়ে স্বাধীন অনুমোদন নিন, আলাদাভাবে নগদ দিন, তারপর প্রকৃত ভাউচার ও তারিখ লিখুন।'],
+            result: ['The refund advances through requested, reviewed and recorded payout states; the appropriate Finance accounting lineages are preserved.', 'ফেরত আবেদন, যাচাই ও নথিভুক্ত পরিশোধের ধাপে এগোয়; সংশ্লিষ্ট Finance হিসাবের সূত্র অক্ষত থাকে।'],
+            rules: ['This UI never sends funds. Requester and approver must differ, and payout cannot be marked without independently checked evidence. Paid-invoice refunds and partly paid invoices have different canonical GL treatment; do not edit posted receipts.', 'এই UI টাকা পাঠায় না। আবেদনকারী ও অনুমোদনকারী ভিন্ন হতে হবে; স্বাধীন প্রমাণ ছাড়া পরিশোধ নথিভুক্ত নয়। সম্পূর্ণ ও আংশিক পরিশোধের GL প্রক্রিয়া আলাদা; পোস্ট করা রসিদ বদলাবেন না।'],
+            recovery: ['For a timeout inspect the existing request before retrying with its original idempotency key. For a rejected payout recheck period, paid cash evidence and current rowversion.', 'সময় শেষ হলে একই অনুরোধ পুনরায় দেওয়ার আগে আগের আবেদন ও মূল idempotency key যাচাই করুন। পরিশোধ আটকে গেলে হিসাবকাল, নগদ প্রমাণ ও বর্তমান সংস্করণ দেখুন।'],
+            related: [['/FeeOperations/Ledger', 'Student ledger', 'শিক্ষার্থী লেজার'], ['/FinanceAdjustments/StudentAdjustments', 'Student adjustments', 'শিক্ষার্থীর সমন্বয়']]
+        },
         '/hr/directory/index': {
             version: 1, reviewed: true,
             title: ['Employee Directory', 'কর্মী তালিকা'],

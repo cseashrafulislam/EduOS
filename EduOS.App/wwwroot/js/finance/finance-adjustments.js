@@ -2,6 +2,7 @@
 'use strict';
 if(!document.getElementById('adjustRoot'))return;
 const el=id=>document.getElementById('adjust'+id),base='/api/finance/adjustments';
+const activeFeature=document.getElementById('adjustRoot').dataset.activeFeature||'all';
 const token=document.querySelector('meta[name="request-verification-token"]')?.content;
 let discounts=[],fines=[];
 // Preserve an idempotency key while a failed/uncertain request is retried with identical inputs.
@@ -260,11 +261,15 @@ el('RefundRequestForm').addEventListener('submit',e=>{e.preventDefault();run(e.c
 });});
 (async()=>{
  try{
-  await loadRefunds();
-  const options=await api('/api/finance/fees/options');
-  const heads=options.feeHeads||[];
-  for(const id of ['DrHead','FrHead']){const select=el(id);for(const row of heads)select.add(new Option(row.name,String(row.id)));}
-  await refreshRules();
+  // The fine Inspect drill-down still needs the student period and rule lists.
+  // A pure Policies or Refunds visit need not fetch the other financial register.
+  if(activeFeature!=='policies')await loadRefunds();
+  if(activeFeature!=='refunds'){
+   const options=await api('/api/finance/fees/options');
+   const heads=options.feeHeads||[];
+   for(const id of ['DrHead','FrHead']){const select=el(id);for(const row of heads)select.add(new Option(row.name,String(row.id)));}
+   await refreshRules();
+  }
  }catch(e){notice(e.message);}
 })();
 })();

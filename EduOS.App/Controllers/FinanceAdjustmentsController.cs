@@ -12,6 +12,24 @@ public sealed class FinanceAdjustmentsController : Controller
     [ResponseCache(NoStore=true,Location=ResponseCacheLocation.None)]
     public IActionResult Index()=>View();
 
+    private IActionResult Feature(string feature)
+    {
+        ViewData["AdjustmentFeature"] = feature;
+        return View("Index");
+    }
+
+    [HttpGet, ResponseCache(NoStore=true,Location=ResponseCacheLocation.None)]
+    public IActionResult Policies()=>Feature("policies");
+
+    [HttpGet, ResponseCache(NoStore=true,Location=ResponseCacheLocation.None)]
+    public IActionResult StudentAdjustments()=>Feature("students");
+
+    [HttpGet, ResponseCache(NoStore=true,Location=ResponseCacheLocation.None)]
+    public IActionResult FineRegister()=>Feature("fines");
+
+    [HttpGet, ResponseCache(NoStore=true,Location=ResponseCacheLocation.None)]
+    public IActionResult Refunds()=>Feature("refunds");
+
     [HttpGet]
     [ResponseCache(NoStore=true,Location=ResponseCacheLocation.None)]
     public IActionResult HostelClearances()=>View();
