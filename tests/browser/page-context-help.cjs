@@ -57,7 +57,7 @@ async function normal(browser) {
         assert.equal(await page.locator('#pageHelpContent script').count(),0);
         assert.equal(await page.locator('#pageHelpClose').evaluate(e=>document.activeElement===e),true);
         await page.keyboard.press('Escape');
-        await page.locator('#pageHelpDrawer:not([open])').waitFor();
+        await page.waitForFunction(() => !document.getElementById('pageHelpDrawer').open);
         assert.equal(await page.locator('#pageContextHelp').evaluate(e=>document.activeElement===e),true);
         assert.ok(await page.evaluate(()=>window.verifyCount)>=1);
         await page.evaluate(()=>{document.documentElement.lang='bn-BD';});
@@ -69,13 +69,13 @@ async function normal(browser) {
         await page.getByRole('heading',{name:'Page overview'}).waitFor();
         assert.equal(await page.locator('#pageHelpTitle').innerText(),'Student Directory');
         await page.evaluate(()=>{document.getElementById('eduosSessionShield').hidden=false;});
-        await page.locator('#pageHelpDrawer:not([open])').waitFor();
+        await page.waitForFunction(() => !document.getElementById('pageHelpDrawer').open);
         assert.equal(await page.locator('#pageHelpContent').innerText(),'');
         await page.evaluate(()=>{document.getElementById('eduosSessionShield').hidden=true;});
         await page.locator('#pageContextHelp').click();
         await page.locator('#pageHelpDrawer[open]').waitFor();
         await page.evaluate(()=>{document.body.dataset.authTenantId='23';});
-        await page.locator('#pageHelpDrawer:not([open])').waitFor();
+        await page.waitForFunction(() => !document.getElementById('pageHelpDrawer').open);
         assert.equal(await page.locator('#pageContextHelp').isDisabled(),true);
         assert.equal(await page.locator('#pageHelpContent').innerText(),'');
         assert.deepEqual(errors,[]);
@@ -97,7 +97,7 @@ async function mobileDenied(browser) {
         assert.ok(box && box.x>=0 && box.x+box.width<=391, 'mobile drawer exceeds viewport');
         await page.evaluate(()=>{window.transitioning=true;});
         await page.evaluate(()=>{window.dispatchEvent(new Event('focus'));});
-        await page.locator('#pageHelpDrawer:not([open])').waitFor();
+        await page.waitForFunction(() => !document.getElementById('pageHelpDrawer').open);
         assert.equal(await page.locator('#pageContextHelp').isDisabled(),true);
         assert.deepEqual(errors,[]);
     } finally { await context.close(); }
