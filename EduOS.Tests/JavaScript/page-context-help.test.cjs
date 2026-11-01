@@ -10,10 +10,10 @@ const css = read('EduOS.App/wwwroot/css/site.css');
 const js = read('EduOS.App/wwwroot/js/platform/page-context-help.js');
 const { guideFor, coverage, normalizeRoute, validateGuide } =
     require('../../EduOS.App/wwwroot/js/platform/page-context-help.js');
-const routes = ['/FeeReceivablesAging/Index', '/PayrollJournalPosting/Index', '/PayrollSalaryStatement/Index', '/Alumni/Index', '/FeeOperations/Index', '/Students/Index', '/Attendance/Index', '/PayrollOperations/Index', '/FacilityWorkOrders/Index', '/Admissions/Index', '/StudentInvoicePosting/Index', '/workspace', '/Account/BrandingSetup'];
+const routes = ['/FeeReceivablesAging/Index', '/PayrollJournalPosting/Index', '/PayrollSalaryStatement/Index', '/Alumni/Index', '/CareerEmployers/Index', '/FeeOperations/Index', '/Students/Index', '/Attendance/Index', '/PayrollOperations/Index', '/FacilityWorkOrders/Index', '/Admissions/Index', '/StudentInvoicePosting/Index', '/workspace', '/Account/BrandingSetup'];
 
 test('all reviewed route manuals have full bilingual structure, matching steps and examples', () => {
-    assert.deepEqual(coverage(), { routes: 13, en: 13, bn: 13 });
+    assert.deepEqual(coverage(), { routes: 14, en: 14, bn: 14 });
     for (const route of routes) {
         const en = guideFor(route, 'en-BD');
         const bn = guideFor(route, 'bn-BD');

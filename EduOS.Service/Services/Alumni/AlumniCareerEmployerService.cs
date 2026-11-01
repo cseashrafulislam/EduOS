@@ -5,6 +5,7 @@ using EduOS.Core.Common;
 using EduOS.Core.DTOs.Alumni;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
 namespace EduOS.Service.Services.Alumni;
 

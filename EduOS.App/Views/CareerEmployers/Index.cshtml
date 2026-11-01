@@ -1,5 +1,6 @@
 @{
-    ViewData["Title"] = "Career Employer Verification / নিয়োগদাতা যাচাই";
+    ViewData["Title"] = System.Globalization.CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "bn"
+        ? "ক্যারিয়ার নিয়োগদাতা যাচাই" : "Career Employer Verification";
     Layout = "~/Views/Shared/_Layout.cshtml";
 }
 <div id="careerEmployerWorkspace" class="container-fluid py-4">

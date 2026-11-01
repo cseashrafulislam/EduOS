@@ -73,7 +73,7 @@
     };
     async function load() {
         const generation = ++serial;
-        setBusy(true); exportLink(false);
+        setBusy(true); exportLink(false); total = 0;
         clearRows(t('Loading…', 'লোড হচ্ছে…'));
         el('careerPage').textContent = '';
         try {
