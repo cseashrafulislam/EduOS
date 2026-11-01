@@ -18,6 +18,7 @@ public sealed class WorkspaceSessionReadbackTests
     [InlineData("get")]
     [InlineData("save")]
     [InlineData("reset")]
+    [InlineData("restore")]
     public async Task Revoked_session_during_preferences_request_cannot_receive_private_readback(string operation)
     {
         await using var db = NewDb();
@@ -58,6 +59,7 @@ public sealed class WorkspaceSessionReadbackTests
     [Theory]
     [InlineData("save")]
     [InlineData("reset")]
+    [InlineData("restore")]
     public async Task Already_revoked_session_cannot_invoke_preference_mutation(string operation)
     {
         await using var db = NewDb();
@@ -74,6 +76,7 @@ public sealed class WorkspaceSessionReadbackTests
     [Theory]
     [InlineData("save")]
     [InlineData("reset")]
+    [InlineData("restore")]
     public async Task Failed_preference_mutation_preserves_its_original_error(string operation)
     {
         await using var db = NewDb();
@@ -94,6 +97,9 @@ public sealed class WorkspaceSessionReadbackTests
             Task.FromResult(ApiResponse<WorkspacePreferencesDto>.ErrorResponse("Stale preference version.", 409));
         public Task<ApiResponse<WorkspacePreferencesDto>> ResetAsync(
             ResetWorkspacePreferencesRequestDto request, CancellationToken ct = default) =>
+            Task.FromResult(ApiResponse<WorkspacePreferencesDto>.ErrorResponse("Stale preference version.", 409));
+        public Task<ApiResponse<WorkspacePreferencesDto>> RestoreAsync(
+            RestoreWorkspacePreferencesRequestDto request, CancellationToken ct = default) =>
             Task.FromResult(ApiResponse<WorkspacePreferencesDto>.ErrorResponse("Stale preference version.", 409));
     }
 
@@ -128,6 +134,7 @@ public sealed class WorkspaceSessionReadbackTests
             "get" => controller.Get(default),
             "save" => controller.Save(new SaveWorkspacePreferencesRequestDto(), default),
             "reset" => controller.Reset(new ResetWorkspacePreferencesRequestDto(), default),
+            "restore" => controller.Restore(new RestoreWorkspacePreferencesRequestDto { Revision = 1 }, default),
             _ => throw new ArgumentOutOfRangeException(nameof(operation))
         };
 
@@ -148,6 +155,9 @@ public sealed class WorkspaceSessionReadbackTests
 
         public Task<ApiResponse<WorkspacePreferencesDto>> ResetAsync(
             ResetWorkspacePreferencesRequestDto request, CancellationToken cancellationToken = default) =>
+            Execute();
+        public Task<ApiResponse<WorkspacePreferencesDto>> RestoreAsync(
+            RestoreWorkspacePreferencesRequestDto request, CancellationToken cancellationToken = default) =>
             Execute();
     }
 }
