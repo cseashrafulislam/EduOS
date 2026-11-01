@@ -113,6 +113,60 @@ public sealed class CommunicationGatewaySecurityTests
     }
 
     [Fact]
+    public async Task Active_sms_cannot_be_saved_without_sender_or_secret_even_when_sender_field_is_not_submitted()
+    {
+        var http = new DefaultHttpContext();
+        http.Items["TenantId"] = 101L;
+        await using var db = new EduOSDbContext(new DbContextOptionsBuilder<EduOSDbContext>()
+            .UseInMemoryDatabase("sms-incomplete-" + Guid.NewGuid().ToString("N")).Options,
+            new HttpContextAccessor { HttpContext = http });
+        var service = Create(db, 101);
+        var missingSender = await service.SaveGatewayAsync(null, new SaveCommunicationGatewayRequestDto
+        {
+            ProviderCode = "TENANT_SMS", Channel = NotificationChannelType.Sms,
+            Endpoint = "https://sms.example.com/send", Credential = "secret",
+            IsActive = true, IsDefault = true
+        });
+        missingSender.StatusCode.Should().Be(400);
+        var missingSecret = await service.SaveGatewayAsync(null, new SaveCommunicationGatewayRequestDto
+        {
+            ProviderCode = "TENANT_SMS", Channel = NotificationChannelType.Sms,
+            Endpoint = "https://sms.example.com/send", SmsSenderId = "SCHOOL",
+            IsActive = true, IsDefault = true
+        });
+        missingSecret.StatusCode.Should().Be(400);
+        (await db.CommunicationGateways.CountAsync()).Should().Be(0);
+    }
+
+    [Fact]
+    public async Task Active_tenant_email_api_needs_https_endpoint_and_credential()
+    {
+        var http = new DefaultHttpContext();
+        http.Items["TenantId"] = 101L;
+        await using var db = new EduOSDbContext(new DbContextOptionsBuilder<EduOSDbContext>()
+            .UseInMemoryDatabase("email-api-incomplete-" + Guid.NewGuid().ToString("N")).Options,
+            new HttpContextAccessor { HttpContext = http });
+        var service = Create(db, 101);
+        var incomplete = await service.SaveGatewayAsync(null, new SaveCommunicationGatewayRequestDto
+        {
+            ProviderCode = "TENANT_MAIL_API", Channel = NotificationChannelType.Email,
+            IsActive = true, IsDefault = true
+        });
+        incomplete.StatusCode.Should().Be(400);
+        var complete = await service.SaveGatewayAsync(null, new SaveCommunicationGatewayRequestDto
+        {
+            ProviderCode = "TENANT_MAIL_API", Channel = NotificationChannelType.Email,
+            Endpoint = "https://mail.example.com/send", Credential = "tenant-private-token",
+            IsActive = true, IsDefault = true
+        });
+        complete.Success.Should().BeTrue(complete.Message);
+        complete.Data!.HasCredential.Should().BeTrue();
+        (await Service(202).GetGatewaysAsync()).Data.Should().BeEmpty();
+
+        CommunicationAdministrationService Service(long tenant) => Create(db, tenant);
+    }
+
+    [Fact]
     public async Task Enabled_smtp_requires_tls_and_public_host()
     {
         var http = new DefaultHttpContext();

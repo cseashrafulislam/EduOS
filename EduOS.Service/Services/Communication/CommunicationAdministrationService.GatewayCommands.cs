@@ -63,7 +63,7 @@ public sealed partial class CommunicationAdministrationService
                         return ApiResponse<CommunicationGatewayDto>.ErrorResponse("Gateway credential is too long.");
                     row.ProtectedCredential = protectedValue;
                 }
-                var validation = ValidateGateway(row, request.SmsSenderId != null);
+                var validation = ValidateGateway(row);
                 if (validation != null) return ApiResponse<CommunicationGatewayDto>.ErrorResponse(validation, 400);
                 var makeDefault = request.IsDefault && row.IsActive;
                 if (makeDefault)
@@ -90,11 +90,10 @@ public sealed partial class CommunicationAdministrationService
             return ApiResponse<CommunicationGatewayDto>.ErrorResponse("Gateway save failed.", 500);
         }
     }
-    private static string? ValidateGateway(CommunicationGateway row, bool enforceSmsConfiguration)
+    private static string? ValidateGateway(CommunicationGateway row)
     {
         if (!row.IsActive) return null;
-        if (row.Channel == NotificationChannelType.Sms &&
-            (enforceSmsConfiguration || row.SmsSenderId != null))
+        if (row.Channel == NotificationChannelType.Sms)
         {
             if (string.IsNullOrWhiteSpace(row.SmsSenderId) || row.SmsSenderId.Length > 20 ||
                 !IsPublicHttpsEndpoint(row.Endpoint) || string.IsNullOrWhiteSpace(row.ProtectedCredential))
@@ -109,6 +108,9 @@ public sealed partial class CommunicationAdministrationService
                 string.IsNullOrWhiteSpace(row.ProtectedCredential) || !row.UseSsl)
                 return "Enabled SMTP requires a public host, TLS port (465/587/2525), username, sender email and password.";
         }
+        else if (row.Channel == NotificationChannelType.Email &&
+                 (!IsPublicHttpsEndpoint(row.Endpoint) || string.IsNullOrWhiteSpace(row.ProtectedCredential)))
+            return "Enabled email API gateways require a public HTTPS endpoint and credential.";
         return null;
     }
 
