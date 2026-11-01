@@ -179,7 +179,7 @@ test('Facilities search, pagination and late POST cannot restore stale actions',
     assert.match(script, /clearSelection\(\); load\(\)/);
     assert.match(script, /generation !== listGeneration/);
     assert.match(script, /generation !== historyGeneration \|\| selected\?\.id !== requestId/);
-    assert.match(script, /if \(selected\?\.id === result\.id\) select\(result\)/);
+    assert.match(script, /if \(!blocked && selected\?\.id === result\.id\) select\(result\)/);
 });
 
 test('work orders fail closed when tenant changes during an in-flight read', async () => {
