@@ -1,0 +1,30 @@
+name: Facility Spaces Chromium UI Acceptance
+on:
+  push:
+    branches: [Ashraful]
+    paths:
+      - 'EduOS.App/Views/FacilitySpaces/Index.cshtml'
+      - 'EduOS.App/wwwroot/js/facilities/spaces.js'
+      - 'tests/browser/facility-spaces.cjs'
+      - '.github/workflows/facility-spaces-browser.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: facility-spaces-browser-Ashraful
+  cancel-in-progress: true
+jobs:
+  chromium-facility-spaces:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install pinned Playwright
+        run: npm install --no-save --no-audit --no-fund playwright@1.56.0
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Exercise bilingual mobile, stale response and session-shield workflows in Chromium
+        run: node tests/browser/facility-spaces.cjs
