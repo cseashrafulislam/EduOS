@@ -5,7 +5,7 @@
 (() => {
     'use strict';
     if (!(document.documentElement.lang || '').toLowerCase().startsWith('bn')) return;
-    const root = document.querySelector('#hostelWorkspace, #transportWorkspace, #inventoryMovements, #feeApp');
+    const root = document.querySelector('#hostelWorkspace, #transportWorkspace, #inventoryMovements, #feeApp, #routineApp, #instructionApp, #institutionAccountingReports');
     if (!root) return;
     const labels = {
         'Find student': 'শিক্ষার্থী খুঁজুন',
@@ -172,13 +172,87 @@
         'Yearly': 'বার্ষিক',
         'Per term': 'প্রতি টার্ম',
         'Retained': 'সংরক্ষিত',
-        'Remove': 'সরান'
+        'Remove': 'সরান',
+        // Academic routine and instruction pages use the same reviewed exact-string helper.
+        'Find batch by name/code': 'নাম/কোড দিয়ে ব্যাচ খুঁজুন',
+        'Active academic batch': 'সক্রিয় একাডেমিক ব্যাচ',
+        'Loading academic batches…': 'একাডেমিক ব্যাচ লোড হচ্ছে…',
+        'Academic batch': 'একাডেমিক ব্যাচ',
+        'Loading batches…': 'ব্যাচ লোড হচ্ছে…',
+        'Load routine': 'রুটিন দেখুন',
+        'Load instruction': 'পাঠদান তথ্য দেখুন',
+        'Routine time slots': 'রুটিনের সময় স্লট',
+        'Add slot': 'স্লট যোগ করুন',
+        'Assigned teachers': 'নির্ধারিত শিক্ষক',
+        'Search teacher': 'শিক্ষক খুঁজুন',
+        'Name/code prefix': 'নাম/কোডের শুরু',
+        'Find offered subject': 'অফার করা বিষয় খুঁজুন',
+        'Subject/code prefix': 'বিষয়/কোডের শুরু',
+        'Class timetable': 'ক্লাস রুটিন',
+        'Teacher timetable': 'শিক্ষকের রুটিন',
+        'Teacher assigned to this batch': 'এই ব্যাচের নির্ধারিত শিক্ষক',
+        'View schedule': 'সময়সূচি দেখুন',
+        'Add class': 'ক্লাস যোগ করুন',
+        'Export current page CSV': 'বর্তমান পৃষ্ঠার CSV রপ্তানি',
+        'Export CSV': 'CSV রপ্তানি',
+        'Day': 'দিন',
+        'Slot': 'স্লট',
+        'Subject': 'বিষয়',
+        'Teacher': 'শিক্ষক',
+        'Lesson plans': 'পাঠ পরিকল্পনা',
+        'New lesson plan': 'নতুন পাঠ পরিকল্পনা',
+        'Find subject offering': 'বিষয় অফার খুঁজুন',
+        'Save lesson plan': 'পাঠ পরিকল্পনা সংরক্ষণ',
+        'CSV (current page)': 'বর্তমান পৃষ্ঠার CSV',
+        'New': 'নতুন',
+        'Approved': 'অনুমোদিত',
+        'Completed': 'সম্পন্ন',
+        'From': 'শুরু',
+        'To': 'শেষ',
+        // Institutional reports: labels, report tabs and exports only.
+        'General Ledger': 'সাধারণ লেজার',
+        'Trial Balance': 'ট্রায়াল ব্যালেন্স',
+        'Income Statement': 'আয়-ব্যয়ের বিবরণী',
+        'Balance Sheet': 'ব্যালেন্স শিট',
+        'Bank Book': 'ব্যাংক বুক',
+        'Bank Statement Comparison': 'ব্যাংক স্টেটমেন্ট তুলনা',
+        'Bank Liquidity': 'ব্যাংকের তারল্য',
+        'Account': 'হিসাব',
+        'Run Ledger': 'লেজার চালান',
+        'Run Trial Balance': 'ট্রায়াল ব্যালেন্স চালান',
+        'Run Income Statement': 'আয়-ব্যয়ের বিবরণী চালান',
+        'Run Balance Sheet': 'ব্যালেন্স শিট চালান',
+        'Run Bank Book': 'ব্যাংক বুক চালান',
+        'Run Bank Liquidity': 'ব্যাংকের তারল্য দেখুন',
+        'As of date': 'যে তারিখ পর্যন্ত',
+        'Debit': 'ডেবিট',
+        'Credit': 'ক্রেডিট',
+        'Debit balance': 'ডেবিট ব্যালেন্স',
+        'Credit balance': 'ক্রেডিট ব্যালেন্স',
+        'Running balance (Dr - Cr)': 'চলতি ব্যালেন্স (ডেবিট - ক্রেডিট)',
+        'Opening balance': 'শুরুর ব্যালেন্স',
+        'Closing balance': 'শেষের ব্যালেন্স',
+        'Total': 'মোট',
+        'Posted Journal Activity Audit': 'পোস্ট করা জার্নালের নিরীক্ষা',
+        'Load Activity': 'কার্যক্রম দেখুন',
+        'Export Page CSV': 'পৃষ্ঠার CSV রপ্তানি',
+        'Bank account': 'ব্যাংক হিসাব',
+        'Compare': 'তুলনা করুন',
+        'Save Draft': 'খসড়া সংরক্ষণ',
+        'Find Movements': 'লেনদেন খুঁজুন',
+        'Saved Statement Drafts': 'সংরক্ষিত স্টেটমেন্ট খসড়া',
+        'Historical Reconciliation Evidence': 'আগের সমন্বয়ের প্রমাণ',
+        'Export Comparison CSV': 'তুলনার CSV রপ্তানি',
+        'Export Evidence CSV': 'প্রমাণের CSV রপ্তানি',
+        'Print Evidence': 'প্রমাণ প্রিন্ট',
+        'Journal': 'জার্নাল',
+        'Description': 'বিবরণ'
     };
     const safe = value => Object.prototype.hasOwnProperty.call(labels, value) ? labels[value] : null;
     // Explicitly opted-in task clients can translate known UI labels created
     // after an asynchronous request. Never translate server-owned record names.
     globalThis.eduTaskStaticLabel = value => safe(value) || value;
-    for (const node of root.querySelectorAll('label, h3, h4, th, button, option, strong')) {
+    for (const node of root.querySelectorAll('label, h3, h4, h5, th, button, option, strong')) {
         // Never replace markup, child controls, interactive button icons or
         // dynamically generated records; exact static strings only.
         if (node.children.length) continue;

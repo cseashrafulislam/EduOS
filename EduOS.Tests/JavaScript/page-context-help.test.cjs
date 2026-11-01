@@ -21,10 +21,16 @@ const routes = ['/FeeReceivablesAging/Index', '/PayrollJournalPosting/Index', '/
     ...['Profile','Campuses','Regional','Branding','Subdomain','History'].map(action => '/InstitutionManagement/' + action),
     ...['TenantUsers','TenantPermissionOverrides','TenantModules','NumberSeries','TenantDomains','TenantTerminology',
         'TenantSettings','SubscriptionBilling','IntegrationAdministration','StudentDocuments','StudentGuardians',
-        'EnrollmentManagement'].map(name => '/' + name + '/Index')];
+        'EnrollmentManagement'].map(name => '/' + name + '/Index'),
+    ...['FeeDiscountRules','AdmissionCashReceipts','FeeHeadAccounting','AccountingSetup','AccountingJournals',
+        'AccountingReports','InventoryCatalog','AssetLifecycle','OperationsInsights','AcademicRoutines',
+        'AcademicInstruction','AcademicCalendar','StudentLeaves','EmployeeAttendance','LeaveEntitlements',
+        'StudentPortal','StudentSubjects','LearnerIdentities','Learning','AuditLogs','ImportHistory',
+        'CommunicationAdministration','CustomFields','DocumentAdministration','CommunicationWorkspace']
+        .map(name => '/' + name + '/Index')];
 
 test('all reviewed route manuals have full bilingual structure, matching steps and examples', () => {
-    assert.deepEqual(coverage(), { routes: 93, en: 93, bn: 93 });
+    assert.deepEqual(coverage(), { routes: 118, en: 118, bn: 118 });
     for (const route of routes) {
         const en = guideFor(route, 'en-BD');
         const bn = guideFor(route, 'bn-BD');
@@ -96,6 +102,47 @@ test('high-traffic institution settings and subscription UI honor selected docum
     assert.match(subscription, /t\("View receipt","রসিদ দেখুন"\)/);
     assert.match(subscription, /typed!=="END"/);
     assert.match(subscription, /Number\(pay\.state\)===3 && pay\.completedAt/);
+});
+test('twenty-five audited finance, academic and communication manuals match real authorized screens', () => {
+    const protectedPages = [
+        ['FeeDiscountRules', 'discountRuleSave'], ['AdmissionCashReceipts', 'admissionCashCollect'],
+        ['FeeHeadAccounting', 'feeHeadAccounting'], ['AccountingSetup', 'accountingSetup'],
+        ['AccountingJournals', 'accountingJournals'], ['AccountingReports', 'institutionAccountingReports'],
+        ['InventoryCatalog', 'itemForm'], ['AssetLifecycle', 'assetWorkspace'],
+        ['OperationsInsights', 'operationsInsightsTitle'], ['AcademicRoutines', 'routineLoad'],
+        ['AcademicInstruction', 'instructionLoad'], ['AcademicCalendar', 'calendarLoad'],
+        ['StudentLeaves', 'leaveSubmit'], ['EmployeeAttendance', 'employeeAttendanceSave'],
+        ['LeaveEntitlements', 'leaveEntitlementTypeReset'], ['StudentPortal', 'studentPortalTitle'],
+        ['StudentSubjects', 'subjectsRequestButton'], ['LearnerIdentities', 'identitySubmit'],
+        ['Learning', 'learningCourse'], ['AuditLogs', 'auditTitle'], ['ImportHistory', 'importHistoryTitle'],
+        ['CommunicationAdministration', 'communicationTitle'], ['CustomFields', 'cfPage'],
+        ['DocumentAdministration', 'docAdminTitle'], ['CommunicationWorkspace', 'cwSendMessage']
+    ];
+    for (const [name, id] of protectedPages) {
+        const view = read(`EduOS.App/Views/${name}/Index.cshtml`);
+        const controller = read(`EduOS.App/Controllers/${name}Controller.cs`);
+        const en = guideFor(`/${name}/Index`, 'en-BD');
+        const bn = guideFor(`/${name}/Index`, 'bn-BD');
+        assert.ok(view.includes(`id="${id}"`), `${name}: missing UI control`);
+        assert.match(controller, /\[Authorize(?:\(|\])/, `${name}: protected page`);
+        assert.ok(en && bn, `${name}: no bilingual guide`);
+        assert.ok(en.steps.length >= 3, `${name}: insufficient steps`);
+        assert.deepEqual(en.related.map(x => x.path), bn.related.map(x => x.path));
+        assert.notEqual(en.example, bn.example, `${name}: bilingual example`);
+    }
+});
+test('academic and accounting pages use the one shared manual rather than duplicate help icons', () => {
+    const report = read('EduOS.App/Views/AccountingReports/Index.cshtml');
+    const routine = read('EduOS.App/Views/AcademicRoutines/Index.cshtml');
+    const instruction = read('EduOS.App/Views/AcademicInstruction/Index.cshtml');
+    const instructionJs = read('EduOS.App/wwwroot/js/academic/instruction.js');
+    assert.doesNotMatch(report, /Accounting report help|Open Journal Posting &amp; Reversal/);
+    assert.doesNotMatch(routine, /Routine field guide|ⓘ/);
+    assert.doesNotMatch(instruction, /id="instructionHelp"|id="instructionHelpText"|ⓘ/);
+    assert.doesNotMatch(instructionJs, /get\('instructionHelp'\)/);
+    assert.match(layout, /id="pageContextHelp"/);
+    for (const route of ['/AcademicRoutines/Index', '/AcademicInstruction/Index', '/AccountingReports/Index'])
+        assert.ok(guideFor(route, 'bn-BD'), route);
 });
 test('shared drawer is one user-initiated accessible renderer, not hover-triggered popover', () => {
     assert.match(layout, /id="pageContextHelp"[^>]+type="button"/);

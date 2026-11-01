@@ -131,7 +131,7 @@ test('all new operation, library and LMS manuals are distinct validated English/
         ...['Branches', 'Reservations', 'Overdue', 'Conditions', 'Integrity', 'Liabilities'].map(action => `/Library/${action}`),
         ...['Quizzes', 'LiveClasses', 'CourseContent', 'AssignmentFiles', 'Certificates'].map(action => `/Learning/${action}`)
     ];
-    assert.deepEqual(coverage(), { routes: 93, en: 93, bn: 93 });
+    assert.deepEqual(coverage(), { routes: 118, en: 118, bn: 118 });
     for (const route of all) {
         const en = guideFor(route, 'en-BD');
         const bn = guideFor(route, 'bn-BD');
@@ -180,6 +180,39 @@ test('Bangla static task-label enhancement leaves values, child controls and Eng
     assert.equal(controlLabel.textContent, 'Status');
     assert.equal(input.attrs.placeholder, 'খুঁজুন');
     assert.equal(controlLabel.children.length, 1);
+});
+
+test('academic and accounting task locale remains bounded to the actual routed workspace', () => {
+    const script = read('EduOS.App/wwwroot/js/platform/task-workspace-locales.js');
+    for (const [path, rootId, heading, bangla] of [
+        ['AcademicRoutines', 'routineApp', 'Class timetable', 'ক্লাস রুটিন'],
+        ['AcademicInstruction', 'instructionApp', 'Lesson plans', 'পাঠ পরিকল্পনা'],
+        ['AccountingReports', 'institutionAccountingReports', 'Trial Balance', 'ট্রায়াল ব্যালেন্স']
+    ]) {
+        const view = read(`EduOS.App/Views/${path}/Index.cshtml`);
+        assert.match(view, new RegExp(`id="${rootId}"`));
+        assert.match(view, /task-workspace-locales\.js/);
+        const element = {
+            textContent: heading,
+            children: [],
+            getAttribute: () => null,
+            setAttribute: () => { throw new Error('unexpected mutation'); }
+        };
+        const record = { value: 'Tenant-owned name', textContent: 'Tenant-owned name' };
+        const workspace = { querySelectorAll: selector => selector.includes('placeholder') ? [] : [element] };
+        const run = lang => vm.runInNewContext(script, {
+            document: {
+                documentElement: { lang },
+                querySelector: selector => selector.includes(`#${rootId}`) ? workspace : null
+            }
+        });
+        run('en-BD');
+        assert.equal(element.textContent, heading);
+        run('bn-BD');
+        assert.equal(element.textContent, bangla);
+        assert.equal(record.value, 'Tenant-owned name');
+        assert.equal(record.textContent, 'Tenant-owned name');
+    }
 });
 
 test('semantic-color readable foreground meets WCAG AA contrast on arbitrary valid picks', () => {

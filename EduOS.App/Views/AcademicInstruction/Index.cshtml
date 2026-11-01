@@ -1,10 +1,9 @@
 @{
-    ViewData["Title"] = "Academic Instruction";
+    ViewData["Title"] = System.Globalization.CultureInfo.CurrentUICulture.Name == "bn-BD" ? "পাঠদান ব্যবস্থাপনা" : "Academic Instruction";
     var canManage = User.IsInRole("TenantAdmin") || User.IsInRole("Principal") || User.IsInRole("VicePrincipal");
 }
 <section id="instructionApp" data-can-manage="@canManage.ToString().ToLowerInvariant()" data-can-teach="@User.IsInRole("Teacher").ToString().ToLowerInvariant()" class="container-fluid py-3">
-    <header class="mb-3 d-flex align-items-center justify-content-between gap-2"><h2 class="h4 mb-0">Academic Instruction</h2><button id="instructionHelp" type="button" class="btn btn-sm btn-outline-secondary" title="Page guide" aria-label="Academic instruction guide" aria-controls="instructionHelpText" aria-expanded="false">ⓘ</button></header>
-    <div id="instructionHelpText" class="d-none small text-muted mb-3" role="note">Choose a batch and date range. Search subject offerings when creating a lesson plan; only assigned instructors can progress approved lessons. Substitutions require an active routine and a different eligible teacher. Managers can view a date-scoped substitute workload report.</div>
+    <header class="mb-3 d-flex align-items-center justify-content-between gap-2"><h2 class="h4 mb-0">@(System.Globalization.CultureInfo.CurrentUICulture.Name == "bn-BD" ? "পাঠদান ব্যবস্থাপনা" : "Academic Instruction")</h2></header>
     <div id="instructionAlert" class="d-none" tabindex="-1" role="alert" aria-live="polite"></div>
     <form id="instructionFilters" class="card card-body mb-3">
         <div class="row g-3 align-items-end">
@@ -124,5 +123,6 @@
     }
 </section>
 @section Scripts {
+    <script src="~/js/platform/task-workspace-locales.js" asp-append-version="true"></script>
     <script src="~/js/academic/instruction.js" asp-append-version="true"></script>
 }

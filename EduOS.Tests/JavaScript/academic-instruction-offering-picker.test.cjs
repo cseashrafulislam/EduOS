@@ -42,5 +42,6 @@ test('lesson edit uses scoped saved offering reference, not a limited current se
     assert.match(view, /id="lessonOfferingSearch"/);
     assert.match(view, /id="lessonOfferingsPrevious"/);
     assert.match(view, /id="lessonOfferingsNext"/);
-    assert.match(view, /id="instructionHelp"[^>]*aria-expanded="false"/);
+    assert.doesNotMatch(view, /id="instructionHelp"/);
+    assert.match(view, /task-workspace-locales\.js/);
 });

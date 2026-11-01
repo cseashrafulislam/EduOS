@@ -616,12 +616,6 @@
         if (state.offeringPage < state.offeringPages)
             findOfferings(state.offeringPage + 1).catch(e => status('danger', e.message));
     });
-    get('instructionHelp').addEventListener('click', () => {
-        const guide = get('instructionHelpText');
-        const expanded = get('instructionHelp').getAttribute('aria-expanded') === 'true';
-        guide.classList.toggle('d-none', expanded);
-        get('instructionHelp').setAttribute('aria-expanded', String(!expanded));
-    });
     get('lessonPrevious').addEventListener('click',()=>{if(state.lessonPage>1){state.lessonPage--;load();}});
     get('lessonNext').addEventListener('click',()=>{if(state.lessonPage<state.lessonPages){state.lessonPage++;load();}});
     get('substitutionStatus').addEventListener('change', () => {

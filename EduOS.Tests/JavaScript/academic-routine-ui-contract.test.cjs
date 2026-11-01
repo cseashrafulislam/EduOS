@@ -34,7 +34,8 @@ test('teacher timetable uses authorized SQL pages and exports only the displayed
     assert.match(script,/routineTeacherNext/);
     assert.match(script,/page-'\+state\.teacherPage/);
     assert.match(view,/id="routineTeacherPage"/);
-    assert.match(view,/Routine field guide/);
+    assert.doesNotMatch(view,/Routine field guide/);
+    assert.match(view,/task-workspace-locales\.js/);
 });
 test('timetable readback exposes CSV reports with spreadsheet formula protection',()=>{
     assert.match(script,/function exportBatch\(/);
