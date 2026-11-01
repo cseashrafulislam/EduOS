@@ -239,6 +239,23 @@
             ]
           ]
         },
+        '/careeremployers/index': {
+            version: 1, reviewed: true,
+            title: ['Career Employer Verification', 'ক্যারিয়ার নিয়োগদাতা যাচাই'],
+            purpose: ['Register campus-owned employers and independently verify their identity for the Alumni career network. This page does not publish jobs or accept applications.', 'প্রাক্তন শিক্ষার্থীদের ক্যারিয়ার নেটওয়ার্কের জন্য ক্যাম্পাসভিত্তিক নিয়োগদাতা নিবন্ধন ও স্বাধীনভাবে যাচাই করুন। এখানে চাকরি প্রকাশ বা আবেদন গ্রহণ হয় না।'],
+            before: ['Sign in as TenantAdmin in an ALUMNI-enabled institution. An authorized active campus and a second distinct TenantAdmin are required. Verify employer details outside the system before approving.', 'ALUMNI চালু প্রতিষ্ঠানে TenantAdmin হিসেবে প্রবেশ করুন। সক্রিয় অনুমোদিত ক্যাম্পাস এবং আলাদা দ্বিতীয় TenantAdmin প্রয়োজন। অনুমোদনের আগে প্রতিষ্ঠানের তথ্য স্বাধীনভাবে যাচাই করুন।'],
+            steps: [
+                ['Select an authorized Campus, enter Employer name (3–160 characters) and an optional HTTPS website.', 'অনুমোদিত Campus বেছে Employer name (৩–১৬০ অক্ষর) এবং চাইলে HTTPS ওয়েবসাইট লিখুন।'],
+                ['Select Save draft. The employer appears as Awaiting verification; duplicate names within one campus are rejected.', 'Save draft চাপুন। নিয়োগদাতা Awaiting verification অবস্থায় দেখাবে; একই ক্যাম্পাসে একই নাম আবার দেওয়া যাবে না।'],
+                ['A different TenantAdmin selects Refresh, reviews the employer and selects Verify. The creator cannot approve their own draft.', 'অন্য TenantAdmin Refresh করে নিয়োগদাতা পর্যালোচনা করে Verify চাপবেন। খসড়া তৈরিকারী নিজে অনুমোদন করতে পারবেন না।'],
+                ['Choose Verified from Status to see the approved list; Export verified page CSV exports only the current verified page.', 'Status থেকে Verified বেছে অনুমোদিত তালিকা দেখুন; Export verified page CSV শুধু বর্তমান যাচাইকৃত পৃষ্ঠা রপ্তানি করে।']
+            ],
+            example: ['Fictional example: administrator Rahim drafts Example Engineering Ltd for Main Campus with https://example.org. Administrator Nila independently checks the employer and selects Verify. The verified entry appears in the filtered CSV.', 'কাল্পনিক উদাহরণ: প্রশাসক রহিম Main Campus-এ Example Engineering Ltd এবং https://example.org দিয়ে খসড়া করেন। প্রশাসক নীলা আলাদাভাবে যাচাই করে Verify দেন। যাচাইকৃত নিয়োগদাতা CSV তালিকায় আসে।'],
+            result: ['Verified employers are recorded with an immutable decision command and can be listed or exported by authorized TenantAdmins. No student contacts, applications, notifications, invoices or stock movements are created.', 'যাচাইকৃত নিয়োগদাতা সিদ্ধান্তের রেকর্ডসহ সংরক্ষিত হয় এবং অনুমোদিত TenantAdmin তালিকা/CSV দেখতে পারেন। শিক্ষার্থীর যোগাযোগ, আবেদন, বিজ্ঞপ্তি, ইনভয়েস বা স্টক পরিবর্তন হয় না।'],
+            rules: ['Verification requires a second administrator and the current row version. A repeated identical request is idempotent; a stale or reused request returns 409. This initial workflow has no edit, rejection or job-publication action. Finance and Inventory remain untouched.', 'যাচাইয়ে আলাদা প্রশাসক ও বর্তমান row version লাগে। একই অনুরোধ পুনরায় নিরাপদ; পুরোনো বা অন্য কাজে ব্যবহৃত অনুরোধে ৪০৯ আসে। এই পর্যায়ে Edit, Reject বা চাকরি প্রকাশের ব্যবস্থা নেই। Finance ও Inventory অপরিবর্তিত।'],
+            recovery: ['If Campus is empty, check ALUMNI entitlement and campus access. If a duplicate is reported, review the existing draft. After a timeout retry the same action; on 403/409 refresh and request another authorized approver. Incorrect drafts must not be verified; await the correction workflow.', 'Campus না এলে ALUMNI অনুমতি ও ক্যাম্পাস অধিকার দেখুন। ডুপ্লিকেট হলে আগের খসড়া যাচাই করুন। টাইমআউট হলে একই কাজ পুনরায় দিন; ৪০৩/৪০৯ হলে Refresh করে অন্য অনুমোদিত যাচাইকারীর সাহায্য নিন। ভুল খসড়া যাচাই করবেন না; সংশোধনের ব্যবস্থা আসা পর্যন্ত অপেক্ষা করুন।'],
+            related: [['/Alumni/Index', 'Alumni directory and engagement', 'প্রাক্তন শিক্ষার্থী তালিকা ও অনুষ্ঠান']]
+        },
         '/alumni/index': {
                   "version": 1,
                   "reviewed": true,

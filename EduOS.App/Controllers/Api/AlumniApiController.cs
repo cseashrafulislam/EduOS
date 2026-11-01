@@ -169,6 +169,58 @@ public sealed class AlumniApiController : ControllerBase
 
     // Export headings follow the already resolved tenant/user UI culture. ISO-8601 UTC values
     // and API status codes stay canonical; only presentation labels are localized.
+    // Career employer onboarding is campus-scoped and visible only to TenantAdmin.
+    [HttpGet("career/employers")]
+    [Authorize(Roles = "TenantAdmin")]
+    public async Task<IActionResult> Employers([FromQuery] CareerEmployerQueryDto query, CancellationToken ct)
+    {
+        if (!ModelState.IsValid) return ValidationProblem(ModelState);
+        var result = await _service.EmployersAsync(query, ct);
+        return StatusCode(result.StatusCode, result);
+    }
+
+    [HttpPost("career/employers")]
+    [Authorize(Roles = "TenantAdmin")]
+    [EnableRateLimiting("ApiPolicy")]
+    public async Task<IActionResult> CreateEmployer([FromBody] CareerEmployerDraftDto request, CancellationToken ct)
+    {
+        if (!ModelState.IsValid) return ValidationProblem(ModelState);
+        var result = await _service.CreateEmployerAsync(request, ct);
+        return StatusCode(result.StatusCode, result);
+    }
+
+    [HttpPost("career/employers/{reference:guid}/verify")]
+    [Authorize(Roles = "TenantAdmin")]
+    [EnableRateLimiting("ApiPolicy")]
+    public async Task<IActionResult> VerifyEmployer(Guid reference, [FromBody] CareerEmployerVerifyDto request, CancellationToken ct)
+    {
+        if (!ModelState.IsValid) return ValidationProblem(ModelState);
+        var result = await _service.VerifyEmployerAsync(reference, request, ct);
+        return StatusCode(result.StatusCode, result);
+    }
+
+    // No employer contact or student application data; only current verified page.
+    [HttpGet("career/employers.csv")]
+    [Authorize(Roles = "TenantAdmin")]
+    public async Task<IActionResult> EmployerReport([FromQuery] CareerEmployerQueryDto query, CancellationToken ct)
+    {
+        if (!ModelState.IsValid) return ValidationProblem(ModelState);
+        query.Status = 2;
+        var result = await _service.EmployersAsync(query, ct);
+        if (!result.Success || result.Data == null) return StatusCode(result.StatusCode, result);
+        var bn = CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "bn";
+        var csv = new StringBuilder(bn
+            ? "\uFEFFনিয়োগদাতা,ক্যাম্পাস আইডি,ওয়েবসাইট,যাচাইকৃত অবস্থা\r\n"
+            : "\uFEFFEmployer,Campus ID,Website,Verification status\r\n");
+        foreach (var item in result.Data.Items)
+            csv.Append(Csv(item.Name)).Append(',').Append(item.CampusId).Append(',')
+                .Append(Csv(item.Website)).Append(',').Append(Csv(bn ? "যাচাইকৃত" : "Verified"))
+                .Append("\r\n");
+        Response.Headers["X-Content-Type-Options"] = "nosniff";
+        return File(Encoding.UTF8.GetBytes(csv.ToString()), "text/csv; charset=utf-8",
+            $"career-verified-employers-page-{query.Page}.csv");
+    }
+
     private static string DirectoryHeader(bool bengali) => bengali
         ? "\uFEFFশিক্ষার্থী কোড,নাম,ইমেইল,ফোন,সম্পন্ন (UTC),ক্যাম্পাস আইডি\r\n"
         : "\uFEFFStudent code,Name,Email,Phone,Completed (UTC),Campus ID\r\n";

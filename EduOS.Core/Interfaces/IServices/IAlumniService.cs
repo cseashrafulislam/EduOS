@@ -5,6 +5,9 @@ namespace EduOS.Core.Interfaces.IServices;
 
 public interface IAlumniService
 {
+    Task<ApiResponse<CareerEmployerItemDto>> CreateEmployerAsync(CareerEmployerDraftDto request, CancellationToken ct = default);
+    Task<ApiResponse<CareerEmployerItemDto>> VerifyEmployerAsync(Guid reference, CareerEmployerVerifyDto request, CancellationToken ct = default);
+    Task<ApiResponse<PagedResult<CareerEmployerItemDto>>> EmployersAsync(CareerEmployerQueryDto query, CancellationToken ct = default);
     Task<ApiResponse<IReadOnlyList<AlumniEventCampusDto>>> EventCampusesAsync(CancellationToken ct = default);
     Task<ApiResponse<AlumniEventItemDto>> CreateEventAsync(AlumniEventDraftDto request, CancellationToken ct = default);
     Task<ApiResponse<AlumniEventItemDto>> ChangeEventStatusAsync(Guid reference, AlumniEventActionDto request, bool publish, CancellationToken ct = default);
