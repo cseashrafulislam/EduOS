@@ -19,7 +19,7 @@ function markup(file, startTag) {
             .replace('data-can-correct="@((User.IsInRole("TenantAdmin") || User.IsInRole("Principal") || User.IsInRole("VicePrincipal")).ToString().ToLowerInvariant())"',
                 'data-can-correct="true"') + '</body></html>';
 }
-const attendanceHtml = markup('EduOS.App/Views/Attendance/Index.cshtml', '<section class="admission-page"');
+const attendanceHtml = markup('EduOS.App/Views/Attendance/Index.cshtml', '<section class="admission-page ');
 const routineHtml = markup('EduOS.App/Views/AcademicRoutines/Index.cshtml', '<section id="routineApp"');
 const leavesHtml = markup('EduOS.App/Views/StudentLeaves/Index.cshtml', '<div id="studentLeavesApp"');
 const response = (route, status, data, message = '') => route.fulfill({
