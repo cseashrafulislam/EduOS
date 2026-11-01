@@ -11,7 +11,9 @@ const descriptions = {
     ReviewRequired: 'Candidates found; source binding and independent approval required / উৎস সংযোগ ও স্বতন্ত্র অনুমোদন প্রয়োজন'
 };
 let current = null;
+let activeRequest = 0;
 export async function showCapitalizationReadiness(reference) {
+    const requestId = ++activeRequest;
     const panel = el('assetCapitalizationPanel');
     panel.classList.remove('d-none');
     el('assetCapitalizationStatus').textContent = 'Loading evidence / প্রমাণ লোড হচ্ছে…';
@@ -20,6 +22,8 @@ export async function showCapitalizationReadiness(reference) {
     current = null;
     try {
         const data = await api('/' + encodeURIComponent(reference) + '/capitalization-readiness');
+        // Ignore evidence from a previous asset selection or a closed panel.
+        if (requestId !== activeRequest || panel.classList.contains('d-none')) return;
         current = data;
         el('assetCapitalizationStatus').textContent =
             data.assetTag + ' · ' + (descriptions[data.statusCode] || data.statusCode) +
@@ -39,14 +43,18 @@ export async function showCapitalizationReadiness(reference) {
         }
         el('assetCapitalizationExport').disabled = false;
     } catch (error) {
+        if (requestId !== activeRequest || panel.classList.contains('d-none')) return;
         el('assetCapitalizationStatus').textContent = 'Evidence unavailable / প্রমাণ পাওয়া যায়নি';
         notice(error.message);
     }
 }
 export function bindCapitalizationReadiness() {
     el('assetCapitalizationClose').addEventListener('click', () => {
+        ++activeRequest;
         el('assetCapitalizationPanel').classList.add('d-none');
         current = null;
+        el('assetCapitalizationExport').disabled = true;
+        el('assetCapitalizationRows').replaceChildren();
     });
     el('assetCapitalizationExport').addEventListener('click', () => {
         if (!current) return;
