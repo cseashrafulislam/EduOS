@@ -20,7 +20,8 @@ test('facilities workflow is bilingual, mobile and escapes untrusted data', () =
 test('workflow posts antiforgery and retries the same idempotency command', () => {
     assert.match(script, /RequestVerificationToken = token/);
     assert.match(script, /credentials: 'same-origin'/);
-    assert.match(script, /clientCommandId: commandId\(key\)/);
+    assert.match(script, /body\.clientCommandId = commandId\(key, body\)/);
+    assert.match(script, /body\.clientRequestId = commandId\(key, body\)/);
     assert.match(script, /rowVersion:/);
     assert.match(script, /\/history\?page=/);
     assert.match(script, /facilityExport/);
@@ -70,4 +71,30 @@ test('independent verifier can return unsafe completion for correction, with bil
     assert.match(script, /'escalate', 'return', 'cancelrequest', 'cancelapprove', 'cancelreject'\]\.includes\(action\) \? 500/);
     assert.match(script, /actionLabels\[event\.actionCode\]/);
     assert.match(script, /selected\.workOrderRowVersion/);
+});
+
+test('an uncertain submission retains its command ID only for an identical payload', () => {
+    const vm = require('node:vm');
+    const begin = script.indexOf('    const pending = new Map();');
+    const end = script.indexOf('    function notice(', begin);
+    assert.ok(begin >= 0 && end > begin, 'extract actual browser command helper');
+    let sequence = 0;
+    const { commandId, pending } = vm.runInNewContext(
+        script.slice(begin, end) + '\n({ commandId, pending })',
+        { crypto: { randomUUID: () => 'command-' + ++sequence }, t: en => en });
+    const request = { campusId: 12, facilitySpaceId: 7, summary: 'Broken light' };
+    const first = commandId('create:12:7', request);
+    assert.equal(commandId('create:12:7', { ...request }), first);
+    assert.throws(() => commandId('create:12:7',
+        { ...request, summary: 'Broken fan' }), /Reload and check the request/);
+    assert.equal(commandId('create:12:8',
+        { ...request, facilitySpaceId: 8 }), 'command-2');
+    pending.delete('create:12:7');
+    assert.equal(commandId('create:12:7',
+        { ...request, summary: 'Broken fan' }), 'command-3');
+    const transition = { rowVersion: 'AAAB', note: 'Original approval note' };
+    const transitionId = commandId('51:verify', transition);
+    assert.equal(commandId('51:verify', { ...transition }), transitionId);
+    assert.throws(() => commandId('51:verify',
+        { ...transition, note: 'Changed approval note' }), /Reload and check the request/);
 });
