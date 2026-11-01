@@ -73,7 +73,10 @@ async function managerAndSession(browser) {
         await page.locator('#wfRows button').click();
         assert.match(await page.locator('#wfAction').innerText(), /Assign schedule/);
         await page.evaluate(() => { document.body.dataset.authTenantId = '99'; });
-        await page.locator('#facilityExport').click();
+        // A concurrent history read may already lock the page before the click.
+        // Dispatch explicitly to exercise the export handler even when disabled.
+        await page.evaluate(() => document.getElementById('facilityExport')
+            .dispatchEvent(new MouseEvent('click', { bubbles: true })));
         await page.locator('#workflowAlert').filter({ hasText: 'Institution session changed' }).waitFor();
         assert.equal(await page.locator('#wfRows tr').count(), 0);
         assert.equal(await page.locator('#wfCreate button[type="submit"]').isDisabled(), true);
