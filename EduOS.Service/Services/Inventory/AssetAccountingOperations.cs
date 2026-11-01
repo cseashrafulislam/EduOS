@@ -79,6 +79,21 @@ public sealed partial class AssetAccountingService
         return (value, null);
     }
 
+    // A tenant-wide idempotency key is not authorization to read another asset.
+    // Replays must retain source-book identity and current campus permission.
+    private async Task<bool> ReplayBookAllowedAsync(
+        Guid assetReference, long bookId, CancellationToken ct)
+    {
+        var source = await (from asset in db.Assets.AsNoTracking()
+            join book in db.AssetBooks.AsNoTracking() on asset.Id equals book.AssetId
+            where asset.TenantId == user.TenantId && book.TenantId == user.TenantId &&
+                asset.PublicId == assetReference && book.Id == bookId &&
+                !asset.IsDeleted && !book.IsDeleted && asset.CampusId != null &&
+                book.CampusId == asset.CampusId
+            select new { book.CampusId }).SingleOrDefaultAsync(ct);
+        return source != null && await CampusAllowedAsync(source.CampusId, ct);
+    }
+
     private static bool ReasonValid(string? reason) => reason?.Trim().Length is >= 10 and <= 800;
     private static bool MonthEnd(DateOnly day) =>
         day.Day == DateTime.DaysInMonth(day.Year, day.Month);
@@ -250,6 +265,8 @@ public sealed partial class AssetAccountingService
             {
                 var replayLine = await db.AssetDepreciationLines.IgnoreQueryFilters().AsNoTracking().FirstAsync(x =>
                     x.TenantId == user.TenantId && x.AssetDepreciationRunId == replay.Id, ct);
+                if (!await ReplayBookAllowedAsync(assetReference, replayLine.AssetBookId, ct))
+                    return Conflict<AssetAccountingEventDto>("Asset event not found.", 404);
                 return replay.AccountingPeriodId == request.AccountingPeriodId &&
                     replay.PeriodEnd == request.EffectiveDate && replay.ValuationMode == request.ValuationMode &&
                     replay.Remarks == request.Reason.Trim()

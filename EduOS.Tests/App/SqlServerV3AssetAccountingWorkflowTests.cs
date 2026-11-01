@@ -114,6 +114,9 @@ public sealed partial class SqlServerV3ProcurementPurchaseOrderTests
             Assert.Equal(100m, submitted.Data.Amount);
             Assert.Equal(depId, (await service.RequestDepreciationAsync(assetReference,
                 depreciationRequest)).Data!.Id);
+            Assert.Equal(404, (await service.RequestDepreciationAsync(
+                Guid.NewGuid(), depreciationRequest)).StatusCode);
+            Assert.Single(await db.AssetDepreciationRuns.AsNoTracking().ToListAsync());
             Assert.Equal(409, (await service.ReviewDepreciationAsync(depId,
                 new AssetReviewRequest { RowVersion = depVersion, Approve = true,
                     Reason = "Cannot approve self-submitted depreciation" })).StatusCode);
@@ -178,15 +181,21 @@ public sealed partial class SqlServerV3ProcurementPurchaseOrderTests
         long impairmentId; string impairmentVersion;
         await using (var db = Open(opts, tenantId, makerId))
         {
-            var submitted = await AssetFinance(db, tenantId, makerId).RequestImpairmentAsync(
-                assetReference, new AssetValuationRequest
-                {
-                    ClientRequestId = Guid.NewGuid(), AccountingPeriodId = periodId,
-                    EffectiveDate = today, ValuationMode = "ManualFinal", Amount = 25m,
-                    Reason = "Signed impairment inspection values the damaged component"
-                });
+            var finance = AssetFinance(db, tenantId, makerId);
+            var impairmentRequest = new AssetValuationRequest
+            {
+                ClientRequestId = Guid.NewGuid(), AccountingPeriodId = periodId,
+                EffectiveDate = today, ValuationMode = "ManualFinal", Amount = 25m,
+                Reason = "Signed impairment inspection values the damaged component"
+            };
+            var submitted = await finance.RequestImpairmentAsync(assetReference, impairmentRequest);
             Assert.True(submitted.Success, submitted.Message);
             impairmentId = submitted.Data!.Id; impairmentVersion = submitted.Data.RowVersion;
+            Assert.Equal(impairmentId, (await finance.RequestImpairmentAsync(
+                assetReference, impairmentRequest)).Data!.Id);
+            Assert.Equal(404, (await finance.RequestImpairmentAsync(
+                Guid.NewGuid(), impairmentRequest)).StatusCode);
+            Assert.Single(await db.AssetImpairments.AsNoTracking().ToListAsync());
         }
         await using (var db = Open(opts, tenantId, checkerId))
         {
@@ -205,16 +214,22 @@ public sealed partial class SqlServerV3ProcurementPurchaseOrderTests
         {
             var clearing = await db.Accounts.Where(x => x.Code == "AOPS-CL-" + suffix)
                 .Select(x => x.Id).SingleAsync();
-            var submitted = await AssetFinance(db, tenantId, makerId).RequestDisposalAsync(
-                assetReference, new AssetValuationRequest
-                {
-                    ClientRequestId = Guid.NewGuid(), AccountingPeriodId = periodId,
-                    EffectiveDate = today, ValuationMode = "ManualFinal", Amount = 600m,
-                    ProceedsClearingAccountId = clearing,
-                    Reason = "Management-approved disposal with invoiced clearing proceeds"
-                });
+            var finance = AssetFinance(db, tenantId, makerId);
+            var disposalRequest = new AssetValuationRequest
+            {
+                ClientRequestId = Guid.NewGuid(), AccountingPeriodId = periodId,
+                EffectiveDate = today, ValuationMode = "ManualFinal", Amount = 600m,
+                ProceedsClearingAccountId = clearing,
+                Reason = "Management-approved disposal with invoiced clearing proceeds"
+            };
+            var submitted = await finance.RequestDisposalAsync(assetReference, disposalRequest);
             Assert.True(submitted.Success, submitted.Message);
             disposalId = submitted.Data!.Id; disposalVersion = submitted.Data.RowVersion;
+            Assert.Equal(disposalId, (await finance.RequestDisposalAsync(
+                assetReference, disposalRequest)).Data!.Id);
+            Assert.Equal(404, (await finance.RequestDisposalAsync(
+                Guid.NewGuid(), disposalRequest)).StatusCode);
+            Assert.Single(await db.AssetDisposals.AsNoTracking().ToListAsync());
         }
         await using (var db = Open(opts, tenantId, checkerId))
         {

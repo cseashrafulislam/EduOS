@@ -25,6 +25,9 @@ public sealed partial class AssetAccountingService
             var prior = await db.AssetImpairments.AsNoTracking().FirstOrDefaultAsync(x =>
                 x.TenantId == user.TenantId && x.ClientRequestId == request.ClientRequestId, ct);
             if (prior != null)
+            {
+                if (!await ReplayBookAllowedAsync(assetReference, prior.AssetBookId, ct))
+                    return Conflict<AssetAccountingEventDto>("Asset event not found.", 404);
                 return prior.AccountingPeriodId == request.AccountingPeriodId &&
                     prior.EffectiveDate == request.EffectiveDate && prior.Amount == request.Amount &&
                     prior.Reason == request.Reason.Trim()
@@ -32,6 +35,7 @@ public sealed partial class AssetAccountingService
                         prior.ClientRequestId, prior.StateCode, prior.EffectiveDate, prior.Amount,
                         null, null, prior.CreatedBy, prior.ApprovedByUserId, prior.RowVersion))
                     : Conflict<AssetAccountingEventDto>("Impairment key is already used.");
+            }
             var (value, error) = await EligibleAsync(assetReference, request.AccountingPeriodId,
                 request.EffectiveDate, ct);
             if (value == null) return Conflict<AssetAccountingEventDto>(error ?? "Asset not eligible.");
@@ -140,6 +144,9 @@ public sealed partial class AssetAccountingService
             var prior = await db.AssetDisposals.IgnoreQueryFilters().AsNoTracking().FirstOrDefaultAsync(x =>
                 x.TenantId == user.TenantId && x.ClientRequestId == request.ClientRequestId, ct);
             if (prior != null)
+            {
+                if (!await ReplayBookAllowedAsync(assetReference, prior.AssetBookId, ct))
+                    return Conflict<AssetAccountingEventDto>("Asset event not found.", 404);
                 return prior.AccountingPeriodId == request.AccountingPeriodId &&
                     prior.DisposalDate == request.EffectiveDate && prior.Proceeds == request.Amount &&
                     prior.ProceedsClearingAccountId == request.ProceedsClearingAccountId &&
@@ -148,6 +155,7 @@ public sealed partial class AssetAccountingService
                         prior.ClientRequestId, prior.StateCode, prior.DisposalDate, prior.Proceeds,
                         null, null, prior.CreatedBy, prior.ApprovedByUserId, prior.RowVersion))
                     : Conflict<AssetAccountingEventDto>("Disposal key already belongs to another request.");
+            }
             var (value, error) = await EligibleAsync(assetReference, request.AccountingPeriodId,
                 request.EffectiveDate, ct);
             if (value == null) return Conflict<AssetAccountingEventDto>(error ?? "Asset not eligible.");
