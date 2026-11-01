@@ -599,6 +599,80 @@ public sealed class SqlServerFacilityWorkOrderTests
                 });
             Assert.Equal(409, mismatch.StatusCode);
         }
+
+        // Independent SQL connections race to schedule two different approved work orders
+        // for the SAME technician and UTC window. The transaction-owned application lock
+        // must admit only one; a losing request must not leave an assignment or audit event.
+        var competingOrders = new List<FacilityRequestDto>();
+        for (var i = 0; i < 2; i++)
+        {
+            FacilityRequestDto candidate;
+            await using (var db = Db(options, tenantId, requesterId, "FacilitiesRequester"))
+            {
+                var created = await Service(db, tenantId, requesterId, "FacilitiesRequester")
+                    .CreateAsync(new CreateFacilityRequestDto
+                    {
+                        ClientRequestId = Guid.NewGuid(), CampusId = campusId,
+                        FacilitySpaceId = spaceId, CategoryCode = "ELECTRICAL",
+                        PriorityCode = "Normal", Summary = "Parallel technician repair " + i
+                    });
+                Assert.True(created.Success, created.Message);
+                candidate = created.Data!;
+            }
+            await using (var db = Db(options, tenantId, managerId, "FacilitiesManager"))
+            {
+                var triaged = await Service(db, tenantId, managerId, "FacilitiesManager")
+                    .TransitionAsync(candidate.Id, "triage", new FacilityTransitionDto
+                    {
+                        ClientCommandId = Guid.NewGuid(), RowVersion = candidate.RowVersion,
+                        SlaDueAtUtc = DateTime.UtcNow.AddHours(12)
+                    });
+                Assert.True(triaged.Success, triaged.Message);
+                candidate = triaged.Data!;
+            }
+            await using (var db = Db(options, tenantId, approverId, "FacilitiesApprover"))
+            {
+                var approvedParallel = await Service(db, tenantId, approverId, "FacilitiesApprover")
+                    .TransitionAsync(candidate.Id, "approve", new FacilityTransitionDto
+                    {
+                        ClientCommandId = Guid.NewGuid(), RowVersion = candidate.RowVersion
+                    });
+                Assert.True(approvedParallel.Success, approvedParallel.Message);
+                candidate = approvedParallel.Data!;
+            }
+            competingOrders.Add(candidate);
+        }
+        var startParallel = DateTime.UtcNow.AddHours(8);
+        var endParallel = startParallel.AddHours(1);
+        var gate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        async Task<(bool Success, int Status)> ScheduleCompetingAsync(FacilityRequestDto candidate)
+        {
+            await using var db = Db(options, tenantId, managerId, "FacilitiesManager");
+            await gate.Task;
+            var result = await Service(db, tenantId, managerId, "FacilitiesManager")
+                .TransitionAsync(candidate.Id, "schedule", new FacilityTransitionDto
+                {
+                    ClientCommandId = Guid.NewGuid(), RowVersion = candidate.WorkOrderRowVersion!,
+                    TechnicianUserId = techId, ScheduledStartUtc = startParallel,
+                    ScheduledEndUtc = endParallel
+                });
+            return (result.Success, result.StatusCode);
+        }
+        var contenders = competingOrders.Select(ScheduleCompetingAsync).ToArray();
+        gate.SetResult();
+        var outcomes = await Task.WhenAll(contenders);
+        Assert.Single(outcomes.Where(x => x.Success));
+        Assert.Single(outcomes.Where(x => !x.Success && x.Status == 409));
+        var competingIds = competingOrders.Select(x => x.Id).ToArray();
+        await using (var db = Db(options, tenantId, managerId, "FacilitiesManager"))
+        {
+            Assert.Equal(1, await db.Set<FacilityWorkOrder>().CountAsync(x =>
+                x.TenantId == tenantId && competingIds.Contains(x.FacilityServiceRequestId) &&
+                x.StateCode == "Scheduled" && x.AssignedTechnicianUserId == techId));
+            Assert.Equal(1, await db.Set<FacilityWorkflowEvent>().CountAsync(x =>
+                x.TenantId == tenantId && competingIds.Contains(x.FacilityServiceRequestId) &&
+                x.ActionCode == "schedule"));
+        }
     }
 
     private static EduOSDbContext Db(DbContextOptions<EduOSDbContext> options,
