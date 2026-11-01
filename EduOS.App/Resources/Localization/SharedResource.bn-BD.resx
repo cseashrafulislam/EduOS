@@ -821,4 +821,19 @@
   <data name="V2MyDriverTrips" xml:space="preserve"><value>আমার ড্রাইভার ট্রিপ</value></data>
   <data name="V2OperationsInsights" xml:space="preserve"><value>কার্যক্রম বিশ্লেষণ</value></data>
   <data name="AcademicUnit" xml:space="preserve"><value>একাডেমিক ইউনিট</value></data>
+  <data name="SelectInstitutionForLogin" xml:space="preserve">
+    <value>প্রতিষ্ঠান নির্বাচন করুন</value>
+  </data>
+  <data name="InstitutionChoiceHelp" xml:space="preserve">
+    <value>আপনার নির্বাচিত প্রতিষ্ঠানের অনুমতি অনুযায়ী কাজের সুযোগ নির্ধারিত হয়।</value>
+  </data>
+  <data name="InstitutionChoicePrompt" xml:space="preserve">
+    <value>প্রতিষ্ঠান বেছে আবার লগ ইন করুন।</value>
+  </data>
+  <data name="UsernameEmailPlaceholder" xml:space="preserve">
+    <value>ইউজারনেম অথবা ইমেইল ঠিকানা</value>
+  </data>
+  <data name="FullPageManual" xml:space="preserve">
+    <value>এই পৃষ্ঠার সম্পূর্ণ নির্দেশিকা</value>
+  </data>
 </root>

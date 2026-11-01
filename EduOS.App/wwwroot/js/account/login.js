@@ -71,16 +71,25 @@
                     const choice = document.getElementById('institutionChoice');
                     if (!panel || !choice) return;
                     choice.replaceChildren();
+                    const seen = new Set();
                     for (const tenant of payload.data.tenants) {
-                        if (!Number.isSafeInteger(Number(tenant.id)) || Number(tenant.id) <= 0) continue;
+                        const id = Number(tenant?.id);
+                        if (!Number.isSafeInteger(id) || id <= 0 || seen.has(id)) continue;
+                        seen.add(id);
                         const option = document.createElement('option');
-                        option.value = String(tenant.id);
-                        option.textContent = String(tenant.name || 'Institution');
+                        option.value = String(id);
+                        option.textContent = String(tenant.name || form.dataset.institutionLabel || '');
                         choice.appendChild(option);
                     }
+                    if (!choice.options.length) {
+                        panel.hidden = true;
+                        showAlert('danger', form.dataset.invalidMessage);
+                        return;
+                    }
                     panel.hidden = false;
+                    choice.required = true;
                     choice.focus();
-                    showAlert('info', 'Select your institution, then sign in.');
+                    showAlert('info', form.dataset.selectInstitutionMessage);
                     return;
                 }
 

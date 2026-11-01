@@ -822,4 +822,19 @@
   <data name="V2MyDriverTrips" xml:space="preserve"><value>My Driver Trips</value></data>
   <data name="V2OperationsInsights" xml:space="preserve"><value>Operations Insights</value></data>
   <data name="AcademicUnit" xml:space="preserve"><value>Academic unit</value></data>
+  <data name="SelectInstitutionForLogin" xml:space="preserve">
+    <value>Select institution</value>
+  </data>
+  <data name="InstitutionChoiceHelp" xml:space="preserve">
+    <value>Your institution determines which permissions are available.</value>
+  </data>
+  <data name="InstitutionChoicePrompt" xml:space="preserve">
+    <value>Select your institution, then sign in.</value>
+  </data>
+  <data name="UsernameEmailPlaceholder" xml:space="preserve">
+    <value>Username or email address</value>
+  </data>
+  <data name="FullPageManual" xml:space="preserve">
+    <value>Full user manual for this page</value>
+  </data>
 </root>

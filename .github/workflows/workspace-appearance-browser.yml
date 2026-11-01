@@ -10,6 +10,10 @@ on:
       - 'tests/browser/workspace-appearance-live.cjs'
       - 'tests/browser/workspace-appearance-live-contract.cjs'
       - 'EduOS.App/Views/Account/Login.cshtml'
+      - 'EduOS.App/Resources/Localization/SharedResource.resx'
+      - 'EduOS.App/Resources/Localization/SharedResource.bn-BD.resx'
+      - 'EduOS.App/wwwroot/js/platform/page-context-help.js'
+      - 'tests/browser/login-bilingual.cjs'
       - 'EduOS.App/wwwroot/js/account/login.js'
       - 'EduOS.App/Controllers/AccountController.cs'
       - 'EduOS.App/Controllers/LocalizationController.cs'
@@ -45,3 +49,5 @@ jobs:
           test "$result" -eq 2
       - name: Exercise real appearance editor with isolated synthetic session/API in Chromium
         run: node tests/browser/workspace-appearance.cjs
+      - name: Exercise bilingual Login, institution selection and public Help Drawer in Chromium
+        run: node tests/browser/login-bilingual.cjs

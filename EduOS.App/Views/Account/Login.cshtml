@@ -11,6 +11,9 @@
     <div class="auth-heading">
         <h1 id="loginTitle">@T["LogInTitle"]</h1>
         <p>@T["LoginSubtitle"]</p>
+        <button class="icon-button page-help-trigger" id="pageContextHelp" type="button"
+                aria-haspopup="dialog" aria-controls="pageHelpDrawer"
+                aria-label="@T["FullPageManual"]" title="@T["FullPageManual"]">ⓘ</button>
     </div>
 
     <div id="alertContainer" class="d-none" role="alert" aria-live="polite" tabindex="-1"></div>
@@ -21,11 +24,13 @@
           data-network-message="@T["NetworkError"]"
           data-inactive-message="@T["AccountDeactivated"]"
           data-verify-message="@T["VerifyBeforeLogin"]"
-          data-locked-message="@T["AccountLocked"]">
+          data-locked-message="@T["AccountLocked"]"
+          data-select-institution-message="@T["InstitutionChoicePrompt"]"
+          data-institution-label="@T["Institution"]">
         <div class="mb-3">
             <label class="form-label" for="userNameOrEmail">@T["UsernameOrEmail"]</label>
             <input type="text" id="userNameOrEmail" class="form-control" autocomplete="username"
-                   maxlength="256" placeholder="Username or email address" required />
+                   maxlength="256" placeholder="@T["UsernameEmailPlaceholder"]" required />
         </div>
 
         <div class="mb-3">
@@ -35,9 +40,9 @@
         </div>
 
         <div id="institutionChoicePanel" class="mb-3" hidden>
-            <label class="form-label" for="institutionChoice">Select institution</label>
-            <select id="institutionChoice" class="form-select" aria-label="Select your institution"></select>
-            <small class="form-text text-muted">Your institution determines which permissions are available.</small>
+            <label class="form-label" for="institutionChoice">@T["SelectInstitutionForLogin"]</label>
+            <select id="institutionChoice" class="form-select" aria-label="@T["SelectInstitutionForLogin"]"></select>
+            <small class="form-text text-muted">@T["InstitutionChoiceHelp"]</small>
         </div>
 
         <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
@@ -84,6 +89,15 @@
     </form>
 </section>
 
+<dialog class="page-help-drawer" id="pageHelpDrawer" aria-labelledby="pageHelpTitle" aria-modal="true">
+    <div class="page-help-heading">
+        <h2 id="pageHelpTitle">@T["FullPageManual"]</h2>
+        <button type="button" id="pageHelpClose" class="icon-button" aria-label="@T["Close"]">×</button>
+    </div>
+    <div id="pageHelpContent" class="page-help-content"></div>
+</dialog>
+
 @section Scripts {
     <script src="~/js/account/login.js" asp-append-version="true"></script>
+    <script src="~/js/platform/page-context-help.js" asp-append-version="true"></script>
 }
