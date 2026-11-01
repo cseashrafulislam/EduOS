@@ -117,3 +117,66 @@ test('confirmed validation rejection exposes status so the form can permit corre
     assert.equal((script.match(/error\.status === 400 \|\| error\.status === 422/g) || []).length, 2);
     assert.match(script, /pending\.delete\(key\)/);
 });
+
+test('Facilities list ignores older campus results after a new query', async () => {
+    const vm = require('node:vm');
+    const a = script.indexOf('    async function dashboard('), b = script.indexOf('    async function history()', a);
+    assert.ok(a >= 0 && b > a);
+    const node = () => ({ children: [], replaceChildren(...v) { this.children = v; },
+        append(...v) { this.children.push(...v); }, addEventListener() {} });
+    const elements = new Map(), el = id => {
+        if (!elements.has(id)) elements.set(id, node()); return elements.get(id);
+    };
+    el('wfCampusFilter').value = '1'; el('wfStateFilter').value = ''; el('wfOverdueOnly').checked = false;
+    let resolveOld, calls = 0;
+    const old = new Promise(resolve => { resolveOld = resolve; });
+    const context = { listGeneration: 0, page: 1, pages: 1, selected: null, el,
+        URLSearchParams, document: { createElement: node }, t: en => en,
+        cell: value => ({ textContent: String(value) }), select() {}, notice() {},
+        api: async url => url.startsWith('/dashboard') ? {} : calls++ === 0 ? old :
+            { items: [{ id: 2, facilitySpaceId: 8, summary: 'New campus',
+                priorityCode: 'Normal', stateCode: 'Submitted' }], totalPages: 1 } };
+    const { load } = vm.runInNewContext(script.slice(a, b) + '\n({ load })', context);
+    const earlier = load();
+    el('wfCampusFilter').value = '2'; await load();
+    assert.equal(el('wfRows').children[0].children[0].textContent, '2');
+    resolveOld({ items: [{ id: 1, facilitySpaceId: 7, summary: 'Old campus',
+        priorityCode: 'High', stateCode: 'Submitted' }], totalPages: 1 });
+    await earlier;
+    assert.equal(el('wfRows').children[0].children[0].textContent, '2');
+});
+
+test('Facilities history ignores late responses after selecting another work order', async () => {
+    const vm = require('node:vm');
+    const a = script.indexOf('    async function history()'), b = script.indexOf("    el('workflowSearch').addEventListener", a);
+    assert.ok(a >= 0 && b > a);
+    const node = () => ({ children: [], replaceChildren(...v) { this.children = v; },
+        append(...v) { this.children.push(...v); }, addEventListener() {},
+        classList: { add() {} } });
+    const box = node();
+    let resolveOld, notices = 0;
+    const old = new Promise(resolve => { resolveOld = resolve; });
+    const context = { selected: { id: 11 }, historyGeneration: 0,
+        historyPage: 1, historyPages: 1, el: () => box,
+        document: { createElement: node }, t: en => en, actionLabels: {}, bn: false,
+        notice() { notices++; },
+        api: async url => url.includes('/11/') ? old : {
+            totalPages: 1, items: [{ actionCode: 'complete', fromState: 'InProgress',
+                toState: 'PendingVerification', actorUserId: 42,
+                occurredAtUtc: '2026-11-01T00:00:00Z', note: 'New evidence' }] } };
+    const { history } = vm.runInNewContext(script.slice(a, b) + '\n({ history })', context);
+    const earlier = history(); context.selected = { id: 12 }; await history();
+    assert.match(box.children[0].children[0].textContent, /New evidence/);
+    resolveOld({ totalPages: 1, items: [{ actionCode: 'reject', note: 'Old evidence' }] });
+    await earlier;
+    assert.match(box.children[0].children[0].textContent, /New evidence/);
+    assert.equal(notices, 0);
+});
+
+test('Facilities search, pagination and late POST cannot restore stale actions', () => {
+    assert.match(script, /function clearSelection\(\)/);
+    assert.match(script, /clearSelection\(\); load\(\)/);
+    assert.match(script, /generation !== listGeneration/);
+    assert.match(script, /generation !== historyGeneration \|\| selected\?\.id !== requestId/);
+    assert.match(script, /if \(selected\?\.id === result\.id\) select\(result\)/);
+});

@@ -29,6 +29,7 @@
     const token = document.querySelector('meta[name="request-verification-token"]')?.content;
     const base = '/api/facilities/work-orders';
     let page = 1, pages = 1, selected = null, historyPage = 1, historyPages = 1;
+    let listGeneration = 0, historyGeneration = 0;
     const pending = new Map();
     // A retry may reuse an ID only for the exact original payload. After an
     // uncertain network outcome, edited details require a reload/status check
@@ -146,10 +147,11 @@
         el('wfNote').minLength = ['return', 'escalate', 'cancelrequest', 'cancelapprove', 'cancelreject'].includes(action) ? 10 : action === 'unschedule' ? 5 : 0;
         el('wfNote').maxLength = ['schedule', 'unschedule', 'escalate', 'return', 'cancelrequest', 'cancelapprove', 'cancelreject'].includes(action) ? 500 : 1000;
     }
-    async function dashboard() {
+    async function dashboard(generation, campusId) {
         const q = new URLSearchParams();
-        if (el('wfCampusFilter').value) q.set('campusId', el('wfCampusFilter').value);
+        if (campusId) q.set('campusId', campusId);
         const summary = await api('/dashboard?' + q);
+        if (generation !== listGeneration) return;
         const cards = [
             ['totalRequests', t('Total requests', 'মোট অনুরোধ')],
             ['submitted', t('Awaiting triage', 'ট্রায়াজ অপেক্ষায়')],
@@ -178,13 +180,22 @@
         }
     }
     async function load() {
+        const generation = ++listGeneration;
+        // Clear previous-campus data before a new authorized response arrives.
+        const tbody = el('wfRows'); tbody.replaceChildren();
+        const loading = document.createElement('tr');
+        const loadingCell = cell(t('Loading requests…', 'অনুরোধ লোড হচ্ছে…'));
+        loadingCell.colSpan = 6; loading.append(loadingCell); tbody.append(loading);
+        el('wfDashboard').replaceChildren();
+        el('wfPrev').disabled = true; el('wfNext').disabled = true;
         try {
             const q = new URLSearchParams({ page: String(page), pageSize: '25' });
             if (el('wfCampusFilter').value) q.set('campusId', el('wfCampusFilter').value);
             if (el('wfStateFilter').value) q.set('state', el('wfStateFilter').value);
             if (el('wfOverdueOnly').checked) q.set('overdueOnly', 'true');
             const data = await api('?' + q);
-            const tbody = el('wfRows'); tbody.replaceChildren();
+            if (generation !== listGeneration) return;
+            tbody.replaceChildren();
             pages = Math.max(1, data.totalPages || 1);
             for (const row of data.items || []) {
                 const tr = document.createElement('tr');
@@ -203,15 +214,27 @@
             }
             el('wfPage').textContent = page + ' / ' + pages;
             el('wfPrev').disabled = page <= 1; el('wfNext').disabled = page >= pages;
-            await dashboard();
-        } catch (error) { notice(error.message); }
+            await dashboard(generation, q.get('campusId'));
+        } catch (error) {
+            if (generation !== listGeneration) return;
+            tbody.replaceChildren();
+            const tr = document.createElement('tr');
+            const td = cell(t('Unable to load requests. Search again.', 'অনুরোধ লোড হয়নি। আবার খুঁজুন।'));
+            td.colSpan = 6; tr.append(td); tbody.append(tr);
+            notice(error.message);
+        }
     }
     async function history() {
         if (!selected) return;
+        const generation = ++historyGeneration;
+        const requestId = selected.id, requestedPage = historyPage;
+        const box = el('wfHistory');
+        box.textContent = t('Loading history…', 'ইতিহাস লোড হচ্ছে…');
         try {
-            const data = await api('/' + selected.id + '/history?page=' + historyPage + '&pageSize=25');
+            const data = await api('/' + requestId + '/history?page=' + requestedPage + '&pageSize=25');
+            if (generation !== historyGeneration || selected?.id !== requestId) return;
             historyPages = Math.max(1, data.totalPages || 1);
-            const box = el('wfHistory'); box.replaceChildren();
+            box.replaceChildren();
             const list = document.createElement('ol');
             list.className = 'list-group list-group-numbered';
             for (const event of data.items || []) {
@@ -230,11 +253,23 @@
                 more.addEventListener('click', () => { historyPage++; history(); });
                 box.append(more);
             }
-        } catch (error) { notice(error.message); }
+        } catch (error) {
+            if (generation !== historyGeneration || selected?.id !== requestId) return;
+            box.textContent = error.message;
+            notice(error.message);
+        }
     }
-    el('workflowSearch').addEventListener('submit', e => { e.preventDefault(); page = 1; load(); });
-    el('wfPrev').addEventListener('click', () => { if (page > 1) { page--; load(); } });
-    el('wfNext').addEventListener('click', () => { if (page < pages) { page++; load(); } });
+    function clearSelection() {
+        selected = null;
+        historyGeneration++;
+        el('wfSelected').textContent = t('Select a request', 'কাজ নির্বাচন করুন');
+        el('wfDetails').textContent = '';
+        el('wfTransition').classList.add('d-none');
+        el('wfHistory').replaceChildren();
+    }
+    el('workflowSearch').addEventListener('submit', e => { e.preventDefault(); page = 1; clearSelection(); load(); });
+    el('wfPrev').addEventListener('click', () => { if (page > 1) { page--; clearSelection(); load(); } });
+    el('wfNext').addEventListener('click', () => { if (page < pages) { page++; clearSelection(); load(); } });
     el('facilityExport').addEventListener('click', () => {
         const q = new URLSearchParams();
         if (el('wfCampusFilter').value) q.set('campusId', el('wfCampusFilter').value);
@@ -284,7 +319,9 @@
             const result = await api('/' + selected.id + '/' + action, 'POST', body);
             pending.delete(key);
             notice(t('Transition recorded.', 'পরিবর্তন সংরক্ষিত হয়েছে।'), true);
-            select(result); await load();
+            // Do not restore a work order the user deselected during this POST.
+            if (selected?.id === result.id) select(result);
+            await load();
         } catch (error) {
             if (error.status === 400 || error.status === 422) pending.delete(key);
             notice(error.message);
