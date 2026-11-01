@@ -10,6 +10,7 @@ const from = '2026-10-01', to = '2026-10-31';
 const reference = index => `${index.toString(16).padStart(8, '0')}-1111-4111-8111-111111111111`;
 const rows = (n, seed, prefix = 1) => Array.from({ length: n }, (_, i) => ({
     reference: i === seed ? stock : reference(prefix * 1000 + i),
+    number: 'STOCK-' + i, campusId: 7, recordedValue: '24.0000000000',
     state: 'Posted', lineCount: 1, evidenceStatus: 'NoExplicitReference',
     date: '2026-10-31'
 }));
@@ -19,8 +20,15 @@ const parseCsv = body => {
 };
 const response = (status, body, type = 'application/json') => ({ status,
     body, type, cache: 'no-store' });
-const csvOf = (kind, items) => 'Kind,Reference,State,Lines,EvidenceStatus\n' +
-    items.map(x => [kind, x.reference, x.state, x.lineCount, x.evidenceStatus].join(',')).join('\n');
+const csvCell = value => {
+    const s = String(value ?? '');
+    return s && '=+-@\t\r'.includes(s[0]) ? "'" + s : s;
+};
+const csvOf = (kind, items) =>
+    'Kind,Reference,Number,Date,Campus,State,RecordedValue,Lines,EvidenceStatus\n' +
+    items.map(x => [kind, x.reference, x.number, x.date, x.campusId,
+        x.state, x.recordedValue, x.lineCount, x.evidenceStatus]
+        .map(csvCell).join(',')).join('\n');
 function fakeRead(aRows, bRows, options = {}) {
     const jsonReads = new Map();
     return async (cookie, path) => {
@@ -41,12 +49,27 @@ function fakeRead(aRows, bRows, options = {}) {
         if (options.duplicate && page === 2 && items.length) items[0] = source[0];
         if (options.foreignLeak && cookie === 'b' && page === 2 && items.length)
             items[0] = { ...items[0], reference: stock };
-        if (path.includes('/csv?')) return response(200,
-            csvOf(kind, options.csvMismatch && cookie === 'a' && page === 2
-                ? items.map((x, i) => i === 0 ? { ...x, state: 'Draft' } : x) : items),
-            'text/csv');
+        if (path.includes('/csv?')) {
+            const csvRows = items.map((x, i) => {
+                if (i !== 0 || page !== 2) return x;
+                if (options.csvMismatch && cookie === 'a') return { ...x, state: 'Draft' };
+                if (options.csvField && cookie === 'a')
+                    return { ...x, [options.csvField]: options.csvValue };
+                if (options.foreignCsvLeak && cookie === 'b')
+                    return { ...x, reference: stock };
+                return x;
+            });
+            let csv = csvOf(kind, csvRows);
+            if (options.unsafeFormula && cookie === 'a' && page === 2)
+                csv = csv.replace("'=EXTERNAL", '=EXTERNAL');
+            if (options.badHeader && cookie === 'a' && page === 2)
+                csv = csv.replace('RecordedValue,', 'RecordedValue,RecordedValue,');
+            return response(200, csv, 'text/csv');
+        }
         return response(200, { success: true, data: { page, pageSize: 50,
-            totalCount: options.countDrift && page === 2 ? source.length + 1 : source.length,
+            kind: options.wrongKind && cookie === 'a' && page === 2 ? 'asset' : kind,
+            from: options.wrongFrom && cookie === 'a' && page === 2 ? '2026-09-01' : from,
+            to, totalCount: options.countDrift && page === 2 ? source.length + 1 : source.length,
             items } });
     };
 }
@@ -112,7 +135,7 @@ function procurementRead(options = {}) {
                 options.campusMismatch ? original : items), 'text/csv');
         }
         return response(200, { success: true, data: { kind: 'procurement',
-            page, pageSize: 50, totalCount: source.length, items } });
+            page, pageSize: 50, from, to, totalCount: source.length, items } });
     };
 }
 const procurementArgs = read => ({ ...args(read), kind: 'procurement' });
@@ -150,4 +173,44 @@ test('procurement later-page JSON and CSV may agree but must also match canonica
         expectedEvidence: { state: 'Approved', lineCount: 1,
             campusId: 7, totalAmount: '24.0000000000' }
     }), /detail and later-page register evidence/);
+});
+
+test('stock and asset multi-page CSV must match every canonical source column', async () => {
+    for (const kind of ['stock', 'asset']) {
+        const a = rows(65, 55), b = rows(61, -1, 2);
+        assert.equal((await audit({ ...args(fakeRead(a, b)), kind })).count, 65);
+        for (const [csvField, csvValue] of [
+            ['number', 'FORGED-ROW'], ['date', '2026-10-30'],
+            ['campusId', 99], ['recordedValue', '999.0000000000']
+        ]) await assert.rejects(audit({ ...args(fakeRead(a, b,
+            { csvField, csvValue })), kind }), /CSV\/source|CSV does not match/);
+    }
+});
+
+test('stock CSV accepts escaped negative money and formula-like number, rejects unsafe CSV', async () => {
+    const a = rows(65, 55), b = rows(61, -1, 2);
+    a[0].recordedValue = '-12.5000000000';
+    a[50].number = '=EXTERNAL';
+    a[54].campusId = null; // inter-campus movement has no single campus
+    assert.equal((await audit(args(fakeRead(a, b)))).pagesAudited, 2);
+    await assert.rejects(audit(args(fakeRead(a, b, { unsafeFormula: true }))),
+        /CSV does not match/);
+});
+
+test('register audit rejects changed filters and malformed CSV schema on later pages', async () => {
+    for (const [option, error] of [
+        ['wrongKind', /metadata invalid/], ['wrongFrom', /metadata invalid/],
+        ['badHeader', /CSV schema mismatch/],
+        ['foreignCsvLeak', /CSV does not match/]
+    ]) await assert.rejects(audit(args(fakeRead(rows(65, 55),
+        rows(61, -1, 2), { [option]: true }))), error);
+});
+
+test('register rejects invalid source line counts and campus IDs even when CSV agrees', async () => {
+    for (const [field, value] of [['lineCount', -1], ['campusId', 0]]) {
+        const a = rows(65, 55);
+        a[54][field] = value;
+        await assert.rejects(audit(args(fakeRead(a, rows(61, -1, 2)))),
+            /source line count or campus invalid/);
+    }
 });
