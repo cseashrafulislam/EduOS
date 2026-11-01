@@ -120,7 +120,8 @@ async function mobileBangla(browser) {
 }
 async function fillSchedule(page) {
     await page.locator('#wfRows button').click();
-    await page.locator('#wfHistory ol').waitFor();
+    // Empty history still renders an attached <ol>, but it has no visible box.
+    await page.locator('#wfHistory ol').waitFor({ state: 'attached' });
     await page.locator('#wfAction').selectOption('schedule');
     await page.locator('#wfTech').fill('42');
     await page.locator('#wfStart').fill('2026-11-03T10:00');
