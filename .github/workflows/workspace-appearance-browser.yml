@@ -7,6 +7,7 @@ on:
       - 'EduOS.App/wwwroot/js/site.js'
       - 'EduOS.App/Views/WorkspacePreferences/Index.cshtml'
       - 'tests/browser/workspace-appearance.cjs'
+      - 'tests/browser/workspace-appearance-live.cjs'
       - '.github/workflows/workspace-appearance-browser.yml'
   workflow_dispatch:
 permissions:
@@ -27,5 +28,13 @@ jobs:
         run: npm install --no-save --no-audit --no-fund playwright@1.56.0
       - name: Install Chromium
         run: npx playwright install --with-deps chromium
+      - name: Check authenticated staging script syntax and fail-closed configuration
+        run: |
+          node --check tests/browser/workspace-appearance-live.cjs
+          set +e
+          env -u EDUOS_BASE_URL -u EDUOS_E2E_STAGING_HOST node tests/browser/workspace-appearance-live.cjs
+          result=$?
+          set -e
+          test "$result" -eq 2
       - name: Exercise real appearance editor with isolated synthetic session/API in Chromium
         run: node tests/browser/workspace-appearance.cjs
