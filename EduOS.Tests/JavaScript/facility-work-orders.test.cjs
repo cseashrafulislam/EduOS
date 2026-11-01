@@ -98,3 +98,22 @@ test('an uncertain submission retains its command ID only for an identical paylo
     assert.throws(() => commandId('51:verify',
         { ...transition, note: 'Changed approval note' }), /Reload and check the request/);
 });
+
+test('confirmed validation rejection exposes status so the form can permit corrected details', async () => {
+    const vm = require('node:vm');
+    const begin = script.indexOf('    async function api(');
+    const end = script.indexOf('    const cell =', begin);
+    assert.ok(begin >= 0 && end > begin);
+    const context = {
+        base: '/api/facilities/work-orders', token: 'test-csrf',
+        t: en => en, fetch: async () => ({
+            ok: false, status: 400,
+            json: async () => ({ success: false, message: 'Invalid summary' })
+        })
+    };
+    const api = vm.runInNewContext(script.slice(begin, end) + '\napi', context);
+    await assert.rejects(api('', 'POST', { summary: 'x' }),
+        error => error.status === 400 && error.message === 'Invalid summary');
+    assert.equal((script.match(/error\.status === 400 \|\| error\.status === 422/g) || []).length, 2);
+    assert.match(script, /pending\.delete\(key\)/);
+});
