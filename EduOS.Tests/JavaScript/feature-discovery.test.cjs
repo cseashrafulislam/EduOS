@@ -96,6 +96,7 @@ test('feature discovery fails closed on tenant/session change and temporary sess
     assert.equal(contextStatus('22', 'A', '22', 'A', false, true), 'verifying');
     assert.match(script, /await verifiedContext\(\)/);
     assert.match(script, /window\.location\.assign\(entry\.href\)/);
+    assert.match(script, /event\.metaKey \|\|/);
     assert.match(script, /sessionStorage\.removeItem\(key\)/);
     assert.match(script, /trigger\.disabled = true/);
     assert.match(script, /document\.addEventListener\('visibilitychange'/);

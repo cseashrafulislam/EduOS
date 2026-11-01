@@ -184,6 +184,10 @@
         context.textContent = [entry.section, entry.group].filter(Boolean).join(' › ');
         link.append(title, context);
         link.addEventListener('click', async event => {
+            // Preserve Ctrl/Meta/Shift-click and middle-click. The destination
+            // still passes through normal server-side authorization in its tab.
+            if (event.defaultPrevented || event.button !== 0 || event.metaKey ||
+                event.ctrlKey || event.shiftKey || event.altKey) return;
             event.preventDefault();
             if (!await verifiedContext() || !byHref.has(entry.href)) return;
             state.recent = remember(state.recent, entry.href);
