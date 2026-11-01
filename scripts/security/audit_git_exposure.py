@@ -28,6 +28,14 @@ PATTERN_KINDS = ('github_classic', 'github_fine_grained', 'aws_access_key_id',
                  'private_key_header', 'slack_token', 'live_payment_key')
 
 
+def redact_path(value):
+    """Prevent recognized token patterns embedded in filenames from entering local reports."""
+    data = value.encode('utf-8', 'replace')
+    for pattern in PATTERNS:
+        data = pattern.sub(b'[REDACTED_PATTERN]', data)
+    return data.decode('utf-8', 'replace')
+
+
 def unsafe_path(value):
     parts = value.replace('\\', '/').lower().strip('/').split('/')
     name = parts[-1]
@@ -126,7 +134,7 @@ def scan(cwd=None, private_findings=None):
             if hit and private_findings is not None:
                 private_findings.setdefault('secret_blob_indicators', []).append({
                     'object_id': oid.decode('ascii'),
-                    'path_hint': path.decode('utf-8', 'replace'),
+                    'path_hint': redact_path(path.decode('utf-8', 'replace')),
                     'signature_kinds': sorted(kinds)})
             if read_exact(proc.stdout, 1) != b'\n':
                 raise RuntimeError('Malformed Git object boundary')
@@ -135,8 +143,8 @@ def scan(cwd=None, private_findings=None):
         proc.stdout.close()
         proc.wait(timeout=30)
     if private_findings is not None:
-        private_findings['current_sensitive_paths'] = sorted(p for p in paths if unsafe_path(p))
-        private_findings['historical_sensitive_paths'] = sorted(forbidden_paths)
+        private_findings['current_sensitive_paths'] = sorted(redact_path(p) for p in paths if unsafe_path(p))
+        private_findings['historical_sensitive_paths'] = sorted(redact_path(p) for p in forbidden_paths)
     return dict(tracked_files=len(paths), current_forbidden_paths=sum(map(unsafe_path, paths)),
                 historical_forbidden_path_objects=old_path_objects,
                 historical_forbidden_unique_paths=len(forbidden_paths),
@@ -166,8 +174,10 @@ def self_test():
                 'commit', '-qm', message, cwd=temp)
 
         Path(temp, '.env.production').write_text('synthetic=yes\n', encoding='utf-8')
+        Path(temp, '.env.' + marker.decode()).write_text('synthetic=yes\n', encoding='utf-8')
         commit('synthetic historic config')
         os.unlink(Path(temp, '.env.production'))
+        os.unlink(Path(temp, '.env.' + marker.decode()))
         Path(temp, 'safe.txt').write_bytes(boundary)
         commit('synthetic large boundary marker')
         private = {}
