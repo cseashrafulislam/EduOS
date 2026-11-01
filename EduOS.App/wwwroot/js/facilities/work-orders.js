@@ -113,6 +113,12 @@
         });
         await verifySession();
         const data = await response.json().catch(() => null);
+        // JSON parsing is asynchronous: the institution may switch after the
+        // verification response but before the private payload is consumed.
+        if (!sessionCurrent() || shield.hidden !== true) {
+            lockPage();
+            throw new Error('session-changed');
+        }
         if (response.status === 401) { lockPage(); throw new Error('session-changed'); }
         if (!response.ok || !data?.success) {
             const error = new Error(data?.message || t('Request failed.', 'অনুরোধ ব্যর্থ।'));

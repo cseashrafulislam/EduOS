@@ -244,3 +244,27 @@ test('work-order exports and duplicate commands use the existing session shield'
     assert.match(script, /if \(blocked \|\| creating\) return/);
     assert.match(script, /if \(!selected \|\| blocked \|\| transitioning\) return/);
 });
+
+test('work-order JSON readback is discarded if the tenant changes after verification', async () => {
+    const vm = require('node:vm');
+    const a = script.indexOf('    async function api(');
+    const b = script.indexOf('    const cell =', a);
+    let release, entered, current = true, locked = false;
+    const delayedJson = new Promise(resolve => { release = resolve; });
+    const jsonEntered = new Promise(resolve => { entered = resolve; });
+    const context = {
+        base: '/api/facilities/work-orders', token: 'csrf', t: en => en,
+        sessionCurrent: () => current, verifySession: async () => {},
+        shield: { hidden: true }, lockPage: () => { locked = true; },
+        fetch: async () => ({ ok: true, status: 200, json: () => {
+            entered(); return delayedJson;
+        } })
+    };
+    const api = vm.runInNewContext(script.slice(a, b) + '\napi', context);
+    const reading = api('', 'GET');
+    await jsonEntered;
+    current = false;
+    release({ success: true, data: { summary: 'private prior-campus details' } });
+    await assert.rejects(reading, /session-changed/);
+    assert.equal(locked, true);
+});
