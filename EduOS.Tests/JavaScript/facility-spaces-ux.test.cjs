@@ -42,7 +42,10 @@ function browser({ bn = false, manage = true, token = 'token', sessionOk = true,
     nodes.facilityForm.querySelectorAll = () => [saveButton, nodes.facilityReset,
         nodes.facilityCampus, nodes.facilityCode, nodes.facilityName, nodes.facilityAddress];
     nodes.facilityForm.reportValidity = () => true;
-    nodes.facilityForm.reset = () => {};
+    nodes.facilityForm.reset = () => {
+        for (const id of ['facilityCampus','facilityCode','facilityName','facilityAddress']) nodes[id].value = '';
+        nodes.facilityActive.checked = true;
+    };
     const document = {
         body: { dataset: { authSessionReference: 'A'.repeat(64), authTenantId: '12' } },
         getElementById: id => nodes[id] || null,
@@ -165,4 +168,30 @@ test('known concurrency conflict uses Bangla recovery and retains editor values'
     assert.match(b.nodes.facilityAlert.textContent, /পরিবর্তিত হয়েছে/);
     assert.equal(b.nodes.facilityVersion.value, 'rv1');
     assert.equal(b.calls.filter(c => c.options.method === 'PUT').length, 1);
+});
+
+test('invalid campus filter clears prior rows instead of showing stale results', async () => {
+    const b = browser();
+    await b.flush();
+    assert.equal(b.nodes.facilityRows.children[0].children[1].textContent, 'LAB-A');
+    b.nodes.facilityCampusFilter.value = '0';
+    b.submit('facilitySearchForm');
+    await b.flush();
+    assert.match(b.nodes.facilityAlert.textContent, /valid campus ID/);
+    assert.match(b.nodes.facilityRows.children[0].children[0].textContent, /No spaces found/);
+    assert.equal(b.calls.length, 1);
+});
+test('session switch clears an edited space before locking the old page', async () => {
+    const b = browser();
+    await b.flush();
+    b.findEdit().listeners.click();
+    assert.equal(b.nodes.facilityName.value, 'Lab A');
+    b.setSessionOk(false);
+    b.queue.push(response(page));
+    b.submit('facilitySearchForm');
+    await b.flush();
+    assert.equal(b.nodes.facilityName.value, '');
+    assert.equal(b.nodes.facilityId.value, '');
+    assert.equal(b.nodes.facilityRows.children.length, 0);
+    assert.equal(b.saveButton.disabled, true);
 });

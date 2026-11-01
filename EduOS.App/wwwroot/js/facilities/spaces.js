@@ -34,6 +34,10 @@
         target.className = 'alert alert-' + (ok ? 'success' : 'danger');
         target.textContent = message;
     }
+    function clearNotice() {
+        el('facilityAlert').className = 'd-none';
+        el('facilityAlert').textContent = '';
+    }
     function messageFor(message, status) {
         if (status === 401) return tr('Sign in again to continue.', 'চালিয়ে যেতে আবার সাইন ইন করুন।');
         if (status === 403) return tr('You do not have access to this campus or action.', 'এই ক্যাম্পাস বা কাজের অনুমতি নেই।');
@@ -52,6 +56,11 @@
         rows = [];
         el('facilityRows').replaceChildren();
         root.setAttribute('aria-busy', 'false');
+        dirty = false;
+        if (editor) {
+            editor.reset();
+            el('facilityId').value = el('facilityVersion').value = '';
+        }
         el('facilityPrev').disabled = el('facilityNext').disabled = true;
         if (editor) {
             for (const control of editor.querySelectorAll('input, button')) control.disabled = true;
@@ -166,10 +175,12 @@
         });
         const campus = el('facilityCampusFilter').value.trim();
         if (campus && (!/^[1-9]\d*$/.test(campus) || !Number.isSafeInteger(Number(campus)))) {
+            rows = []; pages = 1; render();
             notice(tr('Enter a valid campus ID.', 'সঠিক ক্যাম্পাস আইডি দিন।'));
             return;
         }
         if (query.get('search').length > 100) {
+            rows = []; pages = 1; render();
             notice(tr('Search must be 100 characters or fewer.', 'খোঁজার শব্দ ১০০ অক্ষরের মধ্যে রাখুন।'));
             return;
         }
@@ -185,6 +196,7 @@
                 await load();
                 return;
             }
+            clearNotice();
             render();
         } catch (error) {
             if (seq !== requestNumber || blocked || error.name === 'AbortError' || error.message === 'session-changed') return;
