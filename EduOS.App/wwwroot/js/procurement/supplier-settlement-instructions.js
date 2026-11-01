@@ -65,7 +65,8 @@
  async function selectInvoice(x){
   const chosen=++selectionSeq;
   if($('ssWithdrawDialog')?.open)$('ssWithdrawDialog').close();
-  withdraw=null;withdrawKey=null;
+  if($('ssReviewDialog')?.open)$('ssReviewDialog').close();
+  review=null;withdraw=null;withdrawKey=null;
   invoice=x;requestKey=null;page=1;seq++;
   $('ssSelected').textContent=x.invoiceNumber+' · '+x.reference;
   $('ssRows').replaceChildren();$('ssForm')?.classList.add('d-none');
@@ -76,11 +77,12 @@
    if(maker&&$('ssForm')){
     options($('ssBank'),data.banks);options($('ssPeriod'),data.periods);
     $('ssAmount').max=String(data.availableAmount);$('ssAmount').value='';
-    $('ssDate').value=new Date().toISOString().slice(0,10);
+    const today=new Date();
+    $('ssDate').value=[today.getFullYear(),String(today.getMonth()+1).padStart(2,'0'),String(today.getDate()).padStart(2,'0')].join('-');
     $('ssForm').classList.remove('d-none');
    }
    await load();
-  }catch(e){status(e.message,true);}
+  }catch(e){if(chosen===selectionSeq)status(e.message,true);}
  }
  window.addEventListener('procurement-settlement-select',e=>{if(e.detail?.reference)selectInvoice(e.detail);});
  $('ssForm')?.addEventListener('submit',async e=>{
@@ -118,12 +120,15 @@
  $('ssClose').addEventListener('click',()=>$('ssReviewDialog').close());
  $('ssReviewForm').addEventListener('submit',async e=>{
   e.preventDefault();if(!review||!invoice||busy)return;busy=true;$('ssReviewSubmit').disabled=true;
+  const selected=invoice.reference,selectedReview=review;
   try{
-   await api(base+invoice.reference+'/settlements/'+review.reference+'/review','POST',{
-    rowVersion:review.rowVersion,approve:$('ssDecision').value==='Approve',reason:$('ssReviewReason').value.trim()});
-   $('ssReviewDialog').close();status(t('Decision saved; no disbursement executed','সিদ্ধান্ত সংরক্ষিত; পরিশোধ হয়নি'));
-   await selectInvoice(invoice);
-  }catch(e){status(e.message,true);}finally{busy=false;$('ssReviewSubmit').disabled=false;}
+   await api(base+selected+'/settlements/'+selectedReview.reference+'/review','POST',{
+    rowVersion:selectedReview.rowVersion,approve:$('ssDecision').value==='Approve',reason:$('ssReviewReason').value.trim()});
+   if(invoice?.reference===selected){
+    $('ssReviewDialog').close();status(t('Decision saved; no disbursement executed','সিদ্ধান্ত সংরক্ষিত; পরিশোধ হয়নি'));
+    await selectInvoice(invoice);
+   }
+  }catch(e){if(invoice?.reference===selected)status(e.message,true);}finally{busy=false;$('ssReviewSubmit').disabled=false;}
  });
  $('ssPrev').addEventListener('click',()=>{if(page>1){page--;load();}});
  $('ssNext').addEventListener('click',()=>{if(page<pages){page++;load();}});

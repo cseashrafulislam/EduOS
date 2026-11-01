@@ -111,3 +111,76 @@ test('Maker withdrawal of unapproved settlement is source-linked, idempotent and
   assert.ok(sql.includes(token),'missing real SQL withdrawal regression: '+token);
  assert.doesNotMatch(service,/db\.InventoryMovements\.(Add|Update)/);
 });
+
+test('Settlement UI refuses a stale cross-invoice review and uses the browser-local planned date', async () => {
+ const vm = require('node:vm');
+ const script = read('EduOS.App/wwwroot/js/procurement/supplier-settlement-instructions.js');
+ class Element {
+  constructor(id) {
+   this.id = id; this.dataset = {}; this.children = []; this.listeners = {};
+   this.value = ''; this.open = false; this.disabled = false;
+   this.classList = { add() {}, remove() {} };
+  }
+  addEventListener(event, callback) { this.listeners[event] = callback; }
+  append(...children) { this.children.push(...children); }
+  replaceChildren(...children) { this.children = children; }
+  showModal() { this.open = true; }
+  close() { this.open = false; }
+  querySelectorAll() { return []; }
+ }
+ const elements = {};
+ const get = id => elements[id] ||= new Element(id);
+ get('supplierSettlement').dataset = { maker: 'true', reviewer: 'true' };
+ get('supplierInvoiceMatch').dataset.userId = '100';
+ const handlers = {}, posts = [];
+ const document = {
+  getElementById: get, documentElement: { lang: 'en-BD' },
+  querySelector: () => ({ content: 'csrf-token' }),
+  createElement: tag => new Element(tag)
+ };
+ const window = { addEventListener: (event, callback) => { handlers[event] = callback; } };
+ const fetch = async (url, options) => {
+  if (options?.method === 'POST') posts.push(url);
+  const data = url.endsWith('/options')
+   ? { availableAmount: 50, banks: [], periods: [] }
+   : url.includes('?page=')
+    ? { totalPages: 1, items: [{
+      reference: 'aaaa1111-0000-0000-0000-000000000000',
+      state: 'Submitted', amount: 25, plannedDate: '2026-11-01',
+      makerId: 200, rowVersion: 'abc'
+     }] }
+    : {};
+  return { ok: true, json: async () => ({ success: true, data }) };
+ };
+ // 2026-11-01 00:15 in Dhaka is still 2026-10-31 in UTC.
+ class DhakaDate extends Date {
+  constructor(...args) { super(...(args.length ? args : ['2026-10-31T18:15:00Z'])); }
+  getFullYear() { return 2026; }
+  getMonth() { return 10; }
+  getDate() { return 1; }
+ }
+ vm.runInNewContext(script, {
+  document, window, fetch, Date: DhakaDate, URLSearchParams,
+  crypto: { randomUUID: () => 'client-request-id' },
+  Option: class { constructor(name, value) { this.name = name; this.value = value; } }
+ });
+ const flush = async () => { for (let i = 0; i < 20; i++) await Promise.resolve(); };
+ handlers['procurement-settlement-select']({ detail: {
+  reference: '11111111-0000-0000-0000-000000000000',
+  invoiceNumber: 'A', rowVersion: 'x'
+ } });
+ await flush();
+ assert.equal(get('ssDate').value, '2026-11-01', 'planned date must be local, not UTC');
+ const reviewButton = get('ssRows').children[0]?.children[5]?.children[0];
+ assert.ok(reviewButton, 'independent review action rendered');
+ reviewButton.listeners.click();
+ assert.equal(get('ssReviewDialog').open, true);
+ handlers['procurement-settlement-select']({ detail: {
+  reference: '22222222-0000-0000-0000-000000000000',
+  invoiceNumber: 'B', rowVersion: 'y'
+ } });
+ await flush();
+ assert.equal(get('ssReviewDialog').open, false, 'old invoice review must close');
+ await get('ssReviewForm').listeners.submit({ preventDefault() {} });
+ assert.deepEqual(posts, [], 'no review POST may combine invoice B with instruction A');
+});
