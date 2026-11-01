@@ -41,6 +41,8 @@ public sealed partial class AlumniService : IAlumniService
         {
             var tenantId = _user.TenantId;
             var userId = _user.UserId;
+            // Limit distinct verified student identities, not exit-history rows. Otherwise
+            // one graduate with many completed exits can hide another graduate of this login.
             var candidates = await (from student in _db.Students.AsNoTracking()
                 join exit in _db.StudentExitRecords.AsNoTracking() on student.Id equals exit.StudentId
                 join enrollment in _db.StudentEnrollments.AsNoTracking() on exit.StudentEnrollmentId equals enrollment.Id
@@ -49,14 +51,35 @@ public sealed partial class AlumniService : IAlumniService
                     && exit.ExitType == StudentExitType.Completed && exit.FeesCleared
                     && enrollment.TenantId == tenantId && enrollment.StudentId == student.Id
                     && enrollment.State == EnrollmentState.Completed && !enrollment.IsDeleted
-                orderby exit.ProcessedAt descending
-                select new { student.Id, student.PublicId, student.StudentCode, student.FullName, exit.ProcessedAt })
+                group exit.ProcessedAt by new { student.Id, student.PublicId,
+                    student.StudentCode, student.FullName } into completed
+                select new { completed.Key.Id, completed.Key.PublicId,
+                    completed.Key.StudentCode, completed.Key.FullName,
+                    ProcessedAt = completed.Max() })
+                .OrderByDescending(x => x.ProcessedAt).ThenBy(x => x.Id)
                 .Take(100).ToListAsync(ct);
 
-            var result = new List<AlumniSelfDto>();
-            foreach (var candidate in candidates.GroupBy(x => x.Id).Select(x => x.First()))
+            // One bounded, tenant-filtered lookup avoids a separate SQL query per graduate.
+            var profilesByStudent = new Dictionary<long, AlumniProfileSqlRow>();
+            if (candidates.Count > 0)
             {
-                var profile = await ReadProfileAsync(tenantId, candidate.Id, ct);
+                var parameters = new object[candidates.Count + 1];
+                parameters[0] = tenantId;
+                for (var i = 0; i < candidates.Count; i++)
+                    parameters[i + 1] = candidates[i].Id;
+                var placeholders = string.Join(", ", Enumerable.Range(1, candidates.Count)
+                    .Select(i => "{" + i + "}"));
+                var profiles = await _db.Database.SqlQueryRaw<AlumniProfileSqlRow>(
+                    "SELECT Id, StudentId, DirectoryOptIn, ContactEmail, ContactPhone, RowVersion " +
+                    "FROM dbo.AlumniProfiles WHERE TenantId = {0} AND StudentId IN (" + placeholders + ")",
+                    parameters).ToListAsync(ct);
+                profilesByStudent = profiles.ToDictionary(x => x.StudentId);
+            }
+
+            var result = new List<AlumniSelfDto>();
+            foreach (var candidate in candidates)
+            {
+                profilesByStudent.TryGetValue(candidate.Id, out var profile);
                 result.Add(new AlumniSelfDto
                 {
                     StudentReference = candidate.PublicId,
@@ -280,7 +303,7 @@ public sealed partial class AlumniService : IAlumniService
     private async Task<AlumniProfileSqlRow?> ReadProfileAsync(long tenantId, long studentId, CancellationToken ct)
     {
         var rows = await _db.Database.SqlQueryRaw<AlumniProfileSqlRow>(
-            @"SELECT Id, DirectoryOptIn, ContactEmail, ContactPhone, RowVersion
+            @"SELECT Id, StudentId, DirectoryOptIn, ContactEmail, ContactPhone, RowVersion
               FROM dbo.AlumniProfiles WHERE TenantId = {0} AND StudentId = {1}",
             tenantId, studentId).ToListAsync(ct);
         return rows.FirstOrDefault();
@@ -302,6 +325,7 @@ public sealed partial class AlumniService : IAlumniService
 public sealed class AlumniProfileSqlRow
 {
     public long Id { get; set; }
+    public long StudentId { get; set; }
     public bool DirectoryOptIn { get; set; }
     public string? ContactEmail { get; set; }
     public string? ContactPhone { get; set; }

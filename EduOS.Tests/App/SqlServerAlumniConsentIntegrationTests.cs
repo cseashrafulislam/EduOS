@@ -482,6 +482,66 @@ public sealed class SqlServerAlumniConsentIntegrationTests
         var clearedAttendance = await publisherService.EventsAsync(new AlumniEventQueryDto());
         Assert.Equal(0, Assert.Single(clearedAttendance.Data!.Items.Where(e =>
             e.Reference == draft.Data.Reference)).CheckedInCount);
+
+        // Regression: the old Take(100) before GroupBy discarded a second eligible
+        // graduate when the first student had 100+ completed-exit history rows.
+        var secondPerson = new Person { FullName = "Second Verified Graduate" };
+        db.Add(secondPerson);
+        await db.SaveChangesAsync();
+        var originalEnrollment = await db.StudentEnrollments.AsNoTracking()
+            .Where(x => x.StudentId == originalStudent.Id && x.State == EnrollmentState.Completed)
+            .OrderBy(x => x.Id).FirstAsync();
+        var secondStudent = new Student
+        {
+            TenantId = tenantId, PersonId = secondPerson.Id, UserId = userId,
+            FullName = "Second Verified Graduate", StudentCode = "AL-B-" + suffix,
+            AdmissionDate = new DateOnly(2026, 1, 1), StatusCode = "Passed"
+        };
+        db.Add(secondStudent);
+        await db.SaveChangesAsync();
+        var secondEnrollment = new StudentEnrollment
+        {
+            TenantId = tenantId, StudentId = secondStudent.Id,
+            AcademicYearId = originalEnrollment.AcademicYearId,
+            CampusId = originalEnrollment.CampusId,
+            AcademicProgramId = originalEnrollment.AcademicProgramId,
+            AcademicLevelId = originalEnrollment.AcademicLevelId,
+            AcademicBatchId = originalEnrollment.AcademicBatchId,
+            AcademicCurriculumId = originalEnrollment.AcademicCurriculumId,
+            RollNo = "12", EnrollmentDate = new DateOnly(2026, 1, 1),
+            State = EnrollmentState.Completed, IsCurrent = false,
+            ClientRequestId = Guid.NewGuid()
+        };
+        db.Add(secondEnrollment);
+        await db.SaveChangesAsync();
+        var recent = DateTime.UtcNow;
+        var repeatedExits = Enumerable.Range(0, 101).Select(i => new StudentExitRecord
+        {
+            TenantId = tenantId, StudentId = originalStudent.Id,
+            StudentEnrollmentId = originalEnrollment.Id,
+            ExitType = StudentExitType.Completed, FeesCleared = true,
+            ProcessedByUserId = userId, ClientRequestId = Guid.NewGuid(),
+            ProcessedAt = recent.AddMinutes(-i)
+        }).ToList();
+        repeatedExits.Add(new StudentExitRecord
+        {
+            TenantId = tenantId, StudentId = secondStudent.Id,
+            StudentEnrollmentId = secondEnrollment.Id,
+            ExitType = StudentExitType.Completed, FeesCleared = true,
+            ProcessedByUserId = userId, ClientRequestId = Guid.NewGuid(),
+            ProcessedAt = recent.AddDays(-1)
+        });
+        db.AddRange(repeatedExits);
+        await db.SaveChangesAsync();
+
+        var distinctGraduates = await graduate.MineAsync();
+        Assert.True(distinctGraduates.Success, distinctGraduates.Message);
+        Assert.Equal(2, distinctGraduates.Data!.Count);
+        Assert.Contains(distinctGraduates.Data, x => x.StudentReference == studentReference);
+        var otherGraduate = Assert.Single(distinctGraduates.Data,
+            x => x.StudentReference == secondStudent.PublicId);
+        Assert.False(otherGraduate.Registered);
+        Assert.Null(otherGraduate.ContactEmail);
     }
 
     private static EduOSDbContext TenantDb(DbContextOptions<EduOSDbContext> options, long tenantId)

@@ -9,6 +9,19 @@ namespace EduOS.Tests.Services;
 public sealed class AlumniConsentContractTests
 {
     [Fact]
+    public void Self_service_limits_distinct_verified_graduates_and_batches_private_profile_reads()
+    {
+        var source = Read("EduOS.Service", "Services", "Alumni", "AlumniService.cs");
+        Assert.Contains("group exit.ProcessedAt by new", source);
+        Assert.Contains("ProcessedAt = completed.Max()", source);
+        Assert.Contains(".Take(100).ToListAsync(ct)", source);
+        Assert.Contains("StudentId IN (", source);
+        Assert.Contains("profiles.ToDictionary(x => x.StudentId)", source);
+        Assert.Contains("student.UserId == userId", source);
+        Assert.Contains("FROM dbo.AlumniProfiles WHERE TenantId = {0}", source);
+    }
+
+    [Fact]
     public void All_alumni_routes_require_the_dedicated_entitlement_and_csrf_on_writes()
     {
         var api = typeof(AlumniApiController);
