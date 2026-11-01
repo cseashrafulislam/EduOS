@@ -107,7 +107,7 @@ test('confirmed validation rejection exposes status so the form can permit corre
     const context = {
         base: '/api/facilities/work-orders', token: 'test-csrf',
         t: en => en, sessionCurrent: () => true, verifySession: async () => {},
-        lockPage: () => {}, fetch: async () => ({
+        shield: { hidden: true }, lockPage: () => {}, fetch: async () => ({
             ok: false, status: 400,
             json: async () => ({ success: false, message: 'Invalid summary' })
         })
