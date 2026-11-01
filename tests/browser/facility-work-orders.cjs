@@ -46,7 +46,9 @@ async function setup(browser, bn = false, manager = true, mobile = false) {
                 document.body.dataset.authTenantId === '12';
         };
     });
-    await page.route('http://eduos.test/**', async route => {
+    // localhost is a trustworthy origin: production uses HTTPS and commandId
+    // requires secure-context crypto.randomUUID for real form submission.
+    await page.route('http://localhost/**', async route => {
         const request = route.request(), url = new URL(request.url());
         if (!url.pathname.startsWith('/api/'))
             return route.fulfill({ contentType: 'text/html', body: html(bn, manager) });
@@ -67,7 +69,7 @@ async function setup(browser, bn = false, manager = true, mobile = false) {
         }
         return reply({ items: state.empty ? [] : [record], totalPages: 1 });
     });
-    await page.goto('http://eduos.test/FacilityWorkOrders/Index');
+    await page.goto('http://localhost/FacilityWorkOrders/Index');
     await page.addStyleTag({ path: bootstrap });
     await page.addScriptTag({ path: script });
     await page.locator('#wfRows').filter({ hasText: 'Broken light' }).waitFor();
