@@ -284,6 +284,31 @@ public sealed partial class SqlServerV3ProcurementPurchaseOrderTests
                 Assert.Equal(409, (await trace.GetAsync(first.Reference)).StatusCode);
                 await transaction.RollbackAsync();
             }
+            // SQL-only legacy corruption: a balanced GL cannot make a
+            // self-approved invoice or a missing review reason trustworthy.
+            await using (var transaction = await probeDb.Database.BeginTransactionAsync())
+            {
+                await probeDb.ProcurementSupplierInvoices
+                    .Where(x => x.PublicId == first.Reference)
+                    .ExecuteUpdateAsync(s => s.SetProperty(x => x.ReviewedByUserId, (long?)makerId));
+                Assert.Equal(409, (await trace.GetAsync(first.Reference)).StatusCode);
+                await transaction.RollbackAsync();
+            }
+            await using (var transaction = await probeDb.Database.BeginTransactionAsync())
+            {
+                await probeDb.ProcurementSupplierInvoices
+                    .Where(x => x.PublicId == first.Reference)
+                    .ExecuteUpdateAsync(s => s.SetProperty(x => x.ReviewReason, (string?)null));
+                Assert.Equal(409, (await trace.GetAsync(first.Reference)).StatusCode);
+                await transaction.RollbackAsync();
+            }
+            Assert.Equal(checkerId, await probeDb.ProcurementSupplierInvoices.AsNoTracking()
+                .Where(x => x.PublicId == first.Reference)
+                .Select(x => x.ReviewedByUserId).SingleAsync());
+            Assert.False(string.IsNullOrWhiteSpace(await probeDb.ProcurementSupplierInvoices.AsNoTracking()
+                .Where(x => x.PublicId == first.Reference)
+                .Select(x => x.ReviewReason).SingleAsync()));
+
             var restored = await trace.GetAsync(first.Reference);
             Assert.Equal(200, restored.StatusCode);
             Assert.Equal("ExplicitBalancedReference", restored.Data!.FinanceEvidenceStatus);

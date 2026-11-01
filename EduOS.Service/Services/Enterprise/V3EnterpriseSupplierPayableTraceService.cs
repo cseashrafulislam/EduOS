@@ -31,6 +31,21 @@ public sealed class V3EnterpriseSupplierPayableTraceService(
         if (invoice == null)
             return ApiResponse<V3EnterpriseSupplierPayableTraceDto>.ErrorResponse("Invoice not found.", 404);
 
+        // Historical SQL corruption must not certify a balanced payable as
+        // independently approved. Only the canonical maker/checker workflow posts.
+        if ((invoice.StateCode is "Posted" or "Reversed") &&
+            (invoice.CreatedBy is null or <= 0 ||
+             invoice.SubmittedByUserId != invoice.CreatedBy ||
+             invoice.ReviewedByUserId is null or <= 0 ||
+             invoice.ReviewedByUserId == invoice.CreatedBy ||
+             invoice.ReviewedByUserId == invoice.SubmittedByUserId ||
+             !invoice.SubmittedAtUtc.HasValue || !invoice.ReviewedAtUtc.HasValue ||
+             invoice.ReviewedAtUtc.Value < invoice.SubmittedAtUtc.Value ||
+             invoice.ReviewRequestId is null || invoice.ReviewRequestId == Guid.Empty ||
+             string.IsNullOrWhiteSpace(invoice.ReviewFingerprint) ||
+             string.IsNullOrWhiteSpace(invoice.ReviewReason)))
+            return Conflict("Supplier invoice maker-checker approval evidence conflicts.");
+
         var order = await db.ProcurementPurchaseOrders.IgnoreQueryFilters().AsNoTracking()
             .Where(x => x.TenantId == user.TenantId && x.Id == invoice.PurchaseOrderId)
             .Select(x => new { x.Id, x.PublicId, x.CampusId, x.SupplierId, x.IsDeleted })
