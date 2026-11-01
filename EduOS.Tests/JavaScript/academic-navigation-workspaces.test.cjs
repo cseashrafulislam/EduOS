@@ -35,6 +35,22 @@ test('nine academic routes have one visible editor each, not an in-page tab fore
     }
 });
 
+test('class/track/subject scripts initialize from authorized route without removed tab nodes', () => {
+    for (const [file, feature] of [
+        ['levels', 'classes'], ['tracks', 'classes'], ['subjects', 'subjects']
+    ]) {
+        const source = read(`EduOS.App/wwwroot/js/academic/${file}.js`);
+        assert.doesNotMatch(source, /document\.querySelector\('button\[data-panel=/);
+        assert.match(source, /dataset\.activeFeature/);
+        assert.match(source, new RegExp(`=== '${feature}'`));
+        assert.match(source, /eduos:academic-reloaded/);
+    }
+    const browser = read('tests/browser/academic-management.cjs');
+    assert.doesNotMatch(browser, /locator\('\[data-panel=/);
+    assert.match(browser, /openFeature\('classes'\)/);
+    assert.match(browser, /openFeature\('subjects'\)/);
+});
+
 test('onboarding wizard remains callable, but never duplicates canonical sidebar destinations', () => {
     for (const route of ['InstitutionProfile', 'CampusSetup', 'AcademicSetup', 'ModuleSetup']) {
         assert.doesNotMatch(layout, new RegExp(`href="/Account/${route}"`));

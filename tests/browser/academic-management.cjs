@@ -197,7 +197,18 @@ async function main() {
         await page.waitForSelector('#yearRows tr');
         assert.match(await page.locator('#yearRows').innerText(), /Academic 2026/);
 
-        await page.locator('[data-panel="classes"]').click();
+        // The production shell uses one server-selected URL per feature, not
+        // the removed multi-form tab strip. This isolated fixture retains all
+        // sections for transaction continuity; switch its authorized feature
+        // scope without reintroducing a client-side navigation control.
+        const openFeature = async feature => page.evaluate(selected => {
+            const workspace = document.getElementById('academicManagement');
+            workspace.dataset.activeFeature = selected;
+            for (const section of workspace.querySelectorAll('[data-section]'))
+                section.classList.toggle('d-none', section.dataset.section !== selected);
+            window.dispatchEvent(new Event('eduos:academic-reloaded'));
+        }, feature);
+        await openFeature('classes');
         await page.locator('#programName').fill('Secondary');
         await page.locator('#programCode').fill('SEC');
         await page.locator('#programForm button[type="submit"]').click();
@@ -230,7 +241,7 @@ async function main() {
         assert(mutations.some(x => x.path === '/api/academic-setup/tracks/551' && x.method === 'PUT'));
         await page.locator('#trackCsv').click();
 
-        await page.locator('[data-panel="subjects"]').click();
+        await openFeature('subjects');
         await page.locator('#subjectName').fill('Mathematics');
         await page.locator('#subjectCode').fill('MATH');
         await page.locator('#subjectForm button[type="submit"]').click();
@@ -248,7 +259,7 @@ async function main() {
         await page.waitForFunction(() => document.querySelector('#subjectPage')?.textContent.includes('1 subjects'));
         await page.locator('#subjectCsv').click();
 
-        await page.locator('[data-panel="curricula"]').click();
+        await openFeature('curricula');
         await page.locator('#curriculumName').fill('Secondary Curriculum 2026');
         await page.locator('#curriculumCode').fill('SC-2026');
         await page.locator('#curriculumFrom').fill('2026-01-01');
@@ -304,7 +315,7 @@ async function main() {
         await page.locator('#curriculumRows button').filter({ hasText: 'Activate' }).first().click();
         await page.waitForFunction(() => document.querySelector('#curriculumRows')?.textContent.includes('Current'));
         assert(mutations.some(x => x.path.endsWith('/activate') && x.method === 'PUT'));
-        await page.locator('[data-panel="sections"]').click();
+        await openFeature('sections');
         await page.locator('#sectionName').fill('Grade Nine A');
         await page.locator('#sectionCode').fill('G9-A');
         await page.locator('#sectionStart').fill('2026-01-10');
@@ -316,7 +327,7 @@ async function main() {
         assert.equal(section.data.academicLevelId, 501);
         assert.match(section.data.clientRequestId, /^[0-9a-f-]{36}$/i);
 
-        await page.locator('[data-panel="terms"]').click();
+        await openFeature('terms');
         await page.locator('#termName').fill('First Term');
         await page.locator('#termCode').fill('T1');
         await page.locator('#termStart').fill('2026-01-01');

@@ -120,12 +120,15 @@
         } catch (error) { notice(error.message, true); }
         finally { button.disabled = false; }
     });
+    const classesActive = () => document.getElementById('academicManagement')?.dataset.activeFeature === 'classes';
     window.addEventListener('eduos:academic-reloaded', () => {
         programOptions();
-        if (loaded || document.querySelector('button[data-panel="classes"].active'))
+        if (loaded || classesActive())
             load().catch(x => notice(x.message, true));
     });
-    document.querySelector('button[data-panel="classes"]').addEventListener('click', () => {
-        if (!loaded) load().catch(x => notice(x.message, true));
-    });
+    // Server-selected feature routes no longer render the legacy in-page tab.
+    if (classesActive()) {
+        programOptions();
+        load().catch(x => notice(x.message, true));
+    }
 })();

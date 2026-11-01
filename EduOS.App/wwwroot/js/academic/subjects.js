@@ -120,11 +120,10 @@
         } catch (error) { notice(error.message, true); }
         finally { button.disabled = false; }
     });
+    const subjectsActive = () => document.getElementById('academicManagement')?.dataset.activeFeature === 'subjects';
     window.addEventListener('eduos:academic-reloaded', () => {
-        if (loaded || document.querySelector('button[data-panel="subjects"].active'))
+        if (loaded || subjectsActive())
             load().catch(x => notice(x.message, true));
     });
-    document.querySelector('button[data-panel="subjects"]').addEventListener('click', () => {
-        if (!loaded) load().catch(x => notice(x.message, true));
-    });
+    if (subjectsActive()) load().catch(x => notice(x.message, true));
 })();
