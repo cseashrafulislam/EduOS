@@ -21,7 +21,7 @@ const routes = ['/FeeReceivablesAging/Index', '/PayrollJournalPosting/Index', '/
     ...['Profile','Campuses','Regional','Branding','Subdomain','History'].map(action => '/InstitutionManagement/' + action)];
 
 test('all reviewed route manuals have full bilingual structure, matching steps and examples', () => {
-    assert.deepEqual(coverage(), { routes: 59, en: 59, bn: 59 });
+    assert.deepEqual(coverage(), { routes: 81, en: 81, bn: 81 });
     for (const route of routes) {
         const en = guideFor(route, 'en-BD');
         const bn = guideFor(route, 'bn-BD');

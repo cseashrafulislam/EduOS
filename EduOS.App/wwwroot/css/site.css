@@ -3627,3 +3627,37 @@ select,
  :root[data-workspace-custom-form="true"] :is(.form-control,.form-select) { background-color:var(--edu-custom-form-bg); color:var(--edu-custom-form-fg); }
  :root[data-workspace-custom-table="true"] .table { --bs-table-bg:var(--edu-custom-table-bg); --bs-table-color:var(--edu-custom-table-fg); background-color:var(--edu-custom-table-bg); color:var(--edu-custom-table-fg); }
 }
+/* Task URLs present only their relevant workflow. Legacy /Index retains all
+   underlying panels for existing deep links and coupled client-side actions.
+   Excluded panels stay in the DOM until the domain scripts can be decoupled;
+   display:none removes their controls from keyboard and screen-reader flow. */
+#inventoryMovements[data-task-page="transactions"] > [data-inventory-area]:not([data-inventory-area="transactions"]),
+#inventoryMovements[data-task-page="adjustments"] > [data-inventory-area]:not([data-inventory-area="adjustments"]),
+#inventoryMovements[data-task-page="counts"] > [data-inventory-area]:not([data-inventory-area="counts"]),
+#inventoryMovements[data-task-page="reports"] > [data-inventory-area]:not([data-inventory-area="reports"]),
+#hostelWorkspace[data-task-page="applications"] > :not(header):not(#hostelAlert):not(#hostelApplicationSelf):not(#hostelApplicationQueue):not(#hostelAuthorityPanel):not(#hostelGuardianStays),
+#hostelWorkspace[data-task-page="allocations"] > :not(header):not(#hostelAlert):not(#hostelMinePanel):not(#hostelMyHistoryPanel):not(#hostelAllocatePanel):not(#hostelActivePanel):not(#hostelAllocationReadinessPanel):not(#hostelCheckoutPanel),
+#hostelWorkspace[data-task-page="setup"] > :not(header):not(#hostelAlert):not(#hostelRoomCreatePanel):not(#hostelRoomCapacityPanel):not(#hostelRoomInventoryPanel):not(#hostelBedCreatePanel):not(#hostelBedInventoryPanel):not(#hostelBedRelocationPanel):not(#hostelFacilityPanel),
+#hostelWorkspace[data-task-page="reports"] > :not(header):not(#hostelAlert):not(#hostelResidentRosterPanel):not(#hostelHistoryPanel):not(#hostelOccupancyInsightsPanel):not(#hostelOccupancyForecastPanel):not(#hostelPeakOccupancyPanel):not(#hostelTurnoverPanel):not(#hostelCapacityPanel),
+#transportWorkspace[data-task-page="setup"] > :not(header):not(#transportAlert):not(#transportCatalogPanel):not(#transportRouteSetupPanel):not(#transportVehicleSetupPanel):not(#transportCampusAssignmentPanel):not(#transportRouteVehiclePanel):not(#transportDriverRegistryPanel):not(#transportVehicleDriverPanel),
+#transportWorkspace[data-task-page="assignments"] > :not(header):not(#transportAlert):not(#transportMinePanel):not(#transportCatalogPanel):not(#transportAssignmentPanel):not(#transportActivePanel):not(#transportBoardingManifestPanel):not(#transportRiderReadinessPanel):not(#transportUpcomingStartPanel):not(#transportUpcomingRiderExtensionPanel):not(#transportNoChargeShorteningPanel):not(#transportRiderExtensionPanel):not(#transportStopCorrectionPanel):not(#transportOperatingTransferPanel):not(#transportVehicleChangePanel):not(#transportUpcomingCancelPanel),
+#transportWorkspace[data-task-page="reports"] > :not(header):not(#transportAlert):not(#transportHistoryPanel):not(#transportTurnoverPanel):not(#transportStopDemandPanel):not(#transportCapacityPanel):not(#transportSeatForecastPanel):not(#transportFleetInsightsPanel):not(#transportSafetyImpactPanel):not(#transportVehicleCasesPanel):not(#transportDriverCompliancePanel):not(#transportDriverReadinessPanel):not(#transportDriverCoverageForecastPanel):not(#transportDriverCoverageWindowPanel) {
+    display: none !important;
+}
+
+/* Shared responsive forms and focus cues for the large operational workspaces. */
+#hostelWorkspace :is(.row, .d-flex) > :is(.btn, button),
+#transportWorkspace :is(.row, .d-flex) > :is(.btn, button) { min-height: 40px; }
+#hostelWorkspace :is(button, a, input, select, textarea):focus-visible,
+#transportWorkspace :is(button, a, input, select, textarea):focus-visible {
+    outline: 3px solid var(--bs-primary, #0d6efd);
+    outline-offset: 2px;
+}
+@media (max-width: 575.98px) {
+    #hostelWorkspace .card-body, #transportWorkspace .card-body { padding: 1rem; }
+    #hostelWorkspace > header, #transportWorkspace > header { gap: .5rem; }
+    #hostelWorkspace .table-responsive, #transportWorkspace .table-responsive { max-width: 100%; }
+    #hostelWorkspace form > .d-flex, #transportWorkspace form > .d-flex { flex-wrap: wrap; }
+    #hostelWorkspace form .form-control, #transportWorkspace form .form-control,
+    #hostelWorkspace form .form-select, #transportWorkspace form .form-select { min-width: 0; }
+}

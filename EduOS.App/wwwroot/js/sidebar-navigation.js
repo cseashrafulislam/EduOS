@@ -56,6 +56,11 @@
             ['operations', 'Operations', 'কার্যক্রম', ['/Admissions/NewApplication', '/Admissions/Applications', '/Admissions/Merit', '/Admissions/Assessments', '/Admissions/Offers', '/Admissions/Index', '/Students', '/LearnerIdentities/Index']],
             ['reports', 'Reports', 'রিপোর্ট', ['/LearnerIdentities/AccessHistory']]
         ],
+        'academics:learning': [
+            ['settings', 'Settings', 'সেটিংস', ['/Learning/CourseContent']],
+            ['operations', 'Operations', 'কার্যক্রম', ['/Learning/Index', '/Learning/Quizzes', '/Learning/LiveClasses', '/Learning/AssignmentFiles', '/Learning/MySubmissions']],
+            ['reports', 'Reports', 'রিপোর্ট', ['/Learning/CourseCompletions', '/Learning/Certificates']]
+        ],
         'management:finance': [
             ['settings', 'Settings', 'সেটিংস', ['/FeeOperations/Structures', '/FeeDiscountRules', '/FeeHeadAccounting', '/AccountingSetup', '/FinanceAdjustments/Policies']],
             ['operations', 'Operations', 'কার্যক্রম', ['/FeeOperations/Billing', '/FeeOperations/Ledger', '/FeeOperations', '/AdmissionCashReceipts', '/FinanceAdjustments/StudentAdjustments', '/FinanceAdjustments/Refunds', '/FinanceAdjustments/HostelClearances', '/FinanceAdjustments/TransportClearances', '/FinanceAdjustments/ReservationPreflight', '/FinanceAdjustments/DiscountAwards', '/FinanceAdjustments', '/AccountingJournals', '/StudentInvoicePosting', '/StudentPaymentPosting', '/FeeInstallmentPlans']],
@@ -78,15 +83,22 @@
         ],
         'management:inventory': [
             ['settings', 'Settings', 'সেটিংস', ['/InventoryCatalog']],
-            ['operations', 'Operations', 'কার্যক্রম', ['/InventoryMovements', '/AssetLifecycle']]
+            ['operations', 'Operations', 'কার্যক্রম', ['/InventoryMovements/Transactions', '/InventoryMovements/Adjustments', '/InventoryMovements/StockCounts', '/InventoryMovements/Index', '/AssetLifecycle']],
+            ['reports', 'Reports', 'রিপোর্ট', ['/InventoryMovements/Reports']]
+        ],
+        'management:library': [
+            ['settings', 'Settings', 'সেটিংস', ['/Library/Branches']],
+            ['operations', 'Operations', 'কার্যক্রম', ['/Library/Index', '/Library/Circulation', '/Library/Reservations', '/Library/Digital', '/Library/Conditions']],
+            ['reports', 'Reports', 'রিপোর্ট', ['/Library/Overdue', '/Library/Integrity', '/Library/Liabilities']]
         ],
         'management:communication': [
             ['settings', 'Settings', 'সেটিংস', ['/CommunicationAdministration', '/CustomFields', '/DocumentAdministration']],
             ['operations', 'Operations', 'কার্যক্রম', ['/CommunicationWorkspace']]
         ],
         'management:campus': [
-            ['operations', 'Operations', 'কার্যক্রম', ['/HostelOperations', '/hostel', '/TransportOperations']],
-            ['reports', 'Reports', 'রিপোর্ট', ['/OperationsInsights']]
+            ['settings', 'Settings', 'সেটিংস', ['/HostelOperations/Setup', '/TransportOperations/Setup']],
+            ['operations', 'Operations', 'কার্যক্রম', ['/HostelOperations/Applications', '/HostelOperations/Allocations', '/HostelOperations/Index', '/hostel', '/TransportOperations/Assignments', '/TransportOperations/Index', '/TransportOperations/Trips', '/TransportOperations/Family', '/TransportOperations/DriverTrips']],
+            ['reports', 'Reports', 'রিপোর্ট', ['/HostelOperations/Reports', '/TransportOperations/Reports', '/OperationsInsights']]
         ]
     };
 
@@ -140,6 +152,28 @@
         '/learneridentities/index': 'শিক্ষার্থী পরিচয়',
         '/learneridentities/accesshistory': 'পরিচয় তথ্য দেখার ইতিহাস',
         '/learning/index': 'শিক্ষা ও কোর্স',
+        '/learning/quizzes': 'কুইজ',
+        '/learning/liveclasses': 'লাইভ ক্লাস',
+        '/learning/coursecontent': 'কোর্সের বিষয়বস্তু',
+        '/learning/assignmentfiles': 'অ্যাসাইনমেন্ট ফাইল',
+        '/learning/certificates': 'সনদ',
+        '/hosteloperations/applications': 'আবাসিক আবেদন',
+        '/hosteloperations/allocations': 'শয্যা বরাদ্দ',
+        '/hosteloperations/setup': 'কক্ষ ও শয্যা সেটআপ',
+        '/hosteloperations/reports': 'হোস্টেল প্রতিবেদন',
+        '/transportoperations/setup': 'রুট ও গাড়ি সেটআপ',
+        '/transportoperations/assignments': 'পরিবহন বরাদ্দ',
+        '/transportoperations/reports': 'পরিবহন প্রতিবেদন',
+        '/inventorymovements/transactions': 'স্টক ইস্যু ও স্থানান্তর',
+        '/inventorymovements/adjustments': 'স্টক সমন্বয়',
+        '/inventorymovements/stockcounts': 'বাস্তব স্টক গণনা',
+        '/inventorymovements/reports': 'স্টক প্রতিবেদন',
+        '/library/reservations': 'বই সংরক্ষণ',
+        '/library/branches': 'গ্রন্থাগার শাখা',
+        '/library/overdue': 'বিলম্ব ও নোটিশ',
+        '/library/conditions': 'বইয়ের অবস্থা',
+        '/library/integrity': 'বইয়ের কপি যাচাই',
+        '/library/liabilities': 'গ্রন্থাগারের দায়',
         '/assessmentadministration/index': 'পরীক্ষা ও ফলাফল',
         '/assessmentadministration/marks': 'নম্বর এন্ট্রি',
         '/assessmentadministration/results': 'ফলাফল যাচাই ও প্রকাশ',

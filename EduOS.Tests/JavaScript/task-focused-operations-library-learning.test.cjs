@@ -1,0 +1,152 @@
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
+const vm = require('node:vm');
+const root = path.resolve(__dirname, '../..');
+const read = p => fs.readFileSync(path.join(root, p), 'utf8');
+const { guideFor, coverage } = require('../../EduOS.App/wwwroot/js/platform/page-context-help.js');
+const sidebar = require('../../EduOS.App/wwwroot/js/sidebar-navigation.js');
+
+const routes = {
+    HostelOperations: ['Applications', 'Allocations', 'Setup', 'Reports'],
+    TransportOperations: ['Setup', 'Assignments', 'Reports'],
+    InventoryMovements: ['Transactions', 'Adjustments', 'StockCounts', 'Reports']
+};
+
+test('focused optional-domain workspaces retain trusted Index view, module gates and role-checked GETs', () => {
+    for (const [controllerName, actions] of Object.entries(routes)) {
+        const controller = read(`EduOS.App/Controllers/${controllerName}Controller.cs`);
+        const view = read(`EduOS.App/Views/${controllerName}/Index.cshtml`);
+        assert.match(controller, /public IActionResult Index\(\) => View\(\);/);
+        assert.match(controller, /TaskPage\(/);
+        assert.match(controller, /return View\("Index"\);/);
+        assert.match(view, /data-task-page="@taskPage"/);
+        for (const action of actions) {
+            assert.match(controller, new RegExp(`public IActionResult ${action}\\(\\)`));
+            assert.match(controller, new RegExp(`public IActionResult ${action}\\(\\)[^;]*?TaskPage\\(`));
+        }
+        const module = controllerName === 'HostelOperations' ? 'HOSTEL' : controllerName === 'TransportOperations' ? 'TRANSPORT' : 'INVENTORY';
+        assert.ok(controller.includes(`RequireModule("${module}")`));
+    }
+    assert.match(read('EduOS.App/Controllers/HostelOperationsController.cs'), /Authorize\(Roles = "TenantAdmin,Principal,HostelWarden"\)/);
+    assert.match(read('EduOS.App/Controllers/TransportOperationsController.cs'), /Authorize\(Roles = "TenantAdmin,Principal,TransportManager"\)/);
+    assert.match(read('EduOS.App/Controllers/InventoryMovementsController.cs'), /Authorize\(Roles = "TenantAdmin,Principal,InventoryManager,StoreKeeper"\)/);
+});
+
+test('focused workspace CSS hides unrelated DOM without dismantling shared business forms', () => {
+    const css = read('EduOS.App/wwwroot/css/site.css');
+    for (const [rootId, actions] of [
+        ['hostelWorkspace', ['applications', 'allocations', 'setup', 'reports']],
+        ['transportWorkspace', ['setup', 'assignments', 'reports']],
+        ['inventoryMovements', ['transactions', 'adjustments', 'counts', 'reports']]
+    ]) for (const action of actions) assert.ok(css.includes(`#${rootId}[data-task-page="${action}"]`), `${rootId}/${action}`);
+    assert.ok(css.includes('display: none !important'));
+    const hostel = read('EduOS.App/Views/HostelOperations/Index.cshtml');
+    const transport = read('EduOS.App/Views/TransportOperations/Index.cshtml');
+    const inventory = read('EduOS.App/Views/InventoryMovements/Index.cshtml');
+    for (const id of ['hostelAllocationForm', 'hostelActiveRows', 'hostelRoomCreatePanel', 'hostelResidentRosterPanel']) {
+        const inPartial = id === 'hostelResidentRosterPanel';
+        assert.ok((inPartial ? read('EduOS.App/Views/HostelOperations/_ResidentRoster.cshtml') : hostel).includes(`id="${id}"`));
+    }
+    for (const id of ['transportAssignmentForm', 'transportRouteSetupPanel', 'transportActivePanel']) assert.ok(transport.includes(`id="${id}"`));
+    for (const group of ['transactions', 'adjustments', 'counts', 'reports']) assert.ok(inventory.includes(`data-inventory-area="${group}"`));
+    assert.match(inventory, /js\/inventory\/movements\.js/);
+    assert.match(hostel, /js\/hostel-operations\/index\.js/);
+    assert.match(transport, /js\/transport-operations\/index\.js/);
+});
+
+test('authorized sidebar organizes optional module destinations under correct 3rd-level type', () => {
+    const layout = read('EduOS.App/Views/Shared/_Layout.cshtml');
+    for (const [type, actions] of Object.entries(routes)) {
+        assert.ok(layout.includes(`"/${type}/" +`), type);
+        for (const action of actions) assert.ok(layout.includes(`Action: "${action}"`));
+    }
+    assert.equal(sidebar.categoryFor('management', 'campus', '/HostelOperations/Setup'), 'settings');
+    assert.equal(sidebar.categoryFor('management', 'campus', '/HostelOperations/Reports'), 'reports');
+    assert.equal(sidebar.categoryFor('management', 'campus', '/TransportOperations/Assignments'), 'operations');
+    assert.equal(sidebar.categoryFor('management', 'inventory', '/InventoryMovements/StockCounts'), 'operations');
+    assert.equal(sidebar.categoryFor('management', 'inventory', '/InventoryMovements/Reports'), 'reports');
+    assert.equal(sidebar.categoryFor('management', 'library', '/Library/Branches'), 'settings');
+    assert.equal(sidebar.categoryFor('management', 'library', '/Library/Overdue'), 'reports');
+    assert.equal(sidebar.categoryFor('academics', 'learning', '/Learning/CourseContent'), 'settings');
+    assert.equal(sidebar.categoryFor('academics', 'learning', '/Learning/Certificates'), 'reports');
+    assert.equal(sidebar.navigationLabelFor('/Library/Liabilities', 'bn-BD'), 'গ্রন্থাগারের দায়');
+});
+
+test('all new operation, library and LMS manuals are distinct validated English/Bangla guides', () => {
+    const all = [
+        ...Object.entries(routes).flatMap(([prefix, actions]) => actions.map(action => `/${prefix}/${action}`)),
+        ...['Branches', 'Reservations', 'Overdue', 'Conditions', 'Integrity', 'Liabilities'].map(action => `/Library/${action}`),
+        ...['Quizzes', 'LiveClasses', 'CourseContent', 'AssignmentFiles', 'Certificates'].map(action => `/Learning/${action}`)
+    ];
+    assert.deepEqual(coverage(), { routes: 81, en: 81, bn: 81 });
+    for (const route of all) {
+        const en = guideFor(route, 'en-BD');
+        const bn = guideFor(route, 'bn-BD');
+        assert.ok(en && bn, `${route}: missing manual`);
+        assert.ok(en.steps.length >= 2, route);
+        assert.equal(en.steps.length, bn.steps.length);
+        assert.notEqual(en.title, bn.title);
+        assert.notEqual(en.example, bn.example);
+        assert.deepEqual(en.related.map(link => link.path), bn.related.map(link => link.path));
+    }
+});
+
+test('theme/onboarding remain the one protected implementation and mobile/accessibility rules are scoped', () => {
+    const workspace = read('EduOS.App/wwwroot/js/platform/workspace-preferences.js');
+    const layout = read('EduOS.App/Views/Shared/_Layout.cshtml');
+    const css = read('EduOS.App/wwwroot/css/site.css');
+    assert.match(workspace, /data-custom-color-picker/);
+    assert.match(layout, /id="pageContextHelp"/);
+    assert.match(css, /#hostelWorkspace :is\(button, a, input, select, textarea\):focus-visible/);
+    assert.match(css, /@media \(max-width: 575\.98px\)/);
+    assert.match(read('EduOS.App/Views/Account/_OnboardingLayout.cshtml'), /onboarding-phase/);
+});
+
+test('Bangla static task-label enhancement leaves values, child controls and English untouched', () => {
+    const script = read('EduOS.App/wwwroot/js/platform/task-workspace-locales.js');
+    const makeNode = (text, children = []) => ({
+        textContent: text, children, attrs: {},
+        getAttribute(name) { return this.attrs[name] ?? null; },
+        setAttribute(name, value) { this.attrs[name] = value; }
+    });
+    const label = makeNode('Find student');
+    const button = makeNode('Save');
+    const controlLabel = makeNode('Status', [makeNode('checkbox')]);
+    const input = makeNode(''); input.attrs.placeholder = 'Search';
+    const rootElement = { querySelectorAll(selector) {
+        return selector.includes('placeholder') ? [input] : [label, button, controlLabel];
+    } };
+    const run = lang => vm.runInNewContext(script, { document: {
+        documentElement: { lang }, querySelector: () => rootElement
+    } });
+    run('en-BD');
+    assert.equal(label.textContent, 'Find student');
+    run('bn-BD');
+    assert.equal(label.textContent, 'শিক্ষার্থী খুঁজুন');
+    assert.equal(button.textContent, 'সংরক্ষণ');
+    assert.equal(controlLabel.textContent, 'Status');
+    assert.equal(input.attrs.placeholder, 'খুঁজুন');
+    assert.equal(controlLabel.children.length, 1);
+});
+
+test('semantic-color readable foreground meets WCAG AA contrast on arbitrary valid picks', () => {
+    const shell = read('EduOS.App/wwwroot/js/site.js');
+    const match = shell.match(/    function readableWorkspaceText\(hex\) \{[\s\S]*?\n    \}/);
+    assert.ok(match);
+    const readable = vm.runInNewContext(`(${match[0].trim()})`);
+    const luminance = hex => {
+        const values = [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16) / 255)
+            .map(x => x <= .04045 ? x / 12.92 : ((x + .055) / 1.055) ** 2.4);
+        return .2126 * values[0] + .7152 * values[1] + .0722 * values[2];
+    };
+    for (const bg of ['#000000', '#FFFFFF', '#777777', '#0F172A', '#FF0000', '#00FF00', '#0000FF',
+        '#2563EB', '#F6ED3A', '#123456', '#AABBCC', '#E4E4E4', '#805D74', '#27CD99']) {
+        const textColor = readable(bg);
+        const b = luminance(bg);
+        const t = luminance(textColor);
+        const ratio = (Math.max(b, t) + .05) / (Math.min(b, t) + .05);
+        assert.ok(ratio >= 4.5, `${bg}: ${ratio.toFixed(2)}:1 contrast`);
+    }
+});

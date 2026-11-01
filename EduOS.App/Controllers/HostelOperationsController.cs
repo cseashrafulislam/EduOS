@@ -16,6 +16,34 @@ public sealed class HostelOperationsController(IHostelService hostelService) : C
     [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
     public IActionResult Index() => View();
 
+    // Task-scoped presentations reuse the canonical protected view and its
+    // existing client/API contracts. The original Index remains a deep link.
+    private IActionResult TaskPage(string task, string title)
+    {
+        ViewData["TaskPage"] = task;
+        ViewData["TaskTitle"] = title;
+        return View("Index");
+    }
+
+    [HttpGet]
+    [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
+    public IActionResult Applications() => TaskPage("applications", "Hostel applications");
+
+    [HttpGet]
+    [Authorize(Roles = "TenantAdmin,Principal,HostelWarden")]
+    [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
+    public IActionResult Allocations() => TaskPage("allocations", "Hostel allocations");
+
+    [HttpGet]
+    [Authorize(Roles = "TenantAdmin,Principal,HostelWarden")]
+    [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
+    public IActionResult Setup() => TaskPage("setup", "Hostel rooms and beds");
+
+    [HttpGet]
+    [Authorize(Roles = "TenantAdmin,Principal,HostelWarden")]
+    [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
+    public IActionResult Reports() => TaskPage("reports", "Hostel reports");
+
     [HttpGet("hostel/my-history/print")]
     [EnableRateLimiting("ApiPolicy")]
     [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]

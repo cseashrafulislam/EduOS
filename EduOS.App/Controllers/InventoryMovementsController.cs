@@ -71,4 +71,24 @@ public sealed class InventoryMovementsController : Controller
 
     [HttpGet, ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
     public IActionResult Index() => View();
+
+    private IActionResult TaskPage(string scope)
+    {
+        ViewData["MovementTask"] = scope;
+        return View("Index");
+    }
+
+    [HttpGet, Authorize(Roles = "TenantAdmin,Principal,InventoryManager,StoreKeeper")]
+    [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
+    public IActionResult Transactions() => TaskPage("transactions");
+
+    [HttpGet, Authorize(Roles = "TenantAdmin,Principal,InventoryManager,StoreKeeper")]
+    [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
+    public IActionResult Adjustments() => TaskPage("adjustments");
+
+    [HttpGet, ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
+    public IActionResult StockCounts() => TaskPage("counts");
+
+    [HttpGet, ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
+    public IActionResult Reports() => TaskPage("reports");
 }

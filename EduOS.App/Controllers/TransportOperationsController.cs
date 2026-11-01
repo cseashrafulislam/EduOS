@@ -12,6 +12,28 @@ public sealed class TransportOperationsController : Controller
     [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
     public IActionResult Index() => View();
 
+    private IActionResult TaskPage(string task, string title)
+    {
+        ViewData["TaskPage"] = task;
+        ViewData["TaskTitle"] = title;
+        return View("Index");
+    }
+
+    [HttpGet]
+    [Authorize(Roles = "TenantAdmin,Principal,TransportManager")]
+    [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
+    public IActionResult Setup() => TaskPage("setup", "Transport setup");
+
+    [HttpGet]
+    [Authorize(Roles = "TenantAdmin,Principal,TransportManager")]
+    [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
+    public IActionResult Assignments() => TaskPage("assignments", "Transport assignments");
+
+    [HttpGet]
+    [Authorize(Roles = "TenantAdmin,Principal,TransportManager")]
+    [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
+    public IActionResult Reports() => TaskPage("reports", "Transport reports");
+
     [HttpGet]
     [Authorize(Roles = "Student,Guardian,Parent")]
     [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]

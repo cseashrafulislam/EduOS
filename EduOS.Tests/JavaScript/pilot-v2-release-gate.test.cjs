@@ -24,8 +24,17 @@ test("pilot and current-tenant entitlement jointly guard all optional module men
     assert.match(navigation, /x\.IsEnabled && x\.IsEntitledByPlan/);
     assert.match(nearestConditionalBefore("/Learning/Index"), /^@if \(showLms && /);
     assert.match(nearestConditionalBefore("/Library/Index"), /^@if \(showLibrary\)/);
-    assert.match(nearestConditionalBefore("/HostelOperations/Index"), /^@if \(showHostel\)/);
-    assert.match(nearestConditionalBefore("/TransportOperations/Index"), /^@if \(showTransport\)/);
+    // Task-specific role guards are nested inside the existing entitlement
+    // conditions; nearest-@if alone no longer describes the authorized block.
+    const hostelStart = layout.indexOf('@if (showHostel)');
+    const transportStart = layout.indexOf('@if (showTransport)', hostelStart);
+    assert.ok(hostelStart >= 0 && transportStart > hostelStart);
+    assert.ok(layout.slice(hostelStart, transportStart).includes('/HostelOperations/Index'));
+    assert.ok(layout.slice(hostelStart, transportStart).includes('Action: "Reports"'));
+    const transportRoleLinks = layout.indexOf('v2RoleLinks.Where(x => x.ModuleCode == "TRANSPORT")', transportStart);
+    assert.ok(transportRoleLinks > transportStart);
+    assert.ok(layout.slice(transportStart, transportRoleLinks).includes('/TransportOperations/Index'));
+    assert.ok(layout.slice(transportStart, transportRoleLinks).includes('Action: "Reports"'));
     assert.match(nearestConditionalBefore("/InventoryCatalog/Index"), /^@if \(showInventory && /);
     const roleNavigation = fs.readFileSync(path.join(root,
         "EduOS.App/Authorization/V2RolePortalNavigation.cs"), "utf8");

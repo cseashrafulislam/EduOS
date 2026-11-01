@@ -312,6 +312,20 @@
                         <svg class="edu-icon"><use href="/images/eduos-icons.svg#book" /></svg>
                         <span>@T["V2LearningManagement"]</span>
                     </a>
+                    @foreach (var lmsTask in new[] {
+                        (Action: "Quizzes", En: "Quizzes", Bn: "কুইজ"),
+                        (Action: "LiveClasses", En: "Live Classes", Bn: "লাইভ ক্লাস"),
+                        (Action: "CourseContent", En: "Course Content", Bn: "কোর্সের বিষয়বস্তু"),
+                        (Action: "AssignmentFiles", En: "Assignment Files", Bn: "অ্যাসাইনমেন্ট ফাইল"),
+                        (Action: "Certificates", En: "Certificates", Bn: "সনদ")
+                    })
+                    {
+                        var lmsPath = "/Learning/" + lmsTask.Action;
+                        <a class="nav-link @ActiveFor(lmsPath)" href="@lmsPath">
+                            <svg class="edu-icon"><use href="/images/eduos-icons.svg#book" /></svg>
+                            <span>@(currentCulture == "bn-BD" ? lmsTask.Bn : lmsTask.En)</span>
+                        </a>
+                    }
                     @foreach (var link in v2RoleLinks.Where(x => x.ModuleCode == "LMS"))
                     {
                         <a class="nav-link @ActiveFor(link.Path)" href="@link.Path">
@@ -596,10 +610,22 @@
                         <svg class="edu-icon"><use href="/images/eduos-icons.svg#reports" /></svg>
                         <span>Inventory Catalog</span>
                     </a>
-                    <a class="nav-link @ActiveFor("/InventoryMovements")" href="/InventoryMovements/Index">
-                        <svg class="edu-icon"><use href="/images/eduos-icons.svg#reports" /></svg>
-                        <span>Stock Movements</span>
-                    </a>
+                    @foreach (var inventoryTask in new[] {
+                        (Action: "Transactions", En: "Stock Issues & Transfers", Bn: "স্টক ইস্যু ও স্থানান্তর"),
+                        (Action: "Adjustments", En: "Stock Adjustments", Bn: "স্টক সমন্বয়"),
+                        (Action: "StockCounts", En: "Physical Counts", Bn: "বাস্তব স্টক গণনা"),
+                        (Action: "Reports", En: "Stock Reports", Bn: "স্টক প্রতিবেদন")
+                    })
+                    {
+                        if ((inventoryTask.Action == "Transactions" || inventoryTask.Action == "Adjustments") && User?.IsInRole("Accountant") == true &&
+                            User?.IsInRole("TenantAdmin") != true && User?.IsInRole("Principal") != true &&
+                            User?.IsInRole("InventoryManager") != true && User?.IsInRole("StoreKeeper") != true) continue;
+                        var inventoryPath = "/InventoryMovements/" + inventoryTask.Action;
+                        <a class="nav-link @ActiveFor(inventoryPath)" href="@inventoryPath">
+                            <svg class="edu-icon"><use href="/images/eduos-icons.svg#reports" /></svg>
+                            <span>@(currentCulture == "bn-BD" ? inventoryTask.Bn : inventoryTask.En)</span>
+                        </a>
+                    }
                     <a class="nav-link @ActiveFor("/AssetLifecycle")" href="/AssetLifecycle/Index">
                         <svg class="edu-icon"><use href="/images/eduos-icons.svg#reports" /></svg>
                         <span>Fixed Assets &amp; Maintenance</span>
@@ -620,10 +646,29 @@
                 }
                 @if (showHostel)
                 {
+                @if (User?.IsInRole("TenantAdmin") == true || User?.IsInRole("Principal") == true || User?.IsInRole("HostelWarden") == true)
+                {
+                    @foreach (var hostelTask in new[] {
+                        (Action: "Applications", En: "Hostel Applications", Bn: "আবাসিক আবেদন"),
+                        (Action: "Setup", En: "Rooms & Beds Setup", Bn: "কক্ষ ও শয্যা সেটআপ"),
+                        (Action: "Allocations", En: "Bed Allocations", Bn: "শয্যা বরাদ্দ"),
+                        (Action: "Reports", En: "Hostel Reports", Bn: "হোস্টেল প্রতিবেদন")
+                    })
+                    {
+                        var hostelPath = "/HostelOperations/" + hostelTask.Action;
+                        <a class="nav-link @ActiveFor(hostelPath)" href="@hostelPath">
+                            <svg class="edu-icon"><use href="/images/eduos-icons.svg#campus" /></svg>
+                            <span>@(currentCulture == "bn-BD" ? hostelTask.Bn : hostelTask.En)</span>
+                        </a>
+                    }
+                }
+                else
+                {
                 <a class="nav-link @ActiveFor("/HostelOperations")" href="/HostelOperations/Index">
                     <svg class="edu-icon"><use href="/images/eduos-icons.svg#campus" /></svg>
                     <span>@T["V2Hostel"]</span>
                 </a>
+                }
                 @foreach (var link in v2RoleLinks.Where(x => x.ModuleCode == "HOSTEL"))
                 {
                     <a class="nav-link @ActiveFor(link.Path)" href="@link.Path">
@@ -634,10 +679,28 @@
                 }
                 @if (showTransport)
                 {
+                @if (User?.IsInRole("TenantAdmin") == true || User?.IsInRole("Principal") == true || User?.IsInRole("TransportManager") == true)
+                {
+                    @foreach (var transportTask in new[] {
+                        (Action: "Setup", En: "Routes & Fleet Setup", Bn: "রুট ও গাড়ি সেটআপ"),
+                        (Action: "Assignments", En: "Transport Assignments", Bn: "পরিবহন বরাদ্দ"),
+                        (Action: "Reports", En: "Transport Reports", Bn: "পরিবহন প্রতিবেদন")
+                    })
+                    {
+                        var transportPath = "/TransportOperations/" + transportTask.Action;
+                        <a class="nav-link @ActiveFor(transportPath)" href="@transportPath">
+                            <svg class="edu-icon"><use href="/images/eduos-icons.svg#campus" /></svg>
+                            <span>@(currentCulture == "bn-BD" ? transportTask.Bn : transportTask.En)</span>
+                        </a>
+                    }
+                }
+                else
+                {
                 <a class="nav-link @ActiveFor("/TransportOperations")" href="/TransportOperations/Index">
                     <svg class="edu-icon"><use href="/images/eduos-icons.svg#campus" /></svg>
                     <span>@T["V2Transport"]</span>
                 </a>
+                }
                 @foreach (var link in v2RoleLinks.Where(x => x.ModuleCode == "TRANSPORT"))
                 {
                     <a class="nav-link @ActiveFor(link.Path)" href="@link.Path">
@@ -695,6 +758,27 @@
                         <svg class="edu-icon"><use href="/images/eduos-icons.svg#book" /></svg>
                         <span>@T["V2Library"]</span>
                     </a>
+                    @foreach (var libraryTask in new[] {
+                        (Action: "Reservations", En: "Reservations", Bn: "বই সংরক্ষণ"),
+                        (Action: "Branches", En: "Library Branches", Bn: "গ্রন্থাগার শাখা"),
+                        (Action: "Overdue", En: "Overdue & Notices", Bn: "বিলম্ব ও নোটিশ"),
+                        (Action: "Conditions", En: "Book Conditions", Bn: "বইয়ের অবস্থা"),
+                        (Action: "Integrity", En: "Copy Integrity", Bn: "বইয়ের কপি যাচাই"),
+                        (Action: "Liabilities", En: "Library Liabilities", Bn: "গ্রন্থাগারের দায়")
+                    })
+                    {
+                        var allowed = libraryTask.Action switch {
+                            "Branches" or "Liabilities" => User?.IsInRole("TenantAdmin") == true,
+                            "Overdue" or "Conditions" or "Integrity" => User?.IsInRole("TenantAdmin") == true || User?.IsInRole("Principal") == true || User?.IsInRole("Librarian") == true,
+                            _ => true
+                        };
+                        if (!allowed) continue;
+                        var libraryPath = "/Library/" + libraryTask.Action;
+                        <a class="nav-link @ActiveFor(libraryPath)" href="@libraryPath">
+                            <svg class="edu-icon"><use href="/images/eduos-icons.svg#book" /></svg>
+                            <span>@(currentCulture == "bn-BD" ? libraryTask.Bn : libraryTask.En)</span>
+                        </a>
+                    }
                     @foreach (var link in v2RoleLinks.Where(x => x.ModuleCode == "LIBRARY"))
                     {
                         <a class="nav-link @ActiveFor(link.Path)" href="@link.Path">

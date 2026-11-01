@@ -1,21 +1,25 @@
 @{
-    ViewData["Title"] = "Inventory Movements";
+    var taskPage = ViewData["MovementTask"]?.ToString() ?? "all";
+    var inBangla = System.Globalization.CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "bn";
+    ViewData["Title"] = taskPage switch
+    {
+        "transactions" => inBangla ? "স্টক গ্রহণ ও ইস্যু" : "Stock Transactions",
+        "adjustments" => inBangla ? "স্টক সমন্বয়" : "Stock Adjustments",
+        "counts" => inBangla ? "স্টক গণনা" : "Physical Stock Counts",
+        "reports" => inBangla ? "স্টক প্রতিবেদন" : "Stock Reports",
+        _ => inBangla ? "স্টক মুভমেন্ট" : "Inventory Movements"
+    };
     var canCreate = User.IsInRole("TenantAdmin") || User.IsInRole("Principal") || User.IsInRole("InventoryManager") || User.IsInRole("StoreKeeper");
     var canPost = User.IsInRole("TenantAdmin") || User.IsInRole("Principal") || User.IsInRole("InventoryManager");
     var canReverse = User.IsInRole("TenantAdmin") || User.IsInRole("Principal");
 }
-<section id="inventoryMovements" class="container-fluid py-3" data-create="@canCreate.ToString().ToLowerInvariant()" data-post="@canPost.ToString().ToLowerInvariant()" data-reverse="@canReverse.ToString().ToLowerInvariant()" data-user-id="@(User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value)">
+<section id="inventoryMovements" class="container-fluid py-3" data-task-page="@taskPage" data-create="@canCreate.ToString().ToLowerInvariant()" data-post="@canPost.ToString().ToLowerInvariant()" data-reverse="@canReverse.ToString().ToLowerInvariant()" data-user-id="@(User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value)">
     <header class="d-flex justify-content-between align-items-center mb-3 gap-2"><div>
-        <h2>@(System.Globalization.CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "bn" ? "স্টক মুভমেন্ট" : "Inventory Movements")</h2>
-        <details class="small"><summary class="btn btn-link btn-sm p-0" aria-label="Inventory movement help">ⓘ @(System.Globalization.CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "bn" ? "সহায়তা" : "Help")</summary>
-            <div class="small text-muted">@(System.Globalization.CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "bn" ?
-                "ইস্যু বা ট্রান্সফার ড্রাফট রিজার্ভ করুন; অনুমোদিত পোস্টিংয়ে রিজার্ভেশন ব্যবহার হবে। ছাড়তে কারণ দিন। পোস্ট করা লেজার অপরিবর্তনীয়।" :
-                "Reserve issue or transfer drafts before approval; posting consumes their hold. Release requires a reason. Posted ledger entries are immutable.")</div>
-        </details></div><a class="btn btn-outline-secondary" href="/InventoryCatalog/Index">@(System.Globalization.CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "bn" ? "পণ্যের তালিকা" : "Inventory Catalog")</a></header>
+        <h2>@ViewData["Title"]</h2>
+        </div><a class="btn btn-outline-secondary" href="/InventoryCatalog/Index">@(inBangla ? "পণ্যের তালিকা" : "Inventory Catalog")</a></header>
     <div id="movementAlert" class="d-none" role="alert"></div>
+    <div data-inventory-area="transactions">
     @if (canCreate) { @await Html.PartialAsync("_Create") }
-    @if (canCreate) { @await Html.PartialAsync("_Adjustments") }
-    @await Html.PartialAsync("_PhysicalCounts")
     @if (canCreate) {
         <div class="card mb-3"><div class="card-body">
             <h3 class="h5">@(System.Globalization.CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "bn" ? "ট্রান্সফার গ্রহণ" : "Receive in-transit stock")</h3>
@@ -26,11 +30,16 @@
             </form>
         </div></div>
     }
-    @await Html.PartialAsync("_Ledger")
-    @await Html.PartialAsync("_Reservations")
-    @await Html.PartialAsync("_Reorder")
-    @await Html.PartialAsync("_StockPosition")
-    @await Html.PartialAsync("_LotAging")
-    @await Html.PartialAsync("_ItemHistory")
+    </div>
+    <div data-inventory-area="adjustments">@if (canCreate) { @await Html.PartialAsync("_Adjustments") }</div>
+    <div data-inventory-area="counts">@await Html.PartialAsync("_PhysicalCounts")</div>
+    <div data-inventory-area="reports">
+        @await Html.PartialAsync("_Ledger")
+        @await Html.PartialAsync("_Reservations")
+        @await Html.PartialAsync("_Reorder")
+        @await Html.PartialAsync("_StockPosition")
+        @await Html.PartialAsync("_LotAging")
+        @await Html.PartialAsync("_ItemHistory")
+    </div>
 </section>
-@section Scripts { <script type="module" src="~/js/inventory/movements.js" asp-append-version="true"></script> }
+@section Scripts { <script src="~/js/platform/task-workspace-locales.js" asp-append-version="true"></script><script type="module" src="~/js/inventory/movements.js" asp-append-version="true"></script> }
