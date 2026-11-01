@@ -38,7 +38,7 @@ test('manager availability preview scopes order, checks UTC and invalidates stal
     assert.match(api, /long\? workOrderId = null/);
     assert.match(script, /startUtc: start\.toISOString\(\), endUtc: end\.toISOString\(\)/);
     assert.match(script, /availabilityWindowKey !== windowKey\(\)/);
-    assert.match(script, /addEventListener\('input', invalidateTechnicians\)/);
+    assert.match(script, /addEventListener\('input', \(\) => invalidateTechnicians\(\)\)/);
     assert.match(view, /The list is advisory/);
 });
 test('workflow posts antiforgery and retries the same idempotency command', () => {

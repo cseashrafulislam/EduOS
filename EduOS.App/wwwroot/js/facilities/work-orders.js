@@ -539,7 +539,7 @@
             technicianChoices.has(id) ? String(id) : '';
     });
     for (const id of ['wfStart', 'wfEnd']) {
-        el(id).addEventListener('input', invalidateTechnicians);
+        el(id).addEventListener('input', () => invalidateTechnicians());
         el(id).addEventListener('change', () => {
             if (!blocked && selected && el('wfAction').value === 'schedule') {
                 technicianPage = 1;
