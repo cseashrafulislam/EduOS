@@ -90,7 +90,8 @@ test('event page changes clear stale actions/CSV and ignore late responses', asy
             if (name === 'href') this.href = null;
         } }
     };
-    const state = { eventRequestSerial: 0, eventPage: 1, eventTotal: 40, selected: null };
+    const state = { eventRequestSerial: 0, eventPage: 1, eventTotal: 40, selected: null,
+        attendanceRequests: new Map([['stale-attendance', 'old-key']]) };
     const pending = [];
     const loadEvents = new Function('state', 'el', 'api', 'eventAdmin', 'document',
         'eventLabel', 'URLSearchParams', 'eventStatus', 'localDate', 'eventButton',
@@ -108,6 +109,7 @@ test('event page changes clear stale actions/CSV and ignore late responses', asy
     const second = loadEvents();
     pending[1].resolve({ totalCount: 0, items: [] });
     await second;
+    assert.equal(state.attendanceRequests.size, 0);
     pending[0].resolve({ totalCount: 1, items: [{ title: 'old private event' }] });
     await first;
     assert.match(elements.alumniEventCards.children[0].textContent, /No events/);
@@ -146,4 +148,40 @@ test('attendance paging and detached event cards discard late private rosters', 
     pending[2].resolve({ totalCount: 1, items: [{ fullName: 'private attendee' }] });
     await detached;
     assert.match(host.children[0].textContent, /Loading/);
+});
+
+test('ambiguous attendance timeout reuses command ID until confirmed success', async () => {
+    const start = script.indexOf('async function markAttendance(');
+    const end = script.indexOf('async function changeEventStatus(', start);
+    assert.ok(start > 0 && end > start);
+    const requests = [];
+    let nextId = 0, networkFails = true, refreshed = 0;
+    const state = { eventBusy: false, attendanceRequests: new Map() };
+    const markAttendance = new Function('state', 'api', 'crypto', 'notice',
+        'eventLabel', 'loadEvents', 'encodeURIComponent',
+        script.slice(start, end) + '; return markAttendance;')(
+        state,
+        async (_url, options) => {
+            requests.push(JSON.parse(options.body));
+            if (networkFails) throw new Error('connection dropped after write');
+            return {};
+        },
+        { randomUUID: () => 'request-' + (++nextId) },
+        () => {}, english => english, async () => { refreshed++; }, encodeURIComponent);
+    const event = { reference: 'event-1' };
+    const attendee = { studentReference: 'graduate-1', rowVersion: 'version-1' };
+    await markAttendance(event, attendee, true);
+    assert.equal(state.attendanceRequests.size, 1);
+    assert.equal(state.eventBusy, false);
+    networkFails = false;
+    await markAttendance(event, attendee, true);
+    assert.equal(requests.length, 2);
+    assert.equal(requests[0].clientRequestId, requests[1].clientRequestId);
+    assert.equal(requests[0].clientRequestId, 'request-1');
+    assert.equal(state.attendanceRequests.size, 0);
+    assert.equal(refreshed, 1);
+    await markAttendance(event, { ...attendee, rowVersion: 'version-2' }, false);
+    assert.equal(requests[2].clientRequestId, 'request-2');
+    assert.equal(state.attendanceRequests.size, 0);
+    assert.equal(refreshed, 2);
 });

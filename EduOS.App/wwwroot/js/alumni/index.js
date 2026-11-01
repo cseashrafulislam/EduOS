@@ -37,7 +37,7 @@
     const token = root.querySelector('input[name="__RequestVerificationToken"]')?.value || '';
     const state = { graduates: [], selected: null, page: 1, total: 0, busy: false, requestId: null,
         eventPage: 1, eventTotal: 0, eventBusy: false, eventCreateRequest: null, rsvpRequests: new Map(), eventRequestSerial: 0,
-        directoryRequestSerial: 0 };
+        directoryRequestSerial: 0, attendanceRequests: new Map() };
     const notice = (message, error = false) => {
         const box = el('alumniNotice');
         box.className = 'alert ' + (error ? 'alert-danger' : 'alert-success');
@@ -241,6 +241,8 @@
             throw error;
         }
         if (isStale()) return;
+        // A fresh server snapshot supersedes ambiguous attendance attempts from old cards.
+        state.attendanceRequests.clear();
         state.eventTotal = page.totalCount;
         target.replaceChildren();
         if (!page.items.length) {
@@ -388,13 +390,20 @@
     async function markAttendance(item, attendee, present) {
         if (state.eventBusy) return;
         state.eventBusy = true;
+        // Keep the same command ID after an ambiguous network failure so the
+        // server can safely replay a completed check-in instead of double-writing.
+        const key = item.reference + ':' + attendee.studentReference + ':' + present + ':' +
+            (attendee.rowVersion || '');
+        if (!state.attendanceRequests.has(key))
+            state.attendanceRequests.set(key, crypto.randomUUID());
         try {
             await api('/api/alumni/events/' + encodeURIComponent(item.reference) + '/attendance',
                 { method: 'POST', body: JSON.stringify({
-                    clientRequestId: crypto.randomUUID(),
+                    clientRequestId: state.attendanceRequests.get(key),
                     studentReference: attendee.studentReference, present,
                     rowVersion: attendee.rowVersion
                 }) });
+            state.attendanceRequests.delete(key);
             notice(eventLabel('Attendance updated.', 'উপস্থিতি হালনাগাদ হয়েছে।'));
             await loadEvents();
         } catch (error) { notice(error.message, true); }

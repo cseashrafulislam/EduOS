@@ -293,8 +293,8 @@
                             "শুধু যাচাইকৃত সম্পন্ন ছাড়পত্র যোগ্য। সম্মতি ঐচ্ছিক ও প্রত্যাহারযোগ্য; প্রত্যাহারে সক্রিয় RSVP মুছে যায়। প্রকাশে আলাদা প্রশাসক প্রয়োজন। Request ID ও row version পুরোনো/দ্বৈত পরিবর্তন প্রতিরোধ করে; এখান থেকে ইমেইল/SMS আমন্ত্রণ বা Finance/স্টক পোস্টিং হয় না।"
                   ],
                   "recovery": [
-                            "If no graduate appears, ask an authorized administrator to verify the completed exit and account link. For missing campus/events check entitlement, campus access, consent and timing. For 403/409 reload; never guess another record ID or reuse an obsolete request.",
-                            "শিক্ষার্থী না এলে অনুমোদিত প্রশাসকের কাছে সম্পন্ন ছাড়পত্র ও অ্যাকাউন্ট সংযোগ যাচাই করুন। ক্যাম্পাস/অনুষ্ঠান না এলে মডিউল, ক্যাম্পাস অনুমতি, সম্মতি ও সময় দেখুন। 403/409 হলে রিলোড করুন; অন্য ID অনুমান বা পুরোনো অনুরোধ ব্যবহার নয়।"
+                            "If no graduate appears, ask an authorized administrator to verify the completed exit and account link. For missing campus/events check entitlement, campus access, consent and timing. If Attendance Check in/Undo times out, retry the same action; its request identifier is retained until confirmed success. For 403/409 reload; never guess another record ID or reuse an obsolete request.",
+                            "শিক্ষার্থী না এলে অনুমোদিত প্রশাসকের কাছে সম্পন্ন ছাড়পত্র ও অ্যাকাউন্ট সংযোগ যাচাই করুন। ক্যাম্পাস/অনুষ্ঠান না এলে মডিউল, ক্যাম্পাস অনুমতি, সম্মতি ও সময় দেখুন। Attendance Check in/Undo-এর পরে নেটওয়ার্ক টাইমআউট হলে একই কাজ আবার চেষ্টা করুন; নিশ্চিত সফলতার আগে একই request ID রাখা হয়। 403/409 হলে রিলোড করুন; অন্য ID অনুমান বা পুরোনো অনুরোধ ব্যবহার নয়।"
                   ],
                   "related": [
                             [
