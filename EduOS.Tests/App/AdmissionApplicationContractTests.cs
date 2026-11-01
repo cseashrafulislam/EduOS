@@ -67,7 +67,7 @@ public class AdmissionApplicationContractTests
         script.Should().NotContain("payload.data.groups");
         script.Should().NotContain("sectionId: positiveInteger(");
         script.Should().NotContain("groupId: positiveInteger(");
-        view.Should().Contain("<option value=\"6\">Qualified");
+        view.Should().Contain("<option value=\"6\">@(bn ? \"যোগ্য\" : \"Qualified\")");
         script.Should().Contain("/api/admission-intake/forms");
         script.Should().Contain("dataset.documentId");
         script.Should().Contain("documentItem.documentTypeCode");
