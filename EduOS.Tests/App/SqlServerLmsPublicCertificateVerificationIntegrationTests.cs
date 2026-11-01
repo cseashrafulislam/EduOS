@@ -104,15 +104,22 @@ public sealed partial class SqlServerTransportSeatCapacityIntegrationTests
 
         var change = new LmsPublicVerificationChangeDto { RowVersion = initialVersion };
         EduOS.Core.Common.ApiResponse<LmsPublicVerificationLinkDto>[] attempts;
-        await using (var dbA = ScopedContext(fixture.Options, fixture.TenantId, fixture.UserId))
-        await using (var dbB = ScopedContext(fixture.Options, fixture.TenantId, fixture.UserId))
-        {
-            var a = PublicVerificationService(dbA, fixture.TenantId, fixture.UserId);
-            var b = PublicVerificationService(dbB, fixture.TenantId, fixture.UserId);
-            attempts = await Task.WhenAll(
-                Task.Run(() => a.EnableAsync(certificateReference, change)),
-                Task.Run(() => b.EnableAsync(certificateReference, change)));
-        }
+        // HttpContextAccessor uses AsyncLocal: create each synthetic request context
+        // inside its own parallel execution flow, not before Task.Run. Sharing the
+        // outer flow can clear the other request's audit/tenant HttpContext.
+        attempts = await Task.WhenAll(
+            Task.Run(async () =>
+            {
+                await using var dbA = ScopedContext(fixture.Options, fixture.TenantId, fixture.UserId);
+                return await PublicVerificationService(dbA, fixture.TenantId, fixture.UserId)
+                    .EnableAsync(certificateReference, change);
+            }),
+            Task.Run(async () =>
+            {
+                await using var dbB = ScopedContext(fixture.Options, fixture.TenantId, fixture.UserId);
+                return await PublicVerificationService(dbB, fixture.TenantId, fixture.UserId)
+                    .EnableAsync(certificateReference, change);
+            }));
         Assert.Contains(attempts, x => x.Success);
         Assert.All(attempts, x => Assert.True(x.Success || x.StatusCode == 409, x.Message));
         var winner = Assert.Single(attempts.Where(x => x.Success)).Data!;
