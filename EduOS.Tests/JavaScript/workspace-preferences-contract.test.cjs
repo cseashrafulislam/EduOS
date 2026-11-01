@@ -114,7 +114,8 @@ test('advanced appearance preserves tenant-scoped versioning and allowlisted col
  const css=read('EduOS.App/wwwroot/css/site.css');
  assert.match(dto,/CustomColors/);
  assert.match(svc,/ValidColors\(request\.CustomColors\)/);
- assert.match(svc,/request\.CustomColors \?\? ToDto\(row\)\.CustomColors/);
+  assert.match(svc,/var previous = ToDto\(row\)/);
+  assert.match(svc,/request\.CustomColors \?\? previous\.CustomColors/);
  assert.match(shell,/EduOSNormalizeWorkspaceColor/);
  assert.match(shell,/html\.style\.removeProperty\(bg\)/);
  assert.match(editor,/data-custom-color-text/);
