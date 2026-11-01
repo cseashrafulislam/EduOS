@@ -550,7 +550,7 @@
   <data name="AccentColor" xml:space="preserve"><value>বিশেষ রং</value></data>
   <data name="BrandingRequiredNote" xml:space="preserve"><value>পোর্টাল ঠিকানা আবশ্যক। অ্যাডমিন পরে ছবি ও রং পরিবর্তন করতে পারবেন।</value></data>
   <data name="BrandingSaveFailed" xml:space="preserve"><value>ব্র্যান্ডিং সংরক্ষণ করা যায়নি। পোর্টাল ঠিকানা ও রং যাচাই করুন।</value></data>
-  <data name="BrandingPartialSaveRecovery" xml:space="preserve"><value>সংযোগ বিচ্ছিন্ন হওয়ার আগে কিছু ব্র্যান্ড রঙ সংরক্ষিত হয়ে থাকতে পারে। সম্ভব হলে সর্বশেষ সংরক্ষিত রঙ আবার লোড করা হয়েছে। পুনরায় চেষ্টা করার আগে তিনটি রঙ যাচাই করুন; সেটআপের পরবর্তী ধাপে যাওয়া হয়নি।</value></data>
+  <data name="BrandingPartialSaveRecovery" xml:space="preserve"><value>সংযোগ বিচ্ছিন্ন হওয়ার আগে কিছু ব্র্যান্ড রঙ সংরক্ষিত হয়ে থাকতে পারে। সম্ভব হলে সর্বশেষ সংরক্ষিত রঙ আবার লোড করা হয়েছে। পুনরায় চেষ্টা করার আগে তিনটি রঙ যাচাই করুন; পরবর্তী সেটআপ ধাপ নিশ্চিত নয়; রিলোড করে অবস্থা যাচাই করুন।</value></data>
   <data name="GeneralSettingsTitle" xml:space="preserve"><value>আঞ্চলিক পছন্দ</value></data>
   <data name="GeneralSettingsHelp" xml:space="preserve"><value>প্রতিষ্ঠানের টাকা, তারিখ, সময় ও ভাষার ডিফল্ট মান ঠিক করুন।</value></data>
   <data name="RegionalPreferences" xml:space="preserve"><value>প্রতিষ্ঠানের ডিফল্ট সেটিংস</value></data>

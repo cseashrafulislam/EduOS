@@ -550,7 +550,7 @@
   <data name="AccentColor" xml:space="preserve"><value>Accent color</value></data>
   <data name="BrandingRequiredNote" xml:space="preserve"><value>The portal address is required. Images and colors can be changed later by an administrator.</value></data>
   <data name="BrandingSaveFailed" xml:space="preserve"><value>Branding could not be saved. Confirm the portal address and colors.</value></data>
-  <data name="BrandingPartialSaveRecovery" xml:space="preserve"><value>Some brand colors may have saved before the interruption. The latest saved values have been reloaded when possible. Review all three colors before retrying; onboarding was not advanced.</value></data>
+  <data name="BrandingPartialSaveRecovery" xml:space="preserve"><value>Some brand colors may have saved before the interruption. The latest saved values have been reloaded when possible. Review all three colors before retrying; the next onboarding step is not confirmed; reload to check its status.</value></data>
   <data name="GeneralSettingsTitle" xml:space="preserve"><value>Regional preferences</value></data>
   <data name="GeneralSettingsHelp" xml:space="preserve"><value>Set the defaults used for money, dates, time, and language across your institution.</value></data>
   <data name="RegionalPreferences" xml:space="preserve"><value>Institution defaults</value></data>
