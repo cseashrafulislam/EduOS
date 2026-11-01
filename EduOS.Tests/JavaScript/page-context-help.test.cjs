@@ -263,7 +263,7 @@ test('institution branding manual matches real TenantAdmin and CSRF-protected wr
 
 test('branding color saves carry CSRF; missing token and invalid colors fail before any write', async () => {
     const script = read('EduOS.App/wwwroot/js/account/branding-setup.js');
-    async function scenario(token, invalid = false) {
+    async function scenario(token, invalid = false, sessionMatches = true) {
         const controls = new Map();
         const el = id => {
             if (!controls.has(id)) controls.set(id, {
@@ -294,7 +294,12 @@ test('branding color saves carry CSRF; missing token and invalid colors fail bef
         };
         const window = {
             clearTimeout() {}, setTimeout() {}, confirm: () => true,
-            location: { assign(url) { calls.push({ redirect: url }); } }
+            location: { assign(url) { calls.push({ redirect: url }); } },
+            EduOSSessionTransitionPending: () => false,
+            EduOSWorkspaceResponseMatchesSession(response) {
+                return response.headers?.get('X-EduOS-Session-Reference') === 'current';
+            },
+            EduOSVerifySessionContext() { calls.push({ shield: true }); }
         };
         const fetch = async (url, options = {}) => {
             calls.push({ url, options });
@@ -304,6 +309,13 @@ test('branding color saves carry CSRF; missing token and invalid colors fail bef
                 return { ok: true, json: async () => ({ success: true, data: { items: [] } }) };
             if (url === '/api/onboarding/status')
                 return { ok: true, json: async () => ({ success: true, data: { isComplete: true, currentStage: 8 } }) };
+            if (url === '/api/workspace-preferences')
+                return {
+                    ok: true,
+                    headers: { get: key => key === 'X-EduOS-Session-Reference'
+                        ? (sessionMatches ? 'current' : 'other') : null },
+                    json: async () => ({ success: true, data: {} })
+                };
             return { ok: true, json: async () => ({ success: true, data: { id: 1, rowVersion: 'v2' } }) };
         };
         vm.runInNewContext(script, { document, window, fetch, FormData, URL });
@@ -317,7 +329,11 @@ test('branding color saves carry CSRF; missing token and invalid colors fail bef
     assert.match(absent.alert.className, /alert-danger/);
     const invalid = await scenario('token-1', true);
     assert.equal(invalid.calls.filter(x => x.options?.method === 'POST').length, 0);
+    const switched = await scenario('token-1', false, false);
+    assert.equal(switched.calls.filter(x => x.options?.method === 'POST').length, 0);
+    assert.ok(switched.calls.some(x => x.shield === true));
     const valid = await scenario('token-1');
+    assert.ok(valid.calls.filter(x => x.url === '/api/workspace-preferences').length >= 5);
     const writes = valid.calls.filter(x => x.options?.method === 'POST');
     assert.equal(writes.length, 3);
     assert.ok(writes.every(x => x.options.headers.RequestVerificationToken === 'token-1'));
