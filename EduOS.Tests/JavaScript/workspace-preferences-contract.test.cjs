@@ -119,7 +119,10 @@ test('advanced appearance preserves tenant-scoped versioning and allowlisted col
  assert.match(shell,/EduOSNormalizeWorkspaceColor/);
  assert.match(shell,/html\.style\.removeProperty\(bg\)/);
  assert.match(editor,/data-custom-color-text/);
+ assert.match(editor,/function colorFeedback\(\)/);
+ assert.match(editor,/if \(normalized\) row\.querySelector\('\[data-custom-color-picker\]'\)\.value = normalized/);
  assert.match(view,/workspaceAdvancedColors/);
+ assert.match(view,/data-custom-color-feedback aria-live="polite"/);
  for(const token of ['sidebar','header','page','card','button','form','table']){
    assert.match(view,new RegExp('Key: "'+token+'"'));
    assert.match(css,new RegExp('data-workspace-custom-'+token+'="true"'));

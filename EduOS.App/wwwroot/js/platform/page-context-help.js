@@ -487,6 +487,87 @@
                             ]
                   ]
         },
+        '/hr/directory/index': {
+            version: 1, reviewed: true,
+            title: ['Employee Directory', 'কর্মী তালিকা'],
+            purpose: ['Find institution employees by name/code, teaching type and employment state without changing their records.', 'প্রতিষ্ঠানের কর্মীদের নাম/কোড, শিক্ষাদান ধরন ও চাকরির অবস্থা দিয়ে খুঁজুন; এই পাতায় রেকর্ড পরিবর্তন হয় না।'],
+            before: ['HR module access as TenantAdmin, Principal or HR; confirm the institution and the employee identity.', 'HR মডিউল ও TenantAdmin, Principal অথবা HR ভূমিকা প্রয়োজন; প্রতিষ্ঠান ও কর্মীর পরিচয় নিশ্চিত করুন।'],
+            steps: [
+                ['Enter an employee name or code, optionally choose Type and State, then select Search.', 'কর্মীর নাম বা কোড লিখুন, প্রয়োজনে Type ও State বেছে Search চাপুন।'],
+                ['Review the Code, Employee, Designation, Department, Joined and Status columns.', 'Code, Employee, Designation, Department, Joined ও Status কলাম যাচাই করুন।'],
+                ['Use Previous and Next to view more results; open Employee Registration & Status separately to perform authorized edits.', 'আরও ফলাফল দেখতে Previous ও Next চাপুন; অনুমোদিত পরিবর্তনের জন্য আলাদা Employee Registration & Status খুলুন।']
+            ],
+            example: ['Fictional example: search employee code EMP-102, filter Active, and confirm department and join date before starting a separate authorized update.', 'কাল্পনিক উদাহরণ: EMP-102 কোডে খুঁজে Active বাছুন, বিভাগ ও যোগদানের তারিখ যাচাই করে আলাদা অনুমোদিত সংশোধনে যান।'],
+            result: ['The matching employee list appears in pages of up to 25 records; this view does not edit or approve records.', 'সর্বোচ্চ ২৫টি করে মিল পাওয়া কর্মীর তালিকা আসে; এখানে তথ্য পরিবর্তন বা অনুমোদন হয় না।'],
+            rules: ['Names may be similar; use the employee code and institution scope to confirm identity. Employee registration is a separate workflow.', 'একই নামের কর্মী থাকতে পারে; পরিচয় নিশ্চিত করতে কর্মী কোড ও প্রতিষ্ঠান যাচাই করুন। কর্মী নিবন্ধন আলাদা কাজ।'],
+            recovery: ['If no results appear, clear filters or check the correct employee code. If the list fails to load, refresh after verifying your session and permissions.', 'ফল না পেলে ফিল্টার পরিষ্কার করুন বা কোড যাচাই করুন। তালিকা না এলে সেশন ও অনুমতি যাচাই করে রিফ্রেশ করুন।'],
+            related: [['/HrEmployeeRecords/Index', 'Employee registration', 'কর্মী নিবন্ধন'], ['/HR/Leaves', 'Leave review', 'ছুটির আবেদন যাচাই']]
+        },
+        '/hr/leaves/index': {
+            version: 1, reviewed: true,
+            title: ['Employee Leave Review', 'কর্মীর ছুটির আবেদন'],
+            purpose: ['Review submitted employee leave requests and approve or reject with an auditable decision.', 'জমা দেওয়া কর্মীর ছুটির আবেদন যাচাই করে কারণসহ অনুমোদন বা প্রত্যাখ্যান করুন।'],
+            before: ['HR module access as TenantAdmin, Principal or HR; confirm the employee, dates, leave type and available entitlement before deciding.', 'HR মডিউল ও TenantAdmin, Principal অথবা HR অনুমতি; সিদ্ধান্তের আগে কর্মী, তারিখ, ছুটির ধরন ও প্রাপ্যতা যাচাই করুন।'],
+            steps: [
+                ['Search by employee name/code, select Status and optional Starting from date, then Filter.', 'কর্মীর নাম/কোড, Status ও ঐচ্ছিক Starting from তারিখ দিয়ে Filter চাপুন।'],
+                ['Read employee, leave type, date range, days and status in the paged register.', 'পৃষ্ঠাভিত্তিক তালিকায় কর্মী, ছুটির ধরন, তারিখ, দিন ও অবস্থা দেখুন।'],
+                ['For a Submitted request, enter a review note (mandatory when rejecting), select Approve or Reject, and confirm the employee in the dialog.', 'Submitted আবেদনে প্রয়োজনীয় মন্তব্য দিন (প্রত্যাখ্যানে বাধ্যতামূলক), Approve অথবা Reject চাপুন এবং ডায়ালগে কর্মী নিশ্চিত করুন।'],
+                ['Check the refreshed request and its new status before proceeding to another decision.', 'পরবর্তী সিদ্ধান্তের আগে রিফ্রেশ হওয়া আবেদন ও নতুন অবস্থা যাচাই করুন।']
+            ],
+            example: ['Fictional example: filter Submitted leave for EMP-102, verify a two-day request against entitlement, enter a decision note and approve it.', 'কাল্পনিক উদাহরণ: EMP-102-এর Submitted ছুটি খুঁজে দুই দিনের আবেদন ও প্রাপ্যতা যাচাই করে মন্তব্য দিয়ে অনুমোদন করুন।'],
+            result: ['The request shows Approved or Rejected after a successful server-validated review; the history remains linked to the employee.', 'সার্ভারের যাচাই সফল হলে আবেদন Approved বা Rejected দেখায়; ইতিহাস কর্মীর সঙ্গে যুক্ত থাকে।'],
+            rules: ['Only Submitted requests show decision controls. Rejections require a reason. A concurrent version change blocks stale decisions; do not retry blindly.', 'শুধু Submitted আবেদনে সিদ্ধান্তের বোতাম থাকে। প্রত্যাখ্যানে কারণ প্রয়োজন। একই সময়ে পরিবর্তিত আবেদনে পুরোনো সিদ্ধান্ত আটকায়; না দেখে পুনরায় চেষ্টা করবেন না।'],
+            recovery: ['On an error, read the message and refresh the list; inspect the new status/version before trying again. Check leave entitlements separately.', 'ত্রুটি হলে বার্তা পড়ে তালিকা রিফ্রেশ করুন; আবার চেষ্টার আগে নতুন অবস্থা/সংস্করণ দেখুন। প্রাপ্যতা আলাদা পাতায় যাচাই করুন।'],
+            related: [['/HR/Directory', 'Employee directory', 'কর্মী তালিকা'], ['/LeaveEntitlements/Index', 'Leave entitlements', 'ছুটির প্রাপ্যতা']]
+        },
+        '/feeoperations/structures/index': {
+            version: 1, reviewed: true,
+            title: ['Fee Structures', 'ফি কাঠামো'],
+            purpose: ['Set reusable, date-effective fee heads for a campus, academic year and level, then review or amend eligible structures.', 'ক্যাম্পাস, শিক্ষাবর্ষ ও শ্রেণির জন্য কার্যকর তারিখসহ ফি খাত নির্ধারণ ও অনুমোদিত কাঠামো সংশোধন করুন।'],
+            before: ['FINANCE access as TenantAdmin, Principal or Accountant; check campus, academic year, level, fee heads and effective dates. Structure amendments are TenantAdmin-controlled.', 'FINANCE অনুমতিসহ TenantAdmin, Principal বা Accountant ভূমিকা প্রয়োজন; ক্যাম্পাস, শিক্ষাবর্ষ, শ্রেণি, ফি খাত ও কার্যকর তারিখ যাচাই করুন। কাঠামো সংশোধন TenantAdmin নিয়ন্ত্রিত।'],
+            steps: [
+                ['Choose Campus, Academic year, Level, optional Batch scope and effective dates.', 'Campus, Academic year, Level, প্রয়োজনীয় Batch scope ও কার্যকর তারিখ বেছে নিন।'],
+                ['Enter a Structure name, add fee heads with frequency, amount, due day and mandatory status, then Save fee structure.', 'Structure name লিখে frequency, amount, due day ও বাধ্যতামূলক অবস্থা অনুযায়ী ফি খাত যোগ করে Save fee structure চাপুন।'],
+                ['TenantAdmin can filter the structure register, review historical entries, amend an unbilled version or close future monthly billing under the displayed safeguards.', 'TenantAdmin কাঠামোর তালিকা ফিল্টার করে আগের তথ্য দেখতে, বিল না-হওয়া সংস্করণ সংশোধন বা দেখানো নিয়ম মেনে ভবিষ্যৎ বিলিং বন্ধ করতে পারেন।']
+            ],
+            example: ['Fictional example: create a 2026 Class 9 tuition structure with a monthly BDT fee, review its effective date, then inspect it in the register.', 'কাল্পনিক উদাহরণ: ২০২৬ সালের নবম শ্রেণির জন্য মাসিক BDT টিউশন ফি কাঠামো তৈরি করে কার্যকর তারিখ ও তালিকা যাচাই করুন।'],
+            result: ['The eligible structure can be selected for invoice generation; linked billed financial terms remain protected.', 'যোগ্য কাঠামো থেকে ইনভয়েস তৈরি করা যাবে; ইতোমধ্যে বিল হওয়া আর্থিক শর্ত সুরক্ষিত থাকবে।'],
+            rules: ['Billed terms cannot be silently rewritten. Closing future billing preserves existing invoices, receipts and fee lines; reopening or extending closure is not supported here.', 'ইতোমধ্যে বিল হওয়া শর্ত নীরবে বদলানো যায় না। ভবিষ্যৎ বিলিং বন্ধ করলেও আগের ইনভয়েস, রসিদ ও ফি খাত থাকবে; এখানে বন্ধ অবস্থা পুনরায় খোলা বা বাড়ানো যায় না।'],
+            recovery: ['If saving fails, check the selected academic scope, amounts and dates. For a stale amendment reload the register and review its current version before retrying.', 'সংরক্ষণ ব্যর্থ হলে শিক্ষাবর্ষের পরিসর, টাকা ও তারিখ দেখুন। পুরোনো সংস্করণ সংশোধনে সংঘাত হলে তালিকা রিফ্রেশ করে বর্তমান সংস্করণ যাচাই করুন।'],
+            related: [['/FeeOperations/Billing', 'Generate monthly invoices', 'মাসিক ইনভয়েস তৈরি'], ['/FeeDiscountRules/Index', 'Discount rules', 'ছাড়ের নিয়ম']]
+        },
+        '/feeoperations/billing/index': {
+            version: 1, reviewed: true,
+            title: ['Generate Monthly Invoices', 'মাসিক ইনভয়েস তৈরি'],
+            purpose: ['Preview and generate monthly student invoices for one eligible batch and fee structure.', 'উপযুক্ত ব্যাচ ও ফি কাঠামো থেকে মাসিক শিক্ষার্থী ইনভয়েসের প্রিভিউ ও তৈরি করুন।'],
+            before: ['FINANCE access, an active academic batch and applicable structure. Confirm the month, year and due date before posting a request.', 'FINANCE অনুমতি, সক্রিয় একাডেমিক ব্যাচ ও প্রযোজ্য ফি কাঠামো প্রয়োজন। অনুরোধ দেওয়ার আগে মাস, বছর ও শেষ তারিখ নিশ্চিত করুন।'],
+            steps: [
+                ['Select Active batch and Applicable fee structure.', 'Active batch ও Applicable fee structure নির্বাচন করুন।'],
+                ['Choose Month, Year and Due date, then Preview billing; inspect existing invoices, eligible students and BDT totals.', 'Month, Year ও Due date দিয়ে Preview billing চাপুন; আগের ইনভয়েস, যোগ্য শিক্ষার্থী ও BDT মোট দেখুন।'],
+                ['Only after a current valid preview, select Generate invoices. Use Export preview CSV when available to review the displayed candidates.', 'বর্তমান বৈধ প্রিভিউ থাকলেই Generate invoices চাপুন। প্রযোজ্য হলে Export preview CSV দিয়ে দেখানো তালিকা যাচাই করুন।']
+            ],
+            example: ['Fictional example: preview November 2026 tuition for Grade 9 A; inspect any existing invoices before generating only eligible new ones.', 'কাল্পনিক উদাহরণ: Grade 9 A-এর নভেম্বর ২০২৬ টিউশন প্রিভিউ করুন; আগের ইনভয়েস যাচাই করে শুধু যোগ্য নতুনগুলো তৈরি করুন।'],
+            result: ['New eligible invoices appear in the student ledger; existing invoices are not duplicated for the same request.', 'নতুন যোগ্য ইনভয়েস শিক্ষার্থী লেজারে আসে; একই অনুরোধে বিদ্যমান ইনভয়েস পুনরায় তৈরি হয় না।'],
+            rules: ['Changing any billing input invalidates its earlier preview. Creating invoices does not itself receive cash or post the separate canonical GL journal.', 'বিলিংয়ের ইনপুট বদলালে আগের প্রিভিউ আর প্রযোজ্য নয়। ইনভয়েস তৈরির মাধ্যমে নগদ টাকা গ্রহণ বা আলাদা মূল GL জার্নাল পোস্ট হয় না।'],
+            recovery: ['If Generate remains disabled, resolve missing scope or preview conflicts and preview again. After uncertain network failure inspect invoice coverage before retrying.', 'Generate নিষ্ক্রিয় থাকলে ব্যাচ/কাঠামো বা প্রিভিউ সমস্যা ঠিক করে আবার প্রিভিউ করুন। নেটওয়ার্কে ফল অনিশ্চিত হলে পুনরায় চেষ্টার আগে ইনভয়েস কভারেজ দেখুন।'],
+            related: [['/FeeOperations/Structures', 'Fee structures', 'ফি কাঠামো'], ['/FeeInvoiceCoverage/Index', 'Invoice coverage', 'ইনভয়েস কভারেজ']]
+        },
+        '/feeoperations/ledger/index': {
+            version: 1, reviewed: true,
+            title: ['Student Ledger & Cash Collection', 'শিক্ষার্থী লেজার ও নগদ সংগ্রহ'],
+            purpose: ['Inspect a student\'s invoices and receipt history, then collect an authorized cash receipt against a selected invoice.', 'শিক্ষার্থীর ইনভয়েস ও রসিদের ইতিহাস দেখুন; নির্বাচিত ইনভয়েসের বিপরীতে অনুমোদিত নগদ রসিদ নথিভুক্ত করুন।'],
+            before: ['FINANCE access and the correct student; confirm the current invoice balance, receipt date and amount.', 'FINANCE অনুমতি ও সঠিক শিক্ষার্থী নির্বাচন প্রয়োজন; বর্তমান ইনভয়েস বকেয়া, রসিদের তারিখ ও টাকা যাচাই করুন।'],
+            steps: [
+                ['Search student by name/code, select the correct student and choose View ledger.', 'নাম/কোড দিয়ে শিক্ষার্থী খুঁজে সঠিকজন নির্বাচন করে View ledger চাপুন।'],
+                ['Review paged invoices, outstanding amounts and receipt history; select the intended invoice.', 'পৃষ্ঠাভিত্তিক ইনভয়েস, বকেয়া ও রসিদের ইতিহাস দেখে নির্দিষ্ট ইনভয়েস নির্বাচন করুন।'],
+                ['Enter payment date and amount, review the available preflight and select Record cash receipt only once; verify the new receipt in history.', 'টাকার তারিখ ও পরিমাণ দিয়ে প্রিফ্লাইট যাচাই করে Record cash receipt একবার চাপুন; ইতিহাসে নতুন রসিদ দেখুন।']
+            ],
+            example: ['Fictional example: find ST-1042, inspect its November invoice balance and record a verified BDT 1,000 cash receipt against that invoice.', 'কাল্পনিক উদাহরণ: ST-1042 খুঁজে নভেম্বরের ইনভয়েস বকেয়া দেখুন এবং সেই ইনভয়েসে যাচাইকৃত BDT ১,০০০ নগদ রসিদ নথিভুক্ত করুন।'],
+            result: ['The accepted receipt appears in history and its allocation affects the outstanding balance. GL posting remains a separate workflow.', 'গৃহীত রসিদ ইতিহাসে আসে ও বরাদ্দ অনুযায়ী বকেয়া বদলায়। GL পোস্টিং আলাদা কাজ।'],
+            rules: ['Never record a receipt against the wrong student/invoice or assume a received cash amount has automatically become a posted GL journal. Posted financial corrections require authorized adjustment.', 'ভুল শিক্ষার্থী/ইনভয়েসে রসিদ দেবেন না এবং নগদ সংগ্রহকে স্বয়ংক্রিয় GL পোস্টিং ভাববেন না। পোস্ট করা হিসাব সংশোধনে অনুমোদিত সমন্বয় প্রয়োজন।'],
+            recovery: ['If a receipt response is uncertain, reload ledger/history and use the preflight\'s retry identifier; do not create another receipt to bypass a conflict.', 'রসিদের ফল অনিশ্চিত হলে লেজার/ইতিহাস রিফ্রেশ করে প্রিফ্লাইটের retry identifier ব্যবহার করুন; সংঘাত এড়াতে দ্বিতীয় রসিদ তৈরি করবেন না।'],
+            related: [['/StudentPaymentPosting/Index', 'Cash receipt GL posting', 'নগদ রসিদ GL পোস্টিং'], ['/FeeReceivablesAging/Index', 'Fee aging report', 'ফি বকেয়া প্রতিবেদন']]
+        },
         '/feeoperations/index': {
             version: 1, reviewed: true,
             title: ['Student Fees & Billing', 'শিক্ষার্থী ফি ও বিলিং'],

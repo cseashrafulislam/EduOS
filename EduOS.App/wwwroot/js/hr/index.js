@@ -128,5 +128,8 @@
     el('hrEmployeeNext').addEventListener('click', () => changePage('employees', Math.min(paging.employees.totalPages, paging.employees.page + 1)));
     el('hrLeavePrev').addEventListener('click', () => changePage('leaves', Math.max(1, paging.leaves.page - 1)));
     el('hrLeaveNext').addEventListener('click', () => changePage('leaves', Math.min(paging.leaves.totalPages, paging.leaves.page + 1)));
-    loadEmployees(); loadLeaves();
+    // Shared view retains both ID sets for stable handlers, but only loads the
+    // visible workspace: directory and leave review are separate navigation tasks.
+    if (el('hrEmployeeSearch').closest('[data-active-feature]')?.dataset.activeFeature === 'leaves') loadLeaves();
+    else loadEmployees();
 })();

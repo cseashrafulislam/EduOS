@@ -5,6 +5,10 @@
     const fields = ['theme', 'palette', 'navigation', 'density', 'fontScale'];
     const panelIds = ['capacity', 'quick-actions', 'setup-checklist'];
     const colorRows = [...form.querySelectorAll('[data-custom-color]')];
+    const colorPickerDefaults = {
+        sidebar: '#0F172A', header: '#FFFFFF', page: '#F3F6FB', card: '#FFFFFF',
+        button: '#2563EB', form: '#FFFFFF', table: '#FFFFFF'
+    };
     const panelList = document.getElementById('workspaceDashboardPanels');
     const tableDefinitions = {
         'institution-users': { ids: ['user', 'membership', 'roles', 'action'], required: ['user', 'action'] },
@@ -140,8 +144,24 @@
         colorRows.forEach(row => {
             const raw = colors?.[row.dataset.customColor] || '';
             row.querySelector('[data-custom-color-text]').value = raw;
-            row.querySelector('[data-custom-color-picker]').value = window.EduOSNormalizeWorkspaceColor?.(raw) || '#1D4ED8';
+            row.querySelector('[data-custom-color-picker]').value = window.EduOSNormalizeWorkspaceColor?.(raw) ||
+                colorPickerDefaults[row.dataset.customColor];
             row.querySelector('[data-custom-color-text]').removeAttribute('aria-invalid');
+        });
+    }
+    function colorFeedback() {
+        colorRows.forEach(row => {
+            const input = row.querySelector('[data-custom-color-text]');
+            const raw = input.value.trim();
+            const normalized = raw ? window.EduOSNormalizeWorkspaceColor?.(raw) : null;
+            const feedback = row.querySelector('[data-custom-color-feedback]');
+            feedback.textContent = raw && !normalized
+                ? (bangla ? 'ভুল রঙ — HEX বা RGB লিখুন' : 'Invalid color — use HEX or RGB')
+                : raw ? (bangla ? 'নিজের রঙের প্রিভিউ' : 'Previewing custom color')
+                    : (bangla ? 'প্রস্তুত রঙ ব্যবহার হচ্ছে' : 'Using preset color');
+            feedback.classList.toggle('text-danger', !!raw && !normalized);
+            feedback.classList.toggle('text-muted', !raw || !!normalized);
+            if (normalized) row.querySelector('[data-custom-color-picker]').value = normalized;
         });
     }
     function readColors() {
@@ -176,6 +196,7 @@
     }
     function preview() {
         const next = values();
+        colorFeedback();
         if (next && !sessionInvalidated) window.EduOSApplyWorkspacePreferences?.(next);
         dirty = loaded && isUnsavedPreview(next, savedSignature);
         historyList.querySelectorAll('[data-appearance-restore]').forEach(button => { button.disabled = busy || sessionInvalidated || !loaded || dirty; });
@@ -297,6 +318,7 @@
         });
         row.querySelector('[data-custom-color-clear]').addEventListener('click', () => {
             text.value = '';
+            row.querySelector('[data-custom-color-picker]').value = colorPickerDefaults[row.dataset.customColor];
             preview();
             text.focus();
         });

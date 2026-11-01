@@ -1,12 +1,25 @@
-@{ ViewData["Title"] = "Student Fees & Billing"; }
-<section id="feeApp" class="container-fluid py-3">
+@using System.Globalization
+@{
+    var bn = CultureInfo.CurrentUICulture.Name == "bn-BD";
+    var feature = ViewData["FeeFeature"] as string ?? "ledger";
+    var titles = feature switch
+    {
+        "structures" => (En: "Fee Structures", Bn: "ফি কাঠামো"),
+        "billing" => (En: "Monthly Invoices", Bn: "মাসিক ইনভয়েস"),
+        _ => (En: "Student Ledger & Cash Collection", Bn: "শিক্ষার্থী লেজার ও নগদ সংগ্রহ")
+    };
+    ViewData["Title"] = bn ? titles.Bn : titles.En;
+}
+<section id="feeApp" class="container-fluid py-3" data-active-feature="@feature">
     <header class="d-flex align-items-center gap-2 mb-3">
-        <h2 class="h4 mb-0">Student Fees &amp; Billing</h2>
+        <div>
+            <p class="small text-muted mb-1">@(bn ? "ফি ও হিসাব" : "Fees & Accounting") <span aria-hidden="true">/</span> @(feature == "structures" ? (bn ? "সেটিংস" : "Settings") : (bn ? "কার্যক্রম" : "Operations"))</p>
+            <h2 class="h4 mb-0">@(bn ? titles.Bn : titles.En)</h2>
+        </div>
     </header>
-    <div class="mb-2"><a class="btn btn-outline-primary btn-sm" href="/FeeDiscountRules/Index">Discount Rule Administration</a> <a class="btn btn-outline-primary btn-sm" href="/StudentInvoicePosting/Index">Student Invoice GL Posting</a> <a class="btn btn-outline-primary btn-sm" href="/StudentPaymentPosting/Index">Student Cash Receipt GL Posting</a> <a class="btn btn-outline-primary btn-sm" href="/FeeReceivablesAging/Index#dailyCashCollections">Daily Cash Collections</a> <a class="btn btn-outline-primary btn-sm" href="/FeeDueCalendar/Index">Student Fee Due Calendar</a> <a class="btn btn-outline-primary btn-sm" href="/FeeInstallmentProjection/Index">Future Fee Projection</a> <a class="btn btn-outline-primary btn-sm" href="/FeeInstallmentPlans/Index">Instalment Agreements (planning)</a> <a class="btn btn-outline-primary btn-sm" href="/FeeInvoiceCoverage/Index">Monthly Invoice Coverage</a> <a class="btn btn-outline-primary btn-sm" href="/FeeDiscountAttributionReview/Index">Historical Discount Attribution</a> <a class="btn btn-outline-primary btn-sm" href="/FinanceAdjustments/Index#adjustRefundSection">Cash Refunds &amp; GL Settlement</a></div>
     <div class="d-none" tabindex="-1" id="feeAlert" role="alert" aria-live="polite"></div>
     <div class="row g-3 mb-3">
-        <div class="col-xl-6"><section class="card h-100">
+        <div class="col-12 @(feature == "structures" ? "" : "d-none")"><section class="card h-100">
             <div class="card-header"><h3 class="h6 m-0">Fee structure</h3></div>
             <form id="feeStructureForm" class="card-body row g-2 align-items-end">
                 <div class="col-md-6"><label for="feeCampus" class="form-label">Campus</label><select id="feeCampus" class="form-select" required></select></div>
@@ -22,7 +35,7 @@
                 <div class="col-12"><p id="feeStructureMode" class="small text-muted mb-2">Creating a new fee structure.</p><button id="feeSaveStructure" class="btn btn-primary" type="submit">Save fee structure</button> <button id="feeStructureReset" class="btn btn-outline-secondary" type="button">New structure</button></div>
             </form>
         </section></div>
-        <div class="col-xl-6"><section class="card h-100">
+        <div class="col-12 @(feature == "billing" ? "" : "d-none")"><section class="card h-100">
             <div class="card-header"><h3 class="h6 m-0">Generate monthly invoices</h3></div>
             <form id="feeInvoiceForm" class="card-body row g-2 align-items-end">
                 <div class="col-12"><label for="feeBatch" class="form-label">Active batch</label><select id="feeBatch" class="form-select" required></select></div>
@@ -47,7 +60,7 @@
     </div>
     @if (User.IsInRole("TenantAdmin"))
     {
-        <section class="card mb-3" id="feeStructureRegister">
+        <section class="card mb-3 @(feature == "structures" ? "" : "d-none")" id="feeStructureRegister">
             <div class="card-header"><h3 class="h6 m-0">Fee structure register and amendments</h3></div>
             <div class="card-body row g-2 align-items-end">
                 <div class="col-md-5"><label for="feeRegisterCampus" class="form-label">Campus</label><select id="feeRegisterCampus" class="form-select"><option value="">All campuses</option></select></div>
@@ -66,7 +79,7 @@
             <div class="card-footer d-flex gap-2 align-items-center"><button id="feeRegisterPrev" type="button" class="btn btn-outline-secondary btn-sm" disabled>Previous</button><span id="feeRegisterPage" class="small">—</span><button id="feeRegisterNext" type="button" class="btn btn-outline-secondary btn-sm" disabled>Next</button></div>
         </section>
     }
-    <section class="card mb-3">
+    <section class="card mb-3 @(feature == "ledger" ? "" : "d-none")">
         <div class="card-header"><h3 class="h6 m-0">Student ledger and cash collection</h3></div>
         <div class="card-body">
             <div class="row g-2 align-items-end">
@@ -110,7 +123,7 @@
             <div class="col-md-3"><button id="feeCollect" type="submit" class="btn btn-primary w-100">Record cash receipt</button></div>
         </form>
     </section>
-    <section class="card mb-3"><div class="card-header"><h3 class="h6 m-0">Receipt history</h3></div>
+    <section class="card mb-3 @(feature == "ledger" ? "" : "d-none")"><div class="card-header"><h3 class="h6 m-0">Receipt history</h3></div>
         <div class="table-responsive"><table class="table table-sm"><thead><tr><th>Receipt</th><th>Date</th><th>Amount</th><th>Method</th><th>Allocation</th><th>Document</th></tr></thead><tbody id="feeReceipts"><tr><td colspan="6">Select a student.</td></tr></tbody></table></div>
         <div class="card-footer d-flex gap-2 align-items-center"><button type="button" id="feeReceiptPrev" class="btn btn-outline-secondary btn-sm" disabled>Previous</button><span id="feeReceiptPage" class="small text-muted">—</span><button type="button" id="feeReceiptNext" class="btn btn-outline-secondary btn-sm" disabled>Next</button></div>
     </section>

@@ -25,8 +25,8 @@
             ['operations', 'Classes & Attendance', 'ক্লাস ও উপস্থিতি', ['/AcademicRoutines', '/AcademicInstruction', '/AcademicCalendar', '/StudentLeaves', '/Attendance']]
         ],
         management: [
-            ['people', 'HR & Payroll', 'এইচআর ও বেতন', ['/HR', '/EmployeeAttendance', '/LeaveEntitlements', '/PayrollOperations', '/EmployeePortal']],
-            ['finance', 'Fees & Accounting', 'ফি ও হিসাব', ['/FeeOperations', '/FeeDiscountRules', '/FeeReceivablesAging', '/FeeHeadAccounting', '/AdmissionCashReceipts', '/FinanceAdjustments', '/AccountingSetup', '/AccountingJournals', '/AccountingReports']],
+            ['people', 'HR & Payroll', 'এইচআর ও বেতন', ['/HR', '/HrEmployeeRecords', '/EmployeeContracts', '/Recruitment', '/EmployeeAttendance', '/LeaveEntitlements', '/PayrollOperations', '/PayrollSalaryStructures', '/PayrollSalaryComponents', '/PayrollSalaryStatement', '/PayrollReconciliation', '/PayrollBonuses', '/PayrollJournalPosting', '/PayrollPaymentPosting', '/PayrollLoanRegister', '/LoanDisbursement', '/LoanRecovery', '/EmployeePortal']],
+            ['finance', 'Fees & Accounting', 'ফি ও হিসাব', ['/FeeOperations', '/FeeDiscountRules', '/FeeReceivablesAging', '/FeeHeadAccounting', '/AdmissionCashReceipts', '/FinanceAdjustments', '/AccountingSetup', '/AccountingJournals', '/AccountingReports', '/StudentInvoicePosting', '/StudentPaymentPosting', '/FeeDueCalendar', '/FeeInstallmentProjection', '/FeeInstallmentPlans', '/FeeInvoiceCoverage', '/FeeDiscountAttributionReview']],
             ['inventory', 'Inventory & Assets', 'ইনভেন্টরি ও সম্পদ', ['/InventoryCatalog', '/InventoryMovements', '/AssetLifecycle']],
             ['campus', 'Campus Operations', 'ক্যাম্পাস পরিচালনা', ['/HostelOperations', '/hostel', '/TransportOperations', '/OperationsInsights']],
             ['library', 'Library', 'গ্রন্থাগার', ['/Library']],
@@ -47,16 +47,141 @@
             ['operations', 'Operations', 'কার্যক্রম', ['/SubscriptionBilling', '/IntegrationAdministration']]
         ],
         'management:finance': [
-            ['settings', 'Settings', 'সেটিংস', ['/FeeDiscountRules', '/FeeHeadAccounting', '/AccountingSetup']],
-            ['operations', 'Operations', 'কার্যক্রম', ['/FeeOperations', '/AdmissionCashReceipts', '/FinanceAdjustments', '/AccountingJournals']],
-            ['reports', 'Reports', 'রিপোর্ট', ['/FeeReceivablesAging', '/AccountingReports']]
+            ['settings', 'Settings', 'সেটিংস', ['/FeeOperations/Structures', '/FeeDiscountRules', '/FeeHeadAccounting', '/AccountingSetup']],
+            ['operations', 'Operations', 'কার্যক্রম', ['/FeeOperations/Billing', '/FeeOperations/Ledger', '/FeeOperations', '/AdmissionCashReceipts', '/FinanceAdjustments', '/AccountingJournals', '/StudentInvoicePosting', '/StudentPaymentPosting', '/FeeInstallmentPlans']],
+            ['reports', 'Reports', 'রিপোর্ট', ['/FeeReceivablesAging', '/AccountingReports', '/FeeDueCalendar', '/FeeInstallmentProjection', '/FeeInvoiceCoverage', '/FeeDiscountAttributionReview']]
+        ],
+        'academics:assessments': [
+            ['settings', 'Settings', 'সেটিংস', ['/AssessmentAdministration/AssessmentComponents', '/AssessmentAdministration/AssessmentSchedules', '/AssessmentAdministration/GradeSchemes', '/AssessmentAdministration/CertificateTemplates']],
+            ['operations', 'Operations', 'কার্যক্রম', ['/AssessmentAdministration/Index', '/AssessmentAdministration/ComponentMarks', '/AssessmentAdministration/SubjectCompletions']],
+            ['reports', 'Reports', 'রিপোর্ট', ['/AssessmentAdministration/Certificates', '/AssessmentAdministration/Transcripts']]
+        ],
+        'academics:operations': [
+            ['settings', 'Settings', 'সেটিংস', ['/AcademicCalendar']],
+            ['operations', 'Operations', 'কার্যক্রম', ['/AcademicRoutines', '/AcademicInstruction', '/StudentLeaves', '/Attendance']]
+        ],
+        'management:people': [
+            ['settings', 'Settings', 'সেটিংস', ['/HR/ShiftAssignments', '/HR/CampusAssignments', '/HR/BankAccounts', '/HR', '/HrEmployeeRecords', '/LeaveEntitlements', '/EmployeeContracts', '/Recruitment', '/PayrollSalaryStructures', '/PayrollSalaryComponents']],
+            ['operations', 'Operations', 'কার্যক্রম', ['/HR/Directory', '/HR/Leaves', '/EmployeeAttendance', '/PayrollOperations', '/PayrollBonuses', '/PayrollLoanRegister', '/LoanDisbursement', '/LoanRecovery', '/PayrollJournalPosting', '/PayrollPaymentPosting', '/EmployeePortal']],
+            ['reports', 'Reports', 'রিপোর্ট', ['/PayrollSalaryStatement', '/PayrollReconciliation']]
+        ],
+        'management:inventory': [
+            ['settings', 'Settings', 'সেটিংস', ['/InventoryCatalog']],
+            ['operations', 'Operations', 'কার্যক্রম', ['/InventoryMovements', '/AssetLifecycle']]
+        ],
+        'management:communication': [
+            ['settings', 'Settings', 'সেটিংস', ['/CommunicationAdministration', '/CustomFields', '/DocumentAdministration']],
+            ['operations', 'Operations', 'কার্যক্রম', ['/CommunicationWorkspace']]
+        ],
+        'management:campus': [
+            ['operations', 'Operations', 'কার্যক্রম', ['/HostelOperations', '/hostel', '/TransportOperations']],
+            ['reports', 'Reports', 'রিপোর্ট', ['/OperationsInsights']]
         ]
+    };
+
+    // Common sidebar leaf-label parity for routes still carrying old English-only
+    // Razor labels. The server remains authoritative for permission and URLs.
+    const bengaliLabels = {
+        '/platformtenants/index': 'প্রতিষ্ঠান পরিচালনা',
+        '/platformcatalogadministration/index': 'প্রতিষ্ঠানের ধরন',
+        '/platformfeatureadministration/index': 'ফিচার ক্যাটালগ',
+        '/platformproductmoduleadministration/index': 'প্রোডাক্ট মডিউল',
+        '/platforminstitutionmodulepresets/index': 'প্রতিষ্ঠানের মডিউল প্রিসেট',
+        '/platformmodulefeatures/index': 'মডিউল ফিচার',
+        '/subscriptionplanadministration/index': 'সাবস্ক্রিপশন প্ল্যান',
+        '/legaldocuments/index': 'আইনি প্রকাশনা',
+        '/subscriptionpaymenthistory/index': 'পেমেন্ট সমন্বয়ের ইতিহাস',
+        '/tenantusers/index': 'ব্যবহারকারী ও ভূমিকা',
+        '/tenantpermissionoverrides/index': 'সদস্যের বিশেষ অনুমতি',
+        '/institutionmanagement/index': 'প্রতিষ্ঠান ও ক্যাম্পাস',
+        '/tenantdomains/index': 'নিজস্ব ডোমেইন',
+        '/tenantterminology/index': 'প্রতিষ্ঠানের পরিভাষা',
+        '/tenantsettings/index': 'প্রতিষ্ঠানের সেটিংস',
+        '/numberseries/index': 'নম্বর সিরিজ',
+        '/tenantmodules/index': 'প্রতিষ্ঠানের মডিউল',
+        '/subscriptionbilling/index': 'সাবস্ক্রিপশন ও বিলিং',
+        '/integrationadministration/index': 'ইন্টিগ্রেশন পরিচালনা',
+        '/studentdocuments/index': 'শিক্ষার্থীর নথি',
+        '/studentguardians/index': 'শিক্ষার্থীর অভিভাবক',
+        '/studenttransferrequests/index': 'স্থানান্তর আবেদন ও ইনবক্স',
+        '/enrollmentmanagement/index': 'শিক্ষার্থী ভর্তি',
+        '/studentportal/index': 'শিক্ষার্থী ও অভিভাবক পোর্টাল',
+        '/studentsubjects/index': 'ঐচ্ছিক বিষয়ের আবেদন',
+        '/admissions/index': 'ভর্তির আবেদন',
+        '/students/index': 'শিক্ষার্থী তালিকা',
+        '/alumni/index': 'প্রাক্তন শিক্ষার্থী',
+        '/learneridentities/index': 'শিক্ষার্থী পরিচয়',
+        '/learneridentities/accesshistory': 'পরিচয় তথ্য দেখার ইতিহাস',
+        '/learning/index': 'শিক্ষা ও কোর্স',
+        '/assessmentadministration/index': 'পরীক্ষা ও ফলাফল',
+        '/assessmentadministration/componentmarks': 'মূল্যায়নের নম্বর',
+        '/assessmentadministration/subjectcompletions': 'বিষয় সম্পন্নের অবস্থা',
+        '/assessmentadministration/assessmentcomponents': 'মূল্যায়নের উপাদান',
+        '/assessmentadministration/assessmentschedules': 'পরীক্ষার সময়সূচি',
+        '/assessmentadministration/gradeschemes': 'গ্রেডিং নিয়ম',
+        '/assessmentadministration/certificatetemplates': 'সনদের টেমপ্লেট',
+        '/assessmentadministration/certificates': 'সনদ',
+        '/assessmentadministration/transcripts': 'নম্বরপত্র',
+        '/academicroutines/index': 'ক্লাস রুটিন',
+        '/academicinstruction/index': 'পাঠদান ও ক্লাস পরিচালনা',
+        '/academiccalendar/index': 'একাডেমিক ক্যালেন্ডার',
+        '/studentleaves/index': 'শিক্ষার্থীর ছুটি',
+        '/attendance/index': 'উপস্থিতি',
+        '/hr/index': 'এইচআর প্রশাসন',
+        '/hr/directory': 'কর্মী তালিকা',
+        '/hr/leaves': 'কর্মীর ছুটির আবেদন',
+        '/hr/shiftassignments': 'কর্মীর শিফট',
+        '/hr/campusassignments': 'কর্মীর ক্যাম্পাস বরাদ্দ',
+        '/hr/bankaccounts': 'কর্মীর ব্যাংক হিসাব',
+        '/hremployeerecords/index': 'কর্মী নিবন্ধন ও অবস্থা',
+        '/employeecontracts/index': 'কর্মীর চুক্তি',
+        '/recruitment/index': 'নিয়োগ ও কর্মী নির্বাচন',
+        '/employeeattendance/index': 'কর্মীর উপস্থিতি',
+        '/leaveentitlements/index': 'ছুটির প্রাপ্যতা',
+        '/payrolloperations/index': 'বেতন ব্যবস্থাপনা',
+        '/payrollsalarystructures/index': 'বেতন কাঠামো',
+        '/payrollsalarycomponents/index': 'কর ও প্রভিডেন্ট ফান্ড',
+        '/payrollbonuses/index': 'বোনাস রেজিস্টার',
+        '/payrollloanregister/index': 'কর্মীর ঋণ',
+        '/loandisbursement/index': 'ঋণ বিতরণ',
+        '/loanrecovery/index': 'ঋণ আদায়',
+        '/payrolljournalposting/index': 'বেতন GL পোস্টিং',
+        '/payrollpaymentposting/index': 'বেতন পরিশোধ নিষ্পত্তি',
+        '/payrollsalarystatement/index': 'বেতন বিবরণী',
+        '/payrollreconciliation/index': 'বেতন সমন্বয়',
+        '/feediscountrules/index': 'ফি ছাড়ের নিয়ম',
+        '/admissioncashreceipts/index': 'ভর্তির নগদ রসিদ',
+        '/feereceivablesaging/index': 'ফি বকেয়ার প্রতিবেদন',
+        '/financeadjustments/index': 'আর্থিক সমন্বয়',
+        '/feeheadaccounting/index': 'ফি খাত ও GL ম্যাপিং',
+        '/accountingsetup/index': 'হিসাবের খাত ও সময়কাল',
+        '/accountingjournals/index': 'জার্নাল পোস্ট ও রিভার্সাল',
+        '/accountingreports/index': 'জেনারেল লেজার ও ট্রায়াল ব্যালেন্স',
+        '/inventorycatalog/index': 'ইনভেন্টরি ক্যাটালগ',
+        '/inventorymovements/index': 'স্টক চলাচল',
+        '/assetlifecycle/index': 'স্থায়ী সম্পদ ও রক্ষণাবেক্ষণ',
+        '/hosteloperations/index': 'হোস্টেল পরিচালনা',
+        '/transportoperations/index': 'পরিবহন পরিচালনা',
+        '/operationsinsights/index': 'ক্যাম্পাস কার্যক্রম প্রতিবেদন',
+        '/auditlogs/index': 'নিরীক্ষার লগ',
+        '/importhistory/index': 'আমদানির ইতিহাস',
+        '/communicationworkspace/index': 'যোগাযোগ কেন্দ্র',
+        '/communicationadministration/index': 'যোগাযোগের সেটিংস',
+        '/customfields/index': 'কাস্টম ফিল্ড',
+        '/documentadministration/index': 'নথি পরিচালনা',
+        '/library/index': 'গ্রন্থাগার',
+        '/employeeportal/index': 'কর্মী পোর্টাল'
     };
 
     function normalizedPath(path) {
         if (typeof path !== 'string') return '/';
         const clean = path.split(/[?#]/, 1)[0].replace(/\/+$/, '');
         return (clean || '/').toLowerCase();
+    }
+
+    function navigationLabelFor(href, locale) {
+        return String(locale || '').toLowerCase().startsWith('bn')
+            ? (bengaliLabels[normalizedPath(href)] || null) : null;
     }
 
     function matchesPrefix(path, prefix) {
@@ -95,7 +220,7 @@
     }
 
     if (typeof module !== 'undefined' && module.exports) {
-        module.exports = { groupFor, categoryFor, scoreActive, normalizedPath };
+        module.exports = { groupFor, categoryFor, navigationLabelFor, scoreActive, normalizedPath };
     }
     if (typeof document === 'undefined') return;
 
@@ -131,6 +256,12 @@
         const categorized = new Map();
         const direct = [];
         for (const link of links) {
+            const translated = navigationLabelFor(link.getAttribute('href') || '', bangla ? 'bn-BD' : 'en-BD');
+            if (translated) {
+                const label = link.querySelector('span');
+                if (label) label.textContent = translated;
+                else link.textContent = translated;
+            }
             allLinks.push(link);
             const href = link.getAttribute('href') || '';
             if (matchesPrefix(href, '/Dashboard')) {

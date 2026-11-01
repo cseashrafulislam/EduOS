@@ -7,7 +7,7 @@ const root = path.resolve(__dirname, '../..');
 const layout = fs.readFileSync(path.join(root, 'EduOS.App/Views/Shared/_Layout.cshtml'), 'utf8');
 const styles = fs.readFileSync(path.join(root, 'EduOS.App/wwwroot/css/site.css'), 'utf8');
 const script = fs.readFileSync(path.join(root, 'EduOS.App/wwwroot/js/sidebar-navigation.js'), 'utf8');
-const { groupFor, categoryFor, scoreActive, normalizedPath } = require('../../EduOS.App/wwwroot/js/sidebar-navigation.js');
+const { groupFor, categoryFor, navigationLabelFor, scoreActive, normalizedPath } = require('../../EduOS.App/wwwroot/js/sidebar-navigation.js');
 
 test('every sidebar section is grouped without replacing role and module gated Razor links', () => {
     for (const section of ['platform', 'setup', 'academics', 'management']) {
@@ -49,8 +49,39 @@ test('section-specific categories include dynamic role portals and privileged ad
     assert.equal(categoryFor('setup', 'academic-setup', '/AcademicManagement/Offerings'), 'operations');
     assert.equal(categoryFor('management', 'finance', '/FeeReceivablesAging/Index'), 'reports');
     assert.equal(categoryFor('management', 'finance', '/FeeOperations/Index'), 'operations');
+    assert.equal(categoryFor('management', 'finance', '/FeeOperations/Structures'), 'settings');
+    assert.equal(categoryFor('management', 'finance', '/FeeOperations/Billing'), 'operations');
+    assert.equal(categoryFor('management', 'finance', '/FeeOperations/Ledger'), 'operations');
+    assert.equal(categoryFor('management', 'finance', '/FeeDueCalendar/Index'), 'reports');
+    assert.equal(categoryFor('academics', 'assessments', '/AssessmentAdministration/GradeSchemes'), 'settings');
+    assert.equal(categoryFor('academics', 'assessments', '/AssessmentAdministration/Certificates'), 'reports');
+    assert.equal(categoryFor('management', 'people', '/PayrollOperations/Index'), 'operations');
+    assert.equal(categoryFor('management', 'people', '/HR/Directory'), 'operations');
+    assert.equal(categoryFor('management', 'people', '/HR/Leaves'), 'operations');
+    assert.equal(categoryFor('management', 'people', '/HR/ShiftAssignments'), 'settings');
+    assert.equal(categoryFor('management', 'people', '/PayrollSalaryStructures/Index'), 'settings');
+    assert.equal(categoryFor('management', 'people', '/PayrollSalaryStatement/Index'), 'reports');
+    assert.equal(categoryFor('management', 'people', '/PayrollPaymentPosting/Index'), 'operations');
+    assert.equal(categoryFor('management', 'communication', '/CustomFields/Index'), 'settings');
     assert.equal(categoryFor('management', 'finance', '/AccountingSetup/Index'), 'settings');
     assert.equal(normalizedPath('/Attendance/Index/?q=1'), '/attendance/index');
+});
+
+test('shared sidebar leaf labels follow the global Bengali/English locale without adding privileged links', () => {
+    for (const [href, expected] of [
+        ['/InstitutionManagement/Index', 'প্রতিষ্ঠান ও ক্যাম্পাস'],
+        ['/StudentPortal/Index', 'শিক্ষার্থী ও অভিভাবক পোর্টাল'],
+        ['/FeeReceivablesAging/Index', 'ফি বকেয়ার প্রতিবেদন'],
+        ['/AssessmentAdministration/Certificates', 'সনদ'],
+        ['/TransportOperations/Index', 'পরিবহন পরিচালনা'],
+        ['/HR/Leaves', 'কর্মীর ছুটির আবেদন']
+    ]) {
+        assert.equal(navigationLabelFor(href, 'bn-BD'), expected);
+        assert.equal(navigationLabelFor(href, 'en-BD'), null);
+    }
+    assert.equal(navigationLabelFor('/PrivateUnlisted/Index', 'bn-BD'), null);
+    assert.match(script, /const translated = navigationLabelFor\(link\.getAttribute\('href'\)/);
+    assert.doesNotMatch(script, /innerHTML|eval\(|localStorage/);
 });
 
 test('active page selection matches full segments and prefers exact child or hash links', () => {

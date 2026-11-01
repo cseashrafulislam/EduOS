@@ -2,6 +2,7 @@
 'use strict';
 if (!document.getElementById('feeApp')) return;
 const e=id=>document.getElementById(id),base='/api/finance/fees';
+const activeFeature=e('feeApp').dataset.activeFeature||'structures';
 const token=document.querySelector('meta[name="request-verification-token"]')?.content;
 const state={options:null,student:null,invoice:null,invoicePage:1,receiptPage:1,invoicePages:1,receiptPages:1,createKey:null,createId:null,generateKey:null,generateId:null,paymentKey:null,paymentId:null,editingStructure:null,structurePage:1,structurePages:1,auditInvoice:null,auditPage:1,auditPages:1,auditData:null};
 const today=()=>{const d=new Date();return [d.getFullYear(),String(d.getMonth()+1).padStart(2,'0'),String(d.getDate()).padStart(2,'0')].join('-');};
@@ -50,7 +51,7 @@ function structures(){
 async function options(){
  state.options=await api('/options');
  for(const [id,prop] of [['feeCampus','campuses'],['feeYear','academicYears'],['feeLevel','academicLevels'],['feeBatch','academicBatches']])fill(id,state.options[prop]||[],'Choose '+prop);
- e('feeLineRows').replaceChildren();line();batches();structures();if(e('feeStructureRegister')){fill('feeRegisterCampus',state.options.campuses||[],'All campuses');await register();}
+ e('feeLineRows').replaceChildren();line();batches();structures();if(e('feeStructureRegister') && activeFeature==='structures'){fill('feeRegisterCampus',state.options.campuses||[],'All campuses');await register();}
 }
 function stable(prefix,key){if(state[prefix+'Key']!==key){state[prefix+'Key']=key;state[prefix+'Id']=crypto.randomUUID();}return state[prefix+'Id'];}
 function clear(prefix){state[prefix+'Key']=null;state[prefix+'Id']=null;}

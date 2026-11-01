@@ -10,7 +10,19 @@ public sealed class HRController : Controller
 {
     [HttpGet]
     [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
-    public IActionResult Index() => View();
+    public IActionResult Index() => RedirectToAction(nameof(Directory));
+
+    private IActionResult Feature(string feature)
+    {
+        ViewData["HrFeature"] = feature;
+        return View("Index");
+    }
+
+    [HttpGet, ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
+    public IActionResult Directory() => Feature("directory");
+
+    [HttpGet, ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
+    public IActionResult Leaves() => Feature("leaves");
 
     [HttpGet]
     [Authorize(Roles = "TenantAdmin")]

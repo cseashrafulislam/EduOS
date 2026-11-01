@@ -84,7 +84,12 @@ test('reviewed Page Information routes match actual controller role/module gates
         for (const required of module.split(','))
             assert.ok(code.includes('RequireModule("' + required + '")'), 'missing module gate ' + route + ': ' + required);
         assert.match(code, /public IActionResult Index\(\)/);
-        assert.match(code, /\bView\(\)/);
+        if (controller === 'FeeOperations') {
+            assert.match(code, /Index\(\)=>RedirectToAction\(nameof\(Ledger\)\)/);
+            assert.match(code, /return View\("Index"\)/);
+            for (const action of ['Structures','Billing','Ledger'])
+                assert.match(code, new RegExp('public IActionResult ' + action + '\\(\\)=>Feature\\('));
+        } else assert.match(code, /\bView\(\)/);
         for (const lang of ['en-BD', 'bn-BD']) {
             const manual = guideFor(route, lang);
             assert.ok(manual && manual.steps.length >= 3 && manual.example && manual.recovery && manual.rules,

@@ -361,12 +361,35 @@
             <nav class="nav flex-column" data-sidebar-section="management">
                 @if (User?.IsInRole("TenantAdmin") == true || User?.IsInRole("Principal") == true || User?.IsInRole("HR") == true)
                 {
-                    <a class="nav-link @ActiveFor("/HR")" href="/HR/Index">
-                        <svg class="edu-icon"><use href="/images/eduos-icons.svg#users" /></svg>
-                        <span>HR Administration</span>
-                    </a>
+                    @foreach (var hrPage in new[] {
+                        (Path: "/HR/Directory", En: "Employee Directory", Bn: "কর্মী তালিকা"),
+                        (Path: "/HR/Leaves", En: "Employee Leave Review", Bn: "কর্মীর ছুটির আবেদন"),
+                        (Path: "/HrEmployeeRecords/Index", En: "Employee Registration & Status", Bn: "কর্মী নিবন্ধন ও অবস্থা")
+                    })
+                    {
+                        <a class="nav-link @ActiveFor(hrPage.Path)" href="@hrPage.Path">
+                            <svg class="edu-icon"><use href="/images/eduos-icons.svg#users" /></svg>
+                            <span>@(currentCulture == "bn-BD" ? hrPage.Bn : hrPage.En)</span>
+                        </a>
+                    }
                     <a class="nav-link @ActiveFor("/EmployeeAttendance")" href="/EmployeeAttendance/Index">Employee Attendance</a>
                     <a class="nav-link @ActiveFor("/LeaveEntitlements")" href="/LeaveEntitlements/Index">Leave Entitlements</a>
+                }
+                @if (User?.IsInRole("TenantAdmin") == true)
+                {
+                    @foreach (var hrSetup in new[] {
+                        (Path: "/HR/ShiftAssignments", En: "Employee Shifts", Bn: "কর্মীর শিফট"),
+                        (Path: "/HR/CampusAssignments", En: "Employee Campus Assignments", Bn: "কর্মীর ক্যাম্পাস বরাদ্দ"),
+                        (Path: "/HR/BankAccounts", En: "Employee Bank Accounts", Bn: "কর্মীর ব্যাংক হিসাব"),
+                        (Path: "/EmployeeContracts/Index", En: "Employee Contracts", Bn: "কর্মীর চুক্তি"),
+                        (Path: "/Recruitment/Index", En: "Recruitment & Hiring", Bn: "নিয়োগ ও কর্মী নির্বাচন")
+                    })
+                    {
+                        <a class="nav-link @ActiveFor(hrSetup.Path)" href="@hrSetup.Path">
+                            <svg class="edu-icon"><use href="/images/eduos-icons.svg#users" /></svg>
+                            <span>@(currentCulture == "bn-BD" ? hrSetup.Bn : hrSetup.En)</span>
+                        </a>
+                    }
                 }
                 @if (User?.IsInRole("TenantAdmin") == true || User?.IsInRole("Principal") == true ||
                      User?.IsInRole("HR") == true || User?.IsInRole("Accountant") == true ||
@@ -377,13 +400,68 @@
                         <span>Payroll</span>
                     </a>
                 }
+                @if (User?.IsInRole("TenantAdmin") == true)
+                {
+                    @foreach (var payrollAdmin in new[] {
+                        (Path: "/PayrollSalaryStructures/Index", En: "Salary Structures", Bn: "বেতন কাঠামো"),
+                        (Path: "/PayrollSalaryComponents/Index", En: "Tax & Provident Fund", Bn: "কর ও প্রভিডেন্ট ফান্ড"),
+                        (Path: "/PayrollBonuses/Index", En: "Bonus Register", Bn: "বোনাস রেজিস্টার"),
+                        (Path: "/PayrollLoanRegister/Index", En: "Employee Loans", Bn: "কর্মীর ঋণ"),
+                        (Path: "/LoanDisbursement/Index", En: "Loan Disbursement", Bn: "ঋণ বিতরণ"),
+                        (Path: "/LoanRecovery/Index", En: "Loan Recovery", Bn: "ঋণ আদায়"),
+                        (Path: "/PayrollSalaryStatement/Index", En: "Salary Statements", Bn: "বেতন বিবরণী"),
+                        (Path: "/PayrollReconciliation/Index", En: "Payroll Reconciliation", Bn: "বেতন সমন্বয়")
+                    })
+                    {
+                        <a class="nav-link @ActiveFor(payrollAdmin.Path)" href="@payrollAdmin.Path">
+                            <svg class="edu-icon"><use href="/images/eduos-icons.svg#reports" /></svg>
+                            <span>@(currentCulture == "bn-BD" ? payrollAdmin.Bn : payrollAdmin.En)</span>
+                        </a>
+                    }
+                }
+                @if (User?.IsInRole("TenantAdmin") == true || User?.IsInRole("Principal") == true || User?.IsInRole("Accountant") == true)
+                {
+                    @foreach (var payrollFinance in new[] {
+                        (Path: "/PayrollJournalPosting/Index", En: "Payroll GL Posting", Bn: "বেতন GL পোস্টিং"),
+                        (Path: "/PayrollPaymentPosting/Index", En: "Payroll Payment Settlement", Bn: "বেতন পরিশোধ নিষ্পত্তি")
+                    })
+                    {
+                        <a class="nav-link @ActiveFor(payrollFinance.Path)" href="@payrollFinance.Path">
+                            <svg class="edu-icon"><use href="/images/eduos-icons.svg#reports" /></svg>
+                            <span>@(currentCulture == "bn-BD" ? payrollFinance.Bn : payrollFinance.En)</span>
+                        </a>
+                    }
+                }
                 @if (User?.IsInRole("TenantAdmin") == true || User?.IsInRole("Principal") == true ||
                      User?.IsInRole("Accountant") == true)
                 {
-                    <a class="nav-link @ActiveFor("/FeeOperations")" href="/FeeOperations/Index">
-                        <svg class="edu-icon"><use href="/images/eduos-icons.svg#reports" /></svg>
-                        <span>Fees &amp; Billing</span>
-                    </a>
+                    @foreach (var feeFeature in new[] {
+                        (Action: "Structures", En: "Fee Structures", Bn: "ফি কাঠামো"),
+                        (Action: "Billing", En: "Generate Monthly Invoices", Bn: "মাসিক ইনভয়েস তৈরি"),
+                        (Action: "Ledger", En: "Student Ledger & Cash Collection", Bn: "শিক্ষার্থী লেজার ও নগদ সংগ্রহ")
+                    })
+                    {
+                        var feeFeaturePath = "/FeeOperations/" + feeFeature.Action;
+                        <a class="nav-link @ActiveFor(feeFeaturePath)" href="@feeFeaturePath">
+                            <svg class="edu-icon"><use href="/images/eduos-icons.svg#reports" /></svg>
+                            <span>@(currentCulture == "bn-BD" ? feeFeature.Bn : feeFeature.En)</span>
+                        </a>
+                    }
+                    @foreach (var financeFeature in new[] {
+                        (Path: "/StudentInvoicePosting/Index", En: "Student Invoice GL Posting", Bn: "শিক্ষার্থী ইনভয়েস GL পোস্টিং"),
+                        (Path: "/StudentPaymentPosting/Index", En: "Cash Receipt GL Posting", Bn: "নগদ রসিদ GL পোস্টিং"),
+                        (Path: "/FeeDueCalendar/Index", En: "Fee Due Calendar", Bn: "ফি পরিশোধের ক্যালেন্ডার"),
+                        (Path: "/FeeInstallmentProjection/Index", En: "Future Fee Projection", Bn: "ভবিষ্যৎ ফি প্রক্ষেপণ"),
+                        (Path: "/FeeInstallmentPlans/Index", En: "Instalment Agreements", Bn: "কিস্তির চুক্তি"),
+                        (Path: "/FeeInvoiceCoverage/Index", En: "Monthly Invoice Coverage", Bn: "মাসিক ইনভয়েস কভারেজ"),
+                        (Path: "/FeeDiscountAttributionReview/Index", En: "Historical Discount Attribution", Bn: "পুরোনো ছাড়ের হিসাব")
+                    })
+                    {
+                        <a class="nav-link @ActiveFor(financeFeature.Path)" href="@financeFeature.Path">
+                            <svg class="edu-icon"><use href="/images/eduos-icons.svg#reports" /></svg>
+                            <span>@(currentCulture == "bn-BD" ? financeFeature.Bn : financeFeature.En)</span>
+                        </a>
+                    }
                     @if (User?.IsInRole("TenantAdmin") == true)
                     {
                         <a class="nav-link @ActiveFor("/FeeDiscountRules")" href="/FeeDiscountRules/Index">Discount Rules</a>

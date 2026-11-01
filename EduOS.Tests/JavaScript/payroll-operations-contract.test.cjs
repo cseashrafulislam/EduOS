@@ -5,6 +5,7 @@ const root=path.resolve(__dirname,'../..');
 const read=p=>fs.readFileSync(path.join(root,p),'utf8');
 const js=read('EduOS.App/wwwroot/js/payroll/index.js');
 const view=read('EduOS.App/Views/PayrollOperations/Index.cshtml');
+const layout=read('EduOS.App/Views/Shared/_Layout.cshtml');
 const api=read('EduOS.App/Controllers/Api/HrPayrollController.cs');
 const service=read('EduOS.Service/Services/HR/HrPayrollService.cs');
 const dto=read('EduOS.Core/DTOs/Payroll/PayrollDtos.cs');
@@ -43,8 +44,10 @@ assert.match(service,/await _journalPosting\.PostAsync/);
 assert.match(api,/\[RequireModule\("FINANCE"\)\]/);
 assert.match(view,/@Html.AntiForgeryToken\(\)/);
 assert.match(view,/User.IsInRole\("TenantAdmin"\)/);
-assert.match(view,/PayrollJournalPosting\/Index/);
-assert.match(view,/PayrollPaymentPosting\/Index/);
+assert.match(layout,/Path: "\/PayrollJournalPosting\/Index"/);
+assert.match(layout,/Path: "\/PayrollPaymentPosting\/Index"/);
+assert.doesNotMatch(view,/href="\/PayrollJournalPosting\/Index"/);
+assert.doesNotMatch(view,/href="\/PayrollPaymentPosting\/Index"/);
 for(const id of ['payrollRunRows','payrollEmployeeRows','payrollSlipRows','payrollRunPageLabel',
     'payrollDetailPageLabel','payrollSlipPageLabel','payrollPaymentRequestForm',
     'payrollPaymentDate','payrollPaymentAmount','payrollPaymentMethod','payrollPaymentBankFields',
