@@ -27,6 +27,7 @@
         saving = T["Saving"].Value,
         saveAndContinue = T["SaveAndContinue"].Value,
         saveFailed = T["BrandingSaveFailed"].Value,
+        partialSaveRecovery = T["BrandingPartialSaveRecovery"].Value,
         stepFailed = T["StepCompletionFailed"].Value,
         continueSetup = T["ContinueSetup"].Value,
         dashboard = T["Dashboard"].Value
@@ -44,6 +45,7 @@
     </header>
 
     <div id="alertContainer" class="d-none" role="alert" tabindex="-1"></div>
+    <button type="button" class="btn btn-outline-secondary btn-sm mb-3" id="retryBrandingLoadBtn" hidden>@T["Retry"]</button>
 
     <section class="setup-section" aria-labelledby="portalAddressTitle">
         <div class="setup-section-heading">
@@ -57,7 +59,7 @@
                     <input id="subdomainInput" class="form-control font-monospace" type="text"
                            minlength="3" maxlength="50" pattern="[a-z0-9](?:[a-z0-9-]*[a-z0-9])?"
                            autocomplete="off" autocapitalize="none" spellcheck="false"
-                           placeholder="@T["SubdomainPlaceholder"]" required />
+                           placeholder="@T["SubdomainPlaceholder"]" required disabled />
                     <span class="input-group-text">.@baseDomain</span>
                 </div>
                 <div id="availabilityMsg" class="availability-msg" aria-live="polite"></div>
@@ -80,7 +82,7 @@
                     <span class="brand-asset-placeholder" aria-hidden="true">L</span>
                 </button>
                 <div class="brand-asset-actions">
-                    <button type="button" class="btn btn-outline-primary btn-sm" id="uploadLogoBtn">@T["Upload"]</button>
+                    <button type="button" class="btn btn-outline-primary btn-sm" id="uploadLogoBtn" disabled>@T["Upload"]</button>
                     <button type="button" class="btn btn-outline-danger btn-sm" id="removeLogoBtn" hidden>@T["Remove"]</button>
                 </div>
                 <small class="text-muted">@T["LogoUploadHelp"]</small>
@@ -92,7 +94,7 @@
                     <span class="brand-asset-placeholder" aria-hidden="true">F</span>
                 </button>
                 <div class="brand-asset-actions">
-                    <button type="button" class="btn btn-outline-primary btn-sm" id="uploadFaviconBtn">@T["Upload"]</button>
+                    <button type="button" class="btn btn-outline-primary btn-sm" id="uploadFaviconBtn" disabled>@T["Upload"]</button>
                     <button type="button" class="btn btn-outline-danger btn-sm" id="removeFaviconBtn" hidden>@T["Remove"]</button>
                 </div>
                 <small class="text-muted">@T["FaviconUploadHelp"]</small>
@@ -112,22 +114,22 @@
                 <div class="col-md-4">
                     <label class="form-label" for="primaryColorText">@T["PrimaryColor"]</label>
                     <div class="color-input-group">
-                        <input type="color" class="color-swatch" id="primaryColor" value="#1E40AF" aria-label="@T["PrimaryColor"]" />
-                        <input type="text" class="form-control font-monospace" id="primaryColorText" value="#1E40AF" maxlength="7" pattern="#[0-9A-Fa-f]{6}" required />
+                        <input type="color" class="color-swatch" id="primaryColor" disabled value="#1E40AF" aria-label="@T["PrimaryColor"]" />
+                        <input type="text" class="form-control font-monospace" id="primaryColorText" disabled value="#1E40AF" maxlength="7" pattern="#[0-9A-Fa-f]{6}" required />
                     </div>
                 </div>
                 <div class="col-md-4">
                     <label class="form-label" for="secondaryColorText">@T["SecondaryColor"]</label>
                     <div class="color-input-group">
-                        <input type="color" class="color-swatch" id="secondaryColor" value="#64748B" aria-label="@T["SecondaryColor"]" />
-                        <input type="text" class="form-control font-monospace" id="secondaryColorText" value="#64748B" maxlength="7" pattern="#[0-9A-Fa-f]{6}" required />
+                        <input type="color" class="color-swatch" id="secondaryColor" disabled value="#64748B" aria-label="@T["SecondaryColor"]" />
+                        <input type="text" class="form-control font-monospace" id="secondaryColorText" disabled value="#64748B" maxlength="7" pattern="#[0-9A-Fa-f]{6}" required />
                     </div>
                 </div>
                 <div class="col-md-4">
                     <label class="form-label" for="accentColorText">@T["AccentColor"]</label>
                     <div class="color-input-group">
-                        <input type="color" class="color-swatch" id="accentColor" value="#F59E0B" aria-label="@T["AccentColor"]" />
-                        <input type="text" class="form-control font-monospace" id="accentColorText" value="#F59E0B" maxlength="7" pattern="#[0-9A-Fa-f]{6}" required />
+                        <input type="color" class="color-swatch" id="accentColor" disabled value="#F59E0B" aria-label="@T["AccentColor"]" />
+                        <input type="text" class="form-control font-monospace" id="accentColorText" disabled value="#F59E0B" maxlength="7" pattern="#[0-9A-Fa-f]{6}" required />
                     </div>
                 </div>
             </div>
@@ -136,7 +138,7 @@
         <div class="setup-guidance" role="note">@T["BrandingRequiredNote"]</div>
         <footer class="setup-actions">
             <a asp-controller="Account" asp-action="ModuleSetup" class="btn btn-outline-secondary">@T["Back"]</a>
-            <button type="submit" id="saveBrandingBtn" class="btn btn-primary" data-idle-label="@T["SaveAndContinue"]" data-loading-label="@T["Saving"]">@T["SaveAndContinue"]</button>
+            <button type="submit" id="saveBrandingBtn" class="btn btn-primary" disabled data-idle-label="@T["SaveAndContinue"]" data-loading-label="@T["Saving"]">@T["SaveAndContinue"]</button>
         </footer>
     </form>
 </article>

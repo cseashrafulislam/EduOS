@@ -22,6 +22,101 @@
     const colorSettings = new Map();
     let availableSubdomain = '';
     let checkTimer = 0;
+    let ready = false;
+    let saving = false;
+    let loading = false;
+    let invalidSession = false;
+    const retryLoadButton = document.getElementById('retryBrandingLoadBtn');
+
+    function updateControls() {
+        const disabled = !ready || saving || invalidSession;
+        ['subdomainInput', 'saveBrandingBtn', 'uploadLogoBtn', 'uploadFaviconBtn',
+            'removeLogoBtn', 'removeFaviconBtn', 'logoInput', 'faviconInput',
+            'primaryColor', 'primaryColorText', 'secondaryColor', 'secondaryColorText',
+            'accentColor', 'accentColorText'].forEach(id => {
+            const node = document.getElementById(id);
+            if (node) node.disabled = disabled;
+        });
+        if (saveSubdomainButton) saveSubdomainButton.disabled =
+            disabled || availableSubdomain !== normalizedSubdomain();
+    }
+
+    function clearLoadedBranding() {
+        ready = false;
+        onboarding = null;
+        savedSubdomain = '';
+        availableSubdomain = '';
+        rowVersion = '';
+        colorSettings.clear();
+        if (subdomainInput) subdomainInput.value = '';
+        setAvailability('', '');
+        ['primary', 'secondary', 'accent'].forEach((name, index) =>
+            setColor(name, null, ['#1E40AF', '#64748B', '#F59E0B'][index]));
+        renderAsset('logo', null);
+        renderAsset('favicon', null);
+        updateControls();
+    }
+
+    async function verifySession() {
+        if (invalidSession || window.EduOSSessionTransitionPending?.()) {
+            invalidSession = true;
+            clearLoadedBranding();
+            window.EduOSVerifySessionContext?.();
+            throw new Error('Institution session changed.');
+        }
+        const response = await fetch('/api/workspace-preferences', {
+            method: 'GET', credentials: 'same-origin', cache: 'no-store',
+            headers: { Accept: 'application/json' }
+        });
+        if (!response.ok) throw new Error('Session verification unavailable.');
+        if (window.EduOSWorkspaceResponseMatchesSession?.(response) !== true) {
+            invalidSession = true;
+            clearLoadedBranding();
+            window.EduOSVerifySessionContext?.();
+            throw new Error('Institution session changed.');
+        }
+    }
+
+    async function reloadBranding() {
+        if (loading || invalidSession) return false;
+        loading = true;
+        ready = false;
+        updateControls();
+        if (retryLoadButton) retryLoadButton.hidden = true;
+        try {
+            const [data, status] = await Promise.all([loadProfile(), loadOnboardingState()]);
+            await verifySession();
+            const profile = data.profile;
+            rowVersion = profile.rowVersion || '';
+            savedSubdomain = String(profile.subdomain || '').toLowerCase();
+            if (subdomainInput) subdomainInput.value = savedSubdomain;
+            if (savedSubdomain) setAvailability(i18n.subdomainSaved, 'ok');
+            colorSettings.clear();
+            for (const row of data.colors) colorSettings.set(row.key, row);
+            const value = name => colorSettings.get('Branding.' + name)?.value;
+            setColor('primary', value('PrimaryColor'), '#1E40AF');
+            setColor('secondary', value('SecondaryColor'), '#64748B');
+            setColor('accent', value('AccentColor'), '#F59E0B');
+            renderAsset('logo', profile.logoUrl);
+            renderAsset('favicon', profile.faviconUrl);
+            onboarding = status;
+            ready = true;
+            if (alertContainer) {
+                alertContainer.className = 'd-none';
+                alertContainer.textContent = '';
+            }
+            updatePrimaryAction();
+            updateControls();
+            return true;
+        } catch {
+            clearLoadedBranding();
+            showAlert('danger', i18n.loadFailed);
+            if (retryLoadButton) retryLoadButton.hidden = invalidSession;
+            return false;
+        } finally {
+            loading = false;
+        }
+    }
 
     document.addEventListener('DOMContentLoaded', async () => {
         initializeColorInputs();
@@ -29,8 +124,8 @@
         subdomainInput?.addEventListener('input', handleSubdomainInput);
         saveSubdomainButton?.addEventListener('click', saveSubdomain);
         document.getElementById('brandingForm')?.addEventListener('submit', saveBranding);
-        await Promise.all([loadProfile(), loadOnboardingState()]);
-        updatePrimaryAction();
+        retryLoadButton?.addEventListener('click', reloadBranding);
+        await reloadBranding();
     }, { once: true });
 
     function initializeColorInputs() {
@@ -57,43 +152,38 @@
     }
 
     async function loadProfile() {
-        try {
-            const response = await fetch('/api/tenant-profile', {
-                cache: 'no-store',
-                credentials: 'same-origin',
-                headers: { 'Accept': 'application/json' }
-            });
-            const payload = await response.json().catch(() => null);
-            if (!response.ok || !payload?.success || !payload.data) throw new Error('profile');
-
-            const profile = payload.data;
-            rowVersion = profile.rowVersion || '';
-            savedSubdomain = String(profile.subdomain || '').toLowerCase();
-            if (subdomainInput) subdomainInput.value = savedSubdomain;
-            if (savedSubdomain) setAvailability(i18n.subdomainSaved, 'ok');
-            await loadColors();
-            renderAsset('logo', profile.logoUrl);
-            renderAsset('favicon', profile.faviconUrl);
-        } catch {
-            showAlert('danger', i18n.loadFailed);
-        }
+        const [response, colorResponse] = await Promise.all([
+            fetch('/api/tenant-profile', {
+                cache: 'no-store', credentials: 'same-origin',
+                headers: { Accept: 'application/json' }
+            }),
+            fetch('/api/tenant-settings?category=Branding&page=1&pageSize=50', {
+                cache: 'no-store', credentials: 'same-origin',
+                headers: { Accept: 'application/json' }
+            })
+        ]);
+        const [payload, colors] = await Promise.all([
+            response.json().catch(() => null), colorResponse.json().catch(() => null)
+        ]);
+        if (!response.ok || !payload?.success || !payload.data ||
+            !colorResponse.ok || !colors?.success || !Array.isArray(colors.data?.items))
+            throw new Error('Branding profile or colors unavailable.');
+        return { profile: payload.data, colors: colors.data.items };
     }
 
     async function loadOnboardingState() {
-        try {
-            const response = await fetch('/api/onboarding/status', {
-                cache: 'no-store',
-                credentials: 'same-origin',
-                headers: { 'Accept': 'application/json' }
-            });
-            const payload = await response.json().catch(() => null);
-            onboarding = response.ok && payload?.success ? payload.data : null;
-        } catch {
-            onboarding = null;
-        }
+        const response = await fetch('/api/onboarding/status', {
+            cache: 'no-store', credentials: 'same-origin',
+            headers: { 'Accept': 'application/json' }
+        });
+        const payload = await response.json().catch(() => null);
+        if (!response.ok || !payload?.success || !payload.data)
+            throw new Error('Onboarding status unavailable.');
+        return payload.data;
     }
 
     function handleSubdomainInput() {
+        if (!ready || saving) return;
         window.clearTimeout(checkTimer);
         availableSubdomain = '';
         if (saveSubdomainButton) saveSubdomainButton.disabled = true;
@@ -110,6 +200,7 @@
     }
 
     async function checkSubdomain(value) {
+        if (!ready) return;
         setAvailability(i18n.checking, '');
         try {
             const response = await fetch(
@@ -121,23 +212,27 @@
                 });
             const payload = await response.json().catch(() => null);
             if (!response.ok || !payload?.success || !payload.data) throw new Error('check');
-            if (normalizedSubdomain() !== value) return;
+            if (!ready || normalizedSubdomain() !== value) return;
 
             availableSubdomain = payload.data.isAvailable ? value : '';
             setAvailability(
                 payload.data.isAvailable ? i18n.available : i18n.unavailable,
                 payload.data.isAvailable ? 'ok' : 'bad');
-            if (saveSubdomainButton) saveSubdomainButton.disabled = !availableSubdomain;
+            updateControls();
         } catch {
-            setAvailability(i18n.checkFailed, 'bad');
+            if (ready && normalizedSubdomain() === value)
+                setAvailability(i18n.checkFailed, 'bad');
         }
     }
 
     async function saveSubdomain() {
         const subdomain = normalizedSubdomain();
-        if (!subdomain || subdomain !== availableSubdomain) return;
+        if (!ready || saving || !subdomain || subdomain !== availableSubdomain) return;
+        saving = true;
+        updateControls();
         setButtonLoading(saveSubdomainButton, true, i18n.saving);
         try {
+            await verifySession();
             const response = await fetch('/api/tenant-profile/subdomain', {
                 method: 'PUT',
                 cache: 'no-store',
@@ -147,6 +242,7 @@
             });
             const payload = await response.json().catch(() => null);
             if (!response.ok || !payload?.success) throw new Error('save');
+            await verifySession();
             savedSubdomain = subdomain;
             rowVersion = payload.data?.rowVersion || rowVersion;
             availableSubdomain = '';
@@ -155,8 +251,10 @@
         } catch {
             showAlert('danger', i18n.subdomainSaveFailed);
         } finally {
+            saving = false;
+            availableSubdomain = '';
             setButtonLoading(saveSubdomainButton, false, i18n.saveSubdomain);
-            if (saveSubdomainButton) saveSubdomainButton.disabled = true;
+            updateControls();
         }
     }
 
@@ -167,10 +265,13 @@
         document.getElementById(`${type}Preview`)?.addEventListener('click', () => input?.click());
         input?.addEventListener('change', async () => {
             const file = input.files?.[0];
-            if (!file) return;
+            if (!file || !ready || saving) return;
+            saving = true;
+            updateControls();
             const body = new FormData();
             body.append('file', file);
             try {
+                await verifySession();
                 const response = await fetch(endpoint, {
                     method: 'POST',
                     cache: 'no-store',
@@ -180,20 +281,24 @@
                 });
                 const payload = await response.json().catch(() => null);
                 if (!response.ok || !payload?.success || !payload.data) throw new Error('upload');
-                renderAsset(type, payload.data);
-                await loadProfile();
-                showAlert('success', i18n.uploadSuccess);
+                if (await reloadBranding())
+                    showAlert('success', i18n.uploadSuccess);
             } catch {
                 showAlert('danger', i18n.uploadFailed);
             } finally {
+                saving = false;
+                updateControls();
                 input.value = '';
             }
         });
     }
 
     async function removeAsset(type, endpoint, confirmation) {
-        if (!window.confirm(confirmation || '')) return;
+        if (!ready || saving || !window.confirm(confirmation || '')) return;
+        saving = true;
+        updateControls();
         try {
+            await verifySession();
             const response = await fetch(endpoint + '?rowVersion=' + encodeURIComponent(rowVersion), {
                 method: 'DELETE',
                 cache: 'no-store',
@@ -202,10 +307,12 @@
             });
             const payload = await response.json().catch(() => null);
             if (!response.ok || !payload?.success) throw new Error('remove');
-            renderAsset(type, null);
-            await loadProfile();
+            await reloadBranding();
         } catch {
             showAlert('danger', i18n.removeFailed);
+        } finally {
+            saving = false;
+            updateControls();
         }
     }
 
@@ -232,21 +339,9 @@
         if (removeButton) removeButton.hidden = !safeUrl;
     }
 
-    async function loadColors() {
-        const response = await fetch('/api/tenant-settings?category=Branding&page=1&pageSize=50',
-            { credentials: 'same-origin', cache: 'no-store' });
-        const result = await response.json().catch(() => null);
-        if (!response.ok || !result?.success) throw new Error('color settings');
-        colorSettings.clear();
-        for (const row of result.data?.items || []) colorSettings.set(row.key, row);
-        const value = name => colorSettings.get('Branding.' + name)?.value;
-        setColor('primary', value('PrimaryColor'), '#1E40AF');
-        setColor('secondary', value('SecondaryColor'), '#64748B');
-        setColor('accent', value('AccentColor'), '#F59E0B');
-    }
-
     async function saveColor(name, value) {
         if (!/^#[0-9a-f]{6}$/i.test(value)) throw new Error('Invalid color value.');
+        await verifySession();
         const key = 'Branding.' + name;
         const existing = colorSettings.get(key);
         const response = await fetch(existing?.id ? '/api/tenant-settings/' + existing.id : '/api/tenant-settings', {
@@ -262,17 +357,22 @@
 
     async function saveBranding(event) {
         event.preventDefault();
+        if (!ready || saving) return;
+        saving = true;
+        updateControls();
         setButtonLoading(saveBrandingButton, true, i18n.saving);
+        let attemptedWrite = false;
         try {
-            // Validate the complete form and security token before the first setting write.
-            // Settings are separate canonical rows, so never partially save invalid input.
             const colors = ['primary', 'secondary', 'accent'].map(prefix => valueOf(prefix + 'ColorText'));
             if (colors.some(value => !/^#[0-9a-f]{6}$/i.test(value)))
                 throw new Error('Invalid brand color.');
             mutationHeaders();
+            await verifySession();
+            attemptedWrite = true;
             await saveColor('PrimaryColor', colors[0]);
             await saveColor('SecondaryColor', colors[1]);
             await saveColor('AccentColor', colors[2]);
+            await verifySession();
 
             if (onboarding?.isComplete) {
                 window.location.assign('/Dashboard/Index');
@@ -284,9 +384,7 @@
             }
 
             const completed = await fetch('/api/onboarding/complete-step', {
-                method: 'POST',
-                cache: 'no-store',
-                credentials: 'same-origin',
+                method: 'POST', cache: 'no-store', credentials: 'same-origin',
                 headers: mutationHeaders({ 'Accept': 'application/json', 'Content-Type': 'application/json' }),
                 body: JSON.stringify({ stage: 8, skipped: false })
             });
@@ -295,11 +393,22 @@
                 showAlert('danger', i18n.stepFailed);
                 return;
             }
+            await verifySession();
             window.location.assign('/Account/GeneralSettings');
         } catch {
-            showAlert('danger', i18n.saveFailed || i18n.networkError);
+            if (attemptedWrite && !invalidSession) {
+                // Separate canonical settings rows may have partially committed.
+                // Reconcile the current saved values/versions before any retry.
+                await reloadBranding();
+                showAlert('danger', i18n.partialSaveRecovery);
+            } else {
+                showAlert('danger', i18n.saveFailed || i18n.networkError);
+            }
         } finally {
+            saving = false;
             setButtonLoading(saveBrandingButton, false, i18n.saveAndContinue);
+            updatePrimaryAction();
+            updateControls();
         }
     }
 
@@ -334,10 +443,11 @@
 
     function updatePrimaryAction() {
         if (!saveBrandingButton) return;
-        if (onboarding?.isComplete) saveBrandingButton.textContent = i18n.dashboard || '';
-        else if (onboarding && Number(onboarding.currentStage) !== 8) {
-            saveBrandingButton.textContent = i18n.continueSetup || '';
-        }
+        const label = onboarding?.isComplete ? i18n.dashboard :
+            onboarding && Number(onboarding.currentStage) !== 8 ? i18n.continueSetup :
+            i18n.saveAndContinue;
+        saveBrandingButton.dataset.idleLabel = label || '';
+        if (!saving) saveBrandingButton.textContent = label || '';
     }
 
     function normalizedSubdomain() {
