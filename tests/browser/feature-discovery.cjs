@@ -57,7 +57,7 @@ async function english(browser) {
         await page.locator('#featureSearchInput').fill('student');
         await page.getByRole('link',{name:/Students/}).click();
         await page.waitForURL('**/Students/Index');
-        assert.equal(await page.evaluate(()=>window.verifyCount),undefined); // new document after navigation
+        assert.equal(await page.evaluate(()=>window.verifyCount),0); // fresh document after navigation
         assert.deepEqual(errors,[]);
     } finally { await context.close(); }
 }
