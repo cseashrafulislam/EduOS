@@ -155,3 +155,24 @@ test('appearance preview can be discarded, warns before leaving and never saves 
     assert.equal(changed({ ...original, dashboardPanels: [...original.dashboardPanels].reverse() }, signature), true);
     assert.equal(changed(null, signature), true);
 });
+
+
+test('appearance revision restore uses same tenant session transaction and bounded private history', () => {
+    const controller = read('EduOS.App/Controllers/WorkspacePreferencesController.cs');
+    const service = read('EduOS.Service/Services/Tenants/WorkspacePreferencesService.cs');
+    const view = read('EduOS.App/Views/WorkspacePreferences/Index.cshtml');
+    const script = read('EduOS.App/wwwroot/js/platform/workspace-preferences.js');
+    const guide = read('EduOS.App/wwwroot/js/platform/page-context-help.js');
+    assert.match(controller, /HttpPost\("\/api\/workspace-preferences\/restore"\)/);
+    assert.match(controller, /WriteInCurrentSessionAsync\(ct => service\.RestoreAsync/);
+    assert.match(service, /ReadHistory\(ReadStored\(row\)\)/);
+    assert.match(service, /MatchesVersion\(row\.RowVersion, request\.RowVersion\)/);
+    assert.match(service, /history\.TakeLast\(5\)/);
+    assert.match(service, /Snapshot = Snapshot\(previous\)/);
+    assert.match(view, /id="workspaceHistoryList"/);
+    assert.match(script, /renderHistory\(persisted\.history\)/);
+    assert.match(script, /commit\('\/api\/workspace-preferences\/restore'/);
+    assert.match(script, /if \(!button \|\| busy \|\| sessionInvalidated \|\| !loaded \|\| dirty\) return;/);
+    assert.doesNotMatch(script, /innerHTML|localStorage|sessionStorage/);
+    assert.match(guide, /Previously saved appearances/);
+});

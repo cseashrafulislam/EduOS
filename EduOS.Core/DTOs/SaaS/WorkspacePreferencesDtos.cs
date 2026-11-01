@@ -13,6 +13,20 @@ public sealed class WorkspacePreferencesDto
     public List<DashboardPanelPreferenceDto> DashboardPanels { get; set; } = DashboardPanelPreferenceDto.Defaults();
     public List<TablePreferenceDto> TablePreferences { get; set; } = TablePreferenceDto.Defaults();
     public string RowVersion { get; set; } = string.Empty;
+    public long Revision { get; set; }
+    public List<WorkspaceAppearanceRevisionDto> History { get; set; } = [];
+}
+
+public sealed class WorkspaceAppearanceRevisionDto
+{
+    public long Revision { get; set; }
+    public DateTime SavedAtUtc { get; set; }
+}
+
+public sealed class RestoreWorkspacePreferencesRequestDto
+{
+    public long Revision { get; set; }
+    public string? RowVersion { get; set; }
 }
 
 public sealed class SaveWorkspacePreferencesRequestDto

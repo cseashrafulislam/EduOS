@@ -10,4 +10,6 @@ public interface IWorkspacePreferencesService
         CancellationToken cancellationToken = default);
     Task<ApiResponse<WorkspacePreferencesDto>> ResetAsync(ResetWorkspacePreferencesRequestDto request,
         CancellationToken cancellationToken = default);
+    Task<ApiResponse<WorkspacePreferencesDto>> RestoreAsync(RestoreWorkspacePreferencesRequestDto request,
+        CancellationToken cancellationToken = default);
 }

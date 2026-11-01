@@ -109,4 +109,9 @@ public sealed class WorkspacePreferencesController(IWorkspacePreferencesService 
     public Task<IActionResult> Reset([FromBody] ResetWorkspacePreferencesRequestDto request,
         CancellationToken cancellationToken) =>
         WriteInCurrentSessionAsync(ct => service.ResetAsync(request, ct), cancellationToken);
+
+    [HttpPost("/api/workspace-preferences/restore")]
+    public Task<IActionResult> Restore([FromBody] RestoreWorkspacePreferencesRequestDto request,
+        CancellationToken cancellationToken) =>
+        WriteInCurrentSessionAsync(ct => service.RestoreAsync(request, ct), cancellationToken);
 }

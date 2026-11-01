@@ -524,6 +524,58 @@ public sealed class WorkspacePreferencesServiceTests
         Assert.Empty(await test.Db.TenantSettings.ToListAsync());
     }
 
+    [Fact]
+    public async Task Previous_appearance_restore_is_bounded_versioned_and_tenant_private()
+    {
+        await using var test = Create();
+        var owner = Service(test.Db, 101, 71);
+        var first = await owner.SaveAsync(new SaveWorkspacePreferencesRequestDto
+        {
+            Theme = "dark", CustomColors = new() { ["sidebar"] = "#123456" }
+        });
+        Assert.True(first.Success, first.Message);
+        Assert.Equal(1, first.Data!.Revision);
+        Assert.Empty(first.Data.History);
+        var row = await test.Db.TenantSettings.SingleAsync();
+        row.RowVersion = [1,2,3,4,5,6,7,8];
+        await test.Db.SaveChangesAsync();
+        var firstVersion = Convert.ToBase64String(row.RowVersion);
+        var second = await owner.SaveAsync(new SaveWorkspacePreferencesRequestDto
+        {
+            Theme = "light", CustomColors = new() { ["sidebar"] = "#ABCDEF" },
+            RowVersion = firstVersion
+        });
+        Assert.True(second.Success, second.Message);
+        Assert.Equal(2, second.Data!.Revision);
+        Assert.Single(second.Data.History);
+        Assert.Equal(1, second.Data.History[0].Revision);
+        row.RowVersion = [8,7,6,5,4,3,2,1];
+        await test.Db.SaveChangesAsync();
+        var latestVersion = Convert.ToBase64String(row.RowVersion);
+        Assert.Equal(404, (await Service(test.Db, 202, 71).RestoreAsync(
+            new RestoreWorkspacePreferencesRequestDto { Revision = 1, RowVersion = latestVersion })).StatusCode);
+        Assert.Equal(404, (await Service(test.Db, 101, 72).RestoreAsync(
+            new RestoreWorkspacePreferencesRequestDto { Revision = 1, RowVersion = latestVersion })).StatusCode);
+        Assert.Equal(409, (await owner.RestoreAsync(new RestoreWorkspacePreferencesRequestDto
+        {
+            Revision = 1, RowVersion = Convert.ToBase64String(new byte[] { 9,9,9,9 })
+        })).StatusCode);
+        Assert.Equal("light", (await owner.GetAsync()).Data!.Theme);
+        var restored = await owner.RestoreAsync(new RestoreWorkspacePreferencesRequestDto
+        {
+            Revision = 1, RowVersion = latestVersion
+        });
+        Assert.True(restored.Success, restored.Message);
+        Assert.Equal(3, restored.Data!.Revision);
+        Assert.Equal("dark", restored.Data.Theme);
+        Assert.Equal("#123456", restored.Data.CustomColors["sidebar"]);
+        Assert.Equal(new long[] { 1, 2 }, restored.Data.History.Select(x => x.Revision));
+        Assert.Equal(400, (await owner.RestoreAsync(new RestoreWorkspacePreferencesRequestDto
+        {
+            Revision = -1, RowVersion = latestVersion
+        })).StatusCode);
+    }
+
     private static TestSetup Create()
     {
         var http = new DefaultHttpContext();

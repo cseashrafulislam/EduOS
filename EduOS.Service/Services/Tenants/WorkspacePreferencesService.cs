@@ -79,12 +79,13 @@ public sealed class WorkspacePreferencesService : IWorkspacePreferencesService
             // Older cached clients do not send tablePreferences; never erase newer layout choices.
             // Older clients may submit only the first two or four table layouts.
             // Merge those into the current versioned row without erasing newer layouts.
-            var currentTables = ToDto(row).TablePreferences;
+            var previous = ToDto(row);
+            var currentTables = previous.TablePreferences;
             var tables = request.TablePreferences == null ? currentTables :
                 request.TablePreferences.Count < TablePreferenceDto.Defaults().Count
                     ? MergeTables(currentTables, request.TablePreferences)
                     : request.TablePreferences;
-            var colors = request.CustomColors ?? ToDto(row).CustomColors;
+            var colors = request.CustomColors ?? previous.CustomColors;
             var stored = new StoredPreferences
             {
                 SchemaVersion = 1,
@@ -107,6 +108,21 @@ public sealed class WorkspacePreferencesService : IWorkspacePreferencesService
                     }).ToList()
                 }).ToList()
             };
+            // Archive only normalized prior settings, bounded in the existing private versioned row.
+            var priorStored = ReadStored(row);
+            var priorRevision = Math.Max(1L, priorStored?.Revision ?? 1L);
+            if (row != null && priorRevision == long.MaxValue)
+                return ApiResponse<WorkspacePreferencesDto>.ErrorResponse("Appearance revision limit reached.", 409);
+            stored.Revision = row == null ? 1 : priorRevision + 1;
+            var history = ReadHistory(priorStored);
+            if (row != null && priorStored != null)
+                history.Add(new StoredAppearanceRevision
+                {
+                    Revision = priorRevision,
+                    SavedAtUtc = row.UpdatedAt ?? row.CreatedAt,
+                    Snapshot = Snapshot(previous)
+                });
+            stored.History = history.TakeLast(5).ToList();
             if (row == null)
             {
                 row = new TenantSetting
@@ -153,6 +169,71 @@ public sealed class WorkspacePreferencesService : IWorkspacePreferencesService
             TablePreferences = TablePreferenceDto.Defaults(),
             CustomColors = []
         }, cancellationToken);
+
+    public async Task<ApiResponse<WorkspacePreferencesDto>> RestoreAsync(RestoreWorkspacePreferencesRequestDto request,
+        CancellationToken cancellationToken = default)
+    {
+        if (!HasTenantMembership())
+            return ApiResponse<WorkspacePreferencesDto>.ErrorResponse("An active institution session is required.", 403);
+        if (request == null || request.Revision <= 0 || string.IsNullOrWhiteSpace(request.RowVersion) ||
+            request.RowVersion.Length > 100)
+            return ApiResponse<WorkspacePreferencesDto>.ErrorResponse("Invalid appearance revision.", 400);
+        try
+        {
+            var row = await FindAsync(tracked: false, cancellationToken);
+            if (row == null)
+                return ApiResponse<WorkspacePreferencesDto>.ErrorResponse("Appearance history not found.", 404);
+            if (!MatchesVersion(row.RowVersion, request.RowVersion))
+                return ApiResponse<WorkspacePreferencesDto>.ErrorResponse("Workspace changed on another device. Reload before restoring.", 409);
+            var snapshot = ReadHistory(ReadStored(row)).FirstOrDefault(x => x.Revision == request.Revision)?.Snapshot;
+            if (snapshot == null)
+                return ApiResponse<WorkspacePreferencesDto>.ErrorResponse("Appearance revision not found.", 404);
+            // SaveAsync rechecks rowversion under the controller's SERIALIZABLE session-bound transaction.
+            return await SaveAsync(RestoreRequest(snapshot, request.RowVersion), cancellationToken);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Workspace history restore failed for tenant {TenantId}", _user.TenantId);
+            return ApiResponse<WorkspacePreferencesDto>.ErrorResponse("Appearance could not be restored.", 500);
+        }
+    }
+
+    private static StoredPreferences Snapshot(WorkspacePreferencesDto source) => new()
+    {
+        SchemaVersion = 1, Revision = source.Revision,
+        Theme = source.Theme, Palette = source.Palette, Navigation = source.Navigation,
+        Density = source.Density, FontScale = source.FontScale,
+        CustomColors = source.CustomColors, DashboardPanels = source.DashboardPanels,
+        TablePreferences = source.TablePreferences
+    };
+
+    private static SaveWorkspacePreferencesRequestDto RestoreRequest(StoredPreferences snapshot, string? rowVersion) => new()
+    {
+        RowVersion = rowVersion,
+        Theme = snapshot.Theme ?? "system", Palette = snapshot.Palette ?? "blue",
+        Navigation = snapshot.Navigation ?? "left", Density = snapshot.Density ?? "comfortable",
+        FontScale = snapshot.FontScale ?? "normal", CustomColors = snapshot.CustomColors ?? [],
+        DashboardPanels = snapshot.DashboardPanels ?? DashboardPanelPreferenceDto.Defaults(),
+        TablePreferences = snapshot.TablePreferences ?? TablePreferenceDto.Defaults()
+    };
+
+    private static StoredPreferences? ReadStored(TenantSetting? row)
+    {
+        if (row == null || row.Category != Category || row.IsSensitive) return null;
+        try
+        {
+            var stored = JsonSerializer.Deserialize<StoredPreferences>(row.Value);
+            return stored?.SchemaVersion == 1 ? stored : null;
+        }
+        catch (JsonException) { return null; }
+    }
+
+    private static List<StoredAppearanceRevision> ReadHistory(StoredPreferences? stored) =>
+        stored?.History?.Where(entry => entry != null && entry.Revision > 0 &&
+                entry.Revision < stored.Revision && entry.Snapshot is { SchemaVersion: 1, History: null } &&
+                IsValid(RestoreRequest(entry.Snapshot!, null)))
+            .GroupBy(entry => entry.Revision).Select(group => group.First()).TakeLast(5).ToList() ?? [];
 
     private bool HasTenantMembership() => _user.IsAuthenticated && _user.TenantId > 0 && _user.UserId > 0;
 
@@ -256,10 +337,15 @@ public sealed class WorkspacePreferencesService : IWorkspacePreferencesService
         if (row == null) return result;
         result.RowVersion = Convert.ToBase64String(row.RowVersion);
         if (row.Category != Category || row.IsSensitive) return result;
+        var stored = ReadStored(row);
+        if (stored == null) return result;
+        result.Revision = Math.Max(1L, stored.Revision);
+        result.History = ReadHistory(stored).Select(entry => new WorkspaceAppearanceRevisionDto
+        {
+            Revision = entry.Revision, SavedAtUtc = entry.SavedAtUtc
+        }).ToList();
         try
         {
-            var stored = JsonSerializer.Deserialize<StoredPreferences>(row.Value);
-            if (stored?.SchemaVersion != 1) return result;
             result.Theme = IsOneOf(stored.Theme, "light", "dark") ? stored.Theme! : "system";
             result.Palette = IsOneOf(stored.Palette, "teal", "violet") ? stored.Palette! : "blue";
             result.Navigation = IsOneOf(stored.Navigation, "right", "top") ? stored.Navigation! : "left";
@@ -287,9 +373,18 @@ public sealed class WorkspacePreferencesService : IWorkspacePreferencesService
         return result;
     }
 
+    private sealed class StoredAppearanceRevision
+    {
+        public long Revision { get; set; }
+        public DateTime SavedAtUtc { get; set; }
+        public StoredPreferences? Snapshot { get; set; }
+    }
+
     private sealed class StoredPreferences
     {
         public int SchemaVersion { get; set; } = 1;
+        public long Revision { get; set; }
+        public List<StoredAppearanceRevision>? History { get; set; }
         public string? Theme { get; set; }
         public string? Palette { get; set; }
         public string? Navigation { get; set; }

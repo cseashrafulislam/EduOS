@@ -92,6 +92,7 @@
     const save = document.getElementById('workspaceSave');
     const reset = document.getElementById('workspaceReset');
     const discard = document.getElementById('workspaceDiscard');
+    const historyList = document.getElementById('workspaceHistoryList');
     const bangla = document.documentElement.lang === 'bn-BD';
     let rowVersion = '';
     let persisted = { ...defaults };
@@ -105,6 +106,35 @@
         status.classList.toggle('text-danger', error);
         status.classList.toggle('text-warning', pending);
         status.classList.toggle('text-success', !error && !pending);
+    }
+    function renderHistory(entries) {
+        historyList.replaceChildren();
+        const valid = Array.isArray(entries) ? entries.filter(entry =>
+            Number.isSafeInteger(entry?.revision) && entry.revision > 0 &&
+            typeof entry.savedAtUtc === 'string').slice(-5).reverse() : [];
+        if (!valid.length) {
+            const empty = document.createElement('li');
+            empty.className = 'list-group-item text-muted';
+            empty.textContent = bangla ? 'আগের সংরক্ষিত সংস্করণ নেই।' : 'No previous saved versions.';
+            historyList.appendChild(empty);
+            return;
+        }
+        valid.forEach(entry => {
+            const item = document.createElement('li');
+            item.className = 'list-group-item d-flex flex-wrap align-items-center justify-content-between gap-2';
+            const label = document.createElement('span');
+            const when = new Date(entry.savedAtUtc);
+            label.textContent = (bangla ? 'সংস্করণ ' : 'Revision ') + entry.revision +
+                (Number.isNaN(when.getTime()) ? '' : ' · ' + when.toLocaleString(bangla ? 'bn-BD' : 'en-BD'));
+            const button = document.createElement('button');
+            button.type = 'button';
+            button.className = 'btn btn-outline-primary btn-sm';
+            button.dataset.appearanceRestore = String(entry.revision);
+            button.textContent = bangla ? 'এই সংস্করণ ফিরিয়ে আনুন' : 'Restore this version';
+            button.disabled = busy || sessionInvalidated || !loaded;
+            item.append(label, button);
+            historyList.appendChild(item);
+        });
     }
     function fillColors(colors) {
         colorRows.forEach(row => {
@@ -148,6 +178,7 @@
         const next = values();
         if (next && !sessionInvalidated) window.EduOSApplyWorkspacePreferences?.(next);
         dirty = loaded && isUnsavedPreview(next, savedSignature);
+        historyList.querySelectorAll('[data-appearance-restore]').forEach(button => { button.disabled = busy || sessionInvalidated || !loaded || dirty; });
         discard.disabled = busy || sessionInvalidated || !dirty;
         if (!next) message('Use a valid HEX or RGB color.', 'বৈধ HEX বা RGB রঙ দিন।', true);
         else if (dirty && !busy) message('Unsaved preview — Save appearance or Discard preview.', 'প্রিভিউ সংরক্ষিত নয় — ডিজাইন সংরক্ষণ করুন বা প্রিভিউ বাতিল করুন।', false, true);
@@ -160,6 +191,7 @@
         discard.disabled = disabled || !dirty;
         fields.forEach(name => { form.elements.namedItem(name).disabled = disabled; });
         colorRows.forEach(row => row.querySelectorAll('input,button').forEach(input => { input.disabled = disabled; }));
+        historyList.querySelectorAll('[data-appearance-restore]').forEach(button => { button.disabled = disabled || dirty; });
         panelRows().forEach(row => { row.querySelector('input[type="checkbox"]').disabled = disabled; });
         tableLists.forEach(list => tableColumnRows(list).forEach(row => {
             row.querySelector('input[type="checkbox"]').disabled = disabled || row.dataset.columnRequired === 'true';
@@ -173,6 +205,7 @@
         loaded = false;
         dirty = false;
         window.EduOSApplyWorkspacePreferences?.(defaults);
+        renderHistory([]);
         setBusy(true);
         window.EduOSVerifySessionContext?.();
         const error = new Error('Institution session changed.');
@@ -212,6 +245,7 @@
             rowVersion = data.rowVersion || '';
             fill(persisted);
             loaded = true;
+            renderHistory(persisted.history);
             savedSignature = JSON.stringify(values());
             preview();
             message('Appearance loaded.', 'ডিজাইন লোড হয়েছে।');
@@ -223,6 +257,7 @@
             loaded = false;
             savedSignature = '';
             fill(defaults);
+            renderHistory([]);
             preview();
             message('Could not load saved appearance. Try refreshing.', 'সংরক্ষিত ডিজাইন লোড হয়নি। আবার চেষ্টা করুন।', true);
         } finally { setBusy(false); }
@@ -231,11 +266,12 @@
         if (busy || sessionInvalidated) return;
         setBusy(true);
         try {
-            const data = await request(url, url.endsWith('/reset') ? 'POST' : 'PUT', payload);
+            const data = await request(url, url.endsWith('/reset') || url.endsWith('/restore') ? 'POST' : 'PUT', payload);
             persisted = { ...defaults, ...data };
             rowVersion = data.rowVersion || '';
             fill(persisted);
             loaded = true;
+            renderHistory(persisted.history);
             savedSignature = JSON.stringify(values());
             preview();
             message('Appearance saved for this institution.', 'এই প্রতিষ্ঠানের জন্য ডিজাইন সংরক্ষিত হয়েছে।');
@@ -314,6 +350,16 @@
         if (!dirty || sessionInvalidated) return;
         event.preventDefault();
         event.returnValue = '';
+    });
+    historyList.addEventListener('click', event => {
+        const button = event.target.closest('[data-appearance-restore]');
+        if (!button || busy || sessionInvalidated || !loaded || dirty) return;
+        const revision = Number(button.dataset.appearanceRestore);
+        if (!Number.isSafeInteger(revision) || revision <= 0) return;
+        if (!window.confirm(bangla
+            ? 'এই আগের ডিজাইনটি ফিরিয়ে আনবেন? বর্তমান ডিজাইন ইতিহাসে থাকবে।'
+            : 'Restore this saved appearance? Your current design will be kept in history.')) return;
+        commit('/api/workspace-preferences/restore', { revision, rowVersion });
     });
     reset.addEventListener('click', () => commit('/api/workspace-preferences/reset', { rowVersion }));
     load();
