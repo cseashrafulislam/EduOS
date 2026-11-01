@@ -1,0 +1,30 @@
+name: Workspace Appearance Authenticated Staging Browser
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  authenticated-appearance:
+    runs-on: ubuntu-latest
+    environment: staging
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install pinned Playwright and Chromium
+        run: |
+          npm install --no-save --no-audit --no-fund playwright@1.56.0
+          npx playwright install --with-deps chromium
+      - name: Read-only synthetic-user acceptance against explicitly configured staging host
+        env:
+          EDUOS_BASE_URL: ${{ vars.EDUOS_BASE_URL }}
+          EDUOS_E2E_STAGING_HOST: ${{ vars.EDUOS_E2E_STAGING_HOST }}
+          EDUOS_E2E_ADMIN_USER: ${{ secrets.EDUOS_E2E_ADMIN_USER }}
+          EDUOS_E2E_ADMIN_PASSWORD: ${{ secrets.EDUOS_E2E_ADMIN_PASSWORD }}
+          EDUOS_E2E_ADMIN_TENANT_ID: ${{ vars.EDUOS_E2E_ADMIN_TENANT_ID }}
+          EDUOS_E2E_VIEWER_USER: ${{ secrets.EDUOS_E2E_VIEWER_USER }}
+          EDUOS_E2E_VIEWER_PASSWORD: ${{ secrets.EDUOS_E2E_VIEWER_PASSWORD }}
+          EDUOS_E2E_VIEWER_TENANT_ID: ${{ vars.EDUOS_E2E_VIEWER_TENANT_ID }}
+        run: node tests/browser/workspace-appearance-live.cjs
