@@ -36,7 +36,8 @@ function html(bn, manager) {
 async function setup(browser, bn = false, manager = true, mobile = false) {
     const context = await browser.newContext({ viewport: mobile ? { width: 390, height: 844 } : { width: 1280, height: 800 } });
     const page = await context.newPage();
-    const state = { calls: [], errors: [], delayed: null, started: null };
+    const state = { calls: [], errors: [], delayed: null, started: null,
+        revoked: false, emptyAfterPost: false, empty: false };
     page.on('pageerror', error => state.errors.push(error.message));
     await page.addInitScript(() => {
         window.EduOSSessionTransitionPending = () => false;
@@ -52,14 +53,19 @@ async function setup(browser, bn = false, manager = true, mobile = false) {
         state.calls.push({ url: url.pathname + url.search, method: request.method() });
         assert(url.pathname.startsWith('/api/facilities/work-orders'), 'Unexpected endpoint ' + url.pathname);
         const reply = payload => route.fulfill({ contentType: 'application/json', body: JSON.stringify(ok(payload)) });
-        if (request.method() !== 'GET') return reply(record);
+        if (state.revoked) return route.fulfill({ status: 403, contentType: 'application/json',
+            body: JSON.stringify({ success: false, message: 'Campus access revoked' }) });
+        if (request.method() !== 'GET') {
+            if (state.emptyAfterPost) state.empty = true;
+            return reply(record);
+        }
         if (url.pathname.endsWith('/dashboard')) return reply({});
         if (url.pathname.endsWith('/history')) return reply({ items: [], totalPages: 1 });
         if (state.delayed && url.searchParams.get('campusId') === '12') {
             state.started.resolve();
             await state.delayed.promise;
         }
-        return reply({ items: [record], totalPages: 1 });
+        return reply({ items: state.empty ? [] : [record], totalPages: 1 });
     });
     await page.goto('http://eduos.test/FacilityWorkOrders/Index');
     await page.addStyleTag({ path: bootstrap });
@@ -112,12 +118,51 @@ async function mobileBangla(browser) {
         assert.deepEqual(state.errors, []);
     } finally { await context.close(); }
 }
+async function fillSchedule(page) {
+    await page.locator('#wfRows button').click();
+    await page.locator('#wfHistory ol').waitFor();
+    await page.locator('#wfAction').selectOption('schedule');
+    await page.locator('#wfTech').fill('42');
+    await page.locator('#wfStart').fill('2026-11-03T10:00');
+    await page.locator('#wfEnd').fill('2026-11-03T11:00');
+}
+async function revokedCampus(browser) {
+    const { context, page, state } = await setup(browser, true, true, true);
+    try {
+        await fillSchedule(page);
+        state.revoked = true;
+        await page.locator('#wfTransition button[type="submit"]').click();
+        await page.locator('#workflowAlert')
+            .filter({ hasText: 'প্রতিষ্ঠানের সেশন পরিবর্তিত' }).waitFor();
+        assert.equal(await page.locator('#wfRows tr').count(), 0);
+        assert.equal(await page.locator('#wfTransition').isVisible(), false);
+        assert.equal(await page.locator('#facilityExport').isDisabled(), true);
+        assert.equal(state.calls.filter(x => x.method === 'POST').length, 1);
+        assert.deepEqual(state.errors, []);
+    } finally { await context.close(); }
+}
+async function selectionAfterTransition(browser) {
+    const { context, page, state } = await setup(browser);
+    try {
+        await fillSchedule(page);
+        state.emptyAfterPost = true;
+        await page.locator('#wfTransition button[type="submit"]').click();
+        await page.locator('#wfTransition').waitFor({ state: 'hidden' });
+        assert.match(await page.locator('#wfSelected').innerText(), /Select a request/);
+        assert.equal(await page.locator('#wfHistory').innerText(), '');
+        assert.doesNotMatch(await page.locator('#wfRows').innerText(), /Broken light/);
+        assert.equal(state.calls.filter(x => x.method === 'POST').length, 1);
+        assert.deepEqual(state.errors, []);
+    } finally { await context.close(); }
+}
 (async () => {
     const browser = await chromium.launch({ headless: true, args: ['--no-sandbox'] });
     try {
         await managerAndSession(browser);
         await delayedRead(browser);
         await mobileBangla(browser);
-        console.log('Facility Work Orders Chromium PASS: bilingual mobile/desktop, session switch, export and stale readback; synthetic API/session only.');
+        await revokedCampus(browser);
+        await selectionAfterTransition(browser);
+        console.log('Facility Work Orders Chromium PASS: bilingual mobile/desktop, revocation and stale selection; synthetic API/session only.');
     } finally { await browser.close(); }
 })().catch(error => { console.error(error); process.exitCode = 1; });

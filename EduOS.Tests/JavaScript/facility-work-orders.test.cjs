@@ -268,3 +268,64 @@ test('work-order JSON readback is discarded if the tenant changes after verifica
     await assert.rejects(reading, /session-changed/);
     assert.equal(locked, true);
 });
+
+test('Facilities API locks old campus data when server denies a formerly allowed request', async () => {
+    const vm = require('node:vm');
+    const a = script.indexOf('    async function api(');
+    const b = script.indexOf('    const cell =', a);
+    let locks = 0;
+    const api = vm.runInNewContext(script.slice(a, b) + '\napi', {
+        base: '/api/facilities/work-orders', token: 'csrf', t: en => en,
+        sessionCurrent: () => true, verifySession: async () => {},
+        shield: { hidden: true }, lockPage: () => { locks++; },
+        fetch: async () => ({ ok: false, status: 403,
+            json: async () => ({ success: false, message: 'Campus grant revoked' }) })
+    });
+    await assert.rejects(api('/7/history', 'GET'), /session-changed/);
+    assert.equal(locks, 1);
+});
+
+test('Facilities refresh clears off-list selection and old actions after a failed reload', async () => {
+    const vm = require('node:vm');
+    const a = script.indexOf('    async function dashboard(');
+    const b = script.indexOf('    async function history()', a);
+    const c = script.indexOf('    function clearSelection()');
+    const d = script.indexOf("    el('workflowSearch').addEventListener", c);
+    assert.ok(a >= 0 && b > a && c > b && d > c);
+    const node = () => ({ children: [], textContent: '',
+        classList: { add(value) { this.last = value; } },
+        replaceChildren(...values) { this.children = values; },
+        append(...values) { this.children.push(...values); }, addEventListener() {} });
+    const nodes = new Map(), el = id => {
+        if (!nodes.has(id)) nodes.set(id, node());
+        return nodes.get(id);
+    };
+    el('wfCampusFilter').value = '12';
+    el('wfStateFilter').value = '';
+    el('wfOverdueOnly').checked = false;
+    let errors = 0;
+    const context = { blocked: false, listGeneration: 0, historyGeneration: 0,
+        page: 1, pages: 1, selected: { id: 7 }, el, URLSearchParams,
+        document: { createElement: node }, t: en => en,
+        cell: value => ({ textContent: String(value) }), select() {},
+        notice() { errors++; },
+        api: async url => url.startsWith('/dashboard') ? {} :
+            { totalPages: 1, items: [{ id: 8, facilitySpaceId: 3,
+                summary: 'Other authorized record', priorityCode: 'Normal',
+                stateCode: 'Submitted' }] }
+    };
+    const { load, selection } = vm.runInNewContext(
+        script.slice(a, b) + script.slice(c, d) +
+        '\n({ load, selection: () => selected })', context);
+    await load();
+    assert.equal(selection(), null);
+    assert.equal(el('wfTransition').classList.last, 'd-none');
+    assert.equal(el('wfHistory').children.length, 0);
+    assert.equal(el('wfRows').children[0].children[0].textContent, '8');
+    context.selected = { id: 8 };
+    context.api = async () => { throw new Error('Failed to refresh'); };
+    await load();
+    assert.equal(selection(), null);
+    assert.equal(el('wfTransition').classList.last, 'd-none');
+    assert.equal(errors, 1);
+});

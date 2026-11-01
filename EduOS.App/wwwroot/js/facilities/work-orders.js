@@ -119,7 +119,7 @@
             lockPage();
             throw new Error('session-changed');
         }
-        if (response.status === 401) { lockPage(); throw new Error('session-changed'); }
+        if (response.status === 401 || response.status === 403) { lockPage(); throw new Error('session-changed'); }
         if (!response.ok || !data?.success) {
             const error = new Error(data?.message || t('Request failed.', 'অনুরোধ ব্যর্থ।'));
             error.status = response.status;
@@ -259,7 +259,12 @@
             if (generation !== listGeneration || blocked) return;
             tbody.replaceChildren();
             pages = Math.max(1, data.totalPages || 1);
-            for (const row of data.items || []) {
+            // Refresh may exclude a previously selected work order after approval,
+            // filtering, reassignment or a revoked campus grant.
+            const currentItems = data.items || [];
+            if (selected && !currentItems.some(row => row.id === selected.id))
+                clearSelection();
+            for (const row of currentItems) {
                 const tr = document.createElement('tr');
                 [row.id, row.facilitySpaceId, row.summary, row.priorityCode,
                     row.workOrderState || row.stateCode].forEach(v => tr.append(cell(v)));
@@ -279,6 +284,8 @@
             await dashboard(generation, q.get('campusId'));
         } catch (error) {
             if (generation !== listGeneration || blocked || error.message === 'session-changed') return;
+            // A failed refresh cannot validate old actions or rowversion.
+            clearSelection();
             tbody.replaceChildren();
             const tr = document.createElement('tr');
             const td = cell(t('Unable to load requests. Search again.', 'অনুরোধ লোড হয়নি। আবার খুঁজুন।'));
