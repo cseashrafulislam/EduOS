@@ -3627,24 +3627,8 @@ select,
  :root[data-workspace-custom-form="true"] :is(.form-control,.form-select) { background-color:var(--edu-custom-form-bg); color:var(--edu-custom-form-fg); }
  :root[data-workspace-custom-table="true"] .table { --bs-table-bg:var(--edu-custom-table-bg); --bs-table-color:var(--edu-custom-table-fg); background-color:var(--edu-custom-table-bg); color:var(--edu-custom-table-fg); }
 }
-/* Task URLs present only their relevant workflow. Legacy /Index retains all
-   underlying panels for existing deep links and coupled client-side actions.
-   Excluded panels stay in the DOM until the domain scripts can be decoupled;
-   display:none removes their controls from keyboard and screen-reader flow. */
-#inventoryMovements[data-task-page="transactions"] > [data-inventory-area]:not([data-inventory-area="transactions"]),
-#inventoryMovements[data-task-page="adjustments"] > [data-inventory-area]:not([data-inventory-area="adjustments"]),
-#inventoryMovements[data-task-page="counts"] > [data-inventory-area]:not([data-inventory-area="counts"]),
-#inventoryMovements[data-task-page="reports"] > [data-inventory-area]:not([data-inventory-area="reports"]),
-#hostelWorkspace[data-task-page="applications"] > :not(header):not(#hostelAlert):not(#hostelApplicationSelf):not(#hostelApplicationQueue):not(#hostelAuthorityPanel):not(#hostelGuardianStays),
-#hostelWorkspace[data-task-page="allocations"] > :not(header):not(#hostelAlert):not(#hostelMinePanel):not(#hostelMyHistoryPanel):not(#hostelAllocatePanel):not(#hostelActivePanel):not(#hostelAllocationReadinessPanel):not(#hostelCheckoutPanel),
-#hostelWorkspace[data-task-page="setup"] > :not(header):not(#hostelAlert):not(#hostelRoomCreatePanel):not(#hostelRoomCapacityPanel):not(#hostelRoomInventoryPanel):not(#hostelBedCreatePanel):not(#hostelBedInventoryPanel):not(#hostelBedRelocationPanel):not(#hostelFacilityPanel),
-#hostelWorkspace[data-task-page="reports"] > :not(header):not(#hostelAlert):not(#hostelResidentRosterPanel):not(#hostelHistoryPanel):not(#hostelOccupancyInsightsPanel):not(#hostelOccupancyForecastPanel):not(#hostelPeakOccupancyPanel):not(#hostelTurnoverPanel):not(#hostelCapacityPanel),
-#transportWorkspace[data-task-page="setup"] > :not(header):not(#transportAlert):not(#transportCatalogPanel):not(#transportRouteSetupPanel):not(#transportVehicleSetupPanel):not(#transportCampusAssignmentPanel):not(#transportRouteVehiclePanel):not(#transportDriverRegistryPanel):not(#transportVehicleDriverPanel),
-#transportWorkspace[data-task-page="assignments"] > :not(header):not(#transportAlert):not(#transportMinePanel):not(#transportCatalogPanel):not(#transportAssignmentPanel):not(#transportActivePanel):not(#transportBoardingManifestPanel):not(#transportRiderReadinessPanel):not(#transportUpcomingStartPanel):not(#transportUpcomingRiderExtensionPanel):not(#transportNoChargeShorteningPanel):not(#transportRiderExtensionPanel):not(#transportStopCorrectionPanel):not(#transportOperatingTransferPanel):not(#transportVehicleChangePanel):not(#transportUpcomingCancelPanel),
-#transportWorkspace[data-task-page="reports"] > :not(header):not(#transportAlert):not(#transportHistoryPanel):not(#transportTurnoverPanel):not(#transportStopDemandPanel):not(#transportCapacityPanel):not(#transportSeatForecastPanel):not(#transportFleetInsightsPanel):not(#transportSafetyImpactPanel):not(#transportVehicleCasesPanel):not(#transportDriverCompliancePanel):not(#transportDriverReadinessPanel):not(#transportDriverCoverageForecastPanel):not(#transportDriverCoverageWindowPanel) {
-    display: none !important;
-}
-
+/* Focused task routes server-render only their own relevant panels and
+   load their own JavaScript bundles. Legacy /Index renders every panel. */
 /* Shared responsive forms and focus cues for the large operational workspaces. */
 #hostelWorkspace :is(.row, .d-flex) > :is(.btn, button),
 #transportWorkspace :is(.row, .d-flex) > :is(.btn, button) { min-height: 40px; }

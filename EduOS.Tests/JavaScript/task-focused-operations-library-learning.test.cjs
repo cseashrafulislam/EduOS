@@ -34,17 +34,23 @@ test('focused optional-domain workspaces retain trusted Index view, module gates
     assert.match(read('EduOS.App/Controllers/InventoryMovementsController.cs'), /Authorize\(Roles = "TenantAdmin,Principal,InventoryManager,StoreKeeper"\)/);
 });
 
-test('focused workspace CSS hides unrelated DOM without dismantling shared business forms', () => {
+test('focused operation routes are server-rendered and script-gated, while legacy Index preserves all panels', () => {
     const css = read('EduOS.App/wwwroot/css/site.css');
-    for (const [rootId, actions] of [
-        ['hostelWorkspace', ['applications', 'allocations', 'setup', 'reports']],
-        ['transportWorkspace', ['setup', 'assignments', 'reports']],
-        ['inventoryMovements', ['transactions', 'adjustments', 'counts', 'reports']]
-    ]) for (const action of actions) assert.ok(css.includes(`#${rootId}[data-task-page="${action}"]`), `${rootId}/${action}`);
-    assert.ok(css.includes('display: none !important'));
+    assert.doesNotMatch(css, /#hostelWorkspace\[data-task-page="applications"\] > :not/);
+    assert.doesNotMatch(css, /#transportWorkspace\[data-task-page="reports"\] > :not/);
+    assert.doesNotMatch(css, /#inventoryMovements\[data-task-page="counts"\] > \[data-inventory-area\]/);
     const hostel = read('EduOS.App/Views/HostelOperations/Index.cshtml');
     const transport = read('EduOS.App/Views/TransportOperations/Index.cshtml');
     const inventory = read('EduOS.App/Views/InventoryMovements/Index.cshtml');
+    for (const scope of ['Applications', 'Allocations', 'Setup', 'Reports']) {
+        assert.match(hostel, new RegExp(`var show${scope} = taskPage is "all" or "${scope.toLowerCase()}"`));
+    }
+    for (const scope of ['Setup', 'Assignments', 'Reports']) {
+        assert.match(transport, new RegExp(`var show${scope} = taskPage is "all" or "${scope.toLowerCase()}"`));
+    }
+    for (const [scope, url] of [['Transactions', 'transactions'], ['Adjustments', 'adjustments'], ['Counts', 'counts'], ['Reports', 'reports']]) {
+        assert.match(inventory, new RegExp(`var show${scope} = taskPage is "all" or "${url}"`));
+    }
     for (const id of ['hostelAllocationForm', 'hostelActiveRows', 'hostelRoomCreatePanel', 'hostelResidentRosterPanel']) {
         const inPartial = id === 'hostelResidentRosterPanel';
         assert.ok((inPartial ? read('EduOS.App/Views/HostelOperations/_ResidentRoster.cshtml') : hostel).includes(`id="${id}"`));
@@ -54,6 +60,51 @@ test('focused workspace CSS hides unrelated DOM without dismantling shared busin
     assert.match(inventory, /js\/inventory\/movements\.js/);
     assert.match(hostel, /js\/hostel-operations\/index\.js/);
     assert.match(transport, /js\/transport-operations\/index\.js/);
+    assert.match(hostel, /@if \(canManage && showReports\)\s*\{\s*<script src="~\/js\/hostel-operations\/capacity\.js"/);
+    assert.match(transport, /@if \(canManage && showAssignments\)\s*\{[\s\S]*?<script src="~\/js\/transport-operations\/vehicle-cases\.js"/);
+    assert.match(transport, /@if \(canManage && showReports\)\s*\{[\s\S]*?<script src="~\/js\/transport-operations\/vehicle-safety-impact\.js"/);
+    assert.match(transport, /@if \(User\.IsInRole\("TenantAdmin"\) && showReports\)/);
+    assert.match(transport, /@if \(canManage && taskPage == "all"\)[\s\S]*?id="transportCatalogPanel"/);
+    assert.match(inventory, /@if \(showTransactions\)[\s\S]*?PartialAsync\("_Ledger"\)/);
+    assert.match(transport, /@if \(canManage && showAssignments\)[\s\S]*?id="transportAssignmentPanel"/);
+    const transportScript = read('EduOS.App/wwwroot/js/transport-operations/index.js');
+    assert.match(transportScript, /if \(el\('transportRouteList'\)\) renderList\('transportRouteList'/);
+    assert.match(transportScript, /if \(el\('transportVehicleList'\)\) renderList\('transportVehicleList'/);
+    assert.match(transportScript, /if \(el\('transportMine'\)\) loadMine\(\)/);
+});
+
+test('inventory entry script initializes only scoped modules, including read-only and legacy modes', () => {
+    const source = read('EduOS.App/wwwroot/js/inventory/movements.js')
+        .split('\n').filter(line => !line.startsWith('import ')).join('\n');
+    const functions = {
+        initLedger: 'ledger', initReservations: 'reservations', initReservationCoverage: 'coverage',
+        initBalance: 'balance', initReorder: 'reorder', initStockPosition: 'position',
+        initItemHistory: 'history', initLotAging: 'aging', initPhysicalCounts: 'counts',
+        initForm: 'form', initAdjustments: 'adjustments'
+    };
+    const scenarios = [
+        ['transactions', true, ['ledger', 'balance', 'form']],
+        ['transactions', false, ['ledger', 'balance']],
+        ['adjustments', true, ['adjustments']],
+        ['adjustments', false, []],
+        ['counts', false, ['counts']],
+        ['reports', false, ['reservations', 'coverage', 'reorder', 'position', 'history', 'aging']],
+        ['all', true, ['ledger', 'balance', 'reservations', 'coverage', 'reorder', 'position', 'history', 'aging', 'counts', 'form', 'adjustments']]
+    ];
+    for (const [scope, create, expected] of scenarios) {
+        const calls = [];
+        const context = { root: { dataset: { taskPage: scope, create: String(create) } }, notice() {} };
+        for (const [fn, label] of Object.entries(functions)) {
+            context[fn] = (...args) => {
+                calls.push(label);
+                if (label === 'ledger') return async () => {};
+                if (label === 'counts') assert.equal(typeof args[0], 'function');
+                return Promise.resolve();
+            };
+        }
+        vm.runInNewContext(source, context, { filename: 'inventory/movements.js' });
+        assert.deepEqual(calls, expected, `${scope} (create=${create})`);
+    }
 });
 
 test('authorized sidebar organizes optional module destinations under correct 3rd-level type', () => {

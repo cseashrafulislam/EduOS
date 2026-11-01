@@ -1,5 +1,8 @@
 @{
     var taskPage = ViewData["TaskPage"]?.ToString() ?? "all";
+    var showSetup = taskPage is "all" or "setup";
+    var showAssignments = taskPage is "all" or "assignments";
+    var showReports = taskPage is "all" or "reports";
     var inBangla = System.Globalization.CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "bn";
     ViewData["Title"] = taskPage switch
     {
@@ -12,23 +15,29 @@
 }
 <section id="transportWorkspace" class="container-fluid py-3" data-task-page="@taskPage" aria-labelledby="transportTitle">
     <header class="mb-3"><h2 id="transportTitle">@ViewData["Title"]</h2></header>
-    @if (User.IsInRole("Student") || User.IsInRole("Guardian") || User.IsInRole("Parent"))
+    @if (showAssignments && (User.IsInRole("Student") || User.IsInRole("Guardian") || User.IsInRole("Parent")))
     {
         <div class="mb-3"><a class="btn btn-outline-primary" asp-controller="TransportOperations" asp-action="Family">My transport schedule / আমার পরিবহন সূচি</a></div>
     }
-    @if (canManage)
+    @if (canManage && showAssignments)
     {
         <div class="mb-3"><a class="btn btn-outline-primary" asp-controller="TransportOperations" asp-action="Trips">Trip dispatch / ট্রিপ পরিচালনা</a></div>
     }
-    @if (User.IsInRole("Staff"))
+    @if (showAssignments && User.IsInRole("Staff"))
     {
         <div class="mb-3"><a class="btn btn-outline-primary" asp-controller="TransportOperations" asp-action="DriverTrips">My driver trips / আমার ড্রাইভার ট্রিপ</a></div>
     }
     <div id="transportAlert" class="d-none" role="alert" tabindex="-1"></div>
+    @if (showAssignments)
+    {
     <section id="transportMinePanel" class="card mb-3"><div class="card-body">
         <h3 class="h5">My current assignment</h3><div id="transportMine" class="text-muted">Loading…</div>
     </div></section>
-    @if (canManage)
+    }
+    @* The old summary list is populated by the legacy assignment script. The
+       focused Setup page already has independently loaded route/vehicle
+       registers; don't present an inert duplicate "Loading…" summary. *@
+    @if (canManage && taskPage == "all")
     {
     <section id="transportCatalogPanel" class="card mb-3"><div class="card-body">
         <h3 class="h5">Available routes and vehicles</h3>
@@ -38,7 +47,7 @@
         </div>
     </div></section>
     }
-    @if (canManage)
+    @if (canManage && showSetup)
     {
     <section class="card mb-3" id="transportRouteSetupPanel"><div class="card-body">
         <h3 class="h5">Route and ordered stop setup</h3>
@@ -68,13 +77,12 @@
         </div>
     </div></section>
     }
-    @if (canManage) { <partial name="_VehicleSetup" /> }
-    @if (User.IsInRole("TenantAdmin")) { <partial name="_CampusAssignmentReview" /> }
-    @if (canManage) { <partial name="_RouteVehicleLinks" /> }
-    @if (canManage) { <partial name="_BoardingManifest" /> <partial name="_VehicleCases" /> <partial name="_VehicleSafetyImpact" /> }
-    @if (canManage) { <partial name="_StopDemand" /> <partial name="_RiderReadiness" /> <partial name="_CapacityReport" /> <partial name="_SeatForecast" /> <partial name="_FleetInsights" /> }
-    @if (User.IsInRole("TenantAdmin")) { <partial name="_DriverRegistry" /> <partial name="_DriverLicenseCompliance" /> <partial name="_DriverReadiness" /> <partial name="_DriverCoverageForecast" /> <partial name="_DriverCoverageWindow" /> <partial name="_VehicleDriverLinks" /> }
-    @if (canManage)
+    @if (canManage && showSetup) { <partial name="_VehicleSetup" /> <partial name="_RouteVehicleLinks" /> }
+    @if (User.IsInRole("TenantAdmin") && showSetup) { <partial name="_CampusAssignmentReview" /> <partial name="_DriverRegistry" /> <partial name="_VehicleDriverLinks" /> }
+    @if (canManage && showAssignments) { <partial name="_BoardingManifest" /> <partial name="_RiderReadiness" /> <partial name="_VehicleCases" /> }
+    @if (canManage && showReports) { <partial name="_StopDemand" /> <partial name="_CapacityReport" /> <partial name="_SeatForecast" /> <partial name="_FleetInsights" /> <partial name="_VehicleSafetyImpact" /> }
+    @if (User.IsInRole("TenantAdmin") && showReports) { <partial name="_DriverLicenseCompliance" /> <partial name="_DriverReadiness" /> <partial name="_DriverCoverageForecast" /> <partial name="_DriverCoverageWindow" /> }
+    @if (canManage && showAssignments)
     {
         <section id="transportAssignmentPanel" class="card mb-3"><div class="card-body">
             <h3 class="h5">Assign transport</h3>
@@ -214,7 +222,7 @@
             <p class="small text-muted mt-2 mb-0">Only future zero-fare reservations without issued or posted Finance activity can change vehicles. Charged changes require Finance-approved adjustment; seat capacity is rechecked.</p>
         </div></section>
     }
-    @if (canManage) {
+    @if (canManage && showAssignments) {
         <section id="transportUpcomingCancelPanel" class="card mt-3" aria-labelledby="transportUpcomingCancelTitle"><div class="card-body">
             <h3 id="transportUpcomingCancelTitle" class="h5">Cancel upcoming transport reservations</h3>
             <p class="small text-muted">Only reservations starting after today are shown. Cancelling releases the reserved seat; no fares or payments are modified.</p>
@@ -234,22 +242,25 @@
             </div>
         </div></section>
     }
-    @if (canManage) { <partial name="_AssignmentHistory" /> <partial name="_RiderTurnover" /> }
+    @if (canManage && showReports) { <partial name="_AssignmentHistory" /> <partial name="_RiderTurnover" /> }
 </section>
 @section Scripts {
     <script src="~/js/platform/task-workspace-locales.js" asp-append-version="true"></script>
+    @if (showAssignments) {
     <script src="~/js/transport-operations/index.js" asp-append-version="true"></script>
-    @if (canManage) { <script src="~/js/transport-operations/upcoming-cancellation.js" asp-append-version="true"></script> }
-    @if (canManage) { <script src="~/js/transport-operations/upcoming-vehicle-change.js" asp-append-version="true"></script> }
-    @if (canManage) { <script src="~/js/transport-operations/upcoming-start-reschedule.js" asp-append-version="true"></script> }
-    @if (canManage) { <script src="~/js/transport-operations/upcoming-rider-extension.js" asp-append-version="true"></script> }
-    @if (canManage) { <script src="~/js/transport-operations/upcoming-no-charge-shortening.js" asp-append-version="true"></script> }
-    @if (canManage) { <script src="~/js/transport-operations/operating-vehicle-transfer.js" asp-append-version="true"></script> }
-    @if (canManage) { <script src="~/js/transport-operations/assignment-history.js" asp-append-version="true"></script> }
-    @if (canManage) { <script src="~/js/transport-operations/boarding-manifest.js" asp-append-version="true"></script> }
-    @if (canManage) { <script src="~/js/transport-operations/vehicle-cases.js" asp-append-version="true"></script> <script src="~/js/transport-operations/vehicle-safety-impact.js" asp-append-version="true"></script> }
-    @if (canManage) { <script src="~/js/transport-operations/rider-turnover.js" asp-append-version="true"></script> }
-    @if (canManage) { <script src="~/js/transport-operations/rider-readiness.js" asp-append-version="true"></script> }
+    }
+    @if (canManage && showAssignments) {
+        <script src="~/js/transport-operations/upcoming-cancellation.js" asp-append-version="true"></script>
+        <script src="~/js/transport-operations/upcoming-vehicle-change.js" asp-append-version="true"></script>
+        <script src="~/js/transport-operations/upcoming-start-reschedule.js" asp-append-version="true"></script>
+        <script src="~/js/transport-operations/upcoming-rider-extension.js" asp-append-version="true"></script>
+        <script src="~/js/transport-operations/upcoming-no-charge-shortening.js" asp-append-version="true"></script>
+        <script src="~/js/transport-operations/operating-vehicle-transfer.js" asp-append-version="true"></script>
+        <script src="~/js/transport-operations/boarding-manifest.js" asp-append-version="true"></script>
+        <script src="~/js/transport-operations/rider-readiness.js" asp-append-version="true"></script>
+        <script src="~/js/transport-operations/vehicle-cases.js" asp-append-version="true"></script>
+    }
+    @if (canManage && showSetup) {
     <script src="~/js/transport-operations/route-setup.js" asp-append-version="true"></script>
     <script src="~/js/transport-operations/vehicle-setup.js" asp-append-version="true"></script>
     <script src="~/js/transport-operations/route-vehicle-core.js" asp-append-version="true"></script>
@@ -267,25 +278,36 @@
 
     <script src="~/js/transport-operations/route-vehicle-cancel.js" asp-append-version="true"></script>
     <script src="~/js/transport-operations/route-vehicle-list.js" asp-append-version="true"></script>
+    }
+    @if (canManage && showReports) {
+    <script src="~/js/transport-operations/assignment-history.js" asp-append-version="true"></script>
+    <script src="~/js/transport-operations/rider-turnover.js" asp-append-version="true"></script>
     <script src="~/js/transport-operations/stop-demand.js" asp-append-version="true"></script>
     <script src="~/js/transport-operations/capacity-report.js" asp-append-version="true"></script>
-    @if (canManage) { <script src="~/js/transport-operations/seat-forecast.js" asp-append-version="true"></script> }
+    <script src="~/js/transport-operations/seat-forecast.js" asp-append-version="true"></script>
     <script src="~/js/transport-operations/fleet-insights.js" asp-append-version="true"></script>
-    @if (User.IsInRole("TenantAdmin")) { <script src="~/js/transport-operations/driver-registry.js" asp-append-version="true"></script> }
-    @if (User.IsInRole("TenantAdmin")) { <script src="~/js/transport-operations/driver-license-compliance.js" asp-append-version="true"></script> }
-    @if (User.IsInRole("TenantAdmin")) { <script src="~/js/transport-operations/driver-readiness.js" asp-append-version="true"></script> }
-    @if (User.IsInRole("TenantAdmin")) { <script src="~/js/transport-operations/driver-coverage-forecast.js" asp-append-version="true"></script> <script src="~/js/transport-operations/driver-coverage-window.js" asp-append-version="true"></script> }
-    @if (User.IsInRole("TenantAdmin")) { <script src="~/js/transport-operations/vehicle-driver-core.js" asp-append-version="true"></script> }
-    @if (User.IsInRole("TenantAdmin")) { <script src="~/js/transport-operations/vehicle-driver-options.js" asp-append-version="true"></script> }
-    @if (User.IsInRole("TenantAdmin")) { <script src="~/js/transport-operations/vehicle-driver-reschedule.js" asp-append-version="true"></script> }
-    @if (User.IsInRole("TenantAdmin")) { <script src="~/js/transport-operations/vehicle-driver-upcoming-extend.js" asp-append-version="true"></script> }
-    @if (User.IsInRole("TenantAdmin")) { <script src="~/js/transport-operations/vehicle-driver-upcoming-shorten.js" asp-append-version="true"></script> }
-    @if (User.IsInRole("TenantAdmin")) { <script src="~/js/transport-operations/vehicle-driver-upcoming-change.js" asp-append-version="true"></script> }
-    @if (User.IsInRole("TenantAdmin")) { <script src="~/js/transport-operations/vehicle-driver-list.js" asp-append-version="true"></script> }
-    @if (User.IsInRole("TenantAdmin")) { <script src="~/js/transport-operations/vehicle-driver-create.js" asp-append-version="true"></script> }
-    @if (User.IsInRole("TenantAdmin")) { <script src="~/js/transport-operations/vehicle-driver-replace-options.js" asp-append-version="true"></script> }
-    @if (User.IsInRole("TenantAdmin")) { <script src="~/js/transport-operations/vehicle-driver-replace.js" asp-append-version="true"></script> }
-    @if (User.IsInRole("TenantAdmin")) { <script src="~/js/transport-operations/vehicle-driver-replace-submit.js" asp-append-version="true"></script> }
-    @if (User.IsInRole("TenantAdmin")) { <script src="~/js/transport-operations/vehicle-driver-init.js" asp-append-version="true"></script> }
-    @if (User.IsInRole("TenantAdmin")) { <script src="~/js/transport-operations/campus-assignment-review.js" asp-append-version="true"></script> }
+    <script src="~/js/transport-operations/vehicle-safety-impact.js" asp-append-version="true"></script>
+    }
+    @if (User.IsInRole("TenantAdmin") && showReports) {
+        <script src="~/js/transport-operations/driver-license-compliance.js" asp-append-version="true"></script>
+        <script src="~/js/transport-operations/driver-readiness.js" asp-append-version="true"></script>
+        <script src="~/js/transport-operations/driver-coverage-forecast.js" asp-append-version="true"></script>
+        <script src="~/js/transport-operations/driver-coverage-window.js" asp-append-version="true"></script>
+    }
+    @if (User.IsInRole("TenantAdmin") && showSetup) {
+        <script src="~/js/transport-operations/driver-registry.js" asp-append-version="true"></script>
+        <script src="~/js/transport-operations/vehicle-driver-core.js" asp-append-version="true"></script>
+        <script src="~/js/transport-operations/vehicle-driver-options.js" asp-append-version="true"></script>
+        <script src="~/js/transport-operations/vehicle-driver-reschedule.js" asp-append-version="true"></script>
+        <script src="~/js/transport-operations/vehicle-driver-upcoming-extend.js" asp-append-version="true"></script>
+        <script src="~/js/transport-operations/vehicle-driver-upcoming-shorten.js" asp-append-version="true"></script>
+        <script src="~/js/transport-operations/vehicle-driver-upcoming-change.js" asp-append-version="true"></script>
+        <script src="~/js/transport-operations/vehicle-driver-list.js" asp-append-version="true"></script>
+        <script src="~/js/transport-operations/vehicle-driver-create.js" asp-append-version="true"></script>
+        <script src="~/js/transport-operations/vehicle-driver-replace-options.js" asp-append-version="true"></script>
+        <script src="~/js/transport-operations/vehicle-driver-replace.js" asp-append-version="true"></script>
+        <script src="~/js/transport-operations/vehicle-driver-replace-submit.js" asp-append-version="true"></script>
+        <script src="~/js/transport-operations/vehicle-driver-init.js" asp-append-version="true"></script>
+        <script src="~/js/transport-operations/campus-assignment-review.js" asp-append-version="true"></script>
+    }
 }

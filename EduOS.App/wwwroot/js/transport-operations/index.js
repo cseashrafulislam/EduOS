@@ -46,8 +46,10 @@
         try {
             const [routeData, vehicleData] = await Promise.all([api('/api/transport/routes'), api('/api/transport/vehicles')]);
             routes = routeData || []; vehicles = vehicleData || [];
-            renderList('transportRouteList', routes, x => x.name + ' · Default fare ' + x.defaultFare + ' · ' + (x.stops?.length || 0) + ' stops');
-            renderList('transportVehicleList', vehicles, x => x.vehicleNumber + ' · Capacity ' + x.capacity + ' · Riding today ' + x.activeAssignments);
+            // Route/vehicle options are required for assignments, but the
+            // overview lists live only on the separately rendered Setup page.
+            if (el('transportRouteList')) renderList('transportRouteList', routes, x => x.name + ' · Default fare ' + x.defaultFare + ' · ' + (x.stops?.length || 0) + ' stops');
+            if (el('transportVehicleList')) renderList('transportVehicleList', vehicles, x => x.vehicleNumber + ' · Capacity ' + x.capacity + ' · Riding today ' + x.activeAssignments);
             if (canManage) {
                 fillSelect('transportRoute', routes, 'Select route', x => x.name);
                 fillSelect('transportVehicle', vehicles, 'Select vehicle', x => x.vehicleNumber + ' (today ' + x.activeAssignments + '/' + x.capacity + ')');
@@ -269,7 +271,8 @@
             await Promise.all([loadActive(), loadStudents(), loadStatic()]);
         } catch (err) { notify(err.message); } finally { button.disabled = false; }
     }
-    loadMine(); if (canManage) loadStatic();
+    if (el('transportMine')) loadMine();
+    if (canManage) loadStatic();
     if (canManage) {
         el('transportStart').value = localDate();
         el('transportRoute').addEventListener('change', updateStops);

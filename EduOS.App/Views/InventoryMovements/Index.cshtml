@@ -1,5 +1,9 @@
 @{
     var taskPage = ViewData["MovementTask"]?.ToString() ?? "all";
+    var showTransactions = taskPage is "all" or "transactions";
+    var showAdjustments = taskPage is "all" or "adjustments";
+    var showCounts = taskPage is "all" or "counts";
+    var showReports = taskPage is "all" or "reports";
     var inBangla = System.Globalization.CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "bn";
     ViewData["Title"] = taskPage switch
     {
@@ -18,6 +22,8 @@
         <h2>@ViewData["Title"]</h2>
         </div><a class="btn btn-outline-secondary" href="/InventoryCatalog/Index">@(inBangla ? "পণ্যের তালিকা" : "Inventory Catalog")</a></header>
     <div id="movementAlert" class="d-none" role="alert"></div>
+    @if (showTransactions)
+    {
     <div data-inventory-area="transactions">
     @if (canCreate) { @await Html.PartialAsync("_Create") }
     @if (canCreate) {
@@ -30,16 +36,26 @@
             </form>
         </div></div>
     }
+    @await Html.PartialAsync("_Ledger")
     </div>
-    <div data-inventory-area="adjustments">@if (canCreate) { @await Html.PartialAsync("_Adjustments") }</div>
-    <div data-inventory-area="counts">@await Html.PartialAsync("_PhysicalCounts")</div>
+    }
+    @if (showAdjustments && canCreate)
+    {
+        <div data-inventory-area="adjustments">@await Html.PartialAsync("_Adjustments")</div>
+    }
+    @if (showCounts)
+    {
+        <div data-inventory-area="counts">@await Html.PartialAsync("_PhysicalCounts")</div>
+    }
+    @if (showReports)
+    {
     <div data-inventory-area="reports">
-        @await Html.PartialAsync("_Ledger")
         @await Html.PartialAsync("_Reservations")
         @await Html.PartialAsync("_Reorder")
         @await Html.PartialAsync("_StockPosition")
         @await Html.PartialAsync("_LotAging")
         @await Html.PartialAsync("_ItemHistory")
     </div>
+    }
 </section>
 @section Scripts { <script src="~/js/platform/task-workspace-locales.js" asp-append-version="true"></script><script type="module" src="~/js/inventory/movements.js" asp-append-version="true"></script> }

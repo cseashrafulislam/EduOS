@@ -646,7 +646,7 @@
             [['/HostelOperations/Allocations', 'Bed allocations', 'শয্যা বরাদ্দ']]),
         '/hosteloperations/reports/index': taskGuide(
             ['Hostel Reports', 'হোস্টেল প্রতিবেদন'],
-            ['Review resident rosters, allocation history, occupancy risk, checkout exceptions and future capacity.', 'আবাসিক তালিকা, বরাদ্দের ইতিহাস, দখল-ঝুঁকি, ছাড়ার ব্যতিক্রম ও ভবিষ্যৎ ধারণক্ষমতা দেখুন।'],
+            ['Review resident rosters, allocation history, occupancy risk and future capacity forecasts.', 'আবাসিক তালিকা, বরাদ্দের ইতিহাস, দখল-ঝুঁকি ও ভবিষ্যৎ ধারণক্ষমতার পূর্বাভাস দেখুন।'],
             ['HOSTEL module and authorized TenantAdmin, Principal or HostelWarden with permitted campus scope.', 'HOSTEL মডিউল ও অনুমোদিত ক্যাম্পাসের TenantAdmin, Principal বা HostelWarden।'],
             [['Select the resident roster date or the relevant history/occupancy report.', 'আবাসিক তালিকার তারিখ বা প্রয়োজনীয় ইতিহাস/দখল প্রতিবেদন বাছুন।'], ['Apply campus, student, date or status filters and load the bounded result.', 'ক্যাম্পাস, শিক্ষার্থী, তারিখ বা অবস্থা দিয়ে সীমিত ফলাফল লোড করুন।'], ['Review exceptions and use the authorized page CSV or print action if available.', 'ব্যতিক্রম যাচাই করে থাকলে অনুমোদিত CSV বা প্রিন্ট ব্যবহার করুন।']],
             ['Example: review tomorrow’s resident roster and occupancy risk before assigning another bed.', 'উদাহরণ: নতুন শয্যা বরাদ্দের আগে আগামীকালের আবাসিক তালিকা ও দখল-ঝুঁকি দেখুন।'],
@@ -666,7 +666,7 @@
             [['/TransportOperations/Assignments', 'Rider assignments', 'যাত্রী বরাদ্দ']]),
         '/transportoperations/assignments/index': taskGuide(
             ['Transport Assignments', 'পরিবহন বরাদ্দ'],
-            ['Assign eligible students to an active route and vehicle; manage future and operating reservations.', 'যোগ্য শিক্ষার্থীকে সক্রিয় রুট ও গাড়িতে বরাদ্দ দিন; নির্ধারিত ও চলমান সংরক্ষণ পরিচালনা করুন।'],
+            ['Assign eligible students to an active route and vehicle; manage reservations, boarding and fleet cases.', 'যোগ্য শিক্ষার্থীকে সক্রিয় রুট ও গাড়িতে বরাদ্দ দিন; সংরক্ষণ, গাড়িতে ওঠা ও গাড়ির সমস্যা পরিচালনা করুন।'],
             ['TRANSPORT access and TenantAdmin, Principal or TransportManager; the route-vehicle link and seat capacity must be valid.', 'TRANSPORT অনুমতি এবং TenantAdmin, Principal বা TransportManager; রুট-গাড়ি সংযোগ ও আসন ধারণক্ষমতা বৈধ হতে হবে।'],
             [['Find an eligible student and select route, vehicle and optional pickup/drop stops.', 'যোগ্য শিক্ষার্থী খুঁজে রুট, গাড়ি ও ঐচ্ছিক ওঠা/নামার স্টপ বাছুন।'], ['Enter start/end dates and allowed fare, then save the assignment.', 'শুরু/শেষের তারিখ ও অনুমোদিত ভাড়া দিয়ে বরাদ্দ সংরক্ষণ করুন।'], ['Use active reservations for allowed extension, cancellation, stop or vehicle corrections.', 'সক্রিয় বরাদ্দ থেকে অনুমোদিত মেয়াদ পরিবর্তন, বাতিল, স্টপ বা গাড়ি সংশোধন করুন।']],
             ['Example: assign a student to an active campus route with a valid seat for the next term.', 'উদাহরণ: পরের টার্মের জন্য শিক্ষার্থীকে খালি আসনসহ সক্রিয় ক্যাম্পাস রুটে বরাদ্দ দিন।'],
@@ -676,7 +676,7 @@
             [['/TransportOperations/Setup', 'Routes and fleet', 'রুট ও গাড়ি'], ['/TransportOperations/Reports', 'Transport reports', 'পরিবহন প্রতিবেদন']]),
         '/transportoperations/reports/index': taskGuide(
             ['Transport Reports', 'পরিবহন প্রতিবেদন'],
-            ['Review rider history, stop demand, seat forecasts, fleet and driver readiness and assignment changes.', 'যাত্রীর ইতিহাস, স্টপের চাহিদা, আসন পূর্বাভাস, গাড়ি/চালকের প্রস্তুতি ও বরাদ্দ পরিবর্তন দেখুন।'],
+            ['Review rider history, stop demand, seat forecasts, fleet safety impact, driver readiness and assignment changes.', 'যাত্রীর ইতিহাস, স্টপের চাহিদা, আসন পূর্বাভাস, গাড়ির নিরাপত্তা-প্রভাব, চালকের প্রস্তুতি ও বরাদ্দ পরিবর্তন দেখুন।'],
             ['TRANSPORT module and TenantAdmin, Principal or TransportManager; some driver reports are TenantAdmin-only.', 'TRANSPORT মডিউল ও TenantAdmin, Principal বা TransportManager; কিছু চালক রিপোর্ট শুধু TenantAdmin-এর জন্য।'],
             [['Open the required rider, route, fleet or driver report.', 'প্রয়োজনীয় যাত্রী, রুট, গাড়ি বা চালক প্রতিবেদন খুলুন।'], ['Filter by authorized campus, date or route, then load and review the bounded rows.', 'অনুমোদিত ক্যাম্পাস, তারিখ বা রুট দিয়ে সীমিত সারি লোড ও যাচাই করুন।'], ['Use the report’s enabled export or print option if present.', 'থাকলে প্রতিবেদনটির অনুমোদিত রপ্তানি বা প্রিন্ট ব্যবহার করুন।']],
             ['Example: check peak seat forecasts for a campus route before new rider reservations.', 'উদাহরণ: নতুন যাত্রী বরাদ্দের আগে একটি ক্যাম্পাস রুটের সর্বোচ্চ আসনচাহিদা দেখুন।'],
@@ -714,9 +714,9 @@
             ['If a count is stale or location access fails, reload the authorized session and resolve the mismatch.', 'গণনা পুরোনো বা স্থান অননুমোদিত হলে সেশন রিলোড করে অমিল ঠিক করুন।'],
             [['/InventoryMovements/Reports', 'Stock reports', 'স্টক প্রতিবেদন']]),
         '/inventorymovements/reports/index': taskGuide(
-            ['Stock Reports and Registers', 'স্টক প্রতিবেদন ও তালিকা'], ['Review inventory ledger, reservations, reorder levels, stock position, lot ageing and item history.', 'স্টক লেজার, সংরক্ষণ, পুনঃঅর্ডার, স্টক অবস্থা, লটের বয়স ও পণ্যের ইতিহাস দেখুন।'],
+            ['Stock Reports and Registers', 'স্টক প্রতিবেদন ও তালিকা'], ['Review reservations, reorder levels, stock position, lot ageing and item history; the transaction ledger stays with Stock Transactions.', 'সংরক্ষণ, পুনঃঅর্ডার, স্টক অবস্থা, লটের বয়স ও পণ্যের ইতিহাস দেখুন; লেনদেনের লেজার স্টক লেনদেন পৃষ্ঠায় রয়েছে।'],
             ['INVENTORY module and a permitted tenant/campus location; Accountant has read-oriented report access.', 'INVENTORY মডিউল ও অনুমোদিত প্রতিষ্ঠান/ক্যাম্পাস; Accountant-এর প্রতিবেদনের অনুমতি রয়েছে।'],
-            [['Select the appropriate ledger, reservation, stock-position or item-history report.', 'প্রয়োজনীয় লেজার, সংরক্ষণ, স্টক অবস্থা বা পণ্য ইতিহাস বাছুন।'], ['Apply location, item and period filters and load the bounded results.', 'স্থান, পণ্য ও সময় ফিল্টার দিয়ে সীমিত ফলাফল লোড করুন।'], ['Use enabled page export or print actions after checking scope and totals.', 'পরিসর ও মোট যাচাই করে অনুমোদিত রপ্তানি বা প্রিন্ট করুন।']],
+            [['Select the reservation, reorder, stock-position, lot-ageing or item-history report.', 'সংরক্ষণ, পুনঃঅর্ডার, স্টক অবস্থা, লটের বয়স বা পণ্য ইতিহাসের প্রতিবেদন বাছুন।'], ['Apply location, item and period filters and load the bounded results.', 'স্থান, পণ্য ও সময় ফিল্টার দিয়ে সীমিত ফলাফল লোড করুন।'], ['Use enabled page export or print actions after checking scope and totals.', 'পরিসর ও মোট যাচাই করে অনুমোদিত রপ্তানি বা প্রিন্ট করুন।']],
             ['Example: check one stock location’s available units and outstanding reservations before issuing more stock.', 'উদাহরণ: নতুন ইস্যুর আগে নির্দিষ্ট স্থানের মজুত ও বাকি সংরক্ষণ দেখুন।'],
             ['Authorized live register rows are displayed without posting any new movement.', 'নতুন মুভমেন্ট ছাড়াই অনুমোদিত তালিকা দেখা যায়।'],
             ['Available stock can differ from on-hand stock due to reservations; report data is not a write permission.', 'সংরক্ষণের কারণে ব্যবহারযোগ্য স্টক বাস্তব মজুত থেকে আলাদা হতে পারে; রিপোর্ট দেখা মানে লেখার অনুমতি নয়।'],

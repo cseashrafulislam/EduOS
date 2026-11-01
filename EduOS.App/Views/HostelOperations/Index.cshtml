@@ -1,5 +1,9 @@
 @{
     var taskPage = ViewData["TaskPage"]?.ToString() ?? "all";
+    var showApplications = taskPage is "all" or "applications";
+    var showAllocations = taskPage is "all" or "allocations";
+    var showSetup = taskPage is "all" or "setup";
+    var showReports = taskPage is "all" or "reports";
     var inBangla = System.Globalization.CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "bn";
     ViewData["Title"] = taskPage switch
     {
@@ -16,8 +20,8 @@
 <section id="hostelWorkspace" class="container-fluid py-3" data-task-page="@taskPage" aria-labelledby="hostelTitle">
     <header class="mb-3 d-flex align-items-center flex-wrap gap-2"><h2 id="hostelTitle" class="mb-0">@ViewData["Title"]</h2></header>
     <div id="hostelAlert" class="d-none" role="alert" tabindex="-1"></div>
-    <partial name="_Applications" />
-    @if (isGuardian)
+    @if (showApplications) { <partial name="_Applications" /> }
+    @if (isGuardian && showApplications)
     {
     <section id="hostelGuardianStays" class="card mb-3" aria-labelledby="hostelGuardianTitle">
         <div class="card-body">
@@ -46,7 +50,7 @@
         </div>
     </section>
     }
-    @if (!isGuardian)
+    @if (!isGuardian && showAllocations)
     {
     <section id="hostelMinePanel" class="card mb-3"><div class="card-body"><h3 class="h5">My current allocation</h3><div id="hostelMine" class="text-muted">Loading…</div></div></section>
     <section id="hostelMyHistoryPanel" class="card mb-3" aria-labelledby="hostelMyHistoryTitle">
@@ -80,7 +84,7 @@
         </div>
     </section>
     }
-    @if (canManage)
+    @if (canManage && showAllocations)
     {
         <section id="hostelAllocatePanel" class="card mb-3"><div class="card-body">
             <h3 class="h5">Allocate a bed</h3>
@@ -195,12 +199,15 @@
         </div></section>
     }
 
-    @if (canManage)
+    @if (canManage && showAllocations)
+    {
+        @await Html.PartialAsync("_AllocationReadiness")
+        @await Html.PartialAsync("_CheckoutFollowUp")
+    }
+    @if (canManage && showReports)
     {
         @await Html.PartialAsync("_ResidentRoster")
         @await Html.PartialAsync("_AllocationHistory")
-        @await Html.PartialAsync("_AllocationReadiness")
-        @await Html.PartialAsync("_CheckoutFollowUp")
         @await Html.PartialAsync("_OccupancyInsights")
         @await Html.PartialAsync("_OccupancyForecast")
         @await Html.PartialAsync("_PeakOccupancyForecast")
@@ -234,7 +241,7 @@
             </div>
         </div></section>
     }
-    @if (canManage)
+    @if (canManage && showSetup)
     {
         <section id="hostelRoomCreatePanel" class="card mb-3"><div class="card-body">
             <h3 class="h5">Create hostel room</h3>
@@ -305,7 +312,7 @@
             </div>
         </div></section>
     }
-    @if (canManage)
+    @if (canManage && showSetup)
     {
         <section id="hostelBedCreatePanel" class="card mb-3"><div class="card-body">
             <h3 class="h5">Create hostel bed</h3>
@@ -326,7 +333,7 @@
             <div id="hostelBedCreateStatus" class="small text-muted" role="status" aria-live="polite"></div>
         </div></section>
     }
-    @if (canManage)
+    @if (canManage && showSetup)
     {
         <section id="hostelBedInventoryPanel" class="card mb-3"><div class="card-body">
             <h3 class="h5">Bed inventory and controlled closure</h3>
@@ -361,11 +368,11 @@
             </div>
         </div></section>
     }
-    @if (canManage)
+    @if (canManage && showSetup)
     {
         @await Html.PartialAsync("_BedRelocation")
     }
-    @if (canManage)
+    @if (canManage && showSetup)
     {
         <section id="hostelFacilityPanel" class="card mb-3"><div class="card-body">
             <h3 class="h5">Hostel facilities and controlled closure</h3>
@@ -412,27 +419,39 @@
 </section>
 @section Scripts {
     <script src="~/js/platform/task-workspace-locales.js" asp-append-version="true"></script>
-    <script src="~/js/hostel-operations/applications.js" asp-append-version="true"></script>
-    @if (canGrantAuthority) {
+    @if (showApplications) {
+        <script src="~/js/hostel-operations/applications.js" asp-append-version="true"></script>
+    }
+    @if (canGrantAuthority && showApplications) {
         <script src="~/js/hostel-operations/application-authority.js" asp-append-version="true"></script>
     }
-    <script src="~/js/hostel-operations/index.js" asp-append-version="true"></script>
-    @if (isGuardian) {
+    @if (showAllocations) {
+        <script src="~/js/hostel-operations/index.js" asp-append-version="true"></script>
+    }
+    @if (isGuardian && showApplications) {
         <script src="~/js/hostel-operations/guardian-stays.js" asp-append-version="true"></script>
-    } else {
+    } else if (!isGuardian && showAllocations) {
         <script src="~/js/hostel-operations/my-history.js" asp-append-version="true"></script>
     }
-    @if (canManage) {
+    @if (canManage && showAllocations) {
         <script src="~/js/hostel-operations/upcoming-room-change.js" asp-append-version="true"></script>
         <script src="~/js/hostel-operations/occupied-transfer.js" asp-append-version="true"></script>
         <script src="~/js/hostel-operations/upcoming-start-reschedule.js" asp-append-version="true"></script>
         <script src="~/js/hostel-operations/no-charge-stay-extension.js" asp-append-version="true"></script>
         <script src="~/js/hostel-operations/upcoming-no-charge-shortening.js" asp-append-version="true"></script>
+        <script src="~/js/hostel-operations/allocation-readiness.js" asp-append-version="true"></script>
+        <script src="~/js/hostel-operations/checkout-follow-up.js" asp-append-version="true"></script>
+    }
+    @if (canManage && showReports) {
         <script src="~/js/hostel-operations/capacity.js" asp-append-version="true"></script>
         <script src="~/js/hostel-operations/occupancy-insights.js" asp-append-version="true"></script>
         <script src="~/js/hostel-operations/occupancy-forecast.js" asp-append-version="true"></script>
         <script src="~/js/hostel-operations/peak-occupancy-forecast.js" asp-append-version="true"></script>
         <script src="~/js/hostel-operations/turnover-report.js" asp-append-version="true"></script>
+        <script src="~/js/hostel-operations/resident-roster.js" asp-append-version="true"></script>
+        <script src="~/js/hostel-operations/allocation-history.js" asp-append-version="true"></script>
+    }
+    @if (canManage && showSetup) {
         <script src="~/js/hostel-operations/bed-create.js" asp-append-version="true"></script>
         <script src="~/js/hostel-operations/bed-inventory.js" asp-append-version="true"></script>
         <script src="~/js/hostel-operations/bed-label-correction.js" asp-append-version="true"></script>
@@ -441,9 +460,5 @@
         <script src="~/js/hostel-operations/room-capacity.js" asp-append-version="true"></script>
         <script src="~/js/hostel-operations/room-create.js" asp-append-version="true"></script>
         <script src="~/js/hostel-operations/facilities.js" asp-append-version="true"></script>
-        <script src="~/js/hostel-operations/resident-roster.js" asp-append-version="true"></script>
-        <script src="~/js/hostel-operations/allocation-history.js" asp-append-version="true"></script>
-        <script src="~/js/hostel-operations/allocation-readiness.js" asp-append-version="true"></script>
-        <script src="~/js/hostel-operations/checkout-follow-up.js" asp-append-version="true"></script>
     }
 }
