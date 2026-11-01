@@ -68,7 +68,7 @@ public sealed partial class SqlServerV3ProcurementPurchaseOrderTests
         {
             var campus = new Campus { TenantId=tenantId,Code="SI-C-"+suffix,Name="Campus" };
             var item = new InventoryItem { TenantId=tenantId,Code="SI-I-"+suffix,
-                Name="Supplier stock",IsActive=true,IsStockTracked=true };
+                Name="Supplier stock",IsActive=true,IsStockTracked=true,IsAssetTracked=true };
             setup.Campuses.Add(campus);setup.InventoryItems.Add(item);
             await setup.SaveChangesAsync();
             var location = new InventoryLocation { TenantId=tenantId,CampusId=campus.Id,
@@ -864,6 +864,118 @@ public sealed partial class SqlServerV3ProcurementPurchaseOrderTests
                         RowVersion=(await returnService.GetAsync(second.Reference)).Data!.RowVersion,
                         AccountingPeriodId=periodId,ReversalDate=date,
                         Reason="Partial supplier credit cannot disappear in whole invoice reversal"})).StatusCode);
+            }
+            // Cross-domain acceptance on this SAME disposable receipt/invoice/settlement/return:
+            // one remaining physical unit is recognized as a serialized fixed asset.
+            // This is not a new stock/GL implementation or a second fabricated receipt.
+            Guid assetReference;
+            long[] capitalizationAccounts;
+            await using (var assetSetup=Open(options,tenantId,makerId))
+            {
+                var receiptLine=await assetSetup.ProcurementGoodsReceiptLines.AsNoTracking()
+                    .SingleAsync(x=>x.GoodsReceiptId==assetSetup.ProcurementGoodsReceipts
+                        .Where(r=>r.PublicId==receiptReference).Select(r=>r.Id).Single());
+                var campusId=await assetSetup.InventoryLocations.AsNoTracking()
+                    .Where(x=>x.Id==locationId).Select(x=>x.CampusId).SingleAsync();
+                var category=new AssetCategory {TenantId=tenantId,Code="SI-AC-"+suffix,
+                    Name="Serialized equipment from paid supplier"};
+                assetSetup.AssetCategories.Add(category);
+                await assetSetup.SaveChangesAsync();
+                var asset=new Asset {TenantId=tenantId,CampusId=campusId,
+                    AssetCategoryId=category.Id,InventoryItemId=receiptLine.InventoryItemId,
+                    InventoryLocationId=locationId,AssetTag="SI-A-"+suffix,
+                    SerialNumber="SI-SERIAL-"+suffix,Name="Receipt-linked equipment",
+                    PurchaseCost=10m,PurchaseDate=date,StateCode="Available"};
+                assetSetup.Assets.Add(asset);
+                var gl=new[]
+                {
+                    ("Fixed",AccountType.Asset),("Accumulated",AccountType.Asset),
+                    ("Depreciation",AccountType.Expense),("Impairment",AccountType.Expense),
+                    ("Disposal gain",AccountType.Income),("Disposal loss",AccountType.Expense)
+                }.Select((x,i)=>new Account {TenantId=tenantId,Code="SI-CAP-"+i+"-"+suffix,
+                    Name=x.Item1,AccountType=x.Item2,IsActive=true,AllowsPosting=true}).ToArray();
+                assetSetup.Accounts.AddRange(gl);
+                await assetSetup.SaveChangesAsync();
+                assetReference=asset.PublicId;
+                capitalizationAccounts=[gl[0].Id,assetAccountId,gl[1].Id,gl[2].Id,
+                    gl[3].Id,gl[4].Id,gl[5].Id];
+            }
+            Guid capitalizationReference;
+            string capitalizationVersion;
+            await using (var assetMaker=Open(options,tenantId,makerId))
+            {
+                var finance=AssetFinance(assetMaker,tenantId,makerId);
+                var readiness=await new AssetLifecycleService(assetMaker,
+                    new Actor(tenantId,makerId),TimeProvider.System,
+                    NullLogger<AssetLifecycleService>.Instance)
+                    .GetCapitalizationReadinessAsync(assetReference);
+                Assert.True(readiness.Success,readiness.Message);
+                Assert.Contains(readiness.Data!.Candidates,x=>
+                    x.ReceiptReference==receiptReference && x.LineNo==1);
+                var request=new CreateAssetCapitalizationRequest {
+                    ClientRequestId=Guid.NewGuid(),AssetRowVersion=readiness.Data.AssetRowVersion,
+                    ReceiptReference=receiptReference,ReceiptLineNo=1,ReceiptUnitOrdinal=1,
+                    AccountingPeriodId=periodId,CapitalizationDate=date,InServiceDate=date,
+                    PolicyMode="Automatic",ProposedCostBasis=0m,SalvageValue=0m,
+                    DepreciationMethod="StraightLine",UsefulLifeMonths=36,PolicyVersion=1,
+                    FixedAssetAccountId=capitalizationAccounts[0],
+                    InventoryAccountId=capitalizationAccounts[1],
+                    AccumulatedDepreciationAccountId=capitalizationAccounts[2],
+                    DepreciationExpenseAccountId=capitalizationAccounts[3],
+                    ImpairmentExpenseAccountId=capitalizationAccounts[4],
+                    DisposalGainAccountId=capitalizationAccounts[5],
+                    DisposalLossAccountId=capitalizationAccounts[6],
+                    Reason="Independent serialized unit and source-linked supplier GL reconciliation"
+                };
+                var submitted=await finance.RequestCapitalizationAsync(assetReference,request);
+                Assert.True(submitted.Success,submitted.Message);
+                Assert.Equal(10m,submitted.Data!.ProposedCostBasis);
+                capitalizationReference=submitted.Data.Reference;
+                capitalizationVersion=submitted.Data.RowVersion;
+                Assert.Equal(403,(await finance.ReviewCapitalizationAsync(capitalizationReference,
+                    new ReviewAssetCapitalizationRequest {RowVersion=capitalizationVersion,
+                        Approve=true,Reason="Maker must not capitalize own supplier equipment"})).StatusCode);
+            }
+            await using (var assetChecker=Open(options,tenantId,checkerId))
+            {
+                var posted=await AssetFinance(assetChecker,tenantId,checkerId)
+                    .ReviewCapitalizationAsync(capitalizationReference,
+                        new ReviewAssetCapitalizationRequest {RowVersion=capitalizationVersion,
+                            Approve=true,Reason="Independent fixed asset GL and physical stock approval"});
+                Assert.True(posted.Success,posted.Message);
+                Assert.Equal("Posted",posted.Data!.State);
+                Assert.Equal(10m,posted.Data.PostedStockCost);
+                var book=Assert.Single(await assetChecker.AssetBooks.AsNoTracking()
+                    .Where(x=>x.AssetId==assetChecker.Assets.Where(a=>a.PublicId==assetReference)
+                        .Select(a=>a.Id).Single()).ToListAsync());
+                Assert.Equal(10m,book.CostBasis);
+                var movement=Assert.Single(await assetChecker.InventoryMovements.AsNoTracking()
+                    .Where(x=>x.SourceType=="AssetCapitalization" && x.StateCode=="Posted")
+                    .ToListAsync());
+                Assert.Equal("Issue",movement.MovementTypeCode);
+                var journal=Assert.Single(await assetChecker.Journals.AsNoTracking()
+                    .Where(x=>x.SourceType=="AssetCapitalization" &&
+                        x.State==JournalState.Posted).ToListAsync());
+                var lines=await assetChecker.JournalLines.AsNoTracking()
+                    .Where(x=>x.JournalId==journal.Id).ToListAsync();
+                Assert.Equal(10m,lines.Sum(x=>x.DebitAmount));
+                Assert.Equal(10m,lines.Sum(x=>x.CreditAmount));
+                Assert.Equal(409,(await AssetFinance(assetChecker,tenantId,checkerId)
+                    .ReviewCapitalizationAsync(capitalizationReference,
+                        new ReviewAssetCapitalizationRequest {RowVersion=capitalizationVersion,
+                            Approve=true,Reason="Repeat must not create a second stock or GL posting"})).StatusCode);
+            }
+            await using (var combined=Open(options,tenantId,makerId))
+            {
+                // Supplier return, payable and capitalization are three distinct
+                // source-linked postings, not direct mutations of either ledger.
+                Assert.Equal(3,await combined.InventoryMovements.AsNoTracking().CountAsync(x=>
+                    x.StateCode=="Posted" && (x.SourceType=="ProcurementGoodsReceipt" ||
+                    x.SourceType=="ProcurementSupplierReturn" || x.SourceType=="AssetCapitalization")));
+                var payable=(await Invoices(combined,tenantId,makerId)
+                    .AgingAsync(date,null,false,1,100)).Data!;
+                Assert.Equal(9m,Assert.Single(payable.Items,
+                    x=>x.InvoiceReference==second.Reference).SourceLinkedOutstandingAmount);
             }
             // Run the foreign-tenant request LAST: the test fixture uses ambient
             // tenant identity and must not poison the original maker context.
