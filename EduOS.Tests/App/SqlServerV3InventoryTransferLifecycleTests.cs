@@ -1091,7 +1091,9 @@ public sealed partial class SqlServerV3InventoryTransferLifecycleTests
         http.Items["TenantId"] = tenantId;
         http.User = new ClaimsPrincipal(new ClaimsIdentity(
             [new Claim(ClaimTypes.NameIdentifier, actorId.ToString())], "SqlIntegration"));
-        return new EduOSDbContext(options, new HttpContextAccessor { HttpContext = http });
+        // Each concurrent SQL audit needs its own stable request identity.
+        // A shared AsyncLocal accessor can lose DefaultHttpContext.TraceIdentifier.
+        return new EduOSDbContext(options, new FixedHttpContextAccessor(http));
     }
 
     [Fact]
