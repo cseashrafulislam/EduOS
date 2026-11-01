@@ -534,7 +534,8 @@ public sealed class SqlServerAlumniConsentIntegrationTests
 
         var distinctGraduates = await graduate.MineAsync();
         Assert.True(distinctGraduates.Success, distinctGraduates.Message);
-        Assert.Equal(2, distinctGraduates.Data!.Count);
+        // The fixture already includes a separate earlier completed student identity.
+        Assert.Equal(3, distinctGraduates.Data!.Count);
         Assert.Contains(distinctGraduates.Data, x => x.StudentReference == studentReference);
         var otherGraduate = Assert.Single(distinctGraduates.Data,
             x => x.StudentReference == secondStudent.PublicId);
