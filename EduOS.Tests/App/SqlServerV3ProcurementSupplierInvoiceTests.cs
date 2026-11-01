@@ -1028,10 +1028,10 @@ public sealed partial class SqlServerV3ProcurementPurchaseOrderTests
                 var journal=Assert.Single(await checker.Journals.AsNoTracking()
                     .Where(x=>x.SourceType=="AssetDepreciation" && x.State==JournalState.Posted)
                     .ToListAsync());
-                var lines=await checker.JournalLines.AsNoTracking()
+                var depreciationLines=await checker.JournalLines.AsNoTracking()
                     .Where(x=>x.JournalId==journal.Id).ToListAsync();
-                Assert.Equal(0.28m,lines.Sum(x=>x.DebitAmount));
-                Assert.Equal(0.28m,lines.Sum(x=>x.CreditAmount));
+                Assert.Equal(0.28m,depreciationLines.Sum(x=>x.DebitAmount));
+                Assert.Equal(0.28m,depreciationLines.Sum(x=>x.CreditAmount));
                 var statement=(await finance.StatementAsync(assetReference)).Data!;
                 Assert.Equal(10m,statement.CostBasis);
                 Assert.Equal(0.28m,statement.PostedDepreciation);
@@ -1070,9 +1070,10 @@ public sealed partial class SqlServerV3ProcurementPurchaseOrderTests
                 var journal=Assert.Single(await checker.Journals.AsNoTracking()
                     .Where(x=>x.SourceType=="AssetDisposal" && x.State==JournalState.Posted)
                     .ToListAsync());
-                var lines=await checker.JournalLines.AsNoTracking()
+                var disposalLines=await checker.JournalLines.AsNoTracking()
                     .Where(x=>x.JournalId==journal.Id).ToListAsync();
-                Assert.Equal(lines.Sum(x=>x.DebitAmount),lines.Sum(x=>x.CreditAmount));
+                Assert.Equal(disposalLines.Sum(x=>x.DebitAmount),
+                    disposalLines.Sum(x=>x.CreditAmount));
                 Assert.True((await finance.StatementAsync(assetReference)).Data!.Disposed);
             }
             Guid reversalReference;
