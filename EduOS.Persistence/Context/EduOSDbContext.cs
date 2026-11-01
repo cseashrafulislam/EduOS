@@ -428,6 +428,7 @@ public class EduOSDbContext :
     // Inventory / Assets
     public DbSet<AssetBook> AssetBooks => Set<AssetBook>();
     public DbSet<AssetCapitalizationCommand> AssetCapitalizationCommands => Set<AssetCapitalizationCommand>();
+    public DbSet<AssetDepreciationPolicyAmendment> AssetDepreciationPolicyAmendments => Set<AssetDepreciationPolicyAmendment>();
     public DbSet<AssetDepreciationRun> AssetDepreciationRuns => Set<AssetDepreciationRun>();
     public DbSet<AssetDepreciationLine> AssetDepreciationLines => Set<AssetDepreciationLine>();
     public DbSet<AssetImpairment> AssetImpairments => Set<AssetImpairment>();
@@ -450,6 +451,7 @@ public class EduOSDbContext :
     public DbSet<ProcurementGoodsReceiptLine> ProcurementGoodsReceiptLines => Set<ProcurementGoodsReceiptLine>();
     public DbSet<ProcurementSupplierInvoice> ProcurementSupplierInvoices => Set<ProcurementSupplierInvoice>();
     public DbSet<ProcurementSupplierInvoiceLine> ProcurementSupplierInvoiceLines => Set<ProcurementSupplierInvoiceLine>();
+    public DbSet<ProcurementSupplierReturnCredit> ProcurementSupplierReturnCredits => Set<ProcurementSupplierReturnCredit>();
     public DbSet<ProcurementRequisition> ProcurementRequisitions => Set<ProcurementRequisition>();
     public DbSet<ProcurementRequisitionLine> ProcurementRequisitionLines => Set<ProcurementRequisitionLine>();
     public DbSet<ProcurementSupplier> ProcurementSuppliers => Set<ProcurementSupplier>();
@@ -1254,12 +1256,25 @@ public class EduOSDbContext :
         TenantReference<ProcurementSupplierInvoiceLine, ProcurementGoodsReceiptLine>(modelBuilder, nameof(ProcurementSupplierInvoiceLine.GoodsReceiptLineId));
         TenantReference<ProcurementSupplierInvoiceLine, ProcurementPurchaseOrderLine>(modelBuilder, nameof(ProcurementSupplierInvoiceLine.PurchaseOrderLineId));
         TenantReference<ProcurementSupplierInvoiceLine, InventoryItem>(modelBuilder, nameof(ProcurementSupplierInvoiceLine.InventoryItemId));
+        TenantReference<ProcurementSupplierReturnCredit, ProcurementSupplierInvoice>(modelBuilder, nameof(ProcurementSupplierReturnCredit.SupplierInvoiceId));
+        TenantReference<ProcurementSupplierReturnCredit, ProcurementSupplierInvoiceLine>(modelBuilder, nameof(ProcurementSupplierReturnCredit.SupplierInvoiceLineId));
+        TenantReference<ProcurementSupplierReturnCredit, Campus>(modelBuilder, nameof(ProcurementSupplierReturnCredit.CampusId));
+        TenantReference<ProcurementSupplierReturnCredit, AccountingPeriod>(modelBuilder, nameof(ProcurementSupplierReturnCredit.AccountingPeriodId));
+        TenantReference<ProcurementSupplierReturnCredit, Account>(modelBuilder, nameof(ProcurementSupplierReturnCredit.StockAccountId));
+        TenantReference<ProcurementSupplierReturnCredit, Account>(modelBuilder, nameof(ProcurementSupplierReturnCredit.PayableAccountId));
+        TenantReference<ProcurementSupplierReturnCredit, Account>(modelBuilder, nameof(ProcurementSupplierReturnCredit.VarianceAccountId));
+        TenantReference<ProcurementSupplierReturnCredit, Account>(modelBuilder, nameof(ProcurementSupplierReturnCredit.RefundReceivableAccountId));
+        TenantReference<ProcurementSupplierReturnCredit, InventoryMovement>(modelBuilder, nameof(ProcurementSupplierReturnCredit.StockMovementId));
+        TenantReference<ProcurementSupplierReturnCredit, Journal>(modelBuilder, nameof(ProcurementSupplierReturnCredit.JournalId));
         TenantReference<ProcurementSupplierAcknowledgement, Campus>(modelBuilder, nameof(ProcurementSupplierAcknowledgement.CampusId));
         TenantReference<ProcurementSupplierAcknowledgement, ProcurementPurchaseOrder>(modelBuilder, nameof(ProcurementSupplierAcknowledgement.PurchaseOrderId));
         TenantReference<ProcurementSupplierAcknowledgement, ProcurementSupplier>(modelBuilder, nameof(ProcurementSupplierAcknowledgement.SupplierId));
         Reference<ProcurementSupplierAcknowledgement, ApplicationUser>(modelBuilder, nameof(ProcurementSupplierAcknowledgement.DecidedByUserId));
         TenantReference<AssetBook, Asset>(modelBuilder, nameof(AssetBook.AssetId));
         TenantReference<AssetCapitalizationCommand, Asset>(modelBuilder, nameof(AssetCapitalizationCommand.AssetId));
+        TenantReference<AssetDepreciationPolicyAmendment, AssetBook>(modelBuilder, nameof(AssetDepreciationPolicyAmendment.AssetBookId));
+        TenantReference<AssetDepreciationPolicyAmendment, Campus>(modelBuilder, nameof(AssetDepreciationPolicyAmendment.CampusId));
+        TenantReference<AssetDepreciationPolicyAmendment, AccountingPeriod>(modelBuilder, nameof(AssetDepreciationPolicyAmendment.AccountingPeriodId));
         TenantReference<AssetCapitalizationCommand, ProcurementGoodsReceiptLine>(modelBuilder, nameof(AssetCapitalizationCommand.GoodsReceiptLineId));
         TenantReference<AssetCapitalizationCommand, Campus>(modelBuilder, nameof(AssetCapitalizationCommand.CampusId));
         TenantReference<AssetCapitalizationCommand, AccountingPeriod>(modelBuilder, nameof(AssetCapitalizationCommand.AccountingPeriodId));
@@ -2069,10 +2084,21 @@ public class EduOSDbContext :
         modelBuilder.Entity<ProcurementSupplierAcknowledgement>().HasAlternateKey(x => new { x.TenantId, x.Id });
         UniqueTenant<ProcurementSupplierAcknowledgement>(modelBuilder, nameof(ProcurementSupplierAcknowledgement.ClientRequestId));
         UniqueTenant<ProcurementSupplierAcknowledgement>(modelBuilder, nameof(ProcurementSupplierAcknowledgement.PurchaseOrderId));
+        UniqueTenant<ProcurementSupplierReturnCredit>(modelBuilder, nameof(ProcurementSupplierReturnCredit.PublicId));
+        UniqueTenant<ProcurementSupplierReturnCredit>(modelBuilder, nameof(ProcurementSupplierReturnCredit.ClientRequestId));
+        modelBuilder.Entity<ProcurementSupplierReturnCredit>().HasIndex(x => new { x.TenantId, x.SupplierInvoiceLineId, x.StateCode });
+        modelBuilder.Entity<ProcurementSupplierReturnCredit>().HasIndex(x => new { x.TenantId, x.SupplierInvoiceId, x.ReturnDate });
+        UniqueTenant<ProcurementSupplierReturnCredit>(modelBuilder, [nameof(ProcurementSupplierReturnCredit.StockMovementId)], "[StockMovementId] IS NOT NULL");
+        UniqueTenant<ProcurementSupplierReturnCredit>(modelBuilder, [nameof(ProcurementSupplierReturnCredit.JournalId)], "[JournalId] IS NOT NULL");
         modelBuilder.Entity<ProcurementSupplierAcknowledgement>().HasIndex(x => new { x.TenantId, x.SupplierId });
         modelBuilder.Entity<ProcurementSupplierAcknowledgement>().HasIndex(x => new { x.TenantId, x.CampusId, x.StateCode, x.CreatedAt });
         modelBuilder.Entity<AssetBook>().HasIndex(x => new { x.TenantId, x.AssetId }).IsUnique().HasFilter("[IsDeleted] = 0");
         UniqueTenant<AssetCapitalizationCommand>(modelBuilder, nameof(AssetCapitalizationCommand.ClientRequestId));
+        UniqueTenant<AssetDepreciationPolicyAmendment>(modelBuilder, nameof(AssetDepreciationPolicyAmendment.ClientRequestId));
+        UniqueTenant<AssetDepreciationPolicyAmendment>(modelBuilder, nameof(AssetDepreciationPolicyAmendment.PublicId));
+        modelBuilder.Entity<AssetDepreciationPolicyAmendment>().HasIndex(x => new { x.TenantId, x.AssetBookId, x.NewPolicyVersion })
+            .IsUnique().HasFilter("[IsDeleted] = 0 AND [StateCode] <> N'Rejected'");
+        modelBuilder.Entity<AssetDepreciationPolicyAmendment>().HasIndex(x => new { x.TenantId, x.CampusId, x.EffectiveFrom });
         UniqueTenant<AssetCapitalizationCommand>(modelBuilder, nameof(AssetCapitalizationCommand.PublicId));
         modelBuilder.Entity<AssetCapitalizationCommand>().HasIndex(x => new { x.TenantId, x.AssetId })
             .IsUnique().HasFilter("[IsDeleted] = 0 AND [StateCode] <> N'Rejected'");
@@ -2315,6 +2341,16 @@ public class EduOSDbContext :
         {
             t.HasCheckConstraint("CK_AssetCapitalizationCommand_State", "[StateCode] IN (N'Submitted',N'Posted',N'Rejected')");
             t.HasCheckConstraint("CK_AssetCapitalizationCommand_Cost", "[ReceiptUnitOrdinal] > 0 AND [UsefulLifeMonths] > 0 AND [PolicyVersion] > 0 AND [ProposedCostBasis] > 0 AND [SalvageValue] >= 0 AND [SalvageValue] <= [ProposedCostBasis]");
+        });
+        modelBuilder.Entity<ProcurementSupplierReturnCredit>().ToTable(t =>
+        {
+            t.HasCheckConstraint("CK_SupplierReturnCredit_State", "[StateCode] IN (N'Submitted',N'Posted',N'Rejected')");
+            t.HasCheckConstraint("CK_SupplierReturnCredit_Amounts", "[Quantity] > 0 AND [StockValue] > 0 AND [CreditAmount] > 0 AND [UnpaidCreditAmount] >= 0 AND [RefundReceivableAmount] >= 0");
+        });
+        modelBuilder.Entity<AssetDepreciationPolicyAmendment>().ToTable(t =>
+        {
+            t.HasCheckConstraint("CK_AssetPolicyAmendment_State", "[StateCode] IN (N'Submitted',N'Approved',N'Rejected')");
+            t.HasCheckConstraint("CK_AssetPolicyAmendment_Remaining", "[PreviousPolicyVersion] > 0 AND [NewPolicyVersion] > [PreviousPolicyVersion] AND [SuggestedRemainingMonths] > 0 AND [ApprovedRemainingMonths] > 0 AND [NewSalvageValue] >= 0 AND [OpeningCarryingValue] >= [NewSalvageValue]");
         });
         modelBuilder.Entity<AssetDepreciationRun>().ToTable(t =>
             t.HasCheckConstraint("CK_AssetDepreciationRun_Amount", "[TotalAmount] >= 0"));

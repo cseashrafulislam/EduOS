@@ -46,6 +46,21 @@ public sealed class ProcurementSupplierInvoicesController(IProcurementSupplierIn
     public async Task<IActionResult> ReviewReversal(Guid reference,[FromBody] ReviewProcurementSupplierInvoiceReversal request,
         CancellationToken ct) => Reply(await service.ReviewReversalAsync(reference,request,ct));
 
+    [HttpGet("{reference:guid}/returns"), RequireModule("FINANCE"), Authorize(Roles="TenantAdmin,Principal,Accountant")]
+    public async Task<IActionResult> Returns(Guid reference, int page=1, int pageSize=25,
+        CancellationToken ct=default) => Reply(await service.ReturnCreditsAsync(reference,page,pageSize,ct));
+
+    [HttpPost("{reference:guid}/returns"), RequireModule("FINANCE"), Authorize(Roles="TenantAdmin,Accountant")]
+    public async Task<IActionResult> RequestReturn(Guid reference,
+        [FromBody] CreateSupplierReturnCreditRequest request, CancellationToken ct) =>
+        Reply(await service.RequestReturnCreditAsync(reference,request,ct));
+
+    [HttpPost("{reference:guid}/returns/{returnReference:guid}/review"), RequireModule("FINANCE"),
+     Authorize(Roles="TenantAdmin,Principal")]
+    public async Task<IActionResult> ReviewReturn(Guid reference, Guid returnReference,
+        [FromBody] ReviewSupplierReturnCreditRequest request, CancellationToken ct) =>
+        Reply(await service.ReviewReturnCreditAsync(reference,returnReference,request,ct));
+
     // Canonical institutional Finance Journals. Posting records confirmed bank evidence;
     // it never calls the bank or initiates an electronic transfer.
     [HttpGet("{reference:guid}/settlements/options"), RequireModule("FINANCE"), Authorize(Roles="TenantAdmin,Principal,Accountant")]
@@ -110,11 +125,13 @@ public sealed class ProcurementSupplierInvoicesController(IProcurementSupplierIn
             if(s.TrimStart().Length>0 && "=+-@".Contains(s.TrimStart()[0]))s="'"+s;
             return "\"" + s.Replace("\"","\"\"") + "\"";
         }
-        var csv=new StringBuilder("Invoice,PO,Supplier,Campus,DueDate,DaysOverdue,Bucket,GrossPostedAP_BDT,PostedSettlement_BDT,UnpostedReservation_BDT,SourceLinkedNet_BDT,SettlementEvidence,ReversalPending,Journal\r\n");
+        var csv=new StringBuilder("Invoice,PO,Supplier,Campus,DueDate,DaysOverdue,Bucket,GrossPostedAP_BDT,PostedSettlement_BDT,PostedReturnCredit_BDT,PendingReturnCredit_BDT,SupplierRefundReceivable_BDT,UnpostedReservation_BDT,SourceLinkedNet_BDT,SettlementEvidence,ReversalPending,Journal\r\n");
         foreach(var x in rows)
             csv.AppendJoin(',',Csv(x.SupplierInvoiceNumber),Csv(x.OrderNumber),Csv(x.SupplierId),
                 Csv(x.CampusId),Csv(x.DueDate),Csv(x.DaysOverdue),Csv(x.AgingBucket),
-                Csv(x.GrossPostedAmount),Csv(x.PostedSettlementAmount),Csv(x.ReservedUnpostedAmount),
+                Csv(x.GrossPostedAmount),Csv(x.PostedSettlementAmount),
+                Csv(x.PostedSupplierCreditAmount),Csv(x.PendingSupplierCreditAmount),
+                Csv(x.SupplierRefundReceivableAmount),Csv(x.ReservedUnpostedAmount),
                 Csv(x.SourceLinkedOutstandingAmount),Csv(x.SettlementIntegrityStatus),
                 Csv(x.ReversalPending),Csv(x.JournalReference))
                 .Append("\r\n");

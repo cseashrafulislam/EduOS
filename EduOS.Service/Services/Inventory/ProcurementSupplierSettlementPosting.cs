@@ -93,7 +93,8 @@ public sealed partial class ProcurementSupplierInvoiceService
                 x.SourceType == SettlementSource && x.State == JournalState.Posted &&
                 x.ReferenceNumber == bankRef, ct))
                 return Err<SupplierSettlementInstructionDto>("Bank transaction reference already confirms another settlement.", 409);
-            if (await ReservedSettlementAsync(invoice.Id, payableId, ct) > invoice.TotalAmount)
+            if (await ReservedSettlementAsync(invoice.Id, payableId, ct) +
+                await CreditedAsync(invoice.Id, true, 0, ct) > invoice.TotalAmount)
                 return Err<SupplierSettlementInstructionDto>("Competing settlements exceed the supplier payable.", 409);
             if ((journal.Description ?? "").Length + marker.Length > 1000)
                 return Err<SupplierSettlementInstructionDto>("Confirmation audit exceeds journal capacity.", 409);

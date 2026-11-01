@@ -43,6 +43,7 @@ public sealed class ReviewProcurementSupplierInvoiceReversal
 }
 public sealed class ProcurementSupplierInvoiceLineDto
 {
+    public long Id { get; set; }
     public int LineNo { get; set; }
     public long InventoryItemId { get; set; }
     public long PurchaseOrderLineId { get; set; }

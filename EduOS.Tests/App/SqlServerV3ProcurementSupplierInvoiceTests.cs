@@ -766,6 +766,72 @@ public sealed partial class SqlServerV3ProcurementPurchaseOrderTests
                 Assert.Equal(0m,traced.Data!.SettlementPostedNetAmount);
                 Assert.Contains(traced.Data.SettlementInstructions,x=>x.PostedReversalReference.HasValue);
             }
+            // Physical return: a separate maker/checker credit note must emit
+            // exactly one stock issue and one balanced BDT journal, then flow
+            // into outstanding AP and the canonical enterprise trace.
+            Guid returnReference;
+            string returnVersion;
+            await using (var returnMaker=Open(options,tenantId,makerId))
+            {
+                var returnService=Invoices(returnMaker,tenantId,makerId);
+                var currentInvoice=(await returnService.GetAsync(second.Reference)).Data!;
+                var line=Assert.Single(currentInvoice.Lines);
+                var request=new CreateSupplierReturnCreditRequest {
+                    ClientRequestId=Guid.NewGuid(),InvoiceRowVersion=currentInvoice.RowVersion,
+                    SupplierInvoiceLineId=line.Id,Quantity=1m,Mode="Automatic",
+                    ReturnDate=date,AccountingPeriodId=periodId,
+                    VarianceAccountId=varianceAccountId,
+                    SupplierReturnReference="RTN-SQL-"+suffix,
+                    Reason="One damaged stock unit physically sent back to vendor" };
+                var draft=await returnService.RequestReturnCreditAsync(second.Reference,request);
+                Assert.True(draft.Success,draft.Message);
+                Assert.Equal("Submitted",draft.Data!.State);
+                Assert.Equal(9m,draft.Data.CreditAmount);
+                Assert.Equal(10m,draft.Data.StockValue);
+                Assert.Equal(draft.Data.Reference,(await returnService.RequestReturnCreditAsync(
+                    second.Reference,request)).Data!.Reference);
+                returnReference=draft.Data.Reference;returnVersion=draft.Data.RowVersion;
+            }
+            await using (var returnChecker=Open(options,tenantId,checkerId))
+            {
+                var returnService=Invoices(returnChecker,tenantId,checkerId);
+                var posted=await returnService.ReviewReturnCreditAsync(second.Reference,returnReference,
+                    new ReviewSupplierReturnCreditRequest {RowVersion=returnVersion,Approve=true,
+                        Reason="Independent review of supplier delivery, inventory and Finance contra"});
+                Assert.True(posted.Success,posted.Message);
+                Assert.Equal("Posted",posted.Data!.State);
+                Assert.Equal(9m,posted.Data.UnpaidCredit);
+                Assert.Equal(0m,posted.Data.RefundReceivable);
+                Assert.NotNull(posted.Data.StockMovementReference);
+                Assert.NotNull(posted.Data.FinanceJournalReference);
+                Assert.Equal(409,(await returnService.ReviewReturnCreditAsync(
+                    second.Reference,returnReference,new ReviewSupplierReturnCreditRequest {
+                        RowVersion=returnVersion,Approve=true,
+                        Reason="Attempt to double post a single approved supplier stock return" })).StatusCode);
+            }
+            await using (var creditReport=Open(options,tenantId,makerId))
+            {
+                var returnService=Invoices(creditReport,tenantId,makerId);
+                var report=(await returnService.AgingAsync(date,null,false,1,100)).Data!;
+                var row=Assert.Single(report.Items,x=>x.InvoiceReference==second.Reference);
+                Assert.Equal(9m,row.PostedSupplierCreditAmount);
+                Assert.Equal(9m,row.SourceLinkedOutstandingAmount);
+                var issue=Assert.Single(await creditReport.InventoryMovements.Where(x=>
+                    x.SourceType=="ProcurementSupplierReturn" && x.StateCode=="Posted")
+                    .ToListAsync());
+                Assert.Equal("Issue",issue.MovementTypeCode);
+                var journal=Assert.Single(await creditReport.Journals.Where(x=>
+                    x.SourceType=="ProcurementSupplierReturnCredit" &&
+                    x.State==JournalState.Posted).ToListAsync());
+                var returnJournalLines=await creditReport.JournalLines.Where(x=>x.JournalId==journal.Id).ToListAsync();
+                Assert.Equal(10m,returnJournalLines.Sum(x=>x.DebitAmount));
+                Assert.Equal(10m,returnJournalLines.Sum(x=>x.CreditAmount));
+                Assert.Equal(409,(await returnService.RequestReversalAsync(second.Reference,
+                    new RequestProcurementSupplierInvoiceReversal {ClientRequestId=Guid.NewGuid(),
+                        RowVersion=(await returnService.GetAsync(second.Reference)).Data!.RowVersion,
+                        AccountingPeriodId=periodId,ReversalDate=date,
+                        Reason="Partial supplier credit cannot disappear in whole invoice reversal"})).StatusCode);
+            }
             // Run the foreign-tenant request LAST: the test fixture uses ambient
             // tenant identity and must not poison the original maker context.
             await using (var foreign = Open(options,tenantId+999999,checkerId))

@@ -32,7 +32,10 @@
    pages=Math.max(1,result.totalPages||1);$('ssRows').replaceChildren();
    for(const x of result.items||[]){
     const tr=document.createElement('tr');
-    for(const value of [x.reference.slice(0,8),x.state+(x.reversalState?' / '+x.reversalState:''),money(x.amount),x.plannedDate,x.makerId])tr.append(cell(value));
+    const bankEvidence=x.state==='Posted'?
+      (x.bankStatementCleared?t(' · Bank cleared',' · ব্যাংক মিলেছে'):
+       t(' · Bank statement pending',' · ব্যাংক স্টেটমেন্ট বাকি')):'';
+    for(const value of [x.reference.slice(0,8),x.state+(x.reversalState?' / '+x.reversalState:'')+bankEvidence,money(x.amount),x.plannedDate,x.makerId])tr.append(cell(value));
     const action=cell('');
     if(maker&&x.state==='Submitted'&&
        Number(x.makerId)===Number(document.getElementById('supplierInvoiceMatch')?.dataset.userId)){
@@ -96,7 +99,9 @@
    const data=await api(base+x.reference+'/settlements/options');
    if(chosen!==selectionSeq)return;
    availablePeriods=data.periods||[];
-   status(t('Unreserved BDT ','অসংরক্ষিত ৳')+money(data.availableAmount)+t(' · No payment executed',' · পরিশোধ হয়নি'));
+   status(t('Unreserved BDT ','অসংরক্ষিত ৳')+money(data.availableAmount)+
+    t(' · Posted credits BDT ',' · পোস্টকৃত ক্রেডিট ৳')+money(data.postedSupplierCreditAmount||0)+
+    t(' · No payment executed',' · পরিশোধ হয়নি'));
    if(maker&&$('ssForm')){
     options($('ssBank'),data.banks);options($('ssPeriod'),data.periods);
     $('ssAmount').max=String(data.availableAmount);$('ssAmount').value='';

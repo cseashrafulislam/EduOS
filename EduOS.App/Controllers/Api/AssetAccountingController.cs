@@ -37,6 +37,27 @@ public sealed class AssetAccountingController(AssetAccountingService service) : 
         [FromBody] ReviewAssetCapitalizationRequest request, CancellationToken ct) =>
         Reply(await service.ReviewCapitalizationAsync(reference, request, ct));
 
+    [HttpPost("capitalizations/{reference:guid}/reversal"), Authorize(Roles = "TenantAdmin,Accountant")]
+    public async Task<IActionResult> RequestCapitalizationReversal(Guid reference,
+        [FromBody] AssetReversalRequest request, CancellationToken ct) =>
+        Reply(await service.RequestCapitalizationReversalAsync(reference, request, ct));
+
+    [HttpPost("capitalizations/{reference:guid}/reversal/{reversal:guid}/review"),
+     Authorize(Roles = "TenantAdmin,Principal")]
+    public async Task<IActionResult> ReviewCapitalizationReversal(Guid reference, Guid reversal,
+        [FromBody] AssetReviewRequest request, CancellationToken ct) =>
+        Reply(await service.ReviewCapitalizationReversalAsync(reference, reversal, request, ct));
+
+    [HttpPost("{asset:guid}/depreciation-policy"), Authorize(Roles = "TenantAdmin,Accountant")]
+    public async Task<IActionResult> RequestDepreciationPolicy(Guid asset,
+        [FromBody] CreateAssetDepreciationPolicyRequest request, CancellationToken ct) =>
+        Reply(await service.RequestDepreciationPolicyAsync(asset, request, ct));
+
+    [HttpPost("depreciation-policy/{reference:guid}/review"), Authorize(Roles = "TenantAdmin,Principal")]
+    public async Task<IActionResult> ReviewDepreciationPolicy(Guid reference,
+        [FromBody] AssetReviewRequest request, CancellationToken ct) =>
+        Reply(await service.ReviewDepreciationPolicyAsync(reference, request, ct));
+
     [HttpPost("{asset:guid}/depreciation"), Authorize(Roles = "TenantAdmin,Accountant")]
     public async Task<IActionResult> RequestDepreciation(Guid asset,
         [FromBody] AssetValuationRequest request, CancellationToken ct) =>

@@ -69,6 +69,26 @@ public sealed partial class ProcurementSupplierInvoiceService
             x.ReversalOfJournalId == journal.Id && !x.IsDeleted)
             .OrderByDescending(x => x.CreatedAt).ThenByDescending(x => x.Id)
             .Select(x => new { x.PublicId, x.State, x.RowVersion }).FirstOrDefaultAsync(ct);
+        // Reuse Finance's immutable statement, match and independent clearance evidence.
+        // A confirmed payment reference by itself is never a reconciled bank statement.
+        var cleared = journal.State == JournalState.Posted && lines.Count == 2 && bankAccountId > 0
+            ? await (from match in db.BankReconciliationMatchEvents.AsNoTracking()
+                join batch in db.BankReconciliationBatches.AsNoTracking()
+                    on match.BankReconciliationBatchId equals batch.Id
+                where match.TenantId == user.TenantId && !match.IsDeleted && match.ActionCode == 1 &&
+                    match.JournalLineId == lines[1].Id &&
+                    !db.BankReconciliationMatchEvents.Any(w => w.TenantId == user.TenantId &&
+                        !w.IsDeleted && w.ActionCode == 2 && w.OriginalMatchEventId == match.Id) &&
+                    batch.TenantId == user.TenantId && !batch.IsDeleted &&
+                    batch.BankAccountId == bankAccountId &&
+                    db.BankReconciliationApprovalEvents.Any(a => a.TenantId == user.TenantId &&
+                        !a.IsDeleted && a.BankReconciliationBatchId == batch.Id && a.ActionCode == 3 &&
+                        !db.BankReconciliationApprovalEvents.Any(r => r.TenantId == user.TenantId &&
+                            !r.IsDeleted && r.BankReconciliationBatchId == batch.Id && r.ActionCode == 5 &&
+                            (r.EventAt > a.EventAt || (r.EventAt == a.EventAt && r.Id > a.Id))))
+                orderby batch.Id descending
+                select new { batch.Id, batch.StatementIdentifier }).FirstOrDefaultAsync(ct)
+            : null;
         return new SupplierSettlementInstructionDto
         {
             Reference = journal.PublicId, State = journal.State.ToString(), PlannedDate = journal.JournalDate,
@@ -76,6 +96,8 @@ public sealed partial class ProcurementSupplierInvoiceService
             MakerId = journal.CreatedBy, ReviewerId = journal.ApprovedByUserId,
             PostedByUserId = journal.PostedByUserId, PostedAtUtc = journal.PostedAt,
             BankTransactionReference = journal.State == JournalState.Posted ? journal.ReferenceNumber : null,
+            BankStatementCleared = cleared != null, ClearedStatementBatchId = cleared?.Id,
+            ClearedStatementIdentifier = cleared?.StatementIdentifier,
             ReversalReference = contra?.PublicId, ReversalState = contra?.State.ToString(),
             ReversalRowVersion = contra == null ? null : Convert.ToBase64String(contra.RowVersion),
             Reason = journal.Description ?? "", RowVersion = Convert.ToBase64String(journal.RowVersion)
@@ -89,6 +111,8 @@ public sealed partial class ProcurementSupplierInvoiceService
         var (invoice, _, payableId, error) = await SettlementSourceAsync(reference, ct);
         if (error != null || invoice == null) return Err<SupplierSettlementOptionsDto>(error ?? "Not found.", 409);
         var reserved = await ReservedSettlementAsync(invoice.Id, payableId, ct);
+        var postedCredit = await CreditedAsync(invoice.Id, false, 0, ct);
+        var totalCredit = await CreditedAsync(invoice.Id, true, 0, ct);
         var banks = await (from b in db.BankAccounts.AsNoTracking()
             join a in db.Accounts.AsNoTracking() on b.AccountId equals a.Id
             where b.TenantId == user.TenantId && !b.IsDeleted && b.IsActive && b.CurrencyCode == "BDT" &&
@@ -107,7 +131,11 @@ public sealed partial class ProcurementSupplierInvoiceService
         return ApiResponse<SupplierSettlementOptionsDto>.SuccessResponse(new SupplierSettlementOptionsDto
         {
             InvoiceAmount = invoice.TotalAmount, ReservedAmount = reserved,
-            AvailableAmount = Math.Max(0m, invoice.TotalAmount - reserved), Banks = banks, Periods = periods
+            PostedSupplierCreditAmount = postedCredit,
+            PendingSupplierCreditAmount = totalCredit - postedCredit,
+            NetCreditAdjustedAmount = Math.Max(0m, invoice.TotalAmount - postedCredit),
+            AvailableAmount = Math.Max(0m, invoice.TotalAmount - totalCredit - reserved),
+            Banks = banks, Periods = periods
         });
     }
 
@@ -182,8 +210,9 @@ public sealed partial class ProcurementSupplierInvoiceService
                 (x.CampusId == null || x.CampusId == invoice.CampusId), ct) != 1)
                 return Err<SupplierSettlementInstructionDto>("Bank ledger must resolve to exactly one eligible bank account.", 409);
             var reserved = await ReservedSettlementAsync(invoice.Id, payableId, ct);
-            if (reserved < 0m || reserved > invoice.TotalAmount ||
-                request.Amount > invoice.TotalAmount - reserved)
+            var credits = await CreditedAsync(invoice.Id, true, 0, ct);
+            if (reserved < 0m || credits < 0m || reserved + credits > invoice.TotalAmount ||
+                request.Amount > invoice.TotalAmount - reserved - credits)
                 return Err<SupplierSettlementInstructionDto>("Settlement exceeds unreserved payable.", 409);
             var now = clock.GetUtcNow().UtcDateTime;
             var jRef = Guid.NewGuid();

@@ -19,10 +19,28 @@
         <section class="card mb-3"><div class="card-body">
             <h3 class="h5">Book &amp; posted ledger / বুক ও পোস্টেড হিসাব</h3>
             <div id="aaBook" class="mb-2"></div>
+            <div id="aaPolicyHistory" class="mb-2" aria-live="polite"></div>
             <div class="table-responsive"><table class="table table-striped table-sm">
                 <thead><tr><th>Event</th><th>Date</th><th>Amount BDT</th><th>State</th><th>Finance journal</th><th>Actions</th></tr></thead>
                 <tbody id="aaEvents"></tbody></table></div>
         </div></section>
+        @if (maker)
+        {
+            <section class="card mb-3"><div class="card-body">
+                <h3 class="h5">Prospective depreciation policy / ভবিষ্যৎ অবচয় নীতি</h3>
+                <form id="aaPolicyForm" class="row g-2">
+                    <div class="col-md-3"><label for="aaPolicyEffective" class="form-label">Effective month start</label><input id="aaPolicyEffective" type="date" class="form-control" required /></div>
+                    <div class="col-md-3"><label for="aaPolicyPeriod" class="form-label">Open accounting period</label><select id="aaPolicyPeriod" class="form-select" required></select></div>
+                    <div class="col-md-3"><label for="aaPolicyMode" class="form-label">Calculation policy</label><select id="aaPolicyMode" class="form-select"><option value="Automatic">Automatic</option><option value="ManualFinal">Manual final</option><option value="AutoPlusManual">Auto + manual correction</option></select></div>
+                    <div class="col-md-3"><label for="aaNewPolicyVersion" class="form-label">New policy version</label><input id="aaNewPolicyVersion" type="number" min="2" step="1" class="form-control" required /></div>
+                    <div class="col-md-3"><label for="aaPolicyMonths" class="form-label">Manual remaining months (Manual Final)</label><input id="aaPolicyMonths" type="number" min="0" max="1200" step="1" value="0" class="form-control" /></div>
+                    <div class="col-md-3"><label for="aaPolicyCorrection" class="form-label">Signed life correction months (Auto + Manual)</label><input id="aaPolicyCorrection" type="number" min="-1200" max="1200" step="1" value="0" class="form-control" /></div>
+                    <div class="col-md-3"><label for="aaPolicySalvage" class="form-label">New salvage value BDT</label><input id="aaPolicySalvage" type="number" min="0" step="0.01" value="0" class="form-control" required /></div>
+                    <div class="col-md-3"><label for="aaPolicyReason" class="form-label">Signed policy reason</label><input id="aaPolicyReason" class="form-control" minlength="10" maxlength="800" required /></div>
+                    <div class="col-12"><button class="btn btn-primary" type="submit">Submit policy for independent review / নীতি অনুমোদনে পাঠান</button></div>
+                </form>
+            </div></section>
+        }
         <section class="card mb-3"><div class="card-body">
             <h3 class="h5">Receipt unit capitalization / রিসিপ্ট ইউনিট মূলধনীকরণ</h3>
             <p id="aaEvidence" class="small"></p>

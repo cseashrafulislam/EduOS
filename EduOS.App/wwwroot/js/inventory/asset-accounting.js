@@ -11,7 +11,8 @@ if (root) {
             String(x.getDate()).padStart(2, '0')].join('-');
     };
     let current = '', evidence = null, options = null, statement = null, cap = null;
-    let sequence = 0, busy = false, capKey = null, eventKey = null;
+    let sequence = 0, busy = false, capKey = null, eventKey = null,
+        capReverseKey = null, policyKey = null;
     const capIds = ['aaCapDate', 'aaServiceDate', 'aaCapMode', 'aaCost', 'aaSalvage', 'aaLife',
         'aaPolicy', 'aaCandidate', 'aaOrdinal', 'aaCapPeriod', 'aaFixed', 'aaInventory',
         'aaAccum', 'aaDepExp', 'aaImpExp', 'aaGain', 'aaLoss', 'aaVarGain', 'aaVarLoss', 'aaCapReason'];
@@ -34,7 +35,7 @@ if (root) {
             optionList(id, rows.filter(x => x.type === type), 'Select ' + type + ' GL',
                 x => x.code + ' — ' + x.name);
         }
-        for (const id of ['aaCapPeriod', 'aaPeriod'])
+        for (const id of ['aaCapPeriod', 'aaPeriod', 'aaPolicyPeriod'])
             optionList(id, options?.periods || [], 'Select open period',
                 x => x.name + ' (' + x.startDate + '—' + x.endDate + ')');
     }
@@ -60,9 +61,41 @@ if (root) {
         chooseCap();
         el('aaCapState').textContent = cap ?
             'Capitalization: ' + cap.state + ' · BDT ' + cap.proposedCostBasis +
-            (cap.financeJournalReference ? ' · Finance ' + cap.financeJournalReference : '') :
+            (cap.financeJournalReference ? ' · Finance ' + cap.financeJournalReference : '') +
+            (cap.financeReversalReference ? ' · Reversal ' + cap.financeReversalReference : '') +
+            (cap.stockReversalReference ? ' · Restored stock ' + cap.stockReversalReference : '') :
             'No submitted capitalization command yet.';
         const box = el('aaCapReview'); box.replaceChildren();
+        if (maker && cap?.state === 'Posted' && !cap.pendingReversalReference) {
+            rowButton(box, 'Request exact GL + stock unwind', async () => {
+                const period = el('aaPeriod')?.value || prompt('Open Finance accounting period ID:');
+                const date = prompt('Reversal date YYYY-MM-DD:', dateToday());
+                const reason = prompt('Custody-cleared correction reason (at least 10 characters):');
+                if (!period || !date || !reason || reason.trim().length < 10)
+                    throw new Error('Valid period, date and documented correction reason required.');
+                capReverseKey ||= crypto.randomUUID();
+                await api('/capitalizations/' + cap.reference + '/reversal', 'POST', {
+                    clientRequestId: capReverseKey, originalRowVersion: cap.rowVersion,
+                    accountingPeriodId: Number(period), reversalDate: date, reason: reason.trim()
+                });
+                capReverseKey = null;
+            }, 'btn-outline-danger');
+        }
+        if (checker && cap?.pendingReversalReference && cap.pendingReversalRowVersion) {
+            rowButton(box, 'Review GL + stock unwind', async () => {
+                const choice = prompt('Type APPROVE or REJECT for this exact GL and unit stock correction:');
+                if (choice === null) return;
+                const decision = choice.trim().toUpperCase();
+                if (!['APPROVE', 'REJECT'].includes(decision)) throw new Error('Type APPROVE or REJECT.');
+                const reason = prompt('Independent Finance and custody review reason:');
+                if (!reason || reason.trim().length < 10) throw new Error('Review reason required.');
+                await api('/capitalizations/' + cap.reference + '/reversal/' +
+                    cap.pendingReversalReference + '/review', 'POST', {
+                        rowVersion: cap.pendingReversalRowVersion,
+                        approve: decision === 'APPROVE', reason: reason.trim()
+                    });
+            }, 'btn-outline-danger');
+        }
         if (!checker || cap?.state !== 'Submitted') return;
         for (const [decision, label] of [[true, 'Approve / Post GL & stock'], [false, 'Reject']]) {
             const button = document.createElement('button');
@@ -138,8 +171,33 @@ if (root) {
             ' · Depreciation BDT ' + statement.postedDepreciation +
             ' · Impairment BDT ' + statement.postedImpairment +
             ' · Net carrying BDT ' + statement.carryingValue +
-            (statement.disposed ? ' · DISPOSED' : ' · ACTIVE')
+            ' · Policy v' + statement.policyVersion + ' (' + statement.policyMode + ')' +
+            ' · Remaining months ' + statement.remainingUsefulLifeMonths +
+            (statement.capitalizationReversed ? ' · CAPITALIZATION REVERSED' :
+                statement.disposed ? ' · DISPOSED' : ' · ACTIVE')
             : 'No approved AssetBook. Post one verified source receipt unit first.';
+        const policies = el('aaPolicyHistory'); policies.replaceChildren();
+        for (const p of statement?.policyHistory || []) {
+            const line = document.createElement('div'); line.className = 'small mb-1';
+            line.append(document.createTextNode('Policy v' + p.newPolicyVersion + ' · ' + p.state +
+                ' · ' + p.effectiveFrom + ' · ' + p.mode + ' · ' +
+                p.approvedRemainingMonths + ' months · BDT ' + p.newSalvageValue + ' '));
+            if (checker && p.state === 'Submitted')
+                rowButton(line, 'Review / যাচাই', async () => {
+                    const decision = prompt('Type APPROVE or REJECT for this prospective policy:');
+                    if (decision === null) return;
+                    const value = decision.trim().toUpperCase();
+                    if (!['APPROVE', 'REJECT'].includes(value)) throw new Error('Type APPROVE or REJECT.');
+                    const reason = prompt('Independent Finance policy review reason:');
+                    if (!reason || reason.trim().length < 10) throw new Error('Review reason required.');
+                    await api('/depreciation-policy/' + p.reference + '/review', 'POST', {
+                        rowVersion: p.rowVersion, approve: value === 'APPROVE', reason: reason.trim()
+                    });
+                }, 'btn-outline-primary');
+            policies.append(line);
+        }
+        if (el('aaNewPolicyVersion')) el('aaNewPolicyVersion').value = String((statement?.policyVersion || 1) + 1);
+        if (el('aaPolicySalvage')) el('aaPolicySalvage').value = String(statement?.salvageValue || 0);
     }
     async function reload() {
         const asset = current, n = ++sequence;
@@ -165,7 +223,7 @@ if (root) {
         if (!/^[0-9a-f]{8}-[0-9a-f-]{27,36}$/i.test(asset))
             throw new Error('Valid asset GUID required.');
         ++sequence; current = asset; evidence = null; statement = null; cap = null;
-        capKey = null; eventKey = null;
+        capKey = null; eventKey = null; capReverseKey = null; policyKey = null;
     }));
     // The load handler delegates reload through action, after current has been set.
     el('aaCapForm')?.addEventListener('submit', event => {
@@ -212,11 +270,34 @@ if (root) {
             eventKey = null;
         });
     });
+    el('aaPolicyForm')?.addEventListener('submit', event => {
+        event.preventDefault(); action(async () => {
+            if (!statement?.assetBookId || statement.disposed || statement.capitalizationReversed)
+                throw new Error('An active AssetBook is required for a policy amendment.');
+            policyKey ||= crypto.randomUUID();
+            await api('/' + current + '/depreciation-policy', 'POST', {
+                clientRequestId: policyKey, assetBookRowVersion: statement.assetBookRowVersion,
+                accountingPeriodId: Number(el('aaPolicyPeriod').value),
+                effectiveFrom: el('aaPolicyEffective').value,
+                mode: el('aaPolicyMode').value,
+                remainingUsefulLifeMonths: Number(el('aaPolicyMonths').value),
+                remainingLifeCorrectionMonths: Number(el('aaPolicyCorrection').value),
+                newSalvageValue: Number(el('aaPolicySalvage').value),
+                newPolicyVersion: Number(el('aaNewPolicyVersion').value),
+                reason: el('aaPolicyReason').value.trim()
+            });
+            policyKey = null;
+        });
+    });
     el('aaCandidate')?.addEventListener('change', chooseCap);
     for (const id of capIds) el(id)?.addEventListener('input', () => { capKey = null; });
     for (const id of eventIds) el(id)?.addEventListener('input', () => { eventKey = null; });
+    for (const id of ['aaPolicyEffective', 'aaPolicyPeriod', 'aaPolicyMode',
+        'aaPolicyMonths', 'aaPolicyCorrection', 'aaPolicySalvage', 'aaPolicyReason',
+        'aaNewPolicyVersion']) el(id)?.addEventListener('input', () => { policyKey = null; });
     const today = dateToday();
     for (const id of ['aaCapDate', 'aaServiceDate', 'aaDate']) if (el(id)) el(id).value = today;
+    if (el('aaPolicyEffective')) el('aaPolicyEffective').value = today.slice(0, 7) + '-01';
     const fromQuery = new URLSearchParams(location.search).get('asset');
     if (fromQuery) { el('aaAsset').value = fromQuery; el('aaLoad').click(); }
 }

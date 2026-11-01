@@ -1,0 +1,51 @@
+@{
+    ViewData["Title"] = "Supplier Returns & Credit Notes / সরবরাহকারী ফেরত ও ক্রেডিট নোট";
+    var maker = User.IsInRole("TenantAdmin") || User.IsInRole("Accountant");
+    var reviewer = User.IsInRole("TenantAdmin") || User.IsInRole("Principal");
+}
+<section id="supplierReturns" class="container-fluid py-3"
+         data-maker="@maker.ToString().ToLowerInvariant()"
+         data-reviewer="@reviewer.ToString().ToLowerInvariant()">
+    <header class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+        <h1 class="h4 mb-0" data-en="Supplier returns & credit notes" data-bn="সরবরাহকারী পণ্য ফেরত ও ক্রেডিট নোট">Supplier returns &amp; credit notes</h1>
+        <div class="d-flex gap-2">
+            <button id="srHelpToggle" class="btn btn-sm btn-outline-secondary" type="button"
+                    aria-expanded="false" aria-controls="srHelp" aria-label="Page help / সহায়তা">ⓘ</button>
+            <a class="btn btn-outline-secondary btn-sm" href="/ProcurementSupplierInvoiceMatching">Supplier invoices</a>
+        </div>
+    </header>
+    <aside id="srHelp" class="alert alert-secondary d-none" aria-label="Page manual / পৃষ্ঠা নির্দেশিকা">
+        <p class="mb-1" data-en="Use a posted supplier invoice and its verified goods-receipt line. A return request reserves quantity but does not reduce stock or payable. An independent reviewer verifies the actual return and posts one canonical stock issue plus a balanced Finance credit note atomically. Paid amounts become a supplier-refund receivable, not an automatic bank refund."
+           data-bn="পোস্টকৃত সরবরাহকারী ইনভয়েসের যাচাইকৃত গ্রহণ-লাইন নির্বাচন করুন। অনুরোধে পরিমাণ সংরক্ষিত হয়; স্টক বা দায় কমে না। স্বতন্ত্র রিভিউয়ার পণ্য ফেরত নিশ্চিত করে একই SQL ট্রানজ্যাকশনে স্টক ইস্যু ও ফাইন্যান্স ক্রেডিট নোট পোস্ট করেন। পূর্বে পরিশোধিত অংশ ফেরত-পাওনা হয়; ব্যাংকে স্বয়ংক্রিয় টাকা আসে না।"></p>
+        <ol class="mb-0"><li>Load posted invoice / ইনভয়েস লোড</li><li>Select line, quantity and Automatic, Manual Final or Auto + Manual correction / লাইন, পরিমাণ, নীতি বাছুন</li><li>Submit maker evidence / প্রস্তুতকারীর প্রমাণ জমা</li><li>Independent reviewer verifies physical dispatch, ledger mappings and open period / স্বতন্ত্র যাচাই</li><li>Inspect stock, GL and paid/unpaid split; resolve 409 by reloading / পোস্টিং মিলিয়ে দেখুন</li></ol>
+    </aside>
+    <p id="srStatus" class="alert alert-info" role="status" aria-live="polite">Load a posted invoice / পোস্টকৃত ইনভয়েস লোড করুন</p>
+    <div class="row g-2 align-items-end mb-3">
+        <div class="col-sm-8"><label for="srInvoice" class="form-label">Supplier invoice GUID / ইনভয়েস রেফারেন্স</label><input id="srInvoice" class="form-control" maxlength="36" autocomplete="off" /></div>
+        <div class="col-sm-4"><button id="srLoad" class="btn btn-primary w-100" type="button">Load / লোড</button></div>
+    </div>
+    <div id="srWorkspace" class="d-none">
+        <p id="srInvoiceSummary" class="fw-semibold"></p>
+        @if (maker) {
+        <form id="srForm" class="card card-body mb-3 row g-2">
+            <div class="col-12"><h2 class="h6">Physical supplier return / পণ্য ফেরত</h2></div>
+            <div class="col-md-6"><label for="srLine" class="form-label">Verified invoice line / যাচাইকৃত লাইন</label><select id="srLine" class="form-select" required></select></div>
+            <div class="col-md-3"><label for="srQuantity" class="form-label">Quantity / পরিমাণ</label><input id="srQuantity" class="form-control" type="number" min="0.000001" step="0.000001" required /></div>
+            <div class="col-md-3"><label for="srDate" class="form-label">Return date / ফেরতের তারিখ</label><input id="srDate" class="form-control" type="date" required /></div>
+            <div class="col-md-3"><label for="srPeriod" class="form-label">Open Finance period / হিসাবকাল</label><select id="srPeriod" class="form-select" required></select></div>
+            <div class="col-md-3"><label for="srMode" class="form-label">Credit policy / ক্রেডিট নীতি</label><select id="srMode" class="form-select"><option value="Automatic">Automatic</option><option value="ManualFinal">Manual final</option><option value="AutoPlusManual">Auto + manual correction</option></select></div>
+            <div class="col-md-3"><label for="srManual" class="form-label">Manual final BDT</label><input id="srManual" class="form-control" type="number" min="0" step="0.01" value="0" /></div>
+            <div class="col-md-3"><label for="srCorrection" class="form-label">Signed correction BDT (+/-)</label><input id="srCorrection" class="form-control" type="number" step="0.01" value="0" /></div>
+            <div class="col-md-6"><label for="srVariance" class="form-label">Price variance expense GL / মূল্যপার্থক্য</label><select id="srVariance" class="form-select"></select></div>
+            <div class="col-md-6"><label for="srRefund" class="form-label">Supplier refund receivable GL / ফেরত-পাওনা সম্পদ</label><select id="srRefund" class="form-select"></select></div>
+            <div class="col-md-6"><label for="srReference" class="form-label">Supplier return dispatch reference / ফেরত চালান নম্বর</label><input id="srReference" class="form-control" minlength="6" maxlength="100" required /></div>
+            <div class="col-md-6"><label for="srReason" class="form-label">Physical return and price reason / কারণ (10–800)</label><input id="srReason" class="form-control" minlength="10" maxlength="800" required /></div>
+            <div class="col-12"><button class="btn btn-primary" type="submit">Submit return for Finance review / জমা দিন</button></div>
+        </form>}
+        <div class="table-responsive"><table class="table table-striped table-sm"><thead><tr><th>Return</th><th>Qty</th><th>Credit BDT</th><th>Unpaid BDT</th><th>Refund due BDT</th><th>State</th><th>Stock/GL</th><th>Action</th></tr></thead><tbody id="srRows"></tbody></table></div>
+        <nav class="d-flex gap-2 align-items-center"><button id="srPrev" class="btn btn-outline-secondary btn-sm" type="button">Previous</button><span id="srPage"></span><button id="srNext" class="btn btn-outline-secondary btn-sm" type="button">Next</button></nav>
+    </div>
+</section>
+@section Scripts {
+    <script src="~/js/procurement/supplier-returns.js" asp-append-version="true" defer></script>
+}

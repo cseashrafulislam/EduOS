@@ -12,6 +12,9 @@ public sealed class ProcurementSupplierPayableAgingRowDto
     public DateOnly DueDate { get; set; }
     public decimal GrossPostedAmount { get; set; }
     public decimal PostedSettlementAmount { get; set; }
+    public decimal PostedSupplierCreditAmount { get; set; }
+    public decimal PendingSupplierCreditAmount { get; set; }
+    public decimal SupplierRefundReceivableAmount { get; set; }
     public decimal ReservedUnpostedAmount { get; set; }
     public decimal? SourceLinkedOutstandingAmount { get; set; }
     public string SettlementIntegrityStatus { get; set; } = "SourceLinked";

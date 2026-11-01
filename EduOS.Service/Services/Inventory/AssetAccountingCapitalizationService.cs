@@ -147,13 +147,29 @@ public sealed partial class AssetAccountingService
         var postedCost=c.StockMovementId.HasValue?await db.InventoryMovementLines.AsNoTracking()
             .Where(x=>x.TenantId==user.TenantId && x.InventoryMovementId==c.StockMovementId.Value)
             .Select(x=>(decimal?)x.UnitCost).FirstOrDefaultAsync(ct):null;
+        var reversal=c.JournalId.HasValue?await db.Journals.AsNoTracking()
+            .Where(x=>x.TenantId==user.TenantId && !x.IsDeleted &&
+                x.SourceType=="AssetCapitalizationReversal" && x.SourceId==c.Id &&
+                x.ReversalOfJournalId==c.JournalId && x.State!=JournalState.Rejected)
+            .OrderByDescending(x=>x.Id).Select(x=>new{x.PublicId,x.State,x.RowVersion})
+            .FirstOrDefaultAsync(ct):null;
+        var stockReversal=c.StockMovementId.HasValue?await db.InventoryMovements.AsNoTracking()
+            .Where(x=>x.TenantId==user.TenantId && !x.IsDeleted && x.StateCode=="Posted" &&
+                x.ReversalOfMovementId==c.StockMovementId.Value)
+            .Select(x=>(Guid?)x.PublicId).FirstOrDefaultAsync(ct):null;
         return new AssetCapitalizationRecordDto
         {
-            Reference=c.PublicId,AssetReference=assetRef,CampusId=c.CampusId,State=c.StateCode,
+            Reference=c.PublicId,AssetReference=assetRef,CampusId=c.CampusId,
+            State=reversal?.State==JournalState.Posted?"Reversed":c.StateCode,
             ProposedCostBasis=c.ProposedCostBasis,PostedStockCost=postedCost,
             PolicyMode=c.PolicyMode,ReceiptLineId=c.GoodsReceiptLineId,
             ReceiptUnitOrdinal=c.ReceiptUnitOrdinal,AssetBookId=c.AssetBookId,
             StockMovementReference=stockRef,FinanceJournalReference=journalRef,
+            StockReversalReference=stockReversal,
+            FinanceReversalReference=reversal?.State==JournalState.Posted?reversal.PublicId:null,
+            PendingReversalReference=reversal?.State==JournalState.Submitted?reversal.PublicId:null,
+            PendingReversalRowVersion=reversal?.State==JournalState.Submitted?
+                Convert.ToBase64String(reversal.RowVersion):null,
             MakerId=c.CreatedBy,ReviewerId=c.ReviewedByUserId,
             RowVersion=Convert.ToBase64String(c.RowVersion)
         };

@@ -59,6 +59,10 @@ public sealed class SupplierSettlementInstructionDto
     public long? PostedByUserId { get; set; }
     public DateTime? PostedAtUtc { get; set; }
     public string? BankTransactionReference { get; set; }
+    /// <summary>Independent canonical Bank Reconciliation clearance; posting a settlement alone is never clearance.</summary>
+    public bool BankStatementCleared { get; set; }
+    public long? ClearedStatementBatchId { get; set; }
+    public string? ClearedStatementIdentifier { get; set; }
     public Guid? ReversalReference { get; set; }
     public string? ReversalState { get; set; }
     public string? ReversalRowVersion { get; set; }
@@ -73,6 +77,9 @@ public sealed class SupplierSettlementBankOptionDto
 public sealed class SupplierSettlementOptionsDto
 {
     public decimal InvoiceAmount { get; set; }
+    public decimal PostedSupplierCreditAmount { get; set; }
+    public decimal PendingSupplierCreditAmount { get; set; }
+    public decimal NetCreditAdjustedAmount { get; set; }
     public decimal ReservedAmount { get; set; }
     public decimal AvailableAmount { get; set; }
     public List<SupplierSettlementBankOptionDto> Banks { get; set; } = [];

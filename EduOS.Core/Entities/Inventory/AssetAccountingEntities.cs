@@ -62,6 +62,32 @@ public class AssetBook : BaseTenantEntity
     public bool IsActive { get; set; }
 }
 
+/// <summary>Audited prospective monthly straight-line policy amendment. Posted
+/// historical depreciation journals retain their original amounts.</summary>
+public sealed class AssetDepreciationPolicyAmendment : BaseTenantEntity
+{
+    public Guid PublicId { get; set; } = Guid.NewGuid();
+    public Guid ClientRequestId { get; set; }
+    public long AssetBookId { get; set; }
+    public long CampusId { get; set; }
+    public long AccountingPeriodId { get; set; }
+    public DateOnly EffectiveFrom { get; set; }
+    [Required, MaxLength(30)] public string Mode { get; set; } = "Automatic";
+    [Required, MaxLength(25)] public string StateCode { get; set; } = "Submitted";
+    public int PreviousPolicyVersion { get; set; }
+    public int NewPolicyVersion { get; set; }
+    public int SuggestedRemainingMonths { get; set; }
+    public int RemainingLifeCorrectionMonths { get; set; }
+    public int ApprovedRemainingMonths { get; set; }
+    [Column(TypeName = "decimal(18,2)")] public decimal OpeningCarryingValue { get; set; }
+    [Column(TypeName = "decimal(18,2)")] public decimal PreviousSalvageValue { get; set; }
+    [Column(TypeName = "decimal(18,2)")] public decimal NewSalvageValue { get; set; }
+    [Required, MaxLength(800)] public string Reason { get; set; } = "";
+    public long? ApprovedByUserId { get; set; }
+    public DateTime? ApprovedAtUtc { get; set; }
+    [MaxLength(800)] public string? ReviewReason { get; set; }
+}
+
 public class AssetDepreciationRun : BaseTenantEntity
 {
     public Guid ClientRequestId { get; set; }

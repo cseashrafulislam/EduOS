@@ -64,10 +64,43 @@ public sealed partial class ProcurementSupplierInvoiceService
             .ToDictionary(x => x.Key, x => x.ToArray());
         var reversalsByPayment = reversals.GroupBy(x => x.SourceId!.Value)
             .ToDictionary(x => x.Key, x => x.ToArray());
+        var credits = await db.ProcurementSupplierReturnCredits.AsNoTracking().Where(x =>
+            x.TenantId == user.TenantId && !x.IsDeleted &&
+            invoiceIds.Contains(x.SupplierInvoiceId) &&
+            (x.StateCode == "Posted" || x.StateCode == "Submitted"))
+            .Select(x => new { x.Id, x.SupplierInvoiceId, x.CampusId, x.StateCode,
+                x.CreditAmount, x.RefundReceivableAmount, x.JournalId, x.StockMovementId })
+            .ToListAsync(ct);
+        var creditsByInvoice = credits.GroupBy(x => x.SupplierInvoiceId)
+            .ToDictionary(x => x.Key, x => x.ToArray());
+        var postedCreditIds = credits.Where(x => x.StateCode == "Posted").Select(x => x.Id).ToArray();
+        var verifiedCreditIds = await (from credit in db.ProcurementSupplierReturnCredits.AsNoTracking()
+            join j in db.Journals.AsNoTracking() on credit.JournalId equals j.Id
+            join m in db.InventoryMovements.AsNoTracking() on credit.StockMovementId equals m.Id
+            where credit.TenantId == user.TenantId && postedCreditIds.Contains(credit.Id) &&
+                !credit.IsDeleted && j.TenantId == user.TenantId && !j.IsDeleted &&
+                j.SourceType == ReturnCreditSource && j.SourceId == credit.Id &&
+                j.State == JournalState.Posted && j.CampusId == credit.CampusId &&
+                m.TenantId == user.TenantId && !m.IsDeleted && m.StateCode == "Posted" &&
+                m.SourceType == "ProcurementSupplierReturn" && m.SourceId == credit.Id
+            select credit.Id).ToHashSetAsync(ct);
         var items=rows.Select(x=>{
             var days=Math.Max(0,reference.DayNumber-x.DueDate.DayNumber);
             decimal posted=0m, pending=0m;
+            decimal credited=0m, pendingCredit=0m, refundReceivable=0m;
             var conflicted=false;
+            if (creditsByInvoice.TryGetValue(x.Id,out var linkedCredits))
+                foreach (var credit in linkedCredits)
+                {
+                    if (credit.CampusId != x.CampusId || credit.CreditAmount <= 0m)
+                    { conflicted = true; continue; }
+                    if (credit.StateCode == "Submitted")
+                    { pendingCredit += credit.CreditAmount; continue; }
+                    if (!verifiedCreditIds.Contains(credit.Id))
+                    { conflicted = true; continue; }
+                    credited += credit.CreditAmount;
+                    refundReceivable += credit.RefundReceivableAmount;
+                }
             if(paymentsByInvoice.TryGetValue(x.Id,out var linked))
                 foreach(var payment in linked)
                 {
@@ -94,14 +127,20 @@ public sealed partial class ProcurementSupplierInvoiceService
                     }
                     posted+=p[0].DebitAmount;
                 }
-            if(posted<0m || pending<0m || posted+pending>x.TotalAmount)conflicted=true;
+            if(posted<0m || pending<0m || credited<0m ||
+                credited>x.TotalAmount || posted>x.TotalAmount ||
+                posted+pending+credited+pendingCredit>x.TotalAmount && pending>0m)
+                conflicted=true;
+            var netPayable=Math.Max(0m,x.TotalAmount-credited-posted);
             return new ProcurementSupplierPayableAgingRowDto {
                 InvoiceReference=x.PublicId,JournalReference=x.JournalReference,
                 SupplierInvoiceNumber=x.SupplierInvoiceNumber,OrderNumber=x.OrderNumber??"",
                 SupplierId=x.SupplierId,CampusId=x.CampusId,DueDate=x.DueDate,
                 GrossPostedAmount=x.TotalAmount,PostedSettlementAmount=posted,
+                PostedSupplierCreditAmount=credited,PendingSupplierCreditAmount=pendingCredit,
+                SupplierRefundReceivableAmount=refundReceivable,
                 ReservedUnpostedAmount=pending,
-                SourceLinkedOutstandingAmount=conflicted?null:x.TotalAmount-posted,
+                SourceLinkedOutstandingAmount=conflicted?null:netPayable,
                 SettlementIntegrityStatus=conflicted?"EvidenceConflict":"SourceLinked",
                 DaysOverdue=days,
                 AgingBucket=days==0?"NotDue":days<=30?"1-30":days<=60?"31-60":days<=90?"61-90":"90+",

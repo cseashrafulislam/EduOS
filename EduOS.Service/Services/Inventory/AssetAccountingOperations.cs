@@ -66,6 +66,16 @@ public sealed partial class AssetAccountingService
                 x.AssetBookId == book.Id && !x.IsDeleted &&
                 (x.StateCode == "Submitted" || x.StateCode == "Posted"), ct))
             return (null, "Another pending or posted asset disposal/valuation blocks this operation.");
+        if (await db.AssetCapitalizationCommands.AsNoTracking().AnyAsync(c =>
+            c.TenantId == user.TenantId && c.AssetBookId == book.Id && !c.IsDeleted &&
+            db.Journals.Any(j => j.TenantId == user.TenantId && !j.IsDeleted &&
+                j.SourceType == "AssetCapitalizationReversal" && j.SourceId == c.Id &&
+                j.State == JournalState.Submitted), ct))
+            return (null, "Pending capitalization unwind blocks new valuation.");
+        if (await db.AssetDepreciationPolicyAmendments.AsNoTracking().AnyAsync(p =>
+            p.TenantId == user.TenantId && p.AssetBookId == book.Id && !p.IsDeleted &&
+            p.StateCode == "Submitted" && p.EffectiveFrom <= day, ct))
+            return (null, "Pending depreciation policy decision blocks this valuation period.");
         return (value, null);
     }
 
@@ -153,9 +163,27 @@ public sealed partial class AssetAccountingService
         var value = await ValueAsync(book.Id, ct);
         if (value == null) return Conflict<AssetAccountingStatementDto>("Asset ledger reconciliation failed.");
         report.AssetBookId = book.Id; report.CostBasis = book.CostBasis;
-        report.SalvageValue = book.SalvageValue; report.PostedDepreciation = value.Depreciation;
+        report.SalvageValue = await EffectiveSalvageAsync(book, Today, ct);
+        report.PolicyVersion = book.PolicyVersion;
+        report.AssetBookRowVersion = Convert.ToBase64String(book.RowVersion);
+        report.RemainingUsefulLifeMonths = await SuggestedRemainingAsync(book, Today, ct);
+        var policy = await EffectivePolicyAsync(book.Id, Today, ct);
+        report.PolicyMode = policy?.Mode ?? "Original";
+        var policies = await db.AssetDepreciationPolicyAmendments.AsNoTracking().Where(p =>
+            p.TenantId == user.TenantId && p.AssetBookId == book.Id && !p.IsDeleted)
+            .OrderByDescending(p => p.Id).Take(101).ToListAsync(ct);
+        if (policies.Count > 100)
+            return Conflict<AssetAccountingStatementDto>("Policy history exceeds bounded report; contact Finance.");
+        foreach (var p in policies) report.PolicyHistory.Add(await PolicyDtoAsync(p, ct));
+        report.PostedDepreciation = value.Depreciation;
         report.PostedImpairment = value.Impairment; report.CarryingValue = value.Carrying;
-        report.Disposed = !book.IsActive;
+        report.CapitalizationReversed = await db.AssetCapitalizationCommands.AsNoTracking().AnyAsync(c =>
+            c.TenantId == user.TenantId && c.AssetBookId == book.Id && !c.IsDeleted &&
+            db.Journals.Any(j => j.TenantId == user.TenantId && !j.IsDeleted &&
+                j.SourceType == "AssetCapitalizationReversal" && j.SourceId == c.Id &&
+                j.State == JournalState.Posted), ct);
+        report.Disposed = !book.IsActive && !report.CapitalizationReversed;
+        if (report.CapitalizationReversed) report.CarryingValue = 0m;
         var runs = await (from l in db.AssetDepreciationLines.IgnoreQueryFilters().AsNoTracking()
             join r in db.AssetDepreciationRuns.IgnoreQueryFilters().AsNoTracking() on l.AssetDepreciationRunId equals r.Id
             where l.TenantId == user.TenantId && r.TenantId == user.TenantId &&
@@ -204,11 +232,6 @@ public sealed partial class AssetAccountingService
         return ApiResponse<AssetAccountingStatementDto>.SuccessResponse(report);
     }
 
-    private static decimal AutomaticDepreciation(BookValue value) =>
-        decimal.Min(value.Carrying - value.Book.SalvageValue,
-            decimal.Round((value.Book.CostBasis - value.Book.SalvageValue) /
-                value.Book.UsefulLifeMonths, 2, MidpointRounding.AwayFromZero));
-
     public async Task<ApiResponse<AssetAccountingEventDto>> RequestDepreciationAsync(
         Guid assetReference, AssetValuationRequest request, CancellationToken ct = default)
     {
@@ -240,17 +263,18 @@ public sealed partial class AssetAccountingService
             if (value == null) return Conflict<AssetAccountingEventDto>(error ?? "Book unavailable.");
             if (!await BookAccountsAsync(value.Book, ct) || value.Book.MethodCode != "StraightLine")
                 return Conflict<AssetAccountingEventDto>("Supported active straight-line GL accounts required.");
-            var monthNo = (request.EffectiveDate.Year - value.Book.InServiceDate.Year) * 12 +
-                request.EffectiveDate.Month - value.Book.InServiceDate.Month;
-            if (monthNo < 0 || monthNo >= value.Book.UsefulLifeMonths)
+            var (suggestedAmount, inSchedule) = await AutomaticDepreciationForDateAsync(
+                value, request.EffectiveDate, ct);
+            if (!inSchedule)
                 return Conflict<AssetAccountingEventDto>("Depreciation outside approved useful-life schedule.");
             if (await db.AssetDepreciationLines.AsNoTracking().AnyAsync(x =>
                 x.TenantId == user.TenantId && x.AssetBookId == value.Book.Id &&
                 x.PeriodEnd == request.EffectiveDate && !x.IsDeleted, ct))
                 return Conflict<AssetAccountingEventDto>("This book/month already has a depreciation event.");
             var amount = request.ValuationMode == "Automatic" ?
-                AutomaticDepreciation(value) : request.Amount;
-            if (amount <= 0m || amount > value.Carrying - value.Book.SalvageValue)
+                suggestedAmount : request.Amount;
+            var salvage = await EffectiveSalvageAsync(value.Book, request.EffectiveDate, ct);
+            if (amount <= 0m || amount > value.Carrying - salvage)
                 return Conflict<AssetAccountingEventDto>("Depreciation exceeds the undepreciated salvage floor.");
             var run = new AssetDepreciationRun
             {
@@ -314,7 +338,9 @@ public sealed partial class AssetAccountingService
                     !await BookAccountsAsync(b.Book, ct) || run.PeriodEnd < b.LatestDate ||
                     run.PeriodEnd > Today || !await OpenPeriodAsync(run.AccountingPeriodId, run.PeriodEnd, ct) ||
                     line.OpeningAccumulated != b.Depreciation ||
-                    line.Amount > b.Carrying - b.Book.SalvageValue ||
+                    line.Amount > b.Carrying - await EffectiveSalvageAsync(b.Book, run.PeriodEnd, ct) ||
+                    (run.ValuationMode == "Automatic" &&
+                        line.Amount != (await AutomaticDepreciationForDateAsync(b, run.PeriodEnd, ct)).Amount) ||
                     await db.AssetImpairments.AnyAsync(x => x.TenantId == user.TenantId &&
                         x.AssetBookId == b.Book.Id && x.StateCode == "Submitted" && !x.IsDeleted, ct) ||
                     await db.AssetDisposals.AnyAsync(x => x.TenantId == user.TenantId &&

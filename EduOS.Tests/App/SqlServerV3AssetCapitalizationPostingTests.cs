@@ -186,5 +186,54 @@ public sealed partial class SqlServerV3ProcurementPurchaseOrderTests
                 command, new ReviewAssetCapitalizationRequest { RowVersion = version,
                     Approve = true, Reason = "Duplicate GL posting must conflict" })).StatusCode);
         }
+        Guid unwindReference;
+        string unwindVersion;
+        await using (var db = Open(opts, tenantId, makerId))
+        {
+            var finance = AssetFinance(db, tenantId, makerId);
+            var posted = (await finance.GetCapitalizationAsync(assetReference)).Data!;
+            var correction = await finance.RequestCapitalizationReversalAsync(command,
+                new AssetReversalRequest
+                {
+                    ClientRequestId = Guid.NewGuid(), OriginalRowVersion = posted.RowVersion,
+                    AccountingPeriodId = periodId, ReversalDate = today,
+                    Reason = "Serialized asset not commissioned, unwind both stock and original GL"
+                });
+            Assert.True(correction.Success, correction.Message);
+            Assert.Equal("Posted", correction.Data!.State);
+            unwindReference = correction.Data.PendingReversalReference!.Value;
+            unwindVersion = correction.Data.PendingReversalRowVersion!;
+            Assert.Null(correction.Data.FinanceReversalReference);
+        }
+        await using (var db = Open(opts, tenantId, checkerId))
+        {
+            var finance = AssetFinance(db, tenantId, checkerId);
+            var sameMaker = await finance.ReviewCapitalizationReversalAsync(command,
+                unwindReference, new AssetReviewRequest { RowVersion = "invalid",
+                    Approve = true, Reason = "Stale review must not mutate stock or GL" });
+            Assert.Equal(409, sameMaker.StatusCode);
+            var unwound = await finance.ReviewCapitalizationReversalAsync(command,
+                unwindReference, new AssetReviewRequest { RowVersion = unwindVersion,
+                    Approve = true, Reason = "Independent physical unit return and GL contra approval" });
+            Assert.True(unwound.Success, unwound.Message);
+            Assert.Equal("Reversed", unwound.Data!.State);
+            Assert.NotNull(unwound.Data.FinanceReversalReference);
+            Assert.NotNull(unwound.Data.StockReversalReference);
+            Assert.False((await db.AssetBooks.SingleAsync()).IsActive);
+            Assert.Single(await db.InventoryMovements.Where(x =>
+                x.ReversalOfMovementId != null && x.StateCode == "Posted").ToListAsync());
+            var journals = await db.Journals.Where(x => x.State == JournalState.Posted &&
+                (x.SourceType == "AssetCapitalization" ||
+                    x.SourceType == "AssetCapitalizationReversal")).ToListAsync();
+            Assert.Equal(2, journals.Count);
+            var originalJournal = Assert.Single(journals.Where(x =>
+                x.SourceType == "AssetCapitalization"));
+            var correctionJournal = Assert.Single(journals.Where(x =>
+                x.SourceType == "AssetCapitalizationReversal"));
+            Assert.Equal(originalJournal.Id, correctionJournal.ReversalOfJournalId);
+            Assert.Equal(409, (await finance.ReviewCapitalizationReversalAsync(command,
+                unwindReference, new AssetReviewRequest { RowVersion = unwindVersion,
+                    Approve = true, Reason = "Duplicate unwind must not double issue" })).StatusCode);
+        }
     }
 }

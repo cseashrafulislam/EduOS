@@ -16,6 +16,9 @@ public sealed partial class InventoryMovementService
         if (original.SourceType == "AssetCapitalization")
             return ApiResponse<InventoryMovementDto>.ErrorResponse(
                 "Capitalized asset stock cannot be reversed independently of its posted Finance journal and AssetBook.", 409);
+        if (original.SourceType == "ProcurementSupplierReturn")
+            return ApiResponse<InventoryMovementDto>.ErrorResponse(
+                "Supplier return stock cannot be reversed without its approved credit-note Finance GL correction.", 409);
         // Never restore dispatched stock at origin while a live receipt exists.
         if (original.SourceType == "TransferDispatch" &&
             await db.InventoryMovements.AsNoTracking().AnyAsync(r => r.TenantId == user.TenantId &&

@@ -221,6 +221,11 @@
      invoiceNumber:x.supplierInvoiceNumber,rowVersion:x.rowVersion}}));
     $('supplierSettlement')?.scrollIntoView({block:'start',behavior:'smooth'});
    }));
+   if (x.stateCode==='Posted') {
+    const link=el('a','Return credit / পণ্য ফেরত');link.className='btn btn-sm btn-outline-primary';
+    link.href='/ProcurementSupplierReturns?invoice='+encodeURIComponent(x.reference);
+    actions.append(link);
+   }
    if (x.journalReference) actions.append(el('small','GL: '+x.journalReference));
    detailDialog.showModal();
   } catch (err) {status(err.message);}

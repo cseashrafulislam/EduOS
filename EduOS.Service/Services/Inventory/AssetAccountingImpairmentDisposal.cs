@@ -36,7 +36,7 @@ public sealed partial class AssetAccountingService
                 request.EffectiveDate, ct);
             if (value == null) return Conflict<AssetAccountingEventDto>(error ?? "Asset not eligible.");
             if (!await BookAccountsAsync(value.Book, ct) ||
-                request.Amount > value.Carrying - value.Book.SalvageValue)
+                request.Amount > value.Carrying - await EffectiveSalvageAsync(value.Book, request.EffectiveDate, ct))
                 return Conflict<AssetAccountingEventDto>("Impairment exceeds current salvage-protected carrying value.");
             var imp = new AssetImpairment
             {
@@ -79,7 +79,7 @@ public sealed partial class AssetAccountingService
             {
                 if (!b.Book.IsActive || imp.AccountingPeriodId is null or <= 0 ||
                     imp.EffectiveDate < b.LatestDate || imp.EffectiveDate > Today ||
-                    imp.Amount > b.Carrying - b.Book.SalvageValue ||
+                    imp.Amount > b.Carrying - await EffectiveSalvageAsync(b.Book, imp.EffectiveDate, ct) ||
                     !await BookAccountsAsync(b.Book, ct) ||
                     !await OpenPeriodAsync(imp.AccountingPeriodId.Value, imp.EffectiveDate, ct) ||
                     await CompetingAsync(b.Book.Id, "Impairment", imp.Id, ct))

@@ -43,6 +43,10 @@ public sealed partial class ProcurementSupplierInvoiceService
                 r.SourceType == SettlementReversalSource && r.SourceId == x.Id &&
                 r.ReversalOfJournalId == x.Id && r.State == JournalState.Posted))),ct))
             return (original, lines, "Linked supplier settlement exists; reverse payments first.");
+        if (await db.ProcurementSupplierReturnCredits.AsNoTracking().AnyAsync(x =>
+            x.TenantId == user.TenantId && x.SupplierInvoiceId == invoice.Id && !x.IsDeleted &&
+            (x.StateCode == "Submitted" || x.StateCode == "Posted"), ct))
+            return (original, lines, "Source-linked supplier credits exist; correct the returns before full invoice reversal.");
         return (original, lines, null);
     }
     public async Task<ApiResponse<ProcurementSupplierInvoiceDto>> RequestReversalAsync(Guid reference,

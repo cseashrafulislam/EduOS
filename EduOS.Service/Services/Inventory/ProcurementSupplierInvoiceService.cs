@@ -19,11 +19,11 @@ public sealed partial class ProcurementSupplierInvoiceService : IProcurementSupp
 {
     private readonly EduOSDbContext db;
     private readonly ICurrentUserService user;
-    private readonly IInventoryMovementService inventory;
+    private readonly InventoryMovementService inventory;
     private readonly TimeProvider clock;
     private readonly ILogger<ProcurementSupplierInvoiceService> logger;
     public ProcurementSupplierInvoiceService(EduOSDbContext db, ICurrentUserService user,
-        IInventoryMovementService inventory, TimeProvider clock, ILogger<ProcurementSupplierInvoiceService> logger)
+        InventoryMovementService inventory, TimeProvider clock, ILogger<ProcurementSupplierInvoiceService> logger)
     { this.db = db; this.user = user; this.inventory = inventory; this.clock = clock; this.logger = logger; }
     private bool CanRead => user.IsAuthenticated && user.TenantId > 0 && db.CurrentTenantId == user.TenantId &&
         (user.IsTenantAdmin || user.IsInRole("Principal") || user.IsInRole("Accountant"));
@@ -90,7 +90,7 @@ public sealed partial class ProcurementSupplierInvoiceService : IProcurementSupp
             RowVersion = Convert.ToBase64String(invoice.RowVersion),
             Lines = lines.Select(x => new ProcurementSupplierInvoiceLineDto
             {
-                LineNo = x.LineNo, InventoryItemId = x.InventoryItemId, PurchaseOrderLineId = x.PurchaseOrderLineId,
+                Id = x.Id, LineNo = x.LineNo, InventoryItemId = x.InventoryItemId, PurchaseOrderLineId = x.PurchaseOrderLineId,
                 GoodsReceiptLineId = x.GoodsReceiptLineId, LotOrBatchNo = x.LotOrBatchNo,
                 Quantity = x.Quantity, ReceivedQuantity = x.ReceivedQuantitySnapshot,
                 PoUnitPrice = x.PoUnitPriceSnapshot, StockUnitCost = x.StockUnitCostSnapshot,

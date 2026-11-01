@@ -130,6 +130,51 @@ public sealed partial class SqlServerV3ProcurementPurchaseOrderTests
                 new AssetReviewRequest { RowVersion = depVersion, Approve = true,
                     Reason = "Duplicate depreciation posting should conflict" })).StatusCode);
         }
+        // A future-effective schedule amendment must preserve historical 100 BDT
+        // depreciation and require a separate Finance approver.
+        var policyEffective = new DateOnly(today.Year, today.Month, 1);
+        Guid policyReference;
+        string policyVersion;
+        await using (var db = Open(opts, tenantId, makerId))
+        {
+            var finance = AssetFinance(db, tenantId, makerId);
+            var statement = (await finance.StatementAsync(assetReference)).Data!;
+            var proposed = await finance.RequestDepreciationPolicyAsync(assetReference,
+                new CreateAssetDepreciationPolicyRequest
+                {
+                    ClientRequestId = Guid.NewGuid(), AssetBookRowVersion = statement.AssetBookRowVersion,
+                    AccountingPeriodId = periodId, EffectiveFrom = policyEffective,
+                    Mode = "AutoPlusManual", NewPolicyVersion = 2,
+                    RemainingLifeCorrectionMonths = 1, NewSalvageValue = 50m,
+                    Reason = "Board approved prospective residual-value and useful-life revision"
+                });
+            Assert.True(proposed.Success, proposed.Message);
+            Assert.Equal("Submitted", proposed.Data!.State);
+            Assert.Equal(12, proposed.Data.ApprovedRemainingMonths);
+            policyReference = proposed.Data.Reference;
+            policyVersion = proposed.Data.RowVersion;
+            Assert.Equal(409, (await finance.ReviewDepreciationPolicyAsync(
+                policyReference, new AssetReviewRequest { RowVersion = policyVersion,
+                    Approve = true, Reason = "Maker cannot approve a new depreciation policy" })).StatusCode);
+        }
+        await using (var db = Open(opts, tenantId, checkerId))
+        {
+            var finance = AssetFinance(db, tenantId, checkerId);
+            var approved = await finance.ReviewDepreciationPolicyAsync(policyReference,
+                new AssetReviewRequest { RowVersion = policyVersion, Approve = true,
+                    Reason = "Independent verified prospective schedule board authorization" });
+            Assert.True(approved.Success, approved.Message);
+            Assert.Equal("Approved", approved.Data!.State);
+            var statement = (await finance.StatementAsync(assetReference)).Data!;
+            Assert.Equal(100m, statement.PostedDepreciation);
+            Assert.Equal(2, statement.PolicyVersion);
+            Assert.Equal("AutoPlusManual", statement.PolicyMode);
+            Assert.Equal(50m, statement.SalvageValue);
+            Assert.Single(statement.PolicyHistory);
+            Assert.Equal(409, (await finance.ReviewDepreciationPolicyAsync(policyReference,
+                new AssetReviewRequest { RowVersion = policyVersion, Approve = true,
+                    Reason = "Do not double approve a policy revision" })).StatusCode);
+        }
         long impairmentId; string impairmentVersion;
         await using (var db = Open(opts, tenantId, makerId))
         {

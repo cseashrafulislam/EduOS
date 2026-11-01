@@ -50,6 +50,10 @@ public sealed class AssetCapitalizationRecordDto
     public long? AssetBookId { get; set; }
     public Guid? StockMovementReference { get; set; }
     public Guid? FinanceJournalReference { get; set; }
+    public Guid? StockReversalReference { get; set; }
+    public Guid? FinanceReversalReference { get; set; }
+    public Guid? PendingReversalReference { get; set; }
+    public string? PendingReversalRowVersion { get; set; }
     public long? MakerId { get; set; }
     public long? ReviewerId { get; set; }
     public string RowVersion { get; set; } = "";
@@ -89,6 +93,38 @@ public sealed class AssetReversalRequest
     public string Reason { get; set; } = "";
 }
 
+public sealed class CreateAssetDepreciationPolicyRequest
+{
+    public Guid ClientRequestId { get; set; }
+    public string AssetBookRowVersion { get; set; } = "";
+    public long AccountingPeriodId { get; set; }
+    public DateOnly EffectiveFrom { get; set; }
+    public string Mode { get; set; } = "Automatic";
+    public int RemainingUsefulLifeMonths { get; set; }
+    public int RemainingLifeCorrectionMonths { get; set; }
+    public decimal NewSalvageValue { get; set; }
+    public int NewPolicyVersion { get; set; }
+    public string Reason { get; set; } = "";
+}
+
+public sealed class AssetDepreciationPolicyDto
+{
+    public Guid Reference { get; set; }
+    public Guid AssetReference { get; set; }
+    public string State { get; set; } = "";
+    public string Mode { get; set; } = "";
+    public DateOnly EffectiveFrom { get; set; }
+    public int PreviousPolicyVersion { get; set; }
+    public int NewPolicyVersion { get; set; }
+    public int SuggestedRemainingMonths { get; set; }
+    public int ApprovedRemainingMonths { get; set; }
+    public decimal OpeningCarryingValue { get; set; }
+    public decimal NewSalvageValue { get; set; }
+    public long? MakerId { get; set; }
+    public long? ReviewerId { get; set; }
+    public string RowVersion { get; set; } = "";
+}
+
 public sealed class AssetAccountingEventDto
 {
     public string Kind { get; set; } = "";
@@ -116,5 +152,11 @@ public sealed class AssetAccountingStatementDto
     public decimal PostedImpairment { get; set; }
     public decimal CarryingValue { get; set; }
     public bool Disposed { get; set; }
+    public bool CapitalizationReversed { get; set; }
+    public int PolicyVersion { get; set; }
+    public string PolicyMode { get; set; } = "Original";
+    public int RemainingUsefulLifeMonths { get; set; }
+    public string AssetBookRowVersion { get; set; } = "";
+    public List<AssetDepreciationPolicyDto> PolicyHistory { get; set; } = [];
     public List<AssetAccountingEventDto> Events { get; set; } = [];
 }

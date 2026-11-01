@@ -1,5 +1,64 @@
 # V3 Track 3 — fixed asset capitalization and accounting acceptance
 
+## 1 November 2026 — remaining-work implementation and test candidate
+
+These changes build on the earlier implementation below. **Deployment signoff remains
+conditional on exact-commit disposable SQL, authenticated browser UAT, and the Finance
+owner's independent review.** The following are implemented workflow paths, not a claim
+that a real bank transfer or physical return has been externally confirmed:
+
+- **Supplier return and Finance credit note:** `/ProcurementSupplierReturns` and
+  `/api/inventory/procurement/supplier-invoices/{invoice}/returns` let an authorized
+  maker select a posted supplier-invoice line, record documented return quantity and
+  Automatic/ManualFinal/AutoPlusManual credit, and submit an idempotent rowversioned
+  request. A distinct Principal/TenantAdmin checks receipt, source valuation, open
+  period, remaining quantity, pending payments and typed BDT mapping. Approval creates
+  exactly one canonical inventory issue plus balanced Finance GL debits to payable or
+  explicit supplier-refund receivable, credit to inventory and any variance. Returns
+  reduce source-linked AP aging and settlement capacity; the entire invoice cannot be
+  unwound while a posted credit exists. Rejected requests post neither stock nor GL.
+  A refund **receivable is not a cash receipt**; any external refund settlement requires
+  a separate evidenced Finance/bank entry. Posted supplier-credit reversals are not yet
+  supported; correction requires Finance escalation and a future audited contra path.
+- **Bank-statement reconciliation evidence:** Supplier payment instruction mapping now
+  reads the existing Finance bank-reconciliation match, batch and clearing approval
+  records. It distinguishes externally posted payment from matching/cleared bank
+  evidence; settlement never invents a bank clear or silently creates a transfer.
+- **Capitalization unwind:** A posted serialized unit can be independently requested
+  and reviewed for an exact contra of its original Finance journal and a compensating
+  canonical inventory reversal. Active custody, depreciation, impairment, disposal,
+  pending competing corrections, invalid period/version, and already-reversed movements
+  fail closed. The historical capitalization remains posted, original Journal/Book
+  evidence stays immutable and the book is marked inactive after atomic unwind.
+  Re-enrollment needs a new asset/source—not reuse of that historic unit key.
+- **Prospective depreciation policy:** Maker/checker amendment with first-of-month
+  effective date, typed mode, adjusted remaining useful life, salvage floor, explicit
+  versions and review reason. Approved schedules apply only prospectively; earlier
+  posted journal lines and the book's original cost/salvage snapshot stay intact.
+  Retroactive overlaps, pending valuation/disposal and competing amendments fail closed.
+- **Validation:** The new migration adds only `ProcurementSupplierReturnCredits` and
+  `AssetDepreciationPolicyAmendments` with composite tenant foreign keys, audit columns,
+  unique request keys and rowversions. Focused disposable SQL regressions cover partial
+  supplier return GL/stock/aging, posted asset unwind, and revised policy with preserved
+  past depreciation. Run fresh/repeat SQL migrations, automated tests and bilingual
+  maker/checker browser UAT before enabling for a real campus.
+
+### Remaining manual acceptance scenarios
+
+1. In a disposable institution, physically return a posted invoice line after partial
+   payment; independently validate supplier credit, stock issue, AP reduction and refund
+   receivable without treating it as a bank receipt. Reject over-return and duplicate
+   review; confirm source-trace and bank-cleared evidence on a matched statement line.
+2. Capitalize a serialized receipt unit, then unwind a clean unit; ensure the original
+   GL remains posted, exactly one mirrored GL and stock reversal exist, and the book
+   becomes inactive. Check active custody or posted depreciation blocks unwind.
+3. Post the previous month's depreciation, approve a future first-of-month policy,
+   confirm the historic GL stays fixed and future schedule changes. Reject same maker,
+   stale version, closed period, retroactive amendment and an overlapping future policy.
+4. Finance owner signs journals and bank/refund policy. Verify mobile Bangla/English
+   screens, tenant/campus isolation and export formula escaping using real user roles.
+
+
 ## 1 November 2026 — integrated Procurement + Asset Finance implementation candidate
 
 This section describes the **new code awaiting exact-commit disposable SQL and user acceptance**;
