@@ -90,7 +90,8 @@ test('event page changes clear stale actions/CSV and ignore late responses', asy
             if (name === 'href') this.href = null;
         } }
     };
-    const state = { eventRequestSerial: 0, eventPage: 1, eventTotal: 40, selected: null };
+    const state = { eventRequestSerial: 0, eventPage: 1, eventTotal: 40, selected: null,
+        attendanceRequests: new Map([['stale-attendance', 'old-key']]) };
     const pending = [];
     const loadEvents = new Function('state', 'el', 'api', 'eventAdmin', 'document',
         'eventLabel', 'URLSearchParams', 'eventStatus', 'localDate', 'eventButton',
@@ -108,6 +109,7 @@ test('event page changes clear stale actions/CSV and ignore late responses', asy
     const second = loadEvents();
     pending[1].resolve({ totalCount: 0, items: [] });
     await second;
+    assert.equal(state.attendanceRequests.size, 0);
     pending[0].resolve({ totalCount: 1, items: [{ title: 'old private event' }] });
     await first;
     assert.match(elements.alumniEventCards.children[0].textContent, /No events/);
