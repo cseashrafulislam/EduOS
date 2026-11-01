@@ -313,15 +313,20 @@ public sealed partial class ProcurementSupplierInvoiceService
                     x.Id == journal.AccountingPeriodId && !x.IsDeleted && !x.IsClosed &&
                     x.StartDate <= journal.JournalDate && x.EndDate >= journal.JournalDate, ct))
                     return Err<SupplierSettlementInstructionDto>("Settlement accounting period closed.", 409);
-                // A bank ledger must still identify one bank at independent approval;
-                // setup can change after the maker submitted the instruction.
-                if (await (from b in db.BankAccounts.AsNoTracking()
+                // Source lineage must agree with the independent payable trace: an
+                // inactive but non-deleted bank mapping still makes the ledger ambiguous.
+                // Approval additionally requires that the sole bank/GL remains active.
+                var bankMappings = await (from b in db.BankAccounts.AsNoTracking()
                     join a in db.Accounts.AsNoTracking() on b.AccountId equals a.Id
-                    where b.TenantId == user.TenantId && !b.IsDeleted && b.IsActive && b.AccountId == lines[1].AccountId &&
+                    where b.TenantId == user.TenantId && !b.IsDeleted && b.AccountId == lines[1].AccountId &&
                         b.CurrencyCode == "BDT" && (b.CampusId == null || b.CampusId == invoice.CampusId) &&
-                        a.TenantId == user.TenantId && !a.IsDeleted && a.IsActive && !a.IsGroup &&
-                        a.AllowsPosting && a.AccountType == AccountType.Asset && a.CurrencyCode == "BDT"
-                    select b.Id).Take(2).CountAsync(ct) != 1)
+                        a.TenantId == user.TenantId && !a.IsDeleted &&
+                        a.AccountType == AccountType.Asset && a.CurrencyCode == "BDT"
+                    select new { BankActive = b.IsActive, LedgerActive = a.IsActive,
+                        a.IsGroup, a.AllowsPosting }).Take(2).ToListAsync(ct);
+                if (bankMappings.Count != 1 || !bankMappings[0].BankActive ||
+                    !bankMappings[0].LedgerActive || bankMappings[0].IsGroup ||
+                    !bankMappings[0].AllowsPosting)
                     return Err<SupplierSettlementInstructionDto>(
                         "Bank ledger must resolve to exactly one eligible bank account at approval.", 409);
                 var reserved = await ReservedSettlementAsync(invoice.Id, payableId, ct);
