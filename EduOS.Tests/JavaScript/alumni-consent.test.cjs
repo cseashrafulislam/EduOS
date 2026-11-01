@@ -55,8 +55,8 @@ test('alumni CSV links retain server-selected bilingual headings and scoped repo
     assert.match(controller, /EngagementHeader\(bengali\)/);
     assert.match(controller, /Csv\(EventStatusLabel\(item\.Status, bengali\)\)/);
     assert.match(controller, /\[Authorize\(Roles = "TenantAdmin"\)\]/);
-    assert.match(manual, /CSV headings and event status labels follow the selected language/);
-    assert.match(manual, /CSV শিরোনাম ও অনুষ্ঠানের অবস্থা নির্বাচিত ভাষায় থাকে/);
+    assert.match(manual, /UI headings follow the selected language/);
+    assert.match(manual, /UI ভাষা অনুযায়ী দেখায়/);
 });
 
 

@@ -86,6 +86,24 @@ public sealed class AlumniApiController : ControllerBase
         return StatusCode(result.StatusCode, result);
     }
 
+    [HttpGet("events/{reference:guid}/invitations")]
+    [Authorize(Roles = "TenantAdmin")]
+    public async Task<IActionResult> InvitationSummary(Guid reference, [FromQuery] int channel, CancellationToken ct)
+    {
+        var result = await _service.InvitationSummaryAsync(reference, channel, ct);
+        return StatusCode(result.StatusCode, result);
+    }
+
+    [HttpPost("events/{reference:guid}/invitations")]
+    [Authorize(Roles = "TenantAdmin")]
+    [EnableRateLimiting("ApiPolicy")]
+    public async Task<IActionResult> SendInvitations(Guid reference, [FromBody] AlumniInvitationSendDto request, CancellationToken ct)
+    {
+        if (!ModelState.IsValid) return ValidationProblem(ModelState);
+        var result = await _service.SendInvitationsAsync(reference, request, ct);
+        return StatusCode(result.StatusCode, result);
+    }
+
     [HttpPost("events")]
     [Authorize(Roles = "TenantAdmin")]
     [EnableRateLimiting("ApiPolicy")]

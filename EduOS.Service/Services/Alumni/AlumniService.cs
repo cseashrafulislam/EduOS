@@ -27,12 +27,15 @@ public sealed partial class AlumniService : IAlumniService
     private readonly EduOSDbContext _db;
     private readonly ICurrentUserService _user;
     private readonly ILogger<AlumniService> _logger;
+    private readonly IAlumniInvitationTransport _invitationTransport;
 
-    public AlumniService(EduOSDbContext db, ICurrentUserService user, ILogger<AlumniService> logger)
+    public AlumniService(EduOSDbContext db, ICurrentUserService user, ILogger<AlumniService> logger,
+        IAlumniInvitationTransport invitationTransport)
     {
         _db = db;
         _user = user;
         _logger = logger;
+        _invitationTransport = invitationTransport;
     }
 
     public async Task<ApiResponse<IReadOnlyList<AlumniSelfDto>>> MineAsync(CancellationToken ct = default)

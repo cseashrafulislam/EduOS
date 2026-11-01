@@ -53,6 +53,6 @@ test('channel-specific provider fields have English and Bangla labels and page m
     assert.match(en.steps.join(' '), /SMTP to supply host/);
     assert.match(en.steps.join(' '), /sender ID/);
     assert.match(bn.steps.join(' '), /SMTP/);
-    assert.match(en.rules, /does not start a background sender/);
+    assert.match(en.rules, /does not auto-send/);
     assert.match(bn.rules, /Alumni/);
 });

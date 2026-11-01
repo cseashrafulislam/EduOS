@@ -1,6 +1,7 @@
 using EduOS.Core.DTOs.Alumni;
 using EduOS.Core.Entities.Academic;
 using EduOS.Core.Entities.Auth;
+using EduOS.Core.Entities.Communication;
 using EduOS.Core.Entities.Learners;
 using EduOS.Core.Entities.SaaS;
 using EduOS.Core.Entities.Students;
@@ -520,6 +521,52 @@ public sealed class SqlServerAlumniConsentIntegrationTests
         // Other graduates may remain opted into the directory. Invitation-only
         // consent must hide THIS graduate without hiding unrelated records.
         Assert.DoesNotContain(inviteHidden.Data!.Items, x => x.StudentCode == "AL-" + suffix);
+
+        // Provider-free deterministic SQL acceptance: only the explicit opted-in
+        // graduate is eligible, and a fake transport prevents all actual egress.
+        await db.Database.ExecuteSqlInterpolatedAsync($@"
+            UPDATE dbo.AlumniEvents SET StartsAtUtc = {DateTime.UtcNow.AddDays(2)},
+                EndsAtUtc = {DateTime.UtcNow.AddDays(2).AddHours(2)}
+            WHERE TenantId = {tenantId} AND PublicId = {draft.Data.Reference}");
+        var beforeGateway = await publisherService.InvitationSummaryAsync(draft.Data.Reference, 2);
+        Assert.True(beforeGateway.Success, beforeGateway.Message);
+        Assert.False(beforeGateway.Data!.GatewayReady);
+        Assert.Equal(1, beforeGateway.Data.EligibleCount);
+        var noGateway = await publisherService.SendInvitationsAsync(draft.Data.Reference,
+            new AlumniInvitationSendDto { ClientRequestId = Guid.NewGuid(), Channel = 2, Confirmed = true });
+        Assert.Equal(409, noGateway.StatusCode);
+        db.CommunicationGateways.Add(new CommunicationGateway
+        {
+            TenantId = tenantId, ProviderCode = "SMTP", Channel = NotificationChannelType.Email,
+            IsActive = true, IsDefault = true, ProtectedCredential = "fixture-no-real-credential",
+            SmtpHost = "smtp.example.test", SmtpPort = 587, SmtpUsername = "fixture",
+            FromEmail = "alumni@example.test", UseSsl = true
+        });
+        await db.SaveChangesAsync();
+        var wrongCampus = await admin.InvitationSummaryAsync(draft.Data.Reference, 2);
+        Assert.Equal(404, wrongCampus.StatusCode);
+        var wrongTenant = await Service(db, otherTenantId, publisherId, true)
+            .InvitationSummaryAsync(draft.Data.Reference, 2);
+        Assert.Equal(404, wrongTenant.StatusCode);
+        var invitationRequest = new AlumniInvitationSendDto
+        {
+            ClientRequestId = Guid.NewGuid(), Channel = 2, Confirmed = true
+        };
+        var invited = await publisherService.SendInvitationsAsync(draft.Data.Reference, invitationRequest);
+        Assert.True(invited.Success, invited.Message);
+        Assert.Equal(1, invited.Data!.ReservedCount);
+        Assert.Equal(1, invited.Data.AcceptedCount);
+        var idempotent = await publisherService.SendInvitationsAsync(draft.Data.Reference, invitationRequest);
+        Assert.True(idempotent.Success, idempotent.Message);
+        Assert.True(idempotent.Data!.AlreadyProcessed);
+        Assert.Equal(1, idempotent.Data.AcceptedCount);
+        var nextBatch = await publisherService.SendInvitationsAsync(draft.Data.Reference,
+            new AlumniInvitationSendDto { ClientRequestId = Guid.NewGuid(), Channel = 2, Confirmed = true });
+        Assert.True(nextBatch.Success, nextBatch.Message);
+        Assert.Equal(0, nextBatch.Data!.ReservedCount);
+        var smsNoGateway = await publisherService.SendInvitationsAsync(draft.Data.Reference,
+            new AlumniInvitationSendDto { ClientRequestId = Guid.NewGuid(), Channel = 3, Confirmed = true });
+        Assert.Equal(409, smsNoGateway.StatusCode);
         var inviteRevoked = await graduate.SaveConsentAsync(new AlumniConsentRequestDto
         {
             StudentReference = studentReference, ClientRequestId = Guid.NewGuid(),
@@ -528,6 +575,10 @@ public sealed class SqlServerAlumniConsentIntegrationTests
         Assert.True(inviteRevoked.Success, inviteRevoked.Message);
         Assert.False(inviteRevoked.Data!.InvitationEmailOptIn);
         Assert.Null(inviteRevoked.Data.ContactEmail);
+        var afterInviteRevoke = await publisherService.InvitationSummaryAsync(draft.Data.Reference, 2);
+        Assert.True(afterInviteRevoke.Success, afterInviteRevoke.Message);
+        Assert.Equal(0, afterInviteRevoke.Data!.EligibleCount);
+        Assert.Equal(1, afterInviteRevoke.Data.AcceptedCount); // immutable attempt evidence
 
         // Regression: the old Take(100) before GroupBy discarded a second eligible
         // graduate when the first student had 100+ completed-exit history rows.
@@ -597,7 +648,19 @@ public sealed class SqlServerAlumniConsentIntegrationTests
     }
 
     private static AlumniService Service(EduOSDbContext db, long tenantId, long userId, bool admin) =>
-        new(db, new Actor(tenantId, userId, admin), NullLogger<AlumniService>.Instance);
+        new(db, new Actor(tenantId, userId, admin), NullLogger<AlumniService>.Instance,
+            new FakeInvitationTransport());
+
+    private sealed class FakeInvitationTransport : IAlumniInvitationTransport
+    {
+        public Task<AlumniGatewaySendResult> SendAsync(CommunicationGateway gateway,
+            string destination, string subject, string text, CancellationToken ct)
+        {
+            Assert.Equal("private-invites@example.test", destination);
+            Assert.Equal(NotificationChannelType.Email, gateway.Channel);
+            return Task.FromResult(new AlumniGatewaySendResult(true, null));
+        }
+    }
 
     private sealed class Actor(long tenantId, long userId, bool admin) : ICurrentUserService
     {

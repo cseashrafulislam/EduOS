@@ -284,14 +284,15 @@ test('alumni manual follows verified consent, event approval, RSVP and attendanc
     assert.match(attendance, /CheckedInAtUtc/);
     const en = guideFor('/Alumni/Index', 'en-BD');
     const bn = guideFor('/Alumni/Index', 'bn-BD');
-    assert.equal(en.steps.length, 6);
-    assert.equal(bn.steps.length, 6);
-    assert.match(en.rules, /Both invitation channels start OFF/);
-    assert.match(en.rules, /separate|distinct affirmative consent/);
-    assert.match(en.rules, /explicit grants/);
-    assert.match(en.rules, /maker-checker/);
-    assert.match(bn.rules, /আলাদা সম্মতি/);
-    assert.match(en.recovery, /403\/409/);
+    assert.equal(en.steps.length, 7);
+    assert.equal(bn.steps.length, 7);
+    assert.match(en.rules, /each channel starts OFF/);
+    assert.match(en.rules, /distinct consent/);
+    assert.match(en.rules, /campus grant/);
+    assert.match(en.steps.join(' '), /another|different administrator/);
+    assert.match(bn.rules, /পৃথক সম্মতি/);
+    assert.match(en.steps.join(' '), /Send next 5/);
+    assert.match(en.recovery, /same request ID/);
     assert.deepEqual(en.related.map(x => x.path), ['/Students/Index']);
 });
 

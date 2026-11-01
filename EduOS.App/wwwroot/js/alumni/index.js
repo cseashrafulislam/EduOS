@@ -30,7 +30,8 @@
         eventDescription: ['Details (optional)', 'বিবরণ (ঐচ্ছিক)'],
         createDraft: ['Create draft for approval', 'অনুমোদনের জন্য খসড়া তৈরি'],
         makerChecker: ['A different administrator must publish the draft.', 'অন্য একজন প্রশাসক প্রকাশের অনুমোদন দেবেন।'],
-        attendanceNote: ['During a published event, authorized staff can check in consenting attendees. No contact details are shown.', 'প্রকাশিত অনুষ্ঠান চলাকালে অনুমোদিত প্রশাসক সম্মতিপ্রাপ্ত অংশগ্রহণকারীদের উপস্থিতি নিবন্ধন করবেন। যোগাযোগের তথ্য দেখানো হবে না।']
+        attendanceNote: ['During a published event, authorized staff can check in consenting attendees. No contact details are shown.', 'প্রকাশিত অনুষ্ঠান চলাকালে অনুমোদিত প্রশাসক সম্মতিপ্রাপ্ত অংশগ্রহণকারীদের উপস্থিতি নিবন্ধন করবেন। যোগাযোগের তথ্য দেখানো হবে না।'],
+        invitationNote: ['Published future events can invite graduates using each institution\'s configured gateway and independent Email/SMS consent. Provider acceptance does not guarantee delivery.', 'প্রকাশিত ভবিষ্যৎ অনুষ্ঠানে প্রতিষ্ঠানের নিজস্ব গেটওয়ে ও আলাদা ইমেইল/SMS সম্মতির ভিত্তিতে আমন্ত্রণ পাঠানো যাবে। গেটওয়ে গ্রহণ করলেই প্রাপকের কাছে পৌঁছানো নিশ্চিত নয়।']
     };
     for (const node of root.querySelectorAll('[data-i18n]')) {
         const values = strings[node.dataset.i18n];
@@ -39,7 +40,7 @@
     const token = root.querySelector('input[name="__RequestVerificationToken"]')?.value || '';
     const state = { graduates: [], selected: null, page: 1, total: 0, busy: false, requestId: null,
         eventPage: 1, eventTotal: 0, eventBusy: false, eventCreateRequest: null, rsvpRequests: new Map(), eventRequestSerial: 0,
-        directoryRequestSerial: 0, attendanceRequests: new Map() };
+        directoryRequestSerial: 0, attendanceRequests: new Map(), invitationRequests: new Map() };
     const notice = (message, error = false) => {
         const box = el('alumniNotice');
         box.className = 'alert ' + (error ? 'alert-danger' : 'alert-success');
@@ -307,7 +308,12 @@
                 actions.append(eventButton(eventLabel('Attendance', 'উপস্থিতি'), 'btn-outline-info',
                     () => loadAttendance(item, attendanceHost, 1).catch(e => notice(e.message, true))));
             }
-            card.append(title, date, description, status, actions, attendanceHost);
+            const invitationHost = document.createElement('div');
+            if (eventAdmin && item.status === 2) {
+                actions.append(eventButton(eventLabel('Invitations', 'আমন্ত্রণ'), 'btn-outline-primary',
+                    () => loadInvitations(item, invitationHost).catch(e => notice(e.message, true))));
+            }
+            card.append(title, date, description, status, actions, invitationHost, attendanceHost);
             col.append(card);
             target.append(col);
         }
@@ -316,6 +322,77 @@
         el('alumniEventPrev').disabled = state.eventPage <= 1;
         el('alumniEventNext').disabled = state.eventPage * 20 >= state.eventTotal;
         if (eventAdmin) el('alumniEventsExport').href = '/api/alumni/events/report.csv?' + query;
+    }
+
+    async function loadInvitations(item, host) {
+        if (!host.isConnected) return;
+        host.replaceChildren();
+        const heading = document.createElement('p');
+        heading.className = 'small fw-semibold mb-2';
+        heading.textContent = eventLabel('Invitation preview (no recipient contacts shown)',
+            'আমন্ত্রণের সারসংক্ষেপ (প্রাপকের যোগাযোগ দেখানো হবে না)');
+        host.append(heading);
+        for (const [channel, label] of [[2, 'Email'], [3, 'SMS']]) {
+            const line = document.createElement('div');
+            line.className = 'border rounded p-2 mb-2 small';
+            line.textContent = label + ': ' + eventLabel('Loading…', 'লোড হচ্ছে…');
+            host.append(line);
+            try {
+                const preview = await api('/api/alumni/events/' + encodeURIComponent(item.reference) +
+                    '/invitations?channel=' + channel);
+                if (!host.isConnected) return;
+                line.replaceChildren();
+                const details = document.createElement('p');
+                details.className = 'mb-2';
+                details.textContent = label + ' · ' +
+                    eventLabel('Eligible', 'সম্মতিপ্রাপ্ত') + ': ' + preview.eligibleCount + ' · ' +
+                    eventLabel('Remaining', 'বাকি') + ': ' + preview.remainingCount + ' · ' +
+                    eventLabel('Gateway accepted', 'গেটওয়ে গ্রহণ করেছে') + ': ' + preview.acceptedCount + ' · ' +
+                    eventLabel('Needs review', 'যাচাই প্রয়োজন') + ': ' + preview.reviewCount + ' · ' +
+                    eventLabel('Suppressed', 'বাতিল/সম্মতি প্রত্যাহার') + ': ' + preview.suppressedCount;
+                line.append(details);
+                if (!preview.gatewayReady) {
+                    const missing = document.createElement('p');
+                    missing.className = 'text-danger mb-0';
+                    missing.textContent = eventLabel('No active default gateway. Configure it in Communication Administration.',
+                        'সক্রিয় ডিফল্ট গেটওয়ে নেই। যোগাযোগ ব্যবস্থাপনায় সেটিংস সম্পন্ন করুন।');
+                    line.append(missing);
+                } else if (new Date(item.startsAtUtc) > new Date() && preview.remainingCount > 0) {
+                    line.append(eventButton(eventLabel('Send next 5 ' + label, 'পরবর্তী ৫টি ' + label + ' পাঠান'),
+                        'btn-primary', () => sendInvitations(item, host, channel)));
+                }
+            } catch (error) {
+                if (!host.isConnected) return;
+                line.textContent = label + ': ' + error.message;
+            }
+        }
+    }
+
+    async function sendInvitations(item, host, channel) {
+        if (state.eventBusy || !host.isConnected) return;
+        const label = channel === 2 ? 'Email' : 'SMS';
+        if (!window.confirm(eventLabel(
+            'Send up to 5 ' + label + ' invitations now using this institution\'s configured gateway? Each recipient is attempted at most once, including uncertain outcomes.',
+            'প্রতিষ্ঠানের গেটওয়ে দিয়ে এখন সর্বোচ্চ ৫টি ' + label + ' আমন্ত্রণ পাঠাবেন? ফলাফল অনিশ্চিত হলেও একই প্রাপককে স্বয়ংক্রিয়ভাবে আবার পাঠানো হবে না।'))) return;
+        const key = item.reference + ':' + channel;
+        if (!state.invitationRequests.has(key)) state.invitationRequests.set(key, crypto.randomUUID());
+        state.eventBusy = true;
+        try {
+            const result = await api('/api/alumni/events/' + encodeURIComponent(item.reference) +
+                '/invitations', { method: 'POST', body: JSON.stringify({
+                    clientRequestId: state.invitationRequests.get(key), channel, confirmed: true
+                }) });
+            state.invitationRequests.delete(key);
+            notice(eventLabel('Reserved: ', 'সংরক্ষিত: ') + result.reservedCount + ' · ' +
+                eventLabel('Gateway accepted: ', 'গেটওয়ে গ্রহণ করেছে: ') + result.acceptedCount + ' · ' +
+                eventLabel('Needs review: ', 'যাচাই প্রয়োজন: ') + result.reviewCount + ' · ' +
+                eventLabel('Suppressed: ', 'বাতিল/সম্মতি প্রত্যাহার: ') + result.suppressedCount);
+            if (host.isConnected) await loadInvitations(item, host);
+        } catch (error) {
+            // Keep this request ID after an ambiguous failure. A retry can only
+            // inspect the original batch; it can never create another send batch.
+            notice(error.message, true);
+        } finally { state.eventBusy = false; }
     }
 
     // Roster responses are scoped to the current host/page generation. Detached

@@ -125,3 +125,33 @@ public sealed class AlumniEventCampusDto
     public long Id { get; set; }
     public string Name { get; set; } = "";
 }
+
+// Invitations use separate, revocable channel consent. No destination/credential is
+// returned in the preview or delivery report.
+public sealed class AlumniInvitationSummaryDto
+{
+    public int Channel { get; set; }
+    public bool GatewayReady { get; set; }
+    public int EligibleCount { get; set; }
+    public int RemainingCount { get; set; }
+    public int AcceptedCount { get; set; }
+    public int ReviewCount { get; set; }
+    public int SuppressedCount { get; set; }
+}
+
+public sealed class AlumniInvitationSendDto
+{
+    [Required] public Guid ClientRequestId { get; set; }
+    [Range(2, 3)] public int Channel { get; set; }
+    public bool Confirmed { get; set; }
+}
+
+public sealed class AlumniInvitationBatchDto
+{
+    public Guid ClientRequestId { get; set; }
+    public int ReservedCount { get; set; }
+    public int AcceptedCount { get; set; }
+    public int ReviewCount { get; set; }
+    public int SuppressedCount { get; set; }
+    public bool AlreadyProcessed { get; set; }
+}
