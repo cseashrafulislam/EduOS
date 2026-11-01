@@ -22,12 +22,22 @@ const response = (status, body, type = 'application/json') => ({ status,
 const csvOf = (kind, items) => 'Kind,Reference,State,Lines,EvidenceStatus\n' +
     items.map(x => [kind, x.reference, x.state, x.lineCount, x.evidenceStatus].join(',')).join('\n');
 function fakeRead(aRows, bRows, options = {}) {
+    const jsonReads = new Map();
     return async (cookie, path) => {
         const url = new URL('http://localhost' + path);
         const page = Number(url.searchParams.get('page'));
         const kind = url.searchParams.get('kind');
         const source = cookie === 'a' ? aRows : bRows;
         const items = source.slice((page - 1) * 50, page * 50);
+        const key = cookie + ':' + page;
+        if (!path.includes('/csv?'))
+            jsonReads.set(key, (jsonReads.get(key) || 0) + 1);
+        // A legitimate-looking JSON+CSV pair may drift only on replay.
+        // Keep the page count and references unchanged to expose the blind spot.
+        if (options.lateMutation?.cookie === cookie &&
+            options.lateMutation.page === page &&
+            (jsonReads.get(key) || 0) > 1 && items.length)
+            items[0] = { ...items[0], state: 'Draft' };
         if (options.duplicate && page === 2 && items.length) items[0] = source[0];
         if (options.foreignLeak && cookie === 'b' && page === 2 && items.length)
             items[0] = { ...items[0], reference: stock };
@@ -56,6 +66,16 @@ test('detects duplicate page boundary, count drift and CSV mismatch', async () =
         await assert.rejects(audit(args(fakeRead(rows(65, 55),
             rows(61, -1, 2), { [key]: true }))), error);
 });
+test('rejects in-place and later-page drift even when JSON/CSV and counts agree', async () => {
+    for (const [cookie, page] of [['a', 1], ['a', 2], ['b', 2]]) {
+        const read = fakeRead(rows(65, 55), rows(61, -1, 2), {
+            lateMutation: { cookie, page }
+        });
+        await assert.rejects(audit(args(read)),
+            /Register page replay changed during audit/);
+    }
+});
+
 test('fails closed on unbounded scans rather than accepting partial tenant evidence', async () => {
     await assert.rejects(audit({ ...args(fakeRead(rows(101, 55), [])),
         maxPages: 2 }), /exceeds bounded audit pages/);

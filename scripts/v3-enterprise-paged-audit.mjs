@@ -82,6 +82,10 @@ export async function auditRegisterPages({ read, parseCsv, api, kind, reference,
         }
         return data;
     };
+    // Recheck every bounded page: a stable first page alone cannot prove that
+    // later pages or in-place Finance/stock evidence stayed unchanged.
+    const evidenceSignature = row => JSON.stringify(
+        Object.keys(row).sort().map(key => [key, row[key]]));
     const scan = async (cookie, foreign) => {
         const first = await snapshot(cookie, 1);
         const total = first.totalCount;
@@ -91,10 +95,10 @@ export async function auditRegisterPages({ read, parseCsv, api, kind, reference,
         const seen = new Set();
         let found = false;
         let lastDate = null;
-        let firstPageRefs = [];
+        const pageSnapshots = [];
         for (let page = 1; page <= pages; page++) {
             const data = page === 1 ? first : await snapshot(cookie, page, total);
-            if (page === 1) firstPageRefs = data.items.map(x => normalizeReference(x.reference));
+            pageSnapshots.push(data.items.map(evidenceSignature));
             for (const row of data.items) {
                 const ref = normalizeReference(row.reference);
                 requireEvidence(/^[0-9a-f]{8}-[0-9a-f-]{27,}$/.test(ref),
@@ -119,10 +123,12 @@ export async function auditRegisterPages({ read, parseCsv, api, kind, reference,
             }
         }
         requireEvidence(seen.size === total, 'Register pages do not reconcile to total count.');
-        const replay = await snapshot(cookie, 1, total);
-        requireEvidence(JSON.stringify(firstPageRefs) === JSON.stringify(
-            replay.items.map(x => normalizeReference(x.reference))),
-            'Register first-page replay changed during audit.');
+        for (let page = 1; page <= pages; page++) {
+            const replay = await snapshot(cookie, page, total);
+            requireEvidence(JSON.stringify(pageSnapshots[page - 1]) ===
+                JSON.stringify(replay.items.map(evidenceSignature)),
+                'Register page replay changed during audit.');
+        }
         return { count: total, pages, found };
     };
     const own = await scan(tenantA, false);
