@@ -17,7 +17,7 @@ function html(bn){
     const message=bn?'প্রতিষ্ঠান বেছে আবার লগ ইন করুন।':'Select your institution, then sign in.';
     const invalid=bn?'ইমেইল অথবা পাসওয়ার্ড সঠিক নয়।':'The email or password is not correct.';
     return '<!doctype html><html lang="'+(bn?'bn-BD':'en-BD')+'"><head><meta charset="utf-8"></head><body>'+
-        '<form id="loginForm" data-select-institution-message="'+message+'" data-institution-label="Institution" data-invalid-message="'+invalid+'">'+
+        '<form id="loginForm" data-select-institution-message="'+message+'" data-select-institution-required="Select institution" data-institution-label="Institution" data-invalid-message="'+invalid+'">'+
         '<input id="userNameOrEmail"><input id="password" type="password"><input id="rememberMe" type="checkbox">'+
         '<div id="institutionChoicePanel" hidden><select id="institutionChoice"></select></div>'+
         '<button id="loginBtn" type="submit" data-idle-label="Sign in">Sign in</button></form>'+
@@ -30,12 +30,13 @@ async function setup(browser,bn,responses){
     const page=await context.newPage(),requests=[],errors=[];
     page.on('pageerror',e=>errors.push(e.message));
     await page.addInitScript({path:loginJs});
-    await page.route('http://eduos.test/**',route=>{
+    await page.route('http://eduos.test/**',async route=>{
         const req=route.request(),p=new URL(req.url()).pathname;
         if(p==='/api/auth/login'){
             requests.push(JSON.parse(req.postData()));
             const next=responses.shift();
             assert(next,'Unexpected login');
+            if (next.delayMs) await new Promise(resolve=>setTimeout(resolve,next.delayMs));
             return route.fulfill({status:next.status,contentType:'application/json',body:JSON.stringify(next.body)});
         }
         return route.fulfill({status:200,contentType:'text/html',body:p==='/Account/Login'?html(bn):'<h1>Redirected</h1>'});
@@ -60,6 +61,10 @@ async function bilingual(browser,bn){
         await s.page.locator('#institutionChoicePanel:visible').waitFor();
         assert.equal(await s.page.locator('#institutionChoice option').count(),2);
         assert.equal(await s.page.locator('#alertContainer').innerText(),bn?'প্রতিষ্ঠান বেছে আবার লগ ইন করুন।':'Select your institution, then sign in.');
+        assert.equal(await s.page.locator('#institutionChoice').inputValue(),'');
+        assert.equal(await s.page.locator('#institutionChoice option:disabled').count(),1);
+        await s.page.locator('#loginBtn').click();
+        assert.equal(s.requests.length,1,'Institution must be explicitly selected');
         await s.page.locator('#institutionChoice').selectOption('33');
         await s.page.locator('#loginBtn').click();
         await s.page.waitForURL('**/Dashboard');
@@ -82,6 +87,43 @@ async function invalid(browser){
         assert.deepEqual(s.errors,[]);
     }finally{await s.context.close();}
 }
+async function changedCredentials(browser){
+    const s=await setup(browser,false,[choice([{id:22,name:'School A'},{id:33,name:'School B'}]),
+        choice([{id:44,name:'School C'}])]);
+    try{
+        await s.page.locator('#userNameOrEmail').fill('first@example.test');
+        await s.page.locator('#password').fill('synthetic-password');
+        await s.page.locator('#loginBtn').click();
+        await s.page.locator('#institutionChoicePanel:visible').waitFor();
+        await s.page.locator('#institutionChoice').selectOption('33');
+        await s.page.locator('#userNameOrEmail').fill('second@example.test');
+        assert.equal(await s.page.locator('#institutionChoicePanel').isVisible(),false);
+        await s.page.locator('#loginBtn').click();
+        await s.page.locator('#institutionChoicePanel:visible').waitFor();
+        assert.equal(await s.page.locator('#institutionChoice option').count(),2);
+        assert.equal(await s.page.locator('#institutionChoice').inputValue(),'');
+        assert.deepEqual(s.requests.map(x=>x.tenantId),[null,null]);
+        assert.deepEqual(s.errors,[]);
+    }finally{await s.context.close();}
+}
+async function staleAndDuplicate(browser){
+    const delayed={...choice([{id:22,name:'Stale school'}]),delayMs:450};
+    const s=await setup(browser,false,[delayed,choice([{id:44,name:'Fresh school'}])]);
+    try{
+        await s.page.locator('#userNameOrEmail').fill('first@example.test');
+        await s.page.locator('#password').fill('synthetic-password');
+        await s.page.locator('#loginBtn').click();
+        await s.page.evaluate(()=>document.getElementById('loginForm')
+            .dispatchEvent(new Event('submit',{bubbles:true,cancelable:true})));
+        assert.equal(s.requests.length,1,'Duplicate pending submission must not send another login');
+        await s.page.locator('#userNameOrEmail').fill('second@example.test');
+        await s.page.locator('#loginBtn').click();
+        await s.page.locator('#institutionChoicePanel:visible').waitFor();
+        assert.equal(await s.page.locator('#institutionChoice option').last().getAttribute('value'),'44');
+        assert.deepEqual(s.requests.map(x=>x.tenantId),[null,null]);
+        assert.deepEqual(s.errors,[]);
+    }finally{await s.context.close();}
+}
 async function mfa(browser){
     const s=await setup(browser,false,[{status:202,body:{success:true,data:{requiresTwoFactor:true,challengeToken:'synthetic-only'}}}]);
     try{
@@ -95,7 +137,8 @@ async function mfa(browser){
 }
 (async()=>{
     const browser=await chromium.launch({headless:true,args:['--no-sandbox']});
-    try{await bilingual(browser,false);await bilingual(browser,true);await invalid(browser);await mfa(browser);
-        console.log('Login Chromium PASS: bilingual tenant selection, full guide, invalid-tenant denial and MFA redirect (synthetic API).');
+    try{await bilingual(browser,false);await bilingual(browser,true);await invalid(browser);
+        await changedCredentials(browser);await staleAndDuplicate(browser);await mfa(browser);
+        console.log('Login Chromium PASS: explicit bilingual tenant choice, stale-identity cancellation, duplicate-submit protection, invalid tenant and MFA (synthetic API).');
     }finally{await browser.close();}
 })().catch(e=>{console.error(e);process.exitCode=1;});

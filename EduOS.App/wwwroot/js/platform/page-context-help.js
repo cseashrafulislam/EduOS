@@ -1200,7 +1200,7 @@
     };
     const manuals = {
         '/account/login/index': {
-            version: 1, reviewed: true,
+            version: 2, reviewed: true,
             title: ['Sign in and institution selection', 'সাইন ইন ও প্রতিষ্ঠান নির্বাচন'],
             purpose: ['Sign in securely to your authorized institution without mixing institution sessions.', 'প্রতিষ্ঠানের সেশন একসঙ্গে না মিশিয়ে নিজের অনুমোদিত প্রতিষ্ঠানে নিরাপদে লগ ইন করুন।'],
             before: ['An active EduOS account, its correct username/email and password; a permitted institution membership. MFA may be required.', 'সক্রিয় EduOS অ্যাকাউন্ট, সঠিক ইউজারনেম/ইমেইল ও পাসওয়ার্ড এবং প্রতিষ্ঠানের অনুমোদিত সদস্যপদ প্রয়োজন। MFA লাগতে পারে।'],
@@ -1212,7 +1212,7 @@
             example: ['Fictional example: an administrator of Demo School and Demo College selects Demo College when offered both, then completes MFA if required.', 'কাল্পনিক উদাহরণ: Demo School ও Demo College-এর একজন প্রশাসক তালিকা থেকে Demo College বেছে প্রয়োজন হলে MFA সম্পন্ন করেন।'],
             result: ['A successful sign-in opens the authorized workspace for the selected institution; permissions remain server enforced.', 'সফল লগ ইন হলে নির্বাচিত প্রতিষ্ঠানের অনুমোদিত ওয়ার্কস্পেস খোলে; সার্ভার অনুমতি যাচাই করে।'],
             rules: ['Do not share credentials or select another person’s institution. Signing in never approves invoices, payments, grades or other business actions. MFA and role checks cannot be bypassed.', 'পাসওয়ার্ড শেয়ার করবেন না বা অন্যের প্রতিষ্ঠান বাছবেন না। লগ ইন করলেই ইনভয়েস, পেমেন্ট, নম্বর বা অন্য কাজ অনুমোদিত হয় না। MFA ও ভূমিকার অনুমতি এড়ানো যায় না।'],
-            recovery: ['If sign-in fails, verify your credentials, active membership and institution choice; use Forgot password when needed. For lockout or MFA issues, contact an authorized administrator.', 'লগ ইন ব্যর্থ হলে তথ্য, সক্রিয় সদস্যপদ ও প্রতিষ্ঠান নির্বাচন যাচাই করুন; প্রয়োজনে পাসওয়ার্ড পুনরুদ্ধার করুন। লক বা MFA সমস্যায় অনুমোদিত প্রশাসকের সাহায্য নিন।'],
+            recovery: ['If sign-in fails, verify your credentials, active membership and institution choice; use Forgot password when needed. Explicitly choose an institution; changing credentials clears an earlier offer. For lockout or MFA issues, contact an authorized administrator.', 'লগ ইন ব্যর্থ হলে তথ্য, সক্রিয় সদস্যপদ ও প্রতিষ্ঠান নির্বাচন যাচাই করুন; প্রয়োজনে পাসওয়ার্ড পুনরুদ্ধার করুন। প্রতিষ্ঠান স্পষ্টভাবে বেছে নিন; লগইন তথ্য বদলালে আগের নির্বাচন মুছে যায়। লক বা MFA সমস্যায় অনুমোদিত প্রশাসকের সাহায্য নিন।'],
             related: []
         },
         '/facilityspaces/index': {
