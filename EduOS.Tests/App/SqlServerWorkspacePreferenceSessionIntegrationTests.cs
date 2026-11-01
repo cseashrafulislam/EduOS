@@ -29,7 +29,7 @@ namespace EduOS.Tests.App;
 public sealed class SqlServerWorkspacePreferenceSessionIntegrationTests
 {
     [Fact]
-    public async Task Revoked_session_during_preference_save_rolls_back_setting_and_session_change()
+    public async Task Revoked_session_during_preference_save_or_restore_rolls_back_setting_and_session_change()
     {
         var connection = Environment.GetEnvironmentVariable("EDUOS_SQL_AUTH_TEST_CONNECTION");
         if (string.IsNullOrWhiteSpace(connection)) return;
@@ -89,6 +89,38 @@ public sealed class SqlServerWorkspacePreferenceSessionIntegrationTests
             .AnyAsync(x => x.TenantId == tenant.Id &&
                 x.Key == WorkspacePreferencesService.KeyPrefix + user.Id));
         Assert.True(await AuthSessionRegistry.IsValidAsync(db, user.Id, sid, tenant.Id));
+
+        // Seed two real SQL revisions, then revoke the session after a restore
+        // writes but before the controller's post-write session check.
+        db.ChangeTracker.Clear();
+        var first = await actual.SaveAsync(new SaveWorkspacePreferencesRequestDto { Theme = "dark" });
+        Assert.True(first.Success, first.Message);
+        var second = await actual.SaveAsync(new SaveWorkspacePreferencesRequestDto
+        {
+            Theme = "light", RowVersion = first.Data!.RowVersion
+        });
+        Assert.True(second.Success, second.Message);
+        Assert.Equal(2, second.Data!.Revision);
+        Assert.Single(second.Data.History);
+        var beforeRestoreVersion = second.Data.RowVersion;
+        var restoreController = new WorkspacePreferencesController(
+            new RevokeAfterRestoreService(actual, () => AuthSessionRegistry.RevokeAsync(db, user.Id, sid)), db)
+        {
+            ControllerContext = new ControllerContext { HttpContext = http }
+        };
+        var restoreResponse = await restoreController.Restore(new RestoreWorkspacePreferencesRequestDto
+        {
+            Revision = 1, RowVersion = beforeRestoreVersion
+        }, default);
+        Assert.IsType<UnauthorizedObjectResult>(restoreResponse);
+        db.ChangeTracker.Clear();
+        var unchanged = await actual.GetAsync();
+        Assert.True(unchanged.Success, unchanged.Message);
+        Assert.Equal("light", unchanged.Data!.Theme);
+        Assert.Equal(2, unchanged.Data.Revision);
+        Assert.Single(unchanged.Data.History);
+        Assert.Equal(beforeRestoreVersion, unchanged.Data.RowVersion);
+        Assert.True(await AuthSessionRegistry.IsValidAsync(db, user.Id, sid, tenant.Id));
     }
 
     private sealed class RevokeAfterSaveService(
@@ -109,6 +141,31 @@ public sealed class SqlServerWorkspacePreferenceSessionIntegrationTests
         public Task<ApiResponse<WorkspacePreferencesDto>> ResetAsync(
             ResetWorkspacePreferencesRequestDto request, CancellationToken ct = default) =>
             inner.ResetAsync(request, ct);
+
+        public Task<ApiResponse<WorkspacePreferencesDto>> RestoreAsync(
+            RestoreWorkspacePreferencesRequestDto request, CancellationToken ct = default) =>
+            inner.RestoreAsync(request, ct);
+    }
+
+    private sealed class RevokeAfterRestoreService(
+        IWorkspacePreferencesService inner, Func<Task<bool>> revoke) : IWorkspacePreferencesService
+    {
+        public Task<ApiResponse<WorkspacePreferencesDto>> GetAsync(CancellationToken ct = default) =>
+            inner.GetAsync(ct);
+        public Task<ApiResponse<WorkspacePreferencesDto>> SaveAsync(
+            SaveWorkspacePreferencesRequestDto request, CancellationToken ct = default) =>
+            inner.SaveAsync(request, ct);
+        public Task<ApiResponse<WorkspacePreferencesDto>> ResetAsync(
+            ResetWorkspacePreferencesRequestDto request, CancellationToken ct = default) =>
+            inner.ResetAsync(request, ct);
+        public async Task<ApiResponse<WorkspacePreferencesDto>> RestoreAsync(
+            RestoreWorkspacePreferencesRequestDto request, CancellationToken ct = default)
+        {
+            var result = await inner.RestoreAsync(request, ct);
+            Assert.True(result.Success, result.Message);
+            Assert.True(await revoke());
+            return result;
+        }
     }
 
     private sealed class WorkspaceUser(long tenant, long user) : ICurrentUserService
