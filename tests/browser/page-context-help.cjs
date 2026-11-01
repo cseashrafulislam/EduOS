@@ -58,6 +58,8 @@ async function normal(browser) {
         assert.equal(await page.locator('#pageHelpClose').evaluate(e=>document.activeElement===e),true);
         await page.keyboard.press('Escape');
         await page.waitForFunction(() => !document.getElementById('pageHelpDrawer').open);
+        // Native dialog close/focus restoration may settle after the open flag clears.
+        await page.waitForFunction(() => document.activeElement?.id === 'pageContextHelp');
         assert.equal(await page.locator('#pageContextHelp').evaluate(e=>document.activeElement===e),true);
         assert.ok(await page.evaluate(()=>window.verifyCount)>=1);
         await page.evaluate(()=>{document.documentElement.lang='bn-BD';});
