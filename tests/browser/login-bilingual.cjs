@@ -59,7 +59,7 @@ async function bilingual(browser,bn){
         await s.page.locator('#password').fill('synthetic-password');
         await s.page.locator('#loginBtn').click();
         await s.page.locator('#institutionChoicePanel:visible').waitFor();
-        assert.equal(await s.page.locator('#institutionChoice option').count(),2);
+        assert.equal(await s.page.locator('#institutionChoice option').count(),3);
         assert.equal(await s.page.locator('#alertContainer').innerText(),bn?'প্রতিষ্ঠান বেছে আবার লগ ইন করুন।':'Select your institution, then sign in.');
         assert.equal(await s.page.locator('#institutionChoice').inputValue(),'');
         assert.equal(await s.page.locator('#institutionChoice option:disabled').count(),1);
