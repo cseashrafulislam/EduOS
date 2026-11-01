@@ -72,7 +72,13 @@ def scan():
                 if len(data) != size:
                     raise RuntimeError('Truncated blob')
                 checked += 1
-                matches += bool(b'\0' not in data[:8192] and any(p.search(data) for p in PATTERNS))
+                # Ignore only the exact historical synthetic self-test source line.
+                # Do not ignore the same key marker elsewhere or other content.
+                fixture = (b"assert any(p.search(b'-----BEGIN " +
+                           b"OPENSSH PRIVATE KEY-----') for p in PATTERNS)")
+                inspected = data.replace(fixture, b'<known synthetic self-test>')
+                matches += bool(b'\\0' not in inspected[:8192] and
+                                any(p.search(inspected) for p in PATTERNS))
             else:
                 large += kind == b'blob'
                 while size:
@@ -98,7 +104,7 @@ def main():
         assert unsafe_path('config/.env.production')
         assert not unsafe_path('.env.example')
         assert not unsafe_path('EduOS.Core/Common/PrivateCsvCell.cs')
-        assert any(p.search(b'-----BEGIN OPENSSH PRIVATE KEY-----') for p in PATTERNS)
+        assert any(p.search(b'-----BEGIN ' + b'OPENSSH PRIVATE KEY-----') for p in PATTERNS)
         print('Detector synthetic self-test: PASS')
         return 0
     try:
