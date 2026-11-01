@@ -8,7 +8,7 @@ const read = p => fs.readFileSync(path.join(root, p), 'utf8');
 const layout = read('EduOS.App/Views/Shared/_Layout.cshtml');
 const css = read('EduOS.App/wwwroot/css/site.css');
 const js = read('EduOS.App/wwwroot/js/platform/page-context-help.js');
-const { guideFor, coverage, normalizeRoute, validateGuide } =
+const { guideFor, coverage, normalizeRoute, validateGuide, helpContextStatus } =
     require('../../EduOS.App/wwwroot/js/platform/page-context-help.js');
 const routes = ['/FeeReceivablesAging/Index', '/PayrollJournalPosting/Index', '/PayrollSalaryStatement/Index', '/Alumni/Index', '/CareerEmployers/Index', '/CareerOpportunities/Index', '/CareerPlacements/Index', '/FeeOperations/Index', '/Students/Index', '/Attendance/Index', '/PayrollOperations/Index', '/FacilityWorkOrders/Index', '/FacilitySpaces/Index', '/Admissions/Index', '/StudentInvoicePosting/Index', '/workspace', '/Account/BrandingSetup', '/StudentLifecycle/Index',
     ...['Years','Terms','Departments','Classes','Sections','Rooms','Subjects','Curricula','Prerequisites','Offerings'].map(action => '/AcademicManagement/' + action),
@@ -152,7 +152,7 @@ test('shared drawer is one user-initiated accessible renderer, not hover-trigger
     assert.match(layout, /page-context-help\.js" asp-append-version="true"/);
     assert.match(js, /dialog\.showModal\(\)/);
     assert.match(js, /trigger\.addEventListener\('click'/);
-    assert.match(js, /dialog\.addEventListener\('close', \(\) => trigger\.focus\(\)\)/);
+    assert.match(js, /dialog\.addEventListener\('close', \(\) => \{ if \(status\(\) === 'ready'\) trigger\.focus\(\); \}\)/);
     assert.doesNotMatch(js, /mouseenter|setTimeout|innerHTML|eval\(|fetch\(|localStorage/);
     assert.match(js, /document\.querySelectorAll\('nav\[data-sidebar-section\] a\.nav-link, a\[data-feature-discovery-link\]'\)/);
     assert.match(js, /normalizeRoute\(href\) === target/);
@@ -479,4 +479,21 @@ test('student final-exit page bilingual labels and reviewed manual preserve API/
     assert.match(en.rules, /Dropout can record an outstanding due/);
     assert.match(bn.rules, /বকেয়া/);
     assert.deepEqual(en.related.map(x => x.path), ['/Students/Index', '/StudentTransferRequests/Index']);
+});
+
+test('shared Page Information fails closed on tenant/session transitions and awaits verifier', () => {
+    assert.equal(helpContextStatus('22','a','22','a',false,false), 'ready');
+    assert.equal(helpContextStatus('22','a','23','a',false,false), 'changed');
+    assert.equal(helpContextStatus('22','a','22','b',false,false), 'changed');
+    assert.equal(helpContextStatus('22','a','22','a',true,false), 'changed');
+    assert.equal(helpContextStatus('22','a','22','a',false,true), 'verifying');
+    assert.match(js, /await window\.EduOSVerifySessionContext\(\)/);
+    assert.match(js, /if \(session\) \{/);
+    assert.match(js, /if \(!currentContext\(\)\) return;/);
+    assert.match(js, /sessionObserver\.observe\(document\.body/);
+    assert.match(js, /sessionObserver\.observe\(shield/);
+    assert.match(js, /languageObserver\.observe\(document\.documentElement/);
+    assert.match(js, /if \(dialog\.open\) render\(\)/);
+    assert.match(js, /if \(state === 'changed'\)/);
+    assert.doesNotMatch(js, /innerHTML|eval\(|fetch\(|localStorage/);
 });

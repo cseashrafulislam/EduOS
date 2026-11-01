@@ -1906,7 +1906,7 @@
         return { routes: routes.length, en: routes.filter(route => !!guideFor(route, 'en-BD')).length,
             bn: routes.filter(route => !!guideFor(route, 'bn-BD')).length };
     }
-    if (typeof module !== 'undefined' && module.exports) module.exports = { guideFor, coverage, normalizeRoute, validateGuide };
+    if (typeof module !== 'undefined' && module.exports) module.exports = { guideFor, coverage, normalizeRoute, validateGuide, helpContextStatus };
     if (typeof document === 'undefined') return;
 
     const trigger = document.getElementById('pageContextHelp');
@@ -1915,11 +1915,57 @@
     const content = document.getElementById('pageHelpContent');
     const close = document.getElementById('pageHelpClose');
     if (!trigger || !dialog || !title || !content || !close) return;
-    const locale = document.documentElement.lang || 'en-BD';
-    const bn = locale.toLowerCase().startsWith('bn');
-    const labels = sectionLabels[bn ? 'bn' : 'en'];
-    const guide = guideFor(window.location.pathname, locale);
-    trigger.title = guide?.purpose || labels.missing;
+    // A manual is a view of the *current* authorized document, not a reusable
+    // cross-session panel. The existing shared session verifier is authoritative.
+    const tenant = document.body.dataset.authTenantId || '';
+    const session = document.body.dataset.authSessionReference || '';
+    const shield = document.getElementById('eduosSessionShield');
+    let invalidated = false;
+    let opening = false;
+    let fallback = false;
+    let bn = false;
+    let labels = sectionLabels.en;
+    let guide = null;
+    function helpContextStatus(tenantId, sessionId, currentTenant, currentSession, transitioning, shieldVisible) {
+        if (tenantId !== currentTenant || sessionId !== currentSession || transitioning) return 'changed';
+        return shieldVisible ? 'verifying' : 'ready';
+    }
+    function status() {
+        if (invalidated) return 'changed';
+        return helpContextStatus(tenant, session,
+            document.body.dataset.authTenantId || '',
+            document.body.dataset.authSessionReference || '',
+            typeof window.EduOSSessionTransitionPending === 'function' &&
+                window.EduOSSessionTransitionPending(),
+            !!shield && !shield.hidden);
+    }
+    function clearDrawer() {
+        content.replaceChildren();
+        if (dialog.open) {
+            if (typeof dialog.close === 'function' && !fallback) dialog.close();
+            else { dialog.removeAttribute('open'); dialog.hidden = true; }
+        }
+    }
+    function currentContext() {
+        const state = status();
+        if (state === 'ready') return true;
+        clearDrawer();
+        if (state === 'changed') {
+            invalidated = true;
+            trigger.disabled = true;
+        }
+        return false;
+    }
+    function syncLocale() {
+        const locale = document.documentElement.lang || 'en-BD';
+        bn = locale.toLowerCase().startsWith('bn');
+        labels = sectionLabels[bn ? 'bn' : 'en'];
+        guide = guideFor(window.location.pathname, locale);
+        dialog.lang = locale;
+        trigger.title = guide?.purpose || labels.missing;
+        trigger.setAttribute('aria-label', bn ? 'এই পৃষ্ঠার সম্পূর্ণ নির্দেশিকা' : 'Full user manual for this page');
+        close.setAttribute('aria-label', bn ? 'নির্দেশিকা বন্ধ করুন' : 'Close user manual');
+    }
     function appendSection(key, value, ordered = false) {
         const section = document.createElement('section');
         section.className = 'page-help-section';
@@ -1988,20 +2034,39 @@
             content.append(section);
         }
     }
-    let fallback = false;
     function dismiss() {
         if (typeof dialog.close === 'function' && !fallback) dialog.close();
-        else { dialog.removeAttribute('open'); dialog.hidden = true; trigger.focus(); }
+        else { dialog.removeAttribute('open'); dialog.hidden = true; if (status() === 'ready') trigger.focus(); }
     }
-    trigger.addEventListener('click', () => {
-        render();
-        fallback = typeof dialog.showModal !== 'function';
-        if (!fallback) dialog.showModal();
-        else { dialog.hidden = false; dialog.setAttribute('open', ''); }
-        close.focus();
-    });
+    async function open() {
+        if (opening || !currentContext()) return;
+        opening = true;
+        trigger.disabled = true;
+        try {
+            // Fail closed if the authenticated verifier is unavailable; never
+            // render an old guide while a session verification is in flight.
+            if (session) {
+                if (typeof window.EduOSVerifySessionContext !== 'function') return;
+                await window.EduOSVerifySessionContext();
+            }
+            if (!currentContext()) return;
+            syncLocale();
+            render();
+            fallback = typeof dialog.showModal !== 'function';
+            if (!fallback) dialog.showModal();
+            else { dialog.hidden = false; dialog.setAttribute('open', ''); }
+            close.focus();
+        } catch {
+            clearDrawer();
+        } finally {
+            opening = false;
+            if (!invalidated) trigger.disabled = false;
+        }
+    }
+    syncLocale();
+    trigger.addEventListener('click', () => { void open(); });
     close.addEventListener('click', dismiss);
-    dialog.addEventListener('close', () => trigger.focus());
+    dialog.addEventListener('close', () => { if (status() === 'ready') trigger.focus(); });
     dialog.addEventListener('click', event => { if (event.target === dialog) dismiss(); });
     dialog.addEventListener('keydown', event => {
         if (event.key === 'Escape' && fallback) { event.preventDefault(); dismiss(); }
@@ -2011,4 +2076,22 @@
         if (event.shiftKey && document.activeElement === focusable[0]) { event.preventDefault(); focusable.at(-1).focus(); }
         else if (!event.shiftKey && document.activeElement === focusable.at(-1)) { event.preventDefault(); focusable[0].focus(); }
     });
+    function reconcile() { if (dialog.open || opening) currentContext(); }
+    window.addEventListener('pageshow', reconcile);
+    window.addEventListener('focus', reconcile);
+    document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') reconcile();
+    });
+    if (typeof MutationObserver === 'function') {
+        const sessionObserver = new MutationObserver(reconcile);
+        sessionObserver.observe(document.body, { attributes: true,
+            attributeFilter: ['data-auth-tenant-id', 'data-auth-session-reference'] });
+        if (shield) sessionObserver.observe(shield, { attributes: true, attributeFilter: ['hidden'] });
+        const languageObserver = new MutationObserver(() => {
+            if (!currentContext()) return;
+            syncLocale();
+            if (dialog.open) render();
+        });
+        languageObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['lang'] });
+    }
 })();
