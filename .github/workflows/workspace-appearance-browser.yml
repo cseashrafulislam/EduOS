@@ -8,6 +8,12 @@ on:
       - 'EduOS.App/Views/WorkspacePreferences/Index.cshtml'
       - 'tests/browser/workspace-appearance.cjs'
       - 'tests/browser/workspace-appearance-live.cjs'
+      - 'tests/browser/workspace-appearance-live-contract.cjs'
+      - 'EduOS.App/Views/Account/Login.cshtml'
+      - 'EduOS.App/wwwroot/js/account/login.js'
+      - 'EduOS.App/Controllers/AccountController.cs'
+      - 'EduOS.App/Controllers/LocalizationController.cs'
+      - 'EduOS.App/Views/Account/BrandingSetup.cshtml'
       - '.github/workflows/workspace-appearance-browser.yml'
   workflow_dispatch:
 permissions:
@@ -31,6 +37,7 @@ jobs:
       - name: Check authenticated staging script syntax and fail-closed configuration
         run: |
           node --check tests/browser/workspace-appearance-live.cjs
+          node tests/browser/workspace-appearance-live-contract.cjs
           set +e
           env -u EDUOS_BASE_URL -u EDUOS_E2E_STAGING_HOST node tests/browser/workspace-appearance-live.cjs
           result=$?
