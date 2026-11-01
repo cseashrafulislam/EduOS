@@ -1,5 +1,70 @@
 # V3 Track 3 — fixed asset capitalization and accounting acceptance
 
+## 1 November 2026 — integrated Procurement + Asset Finance implementation candidate
+
+This section describes the **new code awaiting exact-commit disposable SQL and user acceptance**;
+the historic preflight-only sections below document the preceding baseline. Do not mark #55/#56
+closed solely because this code builds.
+
+- `/AssetAccounting` and `/api/inventory/asset-accounting/*` require both `INVENTORY`
+  and `FINANCE` module entitlements. A campus-authorized Accountant/TenantAdmin submits;
+  a **different** Principal/TenantAdmin verifies source, version, accounts and open period.
+- Capitalization identifies a numbered unit of an independently approved goods-receipt
+  line. A filtered SQL unique constraint prevents a second live claim on that unit or asset.
+  The reviewer atomically posts the canonical **Inventory Issue**, one **AssetBook**, and
+  an exactly balanced existing **Finance Journal**. The command stores source unit, book,
+  movement and journal identifiers. Automatic, manual-final and auto-with-manual-correction
+  cost policies require a reason, period, BDT account mapping and useful-life version;
+  manual valuation differences receive explicit gain/loss GL lines.
+- Subsequent monthly straight-line depreciation, signed manual impairment and custody-cleared
+  disposal have individual submitted/posted/rejected states, stable client keys, optimistic
+  versions, independent GL reviewers and current book-value checks. Impairment credits the
+  original fixed-asset cost GL directly, while the book retains original cost and an
+  explicit impairment row. Disposal reverses the remaining fixed-asset cost net of recorded
+  impairments and accumulated depreciation, with explicit proceeds *clearing* (not a bank
+  transaction), and gain/loss accounts. Asset/book are made inactive only on posted disposal.
+- Depreciation/impairment/disposal corrections submit an **exact mirror** of the posted
+  original journal for a separate reviewer; correction requires an open period, no later
+  posted book events and no competing command. Original source evidence is retained.
+  Capitalization itself is intentionally **not** reversed by a generic stock action:
+  a unit-level unwind with custody and subsequent journal reconciliation needs its own
+  strictly controlled acceptance path.
+- Supplier settlement is separate: only an external bank-confirmation reference can move
+  an independently approved payment journal to `Posted` in the existing Finance GL;
+  a separately approved contra compensates without changing the recorded bank reference.
+  Net payable aging and enterprise supplier trace account for valid posted contras. EduOS
+  does not initiate a real bank transfer or reconcile the bank statement automatically.
+
+### Manual tenant/campus UAT and go/no-go (still required)
+
+1. Configure seven distinct typed BDT posting accounts, bank/payable accounts, open
+   periods, campus access, two real users and module entitlements. Test 403 for denied
+   maker/reviewer and 409 for stale versions and same maker/checker.
+2. Receive an approved PO's asset-tracked serialized units; confirm both posted stock line
+   and receipt details are the same item, location, campus, lot and reviewed price. Submit
+   unit 1 twice with the same idempotency key; reject reuse with changed inputs, competing
+   second asset/unit and incomplete evidence. Approve once; verify exactly one stock issue,
+   one active book and one balanced posted capitalization GL journal.
+3. Close the accounting period, exhaust stock, revoke source evidence or change GL mapping
+   before approval. Every scenario must roll back **all three** postings, not leave a book
+   without a journal/stock issue.
+4. Request automatic month-end depreciation, then a documented manual impairment and
+   disposal with proceeds clearing. Check current value, debits/credits, no active custody,
+   no double-posting, no cross-tenant access and no posted future events. Approve an exact
+   disposal contra; confirm the original posted journal remains immutable and the asset
+   becomes available again. Check rejected review and superseded-key behavior.
+5. Bank-confirm a supplier payment with external evidence, inspect net AP aging/source
+   trace, reverse by independent full-value contra, and verify reopen of the original
+   payable only after every paid settlement is compensated.
+6. Run `.NET Release`, JavaScript contracts, disposable SQL fresh/repeat migrations,
+   tenant isolation, backup-restore and authenticated bilingual/mobile browser flows.
+   Review accounting journals with the institution's Finance owner before production.
+
+**Not yet certified:** real bank-statement matching, supplier returns/credit-note source
+flows, capitalization unwind after a posted book, depreciation policy changes after initial
+booking, translated contextual Help Drawer and live-campus/finance-owner UAT. These require
+separate acceptance and must not be described as completed merely by CI passing.
+
 ## Completed: read-only capitalization source preflight
 
 The existing Asset Lifecycle workspace now offers a per-asset, tenant/campus/role-scoped

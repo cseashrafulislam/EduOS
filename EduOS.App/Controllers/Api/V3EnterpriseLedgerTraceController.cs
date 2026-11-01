@@ -155,10 +155,14 @@ public sealed class V3EnterpriseLedgerTraceController(EduOSDbContext db, ICurren
         foreach (var instruction in d.SettlementInstructions)
             csv.AppendJoin(",", new[] { Cell("SettlementInstruction"), Cell(instruction.Reference),
                 Cell(""), Cell(instruction.State), Cell(""), Cell(""), Cell(instruction.Amount),
-                Cell(d.CampusId), Cell("UNPOSTED - NOT PAID") }).Append("\r\n");
+                Cell(d.CampusId), Cell(instruction.PostedReversalReference.HasValue ? "POSTED / GL REVERSED" :
+                    instruction.IsPostedToFinance ? "POSTED GL - EXTERNAL BANK CONFIRMED" : "UNPOSTED - NOT PAID") }).Append("\r\n");
         csv.AppendJoin(",", new[] { Cell("ActiveSettlementReservation"), Cell(d.InvoiceReference),
             Cell(""), Cell("UNPOSTED"), Cell(""), Cell(""), Cell(d.SettlementReservedAmount),
             Cell(d.CampusId), Cell("NOT A GL PAYMENT") }).Append("\r\n");
+        csv.AppendJoin(",", new[] { Cell("PostedNetSettlement"), Cell(d.InvoiceReference),
+            Cell(""), Cell("POSTED"), Cell(""), Cell(""), Cell(d.SettlementPostedNetAmount),
+            Cell(d.CampusId), Cell("NET OF POSTED CONTRA") }).Append("\r\n");
         foreach (var j in d.Journals)
             csv.AppendJoin(",", new[] { Cell("Journal"), Cell(j.Reference),
                 Cell(j.Number), Cell(j.State), Cell(j.Debit), Cell(j.Credit),

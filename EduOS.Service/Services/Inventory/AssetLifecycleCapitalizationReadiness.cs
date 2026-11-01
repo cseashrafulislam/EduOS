@@ -32,6 +32,7 @@ public sealed partial class AssetLifecycleService
         var result = new AssetCapitalizationReadinessDto
         {
             AssetReference = asset.PublicId,
+            AssetRowVersion = Convert.ToBase64String(asset.RowVersion),
             AssetTag = asset.AssetTag,
             CampusId = asset.CampusId,
             RegisteredPurchaseCost = asset.PurchaseCost,

@@ -233,8 +233,9 @@ public sealed class V3EnterpriseSupplierPayableTraceService(
             (invoice.StateCode == "Posted" && contra?.State == JournalState.Posted))
             return Conflict("Supplier invoice lifecycle and Finance journal disagree.");
 
-        // Canonical Finance instructions are UNPOSTED; they are neither paid
-        // invoices nor GL disbursements. Validate source IDs and reserved legs.
+        // Canonical Finance settlement instructions are never evidence of payment until
+        // independently approved AND posted with external bank confirmation. Posted
+        // contra journals may exactly reverse a confirmed settlement, not its history.
         var instructions = await db.Journals.IgnoreQueryFilters().AsNoTracking()
             .Where(x => x.TenantId == user.TenantId &&
                 x.SourceType == "ProcurementSupplierPayment" && x.SourceId == invoice.Id)
@@ -243,6 +244,7 @@ public sealed class V3EnterpriseSupplierPayableTraceService(
             return Conflict("Supplier settlement instruction source or fan-out conflicts.");
         var settlementEvidence = new List<V3EnterpriseSettlementInstructionEvidenceDto>();
         decimal reservedSettlement = 0m;
+        decimal postedSettlement = 0m;
         if (instructions.Count > 0)
         {
             var payableAccounts = byJournal[original[0].Id]
@@ -267,15 +269,32 @@ public sealed class V3EnterpriseSupplierPayableTraceService(
                     (b.CampusId == null || b.CampusId == invoice.CampusId)
                 select new { b.AccountId, b.Id }).ToListAsync(ct);
             var periodIds = instructions.Select(x => x.AccountingPeriodId).Distinct().ToArray();
+            var reversals = await db.Journals.IgnoreQueryFilters().AsNoTracking().Where(x =>
+                x.TenantId == user.TenantId && x.SourceType == "ProcurementSupplierPaymentReversal" &&
+                x.SourceId.HasValue && ids.Contains(x.SourceId.Value))
+                .OrderBy(x => x.Id).Take(101).ToListAsync(ct);
+            if (reversals.Count > 100 || reversals.Any(x => x.IsDeleted ||
+                x.ReversalOfJournalId != x.SourceId || x.CampusId != invoice.CampusId ||
+                x.CurrencyCode != "BDT"))
+                return Conflict("Settlement reversal provenance conflicts.");
+            var reversalIds = reversals.Select(x => x.Id).ToArray();
+            var reversalLegs = await db.JournalLines.IgnoreQueryFilters().AsNoTracking().Where(x =>
+                x.TenantId == user.TenantId && reversalIds.Contains(x.JournalId))
+                .OrderBy(x => x.JournalId).ThenBy(x => x.LineNo).Take(201).ToListAsync(ct);
+            if (reversalLegs.Count > 200 || reversalLegs.Any(x => x.IsDeleted))
+                return Conflict("Settlement reversal lines deleted or unbounded.");
+            var reversalsByJournal = reversals.GroupBy(x => x.SourceId!.Value)
+                .ToDictionary(x => x.Key, x => x.ToArray());
+            var reversalLinesByJournal = reversalLegs.GroupBy(x => x.JournalId)
+                .ToDictionary(x => x.Key, x => x.ToArray());
+            periodIds = periodIds.Concat(reversals.Select(x => x.AccountingPeriodId)).Distinct().ToArray();
             var periods = await db.AccountingPeriods.IgnoreQueryFilters().AsNoTracking()
                 .Where(x => x.TenantId == user.TenantId && periodIds.Contains(x.Id) && !x.IsDeleted)
                 .Select(x => new { x.Id, x.StartDate, x.EndDate }).ToListAsync(ct);
             foreach (var j in instructions)
             {
                 if (j.IsDeleted || j.CampusId != invoice.CampusId || j.CurrencyCode != "BDT" ||
-                    j.ReferenceNumber != invoice.SupplierInvoiceNumber ||
                     j.JournalDate < invoice.InvoiceDate || j.ReversalOfJournalId.HasValue ||
-                    j.PostedAt.HasValue || j.PostedByUserId.HasValue ||
                     j.CreatedBy is null or <= 0 ||
                     !periods.Any(p => p.Id == j.AccountingPeriodId &&
                         p.StartDate <= j.JournalDate && p.EndDate >= j.JournalDate) ||
@@ -293,17 +312,63 @@ public sealed class V3EnterpriseSupplierPayableTraceService(
                         j.ApprovedByUserId == invoice.CreatedBy || !j.ApprovedAt.HasValue)
                         return Conflict("Settlement independent reviewer evidence conflicts.");
                 }
+                else if (j.State == JournalState.Posted)
+                {
+                    if (j.ReferenceNumber is null || j.ReferenceNumber.Length is < 6 or > 100 ||
+                        j.ApprovedByUserId is null or <= 0 || j.ApprovedByUserId == j.CreatedBy ||
+                        j.ApprovedByUserId == invoice.CreatedBy || !j.ApprovedAt.HasValue ||
+                        j.PostedByUserId is null or <= 0 || !j.PostedAt.HasValue ||
+                        j.PostedAt < j.ApprovedAt ||
+                        !(j.Description ?? "").Contains(" | Bank-confirmed (", StringComparison.Ordinal))
+                        return Conflict("Posted settlement lacks independent approval or bank evidence.");
+                }
                 else if (j.State != JournalState.Submitted && j.State != JournalState.Rejected)
-                    return Conflict("A settlement instruction must not be presented as payment.");
+                    return Conflict("Unsupported supplier settlement journal lifecycle.");
+                if (j.State != JournalState.Posted &&
+                    (j.ReferenceNumber != invoice.SupplierInvoiceNumber || j.PostedAt.HasValue ||
+                     j.PostedByUserId.HasValue))
+                    return Conflict("An unposted settlement claims bank execution.");
                 if (j.State is JournalState.Submitted or JournalState.Approved)
                     reservedSettlement += pair[0].DebitAmount;
+                Guid? postedReversal = null;
+                if (reversalsByJournal.TryGetValue(j.Id, out var contraRows))
+                {
+                    if (j.State != JournalState.Posted || contraRows.Count(x => x.State == JournalState.Posted) > 1)
+                        return Conflict("Settlement reversal state or cardinality conflicts.");
+                    foreach (var r in contraRows)
+                    {
+                        if (r.JournalDate < j.JournalDate ||
+                            !periods.Any(p => p.Id == r.AccountingPeriodId &&
+                                p.StartDate <= r.JournalDate && p.EndDate >= r.JournalDate) ||
+                            !reversalLinesByJournal.TryGetValue(r.Id, out var mirror) || mirror.Length != 2 ||
+                            mirror.Where((x,i) => x.CampusId != pair[i].CampusId ||
+                                x.AccountId != pair[i].AccountId || x.LineNo != pair[i].LineNo ||
+                                x.DebitAmount != pair[i].CreditAmount ||
+                                x.CreditAmount != pair[i].DebitAmount).Any())
+                            return Conflict("Settlement contra fails exact posted-line mirror.");
+                        if (r.State == JournalState.Posted)
+                        {
+                            if (r.CreatedBy is null or <= 0 || r.ApprovedByUserId is null or <= 0 ||
+                                r.CreatedBy == r.ApprovedByUserId || r.PostedByUserId != r.ApprovedByUserId ||
+                                !r.ApprovedAt.HasValue || !r.PostedAt.HasValue)
+                                return Conflict("Posted settlement contra lacks independent approval.");
+                            postedReversal = r.PublicId;
+                        }
+                        else if (r.State != JournalState.Submitted && r.State != JournalState.Rejected)
+                            return Conflict("Unsupported settlement reversal lifecycle.");
+                    }
+                }
+                if (j.State == JournalState.Posted && !postedReversal.HasValue)
+                    postedSettlement += pair[0].DebitAmount;
                 settlementEvidence.Add(new V3EnterpriseSettlementInstructionEvidenceDto
                 {
                     Reference = j.PublicId, State = j.State.ToString(),
-                    PlannedDate = j.JournalDate, Amount = pair[0].DebitAmount
+                    PlannedDate = j.JournalDate, Amount = pair[0].DebitAmount,
+                    IsPostedToFinance = j.State == JournalState.Posted,
+                    PostedReversalReference = postedReversal
                 });
             }
-            if (reservedSettlement > invoice.TotalAmount)
+            if (reservedSettlement + postedSettlement > invoice.TotalAmount)
                 return Conflict("Supplier settlement reservations exceed posted payable.");
         }
         var evidence = linked.Where(x => journalIds.Contains(x.Id)).Select(j =>
@@ -329,6 +394,8 @@ public sealed class V3EnterpriseSupplierPayableTraceService(
                     invoice.JournalId.HasValue ? "ExplicitBalancedReference" : "NoExplicitReference",
                 Journals = evidence,
                 SettlementReservedAmount = reservedSettlement,
+                SettlementPostedNetAmount = postedSettlement,
+                SourceLinkedOutstandingAmount = invoice.TotalAmount - postedSettlement,
                 SettlementInstructions = settlementEvidence
             });
     }

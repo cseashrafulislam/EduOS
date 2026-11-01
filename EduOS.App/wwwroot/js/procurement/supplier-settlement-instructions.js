@@ -7,6 +7,7 @@
  const token=document.querySelector('meta[name="request-verification-token"]')?.content;
  const maker=root.dataset.maker==='true',reviewer=root.dataset.reviewer==='true';
  let invoice=null,page=1,pages=1,seq=0,selectionSeq=0,busy=false,requestKey=null,review=null,withdraw=null,withdrawKey=null;
+ let post=null,postKey=null,reverse=null,reverseKey=null,contra=null,availablePeriods=[];
  const base='/api/procurement/supplier-invoices/';
  const money=x=>Number(x).toLocaleString(bn?'bn-BD':'en-BD',{minimumFractionDigits:2,maximumFractionDigits:2});
  const cell=x=>{const td=document.createElement('td');td.textContent=String(x??'');return td;};
@@ -31,7 +32,7 @@
    pages=Math.max(1,result.totalPages||1);$('ssRows').replaceChildren();
    for(const x of result.items||[]){
     const tr=document.createElement('tr');
-    for(const value of [x.reference.slice(0,8),x.state,money(x.amount),x.plannedDate,x.makerId])tr.append(cell(value));
+    for(const value of [x.reference.slice(0,8),x.state+(x.reversalState?' / '+x.reversalState:''),money(x.amount),x.plannedDate,x.makerId])tr.append(cell(value));
     const action=cell('');
     if(maker&&x.state==='Submitted'&&
        Number(x.makerId)===Number(document.getElementById('supplierInvoiceMatch')?.dataset.userId)){
@@ -56,6 +57,26 @@
       $('ssReviewDialog').showModal();
      });action.append(b);
     }
+    if(reviewer&&x.state==='Approved'&&
+       Number(x.makerId)!==Number(document.getElementById('supplierInvoiceMatch')?.dataset.userId)){
+     const b=document.createElement('button');b.type='button';b.className='btn btn-primary btn-sm ms-1';
+     b.textContent=t('Bank confirmed / Post GL','ব্যাংক নিশ্চিত / GL পোস্ট');
+     b.addEventListener('click',()=>{post=x;postKey=null;$('ssExecutedDate').value=x.plannedDate;
+      $('ssBankReference').value='';$('ssPostDialog').showModal();});action.append(b);
+    }
+    if(maker&&x.state==='Posted'&&!['Submitted','Posted'].includes(x.reversalState)){
+     const b=document.createElement('button');b.type='button';b.className='btn btn-outline-danger btn-sm ms-1';
+     b.textContent=t('Request GL reversal','GL রিভার্সালের আবেদন');
+     b.addEventListener('click',()=>{reverse=x;reverseKey=null;options($('ssReversePeriod'),availablePeriods);
+      $('ssReverseDate').value=new Date().toISOString().slice(0,10);$('ssReverseReason').value='';
+      $('ssReverseDialog').showModal();});action.append(b);
+    }
+    if(reviewer&&x.reversalState==='Submitted'&&x.reversalReference){
+     const b=document.createElement('button');b.type='button';b.className='btn btn-outline-danger btn-sm ms-1';
+     b.textContent=t('Review reversal','রিভার্সাল যাচাই');
+     b.addEventListener('click',()=>{contra=x;$('ssContraReason').value='';$('ssContraDecision').value='Approve';
+      $('ssContraDialog').showModal();});action.append(b);
+    }
     tr.append(action);$('ssRows').append(tr);
    }
    if(!(result.items||[]).length){const tr=document.createElement('tr'),td=cell(t('No instructions','নির্দেশনা নেই'));td.colSpan=6;tr.append(td);$('ssRows').append(tr);}
@@ -66,13 +87,15 @@
   const chosen=++selectionSeq;
   if($('ssWithdrawDialog')?.open)$('ssWithdrawDialog').close();
   if($('ssReviewDialog')?.open)$('ssReviewDialog').close();
-  review=null;withdraw=null;withdrawKey=null;
+  for(const id of ['ssPostDialog','ssReverseDialog','ssContraDialog'])if($(id)?.open)$(id).close();
+  review=null;withdraw=null;withdrawKey=null;post=null;postKey=null;reverse=null;reverseKey=null;contra=null;
   invoice=x;requestKey=null;page=1;seq++;
   $('ssSelected').textContent=x.invoiceNumber+' · '+x.reference;
   $('ssRows').replaceChildren();$('ssForm')?.classList.add('d-none');
   try{
    const data=await api(base+x.reference+'/settlements/options');
    if(chosen!==selectionSeq)return;
+   availablePeriods=data.periods||[];
    status(t('Unreserved BDT ','অসংরক্ষিত ৳')+money(data.availableAmount)+t(' · No payment executed',' · পরিশোধ হয়নি'));
    if(maker&&$('ssForm')){
     options($('ssBank'),data.banks);options($('ssPeriod'),data.periods);
@@ -131,6 +154,59 @@
     await selectInvoice(invoice);
    }
   }catch(e){if(chosen===selectionSeq&&invoice?.reference===selected)status(e.message,true);}finally{busy=false;$('ssReviewSubmit').disabled=false;}
+ });
+ $('ssPostClose')?.addEventListener('click',()=>$('ssPostDialog').close());
+ for(const id of ['ssExecutedDate','ssBankReference'])$(id)?.addEventListener('input',()=>{postKey=null;});
+ $('ssPostForm')?.addEventListener('submit',async e=>{
+  e.preventDefault();if(!post||!invoice||busy)return;busy=true;$('ssPostSubmit').disabled=true;
+  const selected=invoice.reference,source=post,chosen=selectionSeq;
+  try{
+   postKey ||= crypto.randomUUID();
+   await api(base+selected+'/settlements/'+source.reference+'/post','POST',{
+    clientRequestId:postKey,rowVersion:source.rowVersion,executedDate:$('ssExecutedDate').value,
+    bankTransactionReference:$('ssBankReference').value.trim()});
+   if(chosen===selectionSeq&&invoice?.reference===selected&&post?.reference===source.reference){
+    postKey=null;post=null;$('ssPostDialog').close();
+    status(t('Confirmed external disbursement posted to Finance GL','বাইরে নিশ্চিত পরিশোধ ফাইন্যান্স GL-এ পোস্ট হয়েছে'));
+    await selectInvoice(invoice);
+   }
+  }catch(e){if(chosen===selectionSeq&&invoice?.reference===selected)status(e.message,true);}
+  finally{busy=false;$('ssPostSubmit').disabled=false;}
+ });
+ $('ssReverseClose')?.addEventListener('click',()=>$('ssReverseDialog').close());
+ for(const id of ['ssReverseDate','ssReversePeriod','ssReverseReason'])$(id)?.addEventListener('input',()=>{reverseKey=null;});
+ $('ssReverseForm')?.addEventListener('submit',async e=>{
+  e.preventDefault();if(!reverse||!invoice||busy)return;busy=true;$('ssReverseSubmit').disabled=true;
+  const selected=invoice.reference,source=reverse,chosen=selectionSeq;
+  try{
+   reverseKey ||= crypto.randomUUID();
+   await api(base+selected+'/settlements/'+source.reference+'/reversal','POST',{
+    clientRequestId:reverseKey,originalRowVersion:source.rowVersion,
+    accountingPeriodId:Number($('ssReversePeriod').value),reversalDate:$('ssReverseDate').value,
+    reason:$('ssReverseReason').value.trim()});
+   if(chosen===selectionSeq&&invoice?.reference===selected&&reverse?.reference===source.reference){
+    reverseKey=null;reverse=null;$('ssReverseDialog').close();
+    status(t('Full reversal submitted; independently review before GL posting','সম্পূর্ণ রিভার্সাল জমা; GL পোস্টের আগে স্বতন্ত্র যাচাই প্রয়োজন'));
+    await selectInvoice(invoice);
+   }
+  }catch(e){if(chosen===selectionSeq&&invoice?.reference===selected)status(e.message,true);}
+  finally{busy=false;$('ssReverseSubmit').disabled=false;}
+ });
+ $('ssContraClose')?.addEventListener('click',()=>$('ssContraDialog').close());
+ $('ssContraForm')?.addEventListener('submit',async e=>{
+  e.preventDefault();if(!contra||!invoice||busy)return;busy=true;$('ssContraSubmit').disabled=true;
+  const selected=invoice.reference,source=contra,chosen=selectionSeq;
+  try{
+   await api(base+selected+'/settlements/'+source.reference+'/reversal/'+source.reversalReference+'/review','POST',{
+    rowVersion:source.reversalRowVersion,approve:$('ssContraDecision').value==='Approve',
+    reason:$('ssContraReason').value.trim()});
+   if(chosen===selectionSeq&&invoice?.reference===selected&&contra?.reference===source.reference){
+    contra=null;$('ssContraDialog').close();
+    status(t('Independent reversal decision saved','স্বতন্ত্র রিভার্সাল সিদ্ধান্ত সংরক্ষিত'));
+    await selectInvoice(invoice);
+   }
+  }catch(e){if(chosen===selectionSeq&&invoice?.reference===selected)status(e.message,true);}
+  finally{busy=false;$('ssContraSubmit').disabled=false;}
  });
  $('ssPrev').addEventListener('click',()=>{if(page>1){page--;load();}});
  $('ssNext').addEventListener('click',()=>{if(page<pages){page++;load();}});

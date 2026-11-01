@@ -36,8 +36,12 @@ public sealed partial class ProcurementSupplierInvoiceService
             return (original, lines, "Posted payable journal is missing or unbalanced.");
         if (await db.Journals.IgnoreQueryFilters().AsNoTracking().AnyAsync(x => x.TenantId == user.TenantId &&
             x.SourceType == "ProcurementSupplierPayment" && x.SourceId == invoice.Id &&
-            (x.State == JournalState.Posted || (!x.IsDeleted && x.State != JournalState.Rejected &&
-                x.State != JournalState.Cancelled)),ct))
+            ((!x.IsDeleted && x.State != JournalState.Rejected && x.State != JournalState.Cancelled &&
+                x.State != JournalState.Posted) ||
+             (x.State == JournalState.Posted && !db.Journals.Any(r =>
+                r.TenantId == user.TenantId && !r.IsDeleted &&
+                r.SourceType == SettlementReversalSource && r.SourceId == x.Id &&
+                r.ReversalOfJournalId == x.Id && r.State == JournalState.Posted))),ct))
             return (original, lines, "Linked supplier settlement exists; reverse payments first.");
         return (original, lines, null);
     }

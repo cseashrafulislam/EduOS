@@ -4,7 +4,7 @@
     var canCategory = User.IsInRole("TenantAdmin") || User.IsInRole("Principal");
 }
 <section id="assetWorkspace" class="container-fluid py-3" data-can-manage="@canManage.ToString().ToLowerInvariant()" data-can-category="@canCategory.ToString().ToLowerInvariant()">
-    <header class="mb-3"><h2>Fixed Assets &amp; Custody</h2><p class="text-muted">Asset register, assignment, return and maintenance history. Institutional assets are separate from SaaS billing.</p></header>
+    <header class="mb-3"><h2>Fixed Assets &amp; Custody</h2><p class="text-muted">Asset register, assignment, return and maintenance history. Institutional assets are separate from SaaS billing.</p>@if(User.IsInRole("TenantAdmin") || User.IsInRole("Principal") || User.IsInRole("Accountant")) { <a href="/AssetAccounting" class="btn btn-outline-primary btn-sm">Asset Accounting / সম্পদ হিসাব</a> }</header>
     <div id="assetAlert" class="d-none" role="alert"></div>
     @await Html.PartialAsync("_Catalog")
     @await Html.PartialAsync("_MaintenanceDue")

@@ -13,6 +13,9 @@ public sealed partial class InventoryMovementService
         if (existing != null) return existing.ReversalOfMovementId == original.Id && existing.Remarks == request.Reason.Trim() ?
             ApiResponse<InventoryMovementDto>.SuccessResponse(await MapAsync(existing, ct), "Existing reversal returned.") :
             ApiResponse<InventoryMovementDto>.ErrorResponse("Request ID belongs to another operation.", 409);
+        if (original.SourceType == "AssetCapitalization")
+            return ApiResponse<InventoryMovementDto>.ErrorResponse(
+                "Capitalized asset stock cannot be reversed independently of its posted Finance journal and AssetBook.", 409);
         // Never restore dispatched stock at origin while a live receipt exists.
         if (original.SourceType == "TransferDispatch" &&
             await db.InventoryMovements.AsNoTracking().AnyAsync(r => r.TenantId == user.TenantId &&
@@ -36,6 +39,11 @@ public sealed partial class InventoryMovementService
                     (h.StateCode == "Submitted" || h.StateCode == "Posted")), ct))
                 return ApiResponse<InventoryMovementDto>.ErrorResponse(
                     "Submitted/posted supplier invoices reserve this goods receipt; reverse the payable first.", 409);
+            if (await db.AssetCapitalizationCommands.AsNoTracking().AnyAsync(x =>
+                x.TenantId == user.TenantId && !x.IsDeleted && x.StateCode == "Posted" &&
+                receiptLineIds.Contains(x.GoodsReceiptLineId), ct))
+                return ApiResponse<InventoryMovementDto>.ErrorResponse(
+                    "Posted asset capitalization consumes this receipt; follow approved asset correction before reversing it.", 409);
         }
         if (original.StateCode != "Posted" || original.ReversalOfMovementId.HasValue ||
             original.MovementTypeCode is not ("Receipt" or "Issue" or "Transfer") ||

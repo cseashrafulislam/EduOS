@@ -16,6 +16,8 @@ public sealed class V3EnterpriseSupplierPayableTraceDto
     public IReadOnlyList<Guid> GoodsReceiptReferences { get; set; } = Array.Empty<Guid>();
     public string FinanceEvidenceStatus { get; set; } = "NoExplicitReference";
     public decimal SettlementReservedAmount { get; set; }
+    public decimal SettlementPostedNetAmount { get; set; }
+    public decimal SourceLinkedOutstandingAmount { get; set; }
     public IReadOnlyList<V3EnterpriseSettlementInstructionEvidenceDto> SettlementInstructions { get; set; } =
         Array.Empty<V3EnterpriseSettlementInstructionEvidenceDto>();
     public IReadOnlyList<V3EnterpriseJournalEvidenceDto> Journals { get; set; } =
@@ -28,4 +30,6 @@ public sealed class V3EnterpriseSettlementInstructionEvidenceDto
     public string State { get; set; } = "";
     public DateOnly PlannedDate { get; set; }
     public decimal Amount { get; set; }
+    public bool IsPostedToFinance { get; set; }
+    public Guid? PostedReversalReference { get; set; }
 }

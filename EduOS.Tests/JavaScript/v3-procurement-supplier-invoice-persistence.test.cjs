@@ -53,7 +53,7 @@ test('Canonical inventory reversal cannot orphan a reserved or posted Procuremen
   assert.ok(stock.includes(token), 'missing stock/Finance reversal handshake: ' + token);
 });
 
-test('Supplier settlement instructions use canonical unposted Finance journals and separate maker/checker', () => {
+test('Supplier settlement instructions require independent review before confirmed canonical Finance posting', () => {
  const service=read('EduOS.Service/Services/Inventory/ProcurementSupplierInvoiceSettlement.cs');
  const api=read('EduOS.App/Controllers/Api/ProcurementSupplierInvoicesController.cs');
  const ui=read('EduOS.App/wwwroot/js/procurement/supplier-settlement-instructions.js');
@@ -67,6 +67,31 @@ test('Supplier settlement instructions use canonical unposted Finance journals a
   assert.ok(api.includes(token), 'missing Finance API protection: '+token);
  for(const token of ['credentials:\'same-origin\'','RequestVerificationToken','textContent','rowVersion',
   'procurement-settlement-select'])assert.ok(ui.includes(token), 'missing UI safety: '+token);
+});
+
+test('Supplier settlement execution and reversal use the original Finance GL with bank evidence and source-linked net aging', () => {
+ const execution=read('EduOS.Service/Services/Inventory/ProcurementSupplierSettlementPosting.cs');
+ const contract=read('EduOS.Core/DTOs/Inventory/ProcurementSupplierSettlementDtos.cs');
+ const api=read('EduOS.App/Controllers/Api/ProcurementSupplierInvoicesController.cs');
+ const aging=read('EduOS.Service/Services/Inventory/ProcurementSupplierInvoiceAging.cs');
+ const trace=read('EduOS.Service/Services/Enterprise/V3EnterpriseSupplierPayableTraceService.cs');
+ const page=read('EduOS.App/Views/ProcurementSupplierInvoiceMatching/Index.cshtml');
+ const ui=read('EduOS.App/wwwroot/js/procurement/supplier-settlement-instructions.js');
+ for(const required of ['PostSettlementAsync','RequestSettlementReversalAsync','ReviewSettlementReversalAsync',
+  'IsolationLevel.Serializable','JournalState.Posted','BankTransactionReference','CheckedSettlementLinesAsync',
+  'SettlementReversalSource','ReversalOfJournalId','Version(source.RowVersion',
+  'Bank transaction reference already confirms another settlement'])
+  assert.ok(execution.includes(required),'missing bank/GL source guard: '+required);
+ for(const required of ['PostSupplierSettlementRequest','RequestSupplierSettlementReversal',
+  'ReviewSupplierSettlementReversal','ReversalRowVersion','PostedAtUtc'])
+  assert.ok(contract.includes(required),'missing settlement API contract: '+required);
+ for(const route of ['/post','/reversal','/review'])assert.ok(api.includes(route));
+ assert.match(api,/RequireModule\("FINANCE"\)/);
+ assert.match(aging,/SourceLinkedOutstandingAmount=conflicted\?null/);
+ assert.match(trace,/SettlementPostedNetAmount = postedSettlement/);
+ for(const id of ['ssPostForm','ssReverseForm','ssContraForm','ssBankReference'])
+  assert.ok(page.includes(id)&&ui.includes(id),'missing source-linked UI '+id);
+ assert.ok(!execution.includes('HttpClient'),'GL confirmation must not initiate a bank transfer');
 });
 
 test('Independent reviewer can revoke approved unposted supplier settlement and release reservation', () => {

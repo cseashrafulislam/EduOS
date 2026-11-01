@@ -141,7 +141,7 @@ jobs:
 
       # Procurement-owned SQL acceptance is a distinct release gate. Shared smoke
       # does not include the persisted supplier invoice / settlement SQL fixture.
-      - name: Verify V3 supplier invoice settlement and matching on real SQL
+      - name: Verify V3 supplier settlement, asset capitalization and lifecycle on real SQL
         if: ${{ always() && steps.migration_repeat.outcome == 'success' }}
         shell: bash
         env:
@@ -149,8 +149,8 @@ jobs:
         run: |
           set -euo pipefail
           dotnet test EduOS.Tests/EduOS.Tests.csproj --configuration Release --no-restore \
-            --filter "FullyQualifiedName~SQL_supplier_invoice_partial_billing_three_way_payable_variance_and_contra|FullyQualifiedName~SQL_supplier_invoice_preview_matches_posted_receipt_only_and_never_books_payable" \
-            --logger "trx;LogFileName=sql-v3-procurement-invoice-settlement.trx" --results-directory TestResults
+            --filter "FullyQualifiedName~SQL_supplier_invoice_partial_billing_three_way_payable_variance_and_contra|FullyQualifiedName~SQL_supplier_invoice_preview_matches_posted_receipt_only_and_never_books_payable|FullyQualifiedName~SQL_receipt_unit_to_canonical_stock_issue_assetbook_and_GL_is_one_approved_transaction|FullyQualifiedName~SQL_asset_depreciation_impairment_disposal_maker_checker_and_exact_GL_contra" \
+            --logger "trx;LogFileName=sql-v3-procurement-assets-acceptance.trx" --results-directory TestResults
 
       # Separate release gate: failure must identify the new finance/operation
       # handoff, instead of being buried in the shared V2/V3 SQL smoke output.
@@ -174,6 +174,7 @@ jobs:
             TestResults/sql-v1-acceptance.trx
             TestResults/sql-v3-alumni-acceptance.trx
             TestResults/sql-v2-v3-smoke.trx
+            TestResults/sql-v3-procurement-assets-acceptance.trx
             TestResults/sql-v2-transport-finance-acceptance.trx
           if-no-files-found: warn
           retention-days: 7

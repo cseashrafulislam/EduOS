@@ -679,6 +679,93 @@ public sealed partial class SqlServerV3ProcurementPurchaseOrderTests
                 x.State==JournalState.Posted));
             Assert.Equal(403,(await new V3EnterpriseSupplierPayableTraceService(
                 verify,new ReadOnlyActor(tenantId,makerId)).GetAsync(second.Reference)).StatusCode);
+            // Source-linked actual GL settlement: an independent reviewer first approves,
+            // then an externally confirmed bank transaction posts the same canonical journal.
+            Guid postedReference;
+            string postedVersion;
+            await using (var settlementMaker = Open(options,tenantId,makerId))
+            {
+                var paymentMakerService=Invoices(settlementMaker,tenantId,makerId);
+                var currentInvoice=(await paymentMakerService.GetAsync(second.Reference)).Data!;
+                var draftPayment=await paymentMakerService.RequestSettlementAsync(second.Reference,
+                    new CreateSupplierSettlementInstructionRequest {
+                        ClientRequestId=Guid.NewGuid(),InvoiceRowVersion=currentInvoice.RowVersion,
+                        BankAccountId=bankId,AccountingPeriodId=periodId,PlannedDate=date,Amount=6m,
+                        Reason="Pay six units of posted payable after bank confirmation" });
+                Assert.True(draftPayment.Success,draftPayment.Message);
+                postedReference=draftPayment.Data!.Reference;
+                postedVersion=draftPayment.Data.RowVersion;
+                Assert.Equal(409,(await paymentMakerService.PostSettlementAsync(second.Reference,postedReference,
+                    new PostSupplierSettlementRequest {ClientRequestId=Guid.NewGuid(),RowVersion=postedVersion,
+                        ExecutedDate=date,BankTransactionReference="BANK-SQL-"+suffix})).StatusCode);
+            }
+            await using (var settlementChecker=Open(options,tenantId,checkerId))
+            {
+                var paymentCheckerService=Invoices(settlementChecker,tenantId,checkerId);
+                var approved=await paymentCheckerService.ReviewSettlementAsync(second.Reference,postedReference,
+                    new ReviewSupplierSettlementInstructionRequest {RowVersion=postedVersion,Approve=true,
+                        Reason="Independent approval against confirmed payable and bank account"});
+                Assert.True(approved.Success,approved.Message);
+                var confirmation=new PostSupplierSettlementRequest {
+                    ClientRequestId=Guid.NewGuid(),RowVersion=approved.Data!.RowVersion,
+                    ExecutedDate=date,BankTransactionReference="BANK-SQL-"+suffix };
+                var posted=await paymentCheckerService.PostSettlementAsync(second.Reference,postedReference,confirmation);
+                Assert.True(posted.Success,posted.Message);
+                Assert.Equal("Posted",posted.Data!.State);
+                Assert.Equal(postedReference,(await paymentCheckerService.PostSettlementAsync(
+                    second.Reference,postedReference,confirmation)).Data!.Reference);
+                Assert.Equal(409,(await paymentCheckerService.PostSettlementAsync(second.Reference,postedReference,
+                    new PostSupplierSettlementRequest {ClientRequestId=Guid.NewGuid(),RowVersion=approved.Data.RowVersion,
+                        ExecutedDate=date,BankTransactionReference="DIFFERENT-BANK-"+suffix})).StatusCode);
+                postedVersion=posted.Data.RowVersion;
+            }
+            await using (var reconciler=Open(options,tenantId,makerId))
+            {
+                var paymentReportService=Invoices(reconciler,tenantId,makerId);
+                var report=(await paymentReportService.AgingAsync(date,null,false,1,100)).Data!;
+                var row=Assert.Single(report.Items,x=>x.InvoiceReference==second.Reference);
+                Assert.Equal(18m,row.GrossPostedAmount);
+                Assert.Equal(6m,row.PostedSettlementAmount);
+                Assert.Equal(12m,row.SourceLinkedOutstandingAmount);
+                Assert.Equal("SourceLinked",row.SettlementIntegrityStatus);
+                var traced=await new V3EnterpriseSupplierPayableTraceService(
+                    reconciler,new Actor(tenantId,makerId)).GetAsync(second.Reference);
+                Assert.True(traced.Success,traced.Message);
+                Assert.Equal(6m,traced.Data!.SettlementPostedNetAmount);
+                Assert.Equal(12m,traced.Data.SourceLinkedOutstandingAmount);
+                var contra=await paymentReportService.RequestSettlementReversalAsync(second.Reference,postedReference,
+                    new RequestSupplierSettlementReversal {ClientRequestId=Guid.NewGuid(),
+                        OriginalRowVersion=postedVersion,AccountingPeriodId=periodId,
+                        ReversalDate=date,Reason="Incorrect bank instruction requires full accounting contra" });
+                Assert.True(contra.Success,contra.Message);
+                Assert.Equal("Submitted",contra.Data!.ReversalState);
+                Assert.Equal(409,(await paymentReportService.RequestSettlementReversalAsync(second.Reference,postedReference,
+                    new RequestSupplierSettlementReversal {ClientRequestId=Guid.NewGuid(),
+                        OriginalRowVersion=postedVersion,AccountingPeriodId=periodId,
+                        ReversalDate=date,Reason="Duplicate pending contra must not be recorded"})).StatusCode);
+                await using var reversalChecker=Open(options,tenantId,checkerId);
+                var decision=await Invoices(reversalChecker,tenantId,checkerId)
+                    .ReviewSettlementReversalAsync(second.Reference,postedReference,
+                        contra.Data.ReversalReference!.Value,new ReviewSupplierSettlementReversal {
+                            RowVersion=contra.Data.ReversalRowVersion!,Approve=true,
+                            Reason="Independent auditor verifies full original GL line mirror" });
+                Assert.True(decision.Success,decision.Message);
+                Assert.Equal("Posted",decision.Data!.ReversalState);
+            }
+            await using (var reconciled=Open(options,tenantId,makerId))
+            {
+                var finalPaymentService=Invoices(reconciled,tenantId,makerId);
+                var report=(await finalPaymentService.AgingAsync(date,null,false,1,100)).Data!;
+                var row=Assert.Single(report.Items,x=>x.InvoiceReference==second.Reference);
+                Assert.Equal(0m,row.PostedSettlementAmount);
+                Assert.Equal(18m,row.SourceLinkedOutstandingAmount);
+                Assert.Equal(0m,(await finalPaymentService.SettlementOptionsAsync(second.Reference)).Data!.ReservedAmount);
+                var traced=await new V3EnterpriseSupplierPayableTraceService(
+                    reconciled,new Actor(tenantId,makerId)).GetAsync(second.Reference);
+                Assert.True(traced.Success,traced.Message);
+                Assert.Equal(0m,traced.Data!.SettlementPostedNetAmount);
+                Assert.Contains(traced.Data.SettlementInstructions,x=>x.PostedReversalReference.HasValue);
+            }
             // Run the foreign-tenant request LAST: the test fixture uses ambient
             // tenant identity and must not poison the original maker context.
             await using (var foreign = Open(options,tenantId+999999,checkerId))

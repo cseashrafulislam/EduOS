@@ -17,6 +17,7 @@ namespace EduOS.Service.Services.Inventory;
 public sealed partial class ProcurementSupplierInvoiceService
 {
     private const string SettlementSource = "ProcurementSupplierPayment";
+    private const string SettlementReversalSource = "ProcurementSupplierPaymentReversal";
     private async Task<(ProcurementSupplierInvoice? Invoice, Journal? Original, long PayableId, string? Error)>
         SettlementSourceAsync(Guid reference, CancellationToken ct)
     {
@@ -49,7 +50,10 @@ public sealed partial class ProcurementSupplierInvoiceService
             db.Journals.Any(j => j.TenantId == user.TenantId && !j.IsDeleted &&
                 j.Id == l.JournalId && j.SourceType == SettlementSource && j.SourceId == invoiceId &&
                 (j.State == JournalState.Submitted || j.State == JournalState.Approved ||
-                 j.State == JournalState.Posted)))
+                 (j.State == JournalState.Posted && !db.Journals.Any(r =>
+                    r.TenantId == user.TenantId && !r.IsDeleted &&
+                    r.SourceType == SettlementReversalSource && r.SourceId == j.Id &&
+                    r.ReversalOfJournalId == j.Id && r.State == JournalState.Posted)))))
             .SumAsync(l => (decimal?)l.DebitAmount, ct) ?? 0m;
 
     private async Task<SupplierSettlementInstructionDto> SettlementMapAsync(Journal journal, CancellationToken ct)
@@ -60,11 +64,20 @@ public sealed partial class ProcurementSupplierInvoiceService
             .Where(x => x.TenantId == user.TenantId && x.AccountId == lines[1].AccountId &&
                 !x.IsDeleted && (x.CampusId == null || x.CampusId == journal.CampusId))
             .Select(x => x.Id).FirstOrDefaultAsync(ct) : 0;
+        var contra = await db.Journals.AsNoTracking().Where(x => x.TenantId == user.TenantId &&
+            x.SourceType == SettlementReversalSource && x.SourceId == journal.Id &&
+            x.ReversalOfJournalId == journal.Id && !x.IsDeleted)
+            .OrderByDescending(x => x.CreatedAt).ThenByDescending(x => x.Id)
+            .Select(x => new { x.PublicId, x.State, x.RowVersion }).FirstOrDefaultAsync(ct);
         return new SupplierSettlementInstructionDto
         {
             Reference = journal.PublicId, State = journal.State.ToString(), PlannedDate = journal.JournalDate,
             Amount = lines.Count == 2 ? lines[0].DebitAmount : 0m, BankAccountId = bankAccountId,
             MakerId = journal.CreatedBy, ReviewerId = journal.ApprovedByUserId,
+            PostedByUserId = journal.PostedByUserId, PostedAtUtc = journal.PostedAt,
+            BankTransactionReference = journal.State == JournalState.Posted ? journal.ReferenceNumber : null,
+            ReversalReference = contra?.PublicId, ReversalState = contra?.State.ToString(),
+            ReversalRowVersion = contra == null ? null : Convert.ToBase64String(contra.RowVersion),
             Reason = journal.Description ?? "", RowVersion = Convert.ToBase64String(journal.RowVersion)
         };
     }

@@ -17,6 +17,9 @@ public sealed partial class InventoryMovementService
                 x.PublicId == movementReference && !x.IsDeleted, ct);
             if (m == null || !await LocationsAllowed(m.FromLocationId, m.ToLocationId, ct))
                 return ApiResponse<InventoryMovementDto>.ErrorResponse("Movement not found.", 404);
+            if (m.SourceType == "AssetCapitalization")
+                return ApiResponse<InventoryMovementDto>.ErrorResponse(
+                    "Capitalization stock must be posted atomically through independent Asset Finance approval.", 409);
             // A manual stock adjustment is always checked by a different authorized user.
             // The ordinary post route must not bypass maker-checker separation.
             if (m.SourceType == "ManualAdjustment" &&

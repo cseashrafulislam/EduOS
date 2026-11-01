@@ -4,6 +4,7 @@ namespace EduOS.Core.DTOs.Inventory;
 public sealed class AssetCapitalizationReadinessDto
 {
     public Guid AssetReference { get; set; }
+    public string AssetRowVersion { get; set; } = string.Empty;
     public string AssetTag { get; set; } = string.Empty;
     public long? CampusId { get; set; }
     public decimal? RegisteredPurchaseCost { get; set; }

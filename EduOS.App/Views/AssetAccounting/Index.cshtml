@@ -1,0 +1,79 @@
+@{
+    ViewData["Title"] = "Asset Accounting / সম্পদ হিসাব";
+    var maker = User.IsInRole("TenantAdmin") || User.IsInRole("Accountant");
+    var checker = User.IsInRole("TenantAdmin") || User.IsInRole("Principal");
+}
+<section id="assetAccountingWorkspace" class="container-fluid py-3"
+         data-maker="@maker.ToString().ToLowerInvariant()"
+         data-checker="@checker.ToString().ToLowerInvariant()">
+    <h2>Asset Accounting / স্থায়ী সম্পদ হিসাব</h2>
+    <p class="text-muted">Verified receipt unit → canonical Inventory issue → AssetBook → Finance GL. Separate maker/checker, tenant/campus, idempotency, open accounting period and reversing journals apply to every valuation. Bank proceeds are recorded in a chosen receivable/clearing GL account; no money is transferred by this page.</p>
+    <div id="aaStatus" class="alert alert-info" role="status" aria-live="polite">Choose an asset reference from the Fixed Assets register, then load Finance evidence.</div>
+    <div class="d-flex flex-wrap gap-2 align-items-end mb-3">
+        <div class="flex-grow-1"><label for="aaAsset" class="form-label">Asset reference (GUID) / সম্পদ রেফারেন্স</label>
+            <input id="aaAsset" class="form-control" maxlength="36" autocomplete="off" /></div>
+        <button id="aaLoad" class="btn btn-primary" type="button">Load / লোড</button>
+        <a href="/AssetLifecycle" class="btn btn-outline-secondary">Fixed Assets register</a>
+    </div>
+    <div id="aaResults" class="d-none">
+        <section class="card mb-3"><div class="card-body">
+            <h3 class="h5">Book &amp; posted ledger / বুক ও পোস্টেড হিসাব</h3>
+            <div id="aaBook" class="mb-2"></div>
+            <div class="table-responsive"><table class="table table-striped table-sm">
+                <thead><tr><th>Event</th><th>Date</th><th>Amount BDT</th><th>State</th><th>Finance journal</th><th>Actions</th></tr></thead>
+                <tbody id="aaEvents"></tbody></table></div>
+        </div></section>
+        <section class="card mb-3"><div class="card-body">
+            <h3 class="h5">Receipt unit capitalization / রিসিপ্ট ইউনিট মূলধনীকরণ</h3>
+            <p id="aaEvidence" class="small"></p>
+            <p id="aaCapState" class="small"></p>
+            @if (maker)
+            {
+                <form id="aaCapForm" class="row g-2">
+                    <div class="col-md-5"><label for="aaCandidate" class="form-label">Approved posted receipt / অনুমোদিত রিসিপ্ট</label><select id="aaCandidate" class="form-select" required></select></div>
+                    <div class="col-md-2"><label for="aaOrdinal" class="form-label">Unit ordinal</label><input id="aaOrdinal" type="number" min="1" step="1" value="1" class="form-control" required /></div>
+                    <div class="col-md-2"><label for="aaCapPeriod" class="form-label">Finance period</label><select id="aaCapPeriod" class="form-select" required></select></div>
+                    <div class="col-md-3"><label for="aaCapDate" class="form-label">Capitalization date</label><input id="aaCapDate" type="date" class="form-control" required /></div>
+                    <div class="col-md-3"><label for="aaServiceDate" class="form-label">In-service date</label><input id="aaServiceDate" type="date" class="form-control" required /></div>
+                    <div class="col-md-3"><label for="aaCapMode" class="form-label">Policy mode</label><select id="aaCapMode" class="form-select"><option value="Automatic">Automatic</option><option value="ManualFinal">Manual final</option><option value="AutoPlusManual">Automatic + manual correction</option></select></div>
+                    <div class="col-md-2"><label for="aaCost" class="form-label">Approved cost BDT</label><input id="aaCost" type="number" min="0" step="0.01" value="0" class="form-control" /></div>
+                    <div class="col-md-2"><label for="aaSalvage" class="form-label">Salvage BDT</label><input id="aaSalvage" type="number" min="0" step="0.01" value="0" class="form-control" required /></div>
+                    <div class="col-md-2"><label for="aaLife" class="form-label">Life months</label><input id="aaLife" type="number" min="1" max="1200" step="1" value="60" class="form-control" required /></div>
+                    <div class="col-md-2"><label for="aaPolicy" class="form-label">Policy version</label><input id="aaPolicy" type="number" min="1" step="1" value="1" class="form-control" required /></div>
+                    <div class="col-12"><p class="small text-muted mb-0">Choose institution-approved Finance posting accounts. Distinct active BDT leaf accounts are required.</p></div>
+                    <div class="col-md-3"><label for="aaFixed" class="form-label">Fixed asset (Dr)</label><select id="aaFixed" class="form-select" required></select></div>
+                    <div class="col-md-3"><label for="aaInventory" class="form-label">Inventory (Cr)</label><select id="aaInventory" class="form-select" required></select></div>
+                    <div class="col-md-3"><label for="aaAccum" class="form-label">Accumulated depreciation</label><select id="aaAccum" class="form-select" required></select></div>
+                    <div class="col-md-3"><label for="aaDepExp" class="form-label">Depreciation expense</label><select id="aaDepExp" class="form-select" required></select></div>
+                    <div class="col-md-3"><label for="aaImpExp" class="form-label">Impairment expense</label><select id="aaImpExp" class="form-select" required></select></div>
+                    <div class="col-md-3"><label for="aaGain" class="form-label">Disposal gain</label><select id="aaGain" class="form-select" required></select></div>
+                    <div class="col-md-3"><label for="aaLoss" class="form-label">Disposal loss</label><select id="aaLoss" class="form-select" required></select></div>
+                    <div class="col-md-3"><label for="aaVarGain" class="form-label">Cost variance gain (optional)</label><select id="aaVarGain" class="form-select"></select></div>
+                    <div class="col-md-3"><label for="aaVarLoss" class="form-label">Cost variance loss (optional)</label><select id="aaVarLoss" class="form-select"></select></div>
+                    <div class="col-md-9"><label for="aaCapReason" class="form-label">Evidence / policy reason (10–800 characters)</label><input id="aaCapReason" class="form-control" minlength="10" maxlength="800" required /></div>
+                    <div class="col-12"><button type="submit" class="btn btn-primary">Submit capitalization / মূলধনীকরণ জমা</button></div>
+                </form>
+            }
+            <div id="aaCapReview"></div>
+        </div></section>
+        @if (maker)
+        {
+            <section class="card mb-3"><div class="card-body">
+                <h3 class="h5">Monthly depreciation, impairment &amp; disposal / অবচয়, মূল্যহানি ও নিষ্পত্তি</h3>
+                <form id="aaEventForm" class="row g-2">
+                    <div class="col-md-3"><label for="aaKind" class="form-label">Event / কার্যক্রম</label><select id="aaKind" class="form-select"><option value="Depreciation">Monthly depreciation</option><option value="Impairment">Impairment</option><option value="Disposal">Disposal</option></select></div>
+                    <div class="col-md-3"><label for="aaPeriod" class="form-label">Open Finance period</label><select id="aaPeriod" class="form-select" required></select></div>
+                    <div class="col-md-3"><label for="aaDate" class="form-label">Effective date (depreciation: month-end)</label><input id="aaDate" type="date" class="form-control" required /></div>
+                    <div class="col-md-3"><label for="aaMode" class="form-label">Valuation policy</label><select id="aaMode" class="form-select"><option value="Automatic">Automatic</option><option value="ManualFinal">Manual final</option><option value="AutoPlusManual">Auto + documented correction</option></select></div>
+                    <div class="col-md-3"><label for="aaAmount" class="form-label">Amount (depreciation/impairment) or disposal proceeds, BDT</label><input id="aaAmount" type="number" min="0" step="0.01" value="0" class="form-control" required /></div>
+                    <div class="col-md-3"><label for="aaClearing" class="form-label">Disposal proceeds clearing GL</label><select id="aaClearing" class="form-select"></select></div>
+                    <div class="col-md-6"><label for="aaReason" class="form-label">Approval evidence / valuation reason</label><input id="aaReason" class="form-control" minlength="10" maxlength="800" required /></div>
+                    <div class="col-12"><button class="btn btn-primary" type="submit">Submit for independent review / অনুমোদনের জন্য পাঠান</button></div>
+                </form>
+            </div></section>
+        }
+    </div>
+</section>
+@section Scripts {
+    <script type="module" src="~/js/inventory/asset-accounting.js" asp-append-version="true"></script>
+}

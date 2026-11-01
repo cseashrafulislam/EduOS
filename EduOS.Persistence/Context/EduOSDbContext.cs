@@ -427,6 +427,7 @@ public class EduOSDbContext :
 
     // Inventory / Assets
     public DbSet<AssetBook> AssetBooks => Set<AssetBook>();
+    public DbSet<AssetCapitalizationCommand> AssetCapitalizationCommands => Set<AssetCapitalizationCommand>();
     public DbSet<AssetDepreciationRun> AssetDepreciationRuns => Set<AssetDepreciationRun>();
     public DbSet<AssetDepreciationLine> AssetDepreciationLines => Set<AssetDepreciationLine>();
     public DbSet<AssetImpairment> AssetImpairments => Set<AssetImpairment>();
@@ -1258,6 +1259,22 @@ public class EduOSDbContext :
         TenantReference<ProcurementSupplierAcknowledgement, ProcurementSupplier>(modelBuilder, nameof(ProcurementSupplierAcknowledgement.SupplierId));
         Reference<ProcurementSupplierAcknowledgement, ApplicationUser>(modelBuilder, nameof(ProcurementSupplierAcknowledgement.DecidedByUserId));
         TenantReference<AssetBook, Asset>(modelBuilder, nameof(AssetBook.AssetId));
+        TenantReference<AssetCapitalizationCommand, Asset>(modelBuilder, nameof(AssetCapitalizationCommand.AssetId));
+        TenantReference<AssetCapitalizationCommand, ProcurementGoodsReceiptLine>(modelBuilder, nameof(AssetCapitalizationCommand.GoodsReceiptLineId));
+        TenantReference<AssetCapitalizationCommand, Campus>(modelBuilder, nameof(AssetCapitalizationCommand.CampusId));
+        TenantReference<AssetCapitalizationCommand, AccountingPeriod>(modelBuilder, nameof(AssetCapitalizationCommand.AccountingPeriodId));
+        TenantReference<AssetCapitalizationCommand, AssetBook>(modelBuilder, nameof(AssetCapitalizationCommand.AssetBookId));
+        TenantReference<AssetCapitalizationCommand, InventoryMovement>(modelBuilder, nameof(AssetCapitalizationCommand.StockMovementId));
+        TenantReference<AssetCapitalizationCommand, Journal>(modelBuilder, nameof(AssetCapitalizationCommand.JournalId));
+        TenantReference<AssetCapitalizationCommand, Account>(modelBuilder, nameof(AssetCapitalizationCommand.FixedAssetAccountId));
+        TenantReference<AssetCapitalizationCommand, Account>(modelBuilder, nameof(AssetCapitalizationCommand.InventoryAccountId));
+        TenantReference<AssetCapitalizationCommand, Account>(modelBuilder, nameof(AssetCapitalizationCommand.AccumulatedDepreciationAccountId));
+        TenantReference<AssetCapitalizationCommand, Account>(modelBuilder, nameof(AssetCapitalizationCommand.DepreciationExpenseAccountId));
+        TenantReference<AssetCapitalizationCommand, Account>(modelBuilder, nameof(AssetCapitalizationCommand.ImpairmentExpenseAccountId));
+        TenantReference<AssetCapitalizationCommand, Account>(modelBuilder, nameof(AssetCapitalizationCommand.DisposalGainAccountId));
+        TenantReference<AssetCapitalizationCommand, Account>(modelBuilder, nameof(AssetCapitalizationCommand.DisposalLossAccountId));
+        TenantReference<AssetCapitalizationCommand, Account>(modelBuilder, nameof(AssetCapitalizationCommand.VarianceGainAccountId));
+        TenantReference<AssetCapitalizationCommand, Account>(modelBuilder, nameof(AssetCapitalizationCommand.VarianceLossAccountId));
         TenantReference<AssetBook, Campus>(modelBuilder, nameof(AssetBook.CampusId));
         TenantReference<AssetBook, Account>(modelBuilder, nameof(AssetBook.CostAccountId));
         TenantReference<AssetBook, Account>(modelBuilder, nameof(AssetBook.AccumulatedDepreciationAccountId));
@@ -1274,10 +1291,13 @@ public class EduOSDbContext :
         TenantReference<AssetDepreciationLine, AssetBook>(modelBuilder, nameof(AssetDepreciationLine.AssetBookId));
         TenantReference<AssetDepreciationLine, JournalLine>(modelBuilder, nameof(AssetDepreciationLine.JournalLineId));
         TenantReference<AssetImpairment, AssetBook>(modelBuilder, nameof(AssetImpairment.AssetBookId));
+        TenantReference<AssetImpairment, AccountingPeriod>(modelBuilder, nameof(AssetImpairment.AccountingPeriodId));
         TenantReference<AssetImpairment, Journal>(modelBuilder, nameof(AssetImpairment.JournalId));
         TenantReference<AssetImpairment, Journal>(modelBuilder, nameof(AssetImpairment.ReversalJournalId));
         Reference<AssetImpairment, ApplicationUser>(modelBuilder, nameof(AssetImpairment.ApprovedByUserId));
         TenantReference<AssetDisposal, AssetBook>(modelBuilder, nameof(AssetDisposal.AssetBookId));
+        TenantReference<AssetDisposal, AccountingPeriod>(modelBuilder, nameof(AssetDisposal.AccountingPeriodId));
+        TenantReference<AssetDisposal, Account>(modelBuilder, nameof(AssetDisposal.ProceedsClearingAccountId));
         TenantReference<AssetDisposal, Journal>(modelBuilder, nameof(AssetDisposal.JournalId));
         TenantReference<AssetDisposal, Journal>(modelBuilder, nameof(AssetDisposal.ReversalJournalId));
         Reference<AssetDisposal, ApplicationUser>(modelBuilder, nameof(AssetDisposal.ApprovedByUserId));
@@ -2052,9 +2072,19 @@ public class EduOSDbContext :
         modelBuilder.Entity<ProcurementSupplierAcknowledgement>().HasIndex(x => new { x.TenantId, x.SupplierId });
         modelBuilder.Entity<ProcurementSupplierAcknowledgement>().HasIndex(x => new { x.TenantId, x.CampusId, x.StateCode, x.CreatedAt });
         modelBuilder.Entity<AssetBook>().HasIndex(x => new { x.TenantId, x.AssetId }).IsUnique().HasFilter("[IsDeleted] = 0");
+        UniqueTenant<AssetCapitalizationCommand>(modelBuilder, nameof(AssetCapitalizationCommand.ClientRequestId));
+        UniqueTenant<AssetCapitalizationCommand>(modelBuilder, nameof(AssetCapitalizationCommand.PublicId));
+        modelBuilder.Entity<AssetCapitalizationCommand>().HasIndex(x => new { x.TenantId, x.AssetId })
+            .IsUnique().HasFilter("[IsDeleted] = 0 AND [StateCode] <> N'Rejected'");
+        modelBuilder.Entity<AssetCapitalizationCommand>().HasIndex(x => new { x.TenantId, x.GoodsReceiptLineId, x.ReceiptUnitOrdinal })
+            .IsUnique().HasFilter("[IsDeleted] = 0 AND [StateCode] <> N'Rejected'");
+        UniqueTenant<AssetCapitalizationCommand>(modelBuilder, [nameof(AssetCapitalizationCommand.JournalId)], "[JournalId] IS NOT NULL");
+        UniqueTenant<AssetCapitalizationCommand>(modelBuilder, [nameof(AssetCapitalizationCommand.StockMovementId)], "[StockMovementId] IS NOT NULL");
         modelBuilder.Entity<AssetBook>().HasIndex(x => new { x.TenantId, x.CampusId, x.IsActive });
         modelBuilder.Entity<AssetDepreciationRun>().HasIndex(x => new { x.TenantId, x.ClientRequestId }).IsUnique().HasFilter("[IsDeleted] = 0");
         modelBuilder.Entity<AssetDepreciationRun>().HasIndex(x => new { x.TenantId, x.AccountingPeriodId, x.StateCode });
+        modelBuilder.Entity<AssetImpairment>().HasIndex(x => new { x.TenantId, x.AccountingPeriodId });
+        modelBuilder.Entity<AssetDisposal>().HasIndex(x => new { x.TenantId, x.AccountingPeriodId });
         modelBuilder.Entity<AssetDepreciationLine>().HasIndex(x => new { x.TenantId, x.AssetDepreciationRunId, x.AssetBookId }).IsUnique().HasFilter("[IsDeleted] = 0");
         modelBuilder.Entity<AssetDepreciationLine>().HasIndex(x => new { x.TenantId, x.AssetBookId, x.PeriodEnd }).IsUnique().HasFilter("[IsDeleted] = 0");
         modelBuilder.Entity<AssetImpairment>().HasIndex(x => new { x.TenantId, x.ClientRequestId }).IsUnique().HasFilter("[IsDeleted] = 0");
@@ -2281,6 +2311,11 @@ public class EduOSDbContext :
         });
         modelBuilder.Entity<AssetBook>().ToTable(t =>
             t.HasCheckConstraint("CK_AssetBook_Policy", "[UsefulLifeMonths] > 0 AND [PolicyVersion] >= 1 AND [CostBasis] >= 0 AND [SalvageValue] >= 0 AND [SalvageValue] <= [CostBasis]"));
+        modelBuilder.Entity<AssetCapitalizationCommand>().ToTable(t =>
+        {
+            t.HasCheckConstraint("CK_AssetCapitalizationCommand_State", "[StateCode] IN (N'Submitted',N'Posted',N'Rejected')");
+            t.HasCheckConstraint("CK_AssetCapitalizationCommand_Cost", "[ReceiptUnitOrdinal] > 0 AND [UsefulLifeMonths] > 0 AND [PolicyVersion] > 0 AND [ProposedCostBasis] > 0 AND [SalvageValue] >= 0 AND [SalvageValue] <= [ProposedCostBasis]");
+        });
         modelBuilder.Entity<AssetDepreciationRun>().ToTable(t =>
             t.HasCheckConstraint("CK_AssetDepreciationRun_Amount", "[TotalAmount] >= 0"));
         modelBuilder.Entity<AssetDepreciationLine>().ToTable(t =>

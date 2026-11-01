@@ -80,12 +80,19 @@ if (root) {
                 add([bn ? 'মূল্য পার্থক্য' : 'Price variance', d.supplierReference, '', '', '', d.priceVariance]);
                 (d.goodsReceiptReferences || []).forEach(r => add([bn ? 'পণ্য গ্রহণ' : 'Goods receipt', r, 'Posted', '', '', '']));
                 (d.settlementInstructions || []).forEach(s => add([
-                    bn ? 'অপরিশোধিত নির্দেশনা' : 'UNPOSTED settlement instruction',
-                    s.reference, s.state + (bn ? ' · অর্থ প্রদান হয়নি' : ' · NOT PAID'),
+                    s.isPostedToFinance ? (bn ? 'পোস্টকৃত পরিশোধ GL' : 'Posted settlement GL') :
+                        (bn ? 'অপরিশোধিত নির্দেশনা' : 'UNPOSTED settlement instruction'),
+                    s.reference, s.state + (s.postedReversalReference ? (bn ? ' · রিভার্সড' : ' · REVERSED') :
+                        s.isPostedToFinance ? (bn ? ' · ব্যাংক নিশ্চিত' : ' · BANK CONFIRMED') :
+                        (bn ? ' · অর্থ প্রদান হয়নি' : ' · NOT PAID')),
                     '', '', s.amount
                 ]));
                 add([bn ? 'সংরক্ষিত পরিমাণ (অপরিশোধিত)' : 'Reserved, NOT PAID',
                     d.invoiceReference, '', '', '', d.settlementReservedAmount ?? 0]);
+                add([bn ? 'পোস্টকৃত নেট পরিশোধ' : 'Posted net settlement',
+                    d.invoiceReference, '', '', '', d.settlementPostedNetAmount ?? 0]);
+                add([bn ? 'উৎস-সংযুক্ত নেট দায়' : 'Source-linked outstanding',
+                    d.invoiceReference, '', '', '', d.sourceLinkedOutstandingAmount ?? 0]);
             } else if (selectedKind === 'asset') {
                 add([bn ? 'অবচয়' : 'Depreciation', d.runReference, d.state, '', '', d.runTotalAmount]);
                 add([bn ? 'বিস্তারিত' : 'Lines', d.depreciationLineCount, '', '', '', d.depreciationLinesAmount]);

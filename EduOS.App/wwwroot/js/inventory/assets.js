@@ -32,6 +32,11 @@ if (root) {
                 const cell = document.createElement('td');
                 addButton(cell, 'Custody', () => selectAsset(row).catch(error => notice(error.message)));
                 addButton(cell, 'Capitalization / মূলধনীকরণ', () => showCapitalizationReadiness(row.reference));
+                const finance = document.createElement('a');
+                finance.className = 'btn btn-sm btn-outline-success ms-1';
+                finance.href = '/AssetAccounting?asset=' + encodeURIComponent(row.reference);
+                finance.textContent = 'Asset Finance / সম্পদ হিসাব';
+                cell.append(finance);
                 if (canManage) addButton(cell, 'Edit', () => editAsset(row));
                 tr.append(cell); target.append(tr);
             }

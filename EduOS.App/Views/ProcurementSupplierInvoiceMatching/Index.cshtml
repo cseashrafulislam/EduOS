@@ -33,9 +33,9 @@
     </nav>
     <section id="supplierSettlement" class="border rounded p-3 mb-4" aria-labelledby="ssTitle"
              data-maker="@maker.ToString().ToLowerInvariant()" data-reviewer="@reviewer.ToString().ToLowerInvariant()">
-        <h2 id="ssTitle" class="h6" data-en="Supplier settlement instructions" data-bn="সরবরাহকারী পরিশোধ নির্দেশনা">Supplier settlement instructions</h2>
-        <p class="small text-muted" data-en="Source-linked approval instructions only. Approved does NOT mean paid; no GL posting or bank transfer occurs."
-           data-bn="শুধু উৎস-সংযুক্ত অনুমোদন নির্দেশনা। অনুমোদিত মানে পরিশোধিত নয়; GL পোস্ট বা ব্যাংক ট্রান্সফার হয় না।">Source-linked approval instructions only. Approved does NOT mean paid; no GL posting or bank transfer occurs.</p>
+        <h2 id="ssTitle" class="h6" data-en="Supplier payable settlement" data-bn="সরবরাহকারী দায় পরিশোধ">Supplier payable settlement</h2>
+        <p class="small text-muted" data-en="Prepare and independently approve a bank disbursement. Only after external bank confirmation can Finance post the canonical GL. Reversal requires another independent decision; EduOS does not transfer bank funds."
+           data-bn="ব্যাংক পরিশোধ প্রস্তুত ও স্বতন্ত্র অনুমোদন করুন। বাইরে ব্যাংক নিশ্চিত করলে তবেই ফাইন্যান্স মূল GL পোস্ট করবে। রিভার্সালে আলাদা স্বতন্ত্র অনুমোদন লাগে; EduOS নিজে ব্যাংকে টাকা পাঠায় না।">Prepare and independently approve a bank disbursement. Only after external bank confirmation can Finance post the canonical GL. Reversal requires another independent decision; EduOS does not transfer bank funds.</p>
         <p id="ssSelected" class="small fw-semibold" role="status" aria-live="polite" data-en="Open a posted supplier invoice and select Settlement." data-bn="পোস্টকৃত ইনভয়েস খুলে Settlement নির্বাচন করুন।">Open a posted supplier invoice and select Settlement.</p>
         <p id="ssStatus" class="small" role="status" aria-live="polite"></p>
         @if (maker) {
@@ -71,11 +71,40 @@
                 <div class="d-flex justify-content-end gap-2 mt-3"><button type="button" id="ssClose" class="btn btn-outline-secondary">Cancel</button><button id="ssReviewSubmit" type="submit" class="btn btn-primary">Confirm</button></div>
             </form>
         </dialog>
+        <dialog id="ssPostDialog" class="border rounded shadow p-0" aria-labelledby="ssPostTitle" style="width:min(96vw,520px)">
+            <form id="ssPostForm" class="p-3">
+                <h3 id="ssPostTitle" class="h6" data-en="Confirm bank disbursement and post GL" data-bn="ব্যাংক পরিশোধ নিশ্চিত করে GL পোস্ট">Confirm bank disbursement and post GL</h3>
+                <p class="small text-muted" data-en="Only use a completed external bank transaction. The date must match the approved instruction and its accounting period must remain open."
+                   data-bn="শুধু বাইরে সম্পন্ন ব্যাংক লেনদেনের তথ্য দিন। তারিখ অনুমোদিত নির্দেশনার সমান ও হিসাবকাল খোলা থাকতে হবে।">Only use a completed external bank transaction. The date must match the approved instruction and its accounting period must remain open.</p>
+                <label for="ssExecutedDate" class="form-label" data-en="Confirmed execution date" data-bn="নিশ্চিত পরিশোধের তারিখ">Confirmed execution date</label>
+                <input id="ssExecutedDate" type="date" class="form-control" required />
+                <label for="ssBankReference" class="form-label mt-2" data-en="External bank transaction reference (6–100)" data-bn="বাইরের ব্যাংক লেনদেন রেফারেন্স (৬–১০০)">External bank transaction reference (6–100)</label>
+                <input id="ssBankReference" type="text" class="form-control" minlength="6" maxlength="100" pattern="[A-Za-z0-9][A-Za-z0-9./:_-]{5,99}" autocomplete="off" required />
+                <div class="d-flex justify-content-end gap-2 mt-3"><button type="button" id="ssPostClose" class="btn btn-outline-secondary" data-en="Cancel" data-bn="বাতিল">Cancel</button><button type="submit" id="ssPostSubmit" class="btn btn-primary" data-en="Post confirmed payment" data-bn="নিশ্চিত পরিশোধ পোস্ট">Post confirmed payment</button></div>
+            </form>
+        </dialog>
+        <dialog id="ssReverseDialog" class="border rounded shadow p-0" aria-labelledby="ssReverseTitle" style="width:min(96vw,520px)">
+            <form id="ssReverseForm" class="p-3">
+                <h3 id="ssReverseTitle" class="h6" data-en="Request full GL settlement reversal" data-bn="সম্পূর্ণ GL পরিশোধ রিভার্সালের আবেদন">Request full GL settlement reversal</h3>
+                <label for="ssReverseDate" class="form-label" data-en="Reversal date" data-bn="রিভার্সাল তারিখ">Reversal date</label><input id="ssReverseDate" type="date" class="form-control" required />
+                <label for="ssReversePeriod" class="form-label mt-2" data-en="Open accounting period" data-bn="খোলা হিসাবকাল">Open accounting period</label><select id="ssReversePeriod" class="form-select" required></select>
+                <label for="ssReverseReason" class="form-label mt-2" data-en="Full reversal reason (10–800)" data-bn="সম্পূর্ণ রিভার্সালের কারণ (১০–৮০০)">Full reversal reason (10–800)</label><textarea id="ssReverseReason" class="form-control" minlength="10" maxlength="800" rows="2" required></textarea>
+                <div class="d-flex justify-content-end gap-2 mt-3"><button type="button" id="ssReverseClose" class="btn btn-outline-secondary" data-en="Cancel" data-bn="বাতিল">Cancel</button><button type="submit" id="ssReverseSubmit" class="btn btn-outline-danger" data-en="Submit reversal request" data-bn="রিভার্সালের আবেদন জমা">Submit reversal request</button></div>
+            </form>
+        </dialog>
+        <dialog id="ssContraDialog" class="border rounded shadow p-0" aria-labelledby="ssContraTitle" style="width:min(96vw,520px)">
+            <form id="ssContraForm" class="p-3">
+                <h3 id="ssContraTitle" class="h6" data-en="Independent settlement reversal decision" data-bn="স্বতন্ত্র পরিশোধ রিভার্সাল সিদ্ধান্ত">Independent settlement reversal decision</h3>
+                <label for="ssContraDecision" class="form-label" data-en="Decision" data-bn="সিদ্ধান্ত">Decision</label><select id="ssContraDecision" class="form-select"><option value="Approve">Approve &amp; post contra GL</option><option value="Reject">Reject</option></select>
+                <label for="ssContraReason" class="form-label mt-2" data-en="Decision evidence (10–300)" data-bn="সিদ্ধান্তের কারণ (১০–৩০০)">Decision evidence (10–300)</label><textarea id="ssContraReason" class="form-control" minlength="10" maxlength="300" rows="2" required></textarea>
+                <div class="d-flex justify-content-end gap-2 mt-3"><button type="button" id="ssContraClose" class="btn btn-outline-secondary" data-en="Cancel" data-bn="বাতিল">Cancel</button><button type="submit" id="ssContraSubmit" class="btn btn-outline-danger" data-en="Confirm decision" data-bn="সিদ্ধান্ত নিশ্চিত">Confirm decision</button></div>
+            </form>
+        </dialog>
     </section>
     <section id="supplierPayableAging" class="border rounded p-3 mb-4" aria-labelledby="paTitle">
-        <h2 id="paTitle" class="h6" data-en="Supplier payable aging (gross posted AP)" data-bn="সরবরাহকারীর দায়ের বয়স (পোস্টকৃত মোট দায়)">Supplier payable aging (gross posted AP)</h2>
-        <p class="small text-muted" data-en="Current posted supplier liabilities aged by due date. Unlinked manual or bank payments are NOT deducted; this is not a reconciled unpaid balance."
-           data-bn="পোস্টকৃত দায় নির্ধারিত তারিখ অনুযায়ী দেখানো হয়েছে। উৎসবিহীন নগদ বা ব্যাংক পরিশোধ বাদ দেওয়া হয়নি; এটি মিলকৃত বকেয়া নয়।">Current posted supplier liabilities aged by due date. Unlinked manual or bank payments are NOT deducted; this is not a reconciled unpaid balance.</p>
+        <h2 id="paTitle" class="h6" data-en="Supplier payable aging — source-linked net GL" data-bn="সরবরাহকারীর দায়ের বয়স — উৎস-সংযুক্ত নেট GL">Supplier payable aging — source-linked net GL</h2>
+        <p class="small text-muted" data-en="Net = posted AP minus verified, posted settlement journals (plus approved compensating reversals). Pending instructions do not count as paid. Unlinked bank entries are excluded; this is NOT bank-statement reconciliation."
+           data-bn="নেট = পোস্টকৃত দায় থেকে যাচাইকৃত পোস্টকৃত পরিশোধ বাদ (অনুমোদিত রিভার্সাল যোগ)। অপেক্ষমাণ নির্দেশনা পরিশোধ নয়। উৎসবিহীন ব্যাংক লেনদেন বাদ; এটি ব্যাংক স্টেটমেন্টের পূর্ণ মিল নয়।">Net = posted AP minus verified, posted settlement journals (plus approved compensating reversals). Pending instructions do not count as paid. Unlinked bank entries are excluded; this is NOT bank-statement reconciliation.</p>
         <form id="paForm" class="row g-2 align-items-end mb-2">
             <div class="col-12 col-sm-4"><label for="paDate" class="form-label" data-en="Due-date reference" data-bn="নির্ধারিত তারিখের ভিত্তি">Due-date reference</label><input id="paDate" type="date" class="form-control" required /></div>
             <div class="col-12 col-sm-3"><label class="form-check-label d-flex gap-2 align-items-center pb-2"><input id="paOverdue" type="checkbox" class="form-check-input"/><span data-en="Overdue only" data-bn="শুধু মেয়াদোত্তীর্ণ">Overdue only</span></label></div>
@@ -84,7 +113,7 @@
         </form>
         <p id="paStatus" role="status" aria-live="polite" class="small"></p>
         <div class="table-responsive"><table class="table table-sm table-striped"><thead><tr>
-            <th>Invoice</th><th>PO</th><th>Supplier</th><th>Campus</th><th>Due</th><th>Days</th><th>Bucket</th><th>Gross BDT</th><th>Reversal</th>
+            <th>Invoice</th><th>PO</th><th>Supplier</th><th>Campus</th><th>Due</th><th>Days</th><th>Bucket</th><th>Gross BDT</th><th>Posted BDT</th><th>Net BDT</th><th>Pending BDT</th><th>Integrity</th><th>Reversal</th>
         </tr></thead><tbody id="paRows"></tbody></table></div>
         <nav class="d-flex align-items-center gap-2" aria-label="Payable aging pages">
             <button id="paPrev" type="button" class="btn btn-outline-secondary btn-sm">Previous</button>

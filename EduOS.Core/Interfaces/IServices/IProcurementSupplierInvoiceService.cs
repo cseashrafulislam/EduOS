@@ -20,5 +20,8 @@ public interface IProcurementSupplierInvoiceService
     Task<ApiResponse<SupplierSettlementInstructionDto>> RequestSettlementAsync(Guid reference, CreateSupplierSettlementInstructionRequest request, CancellationToken ct = default);
     Task<ApiResponse<SupplierSettlementInstructionDto>> WithdrawSettlementAsync(Guid reference, Guid instructionReference, WithdrawSupplierSettlementInstructionRequest request, CancellationToken ct = default);
     Task<ApiResponse<SupplierSettlementInstructionDto>> ReviewSettlementAsync(Guid reference, Guid instructionReference, ReviewSupplierSettlementInstructionRequest request, CancellationToken ct = default);
+    Task<ApiResponse<SupplierSettlementInstructionDto>> PostSettlementAsync(Guid reference, Guid instructionReference, PostSupplierSettlementRequest request, CancellationToken ct = default);
+    Task<ApiResponse<SupplierSettlementInstructionDto>> RequestSettlementReversalAsync(Guid reference, Guid instructionReference, RequestSupplierSettlementReversal request, CancellationToken ct = default);
+    Task<ApiResponse<SupplierSettlementInstructionDto>> ReviewSettlementReversalAsync(Guid reference, Guid instructionReference, Guid reversalReference, ReviewSupplierSettlementReversal request, CancellationToken ct = default);
     Task<ApiResponse<ProcurementInvoicePostingOptionsDto>> PostingOptionsAsync(CancellationToken ct = default);
 }

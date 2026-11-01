@@ -20,18 +20,22 @@
    if(!r.ok||!result?.success)throw new Error(result?.message||'Report unavailable');
    if(n!==seq)return;
    const data=result.data;pages=Math.max(1,data.totalPages||1);$('paRows').replaceChildren();
-   let gross=0;
+   let gross=0,net=0,invalid=0;
    for(const x of data.items||[]){
     const tr=document.createElement('tr');gross+=Number(x.grossPostedAmount);
+    if(x.sourceLinkedOutstandingAmount==null)invalid++;else net+=Number(x.sourceLinkedOutstandingAmount);
     for(const v of [x.supplierInvoiceNumber,x.orderNumber,x.supplierId,x.campusId,x.dueDate,
-     x.daysOverdue,x.agingBucket,money(x.grossPostedAmount),
+     x.daysOverdue,x.agingBucket,money(x.grossPostedAmount),money(x.postedSettlementAmount),
+     x.sourceLinkedOutstandingAmount==null?t('Conflict','ত্রুটি'):money(x.sourceLinkedOutstandingAmount),
+     money(x.reservedUnpostedAmount),x.settlementIntegrityStatus,
      x.reversalPending?t('Pending','অপেক্ষমাণ'):'—'])tr.appendChild(cell(v));
     $('paRows').appendChild(tr);
    }
-   if(!(data.items||[]).length){const tr=document.createElement('tr'),td=cell(t('No posted payables','পোস্টকৃত দায় নেই'));td.colSpan=9;tr.appendChild(td);$('paRows').appendChild(tr);}
+   if(!(data.items||[]).length){const tr=document.createElement('tr'),td=cell(t('No posted payables','পোস্টকৃত দায় নেই'));td.colSpan=13;tr.appendChild(td);$('paRows').appendChild(tr);}
    $('paPage').textContent=page+' / '+pages;
    $('paPrev').disabled=page<=1;$('paNext').disabled=page>=pages;
-   status(t('Page gross BDT ','পৃষ্ঠার মোট দায় ৳')+money(gross)+t(' · Settlement unverified',' · পরিশোধ যাচাই হয়নি'));
+   status(t('Page gross BDT ','পৃষ্ঠার মোট দায় ৳')+money(gross)+t(' · Source-linked net ',' · উৎস-সংযুক্ত নেট ')+money(net)+
+    (invalid?t(' · Evidence conflicts: ',' · তথ্যের গরমিল: ')+invalid:''));
   }catch(e){if(n===seq)status(e.message,true);}
  }
  $('paForm').addEventListener('submit',e=>{e.preventDefault();page=1;load();});

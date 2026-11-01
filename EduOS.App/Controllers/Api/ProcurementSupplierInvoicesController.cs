@@ -46,7 +46,8 @@ public sealed class ProcurementSupplierInvoicesController(IProcurementSupplierIn
     public async Task<IActionResult> ReviewReversal(Guid reference,[FromBody] ReviewProcurementSupplierInvoiceReversal request,
         CancellationToken ct) => Reply(await service.ReviewReversalAsync(reference,request,ct));
 
-    // Canonical Finance Journal instructions only. No bank transfer and no GL posting endpoint.
+    // Canonical institutional Finance Journals. Posting records confirmed bank evidence;
+    // it never calls the bank or initiates an electronic transfer.
     [HttpGet("{reference:guid}/settlements/options"), RequireModule("FINANCE"), Authorize(Roles="TenantAdmin,Principal,Accountant")]
     public async Task<IActionResult> SettlementOptions(Guid reference, CancellationToken ct)
         => Reply(await service.SettlementOptionsAsync(reference, ct));
@@ -68,6 +69,21 @@ public sealed class ProcurementSupplierInvoicesController(IProcurementSupplierIn
     public async Task<IActionResult> ReviewSettlement(Guid reference, Guid instruction,
         [FromBody] ReviewSupplierSettlementInstructionRequest request, CancellationToken ct)
         => Reply(await service.ReviewSettlementAsync(reference, instruction, request, ct));
+
+    [HttpPost("{reference:guid}/settlements/{instruction:guid}/post"), RequireModule("FINANCE"), Authorize(Roles="TenantAdmin,Principal,Accountant")]
+    public async Task<IActionResult> PostSettlement(Guid reference, Guid instruction,
+        [FromBody] PostSupplierSettlementRequest request, CancellationToken ct)
+        => Reply(await service.PostSettlementAsync(reference, instruction, request, ct));
+
+    [HttpPost("{reference:guid}/settlements/{instruction:guid}/reversal"), RequireModule("FINANCE"), Authorize(Roles="TenantAdmin,Accountant")]
+    public async Task<IActionResult> RequestSettlementReversal(Guid reference, Guid instruction,
+        [FromBody] RequestSupplierSettlementReversal request, CancellationToken ct)
+        => Reply(await service.RequestSettlementReversalAsync(reference, instruction, request, ct));
+
+    [HttpPost("{reference:guid}/settlements/{instruction:guid}/reversal/{reversal:guid}/review"), RequireModule("FINANCE"), Authorize(Roles="TenantAdmin,Principal,Accountant")]
+    public async Task<IActionResult> ReviewSettlementReversal(Guid reference, Guid instruction, Guid reversal,
+        [FromBody] ReviewSupplierSettlementReversal request, CancellationToken ct)
+        => Reply(await service.ReviewSettlementReversalAsync(reference, instruction, reversal, request, ct));
 
     [HttpGet("aging"), Authorize(Roles="TenantAdmin,Principal,Accountant")]
     public async Task<IActionResult> Aging(DateOnly? dueDateReference,long? supplierId,bool overdueOnly=false,
@@ -94,14 +110,16 @@ public sealed class ProcurementSupplierInvoicesController(IProcurementSupplierIn
             if(s.TrimStart().Length>0 && "=+-@".Contains(s.TrimStart()[0]))s="'"+s;
             return "\"" + s.Replace("\"","\"\"") + "\"";
         }
-        var csv=new StringBuilder("Invoice,PO,Supplier,Campus,DueDate,DaysOverdue,Bucket,GrossPostedAP_BDT,ReversalPending,Journal,SettlementVerified\r\n");
+        var csv=new StringBuilder("Invoice,PO,Supplier,Campus,DueDate,DaysOverdue,Bucket,GrossPostedAP_BDT,PostedSettlement_BDT,UnpostedReservation_BDT,SourceLinkedNet_BDT,SettlementEvidence,ReversalPending,Journal\r\n");
         foreach(var x in rows)
             csv.AppendJoin(',',Csv(x.SupplierInvoiceNumber),Csv(x.OrderNumber),Csv(x.SupplierId),
                 Csv(x.CampusId),Csv(x.DueDate),Csv(x.DaysOverdue),Csv(x.AgingBucket),
-                Csv(x.GrossPostedAmount),Csv(x.ReversalPending),Csv(x.JournalReference),Csv("NO"))
+                Csv(x.GrossPostedAmount),Csv(x.PostedSettlementAmount),Csv(x.ReservedUnpostedAmount),
+                Csv(x.SourceLinkedOutstandingAmount),Csv(x.SettlementIntegrityStatus),
+                Csv(x.ReversalPending),Csv(x.JournalReference))
                 .Append("\r\n");
         return File(new UTF8Encoding(true).GetBytes(csv.ToString()),"text/csv; charset=utf-8",
-            "supplier-gross-payable-aging.csv");
+            "supplier-source-linked-payable-aging.csv");
     }
 
     [HttpGet("export"), Authorize(Roles="TenantAdmin,Principal,Accountant")]

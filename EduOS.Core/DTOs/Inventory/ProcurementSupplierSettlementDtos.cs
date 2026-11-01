@@ -24,6 +24,29 @@ public sealed class WithdrawSupplierSettlementInstructionRequest
     public string RowVersion { get; set; } = "";
     public string Reason { get; set; } = "";
 }
+/// <summary>Confirms an independently approved bank disbursement in the canonical Finance GL;
+/// this does not initiate an electronic bank transfer.</summary>
+public sealed class PostSupplierSettlementRequest
+{
+    public Guid ClientRequestId { get; set; }
+    public string RowVersion { get; set; } = "";
+    public DateOnly ExecutedDate { get; set; }
+    public string BankTransactionReference { get; set; } = "";
+}
+public sealed class RequestSupplierSettlementReversal
+{
+    public Guid ClientRequestId { get; set; }
+    public string OriginalRowVersion { get; set; } = "";
+    public long AccountingPeriodId { get; set; }
+    public DateOnly ReversalDate { get; set; }
+    public string Reason { get; set; } = "";
+}
+public sealed class ReviewSupplierSettlementReversal
+{
+    public string RowVersion { get; set; } = "";
+    public bool Approve { get; set; }
+    public string Reason { get; set; } = "";
+}
 public sealed class SupplierSettlementInstructionDto
 {
     public Guid Reference { get; set; }
@@ -33,6 +56,12 @@ public sealed class SupplierSettlementInstructionDto
     public long BankAccountId { get; set; }
     public long? MakerId { get; set; }
     public long? ReviewerId { get; set; }
+    public long? PostedByUserId { get; set; }
+    public DateTime? PostedAtUtc { get; set; }
+    public string? BankTransactionReference { get; set; }
+    public Guid? ReversalReference { get; set; }
+    public string? ReversalState { get; set; }
+    public string? ReversalRowVersion { get; set; }
     public string Reason { get; set; } = "";
     public string RowVersion { get; set; } = "";
 }

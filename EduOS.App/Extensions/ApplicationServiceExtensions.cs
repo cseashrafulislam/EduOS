@@ -142,6 +142,7 @@ namespace EduOS.App.Extensions
             s.AddScoped<IAccountingPostingService, AccountingPostingService>();
             s.AddScoped<IAccountingReportingService, AccountingReportingService>();
             s.AddScoped<IAccountingSetupService, AccountingSetupService>();
+            s.AddScoped<AssetLifecycleService>();
             s.AddScoped<IAssetLifecycleService, AssetLifecycleService>();
             s.AddScoped<IEmployeeAttendanceService, EmployeeAttendanceService>();
             s.AddScoped<IFeeHeadAccountingService, FeeHeadAccountingService>();
@@ -157,7 +158,9 @@ namespace EduOS.App.Extensions
             s.AddScoped<IProcurementPurchaseOrderService, ProcurementPurchaseOrderService>();
             s.AddScoped<IProcurementSupplierInvoiceService, ProcurementSupplierInvoiceService>();
             s.AddScoped<IProcurementSupplierAcknowledgementService, ProcurementSupplierAcknowledgementService>();
+            s.AddScoped<InventoryMovementService>();
             s.AddScoped<IInventoryMovementService, InventoryMovementService>();
+            s.AddScoped<AssetAccountingService>();
             s.AddScoped<ILeaveEntitlementService, LeaveEntitlementService>();
             s.AddScoped<ILibraryBranchService, LibraryBranchService>();
             s.AddScoped<ILibraryReservationService, LibraryReservationService>();
