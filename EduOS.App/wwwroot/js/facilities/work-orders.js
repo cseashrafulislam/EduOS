@@ -28,6 +28,12 @@
     };
     const token = document.querySelector('meta[name="request-verification-token"]')?.content;
     const base = '/api/facilities/work-orders';
+    const session = {
+        reference: document.body?.dataset.authSessionReference || '',
+        tenant: document.body?.dataset.authTenantId || ''
+    };
+    const shield = el('eduosSessionShield');
+    let blocked = false, creating = false, transitioning = false;
     let page = 1, pages = 1, selected = null, historyPage = 1, historyPages = 1;
     let listGeneration = 0, historyGeneration = 0;
     const pending = new Map();
@@ -45,6 +51,46 @@
         pending.set(key, { id, fingerprint });
         return id;
     };
+    // This API has no response-bound session identity. Reconcile with the
+    // existing authenticated session shield before displaying any readback.
+    function lockPage() {
+        if (blocked) return;
+        blocked = true;
+        listGeneration++;
+        historyGeneration++;
+        selected = null;
+        pending.clear();
+        for (const id of ['wfRows', 'wfDashboard', 'wfHistory']) el(id).replaceChildren();
+        el('wfSelected').textContent = t('Select a request', 'কাজ নির্বাচন করুন');
+        el('wfDetails').textContent = '';
+        for (const id of ['wfCreate', 'wfTransition']) {
+            const form = el(id);
+            form.reset();
+            for (const control of form.querySelectorAll('input, select, textarea, button'))
+                control.disabled = true;
+        }
+        el('wfTransition').classList.add('d-none');
+        for (const id of ['wfPrev', 'wfNext', 'facilityExport']) el(id).disabled = true;
+        notice(t('Institution session changed. Reload this page.',
+            'প্রতিষ্ঠানের সেশন পরিবর্তিত হয়েছে। পেজটি আবার লোড করুন।'));
+    }
+    function sessionCurrent() {
+        return !blocked && !!session.reference && !!session.tenant &&
+            !window.EduOSSessionTransitionPending?.() &&
+            document.body?.dataset.authSessionReference === session.reference &&
+            document.body?.dataset.authTenantId === session.tenant;
+    }
+    async function verifySession() {
+        if (!sessionCurrent() || !window.EduOSVerifySessionContext || !shield) {
+            lockPage();
+            throw new Error('session-changed');
+        }
+        await window.EduOSVerifySessionContext();
+        if (!sessionCurrent() || shield.hidden !== true) {
+            lockPage();
+            throw new Error('session-changed');
+        }
+    }
     function notice(message, ok = false) {
         const box = el('workflowAlert');
         box.className = 'alert alert-' + (ok ? 'success' : 'danger');
@@ -52,6 +98,8 @@
     }
     async function api(path = '', method = 'GET', body) {
         if (method !== 'GET' && !token) throw new Error(t('Security token missing. Reload.', 'নিরাপত্তা টোকেন নেই। পুনরায় লোড করুন।'));
+        if (!sessionCurrent()) { lockPage(); throw new Error('session-changed'); }
+        if (method !== 'GET') await verifySession();
         const headers = { Accept: 'application/json' };
         if (body !== undefined) headers['Content-Type'] = 'application/json';
         if (method !== 'GET') headers.RequestVerificationToken = token;
@@ -59,7 +107,9 @@
             method, credentials: 'same-origin', cache: 'no-store', headers,
             ...(body === undefined ? {} : { body: JSON.stringify(body) })
         });
+        await verifySession();
         const data = await response.json().catch(() => null);
+        if (response.status === 401) { lockPage(); throw new Error('session-changed'); }
         if (!response.ok || !data?.success) {
             const error = new Error(data?.message || t('Request failed.', 'অনুরোধ ব্যর্থ।'));
             error.status = response.status;
@@ -101,6 +151,7 @@
         return options;
     }
     function select(row) {
+        if (!sessionCurrent()) { lockPage(); return; }
         selected = row;
         el('wfSelected').textContent = '#' + row.id + ' — ' + row.summary;
         el('wfDetails').textContent = [
@@ -151,7 +202,7 @@
         const q = new URLSearchParams();
         if (campusId) q.set('campusId', campusId);
         const summary = await api('/dashboard?' + q);
-        if (generation !== listGeneration) return;
+        if (generation !== listGeneration || blocked) return;
         const cards = [
             ['totalRequests', t('Total requests', 'মোট অনুরোধ')],
             ['submitted', t('Awaiting triage', 'ট্রায়াজ অপেক্ষায়')],
@@ -180,6 +231,7 @@
         }
     }
     async function load() {
+        if (blocked) return;
         const generation = ++listGeneration;
         // Clear previous-campus data before a new authorized response arrives.
         const tbody = el('wfRows'); tbody.replaceChildren();
@@ -194,7 +246,7 @@
             if (el('wfStateFilter').value) q.set('state', el('wfStateFilter').value);
             if (el('wfOverdueOnly').checked) q.set('overdueOnly', 'true');
             const data = await api('?' + q);
-            if (generation !== listGeneration) return;
+            if (generation !== listGeneration || blocked) return;
             tbody.replaceChildren();
             pages = Math.max(1, data.totalPages || 1);
             for (const row of data.items || []) {
@@ -216,7 +268,7 @@
             el('wfPrev').disabled = page <= 1; el('wfNext').disabled = page >= pages;
             await dashboard(generation, q.get('campusId'));
         } catch (error) {
-            if (generation !== listGeneration) return;
+            if (generation !== listGeneration || blocked || error.message === 'session-changed') return;
             tbody.replaceChildren();
             const tr = document.createElement('tr');
             const td = cell(t('Unable to load requests. Search again.', 'অনুরোধ লোড হয়নি। আবার খুঁজুন।'));
@@ -225,14 +277,14 @@
         }
     }
     async function history() {
-        if (!selected) return;
+        if (!selected || blocked) return;
         const generation = ++historyGeneration;
         const requestId = selected.id, requestedPage = historyPage;
         const box = el('wfHistory');
         box.textContent = t('Loading history…', 'ইতিহাস লোড হচ্ছে…');
         try {
             const data = await api('/' + requestId + '/history?page=' + requestedPage + '&pageSize=25');
-            if (generation !== historyGeneration || selected?.id !== requestId) return;
+            if (generation !== historyGeneration || selected?.id !== requestId || blocked) return;
             historyPages = Math.max(1, data.totalPages || 1);
             box.replaceChildren();
             const list = document.createElement('ol');
@@ -254,7 +306,7 @@
                 box.append(more);
             }
         } catch (error) {
-            if (generation !== historyGeneration || selected?.id !== requestId) return;
+            if (generation !== historyGeneration || selected?.id !== requestId || blocked || error.message === 'session-changed') return;
             box.textContent = error.message;
             notice(error.message);
         }
@@ -270,7 +322,10 @@
     el('workflowSearch').addEventListener('submit', e => { e.preventDefault(); page = 1; clearSelection(); load(); });
     el('wfPrev').addEventListener('click', () => { if (page > 1) { page--; clearSelection(); load(); } });
     el('wfNext').addEventListener('click', () => { if (page < pages) { page++; clearSelection(); load(); } });
-    el('facilityExport').addEventListener('click', () => {
+    el('facilityExport').addEventListener('click', async () => {
+        try { await verifySession(); }
+        catch (error) { if (!blocked) notice(error.message); return; }
+        if (blocked) return;
         const q = new URLSearchParams();
         if (el('wfCampusFilter').value) q.set('campusId', el('wfCampusFilter').value);
         if (el('wfStateFilter').value) q.set('state', el('wfStateFilter').value);
@@ -280,6 +335,10 @@
     el('wfAction').addEventListener('change', toggleFields);
     el('wfCreate').addEventListener('submit', async e => {
         e.preventDefault();
+        if (blocked || creating) return;
+        creating = true;
+        const submit = el('wfCreate').querySelector('button[type="submit"]');
+        if (submit) submit.disabled = true;
         const key = 'create:' + el('wfCampus').value + ':' + el('wfSpace').value;
         try {
             const body = {
@@ -297,12 +356,18 @@
             // A confirmed validation rejection did not commit; corrected details
             // may use a new ID. Network/5xx/409 outcomes require safe replay.
             if (error.status === 400 || error.status === 422) pending.delete(key);
-            notice(error.message);
+            if (!blocked) notice(error.message);
+        } finally {
+            creating = false;
+            if (!blocked && submit) submit.disabled = false;
         }
     });
     el('wfTransition').addEventListener('submit', async e => {
         e.preventDefault();
-        if (!selected) return;
+        if (!selected || blocked || transitioning) return;
+        transitioning = true;
+        const submit = el('wfTransition').querySelector('button[type="submit"]');
+        if (submit) submit.disabled = true;
         const action = el('wfAction').value, key = selected.id + ':' + action;
         const date = id => el(id).value ? new Date(el(id).value).toISOString() : null;
         const body = {
@@ -320,11 +385,14 @@
             pending.delete(key);
             notice(t('Transition recorded.', 'পরিবর্তন সংরক্ষিত হয়েছে।'), true);
             // Do not restore a work order the user deselected during this POST.
-            if (selected?.id === result.id) select(result);
+            if (!blocked && selected?.id === result.id) select(result);
             await load();
         } catch (error) {
             if (error.status === 400 || error.status === 422) pending.delete(key);
-            notice(error.message);
+            if (!blocked) notice(error.message);
+        } finally {
+            transitioning = false;
+            if (!blocked && submit) submit.disabled = false;
         }
     });
     load();

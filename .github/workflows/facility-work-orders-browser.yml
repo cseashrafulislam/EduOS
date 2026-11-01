@@ -1,0 +1,30 @@
+name: Facility Work Orders Chromium UI Acceptance
+on:
+  push:
+    branches: [Ashraful]
+    paths:
+      - 'EduOS.App/Views/FacilityWorkOrders/Index.cshtml'
+      - 'EduOS.App/wwwroot/js/facilities/work-orders.js'
+      - 'tests/browser/facility-work-orders.cjs'
+      - '.github/workflows/facility-work-orders-browser.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: facility-work-orders-browser-Ashraful
+  cancel-in-progress: true
+jobs:
+  chromium-facility-work-orders:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install pinned Playwright
+        run: npm install --no-save --no-audit --no-fund playwright@1.56.0
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Exercise bilingual session isolation and stale-response handling in Chromium
+        run: node tests/browser/facility-work-orders.cjs
