@@ -74,3 +74,76 @@ test('graduate selection invalidates old RSVP cards, pagination and in-flight re
     assert.match(script, /\(\) => saveRsvp\(item, 2, selectedReference\)/);
     assert.match(script, /state\.selected\.studentReference !== cardGraduateReference/);
 });
+
+
+test('event page changes clear stale actions/CSV and ignore late responses', async () => {
+    const start = script.indexOf('async function loadEvents()');
+    const end = script.indexOf('const attendanceSerial = new WeakMap()', start);
+    assert.ok(start > 0 && end > start);
+    const element = () => ({ children: [], textContent: '',
+        replaceChildren() { this.children = []; },
+        append(...nodes) { this.children.push(...nodes); } });
+    const elements = {
+        alumniEventCards: element(), alumniEventPage: { textContent: '' },
+        alumniEventPrev: { disabled: false }, alumniEventNext: { disabled: false },
+        alumniEventsExport: { href: '/old', removeAttribute(name) {
+            if (name === 'href') this.href = null;
+        } }
+    };
+    const state = { eventRequestSerial: 0, eventPage: 1, eventTotal: 40, selected: null };
+    const pending = [];
+    const loadEvents = new Function('state', 'el', 'api', 'eventAdmin', 'document',
+        'eventLabel', 'URLSearchParams', 'eventStatus', 'localDate', 'eventButton',
+        'saveRsvp', 'changeEventStatus', 'loadAttendance', 'notice',
+        script.slice(start, end) + '; return loadEvents;')(
+        state, id => elements[id],
+        url => new Promise((resolve, reject) => pending.push({ url, resolve, reject })),
+        true, { createElement: element }, english => english, URLSearchParams,
+        () => '', () => '', () => {}, () => {}, () => {}, () => {}, () => {});
+    const first = loadEvents();
+    assert.equal(elements.alumniEventsExport.href, null);
+    assert.equal(elements.alumniEventPrev.disabled, true);
+    assert.match(elements.alumniEventCards.children[0].textContent, /Loading/);
+    state.eventPage = 2;
+    const second = loadEvents();
+    pending[1].resolve({ totalCount: 0, items: [] });
+    await second;
+    pending[0].resolve({ totalCount: 1, items: [{ title: 'old private event' }] });
+    await first;
+    assert.match(elements.alumniEventCards.children[0].textContent, /No events/);
+    assert.match(elements.alumniEventsExport.href, /page=2/);
+    state.eventPage = 3;
+    const failed = loadEvents();
+    pending[2].reject(new Error('network'));
+    await assert.rejects(failed, /network/);
+    assert.equal(elements.alumniEventsExport.href, null);
+    assert.match(elements.alumniEventCards.children[0].textContent, /retry/);
+});
+
+test('attendance paging and detached event cards discard late private rosters', async () => {
+    const start = script.indexOf('const attendanceSerial = new WeakMap()');
+    const end = script.indexOf('async function markAttendance(', start);
+    assert.ok(start > 0 && end > start);
+    const element = () => ({ children: [], textContent: '', isConnected: true,
+        replaceChildren() { this.children = []; },
+        append(...nodes) { this.children.push(...nodes); } });
+    const pending = [];
+    const loadAttendance = new Function('api', 'document', 'eventLabel',
+        'URLSearchParams', 'encodeURIComponent',
+        script.slice(start, end) + '; return loadAttendance;')(
+        url => new Promise((resolve, reject) => pending.push({ url, resolve, reject })),
+        { createElement: element }, english => english, URLSearchParams, encodeURIComponent);
+    const host = element(), event = { reference: 'event-1', status: 2 };
+    const first = loadAttendance(event, host, 1);
+    const second = loadAttendance(event, host, 2);
+    pending[1].reject(new Error('network'));
+    await assert.rejects(second, /network/);
+    pending[0].resolve({ totalCount: 1, items: [{ fullName: 'old private attendee' }] });
+    await first;
+    assert.match(host.children[0].textContent, /retry/);
+    host.isConnected = false;
+    const detached = loadAttendance(event, host, 3);
+    pending[2].resolve({ totalCount: 1, items: [{ fullName: 'private attendee' }] });
+    await detached;
+    assert.match(host.children[0].textContent, /Loading/);
+});

@@ -214,11 +214,34 @@
         const selectedReference = state.selected?.studentReference || null;
         const query = new URLSearchParams({ page: state.eventPage, pageSize: 20 });
         if (!eventAdmin && selectedReference) query.set('studentReference', selectedReference);
-        const page = await api('/api/alumni/events?' + query);
-        if (serial !== state.eventRequestSerial ||
-            (!eventAdmin && (state.selected?.studentReference || null) !== selectedReference)) return;
-        state.eventTotal = page.totalCount;
         const target = el('alumniEventCards');
+        // Invalidate actionable cards, paging and CSV before a new response arrives.
+        target.replaceChildren();
+        const pending = document.createElement('p');
+        pending.className = 'text-muted';
+        pending.textContent = eventLabel('Loading events…', 'অনুষ্ঠান লোড হচ্ছে…');
+        target.append(pending);
+        el('alumniEventPage').textContent = '';
+        el('alumniEventPrev').disabled = true;
+        el('alumniEventNext').disabled = true;
+        if (eventAdmin) el('alumniEventsExport').removeAttribute('href');
+        const isStale = () => serial !== state.eventRequestSerial ||
+            (!eventAdmin && (state.selected?.studentReference || null) !== selectedReference);
+        let page;
+        try {
+            page = await api('/api/alumni/events?' + query);
+        } catch (error) {
+            if (isStale()) return;
+            target.replaceChildren();
+            const failed = document.createElement('p');
+            failed.className = 'text-danger';
+            failed.textContent = eventLabel('Events could not be loaded. Please retry.',
+                'অনুষ্ঠান লোড হয়নি। আবার চেষ্টা করুন।');
+            target.append(failed);
+            throw error;
+        }
+        if (isStale()) return;
+        state.eventTotal = page.totalCount;
         target.replaceChildren();
         if (!page.items.length) {
             const empty = document.createElement('p');
@@ -280,11 +303,34 @@
         if (eventAdmin) el('alumniEventsExport').href = '/api/alumni/events/report.csv?' + query;
     }
 
+    // Roster responses are scoped to the current host/page generation. Detached
+    // event cards must not receive late attendee identities.
+    const attendanceSerial = new WeakMap();
     // No contacts, no unbounded export, and no unsafe HTML.
     async function loadAttendance(item, host, page) {
+        const serial = (attendanceSerial.get(host) || 0) + 1;
+        attendanceSerial.set(host, serial);
         const query = new URLSearchParams({ page, pageSize: 20 });
-        const data = await api('/api/alumni/events/' + encodeURIComponent(item.reference) +
-            '/attendance?' + query);
+        host.replaceChildren();
+        const pending = document.createElement('p');
+        pending.className = 'text-muted';
+        pending.textContent = eventLabel('Loading attendees…', 'অংশগ্রহণকারী লোড হচ্ছে…');
+        host.append(pending);
+        let data;
+        try {
+            data = await api('/api/alumni/events/' + encodeURIComponent(item.reference) +
+                '/attendance?' + query);
+        } catch (error) {
+            if (attendanceSerial.get(host) !== serial || !host.isConnected) return;
+            host.replaceChildren();
+            const failed = document.createElement('p');
+            failed.className = 'text-danger';
+            failed.textContent = eventLabel('Attendance could not be loaded. Please retry.',
+                'উপস্থিতির তালিকা লোড হয়নি। আবার চেষ্টা করুন।');
+            host.append(failed);
+            throw error;
+        }
+        if (attendanceSerial.get(host) !== serial || !host.isConnected) return;
         host.replaceChildren();
         const heading = document.createElement('p');
         heading.className = 'small fw-semibold';
@@ -314,7 +360,10 @@
             if (active) action.append(eventButton(attendee.checkedInAtUtc
                 ? eventLabel('Undo', 'বাতিল করুন') : eventLabel('Check in', 'উপস্থিতি নিন'),
                 attendee.checkedInAtUtc ? 'btn-outline-secondary' : 'btn-outline-success',
-                () => markAttendance(item, attendee, !attendee.checkedInAtUtc)));
+                () => {
+                    if (host.isConnected && attendanceSerial.get(host) === serial)
+                        markAttendance(item, attendee, !attendee.checkedInAtUtc);
+                }));
         }
         if (!data.items.length) {
             const cell = body.insertRow().insertCell();
