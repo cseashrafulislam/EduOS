@@ -621,14 +621,14 @@ public sealed class SqlServerFacilityWorkOrderTests
             }
             await using (var db = Db(options, tenantId, managerId, "FacilitiesManager"))
             {
-                var triaged = await Service(db, tenantId, managerId, "FacilitiesManager")
+                var parallelTriage = await Service(db, tenantId, managerId, "FacilitiesManager")
                     .TransitionAsync(candidate.Id, "triage", new FacilityTransitionDto
                     {
                         ClientCommandId = Guid.NewGuid(), RowVersion = candidate.RowVersion,
                         SlaDueAtUtc = DateTime.UtcNow.AddHours(12)
                     });
-                Assert.True(triaged.Success, triaged.Message);
-                candidate = triaged.Data!;
+                Assert.True(parallelTriage.Success, parallelTriage.Message);
+                candidate = parallelTriage.Data!;
             }
             await using (var db = Db(options, tenantId, approverId, "FacilitiesApprover"))
             {
