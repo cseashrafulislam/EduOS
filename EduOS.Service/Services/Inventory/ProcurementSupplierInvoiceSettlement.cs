@@ -313,14 +313,17 @@ public sealed partial class ProcurementSupplierInvoiceService
                     x.Id == journal.AccountingPeriodId && !x.IsDeleted && !x.IsClosed &&
                     x.StartDate <= journal.JournalDate && x.EndDate >= journal.JournalDate, ct))
                     return Err<SupplierSettlementInstructionDto>("Settlement accounting period closed.", 409);
-                if (!await (from b in db.BankAccounts.AsNoTracking()
+                // A bank ledger must still identify one bank at independent approval;
+                // setup can change after the maker submitted the instruction.
+                if (await (from b in db.BankAccounts.AsNoTracking()
                     join a in db.Accounts.AsNoTracking() on b.AccountId equals a.Id
                     where b.TenantId == user.TenantId && !b.IsDeleted && b.IsActive && b.AccountId == lines[1].AccountId &&
                         b.CurrencyCode == "BDT" && (b.CampusId == null || b.CampusId == invoice.CampusId) &&
                         a.TenantId == user.TenantId && !a.IsDeleted && a.IsActive && !a.IsGroup &&
                         a.AllowsPosting && a.AccountType == AccountType.Asset && a.CurrencyCode == "BDT"
-                    select b.Id).AnyAsync(ct))
-                    return Err<SupplierSettlementInstructionDto>("Bank account no longer eligible.", 409);
+                    select b.Id).Take(2).CountAsync(ct) != 1)
+                    return Err<SupplierSettlementInstructionDto>(
+                        "Bank ledger must resolve to exactly one eligible bank account at approval.", 409);
                 var reserved = await ReservedSettlementAsync(invoice.Id, payableId, ct);
                 if (reserved > invoice.TotalAmount)
                     return Err<SupplierSettlementInstructionDto>("Competing settlement exceeds invoice.", 409);

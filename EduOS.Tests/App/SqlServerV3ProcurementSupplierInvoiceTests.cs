@@ -481,6 +481,37 @@ public sealed partial class SqlServerV3ProcurementPurchaseOrderTests
                 new ReviewSupplierSettlementInstructionRequest {RowVersion=instructionVersion,Approve=true,
                     Reason="Maker cannot independently approve this disbursement instruction"})).StatusCode);
         }
+        // The maker's selected bank ledger must not become ambiguous before independent review.
+        // Finance setup permits multiple bank records per ledger, so a duplicate active mapping
+        // must block approval without changing the submitted journal or reserving more AP.
+        long duplicateBankId;
+        await using (var ambiguousSetup=Open(options,tenantId,makerId))
+        {
+            var bankLedgerId=await ambiguousSetup.BankAccounts.AsNoTracking()
+                .Where(x=>x.Id==bankId).Select(x=>x.AccountId).SingleAsync();
+            var duplicate=new BankAccount {TenantId=tenantId,AccountId=bankLedgerId,
+                BankName="Duplicate SQL bank",AccountName="Ambiguous settlement bank",
+                AccountNumber="DUP-"+suffix,CurrencyCode="BDT",IsActive=true};
+            ambiguousSetup.BankAccounts.Add(duplicate);
+            await ambiguousSetup.SaveChangesAsync();
+            duplicateBankId=duplicate.Id;
+        }
+        await using (var ambiguousChecker=Open(options,tenantId,checkerId))
+        {
+            var rejected=await Invoices(ambiguousChecker,tenantId,checkerId).ReviewSettlementAsync(
+                second.Reference,instructionReference,new ReviewSupplierSettlementInstructionRequest {
+                    RowVersion=instructionVersion,Approve=true,
+                    Reason="Ambiguous bank ledger must block independent approval" });
+            Assert.Equal(409,rejected.StatusCode);
+            var unchanged=await ambiguousChecker.Journals.AsNoTracking()
+                .SingleAsync(x=>x.PublicId==instructionReference);
+            Assert.Equal(JournalState.Submitted,unchanged.State);
+            Assert.Null(unchanged.ApprovedByUserId);
+            Assert.Null(unchanged.PostedAt);
+        }
+        await using (var bankRepair=Open(options,tenantId,makerId))
+            await bankRepair.BankAccounts.Where(x=>x.Id==duplicateBankId)
+                .ExecuteUpdateAsync(s=>s.SetProperty(x=>x.IsActive,false));
         await using (var checker=Open(options,tenantId,checkerId))
         {
             var service=Invoices(checker,tenantId,checkerId);
