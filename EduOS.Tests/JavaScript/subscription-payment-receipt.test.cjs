@@ -28,7 +28,7 @@ test('receipt view encodes fields and payment history links only settled transac
  assert.match(view,/@Model\.Amount/);
  assert.doesNotMatch(view,/@Html\.Raw|<script/i);
  assert.match(js,/Number\(pay\.state\)===3 && pay\.completedAt/);
- assert.match(js,/link\.textContent="View receipt"/);
+ assert.match(js,/link\.textContent=t\("View receipt","রসিদ দেখুন"\)/);
  assert.match(js,/link\.rel="noopener noreferrer"/);
  assert.doesNotMatch(js,/innerHTML/);
  new Function(js);

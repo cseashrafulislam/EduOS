@@ -18,10 +18,13 @@ const routes = ['/FeeReceivablesAging/Index', '/PayrollJournalPosting/Index', '/
         'ResultFollowUp','GradeDistribution','AdmitCards'].map(action => '/AssessmentAdministration/' + action),
     ...['Forms','NewApplication','Applications','Assessments','AssessmentSetup','Merit','Offers'].map(action => '/Admissions/' + action),
     ...['Register','Reports','Corrections'].map(action => '/Attendance/' + action),
-    ...['Profile','Campuses','Regional','Branding','Subdomain','History'].map(action => '/InstitutionManagement/' + action)];
+    ...['Profile','Campuses','Regional','Branding','Subdomain','History'].map(action => '/InstitutionManagement/' + action),
+    ...['TenantUsers','TenantPermissionOverrides','TenantModules','NumberSeries','TenantDomains','TenantTerminology',
+        'TenantSettings','SubscriptionBilling','IntegrationAdministration','StudentDocuments','StudentGuardians',
+        'EnrollmentManagement'].map(name => '/' + name + '/Index')];
 
 test('all reviewed route manuals have full bilingual structure, matching steps and examples', () => {
-    assert.deepEqual(coverage(), { routes: 81, en: 81, bn: 81 });
+    assert.deepEqual(coverage(), { routes: 93, en: 93, bn: 93 });
     for (const route of routes) {
         const en = guideFor(route, 'en-BD');
         const bn = guideFor(route, 'bn-BD');
@@ -45,6 +48,54 @@ test('unverified and malicious routes cannot inherit a generic or privileged man
     assert.equal(normalizeRoute('/Students'), '/students/index');
     assert.equal(normalizeRoute('/Students/Index'), '/students/index');
     assert.equal(validateGuide({ reviewed: false, version: 1 }), false);
+});
+test('twelve administration and student manuals match protected page controls and bilingual steps', () => {
+    const protectedPages = [
+        ['TenantUsers', 'memberSearch', 'TenantAdmin'],
+        ['TenantPermissionOverrides', 'permissionOverrideSave', 'TenantAdmin'],
+        ['TenantModules', 'moduleList', 'TenantAdmin'],
+        ['NumberSeries', 'nsForm', 'TenantAdmin'],
+        ['TenantDomains', 'domainRegistration', 'TenantAdmin'],
+        ['TenantTerminology', 'ttForm', 'TenantAdmin'],
+        ['TenantSettings', 'tsForm', 'TenantAdmin'],
+        ['SubscriptionBilling', 'sbInvoiceRows', 'TenantAdmin'],
+        ['IntegrationAdministration', 'iaDeliveryExport', 'TenantAdmin'],
+        ['StudentDocuments', 'documentAttach', 'TenantAdmin'],
+        ['StudentGuardians', 'guardianCreate', 'TenantAdmin'],
+        ['EnrollmentManagement', 'enrollmentSubmit', 'TenantAdmin']
+    ];
+    for (const [name, id, role] of protectedPages) {
+        const view = read(`EduOS.App/Views/${name}/Index.cshtml`);
+        const controller = read(`EduOS.App/Controllers/${name}Controller.cs`);
+        const en = guideFor(`/${name}/Index`, 'en-BD');
+        const bn = guideFor(`/${name}/Index`, 'bn-BD');
+        assert.ok(view.includes(`id="${id}"`), `${name}: missing referenced UI`);
+        assert.match(controller, new RegExp(`Authorize\\(Roles = "${role}"\\)`));
+        assert.ok(en && bn, `${name}: guide absent`);
+        assert.equal(en.steps.length, 3, name);
+        assert.equal(bn.steps.length, 3, name);
+        assert.notEqual(en.example, bn.example, name);
+        assert.deepEqual(en.related.map(link => link.path), bn.related.map(link => link.path));
+    }
+});
+test('high-traffic institution settings and subscription UI honor selected document language', () => {
+    for (const name of ['NumberSeries', 'TenantDomains', 'TenantTerminology', 'TenantModules', 'SubscriptionBilling']) {
+        const view = read(`EduOS.App/Views/${name}/Index.cshtml`);
+        assert.match(view, /CultureInfo\.CurrentUICulture\.Name == "bn-BD"/, name);
+        assert.match(view, /ViewData\["Title"\] = bn \?/, name);
+        assert.match(view, /@\(bn \?/, name);
+    }
+    for (const file of ['number-series/index.js', 'platform/tenant-domains.js',
+        'platform/tenant-terminology.js', 'subscription-billing/index.js']) {
+        const source = read(`EduOS.App/wwwroot/js/${file}`);
+        assert.match(source, /document\.documentElement\.lang/, file);
+        assert.match(source, /"bn"/, file);
+    }
+    const subscription = read('EduOS.App/wwwroot/js/subscription-billing/index.js');
+    assert.match(subscription, /t\("Download CSV","CSV ডাউনলোড"\)/);
+    assert.match(subscription, /t\("View receipt","রসিদ দেখুন"\)/);
+    assert.match(subscription, /typed!=="END"/);
+    assert.match(subscription, /Number\(pay\.state\)===3 && pay\.completedAt/);
 });
 test('shared drawer is one user-initiated accessible renderer, not hover-triggered popover', () => {
     assert.match(layout, /id="pageContextHelp"[^>]+type="button"/);

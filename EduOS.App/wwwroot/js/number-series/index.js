@@ -1,6 +1,8 @@
 (()=>{
 "use strict";
 const $=id=>document.getElementById(id),base="/api/number-series";
+const bn=(document.documentElement.lang||"").toLowerCase().startsWith("bn");
+const t=(en,bangla)=>bn?bangla:en;
 const token=document.querySelector('input[name="__RequestVerificationToken"]')?.value||
  document.querySelector('meta[name="request-verification-token"]')?.content||"";
 let rows=[],page=1,pages=1,busy=false,version=0;
@@ -10,7 +12,7 @@ async function api(url,method="GET",body){
  if(method!=="GET"){opt.headers["Content-Type"]="application/json";opt.headers["RequestVerificationToken"]=token;opt.body=JSON.stringify(body);}
  const response=await fetch(base+url,opt);
  const data=await response.json();
- if(!response.ok||!data.success)throw Error(data.message||"Request failed.");
+ if(!response.ok||!data.success)throw Error(data.message||t("Request failed.","অনুরোধটি সম্পন্ন হয়নি।"));
  return data.data;
 }
 function cell(tr,value){const td=document.createElement("td");td.textContent=value==null?"":String(value);tr.append(td);return td;}
@@ -31,12 +33,12 @@ async function load(){
  for(const row of rows){
   const tr=document.createElement("tr");
   cell(tr,row.key);cell(tr,(row.prefix||"")+"{n:"+row.padding+"}"+(row.suffix||""));
-  cell(tr,row.nextValue);cell(tr,row.isActive?"Active":"Inactive");
+  cell(tr,row.nextValue);cell(tr,row.isActive?t("Active","সক্রিয়"):t("Inactive","নিষ্ক্রিয়"));
   const actions=cell(tr,""),btn=document.createElement("button");
-  btn.type="button";btn.className="btn btn-outline-primary btn-sm";btn.textContent="Edit";
+  btn.type="button";btn.className="btn btn-outline-primary btn-sm";btn.textContent=t("Edit","সম্পাদনা");
   btn.addEventListener("click",()=>edit(row));actions.append(btn);body.append(tr);
  }
- $("nsPage").textContent="Page "+page+" / "+pages;
+ $("nsPage").textContent=t("Page ","পৃষ্ঠা ")+page+" / "+pages;
  $("nsPrev").disabled=page<=1;$("nsNext").disabled=page>=pages;
 }
 $("nsForm").addEventListener("submit",async e=>{
@@ -49,10 +51,10 @@ $("nsForm").addEventListener("submit",async e=>{
  if(!/^[A-Za-z][A-Za-z0-9_.-]{1,99}$/.test(request.key)||
     request.padding<1||request.padding>30||
     request.prefix.length+request.suffix.length+request.padding>128){
-  notice("Check series key, padding and number length.");return;
+  notice(t("Check series key, padding and number length.","সিরিজের কী, সংখ্যার দৈর্ঘ্য ও সম্পূর্ণ নম্বরের দৈর্ঘ্য যাচাই করুন।"));return;
  }
  busy=true;
- try{await api(id?"/"+id:"",id?"PUT":"POST",request);reset();notice("Number series saved.",true);await load();}
+ try{await api(id?"/"+id:"",id?"PUT":"POST",request);reset();notice(t("Number series saved.","নম্বর সিরিজ সংরক্ষিত হয়েছে।"),true);await load();}
  catch(err){notice(err.message);}finally{busy=false;}
 });
 $("nsReset").addEventListener("click",reset);

@@ -1,69 +1,70 @@
 @{
-    ViewData["Title"] = "Subscription & Billing";
+    var bn = System.Globalization.CultureInfo.CurrentUICulture.Name == "bn-BD";
+    ViewData["Title"] = bn ? "সাবস্ক্রিপশন ও বিলিং" : "Subscription & Billing";
     Layout = "~/Views/Shared/_Layout.cshtml";
 }
 <div class="container-fluid py-3" id="subscriptionBillingApp">
     @Html.AntiForgeryToken()
     <div class="d-flex align-items-center justify-content-between mb-3">
-        <div><h1 class="h4">Subscription &amp; Billing</h1><p class="text-muted">Current plan, invoices, payments and renewal.</p></div>
-        <button id="sbRefresh" type="button" class="btn btn-outline-secondary">Refresh</button>
+        <h1 class="h4">@(bn ? "সাবস্ক্রিপশন ও বিলিং" : "Subscription & Billing")</h1>
+        <button id="sbRefresh" type="button" class="btn btn-outline-secondary">@(bn ? "রিফ্রেশ" : "Refresh")</button>
     </div>
     <div id="sbAlert" role="alert" aria-live="polite" class="alert d-none"></div>
     <section class="card mb-3"><div class="card-body">
-        <h2 class="h5">Current subscription</h2><div id="sbCurrent">Loading…</div>
+        <h2 class="h5">@(bn ? "বর্তমান সাবস্ক্রিপশন" : "Current subscription")</h2><div id="sbCurrent">@(bn ? "লোড হচ্ছে…" : "Loading…")</div>
         <div id="sbActions" class="d-flex flex-wrap gap-2 mt-2"></div>
-        <p class="small text-muted mt-2 mb-0">Disabling auto-renew keeps the current period active. Ending a subscription now stops access immediately, does not automatically refund payments, and is blocked if a next-period renewal exists.</p>
+        <p class="small text-muted mt-2 mb-0">@(bn ? "স্বয়ংক্রিয় নবায়ন বন্ধ করলেও বর্তমান মেয়াদ চালু থাকে। এখনই সাবস্ক্রিপশন শেষ করলে প্রবেশাধিকার সঙ্গে সঙ্গে বন্ধ হয়, স্বয়ংক্রিয় রিফান্ড হয় না এবং পরবর্তী মেয়াদের নবায়ন থাকলে তা করা যায় না।" : "Disabling auto-renew keeps the current period active. Ending a subscription now stops access immediately, does not automatically refund payments, and is blocked if a next-period renewal exists.")</p>
     </div></section>
     <section class="card mb-3"><div class="card-body">
-        <h2 class="h5">Expiry &amp; renewal</h2>
-        <p id="sbLifecycle" role="status" aria-live="polite">Loading renewal status…</p>
+        <h2 class="h5">@(bn ? "মেয়াদ ও নবায়ন" : "Expiry & renewal")</h2>
+        <p id="sbLifecycle" role="status" aria-live="polite">@(bn ? "নবায়নের অবস্থা লোড হচ্ছে…" : "Loading renewal status…")</p>
         <div id="sbRenewalActions"></div>
     </div></section>
     <section class="card mb-3"><div class="card-body">
-        <h2 class="h5">Next renewal</h2>
-        <p id="sbUpcoming" role="status" aria-live="polite">Loading renewal options…</p>
-        <p class="small text-muted">During the final 30 days, you may select another public plan for the next period. Your current plan and entitlements remain unchanged. The next-period invoice uses the selected plan's current price and requires verified payment.</p>
+        <h2 class="h5">@(bn ? "পরবর্তী নবায়ন" : "Next renewal")</h2>
+        <p id="sbUpcoming" role="status" aria-live="polite">@(bn ? "নবায়নের বিকল্প লোড হচ্ছে…" : "Loading renewal options…")</p>
+        <p class="small text-muted">@(bn ? "শেষ ৩০ দিনে পরবর্তী মেয়াদের জন্য অন্য প্রকাশিত প্ল্যান বাছতে পারবেন। বর্তমান প্ল্যান ও অনুমতি অপরিবর্তিত থাকবে। পরবর্তী ইনভয়েসে নির্বাচিত প্ল্যানের বর্তমান মূল্য প্রযোজ্য এবং যাচাইকৃত পেমেন্ট প্রয়োজন।" : "During the final 30 days, you may select another public plan for the next period. Your current plan and entitlements remain unchanged. The next-period invoice uses the selected plan's current price and requires verified payment.")</p>
         <div id="sbRenewActions" class="d-flex flex-wrap align-items-end gap-2"></div>
     </div></section>
     <section class="card mb-3"><div class="card-body">
-        <h2 class="h5">Invoices</h2>
-        <p class="small text-muted">Download a tenant-scoped CSV of any invoice with its original line items, taxes, paid amount and outstanding balance. The export is read-only.</p>
-        <p class="small text-muted">Outstanding renewal invoices can send an in-app payment reminder to active institution owners. Reminders are limited to once per local day; no email, SMS, or payment is initiated.</p>
+        <h2 class="h5">@(bn ? "ইনভয়েস" : "Invoices")</h2>
+        <p class="small text-muted">@(bn ? "ইনভয়েসের মূল লাইন, কর, পরিশোধ ও বকেয়াসহ শুধু নিজ প্রতিষ্ঠানের CSV ডাউনলোড করা যায়; রপ্তানিতে কোনো হিসাব বদলায় না।" : "Download a tenant-scoped CSV of any invoice with its original line items, taxes, paid amount and outstanding balance. The export is read-only.")</p>
+        <p class="small text-muted">@(bn ? "বকেয়া নবায়ন ইনভয়েসের জন্য সক্রিয় মালিককে দিনে একবার অ্যাপের মধ্যে স্মরণ করানো যায়; কোনো ইমেইল, SMS বা পেমেন্ট পাঠানো হয় না।" : "Outstanding renewal invoices can send an in-app payment reminder to active institution owners. Reminders are limited to once per local day; no email, SMS, or payment is initiated.")</p>
         <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
-            <label for="sbInvoiceState" class="small mb-0">Invoice status</label>
+            <label for="sbInvoiceState" class="small mb-0">@(bn ? "ইনভয়েসের অবস্থা" : "Invoice status")</label>
             <select id="sbInvoiceState" class="form-select form-select-sm" style="max-width:190px">
-                <option value="">All statuses</option>
-                <option value="2">Issued</option>
-                <option value="3">Partially paid</option>
-                <option value="4">Paid</option>
-                <option value="1">Draft</option>
-                <option value="5">Cancelled</option>
-                <option value="6">Refunded</option>
+                <option value="">@(bn ? "সব অবস্থা" : "All statuses")</option>
+                <option value="2">@(bn ? "ইস্যুকৃত" : "Issued")</option>
+                <option value="3">@(bn ? "আংশিক পরিশোধিত" : "Partially paid")</option>
+                <option value="4">@(bn ? "পরিশোধিত" : "Paid")</option>
+                <option value="1">@(bn ? "খসড়া" : "Draft")</option>
+                <option value="5">@(bn ? "বাতিল" : "Cancelled")</option>
+                <option value="6">@(bn ? "ফেরত দেওয়া" : "Refunded")</option>
             </select>
         </div>
         <div class="table-responsive"><table class="table table-sm table-striped">
-            <thead><tr><th>Invoice</th><th>Date</th><th>Due date</th><th>Total</th><th>Paid</th><th>Outstanding</th><th>Status</th><th>Action</th></tr></thead>
+            <thead><tr><th>@(bn ? "ইনভয়েস" : "Invoice")</th><th>@(bn ? "তারিখ" : "Date")</th><th>@(bn ? "শেষ তারিখ" : "Due date")</th><th>@(bn ? "মোট" : "Total")</th><th>@(bn ? "পরিশোধ" : "Paid")</th><th>@(bn ? "বকেয়া" : "Outstanding")</th><th>@(bn ? "অবস্থা" : "Status")</th><th>@(bn ? "কাজ" : "Action")</th></tr></thead>
             <tbody id="sbInvoiceRows"></tbody>
         </table></div>
-        <nav class="d-flex align-items-center gap-2 mb-3" aria-label="Invoice history pages">
-            <button id="sbInvoicePrev" type="button" class="btn btn-outline-secondary btn-sm" disabled>Previous invoices</button>
-            <span id="sbInvoicePage" class="small text-muted" aria-live="polite">Page 1</span>
-            <button id="sbInvoiceNext" type="button" class="btn btn-outline-secondary btn-sm" disabled>Next invoices</button>
+        <nav class="d-flex align-items-center gap-2 mb-3" aria-label="@(bn ? "ইনভয়েস ইতিহাসের পৃষ্ঠা" : "Invoice history pages")">
+            <button id="sbInvoicePrev" type="button" class="btn btn-outline-secondary btn-sm" disabled>@(bn ? "আগের ইনভয়েস" : "Previous invoices")</button>
+            <span id="sbInvoicePage" class="small text-muted" aria-live="polite">@(bn ? "পৃষ্ঠা ১" : "Page 1")</span>
+            <button id="sbInvoiceNext" type="button" class="btn btn-outline-secondary btn-sm" disabled>@(bn ? "পরের ইনভয়েস" : "Next invoices")</button>
         </nav>
         <div id="sbInvoiceDetails" class="mt-3" aria-live="polite"></div>
-        <p class="small text-muted">Confirmed payments include a printable receipt. Pending or rejected payments never produce receipts.</p>
+        <p class="small text-muted">@(bn ? "শুধু নিশ্চিত পেমেন্টের রসিদ প্রিন্ট করা যায়; অপেক্ষমাণ বা প্রত্যাখ্যাত পেমেন্টের রসিদ হয় না।" : "Confirmed payments include a printable receipt. Pending or rejected payments never produce receipts.")</p>
         <div id="sbPayments" aria-live="polite"></div>
     </div></section>
     <section class="card"><div class="card-body">
-        <h2 class="h5">Subscription history</h2>
+        <h2 class="h5">@(bn ? "সাবস্ক্রিপশনের ইতিহাস" : "Subscription history")</h2>
         <div class="table-responsive"><table class="table table-sm">
-            <thead><tr><th>Plan</th><th>Cycle</th><th>Start</th><th>End</th><th>Status</th><th>Auto-renew</th></tr></thead>
+            <thead><tr><th>@(bn ? "প্ল্যান" : "Plan")</th><th>@(bn ? "চক্র" : "Cycle")</th><th>@(bn ? "শুরু" : "Start")</th><th>@(bn ? "শেষ" : "End")</th><th>@(bn ? "অবস্থা" : "Status")</th><th>@(bn ? "স্বয়ংক্রিয় নবায়ন" : "Auto-renew")</th></tr></thead>
             <tbody id="sbHistoryRows"></tbody>
         </table></div>
         <div class="d-flex align-items-center gap-2">
-            <button id="sbPrev" type="button" class="btn btn-outline-secondary btn-sm" disabled>Previous</button>
-            <span id="sbPage" class="small text-muted">Page 1</span>
-            <button id="sbNext" type="button" class="btn btn-outline-secondary btn-sm" disabled>Next</button>
+            <button id="sbPrev" type="button" class="btn btn-outline-secondary btn-sm" disabled>@(bn ? "আগে" : "Previous")</button>
+            <span id="sbPage" class="small text-muted">@(bn ? "পৃষ্ঠা ১" : "Page 1")</span>
+            <button id="sbNext" type="button" class="btn btn-outline-secondary btn-sm" disabled>@(bn ? "পরে" : "Next")</button>
         </div>
     </div></section>
 </div>

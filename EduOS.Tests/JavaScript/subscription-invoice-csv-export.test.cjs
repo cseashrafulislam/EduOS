@@ -25,7 +25,7 @@ test('invoice history downloads CSV without injecting invoice fields into HTML',
  const view=read('EduOS.App/Views/SubscriptionBilling/Index.cshtml');
  const js=read('EduOS.App/wwwroot/js/subscription-billing/index.js');
  assert.match(view,/Download a tenant-scoped CSV/);
- assert.match(js,/button\("Download CSV"/);
+ assert.match(js,/button\(t\("Download CSV","CSV ডাউনলোড"\)/);
  assert.match(js,/credentials:"same-origin"/);
  assert.match(js,/cache:"no-store"/);
  assert.match(js,/response\.blob\(\)/);

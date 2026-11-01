@@ -2,9 +2,11 @@
 "use strict";
 const $=id=>document.getElementById(id),root=$("subscriptionBillingApp");
 if(!root)return;
-const status={1:"Trial",2:"Active",3:"Grace",4:"Suspended",5:"Cancelled",6:"Expired",7:"Pending payment"};
-const invoiceStatus={1:"Draft",2:"Issued",3:"Partially paid",4:"Paid",5:"Cancelled",6:"Refunded"};
-const paymentStatus={1:"Initiated",2:"Awaiting verification",3:"Successful",4:"Failed",5:"Cancelled",6:"Refunded"};
+const bn=(document.documentElement.lang||"").toLowerCase().startsWith("bn");
+const t=(en,bangla)=>bn?bangla:en;
+const status={1:t("Trial","পরীক্ষামূলক"),2:t("Active","সক্রিয়"),3:t("Grace","অতিরিক্ত সময়"),4:t("Suspended","স্থগিত"),5:t("Cancelled","বাতিল"),6:t("Expired","মেয়াদোত্তীর্ণ"),7:t("Pending payment","পেমেন্টের অপেক্ষায়")};
+const invoiceStatus={1:t("Draft","খসড়া"),2:t("Issued","ইস্যুকৃত"),3:t("Partially paid","আংশিক পরিশোধিত"),4:t("Paid","পরিশোধিত"),5:t("Cancelled","বাতিল"),6:t("Refunded","ফেরত দেওয়া")};
+const paymentStatus={1:t("Initiated","শুরু হয়েছে"),2:t("Awaiting verification","যাচাইয়ের অপেক্ষায়"),3:t("Successful","সফল"),4:t("Failed","ব্যর্থ"),5:t("Cancelled","বাতিল"),6:t("Refunded","ফেরত দেওয়া")};
 const state={current:null,upcoming:null,plans:[],page:1,pages:1,invoicePage:1,invoicePages:1,invoiceState:"",invoiceVersion:0,invoiceDetailVersion:0,busy:false,version:0};
 const token=root.querySelector('input[name="__RequestVerificationToken"]')?.value ||
  document.querySelector('meta[name="request-verification-token"]')?.content || "";
@@ -13,46 +15,46 @@ function td(tr,value){const c=document.createElement("td");c.textContent=value==
 function button(label,fn){const b=document.createElement("button");b.type="button";b.className="btn btn-outline-primary btn-sm";b.textContent=label;b.addEventListener("click",fn);return b;}
 function date(v){if(!v)return "—";const d=new Date(v);return Number.isNaN(d.getTime())?"—":d.toLocaleDateString();}
 function money(v,c){const n=Number(v);return (Number.isFinite(n)?n.toFixed(2):"0.00")+" "+(c||"BDT");}
-function empty(id,count){const tr=document.createElement("tr"),cell=td(tr,"No records.");cell.colSpan=count;$(id).append(tr);}
+function empty(id,count){const tr=document.createElement("tr"),cell=td(tr,t("No records.","কোনো রেকর্ড নেই।"));cell.colSpan=count;$(id).append(tr);}
 async function api(path,method="GET",data){
  const opts={method,cache:"no-store",credentials:"same-origin",headers:{Accept:"application/json"}};
  if(method!=="GET"){opts.headers["Content-Type"]="application/json";opts.headers["RequestVerificationToken"]=token;opts.body=JSON.stringify(data);}
- let res;try{res=await fetch(path,opts);}catch{throw Error("Network error. Retry.");}
+ let res;try{res=await fetch(path,opts);}catch{throw Error(t("Network error. Retry.","নেটওয়ার্ক সমস্যা। আবার চেষ্টা করুন।"));}
  const result=await res.json().catch(()=>null);
- if(!res.ok||!result?.success){const e=Error(result?.message||"Request failed ("+res.status+").");e.status=res.status;throw e;}
+ if(!res.ok||!result?.success){const e=Error(result?.message||t("Request failed (","অনুরোধ ব্যর্থ (")+res.status+").");e.status=res.status;throw e;}
  return result.data;
 }
 function renderCurrent(){
  const box=$("sbCurrent"),actions=$("sbActions"),s=state.current;box.replaceChildren();actions.replaceChildren();
- if(!s){box.textContent="No current subscription.";const a=document.createElement("a");a.href="/Account/PlanSelection";a.className="btn btn-primary btn-sm";a.textContent="Choose a plan";actions.append(a);return;}
- box.textContent=s.planName+" · "+(status[s.state]||"Unknown")+" · "+s.billingCycleCode+
-  " · "+date(s.startsAt)+" to "+date(s.endsAt)+" · Auto-renew "+(s.autoRenew?"On":"Off");
+ if(!s){box.textContent=t("No current subscription.","কোনো বর্তমান সাবস্ক্রিপশন নেই।");const a=document.createElement("a");a.href="/Account/PlanSelection";a.className="btn btn-primary btn-sm";a.textContent=t("Choose a plan","প্ল্যান বাছুন");actions.append(a);return;}
+ box.textContent=s.planName+" · "+(status[s.state]||t("Unknown","অজানা"))+" · "+s.billingCycleCode+
+  " · "+date(s.startsAt)+t(" to "," থেকে ")+date(s.endsAt)+t(" · Auto-renew "," · স্বয়ংক্রিয় নবায়ন ")+(s.autoRenew?t("On","চালু"):t("Off","বন্ধ"));
  if([1,2,3].includes(s.state)&&new Date(s.endsAt)>new Date()&&s.rowVersion){
-  const b=button(s.autoRenew?"Disable auto-renew":"Enable auto-renew",async()=>{
-   if(state.busy||!confirm((s.autoRenew?"Disable":"Enable")+" auto-renew for "+s.planName+"?"))return;
+  const b=button(s.autoRenew?t("Disable auto-renew","স্বয়ংক্রিয় নবায়ন বন্ধ করুন"):t("Enable auto-renew","স্বয়ংক্রিয় নবায়ন চালু করুন"),async()=>{
+   if(state.busy||!confirm(t((s.autoRenew?"Disable":"Enable")+" auto-renew for "+s.planName+"?",s.planName+" প্ল্যানের স্বয়ংক্রিয় নবায়ন "+(s.autoRenew?"বন্ধ":"চালু")+" করবেন?")))return;
    state.busy=true;b.disabled=true;
    try{
     await api("/api/subscription/"+encodeURIComponent(s.reference)+"/auto-renew","POST",
       {autoRenew:!s.autoRenew,rowVersion:s.rowVersion});
-    message("Renewal preference updated.","success");await refresh();
-   }catch(e){message(e.message+(e.status===409?" Refresh to get the latest version.":""));}
+    message(t("Renewal preference updated.","নবায়নের পছন্দ সংরক্ষিত হয়েছে।"),"success");await refresh();
+   }catch(e){message(e.message+(e.status===409?t(" Refresh to get the latest version."," সর্বশেষ অবস্থা রিফ্রেশ করুন।"):""));}
    finally{state.busy=false;b.disabled=false;}
   });actions.append(b);
  }
  if([1,2,3].includes(s.state)&&new Date(s.startsAt)<=new Date()&&
     new Date(s.endsAt)>new Date()&&s.rowVersion&&!state.upcoming){
-  const endButton=button("End subscription now",async()=>{
+  const endButton=button(t("End subscription now","এখনই সাবস্ক্রিপশন শেষ করুন"),async()=>{
    if(state.busy)return;
-   const typed=window.prompt("Ending this subscription immediately removes access. No automatic refund will be issued. Type END to continue:");
+   const typed=window.prompt(t("Ending this subscription immediately removes access. No automatic refund will be issued. Type END to continue:","এখনই সাবস্ক্রিপশন শেষ করলে প্রবেশাধিকার বন্ধ হবে, স্বয়ংক্রিয় রিফান্ড হবে না। চালিয়ে যেতে END লিখুন:"));
    if(typed!=="END")return;
-   if(!window.confirm("Confirm immediate cancellation of "+s.planName+"? This ends the current paid/trial period now and cannot be undone."))return;
+   if(!window.confirm(t("Confirm immediate cancellation of "+s.planName+"? This ends the current paid/trial period now and cannot be undone.",s.planName+" প্ল্যান এখনই বাতিল করবেন? বর্তমান মেয়াদ শেষ হবে; পূর্বাবস্থায় নেওয়া যাবে না।")))return;
    state.busy=true;endButton.disabled=true;
    try{
     await api("/api/subscription/"+encodeURIComponent(s.reference)+"/cancel","POST",
       {atPeriodEnd:false,rowVersion:s.rowVersion});
-    message("Subscription ended immediately. No automatic refund was initiated.","success");
+    message(t("Subscription ended immediately. No automatic refund was initiated.","সাবস্ক্রিপশন শেষ হয়েছে। কোনো স্বয়ংক্রিয় রিফান্ড শুরু হয়নি।"),"success");
     await refresh();
-   }catch(e){message(e.message+(e.status===409?" Reload the latest subscription state and retry.":""));}
+   }catch(e){message(e.message+(e.status===409?t(" Reload the latest subscription state and retry."," সর্বশেষ সাবস্ক্রিপশন অবস্থা লোড করে আবার চেষ্টা করুন।"):""));}
    finally{state.busy=false;endButton.disabled=false;}
   });
   endButton.className="btn btn-outline-danger btn-sm";actions.append(endButton);
@@ -62,13 +64,13 @@ function renderLifecycle(info){
  const box=$("sbLifecycle"),actions=$("sbRenewalActions");
  if(!box||!actions)return;
  actions.replaceChildren();
- box.textContent=info?.guidance||"Renewal status is unavailable.";
+ box.textContent=info?.guidance||t("Renewal status is unavailable.","নবায়নের অবস্থা পাওয়া যায়নি।");
  if(info?.endsAtUtc){
-  box.textContent+=" Period ends: "+date(info.endsAtUtc)+".";
+  box.textContent+=t(" Period ends: "," মেয়াদ শেষ: ")+date(info.endsAtUtc)+".";
  }
  if(info?.canStartNewSubscription){
   const a=document.createElement("a");a.href="/Account/PlanSelection";
-  a.className="btn btn-outline-primary btn-sm";a.textContent="Choose a plan";
+  a.className="btn btn-outline-primary btn-sm";a.textContent=t("Choose a plan","প্ল্যান বাছুন");
   actions.append(a);
  }
 }
@@ -77,30 +79,30 @@ function renderUpcoming(){
  if(!box||!actions)return;
  actions.replaceChildren();
  if(u){
-  box.textContent=(u.state===7?"Renewal invoice awaiting payment. ":u.state===2?"Prepaid renewal scheduled. ":"Renewal scheduled. ")+
-   (u.planName||"Subscription")+" · "+date(u.startsAt)+" to "+date(u.endsAt)+
-   ". Your current period remains effective until its existing end date.";
+  box.textContent=(u.state===7?t("Renewal invoice awaiting payment. ","নবায়নের ইনভয়েস পরিশোধের অপেক্ষায়। "):u.state===2?t("Prepaid renewal scheduled. ","অগ্রিম পরিশোধিত নবায়ন নির্ধারিত। "):t("Renewal scheduled. ","নবায়ন নির্ধারিত। "))+
+   (u.planName||t("Subscription","সাবস্ক্রিপশন"))+" · "+date(u.startsAt)+t(" to "," থেকে ")+date(u.endsAt)+
+   t(". Your current period remains effective until its existing end date.","। বর্তমান মেয়াদ আগের নির্ধারিত তারিখ পর্যন্ত চালু থাকবে।");
   return;
  }
  if(!s||![1,2,3].includes(s.state)||s.billingCycleCode==="Lifetime"){
-  box.textContent="No eligible active subscription for early renewal.";return;
+  box.textContent=t("No eligible active subscription for early renewal.","আগাম নবায়নের জন্য যোগ্য সক্রিয় সাবস্ক্রিপশন নেই।");return;
  }
  const remaining=new Date(s.endsAt).getTime()-Date.now();
  if(!Number.isFinite(remaining)||remaining<=0||remaining>30*86400000||!s.rowVersion){
-  box.textContent="You can request a renewal invoice during the final 30 days of the current period.";return;
+  box.textContent=t("You can request a renewal invoice during the final 30 days of the current period.","বর্তমান মেয়াদের শেষ ৩০ দিনে নবায়নের ইনভয়েস চাইতে পারবেন।");return;
  }
  box.textContent=s.autoRenew
-  ?"Auto-renew is enabled: an invoice will be scheduled automatically during the final 30 days. You may also request it now. No payment is collected automatically."
-  :"Request the next billing period at the plan's current price. No payment is collected automatically.";
+  ?t("Auto-renew is enabled: an invoice will be scheduled automatically during the final 30 days. You may also request it now. No payment is collected automatically.","স্বয়ংক্রিয় নবায়ন চালু: শেষ ৩০ দিনে ইনভয়েস নির্ধারিত হবে। এখনই চাইতে পারেন; স্বয়ংক্রিয়ভাবে টাকা কাটা হবে না।")
+  :t("Request the next billing period at the plan's current price. No payment is collected automatically.","প্ল্যানের বর্তমান মূল্যে পরবর্তী মেয়াদের অনুরোধ করুন। স্বয়ংক্রিয়ভাবে টাকা কাটা হয় না।");
  // Only public, active, same-currency plans can be scheduled; the server revalidates.
  const eligiblePlans=state.plans.filter(p=>p&&p.isActive&&p.isPublic&&
    String(p.currencyCode||"").toUpperCase()===String(s.currencyCode||"").toUpperCase());
  let planSelect=null;
  if(eligiblePlans.length){
   const label=document.createElement("label");label.className="small";
-  label.textContent="Plan for next period ";
+  label.textContent=t("Plan for next period ","পরবর্তী মেয়াদের প্ল্যান ");
   planSelect=document.createElement("select");planSelect.className="form-select form-select-sm";
-  planSelect.setAttribute("aria-label","Plan for next subscription period");
+  planSelect.setAttribute("aria-label",t("Plan for next subscription period","পরবর্তী সাবস্ক্রিপশন মেয়াদের প্ল্যান"));
   for(const plan of eligiblePlans){
    const opt=document.createElement("option");opt.value=String(plan.id);
    opt.textContent=plan.name+" ("+plan.currencyCode+")";
@@ -109,11 +111,11 @@ function renderUpcoming(){
   }
   label.append(planSelect);actions.append(label);
  }
- const b=button("Generate renewal invoice",async()=>{
-  if(state.busy||!confirm("Create a renewal invoice? The next period begins after your current period. Payment requires separate verification."))return;
-  if(!globalThis.crypto?.randomUUID){message("Secure request IDs are unavailable in this browser.");return;}
+ const b=button(t("Generate renewal invoice","নবায়নের ইনভয়েস তৈরি"),async()=>{
+  if(state.busy||!confirm(t("Create a renewal invoice? The next period begins after your current period. Payment requires separate verification.","নবায়নের ইনভয়েস তৈরি করবেন? নতুন মেয়াদ বর্তমান মেয়াদ শেষে শুরু হবে। পেমেন্ট আলাদাভাবে যাচাই করতে হবে।")))return;
+  if(!globalThis.crypto?.randomUUID){message(t("Secure request IDs are unavailable in this browser.","এই ব্রাউজারে নিরাপদ অনুরোধের আইডি পাওয়া যাচ্ছে না।"));return;}
   const nextPlanId=planSelect?Number(planSelect.value):Number(s.subscriptionPlanId);
-  if(!Number.isSafeInteger(nextPlanId)||nextPlanId<=0){message("Select a valid next-period plan.");return;}
+  if(!Number.isSafeInteger(nextPlanId)||nextPlanId<=0){message(t("Select a valid next-period plan.","পরবর্তী মেয়াদের জন্য বৈধ প্ল্যান বাছুন।"));return;}
   const key="eduos:renewal:"+s.reference+":"+nextPlanId;
   let requestId=null;
   try{requestId=sessionStorage.getItem(key);}catch{}
@@ -124,9 +126,9 @@ function renderUpcoming(){
      {clientRequestId:requestId,rowVersion:s.rowVersion,
       nextPlanId:nextPlanId===Number(s.subscriptionPlanId)?null:nextPlanId});
    try{sessionStorage.removeItem(key);}catch{}
-   message("Renewal created. Pay the invoice below to activate the next period.","success");
+   message(t("Renewal created. Pay the invoice below to activate the next period.","নবায়ন তৈরি হয়েছে। পরবর্তী মেয়াদ চালু করতে নিচের ইনভয়েস পরিশোধ করুন।"),"success");
    await refresh();
-  }catch(e){message(e.message+(e.status===409?" Refresh before retrying.":""));}
+  }catch(e){message(e.message+(e.status===409?t(" Refresh before retrying."," আবার চেষ্টা করার আগে রিফ্রেশ করুন।"):""));}
   finally{state.busy=false;b.disabled=false;}
  });
  actions.append(b);
@@ -137,18 +139,18 @@ function renderInvoices(items){
   const tr=document.createElement("tr");
   td(tr,inv.invoiceNumber);td(tr,inv.invoiceDate);td(tr,inv.dueDate);
   td(tr,money(inv.totalAmount,inv.currencyCode));td(tr,money(inv.paidAmount,inv.currencyCode));
-  td(tr,money(inv.dueAmount,inv.currencyCode));td(tr,invoiceStatus[inv.state]||"Unknown");
-  const actions=td(tr,"");actions.append(button("Details",()=>showInvoiceDetails(inv.id)));
-  actions.append(button("Payments",()=>showPayments(inv.id)));
-  const exportButton=button("Download CSV",()=>downloadInvoiceCsv(inv.id,exportButton));
+  td(tr,money(inv.dueAmount,inv.currencyCode));td(tr,invoiceStatus[inv.state]||t("Unknown","অজানা"));
+  const actions=td(tr,"");actions.append(button(t("Details","বিবরণ"),()=>showInvoiceDetails(inv.id)));
+  actions.append(button(t("Payments","পেমেন্ট"),()=>showPayments(inv.id)));
+  const exportButton=button(t("Download CSV","CSV ডাউনলোড"),()=>downloadInvoiceCsv(inv.id,exportButton));
   actions.append(exportButton);
   if(Number(inv.dueAmount)>0&&[2,3].includes(inv.state)&&
      typeof inv.invoiceNumber==="string"&&inv.invoiceNumber.startsWith("REN-")){
-   actions.append(button("Remind owner",()=>remindOwner(inv.id)));
+   actions.append(button(t("Remind owner","মালিককে স্মরণ করান"),()=>remindOwner(inv.id)));
   }
   if(Number(inv.dueAmount)>0&&[2,3].includes(inv.state)){
    const link=document.createElement("a");link.href="/Account/Payment?invoiceId="+encodeURIComponent(inv.id);
-   link.className="btn btn-primary btn-sm ms-1";link.textContent="Pay";actions.append(link);
+   link.className="btn btn-primary btn-sm ms-1";link.textContent=t("Pay","পরিশোধ করুন");actions.append(link);
   }
   body.append(tr);
  }
@@ -163,41 +165,41 @@ async function downloadInvoiceCsv(id,trigger){
   });
   if(!response.ok){
    const error=await response.json().catch(()=>null);
-   throw Error(error?.message||"Invoice export failed ("+response.status+").");
+   throw Error(error?.message||t("Invoice export failed (","ইনভয়েস রপ্তানি ব্যর্থ (")+response.status+").");
   }
   const csv=await response.blob();
-  if(!csv.size||csv.size>10*1024*1024)throw Error("Invoice export is empty or exceeds 10 MB.");
+  if(!csv.size||csv.size>10*1024*1024)throw Error(t("Invoice export is empty or exceeds 10 MB.","ইনভয়েস রপ্তানি খালি বা ১০ MB-এর বেশি।"));
   const url=URL.createObjectURL(csv),link=document.createElement("a");
   link.href=url;link.download="subscription-invoice-"+id+".csv";
   document.body.append(link);link.click();link.remove();
   window.setTimeout(()=>URL.revokeObjectURL(url),1000);
- }catch(e){message(e.message||"Unable to download invoice.");}
+ }catch(e){message(e.message||t("Unable to download invoice.","ইনভয়েস ডাউনলোড করা যায়নি।"));}
  finally{trigger.disabled=false;}
 }
 async function showInvoiceDetails(id){
  const version=++state.invoiceDetailVersion,box=$("sbInvoiceDetails");
- box.textContent="Loading invoice details…";
+ box.textContent=t("Loading invoice details…","ইনভয়েসের বিবরণ লোড হচ্ছে…");
  try{
   const inv=await api("/api/subscription/invoices/"+encodeURIComponent(id));
   if(version!==state.invoiceDetailVersion)return;
   box.replaceChildren();
   const heading=document.createElement("h3");heading.className="h6";
-  heading.textContent="Invoice "+(inv.invoiceNumber||id);box.append(heading);
+  heading.textContent=t("Invoice ","ইনভয়েস ")+(inv.invoiceNumber||id);box.append(heading);
   const summary=document.createElement("p");summary.className="small";
-  summary.textContent="Issued "+date(inv.invoiceDate)+" · Due "+date(inv.dueDate)+
-   " · Status "+(invoiceStatus[inv.state]||"Unknown")+
-   " · Subtotal "+money(inv.subtotal,inv.currencyCode)+
-   " · Tax "+money(inv.taxAmount,inv.currencyCode)+
-   " · Total "+money(inv.totalAmount,inv.currencyCode)+
-   " · Paid "+money(inv.paidAmount,inv.currencyCode)+
-   " · Outstanding "+money(inv.dueAmount,inv.currencyCode);
+  summary.textContent=t("Issued ","ইস্যু ")+date(inv.invoiceDate)+t(" · Due "," · শেষ তারিখ ")+date(inv.dueDate)+
+   t(" · Status "," · অবস্থা ")+(invoiceStatus[inv.state]||t("Unknown","অজানা"))+
+   t(" · Subtotal "," · উপমোট ")+money(inv.subtotal,inv.currencyCode)+
+   t(" · Tax "," · কর ")+money(inv.taxAmount,inv.currencyCode)+
+   t(" · Total "," · মোট ")+money(inv.totalAmount,inv.currencyCode)+
+   t(" · Paid "," · পরিশোধ ")+money(inv.paidAmount,inv.currencyCode)+
+   t(" · Outstanding "," · বকেয়া ")+money(inv.dueAmount,inv.currencyCode);
   box.append(summary);
   const lines=Array.isArray(inv.lines)?inv.lines:[];
   if(!lines.length){const p=document.createElement("p");p.className="small text-muted";
-   p.textContent="No line items recorded for this invoice.";box.append(p);return;}
+   p.textContent=t("No line items recorded for this invoice.","এই ইনভয়েসে কোনো লাইন আইটেম নেই।");box.append(p);return;}
   const table=document.createElement("table");table.className="table table-sm table-bordered";
   const thead=document.createElement("thead"),header=document.createElement("tr");
-  for(const name of ["Description","Quantity","Unit price","Amount"]){
+  for(const name of [t("Description","বিবরণ"),t("Quantity","পরিমাণ"),t("Unit price","একক মূল্য"),t("Amount","টাকা")]){
    const th=document.createElement("th");th.scope="col";th.textContent=name;header.append(th);
   }
   thead.append(header);table.append(thead);
@@ -217,32 +219,32 @@ async function remindOwner(id){
  state.busy=true;
  try{
   const status=await api("/api/subscription/invoices/"+encodeURIComponent(id)+"/reminder-status");
-  if(!status.hasActiveOwner){message("No active institution owner can receive the reminder.");return;}
-  if(!status.canSendToday){message("Today's reminder was already delivered, or this invoice is no longer payable.","info");return;}
-  if(!confirm("Send an in-app renewal payment reminder to institution owner(s)? No email, SMS or payment will be initiated."))return;
+  if(!status.hasActiveOwner){message(t("No active institution owner can receive the reminder.","স্মরণবার্তা গ্রহণের জন্য কোনো সক্রিয় প্রতিষ্ঠানের মালিক নেই।"));return;}
+  if(!status.canSendToday){message(t("Today's reminder was already delivered, or this invoice is no longer payable.","আজকের স্মরণবার্তা পাঠানো হয়েছে অথবা ইনভয়েসটি আর পরিশোধযোগ্য নয়।"),"info");return;}
+  if(!confirm(t("Send an in-app renewal payment reminder to institution owner(s)? No email, SMS or payment will be initiated.","প্রতিষ্ঠানের মালিককে অ্যাপের মধ্যে নবায়নের স্মরণবার্তা পাঠাবেন? ইমেইল, SMS বা পেমেন্ট হবে না।")))return;
   await api("/api/subscription/invoices/"+encodeURIComponent(id)+"/remind","POST",{});
-  message("In-app renewal reminder processed.","success");
+  message(t("In-app renewal reminder processed.","অ্যাপের নবায়ন স্মরণবার্তা প্রক্রিয়াকৃত হয়েছে।"),"success");
  }catch(e){message(e.message);}
  finally{state.busy=false;}
 }
 async function showPayments(id){
- const box=$("sbPayments");box.textContent="Loading payment history…";
+ const box=$("sbPayments");box.textContent=t("Loading payment history…","পেমেন্টের ইতিহাস লোড হচ্ছে…");
  try{
   const data=await api("/api/subscription-payment/invoice/"+encodeURIComponent(id));
-  box.replaceChildren();const heading=document.createElement("h3");heading.className="h6";heading.textContent="Payments for invoice "+id;box.append(heading);
-  if(!Array.isArray(data)||!data.length){const p=document.createElement("p");p.textContent="No payments found.";box.append(p);return;}
+  box.replaceChildren();const heading=document.createElement("h3");heading.className="h6";heading.textContent=t("Payments for invoice ","ইনভয়েসের পেমেন্ট ")+id;box.append(heading);
+  if(!Array.isArray(data)||!data.length){const p=document.createElement("p");p.textContent=t("No payments found.","কোনো পেমেন্ট পাওয়া যায়নি।");box.append(p);return;}
   const table=document.createElement("table");table.className="table table-sm";
   const body=document.createElement("tbody");
   for(const pay of data){
    const tr=document.createElement("tr");
    td(tr,pay.transactionId);td(tr,money(pay.amount,pay.currencyCode));
-   td(tr,paymentStatus[pay.state]||"Unknown");td(tr,date(pay.initiatedAt));
+   td(tr,paymentStatus[pay.state]||t("Unknown","অজানা"));td(tr,date(pay.initiatedAt));
    const action=td(tr,"");
    if(Number(pay.state)===3 && pay.completedAt && Number(pay.id)>0){
     const link=document.createElement("a");
     link.href="/SubscriptionBilling/Receipt/"+encodeURIComponent(pay.id);
     link.target="_blank";link.rel="noopener noreferrer";
-    link.className="btn btn-outline-primary btn-sm";link.textContent="View receipt";
+    link.className="btn btn-outline-primary btn-sm";link.textContent=t("View receipt","রসিদ দেখুন");
     action.append(link);
    }
    body.append(tr);
@@ -253,10 +255,10 @@ async function showPayments(id){
 function renderHistory(result){
  const body=$("sbHistoryRows");body.replaceChildren();const rows=result?.items||[];
  for(const s of rows){const tr=document.createElement("tr");td(tr,s.planName);td(tr,s.billingCycleCode);
-  td(tr,date(s.startsAt));td(tr,date(s.endsAt));td(tr,status[s.state]||"Unknown");td(tr,s.autoRenew?"Yes":"No");body.append(tr);}
+  td(tr,date(s.startsAt));td(tr,date(s.endsAt));td(tr,status[s.state]||t("Unknown","অজানা"));td(tr,s.autoRenew?t("Yes","হ্যাঁ"):t("No","না"));body.append(tr);}
  if(!rows.length)empty("sbHistoryRows",6);
  state.pages=Math.max(1,Math.ceil((Number(result?.totalCount)||0)/(Number(result?.pageSize)||10)));
- $("sbPage").textContent="Page "+state.page+" / "+state.pages;
+ $("sbPage").textContent=t("Page ","পৃষ্ঠা ")+state.page+" / "+state.pages;
  $("sbPrev").disabled=state.page<=1;$("sbNext").disabled=state.page>=state.pages;
 }
 
@@ -271,7 +273,7 @@ async function refreshInvoices(){
   if(state.invoicePage>pages){state.invoicePage=pages;return refreshInvoices();}
   renderInvoices(Array.isArray(result?.items)?result.items:[]);
   state.invoicePages=pages;
-  $("sbInvoicePage").textContent="Page "+state.invoicePage+" / "+pages+" · "+(Number(result?.totalCount)||0)+" invoices";
+  $("sbInvoicePage").textContent=t("Page ","পৃষ্ঠা ")+state.invoicePage+" / "+pages+" · "+(Number(result?.totalCount)||0)+t(" invoices","টি ইনভয়েস");
   $("sbInvoicePrev").disabled=state.invoicePage<=1;
   $("sbInvoiceNext").disabled=state.invoicePage>=pages;
  }catch(e){if(version===state.invoiceVersion)message(e.message);}
