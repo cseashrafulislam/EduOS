@@ -200,7 +200,48 @@
             </form>
         </div>
     </div>
+    @if (User.IsInRole("TenantAdmin"))
+    {
+        <section class="card shadow-sm mt-3" id="workspaceInstituteBranding"
+                 aria-labelledby="workspaceBrandingTitle"
+                 data-loading="@T["Loading"]" data-error="@T["ProfileLoadFailed"]">
+            <div class="card-body">
+                <div class="d-flex flex-wrap align-items-center justify-content-between gap-2">
+                    <h3 class="h6 mb-0" id="workspaceBrandingTitle">@T["BrandingSetupTitle"]</h3>
+                    <a class="btn btn-outline-primary btn-sm" href="/Account/BrandingSetup">@T["Edit"] @T["BrandColors"]</a>
+                </div>
+                <p class="small text-muted mt-2 mb-2">@T["BrandingSetupHelp"]</p>
+                <p data-branding-status role="status" aria-live="polite">@T["Loading"]</p>
+                <button type="button" class="btn btn-outline-secondary btn-sm" data-branding-retry hidden>@T["Retry"]</button>
+                <div data-branding-content hidden>
+                    <div class="d-flex align-items-center gap-3">
+                        <img data-branding-logo alt="@T["Logo"]" width="64" height="64"
+                             class="rounded border object-fit-contain" loading="lazy" hidden />
+                        <strong data-branding-name></strong>
+                    </div>
+                    <div class="row row-cols-1 row-cols-sm-3 g-2 mt-2">
+                        @foreach (var color in new[] {
+                            (Key: "primary", Label: T["PrimaryColor"]),
+                            (Key: "secondary", Label: T["SecondaryColor"]),
+                            (Key: "accent", Label: T["AccentColor"])
+                        })
+                        {
+                            <div class="col" data-branding-color="@color.Key">
+                                <div class="border rounded p-2 d-flex align-items-center gap-2">
+                                    <span data-branding-swatch class="d-inline-block rounded-circle border flex-shrink-0"
+                                          style="width:1.5rem;height:1.5rem" aria-hidden="true"></span>
+                                    <div><span class="small d-block">@color.Label</span>
+                                        <output data-branding-value class="small font-monospace"></output></div>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                </div>
+            </div>
+        </section>
+    }
 </section>
 @section Scripts {
     <script src="~/js/platform/workspace-preferences.js" asp-append-version="true"></script>
+    <script src="~/js/platform/workspace-institute-branding.js" asp-append-version="true"></script>
 }

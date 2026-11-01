@@ -177,3 +177,45 @@ test('appearance revision restore uses same tenant session transaction and bound
     assert.doesNotMatch(script, /innerHTML|localStorage|sessionStorage/);
     assert.match(guide, /Previously saved appearances/);
 });
+
+test('TenantAdmin workspace previews existing institute branding without changing personal settings', () => {
+    const view = read('EduOS.App/Views/WorkspacePreferences/Index.cshtml');
+    const script = read('EduOS.App/wwwroot/js/platform/workspace-institute-branding.js');
+    const profileApi = read('EduOS.App/Controllers/Api/TenantProfileController.cs');
+    const settingsApi = read('EduOS.App/Controllers/Api/TenantSettingController.cs');
+    const account = read('EduOS.App/Controllers/AccountController.cs');
+    const manual = read('EduOS.App/wwwroot/js/platform/page-context-help.js');
+    assert.match(view, /@if \(User\.IsInRole\("TenantAdmin"\)\)/);
+    assert.match(view, /id="workspaceInstituteBranding"/);
+    assert.match(view, /href="\/Account\/BrandingSetup"/);
+    assert.match(view, /workspace-institute-branding\.js/);
+    assert.match(profileApi, /\[Authorize\(Roles = "TenantAdmin,SuperAdmin"\)\]/);
+    assert.match(account, /BrandingSetup\(\) => View\(\)/);
+    assert.match(settingsApi, /TenantAdmin/);
+    assert.match(script, /\/api\/tenant-profile/);
+    assert.match(script, /\/api\/tenant-settings\?category=Branding&page=1&pageSize=50/);
+    assert.match(script, /await proveSession\(controller\.signal\);[\s\S]*?render\(snapshot\(profile, settings\)\)/);
+    assert.match(script, /EduOSWorkspaceResponseMatchesSession/);
+    assert.doesNotMatch(script, /method:\s*['"](?:POST|PUT|DELETE)['"]|innerHTML|localStorage|sessionStorage/);
+    assert.match(manual, /version: 4, reviewed: true/);
+    assert.match(manual, /institute branding fails to load/);
+    const { color, safeLogoPath, snapshot, sessionMatches } =
+        require('../../EduOS.App/wwwroot/js/platform/workspace-institute-branding.js');
+    assert.equal(color('#ab12ef', '#000000'), '#AB12EF');
+    assert.equal(color('red; background:url(//evil)', '#000000'), '#000000');
+    assert.equal(safeLogoPath('/uploads/tenant/logo.png'), '/uploads/tenant/logo.png');
+    for (const unsafe of ['https://evil.test/uploads/logo.png', '//evil.test/uploads/logo.png',
+        '/uploads/../secret', '/uploads/logo.png?token=private', 'javascript:alert(1)']) {
+        assert.equal(safeLogoPath(unsafe), null);
+    }
+    const data = snapshot({ name: '<script>Institution</script>', logoUrl: '/uploads/tenant/logo.png' },
+        { items: [{ key: 'Branding.PrimaryColor', value: '#1a2b3c' },
+                  { key: 'Branding.SecondaryColor', value: 'url(javascript:evil)' }] });
+    assert.equal(data.name, '<script>Institution</script>');
+    assert.equal(data.colors.primary, '#1A2B3C');
+    assert.equal(data.colors.secondary, '#64748B');
+    assert.equal(data.logo, '/uploads/tenant/logo.png');
+    assert.equal(sessionMatches({ ok: true }, () => true), true);
+    assert.equal(sessionMatches({ ok: true }, () => false), false);
+    assert.equal(sessionMatches({ ok: false }, () => true), false);
+});
