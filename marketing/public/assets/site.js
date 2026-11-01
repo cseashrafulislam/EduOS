@@ -1,0 +1,196 @@
+(() => {
+  "use strict";
+
+  const bn = {
+    navFeatures:"ফিচার",navInstitutions:"প্রতিষ্ঠান",navScreenshots:"স্ক্রিনশট",navHow:"যেভাবে কাজ করে",navContact:"যোগাযোগ",demoLogin:"ডেমো লগইন",
+    eyebrow:"এডুকেশন ম্যানেজমেন্টের পূর্ণাঙ্গ প্ল্যাটফর্ম",heroTitle:'আপনার প্রতিষ্ঠানের সব কাজ।<span class="accent-text"> একই জায়গায়।</span>',
+    heroDesc:"ভর্তি, শিক্ষার্থী ব্যবস্থাপনা, পাঠদান, ফি, হিসাব ও দৈনন্দিন প্রশাসনিক কার্যক্রমকে একটি সুসংগঠিত প্ল্যাটফর্মে নিয়ে আসুন।",
+    explorePlatform:"প্ল্যাটফর্ম দেখুন",tryDemo:"ডেমো দেখুন",heroCheck1:"বিভিন্ন প্রতিষ্ঠানের জন্য কনফিগারযোগ্য",heroCheck2:"English ও বাংলা ইন্টারফেস",
+    floatReady:"বাস্তব কাজের ধারা মাথায় রেখে ডিজাইন",floatUnified:"একটি সংযুক্ত ওয়ার্কস্পেস",illustrationDisclaimer:"এটি ধারণামূলক ডিজাইন · প্রকৃত স্ক্রিনশট পাওয়া গেলে নিচে যুক্ত হবে",
+    benefit1:"সমন্বিত প্ল্যাটফর্ম",benefit2:"নমনীয় কার্যপ্রবাহ",benefit3:"রোল অনুযায়ী অ্যাক্সেস",benefit4:"সহজ রিপোর্ট ও রেকর্ড",
+    featuresEyebrow:"পুরো প্রতিষ্ঠানের জন্য",featuresTitle:"আপনার সব কার্যক্রম এক জায়গায়।",featuresDesc:"প্রথম ভর্তি আবেদন থেকে নিয়মিত শিক্ষা ও প্রশাসন—EduOS গুরুত্বপূর্ণ কাজগুলোকে একে অপরের সঙ্গে যুক্ত করে।",
+    admissionTitle:"ভর্তি ও শিক্ষার্থী",admissionText:"ভর্তি প্রক্রিয়া, শিক্ষার্থীর প্রোফাইল, এনরোলমেন্ট এবং প্রয়োজনীয় রেকর্ড পরিচালনা করুন।",feature01:"০১ / শিক্ষার্থী ব্যবস্থাপনা",
+    academicTitle:"একাডেমিক ও পরীক্ষা",academicText:"একাডেমিক কাঠামো, কোর্স, পরীক্ষা, ফলাফল ও সংশ্লিষ্ট তথ্য সাজিয়ে রাখুন।",feature02:"০২ / একাডেমিক",
+    financeTitle:"ফি ও হিসাব",financeText:"ফি স্ট্রাকচার, শিক্ষার্থীর বিল, রসিদ এবং প্রতিষ্ঠানের হিসাব পরিচালনা করুন।",feature03:"০৩ / ফাইন্যান্স",
+    hrTitle:"এইচআর ও পে-রোল",hrText:"কর্মীদের তথ্য, বেতন প্রক্রিয়া এবং প্রশাসনিক রেকর্ড সুসংগঠিত রাখুন।",feature04:"০৪ / মানবসম্পদ",
+    lmsTitle:"লার্নিং ও লাইব্রেরি",lmsText:"কোর্স, শেখার উপকরণ এবং লাইব্রেরির কার্যক্রম একাডেমিক কাজের সঙ্গে পরিচালনা করুন।",feature05:"০৫ / লার্নিং",
+    campusTitle:"হোস্টেল, পরিবহন ও ইনভেন্টরি",campusText:"ক্যাম্পাসের দৈনন্দিন সেবা ও প্রয়োজনীয় সম্পদ পরিচালনায় সহায়তা পান।",feature06:"০৬ / ক্যাম্পাস সেবা",
+    availabilityNote:"প্রতিষ্ঠানের কনফিগারেশন অনুযায়ী ফিচারের প্রাপ্যতা ভিন্ন হতে পারে। নির্দিষ্ট কাজের ডেমোর জন্য যোগাযোগ করুন।",
+    institutionsEyebrow:"এক প্ল্যাটফর্ম, নানা ধরনের প্রতিষ্ঠান",institutionsTitle:"আপনার শিক্ষা-পদ্ধতির সঙ্গে মানিয়ে নেবে।",institutionsDesc:"প্রতিষ্ঠানভেদে শ্রেণি, কোর্স, পরিভাষা ও কাজের ধরন আলাদা। EduOS নির্দিষ্ট কাঠামোয় সীমাবদ্ধ না রেখে কনফিগারযোগ্য ব্যবস্থা তৈরি করছে।",institutionsLink:"আপনার প্রতিষ্ঠান নিয়ে কথা বলুন",
+    school:"স্কুল",college:"কলেজ",university:"বিশ্ববিদ্যালয়",madrasa:"মাদ্রাসা",training:"ট্রেনিং সেন্টার",coaching:"কোচিং ও অনলাইন শিক্ষা",
+    showcaseEyebrow:"যে সফটওয়্যারটি ব্যবহার করবেন, সেটি দেখুন",showcaseTitle:"EduOS-এর ভেতরের অভিজ্ঞতা।",showcaseDesc:"গোপনীয় তথ্য সরিয়ে আসল সফটওয়্যার থেকে নেওয়া পূর্ণপেজ স্ক্রিনশট এখানে প্রকাশ করা হবে। কৃত্রিম ডিজাইনকে প্রকৃত স্ক্রিনশট বলা হবে না।",
+    shotDashboard:"ড্যাশবোর্ড",shotStudents:"শিক্ষার্থী",shotFees:"ফি ও বিলিং",shotAcademics:"একাডেমিক",shotReports:"রিপোর্ট",
+    screenshotPendingTitle:"এখানে আসল স্ক্রিনশট যুক্ত হবে",screenshotPendingText:"ডেমো প্রস্তুত হলে ব্যক্তিগত তথ্য ছাড়া পূর্ণপেজ স্ক্রিনশট এখানে প্রকাশ করা হবে।",
+    screenshotCaption:"শুধু প্রকৃত অ্যাপ্লিকেশন থেকে স্ক্রিনশট যুক্ত হবে। কোনো সংবেদনশীল শিক্ষার্থী বা প্রতিষ্ঠানের তথ্য দেখানো হবে না।",
+    workflowEyebrow:"ধাপে ধাপে সহজ কাজ",workflowTitle:"কম ঝামেলা। বেশি স্বচ্ছতা।",workflowDesc:"প্রতিষ্ঠানের গুরুত্বপূর্ণ কাজগুলো সংযুক্তভাবে পরিচালনার একটি ধারাবাহিক উপায়।",
+    step1Title:"প্রতিষ্ঠান সেটআপ",step1Text:"একাডেমিক কাঠামো, ক্যাম্পাস, রোল এবং প্রয়োজনীয় মডিউল কনফিগার করুন।",
+    step2Title:"শিক্ষার্থী ও শিক্ষা পরিচালনা",step2Text:"শিক্ষার্থী, কর্মী, কোর্স ও একাডেমিক কার্যক্রম সাজিয়ে রাখুন।",
+    step3Title:"দৈনন্দিন কার্যক্রম",step3Text:"ফি, পেমেন্ট এবং প্রতিষ্ঠানের প্রাসঙ্গিক সেবা পরিচালনা করুন।",
+    step4Title:"পুরো চিত্র বুঝুন",step4Text:"সংযুক্ত রেকর্ড ও রিপোর্ট দেখে সিদ্ধান্ত নিতে সহায়তা পান।",
+    faqEyebrow:"সাধারণ প্রশ্নের সহজ উত্তর",faqTitle:"শুরু করার আগে।",faqIntro:"প্রতিটি প্রতিষ্ঠানের চাহিদা আলাদা। ডেমো দেখার আগে কয়েকটি প্রয়োজনীয় বিষয় জেনে নিন।",
+    faq1q:"EduOS কি শুধু স্কুলের জন্য?",faq1a:"না। স্কুল, কলেজ, বিশ্ববিদ্যালয়, মাদ্রাসা, কোচিং ও প্রশিক্ষণ প্রতিষ্ঠানের কথা মাথায় রেখে ডিজাইন করা হয়েছে। প্রতিষ্ঠানের ধরন অনুযায়ী কনফিগারেশন ভিন্ন হতে পারে।",
+    faq2q:"বাংলায় সফটওয়্যার ব্যবহার করা যাবে?",faq2a:"প্ল্যাটফর্মটি বাংলা ও ইংরেজি অভিজ্ঞতা লক্ষ্য করে তৈরি হচ্ছে। নির্দিষ্ট মডিউলের অনুবাদ কতটা সম্পন্ন তা ডেমোতে যাচাই করে নেওয়া ভালো।",
+    faq3q:"সফটওয়্যার নেওয়ার আগে দেখা যাবে?",faq3a:"হ্যাঁ। ডেমো পরিবেশ প্রকাশের পর এই ওয়েবসাইটে সরাসরি লগইন লিংক যুক্ত করা যাবে।",
+    faq4q:"সব প্রতিষ্ঠানের সেটিং কি একই থাকবে?",faq4a:"না। EduOS-এ একাডেমিক পরিভাষা, কাঠামো, মডিউল ও কাজের ধারা কনফিগার করার পরিকল্পনা রয়েছে; কোনো নির্দিষ্ট প্রতিষ্ঠানের আকার ধরে ডিজাইন করা হয়নি।",
+    contactEyebrow:"পরবর্তী ধাপ শুরু হোক এখানেই",contactTitle:"আপনার প্রতিষ্ঠান পরিচালনা হোক আরও সহজ।",contactDesc:"EduOS-এর ফিচার দেখুন, তারপর আপনার প্রতিষ্ঠানের প্রয়োজন ও কাজের ধারা নিয়ে টিমের সঙ্গে আলোচনা করুন।",
+    contactDemo:"লাইভ ডেমো খুলুন",contactExplore:"ফিচার দেখুন",contactPending:"যোগাযোগের তথ্য পাওয়া গেলে এখানে প্রকাশ করা হবে।",
+    footerDesc:"শিক্ষাপ্রতিষ্ঠান পরিচালনার একটি সংযুক্ত অভিজ্ঞতা।",allRights:"সর্বস্বত্ব সংরক্ষিত।",madeForEducation:"শিক্ষার জন্য তৈরি, পরিবর্তনের জন্য প্রস্তুত।",
+    dialogTitle:"ডেমো লিংক শিগগিরই আসছে",dialogText:"EduOS ডেমো পরিবেশ প্রকাশ হওয়ার পর এখানে সরাসরি লগইন লিংক যুক্ত হবে। পরে আবার দেখুন।",dialogOk:"বুঝেছি"
+  };
+
+  const en = {
+    navFeatures:"Features",navInstitutions:"Institutions",navScreenshots:"Screenshots",navHow:"How it works",navContact:"Contact",demoLogin:"Demo Login",
+    eyebrow:"THE EDUCATION OPERATING SYSTEM",heroTitle:'Everything your institution needs.<span class="accent-text"> Finally connected.</span>',
+    heroDesc:"Bring admissions, learning, student records, billing and daily operations together in one thoughtfully designed education platform.",
+    explorePlatform:"Explore the platform",tryDemo:"Try the demo",heroCheck1:"Flexible for different institutions",heroCheck2:"English & বাংলা interface",
+    floatReady:"Designed around real workflows",floatUnified:"One connected workspace",illustrationDisclaimer:"Illustrative interface concept · Actual screenshots below when available",
+    benefit1:"One connected platform",benefit2:"Flexible workflows",benefit3:"Role-based access",benefit4:"Clear reports & records",
+    featuresEyebrow:"MADE FOR THE WHOLE INSTITUTION",featuresTitle:"Your operations, in one place.",featuresDesc:"From a student's first inquiry to everyday learning and administration, EduOS brings essential workflows closer together.",
+    admissionTitle:"Admissions & Students",admissionText:"Manage admission journeys, student profiles, enrollment details and ongoing records.",feature01:"01 / STUDENT EXPERIENCE",
+    academicTitle:"Academics & Examinations",academicText:"Organize academic structures, courses, examinations, results and related records.",feature02:"02 / ACADEMICS",
+    financeTitle:"Fees & Finance",financeText:"Coordinate fee structures, student billing, receipts and institutional accounting.",feature03:"03 / FINANCE",
+    hrTitle:"HR & Payroll",hrText:"Keep employee information, payroll processes and administrative records organized.",feature04:"04 / PEOPLE OPERATIONS",
+    lmsTitle:"Learning & Library",lmsText:"Bring learning resources, course management and library operations closer to academic life.",feature05:"05 / LEARNING",
+    campusTitle:"Hostel, Transport & Inventory",campusText:"Support the practical services and resources that keep a campus running.",feature06:"06 / CAMPUS SERVICES",
+    availabilityNote:"Feature availability and configuration depend on your institution's setup. Contact us for a workflow-specific demonstration.",
+    institutionsEyebrow:"ONE PLATFORM. MANY LEARNING ENVIRONMENTS.",institutionsTitle:"Built to adapt to how you teach.",institutionsDesc:"Different institutions have different terms, stages, structures and daily needs. EduOS is designed with configurable workflows rather than a one-size-fits-all institution template.",institutionsLink:"Talk about your institution",
+    school:"Schools",college:"Colleges",university:"Universities",madrasa:"Madrasas",training:"Training Centres",coaching:"Coaching & Online Learning",
+    showcaseEyebrow:"SEE WHAT YOUR TEAM WILL USE",showcaseTitle:"A closer look at EduOS.",showcaseDesc:"Explore real full-page product screenshots here as soon as sanitized captures are published. We never substitute generated imagery for an actual screenshot.",
+    shotDashboard:"Dashboard",shotStudents:"Students",shotFees:"Fees & Billing",shotAcademics:"Academics",shotReports:"Reports",
+    screenshotPendingTitle:"Real screenshot will appear here",screenshotPendingText:"A privacy-safe, full-page capture will be added after the live interface is ready for marketing.",
+    screenshotCaption:"Gallery images are added from the actual application only. No student or institution-sensitive data will be shown.",
+    workflowEyebrow:"A SIMPLER DAY, STEP BY STEP",workflowTitle:"Less switching. More clarity.",workflowDesc:"A connected way to organize the key moments of institutional work.",
+    step1Title:"Set up your institution",step1Text:"Configure the academic structure, campuses, roles and relevant modules.",
+    step2Title:"Manage people & learning",step2Text:"Keep students, staff, courses and academic activity organized.",
+    step3Title:"Run everyday operations",step3Text:"Work with fees, payments and the services your institution uses.",
+    step4Title:"Understand the full picture",step4Text:"Review connected records and reports to guide decisions.",
+    faqEyebrow:"GOOD QUESTIONS, CLEAR ANSWERS",faqTitle:"Before you get started.",faqIntro:"Your institution is unique. Here are a few useful things to know before requesting a walkthrough.",
+    faq1q:"Is EduOS only for schools?",faq1a:"No. EduOS is designed for multiple education environments, including colleges, universities, madrasas, coaching and training centres. Configuration varies by institution.",
+    faq2q:"Can the interface be used in Bangla?",faq2a:"The platform targets English and Bangla experiences. Individual module and translation coverage should be verified during your demonstration.",
+    faq3q:"Can I see the software before choosing it?",faq3a:"Yes, a live demonstration link can be provided when the demo environment is published. The button on this site will link directly to that environment once configured.",
+    faq4q:"Will every institution use the same settings?",faq4a:"No. EduOS is designed for configurable academic terminology, structure, modules and workflows rather than a fixed institution size or setup.",
+    contactEyebrow:"YOUR NEXT CHAPTER STARTS HERE",contactTitle:"Let's make your institution easier to run.",contactDesc:"Explore EduOS at your own pace, then connect with the team to discuss your institution's workflows and goals.",
+    contactDemo:"Open Live Demo",contactExplore:"Explore Features",contactPending:"Sales contact details will be published here when available.",
+    footerDesc:"A more connected way to manage education.",allRights:"All rights reserved.",madeForEducation:"Made for education, built for flexibility.",
+    dialogTitle:"Demo link coming soon",dialogText:"The live EduOS login address will be connected here once the demonstration environment is published. Please check back later.",dialogOk:"Got it"
+  };
+
+  const translations = { en, bn };
+  const languageToggle = document.getElementById("language-toggle");
+  let language = "en";
+  try { language = localStorage.getItem("eduos-marketing-lang") === "bn" ? "bn" : "en"; } catch { /* restricted browser storage */ }
+
+  function renderLanguage() {
+    document.documentElement.lang = language;
+    document.querySelectorAll("[data-i18n]").forEach((el) => {
+      const translated = translations[language][el.dataset.i18n];
+      if (translated !== undefined) el.textContent = translated;
+    });
+    document.querySelectorAll("[data-i18n-html]").forEach((el) => {
+      const translated = translations[language][el.dataset.i18nHtml];
+      if (translated !== undefined) el.innerHTML = translated; // Fixed authored strings only.
+    });
+    document.getElementById("language-label").textContent = language === "en" ? "বাংলা" : "English";
+    document.title = language === "bn"
+      ? "EduOS — শিক্ষাপ্রতিষ্ঠান পরিচালনার সমন্বিত সফটওয়্যার"
+      : "EduOS — All-in-One Education Management Software for Bangladesh";
+    document.querySelectorAll("[data-shot]").forEach((tab) => {
+      if (tab.getAttribute("aria-selected") === "true") document.getElementById("screenshot-heading").textContent = tab.textContent;
+    });
+  }
+  languageToggle.addEventListener("click", () => {
+    language = language === "en" ? "bn" : "en";
+    try { localStorage.setItem("eduos-marketing-lang", language); } catch { /* restricted browser storage */ }
+    renderLanguage();
+  });
+  renderLanguage();
+
+  const menuButton = document.getElementById("menu-toggle");
+  const navigation = document.getElementById("primary-nav");
+  menuButton.addEventListener("click", () => {
+    const open = navigation.classList.toggle("open");
+    menuButton.setAttribute("aria-expanded", String(open));
+    menuButton.setAttribute("aria-label", open ? "Close navigation" : "Open navigation");
+  });
+  navigation.querySelectorAll("a").forEach((link) => link.addEventListener("click", () => {
+    navigation.classList.remove("open");
+    menuButton.setAttribute("aria-expanded", "false");
+  }));
+
+  const tabs = Array.from(document.querySelectorAll("[data-shot]"));
+  const screenshotImage = document.getElementById("screenshot-image");
+  const placeholder = document.getElementById("screenshot-placeholder");
+  let currentRequest = 0;
+  function chooseScreenshot(tab) {
+    tabs.forEach((candidate) => {
+      const selected = candidate === tab;
+      candidate.setAttribute("aria-selected", String(selected));
+      candidate.tabIndex = selected ? 0 : -1;
+    });
+    document.getElementById("screenshot-heading").textContent = tab.textContent;
+    const request = ++currentRequest;
+    const source = `/assets/screenshots/${tab.dataset.shot}.webp`;
+    screenshotImage.hidden = true;
+    placeholder.hidden = false;
+    const candidate = new Image();
+    candidate.onload = () => {
+      if (request !== currentRequest) return;
+      screenshotImage.src = source;
+      screenshotImage.alt = `${tab.textContent} — actual full-page EduOS interface screenshot`;
+      screenshotImage.hidden = false;
+      placeholder.hidden = true;
+    };
+    candidate.onerror = () => { if (request === currentRequest) { screenshotImage.hidden = true; placeholder.hidden = false; } };
+    candidate.src = source;
+  }
+  tabs.forEach((tab, index) => {
+    tab.addEventListener("click", () => chooseScreenshot(tab));
+    tab.addEventListener("keydown", (event) => {
+      if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
+      event.preventDefault();
+      const next = event.key === "Home" ? 0 : event.key === "End" ? tabs.length - 1 : (index + (event.key === "ArrowRight" ? 1 : tabs.length - 1)) % tabs.length;
+      tabs[next].focus();
+      chooseScreenshot(tabs[next]);
+    });
+  });
+  chooseScreenshot(tabs[0]);
+
+  const config = window.EDUOS_MARKETING || {};
+  const infoDialog = document.getElementById("pending-dialog");
+  const url = typeof config.demoUrl === "string" ? config.demoUrl.trim() : "";
+  let verifiedDemoUrl = "";
+  try {
+    const candidate = new URL(url);
+    if (candidate.protocol === "https:" && !candidate.username && !candidate.password) verifiedDemoUrl = candidate.href;
+  } catch { /* URL has not been supplied */ }
+  document.querySelectorAll("[data-demo]").forEach((button) => button.addEventListener("click", () => {
+    if (verifiedDemoUrl) {
+      window.open(verifiedDemoUrl, "_blank", "noopener,noreferrer");
+      return;
+    }
+    infoDialog.showModal();
+  }));
+  function closeDialog() { if (infoDialog.open) infoDialog.close(); }
+  document.getElementById("close-dialog").addEventListener("click", closeDialog);
+  document.getElementById("dialog-ok").addEventListener("click", closeDialog);
+  infoDialog.addEventListener("click", (event) => { if (event.target === infoDialog) closeDialog(); });
+
+  const channels = document.getElementById("contact-channels");
+  function contactLink(text, target, label) {
+    const a = document.createElement("a");
+    a.href = target;
+    a.textContent = text;
+    a.setAttribute("aria-label", label);
+    if (target.startsWith("https:")) { a.target = "_blank"; a.rel = "noopener noreferrer"; }
+    channels.append(a);
+  }
+  const email = String(config.contactEmail || "").trim();
+  if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) contactLink(`✉ ${email}`, `mailto:${email}`, "Email EduOS sales");
+  const phone = String(config.contactPhone || "").trim();
+  if (/^\+?[0-9\s()-]{8,22}$/.test(phone)) contactLink(`☎ ${phone}`, `tel:${phone.replace(/[^0-9+]/g, "")}`, "Call EduOS sales");
+  const whatsapp = String(config.whatsappNumber || "").replace(/\D/g, "");
+  if (whatsapp.length >= 10 && whatsapp.length <= 15) contactLink("◉ WhatsApp", `https://wa.me/${whatsapp}`, "Chat with EduOS sales on WhatsApp");
+  if (channels.children.length) document.getElementById("contact-unavailable").hidden = true;
+
+  document.getElementById("year").textContent = String(new Date().getFullYear());
+})();

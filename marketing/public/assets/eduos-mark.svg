@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128" role="img" aria-label="EduOS logo mark">
+  <defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#2666ED"/><stop offset="1" stop-color="#05A4CF"/></linearGradient></defs>
+  <rect width="128" height="128" rx="30" fill="url(#g)"/>
+  <path d="M26 50 64 30l38 20-38 20-38-20Z" fill="none" stroke="#fff" stroke-width="7" stroke-linejoin="round"/>
+  <path d="M41 59v18c0 12 46 12 46 0V59" fill="none" stroke="#fff" stroke-width="7" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M102 50v28" fill="none" stroke="#fff" stroke-width="7" stroke-linecap="round"/>
+  <circle cx="102" cy="86" r="6" fill="#fff"/>
+</svg>

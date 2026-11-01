@@ -1,0 +1,10 @@
+{
+  "name": "eduos-marketing",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node build.mjs",
+    "check": "node --check build.mjs && node --check public/assets/site.js && node --check site-config.js && node check.mjs"
+  }
+}
