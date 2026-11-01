@@ -488,9 +488,7 @@ public sealed class SqlServerAlumniConsentIntegrationTests
         var secondPerson = new Person { FullName = "Second Verified Graduate" };
         db.Add(secondPerson);
         await db.SaveChangesAsync();
-        var originalEnrollment = await db.StudentEnrollments.AsNoTracking()
-            .Where(x => x.StudentId == originalStudent.Id && x.State == EnrollmentState.Completed)
-            .OrderBy(x => x.Id).FirstAsync();
+        // Reuse the original completed enrollment already loaded above.
         var secondStudent = new Student
         {
             TenantId = tenantId, PersonId = secondPerson.Id, UserId = userId,
