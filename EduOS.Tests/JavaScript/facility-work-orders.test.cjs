@@ -236,6 +236,7 @@ test('work orders fail closed when tenant changes during an in-flight read', asy
 
 test('work-order exports and duplicate commands use the existing session shield', () => {
     assert.match(script, /await window\.EduOSVerifySessionContext\(\)/);
+    assert.match(script, /catch \{\s*lockPage\(\);\s*throw new Error\('session-changed'\)/);
     assert.match(script, /shield\.hidden !== true/);
     assert.match(script, /if \(method !== 'GET'\) await verifySession\(\)/);
     assert.match(script, /await verifySession\(\);\s*const data = await response\.json/);

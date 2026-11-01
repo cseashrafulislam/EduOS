@@ -85,7 +85,11 @@
             lockPage();
             throw new Error('session-changed');
         }
-        await window.EduOSVerifySessionContext();
+        try { await window.EduOSVerifySessionContext(); }
+        catch {
+            lockPage();
+            throw new Error('session-changed');
+        }
         if (!sessionCurrent() || shield.hidden !== true) {
             lockPage();
             throw new Error('session-changed');
