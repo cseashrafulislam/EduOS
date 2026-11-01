@@ -30,9 +30,19 @@
     const base = '/api/facilities/work-orders';
     let page = 1, pages = 1, selected = null, historyPage = 1, historyPages = 1;
     const pending = new Map();
-    const commandId = key => {
-        if (!pending.has(key)) pending.set(key, crypto.randomUUID());
-        return pending.get(key);
+    // A retry may reuse an ID only for the exact original payload. After an
+    // uncertain network outcome, edited details require a reload/status check
+    // rather than silently creating a second maintenance request.
+    const commandId = (key, payload) => {
+        const fingerprint = JSON.stringify(payload);
+        const previous = pending.get(key);
+        if (previous && previous.fingerprint !== fingerprint)
+            throw new Error(t('Previous submission may have succeeded. Reload and check the request before changing details.',
+                'আগের জমা সফল হয়ে থাকতে পারে। তথ্য বদলানোর আগে পুনরায় লোড করে অনুরোধ যাচাই করুন।'));
+        if (previous) return previous.id;
+        const id = crypto.randomUUID();
+        pending.set(key, { id, fingerprint });
+        return id;
     };
     function notice(message, ok = false) {
         const box = el('workflowAlert');
@@ -233,12 +243,14 @@
         e.preventDefault();
         const key = 'create:' + el('wfCampus').value + ':' + el('wfSpace').value;
         try {
-            await api('', 'POST', {
-                clientRequestId: commandId(key), campusId: Number(el('wfCampus').value),
+            const body = {
+                campusId: Number(el('wfCampus').value),
                 facilitySpaceId: Number(el('wfSpace').value), categoryCode: el('wfCategory').value,
                 priorityCode: el('wfPriority').value, summary: el('wfSummary').value,
                 description: el('wfDescription').value || null
-            });
+            };
+            body.clientRequestId = commandId(key, body);
+            await api('', 'POST', body);
             pending.delete(key);
             el('wfCreate').reset(); notice(t('Request submitted.', 'অনুরোধ জমা হয়েছে।'), true);
             page = 1; await load();
@@ -250,7 +262,6 @@
         const action = el('wfAction').value, key = selected.id + ':' + action;
         const date = id => el(id).value ? new Date(el(id).value).toISOString() : null;
         const body = {
-            clientCommandId: commandId(key),
             rowVersion: ['triage', 'approve', 'reject'].includes(action)
                 ? selected.rowVersion : selected.workOrderRowVersion,
             note: el('wfNote').value || null,
@@ -260,6 +271,7 @@
             scheduledEndUtc: action === 'schedule' ? date('wfEnd') : null
         };
         try {
+            body.clientCommandId = commandId(key, body);
             const result = await api('/' + selected.id + '/' + action, 'POST', body);
             pending.delete(key);
             notice(t('Transition recorded.', 'পরিবর্তন সংরক্ষিত হয়েছে।'), true);
