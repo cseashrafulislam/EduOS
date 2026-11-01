@@ -77,7 +77,7 @@ def scan():
                 fixture = (b"assert any(p.search(b'-----BEGIN " +
                            b"OPENSSH PRIVATE KEY-----') for p in PATTERNS)")
                 inspected = data.replace(fixture, b'<known synthetic self-test>')
-                matches += bool(b'\\0' not in inspected[:8192] and
+                matches += bool(b'\0' not in inspected[:8192] and
                                 any(p.search(inspected) for p in PATTERNS))
             else:
                 large += kind == b'blob'
