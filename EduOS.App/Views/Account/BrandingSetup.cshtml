@@ -102,6 +102,7 @@
     </section>
 
     <form id="brandingForm" class="setup-form">
+        @Html.AntiForgeryToken()
         <section class="setup-section" aria-labelledby="brandColorsTitle">
             <div class="setup-section-heading">
                 <h3 id="brandColorsTitle">@T["BrandColors"]</h3>

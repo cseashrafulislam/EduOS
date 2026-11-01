@@ -4,6 +4,24 @@
 (() => {
     'use strict';
     const manuals = {
+        "/account/brandingsetup/index": {
+            version: 1, reviewed: true,
+            title: ["Institution Branding Setup", "প্রতিষ্ঠানের ব্র্যান্ডিং সেটআপ"],
+            purpose: ["Set the authorized institution portal address, logo, favicon and three brand colors during setup or subsequent administration.", "প্রতিষ্ঠানের অনুমোদিত পোর্টাল ঠিকানা, লোগো, ফেভিকন ও তিনটি ব্র্যান্ড রঙ সেট করুন।"],
+            before: ["Sign in as TenantAdmin for the current institution. A valid active session is required; the portal subdomain must be available.", "বর্তমান প্রতিষ্ঠানের TenantAdmin হিসেবে সাইন ইন করুন। সক্রিয় সেশন এবং উপলব্ধ পোর্টাল সাবডোমেইন প্রয়োজন।"],
+            steps: [
+                ["Enter a 3–50 character portal subdomain, wait for availability confirmation and select Save Subdomain.", "৩–৫০ অক্ষরের পোর্টাল সাবডোমেইন লিখুন, উপলব্ধতা যাচাইয়ের পর Save Subdomain চাপুন।"],
+                ["Use Upload beside Logo or Favicon to select a supported image; the preview updates after a successful upload. Use Remove to delete an existing image.", "Logo বা Favicon-এর Upload দিয়ে সমর্থিত ছবি দিন; সফল আপলোডে প্রিভিউ বদলাবে। আগের ছবি সরাতে Remove চাপুন।"],
+                ["Choose Primary, Secondary and Accent colors using the picker or six-digit HEX fields.", "পিকার অথবা ছয় অঙ্কের HEX দিয়ে Primary, Secondary ও Accent রঙ বাছুন।"],
+                ["Select Save and Continue to save the three color settings and proceed according to the current onboarding stage.", "তিনটি রঙ সংরক্ষণ করে বর্তমান সেটআপ ধাপ অনুযায়ী এগোতে Save and Continue চাপুন।"],
+                ["Reload or revisit the authorized branding page to confirm the saved values and images.", "সংরক্ষিত রঙ ও ছবি যাচাই করতে অনুমোদিত ব্র্যান্ডিং পৃষ্ঠা আবার খুলুন।"]
+            ],
+            example: ["Fictional example: a school chooses portal name north-campus-demo, uploads its own PNG logo, and sets Primary #174A68, Secondary #64748B and Accent #F59E0B.", "কাল্পনিক উদাহরণ: একটি স্কুল north-campus-demo পোর্টাল নাম, নিজস্ব PNG লোগো এবং Primary #174A68, Secondary #64748B ও Accent #F59E0B নির্ধারণ করে।"],
+            result: ["The permitted institution branding settings are saved separately; the portal address and uploaded assets are confirmed by their own actions. Personal Workspace Appearance remains independent.", "অনুমোদিত প্রতিষ্ঠানের ব্র্যান্ডিং সেটিংস আলাদাভাবে সংরক্ষিত হয়; পোর্টাল ঠিকানা ও ছবি নিজ নিজ কাজের মাধ্যমে নিশ্চিত হয়। ব্যক্তিগত Workspace Appearance আলাদা থাকে।"],
+            rules: ["TenantAdmin authorization and antiforgery validation apply to all changes. Color settings are separate versioned rows, not one atomic publication; a network failure after one save can leave earlier colors saved. Do not infer independent approval or invoice/Finance posting from this page.", "সব পরিবর্তনে TenantAdmin অনুমতি ও CSRF যাচাই প্রযোজ্য। রঙের সেটিংস পৃথক সংস্করণযুক্ত রেকর্ড; একটি সংরক্ষণের পর নেটওয়ার্ক ব্যর্থ হলে আগের রঙ সংরক্ষিত থাকতে পারে। এখানে আলাদা অনুমোদন বা Finance পোস্টিং হয় না।"],
+            recovery: ["For unavailable subdomain, choose another valid name. For unsupported or oversized images, choose a valid file. For 400/403 reload and verify your session and permission; for 409 refresh current versions. After a partial color-save failure reload the page, inspect the saved values and retry only the intended changes.", "সাবডোমেইন না পেলে অন্য বৈধ নাম দিন। ভুল বা বড় ছবির বদলে গ্রহণযোগ্য ফাইল দিন। ৪০০/৪০৩ হলে সেশন ও অনুমতি যাচাই করে রিলোড করুন; ৪০৯ হলে নতুন সংস্করণ লোড করুন। রঙ আংশিক সংরক্ষিত হলে পৃষ্ঠা রিলোড করে বর্তমান মান দেখে প্রয়োজনীয় পরিবর্তন আবার দিন।"],
+            related: [["/workspace", "Personal Workspace Appearance", "ব্যক্তিগত ওয়ার্কস্পেস ডিজাইন"]]
+        },
         "/workspace/index": {
             version: 4, reviewed: true,
             title: ["Workspace Appearance Studio", "ওয়ার্কস্পেস অ্যাপিয়ারেন্স স্টুডিও"],

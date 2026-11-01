@@ -3,6 +3,14 @@
 
     const stringsNode = document.getElementById('brandingSetupStrings');
     const i18n = stringsNode ? JSON.parse(stringsNode.textContent || '{}') : {};
+    // All branding mutations are protected by the server's antiforgery filter.
+    // Never send a write without the current page's request-verification token.
+    function mutationHeaders(headers = {}) {
+        const token = document.querySelector('#brandingForm input[name="__RequestVerificationToken"]')?.value;
+        if (!token) throw new Error('Security token missing. Reload this page.');
+        return { ...headers, RequestVerificationToken: token };
+    }
+
     const alertContainer = document.getElementById('alertContainer');
     const subdomainInput = document.getElementById('subdomainInput');
     const availabilityMessage = document.getElementById('availabilityMsg');
@@ -134,7 +142,7 @@
                 method: 'PUT',
                 cache: 'no-store',
                 credentials: 'same-origin',
-                headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
+                headers: mutationHeaders({ 'Accept': 'application/json', 'Content-Type': 'application/json' }),
                 body: JSON.stringify({ subdomain, rowVersion })
             });
             const payload = await response.json().catch(() => null);
@@ -167,7 +175,7 @@
                     method: 'POST',
                     cache: 'no-store',
                     credentials: 'same-origin',
-                    headers: { 'Accept': 'application/json' },
+                    headers: mutationHeaders({ 'Accept': 'application/json' }),
                     body
                 });
                 const payload = await response.json().catch(() => null);
@@ -190,7 +198,7 @@
                 method: 'DELETE',
                 cache: 'no-store',
                 credentials: 'same-origin',
-                headers: { 'Accept': 'application/json' }
+                headers: mutationHeaders({ 'Accept': 'application/json' })
             });
             const payload = await response.json().catch(() => null);
             if (!response.ok || !payload?.success) throw new Error('remove');
@@ -244,7 +252,7 @@
         const response = await fetch(existing?.id ? '/api/tenant-settings/' + existing.id : '/api/tenant-settings', {
             method: existing?.id ? 'PUT' : 'POST',
             cache: 'no-store', credentials: 'same-origin',
-            headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+            headers: mutationHeaders({ Accept: 'application/json', 'Content-Type': 'application/json' }),
             body: JSON.stringify({ key, value, category: 'Branding', rowVersion: existing?.rowVersion || null, isSensitive: false })
         });
         const payload = await response.json().catch(() => null);
@@ -256,9 +264,15 @@
         event.preventDefault();
         setButtonLoading(saveBrandingButton, true, i18n.saving);
         try {
-            await saveColor('PrimaryColor', valueOf('primaryColorText'));
-            await saveColor('SecondaryColor', valueOf('secondaryColorText'));
-            await saveColor('AccentColor', valueOf('accentColorText'));
+            // Validate the complete form and security token before the first setting write.
+            // Settings are separate canonical rows, so never partially save invalid input.
+            const colors = ['primary', 'secondary', 'accent'].map(prefix => valueOf(prefix + 'ColorText'));
+            if (colors.some(value => !/^#[0-9a-f]{6}$/i.test(value)))
+                throw new Error('Invalid brand color.');
+            mutationHeaders();
+            await saveColor('PrimaryColor', colors[0]);
+            await saveColor('SecondaryColor', colors[1]);
+            await saveColor('AccentColor', colors[2]);
 
             if (onboarding?.isComplete) {
                 window.location.assign('/Dashboard/Index');
@@ -273,7 +287,7 @@
                 method: 'POST',
                 cache: 'no-store',
                 credentials: 'same-origin',
-                headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
+                headers: mutationHeaders({ 'Accept': 'application/json', 'Content-Type': 'application/json' }),
                 body: JSON.stringify({ stage: 8, skipped: false })
             });
             const completionPayload = await completed.json().catch(() => null);

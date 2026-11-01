@@ -2,6 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
+const vm = require('node:vm');
 const root = path.resolve(__dirname, '../..');
 const read = p => fs.readFileSync(path.join(root, p), 'utf8');
 const layout = read('EduOS.App/Views/Shared/_Layout.cshtml');
@@ -9,10 +10,10 @@ const css = read('EduOS.App/wwwroot/css/site.css');
 const js = read('EduOS.App/wwwroot/js/platform/page-context-help.js');
 const { guideFor, coverage, normalizeRoute, validateGuide } =
     require('../../EduOS.App/wwwroot/js/platform/page-context-help.js');
-const routes = ['/FeeReceivablesAging/Index', '/PayrollJournalPosting/Index', '/PayrollSalaryStatement/Index', '/Alumni/Index', '/FeeOperations/Index', '/Students/Index', '/Attendance/Index', '/PayrollOperations/Index', '/FacilityWorkOrders/Index', '/Admissions/Index', '/StudentInvoicePosting/Index', '/workspace'];
+const routes = ['/FeeReceivablesAging/Index', '/PayrollJournalPosting/Index', '/PayrollSalaryStatement/Index', '/Alumni/Index', '/FeeOperations/Index', '/Students/Index', '/Attendance/Index', '/PayrollOperations/Index', '/FacilityWorkOrders/Index', '/Admissions/Index', '/StudentInvoicePosting/Index', '/workspace', '/Account/BrandingSetup'];
 
 test('all reviewed route manuals have full bilingual structure, matching steps and examples', () => {
-    assert.deepEqual(coverage(), { routes: 12, en: 12, bn: 12 });
+    assert.deepEqual(coverage(), { routes: 13, en: 13, bn: 13 });
     for (const route of routes) {
         const en = guideFor(route, 'en-BD');
         const bn = guideFor(route, 'bn-BD');
@@ -233,4 +234,92 @@ test('salary statement manual matches snapshot report and bounded export without
  assert.doesNotMatch(view,/aria-label="Statement help"/);
  assert.match(guideFor('/PayrollSalaryStatement/Index','en-BD').rules,/not current salary structures/);
  assert.match(guideFor('/PayrollSalaryStatement/Index','bn-BD').steps.join(' '),/২৫/);
+});
+
+test('institution branding manual matches real TenantAdmin and CSRF-protected writes', () => {
+    const account = read('EduOS.App/Controllers/AccountController.cs');
+    const profile = read('EduOS.App/Controllers/Api/TenantProfileController.cs');
+    const settings = read('EduOS.App/Controllers/Api/TenantSettingController.cs');
+    const view = read('EduOS.App/Views/Account/BrandingSetup.cshtml');
+    const client = read('EduOS.App/wwwroot/js/account/branding-setup.js');
+    assert.match(account, /Authorize\(Roles = "TenantAdmin"\)[\s\S]*?IActionResult BrandingSetup/);
+    assert.match(profile, /AutoValidateAntiforgeryToken/);
+    assert.match(settings, /AutoValidateAntiforgeryToken/);
+    assert.match(view, /id="brandingForm"[\s\S]*?@Html\.AntiForgeryToken\(\)/);
+    assert.match(client, /function mutationHeaders\(headers = \{\}\)/);
+    assert.match(client, /RequestVerificationToken: token/);
+    assert.equal((client.match(/headers: mutationHeaders\(/g) || []).length, 5);
+    for (const id of ['subdomainInput', 'saveSubdomainBtn', 'logoInput', 'faviconInput',
+        'primaryColorText', 'secondaryColorText', 'accentColorText', 'saveBrandingBtn'])
+        assert.ok(view.includes('id="' + id + '"'), id);
+    const en = guideFor('/Account/BrandingSetup', 'en-BD');
+    const bn = guideFor('/Account/BrandingSetup', 'bn-BD');
+    assert.equal(en.steps.length, 5);
+    assert.equal(bn.steps.length, 5);
+    assert.match(en.rules, /not one atomic publication/);
+    assert.match(bn.recovery, /রিলোড/);
+    assert.deepEqual(en.related.map(x => x.path), ['/workspace']);
+});
+
+test('branding color saves carry CSRF; missing token and invalid colors fail before any write', async () => {
+    const script = read('EduOS.App/wwwroot/js/account/branding-setup.js');
+    async function scenario(token, invalid = false) {
+        const controls = new Map();
+        const el = id => {
+            if (!controls.has(id)) controls.set(id, {
+                value: '', disabled: false, hidden: false, textContent: '',
+                listeners: {}, addEventListener(type, fn) { this.listeners[type] = fn; },
+                focus() {}, replaceChildren() {}, setAttribute() {}
+            });
+            return controls.get(id);
+        };
+        const form = el('brandingForm');
+        const save = el('saveBrandingBtn');
+        save.dataset = { idleLabel: 'Save', loadingLabel: 'Saving' };
+        const alert = el('alertContainer');
+        let onReady;
+        const calls = [];
+        const document = {
+            getElementById(id) {
+                if (['brandingSetupStrings', 'subdomainInput', 'logoPreview', 'faviconPreview',
+                    'logoInput', 'faviconInput', 'removeLogoBtn', 'removeFaviconBtn'].includes(id))
+                    return null;
+                return el(id);
+            },
+            querySelector(selector) {
+                return selector === '#brandingForm input[name="__RequestVerificationToken"]' && token
+                    ? { value: token } : null;
+            },
+            addEventListener(name, callback) { if (name === 'DOMContentLoaded') onReady = callback; }
+        };
+        const window = {
+            clearTimeout() {}, setTimeout() {}, confirm: () => true,
+            location: { assign(url) { calls.push({ redirect: url }); } }
+        };
+        const fetch = async (url, options = {}) => {
+            calls.push({ url, options });
+            if (url === '/api/tenant-profile')
+                return { ok: true, json: async () => ({ success: true, data: { rowVersion: 'v1' } }) };
+            if (url.startsWith('/api/tenant-settings?'))
+                return { ok: true, json: async () => ({ success: true, data: { items: [] } }) };
+            if (url === '/api/onboarding/status')
+                return { ok: true, json: async () => ({ success: true, data: { isComplete: true, currentStage: 8 } }) };
+            return { ok: true, json: async () => ({ success: true, data: { id: 1, rowVersion: 'v2' } }) };
+        };
+        vm.runInNewContext(script, { document, window, fetch, FormData, URL });
+        await onReady();
+        if (invalid) el('secondaryColorText').value = 'url(bad)';
+        await form.listeners.submit({ preventDefault() {} });
+        return { calls, alert };
+    }
+    const absent = await scenario('');
+    assert.equal(absent.calls.filter(x => x.options?.method === 'POST').length, 0);
+    assert.match(absent.alert.className, /alert-danger/);
+    const invalid = await scenario('token-1', true);
+    assert.equal(invalid.calls.filter(x => x.options?.method === 'POST').length, 0);
+    const valid = await scenario('token-1');
+    const writes = valid.calls.filter(x => x.options?.method === 'POST');
+    assert.equal(writes.length, 3);
+    assert.ok(writes.every(x => x.options.headers.RequestVerificationToken === 'token-1'));
+    assert.ok(valid.calls.some(x => x.redirect === '/Dashboard/Index'));
 });
