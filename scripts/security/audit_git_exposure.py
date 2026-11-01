@@ -33,6 +33,18 @@ def git(*args):
     return subprocess.check_output(('git',) + args, stderr=subprocess.DEVNULL)
 
 
+def read_exact(stream, size):
+    chunks = []
+    remaining = size
+    while remaining:
+        block = stream.read(min(remaining, 65536))
+        if not block:
+            raise RuntimeError('Truncated Git object stream')
+        chunks.append(block)
+        remaining -= len(block)
+    return b''.join(chunks)
+
+
 def scan():
     if git('rev-parse', '--is-shallow-repository').strip() != b'false':
         raise RuntimeError('Shallow Git history')
@@ -56,7 +68,7 @@ def scan():
                 raise RuntimeError('Malformed Git object header')
             kind, size = header[1], int(header[2])
             if kind == b'blob' and size <= MAX_BLOB:
-                data = proc.stdout.read(size)
+                data = read_exact(proc.stdout, size)
                 if len(data) != size:
                     raise RuntimeError('Truncated blob')
                 checked += 1
@@ -68,7 +80,7 @@ def scan():
                     if not block:
                         raise RuntimeError('Truncated object')
                     size -= len(block)
-            if proc.stdout.read(1) != b'\n':
+            if read_exact(proc.stdout, 1) != b'\n':
                 raise RuntimeError('Malformed object boundary')
     finally:
         proc.stdin.close()
