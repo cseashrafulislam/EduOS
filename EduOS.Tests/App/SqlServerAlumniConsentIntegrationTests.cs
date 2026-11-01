@@ -516,7 +516,10 @@ public sealed class SqlServerAlumniConsentIntegrationTests
         Assert.False(inviteOnly.Data.InvitationSmsOptIn);
         Assert.Equal("private-invites@example.test", inviteOnly.Data.ContactEmail);
         var inviteHidden = await publisherService.DirectoryAsync(new AlumniDirectoryQueryDto());
-        Assert.Empty(inviteHidden.Data!.Items);
+        Assert.True(inviteHidden.Success, inviteHidden.Message);
+        // Other graduates may remain opted into the directory. Invitation-only
+        // consent must hide THIS graduate without hiding unrelated records.
+        Assert.DoesNotContain(inviteHidden.Data!.Items, x => x.StudentCode == "AL-" + suffix);
         var inviteRevoked = await graduate.SaveConsentAsync(new AlumniConsentRequestDto
         {
             StudentReference = studentReference, ClientRequestId = Guid.NewGuid(),
