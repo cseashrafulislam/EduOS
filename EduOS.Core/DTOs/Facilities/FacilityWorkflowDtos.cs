@@ -63,6 +63,13 @@ public sealed class FacilityLocationOptionDto
     public string SpaceName { get; set; } = string.Empty;
 }
 
+/// <summary>Eligible campus technician, without contact or identity details.</summary>
+public sealed class FacilityTechnicianOptionDto
+{
+    public long UserId { get; set; }
+    public string DisplayName { get; set; } = string.Empty;
+}
+
 public sealed class FacilityEventDto
 {
     public long Id { get; set; }

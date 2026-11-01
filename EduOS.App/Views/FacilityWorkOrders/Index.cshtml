@@ -75,7 +75,21 @@
                 <div class="col-12"><label class="form-label" for="wfAction">@(bn ? "পরবর্তী পদক্ষেপ" : "Next action")</label><select id="wfAction" class="form-select" required></select></div>
                 <div class="col-12"><label class="form-label" for="wfNote">@(bn ? "কারণ / প্রমাণ / যাচাই নোট" : "Reason / evidence / verification note")</label><textarea id="wfNote" class="form-control" rows="3" maxlength="1000"></textarea></div>
                 <div class="col-12"><label class="form-label" for="wfDue">@(bn ? "SLA শেষ সময় (ট্রায়াজের জন্য)" : "SLA due (triage)")</label><input id="wfDue" class="form-control" type="datetime-local" /></div>
-                <div class="col-12"><label class="form-label" for="wfTech">@(bn ? "টেকনিশিয়ান ইউজার আইডি" : "Technician user ID")</label><input id="wfTech" class="form-control" type="number" min="1" /></div>
+                <div class="col-12 d-none" id="wfTechnicianLookup">
+                    <label class="form-label" for="wfTechSearch">@(bn ? "অনুমোদিত টেকনিশিয়ান নাম দিয়ে খুঁজুন" : "Find an eligible technician by name")</label>
+                    <div class="input-group">
+                        <input id="wfTechSearch" class="form-control" maxlength="100" autocomplete="off" placeholder="@(bn ? "টেকনিশিয়ানের নাম" : "Technician name")" />
+                        <button id="wfTechFind" class="btn btn-outline-primary" type="button">@(bn ? "খুঁজুন" : "Find")</button>
+                    </div>
+                    <label class="form-label mt-2" for="wfTechSelect">@(bn ? "এই ক্যাম্পাসের অনুমোদিত টেকনিশিয়ান" : "Eligible technicians for this campus")</label>
+                    <select id="wfTechSelect" class="form-select" disabled></select>
+                    <div class="d-flex align-items-center gap-2 mt-1">
+                        <button id="wfTechPrev" class="btn btn-outline-secondary btn-sm" type="button" disabled>@(bn ? "আগের" : "Previous")</button>
+                        <span id="wfTechPage" class="small" aria-live="polite"></span>
+                        <button id="wfTechNext" class="btn btn-outline-secondary btn-sm" type="button" disabled>@(bn ? "পরের" : "Next")</button>
+                    </div>
+                </div>
+                <div class="col-12"><label class="form-label" for="wfTech">@(bn ? "নির্বাচিত টেকনিশিয়ান আইডি" : "Selected technician ID")</label><input id="wfTech" class="form-control" type="number" min="1" readonly /></div>
                 <div class="col-sm-6"><label class="form-label" for="wfStart">@(bn ? "কাজ শুরু" : "Scheduled start")</label><input id="wfStart" class="form-control" type="datetime-local" /></div>
                 <div class="col-sm-6"><label class="form-label" for="wfEnd">@(bn ? "কাজ শেষ" : "Scheduled end")</label><input id="wfEnd" class="form-control" type="datetime-local" /></div>
                 <div class="col-12"><button type="submit" class="btn btn-primary">@(bn ? "পরিবর্তন সংরক্ষণ" : "Apply transition")</button></div>

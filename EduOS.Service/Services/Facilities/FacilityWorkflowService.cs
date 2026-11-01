@@ -149,6 +149,56 @@ public sealed class FacilityWorkflowService(
         });
     }
 
+    /// <summary>
+    /// A manager can discover only currently eligible staff in an authorized campus.
+    /// Scheduling independently rechecks grants and concurrency before committing.
+    /// </summary>
+    public async Task<ApiResponse<PagedResult<FacilityTechnicianOptionDto>>> TechniciansAsync(
+        long campusId, string? search, int page, int pageSize, CancellationToken ct = default)
+    {
+        if (!ValidTenant || !Manager) return Denied<PagedResult<FacilityTechnicianOptionDto>>();
+        if (campusId <= 0 || page is < 1 or > 100000 || pageSize is < 1 or > 50 ||
+            search?.Length > 100)
+            return ApiResponse<PagedResult<FacilityTechnicianOptionDto>>.ErrorResponse(
+                "Invalid technician lookup.");
+        if (!await AllowedCampuses().ContainsAsync(campusId, ct))
+            return Denied<PagedResult<FacilityTechnicianOptionDto>>();
+
+        // Match the schedule command's active user, membership, campus grant and
+        // scoped role. A global non-system role is allowed for one tenant only.
+        var query = db.Users.AsNoTracking().Where(candidate =>
+            candidate.IsActive &&
+            db.TenantMemberships.Any(member => member.UserId == candidate.Id &&
+                member.TenantId == user.TenantId && !member.IsDeleted &&
+                member.Status == MembershipStatus.Active) &&
+            db.UserCampusAccesses.Any(grant => grant.UserId == candidate.Id &&
+                grant.TenantId == user.TenantId && grant.CampusId == campusId &&
+                grant.IsActive && !grant.IsDeleted) &&
+            db.UserRoles.Any(assignment => assignment.UserId == candidate.Id &&
+                db.Roles.IgnoreQueryFilters().Any(role => role.Id == assignment.RoleId &&
+                    role.IsActive && !role.IsDeleted &&
+                    role.NormalizedName == "FACILITIESTECHNICIAN" &&
+                    (role.TenantId == user.TenantId ||
+                     (role.TenantId == null && !role.IsSystemRole &&
+                      !db.TenantMemberships.IgnoreQueryFilters().Any(other =>
+                          other.UserId == candidate.Id && other.TenantId != user.TenantId &&
+                          !other.IsDeleted && other.Status == MembershipStatus.Active))))));
+        var term = search?.Trim();
+        if (!string.IsNullOrWhiteSpace(term))
+            query = query.Where(candidate => candidate.FullName.Contains(term));
+        var total = await query.CountAsync(ct);
+        var items = await query.OrderBy(candidate => candidate.FullName)
+            .ThenBy(candidate => candidate.Id).Skip((page - 1) * pageSize).Take(pageSize)
+            .Select(candidate => new FacilityTechnicianOptionDto
+            {
+                UserId = candidate.Id, DisplayName = candidate.FullName
+            }).ToListAsync(ct);
+        return ApiResponse<PagedResult<FacilityTechnicianOptionDto>>.SuccessResponse(new()
+        {
+            Page = page, PageSize = pageSize, TotalCount = total, Items = items
+        });
+    }
+
     public async Task<ApiResponse<FacilityRequestDto>> CreateAsync(
         CreateFacilityRequestDto input, CancellationToken ct = default)
     {

@@ -27,6 +27,11 @@ public sealed class FacilityWorkOrdersApiController(IFacilityWorkflowService ser
         int pageSize = 25, CancellationToken ct = default) =>
         Reply(await service.LocationsAsync(search, page, pageSize, ct));
 
+    [HttpGet("technicians"), Authorize(Roles = "TenantAdmin,Principal,FacilitiesManager")]
+    public async Task<IActionResult> Technicians(long campusId, string? search = null,
+        int page = 1, int pageSize = 25, CancellationToken ct = default) =>
+        Reply(await service.TechniciansAsync(campusId, search, page, pageSize, ct));
+
     [HttpGet("dashboard"), Authorize(Roles = "TenantAdmin,Principal,FacilitiesManager,FacilitiesApprover,FacilitiesTechnician,FacilitiesRequester")]
     public async Task<IActionResult> Dashboard(long? campusId, CancellationToken ct) =>
         Reply(await service.DashboardAsync(campusId, ct));

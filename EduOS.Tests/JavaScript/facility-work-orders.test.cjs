@@ -17,6 +17,16 @@ test('facilities workflow is bilingual, mobile and escapes untrusted data', () =
     assert.match(view, /col-12 col-xl-7/);
 });
 
+test('manager technician discovery is scoped, paged and never accepts guessed IDs', () => {
+    assert.match(view, /id="wfTechSelect"/);
+    assert.match(view, /id="wfTech"[^>]*readonly/);
+    assert.match(script, /api\('\/technicians\?' \+ q\)/);
+    assert.match(script, /technicianChoices\.has\(Number\(el\('wfTech'\)\.value\)\)/);
+    assert.match(script, /generation !== technicianGeneration \|\| blocked \|\| selected\?\.id !== requestId/);
+    assert.match(script, /Choose an eligible technician for this campus/);
+    assert.match(script, /এই ক্যাম্পাসের যোগ্য টেকনিশিয়ান/);
+});
+
 test('workflow posts antiforgery and retries the same idempotency command', () => {
     assert.match(script, /RequestVerificationToken = token/);
     assert.match(script, /credentials: 'same-origin'/);
@@ -209,7 +219,7 @@ test('work orders fail closed when tenant changes during an in-flight read', asy
             }
         }, shield, session: { reference: body.dataset.authSessionReference, tenant: '12' },
         blocked: false, listGeneration: 0, historyGeneration: 0,
-        locationGeneration: 0, chosenLocation: null, locationChoices: new Map(), selected: { id: 7 },
+        locationGeneration: 0, technicianGeneration: 0, technicianChoices: new Map(), chosenLocation: null, locationChoices: new Map(), selected: { id: 7 },
         pending: new Map([['7:verify', { id: 'pending' }]]),
         t: en => en, token: 'csrf', base: '/api/facilities/work-orders',
         fetch: async () => {
@@ -308,6 +318,7 @@ test('Facilities refresh clears off-list selection and old actions after a faile
     el('wfOverdueOnly').checked = false;
     let errors = 0;
     const context = { blocked: false, listGeneration: 0, historyGeneration: 0,
+        technicianGeneration: 0, technicianChoices: new Map(),
         page: 1, pages: 1, selected: { id: 7 }, el, URLSearchParams,
         document: { createElement: node }, t: en => en,
         cell: value => ({ textContent: String(value) }), select() {},

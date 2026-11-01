@@ -62,6 +62,8 @@ async function setup(browser, bn = false, manager = true, mobile = false) {
             if (state.emptyAfterPost) state.empty = true;
             return reply(record);
         }
+        if (url.pathname.endsWith('/technicians'))
+            return reply({ items: [{ userId: 42, displayName: 'Technician Test' }], totalPages: 1 });
         if (url.pathname.endsWith('/locations')) {
             if (state.locationDelayed && url.searchParams.get('search') === 'old') {
                 state.locationStarted.resolve();
@@ -170,7 +172,9 @@ async function fillSchedule(page) {
     // Empty history still renders an attached <ol>, but it has no visible box.
     await page.locator('#wfHistory ol').waitFor({ state: 'attached' });
     await page.locator('#wfAction').selectOption('schedule');
-    await page.locator('#wfTech').fill('42');
+    await page.locator('#wfTechSelect option[value="42"]').waitFor({ state: 'attached' });
+    await page.locator('#wfTechSelect').selectOption('42');
+    assert.equal(await page.locator('#wfTech').inputValue(), '42');
     await page.locator('#wfStart').fill('2026-11-03T10:00');
     await page.locator('#wfEnd').fill('2026-11-03T11:00');
 }
@@ -193,6 +197,7 @@ async function selectionAfterTransition(browser) {
     const { context, page, state } = await setup(browser);
     try {
         await fillSchedule(page);
+        assert.equal(await page.locator('#wfTech').getAttribute('readonly'), '');
         state.emptyAfterPost = true;
         await page.locator('#wfTransition button[type="submit"]').click();
         await page.locator('#wfTransition').waitFor({ state: 'hidden' });

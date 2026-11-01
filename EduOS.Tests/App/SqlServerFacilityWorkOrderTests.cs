@@ -114,6 +114,31 @@ public sealed class SqlServerFacilityWorkOrderTests
             Assert.Empty((await Service(db, otherTenantId, requesterId, "FacilitiesRequester")
                 .LocationsAsync(null, 1, 25)).Data!.Items);
         }
+        // Manager-only lookup follows active tenant membership, campus and role grants.
+        await using (var db = Db(options, tenantId, managerId, "FacilitiesManager"))
+        {
+            var service = Service(db, tenantId, managerId, "FacilitiesManager");
+            var eligible = await service.TechniciansAsync(campusId, null, 1, 25);
+            Assert.True(eligible.Success, eligible.Message);
+            Assert.Single(eligible.Data!.Items);
+            Assert.Equal(techId, eligible.Data.Items[0].UserId);
+            Assert.Equal("Facilities Test", eligible.Data.Items[0].DisplayName);
+            Assert.Single((await service.TechniciansAsync(campusId, "Facilities", 1, 25)).Data!.Items);
+            Assert.Empty((await service.TechniciansAsync(campusId, "Unknown", 1, 25)).Data!.Items);
+            Assert.Equal(400, (await service.TechniciansAsync(campusId,
+                new string('X', 101), 1, 25)).StatusCode);
+            Assert.Equal(403, (await service.TechniciansAsync(campusId + 1, null, 1, 25)).StatusCode);
+        }
+        await using (var db = Db(options, tenantId, requesterId, "FacilitiesRequester"))
+        {
+            Assert.Equal(403, (await Service(db, tenantId, requesterId, "FacilitiesRequester")
+                .TechniciansAsync(campusId, null, 1, 25)).StatusCode);
+        }
+        await using (var db = Db(options, otherTenantId, managerId, "FacilitiesManager"))
+        {
+            Assert.Equal(403, (await Service(db, otherTenantId, managerId, "FacilitiesManager")
+                .TechniciansAsync(campusId, null, 1, 25)).StatusCode);
+        }
         // Same-campus membership must not expose a different requester's details.
         long privateRequestId;
         await using (var db = Db(options, tenantId, managerId, "FacilitiesManager"))

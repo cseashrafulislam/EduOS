@@ -35,9 +35,10 @@
     const shield = el('eduosSessionShield');
     let blocked = false, creating = false, transitioning = false;
     let page = 1, pages = 1, selected = null, historyPage = 1, historyPages = 1;
-    let listGeneration = 0, historyGeneration = 0, locationGeneration = 0;
+    let listGeneration = 0, historyGeneration = 0, locationGeneration = 0, technicianGeneration = 0;
     let locationPage = 1, locationPages = 1, chosenLocation = null;
     let locationChoices = new Map();
+    let technicianPage = 1, technicianPages = 1, technicianChoices = new Map();
     const pending = new Map();
     // A retry may reuse an ID only for the exact original payload. After an
     // uncertain network outcome, edited details require a reload/status check
@@ -61,6 +62,8 @@
         listGeneration++;
         historyGeneration++;
         locationGeneration++;
+        technicianGeneration++;
+        technicianChoices.clear();
         chosenLocation = null;
         locationChoices.clear();
         selected = null;
@@ -188,7 +191,7 @@
         form.classList.toggle('d-none', options.length === 0);
         el('wfNote').value = '';
         el('wfDue').value = '';
-        el('wfTech').value = row.technicianUserId || '';
+        el('wfTech').value = '';
         el('wfStart').value = row.scheduledStartUtc ? toLocal(row.scheduledStartUtc) : '';
         el('wfEnd').value = row.scheduledEndUtc ? toLocal(row.scheduledEndUtc) : '';
         toggleFields();
@@ -208,6 +211,18 @@
             const input = el(id);
             input.disabled = !enabled; input.required = enabled;
             input.closest('.col-12, .col-sm-6')?.classList.toggle('d-none', !enabled);
+        }
+        const scheduling = action === 'schedule';
+        el('wfTechnicianLookup').classList.toggle('d-none', !scheduling);
+        if (scheduling && selected) {
+            technicianPage = 1;
+            loadTechnicians();
+        } else {
+            technicianGeneration++;
+            technicianChoices.clear();
+            el('wfTech').value = '';
+            el('wfTechSelect').replaceChildren();
+            el('wfTechSelect').disabled = true;
         }
         el('wfNote').required = ['reject', 'pause', 'complete', 'verify', 'return', 'unschedule', 'escalate', 'cancelrequest', 'cancelapprove', 'cancelreject'].includes(action);
         el('wfNote').minLength = ['return', 'escalate', 'cancelrequest', 'cancelapprove', 'cancelreject'].includes(action) ? 10 : action === 'unschedule' ? 5 : 0;
@@ -265,6 +280,62 @@
             picker.replaceChildren();
             picker.disabled = true;
             el('wfLocationPage').textContent = t('Unable to load spaces. Retry search.', 'স্থান লোড হয়নি। আবার খুঁজুন।');
+            notice(error.message);
+        }
+    }
+    // A manager may select only current eligible staff; stale campus/work-order
+    // search results cannot restore previously authorized technician choices.
+    async function loadTechnicians() {
+        if (blocked || !selected || el('wfAction').value !== 'schedule') return;
+        const generation = ++technicianGeneration;
+        const requestId = selected.id, campusId = selected.campusId;
+        technicianChoices = new Map();
+        el('wfTech').value = '';
+        const picker = el('wfTechSelect');
+        picker.replaceChildren();
+        picker.disabled = true;
+        el('wfTechPrev').disabled = true;
+        el('wfTechNext').disabled = true;
+        el('wfTechPage').textContent = t('Loading technicians…', 'টেকনিশিয়ান লোড হচ্ছে…');
+        try {
+            const q = new URLSearchParams({
+                campusId: String(campusId), page: String(technicianPage), pageSize: '25'
+            });
+            const search = el('wfTechSearch').value.trim();
+            if (search) q.set('search', search);
+            const data = await api('/technicians?' + q);
+            if (generation !== technicianGeneration || blocked || selected?.id !== requestId ||
+                el('wfAction').value !== 'schedule') return;
+            technicianPages = Math.max(1, data.totalPages || 1);
+            const placeholder = document.createElement('option');
+            placeholder.value = '';
+            placeholder.textContent = t('Choose a technician', 'টেকনিশিয়ান নির্বাচন করুন');
+            picker.append(placeholder);
+            for (const row of data.items || []) {
+                const id = Number(row.userId);
+                if (!Number.isSafeInteger(id) || id <= 0) continue;
+                const option = document.createElement('option');
+                option.value = String(id);
+                option.textContent = (row.displayName || t('Technician', 'টেকনিশিয়ান')) + ' (#' + id + ')';
+                technicianChoices.set(id, row);
+                picker.append(option);
+            }
+            picker.disabled = technicianChoices.size === 0;
+            const assigned = Number(selected.technicianUserId);
+            if (technicianChoices.has(assigned)) {
+                picker.value = String(assigned);
+                el('wfTech').value = String(assigned);
+            } else picker.value = '';
+            el('wfTechPage').textContent = technicianPage + ' / ' + technicianPages +
+                (technicianChoices.size ? '' : t(' — no eligible technicians', ' — যোগ্য টেকনিশিয়ান নেই'));
+            el('wfTechPrev').disabled = technicianPage <= 1;
+            el('wfTechNext').disabled = technicianPage >= technicianPages;
+        } catch (error) {
+            if (generation !== technicianGeneration || blocked || selected?.id !== requestId ||
+                error.message === 'session-changed') return;
+            picker.replaceChildren();
+            picker.disabled = true;
+            el('wfTechPage').textContent = t('Lookup failed. Retry search.', 'খোঁজা ব্যর্থ। আবার চেষ্টা করুন।');
             notice(error.message);
         }
     }
@@ -391,6 +462,11 @@
     function clearSelection() {
         selected = null;
         historyGeneration++;
+        technicianGeneration++;
+        technicianChoices.clear();
+        el('wfTech').value = '';
+        el('wfTechSelect').replaceChildren();
+        el('wfTechSelect').disabled = true;
         el('wfSelected').textContent = t('Select a request', 'কাজ নির্বাচন করুন');
         el('wfDetails').textContent = '';
         el('wfTransition').classList.add('d-none');
@@ -417,6 +493,23 @@
         el('wfSpace').value = chosenLocation?.facilitySpaceId ?? '';
         const submit = el('wfCreate').querySelector('button[type="submit"]');
         if (submit) submit.disabled = !chosenLocation || creating;
+    });
+    el('wfTechFind').addEventListener('click', () => {
+        if (!blocked) { technicianPage = 1; loadTechnicians(); }
+    });
+    el('wfTechSearch').addEventListener('keydown', e => {
+        if (e.key === 'Enter') { e.preventDefault(); technicianPage = 1; loadTechnicians(); }
+    });
+    el('wfTechPrev').addEventListener('click', () => {
+        if (!blocked && technicianPage > 1) { technicianPage--; loadTechnicians(); }
+    });
+    el('wfTechNext').addEventListener('click', () => {
+        if (!blocked && technicianPage < technicianPages) { technicianPage++; loadTechnicians(); }
+    });
+    el('wfTechSelect').addEventListener('change', () => {
+        if (!sessionCurrent()) { lockPage(); return; }
+        const id = Number(el('wfTechSelect').value);
+        el('wfTech').value = technicianChoices.has(id) ? String(id) : '';
     });
     el('workflowSearch').addEventListener('submit', e => { e.preventDefault(); page = 1; clearSelection(); load(); });
     el('wfPrev').addEventListener('click', () => { if (page > 1) { page--; clearSelection(); load(); } });
@@ -471,6 +564,12 @@
     el('wfTransition').addEventListener('submit', async e => {
         e.preventDefault();
         if (!selected || blocked || transitioning) return;
+        if (el('wfAction').value === 'schedule' &&
+            !technicianChoices.has(Number(el('wfTech').value))) {
+            notice(t('Choose an eligible technician for this campus.',
+                'এই ক্যাম্পাসের যোগ্য টেকনিশিয়ান নির্বাচন করুন।'));
+            return;
+        }
         transitioning = true;
         const submit = el('wfTransition').querySelector('button[type="submit"]');
         if (submit) submit.disabled = true;
