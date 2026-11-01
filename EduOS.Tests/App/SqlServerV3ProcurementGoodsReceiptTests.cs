@@ -212,36 +212,21 @@ public sealed partial class SqlServerV3ProcurementPurchaseOrderTests
             firstMovementReference = await owned.InventoryMovements
                 .Where(x => x.Id == movementId).Select(x => x.PublicId).SingleAsync();
         }
-        // Independent whole-project historical-integrity probe: even when a
-        // tampered posted receipt line and its canonical stock line still agree,
-        // delivered quantity must not exceed the approved PO line. Roll back
-        // the disposable corruption before continuing the original workflow.
+        // Independent SQL integrity acceptance: the canonical database trigger
+        // rejects a forged posted receipt quantity even when an attacker tries
+        // to rewrite its stock evidence. Never disable the trigger for a test.
         await using (var corrupt = Open(options, tenantId, checkerId))
         {
             await using var transaction = await corrupt.Database.BeginTransactionAsync();
-            var receipt = await corrupt.ProcurementGoodsReceipts
-                .Where(x => x.PublicId == first.Reference)
-                .Select(x => new { x.Id, x.PostedMovementId }).SingleAsync();
-            Assert.True(receipt.PostedMovementId.HasValue);
+            var receiptId = await corrupt.ProcurementGoodsReceipts
+                .Where(x => x.PublicId == first.Reference).Select(x => x.Id).SingleAsync();
             var receiptLineId = await corrupt.ProcurementGoodsReceiptLines
-                .Where(x => x.GoodsReceiptId == receipt.Id).Select(x => x.Id).SingleAsync();
-            var stockLineId = await corrupt.InventoryMovementLines
-                .Where(x => x.InventoryMovementId == receipt.PostedMovementId.Value)
-                .Select(x => x.Id).SingleAsync();
-            await corrupt.ProcurementGoodsReceiptLines.Where(x => x.Id == receiptLineId)
-                .ExecuteUpdateAsync(x => x.SetProperty(y => y.Quantity, 11m));
-            await corrupt.InventoryMovementLines.Where(x => x.Id == stockLineId)
-                .ExecuteUpdateAsync(x => x.SetProperty(y => y.Quantity, 11m));
-
-            var trace = new V3EnterpriseLedgerTraceService(corrupt, new Actor(tenantId, checkerId));
-            Assert.Equal(409, (await trace.GetAsync(firstMovementReference)).StatusCode);
-            var today = DateOnly.FromDateTime(DateTime.UtcNow);
-            var report = await new V3EnterpriseReconciliationRegisterService(
-                corrupt, new Actor(tenantId, checkerId))
-                .GetAsync("stock", today.AddDays(-1), today.AddDays(1));
-            Assert.Equal(200, report.StatusCode);
-            Assert.Equal("EvidenceConflict", Assert.Single(report.Data!.Items,
-                x => x.Reference == firstMovementReference).EvidenceStatus);
+                .Where(x => x.GoodsReceiptId == receiptId).Select(x => x.Id).SingleAsync();
+            var denied = await Assert.ThrowsAsync<Microsoft.Data.SqlClient.SqlException>(
+                async () => await corrupt.ProcurementGoodsReceiptLines
+                    .Where(x => x.Id == receiptLineId)
+                    .ExecuteUpdateAsync(x => x.SetProperty(y => y.Quantity, 11m)));
+            Assert.Contains("Goods receipt line source snapshot cannot change", denied.Message);
             await transaction.RollbackAsync();
         }
         await using (var restored = Open(options, tenantId, checkerId))
