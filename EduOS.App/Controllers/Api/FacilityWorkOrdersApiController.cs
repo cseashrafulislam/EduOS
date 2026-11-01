@@ -56,7 +56,8 @@ public sealed class FacilityWorkOrdersApiController(IFacilityWorkflowService ser
         var expectedCount = first.Data.TotalCount;
         var rows = new List<FacilityRequestDto>(first.Data.Items);
         var seen = new HashSet<long>();
-        var inconsistent = rows.Count > expectedCount || rows.Any(x => !seen.Add(x.Id));
+        var inconsistent = first.Data.Page != 1 || first.Data.PageSize != 100 ||
+            rows.Count > expectedCount || rows.Any(x => !seen.Add(x.Id));
         for (var page = 2; !inconsistent && page <= first.Data.TotalPages; page++)
         {
             var next = await service.ListAsync(campusId, state, page, 100, ct, overdueOnly);
