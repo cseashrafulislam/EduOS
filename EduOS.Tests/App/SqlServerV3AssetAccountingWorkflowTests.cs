@@ -114,7 +114,7 @@ public sealed partial class SqlServerV3ProcurementPurchaseOrderTests
             Assert.Equal(100m, submitted.Data.Amount);
             Assert.Equal(depId, (await service.RequestDepreciationAsync(assetReference,
                 depreciationRequest)).Data!.Id);
-            Assert.Equal(403, (await service.ReviewDepreciationAsync(depId,
+            Assert.Equal(409, (await service.ReviewDepreciationAsync(depId,
                 new AssetReviewRequest { RowVersion = depVersion, Approve = true,
                     Reason = "Cannot approve self-submitted depreciation" })).StatusCode);
         }
