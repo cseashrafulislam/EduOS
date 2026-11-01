@@ -39,6 +39,19 @@
     let locationPage = 1, locationPages = 1, chosenLocation = null;
     let locationChoices = new Map();
     let technicianPage = 1, technicianPages = 1, technicianChoices = new Map();
+    let availabilityWindowKey = null;
+    const windowKey = () => [selected?.id, selected?.workOrderId,
+        el('wfStart').value, el('wfEnd').value].join('|');
+    function invalidateTechnicians() {
+        technicianGeneration++;
+        availabilityWindowKey = null;
+        technicianChoices.clear();
+        el('wfTech').value = '';
+        el('wfTechSelect').replaceChildren();
+        el('wfTechSelect').disabled = true;
+        el('wfTechPrev').disabled = true;
+        el('wfTechNext').disabled = true;
+    }
     const pending = new Map();
     // A retry may reuse an ID only for the exact original payload. After an
     // uncertain network outcome, edited details require a reload/status check
@@ -64,6 +77,7 @@
         locationGeneration++;
         technicianGeneration++;
         technicianChoices.clear();
+        availabilityWindowKey = null;
         chosenLocation = null;
         locationChoices.clear();
         selected = null;
@@ -218,11 +232,7 @@
             technicianPage = 1;
             loadTechnicians();
         } else {
-            technicianGeneration++;
-            technicianChoices.clear();
-            el('wfTech').value = '';
-            el('wfTechSelect').replaceChildren();
-            el('wfTechSelect').disabled = true;
+            invalidateTechnicians();
         }
         el('wfNote').required = ['reject', 'pause', 'complete', 'verify', 'return', 'unschedule', 'escalate', 'cancelrequest', 'cancelapprove', 'cancelreject'].includes(action);
         el('wfNote').minLength = ['return', 'escalate', 'cancelrequest', 'cancelapprove', 'cancelreject'].includes(action) ? 10 : action === 'unschedule' ? 5 : 0;
@@ -289,23 +299,38 @@
         if (blocked || !selected || el('wfAction').value !== 'schedule') return;
         const generation = ++technicianGeneration;
         const requestId = selected.id, campusId = selected.campusId;
+        const currentWindowKey = windowKey();
         technicianChoices = new Map();
+        availabilityWindowKey = null;
         el('wfTech').value = '';
         const picker = el('wfTechSelect');
         picker.replaceChildren();
         picker.disabled = true;
         el('wfTechPrev').disabled = true;
         el('wfTechNext').disabled = true;
-        el('wfTechPage').textContent = t('Loading technicians…', 'টেকনিশিয়ান লোড হচ্ছে…');
+        const startValue = el('wfStart').value, endValue = el('wfEnd').value;
+        const start = new Date(startValue), end = new Date(endValue);
+        if (!startValue || !endValue || !Number.isFinite(start.getTime()) ||
+            !Number.isFinite(end.getTime()) || start >= end ||
+            !Number.isSafeInteger(Number(selected.workOrderId)) || Number(selected.workOrderId) <= 0) {
+            el('wfTechPage').textContent = t(
+                'Set a valid start and end time before finding available technicians.',
+                'উপলব্ধ টেকনিশিয়ান খোঁজার আগে কাজের সঠিক শুরু ও শেষ সময় দিন।');
+            return;
+        }
+        el('wfTechPage').textContent = t('Checking availability…', 'উপলব্ধতা যাচাই হচ্ছে…');
         try {
             const q = new URLSearchParams({
-                campusId: String(campusId), page: String(technicianPage), pageSize: '25'
+                campusId: String(campusId), page: String(technicianPage), pageSize: '25',
+                startUtc: start.toISOString(), endUtc: end.toISOString(),
+                workOrderId: String(selected.workOrderId)
             });
             const search = el('wfTechSearch').value.trim();
             if (search) q.set('search', search);
             const data = await api('/technicians?' + q);
             if (generation !== technicianGeneration || blocked || selected?.id !== requestId ||
-                el('wfAction').value !== 'schedule') return;
+                el('wfAction').value !== 'schedule' || windowKey() !== currentWindowKey) return;
+            availabilityWindowKey = currentWindowKey;
             technicianPages = Math.max(1, data.totalPages || 1);
             const placeholder = document.createElement('option');
             placeholder.value = '';
@@ -327,12 +352,13 @@
                 el('wfTech').value = String(assigned);
             } else picker.value = '';
             el('wfTechPage').textContent = technicianPage + ' / ' + technicianPages +
-                (technicianChoices.size ? '' : t(' — no eligible technicians', ' — যোগ্য টেকনিশিয়ান নেই'));
+                (technicianChoices.size ? '' : t(' — no available technicians for this window',
+                    ' — এই সময়ে উপলব্ধ টেকনিশিয়ান নেই'));
             el('wfTechPrev').disabled = technicianPage <= 1;
             el('wfTechNext').disabled = technicianPage >= technicianPages;
         } catch (error) {
             if (generation !== technicianGeneration || blocked || selected?.id !== requestId ||
-                error.message === 'session-changed') return;
+                windowKey() !== currentWindowKey || error.message === 'session-changed') return;
             picker.replaceChildren();
             picker.disabled = true;
             el('wfTechPage').textContent = t('Lookup failed. Retry search.', 'খোঁজা ব্যর্থ। আবার চেষ্টা করুন।');
@@ -509,8 +535,18 @@
     el('wfTechSelect').addEventListener('change', () => {
         if (!sessionCurrent()) { lockPage(); return; }
         const id = Number(el('wfTechSelect').value);
-        el('wfTech').value = technicianChoices.has(id) ? String(id) : '';
+        el('wfTech').value = availabilityWindowKey === windowKey() &&
+            technicianChoices.has(id) ? String(id) : '';
     });
+    for (const id of ['wfStart', 'wfEnd']) {
+        el(id).addEventListener('input', invalidateTechnicians);
+        el(id).addEventListener('change', () => {
+            if (!blocked && selected && el('wfAction').value === 'schedule') {
+                technicianPage = 1;
+                loadTechnicians();
+            }
+        });
+    }
     el('workflowSearch').addEventListener('submit', e => { e.preventDefault(); page = 1; clearSelection(); load(); });
     el('wfPrev').addEventListener('click', () => { if (page > 1) { page--; clearSelection(); load(); } });
     el('wfNext').addEventListener('click', () => { if (page < pages) { page++; clearSelection(); load(); } });
@@ -565,9 +601,10 @@
         e.preventDefault();
         if (!selected || blocked || transitioning) return;
         if (el('wfAction').value === 'schedule' &&
-            !technicianChoices.has(Number(el('wfTech').value))) {
-            notice(t('Choose an eligible technician for this campus.',
-                'এই ক্যাম্পাসের যোগ্য টেকনিশিয়ান নির্বাচন করুন।'));
+            (availabilityWindowKey !== windowKey() ||
+             !technicianChoices.has(Number(el('wfTech').value)))) {
+            notice(t('Check the time window and choose an available technician.',
+                'সময়সীমা যাচাই করে উপলব্ধ টেকনিশিয়ান নির্বাচন করুন।'));
             return;
         }
         transitioning = true;

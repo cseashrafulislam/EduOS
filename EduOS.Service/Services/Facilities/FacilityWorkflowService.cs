@@ -154,7 +154,8 @@ public sealed class FacilityWorkflowService(
     /// Scheduling independently rechecks grants and concurrency before committing.
     /// </summary>
     public async Task<ApiResponse<PagedResult<FacilityTechnicianOptionDto>>> TechniciansAsync(
-        long campusId, string? search, int page, int pageSize, CancellationToken ct = default)
+        long campusId, string? search, int page, int pageSize, CancellationToken ct = default,
+        DateTime? startUtc = null, DateTime? endUtc = null, long? workOrderId = null)
     {
         if (!ValidTenant || !Manager) return Denied<PagedResult<FacilityTechnicianOptionDto>>();
         if (campusId <= 0 || page is < 1 or > 100000 || pageSize is < 1 or > 50 ||
@@ -162,6 +163,24 @@ public sealed class FacilityWorkflowService(
             return ApiResponse<PagedResult<FacilityTechnicianOptionDto>>.ErrorResponse(
                 "Invalid technician lookup.");
         if (!await AllowedCampuses().ContainsAsync(campusId, ct))
+            return Denied<PagedResult<FacilityTechnicianOptionDto>>();
+        // Availability is advisory; the schedule command still takes its SQL
+        // transaction lock and rechecks overlaps before any committed mutation.
+        var hasWindow = startUtc.HasValue && endUtc.HasValue;
+        if (startUtc.HasValue != endUtc.HasValue || (workOrderId.HasValue && !hasWindow) ||
+            workOrderId is <= 0 ||
+            (hasWindow && (startUtc!.Value.Kind != DateTimeKind.Utc ||
+                           endUtc!.Value.Kind != DateTimeKind.Utc || startUtc.Value >= endUtc.Value)))
+            return ApiResponse<PagedResult<FacilityTechnicianOptionDto>>.ErrorResponse(
+                "Valid UTC start/end window and work order required.", 400);
+        // Exclusion must never accept a guessed work order from another campus.
+        if (workOrderId.HasValue && !await db.Set<FacilityWorkOrder>().AsNoTracking()
+            .AnyAsync(w => w.Id == workOrderId.Value && w.TenantId == user.TenantId &&
+                !w.IsDeleted && (w.StateCode == "Approved" || w.StateCode == "Scheduled") &&
+                db.Set<FacilityServiceRequest>().Any(r =>
+                    r.TenantId == user.TenantId && r.Id == w.FacilityServiceRequestId &&
+                    !r.IsDeleted && r.StateCode == "Approved" && r.CampusId == campusId &&
+                    r.RequesterUserId != user.UserId), ct))
             return Denied<PagedResult<FacilityTechnicianOptionDto>>();
 
         // Match the schedule command's active user, membership, campus grant and
@@ -183,6 +202,18 @@ public sealed class FacilityWorkflowService(
                       !db.TenantMemberships.IgnoreQueryFilters().Any(other =>
                           other.UserId == candidate.Id && other.TenantId != user.TenantId &&
                           !other.IsDeleted && other.Status == MembershipStatus.Active))))));
+        if (hasWindow)
+        {
+            var start = startUtc!.Value;
+            var end = endUtc!.Value;
+            query = query.Where(candidate => !db.Set<FacilityWorkOrder>().Any(w =>
+                w.TenantId == user.TenantId && !w.IsDeleted &&
+                (!workOrderId.HasValue || w.Id != workOrderId.Value) &&
+                w.AssignedTechnicianUserId == candidate.Id &&
+                (w.StateCode == "Scheduled" || w.StateCode == "InProgress" ||
+                 w.StateCode == "Paused") &&
+                w.ScheduledStartUtc < end && w.ScheduledEndUtc > start));
+        }
         var term = search?.Trim();
         if (!string.IsNullOrWhiteSpace(term))
             query = query.Where(candidate => candidate.FullName.Contains(term));

@@ -23,10 +23,24 @@ test('manager technician discovery is scoped, paged and never accepts guessed ID
     assert.match(script, /api\('\/technicians\?' \+ q\)/);
     assert.match(script, /technicianChoices\.has\(Number\(el\('wfTech'\)\.value\)\)/);
     assert.match(script, /generation !== technicianGeneration \|\| blocked \|\| selected\?\.id !== requestId/);
-    assert.match(script, /Choose an eligible technician for this campus/);
-    assert.match(script, /এই ক্যাম্পাসের যোগ্য টেকনিশিয়ান/);
+    assert.match(script, /Check the time window and choose an available technician/);
+    assert.match(script, /সময়সীমা যাচাই করে উপলব্ধ টেকনিশিয়ান নির্বাচন করুন/);
 });
 
+test('manager availability preview scopes order, checks UTC and invalidates stale choice', () => {
+    const service = fs.readFileSync(path.join(__dirname,
+        '../../EduOS.Service/Services/Facilities/FacilityWorkflowService.cs'), 'utf8');
+    const api = fs.readFileSync(path.join(__dirname,
+        '../../EduOS.App/Controllers/Api/FacilityWorkOrdersApiController.cs'), 'utf8');
+    assert.match(service, /startUtc\.HasValue != endUtc\.HasValue/);
+    assert.match(service, /r\.CampusId == campusId/);
+    assert.match(service, /w\.ScheduledStartUtc < end && w\.ScheduledEndUtc > start/);
+    assert.match(api, /long\? workOrderId = null/);
+    assert.match(script, /startUtc: start\.toISOString\(\), endUtc: end\.toISOString\(\)/);
+    assert.match(script, /availabilityWindowKey !== windowKey\(\)/);
+    assert.match(script, /addEventListener\('input', invalidateTechnicians\)/);
+    assert.match(view, /The list is advisory/);
+});
 test('workflow posts antiforgery and retries the same idempotency command', () => {
     assert.match(script, /RequestVerificationToken = token/);
     assert.match(script, /credentials: 'same-origin'/);

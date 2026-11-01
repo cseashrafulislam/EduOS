@@ -286,6 +286,27 @@ public sealed class SqlServerFacilityWorkOrderTests
             Assert.Single((await service.HistoryAsync(submitted.Id, 1, 25)).Data!.Items
                 .Where(x => x.ActionCode == "schedule"));
         }
+        // Availability is advisory and read-only; an authorized current order
+        // may be excluded for rescheduling, but a competing assignment cannot.
+        await using (var db = Db(options, tenantId, managerId, "FacilitiesManager"))
+        {
+            var service = Service(db, tenantId, managerId, "FacilitiesManager");
+            Assert.Empty((await service.TechniciansAsync(campusId, null, 1, 25,
+                startUtc: scheduleStart, endUtc: scheduleEnd)).Data!.Items);
+            Assert.Equal(techId, Assert.Single((await service.TechniciansAsync(
+                campusId, null, 1, 25, startUtc: scheduleStart, endUtc: scheduleEnd,
+                workOrderId: scheduled.WorkOrderId)).Data!.Items).UserId);
+            Assert.Single((await service.TechniciansAsync(campusId, null, 1, 25,
+                startUtc: scheduleEnd.AddMinutes(1), endUtc: scheduleEnd.AddHours(1))).Data!.Items);
+            Assert.Equal(400, (await service.TechniciansAsync(campusId, null, 1, 25,
+                startUtc: scheduleStart)).StatusCode);
+            Assert.Equal(400, (await service.TechniciansAsync(campusId, null, 1, 25,
+                startUtc: scheduleEnd, endUtc: scheduleStart)).StatusCode);
+            Assert.Equal(403, (await service.TechniciansAsync(campusId, null, 1, 25,
+                startUtc: scheduleStart, endUtc: scheduleEnd, workOrderId: long.MaxValue)).StatusCode);
+            Assert.Single((await service.HistoryAsync(submitted.Id, 1, 25)).Data!.Items
+                .Where(x => x.ActionCode == "schedule"));
+        }
         // A second approved request cannot double-book the same technician.
         FacilityRequestDto second;
         await using (var db = Db(options, tenantId, requesterId, "FacilitiesRequester"))
@@ -321,6 +342,9 @@ public sealed class SqlServerFacilityWorkOrderTests
         await using (var db = Db(options, tenantId, managerId, "FacilitiesManager"))
         {
             var service = Service(db, tenantId, managerId, "FacilitiesManager");
+            Assert.Empty((await service.TechniciansAsync(campusId, null, 1, 25,
+                startUtc: scheduleStart, endUtc: scheduleEnd,
+                workOrderId: second.WorkOrderId)).Data!.Items);
             var result = await service.TransitionAsync(second.Id, "schedule", new FacilityTransitionDto
             {
                 ClientCommandId = Guid.NewGuid(), RowVersion = second.WorkOrderRowVersion!,

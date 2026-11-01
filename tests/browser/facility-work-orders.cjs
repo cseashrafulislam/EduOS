@@ -12,7 +12,7 @@ const script = path.join(root, 'EduOS.App/wwwroot/js/facilities/work-orders.js')
 const bootstrap = path.join(root, 'EduOS.App/wwwroot/lib/bootstrap/dist/css/bootstrap.min.css');
 const record = { id: 7, campusId: 12, facilitySpaceId: 5, summary: 'Broken light',
     priorityCode: 'High', stateCode: 'Approved', requesterUserId: 1, triagedByUserId: 2,
-    workOrderState: 'Approved', workOrderRowVersion: 'AQIDBA==', rowVersion: 'AQIDBA==' };
+    workOrderId: 17, workOrderState: 'Approved', workOrderRowVersion: 'AQIDBA==', rowVersion: 'AQIDBA==' };
 const ok = data => ({ success: true, data });
 const deferred = () => { let resolve; const promise = new Promise(r => { resolve = r; }); return { promise, resolve }; };
 function html(bn, manager) {
@@ -62,8 +62,12 @@ async function setup(browser, bn = false, manager = true, mobile = false) {
             if (state.emptyAfterPost) state.empty = true;
             return reply(record);
         }
-        if (url.pathname.endsWith('/technicians'))
-            return reply({ items: [{ userId: 42, displayName: 'Technician Test' }], totalPages: 1 });
+        if (url.pathname.endsWith('/technicians')) {
+            assert.equal(url.searchParams.get('workOrderId'), '17');
+            assert.ok(url.searchParams.get('startUtc') && url.searchParams.get('endUtc'));
+            return reply({ items: url.searchParams.get('startUtc').includes('T09:00')
+                ? [] : [{ userId: 42, displayName: 'Technician Test' }], totalPages: 1 });
+        }
         if (url.pathname.endsWith('/locations')) {
             if (state.locationDelayed && url.searchParams.get('search') === 'old') {
                 state.locationStarted.resolve();
@@ -172,11 +176,36 @@ async function fillSchedule(page) {
     // Empty history still renders an attached <ol>, but it has no visible box.
     await page.locator('#wfHistory ol').waitFor({ state: 'attached' });
     await page.locator('#wfAction').selectOption('schedule');
+    await page.locator('#wfStart').fill('2026-11-03T10:00');
+    await page.locator('#wfEnd').fill('2026-11-03T11:00');
     await page.locator('#wfTechSelect option[value="42"]').waitFor({ state: 'attached' });
     await page.locator('#wfTechSelect').selectOption('42');
     assert.equal(await page.locator('#wfTech').inputValue(), '42');
-    await page.locator('#wfStart').fill('2026-11-03T10:00');
-    await page.locator('#wfEnd').fill('2026-11-03T11:00');
+}
+async function availabilityRecheck(browser) {
+    const { context, page, state } = await setup(browser);
+    try {
+        await page.locator('#wfRows button').click();
+        await page.locator('#wfAction').selectOption('schedule');
+        assert.equal(state.calls.filter(x => x.url.includes('/technicians?')).length, 0);
+        await page.locator('#wfStart').fill('2026-11-03T10:00');
+        await page.locator('#wfEnd').fill('2026-11-03T11:00');
+        await page.locator('#wfTechSelect option[value="42"]').waitFor({ state: 'attached' });
+        await page.locator('#wfTechSelect').selectOption('42');
+        await page.locator('#wfStart').fill('2026-11-03T09:00');
+        await page.locator('#wfTechPage').filter({ hasText: 'no available technicians' }).waitFor();
+        assert.equal(await page.locator('#wfTech').inputValue(), '');
+        assert.equal(await page.locator('#wfTechSelect').isDisabled(), true);
+        await page.locator('#wfTransition button[type="submit"]').click();
+        assert.equal(state.calls.filter(x => x.method === 'POST').length, 0);
+        await page.locator('#wfStart').fill('2026-11-03T10:00');
+        await page.locator('#wfTechSelect option[value="42"]').waitFor({ state: 'attached' });
+        await page.locator('#wfTechSelect').selectOption('42');
+        await page.locator('#wfTransition button[type="submit"]').click();
+        await page.locator('#workflowAlert').filter({ hasText: 'Transition recorded' }).waitFor();
+        assert.equal(state.calls.filter(x => x.method === 'POST').length, 1);
+        assert.deepEqual(state.errors, []);
+    } finally { await context.close(); }
 }
 async function revokedCampus(browser) {
     const { context, page, state } = await setup(browser, true, true, true);
@@ -215,8 +244,9 @@ async function selectionAfterTransition(browser) {
         await delayedRead(browser);
         await mobileBangla(browser);
         await requesterLocationPicker(browser);
+        await availabilityRecheck(browser);
         await revokedCampus(browser);
         await selectionAfterTransition(browser);
-        console.log('Facility Work Orders Chromium PASS: bilingual mobile/desktop, authorized location picker, stale search, revocation and stale selection; synthetic API/session only.');
+        console.log('Facility Work Orders Chromium PASS: bilingual mobile/desktop, conflict-aware availability, authorized location picker, stale search, revocation and stale selection; synthetic API/session only.');
     } finally { await browser.close(); }
 })().catch(error => { console.error(error); process.exitCode = 1; });
