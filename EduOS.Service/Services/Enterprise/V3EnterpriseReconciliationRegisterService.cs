@@ -224,9 +224,10 @@ public sealed class V3EnterpriseReconciliationRegisterService(
         {
             valueMap.TryGetValue(r.Id, out var v);
             var journalConflict = r.ReversalJournalId.HasValue && !r.JournalId.HasValue;
+            // A missing GL campus is not evidence of a matching campus.
             foreach (var id in new[] { r.JournalId, r.ReversalJournalId })
                 if (id.HasValue && (!journalMap.TryGetValue(id.Value, out var j) ||
-                    j.IsDeleted || (j.CampusId.HasValue && j.CampusId != r.CampusId)))
+                    j.IsDeleted || j.CampusId != r.CampusId))
                     journalConflict = true;
             if (r.JournalId.HasValue &&
                 journalMap.TryGetValue(r.JournalId.Value, out var original) &&

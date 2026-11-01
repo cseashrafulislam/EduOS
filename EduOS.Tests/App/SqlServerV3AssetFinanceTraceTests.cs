@@ -306,6 +306,27 @@ public sealed class SqlServerV3AssetFinanceTraceTests
             await db.Journals.Where(x => x.Id == journalId)
                 .ExecuteUpdateAsync(set => set.SetProperty(x => x.AccountingPeriodId, periodId));
 
+            // A balanced posted GL journal without campus cannot certify a
+            // campus-scoped depreciation run. The probe is rolled back in SQL.
+            await using (var transaction = await db.Database.BeginTransactionAsync())
+            {
+                await db.Journals.Where(x => x.Id == journalId)
+                    .ExecuteUpdateAsync(set => set.SetProperty(x => x.CampusId, (long?)null));
+                Assert.Equal(409, (await service.GetAsync(requestId)).StatusCode);
+                var campusless = await register.GetAsync("asset",
+                    new DateOnly(2026, 10, 1), new DateOnly(2026, 10, 31));
+                Assert.Equal(200, campusless.StatusCode);
+                Assert.Equal("EvidenceConflict", Assert.Single(campusless.Data!.Items,
+                    x => x.Reference == requestId).EvidenceStatus);
+                await transaction.RollbackAsync();
+            }
+            Assert.Equal("ExplicitBalancedReference",
+                (await service.GetAsync(requestId)).Data!.FinanceEvidenceStatus);
+            Assert.Equal("ExplicitBalancedReference", Assert.Single(
+                (await register.GetAsync("asset", new DateOnly(2026, 10, 1),
+                    new DateOnly(2026, 10, 31))).Data!.Items,
+                x => x.Reference == requestId).EvidenceStatus);
+
             Assert.Equal(404, (await register.GetAsync("asset", new DateOnly(2026, 10, 1),
                 new DateOnly(2026, 10, 31), -99)).StatusCode);
             Assert.Equal(403, (await new V3EnterpriseReconciliationRegisterService(

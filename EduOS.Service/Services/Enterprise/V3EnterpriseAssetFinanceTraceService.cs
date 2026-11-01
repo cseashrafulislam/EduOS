@@ -80,8 +80,9 @@ public sealed class V3EnterpriseAssetFinanceTraceService(EduOSDbContext db, ICur
                 x.Id, x.PublicId, x.JournalNumber, x.State, x.CampusId,
                 x.IsDeleted, x.AccountingPeriodId, x.ReversalOfJournalId
             }).ToListAsync(ct);
+        // Campus-scoped depreciation cannot be certified by a campusless GL journal.
         if (journals.Count != journalIds.Length ||
-            journals.Any(x => x.IsDeleted || (x.CampusId.HasValue && x.CampusId != run.CampusId)))
+            journals.Any(x => x.IsDeleted || x.CampusId != run.CampusId))
             return ApiResponse<V3EnterpriseAssetFinanceTraceDto>.ErrorResponse(
                 "Missing, deleted or cross-campus journal evidence requires reconciliation.", 409);
         if (run.JournalId.HasValue &&
