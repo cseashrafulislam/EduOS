@@ -136,7 +136,7 @@ async function mobileBangla(browser) {
 async function requesterLocationPicker(browser) {
     const { context, page, state } = await setup(browser, true, false, true);
     try {
-        await page.locator('#wfLocationSelect option[value="12:5"]').waitFor();
+        await page.locator('#wfLocationSelect option[value="12:5"]').waitFor({ state: 'attached' });
         assert.equal(await page.locator('#wfCreate button[type="submit"]').isDisabled(), true);
         state.locationDelayed = deferred();
         state.locationStarted = deferred();
@@ -145,7 +145,7 @@ async function requesterLocationPicker(browser) {
         await state.locationStarted.promise;
         await page.locator('#wfLocationSearch').fill('Building');
         await page.locator('#wfLocationFind').click();
-        await page.locator('#wfLocationSelect option[value="12:5"]').waitFor();
+        await page.locator('#wfLocationSelect option[value="12:5"]').waitFor({ state: 'attached' });
         state.locationDelayed.resolve();
         await page.waitForTimeout(50);
         assert.equal(await page.locator('#wfLocationSelect option[value="99:999"]').count(), 0);
