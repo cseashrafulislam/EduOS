@@ -283,10 +283,12 @@ public sealed class SqlServerFacilityWorkOrderTests
             Assert.Equal(403, denied.StatusCode);
         }
         FacilityRequestDto cancellationPending;
+        var originalCancelCommandId = Guid.NewGuid();
+        var originalCancelRowVersion = second.WorkOrderRowVersion!;
         await using (var db = Db(options, tenantId, managerId, "FacilitiesManager"))
         {
             var service = Service(db, tenantId, managerId, "FacilitiesManager");
-            var commandId = Guid.NewGuid();
+            var commandId = originalCancelCommandId;
             var proposed = await service.TransitionAsync(second.Id, "cancelrequest",
                 new FacilityTransitionDto { ClientCommandId = commandId,
                     RowVersion = second.WorkOrderRowVersion!,
@@ -323,6 +325,20 @@ public sealed class SqlServerFacilityWorkOrderTests
             Assert.True(rejected.Success, rejected.Message);
             Assert.Equal("Approved", rejected.Data!.WorkOrderState);
             second = rejected.Data;
+        }
+        await using (var db = Db(options, tenantId, managerId, "FacilitiesManager"))
+        {
+            var service = Service(db, tenantId, managerId, "FacilitiesManager");
+            var obsoleteCancellation = await service.TransitionAsync(second.Id, "cancelrequest",
+                new FacilityTransitionDto
+                {
+                    ClientCommandId = originalCancelCommandId,
+                    RowVersion = originalCancelRowVersion,
+                    Note = "Duplicate repair request; no technician has been assigned."
+                });
+            Assert.Equal(409, obsoleteCancellation.StatusCode);
+            Assert.Single((await service.HistoryAsync(second.Id, 1, 25)).Data!.Items
+                .Where(x => x.ActionCode == "cancelrequest"));
         }
         await using (var db = Db(options, tenantId, managerId, "FacilitiesManager"))
         {
@@ -401,6 +417,20 @@ public sealed class SqlServerFacilityWorkOrderTests
               ScheduledEndUtc = DateTime.UtcNow.AddHours(2) });
             Assert.True(rescheduled.Success, rescheduled.Message);
             scheduled = rescheduled.Data!;
+            // The original schedule was released and replaced. An old exact
+            // command must not claim success for the newer assignment.
+            var obsoleteSchedule = await service.TransitionAsync(submitted.Id, "schedule",
+                new FacilityTransitionDto
+                {
+                    ClientCommandId = scheduleCommandId,
+                    RowVersion = approved.WorkOrderRowVersion!,
+                    TechnicianUserId = techId, ScheduledStartUtc = scheduleStart,
+                    ScheduledEndUtc = scheduleEnd,
+                    Note = "Campus reschedule; reason=embedded"
+                });
+            Assert.Equal(409, obsoleteSchedule.StatusCode);
+            Assert.Equal(2, (await service.HistoryAsync(submitted.Id, 1, 25)).Data!.Items
+                .Count(x => x.ActionCode == "schedule"));
         }
         // Advance a test clock, not stored SLA: queue, role denial, retry and concurrency.
         await using (var db = Db(options, tenantId, requesterId, "FacilitiesRequester"))

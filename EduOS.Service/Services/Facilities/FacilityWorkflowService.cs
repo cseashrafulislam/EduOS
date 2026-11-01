@@ -322,12 +322,26 @@ public sealed class FacilityWorkflowService(
         var replay = await db.Set<FacilityWorkflowEvent>().AsNoTracking().FirstOrDefaultAsync(
             x => x.TenantId == user.TenantId && x.ClientCommandId == command.ClientCommandId, ct);
         if (replay != null)
-            return replay.FacilityServiceRequestId == id &&
-                   replay.ActorUserId == user.UserId &&
-                   string.Equals(replay.ActionCode, action, StringComparison.OrdinalIgnoreCase) &&
-                   ReplayPayloadMatches(replay, action, command, request)
-                ? ApiResponse<FacilityRequestDto>.SuccessResponse(await ReadAsync(request, ct), "Already applied.")
-                : ApiResponse<FacilityRequestDto>.ErrorResponse("Command ID reused.", 409);
+        {
+            if (replay.FacilityServiceRequestId != id ||
+                replay.ActorUserId != user.UserId ||
+                !string.Equals(replay.ActionCode, action, StringComparison.OrdinalIgnoreCase) ||
+                !ReplayPayloadMatches(replay, action, command, request))
+                return ApiResponse<FacilityRequestDto>.ErrorResponse("Command ID reused.", 409);
+
+            // An exact retry is acknowledged only while it remains the latest
+            // committed transition. A later release, reassignment or independent
+            // decision supersedes the earlier result even if the payload matches.
+            var latestEventId = await db.Set<FacilityWorkflowEvent>().AsNoTracking()
+                .Where(x => x.TenantId == user.TenantId &&
+                    x.FacilityServiceRequestId == id && !x.IsDeleted)
+                .OrderByDescending(x => x.Id).Select(x => x.Id).FirstOrDefaultAsync(ct);
+            if (latestEventId != replay.Id)
+                return ApiResponse<FacilityRequestDto>.ErrorResponse(
+                    "Command superseded; reload current work order.", 409);
+            return ApiResponse<FacilityRequestDto>.SuccessResponse(
+                await ReadAsync(request, ct), "Already applied.");
+        }
 
         var requestAction = action is "triage" or "approve" or "reject";
         if (!VersionMatches(requestAction ? request.RowVersion : order?.RowVersion ?? [], command.RowVersion))
