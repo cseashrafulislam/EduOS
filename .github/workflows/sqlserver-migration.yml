@@ -104,7 +104,7 @@ jobs:
             --filter "FullyQualifiedName~SqlServerAuthTenantIntegrationTests|FullyQualifiedName~AuthSecurityStampIntegrationTests|FullyQualifiedName~SqlServerMemberAccessHistoryIntegrationTests|FullyQualifiedName~SqlServerLoginActivityIntegrationTests|FullyQualifiedName~SqlServerAcademicSetupIntegrationTests|FullyQualifiedName~SqlServerEnrollmentAllocationIntegrationTests|FullyQualifiedName~SqlServerStudentImportConcurrencyIntegrationTests|FullyQualifiedName~SqlServerStudentImportCohortRehearsalTests|FullyQualifiedName~SqlServerStudentLifecycleIntegrationTests|FullyQualifiedName~SqlServerGuardianContactProfileIntegrationTests|FullyQualifiedName~SqlServerManualPaymentIntegrationTests|FullyQualifiedName~SqlServerStudentFineInvoicePostingIntegrationTests|FullyQualifiedName~SqlServerV1FinanceCrossModuleIntegrationTests|FullyQualifiedName~SqlServerBankReconciliationIntakeIntegrationTests|FullyQualifiedName~SqlServerStudentFeeInstallmentPlanIntegrationTests|FullyQualifiedName~SqlServerAcademicOperationsIntegrationTests|FullyQualifiedName~SqlServerAssessmentMarkReviewIntegrityIntegrationTests|FullyQualifiedName~SqlServerAssessmentMarkReviewLifecycleIntegrationTests|FullyQualifiedName~SqlServerAcademicRoutineCollisionIntegrationTests" \
             --logger "trx;LogFileName=sql-v1-acceptance.trx" --results-directory TestResults
 
-      - name: Verify V3 Alumni verified-completion consent, IDOR and campus SQL acceptance
+      - name: Verify Alumni and Career employer, job, application and placement SQL acceptance
         if: ${{ always() && steps.migration_repeat.outcome == 'success' }}
         shell: bash
         env:
@@ -112,8 +112,8 @@ jobs:
         run: |
           set -euo pipefail
           dotnet test EduOS.Tests/EduOS.Tests.csproj --configuration Release --no-restore \
-            --filter "FullyQualifiedName~SqlServerAlumniConsentIntegrationTests" \
-            --logger "trx;LogFileName=sql-v3-alumni-acceptance.trx" --results-directory TestResults
+            --filter "FullyQualifiedName~SqlServerAlumniConsentIntegrationTests|FullyQualifiedName~SqlServerCareerEmployerIntegrationTests|FullyQualifiedName~SqlServerCareerPlacementIntegrationTests" \
+            --logger "trx;LogFileName=sql-alumni-career-acceptance.trx" --results-directory TestResults
 
       - name: Verify V3 Facilities work-order maker-checker, closure and IDOR on real SQL
         if: ${{ always() && steps.migration_repeat.outcome == 'success' }}
