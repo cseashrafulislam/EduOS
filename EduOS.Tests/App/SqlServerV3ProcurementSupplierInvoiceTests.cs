@@ -40,6 +40,19 @@ public sealed partial class SqlServerV3ProcurementPurchaseOrderTests
         new(ctx, new Actor(tenantId,userId), Goods(ctx,tenantId,userId), clock ?? TimeProvider.System,
             NullLogger<ProcurementSupplierInvoiceService>.Instance);
 
+    // Use an injected clock to cover the next month-end on any runner date.
+    private static AssetAccountingService AssetFinanceAt(
+        EduOSDbContext db, long tenantId, long actorId, TimeProvider clock)
+    {
+        var actor = new Actor(tenantId, actorId);
+        return new AssetAccountingService(db, actor, clock,
+            new InventoryMovementService(db, actor, clock,
+                NullLogger<InventoryMovementService>.Instance),
+            new AssetLifecycleService(db, actor, clock,
+                NullLogger<AssetLifecycleService>.Instance),
+            NullLogger<AssetAccountingService>.Instance);
+    }
+
     [Fact]
     public async Task SQL_supplier_invoice_partial_billing_three_way_payable_variance_and_contra()
     {
@@ -95,7 +108,7 @@ public sealed partial class SqlServerV3ProcurementPurchaseOrderTests
                 RequisitionLineId=reqLine.Id,LineNo=1,InventoryItemId=item.Id,Quantity=10m,UnitPrice=10m };
             setup.ProcurementPurchaseOrderLines.Add(poLine);await setup.SaveChangesAsync();poLineId=poLine.Id;
             var period = new AccountingPeriod {TenantId=tenantId,Name="Open BDT payable period",
-                StartDate=date.AddMonths(-1),EndDate=date.AddMonths(1),IsClosed=false};
+                StartDate=date.AddMonths(-1),EndDate=date.AddMonths(3),IsClosed=false};
             var asset=new Account {TenantId=tenantId,Code="SI-AS-"+suffix,Name="Inventory",
                 AccountType=AccountType.Asset,IsActive=true,AllowsPosting=true};
             var payable=new Account {TenantId=tenantId,Code="SI-AP-"+suffix,Name="Supplier payable",
@@ -891,14 +904,15 @@ public sealed partial class SqlServerV3ProcurementPurchaseOrderTests
                 {
                     ("Fixed",AccountType.Asset),("Accumulated",AccountType.Asset),
                     ("Depreciation",AccountType.Expense),("Impairment",AccountType.Expense),
-                    ("Disposal gain",AccountType.Income),("Disposal loss",AccountType.Expense)
+                    ("Disposal gain",AccountType.Income),("Disposal loss",AccountType.Expense),
+                    ("Proceeds clearing",AccountType.Asset)
                 }.Select((x,i)=>new Account {TenantId=tenantId,Code="SI-CAP-"+i+"-"+suffix,
                     Name=x.Item1,AccountType=x.Item2,IsActive=true,AllowsPosting=true}).ToArray();
                 assetSetup.Accounts.AddRange(gl);
                 await assetSetup.SaveChangesAsync();
                 assetReference=asset.PublicId;
                 capitalizationAccounts=[gl[0].Id,assetAccountId,gl[1].Id,gl[2].Id,
-                    gl[3].Id,gl[4].Id,gl[5].Id];
+                    gl[3].Id,gl[4].Id,gl[5].Id,gl[6].Id];
             }
             Guid capitalizationReference;
             string capitalizationVersion;
@@ -964,6 +978,147 @@ public sealed partial class SqlServerV3ProcurementPurchaseOrderTests
                     .ReviewCapitalizationAsync(capitalizationReference,
                         new ReviewAssetCapitalizationRequest {RowVersion=capitalizationVersion,
                             Approve=true,Reason="Repeat must not create a second stock or GL posting"})).StatusCode);
+            }
+            // Continue this SAME PO/GR/invoice/return/asset-unit fixture through
+            // real month-end depreciation, disposal and balanced GL compensation.
+            // Synthetic time avoids a test that only passes on the last day of a month.
+            var valuationDate=new DateOnly(date.Year,date.Month,1).AddMonths(2).AddDays(-1);
+            var valuationClock=new FrozenClock(new DateTimeOffset(
+                valuationDate.ToDateTime(new TimeOnly(12,0),DateTimeKind.Utc)));
+            var depreciationInput=new AssetValuationRequest {
+                ClientRequestId=Guid.NewGuid(),AccountingPeriodId=periodId,
+                EffectiveDate=valuationDate,ValuationMode="Automatic",Amount=0m,
+                Reason="Source-linked first month-end straight-line depreciation" };
+            long depreciationId;
+            string depreciationVersion;
+            await using (var closed=Open(options,tenantId,makerId))
+            {
+                await closed.AccountingPeriods.Where(x=>x.Id==periodId)
+                    .ExecuteUpdateAsync(x=>x.SetProperty(p=>p.IsClosed,true));
+                Assert.Equal(409,(await AssetFinanceAt(closed,tenantId,makerId,valuationClock)
+                    .RequestDepreciationAsync(assetReference,depreciationInput)).StatusCode);
+                Assert.Empty(await closed.AssetDepreciationRuns.AsNoTracking().ToListAsync());
+                await closed.AccountingPeriods.Where(x=>x.Id==periodId)
+                    .ExecuteUpdateAsync(x=>x.SetProperty(p=>p.IsClosed,false));
+            }
+            await using (var maker=Open(options,tenantId,makerId))
+            {
+                var finance=AssetFinanceAt(maker,tenantId,makerId,valuationClock);
+                var draft=await finance.RequestDepreciationAsync(assetReference,depreciationInput);
+                Assert.True(draft.Success,draft.Message);
+                Assert.Equal(0.28m,draft.Data!.Amount);
+                depreciationId=draft.Data.Id;depreciationVersion=draft.Data.RowVersion;
+                Assert.Equal(depreciationId,(await finance.RequestDepreciationAsync(
+                    assetReference,depreciationInput)).Data!.Id);
+                Assert.Equal(409,(await finance.ReviewDepreciationAsync(depreciationId,
+                    new AssetReviewRequest {RowVersion=depreciationVersion,Approve=true,
+                        Reason="Maker cannot approve source-linked depreciation"})).StatusCode);
+            }
+            await using (var checker=Open(options,tenantId,checkerId))
+            {
+                var finance=AssetFinanceAt(checker,tenantId,checkerId,valuationClock);
+                var posted=await finance.ReviewDepreciationAsync(depreciationId,
+                    new AssetReviewRequest {RowVersion=depreciationVersion,Approve=true,
+                        Reason="Independent month-end Finance depreciation approval"});
+                Assert.True(posted.Success,posted.Message);
+                Assert.Equal("Posted",posted.Data!.State);
+                Assert.Equal(409,(await finance.ReviewDepreciationAsync(depreciationId,
+                    new AssetReviewRequest {RowVersion=depreciationVersion,Approve=true,
+                        Reason="Prevent duplicate month-end depreciation journal"})).StatusCode);
+                var journal=Assert.Single(await checker.Journals.AsNoTracking()
+                    .Where(x=>x.SourceType=="AssetDepreciation" && x.State==JournalState.Posted)
+                    .ToListAsync());
+                var lines=await checker.JournalLines.AsNoTracking()
+                    .Where(x=>x.JournalId==journal.Id).ToListAsync();
+                Assert.Equal(0.28m,lines.Sum(x=>x.DebitAmount));
+                Assert.Equal(0.28m,lines.Sum(x=>x.CreditAmount));
+                var statement=(await finance.StatementAsync(assetReference)).Data!;
+                Assert.Equal(10m,statement.CostBasis);
+                Assert.Equal(0.28m,statement.PostedDepreciation);
+                Assert.Equal(9.72m,statement.CarryingValue);
+            }
+            long disposalId;
+            string disposalVersion;
+            await using (var maker=Open(options,tenantId,makerId))
+            {
+                var finance=AssetFinanceAt(maker,tenantId,makerId,valuationClock);
+                var requested=await finance.RequestDisposalAsync(assetReference,
+                    new AssetValuationRequest {ClientRequestId=Guid.NewGuid(),
+                        AccountingPeriodId=periodId,EffectiveDate=valuationDate,
+                        ValuationMode="ManualFinal",Amount=5m,
+                        ProceedsClearingAccountId=capitalizationAccounts[7],
+                        Reason="Source-linked approved disposal with clearing evidence"});
+                Assert.True(requested.Success,requested.Message);
+                disposalId=requested.Data!.Id;disposalVersion=requested.Data.RowVersion;
+                Assert.Equal(409,(await finance.ReviewDisposalAsync(disposalId,
+                    new AssetReviewRequest {RowVersion=disposalVersion,Approve=true,
+                        Reason="Maker cannot independently approve asset disposal"})).StatusCode);
+            }
+            await using (var checker=Open(options,tenantId,checkerId))
+            {
+                var finance=AssetFinanceAt(checker,tenantId,checkerId,valuationClock);
+                var posted=await finance.ReviewDisposalAsync(disposalId,
+                    new AssetReviewRequest {RowVersion=disposalVersion,Approve=true,
+                        Reason="Independent source-linked disposal and GL clearance"});
+                Assert.True(posted.Success,posted.Message);
+                Assert.Equal("Posted",posted.Data!.State);
+                Assert.Equal(409,(await finance.ReviewDisposalAsync(disposalId,
+                    new AssetReviewRequest {RowVersion=disposalVersion,Approve=true,
+                        Reason="Prevent duplicate posted disposal journal"})).StatusCode);
+                Assert.False(Assert.Single(await checker.AssetBooks.AsNoTracking()
+                    .ToListAsync()).IsActive);
+                var journal=Assert.Single(await checker.Journals.AsNoTracking()
+                    .Where(x=>x.SourceType=="AssetDisposal" && x.State==JournalState.Posted)
+                    .ToListAsync());
+                var lines=await checker.JournalLines.AsNoTracking()
+                    .Where(x=>x.JournalId==journal.Id).ToListAsync();
+                Assert.Equal(lines.Sum(x=>x.DebitAmount),lines.Sum(x=>x.CreditAmount));
+                Assert.True((await finance.StatementAsync(assetReference)).Data!.Disposed);
+            }
+            Guid reversalReference;
+            string reversalVersion;
+            await using (var maker=Open(options,tenantId,makerId))
+            {
+                var finance=AssetFinanceAt(maker,tenantId,makerId,valuationClock);
+                var evt=Assert.Single((await finance.StatementAsync(assetReference)).Data!
+                    .Events.Where(x=>x.Kind=="Disposal"));
+                var request=await finance.RequestEventReversalAsync("Disposal",disposalId,
+                    new AssetReversalRequest {ClientRequestId=Guid.NewGuid(),
+                        OriginalRowVersion=evt.RowVersion,AccountingPeriodId=periodId,
+                        ReversalDate=valuationDate,
+                        Reason="Audited reversal of source-linked disposal evidence"});
+                Assert.True(request.Success,request.Message);
+                reversalReference=request.Data!.PendingReversalReference!.Value;
+                reversalVersion=request.Data.PendingReversalRowVersion!;
+            }
+            await using (var checker=Open(options,tenantId,checkerId))
+            {
+                var finance=AssetFinanceAt(checker,tenantId,checkerId,valuationClock);
+                var posted=await finance.ReviewEventReversalAsync("Disposal",disposalId,
+                    reversalReference,new AssetReviewRequest {RowVersion=reversalVersion,
+                        Approve=true,Reason="Independent disposal contra preserving history"});
+                Assert.True(posted.Success,posted.Message);
+                var original=Assert.Single(await checker.Journals.AsNoTracking()
+                    .Where(x=>x.SourceType=="AssetDisposal").ToListAsync());
+                var contra=Assert.Single(await checker.Journals.AsNoTracking()
+                    .Where(x=>x.PublicId==reversalReference).ToListAsync());
+                Assert.Equal(original.Id,contra.ReversalOfJournalId);
+                var oldLines=await checker.JournalLines.AsNoTracking()
+                    .Where(x=>x.JournalId==original.Id).OrderBy(x=>x.LineNo).ToListAsync();
+                var newLines=await checker.JournalLines.AsNoTracking()
+                    .Where(x=>x.JournalId==contra.Id).OrderBy(x=>x.LineNo).ToListAsync();
+                Assert.Equal(oldLines.Count,newLines.Count);
+                for(var i=0;i<oldLines.Count;i++)
+                {
+                    Assert.Equal(oldLines[i].DebitAmount,newLines[i].CreditAmount);
+                    Assert.Equal(oldLines[i].CreditAmount,newLines[i].DebitAmount);
+                }
+                var statement=(await finance.StatementAsync(assetReference)).Data!;
+                Assert.False(statement.Disposed);
+                Assert.Equal(0.28m,statement.PostedDepreciation);
+                Assert.Equal(9.72m,statement.CarryingValue);
+                Assert.True(Assert.Single(await checker.AssetBooks.AsNoTracking()
+                    .ToListAsync()).IsActive);
             }
             await using (var combined=Open(options,tenantId,makerId))
             {
