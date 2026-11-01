@@ -1199,6 +1199,24 @@
             [['/Learning/Index', 'Learning courses', 'কোর্সসমূহ']])
     };
     const manuals = {
+        '/facilityspaces/index': {
+            version: 1, reviewed: true,
+            title: ['Campus Facility Spaces', 'ক্যাম্পাস সুবিধা ও স্থান'],
+            purpose: ['Find and maintain operational campus spaces used by Facilities work orders; this is not the academic room, hostel bed or inventory store register.', 'Facilities ওয়ার্ক অর্ডারের জন্য ক্যাম্পাসের কার্যক্রম-সংক্রান্ত স্থান খুঁজুন ও পরিচালনা করুন; এটি একাডেমিক কক্ষ, হোস্টেল শয্যা বা ইনভেন্টরি স্টোরের তালিকা নয়।'],
+            before: ['FACILITIES entitlement and a permitted active campus are required. TenantAdmin, Principal and FacilitiesManager may create/edit; FacilitiesTechnician and FacilitiesApprover may search and read only. Have the authorized numeric campus ID and unique space code ready.', 'FACILITIES অনুমতি ও সক্রিয় অনুমোদিত ক্যাম্পাস প্রয়োজন। TenantAdmin, Principal ও FacilitiesManager যোগ/সম্পাদনা করতে পারেন; FacilitiesTechnician ও FacilitiesApprover শুধু খুঁজে দেখতে পারেন। অনুমোদিত ক্যাম্পাসের সংখ্যাসূচক আইডি ও স্বতন্ত্র স্থান কোড প্রস্তুত রাখুন।'],
+            steps: [
+                ['Enter an optional Campus ID and a code/name search, then select Search. Browse 25 results per page with Previous/Next.', 'ঐচ্ছিক ক্যাম্পাস আইডি ও কোড/নামের শব্দ লিখে খুঁজুন চাপুন। পূর্ববর্তী/পরবর্তী দিয়ে প্রতি পৃষ্ঠায় ২৫টি ফল দেখুন।'],
+                ['For a new space, authorized managers enter Campus ID, a letter/number/dot/underscore/hyphen code, name, optional address and Active status.', 'নতুন স্থান যোগ করতে অনুমোদিত ব্যবস্থাপক ক্যাম্পাস আইডি, অক্ষর/সংখ্যা/ডট/আন্ডারস্কোর/হাইফেনের কোড, নাম, ঐচ্ছিক ঠিকানা ও সক্রিয় অবস্থা দিন।'],
+                ['Select Save once and confirm the refreshed register; New clears the editor. Readers do not have Save/Edit controls.', 'একবার সংরক্ষণ চাপুন এবং নতুন তালিকায় ফল যাচাই করুন; নতুন চাপলে সম্পাদনা ফর্ম পরিষ্কার হয়। শুধু পাঠকের জন্য সংরক্ষণ/সম্পাদনা নেই।'],
+                ['To edit an existing space, select Edit in its row, review the campus/code and update permitted fields; Save checks the original row version.', 'বিদ্যমান স্থান বদলাতে সারির সম্পাদনা চাপুন, ক্যাম্পাস/কোড যাচাই করে অনুমোদিত তথ্য বদলান; সংরক্ষণের সময় আগের সংস্করণ যাচাই হয়।'],
+                ['Use Service requests to open the separate authorized work-order workflow; Print prints the current browser page without creating or approving a request.', 'সার্ভিস অনুরোধ দিয়ে আলাদা অনুমোদিত ওয়ার্ক অর্ডার পাতায় যান; প্রিন্টে বর্তমান পৃষ্ঠা ছাপে, নতুন অনুরোধ বা অনুমোদন হয় না।']
+            ],
+            example: ['Fictional example: a manager authorized for campus 12 creates code LAB-A, name Science Lab A and address North Block. Search LAB-A and confirm the active row; a technician may then find it for a separate service request.', 'কাল্পনিক উদাহরণ: ক্যাম্পাস ১২-এর অনুমোদিত ব্যবস্থাপক LAB-A কোড, Science Lab A নাম ও North Block ঠিকানায় স্থান যোগ করেন। LAB-A খুঁজে সক্রিয় সারি যাচাই করেন; পরে টেকনিশিয়ান আলাদা সার্ভিস অনুরোধে স্থানটি খুঁজতে পারেন।'],
+            result: ['The authorized campus list shows the saved space and status. Editing preserves the original space identity; this page does not issue a work order or financial/stock posting.', 'অনুমোদিত ক্যাম্পাসের তালিকায় সংরক্ষিত স্থান ও অবস্থা দেখা যায়। সম্পাদনায় আগের স্থান পরিচয় অক্ষত থাকে; এই পৃষ্ঠা ওয়ার্ক অর্ডার বা অর্থ/স্টক পোস্টিং করে না।'],
+            rules: ['A space code must be unique within its campus. Identical create retries may return the existing space, while conflicting duplicates return 409. Updates require a matching row version; only allowed campuses are readable/writable. Saving a space is not a work-order approval, Finance GL entry or stock movement.', 'একই ক্যাম্পাসে স্থান কোড স্বতন্ত্র হতে হবে। একই তথ্য পুনরায় যোগ করলে আগের স্থান ফেরত আসতে পারে; সংঘাতপূর্ণ ডুপ্লিকেটে ৪০৯ আসে। সম্পাদনায় মিল থাকা সংস্করণ প্রয়োজন এবং শুধু অনুমোদিত ক্যাম্পাস পড়া/বদলানো যায়। স্থান সংরক্ষণ ওয়ার্ক অর্ডার অনুমোদন, Finance GL বা স্টক লেনদেন নয়।'],
+            recovery: ['On 403, confirm the active campus grant and role; do not try another ID. On 409, reload and inspect the current row before editing or retrying. If a save response is lost, search for the same campus/code before submitting again. Missing security token or changed institution session requires a fresh page load.', '৪০৩ হলে ক্যাম্পাস অনুমতি ও ভূমিকা যাচাই করুন; অন্য আইডি অনুমান করবেন না। ৪০৯ হলে বর্তমান সারি আবার লোড করে সম্পাদনা বা পুনরায় চেষ্টা করুন। সংরক্ষণের উত্তর না পেলে আবার জমার আগে একই ক্যাম্পাস/কোড খুঁজুন। নিরাপত্তা টোকেন না থাকলে বা প্রতিষ্ঠান সেশন বদলালে পৃষ্ঠা নতুন করে লোড করুন।'],
+            related: [['/FacilityWorkOrders/Index', 'Service requests and work orders', 'সার্ভিস অনুরোধ ও ওয়ার্ক অর্ডার']]
+        },
         ...administrationManuals,
         ...coreWorkflowManuals,
         ...operationsManuals,

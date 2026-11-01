@@ -10,7 +10,7 @@ const css = read('EduOS.App/wwwroot/css/site.css');
 const js = read('EduOS.App/wwwroot/js/platform/page-context-help.js');
 const { guideFor, coverage, normalizeRoute, validateGuide } =
     require('../../EduOS.App/wwwroot/js/platform/page-context-help.js');
-const routes = ['/FeeReceivablesAging/Index', '/PayrollJournalPosting/Index', '/PayrollSalaryStatement/Index', '/Alumni/Index', '/CareerEmployers/Index', '/CareerOpportunities/Index', '/CareerPlacements/Index', '/FeeOperations/Index', '/Students/Index', '/Attendance/Index', '/PayrollOperations/Index', '/FacilityWorkOrders/Index', '/Admissions/Index', '/StudentInvoicePosting/Index', '/workspace', '/Account/BrandingSetup', '/StudentLifecycle/Index',
+const routes = ['/FeeReceivablesAging/Index', '/PayrollJournalPosting/Index', '/PayrollSalaryStatement/Index', '/Alumni/Index', '/CareerEmployers/Index', '/CareerOpportunities/Index', '/CareerPlacements/Index', '/FeeOperations/Index', '/Students/Index', '/Attendance/Index', '/PayrollOperations/Index', '/FacilityWorkOrders/Index', '/FacilitySpaces/Index', '/Admissions/Index', '/StudentInvoicePosting/Index', '/workspace', '/Account/BrandingSetup', '/StudentLifecycle/Index',
     ...['Years','Terms','Departments','Classes','Sections','Rooms','Subjects','Curricula','Prerequisites','Offerings'].map(action => '/AcademicManagement/' + action),
     ...['Structures','Billing','Ledger'].map(action => '/FeeOperations/' + action), '/HR/Directory', '/HR/Leaves',
     ...['Policies','StudentAdjustments','FineRegister','Refunds'].map(action => '/FinanceAdjustments/' + action),
@@ -30,7 +30,7 @@ const routes = ['/FeeReceivablesAging/Index', '/PayrollJournalPosting/Index', '/
         .map(name => '/' + name + '/Index')];
 
 test('all reviewed route manuals have full bilingual structure, matching steps and examples', () => {
-    assert.deepEqual(coverage(), { routes: 121, en: 121, bn: 121 });
+    assert.deepEqual(coverage(), { routes: 122, en: 122, bn: 122 });
     for (const route of routes) {
         const en = guideFor(route, 'en-BD');
         const bn = guideFor(route, 'bn-BD');
