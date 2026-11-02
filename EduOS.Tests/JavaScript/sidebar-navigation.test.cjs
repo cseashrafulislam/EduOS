@@ -139,7 +139,7 @@ test('sidebar keyboard and persisted navigation state are scoped to the rendered
 
 test('server-rendered static sidebar anchors have no duplicate destinations', () => {
     const sidebar = layout.slice(layout.indexOf('<aside class="sidebar"'), layout.indexOf('</aside>'));
-    const links = [...sidebar.matchAll(/<a\\b[^>]*href="(\\/[^"]+)"/g)]
+    const links = [...sidebar.matchAll(/<a\b[^>]*href="(\/[^"]+)"/g)]
         .map(match => match[1].toLowerCase());
     assert.ok(links.length > 50, 'route inventory unexpectedly empty');
     assert.equal(new Set(links).size, links.length,
