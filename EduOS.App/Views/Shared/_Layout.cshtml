@@ -289,7 +289,7 @@
                 {
                     <a class="nav-link @ActiveFor("/Alumni")" href="/Alumni/Index">
                         <svg class="edu-icon"><use href="/images/eduos-icons.svg#graduation" /></svg>
-                        <span>@(currentCulture == "bn-BD" ? "প্রাক্তন শিক্ষার্থী" : "Alumni / প্রাক্তন শিক্ষার্থী")</span>
+                        <span>@(currentCulture == "bn-BD" ? "প্রাক্তন শিক্ষার্থী" : "Alumni")</span>
                     </a>
                 }
                 @if (showAlumni && User?.IsInRole("TenantAdmin") == true)
@@ -321,7 +321,7 @@
                     </a>
                     @if (User?.IsInRole("TenantAdmin") == true)
                     {
-                        <a class="nav-link @ActiveFor("/LearnerIdentities/AccessHistory")" href="/LearnerIdentities/AccessHistory">Identity Access History</a>
+                        <a class="nav-link @ActiveFor("/LearnerIdentities/AccessHistory")" href="/LearnerIdentities/AccessHistory"><span>@(currentCulture == "bn-BD" ? "পরিচয় তথ্য ব্যবহারের ইতিহাস" : "Identity Access History")</span></a>
                     }
                 }
 
@@ -485,8 +485,8 @@
                             <span>@(currentCulture == "bn-BD" ? hrPage.Bn : hrPage.En)</span>
                         </a>
                     }
-                    <a class="nav-link @ActiveFor("/EmployeeAttendance")" href="/EmployeeAttendance/Index">Employee Attendance</a>
-                    <a class="nav-link @ActiveFor("/LeaveEntitlements")" href="/LeaveEntitlements/Index">Leave Entitlements</a>
+                    <a class="nav-link @ActiveFor("/EmployeeAttendance")" href="/EmployeeAttendance/Index"><span>@(currentCulture == "bn-BD" ? "কর্মীর উপস্থিতি" : "Employee Attendance")</span></a>
+                    <a class="nav-link @ActiveFor("/LeaveEntitlements")" href="/LeaveEntitlements/Index"><span>@(currentCulture == "bn-BD" ? "ছুটির প্রাপ্যতা" : "Leave Entitlements")</span></a>
                 }
                 @if (User?.IsInRole("TenantAdmin") == true)
                 {
@@ -577,7 +577,7 @@
                     }
                     @if (User?.IsInRole("TenantAdmin") == true)
                     {
-                        <a class="nav-link @ActiveFor("/FeeDiscountRules")" href="/FeeDiscountRules/Index">Discount Rules</a>
+                        <a class="nav-link @ActiveFor("/FeeDiscountRules")" href="/FeeDiscountRules/Index"><span>@(currentCulture == "bn-BD" ? "ফি ছাড়ের নিয়ম" : "Discount Rules")</span></a>
                         <a class="nav-link @ActiveFor("/AdmissionCashReceipts")" href="/AdmissionCashReceipts/Index">
                             <svg class="edu-icon"><use href="/images/eduos-icons.svg#reports" /></svg>
                             <span>@(currentCulture == "bn-BD" ? "ভর্তির নগদ রসিদ" : "Admission Cash Receipts")</span>

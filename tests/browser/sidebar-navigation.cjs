@@ -21,10 +21,18 @@ function html() {
         '<a class="nav-link" href="/CareerEmployers/Index">Employers</a>' +
         '<a class="nav-link" href="/CareerOpportunities/Index">Opportunities</a>' +
         '<a class="nav-link" href="/CareerPlacements/Index">Placements</a>' +
+        '<a class="nav-link" href="/LearnerIdentities/AccessHistory">' +
+            (bangla ? 'পরিচয় তথ্য ব্যবহারের ইতিহাস' : 'Identity Access History') + '</a>' +
         '</nav><nav data-sidebar-section="management">' +
         '<a class="nav-link" href="/FeeReceivablesAging/Index">Fee Aging</a>' +
         '<a class="nav-link" href="/FacilityWorkOrders/Index">Work Orders</a>' +
         '<a class="nav-link" href="/FacilitySpaces/Index">Facility Spaces</a>' +
+        '<a class="nav-link" href="/EmployeeAttendance/Index">' +
+            (bangla ? 'কর্মীর উপস্থিতি' : 'Employee Attendance') + '</a>' +
+        '<a class="nav-link" href="/LeaveEntitlements/Index">' +
+            (bangla ? 'ছুটির প্রাপ্যতা' : 'Leave Entitlements') + '</a>' +
+        '<a class="nav-link" href="/FeeDiscountRules/Index">' +
+            (bangla ? 'ফি ছাড়ের নিয়ম' : 'Discount Rules') + '</a>' +
         '</nav></aside></body></html>';
 }
 async function inject(page) { await page.addScriptTag({ path: script }); }
@@ -47,7 +55,9 @@ async function exercise(browser, mobile) {
             '/InstitutionManagement/Profile', '/InstitutionManagement/Campuses',
             '/FeeReceivablesAging/Index', '/FacilityWorkOrders/Index',
             '/FacilitySpaces/Index', '/CareerEmployers/Index',
-            '/CareerOpportunities/Index', '/CareerPlacements/Index'
+            '/CareerOpportunities/Index', '/CareerPlacements/Index',
+            '/LearnerIdentities/AccessHistory', '/EmployeeAttendance/Index',
+            '/LeaveEntitlements/Index', '/FeeDiscountRules/Index'
         ].sort(), 'client grouping must not add/duplicate privileged routes');
         const access = page.locator('summary.sidebar-group-toggle').filter({
             hasText: mobile ? 'ব্যবহারকারী ও অনুমতি' : 'Users & Access'
@@ -73,6 +83,17 @@ async function exercise(browser, mobile) {
             ['/FacilityWorkOrders/Index', '/FacilitySpaces/Index'].sort());
         assert.equal(await page.locator('details.sidebar-group[data-sidebar-group="academics:other"]').count(), 0);
         assert.equal(await page.locator('details.sidebar-group[data-sidebar-group="management:other"]').count(), 0);
+        for (const [route, label] of [
+            ['/LearnerIdentities/AccessHistory', mobile ? 'পরিচয় তথ্য ব্যবহারের ইতিহাস' : 'Identity Access History'],
+            ['/EmployeeAttendance/Index', mobile ? 'কর্মীর উপস্থিতি' : 'Employee Attendance'],
+            ['/LeaveEntitlements/Index', mobile ? 'ছুটির প্রাপ্যতা' : 'Leave Entitlements'],
+            ['/FeeDiscountRules/Index', mobile ? 'ফি ছাড়ের নিয়ম' : 'Discount Rules']
+        ]) {
+            assert.equal(await page.locator('a.nav-link[href="' + route + '"]').textContent(), label);
+        }
+        assert.equal(await page.locator('details.sidebar-group[data-sidebar-group="academics:learners"]').count(), 1);
+        assert.equal(await page.locator('details.sidebar-group[data-sidebar-group="management:people"]').count(), 1);
+        assert.equal(await page.locator('details.sidebar-group[data-sidebar-group="management:finance"]').count(), 1);
         await access.focus();
         await page.keyboard.press('Home');
         assert.equal(await page.evaluate(() => document.activeElement?.getAttribute('href')),

@@ -23,11 +23,26 @@ const sources = controllers(path.join(root, 'EduOS.App/Controllers'))
 const conventional = new Map(sources.filter(x =>
     path.dirname(x.file) === path.join(root, 'EduOS.App/Controllers'))
     .map(x => [path.basename(x.file, 'Controller.cs').toLowerCase(), x]));
-const routeSet = new Set([
+// Include computed Action tuples, not only literal href/Path/role-portal URLs.
+// Unknown computed tuple patterns must fail rather than silently evade inventory.
+const dynamicRoutes = [];
+for (const match of sidebar.matchAll(/@foreach\s*\(var\s+(\w+)\s+in\s+new\[\]\s*\{([\s\S]*?)\}\s*\)/g)) {
+    const [, variable, tuples] = match;
+    const actions = [...tuples.matchAll(/\bAction:\s*"([^"]+)"/g)].map(m => m[1]);
+    if (!actions.length) continue;
+    const following = sidebar.slice(match.index + match[0].length, match.index + match[0].length + 1400);
+    const prefix = following.match(new RegExp(
+        'var\\s+\\w+Path\\s*=\\s*"([^"]+)"\\s*\\+\\s*' + variable + '\\.Action'))?.[1];
+    assert.ok(prefix, 'unresolved computed sidebar path for ' + variable);
+    dynamicRoutes.push(...actions.map(action => prefix + action));
+}
+const routeEntries = [
     ...[...sidebar.matchAll(/<a\b[^>]*\bhref="(\/[^"]+)"/g)].map(m => m[1]),
     ...[...sidebar.matchAll(/\bPath:\s*"(\/[^"]+)"/g)].map(m => m[1]),
-    ...[...portals.matchAll(/\bAdd\("[^"]+",\s*"(\/[^"]+)"/g)].map(m => m[1])
-]);
+    ...[...portals.matchAll(/\bAdd\("[^"]+",\s*"(\/[^"]+)"/g)].map(m => m[1]),
+    ...dynamicRoutes
+];
+const routeSet = new Set(routeEntries);
 function resolve(route) {
     const clean = route.split(/[?#]/)[0].replace(/\/+$/, '');
     const attr = clean.slice(1).toLowerCase();
@@ -39,11 +54,18 @@ function resolve(route) {
     return new RegExp('\\b' + action.replace(/[^A-Za-z0-9_]/g, '') + '\\s*\\(')
         .test(controller.source);
 }
-test('every literal sidebar, tuple and role-portal destination resolves to current MVC source', () => {
-    assert.ok(routeSet.size >= 120, 'unexpectedly small route inventory');
+test('literal, computed Action tuple and role-portal destinations resolve to current MVC source', () => {
+    assert.ok(dynamicRoutes.length >= 45, 'computed Action tuple coverage regressed');
+    assert.ok(routeSet.size >= 175, 'unexpectedly small route inventory');
     const missing = [...routeSet].filter(route => !resolve(route));
     assert.deepEqual(missing, [], 'broken navigation targets must be repaired, not hidden');
 });
+test('navigation declarations are duplicate-free across literal and computed sources', () => {
+    const folded = routeEntries.map(route => route.toLowerCase());
+    assert.equal(new Set(folded).size, folded.length,
+        'duplicate static, computed or role-portal navigation requires review');
+});
+
 test('role portal remains server entitlement/role gated; inventory cannot grant a link', () => {
     assert.match(portals, /availableModules\.Contains\(module\)/);
     assert.match(portals, /roles\.Any\(user\.IsInRole\)/);

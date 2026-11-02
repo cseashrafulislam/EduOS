@@ -160,7 +160,23 @@ test('Razor localizes all static sidebar leaf labels before client enhancement',
     const sidebar = layout.slice(layout.indexOf('<aside class="sidebar"'), layout.indexOf('</aside>'));
     const literalEnglish = [...sidebar.matchAll(/<span>([A-Za-z][^<@]*)<\/span>/g)]
         .map(match => match[1].trim()).filter(Boolean);
-    assert.deepEqual(literalEnglish, [], 'untranslated static sidebar labels must not depend on JavaScript');
+    const bareAnchorEnglish = [...sidebar.matchAll(/<a\b[^>]*\bhref="\/[^"]+"[^>]*>\s*([A-Za-z][^<@]*)<\/a>/g)]
+        .map(match => match[1].trim()).filter(Boolean);
+    assert.deepEqual([...literalEnglish, ...bareAnchorEnglish], [],
+        'untranslated sidebar spans and bare anchors must not depend on JavaScript');
+    for (const [route, en, bn] of [
+        ['/LearnerIdentities/AccessHistory', 'Identity Access History', 'পরিচয় তথ্য ব্যবহারের ইতিহাস'],
+        ['/EmployeeAttendance/Index', 'Employee Attendance', 'কর্মীর উপস্থিতি'],
+        ['/LeaveEntitlements/Index', 'Leave Entitlements', 'ছুটির প্রাপ্যতা'],
+        ['/FeeDiscountRules/Index', 'Discount Rules', 'ফি ছাড়ের নিয়ম']
+    ]) {
+        const anchor = [...sidebar.matchAll(/<a\b[^>]*\bhref="(\/[^"]+)"[^>]*>[\s\S]*?<\/a>/g)]
+            .find(match => match[1] === route)?.[0];
+        assert.ok(anchor, 'missing role-gated navigation: ' + route);
+        assert.ok(anchor.includes('currentCulture == "bn-BD" ? "' + bn + '" : "' + en + '"'),
+            'first-paint bilingual label missing: ' + route);
+    }
+    assert.doesNotMatch(sidebar, /"Alumni \/ প্রাক্তন শিক্ষার্থী"/);
     const bilingualLeaves = [...sidebar.matchAll(/<span>@\(currentCulture == "bn-BD" \? "[^"]+" : "[^"]+"\)<\/span>/g)];
     assert.ok(bilingualLeaves.length >= 50, 'bilingual static leaf coverage unexpectedly decreased');
     assert.match(sidebar, /<div class="menu-title">@\(currentCulture == "bn-BD" \? "প্ল্যাটফর্ম প্রশাসন" : "Platform Administration"\)<\/div>/);
