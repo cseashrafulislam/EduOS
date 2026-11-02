@@ -255,7 +255,12 @@ export async function runAcceptance(config, fetcher = fetch) {
     for (const [kind, reference] of [['stock', stock], ['asset', asset]]) {
         if (pagedAudit) {
             const result = await auditRegisterPages({ read, parseCsv, api: API, kind, reference,
-                from, to, tenantA: a, tenantB: b, maxPages: auditPages });
+                from, to, tenantA: a, tenantB: b, maxPages: auditPages,
+                collectOwnerReferences: true });
+            // Full-page audits must still seed the concurrent foreign-register
+            // guard. Otherwise a populated tenant-B register triggers an
+            // unhandled TypeError rather than meaningful isolation evidence.
+            ownerFirstPageReferences.set(kind, result.ownerReferences);
             registers.push({ kind, count: result.count, pagesAudited: result.pagesAudited });
             continue;
         }
@@ -309,6 +314,9 @@ export async function runAcceptance(config, fetcher = fetch) {
             'Foreign register CSV leaked tenant A evidence or disagrees with JSON.');
         registers.push({ kind, count: d.totalCount });
     }
+    check(ownerFirstPageReferences.get('asset') instanceof Set &&
+        ownerFirstPageReferences.get('asset').size > 0,
+        'Missing owner asset register baseline for concurrent replay.');
     const invalid = await read(a, API + '/register?' + new URLSearchParams({
         kind: 'stock', from, to, page: '1', pageSize: '1000'
     }));
@@ -378,6 +386,9 @@ export async function runAcceptance(config, fetcher = fetch) {
             let result;
             try { result = await read(probe.cookie, probe.path); }
             finally { inFlight--; }
+            // Private cache directives must remain safe under concurrent
+            // tenant switching, not merely on the initial baseline reads.
+            noStore(result);
             if (probe.foreignDetail)
                 check([403, 404].includes(result.status),
                     'Concurrent cross-tenant detail disclosed.');

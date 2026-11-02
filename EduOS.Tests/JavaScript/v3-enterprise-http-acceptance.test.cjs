@@ -341,3 +341,79 @@ test('baseline foreign CSV cannot contradict foreign register JSON', async () =>
     await assert.rejects(runAcceptance(config, fetcher),
         /Foreign register CSV leaked tenant A evidence or disagrees with JSON/);
 });
+
+function populatedTenantRegister({ leakOnReplay = false, cacheOnReplay = false } = {}) {
+    const baseline = fakeFetch();
+    const foreignAsset = '33333333-3333-4333-8333-333333333333';
+    const foreignStock = '44444444-4444-4444-8444-444444444444';
+    const row = (reference, kind, number) => ({
+        reference, number, date: '2026-10-31',
+        campusId: kind === 'asset' ? 10 : null,
+        state: 'Posted', recordedValue: '25.0000000000',
+        lineCount: 1, evidenceStatus: 'ExplicitBalancedReference'
+    });
+    return async (url, options) => {
+        const parsed = new URL(url);
+        if (!parsed.pathname.includes('/register')) return baseline(url, options);
+        const pageSize = Number(parsed.searchParams.get('pageSize') || 50);
+        if (pageSize > 50) return baseline(url, options);
+        const kind = parsed.searchParams.get('kind');
+        const foreign = options.headers.Cookie === 'b-session';
+        const own = kind === 'asset'
+            ? [row(asset, kind, 'ASSET-1'), row(otherAsset, kind, 'ASSET-2')]
+            : [row(stock, kind, 'STOCK-1')];
+        const other = kind === 'asset'
+            ? [row(foreignAsset, kind, 'FOREIGN-ASSET')]
+            : [row(foreignStock, kind, 'FOREIGN-STOCK')];
+        const items = (foreign ? other : own).map(x => ({ ...x }));
+        if (foreign && kind === 'asset' && pageSize === 25 && leakOnReplay)
+            items[0].reference = otherAsset;
+        const page = Number(parsed.searchParams.get('page') || 1);
+        const pageItems = items.slice((page - 1) * pageSize, page * pageSize);
+        const isCsv = parsed.pathname.endsWith('/csv');
+        const headers = {
+            'content-type': isCsv ? 'text/csv' : 'application/json',
+            'cache-control': foreign && pageSize === 25 && cacheOnReplay
+                ? 'public, max-age=60' : 'no-store'
+        };
+        if (isCsv) {
+            const csv = 'Kind,Reference,Number,Date,Campus,State,RecordedValue,Lines,EvidenceStatus\\n' +
+                pageItems.map(x => [kind, x.reference, x.number, x.date,
+                    x.campusId ?? '', x.state, x.recordedValue,
+                    x.lineCount, x.evidenceStatus].join(',')).join('\\n');
+            return new Response(csv, { status: 200, headers });
+        }
+        return new Response(JSON.stringify({ success: true, data: {
+            kind, from: parsed.searchParams.get('from'),
+            to: parsed.searchParams.get('to'), page, pageSize,
+            totalCount: items.length, items: pageItems
+        } }), { status: 200, headers });
+    };
+}
+
+test('all-page audit with populated foreign tenant retains owner references for concurrent replay', async () => {
+    const { runAcceptance } = await import(source);
+    const report = await runAcceptance({ ...config, pagedAudit: true,
+        iterations: 25 }, populatedTenantRegister());
+    assert.deepEqual(report.registerCounts, [
+        { kind: 'stock', count: 1, pagesAudited: 1 },
+        { kind: 'asset', count: 2, pagesAudited: 1 }
+    ]);
+    assert.ok(report.maxClientInFlight >= 2);
+    assert.ok(!JSON.stringify(report).includes(otherAsset),
+        'Owner reference sets must not be printed in acceptance reports.');
+});
+
+test('all-page audit rejects a non-seeded owner asset leaked only during concurrent replay', async () => {
+    const { runAcceptance } = await import(source);
+    await assert.rejects(runAcceptance({ ...config, pagedAudit: true,
+        iterations: 25 }, populatedTenantRegister({ leakOnReplay: true })),
+    /Concurrent cross-tenant register disclosed/);
+});
+
+test('mixed-tenant replay rejects cacheable private evidence after safe baseline reads', async () => {
+    const { runAcceptance } = await import(source);
+    await assert.rejects(runAcceptance({ ...config, pagedAudit: true,
+        iterations: 25 }, populatedTenantRegister({ cacheOnReplay: true })),
+    /Private response must not be cached/);
+});

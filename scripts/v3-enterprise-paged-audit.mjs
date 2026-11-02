@@ -30,7 +30,8 @@ const scaledDecimal = value => {
 };
 
 export async function auditRegisterPages({ read, parseCsv, api, kind, reference,
-    from, to, tenantA, tenantB, maxPages = 10, expectedEvidence = null }) {
+    from, to, tenantA, tenantB, maxPages = 10, expectedEvidence = null,
+    collectOwnerReferences = false }) {
     requireEvidence(['stock', 'asset', 'procurement'].includes(kind), 'Invalid register kind.');
     requireEvidence(Number.isInteger(maxPages) && maxPages >= 1 && maxPages <= 20,
         'Invalid audit page limit.');
@@ -154,5 +155,8 @@ export async function auditRegisterPages({ read, parseCsv, api, kind, reference,
     requireEvidence(own.found,
         'Seeded reference missing from bounded register pages.');
     await scan(tenantB, own.references);
-    return { kind, count: own.count, pagesAudited: own.pages };
+    // Expose the owner set only to in-process acceptance callers that explicitly
+    // request it. Never include it in the CLI/report output.
+    return { kind, count: own.count, pagesAudited: own.pages,
+        ...(collectOwnerReferences ? { ownerReferences: own.references } : {}) };
 }
