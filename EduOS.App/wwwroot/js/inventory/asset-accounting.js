@@ -21,6 +21,19 @@ if (root) {
         el('aaStatus').className = 'alert alert-' + (error ? 'danger' : 'info');
         el('aaStatus').textContent = message;
     }
+    // A denied, failed or superseded read must never leave previous campus financial
+    // evidence or approval controls visible. Keep retry keys across uncertain writes.
+    function clearEvidence(invalidate = true) {
+        if (invalidate) ++sequence;
+        evidence = null; options = null; statement = null; cap = null;
+        el('aaResults').classList.add('d-none');
+        for (const id of ['aaEvidence', 'aaCapState', 'aaBook']) el(id).textContent = '';
+        for (const id of ['aaEvents', 'aaPolicyHistory', 'aaCapReview',
+            'aaCandidate', 'aaCapPeriod', 'aaPeriod', 'aaPolicyPeriod',
+            'aaFixed', 'aaInventory', 'aaAccum', 'aaDepExp', 'aaImpExp',
+            'aaGain', 'aaLoss', 'aaVarGain', 'aaVarLoss', 'aaClearing'])
+            el(id)?.replaceChildren();
+    }
     function optionList(id, rows, placeholder, label) {
         const select = el(id); if (!select) return;
         select.replaceChildren(new Option(placeholder, ''));
@@ -201,6 +214,8 @@ if (root) {
     }
     async function reload() {
         const asset = current, n = ++sequence;
+        clearEvidence(false);
+        status('Refreshing authorized asset evidence / অনুমোদিত সম্পদের তথ্য যাচাই হচ্ছে।');
         const [nextEvidence, nextOptions, nextStatement, nextCap] = await Promise.all([
             assetApi(asset), api('/options'), api('/' + asset + '/statement'),
             api('/' + asset + '/capitalization').catch(error =>
@@ -215,14 +230,17 @@ if (root) {
     async function action(fn) {
         if (busy) return; busy = true;
         try { await fn(); await reload(); }
-        catch (error) { status(error.message, true); }
+        catch (error) {
+            clearEvidence();
+            status(error.message, true);
+        }
         finally { busy = false; }
     }
     el('aaLoad').addEventListener('click', () => action(async () => {
         const asset = el('aaAsset').value.trim();
         if (!/^[0-9a-f]{8}-[0-9a-f-]{27,36}$/i.test(asset))
             throw new Error('Valid asset GUID required.');
-        ++sequence; current = asset; evidence = null; statement = null; cap = null;
+        clearEvidence(); current = asset;
         capKey = null; eventKey = null; capReverseKey = null; policyKey = null;
     }));
     // The load handler delegates reload through action, after current has been set.

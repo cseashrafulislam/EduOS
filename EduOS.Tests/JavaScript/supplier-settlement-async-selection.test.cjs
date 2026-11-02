@@ -4,14 +4,15 @@ const fs = require('node:fs');
 const vm = require('node:vm');
 const path = require('node:path');
 
-function harness(kind, DateCtor = Date) {
+function harness(kind, DateCtor = Date, failGets = new Set()) {
  const source = fs.readFileSync(path.resolve(__dirname,
   '../../EduOS.App/wwwroot/js/procurement/supplier-settlement-instructions.js'), 'utf8');
  class Element {
   constructor(id) {
    this.id=id;this.dataset={};this.children=[];this.listeners={};this.value='';
    this.open=false;this.disabled=false;this.textContent='';
-   this.classList={add(){},remove(){}};
+   const classes=new Set();
+   this.classList={add:x=>classes.add(x),remove:x=>classes.delete(x),contains:x=>classes.has(x)};
   }
   addEventListener(name,callback){this.listeners[name]=callback;}
   append(...children){this.children.push(...children);}
@@ -33,6 +34,8 @@ function harness(kind, DateCtor = Date) {
   if(options?.method==='POST')
    return await new Promise((resolve,reject)=>posts.push({url,resolve,reject}));
   gets.push(url);
+  if([...failGets].some(part=>url.includes(part)))
+   return {ok:false,status:403,json:async()=>({success:false,message:'Access revoked'})};
   const invoice=url.match(/supplier-invoices\/([^/]+)\/settlements/)?.[1];
   const data=url.endsWith('/options')?{availableAmount:50,banks:[],periods:[]}:
    url.includes('?page=')?{totalPages:1,items:[{
@@ -53,7 +56,7 @@ function harness(kind, DateCtor = Date) {
  const action=()=>get('ssRows').children[0].children[5].children[0].click();
  const submit=id=>get(id).listeners.submit({preventDefault(){}});
  const success=()=>({ok:true,json:async()=>({success:true,data:{}})});
- return {get,posts,gets,flush,select,action,submit,success};
+ return {get,posts,gets,flush,select,action,submit,success,failGets};
 }
 
 test('late maker settlement success cannot refresh or relabel a different invoice',async()=>{
@@ -117,4 +120,43 @@ test('supplier GL reversal defaults to browser-local date, not previous UTC day'
  h.action();
  assert.equal(h.get('ssReverseDialog').open,true);
  assert.equal(h.get('ssReverseDate').value,'2026-11-02');
+});
+
+test('revoked supplier settlement options clear previous selection and maker controls',async()=>{
+ const h=harness('maker');
+ await h.select('A');
+ assert.equal(h.get('ssRows').children.length,1);
+ h.failGets.add('/B/settlements/options');
+ await h.select('B');
+ assert.equal(h.get('ssRows').children.length,0);
+ assert.equal(h.get('ssForm').classList.contains('d-none'),true);
+ assert.equal(h.get('ssPrev').disabled,true);
+ assert.doesNotMatch(h.get('ssSelected').textContent,/A|B ·/);
+ assert.match(h.get('ssStatus').textContent,/Access revoked/);
+});
+
+test('revoked supplier instruction list removes cached review actions and dialogs',async()=>{
+ const h=harness('review');
+ await h.select('A');
+ h.action();
+ assert.equal(h.get('ssReviewDialog').open,true);
+ h.failGets.add('/A/settlements?');
+ await h.select('A');
+ assert.equal(h.get('ssRows').children.length,0);
+ assert.equal(h.get('ssReviewDialog').open,false);
+ assert.equal(h.get('ssNext').disabled,true);
+ assert.match(h.get('ssStatus').textContent,/Access revoked/);
+});
+
+test('forbidden settlement command clears sensitive selected invoice without replay',async()=>{
+ const h=harness('maker');
+ await h.select('A');
+ const pending=h.submit('ssForm');
+ await h.flush();
+ h.posts[0].resolve({ok:false,status:403,json:async()=>({success:false,message:'Campus denied'})});
+ await pending;
+ await h.flush();
+ assert.equal(h.get('ssRows').children.length,0);
+ assert.equal(h.get('ssForm').classList.contains('d-none'),true);
+ assert.match(h.get('ssStatus').textContent,/Campus denied/);
 });

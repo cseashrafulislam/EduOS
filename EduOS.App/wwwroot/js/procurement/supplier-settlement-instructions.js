@@ -13,13 +13,34 @@
  const localDate=()=>{const day=new Date();return [day.getFullYear(),String(day.getMonth()+1).padStart(2,'0'),String(day.getDate()).padStart(2,'0')].join('-');};
  const cell=x=>{const td=document.createElement('td');td.textContent=String(x??'');return td;};
  function status(message,error=false){$('ssStatus').className='small '+(error?'text-danger':'text-muted');$('ssStatus').textContent=message;}
+ // Clear every sensitive row and action on failed reads, revoked access or
+ // concurrency conflicts. Selection sequence also invalidates late responses.
+ function clearSelection(){
+  ++selectionSeq;++seq;invoice=null;availablePeriods=[];page=1;pages=1;
+  review=null;withdraw=null;post=null;reverse=null;contra=null;
+  requestKey=null;withdrawKey=null;postKey=null;reverseKey=null;
+  $('ssSelected').textContent=t('No authorized invoice selected','অনুমোদিত ইনভয়েস নির্বাচিত নেই');
+  $('ssRows').replaceChildren();$('ssPage').textContent='—';
+  $('ssPrev').disabled=true;$('ssNext').disabled=true;
+  $('ssForm')?.classList.add('d-none');
+  for(const id of ['ssWithdrawDialog','ssReviewDialog','ssPostDialog','ssReverseDialog','ssContraDialog'])
+   if($(id)?.open)$(id).close();
+ }
+ function handleError(error,failedRead=false){
+  if(failedRead||[401,403,404,409].includes(error.statusCode))clearSelection();
+  status(error.message,true);
+ }
  async function api(url,method='GET',payload){
   const headers={Accept:'application/json'};if(payload!==undefined)headers['Content-Type']='application/json';
   if(method!=='GET'&&token)headers.RequestVerificationToken=token;
   const r=await fetch(url,{method,credentials:'same-origin',cache:'no-store',headers,
    ...(payload===undefined?{}:{body:JSON.stringify(payload)})});
   const body=await r.json().catch(()=>null);
-  if(!r.ok||!body?.success)throw new Error(body?.message||t('Request failed','অনুরোধ ব্যর্থ'));
+  if(!r.ok||!body?.success){
+   const error=new Error(body?.message||t('Request failed','অনুরোধ ব্যর্থ'));
+   error.statusCode=r.status;
+   throw error;
+  }
   return body.data;
  }
  function options(select,items){select.replaceChildren(new Option(t('Select','নির্বাচন করুন'),''));
@@ -85,7 +106,7 @@
    }
    if(!(result.items||[]).length){const tr=document.createElement('tr'),td=cell(t('No instructions','নির্দেশনা নেই'));td.colSpan=6;tr.append(td);$('ssRows').append(tr);}
    $('ssPage').textContent=page+' / '+pages;$('ssPrev').disabled=page<=1;$('ssNext').disabled=page>=pages;
-  }catch(e){if(n===seq)status(e.message,true);}
+  }catch(e){if(n===seq)handleError(e,true);}
  }
  async function selectInvoice(x){
   const chosen=++selectionSeq;
@@ -110,7 +131,7 @@
     $('ssForm').classList.remove('d-none');
    }
    await load();
-  }catch(e){if(chosen===selectionSeq)status(e.message,true);}
+  }catch(e){if(chosen===selectionSeq)handleError(e,true);}
  }
  window.addEventListener('procurement-settlement-select',e=>{if(e.detail?.reference)selectInvoice(e.detail);});
  $('ssForm')?.addEventListener('submit',async e=>{
@@ -126,7 +147,7 @@
    if(chosen!==selectionSeq||invoice?.reference!==selected)return;
    requestKey=null;status(t('Instruction submitted; GL and bank unchanged','নির্দেশনা জমা; GL ও ব্যাংক অপরিবর্তিত'));
    await selectInvoice(invoice);
-  }catch(e){if(chosen===selectionSeq&&invoice?.reference===selected)status(e.message,true);}finally{busy=false;$('ssSubmit').disabled=false;}
+  }catch(e){if(chosen===selectionSeq&&invoice?.reference===selected)handleError(e);}finally{busy=false;$('ssSubmit').disabled=false;}
  });
  for(const id of ['ssAmount','ssDate','ssBank','ssPeriod','ssReason'])$(id)?.addEventListener('input',()=>{requestKey=null;});
  $('ssWithdrawClose').addEventListener('click',()=>$('ssWithdrawDialog').close());
@@ -145,7 +166,7 @@
     status(t('Instruction withdrawn; GL and bank unchanged','নির্দেশনা প্রত্যাহার; GL ও ব্যাংক অপরিবর্তিত'));
     await selectInvoice(invoice);
    }
-  }catch(e){if(chosen===selectionSeq&&invoice?.reference===selected)status(e.message,true);}finally{busy=false;$('ssWithdrawSubmit').disabled=false;}
+  }catch(e){if(chosen===selectionSeq&&invoice?.reference===selected)handleError(e);}finally{busy=false;$('ssWithdrawSubmit').disabled=false;}
  });
  $('ssClose').addEventListener('click',()=>$('ssReviewDialog').close());
  $('ssReviewForm').addEventListener('submit',async e=>{
@@ -158,7 +179,7 @@
     $('ssReviewDialog').close();status(t('Decision saved; no disbursement executed','সিদ্ধান্ত সংরক্ষিত; পরিশোধ হয়নি'));
     await selectInvoice(invoice);
    }
-  }catch(e){if(chosen===selectionSeq&&invoice?.reference===selected)status(e.message,true);}finally{busy=false;$('ssReviewSubmit').disabled=false;}
+  }catch(e){if(chosen===selectionSeq&&invoice?.reference===selected)handleError(e);}finally{busy=false;$('ssReviewSubmit').disabled=false;}
  });
  $('ssPostClose')?.addEventListener('click',()=>$('ssPostDialog').close());
  for(const id of ['ssExecutedDate','ssBankReference'])$(id)?.addEventListener('input',()=>{postKey=null;});
@@ -175,7 +196,7 @@
     status(t('Confirmed external disbursement posted to Finance GL','বাইরে নিশ্চিত পরিশোধ ফাইন্যান্স GL-এ পোস্ট হয়েছে'));
     await selectInvoice(invoice);
    }
-  }catch(e){if(chosen===selectionSeq&&invoice?.reference===selected)status(e.message,true);}
+  }catch(e){if(chosen===selectionSeq&&invoice?.reference===selected)handleError(e);}
   finally{busy=false;$('ssPostSubmit').disabled=false;}
  });
  $('ssReverseClose')?.addEventListener('click',()=>$('ssReverseDialog').close());
@@ -194,7 +215,7 @@
     status(t('Full reversal submitted; independently review before GL posting','সম্পূর্ণ রিভার্সাল জমা; GL পোস্টের আগে স্বতন্ত্র যাচাই প্রয়োজন'));
     await selectInvoice(invoice);
    }
-  }catch(e){if(chosen===selectionSeq&&invoice?.reference===selected)status(e.message,true);}
+  }catch(e){if(chosen===selectionSeq&&invoice?.reference===selected)handleError(e);}
   finally{busy=false;$('ssReverseSubmit').disabled=false;}
  });
  $('ssContraClose')?.addEventListener('click',()=>$('ssContraDialog').close());
@@ -210,7 +231,7 @@
     status(t('Independent reversal decision saved','স্বতন্ত্র রিভার্সাল সিদ্ধান্ত সংরক্ষিত'));
     await selectInvoice(invoice);
    }
-  }catch(e){if(chosen===selectionSeq&&invoice?.reference===selected)status(e.message,true);}
+  }catch(e){if(chosen===selectionSeq&&invoice?.reference===selected)handleError(e);}
   finally{busy=false;$('ssContraSubmit').disabled=false;}
  });
  $('ssPrev').addEventListener('click',()=>{if(page>1){page--;load();}});
