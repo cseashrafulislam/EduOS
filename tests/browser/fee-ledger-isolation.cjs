@@ -59,7 +59,6 @@ async function verify(browser,lang){
   await waitFor(()=>!!releaseA);
   await page.locator('#feeStudent').selectOption('student-b');
   await page.locator('#feeLoadLedger').click();
-  await page.locator('#feeLedgerSummary').getByText('B (B)',{exact:false}).waitFor().catch(()=>{});
   await page.waitForFunction(()=>document.querySelector('#feeInvoices').textContent.includes('INV-B') &&
     document.querySelector('#feeReceipts').textContent.includes('REC-B'));
   releaseA();
