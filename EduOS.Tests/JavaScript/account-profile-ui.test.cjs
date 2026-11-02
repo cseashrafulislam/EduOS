@@ -28,6 +28,10 @@ test('profile client rejects stale session reads and unsafe writes without expos
     assert.match(script,/await window\.EduOSVerifySessionContext\(\)/);
     assert.match(script,/document\.getElementById\('eduosSessionShield'\)\?\.hidden !== true/);
     assert.match(script,/lockProfile\(\)/);
+    assert.match(script,/profileOriginalTenant/);
+    assert.match(script,/profileOriginalSession/);
+    assert.match(script,/expectedTenant !== profileOriginalTenant/);
+    assert.match(script,/button.disabled = loading \|\| profileLocked \|\| !profileReady/);
     assert.match(script,/profileReadGeneration/);
     assert.match(script,/sessionsReadGeneration/);
     assert.match(script,/mfaReadGeneration/);

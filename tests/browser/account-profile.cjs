@@ -87,6 +87,21 @@ async function success(browser,bn){
             'Mobile overflow');
     }finally{await s.context.close();}
 }
+async function switchedAfterLoad(browser){
+    const s=await setup(browser);
+    try{
+        await s.page.waitForFunction(()=>document.getElementById('profileDisplayName').textContent==='Synthetic Account');
+        await s.page.evaluate(()=>{document.body.dataset.authTenantId='22';});
+        await s.page.locator('#fullName').fill('Should not be sent');
+        await s.page.locator('#saveProfileBtn').click();
+        await s.page.waitForFunction(()=>document.getElementById('saveProfileBtn').disabled);
+        assert.equal(await s.page.locator('#profileDisplayName').innerText(),'',
+            'Old profile must be cleared after tenant switch');
+        assert.equal(await s.page.locator('#profileDisplayEmail').innerText(),'');
+        assert.deepEqual(s.writes,[],'Changed institution must not dispatch a profile write');
+        assert.deepEqual(s.errors,[]);
+    }finally{await s.context.close();}
+}
 async function denied(browser){
     const s=await setup(browser,{profileStatus:403});
     try{
@@ -118,7 +133,7 @@ async function stale(browser){
     const browser=await chromium.launch({headless:true,args:['--no-sandbox']});
     try{
         await success(browser,false);await success(browser,true);
-        await denied(browser);await stale(browser);
+        await denied(browser);await stale(browser);await switchedAfterLoad(browser);
         console.log('Account Profile Chromium PASS: English/Bangla, desktop/mobile, verified read gating, validation, private denial and stale tenant suppression (synthetic API).');
     }finally{await browser.close();}
 })().catch(e=>{console.error(e);process.exitCode=1;});

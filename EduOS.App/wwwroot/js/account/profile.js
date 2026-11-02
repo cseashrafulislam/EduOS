@@ -54,6 +54,8 @@ const profileTranslations = {
     "Request failed. Please retry.": "অনুরোধ ব্যর্থ হয়েছে। আবার চেষ্টা করুন।"
 };
 function profileText(english) { return profileBangla ? (profileTranslations[english] || english) : english; }
+const profileOriginalTenant = document.body?.dataset.authTenantId || '';
+const profileOriginalSession = document.body?.dataset.authSessionReference || '';
 let profileLocked = false;
 let profileReady = false;
 let mfaReady = false;
@@ -432,7 +434,11 @@ async function apiRequest(url, options = {}) {
     const method = String(fetchOptions.method || 'GET').toUpperCase();
     const expectedSession = document.body?.dataset.authSessionReference || '';
     const expectedTenant = document.body?.dataset.authTenantId || '';
-    if (profileLocked) throw new Error(profileText('Account session changed. Reload to continue.'));
+    if (profileLocked || expectedTenant !== profileOriginalTenant ||
+        expectedSession !== profileOriginalSession) {
+        lockProfile();
+        throw new Error(profileText('Account session changed. Reload to continue.'));
+    }
     if (!/^[0-9a-f]{64}$/i.test(expectedSession) ||
         (expectedTenant !== '' && !/^[1-9]\d*$/.test(expectedTenant)))
         throw new Error(profileText('Account session changed. Reload to continue.'));
@@ -646,7 +652,7 @@ function setLoading(button, loading, text, isHtml = false) {
         return;
     }
 
-    button.disabled = loading;
+    button.disabled = loading || profileLocked || !profileReady;
 
     if (loading) {
         button.innerHTML = `
