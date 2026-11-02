@@ -730,6 +730,7 @@ public sealed partial class SqlServerV3ProcurementPurchaseOrderTests
                     });
             }));
             var acceptedReservation=Assert.Single(reservationAttempts,x=>x.Success);
+            var winningReservation=acceptedReservation.Data!;
             Assert.Single(reservationAttempts,x=>x.StatusCode==409);
             var rejectedReservationKey=reservationKeys[reservationAttempts[0].Success?1:0];
             // Open AFTER parallel tasks: ambient tenant identity in the SQL fixture
@@ -738,7 +739,7 @@ public sealed partial class SqlServerV3ProcurementPurchaseOrderTests
             {
                 var reservationService=Invoices(reservationVerifier,tenantId,makerId);
                 var winningJournal=await reservationVerifier.Journals.AsNoTracking()
-                    .SingleAsync(x=>x.PublicId==acceptedReservation.Data!.Reference);
+                    .SingleAsync(x=>x.PublicId==winningReservation.Reference);
                 Assert.Equal(JournalState.Submitted,winningJournal.State);
                 Assert.Null(winningJournal.PostedAt);
                 Assert.False(await reservationVerifier.Journals.AsNoTracking()
@@ -753,17 +754,17 @@ public sealed partial class SqlServerV3ProcurementPurchaseOrderTests
                 Assert.Equal(12m,reserved.ReservedAmount);
                 Assert.Equal(6m,reserved.AvailableAmount);
                 var withdraw=await reservationService.WithdrawSettlementAsync(
-                    second.Reference,acceptedReservation.Data.Reference,
+                    second.Reference,winningReservation.Reference,
                     new WithdrawSupplierSettlementInstructionRequest {
                         ClientRequestId=Guid.NewGuid(),
-                        RowVersion=acceptedReservation.Data.RowVersion,
+                        RowVersion=winningReservation.RowVersion,
                         Reason="Concurrent reservation test release without bank execution"
                     });
                 Assert.True(withdraw.Success,withdraw.Message);
                 Assert.Equal("Rejected",withdraw.Data!.State);
-                var released=(await reservationService.SettlementOptionsAsync(second.Reference)).Data!;
-                Assert.Equal(0m,released.ReservedAmount);
-                Assert.Equal(18m,released.AvailableAmount);
+                var reservationReleased=(await reservationService.SettlementOptionsAsync(second.Reference)).Data!;
+                Assert.Equal(0m,reservationReleased.ReservedAmount);
+                Assert.Equal(18m,reservationReleased.AvailableAmount);
                 Assert.Equal(0,await reservationVerifier.Journals.AsNoTracking()
                     .CountAsync(x=>x.SourceType==winningJournal.SourceType &&
                         x.SourceId==winningJournal.SourceId && x.State==JournalState.Posted));
