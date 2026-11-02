@@ -188,22 +188,28 @@ public sealed partial class SqlServerV3ProcurementPurchaseOrderTests
         }
         Guid unwindReference;
         string unwindVersion;
+        AssetReversalRequest capitalizationReversalCommand;
         await using (var db = Open(opts, tenantId, makerId))
         {
             var finance = AssetFinance(db, tenantId, makerId);
             var posted = (await finance.GetCapitalizationAsync(assetReference)).Data!;
-            var correction = await finance.RequestCapitalizationReversalAsync(command,
-                new AssetReversalRequest
-                {
-                    ClientRequestId = Guid.NewGuid(), OriginalRowVersion = posted.RowVersion,
-                    AccountingPeriodId = periodId, ReversalDate = today,
-                    Reason = "Serialized asset not commissioned, unwind both stock and original GL"
-                });
+            capitalizationReversalCommand = new AssetReversalRequest
+            {
+                ClientRequestId = Guid.NewGuid(), OriginalRowVersion = posted.RowVersion,
+                AccountingPeriodId = periodId, ReversalDate = today,
+                Reason = "Serialized asset not commissioned, unwind both stock and original GL"
+            };
+            var correction = await finance.RequestCapitalizationReversalAsync(
+                command, capitalizationReversalCommand);
             Assert.True(correction.Success, correction.Message);
             Assert.Equal("Posted", correction.Data!.State);
             unwindReference = correction.Data.PendingReversalReference!.Value;
             unwindVersion = correction.Data.PendingReversalRowVersion!;
             Assert.Null(correction.Data.FinanceReversalReference);
+            var pendingReplay = await finance.RequestCapitalizationReversalAsync(
+                command, capitalizationReversalCommand);
+            Assert.True(pendingReplay.Success, pendingReplay.Message);
+            Assert.Equal(unwindReference, pendingReplay.Data!.PendingReversalReference);
         }
         await using (var db = Open(opts, tenantId, checkerId))
         {
@@ -234,6 +240,28 @@ public sealed partial class SqlServerV3ProcurementPurchaseOrderTests
             Assert.Equal(409, (await finance.ReviewCapitalizationReversalAsync(command,
                 unwindReference, new AssetReviewRequest { RowVersion = unwindVersion,
                     Approve = true, Reason = "Duplicate unwind must not double issue" })).StatusCode);
+            Assert.Equal(409, (await finance.RequestCapitalizationReversalAsync(
+                command, capitalizationReversalCommand)).StatusCode);
+        }
+        await using (var db = Open(opts, tenantId, makerId))
+        {
+            var finance = AssetFinance(db, tenantId, makerId);
+            var replay = await finance.RequestCapitalizationReversalAsync(
+                command, capitalizationReversalCommand);
+            Assert.True(replay.Success, replay.Message);
+            Assert.Equal(unwindReference, replay.Data!.FinanceReversalReference);
+            Assert.Equal(409, (await finance.RequestCapitalizationReversalAsync(
+                command, new AssetReversalRequest
+                {
+                    ClientRequestId = capitalizationReversalCommand.ClientRequestId,
+                    OriginalRowVersion = capitalizationReversalCommand.OriginalRowVersion,
+                    AccountingPeriodId = capitalizationReversalCommand.AccountingPeriodId,
+                    ReversalDate = capitalizationReversalCommand.ReversalDate,
+                    Reason = "Changed reversal reason must not reuse the same command key"
+                })).StatusCode);
+            Assert.Single(await db.Journals.AsNoTracking().Where(x =>
+                x.SourceType == "AssetCapitalizationReversal" &&
+                x.PublicId == unwindReference && x.State == JournalState.Posted).ToListAsync());
         }
     }
 }

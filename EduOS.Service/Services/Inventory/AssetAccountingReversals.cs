@@ -123,20 +123,57 @@ public sealed partial class AssetAccountingService
         try
         {
             await using var tx = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct);
-            var source = await EventSourceAsync(kind, eventId, ct);
-            if (source == null || !await CampusAllowedAsync(source.Book.CampusId, ct))
-                return Conflict<AssetAccountingEventDto>("Asset event not found.", 404);
+            // Resolve the idempotency key before reading a source event: an approved
+            // depreciation/disposal correction intentionally tombstones its source line.
+            // The immutable original journal is the authoritative source/campus link.
             var replay = await db.Journals.AsNoTracking().FirstOrDefaultAsync(x =>
                 x.TenantId == user.TenantId && x.IdempotencyKey == request.ClientRequestId, ct);
             if (replay != null)
-                return replay.SourceType == "Asset" + kind + "Reversal" &&
-                    replay.SourceId == eventId && replay.ReversalOfJournalId == source.JournalId &&
-                    replay.AccountingPeriodId == request.AccountingPeriodId &&
-                    replay.JournalDate == request.ReversalDate &&
-                    replay.Description == request.Reason.Trim()
-                    ? ApiResponse<AssetAccountingEventDto>.SuccessResponse(
-                        await ReversalMapAsync(kind, eventId, replay, ct))
-                    : Conflict<AssetAccountingEventDto>("Reversal key already belongs to another event.");
+            {
+                if (!await CampusAllowedAsync(replay.CampusId, ct))
+                    return Conflict<AssetAccountingEventDto>("Asset event not found.", 404);
+                var original = replay.ReversalOfJournalId.HasValue
+                    ? await db.Journals.AsNoTracking().FirstOrDefaultAsync(x =>
+                        x.TenantId == user.TenantId && x.Id == replay.ReversalOfJournalId.Value &&
+                        x.SourceType == "Asset" + kind && x.SourceId == eventId &&
+                        x.CampusId == replay.CampusId && x.State == JournalState.Posted &&
+                        !x.IsDeleted, ct)
+                    : null;
+                if (replay.IsDeleted || replay.CreatedBy != user.UserId ||
+                    replay.SourceType != "Asset" + kind + "Reversal" ||
+                    replay.SourceId != eventId || original == null ||
+                    replay.AccountingPeriodId != request.AccountingPeriodId ||
+                    replay.JournalDate != request.ReversalDate ||
+                    replay.Description != request.Reason.Trim() ||
+                    replay.CurrencyCode != "BDT" ||
+                    replay.State is not (JournalState.Submitted or JournalState.Posted or JournalState.Rejected))
+                    return Conflict<AssetAccountingEventDto>("Reversal key already belongs to another event.");
+                var sourceForReadback = await EventSourceAsync(kind, eventId, ct);
+                // A posted disposal/depreciation can no longer be projected through
+                // its tombstoned source. Return only verified journal identity/status,
+                // never a fabricated asset valuation or a second posting.
+                var result = sourceForReadback == null
+                    ? new AssetAccountingEventDto
+                    {
+                        Kind = kind, Id = eventId,
+                        ClientRequestId = original.IdempotencyKey ?? Guid.Empty,
+                        State = replay.State == JournalState.Posted ? "Reversed" : "Posted",
+                        EffectiveDate = original.JournalDate,
+                        JournalReference = original.PublicId,
+                        ReversalJournalReference = replay.PublicId,
+                        MakerId = replay.CreatedBy, ReviewerId = replay.ApprovedByUserId,
+                        PendingReversalReference = replay.State == JournalState.Submitted
+                            ? replay.PublicId : null,
+                        PendingReversalRowVersion = replay.State == JournalState.Submitted
+                            ? Convert.ToBase64String(replay.RowVersion) : null
+                    }
+                    : await ReversalMapAsync(kind, eventId, replay, ct);
+                return ApiResponse<AssetAccountingEventDto>.SuccessResponse(result,
+                    "Existing Asset Finance reversal returned.");
+            }
+            var source = await EventSourceAsync(kind, eventId, ct);
+            if (source == null || !await CampusAllowedAsync(source.Book.CampusId, ct))
+                return Conflict<AssetAccountingEventDto>("Asset event not found.", 404);
             if (source.State != "Posted" || source.ReversalJournalId.HasValue ||
                 !Version(source.RowVersion, request.OriginalRowVersion) ||
                 request.ReversalDate < source.Date || request.ReversalDate > Today ||

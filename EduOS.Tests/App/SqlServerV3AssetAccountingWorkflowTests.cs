@@ -245,20 +245,26 @@ public sealed partial class SqlServerV3ProcurementPurchaseOrderTests
             Assert.Equal(1175m, lines.Single(x => x.CreditAmount == 1175m).CreditAmount);
         }
         Guid reversalReference; string reversalVersion;
+        AssetReversalRequest disposalReversalCommand;
         await using (var db = Open(opts, tenantId, makerId))
         {
             var statement = (await AssetFinance(db, tenantId, makerId).StatementAsync(assetReference)).Data!;
             var source = Assert.Single(statement.Events.Where(x => x.Kind == "Disposal"));
+            disposalReversalCommand = new AssetReversalRequest
+            {
+                ClientRequestId = Guid.NewGuid(), OriginalRowVersion = source.RowVersion,
+                AccountingPeriodId = periodId, ReversalDate = today,
+                Reason = "Independent correction of erroneous asset disposal evidence"
+            };
             var reverse = await AssetFinance(db, tenantId, makerId).RequestEventReversalAsync(
-                "Disposal", disposalId, new AssetReversalRequest
-                {
-                    ClientRequestId = Guid.NewGuid(), OriginalRowVersion = source.RowVersion,
-                    AccountingPeriodId = periodId, ReversalDate = today,
-                    Reason = "Independent correction of erroneous asset disposal evidence"
-                });
+                "Disposal", disposalId, disposalReversalCommand);
             Assert.True(reverse.Success, reverse.Message);
             reversalReference = reverse.Data!.PendingReversalReference!.Value;
             reversalVersion = reverse.Data.PendingReversalRowVersion!;
+            var pendingReplay = await AssetFinance(db, tenantId, makerId)
+                .RequestEventReversalAsync("Disposal", disposalId, disposalReversalCommand);
+            Assert.True(pendingReplay.Success, pendingReplay.Message);
+            Assert.Equal(reversalReference, pendingReplay.Data!.PendingReversalReference);
         }
         await using (var db = Open(opts, tenantId, checkerId))
         {
@@ -282,6 +288,29 @@ public sealed partial class SqlServerV3ProcurementPurchaseOrderTests
             }
             Assert.Equal(1075m, (await AssetFinance(db, tenantId, checkerId).StatementAsync(
                 assetReference)).Data!.CarryingValue);
+            Assert.Equal(409, (await AssetFinance(db, tenantId, checkerId)
+                .RequestEventReversalAsync("Disposal", disposalId, disposalReversalCommand)).StatusCode);
+        }
+        await using (var db = Open(opts, tenantId, makerId))
+        {
+            var finance = AssetFinance(db, tenantId, makerId);
+            var postedReplay = await finance.RequestEventReversalAsync(
+                "Disposal", disposalId, disposalReversalCommand);
+            Assert.True(postedReplay.Success, postedReplay.Message);
+            Assert.Equal("Reversed", postedReplay.Data!.State);
+            Assert.Equal(reversalReference, postedReplay.Data.ReversalJournalReference);
+            Assert.Equal(409, (await finance.RequestEventReversalAsync(
+                "Disposal", disposalId, new AssetReversalRequest
+                {
+                    ClientRequestId = disposalReversalCommand.ClientRequestId,
+                    OriginalRowVersion = disposalReversalCommand.OriginalRowVersion,
+                    AccountingPeriodId = disposalReversalCommand.AccountingPeriodId,
+                    ReversalDate = disposalReversalCommand.ReversalDate,
+                    Reason = "Changed reason must never claim the posted reversal key"
+                })).StatusCode);
+            Assert.Single(await db.Journals.AsNoTracking().Where(x =>
+                x.SourceType == "AssetDisposalReversal" &&
+                x.PublicId == reversalReference && x.State == JournalState.Posted).ToListAsync());
         }
     }
 }

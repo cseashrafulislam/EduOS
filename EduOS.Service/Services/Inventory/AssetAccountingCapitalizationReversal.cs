@@ -83,7 +83,10 @@ public sealed partial class AssetAccountingService
             var prior = await db.Journals.AsNoTracking().FirstOrDefaultAsync(x =>
                 x.TenantId == user.TenantId && x.IdempotencyKey == request.ClientRequestId, ct);
             if (prior != null)
-                return !prior.IsDeleted && prior.SourceType == CapReversalSource &&
+                return !prior.IsDeleted && prior.CreatedBy == user.UserId &&
+                    prior.CampusId == command.CampusId && prior.CurrencyCode == "BDT" &&
+                    prior.State is (JournalState.Submitted or JournalState.Posted or JournalState.Rejected) &&
+                    prior.SourceType == CapReversalSource &&
                     prior.SourceId == command.Id && prior.ReversalOfJournalId == command.JournalId &&
                     prior.AccountingPeriodId == request.AccountingPeriodId &&
                     prior.JournalDate == request.ReversalDate && prior.Description == request.Reason.Trim()
