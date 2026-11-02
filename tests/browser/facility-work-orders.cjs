@@ -15,7 +15,7 @@ const record = { id: 7, campusId: 12, facilitySpaceId: 5, summary: 'Broken light
     workOrderId: 17, workOrderState: 'Approved', workOrderRowVersion: 'AQIDBA==', rowVersion: 'AQIDBA==' };
 const ok = data => ({ success: true, data });
 const deferred = () => { let resolve; const promise = new Promise(r => { resolve = r; }); return { promise, resolve }; };
-function html(bn, manager) {
+function html(bn, manager, approver = false) {
     const a = view.indexOf('<section class="container-fluid py-3" id="facilityWorkflow"');
     const b = view.indexOf('@section Scripts', a);
     assert(a >= 0 && b > a, 'Facility Work Orders Razor view contract changed');
@@ -26,7 +26,7 @@ function html(bn, manager) {
     // The synthetic fixture must honor Razor's manager-only vendor panel.
     h = h.replace(/@if \(manager\)\s*\{([\s\S]*?)\n\s*\}/g,
         (_, block) => manager ? block : '');
-    h = h.replace(/@approver\.ToString\(\)\.ToLowerInvariant\(\)/g, 'false');
+    h = h.replace(/@approver\.ToString\(\)\.ToLowerInvariant\(\)/g, String(approver));
     h = h.replace(/@technician\.ToString\(\)\.ToLowerInvariant\(\)/g, 'false');
     h = h.replace(/@\(\s*User\.FindFirst\([\s\S]*?\?\.Value\)/g, '3');
     assert(!/@\(bn \?|@manager\.|@technician\.|@approver\./.test(h), 'Unprocessed Razor expression');
@@ -36,11 +36,13 @@ function html(bn, manager) {
         '<body data-auth-session-reference="' + 'A'.repeat(64) + '" data-auth-tenant-id="12">' +
         '<div id="eduosSessionShield" hidden></div>' + h + '</body></html>';
 }
-async function setup(browser, bn = false, manager = true, mobile = false) {
+async function setup(browser, bn = false, manager = true, mobile = false,
+    approver = false, visibleRecord = record) {
     const context = await browser.newContext({ viewport: mobile ? { width: 390, height: 844 } : { width: 1280, height: 800 } });
     const page = await context.newPage();
     const state = { calls: [], errors: [], delayed: null, started: null,
-        revoked: false, emptyAfterPost: false, empty: false, locationDelayed: null, locationStarted: null };
+        revoked: false, emptyAfterPost: false, empty: false, locationDelayed: null, locationStarted: null,
+        visibleRecord };
     page.on('pageerror', error => state.errors.push(error.message));
     await page.addInitScript(() => {
         window.EduOSSessionTransitionPending = () => false;
@@ -54,7 +56,7 @@ async function setup(browser, bn = false, manager = true, mobile = false) {
     await page.route('http://localhost/**', async route => {
         const request = route.request(), url = new URL(request.url());
         if (!url.pathname.startsWith('/api/'))
-            return route.fulfill({ contentType: 'text/html', body: html(bn, manager) });
+            return route.fulfill({ contentType: 'text/html', body: html(bn, manager, approver) });
         state.calls.push({ url: url.pathname + url.search, method: request.method(),
             body: request.method() === 'POST' ? request.postDataJSON() : null });
         assert(url.pathname.startsWith('/api/facilities/work-orders'), 'Unexpected endpoint ' + url.pathname);
@@ -63,7 +65,7 @@ async function setup(browser, bn = false, manager = true, mobile = false) {
             body: JSON.stringify({ success: false, message: 'Campus access revoked' }) });
         if (request.method() !== 'GET') {
             if (state.emptyAfterPost) state.empty = true;
-            return reply(record);
+            return reply(state.visibleRecord);
         }
         if (url.pathname.endsWith('/vendors')) {
             assert.equal(url.searchParams.get('campusId'), '12');
@@ -97,7 +99,7 @@ async function setup(browser, bn = false, manager = true, mobile = false) {
             state.started.resolve();
             await state.delayed.promise;
         }
-        return reply({ items: state.empty ? [] : [record], totalPages: 1 });
+        return reply({ items: state.empty ? [] : [state.visibleRecord], totalPages: 1 });
     });
     await page.goto('http://localhost/FacilityWorkOrders/Index');
     await page.addStyleTag({ path: bootstrap });
@@ -191,6 +193,42 @@ async function vendorPreview(browser) {
         assert.equal(await page.locator('#wfVendorPanel').isVisible(), false);
         assert.deepEqual(state.errors, []);
     } finally { await context.close(); }
+}
+async function vendorIndependentApproval(browser) {
+    const proposed = { ...record, vendorSupplierId: 9, vendorStateCode: 'Proposed',
+        vendorProposedByUserId: 4, vendorStartUtc: new Date(Date.now() + 86400000).toISOString(),
+        vendorEndUtc: new Date(Date.now() + 90000000).toISOString() };
+    const { context, page, state } = await setup(browser, false, false, false, true, proposed);
+    try {
+        await page.locator('#wfRows button').click();
+        assert.equal(await page.locator('#wfVendorPanel').count(), 0,
+            'approver must not receive manager-only vendor discovery');
+        await page.locator('#wfAction').selectOption('vendorapprove');
+        await page.locator('#wfNote').fill('Independent approval after supplier and overlap checks.');
+        const posted = page.waitForResponse(response =>
+            response.request().method() === 'POST' &&
+            response.url().endsWith('/vendorapprove'));
+        await page.locator('#wfTransition button[type="submit"]').click();
+        await posted;
+        const approvals = state.calls.filter(c => c.method === 'POST' &&
+            c.url.endsWith('/vendorapprove'));
+        assert.equal(approvals.length, 1);
+        assert.equal(approvals[0].body.vendorSupplierId, null);
+        assert.equal(approvals[0].body.vendorStartUtc, null);
+        assert.equal(approvals[0].body.vendorEndUtc, null);
+        assert.equal(state.calls.some(c => /inventory|finance/i.test(c.url)), false);
+        assert.deepEqual(state.errors, []);
+    } finally { await context.close(); }
+
+    const selfProposed = { ...proposed, vendorProposedByUserId: 3 };
+    const own = await setup(browser, true, false, true, true, selfProposed);
+    try {
+        await own.page.locator('#wfRows button').click();
+        assert.doesNotMatch(await own.page.locator('#wfAction').innerText(),
+            /Approve vendor booking|সরবরাহকারী বুকিং অনুমোদন/,
+            'the proposal maker must not receive an approval control');
+        assert.deepEqual(own.state.errors, []);
+    } finally { await own.context.close(); }
 }
 async function requesterLocationPicker(browser) {
     const { context, page, state } = await setup(browser, true, false, true);
@@ -298,9 +336,10 @@ async function selectionAfterTransition(browser) {
         await mobileBangla(browser);
         await requesterLocationPicker(browser);
         await vendorPreview(browser);
+        await vendorIndependentApproval(browser);
         await availabilityRecheck(browser);
         await revokedCampus(browser);
         await selectionAfterTransition(browser);
-        console.log('Facility Work Orders Chromium PASS: bilingual mobile/desktop, conflict-aware availability, authorized location picker, approved vendor proposal, stale search, revocation and stale selection; synthetic API/session only.');
+        console.log('Facility Work Orders Chromium PASS: bilingual mobile/desktop, conflict-aware availability, authorized location picker, approved vendor proposal and independent approval, stale search, revocation and stale selection; synthetic API/session only.');
     } finally { await browser.close(); }
 })().catch(error => { console.error(error); process.exitCode = 1; });
