@@ -1099,6 +1099,7 @@ public sealed partial class SqlServerV3ProcurementPurchaseOrderTests
             }
             Guid capitalizationReference;
             string capitalizationVersion;
+            CreateAssetCapitalizationRequest? httpReplayCommand = null;
             await using (var assetMaker=Open(options,tenantId,makerId))
             {
                 var finance=AssetFinance(assetMaker,tenantId,makerId);
@@ -1124,6 +1125,7 @@ public sealed partial class SqlServerV3ProcurementPurchaseOrderTests
                     DisposalLossAccountId=capitalizationAccounts[6],
                     Reason="Independent serialized unit and source-linked supplier GL reconciliation"
                 };
+                httpReplayCommand=request;
                 var submitted=await finance.RequestCapitalizationAsync(assetReference,request);
                 Assert.True(submitted.Success,submitted.Message);
                 Assert.Equal(10m,submitted.Data!.ProposedCostBasis);
@@ -1214,6 +1216,12 @@ public sealed partial class SqlServerV3ProcurementPurchaseOrderTests
                         new ReviewAssetCapitalizationRequest {RowVersion=capitalizationVersion,
                             Approve=true,Reason="Repeat must not create a second stock or GL posting"})).StatusCode);
             }
+
+            // SQL-backed ASP.NET route, module, campus, tenant and antiforgery acceptance
+            // on the same persisted PO/receipt/invoice/asset/Finance evidence.
+            await VerifySqlBackedSupplierAssetHttpAsync(options,tenantId,makerId,
+                second.Reference,assetReference,httpReplayCommand
+                ?? throw new InvalidOperationException("Capitalization replay evidence missing."));
 
             // Competing different asset registrations claim the same receipt ordinal.
             // The existing original asset has already consumed ordinal 1; these two
