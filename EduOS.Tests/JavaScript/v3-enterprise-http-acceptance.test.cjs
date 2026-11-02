@@ -469,3 +469,59 @@ test('private register acceptance rejects no-cache-only and contradictory public
     };
     assert.equal((await runAcceptance(config, accepted)).errors, 0);
 });
+
+test('denied foreign detail cannot carry source data, even with HTTP 404', async () => {
+    const { runAcceptance } = await import(source);
+    const baseline = fakeFetch();
+    const wrap = body => async (url, options) => {
+        if (options.headers.Cookie === 'b-session' &&
+            new URL(url).pathname.endsWith('/' + stock))
+            return new Response(JSON.stringify(body), { status: 404, headers: {
+                'content-type': 'application/json', 'cache-control': 'no-store'
+            } });
+        return baseline(url, options);
+    };
+    await assert.rejects(runAcceptance(config, wrap({
+        success: false, data: { movementReference: stock }
+    })), /Denied response contained private evidence/);
+    await assert.rejects(runAcceptance(config, wrap({
+        success: false, data: null, message: 'Not found: ' + stock
+    })), /Denied response exposed private reference/);
+});
+
+test('denied CSV must not expose a private reference or permit caching', async () => {
+    const { runAcceptance } = await import(source);
+    const baseline = fakeFetch();
+    const wrap = (body, cache) => async (url, options) => {
+        if (options.headers.Cookie === 'b-session' &&
+            new URL(url).pathname.endsWith('/' + stock + '/csv'))
+            return new Response(body, { status: 404, headers: {
+                'content-type': 'text/csv', 'cache-control': cache
+            } });
+        return baseline(url, options);
+    };
+    await assert.rejects(runAcceptance(config,
+        wrap('Evidence,Reference\\nStock,' + stock, 'no-store')),
+        /Denied response exposed private reference/);
+    await assert.rejects(runAcceptance(config, wrap('', 'public, max-age=60')),
+        /Private response must not be cached/);
+});
+
+test('restricted-role denial rejects evidence-bearing payloads and unsafe cache', async () => {
+    const { runAcceptance } = await import(source);
+    const baseline = fakeFetch();
+    const extended = { ...config, restricted: 'restricted-session' };
+    const wrap = (body, cache) => async (url, options) => {
+        if (options.headers.Cookie === 'restricted-session')
+            return new Response(JSON.stringify(body), { status: 403, headers: {
+                'content-type': 'application/json', 'cache-control': cache
+            } });
+        return baseline(url, options);
+    };
+    await assert.rejects(runAcceptance(extended, wrap({
+        success: false, data: { items: [{ reference: stock }] }
+    }, 'no-store')), /Denied response contained private evidence/);
+    await assert.rejects(runAcceptance(extended, wrap({
+        success: false, data: null
+    }, 'no-cache')), /Private response must not be cached/);
+});

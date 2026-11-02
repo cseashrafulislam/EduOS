@@ -196,6 +196,23 @@ export async function runAcceptance(config, fetcher = fetch) {
         concurrency >= 2 && concurrency <= 16,
         'Mixed-tenant replay requires every scenario and at least two workers.');
     const noStore = result => assertPrivateCache(result.cache);
+    // A denied status alone is not privacy proof: an error payload or cache
+    // can still disclose a private register/detail to a foreign session.
+    // Only fixed failure labels reach CLI output; never echo response bodies.
+    const assertDenied = (result, message, allowed = [403, 404], privateRefs = []) => {
+        check(allowed.includes(result.status), message);
+        noStore(result);
+        const body = result.body;
+        if (body && typeof body === 'object')
+            check(body.success !== true && body.Success !== true &&
+                body.data == null && body.Data == null &&
+                body.items == null && body.journals == null,
+                'Denied response contained private evidence.');
+        const serialized = (typeof body === 'string' ? body :
+            JSON.stringify(body ?? '')).toLowerCase();
+        check(privateRefs.every(ref => !serialized.includes(String(ref).toLowerCase())),
+            'Denied response exposed private reference.');
+    };
     const references = csv => {
         const parsed = parseCsv(csv);
         return parsed.rows.map(row => row[parsed.referenceIndex].toLowerCase());
@@ -207,7 +224,9 @@ export async function runAcceptance(config, fetcher = fetch) {
             'Authorized detail not available.');
         noStore(own);
         const foreign = await read(b, path);
-        check([403, 404].includes(foreign.status), 'Cross-tenant detail disclosed.');
+        const privateRefs = [reference, ...(own.body.data.journals || [])
+            .map(j => j.reference)].filter(Boolean);
+        assertDenied(foreign, 'Cross-tenant detail disclosed.', [403, 404], privateRefs);
         const ownCsv = await read(a, path + '/csv');
         check(ownCsv.status === 200 && ownCsv.type.includes('text/csv'),
             'Authorized CSV missing expected evidence.');
@@ -219,7 +238,7 @@ export async function runAcceptance(config, fetcher = fetch) {
             actual.every((value, index) => value === expected[index]),
             'Detail CSV and JSON evidence disagree.');
         const foreignCsv = await read(b, path + '/csv');
-        check([403, 404].includes(foreignCsv.status), 'Cross-tenant CSV disclosed.');
+        assertDenied(foreignCsv, 'Cross-tenant CSV disclosed.', [403, 404], privateRefs);
         return own.body.data;
     };
     const stockData = await assertPrivate(API + '/' + stock, stock);
@@ -328,7 +347,8 @@ export async function runAcceptance(config, fetcher = fetch) {
             API + '/' + stock + '/csv',
             API + '/register/csv?' + new URLSearchParams({ kind: 'asset', from, to })]) {
             const result = await read(restricted, path);
-            check(result.status === 403, 'Restricted role accessed enterprise evidence.');
+            assertDenied(result, 'Restricted role accessed enterprise evidence.',
+                [403], [stock, asset, procurement].filter(Boolean));
         }
     }
     if (assetCampus && otherCampus) {
@@ -344,8 +364,8 @@ export async function runAcceptance(config, fetcher = fetch) {
                 x.reference.toLowerCase() === asset.toLowerCase()),
             'Asset campus filter exposed or hid the seeded asset run.');
         const foreignCampus = await read(b, campusQuery(assetCampus));
-        check([403, 404].includes(foreignCampus.status),
-            'Foreign tenant accepted another tenant campus ID.');
+        assertDenied(foreignCampus, 'Foreign tenant accepted another tenant campus ID.',
+            [403, 404], [asset]);
     }
     const samples = [];
     const paths = [
@@ -392,8 +412,8 @@ export async function runAcceptance(config, fetcher = fetch) {
             // tenant switching, not merely on the initial baseline reads.
             noStore(result);
             if (probe.foreignDetail)
-                check([403, 404].includes(result.status),
-                    'Concurrent cross-tenant detail disclosed.');
+                assertDenied(result, 'Concurrent cross-tenant detail disclosed.',
+                    [403, 404], [stock, asset, procurement].filter(Boolean));
             else if (probe.foreignRegister) {
                 const data = result.body?.data;
                 const ownerRefs = ownerFirstPageReferences.get(probe.foreignRegister);

@@ -383,4 +383,10 @@ The existing FacilityWorkOrders workflow now supports independent verifier **Ret
 - **Evidence gate:** the final Ashraful code SHA must have independently verified Application CI and disposable SQL results; authenticated SQL-backed Chromium, representative p95/p99, historical private security triage and full PO→stock→asset→facility→Finance posting/reversal remain separate unproven requirements in [#108](https://github.com/cseashrafulislam/EduOS/issues/108).
 
 
+### Independent QA #108 — denied-response privacy/cache integrity
+
+- The read-only enterprise HTTP acceptance now treats **403/404 responses as private evidence**: denied detail/CSV, restricted-role, foreign-campus and concurrent foreign-detail responses require `no-store`, no success/data payload and no echoed owner reference. Status-only denial is insufficient to prove absence of an IDOR/privacy leak. Error messages remain fixed and do not print private payloads.
+- Synthetic Node regressions cover HTTP 404 with a hidden successful data object, owner UUID in an error string or CSV body, unsafe cache on denied CSV and restricted-role 403 carrying evidence. This is QA harness hardening only, not proof of a production disclosure.
+- **Evidence gate:** exact-final-SHA Application CI and disposable SQL conclusions must be inspected. Authenticated SQL-backed multi-tenant Chromium, representative p95/p99, full PO→Facility→Finance posting/reversal and historical private security review remain **NOT PROVEN**; institutional UAT is excluded.
+
 **Task 3 Finance student-ledger read isolation (2026-11-02):** Existing ledger search, invoice/receipt paging and allocation-audit reads now cancel and generation-guard stale responses when the selected student or page changes; previous financial data and cash collection controls clear immediately. Payment preflight cannot continue to POST after selection/invoice change. Added synthetic GET-only desktop/mobile Chromium and Node contract regression; no Finance GL, payment service, migration or tenant data changes. See UI §9.49. Verify exact-final-SHA CI/SQL/Chromium; authenticated SQL-backed browser and institute UAT remain NOT RUN.
