@@ -711,6 +711,68 @@ public sealed partial class SqlServerV3ProcurementPurchaseOrderTests
                 x.State==JournalState.Posted));
             Assert.Equal(403,(await new V3EnterpriseSupplierPayableTraceService(
                 verify,new ReadOnlyActor(tenantId,makerId)).GetAsync(second.Reference)).StatusCode);
+            // Two DIFFERENT maker instructions compete for the same BDT 18 unreserved AP.
+            // Each BDT 12 request is valid alone, but both must never reserve BDT 24.
+            // This is distinct from racing confirmation of one already approved journal.
+            string reservationInvoiceVersion;
+            await using (var reservationReader=Open(options,tenantId,makerId))
+                reservationInvoiceVersion=(await Invoices(reservationReader,tenantId,makerId)
+                    .GetAsync(second.Reference)).Data!.RowVersion;
+            var reservationKeys=new[] {Guid.NewGuid(),Guid.NewGuid()};
+            var reservationAttempts=await Task.WhenAll(reservationKeys.Select(async key =>
+            {
+                await using var competingMaker=Open(options,tenantId,makerId);
+                return await Invoices(competingMaker,tenantId,makerId).RequestSettlementAsync(
+                    second.Reference,new CreateSupplierSettlementInstructionRequest {
+                        ClientRequestId=key,InvoiceRowVersion=reservationInvoiceVersion,
+                        BankAccountId=bankId,AccountingPeriodId=periodId,PlannedDate=date,
+                        Amount=12m,Reason="Competing source-linked supplier payable reservation"
+                    });
+            }));
+            var acceptedReservation=Assert.Single(reservationAttempts,x=>x.Success);
+            Assert.Single(reservationAttempts,x=>x.StatusCode==409);
+            var rejectedReservationKey=reservationKeys[reservationAttempts[0].Success?1:0];
+            // Open AFTER parallel tasks: ambient tenant identity in the SQL fixture
+            // must be refreshed before auditing a new DbContext.
+            await using (var reservationVerifier=Open(options,tenantId,makerId))
+            {
+                var reservationService=Invoices(reservationVerifier,tenantId,makerId);
+                var winningJournal=await reservationVerifier.Journals.AsNoTracking()
+                    .SingleAsync(x=>x.PublicId==acceptedReservation.Data!.Reference);
+                Assert.Equal(JournalState.Submitted,winningJournal.State);
+                Assert.Null(winningJournal.PostedAt);
+                Assert.False(await reservationVerifier.Journals.AsNoTracking()
+                    .AnyAsync(x=>x.IdempotencyKey==rejectedReservationKey));
+                Assert.Equal(1,await reservationVerifier.Journals.AsNoTracking()
+                    .CountAsync(x=>x.SourceType==winningJournal.SourceType &&
+                        x.SourceId==winningJournal.SourceId && x.State==JournalState.Submitted));
+                Assert.Equal(0,await reservationVerifier.Journals.AsNoTracking()
+                    .CountAsync(x=>x.SourceType==winningJournal.SourceType &&
+                        x.SourceId==winningJournal.SourceId && x.State==JournalState.Posted));
+                var reserved=(await reservationService.SettlementOptionsAsync(second.Reference)).Data!;
+                Assert.Equal(12m,reserved.ReservedAmount);
+                Assert.Equal(6m,reserved.AvailableAmount);
+                var withdraw=await reservationService.WithdrawSettlementAsync(
+                    second.Reference,acceptedReservation.Data.Reference,
+                    new WithdrawSupplierSettlementInstructionRequest {
+                        ClientRequestId=Guid.NewGuid(),
+                        RowVersion=acceptedReservation.Data.RowVersion,
+                        Reason="Concurrent reservation test release without bank execution"
+                    });
+                Assert.True(withdraw.Success,withdraw.Message);
+                Assert.Equal("Rejected",withdraw.Data!.State);
+                var released=(await reservationService.SettlementOptionsAsync(second.Reference)).Data!;
+                Assert.Equal(0m,released.ReservedAmount);
+                Assert.Equal(18m,released.AvailableAmount);
+                Assert.Equal(0,await reservationVerifier.Journals.AsNoTracking()
+                    .CountAsync(x=>x.SourceType==winningJournal.SourceType &&
+                        x.SourceId==winningJournal.SourceId && x.State==JournalState.Posted));
+                var trace=await new V3EnterpriseSupplierPayableTraceService(
+                    reservationVerifier,new Actor(tenantId,makerId)).GetAsync(second.Reference);
+                Assert.True(trace.Success,trace.Message);
+                Assert.Equal(0m,trace.Data!.SettlementReservedAmount);
+                Assert.Equal(18m,trace.Data.SourceLinkedOutstandingAmount);
+            }
             // Source-linked actual GL settlement: an independent reviewer first approves,
             // then an externally confirmed bank transaction posts the same canonical journal.
             // The source campus inherits Asia/Dhaka from its institution. At 17:59 UTC
