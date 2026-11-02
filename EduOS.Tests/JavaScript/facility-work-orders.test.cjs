@@ -107,7 +107,7 @@ test('scheduled work can be released by manager with a reason and rowversion', (
     assert.match(script, /Release schedule/);
     assert.match(script, /সময়সূচি বাতিল/);
     assert.match(script, /el\('wfNote'\)\.required = rescheduling \|\|/);
-    assert.match(script, /action === 'unschedule' \? 5 : 0/);
+    assert.match(script, /action === 'unschedule' \? 5 : action\.startsWith\('vendor'\) \? 10 : 0/);
     assert.match(script, /selected\.workOrderRowVersion/);
 });
 
