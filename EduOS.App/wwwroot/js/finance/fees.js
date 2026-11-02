@@ -10,16 +10,38 @@ const t=(en,bd)=>bn?bd:en;
 const pageLabel=(p,n)=>t('Page ','পৃষ্ঠা ')+p+t(' of ',' / ')+n;
 const token=document.querySelector('meta[name="request-verification-token"]')?.content;
 const state={options:null,student:null,invoice:null,invoicePage:1,receiptPage:1,invoicePages:1,receiptPages:1,createKey:null,createId:null,generateKey:null,generateId:null,paymentKey:null,paymentId:null,editingStructure:null,structurePage:1,structurePages:1,auditInvoice:null,auditPage:1,auditPages:1,auditData:null};
+// Read-only finance responses are scoped to the currently selected student and page.
+// Abort is an optimization; generation checks remain mandatory if a response races abort.
+const readSlots={search:null,ledger:null,invoice:null,receipt:null,audit:null};
+function cancelRead(kind){if(readSlots[kind])readSlots[kind].abort();readSlots[kind]=null;}
+function beginRead(kind){cancelRead(kind);const controller=new AbortController();readSlots[kind]=controller;return controller;}
+function isCurrent(kind,controller){return readSlots[kind]===controller&&!controller.signal.aborted;}
+function resetLedgerView(){
+ for(const kind of ['ledger','invoice','receipt','audit'])cancelRead(kind);
+ state.student=null;state.invoice=null;state.invoicePage=1;state.receiptPage=1;
+ state.invoicePages=1;state.receiptPages=1;state.auditInvoice=null;state.auditData=null;
+ state.auditPage=1;state.auditPages=1;clear('payment');
+ e('feePaymentPanel').classList.add('d-none');
+ e('feeLedgerSummary').textContent=t('No ledger loaded.','কোনো লেজার লোড হয়নি।');
+ empty('feeInvoices',7,t('Select a student.','একজন শিক্ষার্থী বাছুন।'));
+ empty('feeReceipts',6,t('Select a student.','একজন শিক্ষার্থী বাছুন।'));
+ for(const kind of ['Invoice','Receipt']){e('fee'+kind+'Page').textContent='—';e('fee'+kind+'Prev').disabled=true;e('fee'+kind+'Next').disabled=true;}
+ if(e('feeAllocationAudit')){
+  e('feeAllocationAudit').classList.add('d-none');e('feeAuditRows').replaceChildren();
+  e('feeAuditSummary').textContent='';e('feeAuditPage').textContent='';
+  for(const id of ['feeAuditCsv','feeAuditPrev','feeAuditNext'])e(id).disabled=true;
+ }
+}
 const today=()=>{const d=new Date();return [d.getFullYear(),String(d.getMonth()+1).padStart(2,'0'),String(d.getDate()).padStart(2,'0')].join('-');};
 const dt=x=>x?String(x).slice(0,10):'',amount=x=>Number(x).toFixed(2);
 const option=(v,t)=>{const o=document.createElement('option');o.value=String(v);o.textContent=t;return o;};
 const cell=x=>{const t=document.createElement('td');t.textContent=x==null?'':String(x);return t;};
 function alert(type,msg){const a=e('feeAlert');a.className='alert alert-'+type;a.textContent=msg;a.focus();}
-async function api(path,method='GET',data){
+async function api(path,method='GET',data,signal){
  const headers={Accept:'application/json'};
  if(method!=='GET'){if(!token)throw Error(t('Antiforgery token missing. Reload the page.','নিরাপত্তা যাচাইয়ের টোকেন নেই। পৃষ্ঠাটি রিলোড করুন।'));headers.RequestVerificationToken=token;}
  if(data!==undefined)headers['Content-Type']='application/json';
- const r=await fetch(base+path,{method,credentials:'same-origin',cache:'no-store',headers,...(data===undefined?{}:{body:JSON.stringify(data)})});
+ const r=await fetch(base+path,{method,credentials:'same-origin',cache:'no-store',headers,...(signal?{signal}:{}),...(data===undefined?{}:{body:JSON.stringify(data)})});
  const x=await r.json().catch(()=>null);if(!r.ok||!x?.success)throw Error(x?.message||t('Request failed (','অনুরোধ ব্যর্থ (')+r.status+').');return x.data;
 }
 function fill(id,rows,label){const s=e(id),prev=s.value;s.replaceChildren(option('',uiLabel(label)));for(const x of rows)s.append(option(x.id,x.name));if(rows.some(x=>String(x.id)===prev))s.value=prev;}
@@ -228,30 +250,44 @@ async function generate(ev){
  catch(err){alert('danger',err.message+t(' Reload preview before retrying with the same request ID.',' একই অনুরোধ আইডি দিয়ে আবার চেষ্টা করার আগে পূর্বদর্শন রিলোড করুন।'));invalidateInvoicePreview();}
 }
 async function findStudent(){
- const s=e('feeStudentSearch').value.trim();if(s.length<2||s.length>100)return alert('warning',t('Search requires 2–100 characters.','খোঁজার জন্য ২–১০০ অক্ষর প্রয়োজন।'));
- try{const rows=await api('/students/search?search='+encodeURIComponent(s)+'&take=25');fill('feeStudent',rows.map(x=>({id:x.reference,name:x.studentCode+' — '+x.name})),'Choose student');}
- catch(err){alert('danger',err.message);}
+ const s=e('feeStudentSearch').value.trim();
+ if(s.length<2||s.length>100)return alert('warning',t('Search requires 2–100 characters.','খোঁজার জন্য ২–১০০ অক্ষর প্রয়োজন।'));
+ const request=beginRead('search');
+ try{
+  const rows=await api('/students/search?search='+encodeURIComponent(s)+'&take=25','GET',undefined,request.signal);
+  if(!isCurrent('search',request)||e('feeStudentSearch').value.trim()!==s)return;
+  fill('feeStudent',rows.map(x=>({id:x.reference,name:x.studentCode+' — '+x.name})),'Choose student');
+ }catch(err){if(isCurrent('search',request)&&err.name!=='AbortError')alert('danger',err.message);}
 }
 function empty(id,cols,msg){const tr=document.createElement('tr'),c=cell(msg);c.colSpan=cols;tr.append(c);e(id).replaceChildren(tr);}
 function pager(kind){const p=state[kind+'Page'],max=state[kind+'Pages'];e('fee'+(kind==='invoice'?'Invoice':'Receipt')+'Page').textContent=pageLabel(p,max);
  e('fee'+(kind==='invoice'?'Invoice':'Receipt')+'Prev').disabled=p<=1;e('fee'+(kind==='invoice'?'Invoice':'Receipt')+'Next').disabled=p>=max;}
 async function invoices(){
- const r=await api('/students/'+encodeURIComponent(state.student)+'/invoices?page='+state.invoicePage+'&pageSize=25');
+ const student=state.student,page=state.invoicePage,request=beginRead('invoice');
+ if(!student)return;
+ const r=await api('/students/'+encodeURIComponent(student)+'/invoices?page='+page+'&pageSize=25','GET',undefined,request.signal);
+ if(!isCurrent('invoice',request)||state.student!==student||state.invoicePage!==page||e('feeStudent').value!==student)return;
  state.invoicePages=Math.max(1,Math.ceil(r.totalCount/25));pager('invoice');e('feeInvoices').replaceChildren();
  for(const x of r.items||[]){const tr=document.createElement('tr'),action=document.createElement('td');
- if(Number(x.dueAmount)>0&&(x.state===2||x.state===3)){const b=document.createElement('button');b.type='button';b.className='btn btn-sm btn-outline-primary';b.textContent=t('Collect cash','নগদ গ্রহণ');b.onclick=()=>{state.invoice=x;clear('payment');e('feePaymentPanel').classList.remove('d-none');e('feePaymentInvoice').value=x.invoiceNumber;e('feePaymentAmount').value=amount(x.dueAmount);e('feePaymentAmount').max=x.dueAmount;};action.append(b);}
- if(e('feeAllocationAudit')){const audit=document.createElement('button');audit.type='button';audit.className='btn btn-sm btn-outline-secondary ms-1';audit.textContent=t('Receipt audit','রসিদ নিরীক্ষা');audit.onclick=()=>openAudit(x.reference).catch(err=>alert('danger',err.message));action.append(audit);}
- const view=document.createElement('a');view.className='btn btn-sm btn-outline-secondary ms-1';view.textContent=t('View / Print','দেখুন / প্রিন্ট');view.href='/FeeDocuments/Invoice?studentReference='+encodeURIComponent(state.student)+'&documentReference='+encodeURIComponent(x.reference);action.append(view);
+ if(Number(x.dueAmount)>0&&(x.state===2||x.state===3)){const b=document.createElement('button');b.type='button';b.className='btn btn-sm btn-outline-primary';b.textContent=t('Collect cash','নগদ গ্রহণ');b.onclick=()=>{
+  if(state.student!==student||e('feeStudent').value!==student)return;
+  state.invoice=x;clear('payment');e('feePaymentPanel').classList.remove('d-none');
+  e('feePaymentInvoice').value=x.invoiceNumber;e('feePaymentAmount').value=amount(x.dueAmount);e('feePaymentAmount').max=x.dueAmount;
+ };action.append(b);}
+ if(e('feeAllocationAudit')){const audit=document.createElement('button');audit.type='button';audit.className='btn btn-sm btn-outline-secondary ms-1';audit.textContent=t('Receipt audit','রসিদ নিরীক্ষা');audit.onclick=()=>openAudit(x.reference).catch(err=>{if(err.name!=='AbortError'&&state.student===student)alert('danger',err.message);});action.append(audit);}
+ const view=document.createElement('a');view.className='btn btn-sm btn-outline-secondary ms-1';view.textContent=t('View / Print','দেখুন / প্রিন্ট');view.href='/FeeDocuments/Invoice?studentReference='+encodeURIComponent(student)+'&documentReference='+encodeURIComponent(x.reference);action.append(view);
  tr.append(cell(x.invoiceNumber),cell(dt(x.invoiceDate)),cell(dt(x.dueDate)),cell(amount(x.totalAmount)),cell(amount(x.paidAmount)),cell(amount(x.dueAmount)),action);e('feeInvoices').append(tr);}
  if(!e('feeInvoices').children.length)empty('feeInvoices',7,t('No invoices.','কোনো ইনভয়েস পাওয়া যায়নি।'));
 }
 async function openAudit(invoiceReference){
- if(!state.student||!e('feeAllocationAudit'))return;
+ const student=state.student;if(!student||!e('feeAllocationAudit'))return;
  if(state.auditInvoice!==invoiceReference){state.auditInvoice=invoiceReference;state.auditPage=1;}
+ const page=state.auditPage,request=beginRead('audit');
  state.auditData=null;e('feeAuditCsv').disabled=true;
- const result=await api('/students/'+encodeURIComponent(state.student)+'/invoices/'+
-  encodeURIComponent(invoiceReference)+'/allocation-audit?page='+state.auditPage+'&pageSize=25');
- if(state.auditInvoice!==invoiceReference)return;
+ const result=await api('/students/'+encodeURIComponent(student)+'/invoices/'+
+  encodeURIComponent(invoiceReference)+'/allocation-audit?page='+page+'&pageSize=25','GET',undefined,request.signal);
+ if(!isCurrent('audit',request)||state.student!==student||e('feeStudent').value!==student||
+    state.auditInvoice!==invoiceReference||state.auditPage!==page)return;
  state.auditData=result;state.auditPages=Math.max(1,Math.ceil(result.totalAllocations/25));
  e('feeAuditSummary').textContent=result.invoiceNumber+t(' — Invoice BDT ',' — ইনভয়েস টাকা ')+amount(result.invoiceTotal)+
    t('; current paid BDT ','; বর্তমান পরিশোধ টাকা ')+amount(result.currentPaid)+t('; due BDT ','; বকেয়া টাকা ')+amount(result.currentDue)+
@@ -267,10 +303,10 @@ async function openAudit(invoiceReference){
   e('feeAuditRows').append(tr);
  }
  if(!e('feeAuditRows').children.length)empty('feeAuditRows',5,t('No allocations on this page.','এই পৃষ্ঠায় কোনো বণ্টন নেই।'));
- e('feeAuditPage').textContent=pageLabel(state.auditPage,state.auditPages)+
+ e('feeAuditPage').textContent=pageLabel(page,state.auditPages)+
   ' ('+result.totalAllocations+t(' allocations)','টি বণ্টন)');
- e('feeAuditPrev').disabled=state.auditPage<=1;
- e('feeAuditNext').disabled=state.auditPage>=state.auditPages;
+ e('feeAuditPrev').disabled=page<=1;
+ e('feeAuditNext').disabled=page>=state.auditPages;
  e('feeAuditCsv').disabled=false;
  e('feeAllocationAudit').classList.remove('d-none');
 }
@@ -286,22 +322,32 @@ function exportAudit(){
  document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);
 }
 async function receipts(){
- const r=await api('/students/'+encodeURIComponent(state.student)+'/payments?page='+state.receiptPage+'&pageSize=25');
+ const student=state.student,page=state.receiptPage,request=beginRead('receipt');
+ if(!student)return;
+ const r=await api('/students/'+encodeURIComponent(student)+'/payments?page='+page+'&pageSize=25','GET',undefined,request.signal);
+ if(!isCurrent('receipt',request)||state.student!==student||state.receiptPage!==page||e('feeStudent').value!==student)return;
  state.receiptPages=Math.max(1,Math.ceil(r.totalCount/25));pager('receipt');e('feeReceipts').replaceChildren();
  for(const x of r.items||[]){const tr=document.createElement('tr'),action=document.createElement('td'),view=document.createElement('a');
- view.className='btn btn-sm btn-outline-secondary';view.textContent='View / Print';view.href='/FeeDocuments/Receipt?studentReference='+encodeURIComponent(state.student)+'&documentReference='+encodeURIComponent(x.reference);action.append(view);
+ view.className='btn btn-sm btn-outline-secondary';view.textContent=t('View / Print','দেখুন / প্রিন্ট');view.href='/FeeDocuments/Receipt?studentReference='+encodeURIComponent(student)+'&documentReference='+encodeURIComponent(x.reference);action.append(view);
  tr.append(cell(x.receiptNumber),cell(dt(x.paymentDate)),cell(amount(x.amount)),cell(x.paymentMethod===1?t('Cash','নগদ'):x.paymentMethod),cell((x.allocations||[]).map(a=>a.invoiceNumber+' ('+amount(a.amount)+')').join(', ')),action);e('feeReceipts').append(tr);}
  if(!e('feeReceipts').children.length)empty('feeReceipts',6,t('No receipts.','কোনো রসিদ পাওয়া যায়নি।'));
 }
 async function ledger(){
- const ref=e('feeStudent').value;if(!ref)return alert('warning',t('Select a student.','একজন শিক্ষার্থী বাছুন।'));
- if(state.student!==ref){if(e('feeAllocationAudit'))e('feeAllocationAudit').classList.add('d-none');state.auditInvoice=null;state.auditData=null;state.student=ref;state.invoicePage=1;state.receiptPage=1;state.invoice=null;clear('payment');e('feePaymentPanel').classList.add('d-none');}
- try{const r=await api('/students/'+encodeURIComponent(ref)+'/ledger');e('feeLedgerSummary').textContent=r.studentName+' ('+r.studentCode+')'+t(' — Gross billed: ',' — মোট বিল: ')+amount(r.totalBilled)+t(' Credit notes: ',' ক্রেডিট নোট: ')+amount(r.totalCreditNotes)+t(' Net billed: ',' নিট বিল: ')+amount(r.netBilled)+t(' Net paid: ',' নিট পরিশোধ: ')+amount(r.netPaid)+t(' Due: ',' বকেয়া: ')+amount(r.totalDue)+' BDT';await Promise.all([invoices(),receipts()]);}
- catch(err){alert('danger',err.message);}
+ const ref=e('feeStudent').value;
+ if(!ref){resetLedgerView();return alert('warning',t('Select a student.','একজন শিক্ষার্থী বাছুন।'));}
+ resetLedgerView();state.student=ref;
+ const request=beginRead('ledger');
+ try{
+  const r=await api('/students/'+encodeURIComponent(ref)+'/ledger','GET',undefined,request.signal);
+  if(!isCurrent('ledger',request)||state.student!==ref||e('feeStudent').value!==ref)return;
+  e('feeLedgerSummary').textContent=r.studentName+' ('+r.studentCode+')'+t(' — Gross billed: ',' — মোট বিল: ')+amount(r.totalBilled)+t(' Credit notes: ',' ক্রেডিট নোট: ')+amount(r.totalCreditNotes)+t(' Net billed: ',' নিট বিল: ')+amount(r.netBilled)+t(' Net paid: ',' নিট পরিশোধ: ')+amount(r.netPaid)+t(' Due: ',' বকেয়া: ')+amount(r.totalDue)+' BDT';
+  await Promise.all([invoices(),receipts()]);
+ }catch(err){if(isCurrent('ledger',request)&&err.name!=='AbortError')alert('danger',err.message);}
 }
 async function collect(ev){
  ev.preventDefault();if(!state.invoice||!ev.currentTarget.reportValidity())return;
- const raw=e('feePaymentAmount').value,paymentDate=e('feePaymentDate').value,invoice=state.invoice;
+ const raw=e('feePaymentAmount').value,paymentDate=e('feePaymentDate').value,invoice=state.invoice,student=state.student;
+ if(!student||e('feeStudent').value!==student)return alert('warning',t('Reload the selected student ledger.','নির্বাচিত শিক্ষার্থীর লেজার আবার লোড করুন।'));
  if(!/^\d+(\.\d{1,2})?$/.test(raw)||Number(raw)<=0||Number(raw)>Number(invoice.dueAmount)||paymentDate>today())return alert('danger',t('Invalid cash amount or payment date.','নগদের পরিমাণ বা পরিশোধের তারিখ সঠিক নয়।'));
  const body={paymentDate,paymentMethod:1,amount:Number(raw),bankAccountId:null,externalReference:null,allocations:[{invoiceReference:invoice.reference,amount:Number(raw)}]};
  body.clientRequestId=stable('payment',JSON.stringify(body));
@@ -310,6 +356,7 @@ async function collect(ev){
  let preview;
  try{preview=await api('/payments/preflight','POST',body);}
  catch(err){return alert('danger',err.message+t(' Reload invoice balances before retrying.',' আবার চেষ্টা করার আগে ইনভয়েসের বকেয়া রিলোড করুন।'));}
+ if(state.student!==student||e('feeStudent').value!==student||state.invoice!==invoice)return;
  if(preview.amount!==body.amount||preview.currencyCode!=='BDT'||
     preview.invoices?.length!==1||
     preview.invoices[0].invoiceReference!==invoice.reference||
@@ -318,12 +365,13 @@ async function collect(ev){
  if(!confirm((preview.alreadyRecorded?t('Retrieve existing receipt for ','বিদ্যমান রসিদ দেখুন: '):t('Record ','রসিদ নথিভুক্ত করুন: '))+
      amount(preview.amount)+t(' BDT for ',' টাকা, ইনভয়েস ')+preview.invoices[0].invoiceNumber+
      t('? Current remaining due: ','? বর্তমান অবশিষ্ট বকেয়া: ')+amount(preview.invoices[0].dueAfter)+' BDT.'))return;
+ if(state.student!==student||e('feeStudent').value!==student||state.invoice!==invoice)return;
  e('feeCollect').disabled=true;
- try{const r=await api('/payments','POST',body);clear('payment');state.invoice=null;e('feePaymentPanel').classList.add('d-none');await ledger();alert('success',t('Receipt recorded: ','রসিদ নথিভুক্ত হয়েছে: ')+r.receiptNumber);}
+ try{const r=await api('/payments','POST',body);if(state.student!==student||e('feeStudent').value!==student)return;clear('payment');state.invoice=null;e('feePaymentPanel').classList.add('d-none');await ledger();if(state.student===student)alert('success',t('Receipt recorded: ','রসিদ নথিভুক্ত হয়েছে: ')+r.receiptNumber);}
  catch(err){alert('danger',err.message+t(' Keep values unchanged for a safe retry.',' নিরাপদে আবার চেষ্টা করতে তথ্য অপরিবর্তিত রাখুন।'));}
  finally{e('feeCollect').disabled=false;}
 }
-function page(kind,delta){const next=state[kind+'Page']+delta;if(next<1||next>state[kind+'Pages'])return;state[kind+'Page']=next;(kind==='invoice'?invoices():receipts()).catch(err=>alert('danger',err.message));}
+function page(kind,delta){const next=state[kind+'Page']+delta;if(!state.student||next<1||next>state[kind+'Pages'])return;state[kind+'Page']=next;(kind==='invoice'?invoices():receipts()).catch(err=>{if(err.name!=='AbortError'&&state.student===e('feeStudent').value)alert('danger',err.message);});}
 if(e('feeStructureCloseForm')){
  e('feeCloseCancel').addEventListener('click',()=>e('feeStructureCloseForm').classList.add('d-none'));
  e('feeStructureCloseForm').addEventListener('submit',ev=>{ev.preventDefault();(async()=>{
@@ -370,16 +418,20 @@ if(activeFeature==='billing' && e('feeInvoiceForm')){
  e('feePreviewCsv').addEventListener('click',invoicePreviewCsv);
 }
 if(activeFeature==='ledger' && e('feeStudent')){
+ e('feeStudentSearch').addEventListener('input',()=>{
+  cancelRead('search');fill('feeStudent',[],'Choose student');resetLedgerView();
+ });
+ e('feeStudent').addEventListener('change',resetLedgerView);
  e('feeFindStudent').addEventListener('click',findStudent);
  e('feeLoadLedger').addEventListener('click',ledger);
  e('feePaymentForm').addEventListener('submit',collect);
  if(e('feeAllocationAudit')){
-  e('feeAuditClose').addEventListener('click',()=>e('feeAllocationAudit').classList.add('d-none'));
+  e('feeAuditClose').addEventListener('click',()=>{cancelRead('audit');state.auditInvoice=null;state.auditData=null;e('feeAuditCsv').disabled=true;e('feeAllocationAudit').classList.add('d-none');});
   e('feeAuditCsv').addEventListener('click',exportAudit);
   for(const [id,delta] of [['feeAuditPrev',-1],['feeAuditNext',1]])
    e(id).addEventListener('click',()=>{const next=state.auditPage+delta;
     if(next<1||next>state.auditPages||!state.auditInvoice)return;
-    state.auditPage=next;openAudit(state.auditInvoice).catch(err=>alert('danger',err.message));});
+    state.auditPage=next;openAudit(state.auditInvoice).catch(err=>{if(err.name!=='AbortError'&&state.student===e('feeStudent').value)alert('danger',err.message);});});
  }
  e('feeInvoicePrev').addEventListener('click',()=>page('invoice',-1));
  e('feeInvoiceNext').addEventListener('click',()=>page('invoice',1));

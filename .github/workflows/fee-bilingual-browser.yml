@@ -16,6 +16,8 @@ on:
       - 'EduOS.Tests/JavaScript/fee-navigation-workspaces.test.cjs'
       - 'tests/browser/fee-bilingual.cjs'
       - 'tests/browser/fee-document-bilingual.cjs'
+      - 'tests/browser/fee-ledger-isolation.cjs'
+      - 'EduOS.Tests/JavaScript/fee-ledger-race.test.cjs'
       - '.github/workflows/fee-bilingual-browser.yml'
   workflow_dispatch:
 permissions:
@@ -40,3 +42,4 @@ jobs:
         run: |
           node tests/browser/fee-bilingual.cjs
           node tests/browser/fee-document-bilingual.cjs
+          node tests/browser/fee-ledger-isolation.cjs
