@@ -29,6 +29,7 @@ test('denied pages cannot render privileged widgets or foreign tenant shell', ()
         '<div id="feeAgingApp"></div>',
         "<form id='brandingForm'></form>",
         '<section id="tenantUsersApp"></section>',
+        '<form id="profileForm"></form>',
         '<body data-auth-tenant-id="11"></body>',
         'x'.repeat(512 * 1024 + 1)
     ]) assert.throws(() => assertDeniedHtml(html, '11'));
@@ -60,4 +61,15 @@ test('staging Chromium checks real antiforgery session binding, help and role id
         'sessions.map(x=>x.roleCaption)', 'Distinct synthetic role accounts required',
         "assertNoStore(proof.headers,'Antiforgery readback')"
     ]) assert(browser.includes(needle), 'Missing staging acceptance: '+needle);
+});
+
+test('authenticated staging checks real read-only Profile, MFA and device APIs without logging payloads', () => {
+    const browser=fs.readFileSync(path.join(__dirname,'../../tests/browser/sidebar-role-staging.cjs'),'utf8');
+    for(const check of ['verifyProfileReadback(page,user,session,mobile)',
+        "['profile','/Account/Profile']", "'/api/auth/profile'",
+        "'/api/auth/mfa/status'", "'/api/auth/sessions'",
+        'Profile API scope drift', 'Profile API response contract mismatch',
+        "verifyContextHelp(page,'Account Profile')"])
+        assert(browser.includes(check),'Missing staging profile acceptance: '+check);
+    assert(!browser.includes('console.log(proofs)'),'Private account payload logging forbidden');
 });

@@ -29,15 +29,30 @@ function fixture(bn) {
 <script>window.EduOSVerifySessionContext=async()=>{};window.EduOSSessionTransitionPending=()=>false;<\/script>
 <script src="/js/account/profile.js"></script></body></html>`;
 }
-async function setup(browser,{bn=false,profileStatus=200,delay=false}={}) {
+async function setup(browser,{bn=false,profileStatus=200,delay=false,syntheticWrite=null,writeGate=false,writeStatus=403}={}) {
+    if(syntheticWrite)assert(['/api/auth/profile','/api/auth/mfa/disable',
+        '/api/auth/mfa/recovery-codes/regenerate','/api/auth/sessions/revoke-others',
+        '/api/auth/sessions/revoke-all'].includes(syntheticWrite),'Unexpected synthetic write target');
     const context = await browser.newContext({viewport:bn?{width:390,height:844}:{width:1280,height:800},
         serviceWorkers:'block',acceptDownloads:false});
-    const page = await context.newPage(),writes=[],errors=[];
-    let release;
+    const page = await context.newPage(),writes=[],syntheticWrites=[],errors=[];
+    let release,releaseWrite,notifyWrite;
     const gate = new Promise(resolve=>{release=resolve;});
+    const writeLatch = new Promise(resolve=>{releaseWrite=resolve;});
+    const writeStarted = new Promise(resolve=>{notifyWrite=resolve;});
     page.on('pageerror',error=>errors.push(error.message));
     await page.route('**/*',async route=>{
         const req=route.request(),url=new URL(req.url());
+        if(url.origin==='http://eduos.test' && req.method()!=='GET' &&
+            url.pathname===syntheticWrite && ['POST','PUT'].includes(req.method())){
+            syntheticWrites.push(req.method()+' '+url.pathname);
+            notifyWrite();
+            if(writeGate)await writeLatch;
+            return route.fulfill({status:writeStatus,contentType:'application/json',
+                headers:{'X-EduOS-Session-Reference':session,'X-EduOS-Tenant-Id':'11','Cache-Control':'no-store'},
+                body:JSON.stringify(writeStatus===200?{success:true}:
+                    {success:false,message:'PRIVATE_FOREIGN_TENANT_RECORD'})});
+        }
         if(url.origin!=='http://eduos.test' || req.method()!=='GET'){
             writes.push(req.method()+' '+req.url());
             return route.abort('blockedbyclient');
@@ -61,7 +76,7 @@ async function setup(browser,{bn=false,profileStatus=200,delay=false}={}) {
         return route.abort('blockedbyclient');
     });
     await page.goto('http://eduos.test/Account/Profile',{waitUntil:'domcontentloaded'});
-    return {context,page,writes,errors,release};
+    return {context,page,writes,syntheticWrites,errors,release,releaseWrite,writeStarted};
 }
 async function success(browser,bn){
     const s=await setup(browser,{bn,delay:true});
@@ -129,11 +144,63 @@ async function stale(browser){
         assert.deepEqual(s.errors,[]);
     }finally{await s.context.close();}
 }
+
+async function switchedDuringSuccessfulWrite(browser){
+    const s=await setup(browser,{syntheticWrite:'/api/auth/profile',writeGate:true,writeStatus:200});
+    try{
+        await s.page.waitForFunction(()=>document.getElementById('saveProfileBtn')?.disabled===false);
+        await s.page.locator('#fullName').fill('Synthetic updated account');
+        await s.page.locator('#saveProfileBtn').click();
+        await s.writeStarted;
+        await s.page.evaluate(()=>{document.body.dataset.authTenantId='22';});
+        s.releaseWrite();
+        await s.page.waitForFunction(()=>document.getElementById('saveProfileBtn').disabled &&
+            document.getElementById('profileDisplayName').textContent==='');
+        await s.page.waitForTimeout(100);
+        assert(!(await s.page.locator('#alertContainer').innerText()).includes('Profile updated successfully.'),
+            'Stale successful write must not show a success toast');
+        assert.equal(await s.page.locator('#profileDisplayEmail').innerText(),'');
+        assert.equal(await s.page.locator('#changePasswordBtn').isDisabled(),true);
+        assert.deepEqual(s.syntheticWrites,['PUT /api/auth/profile']);
+        assert.deepEqual(s.writes,[]);
+        assert.deepEqual(s.errors,[]);
+    }finally{s.releaseWrite();await s.context.close();}
+}
+async function deniedSecurityWrite(browser,id,endpoint){
+    const s=await setup(browser,{syntheticWrite:endpoint,writeStatus:403});
+    try{
+        await s.page.waitForFunction(id=>document.getElementById(id)?.disabled===false,id);
+        if(id.startsWith('mfa')){
+            await s.page.locator('#mfaManagePassword').fill('synthetic-password');
+            await s.page.locator('#mfaManageCode').fill('123456');
+        }else await s.page.locator('#sessionRevokePassword').fill('synthetic-password');
+        await s.page.locator('#'+id).click();
+        await s.writeStarted;
+        await s.page.waitForFunction(()=>document.getElementById('profileDisplayName').textContent==='');
+        await s.page.waitForTimeout(50);
+        for(const button of ['saveProfileBtn','changePasswordBtn','mfaDisableBtn','mfaRegenerateBtn',
+            'sessionRevokeOthersBtn','sessionRevokeAllBtn'])
+            assert.equal(await s.page.locator('#'+button).isDisabled(),true,
+                'Revoked session re-enabled '+button);
+        assert.equal(await s.page.locator('#sessionList').innerText(),'');
+        assert(!(await s.page.locator('body').innerText()).includes('PRIVATE_FOREIGN_TENANT_RECORD'));
+        assert.deepEqual(s.syntheticWrites,['POST '+endpoint]);
+        assert.deepEqual(s.writes,[]);
+        assert.deepEqual(s.errors,[]);
+    }finally{await s.context.close();}
+}
 (async()=>{
     const browser=await chromium.launch({headless:true,args:['--no-sandbox']});
     try{
         await success(browser,false);await success(browser,true);
         await denied(browser);await stale(browser);await switchedAfterLoad(browser);
-        console.log('Account Profile Chromium PASS: English/Bangla, desktop/mobile, verified read gating, validation, private denial and stale tenant suppression (synthetic API).');
+        await switchedDuringSuccessfulWrite(browser);
+        for(const [id,endpoint] of [
+            ['mfaDisableBtn','/api/auth/mfa/disable'],
+            ['mfaRegenerateBtn','/api/auth/mfa/recovery-codes/regenerate'],
+            ['sessionRevokeOthersBtn','/api/auth/sessions/revoke-others'],
+            ['sessionRevokeAllBtn','/api/auth/sessions/revoke-all']
+        ])await deniedSecurityWrite(browser,id,endpoint);
+        console.log('Account Profile Chromium PASS: English/Bangla, desktop/mobile, verified read gating, validation, private denial stale tenant suppression, in-flight write isolation and denied security-action fail-closed (synthetic API).');
     }finally{await browser.close();}
 })().catch(e=>{console.error(e);process.exitCode=1;});

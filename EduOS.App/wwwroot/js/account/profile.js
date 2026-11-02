@@ -254,6 +254,7 @@ async function updateProfile() {
         }
 
         await loadProfile();
+        if (profileLocked || !profileReady) return;
 
         showAlert(
             'success',
@@ -458,6 +459,14 @@ async function apiRequest(url, options = {}) {
         credentials: 'same-origin', cache: 'no-store', ...fetchOptions,
         headers: { Accept: 'application/json', ...(fetchOptions.headers || {}) }
     });
+    // Recheck every completed request, including successful writes, against its original scope.
+    // Never show stale account success or recovery information after a session transition.
+    if (profileLocked || document.body?.dataset.authSessionReference !== expectedSession ||
+        document.body?.dataset.authTenantId !== expectedTenant ||
+        window.EduOSSessionTransitionPending?.() === true) {
+        lockProfile();
+        throw new Error(profileText('Account session changed. Reload to continue.'));
+    }
     if (response.status === 401) {
         lockProfile();
         window.location.assign('/Account/Login');
@@ -740,7 +749,7 @@ function initializeAuthSecurityControls() {
                 showAlert('danger', error.message || profileText("Unable to update MFA settings."));
             } finally {
                 if (document.getElementById('mfaNewCodesPanel')?.classList.contains('d-none') !== false)
-                    button.disabled = false;
+                    syncAccountActions();
             }
         });
     }
@@ -763,7 +772,7 @@ function initializeAuthSecurityControls() {
         } catch (error) {
             showAlert('danger', error.message || button.dataset.failed || profileText("Unable to revoke other sessions."));
         } finally {
-            button.disabled = false;
+            syncAccountActions();
         }
     });
 
@@ -780,7 +789,7 @@ function initializeAuthSecurityControls() {
             window.location.assign('/Account/Login');
         } catch (error) {
             showAlert('danger', error.message || profileText("Unable to revoke sessions."));
-            button.disabled = false;
+            syncAccountActions();
         }
     });
 }
@@ -837,7 +846,7 @@ async function loadActiveSessions() {
                     }
                 } catch (error) {
                     showAlert('danger', error.message || container.dataset.revokeError || profileText("Unable to revoke session."));
-                    revoke.disabled = false;
+                    revoke.disabled = profileLocked || !sessionsReady;
                 }
             });
             row.append(description, revoke);

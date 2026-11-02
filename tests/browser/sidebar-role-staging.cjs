@@ -92,6 +92,46 @@ async function verifyContextHelp(page,name){
   await page.keyboard.press('Escape');
   await page.waitForFunction(()=>!document.getElementById('pageHelpDrawer').open);
 }
+
+async function verifyProfileReadback(page,user,session,mobile){
+  const response=await page.goto(base+'/Account/Profile',{waitUntil:'domcontentloaded'});
+  assert(response&&response.status()===200,'Authenticated profile page unavailable');
+  assert.equal(new URL(page.url()).pathname.toLowerCase(),'/account/profile');
+  assertNoStore(response.headers(),'Account Profile');
+  assert.equal(await page.locator('body').getAttribute('data-auth-tenant-id'),user.tenant);
+  assert.equal(await page.locator('body').getAttribute('data-auth-session-reference'),session);
+  assert.equal(await page.locator('html').getAttribute('lang'),await page.locator('#uiCulture').inputValue(),
+    'Profile Razor locale mismatch');
+  await page.waitForFunction(()=>document.getElementById('saveProfileBtn')?.disabled===false,
+    null,{timeout:15000});
+  // Return only shape/scope booleans, never PII, session IDs or recovery codes.
+  const proofs=await page.evaluate(async ({tenant,session})=>{
+    const paths=['/api/auth/profile','/api/auth/mfa/status','/api/auth/sessions'];
+    return Promise.all(paths.map(async (path,index)=>{
+      const response=await fetch(path,{method:'GET',credentials:'same-origin',
+        cache:'no-store',redirect:'manual'});
+      const type=response.headers.get('content-type')||'';
+      const payload=response.ok&&type.includes('application/json')?await response.json():null;
+      const data=payload?.data;
+      const valid=index===0?(typeof data?.fullName==='string'&&typeof data?.email==='string'):
+        index===1?(typeof data?.enabled==='boolean'):
+        (Array.isArray(data)&&data.some(item=>item.isCurrent===true));
+      return {status:response.status,cacheControl:response.headers.get('cache-control'),
+        scoped:response.headers.get('X-EduOS-Tenant-Id')===tenant&&
+          response.headers.get('X-EduOS-Session-Reference')===session,
+        valid:payload?.success===true&&valid};
+    }));
+  },{tenant:user.tenant,session});
+  for(const [index,proof] of proofs.entries()){
+    assert.equal(proof.status,200,'Profile read-only API failed: '+index);
+    assertNoStore({'cache-control':proof.cacheControl},'Profile API '+index);
+    assert.equal(proof.scoped,true,'Profile API scope drift: '+index);
+    assert.equal(proof.valid,true,'Profile API response contract mismatch: '+index);
+  }
+  await verifyContextHelp(page,'Account Profile');
+  if(mobile)assert((await page.evaluate(()=>document.documentElement.scrollWidth-innerWidth))<=2,
+    'Mobile profile horizontal overflow');
+}
 async function verify(browser,user,mobile){
   const context=await browser.newContext({viewport:mobile?{width:390,height:844}:{width:1280,height:800},
     serviceWorkers:'block',ignoreHTTPSErrors:false,acceptDownloads:false});
@@ -106,7 +146,7 @@ async function verify(browser,user,mobile){
   });
   try{
     // An unauthenticated context must not render any privileged page before login.
-    for(const [name,path] of Object.entries(routes)){
+    for(const [name,path] of [...Object.entries(routes),['profile','/Account/Profile']]){
       const response=await page.goto(base+path,{waitUntil:'domcontentloaded'});
       assert(response,'Anonymous route did not respond: '+name);
       const target=new URL(page.url());
@@ -119,6 +159,7 @@ async function verify(browser,user,mobile){
     }
     const session=await login(page,user);
     const roleCaption=await verifyAccountAndSession(page,user,session);
+    await verifyProfileReadback(page,user,session,mobile);
     assert.equal(await page.locator('meta[name="request-verification-token"]').count(),1,'CSRF shell metadata missing');
     const csrf=await page.locator('meta[name="request-verification-token"]').getAttribute('content');
     assert(csrf&&csrf.length>20,'CSRF request token empty');
@@ -164,6 +205,6 @@ async function verify(browser,user,mobile){
     assert.equal(new Set(sessions.map(x=>x.session)).size,3,'Separate authenticated sessions required');
     assert.equal(new Set(sessions.map(x=>x.roleCaption)).size,3,
       'Role captions must reflect distinct synthetic identities, not a hardcoded administrator label');
-    console.log('Authenticated disposable staging sidebar PASS: anonymous denial, bilingual role-accurate account menu, three synthetic sessions, contextual Help, scoped pages, no-store, denied-body privacy, session-bound antiforgery readback and mobile.');
+    console.log('Authenticated disposable staging sidebar PASS: anonymous denial, bilingual role-accurate account menu, three synthetic sessions, contextual Help, scoped pages, no-store, denied-body privacy, session-bound antiforgery readback, read-only Profile/MFA/device APIs, account Help and mobile.');
   }finally{await browser.close();}
 })().catch(e=>{console.error(e.message);process.exitCode=1;});

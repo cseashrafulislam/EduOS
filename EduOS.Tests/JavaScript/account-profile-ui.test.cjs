@@ -49,3 +49,15 @@ test('profile has a reviewed bilingual contextual guide with actual security wor
     assert.match(bn.recovery,/সেশন/);
     assert.deepEqual(en.related,bn.related);
 });
+
+test('profile write responses and denied security actions stay fail-closed', () => {
+    assert.match(script,/Recheck every completed request, including successful writes/);
+    assert.match(script,/await loadProfile\(\);\s*if \(profileLocked \|\| !profileReady\) return;/);
+    assert.match(script,/document\.body\?\.dataset\.authTenantId !== expectedTenant/);
+    assert.match(script,/revoke\.disabled = profileLocked \|\| !sessionsReady/);
+    assert.doesNotMatch(script,/button\.disabled = false;/);
+    const browser=read('tests/browser/account-profile.cjs');
+    for(const check of ['switchedDuringSuccessfulWrite','deniedSecurityWrite',
+        'mfaDisableBtn','mfaRegenerateBtn','sessionRevokeOthersBtn','sessionRevokeAllBtn',
+        'PRIVATE_FOREIGN_TENANT_RECORD'])assert(browser.includes(check),check);
+});

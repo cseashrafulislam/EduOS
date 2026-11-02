@@ -19,7 +19,7 @@ function assertNoStore(headers, label) {
 function assertDeniedHtml(html, forbiddenTenant) {
     assert.equal(typeof html, 'string', 'Denial must have an inspectable text response');
     assert(Buffer.byteLength(html, 'utf8') <= 512 * 1024, 'Oversized denial body');
-    for (const id of ['feeAgingApp', 'brandingForm', 'tenantUsersApp']) {
+    for (const id of ['feeAgingApp', 'brandingForm', 'tenantUsersApp', 'profileForm']) {
         assert(!new RegExp("\\bid\\s*=\\s*['\"]" + id + "['\"]", 'i').test(html),
             'Restricted application DOM exposed: ' + id);
     }
