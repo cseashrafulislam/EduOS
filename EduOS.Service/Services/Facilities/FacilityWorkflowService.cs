@@ -563,7 +563,7 @@ public sealed class FacilityWorkflowService(
             return ApiResponse<FacilityRequestDto>.ErrorResponse("Record changed; reload.", 409);
         // SQL Server application lock serializes scheduling for the same tenant/technician.
         // It is held through the work-order update and audit SaveChanges/commit.
-        await using var scheduleTransaction = (action is "schedule" or "vendorapprove") && db.Database.IsSqlServer()
+        await using var scheduleTransaction = (action is "schedule" or "vendorapprove" or "start") && db.Database.IsSqlServer()
             ? await db.Database.BeginTransactionAsync(ct) : null;
         var before = requestAction ? request.StateCode : order?.StateCode ?? "None";
         var note = command.Note?.Trim();
@@ -799,8 +799,42 @@ public sealed class FacilityWorkflowService(
                 auditNote = "Manual overdue SLA escalation: " + note;
                 break;
             case "start":
-                if (order?.StateCode != "Scheduled" || order.VendorStateCode == "Proposed")
-                    return ApiResponse<FacilityRequestDto>.ErrorResponse("Work order is not scheduled.", 409);
+                // Revalidate the live Procurement supplier before consuming an
+                // approved booking; keep its row locked through start + audit.
+                if (order?.StateCode != "Scheduled" || order.VendorStateCode == "Proposed" ||
+                    order.ScheduledEndUtc is not DateTime scheduleUntil || scheduleUntil <= now)
+                    return ApiResponse<FacilityRequestDto>.ErrorResponse(
+                        "Work-order schedule expired or is not ready; reload.", 409);
+                if (order.VendorStateCode == "Approved")
+                {
+                    if (order.VendorSupplierId is not long bookedVendorId || bookedVendorId <= 0 ||
+                        order.VendorEndUtc is not DateTime vendorUntil || vendorUntil <= now)
+                        return ApiResponse<FacilityRequestDto>.ErrorResponse(
+                            "Vendor booking expired or incomplete; release and rebook before starting.", 409);
+                    if (scheduleTransaction != null)
+                    {
+                        try
+                        {
+                            await db.Database.ExecuteSqlInterpolatedAsync(
+                                $"IF NOT EXISTS (SELECT 1 FROM dbo.ProcurementSuppliers WITH (UPDLOCK, HOLDLOCK) WHERE TenantId={user.TenantId} AND Id={bookedVendorId} AND CampusId={request.CampusId} AND StateCode=N'Approved' AND IsDeleted=0) THROW 51001, 'Booked vendor no longer eligible', 1;", ct);
+                        }
+                        catch (Microsoft.Data.SqlClient.SqlException ex) when (ex.Number is 51001 or 1205 or 1222)
+                        {
+                            logger.LogWarning(ex, "Facility vendor eligibility changed before start for tenant {TenantId}", user.TenantId);
+                            return ApiResponse<FacilityRequestDto>.ErrorResponse(
+                                "Booked vendor is no longer approved; release and rebook before starting.", 409);
+                        }
+                    }
+                    else if (!await db.ProcurementSuppliers.AsNoTracking().AnyAsync(s =>
+                        s.TenantId == user.TenantId && s.Id == bookedVendorId &&
+                        s.CampusId == request.CampusId && s.StateCode == "Approved" && !s.IsDeleted, ct))
+                        return ApiResponse<FacilityRequestDto>.ErrorResponse(
+                            "Booked vendor is no longer approved; release and rebook before starting.", 409);
+                    // Reject if the clock advanced while waiting for the SQL lock.
+                    if (vendorUntil <= Now || scheduleUntil <= Now)
+                        return ApiResponse<FacilityRequestDto>.ErrorResponse(
+                            "Work-order or vendor window elapsed; reload before starting.", 409);
+                }
                 order.StartedAtUtc = now; order.StateCode = "InProgress";
                 break;
             case "pause":

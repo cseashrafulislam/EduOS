@@ -836,7 +836,10 @@
             await load();
         } catch (error) {
             if (error.status === 400 || error.status === 422) pending.delete(key);
-            if (!blocked) notice(error.message);
+            if (!blocked) notice(action === 'start' && error.status === 409
+                ? t('Schedule or approved vendor booking changed or expired. Ask an authorized manager to review and rebook, then reload.',
+                    'কাজের সময়সূচি বা অনুমোদিত সরবরাহকারীর বুকিং পরিবর্তিত হয়েছে অথবা মেয়াদ শেষ। অনুমোদিত ম্যানেজারকে যাচাই ও পুনরায় বুকিং করতে বলুন, তারপর পুনরায় লোড করুন।')
+                : error.message);
         } finally {
             transitioning = false;
             if (!blocked && submit) submit.disabled = false;

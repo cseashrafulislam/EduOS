@@ -957,6 +957,42 @@ public sealed class SqlServerFacilityWorkOrderTests
             Assert.Equal(submitted.Id, visible.Data.Items[0].Id);
             Assert.Equal(404, (await service.HistoryAsync(privateRequestId, 1, 25)).StatusCode);
         }
+        // A supplier revoked after booking approval cannot be used to start
+        // work. Failed attempts must leave state and immutable audit unchanged.
+        await using (var db = Db(options, tenantId, approverId, "FacilitiesApprover"))
+        {
+            await db.ProcurementSuppliers.Where(x => x.Id == approvedVendorId)
+                .ExecuteUpdateAsync(x => x.SetProperty(s => s.StateCode, "Inactive"));
+        }
+        await using (var db = Db(options, tenantId, techId, "FacilitiesTechnician"))
+        {
+            var service = Service(db, tenantId, techId, "FacilitiesTechnician");
+            var denied = await service.TransitionAsync(submitted.Id, "start",
+                new FacilityTransitionDto
+                { ClientCommandId = Guid.NewGuid(), RowVersion = scheduled.WorkOrderRowVersion! });
+            Assert.Equal(409, denied.StatusCode);
+            Assert.Equal("Scheduled", (await service.ListAsync(campusId, null, 1, 25))
+                .Data!.Items.Single(x => x.Id == submitted.Id).WorkOrderState);
+            Assert.Equal(0, await db.Set<FacilityWorkflowEvent>().CountAsync(x =>
+                x.FacilityServiceRequestId == submitted.Id && x.ActionCode == "start"));
+        }
+        await using (var db = Db(options, tenantId, approverId, "FacilitiesApprover"))
+        {
+            await db.ProcurementSuppliers.Where(x => x.Id == approvedVendorId)
+                .ExecuteUpdateAsync(x => x.SetProperty(s => s.StateCode, "Approved"));
+        }
+        await using (var db = Db(options, tenantId, techId, "FacilitiesTechnician"))
+        {
+            // Vendor booking ends before the scheduled technician window.
+            var service = Service(db, tenantId, techId, "FacilitiesTechnician",
+                new ShiftedClock(TimeSpan.FromMinutes(90)));
+            var expired = await service.TransitionAsync(submitted.Id, "start",
+                new FacilityTransitionDto
+                { ClientCommandId = Guid.NewGuid(), RowVersion = scheduled.WorkOrderRowVersion! });
+            Assert.Equal(409, expired.StatusCode);
+            Assert.Equal(0, await db.Set<FacilityWorkflowEvent>().CountAsync(x =>
+                x.FacilityServiceRequestId == submitted.Id && x.ActionCode == "start"));
+        }
         FacilityRequestDto started;
         await using (var db = Db(options, tenantId, techId, "FacilitiesTechnician"))
         {
