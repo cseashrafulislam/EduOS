@@ -8,6 +8,7 @@ on:
       - 'EduOS.Tests/JavaScript/sidebar-navigation.test.cjs'
       - 'EduOS.Tests/JavaScript/sidebar-route-inventory.test.cjs'
       - 'tests/browser/sidebar-navigation.cjs'
+      - 'tests/browser/sidebar-role-staging.cjs'
       - '.github/workflows/sidebar-navigation-browser.yml'
   workflow_dispatch:
 permissions:
@@ -28,5 +29,7 @@ jobs:
         run: npm install --no-save --no-audit --no-fund playwright@1.56.0
       - name: Install Chromium
         run: npx playwright install --with-deps chromium
+      - name: Syntax-check authenticated staging browser
+        run: node --check tests/browser/sidebar-role-staging.cjs
       - name: Exercise scoped bilingual sidebar keyboard navigation in Chromium
         run: node tests/browser/sidebar-navigation.cjs

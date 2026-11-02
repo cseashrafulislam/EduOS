@@ -618,10 +618,13 @@
                         <svg class="edu-icon"><use href="/images/eduos-icons.svg#reports" /></svg>
                         <span>@(currentCulture == "bn-BD" ? "জার্নাল পোস্টিং ও প্রত্যাবর্তন" : "Journal Posting & Reversal")</span>
                     </a>
-                    <a class="nav-link @ActiveFor("/AccountingReports")" href="/AccountingReports/Index">
-                        <svg class="edu-icon"><use href="/images/eduos-icons.svg#reports" /></svg>
-                        <span>@(currentCulture == "bn-BD" ? "জেনারেল লেজার ও ট্রায়াল ব্যালেন্স" : "General Ledger & Trial Balance")</span>
-                    </a>
+                    @if (User?.IsInRole("TenantAdmin") == true)
+                    {
+                        <a class="nav-link @ActiveFor("/AccountingReports")" href="/AccountingReports/Index">
+                            <svg class="edu-icon"><use href="/images/eduos-icons.svg#reports" /></svg>
+                            <span>@(currentCulture == "bn-BD" ? "জেনারেল লেজার ও ট্রায়াল ব্যালেন্স" : "General Ledger & Trial Balance")</span>
+                        </a>
+                    }
                 }
                 @if (showInventory && (User?.IsInRole("TenantAdmin") == true || User?.IsInRole("Principal") == true ||
                      User?.IsInRole("InventoryManager") == true || User?.IsInRole("StoreKeeper") == true ||
@@ -660,10 +663,15 @@
                         <svg class="edu-icon"><use href="/images/eduos-icons.svg#campus" /></svg>
                         <span>@(currentCulture.StartsWith("bn", StringComparison.OrdinalIgnoreCase) ? "ক্যাম্পাস সার্ভিস ও ওয়ার্ক অর্ডার" : "Campus Service & Work Orders")</span>
                     </a>
-                    <a class="nav-link @ActiveFor("/FacilitySpaces")" href="/FacilitySpaces/Index">
-                        <svg class="edu-icon"><use href="/images/eduos-icons.svg#campus" /></svg>
-                        <span>@(currentCulture.StartsWith("bn", StringComparison.OrdinalIgnoreCase) ? "ক্যাম্পাস সুবিধা স্থান" : "Facility Spaces")</span>
-                    </a>
+                    @if (User?.IsInRole("TenantAdmin") == true || User?.IsInRole("Principal") == true ||
+                         User?.IsInRole("FacilitiesManager") == true || User?.IsInRole("FacilitiesApprover") == true ||
+                         User?.IsInRole("FacilitiesTechnician") == true)
+                    {
+                        <a class="nav-link @ActiveFor("/FacilitySpaces")" href="/FacilitySpaces/Index">
+                            <svg class="edu-icon"><use href="/images/eduos-icons.svg#campus" /></svg>
+                            <span>@(currentCulture.StartsWith("bn", StringComparison.OrdinalIgnoreCase) ? "ক্যাম্পাস সুবিধা স্থান" : "Facility Spaces")</span>
+                        </a>
+                    }
                 }
                 @if (showHostel)
                 {

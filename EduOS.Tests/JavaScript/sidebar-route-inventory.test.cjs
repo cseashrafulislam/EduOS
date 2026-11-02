@@ -88,3 +88,24 @@ test('dynamic sidebar task groups include career and facilities without duplicat
     assert.equal([...routeSet].filter(x => x === '/FacilitySpaces/Index').length, 1);
     assert.equal([...routeSet].filter(x => x === '/CareerPlacements/Index').length, 1);
 });
+
+
+test('Accounting Reports sidebar gate matches TenantAdmin-only controller', () => {
+    const source = read('EduOS.App/Controllers/AccountingReportsController.cs');
+    assert.match(source, /Authorize\(Roles\s*=\s*"TenantAdmin"\)/);
+    const index = layout.indexOf('href="/AccountingReports/Index"');
+    assert(index > 0);
+    assert.match(layout.slice(index - 300, index),
+        /@if\s*\(User\?\.IsInRole\("TenantAdmin"\)\s*==\s*true\)\s*\{\s*<a\b[\s\S]*$/);
+});
+test('Facility Spaces excludes FacilitiesRequester while Work Orders retains that role', () => {
+    const spaces = read('EduOS.App/Controllers/FacilitySpacesController.cs');
+    const orders = read('EduOS.App/Controllers/FacilityWorkOrdersController.cs');
+    assert.match(spaces, /Authorize\(Roles\s*=\s*"TenantAdmin,Principal,FacilitiesManager,FacilitiesTechnician,FacilitiesApprover"\)/);
+    assert.match(orders, /FacilitiesRequester/);
+    const work = layout.indexOf('href="/FacilityWorkOrders/Index"');
+    const facility = layout.indexOf('href="/FacilitySpaces/Index"');
+    assert(work > 0 && facility > work);
+    assert.match(layout.slice(facility - 450, facility),
+        /@if\s*\(User\?\.IsInRole\("TenantAdmin"\)[\s\S]*?User\?\.IsInRole\("FacilitiesTechnician"\)\s*==\s*true\)\s*\{\s*<a\b[\s\S]*$/);
+});
