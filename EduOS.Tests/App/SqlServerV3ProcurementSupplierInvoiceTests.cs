@@ -769,15 +769,44 @@ public sealed partial class SqlServerV3ProcurementPurchaseOrderTests
                     second.Reference,postedReference,confirmation)).StatusCode);
                 await settlementChecker.Campuses.Where(x=>x.Id==sourceCampusId)
                     .ExecuteUpdateAsync(x=>x.SetProperty(c=>c.TimeZoneId,(string?)null));
-                var posted=await paymentCheckerService.PostSettlementAsync(second.Reference,postedReference,confirmation);
-                Assert.True(posted.Success,posted.Message);
+                // Two independent SQL contexts compete to confirm the SAME approved
+                // bank-evidenced instruction. Exactly one confirmation may post;
+                // the losing request must not create a second GL settlement.
+                var competingKey=Guid.NewGuid();
+                var attempts=await Task.WhenAll(
+                    new[] {confirmation.ClientRequestId,competingKey}.Select(async key =>
+                    {
+                        await using var competingDb=Open(options,tenantId,checkerId);
+                        return await Invoices(competingDb,tenantId,checkerId,atCampusMidnight)
+                            .PostSettlementAsync(second.Reference,postedReference,
+                                new PostSupplierSettlementRequest {
+                                    ClientRequestId=key,RowVersion=approved.Data.RowVersion,
+                                    ExecutedDate=postedDate,BankTransactionReference="BANK-SQL-"+suffix });
+                    }));
+                var posted=Assert.Single(attempts,x=>x.Success);
+                Assert.Single(attempts,x=>x.StatusCode==409);
                 Assert.Equal("Posted",posted.Data!.State);
-                Assert.Equal(postedReference,(await paymentCheckerService.PostSettlementAsync(
-                    second.Reference,postedReference,confirmation)).Data!.Reference);
-                Assert.Equal(409,(await paymentCheckerService.PostSettlementAsync(second.Reference,postedReference,
-                    new PostSupplierSettlementRequest {ClientRequestId=Guid.NewGuid(),RowVersion=approved.Data.RowVersion,
-                        ExecutedDate=postedDate,BankTransactionReference="DIFFERENT-BANK-"+suffix})).StatusCode);
                 postedVersion=posted.Data.RowVersion;
+                await using (var replayDb=Open(options,tenantId,checkerId))
+                {
+                    var replayService=Invoices(replayDb,tenantId,checkerId,atCampusMidnight);
+                    var winningKey=attempts[0].Success?confirmation.ClientRequestId:competingKey;
+                    Assert.Equal(postedReference,(await replayService.PostSettlementAsync(
+                        second.Reference,postedReference,new PostSupplierSettlementRequest {
+                            ClientRequestId=winningKey,RowVersion=approved.Data.RowVersion,
+                            ExecutedDate=postedDate,BankTransactionReference="BANK-SQL-"+suffix })).Data!.Reference);
+                    Assert.Equal(409,(await replayService.PostSettlementAsync(second.Reference,postedReference,
+                        new PostSupplierSettlementRequest {ClientRequestId=Guid.NewGuid(),
+                            RowVersion=approved.Data.RowVersion,ExecutedDate=postedDate,
+                            BankTransactionReference="DIFFERENT-BANK-"+suffix})).StatusCode);
+                    var oneJournal=Assert.Single(await replayDb.Journals.AsNoTracking()
+                        .Where(x=>x.PublicId==postedReference && x.State==JournalState.Posted).ToListAsync());
+                    var oneSetOfLines=await replayDb.JournalLines.AsNoTracking()
+                        .Where(x=>x.JournalId==oneJournal.Id).ToListAsync();
+                    Assert.Equal(2,oneSetOfLines.Count);
+                    Assert.Equal(6m,oneSetOfLines.Sum(x=>x.DebitAmount));
+                    Assert.Equal(6m,oneSetOfLines.Sum(x=>x.CreditAmount));
+                }
             }
             await using (var reconciler=Open(options,tenantId,makerId))
             {
@@ -989,10 +1018,18 @@ public sealed partial class SqlServerV3ProcurementPurchaseOrderTests
             }
             await using (var assetChecker=Open(options,tenantId,checkerId))
             {
-                var posted=await AssetFinance(assetChecker,tenantId,checkerId)
-                    .ReviewCapitalizationAsync(capitalizationReference,
-                        new ReviewAssetCapitalizationRequest {RowVersion=capitalizationVersion,
-                            Approve=true,Reason="Independent fixed asset GL and physical stock approval"});
+                // Competing independent approvals use separate SQL connections.
+                // Only one may bind this receipt ordinal and post its stock/GL.
+                var competingReviews=await Task.WhenAll(Enumerable.Range(0,2).Select(async _ =>
+                {
+                    await using var competingDb=Open(options,tenantId,checkerId);
+                    return await AssetFinance(competingDb,tenantId,checkerId)
+                        .ReviewCapitalizationAsync(capitalizationReference,
+                            new ReviewAssetCapitalizationRequest {RowVersion=capitalizationVersion,
+                                Approve=true,Reason="Independent fixed asset GL and physical stock approval"});
+                }));
+                var posted=Assert.Single(competingReviews,x=>x.Success);
+                Assert.Single(competingReviews,x=>x.StatusCode==409);
                 Assert.True(posted.Success,posted.Message);
                 Assert.Equal("Posted",posted.Data!.State);
                 Assert.Equal(10m,posted.Data.PostedStockCost);
