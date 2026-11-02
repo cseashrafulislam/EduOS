@@ -812,7 +812,7 @@ public sealed class FacilityWorkflowService(
                 if (order.VendorStateCode == "Approved")
                 {
                     if (order.VendorSupplierId is not long bookedVendorId || bookedVendorId <= 0 ||
-                        order.VendorStartUtc is not DateTime vendorFrom || vendorFrom > now ||
+                        order.VendorStartUtc is not DateTime activeVendorStart || activeVendorStart > now ||
                          order.VendorEndUtc is not DateTime vendorUntil || vendorUntil <= now)
                         return ApiResponse<FacilityRequestDto>.ErrorResponse(
                             "Vendor booking expired or incomplete; release and rebook before starting.", 409);
