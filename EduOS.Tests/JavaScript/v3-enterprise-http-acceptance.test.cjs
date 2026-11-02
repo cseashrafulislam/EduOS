@@ -359,8 +359,14 @@ function populatedTenantRegister({ leakOnReplay = false, cacheOnReplay = false }
         if (pageSize > 50) return baseline(url, options);
         const kind = parsed.searchParams.get('kind');
         const foreign = options.headers.Cookie === 'b-session';
+        // A's non-seeded asset evidence is on page 2. The concurrent 25-row
+        // tenant-B probe must still reject it after the 50-row full-page audit.
         const own = kind === 'asset'
-            ? [row(asset, kind, 'ASSET-1'), row(otherAsset, kind, 'ASSET-2')]
+            ? Array.from({ length: 55 }, (_, i) => row(
+                i === 0 ? asset : i === 54 ? otherAsset :
+                    (5000 + i).toString(16).padStart(8, '0') +
+                        '-2222-4222-8222-222222222222',
+                kind, 'ASSET-' + (i + 1)))
             : [row(stock, kind, 'STOCK-1')];
         const other = kind === 'asset'
             ? [row(foreignAsset, kind, 'FOREIGN-ASSET')]
@@ -397,7 +403,7 @@ test('all-page audit with populated foreign tenant retains owner references for 
         iterations: 25 }, populatedTenantRegister());
     assert.deepEqual(report.registerCounts, [
         { kind: 'stock', count: 1, pagesAudited: 1 },
-        { kind: 'asset', count: 2, pagesAudited: 1 }
+        { kind: 'asset', count: 55, pagesAudited: 2 }
     ]);
     assert.ok(report.maxClientInFlight >= 2);
     assert.ok(!JSON.stringify(report).includes(otherAsset),
