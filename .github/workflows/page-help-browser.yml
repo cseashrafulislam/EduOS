@@ -4,6 +4,7 @@ on:
     branches: [Ashraful]
     paths:
       - 'EduOS.App/wwwroot/js/platform/page-context-help.js'
+      - 'EduOS.Tests/JavaScript/task-focused-operations-library-learning.test.cjs'
       - 'EduOS.App/Views/Shared/_Layout.cshtml'
       - 'tests/browser/page-context-help.cjs'
       - '.github/workflows/page-help-browser.yml'
