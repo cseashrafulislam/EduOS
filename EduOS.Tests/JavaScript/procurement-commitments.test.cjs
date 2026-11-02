@@ -6,6 +6,7 @@ const app=path.resolve(__dirname,'../../EduOS.App');
 const script=fs.readFileSync(path.join(app,'wwwroot/js/procurement/commitments.js'),'utf8');
 const view=fs.readFileSync(path.join(app,'Views/ProcurementPurchaseOrders/Commitments.cshtml'),'utf8');
 const api=fs.readFileSync(path.join(app,'Controllers/Api/ProcurementPurchaseOrdersController.cs'),'utf8');
+const exportGuard=fs.readFileSync(path.join(app,'Controllers/Api/ProcurementCsvExportGuard.cs'),'utf8');
 test('approved commitments use a bilingual bounded read-only register, not stock balance',()=>{
  assert.match(script,/অনুমোদিত সরবরাহ প্রতিশ্রুতি/);
  assert.match(script,/Goods Receipt integration/);
@@ -20,15 +21,18 @@ test('approved commitments use a bilingual bounded read-only register, not stock
  assert.match(view,/data-i18n/);
  assert.match(api,/HttpGet\("commitments"\)/);
  assert.match(api,/HttpGet\("commitments\/export"\)/);
- assert.match(api,/TotalCount > 500/);
- assert.match(api,/=\+-@/);
+ assert.match(api,/ProcurementCsvExportGuard\.ReadAsync/);
+ assert.match(exportGuard,/TotalCount > 500/);
+ assert.match(exportGuard,/=\+-@/);
+ assert.match(exportGuard,/!seen\.Add\(id\)/);
+ assert.match(exportGuard,/JsonSerializer\.Serialize\(rows\)/);
 });
 
 test('cancellation requests remain visible commitments with explicit status',()=>{
  assert.match(script,/CancelRequested/);
  assert.match(script,/t\(x.stateCode\)/);
  assert.match(view,/approvalStatus/);
- assert.match(api,/Csv\(x.StateCode\)/);
+ assert.match(api,/ProcurementCsvExportGuard\.Cell\(x.StateCode\)/);
 });
 
 test('confirmed supplier evidence is displayed separately from original PO aging',()=>{
