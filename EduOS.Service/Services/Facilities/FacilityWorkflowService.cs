@@ -219,9 +219,10 @@ public sealed class FacilityWorkflowService(
         if (startUtc.HasValue != endUtc.HasValue || (workOrderId.HasValue && !hasWindow) ||
             workOrderId is <= 0 ||
             (hasWindow && (startUtc!.Value.Kind != DateTimeKind.Utc ||
-                           endUtc!.Value.Kind != DateTimeKind.Utc || startUtc.Value >= endUtc.Value)))
+                           endUtc!.Value.Kind != DateTimeKind.Utc || startUtc.Value >= endUtc.Value ||
+                           startUtc.Value <= Now)))
             return ApiResponse<PagedResult<FacilityTechnicianOptionDto>>.ErrorResponse(
-                "Valid UTC start/end window and work order required.", 400);
+                "A future UTC start/end window and work order are required.", 400);
         // Exclusion must never accept a guessed work order from another campus.
         if (workOrderId.HasValue && !await db.Set<FacilityWorkOrder>().AsNoTracking()
             .AnyAsync(w => w.Id == workOrderId.Value && w.TenantId == user.TenantId &&
@@ -581,8 +582,8 @@ public sealed class FacilityWorkflowService(
                     command.TechnicianUserId is not > 0 ||
                     command.ScheduledStartUtc is not DateTime start || start.Kind != DateTimeKind.Utc ||
                     command.ScheduledEndUtc is not DateTime end || end.Kind != DateTimeKind.Utc ||
-                    start >= end)
-                    return ApiResponse<FacilityRequestDto>.ErrorResponse("Valid technician and UTC schedule required.");
+                    start >= end || start <= now)
+                    return ApiResponse<FacilityRequestDto>.ErrorResponse("Valid technician and future UTC schedule required.");
                 var tech = command.TechnicianUserId.Value;
                 // Initial scheduling may omit a note. An existing schedule is an
                 // auditable decision: require a reason and reject no-op commands.

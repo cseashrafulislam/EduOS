@@ -60,6 +60,10 @@ test('manager availability preview scopes order, checks UTC and invalidates stal
     assert.match(script, /availabilityWindowKey !== windowKey\(\)/);
     assert.match(script, /addEventListener\('input', \(\) => invalidateTechnicians\(\)\)/);
     assert.match(view, /The list is advisory/);
+    assert.match(service, /startUtc\.Value <= Now/);
+    assert.match(service, /start <= now/);
+    assert.match(script, /start\.getTime\(\) <= Date\.now\(\)/);
+    assert.match(view, /Enter a future start time/);
 });
 test('workflow posts antiforgery and retries the same idempotency command', () => {
     assert.match(script, /RequestVerificationToken = token/);

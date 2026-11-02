@@ -337,6 +337,7 @@
         const start = new Date(startValue), end = new Date(endValue);
         if (!startValue || !endValue || !Number.isFinite(start.getTime()) ||
             !Number.isFinite(end.getTime()) || start >= end ||
+            start.getTime() <= Date.now() ||
             !Number.isSafeInteger(Number(selected.workOrderId)) || Number(selected.workOrderId) <= 0) {
             el('wfTechPage').textContent = t(
                 'Set a valid start and end time before finding available technicians.',

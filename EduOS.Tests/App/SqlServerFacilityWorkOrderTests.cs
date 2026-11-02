@@ -388,6 +388,17 @@ public sealed class SqlServerFacilityWorkOrderTests
                     Note = note
                 };
             var originalScheduleNote = "Campus reschedule; reason=embedded";
+            // A delayed command or stale availability preview must not backdate
+            // technician work. The injected clock keeps this regression deterministic.
+            var lateClock = new ShiftedClock(TimeSpan.FromHours(3));
+            Assert.Equal(400, (await Service(db, tenantId, managerId, "FacilitiesManager", lateClock)
+                .TechniciansAsync(campusId, null, 1, 25, startUtc: scheduleStart,
+                    endUtc: scheduleEnd, workOrderId: approved.WorkOrderId)).StatusCode);
+            Assert.Equal(400, (await Service(db, tenantId, managerId, "FacilitiesManager", lateClock)
+                .TransitionAsync(submitted.Id, "schedule",
+                    ScheduleRetry(techId, scheduleStart, scheduleEnd, originalScheduleNote))).StatusCode);
+            Assert.Empty((await service.HistoryAsync(submitted.Id, 1, 25)).Data!.Items
+                .Where(x => x.ActionCode == "schedule"));
             var result = await service.TransitionAsync(
                 submitted.Id, "schedule", ScheduleRetry(techId, scheduleStart, scheduleEnd, originalScheduleNote));
             Assert.True(result.Success, result.Message);
