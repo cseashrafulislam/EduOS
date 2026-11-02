@@ -158,7 +158,8 @@ export async function auditRegisterPages({ read, parseCsv, api, kind, reference,
                 JSON.stringify(replay.items.map(evidenceSignature)),
                 'Register page replay changed during audit.');
         }
-        return { count: total, pages, found, references: seen };
+        return { count: total, pages, found, references: seen,
+            firstPageRows: first.items.slice(0, 25) };
     };
     const own = await scan(tenantA);
     requireEvidence(own.found,
@@ -167,5 +168,6 @@ export async function auditRegisterPages({ read, parseCsv, api, kind, reference,
     // Expose the owner set only to in-process acceptance callers that explicitly
     // request it. Never include it in the CLI/report output.
     return { kind, count: own.count, pagesAudited: own.pages,
-        ...(collectOwnerReferences ? { ownerReferences: own.references } : {}) };
+        ...(collectOwnerReferences ? { ownerReferences: own.references,
+            ownerFirstPageRows: own.firstPageRows } : {}) };
 }

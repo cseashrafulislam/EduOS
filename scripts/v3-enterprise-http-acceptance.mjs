@@ -17,6 +17,13 @@ export const percentile = (samples, p) => {
     return Math.round(sorted[Math.ceil((p / 100) * sorted.length) - 1] * 100) / 100;
 };
 
+// Stable, private in-memory fingerprints: detect wrong-tenant success responses
+// and source/Finance drift during a read-only concurrent replay. Never report them.
+const evidenceSignature = value => JSON.stringify(value, (_, entry) => {
+    if (!entry || Array.isArray(entry) || typeof entry !== 'object') return entry;
+    return Object.fromEntries(Object.keys(entry).sort().map(key => [key, entry[key]]));
+});
+
 export function parseCsv(input) {
     check(typeof input === 'string' && input.length <= 2_000_000,
         'Invalid or oversized CSV response.');
@@ -260,6 +267,7 @@ export async function runAcceptance(config, fetcher = fetch) {
     // Baseline checks must protect every visible owner reference, not only the
     // seeded UUID. Full-history/page coverage remains the opt-in paged audit.
     const ownerFirstPageReferences = new Map();
+    const ownerReplayBaselines = new Map();
     if (procurementResult) {
         if (pagedAudit) {
             const result = await auditRegisterPages({ read, parseCsv, api: API,
@@ -279,6 +287,8 @@ export async function runAcceptance(config, fetcher = fetch) {
             // guard. Otherwise a populated tenant-B register triggers an
             // unhandled TypeError rather than meaningful isolation evidence.
             ownerFirstPageReferences.set(kind, result.ownerReferences);
+            ownerReplayBaselines.set(kind, { count: result.count,
+                rows: result.ownerFirstPageRows.map(evidenceSignature) });
             registers.push({ kind, count: result.count, pagesAudited: result.pagesAudited });
             continue;
         }
@@ -304,6 +314,8 @@ export async function runAcceptance(config, fetcher = fetch) {
             ownerRefs.add(row.reference.toLowerCase());
         }
         ownerFirstPageReferences.set(kind, ownerRefs);
+        ownerReplayBaselines.set(kind, { count: d.totalCount,
+            rows: d.items.slice(0, 25).map(evidenceSignature) });
         const ownCsv = await read(a, API + '/register/csv?' + query);
         check(ownCsv.status === 200 && ownCsv.type.includes('text/csv'),
             'Register CSV unavailable.');
@@ -336,6 +348,8 @@ export async function runAcceptance(config, fetcher = fetch) {
         ownerFirstPageReferences.get(kind) instanceof Set &&
         ownerFirstPageReferences.get(kind).size > 0,
         'Missing owner register baseline for concurrent replay.');
+    const allOwnerRefs = [...new Set([...ownerFirstPageReferences.values()]
+        .flatMap(refs => [...refs]))];
     const invalid = await read(a, API + '/register?' + new URLSearchParams({
         kind: 'stock', from, to, page: '1', pageSize: '1000'
     }));
@@ -348,7 +362,7 @@ export async function runAcceptance(config, fetcher = fetch) {
             API + '/register/csv?' + new URLSearchParams({ kind: 'asset', from, to })]) {
             const result = await read(restricted, path);
             assertDenied(result, 'Restricted role accessed enterprise evidence.',
-                [403], [stock, asset, procurement].filter(Boolean));
+                [403], [...allOwnerRefs, procurement].filter(Boolean));
         }
     }
     if (assetCampus && otherCampus) {
@@ -369,10 +383,10 @@ export async function runAcceptance(config, fetcher = fetch) {
     }
     const samples = [];
     const paths = [
-        { cookie: a, path: API + '/' + stock, own: true },
-        { cookie: a, path: API + '/asset-depreciation/' + asset, own: true },
+        { cookie: a, path: API + '/' + stock, ownDetail: 'stock' },
+        { cookie: a, path: API + '/asset-depreciation/' + asset, ownDetail: 'asset' },
         { cookie: a, path: API + '/register?' + new URLSearchParams({
-            kind: 'stock', from, to, page: '1', pageSize: '25' }), own: true },
+            kind: 'stock', from, to, page: '1', pageSize: '25' }), ownRegister: 'stock' },
         { cookie: b, path: API + '/' + stock, foreignDetail: true },
         { cookie: b, path: API + '/register?' + new URLSearchParams({
             kind: 'asset', from, to, page: '1', pageSize: '25' }), foreignRegister: 'asset' },
@@ -413,7 +427,27 @@ export async function runAcceptance(config, fetcher = fetch) {
             noStore(result);
             if (probe.foreignDetail)
                 assertDenied(result, 'Concurrent cross-tenant detail disclosed.',
-                    [403, 404], [stock, asset, procurement].filter(Boolean));
+                    [403, 404], [...allOwnerRefs, procurement].filter(Boolean));
+            else if (probe.ownDetail) {
+                const baseline = probe.ownDetail === 'stock' ? stockData : assetData;
+                check(result.status === 200 && result.body?.success === true &&
+                    result.body.data &&
+                    evidenceSignature(result.body.data) === evidenceSignature(baseline),
+                    'Concurrent authorized detail changed source or Finance evidence.');
+            }
+            else if (probe.ownRegister) {
+                const data = result.body?.data;
+                const baseline = ownerReplayBaselines.get(probe.ownRegister);
+                check(result.status === 200 && result.body?.success === true &&
+                    data?.kind === probe.ownRegister && data.from === from &&
+                    data.to === to && data.page === 1 && data.pageSize === 25 &&
+                    Number.isSafeInteger(data.totalCount) &&
+                    data.totalCount === baseline?.count && Array.isArray(data.items) &&
+                    data.items.length === baseline.rows.length &&
+                    data.items.every((row, i) =>
+                        evidenceSignature(row) === baseline.rows[i]),
+                    'Concurrent authorized register changed owner evidence.');
+            }
             else if (probe.foreignRegister) {
                 const data = result.body?.data;
                 const ownerRefs = ownerFirstPageReferences.get(probe.foreignRegister);
@@ -445,7 +479,7 @@ export async function runAcceptance(config, fetcher = fetch) {
     const replayWallMs = performance.now() - replayStart;
     return { checks: ['stock and asset detail/CSV IDOR and parity',
             'register JSON/CSV exact-page parity and cache isolation',
-            'bounded paging', 'mixed-tenant concurrent stock/asset replay',
+            'bounded paging', 'mixed-tenant concurrent stock/asset replay and authorized evidence stability',
             ...(restricted ? ['restricted-role authorization'] : []),
             ...(assetCampus ? ['asset campus isolation'] : []),
             ...(procurement ? ['procurement source/CSV/register integrity and tenant IDOR'] : []),

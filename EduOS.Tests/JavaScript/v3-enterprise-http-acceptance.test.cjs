@@ -525,3 +525,94 @@ test('restricted-role denial rejects evidence-bearing payloads and unsafe cache'
         success: false, data: null
     }, 'no-cache')), /Private response must not be cached/);
 });
+
+
+test('concurrent authorized stock detail rejects wrong-tenant success after safe baseline', async () => {
+    const { runAcceptance } = await import(source);
+    const baseline = fakeFetch();
+    let stockReads = 0;
+    const fetcher = (url, options) => {
+        if (options.headers.Cookie === 'a-session' &&
+            new URL(url).pathname.endsWith('/' + stock) && ++stockReads > 1)
+            return new Response(JSON.stringify({ success: true,
+                data: { movementReference: otherAsset } }), { status: 200,
+                headers: { 'content-type': 'application/json', 'cache-control': 'no-store' } });
+        return baseline(url, options);
+    };
+    await assert.rejects(runAcceptance(config, fetcher),
+        /Concurrent authorized detail changed source or Finance evidence/);
+});
+
+test('concurrent authorized asset detail rejects changed Finance status under same reference', async () => {
+    const { runAcceptance } = await import(source);
+    const baseline = fakeFetch();
+    let assetReads = 0;
+    const fetcher = (url, options) => {
+        if (options.headers.Cookie === 'a-session' &&
+            new URL(url).pathname.endsWith('/asset-depreciation/' + asset) && ++assetReads > 1)
+            return new Response(JSON.stringify({ success: true,
+                data: { runReference: asset, financeEvidenceStatus: 'EvidenceConflict' } }),
+                { status: 200, headers: { 'content-type': 'application/json',
+                    'cache-control': 'no-store' } });
+        return baseline(url, options);
+    };
+    await assert.rejects(runAcceptance(config, fetcher),
+        /Concurrent authorized detail changed source or Finance evidence/);
+});
+
+test('concurrent authorized register rejects source amount drift despite unchanged UUID', async () => {
+    const { runAcceptance } = await import(source);
+    const baseline = fakeFetch();
+    const fetcher = async (url, options) => {
+        const parsed = new URL(url);
+        if (options.headers.Cookie === 'a-session' &&
+            parsed.pathname.endsWith('/register') &&
+            parsed.searchParams.get('kind') === 'stock' &&
+            parsed.searchParams.get('pageSize') === '25') {
+            const response = await baseline(url, options);
+            const payload = await response.json();
+            payload.data.items[0].recordedValue = '999.0000000000';
+            return new Response(JSON.stringify(payload), { status: 200,
+                headers: { 'content-type': 'application/json', 'cache-control': 'no-store' } });
+        }
+        return baseline(url, options);
+    };
+    await assert.rejects(runAcceptance(config, fetcher),
+        /Concurrent authorized register changed owner evidence/);
+});
+
+test('bounded audit concurrent own register rejects a foreign success row after safe 50-row audit', async () => {
+    const { runAcceptance } = await import(source);
+    const baseline = populatedTenantRegister();
+    const fetcher = async (url, options) => {
+        const parsed = new URL(url);
+        if (options.headers.Cookie === 'a-session' &&
+            parsed.pathname.endsWith('/register') &&
+            parsed.searchParams.get('kind') === 'stock' &&
+            parsed.searchParams.get('pageSize') === '25') {
+            const response = await baseline(url, options);
+            const payload = await response.json();
+            payload.data.items[0].reference = '44444444-4444-4444-8444-444444444444';
+            return new Response(JSON.stringify(payload), { status: 200,
+                headers: { 'content-type': 'application/json', 'cache-control': 'no-store' } });
+        }
+        return baseline(url, options);
+    };
+    await assert.rejects(runAcceptance({ ...config, pagedAudit: true }, fetcher),
+        /Concurrent authorized register changed owner evidence/);
+});
+
+test('concurrent foreign denial rejects a non-seeded owner asset reference in error text', async () => {
+    const { runAcceptance } = await import(source);
+    const baseline = fakeFetch({ additionalAsset: true });
+    const fetcher = (url, options) => {
+        if (options.headers.Cookie === 'b-session' &&
+            new URL(url).pathname.endsWith('/' + stock))
+            return new Response(JSON.stringify({ success: false,
+                message: 'Missing source: ' + otherAsset }), { status: 404,
+                headers: { 'content-type': 'application/json', 'cache-control': 'no-store' } });
+        return baseline(url, options);
+    };
+    await assert.rejects(runAcceptance({ ...config, iterations: 24 }, fetcher),
+        /Denied response exposed private reference/);
+});
