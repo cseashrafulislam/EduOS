@@ -740,11 +740,11 @@
             ['Fee Discount Rules', 'ফি ছাড়ের নিয়ম'],
             ['Create and review institution fee-discount rules applied by authorized Finance workflows.', 'প্রতিষ্ঠানের ফি ছাড়ের নিয়ম তৈরি ও পর্যালোচনা করুন, যা অনুমোদিত Finance কাজে প্রযোজ্য।'],
             ['TenantAdmin and FINANCE access; confirm the intended discount eligibility, value and effective configuration.', 'TenantAdmin ও FINANCE অনুমতি; ছাড়ের যোগ্যতা, মূল্য ও কার্যকারিতা আগে যাচাই করুন।'],
-            [['Open New discount rule and enter the required scope, type and value.', 'New discount rule খুলে প্রয়োজনীয় পরিসর, ধরন ও মূল্য দিন।'], ['Select Save rule and review the confirmation.', 'Save rule দিয়ে সংরক্ষণ করে নিশ্চিতকরণ দেখুন।'], ['Refresh the Discount rule register, search for the rule and edit only an allowed version.', 'Discount rule register রিফ্রেশ করে নিয়মটি খুঁজুন ও অনুমোদিত সংস্করণই সম্পাদনা করুন।']],
+            [['Select New / Reset, then enter the rule name, fee head, type, value and effective dates.', 'New / Reset বেছে নিয়মের নাম, ফি খাত, ধরন, অঙ্ক ও কার্যকর তারিখ দিন।'], ['Confirm Create rule or Update rule; check the result and refresh the register.', 'Create rule বা Update rule নিশ্চিত করে ফলাফল ও তালিকা রিফ্রেশ যাচাই করুন।'], ['Refresh the register, select Edit on a row and verify its version before updating.', 'তালিকা রিফ্রেশ করে সারির Edit বেছে সংস্করণ যাচাই করে হালনাগাদ করুন।']],
             ['Example: configure an approved tuition discount for the eligible batch without editing posted invoices.', 'উদাহরণ: পোস্ট করা ইনভয়েস না বদলে যোগ্য ব্যাচের জন্য অনুমোদিত টিউশন ছাড় নির্ধারণ করুন।'],
             ['The rule appears in the institution discount register for future authorized evaluation.', 'নিয়মটি প্রতিষ্ঠানের ছাড়ের তালিকায় আসে, পরে অনুমোদিত হিসাবে ব্যবহার করা যায়।'],
             ['Saving a rule does not issue a cash refund or silently rewrite posted invoice/GL history; individual awards and approvals remain separate.', 'নিয়ম সংরক্ষণে নগদ ফেরত বা পোস্ট করা ইনভয়েস/GL ইতিহাস বদলায় না; ব্যক্তিগত ছাড় ও অনুমোদন আলাদা।'],
-            ['If save fails, check duplicate rules, dates and required fields; reload before retrying a stale edit.', 'সংরক্ষণ ব্যর্থ হলে পুনরাবৃত্ত নিয়ম, তারিখ ও আবশ্যিক তথ্য দেখুন; পুরোনো সংস্করণ রিলোড করুন।'],
+            ['If save conflicts, the fee head is unavailable or the institution session changes, reload the register; never reuse a stale version.', 'সংঘাত, অনুপলব্ধ ফি খাত বা প্রতিষ্ঠানের সেশন বদলালে তালিকা রিলোড করুন; পুরোনো সংস্করণ আবার ব্যবহার করবেন না।'],
             [['/FinanceAdjustments/Policies', 'Discount and fine policies', 'ছাড় ও জরিমানার নীতি']]),
         '/admissioncashreceipts/index': taskGuide(
             ['Admission Cash Receipts', 'ভর্তির নগদ রসিদ'],

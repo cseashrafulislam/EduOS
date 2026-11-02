@@ -1,36 +1,43 @@
-@{ ViewData["Title"] = "Fee Discount Rule Administration"; }
+@using System.Globalization
+@{
+    var bn = CultureInfo.CurrentUICulture.Name == "bn-BD";
+    string L(string en, string bd) => bn ? bd : en;
+    ViewData["Title"] = L("Fee Discount Rule Administration", "ফি ছাড়ের নিয়ম পরিচালনা");
+}
 <section id="discountRulesApp" class="container-fluid py-3">
-    <header class="mb-3">
-        <h2 class="h4 mb-1">Fee Discount Rules</h2>
-        <p class="text-muted mb-2">Configure tenant-wide tuition discounts before assigning them to students. Existing issued invoices are never recalculated.</p>
-        <a class="btn btn-outline-secondary btn-sm" href="/FeeOperations/Index">Back to Fees &amp; Billing</a>
+    <header class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+        <div>
+            <h1 class="h4 mb-1">@L("Fee Discount Rules", "ফি ছাড়ের নিয়ম")</h1>
+            <p class="text-muted mb-0">@L("Configure institution-wide discounts for future billing. Issued invoices remain unchanged.", "ভবিষ্যৎ বিলিংয়ের জন্য প্রতিষ্ঠানের ছাড়ের নিয়ম নির্ধারণ করুন। ইস্যুকৃত ইনভয়েস অপরিবর্তিত থাকবে।")</p>
+        </div>
+        <a class="btn btn-outline-secondary btn-sm" href="/FeeOperations/Index">@L("Back to Fees & Billing", "ফি ও বিলিংয়ে ফিরুন")</a>
     </header>
-    <div id="discountRuleAlert" class="d-none" role="alert" tabindex="-1" aria-live="polite"></div>
+    <div id="discountRuleAlert" class="d-none" role="alert" tabindex="-1" aria-live="assertive"></div>
     <div class="row g-3">
         <div class="col-xl-4">
             <section class="card">
-                <div class="card-header"><h3 id="discountRuleFormTitle" class="h6 mb-0">New discount rule</h3></div>
-                <form id="discountRuleForm" class="card-body row g-3">
-                    <div class="col-12"><label class="form-label" for="discountRuleName">Rule name</label><input class="form-control" id="discountRuleName" maxlength="150" required /></div>
-                    <div class="col-12"><label class="form-label" for="discountRuleHead">Fee head</label><select class="form-select" id="discountRuleHead"><option value="">All fee heads</option></select></div>
-                    <div class="col-md-6"><label class="form-label" for="discountRuleType">Calculation</label><select class="form-select" id="discountRuleType"><option value="percentage">Percentage (%)</option><option value="fixed">Fixed amount (BDT)</option></select></div>
-                    <div class="col-md-6"><label class="form-label" for="discountRuleValue">Value</label><input class="form-control" id="discountRuleValue" type="number" min="0.0001" max="100" step="0.0001" required /></div>
-                    <div class="col-md-6"><label class="form-label" for="discountRuleFrom">Effective from</label><input class="form-control" id="discountRuleFrom" type="date" /></div>
-                    <div class="col-md-6"><label class="form-label" for="discountRuleTo">Effective to</label><input class="form-control" id="discountRuleTo" type="date" /></div>
-                    <div class="col-12"><div class="form-check"><input class="form-check-input" id="discountRuleActive" type="checkbox" checked /><label class="form-check-label" for="discountRuleActive">Active for future billing</label></div></div>
-                    <div class="col-12 d-flex gap-2"><button id="discountRuleSave" class="btn btn-primary" type="submit">Save rule</button><button id="discountRuleReset" class="btn btn-outline-secondary" type="button">New / Reset</button></div>
-                    <p class="small text-muted mb-0">Assigned rule terms cannot be changed. Deactivation prevents future application; it does not reverse existing invoices.</p>
+                <div class="card-header"><h2 id="discountRuleFormTitle" class="h6 mb-0">@L("New discount rule", "নতুন ফি ছাড়ের নিয়ম")</h2></div>
+                <form id="discountRuleForm" class="card-body row g-3" autocomplete="off">
+                    <div class="col-12"><label class="form-label" for="discountRuleName">@L("Rule name", "নিয়মের নাম")</label><input class="form-control" id="discountRuleName" maxlength="150" required /></div>
+                    <div class="col-12"><label class="form-label" for="discountRuleHead">@L("Fee head", "ফি খাত")</label><select class="form-select" id="discountRuleHead"><option value="">@L("All fee heads", "সব ফি খাত")</option></select></div>
+                    <div class="col-md-6"><label class="form-label" for="discountRuleType">@L("Calculation", "হিসাবের ধরন")</label><select class="form-select" id="discountRuleType"><option value="percentage">@L("Percentage (%)", "শতাংশ (%)")</option><option value="fixed">@L("Fixed amount (BDT)", "নির্দিষ্ট টাকা")</option></select></div>
+                    <div class="col-md-6"><label class="form-label" for="discountRuleValue">@L("Value", "অঙ্ক")</label><input class="form-control" id="discountRuleValue" type="number" min="0.0001" max="100" step="0.0001" aria-describedby="discountRuleValueHelp" required /><div id="discountRuleValueHelp" class="form-text">@L("Up to four decimal places; percentage at most 100.", "সর্বোচ্চ চার দশমিক; শতাংশ সর্বোচ্চ ১০০।")</div></div>
+                    <div class="col-md-6"><label class="form-label" for="discountRuleFrom">@L("Effective from", "কার্যকর শুরুর তারিখ")</label><input class="form-control" id="discountRuleFrom" type="date" /></div>
+                    <div class="col-md-6"><label class="form-label" for="discountRuleTo">@L("Effective to", "কার্যকর শেষের তারিখ")</label><input class="form-control" id="discountRuleTo" type="date" /></div>
+                    <div class="col-12"><div class="form-check"><input class="form-check-input" id="discountRuleActive" type="checkbox" checked /><label class="form-check-label" for="discountRuleActive">@L("Active for future billing", "ভবিষ্যৎ বিলিংয়ের জন্য সক্রিয়")</label></div></div>
+                    <div class="col-12 d-flex flex-wrap gap-2"><button id="discountRuleSave" class="btn btn-primary" type="submit">@L("Create rule", "নিয়ম তৈরি")</button><button id="discountRuleReset" class="btn btn-outline-secondary" type="button">@L("New / Reset", "নতুন / রিসেট")</button></div>
+                    <p class="small text-muted mb-0">@L("Assigned financial terms cannot be edited. A conflict requires refreshing the register; deactivation does not reverse posted invoices.", "বরাদ্দকৃত আর্থিক শর্ত সম্পাদনাযোগ্য নয়। সংঘাত হলে তালিকা রিফ্রেশ করুন; নিষ্ক্রিয় করলেও পোস্ট করা ইনভয়েস রিভার্স হয় না।")</p>
                 </form>
             </section>
         </div>
         <div class="col-xl-8">
             <section class="card">
-                <div class="card-header d-flex justify-content-between align-items-center"><h3 class="h6 mb-0">Discount rule register</h3><button id="discountRuleRefresh" class="btn btn-outline-primary btn-sm" type="button">Refresh</button></div>
+                <div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-2"><h2 class="h6 mb-0">@L("Discount rule register", "ফি ছাড়ের নিয়মের তালিকা")</h2><button id="discountRuleRefresh" class="btn btn-outline-primary btn-sm" type="button">@L("Refresh", "রিফ্রেশ")</button></div>
                 <div class="table-responsive"><table class="table table-sm table-hover align-middle mb-0">
-                    <thead><tr><th>Name</th><th>Fee head</th><th>Type</th><th>Value</th><th>Effective dates</th><th>Status</th><th>Action</th></tr></thead>
-                    <tbody id="discountRuleRows"><tr><td colspan="7" class="text-center text-muted p-3">Loading…</td></tr></tbody>
+                    <thead><tr><th scope="col">@L("Name", "নাম")</th><th scope="col">@L("Fee head", "ফি খাত")</th><th scope="col">@L("Type", "ধরন")</th><th scope="col">@L("Value", "অঙ্ক")</th><th scope="col">@L("Effective dates", "কার্যকর তারিখ")</th><th scope="col">@L("Status", "অবস্থা")</th><th scope="col">@L("Action", "কার্যক্রম")</th></tr></thead>
+                    <tbody id="discountRuleRows"><tr><td colspan="7" class="text-center text-muted p-3">@L("Loading…", "লোড হচ্ছে…")</td></tr></tbody>
                 </table></div>
-                <div class="card-footer d-flex gap-2 align-items-center"><button id="discountRulePrev" class="btn btn-outline-secondary btn-sm" type="button">Previous</button><span id="discountRulePage" class="small text-muted">—</span><button id="discountRuleNext" class="btn btn-outline-secondary btn-sm" type="button">Next</button></div>
+                <div class="card-footer d-flex flex-wrap gap-2 align-items-center"><button id="discountRulePrev" class="btn btn-outline-secondary btn-sm" type="button" disabled>@L("Previous", "আগের")</button><span id="discountRulePage" class="small text-muted" aria-live="polite"></span><button id="discountRuleNext" class="btn btn-outline-secondary btn-sm" type="button" disabled>@L("Next", "পরের")</button></div>
             </section>
         </div>
     </div>
