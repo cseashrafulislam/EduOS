@@ -55,7 +55,8 @@ function validateEnvironment(env) {
     assert(['en', 'bn'].includes(languages.A) &&
         ['en', 'bn'].includes(languages.B) && languages.A !== languages.B,
         'English and Bangla synthetic accounts required');
-    return { base, users, refs, confirmation, from, to, campus, otherCampus, languages };
+    return { base, users, refs, confirmation, from, to, campus, otherCampus, languages,
+        privateRefs: new Set(refs.map(value => value.toLowerCase())) };
 }
 // Fail closed before any browser navigation or authenticated API request.
 // No cross-origin resources, encoded path separators/dots, fragments or URL
@@ -146,10 +147,60 @@ async function assertForeignResponsePrivacy(config, session, requireNetworkEvide
         const body = await response.body();
         assert(body.length <= 2_000_000, 'Oversized foreign evidence response');
         const text = body.toString('utf8').toLowerCase();
-        for (const reference of config.refs)
+        for (const reference of config.privateRefs || config.refs)
             assert(!text.includes(reference.toLowerCase()),
                 'Foreign browser received owner evidence in response body');
     }
+}
+
+/**
+ * Extract owner-only source and nested Finance UUIDs from ACTUAL authorized
+ * Chromium HTTP responses. The set is kept in memory, never logged or stored.
+ * A seeded source ID alone is not sufficient to detect nested journal leakage.
+ */
+async function collectOwnerEvidenceReferences(config, session, expectedReference = null) {
+    const responses = session.evidenceResponses.splice(0);
+    assert(responses.length > 0, 'Owner browser did not exercise an evidence HTTP request');
+    const observed = new Set();
+    for (const response of responses) {
+        assert.equal(response.status(), 200, 'Authorized owner evidence request failed');
+        const directives = String(response.headers()['cache-control'] || '')
+            .toLowerCase().split(',').map(value => value.trim());
+        assert(directives.includes('no-store') && !directives.includes('public') &&
+            !directives.some(value => /^s-maxage\s*=/.test(value)),
+            'Owner evidence response is cacheable');
+        const body = await response.body();
+        assert(body.length <= 2_000_000, 'Oversized owner evidence response');
+        const uuid = /\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/gi;
+        for (const match of body.toString('utf8').matchAll(uuid)) {
+            const reference = match[0].toLowerCase();
+            observed.add(reference);
+            config.privateRefs.add(reference);
+            assert(config.privateRefs.size <= 10000,
+                'Unbounded owner reference inventory');
+        }
+    }
+    if (expectedReference)
+        assert(observed.has(expectedReference.toLowerCase()),
+            'Authorized source reference absent from observed HTTP evidence');
+}
+
+/**
+ * Real Chromium direct-navigation denial, not a mock or a DOM-only assertion.
+ * Denied JSON/CSV endpoints must not redirect, render a successful response,
+ * return cacheable bytes or expose any captured owner source/Finance UUID.
+ */
+async function assertDeniedDirectEvidence(config, session, relativePath) {
+    assert(/^\/api\/v3\/enterprise\/ledger-trace\/(?:asset-depreciation\/|procurement\/)?[0-9a-f-]{36}(?:\/csv)?$/i.test(relativePath),
+        'Refusing an unapproved direct evidence path');
+    const target = config.base + relativePath;
+    assert(isAllowedEvidenceRequest(target, config.base),
+        'Refusing an unsafe direct evidence URL');
+    const response = await session.page.goto(target, { waitUntil: 'domcontentloaded' });
+    assert(response && response.url() === target &&
+        [403, 404].includes(response.status()),
+        'Foreign/restricted direct evidence request was not denied');
+    await assertForeignResponsePrivacy(config, session, true);
 }
 
 async function login(browser, config, key) {
@@ -159,7 +210,7 @@ async function login(browser, config, key) {
         serviceWorkers: 'block', ignoreHTTPSErrors: false, acceptDownloads: false
     });
     const page = await context.newPage(), errors = [], blockedWrites = [];
-    const evidenceResponses = key === 'A' ? [] : captureEvidenceResponses(page, config.base);
+    const evidenceResponses = captureEvidenceResponses(page, config.base);
     page.on('pageerror', () => errors.push('script-error'));
     await context.route('**/*', route => {
         const req = route.request(), method = req.method().toUpperCase();
@@ -268,6 +319,7 @@ async function verifyRegister(config, session, key) {
     assert(isScopedRegisterExport(await page.locator('#v3RegisterCsv')
         .getAttribute('href'), config, kind, campus),
     'Register CSV export escaped selected tenant/campus/date/page scope');
+    if (key === 'A') await collectOwnerEvidenceReferences(config, session);
     assert.deepEqual(session.errors, [], 'Register browser JavaScript error');
     assert.deepEqual(session.blockedWrites, [], 'Unexpected register browser request');
     if (key === 'B') await assertForeignResponsePrivacy(config, session, true);
@@ -303,6 +355,7 @@ async function verifyView(config, session, key, kind, reference) {
         assert.equal(await page.locator('#v3TraceCsv').getAttribute('href'),
             '/api/v3/enterprise/ledger-trace/' + route + reference + '/csv',
             'Authorized source-specific CSV link mismatch');
+        await collectOwnerEvidenceReferences(config, session, reference);
     } else {
         await page.waitForFunction(() => {
             const msg = document.getElementById('v3TraceMessage')?.textContent || '';
@@ -339,6 +392,19 @@ async function main(env = process.env) {
         await verifyRegister(config, sessions.A, 'A');
         await verifyRegister(config, sessions.B, 'B');
         await verifyRestrictedView(config, sessions.RESTRICTED);
+        // Six direct source/CSV routes for each foreign and restricted session.
+        // This supplements (never replaces) the cookie-jar HTTP replay.
+        for (const key of ['B', 'RESTRICTED']) {
+            for (const [prefix, reference] of [
+                ['', config.refs[0]],
+                ['asset-depreciation/', config.refs[1]],
+                ['procurement/', config.refs[2]]
+            ]) {
+                const route = '/api/v3/enterprise/ledger-trace/' + prefix + reference;
+                await assertDeniedDirectEvidence(config, sessions[key], route);
+                await assertDeniedDirectEvidence(config, sessions[key], route + '/csv');
+            }
+        }
         await verifyView(config, sessions.A, 'A', 'stock', config.refs[0]);
         const acceptance = validateConfig({
             BASE_URL: config.base, STAGING_HOST: new URL(config.base).hostname,
@@ -360,7 +426,8 @@ async function main(env = process.env) {
         assert.equal(report.errors, 0, 'Authenticated replay errors');
         assert(report.maxClientInFlight >= 2, 'Concurrent replay not observed');
         console.log('Authenticated staging browser acceptance PASS: three synthetic accounts, ' +
-            'three trace kinds, denied restricted route, campus-scoped register CSV, ' +
+            'three trace kinds, twelve direct foreign/restricted JSON/CSV denials, ' +
+            'nested owner Finance reference privacy, campus-scoped register CSV, ' +
             'bilingual/mobile and bounded read-only source/Finance replay. ' +
             'No production/UAT certification.');
     } finally {
@@ -370,6 +437,7 @@ async function main(env = process.env) {
 }
 module.exports = { validateEnvironment, makeAuthenticatedFetcher,
     captureEvidenceResponses, assertForeignResponsePrivacy,
+    collectOwnerEvidenceReferences, assertDeniedDirectEvidence,
     isAllowedBrowserRequest, isAllowedEvidenceRequest, isDeniedRestrictedRoute,
     isScopedRegisterExport, main };
 if (require.main === module)

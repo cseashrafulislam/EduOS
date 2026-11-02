@@ -3,6 +3,7 @@ const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const { validateEnvironment, makeAuthenticatedFetcher,
     captureEvidenceResponses, assertForeignResponsePrivacy,
+    collectOwnerEvidenceReferences, assertDeniedDirectEvidence,
     isAllowedBrowserRequest, isAllowedEvidenceRequest, isDeniedRestrictedRoute,
     isScopedRegisterExport } =
     require('../../tests/browser/enterprise-trace-live.cjs');
@@ -207,4 +208,74 @@ test('foreign browser acceptance cannot silently pass without a real evidence re
     await assert.rejects(assertForeignResponsePrivacy(config,
         { evidenceResponses: [] }, true), /did not exercise an evidence HTTP request/);
     await assertForeignResponsePrivacy(config, { evidenceResponses: [] });
+});
+
+test('observed owner Chromium responses protect non-seeded nested Finance UUIDs', async () => {
+    const config = validateEnvironment(env);
+    const nested = '99999999-9999-4999-8999-999999999999';
+    const url = config.base + '/api/v3/enterprise/ledger-trace/' + config.refs[0];
+    const response = (status, body, cache = 'private, no-store') => ({
+        url: () => url, status: () => status,
+        headers: () => ({ 'cache-control': cache }),
+        body: async () => Buffer.from(body)
+    });
+    await collectOwnerEvidenceReferences(config, { evidenceResponses: [
+        response(200, JSON.stringify({ movementReference: config.refs[0],
+            journals: [{ reference: nested }] }))
+    ] }, config.refs[0]);
+    assert(config.privateRefs.has(nested));
+    await assert.rejects(assertForeignResponsePrivacy(config, { evidenceResponses: [
+        response(404, JSON.stringify({ error: 'Hidden journal ' + nested }))
+    ] }, true), /Foreign browser received owner evidence/);
+});
+
+test('owner network evidence must be real, bounded, uncached and source-linked', async () => {
+    const config = validateEnvironment(env);
+    const source = config.refs[0];
+    const make = (status, body, cache = 'private, no-store') => ({
+        status: () => status, headers: () => ({ 'cache-control': cache }),
+        body: async () => Buffer.from(body)
+    });
+    const collect = (responses, expected = source) =>
+        collectOwnerEvidenceReferences(config, { evidenceResponses: responses }, expected);
+    await assert.rejects(collect([]), /did not exercise/);
+    await assert.rejects(collect([make(403, source)]), /owner evidence request failed/);
+    await assert.rejects(collect([make(200, source, 'public, no-store')]), /cacheable/);
+    await assert.rejects(collect([make(200, '{}')]), /source reference absent/);
+    await assert.rejects(collect([make(200, 'x'.repeat(2_000_001))]), /Oversized/);
+    await collect([make(200, JSON.stringify({ reference: source }))]);
+});
+
+test('real Chromium direct API denial matrix rejects 200, redirect, cache and leaks', async () => {
+    const config = validateEnvironment(env);
+    const target = '/api/v3/enterprise/ledger-trace/' + config.refs[0] + '/csv';
+    const nested = '99999999-9999-4999-8999-999999999999';
+    config.privateRefs.add(nested);
+    const run = async (status, body = '{}', cache = 'private, no-store',
+        redirect = false) => {
+        const session = { evidenceResponses: [] };
+        session.page = { goto: async url => {
+            const response = {
+                url: () => redirect ? config.base + '/Account/Login' : url,
+                status: () => status,
+                headers: () => ({ 'cache-control': cache }),
+                body: async () => Buffer.from(body)
+            };
+            session.evidenceResponses.push(response);
+            return response;
+        } };
+        return assertDeniedDirectEvidence(config, session, target);
+    };
+    await run(403);
+    await run(404);
+    await assert.rejects(run(200), /was not denied/);
+    await assert.rejects(run(302), /was not denied/);
+    await assert.rejects(run(403, '{}', 'private, no-store', true), /was not denied/);
+    await assert.rejects(run(403, '{}', 'public, no-store'), /cacheable/);
+    await assert.rejects(run(403, '{"hidden":"' + nested + '"}'),
+        /Foreign browser received owner evidence/);
+    const session = { page: { goto: async () => { throw Error('unsafe network'); } },
+        evidenceResponses: [] };
+    await assert.rejects(assertDeniedDirectEvidence(config, session,
+        '/api/v3/enterprise/ledger-trace/%2e%2e/private'), /unapproved direct/);
 });
