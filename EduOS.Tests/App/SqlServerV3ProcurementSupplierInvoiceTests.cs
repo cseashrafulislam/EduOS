@@ -1144,7 +1144,8 @@ public sealed partial class SqlServerV3ProcurementPurchaseOrderTests
                 // Real SQL campus revocation acceptance for Supplier AP read
                 // surfaces, using the same physical source campus as this asset.
                 var sourceCampusId = await assetMaker.Assets.AsNoTracking()
-                    .Where(x=>x.PublicId==assetReference).Select(x=>x.CampusId).SingleAsync();
+                    .Where(x=>x.PublicId==assetReference).Select(x=>x.CampusId).SingleAsync()
+                    ?? throw new InvalidOperationException("Source asset campus missing.");
                 var limitedInvoices = new ProcurementSupplierInvoiceService(assetMaker,limitedActor,
                     new InventoryMovementService(assetMaker,limitedActor,TimeProvider.System,
                         NullLogger<InventoryMovementService>.Instance),
