@@ -24,6 +24,8 @@ async function supplierCheck(browser,lang,mobile){
  const context=await browser.newContext({viewport:mobile?{width:390,height:844}:{width:1280,height:800}});
  const page=await context.newPage(),errors=[],writes=[],blocked=new Set();
  page.on('pageerror',e=>errors.push(e.message));
+ await page.route('https://eduos.test/supplier',route=>route.fulfill({status:200,contentType:'text/html',
+  body:shell(lang,'<section id="supplierInvoiceMatch" data-user-id="100">'+supplierHtml+'</section>')}));
  await page.route('**/api/procurement/supplier-invoices/**',route=>{
   const request=route.request(),url=new URL(request.url()),parts=url.pathname.split('/');
   const ref=parts[4],kind=url.pathname.endsWith('/options')?'options':'list';
@@ -35,7 +37,7 @@ async function supplierCheck(browser,lang,mobile){
    state:'Submitted',amount:6,plannedDate:'2026-11-02',makerId:200,rowVersion:'rv'}]}));
  });
  try{
-  await page.setContent(shell(lang,'<section id="supplierInvoiceMatch" data-user-id="100">'+supplierHtml+'</section>'));
+  await page.goto('https://eduos.test/supplier');
   await page.addScriptTag({path:path.join(base,'EduOS.App/wwwroot/js/procurement/supplier-settlement-instructions.js')});
   const select=ref=>page.evaluate(reference=>window.dispatchEvent(
    new CustomEvent('procurement-settlement-select',{detail:{reference,invoiceNumber:'INV-'+reference,rowVersion:'rv'}})),ref);
