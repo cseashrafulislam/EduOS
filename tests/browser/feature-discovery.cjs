@@ -69,7 +69,7 @@ async function english(browser) {
         await page.locator('#featureSearchInput').fill('');
         assert.match(await page.locator('#featureSearchResults').innerText(),/Favorites/);
         await page.locator('#featureSearchInput').fill('student');
-        await page.locator('#featureSearchResults a.feature-search-link').filter({hasText:'Students'}).click();
+        await page.locator('#featureSearchResults a.feature-search-link[href="/Students/Index"]').click();
         await page.waitForURL('**/Students/Index');
         assert.equal(await page.evaluate(()=>window.verifyCount),0); // fresh document after navigation
         assert.deepEqual(errors,[]);
