@@ -89,6 +89,7 @@ test('profile prevents overlapping privileged requests and clears BFCache-sensit
     assert.match(script,/const profilePendingActions = new Set\(\)/);
     assert.match(script,/if \(profileLocked \|\| profilePendingActions.size > 0\) return false/);
     assert.match(script,/if \(!beginProfileAction\('sessionOperation'\)\) return/);
+    assert.match(script,/New rows rendered during a pending revoke inherit the current action lock/);
     assert.match(script,/if \(!beginProfileAction\('saveProfileBtn'\)\) return/);
     assert.match(script,/if \(!beginProfileAction\('changePasswordBtn'\)\) return/);
     assert.match(script,/if \(!beginProfileAction\(id\)\) return/);
@@ -98,6 +99,7 @@ test('profile prevents overlapping privileged requests and clears BFCache-sensit
     assert.match(script,/if \(revision === profileAlertRevision\) container\.replaceChildren\(\)/);
     assert.match(script,/mfaReady = false;\s*throw new Error\(profileText\("Recovery codes were not returned\."\)\)/);
     const browser = read('tests/browser/account-profile.cjs');
-    for (const scenario of ['malformedJsonRead','duplicateProfileWrite','pagehideClearsPrivateAccount'])
+    for (const scenario of ['malformedJsonRead','duplicateProfileWrite',
+        'successfulOtherSessionsRevoke','pagehideClearsPrivateAccount'])
         assert(browser.includes(scenario), scenario);
 });

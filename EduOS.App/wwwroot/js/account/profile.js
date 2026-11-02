@@ -88,9 +88,9 @@ function syncAccountActions() {
         const button = document.getElementById(id);
         if (button) button.disabled = profileLocked || !allowed || profilePendingActions.size > 0;
     }
-    if (profilePendingActions.size > 0) {
-        document.querySelectorAll('#sessionList button').forEach(button => { button.disabled = true; });
-    }
+    document.querySelectorAll('#sessionList button').forEach(button => {
+        button.disabled = profileLocked || !sessionsReady || profilePendingActions.size > 0;
+    });
 }
 
 let profileReadGeneration = 0;
@@ -941,6 +941,8 @@ async function loadActiveSessions() {
             row.append(description, revoke);
             container.appendChild(row);
         }
+        // New rows rendered during a pending revoke inherit the current action lock.
+        syncAccountActions();
     } catch (error) {
         if (profileLocked || generation !== sessionsReadGeneration) return;
         container.textContent = container.dataset.loadingError || profileText("Unable to load active sessions.");

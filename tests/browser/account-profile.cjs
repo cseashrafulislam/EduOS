@@ -36,7 +36,7 @@ function fixture(bn) {
 async function setup(browser,{bn=false,profileStatus=200,profileSuccess=true,delay=false,jsonGate=false,syntheticWrite=null,writeGate=false,writeStatus=403,malformedProfile=false}={}) {
     if(syntheticWrite)assert(['/api/auth/profile','/api/auth/mfa/disable',
         '/api/auth/mfa/recovery-codes/regenerate','/api/auth/sessions/revoke-others',
-        '/api/auth/sessions/revoke-all'].includes(syntheticWrite),'Unexpected synthetic write target');
+        '/api/auth/sessions/revoke-all','/api/auth/sessions/revoke'].includes(syntheticWrite),'Unexpected synthetic write target');
     const context = await browser.newContext({viewport:bn?{width:390,height:844}:{width:1280,height:800},
         serviceWorkers:'block',acceptDownloads:false});
     const page = await context.newPage(),writes=[],syntheticWrites=[],errors=[];
@@ -249,6 +249,21 @@ async function duplicateProfileWrite(browser){
         assert.deepEqual(s.errors,[]);
     }finally{s.releaseWrite();await s.context.close();}
 }
+async function successfulOtherSessionsRevoke(browser){
+    const s=await setup(browser,{syntheticWrite:'/api/auth/sessions/revoke-others',writeStatus:200});
+    try{
+        await s.page.waitForFunction(()=>document.getElementById('sessionRevokeOthersBtn')?.disabled===false);
+        await s.page.locator('#sessionRevokePassword').fill('synthetic-password');
+        await s.page.locator('#sessionRevokeOthersBtn').click();
+        await s.writeStarted;
+        await s.page.waitForFunction(()=>document.getElementById('sessionRevokeOthersBtn')?.disabled===false);
+        assert.equal(await s.page.locator('#sessionList button').isEnabled(),true,
+            'Rebuilt session rows must unlock after the pending mutation completes');
+        assert.deepEqual(s.syntheticWrites,['POST /api/auth/sessions/revoke-others']);
+        assert.deepEqual(s.writes,[]);
+        assert.deepEqual(s.errors,[]);
+    }finally{await s.context.close();}
+}
 async function pagehideClearsPrivateAccount(browser){
     const s=await setup(browser);
     try{
@@ -291,7 +306,7 @@ async function deniedSecurityWrite(browser,id,endpoint){
         await denied(browser);await stale(browser);await switchedAfterLoad(browser);
         await switchedWhileParsingJson(browser);await falseSuccessRead(browser);
         await malformedJsonRead(browser);await duplicateProfileWrite(browser);
-        await pagehideClearsPrivateAccount(browser);
+        await successfulOtherSessionsRevoke(browser);await pagehideClearsPrivateAccount(browser);
         await switchedDuringSuccessfulWrite(browser);
         for(const [id,endpoint] of [
             ['mfaDisableBtn','/api/auth/mfa/disable'],
