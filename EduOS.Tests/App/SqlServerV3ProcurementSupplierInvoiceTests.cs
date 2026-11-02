@@ -1119,6 +1119,120 @@ public sealed partial class SqlServerV3ProcurementPurchaseOrderTests
                         new ReviewAssetCapitalizationRequest {RowVersion=capitalizationVersion,
                             Approve=true,Reason="Repeat must not create a second stock or GL posting"})).StatusCode);
             }
+
+            // Competing different asset registrations claim the same receipt ordinal.
+            // The existing original asset has already consumed ordinal 1; these two
+            // independent makers race for ordinal 2 of the SAME posted GR line.
+            Guid[] competingAssetReferences;
+            await using (var candidateSetup=Open(options,tenantId,makerId))
+            {
+                var originalAsset=await candidateSetup.Assets.AsNoTracking()
+                    .SingleAsync(x=>x.PublicId==assetReference);
+                var candidates=Enumerable.Range(0,2).Select(i=>new Asset {
+                    TenantId=tenantId,PublicId=Guid.NewGuid(),CampusId=originalAsset.CampusId,
+                    AssetCategoryId=originalAsset.AssetCategoryId,
+                    InventoryItemId=originalAsset.InventoryItemId,
+                    InventoryLocationId=originalAsset.InventoryLocationId,
+                    AssetTag="SI-RACE-"+i+"-"+suffix,
+                    SerialNumber="SI-RACE-SERIAL-"+i+"-"+suffix,
+                    Name="Competing receipt unit registration "+i,
+                    PurchaseCost=10m,PurchaseDate=date,StateCode="Available"
+                }).ToArray();
+                candidateSetup.Assets.AddRange(candidates);
+                await candidateSetup.SaveChangesAsync();
+                competingAssetReferences=candidates.Select(x=>x.PublicId).ToArray();
+            }
+            var ordinalRace=await Task.WhenAll(competingAssetReferences.Select(async candidateReference =>
+            {
+                await using var contender=Open(options,tenantId,makerId);
+                var readiness=await new AssetLifecycleService(contender,
+                    new Actor(tenantId,makerId),TimeProvider.System,
+                    NullLogger<AssetLifecycleService>.Instance)
+                    .GetCapitalizationReadinessAsync(candidateReference);
+                Assert.True(readiness.Success,readiness.Message);
+                Assert.Contains(readiness.Data!.Candidates,x=>
+                    x.ReceiptReference==receiptReference && x.LineNo==1);
+                var input=new CreateAssetCapitalizationRequest {
+                    ClientRequestId=Guid.NewGuid(),
+                    AssetRowVersion=readiness.Data.AssetRowVersion,
+                    ReceiptReference=receiptReference,ReceiptLineNo=1,ReceiptUnitOrdinal=2,
+                    AccountingPeriodId=periodId,CapitalizationDate=date,InServiceDate=date,
+                    PolicyMode="Automatic",ProposedCostBasis=0m,SalvageValue=0m,
+                    DepreciationMethod="StraightLine",UsefulLifeMonths=36,PolicyVersion=1,
+                    FixedAssetAccountId=capitalizationAccounts[0],
+                    InventoryAccountId=capitalizationAccounts[1],
+                    AccumulatedDepreciationAccountId=capitalizationAccounts[2],
+                    DepreciationExpenseAccountId=capitalizationAccounts[3],
+                    ImpairmentExpenseAccountId=capitalizationAccounts[4],
+                    DisposalGainAccountId=capitalizationAccounts[5],
+                    DisposalLossAccountId=capitalizationAccounts[6],
+                    Reason="Distinct registered assets must not reserve the same receipt unit"
+                };
+                var response=await AssetFinance(contender,tenantId,makerId)
+                    .RequestCapitalizationAsync(candidateReference,input);
+                return (AssetReference:candidateReference,Input:input,Result:response);
+            }));
+            var ordinalWinner=Assert.Single(ordinalRace,x=>x.Result.Success);
+            var ordinalLoser=Assert.Single(ordinalRace,x=>x.Result.StatusCode==409);
+            Assert.NotEqual(ordinalWinner.AssetReference,ordinalLoser.AssetReference);
+            await using (var ordinalVerifier=Open(options,tenantId,checkerId))
+            {
+                var receiptLineId=await ordinalVerifier.ProcurementGoodsReceiptLines.AsNoTracking()
+                    .Where(x=>x.GoodsReceiptId==ordinalVerifier.ProcurementGoodsReceipts
+                        .Where(r=>r.PublicId==receiptReference).Select(r=>r.Id).Single())
+                    .Select(x=>x.Id).SingleAsync();
+                Assert.Single(await ordinalVerifier.AssetCapitalizationCommands.AsNoTracking()
+                    .Where(x=>x.GoodsReceiptLineId==receiptLineId &&
+                        x.ReceiptUnitOrdinal==2 && x.StateCode=="Submitted").ToListAsync());
+                Assert.Equal(1,await ordinalVerifier.AssetBooks.CountAsync());
+                Assert.Equal(1,await ordinalVerifier.InventoryMovements.CountAsync(x=>
+                    x.SourceType=="AssetCapitalization" && x.StateCode=="Posted"));
+                Assert.Equal(1,await ordinalVerifier.Journals.CountAsync(x=>
+                    x.SourceType=="AssetCapitalization" && x.State==JournalState.Posted));
+            }
+            await using (var independentChecker=Open(options,tenantId,checkerId))
+            {
+                var pending=ordinalWinner.Result.Data!;
+                var rejected=await AssetFinance(independentChecker,tenantId,checkerId)
+                    .ReviewCapitalizationAsync(pending.Reference,new ReviewAssetCapitalizationRequest {
+                        RowVersion=pending.RowVersion,Approve=false,
+                        Reason="Reject competing unit reservation without issuing stock or GL"
+                    });
+                Assert.True(rejected.Success,rejected.Message);
+                Assert.Equal("Rejected",rejected.Data!.State);
+            }
+            // A rejected unposted reservation must release ordinal 2. The former
+            // losing asset can then request it, and independent rejection again
+            // must leave canonical stock, asset books and posted GL unchanged.
+            Guid releasedOrdinalReference;
+            string releasedOrdinalVersion;
+            await using (var releasedMaker=Open(options,tenantId,makerId))
+            {
+                var retried=await AssetFinance(releasedMaker,tenantId,makerId)
+                    .RequestCapitalizationAsync(ordinalLoser.AssetReference,ordinalLoser.Input);
+                Assert.True(retried.Success,retried.Message);
+                releasedOrdinalReference=retried.Data!.Reference;
+                releasedOrdinalVersion=retried.Data.RowVersion;
+            }
+            await using (var releasedChecker=Open(options,tenantId,checkerId))
+            {
+                var rejected=await AssetFinance(releasedChecker,tenantId,checkerId)
+                    .ReviewCapitalizationAsync(releasedOrdinalReference,new ReviewAssetCapitalizationRequest {
+                        RowVersion=releasedOrdinalVersion,Approve=false,
+                        Reason="Release unposted alternate serialized unit without stock issue"
+                    });
+                Assert.True(rejected.Success,rejected.Message);
+            }
+            await using (var finalOrdinalVerifier=Open(options,tenantId,checkerId))
+            {
+                Assert.Equal(2,await finalOrdinalVerifier.AssetCapitalizationCommands.CountAsync(x=>
+                    x.ReceiptUnitOrdinal==2 && x.StateCode=="Rejected"));
+                Assert.Equal(1,await finalOrdinalVerifier.AssetBooks.CountAsync());
+                Assert.Equal(1,await finalOrdinalVerifier.InventoryMovements.CountAsync(x=>
+                    x.SourceType=="AssetCapitalization" && x.StateCode=="Posted"));
+                Assert.Equal(1,await finalOrdinalVerifier.Journals.CountAsync(x=>
+                    x.SourceType=="AssetCapitalization" && x.State==JournalState.Posted));
+            }
             // Continue this SAME PO/GR/invoice/return/asset-unit fixture through
             // real month-end depreciation, disposal and balanced GL compensation.
             // Synthetic time avoids a test that only passes on the last day of a month.
