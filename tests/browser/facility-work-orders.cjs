@@ -23,6 +23,9 @@ function html(bn, manager) {
     h = h.replace(/@\(\s*bn \? "([^"]*)" : "([^"]*)"\s*\)/g, (_, bd, en) => bn ? bd : en);
     h = h.replace(/@bn\.ToString\(\)\.ToLowerInvariant\(\)/g, String(bn));
     h = h.replace(/@manager\.ToString\(\)\.ToLowerInvariant\(\)/g, String(manager));
+    // The synthetic fixture must honor Razor's manager-only vendor panel.
+    h = h.replace(/@if \(manager\)\s*\{([\s\S]*?)\n\s*\}/g,
+        (_, block) => manager ? block : '');
     h = h.replace(/@approver\.ToString\(\)\.ToLowerInvariant\(\)/g, 'false');
     h = h.replace(/@technician\.ToString\(\)\.ToLowerInvariant\(\)/g, 'false');
     h = h.replace(/@\(\s*User\.FindFirst\([\s\S]*?\?\.Value\)/g, '3');
@@ -61,6 +64,13 @@ async function setup(browser, bn = false, manager = true, mobile = false) {
         if (request.method() !== 'GET') {
             if (state.emptyAfterPost) state.empty = true;
             return reply(record);
+        }
+        if (url.pathname.endsWith('/vendors')) {
+            assert.equal(url.searchParams.get('campusId'), '12');
+            const search = url.searchParams.get('search');
+            return reply({ items: search === 'none' ? [] : [
+                { supplierId: 9, supplierCode: 'FAC-APP',
+                    supplierName: 'Approved Facilities Vendor' } ], totalPages: 1 });
         }
         if (url.pathname.endsWith('/technicians')) {
             assert.equal(url.searchParams.get('workOrderId'), '17');
@@ -132,10 +142,32 @@ async function mobileBangla(browser) {
     const { context, page, state } = await setup(browser, true, false, true);
     try {
         assert.match(await page.locator('h2').innerText(), /ক্যাম্পাস/);
+        assert.equal(await page.locator('#wfVendorPanel').count(), 0,
+            'requester markup must not contain manager vendor discovery');
         await page.evaluate(() => { document.body.dataset.authTenantId = '99'; });
         await page.locator('#workflowSearch button[type="submit"]').click();
         await page.locator('#workflowAlert').filter({ hasText: 'প্রতিষ্ঠানের সেশন পরিবর্তিত' }).waitFor();
         assert.equal(await page.locator('#wfRows tr').count(), 0);
+        assert.deepEqual(state.errors, []);
+    } finally { await context.close(); }
+}
+async function vendorPreview(browser) {
+    const { context, page, state } = await setup(browser, true, true, true);
+    try {
+        await page.locator('#wfRows button').click();
+        await page.locator('#wfVendorRows').filter({ hasText: 'Approved Facilities Vendor' }).waitFor();
+        assert.equal(await page.locator('#wfVendorPanel').isVisible(), true);
+        assert.equal(await page.locator('#wfVendorRows li').count(), 1);
+        assert.doesNotMatch(await page.locator('#wfVendorPanel').innerText(), /@example|TaxRegistration|Phone/);
+        await page.locator('#wfVendorSearch').fill('none');
+        await page.locator('#wfVendorFind').click();
+        await page.locator('#wfVendorRows').filter({ hasText: 'অনুমোদিত সরবরাহকারী নেই' }).waitFor();
+        assert.equal(state.calls.filter(c => c.method !== 'GET').length, 0,
+            'reference lookup must never assign or post');
+        await page.evaluate(() => { document.body.dataset.authTenantId = '99'; });
+        await page.locator('#wfVendorFind').click();
+        await page.locator('#workflowAlert').filter({ hasText: 'প্রতিষ্ঠানের সেশন পরিবর্তিত' }).waitFor();
+        assert.equal(await page.locator('#wfVendorPanel').isVisible(), false);
         assert.deepEqual(state.errors, []);
     } finally { await context.close(); }
 }
@@ -244,9 +276,10 @@ async function selectionAfterTransition(browser) {
         await delayedRead(browser);
         await mobileBangla(browser);
         await requesterLocationPicker(browser);
+        await vendorPreview(browser);
         await availabilityRecheck(browser);
         await revokedCampus(browser);
         await selectionAfterTransition(browser);
-        console.log('Facility Work Orders Chromium PASS: bilingual mobile/desktop, conflict-aware availability, authorized location picker, stale search, revocation and stale selection; synthetic API/session only.');
+        console.log('Facility Work Orders Chromium PASS: bilingual mobile/desktop, conflict-aware availability, authorized location picker, approved vendor reference, stale search, revocation and stale selection; synthetic API/session only.');
     } finally { await browser.close(); }
 })().catch(error => { console.error(error); process.exitCode = 1; });

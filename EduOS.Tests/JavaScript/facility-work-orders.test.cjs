@@ -209,7 +209,7 @@ test('Facilities history ignores late responses after selecting another work ord
     const box = node();
     let resolveOld, notices = 0;
     const old = new Promise(resolve => { resolveOld = resolve; });
-    const context = { blocked: false, selected: { id: 11 }, historyGeneration: 0,
+    const context = { blocked: false, manager: false, selected: { id: 11 }, historyGeneration: 0,
         historyPage: 1, historyPages: 1, el: () => box,
         document: { createElement: node }, t: en => en, actionLabels: {}, bn: false,
         notice() { notices++; },
@@ -360,7 +360,7 @@ test('Facilities refresh clears off-list selection and old actions after a faile
     el('wfStateFilter').value = '';
     el('wfOverdueOnly').checked = false;
     let errors = 0;
-    const context = { blocked: false, listGeneration: 0, historyGeneration: 0,
+    const context = { blocked: false, manager: false, listGeneration: 0, historyGeneration: 0,
         technicianGeneration: 0, vendorGeneration: 0, technicianChoices: new Map(),
         page: 1, pages: 1, selected: { id: 7 }, el, URLSearchParams,
         document: { createElement: node }, t: en => en,
