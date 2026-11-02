@@ -21,7 +21,11 @@ test('invoice coverage is bounded, tenant and campus scoped, and read only', () 
     assert.doesNotMatch(service, /SaveChangesAsync|IgnoreQueryFilters|ExecuteUpdate|ExecuteDelete/);
 });
 test('coverage UI has safe page-only export and accessible help', () => {
-    assert.match(view, /aria-label="Invoice coverage help"/);
+    assert.doesNotMatch(view, /aria-label="Invoice coverage help"|<details/);
+    assert.match(view, /CultureInfo.CurrentUICulture.Name == "bn-BD"/);
+    const { guideFor } = require('../../EduOS.App/wwwroot/js/platform/page-context-help.js');
+    assert.ok(guideFor('/FeeInvoiceCoverage/Index','en-BD'));
+    assert.ok(guideFor('/FeeInvoiceCoverage/Index','bn-BD'));
     assert.match(view, /feeCoverageCsv/);
     assert.match(view, /feeCoveragePrint/);
     assert.match(view, /Line issues/);

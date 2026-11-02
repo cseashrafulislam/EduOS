@@ -20,10 +20,14 @@ test('forward projection is a bounded tenant and campus-scoped read-only query',
 });
 
 test('UI exposes honest gross-only scope and safe CSV/print', () => {
-    assert.match(view, /aria-label="Future fee projection help"/);
+    assert.doesNotMatch(view, /aria-label="Future fee projection help"|<details/);
+    assert.match(view, /CultureInfo.CurrentUICulture.Name == "bn-BD"/);
+    const { guideFor } = require('../../EduOS.App/wwwroot/js/platform/page-context-help.js');
+    assert.ok(guideFor('/FeeInstallmentProjection/Index','en-BD'));
+    assert.ok(guideFor('/FeeInstallmentProjection/Index','bn-BD'));
     assert.match(view, /feeProjectionCsv/);
     assert.match(view, /feeProjectionPrint/);
-    assert.match(view, /does not schedule or issue invoices/);
+    assert.match(view, /non-binding estimate, not a bill or instalment agreement/);
     assert.match(js, /cache: 'no-store'/);
     assert.match(js, /credentials: 'same-origin'/);
     assert.match(js, /BigInt/);
