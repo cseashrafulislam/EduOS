@@ -1,4 +1,6 @@
 using System.Globalization;
+using System.Security.Claims;
+using EduOS.App.Security;
 using System.Text;
 using EduOS.App.Authorization;
 using EduOS.Core.Common;
@@ -15,7 +17,23 @@ namespace EduOS.App.Controllers.Api;
 [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
 public sealed class FacilityVisitorsApiController(IFacilityVisitorService service) : ControllerBase
 {
-    private IActionResult Reply<T>(ApiResponse<T> response) => StatusCode(response.StatusCode, response);
+    // Attach the exact public cookie-session reference and institution to private responses.
+    private bool BindCurrentSession()
+    {
+        var sid = User.FindFirstValue(AuthSessionRegistry.ClaimType);
+        var tenant = User.FindFirstValue("TenantId");
+        if (sid is not { Length: 48 } || !long.TryParse(tenant, out var tenantId) || tenantId <= 0)
+            return false;
+        Response.Headers["X-EduOS-Session-Reference"] = AuthSessionRegistry.ToPublicReference(sid);
+        Response.Headers["X-EduOS-Tenant-Id"] = tenant;
+        return true;
+    }
+
+    private IActionResult SessionUnavailable() =>
+        Unauthorized(new { success = false, message = "Session unavailable; sign in again." });
+
+    private IActionResult Reply<T>(ApiResponse<T> response) =>
+        BindCurrentSession() ? StatusCode(response.StatusCode, response) : SessionUnavailable();
 
     [HttpGet]
     public async Task<IActionResult> List(long? campusId, int page = 1, int pageSize = 25,
@@ -44,6 +62,7 @@ public sealed class FacilityVisitorsApiController(IFacilityVisitorService servic
     public async Task<IActionResult> Export([FromBody] FacilityVisitorExportRequestDto request,
         CancellationToken ct = default)
     {
+        if (!BindCurrentSession()) return SessionUnavailable();
         var snapshot = await service.ExportSnapshotAsync(request.CampusId, request.FromUtc, request.ToUtc, ct);
         if (!snapshot.Success || snapshot.Data == null) return Reply(snapshot);
         var bn = CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "bn";

@@ -7,6 +7,21 @@
     const $ = id => document.getElementById(id);
     const label = (en, bangla) => bn ? bangla : en;
     const token = document.querySelector('input[name="__RequestVerificationToken"]')?.value || '';
+    const originalSession = {
+        tenant: document.body?.dataset.authTenantId || '',
+        reference: document.body?.dataset.authSessionReference || ''
+    };
+    const sessionError = () => label('Institution session changed; reload or sign in again.',
+        'প্রতিষ্ঠানের সেশন পরিবর্তিত; পুনরায় লোড বা লগইন করুন।');
+    const matchesSession = (session, response) =>
+        /^[0-9A-F]{64}$/.test(session.reference) &&
+        /^[1-9][0-9]*$/.test(session.tenant) &&
+        document.body?.dataset.authTenantId === session.tenant &&
+        document.body?.dataset.authSessionReference === session.reference &&
+        window.EduOSSessionTransitionPending?.() !== true &&
+        document.getElementById('eduosSessionShield')?.hidden !== false &&
+        (!response || (response.headers?.get('X-EduOS-Session-Reference') === session.reference &&
+            response.headers?.get('X-EduOS-Tenant-Id') === session.tenant));
     const status = message => { $('fvStatus').textContent = message; };
     // On revocation, erase rendered visitor PII and invalidate in-flight reads.
     const invalidateAuthorization = () => {
@@ -24,15 +39,37 @@
         status(label('Visitor access revoked; reload or sign in again.',
             'ভিজিটর প্রবেশাধিকার বাতিল হয়েছে; পুনরায় লগইন বা রিলোড করুন।'));
     };
+    const verifySession = async session => {
+        if (!matchesSession(session) || typeof window.EduOSVerifySessionContext !== 'function') {
+            invalidateAuthorization();
+            throw new Error(sessionError());
+        }
+        await window.EduOSVerifySessionContext();
+        if (!matchesSession(session)) {
+            invalidateAuthorization();
+            throw new Error(sessionError());
+        }
+    };
     const api = async (url, method = 'GET', data) => {
+        const session = originalSession;
+        await verifySession(session);
         const response = await fetch(url, {
             method, credentials: 'same-origin', cache: 'no-store',
             headers: { 'Accept': 'application/json', ...(method !== 'GET' ? {
                 'Content-Type': 'application/json', 'RequestVerificationToken': token } : {}) },
             ...(data === undefined ? {} : { body: JSON.stringify(data) })
         });
+        if (response.status === 401 || response.status === 403) {
+            invalidateAuthorization();
+            throw new Error(sessionError());
+        }
+        // Do not parse private JSON from a successful response with stale scope headers.
+        if (!matchesSession(session, response)) {
+            invalidateAuthorization();
+            throw new Error(sessionError());
+        }
         const payload = await response.json().catch(() => null);
-        if (response.status === 403) invalidateAuthorization();
+        await verifySession(session);
         if (!response.ok || !payload?.success)
             throw new Error(payload?.message || label('Request denied or stale; refresh.', 'অনুরোধ প্রত্যাখ্যাত বা তথ্য পুরোনো; রিফ্রেশ করুন।'));
         return payload.data;
@@ -209,22 +246,10 @@
             return;
         }
         const epoch = ++exportEpoch;
-        const tenant = document.body?.dataset.authTenantId || '';
-        const session = document.body?.dataset.authSessionReference || '';
+        const session = originalSession;
         const verify = async () => {
-            if (!tenant || !session || !window.EduOSVerifySessionContext ||
-                window.EduOSSessionTransitionPending?.() ||
-                document.body?.dataset.authTenantId !== tenant ||
-                document.body?.dataset.authSessionReference !== session)
-                throw new Error(label('Institution session changed; reload.',
-                    'প্রতিষ্ঠানের সেশন পরিবর্তিত; পুনরায় লোড করুন।'));
-            await window.EduOSVerifySessionContext();
-            if (window.EduOSSessionTransitionPending?.() ||
-                document.body?.dataset.authTenantId !== tenant ||
-                document.body?.dataset.authSessionReference !== session ||
-                epoch !== exportEpoch)
-                throw new Error(label('Institution session changed; reload.',
-                    'প্রতিষ্ঠানের সেশন পরিবর্তিত; পুনরায় লোড করুন।'));
+            await verifySession(session);
+            if (epoch !== exportEpoch) throw new Error(sessionError());
         };
         button.disabled = true;
         try {
@@ -237,10 +262,14 @@
                 body: JSON.stringify({ campusId, fromUtc, toUtc })
             });
             if (!response.ok) {
-                if (response.status === 403) invalidateAuthorization();
+                if (response.status === 401 || response.status === 403) invalidateAuthorization();
                 const payload = await response.json().catch(() => null);
                 throw new Error(payload?.message || label('Export denied; narrow filters or reload.',
                     'এক্সপোর্ট প্রত্যাখ্যাত; সময়সীমা কমান বা রিলোড করুন।'));
+            }
+            if (!matchesSession(session, response)) {
+                invalidateAuthorization();
+                throw new Error(sessionError());
             }
             if (!(response.headers.get('content-type') || '').includes('text/csv'))
                 throw new Error(label('Unexpected export response.', 'অপ্রত্যাশিত এক্সপোর্ট ফলাফল।'));

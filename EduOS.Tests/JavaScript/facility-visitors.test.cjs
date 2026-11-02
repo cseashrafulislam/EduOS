@@ -23,6 +23,11 @@ test('visitor UI is bilingual, scoped and safely renders server-provided PII', (
     assert.match(script, /method: 'POST'.*credentials: 'same-origin'/);
     assert.match(script, /body: JSON\.stringify\(\{ campusId, fromUtc, toUtc \}\)/);
     assert.match(script, /exportEpoch/);
+    assert.ok(script.includes('X-EduOS-Session-Reference'));
+    assert.ok(script.includes('X-EduOS-Tenant-Id'));
+    assert.ok(script.includes('await verifySession(session)'));
+    assert.ok(api.includes('AuthSessionRegistry.ToPublicReference'));
+    assert.ok(api.includes('BindCurrentSession()'));
     assert.match(api, /HttpPost\("export"\)/);
     assert.match(script, /credentials: 'same-origin'/);
     assert.match(script, /cache: 'no-store'/);

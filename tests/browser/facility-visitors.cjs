@@ -35,6 +35,8 @@ function html(bn, manager) {
 async function run(browser, bn, manager, mobile) {
     const context = await browser.newContext({ viewport: mobile ? { width: 390, height: 844 } : { width: 1280, height: 800 } });
     const page = await context.newPage(), calls = [], errors = [];
+    const reference = 'A'.repeat(64), tenant = '12';
+    const scopeHeaders = { 'X-EduOS-Session-Reference': reference, 'X-EduOS-Tenant-Id': tenant };
     page.on('pageerror', e => errors.push(e.message));
     await page.route('http://localhost/**', async route => {
         const req = route.request(), url = new URL(req.url());
@@ -42,9 +44,10 @@ async function run(browser, bn, manager, mobile) {
             return route.fulfill({ contentType: 'text/html', body: html(bn, manager) });
         calls.push({ url: url.pathname, method: req.method(),
             token: req.headers()['requestverificationtoken'], body: req.postDataJSON?.() });
-        const respond = data => route.fulfill({ contentType: 'application/json', body: JSON.stringify(ok(data)) });
+        const respond = data => route.fulfill({ contentType: 'application/json',
+            headers: scopeHeaders, body: JSON.stringify(ok(data)) });
         if (url.pathname.endsWith('/export'))
-            return route.fulfill({ contentType: 'text/csv; charset=utf-8',
+            return route.fulfill({ contentType: 'text/csv; charset=utf-8', headers: scopeHeaders,
                 body: 'VisitId,CampusId,State,VisitStartUtc,VisitEndUtc,CheckedInUtc,CheckedOutUtc,IncidentCount\r\n17,12,CheckedIn,,,,,1\r\n' });
         if (url.pathname.endsWith('/occupancy')) return respond({
             campusId: 12, checkedInCount: 1, overdueCount: 1, maxConcurrent: 2,
@@ -61,8 +64,8 @@ async function run(browser, bn, manager, mobile) {
         assert.equal(await page.locator('#fvOccupancy').count(), manager ? 1 : 0,
             'Manager-only occupancy form must not appear for a host');
         await page.evaluate(() => {
-            document.body.dataset.authTenantId = 'test-tenant';
-            document.body.dataset.authSessionReference = 'visitor-session';
+            document.body.dataset.authTenantId = '12';
+            document.body.dataset.authSessionReference = 'A'.repeat(64);
             window.EduOSVerifySessionContext = async () => {};
             window.EduOSSessionTransitionPending = () => false;
         });
@@ -138,10 +141,18 @@ async function run(browser, bn, manager, mobile) {
             await page.locator('#fvRows button').filter({ hasText: bn ? 'ইতিহাস' : 'History' }).first().click();
             await page.locator('[data-visitor-history]').first().getByText('Observed badge handoff.', { exact: false }).waitFor();
         }
-        // A live 403 erases previously rendered PII and blocks stale actions.
+        // A stale successful 200 is just as unsafe as a revoked 403.
+        // Cover both cross-tenant and rotated-cookie response races in Chromium.
+        const staleSession = manager && bn;
+        const staleTenant = !manager && !bn;
         await page.route('http://localhost/api/facilities/visitors?*', route =>
-            route.fulfill({ status: 403, contentType: 'application/json',
-                body: JSON.stringify({ success: false, message: 'Access revoked' }) }));
+            staleSession || staleTenant
+                ? route.fulfill({ status: 200, contentType: 'application/json',
+                    headers: { 'X-EduOS-Session-Reference': staleSession ? 'B'.repeat(64) : reference,
+                        'X-EduOS-Tenant-Id': staleTenant ? '99' : tenant },
+                    body: JSON.stringify(ok({ items: [visit], totalCount: 1, page: 1, pageSize: 50 })) })
+                : route.fulfill({ status: 403, contentType: 'application/json',
+                    body: JSON.stringify({ success: false, message: 'Access revoked' }) }));
         // A pending response may already revoke access before this synthetic click.
         // Programmatic click still exercises the denied path on a hidden control.
         await page.locator('#fvRefresh').evaluate(button => button.click());
