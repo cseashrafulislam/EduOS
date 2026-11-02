@@ -22,7 +22,7 @@ function html() {
         '<a class="nav-link" href="/CareerOpportunities/Index">Opportunities</a>' +
         '<a class="nav-link" href="/CareerPlacements/Index">Placements</a>' +
         '<a class="nav-link" href="/LearnerIdentities/AccessHistory">' +
-            (bangla ? 'পরিচয় তথ্য ব্যবহারের ইতিহাস' : 'Identity Access History') + '</a>' +
+            (bangla ? 'পরিচয় তথ্য দেখার ইতিহাস' : 'Identity Access History') + '</a>' +
         '</nav><nav data-sidebar-section="management">' +
         '<a class="nav-link" href="/FeeReceivablesAging/Index">Fee Aging</a>' +
         '<a class="nav-link" href="/FacilityWorkOrders/Index">Work Orders</a>' +
@@ -84,7 +84,7 @@ async function exercise(browser, mobile) {
         assert.equal(await page.locator('details.sidebar-group[data-sidebar-group="academics:other"]').count(), 0);
         assert.equal(await page.locator('details.sidebar-group[data-sidebar-group="management:other"]').count(), 0);
         for (const [route, label] of [
-            ['/LearnerIdentities/AccessHistory', mobile ? 'পরিচয় তথ্য ব্যবহারের ইতিহাস' : 'Identity Access History'],
+            ['/LearnerIdentities/AccessHistory', mobile ? 'পরিচয় তথ্য দেখার ইতিহাস' : 'Identity Access History'],
             ['/EmployeeAttendance/Index', mobile ? 'কর্মীর উপস্থিতি' : 'Employee Attendance'],
             ['/LeaveEntitlements/Index', mobile ? 'ছুটির প্রাপ্যতা' : 'Leave Entitlements'],
             ['/FeeDiscountRules/Index', mobile ? 'ফি ছাড়ের নিয়ম' : 'Discount Rules']

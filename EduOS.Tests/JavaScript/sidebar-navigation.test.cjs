@@ -165,7 +165,7 @@ test('Razor localizes all static sidebar leaf labels before client enhancement',
     assert.deepEqual([...literalEnglish, ...bareAnchorEnglish], [],
         'untranslated sidebar spans and bare anchors must not depend on JavaScript');
     for (const [route, en, bn] of [
-        ['/LearnerIdentities/AccessHistory', 'Identity Access History', 'পরিচয় তথ্য ব্যবহারের ইতিহাস'],
+        ['/LearnerIdentities/AccessHistory', 'Identity Access History', 'পরিচয় তথ্য দেখার ইতিহাস'],
         ['/EmployeeAttendance/Index', 'Employee Attendance', 'কর্মীর উপস্থিতি'],
         ['/LeaveEntitlements/Index', 'Leave Entitlements', 'ছুটির প্রাপ্যতা'],
         ['/FeeDiscountRules/Index', 'Discount Rules', 'ফি ছাড়ের নিয়ম']
