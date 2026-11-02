@@ -7,8 +7,8 @@ const source = fs.readFileSync(path.resolve(__dirname,
 
 test('historical discount review uses scoped read-only API and no finance mutations', () => {
     assert.match(source, /\/api\/finance\/fees\/discount-attribution-review/);
-    assert.match(source, /credentials: 'same-origin'/);
-    assert.match(source, /cache: 'no-store'/);
+    assert.match(source, /credentials:\s*'same-origin'/);
+    assert.match(source, /cache:\s*'no-store'/);
     assert.doesNotMatch(source, /method:\s*['"](?:POST|PUT|DELETE)['"]/);
     assert.match(source, /pageSize/);
     assert.match(source, /AbortController/);
