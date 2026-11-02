@@ -72,8 +72,8 @@ test('Finance entry handlers and initial API calls stay within their own task sc
             ['feeStructureForm','feeAddLine','feeStructureReset','feeCampus','feeYear','feeLevel'], 1],
         ['billing', ['feeInvoiceForm','feeBatch','feeInvoiceStructure','feeMonth','feeBillingYear','feeDueDate','feePreview','feePreviewCsv'],
             ['feeInvoiceForm','feeBatch','feeMonth','feeBillingYear','feeDueDate','feeInvoiceStructure','feePreview','feePreviewCsv'], 1],
-        ['ledger', ['feeStudent','feeFindStudent','feeLoadLedger','feePaymentForm','feeInvoicePrev','feeInvoiceNext','feeReceiptPrev','feeReceiptNext','feePaymentDate'],
-            ['feeFindStudent','feeLoadLedger','feePaymentForm','feeInvoicePrev','feeInvoiceNext','feeReceiptPrev','feeReceiptNext'], 0]
+        ['ledger', ['feeStudent','feeStudentSearch','feeFindStudent','feeLoadLedger','feePaymentForm','feeInvoicePrev','feeInvoiceNext','feeReceiptPrev','feeReceiptNext','feePaymentDate'],
+            ['feeStudentSearch','feeStudent','feeFindStudent','feeLoadLedger','feePaymentForm','feeInvoicePrev','feeInvoiceNext','feeReceiptPrev','feeReceiptNext'], 0]
     ];
     for (const [feature, visible, bound, expectedQueries] of scopes) {
         const events = new Map(), requests = [];
