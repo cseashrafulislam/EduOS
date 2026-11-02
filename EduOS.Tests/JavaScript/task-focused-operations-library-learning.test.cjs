@@ -131,7 +131,7 @@ test('all new operation, library and LMS manuals are distinct validated English/
         ...['Branches', 'Reservations', 'Overdue', 'Conditions', 'Integrity', 'Liabilities'].map(action => `/Library/${action}`),
         ...['Quizzes', 'LiveClasses', 'CourseContent', 'AssignmentFiles', 'Certificates'].map(action => `/Learning/${action}`)
     ];
-    assert.deepEqual(coverage(), { routes: 125, en: 125, bn: 125 });
+    assert.deepEqual(coverage(), { routes: 126, en: 126, bn: 126 });
     for (const route of all) {
         const en = guideFor(route, 'en-BD');
         const bn = guideFor(route, 'bn-BD');

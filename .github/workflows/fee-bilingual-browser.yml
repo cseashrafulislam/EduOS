@@ -17,6 +17,10 @@ on:
       - 'tests/browser/fee-bilingual.cjs'
       - 'tests/browser/fee-document-bilingual.cjs'
       - 'tests/browser/fee-ledger-isolation.cjs'
+      - 'tests/browser/fee-due-calendar.cjs'
+      - 'EduOS.App/wwwroot/js/finance/fee-due-calendar.js'
+      - 'EduOS.App/Views/FeeDueCalendar/Index.cshtml'
+      - 'EduOS.Tests/JavaScript/fee-due-calendar-contract.test.cjs'
       - 'EduOS.Tests/JavaScript/fee-ledger-race.test.cjs'
       - '.github/workflows/fee-bilingual-browser.yml'
   workflow_dispatch:
@@ -43,3 +47,4 @@ jobs:
           node tests/browser/fee-bilingual.cjs
           node tests/browser/fee-document-bilingual.cjs
           node tests/browser/fee-ledger-isolation.cjs
+          node tests/browser/fee-due-calendar.cjs

@@ -22,7 +22,8 @@ test('report has explicit bounded scope and safe page-only export', () => {
     assert.match(view, /feeDueCalendarApp/);
     assert.match(view, /feeDueCsv/);
     assert.match(view, /feeDuePrint/);
-    assert.match(view, /aria-label="Due calendar help"/);
+    assert.doesNotMatch(view, /aria-label="Due calendar help"/);
+    assert.match(view, /CultureInfo.CurrentUICulture.Name == "bn-BD"/);
     assert.match(js, /cache: 'no-store'/);
     assert.match(js, /credentials: 'same-origin'/);
     assert.match(js, /textContent = String\(value \?\? ''\)/);
@@ -30,4 +31,9 @@ test('report has explicit bounded scope and safe page-only export', () => {
     assert.match(js, /state\.report\.invoices\.items/);
     assert.match(js, /\\uFEFF/);
     assert.match(js, /URL\.revokeObjectURL/);
+    assert.match(js, /function invalidate\(\)/);
+    assert.match(js, /generation !== state.generation/);
+    assert.match(js, /function validate\(data, page, scope\)/);
+    assert.match(js, /t\('Due date', 'শেষ তারিখ'\)/);
+    assert.match(js, /feeDueFilters'\)\.addEventListener\('input', invalidate\)/);
 });

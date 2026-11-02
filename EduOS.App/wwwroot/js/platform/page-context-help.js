@@ -1199,6 +1199,22 @@
             [['/Learning/Index', 'Learning courses', 'কোর্সসমূহ']])
     };
     const manuals = {
+        '/feeduecalendar/index': {
+            version: 1, reviewed: true,
+            title: ['Student Fee Due Calendar', 'শিক্ষার্থী ফি পরিশোধের ক্যালেন্ডার'],
+            purpose: ['Review issued unpaid invoices by due month and currency, and export only the current authorized page.', 'ইস্যুকৃত বকেয়া ইনভয়েস শেষ পরিশোধের মাস ও মুদ্রা অনুযায়ী দেখুন এবং শুধু অনুমোদিত বর্তমান পৃষ্ঠা এক্সপোর্ট করুন।'],
+            before: ['FINANCE access as TenantAdmin, Principal or Accountant, an active institution session and accessible campus.', 'TenantAdmin, Principal বা Accountant হিসেবে FINANCE অনুমতি, সক্রিয় প্রতিষ্ঠানের সেশন ও অনুমোদিত ক্যাম্পাস প্রয়োজন।'],
+            steps: [
+                ['Select a due-date range of up to 366 days, campus, optional prefix and page size.', 'সর্বোচ্চ ৩৬৬ দিনের শেষ পরিশোধের তারিখ, ক্যাম্পাস, প্রয়োজনীয় নামের শুরু ও সারির সংখ্যা বাছুন।'],
+                ['Run the report and verify month/currency totals and the issued invoice page.', 'প্রতিবেদন চালিয়ে মাস/মুদ্রার মোট ও ইস্যুকৃত ইনভয়েসের পৃষ্ঠা যাচাই করুন।'],
+                ['Use Previous/Next or export the verified current page CSV; print after checking the scope.', 'আগের/পরের পৃষ্ঠা দেখুন বা যাচাইকৃত বর্তমান পৃষ্ঠার CSV নিন; পরিসর দেখে প্রিন্ট করুন।']
+            ],
+            example: ['Fictional example: view demo invoices due in November for one permitted campus.', 'কাল্পনিক উদাহরণ: অনুমোদিত একটি ক্যাম্পাসের নভেম্বরের ডেমো ইনভয়েস দেখুন।'],
+            result: ['A read-only current-obligation report; monthly totals cover all matching rows, CSV and details only the current page.', 'শুধু পড়ার বর্তমান বকেয়ার প্রতিবেদন; মাসের মোট সব মিলযুক্ত সারির, CSV ও বিবরণ শুধু বর্তমান পৃষ্ঠার।'],
+            rules: ['This is not a historical as-of balance or unissued instalment forecast. Filter edits invalidate old export/print; no GL or payment is posted.', 'এটি অতীতের নির্দিষ্ট দিনের বকেয়া বা অনিষ্পন্ন কিস্তির পূর্বাভাস নয়। ফিল্টার বদলালে পুরোনো এক্সপোর্ট/প্রিন্ট বন্ধ হয়; GL বা পেমেন্ট পোস্ট হয় না।'],
+            recovery: ['If access changes or a report fails validation, run it again after checking campus and dates; never export an unverified page.', 'অনুমতি বদলালে বা প্রতিবেদন যাচাই ব্যর্থ হলে ক্যাম্পাস ও তারিখ দেখে আবার চালান; যাচাই না হওয়া পৃষ্ঠা এক্সপোর্ট করবেন না।'],
+            related: [['/FeeOperations/Index', 'Fees and Billing', 'ফি ও বিলিং'], ['/FeeReceivablesAging/Index', 'Receivables aging', 'বকেয়ার বয়সভিত্তিক প্রতিবেদন']]
+        },
         '/feedocuments/invoice/index': {
             version: 1, reviewed: true,
             title: ['Student fee invoice document', 'শিক্ষার্থীর ফি ইনভয়েস নথি'],

@@ -1,53 +1,50 @@
+@using System.Globalization
 @{
-    ViewData["Title"] = "Student Fee Due Calendar";
+    var bn = CultureInfo.CurrentUICulture.Name == "bn-BD";
+    ViewData["Title"] = bn ? "শিক্ষার্থী ফি পরিশোধের ক্যালেন্ডার" : "Student Fee Due Calendar";
 }
 <section id="feeDueCalendarApp" class="container-fluid py-3">
     <header class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3 d-print-none">
-        <div class="d-flex align-items-center gap-2">
-            <h1 class="h4 mb-0">Student Fee Due Calendar</h1>
-            <details class="position-relative">
-                <summary class="btn btn-outline-secondary btn-sm" aria-label="Due calendar help" title="Report guide">ⓘ</summary>
-                <div class="position-absolute border rounded bg-body p-2 small shadow-sm" style="z-index:5;width:min(21rem,80vw);right:0">
-                    Groups current unpaid issued invoices by due month and currency. Does not include future unissued instalments or represent historical balances. CSV and print show only the current invoice page; monthly totals cover all matching invoices.
-                </div>
-            </details>
-        </div>
-        <a class="btn btn-outline-secondary btn-sm" href="/FeeOperations/Index">Fees &amp; Billing</a>
+        <h1 class="h4 mb-0">@(bn ? "শিক্ষার্থী ফি পরিশোধের ক্যালেন্ডার" : "Student Fee Due Calendar")</h1>
+        <a class="btn btn-outline-secondary btn-sm" href="/FeeOperations/Index">@(bn ? "ফি ও বিলিং" : "Fees & Billing")</a>
     </header>
+    <div class="d-none d-print-block"><h1 class="h5">@(bn ? "শিক্ষার্থী ফি পরিশোধের ক্যালেন্ডার — বর্তমান বকেয়া" : "Student Fee Due Calendar — Current outstanding")</h1>
+        <p>@(bn ? "মাসের মোট সব মিলযুক্ত ইনভয়েসের; নিচের তালিকা শুধু বর্তমান পৃষ্ঠার।" : "Monthly totals cover all matching invoices; details show the current page only.")</p>
+    </div>
     <div id="feeDueNotice" class="alert d-none d-print-none" role="status" aria-live="polite"></div>
     <form id="feeDueFilters" class="card card-body row g-2 align-items-end mb-3 d-print-none">
-        <div class="col-md-2"><label for="feeDueFrom" class="form-label">Due from</label><input id="feeDueFrom" type="date" class="form-control" required /></div>
-        <div class="col-md-2"><label for="feeDueTo" class="form-label">Due to</label><input id="feeDueTo" type="date" class="form-control" required /></div>
-        <div class="col-md-3"><label for="feeDueCampus" class="form-label">Campus</label><select id="feeDueCampus" class="form-select"><option value="">All accessible</option></select></div>
-        <div class="col-md-3"><label for="feeDueSearch" class="form-label">Invoice or student prefix</label><input id="feeDueSearch" maxlength="100" autocomplete="off" class="form-control" /></div>
-        <div class="col-md-1"><label for="feeDueSize" class="form-label">Rows</label><select id="feeDueSize" class="form-select"><option>25</option><option>50</option><option>100</option></select></div>
-        <div class="col-md-1 d-grid"><button id="feeDueRun" type="submit" class="btn btn-primary">Run</button></div>
+        <div class="col-md-2"><label for="feeDueFrom" class="form-label">@(bn ? "শুরুর শেষ তারিখ" : "Due from")</label><input id="feeDueFrom" type="date" class="form-control" required /></div>
+        <div class="col-md-2"><label for="feeDueTo" class="form-label">@(bn ? "শেষের শেষ তারিখ" : "Due to")</label><input id="feeDueTo" type="date" class="form-control" required /></div>
+        <div class="col-md-3"><label for="feeDueCampus" class="form-label">@(bn ? "ক্যাম্পাস" : "Campus")</label><select id="feeDueCampus" class="form-select"><option value="">@(bn ? "অনুমোদিত সব ক্যাম্পাস" : "All accessible")</option></select></div>
+        <div class="col-md-3"><label for="feeDueSearch" class="form-label">@(bn ? "ইনভয়েস বা শিক্ষার্থীর নামের শুরু" : "Invoice or student prefix")</label><input id="feeDueSearch" maxlength="100" autocomplete="off" class="form-control" /></div>
+        <div class="col-md-1"><label for="feeDueSize" class="form-label">@(bn ? "সারি" : "Rows")</label><select id="feeDueSize" class="form-select"><option>25</option><option>50</option><option>100</option></select></div>
+        <div class="col-md-1 d-grid"><button id="feeDueRun" type="submit" class="btn btn-primary">@(bn ? "চালান" : "Run")</button></div>
     </form>
     <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
-        <strong id="feeDueScope">Current unpaid issued invoices</strong>
+        <strong id="feeDueScope">@(bn ? "ইস্যুকৃত ইনভয়েসের বর্তমান বকেয়া" : "Current unpaid issued invoices")</strong>
         <div class="d-flex gap-2 d-print-none">
-            <button id="feeDueCsv" type="button" class="btn btn-outline-primary btn-sm" disabled>Export page CSV</button>
-            <button id="feeDuePrint" type="button" class="btn btn-outline-secondary btn-sm" disabled>Print page</button>
+            <button id="feeDueCsv" type="button" class="btn btn-outline-primary btn-sm" disabled>@(bn ? "এই পৃষ্ঠার CSV" : "Export page CSV")</button>
+            <button id="feeDuePrint" type="button" class="btn btn-outline-secondary btn-sm" disabled>@(bn ? "এই পৃষ্ঠা প্রিন্ট" : "Print page")</button>
         </div>
     </div>
     <section class="card mb-3">
-        <div class="card-header"><strong>Due month / currency totals</strong></div>
+        <div class="card-header"><strong>@(bn ? "শেষ পরিশোধের মাস / মুদ্রাভিত্তিক মোট" : "Due month / currency totals")</strong></div>
         <div class="table-responsive"><table class="table table-sm table-striped mb-0">
-            <thead><tr><th>Month</th><th>Currency</th><th class="text-end">Invoices</th><th class="text-end">Outstanding</th></tr></thead>
-            <tbody id="feeDueMonths"><tr><td colspan="4" class="text-muted text-center p-3">Run the report.</td></tr></tbody>
+            <thead><tr><th>@(bn ? "মাস" : "Month")</th><th>@(bn ? "মুদ্রা" : "Currency")</th><th class="text-end">@(bn ? "ইনভয়েস" : "Invoices")</th><th class="text-end">@(bn ? "বকেয়া" : "Outstanding")</th></tr></thead>
+            <tbody id="feeDueMonths"><tr><td colspan="4" class="text-muted text-center p-3">@(bn ? "প্রতিবেদন চালান।" : "Run the report.")</td></tr></tbody>
         </table></div>
     </section>
     <section class="card">
-        <div class="card-header d-flex justify-content-between"><strong>Issued invoice details</strong><span id="feeDueCount"></span></div>
+        <div class="card-header d-flex justify-content-between"><strong>@(bn ? "ইস্যুকৃত ইনভয়েসের বিবরণ" : "Issued invoice details")</strong><span id="feeDueCount"></span></div>
         <div class="table-responsive"><table class="table table-sm table-hover mb-0">
-            <thead><tr><th>Due date</th><th>Invoice</th><th>Student</th><th>Campus</th><th>Currency</th>
-                <th class="text-end">Total</th><th class="text-end">Paid</th><th class="text-end">Due</th></tr></thead>
-            <tbody id="feeDueRows"><tr><td colspan="8" class="text-muted text-center p-3">No report loaded.</td></tr></tbody>
+            <thead><tr><th>@(bn ? "শেষ তারিখ" : "Due date")</th><th>@(bn ? "ইনভয়েস" : "Invoice")</th><th>@(bn ? "শিক্ষার্থী" : "Student")</th><th>@(bn ? "ক্যাম্পাস" : "Campus")</th><th>@(bn ? "মুদ্রা" : "Currency")</th>
+                <th class="text-end">@(bn ? "মোট" : "Total")</th><th class="text-end">@(bn ? "পরিশোধিত" : "Paid")</th><th class="text-end">@(bn ? "বকেয়া" : "Due")</th></tr></thead>
+            <tbody id="feeDueRows"><tr><td colspan="8" class="text-muted text-center p-3">@(bn ? "প্রতিবেদন লোড হয়নি।" : "No report loaded.")</td></tr></tbody>
         </table></div>
         <div class="card-footer d-flex gap-2 align-items-center d-print-none">
-            <button id="feeDuePrev" type="button" class="btn btn-outline-secondary btn-sm" disabled>Previous</button>
+            <button id="feeDuePrev" type="button" class="btn btn-outline-secondary btn-sm" disabled>@(bn ? "আগের" : "Previous")</button>
             <span id="feeDuePage" aria-live="polite"></span>
-            <button id="feeDueNext" type="button" class="btn btn-outline-secondary btn-sm" disabled>Next</button>
+            <button id="feeDueNext" type="button" class="btn btn-outline-secondary btn-sm" disabled>@(bn ? "পরের" : "Next")</button>
         </div>
     </section>
 </section>
