@@ -18,6 +18,12 @@ on:
       - 'tests/browser/fee-document-bilingual.cjs'
       - 'tests/browser/fee-ledger-isolation.cjs'
       - 'tests/browser/fee-due-calendar.cjs'
+      - 'EduOS.App/wwwroot/js/finance/fee-receivables-aging.js'
+      - 'EduOS.App/wwwroot/js/finance/fee-reconciliation.js'
+      - 'EduOS.App/wwwroot/js/finance/fee-payment-reconciliation.js'
+      - 'EduOS.App/Views/FeeReceivablesAging/Index.cshtml'
+      - 'EduOS.Tests/JavaScript/fee-aging-isolation.test.cjs'
+      - 'tests/browser/fee-aging-isolation.cjs'
       - 'EduOS.App/wwwroot/js/finance/fee-due-calendar.js'
       - 'EduOS.App/Views/FeeDueCalendar/Index.cshtml'
       - 'EduOS.Tests/JavaScript/fee-due-calendar-contract.test.cjs'
@@ -48,3 +54,4 @@ jobs:
           node tests/browser/fee-document-bilingual.cjs
           node tests/browser/fee-ledger-isolation.cjs
           node tests/browser/fee-due-calendar.cjs
+          node tests/browser/fee-aging-isolation.cjs
