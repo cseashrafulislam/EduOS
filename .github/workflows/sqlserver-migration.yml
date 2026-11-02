@@ -173,6 +173,7 @@ jobs:
           path: |
             TestResults/sql-v1-acceptance.trx
             TestResults/sql-v3-alumni-acceptance.trx
+            TestResults/sql-v3-facilities-acceptance.trx
             TestResults/sql-v2-v3-smoke.trx
             TestResults/sql-v3-procurement-assets-acceptance.trx
             TestResults/sql-v2-transport-finance-acceptance.trx
