@@ -108,7 +108,7 @@ async function run(browser, bn, manager, mobile) {
                 new URL(response.url()).pathname.endsWith('/occupancy'));
             await page.locator('#fvOccupancy button[type="submit"]').click();
             await occupancyResponse;
-            assert.match(await page.locator('#fvOccupancyResult').innerText(), /1\\s*\\/\\s*2/);
+            assert.match(await page.locator('#fvOccupancyResult').innerText(), /1\s*\/\s*2/);
             assert.ok(calls.some(c => c.url.endsWith('/occupancy') && c.method === 'GET'));
             await page.locator('#fvExportCampus').fill('12');
             await page.locator('#fvExportFrom').fill('2026-11-01T00:00');

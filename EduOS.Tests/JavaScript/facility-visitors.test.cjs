@@ -52,9 +52,9 @@ test('visitor transitions enforce independent host approval and active badge uni
     assert.match(service, /VisitStartUtc\.AddMinutes\(-30\)/);
     assert.match(service, /Badge is already checked in/);
     assert.match(service, /OccupancyLimitAsync/);
-    assert.match(service, /Facilities\\.Visitor\\.MaxConcurrent\\./);
+    assert.match(service, /Facilities\.Visitor\.MaxConcurrent\./);
     assert.match(service, /Campus visitor occupancy limit reached/);
-    assert.match(service, /CountAsync\\(v =>/);
+    assert.match(service, /CountAsync\(v =>/);
     assert.match(service, /HostLiveAsync/);
     assert.match(service, /action == "incident"/);
     assert.match(service, /CheckedOutAtUtc\.Value\.AddHours\(24\)/);
