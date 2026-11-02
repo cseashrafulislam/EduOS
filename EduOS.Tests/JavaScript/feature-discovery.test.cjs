@@ -96,6 +96,11 @@ test('feature discovery fails closed on tenant/session change and temporary sess
     assert.equal(contextStatus('22', 'A', '22', 'B', false, false), 'changed');
     assert.equal(contextStatus('22', 'A', '22', 'A', true, false), 'changed');
     assert.equal(contextStatus('22', 'A', '22', 'A', false, true), 'verifying');
+    assert.equal(contextStatus('', 'A', '', 'A', false, false), 'changed');
+    assert.equal(contextStatus('22', '', '22', '', false, false), 'changed');
+    assert.match(script, /typeof window\.EduOSVerifySessionContext !== 'function'/);
+    assert.match(script, /invalidated = true;\s*currentContext\(\);\s*return false;/);
+    assert.match(layout, /session-context-guard\.js" asp-append-version="true"[\s\S]*feature-discovery\.js" asp-append-version="true"/);
     assert.match(script, /await verifiedContext\(\)/);
     assert.match(script, /window\.location\.assign\(entry\.href\)/);
     assert.match(script, /event\.metaKey \|\|/);
