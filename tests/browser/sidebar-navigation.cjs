@@ -60,6 +60,8 @@ async function exercise(browser, mobile) {
         assert.equal(await page.evaluate(() => document.activeElement?.tagName), 'SUMMARY');
         await institution.click();
         assert.equal(await institution.evaluate(el => el.parentElement.open), true);
+        await page.waitForFunction(() => JSON.parse(
+            sessionStorage.getItem('eduos.sidebar.navigation.v1') || '{}').group === 'setup:institution');
         await page.evaluate(() => window.dispatchEvent(new Event('pagehide')));
         const saved = await page.evaluate(() => JSON.parse(
             sessionStorage.getItem('eduos.sidebar.navigation.v1')));
@@ -75,6 +77,8 @@ async function exercise(browser, mobile) {
         await inject(page);
         assert.equal(await institution.evaluate(el => el.parentElement.open), false);
         await institution.click();
+        await page.waitForFunction(() => JSON.parse(
+            sessionStorage.getItem('eduos.sidebar.navigation.v1') || '{}').scope === '23:' + 'A'.repeat(64));
         await page.evaluate(() => window.dispatchEvent(new Event('pagehide')));
         assert.equal((await page.evaluate(() => JSON.parse(
             sessionStorage.getItem('eduos.sidebar.navigation.v1')))).scope,
