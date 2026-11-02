@@ -45,7 +45,7 @@
     let technicianPage = 1, technicianPages = 1, technicianChoices = new Map();
     let vendorGeneration = 0, vendorPage = 1, vendorPages = 1;
     let vendorChoices = new Map();
-    let availabilityWindowKey = null;
+    let availabilityWindowKey = null, vendorAvailabilityWindowKey = null;
     const windowKey = () => [selected?.id, selected?.workOrderId,
         el('wfStart').value, el('wfEnd').value].join('|');
     function invalidateTechnicians() {
@@ -57,6 +57,19 @@
         el('wfTechSelect').disabled = true;
         el('wfTechPrev').disabled = true;
         el('wfTechNext').disabled = true;
+    }
+    function invalidateVendors() {
+        vendorGeneration++;
+        vendorAvailabilityWindowKey = null;
+        vendorChoices.clear();
+        if (!manager) return;
+        el('wfVendorSelected').value = '';
+        el('wfVendorRows').replaceChildren();
+        el('wfVendorPrev').disabled = true;
+        el('wfVendorNext').disabled = true;
+        el('wfVendorPage').textContent = t(
+            'Set a future booking start and end time, then find available vendors.',
+            'বুকিংয়ের ভবিষ্যৎ শুরু ও শেষ সময় দিয়ে উপলব্ধ সরবরাহকারী খুঁজুন।');
     }
     const pending = new Map();
     // A retry may reuse an ID only for the exact original payload. After an
@@ -83,6 +96,7 @@
         locationGeneration++;
         technicianGeneration++;
         vendorGeneration++;
+        vendorAvailabilityWindowKey = null;
         vendorChoices.clear();
         if (el('wfVendorSelected')) el('wfVendorSelected').value = '';
         technicianChoices.clear();
@@ -219,6 +233,7 @@
             !['Proposed', 'Approved'].includes(row.vendorStateCode);
         selected = row;
         vendorChoices.clear();
+        vendorAvailabilityWindowKey = null;
         if (el('wfVendorSelected')) el('wfVendorSelected').value = '';
         if (manager) {
             // Re-selecting the same row invalidates any older vendor response.
@@ -227,7 +242,6 @@
             el('wfVendorPanel').classList.toggle('d-none', !vendorEligible);
             el('wfVendorRows').replaceChildren();
             el('wfVendorPage').textContent = '';
-            if (vendorEligible) loadVendors();
         }
         el('wfSelected').textContent = '#' + row.id + ' — ' + row.summary;
         el('wfDetails').textContent = [
@@ -289,6 +303,15 @@
             ? t('Reason for rescheduling (10-500 characters)', 'সময়সূচি পরিবর্তনের কারণ (১০-৫০০ অক্ষর)')
             : '';
         el('wfNote').maxLength = ['schedule', 'unschedule', 'escalate', 'return', 'cancelrequest', 'cancelapprove', 'cancelreject'].includes(action) ? 500 : action.startsWith('vendor') ? 500 : 1000;
+        if (manager) {
+            const vendorAction = action === 'vendorpropose' && selected?.stateCode === 'Approved' &&
+                ['Approved', 'Scheduled'].includes(selected?.workOrderState) &&
+                selected?.requesterUserId !== currentUserId &&
+                !['Proposed', 'Approved'].includes(selected?.vendorStateCode);
+            el('wfVendorPanel').classList.toggle('d-none', !vendorAction);
+            if (vendorAction) { vendorPage = 1; loadVendors(); }
+            else invalidateVendors();
+        }
     }
     // Active, granted campus spaces are supplied by the Facilities workflow
     // endpoint, not guessed from IDs or the privileged space-management API.
@@ -422,28 +445,43 @@
     // the current selected order may be proposed; server revalidates eligibility.
     async function loadVendors() {
         if (!manager || blocked || !selected || !selected.workOrderId ||
+            el('wfAction').value !== 'vendorpropose' ||
             selected.stateCode !== 'Approved' ||
             !['Approved', 'Scheduled'].includes(selected.workOrderState) ||
             selected.requesterUserId === currentUserId) return;
         const generation = ++vendorGeneration;
         const requestId = selected.id, campusId = selected.campusId;
-        const workOrderId = selected.workOrderId;
+        const workOrderId = selected.workOrderId, currentWindowKey = windowKey();
         const rows = el('wfVendorRows');
         vendorChoices.clear();
+        vendorAvailabilityWindowKey = null;
         el('wfVendorSelected').value = '';
         rows.replaceChildren();
         el('wfVendorPrev').disabled = true;
         el('wfVendorNext').disabled = true;
-        el('wfVendorPage').textContent = t('Checking approved vendors…', 'অনুমোদিত সরবরাহকারী খোঁজা হচ্ছে…');
+        const startValue = el('wfStart').value, endValue = el('wfEnd').value;
+        const start = new Date(startValue), end = new Date(endValue);
+        if (!startValue || !endValue || !Number.isFinite(start.getTime()) ||
+            !Number.isFinite(end.getTime()) || start >= end || start.getTime() <= Date.now()) {
+            el('wfVendorPage').textContent = t(
+                'Set a valid future booking window before searching.',
+                'খোঁজার আগে বুকিংয়ের সঠিক ভবিষ্যৎ সময়সীমা দিন।');
+            return;
+        }
+        el('wfVendorPage').textContent = t('Checking available vendors…', 'উপলব্ধ সরবরাহকারী খোঁজা হচ্ছে…');
         try {
             const q = new URLSearchParams({ campusId: String(campusId),
-                workOrderId: String(workOrderId), page: String(vendorPage), pageSize: '25' });
+                workOrderId: String(workOrderId), page: String(vendorPage), pageSize: '25',
+                startUtc: start.toISOString(), endUtc: end.toISOString() });
             const search = el('wfVendorSearch').value.trim();
             if (search) q.set('search', search);
             const data = await api('/vendors?' + q);
             if (generation !== vendorGeneration || blocked ||
                 selected?.id !== requestId || selected?.campusId !== campusId ||
-                selected?.workOrderId !== workOrderId) return;
+                selected?.workOrderId !== workOrderId ||
+                el('wfAction').value !== 'vendorpropose' ||
+                windowKey() !== currentWindowKey) return;
+            vendorAvailabilityWindowKey = currentWindowKey;
             vendorPages = Math.max(1, data.totalPages || 1);
             for (const vendor of data.items || []) {
                 const item = document.createElement('li');
@@ -459,6 +497,7 @@
                 choose.addEventListener('click', () => {
                     if (!sessionCurrent() || selected?.id !== requestId ||
                         el('wfAction').value !== 'vendorpropose' ||
+                        vendorAvailabilityWindowKey !== windowKey() ||
                         !vendorChoices.has(supplierId)) return;
                     el('wfVendorSelected').value = String(supplierId);
                     notice(t('Vendor selected. Submit a proposal for independent approval.',
@@ -470,8 +509,8 @@
             if (!rows.children.length) {
                 const item = document.createElement('li');
                 item.className = 'list-group-item px-0 text-muted';
-                item.textContent = t('No approved vendors for this campus.',
-                    'এই ক্যাম্পাসে অনুমোদিত সরবরাহকারী নেই।');
+                item.textContent = t('No available approved vendors for this booking window.',
+                    'এই বুকিং সময়ে উপলব্ধ অনুমোদিত সরবরাহকারী নেই।');
                 rows.append(item);
             }
             el('wfVendorPage').textContent = vendorPage + ' / ' + vendorPages;
@@ -480,6 +519,7 @@
         } catch (error) {
             if (generation !== vendorGeneration || blocked ||
                 selected?.id !== requestId || selected?.workOrderId !== workOrderId ||
+                windowKey() !== currentWindowKey ||
                 error.message === 'session-changed') return;
             rows.replaceChildren();
             el('wfVendorPage').textContent = t('Vendor lookup failed; retry.',
@@ -609,6 +649,7 @@
     }
     function clearSelection() {
         vendorGeneration++;
+        vendorAvailabilityWindowKey = null;
         const vendorPanel = el('wfVendorPanel');
         if (vendorPanel) {
             vendorPanel.classList.add('d-none');
@@ -655,6 +696,7 @@
         el('wfVendorFind').addEventListener('click', () => {
             if (!blocked) { vendorPage = 1; loadVendors(); }
         });
+        el('wfVendorSearch').addEventListener('input', invalidateVendors);
         el('wfVendorSearch').addEventListener('keydown', e => {
             if (e.key === 'Enter') { e.preventDefault(); vendorPage = 1; loadVendors(); }
         });
@@ -684,11 +726,18 @@
             technicianChoices.has(id) ? String(id) : '';
     });
     for (const id of ['wfStart', 'wfEnd']) {
-        el(id).addEventListener('input', () => invalidateTechnicians());
+        el(id).addEventListener('input', () => {
+            invalidateTechnicians();
+            invalidateVendors();
+        });
         el(id).addEventListener('change', () => {
-            if (!blocked && selected && el('wfAction').value === 'schedule') {
+            if (blocked || !selected) return;
+            if (el('wfAction').value === 'schedule') {
                 technicianPage = 1;
                 loadTechnicians();
+            } else if (el('wfAction').value === 'vendorpropose') {
+                vendorPage = 1;
+                loadVendors();
             }
         });
     }
@@ -746,9 +795,11 @@
         e.preventDefault();
         if (!selected || blocked || transitioning) return;
         if (el('wfAction').value === 'vendorpropose' &&
-            !vendorChoices.has(Number(el('wfVendorSelected').value))) {
-            notice(t('Select an approved vendor from this work order lookup.',
-                'এই ওয়ার্ক অর্ডারের অনুমোদিত সরবরাহকারী নির্বাচন করুন।'));
+            (vendorAvailabilityWindowKey !== windowKey() ||
+             !vendorChoices.has(Number(el('wfVendorSelected').value)) ||
+             new Date(el('wfStart').value).getTime() <= Date.now())) {
+            notice(t('Check the booking window and choose an available approved vendor.',
+                'বুকিংয়ের সময়সীমা যাচাই করে উপলব্ধ অনুমোদিত সরবরাহকারী নির্বাচন করুন।'));
             return;
         }
         if (el('wfAction').value === 'schedule' &&

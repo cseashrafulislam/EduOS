@@ -74,8 +74,8 @@
             @if (manager)
             {
                 <section id="wfVendorPanel" class="border rounded p-2 mb-3 d-none" aria-label="@(bn ? "অনুমোদিত ক্যাম্পাস সরবরাহকারী" : "Approved campus vendors")">
-                    <h4 class="h6">@(bn ? "অনুমোদিত ক্যাম্পাস সরবরাহকারী — প্রস্তাবের জন্য" : "Approved campus vendors — propose booking")</h4>
-                    <p class="small text-muted">@(bn ? "সরবরাহকারী নির্বাচন করে ভবিষ্যৎ সময় ও কারণসহ প্রস্তাব দিন; স্বতন্ত্র অনুমোদন ছাড়া বুকিং কার্যকর নয়। স্টক বা হিসাব পোস্ট হয় না।" : "Choose a vendor, then propose a future window and reason. Booking needs independent approval; stock and Finance are not posted.")</p>
+                    <h4 class="h6">@(bn ? "নির্বাচিত সময়ে উপলব্ধ ক্যাম্পাস সরবরাহকারী" : "Available campus vendors for the selected window")</h4>
+                    <p class="small text-muted">@(bn ? "আগে ভবিষ্যৎ বুকিং সময় দিন, তারপর সরবরাহকারী খুঁজুন। তালিকা সাময়িক; স্বতন্ত্র অনুমোদনের সময় সংঘাত আবার যাচাই হয়। স্টক বা হিসাব পোস্ট হয় না।" : "Enter a future booking window before searching. Availability is advisory; independent approval rechecks conflicts. No stock or Finance posting.")</p>
                     <div class="input-group input-group-sm">
                         <input id="wfVendorSearch" class="form-control" maxlength="100" autocomplete="off" aria-label="@(bn ? "সরবরাহকারীর নাম বা কোড" : "Vendor name or code")" />
                         <button id="wfVendorFind" class="btn btn-outline-primary" type="button">@(bn ? "খুঁজুন" : "Find vendors")</button>

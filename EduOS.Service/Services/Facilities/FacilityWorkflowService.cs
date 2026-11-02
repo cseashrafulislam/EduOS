@@ -167,13 +167,22 @@ public sealed class FacilityWorkflowService(
     /// </summary>
     public async Task<ApiResponse<PagedResult<FacilityVendorOptionDto>>> VendorsAsync(
         long campusId, string? search, int page, int pageSize, CancellationToken ct = default,
-        long? workOrderId = null)
+        long? workOrderId = null, DateTime? startUtc = null, DateTime? endUtc = null)
     {
         if (!ValidTenant || !Manager) return Denied<PagedResult<FacilityVendorOptionDto>>();
         if (campusId <= 0 || page is < 1 or > 100000 || pageSize is < 1 or > 50 ||
             search?.Length > 100 || workOrderId is <= 0)
             return ApiResponse<PagedResult<FacilityVendorOptionDto>>.ErrorResponse(
                 "Invalid vendor lookup.", 400);
+        // Availability is advisory; independent approval locks and revalidates.
+        var hasWindow = startUtc.HasValue && endUtc.HasValue;
+        if (startUtc.HasValue != endUtc.HasValue ||
+            (hasWindow && (!workOrderId.HasValue ||
+                startUtc!.Value.Kind != DateTimeKind.Utc ||
+                endUtc!.Value.Kind != DateTimeKind.Utc ||
+                startUtc.Value <= Now || startUtc.Value >= endUtc.Value)))
+            return ApiResponse<PagedResult<FacilityVendorOptionDto>>.ErrorResponse(
+                "An authorized work order and future UTC start/end window are required.", 400);
         if (!await AllowedCampuses().ContainsAsync(campusId, ct))
             return Denied<PagedResult<FacilityVendorOptionDto>>();
         // Existing campus-only callers remain compatible. Interactive previews
@@ -182,6 +191,8 @@ public sealed class FacilityWorkflowService(
         if (workOrderId.HasValue && !await db.Set<FacilityWorkOrder>().AsNoTracking().AnyAsync(w =>
             w.Id == workOrderId.Value && w.TenantId == user.TenantId && !w.IsDeleted &&
             (w.StateCode == "Approved" || w.StateCode == "Scheduled") &&
+            w.StartedAtUtc == null && w.VendorStateCode != "Proposed" &&
+            w.VendorStateCode != "Approved" &&
             db.Set<FacilityServiceRequest>().Any(r =>
                 r.Id == w.FacilityServiceRequestId && r.TenantId == user.TenantId &&
                 !r.IsDeleted && r.CampusId == campusId && r.StateCode == "Approved" &&
@@ -194,6 +205,16 @@ public sealed class FacilityWorkflowService(
             s.TenantId == user.TenantId && s.CampusId == campusId &&
             AllowedCampuses().Contains(s.CampusId) &&
             !s.IsDeleted && s.StateCode == "Approved");
+        if (hasWindow)
+        {
+            var from = startUtc!.Value;
+            var to = endUtc!.Value;
+            var ownOrderId = workOrderId!.Value;
+            query = query.Where(s => !db.Set<FacilityWorkOrder>().Any(w =>
+                w.TenantId == user.TenantId && !w.IsDeleted && w.Id != ownOrderId &&
+                w.VendorSupplierId == s.Id && w.VendorStateCode == "Approved" &&
+                w.VendorStartUtc < to && w.VendorEndUtc > from));
+        }
         var term = search?.Trim();
         if (!string.IsNullOrWhiteSpace(term))
             query = query.Where(s => s.Name.Contains(term) || s.SupplierCode.Contains(term));

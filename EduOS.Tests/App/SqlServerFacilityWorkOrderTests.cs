@@ -334,6 +334,25 @@ public sealed class SqlServerFacilityWorkOrderTests
             Assert.Equal(403, (await service.VendorsAsync(campusId + 1, null, 1, 25,
                 workOrderId: approved.WorkOrderId)).StatusCode);
         }
+        // A time-filtered vendor preview requires a valid UTC window and an
+        // authorized order; it must not silently become a booking.
+        await using (var db = Db(options, tenantId, managerId, "FacilitiesManager"))
+        {
+            var service = Service(db, tenantId, managerId, "FacilitiesManager");
+            var from = DateTime.UtcNow.AddHours(2);
+            var until = from.AddHours(1);
+            Assert.Equal(400, (await service.VendorsAsync(campusId, null, 1, 25,
+                workOrderId: approved.WorkOrderId, startUtc: from)).StatusCode);
+            Assert.Equal(400, (await service.VendorsAsync(campusId, null, 1, 25,
+                startUtc: from, endUtc: until)).StatusCode);
+            Assert.Equal(400, (await service.VendorsAsync(campusId, null, 1, 25,
+                workOrderId: approved.WorkOrderId, startUtc: from.AddHours(-5),
+                endUtc: until)).StatusCode);
+            Assert.Equal(403, (await service.VendorsAsync(campusId, null, 1, 25,
+                workOrderId: long.MaxValue, startUtc: from, endUtc: until)).StatusCode);
+            Assert.Single((await service.VendorsAsync(campusId, null, 1, 25,
+                workOrderId: approved.WorkOrderId, startUtc: from, endUtc: until)).Data!.Items);
+        }
         // The vendor proposal is durable but does not book until an independent
         // approver rechecks supplier status and competing approved windows.
         FacilityRequestDto vendorProposal;
@@ -666,6 +685,20 @@ public sealed class SqlServerFacilityWorkOrderTests
                   Note = "Independent first supplier booking authorization." });
             Assert.True(accepted.Success, accepted.Message);
             scheduled = accepted.Data!;
+        }
+        await using (var db = Db(options, tenantId, managerId, "FacilitiesManager"))
+        {
+            var service = Service(db, tenantId, managerId, "FacilitiesManager");
+            var blockedPreview = await service.VendorsAsync(campusId, null, 1, 25,
+                workOrderId: second.WorkOrderId,
+                startUtc: competingVendorStart, endUtc: competingVendorEnd);
+            Assert.True(blockedPreview.Success, blockedPreview.Message);
+            Assert.Empty(blockedPreview.Data!.Items);
+            var adjacentPreview = await service.VendorsAsync(campusId, null, 1, 25,
+                workOrderId: second.WorkOrderId,
+                startUtc: competingVendorEnd, endUtc: competingVendorEnd.AddMinutes(20));
+            Assert.True(adjacentPreview.Success, adjacentPreview.Message);
+            Assert.Single(adjacentPreview.Data!.Items);
         }
         await using (var db = Db(options, tenantId, managerId, "FacilitiesManager"))
         {

@@ -42,6 +42,11 @@ test('approved vendor selection is bounded, campus scoped and requires independe
     assert.match(script, /vendorChoices\.has\(Number\(el\('wfVendorSelected'\)\.value\)\)/);
     assert.match(script, /api\('\/vendors\?' \+ q\)/);
     assert.match(script, /workOrderId: String\(workOrderId\)/);
+    assert.match(script, /startUtc: start\.toISOString\(\), endUtc: end\.toISOString\(\)/);
+    assert.match(script, /vendorAvailabilityWindowKey !== windowKey\(\)/);
+    assert.match(script, /invalidateVendors\(\)/);
+    assert.match(service, /w\.VendorStateCode == "Approved"/);
+    assert.match(service, /w\.VendorStartUtc < to && w\.VendorEndUtc > from/);
     assert.match(script, /row\.stateCode === 'Approved'/);
     assert.match(service, /AllowedCampuses\(\)\.Contains\(s\.CampusId\)/);
     assert.match(service, /w\.Id == workOrderId\.Value/);

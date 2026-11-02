@@ -6,7 +6,8 @@ namespace EduOS.Core.Interfaces.IServices;
 public interface IFacilityWorkflowService
 {
     Task<ApiResponse<PagedResult<FacilityLocationOptionDto>>> LocationsAsync(string? search, int page, int pageSize, CancellationToken ct = default);
-    Task<ApiResponse<PagedResult<FacilityVendorOptionDto>>> VendorsAsync(long campusId, string? search, int page, int pageSize, CancellationToken ct = default, long? workOrderId = null);
+    Task<ApiResponse<PagedResult<FacilityVendorOptionDto>>> VendorsAsync(long campusId, string? search, int page, int pageSize, CancellationToken ct = default, long? workOrderId = null,
+        DateTime? startUtc = null, DateTime? endUtc = null);
     Task<ApiResponse<PagedResult<FacilityTechnicianOptionDto>>> TechniciansAsync(long campusId, string? search, int page, int pageSize, CancellationToken ct = default, DateTime? startUtc = null, DateTime? endUtc = null, long? workOrderId = null);
     Task<ApiResponse<FacilityRequestDto>> CreateAsync(CreateFacilityRequestDto request, CancellationToken ct = default);
     Task<ApiResponse<PagedResult<FacilityRequestDto>>> ListAsync(long? campusId, string? state, int page, int pageSize, CancellationToken ct = default, bool overdueOnly = false);

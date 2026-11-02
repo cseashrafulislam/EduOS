@@ -71,6 +71,9 @@ async function setup(browser, bn = false, manager = true, mobile = false,
             assert.equal(url.searchParams.get('campusId'), '12');
             assert.equal(url.searchParams.get('workOrderId'), '17');
             const search = url.searchParams.get('search');
+            const from = Date.parse(url.searchParams.get('startUtc'));
+            const to = Date.parse(url.searchParams.get('endUtc'));
+            assert.ok(from > Date.now() && to > from, 'Vendor preview needs a future UTC window');
             return reply({ items: search === 'none' ? [] : [
                 { supplierId: 9, supplierCode: 'FAC-APP',
                     supplierName: 'Approved Facilities Vendor' } ], totalPages: 1 });
@@ -158,17 +161,24 @@ async function vendorPreview(browser) {
     const { context, page, state } = await setup(browser, true, true, true);
     try {
         await page.locator('#wfRows button').click();
-        await page.locator('#wfVendorRows').filter({ hasText: 'Approved Facilities Vendor' }).waitFor();
-        assert.equal(await page.locator('#wfVendorPanel').isVisible(), true);
-        assert.equal(await page.locator('#wfVendorRows li').count(), 1);
-        assert.doesNotMatch(await page.locator('#wfVendorPanel').innerText(), /@example|TaxRegistration|Phone/);
         await page.locator('#wfAction').selectOption('vendorpropose');
-        await page.locator('#wfVendorRows button').click();
-        assert.equal(await page.locator('#wfVendorSelected').inputValue(), '9');
+        assert.equal(await page.locator('#wfVendorPanel').isVisible(), true);
+        assert.equal(await page.locator('#wfVendorSelected').inputValue(), '');
         const future = new Date(Date.now() + 24 * 60 * 60 * 1000);
         const later = new Date(future.getTime() + 60 * 60 * 1000);
         await page.locator('#wfStart').fill(future.toISOString().slice(0, 16));
         await page.locator('#wfEnd').fill(later.toISOString().slice(0, 16));
+        await page.locator('#wfVendorRows').filter({ hasText: 'Approved Facilities Vendor' }).waitFor();
+        assert.equal(await page.locator('#wfVendorRows li').count(), 1);
+        assert.doesNotMatch(await page.locator('#wfVendorPanel').innerText(), /@example|TaxRegistration|Phone/);
+        await page.locator('#wfVendorRows button').click();
+        assert.equal(await page.locator('#wfVendorSelected').inputValue(), '9');
+        const changedEnd = new Date(later.getTime() + 30 * 60 * 1000);
+        await page.locator('#wfEnd').fill(changedEnd.toISOString().slice(0, 16));
+        assert.equal(await page.locator('#wfVendorSelected').inputValue(), '',
+            'editing the booking window must invalidate the selected vendor');
+        await page.locator('#wfVendorRows button').click();
+        assert.equal(await page.locator('#wfVendorSelected').inputValue(), '9');
         await page.locator('#wfNote').fill('Vendor booking requires independent campus approval.');
         const posted = page.waitForResponse(response =>
             response.request().method() === 'POST' &&
@@ -182,9 +192,12 @@ async function vendorPreview(browser) {
         assert.equal(proposals[0].body.technicianUserId, null);
         assert.ok(Date.parse(proposals[0].body.vendorStartUtc) > Date.now());
         assert.equal(state.calls.some(c => /inventory|finance/i.test(c.url)), false);
+        await page.locator('#wfAction').selectOption('vendorpropose');
+        await page.locator('#wfStart').fill(future.toISOString().slice(0, 16));
+        await page.locator('#wfEnd').fill(later.toISOString().slice(0, 16));
         await page.locator('#wfVendorSearch').fill('none');
         await page.locator('#wfVendorFind').click();
-        await page.locator('#wfVendorRows').filter({ hasText: 'অনুমোদিত সরবরাহকারী নেই' }).waitFor();
+        await page.locator('#wfVendorRows').filter({ hasText: 'উপলব্ধ অনুমোদিত সরবরাহকারী নেই' }).waitFor();
         assert.equal(state.calls.filter(c => c.method !== 'GET').length, 1,
             'the only write is a vendor proposal, never stock or Finance posting');
         await page.evaluate(() => { document.body.dataset.authTenantId = '99'; });
