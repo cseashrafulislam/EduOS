@@ -153,7 +153,7 @@ test('configuration rejects invalid calendar days, excessive range and partial c
 test('JSON and CSV mismatches are rejected, not counted as successful reconciliation', async () => {
     const { runAcceptance } = await import(source);
     await assert.rejects(runAcceptance(config, fakeFetch({ detailCsvMismatch: true })),
-        /Detail CSV and JSON evidence disagree/);
+        /Detail CSV and JSON evidence disagree|Stock detail CSV source\/Finance evidence mismatch/);
     await assert.rejects(runAcceptance(config, fakeFetch({ registerCsvMismatch: true })),
         /Register CSV does not match/);
 });
