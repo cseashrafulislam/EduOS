@@ -42,6 +42,7 @@ async function setup(browser, bn = false, manager = true, mobile = false,
     const page = await context.newPage();
     const state = { calls: [], errors: [], delayed: null, started: null,
         revoked: false, emptyAfterPost: false, empty: false, locationDelayed: null, locationStarted: null,
+        vendorDelayed: null, vendorStarted: null,
         visibleRecord };
     page.on('pageerror', error => state.errors.push(error.message));
     await page.addInitScript(() => {
@@ -74,6 +75,12 @@ async function setup(browser, bn = false, manager = true, mobile = false,
             const from = Date.parse(url.searchParams.get('startUtc'));
             const to = Date.parse(url.searchParams.get('endUtc'));
             assert.ok(from > Date.now() && to > from, 'Vendor preview needs a future UTC window');
+            if (state.vendorDelayed && search === 'old') {
+                state.vendorStarted.resolve();
+                await state.vendorDelayed.promise;
+                return reply({ items: [{ supplierId: 999, supplierCode: 'OLD',
+                    supplierName: 'Stale vendor' }], totalPages: 1 });
+            }
             return reply({ items: search === 'none' ? [] : [
                 { supplierId: 9, supplierCode: 'FAC-APP',
                     supplierName: 'Approved Facilities Vendor' } ], totalPages: 1 });
@@ -204,6 +211,35 @@ async function vendorPreview(browser) {
         await page.locator('#wfVendorFind').click();
         await page.locator('#workflowAlert').filter({ hasText: 'প্রতিষ্ঠানের সেশন পরিবর্তিত' }).waitFor();
         assert.equal(await page.locator('#wfVendorPanel').isVisible(), false);
+        assert.deepEqual(state.errors, []);
+    } finally { await context.close(); }
+}
+async function vendorStaleWindow(browser) {
+    const { context, page, state } = await setup(browser);
+    try {
+        await page.locator('#wfRows button').click();
+        await page.locator('#wfAction').selectOption('vendorpropose');
+        const start = new Date(Date.now() + 86400000);
+        const end = new Date(start.getTime() + 3600000);
+        await page.locator('#wfStart').fill(start.toISOString().slice(0, 16));
+        await page.locator('#wfEnd').fill(end.toISOString().slice(0, 16));
+        await page.locator('#wfVendorRows button').waitFor();
+        state.vendorDelayed = deferred();
+        state.vendorStarted = deferred();
+        await page.locator('#wfVendorSearch').fill('old');
+        await page.locator('#wfVendorFind').click();
+        await state.vendorStarted.promise;
+        const staleResponse = page.waitForResponse(r =>
+            r.url().includes('/vendors?') && r.url().includes('search=old'));
+        await page.locator('#wfVendorSearch').fill('');
+        const later = new Date(end.getTime() + 3600000);
+        await page.locator('#wfEnd').fill(later.toISOString().slice(0, 16));
+        await page.locator('#wfVendorRows button').waitFor();
+        state.vendorDelayed.resolve();
+        await staleResponse;
+        assert.doesNotMatch(await page.locator('#wfVendorRows').innerText(), /Stale vendor/);
+        assert.equal(await page.locator('#wfVendorSelected').inputValue(), '');
+        assert.equal(state.calls.some(c => c.method === 'POST'), false);
         assert.deepEqual(state.errors, []);
     } finally { await context.close(); }
 }
@@ -349,10 +385,11 @@ async function selectionAfterTransition(browser) {
         await mobileBangla(browser);
         await requesterLocationPicker(browser);
         await vendorPreview(browser);
+        await vendorStaleWindow(browser);
         await vendorIndependentApproval(browser);
         await availabilityRecheck(browser);
         await revokedCampus(browser);
         await selectionAfterTransition(browser);
-        console.log('Facility Work Orders Chromium PASS: bilingual mobile/desktop, conflict-aware availability, authorized location picker, approved vendor proposal and independent approval, stale search, revocation and stale selection; synthetic API/session only.');
+        console.log('Facility Work Orders Chromium PASS: bilingual mobile/desktop, conflict-aware availability, authorized location picker, approved vendor proposal and independent approval, stale vendor window/search, revocation and stale selection; synthetic API/session only.');
     } finally { await browser.close(); }
 })().catch(error => { console.error(error); process.exitCode = 1; });
