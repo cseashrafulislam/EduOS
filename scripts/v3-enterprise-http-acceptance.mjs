@@ -5,6 +5,7 @@ import { performance } from 'node:perf_hooks';
 import { auditRegisterPages, assertPrivateCache, assertRegisterCsvParity } from './v3-enterprise-paged-audit.mjs';
 import { auditProcurement } from './v3-enterprise-procurement-http-audit.mjs';
 import { auditSupplierCommitment } from './v3-enterprise-supplier-commitment-audit.mjs';
+import { assertDetailCsvParity } from './v3-enterprise-detail-csv-audit.mjs';
 import { pathToFileURL } from 'node:url';
 
 const API = '/api/v3/enterprise/ledger-trace';
@@ -265,6 +266,8 @@ export async function runAcceptance(config, fetcher = fetch) {
         const expected = [reference, ...(own.body.data.journals || [])
             .map(j => j.reference)].map(value => value.toLowerCase());
         const actual = references(ownCsv.body);
+        assertDetailCsvParity({ kind: path.includes('/asset-depreciation/') ? 'asset' : 'stock',
+            data: own.body.data, csv: parseCsv(ownCsv.body), reference });
         check(actual.length === expected.length &&
             actual.every((value, index) => value === expected[index]),
             'Detail CSV and JSON evidence disagree.');

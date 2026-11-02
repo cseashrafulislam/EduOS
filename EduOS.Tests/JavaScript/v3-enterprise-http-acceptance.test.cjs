@@ -58,11 +58,26 @@ function fakeFetch({ leak = false, denyCsv = false, detailCsvMismatch = false,
                 totalCount: items.length, items });
         }
         if (foreign && !leak) return isCsv ? csv(404, '') : json(404, null);
-        if (isCsv) return csv(denyCsv ? 403 : 200, 'Evidence,Reference\n' +
-            (path.includes('asset-depreciation') ? 'AssetDepreciation,' : 'Stock,') +
-            (detailCsvMismatch ? '33333333-3333-4333-8333-333333333333' : reference));
+        if (isCsv) {
+            const ref = detailCsvMismatch ? '33333333-3333-4333-8333-333333333333' : reference;
+            return path.includes('asset-depreciation')
+                ? csv(denyCsv ? 403 : 200,
+                    'Evidence,Reference,State,Debit,Credit,RunAmount,LinesAmount,Campus,PeriodEnd\n' +
+                    'AssetDepreciation,' + ref + ',Posted,,,25,25,10,2026-10-31')
+                : csv(denyCsv ? 403 : 200,
+                    'Evidence,Reference,Number,State,Debit,Credit,RecordedValue,SourceType,SourceId,GoodsReceiptReference,PurchaseOrderReference,SourceEvidenceStatus\n' +
+                    'Stock,' + ref + ',STOCK-1,Posted,,,25,GoodsReceipt,42,,,Verified');
+        }
         return json(200, path.includes('asset-depreciation')
-            ? { runReference: asset } : { movementReference: stock });
+            ? { runReference: asset, state: 'Posted', runTotalAmount: 25,
+                depreciationLinesAmount: 25, campusId: 10, periodEnd: '2026-10-31',
+                journals: [] }
+            : { movementReference: stock, movementNumber: 'STOCK-1',
+                state: 'Posted', recordedMovementValue: 25,
+                sourceType: 'GoodsReceipt', sourceId: 42,
+                procurementGoodsReceiptReference: null,
+                procurementPurchaseOrderReference: null,
+                sourceEvidenceStatus: 'Verified', journals: [] });
     };
 }
 
