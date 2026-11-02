@@ -783,7 +783,7 @@ public sealed class SqlServerFacilityWorkOrderTests
             var dashboard = await service.DashboardAsync(campusId);
             Assert.Equal(1, dashboard.Data!.ClosedLate);
             var history = await service.HistoryAsync(submitted.Id, 1, 25);
-            Assert.Equal(12, history.Data!.TotalCount);
+            Assert.Equal(13, history.Data!.TotalCount); // Includes the audited reschedule event.
             var overdue = await Service(db, tenantId, approverId, "FacilitiesApprover",
                 new ShiftedClock(TimeSpan.FromHours(6)))
                 .ListAsync(campusId, null, 1, 25, default, true);
