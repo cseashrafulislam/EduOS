@@ -11,12 +11,15 @@ const begin = script.indexOf('async function apiRequest(url, options = {})');
 const end = script.indexOf('// ============================================================\n// ANTI FORGERY', begin);
 assert.ok(begin >= 0 && end > begin);
 const requestFunction = script.slice(begin, end);
+// Isolated API helper fixture includes its actual fail-closed state dependencies.
+const isolatedRequest = "let profileLocked=false; const profileText=x=>x; function lockProfile(){profileLocked=true;}\n" + requestFunction;
 const reference = 'A'.repeat(64);
 
 function client(serverReference, serverTenant, pending = false) {
     let verifyCount = 0;
     const context = {
-        document: { body: { dataset: { authSessionReference: reference, authTenantId: '100' } } },
+        document: { body: { dataset: { authSessionReference: reference, authTenantId: '100' } },
+            getElementById: () => ({hidden:true}) },
         window: {
             EduOSSessionTransitionPending: () => pending,
             EduOSVerifySessionContext: () => { verifyCount++; }
@@ -35,7 +38,7 @@ function client(serverReference, serverTenant, pending = false) {
         }
     };
     return {
-        request: vm.runInNewContext(requestFunction + '\napiRequest', context),
+        request: vm.runInNewContext(isolatedRequest + '\napiRequest', context),
         verifications: () => verifyCount
     };
 }
@@ -74,7 +77,8 @@ test('MFA recovery-code response is never returned to a stale institution or ses
     async function run(serverReference, serverTenant) {
         let verificationCount = 0;
         const context = {
-            document: { body: { dataset: { authSessionReference: reference, authTenantId: '100' } } },
+            document: { body: { dataset: { authSessionReference: reference, authTenantId: '100' } },
+                getElementById: () => ({hidden:true}) },
             window: {
                 EduOSSessionTransitionPending: () => false,
                 EduOSVerifySessionContext: () => { verificationCount++; }
@@ -95,7 +99,7 @@ test('MFA recovery-code response is never returned to a stale institution or ses
                 };
             }
         };
-        const post = vm.runInNewContext(requestFunction + helper + '\nauthSecurityPost', context);
+        const post = vm.runInNewContext(isolatedRequest + helper + '\nauthSecurityPost', context);
         try {
             const result = await post('/api/auth/mfa/recovery-codes/regenerate',
                 { currentPassword: 'password', code: '123456' }, true);
@@ -106,11 +110,11 @@ test('MFA recovery-code response is never returned to a stale institution or ses
     }
     const accepted = await run(reference, '100');
     assert.equal(accepted.codes[0], 'one-time-private-code');
-    assert.equal(accepted.verificationCount, 0);
+    assert.equal(accepted.verificationCount, 1, 'Sensitive POST requires preflight session verification');
     for (const [sid, tenant] of [['B'.repeat(64), '100'], [reference, '200'], [null, '100']]) {
         const denied = await run(sid, tenant);
         assert.match(denied.error, /Account session changed/);
-        assert.equal(denied.verificationCount, 1);
+        assert.equal(denied.verificationCount, 2, 'Preflight and mismatched response must both verify');
         assert.equal(denied.codes, undefined);
     }
 });
