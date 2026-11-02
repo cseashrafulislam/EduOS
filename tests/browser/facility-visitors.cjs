@@ -138,7 +138,9 @@ async function run(browser, bn, manager, mobile) {
         await page.route('http://localhost/api/facilities/visitors?*', route =>
             route.fulfill({ status: 403, contentType: 'application/json',
                 body: JSON.stringify({ success: false, message: 'Access revoked' }) }));
-        await page.locator('#fvRefresh').click();
+        // A pending response may already revoke access before this synthetic click.
+        // Programmatic click still exercises the denied path on a hidden control.
+        await page.locator('#fvRefresh').evaluate(button => button.click());
         await page.waitForFunction(() => document.querySelectorAll('#fvRows article').length === 0);
         assert.equal(await page.locator('#fvRows article').count(), 0);
         assert.equal(await page.locator('#fvRefresh').isVisible(), false);
