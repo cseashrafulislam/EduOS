@@ -1,0 +1,121 @@
+using System.Text;
+using EduOS.App.Controllers.Api;
+using EduOS.Core.Common;
+using EduOS.Core.DTOs.Inventory;
+using EduOS.Core.Interfaces.IServices;
+using Microsoft.AspNetCore.Mvc;
+using Moq;
+using Xunit;
+
+namespace EduOS.Tests.App;
+
+/// <summary>Synthetic service-level CSV acceptance; not SQL snapshot or authenticated browser proof.</summary>
+public sealed class ProcurementCsvExportIntegrityTests
+{
+    private static ApiResponse<PagedResult<T>> Ok<T>(int page, int total, params T[] items) =>
+        ApiResponse<PagedResult<T>>.SuccessResponse(new PagedResult<T>
+        { Page = page, PageSize = 100, TotalCount = total, Items = items.ToList() });
+
+    private static ProcurementGoodsReceiptDto Receipt(int id, decimal cost = 10m) => new()
+    {
+        Reference = Guid.Parse($"00000000-0000-4000-8000-{id:D12}"),
+        Lines = [new ProcurementGoodsReceiptLineDto
+        { LineNo = 1, LotOrBatchNo = "+SUM(1,1)\r\nUNSAFE", Quantity = 1m, PostedUnitCost = cost }]
+    };
+
+    [Fact]
+    public async Task Receipt_export_rejects_duplicate_paging_and_same_count_valuation_drift()
+    {
+        var duplicate = new Mock<IInventoryMovementService>();
+        duplicate.Setup(x => x.GetGoodsReceiptsAsync(null, null, 1, 100, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Ok(1, 101, Enumerable.Range(1, 100).Select(Receipt).ToArray()));
+        duplicate.Setup(x => x.GetGoodsReceiptsAsync(null, null, 2, 100, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Ok(2, 101, Receipt(100)));
+        var a = Assert.IsType<ObjectResult>(
+            await new ProcurementGoodsReceiptsController(duplicate.Object).Export(null, null, CancellationToken.None));
+        Assert.Equal(409, a.StatusCode);
+        var changed = new Mock<IInventoryMovementService>();
+        changed.SetupSequence(x => x.GetGoodsReceiptsAsync(null, null, 1, 100, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Ok(1, 1, Receipt(1, 10m)))
+            .ReturnsAsync(Ok(1, 1, Receipt(1, 11m)));
+        var b = Assert.IsType<ObjectResult>(
+            await new ProcurementGoodsReceiptsController(changed.Object).Export(null, null, CancellationToken.None));
+        Assert.Equal(409, b.StatusCode);
+    }
+
+    [Fact]
+    public async Task Receipt_export_rechecks_access_and_sanitizes_stable_csv()
+    {
+        var denied = new Mock<IInventoryMovementService>();
+        denied.SetupSequence(x => x.GetGoodsReceiptsAsync(null, null, 1, 100, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Ok(1, 1, Receipt(1)))
+            .ReturnsAsync(ApiResponse<PagedResult<ProcurementGoodsReceiptDto>>.ErrorResponse("Revoked", 403));
+        var r = Assert.IsType<ObjectResult>(
+            await new ProcurementGoodsReceiptsController(denied.Object).Export(null, null, CancellationToken.None));
+        Assert.Equal(403, r.StatusCode);
+        var stable = new Mock<IInventoryMovementService>();
+        stable.Setup(x => x.GetGoodsReceiptsAsync(null, null, 1, 100, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Ok(1, 1, Receipt(1)));
+        var file = Assert.IsType<FileContentResult>(
+            await new ProcurementGoodsReceiptsController(stable.Object).Export(null, null, CancellationToken.None));
+        var csv = Encoding.UTF8.GetString(file.FileContents);
+        Assert.StartsWith("\uFEFF", csv);
+        Assert.Contains("'+SUM(1,1)  UNSAFE", csv);
+        Assert.DoesNotContain("\r\nUNSAFE", csv);
+        Assert.Contains("\"10\"", csv);
+    }
+
+    [Fact]
+    public async Task Commitment_export_rejects_same_count_approved_amount_drift()
+    {
+        var po = new Mock<IProcurementPurchaseOrderService>();
+        po.SetupSequence(x => x.CommitmentsAsync(1, 100, null, null, null, false, null,
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Ok(1, 1, new ProcurementPurchaseOrderCommitmentDto { Id = 1, ApprovedAmount = 10m }))
+            .ReturnsAsync(Ok(1, 1, new ProcurementPurchaseOrderCommitmentDto { Id = 1, ApprovedAmount = 11m }));
+        var result = Assert.IsType<ObjectResult>(
+            await new ProcurementPurchaseOrdersController(po.Object).ExportCommitments(ct: CancellationToken.None));
+        Assert.Equal(409, result.StatusCode);
+    }
+
+    [Fact]
+    public async Task Purchase_order_export_rejects_revocation()
+    {
+        var po = new Mock<IProcurementPurchaseOrderService>();
+        po.SetupSequence(x => x.ListAsync(1, 100, null, null, null, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Ok(1, 1, new ProcurementPurchaseOrderDto { Id = 1 }))
+            .ReturnsAsync(ApiResponse<PagedResult<ProcurementPurchaseOrderDto>>.ErrorResponse("Revoked", 403));
+        var result = Assert.IsType<ObjectResult>(
+            await new ProcurementPurchaseOrdersController(po.Object).Export(ct: CancellationToken.None));
+        Assert.Equal(403, result.StatusCode);
+    }
+
+    [Fact]
+    public async Task Requisition_export_rejects_duplicate_second_page()
+    {
+        var req = new Mock<IProcurementRequisitionService>();
+        req.Setup(x => x.ListAsync(1, 100, null, null, null, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Ok(1, 101, Enumerable.Range(1, 100)
+                .Select(i => new ProcurementRequisitionDto { Id = i }).ToArray()));
+        req.Setup(x => x.ListAsync(2, 100, null, null, null, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Ok(2, 101, new ProcurementRequisitionDto { Id = 100 }));
+        var result = Assert.IsType<ObjectResult>(
+            await new ProcurementRequisitionsController(req.Object).Export(ct: CancellationToken.None));
+        Assert.Equal(409, result.StatusCode);
+    }
+
+    [Fact]
+    public async Task Supplier_confirmation_export_neutralizes_formula_and_embedded_newline()
+    {
+        var supplier = new Mock<IProcurementSupplierAcknowledgementService>();
+        supplier.Setup(x => x.ListAsync(1, 100, null, null, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Ok(1, 1, new ProcurementSupplierAcknowledgementDto
+            { Id = 1, SupplierId = 3, SupplierReference = "=HYPERLINK(\"unsafe\")\r\nEXTRA" }));
+        var file = Assert.IsType<FileContentResult>(
+            await new ProcurementSupplierAcknowledgementsController(supplier.Object).Export(ct: CancellationToken.None));
+        var csv = Encoding.UTF8.GetString(file.FileContents);
+        Assert.Contains("'=HYPERLINK", csv);
+        Assert.DoesNotContain("\r\nEXTRA", csv);
+        Assert.Contains("\"3\"", csv);
+    }
+}

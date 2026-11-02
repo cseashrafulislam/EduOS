@@ -45,27 +45,16 @@ public sealed class ProcurementRequisitionsController : ControllerBase
     public async Task<IActionResult> Export(long? campusId = null, string? state = null, string? search = null,
         CancellationToken ct = default)
     {
-        var first = await service.ListAsync(1, 100, campusId, state, search, ct);
-        if (!first.Success || first.Data == null) return StatusCode(first.StatusCode, first);
-        if (first.Data.TotalCount > 500) return StatusCode(413, new { message = "Filter to 500 or fewer records before exporting." });
-        var records = new List<ProcurementRequisitionDto>(first.Data.Items);
-        for (var page = 2; page <= first.Data.TotalPages; page++)
-        {
-            var result = await service.ListAsync(page, 100, campusId, state, search, ct);
-            if (!result.Success || result.Data == null) return StatusCode(result.StatusCode, result);
-            records.AddRange(result.Data.Items);
-        }
-        static string Csv(object? value)
-        {
-            var text = Convert.ToString(value, System.Globalization.CultureInfo.InvariantCulture) ?? "";
-            if (text.TrimStart().Length > 0 && "=+-@".Contains(text.TrimStart()[0])) text = "'" + text;
-            return "\"" + text.Replace("\"", "\"\"") + "\"";
-        }
+        var (records, error) = await ProcurementCsvExportGuard.ReadAsync(
+            page => service.ListAsync(page, 100, campusId, state, search, ct),
+            (ProcurementRequisitionDto x) => x.Id);
+        if (records == null)
+            return StatusCode(error, new { message = "Procurement export changed or access denied; retry with fresh authorization and filters." });
         var csv = new StringBuilder("Number,Campus ID,State,Purpose,Requested By,Created UTC,Estimated BDT\r\n");
         foreach (var row in records)
-            csv.AppendJoin(',', Csv(row.RequestNumber), Csv(row.CampusId), Csv(row.StateCode),
-                Csv(row.Purpose), Csv(row.CreatedBy), Csv(row.CreatedAt.ToString("O")),
-                Csv(row.EstimatedTotal)).Append("\r\n");
+            csv.AppendJoin(',', ProcurementCsvExportGuard.Cell(row.RequestNumber), ProcurementCsvExportGuard.Cell(row.CampusId), ProcurementCsvExportGuard.Cell(row.StateCode),
+                ProcurementCsvExportGuard.Cell(row.Purpose), ProcurementCsvExportGuard.Cell(row.CreatedBy), ProcurementCsvExportGuard.Cell(row.CreatedAt.ToString("O")),
+                ProcurementCsvExportGuard.Cell(row.EstimatedTotal)).Append("\r\n");
         return File(new UTF8Encoding(true).GetBytes(csv.ToString()), "text/csv; charset=utf-8",
             "procurement-requisitions.csv");
     }

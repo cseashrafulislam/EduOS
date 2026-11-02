@@ -40,32 +40,20 @@ public sealed class ProcurementGoodsReceiptsController(IInventoryMovementService
     [HttpGet("export"), Authorize(Roles = "TenantAdmin,Principal,InventoryManager,StoreKeeper,Accountant")]
     public async Task<IActionResult> Export(long? purchaseOrderId, string? state, CancellationToken ct)
     {
-        var first = await inventory.GetGoodsReceiptsAsync(purchaseOrderId, state, 1, 100, ct);
-        if (!first.Success || first.Data == null) return Reply(first);
-        if (first.Data.TotalCount > 500)
-            return StatusCode(413, new { message = "Filter to 500 or fewer goods receipts." });
-        var results = new List<ProcurementGoodsReceiptDto>(first.Data.Items);
-        for (var page = 2; page <= first.Data.TotalPages; page++)
-        {
-            var next = await inventory.GetGoodsReceiptsAsync(purchaseOrderId, state, page, 100, ct);
-            if (!next.Success || next.Data == null) return Reply(next);
-            results.AddRange(next.Data.Items);
-        }
-        static string Csv(object? input)
-        {
-            var value = Convert.ToString(input, System.Globalization.CultureInfo.InvariantCulture) ?? "";
-            if (input is string && value.TrimStart().Length > 0 && "=+-@".Contains(value.TrimStart()[0])) value = "'" + value;
-            return "\"" + value.Replace("\"", "\"\"") + "\"";
-        }
+        var (results, error) = await ProcurementCsvExportGuard.ReadAsync(
+            page => inventory.GetGoodsReceiptsAsync(purchaseOrderId, state, page, 100, ct),
+            (ProcurementGoodsReceiptDto x) => x.Reference);
+        if (results == null)
+            return StatusCode(error, new { message = "Procurement export changed or access denied; retry with fresh authorization and filters." });
         var csv = new StringBuilder("Receipt UUID,Order,Campus,Location,Status,Maker,Checker,Line,Item,Lot,Quantity,PO Quantity,PO Unit Price,Posted Unit Cost,Valuation Reason,Inventory Movement UUID\r\n");
         foreach (var receipt in results)
             foreach (var line in receipt.Lines)
-                csv.AppendJoin(',', Csv(receipt.Reference), Csv(receipt.OrderNumber), Csv(receipt.CampusId),
-                    Csv(receipt.LocationId), Csv(receipt.StateCode), Csv(receipt.CreatedByUserId),
-                    Csv(receipt.ReviewedByUserId), Csv(line.LineNo), Csv(line.InventoryItemId),
-                    Csv(line.LotOrBatchNo), Csv(line.Quantity), Csv(line.ApprovedPoQuantity),
-                    Csv(line.ApprovedPoUnitPrice), Csv(line.PostedUnitCost), Csv(line.ValuationReason),
-                    Csv(receipt.PostedMovementReference)).Append("\r\n");
+                csv.AppendJoin(',', ProcurementCsvExportGuard.Cell(receipt.Reference), ProcurementCsvExportGuard.Cell(receipt.OrderNumber), ProcurementCsvExportGuard.Cell(receipt.CampusId),
+                    ProcurementCsvExportGuard.Cell(receipt.LocationId), ProcurementCsvExportGuard.Cell(receipt.StateCode), ProcurementCsvExportGuard.Cell(receipt.CreatedByUserId),
+                    ProcurementCsvExportGuard.Cell(receipt.ReviewedByUserId), ProcurementCsvExportGuard.Cell(line.LineNo), ProcurementCsvExportGuard.Cell(line.InventoryItemId),
+                    ProcurementCsvExportGuard.Cell(line.LotOrBatchNo), ProcurementCsvExportGuard.Cell(line.Quantity), ProcurementCsvExportGuard.Cell(line.ApprovedPoQuantity),
+                    ProcurementCsvExportGuard.Cell(line.ApprovedPoUnitPrice), ProcurementCsvExportGuard.Cell(line.PostedUnitCost), ProcurementCsvExportGuard.Cell(line.ValuationReason),
+                    ProcurementCsvExportGuard.Cell(receipt.PostedMovementReference)).Append("\r\n");
         return File(new UTF8Encoding(true).GetBytes(csv.ToString()), "text/csv; charset=utf-8", "procurement-goods-receipts.csv");
     }
 }

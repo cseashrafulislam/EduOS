@@ -39,28 +39,17 @@ public sealed class ProcurementSupplierAcknowledgementsController : ControllerBa
     public async Task<IActionResult> Export(long? campusId = null, string? state = null,
         CancellationToken ct = default)
     {
-        var first = await service.ListAsync(1, 100, campusId, state, ct);
-        if (!first.Success || first.Data == null) return StatusCode(first.StatusCode, first);
-        if (first.Data.TotalCount > 500) return StatusCode(413, new { message = "Filter to 500 or fewer confirmations." });
-        var rows = new List<ProcurementSupplierAcknowledgementDto>(first.Data.Items);
-        for (var page = 2; page <= first.Data.TotalPages; page++)
-        {
-            var next = await service.ListAsync(page, 100, campusId, state, ct);
-            if (!next.Success || next.Data == null) return StatusCode(next.StatusCode, next);
-            rows.AddRange(next.Data.Items);
-        }
-        static string Csv(object? value)
-        {
-            var s = Convert.ToString(value, System.Globalization.CultureInfo.InvariantCulture) ?? "";
-            if (s.TrimStart().Length > 0 && "=+-@".Contains(s.TrimStart()[0])) s = "'" + s;
-            return "\"" + s.Replace("\"", "\"\"") + "\"";
-        }
+        var (rows, error) = await ProcurementCsvExportGuard.ReadAsync(
+            page => service.ListAsync(page, 100, campusId, state, ct),
+            (ProcurementSupplierAcknowledgementDto x) => x.Id);
+        if (rows == null)
+            return StatusCode(error, new { message = "Procurement export changed or access denied; retry with fresh authorization and filters." });
         var csv = new StringBuilder("Order,Campus,Supplier,Reference,Response Date,Promised Delivery,State,Checker UTC\r\n");
         foreach (var x in rows)
-            csv.AppendJoin(',', Csv(x.OrderNumber), Csv(x.CampusId), Csv(x.SupplierId),
-                Csv(x.SupplierReference), Csv(x.ResponseDate.ToString("yyyy-MM-dd")),
-                Csv(x.PromisedDeliveryDate.ToString("yyyy-MM-dd")), Csv(x.StateCode),
-                Csv(x.DecidedAt?.ToString("O"))).Append("\r\n");
+            csv.AppendJoin(',', ProcurementCsvExportGuard.Cell(x.OrderNumber), ProcurementCsvExportGuard.Cell(x.CampusId), ProcurementCsvExportGuard.Cell(x.SupplierId),
+                ProcurementCsvExportGuard.Cell(x.SupplierReference), ProcurementCsvExportGuard.Cell(x.ResponseDate.ToString("yyyy-MM-dd")),
+                ProcurementCsvExportGuard.Cell(x.PromisedDeliveryDate.ToString("yyyy-MM-dd")), ProcurementCsvExportGuard.Cell(x.StateCode),
+                ProcurementCsvExportGuard.Cell(x.DecidedAt?.ToString("O"))).Append("\r\n");
         return File(new UTF8Encoding(true).GetBytes(csv.ToString()), "text/csv; charset=utf-8",
             "procurement-supplier-confirmations.csv");
     }
