@@ -37,13 +37,28 @@ public sealed class FacilityVisitorService(
             db.TenantMemberships.Any(m => m.TenantId == user.TenantId && m.UserId == u.Id &&
                 !m.IsDeleted && m.Status == MembershipStatus.Active) &&
             db.UserCampusAccesses.Any(g => g.TenantId == user.TenantId && g.UserId == u.Id &&
-                g.CampusId == campusId && g.IsActive && !g.IsDeleted))
+                g.CampusId == campusId && g.IsActive && !g.IsDeleted) &&
+            db.UserRoles.Any(ur => ur.UserId == u.Id &&
+                db.Roles.IgnoreQueryFilters().Any(role => role.Id == ur.RoleId &&
+                    role.IsActive && !role.IsDeleted &&
+                    (role.TenantId == user.TenantId || (role.TenantId == null && role.IsSystemRole)) &&
+                    (role.NormalizedName == "STAFF" || role.NormalizedName == "TEACHER" ||
+                     role.NormalizedName == "PRINCIPAL" || role.NormalizedName == "TENANTADMIN" ||
+                     role.NormalizedName == "FACILITIESMANAGER"))))
         .Select(u => u.Id);
     private async Task<bool> ActorActiveAsync(CancellationToken ct) =>
         await db.Users.AsNoTracking().AnyAsync(u => u.Id == user.UserId && u.IsActive && !u.IsDeleted, ct) &&
         await db.TenantMemberships.AsNoTracking().AnyAsync(m =>
             m.TenantId == user.TenantId && m.UserId == user.UserId &&
             !m.IsDeleted && m.Status == MembershipStatus.Active, ct);
+    // Cookie role claims alone cannot authorize a revoked Facilities desk role.
+    private async Task<bool> ManagerLiveAsync(CancellationToken ct) =>
+        Manager && await db.UserRoles.AnyAsync(ur => ur.UserId == user.UserId &&
+            db.Roles.IgnoreQueryFilters().Any(role => role.Id == ur.RoleId &&
+                role.IsActive && !role.IsDeleted &&
+                (role.TenantId == user.TenantId || (role.TenantId == null && role.IsSystemRole)) &&
+                (role.NormalizedName == "TENANTADMIN" || role.NormalizedName == "PRINCIPAL" ||
+                 role.NormalizedName == "FACILITIESMANAGER")), ct);
     private IQueryable<FacilityVisitorVisit> Visible() =>
         db.Set<FacilityVisitorVisit>().AsNoTracking().Where(v =>
             v.TenantId == user.TenantId && !v.IsDeleted &&
@@ -67,7 +82,7 @@ public sealed class FacilityVisitorService(
     public async Task<ApiResponse<PagedResult<FacilityVisitorHostDto>>> HostsAsync(
         long campusId, string? search, int page, int pageSize, CancellationToken ct = default)
     {
-        if (!ValidTenant || !Manager || !await ActorActiveAsync(ct))
+        if (!ValidTenant || !Manager || !await ActorActiveAsync(ct) || !await ManagerLiveAsync(ct))
             return Denied<PagedResult<FacilityVisitorHostDto>>();
         if (campusId <= 0 || page is < 1 or > 100000 || pageSize is < 1 or > 50 || search?.Length > 100)
             return ApiResponse<PagedResult<FacilityVisitorHostDto>>.ErrorResponse("Invalid host lookup.", 400);
@@ -90,7 +105,7 @@ public sealed class FacilityVisitorService(
     public async Task<ApiResponse<PagedResult<FacilityVisitorDto>>> ListAsync(
         long? campusId, int page, int pageSize, CancellationToken ct = default)
     {
-        if (!ValidTenant || !await ActorActiveAsync(ct))
+        if (!ValidTenant || !await ActorActiveAsync(ct) || (Manager && !await ManagerLiveAsync(ct)))
             return Denied<PagedResult<FacilityVisitorDto>>();
         if (campusId is <= 0 || page is < 1 or > 100000 || pageSize is < 1 or > 50)
             return ApiResponse<PagedResult<FacilityVisitorDto>>.ErrorResponse("Invalid visitor filter.", 400);
@@ -108,7 +123,7 @@ public sealed class FacilityVisitorService(
     public async Task<ApiResponse<FacilityVisitorDto>> CreateAsync(
         CreateFacilityVisitorDto input, CancellationToken ct = default)
     {
-        if (!ValidTenant || !Manager || !await ActorActiveAsync(ct)) return Denied<FacilityVisitorDto>();
+        if (!ValidTenant || !Manager || !await ActorActiveAsync(ct) || !await ManagerLiveAsync(ct)) return Denied<FacilityVisitorDto>();
         if (input == null || input.ClientRequestId == Guid.Empty || input.CampusId <= 0 ||
             input.HostUserId <= 0 || input.HostUserId == user.UserId)
             return ApiResponse<FacilityVisitorDto>.ErrorResponse("Valid campus, independent host and command ID required.", 400);
@@ -174,7 +189,7 @@ public sealed class FacilityVisitorService(
     public async Task<ApiResponse<FacilityVisitorDto>> TransitionAsync(
         long id, string action, FacilityVisitorTransitionDto command, CancellationToken ct = default)
     {
-        if (!ValidTenant || !await ActorActiveAsync(ct)) return Denied<FacilityVisitorDto>();
+        if (!ValidTenant || !await ActorActiveAsync(ct) || (Manager && !await ManagerLiveAsync(ct))) return Denied<FacilityVisitorDto>();
         action = (action ?? "").Trim().ToLowerInvariant();
         if (id <= 0 || command == null || command.ClientCommandId == Guid.Empty ||
             string.IsNullOrWhiteSpace(command.RowVersion) ||
@@ -283,7 +298,7 @@ public sealed class FacilityVisitorService(
     public async Task<ApiResponse<PagedResult<FacilityVisitorEventDto>>> HistoryAsync(
         long id, int page, int pageSize, CancellationToken ct = default)
     {
-        if (!ValidTenant || !await ActorActiveAsync(ct))
+        if (!ValidTenant || !await ActorActiveAsync(ct) || (Manager && !await ManagerLiveAsync(ct)))
             return Denied<PagedResult<FacilityVisitorEventDto>>();
         if (id <= 0 || page is < 1 or > 100000 || pageSize is < 1 or > 50)
             return ApiResponse<PagedResult<FacilityVisitorEventDto>>.ErrorResponse("Invalid history page.", 400);

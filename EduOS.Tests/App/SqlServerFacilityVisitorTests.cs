@@ -7,6 +7,7 @@ using EduOS.Core.Interfaces;
 using EduOS.Persistence.Context;
 using EduOS.Service.Services.Facilities;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using System.Security.Claims;
@@ -58,6 +59,15 @@ public sealed class SqlServerFacilityVisitorTests
                     setup.UserCampusAccesses.Add(new UserCampusAccess
                     { TenantId = tenantId, CampusId = campusId, UserId = id, IsActive = true });
                 }
+                var managerRole = new ApplicationRole
+                { TenantId = tenantId, Name = "FacilitiesManager", NormalizedName = "FACILITIESMANAGER", IsActive = true };
+                var hostRole = new ApplicationRole
+                { TenantId = tenantId, Name = "Staff", NormalizedName = "STAFF", IsActive = true };
+                setup.Roles.AddRange(managerRole, hostRole);
+                await setup.SaveChangesAsync();
+                setup.UserRoles.AddRange(
+                    new IdentityUserRole<long> { UserId = managerId, RoleId = managerRole.Id },
+                    new IdentityUserRole<long> { UserId = hostId, RoleId = hostRole.Id });
                 await setup.SaveChangesAsync();
             }
         }
@@ -99,6 +109,32 @@ public sealed class SqlServerFacilityVisitorTests
                 { ClientCommandId = Guid.NewGuid(), RowVersion = first.RowVersion,
                     BadgeCode = "GUEST-01" })).StatusCode);
         }
+        // A stale FacilitiesManager claim cannot discover hosts after its DB role is revoked.
+        await using (var db = Db(options, tenantId, managerId, "FacilitiesManager"))
+            Assert.Equal(1, await db.Roles.IgnoreQueryFilters().Where(x =>
+                x.TenantId == tenantId && x.NormalizedName == "FACILITIESMANAGER")
+                .ExecuteUpdateAsync(x => x.SetProperty(role => role.IsActive, false)));
+        await using (var db = Db(options, tenantId, managerId, "FacilitiesManager"))
+            Assert.Equal(403, (await Service(db, tenantId, managerId, "FacilitiesManager")
+                .HostsAsync(campusId, null, 1, 25)).StatusCode);
+        await using (var db = Db(options, tenantId, managerId, "FacilitiesManager"))
+            Assert.Equal(1, await db.Roles.IgnoreQueryFilters().Where(x =>
+                x.TenantId == tenantId && x.NormalizedName == "FACILITIESMANAGER")
+                .ExecuteUpdateAsync(x => x.SetProperty(role => role.IsActive, true)));
+        // Host approval is also rejected after the live Staff role is revoked.
+        await using (var db = Db(options, tenantId, managerId, "FacilitiesManager"))
+            Assert.Equal(1, await db.Roles.IgnoreQueryFilters().Where(x =>
+                x.TenantId == tenantId && x.NormalizedName == "STAFF")
+                .ExecuteUpdateAsync(x => x.SetProperty(role => role.IsActive, false)));
+        await using (var db = Db(options, tenantId, hostId, "Staff"))
+            Assert.Equal(403, (await Service(db, tenantId, hostId, "Staff")
+                .TransitionAsync(first.Id, "hostapprove", new FacilityVisitorTransitionDto
+                { ClientCommandId = Guid.NewGuid(), RowVersion = first.RowVersion })).StatusCode);
+        await using (var db = Db(options, tenantId, managerId, "FacilitiesManager"))
+            Assert.Equal(1, await db.Roles.IgnoreQueryFilters().Where(x =>
+                x.TenantId == tenantId && x.NormalizedName == "STAFF")
+                .ExecuteUpdateAsync(x => x.SetProperty(role => role.IsActive, true)));
+
         async Task<FacilityVisitorDto> ApproveAsync(FacilityVisitorDto visit)
         {
             await using var db = Db(options, tenantId, hostId, "Staff");
