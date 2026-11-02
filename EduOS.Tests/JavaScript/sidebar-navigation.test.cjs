@@ -125,3 +125,23 @@ test('restricted links remain gated in Razor rather than client-side role filter
     assert.match(styles, /data-workspace-navigation="top"\] \.sidebar \.sidebar-submenu/);
     assert.match(script, /allCategories\.push\(subDetails\)/);
 });
+
+test('sidebar keyboard and persisted navigation state are scoped to the rendered institution session', () => {
+    assert.match(script, /state\.scope !== scope/);
+    assert.match(script, /dataset\.authTenantId === initialTenant/);
+    assert.match(script, /dataset\.authSessionReference === initialReference/);
+    assert.match(script, /if \(!matchesScope\(\)\) return;/);
+    assert.match(script, /\['ArrowDown', 'ArrowUp', 'Home', 'End'\]/);
+    assert.match(script, /getClientRects\(\)\.length > 0/);
+    assert.match(script, /element\.closest\('\[hidden\], \[inert\]'\)/);
+    assert.doesNotMatch(script, /localStorage|innerHTML|eval\(/);
+});
+
+test('server-rendered static sidebar anchors have no duplicate destinations', () => {
+    const sidebar = layout.slice(layout.indexOf('<aside class="sidebar"'), layout.indexOf('</aside>'));
+    const links = [...sidebar.matchAll(/<a\\b[^>]*href="(\\/[^"]+)"/g)]
+        .map(match => match[1].toLowerCase());
+    assert.ok(links.length > 50, 'route inventory unexpectedly empty');
+    assert.equal(new Set(links).size, links.length,
+        'duplicate static sidebar routes need explicit review');
+});

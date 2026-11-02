@@ -313,9 +313,21 @@
 
     const bangla = document.documentElement.lang?.toLowerCase().startsWith('bn');
     const storageKey = 'eduos.sidebar.navigation.v1';
+    // Only presentation state is stored. The server-issued public session reference
+    // and tenant identify the current rendered shell; neither grants access.
+    // A different login or institution must never inherit another shell's menu state.
+    const initialTenant = document.body?.dataset.authTenantId || '';
+    const initialReference = document.body?.dataset.authSessionReference || '';
+    const scope = initialTenant && /^[0-9A-F]{64}$/.test(initialReference)
+        ? initialTenant + ':' + initialReference : '';
+    const matchesScope = () => Boolean(scope) &&
+        document.body?.dataset.authTenantId === initialTenant &&
+        document.body?.dataset.authSessionReference === initialReference;
     function readState() {
+        if (!matchesScope()) return { scroll: 0, group: '', category: '' };
         try {
             const state = JSON.parse(sessionStorage.getItem(storageKey) || '{}');
+            if (state.scope !== scope) return { scroll: 0, group: '', category: '' };
             return {
                 scroll: Number.isFinite(state.scroll) && state.scroll >= 0 ? state.scroll : 0,
                 group: typeof state.group === 'string' ? state.group : '',
@@ -325,7 +337,9 @@
     }
     let state = readState();
     function saveState() {
-        try { sessionStorage.setItem(storageKey, JSON.stringify(state)); } catch { /* Storage is optional. */ }
+        if (!matchesScope()) return;
+        try { sessionStorage.setItem(storageKey, JSON.stringify({ ...state, scope })); }
+        catch { /* Storage is optional. */ }
     }
 
     const allLinks = [];
@@ -535,6 +549,27 @@
             restoreOpenGroup();
             window.requestAnimationFrame(showActiveAndRestoreScroll);
         }
+    });
+
+    // Native <summary> handles Enter/Space. Arrow/Home/End provide predictable
+    // three-level keyboard traversal without focusing collapsed or unauthorized links.
+    sidebar.addEventListener('keydown', event => {
+        if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key) ||
+            event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
+        const focused = event.target.closest?.('summary, a.nav-link');
+        const nav = focused?.closest('nav[data-sidebar-section]');
+        if (!nav || !sidebar.contains(nav)) return;
+        const targets = [...nav.querySelectorAll('summary, a.nav-link')].filter(element =>
+            element.getClientRects().length > 0 &&
+            !element.closest('[hidden], [inert]'));
+        const index = targets.indexOf(focused);
+        if (index < 0) return;
+        const next = event.key === 'Home' ? 0 :
+            event.key === 'End' ? targets.length - 1 :
+            event.key === 'ArrowDown' ? Math.min(index + 1, targets.length - 1) :
+            Math.max(index - 1, 0);
+        event.preventDefault();
+        targets[next]?.focus();
     });
 
     document.addEventListener('pointerdown', event => {
