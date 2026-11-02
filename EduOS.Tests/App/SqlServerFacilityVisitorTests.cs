@@ -167,7 +167,8 @@ public sealed class SqlServerFacilityVisitorTests
         {
             var revoked = Service(db, tenantId, managerId, "FacilitiesManager");
             Assert.Equal(403, (await revoked.ListAsync(campusId, 1, 25)).StatusCode);
-            Assert.Equal(403, (await revoked.HistoryAsync(first.Id, 1, 25)).StatusCode);
+            // History masks a now-unowned visit as 404 rather than leaking its existence.
+            Assert.Equal(404, (await revoked.HistoryAsync(first.Id, 1, 25)).StatusCode);
         }
         await using (var db = Db(options, tenantId, managerId, "FacilitiesManager"))
             Assert.Equal(1, await db.Roles.IgnoreQueryFilters().Where(x =>
