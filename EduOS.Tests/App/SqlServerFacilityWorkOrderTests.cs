@@ -1298,7 +1298,7 @@ public sealed class SqlServerFacilityWorkOrderTests
         private int reads;
         public override DateTimeOffset GetUtcNow() =>
             DateTimeOffset.UtcNow.Add(
-                System.Threading.Interlocked.Increment(ref reads) >= jumpAtRead
+                global::System.Threading.Interlocked.Increment(ref reads) >= jumpAtRead
                     ? afterJump : TimeSpan.Zero);
     }
 
