@@ -246,7 +246,12 @@
         'Export Evidence CSV': 'প্রমাণের CSV রপ্তানি',
         'Print Evidence': 'প্রমাণ প্রিন্ট',
         'Journal': 'জার্নাল',
-        'Description': 'বিবরণ'
+        'Description': 'বিবরণ',
+        // Finance fee task client: only fixed action/status/CSV vocabulary.
+        'Edit unbilled': 'বিল না হওয়া কাঠামো সম্পাদনা',
+        'Copy as new': 'নতুন সংস্করণ তৈরি',
+        'Open': 'উন্মুক্ত',
+        'Allocation BDT': 'বণ্টন (টাকা)'
     };
     const safe = value => Object.prototype.hasOwnProperty.call(labels, value) ? labels[value] : null;
     // Explicitly opted-in task clients can translate known UI labels created

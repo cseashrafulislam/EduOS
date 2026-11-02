@@ -4,6 +4,10 @@ if (!document.getElementById('feeApp')) return;
 const e=id=>document.getElementById(id),base='/api/finance/fees';
 const activeFeature=e('feeApp').dataset.activeFeature||'structures';
 const uiLabel=value=>globalThis.eduTaskStaticLabel?.(value)||value;
+// Only fixed presentation vocabulary is translated; tenant records and financial values stay intact.
+const bn=(document.documentElement.lang||'').toLowerCase().startsWith('bn');
+const t=(en,bd)=>bn?bd:en;
+const pageLabel=(p,n)=>t('Page ','পৃষ্ঠা ')+p+t(' of ',' / ')+n;
 const token=document.querySelector('meta[name="request-verification-token"]')?.content;
 const state={options:null,student:null,invoice:null,invoicePage:1,receiptPage:1,invoicePages:1,receiptPages:1,createKey:null,createId:null,generateKey:null,generateId:null,paymentKey:null,paymentId:null,editingStructure:null,structurePage:1,structurePages:1,auditInvoice:null,auditPage:1,auditPages:1,auditData:null};
 const today=()=>{const d=new Date();return [d.getFullYear(),String(d.getMonth()+1).padStart(2,'0'),String(d.getDate()).padStart(2,'0')].join('-');};
@@ -13,10 +17,10 @@ const cell=x=>{const t=document.createElement('td');t.textContent=x==null?'':Str
 function alert(type,msg){const a=e('feeAlert');a.className='alert alert-'+type;a.textContent=msg;a.focus();}
 async function api(path,method='GET',data){
  const headers={Accept:'application/json'};
- if(method!=='GET'){if(!token)throw Error('Antiforgery token missing. Reload the page.');headers.RequestVerificationToken=token;}
+ if(method!=='GET'){if(!token)throw Error(t('Antiforgery token missing. Reload the page.','নিরাপত্তা যাচাইয়ের টোকেন নেই। পৃষ্ঠাটি রিলোড করুন।'));headers.RequestVerificationToken=token;}
  if(data!==undefined)headers['Content-Type']='application/json';
  const r=await fetch(base+path,{method,credentials:'same-origin',cache:'no-store',headers,...(data===undefined?{}:{body:JSON.stringify(data)})});
- const x=await r.json().catch(()=>null);if(!r.ok||!x?.success)throw Error(x?.message||'Request failed ('+r.status+').');return x.data;
+ const x=await r.json().catch(()=>null);if(!r.ok||!x?.success)throw Error(x?.message||t('Request failed (','অনুরোধ ব্যর্থ (')+r.status+').');return x.data;
 }
 function fill(id,rows,label){const s=e(id),prev=s.value;s.replaceChildren(option('',uiLabel(label)));for(const x of rows)s.append(option(x.id,x.name));if(rows.some(x=>String(x.id)===prev))s.value=prev;}
 function line(source=null){
@@ -72,34 +76,34 @@ async function save(ev){
  const academicBatchId=e('feeStructureBatch').value?Number(e('feeStructureBatch').value):null;
  const year=state.options.academicYears.find(x=>x.id===academicYearId),batch=state.options.academicBatches.find(x=>x.id===academicBatchId);
  const effectiveFrom=e('feeEffectiveFrom').value,effectiveTo=e('feeEffectiveTo').value||null;
- if(effectiveTo&&effectiveTo<effectiveFrom)return alert('danger','Effective to must be after effective from.');
- if(year?.campusId&&year.campusId!==campusId||year?.effectiveFrom&&effectiveFrom<dt(year.effectiveFrom)||year?.effectiveTo&&effectiveFrom>dt(year.effectiveTo))return alert('danger','Campus/year or effective date mismatch.');
- if(academicBatchId&&(!batch||batch.campusId!==campusId||batch.academicYearId!==academicYearId||batch.academicLevelId!==academicLevelId))return alert('danger','Batch scope mismatch.');
+ if(effectiveTo&&effectiveTo<effectiveFrom)return alert('danger',t('Effective to must be after effective from.','শেষের তারিখ শুরুর তারিখের পরে হতে হবে।'));
+ if(year?.campusId&&year.campusId!==campusId||year?.effectiveFrom&&effectiveFrom<dt(year.effectiveFrom)||year?.effectiveTo&&effectiveFrom>dt(year.effectiveTo))return alert('danger',t('Campus/year or effective date mismatch.','ক্যাম্পাস, শিক্ষাবর্ষ বা কার্যকর তারিখ মিলছে না।'));
+ if(academicBatchId&&(!batch||batch.campusId!==campusId||batch.academicYearId!==academicYearId||batch.academicLevelId!==academicLevelId))return alert('danger',t('Batch scope mismatch.','ব্যাচের পরিসর মিলছে না।'));
  const lines=[],seen=new Set();
  for(const row of e('feeLineRows').children){
  const feeHeadId=Number(row.querySelector('.fee-line-head').value),frequency=Number(row.querySelector('.fee-line-frequency').value),raw=row.querySelector('.fee-line-amount').value;
  const dueRaw=row.querySelector('.fee-line-due').value,dueDayOfMonth=dueRaw?Number(dueRaw):null;
  const key=feeHeadId+'|'+frequency;
- if(!feeHeadId||seen.has(key)||!/^[0-9]+(\.[0-9]{1,2})?$/.test(raw)||Number(raw)<=0||dueDayOfMonth!==null&&(!Number.isInteger(dueDayOfMonth)||dueDayOfMonth<1||dueDayOfMonth>31))return alert('danger','Fee lines need unique head/frequency, positive two-decimal amount and valid due day.');
+ if(!feeHeadId||seen.has(key)||!/^[0-9]+(\.[0-9]{1,2})?$/.test(raw)||Number(raw)<=0||dueDayOfMonth!==null&&(!Number.isInteger(dueDayOfMonth)||dueDayOfMonth<1||dueDayOfMonth>31))return alert('danger',t('Fee lines need unique head/frequency, positive two-decimal amount and valid due day.','ফি খাত ও পুনরাবৃত্তি অনন্য হতে হবে; ধনাত্মক দুই দশমিকের পরিমাণ এবং সঠিক পরিশোধের দিন দিন।'));
  seen.add(key);const line={feeHeadId,frequency,amount:Number(raw),dueDayOfMonth,isMandatory:row.querySelector('.fee-line-mandatory').checked};
  if(state.editingStructure&&row.dataset.lineId){line.id=Number(row.dataset.lineId);line.rowVersion=row.dataset.rowVersion;}
  lines.push(line);
  }
- if(!lines.length)return alert('danger','Add at least one fee head.');
+ if(!lines.length)return alert('danger',t('Add at least one fee head.','অন্তত একটি ফি খাত যোগ করুন।'));
  const body={campusId,academicYearId,academicLevelId,academicBatchId,name:e('feeStructureName').value.trim(),currencyCode:state.editingStructure?.currencyCode||'BDT',effectiveFrom,effectiveTo,isActive:e('feeStructureActive').checked,lines};
  if(state.editingStructure)body.rowVersion=state.editingStructure.rowVersion;
  body.clientRequestId=stable('create',JSON.stringify(body));
- if(!confirm(state.editingStructure?'Amend this unbilled fee structure?':'Create this fee structure?'))return;
+ if(!confirm(state.editingStructure?t('Amend this unbilled fee structure?','এই বিল না হওয়া ফি কাঠামো সংশোধন করবেন?'):t('Create this fee structure?','এই ফি কাঠামো তৈরি করবেন?')))return;
  e('feeSaveStructure').disabled=true;
  try{
  const id=state.editingStructure?.id,method=id?'PUT':'POST',url=id?'/structures/'+id:'/structures';
  await api(url,method,body);clear('create');state.editingStructure=null;await options();resetStructureForm();
- alert('success',id?'Fee structure amended.':'Fee structure created.');
- }catch(err){alert('danger',err.message+' Existing billed structures cannot be amended; reload before retrying.');}
+ alert('success',id?t('Fee structure amended.','ফি কাঠামো সংশোধিত হয়েছে।'):t('Fee structure created.','ফি কাঠামো তৈরি হয়েছে।'));
+ }catch(err){alert('danger',err.message+t(' Existing billed structures cannot be amended; reload before retrying.',' ইতিমধ্যে বিল হওয়া কাঠামো সংশোধন করা যায় না; আবার চেষ্টা করার আগে রিলোড করুন।'));}
  finally{e('feeSaveStructure').disabled=false;}
 }
 function resetStructureForm(){
- state.editingStructure=null;clear('create');e('feeStructureForm').reset();e('feeStructureMode').textContent='Creating a new fee structure.';
+ state.editingStructure=null;clear('create');e('feeStructureForm').reset();e('feeStructureMode').textContent=t('Creating a new fee structure.','নতুন ফি কাঠামো তৈরি হচ্ছে।');
  e('feeEffectiveFrom').value=today();e('feeEffectiveTo').value='';e('feeStructureActive').checked=true;
  e('feeLineRows').replaceChildren();line();batches();
 }
@@ -108,7 +112,7 @@ async function register(){
  const campus=e('feeRegisterCampus').value;
  const r=await api('/structures?page='+state.structurePage+'&pageSize=20'+(campus?'&campusId='+encodeURIComponent(campus):''));
  state.structurePages=Math.max(1,Math.ceil(r.totalCount/20));
- e('feeRegisterPage').textContent='Page '+state.structurePage+' of '+state.structurePages;
+ e('feeRegisterPage').textContent=pageLabel(state.structurePage,state.structurePages);
  e('feeRegisterPrev').disabled=state.structurePage<=1;e('feeRegisterNext').disabled=state.structurePage>=state.structurePages;
  e('feeRegisterRows').replaceChildren();
  for(const x of r.items||[]){
@@ -116,40 +120,40 @@ async function register(){
  const campusName=state.options.campuses.find(c=>c.id===x.campusId)?.name||x.campusId;
  const yearName=state.options.academicYears.find(c=>c.id===x.academicYearId)?.name||x.academicYearId;
  for(const [label,mode] of [['Edit unbilled','edit'],['Copy as new','copy']]){
- const b=document.createElement('button');b.type='button';b.className='btn btn-sm btn-outline-primary me-1';b.textContent=label;
+ const b=document.createElement('button');b.type='button';b.className='btn btn-sm btn-outline-primary me-1';b.textContent=uiLabel(label);
  b.onclick=()=>loadStructure(x.id,mode).catch(err=>alert('danger',err.message));action.append(b);
  }
  if(x.isActive){
-  const b=document.createElement('button');b.type='button';b.className='btn btn-sm btn-outline-danger';b.textContent='Close future billing';
+  const b=document.createElement('button');b.type='button';b.className='btn btn-sm btn-outline-danger';b.textContent=uiLabel('Close future billing');
   b.onclick=()=>selectClosure(x.id).catch(err=>alert('danger',err.message));action.append(b);
  }
- tr.append(cell(x.name),cell(campusName),cell(yearName),cell(dt(x.effectiveFrom)+' – '+(dt(x.effectiveTo)||'Open')),cell(x.isActive?'Active':'Inactive'),action);
+ tr.append(cell(x.name),cell(campusName),cell(yearName),cell(dt(x.effectiveFrom)+' – '+(dt(x.effectiveTo)||uiLabel('Open'))),cell(uiLabel(x.isActive?'Active':'Inactive')),action);
  e('feeRegisterRows').append(tr);
  }
- if(!e('feeRegisterRows').children.length)empty('feeRegisterRows',6,'No fee structures.');
+ if(!e('feeRegisterRows').children.length)empty('feeRegisterRows',6,t('No fee structures.','কোনো ফি কাঠামো পাওয়া যায়নি।'));
 }
 async function selectClosure(id){
  const x=await api('/structures/'+encodeURIComponent(id));
- if(!x.isActive)throw Error('Only active fee structures can be closed.');
+ if(!x.isActive)throw Error(t('Only active fee structures can be closed.','শুধু সক্রিয় ফি কাঠামো বন্ধ করা যায়।'));
  e('feeCloseId').value=String(x.id);e('feeCloseVersion').value=x.rowVersion;
- e('feeCloseName').value=x.name+' — Campus '+x.campusId;
+ e('feeCloseName').value=x.name+t(' — Campus ',' — ক্যাম্পাস ')+x.campusId;
  e('feeCloseDate').value='';
  e('feeStructureCloseForm').classList.remove('d-none');
  e('feeCloseDate').focus();
 }
 async function loadStructure(id,mode){
  const x=await api('/structures/'+encodeURIComponent(id));
- if(!x.lines?.length)throw Error('Structure has no active fee lines.');
+ if(!x.lines?.length)throw Error(t('Structure has no active fee lines.','এই কাঠামোয় কোনো সক্রিয় ফি খাত নেই।'));
  state.editingStructure=mode==='edit'?x:null;clear('create');
  e('feeCampus').value=String(x.campusId);e('feeYear').value=String(x.academicYearId);
  e('feeLevel').value=x.academicLevelId==null?'':String(x.academicLevelId);batches();
  e('feeStructureBatch').value=x.academicBatchId==null?'':String(x.academicBatchId);
- e('feeStructureName').value=mode==='copy'?x.name+' - New':x.name;
+ e('feeStructureName').value=mode==='copy'?x.name+t(' - New',' - নতুন'):x.name;
  e('feeEffectiveFrom').value=mode==='copy'?'':dt(x.effectiveFrom);
  e('feeEffectiveTo').value=mode==='copy'?'':dt(x.effectiveTo);
  e('feeStructureActive').checked=mode==='copy'?true:x.isActive;
  e('feeLineRows').replaceChildren();for(const row of x.lines)line(mode==='copy'?{...row,id:null,rowVersion:null}:row);
- e('feeStructureMode').textContent=mode==='copy'?'New version template: enter a new effective date. Existing overlapping scopes are rejected.':'Editing unbilled structure #'+x.id+'; issued invoices block amendments.';
+ e('feeStructureMode').textContent=mode==='copy'?t('New version template: enter a new effective date. Existing overlapping scopes are rejected.','নতুন সংস্করণ: নতুন কার্যকর তারিখ দিন। একই সময়ের পরিসর গ্রহণযোগ্য নয়।'):t('Editing unbilled structure #','বিল না হওয়া কাঠামো #')+x.id+t('; issued invoices block amendments.','; ইস্যু করা ইনভয়েস থাকলে সংশোধন করা যাবে না।');
  e('feeStructureForm').scrollIntoView({behavior:'smooth',block:'start'});
 }
 let invoicePreviewRevision = 0;
@@ -165,7 +169,7 @@ function invoiceBatchBody(){
  const month=Number(e('feeMonth').value),year=Number(e('feeBillingYear').value);
  const invoiceDate=year+'-'+String(month).padStart(2,'0')+'-01',dueDate=e('feeDueDate').value;
  if(!academicBatchId||!feeStructureId||!Number.isInteger(year)||year<2000||year>2200||
-  month<1||month>12||!dueDate||dueDate<invoiceDate)throw Error('Choose a batch, fee structure and valid due date.');
+  month<1||month>12||!dueDate||dueDate<invoiceDate)throw Error(t('Choose a batch, fee structure and valid due date.','ব্যাচ, ফি কাঠামো এবং সঠিক পরিশোধের শেষ তারিখ বাছুন।'));
  const body={academicBatchId,feeStructureId,month,year,invoiceDate,dueDate};
  body.clientRequestId=stable('generate',JSON.stringify(body));
  return body;
@@ -178,19 +182,19 @@ async function previewInvoices(){
   const preview=await api('/invoices/preflight','POST',body);
   if(revision!==invoicePreviewRevision)return;
   state.invoicePreview=preview;state.invoicePreviewKey=JSON.stringify(body);
-  e('feePreviewSummary').textContent='Eligible: '+preview.eligibleCount+'; new: '+preview.newCount+
-   '; existing: '+preview.existingCount+'; conflicts: '+preview.conflictCount+
-   '; new net BDT '+amount(preview.newTotal)+'.';
+  e('feePreviewSummary').textContent=t('Eligible: ','যোগ্য: ')+preview.eligibleCount+t('; new: ','; নতুন: ')+preview.newCount+
+   t('; existing: ','; বিদ্যমান: ')+preview.existingCount+t('; conflicts: ','; সংঘাত: ')+preview.conflictCount+
+   t('; new net BDT ','; নতুন নিট টাকা ')+amount(preview.newTotal)+'.';
   e('feePreviewRows').replaceChildren();
   for(const x of preview.rows||[]){
    const tr=document.createElement('tr');
-   tr.append(cell(x.studentCode),cell(x.studentName),cell(x.status),cell(x.invoiceNumber||''),
+   tr.append(cell(x.studentCode),cell(x.studentName),cell(uiLabel(x.status)),cell(x.invoiceNumber||''),
     cell(amount(x.subtotal)),cell(amount(x.discount)),cell(amount(x.total)));
    e('feePreviewRows').append(tr);
   }
   e('feeGenerate').disabled=!preview.canGenerate;
   e('feePreviewCsv').disabled=false;
-  if(!preview.canGenerate)alert('warning','Resolve conflicting invoices before generating.');
+  if(!preview.canGenerate)alert('warning',t('Resolve conflicting invoices before generating.','ইনভয়েস তৈরির আগে সংঘাতগুলো সমাধান করুন।'));
  }catch(err){if(revision===invoicePreviewRevision)alert('danger',err.message);}
  finally{e('feePreview').disabled=false;}
 }
@@ -201,7 +205,7 @@ function invoicePreviewCsv(){
   if(/^[\s\u0000-\u001f]*[=+\-@]/.test(v))v="'"+v;
   return '"'+v.replace(/"/g,'""')+'"';
  };
- const rows=[['Student code','Name','Status','Invoice','Subtotal','Discount','Net BDT'],
+ const rows=[['Student code','Name','Status','Invoice','Subtotal','Discount','Net BDT'].map(uiLabel),
   ...(preview.rows||[]).map(x=>[x.studentCode,x.studentName,x.status,x.invoiceNumber||'',
     amount(x.subtotal),amount(x.discount),amount(x.total)])];
  const blob=new Blob(['\uFEFF'+rows.map(row=>row.map(csvCell).join(',')).join('\r\n')+'\r\n'],
@@ -214,32 +218,32 @@ async function generate(ev){
  ev.preventDefault();if(!ev.currentTarget.reportValidity())return;
  let body;try{body=invoiceBatchBody();}catch(err){return alert('danger',err.message);}
  if(!state.invoicePreview?.canGenerate||state.invoicePreviewKey!==JSON.stringify(body))
-  return alert('warning','Run billing preview again after changing inputs.');
- if(!confirm('Generate monthly invoices for the previewed batch?'))return;
+  return alert('warning',t('Run billing preview again after changing inputs.','তথ্য পরিবর্তনের পর আবার বিলিং পূর্বদর্শন চালান।'));
+ if(!confirm(t('Generate monthly invoices for the previewed batch?','পূর্বদর্শনে থাকা ব্যাচের মাসিক ইনভয়েস তৈরি করবেন?')))return;
  e('feeGenerate').disabled=true;
  try{const r=await api('/invoices/generate','POST',body);clear('generate');
   invalidateInvoicePreview();
-  e('feeGenerationInfo').textContent='Generated: '+r.generated+'; existing: '+r.existing+'; failed: '+r.failed;
-  alert('success','Invoices generated.');}
- catch(err){alert('danger',err.message+' Reload preview before retrying with the same request ID.');invalidateInvoicePreview();}
+  e('feeGenerationInfo').textContent=t('Generated: ','তৈরি: ')+r.generated+t('; existing: ','; বিদ্যমান: ')+r.existing+t('; failed: ','; ব্যর্থ: ')+r.failed;
+  alert('success',t('Invoices generated.','ইনভয়েস তৈরি হয়েছে।'));}
+ catch(err){alert('danger',err.message+t(' Reload preview before retrying with the same request ID.',' একই অনুরোধ আইডি দিয়ে আবার চেষ্টা করার আগে পূর্বদর্শন রিলোড করুন।'));invalidateInvoicePreview();}
 }
 async function findStudent(){
- const s=e('feeStudentSearch').value.trim();if(s.length<2||s.length>100)return alert('warning','Search requires 2–100 characters.');
+ const s=e('feeStudentSearch').value.trim();if(s.length<2||s.length>100)return alert('warning',t('Search requires 2–100 characters.','খোঁজার জন্য ২–১০০ অক্ষর প্রয়োজন।'));
  try{const rows=await api('/students/search?search='+encodeURIComponent(s)+'&take=25');fill('feeStudent',rows.map(x=>({id:x.reference,name:x.studentCode+' — '+x.name})),'Choose student');}
  catch(err){alert('danger',err.message);}
 }
 function empty(id,cols,msg){const tr=document.createElement('tr'),c=cell(msg);c.colSpan=cols;tr.append(c);e(id).replaceChildren(tr);}
-function pager(kind){const p=state[kind+'Page'],max=state[kind+'Pages'];e('fee'+(kind==='invoice'?'Invoice':'Receipt')+'Page').textContent='Page '+p+' of '+max;
+function pager(kind){const p=state[kind+'Page'],max=state[kind+'Pages'];e('fee'+(kind==='invoice'?'Invoice':'Receipt')+'Page').textContent=pageLabel(p,max);
  e('fee'+(kind==='invoice'?'Invoice':'Receipt')+'Prev').disabled=p<=1;e('fee'+(kind==='invoice'?'Invoice':'Receipt')+'Next').disabled=p>=max;}
 async function invoices(){
  const r=await api('/students/'+encodeURIComponent(state.student)+'/invoices?page='+state.invoicePage+'&pageSize=25');
  state.invoicePages=Math.max(1,Math.ceil(r.totalCount/25));pager('invoice');e('feeInvoices').replaceChildren();
  for(const x of r.items||[]){const tr=document.createElement('tr'),action=document.createElement('td');
- if(Number(x.dueAmount)>0&&(x.state===2||x.state===3)){const b=document.createElement('button');b.type='button';b.className='btn btn-sm btn-outline-primary';b.textContent='Collect cash';b.onclick=()=>{state.invoice=x;clear('payment');e('feePaymentPanel').classList.remove('d-none');e('feePaymentInvoice').value=x.invoiceNumber;e('feePaymentAmount').value=amount(x.dueAmount);e('feePaymentAmount').max=x.dueAmount;};action.append(b);}
- if(e('feeAllocationAudit')){const audit=document.createElement('button');audit.type='button';audit.className='btn btn-sm btn-outline-secondary ms-1';audit.textContent='Receipt audit';audit.onclick=()=>openAudit(x.reference).catch(err=>alert('danger',err.message));action.append(audit);}
- const view=document.createElement('a');view.className='btn btn-sm btn-outline-secondary ms-1';view.textContent='View / Print';view.href='/FeeDocuments/Invoice?studentReference='+encodeURIComponent(state.student)+'&documentReference='+encodeURIComponent(x.reference);action.append(view);
+ if(Number(x.dueAmount)>0&&(x.state===2||x.state===3)){const b=document.createElement('button');b.type='button';b.className='btn btn-sm btn-outline-primary';b.textContent=t('Collect cash','নগদ গ্রহণ');b.onclick=()=>{state.invoice=x;clear('payment');e('feePaymentPanel').classList.remove('d-none');e('feePaymentInvoice').value=x.invoiceNumber;e('feePaymentAmount').value=amount(x.dueAmount);e('feePaymentAmount').max=x.dueAmount;};action.append(b);}
+ if(e('feeAllocationAudit')){const audit=document.createElement('button');audit.type='button';audit.className='btn btn-sm btn-outline-secondary ms-1';audit.textContent=t('Receipt audit','রসিদ নিরীক্ষা');audit.onclick=()=>openAudit(x.reference).catch(err=>alert('danger',err.message));action.append(audit);}
+ const view=document.createElement('a');view.className='btn btn-sm btn-outline-secondary ms-1';view.textContent=t('View / Print','দেখুন / প্রিন্ট');view.href='/FeeDocuments/Invoice?studentReference='+encodeURIComponent(state.student)+'&documentReference='+encodeURIComponent(x.reference);action.append(view);
  tr.append(cell(x.invoiceNumber),cell(dt(x.invoiceDate)),cell(dt(x.dueDate)),cell(amount(x.totalAmount)),cell(amount(x.paidAmount)),cell(amount(x.dueAmount)),action);e('feeInvoices').append(tr);}
- if(!e('feeInvoices').children.length)empty('feeInvoices',7,'No invoices.');
+ if(!e('feeInvoices').children.length)empty('feeInvoices',7,t('No invoices.','কোনো ইনভয়েস পাওয়া যায়নি।'));
 }
 async function openAudit(invoiceReference){
  if(!state.student||!e('feeAllocationAudit'))return;
@@ -249,22 +253,22 @@ async function openAudit(invoiceReference){
   encodeURIComponent(invoiceReference)+'/allocation-audit?page='+state.auditPage+'&pageSize=25');
  if(state.auditInvoice!==invoiceReference)return;
  state.auditData=result;state.auditPages=Math.max(1,Math.ceil(result.totalAllocations/25));
- e('feeAuditSummary').textContent=result.invoiceNumber+' — Invoice BDT '+amount(result.invoiceTotal)+
-  '; current paid BDT '+amount(result.currentPaid)+'; due BDT '+amount(result.currentDue)+
-  '; gross successful allocations BDT '+amount(result.grossSuccessfulAllocations)+
-  '; gross-to-net difference BDT '+amount(result.grossToNetDifference)+'. '+
-  (result.matchesCurrentInvoice?'Amounts agree; GL posting is not verified.':
-  'Difference or invalid allocation requires Finance review; refunds may explain a difference.');
+ e('feeAuditSummary').textContent=result.invoiceNumber+t(' — Invoice BDT ',' — ইনভয়েস টাকা ')+amount(result.invoiceTotal)+
+   t('; current paid BDT ','; বর্তমান পরিশোধ টাকা ')+amount(result.currentPaid)+t('; due BDT ','; বকেয়া টাকা ')+amount(result.currentDue)+
+   t('; gross successful allocations BDT ','; মোট সফল বণ্টন টাকা ')+amount(result.grossSuccessfulAllocations)+
+   t('; gross-to-net difference BDT ','; মোট-নিট পার্থক্য টাকা ')+amount(result.grossToNetDifference)+'. '+
+   (result.matchesCurrentInvoice?t('Amounts agree; GL posting is not verified.','পরিমাণ মিলেছে; জিএল পোস্টিং যাচাই করা হয়নি।'):
+   t('Difference or invalid allocation requires Finance review; refunds may explain a difference.','পার্থক্য বা অবৈধ বণ্টনের জন্য ফাইন্যান্স পর্যালোচনা প্রয়োজন; ফেরতের কারণে পার্থক্য হতে পারে।'));
  e('feeAuditRows').replaceChildren();
  for(const x of result.items||[]){
   const tr=document.createElement('tr');
   tr.append(cell(x.receiptNumber),cell(dt(x.paymentDate)),cell(amount(x.allocationAmount)),
-   cell(String(x.paymentState)),cell(x.journalId==null?'Not posted':x.journalId));
+   cell(String(x.paymentState)),cell(x.journalId==null?t('Not posted','পোস্ট হয়নি'):x.journalId));
   e('feeAuditRows').append(tr);
  }
- if(!e('feeAuditRows').children.length)empty('feeAuditRows',5,'No allocations on this page.');
- e('feeAuditPage').textContent='Page '+state.auditPage+' of '+state.auditPages+
-  ' ('+result.totalAllocations+' allocations)';
+ if(!e('feeAuditRows').children.length)empty('feeAuditRows',5,t('No allocations on this page.','এই পৃষ্ঠায় কোনো বণ্টন নেই।'));
+ e('feeAuditPage').textContent=pageLabel(state.auditPage,state.auditPages)+
+  ' ('+result.totalAllocations+t(' allocations)','টি বণ্টন)');
  e('feeAuditPrev').disabled=state.auditPage<=1;
  e('feeAuditNext').disabled=state.auditPage>=state.auditPages;
  e('feeAuditCsv').disabled=false;
@@ -273,9 +277,9 @@ async function openAudit(invoiceReference){
 function exportAudit(){
  const r=state.auditData;if(!r)return;
  const safe=v=>{let t=String(v??'');if(/^[\s\u0000-\u001f]*[=+\-@]/.test(t))t="'"+t;return '"'+t.replace(/"/g,'""')+'"';};
- const rows=[['Invoice','Receipt','Date','Allocation BDT','Payment state','GL journal'],
+ const rows=[['Invoice','Receipt','Date','Allocation BDT','Payment state','GL journal'].map(uiLabel),
   ...(r.items||[]).map(x=>[r.invoiceNumber,x.receiptNumber,dt(x.paymentDate),
-   amount(x.allocationAmount),String(x.paymentState),x.journalId??'Not posted'])];
+   amount(x.allocationAmount),String(x.paymentState),x.journalId??t('Not posted','পোস্ট হয়নি')])];
  const csv='\uFEFF'+rows.map(row=>row.map(safe).join(',')).join('\r\n')+'\r\n';
  const url=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));
  const a=document.createElement('a');a.href=url;a.download='invoice-receipt-audit-page-'+r.page+'.csv';
@@ -286,37 +290,37 @@ async function receipts(){
  state.receiptPages=Math.max(1,Math.ceil(r.totalCount/25));pager('receipt');e('feeReceipts').replaceChildren();
  for(const x of r.items||[]){const tr=document.createElement('tr'),action=document.createElement('td'),view=document.createElement('a');
  view.className='btn btn-sm btn-outline-secondary';view.textContent='View / Print';view.href='/FeeDocuments/Receipt?studentReference='+encodeURIComponent(state.student)+'&documentReference='+encodeURIComponent(x.reference);action.append(view);
- tr.append(cell(x.receiptNumber),cell(dt(x.paymentDate)),cell(amount(x.amount)),cell(x.paymentMethod===1?'Cash':x.paymentMethod),cell((x.allocations||[]).map(a=>a.invoiceNumber+' ('+amount(a.amount)+')').join(', ')),action);e('feeReceipts').append(tr);}
- if(!e('feeReceipts').children.length)empty('feeReceipts',6,'No receipts.');
+ tr.append(cell(x.receiptNumber),cell(dt(x.paymentDate)),cell(amount(x.amount)),cell(x.paymentMethod===1?t('Cash','নগদ'):x.paymentMethod),cell((x.allocations||[]).map(a=>a.invoiceNumber+' ('+amount(a.amount)+')').join(', ')),action);e('feeReceipts').append(tr);}
+ if(!e('feeReceipts').children.length)empty('feeReceipts',6,t('No receipts.','কোনো রসিদ পাওয়া যায়নি।'));
 }
 async function ledger(){
- const ref=e('feeStudent').value;if(!ref)return alert('warning','Select a student.');
+ const ref=e('feeStudent').value;if(!ref)return alert('warning',t('Select a student.','একজন শিক্ষার্থী বাছুন।'));
  if(state.student!==ref){if(e('feeAllocationAudit'))e('feeAllocationAudit').classList.add('d-none');state.auditInvoice=null;state.auditData=null;state.student=ref;state.invoicePage=1;state.receiptPage=1;state.invoice=null;clear('payment');e('feePaymentPanel').classList.add('d-none');}
- try{const r=await api('/students/'+encodeURIComponent(ref)+'/ledger');e('feeLedgerSummary').textContent=r.studentName+' ('+r.studentCode+') — Gross billed: '+amount(r.totalBilled)+' Credit notes: '+amount(r.totalCreditNotes)+' Net billed: '+amount(r.netBilled)+' Net paid: '+amount(r.netPaid)+' Due: '+amount(r.totalDue)+' BDT';await Promise.all([invoices(),receipts()]);}
+ try{const r=await api('/students/'+encodeURIComponent(ref)+'/ledger');e('feeLedgerSummary').textContent=r.studentName+' ('+r.studentCode+')'+t(' — Gross billed: ',' — মোট বিল: ')+amount(r.totalBilled)+t(' Credit notes: ',' ক্রেডিট নোট: ')+amount(r.totalCreditNotes)+t(' Net billed: ',' নিট বিল: ')+amount(r.netBilled)+t(' Net paid: ',' নিট পরিশোধ: ')+amount(r.netPaid)+t(' Due: ',' বকেয়া: ')+amount(r.totalDue)+' BDT';await Promise.all([invoices(),receipts()]);}
  catch(err){alert('danger',err.message);}
 }
 async function collect(ev){
  ev.preventDefault();if(!state.invoice||!ev.currentTarget.reportValidity())return;
  const raw=e('feePaymentAmount').value,paymentDate=e('feePaymentDate').value,invoice=state.invoice;
- if(!/^\d+(\.\d{1,2})?$/.test(raw)||Number(raw)<=0||Number(raw)>Number(invoice.dueAmount)||paymentDate>today())return alert('danger','Invalid cash amount or payment date.');
+ if(!/^\d+(\.\d{1,2})?$/.test(raw)||Number(raw)<=0||Number(raw)>Number(invoice.dueAmount)||paymentDate>today())return alert('danger',t('Invalid cash amount or payment date.','নগদের পরিমাণ বা পরিশোধের তারিখ সঠিক নয়।'));
  const body={paymentDate,paymentMethod:1,amount:Number(raw),bankAccountId:null,externalReference:null,allocations:[{invoiceReference:invoice.reference,amount:Number(raw)}]};
  body.clientRequestId=stable('payment',JSON.stringify(body));
  // Read-only preflight provides current, authorized balances; the write
  // revalidates independently in its own transaction.
  let preview;
  try{preview=await api('/payments/preflight','POST',body);}
- catch(err){return alert('danger',err.message+' Reload invoice balances before retrying.');}
+ catch(err){return alert('danger',err.message+t(' Reload invoice balances before retrying.',' আবার চেষ্টা করার আগে ইনভয়েসের বকেয়া রিলোড করুন।'));}
  if(preview.amount!==body.amount||preview.currencyCode!=='BDT'||
     preview.invoices?.length!==1||
     preview.invoices[0].invoiceReference!==invoice.reference||
     preview.invoices[0].allocating!==body.amount)
-    return alert('danger','Receipt preview changed. Reload and retry.');
- if(!confirm((preview.alreadyRecorded?'Retrieve existing receipt for ':'Record ')+
-    amount(preview.amount)+' BDT for '+preview.invoices[0].invoiceNumber+
-    '? Current remaining due: '+amount(preview.invoices[0].dueAfter)+' BDT.'))return;
+    return alert('danger',t('Receipt preview changed. Reload and retry.','রসিদের পূর্বদর্শন পরিবর্তিত হয়েছে। রিলোড করে আবার চেষ্টা করুন।'));
+ if(!confirm((preview.alreadyRecorded?t('Retrieve existing receipt for ','বিদ্যমান রসিদ দেখুন: '):t('Record ','রসিদ নথিভুক্ত করুন: '))+
+     amount(preview.amount)+t(' BDT for ',' টাকা, ইনভয়েস ')+preview.invoices[0].invoiceNumber+
+     t('? Current remaining due: ','? বর্তমান অবশিষ্ট বকেয়া: ')+amount(preview.invoices[0].dueAfter)+' BDT.'))return;
  e('feeCollect').disabled=true;
- try{const r=await api('/payments','POST',body);clear('payment');state.invoice=null;e('feePaymentPanel').classList.add('d-none');await ledger();alert('success','Receipt recorded: '+r.receiptNumber);}
- catch(err){alert('danger',err.message+' Keep values unchanged for a safe retry.');}
+ try{const r=await api('/payments','POST',body);clear('payment');state.invoice=null;e('feePaymentPanel').classList.add('d-none');await ledger();alert('success',t('Receipt recorded: ','রসিদ নথিভুক্ত হয়েছে: ')+r.receiptNumber);}
+ catch(err){alert('danger',err.message+t(' Keep values unchanged for a safe retry.',' নিরাপদে আবার চেষ্টা করতে তথ্য অপরিবর্তিত রাখুন।'));}
  finally{e('feeCollect').disabled=false;}
 }
 function page(kind,delta){const next=state[kind+'Page']+delta;if(next<1||next>state[kind+'Pages'])return;state[kind+'Page']=next;(kind==='invoice'?invoices():receipts()).catch(err=>alert('danger',err.message));}
@@ -324,15 +328,15 @@ if(e('feeStructureCloseForm')){
  e('feeCloseCancel').addEventListener('click',()=>e('feeStructureCloseForm').classList.add('d-none'));
  e('feeStructureCloseForm').addEventListener('submit',ev=>{ev.preventDefault();(async()=>{
   const id=e('feeCloseId').value,date=e('feeCloseDate').value,version=e('feeCloseVersion').value;
-  if(!/^\d+$/.test(id)||!version||!/^\d{4}-\d{2}-\d{2}$/.test(date))throw Error('Select a structure and valid month-end date.');
+  if(!/^\d+$/.test(id)||!version||!/^\d{4}-\d{2}-\d{2}$/.test(date))throw Error(t('Select a structure and valid month-end date.','কাঠামো ও মাসের শেষের সঠিক তারিখ বাছুন।'));
   const parts=date.split('-').map(Number);
-  if(parts[2]!==new Date(parts[0],parts[1],0).getDate())throw Error('Closure must be on the last day of a month.');
-  if(!confirm('Close future billing for '+e('feeCloseName').value+' through '+date+'? Issued invoices remain unchanged. This cannot be extended or reopened.'))return;
+  if(parts[2]!==new Date(parts[0],parts[1],0).getDate())throw Error(t('Closure must be on the last day of a month.','বন্ধের তারিখ অবশ্যই মাসের শেষ দিন হতে হবে।'));
+  if(!confirm(t('Close future billing for ','ভবিষ্যৎ বিলিং বন্ধ করবেন: ')+e('feeCloseName').value+t(' through ',' পর্যন্ত ')+date+t('? Issued invoices remain unchanged. This cannot be extended or reopened.','? ইস্যু করা ইনভয়েস অপরিবর্তিত থাকবে। এটি বাড়ানো বা আবার খোলা যাবে না।')))return;
   e('feeCloseSubmit').disabled=true;
   try{
    await api('/structures/'+encodeURIComponent(id)+'/close','POST',{effectiveTo:date,rowVersion:version});
    e('feeStructureCloseForm').classList.add('d-none');
-   await options();alert('success','Future billing closed. Existing invoices and fee lines are unchanged.');
+   await options();alert('success',t('Future billing closed. Existing invoices and fee lines are unchanged.','ভবিষ্যৎ বিলিং বন্ধ হয়েছে। বিদ্যমান ইনভয়েস ও ফি খাত অপরিবর্তিত।'));
   }finally{e('feeCloseSubmit').disabled=false;}
  })().catch(err=>alert('danger',err.message));});
 }
