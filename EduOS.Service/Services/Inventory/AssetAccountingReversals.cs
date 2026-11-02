@@ -130,7 +130,8 @@ public sealed partial class AssetAccountingService
                 x.TenantId == user.TenantId && x.IdempotencyKey == request.ClientRequestId, ct);
             if (replay != null)
             {
-                if (!await CampusAllowedAsync(replay.CampusId, ct))
+                if (replay.CampusId is not long replayCampusId ||
+                    !await CampusAllowedAsync(replayCampusId, ct))
                     return Conflict<AssetAccountingEventDto>("Asset event not found.", 404);
                 var original = replay.ReversalOfJournalId.HasValue
                     ? await db.Journals.AsNoTracking().FirstOrDefaultAsync(x =>
