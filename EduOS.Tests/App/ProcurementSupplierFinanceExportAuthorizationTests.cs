@@ -393,8 +393,8 @@ public sealed class ProcurementSupplierFinanceExportAuthorizationTests
         Assert.Contains("\"' +SUM(1,1) EXTRA\"", invoiceCsv);
         Assert.Contains("বাংলা\u200Dনাম", invoiceCsv);
         Assert.Contains("\"-5\"", invoiceCsv);
-        Assert.DoesNotContain("\uFEFF\u200B", invoiceCsv);
-        Assert.DoesNotContain("\u202E", invoiceCsv);
+        Assert.False(invoiceCsv.Contains("\uFEFF\u200B", StringComparison.Ordinal));
+        Assert.False(invoiceCsv.Contains("\u202E", StringComparison.Ordinal));
 
         var agingFile = Assert.IsType<FileContentResult>(
             await controller.AgingExport(null, null, false, CancellationToken.None));

@@ -132,8 +132,8 @@ public sealed class ProcurementCsvExportIntegrityTests
             await new ProcurementSupplierAcknowledgementsController(supplier.Object).Export(ct: CancellationToken.None));
         var csv = Encoding.UTF8.GetString(file.FileContents);
         Assert.Contains("\"' =HYPERLINK(\"\"unsafe\"\") NEXT বাংলা\u200Dনাম\"", csv);
-        Assert.DoesNotContain("\u200B", csv);
-        Assert.DoesNotContain("\u2028", csv);
+        Assert.False(csv.Contains("\u200B", StringComparison.Ordinal));
+        Assert.False(csv.Contains("\u2028", StringComparison.Ordinal));
         Assert.Contains("\"3\"", csv);
     }
 
