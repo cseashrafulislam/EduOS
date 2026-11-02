@@ -64,7 +64,8 @@ async function run(browser, bn, manager, mobile) {
                 c.token === 'visitor-csrf' && c.body.clientCommandId));
         } else {
             await page.locator('#fvCampus').fill('12');
-            await page.locator('#fvCampus').dispatchEvent('change');
+            // Blur fires the real change event once; do not double-dispatch.
+            await page.locator('#fvCampus').press('Tab');
             await page.locator('#fvHost option[value="3"]').waitFor({ state: 'attached' });
             await page.locator('#fvHost').selectOption('3');
             await page.locator('#fvName').fill('Visitor Demo');

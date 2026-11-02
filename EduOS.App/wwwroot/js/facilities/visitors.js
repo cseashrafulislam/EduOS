@@ -89,11 +89,16 @@
             status(label('Authorized visits loaded.', 'অনুমোদিত ভিজিট লোড হয়েছে।'));
         } catch (e) { if (epoch === requestEpoch) status(e.message); }
     };
-    let hostEpoch = 0;
+    let hostEpoch = 0, lastHostCampus = null;
     const hosts = async () => {
-        const epoch = ++hostEpoch, campus = Number($('fvCampus')?.value || 0);
+        const campus = Number($('fvCampus')?.value || 0);
         const select = $('fvHost');
         if (!select) return;
+        // Duplicate change/blur events for the same campus must not erase
+        // a host already chosen from an authoritative lookup.
+        if (campus === lastHostCampus && select.options.length > 1) return;
+        lastHostCampus = campus;
+        const epoch = ++hostEpoch;
         select.replaceChildren(new Option(label('Select host', 'হোস্ট নির্বাচন'), ''));
         if (!campus) return;
         try {
