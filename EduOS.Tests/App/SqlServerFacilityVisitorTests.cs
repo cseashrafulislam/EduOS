@@ -136,6 +136,25 @@ public sealed class SqlServerFacilityVisitorTests
                 { ClientCommandId = Guid.NewGuid(), RowVersion = first.RowVersion,
                     BadgeCode = "GUEST-01" })).StatusCode);
         }
+        // Concurrent administrator revocation commits while an old cookie attempts a PII read.
+        await using (var writer = Db(options, tenantId, managerId, "FacilitiesManager"))
+        {
+            await using var revocation = await writer.Database.BeginTransactionAsync();
+            Assert.Equal(1, await writer.Roles.IgnoreQueryFilters().Where(x =>
+                x.TenantId == tenantId && x.NormalizedName == "FACILITIESMANAGER")
+                .ExecuteUpdateAsync(x => x.SetProperty(role => role.IsActive, false)));
+            var concurrentRead = Task.Run(async () =>
+            {
+                await using var reader = Db(options, tenantId, managerId, "FacilitiesManager");
+                return await Service(reader, tenantId, managerId, "FacilitiesManager")
+                    .ListAsync(campusId, 1, 25);
+            });
+            await Task.Delay(150);
+            await revocation.CommitAsync();
+            var denied = await concurrentRead.WaitAsync(TimeSpan.FromSeconds(20));
+            Assert.Equal(403, denied.StatusCode);
+            Assert.Null(denied.Data);
+        }
         // A stale FacilitiesManager claim cannot discover hosts after its DB role is revoked.
         await using (var db = Db(options, tenantId, managerId, "FacilitiesManager"))
             Assert.Equal(1, await db.Roles.IgnoreQueryFilters().Where(x =>
@@ -144,6 +163,12 @@ public sealed class SqlServerFacilityVisitorTests
         await using (var db = Db(options, tenantId, managerId, "FacilitiesManager"))
             Assert.Equal(403, (await Service(db, tenantId, managerId, "FacilitiesManager")
                 .HostsAsync(campusId, null, 1, 25)).StatusCode);
+        await using (var db = Db(options, tenantId, managerId, "FacilitiesManager"))
+        {
+            var revoked = Service(db, tenantId, managerId, "FacilitiesManager");
+            Assert.Equal(403, (await revoked.ListAsync(campusId, 1, 25)).StatusCode);
+            Assert.Equal(403, (await revoked.HistoryAsync(first.Id, 1, 25)).StatusCode);
+        }
         await using (var db = Db(options, tenantId, managerId, "FacilitiesManager"))
             Assert.Equal(1, await db.Roles.IgnoreQueryFilters().Where(x =>
                 x.TenantId == tenantId && x.NormalizedName == "FACILITIESMANAGER")
@@ -175,9 +200,14 @@ public sealed class SqlServerFacilityVisitorTests
                 g.TenantId == tenantId && g.CampusId == campusId && g.UserId == hostId)
                 .ExecuteUpdateAsync(x => x.SetProperty(g => g.IsActive, false)));
         await using (var db = Db(options, tenantId, hostId, "Staff"))
-            Assert.Equal(403, (await Service(db, tenantId, hostId, "Staff")
-                .TransitionAsync(first.Id, "hostapprove", new FacilityVisitorTransitionDto
+        {
+            var revoked = Service(db, tenantId, hostId, "Staff");
+            Assert.Equal(403, (await revoked.TransitionAsync(first.Id, "hostapprove",
+                new FacilityVisitorTransitionDto
                 { ClientCommandId = Guid.NewGuid(), RowVersion = first.RowVersion })).StatusCode);
+            Assert.Equal(403, (await revoked.ListAsync(campusId, 1, 25)).StatusCode);
+            Assert.Equal(403, (await revoked.HistoryAsync(first.Id, 1, 25)).StatusCode);
+        }
         await using (var db = Db(options, tenantId, managerId, "FacilitiesManager"))
             Assert.Equal(1, await db.UserCampusAccesses.Where(g =>
                 g.TenantId == tenantId && g.CampusId == campusId && g.UserId == hostId)

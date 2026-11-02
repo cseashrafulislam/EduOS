@@ -170,6 +170,12 @@ public sealed class FacilityVisitorService(
         if (campusId <= 0 || page is < 1 or > 100000 || pageSize is < 1 or > 50 || search?.Length > 100)
             return ApiResponse<PagedResult<FacilityVisitorHostDto>>.ErrorResponse("Invalid host lookup.", 400);
         if (!await Campuses().ContainsAsync(campusId, ct)) return Denied<PagedResult<FacilityVisitorHostDto>>();
+        try
+        {
+            await using var tx = db.Database.IsRelational()
+                ? await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct) : null;
+            if (!await LockLiveVisitorIdentityAsync(user.UserId, campusId, true, ct))
+                return Denied<PagedResult<FacilityVisitorHostDto>>();
         var query = db.Users.AsNoTracking().Where(u => ActiveHosts(campusId).Contains(u.Id) && u.Id != user.UserId);
         if (!string.IsNullOrWhiteSpace(search))
         {
@@ -181,8 +187,15 @@ public sealed class FacilityVisitorService(
             .Skip((page - 1) * pageSize).Take(pageSize)
             .Select(u => new FacilityVisitorHostDto { UserId = u.Id, DisplayName = u.FullName })
             .ToListAsync(ct);
-        return ApiResponse<PagedResult<FacilityVisitorHostDto>>.SuccessResponse(new()
-        { Page = page, PageSize = pageSize, TotalCount = total, Items = items });
+            if (tx != null) await tx.CommitAsync(ct);
+            return ApiResponse<PagedResult<FacilityVisitorHostDto>>.SuccessResponse(new()
+            { Page = page, PageSize = pageSize, TotalCount = total, Items = items });
+        }
+        catch (Microsoft.Data.SqlClient.SqlException ex) when (ex.Number is 1205 or 1222)
+        {
+            logger.LogWarning(ex, "Visitor host directory read contention");
+            return ApiResponse<PagedResult<FacilityVisitorHostDto>>.ErrorResponse("Visitor host directory busy; retry.", 409);
+        }
     }
 
     public async Task<ApiResponse<PagedResult<FacilityVisitorDto>>> ListAsync(
@@ -195,13 +208,32 @@ public sealed class FacilityVisitorService(
             return ApiResponse<PagedResult<FacilityVisitorDto>>.ErrorResponse("Invalid visitor filter.", 400);
         if (campusId.HasValue && !await Campuses().ContainsAsync(campusId.Value, ct))
             return Denied<PagedResult<FacilityVisitorDto>>();
+        try
+        {
+            await using var tx = db.Database.IsRelational()
+                ? await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct) : null;
+            // Lock a live campus before count, and all campuses on the bounded page.
+            var firstCampus = campusId ?? await Campuses().OrderBy(x => x).FirstOrDefaultAsync(ct);
+            if (firstCampus != 0 &&
+                !await LockLiveVisitorIdentityAsync(user.UserId, firstCampus, Manager, ct))
+                return Denied<PagedResult<FacilityVisitorDto>>();
         var query = Visible();
         if (campusId.HasValue) query = query.Where(v => v.CampusId == campusId.Value);
         var total = await query.CountAsync(ct);
         var rows = await query.OrderByDescending(v => v.CreatedAt).ThenByDescending(v => v.Id)
             .Skip((page - 1) * pageSize).Take(pageSize).ToListAsync(ct);
-        return ApiResponse<PagedResult<FacilityVisitorDto>>.SuccessResponse(new()
-        { Page = page, PageSize = pageSize, TotalCount = total, Items = rows.Select(Map).ToList() });
+            foreach (var pageCampus in rows.Select(v => v.CampusId).Distinct())
+                if (!await LockLiveVisitorIdentityAsync(user.UserId, pageCampus, Manager, ct))
+                    return Denied<PagedResult<FacilityVisitorDto>>();
+            if (tx != null) await tx.CommitAsync(ct);
+            return ApiResponse<PagedResult<FacilityVisitorDto>>.SuccessResponse(new()
+            { Page = page, PageSize = pageSize, TotalCount = total, Items = rows.Select(Map).ToList() });
+        }
+        catch (Microsoft.Data.SqlClient.SqlException ex) when (ex.Number is 1205 or 1222)
+        {
+            logger.LogWarning(ex, "Visitor list read contention");
+            return ApiResponse<PagedResult<FacilityVisitorDto>>.ErrorResponse("Visitor list busy; retry.", 409);
+        }
     }
 
     /// <summary>PII-free, manager-only campus occupancy read under a consistent SQL snapshot.</summary>
@@ -533,9 +565,17 @@ public sealed class FacilityVisitorService(
             return Denied<PagedResult<FacilityVisitorEventDto>>();
         if (id <= 0 || page is < 1 or > 100000 || pageSize is < 1 or > 50)
             return ApiResponse<PagedResult<FacilityVisitorEventDto>>.ErrorResponse("Invalid history page.", 400);
-        if (!await Visible().AnyAsync(v => v.Id == id, ct))
-            return ApiResponse<PagedResult<FacilityVisitorEventDto>>.ErrorResponse("Visitor appointment not found.", 404);
-        var query = db.Set<FacilityVisitorEvent>().AsNoTracking()
+        try
+        {
+            await using var tx = db.Database.IsRelational()
+                ? await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct) : null;
+            var campus = await Visible().Where(v => v.Id == id)
+                .Select(v => v.CampusId).FirstOrDefaultAsync(ct);
+            if (campus == 0)
+                return ApiResponse<PagedResult<FacilityVisitorEventDto>>.ErrorResponse("Visitor appointment not found.", 404);
+            if (!await LockLiveVisitorIdentityAsync(user.UserId, campus, Manager, ct))
+                return Denied<PagedResult<FacilityVisitorEventDto>>();
+            var query = db.Set<FacilityVisitorEvent>().AsNoTracking()
             .Where(e => e.TenantId == user.TenantId && e.FacilityVisitorVisitId == id && !e.IsDeleted);
         var count = await query.CountAsync(ct);
         var rows = await query.OrderBy(e => e.Id).Skip((page - 1) * pageSize).Take(pageSize)
@@ -545,7 +585,14 @@ public sealed class FacilityVisitorService(
                 ActorUserId = e.ActorUserId, OccurredAtUtc = e.CreatedAt,
                 Reason = Manager && e.ActionCode == "incident" ? e.Reason : null
             }).ToListAsync(ct);
-        return ApiResponse<PagedResult<FacilityVisitorEventDto>>.SuccessResponse(new()
-        { Page = page, PageSize = pageSize, TotalCount = count, Items = rows });
+            if (tx != null) await tx.CommitAsync(ct);
+            return ApiResponse<PagedResult<FacilityVisitorEventDto>>.SuccessResponse(new()
+            { Page = page, PageSize = pageSize, TotalCount = count, Items = rows });
+        }
+        catch (Microsoft.Data.SqlClient.SqlException ex) when (ex.Number is 1205 or 1222)
+        {
+            logger.LogWarning(ex, "Visitor history read contention");
+            return ApiResponse<PagedResult<FacilityVisitorEventDto>>.ErrorResponse("Visitor history busy; retry.", 409);
+        }
     }
 }

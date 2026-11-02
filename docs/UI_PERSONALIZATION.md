@@ -807,6 +807,10 @@ On `/FacilityVisitors/Index`, authorized desk staff can select a campus and view
 
 On /FacilityVisitors/Index, a denied 403 now invalidates outstanding list/host/occupancy/export requests, clears visible visit identity and history cards, and hides input/actions. In bn-BD: “ভিজিটর প্রবেশাধিকার বাতিল হয়েছে; পুনরায় লগইন বা রিলোড করুন।” In en-BD: “Visitor access revoked; reload or sign in again.” Server-side preregistration, host approval, desk transitions, occupancy and export revalidate live tenant/campus/role eligibility under SQL transaction locks; an already open page is not proof of continuing access. Physical gate/badge scanner and legal-hold retention remain separate work.
 
+### Visitor read-side revocation and bilingual recovery
+
+The existing visitor host directory, list and history hold live actor/membership/role/campus authorization throughout consistent SQL reads. A 403 clears private cards and requires reload/sign-in; a 409 on lock contention permits retry after reload. Bangla: “ভিজিটর প্রবেশাধিকার বাতিল হয়েছে; পুনরায় লগইন বা রিলোড করুন।” Hosts cannot see incident narratives and the directory is desk-only. This reuses the current page and Help Drawer, not a new module. Authenticated SQL-backed browser, retention/legal hold and physical anti-tailgating remain outstanding.
+
 ### Visitor CSV access evidence and CSRF-safe export
 
 The Facilities Visitor page's existing manager-only CSV action uses a same-origin, antiforgery-protected POST with an explicit UTC window and campus. The server takes the bounded 500-row PII-minimized snapshot and writes an actor/campus/window/count access audit within its SQL transaction; a failed, unauthorized or oversized snapshot returns no CSV. The browser still verifies its institution/session before releasing the download. The bilingual Page Information manual v3 explains the access audit and 403/409/413 recovery. The canonical AuditLogs cleanup retains tenant audit entries for up to two years, so permanent immutable export evidence and privacy retention/legal holds are not yet implemented.
