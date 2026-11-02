@@ -17,8 +17,14 @@ function html() {
         '<a class="nav-link" href="/TenantUsers/Index">Users</a>' +
         '<a class="nav-link" href="/InstitutionManagement/Profile">Profile</a>' +
         '<a class="nav-link" href="/InstitutionManagement/Campuses">Campuses</a>' +
+        '</nav><nav data-sidebar-section="academics">' +
+        '<a class="nav-link" href="/CareerEmployers/Index">Employers</a>' +
+        '<a class="nav-link" href="/CareerOpportunities/Index">Opportunities</a>' +
+        '<a class="nav-link" href="/CareerPlacements/Index">Placements</a>' +
         '</nav><nav data-sidebar-section="management">' +
         '<a class="nav-link" href="/FeeReceivablesAging/Index">Fee Aging</a>' +
+        '<a class="nav-link" href="/FacilityWorkOrders/Index">Work Orders</a>' +
+        '<a class="nav-link" href="/FacilitySpaces/Index">Facility Spaces</a>' +
         '</nav></aside></body></html>';
 }
 async function inject(page) { await page.addScriptTag({ path: script }); }
@@ -39,7 +45,9 @@ async function exercise(browser, mobile) {
         assert.deepEqual(hrefs.sort(), [
             '/Dashboard/Index', '/TenantUsers/Index',
             '/InstitutionManagement/Profile', '/InstitutionManagement/Campuses',
-            '/FeeReceivablesAging/Index'
+            '/FeeReceivablesAging/Index', '/FacilityWorkOrders/Index',
+            '/FacilitySpaces/Index', '/CareerEmployers/Index',
+            '/CareerOpportunities/Index', '/CareerPlacements/Index'
         ].sort(), 'client grouping must not add/duplicate privileged routes');
         const access = page.locator('summary.sidebar-group-toggle').filter({
             hasText: mobile ? 'ব্যবহারকারী ও অনুমতি' : 'Users & Access'
@@ -49,6 +57,22 @@ async function exercise(browser, mobile) {
         });
         assert.equal(await access.count(), 1);
         assert.equal(await institution.count(), 1);
+        const career = page.locator('summary.sidebar-group-toggle').filter({
+            hasText: mobile ? 'ক্যারিয়ার ও কর্মসংস্থান' : 'Career & Placement'
+        });
+        const campus = page.locator('summary.sidebar-group-toggle').filter({
+            hasText: mobile ? 'ক্যাম্পাস পরিচালনা' : 'Campus Operations'
+        });
+        assert.equal(await career.count(), 1, 'career links must be discoverable in their task group');
+        assert.equal(await campus.count(), 1, 'facilities must be grouped with campus operations');
+        assert.deepEqual(await career.evaluate(el => [...el.parentElement.querySelectorAll('a.nav-link')]
+            .map(a => a.getAttribute('href')).sort()),
+            ['/CareerEmployers/Index', '/CareerOpportunities/Index', '/CareerPlacements/Index'].sort());
+        assert.deepEqual(await campus.evaluate(el => [...el.parentElement.querySelectorAll('a.nav-link')]
+            .map(a => a.getAttribute('href')).sort()),
+            ['/FacilityWorkOrders/Index', '/FacilitySpaces/Index'].sort());
+        assert.equal(await page.locator('details.sidebar-group[data-sidebar-group="academics:other"]').count(), 0);
+        assert.equal(await page.locator('details.sidebar-group[data-sidebar-group="management:other"]').count(), 0);
         await access.focus();
         await page.keyboard.press('Home');
         assert.equal(await page.evaluate(() => document.activeElement?.getAttribute('href')),

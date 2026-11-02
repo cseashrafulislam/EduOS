@@ -20,6 +20,7 @@
         academics: [
             ['portal', 'My Learning Portal', 'আমার লার্নিং পোর্টাল', ['/StudentPortal', '/StudentSubjects', '/Alumni']],
             ['learners', 'Admissions & Students', 'ভর্তি ও শিক্ষার্থী', ['/Admissions', '/Students', '/LearnerIdentities']],
+            ['career', 'Career & Placement', 'ক্যারিয়ার ও কর্মসংস্থান', ['/CareerEmployers', '/CareerOpportunities', '/CareerPlacements']],
             ['learning', 'Learning & Courses', 'শিক্ষা ও কোর্স', ['/Learning']],
             ['assessments', 'Exams & Results', 'পরীক্ষা ও ফলাফল', ['/AssessmentAdministration']],
             ['operations', 'Classes & Attendance', 'ক্লাস ও উপস্থিতি', ['/AcademicRoutines', '/AcademicInstruction', '/AcademicCalendar', '/StudentLeaves', '/Attendance']]
@@ -28,7 +29,7 @@
             ['people', 'HR & Payroll', 'এইচআর ও বেতন', ['/HR', '/HrEmployeeRecords', '/EmployeeContracts', '/Recruitment', '/EmployeeAttendance', '/LeaveEntitlements', '/PayrollOperations', '/PayrollSalaryStructures', '/PayrollSalaryComponents', '/PayrollSalaryStatement', '/PayrollReconciliation', '/PayrollBonuses', '/PayrollJournalPosting', '/PayrollPaymentPosting', '/PayrollLoanRegister', '/LoanDisbursement', '/LoanRecovery', '/EmployeePortal']],
             ['finance', 'Fees & Accounting', 'ফি ও হিসাব', ['/FeeOperations', '/FeeDiscountRules', '/FeeReceivablesAging', '/FeeHeadAccounting', '/AdmissionCashReceipts', '/FinanceAdjustments', '/AccountingSetup', '/AccountingJournals', '/AccountingReports', '/StudentInvoicePosting', '/StudentPaymentPosting', '/FeeDueCalendar', '/FeeInstallmentProjection', '/FeeInstallmentPlans', '/FeeInvoiceCoverage', '/FeeDiscountAttributionReview']],
             ['inventory', 'Inventory & Assets', 'ইনভেন্টরি ও সম্পদ', ['/InventoryCatalog', '/InventoryMovements', '/AssetLifecycle']],
-            ['campus', 'Campus Operations', 'ক্যাম্পাস পরিচালনা', ['/HostelOperations', '/hostel', '/TransportOperations', '/OperationsInsights']],
+            ['campus', 'Campus Operations', 'ক্যাম্পাস পরিচালনা', ['/HostelOperations', '/hostel', '/TransportOperations', '/OperationsInsights', '/FacilityWorkOrders', '/FacilitySpaces']],
             ['library', 'Library', 'গ্রন্থাগার', ['/Library']],
             ['communication', 'Communication & Documents', 'যোগাযোগ ও ডকুমেন্ট', ['/CommunicationWorkspace', '/CommunicationAdministration', '/CustomFields', '/DocumentAdministration']],
             ['governance', 'Audit & Reporting', 'অডিট ও রিপোর্ট', ['/AuditLogs', '/ImportHistory']]
@@ -55,6 +56,10 @@
             ['settings', 'Settings', 'সেটিংস', ['/Admissions/Forms', '/Admissions/AssessmentSetup']],
             ['operations', 'Operations', 'কার্যক্রম', ['/Admissions/NewApplication', '/Admissions/Applications', '/Admissions/Merit', '/Admissions/Assessments', '/Admissions/Offers', '/Admissions/Index', '/Students', '/LearnerIdentities/Index']],
             ['reports', 'Reports', 'রিপোর্ট', ['/LearnerIdentities/AccessHistory']]
+        ],
+        'academics:career': [
+            ['settings', 'Settings', 'সেটিংস', ['/CareerEmployers']],
+            ['operations', 'Operations', 'কার্যক্রম', ['/CareerOpportunities', '/CareerPlacements']]
         ],
         'academics:learning': [
             ['settings', 'Settings', 'সেটিংস', ['/Learning/CourseContent']],
@@ -96,8 +101,8 @@
             ['operations', 'Operations', 'কার্যক্রম', ['/CommunicationWorkspace']]
         ],
         'management:campus': [
-            ['settings', 'Settings', 'সেটিংস', ['/HostelOperations/Setup', '/TransportOperations/Setup']],
-            ['operations', 'Operations', 'কার্যক্রম', ['/HostelOperations/Applications', '/HostelOperations/Allocations', '/HostelOperations/Index', '/hostel', '/TransportOperations/Assignments', '/TransportOperations/Index', '/TransportOperations/Trips', '/TransportOperations/Family', '/TransportOperations/DriverTrips']],
+            ['settings', 'Settings', 'সেটিংস', ['/HostelOperations/Setup', '/TransportOperations/Setup', '/FacilitySpaces']],
+            ['operations', 'Operations', 'কার্যক্রম', ['/HostelOperations/Applications', '/HostelOperations/Allocations', '/HostelOperations/Index', '/hostel', '/TransportOperations/Assignments', '/TransportOperations/Index', '/TransportOperations/Trips', '/TransportOperations/Family', '/TransportOperations/DriverTrips', '/FacilityWorkOrders']],
             ['reports', 'Reports', 'রিপোর্ট', ['/HostelOperations/Reports', '/TransportOperations/Reports', '/OperationsInsights']]
         ]
     };

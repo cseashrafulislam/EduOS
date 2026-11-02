@@ -31,6 +31,11 @@ test('section-specific categories include dynamic role portals and privileged ad
         ['academics', '/StudentPortal/Index#learnerConsents', 'portal'],
         ['academics', '/LearnerIdentities/AccessHistory', 'learners'],
         ['academics', '/Learning/CourseCompletions', 'learning'],
+        ['academics', '/CareerEmployers/Index', 'career'],
+        ['academics', '/CareerOpportunities/Index', 'career'],
+        ['academics', '/CareerPlacements/Index', 'career'],
+        ['management', '/FacilityWorkOrders/Index', 'campus'],
+        ['management', '/FacilitySpaces/Index', 'campus'],
         ['academics', '/AssessmentAdministration/Certificates', 'assessments'],
         ['management', '/FeeHeadAccounting/Index', 'finance'],
         ['management', '/AccountingJournals/Index', 'finance'],
@@ -73,6 +78,11 @@ test('section-specific categories include dynamic role portals and privileged ad
     assert.equal(categoryFor('management', 'people', '/PayrollPaymentPosting/Index'), 'operations');
     assert.equal(categoryFor('management', 'communication', '/CustomFields/Index'), 'settings');
     assert.equal(categoryFor('management', 'finance', '/AccountingSetup/Index'), 'settings');
+    assert.equal(categoryFor('academics', 'career', '/CareerEmployers/Index'), 'settings');
+    assert.equal(categoryFor('academics', 'career', '/CareerOpportunities/Index'), 'operations');
+    assert.equal(categoryFor('academics', 'career', '/CareerPlacements/Index'), 'operations');
+    assert.equal(categoryFor('management', 'campus', '/FacilitySpaces/Index'), 'settings');
+    assert.equal(categoryFor('management', 'campus', '/FacilityWorkOrders/Index'), 'operations');
     assert.equal(normalizedPath('/Attendance/Index/?q=1'), '/attendance/index');
 });
 
