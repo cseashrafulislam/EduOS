@@ -129,8 +129,11 @@ function captureEvidenceResponses(page, base) {
     });
     return responses;
 }
-async function assertForeignResponsePrivacy(config, session) {
+async function assertForeignResponsePrivacy(config, session, requireNetworkEvidence = false) {
     const responses = session.evidenceResponses.splice(0);
+    if (requireNetworkEvidence)
+        assert(responses.length > 0,
+            'Foreign browser did not exercise an evidence HTTP request');
     for (const response of responses) {
         assert([200, 400, 401, 403, 404, 409].includes(response.status()),
             'Unexpected foreign evidence response status');
@@ -267,7 +270,7 @@ async function verifyRegister(config, session, key) {
     'Register CSV export escaped selected tenant/campus/date/page scope');
     assert.deepEqual(session.errors, [], 'Register browser JavaScript error');
     assert.deepEqual(session.blockedWrites, [], 'Unexpected register browser request');
-    if (key === 'B') await assertForeignResponsePrivacy(config, session);
+    if (key === 'B') await assertForeignResponsePrivacy(config, session, true);
 }
 async function verifyView(config, session, key, kind, reference) {
     const { page } = session;
@@ -314,7 +317,7 @@ async function verifyView(config, session, key, kind, reference) {
     }
     assert.deepEqual(session.errors, [], 'Browser JavaScript error');
     assert.deepEqual(session.blockedWrites, [], 'Unexpected staging write');
-    if (key === 'B') await assertForeignResponsePrivacy(config, session);
+    if (key === 'B') await assertForeignResponsePrivacy(config, session, true);
 }
 async function main(env = process.env) {
     const config = validateEnvironment(env);

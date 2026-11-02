@@ -200,3 +200,11 @@ test('real foreign response audit fails closed on shared cache, redirects and ov
     await assert.rejects(run(200, 'private, no-store', 'x'.repeat(2_000_001)), /Oversized/);
     await run(404, 'private, no-store', '{"success":false}');
 });
+
+
+test('foreign browser acceptance cannot silently pass without a real evidence request', async () => {
+    const config = validateEnvironment(env);
+    await assert.rejects(assertForeignResponsePrivacy(config,
+        { evidenceResponses: [] }, true), /did not exercise an evidence HTTP request/);
+    await assertForeignResponsePrivacy(config, { evidenceResponses: [] });
+});
