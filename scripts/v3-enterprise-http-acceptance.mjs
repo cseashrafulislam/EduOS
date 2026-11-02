@@ -24,6 +24,13 @@ const evidenceSignature = value => JSON.stringify(value, (_, entry) => {
     return Object.fromEntries(Object.keys(entry).sort().map(key => [key, entry[key]]));
 });
 
+export const assertStableReplay = (result, baseline, message =
+    'Concurrent authorized evidence changed.') => {
+    check(result.status === 200 && result.body?.success === true &&
+        result.body.data &&
+        evidenceSignature(result.body.data) === evidenceSignature(baseline), message);
+};
+
 export function parseCsv(input) {
     check(typeof input === 'string' && input.length <= 2_000_000,
         'Invalid or oversized CSV response.');
@@ -348,8 +355,69 @@ export async function runAcceptance(config, fetcher = fetch) {
         ownerFirstPageReferences.get(kind) instanceof Set &&
         ownerFirstPageReferences.get(kind).size > 0,
         'Missing owner register baseline for concurrent replay.');
+    // Capture immutable, private in-memory snapshots after canonical source
+    // audits. A 200/no-store response alone cannot prove unchanged approval,
+    // amount, checker or PO/supplier linkage under concurrent tenant replay.
+    const authorizedReplayBaselines = new Map();
+    const additionalOwnerRefs = new Set();
+    if (procurementResult) {
+        const path = API + '/procurement/' + procurement;
+        const response = await read(a, path);
+        noStore(response);
+        const data = response.body?.data;
+        check(response.status === 200 && response.body?.success === true &&
+            data?.orderReference?.toLowerCase() === procurementResult.reference &&
+            data.state === procurementResult.state &&
+            data.lineCount === procurementResult.lineCount &&
+            data.campusId === procurementResult.campusId &&
+            String(data.totalAmount) === String(procurementResult.totalAmount),
+            'Procurement replay baseline disagrees with audited source.');
+        authorizedReplayBaselines.set(path, data);
+        for (const ref of [data.requisitionReference, data.supplierReference])
+            if (typeof ref === 'string') additionalOwnerRefs.add(ref.toLowerCase());
+    }
+    if (supplierResult) {
+        const path = '/api/procurement/supplier-confirmations/' + supplierConfirmation;
+        const response = await read(a, path);
+        noStore(response);
+        const data = response.body?.data;
+        check(response.status === 200 && response.body?.success === true &&
+            data?.id === supplierConfirmation &&
+            data.purchaseOrderId === supplierResult.purchaseOrderId &&
+            data.stateCode === 'Confirmed',
+            'Supplier replay baseline disagrees with audited source.');
+        authorizedReplayBaselines.set(path, data);
+        if (typeof data.clientRequestId === 'string')
+            additionalOwnerRefs.add(data.clientRequestId.toLowerCase());
+    }
+    // An independently stable tenant-B register is essential: checking only
+    // that tenant-A UUIDs are absent misses stale scopes and Finance drift.
+    const foreignReplayBaselines = new Map();
+    for (const kind of ['stock', 'asset']) {
+        const path = API + '/register?' + new URLSearchParams({
+            kind, from, to, page: '1', pageSize: '25'
+        });
+        const response = await read(b, path);
+        noStore(response);
+        const data = response.body?.data;
+        const ownerRefs = ownerFirstPageReferences.get(kind);
+        check(response.status === 200 && response.body?.success === true &&
+            data?.kind === kind && data.from === from && data.to === to &&
+            data.page === 1 && data.pageSize === 25 &&
+            Number.isSafeInteger(data.totalCount) && data.totalCount >= 0 &&
+            Array.isArray(data.items) &&
+            data.items.length === Math.min(25, data.totalCount) &&
+            data.items.every(row => typeof row.reference === 'string' &&
+                /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(row.reference) &&
+                !ownerRefs.has(row.reference.toLowerCase())) &&
+            new Set(data.items.map(row => row.reference.toLowerCase())).size === data.items.length,
+            'Foreign register replay baseline invalid or disclosed owner evidence.');
+        foreignReplayBaselines.set(kind, {
+            count: data.totalCount, rows: data.items.map(evidenceSignature)
+        });
+    }
     const allOwnerRefs = [...new Set([...ownerFirstPageReferences.values()]
-        .flatMap(refs => [...refs]))];
+        .flatMap(refs => [...refs]).concat([...additionalOwnerRefs]))];
     const invalid = await read(a, API + '/register?' + new URLSearchParams({
         kind: 'stock', from, to, page: '1', pageSize: '1000'
     }));
@@ -451,20 +519,28 @@ export async function runAcceptance(config, fetcher = fetch) {
             else if (probe.foreignRegister) {
                 const data = result.body?.data;
                 const ownerRefs = ownerFirstPageReferences.get(probe.foreignRegister);
+                const baseline = foreignReplayBaselines.get(probe.foreignRegister);
                 check(result.status === 200 && result.body?.success &&
                     data?.kind === probe.foreignRegister &&
+                    data.from === from && data.to === to &&
                     data.page === 1 && data.pageSize === 25 &&
-                    Number.isSafeInteger(data.totalCount) && data.totalCount >= 0 &&
+                    Number.isSafeInteger(data.totalCount) &&
+                    data.totalCount === baseline?.count &&
                     Array.isArray(data.items) && data.items.length <= 25 &&
                     data.items.length === Math.min(25, data.totalCount) &&
+                    data.items.length === baseline.rows.length &&
+                    data.items.every((row, index) =>
+                        evidenceSignature(row) === baseline.rows[index]) &&
                     data.items.every(x => typeof x.reference === 'string' &&
                         /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(x.reference) &&
                         !ownerRefs.has(x.reference.toLowerCase())) &&
                     new Set(data.items.map(x => x.reference.toLowerCase())).size === data.items.length,
                     'Concurrent cross-tenant register disclosed or pagination invalid.');
             }
-            else check(result.status === 200 && result.body?.success,
-                'Concurrent authorized read failed.');
+            else if (probe.own)
+                assertStableReplay(result, authorizedReplayBaselines.get(probe.path),
+                    'Concurrent authorized procurement or supplier evidence changed.');
+            else fail('Unexpected replay scenario.');
             samples.push(result.elapsed);
             const label = labels[probeIndex];
             if (!byScenario.has(label)) byScenario.set(label, []);

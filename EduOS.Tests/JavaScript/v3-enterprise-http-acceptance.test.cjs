@@ -616,3 +616,69 @@ test('concurrent foreign denial rejects a non-seeded owner asset reference in er
     await assert.rejects(runAcceptance({ ...config, iterations: 24 }, fetcher),
         /Denied response exposed private reference/);
 });
+
+test('authorized replay rejects nested source, amount and checker drift despite 200/no-store', async () => {
+    const { assertStableReplay } = await import(source);
+    const baseline = { orderReference: stock, state: 'Approved',
+        lines: [{ lineNo: 1, amount: '25.0000000000' }],
+        checker: { id: 42, status: 'Approved' } };
+    const response = data => ({ status: 200, body: { success: true, data } });
+    assert.doesNotThrow(() => assertStableReplay(response({
+        checker: { status: 'Approved', id: 42 },
+        lines: [{ amount: '25.0000000000', lineNo: 1 }],
+        state: 'Approved', orderReference: stock
+    }), baseline));
+    for (const data of [
+        { ...baseline, lines: [{ lineNo: 1, amount: '26.0000000000' }] },
+        { ...baseline, checker: { id: 43, status: 'Approved' } },
+        { ...baseline, orderReference: otherAsset }
+    ]) assert.throws(() => assertStableReplay(response(data), baseline),
+        /Concurrent authorized evidence changed/);
+    assert.throws(() => assertStableReplay({
+        status: 403, body: { success: false, data: null }
+    }, baseline), /Concurrent authorized evidence changed/);
+});
+
+test('concurrent foreign stock register rejects same-reference Finance amount drift', async () => {
+    const { runAcceptance } = await import(source);
+    const baseline = populatedTenantRegister();
+    let reads = 0;
+    const fetcher = async (url, options) => {
+        const parsed = new URL(url);
+        if (options.headers.Cookie === 'b-session' &&
+            parsed.pathname.endsWith('/register') &&
+            parsed.searchParams.get('kind') === 'stock' &&
+            parsed.searchParams.get('pageSize') === '25' && ++reads > 1) {
+            const response = await baseline(url, options);
+            const payload = await response.json();
+            payload.data.items[0].recordedValue = '999.0000000000';
+            return new Response(JSON.stringify(payload), { status: 200,
+                headers: { 'content-type': 'application/json', 'cache-control': 'no-store' } });
+        }
+        return baseline(url, options);
+    };
+    await assert.rejects(runAcceptance({ ...config, iterations: 24 }, fetcher),
+        /Concurrent cross-tenant register disclosed or pagination invalid/);
+});
+
+test('concurrent foreign asset register rejects stale date-window success', async () => {
+    const { runAcceptance } = await import(source);
+    const baseline = populatedTenantRegister();
+    let reads = 0;
+    const fetcher = async (url, options) => {
+        const parsed = new URL(url);
+        if (options.headers.Cookie === 'b-session' &&
+            parsed.pathname.endsWith('/register') &&
+            parsed.searchParams.get('kind') === 'asset' &&
+            parsed.searchParams.get('pageSize') === '25' && ++reads > 1) {
+            const response = await baseline(url, options);
+            const payload = await response.json();
+            payload.data.from = '2026-09-01';
+            return new Response(JSON.stringify(payload), { status: 200,
+                headers: { 'content-type': 'application/json', 'cache-control': 'no-store' } });
+        }
+        return baseline(url, options);
+    };
+    await assert.rejects(runAcceptance({ ...config, iterations: 24 }, fetcher),
+        /Concurrent cross-tenant register disclosed or pagination invalid/);
+});
