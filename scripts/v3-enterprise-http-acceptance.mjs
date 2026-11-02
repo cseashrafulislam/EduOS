@@ -2,7 +2,7 @@
 // Read-only V3 enterprise reconciliation acceptance against a disposable/staging
 // EduOS instance. Never use production credentials or a live customer database.
 import { performance } from 'node:perf_hooks';
-import { auditRegisterPages } from './v3-enterprise-paged-audit.mjs';
+import { auditRegisterPages, assertPrivateCache } from './v3-enterprise-paged-audit.mjs';
 import { auditProcurement } from './v3-enterprise-procurement-http-audit.mjs';
 import { auditSupplierCommitment } from './v3-enterprise-supplier-commitment-audit.mjs';
 import { pathToFileURL } from 'node:url';
@@ -189,14 +189,13 @@ export async function runAcceptance(config, fetcher = fetch) {
         'Supplier confirmation requires canonical procurement reference.');
     // A passing replay must actually exercise every authorized and foreign
     // scenario. One request (or one worker) cannot establish concurrent IDOR.
-    const scenarioCount = 5 + (procurement ? 2 : 0) +
+    const scenarioCount = 6 + (procurement ? 2 : 0) +
         (supplierConfirmation ? 2 : 0);
     check(Number.isInteger(iterations) && iterations >= scenarioCount &&
         iterations <= 500 && Number.isInteger(concurrency) &&
         concurrency >= 2 && concurrency <= 16,
         'Mixed-tenant replay requires every scenario and at least two workers.');
-    const noStore = result => check(result.cache.includes('no-store') ||
-        result.cache.includes('no-cache'), 'Private response must not be cached.');
+    const noStore = result => assertPrivateCache(result.cache);
     const references = csv => {
         const parsed = parseCsv(csv);
         return parsed.rows.map(row => row[parsed.referenceIndex].toLowerCase());
@@ -314,9 +313,10 @@ export async function runAcceptance(config, fetcher = fetch) {
             'Foreign register CSV leaked tenant A evidence or disagrees with JSON.');
         registers.push({ kind, count: d.totalCount });
     }
-    check(ownerFirstPageReferences.get('asset') instanceof Set &&
-        ownerFirstPageReferences.get('asset').size > 0,
-        'Missing owner asset register baseline for concurrent replay.');
+    for (const kind of ['stock', 'asset']) check(
+        ownerFirstPageReferences.get(kind) instanceof Set &&
+        ownerFirstPageReferences.get(kind).size > 0,
+        'Missing owner register baseline for concurrent replay.');
     const invalid = await read(a, API + '/register?' + new URLSearchParams({
         kind: 'stock', from, to, page: '1', pageSize: '1000'
     }));
@@ -355,7 +355,9 @@ export async function runAcceptance(config, fetcher = fetch) {
             kind: 'stock', from, to, page: '1', pageSize: '25' }), own: true },
         { cookie: b, path: API + '/' + stock, foreignDetail: true },
         { cookie: b, path: API + '/register?' + new URLSearchParams({
-            kind: 'asset', from, to, page: '1', pageSize: '25' }), foreignRegister: true }
+            kind: 'asset', from, to, page: '1', pageSize: '25' }), foreignRegister: 'asset' },
+        { cookie: b, path: API + '/register?' + new URLSearchParams({
+            kind: 'stock', from, to, page: '1', pageSize: '25' }), foreignRegister: 'stock' }
     ];
     if (procurement) {
         paths.push({ cookie: a, path: API + '/procurement/' + procurement, own: true });
@@ -369,7 +371,7 @@ export async function runAcceptance(config, fetcher = fetch) {
     }
     // Fixed scenario labels avoid exposing cookies or private reference IDs.
     const labels = ['stock-own', 'asset-own', 'stock-register-own',
-        'stock-detail-foreign', 'asset-register-foreign',
+        'stock-detail-foreign', 'asset-register-foreign', 'stock-register-foreign',
         ...(procurement ? ['procurement-own', 'procurement-foreign'] : []),
         ...(supplierResult ? ['supplier-own', 'supplier-foreign'] : [])];
     const byScenario = new Map();
@@ -392,12 +394,21 @@ export async function runAcceptance(config, fetcher = fetch) {
             if (probe.foreignDetail)
                 check([403, 404].includes(result.status),
                     'Concurrent cross-tenant detail disclosed.');
-            else if (probe.foreignRegister)
+            else if (probe.foreignRegister) {
+                const data = result.body?.data;
+                const ownerRefs = ownerFirstPageReferences.get(probe.foreignRegister);
                 check(result.status === 200 && result.body?.success &&
-                    Array.isArray(result.body?.data?.items) &&
-                    result.body.data.items.every(x => typeof x.reference === 'string' &&
-                        !ownerFirstPageReferences.get('asset').has(x.reference.toLowerCase())),
-                    'Concurrent cross-tenant register disclosed.');
+                    data?.kind === probe.foreignRegister &&
+                    data.page === 1 && data.pageSize === 25 &&
+                    Number.isSafeInteger(data.totalCount) && data.totalCount >= 0 &&
+                    Array.isArray(data.items) && data.items.length <= 25 &&
+                    data.items.length === Math.min(25, data.totalCount) &&
+                    data.items.every(x => typeof x.reference === 'string' &&
+                        /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(x.reference) &&
+                        !ownerRefs.has(x.reference.toLowerCase())) &&
+                    new Set(data.items.map(x => x.reference.toLowerCase())).size === data.items.length,
+                    'Concurrent cross-tenant register disclosed or pagination invalid.');
+            }
             else check(result.status === 200 && result.body?.success,
                 'Concurrent authorized read failed.');
             samples.push(result.elapsed);
@@ -414,7 +425,7 @@ export async function runAcceptance(config, fetcher = fetch) {
     const replayWallMs = performance.now() - replayStart;
     return { checks: ['stock and asset detail/CSV IDOR and parity',
             'register JSON/CSV exact-page parity and cache isolation',
-            'bounded paging', 'mixed-tenant concurrent replay',
+            'bounded paging', 'mixed-tenant concurrent stock/asset replay',
             ...(restricted ? ['restricted-role authorization'] : []),
             ...(assetCampus ? ['asset campus isolation'] : []),
             ...(procurement ? ['procurement source/CSV/register integrity and tenant IDOR'] : []),

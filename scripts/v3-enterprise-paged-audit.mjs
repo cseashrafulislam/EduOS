@@ -4,6 +4,16 @@ const requireEvidence = (ok, message) => { if (!ok) throw new Error(message); };
 const safeValue = value => String(value ?? '');
 const normalizeReference = value => safeValue(value).toLowerCase();
 const MAX_PAGE_SIZE = 50;
+// A private register must prohibit storage, not merely demand revalidation.
+// Split directives exactly: "x-no-store" is not a no-store directive, and
+// "public, no-store" is contradictory shared-cache evidence.
+export const assertPrivateCache = (value, message = 'Private response must not be cached.') => {
+    const directives = String(value || '').toLowerCase().split(',')
+        .map(part => part.trim());
+    requireEvidence(directives.includes('no-store') &&
+        !directives.some(part => part === 'public' || /^s-maxage\s*=/.test(part)),
+        message);
+};
 const CSV_COLUMNS = ['Kind', 'Reference', 'Number', 'Date', 'Campus',
     'State', 'RecordedValue', 'Lines', 'EvidenceStatus'];
 // The controller prefixes formula-like cells, including negative amounts.
@@ -39,8 +49,7 @@ export async function auditRegisterPages({ read, parseCsv, api, kind, reference,
     const pathFor = (page, csv = false) => api + '/register' + (csv ? '/csv' : '?') +
         (csv ? '?' : '') + new URLSearchParams({ kind, from, to,
             page: String(page), pageSize: String(MAX_PAGE_SIZE) });
-    const privateResponse = result => requireEvidence(
-        /no-store|no-cache/i.test(result.cache || ''),
+    const privateResponse = result => assertPrivateCache(result.cache,
         'Private register response is cacheable.');
     const snapshot = async (cookie, page, expectedTotal = null) => {
         const json = await read(cookie, pathFor(page));

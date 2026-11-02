@@ -261,7 +261,7 @@ test('concurrent tenant replay emits bounded per-scenario percentiles without se
     const report = await runAcceptance({ ...config, iterations: 25 }, fakeFetch());
     assert.deepEqual(Object.keys(report.latencyByScenario).sort(),
         ['asset-own', 'asset-register-foreign', 'stock-detail-foreign',
-            'stock-own', 'stock-register-own'].sort());
+            'stock-own', 'stock-register-own', 'stock-register-foreign'].sort());
     assert.equal(Object.values(report.latencyByScenario)
         .reduce((sum, row) => sum + row.samples, 0), 25);
     assert.ok(Object.values(report.latencyByScenario).every(row =>
@@ -422,4 +422,50 @@ test('mixed-tenant replay rejects cacheable private evidence after safe baseline
     await assert.rejects(runAcceptance({ ...config, pagedAudit: true,
         iterations: 25 }, populatedTenantRegister({ cacheOnReplay: true })),
     /Private response must not be cached/);
+});
+
+test('concurrent foreign stock register rejects owner evidence after a safe baseline', async () => {
+    const { runAcceptance } = await import(source);
+    const baseline = fakeFetch();
+    const leaking = fakeFetch({ leak: true });
+    const fetcher = (url, options) => {
+        const parsed = new URL(url);
+        return parsed.pathname.endsWith('/register') &&
+            parsed.searchParams.get('kind') === 'stock' &&
+            parsed.searchParams.get('pageSize') === '25' &&
+            options.headers.Cookie === 'b-session'
+            ? leaking(url, options) : baseline(url, options);
+    };
+    await assert.rejects(runAcceptance({ ...config, iterations: 24 }, fetcher),
+        /Concurrent cross-tenant register disclosed/);
+});
+
+test('private register acceptance rejects no-cache-only and contradictory public cache policy', async () => {
+    const { runAcceptance } = await import(source);
+    const baseline = fakeFetch();
+    for (const policy of ['no-cache', 'public, no-store', 'no-store, s-maxage=60',
+        'x-no-store']) {
+        const fetcher = async (url, options) => {
+            const response = await baseline(url, options);
+            if (response.status !== 200 || !url.includes('/register')) return response;
+            return new Response(await response.text(), {
+                status: response.status, headers: {
+                    ...Object.fromEntries(response.headers), 'cache-control': policy
+                }
+            });
+        };
+        await assert.rejects(runAcceptance(config, fetcher),
+            /Private response must not be cached/);
+    }
+    const accepted = async (url, options) => {
+        const response = await baseline(url, options);
+        if (response.status !== 200) return response;
+        return new Response(await response.text(), {
+            status: response.status, headers: {
+                ...Object.fromEntries(response.headers),
+                'cache-control': 'private, no-cache, no-store, max-age=0'
+            }
+        });
+    };
+    assert.equal((await runAcceptance(config, accepted)).errors, 0);
 });

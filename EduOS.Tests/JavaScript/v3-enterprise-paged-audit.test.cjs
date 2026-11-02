@@ -229,3 +229,12 @@ test('register rejects invalid source line counts and campus IDs even when CSV a
             /source line count or campus invalid/);
     }
 });
+
+test('bounded page audit requires unambiguous private no-store cache policy', async () => {
+    const { assertPrivateCache } = await import('../../scripts/v3-enterprise-paged-audit.mjs');
+    for (const value of ['', 'no-cache', 'public, no-store',
+        'private, x-no-store', 'no-store, s-maxage=10']) {
+        assert.throws(() => assertPrivateCache(value), /Private response must not be cached/);
+    }
+    assert.doesNotThrow(() => assertPrivateCache('private, no-cache, no-store, max-age=0'));
+});
