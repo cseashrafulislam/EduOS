@@ -735,9 +735,11 @@ public sealed class SqlServerFacilityWorkOrderTests
                     Note = "This vendor booking cannot intersect the assigned schedule."
                 });
             Assert.Equal(409, rejected.StatusCode);
-            Assert.Equal(0, await db.FacilityWorkflowEvents.CountAsync(x =>
+            // The earlier approved-and-released proposal is immutable evidence;
+            // the rejected disjoint proposal must not append a second event.
+            Assert.Equal(1, await db.FacilityWorkflowEvents.CountAsync(x =>
                 x.FacilityServiceRequestId == submitted.Id &&
-                x.ActionCode == "vendorpropose" && x.CreatedAt > scheduled.CreatedAt));
+                x.ActionCode == "vendorpropose"));
         }
         // Two distinct work orders cannot hold overlapping approved bookings
         // for the same canonical supplier, even when both proposals are valid.
