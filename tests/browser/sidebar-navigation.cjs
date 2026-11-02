@@ -88,14 +88,16 @@ async function exercise(browser, mobile) {
         await page.goto('http://eduos.test/Dashboard/Index');
         await inject(page);
         assert.equal(await institution.evaluate(el => el.parentElement.open), false);
-        // Mid-page scope change must not overwrite state for another session.
+        // A fresh session may save its own default state; a later mid-page
+        // tenant change must not overwrite that state with stale shell events.
+        const beforeMismatch = await page.evaluate(() =>
+            sessionStorage.getItem('eduos.sidebar.navigation.v1'));
         await page.evaluate(() => {
             document.body.dataset.authTenantId = '99';
             window.dispatchEvent(new Event('pagehide'));
         });
-        assert.equal((await page.evaluate(() => JSON.parse(
-            sessionStorage.getItem('eduos.sidebar.navigation.v1')))).scope,
-        '23:' + referenceA);
+        assert.equal(await page.evaluate(() =>
+            sessionStorage.getItem('eduos.sidebar.navigation.v1')), beforeMismatch);
         assert.deepEqual(errors, []);
     } finally { await context.close(); }
 }
