@@ -8,6 +8,7 @@ import { auditSupplierCommitment } from './v3-enterprise-supplier-commitment-aud
 import { pathToFileURL } from 'node:url';
 
 const API = '/api/v3/enterprise/ledger-trace';
+const MAX_RESPONSE_BYTES = 2_000_000;
 const fail = message => { const error = new Error(message); error.name = 'AcceptanceError'; throw error; };
 const check = (condition, message) => { if (!condition) fail(message); };
 export const percentile = (samples, p) => {
@@ -116,6 +117,41 @@ export function validateConfig(env) {
         pagedAudit: env.AUDIT_ALL_PAGES === '1', auditPages };
 }
 
+// Bound actual streamed bytes, not just the optional Content-Length header.
+// Latency ends after complete body consumption, not at response headers.
+const readBoundedResponse = async (response, type) => {
+    const declared = response.headers.get('content-length');
+    if (declared !== null)
+        check(/^\d+$/.test(declared) && Number(declared) <= MAX_RESPONSE_BYTES,
+            'Invalid or oversized response length.');
+    const reader = response.body?.getReader();
+    const decoder = new TextDecoder('utf-8', { fatal: true });
+    let bytes = 0, body = '';
+    if (reader) {
+        try {
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+                check(value instanceof Uint8Array, 'Invalid response body chunk.');
+                bytes += value.byteLength;
+                check(bytes <= MAX_RESPONSE_BYTES, 'Oversized streamed response rejected.');
+                body += decoder.decode(value, { stream: true });
+            }
+            body += decoder.decode();
+        } catch (error) {
+            try { await reader.cancel(); } catch { /* Preserve original error. */ }
+            throw error;
+        } finally {
+            reader.releaseLock();
+        }
+    }
+    if (type.includes('json')) {
+        try { return JSON.parse(body); }
+        catch { fail('Invalid JSON response.'); }
+    }
+    return body;
+};
+
 export async function request(base, cookie, path, fetcher = fetch) {
     const procurementApi = ['/api/procurement/supplier-confirmations',
         '/api/procurement/purchase-orders'];
@@ -130,13 +166,9 @@ export async function request(base, cookie, path, fetcher = fetch) {
         signal: AbortSignal.timeout(15000)
     });
     check(response.status < 300 || response.status >= 400, 'Unexpected redirect.');
-    const elapsed = performance.now() - started;
     const type = response.headers.get('content-type') || '';
-    const contentLength = Number(response.headers.get('content-length') || 0);
-    check(contentLength <= 2_000_000, 'Oversized response rejected.');
-    const body = type.includes('json') ? await response.json() : await response.text();
-    if (typeof body === 'string') check(body.length <= 2_000_000,
-        'Oversized response rejected.');
+    const body = await readBoundedResponse(response, type);
+    const elapsed = performance.now() - started;
     return { status: response.status, body, type, elapsed,
         cache: response.headers.get('cache-control') || '' };
 }
@@ -288,11 +320,19 @@ export async function runAcceptance(config, fetcher = fetch) {
         paths.push({ cookie: a, path, own: true });
         paths.push({ cookie: b, path, foreignDetail: true });
     }
+    // Fixed scenario labels avoid exposing cookies or private reference IDs.
+    const labels = ['stock-own', 'asset-own', 'stock-register-own',
+        'stock-detail-foreign', 'asset-register-foreign',
+        ...(procurement ? ['procurement-own', 'procurement-foreign'] : []),
+        ...(supplierResult ? ['supplier-own', 'supplier-foreign'] : [])];
+    const byScenario = new Map();
     let cursor = 0;
+    const replayStart = performance.now();
     const worker = async () => {
         while (cursor < iterations) {
             const index = cursor++;
-            const probe = paths[index % paths.length];
+            const probeIndex = index % paths.length;
+            const probe = paths[probeIndex];
             const result = await read(probe.cookie, probe.path);
             if (probe.foreignDetail)
                 check([403, 404].includes(result.status),
@@ -305,9 +345,13 @@ export async function runAcceptance(config, fetcher = fetch) {
             else check(result.status === 200 && result.body?.success,
                 'Concurrent authorized read failed.');
             samples.push(result.elapsed);
+            const label = labels[probeIndex];
+            if (!byScenario.has(label)) byScenario.set(label, []);
+            byScenario.get(label).push(result.elapsed);
         }
     };
     await Promise.all(Array.from({ length: Math.min(iterations, concurrency) }, worker));
+    const replayWallMs = performance.now() - replayStart;
     return { checks: ['stock and asset detail/CSV IDOR and parity',
             'register JSON/CSV exact-page parity and cache isolation',
             'bounded paging', 'mixed-tenant concurrent replay',
@@ -319,7 +363,13 @@ export async function runAcceptance(config, fetcher = fetch) {
         registerCounts: registers,
         measuredHttpOnly: true, samples: samples.length,
         latencyMs: { p50: percentile(samples, 50), p95: percentile(samples, 95),
-            p99: percentile(samples, 99) }, errors: 0 };
+            p99: percentile(samples, 99) },
+        latencyByScenario: Object.fromEntries([...byScenario].map(([name, values]) =>
+            [name, { samples: values.length, p95: percentile(values, 95),
+                p99: percentile(values, 99) }])),
+        replayWallMs: Math.round(replayWallMs * 100) / 100,
+        replayRequestsPerSecond: Math.round(iterations / replayWallMs * 100000) / 100,
+        errors: 0 };
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {

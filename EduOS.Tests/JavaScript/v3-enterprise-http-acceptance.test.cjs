@@ -210,3 +210,58 @@ test('supplier acceptance opt-in is bounded and cannot target arbitrary URLs', a
             throw new Error('unexpected fetch');
         }), /Invalid API path/);
 });
+
+test('HTTP acceptance times complete streamed responses and bounds unannounced payload size', async () => {
+    const { request } = await import(source);
+    const path = '/api/v3/enterprise/ledger-trace/' + stock;
+    const encoder = new TextEncoder();
+    const delayed = async () => new Response(new ReadableStream({
+        start(controller) {
+            controller.enqueue(encoder.encode('{"success":'));
+            setTimeout(() => {
+                controller.enqueue(encoder.encode('true}'));
+                controller.close();
+            }, 35);
+        }
+    }), { headers: { 'content-type': 'application/json', 'cache-control': 'no-store' } });
+    const result = await request(config.base, config.a, path, delayed);
+    assert.deepEqual(result.body, { success: true });
+    assert.ok(result.elapsed >= 20, 'Header-only timing would miss delayed body.');
+    const oversized = async () => new Response(new ReadableStream({
+        start(controller) {
+            controller.enqueue(new Uint8Array(1_100_000));
+            controller.enqueue(new Uint8Array(1_100_000));
+            controller.close();
+        }
+    }), { headers: { 'content-type': 'text/csv' } });
+    await assert.rejects(request(config.base, config.a, path, oversized),
+        /Oversized streamed response rejected/);
+    const falseLength = async () => new Response('small', {
+        headers: { 'content-length': '2000001', 'content-type': 'text/csv' }
+    });
+    await assert.rejects(request(config.base, config.a, path, falseLength),
+        /Invalid or oversized response length/);
+    const malformed = async () => new Response('{invalid', {
+        headers: { 'content-type': 'application/json' }
+    });
+    await assert.rejects(request(config.base, config.a, path, malformed),
+        /Invalid JSON response/);
+});
+
+test('concurrent tenant replay emits bounded per-scenario percentiles without session data', async () => {
+    const { runAcceptance } = await import(source);
+    const report = await runAcceptance({ ...config, iterations: 25 }, fakeFetch());
+    assert.deepEqual(Object.keys(report.latencyByScenario).sort(),
+        ['asset-own', 'asset-register-foreign', 'stock-detail-foreign',
+            'stock-own', 'stock-register-own'].sort());
+    assert.equal(Object.values(report.latencyByScenario)
+        .reduce((sum, row) => sum + row.samples, 0), 25);
+    assert.ok(Object.values(report.latencyByScenario).every(row =>
+        Number.isFinite(row.p95) && Number.isFinite(row.p99) &&
+        row.p99 >= row.p95 && row.samples > 0));
+    assert.ok(report.replayWallMs >= 0);
+    assert.ok(Number.isFinite(report.replayRequestsPerSecond));
+    assert.ok(!JSON.stringify(report).includes('a-session') &&
+        !JSON.stringify(report).includes('b-session') &&
+        !JSON.stringify(report).includes(stock));
+});
