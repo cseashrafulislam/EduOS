@@ -71,10 +71,19 @@ async function run(browser, bn, manager, mobile) {
             await page.locator('#fvPurpose').fill('Campus meeting');
             await page.locator('#fvStart').fill('2030-11-02T10:00');
             await page.locator('#fvEnd').fill('2030-11-02T11:00');
+            const invalid = await page.locator('#fvCreate').evaluate(form =>
+                Array.from(form.elements).filter(el => el.willValidate && !el.checkValidity())
+                    .map(el => ({ id: el.id, value: el.value, message: el.validationMessage })));
+            assert.deepEqual(invalid, [], 'Preregistration fixture must satisfy native form validation');
             const createPost = page.waitForResponse(response => response.request().method() === 'POST' &&
-                new URL(response.url()).pathname === '/api/facilities/visitors');
+                new URL(response.url()).pathname === '/api/facilities/visitors', { timeout: 8000 });
             await page.locator('#fvCreate button[type="submit"]').click();
-            await createPost;
+            await createPost.catch(async error => {
+                const state = await page.locator('#fvStatus').innerText();
+                throw new Error('Preregistration POST absent: ' + state +
+                    '; page errors=' + JSON.stringify(errors) + '; calls=' + JSON.stringify(calls) +
+                    '; original=' + error.message);
+            });
             assert.ok(calls.some(c => c.url === '/api/facilities/visitors' && c.method === 'POST' &&
                 c.token === 'visitor-csrf' && c.body.visitorName === 'Visitor Demo'));
         }
