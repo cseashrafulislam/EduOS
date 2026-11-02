@@ -105,9 +105,50 @@ async function isolation(browser) {
         assert.deepEqual(errors,[]);
     } finally { await context.close(); }
 }
+
+async function verificationFailure(browser) {
+    // Missing verifier, rejected verifier, and absent tenant context are all
+    // fail-closed without navigating or leaving stale authorized links visible.
+    const first=await setup(browser,false,'22',false);
+    try {
+        await first.page.locator('#featureSearchOpen').click();
+        await first.page.locator('#featureSearchDialog[open]').waitFor();
+        await first.page.evaluate(()=>{window.EduOSVerifySessionContext=undefined;});
+        await first.page.locator('#featureSearchInput').fill('fee');
+        assert.equal(await first.page.locator('#featureSearchDialog').evaluate(e=>e.open),false);
+        assert.equal(await first.page.locator('#featureSearchOpen').isDisabled(),true);
+        assert.equal(await first.page.locator('#featureSearchResults').innerText(),'');
+        assert.deepEqual(first.errors,[]);
+    } finally { await first.context.close(); }
+
+    const second=await setup(browser,false,'22',false);
+    try {
+        await second.page.locator('#featureSearchOpen').click();
+        await second.page.locator('#featureSearchDialog[open]').waitFor();
+        await second.page.locator('#featureSearchInput').fill('student');
+        await second.page.evaluate(()=>{
+            window.EduOSVerifySessionContext=async()=>{throw Error('Session revoked');};
+        });
+        await second.page.locator('#featureSearchResults a.feature-search-link[href="/Students/Index"]').click();
+        assert.equal(new URL(second.page.url()).pathname,'/Dashboard/Index');
+        assert.equal(await second.page.locator('#featureSearchDialog').evaluate(e=>e.open),false);
+        assert.equal(await second.page.locator('#featureSearchOpen').isDisabled(),true);
+        assert.equal(await second.page.locator('#featureSearchResults').innerText(),'');
+        assert.deepEqual(second.errors,[]);
+    } finally { await second.context.close(); }
+
+    const third=await setup(browser,true,'',true);
+    try {
+        await third.page.locator('#featureSearchOpen').click();
+        assert.equal(await third.page.locator('#featureSearchDialog').evaluate(e=>e.open),false);
+        assert.equal(await third.page.locator('#featureSearchOpen').isDisabled(),true);
+        assert.deepEqual(third.errors,[]);
+    } finally { await third.context.close(); }
+}
+
 (async()=>{
     const browser=await chromium.launch({headless:true,args:['--no-sandbox']});
-    try { await english(browser); await isolation(browser);
+    try { await english(browser); await isolation(browser); await verificationFailure(browser);
         console.log('Feature discovery Chromium PASS: canonical sidebar labels across Academics/Finance/Payroll/Assets/Audit, icon-only accessible links, keyboard, bilingual mobile, favorites, verified navigation and tenant isolation (synthetic session/menu).');
     } finally { await browser.close(); }
 })().catch(e=>{console.error(e);process.exitCode=1;});
