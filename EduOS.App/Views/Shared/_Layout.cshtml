@@ -74,21 +74,21 @@
 
             @if (User?.IsInRole("SuperAdmin") == true)
             {
-                <div class="menu-title">Platform Administration</div>
+                <div class="menu-title">@(currentCulture == "bn-BD" ? "প্ল্যাটফর্ম প্রশাসন" : "Platform Administration")</div>
                 <nav class="nav flex-column" data-sidebar-section="platform">
                     <a class="nav-link @ActiveFor("/Dashboard/Admin")" href="/Dashboard/Admin">
                         <svg class="edu-icon"><use href="/images/eduos-icons.svg#dashboard" /></svg>
                         <span>@T["Dashboard"]</span>
                     </a>
-                    <a class="nav-link @ActiveFor("/PlatformTenants")" href="/PlatformTenants/Index"><span>Institution Lifecycle</span></a>
-                    <a class="nav-link @ActiveFor("/PlatformCatalogAdministration")" href="/PlatformCatalogAdministration/Index"><span>Institution Type Management</span></a>
-                    <a class="nav-link @ActiveFor("/PlatformFeatureAdministration")" href="/PlatformFeatureAdministration/Index"><span>Feature Catalog Management</span></a>
-                    <a class="nav-link @ActiveFor("/PlatformProductModuleAdministration")" href="/PlatformProductModuleAdministration/Index"><span>Product Module Catalog</span></a>
-                    <a class="nav-link @ActiveFor("/PlatformInstitutionModulePresets")" href="/PlatformInstitutionModulePresets/Index"><span>Institution Module Presets</span></a>
-                    <a class="nav-link @ActiveFor("/PlatformModuleFeatures")" href="/PlatformModuleFeatures/Index"><span>Product Module Features</span></a>
-                    <a class="nav-link @ActiveFor("/SubscriptionPlanAdministration")" href="/SubscriptionPlanAdministration/Index"><span>Subscription Plan Management</span></a>
-                    <a class="nav-link @ActiveFor("/LegalDocuments/Index")" href="/LegalDocuments/Index"><span>Legal Publications</span></a>
-                    <a class="nav-link @ActiveFor("/SubscriptionPaymentHistory")" href="/SubscriptionPaymentHistory/Index"><span>Payment Reconciliation History</span></a>
+                    <a class="nav-link @ActiveFor("/PlatformTenants")" href="/PlatformTenants/Index"><span>@(currentCulture == "bn-BD" ? "প্রতিষ্ঠান পরিচালনা" : "Institution Lifecycle")</span></a>
+                    <a class="nav-link @ActiveFor("/PlatformCatalogAdministration")" href="/PlatformCatalogAdministration/Index"><span>@(currentCulture == "bn-BD" ? "প্রতিষ্ঠানের ধরন ব্যবস্থাপনা" : "Institution Type Management")</span></a>
+                    <a class="nav-link @ActiveFor("/PlatformFeatureAdministration")" href="/PlatformFeatureAdministration/Index"><span>@(currentCulture == "bn-BD" ? "ফিচার ক্যাটালগ ব্যবস্থাপনা" : "Feature Catalog Management")</span></a>
+                    <a class="nav-link @ActiveFor("/PlatformProductModuleAdministration")" href="/PlatformProductModuleAdministration/Index"><span>@(currentCulture == "bn-BD" ? "প্রোডাক্ট মডিউল ক্যাটালগ" : "Product Module Catalog")</span></a>
+                    <a class="nav-link @ActiveFor("/PlatformInstitutionModulePresets")" href="/PlatformInstitutionModulePresets/Index"><span>@(currentCulture == "bn-BD" ? "প্রতিষ্ঠানের মডিউল প্রিসেট" : "Institution Module Presets")</span></a>
+                    <a class="nav-link @ActiveFor("/PlatformModuleFeatures")" href="/PlatformModuleFeatures/Index"><span>@(currentCulture == "bn-BD" ? "প্রোডাক্ট মডিউলের ফিচার" : "Product Module Features")</span></a>
+                    <a class="nav-link @ActiveFor("/SubscriptionPlanAdministration")" href="/SubscriptionPlanAdministration/Index"><span>@(currentCulture == "bn-BD" ? "সাবস্ক্রিপশন প্ল্যান ব্যবস্থাপনা" : "Subscription Plan Management")</span></a>
+                    <a class="nav-link @ActiveFor("/LegalDocuments/Index")" href="/LegalDocuments/Index"><span>@(currentCulture == "bn-BD" ? "আইনি প্রকাশনা" : "Legal Publications")</span></a>
+                    <a class="nav-link @ActiveFor("/SubscriptionPaymentHistory")" href="/SubscriptionPaymentHistory/Index"><span>@(currentCulture == "bn-BD" ? "পেমেন্ট সমন্বয়ের ইতিহাস" : "Payment Reconciliation History")</span></a>
                     <a class="nav-link @ActiveFor("/Account/PaymentVerification")" href="/Account/PaymentVerification">
                         <svg class="edu-icon"><use href="/images/eduos-icons.svg#reports" /></svg>
                         <span>@T["ManualPaymentVerification"]</span>
@@ -107,11 +107,11 @@
                 {
                     <a class="nav-link @ActiveFor("/TenantUsers")" href="/TenantUsers/Index">
                         <svg class="edu-icon"><use href="/images/eduos-icons.svg#users" /></svg>
-                        <span>User &amp; Role Management</span>
+                        <span>@(currentCulture == "bn-BD" ? "ব্যবহারকারী ও ভূমিকা ব্যবস্থাপনা" : "User & Role Management")</span>
                     </a>
                     <a class="nav-link @ActiveFor("/TenantPermissionOverrides")" href="/TenantPermissionOverrides/Index">
                         <svg class="edu-icon"><use href="/images/eduos-icons.svg#shield" /></svg>
-                        <span>Member Permission Exceptions</span>
+                        <span>@(currentCulture == "bn-BD" ? "সদস্যের বিশেষ অনুমতি" : "Member Permission Exceptions")</span>
                     </a>
                 }
                 @if (User?.IsInRole("TenantAdmin") == true)
@@ -133,39 +133,39 @@
                 }
                 @if (User?.IsInRole("TenantAdmin") == true)
                 {
-                    <a class="nav-link @ActiveFor("/TenantDomains")" href="/TenantDomains/Index"><span>Custom Domains</span></a>
+                    <a class="nav-link @ActiveFor("/TenantDomains")" href="/TenantDomains/Index"><span>@(currentCulture == "bn-BD" ? "নিজস্ব ডোমেইন" : "Custom Domains")</span></a>
                 }
                 @if (User?.IsInRole("TenantAdmin") == true)
                 {
                     <a class="nav-link @ActiveFor("/TenantTerminology")" href="/TenantTerminology/Index">
                         <svg class="edu-icon"><use href="/images/eduos-icons.svg#reports" /></svg>
-                        <span>Institution Terminology</span>
+                        <span>@(currentCulture == "bn-BD" ? "প্রতিষ্ঠানের পরিভাষা" : "Institution Terminology")</span>
                     </a>
                 }
                 @if (User?.IsInRole("TenantAdmin") == true)
                 {
-                    <a class="nav-link @ActiveFor("/TenantSettings")" href="/TenantSettings/Index"><span>Institution Settings</span></a>
+                    <a class="nav-link @ActiveFor("/TenantSettings")" href="/TenantSettings/Index"><span>@(currentCulture == "bn-BD" ? "প্রতিষ্ঠানের সেটিংস" : "Institution Settings")</span></a>
                 }
                 @if (User?.IsInRole("TenantAdmin") == true)
                 {
-                    <a class="nav-link @ActiveFor("/NumberSeries")" href="/NumberSeries/Index"><span>Number Series</span></a>
+                    <a class="nav-link @ActiveFor("/NumberSeries")" href="/NumberSeries/Index"><span>@(currentCulture == "bn-BD" ? "নম্বর সিরিজ" : "Number Series")</span></a>
                 }
                 @if (User?.IsInRole("TenantAdmin") == true)
                 {
-                    <a class="nav-link @ActiveFor("/TenantModules")" href="/TenantModules/Index"><span>Institution Modules</span></a>
+                    <a class="nav-link @ActiveFor("/TenantModules")" href="/TenantModules/Index"><span>@(currentCulture == "bn-BD" ? "প্রতিষ্ঠানের মডিউল" : "Institution Modules")</span></a>
                 }
                 @if (User?.IsInRole("TenantAdmin") == true)
                 {
                     <a class="nav-link @ActiveFor("/SubscriptionBilling")" href="/SubscriptionBilling/Index">
                         <svg class="edu-icon"><use href="/images/eduos-icons.svg#reports" /></svg>
-                        <span>Subscription &amp; Billing</span>
+                        <span>@(currentCulture == "bn-BD" ? "সাবস্ক্রিপশন ও বিলিং" : "Subscription & Billing")</span>
                     </a>
                 }
                 @if (User?.IsInRole("TenantAdmin") == true)
                 {
                     <a class="nav-link @ActiveFor("/IntegrationAdministration")" href="/IntegrationAdministration/Index">
                         <svg class="edu-icon"><use href="/images/eduos-icons.svg#reports" /></svg>
-                        <span>Integration Administration</span>
+                        <span>@(currentCulture == "bn-BD" ? "ইন্টিগ্রেশন পরিচালনা" : "Integration Administration")</span>
                     </a>
                 }
                 @* The Account/InstitutionProfile and Account/CampusSetup routes belong to the
@@ -178,22 +178,22 @@
                     </a>
                     <a class="nav-link @ActiveFor("/StudentDocuments")" href="/StudentDocuments/Index">
                         <svg class="edu-icon"><use href="/images/eduos-icons.svg#students" /></svg>
-                        <span>Student Documents</span>
+                        <span>@(currentCulture == "bn-BD" ? "শিক্ষার্থীর নথি" : "Student Documents")</span>
                     </a>
                     <a class="nav-link @ActiveFor("/StudentGuardians")" href="/StudentGuardians/Index">
                         <svg class="edu-icon"><use href="/images/eduos-icons.svg#users" /></svg>
-                        <span>Student Guardians</span>
+                        <span>@(currentCulture == "bn-BD" ? "শিক্ষার্থীর অভিভাবক" : "Student Guardians")</span>
                     </a>
                     <a class="nav-link @ActiveFor("/StudentTransferRequests")" href="/StudentTransferRequests/Index#destinationInbox">
                         <svg class="edu-icon"><use href="/images/eduos-icons.svg#students" /></svg>
-                        <span>Transfer Requests / Inbox</span>
+                        <span>@(currentCulture == "bn-BD" ? "স্থানান্তর আবেদন ও ইনবক্স" : "Transfer Requests / Inbox")</span>
                     </a>
                 }
                 @if (User?.IsInRole("TenantAdmin") == true)
                 {
                     <a class="nav-link @ActiveFor("/EnrollmentManagement")" href="/EnrollmentManagement/Index">
                         <svg class="edu-icon"><use href="/images/eduos-icons.svg#students" /></svg>
-                        <span>Student Enrollment</span>
+                        <span>@(currentCulture == "bn-BD" ? "শিক্ষার্থী ভর্তি" : "Student Enrollment")</span>
                     </a>
                     @foreach (var studentAction in new[] {
                         (Path: "/StudentImports/Index", En: "Student Import", Bn: "শিক্ষার্থী আমদানি"),
@@ -240,7 +240,7 @@
                 {
                     <a class="nav-link @ActiveFor("/StudentPortal")" href="/StudentPortal/Index">
                         <svg class="edu-icon"><use href="/images/eduos-icons.svg#students" /></svg>
-                        <span>Student / Guardian Portal</span>
+                        <span>@(currentCulture == "bn-BD" ? "শিক্ষার্থী ও অভিভাবক পোর্টাল" : "Student / Guardian Portal")</span>
                     </a>
                 }
                 @if (User?.IsInRole("TenantAdmin") == true || User?.IsInRole("Principal") == true ||
@@ -249,7 +249,7 @@
                 {
                     <a class="nav-link @ActiveFor("/StudentSubjects")" href="/StudentSubjects/Index">
                         <svg class="edu-icon"><use href="/images/eduos-icons.svg#book" /></svg>
-                        <span>Optional Subject Requests</span>
+                        <span>@(currentCulture == "bn-BD" ? "ঐচ্ছিক বিষয়ের আবেদন" : "Optional Subject Requests")</span>
                     </a>
                 }
                 @if (User?.IsInRole("TenantAdmin") == true || User?.IsInRole("AdmissionOfficer") == true)
@@ -289,7 +289,7 @@
                 {
                     <a class="nav-link @ActiveFor("/Alumni")" href="/Alumni/Index">
                         <svg class="edu-icon"><use href="/images/eduos-icons.svg#graduation" /></svg>
-                        <span>Alumni / প্রাক্তন শিক্ষার্থী</span>
+                        <span>@(currentCulture == "bn-BD" ? "প্রাক্তন শিক্ষার্থী" : "Alumni / প্রাক্তন শিক্ষার্থী")</span>
                     </a>
                 }
                 @if (showAlumni && User?.IsInRole("TenantAdmin") == true)
@@ -317,7 +317,7 @@
                 {
                     <a class="nav-link @ActiveFor("/LearnerIdentities")" href="/LearnerIdentities/Index">
                         <svg class="edu-icon"><use href="/images/eduos-icons.svg#students" /></svg>
-                        <span>Learner Identity Registration</span>
+                        <span>@(currentCulture == "bn-BD" ? "শিক্ষার্থীর পরিচয় নিবন্ধন" : "Learner Identity Registration")</span>
                     </a>
                     @if (User?.IsInRole("TenantAdmin") == true)
                     {
@@ -377,7 +377,7 @@
                 {
                     <a class="nav-link @ActiveFor("/AssessmentAdministration/ComponentMarks")" href="/AssessmentAdministration/ComponentMarks">
                         <svg class="edu-icon"><use href="/images/eduos-icons.svg#reports" /></svg>
-                        <span>Component Marks Register</span>
+                        <span>@(currentCulture == "bn-BD" ? "উপাদানভিত্তিক নম্বর তালিকা" : "Component Marks Register")</span>
                     </a>
                 }
                 @if (User?.IsInRole("TenantAdmin") == true || User?.IsInRole("Principal") == true ||
@@ -402,31 +402,31 @@
                     }
                     <a class="nav-link @ActiveFor("/AssessmentAdministration/SubjectCompletions")" href="/AssessmentAdministration/SubjectCompletions">
                         <svg class="edu-icon"><use href="/images/eduos-icons.svg#reports" /></svg>
-                        <span>Subject Completion Register</span>
+                        <span>@(currentCulture == "bn-BD" ? "বিষয় সম্পন্নের তালিকা" : "Subject Completion Register")</span>
                     </a>
                     <a class="nav-link @ActiveFor("/AssessmentAdministration/AssessmentComponents")" href="/AssessmentAdministration/AssessmentComponents">
                         <svg class="edu-icon"><use href="/images/eduos-icons.svg#reports" /></svg>
-                        <span>Assessment Components</span>
+                        <span>@(currentCulture == "bn-BD" ? "মূল্যায়নের উপাদান" : "Assessment Components")</span>
                     </a>
                     <a class="nav-link @ActiveFor("/AssessmentAdministration/AssessmentSchedules")" href="/AssessmentAdministration/AssessmentSchedules">
                         <svg class="edu-icon"><use href="/images/eduos-icons.svg#calendar" /></svg>
-                        <span>Assessment Schedules</span>
+                        <span>@(currentCulture == "bn-BD" ? "মূল্যায়নের সময়সূচি" : "Assessment Schedules")</span>
                     </a>
                     <a class="nav-link @ActiveFor("/AssessmentAdministration/GradeSchemes")" href="/AssessmentAdministration/GradeSchemes">
                         <svg class="edu-icon"><use href="/images/eduos-icons.svg#reports" /></svg>
-                        <span>Grade Schemes</span>
+                        <span>@(currentCulture == "bn-BD" ? "গ্রেডিং নিয়ম" : "Grade Schemes")</span>
                     </a>
                     <a class="nav-link @ActiveFor("/AssessmentAdministration/CertificateTemplates")" href="/AssessmentAdministration/CertificateTemplates">
                         <svg class="edu-icon"><use href="/images/eduos-icons.svg#reports" /></svg>
-                        <span>Certificate Templates</span>
+                        <span>@(currentCulture == "bn-BD" ? "সনদের টেমপ্লেট" : "Certificate Templates")</span>
                     </a>
                     <a class="nav-link @ActiveFor("/AssessmentAdministration/Certificates")" href="/AssessmentAdministration/Certificates">
                         <svg class="edu-icon"><use href="/images/eduos-icons.svg#reports" /></svg>
-                        <span>Certificate Issue Register</span>
+                        <span>@(currentCulture == "bn-BD" ? "সনদ ইস্যুর তালিকা" : "Certificate Issue Register")</span>
                     </a>
                     <a class="nav-link @ActiveFor("/AssessmentAdministration/Transcripts")" href="/AssessmentAdministration/Transcripts">
                         <svg class="edu-icon"><use href="/images/eduos-icons.svg#reports" /></svg>
-                        <span>Transcript Issue Register</span>
+                        <span>@(currentCulture == "bn-BD" ? "ট্রান্সক্রিপ্ট ইস্যুর তালিকা" : "Transcript Issue Register")</span>
                     </a>
                 }
                 @if (User?.IsInRole("TenantAdmin") == true || User?.IsInRole("Principal") == true ||
@@ -434,20 +434,20 @@
                 {
                     <a class="nav-link @ActiveFor("/AcademicRoutines")" href="/AcademicRoutines/Index">
                         <svg class="edu-icon"><use href="/images/eduos-icons.svg#calendar" /></svg>
-                        <span>Class Routines</span>
+                        <span>@(currentCulture == "bn-BD" ? "ক্লাস রুটিন" : "Class Routines")</span>
                     </a>
                     <a class="nav-link @ActiveFor("/AcademicInstruction")" href="/AcademicInstruction/Index">
                         <svg class="edu-icon"><use href="/images/eduos-icons.svg#book" /></svg>
-                        <span>Lesson Plans &amp; Substitutions</span>
+                        <span>@(currentCulture == "bn-BD" ? "পাঠ পরিকল্পনা ও বিকল্প ক্লাস" : "Lesson Plans & Substitutions")</span>
                     </a>
                     <a class="nav-link @ActiveFor("/AcademicCalendar")" href="/AcademicCalendar/Index">
                         <svg class="edu-icon"><use href="/images/eduos-icons.svg#calendar" /></svg>
-                        <span>Academic Calendar</span>
+                        <span>@(currentCulture == "bn-BD" ? "শিক্ষাপঞ্জি" : "Academic Calendar")</span>
                     </a>
                     @if (User?.IsInRole("TenantAdmin") == true)
                     {
                         <a class="nav-link @ActiveFor("/StudentLeaves")" href="/StudentLeaves/Index">
-                            <span>Student Leave Management</span>
+                            <span>@(currentCulture == "bn-BD" ? "শিক্ষার্থীর ছুটি ব্যবস্থাপনা" : "Student Leave Management")</span>
                         </a>
                     }
                     <a class="nav-link @ActiveFor("/Attendance/Register")" href="/Attendance/Register">
@@ -510,7 +510,7 @@
                 {
                     <a class="nav-link @ActiveFor("/PayrollOperations")" href="/PayrollOperations/Index">
                         <svg class="edu-icon"><use href="/images/eduos-icons.svg#reports" /></svg>
-                        <span>Payroll</span>
+                        <span>@(currentCulture == "bn-BD" ? "বেতন ব্যবস্থাপনা" : "Payroll")</span>
                     </a>
                 }
                 @if (User?.IsInRole("TenantAdmin") == true)
@@ -580,12 +580,12 @@
                         <a class="nav-link @ActiveFor("/FeeDiscountRules")" href="/FeeDiscountRules/Index">Discount Rules</a>
                         <a class="nav-link @ActiveFor("/AdmissionCashReceipts")" href="/AdmissionCashReceipts/Index">
                             <svg class="edu-icon"><use href="/images/eduos-icons.svg#reports" /></svg>
-                            <span>Admission Cash Receipts</span>
+                            <span>@(currentCulture == "bn-BD" ? "ভর্তির নগদ রসিদ" : "Admission Cash Receipts")</span>
                         </a>
                     }
                     <a class="nav-link @ActiveFor("/FeeReceivablesAging")" href="/FeeReceivablesAging/Index">
                         <svg class="edu-icon"><use href="/images/eduos-icons.svg#reports" /></svg>
-                        <span>Fee Receivables Aging</span>
+                        <span>@(currentCulture == "bn-BD" ? "ফি বকেয়ার মেয়াদভিত্তিক প্রতিবেদন" : "Fee Receivables Aging")</span>
                     </a>
                     @if (User?.IsInRole("TenantAdmin") == true)
                     {
@@ -608,19 +608,19 @@
                     }
                     <a class="nav-link @ActiveFor("/FeeHeadAccounting")" href="/FeeHeadAccounting/Index">
                         <svg class="edu-icon"><use href="/images/eduos-icons.svg#reports" /></svg>
-                        <span>Fee Heads &amp; GL Mapping</span>
+                        <span>@(currentCulture == "bn-BD" ? "ফি খাত ও জিএল ম্যাপিং" : "Fee Heads & GL Mapping")</span>
                     </a>
                     <a class="nav-link @ActiveFor("/AccountingSetup")" href="/AccountingSetup/Index">
                         <svg class="edu-icon"><use href="/images/eduos-icons.svg#reports" /></svg>
-                        <span>Institution COA &amp; Periods</span>
+                        <span>@(currentCulture == "bn-BD" ? "প্রতিষ্ঠানের হিসাব খাত ও সময়কাল" : "Institution COA & Periods")</span>
                     </a>
                     <a class="nav-link @ActiveFor("/AccountingJournals")" href="/AccountingJournals/Index">
                         <svg class="edu-icon"><use href="/images/eduos-icons.svg#reports" /></svg>
-                        <span>Journal Posting &amp; Reversal</span>
+                        <span>@(currentCulture == "bn-BD" ? "জার্নাল পোস্টিং ও প্রত্যাবর্তন" : "Journal Posting & Reversal")</span>
                     </a>
                     <a class="nav-link @ActiveFor("/AccountingReports")" href="/AccountingReports/Index">
                         <svg class="edu-icon"><use href="/images/eduos-icons.svg#reports" /></svg>
-                        <span>General Ledger &amp; Trial Balance</span>
+                        <span>@(currentCulture == "bn-BD" ? "জেনারেল লেজার ও ট্রায়াল ব্যালেন্স" : "General Ledger & Trial Balance")</span>
                     </a>
                 }
                 @if (showInventory && (User?.IsInRole("TenantAdmin") == true || User?.IsInRole("Principal") == true ||
@@ -629,7 +629,7 @@
                 {
                     <a class="nav-link @ActiveFor("/InventoryCatalog")" href="/InventoryCatalog/Index">
                         <svg class="edu-icon"><use href="/images/eduos-icons.svg#reports" /></svg>
-                        <span>Inventory Catalog</span>
+                        <span>@(currentCulture == "bn-BD" ? "ইনভেন্টরি ক্যাটালগ" : "Inventory Catalog")</span>
                     </a>
                     @foreach (var inventoryTask in new[] {
                         (Action: "Transactions", En: "Stock Issues & Transfers", Bn: "স্টক ইস্যু ও স্থানান্তর"),
@@ -649,7 +649,7 @@
                     }
                     <a class="nav-link @ActiveFor("/AssetLifecycle")" href="/AssetLifecycle/Index">
                         <svg class="edu-icon"><use href="/images/eduos-icons.svg#reports" /></svg>
-                        <span>Fixed Assets &amp; Maintenance</span>
+                        <span>@(currentCulture == "bn-BD" ? "স্থায়ী সম্পদ ও রক্ষণাবেক্ষণ" : "Fixed Assets & Maintenance")</span>
                     </a>
                 }
                 @if (showFacilities && (User?.IsInRole("TenantAdmin") == true || User?.IsInRole("Principal") == true ||
@@ -741,36 +741,36 @@
                     }
                     <a class="nav-link @ActiveFor("/AuditLogs")" href="/AuditLogs/Index">
                         <svg class="edu-icon"><use href="/images/eduos-icons.svg#shield" /></svg>
-                        <span>Audit Logs</span>
+                        <span>@(currentCulture == "bn-BD" ? "নিরীক্ষার লগ" : "Audit Logs")</span>
                     </a>
                     <a class="nav-link @ActiveFor("/ImportHistory")" href="/ImportHistory/Index">
                         <svg class="edu-icon"><use href="/images/eduos-icons.svg#reports" /></svg>
-                        <span>Import History</span>
+                        <span>@(currentCulture == "bn-BD" ? "আমদানির ইতিহাস" : "Import History")</span>
                     </a>
                 }
                 <a class="nav-link @ActiveFor("/CommunicationWorkspace")" href="/CommunicationWorkspace/Index">
                     <svg class="edu-icon"><use href="/images/eduos-icons.svg#reports" /></svg>
-                    <span>Notices &amp; Notifications</span>
+                    <span>@(currentCulture == "bn-BD" ? "নোটিশ ও বিজ্ঞপ্তি" : "Notices & Notifications")</span>
                 </a>
                 @if (User?.IsInRole("TenantAdmin") == true)
                 {
                     <a class="nav-link @ActiveFor("/CommunicationAdministration")" href="/CommunicationAdministration/Index">
                         <svg class="edu-icon"><use href="/images/eduos-icons.svg#reports" /></svg>
-                        <span>Communication Administration</span>
+                        <span>@(currentCulture == "bn-BD" ? "যোগাযোগ ব্যবস্থাপনা" : "Communication Administration")</span>
                     </a>
                 }
                 @if (User?.IsInRole("TenantAdmin") == true)
                 {
                     <a class="nav-link @ActiveFor("/CustomFields")" href="/CustomFields/Index">
                         <svg class="edu-icon"><use href="/images/eduos-icons.svg#reports" /></svg>
-                        <span>Institution Custom Fields</span>
+                        <span>@(currentCulture == "bn-BD" ? "প্রতিষ্ঠানের কাস্টম ফিল্ড" : "Institution Custom Fields")</span>
                     </a>
                 }
                 @if (User?.IsInRole("TenantAdmin") == true)
                 {
                     <a class="nav-link @ActiveFor("/DocumentAdministration")" href="/DocumentAdministration/Index">
                         <svg class="edu-icon"><use href="/images/eduos-icons.svg#reports" /></svg>
-                        <span>Document Administration</span>
+                        <span>@(currentCulture == "bn-BD" ? "নথি ব্যবস্থাপনা" : "Document Administration")</span>
                     </a>
                 }
                 @if (showLibrary)
@@ -812,7 +812,7 @@
                 {
                     <a class="nav-link @ActiveFor("/EmployeePortal")" href="/EmployeePortal/Index">
                         <svg class="edu-icon"><use href="/images/eduos-icons.svg#users" /></svg>
-                        <span>Employee self-service</span>
+                        <span>@(currentCulture == "bn-BD" ? "কর্মীর স্বসেবা" : "Employee self-service")</span>
                     </a>
                 }
 

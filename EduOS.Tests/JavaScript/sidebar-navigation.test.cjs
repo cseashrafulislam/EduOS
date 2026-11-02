@@ -145,3 +145,20 @@ test('server-rendered static sidebar anchors have no duplicate destinations', ()
     assert.equal(new Set(links).size, links.length,
         'duplicate static sidebar routes need explicit review');
 });
+
+test('Razor localizes all static sidebar leaf labels before client enhancement', () => {
+    const sidebar = layout.slice(layout.indexOf('<aside class="sidebar"'), layout.indexOf('</aside>'));
+    const literalEnglish = [...sidebar.matchAll(/<span>([A-Za-z][^<@]*)<\/span>/g)]
+        .map(match => match[1].trim()).filter(Boolean);
+    assert.deepEqual(literalEnglish, [], 'untranslated static sidebar labels must not depend on JavaScript');
+    const bilingualLeaves = [...sidebar.matchAll(/<span>@\(currentCulture == "bn-BD" \? "[^"]+" : "[^"]+"\)<\/span>/g)];
+    assert.ok(bilingualLeaves.length >= 50, 'bilingual static leaf coverage unexpectedly decreased');
+    assert.match(sidebar, /<div class="menu-title">@\(currentCulture == "bn-BD" \? "প্ল্যাটফর্ম প্রশাসন" : "Platform Administration"\)<\/div>/);
+    for (const path of ['/PlatformTenants/Index', '/TenantUsers/Index',
+        '/FeeReceivablesAging/Index', '/AccountingJournals/Index',
+        '/AssessmentAdministration/Certificates', '/AssetLifecycle/Index']) {
+        assert.ok(sidebar.includes('href="' + path + '"'), path + ' must remain server-rendered');
+    }
+    assert.match(layout, /OptionalModuleNavigation\.GetAvailableAsync/);
+    assert.match(layout, /V2RolePortalNavigation\.GetLinks/);
+});
