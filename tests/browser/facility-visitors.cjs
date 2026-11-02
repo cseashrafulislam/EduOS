@@ -56,7 +56,10 @@ async function run(browser, bn, manager, mobile) {
         assert.match(await page.locator('#fvRows article').first().innerText(), /Guest <img/);
         assert.equal(await page.locator('#fvCreate').count(), manager ? 1 : 0);
         if (!manager) {
+            const hostPost = page.waitForResponse(response => response.request().method() === 'POST' &&
+                new URL(response.url()).pathname.endsWith('/hostapprove'));
             await page.locator('#fvRows button').filter({ hasText: bn ? 'অনুমোদন' : 'Approve' }).click();
+            await hostPost;
             assert.ok(calls.some(c => c.url.endsWith('/hostapprove') && c.method === 'POST' &&
                 c.token === 'visitor-csrf' && c.body.clientCommandId));
         } else {
@@ -68,7 +71,10 @@ async function run(browser, bn, manager, mobile) {
             await page.locator('#fvPurpose').fill('Campus meeting');
             await page.locator('#fvStart').fill('2030-11-02T10:00');
             await page.locator('#fvEnd').fill('2030-11-02T11:00');
+            const createPost = page.waitForResponse(response => response.request().method() === 'POST' &&
+                new URL(response.url()).pathname === '/api/facilities/visitors');
             await page.locator('#fvCreate button[type="submit"]').click();
+            await createPost;
             assert.ok(calls.some(c => c.url === '/api/facilities/visitors' && c.method === 'POST' &&
                 c.token === 'visitor-csrf' && c.body.visitorName === 'Visitor Demo'));
         }
