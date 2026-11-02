@@ -201,7 +201,7 @@ public sealed class FacilityWorkflowService(
                      (role.TenantId == null && !role.IsSystemRole &&
                       !db.TenantMemberships.IgnoreQueryFilters().Any(other =>
                           other.UserId == candidate.Id && other.TenantId != user.TenantId &&
-                          !other.IsDeleted && other.Status == MembershipStatus.Active))))));
+                          !other.IsDeleted && other.Status != MembershipStatus.Left))))));
         if (hasWindow)
         {
             var start = startUtc!.Value;
@@ -545,9 +545,9 @@ public sealed class FacilityWorkflowService(
                 if (!eligible) return Denied<FacilityRequestDto>();
                 // Campus access and membership alone cannot authorize an assignment.
                 // Match the tenant role resolver's scoped and single-institution rules.
-                var activeInstitutions = await db.TenantMemberships.IgnoreQueryFilters().AsNoTracking()
+                var nonLeftInstitutions = await db.TenantMemberships.IgnoreQueryFilters().AsNoTracking()
                     .Where(x => x.UserId == tech && !x.IsDeleted &&
-                        x.Status == MembershipStatus.Active)
+                        x.Status != MembershipStatus.Left)
                     .Select(x => x.TenantId).Distinct().Take(2).CountAsync(ct);
                 var hasTechnicianRole = await (
                     from assignment in db.UserRoles.AsNoTracking()
@@ -556,7 +556,7 @@ public sealed class FacilityWorkflowService(
                     where assignment.UserId == tech && role.IsActive && !role.IsDeleted &&
                         role.NormalizedName == "FACILITIESTECHNICIAN" &&
                         (role.TenantId == user.TenantId ||
-                         (activeInstitutions == 1 && role.TenantId == null && !role.IsSystemRole))
+                         (nonLeftInstitutions == 1 && role.TenantId == null && !role.IsSystemRole))
                     select role.Id).AnyAsync(ct);
                 if (!hasTechnicianRole) return Denied<FacilityRequestDto>();
                 if (scheduleTransaction != null)

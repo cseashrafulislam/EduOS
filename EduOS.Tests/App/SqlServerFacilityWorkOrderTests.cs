@@ -26,14 +26,14 @@ public sealed class SqlServerFacilityWorkOrderTests
         var options = new DbContextOptionsBuilder<EduOSDbContext>().UseSqlServer(connection).Options;
         var suffix = Guid.NewGuid().ToString("N")[..10];
         long tenantId, otherTenantId, campusId, spaceId;
-        long requesterId, managerId, approverId, techId;
+        long requesterId, managerId, approverId, techId, globalTechId;
         await using (var setup = new EduOSDbContext(options))
         {
             var tenant = new Tenant { Code = "CI-FW-" + suffix, Name = "Facilities CI",
                 Email = "facility-" + suffix + "@example.test", State = TenantState.Active };
             var other = new Tenant { Code = "CI-FX-" + suffix, Name = "Other Facilities CI",
                 Email = "other-facility-" + suffix + "@example.test", State = TenantState.Active };
-            var users = Enumerable.Range(1, 4).Select(i =>
+            var users = Enumerable.Range(1, 5).Select(i =>
             {
                 var email = "facility-" + i + "-" + suffix + "@example.test";
                 return new ApplicationUser { UserName = email, NormalizedUserName = email.ToUpperInvariant(),
@@ -47,6 +47,7 @@ public sealed class SqlServerFacilityWorkOrderTests
             tenantId = tenant.Id; otherTenantId = other.Id;
             requesterId = users[0].Id; managerId = users[1].Id;
             approverId = users[2].Id; techId = users[3].Id;
+            globalTechId = users[4].Id;
             setup.ChangeTracker.Clear();
             using (setup.BeginSystemTenantScope(tenantId))
             {
@@ -66,7 +67,7 @@ public sealed class SqlServerFacilityWorkOrderTests
                 setup.FacilitySpaces.Add(new FacilitySpace { TenantId = tenantId,
                     CampusId = ungrantedCampus.Id, Code = "SECRET",
                     Name = "Restricted Storage" });
-                foreach (var id in new[] { requesterId, managerId, approverId, techId })
+                foreach (var id in new[] { requesterId, managerId, approverId, techId, globalTechId })
                     setup.UserCampusAccesses.Add(new UserCampusAccess
                     { TenantId = tenantId, CampusId = campusId, UserId = id, IsActive = true });
                 // A campus-granted active member without the technician role must
@@ -75,18 +76,36 @@ public sealed class SqlServerFacilityWorkOrderTests
                     new TenantMembership
                     { TenantId = tenantId, UserId = techId, Status = MembershipStatus.Active },
                     new TenantMembership
-                    { TenantId = tenantId, UserId = managerId, Status = MembershipStatus.Active });
+                    { TenantId = tenantId, UserId = managerId, Status = MembershipStatus.Active },
+                    new TenantMembership
+                    { TenantId = tenantId, UserId = globalTechId, Status = MembershipStatus.Active });
                 var technicianRole = new ApplicationRole
                 {
                     TenantId = tenantId, Name = "FacilitiesTechnician",
                     NormalizedName = "FACILITIESTECHNICIAN", IsActive = true
                 };
-                setup.Roles.Add(technicianRole);
+                var globalTechnicianRole = new ApplicationRole
+                {
+                    TenantId = null, Name = "FacilitiesTechnician",
+                    NormalizedName = "FACILITIESTECHNICIAN", IsActive = true, IsSystemRole = false
+                };
+                setup.Roles.AddRange(technicianRole, globalTechnicianRole);
                 await setup.SaveChangesAsync();
                 setup.UserRoles.Add(new IdentityUserRole<long>
                 { UserId = techId, RoleId = technicianRole.Id });
+                setup.UserRoles.Add(new IdentityUserRole<long>
+                { UserId = globalTechId, RoleId = globalTechnicianRole.Id });
                 await setup.SaveChangesAsync();
                 spaceId = space.Id;
+            }
+            // A second Suspended membership still makes a global legacy role ambiguous.
+            setup.ChangeTracker.Clear();
+            using (setup.BeginSystemTenantScope(otherTenantId))
+            {
+                setup.TenantMemberships.Add(new TenantMembership
+                { TenantId = otherTenantId, UserId = globalTechId,
+                    Status = MembershipStatus.Suspended });
+                await setup.SaveChangesAsync();
             }
         }
         // Requesters can discover only their authorized active campus spaces,
@@ -122,6 +141,7 @@ public sealed class SqlServerFacilityWorkOrderTests
             Assert.True(eligible.Success, eligible.Message);
             Assert.Single(eligible.Data!.Items);
             Assert.Equal(techId, eligible.Data.Items[0].UserId);
+            Assert.DoesNotContain(eligible.Data.Items, x => x.UserId == globalTechId);
             Assert.Equal("Facilities Test", eligible.Data.Items[0].DisplayName);
             Assert.Single((await service.TechniciansAsync(campusId, "Facilities", 1, 25)).Data!.Items);
             Assert.Empty((await service.TechniciansAsync(campusId, "Unknown", 1, 25)).Data!.Items);
@@ -138,6 +158,29 @@ public sealed class SqlServerFacilityWorkOrderTests
         {
             Assert.Equal(403, (await Service(db, otherTenantId, managerId, "FacilitiesManager")
                 .TechniciansAsync(campusId, null, 1, 25)).StatusCode);
+        }
+        // A departed second-tenant membership restores global-role eligibility;
+        // returning it to Suspended must revoke that eligibility again.
+        await using (var db = Db(options, otherTenantId, globalTechId, "TenantAdmin"))
+        {
+            var membership = await db.TenantMemberships.SingleAsync(x =>
+                x.TenantId == otherTenantId && x.UserId == globalTechId);
+            membership.Status = MembershipStatus.Left;
+            await db.SaveChangesAsync();
+        }
+        await using (var db = Db(options, tenantId, managerId, "FacilitiesManager"))
+        {
+            var eligible = await Service(db, tenantId, managerId, "FacilitiesManager")
+                .TechniciansAsync(campusId, null, 1, 25);
+            Assert.Contains(eligible.Data!.Items, x => x.UserId == globalTechId);
+            Assert.Contains(eligible.Data.Items, x => x.UserId == techId);
+        }
+        await using (var db = Db(options, otherTenantId, globalTechId, "TenantAdmin"))
+        {
+            var membership = await db.TenantMemberships.SingleAsync(x =>
+                x.TenantId == otherTenantId && x.UserId == globalTechId);
+            membership.Status = MembershipStatus.Suspended;
+            await db.SaveChangesAsync();
         }
         // Same-campus membership must not expose a different requester's details.
         long privateRequestId;
@@ -233,6 +276,24 @@ public sealed class SqlServerFacilityWorkOrderTests
             var stale = await service.TransitionAsync(submitted.Id, "approve", new FacilityTransitionDto
             { ClientCommandId = Guid.NewGuid(), RowVersion = triaged.RowVersion });
             Assert.Equal(409, stale.StatusCode);
+        }
+        // A global legacy role cannot bypass canonical tenant-role resolution when
+        // another non-Left institution membership is Suspended.
+        await using (var db = Db(options, tenantId, managerId, "FacilitiesManager"))
+        {
+            var service = Service(db, tenantId, managerId, "FacilitiesManager");
+            var rejected = await service.TransitionAsync(submitted.Id, "schedule",
+                new FacilityTransitionDto
+                {
+                    ClientCommandId = Guid.NewGuid(), RowVersion = approved.WorkOrderRowVersion!,
+                    TechnicianUserId = globalTechId, ScheduledStartUtc = DateTime.UtcNow.AddMinutes(15),
+                    ScheduledEndUtc = DateTime.UtcNow.AddHours(2)
+                });
+            Assert.Equal(403, rejected.StatusCode);
+            Assert.DoesNotContain((await service.HistoryAsync(submitted.Id, 1, 25)).Data!.Items,
+                x => x.ActionCode == "schedule");
+            Assert.Equal("Approved", (await service.ListAsync(campusId, null, 1, 25))
+                .Data!.Items.Single(x => x.Id == submitted.Id).WorkOrderState);
         }
         // A campus member without the technician role cannot receive a work order.
         // Denial leaves both order state and immutable history unchanged.
