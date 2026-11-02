@@ -65,7 +65,8 @@ async function verify(browser,lang){
     return route.fulfill({status:403,contentType:'application/json',body:'{"success":false,"message":"PRIVATE-SERVER-ERROR"}'});
    return route.fulfill({contentType:'application/json',body:JSON.stringify(aging(url))});
   }
-  if(url.pathname.endsWith('/reconciliation')){
+  if(url.pathname==='/api/finance/receivables-aging/reconciliation' ||
+     url.pathname==='/api/finance/receivables-aging/payment-reconciliation'){
    const payment=url.pathname.endsWith('/payment-reconciliation');
    return route.fulfill({contentType:'application/json',body:JSON.stringify(recon(url,payment))});
   }
