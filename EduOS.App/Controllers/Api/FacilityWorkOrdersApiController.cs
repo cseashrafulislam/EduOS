@@ -62,35 +62,10 @@ public sealed class FacilityWorkOrdersApiController(IFacilityWorkflowService ser
     public async Task<IActionResult> Export(long? campusId, string? state, bool overdueOnly = false,
         CancellationToken ct = default)
     {
-        var first = await service.ListAsync(campusId, state, 1, 100, ct, overdueOnly);
-        if (!first.Success || first.Data == null) return Reply(first);
+        var snapshot = await service.ExportSnapshotAsync(campusId, state, overdueOnly, ct);
+        if (!snapshot.Success || snapshot.Data == null) return Reply(snapshot);
         var bangla = CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "bn";
-        if (first.Data.TotalCount > 500)
-            return StatusCode(413, new { message = bangla
-                ? "সর্বোচ্চ ৫০০টি সারির মধ্যে আনতে ফিল্টার সংকুচিত করুন।"
-                : "Narrow filters to at most 500 rows." });
-        // Offset paging can change during a concurrent edit. Fail closed on
-        // observable count/identity drift instead of exporting duplicate or
-        // silently incomplete maintenance records as an authoritative report.
-        var expectedCount = first.Data.TotalCount;
-        var rows = new List<FacilityRequestDto>(first.Data.Items);
-        var seen = new HashSet<long>();
-        var inconsistent = first.Data.Page != 1 || first.Data.PageSize != 100 ||
-            rows.Count > expectedCount || rows.Any(x => !seen.Add(x.Id));
-        for (var page = 2; !inconsistent && page <= first.Data.TotalPages; page++)
-        {
-            var next = await service.ListAsync(campusId, state, page, 100, ct, overdueOnly);
-            if (!next.Success || next.Data == null) return Reply(next);
-            inconsistent = next.Data.TotalCount != expectedCount ||
-                next.Data.Page != page || next.Data.PageSize != 100 ||
-                rows.Count + next.Data.Items.Count > 500 ||
-                next.Data.Items.Any(x => !seen.Add(x.Id));
-            if (!inconsistent) rows.AddRange(next.Data.Items);
-        }
-        if (inconsistent || rows.Count != expectedCount)
-            return StatusCode(409, new { message = bangla
-                ? "রিপোর্ট তৈরির সময় তথ্য পরিবর্তিত হয়েছে। আবার চেষ্টা করুন।"
-                : "Records changed during export; retry." });
+        var rows = snapshot.Data;
         static string Csv(object? value)
         {
             var s = Convert.ToString(value, System.Globalization.CultureInfo.InvariantCulture) ?? "";

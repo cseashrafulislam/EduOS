@@ -759,3 +759,8 @@ The current role/entitlement-gated Razor shell renders **54 previously English-o
 ### 9.59. Career/Facilities navigation discoverability and controller-route inventory (2026-11-02)
 
 Existing ALUMNI-entitled Career Employers/Opportunities/Placements appear in one **Career & Placement / ক্যারিয়ার ও কর্মসংস্থান** task group (Employer Verification in Settings; Opportunities and Placement Decisions in Operations). Existing FACILITIES-entitled Facility Spaces and Work Orders appear under **Campus Operations / ক্যাম্পাস পরিচালনা** (Spaces in Settings; Work Orders in Operations). Client grouping only reorganizes links already emitted by role/entitlement-gated Razor; it does not add routes or grant access. A Node test audits literal sidebar hrefs, Path tuples and V2 role-portal destinations against controller methods/attribute routes; synthetic en-BD desktop/bn-BD mobile Chromium tests verify the resulting task groups without duplicate or new privileged links. This inventory is not exhaustive for runtime-generated routes and does not establish authenticated SQL-backed role/campus/tenant access acceptance or institutional UAT.
+
+
+### Facilities CSV read snapshot and bilingual recovery
+
+The existing `/FacilityWorkOrders/Index` CSV action uses the same en-BD/bn-BD headings and spreadsheet formula escaping, but its server now takes a single transaction-consistent, authorized snapshot (maximum 500 records). On 409, reload/retry after concurrent edits; on 413, narrow campus, state or overdue filters. A 403 must not return any CSV bytes. The shared contextual Help Drawer and navigation remain unchanged, with no duplicate module. The endpoint is read-only and does not post Inventory or Finance.

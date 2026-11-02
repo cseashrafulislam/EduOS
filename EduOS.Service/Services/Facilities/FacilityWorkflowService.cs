@@ -503,6 +503,51 @@ public sealed class FacilityWorkflowService(
         });
     }
 
+
+    /// <summary>
+    /// Capture a bounded, tenant/campus-authorized export under one SQL
+    /// SERIALIZABLE transaction. Never interleave independently committed pages.
+    /// </summary>
+    public async Task<ApiResponse<IReadOnlyList<FacilityRequestDto>>> ExportSnapshotAsync(
+        long? campusId, string? state, bool overdueOnly, CancellationToken ct = default)
+    {
+        if (!ValidTenant || !Reader) return Denied<IReadOnlyList<FacilityRequestDto>>();
+        if (campusId is <= 0 || state?.Length > 30)
+            return ApiResponse<IReadOnlyList<FacilityRequestDto>>.ErrorResponse("Invalid export filter.", 400);
+        await using var tx = db.Database.IsRelational()
+            ? await db.Database.BeginTransactionAsync(System.Data.IsolationLevel.Serializable, ct)
+            : null;
+        var first = await ListAsync(campusId, state, 1, 100, ct, overdueOnly);
+        if (!first.Success || first.Data == null)
+            return ApiResponse<IReadOnlyList<FacilityRequestDto>>.ErrorResponse(
+                first.Message ?? "Export denied.", first.StatusCode);
+        if (first.Data.TotalCount > 500)
+            return ApiResponse<IReadOnlyList<FacilityRequestDto>>.ErrorResponse(
+                "Narrow filters to at most 500 rows.", 413);
+        var expected = first.Data.TotalCount;
+        var rows = new List<FacilityRequestDto>(first.Data.Items);
+        var seen = new HashSet<long>();
+        var changed = first.Data.Page != 1 || first.Data.PageSize != 100 ||
+            rows.Count > expected || rows.Any(x => !seen.Add(x.Id));
+        for (var page = 2; !changed && page <= first.Data.TotalPages; page++)
+        {
+            var next = await ListAsync(campusId, state, page, 100, ct, overdueOnly);
+            if (!next.Success || next.Data == null)
+                return ApiResponse<IReadOnlyList<FacilityRequestDto>>.ErrorResponse(
+                    next.Message ?? "Export denied.", next.StatusCode);
+            changed = next.Data.TotalCount != expected ||
+                next.Data.Page != page || next.Data.PageSize != 100 ||
+                rows.Count + next.Data.Items.Count > 500 ||
+                next.Data.Items.Any(x => !seen.Add(x.Id));
+            if (!changed) rows.AddRange(next.Data.Items);
+        }
+        if (changed || rows.Count != expected)
+            return ApiResponse<IReadOnlyList<FacilityRequestDto>>.ErrorResponse(
+                "Records changed during export; retry.", 409);
+        if (tx != null) await tx.CommitAsync(ct);
+        return ApiResponse<IReadOnlyList<FacilityRequestDto>>.SuccessResponse(rows);
+    }
+
     public async Task<ApiResponse<FacilityDashboardDto>> DashboardAsync(
         long? campusId, CancellationToken ct = default)
     {

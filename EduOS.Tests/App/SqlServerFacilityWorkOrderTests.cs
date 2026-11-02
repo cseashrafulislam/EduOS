@@ -233,11 +233,20 @@ public sealed class SqlServerFacilityWorkOrderTests
                 });
             Assert.True(created.Success, created.Message);
             privateRequestId = created.Data!.Id;
+            var snapshot = await Service(db, tenantId, managerId, "FacilitiesManager")
+                .ExportSnapshotAsync(campusId, null, false);
+            Assert.True(snapshot.Success, snapshot.Message);
+            Assert.Contains(snapshot.Data!, row => row.Id == privateRequestId);
+            Assert.Equal(403, (await Service(db, tenantId, managerId, "FacilitiesManager")
+                .ExportSnapshotAsync(campusId + 999999999L, null, false)).StatusCode);
         }
         await using (var db = Db(options, tenantId, requesterId, "FacilitiesRequester"))
         {
             var service = Service(db, tenantId, requesterId, "FacilitiesRequester");
             Assert.Empty((await service.ListAsync(null, null, 1, 25)).Data!.Items);
+            var snapshot = await service.ExportSnapshotAsync(null, null, false);
+            Assert.True(snapshot.Success, snapshot.Message);
+            Assert.DoesNotContain(snapshot.Data!, row => row.Id == privateRequestId);
             Assert.Equal(404, (await service.HistoryAsync(privateRequestId, 1, 25)).StatusCode);
             Assert.Equal(0, (await service.DashboardAsync(null)).Data!.TotalRequests);
         }
