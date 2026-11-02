@@ -28,7 +28,7 @@ public sealed class ProcurementCsvExportIntegrityTests
     {
         var duplicate = new Mock<IInventoryMovementService>();
         duplicate.Setup(x => x.GetGoodsReceiptsAsync(null, null, 1, 100, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(Ok(1, 101, Enumerable.Range(1, 100).Select(Receipt).ToArray()));
+            .ReturnsAsync(Ok(1, 101, Enumerable.Range(1, 100).Select(i => Receipt(i)).ToArray()));
         duplicate.Setup(x => x.GetGoodsReceiptsAsync(null, null, 2, 100, It.IsAny<CancellationToken>()))
             .ReturnsAsync(Ok(2, 101, Receipt(100)));
         var a = Assert.IsType<ObjectResult>(
