@@ -23,18 +23,32 @@ function lanes(config) {
     const common = 'from=' + encodeURIComponent(config.from) +
         '&to=' + encodeURIComponent(config.to) + '&page=1&pageSize=25';
     const base = config.base + '/api/v3/enterprise/ledger-trace/';
+    // Reuse canonical source URLs; no inferred stock or Finance linkage.
+    const sources = [
+        { kind: 'stock', route: '', reference: config.refs[0] },
+        { kind: 'asset', route: 'asset-depreciation/', reference: config.refs[1] },
+        { kind: 'procurement', route: 'procurement/', reference: config.refs[2] }
+    ];
+    const scoped = sources.flatMap(source => [
+        { name: 'owner-' + source.kind + '-detail', session: 'owner-label',
+            url: base + source.route + source.reference, statuses: [200],
+            ownerReference: source.reference },
+        { name: 'foreign-owner-' + source.kind + '-denial', session: 'foreign-label',
+            url: base + source.route + source.reference, statuses: [403, 404],
+            deniedOwner: true },
+        { name: 'restricted-owner-' + source.kind + '-denial', session: 'restricted-label',
+            url: base + source.route + source.reference, statuses: [403, 404],
+            deniedOwner: true }
+    ]);
     return [
-        { name: 'owner-stock-detail', session: 'owner-label',
-            url: base + config.refs[0], statuses: [200], ownerReference: config.refs[0] },
+        ...scoped,
         { name: 'owner-campus-asset-register', session: 'owner-label',
-            url: base + 'register?kind=asset&' + common + '&campusId=' + config.campus,
+            url: base + 'register?kind=asset&' + common + '&campusId=' +
+                encodeURIComponent(config.campus),
             statuses: [200] },
         { name: 'foreign-own-stock-register', session: 'foreign-label',
-            url: base + 'register?kind=stock&' + common, statuses: [200], deniedOwner: true },
-        { name: 'foreign-owner-detail-denial', session: 'foreign-label',
-            url: base + config.refs[0], statuses: [403, 404], deniedOwner: true },
-        { name: 'restricted-owner-detail-denial', session: 'restricted-label',
-            url: base + config.refs[0], statuses: [403, 404], deniedOwner: true }
+            url: base + 'register?kind=stock&' + common,
+            statuses: [200], deniedOwner: true }
     ];
 }
 async function runSyntheticReadLoad(config, fetcher, options = {}) {
@@ -42,17 +56,19 @@ async function runSyntheticReadLoad(config, fetcher, options = {}) {
         Array.isArray(config.refs) && config.refs.length >= 3 &&
         config.privateRefs instanceof Set, 'Validated staging configuration required');
     assert(typeof fetcher === 'function', 'Authenticated fetcher required');
-    const iterations = options.iterations ?? 30;
+    const iterations = options.iterations ?? 12;
     const concurrency = options.concurrency ?? 4;
-    assert(Number.isInteger(iterations) && iterations >= 2 && iterations <= 60 &&
+    assert(Number.isInteger(iterations) && iterations >= 2 && iterations <= 13 &&
         Number.isInteger(concurrency) && concurrency >= 1 && concurrency <= 4,
     'Refusing unbounded synthetic load');
     const definitions = lanes(config);
     const tasks = [];
     for (let i = 0; i < iterations; i++)
         for (const lane of definitions) tasks.push(lane);
+    assert(tasks.length <= 150, 'Refusing excessive synthetic request budget');
     const samples = new Map(definitions.map(lane => [lane.name, []]));
     let cursor = 0, inFlight = 0, peakInFlight = 0, failure = null;
+    const runStarted = performance.now();
     async function worker() {
         while (!failure && cursor < tasks.length) {
             const lane = tasks[cursor++];
@@ -67,6 +83,10 @@ async function runSyntheticReadLoad(config, fetcher, options = {}) {
                     'Synthetic read returned an unexpected authorization status');
                 assert(privateNoStore(response.headers),
                     'Synthetic read returned cacheable private evidence');
+                if (response.status === 200)
+                    assert(/^application\/(?:json|[a-z0-9.+-]+\+json)(?:\s*;|\s*$)/i
+                        .test(String(response.headers.get('content-type') || '')),
+                    'Authorized synthetic evidence is not JSON');
                 const body = await response.text();
                 assert(Buffer.byteLength(body, 'utf8') <= 2_000_000,
                     'Synthetic read returned oversized evidence');
@@ -88,6 +108,7 @@ async function runSyntheticReadLoad(config, fetcher, options = {}) {
     }
     await Promise.all(Array.from({ length: concurrency }, () => worker()));
     if (failure) throw failure;
+    const elapsedMs = performance.now() - runStarted;
     const metrics = definitions.map(lane => {
         const values = samples.get(lane.name);
         assert.equal(values.length, iterations, 'Incomplete synthetic read sample');
@@ -95,6 +116,9 @@ async function runSyntheticReadLoad(config, fetcher, options = {}) {
             p95Ms: Math.round(percentile(values, 95)),
             p99Ms: Math.round(percentile(values, 99)) };
     });
-    return { requests: tasks.length, peakInFlight, metrics };
+    return { requests: tasks.length, peakInFlight,
+        elapsedMs: Math.round(elapsedMs),
+        requestsPerSecond: Math.round(tasks.length / Math.max(elapsedMs, 1) * 1000),
+        metrics };
 }
 module.exports = { percentile, privateNoStore, runSyntheticReadLoad };
