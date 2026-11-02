@@ -88,7 +88,9 @@ public sealed partial class ProcurementSupplierInvoiceService
             invoiceIds.Contains(x.SupplierInvoiceId) &&
             (x.StateCode == "Posted" || x.StateCode == "Submitted"))
             .Select(x => new { x.Id, x.SupplierInvoiceId, x.CampusId, x.StateCode,
-                x.CreditAmount, x.RefundReceivableAmount, x.JournalId, x.StockMovementId })
+                x.CreditAmount, x.StockValue, x.UnpaidCreditAmount, x.RefundReceivableAmount,
+                x.StockAccountId, x.PayableAccountId, x.VarianceAccountId,
+                x.RefundReceivableAccountId, x.JournalId, x.StockMovementId })
             .ToListAsync(ct);
         var creditsByInvoice = credits.GroupBy(x => x.SupplierInvoiceId)
             .ToDictionary(x => x.Key, x => x.ToArray());
@@ -100,9 +102,22 @@ public sealed partial class ProcurementSupplierInvoiceService
                 !credit.IsDeleted && j.TenantId == user.TenantId && !j.IsDeleted &&
                 j.SourceType == ReturnCreditSource && j.SourceId == credit.Id &&
                 j.State == JournalState.Posted && j.CampusId == credit.CampusId &&
+                j.CurrencyCode == "BDT" &&
                 m.TenantId == user.TenantId && !m.IsDeleted && m.StateCode == "Posted" &&
+                m.CampusId == credit.CampusId && m.MovementTypeCode == "Issue" &&
                 m.SourceType == "ProcurementSupplierReturn" && m.SourceId == credit.Id
             select credit.Id).ToHashSetAsync(ct);
+        // Verify the posted credit's precise GL composition, not only its
+        // journal and stock movement references.
+        var creditJournalIds = credits.Where(x => x.StateCode == "Posted" && x.JournalId.HasValue)
+            .Select(x => x.JournalId!.Value).Distinct().ToArray();
+        var creditJournalLines = await db.JournalLines.AsNoTracking()
+            .Where(x => x.TenantId == user.TenantId && !x.IsDeleted &&
+                creditJournalIds.Contains(x.JournalId))
+            .Select(x => new { x.JournalId, x.LineNo, x.CampusId, x.AccountId,
+                x.DebitAmount, x.CreditAmount }).ToListAsync(ct);
+        var creditLinesByJournal = creditJournalLines.GroupBy(x => x.JournalId)
+            .ToDictionary(x => x.Key, x => x.OrderBy(l => l.LineNo).ToArray());
         var items=rows.Select(x=>{
             var days=Math.Max(0,reference.DayNumber-x.DueDate.DayNumber);
             decimal posted=0m, pending=0m;
@@ -120,7 +135,37 @@ public sealed partial class ProcurementSupplierInvoiceService
                     { conflicted = true; continue; }
                     if (credit.StateCode == "Submitted")
                     { pendingCredit += credit.CreditAmount; continue; }
-                    if (!verifiedCreditIds.Contains(credit.Id))
+                    if (!verifiedCreditIds.Contains(credit.Id) ||
+                        credit.JournalId is null or <= 0 ||
+                        credit.StockAccountId <= 0 || credit.PayableAccountId <= 0 ||
+                        credit.StockValue <= 0m || credit.UnpaidCreditAmount < 0m ||
+                        credit.RefundReceivableAmount < 0m ||
+                        credit.UnpaidCreditAmount + credit.RefundReceivableAmount != credit.CreditAmount)
+                    { conflicted = true; continue; }
+                    var variance = credit.CreditAmount - credit.StockValue;
+                    if ((variance != 0m && credit.VarianceAccountId is null or <= 0) ||
+                        (credit.RefundReceivableAmount > 0m &&
+                         credit.RefundReceivableAccountId is null or <= 0))
+                    { conflicted = true; continue; }
+                    var expected = new List<(long AccountId, decimal Debit, decimal Credit)>();
+                    if (credit.UnpaidCreditAmount > 0m)
+                        expected.Add((credit.PayableAccountId, credit.UnpaidCreditAmount, 0m));
+                    if (credit.RefundReceivableAmount > 0m)
+                        expected.Add((credit.RefundReceivableAccountId!.Value,
+                            credit.RefundReceivableAmount, 0m));
+                    expected.Add((credit.StockAccountId, 0m, credit.StockValue));
+                    if (variance > 0m)
+                        expected.Add((credit.VarianceAccountId!.Value, 0m, variance));
+                    else if (variance < 0m)
+                        expected.Add((credit.VarianceAccountId!.Value, -variance, 0m));
+                    if (!creditLinesByJournal.TryGetValue(credit.JournalId.Value, out var postedLines) ||
+                        postedLines.Length != expected.Count ||
+                        postedLines.Where((line, i) =>
+                            line.LineNo != i + 1 || line.CampusId != credit.CampusId ||
+                            line.AccountId != expected[i].AccountId ||
+                            line.DebitAmount != expected[i].Debit ||
+                            line.CreditAmount != expected[i].Credit).Any() ||
+                        postedLines.Sum(l => l.DebitAmount) != postedLines.Sum(l => l.CreditAmount))
                     { conflicted = true; continue; }
                     credited += credit.CreditAmount;
                     refundReceivable += credit.RefundReceivableAmount;
@@ -153,7 +198,9 @@ public sealed partial class ProcurementSupplierInvoiceService
                 }
             if(posted<0m || pending<0m || credited<0m ||
                 credited>x.TotalAmount || posted>x.TotalAmount ||
-                posted+pending+credited+pendingCredit>x.TotalAmount && pending>0m)
+                posted+credited>x.TotalAmount ||
+                posted+pending+credited+pendingCredit>x.TotalAmount &&
+                    (pending>0m || pendingCredit>0m))
                 conflicted=true;
             var netPayable=Math.Max(0m,x.TotalAmount-credited-posted);
             return new ProcurementSupplierPayableAgingRowDto {

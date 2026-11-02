@@ -1085,6 +1085,76 @@ public sealed partial class SqlServerV3ProcurementPurchaseOrderTests
                 var returnJournalLines=await creditReport.JournalLines.Where(x=>x.JournalId==journal.Id).ToListAsync();
                 Assert.Equal(10m,returnJournalLines.Sum(x=>x.DebitAmount));
                 Assert.Equal(10m,returnJournalLines.Sum(x=>x.CreditAmount));
+                // SQL fault injection: balanced GL with a changed stock/variance
+                // composition must not be trusted as an approved supplier credit.
+                await using (var tamperGl = await creditReport.Database.BeginTransactionAsync())
+                {
+                    Assert.Equal(1, await creditReport.JournalLines
+                        .Where(x => x.JournalId == journal.Id && x.LineNo == 2)
+                        .ExecuteUpdateAsync(v => v.SetProperty(x => x.CreditAmount, 11m)));
+                    Assert.Equal(1, await creditReport.JournalLines
+                        .Where(x => x.JournalId == journal.Id && x.LineNo == 3)
+                        .ExecuteUpdateAsync(v => v.SetProperty(x => x.DebitAmount, 2m)));
+                    var corrupted = (await returnService.AgingAsync(date,null,false,1,100)).Data!;
+                    var conflict = Assert.Single(corrupted.Items,x=>x.InvoiceReference==second.Reference);
+                    Assert.Equal("EvidenceConflict",conflict.SettlementIntegrityStatus);
+                    Assert.Null(conflict.SourceLinkedOutstandingAmount);
+                    Assert.Equal(409,Assert.IsType<ObjectResult>(
+                        await new ProcurementSupplierInvoicesController(returnService)
+                            .AgingExport(date,null,false,CancellationToken.None)).StatusCode);
+                    await tamperGl.RollbackAsync();
+                }
+                await using (var tamperCredit = await creditReport.Database.BeginTransactionAsync())
+                {
+                    Assert.Equal(1, await creditReport.ProcurementSupplierReturnCredits
+                        .Where(x => x.PublicId == returnReference)
+                        .ExecuteUpdateAsync(v => v.SetProperty(x => x.CreditAmount, 10m)));
+                    var corrupted = (await returnService.AgingAsync(date,null,false,1,100)).Data!;
+                    var conflict = Assert.Single(corrupted.Items,x=>x.InvoiceReference==second.Reference);
+                    Assert.Equal("EvidenceConflict",conflict.SettlementIntegrityStatus);
+                    Assert.Null(conflict.SourceLinkedOutstandingAmount);
+                    Assert.Equal(409,Assert.IsType<ObjectResult>(
+                        await new ProcurementSupplierInvoicesController(returnService)
+                            .AgingExport(date,null,false,CancellationToken.None)).StatusCode);
+                    await tamperCredit.RollbackAsync();
+                }
+                // Combined over-allocation must not be silently clamped to zero.
+                // Resurrected payment 6 + balanced return credit 13 exceeds gross 18.
+                await using (var overAllocated = await creditReport.Database.BeginTransactionAsync())
+                {
+                    var settlementId = await creditReport.Journals.AsNoTracking()
+                        .Where(x => x.PublicId == postedReference).Select(x => x.Id).SingleAsync();
+                    var reversalId = await creditReport.Journals.AsNoTracking()
+                        .Where(x => x.ReversalOfJournalId == settlementId &&
+                            x.State == JournalState.Posted).Select(x => x.Id).SingleAsync();
+                    Assert.Equal(1, await creditReport.Journals.Where(x => x.Id == reversalId)
+                        .ExecuteUpdateAsync(v => v.SetProperty(x => x.State, JournalState.Submitted)));
+                    Assert.Equal(1, await creditReport.ProcurementSupplierReturnCredits
+                        .Where(x => x.PublicId == returnReference)
+                        .ExecuteUpdateAsync(v => v.SetProperty(x => x.CreditAmount, 13m)
+                            .SetProperty(x => x.UnpaidCreditAmount, 13m)));
+                    Assert.Equal(1, await creditReport.JournalLines
+                        .Where(x => x.JournalId == journal.Id && x.LineNo == 1)
+                        .ExecuteUpdateAsync(v => v.SetProperty(x => x.DebitAmount, 13m)));
+                    Assert.Equal(1, await creditReport.JournalLines
+                        .Where(x => x.JournalId == journal.Id && x.LineNo == 3)
+                        .ExecuteUpdateAsync(v => v.SetProperty(x => x.DebitAmount, 0m)
+                            .SetProperty(x => x.CreditAmount, 3m)));
+                    var corrupted = (await returnService.AgingAsync(date,null,false,1,100)).Data!;
+                    var conflict = Assert.Single(corrupted.Items,x=>x.InvoiceReference==second.Reference);
+                    Assert.Equal(6m,conflict.PostedSettlementAmount);
+                    Assert.Equal(13m,conflict.PostedSupplierCreditAmount);
+                    Assert.Equal("EvidenceConflict",conflict.SettlementIntegrityStatus);
+                    Assert.Null(conflict.SourceLinkedOutstandingAmount);
+                    Assert.Equal(409,Assert.IsType<ObjectResult>(
+                        await new ProcurementSupplierInvoicesController(returnService)
+                            .AgingExport(date,null,false,CancellationToken.None)).StatusCode);
+                    await overAllocated.RollbackAsync();
+                }
+                var restored = (await returnService.AgingAsync(date,null,false,1,100)).Data!;
+                var restoredCredit = Assert.Single(restored.Items,x=>x.InvoiceReference==second.Reference);
+                Assert.Equal("SourceLinked",restoredCredit.SettlementIntegrityStatus);
+                Assert.Equal(9m,restoredCredit.SourceLinkedOutstandingAmount);
                 Assert.Equal(409,(await returnService.RequestReversalAsync(second.Reference,
                     new RequestProcurementSupplierInvoiceReversal {ClientRequestId=Guid.NewGuid(),
                         RowVersion=(await returnService.GetAsync(second.Reference)).Data!.RowVersion,
