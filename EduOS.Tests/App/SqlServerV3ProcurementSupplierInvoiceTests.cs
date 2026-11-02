@@ -1016,7 +1016,6 @@ public sealed partial class SqlServerV3ProcurementPurchaseOrderTests
                     new ReviewAssetCapitalizationRequest {RowVersion=capitalizationVersion,
                         Approve=true,Reason="Maker must not capitalize own supplier equipment"})).StatusCode);
             }
-            await using (var assetChecker=Open(options,tenantId,checkerId))
             {
                 // Competing independent approvals use separate SQL connections.
                 // Only one may bind this receipt ordinal and post its stock/GL.
@@ -1033,6 +1032,10 @@ public sealed partial class SqlServerV3ProcurementPurchaseOrderTests
                 Assert.True(posted.Success,posted.Message);
                 Assert.Equal("Posted",posted.Data!.State);
                 Assert.Equal(10m,posted.Data.PostedStockCost);
+                // Open a NEW verifier after both parallel contexts complete.
+                // HttpContextAccessor clears prior ambient holders on replacement;
+                // a pre-opened verifier would silently lose its tenant filter.
+                await using var assetChecker=Open(options,tenantId,checkerId);
                 var book=Assert.Single(await assetChecker.AssetBooks.AsNoTracking()
                     .Where(x=>x.AssetId==assetChecker.Assets.Where(a=>a.PublicId==assetReference)
                         .Select(a=>a.Id).Single()).ToListAsync());
