@@ -437,3 +437,17 @@ test('requesters use bounded authorized location discovery instead of guessed ID
     assert.match(script, /chosenLocation = locationChoices\.get/);
     assert.match(script, /Select an authorized active campus space first/);
 });
+
+
+test('approved vendor and technician windows must intersect in preview, mutation and bilingual UI', () => {
+    const service = fs.readFileSync(path.join(__dirname,
+        '../../EduOS.Service/Services/Facilities/FacilityWorkflowService.cs'), 'utf8');
+    assert.match(service, /Vendor booking must overlap the technician schedule/);
+    assert.match(service, /Technician schedule must overlap the approved vendor booking/);
+    assert.match(service, /Vendor proposal no longer overlaps the technician schedule/);
+    assert.match(script, /function overlapsWindow\(from, until\)/);
+    assert.match(script, /selected\.vendorStateCode === 'Approved'/);
+    assert.match(script, /selected\.workOrderState === 'Scheduled'/);
+    assert.match(view, /An approved vendor booking and technician schedule must overlap/);
+    assert.match(view, /টেকনিশিয়ানের সময়সূচির সঙ্গে অন্তত কিছু সময় মিলতে হবে/);
+});

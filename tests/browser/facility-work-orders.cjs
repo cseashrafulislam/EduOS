@@ -356,6 +356,58 @@ async function availabilityRecheck(browser) {
         assert.deepEqual(state.errors, []);
     } finally { await context.close(); }
 }
+async function incompatibleWindows(browser) {
+    // Real Chromium renders the bilingual page and executes production JS.
+    // The API is synthetic; SQL-backed authoritative rejection is tested separately.
+    const base = Date.now() + 48 * 60 * 60 * 1000;
+    const at = hours => new Date(base + hours * 3600000).toISOString();
+    const local = iso => iso.slice(0, 16);
+    const scheduledRecord = { ...record, workOrderState: 'Scheduled',
+        vendorStateCode: 'Released', scheduledStartUtc: at(1), scheduledEndUtc: at(2) };
+    const first = await setup(browser, true, true, true, false, scheduledRecord);
+    try {
+        const { page, state } = first;
+        await page.locator('#wfRows button').click();
+        await page.locator('#wfAction').selectOption('vendorpropose');
+        await page.locator('#wfStart').fill(local(at(4)));
+        await page.locator('#wfEnd').fill(local(at(5)));
+        await page.locator('#wfVendorPage')
+            .filter({ hasText: 'সরবরাহকারী বুকিং টেকনিশিয়ানের সময়সূচির সঙ্গে মিলতে হবে' }).waitFor();
+        const reads = state.calls.filter(c => c.url.includes('/vendors?')).length;
+        await page.locator('#wfVendorFind').click();
+        assert.equal(state.calls.filter(c => c.url.includes('/vendors?')).length, reads,
+            'disjoint vendor window must not trigger an advisory lookup');
+        assert.equal(await page.locator('#wfVendorSelected').inputValue(), '');
+        await page.locator('#wfTransition button[type="submit"]').click();
+        assert.equal(state.calls.filter(c => c.method === 'POST').length, 0);
+        await page.locator('#wfStart').fill(local(at(1)));
+        await page.locator('#wfEnd').fill(local(at(2)));
+        await page.locator('#wfVendorRows button').waitFor();
+        assert.deepEqual(state.errors, []);
+    } finally { await first.context.close(); }
+
+    const approvedRecord = { ...record, vendorStateCode: 'Approved',
+        vendorSupplierId: 9, vendorStartUtc: at(1), vendorEndUtc: at(2) };
+    const second = await setup(browser, false, true, false, false, approvedRecord);
+    try {
+        const { page, state } = second;
+        await page.locator('#wfRows button').click();
+        await page.locator('#wfAction').selectOption('schedule');
+        await page.locator('#wfStart').fill(local(at(4)));
+        await page.locator('#wfEnd').fill(local(at(5)));
+        await page.locator('#wfTechPage')
+            .filter({ hasText: 'Schedule must overlap the approved vendor booking' }).waitFor();
+        const reads = state.calls.filter(c => c.url.includes('/technicians?')).length;
+        await page.locator('#wfTechFind').click();
+        assert.equal(state.calls.filter(c => c.url.includes('/technicians?')).length, reads);
+        await page.locator('#wfTransition button[type="submit"]').click();
+        assert.equal(state.calls.filter(c => c.method === 'POST').length, 0);
+        await page.locator('#wfStart').fill(local(at(1)));
+        await page.locator('#wfEnd').fill(local(at(2)));
+        await page.locator('#wfTechSelect option[value="42"]').waitFor();
+        assert.deepEqual(state.errors, []);
+    } finally { await second.context.close(); }
+}
 async function revokedCampus(browser) {
     const { context, page, state } = await setup(browser, true, true, true);
     try {
@@ -397,8 +449,9 @@ async function selectionAfterTransition(browser) {
         await vendorStaleWindow(browser);
         await vendorIndependentApproval(browser);
         await availabilityRecheck(browser);
+        await incompatibleWindows(browser);
         await revokedCampus(browser);
         await selectionAfterTransition(browser);
-        console.log('Facility Work Orders Chromium PASS: bilingual mobile/desktop, conflict-aware availability, authorized location picker, approved vendor proposal and independent approval, stale vendor window/search, revocation and stale selection; synthetic API/session only.');
+        console.log('Facility Work Orders Chromium PASS: bilingual mobile/desktop, conflict-aware availability and vendor/technician window compatibility, authorized location picker, approved vendor proposal and independent approval, stale vendor window/search, revocation and stale selection; synthetic API/session only.');
     } finally { await browser.close(); }
 })().catch(error => { console.error(error); process.exitCode = 1; });
