@@ -1111,13 +1111,69 @@ public sealed class SqlServerFacilityWorkOrderTests
             Assert.Equal(0, await db.FacilityWorkflowEvents.CountAsync(x =>
                 x.FacilityServiceRequestId == submitted.Id && x.ActionCode == "start"));
         }
+        // Revoking any one live eligibility factor invalidates an old session
+        // role claim and saved schedule. Denied Starts never write an audit event.
+        var revokedStartId = Guid.NewGuid();
+        async Task AssertRevokedStartAsync()
+        {
+            await using var rejectedDb = Db(options, tenantId, techId, "FacilitiesTechnician");
+            var rejected = await Service(rejectedDb, tenantId, techId,
+                "FacilitiesTechnician", new ShiftedClock(TimeSpan.FromMinutes(50)))
+                .TransitionAsync(submitted.Id, "start", new FacilityTransitionDto
+                { ClientCommandId = revokedStartId, RowVersion = scheduled.WorkOrderRowVersion! });
+            Assert.Equal(403, rejected.StatusCode);
+            var unchanged = await rejectedDb.FacilityWorkOrders.AsNoTracking()
+                .SingleAsync(x => x.FacilityServiceRequestId == submitted.Id);
+            Assert.Equal("Scheduled", unchanged.StateCode);
+            Assert.Equal(scheduled.WorkOrderRowVersion, Convert.ToBase64String(unchanged.RowVersion));
+            Assert.Equal(0, await rejectedDb.FacilityWorkflowEvents.CountAsync(x =>
+                x.FacilityServiceRequestId == submitted.Id && x.ActionCode == "start"));
+        }
+        await using (var db = Db(options, tenantId, managerId, "FacilitiesManager"))
+            Assert.Equal(1, await db.TenantMemberships.Where(x =>
+                x.TenantId == tenantId && x.UserId == techId)
+                .ExecuteUpdateAsync(x => x.SetProperty(m => m.Status, MembershipStatus.Suspended)));
+        await AssertRevokedStartAsync();
+        await using (var db = Db(options, tenantId, managerId, "FacilitiesManager"))
+            Assert.Equal(1, await db.TenantMemberships.Where(x =>
+                x.TenantId == tenantId && x.UserId == techId)
+                .ExecuteUpdateAsync(x => x.SetProperty(m => m.Status, MembershipStatus.Active)));
+
+        await using (var db = Db(options, tenantId, managerId, "FacilitiesManager"))
+            Assert.Equal(1, await db.UserCampusAccesses.Where(x => x.TenantId == tenantId &&
+                x.CampusId == campusId && x.UserId == techId)
+                .ExecuteUpdateAsync(x => x.SetProperty(g => g.IsActive, false)));
+        await AssertRevokedStartAsync();
+        await using (var db = Db(options, tenantId, managerId, "FacilitiesManager"))
+            Assert.Equal(1, await db.UserCampusAccesses.Where(x => x.TenantId == tenantId &&
+                x.CampusId == campusId && x.UserId == techId)
+                .ExecuteUpdateAsync(x => x.SetProperty(g => g.IsActive, true)));
+
+        await using (var db = Db(options, tenantId, managerId, "FacilitiesManager"))
+            Assert.Equal(1, await db.Roles.IgnoreQueryFilters().Where(x => x.TenantId == tenantId &&
+                x.NormalizedName == "FACILITIESTECHNICIAN")
+                .ExecuteUpdateAsync(x => x.SetProperty(r => r.IsActive, false)));
+        await AssertRevokedStartAsync();
+        await using (var db = Db(options, tenantId, managerId, "FacilitiesManager"))
+            Assert.Equal(1, await db.Roles.IgnoreQueryFilters().Where(x => x.TenantId == tenantId &&
+                x.NormalizedName == "FACILITIESTECHNICIAN")
+                .ExecuteUpdateAsync(x => x.SetProperty(r => r.IsActive, true)));
+
+        await using (var db = Db(options, tenantId, managerId, "FacilitiesManager"))
+            Assert.Equal(1, await db.Users.Where(x => x.Id == techId)
+                .ExecuteUpdateAsync(x => x.SetProperty(u => u.IsActive, false)));
+        await AssertRevokedStartAsync();
+        await using (var db = Db(options, tenantId, managerId, "FacilitiesManager"))
+            Assert.Equal(1, await db.Users.Where(x => x.Id == techId)
+                .ExecuteUpdateAsync(x => x.SetProperty(u => u.IsActive, true)));
+
         FacilityRequestDto started;
         await using (var db = Db(options, tenantId, techId, "FacilitiesTechnician"))
         {
             var result = await Service(db, tenantId, techId, "FacilitiesTechnician",
                 new ShiftedClock(TimeSpan.FromMinutes(50))).TransitionAsync(
                 submitted.Id, "start", new FacilityTransitionDto
-                { ClientCommandId = Guid.NewGuid(), RowVersion = scheduled.WorkOrderRowVersion! });
+                { ClientCommandId = revokedStartId, RowVersion = scheduled.WorkOrderRowVersion! });
             Assert.True(result.Success, result.Message);
             started = result.Data!;
             var persisted = await db.FacilityWorkOrders.AsNoTracking()

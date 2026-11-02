@@ -37,6 +37,15 @@ test('technician start requires active schedule and approved vendor windows at c
     assert.match(view, /Start work only during the active technician schedule/);
 });
 
+test('revoked technician authorization is checked before Start and commit', () => {
+    const service = fs.readFileSync(path.join(__dirname,
+        '../../EduOS.Service/Services/Facilities/FacilityWorkflowService.cs'), 'utf8');
+    assert.match(service, /private IQueryable<ApplicationUser> EligibleTechnicians/);
+    assert.match(service, /action == "start" \|\| action == "schedule"/);
+    assert.match(service, /order\.StartedAtUtc = now; order\.StateCode = "InProgress"/);
+    assert.match(view, /live technician authorization/);
+});
+
 test('approved vendor selection is bounded, campus scoped and requires independent approval', () => {
     const service = fs.readFileSync(path.join(__dirname,
         '../../EduOS.Service/Services/Facilities/FacilityWorkflowService.cs'), 'utf8');

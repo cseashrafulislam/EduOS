@@ -241,6 +241,8 @@ Task 3 owns shared Help Drawer component, localization catalogue/parity tooling 
 
 ### 9.6. Facilities work-order route manual and authorized discovery (2026-11-01)
 
+**Live technician authorization (Issue #107):** The existing bilingual Work Orders page and shared Help Drawer explain that an old role claim or saved assignment cannot authorize Start after account, tenant membership, campus or scoped technician-role revocation. The server rechecks eligibility before Start and immediately before persistence; a denied Start writes no event. The manager may release an unstarted schedule and reassign. SQL regression and exact-SHA CI are separate acceptance gates; this is not stock/Finance posting or Visitor Management.
+
 **Vendor/technician window compatibility (Issue #107):** The existing en-BD/bn-BD Work Orders page and shared on-demand Help Drawer now explain that a vendor booking and technician schedule must overlap when both apply. Manager preview rejects disjoint authorized-order windows; authoritative proposal, independent approval and rescheduling enforce the same rule. The page invalidates stale choices as before, and offers bilingual corrective guidance without creating another UI route. SQL-backed and synthetic browser verification must be checked at the exact delivered SHA; this does not imply any stock/Finance posting or Visitor workflow.
 
 

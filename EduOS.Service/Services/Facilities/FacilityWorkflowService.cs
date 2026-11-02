@@ -1,5 +1,6 @@
 using EduOS.Core.Common;
 using EduOS.Core.DTOs.Facilities;
+using EduOS.Core.Entities.Auth;
 using EduOS.Core.Entities.Facilities;
 using EduOS.Core.Enums.Domain;
 using EduOS.Core.Interfaces;
@@ -246,6 +247,26 @@ public sealed class FacilityWorkflowService(
     /// A manager can discover only currently eligible staff in an authorized campus.
     /// Scheduling independently rechecks grants and concurrency before committing.
     /// </summary>
+    // Shared live eligibility: a saved assignment or stale role claim grants no access.
+    private IQueryable<ApplicationUser> EligibleTechnicians(long campusId) =>
+        db.Users.AsNoTracking().Where(candidate =>
+            candidate.IsActive &&
+            db.TenantMemberships.Any(member => member.UserId == candidate.Id &&
+                member.TenantId == user.TenantId && !member.IsDeleted &&
+                member.Status == MembershipStatus.Active) &&
+            db.UserCampusAccesses.Any(grant => grant.UserId == candidate.Id &&
+                grant.TenantId == user.TenantId && grant.CampusId == campusId &&
+                grant.IsActive && !grant.IsDeleted) &&
+            db.UserRoles.Any(assignment => assignment.UserId == candidate.Id &&
+                db.Roles.IgnoreQueryFilters().Any(role => role.Id == assignment.RoleId &&
+                    role.IsActive && !role.IsDeleted &&
+                    role.NormalizedName == "FACILITIESTECHNICIAN" &&
+                    (role.TenantId == user.TenantId ||
+                     (role.TenantId == null && !role.IsSystemRole &&
+                      !db.TenantMemberships.IgnoreQueryFilters().Any(other =>
+                          other.UserId == candidate.Id && other.TenantId != user.TenantId &&
+                          !other.IsDeleted && other.Status != MembershipStatus.Left))))));
+
     public async Task<ApiResponse<PagedResult<FacilityTechnicianOptionDto>>> TechniciansAsync(
         long campusId, string? search, int page, int pageSize, CancellationToken ct = default,
         DateTime? startUtc = null, DateTime? endUtc = null, long? workOrderId = null)
@@ -291,23 +312,7 @@ public sealed class FacilityWorkflowService(
 
         // Match the schedule command's active user, membership, campus grant and
         // scoped role. A global non-system role is allowed for one tenant only.
-        var query = db.Users.AsNoTracking().Where(candidate =>
-            candidate.IsActive &&
-            db.TenantMemberships.Any(member => member.UserId == candidate.Id &&
-                member.TenantId == user.TenantId && !member.IsDeleted &&
-                member.Status == MembershipStatus.Active) &&
-            db.UserCampusAccesses.Any(grant => grant.UserId == candidate.Id &&
-                grant.TenantId == user.TenantId && grant.CampusId == campusId &&
-                grant.IsActive && !grant.IsDeleted) &&
-            db.UserRoles.Any(assignment => assignment.UserId == candidate.Id &&
-                db.Roles.IgnoreQueryFilters().Any(role => role.Id == assignment.RoleId &&
-                    role.IsActive && !role.IsDeleted &&
-                    role.NormalizedName == "FACILITIESTECHNICIAN" &&
-                    (role.TenantId == user.TenantId ||
-                     (role.TenantId == null && !role.IsSystemRole &&
-                      !db.TenantMemberships.IgnoreQueryFilters().Any(other =>
-                          other.UserId == candidate.Id && other.TenantId != user.TenantId &&
-                          !other.IsDeleted && other.Status != MembershipStatus.Left))))));
+        var query = EligibleTechnicians(campusId);
         if (hasWindow)
         {
             var start = startUtc!.Value;
@@ -767,30 +772,9 @@ public sealed class FacilityWorkflowService(
                      bookedFrom >= end || bookedUntil <= start))
                     return ApiResponse<FacilityRequestDto>.ErrorResponse(
                         "Technician schedule must overlap the approved vendor booking; release or rebook first.", 409);
-                var eligible = await db.Users.AsNoTracking().AnyAsync(x => x.Id == tech && x.IsActive, ct) &&
-                    await db.TenantMemberships.AsNoTracking().AnyAsync(x =>
-                        x.TenantId == user.TenantId && x.UserId == tech && !x.IsDeleted &&
-                        x.Status == MembershipStatus.Active, ct) &&
-                    await db.UserCampusAccesses.AsNoTracking().AnyAsync(x =>
-                        x.TenantId == user.TenantId && x.UserId == tech &&
-                        x.CampusId == request.CampusId && x.IsActive && !x.IsDeleted, ct);
-                if (!eligible) return Denied<FacilityRequestDto>();
-                // Campus access and membership alone cannot authorize an assignment.
-                // Match the tenant role resolver's scoped and single-institution rules.
-                var nonLeftInstitutions = await db.TenantMemberships.IgnoreQueryFilters().AsNoTracking()
-                    .Where(x => x.UserId == tech && !x.IsDeleted &&
-                        x.Status != MembershipStatus.Left)
-                    .Select(x => x.TenantId).Distinct().Take(2).CountAsync(ct);
-                var hasTechnicianRole = await (
-                    from assignment in db.UserRoles.AsNoTracking()
-                    join role in db.Roles.IgnoreQueryFilters().AsNoTracking()
-                        on assignment.RoleId equals role.Id
-                    where assignment.UserId == tech && role.IsActive && !role.IsDeleted &&
-                        role.NormalizedName == "FACILITIESTECHNICIAN" &&
-                        (role.TenantId == user.TenantId ||
-                         (nonLeftInstitutions == 1 && role.TenantId == null && !role.IsSystemRole))
-                    select role.Id).AnyAsync(ct);
-                if (!hasTechnicianRole) return Denied<FacilityRequestDto>();
+                if (!await EligibleTechnicians(request.CampusId)
+                    .AnyAsync(candidate => candidate.Id == tech, ct))
+                    return Denied<FacilityRequestDto>();
                 if (scheduleTransaction != null)
                 {
                     var resource = $"FacilitySchedule:{user.TenantId}:{tech}";
@@ -881,6 +865,11 @@ public sealed class FacilityWorkflowService(
                         return ApiResponse<FacilityRequestDto>.ErrorResponse(
                             "Work-order or vendor window elapsed; reload before starting.", 409);
                 }
+                // A technician can lose active membership, campus grant or role
+                // after assignment. Validate live authorization, not old claims.
+                if (!await EligibleTechnicians(request.CampusId)
+                    .AnyAsync(candidate => candidate.Id == user.UserId, ct))
+                    return Denied<FacilityRequestDto>();
                 order.StartedAtUtc = now; order.StateCode = "InProgress";
                 break;
             case "pause":
@@ -938,6 +927,12 @@ public sealed class FacilityWorkflowService(
                    commitVendorStart > commitNow || order.VendorEndUtc <= commitNow))))
                 return ApiResponse<FacilityRequestDto>.ErrorResponse(
                     "Work-order or vendor window is not active after validation; reload.", 409);
+            // Recheck after SQL locks and other awaited validations, before audit.
+            if ((action == "start" || action == "schedule") &&
+                order?.AssignedTechnicianUserId is long assignedId &&
+                !await EligibleTechnicians(request.CampusId)
+                    .AnyAsync(candidate => candidate.Id == assignedId, ct))
+                return Denied<FacilityRequestDto>();
             if (action == "start") order!.StartedAtUtc = commitNow;
             now = commitNow;
         }
