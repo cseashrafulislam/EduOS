@@ -39,6 +39,45 @@ const scaledDecimal = value => {
     return negative ? -scaled : scaled;
 };
 
+// Shared strict JSON/CSV field parity for both first-page and all-page acceptance.
+// A matching Reference alone cannot certify amount, campus or formula safety.
+export const assertRegisterCsvParity = ({ kind, data, csv, from, to }) => {
+    const parsed = csv;
+    requireEvidence(parsed.rows.length === data.items.length,
+        'Register CSV does not match authorized JSON page.');
+    requireEvidence(parsed.header.join('|') === CSV_COLUMNS.join('|') &&
+        parsed.rows.every(row => row.length === CSV_COLUMNS.length),
+        'Register CSV schema mismatch.');
+    const col = name => CSV_COLUMNS.indexOf(name);
+    for (let i = 0; i < data.items.length; i++) {
+        const row = data.items[i], csvRow = parsed.rows[i];
+        requireEvidence(Number.isSafeInteger(row.lineCount) && row.lineCount >= 0 &&
+            (row.campusId == null ||
+                (Number.isSafeInteger(row.campusId) && row.campusId > 0)) &&
+            (kind !== 'procurement' || row.campusId != null),
+            'Register source line count or campus invalid.');
+        requireEvidence(
+            protectedCell(row.reference) === csvRow[col('Reference')] &&
+            csvRow[col('Kind')] === kind &&
+            protectedCell(row.number) === csvRow[col('Number')] &&
+            protectedCell(row.date) === csvRow[col('Date')] &&
+            protectedCell(row.state) === csvRow[col('State')] &&
+            protectedCell(row.lineCount) === csvRow[col('Lines')] &&
+            protectedCell(row.evidenceStatus) === csvRow[col('EvidenceStatus')],
+            'Register CSV does not match authorized JSON page.');
+        requireEvidence(typeof row.date === 'string' &&
+            /^\d{4}-\d{2}-\d{2}$/.test(row.date) &&
+            row.date >= from && row.date <= to,
+            'Register row outside requested date window.');
+        requireEvidence(
+            protectedCell(row.campusId) === csvRow[col('Campus')] &&
+            matchingMoneyCell(csvRow[col('RecordedValue')], row.recordedValue),
+            kind === 'procurement'
+                ? 'Procurement register CSV/source amount or campus mismatch.'
+                : 'Register CSV/source amount or campus mismatch.');
+    }
+};
+
 export async function auditRegisterPages({ read, parseCsv, api, kind, reference,
     from, to, tenantA, tenantB, maxPages = 10, expectedEvidence = null,
     collectOwnerReferences = false }) {
@@ -73,40 +112,7 @@ export async function auditRegisterPages({ read, parseCsv, api, kind, reference,
         requireEvidence(csv.status === 200 && csv.type?.includes('text/csv'),
             'Register CSV page unavailable.');
         privateResponse(csv);
-        const parsed = parseCsv(csv.body);
-        requireEvidence(parsed.rows.length === data.items.length,
-            'Register CSV does not match authorized JSON page.');
-        requireEvidence(parsed.header.join('|') === CSV_COLUMNS.join('|') &&
-            parsed.rows.every(row => row.length === CSV_COLUMNS.length),
-            'Register CSV schema mismatch.');
-        const col = name => CSV_COLUMNS.indexOf(name);
-        for (let i = 0; i < data.items.length; i++) {
-            const row = data.items[i], csvRow = parsed.rows[i];
-            requireEvidence(Number.isSafeInteger(row.lineCount) && row.lineCount >= 0 &&
-                (row.campusId == null ||
-                    (Number.isSafeInteger(row.campusId) && row.campusId > 0)) &&
-                (kind !== 'procurement' || row.campusId != null),
-                'Register source line count or campus invalid.');
-            requireEvidence(
-                protectedCell(row.reference) === csvRow[col('Reference')] &&
-                csvRow[col('Kind')] === kind &&
-                protectedCell(row.number) === csvRow[col('Number')] &&
-                protectedCell(row.date) === csvRow[col('Date')] &&
-                protectedCell(row.state) === csvRow[col('State')] &&
-                protectedCell(row.lineCount) === csvRow[col('Lines')] &&
-                protectedCell(row.evidenceStatus) === csvRow[col('EvidenceStatus')],
-                'Register CSV does not match authorized JSON page.');
-            requireEvidence(typeof row.date === 'string' &&
-                /^\d{4}-\d{2}-\d{2}$/.test(row.date) &&
-                row.date >= from && row.date <= to,
-                'Register row outside requested date window.');
-            requireEvidence(
-                protectedCell(row.campusId) === csvRow[col('Campus')] &&
-                matchingMoneyCell(csvRow[col('RecordedValue')], row.recordedValue),
-                kind === 'procurement'
-                    ? 'Procurement register CSV/source amount or campus mismatch.'
-                    : 'Register CSV/source amount or campus mismatch.');
-        }
+        assertRegisterCsvParity({ kind, data, csv: parseCsv(csv.body), from, to });
         return data;
     };
     // Recheck every bounded page: a stable first page alone cannot prove that

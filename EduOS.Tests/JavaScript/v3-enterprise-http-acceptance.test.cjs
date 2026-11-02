@@ -688,3 +688,88 @@ test('concurrent foreign asset register rejects stale date-window success', asyn
     await assert.rejects(runAcceptance({ ...config, iterations: 24 }, fetcher),
         /Concurrent cross-tenant register disclosed or pagination invalid/);
 });
+
+const nestedFinanceRef = '77777777-7777-4777-8777-777777777777';
+function nestedFinanceDeniedFetch({ concurrentOnly = false } = {}) {
+    const baseline = fakeFetch();
+    let foreignStockReads = 0;
+    return async (url, options) => {
+        const path = new URL(url).pathname;
+        if (path.endsWith('/' + stock) && options.headers.Cookie === 'a-session') {
+            const response = await baseline(url, options);
+            const payload = await response.json();
+            payload.data.financeEvidence = { reversal: { sourceReference: nestedFinanceRef } };
+            return new Response(JSON.stringify(payload), { status: 200, headers: {
+                'content-type': 'application/json', 'cache-control': 'no-store'
+            } });
+        }
+        if (path.endsWith('/' + stock) && options.headers.Cookie === 'b-session' &&
+            (!concurrentOnly || ++foreignStockReads > 1))
+            return new Response(JSON.stringify({ success: false,
+                message: 'Missing source: ' + nestedFinanceRef }), { status: 404, headers: {
+                'content-type': 'application/json', 'cache-control': 'no-store'
+            } });
+        return baseline(url, options);
+    };
+}
+
+test('denied baseline cannot echo nested Finance UUID absent from stock register', async () => {
+    const { runAcceptance } = await import(source);
+    await assert.rejects(runAcceptance(config, nestedFinanceDeniedFetch()),
+        /Denied response exposed private reference/);
+});
+
+test('concurrent foreign denial cannot echo nested Finance UUID after safe baseline', async () => {
+    const { runAcceptance } = await import(source);
+    await assert.rejects(runAcceptance({ ...config, iterations: 24 },
+        nestedFinanceDeniedFetch({ concurrentOnly: true })),
+        /Denied response exposed private reference/);
+});
+
+test('normal first-page CSV checks non-reference fields for both tenants', async () => {
+    const { runAcceptance } = await import(source);
+    for (const cookie of ['a-session', 'b-session']) {
+        const baseline = cookie === 'a-session' ? fakeFetch() : populatedTenantRegister();
+        const fetcher = async (url, options) => {
+            const response = await baseline(url, options);
+            const parsed = new URL(url);
+            if (options.headers.Cookie !== cookie ||
+                !parsed.pathname.endsWith('/register/csv') ||
+                parsed.searchParams.get('kind') !== 'stock') return response;
+            const body = (await response.text()).replace(
+                cookie === 'a-session' ? 'STOCK-1' : 'FOREIGN-STOCK', 'FORGED-NUMBER');
+            return new Response(body, { status: 200, headers: {
+                'content-type': 'text/csv', 'cache-control': 'no-store'
+            } });
+        };
+        await assert.rejects(runAcceptance(config, fetcher),
+            /Register CSV does not match authorized JSON page/);
+    }
+});
+
+test('normal first-page register rejects unneutralized CSV formula with matching JSON', async () => {
+    const { runAcceptance } = await import(source);
+    const baseline = fakeFetch();
+    const fetcher = async (url, options) => {
+        const response = await baseline(url, options);
+        const parsed = new URL(url);
+        if (options.headers.Cookie !== 'a-session' ||
+            !parsed.pathname.includes('/register') ||
+            parsed.searchParams.get('kind') !== 'stock') return response;
+        if (parsed.pathname.endsWith('/register/csv'))
+            return new Response((await response.text()).replace('STOCK-1', '=1+1'),
+                { status: 200, headers: {
+                    'content-type': 'text/csv', 'cache-control': 'no-store'
+                } });
+        if (parsed.pathname.endsWith('/register')) {
+            const payload = await response.json();
+            payload.data.items[0].number = '=1+1';
+            return new Response(JSON.stringify(payload), { status: 200, headers: {
+                'content-type': 'application/json', 'cache-control': 'no-store'
+            } });
+        }
+        return response;
+    };
+    await assert.rejects(runAcceptance(config, fetcher),
+        /Register CSV does not match authorized JSON page/);
+});

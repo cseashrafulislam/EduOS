@@ -2,7 +2,7 @@
 // Read-only V3 enterprise reconciliation acceptance against a disposable/staging
 // EduOS instance. Never use production credentials or a live customer database.
 import { performance } from 'node:perf_hooks';
-import { auditRegisterPages, assertPrivateCache } from './v3-enterprise-paged-audit.mjs';
+import { auditRegisterPages, assertPrivateCache, assertRegisterCsvParity } from './v3-enterprise-paged-audit.mjs';
 import { auditProcurement } from './v3-enterprise-procurement-http-audit.mjs';
 import { auditSupplierCommitment } from './v3-enterprise-supplier-commitment-audit.mjs';
 import { pathToFileURL } from 'node:url';
@@ -23,6 +23,24 @@ const evidenceSignature = value => JSON.stringify(value, (_, entry) => {
     if (!entry || Array.isArray(entry) || typeof entry !== 'object') return entry;
     return Object.fromEntries(Object.keys(entry).sort().map(key => [key, entry[key]]));
 });
+
+// Include nested Finance/source UUIDs absent from register pages in denial guards.
+// Keep this set in process only; never print identifiers or private evidence.
+export const collectPrivateReferences = (...values) => {
+    const references = new Set(), visited = new Set();
+    const uuid = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi;
+    const visit = (value, depth) => {
+        check(depth <= 32, 'Authorized evidence nesting exceeds audit limit.');
+        if (typeof value === 'string') {
+            for (const match of value.match(uuid) || []) references.add(match.toLowerCase());
+        } else if (value && typeof value === 'object' && !visited.has(value)) {
+            visited.add(value);
+            for (const item of Object.values(value)) visit(item, depth + 1);
+        }
+    };
+    for (const value of values) visit(value, 0);
+    return references;
+};
 
 export const assertStableReplay = (result, baseline, message =
     'Concurrent authorized evidence changed.') => {
@@ -238,8 +256,7 @@ export async function runAcceptance(config, fetcher = fetch) {
             'Authorized detail not available.');
         noStore(own);
         const foreign = await read(b, path);
-        const privateRefs = [reference, ...(own.body.data.journals || [])
-            .map(j => j.reference)].filter(Boolean);
+        const privateRefs = [...collectPrivateReferences(own.body.data), reference];
         assertDenied(foreign, 'Cross-tenant detail disclosed.', [403, 404], privateRefs);
         const ownCsv = await read(a, path + '/csv');
         check(ownCsv.status === 200 && ownCsv.type.includes('text/csv'),
@@ -328,6 +345,7 @@ export async function runAcceptance(config, fetcher = fetch) {
             'Register CSV unavailable.');
         noStore(ownCsv);
         const ownRefs = references(ownCsv.body);
+        assertRegisterCsvParity({ kind, data: d, csv: parseCsv(ownCsv.body), from, to });
         check(ownRefs.length === d.items.length &&
             ownRefs.every((value, index) =>
                 value === d.items[index].reference.toLowerCase()),
@@ -349,6 +367,8 @@ export async function runAcceptance(config, fetcher = fetch) {
                 value === foreign.body.data.items[index].reference.toLowerCase() &&
                 !ownerRefs.has(value)),
             'Foreign register CSV leaked tenant A evidence or disagrees with JSON.');
+        assertRegisterCsvParity({ kind, data: foreign.body.data,
+            csv: parseCsv(foreignCsv.body), from, to });
         registers.push({ kind, count: d.totalCount });
     }
     for (const kind of ['stock', 'asset']) check(
@@ -417,7 +437,9 @@ export async function runAcceptance(config, fetcher = fetch) {
         });
     }
     const allOwnerRefs = [...new Set([...ownerFirstPageReferences.values()]
-        .flatMap(refs => [...refs]).concat([...additionalOwnerRefs]))];
+        .flatMap(refs => [...refs]).concat([...additionalOwnerRefs],
+            [...collectPrivateReferences(stockData, assetData, procurementResult,
+                supplierResult, ...authorizedReplayBaselines.values())]))];
     const invalid = await read(a, API + '/register?' + new URLSearchParams({
         kind: 'stock', from, to, page: '1', pageSize: '1000'
     }));
