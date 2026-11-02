@@ -133,7 +133,7 @@ public sealed partial class AssetAccountingService
                 if (replay.CampusId is not long replayCampusId ||
                     !await CampusAllowedAsync(replayCampusId, ct))
                     return Conflict<AssetAccountingEventDto>("Asset event not found.", 404);
-                var original = replay.ReversalOfJournalId.HasValue
+                var replayOriginal = replay.ReversalOfJournalId.HasValue
                     ? await db.Journals.AsNoTracking().FirstOrDefaultAsync(x =>
                         x.TenantId == user.TenantId && x.Id == replay.ReversalOfJournalId.Value &&
                         x.SourceType == "Asset" + kind && x.SourceId == eventId &&
@@ -142,7 +142,7 @@ public sealed partial class AssetAccountingService
                     : null;
                 if (replay.IsDeleted || replay.CreatedBy != user.UserId ||
                     replay.SourceType != "Asset" + kind + "Reversal" ||
-                    replay.SourceId != eventId || original == null ||
+                    replay.SourceId != eventId || replayOriginal == null ||
                     replay.AccountingPeriodId != request.AccountingPeriodId ||
                     replay.JournalDate != request.ReversalDate ||
                     replay.Description != request.Reason.Trim() ||
@@ -157,10 +157,10 @@ public sealed partial class AssetAccountingService
                     ? new AssetAccountingEventDto
                     {
                         Kind = kind, Id = eventId,
-                        ClientRequestId = original.IdempotencyKey ?? Guid.Empty,
+                        ClientRequestId = replayOriginal.IdempotencyKey ?? Guid.Empty,
                         State = replay.State == JournalState.Posted ? "Reversed" : "Posted",
-                        EffectiveDate = original.JournalDate,
-                        JournalReference = original.PublicId,
+                        EffectiveDate = replayOriginal.JournalDate,
+                        JournalReference = replayOriginal.PublicId,
                         ReversalJournalReference = replay.PublicId,
                         MakerId = replay.CreatedBy, ReviewerId = replay.ApprovedByUserId,
                         PendingReversalReference = replay.State == JournalState.Submitted
