@@ -1151,8 +1151,8 @@ public sealed partial class SqlServerV3ProcurementPurchaseOrderTests
                             .AgingExport(date,null,false,CancellationToken.None)).StatusCode);
                     await overAllocated.RollbackAsync();
                 }
-                var restored = (await returnService.AgingAsync(date,null,false,1,100)).Data!;
-                var restoredCredit = Assert.Single(restored.Items,x=>x.InvoiceReference==second.Reference);
+                var restoredCreditAging = (await returnService.AgingAsync(date,null,false,1,100)).Data!;
+                var restoredCredit = Assert.Single(restoredCreditAging.Items,x=>x.InvoiceReference==second.Reference);
                 Assert.Equal("SourceLinked",restoredCredit.SettlementIntegrityStatus);
                 Assert.Equal(9m,restoredCredit.SourceLinkedOutstandingAmount);
                 Assert.Equal(409,(await returnService.RequestReversalAsync(second.Reference,
