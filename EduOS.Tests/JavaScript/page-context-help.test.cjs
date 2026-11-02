@@ -10,7 +10,7 @@ const css = read('EduOS.App/wwwroot/css/site.css');
 const js = read('EduOS.App/wwwroot/js/platform/page-context-help.js');
 const { guideFor, coverage, normalizeRoute, validateGuide, helpContextStatus } =
     require('../../EduOS.App/wwwroot/js/platform/page-context-help.js');
-const routes = ['/FeeDueCalendar/Index', '/FeeReceivablesAging/Index', '/PayrollJournalPosting/Index', '/PayrollSalaryStatement/Index', '/Alumni/Index', '/CareerEmployers/Index', '/CareerOpportunities/Index', '/CareerPlacements/Index', '/FeeOperations/Index', '/Students/Index', '/Attendance/Index', '/PayrollOperations/Index', '/FacilityWorkOrders/Index', '/FacilitySpaces/Index', '/Admissions/Index', '/StudentInvoicePosting/Index', '/workspace', '/Account/BrandingSetup', '/StudentLifecycle/Index', '/Account/Login',
+const routes = ['/FeeInvoiceCoverage/Index', '/FeeInstallmentProjection/Index', '/FeeDueCalendar/Index', '/FeeReceivablesAging/Index', '/PayrollJournalPosting/Index', '/PayrollSalaryStatement/Index', '/Alumni/Index', '/CareerEmployers/Index', '/CareerOpportunities/Index', '/CareerPlacements/Index', '/FeeOperations/Index', '/Students/Index', '/Attendance/Index', '/PayrollOperations/Index', '/FacilityWorkOrders/Index', '/FacilitySpaces/Index', '/Admissions/Index', '/StudentInvoicePosting/Index', '/workspace', '/Account/BrandingSetup', '/StudentLifecycle/Index', '/Account/Login',
     ...['Years','Terms','Departments','Classes','Sections','Rooms','Subjects','Curricula','Prerequisites','Offerings'].map(action => '/AcademicManagement/' + action),
     ...['Structures','Billing','Ledger'].map(action => '/FeeOperations/' + action), '/HR/Directory', '/HR/Leaves',
     ...['Policies','StudentAdjustments','FineRegister','Refunds'].map(action => '/FinanceAdjustments/' + action),
@@ -30,7 +30,7 @@ const routes = ['/FeeDueCalendar/Index', '/FeeReceivablesAging/Index', '/Payroll
         .map(name => '/' + name + '/Index')];
 
 test('all reviewed route manuals have full bilingual structure, matching steps and examples', () => {
-    assert.deepEqual(coverage(), { routes: 126, en: 126, bn: 126 });
+    assert.deepEqual(coverage(), { routes: 128, en: 128, bn: 128 });
     for (const route of routes) {
         const en = guideFor(route, 'en-BD');
         const bn = guideFor(route, 'bn-BD');

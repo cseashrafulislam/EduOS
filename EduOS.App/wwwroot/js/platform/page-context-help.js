@@ -1759,6 +1759,38 @@
             recovery: ['On an error, read the message and refresh the list; inspect the new status/version before trying again. Check leave entitlements separately.', 'ত্রুটি হলে বার্তা পড়ে তালিকা রিফ্রেশ করুন; আবার চেষ্টার আগে নতুন অবস্থা/সংস্করণ দেখুন। প্রাপ্যতা আলাদা পাতায় যাচাই করুন।'],
             related: [['/HR/Directory', 'Employee directory', 'কর্মী তালিকা'], ['/LeaveEntitlements/Index', 'Leave entitlements', 'ছুটির প্রাপ্যতা']]
         },
+        '/feeinvoicecoverage/index': {
+            version: 1, reviewed: true,
+            title: ['Monthly Invoice Coverage', 'মাসিক ইনভয়েস কভারেজ'],
+            purpose: ['Compare current active enrolments with non-cancelled invoices in one billing month without posting or creating financial records.', 'একটি বিলিং মাসে সক্রিয় ভর্তি ও বাতিল নয় এমন ইনভয়েস তুলনা করুন; কোনো আর্থিক রেকর্ড তৈরি বা পোস্ট হয় না।'],
+            before: ['FINANCE entitlement and TenantAdmin, Principal or Accountant role; select an authorized academic batch and billing month.', 'FINANCE মডিউল ও TenantAdmin, Principal বা Accountant অনুমতি; অনুমোদিত ব্যাচ ও বিলিং মাস নির্বাচন করুন।'],
+            steps: [
+                ['Choose Academic batch and Billing month, optionally filter Coverage or Student prefix, then select Run.', 'একাডেমিক ব্যাচ ও বিলিং মাস বেছে প্রয়োজনে কভারেজ বা শিক্ষার্থীর খোঁজ দিয়ে চালান চাপুন।'],
+                ['Review Eligible, Billed, Unbilled and Review totals for the whole batch, then inspect the current student page.', 'পুরো ব্যাচের যোগ্য, বিল হয়েছে, বিল হয়নি ও যাচাই প্রয়োজন মোট দেখুন; তারপর বর্তমান শিক্ষার্থী পৃষ্ঠা যাচাই করুন।'],
+                ['Use Previous or Next for verified pages; Export page CSV or Print page only after the report loads.', 'যাচাইকৃত পৃষ্ঠা দেখতে আগের বা পরের চাপুন; প্রতিবেদন লোড হওয়ার পরই বর্তমান পৃষ্ঠার CSV বা প্রিন্ট নিন।']
+            ],
+            example: ['Fictional example: select a permitted batch and November 2026, filter Unbilled and review missing monthly invoices before running the separate billing workflow.', 'কাল্পনিক উদাহরণ: অনুমোদিত ব্যাচে নভেম্বর ২০২৬ বেছে বিল হয়নি ফিল্টার দিয়ে মাসিক ইনভয়েসের ঘাটতি যাচাই করে আলাদা বিলিং কাজ করুন।'],
+            result: ['A read-only, authorized coverage snapshot with full-batch totals and page-bounded student rows is shown.', 'সম্পূর্ণ ব্যাচের মোট ও বর্তমান পৃষ্ঠার শিক্ষার্থীসহ অনুমোদিত কভারেজ প্রতিবেদন দেখা যায়।'],
+            rules: ['Review can mean duplicate invoices, inconsistent headers or missing lines. Coverage does not prove fee-structure compliance, instalment agreement or GL posting; CSV and print include only the verified current page.', 'যাচাই প্রয়োজন মানে দ্বৈত ইনভয়েস, হেডার অসামঞ্জস্য বা লাইন অনুপস্থিত হতে পারে। কভারেজ ফি কাঠামো, কিস্তি চুক্তি বা GL পোস্টিংয়ের প্রমাণ নয়; CSV ও প্রিন্ট শুধু যাচাইকৃত বর্তমান পৃষ্ঠার।'],
+            recovery: ['If filters change or a request fails, the old report and export are cleared. Check the batch, campus permission and month, then Run again; do not assume a missing row authorizes new billing.', 'ফিল্টার বদলালে বা অনুরোধ ব্যর্থ হলে পুরোনো প্রতিবেদন ও এক্সপোর্ট বন্ধ হয়। ব্যাচ, ক্যাম্পাস অনুমতি ও মাস যাচাই করে আবার চালান; অনুপস্থিত সারি দেখে সরাসরি নতুন বিল করবেন না।'],
+            related: [['/FeeOperations/Billing', 'Monthly billing', 'মাসিক বিলিং'], ['/FeeInstallmentProjection/Index', 'Future fee projection', 'ভবিষ্যৎ ফি প্রক্ষেপণ']]
+        },
+        '/feeinstallmentprojection/index': {
+            version: 1, reviewed: true,
+            title: ['Future Fee Projection', 'ভবিষ্যৎ ফি প্রক্ষেপণ'],
+            purpose: ['Preview up to twelve months of non-binding gross fee estimates using current enrolments and an applicable monthly fee structure.', 'বর্তমান ভর্তি ও প্রযোজ্য মাসিক ফি কাঠামো দিয়ে সর্বোচ্চ বারো মাসের আনুমানিক মোট ফি দেখুন।'],
+            before: ['FINANCE entitlement and TenantAdmin, Principal or Accountant role; an active batch and eligible effective monthly fee structure are required.', 'FINANCE মডিউল ও TenantAdmin, Principal বা Accountant অনুমতি; সক্রিয় ব্যাচ ও কার্যকর মাসিক ফি কাঠামো প্রয়োজন।'],
+            steps: [
+                ['Select Academic batch, its applicable fee structure, First month and three, six, nine or twelve months.', 'একাডেমিক ব্যাচ, প্রযোজ্য ফি কাঠামো, প্রথম মাস এবং তিন, ছয়, নয় বা বারো মাস বাছুন।'],
+                ['Select Run and inspect configured due dates, fee heads, gross per student, current cohort gross and observed invoice totals.', 'চালান চাপুন; শেষ তারিখ, ফি খাত, শিক্ষার্থীপ্রতি মোট, ব্যাচের মোট ও পর্যবেক্ষিত ইনভয়েস যাচাই করুন।'],
+                ['After verified results load, Export CSV or Print; changing any filter clears the previous result.', 'যাচাইকৃত ফল লোড হলে CSV বা প্রিন্ট নিন; কোনো ফিল্টার বদলালে আগের ফল বাতিল হয়।']
+            ],
+            example: ['Fictional example: choose an authorized 2026 batch and monthly tuition structure, start November 2026 for three months and compare projected gross with observed invoices.', 'কাল্পনিক উদাহরণ: অনুমোদিত ২০২৬ ব্যাচ ও মাসিক টিউশন কাঠামো বেছে নভেম্বর থেকে তিন মাসের অনুমান ও পর্যবেক্ষিত ইনভয়েস তুলনা করুন।'],
+            result: ['A read-only month-by-month gross estimate appears. No instalment schedule, invoice, receipt or GL entry is created.', 'মাসভিত্তিক আনুমানিক মোট হিসাব দেখা যায়। কিস্তি, ইনভয়েস, রসিদ বা GL এন্ট্রি তৈরি হয় না।'],
+            rules: ['Estimates exclude discounts, fines, transfers and future enrolment changes. Observed invoices are separate batch totals, not invoices matched to the selected structure. Unspecified due dates are not invented.', 'অনুমানে ছাড়, জরিমানা, স্থানান্তর ও ভবিষ্যৎ ভর্তি পরিবর্তন নেই। পর্যবেক্ষিত ইনভয়েস নির্বাচিত কাঠামোর সঙ্গে মিলানো নয়, আলাদা ব্যাচের মোট। অনির্ধারিত শেষ তারিখ অনুমান করা হয় না।'],
+            recovery: ['If no structure is offered, verify batch scope and effective dates. On a scope mismatch or denied response, the previous projection and export are cleared; reselect and Run.', 'কাঠামো না এলে ব্যাচের পরিসর ও কার্যকর তারিখ দেখুন। পরিসর না মিললে বা অনুমতি না থাকলে আগের প্রক্ষেপণ ও এক্সপোর্ট বন্ধ হয়; নতুন করে নির্বাচন করে চালান।'],
+            related: [['/FeeOperations/Structures', 'Fee structures', 'ফি কাঠামো'], ['/FeeInvoiceCoverage/Index', 'Monthly invoice coverage', 'মাসিক ইনভয়েস কভারেজ']]
+        },
         '/feeoperations/structures/index': {
             version: 1, reviewed: true,
             title: ['Fee Structures', 'ফি কাঠামো'],

@@ -1,48 +1,45 @@
+@using System.Globalization
 @{
-    ViewData["Title"] = "Future Fee Projection";
+    var bn = CultureInfo.CurrentUICulture.Name == "bn-BD";
+    ViewData["Title"] = bn ? "ভবিষ্যৎ ফি প্রক্ষেপণ" : "Future Fee Projection";
 }
 <section id="feeProjectionApp" class="container-fluid py-3">
     <header class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3 d-print-none">
         <div class="d-flex align-items-center gap-2">
-            <h1 class="h4 mb-0">Future Fee Projection</h1>
-            <details class="position-relative">
-                <summary class="btn btn-outline-secondary btn-sm" aria-label="Future fee projection help" title="Report guide">ⓘ</summary>
-                <div class="position-absolute border rounded bg-body p-2 small shadow-sm" style="z-index:5;width:min(22rem,80vw);right:0">
-                    Select an active batch, effective monthly fee structure and up to 12 months. Gross amounts use current enrolments and exclude discounts and fines. Observed invoices are separate batch figures. This preview does not schedule or issue invoices.
-                </div>
-            </details>
+            <h1 class="h4 mb-0">@(bn ? "ভবিষ্যৎ ফি প্রক্ষেপণ" : "Future Fee Projection")</h1>
         </div>
-        <a class="btn btn-outline-secondary btn-sm" href="/FeeOperations/Index">Fees &amp; Billing</a>
+        <a class="btn btn-outline-secondary btn-sm" href="/FeeOperations/Index">@(bn ? "ফি ও বিলিং" : "Fees &amp; Billing")</a>
     </header>
+    <div class="d-none d-print-block mb-2"><h1 class="h5">@(bn ? "ভবিষ্যৎ ফি প্রক্ষেপণ — যাচাইকৃত মাসসমূহ" : "Future Fee Projection — Verified months")</h1><p>@(bn ? "এটি অনুমান, বিল বা কিস্তির প্রতিশ্রুতি নয়; কোনো ইনভয়েস বা GL এন্ট্রি তৈরি হয় না।" : "This is a non-binding estimate, not a bill or instalment agreement; no invoice or GL entry is created.")</p></div>
     <div id="feeProjectionNotice" class="alert d-none d-print-none" role="status" aria-live="polite"></div>
     <form id="feeProjectionFilters" class="card card-body row g-2 align-items-end mb-3 d-print-none">
-        <div class="col-md-4"><label for="feeProjectionBatch" class="form-label">Academic batch</label>
-            <select id="feeProjectionBatch" class="form-select" required><option value="">Loading…</option></select></div>
-        <div class="col-md-4"><label for="feeProjectionStructure" class="form-label">Effective monthly fee structure</label>
-            <select id="feeProjectionStructure" class="form-select" required><option value="">Choose batch first</option></select></div>
-        <div class="col-md-2"><label for="feeProjectionStart" class="form-label">First month</label>
+        <div class="col-md-4"><label for="feeProjectionBatch" class="form-label">@(bn ? "একাডেমিক ব্যাচ" : "Academic batch")</label>
+            <select id="feeProjectionBatch" class="form-select" required><option value="">@(bn ? "লোড হচ্ছে…" : "Loading…")</option></select></div>
+        <div class="col-md-4"><label for="feeProjectionStructure" class="form-label">@(bn ? "কার্যকর মাসিক ফি কাঠামো" : "Effective monthly fee structure")</label>
+            <select id="feeProjectionStructure" class="form-select" required><option value="">@(bn ? "আগে ব্যাচ বাছুন" : "Choose batch first")</option></select></div>
+        <div class="col-md-2"><label for="feeProjectionStart" class="form-label">@(bn ? "প্রথম মাস" : "First month")</label>
             <input id="feeProjectionStart" type="month" class="form-control" required /></div>
-        <div class="col-md-1"><label for="feeProjectionMonths" class="form-label">Months</label>
+        <div class="col-md-1"><label for="feeProjectionMonths" class="form-label">@(bn ? "মাসের সংখ্যা" : "Months")</label>
             <select id="feeProjectionMonths" class="form-select"><option>3</option><option selected>6</option><option>9</option><option>12</option></select></div>
-        <div class="col-md-1 d-grid"><button id="feeProjectionRun" type="submit" class="btn btn-primary">Run</button></div>
+        <div class="col-md-1 d-grid"><button id="feeProjectionRun" type="submit" class="btn btn-primary">@(bn ? "চালান" : "Run")</button></div>
     </form>
     <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
-        <strong id="feeProjectionScope">No verified projection loaded</strong>
+        <strong id="feeProjectionScope">@(bn ? "কোনো যাচাইকৃত প্রক্ষেপণ লোড হয়নি" : "No verified projection loaded")</strong>
         <div class="d-flex gap-2 d-print-none">
-            <button id="feeProjectionCsv" type="button" class="btn btn-outline-primary btn-sm" disabled>Export CSV</button>
-            <button id="feeProjectionPrint" type="button" class="btn btn-outline-secondary btn-sm" disabled>Print</button>
+            <button id="feeProjectionCsv" type="button" class="btn btn-outline-primary btn-sm" disabled>@(bn ? "CSV রপ্তানি" : "Export CSV")</button>
+            <button id="feeProjectionPrint" type="button" class="btn btn-outline-secondary btn-sm" disabled>@(bn ? "প্রিন্ট" : "Print")</button>
         </div>
     </div>
     <section class="card mb-3">
         <div class="card-header d-flex flex-wrap justify-content-between gap-2">
-            <strong>Monthly gross schedule projection</strong>
+            <strong>@(bn ? "মাসিক মোট ফি প্রক্ষেপণ" : "Monthly gross schedule projection")</strong>
             <span id="feeProjectionCohort"></span>
         </div>
         <div class="table-responsive"><table class="table table-sm table-striped mb-0">
-            <thead><tr><th>Month</th><th>Configured due dates</th><th class="text-end">Fee heads</th>
-                <th class="text-end">Gross / student</th><th class="text-end">Current cohort gross</th>
-                <th class="text-end">Observed invoices</th><th class="text-end">Observed invoice total</th></tr></thead>
-            <tbody id="feeProjectionRows"><tr><td colspan="7" class="text-center text-muted p-3">Select filters and run.</td></tr></tbody>
+            <thead><tr><th>@(bn ? "মাস" : "Month")</th><th>@(bn ? "নির্ধারিত শেষ তারিখ" : "Configured due dates")</th><th class="text-end">@(bn ? "ফি খাত" : "Fee heads")</th>
+                <th class="text-end">@(bn ? "শিক্ষার্থীপ্রতি মোট" : "Gross / student")</th><th class="text-end">@(bn ? "বর্তমান ব্যাচের মোট" : "Current cohort gross")</th>
+                <th class="text-end">@(bn ? "পর্যবেক্ষিত ইনভয়েস" : "Observed invoices")</th><th class="text-end">@(bn ? "পর্যবেক্ষিত ইনভয়েস মোট" : "Observed invoice total")</th></tr></thead>
+            <tbody id="feeProjectionRows"><tr><td colspan="7" class="text-center text-muted p-3">@(bn ? "ফিল্টার নির্বাচন করে চালান।" : "Select filters and run.")</td></tr></tbody>
         </table></div>
     </section>
     <p id="feeProjectionBasis" class="small text-muted" role="note"></p>
