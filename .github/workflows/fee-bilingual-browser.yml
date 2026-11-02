@@ -26,6 +26,10 @@ on:
       - 'tests/browser/fee-aging-isolation.cjs'
       - 'EduOS.App/Views/FeeInvoiceCoverage/Index.cshtml'
       - 'EduOS.App/Views/FeeInstallmentProjection/Index.cshtml'
+      - 'EduOS.App/wwwroot/js/finance/fee-discount-attribution-review.js'
+      - 'EduOS.App/Views/FeeDiscountAttributionReview/Index.cshtml'
+      - 'EduOS.Tests/JavaScript/fee-discount-attribution-review.test.cjs'
+      - 'tests/browser/fee-discount-attribution.cjs'
       - 'EduOS.App/wwwroot/js/finance/fee-invoice-coverage.js'
       - 'EduOS.App/wwwroot/js/finance/fee-installment-projection.js'
       - 'EduOS.Tests/JavaScript/fee-coverage-projection-ui.test.cjs'
@@ -62,3 +66,4 @@ jobs:
           node tests/browser/fee-due-calendar.cjs
           node tests/browser/fee-aging-isolation.cjs
           node tests/browser/fee-coverage-projection.cjs
+          node tests/browser/fee-discount-attribution.cjs

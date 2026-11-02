@@ -1,53 +1,53 @@
+@using System.Globalization
 @{
-    ViewData["Title"] = "Historical Discount Attribution";
+    var bn = CultureInfo.CurrentUICulture.Name == "bn-BD";
+    string L(string en, string bd) => bn ? bd : en;
+    ViewData["Title"] = L("Historical Discount Attribution", "পুরোনো ফি ছাড়ের খাত যাচাই");
 }
 <section id="feeAttributionApp" class="container-fluid py-3">
     <header class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3 d-print-none">
-        <div class="d-flex align-items-center gap-2">
-            <h1 class="h4 mb-0">Historical Discount Attribution</h1>
-            <details class="position-relative">
-                <summary class="btn btn-outline-secondary btn-sm" aria-label="Discount attribution report guide" title="Report guide">ⓘ</summary>
-                <div class="position-absolute border rounded bg-body p-2 small shadow-sm" style="z-index:5;width:min(23rem,80vw);right:0">
-                    Review historical invoice fee-head discounts for one campus and up to 90 days. Award rules may have changed since issuance: flagged amounts are candidates, not proven errors or refunds. Never correct posted records from this report. CSV and print include the current page only.
-                </div>
-            </details>
-        </div>
-        <a href="/FeeOperations/Index" class="btn btn-outline-secondary btn-sm">Fees &amp; Billing</a>
+        <h1 class="h4 mb-0">@L("Historical Discount Attribution", "পুরোনো ফি ছাড়ের খাত যাচাই")</h1>
+        <a href="/FeeOperations/Index" class="btn btn-outline-secondary btn-sm">@L("Fees & Billing", "ফি ও বিলিং")</a>
     </header>
     <div id="feeAttributionNotice" class="alert d-none d-print-none" role="status" aria-live="polite"></div>
     <form id="feeAttributionFilters" class="card card-body row g-2 align-items-end mb-3 d-print-none">
-        <div class="col-md-3"><label class="form-label" for="feeAttributionCampus">Campus</label>
-            <select class="form-select" id="feeAttributionCampus" required><option value="">Loading…</option></select></div>
-        <div class="col-md-2"><label class="form-label" for="feeAttributionFrom">From</label>
+        <div class="col-md-3"><label class="form-label" for="feeAttributionCampus">@L("Campus", "ক্যাম্পাস")</label>
+            <select class="form-select" id="feeAttributionCampus" required><option value="">@L("Loading…", "লোড হচ্ছে…")</option></select></div>
+        <div class="col-md-2"><label class="form-label" for="feeAttributionFrom">@L("From", "শুরু")</label>
             <input class="form-control" id="feeAttributionFrom" type="date" required /></div>
-        <div class="col-md-2"><label class="form-label" for="feeAttributionTo">To</label>
+        <div class="col-md-2"><label class="form-label" for="feeAttributionTo">@L("To", "শেষ")</label>
             <input class="form-control" id="feeAttributionTo" type="date" required /></div>
-        <div class="col-md-2"><label class="form-label" for="feeAttributionSize">Rows</label>
+        <div class="col-md-2"><label class="form-label" for="feeAttributionSize">@L("Rows", "সারি")</label>
             <select class="form-select" id="feeAttributionSize"><option>25</option><option>50</option><option>100</option></select></div>
-        <div class="col-md-3 d-grid"><button class="btn btn-primary" id="feeAttributionRun" type="submit">Review invoices</button></div>
+        <div class="col-md-3 d-grid"><button class="btn btn-primary" id="feeAttributionRun" type="submit">@L("Review invoices", "ইনভয়েস যাচাই")</button></div>
     </form>
     <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
-        <strong id="feeAttributionScope">No report loaded</strong>
+        <strong id="feeAttributionScope" aria-live="polite">@L("No verified report loaded", "কোনো যাচাইকৃত প্রতিবেদন লোড হয়নি")</strong>
         <div class="d-flex gap-2 d-print-none">
-            <button id="feeAttributionCsv" type="button" class="btn btn-outline-primary btn-sm" disabled>Export page CSV</button>
-            <button id="feeAttributionPrint" type="button" class="btn btn-outline-secondary btn-sm" disabled>Print page</button>
+            <button id="feeAttributionCsv" type="button" class="btn btn-outline-primary btn-sm" disabled>@L("Export page CSV", "পৃষ্ঠার CSV নিন")</button>
+            <button id="feeAttributionPrint" type="button" class="btn btn-outline-secondary btn-sm" disabled>@L("Print page", "পৃষ্ঠা প্রিন্ট")</button>
         </div>
     </div>
     <div class="card">
         <div class="card-header d-flex flex-wrap justify-content-between gap-2">
-            <strong>Invoice evidence</strong><span id="feeAttributionCount" aria-live="polite"></span>
+            <strong>@L("Invoice evidence (candidates, not confirmed errors)", "ইনভয়েসের প্রমাণ (সম্ভাব্য সমস্যা, নিশ্চিত ভুল নয়)")</strong>
+            <span id="feeAttributionCount" aria-live="polite"></span>
         </div>
         <div class="table-responsive"><table class="table table-sm table-hover mb-0">
-            <thead><tr><th>Invoice</th><th>Student code</th><th>Date</th><th>Currency</th>
-                <th class="text-end">Subtotal</th><th class="text-end">Discount</th>
-                <th class="text-end">Total</th><th class="text-end">Candidate amount</th>
-                <th>GL linked</th><th>Evidence status</th></tr></thead>
-            <tbody id="feeAttributionRows"><tr><td colspan="10" class="text-center text-muted p-3">Run the review.</td></tr></tbody>
+            <thead><tr><th scope="col">@L("Invoice", "ইনভয়েস")</th><th scope="col">@L("Student code", "শিক্ষার্থী কোড")</th>
+                <th scope="col">@L("Date", "তারিখ")</th><th scope="col">@L("Currency", "মুদ্রা")</th>
+                <th scope="col" class="text-end">@L("Subtotal", "উপমোট")</th>
+                <th scope="col" class="text-end">@L("Discount", "ছাড়")</th>
+                <th scope="col" class="text-end">@L("Total", "মোট")</th>
+                <th scope="col" class="text-end">@L("Candidate amount", "সম্ভাব্য অঙ্ক")</th>
+                <th scope="col">@L("GL linked", "GL সংযুক্ত")</th>
+                <th scope="col">@L("Evidence status", "প্রমাণের অবস্থা")</th></tr></thead>
+            <tbody id="feeAttributionRows"><tr><td colspan="10" class="text-center text-muted p-3">@L("Run the review.", "যাচাই প্রতিবেদন চালান।")</td></tr></tbody>
         </table></div>
         <div class="card-footer d-flex align-items-center gap-2 d-print-none">
-            <button id="feeAttributionPrev" type="button" class="btn btn-outline-secondary btn-sm" disabled>Previous</button>
-            <span id="feeAttributionPage"></span>
-            <button id="feeAttributionNext" type="button" class="btn btn-outline-secondary btn-sm" disabled>Next</button>
+            <button id="feeAttributionPrev" type="button" class="btn btn-outline-secondary btn-sm" disabled>@L("Previous", "আগের")</button>
+            <span id="feeAttributionPage" aria-live="polite"></span>
+            <button id="feeAttributionNext" type="button" class="btn btn-outline-secondary btn-sm" disabled>@L("Next", "পরের")</button>
         </div>
     </div>
 </section>

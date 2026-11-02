@@ -1759,6 +1759,22 @@
             recovery: ['On an error, read the message and refresh the list; inspect the new status/version before trying again. Check leave entitlements separately.', 'ত্রুটি হলে বার্তা পড়ে তালিকা রিফ্রেশ করুন; আবার চেষ্টার আগে নতুন অবস্থা/সংস্করণ দেখুন। প্রাপ্যতা আলাদা পাতায় যাচাই করুন।'],
             related: [['/HR/Directory', 'Employee directory', 'কর্মী তালিকা'], ['/LeaveEntitlements/Index', 'Leave entitlements', 'ছুটির প্রাপ্যতা']]
         },
+        '/feediscountattributionreview/index': {
+            version: 1, reviewed: true,
+            title: ['Historical Discount Attribution', 'পুরোনো ফি ছাড়ের খাত যাচাই'],
+            purpose: ['Review possible historical fee-head discount attribution signals without changing issued invoices, receipts or journals.', 'ইস্যু করা ইনভয়েস, রসিদ বা জার্নাল না বদলে পুরোনো ফি খাতের ছাড়ের সম্ভাব্য অসামঞ্জস্য যাচাই করুন।'],
+            before: ['FINANCE entitlement and TenantAdmin, Principal or Accountant role; choose an authorized campus and up to 90 consecutive calendar days.', 'FINANCE মডিউল এবং TenantAdmin, Principal বা Accountant অনুমতি প্রয়োজন; অনুমোদিত ক্যাম্পাস ও সর্বোচ্চ ৯০ দিনের সময়সীমা বাছুন।'],
+            steps: [
+                ['Select Campus, From, To and page size, then choose Review invoices.', 'ক্যাম্পাস, শুরু, শেষ ও সারির সংখ্যা বেছে ইনভয়েস যাচাই চাপুন।'],
+                ['Inspect each invoice, its journal link, candidate amount and evidence status. A candidate is not proof of an incorrect historical discount.', 'প্রতিটি ইনভয়েস, জার্নাল সংযোগ, সম্ভাব্য অঙ্ক ও প্রমাণের অবস্থা দেখুন। সম্ভাব্য অঙ্ক পুরোনো ছাড় ভুল ছিল—এমন প্রমাণ নয়।'],
+                ['Use Previous or Next for verified pages; export the current page CSV or print only after a valid report loads.', 'যাচাইকৃত পৃষ্ঠায় আগের বা পরের চাপুন; সঠিক প্রতিবেদন লোড হলে শুধু বর্তমান পৃষ্ঠার CSV বা প্রিন্ট নিন।']
+            ],
+            example: ['Fictional example: inspect November tuition discounts in one authorized campus and flag a cross-head signal for a separate Finance investigation.', 'কাল্পনিক উদাহরণ: অনুমোদিত ক্যাম্পাসের নভেম্বরের টিউশন ছাড় দেখে ভিন্ন খাতের ইঙ্গিত আলাদা Finance তদন্তে পাঠান।'],
+            result: ['A read-only, page-bounded invoice evidence list with candidate amounts and journal-link indicators; no correction is posted.', 'শুধু পড়ার উপযোগী পৃষ্ঠাভিত্তিক ইনভয়েসের প্রমাণ, সম্ভাব্য অঙ্ক ও জার্নাল সংযোগ দেখা যায়; কোনো সংশোধন পোস্ট হয় না।'],
+            rules: ['Mutable discount awards are not reliable historical entitlement snapshots. Mixed currencies are not summed. Changing filters or institution sessions invalidates old rows and exports; never use this report to issue refunds or reverse posted Finance records.', 'পরিবর্তনযোগ্য ছাড়ের নিয়ম পুরোনো প্রাপ্যতার নিশ্চিত স্ন্যাপশট নয়। ভিন্ন মুদ্রার অঙ্ক যোগ হয় না। ফিল্টার বা প্রতিষ্ঠানের সেশন বদলালে পুরোনো সারি ও এক্সপোর্ট বাতিল হয়; এই প্রতিবেদন দিয়ে ফেরত বা পোস্ট করা Finance তথ্য রিভার্স করবেন না।'],
+            recovery: ['If a campus is unavailable, access is denied or totals fail verification, reselect the authorized scope and rerun. Escalate any suspected historic discrepancy through approved Finance adjustment review.', 'ক্যাম্পাস না পাওয়া গেলে, অনুমতি না থাকলে বা মোট না মিললে অনুমোদিত পরিসর আবার বেছে প্রতিবেদন চালান। পুরোনো অসামঞ্জস্য সন্দেহ হলে অনুমোদিত Finance adjustment review অনুসরণ করুন।'],
+            related: [['/FeeOperations/Index', 'Fees and Billing', 'ফি ও বিলিং'], ['/FinanceAdjustments/Policies', 'Finance policies', 'Finance নীতিমালা']]
+        },
         '/feeinvoicecoverage/index': {
             version: 1, reviewed: true,
             title: ['Monthly Invoice Coverage', 'মাসিক ইনভয়েস কভারেজ'],
