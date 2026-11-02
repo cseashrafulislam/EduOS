@@ -1,0 +1,55 @@
+@using System.Globalization
+@{
+    var bn = CultureInfo.CurrentUICulture.Name.StartsWith("bn", StringComparison.OrdinalIgnoreCase);
+    var manager = User.IsInRole("TenantAdmin") || User.IsInRole("Principal") || User.IsInRole("FacilitiesManager");
+    ViewData["Title"] = bn ? "ক্যাম্পাস ভিজিটর নিবন্ধন" : "Campus Visitor Visits";
+}
+<section class="container-fluid py-3" id="facilityVisitors"
+         data-bn="@bn.ToString().ToLowerInvariant()" data-manager="@manager.ToString().ToLowerInvariant()"
+         data-user-id="@(User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value)">
+    <header class="mb-3">
+        <h2 class="h4">@(bn ? "ভিজিটর প্রি-রেজিস্ট্রেশন ও প্রবেশ নিয়ন্ত্রণ" : "Visitor Preregistration & Access Control")</h2>
+        <p class="text-muted small">@(bn
+            ? "ডেস্ক কর্মকর্তা ভবিষ্যৎ ভিজিট নিবন্ধন করবেন; আলাদা হোস্ট অনুমোদন দেবেন; অনুমোদিত সময়ের মধ্যে ব্যাজ দিয়ে প্রবেশ এবং পরে প্রস্থান নথিভুক্ত হবে। জাতীয় পরিচয়পত্র, ফোন বা ছবি সংগ্রহ করা হয় না। Incident, retention deletion ও export এখনো চালু নয়।"
+            : "The desk preregisters a future visit, a separate host approves it, and the desk records badge check-in and check-out within the approved window. No ID document, phone or photo is collected. Incident handling, retention deletion and export are not yet enabled.")</p>
+    </header>
+    @Html.AntiForgeryToken()
+    <div id="fvStatus" class="alert alert-secondary small" role="status" aria-live="polite">
+        @(bn ? "অনুমোদিত ভিজিট লোড হচ্ছে…" : "Loading authorized visits…")
+    </div>
+    @if (manager)
+    {
+        <form id="fvCreate" class="card card-body mb-3">
+            <h3 class="h6">@(bn ? "নতুন ভিজিট নিবন্ধন" : "Preregister a visit")</h3>
+            <div class="row g-2">
+                <div class="col-md-3"><label for="fvCampus" class="form-label">@(bn ? "ক্যাম্পাস আইডি" : "Campus ID")</label>
+                    <input id="fvCampus" class="form-control" type="number" min="1" required /></div>
+                <div class="col-md-3"><label for="fvHost" class="form-label">@(bn ? "হোস্ট" : "Host")</label>
+                    <select id="fvHost" class="form-select" required><option value="">@(bn ? "ক্যাম্পাস নির্বাচন করুন" : "Select campus first")</option></select></div>
+                <div class="col-md-3"><label for="fvName" class="form-label">@(bn ? "ভিজিটরের নাম" : "Visitor name")</label>
+                    <input id="fvName" class="form-control" maxlength="100" required autocomplete="off" /></div>
+                <div class="col-md-3"><label for="fvPurpose" class="form-label">@(bn ? "উদ্দেশ্য" : "Purpose")</label>
+                    <input id="fvPurpose" class="form-control" maxlength="200" required /></div>
+                <div class="col-md-3"><label for="fvStart" class="form-label">@(bn ? "প্রবেশের নির্ধারিত সময়" : "Visit start")</label>
+                    <input id="fvStart" class="form-control" type="datetime-local" required /></div>
+                <div class="col-md-3"><label for="fvEnd" class="form-label">@(bn ? "প্রস্থানের নির্ধারিত সময়" : "Visit end")</label>
+                    <input id="fvEnd" class="form-control" type="datetime-local" required /></div>
+                <div class="col-12"><button class="btn btn-primary" type="submit">@(bn ? "প্রি-রেজিস্টার" : "Preregister")</button></div>
+            </div>
+        </form>
+    }
+    <div class="card card-body">
+        <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2">
+            <h3 class="h6 mb-0">@(bn ? "অনুমোদিত ভিজিট তালিকা" : "Authorized visits")</h3>
+            <button id="fvRefresh" class="btn btn-outline-secondary btn-sm" type="button">@(bn ? "রিফ্রেশ" : "Refresh")</button>
+        </div>
+        <div class="row g-2 mb-3">
+            <div class="col-md-3"><label class="form-label" for="fvBadge">@(bn ? "ব্যাজ কোড (৪–২০ অক্ষর)" : "Badge code (4–20 characters)")</label>
+                <input id="fvBadge" class="form-control" maxlength="20" autocomplete="off" /></div>
+            <div class="col-md-6"><label class="form-label" for="fvReason">@(bn ? "সিদ্ধান্তের কারণ (প্রত্যাখ্যানে কমপক্ষে ১০ অক্ষর)" : "Decision reason (10+ characters for rejection)")</label>
+                <input id="fvReason" class="form-control" maxlength="200" /></div>
+        </div>
+        <div id="fvRows" class="vstack gap-2" aria-live="polite"></div>
+    </div>
+</section>
+@section Scripts { <script src="~/js/facilities/visitors.js" asp-append-version="true"></script> }

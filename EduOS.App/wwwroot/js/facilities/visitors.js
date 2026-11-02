@@ -1,0 +1,119 @@
+(() => {
+    'use strict';
+    const root = document.getElementById('facilityVisitors');
+    if (!root) return;
+    const bn = root.dataset.bn === 'true', manager = root.dataset.manager === 'true';
+    const actor = Number(root.dataset.userId || 0);
+    const $ = id => document.getElementById(id);
+    const label = (en, bangla) => bn ? bangla : en;
+    const token = document.querySelector('input[name="__RequestVerificationToken"]')?.value || '';
+    const status = message => { $('fvStatus').textContent = message; };
+    const api = async (url, method = 'GET', data) => {
+        const response = await fetch(url, {
+            method, credentials: 'same-origin', cache: 'no-store',
+            headers: { 'Accept': 'application/json', ...(method !== 'GET' ? {
+                'Content-Type': 'application/json', 'RequestVerificationToken': token } : {}) },
+            ...(data === undefined ? {} : { body: JSON.stringify(data) })
+        });
+        const payload = await response.json().catch(() => null);
+        if (!response.ok || !payload?.success)
+            throw new Error(payload?.message || label('Request denied or stale; refresh.', 'অনুরোধ প্রত্যাখ্যাত বা তথ্য পুরোনো; রিফ্রেশ করুন।'));
+        return payload.data;
+    };
+    const utc = id => {
+        const value = $(id).value;
+        return value ? new Date(value).toISOString() : null;
+    };
+    let requestEpoch = 0;
+    const button = (name, action, row, handler) => {
+        const b = document.createElement('button');
+        b.type = 'button'; b.className = 'btn btn-outline-primary btn-sm';
+        b.textContent = name; b.addEventListener('click', () => handler(row, action)); return b;
+    };
+    const act = async (row, action) => {
+        const reason = $('fvReason').value.trim();
+        const badgeCode = $('fvBadge').value.trim().toUpperCase();
+        if (action === 'checkin' && !/^[A-Z0-9-]{4,20}$/.test(badgeCode)) {
+            status(label('Enter a valid badge code.', 'সঠিক ব্যাজ কোড দিন।')); return;
+        }
+        if (action === 'hostreject' && reason.length < 10) {
+            status(label('Rejection needs a 10-character reason.', 'প্রত্যাখ্যানে কমপক্ষে ১০ অক্ষরের কারণ দিন।')); return;
+        }
+        try {
+            await api('/api/facilities/visitors/' + row.id + '/' + action, 'POST', {
+                clientCommandId: crypto.randomUUID(), rowVersion: row.rowVersion,
+                badgeCode: action === 'checkin' ? badgeCode : null,
+                reason: reason || null
+            });
+            $('fvReason').value = ''; $('fvBadge').value = '';
+            await load();
+        } catch (e) { status(e.message); }
+    };
+    const load = async () => {
+        const epoch = ++requestEpoch;
+        try {
+            const data = await api('/api/facilities/visitors?page=1&pageSize=50');
+            if (epoch !== requestEpoch) return;
+            const holder = $('fvRows'); holder.replaceChildren();
+            for (const row of data.items || []) {
+                const card = document.createElement('article');
+                card.className = 'border rounded p-2';
+                const heading = document.createElement('div');
+                heading.className = 'fw-semibold';
+                heading.textContent = row.visitorName + ' — ' + row.stateCode;
+                const detail = document.createElement('p');
+                detail.className = 'small text-muted mb-2';
+                detail.textContent = label('Campus ', 'ক্যাম্পাস ') + row.campusId +
+                    label(' · Host ', ' · হোস্ট ') + row.hostUserId + ' · ' + row.purpose +
+                    ' · ' + new Date(row.visitStartUtc).toLocaleString() +
+                    ' – ' + new Date(row.visitEndUtc).toLocaleString() +
+                    (row.badgeCode ? ' · ' + row.badgeCode : '');
+                card.append(heading, detail);
+                const actions = document.createElement('div');
+                actions.className = 'd-flex flex-wrap gap-2';
+                if (row.hostUserId === actor && row.stateCode === 'PendingHost') {
+                    actions.append(button(label('Approve', 'অনুমোদন'), 'hostapprove', row, act),
+                        button(label('Reject', 'প্রত্যাখ্যান'), 'hostreject', row, act));
+                }
+                if (manager && row.stateCode === 'Approved')
+                    actions.append(button(label('Check in', 'প্রবেশ'), 'checkin', row, act));
+                if (manager && row.stateCode === 'CheckedIn')
+                    actions.append(button(label('Check out', 'প্রস্থান'), 'checkout', row, act));
+                card.append(actions); holder.append(card);
+            }
+            status(label('Authorized visits loaded.', 'অনুমোদিত ভিজিট লোড হয়েছে।'));
+        } catch (e) { if (epoch === requestEpoch) status(e.message); }
+    };
+    let hostEpoch = 0;
+    const hosts = async () => {
+        const epoch = ++hostEpoch, campus = Number($('fvCampus')?.value || 0);
+        const select = $('fvHost');
+        if (!select) return;
+        select.replaceChildren(new Option(label('Select host', 'হোস্ট নির্বাচন'), ''));
+        if (!campus) return;
+        try {
+            const data = await api('/api/facilities/visitors/hosts?campusId=' + campus);
+            if (epoch !== hostEpoch) return;
+            for (const h of data.items || [])
+                select.add(new Option(h.displayName + ' (#' + h.userId + ')', String(h.userId)));
+        } catch (e) { if (epoch === hostEpoch) status(e.message); }
+    };
+    $('fvCampus')?.addEventListener('change', hosts);
+    $('fvRefresh').addEventListener('click', load);
+    $('fvCreate')?.addEventListener('submit', async e => {
+        e.preventDefault();
+        try {
+            await api('/api/facilities/visitors', 'POST', {
+                clientRequestId: crypto.randomUUID(),
+                campusId: Number($('fvCampus').value),
+                hostUserId: Number($('fvHost').value),
+                visitorName: $('fvName').value.trim(),
+                purpose: $('fvPurpose').value.trim(),
+                visitStartUtc: utc('fvStart'), visitEndUtc: utc('fvEnd')
+            });
+            $('fvName').value = ''; $('fvPurpose').value = '';
+            await load();
+        } catch (err) { status(err.message); }
+    });
+    load();
+})();

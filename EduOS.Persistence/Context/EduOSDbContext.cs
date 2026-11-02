@@ -442,6 +442,8 @@ public class EduOSDbContext :
     public DbSet<FacilityServiceRequest> FacilityServiceRequests => Set<FacilityServiceRequest>();
     public DbSet<FacilityWorkOrder> FacilityWorkOrders => Set<FacilityWorkOrder>();
     public DbSet<FacilityWorkflowEvent> FacilityWorkflowEvents => Set<FacilityWorkflowEvent>();
+    public DbSet<FacilityVisitorVisit> FacilityVisitorVisits => Set<FacilityVisitorVisit>();
+    public DbSet<FacilityVisitorEvent> FacilityVisitorEvents => Set<FacilityVisitorEvent>();
     public DbSet<InventoryLocation> InventoryLocations => Set<InventoryLocation>();
     public DbSet<InventoryMovement> InventoryMovements => Set<InventoryMovement>();
     public DbSet<InventoryMovementLine> InventoryMovementLines => Set<InventoryMovementLine>();
@@ -1216,6 +1218,8 @@ public class EduOSDbContext :
         TenantReference<FacilityWorkOrder, FacilityServiceRequest>(modelBuilder, nameof(FacilityWorkOrder.FacilityServiceRequestId));
         TenantReference<FacilityWorkOrder, ProcurementSupplier>(modelBuilder, nameof(FacilityWorkOrder.VendorSupplierId));
         TenantReference<FacilityWorkflowEvent, FacilityServiceRequest>(modelBuilder, nameof(FacilityWorkflowEvent.FacilityServiceRequestId));
+        TenantReference<FacilityVisitorVisit, Campus>(modelBuilder, nameof(FacilityVisitorVisit.CampusId));
+        TenantReference<FacilityVisitorEvent, FacilityVisitorVisit>(modelBuilder, nameof(FacilityVisitorEvent.FacilityVisitorVisitId));
         // Inventory / Assets
         TenantReference<InventoryLocation, Campus>(modelBuilder, nameof(InventoryLocation.CampusId));
         TenantReference<InventoryMovement, InventoryLocation>(modelBuilder, nameof(InventoryMovement.FromLocationId));
@@ -1990,6 +1994,18 @@ public class EduOSDbContext :
             "([VendorStateCode] IS NULL AND [VendorSupplierId] IS NULL AND [VendorStartUtc] IS NULL AND [VendorEndUtc] IS NULL AND [VendorProposedByUserId] IS NULL) OR ([VendorStateCode] IS NOT NULL AND [VendorStateCode] IN (N'Proposed',N'Approved',N'Rejected',N'Released') AND [VendorSupplierId] IS NOT NULL AND [VendorStartUtc] IS NOT NULL AND [VendorEndUtc] IS NOT NULL AND [VendorStartUtc] < [VendorEndUtc] AND [VendorProposedByUserId] IS NOT NULL AND ([VendorStateCode] <> N'Approved' OR [VendorApprovedByUserId] IS NOT NULL))"));
         modelBuilder.Entity<FacilityWorkflowEvent>().HasIndex(x => new { x.TenantId, x.ClientCommandId }).IsUnique();
         modelBuilder.Entity<FacilityWorkflowEvent>().HasIndex(x => new { x.TenantId, x.FacilityServiceRequestId, x.CreatedAt });
+        modelBuilder.Entity<FacilityVisitorVisit>().HasIndex(x => new { x.TenantId, x.ClientRequestId }).IsUnique();
+        modelBuilder.Entity<FacilityVisitorVisit>().HasIndex(x => new { x.TenantId, x.CampusId, x.StateCode, x.VisitStartUtc });
+        modelBuilder.Entity<FacilityVisitorVisit>().HasIndex(x => new { x.TenantId, x.HostUserId, x.StateCode });
+        modelBuilder.Entity<FacilityVisitorVisit>().HasIndex(x => new { x.TenantId, x.CampusId, x.BadgeCode })
+            .IsUnique().HasFilter("[StateCode] = N'CheckedIn' AND [IsDeleted] = 0");
+        modelBuilder.Entity<FacilityVisitorVisit>().ToTable(t =>
+        {
+            t.HasCheckConstraint("CK_FacilityVisitorVisits_Window", "[VisitStartUtc] < [VisitEndUtc]");
+            t.HasCheckConstraint("CK_FacilityVisitorVisits_State", "[StateCode] IN (N'PendingHost',N'Approved',N'Rejected',N'CheckedIn',N'CheckedOut')");
+        });
+        modelBuilder.Entity<FacilityVisitorEvent>().HasIndex(x => new { x.TenantId, x.ClientCommandId }).IsUnique();
+        modelBuilder.Entity<FacilityVisitorEvent>().HasIndex(x => new { x.TenantId, x.FacilityVisitorVisitId, x.CreatedAt });
         modelBuilder.Entity<FacilitySpace>().HasIndex(x => new { x.TenantId, x.CampusId, x.IsActive, x.Name });
         modelBuilder.Entity<FacilitySpace>().ToTable(t => t.HasCheckConstraint("CK_FacilitySpaces_Code",
             "LEN(LTRIM(RTRIM([Code]))) > 0 AND LEN(LTRIM(RTRIM([Name]))) > 0"));

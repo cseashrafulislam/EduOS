@@ -123,7 +123,7 @@ jobs:
         run: |
           set -euo pipefail
           dotnet test EduOS.Tests/EduOS.Tests.csproj --configuration Release --no-restore \
-            --filter "FullyQualifiedName~SqlServerFacilityWorkOrderTests" \
+            --filter "FullyQualifiedName~SqlServerFacilityWorkOrderTests|FullyQualifiedName~SqlServerFacilityVisitorTests" \
             --logger "trx;LogFileName=sql-v3-facilities-acceptance.trx" --results-directory TestResults
 
       # These V2/V3 checks must remain visible without obscuring a passing

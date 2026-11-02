@@ -1924,6 +1924,23 @@
             recovery: ['If a batch is missing, search or page through authorized batches. If Save fails, retain the current page and retry after correcting validation; do not finalize.', 'ব্যাচ না পেলে অনুমোদিত ব্যাচে খুঁজুন বা পৃষ্ঠা বদলান। Save ব্যর্থ হলে যাচাইয়ের ভুল ঠিক করে একই পৃষ্ঠা থেকে পুনরায় চেষ্টা করুন; চূড়ান্ত করবেন না।'],
             related: [['/Students/Index', 'Student directory', 'শিক্ষার্থী তালিকা']]
         },
+        '/facilityvisitors/index': {
+            version: 1, reviewed: true,
+            title: ['Campus Visitor Preregistration', 'ক্যাম্পাস ভিজিটর প্রি-রেজিস্ট্রেশন'],
+            purpose: ['Register a minimal visitor appointment, obtain independent host approval and record badge check-in and check-out.', 'সীমিত ভিজিটর তথ্য নিবন্ধন, স্বতন্ত্র হোস্ট অনুমোদন এবং ব্যাজসহ প্রবেশ ও প্রস্থান নথিভুক্ত করুন।'],
+            before: ['Sign in with FACILITIES access and an active campus membership. The desk needs FacilitiesManager, Principal or TenantAdmin permission. The separate host must have an active campus grant.', 'FACILITIES অনুমতি ও সক্রিয় ক্যাম্পাস সদস্যপদ দিয়ে সাইন ইন করুন। ডেস্কে FacilitiesManager, Principal অথবা TenantAdmin অনুমতি প্রয়োজন। আলাদা হোস্টের সক্রিয় ক্যাম্পাস অনুমতি থাকতে হবে।'],
+            steps: [
+                ['The desk enters campus, selects an eligible host, provides a visitor name and purpose, then chooses a future UTC visit window.', 'ডেস্ক কর্মকর্তা ক্যাম্পাস, অনুমোদিত হোস্ট, ভিজিটরের নাম ও উদ্দেশ্য এবং ভবিষ্যৎ সময় নির্বাচন করেন।'],
+                ['Select Preregister and review the PendingHost row. The separate host approves or rejects; rejection needs a reason.', 'প্রি-রেজিস্টার করে PendingHost সারি দেখুন। আলাদা হোস্ট অনুমোদন বা কারণসহ প্রত্যাখ্যান করবেন।'],
+                ['During the approved visit window, enter an unused badge code and select Check in. After the visitor leaves, select Check out.', 'অনুমোদিত সময়ে অব্যবহৃত ব্যাজ কোড দিয়ে প্রবেশ নথিভুক্ত করুন। ভিজিটর চলে গেলে প্রস্থান নথিভুক্ত করুন।'],
+                ['Refresh the authorized list after any conflict or uncertain network result; never guess another campus or visitor ID.', 'সংঘাত বা নেটওয়ার্কে অনিশ্চয়তায় অনুমোদিত তালিকা রিফ্রেশ করুন; অন্য ক্যাম্পাস বা ভিজিটর আইডি অনুমান করবেন না।']
+            ],
+            example: ['Fictional example: a campus desk preregisters a guest for a meeting with an eligible staff host. The host approves, the desk assigns badge GUEST-01, and the desk records checkout.', 'কাল্পনিক উদাহরণ: ক্যাম্পাস ডেস্ক একজন অতিথির মিটিং নিবন্ধন করে। হোস্ট অনুমোদন দেন, ডেস্ক GUEST-01 ব্যাজ দিয়ে প্রবেশ ও পরে প্রস্থান নথিভুক্ত করে।'],
+            result: ['The visit and each command are persisted with rowversion and append-only event history. A checked-in badge cannot be assigned to another active visit at the same campus.', 'ভিজিট ও প্রতিটি সিদ্ধান্ত সংস্করণসহ সংরক্ষিত হয় এবং অপরিবর্তনীয় ইতিহাস থাকে। একই ক্যাম্পাসে সক্রিয় ব্যাজ অন্য প্রবেশে ব্যবহার করা যায় না।'],
+            rules: ['Only name and purpose are collected; no ID number, phone, photo or document. Server checks tenant, campus, active host, maker-checker, idempotency and concurrency. Incident handling, configurable policy, retention deletion and visitor export are not yet enabled.', 'শুধু নাম ও উদ্দেশ্য নেওয়া হয়; পরিচয় নম্বর, ফোন, ছবি বা নথি নয়। সার্ভার প্রতিষ্ঠান, ক্যাম্পাস, সক্রিয় হোস্ট, স্বতন্ত্র অনুমোদন, পুনরাবৃত্ত অনুরোধ ও সমসাময়িক পরিবর্তন যাচাই করে। ঘটনা, কনফিগারযোগ্য নীতি, মেয়াদোত্তীর্ণ তথ্য অপসারণ ও এক্সপোর্ট এখনো চালু নয়।'],
+            recovery: ['403 means the current actor, campus or host lacks authorization. 409 means a stale row, reused command, visit window or active badge conflict. Reload before retrying. Do not bypass a denied host approval.', '৪০৩ হলে বর্তমান ব্যবহারকারী, ক্যাম্পাস বা হোস্টের অনুমতি নেই। ৪০৯ হলে পুরোনো সারি, পুনর্ব্যবহৃত কমান্ড, সময় বা ব্যাজের সংঘাত। পুনরায় চেষ্টার আগে রিলোড করুন। প্রত্যাখ্যাত হোস্ট অনুমোদন এড়িয়ে যাবেন না।'],
+            related: [['/FacilityWorkOrders/Index', 'Work orders', 'ওয়ার্ক অর্ডার'], ['/FacilitySpaces/Index', 'Facility spaces', 'ক্যাম্পাস স্থান']]
+        },
         '/facilityworkorders/index': {
             version: 9, reviewed: true,
             title: ['Campus Service Requests and Work Orders', 'ক্যাম্পাস সার্ভিস অনুরোধ ও ওয়ার্ক অর্ডার'],
