@@ -43,6 +43,7 @@ test('visitor UI is bilingual, scoped and safely renders server-provided PII', (
 
 test('visitor transitions enforce independent host approval and active badge uniqueness', () => {
     const service = read('EduOS.Service/Services/Facilities/FacilityVisitorService.cs');
+    const script = read('EduOS.App/wwwroot/js/facilities/visitors.js');
     const context = read('EduOS.Persistence/Context/EduOSDbContext.cs');
     const migration = read('EduOS.Persistence/Migrations/20261102173000_V3FacilityVisitorsInitial.cs');
     assert.match(service, /visit\.CreatedBy == user\.UserId/);
