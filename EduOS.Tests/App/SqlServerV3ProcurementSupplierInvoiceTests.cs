@@ -1,3 +1,4 @@
+using EduOS.App.Controllers.Api;
 using EduOS.Core.DTOs.Inventory;
 using EduOS.Core.Entities.Accounting;
 using EduOS.Core.Entities.Auth;
@@ -8,6 +9,7 @@ using EduOS.Core.Interfaces;
 using EduOS.Persistence.Context;
 using EduOS.Service.Services.Inventory;
 using EduOS.Service.Services.Enterprise;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
@@ -880,6 +882,31 @@ public sealed partial class SqlServerV3ProcurementPurchaseOrderTests
                 Assert.Equal(6m,row.PostedSettlementAmount);
                 Assert.Equal(12m,row.SourceLinkedOutstandingAmount);
                 Assert.Equal("SourceLinked",row.SettlementIntegrityStatus);
+                // Actual SQL-backed financial export: corrupt one posted GL line
+                // inside a disposable rollback transaction. The aging service
+                // must expose EvidenceConflict, but CSV must not publish a
+                // misleading blank or stale outstanding amount.
+                var settlementJournalId = await reconciler.Journals.AsNoTracking()
+                    .Where(x => x.PublicId == postedReference).Select(x => x.Id).SingleAsync();
+                await using (var corruption = await reconciler.Database.BeginTransactionAsync())
+                {
+                    Assert.Equal(1, await reconciler.JournalLines
+                        .Where(x => x.JournalId == settlementJournalId && x.LineNo == 2)
+                        .ExecuteUpdateAsync(s => s.SetProperty(x => x.CreditAmount, 5m)));
+                    var damaged = (await paymentReportService.AgingAsync(date,null,false,1,100)).Data!;
+                    var damagedRow = Assert.Single(damaged.Items,x=>x.InvoiceReference==second.Reference);
+                    Assert.Equal("EvidenceConflict",damagedRow.SettlementIntegrityStatus);
+                    Assert.Null(damagedRow.SourceLinkedOutstandingAmount);
+                    var denied = Assert.IsType<ObjectResult>(
+                        await new ProcurementSupplierInvoicesController(paymentReportService)
+                            .AgingExport(date,null,false,CancellationToken.None));
+                    Assert.Equal(409,denied.StatusCode);
+                    await corruption.RollbackAsync();
+                }
+                var restoredAging = (await paymentReportService.AgingAsync(date,null,false,1,100)).Data!;
+                var restoredRow = Assert.Single(restoredAging.Items,x=>x.InvoiceReference==second.Reference);
+                Assert.Equal("SourceLinked",restoredRow.SettlementIntegrityStatus);
+                Assert.Equal(12m,restoredRow.SourceLinkedOutstandingAmount);
                 var traced=await new V3EnterpriseSupplierPayableTraceService(
                     reconciler,new Actor(tenantId,makerId)).GetAsync(second.Reference);
                 Assert.True(traced.Success,traced.Message);
@@ -1114,6 +1141,30 @@ public sealed partial class SqlServerV3ProcurementPurchaseOrderTests
                 Assert.Equal(404,(await limitedFinance.GetCapitalizationAsync(assetReference)).StatusCode);
                 Assert.Equal(404,(await limitedFinance.RequestCapitalizationAsync(
                     assetReference,request)).StatusCode);
+                // Real SQL campus revocation acceptance for Supplier AP read
+                // surfaces, using the same physical source campus as this asset.
+                var limitedInvoices = new ProcurementSupplierInvoiceService(assetMaker,limitedActor,
+                    new InventoryMovementService(assetMaker,limitedActor,TimeProvider.System,
+                        NullLogger<InventoryMovementService>.Instance),
+                    TimeProvider.System,NullLogger<ProcurementSupplierInvoiceService>.Instance);
+                Assert.Equal(404,(await limitedInvoices.GetAsync(second.Reference)).StatusCode);
+                Assert.Empty((await limitedInvoices.ListAsync(null,null,1,25)).Data!.Items);
+                Assert.Empty((await limitedInvoices.AgingAsync(date,null,false,1,25)).Data!.Items);
+                assetMaker.UserCampusAccesses.Add(new UserCampusAccess {
+                    TenantId=tenantId,UserId=makerId,CampusId=campusId,
+                    IsActive=true,IsDefault=false });
+                await assetMaker.SaveChangesAsync();
+                Assert.Equal(200,(await limitedInvoices.GetAsync(second.Reference)).StatusCode);
+                Assert.Contains((await limitedInvoices.ListAsync(null,null,1,25)).Data!.Items,
+                    x=>x.Reference==second.Reference);
+                Assert.Contains((await limitedInvoices.AgingAsync(date,null,false,1,25)).Data!.Items,
+                    x=>x.InvoiceReference==second.Reference);
+                Assert.Equal(1,await assetMaker.UserCampusAccesses
+                    .Where(x=>x.TenantId==tenantId && x.UserId==makerId && x.CampusId==campusId)
+                    .ExecuteUpdateAsync(s=>s.SetProperty(x=>x.IsActive,false)));
+                Assert.Equal(404,(await limitedInvoices.GetAsync(second.Reference)).StatusCode);
+                Assert.Empty((await limitedInvoices.ListAsync(null,null,1,25)).Data!.Items);
+                Assert.Empty((await limitedInvoices.AgingAsync(date,null,false,1,25)).Data!.Items);
                 Assert.Single(await assetMaker.AssetCapitalizationCommands.AsNoTracking()
                     .Where(x=>x.PublicId==capitalizationReference).ToListAsync());
                 Assert.Equal(403,(await finance.ReviewCapitalizationAsync(capitalizationReference,

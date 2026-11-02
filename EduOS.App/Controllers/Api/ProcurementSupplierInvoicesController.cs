@@ -229,6 +229,22 @@ public sealed class ProcurementSupplierInvoicesController(IProcurementSupplierIn
             p => service.AgingAsync(dueDateReference, supplierId, overdueOnly, p, 100, ct),
             x => x.InvoiceReference);
         if (agingDrift != null) return agingDrift;
+        // Never publish a financially authoritative aging CSV when a linked
+        // settlement/return journal is corrupt, a source reference is missing,
+        // or the projected net no longer reconciles to posted source amounts.
+        // Service readback may intentionally display EvidenceConflict for
+        // investigation; an exported spreadsheet must fail closed instead.
+        if (rows.Any(x => x.InvoiceReference == Guid.Empty || x.JournalReference == Guid.Empty ||
+            x.SupplierId <= 0 || x.CampusId <= 0 || x.DueDate == default ||
+            x.SettlementIntegrityStatus != "SourceLinked" ||
+            x.SourceLinkedOutstandingAmount is not { } outstanding ||
+            x.GrossPostedAmount <= 0m || x.PostedSettlementAmount < 0m ||
+            x.PostedSupplierCreditAmount < 0m || x.PendingSupplierCreditAmount < 0m ||
+            x.ReservedUnpostedAmount < 0m || x.SupplierRefundReceivableAmount < 0m ||
+            x.SupplierRefundReceivableAmount > x.PostedSupplierCreditAmount ||
+            outstanding != Math.Max(0m, x.GrossPostedAmount -
+                x.PostedSettlementAmount - x.PostedSupplierCreditAmount)))
+            return StatusCode(409, new { message = "Supplier payable evidence conflict; reconcile source journals before export." });
         var csv=new StringBuilder("Invoice,PO,Supplier,Campus,DueDate,DaysOverdue,Bucket,GrossPostedAP_BDT,PostedSettlement_BDT,PostedReturnCredit_BDT,PendingReturnCredit_BDT,SupplierRefundReceivable_BDT,UnpostedReservation_BDT,SourceLinkedNet_BDT,SettlementEvidence,ReversalPending,Journal\r\n");
         foreach(var x in rows)
             csv.AppendJoin(',',CsvCell(x.SupplierInvoiceNumber),CsvCell(x.OrderNumber),CsvCell(x.SupplierId),

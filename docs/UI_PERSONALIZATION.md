@@ -719,6 +719,10 @@ The existing reviewed bilingual Page Information guide remains the single manual
 
 ### 9.53. Procurement CSV fail-closed downloads (2026-11-02)
 
+**Supplier payable aging reconciliation (Track 2, #55/#56):** The existing bilingual Supplier Finance page and Page Information drawer remain the entry points; no duplicate UI is introduced. The aging CSV refuses a source-linked report when posted bank/return evidence is flagged EvidenceConflict, a journal or campus identity is missing, or outstanding BDT does not reconcile to posted amounts. Finance can still investigate EvidenceConflict in the authorized read-only screen, but cannot export it as apparently valid financial evidence. Synthetic controller regressions and a rollback-only disposable SQL journal-corruption test cover this boundary; the SQL chain also checks campus grant/revocation on invoice detail/list/aging. Authenticated browser and SQL transaction-snapshot acceptance remain pending.
+
+
+
 Supplier invoice CSV additionally refuses missing/duplicate/invalid source-line projections instead of silently dropping financial rows. Supplier invoice and payable-aging downloads compare a frozen first-read financial evidence signature to the second authorized read, so shared mutable DTO instances cannot conceal an in-place amount change. Errors remain generic and return 409 without CSV; the existing bilingual Page Information manual and UI routes remain unchanged. This is not a transaction-consistent SQL snapshot or authenticated SQL-backed browser acceptance.
 
 

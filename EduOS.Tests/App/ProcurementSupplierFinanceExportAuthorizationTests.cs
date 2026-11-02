@@ -76,7 +76,9 @@ public sealed class ProcurementSupplierFinanceExportAuthorizationTests
     {
         InvoiceReference = Invoice(id).Reference,
         SupplierInvoiceNumber = id == 1 ? "=HYPERLINK(\"unsafe\")" : $"INV-{id}",
-        SourceLinkedOutstandingAmount = 10m
+        JournalReference = Guid.Parse($"00000000-0000-4000-9000-{id:D12}"),
+        SupplierId = 9, CampusId = 3, DueDate = new DateOnly(2026, 11, 1),
+        GrossPostedAmount = 10m, SourceLinkedOutstandingAmount = 10m
     };
 
     private static TestServer Server(Mock<IProcurementSupplierInvoiceService> service)
@@ -132,6 +134,46 @@ public sealed class ProcurementSupplierFinanceExportAuthorizationTests
         request.Headers.TryAddWithoutValidation("X-Test-INVENTORY", inventory ? "true" : "false");
         request.Headers.TryAddWithoutValidation("X-Test-FINANCE", finance ? "true" : "false");
         return await client.SendAsync(request);
+    }
+
+
+    [Theory]
+    [InlineData("conflicted-status")]
+    [InlineData("missing-net")]
+    [InlineData("missing-journal")]
+    [InlineData("missing-campus")]
+    [InlineData("missing-supplier")]
+    [InlineData("negative-settlement")]
+    [InlineData("negative-credit")]
+    [InlineData("negative-reservation")]
+    [InlineData("invalid-refund")]
+    [InlineData("wrong-net")]
+    [InlineData("zero-gross")]
+    public async Task Supplier_payable_aging_CSV_refuses_unreconciled_financial_evidence(string defect)
+    {
+        var row = Aging(1);
+        switch (defect)
+        {
+            case "conflicted-status": row.SettlementIntegrityStatus = "EvidenceConflict"; row.SourceLinkedOutstandingAmount = null; break;
+            case "missing-net": row.SourceLinkedOutstandingAmount = null; break;
+            case "missing-journal": row.JournalReference = Guid.Empty; break;
+            case "missing-campus": row.CampusId = 0; break;
+            case "missing-supplier": row.SupplierId = 0; break;
+            case "negative-settlement": row.PostedSettlementAmount = -1m; break;
+            case "negative-credit": row.PostedSupplierCreditAmount = -1m; break;
+            case "negative-reservation": row.ReservedUnpostedAmount = -1m; break;
+            case "invalid-refund": row.SupplierRefundReceivableAmount = 1m; break;
+            case "wrong-net": row.SourceLinkedOutstandingAmount = 9m; break;
+            case "zero-gross": row.GrossPostedAmount = 0m; break;
+        }
+        var service = new Mock<IProcurementSupplierInvoiceService>();
+        service.Setup(x => x.AgingAsync(null, null, false, 1, 100, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Ok(1, 1, row));
+        var response = Assert.IsType<ObjectResult>(await new ProcurementSupplierInvoicesController(service.Object)
+            .AgingExport(null, null, false, CancellationToken.None));
+        Assert.Equal(409, response.StatusCode);
+        service.Verify(x => x.AgingAsync(null, null, false, 1, 100, It.IsAny<CancellationToken>()),
+            Times.Exactly(2));
     }
 
     [Fact]
