@@ -49,6 +49,8 @@ function fakeRead(aRows, bRows, options = {}) {
         if (options.duplicate && page === 2 && items.length) items[0] = source[0];
         if (options.foreignLeak && cookie === 'b' && page === 2 && items.length)
             items[0] = { ...items[0], reference: stock };
+        if (options.foreignOverlapPage === page && cookie === 'b' && items.length)
+            items[0] = { ...items[0], reference: aRows[10].reference.toUpperCase() };
         if (path.includes('/csv?')) {
             const csvRows = items.map((x, i) => {
                 if (i !== 0 || page !== 2) return x;
@@ -82,6 +84,12 @@ test('finds seeded evidence on second page and reconciles all tenant pages', asy
 test('detects foreign evidence on second page', async () => {
     await assert.rejects(audit(args(fakeRead(rows(65, 55),
         rows(61, -1, 2), { foreignLeak: true }))), /Foreign register leaked/);
+});
+test('rejects non-seeded tenant A references leaked on foreign first or later page', async () => {
+    for (const foreignOverlapPage of [1, 2])
+        await assert.rejects(audit(args(fakeRead(rows(65, 55),
+            rows(61, -1, 2), { foreignOverlapPage }))),
+        /Foreign register leaked tenant A evidence/);
 });
 test('detects duplicate page boundary, count drift and CSV mismatch', async () => {
     for (const [key, error] of [['duplicate', /Duplicate register/],
@@ -125,6 +133,8 @@ function procurementRead(options = {}) {
         const items = source.slice((page - 1) * 50, page * 50).map(x => ({ ...x }));
         if (options.foreignLeak && cookie === 'b' && page === 2 && items.length)
             items[0].reference = stock;
+        if (options.foreignOverlap && cookie === 'b' && page === 2 && items.length)
+            items[0].reference = a[10].reference.toUpperCase();
         if (options.amountMismatch && cookie === 'a' && page === 2 && items.length)
             items[0].recordedValue = '999.00';
         if (options.campusMismatch && cookie === 'a' && page === 2 && items.length)
@@ -152,6 +162,11 @@ test('procurement later-page foreign disclosure, campus and decimal mismatches f
         procurementRead({ [key]: true }))), expected);
 });
 
+test('procurement foreign page cannot expose another tenant non-seeded PO reference', async () => {
+    await assert.rejects(audit(procurementArgs(
+        procurementRead({ foreignOverlap: true }))),
+    /Foreign register leaked tenant A evidence/);
+});
 test('procurement later-page JSON and CSV may agree but must also match canonical PO detail', async () => {
     const read = procurementRead();
     const corrupted = async (cookie, path) => {

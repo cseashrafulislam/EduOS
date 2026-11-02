@@ -103,7 +103,9 @@ export async function auditRegisterPages({ read, parseCsv, api, kind, reference,
     // later pages or in-place Finance/stock evidence stayed unchanged.
     const evidenceSignature = row => JSON.stringify(
         Object.keys(row).sort().map(key => [key, row[key]]));
-    const scan = async (cookie, foreign) => {
+    // A seeded UUID alone is insufficient: any shared reference across tenant
+    // registers is a privacy/integrity conflict, including on later pages.
+    const scan = async (cookie, ownerReferences = null) => {
         const first = await snapshot(cookie, 1);
         const total = first.totalCount;
         const pages = Math.max(1, Math.ceil(total / MAX_PAGE_SIZE));
@@ -127,7 +129,7 @@ export async function auditRegisterPages({ read, parseCsv, api, kind, reference,
                 lastDate = row.date;
                 if (ref === wanted) {
                     found = true;
-                    if (!foreign && kind === 'procurement' && expectedEvidence)
+                    if (!ownerReferences && kind === 'procurement' && expectedEvidence)
                         requireEvidence(row.state === expectedEvidence.state &&
                             row.lineCount === expectedEvidence.lineCount &&
                             row.campusId === expectedEvidence.campusId &&
@@ -135,7 +137,7 @@ export async function auditRegisterPages({ read, parseCsv, api, kind, reference,
                                 scaledDecimal(expectedEvidence.totalAmount),
                             'Procurement detail and later-page register evidence disagree.');
                 }
-                if (foreign) requireEvidence(ref !== wanted,
+                if (ownerReferences) requireEvidence(!ownerReferences.has(ref),
                     'Foreign register leaked tenant A evidence.');
             }
         }
@@ -146,11 +148,11 @@ export async function auditRegisterPages({ read, parseCsv, api, kind, reference,
                 JSON.stringify(replay.items.map(evidenceSignature)),
                 'Register page replay changed during audit.');
         }
-        return { count: total, pages, found };
+        return { count: total, pages, found, references: seen };
     };
-    const own = await scan(tenantA, false);
+    const own = await scan(tenantA);
     requireEvidence(own.found,
         'Seeded reference missing from bounded register pages.');
-    await scan(tenantB, true);
+    await scan(tenantB, own.references);
     return { kind, count: own.count, pagesAudited: own.pages };
 }
