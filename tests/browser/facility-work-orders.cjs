@@ -237,6 +237,11 @@ async function vendorStaleWindow(browser) {
         await page.locator('#wfVendorRows button').waitFor();
         state.vendorDelayed.resolve();
         await staleResponse;
+        const latestWindowLookup = state.calls.filter(c =>
+            c.url.includes('/vendors?') && !c.url.includes('search=old')).at(-1);
+        assert.ok(latestWindowLookup, 'current window must have a fresh vendor lookup');
+        const actualEnd = new URL(latestWindowLookup.url, 'http://localhost').searchParams.get('endUtc');
+        assert.ok(Date.parse(actualEnd) > end.getTime(), 'current preview must use the edited end time');
         assert.doesNotMatch(await page.locator('#wfVendorRows').innerText(), /Stale vendor/);
         assert.equal(await page.locator('#wfVendorSelected').inputValue(), '');
         assert.equal(state.calls.some(c => c.method === 'POST'), false);
