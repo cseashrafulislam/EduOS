@@ -37,6 +37,26 @@ public sealed class ProcurementGoodsReceiptsController(IInventoryMovementService
     public async Task<IActionResult> Review(Guid reference, [FromBody] ReviewProcurementGoodsReceiptRequest request,
         CancellationToken ct) => Reply(await inventory.ReviewGoodsReceiptAsync(reference, request, ct));
 
+    // An empty or damaged line projection must never silently remove a received
+    // item from a source-linked stock/Finance evidence download.
+    private static bool HasCompleteReceiptLines(ProcurementGoodsReceiptDto receipt)
+    {
+        if (receipt.Lines is not { Count: >= 1 and <= 100 })
+            return false;
+        var lineNumbers = new HashSet<int>();
+        foreach (var line in receipt.Lines)
+        {
+            if (line is null || line.LineNo <= 0 || !lineNumbers.Add(line.LineNo) ||
+                line.PurchaseOrderLineId <= 0 || line.InventoryItemId <= 0 ||
+                line.Quantity <= 0m || line.ApprovedPoQuantity <= 0m ||
+                line.ApprovedPoUnitPrice < 0m || line.PostedUnitCost is < 0m)
+                return false;
+        }
+        return receipt.StateCode != "Posted" ||
+            (receipt.PostedMovementReference is { } movement && movement != Guid.Empty &&
+             receipt.Lines.All(line => line.PostedUnitCost.HasValue));
+    }
+
     [HttpGet("export"), Authorize(Roles = "TenantAdmin,Principal,InventoryManager,StoreKeeper,Accountant")]
     public async Task<IActionResult> Export(long? purchaseOrderId, string? state, CancellationToken ct)
     {
@@ -45,6 +65,8 @@ public sealed class ProcurementGoodsReceiptsController(IInventoryMovementService
             (ProcurementGoodsReceiptDto x) => x.Reference);
         if (results == null)
             return StatusCode(error, new { message = "Procurement export changed or access denied; retry with fresh authorization and filters." });
+        if (results.Any(receipt => !HasCompleteReceiptLines(receipt)))
+            return StatusCode(409, new { message = "Goods receipt source lines unavailable; retry with fresh authorization." });
         var csv = new StringBuilder("Receipt UUID,Order,Campus,Location,Status,Maker,Checker,Line,Item,Lot,Quantity,PO Quantity,PO Unit Price,Posted Unit Cost,Valuation Reason,Inventory Movement UUID\r\n");
         foreach (var receipt in results)
             foreach (var line in receipt.Lines)

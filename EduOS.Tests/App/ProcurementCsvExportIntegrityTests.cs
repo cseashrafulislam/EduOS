@@ -20,7 +20,7 @@ public sealed class ProcurementCsvExportIntegrityTests
     {
         Reference = Guid.Parse($"00000000-0000-4000-8000-{id:D12}"),
         Lines = [new ProcurementGoodsReceiptLineDto
-        { LineNo = 1, LotOrBatchNo = "+SUM(1,1)\r\nUNSAFE", Quantity = 1m, PostedUnitCost = cost }]
+        { LineNo = 1, PurchaseOrderLineId = 1, InventoryItemId = 1, ApprovedPoQuantity = 1m, ApprovedPoUnitPrice = 10m, LotOrBatchNo = "+SUM(1,1)\r\nUNSAFE", Quantity = 1m, PostedUnitCost = cost }]
     };
 
     [Fact]
@@ -62,6 +62,90 @@ public sealed class ProcurementCsvExportIntegrityTests
         Assert.StartsWith("\uFEFF", csv);
         Assert.Contains("'+SUM(1,1)  UNSAFE", csv);
         Assert.DoesNotContain("\r\nUNSAFE", csv);
+        Assert.Contains("\"10\"", csv);
+    }
+
+
+    [Theory]
+    [InlineData("missing")]
+    [InlineData("duplicate")]
+    [InlineData("zero-quantity")]
+    [InlineData("missing-po-line")]
+    [InlineData("missing-item")]
+    [InlineData("over-limit")]
+    [InlineData("posted-without-movement")]
+    [InlineData("posted-without-cost")]
+    [InlineData("negative-posted-cost")]
+    public async Task Receipt_export_refuses_incomplete_or_unlinked_stock_source_evidence(string defect)
+    {
+        var receipt = Receipt(1);
+        switch (defect)
+        {
+            case "missing":
+                receipt.Lines.Clear();
+                break;
+            case "duplicate":
+                receipt.Lines.Add(new ProcurementGoodsReceiptLineDto
+                {
+                    LineNo = 1, PurchaseOrderLineId = 2, InventoryItemId = 1,
+                    Quantity = 1m, ApprovedPoQuantity = 1m, ApprovedPoUnitPrice = 10m
+                });
+                break;
+            case "zero-quantity":
+                receipt.Lines[0].Quantity = 0m;
+                break;
+            case "missing-po-line":
+                receipt.Lines[0].PurchaseOrderLineId = 0;
+                break;
+            case "missing-item":
+                receipt.Lines[0].InventoryItemId = 0;
+                break;
+            case "over-limit":
+                receipt.Lines = Enumerable.Range(1, 101).Select(i =>
+                    new ProcurementGoodsReceiptLineDto
+                    {
+                        LineNo = i, PurchaseOrderLineId = i, InventoryItemId = 1,
+                        Quantity = 1m, ApprovedPoQuantity = 1m, ApprovedPoUnitPrice = 10m
+                    }).ToList();
+                break;
+            case "posted-without-movement":
+                receipt.StateCode = "Posted";
+                break;
+            case "posted-without-cost":
+                receipt.StateCode = "Posted";
+                receipt.PostedMovementReference = Guid.NewGuid();
+                receipt.Lines[0].PostedUnitCost = null;
+                break;
+            case "negative-posted-cost":
+                receipt.StateCode = "Posted";
+                receipt.PostedMovementReference = Guid.NewGuid();
+                receipt.Lines[0].PostedUnitCost = -1m;
+                break;
+        }
+        var inventory = new Mock<IInventoryMovementService>();
+        inventory.Setup(x => x.GetGoodsReceiptsAsync(null, null, 1, 100, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Ok(1, 1, receipt));
+        var result = Assert.IsType<ObjectResult>(
+            await new ProcurementGoodsReceiptsController(inventory.Object)
+                .Export(null, null, CancellationToken.None));
+        Assert.Equal(409, result.StatusCode);
+        Assert.IsNotType<FileContentResult>(result);
+    }
+
+    [Fact]
+    public async Task Posted_receipt_export_preserves_valid_stock_movement_lineage()
+    {
+        var receipt = Receipt(1);
+        receipt.StateCode = "Posted";
+        receipt.PostedMovementReference = Guid.NewGuid();
+        var inventory = new Mock<IInventoryMovementService>();
+        inventory.Setup(x => x.GetGoodsReceiptsAsync(null, null, 1, 100, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Ok(1, 1, receipt));
+        var result = Assert.IsType<FileContentResult>(
+            await new ProcurementGoodsReceiptsController(inventory.Object)
+                .Export(null, null, CancellationToken.None));
+        var csv = Encoding.UTF8.GetString(result.FileContents);
+        Assert.Contains(receipt.PostedMovementReference.Value.ToString(), csv);
         Assert.Contains("\"10\"", csv);
     }
 
