@@ -50,7 +50,8 @@ function mock({ foreignLeak = false, csvAmount = 24, lineAmount = 24,
                     items: visible ? [row] : [] } }
             : isCsv ? csvDetail().replace(',24,50,26,BDT', ',' + csvAmount + ',50,26,BDT')
                 : { success: true, data };
-        return { status: statusCode, body, type: isCsv ? 'text/csv' : 'application/json',
+        return { status: statusCode, body: statusCode === 200 ? body : { success: false, data: null },
+            type: isCsv ? 'text/csv' : 'application/json',
             cache: 'private, no-store' };
     };
     return { read, requests };
@@ -122,4 +123,64 @@ test('procurement first-page audit can defer reference proof only to bounded all
         allowReferenceBeyondFirstPage: true });
     assert.equal(result.firstPageReferenceFound, false);
     assert.equal(result.reportCount, 65);
+});
+
+test('procurement owner/foreign private responses require strict no-store', async () => {
+    const { auditProcurement } = await import(moduleUrl);
+    for (const [cookie, pathPart, unsafe] of [
+        ['a', '/procurement/' + po, 'no-cache'],
+        ['a', '/procurement/' + po + '/csv', 'public, no-store'],
+        ['a', '/register?', 'private, s-maxage=60, no-store'],
+        ['b', '/register/csv?', 'x-no-store']
+    ]) {
+        const original = mock().read;
+        const read = async (session, path) => {
+            const response = await original(session, path);
+            if (session === cookie && path.includes(pathPart))
+                response.cache = unsafe;
+            return response;
+        };
+        await assert.rejects(auditProcurement({ ...config, read, parseCsv }),
+            /cache unsafe/);
+    }
+});
+
+test('procurement foreign and restricted denial rejects private payload and UUID echo', async () => {
+    const { auditProcurement } = await import(moduleUrl);
+    for (const [session, suffix, payload, expected] of [
+        ['b', '/procurement/' + po,
+            { success: false, data: { orderReference: po } }, /private evidence/],
+        ['b', '/procurement/' + po + '/csv', 'Not found ' + req, /echoed owner reference/],
+        ['restricted', '/procurement/' + po,
+            { success: false, message: supplier }, /echoed owner reference/]
+    ]) {
+        const original = mock().read;
+        const read = async (cookie, path) => {
+            const response = await original(cookie, path);
+            if (cookie === session && path === api + suffix) response.body = payload;
+            return response;
+        };
+        await assert.rejects(auditProcurement({ ...config, read, parseCsv,
+            restricted: session === 'restricted' ? 'restricted' : null }), expected);
+    }
+});
+
+test('procurement foreign register rejects non-seeded owner source UUIDs', async () => {
+    const { auditProcurement } = await import(moduleUrl);
+    for (const csvLeak of [false, true]) {
+        const original = mock().read;
+        const read = async (cookie, path) => {
+            const response = await original(cookie, path);
+            if (cookie === 'b' && path.includes('/register')) {
+                if (csvLeak && path.includes('/csv'))
+                    response.body = reportCsv({ ...registerRow, reference: req });
+                if (!csvLeak && !path.includes('/csv'))
+                    response.body.data = { kind: 'procurement', page: 1, pageSize: 50,
+                        totalCount: 1, items: [{ ...registerRow, reference: req }] };
+            }
+            return response;
+        };
+        await assert.rejects(auditProcurement({ ...config, read, parseCsv }),
+            /Foreign procurement register/);
+    }
 });

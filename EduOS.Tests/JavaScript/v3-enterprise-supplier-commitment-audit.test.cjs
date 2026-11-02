@@ -144,3 +144,44 @@ test('foreign list and CSV export leaks are detected independently of detail IDO
     await assert.rejects(auditSupplierCommitment({ ...options,
         read: mock({ foreignExportLeak: true }).read }), /Foreign commitments export/);
 });
+
+test('supplier JSON and CSV reject revalidation-only and contradictory shared caching', async () => {
+    const { auditSupplierCommitment } = await import(moduleUrl);
+    for (const [pathPart, unsafe] of [
+        ['/supplier-confirmations/71', 'no-cache'],
+        ['/purchase-orders/commitments/export?', 'public, no-store'],
+        ['/supplier-confirmations/export?', 'no-store, s-maxage=60'],
+        ['/purchase-orders/21', 'x-no-store']
+    ]) {
+        const original = mock().read;
+        const read = async (cookie, path) => {
+            const response = await original(cookie, path);
+            if (cookie === 'a' && path.includes(pathPart)) response.cache = unsafe;
+            return response;
+        };
+        await assert.rejects(auditSupplierCommitment({ ...options, read }),
+            /cache policy unsafe/);
+    }
+});
+
+test('supplier denied detail and restricted responses reject hidden data, UUID echo and cache leaks', async () => {
+    const { auditSupplierCommitment } = await import(moduleUrl);
+    for (const [cookie, pathPart, mutation, expected] of [
+        ['b', '/supplier-confirmations/71',
+            { body: { success: false, data: { clientRequestId } } }, /private evidence/],
+        ['b', '/purchase-orders/21',
+            { body: { success: false, message: reference } }, /echoed owner reference/],
+        ['restricted', '/supplier-confirmations/71',
+            { cache: 'public, no-store' }, /cache policy unsafe/]
+    ]) {
+        const original = mock().read;
+        const read = async (session, path) => {
+            const response = await original(session, path);
+            if (session === cookie && path.includes(pathPart))
+                Object.assign(response, mutation);
+            return response;
+        };
+        await assert.rejects(auditSupplierCommitment({ ...options, read,
+            restricted: cookie === 'restricted' ? 'restricted' : null }), expected);
+    }
+});

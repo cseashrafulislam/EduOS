@@ -1,6 +1,7 @@
 // Read-only Track 5 cross-module contract: independently checked supplier
 // confirmation -> canonical PO -> enterprise procurement evidence -> commitments.
 // A confirmation is NOT a stock receipt, payable, or Finance posting.
+import { assertPrivateCache } from './v3-enterprise-paged-audit.mjs';
 const requireTrue = (condition, message) => { if (!condition) throw new Error(message); };
 const uuid = value => typeof value === 'string' &&
     /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
@@ -29,21 +30,26 @@ const privateRead = async (read, cookie, path, label) => {
     const response = await read(cookie, path);
     requireTrue(response.status === 200 && response.body?.success && response.body?.data,
         label + ' unavailable.');
-    requireTrue(response.cache?.includes('no-store') || response.cache?.includes('no-cache'),
-        label + ' private cache policy unsafe.');
+    assertPrivateCache(response.cache, label + ' private cache policy unsafe.');
     return response.body.data;
 };
 const privateCsv = async (read, parseCsv, cookie, path, label) => {
     const response = await read(cookie, path);
     requireTrue(response.status === 200 && response.type?.includes('text/csv'),
         label + ' CSV unavailable.');
-    requireTrue(response.cache?.includes('no-store') || response.cache?.includes('no-cache'),
-        label + ' CSV cache policy unsafe.');
+    assertPrivateCache(response.cache, label + ' CSV cache policy unsafe.');
     return parseCsv(response.body);
 };
-const denied = async (read, cookie, path, label, statuses = [403, 404]) => {
+const denied = async (read, cookie, path, label, references, statuses = [403, 404]) => {
     const result = await read(cookie, path);
     requireTrue(statuses.includes(result.status), label + ' disclosed to unauthorized session.');
+    assertPrivateCache(result.cache, label + ' denied response cache policy unsafe.');
+    requireTrue(result.body?.success !== true && result.body?.data == null,
+        label + ' denied response returned private evidence.');
+    const payload = typeof result.body === 'string' ? result.body :
+        JSON.stringify(result.body ?? '');
+    requireTrue(!references.some(ref => payload.toLowerCase().includes(ref.toLowerCase())),
+        label + ' denied response echoed owner reference.');
 };
 const commitmentsHeader = 'Order|Campus ID|Supplier ID|Supplier|Approval Status|Approved UTC|Expected Delivery|Aging Date|Schedule|Days Overdue|Lines|Currency|Approved Commitment|Supplier Confirmed UTC|Supplier Promised Delivery|Supplier Reference';
 const confirmationsHeader = 'Order|Campus|Supplier|Reference|Response Date|Promised Delivery|State|Checker UTC';
@@ -161,8 +167,9 @@ export async function auditSupplierCommitment({ read, parseCsv, api,
             'Supplier confirmation export row disagrees with authorized JSON.');
     }
 
+    const privateReferences = [reference, c.clientRequestId];
     for (const path of [confirmationPath, poPath, tracePath])
-        await denied(read, tenantB, path, 'Foreign supplier/PO detail');
+        await denied(read, tenantB, path, 'Foreign supplier/PO detail', privateReferences);
     const foreignCommitments = await pages({ read, cookie: tenantB,
         path: commitmentsPath, label: 'Foreign commitments' });
     requireTrue(!foreignCommitments.some(x => x.orderNumber === po.orderNumber &&
@@ -190,7 +197,7 @@ export async function auditSupplierCommitment({ read, parseCsv, api,
             confirmations + '?' + confirmationsFilter + '&page=1&pageSize=100',
             confirmations + '/export?' + confirmationsFilter,
             orders + '/commitments/export?' + filter])
-            await denied(read, restricted, path, 'Restricted role', [403]);
+            await denied(read, restricted, path, 'Restricted role', privateReferences, [403]);
     }
     return { confirmationId, purchaseOrderId: po.id,
         checks: ['canonical supplier/PO/enterprise lineage', 'independent checker and dates',

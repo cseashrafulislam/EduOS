@@ -1,5 +1,6 @@
 // Read-only, fail-closed acceptance of the canonical PO -> requisition -> supplier
 // commitment evidence. Does NOT infer inventory receipts or Finance postings.
+import { assertPrivateCache } from './v3-enterprise-paged-audit.mjs';
 const ensure = (condition, message) => { if (!condition) throw new Error(message); };
 const id = value => typeof value === 'string' &&
     /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value)
@@ -12,8 +13,18 @@ const amount = value => {
     const n = BigInt(whole) * 10000000000n + BigInt(fraction.padEnd(10, '0'));
     return negative ? -n : n;
 };
-const cacheSafe = response => ensure(response.cache?.includes('no-store') ||
-    response.cache?.includes('no-cache'), 'Procurement private response cache unsafe.');
+const cacheSafe = response => assertPrivateCache(response.cache,
+    'Procurement private response cache unsafe.');
+const denyPrivate = (response, label, references) => {
+    ensure([403, 404].includes(response.status), label + ' disclosed.');
+    cacheSafe(response);
+    ensure(response.body?.success !== true && response.body?.data == null,
+        label + ' returned private evidence.');
+    const payload = typeof response.body === 'string' ? response.body :
+        JSON.stringify(response.body ?? '');
+    ensure(!references.some(ref => payload.toLowerCase().includes(ref.toLowerCase())),
+        label + ' echoed owner reference.');
+};
 const states = new Map([
     ['Approved', 'ApprovedCommitment'], ['CancelRequested', 'CancellationPending'],
     ['Cancelled', 'CancelledCommitment'], ['Rejected', 'RejectedCommitment'],
@@ -42,7 +53,8 @@ export async function auditProcurement({ read, parseCsv, api, reference, from, t
     ensure(Number.isSafeInteger(d.campusId) && d.campusId > 0,
         'Procurement campus invalid.');
     const foreign = await read(tenantB, path);
-    ensure([403, 404].includes(foreign.status), 'Foreign procurement detail disclosed.');
+    denyPrivate(foreign, 'Foreign procurement detail',
+        [reference, d.requisitionReference, d.supplierReference]);
     const ownCsv = await read(tenantA, path + '/csv');
     ensure(ownCsv.status === 200 && ownCsv.type.includes('text/csv'),
         'Procurement CSV unavailable.');
@@ -86,7 +98,8 @@ export async function auditProcurement({ read, parseCsv, api, reference, from, t
         amount(d.approvedBudget) - sum === amount(d.budgetVariance),
         'Procurement budget and line arithmetic disagree.');
     const foreignCsv = await read(tenantB, path + '/csv');
-    ensure([403, 404].includes(foreignCsv.status), 'Foreign procurement CSV disclosed.');
+    denyPrivate(foreignCsv, 'Foreign procurement CSV',
+        [reference, d.requisitionReference, d.supplierReference]);
 
     const query = new URLSearchParams({ kind: 'procurement', from, to,
         page: '1', pageSize: '50', ...(campusId ? { campusId } : {}) });
@@ -124,20 +137,25 @@ export async function auditProcurement({ read, parseCsv, api, reference, from, t
             row[8] === r.items[index].evidenceStatus),
         'Procurement register JSON/CSV parity failed.');
     const foreignRegister = await read(tenantB, registerPath);
+    cacheSafe(foreignRegister);
+    const ownerReferences = new Set([reference, d.requisitionReference,
+        d.supplierReference, ...r.items.map(x => x.reference)].map(id).filter(Boolean));
     ensure(foreignRegister.status === 200 && foreignRegister.body?.success &&
         Array.isArray(foreignRegister.body.data?.items) &&
-        !foreignRegister.body.data.items.some(x => id(x.reference) === id(reference)),
+        !foreignRegister.body.data.items.some(x => ownerReferences.has(id(x.reference))),
         'Foreign procurement register disclosed.');
     const foreignRegisterCsv = await read(tenantB, api + '/register/csv?' + query);
+    cacheSafe(foreignRegisterCsv);
     ensure(foreignRegisterCsv.status === 200 &&
         !parseCsv(foreignRegisterCsv.body).rows.some(row =>
-            id(row[reportCsv.referenceIndex]) === id(reference)),
+            ownerReferences.has(id(row[reportCsv.referenceIndex]))),
         'Foreign procurement register CSV disclosed.');
     if (restricted) {
         for (const url of [path, path + '/csv', registerPath,
             api + '/register/csv?' + query]) {
             const result = await read(restricted, url);
             ensure(result.status === 403, 'Restricted role accessed procurement evidence.');
+            denyPrivate(result, 'Restricted procurement evidence', [...ownerReferences]);
         }
     }
     return { reference: id(reference), state: d.state, lineCount: d.lineCount,
