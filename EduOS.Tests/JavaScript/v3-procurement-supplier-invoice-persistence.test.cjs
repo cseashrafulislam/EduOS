@@ -11,7 +11,10 @@ test('V3 supplier invoice API has anti-forgery, tenant module, authorization and
   'EnableRateLimiting("ApiPolicy")','NoStore = true','Authorize(Roles="TenantAdmin,Accountant")',
   'supplier-invoices','/submit','/review','/reversal','"export"'])
   assert.ok(api.includes(token), 'missing API protection: ' + token);
- assert.match(api, /"=\+\-@"\.Contains/);
+ const csvGuard = read('EduOS.App/Controllers/Api/ProcurementCsvExportGuard.cs');
+ assert.match(api, /ProcurementCsvExportGuard\.Cell\(value\)/);
+ assert.match(csvGuard, /"=\+\-@"\.Contains/);
+ assert.match(api, /ExportFailure\(response\)/);
 });
 
 test('Submitted invoice reserves posted goods receipts and refuses duplicate submitted quantities', () => {

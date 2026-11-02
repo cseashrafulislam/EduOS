@@ -14,8 +14,12 @@ test('Aging has protected bounded export and bilingual XSS-safe UI',()=>{
  const c=read('EduOS.App/Controllers/Api/ProcurementSupplierInvoicesController.cs');
  const v=read('EduOS.App/Views/ProcurementSupplierInvoiceMatching/Index.cshtml');
  const js=read('EduOS.App/wwwroot/js/procurement/supplier-payable-aging.js');
- for(const x of ['HttpGet("aging")','HttpGet("aging/export")','TotalCount>500','"=+-@"'])
+ const csvGuard=read('EduOS.App/Controllers/Api/ProcurementCsvExportGuard.cs');
+ for(const x of ['HttpGet("aging")','HttpGet("aging/export")','TotalCount>500','ProcurementCsvExportGuard.Cell'])
   assert.ok(c.includes(x),x);
+ for(const x of ['"=+-@"','char.GetUnicodeCategory','\\u200B','\\u202E'])
+  assert.ok(csvGuard.includes(x), 'missing shared CSV formula/invisible-prefix defense: '+x);
+ assert.match(c,/ExportFailure\(response\)/);
  for(const x of ['supplierPayableAging','data-bn','paRows','supplier-payable-aging.js'])
   assert.ok(v.includes(x),x);
  for(const x of ['textContent','replaceChildren','n!==seq',"credentials:'same-origin'", "cache:'no-store'"])
