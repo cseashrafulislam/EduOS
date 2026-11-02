@@ -25,6 +25,8 @@
         return value ? new Date(value).toISOString() : null;
     };
     let requestEpoch = 0;
+    let pendingCreateId = crypto.randomUUID();
+    const commandIds = new Map();
     const button = (name, action, row, handler) => {
         const b = document.createElement('button');
         b.type = 'button'; b.className = 'btn btn-outline-primary btn-sm';
@@ -39,12 +41,15 @@
         if (action === 'hostreject' && reason.length < 10) {
             status(label('Rejection needs a 10-character reason.', 'প্রত্যাখ্যানে কমপক্ষে ১০ অক্ষরের কারণ দিন।')); return;
         }
+        const key = [row.id, action, row.rowVersion, badgeCode, reason].join('|');
+        if (!commandIds.has(key)) commandIds.set(key, crypto.randomUUID());
         try {
             await api('/api/facilities/visitors/' + row.id + '/' + action, 'POST', {
-                clientCommandId: crypto.randomUUID(), rowVersion: row.rowVersion,
+                clientCommandId: commandIds.get(key), rowVersion: row.rowVersion,
                 badgeCode: action === 'checkin' ? badgeCode : null,
                 reason: reason || null
             });
+            commandIds.delete(key);
             $('fvReason').value = ''; $('fvBadge').value = '';
             await load();
         } catch (e) { status(e.message); }
@@ -104,13 +109,14 @@
         e.preventDefault();
         try {
             await api('/api/facilities/visitors', 'POST', {
-                clientRequestId: crypto.randomUUID(),
+                clientRequestId: pendingCreateId,
                 campusId: Number($('fvCampus').value),
                 hostUserId: Number($('fvHost').value),
                 visitorName: $('fvName').value.trim(),
                 purpose: $('fvPurpose').value.trim(),
                 visitStartUtc: utc('fvStart'), visitEndUtc: utc('fvEnd')
             });
+            pendingCreateId = crypto.randomUUID();
             $('fvName').value = ''; $('fvPurpose').value = '';
             await load();
         } catch (err) { status(err.message); }

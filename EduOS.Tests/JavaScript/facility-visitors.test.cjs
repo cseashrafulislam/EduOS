@@ -20,6 +20,8 @@ test('visitor UI is bilingual, scoped and safely renders server-provided PII', (
     assert.match(script, /textContent = row\.visitorName/);
     assert.doesNotMatch(script, /\.innerHTML\s*=/);
     assert.match(script, /requestEpoch/);
+    assert.match(script, /pendingCreateId/);
+    assert.match(script, /commandIds/);
     assert.match(api, /RequireModule\("FACILITIES"\)/);
     assert.match(api, /AutoValidateAntiforgeryToken/);
     assert.match(api, /EnableRateLimiting/);

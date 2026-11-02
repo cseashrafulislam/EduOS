@@ -73,13 +73,16 @@ public sealed class SqlServerFacilityVisitorTests
         }
         var start = DateTime.UtcNow.AddHours(1);
         var end = start.AddHours(2);
+        Guid firstCommandId = Guid.Empty;
         async Task<FacilityVisitorDto> PreregisterAsync(string visitor)
         {
             await using var db = Db(options, tenantId, managerId, "FacilitiesManager");
+            var commandId = Guid.NewGuid();
+            if (visitor == "Guest One") firstCommandId = commandId;
             var result = await Service(db, tenantId, managerId, "FacilitiesManager")
                 .CreateAsync(new CreateFacilityVisitorDto
                 {
-                    ClientRequestId = Guid.NewGuid(), CampusId = campusId, HostUserId = hostId,
+                    ClientRequestId = commandId, CampusId = campusId, HostUserId = hostId,
                     VisitorName = visitor, Purpose = "Scheduled campus meeting",
                     VisitStartUtc = start, VisitEndUtc = end
                 });
@@ -88,6 +91,30 @@ public sealed class SqlServerFacilityVisitorTests
         }
         var first = await PreregisterAsync("Guest One");
         var second = await PreregisterAsync("Guest Two");
+        // A late retry of the same immutable preregistration is acknowledged,
+        // but a NEW preregistration with an elapsed window is never accepted.
+        await using (var db = Db(options, tenantId, managerId, "FacilitiesManager"))
+        {
+            var service = Service(db, tenantId, managerId, "FacilitiesManager",
+                new ShiftedClock(TimeSpan.FromHours(2)));
+            var retry = await service.CreateAsync(new CreateFacilityVisitorDto
+            {
+                ClientRequestId = firstCommandId, CampusId = campusId, HostUserId = hostId,
+                VisitorName = "Guest One", Purpose = "Scheduled campus meeting",
+                VisitStartUtc = start, VisitEndUtc = end
+            });
+            Assert.True(retry.Success, retry.Message);
+            Assert.Equal(first.Id, retry.Data!.Id);
+            var lateNew = await service.CreateAsync(new CreateFacilityVisitorDto
+            {
+                ClientRequestId = Guid.NewGuid(), CampusId = campusId, HostUserId = hostId,
+                VisitorName = "Guest Three", Purpose = "Scheduled campus meeting",
+                VisitStartUtc = start, VisitEndUtc = end
+            });
+            Assert.Equal(409, lateNew.StatusCode);
+            Assert.Equal(2, await db.Set<FacilityVisitorVisit>().CountAsync(x => x.CampusId == campusId));
+            Assert.Equal(2, await db.Set<FacilityVisitorEvent>().CountAsync(x => x.ActionCode == "preregister"));
+        }
         await using (var db = Db(options, tenantId, managerId, "FacilitiesManager"))
         {
             var service = Service(db, tenantId, managerId, "FacilitiesManager");

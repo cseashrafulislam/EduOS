@@ -133,7 +133,7 @@ public sealed class FacilityVisitorService(
         if (name.Length is < 2 or > 100 || purpose.Length is < 3 or > 200 ||
             !Plain(name) || !Plain(purpose) ||
             input.VisitStartUtc.Kind != DateTimeKind.Utc || input.VisitEndUtc.Kind != DateTimeKind.Utc ||
-            input.VisitStartUtc <= now || input.VisitEndUtc <= input.VisitStartUtc ||
+            input.VisitEndUtc <= input.VisitStartUtc ||
             input.VisitEndUtc - input.VisitStartUtc > TimeSpan.FromDays(7))
             return ApiResponse<FacilityVisitorDto>.ErrorResponse("Valid minimal visitor details and future UTC visit window required.", 400);
         if (!await Campuses().ContainsAsync(input.CampusId, ct) ||
@@ -152,6 +152,11 @@ public sealed class FacilityVisitorService(
                        prior.VisitEndUtc == input.VisitEndUtc
                     ? ApiResponse<FacilityVisitorDto>.SuccessResponse(Map(prior), "Already preregistered.")
                     : ApiResponse<FacilityVisitorDto>.ErrorResponse("Visitor command ID reused.", 409);
+            // Exact source-linked retries remain idempotent even after the original
+            // visit window begins. Only a NEW preregistration needs a future start.
+            if (input.VisitStartUtc <= Now)
+                return ApiResponse<FacilityVisitorDto>.ErrorResponse(
+                    "New visitor preregistration needs a future UTC window.", 409);
             var visit = new FacilityVisitorVisit
             {
                 TenantId = user.TenantId, CampusId = input.CampusId, HostUserId = input.HostUserId,
