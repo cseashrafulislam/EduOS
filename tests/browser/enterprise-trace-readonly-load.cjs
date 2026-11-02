@@ -32,7 +32,7 @@ function lanes(config) {
     const scoped = sources.flatMap(source => [
         { name: 'owner-' + source.kind + '-detail', session: 'owner-label',
             url: base + source.route + source.reference, statuses: [200],
-            ownerReference: source.reference },
+            kind: 'detail', source: source.kind, ownerReference: source.reference },
         { name: 'foreign-owner-' + source.kind + '-denial', session: 'foreign-label',
             url: base + source.route + source.reference, statuses: [403, 404],
             deniedOwner: true },
@@ -45,12 +45,89 @@ function lanes(config) {
         { name: 'owner-campus-asset-register', session: 'owner-label',
             url: base + 'register?kind=asset&' + common + '&campusId=' +
                 encodeURIComponent(config.campus),
-            statuses: [200] },
+            statuses: [200], kind: 'register', registerKind: 'asset', campus: true },
         { name: 'foreign-own-stock-register', session: 'foreign-label',
             url: base + 'register?kind=stock&' + common,
-            statuses: [200], deniedOwner: true }
+            statuses: [200], deniedOwner: true, kind: 'register', registerKind: 'stock' }
     ];
 }
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+// Decode JSON string escapes before searching denied/private payloads.
+function assertNoPrivateEvidence(body, refs) {
+    const forms = [body.toLowerCase()];
+    try { forms.push(JSON.stringify(JSON.parse(body)).toLowerCase()); }
+    catch { /* Denied endpoints can return plain text. */ }
+    for (const ref of refs)
+        assert(forms.every(form => !form.includes(ref.toLowerCase())),
+            'Synthetic denial disclosed private source or Finance evidence');
+}
+async function readBoundedBody(response) {
+    const length = response.headers.get('content-length');
+    assert(length === null || (/^\d+$/.test(length) && Number(length) <= 2_000_000),
+        'Invalid or oversized synthetic content length');
+    const reader = response.body?.getReader?.();
+    if (!reader) {
+        const text = await response.text();
+        assert(Buffer.byteLength(text, 'utf8') <= 2_000_000,
+            'Synthetic read returned oversized evidence');
+        return text;
+    }
+    const decoder = new TextDecoder('utf-8', { fatal: true });
+    let text = '', bytes = 0;
+    try {
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            assert(value instanceof Uint8Array, 'Invalid synthetic response chunk');
+            bytes += value.byteLength;
+            assert(bytes <= 2_000_000, 'Synthetic read returned oversized evidence');
+            text += decoder.decode(value, { stream: true });
+        }
+        return text + decoder.decode();
+    } catch (error) {
+        try { await reader.cancel(); } catch { /* Preserve original failure. */ }
+        throw error;
+    } finally {
+        reader.releaseLock();
+    }
+}
+function authorizedFingerprint(lane, body, config) {
+    let payload;
+    try { payload = JSON.parse(body); }
+    catch { assert.fail('Authorized synthetic response is not valid JSON'); }
+    assert(payload && payload.success === true && payload.data &&
+        typeof payload.data === 'object' && !Array.isArray(payload.data),
+    'Authorized synthetic response lacks successful canonical data');
+    const data = payload.data;
+    if (lane.kind === 'detail') {
+        const key = { stock: 'movementReference', asset: 'runReference',
+            procurement: 'orderReference' }[lane.source];
+        assert(typeof data[key] === 'string' &&
+            data[key].toLowerCase() === lane.ownerReference.toLowerCase(),
+        'Authorized synthetic source identity mismatch');
+    } else {
+        assert(data.kind === lane.registerKind &&
+            data.from === config.from && data.to === config.to &&
+            data.page === 1 && data.pageSize === 25 &&
+            Number.isSafeInteger(data.totalCount) && data.totalCount >= 0 &&
+            Array.isArray(data.items) &&
+            data.items.length === Math.min(25, data.totalCount),
+        'Synthetic register scope or pagination mismatch');
+        const seen = new Set();
+        for (const row of data.items) {
+            assert(typeof row.reference === 'string' && UUID.test(row.reference) &&
+                !seen.has(row.reference.toLowerCase()),
+            'Synthetic register source reference invalid or duplicated');
+            seen.add(row.reference.toLowerCase());
+            if (lane.campus)
+                assert(String(row.campusId) === String(config.campus),
+                    'Synthetic register disclosed another campus');
+        }
+    }
+    return JSON.stringify(data);
+}
+
 async function runSyntheticReadLoad(config, fetcher, options = {}) {
     assert(config && typeof config.base === 'string' &&
         Array.isArray(config.refs) && config.refs.length >= 3 &&
@@ -67,6 +144,7 @@ async function runSyntheticReadLoad(config, fetcher, options = {}) {
         for (const lane of definitions) tasks.push(lane);
     assert(tasks.length <= 150, 'Refusing excessive synthetic request budget');
     const samples = new Map(definitions.map(lane => [lane.name, []]));
+    const baselines = new Map();
     let cursor = 0, inFlight = 0, peakInFlight = 0, failure = null;
     const runStarted = performance.now();
     async function worker() {
@@ -87,17 +165,15 @@ async function runSyntheticReadLoad(config, fetcher, options = {}) {
                     assert(/^application\/(?:json|[a-z0-9.+-]+\+json)(?:\s*;|\s*$)/i
                         .test(String(response.headers.get('content-type') || '')),
                     'Authorized synthetic evidence is not JSON');
-                const body = await response.text();
-                assert(Buffer.byteLength(body, 'utf8') <= 2_000_000,
-                    'Synthetic read returned oversized evidence');
-                const normalized = body.toLowerCase();
-                if (lane.ownerReference)
-                    assert(normalized.includes(lane.ownerReference.toLowerCase()),
-                        'Authorized synthetic source evidence missing');
-                if (lane.deniedOwner)
-                    for (const reference of config.privateRefs)
-                        assert(!normalized.includes(reference.toLowerCase()),
-                            'Cross-tenant or restricted synthetic response disclosed owner evidence');
+                const body = await readBoundedBody(response);
+                if (lane.deniedOwner) assertNoPrivateEvidence(body, config.privateRefs);
+                if (response.status === 200) {
+                    const signature = authorizedFingerprint(lane, body, config);
+                    if (baselines.has(lane.name))
+                        assert.equal(signature, baselines.get(lane.name),
+                            'Concurrent synthetic authorized evidence drifted');
+                    else baselines.set(lane.name, signature);
+                }
                 samples.get(lane.name).push(performance.now() - start);
             } catch (error) {
                 failure = error;

@@ -24,8 +24,15 @@ function fakeFetch(overrides = {}) {
         const denial = (foreign || restricted) && !isRegister;
         const sourceRef = config.refs.find(reference => url.endsWith('/' + reference));
         const status = overrides.status ?? (denial ? 404 : 200);
+        const kind = url.includes('kind=asset') ? 'asset' : 'stock';
+        const detailKey = url.includes('/asset-depreciation/') ? 'runReference' :
+            url.includes('/procurement/') ? 'orderReference' : 'movementReference';
+        const data = isRegister ?
+            { kind, from: config.from, to: config.to, page: 1, pageSize: 25,
+                totalCount: 0, items: [] } :
+            { [detailKey]: sourceRef || config.refs[0] };
         const body = overrides.body ?? (denial ? '{"success":false}' :
-            (foreign ? '{"items":[]}' : JSON.stringify({ reference: sourceRef || config.refs[0] })));
+            JSON.stringify({ success: true, data }));
         const contentType = overrides.contentType ?? 'application/json; charset=utf-8';
         return new Response(body, { status, headers: { 'cache-control': overrides.cache ?? 'private, no-store',
             'content-type': contentType } });
@@ -130,4 +137,101 @@ test('default read-only request budget is 132 and cannot exceed 143', async () =
     const maximum = await runSyntheticReadLoad(config, fakeFetch(),
         { iterations: 13, concurrency: 4 });
     assert.equal(maximum.requests, 143);
+});
+
+test('owner HTTP 200 requires successful canonical source data, not UUID in an error', async () => {
+    for (const body of [
+        JSON.stringify({ reference: config.refs[0] }),
+        JSON.stringify({ success: true, data: { error: config.refs[0] } }),
+        JSON.stringify({ success: true, data: { movementReference: config.refs[1] } }),
+        '{"success":true,"data":',
+        JSON.stringify({ success: false, data: { movementReference: config.refs[0] } })
+    ])
+        await assert.rejects(runSyntheticReadLoad(config, fakeFetch({ body }),
+            { iterations: 2, concurrency: 2 }));
+});
+test('register scope, pagination, duplicate references and campus bleed fail closed', async () => {
+    const base = { kind: 'asset', from: config.from, to: config.to,
+        page: 1, pageSize: 25, totalCount: 1,
+        items: [{ reference: config.refs[1], campusId: config.campus }] };
+    for (const changed of [
+        { kind: 'stock' }, { from: '2026-09-01' }, { page: 2 },
+        { pageSize: 500 }, { totalCount: 2 }, { totalCount: -1 },
+        { items: [{ reference: config.refs[1], campusId: '999' }] },
+        { totalCount: 2, items: [base.items[0], base.items[0]] }
+    ]) {
+        const fetch = async (url, options) => {
+            if (url.includes('kind=asset'))
+                return new Response(JSON.stringify({ success: true, data: { ...base, ...changed } }),
+                    { status: 200, headers: { 'cache-control': 'private, no-store',
+                        'content-type': 'application/json' } });
+            return fakeFetch()(url, options);
+        };
+        await assert.rejects(runSyntheticReadLoad(config, fetch,
+            { iterations: 2, concurrency: 2 }));
+    }
+});
+test('foreign register and denied detail reject Unicode-escaped Finance UUID', async () => {
+    const secret = [...config.privateRefs][1];
+    const escaped = secret.split('').map(char =>
+        '\\u' + char.charCodeAt(0).toString(16).padStart(4, '0')).join('');
+    for (const denied of [false, true]) {
+        const fetch = async (url, options) => {
+            const foreign = options.headers.Cookie === 'foreign-label';
+            if (foreign && (denied ? url.endsWith(config.refs[0]) : url.includes('kind=stock'))) {
+                const body = denied ? '{"error":"' + escaped + '"}' :
+                    '{"success":true,"data":{"kind":"stock","from":"' + config.from +
+                    '","to":"' + config.to +
+                    '","page":1,"pageSize":25,"totalCount":0,"items":[],"note":"' +
+                    escaped + '"}}';
+                return new Response(body, { status: denied ? 404 : 200,
+                    headers: { 'cache-control': 'private, no-store',
+                        'content-type': 'application/json' } });
+            }
+            return fakeFetch()(url, options);
+        };
+        await assert.rejects(runSyntheticReadLoad(config, fetch,
+            { iterations: 2, concurrency: 2 }), /disclosed private/);
+    }
+});
+test('oversized stream and false content-length fail before unbounded buffering', async () => {
+    for (const length of ['2000001', 'bogus', '-1']) {
+        const fetch = async (url, options) => {
+            const response = await fakeFetch()(url, options);
+            const h = new Headers(response.headers);
+            h.set('content-length', length);
+            return new Response(response.body, { status: response.status, headers: h });
+        };
+        await assert.rejects(runSyntheticReadLoad(config, fetch,
+            { iterations: 2, concurrency: 2 }), /content length/);
+    }
+    const fetch = async (url, options) => {
+        const response = await fakeFetch()(url, options);
+        if (!url.endsWith(config.refs[0]) || options.headers.Cookie !== 'owner-label')
+            return response;
+        return new Response(new ReadableStream({
+            start(controller) {
+                controller.enqueue(new Uint8Array(1_000_001));
+                controller.enqueue(new Uint8Array(1_000_001));
+                controller.close();
+            }
+        }), { status: 200, headers: { 'cache-control': 'private, no-store',
+            'content-type': 'application/json' } });
+    };
+    await assert.rejects(runSyntheticReadLoad(config, fetch,
+        { iterations: 2, concurrency: 2 }), /oversized evidence/);
+});
+test('concurrent owner source evidence drift cannot count as a stable load pass', async () => {
+    let revision = 0;
+    const fetch = async (url, options) => {
+        const response = await fakeFetch()(url, options);
+        if (url.endsWith(config.refs[0]) && options.headers.Cookie === 'owner-label')
+            return new Response(JSON.stringify({ success: true, data: {
+                movementReference: config.refs[0], revision: ++revision } }),
+                { status: 200, headers: { 'cache-control': 'private, no-store',
+                    'content-type': 'application/json' } });
+        return response;
+    };
+    await assert.rejects(runSyntheticReadLoad(config, fetch,
+        { iterations: 2, concurrency: 2 }), /drifted/);
 });
