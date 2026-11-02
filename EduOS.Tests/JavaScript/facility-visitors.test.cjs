@@ -13,7 +13,7 @@ test('visitor UI is bilingual, scoped and safely renders server-provided PII', (
     assert.match(page, /CultureInfo\.CurrentUICulture/);
     assert.match(page, /@Html\.AntiForgeryToken\(\)/);
     assert.match(page, /প্রি-রেজিস্ট্রেশন/);
-    assert.match(page, /Incident, retention deletion/);
+    assert.match(page, /retention deletion and export are not yet enabled/);
     assert.match(script, /credentials: 'same-origin'/);
     assert.match(script, /cache: 'no-store'/);
     assert.match(script, /RequestVerificationToken/);
@@ -23,6 +23,9 @@ test('visitor UI is bilingual, scoped and safely renders server-provided PII', (
     assert.match(script, /pendingCreateId/);
     assert.match(script, /commandIds/);
     assert.match(script, /lastHostCampus/);
+    assert.match(script, /Report incident/);
+    assert.match(script, /data-visitor-history/);
+    assert.match(script, /event\.reason/);
     assert.match(api, /RequireModule\("FACILITIES"\)/);
     assert.match(api, /AutoValidateAntiforgeryToken/);
     assert.match(api, /EnableRateLimiting/);
@@ -38,6 +41,10 @@ test('visitor transitions enforce independent host approval and active badge uni
     assert.match(service, /ClientCommandId/);
     assert.match(service, /VisitStartUtc\.AddMinutes\(-30\)/);
     assert.match(service, /Badge is already checked in/);
+    assert.match(service, /HostLiveAsync/);
+    assert.match(service, /action == "incident"/);
+    assert.match(service, /CheckedOutAtUtc\.Value\.AddHours\(24\)/);
+    assert.match(service, /Manager && e\.ActionCode == "incident"/);
     assert.match(context, /IX_FacilityVisitorVisits|FacilityVisitorVisit/);
     assert.match(migration, /\[StateCode\] = N'CheckedIn'/);
     assert.match(migration, /FK_FacilityVisitorEvents_FacilityVisitorVisits/);

@@ -14,8 +14,8 @@ namespace EduOS.Service.Services.Facilities;
 
 /// <summary>
 /// Privacy-minimized internal visitor appointments. Never stores national IDs,
-/// photos, phones or documents. This first slice does not implement incidents,
-/// retention deletion or visitor exports and must not be represented as complete.
+/// photos, phones or documents. Incident events are append-only; retention
+/// deletion, site policy and visitor exports remain unimplemented.
 /// </summary>
 public sealed class FacilityVisitorService(
     EduOSDbContext db, ICurrentUserService user, TimeProvider clock,
@@ -58,6 +58,15 @@ public sealed class FacilityVisitorService(
                 role.IsActive && !role.IsDeleted &&
                 (role.TenantId == user.TenantId || (role.TenantId == null && role.IsSystemRole)) &&
                 (role.NormalizedName == "TENANTADMIN" || role.NormalizedName == "PRINCIPAL" ||
+                 role.NormalizedName == "FACILITIESMANAGER")), ct);
+    // A revoked host role must not retain visitor PII read access via old cookies.
+    private Task<bool> HostLiveAsync(CancellationToken ct) =>
+        db.UserRoles.AnyAsync(ur => ur.UserId == user.UserId &&
+            db.Roles.IgnoreQueryFilters().Any(role => role.Id == ur.RoleId &&
+                role.IsActive && !role.IsDeleted &&
+                (role.TenantId == user.TenantId || (role.TenantId == null && role.IsSystemRole)) &&
+                (role.NormalizedName == "STAFF" || role.NormalizedName == "TEACHER" ||
+                 role.NormalizedName == "PRINCIPAL" || role.NormalizedName == "TENANTADMIN" ||
                  role.NormalizedName == "FACILITIESMANAGER")), ct);
     private IQueryable<FacilityVisitorVisit> Visible() =>
         db.Set<FacilityVisitorVisit>().AsNoTracking().Where(v =>
@@ -105,7 +114,8 @@ public sealed class FacilityVisitorService(
     public async Task<ApiResponse<PagedResult<FacilityVisitorDto>>> ListAsync(
         long? campusId, int page, int pageSize, CancellationToken ct = default)
     {
-        if (!ValidTenant || !await ActorActiveAsync(ct) || (Manager && !await ManagerLiveAsync(ct)))
+        if (!ValidTenant || !await ActorActiveAsync(ct) ||
+            (Manager ? !await ManagerLiveAsync(ct) : !await HostLiveAsync(ct)))
             return Denied<PagedResult<FacilityVisitorDto>>();
         if (campusId is <= 0 || page is < 1 or > 100000 || pageSize is < 1 or > 50)
             return ApiResponse<PagedResult<FacilityVisitorDto>>.ErrorResponse("Invalid visitor filter.", 400);
@@ -194,11 +204,12 @@ public sealed class FacilityVisitorService(
     public async Task<ApiResponse<FacilityVisitorDto>> TransitionAsync(
         long id, string action, FacilityVisitorTransitionDto command, CancellationToken ct = default)
     {
-        if (!ValidTenant || !await ActorActiveAsync(ct) || (Manager && !await ManagerLiveAsync(ct))) return Denied<FacilityVisitorDto>();
+        if (!ValidTenant || !await ActorActiveAsync(ct) ||
+            (Manager ? !await ManagerLiveAsync(ct) : !await HostLiveAsync(ct))) return Denied<FacilityVisitorDto>();
         action = (action ?? "").Trim().ToLowerInvariant();
         if (id <= 0 || command == null || command.ClientCommandId == Guid.Empty ||
             string.IsNullOrWhiteSpace(command.RowVersion) ||
-            action is not ("hostapprove" or "hostreject" or "checkin" or "checkout"))
+            action is not ("hostapprove" or "hostreject" or "checkin" or "checkout" or "incident"))
             return ApiResponse<FacilityVisitorDto>.ErrorResponse("Invalid visitor transition.", 400);
         var badge = command.BadgeCode?.Trim().ToUpperInvariant();
         var reason = command.Reason?.Trim();
@@ -264,6 +275,17 @@ public sealed class FacilityVisitorService(
                 visit.CheckedInAtUtc = now;
                 visit.StateCode = "CheckedIn";
             }
+            else if (action == "incident")
+            {
+                // Append-only incident evidence, never a badge or state override.
+                if (visit.StateCode is not ("CheckedIn" or "CheckedOut") ||
+                    (visit.StateCode == "CheckedOut" &&
+                     (visit.CheckedOutAtUtc == null ||
+                      now > visit.CheckedOutAtUtc.Value.AddHours(24))) ||
+                    (reason?.Length ?? 0) < 10)
+                    return ApiResponse<FacilityVisitorDto>.ErrorResponse(
+                        "Incident requires a checked-in or recently checked-out visit and a 10-character reason.", 409);
+            }
             else
             {
                 if (visit.StateCode != "CheckedIn" || visit.CheckedInAtUtc == null)
@@ -303,7 +325,8 @@ public sealed class FacilityVisitorService(
     public async Task<ApiResponse<PagedResult<FacilityVisitorEventDto>>> HistoryAsync(
         long id, int page, int pageSize, CancellationToken ct = default)
     {
-        if (!ValidTenant || !await ActorActiveAsync(ct) || (Manager && !await ManagerLiveAsync(ct)))
+        if (!ValidTenant || !await ActorActiveAsync(ct) ||
+            (Manager ? !await ManagerLiveAsync(ct) : !await HostLiveAsync(ct)))
             return Denied<PagedResult<FacilityVisitorEventDto>>();
         if (id <= 0 || page is < 1 or > 100000 || pageSize is < 1 or > 50)
             return ApiResponse<PagedResult<FacilityVisitorEventDto>>.ErrorResponse("Invalid history page.", 400);
@@ -316,7 +339,8 @@ public sealed class FacilityVisitorService(
             .Select(e => new FacilityVisitorEventDto
             {
                 ActionCode = e.ActionCode, FromState = e.FromState, ToState = e.ToState,
-                ActorUserId = e.ActorUserId, OccurredAtUtc = e.CreatedAt
+                ActorUserId = e.ActorUserId, OccurredAtUtc = e.CreatedAt,
+                Reason = Manager && e.ActionCode == "incident" ? e.Reason : null
             }).ToListAsync(ct);
         return ApiResponse<PagedResult<FacilityVisitorEventDto>>.SuccessResponse(new()
         { Page = page, PageSize = pageSize, TotalCount = count, Items = rows });

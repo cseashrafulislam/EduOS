@@ -10,8 +10,8 @@
     <header class="mb-3">
         <h2 class="h4">@(bn ? "ভিজিটর প্রি-রেজিস্ট্রেশন ও প্রবেশ নিয়ন্ত্রণ" : "Visitor Preregistration & Access Control")</h2>
         <p class="text-muted small">@(bn
-            ? "ডেস্ক কর্মকর্তা ভবিষ্যৎ ভিজিট নিবন্ধন করবেন; আলাদা হোস্ট অনুমোদন দেবেন; অনুমোদিত সময়ের মধ্যে ব্যাজ দিয়ে প্রবেশ এবং পরে প্রস্থান নথিভুক্ত হবে। জাতীয় পরিচয়পত্র, ফোন বা ছবি সংগ্রহ করা হয় না। Incident, retention deletion ও export এখনো চালু নয়।"
-            : "The desk preregisters a future visit, a separate host approves it, and the desk records badge check-in and check-out within the approved window. No ID document, phone or photo is collected. Incident handling, retention deletion and export are not yet enabled.")</p>
+            ? "ডেস্ক কর্মকর্তা ভবিষ্যৎ ভিজিট নিবন্ধন করবেন; আলাদা হোস্ট অনুমোদন দেবেন; অনুমোদিত সময়ের মধ্যে ব্যাজ দিয়ে প্রবেশ এবং পরে প্রস্থান নথিভুক্ত হবে। জাতীয় পরিচয়পত্র, ফোন বা ছবি সংগ্রহ করা হয় না। ঘটনা নথিভুক্ত করা যায়; retention deletion ও export এখনো চালু নয়।"
+            : "The desk preregisters a future visit, a separate host approves it, and the desk records badge check-in and check-out within the approved window. No ID document, phone or photo is collected. The desk can record an incident; retention deletion and export are not yet enabled.")</p>
     </header>
     @Html.AntiForgeryToken()
     <div id="fvStatus" class="alert alert-secondary small" role="status" aria-live="polite">
@@ -46,7 +46,7 @@
         <div class="row g-2 mb-3">
             <div class="col-md-3"><label class="form-label" for="fvBadge">@(bn ? "ব্যাজ কোড (৪–২০ অক্ষর)" : "Badge code (4–20 characters)")</label>
                 <input id="fvBadge" class="form-control" maxlength="20" autocomplete="off" /></div>
-            <div class="col-md-6"><label class="form-label" for="fvReason">@(bn ? "সিদ্ধান্তের কারণ (প্রত্যাখ্যানে কমপক্ষে ১০ অক্ষর)" : "Decision reason (10+ characters for rejection)")</label>
+            <div class="col-md-6"><label class="form-label" for="fvReason">@(bn ? "কারণ (প্রত্যাখ্যান/ঘটনায় ১০+ অক্ষর; পরিচয় তথ্য নয়)" : "Reason (10+ characters for rejection/incident; no sensitive identity data)")</label>
                 <input id="fvReason" class="form-control" maxlength="200" /></div>
         </div>
         <div id="fvRows" class="vstack gap-2" aria-live="polite"></div>

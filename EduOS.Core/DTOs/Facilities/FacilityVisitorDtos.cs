@@ -46,4 +46,6 @@ public sealed class FacilityVisitorEventDto
     public string ToState { get; set; } = string.Empty;
     public DateTime OccurredAtUtc { get; set; }
     public long ActorUserId { get; set; }
+    // Incident narrative is visible only to authorized Facilities desk staff.
+    public string? Reason { get; set; }
 }

@@ -44,8 +44,10 @@ async function run(browser, bn, manager, mobile) {
             token: req.headers()['requestverificationtoken'], body: req.postDataJSON?.() });
         const respond = data => route.fulfill({ contentType: 'application/json', body: JSON.stringify(ok(data)) });
         if (url.pathname.endsWith('/hosts')) return respond({ items: [{ userId: 3, displayName: 'Staff Host' }] });
+        if (url.pathname.endsWith('/history')) return respond({ items: [{ actionCode: 'incident',
+            occurredAtUtc: new Date().toISOString(), reason: manager ? 'Observed badge handoff.' : null }] });
         if (req.method() === 'POST') return respond({ ...visit, stateCode: 'Approved' });
-        return respond({ items: [visit], totalCount: 1, page: 1, pageSize: 50 });
+        return respond({ items: [{ ...visit, stateCode: manager ? 'CheckedIn' : 'PendingHost' }], totalCount: 1, page: 1, pageSize: 50 });
     });
     try {
         await page.goto('http://localhost/FacilityVisitors/Index');
@@ -87,6 +89,15 @@ async function run(browser, bn, manager, mobile) {
             });
             assert.ok(calls.some(c => c.url === '/api/facilities/visitors' && c.method === 'POST' &&
                 c.token === 'visitor-csrf' && c.body.visitorName === 'Visitor Demo'));
+            await page.locator('#fvReason').fill('Observed badge handoff.');
+            const incidentPost = page.waitForResponse(response => response.request().method() === 'POST' &&
+                new URL(response.url()).pathname.endsWith('/incident'));
+            await page.locator('#fvRows button').filter({ hasText: bn ? 'ঘটনা নথিভুক্ত' : 'Report incident' }).first().click();
+            await incidentPost;
+            assert.ok(calls.some(c => c.url.endsWith('/incident') && c.token === 'visitor-csrf' &&
+                c.body.reason === 'Observed badge handoff.' && c.body.clientCommandId));
+            await page.locator('#fvRows button').filter({ hasText: bn ? 'ইতিহাস' : 'History' }).first().click();
+            await page.locator('[data-visitor-history]').first().getByText('Observed badge handoff.', { exact: false }).waitFor();
         }
         assert.deepEqual(errors, []);
         if (mobile) assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), true);

@@ -154,9 +154,14 @@ public sealed class SqlServerFacilityVisitorTests
                 x.TenantId == tenantId && x.NormalizedName == "STAFF")
                 .ExecuteUpdateAsync(x => x.SetProperty(role => role.IsActive, false)));
         await using (var db = Db(options, tenantId, hostId, "Staff"))
-            Assert.Equal(403, (await Service(db, tenantId, hostId, "Staff")
-                .TransitionAsync(first.Id, "hostapprove", new FacilityVisitorTransitionDto
+        {
+            var revoked = Service(db, tenantId, hostId, "Staff");
+            Assert.Equal(403, (await revoked.TransitionAsync(first.Id, "hostapprove",
+                new FacilityVisitorTransitionDto
                 { ClientCommandId = Guid.NewGuid(), RowVersion = first.RowVersion })).StatusCode);
+            Assert.Equal(403, (await revoked.ListAsync(campusId, 1, 25)).StatusCode);
+            Assert.Equal(403, (await revoked.HistoryAsync(first.Id, 1, 25)).StatusCode);
+        }
         await using (var db = Db(options, tenantId, managerId, "FacilitiesManager"))
             Assert.Equal(1, await db.Roles.IgnoreQueryFilters().Where(x =>
                 x.TenantId == tenantId && x.NormalizedName == "STAFF")
@@ -193,6 +198,31 @@ public sealed class SqlServerFacilityVisitorTests
             Assert.True(replay.Success, replay.Message);
             Assert.Equal(1, await db.Set<FacilityVisitorEvent>().CountAsync(x =>
                 x.FacilityVisitorVisitId == first.Id && x.ActionCode == "checkin"));
+            var incidentId = Guid.NewGuid();
+            const string narrative = "Observed unauthorized badge transfer.";
+            var incident = await service.TransitionAsync(first.Id, "incident",
+                new FacilityVisitorTransitionDto
+                { ClientCommandId = incidentId, RowVersion = first.RowVersion, Reason = narrative });
+            Assert.True(incident.Success, incident.Message);
+            first = incident.Data!;
+            var replayIncident = await service.TransitionAsync(first.Id, "incident",
+                new FacilityVisitorTransitionDto
+                { ClientCommandId = incidentId, RowVersion = "stale", Reason = narrative });
+            Assert.True(replayIncident.Success, replayIncident.Message);
+            var alteredIncident = await service.TransitionAsync(first.Id, "incident",
+                new FacilityVisitorTransitionDto
+                { ClientCommandId = incidentId, RowVersion = first.RowVersion, Reason = "Different incident narrative." });
+            Assert.Equal(409, alteredIncident.StatusCode);
+            var history = await service.HistoryAsync(first.Id, 1, 25);
+            Assert.Contains(history.Data!.Items, e => e.ActionCode == "incident" && e.Reason == narrative);
+            Assert.Equal(1, await db.Set<FacilityVisitorEvent>().CountAsync(e =>
+                e.FacilityVisitorVisitId == first.Id && e.ActionCode == "incident"));
+        }
+        await using (var db = Db(options, tenantId, hostId, "Staff"))
+        {
+            var history = await Service(db, tenantId, hostId, "Staff").HistoryAsync(first.Id, 1, 25);
+            Assert.True(history.Success, history.Message);
+            Assert.Contains(history.Data!.Items, e => e.ActionCode == "incident" && e.Reason == null);
         }
         await using (var db = Db(options, tenantId, managerId, "FacilitiesManager"))
         {
@@ -214,6 +244,14 @@ public sealed class SqlServerFacilityVisitorTests
                 x.CampusId == campusId && x.StateCode == "CheckedIn" && x.BadgeCode == "GUEST-01"));
             Assert.Equal(1, await db.Set<FacilityVisitorEvent>().CountAsync(x =>
                 x.FacilityVisitorVisitId == first.Id && x.ActionCode == "checkout"));
+            var late = await Service(db, tenantId, managerId, "FacilitiesManager",
+                new ShiftedClock(TimeSpan.FromHours(26))).TransitionAsync(first.Id, "incident",
+                new FacilityVisitorTransitionDto
+                { ClientCommandId = Guid.NewGuid(), RowVersion = checkout.Data!.RowVersion,
+                    Reason = "Late attempted incident report." });
+            Assert.Equal(409, late.StatusCode);
+            Assert.Equal(1, await db.Set<FacilityVisitorEvent>().CountAsync(e =>
+                e.FacilityVisitorVisitId == first.Id && e.ActionCode == "incident"));
         }
     }
 
