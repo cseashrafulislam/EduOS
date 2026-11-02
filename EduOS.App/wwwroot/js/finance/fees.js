@@ -334,7 +334,7 @@ async function receipts(){
 }
 async function ledger(){
  const ref=e('feeStudent').value;
- if(!ref){resetLedgerView();return alert('warning',t('Select a student.','একজন শিক্ষার্থী বাছুন।'));}
+ if(!ref)return alert('warning',t('Select a student.','একজন শিক্ষার্থী বাছুন।'));
  resetLedgerView();state.student=ref;
  const request=beginRead('ledger');
  try{
