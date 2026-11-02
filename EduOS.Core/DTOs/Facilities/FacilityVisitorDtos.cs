@@ -70,3 +70,12 @@ public sealed class FacilityVisitorExportRowDto
     public DateTime? CheckedOutAtUtc { get; set; }
     public int IncidentCount { get; set; }
 }
+
+/// <summary>Authorized campus admission count; never includes visitor identity or badge.</summary>
+public sealed class FacilityVisitorOccupancyDto
+{
+    public long CampusId { get; set; }
+    public int CheckedInCount { get; set; }
+    public int? MaxConcurrent { get; set; }
+    public DateTime AsOfUtc { get; set; }
+}

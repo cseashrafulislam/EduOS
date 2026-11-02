@@ -155,6 +155,27 @@
         } catch (err) { status(err.message); }
     });
 
+    // A PII-free campus occupancy snapshot is desk-only and server authorized.
+    let occupancyEpoch = 0;
+    $('fvOccupancy')?.addEventListener('submit', async event => {
+        event.preventDefault();
+        const campusId = Number($('fvOccupancyCampus').value);
+        const epoch = ++occupancyEpoch;
+        const result = $('fvOccupancyResult');
+        result.textContent = label('Loading occupancy…', 'উপস্থিতি লোড হচ্ছে…');
+        if (!Number.isSafeInteger(campusId) || campusId <= 0) {
+            result.textContent = label('Choose a valid campus.', 'সঠিক ক্যাম্পাস নির্বাচন করুন।');
+            return;
+        }
+        try {
+            const snapshot = await api('/api/facilities/visitors/occupancy?campusId=' + campusId);
+            if (epoch !== occupancyEpoch) return;
+            result.textContent = label('Checked in: ', 'উপস্থিত: ') + snapshot.checkedInCount +
+                ' / ' + (snapshot.maxConcurrent == null
+                    ? label('No configured ceiling', 'সীমা কনফিগার করা নেই') : snapshot.maxConcurrent);
+        } catch (error) { if (epoch === occupancyEpoch) result.textContent = error.message; }
+    });
+
     // Never release a CSV after tenant/session change, or after a newer export request.
     let exportEpoch = 0;
     $('fvExport')?.addEventListener('submit', async event => {

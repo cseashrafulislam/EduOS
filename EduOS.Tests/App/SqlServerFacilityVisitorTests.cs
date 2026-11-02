@@ -224,6 +224,18 @@ public sealed class SqlServerFacilityVisitorTests
             Assert.True(history.Success, history.Message);
             Assert.Contains(history.Data!.Items, e => e.ActionCode == "incident" && e.Reason == null);
         }
+        // Existing tenant-scoped settings supply an optional campus admission ceiling.
+        // It is checked under the same serializable transaction as badge uniqueness.
+        await using (var db = Db(options, tenantId, managerId, "FacilitiesManager"))
+        {
+            db.TenantSettings.Add(new TenantSetting
+            {
+                TenantId = tenantId, Key = "Facilities.Visitor.MaxConcurrent." + campusId,
+                Value = "1", Category = "Facilities", CreatedAt = DateTime.UtcNow,
+                CreatedBy = managerId
+            });
+            await db.SaveChangesAsync();
+        }
         await using (var db = Db(options, tenantId, managerId, "FacilitiesManager"))
         {
             var service = Service(db, tenantId, managerId, "FacilitiesManager",
@@ -232,10 +244,32 @@ public sealed class SqlServerFacilityVisitorTests
                 new FacilityVisitorTransitionDto
                 { ClientCommandId = Guid.NewGuid(), RowVersion = second.RowVersion, BadgeCode = "GUEST-01" });
             Assert.Equal(409, duplicate.StatusCode);
+            var capped = await service.TransitionAsync(second.Id, "checkin",
+                new FacilityVisitorTransitionDto
+                { ClientCommandId = Guid.NewGuid(), RowVersion = second.RowVersion, BadgeCode = "GUEST-02" });
+            Assert.Equal(409, capped.StatusCode);
+            var occupancy = await service.OccupancyAsync(campusId);
+            Assert.True(occupancy.Success, occupancy.Message);
+            Assert.Equal(1, occupancy.Data!.CheckedInCount);
+            Assert.Equal(1, occupancy.Data.MaxConcurrent);
+            Assert.Equal(403, (await service.OccupancyAsync(campusId + 999)).StatusCode);
+            Assert.Equal(0, await db.Set<FacilityVisitorEvent>().CountAsync(x =>
+                x.FacilityVisitorVisitId == second.Id && x.ActionCode == "checkin"));
             var checkout = await service.TransitionAsync(first.Id, "checkout",
                 new FacilityVisitorTransitionDto
                 { ClientCommandId = Guid.NewGuid(), RowVersion = first.RowVersion });
             Assert.True(checkout.Success, checkout.Message);
+            var policyRow = await db.TenantSettings.SingleAsync(s =>
+                s.Key == "Facilities.Visitor.MaxConcurrent." + campusId);
+            policyRow.Value = "invalid";
+            await db.SaveChangesAsync();
+            var invalidPolicy = await service.TransitionAsync(second.Id, "checkin",
+                new FacilityVisitorTransitionDto
+                { ClientCommandId = Guid.NewGuid(), RowVersion = second.RowVersion, BadgeCode = "GUEST-02" });
+            Assert.Equal(409, invalidPolicy.StatusCode);
+            Assert.Equal(409, (await service.OccupancyAsync(campusId)).StatusCode);
+            policyRow.Value = "1";
+            await db.SaveChangesAsync();
             var after = await service.TransitionAsync(second.Id, "checkin",
                 new FacilityVisitorTransitionDto
                 { ClientCommandId = Guid.NewGuid(), RowVersion = second.RowVersion, BadgeCode = "GUEST-01" });

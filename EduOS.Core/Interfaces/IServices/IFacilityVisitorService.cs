@@ -6,6 +6,7 @@ public interface IFacilityVisitorService
 {
     Task<ApiResponse<PagedResult<FacilityVisitorDto>>> ListAsync(long? campusId, int page, int pageSize, CancellationToken ct = default);
     Task<ApiResponse<PagedResult<FacilityVisitorHostDto>>> HostsAsync(long campusId, string? search, int page, int pageSize, CancellationToken ct = default);
+    Task<ApiResponse<FacilityVisitorOccupancyDto>> OccupancyAsync(long campusId, CancellationToken ct = default);
     Task<ApiResponse<FacilityVisitorDto>> CreateAsync(CreateFacilityVisitorDto input, CancellationToken ct = default);
     Task<ApiResponse<FacilityVisitorDto>> TransitionAsync(long id, string action, FacilityVisitorTransitionDto command, CancellationToken ct = default);
     Task<ApiResponse<IReadOnlyList<FacilityVisitorExportRowDto>>> ExportSnapshotAsync(long campusId, DateTime fromUtc, DateTime toUtc, CancellationToken ct = default);

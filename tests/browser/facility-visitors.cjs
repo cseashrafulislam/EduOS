@@ -46,6 +46,10 @@ async function run(browser, bn, manager, mobile) {
         if (url.pathname.endsWith('/export'))
             return route.fulfill({ contentType: 'text/csv; charset=utf-8',
                 body: 'VisitId,CampusId,State,VisitStartUtc,VisitEndUtc,CheckedInUtc,CheckedOutUtc,IncidentCount\r\n17,12,CheckedIn,,,,,1\r\n' });
+        if (url.pathname.endsWith('/occupancy')) return respond({
+            campusId: 12, checkedInCount: 1, maxConcurrent: 2,
+            asOfUtc: new Date().toISOString()
+        });
         if (url.pathname.endsWith('/hosts')) return respond({ items: [{ userId: 3, displayName: 'Staff Host' }] });
         if (url.pathname.endsWith('/history')) return respond({ items: [{ actionCode: 'incident',
             occurredAtUtc: new Date().toISOString(), reason: manager ? 'Observed badge handoff.' : null }] });
@@ -99,6 +103,13 @@ async function run(browser, bn, manager, mobile) {
             });
             assert.ok(calls.some(c => c.url === '/api/facilities/visitors' && c.method === 'POST' &&
                 c.token === 'visitor-csrf' && c.body.visitorName === 'Visitor Demo'));
+            await page.locator('#fvOccupancyCampus').fill('12');
+            const occupancyResponse = page.waitForResponse(response =>
+                new URL(response.url()).pathname.endsWith('/occupancy'));
+            await page.locator('#fvOccupancy button[type="submit"]').click();
+            await occupancyResponse;
+            assert.match(await page.locator('#fvOccupancyResult').innerText(), /1\\s*\\/\\s*2/);
+            assert.ok(calls.some(c => c.url.endsWith('/occupancy') && c.method === 'GET'));
             await page.locator('#fvExportCampus').fill('12');
             await page.locator('#fvExportFrom').fill('2026-11-01T00:00');
             await page.locator('#fvExportTo').fill('2026-11-02T00:00');

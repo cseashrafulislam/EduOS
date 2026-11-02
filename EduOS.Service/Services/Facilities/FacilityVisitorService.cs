@@ -10,6 +10,7 @@ using EduOS.Persistence.Context;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using System.Data;
+using System.Globalization;
 
 namespace EduOS.Service.Services.Facilities;
 
@@ -89,6 +90,26 @@ public sealed class FacilityVisitorService(
     }
     private static bool Plain(string value) => value.All(c => !char.IsControl(c));
 
+    // Optional, tenant-owned campus occupancy ceiling uses the existing versioned
+    // TenantSetting schema; no duplicate policy or stock ledger is introduced.
+    // Missing settings preserve existing installations; malformed/sensitive values
+    // fail closed rather than silently lifting an explicitly configured ceiling.
+    private const string OccupancyKeyPrefix = "Facilities.Visitor.MaxConcurrent.";
+    private async Task<(bool Valid, int? MaxConcurrent)> OccupancyLimitAsync(
+        long campusId, CancellationToken ct)
+    {
+        var key = OccupancyKeyPrefix + campusId.ToString(CultureInfo.InvariantCulture);
+        var setting = await db.TenantSettings.AsNoTracking()
+            .Where(s => s.TenantId == user.TenantId && s.Key == key && !s.IsDeleted)
+            .Select(s => new { s.Value, s.IsSensitive }).SingleOrDefaultAsync(ct);
+        if (setting == null) return (true, null);
+        if (setting.IsSensitive ||
+            !int.TryParse(setting.Value, NumberStyles.None, CultureInfo.InvariantCulture, out var limit) ||
+            limit is < 1 or > 5000)
+            return (false, null);
+        return (true, limit);
+    }
+
     public async Task<ApiResponse<PagedResult<FacilityVisitorHostDto>>> HostsAsync(
         long campusId, string? search, int page, int pageSize, CancellationToken ct = default)
     {
@@ -129,6 +150,44 @@ public sealed class FacilityVisitorService(
             .Skip((page - 1) * pageSize).Take(pageSize).ToListAsync(ct);
         return ApiResponse<PagedResult<FacilityVisitorDto>>.SuccessResponse(new()
         { Page = page, PageSize = pageSize, TotalCount = total, Items = rows.Select(Map).ToList() });
+    }
+
+    /// <summary>PII-free, manager-only campus occupancy read under a consistent SQL snapshot.</summary>
+    public async Task<ApiResponse<FacilityVisitorOccupancyDto>> OccupancyAsync(
+        long campusId, CancellationToken ct = default)
+    {
+        if (!ValidTenant || !Manager || !await ActorActiveAsync(ct) || !await ManagerLiveAsync(ct))
+            return Denied<FacilityVisitorOccupancyDto>();
+        if (campusId <= 0 || !await Campuses().ContainsAsync(campusId, ct))
+            return Denied<FacilityVisitorOccupancyDto>();
+        try
+        {
+            await using var tx = db.Database.IsRelational()
+                ? await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct) : null;
+            if (!await ActorActiveAsync(ct) || !await ManagerLiveAsync(ct) ||
+                !await Campuses().ContainsAsync(campusId, ct))
+                return Denied<FacilityVisitorOccupancyDto>();
+            var policy = await OccupancyLimitAsync(campusId, ct);
+            if (!policy.Valid)
+                return ApiResponse<FacilityVisitorOccupancyDto>.ErrorResponse(
+                    "Invalid campus visitor occupancy policy; contact an administrator.", 409);
+            var count = await db.Set<FacilityVisitorVisit>().AsNoTracking().CountAsync(v =>
+                v.TenantId == user.TenantId && v.CampusId == campusId &&
+                v.StateCode == "CheckedIn" && !v.IsDeleted, ct);
+            var snapshot = new FacilityVisitorOccupancyDto
+            {
+                CampusId = campusId, CheckedInCount = count,
+                MaxConcurrent = policy.MaxConcurrent, AsOfUtc = Now
+            };
+            if (tx != null) await tx.CommitAsync(ct);
+            return ApiResponse<FacilityVisitorOccupancyDto>.SuccessResponse(snapshot);
+        }
+        catch (Microsoft.Data.SqlClient.SqlException ex) when (ex.Number is 1205 or 1222)
+        {
+            logger.LogWarning(ex, "Visitor occupancy snapshot contention");
+            return ApiResponse<FacilityVisitorOccupancyDto>.ErrorResponse(
+                "Visitor occupancy busy; retry.", 409);
+        }
     }
 
     public async Task<ApiResponse<FacilityVisitorDto>> CreateAsync(
@@ -268,6 +327,18 @@ public sealed class FacilityVisitorService(
                     now < visit.VisitStartUtc.AddMinutes(-30) || now >= visit.VisitEndUtc ||
                     !await ActiveHosts(visit.CampusId).ContainsAsync(visit.HostUserId, ct))
                     return ApiResponse<FacilityVisitorDto>.ErrorResponse("Approved active host and visit window required.", 409);
+                // Serializable range reads on the campus/state index prevent two
+                // concurrent admissions from exceeding the configured ceiling.
+                var occupancyPolicy = await OccupancyLimitAsync(visit.CampusId, ct);
+                if (!occupancyPolicy.Valid)
+                    return ApiResponse<FacilityVisitorDto>.ErrorResponse(
+                        "Invalid campus visitor occupancy policy; contact an administrator.", 409);
+                if (occupancyPolicy.MaxConcurrent.HasValue &&
+                    await db.Set<FacilityVisitorVisit>().CountAsync(v =>
+                        v.TenantId == user.TenantId && v.CampusId == visit.CampusId &&
+                        v.StateCode == "CheckedIn" && !v.IsDeleted, ct) >= occupancyPolicy.MaxConcurrent.Value)
+                    return ApiResponse<FacilityVisitorDto>.ErrorResponse(
+                        "Campus visitor occupancy limit reached; check out an existing visit.", 409);
                 if (await db.Set<FacilityVisitorVisit>().AnyAsync(v =>
                     v.TenantId == user.TenantId && v.CampusId == visit.CampusId &&
                     v.Id != visit.Id && v.StateCode == "CheckedIn" && v.BadgeCode == badge && !v.IsDeleted, ct))

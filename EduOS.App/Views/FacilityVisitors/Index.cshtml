@@ -10,8 +10,8 @@
     <header class="mb-3">
         <h2 class="h4">@(bn ? "ভিজিটর প্রি-রেজিস্ট্রেশন ও প্রবেশ নিয়ন্ত্রণ" : "Visitor Preregistration & Access Control")</h2>
         <p class="text-muted small">@(bn
-            ? "ডেস্ক কর্মকর্তা ভবিষ্যৎ ভিজিট নিবন্ধন করবেন; আলাদা হোস্ট অনুমোদন দেবেন; অনুমোদিত সময়ের মধ্যে ব্যাজ দিয়ে প্রবেশ এবং পরে প্রস্থান নথিভুক্ত হবে। জাতীয় পরিচয়পত্র, ফোন বা ছবি সংগ্রহ করা হয় না। ঘটনা নথিভুক্ত করা যায়; retention deletion ও সাইট নীতি এখনো চালু নয়। ডেস্ক কর্মকর্তা পরিচয়বিহীন সীমিত সারাংশ CSV নিতে পারবেন; প্রতিটি সফল এক্সপোর্টের অ্যাক্সেস অডিট সংরক্ষিত হয়।"
-            : "The desk preregisters a future visit, a separate host approves it, and the desk records badge check-in and check-out within the approved window. No ID document, phone or photo is collected. The desk can record an incident; retention deletion and configurable site policy are not yet enabled. Managers may export a bounded summary without visitor identity or incident narrative; each successful snapshot records an access audit.")</p>
+            ? "ডেস্ক কর্মকর্তা ভবিষ্যৎ ভিজিট নিবন্ধন করবেন; আলাদা হোস্ট অনুমোদন দেবেন; অনুমোদিত সময়ের মধ্যে ব্যাজ দিয়ে প্রবেশ এবং পরে প্রস্থান নথিভুক্ত হবে। জাতীয় পরিচয়পত্র, ফোন বা ছবি সংগ্রহ করা হয় না। ঘটনা নথিভুক্ত করা যায়; retention deletion এখনো চালু নয়; ক্যাম্পাসভিত্তিক অনুমোদিত উপস্থিতির সীমা কনফিগার করা থাকলে তা প্রবেশে কার্যকর হয়। ডেস্ক কর্মকর্তা পরিচয়বিহীন সীমিত সারাংশ CSV নিতে পারবেন; প্রতিটি সফল এক্সপোর্টের অ্যাক্সেস অডিট সংরক্ষিত হয়।"
+            : "The desk preregisters a future visit, a separate host approves it, and the desk records badge check-in and check-out within the approved window. No ID document, phone or photo is collected. The desk can record an incident; retention deletion remains unavailable; a configured per-campus occupancy ceiling is enforced at check-in. Managers may export a bounded summary without visitor identity or incident narrative; each successful snapshot records an access audit.")</p>
     </header>
     @Html.AntiForgeryToken()
     <div id="fvStatus" class="alert alert-secondary small" role="status" aria-live="polite">
@@ -35,6 +35,15 @@
                 <div class="col-md-3"><label for="fvEnd" class="form-label">@(bn ? "প্রস্থানের নির্ধারিত সময়" : "Visit end")</label>
                     <input id="fvEnd" class="form-control" type="datetime-local" required /></div>
                 <div class="col-12"><button class="btn btn-primary" type="submit">@(bn ? "প্রি-রেজিস্টার" : "Preregister")</button></div>
+            </div>
+        </form>
+        <form id="fvOccupancy" class="card card-body mb-3">
+            <h3 class="h6">@(bn ? "ক্যাম্পাসে বর্তমানে উপস্থিত" : "Current campus visitor occupancy")</h3>
+            <div class="row g-2 align-items-end">
+                <div class="col-md-3"><label for="fvOccupancyCampus" class="form-label">@(bn ? "ক্যাম্পাস আইডি" : "Campus ID")</label>
+                    <input id="fvOccupancyCampus" class="form-control" type="number" min="1" required /></div>
+                <div class="col-md-3"><button class="btn btn-outline-primary w-100" type="submit">@(bn ? "উপস্থিতি দেখুন" : "View occupancy")</button></div>
+                <div id="fvOccupancyResult" class="col-md-6 small" role="status" aria-live="polite"></div>
             </div>
         </form>
         <form id="fvExport" class="card card-body mb-3">

@@ -26,6 +26,10 @@ public sealed class FacilityVisitorsApiController(IFacilityVisitorService servic
         int pageSize = 25, CancellationToken ct = default) =>
         Reply(await service.HostsAsync(campusId, search, page, pageSize, ct));
 
+    [HttpGet("occupancy"), Authorize(Roles = "TenantAdmin,Principal,FacilitiesManager")]
+    public async Task<IActionResult> Occupancy(long campusId, CancellationToken ct = default) =>
+        Reply(await service.OccupancyAsync(campusId, ct));
+
     [HttpPost, Authorize(Roles = "TenantAdmin,Principal,FacilitiesManager")]
     public async Task<IActionResult> Create([FromBody] CreateFacilityVisitorDto request,
         CancellationToken ct) => Reply(await service.CreateAsync(request, ct));

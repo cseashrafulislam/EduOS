@@ -15,6 +15,9 @@ test('visitor UI is bilingual, scoped and safely renders server-provided PII', (
     assert.match(page, /প্রি-রেজিস্ট্রেশন/);
     assert.match(page, /PII-minimized visit summary CSV/);
     assert.match(page, /fvExportCampus/);
+    assert.match(page, /fvOccupancyCampus/);
+    assert.match(script, /fvOccupancyResult/);
+    assert.match(api, /HttpGet\("occupancy"\)/);
     assert.match(script, /EduOSVerifySessionContext/);
     assert.match(script, /URL\.createObjectURL/);
     assert.match(script, /method: 'POST'.*credentials: 'same-origin'/);
@@ -48,6 +51,10 @@ test('visitor transitions enforce independent host approval and active badge uni
     assert.match(service, /ClientCommandId/);
     assert.match(service, /VisitStartUtc\.AddMinutes\(-30\)/);
     assert.match(service, /Badge is already checked in/);
+    assert.match(service, /OccupancyLimitAsync/);
+    assert.match(service, /Facilities\\.Visitor\\.MaxConcurrent\\./);
+    assert.match(service, /Campus visitor occupancy limit reached/);
+    assert.match(service, /CountAsync\\(v =>/);
     assert.match(service, /HostLiveAsync/);
     assert.match(service, /action == "incident"/);
     assert.match(service, /CheckedOutAtUtc\.Value\.AddHours\(24\)/);
