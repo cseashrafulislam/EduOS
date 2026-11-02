@@ -78,4 +78,5 @@ internal static class ProcurementCsvExportGuard
         if (!numeric && candidate.Length > 0 && "=+-@".Contains(candidate[0]))
             s = "'" + s;
         return "\"" + s.Replace("\"", "\"\"") + "\"";
-    }}
+     }
+}
