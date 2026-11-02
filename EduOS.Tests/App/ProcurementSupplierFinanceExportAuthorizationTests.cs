@@ -268,7 +268,8 @@ public sealed class ProcurementSupplierFinanceExportAuthorizationTests
         invoiceRow.Lines[0].StockUnitCost = 15m;
         invoiceRow.Lines[0].StockValue = 15m;
         var agingRow = Aging(1);
-        agingRow.SourceLinkedOutstandingAmount = -2m;
+        agingRow.PostedSettlementAmount = 2m;
+        agingRow.SourceLinkedOutstandingAmount = 8m;
         service.Setup(x => x.ListAsync(null, null, 1, 100, It.IsAny<CancellationToken>()))
             .ReturnsAsync(Ok(1, 1, invoiceRow));
         service.Setup(x => x.AgingAsync(null, null, false, 1, 100, It.IsAny<CancellationToken>()))
@@ -294,8 +295,8 @@ public sealed class ProcurementSupplierFinanceExportAuthorizationTests
         Assert.DoesNotContain("\"'-5\"", Encoding.UTF8.GetString(invoice.FileContents));
         var agingFile = Assert.IsType<FileContentResult>(
             await controller.AgingExport(null, null, false, CancellationToken.None));
-        Assert.Contains("\"-2\"", Encoding.UTF8.GetString(agingFile.FileContents));
-        Assert.DoesNotContain("\"'-2\"", Encoding.UTF8.GetString(agingFile.FileContents));
+        Assert.Contains("\"8\"", Encoding.UTF8.GetString(agingFile.FileContents));
+        Assert.DoesNotContain("\"'8\"", Encoding.UTF8.GetString(agingFile.FileContents));
     }
 
     [Fact]
