@@ -438,6 +438,18 @@ public sealed class SqlServerFacilityWorkOrderTests
             approved = released.Data!;
             Assert.Equal("Released", approved.VendorStateCode);
         }
+        await using (var db = Db(options, tenantId, requesterId, "FacilitiesRequester"))
+        {
+            var service = Service(db, tenantId, requesterId, "FacilitiesRequester");
+            var visible = (await service.ListAsync(campusId, null, 1, 25)).Data!.Items
+                .Single(x => x.Id == submitted.Id);
+            Assert.Null(visible.VendorSupplierId);
+            Assert.Null(visible.VendorStartUtc);
+            var events = (await service.HistoryAsync(submitted.Id, 1, 25)).Data!.Items
+                .Where(x => x.ActionCode.StartsWith("vendor")).ToArray();
+            Assert.Equal(3, events.Length);
+            Assert.All(events, x => Assert.Equal("Vendor decision recorded.", x.Note));
+        }
         await using (var db = Db(options, tenantId, managerId, "FacilitiesManager"))
         {
             Assert.Equal(3, await db.Set<FacilityWorkflowEvent>().CountAsync(x =>

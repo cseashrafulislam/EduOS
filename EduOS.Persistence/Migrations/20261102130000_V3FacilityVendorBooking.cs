@@ -20,9 +20,13 @@ public sealed class V3FacilityVendorBooking : Migration
         m.AddColumn<DateTime>("VendorEndUtc", "FacilityWorkOrders", type: "datetime2", nullable: true);
         m.CreateIndex("IX_FacilityWorkOrders_TenantId_VendorSupplierId_VendorStateCode_VendorStartUtc_VendorEndUtc",
             "FacilityWorkOrders", new[] { "TenantId", "VendorSupplierId", "VendorStateCode", "VendorStartUtc", "VendorEndUtc" });
-        m.AddForeignKey("FK_FacilityWorkOrders_ProcurementSuppliers_TenantId_VendorSupplierId",
-            "FacilityWorkOrders", new[] { "TenantId", "VendorSupplierId" },
-            "ProcurementSuppliers", new[] { "TenantId", "Id" }, onDelete: ReferentialAction.Restrict);
+        m.AddForeignKey(
+            name: "FK_FacilityWorkOrders_ProcurementSuppliers_TenantId_VendorSupplierId",
+            table: "FacilityWorkOrders",
+            columns: new[] { "TenantId", "VendorSupplierId" },
+            principalTable: "ProcurementSuppliers",
+            principalColumns: new[] { "TenantId", "Id" },
+            onDelete: ReferentialAction.Restrict);
         m.AddCheckConstraint("CK_FacilityWorkOrders_VendorState", "FacilityWorkOrders",
             "([VendorStateCode] IS NULL AND [VendorSupplierId] IS NULL AND [VendorStartUtc] IS NULL AND [VendorEndUtc] IS NULL AND [VendorProposedByUserId] IS NULL) OR ([VendorStateCode] IS NOT NULL AND [VendorStateCode] IN (N'Proposed',N'Approved',N'Rejected',N'Released') AND [VendorSupplierId] IS NOT NULL AND [VendorStartUtc] IS NOT NULL AND [VendorEndUtc] IS NOT NULL AND [VendorStartUtc] < [VendorEndUtc] AND [VendorProposedByUserId] IS NOT NULL AND ([VendorStateCode] <> N'Approved' OR [VendorApprovedByUserId] IS NOT NULL))");
     }

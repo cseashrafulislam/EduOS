@@ -855,12 +855,17 @@ public sealed class FacilityWorkflowService(
         var query = db.Set<FacilityWorkflowEvent>().AsNoTracking()
             .Where(x => x.TenantId == user.TenantId && x.FacilityServiceRequestId == id && !x.IsDeleted);
         var count = await query.CountAsync(ct);
+        var canReadVendorDetails = Manager || Approver;
         var rows = await query.OrderBy(x => x.Id).Skip((page - 1) * pageSize).Take(pageSize)
             .Select(x => new FacilityEventDto
             {
                 Id = x.Id, ActionCode = x.ActionCode, FromState = x.FromState,
                 ToState = x.ToState, ActorUserId = x.ActorUserId,
-                OccurredAtUtc = x.CreatedAt, Note = x.Note
+                OccurredAtUtc = x.CreatedAt,
+                // Vendor IDs, reasons and commercial booking windows are not
+                // disclosed to requesters or technicians through history.
+                Note = canReadVendorDetails || !x.ActionCode.StartsWith("vendor")
+                    ? x.Note : "Vendor decision recorded."
             }).ToListAsync(ct);
         return ApiResponse<PagedResult<FacilityEventDto>>.SuccessResponse(new()
         { Page = page, PageSize = pageSize, TotalCount = count, Items = rows });
