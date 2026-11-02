@@ -1233,6 +1233,85 @@ public sealed partial class SqlServerV3ProcurementPurchaseOrderTests
                 Assert.Equal(1,await finalOrdinalVerifier.Journals.CountAsync(x=>
                     x.SourceType=="AssetCapitalization" && x.State==JournalState.Posted));
             }
+            // Inject a deterministic failure AFTER Inventory has written the
+            // draft/line/posted asset issue inside the review transaction.
+            // Manual BDT 11 valuation of BDT 10 stock requires a gain account;
+            // deliberately omit it. The service must roll back the stock issue,
+            // AssetBook and Finance journal, not leave a partial capitalization.
+            Guid failedValuationReference;
+            string failedValuationVersion;
+            Guid failedValuationKey;
+            await using (var faultMaker=Open(options,tenantId,makerId))
+            {
+                var faultInput=ordinalLoser.Input;
+                failedValuationKey=Guid.NewGuid();
+                faultInput.ClientRequestId=failedValuationKey;
+                faultInput.PolicyMode="ManualFinal";
+                faultInput.ProposedCostBasis=11m;
+                faultInput.VarianceGainAccountId=null;
+                faultInput.Reason="Missing valuation gain account after trusted stock issue";
+                var submitted=await AssetFinance(faultMaker,tenantId,makerId)
+                    .RequestCapitalizationAsync(ordinalLoser.AssetReference,faultInput);
+                Assert.True(submitted.Success,submitted.Message);
+                Assert.Equal("Submitted",submitted.Data!.State);
+                failedValuationReference=submitted.Data.Reference;
+                failedValuationVersion=submitted.Data.RowVersion;
+            }
+            await using (var faultChecker=Open(options,tenantId,checkerId))
+            {
+                var denied=await AssetFinance(faultChecker,tenantId,checkerId)
+                    .ReviewCapitalizationAsync(failedValuationReference,
+                        new ReviewAssetCapitalizationRequest {
+                            RowVersion=failedValuationVersion,Approve=true,
+                            Reason="Verify atomic stock and Finance rollback after valuation failure"
+                        });
+                Assert.Equal(409,denied.StatusCode);
+                Assert.Contains("Manual cost difference requires",denied.Message);
+            }
+            // A NEW SQL context is essential: the failed review's EF change
+            // tracker may still contain rolled-back stock movement entities.
+            await using (var rollbackVerifier=Open(options,tenantId,makerId))
+            {
+                var pending=await rollbackVerifier.AssetCapitalizationCommands.AsNoTracking()
+                    .SingleAsync(x=>x.PublicId==failedValuationReference);
+                Assert.Equal("Submitted",pending.StateCode);
+                Assert.Null(pending.AssetBookId);
+                Assert.Null(pending.StockMovementId);
+                Assert.Null(pending.JournalId);
+                Assert.False(await rollbackVerifier.InventoryMovements.AsNoTracking()
+                    .AnyAsync(x=>x.ClientRequestId==failedValuationKey));
+                Assert.False(await rollbackVerifier.Journals.AsNoTracking()
+                    .AnyAsync(x=>x.IdempotencyKey==failedValuationKey));
+                Assert.Equal(1,await rollbackVerifier.AssetBooks.CountAsync());
+                Assert.Equal(1,await rollbackVerifier.InventoryMovements.CountAsync(x=>
+                    x.SourceType=="AssetCapitalization" && x.StateCode=="Posted"));
+                Assert.Equal(1,await rollbackVerifier.Journals.CountAsync(x=>
+                    x.SourceType=="AssetCapitalization" && x.State==JournalState.Posted));
+            }
+            // Release the failed, still-unposted reservation via independent
+            // review; its history remains immutable and cannot be posted later.
+            await using (var faultRejector=Open(options,tenantId,checkerId))
+            {
+                var rejected=await AssetFinance(faultRejector,tenantId,checkerId)
+                    .ReviewCapitalizationAsync(failedValuationReference,
+                        new ReviewAssetCapitalizationRequest {
+                            RowVersion=failedValuationVersion,Approve=false,
+                            Reason="Release failed valuation request without stock or GL"
+                        });
+                Assert.True(rejected.Success,rejected.Message);
+                Assert.Equal("Rejected",rejected.Data!.State);
+            }
+            await using (var afterFault=Open(options,tenantId,makerId))
+            {
+                Assert.Equal(3,await afterFault.AssetCapitalizationCommands.CountAsync(x=>
+                    x.ReceiptUnitOrdinal==2 && x.StateCode=="Rejected"));
+                Assert.Equal(1,await afterFault.AssetBooks.CountAsync());
+                Assert.Equal(1,await afterFault.InventoryMovements.CountAsync(x=>
+                    x.SourceType=="AssetCapitalization" && x.StateCode=="Posted"));
+                Assert.Equal(1,await afterFault.Journals.CountAsync(x=>
+                    x.SourceType=="AssetCapitalization" && x.State==JournalState.Posted));
+            }
+
             // Continue this SAME PO/GR/invoice/return/asset-unit fixture through
             // real month-end depreciation, disposal and balanced GL compensation.
             // Synthetic time avoids a test that only passes on the last day of a month.
