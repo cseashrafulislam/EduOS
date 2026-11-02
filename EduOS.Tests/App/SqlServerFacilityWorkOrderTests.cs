@@ -570,6 +570,10 @@ public sealed class SqlServerFacilityWorkOrderTests
                 .Where(x => x.ActionCode == "schedule"));
             Assert.Equal("Approved", (await db.FacilityWorkOrders.AsNoTracking()
                 .SingleAsync(x => x.FacilityServiceRequestId == submitted.Id)).StateCode);
+            // The synthetic rejection left an unsaved tracked projection in this
+            // test DbContext. Real HTTP requests dispose their scope; clear it
+            // here before issuing the independent successful command.
+            db.ChangeTracker.Clear();
             var result = await service.TransitionAsync(
                 submitted.Id, "schedule", ScheduleRetry(techId, scheduleStart, scheduleEnd, originalScheduleNote));
             Assert.True(result.Success, result.Message);
