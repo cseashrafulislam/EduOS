@@ -29,3 +29,17 @@ test('print document handles invalid references and renders without HTML interpo
     assert.match(js, /docPrint'\)\.disabled = true/);
     assert.match(view, /@media print/);
 });
+
+test('bilingual invoice and receipt print preserve protected read-only contracts', () => {
+    const js = read('EduOS.App/wwwroot/js/finance/fee-documents.js');
+    const view = read('EduOS.App/Views/FeeDocuments/Document.cshtml');
+    const {guideFor} = require('../../EduOS.App/wwwroot/js/platform/page-context-help.js');
+    for(const route of ['/FeeDocuments/Invoice','/FeeDocuments/Receipt'])
+        for(const lang of ['en-BD','bn-BD']) assert.ok(guideFor(route,lang)?.steps.length >= 2);
+    assert.match(view,/CurrentUICulture/);
+    assert.match(js,/const t = \(en, bd\) => bn \? bd : en/);
+    assert.match(js,/moneyKeys/);
+    assert.match(js,/BigInt/);
+    assert.doesNotMatch(js,/result\.message \|\| 'Document unavailable/);
+    assert.doesNotMatch(js,/innerHTML\s*=/);
+});

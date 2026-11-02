@@ -6,9 +6,15 @@ on:
       - 'EduOS.App/wwwroot/js/finance/fees.js'
       - 'EduOS.App/wwwroot/js/platform/task-workspace-locales.js'
       - 'EduOS.App/Views/FeeOperations/Index.cshtml'
+      - 'EduOS.App/Views/FeeDocuments/Document.cshtml'
+      - 'EduOS.App/wwwroot/js/finance/fee-documents.js'
+      - 'EduOS.App/wwwroot/js/platform/page-context-help.js'
+      - 'EduOS.Tests/JavaScript/fee-documents.test.cjs'
+      - 'EduOS.Tests/JavaScript/page-context-help.test.cjs'
       - 'EduOS.Tests/JavaScript/fee-bilingual-dynamic.test.cjs'
       - 'EduOS.Tests/JavaScript/fee-navigation-workspaces.test.cjs'
       - 'tests/browser/fee-bilingual.cjs'
+      - 'tests/browser/fee-document-bilingual.cjs'
       - '.github/workflows/fee-bilingual-browser.yml'
   workflow_dispatch:
 permissions:
@@ -30,4 +36,6 @@ jobs:
       - name: Install Chromium
         run: npx playwright install --with-deps chromium
       - name: Verify localized fee preflight and formula-safe CSV in real Chromium
-        run: node tests/browser/fee-bilingual.cjs
+        run: |
+          node tests/browser/fee-bilingual.cjs
+          node tests/browser/fee-document-bilingual.cjs

@@ -1199,6 +1199,36 @@
             [['/Learning/Index', 'Learning courses', 'কোর্সসমূহ']])
     };
     const manuals = {
+        '/feedocuments/invoice/index': {
+            version: 1, reviewed: true,
+            title: ['Student fee invoice document', 'শিক্ষার্থীর ফি ইনভয়েস নথি'],
+            purpose: ['View or print one authorized invoice without changing its posted Finance record.', 'পোস্ট করা ফাইন্যান্স তথ্য না বদলে একটি অনুমোদিত ইনভয়েস দেখুন বা প্রিন্ট করুন।'],
+            before: ['FINANCE access, an authorized student invoice link from Student Ledger and the intended institution session.', 'FINANCE অনুমতি, শিক্ষার্থী লেজারের অনুমোদিত ইনভয়েস লিংক এবং সঠিক প্রতিষ্ঠানের সেশন প্রয়োজন।'],
+            steps: [
+                ['Open View / Print from a student invoice and verify student, invoice number, state, dates and BDT totals.', 'শিক্ষার্থীর ইনভয়েস থেকে দেখুন / প্রিন্ট খুলে শিক্ষার্থী, নম্বর, অবস্থা, তারিখ ও টাকার মোট যাচাই করুন।'],
+                ['Choose Print / Save PDF only after the authorized document loads; use the browser print dialog.', 'অনুমোদিত নথি লোড হওয়ার পর প্রিন্ট / PDF সংরক্ষণ চাপুন এবং ব্রাউজারের প্রিন্ট ডায়ালগ ব্যবহার করুন।']
+            ],
+            example: ['Fictional example: verify the due amount on a partially paid demo invoice before printing.', 'কাল্পনিক উদাহরণ: আংশিক পরিশোধিত ডেমো ইনভয়েসের বকেয়া যাচাই করে প্রিন্ট করুন।'],
+            result: ['A read-only printable invoice; no payment or journal is posted by printing.', 'শুধু পড়া ও প্রিন্টযোগ্য ইনভয়েস; প্রিন্ট করলে পরিশোধ বা জার্নাল পোস্ট হয় না।'],
+            rules: ['Cancelled/refunded invoices are not payment demands; keep private PDFs with authorized recipients.', 'বাতিল বা ফেরত দেওয়া ইনভয়েস অর্থ দাবি নয়; ব্যক্তিগত PDF শুধু অনুমোদিত প্রাপককে দিন।'],
+            recovery: ['If invalid or denied, return to Student Ledger, verify institution and select an authorized invoice.', 'লিংক ভুল বা অনুমতি না থাকলে শিক্ষার্থী লেজারে ফিরে প্রতিষ্ঠান যাচাই করে অনুমোদিত ইনভয়েস বাছুন।'],
+            related: [['/FeeOperations/Ledger', 'Student ledger', 'শিক্ষার্থী লেজার']]
+        },
+        '/feedocuments/receipt/index': {
+            version: 1, reviewed: true,
+            title: ['Student payment receipt document', 'শিক্ষার্থীর পরিশোধ রসিদ নথি'],
+            purpose: ['Review a payment state and its invoice allocations without creating a receipt.', 'নতুন রসিদ না তৈরি করে পরিশোধের অবস্থা ও ইনভয়েস বণ্টন দেখুন।'],
+            before: ['FINANCE access, an authorized student payment link from Student Ledger and the intended institution session.', 'FINANCE অনুমতি, শিক্ষার্থী লেজারের অনুমোদিত পরিশোধ লিংক এবং সঠিক প্রতিষ্ঠানের সেশন প্রয়োজন।'],
+            steps: [
+                ['Open View / Print from Receipt history and verify number, state, method and allocated invoices.', 'রসিদের ইতিহাস থেকে দেখুন / প্রিন্ট খুলে নম্বর, অবস্থা, মাধ্যম ও বণ্টিত ইনভয়েস যাচাই করুন।'],
+                ['Print or save PDF only after load and status verification; failed payments are not proof of collection.', 'নথি লোড ও অবস্থা যাচাইয়ের পর প্রিন্ট বা PDF সংরক্ষণ করুন; ব্যর্থ পরিশোধ সংগ্রহের প্রমাণ নয়।']
+            ],
+            example: ['Fictional example: compare a successful demo receipt with its allocated invoice before printing.', 'কাল্পনিক উদাহরণ: সফল ডেমো রসিদ প্রিন্টের আগে বণ্টিত ইনভয়েসের সঙ্গে মিলিয়ে নিন।'],
+            result: ['A read-only payment record; printing initiates no provider send or Finance posting.', 'শুধু পড়ার পরিশোধ নথি; প্রিন্টে কোনো প্রোভাইডার অনুরোধ বা ফাইন্যান্স পোস্টিং হয় না।'],
+            rules: ['Only successful receipts acknowledge collection; keep private PDFs with authorized recipients.', 'শুধু সফল রসিদ সংগ্রহ স্বীকার করে; ব্যক্তিগত PDF অনুমোদিত প্রাপকের মধ্যেই রাখুন।'],
+            recovery: ['If unavailable, verify institution and permissions, then reopen from Student Ledger.', 'নথি না পেলে প্রতিষ্ঠান ও অনুমতি যাচাই করে শিক্ষার্থী লেজার থেকে আবার খুলুন।'],
+            related: [['/FeeOperations/Ledger', 'Student ledger', 'শিক্ষার্থী লেজার']]
+        },
         '/account/login/index': {
             version: 2, reviewed: true,
             title: ['Sign in and institution selection', 'সাইন ইন ও প্রতিষ্ঠান নির্বাচন'],
