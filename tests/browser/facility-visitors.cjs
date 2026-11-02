@@ -143,6 +143,8 @@ async function run(browser, bn, manager, mobile) {
         await page.locator('#fvRefresh').evaluate(button => button.click());
         await page.waitForFunction(() => document.querySelectorAll('#fvRows article').length === 0);
         assert.equal(await page.locator('#fvRows article').count(), 0);
+        assert.match(await page.locator('#fvStatus').innerText(),
+            bn ? /ভিজিটর প্রবেশাধিকার বাতিল/ : /Visitor access revoked/);
         assert.equal(await page.locator('#fvRefresh').isVisible(), false);
         if (manager) assert.equal(await page.locator('#fvCreate').isVisible(), false);
         assert.deepEqual(errors, []);
