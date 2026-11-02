@@ -190,7 +190,9 @@ test('real browser response capture excludes unrelated routes and rejects hidden
 test('real foreign response audit fails closed on shared cache, redirects and oversized evidence', async () => {
     const config = validateEnvironment(env);
     const run = async (status, cache, body) => assertForeignResponsePrivacy(config, {
-        evidenceResponses: [{ status: () => status,
+        evidenceResponses: [{ url: () => env.EDUOS_E2E_BASE_URL +
+            '/api/v3/enterprise/ledger-trace/register',
+            status: () => status,
             headers: () => ({ 'cache-control': cache }),
             body: async () => Buffer.from(body) }]
     });
@@ -278,4 +280,45 @@ test('real Chromium direct API denial matrix rejects 200, redirect, cache and le
         evidenceResponses: [] };
     await assert.rejects(assertDeniedDirectEvidence(config, session,
         '/api/v3/enterprise/ledger-trace/%2e%2e/private'), /unapproved direct/);
+});
+
+test('foreign detail must be denied even when 200 response contains no known UUID', async () => {
+    const config = validateEnvironment(env);
+    const detail = config.base + '/api/v3/enterprise/ledger-trace/' + config.refs[0];
+    const register = config.base + '/api/v3/enterprise/ledger-trace/register?kind=stock';
+    const make = (url, status, body = '{}') => ({
+        url: () => url, status: () => status,
+        headers: () => ({ 'cache-control': 'private, no-store' }),
+        body: async () => Buffer.from(body)
+    });
+    await assert.rejects(assertForeignResponsePrivacy(config, {
+        evidenceResponses: [make(detail, 200, '{"success":true,"data":{"amount":250}}')]
+    }, true, detail), /Foreign source detail was not denied/);
+    await assertForeignResponsePrivacy(config, {
+        evidenceResponses: [make(register, 200, '{"success":true,"data":{"items":[]}}')]
+    }, true, register);
+    await assertForeignResponsePrivacy(config, {
+        evidenceResponses: [make(detail, 404, '{"success":false}')]
+    }, true, detail);
+});
+
+test('exact Chromium request is mandatory; unrelated register traffic cannot fake detail denial', async () => {
+    const config = validateEnvironment(env);
+    const detail = config.base + '/api/v3/enterprise/ledger-trace/' + config.refs[0];
+    const register = config.base + '/api/v3/enterprise/ledger-trace/register?kind=stock';
+    const response = url => ({
+        url: () => url, status: () => 404,
+        headers: () => ({ 'cache-control': 'no-store' }),
+        body: async () => Buffer.from('{}')
+    });
+    await assert.rejects(assertForeignResponsePrivacy(config, {
+        evidenceResponses: [response(register)]
+    }, true, detail), /exact expected evidence endpoint/);
+    await assert.rejects(collectOwnerEvidenceReferences(config, {
+        evidenceResponses: [response(register)]
+    }, config.refs[0], detail), /exact expected evidence endpoint/);
+    await assert.rejects(assertForeignResponsePrivacy(config, {
+        evidenceResponses: [response('https://evil.example/api/v3/enterprise/ledger-trace/' +
+            config.refs[0])]
+    }, true), /Untrusted foreign evidence response target/);
 });

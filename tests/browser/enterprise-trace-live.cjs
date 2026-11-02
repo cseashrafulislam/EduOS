@@ -130,14 +130,27 @@ function captureEvidenceResponses(page, base) {
     });
     return responses;
 }
-async function assertForeignResponsePrivacy(config, session, requireNetworkEvidence = false) {
+async function assertForeignResponsePrivacy(config, session, requireNetworkEvidence = false,
+    expectedUrl = null) {
     const responses = session.evidenceResponses.splice(0);
     if (requireNetworkEvidence)
         assert(responses.length > 0,
             'Foreign browser did not exercise an evidence HTTP request');
+    if (expectedUrl)
+        assert(responses.some(response => response.url?.() === expectedUrl),
+            'Foreign browser did not request the exact expected evidence endpoint');
     for (const response of responses) {
-        assert([200, 400, 401, 403, 404, 409].includes(response.status()),
-            'Unexpected foreign evidence response status');
+        const url = safeStagingUrl(response.url?.(), config.base);
+        assert(url && /^\/api\/v3\/enterprise\/ledger-trace\//i.test(url.pathname),
+            'Untrusted foreign evidence response target');
+        const isRegister = /^\/api\/v3\/enterprise\/ledger-trace\/register(?:\/csv)?$/i
+            .test(url.pathname);
+        // A foreign tenant may read its own register, but never the owner's
+        // source detail or CSV. A 200 with redacted UUIDs is still an IDOR.
+        assert(isRegister
+            ? [200, 400, 401, 403, 404, 409].includes(response.status())
+            : [403, 404].includes(response.status()),
+            'Foreign source detail was not denied or register status is invalid');
         const directives = String(response.headers()['cache-control'] || '')
             .toLowerCase().split(',').map(value => value.trim());
         assert(directives.includes('no-store') &&
@@ -158,9 +171,13 @@ async function assertForeignResponsePrivacy(config, session, requireNetworkEvide
  * Chromium HTTP responses. The set is kept in memory, never logged or stored.
  * A seeded source ID alone is not sufficient to detect nested journal leakage.
  */
-async function collectOwnerEvidenceReferences(config, session, expectedReference = null) {
+async function collectOwnerEvidenceReferences(config, session, expectedReference = null,
+    expectedUrl = null) {
     const responses = session.evidenceResponses.splice(0);
     assert(responses.length > 0, 'Owner browser did not exercise an evidence HTTP request');
+    if (expectedUrl)
+        assert(responses.some(response => response.url?.() === expectedUrl),
+            'Owner browser did not request the exact expected evidence endpoint');
     const observed = new Set();
     for (const response of responses) {
         assert.equal(response.status(), 200, 'Authorized owner evidence request failed');
@@ -200,7 +217,7 @@ async function assertDeniedDirectEvidence(config, session, relativePath) {
     assert(response && response.url() === target &&
         [403, 404].includes(response.status()),
         'Foreign/restricted direct evidence request was not denied');
-    await assertForeignResponsePrivacy(config, session, true);
+    await assertForeignResponsePrivacy(config, session, true, target);
 }
 
 async function login(browser, config, key) {
@@ -319,10 +336,17 @@ async function verifyRegister(config, session, key) {
     assert(isScopedRegisterExport(await page.locator('#v3RegisterCsv')
         .getAttribute('href'), config, kind, campus),
     'Register CSV export escaped selected tenant/campus/date/page scope');
-    if (key === 'A') await collectOwnerEvidenceReferences(config, session);
+    const query = new URLSearchParams({ kind, from: config.from, to: config.to,
+        page: '1', pageSize: '25' });
+    if (campus) query.set('campusId', campus);
+    const expectedUrl = config.base +
+        '/api/v3/enterprise/ledger-trace/register?' + query;
+    if (key === 'A')
+        await collectOwnerEvidenceReferences(config, session, null, expectedUrl);
     assert.deepEqual(session.errors, [], 'Register browser JavaScript error');
     assert.deepEqual(session.blockedWrites, [], 'Unexpected register browser request');
-    if (key === 'B') await assertForeignResponsePrivacy(config, session, true);
+    if (key === 'B')
+        await assertForeignResponsePrivacy(config, session, true, expectedUrl);
 }
 async function verifyView(config, session, key, kind, reference) {
     const { page } = session;
@@ -346,16 +370,18 @@ async function verifyView(config, session, key, kind, reference) {
     await page.locator('#v3TraceKind').selectOption(kind);
     await page.locator('#v3TraceReference').fill(reference);
     await page.locator('#v3TraceForm button[type="submit"]').click();
+    const route = kind === 'asset' ? 'asset-depreciation/' :
+        kind === 'procurement' ? 'procurement/' : '';
+    const expectedUrl = config.base +
+        '/api/v3/enterprise/ledger-trace/' + route + reference;
     if (key === 'A') {
         await page.locator('#v3TraceResult:not([hidden])').waitFor({ timeout: 15000 });
         assert(await page.locator('#v3TraceRows tr').count() > 0,
             'Authorized source/Finance evidence absent');
-        const route = kind === 'asset' ? 'asset-depreciation/' :
-            kind === 'procurement' ? 'procurement/' : '';
         assert.equal(await page.locator('#v3TraceCsv').getAttribute('href'),
             '/api/v3/enterprise/ledger-trace/' + route + reference + '/csv',
             'Authorized source-specific CSV link mismatch');
-        await collectOwnerEvidenceReferences(config, session, reference);
+        await collectOwnerEvidenceReferences(config, session, reference, expectedUrl);
     } else {
         await page.waitForFunction(() => {
             const msg = document.getElementById('v3TraceMessage')?.textContent || '';
@@ -370,7 +396,8 @@ async function verifyView(config, session, key, kind, reference) {
     }
     assert.deepEqual(session.errors, [], 'Browser JavaScript error');
     assert.deepEqual(session.blockedWrites, [], 'Unexpected staging write');
-    if (key === 'B') await assertForeignResponsePrivacy(config, session, true);
+    if (key === 'B')
+        await assertForeignResponsePrivacy(config, session, true, expectedUrl);
 }
 async function main(env = process.env) {
     const config = validateEnvironment(env);
