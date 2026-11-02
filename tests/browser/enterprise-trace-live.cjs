@@ -452,6 +452,14 @@ async function main(env = process.env) {
         const report = await runAcceptance(acceptance, fetcher);
         assert.equal(report.errors, 0, 'Authenticated replay errors');
         assert(report.maxClientInFlight >= 2, 'Concurrent replay not observed');
+        // Additional read-only, bounded synthetic concurrency probe; indicative
+        // p95/p99 only, not representative SQL workload or production capacity.
+        const { runSyntheticReadLoad } = require('./enterprise-trace-readonly-load.cjs');
+        const load = await runSyntheticReadLoad(config, fetcher);
+        assert(load.peakInFlight >= 2, 'Synthetic concurrent read load was not observed');
+        console.log('Synthetic staging read-only latency (indicative only): ' +
+            load.metrics.map(row => row.lane + ' n=' + row.requests +
+                ' p95=' + row.p95Ms + 'ms p99=' + row.p99Ms + 'ms').join('; '));
         console.log('Authenticated staging browser acceptance PASS: three synthetic accounts, ' +
             'three trace kinds, twelve direct foreign/restricted JSON/CSV denials, ' +
             'nested owner Finance reference privacy, campus-scoped register CSV, ' +
