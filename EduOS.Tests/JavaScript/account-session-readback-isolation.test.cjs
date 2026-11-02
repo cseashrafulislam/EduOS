@@ -56,7 +56,8 @@ test('account session readbacks accept only matching cookie and institution', as
         const stale = client(sid, tenant, pending);
         await assert.rejects(stale.request('/api/auth/sessions', { sessionBound: true }),
             /Account session changed/);
-        assert.equal(stale.verifications(), 1);
+        assert.equal(stale.verifications(), pending ? 0 : 1,
+            'Pending transition fails immediately; mismatched readback headers trigger one verification');
     }
 });
 
