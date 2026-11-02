@@ -134,6 +134,15 @@ async function run(browser, bn, manager, mobile) {
             await page.locator('#fvRows button').filter({ hasText: bn ? 'ইতিহাস' : 'History' }).first().click();
             await page.locator('[data-visitor-history]').first().getByText('Observed badge handoff.', { exact: false }).waitFor();
         }
+        // A live 403 erases previously rendered PII and blocks stale actions.
+        await page.route('http://localhost/api/facilities/visitors?*', route =>
+            route.fulfill({ status: 403, contentType: 'application/json',
+                body: JSON.stringify({ success: false, message: 'Access revoked' }) }));
+        await page.locator('#fvRefresh').click();
+        await page.waitForFunction(() => document.querySelectorAll('#fvRows article').length === 0);
+        assert.equal(await page.locator('#fvRows article').count(), 0);
+        assert.equal(await page.locator('#fvRefresh').isVisible(), false);
+        if (manager) assert.equal(await page.locator('#fvCreate').isVisible(), false);
         assert.deepEqual(errors, []);
         if (mobile) assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), true);
     } finally { await context.close(); }

@@ -167,6 +167,36 @@ public sealed class SqlServerFacilityVisitorTests
                 x.TenantId == tenantId && x.NormalizedName == "STAFF")
                 .ExecuteUpdateAsync(x => x.SetProperty(role => role.IsActive, true)));
 
+
+        // Host campus and membership revocation must not append an approval
+        // event even if the browser retains an old Staff claim and rowversion.
+        await using (var db = Db(options, tenantId, managerId, "FacilitiesManager"))
+            Assert.Equal(1, await db.UserCampusAccesses.Where(g =>
+                g.TenantId == tenantId && g.CampusId == campusId && g.UserId == hostId)
+                .ExecuteUpdateAsync(x => x.SetProperty(g => g.IsActive, false)));
+        await using (var db = Db(options, tenantId, hostId, "Staff"))
+            Assert.Equal(403, (await Service(db, tenantId, hostId, "Staff")
+                .TransitionAsync(first.Id, "hostapprove", new FacilityVisitorTransitionDto
+                { ClientCommandId = Guid.NewGuid(), RowVersion = first.RowVersion })).StatusCode);
+        await using (var db = Db(options, tenantId, managerId, "FacilitiesManager"))
+            Assert.Equal(1, await db.UserCampusAccesses.Where(g =>
+                g.TenantId == tenantId && g.CampusId == campusId && g.UserId == hostId)
+                .ExecuteUpdateAsync(x => x.SetProperty(g => g.IsActive, true)));
+        await using (var db = Db(options, tenantId, managerId, "FacilitiesManager"))
+            Assert.Equal(1, await db.TenantMemberships.Where(m =>
+                m.TenantId == tenantId && m.UserId == hostId)
+                .ExecuteUpdateAsync(x => x.SetProperty(m => m.IsDeleted, true)));
+        await using (var db = Db(options, tenantId, hostId, "Staff"))
+            Assert.Equal(403, (await Service(db, tenantId, hostId, "Staff")
+                .TransitionAsync(first.Id, "hostapprove", new FacilityVisitorTransitionDto
+                { ClientCommandId = Guid.NewGuid(), RowVersion = first.RowVersion })).StatusCode);
+        await using (var db = Db(options, tenantId, managerId, "FacilitiesManager"))
+            Assert.Equal(1, await db.TenantMemberships.IgnoreQueryFilters().Where(m =>
+                m.TenantId == tenantId && m.UserId == hostId)
+                .ExecuteUpdateAsync(x => x.SetProperty(m => m.IsDeleted, false)));
+        await using (var db = Db(options, tenantId, managerId, "FacilitiesManager"))
+            Assert.Equal(0, await db.Set<FacilityVisitorEvent>().CountAsync(e => e.ActionCode == "hostapprove"));
+
         async Task<FacilityVisitorDto> ApproveAsync(FacilityVisitorDto visit)
         {
             await using var db = Db(options, tenantId, hostId, "Staff");
@@ -178,6 +208,25 @@ public sealed class SqlServerFacilityVisitorTests
         }
         first = await ApproveAsync(first);
         second = await ApproveAsync(second);
+
+        // A revoked desk campus grant denies check-in without changing the
+        // approved visit, badge or append-only event count.
+        await using (var db = Db(options, tenantId, managerId, "FacilitiesManager"))
+            Assert.Equal(1, await db.UserCampusAccesses.Where(g =>
+                g.TenantId == tenantId && g.CampusId == campusId && g.UserId == managerId)
+                .ExecuteUpdateAsync(x => x.SetProperty(g => g.IsActive, false)));
+        await using (var db = Db(options, tenantId, managerId, "FacilitiesManager"))
+            Assert.Equal(403, (await Service(db, tenantId, managerId, "FacilitiesManager",
+                new ShiftedClock(TimeSpan.FromMinutes(50))).TransitionAsync(first.Id, "checkin",
+                new FacilityVisitorTransitionDto
+                { ClientCommandId = Guid.NewGuid(), RowVersion = first.RowVersion,
+                    BadgeCode = "GUEST-01" })).StatusCode);
+        await using (var db = Db(options, tenantId, managerId, "FacilitiesManager"))
+            Assert.Equal(1, await db.UserCampusAccesses.Where(g =>
+                g.TenantId == tenantId && g.CampusId == campusId && g.UserId == managerId)
+                .ExecuteUpdateAsync(x => x.SetProperty(g => g.IsActive, true)));
+        await using (var db = Db(options, tenantId, managerId, "FacilitiesManager"))
+            Assert.Equal(0, await db.Set<FacilityVisitorEvent>().CountAsync(e => e.ActionCode == "checkin"));
         var commandId = Guid.NewGuid();
         await using (var db = Db(options, tenantId, managerId, "FacilitiesManager"))
         {

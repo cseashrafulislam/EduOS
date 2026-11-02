@@ -8,6 +8,22 @@
     const label = (en, bangla) => bn ? bangla : en;
     const token = document.querySelector('input[name="__RequestVerificationToken"]')?.value || '';
     const status = message => { $('fvStatus').textContent = message; };
+    // On revocation, erase rendered visitor PII and invalidate in-flight reads.
+    const invalidateAuthorization = () => {
+        ++requestEpoch; ++hostEpoch; ++occupancyEpoch; ++exportEpoch;
+        $('fvRows')?.replaceChildren();
+        $('fvHost')?.replaceChildren();
+        $('fvOccupancyResult')?.replaceChildren();
+        root.querySelectorAll('form, #fvRefresh, #fvBadge, #fvReason').forEach(element => {
+            element.hidden = true;
+            element.querySelectorAll('input, select, button').forEach(control => {
+                control.disabled = true;
+                if ('value' in control) control.value = '';
+            });
+        });
+        status(label('Visitor access revoked; reload or sign in again.',
+            'ভিজিটর প্রবেশাধিকার বাতিল হয়েছে; পুনরায় লগইন বা রিলোড করুন।'));
+    };
     const api = async (url, method = 'GET', data) => {
         const response = await fetch(url, {
             method, credentials: 'same-origin', cache: 'no-store',
@@ -16,6 +32,7 @@
             ...(data === undefined ? {} : { body: JSON.stringify(data) })
         });
         const payload = await response.json().catch(() => null);
+        if (response.status === 403) invalidateAuthorization();
         if (!response.ok || !payload?.success)
             throw new Error(payload?.message || label('Request denied or stale; refresh.', 'অনুরোধ প্রত্যাখ্যাত বা তথ্য পুরোনো; রিফ্রেশ করুন।'));
         return payload.data;
@@ -219,6 +236,7 @@
                 body: JSON.stringify({ campusId, fromUtc, toUtc })
             });
             if (!response.ok) {
+                if (response.status === 403) invalidateAuthorization();
                 const payload = await response.json().catch(() => null);
                 throw new Error(payload?.message || label('Export denied; narrow filters or reload.',
                     'এক্সপোর্ট প্রত্যাখ্যাত; সময়সীমা কমান বা রিলোড করুন।'));

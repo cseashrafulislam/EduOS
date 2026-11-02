@@ -17,7 +17,7 @@ namespace EduOS.Service.Services.Facilities;
 /// <summary>
 /// Privacy-minimized internal visitor appointments. Never stores national IDs,
 /// photos, phones or documents. Incident events are append-only; retention
-/// deletion and configurable site policy remain unimplemented; bounded summary exports are audit-logged.
+/// deletion and independently approved site policy remain unimplemented; bounded summary exports are audit-logged.
 /// </summary>
 public sealed class FacilityVisitorService(
     EduOSDbContext db, ICurrentUserService user, TimeProvider clock,
@@ -110,6 +110,58 @@ public sealed class FacilityVisitorService(
         return (true, limit);
     }
 
+
+    // Hold canonical identity and campus authorization locks through the caller's
+    // SERIALIZABLE visit/event/audit transaction. Revoked cookies are insufficient.
+    private async Task<bool> LockLiveVisitorIdentityAsync(
+        long actorId, long campusId, bool desk, CancellationToken ct)
+    {
+        if (!db.Database.IsSqlServer())
+            return desk
+                ? actorId == user.UserId && await ActorActiveAsync(ct) &&
+                  await ManagerLiveAsync(ct) && await Campuses().ContainsAsync(campusId, ct)
+                : await ActiveHosts(campusId).ContainsAsync(actorId, ct);
+        try
+        {
+            await db.Database.ExecuteSqlInterpolatedAsync($"""
+                IF NOT EXISTS (
+                    SELECT 1
+                    FROM dbo.AspNetUsers AS u WITH (UPDLOCK, HOLDLOCK)
+                    INNER JOIN dbo.TenantMemberships AS m WITH (UPDLOCK, HOLDLOCK)
+                        ON m.UserId = u.Id AND m.TenantId = {user.TenantId}
+                    INNER JOIN dbo.AspNetUserRoles AS ur WITH (UPDLOCK, HOLDLOCK)
+                        ON ur.UserId = u.Id
+                    INNER JOIN dbo.AspNetRoles AS r WITH (UPDLOCK, HOLDLOCK)
+                        ON r.Id = ur.RoleId
+                    WHERE u.Id = {actorId} AND u.IsActive = 1 AND u.IsDeleted = 0
+                        AND m.IsDeleted = 0 AND m.Status = {(int)MembershipStatus.Active}
+                        AND r.IsActive = 1 AND r.IsDeleted = 0
+                        AND (r.TenantId = {user.TenantId} OR
+                             (r.TenantId IS NULL AND r.IsSystemRole = 1))
+                        AND (({desk} = 1 AND r.NormalizedName IN
+                                  (N'TENANTADMIN',N'PRINCIPAL',N'FACILITIESMANAGER'))
+                             OR ({desk} = 0 AND r.NormalizedName IN
+                                  (N'STAFF',N'TEACHER',N'PRINCIPAL',N'TENANTADMIN',N'FACILITIESMANAGER')))
+                        AND ((r.NormalizedName IN (N'TENANTADMIN',N'PRINCIPAL') AND {desk} = 1)
+                             OR EXISTS (
+                                 SELECT 1 FROM dbo.UserCampusAccesses AS g WITH (UPDLOCK, HOLDLOCK)
+                                 WHERE g.UserId = u.Id AND g.TenantId = {user.TenantId}
+                                     AND g.CampusId = {campusId} AND g.IsActive = 1 AND g.IsDeleted = 0
+                             ))
+                ) THROW 51003, 'Visitor actor or campus authorization revoked', 1;
+                """, ct);
+        }
+        catch (Microsoft.Data.SqlClient.SqlException ex) when (ex.Number is 51003 or 1205 or 1222)
+        {
+            logger.LogWarning(ex, "Visitor live authorization conflict for tenant {TenantId}", user.TenantId);
+            return false;
+        }
+        return desk
+            ? actorId == user.UserId && await ActorActiveAsync(ct) &&
+              await ManagerLiveAsync(ct) && await Campuses().ContainsAsync(campusId, ct)
+            : await ActiveHosts(campusId).ContainsAsync(actorId, ct);
+    }
+
     public async Task<ApiResponse<PagedResult<FacilityVisitorHostDto>>> HostsAsync(
         long campusId, string? search, int page, int pageSize, CancellationToken ct = default)
     {
@@ -167,6 +219,8 @@ public sealed class FacilityVisitorService(
             if (!await ActorActiveAsync(ct) || !await ManagerLiveAsync(ct) ||
                 !await Campuses().ContainsAsync(campusId, ct))
                 return Denied<FacilityVisitorOccupancyDto>();
+            if (!await LockLiveVisitorIdentityAsync(user.UserId, campusId, true, ct))
+                return Denied<FacilityVisitorOccupancyDto>();
             var policy = await OccupancyLimitAsync(campusId, ct);
             if (!policy.Valid)
                 return ApiResponse<FacilityVisitorOccupancyDto>.ErrorResponse(
@@ -213,6 +267,9 @@ public sealed class FacilityVisitorService(
             ? await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct) : null;
         try
         {
+            if (!await LockLiveVisitorIdentityAsync(user.UserId, input.CampusId, true, ct) ||
+                !await LockLiveVisitorIdentityAsync(input.HostUserId, input.CampusId, false, ct))
+                return Denied<FacilityVisitorDto>();
             var prior = await db.Set<FacilityVisitorVisit>().AsNoTracking().FirstOrDefaultAsync(
                 v => v.TenantId == user.TenantId && v.ClientRequestId == input.ClientRequestId, ct);
             if (prior != null)
@@ -287,6 +344,10 @@ public sealed class FacilityVisitorService(
             if (visit == null) return ApiResponse<FacilityVisitorDto>.ErrorResponse("Visitor appointment not found.", 404);
             if (!await Campuses().ContainsAsync(visit.CampusId, ct)) return Denied<FacilityVisitorDto>();
             var hostAction = action is "hostapprove" or "hostreject";
+            if (!await LockLiveVisitorIdentityAsync(user.UserId, visit.CampusId, !hostAction, ct) ||
+                (action == "checkin" &&
+                 !await LockLiveVisitorIdentityAsync(visit.HostUserId, visit.CampusId, false, ct)))
+                return Denied<FacilityVisitorDto>();
             if (hostAction
                 ? (visit.HostUserId != user.UserId || visit.CreatedBy == user.UserId ||
                    !await ActiveHosts(visit.CampusId).ContainsAsync(user.UserId, ct))
@@ -413,6 +474,8 @@ public sealed class FacilityVisitorService(
             // A revoked session must never receive a previously authorized CSV.
             if (!await ActorActiveAsync(ct) || !await ManagerLiveAsync(ct) ||
                 !await Campuses().ContainsAsync(campusId, ct))
+                return Denied<IReadOnlyList<FacilityVisitorExportRowDto>>();
+            if (!await LockLiveVisitorIdentityAsync(user.UserId, campusId, true, ct))
                 return Denied<IReadOnlyList<FacilityVisitorExportRowDto>>();
             var rows = await db.Set<FacilityVisitorVisit>().AsNoTracking()
                 .Where(v => v.TenantId == user.TenantId && !v.IsDeleted &&

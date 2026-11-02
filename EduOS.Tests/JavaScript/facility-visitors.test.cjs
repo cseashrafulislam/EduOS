@@ -65,6 +65,11 @@ test('visitor transitions enforce independent host approval and active badge uni
     assert.match(service, /db\.AuditLogs\.Add/);
     assert.match(service, /await db\.SaveChangesAsync\(ct\);/);
     assert.match(service, /ManagerLiveAsync/);
+    assert.match(service, /LockLiveVisitorIdentityAsync/);
+    assert.match(service, /UPDLOCK, HOLDLOCK/);
+    assert.match(script, /invalidateAuthorization/);
+    assert.match(script, /response\.status === 403/);
+    assert.match(script, /\$\('fvRows'\)\?\.replaceChildren\(\)/);
     assert.doesNotMatch(service.slice(service.indexOf('public async Task<ApiResponse<IReadOnlyList<FacilityVisitorExportRowDto>>> ExportSnapshotAsync'), service.indexOf('public async Task<ApiResponse<PagedResult<FacilityVisitorEventDto>>> HistoryAsync')), /VisitorName|Purpose|BadgeCode|HostUserId|\.Reason/);
     assert.match(context, /IX_FacilityVisitorVisits|FacilityVisitorVisit/);
     assert.match(migration, /\[StateCode\] = N'CheckedIn'/);
