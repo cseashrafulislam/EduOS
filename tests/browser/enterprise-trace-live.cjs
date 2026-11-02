@@ -113,6 +113,42 @@ function makeAuthenticatedFetcher(base, contexts) {
         });
     };
 }
+
+/**
+ * Observe actual Chromium network responses, not only rendered DOM or synthetic
+ * HTTP fixtures. Foreign sessions must never receive owner evidence in an
+ * error body, hidden JSON/CSV payload or a cacheable API response.
+ * No response body, URL, cookie or tenant identifier is printed.
+ */
+function captureEvidenceResponses(page, base) {
+    const responses = [];
+    page.on('response', response => {
+        const url = safeStagingUrl(response.url(), base);
+        if (url && /^\/api\/v3\/enterprise\/ledger-trace(?:\/|$)/i.test(url.pathname))
+            responses.push(response);
+    });
+    return responses;
+}
+async function assertForeignResponsePrivacy(config, session) {
+    const responses = session.evidenceResponses.splice(0);
+    for (const response of responses) {
+        assert([200, 400, 401, 403, 404, 409].includes(response.status()),
+            'Unexpected foreign evidence response status');
+        const directives = String(response.headers()['cache-control'] || '')
+            .toLowerCase().split(',').map(value => value.trim());
+        assert(directives.includes('no-store') &&
+            !directives.includes('public') &&
+            !directives.some(value => /^s-maxage\s*=/.test(value)),
+            'Foreign evidence response is cacheable');
+        const body = await response.body();
+        assert(body.length <= 2_000_000, 'Oversized foreign evidence response');
+        const text = body.toString('utf8').toLowerCase();
+        for (const reference of config.refs)
+            assert(!text.includes(reference.toLowerCase()),
+                'Foreign browser received owner evidence in response body');
+    }
+}
+
 async function login(browser, config, key) {
     const user = config.users[key];
     const context = await browser.newContext({
@@ -120,6 +156,7 @@ async function login(browser, config, key) {
         serviceWorkers: 'block', ignoreHTTPSErrors: false, acceptDownloads: false
     });
     const page = await context.newPage(), errors = [], blockedWrites = [];
+    const evidenceResponses = key === 'A' ? [] : captureEvidenceResponses(page, config.base);
     page.on('pageerror', () => errors.push('script-error'));
     await context.route('**/*', route => {
         const req = route.request(), method = req.method().toUpperCase();
@@ -160,7 +197,7 @@ async function login(browser, config, key) {
         'Workspace left approved staging origin');
     assert.equal(await page.locator('body').getAttribute('data-auth-tenant-id'),
         user.tenant, 'Unexpected authenticated tenant');
-    return { context, page, errors, blockedWrites };
+    return { context, page, errors, blockedWrites, evidenceResponses };
 }
 function isDeniedRestrictedRoute(status, raw, base) {
     const url = safeStagingUrl(raw, base);
@@ -201,6 +238,7 @@ async function verifyRestrictedView(config, session) {
             'Restricted route exposed synthetic owner reference');
     assert.deepEqual(session.errors, [], 'Restricted browser JavaScript error');
     assert.deepEqual(session.blockedWrites, [], 'Unexpected restricted browser request');
+    await assertForeignResponsePrivacy(config, session);
 }
 async function verifyRegister(config, session, key) {
     const page = session.page;
@@ -229,6 +267,7 @@ async function verifyRegister(config, session, key) {
     'Register CSV export escaped selected tenant/campus/date/page scope');
     assert.deepEqual(session.errors, [], 'Register browser JavaScript error');
     assert.deepEqual(session.blockedWrites, [], 'Unexpected register browser request');
+    if (key === 'B') await assertForeignResponsePrivacy(config, session);
 }
 async function verifyView(config, session, key, kind, reference) {
     const { page } = session;
@@ -275,6 +314,7 @@ async function verifyView(config, session, key, kind, reference) {
     }
     assert.deepEqual(session.errors, [], 'Browser JavaScript error');
     assert.deepEqual(session.blockedWrites, [], 'Unexpected staging write');
+    if (key === 'B') await assertForeignResponsePrivacy(config, session);
 }
 async function main(env = process.env) {
     const config = validateEnvironment(env);
@@ -326,6 +366,7 @@ async function main(env = process.env) {
     }
 }
 module.exports = { validateEnvironment, makeAuthenticatedFetcher,
+    captureEvidenceResponses, assertForeignResponsePrivacy,
     isAllowedBrowserRequest, isAllowedEvidenceRequest, isDeniedRestrictedRoute,
     isScopedRegisterExport, main };
 if (require.main === module)

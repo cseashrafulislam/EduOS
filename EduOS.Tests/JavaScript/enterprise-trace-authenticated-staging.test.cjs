@@ -2,6 +2,7 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const { validateEnvironment, makeAuthenticatedFetcher,
+    captureEvidenceResponses, assertForeignResponsePrivacy,
     isAllowedBrowserRequest, isAllowedEvidenceRequest, isDeniedRestrictedRoute,
     isScopedRegisterExport } =
     require('../../tests/browser/enterprise-trace-live.cjs');
@@ -159,4 +160,43 @@ test('register CSV browser acceptance binds kind, campus, dates and first-page e
         'https://evil.example' + good,
         base + 'kind=asset&from=2026-10-01&to=2026-10-31&page=1&pageSize=25'
     ]) assert.equal(isScopedRegisterExport(href, config, 'asset', '10'), false);
+});
+
+
+test('real browser response capture excludes unrelated routes and rejects hidden foreign evidence', async () => {
+    const { EventEmitter } = require('node:events');
+    const page = new EventEmitter();
+    const captured = captureEvidenceResponses(page, env.EDUOS_E2E_BASE_URL);
+    const api = env.EDUOS_E2E_BASE_URL + '/api/v3/enterprise/ledger-trace/register';
+    const response = (url, body, cache = 'private, no-store', status = 200) => ({
+        url: () => url, status: () => status,
+        headers: () => ({ 'cache-control': cache }),
+        body: async () => Buffer.from(body)
+    });
+    page.emit('response', response(env.EDUOS_E2E_BASE_URL + '/api/auth/me', '{}'));
+    page.emit('response', response('https://evil.example/api/v3/enterprise/ledger-trace/register', '{}'));
+    assert.equal(captured.length, 0);
+    page.emit('response', response(api, '{"success":true,"items":[]}'));
+    assert.equal(captured.length, 1);
+    await assertForeignResponsePrivacy(validateEnvironment(env), { evidenceResponses: captured });
+    assert.equal(captured.length, 0, 'Response audit must drain completed network evidence');
+    page.emit('response', response(api, '{"hidden":"' + env.EDUOS_E2E_STOCK_REFERENCE + '"}',
+        'private, no-store', 403));
+    await assert.rejects(assertForeignResponsePrivacy(validateEnvironment(env),
+        { evidenceResponses: captured }), /Foreign browser received owner evidence/);
+});
+
+test('real foreign response audit fails closed on shared cache, redirects and oversized evidence', async () => {
+    const config = validateEnvironment(env);
+    const run = async (status, cache, body) => assertForeignResponsePrivacy(config, {
+        evidenceResponses: [{ status: () => status,
+            headers: () => ({ 'cache-control': cache }),
+            body: async () => Buffer.from(body) }]
+    });
+    await assert.rejects(run(200, 'public, no-store', '{}'), /cacheable/);
+    await assert.rejects(run(200, 'private, s-maxage=60, no-store', '{}'), /cacheable/);
+    await assert.rejects(run(200, 'no-cache', '{}'), /cacheable/);
+    await assert.rejects(run(302, 'private, no-store', '{}'), /status/);
+    await assert.rejects(run(200, 'private, no-store', 'x'.repeat(2_000_001)), /Oversized/);
+    await run(404, 'private, no-store', '{"success":false}');
 });
