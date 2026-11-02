@@ -389,8 +389,9 @@ test('branding color saves carry CSRF; missing token and invalid colors fail bef
         let onReady;
         const calls = [];
         const document = {
+            body: { dataset: { authTenantId: '1', authSessionReference: 'current' } },
             getElementById(id) {
-                if (['brandingSetupStrings', 'subdomainInput', 'logoPreview', 'faviconPreview',
+                if (['eduosSessionShield', 'brandingSetupStrings', 'subdomainInput', 'logoPreview', 'faviconPreview',
                     'logoInput', 'faviconInput', 'removeLogoBtn', 'removeFaviconBtn'].includes(id))
                     return null;
                 return el(id);
