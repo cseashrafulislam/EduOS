@@ -74,8 +74,8 @@
             @if (manager)
             {
                 <section id="wfVendorPanel" class="border rounded p-2 mb-3 d-none" aria-label="@(bn ? "অনুমোদিত ক্যাম্পাস সরবরাহকারী" : "Approved campus vendors")">
-                    <h4 class="h6">@(bn ? "অনুমোদিত ক্যাম্পাস সরবরাহকারী — শুধু তথ্য" : "Approved campus vendors — reference only")</h4>
-                    <p class="small text-muted">@(bn ? "এখানে সরবরাহকারী নিয়োগ, সময়সূচি, স্টক বা হিসাব পোস্ট হয় না।" : "This lookup does not assign a vendor, schedule work or post stock/Finance.")</p>
+                    <h4 class="h6">@(bn ? "অনুমোদিত ক্যাম্পাস সরবরাহকারী — প্রস্তাবের জন্য" : "Approved campus vendors — propose booking")</h4>
+                    <p class="small text-muted">@(bn ? "সরবরাহকারী নির্বাচন করে ভবিষ্যৎ সময় ও কারণসহ প্রস্তাব দিন; স্বতন্ত্র অনুমোদন ছাড়া বুকিং কার্যকর নয়। স্টক বা হিসাব পোস্ট হয় না।" : "Choose a vendor, then propose a future window and reason. Booking needs independent approval; stock and Finance are not posted.")</p>
                     <div class="input-group input-group-sm">
                         <input id="wfVendorSearch" class="form-control" maxlength="100" autocomplete="off" aria-label="@(bn ? "সরবরাহকারীর নাম বা কোড" : "Vendor name or code")" />
                         <button id="wfVendorFind" class="btn btn-outline-primary" type="button">@(bn ? "খুঁজুন" : "Find vendors")</button>
@@ -107,6 +107,7 @@
                         <button id="wfTechNext" class="btn btn-outline-secondary btn-sm" type="button" disabled>@(bn ? "পরের" : "Next")</button>
                     </div>
                 </div>
+                <div class="col-12"><label class="form-label" for="wfVendorSelected">@(bn ? "নির্বাচিত অনুমোদিত সরবরাহকারী আইডি" : "Selected approved vendor ID")</label><input id="wfVendorSelected" class="form-control" type="number" min="1" readonly /></div>
                 <div class="col-12"><label class="form-label" for="wfTech">@(bn ? "নির্বাচিত টেকনিশিয়ান আইডি" : "Selected technician ID")</label><input id="wfTech" class="form-control" type="number" min="1" readonly /></div>
                 <div class="col-sm-6"><label class="form-label" for="wfStart">@(bn ? "কাজ শুরু" : "Scheduled start")</label><input id="wfStart" class="form-control" type="datetime-local" /></div>
                 <div class="col-sm-6"><label class="form-label" for="wfEnd">@(bn ? "কাজ শেষ" : "Scheduled end")</label><input id="wfEnd" class="form-control" type="datetime-local" /></div>

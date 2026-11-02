@@ -90,12 +90,19 @@ public sealed class SqlServerFacilityWorkOrderTests
                     TenantId = null, Name = "FacilitiesTechnician",
                     NormalizedName = "FACILITIESTECHNICIAN", IsActive = true, IsSystemRole = false
                 };
-                setup.Roles.AddRange(technicianRole, globalTechnicianRole);
+                var secondFacilitiesApproverRole = new ApplicationRole
+                {
+                    TenantId = tenantId, Name = "FacilitiesApprover",
+                    NormalizedName = "FACILITIESAPPROVER", IsActive = true
+                };
+                setup.Roles.AddRange(technicianRole, globalTechnicianRole, secondFacilitiesApproverRole);
                 await setup.SaveChangesAsync();
                 setup.UserRoles.Add(new IdentityUserRole<long>
                 { UserId = techId, RoleId = technicianRole.Id });
                 setup.UserRoles.Add(new IdentityUserRole<long>
                 { UserId = globalTechId, RoleId = globalTechnicianRole.Id });
+                setup.UserRoles.Add(new IdentityUserRole<long>
+                { UserId = globalTechId, RoleId = secondFacilitiesApproverRole.Id });
                 await setup.SaveChangesAsync();
                 spaceId = space.Id;
                 setup.ProcurementSuppliers.AddRange(
@@ -309,6 +316,7 @@ public sealed class SqlServerFacilityWorkOrderTests
             { ClientCommandId = Guid.NewGuid(), RowVersion = triaged.RowVersion });
             Assert.Equal(409, stale.StatusCode);
         }
+        long approvedVendorId;
         // Interactive vendor preview must bind to an approved work order. The
         // campus-only lookup remains available for existing read-only consumers.
         await using (var db = Db(options, tenantId, managerId, "FacilitiesManager"))
@@ -318,6 +326,7 @@ public sealed class SqlServerFacilityWorkOrderTests
                 workOrderId: approved.WorkOrderId);
             Assert.True(scoped.Success, scoped.Message);
             Assert.Single(scoped.Data!.Items);
+            approvedVendorId = scoped.Data.Items[0].SupplierId;
             Assert.Equal(400, (await service.VendorsAsync(campusId, null, 1, 25,
                 workOrderId: 0)).StatusCode);
             Assert.Equal(403, (await service.VendorsAsync(campusId, null, 1, 25,
@@ -325,10 +334,117 @@ public sealed class SqlServerFacilityWorkOrderTests
             Assert.Equal(403, (await service.VendorsAsync(campusId + 1, null, 1, 25,
                 workOrderId: approved.WorkOrderId)).StatusCode);
         }
+        // The vendor proposal is durable but does not book until an independent
+        // approver rechecks supplier status and competing approved windows.
+        FacilityRequestDto vendorProposal;
+        var vendorStart = DateTime.UtcNow.AddHours(3);
+        var vendorEnd = vendorStart.AddHours(1);
+        var vendorCommand = Guid.NewGuid();
+        await using (var db = Db(options, tenantId, managerId, "FacilitiesManager"))
+        {
+            var service = Service(db, tenantId, managerId, "FacilitiesManager");
+            var invalid = await service.TransitionAsync(submitted.Id, "vendorpropose",
+                new FacilityTransitionDto { ClientCommandId = Guid.NewGuid(),
+                    RowVersion = approved.WorkOrderRowVersion!,
+                    VendorSupplierId = long.MaxValue, VendorStartUtc = vendorStart,
+                    VendorEndUtc = vendorEnd, Note = "Vendor preflight must fail closed." });
+            Assert.Equal(403, invalid.StatusCode);
+            var proposal = new FacilityTransitionDto { ClientCommandId = vendorCommand,
+                RowVersion = approved.WorkOrderRowVersion!, VendorSupplierId = approvedVendorId,
+                VendorStartUtc = vendorStart, VendorEndUtc = vendorEnd,
+                Note = "Approved campus supplier requested for electrical maintenance." };
+            var created = await service.TransitionAsync(submitted.Id, "vendorpropose", proposal);
+            Assert.True(created.Success, created.Message);
+            vendorProposal = created.Data!;
+            Assert.Equal("Proposed", vendorProposal.VendorStateCode);
+            Assert.Equal(approvedVendorId, vendorProposal.VendorSupplierId);
+            Assert.True((await service.TransitionAsync(submitted.Id, "vendorpropose", proposal)).Success);
+            Assert.Equal(409, (await service.TransitionAsync(submitted.Id, "vendorpropose",
+                new FacilityTransitionDto { ClientCommandId = vendorCommand,
+                    RowVersion = approved.WorkOrderRowVersion!, VendorSupplierId = approvedVendorId,
+                    VendorStartUtc = vendorStart.AddMinutes(5), VendorEndUtc = vendorEnd,
+                    Note = proposal.Note })).StatusCode);
+            Assert.Equal(409, (await service.TransitionAsync(submitted.Id, "vendorpropose",
+                new FacilityTransitionDto { ClientCommandId = Guid.NewGuid(),
+                    RowVersion = approved.WorkOrderRowVersion!, VendorSupplierId = approvedVendorId,
+                    VendorStartUtc = vendorStart, VendorEndUtc = vendorEnd,
+                    Note = proposal.Note })).StatusCode);
+        }
         await using (var db = Db(options, tenantId, requesterId, "FacilitiesRequester"))
         {
             Assert.Equal(403, (await Service(db, tenantId, requesterId, "FacilitiesRequester")
+                .TransitionAsync(submitted.Id, "vendorapprove", new FacilityTransitionDto
+                { ClientCommandId = Guid.NewGuid(), RowVersion = vendorProposal.WorkOrderRowVersion!,
+                  Note = "Requester cannot authorize a supplier booking." })).StatusCode);
+            Assert.Equal(403, (await Service(db, tenantId, requesterId, "FacilitiesRequester")
                 .VendorsAsync(campusId, null, 1, 25, workOrderId: approved.WorkOrderId)).StatusCode);
+        }
+        await using (var db = Db(options, tenantId, managerId, "TenantAdmin"))
+        {
+            Assert.Equal(403, (await Service(db, tenantId, managerId, "TenantAdmin")
+                .TransitionAsync(submitted.Id, "vendorapprove", new FacilityTransitionDto
+                { ClientCommandId = Guid.NewGuid(), RowVersion = vendorProposal.WorkOrderRowVersion!,
+                  Note = "Vendor proposal maker must not self approve." })).StatusCode);
+        }
+        // A late decision and a supplier revoked after preview must both fail
+        // without mutating the proposal or emitting an approval event.
+        await using (var db = Db(options, tenantId, approverId, "FacilitiesApprover"))
+        {
+            var late = await Service(db, tenantId, approverId, "FacilitiesApprover",
+                new ShiftedClock(TimeSpan.FromHours(5)))
+                .TransitionAsync(submitted.Id, "vendorapprove", new FacilityTransitionDto
+                { ClientCommandId = Guid.NewGuid(), RowVersion = vendorProposal.WorkOrderRowVersion!,
+                  Note = "Expired vendor booking must not be approved." });
+            Assert.Equal(409, late.StatusCode);
+        }
+        await using (var db = Db(options, tenantId, approverId, "FacilitiesApprover"))
+        {
+            await db.ProcurementSuppliers.Where(x => x.Id == approvedVendorId)
+                .ExecuteUpdateAsync(x => x.SetProperty(s => s.StateCode, "Inactive"));
+            var denied = await Service(db, tenantId, approverId, "FacilitiesApprover")
+                .TransitionAsync(submitted.Id, "vendorapprove", new FacilityTransitionDto
+                { ClientCommandId = Guid.NewGuid(), RowVersion = vendorProposal.WorkOrderRowVersion!,
+                  Note = "Inactive vendor cannot be booked after proposal." });
+            Assert.Equal(409, denied.StatusCode);
+            Assert.Equal(0, await db.Set<FacilityWorkflowEvent>().CountAsync(x =>
+                x.FacilityServiceRequestId == submitted.Id && x.ActionCode == "vendorapprove"));
+            await db.ProcurementSuppliers.Where(x => x.Id == approvedVendorId)
+                .ExecuteUpdateAsync(x => x.SetProperty(s => s.StateCode, "Approved"));
+        }
+        FacilityRequestDto vendorBooked;
+        await using (var db = Db(options, tenantId, approverId, "FacilitiesApprover"))
+        {
+            var service = Service(db, tenantId, approverId, "FacilitiesApprover");
+            var command = new FacilityTransitionDto { ClientCommandId = Guid.NewGuid(),
+                RowVersion = vendorProposal.WorkOrderRowVersion!,
+                Note = "Independent campus vendor booking approved." };
+            var accepted = await service.TransitionAsync(submitted.Id, "vendorapprove", command);
+            Assert.True(accepted.Success, accepted.Message);
+            vendorBooked = accepted.Data!;
+            Assert.Equal("Approved", vendorBooked.VendorStateCode);
+            Assert.True((await service.TransitionAsync(submitted.Id, "vendorapprove", command)).Success);
+            Assert.Equal(409, (await service.TransitionAsync(submitted.Id, "vendorapprove",
+                new FacilityTransitionDto { ClientCommandId = Guid.NewGuid(),
+                    RowVersion = vendorProposal.WorkOrderRowVersion!,
+                    Note = "Stale vendor approval cannot be replayed." })).StatusCode);
+        }
+        await using (var db = Db(options, tenantId, globalTechId, "FacilitiesApprover"))
+        {
+            var released = await Service(db, tenantId, globalTechId, "FacilitiesApprover")
+                .TransitionAsync(submitted.Id, "vendorrelease", new FacilityTransitionDto
+                { ClientCommandId = Guid.NewGuid(), RowVersion = vendorBooked.WorkOrderRowVersion!,
+                  Note = "Independent release before maintenance has started." });
+            Assert.True(released.Success, released.Message);
+            approved = released.Data!;
+            Assert.Equal("Released", approved.VendorStateCode);
+        }
+        await using (var db = Db(options, tenantId, managerId, "FacilitiesManager"))
+        {
+            Assert.Equal(3, await db.Set<FacilityWorkflowEvent>().CountAsync(x =>
+                x.FacilityServiceRequestId == submitted.Id && x.ActionCode.StartsWith("vendor")));
+            Assert.Empty(await db.Set<FacilityWorkOrder>().Where(x =>
+                x.FacilityServiceRequestId == submitted.Id &&
+                x.VendorStateCode == "Approved").ToListAsync());
         }
         await using (var db = Db(options, otherTenantId, managerId, "FacilitiesManager"))
         {
@@ -514,6 +630,59 @@ public sealed class SqlServerFacilityWorkOrderTests
                 { ClientCommandId = Guid.NewGuid(), RowVersion = second.RowVersion });
             Assert.True(result.Success, result.Message);
             second = result.Data!;
+        }
+        // Two distinct work orders cannot hold overlapping approved bookings
+        // for the same canonical supplier, even when both proposals are valid.
+        var competingVendorStart = DateTime.UtcNow.AddMinutes(45);
+        var competingVendorEnd = competingVendorStart.AddMinutes(30);
+        await using (var db = Db(options, tenantId, managerId, "FacilitiesManager"))
+        {
+            var firstProposal = await Service(db, tenantId, managerId, "FacilitiesManager")
+                .TransitionAsync(submitted.Id, "vendorpropose", new FacilityTransitionDto
+                { ClientCommandId = Guid.NewGuid(), RowVersion = scheduled.WorkOrderRowVersion!,
+                  VendorSupplierId = approvedVendorId, VendorStartUtc = competingVendorStart,
+                  VendorEndUtc = competingVendorEnd,
+                  Note = "Rebook released supplier for the first work order." });
+            Assert.True(firstProposal.Success, firstProposal.Message);
+            scheduled = firstProposal.Data!;
+        }
+        await using (var db = Db(options, tenantId, approverId, "FacilitiesApprover"))
+        {
+            var accepted = await Service(db, tenantId, approverId, "FacilitiesApprover")
+                .TransitionAsync(submitted.Id, "vendorapprove", new FacilityTransitionDto
+                { ClientCommandId = Guid.NewGuid(), RowVersion = scheduled.WorkOrderRowVersion!,
+                  Note = "Independent first supplier booking authorization." });
+            Assert.True(accepted.Success, accepted.Message);
+            scheduled = accepted.Data!;
+        }
+        await using (var db = Db(options, tenantId, managerId, "FacilitiesManager"))
+        {
+            var proposed = await Service(db, tenantId, managerId, "FacilitiesManager")
+                .TransitionAsync(second.Id, "vendorpropose", new FacilityTransitionDto
+                { ClientCommandId = Guid.NewGuid(), RowVersion = second.WorkOrderRowVersion!,
+                  VendorSupplierId = approvedVendorId, VendorStartUtc = competingVendorStart,
+                  VendorEndUtc = competingVendorEnd,
+                  Note = "Second booking must not double book approved supplier." });
+            Assert.True(proposed.Success, proposed.Message);
+            second = proposed.Data!;
+        }
+        await using (var db = Db(options, tenantId, approverId, "FacilitiesApprover"))
+        {
+            var service = Service(db, tenantId, approverId, "FacilitiesApprover");
+            var denied = await service.TransitionAsync(second.Id, "vendorapprove",
+                new FacilityTransitionDto { ClientCommandId = Guid.NewGuid(),
+                    RowVersion = second.WorkOrderRowVersion!,
+                    Note = "Overlapping vendor booking must be rejected." });
+            Assert.Equal(409, denied.StatusCode);
+            Assert.Equal("Proposed", (await service.ListAsync(campusId, null, 1, 25))
+                .Data!.Items.Single(x => x.Id == second.Id).VendorStateCode);
+            var rejected = await service.TransitionAsync(second.Id, "vendorreject",
+                new FacilityTransitionDto { ClientCommandId = Guid.NewGuid(),
+                    RowVersion = second.WorkOrderRowVersion!,
+                    Note = "Rejected due to the existing approved supplier booking." });
+            Assert.True(rejected.Success, rejected.Message);
+            second = rejected.Data!;
+            Assert.Equal("Rejected", second.VendorStateCode);
         }
         await using (var db = Db(options, tenantId, managerId, "FacilitiesManager"))
         {
@@ -852,7 +1021,7 @@ public sealed class SqlServerFacilityWorkOrderTests
             var dashboard = await service.DashboardAsync(campusId);
             Assert.Equal(1, dashboard.Data!.ClosedLate);
             var history = await service.HistoryAsync(submitted.Id, 1, 25);
-            Assert.Equal(13, history.Data!.TotalCount); // Includes the audited reschedule event.
+            Assert.Equal(18, history.Data!.TotalCount); // Includes five audited vendor decisions.
             var overdue = await Service(db, tenantId, approverId, "FacilitiesApprover",
                 new ShiftedClock(TimeSpan.FromHours(6)))
                 .ListAsync(campusId, null, 1, 25, default, true);

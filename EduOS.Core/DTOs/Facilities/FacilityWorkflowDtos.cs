@@ -20,6 +20,9 @@ public sealed class FacilityTransitionDto
     [MaxLength(1000)] public string? Note { get; set; }
     public DateTime? SlaDueAtUtc { get; set; }
     public long? TechnicianUserId { get; set; }
+    public long? VendorSupplierId { get; set; }
+    public DateTime? VendorStartUtc { get; set; }
+    public DateTime? VendorEndUtc { get; set; }
     public DateTime? ScheduledStartUtc { get; set; }
     public DateTime? ScheduledEndUtc { get; set; }
 }
@@ -44,6 +47,12 @@ public sealed class FacilityRequestDto
     public string? WorkOrderState { get; set; }
     public string? WorkOrderRowVersion { get; set; }
     public long? TechnicianUserId { get; set; }
+    public long? VendorSupplierId { get; set; }
+    public string? VendorStateCode { get; set; }
+    public long? VendorProposedByUserId { get; set; }
+    public long? VendorApprovedByUserId { get; set; }
+    public DateTime? VendorStartUtc { get; set; }
+    public DateTime? VendorEndUtc { get; set; }
     public DateTime? ScheduledStartUtc { get; set; }
     public DateTime? ScheduledEndUtc { get; set; }
     public DateTime? CompletedAtUtc { get; set; }

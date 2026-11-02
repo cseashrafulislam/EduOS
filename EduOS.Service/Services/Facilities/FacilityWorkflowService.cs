@@ -71,6 +71,12 @@ public sealed class FacilityWorkflowService(
                 ReplayTailMatches(replay.Note, "; new technician=",
                     $"; new technician={command.TechnicianUserId}, start={start:O}, end={end:O}" +
                     (string.IsNullOrWhiteSpace(note) ? "" : $"; reason={note}")),
+            "vendorpropose" => command.VendorSupplierId is > 0 &&
+                command.VendorStartUtc is DateTime vendorStart && vendorStart.Kind == DateTimeKind.Utc &&
+                command.VendorEndUtc is DateTime vendorEnd && vendorEnd.Kind == DateTimeKind.Utc &&
+                !string.IsNullOrWhiteSpace(note) &&
+                ReplayTailMatches(replay.Note, "; new vendor=",
+                    $"; new vendor={command.VendorSupplierId}, start={vendorStart:O}, end={vendorEnd:O}; reason={note}"),
             "triage" => command.SlaDueAtUtc is DateTime due && due.Kind == DateTimeKind.Utc &&
                 (string.Equals(replay.Note,
                     $"SLA due UTC={due:O}" + (string.IsNullOrWhiteSpace(note) ? "" : $"; note={note}"),
@@ -86,7 +92,7 @@ public sealed class FacilityWorkflowService(
         };
     }
 
-    private static FacilityRequestDto Map(FacilityServiceRequest request, FacilityWorkOrder? order)
+    private FacilityRequestDto Map(FacilityServiceRequest request, FacilityWorkOrder? order)
         => new()
         {
             Id = request.Id, CampusId = request.CampusId, FacilitySpaceId = request.FacilitySpaceId,
@@ -98,6 +104,12 @@ public sealed class FacilityWorkflowService(
             WorkOrderId = order?.Id, WorkOrderState = order?.StateCode,
             WorkOrderRowVersion = order == null ? null : Convert.ToBase64String(order.RowVersion),
             TechnicianUserId = order?.AssignedTechnicianUserId,
+            VendorSupplierId = Manager || Approver ? order?.VendorSupplierId : null,
+            VendorStateCode = order?.VendorStateCode,
+            VendorProposedByUserId = Manager || Approver ? order?.VendorProposedByUserId : null,
+            VendorApprovedByUserId = Manager || Approver ? order?.VendorApprovedByUserId : null,
+            VendorStartUtc = Manager || Approver ? order?.VendorStartUtc : null,
+            VendorEndUtc = Manager || Approver ? order?.VendorEndUtc : null,
             ScheduledStartUtc = order?.ScheduledStartUtc, ScheduledEndUtc = order?.ScheduledEndUtc,
             CompletedAtUtc = order?.CompletedAtUtc, VerifiedAtUtc = order?.VerifiedAtUtc,
             CompletionEvidence = order?.CompletionEvidence,
@@ -444,13 +456,16 @@ public sealed class FacilityWorkflowService(
         action = (action ?? "").Trim().ToLowerInvariant();
         if (action is not ("triage" or "approve" or "reject" or "schedule" or "start" or
                            "pause" or "resume" or "complete" or "verify" or "return" or "unschedule" or "escalate" or
-                            "cancelrequest" or "cancelapprove" or "cancelreject"))
+                            "cancelrequest" or "cancelapprove" or "cancelreject" or
+                            "vendorpropose" or "vendorapprove" or "vendorreject" or "vendorrelease"))
             return ApiResponse<FacilityRequestDto>.ErrorResponse("Unsupported transition.", 404);
         // Ignore neither a changed business deadline nor an unrelated assignment
         // payload on retry: non-applicable fields cannot be silently accepted.
         if ((action != "triage" && command.SlaDueAtUtc.HasValue) ||
             (action != "schedule" && (command.TechnicianUserId.HasValue ||
-                command.ScheduledStartUtc.HasValue || command.ScheduledEndUtc.HasValue)))
+                command.ScheduledStartUtc.HasValue || command.ScheduledEndUtc.HasValue)) ||
+            (action != "vendorpropose" && (command.VendorSupplierId.HasValue ||
+                command.VendorStartUtc.HasValue || command.VendorEndUtc.HasValue)))
             return ApiResponse<FacilityRequestDto>.ErrorResponse(
                 "Unexpected transition fields.", 400);
         var request = await db.Set<FacilityServiceRequest>().FirstOrDefaultAsync(
@@ -477,6 +492,15 @@ public sealed class FacilityWorkflowService(
                                       user.UserId != request.TriagedByUserId,
             "schedule" or "unschedule" or "escalate" or "cancelrequest" =>
                 Manager && user.UserId != request.RequesterUserId,
+            "vendorpropose" => Manager && user.UserId != request.RequesterUserId,
+            "vendorapprove" or "vendorreject" => Approver &&
+                user.UserId != request.RequesterUserId &&
+                user.UserId != request.TriagedByUserId &&
+                user.UserId != order?.VendorProposedByUserId,
+            "vendorrelease" => Approver &&
+                user.UserId != request.RequesterUserId &&
+                user.UserId != order?.VendorProposedByUserId &&
+                user.UserId != order?.VendorApprovedByUserId,
             "cancelapprove" or "cancelreject" => Approver &&
                 user.UserId != request.RequesterUserId &&
                 user.UserId != request.TriagedByUserId &&
@@ -518,7 +542,7 @@ public sealed class FacilityWorkflowService(
             return ApiResponse<FacilityRequestDto>.ErrorResponse("Record changed; reload.", 409);
         // SQL Server application lock serializes scheduling for the same tenant/technician.
         // It is held through the work-order update and audit SaveChanges/commit.
-        await using var scheduleTransaction = action == "schedule" && db.Database.IsSqlServer()
+        await using var scheduleTransaction = (action is "schedule" or "vendorapprove") && db.Database.IsSqlServer()
             ? await db.Database.BeginTransactionAsync(ct) : null;
         var before = requestAction ? request.StateCode : order?.StateCode ?? "None";
         var note = command.Note?.Trim();
@@ -561,6 +585,7 @@ public sealed class FacilityWorkflowService(
                 // the existing audited schedule-release action.
                 if (order?.StateCode != "Approved" ||
                     order?.AssignedTechnicianUserId != null ||
+                    order?.VendorStateCode is "Proposed" or "Approved" ||
                     order?.ScheduledStartUtc != null || order?.ScheduledEndUtc != null ||
                     string.IsNullOrWhiteSpace(note) || note.Length is < 10 or > 500)
                     return ApiResponse<FacilityRequestDto>.ErrorResponse(
@@ -574,6 +599,89 @@ public sealed class FacilityWorkflowService(
                     return ApiResponse<FacilityRequestDto>.ErrorResponse(
                         "Pending cancellation and independent decision reason (10-500 characters) required.", 409);
                 order!.StateCode = action == "cancelapprove" ? "Cancelled" : "Approved";
+                break;
+            case "vendorpropose":
+                if (order?.StateCode is not ("Approved" or "Scheduled") ||
+                    order.StartedAtUtc != null || order.VendorStateCode is "Proposed" or "Approved" ||
+                    command.VendorSupplierId is not > 0 ||
+                    command.VendorStartUtc is not DateTime vendorStart || vendorStart.Kind != DateTimeKind.Utc ||
+                    command.VendorEndUtc is not DateTime vendorEnd || vendorEnd.Kind != DateTimeKind.Utc ||
+                    vendorStart <= now || vendorEnd <= vendorStart ||
+                    string.IsNullOrWhiteSpace(note) || note.Length is < 10 or > 500)
+                    return ApiResponse<FacilityRequestDto>.ErrorResponse(
+                        "An unstarted work order, eligible vendor, future UTC window and reason (10-500 characters) are required.", 400);
+                if (!await db.ProcurementSuppliers.AsNoTracking().AnyAsync(s =>
+                    s.Id == command.VendorSupplierId && s.TenantId == user.TenantId &&
+                    s.CampusId == request.CampusId && !s.IsDeleted && s.StateCode == "Approved", ct))
+                    return Denied<FacilityRequestDto>();
+                auditNote = $"Previous vendor={order.VendorSupplierId?.ToString() ?? "none"}, state={order.VendorStateCode ?? "none"}, start={order.VendorStartUtc:O}, end={order.VendorEndUtc:O}" +
+                    $"; new vendor={command.VendorSupplierId}, start={vendorStart:O}, end={vendorEnd:O}; reason={note}";
+                order.VendorSupplierId = command.VendorSupplierId;
+                order.VendorStartUtc = vendorStart; order.VendorEndUtc = vendorEnd;
+                order.VendorProposedByUserId = user.UserId;
+                order.VendorApprovedByUserId = null;
+                order.VendorStateCode = "Proposed";
+                break;
+            case "vendorapprove":
+                if (order?.StateCode is not ("Approved" or "Scheduled") ||
+                    order.StartedAtUtc != null || order.VendorStateCode != "Proposed" ||
+                    order.VendorSupplierId is not long vendorId || vendorId <= 0 ||
+                    order.VendorStartUtc is not DateTime vendorFrom ||
+                    order.VendorEndUtc is not DateTime vendorTo ||
+                    vendorFrom <= now || vendorTo <= vendorFrom ||
+                    string.IsNullOrWhiteSpace(note) || note.Length is < 10 or > 500)
+                    return ApiResponse<FacilityRequestDto>.ErrorResponse(
+                        "A current future vendor proposal and independent decision reason are required.", 409);
+                if (scheduleTransaction != null)
+                {
+                    var resource = $"FacilityVendor:{user.TenantId}:{vendorId}";
+                    try
+                    {
+                        await db.Database.ExecuteSqlInterpolatedAsync(
+                            $"DECLARE @result int; EXEC @result = sys.sp_getapplock @Resource={resource}, @LockMode='Exclusive', @LockOwner='Transaction', @LockTimeout=5000; IF @result < 0 THROW 51000, 'Vendor booking busy', 1;", ct);
+                        // Lock the canonical supplier row through commit so Procurement
+                        // cannot revoke its approval between validation and booking.
+                        await db.Database.ExecuteSqlInterpolatedAsync(
+                            $"IF NOT EXISTS (SELECT 1 FROM dbo.ProcurementSuppliers WITH (UPDLOCK, HOLDLOCK) WHERE TenantId={user.TenantId} AND Id={vendorId} AND CampusId={request.CampusId} AND StateCode=N'Approved' AND IsDeleted=0) THROW 51001, 'Vendor not approved', 1;", ct);
+                    }
+                    catch (Microsoft.Data.SqlClient.SqlException ex) when (ex.Number is 51000 or 51001 or 1205 or 1222)
+                    {
+                        logger.LogWarning(ex, "Facility vendor eligibility or booking conflict for tenant {TenantId}", user.TenantId);
+                        return ApiResponse<FacilityRequestDto>.ErrorResponse("Vendor eligibility changed or booking busy; reload.", 409);
+                    }
+                }
+                else if (!await db.ProcurementSuppliers.AsNoTracking().AnyAsync(s =>
+                    s.Id == vendorId && s.TenantId == user.TenantId &&
+                    s.CampusId == request.CampusId && !s.IsDeleted && s.StateCode == "Approved", ct))
+                    return Denied<FacilityRequestDto>();
+                // A proposal may become stale while waiting for the SQL vendor lock.
+                if (vendorFrom <= Now)
+                    return ApiResponse<FacilityRequestDto>.ErrorResponse(
+                        "Vendor booking window elapsed; propose a future window.", 409);
+                if (await db.Set<FacilityWorkOrder>().AsNoTracking().AnyAsync(w =>
+                    w.TenantId == user.TenantId && !w.IsDeleted && w.Id != order.Id &&
+                    w.VendorSupplierId == vendorId && w.VendorStateCode == "Approved" &&
+                    w.VendorStartUtc < vendorTo && w.VendorEndUtc > vendorFrom, ct))
+                    return ApiResponse<FacilityRequestDto>.ErrorResponse(
+                        "Vendor has an overlapping approved booking.", 409);
+                order.VendorStateCode = "Approved";
+                order.VendorApprovedByUserId = user.UserId;
+                break;
+            case "vendorreject":
+                if (order?.StateCode is not ("Approved" or "Scheduled") ||
+                    order.StartedAtUtc != null || order.VendorStateCode != "Proposed" ||
+                    string.IsNullOrWhiteSpace(note) || note.Length is < 10 or > 500)
+                    return ApiResponse<FacilityRequestDto>.ErrorResponse(
+                        "A pending vendor proposal and independent rejection reason are required.", 409);
+                order.VendorStateCode = "Rejected";
+                break;
+            case "vendorrelease":
+                if (order?.StateCode is not ("Approved" or "Scheduled") ||
+                    order.StartedAtUtc != null || order.VendorStateCode != "Approved" ||
+                    string.IsNullOrWhiteSpace(note) || note.Length is < 10 or > 500)
+                    return ApiResponse<FacilityRequestDto>.ErrorResponse(
+                        "An unstarted approved vendor booking and independent release reason are required.", 409);
+                order.VendorStateCode = "Released";
                 break;
             case "schedule":
                 if (note?.Length > 500)
@@ -670,7 +778,7 @@ public sealed class FacilityWorkflowService(
                 auditNote = "Manual overdue SLA escalation: " + note;
                 break;
             case "start":
-                if (order?.StateCode != "Scheduled")
+                if (order?.StateCode != "Scheduled" || order.VendorStateCode == "Proposed")
                     return ApiResponse<FacilityRequestDto>.ErrorResponse("Work order is not scheduled.", 409);
                 order.StartedAtUtc = now; order.StateCode = "InProgress";
                 break;

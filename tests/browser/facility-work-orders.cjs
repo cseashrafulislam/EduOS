@@ -160,11 +160,31 @@ async function vendorPreview(browser) {
         assert.equal(await page.locator('#wfVendorPanel').isVisible(), true);
         assert.equal(await page.locator('#wfVendorRows li').count(), 1);
         assert.doesNotMatch(await page.locator('#wfVendorPanel').innerText(), /@example|TaxRegistration|Phone/);
+        await page.locator('#wfAction').selectOption('vendorpropose');
+        await page.locator('#wfVendorRows button').click();
+        assert.equal(await page.locator('#wfVendorSelected').inputValue(), '9');
+        const future = new Date(Date.now() + 24 * 60 * 60 * 1000);
+        const later = new Date(future.getTime() + 60 * 60 * 1000);
+        await page.locator('#wfStart').fill(future.toISOString().slice(0, 16));
+        await page.locator('#wfEnd').fill(later.toISOString().slice(0, 16));
+        await page.locator('#wfNote').fill('Vendor booking requires independent campus approval.');
+        const posted = page.waitForResponse(response =>
+            response.request().method() === 'POST' &&
+            response.url().endsWith('/vendorpropose'));
+        await page.locator('#wfTransition button[type="submit"]').click();
+        await posted;
+        const proposals = state.calls.filter(c => c.method === 'POST' &&
+            c.url.endsWith('/vendorpropose'));
+        assert.equal(proposals.length, 1);
+        assert.equal(proposals[0].body.vendorSupplierId, 9);
+        assert.equal(proposals[0].body.technicianUserId, null);
+        assert.ok(Date.parse(proposals[0].body.vendorStartUtc) > Date.now());
+        assert.equal(state.calls.some(c => /inventory|finance/i.test(c.url)), false);
         await page.locator('#wfVendorSearch').fill('none');
         await page.locator('#wfVendorFind').click();
         await page.locator('#wfVendorRows').filter({ hasText: 'অনুমোদিত সরবরাহকারী নেই' }).waitFor();
-        assert.equal(state.calls.filter(c => c.method !== 'GET').length, 0,
-            'reference lookup must never assign or post');
+        assert.equal(state.calls.filter(c => c.method !== 'GET').length, 1,
+            'the only write is a vendor proposal, never stock or Finance posting');
         await page.evaluate(() => { document.body.dataset.authTenantId = '99'; });
         await page.locator('#wfVendorFind').click();
         await page.locator('#workflowAlert').filter({ hasText: 'প্রতিষ্ঠানের সেশন পরিবর্তিত' }).waitFor();
@@ -281,6 +301,6 @@ async function selectionAfterTransition(browser) {
         await availabilityRecheck(browser);
         await revokedCampus(browser);
         await selectionAfterTransition(browser);
-        console.log('Facility Work Orders Chromium PASS: bilingual mobile/desktop, conflict-aware availability, authorized location picker, approved vendor reference, stale search, revocation and stale selection; synthetic API/session only.');
+        console.log('Facility Work Orders Chromium PASS: bilingual mobile/desktop, conflict-aware availability, authorized location picker, approved vendor proposal, stale search, revocation and stale selection; synthetic API/session only.');
     } finally { await browser.close(); }
 })().catch(error => { console.error(error); process.exitCode = 1; });

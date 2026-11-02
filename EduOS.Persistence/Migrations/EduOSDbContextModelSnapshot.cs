@@ -8135,6 +8135,25 @@ namespace EduOS.Persistence.Migrations
                     b.Property<long?>("UpdatedBy")
                         .HasColumnType("bigint");
 
+                    b.Property<long?>("VendorSupplierId")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("VendorStateCode")
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<long?>("VendorProposedByUserId")
+                        .HasColumnType("bigint");
+
+                    b.Property<long?>("VendorApprovedByUserId")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime?>("VendorStartUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("VendorEndUtc")
+                        .HasColumnType("datetime2");
+
                     b.Property<DateTime?>("VerifiedAtUtc")
                         .HasColumnType("datetime2");
 
@@ -8150,7 +8169,12 @@ namespace EduOS.Persistence.Migrations
 
                     b.HasIndex("TenantId", "StateCode", "ScheduledStartUtc");
 
-                    b.ToTable("FacilityWorkOrders");
+                    b.HasIndex("TenantId", "VendorSupplierId", "VendorStateCode", "VendorStartUtc", "VendorEndUtc");
+
+                    b.ToTable("FacilityWorkOrders", t =>
+                        {
+                            t.HasCheckConstraint("CK_FacilityWorkOrders_VendorState", "([VendorStateCode] IS NULL AND [VendorSupplierId] IS NULL AND [VendorStartUtc] IS NULL AND [VendorEndUtc] IS NULL AND [VendorProposedByUserId] IS NULL) OR ([VendorStateCode] IS NOT NULL AND [VendorStateCode] IN (N'Proposed',N'Approved',N'Rejected',N'Released') AND [VendorSupplierId] IS NOT NULL AND [VendorStartUtc] IS NOT NULL AND [VendorEndUtc] IS NOT NULL AND [VendorStartUtc] < [VendorEndUtc] AND [VendorProposedByUserId] IS NOT NULL AND ([VendorStateCode] <> N'Approved' OR [VendorApprovedByUserId] IS NOT NULL))");
+                        });
                 });
 
             modelBuilder.Entity("EduOS.Core.Entities.Facilities.FacilityWorkflowEvent", b =>
@@ -14394,6 +14418,8 @@ namespace EduOS.Persistence.Migrations
                         .HasColumnType("bigint");
 
                     b.HasKey("Id");
+
+                    b.HasAlternateKey("TenantId", "Id");
 
                     b.HasIndex("DecidedByUserId");
 
@@ -25772,6 +25798,12 @@ namespace EduOS.Persistence.Migrations
                         .HasPrincipalKey("TenantId", "Id")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+
+                    b.HasOne("EduOS.Core.Entities.Inventory.ProcurementSupplier", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "VendorSupplierId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
 
                     b.Navigation("Tenant");
                 });

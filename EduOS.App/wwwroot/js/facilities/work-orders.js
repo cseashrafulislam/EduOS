@@ -24,7 +24,11 @@
         escalate: ['Escalate overdue SLA', 'বিলম্বিত কাজ এস্কেলেট করুন'],
         cancelrequest: ['Request cancellation', 'বাতিলের আবেদন'],
         cancelapprove: ['Approve cancellation', 'বাতিল অনুমোদন'],
-        cancelreject: ['Reject cancellation', 'বাতিল আবেদন প্রত্যাখ্যান']
+        cancelreject: ['Reject cancellation', 'বাতিল আবেদন প্রত্যাখ্যান'],
+        vendorpropose: ['Propose vendor booking', 'সরবরাহকারী বুকিং প্রস্তাব'],
+        vendorapprove: ['Approve vendor booking', 'সরবরাহকারী বুকিং অনুমোদন'],
+        vendorreject: ['Reject vendor booking', 'সরবরাহকারী বুকিং প্রত্যাখ্যান'],
+        vendorrelease: ['Release vendor booking', 'সরবরাহকারী বুকিং মুক্ত করুন']
     };
     const token = document.querySelector('meta[name="request-verification-token"]')?.content;
     const base = '/api/facilities/work-orders';
@@ -40,6 +44,7 @@
     let locationChoices = new Map();
     let technicianPage = 1, technicianPages = 1, technicianChoices = new Map();
     let vendorGeneration = 0, vendorPage = 1, vendorPages = 1;
+    let vendorChoices = new Map();
     let availabilityWindowKey = null;
     const windowKey = () => [selected?.id, selected?.workOrderId,
         el('wfStart').value, el('wfEnd').value].join('|');
@@ -78,6 +83,8 @@
         locationGeneration++;
         technicianGeneration++;
         vendorGeneration++;
+        vendorChoices.clear();
+        if (el('wfVendorSelected')) el('wfVendorSelected').value = '';
         technicianChoices.clear();
         const vendorPanel = el('wfVendorPanel');
         if (vendorPanel) {
@@ -172,7 +179,20 @@
         const state = row.workOrderState, options = [];
         const canManage = manager && row.requesterUserId !== currentUserId;
         const assigned = technician && row.technicianUserId === currentUserId;
-        if (state === 'Approved' && canManage) options.push('schedule', 'cancelrequest');
+        if (state === 'Approved' && canManage) {
+            options.push('schedule');
+            if (!['Proposed', 'Approved'].includes(row.vendorStateCode)) options.push('cancelrequest');
+        }
+        if (canManage && ['Approved', 'Scheduled'].includes(state) &&
+            !['Proposed', 'Approved'].includes(row.vendorStateCode)) options.push('vendorpropose');
+        if (approver && row.requesterUserId !== currentUserId &&
+            row.triagedByUserId !== currentUserId &&
+            row.vendorProposedByUserId !== currentUserId &&
+            ['Approved', 'Scheduled'].includes(state)) {
+            if (row.vendorStateCode === 'Proposed') options.push('vendorapprove', 'vendorreject');
+            if (row.vendorStateCode === 'Approved' &&
+                row.vendorApprovedByUserId !== currentUserId) options.push('vendorrelease');
+        }
         if (state === 'CancellationPending' && approver &&
             row.requesterUserId !== currentUserId &&
             row.triagedByUserId !== currentUserId) options.push('cancelapprove', 'cancelreject');
@@ -195,8 +215,11 @@
         const vendorEligible = manager && row.workOrderId > 0 &&
             row.stateCode === 'Approved' &&
             ['Approved', 'Scheduled'].includes(row.workOrderState) &&
-            row.requesterUserId !== currentUserId;
+            row.requesterUserId !== currentUserId &&
+            !['Proposed', 'Approved'].includes(row.vendorStateCode);
         selected = row;
+        vendorChoices.clear();
+        if (el('wfVendorSelected')) el('wfVendorSelected').value = '';
         if (manager) {
             // Re-selecting the same row invalidates any older vendor response.
             vendorGeneration++;
@@ -213,6 +236,8 @@
             t('Work order', 'ওয়ার্ক অর্ডার') + ': ' + (row.workOrderState || '—'),
             'SLA: ' + (row.slaDueAtUtc || '—'),
             t('Technician', 'টেকনিশিয়ান') + ': ' + (row.technicianUserId || '—'),
+            t('Vendor booking', 'সরবরাহকারী বুকিং') + ': ' + (row.vendorStateCode || '—') +
+                (row.vendorSupplierId ? ' #' + row.vendorSupplierId : ''),
             t('Breach', 'বিলম্ব') + ': ' + (row.slaBreached == null ? '—' : String(row.slaBreached))
         ].join(' | ');
         const options = actions(row), form = el('wfTransition'), selectAction = el('wfAction');
@@ -241,7 +266,9 @@
         const action = el('wfAction').value;
         for (const [id, enabled] of [
             ['wfDue', action === 'triage'], ['wfTech', action === 'schedule'],
-            ['wfStart', action === 'schedule'], ['wfEnd', action === 'schedule']
+            ['wfVendorSelected', action === 'vendorpropose'],
+            ['wfStart', action === 'schedule' || action === 'vendorpropose'],
+            ['wfEnd', action === 'schedule' || action === 'vendorpropose']
         ]) {
             const input = el(id);
             input.disabled = !enabled; input.required = enabled;
@@ -256,12 +283,12 @@
         } else {
             invalidateTechnicians();
         }
-        el('wfNote').required = rescheduling || ['reject', 'pause', 'complete', 'verify', 'return', 'unschedule', 'escalate', 'cancelrequest', 'cancelapprove', 'cancelreject'].includes(action);
-        el('wfNote').minLength = rescheduling || ['return', 'escalate', 'cancelrequest', 'cancelapprove', 'cancelreject'].includes(action) ? 10 : action === 'unschedule' ? 5 : 0;
+        el('wfNote').required = rescheduling || ['reject', 'pause', 'complete', 'verify', 'return', 'unschedule', 'escalate', 'cancelrequest', 'cancelapprove', 'cancelreject'].includes(action) || action.startsWith('vendor');
+        el('wfNote').minLength = rescheduling || ['return', 'escalate', 'cancelrequest', 'cancelapprove', 'cancelreject'].includes(action) ? 10 : action === 'unschedule' ? 5 : action.startsWith('vendor') ? 10 : 0;
         el('wfNote').placeholder = rescheduling
             ? t('Reason for rescheduling (10-500 characters)', 'সময়সূচি পরিবর্তনের কারণ (১০-৫০০ অক্ষর)')
             : '';
-        el('wfNote').maxLength = ['schedule', 'unschedule', 'escalate', 'return', 'cancelrequest', 'cancelapprove', 'cancelreject'].includes(action) ? 500 : 1000;
+        el('wfNote').maxLength = ['schedule', 'unschedule', 'escalate', 'return', 'cancelrequest', 'cancelapprove', 'cancelreject'].includes(action) ? 500 : action.startsWith('vendor') ? 500 : 1000;
     }
     // Active, granted campus spaces are supplied by the Facilities workflow
     // endpoint, not guessed from IDs or the privileged space-management API.
@@ -391,8 +418,8 @@
             notice(error.message);
         }
     }
-    // Advisory supplier discovery only: never bind a guessed supplier ID to a
-    // mutation. The future vendor assignment command must revalidate eligibility.
+    // The bounded supplier preview is advisory. Only a choice returned for
+    // the current selected order may be proposed; server revalidates eligibility.
     async function loadVendors() {
         if (!manager || blocked || !selected || !selected.workOrderId ||
             selected.stateCode !== 'Approved' ||
@@ -402,6 +429,8 @@
         const requestId = selected.id, campusId = selected.campusId;
         const workOrderId = selected.workOrderId;
         const rows = el('wfVendorRows');
+        vendorChoices.clear();
+        el('wfVendorSelected').value = '';
         rows.replaceChildren();
         el('wfVendorPrev').disabled = true;
         el('wfVendorNext').disabled = true;
@@ -419,8 +448,23 @@
             for (const vendor of data.items || []) {
                 const item = document.createElement('li');
                 item.className = 'list-group-item px-0';
-                item.textContent = (vendor.supplierName || '') + ' (' +
+                const supplierId = Number(vendor.supplierId);
+                if (!Number.isSafeInteger(supplierId) || supplierId <= 0) continue;
+                vendorChoices.set(supplierId, vendor);
+                const choose = document.createElement('button');
+                choose.type = 'button';
+                choose.className = 'btn btn-outline-secondary btn-sm text-start';
+                choose.textContent = (vendor.supplierName || '') + ' (' +
                     (vendor.supplierCode || '') + ')';
+                choose.addEventListener('click', () => {
+                    if (!sessionCurrent() || selected?.id !== requestId ||
+                        el('wfAction').value !== 'vendorpropose' ||
+                        !vendorChoices.has(supplierId)) return;
+                    el('wfVendorSelected').value = String(supplierId);
+                    notice(t('Vendor selected. Submit a proposal for independent approval.',
+                        'সরবরাহকারী নির্বাচিত। স্বতন্ত্র অনুমোদনের জন্য প্রস্তাব জমা দিন।'));
+                });
+                item.append(choose);
                 rows.append(item);
             }
             if (!rows.children.length) {
@@ -572,6 +616,8 @@
             el('wfVendorPage').textContent = '';
         }
         selected = null;
+        vendorChoices.clear();
+        if (el('wfVendorSelected')) el('wfVendorSelected').value = '';
         historyGeneration++;
         technicianGeneration++;
         technicianChoices.clear();
@@ -699,6 +745,12 @@
     el('wfTransition').addEventListener('submit', async e => {
         e.preventDefault();
         if (!selected || blocked || transitioning) return;
+        if (el('wfAction').value === 'vendorpropose' &&
+            !vendorChoices.has(Number(el('wfVendorSelected').value))) {
+            notice(t('Select an approved vendor from this work order lookup.',
+                'এই ওয়ার্ক অর্ডারের অনুমোদিত সরবরাহকারী নির্বাচন করুন।'));
+            return;
+        }
         if (el('wfAction').value === 'schedule' &&
             (availabilityWindowKey !== windowKey() ||
              !technicianChoices.has(Number(el('wfTech').value)))) {
@@ -718,7 +770,10 @@
             slaDueAtUtc: action === 'triage' ? date('wfDue') : null,
             technicianUserId: action === 'schedule' ? Number(el('wfTech').value) : null,
             scheduledStartUtc: action === 'schedule' ? date('wfStart') : null,
-            scheduledEndUtc: action === 'schedule' ? date('wfEnd') : null
+            scheduledEndUtc: action === 'schedule' ? date('wfEnd') : null,
+            vendorSupplierId: action === 'vendorpropose' ? Number(el('wfVendorSelected').value) : null,
+            vendorStartUtc: action === 'vendorpropose' ? date('wfStart') : null,
+            vendorEndUtc: action === 'vendorpropose' ? date('wfEnd') : null
         };
         try {
             body.clientCommandId = commandId(key, body);

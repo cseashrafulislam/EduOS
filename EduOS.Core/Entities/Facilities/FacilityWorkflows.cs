@@ -26,6 +26,14 @@ public sealed class FacilityWorkOrder : BaseTenantEntity
     public long FacilityServiceRequestId { get; set; }
     [Required, MaxLength(30)] public string StateCode { get; set; } = "Approved";
     public long? AssignedTechnicianUserId { get; set; }
+    // Current vendor decision is a work-order projection. Every decision is also
+    // recorded in FacilityWorkflowEvents; no stock/GL posting is implied.
+    public long? VendorSupplierId { get; set; }
+    [MaxLength(20)] public string? VendorStateCode { get; set; }
+    public long? VendorProposedByUserId { get; set; }
+    public long? VendorApprovedByUserId { get; set; }
+    public DateTime? VendorStartUtc { get; set; }
+    public DateTime? VendorEndUtc { get; set; }
     public DateTime? ScheduledStartUtc { get; set; }
     public DateTime? ScheduledEndUtc { get; set; }
     public DateTime? StartedAtUtc { get; set; }

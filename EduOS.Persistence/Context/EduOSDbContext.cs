@@ -1214,6 +1214,7 @@ public class EduOSDbContext :
         TenantReference<FacilityServiceRequest, Campus>(modelBuilder, nameof(FacilityServiceRequest.CampusId));
         TenantReference<FacilityServiceRequest, FacilitySpace>(modelBuilder, nameof(FacilityServiceRequest.FacilitySpaceId));
         TenantReference<FacilityWorkOrder, FacilityServiceRequest>(modelBuilder, nameof(FacilityWorkOrder.FacilityServiceRequestId));
+        TenantReference<FacilityWorkOrder, ProcurementSupplier>(modelBuilder, nameof(FacilityWorkOrder.VendorSupplierId));
         TenantReference<FacilityWorkflowEvent, FacilityServiceRequest>(modelBuilder, nameof(FacilityWorkflowEvent.FacilityServiceRequestId));
         // Inventory / Assets
         TenantReference<InventoryLocation, Campus>(modelBuilder, nameof(InventoryLocation.CampusId));
@@ -1983,6 +1984,10 @@ public class EduOSDbContext :
         modelBuilder.Entity<FacilityServiceRequest>().HasIndex(x => new { x.TenantId, x.FacilitySpaceId });
         modelBuilder.Entity<FacilityWorkOrder>().HasIndex(x => new { x.TenantId, x.FacilityServiceRequestId }).IsUnique();
         modelBuilder.Entity<FacilityWorkOrder>().HasIndex(x => new { x.TenantId, x.StateCode, x.ScheduledStartUtc });
+        modelBuilder.Entity<FacilityWorkOrder>().HasIndex(x => new { x.TenantId, x.VendorSupplierId, x.VendorStateCode, x.VendorStartUtc, x.VendorEndUtc });
+        modelBuilder.Entity<FacilityWorkOrder>().ToTable(t => t.HasCheckConstraint(
+            "CK_FacilityWorkOrders_VendorState",
+            "([VendorStateCode] IS NULL AND [VendorSupplierId] IS NULL AND [VendorStartUtc] IS NULL AND [VendorEndUtc] IS NULL AND [VendorProposedByUserId] IS NULL) OR ([VendorStateCode] IS NOT NULL AND [VendorStateCode] IN (N'Proposed',N'Approved',N'Rejected',N'Released') AND [VendorSupplierId] IS NOT NULL AND [VendorStartUtc] IS NOT NULL AND [VendorEndUtc] IS NOT NULL AND [VendorStartUtc] < [VendorEndUtc] AND [VendorProposedByUserId] IS NOT NULL AND ([VendorStateCode] <> N'Approved' OR [VendorApprovedByUserId] IS NOT NULL))"));
         modelBuilder.Entity<FacilityWorkflowEvent>().HasIndex(x => new { x.TenantId, x.ClientCommandId }).IsUnique();
         modelBuilder.Entity<FacilityWorkflowEvent>().HasIndex(x => new { x.TenantId, x.FacilityServiceRequestId, x.CreatedAt });
         modelBuilder.Entity<FacilitySpace>().HasIndex(x => new { x.TenantId, x.CampusId, x.IsActive, x.Name });

@@ -27,7 +27,7 @@ test('manager technician discovery is scoped, paged and never accepts guessed ID
     assert.match(script, /সময়সীমা যাচাই করে উপলব্ধ টেকনিশিয়ান নির্বাচন করুন/);
 });
 
-test('approved vendor preview is bounded, manager-only, tenant/campus scoped and never posts', () => {
+test('approved vendor selection is bounded, campus scoped and requires independent approval', () => {
     const service = fs.readFileSync(path.join(__dirname,
         '../../EduOS.Service/Services/Facilities/FacilityWorkflowService.cs'), 'utf8');
     const api = fs.readFileSync(path.join(__dirname,
@@ -37,14 +37,24 @@ test('approved vendor preview is bounded, manager-only, tenant/campus scoped and
     assert.match(service, /s\.TenantId == user\.TenantId && s\.CampusId == campusId/);
     assert.match(service, /AllowedCampuses\(\)\.ContainsAsync\(campusId, ct\)/);
     assert.match(view, /id="wfVendorPanel"/);
-    assert.match(view, /reference only/);
+    assert.match(view, /propose booking/);
+    assert.match(view, /id="wfVendorSelected"[^>]*readonly/);
+    assert.match(script, /vendorChoices\.has\(Number\(el\('wfVendorSelected'\)\.value\)\)/);
     assert.match(script, /api\('\/vendors\?' \+ q\)/);
     assert.match(script, /workOrderId: String\(workOrderId\)/);
     assert.match(script, /row\.stateCode === 'Approved'/);
     assert.match(service, /AllowedCampuses\(\)\.Contains\(s\.CampusId\)/);
     assert.match(service, /w\.Id == workOrderId\.Value/);
     assert.match(script, /generation !== vendorGeneration \|\| blocked/);
-    assert.doesNotMatch(script, /vendorSupplierId:|assignedVendorId:/);
+    assert.match(script, /vendorSupplierId: action === 'vendorpropose'/);
+    for (const action of ['vendorpropose', 'vendorapprove', 'vendorreject', 'vendorrelease'])
+        assert.match(script, new RegExp(action));
+    assert.match(service, /Vendor has an overlapping approved booking/);
+    assert.match(service, /VendorProposedByUserId/);
+    assert.match(service, /sp_getapplock/);
+    assert.match(view, /independent approval/);
+    assert.match(script, /vendorChoices\.clear\(\)/);
+    assert.match(script, /action\.startsWith\('vendor'\)/);
 });
 
 test('manager availability preview scopes order, checks UTC and invalidates stale choice', () => {
@@ -270,7 +280,7 @@ test('work orders fail closed when tenant changes during an in-flight read', asy
         }, shield, session: { reference: body.dataset.authSessionReference, tenant: '12' },
         blocked: false, listGeneration: 0, historyGeneration: 0,
         locationGeneration: 0, technicianGeneration: 0, vendorGeneration: 0,
-        technicianChoices: new Map(), chosenLocation: null, locationChoices: new Map(), selected: { id: 7 },
+        technicianChoices: new Map(), vendorChoices: new Map(), chosenLocation: null, locationChoices: new Map(), selected: { id: 7 },
         pending: new Map([['7:verify', { id: 'pending' }]]),
         t: en => en, token: 'csrf', base: '/api/facilities/work-orders',
         fetch: async () => {
@@ -369,7 +379,7 @@ test('Facilities refresh clears off-list selection and old actions after a faile
     el('wfOverdueOnly').checked = false;
     let errors = 0;
     const context = { blocked: false, manager: false, listGeneration: 0, historyGeneration: 0,
-        technicianGeneration: 0, vendorGeneration: 0, technicianChoices: new Map(),
+        technicianGeneration: 0, vendorGeneration: 0, technicianChoices: new Map(), vendorChoices: new Map(),
         page: 1, pages: 1, selected: { id: 7 }, el, URLSearchParams,
         document: { createElement: node }, t: en => en,
         cell: value => ({ textContent: String(value) }), select() {},
