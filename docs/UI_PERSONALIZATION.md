@@ -712,6 +712,10 @@ The existing reviewed bilingual Page Information guide remains the single manual
 
 ### 9.53. Procurement CSV fail-closed downloads (2026-11-02)
 
+Supplier invoice CSV additionally refuses missing/duplicate/invalid source-line projections instead of silently dropping financial rows. Supplier invoice and payable-aging downloads compare a frozen first-read financial evidence signature to the second authorized read, so shared mutable DTO instances cannot conceal an in-place amount change. Errors remain generic and return 409 without CSV; the existing bilingual Page Information manual and UI routes remain unchanged. This is not a transaction-consistent SQL snapshot or authenticated SQL-backed browser acceptance.
+
+
+
 Existing requisition, PO, commitment, goods receipt and supplier confirmation Export actions keep their routes, roles, download names and shared bilingual Help Drawer. The server releases CSV only after two complete authorized bounded reads; changed evidence returns 409, revoked scope 403, without a partial download. Formula-leading text and embedded newlines are neutralized; genuine signed numeric values remain numeric. Synthetic controller checks are **not** SQL snapshot isolation, authenticated SQL-backed Chromium or real institute UAT. No UI widget, migration or new ledger.
 
 The existing Supplier Finance invoice/aging downloads now share the canonical Procurement CSV cell escaping: Unicode zero-width and bidi formula spoofing and control/line separators are neutralized, while signed decimal values and interior Bengali ZWJ text are preserved. Export failure messages are generic even when underlying service errors contain private bank/campus evidence. Synthetic ASP.NET no-antiforgery-token POST acceptance is added; it is not a real authenticated multi-campus SQL-backed browser proof. Existing shared bilingual Page Information guidance and export routes are unchanged.

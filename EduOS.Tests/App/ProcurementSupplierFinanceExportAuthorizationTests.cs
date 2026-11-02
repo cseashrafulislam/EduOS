@@ -441,6 +441,80 @@ public sealed class ProcurementSupplierFinanceExportAuthorizationTests
         Assert.DoesNotContain(privateDetail, System.Text.Json.JsonSerializer.Serialize(replayDenied.Value));
     }
 
+
+    [Theory]
+    [InlineData("empty")]
+    [InlineData("duplicate")]
+    [InlineData("invalid")]
+    [InlineData("oversized")]
+    public async Task Supplier_invoice_export_rejects_missing_or_ambiguous_source_lines(string variant)
+    {
+        var invoice = Invoice(1);
+        switch (variant)
+        {
+            case "empty":
+                invoice.Lines.Clear();
+                break;
+            case "duplicate":
+                invoice.Lines.Add(new ProcurementSupplierInvoiceLineDto { LineNo = 1, Quantity = 1m });
+                break;
+            case "invalid":
+                invoice.Lines[0].LineNo = 0;
+                break;
+            case "oversized":
+                invoice.Lines = Enumerable.Range(1, 101)
+                    .Select(i => new ProcurementSupplierInvoiceLineDto { LineNo = i, Quantity = 1m })
+                    .ToList();
+                break;
+        }
+        var service = new Mock<IProcurementSupplierInvoiceService>();
+        service.Setup(x => x.ListAsync(null, null, 1, 100, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Ok(1, 1, invoice));
+        var response = Assert.IsType<ObjectResult>(
+            await new ProcurementSupplierInvoicesController(service.Object)
+                .Export(null, null, CancellationToken.None));
+        Assert.Equal(409, response.StatusCode);
+        Assert.IsNotType<FileContentResult>(response);
+    }
+
+    [Fact]
+    public async Task Supplier_exports_reject_in_place_financial_mutation_of_reused_service_DTOs()
+    {
+        // A caching or shared service projection may return the SAME object in
+        // both passes. Compare immutable first-pass evidence, not live aliases.
+        var invoice = Invoice(1);
+        invoice.TotalAmount = 10m;
+        var invoiceReads = 0;
+        var invoiceService = new Mock<IProcurementSupplierInvoiceService>();
+        invoiceService.Setup(x => x.ListAsync(null, null, 1, 100, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(() =>
+            {
+                if (++invoiceReads == 2) invoice.TotalAmount = 11m;
+                return Ok(1, 1, invoice);
+            });
+        var invoiceResult = Assert.IsType<ObjectResult>(
+            await new ProcurementSupplierInvoicesController(invoiceService.Object)
+                .Export(null, null, CancellationToken.None));
+        Assert.Equal(409, invoiceResult.StatusCode);
+        Assert.Equal(2, invoiceReads);
+
+        var aging = Aging(1);
+        aging.PostedSettlementAmount = 5m;
+        var agingReads = 0;
+        var agingService = new Mock<IProcurementSupplierInvoiceService>();
+        agingService.Setup(x => x.AgingAsync(null, null, false, 1, 100, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(() =>
+            {
+                if (++agingReads == 2) aging.PostedSettlementAmount = 6m;
+                return Ok(1, 1, aging);
+            });
+        var agingResult = Assert.IsType<ObjectResult>(
+            await new ProcurementSupplierInvoicesController(agingService.Object)
+                .AgingExport(null, null, false, CancellationToken.None));
+        Assert.Equal(409, agingResult.StatusCode);
+        Assert.Equal(2, agingReads);
+    }
+
     [Fact]
     public async Task Supplier_finance_mutations_without_antiforgery_token_are_rejected_before_service()
     {

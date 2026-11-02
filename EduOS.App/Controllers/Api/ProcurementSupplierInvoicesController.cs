@@ -131,11 +131,24 @@ public sealed class ProcurementSupplierInvoicesController(IProcurementSupplierIn
         return StatusCode(status, new { message = "Supplier finance export unavailable or access changed; retry with current authorization." });
     }
 
-    // A bounded second authorized read detects same-count replacements and
-    // financial evidence changes missed by offset-page/duplicate-ID checks.
-    // This is NOT a SQL snapshot guarantee: a later write can still race export.
+    // A missing, duplicated or incomplete invoice source-line projection must
+    // never be silently omitted from a financial CSV, even for a draft invoice.
+    private static bool HasCompleteInvoiceLines(ProcurementSupplierInvoiceDto invoice)
+    {
+        if (invoice.Lines is not { Count: >= 1 and <= 100 }) return false;
+        var seen = new HashSet<int>();
+        foreach (var line in invoice.Lines)
+            if (line == null || line.LineNo <= 0 || !seen.Add(line.LineNo))
+                return false;
+        return true;
+    }
+
+    // Freeze the first authorized read BEFORE rechecking. Services or caches
+    // may reuse mutable DTO instances across both reads; comparing two live
+    // lists would incorrectly accept an in-place financial mutation.
+    // This remains drift detection, NOT SQL transaction-level snapshot isolation.
     private async Task<IActionResult?> RecheckExportAsync<T>(
-        IReadOnlyList<T> original, int total,
+        string frozenSignature, int total,
         Func<int, Task<ApiResponse<PagedResult<T>>>> readPage, Func<T, Guid> key)
     {
         var checkedRows = new List<T>();
@@ -148,8 +161,8 @@ public sealed class ProcurementSupplierInvoicesController(IProcurementSupplierIn
                 !AppendStablePage(response.Data, page, total, checkedRows, seen, key))
                 return StatusCode(409, new { message = "Supplier finance export changed; retry with fresh authorization." });
         }
-        return checkedRows.Count == original.Count &&
-            JsonSerializer.Serialize(checkedRows) == JsonSerializer.Serialize(original)
+        return checkedRows.Count == total &&
+            string.Equals(JsonSerializer.Serialize(checkedRows), frozenSignature, StringComparison.Ordinal)
             ? null
             : StatusCode(409, new { message = "Supplier finance export changed; retry with fresh authorization." });
     }
@@ -180,7 +193,8 @@ public sealed class ProcurementSupplierInvoicesController(IProcurementSupplierIn
             if (!AppendStablePage(next.Data,p,total,rows,seen,x=>x.InvoiceReference))
                 return StatusCode(409,new{message="Supplier payable export changed; retry with fresh authorization."});
         }
-        var agingDrift = await RecheckExportAsync(rows, total,
+        var agingSignature = JsonSerializer.Serialize(rows);
+        var agingDrift = await RecheckExportAsync(agingSignature, total,
             p => service.AgingAsync(dueDateReference, supplierId, overdueOnly, p, 100, ct),
             x => x.InvoiceReference);
         if (agingDrift != null) return agingDrift;
@@ -218,7 +232,10 @@ public sealed class ProcurementSupplierInvoicesController(IProcurementSupplierIn
             if (!AppendStablePage(next.Data,page,total,data,seen,x=>x.Reference))
                 return StatusCode(409,new{message="Supplier invoice export changed; retry with fresh authorization."});
         }
-        var invoiceDrift = await RecheckExportAsync(data, total,
+        if (data.Any(x => !HasCompleteInvoiceLines(x)))
+            return StatusCode(409, new { message = "Supplier invoice source lines unavailable; retry with fresh authorization." });
+        var invoiceSignature = JsonSerializer.Serialize(data);
+        var invoiceDrift = await RecheckExportAsync(invoiceSignature, total,
             p => service.ListAsync(purchaseOrderId, state, p, 100, ct),
             x => x.Reference);
         if (invoiceDrift != null) return invoiceDrift;
