@@ -39,6 +39,7 @@
     let locationPage = 1, locationPages = 1, chosenLocation = null;
     let locationChoices = new Map();
     let technicianPage = 1, technicianPages = 1, technicianChoices = new Map();
+    let vendorGeneration = 0, vendorPage = 1, vendorPages = 1;
     let availabilityWindowKey = null;
     const windowKey = () => [selected?.id, selected?.workOrderId,
         el('wfStart').value, el('wfEnd').value].join('|');
@@ -76,7 +77,14 @@
         historyGeneration++;
         locationGeneration++;
         technicianGeneration++;
+        vendorGeneration++;
         technicianChoices.clear();
+        const vendorPanel = el('wfVendorPanel');
+        if (vendorPanel) {
+            vendorPanel.classList.add('d-none');
+            el('wfVendorRows').replaceChildren();
+            el('wfVendorPage').textContent = '';
+        }
         availabilityWindowKey = null;
         chosenLocation = null;
         locationChoices.clear();
@@ -184,7 +192,16 @@
     }
     function select(row) {
         if (!sessionCurrent()) { lockPage(); return; }
+        const vendorChanged = selected?.id !== row.id || selected?.campusId !== row.campusId;
         selected = row;
+        if (manager && vendorChanged) {
+            vendorGeneration++;
+            vendorPage = 1;
+            el('wfVendorPanel').classList.remove('d-none');
+            el('wfVendorRows').replaceChildren();
+            el('wfVendorPage').textContent = '';
+            loadVendors();
+        }
         el('wfSelected').textContent = '#' + row.id + ' — ' + row.summary;
         el('wfDetails').textContent = [
             t('Campus', 'ক্যাম্পাস') + ': ' + row.campusId,
@@ -369,6 +386,52 @@
             notice(error.message);
         }
     }
+    // Advisory supplier discovery only: never bind a guessed supplier ID to a
+    // mutation. The future vendor assignment command must revalidate eligibility.
+    async function loadVendors() {
+        if (!manager || blocked || !selected) return;
+        const generation = ++vendorGeneration;
+        const requestId = selected.id, campusId = selected.campusId;
+        const rows = el('wfVendorRows');
+        rows.replaceChildren();
+        el('wfVendorPrev').disabled = true;
+        el('wfVendorNext').disabled = true;
+        el('wfVendorPage').textContent = t('Checking approved vendors…', 'অনুমোদিত সরবরাহকারী খোঁজা হচ্ছে…');
+        try {
+            const q = new URLSearchParams({ campusId: String(campusId),
+                page: String(vendorPage), pageSize: '25' });
+            const search = el('wfVendorSearch').value.trim();
+            if (search) q.set('search', search);
+            const data = await api('/vendors?' + q);
+            if (generation !== vendorGeneration || blocked ||
+                selected?.id !== requestId || selected?.campusId !== campusId) return;
+            vendorPages = Math.max(1, data.totalPages || 1);
+            for (const vendor of data.items || []) {
+                const item = document.createElement('li');
+                item.className = 'list-group-item px-0';
+                item.textContent = (vendor.supplierName || '') + ' (' +
+                    (vendor.supplierCode || '') + ')';
+                rows.append(item);
+            }
+            if (!rows.children.length) {
+                const item = document.createElement('li');
+                item.className = 'list-group-item px-0 text-muted';
+                item.textContent = t('No approved vendors for this campus.',
+                    'এই ক্যাম্পাসে অনুমোদিত সরবরাহকারী নেই।');
+                rows.append(item);
+            }
+            el('wfVendorPage').textContent = vendorPage + ' / ' + vendorPages;
+            el('wfVendorPrev').disabled = vendorPage <= 1;
+            el('wfVendorNext').disabled = vendorPage >= vendorPages;
+        } catch (error) {
+            if (generation !== vendorGeneration || blocked ||
+                selected?.id !== requestId || error.message === 'session-changed') return;
+            rows.replaceChildren();
+            el('wfVendorPage').textContent = t('Vendor lookup failed; retry.',
+                'সরবরাহকারী খোঁজা ব্যর্থ; আবার চেষ্টা করুন।');
+            notice(error.message);
+        }
+    }
     async function dashboard(generation, campusId) {
         const q = new URLSearchParams();
         if (campusId) q.set('campusId', campusId);
@@ -490,6 +553,13 @@
         }
     }
     function clearSelection() {
+        vendorGeneration++;
+        const vendorPanel = el('wfVendorPanel');
+        if (vendorPanel) {
+            vendorPanel.classList.add('d-none');
+            el('wfVendorRows').replaceChildren();
+            el('wfVendorPage').textContent = '';
+        }
         selected = null;
         historyGeneration++;
         technicianGeneration++;
@@ -524,6 +594,20 @@
         const submit = el('wfCreate').querySelector('button[type="submit"]');
         if (submit) submit.disabled = !chosenLocation || creating;
     });
+    if (manager) {
+        el('wfVendorFind').addEventListener('click', () => {
+            if (!blocked) { vendorPage = 1; loadVendors(); }
+        });
+        el('wfVendorSearch').addEventListener('keydown', e => {
+            if (e.key === 'Enter') { e.preventDefault(); vendorPage = 1; loadVendors(); }
+        });
+        el('wfVendorPrev').addEventListener('click', () => {
+            if (!blocked && vendorPage > 1) { vendorPage--; loadVendors(); }
+        });
+        el('wfVendorNext').addEventListener('click', () => {
+            if (!blocked && vendorPage < vendorPages) { vendorPage++; loadVendors(); }
+        });
+    }
     el('wfTechFind').addEventListener('click', () => {
         if (!blocked) { technicianPage = 1; loadTechnicians(); }
     });

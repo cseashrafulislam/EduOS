@@ -150,6 +150,42 @@ public sealed class FacilityWorkflowService(
     }
 
     /// <summary>
+    /// Read-only approved supplier discovery. This is NOT a vendor assignment,
+    /// procurement order, reservation, stock movement or Finance posting.
+    /// </summary>
+    public async Task<ApiResponse<PagedResult<FacilityVendorOptionDto>>> VendorsAsync(
+        long campusId, string? search, int page, int pageSize, CancellationToken ct = default)
+    {
+        if (!ValidTenant || !Manager) return Denied<PagedResult<FacilityVendorOptionDto>>();
+        if (campusId <= 0 || page is < 1 or > 100000 || pageSize is < 1 or > 50 ||
+            search?.Length > 100)
+            return ApiResponse<PagedResult<FacilityVendorOptionDto>>.ErrorResponse(
+                "Invalid vendor lookup.", 400);
+        if (!await AllowedCampuses().ContainsAsync(campusId, ct))
+            return Denied<PagedResult<FacilityVendorOptionDto>>();
+
+        // Supplier lifecycle remains owned by Procurement. Never disclose
+        // submitted/rejected/inactive vendors or their contact/tax information.
+        var query = db.ProcurementSuppliers.AsNoTracking().Where(s =>
+            s.TenantId == user.TenantId && s.CampusId == campusId &&
+            !s.IsDeleted && s.StateCode == "Approved");
+        var term = search?.Trim();
+        if (!string.IsNullOrWhiteSpace(term))
+            query = query.Where(s => s.Name.Contains(term) || s.SupplierCode.Contains(term));
+        var total = await query.CountAsync(ct);
+        var items = await query.OrderBy(s => s.Name).ThenBy(s => s.Id)
+            .Skip((page - 1) * pageSize).Take(pageSize)
+            .Select(s => new FacilityVendorOptionDto
+            {
+                SupplierId = s.Id, SupplierCode = s.SupplierCode, SupplierName = s.Name
+            }).ToListAsync(ct);
+        return ApiResponse<PagedResult<FacilityVendorOptionDto>>.SuccessResponse(new()
+        {
+            Page = page, PageSize = pageSize, TotalCount = total, Items = items
+        });
+    }
+
+    /// <summary>
     /// A manager can discover only currently eligible staff in an authorized campus.
     /// Scheduling independently rechecks grants and concurrency before committing.
     /// </summary>

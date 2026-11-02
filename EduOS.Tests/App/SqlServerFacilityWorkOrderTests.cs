@@ -1,6 +1,7 @@
 using EduOS.Core.DTOs.Facilities;
 using EduOS.Core.Entities.Auth;
 using EduOS.Core.Entities.Facilities;
+using EduOS.Core.Entities.Inventory;
 using EduOS.Core.Entities.SaaS;
 using EduOS.Core.Enums.Domain;
 using EduOS.Core.Interfaces;
@@ -97,6 +98,17 @@ public sealed class SqlServerFacilityWorkOrderTests
                 { UserId = globalTechId, RoleId = globalTechnicianRole.Id });
                 await setup.SaveChangesAsync();
                 spaceId = space.Id;
+                setup.ProcurementSuppliers.AddRange(
+                    new ProcurementSupplier { TenantId = tenantId, CampusId = campusId,
+                        ClientRequestId = Guid.NewGuid(), SupplierCode = "FAC-APP-" + suffix,
+                        Name = "Approved Facilities Vendor", StateCode = "Approved" },
+                    new ProcurementSupplier { TenantId = tenantId, CampusId = campusId,
+                        ClientRequestId = Guid.NewGuid(), SupplierCode = "FAC-PEND-" + suffix,
+                        Name = "Pending Facilities Vendor", StateCode = "Submitted" },
+                    new ProcurementSupplier { TenantId = tenantId, CampusId = ungrantedCampus.Id,
+                        ClientRequestId = Guid.NewGuid(), SupplierCode = "FAC-SECRET-" + suffix,
+                        Name = "Private Facilities Vendor", StateCode = "Approved" });
+                await setup.SaveChangesAsync();
             }
             // A second Suspended membership still makes a global legacy role ambiguous.
             setup.ChangeTracker.Clear();
@@ -141,6 +153,16 @@ public sealed class SqlServerFacilityWorkOrderTests
             Assert.True(eligible.Success, eligible.Message);
             Assert.Single(eligible.Data!.Items);
             Assert.Equal(techId, eligible.Data.Items[0].UserId);
+            var vendors = await service.VendorsAsync(campusId, null, 1, 25);
+            Assert.True(vendors.Success, vendors.Message);
+            Assert.Single(vendors.Data!.Items);
+            Assert.Equal("Approved Facilities Vendor", vendors.Data.Items[0].SupplierName);
+            Assert.StartsWith("FAC-APP-", vendors.Data.Items[0].SupplierCode);
+            Assert.Single((await service.VendorsAsync(campusId, "Approved", 1, 25)).Data!.Items);
+            Assert.Empty((await service.VendorsAsync(campusId, "Pending", 1, 25)).Data!.Items);
+            Assert.Equal(403, (await service.VendorsAsync(campusId + 1, null, 1, 25)).StatusCode);
+            Assert.Equal(400, (await service.VendorsAsync(campusId, new string('X', 101), 1, 25)).StatusCode);
+            Assert.Equal(400, (await service.VendorsAsync(campusId, null, 1, 51)).StatusCode);
             Assert.DoesNotContain(eligible.Data.Items, x => x.UserId == globalTechId);
             Assert.Equal("Facilities Test", eligible.Data.Items[0].DisplayName);
             Assert.Single((await service.TechniciansAsync(campusId, "Facilities", 1, 25)).Data!.Items);
@@ -158,6 +180,16 @@ public sealed class SqlServerFacilityWorkOrderTests
         {
             Assert.Equal(403, (await Service(db, otherTenantId, managerId, "FacilitiesManager")
                 .TechniciansAsync(campusId, null, 1, 25)).StatusCode);
+        }
+        await using (var db = Db(options, tenantId, requesterId, "FacilitiesRequester"))
+        {
+            Assert.Equal(403, (await Service(db, tenantId, requesterId, "FacilitiesRequester")
+                .VendorsAsync(campusId, null, 1, 25)).StatusCode);
+        }
+        await using (var db = Db(options, otherTenantId, managerId, "FacilitiesManager"))
+        {
+            Assert.Equal(403, (await Service(db, otherTenantId, managerId, "FacilitiesManager")
+                .VendorsAsync(campusId, null, 1, 25)).StatusCode);
         }
         // A departed second-tenant membership restores global-role eligibility;
         // returning it to Suspended must revoke that eligibility again.

@@ -71,6 +71,23 @@
         <div class="col-12 col-xl-5"><div class="card"><div class="card-body">
             <h3 class="h6" id="wfSelected">@(bn ? "কাজ নির্বাচন করুন" : "Select a request")</h3>
             <p class="small text-muted" id="wfDetails" aria-live="polite"></p>
+            @if (manager)
+            {
+                <section id="wfVendorPanel" class="border rounded p-2 mb-3 d-none" aria-label="@(bn ? "অনুমোদিত ক্যাম্পাস সরবরাহকারী" : "Approved campus vendors")">
+                    <h4 class="h6">@(bn ? "অনুমোদিত ক্যাম্পাস সরবরাহকারী — শুধু তথ্য" : "Approved campus vendors — reference only")</h4>
+                    <p class="small text-muted">@(bn ? "এখানে সরবরাহকারী নিয়োগ, সময়সূচি, স্টক বা হিসাব পোস্ট হয় না।" : "This lookup does not assign a vendor, schedule work or post stock/Finance.")</p>
+                    <div class="input-group input-group-sm">
+                        <input id="wfVendorSearch" class="form-control" maxlength="100" autocomplete="off" aria-label="@(bn ? "সরবরাহকারীর নাম বা কোড" : "Vendor name or code")" />
+                        <button id="wfVendorFind" class="btn btn-outline-primary" type="button">@(bn ? "খুঁজুন" : "Find vendors")</button>
+                    </div>
+                    <ul id="wfVendorRows" class="list-group list-group-flush small mt-2" aria-live="polite"></ul>
+                    <div class="d-flex align-items-center gap-2 mt-2">
+                        <button id="wfVendorPrev" type="button" class="btn btn-outline-secondary btn-sm" disabled>@(bn ? "আগের" : "Previous")</button>
+                        <span id="wfVendorPage" class="small" aria-live="polite"></span>
+                        <button id="wfVendorNext" type="button" class="btn btn-outline-secondary btn-sm" disabled>@(bn ? "পরের" : "Next")</button>
+                    </div>
+                </section>
+            }
             <form id="wfTransition" class="row g-2 d-none">
                 <div class="col-12"><label class="form-label" for="wfAction">@(bn ? "পরবর্তী পদক্ষেপ" : "Next action")</label><select id="wfAction" class="form-select" required></select></div>
                 <div class="col-12"><label class="form-label" for="wfNote">@(bn ? "কারণ / প্রমাণ / যাচাই নোট" : "Reason / evidence / verification note")</label><textarea id="wfNote" class="form-control" rows="3" maxlength="1000"></textarea></div>

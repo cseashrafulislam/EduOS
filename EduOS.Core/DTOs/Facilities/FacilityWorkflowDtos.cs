@@ -70,6 +70,14 @@ public sealed class FacilityTechnicianOptionDto
     public string DisplayName { get; set; } = string.Empty;
 }
 
+/// <summary>Approved procurement vendor, for read-only campus eligibility preview.</summary>
+public sealed class FacilityVendorOptionDto
+{
+    public long SupplierId { get; set; }
+    public string SupplierCode { get; set; } = string.Empty;
+    public string SupplierName { get; set; } = string.Empty;
+}
+
 public sealed class FacilityEventDto
 {
     public long Id { get; set; }
