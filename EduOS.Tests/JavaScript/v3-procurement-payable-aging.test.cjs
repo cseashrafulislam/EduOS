@@ -6,7 +6,7 @@ const read=p=>fs.readFileSync(path.join(__dirname,'../..',p),'utf8');
 test('Aging uses canonical posted AP with tenant/campus authorization, not shadow balances',()=>{
  const s=read('EduOS.Service/Services/Inventory/ProcurementSupplierInvoiceAging.cs');
  for(const v of ['Visible()','JournalState.Posted','AccountType.Liability','l.CreditAmount == x.TotalAmount',
-  'SourceType=="ProcurementSupplierInvoice"','Skip((page-1)*pageSize)','overdueOnly'])
+  'j.SourceType == "ProcurementSupplierInvoice"','Skip((page-1)*pageSize)','overdueOnly'])
   assert.ok(s.includes(v),v);
  // A posted invoice with a missing/corrupt original GL must remain in the
  // authorized reconciliation register as EvidenceConflict, never vanish.
