@@ -33,7 +33,7 @@ function fixture(bn) {
 <script>window.EduOSVerifySessionContext=async()=>{};window.EduOSSessionTransitionPending=()=>false;<\/script>
 <script src="/js/account/profile.js"></script></body></html>`;
 }
-async function setup(browser,{bn=false,profileStatus=200,profileSuccess=true,delay=false,jsonGate=false,syntheticWrite=null,writeGate=false,writeStatus=403}={}) {
+async function setup(browser,{bn=false,profileStatus=200,profileSuccess=true,delay=false,jsonGate=false,syntheticWrite=null,writeGate=false,writeStatus=403,malformedProfile=false}={}) {
     if(syntheticWrite)assert(['/api/auth/profile','/api/auth/mfa/disable',
         '/api/auth/mfa/recovery-codes/regenerate','/api/auth/sessions/revoke-others',
         '/api/auth/sessions/revoke-all'].includes(syntheticWrite),'Unexpected synthetic write target');
@@ -83,7 +83,8 @@ async function setup(browser,{bn=false,profileStatus=200,profileSuccess=true,del
         if(url.pathname==='/api/auth/profile' && delay) await gate;
         const headers={'X-EduOS-Session-Reference':session,'X-EduOS-Tenant-Id':'11','Cache-Control':'no-store'};
         if(url.pathname==='/api/auth/profile') return route.fulfill({status:profileStatus,headers,
-            contentType:'application/json',body:JSON.stringify(profileStatus===200?
+            contentType:'application/json',body:malformedProfile ? '{"success":true,"data":"PRIVATE_FOREIGN_TENANT_RECORD"' :
+            JSON.stringify(profileStatus===200?
             {success:profileSuccess,data:{fullName:'Synthetic Account',email:'synthetic@example.test',
                 phoneNumber:'0123456789',address:'Synthetic address',preferredLanguage:'bn-BD'}}:
             {success:false,message:'PRIVATE_FOREIGN_TENANT_RECORD'})});
@@ -221,6 +222,45 @@ async function falseSuccessRead(browser){
         assert.deepEqual(s.errors,[]);
     }finally{await s.context.close();}
 }
+async function malformedJsonRead(browser){
+    const s=await setup(browser,{malformedProfile:true});
+    try{
+        await s.page.waitForTimeout(200);
+        assert.equal(await s.page.locator('#saveProfileBtn').isDisabled(),true);
+        assert.equal(await s.page.locator('#changePasswordBtn').isDisabled(),true);
+        assert(!(await s.page.locator('body').innerText()).includes('PRIVATE_FOREIGN_TENANT_RECORD'));
+        assert.deepEqual(s.writes,[]);
+        assert.deepEqual(s.errors,[]);
+    }finally{await s.context.close();}
+}
+async function duplicateProfileWrite(browser){
+    const s=await setup(browser,{syntheticWrite:'/api/auth/profile',writeGate:true,writeStatus:200});
+    try{
+        await s.page.waitForFunction(()=>document.getElementById('saveProfileBtn')?.disabled===false);
+        await s.page.locator('#fullName').fill('Synthetic changed');
+        await s.page.evaluate(()=>{void updateProfile();void updateProfile();});
+        await s.writeStarted;
+        await s.page.waitForTimeout(100);
+        assert.deepEqual(s.syntheticWrites,['PUT /api/auth/profile'],'Overlapping profile writes');
+        s.releaseWrite();
+        await s.page.waitForFunction(()=>document.getElementById('saveProfileBtn').disabled===false);
+        assert.deepEqual(s.syntheticWrites,['PUT /api/auth/profile']);
+        assert.deepEqual(s.writes,[]);
+        assert.deepEqual(s.errors,[]);
+    }finally{s.releaseWrite();await s.context.close();}
+}
+async function pagehideClearsPrivateAccount(browser){
+    const s=await setup(browser);
+    try{
+        await s.page.waitForFunction(()=>document.getElementById('profileDisplayName').textContent==='Synthetic Account');
+        await s.page.evaluate(()=>window.dispatchEvent(new Event('pagehide')));
+        assert.equal(await s.page.locator('#profileDisplayName').innerText(),'');
+        assert.equal(await s.page.locator('#sessionList').innerText(),'');
+        assert.equal(await s.page.locator('#saveProfileBtn').isDisabled(),true);
+        assert.deepEqual(s.writes,[]);
+        assert.deepEqual(s.errors,[]);
+    }finally{await s.context.close();}
+}
 async function deniedSecurityWrite(browser,id,endpoint){
     const s=await setup(browser,{syntheticWrite:endpoint,writeStatus:403});
     try{
@@ -250,6 +290,8 @@ async function deniedSecurityWrite(browser,id,endpoint){
         await success(browser,false);await success(browser,true);
         await denied(browser);await stale(browser);await switchedAfterLoad(browser);
         await switchedWhileParsingJson(browser);await falseSuccessRead(browser);
+        await malformedJsonRead(browser);await duplicateProfileWrite(browser);
+        await pagehideClearsPrivateAccount(browser);
         await switchedDuringSuccessfulWrite(browser);
         for(const [id,endpoint] of [
             ['mfaDisableBtn','/api/auth/mfa/disable'],
@@ -257,6 +299,6 @@ async function deniedSecurityWrite(browser,id,endpoint){
             ['sessionRevokeOthersBtn','/api/auth/sessions/revoke-others'],
             ['sessionRevokeAllBtn','/api/auth/sessions/revoke-all']
         ])await deniedSecurityWrite(browser,id,endpoint);
-        console.log('Account Profile Chromium PASS: English/Bangla, desktop/mobile, verified read gating, validation, private denial stale tenant suppression, in-flight write isolation, post-JSON tenant race, false-success denial, accessible password toggles and denied security-action fail-closed (synthetic API).');
+        console.log('Account Profile Chromium PASS: English/Bangla, desktop/mobile, verified read gating, validation, private denial stale tenant suppression, in-flight write isolation, post-JSON tenant race, malformed JSON privacy, duplicate-write guard, BFCache pagehide privacy, false-success denial, accessible password toggles and denied security-action fail-closed (synthetic API).');
     }finally{await browser.close();}
 })().catch(e=>{console.error(e);process.exitCode=1;});

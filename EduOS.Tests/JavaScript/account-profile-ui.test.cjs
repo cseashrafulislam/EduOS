@@ -63,7 +63,7 @@ test('profile write responses and denied security actions stay fail-closed', () 
 });
 
 test('profile rejects a successful-looking response after JSON parsing or scope drift', () => {
-    assert.match(script,/const payload = await response\.json\(\);/);
+    assert.match(script,/payload = await response\.json\(\);/);
     assert.match(script,/if \(payload\?\.success !== true\)/);
     const tail=script.slice(script.indexOf('const payload = await response.json();'));
     assert.match(tail,/document\.body\?\.dataset\.authSessionReference !== expectedSession/);
@@ -82,4 +82,22 @@ test('profile MFA and password actions are localized and toggles announce their 
     assert.equal((view.match(/data-hide-label=/g)||[]).length,3);
     assert.match(script,/button\.setAttribute\('aria-pressed', String\(showPassword\)\)/);
     assert.match(script,/button\.setAttribute\('aria-label', showPassword/);
+});
+
+
+test('profile prevents overlapping privileged requests and clears BFCache-sensitive state', () => {
+    assert.match(script,/const profilePendingActions = new Set\(\)/);
+    assert.match(script,/if \(profileLocked \|\| profilePendingActions.size > 0\) return false/);
+    assert.match(script,/if \(!beginProfileAction\('sessionOperation'\)\) return/);
+    assert.match(script,/if \(!beginProfileAction\('saveProfileBtn'\)\) return/);
+    assert.match(script,/if \(!beginProfileAction\('changePasswordBtn'\)\) return/);
+    assert.match(script,/if \(!beginProfileAction\(id\)\) return/);
+    assert.match(script,/if \(revokePending \|\| profileLocked \|\| !sessionsReady\) return/);
+    assert.match(script,/window\.addEventListener\('pagehide', lockProfile\)/);
+    assert.match(script,/if \(event\.persisted\)/);
+    assert.match(script,/if \(revision === profileAlertRevision\) container\.replaceChildren\(\)/);
+    assert.match(script,/mfaReady = false;\s*throw new Error\(profileText\("Recovery codes were not returned\."\)\)/);
+    const browser = read('tests/browser/account-profile.cjs');
+    for (const scenario of ['malformedJsonRead','duplicateProfileWrite','pagehideClearsPrivateAccount'])
+        assert(browser.includes(scenario), scenario);
 });

@@ -63,6 +63,19 @@ let profileReady = false;
 let mfaReady = false;
 let mfaEnabled = false;
 let sessionsReady = false;
+// Prevent overlapping privileged requests even when a form is submitted programmatically.
+const profilePendingActions = new Set();
+let profileAlertRevision = 0;
+function beginProfileAction(id) {
+    if (profileLocked || profilePendingActions.size > 0) return false;
+    profilePendingActions.add(id);
+    syncAccountActions();
+    return true;
+}
+function finishProfileAction(id) {
+    profilePendingActions.delete(id);
+    syncAccountActions();
+}
 function syncAccountActions() {
     const availability = {
         saveProfileBtn: profileReady, changePasswordBtn: profileReady,
@@ -73,7 +86,10 @@ function syncAccountActions() {
     };
     for (const [id, allowed] of Object.entries(availability)) {
         const button = document.getElementById(id);
-        if (button) button.disabled = profileLocked || !allowed;
+        if (button) button.disabled = profileLocked || !allowed || profilePendingActions.size > 0;
+    }
+    if (profilePendingActions.size > 0) {
+        document.querySelectorAll('#sessionList button').forEach(button => { button.disabled = true; });
     }
 }
 
@@ -82,6 +98,7 @@ let mfaReadGeneration = 0;
 let sessionsReadGeneration = 0;
 function lockProfile() {
     profileLocked = true;
+    ++profileAlertRevision;
     profileReady = false;
     mfaReady = false; sessionsReady = false;
     ++profileReadGeneration; ++mfaReadGeneration; ++sessionsReadGeneration;
@@ -117,6 +134,15 @@ document.addEventListener('DOMContentLoaded', function () {
     loadMfaStatus();
     initializeAuthSecurityControls();
     loadActiveSessions();
+});
+// A restored browser back-forward cache must never display a previous institution's
+// profile, recovery codes or device list before the current cookie is revalidated.
+window.addEventListener('pagehide', lockProfile);
+window.addEventListener('pageshow', event => {
+    if (event.persisted) {
+        lockProfile();
+        window.location.reload();
+    }
 });
 
 // ============================================================
@@ -232,6 +258,7 @@ async function updateProfile() {
         return;
     }
 
+    if (!beginProfileAction('saveProfileBtn')) return;
     const button = document.getElementById('saveProfileBtn');
 
     setLoading(button, true, profileText("Saving..."));
@@ -269,12 +296,14 @@ async function updateProfile() {
             error.message || profileText("Profile update failed.")
         );
     } finally {
+        finishProfileAction('saveProfileBtn');
         setLoading(
             button,
             false,
             `<i class="bi bi-check-circle me-1"></i> ${profileText('Save Changes')}`,
             true
         );
+        syncAccountActions();
     }
 }
 
@@ -351,6 +380,7 @@ async function changePassword() {
         return;
     }
 
+    if (!beginProfileAction('changePasswordBtn')) return;
     const button = document.getElementById('changePasswordBtn');
 
     setLoading(button, true, profileText("Changing..."));
@@ -385,12 +415,14 @@ async function changePassword() {
             error.message || profileText("Password change failed.")
         );
     } finally {
+        finishProfileAction('changePasswordBtn');
         setLoading(
             button,
             false,
             `<i class="bi bi-shield-check me-1"></i> ${profileText('Change Password')}`,
             true
         );
+        syncAccountActions();
     }
 }
 
@@ -499,7 +531,19 @@ async function apiRequest(url, options = {}) {
         throw new Error(profileText('Request failed. Please retry.'));
     // Parsing JSON is asynchronous: a tenant/session transition can occur after
     // response headers were verified but before the private payload is available.
-    const payload = await response.json();
+    let payload;
+    try {
+        payload = await response.json();
+    } catch {
+        // Never display parser exceptions: they may contain private response fragments.
+        if (profileLocked || document.body?.dataset.authSessionReference !== expectedSession ||
+            document.body?.dataset.authTenantId !== expectedTenant ||
+            window.EduOSSessionTransitionPending?.() === true) {
+            lockProfile();
+            throw new Error(profileText('Account session changed. Reload to continue.'));
+        }
+        throw new Error(profileText('Request failed. Please retry.'));
+    }
     if (profileLocked || document.body?.dataset.authSessionReference !== expectedSession ||
         document.body?.dataset.authTenantId !== expectedTenant ||
         window.EduOSSessionTransitionPending?.() === true) {
@@ -642,6 +686,8 @@ function setText(id, value) {
 // ============================================================
 
 function showAlert(type, message) {
+    if (profileLocked && type === 'success') return;
+    const revision = ++profileAlertRevision;
     const container =
         document.getElementById('alertContainer');
 
@@ -665,7 +711,7 @@ function showAlert(type, message) {
     `;
 
     window.setTimeout(function () {
-        container.innerHTML = '';
+        if (revision === profileAlertRevision) container.replaceChildren();
     }, 5000);
 }
 
@@ -740,17 +786,24 @@ function initializeAuthSecurityControls() {
                 showAlert('danger', profileText("Current password and verification code are required."));
                 return;
             }
+            if (!beginProfileAction(id)) return;
             button.disabled = true;
             try {
                 const result = await authSecurityPost(url, { currentPassword, code, useRecoveryCode }, true);
                 document.getElementById('mfaManagePassword').value = '';
                 document.getElementById('mfaManageCode').value = '';
                 if (id === 'mfaDisableBtn') {
+                    lockProfile();
                     window.location.assign('/Account/Login');
                     return;
                 }
                 const codes = result?.data?.recoveryCodes;
-                if (!Array.isArray(codes)) throw new Error(profileText("Recovery codes were not returned."));
+                if (!Array.isArray(codes) || codes.length === 0 ||
+                    !codes.every(value => typeof value === 'string' && value.length > 0)) {
+                    // Rotation may have committed; never offer another blind rotation.
+                    mfaReady = false;
+                    throw new Error(profileText("Recovery codes were not returned."));
+                }
                 const list = document.getElementById('mfaNewCodes');
                 list?.replaceChildren();
                 for (const codeValue of codes) {
@@ -759,12 +812,16 @@ function initializeAuthSecurityControls() {
                     list?.appendChild(item);
                 }
                 document.getElementById('mfaNewCodesPanel')?.classList.remove('d-none');
+                // A successful rotation is one-time: preserve the displayed codes and
+                // require a fresh verified status read before any further MFA mutation.
+                mfaReady = false;
                 document.getElementById('mfaRegenerateBtn').disabled = true;
                 document.getElementById('mfaDisableBtn').disabled = true;
                 showAlert('success', profileText("Recovery codes regenerated. Save them before signing in again."));
             } catch (error) {
                 showAlert('danger', error.message || profileText("Unable to update MFA settings."));
             } finally {
+                finishProfileAction(id);
                 if (document.getElementById('mfaNewCodesPanel')?.classList.contains('d-none') !== false)
                     syncAccountActions();
             }
@@ -780,6 +837,7 @@ function initializeAuthSecurityControls() {
             input?.focus();
             return;
         }
+        if (!beginProfileAction('sessionRevokeOthersBtn')) return;
         button.disabled = true;
         try {
             await authSecurityPost('/api/auth/sessions/revoke-others', { currentPassword });
@@ -789,7 +847,7 @@ function initializeAuthSecurityControls() {
         } catch (error) {
             showAlert('danger', error.message || button.dataset.failed || profileText("Unable to revoke other sessions."));
         } finally {
-            syncAccountActions();
+            finishProfileAction('sessionRevokeOthersBtn');
         }
     });
 
@@ -800,13 +858,16 @@ function initializeAuthSecurityControls() {
             showAlert('danger', profileText("Enter your current password to sign out all devices."));
             return;
         }
+        if (!beginProfileAction('sessionRevokeAllBtn')) return;
         button.disabled = true;
         try {
             await authSecurityPost('/api/auth/sessions/revoke-all', { currentPassword });
+            lockProfile();
             window.location.assign('/Account/Login');
         } catch (error) {
             showAlert('danger', error.message || profileText("Unable to revoke sessions."));
-            syncAccountActions();
+        } finally {
+            finishProfileAction('sessionRevokeAllBtn');
         }
     });
 }
@@ -842,7 +903,9 @@ async function loadActiveSessions() {
             revoke.type = 'button';
             revoke.className = 'btn btn-sm btn-outline-danger';
             revoke.textContent = container.dataset.revoke || profileText("Revoke");
+            let revokePending = false;
             revoke.addEventListener('click', async () => {
+                if (revokePending || profileLocked || !sessionsReady) return;
                 const input = document.getElementById('sessionRevokePassword');
                 const currentPassword = input?.value || '';
                 if (!session.isCurrent && !currentPassword) {
@@ -850,19 +913,28 @@ async function loadActiveSessions() {
                     input?.focus();
                     return;
                 }
+                if (!beginProfileAction('sessionOperation')) return;
+                revokePending = true;
                 revoke.disabled = true;
                 try {
                     await authSecurityPost('/api/auth/sessions/revoke', {
                         sessionId: session.sessionId,
                         currentPassword: session.isCurrent ? null : currentPassword
                     });
-                    if (session.isCurrent) window.location.assign('/Account/Login');
+                    if (session.isCurrent) {
+                        lockProfile();
+                        window.location.assign('/Account/Login');
+                    }
                     else {
                         if (input) input.value = '';
                         await loadActiveSessions();
                     }
                 } catch (error) {
                     showAlert('danger', error.message || container.dataset.revokeError || profileText("Unable to revoke session."));
+                    revoke.disabled = profileLocked || !sessionsReady;
+                } finally {
+                    revokePending = false;
+                    finishProfileAction('sessionOperation');
                     revoke.disabled = profileLocked || !sessionsReady;
                 }
             });
