@@ -4,6 +4,7 @@ on:
     branches: [Ashraful]
     paths:
       - 'EduOS.App/wwwroot/js/platform/feature-discovery.js'
+      - 'EduOS.App/wwwroot/js/sidebar-navigation.js'
       - 'EduOS.App/Views/Shared/_Layout.cshtml'
       - 'tests/browser/feature-discovery.cjs'
       - '.github/workflows/feature-discovery-browser.yml'

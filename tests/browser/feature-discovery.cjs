@@ -7,6 +7,7 @@ const path = require('node:path');
 const { chromium } = require('playwright');
 const root = path.resolve(__dirname, '../..');
 const scriptPath = path.join(root, 'EduOS.App/wwwroot/js/platform/feature-discovery.js');
+const sidebarScriptPath = path.join(root, 'EduOS.App/wwwroot/js/sidebar-navigation.js');
 const layout = fs.readFileSync(path.join(root, 'EduOS.App/Views/Shared/_Layout.cshtml'), 'utf8');
 for (const id of ['sidebarMenu','featureSearchOpen','featureSearchDialog','featureSearchInput','featureSearchResults','featureSearchClose'])
     assert(layout.includes('id="' + id + '"'), 'Shared Razor layout missing ' + id);
@@ -16,8 +17,15 @@ function html(bn, tenant) {
         '<body data-auth-tenant-id="' + tenant + '" data-auth-session-reference="' + session + '">' +
         '<div id="eduosSessionShield" hidden></div>' +
         '<aside id="sidebarMenu"><div class="menu-title">Academics</div>' +
-        '<nav data-sidebar-section="academics"><a class="nav-link" href="/Students/Index" aria-current="page">Students</a>' +
-        '<a class="nav-link" href="/FeeOperations/Index">Fee collection</a></nav></aside>' +
+        '<nav data-sidebar-section="academics"><a class="nav-link" href="/Students/Index" aria-current="page"><span>Students</span></a>' +
+        '<a class="nav-link" href="/FeeOperations/Index"><span>'+(bn?'ফি ও বিলিং':'Fee collection')+'</span></a>' +
+        '<a class="nav-link" href="/Admissions/Index"><span>Admissions</span></a></nav>' +
+        '<div class="menu-title">Management</div><nav data-sidebar-section="management">' +
+        '<a class="nav-link" href="/PayrollOperations/Index"><span>Payroll</span></a>' +
+        '<a class="nav-link" href="/AccountingReports/Index"><span>Accounting Reports</span></a>' +
+        '<a class="nav-link" href="/AssetLifecycle/Index"><span>Fixed Assets</span></a>' +
+        '<a class="nav-link" href="/AuditLogs/Index" aria-label="Audit trail"><svg aria-hidden="true"></svg></a>' +
+        '</nav></aside>' +
         '<button id="featureSearchOpen" type="button">Search features</button>' +
         '<dialog id="featureSearchDialog"><button id="featureSearchClose" type="button">Close</button>' +
         '<input id="featureSearchInput" type="search"><div id="featureSearchResults"></div></dialog>' +
@@ -40,6 +48,8 @@ async function setup(browser, bn=false, tenant='22', mobile=false) {
     });
     await page.route('http://eduos.test/**', route => route.fulfill({contentType:'text/html; charset=utf-8',body:html(bn,tenant)}));
     await page.goto('http://eduos.test/Dashboard/Index');
+    // Match production _Layout script order: sidebar translation/grouping first.
+    await page.addScriptTag({path:sidebarScriptPath});
     await page.addScriptTag({path:scriptPath});
     return {context,page,errors};
 }
@@ -49,6 +59,10 @@ async function english(browser) {
         await page.keyboard.press('Control+k');
         await page.locator('#featureSearchDialog[open]').waitFor();
         assert.equal(await page.locator('#featureSearchInput').evaluate(e=>document.activeElement===e),true);
+        await page.locator('#featureSearchInput').fill('Audit trail');
+        assert.match(await page.locator('#featureSearchResults').innerText(),/Audit trail/);
+        await page.locator('#featureSearchInput').fill('Payroll');
+        assert.match(await page.locator('#featureSearchResults').innerText(),/Payroll/);
         await page.locator('#featureSearchInput').fill('fee');
         await page.getByRole('button',{name:'Add to favorites: Fee collection'}).click();
         assert.equal(await page.getByRole('button',{name:'Remove from favorites: Fee collection'}).getAttribute('aria-pressed'),'true');
@@ -66,8 +80,16 @@ async function isolation(browser) {
     try {
         await page.locator('#featureSearchOpen').click();
         await page.locator('#featureSearchDialog[open]').waitFor();
-        await page.locator('#featureSearchInput').fill('ফি');
-        assert.match(await page.locator('#featureSearchResults').innerText(),/ফি ও বিলিং/);
+        assert.equal(await page.locator('#sidebarMenu a[href="/Students/Index"]').innerText(),'শিক্ষার্থী তালিকা');
+        for (const [query, expected] of [
+            ['বেতন', 'বেতন ব্যবস্থাপনা'],
+            ['স্থায়ী সম্পদ', 'স্থায়ী সম্পদ ও রক্ষণাবেক্ষণ'],
+            ['নিরীক্ষার লগ', 'নিরীক্ষার লগ'],
+            ['ফি', 'ফি ও বিলিং']
+        ]) {
+            await page.locator('#featureSearchInput').fill(query);
+            assert.match(await page.locator('#featureSearchResults').innerText(),new RegExp(expected));
+        }
         await page.evaluate(()=>{document.getElementById('eduosSessionShield').hidden=false;});
         await page.locator('#featureSearchInput').fill('শিক্ষার্থী');
         assert.equal(await page.locator('#featureSearchDialog').evaluate(e=>e.open),false);
@@ -86,6 +108,6 @@ async function isolation(browser) {
 (async()=>{
     const browser=await chromium.launch({headless:true,args:['--no-sandbox']});
     try { await english(browser); await isolation(browser);
-        console.log('Feature discovery Chromium PASS: keyboard, bilingual mobile, favorites, verified navigation, session shield and tenant change (synthetic session/menu).');
+        console.log('Feature discovery Chromium PASS: canonical sidebar labels across Academics/Finance/Payroll/Assets/Audit, icon-only accessible links, keyboard, bilingual mobile, favorites, verified navigation and tenant isolation (synthetic session/menu).');
     } finally { await browser.close(); }
 })().catch(e=>{console.error(e);process.exitCode=1;});

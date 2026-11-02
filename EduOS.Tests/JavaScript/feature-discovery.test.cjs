@@ -8,6 +8,8 @@ const read = relative => fs.readFileSync(path.join(root, relative), 'utf8');
 const layout = read('EduOS.App/Views/Shared/_Layout.cshtml');
 const styles = read('EduOS.App/wwwroot/css/site.css');
 const script = read('EduOS.App/wwwroot/js/platform/feature-discovery.js');
+const sidebarScript = read('EduOS.App/wwwroot/js/sidebar-navigation.js');
+const { navigationLabelFor } = require('../../EduOS.App/wwwroot/js/sidebar-navigation.js');
 const { safeDestination, makeCatalog, filterCatalog, scopedState, remember, contextStatus } =
     require('../../EduOS.App/wwwroot/js/platform/feature-discovery.js');
 
@@ -101,4 +103,23 @@ test('feature discovery fails closed on tenant/session change and temporary sess
     assert.match(script, /trigger\.disabled = true/);
     assert.match(script, /document\.addEventListener\('visibilitychange'/);
     assert.doesNotMatch(script, /window\.location\.replace\(entry\.href\)/);
+});
+
+
+test('feature search inherits the canonical bilingual sidebar labels, including icon-only links', () => {
+    for (const [route, label] of [
+        ['/Students/Index', 'শিক্ষার্থী তালিকা'],
+        ['/Admissions/Index', 'ভর্তির আবেদন'],
+        ['/PayrollOperations/Index', 'বেতন ব্যবস্থাপনা'],
+        ['/AccountingReports/Index', 'জেনারেল লেজার ও ট্রায়াল ব্যালেন্স'],
+        ['/AssetLifecycle/Index', 'স্থায়ী সম্পদ ও রক্ষণাবেক্ষণ'],
+        ['/AuditLogs/Index', 'নিরীক্ষার লগ']
+    ]) {
+        assert.equal(navigationLabelFor(route, 'bn-BD'), label);
+        assert.equal(navigationLabelFor(route, 'en-BD'), null);
+    }
+    assert.match(sidebarScript, /label\.textContent = translated/);
+    assert.match(script, /link\.getAttribute\('aria-label'\)\?\.trim\(\)/);
+    assert.doesNotMatch(script, /const translated = bangla/);
+    assert.match(layout, /sidebar-navigation\.js" asp-append-version="true"[\s\S]*feature-discovery\.js" asp-append-version="true"/);
 });

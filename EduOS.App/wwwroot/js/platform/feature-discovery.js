@@ -86,15 +86,8 @@
         : { favorites: 'Favorites', recent: 'Recent', available: 'Available features',
             empty: 'No matching feature is available for your access.',
             star: 'Add to favorites', unstar: 'Remove from favorites' };
-    const translated = bangla ? {
-        '/admissions/index': 'ভর্তি', '/students/index': 'শিক্ষার্থী',
-        '/attendance/index': 'উপস্থিতি', '/feeoperations/index': 'ফি ও বিলিং',
-        '/payrolloperations/index': 'বেতন ব্যবস্থাপনা',
-        '/accountingreports/index': 'হিসাব প্রতিবেদন',
-        '/assetlifecycle/index': 'স্থায়ী সম্পদ',
-        '/workspace': 'ওয়ার্কস্পেস ডিজাইন'
-    } : {};
-
+    // Labels come from the already-localized, server-authorized sidebar.
+    // Do not maintain a second partial route-to-Bangla map in feature search.
     const rawLinks = [
         ...sidebar.querySelectorAll('nav[data-sidebar-section] a.nav-link'),
         ...document.querySelectorAll('a[data-feature-discovery-link]')
@@ -102,10 +95,10 @@
     const catalog = makeCatalog(rawLinks.map(link => {
         const nav = link.closest('nav[data-sidebar-section]');
         const group = link.closest('.sidebar-group')?.querySelector('.sidebar-group-label')?.textContent || '';
-        const path = safeDestination(link.getAttribute('href'));
         return {
             href: link.getAttribute('href'),
-            label: translated[path?.toLowerCase()] || link.textContent || link.getAttribute('aria-label'),
+            label: link.querySelector('span')?.textContent?.trim() ||
+                link.textContent?.trim() || link.getAttribute('aria-label')?.trim(),
             section: nav?.previousElementSibling?.classList.contains('menu-title')
                 ? nav.previousElementSibling.textContent : (link.dataset.featureDiscoverySection || ''),
             group
