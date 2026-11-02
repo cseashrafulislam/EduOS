@@ -46,6 +46,18 @@ test('all reviewed route manuals have full bilingual structure, matching steps a
         assert.notEqual(en.purpose, bn.purpose);
     }
 });
+test('visitor occupancy manual v4 matches the real manager-only admission workflow', () => {
+    const view = read('EduOS.App/Views/FacilityVisitors/Index.cshtml');
+    const en = guideFor('/FacilityVisitors/Index', 'en-BD');
+    const bn = guideFor('/FacilityVisitors/Index', 'bn-BD');
+    assert.equal(en.version, 4);
+    assert.equal(bn.version, 4);
+    assert.match(view, /id="fvOccupancy"/);
+    assert.match(en.steps.join(' '), /View occupancy/);
+    assert.match(bn.steps.join(' '), /উপস্থিতি দেখুন/);
+    assert.match(en.rules, /not physical anti-tailgating/);
+    assert.match(bn.recovery, /উপস্থিতির সীমা পূর্ণ/);
+});
 test('unverified and malicious routes cannot inherit a generic or privileged manual', () => {
     for (const route of ['/Admin/Index', '/FeeOperations/Other', '/FeeOperations/Index?tenant=2',
         '//evil.example', '/PayrollOperations/Index#private', '/']) {

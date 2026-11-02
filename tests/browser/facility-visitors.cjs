@@ -58,6 +58,8 @@ async function run(browser, bn, manager, mobile) {
     });
     try {
         await page.goto('http://localhost/FacilityVisitors/Index');
+        assert.equal(await page.locator('#fvOccupancy').count(), manager ? 1 : 0,
+            'Manager-only occupancy form must not appear for a host');
         await page.evaluate(() => {
             document.body.dataset.authTenantId = 'test-tenant';
             document.body.dataset.authSessionReference = 'visitor-session';
