@@ -65,7 +65,7 @@ test('profile write responses and denied security actions stay fail-closed', () 
 test('profile rejects a successful-looking response after JSON parsing or scope drift', () => {
     assert.match(script,/payload = await response\.json\(\);/);
     assert.match(script,/if \(payload\?\.success !== true\)/);
-    const tail=script.slice(script.indexOf('const payload = await response.json();'));
+    const tail=script.slice(script.indexOf('payload = await response.json();'));
     assert.match(tail,/document\.body\?\.dataset\.authSessionReference !== expectedSession/);
     assert.match(tail,/document\.body\?\.dataset\.authTenantId !== expectedTenant/);
     assert.match(script,/typeof profile\.fullName !== 'string'/);
