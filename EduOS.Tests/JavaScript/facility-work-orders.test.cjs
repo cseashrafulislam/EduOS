@@ -27,6 +27,16 @@ test('manager technician discovery is scoped, paged and never accepts guessed ID
     assert.match(script, /সময়সীমা যাচাই করে উপলব্ধ টেকনিশিয়ান নির্বাচন করুন/);
 });
 
+test('technician start requires active schedule and approved vendor windows at commit time', () => {
+    const service = fs.readFileSync(path.join(__dirname,
+        '../../EduOS.Service/Services/Facilities/FacilityWorkflowService.cs'), 'utf8');
+    assert.match(service, /order\.ScheduledStartUtc is not DateTime scheduleFrom \|\| scheduleFrom > now/);
+    assert.match(service, /order\.VendorStartUtc is not DateTime vendorFrom \|\| vendorFrom > now/);
+    assert.match(service, /commitScheduleStart > commitNow/);
+    assert.match(service, /commitVendorStart > commitNow/);
+    assert.match(view, /Start work only during the active technician schedule/);
+});
+
 test('approved vendor selection is bounded, campus scoped and requires independent approval', () => {
     const service = fs.readFileSync(path.join(__dirname,
         '../../EduOS.Service/Services/Facilities/FacilityWorkflowService.cs'), 'utf8');

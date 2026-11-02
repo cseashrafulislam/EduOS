@@ -801,14 +801,19 @@ public sealed class FacilityWorkflowService(
             case "start":
                 // Revalidate the live Procurement supplier before consuming an
                 // approved booking; keep its row locked through start + audit.
+                // The worker must enter the authorized scheduled window, not merely
+                // start any time before its end. A future assignment is not
+                // permission to begin work early.
                 if (order?.StateCode != "Scheduled" || order.VendorStateCode == "Proposed" ||
+                    order.ScheduledStartUtc is not DateTime scheduleFrom || scheduleFrom > now ||
                     order.ScheduledEndUtc is not DateTime scheduleUntil || scheduleUntil <= now)
                     return ApiResponse<FacilityRequestDto>.ErrorResponse(
-                        "Work-order schedule expired or is not ready; reload.", 409);
+                        "Work-order schedule is not active; wait for its start or reload.", 409);
                 if (order.VendorStateCode == "Approved")
                 {
                     if (order.VendorSupplierId is not long bookedVendorId || bookedVendorId <= 0 ||
-                        order.VendorEndUtc is not DateTime vendorUntil || vendorUntil <= now)
+                        order.VendorStartUtc is not DateTime vendorFrom || vendorFrom > now ||
+                         order.VendorEndUtc is not DateTime vendorUntil || vendorUntil <= now)
                         return ApiResponse<FacilityRequestDto>.ErrorResponse(
                             "Vendor booking expired or incomplete; release and rebook before starting.", 409);
                     if (scheduleTransaction != null)
@@ -885,10 +890,13 @@ public sealed class FacilityWorkflowService(
                 return ApiResponse<FacilityRequestDto>.ErrorResponse(
                     "Vendor booking start elapsed while validating; propose a new window.", 409);
             if (action == "start" &&
-                (order?.ScheduledEndUtc <= commitNow ||
-                 (order?.VendorStateCode == "Approved" && order.VendorEndUtc <= commitNow)))
+                (order?.ScheduledStartUtc is not DateTime commitScheduleStart ||
+                 commitScheduleStart > commitNow || order.ScheduledEndUtc <= commitNow ||
+                 (order.VendorStateCode == "Approved" &&
+                  (order.VendorStartUtc is not DateTime commitVendorStart ||
+                   commitVendorStart > commitNow || order.VendorEndUtc <= commitNow))))
                 return ApiResponse<FacilityRequestDto>.ErrorResponse(
-                    "Work-order or vendor window elapsed while validating; reload.", 409);
+                    "Work-order or vendor window is not active after validation; reload.", 409);
             if (action == "start") order!.StartedAtUtc = commitNow;
             now = commitNow;
         }

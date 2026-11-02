@@ -1021,11 +1021,37 @@ public sealed class SqlServerFacilityWorkOrderTests
             Assert.Equal(0, await db.Set<FacilityWorkflowEvent>().CountAsync(x =>
                 x.FacilityServiceRequestId == submitted.Id && x.ActionCode == "start"));
         }
-        // The first three clock reads pass; the pre-commit fourth read expires.
+        // The assigned technician cannot start before the scheduled window.
+        // A separately approved vendor booking may begin later than the
+        // technician schedule; it must also be active at the actual start.
+        await using (var db = Db(options, tenantId, techId, "FacilitiesTechnician"))
+        {
+            var service = Service(db, tenantId, techId, "FacilitiesTechnician");
+            var early = await service.TransitionAsync(submitted.Id, "start",
+                new FacilityTransitionDto
+                { ClientCommandId = Guid.NewGuid(), RowVersion = scheduled.WorkOrderRowVersion! });
+            Assert.Equal(409, early.StatusCode);
+            Assert.Equal(0, await db.FacilityWorkflowEvents.CountAsync(x =>
+                x.FacilityServiceRequestId == submitted.Id && x.ActionCode == "start"));
+        }
+        await using (var db = Db(options, tenantId, techId, "FacilitiesTechnician"))
+        {
+            var service = Service(db, tenantId, techId, "FacilitiesTechnician",
+                new ShiftedClock(TimeSpan.FromMinutes(20)));
+            var beforeVendor = await service.TransitionAsync(submitted.Id, "start",
+                new FacilityTransitionDto
+                { ClientCommandId = Guid.NewGuid(), RowVersion = scheduled.WorkOrderRowVersion! });
+            Assert.Equal(409, beforeVendor.StatusCode);
+            Assert.Equal("Scheduled", (await db.FacilityWorkOrders.AsNoTracking()
+                .SingleAsync(x => x.FacilityServiceRequestId == submitted.Id)).StateCode);
+            Assert.Equal(0, await db.FacilityWorkflowEvents.CountAsync(x =>
+                x.FacilityServiceRequestId == submitted.Id && x.ActionCode == "start"));
+        }
+        // Initial reads are inside both windows; the pre-commit read expires.
         await using (var db = Db(options, tenantId, techId, "FacilitiesTechnician"))
         {
             var drift = await Service(db, tenantId, techId, "FacilitiesTechnician",
-                new StepClock(4, TimeSpan.FromHours(5)))
+                new StepClock(4, TimeSpan.FromHours(5), TimeSpan.FromMinutes(50)))
                 .TransitionAsync(submitted.Id, "start", new FacilityTransitionDto
                 { ClientCommandId = Guid.NewGuid(), RowVersion = scheduled.WorkOrderRowVersion! });
             Assert.Equal(409, drift.StatusCode);
@@ -1037,16 +1063,23 @@ public sealed class SqlServerFacilityWorkOrderTests
         FacilityRequestDto started;
         await using (var db = Db(options, tenantId, techId, "FacilitiesTechnician"))
         {
-            var result = await Service(db, tenantId, techId, "FacilitiesTechnician").TransitionAsync(
+            var result = await Service(db, tenantId, techId, "FacilitiesTechnician",
+                new ShiftedClock(TimeSpan.FromMinutes(50))).TransitionAsync(
                 submitted.Id, "start", new FacilityTransitionDto
                 { ClientCommandId = Guid.NewGuid(), RowVersion = scheduled.WorkOrderRowVersion! });
             Assert.True(result.Success, result.Message);
             started = result.Data!;
+            var persisted = await db.FacilityWorkOrders.AsNoTracking()
+                .SingleAsync(x => x.FacilityServiceRequestId == submitted.Id);
+            Assert.NotNull(persisted.StartedAtUtc);
+            Assert.InRange(persisted.StartedAtUtc!.Value, competingVendorStart, competingVendorEnd);
+            Assert.True(persisted.StartedAtUtc >= scheduled.ScheduledStartUtc);
         }
         FacilityRequestDto completed;
         await using (var db = Db(options, tenantId, techId, "FacilitiesTechnician"))
         {
-            var service = Service(db, tenantId, techId, "FacilitiesTechnician");
+            var service = Service(db, tenantId, techId, "FacilitiesTechnician",
+                new ShiftedClock(TimeSpan.FromMinutes(55)));
             var completionId = Guid.NewGuid();
             FacilityTransitionDto Completion(string evidence) => new()
             {
@@ -1107,7 +1140,8 @@ public sealed class SqlServerFacilityWorkOrderTests
         }
         await using (var db = Db(options, tenantId, techId, "FacilitiesTechnician"))
         {
-            var result = await Service(db, tenantId, techId, "FacilitiesTechnician")
+            var result = await Service(db, tenantId, techId, "FacilitiesTechnician",
+                    new ShiftedClock(TimeSpan.FromMinutes(56)))
                 .TransitionAsync(submitted.Id, "complete", new FacilityTransitionDto
                 { ClientCommandId = Guid.NewGuid(), RowVersion = completed.WorkOrderRowVersion!,
                   Note = "Replaced unsafe connector and retested the hallway circuit." });
@@ -1297,13 +1331,14 @@ public sealed class SqlServerFacilityWorkOrderTests
     }
 
     // Deterministic clock drift inside a single authoritative command.
-    private sealed class StepClock(int jumpAtRead, TimeSpan afterJump) : TimeProvider
+    private sealed class StepClock(int jumpAtRead, TimeSpan afterJump,
+        TimeSpan initialOffset = default) : TimeProvider
     {
         private int reads;
         public override DateTimeOffset GetUtcNow() =>
-            DateTimeOffset.UtcNow.Add(
-                global::System.Threading.Interlocked.Increment(ref reads) >= jumpAtRead
-                    ? afterJump : TimeSpan.Zero);
+            DateTimeOffset.UtcNow.Add(initialOffset +
+                (global::System.Threading.Interlocked.Increment(ref reads) >= jumpAtRead
+                    ? afterJump : TimeSpan.Zero));
     }
 
     private sealed class Principal(long tenant, long id, string role) : ICurrentUserService
