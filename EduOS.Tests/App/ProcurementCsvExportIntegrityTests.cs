@@ -19,6 +19,8 @@ public sealed class ProcurementCsvExportIntegrityTests
     private static ProcurementGoodsReceiptDto Receipt(int id, decimal cost = 10m) => new()
     {
         Reference = Guid.Parse($"00000000-0000-4000-8000-{id:D12}"),
+        PurchaseOrderId = 1, OrderNumber = "PO-1", CampusId = 1, LocationId = 1,
+        StateCode = "Posted", PostedMovementReference = Guid.Parse("11111111-1111-4111-8111-111111111111"),
         Lines = [new ProcurementGoodsReceiptLineDto
         { LineNo = 1, PurchaseOrderLineId = 1, InventoryItemId = 1, ApprovedPoQuantity = 1m, ApprovedPoUnitPrice = 10m, LotOrBatchNo = "+SUM(1,1)\r\nUNSAFE", Quantity = 1m, PostedUnitCost = cost }]
     };
@@ -109,7 +111,7 @@ public sealed class ProcurementCsvExportIntegrityTests
                     }).ToList();
                 break;
             case "posted-without-movement":
-                receipt.StateCode = "Posted";
+                receipt.PostedMovementReference = null;
                 break;
             case "posted-without-cost":
                 receipt.StateCode = "Posted";
@@ -147,6 +149,96 @@ public sealed class ProcurementCsvExportIntegrityTests
         var csv = Encoding.UTF8.GetString(result.FileContents);
         Assert.Contains(receipt.PostedMovementReference.Value.ToString(), csv);
         Assert.Contains("\"10\"", csv);
+    }
+
+
+    [Theory]
+    [InlineData("missing-po")]
+    [InlineData("missing-order-number")]
+    [InlineData("missing-campus")]
+    [InlineData("missing-location")]
+    [InlineData("invalid-state")]
+    [InlineData("overreceipt")]
+    [InlineData("quantity-precision")]
+    [InlineData("approved-quantity-precision")]
+    [InlineData("po-price-precision")]
+    [InlineData("posted-cost-precision")]
+    [InlineData("zero-posted-cost")]
+    [InlineData("missing-override-reason")]
+    [InlineData("split-inconsistent-po-quantity")]
+    [InlineData("split-inconsistent-po-price")]
+    [InlineData("split-inconsistent-item")]
+    [InlineData("split-aggregate-overreceipt")]
+    [InlineData("unposted-with-movement")]
+    [InlineData("unposted-with-cost")]
+    public async Task Receipt_csv_rejects_header_precision_split_lot_and_posting_evidence_conflicts(string defect)
+    {
+        var receipt = Receipt(1);
+        switch (defect)
+        {
+            case "missing-po": receipt.PurchaseOrderId = 0; break;
+            case "missing-order-number": receipt.OrderNumber = ""; break;
+            case "missing-campus": receipt.CampusId = 0; break;
+            case "missing-location": receipt.LocationId = 0; break;
+            case "invalid-state": receipt.StateCode = "Unknown"; break;
+            case "overreceipt": receipt.Lines[0].Quantity = 2m; break;
+            case "quantity-precision": receipt.Lines[0].Quantity = 0.1234567m; break;
+            case "approved-quantity-precision": receipt.Lines[0].ApprovedPoQuantity = 1.0000001m; break;
+            case "po-price-precision": receipt.Lines[0].ApprovedPoUnitPrice = 10.12345m; break;
+            case "posted-cost-precision": receipt.Lines[0].PostedUnitCost = 10.12345m; break;
+            case "zero-posted-cost": receipt.Lines[0].PostedUnitCost = 0m; break;
+            case "missing-override-reason": receipt.Lines[0].PostedUnitCost = 11m; break;
+            case "split-inconsistent-po-quantity":
+            case "split-inconsistent-po-price":
+            case "split-inconsistent-item":
+            case "split-aggregate-overreceipt":
+                receipt.Lines[0].Quantity = 0.6m;
+                receipt.Lines.Add(new ProcurementGoodsReceiptLineDto
+                {
+                    LineNo = 2, PurchaseOrderLineId = 1, InventoryItemId = 1,
+                    Quantity = defect == "split-aggregate-overreceipt" ? 0.5m : 0.4m,
+                    ApprovedPoQuantity = defect == "split-inconsistent-po-quantity" ? 2m : 1m,
+                    ApprovedPoUnitPrice = defect == "split-inconsistent-po-price" ? 12m : 10m,
+                    PostedUnitCost = 10m, LotOrBatchNo = "SECOND-LOT"
+                });
+                if (defect == "split-inconsistent-item") receipt.Lines[1].InventoryItemId = 2;
+                break;
+            case "unposted-with-movement":
+                receipt.StateCode = "Draft"; receipt.Lines[0].PostedUnitCost = null; break;
+            case "unposted-with-cost":
+                receipt.StateCode = "Submitted"; receipt.PostedMovementReference = null; break;
+        }
+        var inventory = new Mock<IInventoryMovementService>();
+        inventory.Setup(x => x.GetGoodsReceiptsAsync(null, null, 1, 100, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Ok(1, 1, receipt));
+        var result = Assert.IsType<ObjectResult>(
+            await new ProcurementGoodsReceiptsController(inventory.Object)
+                .Export(null, null, CancellationToken.None));
+        Assert.Equal(409, result.StatusCode);
+    }
+
+    [Fact]
+    public async Task Receipt_csv_accepts_two_lots_of_one_po_line_with_four_decimal_valuation()
+    {
+        var receipt = Receipt(1, 10.1234m);
+        receipt.Lines[0].Quantity = 0.4m;
+        receipt.Lines[0].ApprovedPoUnitPrice = 10.1234m;
+        receipt.Lines.Add(new ProcurementGoodsReceiptLineDto
+        {
+            LineNo = 2, PurchaseOrderLineId = 1, InventoryItemId = 1,
+            Quantity = 0.6m, ApprovedPoQuantity = 1m, ApprovedPoUnitPrice = 10.1234m,
+            PostedUnitCost = 10.1234m, LotOrBatchNo = "LOT-B"
+        });
+        var inventory = new Mock<IInventoryMovementService>();
+        inventory.Setup(x => x.GetGoodsReceiptsAsync(null, null, 1, 100, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Ok(1, 1, receipt));
+        var file = Assert.IsType<FileContentResult>(
+            await new ProcurementGoodsReceiptsController(inventory.Object)
+                .Export(null, null, CancellationToken.None));
+        var csv = Encoding.UTF8.GetString(file.FileContents);
+        Assert.Contains("LOT-B", csv);
+        Assert.Contains("\"10.1234\"", csv);
+        Assert.Contains(receipt.PostedMovementReference!.Value.ToString(), csv);
     }
 
     [Fact]
