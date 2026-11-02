@@ -102,10 +102,10 @@ export function validateConfig(env) {
         'AUDIT_MAX_PAGES must be 1..20.');
     const iterations = Number(env.ITERATIONS || 24);
     const concurrency = Number(env.CONCURRENCY || 4);
-    check(Number.isInteger(iterations) && iterations >= 1 && iterations <= 500,
-        'Iterations must be 1..500.');
-    check(Number.isInteger(concurrency) && concurrency >= 1 && concurrency <= 16,
-        'Concurrency must be 1..16.');
+    check(Number.isInteger(iterations) && iterations >= 5 && iterations <= 500,
+        'Iterations must be 5..500 for all baseline tenant scenarios.');
+    check(Number.isInteger(concurrency) && concurrency >= 2 && concurrency <= 16,
+        'Concurrency must be 2..16 for mixed-tenant replay.');
     return { base: base.origin, a: env.TENANT_A_COOKIE, b: env.TENANT_B_COOKIE,
         stock: env.STOCK_REFERENCE, asset: env.ASSET_REFERENCE,
         procurement: env.PROCUREMENT_REFERENCE || null,
@@ -159,6 +159,14 @@ export async function request(base, cookie, path, fetcher = fetch) {
         (path.startsWith(API + '/') || procurementApi.some(prefix =>
             path === prefix || path.startsWith(prefix + '/') || path.startsWith(prefix + '?'))),
         'Invalid API path.');
+    // A literal prefix is not sufficient: WHATWG URL parsing normalizes
+    // percent-encoded dot segments and can escape an approved API subtree.
+    // Check the raw pathname and its canonical URL before attaching a cookie.
+    const rawPath = path.split('?')[0];
+    const canonical = new URL(base + path);
+    check(!path.includes('#') && !/%(?:2e|2f|5c|00)/i.test(rawPath) &&
+        canonical.origin === new URL(base).origin &&
+        canonical.pathname === rawPath, 'Invalid API path.');
     const started = performance.now();
     const response = await fetcher(base + path, {
         method: 'GET', redirect: 'manual', cache: 'no-store',
@@ -179,6 +187,14 @@ export async function runAcceptance(config, fetcher = fetch) {
         restricted, assetCampus, otherCampus, pagedAudit = false, auditPages = 10 } = config;
     check(!supplierConfirmation || procurement,
         'Supplier confirmation requires canonical procurement reference.');
+    // A passing replay must actually exercise every authorized and foreign
+    // scenario. One request (or one worker) cannot establish concurrent IDOR.
+    const scenarioCount = 5 + (procurement ? 2 : 0) +
+        (supplierConfirmation ? 2 : 0);
+    check(Number.isInteger(iterations) && iterations >= scenarioCount &&
+        iterations <= 500 && Number.isInteger(concurrency) &&
+        concurrency >= 2 && concurrency <= 16,
+        'Mixed-tenant replay requires every scenario and at least two workers.');
     const noStore = result => check(result.cache.includes('no-store') ||
         result.cache.includes('no-cache'), 'Private response must not be cached.');
     const references = csv => {
@@ -351,6 +367,8 @@ export async function runAcceptance(config, fetcher = fetch) {
         }
     };
     await Promise.all(Array.from({ length: Math.min(iterations, concurrency) }, worker));
+    check(byScenario.size === paths.length,
+        'Mixed-tenant replay omitted an authorization scenario.');
     const replayWallMs = performance.now() - replayStart;
     return { checks: ['stock and asset detail/CSV IDOR and parity',
             'register JSON/CSV exact-page parity and cache isolation',

@@ -265,3 +265,34 @@ test('concurrent tenant replay emits bounded per-scenario percentiles without se
         !JSON.stringify(report).includes('b-session') &&
         !JSON.stringify(report).includes(stock));
 });
+
+test('HTTP acceptance rejects encoded path escapes before sending a tenant cookie', async () => {
+    const { request } = await import(source);
+    const noNetwork = async () => { throw new Error('Unsafe URL reached network.'); };
+    for (const path of [
+        '/api/v3/enterprise/ledger-trace/%2e%2e/admin',
+        '/api/v3/enterprise/ledger-trace/%2fadmin',
+        '/api/procurement/purchase-orders/%5cadmin',
+        '/api/v3/enterprise/ledger-trace/' + stock + '#fragment'
+    ]) await assert.rejects(request(config.base, config.a, path, noNetwork),
+        /Invalid API path/);
+});
+
+test('mixed-tenant replay fails before network when scenarios or concurrency are missing', async () => {
+    const { runAcceptance, validateConfig } = await import(source);
+    const noNetwork = async () => { throw new Error('Incomplete replay reached network.'); };
+    await assert.rejects(runAcceptance({ ...config, iterations: 4 }, noNetwork),
+        /Mixed-tenant replay requires every scenario/);
+    await assert.rejects(runAcceptance({ ...config, concurrency: 1 }, noNetwork),
+        /Mixed-tenant replay requires every scenario/);
+    await assert.rejects(runAcceptance({ ...config, procurement: stock,
+        iterations: 6 }, noNetwork), /Mixed-tenant replay requires every scenario/);
+    const env = { BASE_URL: 'http://localhost:3000/',
+        TENANT_A_COOKIE: config.a, TENANT_B_COOKIE: config.b,
+        STOCK_REFERENCE: stock, ASSET_REFERENCE: asset,
+        FROM: config.from, TO: config.to };
+    assert.throws(() => validateConfig({ ...env, ITERATIONS: '4' }),
+        /Iterations must be 5..500/);
+    assert.throws(() => validateConfig({ ...env, CONCURRENCY: '1' }),
+        /Concurrency must be 2..16/);
+});
