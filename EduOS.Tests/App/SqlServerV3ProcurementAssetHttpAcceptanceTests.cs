@@ -97,6 +97,8 @@ public sealed partial class SqlServerV3ProcurementPurchaseOrderTests
                 services.AddScoped<AssetLifecycleService>();
                 services.AddScoped<AssetAccountingService>();
                 services.AddScoped<ProcurementSupplierInvoiceService>();
+                services.AddScoped<IProcurementSupplierInvoiceService>(sp =>
+                    sp.GetRequiredService<ProcurementSupplierInvoiceService>());
                 services.AddAuthentication("SqlFinance")
                     .AddScheme<AuthenticationSchemeOptions, SqlHttpFinanceAuthentication>(
                         "SqlFinance", _ => { });
