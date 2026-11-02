@@ -19,6 +19,8 @@ try{
   assert(users.every(x=>x.email&&x.password&&/^[1-9]\d*$/.test(x.tenant||'')),'Three synthetic accounts required');
   assert.equal(users[0].tenant,users[1].tenant,'Admin and Accountant must share synthetic tenant');
   assert.notEqual(users[0].tenant,users[2].tenant,'Viewer must use foreign synthetic tenant');
+  assert.equal(new Set(users.map(x=>x.email.trim().toLowerCase())).size,3,
+    'Distinct synthetic role accounts required');
   origin=u.origin;
 }catch(e){console.error('Staging preflight rejected: '+e.message);process.exit(2);}
 const routes={users:'/TenantUsers/Index',reports:'/AccountingReports/Index',aging:'/FeeReceivablesAging/Index'};
@@ -49,6 +51,47 @@ async function login(page,user){
   assert(/^[0-9a-f]{64}$/i.test(session||''),'Session reference missing');
   return session;
 }
+async function verifyAccountAndSession(page,user,session){
+  const culture=await page.locator('#uiCulture').inputValue();
+  assert(['en-BD','bn-BD'].includes(culture),'Unsupported server locale');
+  assert.equal(await page.locator('html').getAttribute('lang'),culture,'Razor locale mismatch');
+  const caption=(await page.locator('.user-info .role').innerText()).trim();
+  assert(caption.length>0,'Assigned-role caption missing');
+  await page.locator('button.user-box').click();
+  const labels=culture==='bn-BD'
+    ? ['সাইন-ইন কার্যক্রম','আমার আইনি সম্মতিপত্র']
+    : ['Sign-in activity','My Legal Agreements'];
+  for(const [i,path] of ['/LoginActivity/Index','/LegalDocuments/My'].entries()){
+    const link=page.locator('.dropdown-menu a[href="'+path+'"]');
+    assert.equal(await link.count(),1,'Account menu link missing: '+path);
+    assert.equal((await link.innerText()).trim(),labels[i],'Account menu locale mismatch: '+path);
+  }
+  await page.keyboard.press('Escape');
+  // Read-only antiforgery GET binds the token to the same tenant and session.
+  // Never send a state-changing CSRF probe against an unknown staging endpoint.
+  const proof=await page.evaluate(async()=>{
+    const response=await fetch('/api/auth/antiforgery',{
+      method:'GET',credentials:'same-origin',cache:'no-store',redirect:'manual'
+    });
+    return {status:response.status,headers:{'cache-control':response.headers.get('cache-control')},
+      payload:response.ok?await response.json():null};
+  });
+  assert.equal(proof.status,200,'Authenticated antiforgery readback failed');
+  assertNoStore(proof.headers,'Antiforgery readback');
+  assert.equal(proof.payload?.success,true,'Antiforgery response unsuccessful');
+  assert.equal(String(proof.payload?.data?.tenantId),user.tenant,'Antiforgery tenant mismatch');
+  assert.equal(proof.payload?.data?.sessionReference,session,'Antiforgery session mismatch');
+  assert((proof.payload?.data?.requestToken||'').length>20,'Antiforgery token missing');
+  return caption;
+}
+async function verifyContextHelp(page,name){
+  await page.locator('#pageContextHelp').click();
+  await page.locator('#pageHelpDrawer[open]').waitFor();
+  const manual=(await page.locator('#pageHelpContent').innerText()).trim();
+  assert(manual.length>100,'Contextual bilingual manual missing: '+name);
+  await page.keyboard.press('Escape');
+  await page.waitForFunction(()=>!document.getElementById('pageHelpDrawer').open);
+}
 async function verify(browser,user,mobile){
   const context=await browser.newContext({viewport:mobile?{width:390,height:844}:{width:1280,height:800},
     serviceWorkers:'block',ignoreHTTPSErrors:false,acceptDownloads:false});
@@ -75,6 +118,7 @@ async function verify(browser,user,mobile){
       if(/^\/account\/login\/?$/i.test(target.pathname))assertNoStore(response.headers(),'Anonymous login');
     }
     const session=await login(page,user);
+    const roleCaption=await verifyAccountAndSession(page,user,session);
     assert.equal(await page.locator('meta[name="request-verification-token"]').count(),1,'CSRF shell metadata missing');
     const csrf=await page.locator('meta[name="request-verification-token"]').getAttribute('content');
     assert(csrf&&csrf.length>20,'CSRF request token empty');
@@ -95,6 +139,7 @@ async function verify(browser,user,mobile){
         assert.equal(await page.locator('body').getAttribute('data-auth-session-reference'),session,
           'Session changed during authorized navigation');
         assertNoStore(response.headers(),'Authorized '+name);
+        await verifyContextHelp(page,name);
       }else{
         assert([403,404].includes(response.status())||
           /^\/(?:account|error)\/accessdenied\/?$/i.test(target.pathname),
@@ -108,7 +153,7 @@ async function verify(browser,user,mobile){
     if(mobile)assert((await page.evaluate(()=>document.documentElement.scrollWidth-innerWidth))<=2,
       'Mobile shell horizontal overflow');
     assert.deepEqual(blocked,[],'Off-origin or unexpected write blocked');
-    return session;
+    return {session,roleCaption};
   }finally{await context.close();}
 }
 (async()=>{
@@ -116,7 +161,9 @@ async function verify(browser,user,mobile){
   try{
     const sessions=[];
     for(let i=0;i<users.length;i++)sessions.push(await verify(browser,users[i],i===1));
-    assert.equal(new Set(sessions).size,3,'Separate authenticated sessions required');
-    console.log('Authenticated disposable staging sidebar PASS: anonymous denial, three synthetic roles, scoped pages, no-store, denied-body privacy, CSRF and mobile.');
+    assert.equal(new Set(sessions.map(x=>x.session)).size,3,'Separate authenticated sessions required');
+    assert.equal(new Set(sessions.map(x=>x.roleCaption)).size,3,
+      'Role captions must reflect distinct synthetic identities, not a hardcoded administrator label');
+    console.log('Authenticated disposable staging sidebar PASS: anonymous denial, bilingual role-accurate account menu, three synthetic sessions, contextual Help, scoped pages, no-store, denied-body privacy, session-bound antiforgery readback and mobile.');
   }finally{await browser.close();}
 })().catch(e=>{console.error(e.message);process.exitCode=1;});

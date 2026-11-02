@@ -30,6 +30,21 @@
     var requestVerificationToken = Antiforgery.GetAndStoreTokens(Context).RequestToken;
     var sessionClaim = User?.FindFirst(EduOS.App.Security.AuthSessionRegistry.ClaimType)?.Value;
     var sessionReference = string.IsNullOrWhiteSpace(sessionClaim) ? "" : EduOS.App.Security.AuthSessionRegistry.ToPublicReference(sessionClaim);
+    // Role caption is informational; server authorization remains authoritative.
+    var assignedRoles = (User?.Claims ?? Enumerable.Empty<System.Security.Claims.Claim>())
+        .Where(claim => claim.Type == System.Security.Claims.ClaimTypes.Role)
+        .Select(claim => claim.Value)
+        .Where(role => !string.IsNullOrWhiteSpace(role))
+        .Distinct(StringComparer.OrdinalIgnoreCase)
+        .OrderBy(role => role, StringComparer.OrdinalIgnoreCase)
+        .ToArray();
+    var roleCaption = assignedRoles.Length == 0
+        ? (currentCulture == "bn-BD" ? "ভূমিকা পাওয়া যায়নি" : "Role unavailable")
+        : string.Join(", ", assignedRoles.Select(role =>
+        {
+            var translated = T[role];
+            return translated.ResourceNotFound ? role : translated.Value;
+        }));
 }
 <!DOCTYPE html>
 <html lang="@currentCulture" dir="ltr">
@@ -883,7 +898,7 @@
                                 <span class="user-avatar" aria-hidden="true">@userInitial</span>
                                 <span class="user-info">
                                     <span class="name">@userName</span>
-                                    <span class="role">@(User?.IsInRole("SuperAdmin") == true ? "SuperAdmin" : T["TenantAdmin"].Value)</span>
+                                    <span class="role">@roleCaption</span>
                                 </span>
                                 <svg class="edu-icon user-chevron" aria-hidden="true"><use href="/images/eduos-icons.svg#chevron-down" /></svg>
                             </button>
@@ -895,8 +910,8 @@
                                     <li><a class="dropdown-item rounded-3" data-feature-discovery-link data-feature-discovery-section="@(currentCulture == "bn-BD" ? "সেটিংস" : "Settings")" href="/workspace">@(currentCulture == "bn-BD" ? "ওয়ার্কস্পেস ডিজাইন" : "Workspace Appearance")</a></li>
                                      <li><button type="button" class="dropdown-item rounded-3" data-bs-toggle="modal" data-bs-target="#institutionSwitchModal">@(currentCulture == "bn-BD" ? "প্রতিষ্ঠান পরিবর্তন" : "Switch institution")</button></li>
                                 }
-                                <li><a class="dropdown-item rounded-3" href="/LoginActivity/Index">Sign-in activity</a></li>
-                                <li><a class="dropdown-item rounded-3" href="/LegalDocuments/My">My Legal Agreements</a></li>
+                                <li><a class="dropdown-item rounded-3" href="/LoginActivity/Index">@(currentCulture == "bn-BD" ? "সাইন-ইন কার্যক্রম" : "Sign-in activity")</a></li>
+                                <li><a class="dropdown-item rounded-3" href="/LegalDocuments/My">@(currentCulture == "bn-BD" ? "আমার আইনি সম্মতিপত্র" : "My Legal Agreements")</a></li>
                                 <li><a class="dropdown-item rounded-3" href="/Account/Profile#passwordForm">@T["ChangePassword"]</a></li>
                                 <li><hr class="dropdown-divider" /></li>
                                 <li>
