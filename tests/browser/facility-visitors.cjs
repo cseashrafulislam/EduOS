@@ -113,6 +113,8 @@ async function run(browser, bn, manager, mobile) {
             assert.match(await page.locator('#fvOccupancyResult').innerText(), /1\s*\/\s*2/);
             assert.match(await page.locator('#fvOccupancyResult').innerText(),
                 bn ? /নির্ধারিত সময় পার:\s*1/ : /Overdue:\s*1/);
+            assert.doesNotMatch(await page.locator('#fvOccupancyResult').innerText(),
+                /Guest|GUEST-01|Staff Host/, 'Occupancy must remain identity-free');
             assert.ok(calls.some(c => c.url.endsWith('/occupancy') && c.method === 'GET'));
             await page.locator('#fvExportCampus').fill('12');
             await page.locator('#fvExportFrom').fill('2026-11-01T00:00');
