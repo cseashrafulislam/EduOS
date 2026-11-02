@@ -1,0 +1,48 @@
+name: Enterprise Trace Authenticated Staging Chromium
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  authenticated-staging:
+    runs-on: ubuntu-latest
+    environment: staging
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify staging safety and cookie-jar isolation contracts
+        run: node --test EduOS.Tests/JavaScript/enterprise-trace-authenticated-staging.test.cjs
+      - name: Install pinned Chromium
+        run: |
+          npm install --no-save --no-audit --no-fund playwright@1.56.0
+          npx playwright install --with-deps chromium
+      - name: Authenticated read-only multi-tenant acceptance
+        env:
+          EDUOS_E2E_BASE_URL: ${{ vars.EDUOS_E2E_BASE_URL }}
+          EDUOS_E2E_STAGING_HOST: ${{ vars.EDUOS_E2E_STAGING_HOST }}
+          EDUOS_E2E_ISOLATED_STAGING_ACK: ${{ vars.EDUOS_E2E_ISOLATED_STAGING_ACK }}
+          EDUOS_E2E_A_USER: ${{ secrets.EDUOS_E2E_A_USER }}
+          EDUOS_E2E_A_PASSWORD: ${{ secrets.EDUOS_E2E_A_PASSWORD }}
+          EDUOS_E2E_A_TENANT_ID: ${{ vars.EDUOS_E2E_A_TENANT_ID }}
+          EDUOS_E2E_B_USER: ${{ secrets.EDUOS_E2E_B_USER }}
+          EDUOS_E2E_B_PASSWORD: ${{ secrets.EDUOS_E2E_B_PASSWORD }}
+          EDUOS_E2E_B_TENANT_ID: ${{ vars.EDUOS_E2E_B_TENANT_ID }}
+          EDUOS_E2E_RESTRICTED_USER: ${{ secrets.EDUOS_E2E_RESTRICTED_USER }}
+          EDUOS_E2E_RESTRICTED_PASSWORD: ${{ secrets.EDUOS_E2E_RESTRICTED_PASSWORD }}
+          EDUOS_E2E_RESTRICTED_TENANT_ID: ${{ vars.EDUOS_E2E_RESTRICTED_TENANT_ID }}
+          EDUOS_E2E_STOCK_REFERENCE: ${{ vars.EDUOS_E2E_STOCK_REFERENCE }}
+          EDUOS_E2E_ASSET_REFERENCE: ${{ vars.EDUOS_E2E_ASSET_REFERENCE }}
+          EDUOS_E2E_PROCUREMENT_REFERENCE: ${{ vars.EDUOS_E2E_PROCUREMENT_REFERENCE }}
+          EDUOS_E2E_SUPPLIER_CONFIRMATION_ID: ${{ vars.EDUOS_E2E_SUPPLIER_CONFIRMATION_ID }}
+          EDUOS_E2E_FROM: ${{ vars.EDUOS_E2E_FROM }}
+          EDUOS_E2E_TO: ${{ vars.EDUOS_E2E_TO }}
+          EDUOS_E2E_ASSET_CAMPUS_ID: ${{ vars.EDUOS_E2E_ASSET_CAMPUS_ID }}
+          EDUOS_E2E_OTHER_CAMPUS_ID: ${{ vars.EDUOS_E2E_OTHER_CAMPUS_ID }}
+          EDUOS_E2E_A_LANGUAGE: ${{ vars.EDUOS_E2E_A_LANGUAGE }}
+          EDUOS_E2E_B_LANGUAGE: ${{ vars.EDUOS_E2E_B_LANGUAGE }}
+        run: node tests/browser/enterprise-trace-live.cjs
