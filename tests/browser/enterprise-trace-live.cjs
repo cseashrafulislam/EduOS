@@ -30,7 +30,7 @@ function validateEnvironment(env) {
     }
     assert(users.A.tenant !== users.B.tenant &&
         users.RESTRICTED.tenant === users.A.tenant &&
-        new Set(Object.values(users).map(u => u.email)).size === 3,
+        new Set(Object.values(users).map(u => u.email.toLowerCase())).size === 3,
         'Independent owner, foreign and restricted synthetic accounts required');
     const refs = ['STOCK_REFERENCE', 'ASSET_REFERENCE', 'PROCUREMENT_REFERENCE'].map(get);
     assert(refs.every(x => UUID.test(x)) &&
@@ -57,23 +57,55 @@ function validateEnvironment(env) {
         'English and Bangla synthetic accounts required');
     return { base, users, refs, confirmation, from, to, campus, otherCampus, languages };
 }
+// Fail closed before any browser navigation or authenticated API request.
+// No cross-origin resources, encoded path separators/dots, fragments or URL
+// normalization that could conceal a different target. No private URL logging.
+function safeStagingUrl(raw, base) {
+    if (typeof raw !== 'string' || !raw.startsWith(base + '/')) return null;
+    try {
+        const url = new URL(raw);
+        if (url.href !== raw || url.origin !== base || url.protocol !== 'https:' ||
+            url.username || url.password || url.hash ||
+            /%(?:00|25|2e|2f|5c)/i.test(url.pathname) ||
+            url.pathname.includes('\\') || url.pathname.includes('//') ||
+            url.pathname.split('/').some(segment => segment === '.' || segment === '..'))
+            return null;
+        return url;
+    } catch { return null; }
+}
+function isAllowedBrowserRequest(raw, method, base) {
+    const url = safeStagingUrl(raw, base);
+    if (!url) return false;
+    if (['GET', 'HEAD', 'OPTIONS'].includes(method)) return true;
+    return method === 'POST' && !url.search &&
+        ['/api/auth/login', '/account/login'].includes(url.pathname.toLowerCase());
+}
+function isAllowedEvidenceRequest(raw, base) {
+    const url = safeStagingUrl(raw, base);
+    return Boolean(url && /^\/api\/(?:[A-Za-z0-9_-]+\/)*[A-Za-z0-9_-]+$/.test(url.pathname));
+}
 // The Playwright BrowserContext.request cookie jar carries real login state.
 // Placeholder labels are never sent to the server as Cookie headers.
 function makeAuthenticatedFetcher(base, contexts) {
     return async (url, options) => {
-        const target = new URL(url);
-        assert(target.origin === base && target.pathname.startsWith('/api/'),
+        assert(isAllowedEvidenceRequest(url, base),
             'Refusing unapproved authenticated request');
         assert.equal(options.method, 'GET', 'Staging acceptance is read-only');
+        assert(!options.body, 'Staging acceptance cannot send a body');
         const context = contexts[options.headers?.Cookie];
         assert(context?.request, 'Unknown synthetic session label');
         const response = await context.request.get(url, {
             maxRedirects: 0, timeout: 15000, failOnStatusCode: false,
             headers: { Accept: 'application/json, text/csv' }
         });
+        assert(typeof response.url === 'function' && response.url() === url,
+            'Unexpected authenticated response target');
+        const status = response.status();
+        assert(status < 300 || status >= 400,
+            'Authenticated evidence redirect is forbidden');
         const bytes = await response.body();
         assert(bytes.length <= 2_000_000, 'Oversized staging evidence response');
-        const headers = response.headers(), status = response.status();
+        const headers = response.headers();
         return new Response([204, 205, 304].includes(status) ? null : bytes, {
             status, headers: { 'content-type': headers['content-type'] || '',
                 'cache-control': headers['cache-control'] || '',
@@ -91,17 +123,16 @@ async function login(browser, config, key) {
     page.on('pageerror', () => errors.push('script-error'));
     await context.route('**/*', route => {
         const req = route.request(), method = req.method().toUpperCase();
-        const url = new URL(req.url());
-        if (['GET', 'HEAD', 'OPTIONS'].includes(method)) return route.continue();
-        if (method === 'POST' && url.origin === config.base &&
-            ['/api/auth/login', '/account/login'].includes(url.pathname.toLowerCase()))
+        if (isAllowedBrowserRequest(req.url(), method, config.base))
             return route.continue();
-        blockedWrites.push('blocked-write');
+        blockedWrites.push('blocked-origin-or-write');
         return route.abort('blockedbyclient');
     });
     const response = await page.goto(config.base + '/Account/Login',
         { waitUntil: 'domcontentloaded' });
     assert.equal(response?.status(), 200, 'Synthetic login page unavailable');
+    assert(isAllowedBrowserRequest(page.url(), 'GET', config.base),
+        'Synthetic login left approved staging origin');
     await page.locator('#userNameOrEmail').fill(user.email);
     await page.locator('#password').fill(user.password);
     await page.locator('#loginBtn').click();
@@ -117,12 +148,16 @@ async function login(browser, config, key) {
         await page.waitForFunction(() => location.pathname.toLowerCase() !== '/account/login' ||
             !!document.querySelector('#alertContainer.alert-danger'), null, { timeout: 20000 });
     }
+    assert(isAllowedBrowserRequest(page.url(), 'GET', config.base),
+        'Authentication left approved staging origin');
     assert(!page.url().includes('MfaChallenge'), 'MFA requires an approved test flow; no bypass');
     assert(!await page.locator('#alertContainer.alert-danger').isVisible(),
         'Synthetic login rejected');
     const workspace = await page.goto(config.base + '/workspace',
         { waitUntil: 'domcontentloaded' });
     assert.equal(workspace?.status(), 200, 'Authenticated workspace unavailable');
+    assert(isAllowedBrowserRequest(page.url(), 'GET', config.base),
+        'Workspace left approved staging origin');
     assert.equal(await page.locator('body').getAttribute('data-auth-tenant-id'),
         user.tenant, 'Unexpected authenticated tenant');
     return { context, page, errors, blockedWrites };
@@ -132,6 +167,8 @@ async function verifyView(config, session, key, reference) {
     const response = await page.goto(config.base + '/V3EnterpriseTrace/Index',
         { waitUntil: 'domcontentloaded' });
     assert.equal(response?.status(), 200, 'Enterprise trace route unavailable');
+    assert(isAllowedBrowserRequest(page.url(), 'GET', config.base),
+        'Enterprise trace left approved staging origin');
     await page.locator('#v3LedgerTrace').waitFor();
     assert.equal(await page.locator('#v3LedgerTrace').getAttribute('data-language'),
         config.languages[key], 'Bilingual route mismatch');
@@ -207,7 +244,8 @@ async function main(env = process.env) {
         await browser.close();
     }
 }
-module.exports = { validateEnvironment, makeAuthenticatedFetcher, main };
+module.exports = { validateEnvironment, makeAuthenticatedFetcher,
+    isAllowedBrowserRequest, isAllowedEvidenceRequest, main };
 if (require.main === module)
     main().catch(() => {
         console.error('Authenticated staging acceptance FAILED; no private response printed.');

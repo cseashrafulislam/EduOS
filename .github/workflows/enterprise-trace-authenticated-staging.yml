@@ -5,6 +5,7 @@ permissions:
   contents: read
 jobs:
   authenticated-staging:
+    if: github.ref == 'refs/heads/Ashraful'
     runs-on: ubuntu-latest
     environment: staging
     timeout-minutes: 25
@@ -15,6 +16,11 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - name: Verify canonical branch and exact checked-out commit
+        shell: bash
+        run: |
+          test "$GITHUB_REF" = "refs/heads/Ashraful"
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
       - name: Verify staging safety and cookie-jar isolation contracts
         run: node --test EduOS.Tests/JavaScript/enterprise-trace-authenticated-staging.test.cjs
       - name: Install pinned Chromium
