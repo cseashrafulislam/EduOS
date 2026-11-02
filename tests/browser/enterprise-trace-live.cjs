@@ -162,7 +162,75 @@ async function login(browser, config, key) {
         user.tenant, 'Unexpected authenticated tenant');
     return { context, page, errors, blockedWrites };
 }
-async function verifyView(config, session, key, reference) {
+function isDeniedRestrictedRoute(status, raw, base) {
+    const url = safeStagingUrl(raw, base);
+    if (!url) return false;
+    if ([401, 403, 404].includes(status)) return true;
+    if (status !== 200 || !/^\/(?:Account\/)?AccessDenied\/?$/i.test(url.pathname))
+        return false;
+    const query = [...url.searchParams.entries()];
+    return query.length === 0 || (query.length === 1 &&
+        query[0][0].toLowerCase() === 'returnurl' &&
+        query[0][1].toLowerCase() === '/v3enterprisetrace/index');
+}
+function isScopedRegisterExport(href, config, kind, campus) {
+    if (typeof href !== 'string' ||
+        !href.startsWith('/api/v3/enterprise/ledger-trace/register/csv?'))
+        return false;
+    const url = safeStagingUrl(config.base + href, config.base);
+    if (!url || url.pathname !== '/api/v3/enterprise/ledger-trace/register/csv')
+        return false;
+    const expected = { kind, from: config.from, to: config.to,
+        page: '1', pageSize: '25' };
+    if (campus) expected.campusId = campus;
+    const entries = [...url.searchParams.entries()];
+    return entries.length === Object.keys(expected).length &&
+        entries.every(([key, value]) => Object.hasOwn(expected, key) &&
+            expected[key] === value);
+}
+async function verifyRestrictedView(config, session) {
+    const response = await session.page.goto(config.base + '/V3EnterpriseTrace/Index',
+        { waitUntil: 'domcontentloaded' });
+    assert(isDeniedRestrictedRoute(response?.status(), session.page.url(), config.base),
+        'Restricted account reached privileged Enterprise Trace page');
+    assert.equal(await session.page.locator('#v3LedgerTrace').count(), 0,
+        'Restricted account rendered private trace controls');
+    const visible = (await session.page.locator('body').innerText()).toLowerCase();
+    for (const ref of config.refs)
+        assert(!visible.includes(ref.toLowerCase()),
+            'Restricted route exposed synthetic owner reference');
+    assert.deepEqual(session.errors, [], 'Restricted browser JavaScript error');
+    assert.deepEqual(session.blockedWrites, [], 'Unexpected restricted browser request');
+}
+async function verifyRegister(config, session, key) {
+    const page = session.page;
+    const response = await page.goto(config.base + '/V3EnterpriseTrace/Index',
+        { waitUntil: 'domcontentloaded' });
+    assert.equal(response?.status(), 200, 'Authorized register route unavailable');
+    assert.equal(await page.locator('body').getAttribute('data-auth-tenant-id'),
+        config.users[key].tenant, 'Register tenant changed across browser sessions');
+    const kind = key === 'A' ? 'asset' : 'stock';
+    const campus = key === 'A' ? config.campus : '';
+    await page.locator('#v3RegisterKind').selectOption(kind);
+    await page.locator('#v3RegisterFrom').fill(config.from);
+    await page.locator('#v3RegisterTo').fill(config.to);
+    await page.locator('#v3RegisterSize').selectOption('25');
+    if (campus) {
+        await page.locator('#v3RegisterCampus option[value="' + campus + '"]')
+            .waitFor({ timeout: 15000 });
+        await page.locator('#v3RegisterCampus').selectOption(campus);
+    }
+    await page.locator('#v3RegisterForm button[type="submit"]').click();
+    await page.locator('#v3RegisterResult:not([hidden])').waitFor({ timeout: 15000 });
+    assert(await page.locator('#v3RegisterRows tr').count() <= 25,
+        'Unbounded register page in browser');
+    assert(isScopedRegisterExport(await page.locator('#v3RegisterCsv')
+        .getAttribute('href'), config, kind, campus),
+    'Register CSV export escaped selected tenant/campus/date/page scope');
+    assert.deepEqual(session.errors, [], 'Register browser JavaScript error');
+    assert.deepEqual(session.blockedWrites, [], 'Unexpected register browser request');
+}
+async function verifyView(config, session, key, kind, reference) {
     const { page } = session;
     const response = await page.goto(config.base + '/V3EnterpriseTrace/Index',
         { waitUntil: 'domcontentloaded' });
@@ -181,15 +249,18 @@ async function verifyView(config, session, key, reference) {
         assert.equal(await page.evaluate(() => document.activeElement?.id),
             'v3TraceReference', 'Keyboard focus unavailable');
     }
+    await page.locator('#v3TraceKind').selectOption(kind);
     await page.locator('#v3TraceReference').fill(reference);
     await page.locator('#v3TraceForm button[type="submit"]').click();
     if (key === 'A') {
         await page.locator('#v3TraceResult:not([hidden])').waitFor({ timeout: 15000 });
         assert(await page.locator('#v3TraceRows tr').count() > 0,
             'Authorized source/Finance evidence absent');
-        assert((await page.locator('#v3TraceCsv').getAttribute('href') || '')
-            .startsWith('/api/v3/enterprise/ledger-trace/'),
-            'Authorized CSV link missing');
+        const route = kind === 'asset' ? 'asset-depreciation/' :
+            kind === 'procurement' ? 'procurement/' : '';
+        assert.equal(await page.locator('#v3TraceCsv').getAttribute('href'),
+            '/api/v3/enterprise/ledger-trace/' + route + reference + '/csv',
+            'Authorized source-specific CSV link mismatch');
     } else {
         await page.waitForFunction(() => {
             const msg = document.getElementById('v3TraceMessage')?.textContent || '';
@@ -215,8 +286,17 @@ async function main(env = process.env) {
     try {
         for (const key of ['A', 'B', 'RESTRICTED'])
             sessions[key] = await login(browser, config, key);
-        await verifyView(config, sessions.A, 'A', config.refs[0]);
-        await verifyView(config, sessions.B, 'B', config.refs[0]);
+        for (const [kind, reference] of [
+            ['stock', config.refs[0]], ['asset', config.refs[1]],
+            ['procurement', config.refs[2]]
+        ]) {
+            await verifyView(config, sessions.A, 'A', kind, reference);
+            await verifyView(config, sessions.B, 'B', kind, reference);
+        }
+        await verifyRegister(config, sessions.A, 'A');
+        await verifyRegister(config, sessions.B, 'B');
+        await verifyRestrictedView(config, sessions.RESTRICTED);
+        await verifyView(config, sessions.A, 'A', 'stock', config.refs[0]);
         const acceptance = validateConfig({
             BASE_URL: config.base, STAGING_HOST: new URL(config.base).hostname,
             TENANT_A_COOKIE: 'owner-label', TENANT_B_COOKIE: 'foreign-label',
@@ -237,7 +317,8 @@ async function main(env = process.env) {
         assert.equal(report.errors, 0, 'Authenticated replay errors');
         assert(report.maxClientInFlight >= 2, 'Concurrent replay not observed');
         console.log('Authenticated staging browser acceptance PASS: three synthetic accounts, ' +
-            'bilingual/mobile, tenant/campus/role and bounded read-only source/Finance replay. ' +
+            'three trace kinds, denied restricted route, campus-scoped register CSV, ' +
+            'bilingual/mobile and bounded read-only source/Finance replay. ' +
             'No production/UAT certification.');
     } finally {
         await Promise.all(Object.values(sessions).map(s => s.context.close()));
@@ -245,7 +326,8 @@ async function main(env = process.env) {
     }
 }
 module.exports = { validateEnvironment, makeAuthenticatedFetcher,
-    isAllowedBrowserRequest, isAllowedEvidenceRequest, main };
+    isAllowedBrowserRequest, isAllowedEvidenceRequest, isDeniedRestrictedRoute,
+    isScopedRegisterExport, main };
 if (require.main === module)
     main().catch(() => {
         console.error('Authenticated staging acceptance FAILED; no private response printed.');

@@ -2,7 +2,8 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const { validateEnvironment, makeAuthenticatedFetcher,
-    isAllowedBrowserRequest, isAllowedEvidenceRequest } =
+    isAllowedBrowserRequest, isAllowedEvidenceRequest, isDeniedRestrictedRoute,
+    isScopedRegisterExport } =
     require('../../tests/browser/enterprise-trace-live.cjs');
 const env = {
     EDUOS_E2E_BASE_URL: 'https://qa.eduos.example',
@@ -128,4 +129,34 @@ test('authenticated API rejects redirected and mismatched response targets', asy
     context.request.get = async () => response(endpoint);
     await assert.rejects(fetcher(endpoint, { method: 'GET', body: 'unsafe',
         headers: { Cookie: 'owner' } }), /cannot send a body/);
+});
+
+test('restricted browser route rejects privileged 200, login redirects and unsafe access-denied targets', () => {
+    const base = env.EDUOS_E2E_BASE_URL;
+    const trace = base + '/V3EnterpriseTrace/Index';
+    assert(isDeniedRestrictedRoute(403, trace, base));
+    assert(isDeniedRestrictedRoute(404, trace, base));
+    assert(isDeniedRestrictedRoute(200, base + '/Account/AccessDenied?ReturnUrl=%2FV3EnterpriseTrace%2FIndex', base));
+    for (const [status, url] of [
+        [200, trace], [200, base + '/workspace'],
+        [200, base + '/Account/Login'], [200, base + '/Account/AccessDenied?ReturnUrl=https%3A%2F%2Fevil.example'],
+        [200, 'https://evil.example/Account/AccessDenied'], [302, trace]
+    ]) assert.equal(isDeniedRestrictedRoute(status, url, base), false);
+});
+
+test('register CSV browser acceptance binds kind, campus, dates and first-page export', () => {
+    const config = validateEnvironment(env);
+    const base = '/api/v3/enterprise/ledger-trace/register/csv?';
+    const good = base + 'kind=asset&from=2026-10-01&to=2026-10-31&page=1&pageSize=25&campusId=10';
+    assert(isScopedRegisterExport(good, config, 'asset', '10'));
+    for (const href of [
+        good.replace('campusId=10', 'campusId=20'),
+        good.replace('kind=asset', 'kind=stock'),
+        good.replace('page=1', 'page=2'),
+        good.replace('to=2026-10-31', 'to=2026-11-30'),
+        good + '&campusId=10',
+        good + '&tenantId=22',
+        'https://evil.example' + good,
+        base + 'kind=asset&from=2026-10-01&to=2026-10-31&page=1&pageSize=25'
+    ]) assert.equal(isScopedRegisterExport(href, config, 'asset', '10'), false);
 });
