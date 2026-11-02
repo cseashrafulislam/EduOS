@@ -82,6 +82,7 @@ test('Finance entry handlers and initial API calls stay within their own task sc
         }]));
         nodes.set('feeApp', { dataset: { activeFeature: feature } });
         const document = {
+            documentElement: { lang: 'en-BD' },
             getElementById(id) { return nodes.get(id) || null; },
             querySelector() { return { content: 'test-antiforgery-token' }; }
         };
