@@ -80,7 +80,7 @@ async function isolation(browser) {
     try {
         await page.locator('#featureSearchOpen').click();
         await page.locator('#featureSearchDialog[open]').waitFor();
-        assert.equal(await page.locator('#sidebarMenu a[href="/Students/Index"]').innerText(),'শিক্ষার্থী তালিকা');
+        assert.equal((await page.locator('#sidebarMenu a[href="/Students/Index"]').textContent()).trim(),'শিক্ষার্থী তালিকা');
         for (const [query, expected] of [
             ['বেতন', 'বেতন ব্যবস্থাপনা'],
             ['স্থায়ী সম্পদ', 'স্থায়ী সম্পদ ও রক্ষণাবেক্ষণ'],
