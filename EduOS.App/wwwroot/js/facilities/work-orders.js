@@ -370,6 +370,16 @@
     }
     // A manager may select only current eligible staff; stale campus/work-order
     // search results cannot restore previously authorized technician choices.
+    // The server is authoritative; this guard prevents misleading lookups and
+    // stale choices when the two independently approved windows cannot intersect.
+    function overlapsWindow(from, until) {
+        const first = new Date(el('wfStart').value).getTime();
+        const last = new Date(el('wfEnd').value).getTime();
+        const begin = Date.parse(from), end = Date.parse(until);
+        return Number.isFinite(first) && Number.isFinite(last) &&
+            Number.isFinite(begin) && Number.isFinite(end) &&
+            first < end && last > begin;
+    }
     async function loadTechnicians() {
         if (blocked || !selected || el('wfAction').value !== 'schedule') return;
         const generation = ++technicianGeneration;
@@ -392,6 +402,13 @@
             el('wfTechPage').textContent = t(
                 'Set a valid start and end time before finding available technicians.',
                 'উপলব্ধ টেকনিশিয়ান খোঁজার আগে কাজের সঠিক শুরু ও শেষ সময় দিন।');
+            return;
+        }
+        if (selected.vendorStateCode === 'Approved' &&
+            !overlapsWindow(selected.vendorStartUtc, selected.vendorEndUtc)) {
+            el('wfTechPage').textContent = t(
+                'Schedule must overlap the approved vendor booking. Release or rebook first.',
+                'সময়সূচি অনুমোদিত সরবরাহকারী বুকিংয়ের সঙ্গে মিলতে হবে। আগে বুকিং মুক্ত বা পুনর্নির্ধারণ করুন।');
             return;
         }
         el('wfTechPage').textContent = t('Checking availability…', 'উপলব্ধতা যাচাই হচ্ছে…');
@@ -466,6 +483,13 @@
             el('wfVendorPage').textContent = t(
                 'Set a valid future booking window before searching.',
                 'খোঁজার আগে বুকিংয়ের সঠিক ভবিষ্যৎ সময়সীমা দিন।');
+            return;
+        }
+        if (selected.workOrderState === 'Scheduled' &&
+            !overlapsWindow(selected.scheduledStartUtc, selected.scheduledEndUtc)) {
+            el('wfVendorPage').textContent = t(
+                'Vendor booking must overlap the technician schedule. Change the booking window.',
+                'সরবরাহকারী বুকিং টেকনিশিয়ানের সময়সূচির সঙ্গে মিলতে হবে। বুকিংয়ের সময় পরিবর্তন করুন।');
             return;
         }
         el('wfVendorPage').textContent = t('Checking available vendors…', 'উপলব্ধ সরবরাহকারী খোঁজা হচ্ছে…');
@@ -794,6 +818,16 @@
     el('wfTransition').addEventListener('submit', async e => {
         e.preventDefault();
         if (!selected || blocked || transitioning) return;
+        if ((el('wfAction').value === 'vendorpropose' &&
+             selected.workOrderState === 'Scheduled' &&
+             !overlapsWindow(selected.scheduledStartUtc, selected.scheduledEndUtc)) ||
+            (el('wfAction').value === 'schedule' &&
+             selected.vendorStateCode === 'Approved' &&
+             !overlapsWindow(selected.vendorStartUtc, selected.vendorEndUtc))) {
+            notice(t('Technician and approved vendor windows must overlap; review the schedule and booking.',
+                'টেকনিশিয়ান ও অনুমোদিত সরবরাহকারীর সময়সীমা মিলতে হবে; সময়সূচি ও বুকিং যাচাই করুন।'));
+            return;
+        }
         if (el('wfAction').value === 'vendorpropose' &&
             (vendorAvailabilityWindowKey !== windowKey() ||
              !vendorChoices.has(Number(el('wfVendorSelected').value)) ||

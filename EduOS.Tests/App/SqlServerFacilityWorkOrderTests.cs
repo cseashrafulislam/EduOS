@@ -462,6 +462,31 @@ public sealed class SqlServerFacilityWorkOrderTests
                     RowVersion = vendorProposal.WorkOrderRowVersion!,
                     Note = "Stale vendor approval cannot be replayed." })).StatusCode);
         }
+        // An approved vendor booking at +3h..+4h cannot be combined with a
+        // disjoint +5h..+6h technician schedule. Preview and mutation agree,
+        // and the failed command leaves no schedule event or assignment.
+        await using (var db = Db(options, tenantId, managerId, "FacilitiesManager"))
+        {
+            var service = Service(db, tenantId, managerId, "FacilitiesManager");
+            var disjointFrom = vendorEnd.AddHours(1);
+            var disjointTo = disjointFrom.AddHours(1);
+            Assert.Equal(409, (await service.TechniciansAsync(campusId, null, 1, 25,
+                startUtc: disjointFrom, endUtc: disjointTo,
+                workOrderId: vendorBooked.WorkOrderId)).StatusCode);
+            var rejected = await service.TransitionAsync(submitted.Id, "schedule",
+                new FacilityTransitionDto
+                {
+                    ClientCommandId = Guid.NewGuid(),
+                    RowVersion = vendorBooked.WorkOrderRowVersion!,
+                    TechnicianUserId = techId,
+                    ScheduledStartUtc = disjointFrom, ScheduledEndUtc = disjointTo
+                });
+            Assert.Equal(409, rejected.StatusCode);
+            Assert.Equal(0, await db.FacilityWorkflowEvents.CountAsync(x =>
+                x.FacilityServiceRequestId == submitted.Id && x.ActionCode == "schedule"));
+            Assert.Null((await db.FacilityWorkOrders.AsNoTracking()
+                .SingleAsync(x => x.FacilityServiceRequestId == submitted.Id)).AssignedTechnicianUserId);
+        }
         await using (var db = Db(options, tenantId, globalTechId, "FacilitiesApprover"))
         {
             var released = await Service(db, tenantId, globalTechId, "FacilitiesApprover")
@@ -689,6 +714,30 @@ public sealed class SqlServerFacilityWorkOrderTests
                 { ClientCommandId = Guid.NewGuid(), RowVersion = second.RowVersion });
             Assert.True(result.Success, result.Message);
             second = result.Data!;
+        }
+        // After scheduling, a completely disjoint vendor window must not be
+        // offered or proposed. Existing released vendor evidence is preserved.
+        await using (var db = Db(options, tenantId, managerId, "FacilitiesManager"))
+        {
+            var service = Service(db, tenantId, managerId, "FacilitiesManager");
+            var farStart = scheduleEnd.AddHours(3);
+            var farEnd = farStart.AddHours(1);
+            Assert.Equal(409, (await service.VendorsAsync(campusId, null, 1, 25,
+                workOrderId: scheduled.WorkOrderId,
+                startUtc: farStart, endUtc: farEnd)).StatusCode);
+            var rejected = await service.TransitionAsync(submitted.Id, "vendorpropose",
+                new FacilityTransitionDto
+                {
+                    ClientCommandId = Guid.NewGuid(),
+                    RowVersion = scheduled.WorkOrderRowVersion!,
+                    VendorSupplierId = approvedVendorId,
+                    VendorStartUtc = farStart, VendorEndUtc = farEnd,
+                    Note = "This vendor booking cannot intersect the assigned schedule."
+                });
+            Assert.Equal(409, rejected.StatusCode);
+            Assert.Equal(0, await db.FacilityWorkflowEvents.CountAsync(x =>
+                x.FacilityServiceRequestId == submitted.Id &&
+                x.ActionCode == "vendorpropose" && x.CreatedAt > scheduled.CreatedAt));
         }
         // Two distinct work orders cannot hold overlapping approved bookings
         // for the same canonical supplier, even when both proposals are valid.

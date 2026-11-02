@@ -199,6 +199,17 @@ public sealed class FacilityWorkflowService(
                 r.RequesterUserId != user.UserId), ct))
             return Denied<PagedResult<FacilityVendorOptionDto>>();
 
+        // A vendor booking that cannot intersect the assigned technician window
+        // cannot ever be used to start this work order. Do not offer it as
+        // available; authoritative propose/approve enforce the same invariant.
+        if (hasWindow && await db.Set<FacilityWorkOrder>().AsNoTracking().AnyAsync(w =>
+            w.Id == workOrderId!.Value && w.TenantId == user.TenantId && !w.IsDeleted &&
+            w.StateCode == "Scheduled" &&
+            (w.ScheduledStartUtc >= endUtc!.Value ||
+             w.ScheduledEndUtc <= startUtc!.Value), ct))
+            return ApiResponse<PagedResult<FacilityVendorOptionDto>>.ErrorResponse(
+                "Vendor booking must overlap the technician schedule; reschedule or choose another window.", 409);
+
         // Supplier lifecycle remains owned by Procurement. Never disclose
         // submitted/rejected/inactive vendors or their contact/tax information.
         var query = db.ProcurementSuppliers.AsNoTracking().Where(s =>
@@ -265,6 +276,18 @@ public sealed class FacilityWorkflowService(
                     !r.IsDeleted && r.StateCode == "Approved" && r.CampusId == campusId &&
                     r.RequesterUserId != user.UserId), ct))
             return Denied<PagedResult<FacilityTechnicianOptionDto>>();
+
+        // An independently approved vendor booking must have a usable overlap
+        // with the proposed technician window. A read-only preview cannot
+        // promise availability for a schedule that cannot be started.
+        if (hasWindow && workOrderId.HasValue &&
+            await db.Set<FacilityWorkOrder>().AsNoTracking().AnyAsync(w =>
+                w.Id == workOrderId.Value && w.TenantId == user.TenantId && !w.IsDeleted &&
+                w.VendorStateCode == "Approved" &&
+                (w.VendorStartUtc >= endUtc!.Value ||
+                 w.VendorEndUtc <= startUtc!.Value), ct))
+            return ApiResponse<PagedResult<FacilityTechnicianOptionDto>>.ErrorResponse(
+                "Technician schedule must overlap the approved vendor booking; release or rebook first.", 409);
 
         // Match the schedule command's active user, membership, campus grant and
         // scoped role. A global non-system role is allowed for one tenant only.
@@ -631,6 +654,12 @@ public sealed class FacilityWorkflowService(
                     string.IsNullOrWhiteSpace(note) || note.Length is < 10 or > 500)
                     return ApiResponse<FacilityRequestDto>.ErrorResponse(
                         "An unstarted work order, eligible vendor, future UTC window and reason (10-500 characters) are required.", 400);
+                if (order.StateCode == "Scheduled" &&
+                    (order.ScheduledStartUtc is not DateTime technicianFrom ||
+                     order.ScheduledEndUtc is not DateTime technicianUntil ||
+                     technicianFrom >= vendorEnd || technicianUntil <= vendorStart))
+                    return ApiResponse<FacilityRequestDto>.ErrorResponse(
+                        "Vendor booking must overlap the technician schedule; reschedule or choose another window.", 409);
                 if (!await db.ProcurementSuppliers.AsNoTracking().AnyAsync(s =>
                     s.Id == command.VendorSupplierId && s.TenantId == user.TenantId &&
                     s.CampusId == request.CampusId && !s.IsDeleted && s.StateCode == "Approved", ct))
@@ -653,6 +682,12 @@ public sealed class FacilityWorkflowService(
                     string.IsNullOrWhiteSpace(note) || note.Length is < 10 or > 500)
                     return ApiResponse<FacilityRequestDto>.ErrorResponse(
                         "A current future vendor proposal and independent decision reason are required.", 409);
+                if (order.StateCode == "Scheduled" &&
+                    (order.ScheduledStartUtc is not DateTime approvedTechnicianFrom ||
+                     order.ScheduledEndUtc is not DateTime approvedTechnicianUntil ||
+                     approvedTechnicianFrom >= vendorTo || approvedTechnicianUntil <= vendorFrom))
+                    return ApiResponse<FacilityRequestDto>.ErrorResponse(
+                        "Vendor proposal no longer overlaps the technician schedule; reject and repropose.", 409);
                 if (scheduleTransaction != null)
                 {
                     var resource = $"FacilityVendor:{user.TenantId}:{vendorId}";
@@ -726,6 +761,12 @@ public sealed class FacilityWorkflowService(
                         return ApiResponse<FacilityRequestDto>.ErrorResponse(
                             "Rescheduling requires a reason (10-500 characters).", 400);
                 }
+                if (order.VendorStateCode == "Approved" &&
+                    (order.VendorStartUtc is not DateTime bookedFrom ||
+                     order.VendorEndUtc is not DateTime bookedUntil ||
+                     bookedFrom >= end || bookedUntil <= start))
+                    return ApiResponse<FacilityRequestDto>.ErrorResponse(
+                        "Technician schedule must overlap the approved vendor booking; release or rebook first.", 409);
                 var eligible = await db.Users.AsNoTracking().AnyAsync(x => x.Id == tech && x.IsActive, ct) &&
                     await db.TenantMemberships.AsNoTracking().AnyAsync(x =>
                         x.TenantId == user.TenantId && x.UserId == tech && !x.IsDeleted &&

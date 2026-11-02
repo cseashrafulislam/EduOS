@@ -111,6 +111,7 @@
                 <div class="col-12"><label class="form-label" for="wfTech">@(bn ? "নির্বাচিত টেকনিশিয়ান আইডি" : "Selected technician ID")</label><input id="wfTech" class="form-control" type="number" min="1" readonly /></div>
                 <div class="col-sm-6"><label class="form-label" for="wfStart">@(bn ? "কাজ শুরু" : "Scheduled start")</label><input id="wfStart" class="form-control" type="datetime-local" /></div>
                 <div class="col-sm-6"><label class="form-label" for="wfEnd">@(bn ? "কাজ শেষ" : "Scheduled end")</label><input id="wfEnd" class="form-control" type="datetime-local" /></div>
+                <div class="col-12"><p class="small text-muted mb-0">@(bn ? "অনুমোদিত সরবরাহকারী বুকিং থাকলে টেকনিশিয়ানের সময়সূচির সঙ্গে অন্তত কিছু সময় মিলতে হবে। দুটি সময়সীমা সম্পূর্ণ আলাদা হলে নতুন বুকিং বা সময়সূচি সংরক্ষণ করা যাবে না।" : "An approved vendor booking and technician schedule must overlap. Disjoint windows cannot be proposed, approved or scheduled.")</p></div>
                 <div class="col-12"><button type="submit" class="btn btn-primary">@(bn ? "পরিবর্তন সংরক্ষণ" : "Apply transition")</button></div>
             </form>
             <hr /><h4 class="h6">@(bn ? "পরিবর্তনের ইতিহাস" : "Transition history")</h4>
