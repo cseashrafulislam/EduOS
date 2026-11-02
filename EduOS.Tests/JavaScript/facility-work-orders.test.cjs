@@ -37,7 +37,7 @@ test('approved vendor selection is bounded, campus scoped and requires independe
     assert.match(service, /s\.TenantId == user\.TenantId && s\.CampusId == campusId/);
     assert.match(service, /AllowedCampuses\(\)\.ContainsAsync\(campusId, ct\)/);
     assert.match(view, /id="wfVendorPanel"/);
-    assert.match(view, /propose booking/);
+    assert.match(view, /Available campus vendors for the selected window/);
     assert.match(view, /id="wfVendorSelected"[^>]*readonly/);
     assert.match(script, /vendorChoices\.has\(Number\(el\('wfVendorSelected'\)\.value\)\)/);
     assert.match(script, /api\('\/vendors\?' \+ q\)/);
