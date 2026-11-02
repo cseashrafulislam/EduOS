@@ -377,10 +377,10 @@ function populatedTenantRegister({ leakOnReplay = false, cacheOnReplay = false }
                 ? 'public, max-age=60' : 'no-store'
         };
         if (isCsv) {
-            const csv = 'Kind,Reference,Number,Date,Campus,State,RecordedValue,Lines,EvidenceStatus\\n' +
+            const csv = 'Kind,Reference,Number,Date,Campus,State,RecordedValue,Lines,EvidenceStatus\n' +
                 pageItems.map(x => [kind, x.reference, x.number, x.date,
                     x.campusId ?? '', x.state, x.recordedValue,
-                    x.lineCount, x.evidenceStatus].join(',')).join('\\n');
+                    x.lineCount, x.evidenceStatus].join(',')).join('\n');
             return new Response(csv, { status: 200, headers });
         }
         return new Response(JSON.stringify({ success: true, data: {
