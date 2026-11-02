@@ -322,3 +322,65 @@ test('exact Chromium request is mandatory; unrelated register traffic cannot fak
             config.refs[0])]
     }, true), /Untrusted foreign evidence response target/);
 });
+
+
+test('foreign Chromium response rejects JSON-escaped private UUIDs and contradictory cache', async () => {
+    const config = validateEnvironment(env);
+    const nested = '99999999-9999-4999-8999-999999999999';
+    config.privateRefs.add(nested);
+    const target = config.base + '/api/v3/enterprise/ledger-trace/register?kind=stock';
+    const response = (body, cache = 'private, no-store') => ({
+        url: () => target, status: () => 200,
+        headers: () => ({ 'cache-control': cache }),
+        body: async () => Buffer.isBuffer(body) ? body : Buffer.from(body)
+    });
+    const audit = (body, cache) => assertForeignResponsePrivacy(config, {
+        evidenceResponses: [response(body, cache)]
+    }, true, target);
+    const escaped = nested.split('').map(char =>
+        '\\u' + char.charCodeAt(0).toString(16).padStart(4, '0')).join('');
+    await assert.rejects(audit('{"hidden":"' + escaped + '"}'),
+        /Foreign browser received owner evidence/);
+    for (const cache of ['no-store, max-age=60', 'no-store, stale-if-error=60',
+        'private, no-store, immutable', 'no-store, stale-while-revalidate=60'])
+        await assert.rejects(audit('{}', cache), /cacheable/);
+    await assert.rejects(audit(Buffer.from([0xc3, 0x28])),
+        /encoded data|valid for encoding/i);
+});
+
+test('owner Chromium captures Unicode-escaped nested Finance UUID for foreign denial', async () => {
+    const config = validateEnvironment(env);
+    const nested = '99999999-9999-4999-8999-999999999999';
+    const url = config.base + '/api/v3/enterprise/ledger-trace/' + config.refs[0];
+    const escaped = nested.split('').map(char =>
+        '\\u' + char.charCodeAt(0).toString(16).padStart(4, '0')).join('');
+    const response = (target, body, cache = 'private, no-store') => ({
+        url: () => target, status: () => 200,
+        headers: () => ({ 'cache-control': cache }),
+        body: async () => Buffer.from(body)
+    });
+    await collectOwnerEvidenceReferences(config, { evidenceResponses: [
+        response(url, '{"movementReference":"' + config.refs[0] +
+            '","journals":[{"reference":"' + escaped + '"}]}')
+    ] }, config.refs[0], url);
+    assert(config.privateRefs.has(nested));
+    for (const cache of ['no-store, max-age=60', 'no-store, stale-if-error=60'])
+        await assert.rejects(collectOwnerEvidenceReferences(config, { evidenceResponses: [
+            response(url, '{"movementReference":"' + config.refs[0] + '"}', cache)
+        ] }, config.refs[0], url), /cacheable/);
+});
+
+test('unrelated owner response cannot supply missing reference for expected endpoint', async () => {
+    const config = validateEnvironment(env);
+    const expected = config.base + '/api/v3/enterprise/ledger-trace/' + config.refs[0];
+    const unrelated = config.base + '/api/v3/enterprise/ledger-trace/register?kind=stock';
+    const response = (url, body) => ({
+        url: () => url, status: () => 200,
+        headers: () => ({ 'cache-control': 'private, no-store' }),
+        body: async () => Buffer.from(body)
+    });
+    await assert.rejects(collectOwnerEvidenceReferences(config, { evidenceResponses: [
+        response(expected, '{"success":true,"data":{}}'),
+        response(unrelated, '{"reference":"' + config.refs[0] + '"}')
+    ] }, config.refs[0], expected), /expected HTTP evidence/);
+});

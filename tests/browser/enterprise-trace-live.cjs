@@ -4,6 +4,7 @@
 const assert = require('node:assert/strict');
 const path = require('node:path');
 const { pathToFileURL } = require('node:url');
+const { privateNoStore } = require('./enterprise-trace-readonly-load.cjs');
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 function validateEnvironment(env) {
     const get = key => {
@@ -130,6 +131,15 @@ function captureEvidenceResponses(page, base) {
     });
     return responses;
 }
+function decodedEvidenceForms(bytes) {
+    // JSON string escapes can hide an otherwise visible private Finance UUID.
+    // Bound the bytes before calling this helper; never log decoded private data.
+    const text = new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+    const forms = [text.toLowerCase()];
+    try { forms.push(JSON.stringify(JSON.parse(text)).toLowerCase()); }
+    catch { /* CSV and denied plaintext may not be JSON. */ }
+    return forms;
+}
 async function assertForeignResponsePrivacy(config, session, requireNetworkEvidence = false,
     expectedUrl = null) {
     const responses = session.evidenceResponses.splice(0);
@@ -151,17 +161,13 @@ async function assertForeignResponsePrivacy(config, session, requireNetworkEvide
             ? [200, 400, 401, 403, 404, 409].includes(response.status())
             : [403, 404].includes(response.status()),
             'Foreign source detail was not denied or register status is invalid');
-        const directives = String(response.headers()['cache-control'] || '')
-            .toLowerCase().split(',').map(value => value.trim());
-        assert(directives.includes('no-store') &&
-            !directives.includes('public') &&
-            !directives.some(value => /^s-maxage\s*=/.test(value)),
+        assert(privateNoStore(new Headers(response.headers())),
             'Foreign evidence response is cacheable');
         const body = await response.body();
         assert(body.length <= 2_000_000, 'Oversized foreign evidence response');
-        const text = body.toString('utf8').toLowerCase();
+        const forms = decodedEvidenceForms(body);
         for (const reference of config.privateRefs || config.refs)
-            assert(!text.includes(reference.toLowerCase()),
+            assert(forms.every(form => !form.includes(reference.toLowerCase())),
                 'Foreign browser received owner evidence in response body');
     }
 }
@@ -179,27 +185,30 @@ async function collectOwnerEvidenceReferences(config, session, expectedReference
         assert(responses.some(response => response.url?.() === expectedUrl),
             'Owner browser did not request the exact expected evidence endpoint');
     const observed = new Set();
+    let expectedOnExactResponse = false;
     for (const response of responses) {
         assert.equal(response.status(), 200, 'Authorized owner evidence request failed');
-        const directives = String(response.headers()['cache-control'] || '')
-            .toLowerCase().split(',').map(value => value.trim());
-        assert(directives.includes('no-store') && !directives.includes('public') &&
-            !directives.some(value => /^s-maxage\s*=/.test(value)),
+        assert(privateNoStore(new Headers(response.headers())),
             'Owner evidence response is cacheable');
         const body = await response.body();
         assert(body.length <= 2_000_000, 'Oversized owner evidence response');
+        const current = new Set();
         const uuid = /\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/gi;
-        for (const match of body.toString('utf8').matchAll(uuid)) {
-            const reference = match[0].toLowerCase();
+        for (const form of decodedEvidenceForms(body))
+            for (const match of form.matchAll(uuid)) current.add(match[0].toLowerCase());
+        for (const reference of current) {
             observed.add(reference);
             config.privateRefs.add(reference);
             assert(config.privateRefs.size <= 10000,
                 'Unbounded owner reference inventory');
         }
+        if (expectedReference && (!expectedUrl || response.url?.() === expectedUrl) &&
+            current.has(expectedReference.toLowerCase()))
+            expectedOnExactResponse = true;
     }
     if (expectedReference)
-        assert(observed.has(expectedReference.toLowerCase()),
-            'Authorized source reference absent from observed HTTP evidence');
+        assert(expectedOnExactResponse,
+            'Authorized source reference absent from expected HTTP evidence');
 }
 
 /**
