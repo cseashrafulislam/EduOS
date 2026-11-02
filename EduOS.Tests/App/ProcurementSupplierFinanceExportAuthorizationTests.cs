@@ -111,7 +111,11 @@ public sealed class ProcurementSupplierFinanceExportAuthorizationTests
                 app.UseRateLimiter();
                 app.UseAuthentication();
                 app.UseAuthorization();
-                app.UseEndpoints(x => x.MapControllers());
+                app.UseEndpoints(x =>
+                {
+                    x.MapControllers();
+                    x.MapControllerRoute("default", "{controller=Home}/{action=Index}/{id?}");
+                });
             }));
     }
 
@@ -246,4 +250,64 @@ public sealed class ProcurementSupplierFinanceExportAuthorizationTests
                 .Export(null, null, CancellationToken.None));
         Assert.Equal(413, oversized.StatusCode);
     }
+    [Fact]
+    public async Task Supplier_invoice_financial_workspace_and_intake_fail_closed_without_finance_entitlement()
+    {
+        var service = new Mock<IProcurementSupplierInvoiceService>(MockBehavior.Strict);
+        using var server = Server(service);
+        using var client = server.CreateClient();
+        var reference = Guid.Parse("f1000000-0000-4000-8000-000000000001");
+        foreach (var path in new[]
+        {
+            "/ProcurementSupplierInvoiceMatching/Index",
+            "/api/procurement/supplier-invoices",
+            $"/api/procurement/supplier-invoices/{reference}"
+        })
+        {
+            using var denied = await Get(client, path, "Accountant", true, false);
+            Assert.Equal(HttpStatusCode.Forbidden, denied.StatusCode);
+            using var deniedInventory = await Get(client, path, "Accountant", false, true);
+            Assert.Equal(HttpStatusCode.Forbidden, deniedInventory.StatusCode);
+        }
+
+        foreach (var path in new[]
+        {
+            "/api/procurement/supplier-invoices",
+            $"/api/procurement/supplier-invoices/{reference}/submit"
+        })
+        {
+            using var request = new HttpRequestMessage(HttpMethod.Post, path)
+            {
+                Content = new StringContent("{}", Encoding.UTF8, "application/json")
+            };
+            request.Headers.TryAddWithoutValidation("X-Test-Role", "Accountant");
+            request.Headers.TryAddWithoutValidation("X-Test-INVENTORY", "true");
+            request.Headers.TryAddWithoutValidation("X-Test-FINANCE", "false");
+            using var denied = await client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.Forbidden, denied.StatusCode);
+        }
+        service.VerifyNoOtherCalls();
+    }
+
+    [Fact]
+    public async Task Supplier_invoice_financial_reads_still_work_with_both_entitlements()
+    {
+        var reference = Invoice(1).Reference;
+        var service = new Mock<IProcurementSupplierInvoiceService>(MockBehavior.Strict);
+        service.Setup(x => x.ListAsync(null, null, 1, 25, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Ok(1, 1, Invoice(1)));
+        service.Setup(x => x.GetAsync(reference, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(ApiResponse<ProcurementSupplierInvoiceDto>.SuccessResponse(Invoice(1)));
+        using var server = Server(service);
+        using var client = server.CreateClient();
+        using (var list = await Get(client, "/api/procurement/supplier-invoices",
+            "Accountant", true, true))
+            Assert.Equal(HttpStatusCode.OK, list.StatusCode);
+        using (var detail = await Get(client,
+            $"/api/procurement/supplier-invoices/{reference}", "Accountant", true, true))
+            Assert.Equal(HttpStatusCode.OK, detail.StatusCode);
+        service.Verify(x => x.ListAsync(null, null, 1, 25, It.IsAny<CancellationToken>()), Times.Once);
+        service.Verify(x => x.GetAsync(reference, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
 }

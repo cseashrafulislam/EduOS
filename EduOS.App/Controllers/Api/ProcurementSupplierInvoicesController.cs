@@ -9,7 +9,7 @@ using Microsoft.AspNetCore.RateLimiting;
 
 namespace EduOS.App.Controllers.Api;
 
-[ApiController, Route("api/procurement/supplier-invoices"), Authorize, RequireModule("INVENTORY"),
+[ApiController, Route("api/procurement/supplier-invoices"), Authorize, RequireModule("INVENTORY"), RequireModule("FINANCE"),
  AutoValidateAntiforgeryToken, EnableRateLimiting("ApiPolicy")]
 [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
 public sealed class ProcurementSupplierInvoicesController(IProcurementSupplierInvoiceService service) : ControllerBase
