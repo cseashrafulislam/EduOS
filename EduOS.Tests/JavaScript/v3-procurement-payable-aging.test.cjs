@@ -5,9 +5,17 @@ const path=require('node:path');
 const read=p=>fs.readFileSync(path.join(__dirname,'../..',p),'utf8');
 test('Aging uses canonical posted AP with tenant/campus authorization, not shadow balances',()=>{
  const s=read('EduOS.Service/Services/Inventory/ProcurementSupplierInvoiceAging.cs');
- for(const v of ['Visible()','JournalState.Posted','AccountType.Liability','CreditAmount==x.TotalAmount',
+ for(const v of ['Visible()','JournalState.Posted','AccountType.Liability','l.CreditAmount == x.TotalAmount',
   'SourceType=="ProcurementSupplierInvoice"','Skip((page-1)*pageSize)','overdueOnly'])
   assert.ok(s.includes(v),v);
+ // A posted invoice with a missing/corrupt original GL must remain in the
+ // authorized reconciliation register as EvidenceConflict, never vanish.
+ for(const v of [
+  'var query=Visible().Where(x=>x.StateCode=="Posted");',
+  'verifiedInvoiceIds', 'invoiceLinesByJournal',
+  'var conflicted = !verifiedInvoiceIds.Contains(x.Id)',
+  'SettlementIntegrityStatus=conflicted?"EvidenceConflict":"SourceLinked"'
+ ]) assert.ok(s.includes(v),'missing posted-GL reconciliation guard: '+v);
  assert.doesNotMatch(s,/db\\.Journals\\.(Add|Update)|db\\.InventoryMovements\\.(Add|Update)/);
 });
 test('Aging has protected bounded export and bilingual XSS-safe UI',()=>{
