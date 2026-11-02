@@ -199,30 +199,74 @@ public sealed partial class SqlServerV3ProcurementPurchaseOrderTests
                 AccountingPeriodId = periodId, ReversalDate = today,
                 Reason = "Serialized asset not commissioned, unwind both stock and original GL"
             };
-            var correction = await finance.RequestCapitalizationReversalAsync(
-                command, capitalizationReversalCommand);
-            Assert.True(correction.Success, correction.Message);
-            Assert.Equal("Posted", correction.Data!.State);
-            unwindReference = correction.Data.PendingReversalReference!.Value;
-            unwindVersion = correction.Data.PendingReversalRowVersion!;
-            Assert.Null(correction.Data.FinanceReversalReference);
+            // Two distinct maker keys race for the SAME posted serialized unit.
+            // Only one source-linked submitted contra may survive; the losing key
+            // must not leave an orphan Finance journal or reverse any stock.
+            var competingReversalCommand = new AssetReversalRequest
+            {
+                ClientRequestId = Guid.NewGuid(),
+                OriginalRowVersion = capitalizationReversalCommand.OriginalRowVersion,
+                AccountingPeriodId = periodId, ReversalDate = today,
+                Reason = "Competing serialized-unit correction must not duplicate stock or GL"
+            };
+            var pendingCommands = new[] { capitalizationReversalCommand, competingReversalCommand };
+            var pendingAttempts = await Task.WhenAll(pendingCommands.Select(async candidate =>
+            {
+                await using var contender = Open(opts, tenantId, makerId);
+                return await AssetFinance(contender, tenantId, makerId)
+                    .RequestCapitalizationReversalAsync(command, candidate);
+            }));
+            var acceptedPending = Assert.Single(pendingAttempts, x => x.Success);
+            Assert.Single(pendingAttempts, x => x.StatusCode == 409);
+            var losingCommand = pendingAttempts[0].Success
+                ? competingReversalCommand : capitalizationReversalCommand;
+            capitalizationReversalCommand = pendingAttempts[0].Success
+                ? capitalizationReversalCommand : competingReversalCommand;
+            Assert.Equal("Posted", acceptedPending.Data!.State);
+            unwindReference = acceptedPending.Data.PendingReversalReference!.Value;
+            unwindVersion = acceptedPending.Data.PendingReversalRowVersion!;
+            Assert.Null(acceptedPending.Data.FinanceReversalReference);
+            await using (var pendingAudit = Open(opts, tenantId, makerId))
+            {
+                var onlyPending = Assert.Single(await pendingAudit.Journals.AsNoTracking()
+                    .Where(x => x.SourceType == "AssetCapitalizationReversal").ToListAsync());
+                Assert.Equal(JournalState.Submitted, onlyPending.State);
+                Assert.Equal(capitalizationReversalCommand.ClientRequestId, onlyPending.IdempotencyKey);
+                Assert.False(await pendingAudit.Journals.AsNoTracking()
+                    .AnyAsync(x => x.IdempotencyKey == losingCommand.ClientRequestId));
+                Assert.Empty(await pendingAudit.InventoryMovements.AsNoTracking()
+                    .Where(x => x.ReversalOfMovementId != null).ToListAsync());
+            }
             var pendingReplay = await finance.RequestCapitalizationReversalAsync(
                 command, capitalizationReversalCommand);
             Assert.True(pendingReplay.Success, pendingReplay.Message);
             Assert.Equal(unwindReference, pendingReplay.Data!.PendingReversalReference);
         }
+        await using (var staleDb = Open(opts, tenantId, checkerId))
+        {
+            var stale = await AssetFinance(staleDb, tenantId, checkerId)
+                .ReviewCapitalizationReversalAsync(command, unwindReference,
+                    new AssetReviewRequest { RowVersion = "invalid", Approve = true,
+                        Reason = "Stale review must not mutate stock or GL" });
+            Assert.Equal(409, stale.StatusCode);
+        }
+        // Independent SQL contexts compete to post the exact same approved
+        // stock reversal and Finance contra. A rejected contender is not a
+        // second posting, even when both started with the same rowversion.
+        var reviewAttempts = await Task.WhenAll(Enumerable.Range(0, 2).Select(async _ =>
+        {
+            await using var contender = Open(opts, tenantId, checkerId);
+            return await AssetFinance(contender, tenantId, checkerId)
+                .ReviewCapitalizationReversalAsync(command, unwindReference,
+                    new AssetReviewRequest { RowVersion = unwindVersion, Approve = true,
+                        Reason = "Independent physical unit return and GL contra approval" });
+        }));
+        var unwound = Assert.Single(reviewAttempts, x => x.Success);
+        Assert.Single(reviewAttempts, x => x.StatusCode == 409);
+        Assert.Equal("Reversed", unwound.Data!.State);
         await using (var db = Open(opts, tenantId, checkerId))
         {
             var finance = AssetFinance(db, tenantId, checkerId);
-            var sameMaker = await finance.ReviewCapitalizationReversalAsync(command,
-                unwindReference, new AssetReviewRequest { RowVersion = "invalid",
-                    Approve = true, Reason = "Stale review must not mutate stock or GL" });
-            Assert.Equal(409, sameMaker.StatusCode);
-            var unwound = await finance.ReviewCapitalizationReversalAsync(command,
-                unwindReference, new AssetReviewRequest { RowVersion = unwindVersion,
-                    Approve = true, Reason = "Independent physical unit return and GL contra approval" });
-            Assert.True(unwound.Success, unwound.Message);
-            Assert.Equal("Reversed", unwound.Data!.State);
             Assert.NotNull(unwound.Data.FinanceReversalReference);
             Assert.NotNull(unwound.Data.StockReversalReference);
             Assert.False((await db.AssetBooks.SingleAsync()).IsActive);
@@ -237,6 +281,11 @@ public sealed partial class SqlServerV3ProcurementPurchaseOrderTests
             var correctionJournal = Assert.Single(journals.Where(x =>
                 x.SourceType == "AssetCapitalizationReversal"));
             Assert.Equal(originalJournal.Id, correctionJournal.ReversalOfJournalId);
+            var contraLines = await db.JournalLines.AsNoTracking()
+                .Where(x => x.JournalId == correctionJournal.Id).ToListAsync();
+            Assert.Equal(2, contraLines.Count);
+            Assert.Equal(12m, contraLines.Sum(x => x.DebitAmount));
+            Assert.Equal(12m, contraLines.Sum(x => x.CreditAmount));
             Assert.Equal(409, (await finance.ReviewCapitalizationReversalAsync(command,
                 unwindReference, new AssetReviewRequest { RowVersion = unwindVersion,
                     Approve = true, Reason = "Duplicate unwind must not double issue" })).StatusCode);
