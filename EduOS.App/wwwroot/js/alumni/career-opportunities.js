@@ -22,7 +22,7 @@
     const token = root.querySelector('input[name="__RequestVerificationToken"]')?.value || '';
     const pending = new Map();
     let page = 1, total = 0, myPage = 1, myTotal = 0, revision = 0, myRevision = 0;
-    let employersRevision = 0, employerTimer, createRequest = null, students = [];
+    let employersRevision = 0, employerTimer, createRequest = null, students = [], saving = false;
     const notice = (message, error = false) => {
         const target = el('careerOpportunityNotice');
         target.className = 'alert ' + (error ? 'alert-danger' : 'alert-success');
@@ -155,13 +155,17 @@
     async function loadEmployers() {
         if (!admin) return;
         const id = ++employersRevision;
-        const select = el('careerEmployer'); select.replaceChildren();
+        const select = el('careerEmployer'), save = el('careerOpportunitySave');
+        select.replaceChildren();
+        select.disabled = true;
+        save.disabled = true;
         try {
             const filter = el('careerEmployerSearch').value.trim();
             const data = await api('/api/alumni/career/employers?page=1&pageSize=50&status=2&search=' + encodeURIComponent(filter));
             if (id !== employersRevision) return;
             for (const e of data.items) { const option = document.createElement('option'); option.value = e.reference; option.textContent = e.name + ' (' + e.campusId + ')'; select.appendChild(option); }
-            el('careerOpportunitySave').disabled = !data.items.length;
+            select.disabled = !data.items.length;
+            save.disabled = saving || !data.items.length;
             if (!data.items.length) notice(t('No verified employer found.', 'যাচাইকৃত নিয়োগদাতা পাওয়া যায়নি।'), true);
         } catch (err) { if (id === employersRevision) { el('careerOpportunitySave').disabled = true; notice(err.message, true); } }
     }
@@ -170,23 +174,40 @@
             el(id).addEventListener('input', () => { createRequest = null; });
         }
         el('careerEmployerSearch').addEventListener('input', () => {
-            createRequest = null; clearTimeout(employerTimer); employerTimer = setTimeout(loadEmployers, 300);
+            createRequest = null;
+            clearTimeout(employerTimer);
+            // Invalidate both displayed options and in-flight results before debounce.
+            ++employersRevision;
+            el('careerEmployer').replaceChildren();
+            el('careerEmployer').disabled = true;
+            el('careerOpportunitySave').disabled = true;
+            employerTimer = setTimeout(loadEmployers, 300);
         });
         el('careerOpportunityForm').addEventListener('submit', async ev => {
-            ev.preventDefault(); if (!ev.currentTarget.reportValidity()) return;
+            ev.preventDefault();
+            const form = ev.currentTarget, save = el('careerOpportunitySave');
+            const selectedEmployer = el('careerEmployer').value;
+            if (saving || save.disabled || !selectedEmployer || !form.reportValidity()) return;
             const until = new Date(el('careerOpportunityDeadline').value);
             if (!Number.isFinite(until.getTime())) { notice(t('Invalid deadline.', 'সঠিক সময় দিন।'), true); return; }
             if (!createRequest) createRequest = crypto.randomUUID();
-            const save = el('careerOpportunitySave'); save.disabled = true;
+            saving = true;
+            const controls = [...form.querySelectorAll('input, select, textarea, button')];
+            for (const control of controls) control.disabled = true;
             try {
                 await api('/api/alumni/career/opportunities', { clientRequestId: createRequest,
-                    employerReference: el('careerEmployer').value, title: el('careerOpportunityTitle').value,
+                    employerReference: selectedEmployer, title: el('careerOpportunityTitle').value,
                     description: el('careerOpportunityDescription').value || null,
                     kind: Number(el('careerOpportunityKind').value), applyUntilUtc: until.toISOString() });
                 createRequest = null; el('careerOpportunityTitle').value = ''; el('careerOpportunityDescription').value = '';
                 notice(t('Draft saved for independent publication.', 'স্বতন্ত্র অনুমোদনের জন্য খসড়া সংরক্ষিত।')); page = 1; await load();
             } catch (err) { if ([400, 403, 409].includes(err.status)) createRequest = null; notice(err.message, true); }
-            finally { save.disabled = false; }
+            finally {
+                saving = false;
+                for (const control of controls) control.disabled = false;
+                save.disabled = !el('careerEmployer').value;
+                el('careerEmployer').disabled = !el('careerEmployer').value;
+            }
         });
         el('careerOpportunityStatus').addEventListener('change', () => { page = 1; load(); });
         loadEmployers();
@@ -198,7 +219,8 @@
     el('careerOpportunityRefresh').addEventListener('click', load);
     el('careerOpportunityPrev').addEventListener('click', () => { if (page > 1) { page--; load(); } });
     el('careerOpportunityNext').addEventListener('click', () => { if (page * 20 < total) { page++; load(); } });
-    if (!admin) api('/api/alumni/career/students/me').then(data => { students = data; load(); }).catch(err => notice(err.message, true));
+    if (!admin) api('/api/alumni/career/students/me').then(data => { students = data; load(); })
+        .catch(err => { notice(err.message, true); load(); });
     else load();
     loadMine();
 })();
