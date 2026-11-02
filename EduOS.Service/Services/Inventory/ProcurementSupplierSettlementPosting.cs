@@ -3,6 +3,7 @@ using System.Text.RegularExpressions;
 using EduOS.Core.Common;
 using EduOS.Core.DTOs.Inventory;
 using EduOS.Core.Entities.Accounting;
+using EduOS.Core.Entities.Inventory;
 using EduOS.Core.Enums.Domain;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
