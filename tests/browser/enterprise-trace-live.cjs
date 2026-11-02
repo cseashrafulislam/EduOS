@@ -135,6 +135,15 @@ async function verifyView(config, session, key, reference) {
     await page.locator('#v3LedgerTrace').waitFor();
     assert.equal(await page.locator('#v3LedgerTrace').getAttribute('data-language'),
         config.languages[key], 'Bilingual route mismatch');
+    if (key === 'B') {
+        // Check mobile keyboard reachability before the expected 403 disables controls.
+        const width = await page.locator('#v3LedgerTrace').evaluate(
+            e => e.getBoundingClientRect().width);
+        assert(width > 0 && width <= 390, 'Bangla mobile viewport overflow');
+        await page.locator('#v3TraceReference').focus();
+        assert.equal(await page.evaluate(() => document.activeElement?.id),
+            'v3TraceReference', 'Keyboard focus unavailable');
+    }
     await page.locator('#v3TraceReference').fill(reference);
     await page.locator('#v3TraceForm button[type="submit"]').click();
     if (key === 'A') {
@@ -155,12 +164,6 @@ async function verifyView(config, session, key, reference) {
             'Foreign session retained owner rows');
         assert.equal(await page.locator('#v3TraceCsv').getAttribute('href'), null,
             'Foreign session retained export');
-        const width = await page.locator('#v3LedgerTrace').evaluate(
-            e => e.getBoundingClientRect().width);
-        assert(width > 0 && width <= 390, 'Bangla mobile viewport overflow');
-        await page.locator('#v3TraceReference').focus();
-        assert.equal(await page.evaluate(() => document.activeElement?.id),
-            'v3TraceReference', 'Keyboard focus unavailable');
     }
     assert.deepEqual(session.errors, [], 'Browser JavaScript error');
     assert.deepEqual(session.blockedWrites, [], 'Unexpected staging write');
