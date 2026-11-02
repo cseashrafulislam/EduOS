@@ -20,6 +20,32 @@ public sealed partial class ProcurementSupplierInvoiceService
     private static bool BankReference(string value) => value.Length is >= 6 and <= 100 &&
         Regex.IsMatch(value, @"\A[A-Za-z0-9][A-Za-z0-9./:_-]{5,99}\z", RegexOptions.CultureInvariant);
 
+    private const string ReversalDecisionMarker = " | Independent reversal decision: ";
+
+    // The original reversal reason is followed by an append-only independent
+    // review note. Retrying the SAME maker command after review must return the
+    // existing contra, not falsely report that its idempotency key was reused.
+    // Check the immutable source/bank/campus/actor identity before accepting it.
+    private static bool SameReversalCommand(Journal replay, Journal source,
+        ProcurementSupplierInvoice invoice, RequestSupplierSettlementReversal request, long actorId)
+    {
+        var reason = request.Reason.Trim();
+        var description = replay.Description ?? "";
+        var reviewPrefix = reason + ReversalDecisionMarker;
+        var sameReason = replay.State == JournalState.Submitted
+            ? description == reason
+            : (replay.State == JournalState.Posted || replay.State == JournalState.Rejected) &&
+              description.StartsWith(reviewPrefix, StringComparison.Ordinal) &&
+              description.Length > reviewPrefix.Length;
+        return !replay.IsDeleted && replay.CreatedBy == actorId &&
+            replay.SourceType == SettlementReversalSource &&
+            replay.SourceId == source.Id && replay.ReversalOfJournalId == source.Id &&
+            replay.CampusId == invoice.CampusId && replay.CurrencyCode == "BDT" &&
+            replay.ReferenceNumber == source.ReferenceNumber &&
+            replay.AccountingPeriodId == request.AccountingPeriodId &&
+            replay.JournalDate == request.ReversalDate && sameReason;
+    }
+
     // Business dates follow the source campus, inheriting the institution time zone.
     // An absent/invalid zone is a posting conflict, never an implicit UTC fallback.
     private async Task<DateOnly?> SettlementLocalDayAsync(long campusId, CancellationToken ct)
@@ -166,10 +192,7 @@ public sealed partial class ProcurementSupplierInvoiceService
             var replay = await db.Journals.IgnoreQueryFilters().AsNoTracking().FirstOrDefaultAsync(x =>
                 x.TenantId == user.TenantId && x.IdempotencyKey == request.ClientRequestId, ct);
             if (replay != null)
-                return !replay.IsDeleted && replay.SourceType == SettlementReversalSource &&
-                    replay.SourceId == source.Id && replay.ReversalOfJournalId == source.Id &&
-                    replay.AccountingPeriodId == request.AccountingPeriodId &&
-                    replay.JournalDate == request.ReversalDate && replay.Description == request.Reason.Trim()
+                return SameReversalCommand(replay, source, invoice, request, user.UserId)
                     ? ApiResponse<SupplierSettlementInstructionDto>.SuccessResponse(
                         await SettlementMapAsync(source, ct), "Existing reversal request returned.")
                     : Err<SupplierSettlementInstructionDto>("Reversal request key belongs to another command.", 409);
@@ -275,7 +298,7 @@ public sealed partial class ProcurementSupplierInvoiceService
                     x.Id != reversal.Id && x.ReversalOfJournalId == source.Id && x.State == JournalState.Posted, ct))
                     return Err<SupplierSettlementInstructionDto>("Settlement already reversed.", 409);
             }
-            var note = " | Independent reversal decision: " + request.Reason.Trim();
+            var note = ReversalDecisionMarker + request.Reason.Trim();
             if ((reversal.Description ?? "").Length + note.Length > 1000)
                 return Err<SupplierSettlementInstructionDto>("Reversal decision exceeds journal audit capacity.", 409);
             var now = clock.GetUtcNow().UtcDateTime;

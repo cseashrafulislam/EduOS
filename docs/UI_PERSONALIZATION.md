@@ -729,6 +729,8 @@ The existing Supplier Finance invoice/aging downloads now share the canonical Pr
 
 Goods Receipt CSV now fails closed with HTTP 409 when its authorized DTO has no lines, duplicate/invalid PO/item/quantity evidence, more than 100 lines or a Posted receipt missing the InventoryMovement reference/posted valuation. The same download route, filename, filters, bilingual shared Page Information drawer and no-partial-file behavior are preserved; no new UI control or localization key is required. Synthetic controller acceptance does not establish SQL snapshot isolation or authenticated SQL-backed browser security.
 
+Supplier Settlement reversal retries retain the original maker's command key even after independent Finance review appends the decision audit. A changed reason or different actor is denied, and the existing posted contra is read back without a new bank action or GL posting. The existing bilingual settlement review and reversal workspace/Help Drawer remain unchanged.
+
 Supplier Invoice CSV additionally validates the source-linked PO, campus, supplier, receipt-line, item, billed quantity, stock value and signed price variance before emitting financial evidence. Posted invoice exports require a linked Finance Journal reference. Invalid projections fail with HTTP 409 and no partial CSV, while legitimate fractional unit prices and negative variance remain readable. Existing download URL, file name, role/entitlement checks and shared en-BD/bn-BD Page Information drawer are preserved; no new UI or ledger is introduced. Controller regressions are synthetic, not authenticated SQL-backed browser or SQL snapshot acceptance.
 
 ### 9.54. Invoice coverage and future fee projection (2026-11-02)

@@ -885,12 +885,24 @@ public sealed partial class SqlServerV3ProcurementPurchaseOrderTests
                 Assert.True(traced.Success,traced.Message);
                 Assert.Equal(6m,traced.Data!.SettlementPostedNetAmount);
                 Assert.Equal(12m,traced.Data.SourceLinkedOutstandingAmount);
-                var contra=await paymentReportService.RequestSettlementReversalAsync(second.Reference,postedReference,
-                    new RequestSupplierSettlementReversal {ClientRequestId=Guid.NewGuid(),
-                        OriginalRowVersion=postedVersion,AccountingPeriodId=periodId,
-                        ReversalDate=postedDate,Reason="Incorrect bank instruction requires full accounting contra" });
+                var reversalKey=Guid.NewGuid();
+                var reversalReason="Incorrect bank instruction requires full accounting contra";
+                var reversalCommand=new RequestSupplierSettlementReversal {
+                    ClientRequestId=reversalKey,OriginalRowVersion=postedVersion,
+                    AccountingPeriodId=periodId,ReversalDate=postedDate,Reason=reversalReason };
+                var contra=await paymentReportService.RequestSettlementReversalAsync(
+                    second.Reference,postedReference,reversalCommand);
                 Assert.True(contra.Success,contra.Message);
                 Assert.Equal("Submitted",contra.Data!.ReversalState);
+                var pendingReplay=await paymentReportService.RequestSettlementReversalAsync(
+                    second.Reference,postedReference,reversalCommand);
+                Assert.True(pendingReplay.Success,pendingReplay.Message);
+                Assert.Equal(contra.Data.ReversalReference,pendingReplay.Data!.ReversalReference);
+                Assert.Equal(409,(await paymentReportService.RequestSettlementReversalAsync(
+                    second.Reference,postedReference,new RequestSupplierSettlementReversal {
+                        ClientRequestId=reversalKey,OriginalRowVersion=postedVersion,
+                        AccountingPeriodId=periodId,ReversalDate=postedDate,
+                        Reason="A different reason cannot reuse the same reversal command key" })).StatusCode);
                 Assert.Equal(409,(await paymentReportService.RequestSettlementReversalAsync(second.Reference,postedReference,
                     new RequestSupplierSettlementReversal {ClientRequestId=Guid.NewGuid(),
                         OriginalRowVersion=postedVersion,AccountingPeriodId=periodId,
@@ -903,6 +915,35 @@ public sealed partial class SqlServerV3ProcurementPurchaseOrderTests
                             Reason="Independent auditor verifies full original GL line mirror" });
                 Assert.True(decision.Success,decision.Message);
                 Assert.Equal("Posted",decision.Data!.ReversalState);
+                // An independent checker cannot claim the original maker's key,
+                // even when all source-linked values match.
+                Assert.Equal(409,(await Invoices(reversalChecker,tenantId,checkerId)
+                    .RequestSettlementReversalAsync(second.Reference,postedReference,
+                        reversalCommand)).StatusCode);
+                await using var makerReplay=Open(options,tenantId,makerId);
+                var postedReplay=await Invoices(makerReplay,tenantId,makerId,atCampusMidnight)
+                    .RequestSettlementReversalAsync(second.Reference,postedReference,
+                        reversalCommand);
+                Assert.True(postedReplay.Success,postedReplay.Message);
+                Assert.Equal("Posted",postedReplay.Data!.ReversalState);
+                Assert.Equal(contra.Data.ReversalReference,postedReplay.Data.ReversalReference);
+                Assert.Equal(409,(await Invoices(makerReplay,tenantId,makerId,atCampusMidnight)
+                    .RequestSettlementReversalAsync(second.Reference,postedReference,
+                        new RequestSupplierSettlementReversal {
+                            ClientRequestId=reversalKey,OriginalRowVersion=postedVersion,
+                            AccountingPeriodId=periodId,ReversalDate=postedDate,
+                            Reason="A changed reason after approval must not replay" })).StatusCode);
+                var contraJournal=Assert.Single(await makerReplay.Journals.AsNoTracking()
+                    .Where(x=>x.SourceType=="ProcurementSupplierPaymentReversal" &&
+                        x.ReversalOfJournalId.HasValue &&
+                        x.PublicId==contra.Data.ReversalReference).ToListAsync());
+                Assert.Equal(JournalState.Posted,contraJournal.State);
+                Assert.Equal(reversalReason+" | Independent reversal decision: "+
+                    "Independent auditor verifies full original GL line mirror",
+                    contraJournal.Description);
+                var sourceJournal=Assert.Single(await makerReplay.Journals.AsNoTracking()
+                    .Where(x=>x.PublicId==postedReference).ToListAsync());
+                Assert.Equal("BANK-SQL-"+suffix,sourceJournal.ReferenceNumber);
             }
             await using (var reconciled=Open(options,tenantId,makerId))
             {
