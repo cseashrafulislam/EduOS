@@ -368,6 +368,52 @@ public sealed class SqlServerFacilityWorkOrderTests
             Assert.Single((await service.HistoryAsync(submitted.Id, 1, 25)).Data!.Items
                 .Where(x => x.ActionCode == "schedule"));
         }
+        // Existing schedules need a reason, current rowversion and immutable history.
+        await using (var db = Db(options, tenantId, managerId, "FacilitiesManager"))
+        {
+            var service = Service(db, tenantId, managerId, "FacilitiesManager");
+            var nextStart = scheduleStart.AddMinutes(5);
+            var nextEnd = scheduleEnd.AddMinutes(5);
+            FacilityTransitionDto Change(Guid id, string? reason, string version,
+                DateTime start, DateTime end) => new()
+                {
+                    ClientCommandId = id, RowVersion = version, TechnicianUserId = techId,
+                    ScheduledStartUtc = start, ScheduledEndUtc = end, Note = reason
+                };
+            var originalVersion = scheduled.WorkOrderRowVersion!;
+            Assert.Equal(400, (await service.TransitionAsync(submitted.Id, "schedule",
+                Change(Guid.NewGuid(), null, originalVersion, nextStart, nextEnd))).StatusCode);
+            Assert.Equal(400, (await service.TransitionAsync(submitted.Id, "schedule",
+                Change(Guid.NewGuid(), "short", originalVersion, nextStart, nextEnd))).StatusCode);
+            Assert.Equal(409, (await service.TransitionAsync(submitted.Id, "schedule",
+                Change(Guid.NewGuid(), "Nothing has changed in the window.", originalVersion,
+                    scheduleStart, scheduleEnd))).StatusCode);
+            Assert.Single((await service.HistoryAsync(submitted.Id, 1, 25)).Data!.Items
+                .Where(x => x.ActionCode == "schedule"));
+            var changeId = Guid.NewGuid();
+            var reason = "Shifted repair window due to campus access.";
+            var command = Change(changeId, reason, originalVersion, nextStart, nextEnd);
+            var result = await service.TransitionAsync(submitted.Id, "schedule", command);
+            Assert.True(result.Success, result.Message);
+            Assert.Equal(scheduled.WorkOrderId, result.Data!.WorkOrderId);
+            Assert.NotEqual(originalVersion, result.Data.WorkOrderRowVersion);
+            Assert.Equal(nextStart, result.Data.ScheduledStartUtc);
+            Assert.Equal(nextEnd, result.Data.ScheduledEndUtc);
+            scheduled = result.Data;
+            Assert.True((await service.TransitionAsync(submitted.Id, "schedule", command)).Success);
+            Assert.Equal(409, (await service.TransitionAsync(submitted.Id, "schedule",
+                Change(changeId, "Different reason must be rejected.", originalVersion,
+                    nextStart, nextEnd))).StatusCode);
+            Assert.Equal(409, (await service.TransitionAsync(submitted.Id, "schedule",
+                Change(Guid.NewGuid(), "Stale version must be rejected.", originalVersion,
+                    nextStart, nextEnd.AddMinutes(5)))).StatusCode);
+            var events = (await service.HistoryAsync(submitted.Id, 1, 25)).Data!.Items
+                .Where(x => x.ActionCode == "schedule").ToList();
+            Assert.Equal(2, events.Count);
+            Assert.Contains(events, x => x.Note != null &&
+                x.Note.Contains("Previous technician=") &&
+                x.Note.Contains("reason=" + reason));
+        }
         // A second approved request cannot double-book the same technician.
         FacilityRequestDto second;
         await using (var db = Db(options, tenantId, requesterId, "FacilitiesRequester"))
@@ -573,7 +619,7 @@ public sealed class SqlServerFacilityWorkOrderTests
                     Note = "Campus reschedule; reason=embedded"
                 });
             Assert.Equal(409, obsoleteSchedule.StatusCode);
-            Assert.Equal(2, (await service.HistoryAsync(submitted.Id, 1, 25)).Data!.Items
+            Assert.Equal(3, (await service.HistoryAsync(submitted.Id, 1, 25)).Data!.Items
                 .Count(x => x.ActionCode == "schedule"));
         }
         // Advance a test clock, not stored SLA: queue, role denial, retry and concurrency.

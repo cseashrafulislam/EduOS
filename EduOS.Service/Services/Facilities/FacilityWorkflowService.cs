@@ -535,6 +535,18 @@ public sealed class FacilityWorkflowService(
                     start >= end)
                     return ApiResponse<FacilityRequestDto>.ErrorResponse("Valid technician and UTC schedule required.");
                 var tech = command.TechnicianUserId.Value;
+                // Initial scheduling may omit a note. An existing schedule is an
+                // auditable decision: require a reason and reject no-op commands.
+                if (order.StateCode == "Scheduled")
+                {
+                    if (order.AssignedTechnicianUserId == tech &&
+                        order.ScheduledStartUtc == start && order.ScheduledEndUtc == end)
+                        return ApiResponse<FacilityRequestDto>.ErrorResponse(
+                            "Schedule unchanged; reload the current work order.", 409);
+                    if (string.IsNullOrWhiteSpace(note) || note.Length is < 10 or > 500)
+                        return ApiResponse<FacilityRequestDto>.ErrorResponse(
+                            "Rescheduling requires a reason (10-500 characters).", 400);
+                }
                 var eligible = await db.Users.AsNoTracking().AnyAsync(x => x.Id == tech && x.IsActive, ct) &&
                     await db.TenantMemberships.AsNoTracking().AnyAsync(x =>
                         x.TenantId == user.TenantId && x.UserId == tech && !x.IsDeleted &&

@@ -227,6 +227,7 @@
             input.closest('.col-12, .col-sm-6')?.classList.toggle('d-none', !enabled);
         }
         const scheduling = action === 'schedule';
+        const rescheduling = scheduling && selected?.workOrderState === 'Scheduled';
         el('wfTechnicianLookup').classList.toggle('d-none', !scheduling);
         if (scheduling && selected) {
             technicianPage = 1;
@@ -234,8 +235,11 @@
         } else {
             invalidateTechnicians();
         }
-        el('wfNote').required = ['reject', 'pause', 'complete', 'verify', 'return', 'unschedule', 'escalate', 'cancelrequest', 'cancelapprove', 'cancelreject'].includes(action);
-        el('wfNote').minLength = ['return', 'escalate', 'cancelrequest', 'cancelapprove', 'cancelreject'].includes(action) ? 10 : action === 'unschedule' ? 5 : 0;
+        el('wfNote').required = rescheduling || ['reject', 'pause', 'complete', 'verify', 'return', 'unschedule', 'escalate', 'cancelrequest', 'cancelapprove', 'cancelreject'].includes(action);
+        el('wfNote').minLength = rescheduling || ['return', 'escalate', 'cancelrequest', 'cancelapprove', 'cancelreject'].includes(action) ? 10 : action === 'unschedule' ? 5 : 0;
+        el('wfNote').placeholder = rescheduling
+            ? t('Reason for rescheduling (10-500 characters)', 'সময়সূচি পরিবর্তনের কারণ (১০-৫০০ অক্ষর)')
+            : '';
         el('wfNote').maxLength = ['schedule', 'unschedule', 'escalate', 'return', 'cancelrequest', 'cancelapprove', 'cancelreject'].includes(action) ? 500 : 1000;
     }
     // Active, granted campus spaces are supplied by the Facilities workflow

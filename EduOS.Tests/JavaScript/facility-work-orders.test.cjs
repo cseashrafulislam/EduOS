@@ -72,9 +72,21 @@ test('scheduled work can be released by manager with a reason and rowversion', (
     assert.match(script, /options\.push\('schedule', 'unschedule'\)/);
     assert.match(script, /Release schedule/);
     assert.match(script, /সময়সূচি বাতিল/);
-    assert.match(script, /el\('wfNote'\)\.required = \['reject', 'pause', 'complete', 'verify', 'return', 'unschedule', 'escalate', 'cancelrequest', 'cancelapprove', 'cancelreject'\]\.includes\(action\)/);
+    assert.match(script, /el\('wfNote'\)\.required = rescheduling \|\|/);
     assert.match(script, /action === 'unschedule' \? 5 : 0/);
     assert.match(script, /selected\.workOrderRowVersion/);
+});
+
+test('reasoned rescheduling has server validation and bilingual form requirements', () => {
+    const service = fs.readFileSync(path.join(__dirname,
+        '../../EduOS.Service/Services/Facilities/FacilityWorkflowService.cs'), 'utf8');
+    assert.match(service, /Schedule unchanged; reload the current work order/);
+    assert.match(service, /Rescheduling requires a reason \(10-500 characters\)/);
+    assert.match(script, /const rescheduling = scheduling && selected\?\.workOrderState === 'Scheduled'/);
+    assert.match(script, /el\('wfNote'\)\.required = rescheduling \|\|/);
+    assert.match(script, /el\('wfNote'\)\.minLength = rescheduling \|\|/);
+    assert.match(script, /Reason for rescheduling \(10-500 characters\)/);
+    assert.match(script, /সময়সূচি পরিবর্তনের কারণ/);
 });
 
 test('overdue SLA queue and manual escalation are scoped and bilingual', () => {
