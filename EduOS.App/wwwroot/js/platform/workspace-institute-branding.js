@@ -41,6 +41,23 @@
     const logo = section.querySelector('[data-branding-logo]');
     let busy = false;
     let invalidSession = false;
+    const originalTenant = document.body?.dataset.authTenantId || '';
+    const originalSession = document.body?.dataset.authSessionReference || '';
+    const shield = document.getElementById('eduosSessionShield');
+    function contextReady() {
+        return !!originalTenant && !!originalSession &&
+            document.body?.dataset.authTenantId === originalTenant &&
+            document.body?.dataset.authSessionReference === originalSession &&
+            !window.EduOSSessionTransitionPending?.() &&
+            (!shield || shield.hidden) &&
+            typeof window.EduOSWorkspaceResponseMatchesSession === 'function';
+    }
+    function invalidate() {
+        invalidSession = true;
+        clear();
+        retry.hidden = true;
+        void window.EduOSVerifySessionContext?.();
+    }
 
     function state(message, error = false) {
         status.textContent = message;
@@ -76,14 +93,19 @@
     async function proveSession(signal) {
         // Tenant profile/settings do not emit the session-reference headers.
         // Verify via the existing bound Workspace endpoint before rendering.
+        if (!contextReady()) {
+            invalidate();
+            throw new Error('Session changed.');
+        }
         const response = await fetch('/api/workspace-preferences', {
             method: 'GET', credentials: 'same-origin', cache: 'no-store', signal,
             headers: { Accept: 'application/json' }
         });
-        if (sessionMatches(response, window.EduOSWorkspaceResponseMatchesSession)) return;
-        invalidSession = true;
-        window.EduOSVerifySessionContext?.();
-        throw new Error('Session changed.');
+        if (!response.ok) throw new Error('Session verification unavailable.');
+        if (!contextReady() || !sessionMatches(response, window.EduOSWorkspaceResponseMatchesSession)) {
+            invalidate();
+            throw new Error('Session changed.');
+        }
     }
     async function load() {
         if (busy || invalidSession) return;
@@ -95,6 +117,7 @@
         const controller = new AbortController();
         const timeout = window.setTimeout(() => controller.abort(), 10000);
         try {
+            await proveSession(controller.signal);
             const [profile, settings] = await Promise.all([
                 json('/api/tenant-profile', controller.signal),
                 json('/api/tenant-settings?category=Branding&page=1&pageSize=50', controller.signal)

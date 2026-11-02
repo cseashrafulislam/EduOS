@@ -16,7 +16,8 @@ function element() {
     };
 }
 
-async function mount({ sessionMatches = true, admin = true, profileOk = true } = {}) {
+async function mount({ sessionMatches = true, admin = true, profileOk = true,
+    tenant = '1', switchDuringRead = false, missingMatcher = false } = {}) {
     const status = element(), retry = element(), content = element();
     const name = element(), logo = element();
     const rows = ['primary', 'secondary', 'accent'].map(key => {
@@ -39,10 +40,12 @@ async function mount({ sessionMatches = true, admin = true, profileOk = true } =
         querySelectorAll: () => rows
     };
     const calls = [];
+    const body = { dataset: { authTenantId: tenant, authSessionReference: 'session-1' } };
     let sessionChecks = 0;
     const fetch = async url => {
         calls.push(url);
         if (url === '/api/tenant-profile') {
+            if (switchDuringRead) body.dataset.authTenantId = 'other';
             return { ok: profileOk, json: async () => ({
                 success: profileOk, data: { name: 'Fictional School', logoUrl: '/uploads/school.png' }
             }) };
@@ -57,12 +60,12 @@ async function mount({ sessionMatches = true, admin = true, profileOk = true } =
     };
     const window = {
         setTimeout: () => 1, clearTimeout() {},
-        EduOSWorkspaceResponseMatchesSession: response =>
+        EduOSWorkspaceResponseMatchesSession: missingMatcher ? undefined : response =>
             response.headers.get('X-EduOS-Session-Reference') === 'current',
         EduOSVerifySessionContext: () => { sessionChecks++; }
     };
     vm.runInNewContext(source, {
-        document: { getElementById: () => admin ? section : null },
+        document: { body, getElementById: id => id === 'workspaceInstituteBranding' && admin ? section : null },
         window, fetch, AbortController, module: { exports: {} }
     });
     await new Promise(resolve => setImmediate(resolve));
@@ -72,6 +75,7 @@ async function mount({ sessionMatches = true, admin = true, profileOk = true } =
 test('TenantAdmin sees sanitized institute branding only after session proof', async () => {
     const result = await mount();
     assert.deepEqual(result.calls, [
+        '/api/workspace-preferences',
         '/api/tenant-profile',
         '/api/tenant-settings?category=Branding&page=1&pageSize=50',
         '/api/workspace-preferences'
@@ -102,4 +106,22 @@ test('Other roles do not issue institute branding requests; failed reads remain 
     assert.equal(failed.content.hidden, true);
     assert.equal(failed.retry.hidden, false);
     assert.equal(failed.status.textContent, 'Failed to load branding');
+});
+
+test('Branding summary refuses absent session identity and missing matcher before tenant reads', async () => {
+    for (const options of [{ tenant: '' }, { missingMatcher: true }]) {
+        const result = await mount(options);
+        assert.deepEqual(result.calls, []);
+        assert.equal(result.content.hidden, true);
+        assert.equal(result.retry.hidden, true);
+        assert.equal(result.sessionChecks, 1);
+    }
+});
+
+test('Branding summary discards cross-tenant response that arrives after session changes', async () => {
+    const result = await mount({ switchDuringRead: true });
+    assert.equal(result.content.hidden, true);
+    assert.equal(result.name.textContent, '');
+    assert.equal(result.retry.hidden, true);
+    assert.equal(result.sessionChecks, 1);
 });

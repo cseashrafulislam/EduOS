@@ -25,7 +25,8 @@ function element() {
 }
 
 async function mount({ onboardingOk = true, sessionMatches = true, token = 'csrf-token',
-    failColorAt = 0 } = {}) {
+    failColorAt = 0, tenant = '1', switchDuringRead = false,
+    verificationAvailable = true, missingMatcher = false } = {}) {
     const ids = ['alertContainer', 'subdomainInput', 'availabilityMsg',
         'saveSubdomainBtn', 'saveBrandingBtn', 'retryBrandingLoadBtn',
         'brandingForm', 'logoPreview', 'faviconPreview', 'logoInput',
@@ -46,9 +47,12 @@ async function mount({ onboardingOk = true, sessionMatches = true, token = 'csrf
     });
     const callbacks = {};
     const calls = [], navigations = [], savedRows = [];
+    const body = { dataset: { authTenantId: tenant, authSessionReference: 'session-1' } };
+    let verificationUp = verificationAvailable;
     let colorWrites = 0, sessionChecks = 0;
     let onboardingAvailable = onboardingOk;
     const document = {
+        body,
         getElementById: id => nodes[id] || null,
         querySelector: selector => selector.includes('__RequestVerificationToken')
             ? (token ? { value: token } : null) : null,
@@ -61,10 +65,12 @@ async function mount({ onboardingOk = true, sessionMatches = true, token = 'csrf
     });
     const fetch = async (url, options = {}) => {
         calls.push({ url, method: options.method || 'GET', headers: options.headers || {} });
-        if (url === '/api/tenant-profile')
+        if (url === '/api/tenant-profile') {
+            if (switchDuringRead) body.dataset.authTenantId = 'other';
             return response({ success: true, data: {
                 subdomain: 'demo-school', rowVersion: 'rv1', logoUrl: null, faviconUrl: null
             } });
+        }
         if (url === '/api/tenant-settings?category=Branding&page=1&pageSize=50')
             return response({ success: true, data: { items: savedRows.map(x => ({ ...x })) } });
         if (url === '/api/onboarding/status')
@@ -72,7 +78,8 @@ async function mount({ onboardingOk = true, sessionMatches = true, token = 'csrf
                 ? { success: true, data: { currentStage: 8, isComplete: false } }
                 : { success: false }, onboardingAvailable, onboardingAvailable ? 200 : 500);
         if (url === '/api/workspace-preferences')
-            return response({ success: true, data: {} }, true, 200,
+            return response({ success: verificationUp, data: {} }, verificationUp,
+                verificationUp ? 200 : 503,
                 { 'X-EduOS-Session-Reference': sessionMatches ? 'current' : 'other' });
         if (url === '/api/tenant-settings' && options.method === 'POST') {
             colorWrites++;
@@ -90,7 +97,7 @@ async function mount({ onboardingOk = true, sessionMatches = true, token = 'csrf
     const window = {
         location: { origin: 'https://school.example', assign: url => navigations.push(url) },
         clearTimeout() {}, setTimeout() { return 1; }, confirm() { return true; },
-        EduOSWorkspaceResponseMatchesSession: result =>
+        EduOSWorkspaceResponseMatchesSession: missingMatcher ? undefined : result =>
             result.headers.get('X-EduOS-Session-Reference') === 'current',
         EduOSVerifySessionContext() { sessionChecks++; },
         EduOSSessionTransitionPending() { return false; },
@@ -101,6 +108,7 @@ async function mount({ onboardingOk = true, sessionMatches = true, token = 'csrf
     return {
         nodes, calls, navigations, savedRows,
         setOnboardingOk(value) { onboardingAvailable = value; },
+        setVerificationUp(value) { verificationUp = value; },
         get colorWrites() { return colorWrites; },
         get sessionChecks() { return sessionChecks; },
         async submit() {
@@ -115,7 +123,7 @@ test('Branding editor requires verified profile, colors, onboarding and session 
     assert.equal(app.nodes.saveBrandingBtn.disabled, false);
     assert.equal(app.nodes.subdomainInput.value, 'demo-school');
     assert.equal(app.nodes.retryBrandingLoadBtn.hidden, true);
-    assert.equal(app.calls.filter(x => x.url === '/api/workspace-preferences').length, 1);
+    assert.equal(app.calls.filter(x => x.url === '/api/workspace-preferences').length, 2);
     await app.submit();
     assert.equal(app.colorWrites, 3);
     assert.deepEqual(app.navigations, ['/Account/GeneralSettings']);
@@ -184,4 +192,34 @@ test('Shared antiforgery and localized partial-save recovery remain mandatory', 
     assert.match(source, /window\.EduOSWorkspaceResponseMatchesSession/);
     assert.match(source, /await reloadBranding\(\)/);
     assert.doesNotMatch(source, /innerHTML|localStorage|sessionStorage/);
+});
+
+test('Branding setup verifies before privileged reads and blocks missing context/matcher', async () => {
+    for (const options of [{ tenant: '' }, { missingMatcher: true }]) {
+        const app = await mount(options);
+        assert.equal(app.nodes.saveBrandingBtn.disabled, true);
+        assert.equal(app.nodes.retryBrandingLoadBtn.hidden, true);
+        assert.equal(app.calls.some(x => x.url === '/api/tenant-profile'), false);
+        await app.submit();
+        assert.equal(app.colorWrites, 0);
+    }
+});
+
+test('Branding setup discards profile loaded after a tenant switch', async () => {
+    const app = await mount({ switchDuringRead: true });
+    assert.equal(app.nodes.saveBrandingBtn.disabled, true);
+    assert.equal(app.nodes.subdomainInput.value, '');
+    assert.equal(app.nodes.retryBrandingLoadBtn.hidden, true);
+    await app.submit();
+    assert.equal(app.colorWrites, 0);
+});
+
+test('Unavailable session verifier clears privileged UI and only retries after recovery', async () => {
+    const app = await mount({ verificationAvailable: false });
+    assert.equal(app.nodes.saveBrandingBtn.disabled, true);
+    assert.equal(app.nodes.retryBrandingLoadBtn.hidden, false);
+    assert.equal(app.calls.some(x => x.url === '/api/tenant-profile'), false);
+    app.setVerificationUp(true);
+    await app.retry();
+    assert.equal(app.nodes.saveBrandingBtn.disabled, false);
 });

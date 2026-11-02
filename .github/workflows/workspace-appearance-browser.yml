@@ -4,9 +4,14 @@ on:
     branches: [Ashraful]
     paths:
       - 'EduOS.App/wwwroot/js/platform/workspace-preferences.js'
+      - 'EduOS.App/wwwroot/js/platform/workspace-institute-branding.js'
+      - 'EduOS.App/wwwroot/js/account/branding-setup.js'
+      - 'EduOS.Tests/JavaScript/workspace-institute-branding.test.cjs'
+      - 'EduOS.Tests/JavaScript/branding-setup-session-recovery.test.cjs'
       - 'EduOS.App/wwwroot/js/site.js'
       - 'EduOS.App/Views/WorkspacePreferences/Index.cshtml'
       - 'tests/browser/workspace-appearance.cjs'
+      - 'tests/browser/workspace-institute-branding.cjs'
       - 'tests/browser/workspace-appearance-live.cjs'
       - 'tests/browser/workspace-appearance-live-contract.cjs'
       - 'EduOS.App/Views/Account/Login.cshtml'
@@ -47,6 +52,8 @@ jobs:
           result=$?
           set -e
           test "$result" -eq 2
+      - name: Exercise TenantAdmin branding summary in Chromium with synthetic session and tenant switch
+        run: node tests/browser/workspace-institute-branding.cjs
       - name: Exercise real appearance editor with isolated synthetic session/API in Chromium
         run: node tests/browser/workspace-appearance.cjs
       - name: Exercise bilingual Login, institution selection and public Help Drawer in Chromium

@@ -27,6 +27,22 @@
     let loading = false;
     let invalidSession = false;
     const retryLoadButton = document.getElementById('retryBrandingLoadBtn');
+    const originalTenant = document.body?.dataset.authTenantId || '';
+    const originalSession = document.body?.dataset.authSessionReference || '';
+    const shield = document.getElementById('eduosSessionShield');
+    function contextReady() {
+        return !!originalTenant && !!originalSession &&
+            document.body?.dataset.authTenantId === originalTenant &&
+            document.body?.dataset.authSessionReference === originalSession &&
+            !window.EduOSSessionTransitionPending?.() &&
+            (!shield || shield.hidden) &&
+            typeof window.EduOSWorkspaceResponseMatchesSession === 'function';
+    }
+    function invalidateSession() {
+        invalidSession = true;
+        clearLoadedBranding();
+        void window.EduOSVerifySessionContext?.();
+    }
 
     function updateControls() {
         const disabled = !ready || saving || invalidSession;
@@ -42,6 +58,8 @@
     }
 
     function clearLoadedBranding() {
+        window.clearTimeout(checkTimer);
+        checkTimer = 0;
         ready = false;
         onboarding = null;
         savedSubdomain = '';
@@ -58,21 +76,26 @@
     }
 
     async function verifySession() {
-        if (invalidSession || window.EduOSSessionTransitionPending?.()) {
-            invalidSession = true;
-            clearLoadedBranding();
-            window.EduOSVerifySessionContext?.();
+        if (invalidSession || !contextReady()) {
+            invalidateSession();
             throw new Error('Institution session changed.');
         }
-        const response = await fetch('/api/workspace-preferences', {
-            method: 'GET', credentials: 'same-origin', cache: 'no-store',
-            headers: { Accept: 'application/json' }
-        });
-        if (!response.ok) throw new Error('Session verification unavailable.');
-        if (window.EduOSWorkspaceResponseMatchesSession?.(response) !== true) {
-            invalidSession = true;
+        let response;
+        try {
+            response = await fetch('/api/workspace-preferences', {
+                method: 'GET', credentials: 'same-origin', cache: 'no-store',
+                headers: { Accept: 'application/json' }
+            });
+        } catch {
             clearLoadedBranding();
-            window.EduOSVerifySessionContext?.();
+            throw new Error('Session verification unavailable.');
+        }
+        if (!response.ok) {
+            clearLoadedBranding();
+            throw new Error('Session verification unavailable.');
+        }
+        if (!contextReady() || window.EduOSWorkspaceResponseMatchesSession(response) !== true) {
+            invalidateSession();
             throw new Error('Institution session changed.');
         }
     }
@@ -80,10 +103,11 @@
     async function reloadBranding() {
         if (loading || invalidSession) return false;
         loading = true;
-        ready = false;
+        clearLoadedBranding();
         updateControls();
         if (retryLoadButton) retryLoadButton.hidden = true;
         try {
+            await verifySession();
             const [data, status] = await Promise.all([loadProfile(), loadOnboardingState()]);
             await verifySession();
             const profile = data.profile;
@@ -212,6 +236,7 @@
                 });
             const payload = await response.json().catch(() => null);
             if (!response.ok || !payload?.success || !payload.data) throw new Error('check');
+            await verifySession();
             if (!ready || normalizedSubdomain() !== value) return;
 
             availableSubdomain = payload.data.isAvailable ? value : '';
