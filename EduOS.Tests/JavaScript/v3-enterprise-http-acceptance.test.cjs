@@ -5,11 +5,13 @@ const { resolve } = require('node:path');
 const source = pathToFileURL(resolve(__dirname, '../../scripts/v3-enterprise-http-acceptance.mjs')).href;
 const stock = '11111111-1111-4111-8111-111111111111';
 const asset = '22222222-2222-4222-8222-222222222222';
+const otherAsset = '99999999-9999-4999-8999-999999999999';
 const config = { base: 'http://localhost:3000', a: 'a-session', b: 'b-session', stock, asset,
     from: '2026-10-01', to: '2026-10-31', iterations: 12, concurrency: 3 };
 
 function fakeFetch({ leak = false, denyCsv = false, detailCsvMismatch = false,
-    registerCsvMismatch = false, campusLeak = false } = {}) {
+    registerCsvMismatch = false, campusLeak = false,
+    additionalAsset = false, leakAdditionalAsset = false } = {}) {
     return async (url, options) => {
         assert.equal(options.method, 'GET');
         assert.equal(options.redirect, 'manual');
@@ -32,12 +34,17 @@ function fakeFetch({ leak = false, denyCsv = false, detailCsvMismatch = false,
             const kind = parsed.searchParams.get('kind');
             const ref = kind === 'asset' ? asset : stock;
             const otherCampus = parsed.searchParams.get('campusId') === '20';
-            const items = (foreign && !leak) || (otherCampus && !campusLeak)
-                ? [] : [{ reference: ref, number: kind === 'asset' ? 'DEPR-1' : 'STOCK-1',
-                    date: '2026-10-31', campusId: kind === 'asset' ? 10 : null,
-                    recordedValue: '25.0000000000',
-                    evidenceStatus: 'ExplicitBalancedReference',
-                    state: 'Posted', lineCount: 1 }];
+            const primary = { reference: ref,
+                number: kind === 'asset' ? 'DEPR-1' : 'STOCK-1',
+                date: '2026-10-31', campusId: kind === 'asset' ? 10 : null,
+                recordedValue: '25.0000000000',
+                evidenceStatus: 'ExplicitBalancedReference',
+                state: 'Posted', lineCount: 1 };
+            const secondary = { ...primary, reference: otherAsset, number: 'DEPR-2' };
+            const items = otherCampus && !campusLeak ? [] :
+                foreign ? (leak ? [primary] :
+                    leakAdditionalAsset && kind === 'asset' ? [secondary] : []) :
+                    [primary, ...(additionalAsset && kind === 'asset' ? [secondary] : [])];
             if (isCsv) return csv(200,
                 'Kind,Reference,Number,Date,Campus,State,RecordedValue,Lines,EvidenceStatus\n' +
                 items.map(x => [kind,
@@ -78,6 +85,7 @@ test('tenant-isolated detail, CSV, register and bounded concurrent reads pass', 
     assert.equal(report.samples, 12);
     assert.equal(report.errors, 0);
     assert.equal(report.measuredHttpOnly, true);
+    assert.ok(report.maxClientInFlight >= 2);
     assert.deepEqual(report.registerCounts, [{ kind: 'stock', count: 1 },
         { kind: 'asset', count: 1 }]);
 });
@@ -295,4 +303,41 @@ test('mixed-tenant replay fails before network when scenarios or concurrency are
         /Iterations must be 5..500/);
     assert.throws(() => validateConfig({ ...env, CONCURRENCY: '1' }),
         /Concurrency must be 2..16/);
+});
+
+test('baseline rejects non-seeded tenant A asset reference in foreign JSON and CSV', async () => {
+    const { runAcceptance } = await import(source);
+    await assert.rejects(runAcceptance(config, fakeFetch({
+        additionalAsset: true, leakAdditionalAsset: true
+    })), /Foreign register leaked tenant A evidence/);
+});
+
+test('concurrent foreign asset register rejects a non-seeded owner reference', async () => {
+    const { runAcceptance } = await import(source);
+    const baseline = fakeFetch({ additionalAsset: true });
+    const leaking = fakeFetch({ additionalAsset: true, leakAdditionalAsset: true });
+    const fetcher = (url, options) => {
+        const parsed = new URL(url);
+        return parsed.pathname.endsWith('/register') &&
+            parsed.searchParams.get('pageSize') === '25' &&
+            options.headers.Cookie === 'b-session'
+            ? leaking(url, options) : baseline(url, options);
+    };
+    await assert.rejects(runAcceptance({ ...config, iterations: 25 }, fetcher),
+        /Concurrent cross-tenant register disclosed/);
+});
+
+test('baseline foreign CSV cannot contradict foreign register JSON', async () => {
+    const { runAcceptance } = await import(source);
+    const baseline = fakeFetch();
+    const inconsistent = fakeFetch({ leakAdditionalAsset: true });
+    const fetcher = (url, options) => {
+        const parsed = new URL(url);
+        return parsed.pathname.endsWith('/register/csv') &&
+            parsed.searchParams.get('kind') === 'asset' &&
+            options.headers.Cookie === 'b-session'
+            ? inconsistent(url, options) : baseline(url, options);
+    };
+    await assert.rejects(runAcceptance(config, fetcher),
+        /Foreign register CSV leaked tenant A evidence or disagrees with JSON/);
 });

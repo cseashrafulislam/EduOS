@@ -239,6 +239,9 @@ export async function runAcceptance(config, fetcher = fetch) {
         confirmationId: supplierConfirmation, tenantA: a, tenantB: b, restricted
     }) : null;
     const registers = [];
+    // Baseline checks must protect every visible owner reference, not only the
+    // seeded UUID. Full-history/page coverage remains the opt-in paged audit.
+    const ownerFirstPageReferences = new Map();
     if (procurementResult) {
         if (pagedAudit) {
             const result = await auditRegisterPages({ read, parseCsv, api: API,
@@ -265,8 +268,19 @@ export async function runAcceptance(config, fetcher = fetch) {
         const d = own.body.data;
         check(d.page === 1 && d.pageSize === 50 && d.totalCount >= d.items.length &&
             d.items.length <= 50, 'Invalid bounded register pagination.');
-        check(d.items.some(row => row.reference?.toLowerCase() === reference.toLowerCase()),
+        check(Array.isArray(d.items) && Number.isSafeInteger(d.totalCount) &&
+            d.page === 1 && d.pageSize === 50 &&
+            d.items.some(row => row.reference?.toLowerCase() === reference.toLowerCase()),
             'Seeded reference missing from first page; choose an isolated test date range.');
+        const ownerRefs = new Set();
+        for (const row of d.items) {
+            check(typeof row.reference === 'string' &&
+                /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(row.reference) &&
+                !ownerRefs.has(row.reference.toLowerCase()),
+                'Owner register reference missing, invalid or duplicated.');
+            ownerRefs.add(row.reference.toLowerCase());
+        }
+        ownerFirstPageReferences.set(kind, ownerRefs);
         const ownCsv = await read(a, API + '/register/csv?' + query);
         check(ownCsv.status === 200 && ownCsv.type.includes('text/csv'),
             'Register CSV unavailable.');
@@ -278,12 +292,21 @@ export async function runAcceptance(config, fetcher = fetch) {
             'Register CSV does not match authorized JSON page.');
         const foreign = await read(b, path);
         check(foreign.status === 200 && foreign.body?.success &&
-            !foreign.body.data.items.some(row => row.reference?.toLowerCase() === reference.toLowerCase()),
+            Array.isArray(foreign.body?.data?.items) &&
+            foreign.body.data.items.every(row => typeof row.reference === 'string' &&
+                !ownerRefs.has(row.reference.toLowerCase())),
             'Foreign register leaked tenant A evidence (or tenant B lacks required entitlement).');
+        noStore(foreign);
         const foreignCsv = await read(b, API + '/register/csv?' + query);
-        check(foreignCsv.status === 200 &&
-            !references(foreignCsv.body).includes(reference.toLowerCase()),
-            'Foreign register CSV leaked tenant A evidence.');
+        check(foreignCsv.status === 200 && foreignCsv.type.includes('text/csv'),
+            'Foreign register CSV unavailable.');
+        noStore(foreignCsv);
+        const foreignRefs = references(foreignCsv.body);
+        check(foreignRefs.length === foreign.body.data.items.length &&
+            foreignRefs.every((value, index) =>
+                value === foreign.body.data.items[index].reference.toLowerCase() &&
+                !ownerRefs.has(value)),
+            'Foreign register CSV leaked tenant A evidence or disagrees with JSON.');
         registers.push({ kind, count: d.totalCount });
     }
     const invalid = await read(a, API + '/register?' + new URLSearchParams({
@@ -342,6 +365,7 @@ export async function runAcceptance(config, fetcher = fetch) {
         ...(procurement ? ['procurement-own', 'procurement-foreign'] : []),
         ...(supplierResult ? ['supplier-own', 'supplier-foreign'] : [])];
     const byScenario = new Map();
+    let inFlight = 0, maxClientInFlight = 0;
     let cursor = 0;
     const replayStart = performance.now();
     const worker = async () => {
@@ -349,14 +373,19 @@ export async function runAcceptance(config, fetcher = fetch) {
             const index = cursor++;
             const probeIndex = index % paths.length;
             const probe = paths[probeIndex];
-            const result = await read(probe.cookie, probe.path);
+            inFlight++;
+            maxClientInFlight = Math.max(maxClientInFlight, inFlight);
+            let result;
+            try { result = await read(probe.cookie, probe.path); }
+            finally { inFlight--; }
             if (probe.foreignDetail)
                 check([403, 404].includes(result.status),
                     'Concurrent cross-tenant detail disclosed.');
             else if (probe.foreignRegister)
                 check(result.status === 200 && result.body?.success &&
-                    !result.body.data.items.some(x =>
-                        x.reference.toLowerCase() === asset.toLowerCase()),
+                    Array.isArray(result.body?.data?.items) &&
+                    result.body.data.items.every(x => typeof x.reference === 'string' &&
+                        !ownerFirstPageReferences.get('asset').has(x.reference.toLowerCase())),
                     'Concurrent cross-tenant register disclosed.');
             else check(result.status === 200 && result.body?.success,
                 'Concurrent authorized read failed.');
@@ -369,6 +398,8 @@ export async function runAcceptance(config, fetcher = fetch) {
     await Promise.all(Array.from({ length: Math.min(iterations, concurrency) }, worker));
     check(byScenario.size === paths.length,
         'Mixed-tenant replay omitted an authorization scenario.');
+    check(maxClientInFlight >= 2,
+        'Mixed-tenant replay did not overlap client requests.');
     const replayWallMs = performance.now() - replayStart;
     return { checks: ['stock and asset detail/CSV IDOR and parity',
             'register JSON/CSV exact-page parity and cache isolation',
@@ -380,6 +411,7 @@ export async function runAcceptance(config, fetcher = fetch) {
             ...(pagedAudit ? ['bounded all-page JSON/CSV parity and cross-tenant isolation'] : [])],
         registerCounts: registers,
         measuredHttpOnly: true, samples: samples.length,
+        maxClientInFlight,
         latencyMs: { p50: percentile(samples, 50), p95: percentile(samples, 95),
             p99: percentile(samples, 99) },
         latencyByScenario: Object.fromEntries([...byScenario].map(([name, values]) =>
