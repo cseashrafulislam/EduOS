@@ -197,6 +197,12 @@ public sealed partial class SqlServerV3ProcurementPurchaseOrderTests
         var invoicePath = $"/api/procurement/supplier-invoices/{invoiceReference}";
         var listPath = "/api/procurement/supplier-invoices";
         var agingPath = "/api/procurement/supplier-invoices/aging";
+        var agingCsvPath = "/api/procurement/supplier-invoices/aging/export";
+        string invoiceNumber;
+        await using (var lookupInvoice = Open(options, tenantId, makerId))
+            invoiceNumber = await lookupInvoice.ProcurementSupplierInvoices.AsNoTracking()
+                .Where(x => x.PublicId == invoiceReference)
+                .Select(x => x.SupplierInvoiceNumber).SingleAsync();
         var statementPath = $"/api/inventory/asset-accounting/{assetReference}/statement";
         var capitalizationPath = $"/api/inventory/asset-accounting/{assetReference}/capitalization";
         using var server = SupplierAssetSqlHttpServer(options);
@@ -230,6 +236,23 @@ public sealed partial class SqlServerV3ProcurementPurchaseOrderTests
             (await SqlFinanceGet(client, agingPath, tenantId, makerId)).Body,
             StringComparison.OrdinalIgnoreCase);
 
+        // The CSV must not disclose a campus-limited posted invoice before grant,
+        // even when an unauthorized user guesses the export URL directly.
+        foreach (var deniedScope in new[] { tenantId, foreignTenantId })
+        {
+            var hiddenCsv = await SqlFinanceGet(client, agingCsvPath, deniedScope, makerId);
+            Assert.Equal(HttpStatusCode.OK, hiddenCsv.Status);
+            Assert.DoesNotContain(invoiceNumber, hiddenCsv.Body, StringComparison.OrdinalIgnoreCase);
+        }
+        Assert.Equal(HttpStatusCode.Forbidden,
+            (await SqlFinanceGet(client, agingCsvPath, tenantId, makerId, "Student")).Status);
+        Assert.Equal(HttpStatusCode.Unauthorized,
+            (await SqlFinanceGet(client, agingCsvPath, tenantId, makerId, "")).Status);
+        Assert.Equal(HttpStatusCode.Forbidden,
+            (await SqlFinanceGet(client, agingCsvPath, tenantId, makerId, inventory: false)).Status);
+        Assert.Equal(HttpStatusCode.Forbidden,
+            (await SqlFinanceGet(client, agingCsvPath, tenantId, makerId, finance: false)).Status);
+
         await using (var grant = Open(options, tenantId, makerId))
             Assert.Equal(1, await grant.UserCampusAccesses
                 .Where(x => x.TenantId == tenantId && x.UserId == makerId &&
@@ -245,6 +268,11 @@ public sealed partial class SqlServerV3ProcurementPurchaseOrderTests
         Assert.Contains(invoiceReference.ToString(),
             (await SqlFinanceGet(client, agingPath, tenantId, makerId)).Body,
             StringComparison.OrdinalIgnoreCase);
+
+        var grantedCsv = await SqlFinanceGet(client, agingCsvPath, tenantId, makerId);
+        Assert.Equal(HttpStatusCode.OK, grantedCsv.Status);
+        Assert.Contains("SourceLinkedNet_BDT", grantedCsv.Body, StringComparison.Ordinal);
+        Assert.Contains(invoiceNumber, grantedCsv.Body, StringComparison.OrdinalIgnoreCase);
 
         // The original, already-posted source-linked command is a safe replay:
         // no second inventory issue, AssetBook or Finance GL may be created.
@@ -289,6 +317,9 @@ public sealed partial class SqlServerV3ProcurementPurchaseOrderTests
                     x.CampusId == campusId)
                 .ExecuteUpdateAsync(s => s.SetProperty(x => x.IsActive, false)));
         // Same client after revocation: no cached private Finance evidence.
+        var revokedCsv = await SqlFinanceGet(client, agingCsvPath, tenantId, makerId);
+        Assert.Equal(HttpStatusCode.OK, revokedCsv.Status);
+        Assert.DoesNotContain(invoiceNumber, revokedCsv.Body, StringComparison.OrdinalIgnoreCase);
         foreach (var path in new[] { invoicePath, statementPath, capitalizationPath })
             Assert.Equal(HttpStatusCode.NotFound,
                 (await SqlFinanceGet(client, path, tenantId, makerId)).Status);

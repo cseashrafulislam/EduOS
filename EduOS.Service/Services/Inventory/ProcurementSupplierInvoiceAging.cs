@@ -17,17 +17,10 @@ public sealed partial class ProcurementSupplierInvoiceService
             supplierId is <= 0 || dueDateReference == default(DateOnly))
             return Err<PagedResult<ProcurementSupplierPayableAgingRowDto>>("Invalid report filters.");
         var reference=dueDateReference ?? DateOnly.FromDateTime(clock.GetUtcNow().UtcDateTime);
-        var query=Visible().Where(x=>x.StateCode=="Posted" && x.JournalId.HasValue &&
-            db.Journals.Any(j=>j.TenantId==user.TenantId && j.Id==x.JournalId &&
-                !j.IsDeleted && j.State==JournalState.Posted &&
-                j.SourceType=="ProcurementSupplierInvoice" && j.SourceId==x.Id &&
-                j.CampusId==x.CampusId && j.CurrencyCode=="BDT" &&
-                !j.ReversalOfJournalId.HasValue &&
-                db.JournalLines.Any(l=>l.TenantId==user.TenantId && !l.IsDeleted &&
-                    l.JournalId==j.Id && l.CampusId==x.CampusId &&
-                    l.CreditAmount==x.TotalAmount && l.DebitAmount==0m &&
-                    db.Accounts.Any(a=>a.TenantId==user.TenantId && a.Id==l.AccountId &&
-                        !a.IsDeleted && a.AccountType==AccountType.Liability))));
+        // Do not silently drop a posted payable whose source journal has drifted.
+        // Keep it visible to authorized Finance reconciliation as EvidenceConflict;
+        // the CSV export must then refuse the entire report (409, no partial CSV).
+        var query=Visible().Where(x=>x.StateCode=="Posted");
         if(supplierId.HasValue) query=query.Where(x=>x.SupplierId==supplierId.Value);
         if(overdueOnly) query=query.Where(x=>x.DueDate<reference);
         var count=await query.CountAsync(ct);
@@ -35,13 +28,39 @@ public sealed partial class ProcurementSupplierInvoiceService
             .Skip((page-1)*pageSize).Take(pageSize)
             .Select(x=>new {
                 x.Id,x.PublicId,x.SupplierInvoiceNumber,x.SupplierId,x.CampusId,x.DueDate,
-                x.TotalAmount,x.ReversalJournalId,
+                x.TotalAmount,x.JournalId,x.ReversalJournalId,
                 JournalReference=db.Journals.Where(j=>j.TenantId==user.TenantId && j.Id==x.JournalId)
                     .Select(j=>j.PublicId).FirstOrDefault(),
                 OrderNumber=db.ProcurementPurchaseOrders.Where(p=>p.TenantId==user.TenantId &&
                     p.Id==x.PurchaseOrderId && !p.IsDeleted).Select(p=>p.OrderNumber).FirstOrDefault()
             }).ToListAsync(ct);
         var invoiceIds = rows.Select(x => x.Id).ToArray();
+        // Source-linked posted-invoice validation is deliberately separate from
+        // the register predicate: an invalid/missing GL must be reported as a
+        // conflict, not omitted from the financial reconciliation.
+        var verifiedInvoiceIds = await db.ProcurementSupplierInvoices.AsNoTracking()
+            .Where(x => x.TenantId == user.TenantId && invoiceIds.Contains(x.Id) &&
+                x.StateCode == "Posted" && x.JournalId.HasValue &&
+                db.Journals.Any(j => j.TenantId == user.TenantId && j.Id == x.JournalId &&
+                    !j.IsDeleted && j.State == JournalState.Posted &&
+                    j.SourceType == "ProcurementSupplierInvoice" && j.SourceId == x.Id &&
+                    j.CampusId == x.CampusId && j.CurrencyCode == "BDT" &&
+                    !j.ReversalOfJournalId.HasValue &&
+                    db.JournalLines.Any(l => l.TenantId == user.TenantId && !l.IsDeleted &&
+                        l.JournalId == j.Id && l.CampusId == x.CampusId &&
+                        l.CreditAmount == x.TotalAmount && l.DebitAmount == 0m &&
+                        db.Accounts.Any(a => a.TenantId == user.TenantId && a.Id == l.AccountId &&
+                            !a.IsDeleted && a.AccountType == AccountType.Liability))))
+            .Select(x => x.Id).ToHashSetAsync(ct);
+        var postedInvoiceJournalIds = rows.Where(x => x.JournalId.HasValue)
+            .Select(x => x.JournalId!.Value).Distinct().ToArray();
+        var invoiceJournalLines = await db.JournalLines.AsNoTracking()
+            .Where(x => x.TenantId == user.TenantId && !x.IsDeleted &&
+                postedInvoiceJournalIds.Contains(x.JournalId))
+            .Select(x => new { x.JournalId, x.CampusId, x.DebitAmount, x.CreditAmount })
+            .ToListAsync(ct);
+        var invoiceLinesByJournal = invoiceJournalLines.GroupBy(x => x.JournalId)
+            .ToDictionary(x => x.Key, x => x.ToArray());
         var payments = await db.Journals.AsNoTracking().Where(x => x.TenantId == user.TenantId &&
             !x.IsDeleted && x.SourceType == SettlementSource && x.SourceId.HasValue &&
             invoiceIds.Contains(x.SourceId.Value) &&
@@ -88,7 +107,12 @@ public sealed partial class ProcurementSupplierInvoiceService
             var days=Math.Max(0,reference.DayNumber-x.DueDate.DayNumber);
             decimal posted=0m, pending=0m;
             decimal credited=0m, pendingCredit=0m, refundReceivable=0m;
-            var conflicted=false;
+            var conflicted = !verifiedInvoiceIds.Contains(x.Id) ||
+                !invoiceLinesByJournal.TryGetValue(x.JournalId ?? 0, out var sourceLines) ||
+                sourceLines.Sum(l => l.DebitAmount) != sourceLines.Sum(l => l.CreditAmount) ||
+                sourceLines.Any(l => l.CampusId != x.CampusId ||
+                    l.DebitAmount < 0m || l.CreditAmount < 0m ||
+                    (l.DebitAmount > 0m && l.CreditAmount > 0m));
             if (creditsByInvoice.TryGetValue(x.Id,out var linkedCredits))
                 foreach (var credit in linkedCredits)
                 {

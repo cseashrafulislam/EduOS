@@ -903,6 +903,45 @@ public sealed partial class SqlServerV3ProcurementPurchaseOrderTests
                     Assert.Equal(409,denied.StatusCode);
                     await corruption.RollbackAsync();
                 }
+                // A corrupt *invoice* payable GL used to vanish from AgingAsync
+                // because the source-journal validity predicate filtered it out.
+                // It must remain visible as EvidenceConflict and block the CSV.
+                var invoiceJournalId = await reconciler.ProcurementSupplierInvoices.AsNoTracking()
+                    .Where(x => x.PublicId == second.Reference)
+                    .Select(x => x.JournalId).SingleAsync();
+                Assert.True(invoiceJournalId.HasValue);
+                await using (var invoiceCorruption = await reconciler.Database.BeginTransactionAsync())
+                {
+                    Assert.Equal(1, await reconciler.JournalLines
+                        .Where(x => x.JournalId == invoiceJournalId.Value && x.LineNo == 2)
+                        .ExecuteUpdateAsync(u => u.SetProperty(x => x.CreditAmount, 17m)));
+                    var damagedInvoice = (await paymentReportService.AgingAsync(date,null,false,1,100)).Data!;
+                    var invoiceConflict = Assert.Single(damagedInvoice.Items,
+                        x => x.InvoiceReference == second.Reference);
+                    Assert.Equal("EvidenceConflict", invoiceConflict.SettlementIntegrityStatus);
+                    Assert.Null(invoiceConflict.SourceLinkedOutstandingAmount);
+                    var deniedInvoice = Assert.IsType<ObjectResult>(
+                        await new ProcurementSupplierInvoicesController(paymentReportService)
+                            .AgingExport(date,null,false,CancellationToken.None));
+                    Assert.Equal(409, deniedInvoice.StatusCode);
+                    await invoiceCorruption.RollbackAsync();
+                }
+                await using (var missingJournal = await reconciler.Database.BeginTransactionAsync())
+                {
+                    Assert.Equal(1, await reconciler.ProcurementSupplierInvoices
+                        .Where(x => x.PublicId == second.Reference)
+                        .ExecuteUpdateAsync(u => u.SetProperty(x => x.JournalId, (long?)null)));
+                    var missing = (await paymentReportService.AgingAsync(date,null,false,1,100)).Data!;
+                    var missingRow = Assert.Single(missing.Items,
+                        x => x.InvoiceReference == second.Reference);
+                    Assert.Equal("EvidenceConflict", missingRow.SettlementIntegrityStatus);
+                    Assert.Null(missingRow.SourceLinkedOutstandingAmount);
+                    var deniedMissing = Assert.IsType<ObjectResult>(
+                        await new ProcurementSupplierInvoicesController(paymentReportService)
+                            .AgingExport(date,null,false,CancellationToken.None));
+                    Assert.Equal(409, deniedMissing.StatusCode);
+                    await missingJournal.RollbackAsync();
+                }
                 var restoredAging = (await paymentReportService.AgingAsync(date,null,false,1,100)).Data!;
                 var restoredRow = Assert.Single(restoredAging.Items,x=>x.InvoiceReference==second.Reference);
                 Assert.Equal("SourceLinked",restoredRow.SettlementIntegrityStatus);
