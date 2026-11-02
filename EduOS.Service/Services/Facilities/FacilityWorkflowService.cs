@@ -154,20 +154,33 @@ public sealed class FacilityWorkflowService(
     /// procurement order, reservation, stock movement or Finance posting.
     /// </summary>
     public async Task<ApiResponse<PagedResult<FacilityVendorOptionDto>>> VendorsAsync(
-        long campusId, string? search, int page, int pageSize, CancellationToken ct = default)
+        long campusId, string? search, int page, int pageSize, CancellationToken ct = default,
+        long? workOrderId = null)
     {
         if (!ValidTenant || !Manager) return Denied<PagedResult<FacilityVendorOptionDto>>();
         if (campusId <= 0 || page is < 1 or > 100000 || pageSize is < 1 or > 50 ||
-            search?.Length > 100)
+            search?.Length > 100 || workOrderId is <= 0)
             return ApiResponse<PagedResult<FacilityVendorOptionDto>>.ErrorResponse(
                 "Invalid vendor lookup.", 400);
         if (!await AllowedCampuses().ContainsAsync(campusId, ct))
+            return Denied<PagedResult<FacilityVendorOptionDto>>();
+        // Existing campus-only callers remain compatible. Interactive previews
+        // bind to an approved, unstarted order not owned by the requesting manager.
+        // Never accept a guessed order from another campus or tenant.
+        if (workOrderId.HasValue && !await db.Set<FacilityWorkOrder>().AsNoTracking().AnyAsync(w =>
+            w.Id == workOrderId.Value && w.TenantId == user.TenantId && !w.IsDeleted &&
+            (w.StateCode == "Approved" || w.StateCode == "Scheduled") &&
+            db.Set<FacilityServiceRequest>().Any(r =>
+                r.Id == w.FacilityServiceRequestId && r.TenantId == user.TenantId &&
+                !r.IsDeleted && r.CampusId == campusId && r.StateCode == "Approved" &&
+                r.RequesterUserId != user.UserId), ct))
             return Denied<PagedResult<FacilityVendorOptionDto>>();
 
         // Supplier lifecycle remains owned by Procurement. Never disclose
         // submitted/rejected/inactive vendors or their contact/tax information.
         var query = db.ProcurementSuppliers.AsNoTracking().Where(s =>
             s.TenantId == user.TenantId && s.CampusId == campusId &&
+            AllowedCampuses().Contains(s.CampusId) &&
             !s.IsDeleted && s.StateCode == "Approved");
         var term = search?.Trim();
         if (!string.IsNullOrWhiteSpace(term))

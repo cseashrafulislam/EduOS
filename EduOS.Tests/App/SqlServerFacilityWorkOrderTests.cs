@@ -309,6 +309,32 @@ public sealed class SqlServerFacilityWorkOrderTests
             { ClientCommandId = Guid.NewGuid(), RowVersion = triaged.RowVersion });
             Assert.Equal(409, stale.StatusCode);
         }
+        // Interactive vendor preview must bind to an approved work order. The
+        // campus-only lookup remains available for existing read-only consumers.
+        await using (var db = Db(options, tenantId, managerId, "FacilitiesManager"))
+        {
+            var service = Service(db, tenantId, managerId, "FacilitiesManager");
+            var scoped = await service.VendorsAsync(campusId, null, 1, 25,
+                workOrderId: approved.WorkOrderId);
+            Assert.True(scoped.Success, scoped.Message);
+            Assert.Single(scoped.Data!.Items);
+            Assert.Equal(400, (await service.VendorsAsync(campusId, null, 1, 25,
+                workOrderId: 0)).StatusCode);
+            Assert.Equal(403, (await service.VendorsAsync(campusId, null, 1, 25,
+                workOrderId: long.MaxValue)).StatusCode);
+            Assert.Equal(403, (await service.VendorsAsync(campusId + 1, null, 1, 25,
+                workOrderId: approved.WorkOrderId)).StatusCode);
+        }
+        await using (var db = Db(options, tenantId, requesterId, "FacilitiesRequester"))
+        {
+            Assert.Equal(403, (await Service(db, tenantId, requesterId, "FacilitiesRequester")
+                .VendorsAsync(campusId, null, 1, 25, workOrderId: approved.WorkOrderId)).StatusCode);
+        }
+        await using (var db = Db(options, otherTenantId, managerId, "FacilitiesManager"))
+        {
+            Assert.Equal(403, (await Service(db, otherTenantId, managerId, "FacilitiesManager")
+                .VendorsAsync(campusId, null, 1, 25, workOrderId: approved.WorkOrderId)).StatusCode);
+        }
         // A global legacy role cannot bypass canonical tenant-role resolution when
         // another non-Left institution membership is Suspended.
         await using (var db = Db(options, tenantId, managerId, "FacilitiesManager"))
@@ -822,6 +848,12 @@ public sealed class SqlServerFacilityWorkOrderTests
             Assert.DoesNotContain(overdue.Data!.Items, x => x.Id == submitted.Id);
             Assert.Equal("verify", history.Data.Items.Last().ActionCode);
             Assert.Single(await db.FacilityWorkOrders.Where(x => x.FacilityServiceRequestId == submitted.Id).ToListAsync());
+        }
+        // A completed/verified work order cannot be used as an active vendor preview.
+        await using (var db = Db(options, tenantId, managerId, "FacilitiesManager"))
+        {
+            Assert.Equal(403, (await Service(db, tenantId, managerId, "FacilitiesManager")
+                .VendorsAsync(campusId, null, 1, 25, workOrderId: approved.WorkOrderId)).StatusCode);
         }
         await using (var db = Db(options, otherTenantId, requesterId, "FacilitiesRequester"))
         {

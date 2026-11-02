@@ -39,6 +39,10 @@ test('approved vendor preview is bounded, manager-only, tenant/campus scoped and
     assert.match(view, /id="wfVendorPanel"/);
     assert.match(view, /reference only/);
     assert.match(script, /api\('\/vendors\?' \+ q\)/);
+    assert.match(script, /workOrderId: String\(workOrderId\)/);
+    assert.match(script, /row\.stateCode === 'Approved'/);
+    assert.match(service, /AllowedCampuses\(\)\.Contains\(s\.CampusId\)/);
+    assert.match(service, /w\.Id == workOrderId\.Value/);
     assert.match(script, /generation !== vendorGeneration \|\| blocked/);
     assert.doesNotMatch(script, /vendorSupplierId:|assignedVendorId:/);
 });

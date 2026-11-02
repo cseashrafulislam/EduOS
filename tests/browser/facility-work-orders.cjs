@@ -67,6 +67,7 @@ async function setup(browser, bn = false, manager = true, mobile = false) {
         }
         if (url.pathname.endsWith('/vendors')) {
             assert.equal(url.searchParams.get('campusId'), '12');
+            assert.equal(url.searchParams.get('workOrderId'), '17');
             const search = url.searchParams.get('search');
             return reply({ items: search === 'none' ? [] : [
                 { supplierId: 9, supplierCode: 'FAC-APP',

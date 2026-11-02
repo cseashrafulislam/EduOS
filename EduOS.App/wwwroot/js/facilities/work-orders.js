@@ -192,15 +192,19 @@
     }
     function select(row) {
         if (!sessionCurrent()) { lockPage(); return; }
-        const vendorChanged = selected?.id !== row.id || selected?.campusId !== row.campusId;
+        const vendorEligible = manager && row.workOrderId > 0 &&
+            row.stateCode === 'Approved' &&
+            ['Approved', 'Scheduled'].includes(row.workOrderState) &&
+            row.requesterUserId !== currentUserId;
         selected = row;
-        if (manager && vendorChanged) {
+        if (manager) {
+            // Re-selecting the same row invalidates any older vendor response.
             vendorGeneration++;
             vendorPage = 1;
-            el('wfVendorPanel').classList.remove('d-none');
+            el('wfVendorPanel').classList.toggle('d-none', !vendorEligible);
             el('wfVendorRows').replaceChildren();
             el('wfVendorPage').textContent = '';
-            loadVendors();
+            if (vendorEligible) loadVendors();
         }
         el('wfSelected').textContent = '#' + row.id + ' — ' + row.summary;
         el('wfDetails').textContent = [
@@ -389,9 +393,13 @@
     // Advisory supplier discovery only: never bind a guessed supplier ID to a
     // mutation. The future vendor assignment command must revalidate eligibility.
     async function loadVendors() {
-        if (!manager || blocked || !selected) return;
+        if (!manager || blocked || !selected || !selected.workOrderId ||
+            selected.stateCode !== 'Approved' ||
+            !['Approved', 'Scheduled'].includes(selected.workOrderState) ||
+            selected.requesterUserId === currentUserId) return;
         const generation = ++vendorGeneration;
         const requestId = selected.id, campusId = selected.campusId;
+        const workOrderId = selected.workOrderId;
         const rows = el('wfVendorRows');
         rows.replaceChildren();
         el('wfVendorPrev').disabled = true;
@@ -399,12 +407,13 @@
         el('wfVendorPage').textContent = t('Checking approved vendors…', 'অনুমোদিত সরবরাহকারী খোঁজা হচ্ছে…');
         try {
             const q = new URLSearchParams({ campusId: String(campusId),
-                page: String(vendorPage), pageSize: '25' });
+                workOrderId: String(workOrderId), page: String(vendorPage), pageSize: '25' });
             const search = el('wfVendorSearch').value.trim();
             if (search) q.set('search', search);
             const data = await api('/vendors?' + q);
             if (generation !== vendorGeneration || blocked ||
-                selected?.id !== requestId || selected?.campusId !== campusId) return;
+                selected?.id !== requestId || selected?.campusId !== campusId ||
+                selected?.workOrderId !== workOrderId) return;
             vendorPages = Math.max(1, data.totalPages || 1);
             for (const vendor of data.items || []) {
                 const item = document.createElement('li');
@@ -425,7 +434,8 @@
             el('wfVendorNext').disabled = vendorPage >= vendorPages;
         } catch (error) {
             if (generation !== vendorGeneration || blocked ||
-                selected?.id !== requestId || error.message === 'session-changed') return;
+                selected?.id !== requestId || selected?.workOrderId !== workOrderId ||
+                error.message === 'session-changed') return;
             rows.replaceChildren();
             el('wfVendorPage').textContent = t('Vendor lookup failed; retry.',
                 'সরবরাহকারী খোঁজা ব্যর্থ; আবার চেষ্টা করুন।');
