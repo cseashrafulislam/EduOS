@@ -505,8 +505,9 @@ public sealed class FacilityWorkflowService(
 
 
     /// <summary>
-    /// Capture a bounded, tenant/campus-authorized export under one SQL
-    /// SERIALIZABLE transaction. Never interleave independently committed pages.
+    /// One bounded, campus/owner-scoped serializable SQL read snapshot.
+    /// TOP(501) avoids unbounded COUNT and offset-page scans on large tenants.
+    /// A concurrent writer cannot change a selected request/order until commit.
     /// </summary>
     public async Task<ApiResponse<IReadOnlyList<FacilityRequestDto>>> ExportSnapshotAsync(
         long? campusId, string? state, bool overdueOnly, CancellationToken ct = default)
@@ -514,38 +515,45 @@ public sealed class FacilityWorkflowService(
         if (!ValidTenant || !Reader) return Denied<IReadOnlyList<FacilityRequestDto>>();
         if (campusId is <= 0 || state?.Length > 30)
             return ApiResponse<IReadOnlyList<FacilityRequestDto>>.ErrorResponse("Invalid export filter.", 400);
-        await using var tx = db.Database.IsRelational()
-            ? await db.Database.BeginTransactionAsync(System.Data.IsolationLevel.Serializable, ct)
-            : null;
-        var first = await ListAsync(campusId, state, 1, 100, ct, overdueOnly);
-        if (!first.Success || first.Data == null)
-            return ApiResponse<IReadOnlyList<FacilityRequestDto>>.ErrorResponse(
-                first.Message ?? "Export denied.", first.StatusCode);
-        if (first.Data.TotalCount > 500)
-            return ApiResponse<IReadOnlyList<FacilityRequestDto>>.ErrorResponse(
-                "Narrow filters to at most 500 rows.", 413);
-        var expected = first.Data.TotalCount;
-        var rows = new List<FacilityRequestDto>(first.Data.Items);
-        var seen = new HashSet<long>();
-        var changed = first.Data.Page != 1 || first.Data.PageSize != 100 ||
-            rows.Count > expected || rows.Any(x => !seen.Add(x.Id));
-        for (var page = 2; !changed && page <= first.Data.TotalPages; page++)
+        try
         {
-            var next = await ListAsync(campusId, state, page, 100, ct, overdueOnly);
-            if (!next.Success || next.Data == null)
+            await using var tx = db.Database.IsRelational()
+                ? await db.Database.BeginTransactionAsync(System.Data.IsolationLevel.Serializable, ct)
+                : null;
+            if (campusId.HasValue && !await AllowedCampuses().ContainsAsync(campusId.Value, ct))
+                return Denied<IReadOnlyList<FacilityRequestDto>>();
+            var query = VisibleRequests();
+            if (campusId.HasValue) query = query.Where(x => x.CampusId == campusId.Value);
+            if (!string.IsNullOrWhiteSpace(state))
+                query = query.Where(x => x.StateCode == state.Trim());
+            if (overdueOnly)
+            {
+                var cutoff = Now;
+                query = query.Where(x => x.SlaDueAtUtc != null && x.SlaDueAtUtc < cutoff &&
+                    db.Set<FacilityWorkOrder>().Any(w => w.TenantId == user.TenantId &&
+                        !w.IsDeleted && w.FacilityServiceRequestId == x.Id &&
+                        w.StateCode != "Closed" && w.StateCode != "Cancelled"));
+            }
+            var requests = await query.OrderByDescending(x => x.CreatedAt)
+                .ThenByDescending(x => x.Id).Take(501).ToListAsync(ct);
+            if (requests.Count > 500)
                 return ApiResponse<IReadOnlyList<FacilityRequestDto>>.ErrorResponse(
-                    next.Message ?? "Export denied.", next.StatusCode);
-            changed = next.Data.TotalCount != expected ||
-                next.Data.Page != page || next.Data.PageSize != 100 ||
-                rows.Count + next.Data.Items.Count > 500 ||
-                next.Data.Items.Any(x => !seen.Add(x.Id));
-            if (!changed) rows.AddRange(next.Data.Items);
+                    "Narrow filters to at most 500 rows.", 413);
+            var ids = requests.Select(x => x.Id).ToArray();
+            var orders = await db.Set<FacilityWorkOrder>().AsNoTracking()
+                .Where(x => x.TenantId == user.TenantId &&
+                    ids.Contains(x.FacilityServiceRequestId) && !x.IsDeleted)
+                .ToDictionaryAsync(x => x.FacilityServiceRequestId, ct);
+            var rows = requests.Select(x => Map(x, orders.GetValueOrDefault(x.Id))).ToList();
+            if (tx != null) await tx.CommitAsync(ct);
+            return ApiResponse<IReadOnlyList<FacilityRequestDto>>.SuccessResponse(rows);
         }
-        if (changed || rows.Count != expected)
+        catch (Microsoft.Data.SqlClient.SqlException ex) when (ex.Number is 1205 or 1222)
+        {
+            logger.LogWarning(ex, "Facilities CSV snapshot lock contention for tenant {TenantId}", user.TenantId);
             return ApiResponse<IReadOnlyList<FacilityRequestDto>>.ErrorResponse(
-                "Records changed during export; retry.", 409);
-        if (tx != null) await tx.CommitAsync(ct);
-        return ApiResponse<IReadOnlyList<FacilityRequestDto>>.SuccessResponse(rows);
+                "Records changed or snapshot is busy; retry.", 409);
+        }
     }
 
     public async Task<ApiResponse<FacilityDashboardDto>> DashboardAsync(
