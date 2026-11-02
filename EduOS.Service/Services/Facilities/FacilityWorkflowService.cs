@@ -872,6 +872,27 @@ public sealed class FacilityWorkflowService(
                 break;
         }
 
+        // Locks and eligibility checks may outlast an initially valid window.
+        // Re-read the injected clock immediately before persistence. A rejected
+        // command changes neither the projection nor its immutable event history.
+        if (action is "schedule" or "vendorapprove" or "start")
+        {
+            var commitNow = Now;
+            if (action == "schedule" && order?.ScheduledStartUtc <= commitNow)
+                return ApiResponse<FacilityRequestDto>.ErrorResponse(
+                    "Schedule start elapsed while validating; choose a future window.", 409);
+            if (action == "vendorapprove" && order?.VendorStartUtc <= commitNow)
+                return ApiResponse<FacilityRequestDto>.ErrorResponse(
+                    "Vendor booking start elapsed while validating; propose a new window.", 409);
+            if (action == "start" &&
+                (order?.ScheduledEndUtc <= commitNow ||
+                 (order?.VendorStateCode == "Approved" && order.VendorEndUtc <= commitNow)))
+                return ApiResponse<FacilityRequestDto>.ErrorResponse(
+                    "Work-order or vendor window elapsed while validating; reload.", 409);
+            if (action == "start") order!.StartedAtUtc = commitNow;
+            now = commitNow;
+        }
+
         if (requestAction) { request.UpdatedAt = now; request.UpdatedBy = user.UserId; }
         else if (order != null) { order.UpdatedAt = now; order.UpdatedBy = user.UserId; }
         db.Set<FacilityWorkflowEvent>().Add(new FacilityWorkflowEvent

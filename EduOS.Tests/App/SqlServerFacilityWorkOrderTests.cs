@@ -430,6 +430,21 @@ public sealed class SqlServerFacilityWorkOrderTests
             await db.ProcurementSuppliers.Where(x => x.Id == approvedVendorId)
                 .ExecuteUpdateAsync(x => x.SetProperty(s => s.StateCode, "Approved"));
         }
+        // Supplier lock/overlap queries can outlast the proposed booking window.
+        // A synthetic third clock read expires immediately before SaveChanges.
+        await using (var db = Db(options, tenantId, approverId, "FacilitiesApprover"))
+        {
+            var drift = await Service(db, tenantId, approverId, "FacilitiesApprover",
+                new StepClock(3, TimeSpan.FromHours(5)))
+                .TransitionAsync(submitted.Id, "vendorapprove", new FacilityTransitionDto
+                { ClientCommandId = Guid.NewGuid(), RowVersion = vendorProposal.WorkOrderRowVersion!,
+                  Note = "Vendor booking expired after initial SQL validation." });
+            Assert.Equal(409, drift.StatusCode);
+            Assert.Equal("Proposed", (await db.FacilityWorkOrders.AsNoTracking()
+                .SingleAsync(x => x.FacilityServiceRequestId == submitted.Id)).VendorStateCode);
+            Assert.Equal(0, await db.FacilityWorkflowEvents.CountAsync(x =>
+                x.FacilityServiceRequestId == submitted.Id && x.ActionCode == "vendorapprove"));
+        }
         FacilityRequestDto vendorBooked;
         await using (var db = Db(options, tenantId, approverId, "FacilitiesApprover"))
         {
@@ -546,6 +561,15 @@ public sealed class SqlServerFacilityWorkOrderTests
                     ScheduleRetry(techId, scheduleStart, scheduleEnd, originalScheduleNote))).StatusCode);
             Assert.Empty((await service.HistoryAsync(submitted.Id, 1, 25)).Data!.Items
                 .Where(x => x.ActionCode == "schedule"));
+            var drift = await Service(db, tenantId, managerId, "FacilitiesManager",
+                new StepClock(2, TimeSpan.FromHours(3))).TransitionAsync(
+                    submitted.Id, "schedule",
+                    ScheduleRetry(techId, scheduleStart, scheduleEnd, originalScheduleNote));
+            Assert.Equal(409, drift.StatusCode);
+            Assert.Empty((await service.HistoryAsync(submitted.Id, 1, 25)).Data!.Items
+                .Where(x => x.ActionCode == "schedule"));
+            Assert.Equal("Approved", (await db.FacilityWorkOrders.AsNoTracking()
+                .SingleAsync(x => x.FacilityServiceRequestId == submitted.Id)).StateCode);
             var result = await service.TransitionAsync(
                 submitted.Id, "schedule", ScheduleRetry(techId, scheduleStart, scheduleEnd, originalScheduleNote));
             Assert.True(result.Success, result.Message);
@@ -993,6 +1017,19 @@ public sealed class SqlServerFacilityWorkOrderTests
             Assert.Equal(0, await db.Set<FacilityWorkflowEvent>().CountAsync(x =>
                 x.FacilityServiceRequestId == submitted.Id && x.ActionCode == "start"));
         }
+        // The first three clock reads pass; the pre-commit fourth read expires.
+        await using (var db = Db(options, tenantId, techId, "FacilitiesTechnician"))
+        {
+            var drift = await Service(db, tenantId, techId, "FacilitiesTechnician",
+                new StepClock(4, TimeSpan.FromHours(5)))
+                .TransitionAsync(submitted.Id, "start", new FacilityTransitionDto
+                { ClientCommandId = Guid.NewGuid(), RowVersion = scheduled.WorkOrderRowVersion! });
+            Assert.Equal(409, drift.StatusCode);
+            Assert.Equal("Scheduled", (await db.FacilityWorkOrders.AsNoTracking()
+                .SingleAsync(x => x.FacilityServiceRequestId == submitted.Id)).StateCode);
+            Assert.Equal(0, await db.FacilityWorkflowEvents.CountAsync(x =>
+                x.FacilityServiceRequestId == submitted.Id && x.ActionCode == "start"));
+        }
         FacilityRequestDto started;
         await using (var db = Db(options, tenantId, techId, "FacilitiesTechnician"))
         {
@@ -1253,6 +1290,16 @@ public sealed class SqlServerFacilityWorkOrderTests
     private sealed class ShiftedClock(TimeSpan offset) : TimeProvider
     {
         public override DateTimeOffset GetUtcNow() => DateTimeOffset.UtcNow.Add(offset);
+    }
+
+    // Deterministic clock drift inside a single authoritative command.
+    private sealed class StepClock(int jumpAtRead, TimeSpan afterJump) : TimeProvider
+    {
+        private int reads;
+        public override DateTimeOffset GetUtcNow() =>
+            DateTimeOffset.UtcNow.Add(
+                System.Threading.Interlocked.Increment(ref reads) >= jumpAtRead
+                    ? afterJump : TimeSpan.Zero);
     }
 
     private sealed class Principal(long tenant, long id, string role) : ICurrentUserService
