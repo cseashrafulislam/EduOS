@@ -104,7 +104,7 @@ public sealed partial class ProcurementSupplierInvoiceService
                 j.State == JournalState.Posted && j.CampusId == credit.CampusId &&
                 j.CurrencyCode == "BDT" &&
                 m.TenantId == user.TenantId && !m.IsDeleted && m.StateCode == "Posted" &&
-                m.CampusId == credit.CampusId && m.MovementTypeCode == "Issue" &&
+                m.MovementTypeCode == "Issue" &&
                 m.SourceType == "ProcurementSupplierReturn" && m.SourceId == credit.Id
             select credit.Id).ToHashSetAsync(ct);
         // Verify the posted credit's precise GL composition, not only its
