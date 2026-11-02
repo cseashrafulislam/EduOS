@@ -404,7 +404,10 @@ async function incompatibleWindows(browser) {
         assert.equal(state.calls.filter(c => c.method === 'POST').length, 0);
         await page.locator('#wfStart').fill(local(at(1)));
         await page.locator('#wfEnd').fill(local(at(2)));
-        await page.locator('#wfTechSelect option[value="42"]').waitFor();
+        // <option> elements are not visible surfaces in Chromium; assert
+        // attachment and the actual enabled picker instead of visibility.
+        await page.locator('#wfTechSelect option[value="42"]').waitFor({ state: 'attached' });
+        assert.equal(await page.locator('#wfTechSelect').isDisabled(), false);
         assert.deepEqual(state.errors, []);
     } finally { await second.context.close(); }
 }
