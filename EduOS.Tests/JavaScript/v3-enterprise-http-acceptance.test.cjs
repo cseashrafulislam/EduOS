@@ -159,9 +159,10 @@ test('concurrent foreign-register disclosure fails even when initial 50-row page
     const { runAcceptance } = await import(source);
     const baseline = fakeFetch();
     const leaking = fakeFetch({ leak: true });
+    let foreignReads = 0;
     const fetcher = (url, options) =>
         url.includes('/register?') && url.includes('pageSize=25') &&
-        options.headers.Cookie === 'b-session'
+        options.headers.Cookie === 'b-session' && ++foreignReads > 2
             ? leaking(url, options) : baseline(url, options);
     await assert.rejects(runAcceptance({ ...config, iterations: 25 }, fetcher),
         /Concurrent cross-tenant register disclosed/);
@@ -316,11 +317,13 @@ test('concurrent foreign asset register rejects a non-seeded owner reference', a
     const { runAcceptance } = await import(source);
     const baseline = fakeFetch({ additionalAsset: true });
     const leaking = fakeFetch({ additionalAsset: true, leakAdditionalAsset: true });
+    let foreignAssetReads = 0;
     const fetcher = (url, options) => {
         const parsed = new URL(url);
         return parsed.pathname.endsWith('/register') &&
+            parsed.searchParams.get('kind') === 'asset' &&
             parsed.searchParams.get('pageSize') === '25' &&
-            options.headers.Cookie === 'b-session'
+            options.headers.Cookie === 'b-session' && ++foreignAssetReads > 1
             ? leaking(url, options) : baseline(url, options);
     };
     await assert.rejects(runAcceptance({ ...config, iterations: 25 }, fetcher),
@@ -352,6 +355,7 @@ function populatedTenantRegister({ leakOnReplay = false, cacheOnReplay = false }
         state: 'Posted', recordedValue: '25.0000000000',
         lineCount: 1, evidenceStatus: 'ExplicitBalancedReference'
     });
+    let foreignAssetReplayReads = 0;
     return async (url, options) => {
         const parsed = new URL(url);
         if (!parsed.pathname.includes('/register')) return baseline(url, options);
@@ -372,7 +376,8 @@ function populatedTenantRegister({ leakOnReplay = false, cacheOnReplay = false }
             ? [row(foreignAsset, kind, 'FOREIGN-ASSET')]
             : [row(foreignStock, kind, 'FOREIGN-STOCK')];
         const items = (foreign ? other : own).map(x => ({ ...x }));
-        if (foreign && kind === 'asset' && pageSize === 25 && leakOnReplay)
+        if (foreign && kind === 'asset' && pageSize === 25 &&
+            leakOnReplay && ++foreignAssetReplayReads > 1)
             items[0].reference = otherAsset;
         const page = Number(parsed.searchParams.get('page') || 1);
         const pageItems = items.slice((page - 1) * pageSize, page * pageSize);
@@ -428,12 +433,13 @@ test('concurrent foreign stock register rejects owner evidence after a safe base
     const { runAcceptance } = await import(source);
     const baseline = fakeFetch();
     const leaking = fakeFetch({ leak: true });
+    let foreignStockReads = 0;
     const fetcher = (url, options) => {
         const parsed = new URL(url);
         return parsed.pathname.endsWith('/register') &&
             parsed.searchParams.get('kind') === 'stock' &&
             parsed.searchParams.get('pageSize') === '25' &&
-            options.headers.Cookie === 'b-session'
+            options.headers.Cookie === 'b-session' && ++foreignStockReads > 1
             ? leaking(url, options) : baseline(url, options);
     };
     await assert.rejects(runAcceptance({ ...config, iterations: 24 }, fetcher),
