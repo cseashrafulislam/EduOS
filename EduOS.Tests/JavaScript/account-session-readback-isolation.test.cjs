@@ -12,7 +12,7 @@ const end = script.indexOf('// =================================================
 assert.ok(begin >= 0 && end > begin);
 const requestFunction = script.slice(begin, end);
 // Isolated API helper fixture includes its actual fail-closed state dependencies.
-const isolatedRequest = "let profileLocked=false; const profileText=x=>x; function lockProfile(){profileLocked=true;}\n" + requestFunction;
+const isolatedRequest = "const profileOriginalTenant='100'; const profileOriginalSession='A'.repeat(64); let profileLocked=false; const profileText=x=>x; function lockProfile(){profileLocked=true;}\n" + requestFunction;
 const reference = 'A'.repeat(64);
 
 function client(serverReference, serverTenant, pending = false) {
