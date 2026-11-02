@@ -212,6 +212,8 @@ test('facilities manual follows actual independent return, correction and non-po
     const bn = guideFor('/FacilityWorkOrders/Index', 'bn-BD');
     assert.ok(en && bn);
     assert.match(en.steps.join(' '), /Return for correction/);
+    assert.match(en.steps.join(' '), /scheduled start and before its end/);
+    assert.match(bn.steps.join(' '), /সরবরাহকারীর বুকিং অনুমোদিত/);
     assert.match(bn.steps.join(' '), /সংশোধনের জন্য ফেরত/);
     assert.match(en.rules, /does not issue spare parts or post Finance GL/);
     assert.match(en.recovery, /409/);
