@@ -50,6 +50,14 @@ public sealed class FacilityVisitorEventDto
     public string? Reason { get; set; }
 }
 
+// An export is a privileged audited write, not an unaudited GET download.
+public sealed class FacilityVisitorExportRequestDto
+{
+    [Range(1, long.MaxValue)] public long CampusId { get; set; }
+    public DateTime FromUtc { get; set; }
+    public DateTime ToUtc { get; set; }
+}
+
 // PII-minimized operational export: no visitor name, purpose, badge, host or incident narrative.
 public sealed class FacilityVisitorExportRowDto
 {

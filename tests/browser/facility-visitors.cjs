@@ -108,7 +108,9 @@ async function run(browser, bn, manager, mobile) {
             const csv = fs.readFileSync(await download.path(), 'utf8');
             assert.match(csv, /VisitId,CampusId,State/);
             assert.doesNotMatch(csv, /Guest|Meeting|GUEST-01|badge handoff/);
-            assert.ok(calls.some(c => c.url.endsWith('/export') && c.method === 'GET'));
+            assert.ok(calls.some(c => c.url.endsWith('/export') && c.method === 'POST' &&
+                c.token === 'visitor-csrf' && c.body.campusId === 12 &&
+                c.body.fromUtc && c.body.toUtc));
             await page.locator('#fvReason').fill('Observed badge handoff.');
             const incidentPost = page.waitForResponse(response => response.request().method() === 'POST' &&
                 new URL(response.url()).pathname.endsWith('/incident'));

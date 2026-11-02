@@ -1925,7 +1925,7 @@
             related: [['/Students/Index', 'Student directory', 'শিক্ষার্থী তালিকা']]
         },
         '/facilityvisitors/index': {
-            version: 2, reviewed: true,
+            version: 3, reviewed: true,
             title: ['Campus Visitor Preregistration', 'ক্যাম্পাস ভিজিটর প্রি-রেজিস্ট্রেশন'],
             purpose: ['Register a minimal visitor appointment, obtain independent host approval, record badge access and log bounded incidents.', 'সীমিত ভিজিটর তথ্য নিবন্ধন, স্বতন্ত্র হোস্ট অনুমোদন, ব্যাজসহ প্রবেশ ও সীমিত সময়ের ঘটনা নথিভুক্ত করুন।'],
             before: ['Sign in with FACILITIES access and an active campus membership. The desk needs FacilitiesManager, Principal or TenantAdmin permission. The separate host must have an active campus grant.', 'FACILITIES অনুমতি ও সক্রিয় ক্যাম্পাস সদস্যপদ দিয়ে সাইন ইন করুন। ডেস্কে FacilitiesManager, Principal অথবা TenantAdmin অনুমতি প্রয়োজন। আলাদা হোস্টের সক্রিয় ক্যাম্পাস অনুমতি থাকতে হবে।'],
@@ -1934,7 +1934,7 @@
                 ['Select Preregister and review the PendingHost row. The separate host approves or rejects; rejection needs a reason.', 'প্রি-রেজিস্টার করে PendingHost সারি দেখুন। আলাদা হোস্ট অনুমোদন বা কারণসহ প্রত্যাখ্যান করবেন।'],
                 ['During the approved visit window, enter an unused badge code and select Check in. After the visitor leaves, select Check out.', 'অনুমোদিত সময়ে অব্যবহৃত ব্যাজ কোড দিয়ে প্রবেশ নথিভুক্ত করুন। ভিজিটর চলে গেলে প্রস্থান নথিভুক্ত করুন।'],
                 ['For a checked-in or recently checked-out visitor, enter a factual 10–200 character incident reason and select Report incident; use History to review authorized events. Never enter identity numbers or health details.', 'প্রবেশ করা বা সদ্য প্রস্থান করা ভিজিটরের ঘটনায় ১০–২০০ অক্ষরের তথ্যভিত্তিক কারণ দিয়ে ঘটনা নথিভুক্ত করুন; ইতিহাসে অনুমোদিত ঘটনা দেখুন। পরিচয় নম্বর বা স্বাস্থ্যতথ্য লিখবেন না।'],
-                ['Authorized desk staff may choose a campus and a UTC-converted local window up to 31 days, then Export CSV. The 500-row summary omits visitor name, purpose, badge, host and incident narrative.', 'অনুমোদিত ডেস্ক কর্মকর্তা ক্যাম্পাস ও সর্বোচ্চ ৩১ দিনের স্থানীয় সময়সীমা দিয়ে CSV নিন। সর্বোচ্চ ৫০০ সারির সারাংশে ভিজিটরের নাম, উদ্দেশ্য, ব্যাজ, হোস্ট বা ঘটনার বিবরণ নেই।'],
+                ['Authorized desk staff may choose a campus and a UTC-converted local window up to 31 days, then Export CSV. The 500-row summary omits visitor name, purpose, badge, host and incident narrative. Every successful snapshot is access-audited; export requires an authenticated, CSRF-protected POST.', 'অনুমোদিত ডেস্ক কর্মকর্তা ক্যাম্পাস ও সর্বোচ্চ ৩১ দিনের স্থানীয় সময়সীমা দিয়ে CSV নিন। সর্বোচ্চ ৫০০ সারির সারাংশে ভিজিটরের নাম, উদ্দেশ্য, ব্যাজ, হোস্ট বা ঘটনার বিবরণ নেই। প্রতিটি সফল এক্সপোর্টের অ্যাক্সেস অডিট সংরক্ষিত হয়; CSRF-সুরক্ষিত POST প্রয়োজন।'],
                 ['Refresh the authorized list after any conflict or uncertain network result; never guess another campus or visitor ID.', 'সংঘাত বা নেটওয়ার্কে অনিশ্চয়তায় অনুমোদিত তালিকা রিফ্রেশ করুন; অন্য ক্যাম্পাস বা ভিজিটর আইডি অনুমান করবেন না।']
             ],
             example: ['Fictional example: a campus desk preregisters a guest for a meeting with an eligible staff host. The host approves, the desk assigns badge GUEST-01, and the desk records checkout.', 'কাল্পনিক উদাহরণ: ক্যাম্পাস ডেস্ক একজন অতিথির মিটিং নিবন্ধন করে। হোস্ট অনুমোদন দেন, ডেস্ক GUEST-01 ব্যাজ দিয়ে প্রবেশ ও পরে প্রস্থান নথিভুক্ত করে।'],

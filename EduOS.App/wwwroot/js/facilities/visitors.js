@@ -190,9 +190,12 @@
         button.disabled = true;
         try {
             await verify();
-            const query = new URLSearchParams({ campusId: String(campusId), fromUtc, toUtc });
-            const response = await fetch('/api/facilities/visitors/export?' + query, {
-                credentials: 'same-origin', cache: 'no-store', headers: { Accept: 'text/csv' }
+            // Export writes a scoped access audit; require antiforgery and POST.
+            const response = await fetch('/api/facilities/visitors/export', {
+                method: 'POST', credentials: 'same-origin', cache: 'no-store',
+                headers: { Accept: 'text/csv', 'Content-Type': 'application/json',
+                    RequestVerificationToken: token },
+                body: JSON.stringify({ campusId, fromUtc, toUtc })
             });
             if (!response.ok) {
                 const payload = await response.json().catch(() => null);

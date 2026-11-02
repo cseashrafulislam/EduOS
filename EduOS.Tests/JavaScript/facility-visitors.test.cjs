@@ -17,8 +17,10 @@ test('visitor UI is bilingual, scoped and safely renders server-provided PII', (
     assert.match(page, /fvExportCampus/);
     assert.match(script, /EduOSVerifySessionContext/);
     assert.match(script, /URL\.createObjectURL/);
+    assert.match(script, /method: 'POST'.*credentials: 'same-origin'/);
+    assert.match(script, /body: JSON\.stringify\(\{ campusId, fromUtc, toUtc \}\)/);
     assert.match(script, /exportEpoch/);
-    assert.match(api, /HttpGet\("export"\)/);
+    assert.match(api, /HttpPost\("export"\)/);
     assert.match(script, /credentials: 'same-origin'/);
     assert.match(script, /cache: 'no-store'/);
     assert.match(script, /RequestVerificationToken/);
@@ -52,6 +54,9 @@ test('visitor transitions enforce independent host approval and active badge uni
     assert.match(service, /Manager && e\.ActionCode == "incident"/);
     assert.match(service, /ExportSnapshotAsync/);
     assert.match(service, /\.Take\(501\)/);
+    assert.match(service, /Action = "VisitorSummaryExport"/);
+    assert.match(service, /db\.AuditLogs\.Add/);
+    assert.match(service, /await db\.SaveChangesAsync\(ct\);/);
     assert.match(service, /ManagerLiveAsync/);
     assert.doesNotMatch(service.slice(service.indexOf('public async Task<ApiResponse<IReadOnlyList<FacilityVisitorExportRowDto>>> ExportSnapshotAsync'), service.indexOf('public async Task<ApiResponse<PagedResult<FacilityVisitorEventDto>>> HistoryAsync')), /VisitorName|Purpose|BadgeCode|HostUserId|\.Reason/);
     assert.match(context, /IX_FacilityVisitorVisits|FacilityVisitorVisit/);

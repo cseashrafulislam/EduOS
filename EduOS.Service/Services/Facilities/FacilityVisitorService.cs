@@ -2,6 +2,7 @@ using EduOS.Core.Common;
 using EduOS.Core.DTOs.Facilities;
 using EduOS.Core.Entities.Auth;
 using EduOS.Core.Entities.Facilities;
+using EduOS.Core.Entities.System;
 using EduOS.Core.Enums.Domain;
 using EduOS.Core.Interfaces;
 using EduOS.Core.Interfaces.IServices;
@@ -15,7 +16,7 @@ namespace EduOS.Service.Services.Facilities;
 /// <summary>
 /// Privacy-minimized internal visitor appointments. Never stores national IDs,
 /// photos, phones or documents. Incident events are append-only; retention
-/// deletion and configurable site policy remain unimplemented; only a bounded PII-minimized summary export exists.
+/// deletion and configurable site policy remain unimplemented; bounded summary exports are audit-logged.
 /// </summary>
 public sealed class FacilityVisitorService(
     EduOSDbContext db, ICurrentUserService user, TimeProvider clock,
@@ -337,7 +338,10 @@ public sealed class FacilityVisitorService(
         {
             await using var tx = db.Database.IsRelational()
                 ? await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct) : null;
-            if (!await Campuses().ContainsAsync(campusId, ct))
+            // Revalidate the live actor and campus within the same export transaction.
+            // A revoked session must never receive a previously authorized CSV.
+            if (!await ActorActiveAsync(ct) || !await ManagerLiveAsync(ct) ||
+                !await Campuses().ContainsAsync(campusId, ct))
                 return Denied<IReadOnlyList<FacilityVisitorExportRowDto>>();
             var rows = await db.Set<FacilityVisitorVisit>().AsNoTracking()
                 .Where(v => v.TenantId == user.TenantId && !v.IsDeleted &&
@@ -356,6 +360,26 @@ public sealed class FacilityVisitorService(
             if (rows.Count > 500)
                 return ApiResponse<IReadOnlyList<FacilityVisitorExportRowDto>>.ErrorResponse(
                     "More than 500 visits; narrow the UTC date window.", 413);
+            // This is a successful, bounded export snapshot. Persist its access
+            // evidence atomically with the read, before any CSV bytes are returned.
+            // No visitor PII, badge, host or incident narrative enters this audit.
+            var auditAt = Now;
+            db.AuditLogs.Add(new AuditLog
+            {
+                TenantId = user.TenantId,
+                UserId = user.UserId,
+                Action = "VisitorSummaryExport",
+                EntityName = "FacilityVisitorVisit",
+                EntityId = campusId,
+                Endpoint = "/api/facilities/visitors/export",
+                RequestId = Guid.NewGuid().ToString("N"),
+                NewValue = $"CampusId={campusId};FromUtc={fromUtc:O};ToUtc={toUtc:O};Rows={rows.Count}",
+                IsSuccess = true,
+                OccurredAt = auditAt,
+                CreatedAt = auditAt,
+                CreatedBy = user.UserId
+            });
+            await db.SaveChangesAsync(ct);
             if (tx != null) await tx.CommitAsync(ct);
             return ApiResponse<IReadOnlyList<FacilityVisitorExportRowDto>>.SuccessResponse(rows);
         }

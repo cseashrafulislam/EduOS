@@ -36,11 +36,11 @@ public sealed class FacilityVisitorsApiController(IFacilityVisitorService servic
         Reply(await service.TransitionAsync(id, action, request, ct));
 
 
-    [HttpGet("export"), Authorize(Roles = "TenantAdmin,Principal,FacilitiesManager")]
-    public async Task<IActionResult> Export(long campusId, DateTime fromUtc, DateTime toUtc,
+    [HttpPost("export"), Authorize(Roles = "TenantAdmin,Principal,FacilitiesManager")]
+    public async Task<IActionResult> Export([FromBody] FacilityVisitorExportRequestDto request,
         CancellationToken ct = default)
     {
-        var snapshot = await service.ExportSnapshotAsync(campusId, fromUtc, toUtc, ct);
+        var snapshot = await service.ExportSnapshotAsync(request.CampusId, request.FromUtc, request.ToUtc, ct);
         if (!snapshot.Success || snapshot.Data == null) return Reply(snapshot);
         var bn = CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "bn";
         static string Csv(object? value)

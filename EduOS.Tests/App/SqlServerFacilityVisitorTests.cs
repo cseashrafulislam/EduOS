@@ -263,6 +263,16 @@ public sealed class SqlServerFacilityVisitorTests
             Assert.True(snapshot.Success, snapshot.Message);
             Assert.Equal(2, snapshot.Data!.Count);
             Assert.Equal(1, snapshot.Data.Single(x => x.VisitId == first.Id).IncidentCount);
+            // Only a successful authorized snapshot creates one PII-free access audit.
+            var exportAudits = await db.AuditLogs.AsNoTracking()
+                .Where(a => a.TenantId == tenantId && a.Action == "VisitorSummaryExport")
+                .ToListAsync();
+            var exportAudit = Assert.Single(exportAudits);
+            Assert.Equal(managerId, exportAudit.UserId);
+            Assert.Equal(campusId, exportAudit.EntityId);
+            Assert.Contains("Rows=2", exportAudit.NewValue);
+            Assert.DoesNotContain("Guest One", exportAudit.NewValue);
+            Assert.DoesNotContain("GUEST-01", exportAudit.NewValue);
             var serialized = System.Text.Json.JsonSerializer.Serialize(snapshot.Data);
             Assert.DoesNotContain("Guest One", serialized);
             Assert.DoesNotContain("Scheduled campus meeting", serialized);
@@ -274,6 +284,8 @@ public sealed class SqlServerFacilityVisitorTests
                 DateTime.SpecifyKind(start, DateTimeKind.Unspecified), end)).StatusCode);
             Assert.Equal(403, (await service.ExportSnapshotAsync(campusId + 999,
                 start.AddMinutes(-1), end)).StatusCode);
+            Assert.Equal(1, await db.AuditLogs.CountAsync(a =>
+                a.TenantId == tenantId && a.Action == "VisitorSummaryExport"));
         }
         await using (var db = Db(options, tenantId, hostId, "Staff"))
             Assert.Equal(403, (await Service(db, tenantId, hostId, "Staff")
