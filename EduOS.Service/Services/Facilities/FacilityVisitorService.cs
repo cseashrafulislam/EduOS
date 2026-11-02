@@ -15,7 +15,7 @@ namespace EduOS.Service.Services.Facilities;
 /// <summary>
 /// Privacy-minimized internal visitor appointments. Never stores national IDs,
 /// photos, phones or documents. Incident events are append-only; retention
-/// deletion, site policy and visitor exports remain unimplemented.
+/// deletion and configurable site policy remain unimplemented; only a bounded PII-minimized summary export exists.
 /// </summary>
 public sealed class FacilityVisitorService(
     EduOSDbContext db, ICurrentUserService user, TimeProvider clock,
@@ -319,6 +319,51 @@ public sealed class FacilityVisitorService(
         {
             logger.LogWarning(ex, "Visitor transition lock contention");
             return ApiResponse<FacilityVisitorDto>.ErrorResponse("Visitor appointment busy; retry.", 409);
+        }
+    }
+
+
+    /// <summary>Manager-only consistent 31-day, 500-row operational summary without visitor PII.</summary>
+    public async Task<ApiResponse<IReadOnlyList<FacilityVisitorExportRowDto>>> ExportSnapshotAsync(
+        long campusId, DateTime fromUtc, DateTime toUtc, CancellationToken ct = default)
+    {
+        if (!ValidTenant || !Manager || !await ActorActiveAsync(ct) || !await ManagerLiveAsync(ct))
+            return Denied<IReadOnlyList<FacilityVisitorExportRowDto>>();
+        if (campusId <= 0 || fromUtc.Kind != DateTimeKind.Utc || toUtc.Kind != DateTimeKind.Utc ||
+            fromUtc >= toUtc || toUtc - fromUtc > TimeSpan.FromDays(31))
+            return ApiResponse<IReadOnlyList<FacilityVisitorExportRowDto>>.ErrorResponse(
+                "A campus and a valid UTC window of at most 31 days are required.", 400);
+        try
+        {
+            await using var tx = db.Database.IsRelational()
+                ? await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct) : null;
+            if (!await Campuses().ContainsAsync(campusId, ct))
+                return Denied<IReadOnlyList<FacilityVisitorExportRowDto>>();
+            var rows = await db.Set<FacilityVisitorVisit>().AsNoTracking()
+                .Where(v => v.TenantId == user.TenantId && !v.IsDeleted &&
+                    v.CampusId == campusId && v.VisitStartUtc >= fromUtc && v.VisitStartUtc < toUtc)
+                .OrderByDescending(v => v.VisitStartUtc).ThenByDescending(v => v.Id)
+                .Take(501)
+                .Select(v => new FacilityVisitorExportRowDto
+                {
+                    VisitId = v.Id, CampusId = v.CampusId, StateCode = v.StateCode,
+                    VisitStartUtc = v.VisitStartUtc, VisitEndUtc = v.VisitEndUtc,
+                    CheckedInAtUtc = v.CheckedInAtUtc, CheckedOutAtUtc = v.CheckedOutAtUtc,
+                    IncidentCount = db.Set<FacilityVisitorEvent>().Count(e =>
+                        e.TenantId == user.TenantId && !e.IsDeleted &&
+                        e.FacilityVisitorVisitId == v.Id && e.ActionCode == "incident")
+                }).ToListAsync(ct);
+            if (rows.Count > 500)
+                return ApiResponse<IReadOnlyList<FacilityVisitorExportRowDto>>.ErrorResponse(
+                    "More than 500 visits; narrow the UTC date window.", 413);
+            if (tx != null) await tx.CommitAsync(ct);
+            return ApiResponse<IReadOnlyList<FacilityVisitorExportRowDto>>.SuccessResponse(rows);
+        }
+        catch (Microsoft.Data.SqlClient.SqlException ex) when (ex.Number is 1205 or 1222)
+        {
+            logger.LogWarning(ex, "Visitor summary snapshot lock contention for tenant {TenantId}", user.TenantId);
+            return ApiResponse<IReadOnlyList<FacilityVisitorExportRowDto>>.ErrorResponse(
+                "Visitor summary is busy; retry with the same filters.", 409);
         }
     }
 

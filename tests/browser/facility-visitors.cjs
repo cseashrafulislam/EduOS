@@ -30,7 +30,7 @@ function html(bn, manager) {
     assert(!/@\(bn|@if \(manager\)|@Html\.AntiForgeryToken/.test(h), 'Unprocessed Razor');
     return '<!doctype html><html lang="' + (bn ? 'bn-BD' : 'en-BD') +
         '"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body>' +
-        h + '</body></html>';
+        h + '<div id="eduosSessionShield" hidden></div></body></html>';
 }
 async function run(browser, bn, manager, mobile) {
     const context = await browser.newContext({ viewport: mobile ? { width: 390, height: 844 } : { width: 1280, height: 800 } });
@@ -43,6 +43,9 @@ async function run(browser, bn, manager, mobile) {
         calls.push({ url: url.pathname, method: req.method(),
             token: req.headers()['requestverificationtoken'], body: req.postDataJSON?.() });
         const respond = data => route.fulfill({ contentType: 'application/json', body: JSON.stringify(ok(data)) });
+        if (url.pathname.endsWith('/export'))
+            return route.fulfill({ contentType: 'text/csv; charset=utf-8',
+                body: 'VisitId,CampusId,State,VisitStartUtc,VisitEndUtc,CheckedInUtc,CheckedOutUtc,IncidentCount\r\n17,12,CheckedIn,,,,,1\r\n' });
         if (url.pathname.endsWith('/hosts')) return respond({ items: [{ userId: 3, displayName: 'Staff Host' }] });
         if (url.pathname.endsWith('/history')) return respond({ items: [{ actionCode: 'incident',
             occurredAtUtc: new Date().toISOString(), reason: manager ? 'Observed badge handoff.' : null }] });
@@ -51,6 +54,12 @@ async function run(browser, bn, manager, mobile) {
     });
     try {
         await page.goto('http://localhost/FacilityVisitors/Index');
+        await page.evaluate(() => {
+            document.body.dataset.authTenantId = 'test-tenant';
+            document.body.dataset.authSessionReference = 'visitor-session';
+            window.EduOSVerifySessionContext = async () => {};
+            window.EduOSSessionTransitionPending = () => false;
+        });
         await page.addStyleTag({ path: bootstrap });
         await page.addScriptTag({ path: script });
         await page.locator('#fvRows article').first().waitFor();
@@ -58,6 +67,7 @@ async function run(browser, bn, manager, mobile) {
         assert.match(await page.locator('#fvRows article').first().innerText(), /Guest <img/);
         assert.equal(await page.locator('#fvCreate').count(), manager ? 1 : 0);
         if (!manager) {
+            assert.equal(await page.locator('#fvExport').count(), 0);
             const hostPost = page.waitForResponse(response => response.request().method() === 'POST' &&
                 new URL(response.url()).pathname.endsWith('/hostapprove'));
             await page.locator('#fvRows button').filter({ hasText: bn ? 'অনুমোদন' : 'Approve' }).click();
@@ -89,6 +99,16 @@ async function run(browser, bn, manager, mobile) {
             });
             assert.ok(calls.some(c => c.url === '/api/facilities/visitors' && c.method === 'POST' &&
                 c.token === 'visitor-csrf' && c.body.visitorName === 'Visitor Demo'));
+            await page.locator('#fvExportCampus').fill('12');
+            await page.locator('#fvExportFrom').fill('2026-11-01T00:00');
+            await page.locator('#fvExportTo').fill('2026-11-02T00:00');
+            const downloadEvent = page.waitForEvent('download');
+            await page.locator('#fvExportButton').click();
+            const download = await downloadEvent;
+            const csv = fs.readFileSync(await download.path(), 'utf8');
+            assert.match(csv, /VisitId,CampusId,State/);
+            assert.doesNotMatch(csv, /Guest|Meeting|GUEST-01|badge handoff/);
+            assert.ok(calls.some(c => c.url.endsWith('/export') && c.method === 'GET'));
             await page.locator('#fvReason').fill('Observed badge handoff.');
             const incidentPost = page.waitForResponse(response => response.request().method() === 'POST' &&
                 new URL(response.url()).pathname.endsWith('/incident'));

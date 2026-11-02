@@ -13,7 +13,12 @@ test('visitor UI is bilingual, scoped and safely renders server-provided PII', (
     assert.match(page, /CultureInfo\.CurrentUICulture/);
     assert.match(page, /@Html\.AntiForgeryToken\(\)/);
     assert.match(page, /প্রি-রেজিস্ট্রেশন/);
-    assert.match(page, /retention deletion and export are not yet enabled/);
+    assert.match(page, /PII-minimized visit summary CSV/);
+    assert.match(page, /fvExportCampus/);
+    assert.match(script, /EduOSVerifySessionContext/);
+    assert.match(script, /URL\.createObjectURL/);
+    assert.match(script, /exportEpoch/);
+    assert.match(api, /HttpGet\("export"\)/);
     assert.match(script, /credentials: 'same-origin'/);
     assert.match(script, /cache: 'no-store'/);
     assert.match(script, /RequestVerificationToken/);
@@ -45,6 +50,10 @@ test('visitor transitions enforce independent host approval and active badge uni
     assert.match(service, /action == "incident"/);
     assert.match(service, /CheckedOutAtUtc\.Value\.AddHours\(24\)/);
     assert.match(service, /Manager && e\.ActionCode == "incident"/);
+    assert.match(service, /ExportSnapshotAsync/);
+    assert.match(service, /\.Take\(501\)/);
+    assert.match(service, /ManagerLiveAsync/);
+    assert.doesNotMatch(service.slice(service.indexOf('public async Task<ApiResponse<IReadOnlyList<FacilityVisitorExportRowDto>>> ExportSnapshotAsync'), service.indexOf('public async Task<ApiResponse<PagedResult<FacilityVisitorEventDto>>> HistoryAsync')), /VisitorName|Purpose|BadgeCode|HostUserId|\.Reason/);
     assert.match(context, /IX_FacilityVisitorVisits|FacilityVisitorVisit/);
     assert.match(migration, /\[StateCode\] = N'CheckedIn'/);
     assert.match(migration, /FK_FacilityVisitorEvents_FacilityVisitorVisits/);

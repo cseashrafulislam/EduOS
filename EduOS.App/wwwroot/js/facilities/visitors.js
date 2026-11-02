@@ -154,5 +154,63 @@
             await load();
         } catch (err) { status(err.message); }
     });
+
+    // Never release a CSV after tenant/session change, or after a newer export request.
+    let exportEpoch = 0;
+    $('fvExport')?.addEventListener('submit', async event => {
+        event.preventDefault();
+        const button = $('fvExportButton');
+        const campusId = Number($('fvExportCampus').value);
+        const fromUtc = utc('fvExportFrom'), toUtc = utc('fvExportTo');
+        if (!Number.isSafeInteger(campusId) || campusId <= 0 || !fromUtc || !toUtc ||
+            new Date(toUtc) <= new Date(fromUtc) ||
+            new Date(toUtc) - new Date(fromUtc) > 31 * 86400000) {
+            status(label('Choose a campus and a window of at most 31 days.',
+                'ক্যাম্পাস ও সর্বোচ্চ ৩১ দিনের সময়সীমা নির্বাচন করুন।'));
+            return;
+        }
+        const epoch = ++exportEpoch;
+        const tenant = document.body?.dataset.authTenantId || '';
+        const session = document.body?.dataset.authSessionReference || '';
+        const verify = async () => {
+            if (!tenant || !session || !window.EduOSVerifySessionContext ||
+                window.EduOSSessionTransitionPending?.() ||
+                document.body?.dataset.authTenantId !== tenant ||
+                document.body?.dataset.authSessionReference !== session)
+                throw new Error(label('Institution session changed; reload.',
+                    'প্রতিষ্ঠানের সেশন পরিবর্তিত; পুনরায় লোড করুন।'));
+            await window.EduOSVerifySessionContext();
+            if (window.EduOSSessionTransitionPending?.() ||
+                document.body?.dataset.authTenantId !== tenant ||
+                document.body?.dataset.authSessionReference !== session ||
+                epoch !== exportEpoch)
+                throw new Error(label('Institution session changed; reload.',
+                    'প্রতিষ্ঠানের সেশন পরিবর্তিত; পুনরায় লোড করুন।'));
+        };
+        button.disabled = true;
+        try {
+            await verify();
+            const query = new URLSearchParams({ campusId: String(campusId), fromUtc, toUtc });
+            const response = await fetch('/api/facilities/visitors/export?' + query, {
+                credentials: 'same-origin', cache: 'no-store', headers: { Accept: 'text/csv' }
+            });
+            if (!response.ok) {
+                const payload = await response.json().catch(() => null);
+                throw new Error(payload?.message || label('Export denied; narrow filters or reload.',
+                    'এক্সপোর্ট প্রত্যাখ্যাত; সময়সীমা কমান বা রিলোড করুন।'));
+            }
+            if (!(response.headers.get('content-type') || '').includes('text/csv'))
+                throw new Error(label('Unexpected export response.', 'অপ্রত্যাশিত এক্সপোর্ট ফলাফল।'));
+            const blob = await response.blob();
+            await verify();
+            const href = URL.createObjectURL(blob);
+            const anchor = document.createElement('a');
+            anchor.href = href; anchor.download = 'facility-visitor-access-summary.csv';
+            document.body.append(anchor); anchor.click(); anchor.remove();
+            setTimeout(() => URL.revokeObjectURL(href), 1000);
+            status(label('PII-minimized CSV exported.', 'পরিচয়বিহীন সীমিত CSV এক্সপোর্ট হয়েছে।'));
+        } catch (error) { if (epoch === exportEpoch) status(error.message); }
+        finally { if (epoch === exportEpoch) button.disabled = false; }
+    });
     load();
 })();

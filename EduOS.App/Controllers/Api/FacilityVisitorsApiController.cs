@@ -1,3 +1,5 @@
+using System.Globalization;
+using System.Text;
 using EduOS.App.Authorization;
 using EduOS.Core.Common;
 using EduOS.Core.DTOs.Facilities;
@@ -32,6 +34,35 @@ public sealed class FacilityVisitorsApiController(IFacilityVisitorService servic
     public async Task<IActionResult> Transition(long id, string action,
         [FromBody] FacilityVisitorTransitionDto request, CancellationToken ct) =>
         Reply(await service.TransitionAsync(id, action, request, ct));
+
+
+    [HttpGet("export"), Authorize(Roles = "TenantAdmin,Principal,FacilitiesManager")]
+    public async Task<IActionResult> Export(long campusId, DateTime fromUtc, DateTime toUtc,
+        CancellationToken ct = default)
+    {
+        var snapshot = await service.ExportSnapshotAsync(campusId, fromUtc, toUtc, ct);
+        if (!snapshot.Success || snapshot.Data == null) return Reply(snapshot);
+        var bn = CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "bn";
+        static string Csv(object? value)
+        {
+            var text = Convert.ToString(value, CultureInfo.InvariantCulture) ?? "";
+            if (text.TrimStart().Length > 0 && "=+-@".Contains(text.TrimStart()[0]))
+                text = "'" + text;
+            return "\"" + text.Replace("\"", "\"\"") + "\"";
+        }
+        var csv = new StringBuilder(bn
+            ? "ভিজিট,ক্যাম্পাস,অবস্থা,নির্ধারিত শুরু UTC,নির্ধারিত শেষ UTC,প্রবেশ UTC,প্রস্থান UTC,ঘটনার সংখ্যা\r\n"
+            : "VisitId,CampusId,State,VisitStartUtc,VisitEndUtc,CheckedInUtc,CheckedOutUtc,IncidentCount\r\n");
+        foreach (var row in snapshot.Data)
+            csv.AppendJoin(',', Csv(row.VisitId), Csv(row.CampusId), Csv(row.StateCode),
+                Csv(row.VisitStartUtc.ToString("O", CultureInfo.InvariantCulture)),
+                Csv(row.VisitEndUtc.ToString("O", CultureInfo.InvariantCulture)),
+                Csv(row.CheckedInAtUtc?.ToString("O", CultureInfo.InvariantCulture)),
+                Csv(row.CheckedOutAtUtc?.ToString("O", CultureInfo.InvariantCulture)),
+                Csv(row.IncidentCount)).Append("\r\n");
+        return File(new UTF8Encoding(true).GetBytes(csv.ToString()), "text/csv; charset=utf-8",
+            "facility-visitor-access-summary.csv");
+    }
 
     [HttpGet("{id:long}/history")]
     public async Task<IActionResult> History(long id, int page = 1, int pageSize = 25,

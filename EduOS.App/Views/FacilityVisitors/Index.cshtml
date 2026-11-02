@@ -10,8 +10,8 @@
     <header class="mb-3">
         <h2 class="h4">@(bn ? "ভিজিটর প্রি-রেজিস্ট্রেশন ও প্রবেশ নিয়ন্ত্রণ" : "Visitor Preregistration & Access Control")</h2>
         <p class="text-muted small">@(bn
-            ? "ডেস্ক কর্মকর্তা ভবিষ্যৎ ভিজিট নিবন্ধন করবেন; আলাদা হোস্ট অনুমোদন দেবেন; অনুমোদিত সময়ের মধ্যে ব্যাজ দিয়ে প্রবেশ এবং পরে প্রস্থান নথিভুক্ত হবে। জাতীয় পরিচয়পত্র, ফোন বা ছবি সংগ্রহ করা হয় না। ঘটনা নথিভুক্ত করা যায়; retention deletion ও export এখনো চালু নয়।"
-            : "The desk preregisters a future visit, a separate host approves it, and the desk records badge check-in and check-out within the approved window. No ID document, phone or photo is collected. The desk can record an incident; retention deletion and export are not yet enabled.")</p>
+            ? "ডেস্ক কর্মকর্তা ভবিষ্যৎ ভিজিট নিবন্ধন করবেন; আলাদা হোস্ট অনুমোদন দেবেন; অনুমোদিত সময়ের মধ্যে ব্যাজ দিয়ে প্রবেশ এবং পরে প্রস্থান নথিভুক্ত হবে। জাতীয় পরিচয়পত্র, ফোন বা ছবি সংগ্রহ করা হয় না। ঘটনা নথিভুক্ত করা যায়; retention deletion ও সাইট নীতি এখনো চালু নয়। ডেস্ক কর্মকর্তা পরিচয়বিহীন সীমিত সারাংশ CSV নিতে পারবেন।"
+            : "The desk preregisters a future visit, a separate host approves it, and the desk records badge check-in and check-out within the approved window. No ID document, phone or photo is collected. The desk can record an incident; retention deletion and configurable site policy are not yet enabled. Managers may export a bounded summary without visitor identity or incident narrative.")</p>
     </header>
     @Html.AntiForgeryToken()
     <div id="fvStatus" class="alert alert-secondary small" role="status" aria-live="polite">
@@ -35,6 +35,18 @@
                 <div class="col-md-3"><label for="fvEnd" class="form-label">@(bn ? "প্রস্থানের নির্ধারিত সময়" : "Visit end")</label>
                     <input id="fvEnd" class="form-control" type="datetime-local" required /></div>
                 <div class="col-12"><button class="btn btn-primary" type="submit">@(bn ? "প্রি-রেজিস্টার" : "Preregister")</button></div>
+            </div>
+        </form>
+        <form id="fvExport" class="card card-body mb-3">
+            <h3 class="h6">@(bn ? "সীমিত তথ্যের ভিজিট সারাংশ CSV" : "PII-minimized visit summary CSV")</h3>
+            <div class="row g-2 align-items-end">
+                <div class="col-md-3"><label for="fvExportCampus" class="form-label">@(bn ? "ক্যাম্পাস আইডি" : "Campus ID")</label>
+                    <input id="fvExportCampus" class="form-control" type="number" min="1" required /></div>
+                <div class="col-md-3"><label for="fvExportFrom" class="form-label">@(bn ? "শুরু (স্থানীয় সময়)" : "From (local time)")</label>
+                    <input id="fvExportFrom" class="form-control" type="datetime-local" required /></div>
+                <div class="col-md-3"><label for="fvExportTo" class="form-label">@(bn ? "শেষ (স্থানীয় সময়)" : "To (local time)")</label>
+                    <input id="fvExportTo" class="form-control" type="datetime-local" required /></div>
+                <div class="col-md-3"><button id="fvExportButton" class="btn btn-outline-secondary w-100" type="submit">@(bn ? "CSV এক্সপোর্ট" : "Export CSV")</button></div>
             </div>
         </form>
     }

@@ -253,6 +253,34 @@ public sealed class SqlServerFacilityVisitorTests
             Assert.Equal(1, await db.Set<FacilityVisitorEvent>().CountAsync(e =>
                 e.FacilityVisitorVisitId == first.Id && e.ActionCode == "incident"));
         }
+
+        // Bounded, manager-only summary omits visitor PII, badge and incident narrative.
+        await using (var db = Db(options, tenantId, managerId, "FacilitiesManager"))
+        {
+            var service = Service(db, tenantId, managerId, "FacilitiesManager");
+            var snapshot = await service.ExportSnapshotAsync(campusId,
+                start.AddMinutes(-1), end.AddMinutes(1));
+            Assert.True(snapshot.Success, snapshot.Message);
+            Assert.Equal(2, snapshot.Data!.Count);
+            Assert.Equal(1, snapshot.Data.Single(x => x.VisitId == first.Id).IncidentCount);
+            var serialized = System.Text.Json.JsonSerializer.Serialize(snapshot.Data);
+            Assert.DoesNotContain("Guest One", serialized);
+            Assert.DoesNotContain("Scheduled campus meeting", serialized);
+            Assert.DoesNotContain("GUEST-01", serialized);
+            Assert.DoesNotContain("Observed unauthorized badge transfer", serialized);
+            Assert.Equal(400, (await service.ExportSnapshotAsync(campusId,
+                start.AddDays(-32), end)).StatusCode);
+            Assert.Equal(400, (await service.ExportSnapshotAsync(campusId,
+                DateTime.SpecifyKind(start, DateTimeKind.Unspecified), end)).StatusCode);
+            Assert.Equal(403, (await service.ExportSnapshotAsync(campusId + 999,
+                start.AddMinutes(-1), end)).StatusCode);
+        }
+        await using (var db = Db(options, tenantId, hostId, "Staff"))
+            Assert.Equal(403, (await Service(db, tenantId, hostId, "Staff")
+                .ExportSnapshotAsync(campusId, start.AddMinutes(-1), end)).StatusCode);
+        await using (var db = Db(options, otherTenantId, outsiderId, "FacilitiesManager"))
+            Assert.Equal(403, (await Service(db, otherTenantId, outsiderId, "FacilitiesManager")
+                .ExportSnapshotAsync(campusId, start.AddMinutes(-1), end)).StatusCode);
     }
 
     private static EduOSDbContext Db(DbContextOptions<EduOSDbContext> options,

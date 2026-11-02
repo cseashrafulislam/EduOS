@@ -49,3 +49,16 @@ public sealed class FacilityVisitorEventDto
     // Incident narrative is visible only to authorized Facilities desk staff.
     public string? Reason { get; set; }
 }
+
+// PII-minimized operational export: no visitor name, purpose, badge, host or incident narrative.
+public sealed class FacilityVisitorExportRowDto
+{
+    public long VisitId { get; set; }
+    public long CampusId { get; set; }
+    public string StateCode { get; set; } = string.Empty;
+    public DateTime VisitStartUtc { get; set; }
+    public DateTime VisitEndUtc { get; set; }
+    public DateTime? CheckedInAtUtc { get; set; }
+    public DateTime? CheckedOutAtUtc { get; set; }
+    public int IncidentCount { get; set; }
+}
