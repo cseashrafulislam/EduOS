@@ -49,11 +49,11 @@ async function verify(browser,lang) {
   await page.goto('http://localhost:4173/FeeOperations/Billing');
   await page.addScriptTag({path:localeScript});
   await page.addScriptTag({path:financeScript});
-  await page.locator('#feeBatch option[value="7"]').waitFor();
+  await page.locator('#feeBatch option[value="7"]').waitFor({state:'attached'});
   await page.locator('#feePreview').click();
   assert.match(await page.locator('#feeAlert').innerText(),lang==='bn-BD'?/ব্যাচ, ফি কাঠামো/:/Choose a batch/);
   await page.locator('#feeBatch').selectOption('7');
-  await page.locator('#feeInvoiceStructure option[value="8"]').waitFor();
+  await page.locator('#feeInvoiceStructure option[value="8"]').waitFor({state:'attached'});
   await page.locator('#feeInvoiceStructure').selectOption('8');
   const now=new Date(),year=now.getFullYear(),month=now.getMonth()+1;
   const due=year+'-'+String(month).padStart(2,'0')+'-'+String(new Date(year,month,0).getDate()).padStart(2,'0');
