@@ -15,7 +15,7 @@ const assetHtml=part(asset,'<section id="assetAccountingWorkspace"','@section Sc
  .split('data-maker="@maker.ToString().ToLowerInvariant()"').join('data-maker="true"')
  .split('data-checker="@checker.ToString().ToLowerInvariant()"').join('data-checker="true"');
 const shell=(lang,body,scripts='')=>'<!doctype html><html lang="'+lang+'"><head>'+
- '<meta name="request-verification-token" content="synthetic-only"><style>.d-none{display:none!important}</style>'+
+ '<meta charset="utf-8"><meta name="request-verification-token" content="synthetic-only"><style>.d-none{display:none!important}</style>'+
  '</head><body>'+body+scripts+'</body></html>';
 const json=(data,status=200)=>({status,contentType:'application/json',
  body:JSON.stringify(status===200?{success:true,data}:{success:false,message:data})});
