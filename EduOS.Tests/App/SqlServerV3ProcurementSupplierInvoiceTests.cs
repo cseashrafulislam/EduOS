@@ -1143,6 +1143,8 @@ public sealed partial class SqlServerV3ProcurementPurchaseOrderTests
                     assetReference,request)).StatusCode);
                 // Real SQL campus revocation acceptance for Supplier AP read
                 // surfaces, using the same physical source campus as this asset.
+                var sourceCampusId = await assetMaker.Assets.AsNoTracking()
+                    .Where(x=>x.PublicId==assetReference).Select(x=>x.CampusId).SingleAsync();
                 var limitedInvoices = new ProcurementSupplierInvoiceService(assetMaker,limitedActor,
                     new InventoryMovementService(assetMaker,limitedActor,TimeProvider.System,
                         NullLogger<InventoryMovementService>.Instance),
@@ -1151,7 +1153,7 @@ public sealed partial class SqlServerV3ProcurementPurchaseOrderTests
                 Assert.Empty((await limitedInvoices.ListAsync(null,null,1,25)).Data!.Items);
                 Assert.Empty((await limitedInvoices.AgingAsync(date,null,false,1,25)).Data!.Items);
                 assetMaker.UserCampusAccesses.Add(new UserCampusAccess {
-                    TenantId=tenantId,UserId=makerId,CampusId=campusId,
+                    TenantId=tenantId,UserId=makerId,CampusId=sourceCampusId,
                     IsActive=true,IsDefault=false });
                 await assetMaker.SaveChangesAsync();
                 Assert.Equal(200,(await limitedInvoices.GetAsync(second.Reference)).StatusCode);
@@ -1160,7 +1162,7 @@ public sealed partial class SqlServerV3ProcurementPurchaseOrderTests
                 Assert.Contains((await limitedInvoices.AgingAsync(date,null,false,1,25)).Data!.Items,
                     x=>x.InvoiceReference==second.Reference);
                 Assert.Equal(1,await assetMaker.UserCampusAccesses
-                    .Where(x=>x.TenantId==tenantId && x.UserId==makerId && x.CampusId==campusId)
+                    .Where(x=>x.TenantId==tenantId && x.UserId==makerId && x.CampusId==sourceCampusId)
                     .ExecuteUpdateAsync(s=>s.SetProperty(x=>x.IsActive,false)));
                 Assert.Equal(404,(await limitedInvoices.GetAsync(second.Reference)).StatusCode);
                 Assert.Empty((await limitedInvoices.ListAsync(null,null,1,25)).Data!.Items);
