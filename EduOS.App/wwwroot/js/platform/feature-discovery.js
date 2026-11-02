@@ -61,7 +61,8 @@
     // The catalogue is server-authorized at render time. A changed session or
     // tenant must not leave its stale links, favorites or search dialog usable.
     function contextStatus(tenant, session, currentTenant, currentSession, transitioning, shieldVisible) {
-        if (tenant !== currentTenant || session !== currentSession || transitioning) return 'changed';
+        if (!tenant || !session || !currentTenant || !currentSession ||
+            tenant !== currentTenant || session !== currentSession || transitioning) return 'changed';
         return shieldVisible ? 'verifying' : 'ready';
     }
 
@@ -119,7 +120,7 @@
     const shield = document.getElementById('eduosSessionShield');
     let invalidated = false;
     function status() {
-        if (invalidated) return 'changed';
+        if (invalidated || typeof window.EduOSVerifySessionContext !== 'function') return 'changed';
         return contextStatus(tenant, session,
             document.body.dataset.authTenantId || '',
             document.body.dataset.authSessionReference || '',
@@ -146,9 +147,13 @@
     }
     async function verifiedContext() {
         if (!currentContext()) return false;
-        if (typeof window.EduOSVerifySessionContext === 'function') {
-            try { await window.EduOSVerifySessionContext(); }
-            catch { return false; }
+        try { await window.EduOSVerifySessionContext(); }
+        catch {
+            // A rejected verification is terminal for this document. Never leave
+            // an already-open search dialog or favorites usable after revocation.
+            invalidated = true;
+            currentContext();
+            return false;
         }
         return currentContext();
     }
